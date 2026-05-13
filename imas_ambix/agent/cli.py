@@ -59,12 +59,8 @@ def _resolve_api_key(cli_value: str | None) -> str | None:
     return os.environ.get("AMBIX_AGENT_API_KEY")
 
 
-def _default_profile() -> str | None:
-    """Resolve default profile: envvar > pyproject.toml [tool.ambix.agent]."""
-    env_val = os.environ.get("AMBIX_AGENT_DEFAULT_PROFILE")
-    if env_val:
-        return env_val
-    # Walk up from cwd to find pyproject.toml
+def _agent_config() -> dict[str, str]:
+    """Resolve ``[tool.ambix.agent]`` from nearest pyproject.toml."""
     for parent in [Path.cwd(), *Path.cwd().parents]:
         pyproject = parent / "pyproject.toml"
         if pyproject.is_file():
@@ -72,15 +68,26 @@ def _default_profile() -> str | None:
 
             try:
                 data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-                return (
-                    data.get("tool", {})
-                    .get("ambix", {})
-                    .get("agent", {})
-                    .get("default_profile")
-                )
+                return data.get("tool", {}).get("ambix", {}).get("agent", {})
             except Exception:
-                return None
-    return None
+                return {}
+    return {}
+
+
+def _default_profile() -> str | None:
+    """Resolve default profile: envvar > pyproject.toml [tool.ambix.agent]."""
+    env_val = os.environ.get("AMBIX_AGENT_DEFAULT_PROFILE")
+    if env_val:
+        return env_val
+    return _agent_config().get("default_profile")
+
+
+def _default_url() -> str | None:
+    """Resolve default URL: envvar > pyproject.toml [tool.ambix.agent]."""
+    env_val = os.environ.get("AMBIX_AGENT_URL")
+    if env_val:
+        return env_val
+    return _agent_config().get("url")
 
 
 def _resolve_slug(slug: str | None) -> str:
@@ -347,7 +354,7 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
 
 @agent.command()
 @click.argument("slug", required=False)
-@click.option("--url", default=None, help="Server base URL (e.g., http://host:8000).")
+@click.option("--url", default=None, help="Server base URL (default: from site config).")
 @click.option(
     "--model",
     "model_name",
@@ -371,10 +378,12 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
 @click.option(
     "--max-context", type=int, default=None, help="Max context for context tests."
 )
-@click.option("--json", "json_output", is_flag=True, help="Output raw JSON.")
+@click.option("--json", "json_output", is_flag=True, help="Output raw JSON only.")
 @click.option(
-    "--output", "output_path", type=click.Path(), help="Write JSON results to file."
+    "--output", "output_path", type=click.Path(), default=None,
+    help="Write JSON results to file (default: ~/.local/share/ambix/bench/).",
 )
+@click.option("--no-save", is_flag=True, help="Disable auto-saving results.")
 @click.option("--warmup/--no-warmup", default=True, help="Run warmup request.")
 def bench(
     slug: str | None,
@@ -386,13 +395,20 @@ def bench(
     max_context: int | None,
     json_output: bool,
     output_path: str | None,
+    no_save: bool,
     warmup: bool,
 ) -> None:
     """Comprehensive LLM benchmark suite.
 
-    Run against a profile: ambix agent bench deepseek-v4-flash
+    \b
+    Run with defaults (uses default profile + site GPU host):
+        ambix agent bench
 
-    Run against any endpoint: ambix agent bench --url http://host:8000 --model my-model
+    \b
+    Run against any endpoint:
+        ambix agent bench --url http://host:8000 --model my-model
+
+    Results are auto-saved to ~/.local/share/ambix/bench/ unless --no-save.
     """
     import json as json_mod
     import urllib.error
@@ -406,7 +422,7 @@ def bench(
     resolved_slug = slug or _default_profile()
     if resolved_slug:
         profile = _load_profile(resolved_slug)
-        base_url = url or "http://localhost:8000"
+        base_url = url or _default_url() or "http://localhost:8000"
         model = model_name or profile.model.served_name
     elif url:
         base_url = url
@@ -453,20 +469,41 @@ def bench(
         api_key=resolved_key,
     )
 
-    # JSON output
+    # Auto-save results
+    save_path: Path | None = None
+    if output_path:
+        save_path = Path(output_path)
+    elif not no_save:
+        import datetime as _dt
+
+        bench_dir = Path.home() / ".local" / "share" / "ambix" / "bench"
+        bench_dir.mkdir(parents=True, exist_ok=True)
+        ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        save_path = bench_dir / f"{model}_{ts}.json"
+
+    if save_path:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        save_path.write_text(report.to_json(), encoding="utf-8")
+
+    # JSON-only output
     if json_output:
         click.echo(report.to_json())
-        if output_path:
-            with open(output_path, "w") as f:
-                f.write(report.to_json())
+        if save_path:
+            console.print(f"[dim]Results saved to {save_path}[/]", err=True)
         return
 
-    if output_path:
-        with open(output_path, "w") as f:
-            f.write(report.to_json())
-        console.print(f"Results written to {output_path}")
-
     # Rich per-category tables
+    _render_report(report, model, repeat)
+
+    if save_path:
+        console.print(f"\n[dim]Results saved to {save_path}[/]")
+
+
+def _render_report(
+    report: "BenchReport", model: str, repeat: int = 1
+) -> None:
+    """Render benchmark results as rich tables to the console."""
+    from rich.panel import Panel
     from rich.table import Table as RichTable
 
     grouped: dict[str, list] = {}
@@ -474,6 +511,10 @@ def bench(
         grouped.setdefault(r.category, []).append(r)
 
     for cat, results in grouped.items():
+        if cat == "concurrency":
+            _render_concurrency(results, repeat)
+            continue
+
         table = RichTable(title=f"{cat.title()}")
         table.add_column("Test", style="cyan")
         table.add_column("Status")
@@ -485,12 +526,7 @@ def bench(
         table.add_column("Notes")
 
         for r in results:
-            status_str = {
-                "passed": "[green]✓[/]",
-                "failed": "[red]✗[/]",
-                "skipped": "[yellow]⊘[/]",
-                "error": "[red]E[/]",
-            }.get(r.status, r.status)
+            status_str = _status_icon(r.status)
             notes = r.error or r.metadata.get("note", "")
             tps = f"{r.decode_tps:.1f}" if r.decode_tps > 0 else "—"
             ttft = r.time_to_first_token_s
@@ -510,7 +546,7 @@ def bench(
         console.print(table)
         console.print()
 
-    # Summary table
+    # Summary
     summary = report.summary()
     if summary:
         stbl = RichTable(title=f"Summary — {model}")
@@ -534,6 +570,58 @@ def bench(
                 f"{p95['p95'] * 1000:.0f}" if p95["p95"] > 0 else "—",
             )
         console.print(stbl)
+
+
+def _status_icon(status: str) -> str:
+    return {
+        "passed": "[green]✓[/]",
+        "failed": "[red]✗[/]",
+        "skipped": "[yellow]⊘[/]",
+        "error": "[red]E[/]",
+    }.get(status, status)
+
+
+def _render_concurrency(results: list, repeat: int) -> None:
+    """Render concurrency results with aggregate TPS scaling."""
+    from rich.table import Table as RichTable
+
+    # Group by concurrency level
+    levels: dict[str, list] = {}
+    for r in results:
+        levels.setdefault(r.test_name, []).append(r)
+
+    # Per-worker detail table
+    table = RichTable(title="Concurrency")
+    table.add_column("Workers", style="cyan", justify="right")
+    table.add_column("Status")
+    table.add_column("Per-Stream TPS", justify="right", style="bold green")
+    table.add_column("Aggregate TPS", justify="right", style="bold magenta")
+    table.add_column("Wall Time (s)", justify="right")
+    table.add_column("TTFT (ms)", justify="right")
+
+    for test_name, level_results in levels.items():
+        n_workers = level_results[0].metadata.get("n_workers", "?")
+        ok = [r for r in level_results if r.ok]
+        tps_vals = [r.decode_tps for r in ok if r.decode_tps > 0]
+        avg_tps = sum(tps_vals) / len(tps_vals) if tps_vals else 0
+        agg_tps = level_results[0].metadata.get("aggregate_tps", 0)
+        wall = level_results[0].metadata.get("wall_time", 0)
+        ttft_vals = [
+            r.time_to_first_token_s for r in ok if r.time_to_first_token_s > 0
+        ]
+        avg_ttft = sum(ttft_vals) / len(ttft_vals) * 1000 if ttft_vals else 0
+        all_ok = all(r.ok for r in level_results)
+        table.add_row(
+            str(n_workers),
+            _status_icon("passed" if all_ok else "failed"),
+            f"{avg_tps:.1f}",
+            f"{agg_tps:.1f}",
+            f"{wall:.2f}",
+            f"{avg_ttft:.0f}",
+        )
+
+    console.print(table)
+    console.print()
 
 
 def _engine_pyproject(engine: str) -> str:

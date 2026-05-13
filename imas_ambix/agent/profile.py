@@ -130,6 +130,7 @@ class SiteConfig(BaseModel):
     account: str = "grpa"
     reservation: str = "gpu_0003_grpA"
     default_port: int = 8000
+    gpu_host: str = "98dci4-gpu-0003"
 
     @classmethod
     def from_env(cls) -> SiteConfig:
@@ -145,7 +146,13 @@ class SiteConfig(BaseModel):
                 "AMBIX_AGENT_RESERVATION", "gpu_0003_grpA"
             ),
             default_port=int(os.environ.get("AMBIX_AGENT_PORT", "8000")),
+            gpu_host=os.environ.get("AMBIX_AGENT_GPU_HOST", "98dci4-gpu-0003"),
         )
+
+    @property
+    def default_url(self) -> str:
+        """Default server URL constructed from gpu_host and default_port."""
+        return f"http://{self.gpu_host}:{self.default_port}"
 
     def _engine_key(self, engine_type: str) -> str:
         """Map engine type to venv directory name.

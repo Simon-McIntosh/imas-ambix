@@ -94,6 +94,12 @@ def test_site_config_engine_isolation():
     assert "sglang" in str(sglang_dir)
 
 
+def test_site_config_gpu_host():
+    site = SiteConfig()
+    assert site.gpu_host == "98dci4-gpu-0003"
+    assert site.default_url == "http://98dci4-gpu-0003:8000"
+
+
 def test_site_config_from_env(monkeypatch):
     monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", "/tmp/test")
     monkeypatch.setenv("AMBIX_AGENT_PARTITION", "test-partition")
@@ -548,6 +554,32 @@ def test_default_profile_envvar_overrides(monkeypatch):
 
     monkeypatch.setenv("AMBIX_AGENT_DEFAULT_PROFILE", "kimi-k2-6")
     assert _default_profile() == "kimi-k2-6"
+
+
+def test_default_url_from_pyproject():
+    """Should resolve url from pyproject.toml."""
+    from imas_ambix.agent.cli import _default_url
+
+    result = _default_url()
+    assert result == "http://98dci4-gpu-0003:8000"
+
+
+def test_default_url_envvar_overrides(monkeypatch):
+    """Envvar should override pyproject url."""
+    from imas_ambix.agent.cli import _default_url
+
+    monkeypatch.setenv("AMBIX_AGENT_URL", "http://my-host:9000")
+    assert _default_url() == "http://my-host:9000"
+
+
+def test_agent_config_returns_dict():
+    """_agent_config should return tool.ambix.agent section."""
+    from imas_ambix.agent.cli import _agent_config
+
+    cfg = _agent_config()
+    assert isinstance(cfg, dict)
+    assert cfg.get("default_profile") == "deepseek-v4-flash"
+    assert cfg.get("url") == "http://98dci4-gpu-0003:8000"
 
 
 def test_resolve_slug_explicit():
