@@ -187,123 +187,181 @@ def status() -> None:
 
 
 @agent.command()
-@click.argument("slug")
+@click.argument("slug", required=False)
+@click.option("--url", default=None, help="Server base URL (e.g., http://host:8000).")
 @click.option(
-    "--url",
+    "--model",
+    "model_name",
     default=None,
-    help="Base URL of the running server (default: http://localhost:8000).",
+    help="Model name for API requests.",
 )
 @click.option(
-    "--preset",
-    type=click.Choice(["short", "medium", "long", "code", "thinking", "all"]),
-    default="all",
-    help="Benchmark preset to run.",
+    "--category",
+    multiple=True,
+    type=click.Choice(
+        ["throughput", "prefill", "context", "tools", "reasoning", "concurrency"]
+    ),
+    help="Categories to run (default: all).",
 )
+@click.option("--repeat", type=int, default=1, help="Repeat each test N times.")
 @click.option(
-    "--repeat",
-    type=int,
-    default=1,
-    help="Number of times to repeat each preset.",
+    "--max-context", type=int, default=None, help="Max context for context tests."
 )
+@click.option("--json", "json_output", is_flag=True, help="Output raw JSON.")
 @click.option(
-    "--tool-test",
-    is_flag=True,
-    help="Include tool-call capability test.",
+    "--output", "output_path", type=click.Path(), help="Write JSON results to file."
 )
-def bench(slug: str, url: str | None, preset: str, repeat: int, tool_test: bool) -> None:
-    """Benchmark a running model server (TPS, TTFT, throughput)."""
-    from rich.table import Table as RichTable
+@click.option("--warmup/--no-warmup", default=True, help="Run warmup request.")
+def bench(
+    slug: str | None,
+    url: str | None,
+    model_name: str | None,
+    category: tuple[str, ...],
+    repeat: int,
+    max_context: int | None,
+    json_output: bool,
+    output_path: str | None,
+    warmup: bool,
+) -> None:
+    """Comprehensive LLM benchmark suite.
 
-    from imas_ambix.agent.bench import (
-        BENCH_PRESETS,
-        BenchSuite,
-        run_bench_preset,
-        run_tool_call_bench,
-    )
+    Run against a profile: ambix agent bench deepseek-v4-flash
 
-    profile = _load_profile(slug)
-    base_url = url or "http://localhost:8000"
-    model = profile.model.served_name
-
-    # Quick health check
-    import json
+    Run against any endpoint: ambix agent bench --url http://host:8000 --model my-model
+    """
+    import json as json_mod
     import urllib.error
     import urllib.request
 
+    from imas_ambix.agent.bench import BenchReport, run_benchmark
+
+    # Resolve base_url and model
+    if slug:
+        profile = _load_profile(slug)
+        base_url = url or "http://localhost:8000"
+        model = model_name or profile.model.served_name
+    elif url:
+        base_url = url
+        model = model_name or "default"
+    else:
+        raise click.ClickException(
+            "Provide a profile slug or --url. "
+            "Example: ambix agent bench deepseek-v4-flash"
+        )
+
+    # Health check
     try:
         with urllib.request.urlopen(f"{base_url}/v1/models", timeout=10) as resp:
-            models_data = json.loads(resp.read())
+            models_data = json_mod.loads(resp.read())
             available = [m["id"] for m in models_data.get("data", [])]
-            if model not in available:
+            if model not in available and available:
                 console.print(
-                    f"[yellow]Warning:[/] model '{model}' not in server models: {available}"
+                    f"[yellow]Warning:[/] '{model}' not in server models: {available}"
                 )
-                if available:
-                    model = available[0]
-                    console.print(f"Using '{model}' instead.")
+                model = available[0]
+                console.print(f"Using '{model}' instead.")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise click.ClickException(
             f"Cannot reach server at {base_url}: {exc}"
         ) from exc
 
-    console.print(f"\n[bold]Benchmarking[/] {model} at {base_url}\n")
+    cats = list(category) if category else None
 
-    presets_to_run = (
-        [p for p in BENCH_PRESETS if p != "tool_use"]
-        if preset == "all"
-        else [preset]
+    console.print(f"\n[bold]Benchmarking[/] {model} at {base_url}")
+    if cats:
+        console.print(f"Categories: {', '.join(cats)}")
+    console.print()
+
+    report: BenchReport = run_benchmark(
+        base_url,
+        model,
+        categories=cats,
+        repeat=repeat,
+        max_context=max_context,
+        warmup=warmup,
     )
 
-    all_suites: list[tuple[str, BenchSuite]] = []
-    for p in presets_to_run:
-        desc = BENCH_PRESETS[p]["description"]
-        console.print(f"  ▸ {p}: {desc} (×{repeat})")
-        suite = run_bench_preset(base_url, model, p, repeat=repeat)
-        all_suites.append((p, suite))
-        for r in suite.results:
-            if r.ok:
-                console.print(
-                    f"    ✓ {r.completion_tokens} tokens in {r.total_time_s:.1f}s "
-                    f"({r.tokens_per_second:.1f} tok/s, "
-                    f"TTFT {r.time_to_first_token_s * 1000:.0f}ms)"
-                )
-            else:
-                console.print(f"    ✗ {r.error}")
+    # JSON output
+    if json_output:
+        click.echo(report.to_json())
+        if output_path:
+            with open(output_path, "w") as f:
+                f.write(report.to_json())
+        return
 
-    # Tool-call test
-    if tool_test or preset == "all":
-        console.print("  ▸ tool_use: Tool calling test")
-        tool_result = run_tool_call_bench(base_url, model)
-        if tool_result.ok:
-            console.print(
-                f"    ✓ Tool call succeeded in {tool_result.total_time_s:.1f}s"
+    if output_path:
+        with open(output_path, "w") as f:
+            f.write(report.to_json())
+        console.print(f"Results written to {output_path}")
+
+    # Rich per-category tables
+    from rich.table import Table as RichTable
+
+    grouped: dict[str, list] = {}
+    for r in report.results:
+        grouped.setdefault(r.category, []).append(r)
+
+    for cat, results in grouped.items():
+        table = RichTable(title=f"{cat.title()}")
+        table.add_column("Test", style="cyan")
+        table.add_column("Status")
+        table.add_column("Prompt", justify="right")
+        table.add_column("Comp", justify="right")
+        table.add_column("Time (s)", justify="right")
+        table.add_column("Decode TPS", justify="right", style="bold green")
+        table.add_column("TTFT (ms)", justify="right")
+        table.add_column("Notes")
+
+        for r in results:
+            status_str = {
+                "passed": "[green]✓[/]",
+                "failed": "[red]✗[/]",
+                "skipped": "[yellow]⊘[/]",
+                "error": "[red]E[/]",
+            }.get(r.status, r.status)
+            notes = r.error or r.metadata.get("note", "")
+            tps = f"{r.decode_tps:.1f}" if r.decode_tps > 0 else "—"
+            ttft = r.time_to_first_token_s
+            ttft_s = f"{ttft * 1000:.0f}" if ttft > 0 else "—"
+            note_s = (notes[:60] + "…") if len(notes) > 60 else notes
+            rep_tag = f" #{r.repeat_index}" if repeat > 1 else ""
+            table.add_row(
+                f"{r.test_name}{rep_tag}",
+                status_str,
+                str(r.prompt_tokens),
+                str(r.completion_tokens),
+                f"{r.total_time_s:.2f}",
+                tps,
+                ttft_s,
+                note_s,
             )
-        else:
-            console.print(f"    ✗ {tool_result.error}")
+        console.print(table)
+        console.print()
 
     # Summary table
-    console.print()
-    table = RichTable(title=f"Benchmark Summary — {model}")
-    table.add_column("Preset", style="cyan")
-    table.add_column("Tokens", justify="right")
-    table.add_column("Time (s)", justify="right")
-    table.add_column("TPS", justify="right", style="bold green")
-    table.add_column("TTFT (ms)", justify="right")
+    summary = report.summary()
+    if summary:
+        stbl = RichTable(title=f"Summary — {model}")
+        stbl.add_column("Category", style="cyan")
+        stbl.add_column("Passed", justify="right")
+        stbl.add_column("Failed", justify="right")
+        stbl.add_column("Skipped", justify="right")
+        stbl.add_column("Avg TPS", justify="right", style="bold green")
+        stbl.add_column("Avg TTFT (ms)", justify="right")
+        stbl.add_column("p95 TTFT (ms)", justify="right")
 
-    for name, suite in all_suites:
-        s = suite.summary()
-        if s.get("passed", 0) > 0:
-            table.add_row(
-                name,
-                str(s["total_tokens"]),
-                str(s["total_time_s"]),
-                str(s["avg_tps"]),
-                str(s["avg_ttft_ms"]),
+        for cat, stats in summary.items():
+            p95 = report.percentiles(cat, "time_to_first_token_s")
+            stbl.add_row(
+                cat,
+                str(stats["passed"]),
+                str(stats["failed"]),
+                str(stats["skipped"]),
+                str(stats["avg_decode_tps"]),
+                str(stats["avg_ttft_ms"]),
+                f"{p95['p95'] * 1000:.0f}" if p95["p95"] > 0 else "—",
             )
-        else:
-            table.add_row(name, "—", "—", "FAILED", "—")
-
-    console.print(table)
+        console.print(stbl)
 
 
 def _engine_pyproject(engine: str) -> str:

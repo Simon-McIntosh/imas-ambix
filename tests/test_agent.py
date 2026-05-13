@@ -302,44 +302,223 @@ def test_bench_presets_exist():
     assert "tool_use" in BENCH_PRESETS
 
 
+def test_bench_result_status_variants():
+    from imas_ambix.agent.bench import BenchResult
+
+    for status in ("passed", "failed", "skipped", "error"):
+        r = BenchResult(status=status)
+        assert r.status == status
+
+
+def test_bench_result_ok_property():
+    from imas_ambix.agent.bench import BenchResult
+
+    assert BenchResult(status="passed").ok
+    assert BenchResult(status="skipped").ok
+    assert not BenchResult(status="failed").ok
+    assert not BenchResult(status="error").ok
+    # Legacy: error field also works
+    r = BenchResult(error="timeout", status="error")
+    assert not r.ok
+
+
 def test_bench_result_dataclass():
     from imas_ambix.agent.bench import BenchResult
 
-    r = BenchResult(completion_tokens=100, total_time_s=2.0, tokens_per_second=50.0)
-    assert r.ok
-    assert r.tokens_per_second == 50.0
-
-    r_err = BenchResult(error="timeout")
-    assert not r_err.ok
-
-
-def test_bench_suite_summary():
-    from imas_ambix.agent.bench import BenchResult, BenchSuite
-
-    suite = BenchSuite(
-        model="test",
-        results=[
-            BenchResult(
-                completion_tokens=100,
-                total_time_s=2.0,
-                tokens_per_second=50.0,
-                time_to_first_token_s=0.1,
-            ),
-            BenchResult(
-                completion_tokens=200,
-                total_time_s=4.0,
-                tokens_per_second=50.0,
-                time_to_first_token_s=0.2,
-            ),
-        ],
+    r = BenchResult(
+        category="throughput",
+        test_name="decode_512",
+        completion_tokens=100,
+        total_time_s=2.0,
+        decode_tps=50.0,
     )
-    s = suite.summary()
-    assert s["passed"] == 2
-    assert s["total_tokens"] == 300
-    assert s["avg_tps"] == 50.0
+    assert r.ok
+    assert r.decode_tps == 50.0
+    assert r.category == "throughput"
 
 
-def test_bench_cli_no_server():
+def test_bench_report_to_json():
+    import json
+
+    from imas_ambix.agent.bench import BenchReport, BenchResult
+
+    report = BenchReport(
+        results=[
+            BenchResult(category="throughput", test_name="decode_128", status="passed",
+                        decode_tps=50.0, completion_tokens=128, total_time_s=2.5),
+        ],
+        server_info={"object": "list"},
+        timestamp="2025-01-01T00:00:00Z",
+        categories_run=["throughput"],
+    )
+    j = report.to_json()
+    data = json.loads(j)
+    assert data["timestamp"] == "2025-01-01T00:00:00Z"
+    assert len(data["results"]) == 1
+    assert data["results"][0]["test_name"] == "decode_128"
+    assert "summary" in data
+
+
+def test_bench_report_summary():
+    from imas_ambix.agent.bench import BenchReport, BenchResult
+
+    report = BenchReport(
+        results=[
+            BenchResult(category="throughput", test_name="decode_128", status="passed",
+                        decode_tps=50.0, time_to_first_token_s=0.1),
+            BenchResult(category="throughput", test_name="decode_512", status="passed",
+                        decode_tps=40.0, time_to_first_token_s=0.2),
+            BenchResult(category="throughput", test_name="decode_1024", status="failed",
+                        error="timeout"),
+            BenchResult(category="tools", test_name="tool_single", status="skipped"),
+        ],
+        timestamp="2025-01-01T00:00:00Z",
+        categories_run=["throughput", "tools"],
+    )
+    s = report.summary()
+    assert "throughput" in s
+    assert s["throughput"]["passed"] == 2
+    assert s["throughput"]["failed"] == 1
+    assert s["throughput"]["avg_decode_tps"] == 45.0
+    assert "tools" in s
+    assert s["tools"]["skipped"] == 1
+
+
+def test_bench_report_percentiles():
+    from imas_ambix.agent.bench import BenchReport, BenchResult
+
+    results = [
+        BenchResult(category="throughput", test_name=f"t{i}", status="passed",
+                    decode_tps=float(i + 1))
+        for i in range(100)
+    ]
+    report = BenchReport(results=results, timestamp="2025-01-01T00:00:00Z",
+                         categories_run=["throughput"])
+    p = report.percentiles("throughput", "decode_tps")
+    assert p["p50"] > 0
+    assert p["p95"] > p["p50"]
+    assert p["p99"] >= p["p95"]
+
+    # Empty category returns zeros
+    p_empty = report.percentiles("nonexistent", "decode_tps")
+    assert p_empty == {"p50": 0.0, "p95": 0.0, "p99": 0.0}
+
+
+# -- Filler text generation --------------------------------------------------
+
+
+def test_build_filler_prompt_approximate_length():
+    from imas_ambix.agent.bench import build_filler_prompt
+
+    for target in (1000, 4000, 16000):
+        text = build_filler_prompt(target)
+        # With 0.75 ratio, char count should be roughly target / 0.75
+        assert len(text) > target  # chars > tokens always
+
+
+def test_build_filler_prompt_unique_content():
+    from imas_ambix.agent.bench import build_filler_prompt
+
+    text = build_filler_prompt(4000)
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    # First N paragraphs should all be unique (up to topic count)
+    unique = set(paragraphs[:20])
+    assert len(unique) >= min(len(paragraphs), 20)
+
+
+# -- Needle construction -----------------------------------------------------
+
+
+def test_build_needle_haystack_contains_needle():
+    from imas_ambix.agent.bench import build_needle_haystack
+
+    haystack, code = build_needle_haystack(4000, "mid")
+    assert code.startswith("AMBIX-")
+    assert len(code) == 14  # "AMBIX-" + 8 chars
+    assert code in haystack
+    assert "Project Stellarator" in haystack
+
+
+def test_build_needle_positions():
+    from imas_ambix.agent.bench import build_needle_haystack
+
+    for pos in ("early", "mid", "late"):
+        haystack, code = build_needle_haystack(4000, pos)
+        assert code in haystack
+        # Verify position is roughly correct
+        idx = haystack.index(code)
+        total = len(haystack)
+        frac = idx / total
+        expected = {"early": 0.10, "mid": 0.50, "late": 0.90}[pos]
+        # Allow generous tolerance since paragraph boundaries shift things
+        assert abs(frac - expected) < 0.35, (
+            f"{pos}: frac={frac:.2f}, expected ~{expected}"
+        )
+
+
+# -- Tool test definitions ---------------------------------------------------
+
+
+def test_tool_test_definitions_valid_json_schema():
+    import json
+
+    from imas_ambix.agent.bench import ALL_TOOLS
+
+    for tool in ALL_TOOLS:
+        assert tool["type"] == "function"
+        func = tool["function"]
+        assert "name" in func
+        assert "parameters" in func
+        params = func["parameters"]
+        assert params["type"] == "object"
+        assert "properties" in params
+        # Should round-trip as JSON
+        json.dumps(tool)
+
+
+# -- Category registry -------------------------------------------------------
+
+
+def test_all_categories_registered():
+    from imas_ambix.agent.bench import CATEGORIES
+
+    expected = {"throughput", "prefill", "context", "tools", "reasoning", "concurrency"}
+    assert set(CATEGORIES) == expected
+
+
+def test_category_filter():
+    """run_benchmark should accept a subset of categories."""
+    from imas_ambix.agent.bench import run_benchmark
+
+    # Just verify it doesn't crash with a subset — actual execution
+    # would need a server, but we can check the report structure.
+    # We'll test with an unreachable URL so it errors gracefully.
+    report = run_benchmark(
+        "http://127.0.0.1:1",  # unreachable
+        "test-model",
+        categories=["throughput"],
+        repeat=1,
+        warmup=False,
+    )
+    assert report.categories_run == ["throughput"]
+    # All results should be errors since server is unreachable
+    for r in report.results:
+        assert r.category == "throughput"
+        assert r.status == "error"
+
+
+# -- CLI argument validation -------------------------------------------------
+
+
+def test_bench_cli_requires_slug_or_url():
+    """Bench command should require either a slug or --url."""
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "bench"])
+    assert result.exit_code != 0
+    assert "slug" in result.output.lower() or "url" in result.output.lower()
+
+
+def test_bench_cli_no_server_graceful_error():
     """Bench command should fail gracefully when no server is running."""
     runner = CliRunner()
     result = runner.invoke(
