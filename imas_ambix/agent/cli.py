@@ -402,26 +402,20 @@ def bench(
 
     resolved_key = _resolve_api_key(api_key)
 
-    # Resolve base_url and model
-    if slug:
-        profile = _load_profile(slug)
+    # Resolve base_url and model — try slug, then default profile, then url-only
+    resolved_slug = slug or _default_profile()
+    if resolved_slug:
+        profile = _load_profile(resolved_slug)
         base_url = url or "http://localhost:8000"
         model = model_name or profile.model.served_name
     elif url:
         base_url = url
         model = model_name or "default"
     else:
-        # Try default profile
-        default = _default_profile()
-        if default:
-            profile = _load_profile(default)
-            base_url = url or "http://localhost:8000"
-            model = model_name or profile.model.served_name
-        else:
-            raise click.ClickException(
-                "Provide a profile slug or --url. "
-                "Example: ambix agent bench deepseek-v4-flash"
-            )
+        raise click.ClickException(
+            "Provide a profile slug or --url. "
+            "Example: ambix agent bench deepseek-v4-flash"
+        )
 
     # Health check with auth
     try:
