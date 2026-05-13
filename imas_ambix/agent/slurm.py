@@ -228,7 +228,7 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
 
 
 def generate_serve_script(
-    profile: ModelProfile, site: SiteConfig, port: int = 8000
+    profile: ModelProfile, site: SiteConfig, port: int = 18800
 ) -> str:
     """Generate a SLURM batch script for serving a model profile."""
     model_dir = site.model_dir(profile)

@@ -406,7 +406,7 @@ def bench(
 
     \b
     Run against any endpoint:
-        ambix agent bench --url http://host:8000 --model my-model
+        ambix agent bench --url http://host:18800 --model my-model
 
     Results are auto-saved to ~/.local/share/ambix/bench/ unless --no-save.
     """
@@ -422,7 +422,7 @@ def bench(
     resolved_slug = slug or _default_profile()
     if resolved_slug:
         profile = _load_profile(resolved_slug)
-        base_url = url or _default_url() or "http://localhost:8000"
+        base_url = url or _default_url() or "http://localhost:18800"
         model = model_name or profile.model.served_name
     elif url:
         base_url = url

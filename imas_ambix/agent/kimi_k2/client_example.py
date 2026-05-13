@@ -8,7 +8,7 @@ Prerequisites:
 Usage:
     sbatch serve.sh
     squeue -j <jobid> -o "%N"
-    ssh -N -L 8000:<compute-node>:8000 <login-node>
+    ssh -N -L 18800:<compute-node>:18800 <login-node>
     python client_example.py
 """
 
@@ -16,7 +16,7 @@ import time
 
 from openai import OpenAI
 
-BASE_URL = "http://localhost:8000/v1"
+BASE_URL = "http://localhost:18800/v1"
 
 client = OpenAI(api_key="EMPTY", base_url=BASE_URL, timeout=3600)
 

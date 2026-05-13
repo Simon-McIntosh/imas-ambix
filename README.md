@@ -114,7 +114,7 @@ ambix agent status
 **Current deployments:**
 - **Kimi-K2.6** — 1T-param MoE (32B activated), KTransformers+SGLang engine,
   4×H200 GPUs, ~18K context (auto-fitted to VRAM), OpenAI-compatible API at
-  `http://98dci4-gpu-0003:8000/v1`
+  `http://98dci4-gpu-0003:18800/v1`
   - Decode throughput: ~4–5 tok/s
   - Reasoning model with chain-of-thought (use `max_tokens≥1024` for complex prompts)
   - Access from ITER login nodes or compute nodes via SLURM

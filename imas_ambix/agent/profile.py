@@ -129,7 +129,7 @@ class SiteConfig(BaseModel):
     download_partition: str = "sirius"
     account: str = "grpa"
     reservation: str = "gpu_0003_grpA"
-    default_port: int = 8000
+    default_port: int = 18800
     gpu_host: str = "98dci4-gpu-0003"
 
     @classmethod
@@ -145,7 +145,7 @@ class SiteConfig(BaseModel):
             reservation=os.environ.get(
                 "AMBIX_AGENT_RESERVATION", "gpu_0003_grpA"
             ),
-            default_port=int(os.environ.get("AMBIX_AGENT_PORT", "8000")),
+            default_port=int(os.environ.get("AMBIX_AGENT_PORT", "18800")),
             gpu_host=os.environ.get("AMBIX_AGENT_GPU_HOST", "98dci4-gpu-0003"),
         )
 
