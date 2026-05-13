@@ -353,6 +353,104 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
 
 
 @agent.command()
+@click.argument("slug", required=False, default=None)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print the SLURM script instead of submitting it.",
+)
+@click.option(
+    "--port",
+    type=click.IntRange(1, 65535),
+    default=None,
+    help="Port to expose on the compute node.",
+)
+def restart(slug: str | None, dry_run: bool, port: int | None) -> None:
+    """Restart a model serving job (shutdown + serve).
+
+    Cancels any active serve job for the profile, waits for it to
+    finish, then submits a new serve job.  If no active job exists,
+    starts a fresh one.
+    """
+    import time as _time
+
+    from imas_ambix.agent.slurm import generate_serve_script, submit_script
+
+    profile = _load_profile(slug)
+    site = SiteConfig.from_env()
+    resolved_port = port if port is not None else site.default_port
+
+    # Find active serve jobs for this profile
+    user = os.environ.get("USER") or getpass.getuser()
+    result = subprocess.run(
+        ["squeue", "-h", "-u", user, "-o", "%i|%j", "-t", "R,PD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    prefix = f"ambix-serve-{profile.slug}"
+    targets: list[str] = []
+    for line in result.stdout.strip().splitlines():
+        line = line.strip()
+        if "|" not in line:
+            continue
+        job_id, job_name = line.split("|", 1)
+        if job_name.strip().startswith(prefix):
+            targets.append(job_id.strip())
+
+    if targets:
+        console.print(
+            f"Cancelling {len(targets)} active job(s): "
+            + ", ".join(targets)
+        )
+        cancel = subprocess.run(
+            ["scancel"] + targets,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if cancel.returncode != 0:
+            raise click.ClickException(
+                cancel.stderr.strip() or "scancel failed"
+            )
+
+        # Wait for jobs to drain
+        for _attempt in range(30):
+            _time.sleep(2)
+            check = subprocess.run(
+                ["squeue", "-h", "-j", ",".join(targets), "-o", "%i"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if not check.stdout.strip():
+                break
+        else:
+            raise click.ClickException(
+                "Timed out waiting for old job(s) to stop (60s). "
+                "Check squeue manually."
+            )
+        console.print("[green]Old job(s) cancelled.[/]")
+    else:
+        console.print("No active serve job found — starting fresh.")
+
+    # Submit new serve job
+    script = generate_serve_script(profile, site, port=resolved_port)
+    if dry_run:
+        click.echo(script)
+        return
+
+    try:
+        job_id = submit_script(script)
+    except RuntimeError as exc:
+        raise click.ClickException(str(exc)) from exc
+    console.print(
+        f"Submitted serve job {job_id} for {profile.slug} on port {resolved_port}."
+    )
+
+
+
+@agent.command()
 @click.argument("slug", required=False)
 @click.option("--url", default=None, help="Server base URL (default: from site config).")
 @click.option(
@@ -500,10 +598,9 @@ def bench(
 
 
 def _render_report(
-    report: "BenchReport", model: str, repeat: int = 1
+    report: BenchReport, model: str, repeat: int = 1
 ) -> None:
     """Render benchmark results as rich tables to the console."""
-    from rich.panel import Panel
     from rich.table import Table as RichTable
 
     grouped: dict[str, list] = {}
