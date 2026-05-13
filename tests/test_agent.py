@@ -561,7 +561,7 @@ def test_default_url_from_pyproject():
     from imas_ambix.agent.cli import _default_url
 
     result = _default_url()
-    assert result == "http://98dci4-gpu-0003:8000"
+    assert result == "http://98dci4-gpu-0003:18800"
 
 
 def test_default_url_envvar_overrides(monkeypatch):
@@ -579,7 +579,7 @@ def test_agent_config_returns_dict():
     cfg = _agent_config()
     assert isinstance(cfg, dict)
     assert cfg.get("default_profile") == "deepseek-v4-flash"
-    assert cfg.get("url") == "http://98dci4-gpu-0003:8000"
+    assert cfg.get("url") == "http://98dci4-gpu-0003:18800"
 
 
 def test_resolve_slug_explicit():
@@ -620,7 +620,79 @@ def test_resolve_api_key_none(monkeypatch):
     from imas_ambix.agent.cli import _resolve_api_key
 
     monkeypatch.delenv("AMBIX_AGENT_API_KEY", raising=False)
+    monkeypatch.chdir(monkeypatch.tmp_path if hasattr(monkeypatch, "tmp_path") else "/tmp")
     assert _resolve_api_key(None) is None
+
+
+def test_resolve_api_key_shared_file(monkeypatch, tmp_path):
+    """Falls back to shared agents/.env when no other source."""
+    from imas_ambix.agent.cli import _resolve_api_key
+
+    monkeypatch.delenv("AMBIX_AGENT_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(tmp_path))
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    (agents_dir / ".env").write_text("AMBIX_AGENT_API_KEY=sk-shared-key\n")
+    assert _resolve_api_key(None) == "sk-shared-key"
+
+
+def test_read_key_file_missing(tmp_path):
+    """Returns None for nonexistent file."""
+    from imas_ambix.agent.cli import _read_key_file
+
+    assert _read_key_file(tmp_path / "nonexistent") is None
+
+
+def test_read_key_file_empty_value(tmp_path):
+    """Returns None when key is present but value is empty."""
+    from imas_ambix.agent.cli import _read_key_file
+
+    f = tmp_path / ".env"
+    f.write_text("AMBIX_AGENT_API_KEY=\n")
+    assert _read_key_file(f) is None
+
+
+def test_read_key_file_with_value(tmp_path):
+    """Returns the key value."""
+    from imas_ambix.agent.cli import _read_key_file
+
+    f = tmp_path / ".env"
+    f.write_text("# comment\nAMBIX_AGENT_API_KEY=sk-test-value\nOTHER=foo\n")
+    assert _read_key_file(f) == "sk-test-value"
+
+
+def test_update_dotenv_key_new_file(tmp_path):
+    """Creates file and writes key."""
+    from imas_ambix.agent.cli import _update_dotenv_key
+
+    f = tmp_path / ".env"
+    _update_dotenv_key(f, "MY_KEY", "my-value", header="# header")
+    content = f.read_text()
+    assert "MY_KEY=my-value" in content
+    assert "# header" in content
+    assert f.stat().st_mode & 0o777 == 0o600
+
+
+def test_update_dotenv_key_replace_existing(tmp_path):
+    """Replaces existing key in-place, preserving other lines."""
+    from imas_ambix.agent.cli import _update_dotenv_key
+
+    f = tmp_path / ".env"
+    f.write_text("# comment\nFOO=bar\nMY_KEY=old\nBAZ=qux\n")
+    _update_dotenv_key(f, "MY_KEY", "new-value")
+    lines = f.read_text().splitlines()
+    assert "MY_KEY=new-value" in lines
+    assert "FOO=bar" in lines
+    assert "BAZ=qux" in lines
+    assert "MY_KEY=old" not in lines
+
+
+def test_mask_key():
+    from imas_ambix.agent.cli import _mask_key
+
+    assert _mask_key("abcdefghijklmnop") == "abcd...mnop"
+    assert _mask_key("short") == "sh***"
 
 
 def test_load_dotenv_file(monkeypatch, tmp_path):

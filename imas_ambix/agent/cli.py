@@ -48,15 +48,33 @@ def _load_dotenv() -> dict[str, str]:
     return values
 
 
+def _read_key_file(path: Path) -> str | None:
+    """Read ``AMBIX_AGENT_API_KEY`` from a dotenv-style file."""
+    if not path.is_file():
+        return None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        if key.strip() == "AMBIX_AGENT_API_KEY":
+            return val.strip().strip("\"'") or None
+    return None
+
+
 def _resolve_api_key(cli_value: str | None) -> str | None:
-    """Resolve API key: CLI flag > envvar > .env file."""
+    """Resolve API key: CLI flag > envvar > CWD .env > shared agents/.env."""
     if cli_value:
         return cli_value
     env_key = os.environ.get("AMBIX_AGENT_API_KEY")
     if env_key:
         return env_key
     _load_dotenv()
-    return os.environ.get("AMBIX_AGENT_API_KEY")
+    env_key = os.environ.get("AMBIX_AGENT_API_KEY")
+    if env_key:
+        return env_key
+    site = SiteConfig.from_env()
+    return _read_key_file(site.api_key_file)
 
 
 def _agent_config() -> dict[str, str]:
@@ -223,16 +241,27 @@ def download(slug: str | None, dry_run: bool) -> None:
     default=None,
     help="Port to expose on the compute node.",
 )
-def serve(slug: str | None, dry_run: bool, port: int | None) -> None:
+@click.option(
+    "--api-key",
+    "api_key",
+    default=None,
+    help="API key for authenticating client requests (also AMBIX_AGENT_API_KEY).",
+)
+def serve(slug: str | None, dry_run: bool, port: int | None, api_key: str | None) -> None:
     """Generate and submit a model serving job."""
     from imas_ambix.agent.slurm import generate_serve_script, submit_script
 
     profile = _load_profile(slug)
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
-    script = generate_serve_script(profile, site, port=resolved_port)
+    resolved_key = _resolve_api_key(api_key)
+    script = generate_serve_script(
+        profile, site, port=resolved_port, api_key=resolved_key
+    )
 
     if dry_run:
+        if resolved_key:
+            script = script.replace(resolved_key, "****")
         click.echo(script)
         return
 
@@ -240,8 +269,9 @@ def serve(slug: str | None, dry_run: bool, port: int | None) -> None:
         job_id = submit_script(script)
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
+    key_note = " (API key enabled)" if resolved_key else ""
     console.print(
-        f"Submitted serve job {job_id} for {profile.slug} on port {resolved_port}."
+        f"Submitted serve job {job_id} for {profile.slug} on port {resolved_port}{key_note}."
     )
 
 
@@ -352,6 +382,209 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
     console.print(f"[green]Cancelled {len(job_ids)} job(s).[/]")
 
 
+# -- Key management ----------------------------------------------------------
+
+
+def _mask_key(key: str) -> str:
+    """Return a masked representation of an API key."""
+    if len(key) <= 8:
+        return key[:2] + "***"
+    return key[:4] + "..." + key[-4:]
+
+
+def _update_dotenv_key(
+    path: Path,
+    key: str,
+    value: str,
+    *,
+    header: str | None = None,
+    mode: int = 0o600,
+) -> None:
+    """Set *key*=*value* in a dotenv file, preserving other lines.
+
+    If the key exists, its line is replaced in-place.  If not, the
+    key=value pair is appended.  Write is atomic (tmp + rename).
+    """
+    lines: list[str] = []
+    replaced = False
+
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                k, _, _ = stripped.partition("=")
+                if k.strip() == key:
+                    lines.append(f"{key}={value}")
+                    replaced = True
+                    continue
+            lines.append(line)
+
+    if not replaced:
+        if header and not lines:
+            lines.append(header)
+        lines.append(f"{key}={value}")
+
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    tmp.chmod(mode)
+    tmp.rename(path)
+
+
+@agent.command(name="key")
+@click.option("--reveal", is_flag=True, help="Show the full key in plaintext.")
+@click.option("--rotate", is_flag=True, help="Generate a new key, update configs, and restart.")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt.")
+def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
+    """Show or rotate the API key for model serving.
+
+    \b
+    Without flags, shows the current key (masked).
+    With --reveal, shows the full key.
+    With --rotate, performs a full key rotation:
+      1. Generates a new API key.
+      2. Saves to agents/.env (mode 600, owner-only).
+      3. Updates ~/.hermes/.env with OPENAI_API_KEY.
+      4. Restarts the model server with the new key.
+
+    Access control: the key file is mode 600 (owner read/write
+    only).  Distribute the key to team members out-of-band;
+    they store it in their own ~/.hermes/.env.
+    """
+    site = SiteConfig.from_env()
+    key_path = site.api_key_file
+
+    if not rotate:
+        # Show mode
+        try:
+            token = _read_key_file(key_path)
+        except PermissionError:
+            raise click.ClickException(
+                f"Permission denied: {key_path}\n"
+                "Only the key owner can read this file."
+            ) from None
+
+        if not token:
+            console.print(f"No key configured at {key_path}")
+            console.print("Generate one with: ambix agent key --rotate")
+            return
+
+        console.print(f"File: {key_path}")
+        console.print(f"Key:  {token if reveal else _mask_key(token)}")
+        if not reveal:
+            console.print("(use --reveal to show the full key)")
+        return
+
+    # Rotate mode
+    import secrets
+    import time as _time
+
+    from imas_ambix.agent.slurm import generate_serve_script, submit_script
+
+    existing = _read_key_file(key_path)
+
+    if existing and not yes:
+        console.print(f"[yellow]Current key:[/] {_mask_key(existing)}")
+        if not click.confirm("Rotate to a new key?"):
+            console.print("Aborted.")
+            return
+
+    token = secrets.token_urlsafe(32)
+
+    # 1. Write to shared agents/.env (owner-only)
+    _update_dotenv_key(
+        key_path,
+        "AMBIX_AGENT_API_KEY",
+        token,
+        header="# Ambix agent API key — managed by 'ambix agent key'",
+        mode=0o600,
+    )
+    action = "Rotated" if existing else "Generated"
+    console.print(f"[green]{action} API key[/]")
+    console.print(f"  Key:  {token}")
+    console.print(f"  File: {key_path} (mode 600)")
+
+    # 2. Update ~/.hermes/.env (owner-only)
+    hermes_env = Path.home() / ".hermes" / ".env"
+    if hermes_env.parent.is_dir():
+        _update_dotenv_key(
+            hermes_env, "OPENAI_API_KEY", token, mode=0o600,
+        )
+        console.print(f"  Updated: {hermes_env} (mode 600)")
+    else:
+        console.print(
+            f"  [yellow]~/.hermes/ not found — set OPENAI_API_KEY={token} manually[/]"
+        )
+
+    # 3. Restart model server with new key
+    console.print()
+    default = _default_profile()
+    if not default:
+        console.print(
+            "[yellow]No default profile set — restart the server manually:[/]"
+        )
+        console.print("  ambix agent serve <profile>")
+        return
+
+    try:
+        profile = load_profile(default)
+    except FileNotFoundError:
+        console.print(f"[yellow]Profile '{default}' not found — restart manually.[/]")
+        return
+
+    port = site.default_port
+    user = os.environ.get("USER") or getpass.getuser()
+
+    # Cancel active serve jobs
+    result = subprocess.run(
+        ["squeue", "-h", "-u", user, "-o", "%i|%j", "-t", "R,PD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    prefix = f"ambix-serve-{profile.slug}"
+    targets: list[str] = []
+    for line in result.stdout.strip().splitlines():
+        line = line.strip()
+        if "|" not in line:
+            continue
+        job_id, job_name = line.split("|", 1)
+        if job_name.strip().startswith(prefix):
+            targets.append(job_id.strip())
+
+    if targets:
+        console.print(
+            f"Cancelling {len(targets)} active job(s): "
+            + ", ".join(targets)
+        )
+        subprocess.run(
+            ["scancel"] + targets,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        for _attempt in range(30):
+            _time.sleep(2)
+            check = subprocess.run(
+                ["squeue", "-h", "-j", ",".join(targets), "-o", "%i"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if not check.stdout.strip():
+                break
+        console.print("[green]Old job(s) cancelled.[/]")
+
+    # Submit new serve job with the new key
+    script = generate_serve_script(profile, site, port=port, api_key=token)
+    try:
+        job_id = submit_script(script)
+    except RuntimeError as exc:
+        raise click.ClickException(str(exc)) from exc
+    console.print(
+        f"Submitted serve job {job_id} for {profile.slug} on port {port} (API key enabled)."
+    )
+
+
 @agent.command()
 @click.argument("slug", required=False, default=None)
 @click.option(
@@ -365,7 +598,13 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
     default=None,
     help="Port to expose on the compute node.",
 )
-def restart(slug: str | None, dry_run: bool, port: int | None) -> None:
+@click.option(
+    "--api-key",
+    "api_key",
+    default=None,
+    help="API key for authenticating client requests (also AMBIX_AGENT_API_KEY).",
+)
+def restart(slug: str | None, dry_run: bool, port: int | None, api_key: str | None) -> None:
     """Restart a model serving job (shutdown + serve).
 
     Cancels any active serve job for the profile, waits for it to
@@ -379,6 +618,7 @@ def restart(slug: str | None, dry_run: bool, port: int | None) -> None:
     profile = _load_profile(slug)
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
+    resolved_key = _resolve_api_key(api_key)
 
     # Find active serve jobs for this profile
     user = os.environ.get("USER") or getpass.getuser()
@@ -435,8 +675,12 @@ def restart(slug: str | None, dry_run: bool, port: int | None) -> None:
         console.print("No active serve job found — starting fresh.")
 
     # Submit new serve job
-    script = generate_serve_script(profile, site, port=resolved_port)
+    script = generate_serve_script(
+        profile, site, port=resolved_port, api_key=resolved_key
+    )
     if dry_run:
+        if resolved_key:
+            script = script.replace(resolved_key, "****")
         click.echo(script)
         return
 
@@ -444,8 +688,9 @@ def restart(slug: str | None, dry_run: bool, port: int | None) -> None:
         job_id = submit_script(script)
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
+    key_note = " (API key enabled)" if resolved_key else ""
     console.print(
-        f"Submitted serve job {job_id} for {profile.slug} on port {resolved_port}."
+        f"Submitted serve job {job_id} for {profile.slug} on port {resolved_port}{key_note}."
     )
 
 

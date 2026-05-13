@@ -188,6 +188,11 @@ class SiteConfig(BaseModel):
         """HuggingFace cache directory for a model."""
         return Path(self.base_dir) / "agents" / profile.slug / ".cache"
 
+    @property
+    def api_key_file(self) -> Path:
+        """Shared API key file for model serving authentication."""
+        return Path(self.base_dir) / "agents" / ".env"
+
 
 # -- Profile loader -----------------------------------------------------------
 

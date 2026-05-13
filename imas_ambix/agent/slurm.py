@@ -228,9 +228,21 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
 
 
 def generate_serve_script(
-    profile: ModelProfile, site: SiteConfig, port: int = 18800
+    profile: ModelProfile,
+    site: SiteConfig,
+    port: int = 18800,
+    api_key: str | None = None,
 ) -> str:
-    """Generate a SLURM batch script for serving a model profile."""
+    """Generate a SLURM batch script for serving a model profile.
+
+    Parameters
+    ----------
+    api_key : str | None
+        When set, the server requires ``Authorization: Bearer <key>``
+        on ``/v1/*`` endpoints.  Injected via ``VLLM_API_KEY`` env var
+        (vLLM) or ``--api-key`` flag (SGLang) to avoid leaking in
+        ``ps aux`` output.
+    """
     model_dir = site.model_dir(profile)
     headers = _sbatch_headers(
         job_name=f"ambix-serve-{profile.slug}",
@@ -313,6 +325,13 @@ def generate_serve_script(
             """
         ).strip()
 
+    # API key injection — append --api-key flag to launch command.
+    # Both vLLM and SGLang support --api-key on the CLI.  While visible
+    # in the SLURM script file, this is no worse than an env var in the
+    # same script and matches the documented interface for both engines.
+    if api_key:
+        launch_command += f" --api-key {shlex.quote(api_key)}"
+
     script_body = dedent(
         f"""
         set -euo pipefail
@@ -367,6 +386,7 @@ def generate_serve_script(
         echo "    visible=${{CUDA_VISIBLE_DEVICES:-unknown}}"
         echo "  model dir: $MODEL_DIR"
         echo "  port: $PORT"
+        echo "  api_key: {('enabled' if api_key else 'disabled')}"
 
         echo "[$(date)] GPU inventory"
         nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader

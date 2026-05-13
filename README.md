@@ -104,11 +104,58 @@ ambix agent download kimi-k2-6
 # Serve model (submits SLURM job to betelgeuse GPU partition)
 ambix agent serve kimi-k2-6
 
+# Serve with API key authentication
+ambix agent serve deepseek-v4-flash --api-key "your-secret-key"
+
 # Preview generated script without submitting
 ambix agent serve kimi-k2-6 --dry-run
 
 # Check running jobs
 ambix agent status
+```
+
+### API Key Authentication
+
+The `--api-key` flag protects `/v1/*` endpoints on the model server.  Health
+and metrics endpoints remain open for monitoring.
+
+```bash
+# Generate a key
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Serve with key
+ambix agent serve deepseek-v4-flash --api-key "$(cat ~/.ambix-api-key)"
+
+# Or via environment variable
+export AMBIX_AGENT_API_KEY="your-secret-key"
+ambix agent serve deepseek-v4-flash
+
+# Client-side: pass key in Authorization header
+curl -H "Authorization: Bearer your-secret-key" http://98dci4-gpu-0003:18800/v1/models
+```
+
+### Hermes Agent Harness
+
+The [Hermes Agent](https://github.com/NousResearch/hermes-agent) harness
+provides an autonomous agent runtime that connects to ambix-served models.
+It supports depth-2 agent swarms with up to 64 concurrent leaf agents.
+
+**Installation and docs**: `/work/projects/imas_gpu/tools/hermes-agent/`
+
+Quick start:
+```bash
+# Add to ~/.bashrc (one time)
+alias hermes='/work/projects/imas_gpu/tools/hermes-agent/bin/hermes'
+
+# Set up per-user config (one time)
+mkdir -p ~/.hermes
+cp /work/projects/imas_gpu/tools/hermes-agent/templates/config.yaml.template ~/.hermes/config.yaml
+cp /work/projects/imas_gpu/tools/hermes-agent/templates/.env.template ~/.hermes/.env
+chmod 600 ~/.hermes/config.yaml ~/.hermes/.env
+# Edit ~/.hermes/.env — set TERMINAL_SSH_USER to your username
+
+# Run
+hermes
 ```
 
 **Current deployments:**
