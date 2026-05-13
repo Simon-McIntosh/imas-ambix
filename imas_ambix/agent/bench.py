@@ -1075,7 +1075,7 @@ def _run_concurrency(
     api_key: str | None = None,
 ) -> list[BenchResult]:
     """Parallel request handling tests."""
-    levels = [1, 2, 4, 8, 16]
+    levels = [1, 2, 4, 8, 16, 32]
     prompt = [
         {
             "role": "user",

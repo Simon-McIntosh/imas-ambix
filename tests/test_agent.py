@@ -97,7 +97,7 @@ def test_site_config_engine_isolation():
 def test_site_config_gpu_host():
     site = SiteConfig()
     assert site.gpu_host == "98dci4-gpu-0003"
-    assert site.default_url == "http://98dci4-gpu-0003:8000"
+    assert site.default_url == "http://98dci4-gpu-0003:18800"
 
 
 def test_site_config_from_env(monkeypatch):
