@@ -1,0 +1,47 @@
+# MiniMax M2.7 — 220B MoE, ~10B activated, self-evolving agent model
+#
+# Architecture: 256 routed experts, 8 selected/token, ~10B activated
+# 62 layers + 3 MTP modules, GQA (48 Q heads / 8 KV heads, head_dim 128)
+# Weights: FP8 native checkpoint (float8_e4m3fn) — ~220 GB on disk
+#
+# Memory budget on 4×H200 (140.4 GB each):
+#   GPU: ~55 GB/card weights, leaves ~85 GB/card for KV cache
+#   KV: 8 KV heads × 128 dim → ~830K tokens total on 4×H200
+#   No CPU offloading needed — entire model fits on GPU
+#
+# Officially tested on 4×96GB GPUs (our H200s are larger)
+# Best open-weight agentic model: GDPval-AA 1495 ELO, SWE-Pro 56.22%
+#
+# License: Custom (review before commercial use)
+# Arena rank: #100
+
+[model]
+name = "MiniMax-M2.7"
+hf_repo = "MiniMaxAI/MiniMax-M2.7"
+served_name = "minimax-m2.7"
+size_gb = 220
+max_context = 204800
+
+[engine]
+type = "sglang"
+tensor_parallel = 4
+mem_fraction_static = 0.85
+attention_backend = "flashinfer"
+trust_remote_code = true
+enable_mixed_chunk = true
+enable_p2p_check = false
+chunked_prefill_size = 32768
+disable_cuda_graph = false
+disable_custom_all_reduce = false
+enable_auto_tool_choice = true
+
+[engine.parsers]
+tool_call = "minimax-m2"
+reasoning = "minimax-append-think"
+
+[slurm]
+gpus = 4
+cpus = 30
+memory = "300G"
+time_serve = "7-00:00:00"
+time_download = "24:00:00"

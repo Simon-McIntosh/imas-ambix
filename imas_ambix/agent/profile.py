@@ -54,12 +54,15 @@ class ParsersConfig(BaseModel):
 class EngineConfig(BaseModel):
     """Inference engine configuration.
 
-    ``type`` selects the backend strategy.  Currently only
-    ``"ktransformers"`` is implemented; ``"vllm"`` can be added later
-    as a second adapter in :mod:`imas_ambix.agent.slurm`.
+    ``type`` selects the backend strategy:
+
+    - ``"ktransformers"`` — SGLang with KTransformers CPU-offloading
+      (for models exceeding total VRAM).
+    - ``"sglang"`` — SGLang native serving (model fits entirely on GPU).
+    - ``"vllm"`` — vLLM native serving.
     """
 
-    type: str  # "ktransformers" | "vllm"
+    type: Literal["ktransformers", "sglang", "vllm"]
     tensor_parallel: int = 4
     mem_fraction_static: float = 0.90
     attention_backend: str = "flashinfer"
@@ -73,6 +76,7 @@ class EngineConfig(BaseModel):
     max_total_tokens: int | None = None
     moe_runner_backend: Literal["auto", "triton", "triton_kernel"] | None = None
     weight_loader_disable_mmap: bool = False
+    enable_auto_tool_choice: bool = False
     ktransformers: KTransformersConfig | None = None
     parsers: ParsersConfig = ParsersConfig()
 

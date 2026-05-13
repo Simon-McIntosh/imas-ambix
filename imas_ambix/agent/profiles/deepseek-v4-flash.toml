@@ -1,0 +1,44 @@
+# DeepSeek V4-Flash — 284B MoE, 13B activated, 1M context
+#
+# Architecture: 256 routed + 1 shared expert, 6 selected/token, 13B activated
+# 43 layers + 1 MTP, CSA+HCA hybrid attention (1 KV head, head_dim 512)
+# Weights: FP4 (experts) + FP8 (others) mixed precision — ~164 GB on disk
+#
+# Memory budget on 4×H200 (140.4 GB each):
+#   GPU: ~41 GB/card weights, leaves ~100 GB/card for KV cache
+#   KV: ultra-compact — 1 KV head × 512 dim × CSA/HCA compression
+#        → millions of tokens capacity at FP8 KV
+#   No CPU offloading needed — entire model fits on GPU
+#
+# License: MIT (fully permissive)
+# Arena rank: #55 (thinking), #61 (standard)
+
+[model]
+name = "DeepSeek-V4-Flash"
+hf_repo = "deepseek-ai/DeepSeek-V4-Flash"
+served_name = "deepseek-v4-flash"
+size_gb = 164
+max_context = 1048576
+
+[engine]
+type = "sglang"
+tensor_parallel = 4
+mem_fraction_static = 0.90
+attention_backend = "flashinfer"
+trust_remote_code = true
+enable_mixed_chunk = true
+enable_p2p_check = false
+chunked_prefill_size = 32768
+disable_cuda_graph = false
+disable_custom_all_reduce = false
+
+[engine.parsers]
+tool_call = "deepseek_v4"
+reasoning = "deepseek_r1"
+
+[slurm]
+gpus = 4
+cpus = 30
+memory = "300G"
+time_serve = "7-00:00:00"
+time_download = "24:00:00"

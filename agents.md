@@ -72,7 +72,19 @@ ambix agent status                        # Show running ambix SLURM jobs
 
 Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml`.
 
-## 5. Kimi-K2.6 Deployment
+## 5. Available Model Profiles
+
+| Profile | Model | Engine | Size | Context | License |
+|---------|-------|--------|------|---------|---------|
+| `kimi-k2-6` | Kimi-K2.6 (1T MoE) | KTransformers+SGLang | 555 GB | 262K | Modified MIT |
+| `deepseek-v4-flash` | DeepSeek V4-Flash (284B MoE) | SGLang | 164 GB | 1M | MIT |
+| `minimax-m2-7` | MiniMax M2.7 (~220B MoE) | SGLang | 220 GB | 200K | Custom |
+
+**Kimi-K2.6** — CPU-offloaded via KTransformers. 5 tok/s, best code quality (SWE 65.8%).
+**DeepSeek V4-Flash** — Full GPU, FP4+FP8. 500–800 tok/s est., 1M context, MIT license.
+**MiniMax M2.7** — Full GPU, FP8 native. 400–600 tok/s est., best agentic (GDPval-AA 1495).
+
+### Kimi-K2.6 Deployment
 
 **Engine:** KTransformers + SGLang (CPU+GPU hybrid MoE inference)
 **Why not vLLM:** vLLM with TP=4 fills all 4×H200 VRAM (~134 GB/GPU), leaving no room for GPU sharing. KTransformers keeps only hot experts on GPU (~32 GB/GPU), leaving ~90 GB/GPU free.
@@ -116,6 +128,50 @@ curl http://localhost:8000/v1/models
 - Thinking (default): temperature=1.0, top_p=0.95
 - Instant: pass `extra_body={'chat_template_kwargs': {"thinking": False}}`
 - Preserve thinking: `extra_body={"chat_template_kwargs": {"thinking": True, "preserve_thinking": True}}`
+
+### DeepSeek V4-Flash Deployment
+
+**Engine:** SGLang native (full GPU serving, no CPU offloading)
+**Architecture:** 284B total, 13B activated, 256+1 experts, 6 selected/token
+**Attention:** CSA+HCA hybrid — 1 KV head, head_dim 512, compression [128, 4]
+**Weights:** FP4 (experts) + FP8 (others) mixed precision
+
+**Model path:** `/work/projects/imas_gpu/agents/deepseek-v4-flash/model`
+
+**Memory budget (4×H200):**
+- Weights: ~164 GB total (~41 GB/card)
+- KV cache: ultra-efficient (~42 KB/token) — millions of tokens fit
+- **Free per GPU: ~100 GB** for KV and other workloads
+
+**Deploy:**
+```bash
+ambix agent download deepseek-v4-flash   # ~164 GB, run from sirius
+ambix agent serve deepseek-v4-flash      # submit to betelgeuse
+```
+
+### MiniMax M2.7 Deployment
+
+**Engine:** SGLang native (full GPU serving, no CPU offloading)
+**Architecture:** ~220B total, ~10B activated, 256 experts, 8 selected/token
+**Attention:** GQA with 48 Q heads, 8 KV heads, head_dim 128
+**Weights:** FP8 native (float8_e4m3fn)
+
+**Model path:** `/work/projects/imas_gpu/agents/minimax-m2-7/model`
+
+**Memory budget (4×H200):**
+- Weights: ~220 GB total (~55 GB/card)
+- KV cache: ~830K tokens capacity
+- **Free per GPU: ~85 GB** for KV and other workloads
+
+**Officially tested on 4-GPU configs** (96G×4; our 140G×4 is larger).
+
+**Deploy:**
+```bash
+ambix agent download minimax-m2-7   # ~220 GB, run from sirius
+ambix agent serve minimax-m2-7      # submit to betelgeuse
+```
+
+**Recommended inference params:** temperature=1.0, top_p=0.95, top_k=40
 
 ## 6. Confluence Reference
 

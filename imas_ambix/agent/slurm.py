@@ -88,7 +88,8 @@ def _render_shell_command(args: list[str]) -> str:
     )
 
 
-def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
+def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
+    """Build common SGLang launch_server arguments."""
     engine = profile.engine
     max_tokens = engine.max_total_tokens or profile.model.max_context
     python = str(site.python_path)
@@ -125,6 +126,11 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
         "--disable-custom-all-reduce",
         engine.disable_custom_all_reduce,
     )
+    _append_flag(
+        args,
+        "--enable-auto-tool-choice",
+        engine.enable_auto_tool_choice,
+    )
     _append_option(args, "--moe-runner-backend", engine.moe_runner_backend)
     _append_option(args, "--cuda-graph-max-bs", engine.cuda_graph_max_bs)
     _append_flag(
@@ -138,9 +144,58 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
     if engine.parsers.reasoning:
         _append_option(args, "--reasoning-parser", engine.parsers.reasoning)
 
+    return args
+
+
+def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
+    engine = profile.engine
+
+    if engine.type == "sglang":
+        args = _build_sglang_args(profile, site)
+        return _render_shell_command(args)
+
+    if engine.type == "vllm":
+        python = str(site.python_path)
+        max_tokens = engine.max_total_tokens or profile.model.max_context
+        args = [
+            python,
+            "-m",
+            "vllm.entrypoints.openai.api_server",
+            "--model",
+            _MODEL_DIR_TOKEN,
+            "--served-model-name",
+            profile.model.served_name,
+            "--tensor-parallel-size",
+            str(engine.tensor_parallel),
+            "--max-model-len",
+            str(max_tokens),
+            "--host",
+            "0.0.0.0",
+            "--port",
+            _PORT_TOKEN,
+        ]
+        _append_flag(args, "--trust-remote-code", engine.trust_remote_code)
+        _append_flag(
+            args,
+            "--enable-auto-tool-choice",
+            engine.enable_auto_tool_choice,
+        )
+        if engine.parsers.tool_call:
+            _append_option(
+                args, "--tool-call-parser", engine.parsers.tool_call
+            )
+        if engine.parsers.reasoning:
+            _append_option(
+                args, "--reasoning-parser", engine.parsers.reasoning
+            )
+        return _render_shell_command(args)
+
     if engine.type != "ktransformers":
         msg = f"Unsupported engine type: {engine.type}"
         raise ValueError(msg)
+
+    # KTransformers: SGLang + KT flags
+    args = _build_sglang_args(profile, site)
 
     kt = engine.ktransformers
     if kt is None:
@@ -187,11 +242,74 @@ def generate_serve_script(
     )
     launch_command = _build_serve_command(profile, site)
     venv_bin = str(site.python_path.parent)
-    evictor_python = shlex.quote(str(site.python_path))
-    fadvise_cmd = (
-        f"{evictor_python} -c {shlex.quote(_FADVISE_DROP_CODE)}"
-        ' "$MODEL_DIR"'
-    )
+    is_kt = profile.engine.type == "ktransformers"
+
+    # KTransformers needs extra env vars and fadvise evictor
+    kt_env_block = ""
+    if is_kt:
+        evictor_python = shlex.quote(str(site.python_path))
+        fadvise_cmd = (
+            f"{evictor_python} -c {shlex.quote(_FADVISE_DROP_CODE)}"
+            ' "$MODEL_DIR"'
+        )
+        kt_env_block = dedent(
+            f"""
+            # Force glibc to return freed memory to the OS immediately,
+            # reducing heap fragmentation under the tight cgroup limit.
+            export MALLOC_TRIM_THRESHOLD_=0
+            # Force large allocations (>32KB) through mmap instead of heap;
+            # mmap pages are returned to the OS on free, avoiding fragmentation.
+            export MALLOC_MMAP_THRESHOLD_=32768
+
+            # sglang-kernel ships pre-compiled CUDA 13 binaries; expose the
+            # nvidia-cu13 runtime libs so they can be loaded alongside the
+            # CUDA 12.6 PyTorch stack (the driver supports both).
+            _CU13_LIB={shlex.quote(str(site.venv_path / "lib/python3.12/site-packages/nvidia/cu13/lib"))}
+            if [[ -d "$_CU13_LIB" ]]; then
+                export LD_LIBRARY_PATH="${{_CU13_LIB}}:${{LD_LIBRARY_PATH:-}}"
+            fi
+            """
+        ).strip()
+    else:
+        fadvise_cmd = None
+
+    evictor_block = ""
+    if is_kt and fadvise_cmd:
+        evictor_block = dedent(
+            f"""
+            # Event-driven page cache cleanup — wait for the server to finish
+            # ALL loading phases (shard loading + KT expert loading + warmup),
+            # then drop mmap'd safetensor pages from the page cache.
+            (
+                LOG_FILE="ambix-serve-$SLURM_JOB_ID.log"
+                for _i in $(seq 1 300); do
+                    if grep -q "fired up" "$LOG_FILE" 2>/dev/null; then
+                        sleep 5
+                        {fadvise_cmd} 2>/dev/null && echo "[$(date)] Post-startup: dropped safetensor page cache" || true
+                        echo "[$(date)] === Memory diagnostics ==="
+                        CGROUP_PATH="/sys/fs/cgroup/system.slice/slurmstepd.scope/job_${{SLURM_JOB_ID}}"
+                        echo "cgroup memory.current: $(cat ${{CGROUP_PATH}}/memory.current 2>/dev/null || echo N/A)"
+                        echo "cgroup memory.max: $(cat ${{CGROUP_PATH}}/memory.max 2>/dev/null || echo N/A)"
+                        for pid in $(pgrep -P $SERVER_PID 2>/dev/null | head -8); do
+                            if [[ -f /proc/$pid/smaps_rollup ]]; then
+                                echo "--- PID $pid ---"
+                                grep -E "Rss:|Anonymous:|Shared|Private" /proc/$pid/smaps_rollup 2>/dev/null | head -10
+                            fi
+                        done
+                        echo "[$(date)] === End diagnostics ==="
+                        break
+                    fi
+                    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+                        break
+                    fi
+                    sleep 10
+                done
+            ) &
+            _EVICTOR_PID=$!
+            trap 'kill $_EVICTOR_PID 2>/dev/null || true' EXIT
+            """
+        ).strip()
+
     script_body = dedent(
         f"""
         set -euo pipefail
@@ -199,23 +317,10 @@ def generate_serve_script(
         export TMPDIR=/scratch_local/$SLURM_JOB_ID
         mkdir -p "$TMPDIR"
 
-        # Force glibc to return freed memory to the OS immediately,
-        # reducing heap fragmentation under the tight cgroup limit.
-        export MALLOC_TRIM_THRESHOLD_=0
-        # Force large allocations (>32KB) through mmap instead of heap;
-        # mmap pages are returned to the OS on free, avoiding fragmentation.
-        export MALLOC_MMAP_THRESHOLD_=32768
+        {kt_env_block}
 
         # Ensure venv tools (ninja, etc.) are on PATH for JIT compilation
         export PATH={shlex.quote(venv_bin)}:$PATH
-
-        # sglang-kernel ships pre-compiled CUDA 13 binaries; expose the
-        # nvidia-cu13 runtime libs so they can be loaded alongside the
-        # CUDA 12.6 PyTorch stack (the driver supports both).
-        _CU13_LIB={shlex.quote(str(site.venv_path / "lib/python3.12/site-packages/nvidia/cu13/lib"))}
-        if [[ -d "$_CU13_LIB" ]]; then
-            export LD_LIBRARY_PATH="${{_CU13_LIB}}:${{LD_LIBRARY_PATH:-}}"
-        fi
 
         MODEL_DIR={shlex.quote(str(model_dir))}
         PORT=${{AMBIX_PORT:-{port}}}
@@ -227,6 +332,7 @@ def generate_serve_script(
 
         echo "[$(date)] Job details"
         echo "  profile: {profile.slug}"
+        echo "  engine: {profile.engine.type}"
         echo "  job id: ${{SLURM_JOB_ID:-unknown}}"
         echo "  node: $(hostname)"
         echo "  allocated GPUs:"
@@ -245,41 +351,7 @@ def generate_serve_script(
         {launch_command} &
         SERVER_PID=$!
 
-        # Event-driven page cache cleanup — wait for the server to finish
-        # ALL loading phases (shard loading + KT expert loading + warmup),
-        # then drop mmap'd safetensor pages from the page cache.  This runs
-        # AFTER KT expert loading re-faults pages, not just after shard
-        # loading, ensuring maximum RSS reclamation before serving begins.
-        (
-            LOG_FILE="ambix-serve-$SLURM_JOB_ID.log"
-            # Wait up to 50 min for server startup (loading is slow)
-            for _i in $(seq 1 300); do
-                if grep -q "fired up" "$LOG_FILE" 2>/dev/null; then
-                    sleep 5  # let things settle
-                    {fadvise_cmd} 2>/dev/null && echo "[$(date)] Post-startup: dropped safetensor page cache" || true
-                    # Memory diagnostics — understand anon vs file-backed breakdown
-                    echo "[$(date)] === Memory diagnostics ==="
-                    CGROUP_PATH="/sys/fs/cgroup/system.slice/slurmstepd.scope/job_${{SLURM_JOB_ID}}"
-                    echo "cgroup memory.current: $(cat ${{CGROUP_PATH}}/memory.current 2>/dev/null || echo N/A)"
-                    echo "cgroup memory.max: $(cat ${{CGROUP_PATH}}/memory.max 2>/dev/null || echo N/A)"
-                    # Per-process breakdown
-                    for pid in $(pgrep -P $SERVER_PID 2>/dev/null | head -8); do
-                        if [[ -f /proc/$pid/smaps_rollup ]]; then
-                            echo "--- PID $pid ---"
-                            grep -E "Rss:|Anonymous:|Shared|Private" /proc/$pid/smaps_rollup 2>/dev/null | head -10
-                        fi
-                    done
-                    echo "[$(date)] === End diagnostics ==="
-                    break
-                fi
-                if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-                    break  # server died, stop waiting
-                fi
-                sleep 10
-            done
-        ) &
-        _EVICTOR_PID=$!
-        trap 'kill $_EVICTOR_PID 2>/dev/null || true' EXIT
+        {evictor_block}
 
         sleep 10
         if kill -0 "$SERVER_PID" 2>/dev/null; then
