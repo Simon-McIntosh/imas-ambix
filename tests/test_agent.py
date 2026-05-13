@@ -510,12 +510,15 @@ def test_category_filter():
 # -- CLI argument validation -------------------------------------------------
 
 
-def test_bench_cli_requires_slug_or_url():
-    """Bench command should require either a slug or --url."""
+def test_bench_cli_requires_slug_or_url(monkeypatch, tmp_path):
+    """Bench command should require either a slug or --url when no default."""
+    # Run from a temp dir with no pyproject.toml and no envvar
+    monkeypatch.delenv("AMBIX_AGENT_DEFAULT_PROFILE", raising=False)
+    monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "bench"])
     assert result.exit_code != 0
-    assert "slug" in result.output.lower() or "url" in result.output.lower()
+    assert "slug" in result.output.lower() or "url" in result.output.lower() or "default_profile" in result.output.lower()
 
 
 def test_bench_cli_no_server_graceful_error():
@@ -526,6 +529,110 @@ def test_bench_cli_no_server_graceful_error():
     )
     assert result.exit_code != 0
     assert "Cannot reach server" in result.output
+
+
+# -- Default profile resolution ----------------------------------------------
+
+
+def test_default_profile_from_pyproject():
+    """Should resolve default_profile from pyproject.toml."""
+    from imas_ambix.agent.cli import _default_profile
+
+    result = _default_profile()
+    assert result == "deepseek-v4-flash"
+
+
+def test_default_profile_envvar_overrides(monkeypatch):
+    """Envvar should override pyproject default_profile."""
+    from imas_ambix.agent.cli import _default_profile
+
+    monkeypatch.setenv("AMBIX_AGENT_DEFAULT_PROFILE", "kimi-k2-6")
+    assert _default_profile() == "kimi-k2-6"
+
+
+def test_resolve_slug_explicit():
+    """Explicit slug takes priority over defaults."""
+    from imas_ambix.agent.cli import _resolve_slug
+
+    assert _resolve_slug("kimi-k2-6") == "kimi-k2-6"
+
+
+def test_resolve_slug_falls_back_to_default():
+    """None slug should fall back to default_profile."""
+    from imas_ambix.agent.cli import _resolve_slug
+
+    result = _resolve_slug(None)
+    assert result == "deepseek-v4-flash"
+
+
+# -- API key resolution ------------------------------------------------------
+
+
+def test_resolve_api_key_cli_value():
+    """CLI flag takes priority."""
+    from imas_ambix.agent.cli import _resolve_api_key
+
+    assert _resolve_api_key("sk-test-123") == "sk-test-123"
+
+
+def test_resolve_api_key_envvar(monkeypatch):
+    """Envvar fallback when no CLI flag."""
+    from imas_ambix.agent.cli import _resolve_api_key
+
+    monkeypatch.setenv("AMBIX_AGENT_API_KEY", "sk-env-456")
+    assert _resolve_api_key(None) == "sk-env-456"
+
+
+def test_resolve_api_key_none(monkeypatch):
+    """Returns None when no key is set anywhere."""
+    from imas_ambix.agent.cli import _resolve_api_key
+
+    monkeypatch.delenv("AMBIX_AGENT_API_KEY", raising=False)
+    assert _resolve_api_key(None) is None
+
+
+def test_load_dotenv_file(monkeypatch, tmp_path):
+    """Should load API key from .env file."""
+    from imas_ambix.agent.cli import _load_dotenv
+
+    monkeypatch.delenv("AMBIX_AGENT_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
+    dotenv = tmp_path / ".env"
+    dotenv.write_text('AMBIX_AGENT_API_KEY="sk-dotenv-789"\n')
+    result = _load_dotenv()
+    assert result["AMBIX_AGENT_API_KEY"] == "sk-dotenv-789"
+
+
+# -- Auth headers ------------------------------------------------------------
+
+
+def test_auth_headers_with_key():
+    """Should include Bearer token when api_key is provided."""
+    from imas_ambix.agent.bench import _auth_headers
+
+    headers = _auth_headers("sk-test")
+    assert headers["Authorization"] == "Bearer sk-test"
+    assert headers["Content-Type"] == "application/json"
+
+
+def test_auth_headers_without_key():
+    """Should not include Authorization when no api_key."""
+    from imas_ambix.agent.bench import _auth_headers
+
+    headers = _auth_headers(None)
+    assert "Authorization" not in headers
+    assert headers["Content-Type"] == "application/json"
+
+
+# -- Shutdown command --------------------------------------------------------
+
+
+def test_shutdown_command_exists():
+    """Shutdown subcommand should be registered."""
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "shutdown", "--help"])
+    assert result.exit_code == 0
+    assert "Cancel active" in result.output
 
 
 # -- Setup command tests -----------------------------------------------------

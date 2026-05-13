@@ -6,6 +6,7 @@ import getpass
 import os
 import shlex
 import subprocess
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -19,9 +20,87 @@ console = Console()
 ENGINE_TYPES = ("vllm", "sglang")
 
 
-def _load_profile(slug: str):
+# ── Config resolution ───────────────────────────────────────────────
+
+
+def _load_dotenv() -> dict[str, str]:
+    """Load KEY=VALUE pairs from a ``.env`` file if present.
+
+    Supports comments (``#``), blank lines, optional quoting, and
+    does **not** override variables already set in the environment.
+    """
+    env_path = Path.cwd() / ".env"
+    if not env_path.is_file():
+        return {}
+    values: dict[str, str] = {}
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip("\"'")
+        if key and key not in os.environ:
+            values[key] = val
+            os.environ[key] = val
+    return values
+
+
+def _resolve_api_key(cli_value: str | None) -> str | None:
+    """Resolve API key: CLI flag > envvar > .env file."""
+    if cli_value:
+        return cli_value
+    env_key = os.environ.get("AMBIX_AGENT_API_KEY")
+    if env_key:
+        return env_key
+    _load_dotenv()
+    return os.environ.get("AMBIX_AGENT_API_KEY")
+
+
+def _default_profile() -> str | None:
+    """Resolve default profile: envvar > pyproject.toml [tool.ambix.agent]."""
+    env_val = os.environ.get("AMBIX_AGENT_DEFAULT_PROFILE")
+    if env_val:
+        return env_val
+    # Walk up from cwd to find pyproject.toml
+    for parent in [Path.cwd(), *Path.cwd().parents]:
+        pyproject = parent / "pyproject.toml"
+        if pyproject.is_file():
+            import tomllib
+
+            try:
+                data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+                return (
+                    data.get("tool", {})
+                    .get("ambix", {})
+                    .get("agent", {})
+                    .get("default_profile")
+                )
+            except Exception:
+                return None
+    return None
+
+
+def _resolve_slug(slug: str | None) -> str:
+    """Return *slug* if given, else fall back to default profile."""
+    if slug:
+        return slug
+    default = _default_profile()
+    if default:
+        return default
+    raise click.ClickException(
+        "No profile specified and no default_profile configured.\n"
+        "Set [tool.ambix.agent] default_profile in pyproject.toml "
+        "or AMBIX_AGENT_DEFAULT_PROFILE envvar."
+    )
+
+
+def _load_profile(slug: str | None):
+    resolved = _resolve_slug(slug)
     try:
-        return load_profile(slug)
+        return load_profile(resolved)
     except FileNotFoundError as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -53,8 +132,8 @@ def list_command() -> None:
 
 
 @agent.command()
-@click.argument("slug")
-def info(slug: str) -> None:
+@click.argument("slug", required=False, default=None)
+def info(slug: str | None) -> None:
     """Show detailed information for a model profile."""
     profile = _load_profile(slug)
     site = SiteConfig.from_env()
@@ -99,13 +178,13 @@ def info(slug: str) -> None:
 
 
 @agent.command()
-@click.argument("slug")
+@click.argument("slug", required=False, default=None)
 @click.option(
     "--dry-run",
     is_flag=True,
     help="Print the SLURM script instead of submitting it.",
 )
-def download(slug: str, dry_run: bool) -> None:
+def download(slug: str | None, dry_run: bool) -> None:
     """Generate and submit a model download job."""
     from imas_ambix.agent.slurm import generate_download_script, submit_script
 
@@ -125,7 +204,7 @@ def download(slug: str, dry_run: bool) -> None:
 
 
 @agent.command()
-@click.argument("slug")
+@click.argument("slug", required=False, default=None)
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -137,7 +216,7 @@ def download(slug: str, dry_run: bool) -> None:
     default=None,
     help="Port to expose on the compute node.",
 )
-def serve(slug: str, dry_run: bool, port: int | None) -> None:
+def serve(slug: str | None, dry_run: bool, port: int | None) -> None:
     """Generate and submit a model serving job."""
     from imas_ambix.agent.slurm import generate_serve_script, submit_script
 
@@ -187,6 +266,86 @@ def status() -> None:
 
 
 @agent.command()
+@click.argument("slug", required=False, default=None)
+@click.option("--all", "cancel_all", is_flag=True, help="Cancel ALL ambix jobs.")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt.")
+def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
+    """Cancel active Ambix agent SLURM jobs.
+
+    Without arguments, cancels serve jobs for the default profile.
+    With SLUG, cancels serve jobs for that profile.
+    With --all, cancels all ambix jobs (serve, download, setup).
+    """
+    user = os.environ.get("USER") or getpass.getuser()
+    result = subprocess.run(
+        ["squeue", "-h", "-u", user, "-o", "%i|%j"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        message = result.stderr.strip() or "Failed to query squeue"
+        raise click.ClickException(message)
+
+    # Parse structured output
+    jobs: list[tuple[str, str]] = []
+    for line in result.stdout.strip().splitlines():
+        line = line.strip()
+        if "|" not in line:
+            continue
+        job_id, job_name = line.split("|", 1)
+        job_id = job_id.strip()
+        job_name = job_name.strip()
+        if not job_name.startswith("ambix-"):
+            continue
+        jobs.append((job_id, job_name))
+
+    if not jobs:
+        console.print("No ambix agent jobs found.")
+        return
+
+    # Filter by scope
+    if cancel_all:
+        targets = jobs
+    else:
+        resolved = _resolve_slug(slug) if slug else _default_profile()
+        if resolved:
+            prefix = f"ambix-serve-{resolved}"
+            targets = [(jid, jn) for jid, jn in jobs if jn.startswith(prefix)]
+        else:
+            # No slug and no default — cancel all serve jobs
+            targets = [(jid, jn) for jid, jn in jobs if jn.startswith("ambix-serve-")]
+
+    if not targets:
+        console.print("No matching jobs to cancel.")
+        return
+
+    # Show what will be cancelled
+    console.print("[bold]Jobs to cancel:[/]")
+    for job_id, job_name in targets:
+        console.print(f"  {job_id}  {job_name}")
+
+    if not yes:
+        if not click.confirm("Proceed?"):
+            console.print("Aborted.")
+            return
+
+    # Cancel jobs
+    job_ids = [jid for jid, _ in targets]
+    cancel_result = subprocess.run(
+        ["scancel"] + job_ids,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if cancel_result.returncode != 0:
+        raise click.ClickException(
+            cancel_result.stderr.strip() or "scancel failed"
+        )
+    console.print(f"[green]Cancelled {len(job_ids)} job(s).[/]")
+
+
+@agent.command()
 @click.argument("slug", required=False)
 @click.option("--url", default=None, help="Server base URL (e.g., http://host:8000).")
 @click.option(
@@ -194,6 +353,11 @@ def status() -> None:
     "model_name",
     default=None,
     help="Model name for API requests.",
+)
+@click.option(
+    "--api-key",
+    default=None,
+    help="API key for authenticated endpoints (or set AMBIX_AGENT_API_KEY).",
 )
 @click.option(
     "--category",
@@ -216,6 +380,7 @@ def bench(
     slug: str | None,
     url: str | None,
     model_name: str | None,
+    api_key: str | None,
     category: tuple[str, ...],
     repeat: int,
     max_context: int | None,
@@ -233,7 +398,9 @@ def bench(
     import urllib.error
     import urllib.request
 
-    from imas_ambix.agent.bench import BenchReport, run_benchmark
+    from imas_ambix.agent.bench import BenchReport, _auth_headers, run_benchmark
+
+    resolved_key = _resolve_api_key(api_key)
 
     # Resolve base_url and model
     if slug:
@@ -244,14 +411,24 @@ def bench(
         base_url = url
         model = model_name or "default"
     else:
-        raise click.ClickException(
-            "Provide a profile slug or --url. "
-            "Example: ambix agent bench deepseek-v4-flash"
-        )
+        # Try default profile
+        default = _default_profile()
+        if default:
+            profile = _load_profile(default)
+            base_url = url or "http://localhost:8000"
+            model = model_name or profile.model.served_name
+        else:
+            raise click.ClickException(
+                "Provide a profile slug or --url. "
+                "Example: ambix agent bench deepseek-v4-flash"
+            )
 
-    # Health check
+    # Health check with auth
     try:
-        with urllib.request.urlopen(f"{base_url}/v1/models", timeout=10) as resp:
+        req = urllib.request.Request(
+            f"{base_url}/v1/models", headers=_auth_headers(resolved_key)
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
             models_data = json_mod.loads(resp.read())
             available = [m["id"] for m in models_data.get("data", [])]
             if model not in available and available:
@@ -279,6 +456,7 @@ def bench(
         repeat=repeat,
         max_context=max_context,
         warmup=warmup,
+        api_key=resolved_key,
     )
 
     # JSON output

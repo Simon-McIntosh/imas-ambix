@@ -610,6 +610,14 @@ CATEGORIES: list[str] = [
 # ── HTTP helpers ────────────────────────────────────────────────────
 
 
+def _auth_headers(api_key: str | None = None) -> dict[str, str]:
+    """Build HTTP headers, adding Bearer auth when *api_key* is set."""
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
 def _stream_chat(
     base_url: str,
     model: str,
@@ -618,6 +626,7 @@ def _stream_chat(
     temperature: float = 0.6,
     tools: list[dict[str, Any]] | None = None,
     extra_body: dict[str, Any] | None = None,
+    api_key: str | None = None,
 ) -> BenchResult:
     """Buffered SSE streaming with server-reported token counts."""
     import urllib.error
@@ -639,7 +648,7 @@ def _stream_chat(
 
     payload = json.dumps(body).encode()
     req = urllib.request.Request(
-        url, data=payload, headers={"Content-Type": "application/json"}
+        url, data=payload, headers=_auth_headers(api_key)
     )
 
     result = BenchResult(model=model)
@@ -720,6 +729,7 @@ def _chat(
     temperature: float = 0.0,
     tools: list[dict[str, Any]] | None = None,
     extra_body: dict[str, Any] | None = None,
+    api_key: str | None = None,
 ) -> tuple[BenchResult, dict[str, Any]]:
     """Non-streaming chat completion. Returns ``(result, raw_response)``."""
     import urllib.error
@@ -740,7 +750,7 @@ def _chat(
 
     payload = json.dumps(body).encode()
     req = urllib.request.Request(
-        url, data=payload, headers={"Content-Type": "application/json"}
+        url, data=payload, headers=_auth_headers(api_key)
     )
 
     result = BenchResult(model=model)
@@ -779,6 +789,7 @@ def _run_throughput(
     model: str,
     repeat: int,
     warmup: bool,
+    api_key: str | None = None,
 ) -> list[BenchResult]:
     """Decode speed at various output lengths."""
     tests = [
@@ -792,11 +803,11 @@ def _run_throughput(
     results: list[BenchResult] = []
 
     if warmup:
-        _stream_chat(base_url, model, prompt, max_tokens=16)
+        _stream_chat(base_url, model, prompt, max_tokens=16, api_key=api_key)
 
     for test_name, max_tok in tests:
         for rep in range(repeat):
-            r = _stream_chat(base_url, model, prompt, max_tokens=max_tok)
+            r = _stream_chat(base_url, model, prompt, max_tokens=max_tok, api_key=api_key)
             r.category = "throughput"
             r.test_name = test_name
             r.repeat_index = rep
@@ -810,6 +821,7 @@ def _run_prefill(
     base_url: str,
     model: str,
     repeat: int,
+    api_key: str | None = None,
 ) -> list[BenchResult]:
     """TTFT scaling with input context length."""
     tests = [
@@ -828,7 +840,7 @@ def _run_prefill(
             }
         ]
         for rep in range(repeat):
-            r = _stream_chat(base_url, model, messages, max_tokens=32)
+            r = _stream_chat(base_url, model, messages, max_tokens=32, api_key=api_key)
             r.category = "prefill"
             r.test_name = test_name
             r.repeat_index = rep
@@ -843,6 +855,7 @@ def _run_context(
     model: str,
     repeat: int,
     max_context: int | None,
+    api_key: str | None = None,
 ) -> list[BenchResult]:
     """Needle-in-haystack retrieval at various context lengths and positions."""
     sizes = [4000, 16000, 64000, 128000]
@@ -867,7 +880,7 @@ def _run_context(
                         ),
                     },
                 ]
-                r = _stream_chat(base_url, model, messages, max_tokens=64)
+                r = _stream_chat(base_url, model, messages, max_tokens=64, api_key=api_key)
                 r.category = "context"
                 r.test_name = test_name
                 r.repeat_index = rep
@@ -887,6 +900,7 @@ def _run_tools(
     base_url: str,
     model: str,
     repeat: int,
+    api_key: str | None = None,
 ) -> list[BenchResult]:
     """Tool calling validation tests."""
     results: list[BenchResult] = []
@@ -944,7 +958,7 @@ def _run_tools(
 
     for test_name, messages, tools, validation in tool_tests:
         for rep in range(repeat):
-            r, data = _chat(base_url, model, messages, tools=tools, max_tokens=256)
+            r, data = _chat(base_url, model, messages, tools=tools, max_tokens=256, api_key=api_key)
             r.category = "tools"
             r.test_name = test_name
             r.repeat_index = rep
@@ -998,6 +1012,7 @@ def _run_reasoning(
     base_url: str,
     model: str,
     repeat: int,
+    api_key: str | None = None,
 ) -> list[BenchResult]:
     """Reasoning tests with capability gating."""
     reasoning_tests = [
@@ -1029,6 +1044,7 @@ def _run_reasoning(
                 max_tokens=1024,
                 temperature=0.6,
                 extra_body={"chat_template_kwargs": {"enable_thinking": True}},
+                api_key=api_key,
             )
             r.category = "reasoning"
             r.test_name = test_name
@@ -1037,7 +1053,7 @@ def _run_reasoning(
 
             if r.http_status in (400, 422):
                 # Thinking not supported — retry without and mark skipped
-                r2 = _stream_chat(base_url, model, messages, max_tokens=1024)
+                r2 = _stream_chat(base_url, model, messages, max_tokens=1024, api_key=api_key)
                 r2.category = "reasoning"
                 r2.test_name = test_name
                 r2.repeat_index = rep
@@ -1056,6 +1072,7 @@ def _run_concurrency(
     base_url: str,
     model: str,
     repeat: int,
+    api_key: str | None = None,
 ) -> list[BenchResult]:
     """Parallel request handling tests."""
     levels = [1, 2, 4, 8]
@@ -1080,7 +1097,8 @@ def _run_concurrency(
                 def _worker(idx: int) -> BenchResult:
                     _barrier.wait()
                     r = _stream_chat(
-                        base_url, model, prompt, max_tokens=256
+                        base_url, model, prompt, max_tokens=256,
+                        api_key=api_key,
                     )
                     r.category = "concurrency"
                     r.test_name = _test_name
@@ -1125,6 +1143,7 @@ def run_benchmark(
     repeat: int = 1,
     max_context: int | None = None,
     warmup: bool = True,
+    api_key: str | None = None,
 ) -> BenchReport:
     """Run the full benchmark suite and return a :class:`BenchReport`."""
     cats = categories or CATEGORIES
@@ -1137,18 +1156,21 @@ def run_benchmark(
     try:
         import urllib.request
 
-        with urllib.request.urlopen(f"{base_url}/v1/models", timeout=10) as resp:
+        req = urllib.request.Request(
+            f"{base_url}/v1/models", headers=_auth_headers(api_key)
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
             report.server_info = json.loads(resp.read())
     except Exception:
         report.server_info = {}
 
     runners = {
-        "throughput": lambda: _run_throughput(base_url, model, repeat, warmup),
-        "prefill": lambda: _run_prefill(base_url, model, repeat),
-        "context": lambda: _run_context(base_url, model, repeat, max_context),
-        "tools": lambda: _run_tools(base_url, model, repeat),
-        "reasoning": lambda: _run_reasoning(base_url, model, repeat),
-        "concurrency": lambda: _run_concurrency(base_url, model, repeat),
+        "throughput": lambda: _run_throughput(base_url, model, repeat, warmup, api_key),
+        "prefill": lambda: _run_prefill(base_url, model, repeat, api_key),
+        "context": lambda: _run_context(base_url, model, repeat, max_context, api_key),
+        "tools": lambda: _run_tools(base_url, model, repeat, api_key),
+        "reasoning": lambda: _run_reasoning(base_url, model, repeat, api_key),
+        "concurrency": lambda: _run_concurrency(base_url, model, repeat, api_key),
     }
 
     for cat in cats:
