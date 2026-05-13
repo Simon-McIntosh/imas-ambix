@@ -1,0 +1,55 @@
+# Kimi-K2.6 — Moonshot AI 1T-param MoE with native INT4 QAT
+#
+# Architecture: 384 routed + 1 shared expert, 8 selected/token, 32B activated
+# 61 layers (60 MoE + 1 dense), MLA attention (kv_lora_rank=512)
+# Weight budget: ~507 GB INT4 experts + ~87 GB BF16 non-expert = ~594 GB total
+#
+# Memory budget on 4×H200 (140.4 GB each), gpu_experts=350:
+#   GPU: ~131 GB/card (10 GB non-expert + 121 GB hot experts)
+#        KV cache: ~2.2 GB/card for 128K tokens (MLA ≈17 KB/tok/GPU)
+#        128K max_total_tokens fits within ~9 GB VRAM headroom
+#   CPU: 34 cold experts × 60 layers in CPUInfer native buffers (~43 GB)
+#        + ~40 GB model params (non-expert, TP-split across 4 ranks)
+#        + ~30 GB runtime overhead × 4 TP ranks
+#        Target: well within 650 GB QoS cgroup limit
+#        mmap'd safetensor pages evicted via FADV_DONTNEED post-load
+
+[model]
+name = "Kimi-K2.6"
+hf_repo = "moonshotai/Kimi-K2.6"
+served_name = "Kimi-K2.6"
+size_gb = 594
+max_context = 262144
+
+[engine]
+type = "ktransformers"
+tensor_parallel = 4
+mem_fraction_static = 0.96
+attention_backend = "flashinfer"
+trust_remote_code = true
+enable_mixed_chunk = true
+enable_p2p_check = true
+chunked_prefill_size = 32658
+disable_cuda_graph = true
+disable_custom_all_reduce = true
+moe_runner_backend = "triton"
+weight_loader_disable_mmap = false
+max_total_tokens = 131072
+
+[engine.ktransformers]
+method = "RAWINT4"
+gpu_experts = 350
+cpuinfer = 28
+threadpool_count = 2
+disable_shared_experts_fusion = true
+
+[engine.parsers]
+tool_call = "kimi_k2"
+reasoning = "kimi_k2"
+
+[slurm]
+gpus = 4
+cpus = 30
+memory = "650G"
+time_serve = "7-00:00:00"
+time_download = "24:00:00"

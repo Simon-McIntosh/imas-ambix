@@ -15,6 +15,21 @@ if TYPE_CHECKING:
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"
 
+# Python one-liner that calls posix_fadvise(FADV_DONTNEED) on all
+# safetensor files in a directory, advising the kernel to drop their
+# file-backed pages from the page cache.  Used as a post-load safety
+# net to release any residual mmap'd pages.
+_FADVISE_DROP_CODE = (
+    "import os, sys\n"
+    "d = sys.argv[1]\n"
+    "for f in sorted(os.listdir(d)):\n"
+    "    if f.endswith('.safetensors'):\n"
+    "        p = os.path.join(d, f)\n"
+    "        fd = os.open(p, os.O_RDONLY)\n"
+    "        os.posix_fadvise(fd, 0, os.fstat(fd).st_size, os.POSIX_FADV_DONTNEED)\n"
+    "        os.close(fd)\n"
+)
+
 
 def _sbatch_headers(
     *,
@@ -75,6 +90,7 @@ def _render_shell_command(args: list[str]) -> str:
 
 def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
     engine = profile.engine
+    max_tokens = engine.max_total_tokens or profile.model.max_context
     python = str(site.python_path)
     args = [
         python,
@@ -91,7 +107,7 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
         "--chunked-prefill-size",
         str(engine.chunked_prefill_size),
         "--max-total-tokens",
-        str(profile.model.max_context),
+        str(max_tokens),
         "--attention-backend",
         engine.attention_backend,
         "--host",
@@ -109,7 +125,13 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
         "--disable-custom-all-reduce",
         engine.disable_custom_all_reduce,
     )
+    _append_option(args, "--moe-runner-backend", engine.moe_runner_backend)
     _append_option(args, "--cuda-graph-max-bs", engine.cuda_graph_max_bs)
+    _append_flag(
+        args,
+        "--weight-loader-disable-mmap",
+        engine.weight_loader_disable_mmap,
+    )
 
     if engine.parsers.tool_call:
         _append_option(args, "--tool-call-parser", engine.parsers.tool_call)
@@ -165,12 +187,24 @@ def generate_serve_script(
     )
     launch_command = _build_serve_command(profile, site)
     venv_bin = str(site.python_path.parent)
+    evictor_python = shlex.quote(str(site.python_path))
+    fadvise_cmd = (
+        f"{evictor_python} -c {shlex.quote(_FADVISE_DROP_CODE)}"
+        ' "$MODEL_DIR"'
+    )
     script_body = dedent(
         f"""
         set -euo pipefail
 
         export TMPDIR=/scratch_local/$SLURM_JOB_ID
         mkdir -p "$TMPDIR"
+
+        # Force glibc to return freed memory to the OS immediately,
+        # reducing heap fragmentation under the tight cgroup limit.
+        export MALLOC_TRIM_THRESHOLD_=0
+        # Force large allocations (>32KB) through mmap instead of heap;
+        # mmap pages are returned to the OS on free, avoiding fragmentation.
+        export MALLOC_MMAP_THRESHOLD_=32768
 
         # Ensure venv tools (ninja, etc.) are on PATH for JIT compilation
         export PATH={shlex.quote(venv_bin)}:$PATH
@@ -210,6 +244,42 @@ def generate_serve_script(
         echo "[$(date)] Starting {profile.model.name} server"
         {launch_command} &
         SERVER_PID=$!
+
+        # Event-driven page cache cleanup — wait for the server to finish
+        # ALL loading phases (shard loading + KT expert loading + warmup),
+        # then drop mmap'd safetensor pages from the page cache.  This runs
+        # AFTER KT expert loading re-faults pages, not just after shard
+        # loading, ensuring maximum RSS reclamation before serving begins.
+        (
+            LOG_FILE="ambix-serve-$SLURM_JOB_ID.log"
+            # Wait up to 50 min for server startup (loading is slow)
+            for _i in $(seq 1 300); do
+                if grep -q "fired up" "$LOG_FILE" 2>/dev/null; then
+                    sleep 5  # let things settle
+                    {fadvise_cmd} 2>/dev/null && echo "[$(date)] Post-startup: dropped safetensor page cache" || true
+                    # Memory diagnostics — understand anon vs file-backed breakdown
+                    echo "[$(date)] === Memory diagnostics ==="
+                    CGROUP_PATH="/sys/fs/cgroup/system.slice/slurmstepd.scope/job_${{SLURM_JOB_ID}}"
+                    echo "cgroup memory.current: $(cat ${{CGROUP_PATH}}/memory.current 2>/dev/null || echo N/A)"
+                    echo "cgroup memory.max: $(cat ${{CGROUP_PATH}}/memory.max 2>/dev/null || echo N/A)"
+                    # Per-process breakdown
+                    for pid in $(pgrep -P $SERVER_PID 2>/dev/null | head -8); do
+                        if [[ -f /proc/$pid/smaps_rollup ]]; then
+                            echo "--- PID $pid ---"
+                            grep -E "Rss:|Anonymous:|Shared|Private" /proc/$pid/smaps_rollup 2>/dev/null | head -10
+                        fi
+                    done
+                    echo "[$(date)] === End diagnostics ==="
+                    break
+                fi
+                if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+                    break  # server died, stop waiting
+                fi
+                sleep 10
+            done
+        ) &
+        _EVICTOR_PID=$!
+        trap 'kill $_EVICTOR_PID 2>/dev/null || true' EXIT
 
         sleep 10
         if kill -0 "$SERVER_PID" 2>/dev/null; then

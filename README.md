@@ -86,6 +86,39 @@ ambix status
 uv run pytest
 ```
 
+## Agent Serving
+
+The `ambix agent` CLI manages LLM deployments on the ITER SDCC GPU cluster.
+See [agents.md](agents.md) for hardware specs and deployment details.
+
+```bash
+# List available model profiles
+ambix agent list
+
+# Show profile details
+ambix agent info kimi-k2-6
+
+# Download model weights (submits SLURM job to sirius partition)
+ambix agent download kimi-k2-6
+
+# Serve model (submits SLURM job to betelgeuse GPU partition)
+ambix agent serve kimi-k2-6
+
+# Preview generated script without submitting
+ambix agent serve kimi-k2-6 --dry-run
+
+# Check running jobs
+ambix agent status
+```
+
+**Current deployments:**
+- **Kimi-K2.6** — 1T-param MoE (32B activated), KTransformers+SGLang engine,
+  4×H200 GPUs, ~18K context (auto-fitted to VRAM), OpenAI-compatible API at
+  `http://98dci4-gpu-0003:8000/v1`
+  - Decode throughput: ~4–5 tok/s
+  - Reasoning model with chain-of-thought (use `max_tokens≥1024` for complex prompts)
+  - Access from ITER login nodes or compute nodes via SLURM
+
 ## Development
 
 ```bash
