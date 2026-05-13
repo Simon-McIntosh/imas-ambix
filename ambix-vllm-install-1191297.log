@@ -1,0 +1,72 @@
+slurmstepd: error: Unable to create TMPDIR [/run/user/39486]: Permission denied
+slurmstepd: error: Setting TMPDIR to /tmp
+=== Checking CUDA modules ===
+/usr/bin/lua: /usr/share/lmod/lmod/libexec/Cache.lua:341: bad argument #1 to 'next' (table expected, got boolean)
+stack traceback:
+	[C]: in function 'next'
+	/usr/share/lmod/lmod/libexec/Cache.lua:341: in upvalue 'l_readCacheFile'
+	/usr/share/lmod/lmod/libexec/Cache.lua:561: in function 'Cache.build'
+	/usr/share/lmod/lmod/libexec/ModuleA.lua:685: in function 'ModuleA.singleton'
+	/usr/share/lmod/lmod/libexec/Hub.lua:1145: in function 'Hub.avail'
+	/usr/share/lmod/lmod/libexec/cmdfuncs.lua:144: in function 'Avail'
+	/usr/share/lmod/lmod/libexec/lmod:514: in function 'main'
+	/usr/share/lmod/lmod/libexec/lmod:585: in main chunk
+	[C]: in ?
+/usr/bin/lua: /usr/share/lmod/lmod/libexec/Cache.lua:341: bad argument #1 to 'next' (table expected, got boolean)
+stack traceback:
+	[C]: in function 'next'
+	/usr/share/lmod/lmod/libexec/Cache.lua:341: in upvalue 'l_readCacheFile'
+	/usr/share/lmod/lmod/libexec/Cache.lua:561: in function 'Cache.build'
+	/usr/share/lmod/lmod/libexec/ModuleA.lua:685: in function 'ModuleA.singleton'
+	/usr/share/lmod/lmod/libexec/Hub.lua:1145: in function 'Hub.avail'
+	/usr/share/lmod/lmod/libexec/cmdfuncs.lua:144: in function 'Avail'
+	/usr/share/lmod/lmod/libexec/lmod:514: in function 'main'
+	/usr/share/lmod/lmod/libexec/lmod:585: in main chunk
+	[C]: in ?
+
+=== Checking if nvcc exists ===
+/usr/bin/which: no nvcc in (/work/imas/opt/EasyBuild/software/gh/2.52.0/bin:/work/imas/opt/EasyBuild/software/Python/3.11.5-GCCcore-13.2.0/bin:/work/imas/opt/EasyBuild/software/OpenSSL/1.1/bin:/work/imas/opt/EasyBuild/software/XZ/5.4.4-GCCcore-13.2.0/bin:/work/imas/opt/EasyBuild/software/SQLite/3.43.1-GCCcore-13.2.0/bin:/work/imas/opt/EasyBuild/software/Tcl/8.6.13-GCCcore-13.2.0/bin:/work/imas/opt/EasyBuild/software/ncurses/6.4-GCCcore-13.2.0/bin:/work/imas/opt/EasyBuild/software/bzip2/1.0.8-GCCcore-13.2.0/bin:/work/imas/opt/EasyBuild/software/binutils/2.40-GCCcore-13.2.0/bin:/work/imas/opt/EasyBuild/software/GCCcore/13.2.0/bin:/home/ITER/mcintos/.local/bin:/home/ITER/mcintos/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin)
+no nvcc in PATH
+ls: cannot access '/usr/local/cuda*/bin/nvcc': No such file or directory
+no /usr/local/cuda
+ls: cannot access '/opt/cuda*/bin/nvcc': No such file or directory
+no /opt/cuda
+ls: cannot access '/software/*/CUDA/*/bin/nvcc': No such file or directory
+no /software CUDA
+
+=== Try uv pip install ===
+  Downloading uv-0.11.14-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (11 kB)
+Downloading uv-0.11.14-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (24.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 24.7/24.7 MB 94.4 MB/s  0:00:00
+Installing collected packages: uv
+Successfully installed uv-0.11.14
+      line 186, in setup
+          return run_commands(dist)
+        File
+      "/home/ITER/mcintos/.cache/uv/builds-v0/.tmpPxjXfD/lib/python3.14/site-packages/setuptools/_distutils/core.py",
+      line 202, in run_commands
+          dist.run_commands()
+          ~~~~~~~~~~~~~~~~~^^
+        File
+      "/home/ITER/mcintos/.cache/uv/builds-v0/.tmpPxjXfD/lib/python3.14/site-packages/setuptools/_distutils/dist.py",
+      line 1000, in run_commands
+          self.run_command(cmd)
+          ~~~~~~~~~~~~~~~~^^^^^
+        File
+      "/home/ITER/mcintos/.cache/uv/builds-v0/.tmpPxjXfD/lib/python3.14/site-packages/setuptools/dist.py",
+      line 1107, in run_command
+          super().run_command(command)
+          ~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+        File
+      "/home/ITER/mcintos/.cache/uv/builds-v0/.tmpPxjXfD/lib/python3.14/site-packages/setuptools/_distutils/dist.py",
+      line 1019, in run_command
+          cmd_obj.run()
+          ~~~~~~~~~~~^^
+        File "<string>", line 150, in run
+        File "<string>", line 68, in build_library_files
+      TypeError: spawn() got an unexpected keyword argument 'dry_run'
+
+      hint: This usually indicates a problem with the package or the build
+      environment.
+  help: `llvmlite` (v0.44.0) was included because `vllm` (v0.19.1) depends on
+        `numba` (v0.61.2) which depends on `llvmlite`

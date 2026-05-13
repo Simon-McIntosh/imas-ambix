@@ -77,6 +77,7 @@ class EngineConfig(BaseModel):
     moe_runner_backend: Literal["auto", "triton", "triton_kernel"] | None = None
     weight_loader_disable_mmap: bool = False
     enable_auto_tool_choice: bool = False
+    kv_cache_dtype: str | None = None
     ktransformers: KTransformersConfig | None = None
     parsers: ParsersConfig = ParsersConfig()
 
@@ -118,10 +119,12 @@ class SiteConfig(BaseModel):
 
     Read from environment variables with ``AMBIX_AGENT_`` prefix.
     Defaults match the ITER SDCC betelgeuse GPU partition.
+
+    Engine venvs live under ``{base_dir}/agents/{engine}/``, each
+    managed by its own ``pyproject.toml`` + ``uv.lock``.
     """
 
     base_dir: str = "/work/projects/imas_gpu"
-    venv_dir: str = "~/.local/share/ambix/agent-venv"
     partition: str = "betelgeuse"
     download_partition: str = "sirius"
     account: str = "grpa"
@@ -133,9 +136,6 @@ class SiteConfig(BaseModel):
         """Build config from environment, falling back to defaults."""
         return cls(
             base_dir=os.environ.get("AMBIX_AGENT_BASE_DIR", "/work/projects/imas_gpu"),
-            venv_dir=os.environ.get(
-                "AMBIX_AGENT_VENV_DIR", "~/.local/share/ambix/agent-venv"
-            ),
             partition=os.environ.get("AMBIX_AGENT_PARTITION", "betelgeuse"),
             download_partition=os.environ.get(
                 "AMBIX_AGENT_DOWNLOAD_PARTITION", "sirius"
@@ -147,20 +147,31 @@ class SiteConfig(BaseModel):
             default_port=int(os.environ.get("AMBIX_AGENT_PORT", "8000")),
         )
 
-    @property
-    def venv_path(self) -> Path:
-        """Expanded path to the agent inference venv."""
-        return Path(self.venv_dir).expanduser()
+    def _engine_key(self, engine_type: str) -> str:
+        """Map engine type to venv directory name.
 
-    @property
-    def python_path(self) -> Path:
-        """Path to the venv Python binary."""
-        return self.venv_path / "bin" / "python"
+        ``ktransformers`` shares the ``sglang`` venv since it runs
+        as an SGLang plugin.
+        """
+        if engine_type == "ktransformers":
+            return "sglang"
+        return engine_type
 
-    @property
-    def hf_path(self) -> Path:
-        """Path to the ``hf`` CLI binary in the venv."""
-        return self.venv_path / "bin" / "hf"
+    def env_dir(self, engine_type: str) -> Path:
+        """Root of the uv-managed env for *engine_type*."""
+        return Path(self.base_dir) / "agents" / self._engine_key(engine_type)
+
+    def venv_path(self, engine_type: str) -> Path:
+        """Path to the venv for *engine_type*."""
+        return self.env_dir(engine_type) / ".venv"
+
+    def python_path(self, engine_type: str) -> Path:
+        """Path to the venv Python binary for *engine_type*."""
+        return self.venv_path(engine_type) / "bin" / "python"
+
+    def hf_path(self, engine_type: str) -> Path:
+        """Path to the ``hf`` CLI binary for *engine_type*."""
+        return self.venv_path(engine_type) / "bin" / "hf"
 
     def model_dir(self, profile: ModelProfile) -> Path:
         """Filesystem path for downloaded model weights."""

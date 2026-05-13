@@ -1,0 +1,13 @@
+slurmstepd: error: Unable to create TMPDIR [/run/user/39486]: Permission denied
+slurmstepd: error: Setting TMPDIR to /tmp
+=== glibc version ===
+ldd (GNU libc) 2.34
+
+=== Step 1: Download vLLM wheel directly ===
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0 19  233M   19 45.1M    0     0  79.0M      0  0:00:02 --:--:--  0:00:02 78.8M 75  233M   75  175M    0     0   111M      0  0:00:02  0:00:01  0:00:01  111M100  233M  100  233M    0     0   115M      0  0:00:02  0:00:02 --:--:--  115M
+-rw-r--r-- 1 mcintos mcintos 234M May 13 08:49 vllm-0.20.2-cp38-abi3-manylinux_2_35_x86_64.whl
+
+=== Step 2: Force install wheel (bypass platform check) ===
+ERROR: vllm-0.20.2-cp38-abi3-manylinux_2_35_x86_64.whl is not a supported wheel on this platform.

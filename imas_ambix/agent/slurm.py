@@ -92,7 +92,7 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
     """Build common SGLang launch_server arguments."""
     engine = profile.engine
     max_tokens = engine.max_total_tokens or profile.model.max_context
-    python = str(site.python_path)
+    python = str(site.python_path(profile.engine.type))
     args = [
         python,
         "-m",
@@ -126,11 +126,8 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         "--disable-custom-all-reduce",
         engine.disable_custom_all_reduce,
     )
-    _append_flag(
-        args,
-        "--enable-auto-tool-choice",
-        engine.enable_auto_tool_choice,
-    )
+    # Note: --enable-auto-tool-choice is vLLM-only; SGLang enables
+    # tool calls automatically when --tool-call-parser is set.
     _append_option(args, "--moe-runner-backend", engine.moe_runner_backend)
     _append_option(args, "--cuda-graph-max-bs", engine.cuda_graph_max_bs)
     _append_flag(
@@ -155,7 +152,7 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
         return _render_shell_command(args)
 
     if engine.type == "vllm":
-        python = str(site.python_path)
+        python = str(site.python_path(profile.engine.type))
         max_tokens = engine.max_total_tokens or profile.model.max_context
         args = [
             python,
@@ -169,6 +166,8 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             str(engine.tensor_parallel),
             "--max-model-len",
             str(max_tokens),
+            "--gpu-memory-utilization",
+            str(engine.mem_fraction_static),
             "--host",
             "0.0.0.0",
             "--port",
@@ -187,6 +186,10 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
         if engine.parsers.reasoning:
             _append_option(
                 args, "--reasoning-parser", engine.parsers.reasoning
+            )
+        if engine.kv_cache_dtype:
+            _append_option(
+                args, "--kv-cache-dtype", engine.kv_cache_dtype
             )
         return _render_shell_command(args)
 
@@ -241,13 +244,13 @@ def generate_serve_script(
         output_name="ambix-serve-%j.log",
     )
     launch_command = _build_serve_command(profile, site)
-    venv_bin = str(site.python_path.parent)
+    venv_bin = str(site.python_path(profile.engine.type).parent)
     is_kt = profile.engine.type == "ktransformers"
 
     # KTransformers needs extra env vars and fadvise evictor
     kt_env_block = ""
     if is_kt:
-        evictor_python = shlex.quote(str(site.python_path))
+        evictor_python = shlex.quote(str(site.python_path(profile.engine.type)))
         fadvise_cmd = (
             f"{evictor_python} -c {shlex.quote(_FADVISE_DROP_CODE)}"
             ' "$MODEL_DIR"'
@@ -264,7 +267,7 @@ def generate_serve_script(
             # sglang-kernel ships pre-compiled CUDA 13 binaries; expose the
             # nvidia-cu13 runtime libs so they can be loaded alongside the
             # CUDA 12.6 PyTorch stack (the driver supports both).
-            _CU13_LIB={shlex.quote(str(site.venv_path / "lib/python3.12/site-packages/nvidia/cu13/lib"))}
+            _CU13_LIB={shlex.quote(str(site.venv_path(profile.engine.type) / "lib/python3.12/site-packages/nvidia/cu13/lib"))}
             if [[ -d "$_CU13_LIB" ]]; then
                 export LD_LIBRARY_PATH="${{_CU13_LIB}}:${{LD_LIBRARY_PATH:-}}"
             fi
@@ -317,7 +320,31 @@ def generate_serve_script(
         export TMPDIR=/scratch_local/$SLURM_JOB_ID
         mkdir -p "$TMPDIR"
 
+        # Expose vendored nvidia libs (cuDNN, cuSPARSELt, NCCL, etc.)
+        # installed by pip/uv into per-package subdirs under nvidia/.
+        _SITE={shlex.quote(str(site.venv_path(profile.engine.type) / "lib/python3.12/site-packages"))}
+        for _nv_lib in "$_SITE"/nvidia/*/lib; do
+            [[ -d "$_nv_lib" ]] && export LD_LIBRARY_PATH="${{_nv_lib}}:${{LD_LIBRARY_PATH:-}}"
+        done
+        # PyTorch shared libs (libtorch.so, libc10.so, etc.) for vLLM C extensions
+        export LD_LIBRARY_PATH="${{_SITE}}/torch/lib:${{LD_LIBRARY_PATH:-}}"
+
+        # TensorRT-LLM DeepGEMM kernel cache: use scratch-local to avoid GPFS
+        # rename races when multiple TP workers compile cubins concurrently.
+        export TRTLLM_DG_CACHE_DIR=$TMPDIR/.tensorrt_llm
+        mkdir -p "$TRTLLM_DG_CACHE_DIR"
+
+        # Torch inductor cache — same GPFS race avoidance
+        export TORCHINDUCTOR_CACHE_DIR=$TMPDIR/.torch_inductor
+        mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
+
         {kt_env_block}
+
+        # CUDA toolkit for JIT kernel compilation (DeepGEMM, FlashInfer)
+        if [[ -d /usr/local/cuda/bin ]]; then
+            export PATH=/usr/local/cuda/bin:$PATH
+            export CUDA_HOME=/usr/local/cuda
+        fi
 
         # Ensure venv tools (ninja, etc.) are on PATH for JIT compilation
         export PATH={shlex.quote(venv_bin)}:$PATH
@@ -380,7 +407,7 @@ def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
     """
     model_dir = site.model_dir(profile)
     cache_dir = site.cache_dir(profile)
-    hf_bin = str(site.hf_path)
+    hf_bin = str(site.hf_path(profile.engine.type))
     headers = _sbatch_headers(
         job_name=f"ambix-download-{profile.slug}",
         partition=site.download_partition,

@@ -21,20 +21,16 @@ size_gb = 164
 max_context = 1048576
 
 [engine]
-type = "sglang"
+type = "vllm"
 tensor_parallel = 4
-mem_fraction_static = 0.90
-attention_backend = "flashinfer"
 trust_remote_code = true
-enable_mixed_chunk = true
-enable_p2p_check = false
-chunked_prefill_size = 32768
-disable_cuda_graph = false
-disable_custom_all_reduce = false
+enable_auto_tool_choice = true
+max_total_tokens = 131072
+kv_cache_dtype = "fp8"
 
 [engine.parsers]
 tool_call = "deepseek_v4"
-reasoning = "deepseek_r1"
+reasoning = "deepseek_v4"
 
 [slurm]
 gpus = 4

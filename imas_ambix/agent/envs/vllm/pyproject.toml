@@ -1,0 +1,122 @@
+# Agent serving environment — vLLM engine
+#
+# Manages the GPU inference venv for vLLM-based model serving.
+# Install on a node with network access (e.g. sirius partition):
+#
+#   ambix agent setup vllm
+#
+# NOTE: vLLM's PyPI wheel targets manylinux_2_35 but SDCC has glibc 2.34.
+# The setup script downloads, renames, and installs the wheel separately
+# after uv sync resolves all other dependencies listed here.
+#
+# These dependencies mirror vllm's requirements so that `uv sync` pulls
+# everything in, and the renamed wheel is installed with `--no-deps`.
+
+[project]
+name = "ambix-agent-vllm"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # --- Core ML runtime ---
+    # Pin torch to match vllm's compiled ABI — vllm 0.20.2 links torch 2.11
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
+    "torchvision==0.26.0",
+    "transformers>=4.56",
+    "tokenizers>=0.21.1",
+    "numpy",
+    "einops",
+
+    # --- NVIDIA CUDA libraries (pip-vendored, no system cuDNN on betelgeuse) ---
+    "nvidia-cudnn-cu12>=9.1",
+    "nvidia-nccl-cu12>=2.21",
+    "nvidia-cusparselt-cu12",
+    "nvidia-cudnn-frontend>=1.13,<1.19",
+    "nvidia-cutlass-dsl>=4.4.2",
+
+    # --- Web serving (vLLM OpenAI-compatible API) ---
+    "fastapi[standard]>=0.115",
+    "uvloop>=0.21",
+    "msgspec",
+    "pydantic>=2.12",
+    "prometheus-client>=0.18",
+    "prometheus-fastapi-instrumentator>=7.0",
+
+    # --- Inference kernels ---
+    "flashinfer-python==0.6.8.post1",
+    "flashinfer-cubin==0.6.8.post1",
+    "quack-kernels>=0.3.3",
+    "tilelang==0.1.9",
+    "numba==0.65.0",
+
+    # --- Model / tokenizer support ---
+    "huggingface-hub[hf_transfer]>=0.28",
+    "hf-transfer",
+    "sentencepiece",
+    "tiktoken>=0.6",
+    "pillow",
+    "gguf>=0.17",
+    "compressed-tensors==0.15.0.1",
+    "fastsafetensors>=0.2.2",
+
+    # --- Structured output / guided decoding ---
+    "lark==1.2.2",
+    "outlines_core==0.2.14",
+    "lm-format-enforcer==0.11.3",
+    "partial-json-parser",
+    "xgrammar<1.0,>=0.1.32",
+    "llguidance>=1.3,<1.4",
+
+    # --- Observability ---
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp>=1.27",
+    "opentelemetry-semantic-conventions-ai>=0.4.1",
+
+    # --- Networking / async ---
+    "aiohttp>=3.13.3",
+    "requests>=2.26",
+    "pyzmq>=25.0",
+
+    # --- Utilities ---
+    "openai>=2.0",
+    "openai-harmony>=0.0.3",
+    "anthropic>=0.71",
+    "mistral_common[image]>=1.11",
+    "mcp",
+    "model-hosting-container-standards>=0.1.13,<1.0",
+    "psutil",
+    "py-cpuinfo",
+    "tqdm",
+    "pyyaml",
+    "regex",
+    "cloudpickle",
+    "filelock>=3.16.1",
+    "ninja",
+    "setuptools>=77,<81",
+    "six>=1.16",
+    "typing_extensions>=4.10",
+    "setproctitle",
+    "pybase64",
+    "python-json-logger",
+    "depyf==0.20.0",
+    "diskcache==5.6.3",
+    "blake3",
+    "cbor2",
+    "ijson",
+    "cachetools",
+    "watchfiles",
+    "protobuf>=5.29.6",
+    "opencv-python-headless>=4.13",
+    "apache-tvm-ffi==0.1.9",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu126" }
+torchaudio = { index = "pytorch-cu126" }
+torchvision = { index = "pytorch-cu126" }

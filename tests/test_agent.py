@@ -30,9 +30,10 @@ def test_load_deepseek_v4_flash_profile():
     profile = load_profile("deepseek-v4-flash")
     assert profile.slug == "deepseek-v4-flash"
     assert profile.model.hf_repo == "deepseek-ai/DeepSeek-V4-Flash"
-    assert profile.engine.type == "sglang"
+    assert profile.engine.type == "vllm"
     assert profile.engine.tensor_parallel == 4
     assert profile.engine.ktransformers is None
+    assert profile.engine.enable_auto_tool_choice is True
     assert profile.model.max_context == 1048576
     assert profile.model.size_gb == 164
 
@@ -44,7 +45,6 @@ def test_load_minimax_m2_7_profile():
     assert profile.engine.type == "sglang"
     assert profile.engine.tensor_parallel == 4
     assert profile.engine.ktransformers is None
-    assert profile.engine.enable_auto_tool_choice is True
     assert profile.model.max_context == 204800
     assert profile.engine.parsers.tool_call == "minimax-m2"
     assert profile.engine.parsers.reasoning == "minimax-append-think"
@@ -77,8 +77,21 @@ def test_site_config_model_dir():
 
 def test_site_config_venv_paths():
     site = SiteConfig()
-    assert site.python_path.name == "python"
-    assert site.hf_path.name == "hf"
+    assert site.python_path("vllm").name == "python"
+    assert site.hf_path("vllm").name == "hf"
+    assert site.python_path("sglang").name == "python"
+    # ktransformers shares sglang env
+    assert site.env_dir("ktransformers") == site.env_dir("sglang")
+
+
+def test_site_config_engine_isolation():
+    """vllm and sglang environments live in separate directories."""
+    site = SiteConfig()
+    vllm_dir = site.env_dir("vllm")
+    sglang_dir = site.env_dir("sglang")
+    assert vllm_dir != sglang_dir
+    assert "vllm" in str(vllm_dir)
+    assert "sglang" in str(sglang_dir)
 
 
 def test_site_config_from_env(monkeypatch):
@@ -137,7 +150,7 @@ def test_serve_script_uses_venv_python():
     script = generate_serve_script(profile, site)
 
     # Should use the venv Python, not bare 'python'
-    assert str(site.python_path) in script
+    assert str(site.python_path(profile.engine.type)) in script
 
 
 # -- CLI commands ------------------------------------------------------------
@@ -185,9 +198,10 @@ def test_agent_info_not_found():
 
 
 def test_generate_sglang_serve_script():
+    """SGLang-engine profiles should not include KT or vLLM flags."""
     from imas_ambix.agent.slurm import generate_serve_script
 
-    profile = load_profile("deepseek-v4-flash")
+    profile = load_profile("minimax-m2-7")
     site = SiteConfig()
     script = generate_serve_script(profile, site, port=8000)
 
@@ -195,14 +209,30 @@ def test_generate_sglang_serve_script():
     assert "#SBATCH --partition=betelgeuse" in script
     assert "#SBATCH --gres=gpu:4" in script
     assert "sglang.launch_server" in script
-    # Should NOT contain KTransformers-specific flags
     assert "--kt-method" not in script
     assert "--kt-weight-path" not in script
     assert "--kt-cpuinfer" not in script
-    # Should contain the engine type in the log
     assert "engine: sglang" in script
-    # Should NOT contain KTransformers env vars
     assert "MALLOC_TRIM_THRESHOLD_" not in script
+
+
+def test_generate_vllm_serve_script():
+    """vLLM-engine profiles should use vllm.entrypoints."""
+    from imas_ambix.agent.slurm import generate_serve_script
+
+    profile = load_profile("deepseek-v4-flash")
+    site = SiteConfig()
+    script = generate_serve_script(profile, site, port=8000)
+
+    assert "#!/bin/bash" in script
+    assert "#SBATCH --gres=gpu:4" in script
+    assert "vllm.entrypoints.openai.api_server" in script
+    assert "--enable-auto-tool-choice" in script
+    assert "--tool-call-parser deepseek_v4" in script
+    assert "--gpu-memory-utilization" in script
+    assert "sglang.launch_server" not in script
+    assert "--kt-method" not in script
+    assert "engine: vllm" in script
 
 
 def test_generate_minimax_serve_script():
@@ -215,11 +245,10 @@ def test_generate_minimax_serve_script():
     assert "sglang.launch_server" in script
     assert "--tool-call-parser minimax-m2" in script
     assert "--reasoning-parser minimax-append-think" in script
-    assert "--enable-auto-tool-choice" in script
     assert "--kt-method" not in script
 
 
-def test_generate_download_script_sglang_engine():
+def test_generate_download_script_vllm_engine():
     from imas_ambix.agent.slurm import generate_download_script
 
     profile = load_profile("deepseek-v4-flash")
@@ -228,7 +257,6 @@ def test_generate_download_script_sglang_engine():
 
     assert "hf download" in script
     assert "deepseek-ai/DeepSeek-V4-Flash" in script
-    # Download should NOT request GPUs
     assert "--gres=gpu" not in script
 
 
@@ -247,7 +275,7 @@ def test_agent_serve_dry_run_deepseek():
         main, ["agent", "serve", "deepseek-v4-flash", "--dry-run"]
     )
     assert result.exit_code == 0
-    assert "sglang.launch_server" in result.output
+    assert "vllm.entrypoints.openai.api_server" in result.output
     assert "--kt-method" not in result.output
 
 
@@ -258,4 +286,105 @@ def test_agent_serve_dry_run_minimax():
     )
     assert result.exit_code == 0
     assert "--tool-call-parser minimax-m2" in result.output
-    assert "--enable-auto-tool-choice" in result.output
+
+
+# -- Bench module tests ------------------------------------------------------
+
+
+def test_bench_presets_exist():
+    from imas_ambix.agent.bench import BENCH_PRESETS
+
+    assert "short" in BENCH_PRESETS
+    assert "medium" in BENCH_PRESETS
+    assert "long" in BENCH_PRESETS
+    assert "code" in BENCH_PRESETS
+    assert "thinking" in BENCH_PRESETS
+    assert "tool_use" in BENCH_PRESETS
+
+
+def test_bench_result_dataclass():
+    from imas_ambix.agent.bench import BenchResult
+
+    r = BenchResult(completion_tokens=100, total_time_s=2.0, tokens_per_second=50.0)
+    assert r.ok
+    assert r.tokens_per_second == 50.0
+
+    r_err = BenchResult(error="timeout")
+    assert not r_err.ok
+
+
+def test_bench_suite_summary():
+    from imas_ambix.agent.bench import BenchResult, BenchSuite
+
+    suite = BenchSuite(
+        model="test",
+        results=[
+            BenchResult(
+                completion_tokens=100,
+                total_time_s=2.0,
+                tokens_per_second=50.0,
+                time_to_first_token_s=0.1,
+            ),
+            BenchResult(
+                completion_tokens=200,
+                total_time_s=4.0,
+                tokens_per_second=50.0,
+                time_to_first_token_s=0.2,
+            ),
+        ],
+    )
+    s = suite.summary()
+    assert s["passed"] == 2
+    assert s["total_tokens"] == 300
+    assert s["avg_tps"] == 50.0
+
+
+def test_bench_cli_no_server():
+    """Bench command should fail gracefully when no server is running."""
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["agent", "bench", "deepseek-v4-flash", "--url", "http://localhost:59999"]
+    )
+    assert result.exit_code != 0
+    assert "Cannot reach server" in result.output
+
+
+# -- Setup command tests -----------------------------------------------------
+
+
+def test_setup_dry_run_vllm():
+    """Setup --dry-run should print a valid SLURM script for vllm."""
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "setup", "vllm", "--dry-run"])
+    assert result.exit_code == 0
+    assert "ambix-setup-vllm" in result.output
+    assert "uv sync" in result.output
+    assert "vllm" in result.output
+    assert "import vllm" in result.output or "vllm" in result.output
+
+
+def test_setup_dry_run_sglang():
+    """Setup --dry-run should print a valid SLURM script for sglang."""
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "setup", "sglang", "--dry-run"])
+    assert result.exit_code == 0
+    assert "ambix-setup-sglang" in result.output
+    assert "uv sync" in result.output
+    assert "import sglang" in result.output or "sglang" in result.output
+
+
+def test_setup_invalid_engine():
+    """Setup should reject unknown engine types."""
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "setup", "nonexistent"])
+    assert result.exit_code != 0
+
+
+def test_engine_pyproject_bundled():
+    """Engine pyproject.toml files should be accessible via importlib.resources."""
+    from imas_ambix.agent.cli import _engine_pyproject
+
+    for engine in ("vllm", "sglang"):
+        content = _engine_pyproject(engine)
+        assert "[project]" in content
+        assert f"ambix-agent-{engine}" in content

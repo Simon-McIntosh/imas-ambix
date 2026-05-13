@@ -1,0 +1,38 @@
+# Agent serving environment — SGLang engine (+ KTransformers)
+#
+# Manages the GPU inference venv for SGLang-based model serving,
+# including KTransformers CPU-offloading support for oversized models.
+# Install on a node with network access (e.g. sirius partition):
+#
+#   cd /work/projects/imas_gpu/agents/sglang && uv sync
+#
+# The resulting .venv is used by SLURM serve jobs on GPU nodes.
+
+[project]
+name = "ambix-agent-sglang"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "sglang[srt]>=0.5.11",
+    "torch>=2.11",
+    "transformers>=5.6",
+    "kt-kernel",
+    "flashinfer-python>=0.2.4",
+    "sgl-kernel>=0.1.1",
+    "huggingface-hub[hf_transfer]>=0.28",
+    "openai>=2.0",
+    "hf-transfer",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu126" }
+torchaudio = { index = "pytorch-cu126" }
+torchvision = { index = "pytorch-cu126" }
+
+[tool.uv]
+prerelease = "allow"
