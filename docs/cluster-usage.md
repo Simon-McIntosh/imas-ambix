@@ -9,14 +9,13 @@ If you are managing or extending the deployments themselves, see
 
 ## 1. What is served
 
-A single OpenAI-compatible HTTP server runs on the GPU node and
-exposes one model at a time:
+A single OpenAI-compatible HTTP server runs on one of the GPU nodes
+on the `betelgeuse` partition and exposes one model at a time:
 
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
-| Host           | `98dci4-gpu-0003`                           |
-| Port           | `18800`                                     |
-| Base URL       | `http://98dci4-gpu-0003:18800/v1`           |
+| Host / port    | **request via Teams** (see §3)              |
+| Base URL       | **request via Teams** — shape `http://<host>:<port>/v1` |
 | Protocol       | OpenAI Chat Completions (`/v1/chat/completions`) |
 | Auth           | `Authorization: Bearer <key>` (required)    |
 | Health probe   | `GET /v1/models` (also requires the key)    |
@@ -40,19 +39,21 @@ You need:
 You do **not** need GPU access or SLURM allocation to use the endpoint;
 those are only needed if you intend to *operate* the server.
 
-## 3. Getting an API key
+## 3. Getting the endpoint URL and the API key
 
-> ⚠️ **The API key is not committed to this repository, and must not be
-> shared in chat, tickets, or screenshots.**
+> ⚠️ **Neither the endpoint URL nor the API key is committed to this
+> repository. Both must be exchanged over Microsoft Teams with a
+> cluster maintainer — never in chat tickets, GitLab/GitHub issues,
+> or screenshots.**
 
-Request the current key out-of-band from one of the deployment
-maintainers (see `git log AGENTS.md` for active maintainers, or ask in
-the ITER SDCC Mattermost / Teams channel for the GPU server). They
-will pass it to you via a secure channel.
+Direct-message the Ambix maintainer (channel **SDCC GPU / Ambix**, or
+see `git log AGENTS.md` for active operators). You will receive two
+values out-of-band: the **base URL** of the inference server, and the
+**API key** (a long random token).
 
 When the key is rotated (which can happen at any time), your old key
 will start returning `401 Unauthorized` and you will need to request
-the new one — there is no automatic refresh.
+the new one over Teams — there is no automatic refresh.
 
 ## 4. Storing the key on your machine
 
@@ -71,10 +72,11 @@ chmod 600 ~/.hermes/.env   # MANDATORY — without this, anyone on the
 Edit `~/.hermes/.env` and add:
 
 ```env
-# Endpoint
-OPENAI_BASE_URL=http://98dci4-gpu-0003:18800/v1
+# Endpoint URL — paste the value the maintainer sent you over Teams.
+OPENAI_BASE_URL=<paste-the-base-URL-you-were-given>
 
-# API key — obtained out-of-band; never commit this file
+# API key — paste the value the maintainer sent you over Teams.
+# Never commit this file.
 OPENAI_API_KEY=<paste-the-key-you-were-given>
 
 # Optional: lock provider to the local endpoint so harnesses don't
@@ -130,14 +132,15 @@ the `model` field in chat requests.
 ### 5b. From your laptop — SSH tunnel
 
 If your harness runs on your own machine rather than on an SDCC node,
-forward the port through your SSH session:
+forward the port through your SSH session. Replace `<HOST>` and
+`<PORT>` with the values you were given over Teams:
 
 ```bash
-ssh -N -L 18800:98dci4-gpu-0003:18800 <your-user>@<sdcc-login-host>
+ssh -N -L <PORT>:<HOST>:<PORT> <your-user>@<sdcc-login-host>
 ```
 
 Leave that running, then point your client at
-`http://localhost:18800/v1` instead.
+`http://localhost:<PORT>/v1` instead.
 
 ### 5c. A first chat call
 
@@ -174,8 +177,8 @@ Per-harness notes:
 
 - **Hermes Agent (`hermes` / `hermes-cli`)** — reads
   `~/.hermes/config.yaml`. Point `model.base_url` and
-  `delegation.base_url` at `http://98dci4-gpu-0003:18800/v1`. The CLI
-  re-reads `~/.hermes/.env` on each launch.
+  `delegation.base_url` at `$OPENAI_BASE_URL`. The CLI re-reads
+  `~/.hermes/.env` on each launch.
 - **OpenHands (`oh`, `oh-yolo`)** — same env vars; set
   `LLM_MODEL=openai/<served-model-id>`.
 - **CrewAI / AutoGen / MAF** — pass an explicit

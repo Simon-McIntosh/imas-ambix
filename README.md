@@ -133,7 +133,8 @@ export AMBIX_AGENT_API_KEY="your-secret-key"
 ambix agent serve deepseek-v4-flash
 
 # Client-side: pass key in Authorization header
-curl -H "Authorization: Bearer your-secret-key" http://98dci4-gpu-0003:18800/v1/models
+# (endpoint URL is exchanged over Teams — see docs/getting-started.md)
+curl -H "Authorization: Bearer $OPENAI_API_KEY" "$OPENAI_BASE_URL/models"
 ```
 
 ### Hermes Agent Harness
@@ -160,13 +161,13 @@ chmod 600 ~/.hermes/config.yaml ~/.hermes/.env
 hermes
 ```
 
-**Current deployments:**
-- **Kimi-K2.6** — 1T-param MoE (32B activated), KTransformers+SGLang engine,
-  4×H200 GPUs, ~18K context (auto-fitted to VRAM), OpenAI-compatible API at
-  `http://98dci4-gpu-0003:18800/v1`
-  - Decode throughput: ~4–5 tok/s
-  - Reasoning model with chain-of-thought (use `max_tokens≥1024` for complex prompts)
-  - Access from ITER login nodes or compute nodes via SLURM
+**Current deployment:**
+- **DeepSeek V4-Flash** — 284B MoE / 13B activated, FP4 experts + FP8
+  dense, vLLM on 4×H200, 262K served context.
+  - Decode throughput: ~110 tok/s
+  - OpenAI-compatible Chat Completions endpoint
+  - Endpoint URL + API key exchanged over Microsoft Teams with a
+    cluster maintainer — see [docs/getting-started.md](docs/getting-started.md).
 
 ## Development
 
