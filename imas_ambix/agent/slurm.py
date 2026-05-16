@@ -123,12 +123,24 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
     _append_flag(args, "--disable-cuda-graph", engine.disable_cuda_graph)
     _append_flag(
         args,
+        "--disable-piecewise-cuda-graph",
+        engine.disable_piecewise_cuda_graph,
+    )
+    _append_flag(
+        args,
         "--disable-custom-all-reduce",
         engine.disable_custom_all_reduce,
     )
     # Note: --enable-auto-tool-choice is vLLM-only; SGLang enables
     # tool calls automatically when --tool-call-parser is set.
     _append_option(args, "--moe-runner-backend", engine.moe_runner_backend)
+    # SGLang's CLI uses --fp8-gemm-backend even though the internal
+    # ServerArgs attribute is named fp8_gemm_runner_backend.
+    _append_option(
+        args,
+        "--fp8-gemm-backend",
+        engine.fp8_gemm_runner_backend,
+    )
     _append_option(args, "--cuda-graph-max-bs", engine.cuda_graph_max_bs)
     _append_flag(
         args,
@@ -325,12 +337,67 @@ def generate_serve_script(
             """
         ).strip()
 
-    # API key injection — append --api-key flag to launch command.
-    # Both vLLM and SGLang support --api-key on the CLI.  While visible
-    # in the SLURM script file, this is no worse than an env var in the
-    # same script and matches the documented interface for both engines.
+    # API key injection — keep the key out of /proc/<pid>/cmdline and
+    # out of any kernel-recorded "Killed ... <argv>" trace that SLURM
+    # prints when a worker dies.  We write the key to a mode-0600 file
+    # under $TMPDIR (via a heredoc; bash never substitutes it onto a
+    # command line), then:
+    #   vLLM   — export VLLM_API_KEY (engine reads it natively).
+    #   SGLang — exec via a tiny launcher.py that appends --api-key
+    #            to sys.argv after exec, so the kernel cmdline only
+    #            shows `python launcher.py ...`.
+    api_key_block = ""
     if api_key:
-        launch_command += f" --api-key {shlex.quote(api_key)}"
+        key_lines = [
+            "# Write API key to a mode-600 file in TMPDIR — the key is",
+            "# delivered via heredoc (not on a command line) so it never",
+            "# appears in /proc/<pid>/cmdline or bash error traces.",
+            "umask 077",
+            "cat > \"$TMPDIR/.api-key\" << 'AMBIX_KEY_EOF'",
+            api_key,
+            "AMBIX_KEY_EOF",
+            'chmod 600 "$TMPDIR/.api-key"',
+        ]
+        if profile.engine.type == "vllm":
+            key_lines.append(
+                'export VLLM_API_KEY="$(cat "$TMPDIR/.api-key")"'
+            )
+        else:
+            # sglang.launch_server is a script-style module — its
+            # server start-up runs in its `if __name__ == '__main__':`
+            # block.  Replicate that here, gated by the same guard so
+            # SGLang's multiprocessing-spawn children don't recurse
+            # back through our launcher.
+            launcher_py = (
+                "import os, sys\n"
+                "if __name__ == '__main__':\n"
+                "    key = os.environ.pop('_AMBIX_API_KEY', '')\n"
+                "    if key:\n"
+                "        sys.argv.extend(['--api-key', key])\n"
+                "    from sglang.srt.plugins import load_plugins\n"
+                "    from sglang.launch_server import (\n"
+                "        prepare_server_args, run_server, kill_process_tree,\n"
+                "    )\n"
+                "    load_plugins()\n"
+                "    server_args = prepare_server_args(sys.argv[1:])\n"
+                "    try:\n"
+                "        run_server(server_args)\n"
+                "    finally:\n"
+                "        kill_process_tree(os.getpid(), include_parent=False)\n"
+            )
+            key_lines.extend(
+                [
+                    "cat > \"$TMPDIR/launcher.py\" << 'AMBIX_LAUNCHER_EOF'",
+                    launcher_py.rstrip(),
+                    "AMBIX_LAUNCHER_EOF",
+                    'chmod 600 "$TMPDIR/launcher.py"',
+                    'export _AMBIX_API_KEY="$(cat "$TMPDIR/.api-key")"',
+                ]
+            )
+            launch_command = launch_command.replace(
+                "-m sglang.launch_server", '"$TMPDIR/launcher.py"', 1
+            )
+        api_key_block = "\n".join(key_lines)
 
     script_body = dedent(
         f"""
@@ -338,6 +405,8 @@ def generate_serve_script(
 
         export TMPDIR=/scratch_local/$SLURM_JOB_ID
         mkdir -p "$TMPDIR"
+
+        {api_key_block}
 
         # Expose vendored nvidia libs (cuDNN, cuSPARSELt, NCCL, etc.)
         # installed by pip/uv into per-package subdirs under nvidia/.

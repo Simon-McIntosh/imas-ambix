@@ -24,7 +24,11 @@ max_context = 262144
 [engine]
 type = "ktransformers"
 tensor_parallel = 4
-mem_fraction_static = 0.96
+# Prior 0.96 left only 3.28 GB free per GPU after weights+KV; prefill
+# intermediates (gate/up proj) need ~1.2 GB and OOM'd at prefill_16k.
+# 0.90 leaves enough scratch for intermediates without compromising
+# the KV pool meaningfully.
+mem_fraction_static = 0.90
 attention_backend = "flashinfer"
 trust_remote_code = true
 enable_mixed_chunk = true
@@ -34,11 +38,14 @@ disable_cuda_graph = true
 disable_custom_all_reduce = true
 moe_runner_backend = "triton"
 weight_loader_disable_mmap = false
-max_total_tokens = 131072
+max_total_tokens = 49152
 
 [engine.ktransformers]
 method = "RAWINT4"
-gpu_experts = 350
+# 350 was the headline VRAM-pinning figure but left too little scratch.
+# 280 keeps ~80% of routed experts on GPU and frees ~7 GB/card for
+# activations / FlashInfer workspace / intermediate buffers.
+gpu_experts = 280
 cpuinfer = 28
 threadpool_count = 2
 disable_shared_experts_fusion = true

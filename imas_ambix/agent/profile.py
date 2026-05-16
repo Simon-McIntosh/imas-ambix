@@ -72,9 +72,20 @@ class EngineConfig(BaseModel):
     chunked_prefill_size: int = 32768
     cuda_graph_max_bs: int | None = None
     disable_cuda_graph: bool = False
+    disable_piecewise_cuda_graph: bool = False
     disable_custom_all_reduce: bool = False
     max_total_tokens: int | None = None
     moe_runner_backend: Literal["auto", "triton", "triton_kernel"] | None = None
+    # CLI flag is `--fp8-gemm-backend` but the ServerArgs attribute
+    # SGLang uses internally is `fp8_gemm_runner_backend`; mirror the
+    # internal name here. Allowed values match SGLang's argparse.
+    fp8_gemm_runner_backend: (
+        Literal[
+            "auto", "deep_gemm", "flashinfer_trtllm", "flashinfer_cutlass",
+            "flashinfer_deepgemm", "cutlass", "triton", "aiter",
+        ]
+        | None
+    ) = None
     weight_loader_disable_mmap: bool = False
     enable_auto_tool_choice: bool = False
     kv_cache_dtype: str | None = None

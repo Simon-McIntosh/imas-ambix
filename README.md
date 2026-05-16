@@ -89,7 +89,9 @@ uv run pytest
 ## Agent Serving
 
 The `ambix agent` CLI manages LLM deployments on the ITER SDCC GPU cluster.
-See [agents.md](agents.md) for hardware specs and deployment details.
+See [AGENTS.md](AGENTS.md) for hardware specs and deployment details,
+and [docs/cluster-usage.md](docs/cluster-usage.md) for end-user
+connection instructions (env setup, API key handling, harness wiring).
 
 ```bash
 # List available model profiles

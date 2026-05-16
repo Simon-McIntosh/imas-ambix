@@ -21,7 +21,7 @@ def test_load_kimi_profile():
     assert profile.engine.type == "ktransformers"
     assert profile.engine.tensor_parallel == 4
     assert profile.engine.ktransformers is not None
-    assert profile.engine.ktransformers.gpu_experts == 350
+    assert profile.engine.ktransformers.gpu_experts == 280
     assert profile.engine.moe_runner_backend == "triton"
     assert profile.model.max_context == 262144
 
@@ -126,7 +126,7 @@ def test_generate_serve_script():
     assert "#SBATCH --gres=gpu:4" in script
     assert "sglang.launch_server" in script
     assert "--kt-method RAWINT4" in script
-    assert "--max-total-tokens 131072" in script
+    assert "--max-total-tokens 49152" in script
     assert "--moe-runner-backend triton" in script
     assert "--port" in script
 
@@ -615,12 +615,14 @@ def test_resolve_api_key_envvar(monkeypatch):
     assert _resolve_api_key(None) == "sk-env-456"
 
 
-def test_resolve_api_key_none(monkeypatch):
+def test_resolve_api_key_none(monkeypatch, tmp_path):
     """Returns None when no key is set anywhere."""
     from imas_ambix.agent.cli import _resolve_api_key
 
     monkeypatch.delenv("AMBIX_AGENT_API_KEY", raising=False)
-    monkeypatch.chdir(monkeypatch.tmp_path if hasattr(monkeypatch, "tmp_path") else "/tmp")
+    monkeypatch.chdir(tmp_path)
+    # Isolate the shared-file lookup from any real /work/projects key file.
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(tmp_path))
     assert _resolve_api_key(None) is None
 
 

@@ -25,14 +25,26 @@ max_context = 204800
 [engine]
 type = "sglang"
 tensor_parallel = 4
+# The `torch.ops.sgl_kernel.fp8_blockwise_scaled_mm` kernel raises
+# "RuntimeError: Error Internal" during *piecewise* CUDA graph capture
+# on H200 NVL (cc 9.0). SGLang's own error message recommends
+# --disable-piecewise-cuda-graph; that is now wired in via
+# disable_piecewise_cuda_graph=true below.  Standard CUDA graphs are
+# left enabled (they capture fine for this model).
 mem_fraction_static = 0.85
 attention_backend = "flashinfer"
 trust_remote_code = true
 enable_mixed_chunk = true
 enable_p2p_check = false
 chunked_prefill_size = 32768
-disable_cuda_graph = false
+disable_cuda_graph = true
+disable_piecewise_cuda_graph = true
 disable_custom_all_reduce = false
+moe_runner_backend = "triton"
+# CUTLASS w8a8 blockwise FP8 path (fp8_blockwise_scaled_mm) returns
+# "Error Internal" on this H200 + sgl-kernel build, even in eager mode
+# with all CUDA graphs off. Force the triton fp8 GEMM fallback.
+fp8_gemm_runner_backend = "triton"
 
 [engine.parsers]
 tool_call = "minimax-m2"

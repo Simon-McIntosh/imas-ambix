@@ -94,11 +94,16 @@ Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml
 
 MLA compression makes KV cache tiny — full 256K context uses only 34.3 GB (9% of the 377 GB GPU KV budget), leaving ~90 GB/GPU free for sharing.
 
-**Memory budget (per GPU):**
-- Model: ~32 GB (22 GB non-expert TP=4 + 10 GB hot experts)
-- KV cache: ~34 GB (262K tokens — full model context)
-- Safety: ~10 GB
-- **Free for other work: ~90 GB**
+**Memory budget (per GPU, gpu_experts=280, mem_fraction=0.90):**
+- Model + hot experts: ~100 GB
+- KV pool: ~14 GB (49152 tokens — capped low so prefill_64k bench
+  returns HTTP 400 instead of crashing the server with OOM)
+- Scratch (FlashInfer workspace, prefill intermediates): ~25 GB
+- **Measured live: 25.89 GB free at startup**
+
+Previous config (gpu_experts=350, mem_fraction=0.96, max_total_tokens=
+131072) crashed during prefill_16k with `torch.OutOfMemoryError`
+(only 3.28 GB free) — left here as a warning.
 
 **CPU memory budget (650 GB QoS limit):**
 - Cold experts: ~467 GB (354 × 1.32 GB)
@@ -165,6 +170,18 @@ ambix agent serve deepseek-v4-flash      # submit to betelgeuse
 
 **Officially tested on 4-GPU configs** (96G×4; our 140G×4 is larger).
 
+**Engine quirks discovered 2026-05-15:**
+- `torch.ops.sgl_kernel.fp8_blockwise_scaled_mm` returns
+  `RuntimeError: Error Internal` on this H200 NVL + sgl-kernel 0.5.x
+  build (both in CUDA-graph capture and eager mode). Workaround in
+  the profile: `disable_cuda_graph=true`,
+  `disable_piecewise_cuda_graph=true`, `moe_runner_backend="triton"`,
+  `fp8_gemm_runner_backend="triton"`.
+- The performance cost is real: measured 17 tok/s decode (vs ~110 for
+  flash on the same node) because every dense FP8 matmul takes the
+  triton fallback path. When sgl-kernel ships a working CUTLASS path
+  this profile should switch back.
+
 **Deploy:**
 ```bash
 ambix agent download minimax-m2-7   # ~220 GB, run from sirius
@@ -173,7 +190,33 @@ ambix agent serve minimax-m2-7      # submit to betelgeuse
 
 **Recommended inference params:** temperature=1.0, top_p=0.95, top_k=40
 
-## 6. Confluence Reference
+## 6. Models we evaluated and rejected
+
+### DeepSeek-V4-Pro — does NOT fit on the Group A 4×H200 reservation
+
+**Repo:** `deepseek-ai/DeepSeek-V4-Pro`
+**Spec:** 1.6T total / 49B activated MoE, FP4 experts + FP8 attention/dense,
+~882 GB on disk (64 safetensor shards). CSA+HCA hybrid attention, 1M context.
+
+**Why we did not add a profile:**
+- Weights alone are 882 GB → 4×H200 = 561 GB VRAM is **321 GB short**, so a
+  pure-GPU deployment with TP=4 is impossible.
+- The SGLang DeepSeek-V4 cookbook explicitly requires **8 GPUs on H200**
+  for the FP8 checkpoint and **16 GPUs across 2 nodes** for the original
+  FP4 checkpoint with Marlin — i.e. a full `98dci4-gpu-0003` node, which
+  Group A's reservation only owns half of.
+- A KTransformers CPU-offload deployment would in principle have room
+  (650 GB CPU + ~440 GB GPU after non-expert weights), but the CSA+HCA
+  hybrid attention is not currently supported by `kt-kernel` and would
+  require substantial engineering before it could be tried.
+
+**When this could be revisited:** if Group A is granted the full 8-GPU
+allocation on the node (1,120 GB aggregate VRAM, enough for the FP8
+SGLang checkpoint with `--tp 8`). Until then, V4-Flash is the practical
+DeepSeek choice — it delivers the same 1M-token context, the same MIT
+licence, and ~110 tok/s decode on the same 4 GPUs.
+
+## 7. Confluence Reference
 
 GPU server documentation: https://confluence.iter.org/spaces/SDCC/pages/935667046/GPU+Server+-+98dci4-gpu-0003
 (Requires ITER network authentication)
