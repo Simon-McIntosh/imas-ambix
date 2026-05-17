@@ -27,6 +27,16 @@ trust_remote_code = true
 enable_auto_tool_choice = true
 max_total_tokens = 262144
 kv_cache_dtype = "fp8"
+# Scheduler caps — raise both to exploit the 4×H200 KV cache budget.
+# At the default ``max_num_seqs=256`` only ~12% of KV cache is in use
+# (live measurement 2026-05-17), so the scheduler is the throughput
+# bottleneck, not hardware. Targeting ~80% KV utilization:
+#   * max_num_seqs = 1024 → 4× the running-sequences ceiling
+#   * max_num_batched_tokens = 32768 → matches the chunked prefill
+#     budget so the scheduler isn't starved when many long prompts
+#     queue up at the same time
+max_num_seqs = 1024
+max_num_batched_tokens = 32768
 
 [engine.parsers]
 tool_call = "deepseek_v4"

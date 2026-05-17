@@ -89,6 +89,14 @@ class EngineConfig(BaseModel):
     weight_loader_disable_mmap: bool = False
     enable_auto_tool_choice: bool = False
     kv_cache_dtype: str | None = None
+    # vLLM scheduler caps. ``None`` keeps the vLLM default
+    # (``max_num_seqs=256`` in recent releases, which becomes the hard
+    # ceiling on in-flight requests and is the dominant throughput
+    # bottleneck on a 4×H200 cluster — KV cache typically sits at ~12 %
+    # usage under that cap). Set these explicitly to scale to the
+    # available HBM. Only forwarded for the vLLM engine type.
+    max_num_seqs: int | None = None
+    max_num_batched_tokens: int | None = None
     ktransformers: KTransformersConfig | None = None
     parsers: ParsersConfig = ParsersConfig()
 

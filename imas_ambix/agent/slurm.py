@@ -199,6 +199,10 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             _append_option(
                 args, "--reasoning-parser", engine.parsers.reasoning
             )
+        _append_option(args, "--max-num-seqs", engine.max_num_seqs)
+        _append_option(
+            args, "--max-num-batched-tokens", engine.max_num_batched_tokens
+        )
         if engine.kv_cache_dtype:
             _append_option(
                 args, "--kv-cache-dtype", engine.kv_cache_dtype
