@@ -408,6 +408,34 @@ def manifest_cmd(
         click.echo(payload)
 
 
+# --- targets ----------------------------------------------------------
+
+
+@data.command(name="targets")
+@click.argument("manifest_path", type=click.Path(exists=True))
+def targets_cmd(manifest_path: str) -> None:
+    """Emit s5cmd `cp` lines from a built manifest JSON.
+
+    Piped into ``s5cmd run`` for the actual download. The manifest's
+    ``tier`` field selects the bucket prefix; ``groups`` (if non-empty)
+    selects which sub-prefixes to copy per shot.
+    """
+    from imas_ambix.data.manifest import (
+        build_manifest,
+        emit_targets_as_s5cmd,
+    )
+
+    payload = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    manifest = build_manifest(
+        tier=payload["tier"],
+        shot_ids=[int(s) for s in payload["shot_ids"]],
+        groups=tuple(payload.get("groups", ())),
+        total_in_index=payload.get("total_in_index", 0),
+        filter_description=payload.get("filter_description", ""),
+    )
+    click.echo(emit_targets_as_s5cmd(manifest), nl=False)
+
+
 # --- download ---------------------------------------------------------
 
 
@@ -522,8 +550,7 @@ DEST={dest}
 mkdir -p "$DEST"
 cd "$DEST"
 
-python -m imas_ambix.data.cli manifest --emit-s5cmd-script \\
-    --inventory {manifest_path} \\
+ambix data targets {manifest_path} \\
 | s5cmd --no-sign-request --endpoint-url {S3_ENDPOINT} \\
     --numworkers {numworkers} \\
     run
@@ -552,7 +579,7 @@ DEST={dest}
 mkdir -p "$DEST"
 cd "$DEST"
 
-ambix data manifest --emit-s5cmd-script --inventory {manifest_path} \\
+ambix data targets {manifest_path} \\
 | s5cmd --no-sign-request --endpoint-url {S3_ENDPOINT} \\
     --numworkers {numworkers} \\
     run
