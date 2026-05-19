@@ -1,14 +1,17 @@
-"""FAIR-MAST sizing probe.
+"""FAIR-MAST sizing + group-inventory probe.
 
-Implements the protocol in ``plans/data-acquisition.md`` §3:
+Implements the protocol in ``plans/data-acquisition.md`` §3 and the
+2026-05-19 findings in §10:
 
-1. Pull the parquet shot index.
-2. Sample N shots, run ``s5cmd cp`` for each, measure size + throughput.
-3. Report acceptance against the configured thresholds.
+1. Pull the parquet shot index (metadata-only — no group flags).
+2. Sample N shots and **list** the bucket prefix to learn which groups
+   each shot actually carries at the chosen tier.
+3. Copy a small subset to measure sustained throughput + per-shot size.
+4. Report acceptance against the per-tier thresholds.
 
-Run from a ``sirius`` standard compute node (outbound network and GPFS
-access). The GPU node ``betelgeuse`` has no outbound network and will fail
-silently before the first object is fetched.
+Run from any host that has both outbound network and (for caching to the
+final mirror location) GPFS group access. The login node satisfies both;
+the betelgeuse GPU node does not.
 """
 
 from __future__ import annotations
@@ -26,17 +29,20 @@ if TYPE_CHECKING:
     import pandas as pd
 
 from imas_ambix.data.paths import (
+    CAMERA_SOURCES,
     S3_BUCKET,
     S3_ENDPOINT,
+    Tier,
 )
 
-# Acceptance thresholds — see plans/data-acquisition.md §3.2
+# Acceptance thresholds — see plans/data-acquisition.md §3.2 + §10.6
+# Lowered after the 2026-05-19 probe found the real corpus is ~1.5 TB.
 THROUGHPUT_MIN_MBPS = 200.0
 THROUGHPUT_DEGRADED_MBPS = 50.0
 SHOT_P95_MAX_GB = 5.0
-CAMERA_SHOTS_MIN = 1000
-TOTAL_SIZE_MIN_TB = 2.0
+TOTAL_SIZE_MIN_TB = 0.05  # 50 GB — sanity check, not an upper bound on the corpus
 TOTAL_SIZE_MAX_TB = 12.0
+CAMERA_COVERAGE_MIN = 0.3  # fraction of sampled shots that carry any camera source
 
 
 @dataclass
@@ -44,10 +50,16 @@ class ShotSample:
     """Per-shot result from the probe."""
 
     shot_id: int
-    has_camera: bool
+    groups: tuple[str, ...]
     bytes_copied: int
     elapsed_s: float
     error: str | None = None
+
+    @property
+    def has_camera(self) -> bool:
+        return bool(
+            set(self.groups) & set(CAMERA_SOURCES + ("camera_visible", "camera_ir"))
+        )
 
     @property
     def throughput_mbps(self) -> float:
@@ -60,27 +72,33 @@ class ShotSample:
 class ProbeReport:
     """Aggregate probe result, serialisable to JSON."""
 
+    tier: str
     n_shots_in_index: int
-    n_camera_shots: int
+    n_shots_in_tier: int
     sample_size: int
     samples: list[ShotSample] = field(default_factory=list)
     sustained_throughput_mbps: float = 0.0
     median_shot_size_mb: float = 0.0
     p95_shot_size_mb: float = 0.0
     extrapolated_total_size_tb: float = 0.0
+    group_coverage: dict[str, int] = field(default_factory=dict)
+    camera_coverage_fraction: float = 0.0
     started_at: str = ""
     finished_at: str = ""
     notes: list[str] = field(default_factory=list)
 
     def to_json(self) -> str:
         payload = {
+            "tier": self.tier,
             "n_shots_in_index": self.n_shots_in_index,
-            "n_camera_shots": self.n_camera_shots,
+            "n_shots_in_tier": self.n_shots_in_tier,
             "sample_size": self.sample_size,
             "sustained_throughput_mbps": self.sustained_throughput_mbps,
             "median_shot_size_mb": self.median_shot_size_mb,
             "p95_shot_size_mb": self.p95_shot_size_mb,
             "extrapolated_total_size_tb": self.extrapolated_total_size_tb,
+            "group_coverage": self.group_coverage,
+            "camera_coverage_fraction": self.camera_coverage_fraction,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "notes": self.notes,
@@ -88,6 +106,7 @@ class ProbeReport:
             "samples": [
                 {
                     "shot_id": s.shot_id,
+                    "groups": list(s.groups),
                     "has_camera": s.has_camera,
                     "bytes_copied": s.bytes_copied,
                     "elapsed_s": s.elapsed_s,
@@ -114,12 +133,19 @@ class ProbeReport:
         else:
             out["total_size"] = "fail"
 
-        out["camera_shots"] = (
-            "pass" if self.n_camera_shots >= CAMERA_SHOTS_MIN else "fail"
-        )
         out["per_shot_p95"] = (
             "pass" if self.p95_shot_size_mb <= SHOT_P95_MAX_GB * 1024 else "fail"
         )
+
+        # Camera coverage gate only meaningful at level-1, where cameras live.
+        if self.tier == "level1":
+            out["camera_coverage"] = (
+                "pass"
+                if self.camera_coverage_fraction >= CAMERA_COVERAGE_MIN
+                else "fail"
+            )
+        else:
+            out["camera_coverage"] = "n/a"
         return out
 
 
@@ -131,47 +157,95 @@ def s5cmd_available() -> bool:
 def run_shot_copy(
     shot_id: int,
     dest_root: Path,
+    tier: Tier = "level2",
+    groups: tuple[str, ...] = (),
     numworkers: int = 32,
     timeout_s: float = 600.0,
 ) -> ShotSample:
-    """Copy a single shot via ``s5cmd`` and return a :class:`ShotSample`.
+    """Copy one shot (optionally a group subset) via ``s5cmd`` and time it.
 
     Bytes are measured by ``du``-ing the destination after copy. Errors
     from ``s5cmd`` are captured on the sample, not raised.
+
+    The ``groups`` attribute on the returned :class:`ShotSample` reflects
+    *what was actually copied* — empty if every requested group was
+    missing from the shot, populated otherwise. Callers that pass an
+    empty ``groups`` (whole-shot copy) get back an empty tuple too; in
+    that case the bytes-copied field is the source of truth.
     """
     dest = dest_root / f"{shot_id}.zarr"
     dest.mkdir(parents=True, exist_ok=True)
-    src = f"s3://{S3_BUCKET}/level2/shots/{shot_id}.zarr/*"
-    cmd = [
-        "s5cmd",
-        "--no-sign-request",
-        "--endpoint-url",
-        S3_ENDPOINT,
-        "--numworkers",
-        str(numworkers),
-        "cp",
-        src,
-        str(dest) + "/",
-    ]
-    t0 = time.monotonic()
-    error: str | None = None
-    try:
-        subprocess.run(
-            cmd,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-    except subprocess.CalledProcessError as exc:
-        error = (exc.stderr or "").strip()[:512] or "s5cmd nonzero exit"
-    except subprocess.TimeoutExpired:
-        error = f"timeout after {timeout_s:.0f}s"
-    elapsed = time.monotonic() - t0
+    base = f"s3://{S3_BUCKET}/{tier}/shots/{shot_id}.zarr"
+
+    if groups:
+        # Multi-group copy via s5cmd run (parallel within one process)
+        run_lines = [f"cp {base}/{g}/* {dest}/{g}/" for g in groups]
+        run_input = "\n".join(run_lines) + "\n"
+        cmd = [
+            "s5cmd",
+            "--no-sign-request",
+            "--endpoint-url",
+            S3_ENDPOINT,
+            "--numworkers",
+            str(numworkers),
+            "run",
+        ]
+        t0 = time.monotonic()
+        error: str | None = None
+        try:
+            subprocess.run(
+                cmd,
+                input=run_input,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+            )
+        except subprocess.CalledProcessError as exc:
+            error = (exc.stderr or "").strip()[:512] or "s5cmd nonzero exit"
+        except subprocess.TimeoutExpired:
+            error = f"timeout after {timeout_s:.0f}s"
+        elapsed = time.monotonic() - t0
+    else:
+        # Whole-shot copy
+        cmd = [
+            "s5cmd",
+            "--no-sign-request",
+            "--endpoint-url",
+            S3_ENDPOINT,
+            "--numworkers",
+            str(numworkers),
+            "cp",
+            f"{base}/*",
+            str(dest) + "/",
+        ]
+        t0 = time.monotonic()
+        error = None
+        try:
+            subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+            )
+        except subprocess.CalledProcessError as exc:
+            error = (exc.stderr or "").strip()[:512] or "s5cmd nonzero exit"
+        except subprocess.TimeoutExpired:
+            error = f"timeout after {timeout_s:.0f}s"
+        elapsed = time.monotonic() - t0
+
     bytes_copied = _du_bytes(dest)
+    # Report what's actually on disk, group-wise — directories whose copy
+    # returned no bytes are dropped so `has_camera` doesn't lie.
+    actual_groups: tuple[str, ...] = ()
+    if dest.exists():
+        actual_groups = tuple(
+            sorted(p.name for p in dest.iterdir() if p.is_dir() and _du_bytes(p) > 0)
+        )
     return ShotSample(
         shot_id=shot_id,
-        has_camera=False,  # caller patches this after constructing samples
+        groups=actual_groups,
         bytes_copied=bytes_copied,
         elapsed_s=elapsed,
         error=error,
@@ -196,27 +270,24 @@ def _percentile(values: list[float], q: float) -> float:
 def sample_shots(
     df: pd.DataFrame,
     sample_size: int,
-    camera_only: bool,
     seed: int = 0,
 ) -> list[int]:
     """Return a deterministic shot-id sample from the index."""
-    from imas_ambix.data.manifest import filter_camera_bearing
-
-    pool = filter_camera_bearing(df) if camera_only else df
-    if len(pool) == 0:
+    if len(df) == 0:
         return []
-    n = min(sample_size, len(pool))
-    return [int(s) for s in pool.sample(n=n, random_state=seed)["shot_id"].tolist()]
+    n = min(sample_size, len(df))
+    return [int(s) for s in df.sample(n=n, random_state=seed)["shot_id"].tolist()]
 
 
 def run_probe(
     sample_size: int = 50,
+    tier: Tier = "level2",
+    groups: tuple[str, ...] = (),
     numworkers: int = 32,
     timeout_s: float = 600.0,
     output_dir: Path | None = None,
-    keep_samples: bool = False,
-    camera_only: bool = False,
     seed: int = 0,
+    n_shots_in_tier: int | None = None,
 ) -> ProbeReport:
     """Run the full probe end-to-end and return the populated report.
 
@@ -224,48 +295,78 @@ def run_probe(
     inside this function so that importing the module is cheap.
     """
     from imas_ambix.data.manifest import (
-        detect_camera_columns,
-        filter_camera_bearing,
+        S5cmdMissingError,
+        group_coverage,
+        inventory_groups,
         load_index,
     )
 
     if not s5cmd_available():
-        raise RuntimeError(
-            "s5cmd is not on PATH — see plans/data-acquisition.md §3.1 for the "
-            "install command (`pip install --user s5cmd`)"
+        raise S5cmdMissingError(
+            "s5cmd is not on PATH — install from "
+            "https://github.com/peak/s5cmd/releases and put on PATH"
         )
 
     started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     df = load_index()
-    camera_cols = detect_camera_columns(df)
-    n_camera = len(filter_camera_bearing(df)) if camera_cols else 0
+    n_index = len(df)
 
-    sample_ids = sample_shots(df, sample_size, camera_only, seed=seed)
+    sample_ids = sample_shots(df, sample_size, seed=seed)
+
+    # Step 1: cheap S3 group inventory (parallel `s5cmd ls`)
+    inv = inventory_groups(sample_ids, tier=tier, max_workers=8)
+    coverage = group_coverage(inv)
+    n_with_camera = sum(
+        1
+        for sid in inv
+        if set(inv[sid]) & set(CAMERA_SOURCES + ("camera_visible", "camera_ir"))
+    )
+    camera_fraction = n_with_camera / max(len(inv), 1)
+
     samples: list[ShotSample] = []
 
     with tempfile.TemporaryDirectory(prefix="mast-probe-") as tmp:
         tmp_path = Path(tmp)
         for shot_id in sample_ids:
-            s = run_shot_copy(
-                shot_id, tmp_path, numworkers=numworkers, timeout_s=timeout_s
-            )
-            # Lookup camera flag for this shot.
-            row = df[df["shot_id"] == shot_id]
-            if camera_cols and not row.empty:
-                s.has_camera = bool(
-                    row[list(camera_cols)]
-                    .fillna(False)
-                    .astype(bool)
-                    .any(axis=1)
-                    .iloc[0]
+            present = set(inv.get(shot_id, ()))
+            if not present:
+                # Shot doesn't exist at this tier — record honestly.
+                samples.append(
+                    ShotSample(
+                        shot_id=shot_id,
+                        groups=(),
+                        bytes_copied=0,
+                        elapsed_s=0.0,
+                        error="absent at tier",
+                    )
                 )
+                continue
+            if groups:
+                effective = tuple(g for g in groups if g in present)
+                if not effective:
+                    # None of the requested groups are present — skip the
+                    # copy but record so the report shows reality.
+                    samples.append(
+                        ShotSample(
+                            shot_id=shot_id,
+                            groups=(),
+                            bytes_copied=0,
+                            elapsed_s=0.0,
+                            error="requested groups absent",
+                        )
+                    )
+                    continue
+            else:
+                effective = ()
+            s = run_shot_copy(
+                shot_id,
+                tmp_path,
+                tier=tier,
+                groups=effective,
+                numworkers=numworkers,
+                timeout_s=timeout_s,
+            )
             samples.append(s)
-            # Move into the persistent output directory rather than tmp.
-            if keep_samples and output_dir is not None:
-                output_dir.mkdir(parents=True, exist_ok=True)
-                shot_path = tmp_path / f"{shot_id}.zarr"
-                if shot_path.exists():
-                    shutil.move(str(shot_path), str(output_dir / f"{shot_id}.zarr"))
 
     finished_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -281,32 +382,34 @@ def run_probe(
     p95_mb = _percentile(sizes_mb, 0.95)
     mean_mb = sum(sizes_mb) / len(sizes_mb) if sizes_mb else 0.0
 
-    # Extrapolate total size to the whole index — separately if camera_only,
-    # else from the full count.
-    n_shots = len(df)
-    extrapolated_tb = (mean_mb * n_shots) / 1e6  # MB → TB
+    # Extrapolate to the entire tier; the caller may pass an authoritative
+    # tier count (e.g. from `s5cmd ls bucket/level1/shots/ | wc -l`).
+    n_for_extrap = n_shots_in_tier if n_shots_in_tier else n_index
+    extrapolated_tb = (mean_mb * n_for_extrap) / 1e6  # MB → TB
 
     notes: list[str] = []
-    if not camera_cols:
+    if tier == "level2" and camera_fraction == 0:
         notes.append(
-            "no camera-flag columns detected on the index — camera_shots gate is "
-            "set to 0 by definition; re-evaluate after the mirror lands."
+            "no camera groups detected in level-2 sample — consistent with "
+            "the 2026-05-19 finding that cameras live in level-1"
         )
     if sustained_throughput_mbps < THROUGHPUT_DEGRADED_MBPS:
         notes.append(
-            "sustained throughput below 50 MB/s — open a ticket with STFC before "
-            "the bulk download."
+            "sustained throughput below 50 MB/s — try more --numworkers or switch host"
         )
 
     report = ProbeReport(
-        n_shots_in_index=n_shots,
-        n_camera_shots=n_camera,
+        tier=tier,
+        n_shots_in_index=n_index,
+        n_shots_in_tier=n_for_extrap,
         sample_size=len(samples),
         samples=samples,
         sustained_throughput_mbps=sustained_throughput_mbps,
         median_shot_size_mb=median_mb,
         p95_shot_size_mb=p95_mb,
         extrapolated_total_size_tb=extrapolated_tb,
+        group_coverage=coverage,
+        camera_coverage_fraction=camera_fraction,
         started_at=started_at,
         finished_at=finished_at,
         notes=notes,
@@ -314,7 +417,8 @@ def run_probe(
 
     if output_dir is not None:
         output_dir.mkdir(parents=True, exist_ok=True)
-        report_path = output_dir / f"probe-{int(time.time())}.json"
+        report_path = output_dir / f"probe-{tier}-{int(time.time())}.json"
         report_path.write_text(report.to_json(), encoding="utf-8")
+        report.notes.append(f"report written to {report_path}")
 
     return report
