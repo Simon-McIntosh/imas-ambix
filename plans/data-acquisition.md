@@ -436,3 +436,81 @@ need revision.
   GPU-procurement document (`imas-codex/plans/gpu-cluster-scoping.md`
   §3.3) which quoted ~5 TB based on partner-corpus extrapolation,
   not on the FAIR-MAST corpus specifically.
+
+---
+
+## 11. Full-bucket inventory — 2026-05-19 (definitive)
+
+Full-bucket inventories taken after the §10 probe with
+`ambix data inventory --from-bucket --workers 16` from the login node.
+
+### 11.1 Level-2 inventory
+
+- **Shot count**: 11,573 (matches the parquet index exactly).
+- **Distinct groups**: 13. Verbatim coverage table:
+
+  | Group | Coverage |
+  |---|---:|
+  | `magnetics` | 11,573 (100.0 %) |
+  | `pf_active` | 11,573 (100.0 %) |
+  | `pf_passive` | 11,573 (100.0 %) |
+  | `soft_x_rays` | 11,573 (100.0 %) |
+  | `summary` | 11,573 (100.0 %) |
+  | `wall` | 11,573 (100.0 %) |
+  | `gas_injection` | 11,564 (99.9 %) |
+  | `pulse_schedule` | 11,536 (99.7 %) |
+  | `spectrometer_visible` | 11,457 (99.0 %) |
+  | `equilibrium` | 11,378 (98.3 %) |
+  | `thomson_scattering` | 10,437 (90.2 %) |
+  | `interferometer` | 10,291 (88.9 %) |
+  | `charge_exchange` | 4,391 (37.9 %) |
+- **Camera-bearing shots**: **0 / 11,573**. Definitive — every shot
+  in the level-2 bucket was listed and none carries `camera_visible`
+  or `camera_ir`.
+- Inventory artefact:
+  `/work/projects/imas_gpu/mast/.probe/inventory-l2-full.json` (3.3 MB).
+
+### 11.2 Level-1 inventory
+
+- **Shot count**: 17,111 (bucket listing — exceeds level-2 index by
+  ~5.5 k shots, mostly older campaigns).
+- **Distinct sources**: 49+ (top 30 shown). Camera-source coverage:
+
+  | Source | Coverage | Mapping |
+  |---|---:|---|
+  | `rbb` | 9,527 (55.7 %) | camera_visible.camera_center |
+  | `rco` | 7,921 (46.3 %) | camera_visible.camera_color |
+  | `rgb` | 7,506 (43.9 %) | camera_visible.bremsstrahlung_a |
+  | `rgc` | 7,433 (43.4 %) | camera_visible.bremsstrahlung_b |
+  | `rba` | 6,155 (36.0 %) | camera_visible.camera_lower |
+  | `rir` | rare | camera_ir.divertor |
+  | `rit` | rare | camera_ir.target |
+
+- **Any-camera coverage** (union across rba/rbb/rbc/rco/rgb/rgc/rir/rit/rzz):
+  **11,029 / 17,111 (64.5 %)**.
+- Inventory artefact:
+  `/work/projects/imas_gpu/mast/.probe/inventory-l1-full.json`.
+
+### 11.3 Built manifests
+
+| Manifest | Shots | Groups | Targets |
+|---|---:|---|---:|
+| `level2-all.json` | 11,573 | all (whole-shot copy) | 11,573 |
+| `level1-cameras.json` | 11,029 | rba,rbb,rbc,rco,rgb,rgc,rir,rit,rzz | 99,261 (with no-op skips for missing groups) |
+
+Stored at `/work/projects/imas_gpu/mast/manifests/`.
+
+### 11.4 Downloads
+
+Both running concurrently from the login node, started 2026-05-19 ~21:00:
+
+- Level-2: `ambix data targets level2-all.json | s5cmd ... run`, log at
+  `.probe/level2-download.log`.
+- Level-1 cameras: same pattern with `level1-cameras.json`, log at
+  `.probe/level1-download.log`.
+
+s5cmd's wildcard-no-op behaviour absorbs the ~50 k targets that hit
+absent groups silently (no error, zero bytes). Both jobs will be
+re-runnable end-to-end — re-issuing the same `targets | s5cmd run`
+command after completion will skip every object already mirrored, so
+recovery from a network blip is "just re-run".
