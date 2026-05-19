@@ -11,6 +11,7 @@ therefore built from **S3 listings**, not the parquet index.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -55,6 +56,36 @@ def shot_ids_from_index(df: pd.DataFrame) -> tuple[int, ...]:
     return tuple(int(s) for s in df["shot_id"].tolist())
 
 
+def s5cmd_du(s3_path: str) -> tuple[int, int]:
+    """Run ``s5cmd du <s3_path>`` and parse ``"N bytes in M objects:..."``.
+
+    Returns ``(bytes, objects)``. Raises if s5cmd exits non-zero or the
+    output line doesn't match. Suitable for both shot-level
+    ``s3://mast/level2/shots/30420.zarr/*`` and group-level
+    ``s3://mast/level2/shots/30420.zarr/magnetics/*`` prefixes.
+    """
+    s5cmd = _require_s5cmd()
+    cmd = [
+        s5cmd,
+        "--no-sign-request",
+        "--endpoint-url",
+        S3_ENDPOINT,
+        "du",
+        s3_path,
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if proc.returncode != 0:
+        if "no object found" in (proc.stderr or "").lower():
+            return (0, 0)
+        raise RuntimeError(f"s5cmd du failed for {s3_path!r}: {proc.stderr!r}")
+    # Expected line: "112119162 bytes in 1134 objects: s3://mast/..."
+    for line in proc.stdout.splitlines():
+        m = re.match(r"^(\d+)\s+bytes\s+in\s+(\d+)\s+objects", line)
+        if m:
+            return (int(m.group(1)), int(m.group(2)))
+    return (0, 0)
+
+
 def shot_ids_from_bucket(tier: Tier = "level2") -> tuple[int, ...]:
     """List shot IDs by ``s5cmd ls`` against the bucket prefix.
 
@@ -67,9 +98,7 @@ def shot_ids_from_bucket(tier: Tier = "level2") -> tuple[int, ...]:
     cmd = [s5cmd, "--no-sign-request", "--endpoint-url", S3_ENDPOINT, "ls", target]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"s5cmd ls {target} failed: {proc.stderr!r}"
-        )
+        raise RuntimeError(f"s5cmd ls {target} failed: {proc.stderr!r}")
     shots: list[int] = []
     for line in proc.stdout.splitlines():
         if "DIR" not in line:
@@ -179,6 +208,42 @@ def filter_by_groups(
         if mode == "any" and present or mode == "all" and present == req_set:
             out.append(sid)
     return sorted(out)
+
+
+def sum_sizes_from_bucket(
+    shot_ids: list[int],
+    tier: Tier = "level2",
+    groups: tuple[str, ...] = (),
+    max_workers: int = 16,
+) -> dict[int, tuple[int, int]]:
+    """Parallel `s5cmd du` over many shot or shot/group prefixes.
+
+    Returns ``{shot_id: (bytes, objects)}``. ``s5cmd du`` reads from S3
+    metadata without downloading payload bytes, so this is the right way
+    to size a tier or sub-prefix in advance of the bulk download.
+    """
+
+    def _one(sid: int) -> tuple[int, tuple[int, int]]:
+        base = f"s3://{S3_BUCKET}/{tier}/shots/{sid}.zarr"
+        if not groups:
+            return sid, s5cmd_du(f"{base}/*")
+        total_b = 0
+        total_o = 0
+        for g in groups:
+            b, o = s5cmd_du(f"{base}/{g}/*")
+            total_b += b
+            total_o += o
+        return sid, (total_b, total_o)
+
+    out: dict[int, tuple[int, int]] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        for fut in as_completed({pool.submit(_one, sid) for sid in shot_ids}):
+            try:
+                sid, sz = fut.result()
+                out[sid] = sz
+            except Exception as exc:  # noqa: BLE001
+                print(f"warn: du failed: {exc!r}")
+    return out
 
 
 def group_coverage(

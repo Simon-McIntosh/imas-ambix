@@ -408,6 +408,126 @@ def manifest_cmd(
         click.echo(payload)
 
 
+# --- du ---------------------------------------------------------------
+
+
+@data.command(name="du")
+@_tier_option
+@click.option(
+    "--sample-size",
+    default=100,
+    show_default=True,
+    help="How many shots to size. Use --from-bucket-all to size the entire tier.",
+)
+@click.option(
+    "--groups",
+    default="",
+    help="Comma-separated group names. Empty = size the whole shot.",
+)
+@click.option(
+    "--seed",
+    default=0,
+    show_default=True,
+)
+@click.option(
+    "--from-bucket-all",
+    is_flag=True,
+    default=False,
+    help="Size every shot at this tier (uses `s5cmd ls` to enumerate first).",
+)
+@click.option(
+    "--workers",
+    default=16,
+    show_default=True,
+)
+@click.option(
+    "--output",
+    default=None,
+    type=click.Path(),
+    help="Path to write the JSON result to.",
+)
+def du_cmd(
+    tier: str,
+    sample_size: int,
+    groups: str,
+    seed: int,
+    from_bucket_all: bool,
+    workers: int,
+    output: str | None,
+) -> None:
+    """Sum the on-bucket size of a (possibly filtered) corpus via s5cmd du.
+
+    This is the accurate way to size a tier — it reads S3 metadata
+    instead of extrapolating from a small sample, and so handles
+    heavy-tailed distributions correctly (the §10 / §11 probe sampling
+    under-extrapolated by 11×).
+    """
+    from imas_ambix.data.manifest import (
+        load_index,
+        shot_ids_from_bucket,
+        sum_sizes_from_bucket,
+    )
+    from imas_ambix.data.probe import sample_shots
+
+    group_tuple = tuple(g.strip() for g in groups.split(",") if g.strip())
+
+    if from_bucket_all:
+        ids = list(shot_ids_from_bucket(tier))  # type: ignore[arg-type]
+    else:
+        df = load_index()
+        ids = sample_shots(df, sample_size, seed=seed)
+
+    console.print(
+        f"sizing {len(ids)} shots at tier=[bold]{tier}[/bold] "
+        f"(groups={list(group_tuple) or 'all'}, workers={workers})…"
+    )
+    sizes = sum_sizes_from_bucket(
+        ids,
+        tier=tier,
+        groups=group_tuple,
+        max_workers=workers,  # type: ignore[arg-type]
+    )
+
+    total_bytes = sum(b for b, _ in sizes.values())
+    total_objects = sum(o for _, o in sizes.values())
+    n_with_data = sum(1 for b, _ in sizes.values() if b > 0)
+    n_total = len(sizes)
+    mean_mb = (total_bytes / n_with_data / 1e6) if n_with_data else 0.0
+    extrap_tb = (mean_mb * n_total) / 1e6  # for sample-mode reporting only
+
+    summary = Table(title=f"s5cmd du ({tier})")
+    summary.add_column("metric")
+    summary.add_column("value", justify="right")
+    summary.add_row("shots sized", str(n_total))
+    summary.add_row("shots with data", str(n_with_data))
+    summary.add_row("total objects", f"{total_objects:,}")
+    summary.add_row("total bytes", f"{total_bytes:,}")
+    summary.add_row("total GB", f"{total_bytes / 1e9:,.2f}")
+    summary.add_row("total TB", f"{total_bytes / 1e12:,.3f}")
+    summary.add_row("mean shot size (MB)", f"{mean_mb:,.1f}")
+    if not from_bucket_all:
+        summary.add_row("extrapolated to tier (TB)", f"{extrap_tb:,.3f}")
+    console.print(summary)
+
+    if output:
+        payload = {
+            "tier": tier,
+            "groups": list(group_tuple),
+            "from_bucket_all": from_bucket_all,
+            "shots_sized": n_total,
+            "shots_with_data": n_with_data,
+            "total_bytes": total_bytes,
+            "total_objects": total_objects,
+            "mean_shot_mb": mean_mb,
+            "by_shot": {
+                str(sid): {"bytes": b, "objects": o} for sid, (b, o) in sizes.items()
+            },
+        }
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        Path(output).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        console.print(f"[green]du report written:[/green] {output}")
+
+
 # --- targets ----------------------------------------------------------
 
 

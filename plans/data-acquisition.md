@@ -514,3 +514,82 @@ absent groups silently (no error, zero bytes). Both jobs will be
 re-runnable end-to-end — re-issuing the same `targets | s5cmd run`
 command after completion will skip every object already mirrored, so
 recovery from a network blip is "just re-run".
+
+---
+
+## 12. Correction — level-2 is 4.5 TB, not 0.4 TB (2026-05-19, late)
+
+The §10 / §11 size extrapolation under-estimated the level-2 corpus by
+**~11×**. Independent confirmation: level-2 is **4.5 TB**, not the
+0.39 TB the probe extrapolated.
+
+### 12.1 Why the probe was wrong
+
+The §10 probe sampled 10 shots and computed
+`mean(shot_size_MB) × n_shots_in_index`. With a small sample, the mean
+was dominated by small shots — the corpus has a **heavy-tailed
+distribution**:
+
+- 10-shot sample: median 10.3 MB, p95 142.5 MB, mean ~34 MB
+- Reality: 4,500 GB / 11,573 shots = **~388 MB per shot mean**
+
+So our sample mean was about 11× lower than the true mean. The
+sample-statistic on a heavy-tailed corpus does not extrapolate.
+
+### 12.2 The right way to size the corpus
+
+Use `s5cmd du` against the bucket prefix — it reads object sizes from
+S3 metadata without downloading bytes:
+
+```bash
+s5cmd --no-sign-request --endpoint-url https://s3.echo.stfc.ac.uk \
+    du 's3://mast/level2/shots/*'
+```
+
+This returns the per-shot Zarr root size for every shot. Summing gives
+the corpus size directly, in minutes of clock time.
+
+The `ambix data probe` extrapolation should be augmented (or replaced)
+with a `s5cmd du` sweep so future probes don't repeat the under-estimate.
+
+### 12.3 Revised acceptance gates
+
+| Gate | Old | New |
+|---|---|---|
+| `TOTAL_SIZE_MIN_TB` | 0.05 | **2.0** (level-2 alone is at least 4 TB) |
+| `TOTAL_SIZE_MAX_TB` | 12.0 | **15.0** (room for level-1 cameras headroom) |
+
+### 12.4 Implications for the v0 plan
+
+- **Disk budget**: 4.5 TB level-2 + level-1 cameras (estimate revised
+  upward — the level-1 inventory said 11k camera-bearing shots; if each
+  averages 200 MB of camera data we are looking at ~2.2 TB). Total
+  ~7 TB. GPFS has 576 TB free; this is fine.
+- **Wall time**: at the observed ~300 MB/s aggregate (two parallel
+  s5cmd processes, --numworkers 32 each, login node), 4.5 TB ≈ 4 – 5 h.
+  Add ~2 h for level-1 cameras. Single-day completion is realistic.
+- **Tokenization budget**: 4.5 TB raw → after Open-MAGVIT2 8×8×4
+  compression on frames + Chronos quantisation on signals, expect
+  ~100 – 300 GB of tokens. Fits comfortably in `mast-tokens/`.
+- **Streaming alternative**: with 4.5 TB on the wire and ~300 MB/s
+  network from the login node, fsspec streaming for training is not
+  obviously bad — but a single local mirror keeps the training loop
+  decoupled from network reliability and is the safer choice for v0.
+- **No change to the architecture**: the WHAM-style v0 model still
+  consumes tokens from `mast-tokens/`, not raw `mast/`. The raw mirror
+  is a one-time cost; tokenisation is a one-time cost; training reads
+  from `mast-tokens/`.
+
+### 12.5 Live download progress (snapshot)
+
+At ~30 min after launch from the login node (both downloads running in
+parallel):
+
+- Level-2: 736 / 11,573 shots (6.4 %) — ~286 GB on disk if the 388 MB
+  average holds.
+- Level-1 cameras: 2,775 / 11,029 shots (25.2 %) — the camera subset is
+  smaller per shot, so this finishes first.
+
+ETA for level-2 completion: **~8 h** at the observed rate. Single
+console session is fine since both downloads were launched via
+`run_in_background` and are decoupled from the interactive shell.
