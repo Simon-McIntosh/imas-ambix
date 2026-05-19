@@ -51,3 +51,11 @@ agent = _LazyGroup(
     help="Manage LLM agent deployments on SLURM GPU clusters.",
 )
 main.add_command(agent)
+
+
+data = _LazyGroup(
+    import_path="imas_ambix.data.cli:data",
+    name="data",
+    help="FAIR-MAST data acquisition and access (see plans/data-acquisition.md).",
+)
+main.add_command(data)

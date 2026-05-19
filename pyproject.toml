@@ -79,6 +79,20 @@ agent = [
     #   uv pip install "sglang>=0.5.10.post1" kt-kernel --prerelease=allow
     #   pip install flashinfer -i https://flashinfer.ai/whl/cu124/torch2.6
 ]
+data = [
+    # FAIR-MAST acquisition stack — install on a sirius compute node.
+    # The s5cmd Go binary is installed separately, not via pip:
+    #   - Go binary releases at https://github.com/peak/s5cmd/releases
+    #   - or via conda: `conda install -c conda-forge s5cmd`
+    # The Python code looks for it on PATH via shutil.which("s5cmd").
+    "fsspec[s3]>=2024.10",
+]
+train = [
+    # World-model training stack — install on the betelgeuse GPU node:
+    "accelerate>=1.0",
+    "einops>=0.8",
+    "chronos-forecasting>=1.3",
+]
 
 [project.urls]
 Repository = "https://github.com/iterorganization/imas-ambix"

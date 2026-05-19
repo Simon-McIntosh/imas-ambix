@@ -27,6 +27,11 @@ architecture: given the current plasma state (diagnostic measurements at time *t
 and control actions (coil currents, gas injection, heating power), predict the
 plasma state at time *t+1*.
 
+The end-to-end plan from raw FAIR-MAST data through tokenization, training, and
+the wide-angle-camera forward-prediction demo lives under
+[`plans/`](plans/README.md) — start with
+[`plans/STRATEGY.md`](plans/STRATEGY.md) for the vision and roadmap.
+
 ## Architecture
 
 ```
