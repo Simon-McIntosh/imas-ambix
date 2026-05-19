@@ -222,12 +222,30 @@ def _render_report(report: object) -> None:
         "--sample-size and --seed)."
     ),
 )
+@click.option(
+    "--from-bucket",
+    is_flag=True,
+    default=False,
+    help=(
+        "List shot IDs by `s5cmd ls` against the bucket prefix instead of "
+        "the parquet index. Required at tier=level1 — the level-1 bucket "
+        "has more shots than the level-2 parquet index."
+    ),
+)
+@click.option(
+    "--workers",
+    default=16,
+    show_default=True,
+    help="Number of parallel `s5cmd ls` threads.",
+)
 def inventory_cmd(
     tier: str,
     sample_size: int,
     seed: int,
     output: str | None,
     shot_ids: str | None,
+    from_bucket: bool,
+    workers: int,
 ) -> None:
     """List which IDS groups are present per shot at the given tier.
 
@@ -238,17 +256,23 @@ def inventory_cmd(
         group_coverage,
         inventory_groups,
         load_index,
+        shot_ids_from_bucket,
     )
     from imas_ambix.data.probe import sample_shots
 
     if shot_ids:
         ids = [int(s.strip()) for s in shot_ids.split(",") if s.strip()]
+    elif from_bucket:
+        ids = list(shot_ids_from_bucket(tier))  # type: ignore[arg-type]
     else:
         df = load_index()
         ids = sample_shots(df, sample_size, seed=seed)
 
-    console.print(f"inventorying {len(ids)} shots at tier=[bold]{tier}[/bold]…")
-    inv = inventory_groups(ids, tier=tier)  # type: ignore[arg-type]
+    console.print(
+        f"inventorying {len(ids)} shots at tier=[bold]{tier}[/bold] "
+        f"({workers} workers)…"
+    )
+    inv = inventory_groups(ids, tier=tier, max_workers=workers)  # type: ignore[arg-type]
     coverage = group_coverage(inv)
 
     summary = Table(title=f"Group coverage ({tier})")

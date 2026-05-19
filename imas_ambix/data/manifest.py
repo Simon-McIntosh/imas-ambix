@@ -55,6 +55,35 @@ def shot_ids_from_index(df: pd.DataFrame) -> tuple[int, ...]:
     return tuple(int(s) for s in df["shot_id"].tolist())
 
 
+def shot_ids_from_bucket(tier: Tier = "level2") -> tuple[int, ...]:
+    """List shot IDs by ``s5cmd ls`` against the bucket prefix.
+
+    This is the authoritative count for a given tier. The level-1 bucket
+    carries more shots than the level-2 parquet index (17k vs 11.5k as of
+    2026-05-19), so this listing is required for any level-1 work.
+    """
+    s5cmd = _require_s5cmd()
+    target = f"s3://{S3_BUCKET}/{tier}/shots/"
+    cmd = [s5cmd, "--no-sign-request", "--endpoint-url", S3_ENDPOINT, "ls", target]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"s5cmd ls {target} failed: {proc.stderr!r}"
+        )
+    shots: list[int] = []
+    for line in proc.stdout.splitlines():
+        if "DIR" not in line:
+            continue
+        token = line.split()[-1].rstrip("/")
+        # Expect names like "30420.zarr"
+        if token.endswith(".zarr"):
+            try:
+                shots.append(int(token.removesuffix(".zarr")))
+            except ValueError:
+                continue
+    return tuple(sorted(shots))
+
+
 # --- S3 listing -------------------------------------------------------
 
 
