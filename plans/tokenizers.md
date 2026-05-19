@@ -225,3 +225,72 @@ integrated density).
   a continuous tensor via cross-attention. v1 should consider a 2-D
   Open-MAGVIT2 fine-tune on the grid representation so equilibrium
   enters the token stream the same way frames do.
+
+---
+
+## 9. v0 scaffold landed — 2026-05-19
+
+The `imas_ambix.tokenizer` package now exists with the protocol surfaces
+and placeholder implementations described above:
+
+| Module | Role |
+|---|---|
+| `base.py` | `Tokenizer` / `FrameTokenizer` / `SignalTokenizer` protocols, `EncodedFrames` / `EncodedSignals` dataclasses |
+| `registry.py` | `TokenRegistry` global id allocator, `CONTROL_TOKENS` reserved range, `VOCAB_VERSION` |
+| `alignment.py` | `TimeGrid`, `shot_time_window`, `resample_to_grid` |
+| `frames.py` | `PlaceholderFrameTokenizer` (working) + `OpenMagvit2Tokenizer` (stub) |
+| `signals.py` | `UniformQuantizer` (working) + `ChronosSignalTokenizer` (stub) |
+| `multimodal.py` | `ShotTokenizer` — interleaves frame+signal tokens with `<bos>/<sep>/<eos>` |
+| `cli.py` | `ambix tokenize {registry, inspect, frames, signals}` |
+
+The two `*_v1` placeholder tokenizers (`frames_placeholder_v1`,
+`signals_uniform_v1`) emit valid global token ids inside the
+registry-allocated range, and round-trip cleanly:
+
+```text
+$ ambix tokenize frames --shot 15085 --camera rbb --temporal-compression 4 --spatial-compression 8
+loaded rbb for shot 15085: shape=(149, 536, 560), dtype=uint16
+encoded shape: (37, 67, 70)  vocab range used: [4, 259]
+decode shape:  (148, 536, 560)  input vs decoded MAE: 631.09
+
+$ ambix tokenize signals --shot 11766 --group summary --n-bins 64
+input vars: 4
+tokenized channels: 4
+token shape: (1652, 4)
+global id range: [14, 60]
+vocab_size (per ch.): 64
+```
+
+These work without the Open-MAGVIT2 or Chronos weights — they exist so
+the rest of the pipeline (model loader, training loop, evaluation) can
+be exercised before the real tokenizers are plumbed in.
+
+### 9.1 Rollout path to real tokenizers
+
+1. **Open-MAGVIT2** — clone <https://github.com/TencentARC/Open-MAGVIT2>,
+   place its `transform_8x8x4_imagenet256_lfq262144.ckpt` under
+   `/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/encoder.ckpt`,
+   wrap its `encode_to_indices` / `decode_from_indices` calls inside the
+   `OpenMagvit2Tokenizer` class (currently raises
+   `NotImplementedError`). The placeholder's `name = "frames_placeholder_v1"`
+   will become `name = "frames_open_magvit2_v1"` so the registry
+   allocation moves; existing placeholder-emitted tokens are invalidated
+   (which is fine — we only have synthetic test data so far).
+2. **Chronos** — `pip install chronos-forecasting`, load
+   `amazon/chronos-t5-small`, wire `ChronosSignalTokenizer` similarly.
+3. **PatchTST** — HuggingFace `transformers.PatchTSTModel`; v0 trains
+   the patch-projection inside the world model, so this tokenizer
+   stays an identity passthrough for now.
+
+### 9.2 Implementation notes for the real tokenizers
+
+- The decoders need to run on **CPU during data prep** (the betelgeuse
+  GPU node has no network access for weight downloads). Once the
+  encoder weights are staged on GPFS, the actual encode pass for the
+  full corpus moves to the GPU node.
+- Encoded tokens persist under `mast-tokens/v1/` per §5. The PR that
+  swaps placeholders for the real tokenizers also writes
+  `mast-tokens/v1/registry.json` capturing the global vocabulary.
+- The round-trip evaluation in §7 is the gate. The placeholder hits
+  ~1% MAE on uint16 frames; Open-MAGVIT2 should hit rFID ≤ 5 once the
+  encoder is plumbed in.

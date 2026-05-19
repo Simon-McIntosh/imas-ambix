@@ -59,3 +59,11 @@ data = _LazyGroup(
     help="FAIR-MAST data acquisition and access (see plans/data-acquisition.md).",
 )
 main.add_command(data)
+
+
+tokenize = _LazyGroup(
+    import_path="imas_ambix.tokenizer.cli:tokenize",
+    name="tokenize",
+    help="Multi-modal tokenizers for FAIR-MAST shots (see plans/tokenizers.md).",
+)
+main.add_command(tokenize)
