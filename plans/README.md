@@ -13,6 +13,7 @@
 | Plan | Scope |
 |---|---|
 | [STRATEGY.md](STRATEGY.md) | The Fusion World Model strategy — vision, partner-facility roadmap, why MAST first, v0/v1 success criteria, risk register |
+| [v0-runway.md](v0-runway.md) | **Active operational plan** — next-step ranking, fleet-dispatch table, review rubric. Edit in place as work lands. |
 | [compute.md](compute.md) | SLURM patterns for training on the 4 × H200 Group A reservation; dedicated-training reservation request; scheduled-around-serving fallback |
 
 ## Phase 0 — Probe & mirror
@@ -85,3 +86,4 @@ non-trivial fine-tune in `tokenizers.md`.
 | Date | Change | Author |
 |---|---|---|
 | 2026-05-19 | Initial plan set created — STRATEGY, data-acquisition, tokenizers, world-model-v0, demo, compute, this README | Simon McIntosh |
+| 2026-05-20 | Added v0-runway.md (operational next-step plan); level-2 mirror 83 % done; Open-MAGVIT2 wired and working on real rbb frames; fleet dispatch underway. | Simon McIntosh |
