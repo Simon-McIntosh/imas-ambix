@@ -511,3 +511,147 @@ def test_encode_shot_with_block_kind_method(fresh_registry):
 
     np.testing.assert_array_equal(tokens_flag, tokens_method)
     np.testing.assert_array_equal(bk_flag, bk_method)
+
+
+# --- §12.4 Multi-modal alignment improvements --------------------------------
+
+
+def _high_rate_signal_dataset(n_time: int = 100, hz: float = 1000.0) -> xr.Dataset:
+    """Signals at ``hz`` Hz over ``n_time`` steps (e.g. 1 kHz magnetics)."""
+    t = np.arange(n_time, dtype=np.float64) / hz
+    ip = np.sin(2 * np.pi * 10 * t) * 1000
+    ne = np.cos(2 * np.pi * 10 * t) * 1e19
+    return xr.Dataset(
+        {"ip": (("time",), ip), "ne": (("time",), ne)},
+        coords={"time": t},
+    )
+
+
+def test_enforce_alignment_resamples_high_rate_signals(fresh_registry):
+    """ShotTokenizer(enforce_alignment=True) resamples 1-kHz signals to model_hz=100."""
+    ft = PlaceholderFrameTokenizer(spatial_compression=4, temporal_compression=1)
+    st = UniformQuantizer(n_bins=32)
+    # 100 samples at 1 kHz  →  0.0 … 0.099 s
+    ds_highrate = _high_rate_signal_dataset(n_time=100, hz=1000.0)
+    # Fit on the high-rate dataset so bins are calibrated
+    st.fit([ds_highrate])
+
+    # frames match model_hz=100 (one frame per step, 0.0 … 0.099 s)
+    # n_model_steps = int((0.099 - 0.0) * 100) + 1 = 10
+    frames = np.zeros((10, 16, 16), dtype=np.uint16)
+
+    shot_tok = ShotTokenizer(
+        frame_tokenizer=ft, signal_tokenizer=st, model_hz=100.0, enforce_alignment=True
+    )
+    tokens, bk = shot_tok.encode_shot(frames=frames, signals=ds_highrate, return_block_kind=True)
+
+    # Confirm stream is produced without error
+    assert tokens.dtype == np.int32
+    assert tokens[0] == CONTROL_TOKENS["bos"]
+    assert tokens[-1] == CONTROL_TOKENS["eos"]
+    # Both FRAME and SIGNAL blocks must be present
+    from imas_ambix.tokenizer.base import BlockKind
+    assert BlockKind.FRAME in bk.tolist()
+    assert BlockKind.SIGNAL in bk.tolist()
+
+
+def test_enforce_alignment_subsamples_excess_frames(fresh_registry):
+    """Frames with 4× the expected step count are evenly sub-sampled."""
+    ft = PlaceholderFrameTokenizer(spatial_compression=4, temporal_compression=1)
+    st = UniformQuantizer(n_bins=32)
+    # 10-step signal at model_hz=100 over 0.0..0.09 s
+    ds = _high_rate_signal_dataset(n_time=10, hz=100.0)
+    st.fit([ds])
+    # 40 frames — 4× expected (10 steps)
+    frames_4x = np.arange(40 * 16 * 16, dtype=np.uint16).reshape(40, 16, 16)
+
+    shot_tok = ShotTokenizer(
+        frame_tokenizer=ft, signal_tokenizer=st, model_hz=100.0, enforce_alignment=True
+    )
+    tokens, bk = shot_tok.encode_shot(frames=frames_4x, signals=ds, return_block_kind=True)
+
+    from imas_ambix.tokenizer.base import BlockKind
+    # Count frame blocks: each step contributes (16//4)*(16//4) = 16 frame tokens
+    n_frame_tokens = int((bk == BlockKind.FRAME).sum())
+    n_signal_tokens = int((bk == BlockKind.SIGNAL).sum())
+    # Expect ~10 steps × 16 frame tokens each = 160 frame tokens
+    assert n_frame_tokens == 160, f"expected 160 frame tokens, got {n_frame_tokens}"
+    assert n_signal_tokens > 0
+
+
+def test_encode_shot_signal_only_no_frame_tokens(fresh_registry):
+    """encode_shot_signal_only returns a stream with no FRAME-kind positions."""
+    from imas_ambix.tokenizer.base import BlockKind
+
+    ft = PlaceholderFrameTokenizer(spatial_compression=4, temporal_compression=1)
+    st = UniformQuantizer(n_bins=32)
+    ds = _toy_signal_dataset(n_time=8)
+    st.fit([ds])
+
+    shot_tok = ShotTokenizer(frame_tokenizer=ft, signal_tokenizer=st)
+    tokens, bk = shot_tok.encode_shot_signal_only(ds)
+
+    assert tokens.dtype == np.int32
+    assert tokens[0] == CONTROL_TOKENS["bos"]
+    assert tokens[-1] == CONTROL_TOKENS["eos"]
+    # No FRAME-kind tokens
+    assert BlockKind.FRAME not in bk.tolist(), "expected no FRAME tokens in signal-only stream"
+    # SIGNAL tokens must be present
+    assert BlockKind.SIGNAL in bk.tolist()
+    # CONTROL tokens (bos, eos, sep, pad) must be present
+    assert BlockKind.CONTROL in bk.tolist()
+
+
+def test_encode_shot_frames_only_no_signal_tokens(fresh_registry):
+    """encode_shot_frames_only returns a stream with no SIGNAL-kind positions."""
+    from imas_ambix.tokenizer.base import BlockKind
+
+    ft = PlaceholderFrameTokenizer(spatial_compression=4, temporal_compression=1)
+    st = UniformQuantizer(n_bins=32)
+    frames = np.zeros((8, 16, 16), dtype=np.uint16)
+    # Still need to fit the quantizer so it is in a usable state
+    st.fit([_toy_signal_dataset(n_time=8)])
+
+    shot_tok = ShotTokenizer(frame_tokenizer=ft, signal_tokenizer=st)
+    tokens, bk = shot_tok.encode_shot_frames_only(frames)
+
+    assert tokens.dtype == np.int32
+    assert tokens[0] == CONTROL_TOKENS["bos"]
+    assert tokens[-1] == CONTROL_TOKENS["eos"]
+    # No SIGNAL-kind tokens
+    assert BlockKind.SIGNAL not in bk.tolist(), "expected no SIGNAL tokens in frames-only stream"
+    # FRAME tokens must be present
+    assert BlockKind.FRAME in bk.tolist()
+
+
+def test_enforce_alignment_false_preserves_min_behaviour(fresh_registry):
+    """ShotTokenizer(enforce_alignment=False) truncates to the shorter axis."""
+    from imas_ambix.tokenizer.base import BlockKind
+
+    ft = PlaceholderFrameTokenizer(spatial_compression=4, temporal_compression=1)
+    st = UniformQuantizer(n_bins=32)
+    ds_short = _toy_signal_dataset(n_time=4)
+    ds_long = _toy_signal_dataset(n_time=8)
+    st.fit([ds_short, ds_long])
+
+    frames_short = np.zeros((4, 16, 16), dtype=np.uint16)
+    frames_long = np.zeros((8, 16, 16), dtype=np.uint16)
+
+    shot_tok_off = ShotTokenizer(
+        frame_tokenizer=ft, signal_tokenizer=st, enforce_alignment=False
+    )
+    # Both (frames_long, ds_short) and (frames_short, ds_long) should truncate to 4 steps
+    tokens_a, bk_a = shot_tok_off.encode_shot(
+        frames=frames_long, signals=ds_short, return_block_kind=True
+    )
+    tokens_b, bk_b = shot_tok_off.encode_shot(
+        frames=frames_short, signals=ds_long, return_block_kind=True
+    )
+    # Both should have the same stream length (shorter axis = 4 steps)
+    assert len(tokens_a) == len(tokens_b), (
+        f"expected same stream length when enforce_alignment=False, "
+        f"got {len(tokens_a)} vs {len(tokens_b)}"
+    )
+    # FRAME and SIGNAL both present
+    assert BlockKind.FRAME in bk_a.tolist()
+    assert BlockKind.SIGNAL in bk_a.tolist()

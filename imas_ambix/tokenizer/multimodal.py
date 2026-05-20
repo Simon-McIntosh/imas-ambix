@@ -46,10 +46,14 @@ class ShotTokenizer:
     sep_token: int = field(default=CONTROL_TOKENS["sep"])
     bos_token: int = field(default=CONTROL_TOKENS["bos"])
     eos_token: int = field(default=CONTROL_TOKENS["eos"])
+    enforce_alignment: bool = True
+    """When ``True`` (default), resample ``signals`` onto the model time
+    grid and sub-sample ``frames`` to match before encoding.  Set to
+    ``False`` for backward-compatible behaviour (shorter axis wins)."""
 
     def encode_shot(
         self,
-        frames: np.ndarray,
+        frames: np.ndarray | None,
         signals: xr.Dataset,
         *,
         return_block_kind: bool = False,
@@ -57,8 +61,8 @@ class ShotTokenizer:
         """Encode one shot end-to-end into a 1-D int32 token stream.
 
         Args:
-            frames: ``(T, H, W)`` or ``(T, H, W, C)`` array. The frame
-                tokenizer compresses the time axis by its own factor.
+            frames: ``(T, H, W)`` or ``(T, H, W, C)`` array, or ``None``
+                if this shot has no camera data.
             signals: ``xr.Dataset`` aligned to the model time grid.
             return_block_kind: When ``True``, return a
                 ``(tokens, block_kind)`` tuple instead of only ``tokens``.
@@ -79,7 +83,7 @@ class ShotTokenizer:
 
     def encode_shot_with_block_kind(
         self,
-        frames: np.ndarray,
+        frames: np.ndarray | None,
         signals: xr.Dataset,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Encode one shot and always return ``(tokens, block_kind)``.
@@ -88,7 +92,7 @@ class ShotTokenizer:
         code — the return type is unambiguous.
 
         Args:
-            frames: ``(T, H, W)`` or ``(T, H, W, C)`` array.
+            frames: ``(T, H, W)`` or ``(T, H, W, C)`` array, or ``None``.
             signals: ``xr.Dataset`` aligned to the model time grid.
 
         Returns:
@@ -98,30 +102,123 @@ class ShotTokenizer:
         """
         return self._encode_shot_impl(frames, signals)
 
+    def encode_shot_signal_only(
+        self,
+        signals: xr.Dataset,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Encode a shot that has no camera frames.
+
+        Emits ``<pad>`` blocks for frame positions so signal-only shots
+        can enter the training set with zero frame-loss weight.
+
+        Args:
+            signals: ``xr.Dataset`` containing signal channels.
+
+        Returns:
+            ``(tokens, block_kind)`` — frame positions carry
+            ``CONTROL_TOKENS["pad"]`` with ``BlockKind.CONTROL``.
+        """
+        return self._encode_shot_impl(None, signals)
+
+    def encode_shot_frames_only(
+        self,
+        frames: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Encode a shot that has no signal data.
+
+        Emits ``<pad>`` blocks for signal positions so frame-only shots
+        can enter the training set with zero signal-loss weight.
+
+        Args:
+            frames: ``(T, H, W)`` or ``(T, H, W, C)`` array.
+
+        Returns:
+            ``(tokens, block_kind)`` — signal positions carry
+            ``CONTROL_TOKENS["pad"]`` with ``BlockKind.CONTROL``.
+        """
+        import xarray as xr
+
+        empty_signals: xr.Dataset = xr.Dataset()
+        return self._encode_shot_impl(frames, empty_signals)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _frame_block_len_per_step(self) -> int:
+        """Estimate the per-step frame token count for pad-block sizing.
+
+        Uses ``spatial_compression`` and ``image_size`` when available on
+        the frame tokenizer; falls back to 0 (signal-only stream) if
+        neither is set.
+        """
+        ft = self.frame_tokenizer
+        sc = getattr(ft, "spatial_compression", 0)
+        image_size = getattr(ft, "image_size", None)
+        if sc and image_size:
+            if isinstance(image_size, (list, tuple)) and len(image_size) >= 2:
+                h_tok = image_size[0] // sc
+                w_tok = image_size[1] // sc
+                return h_tok * w_tok
+            elif isinstance(image_size, int):
+                h_tok = image_size // sc
+                return h_tok * h_tok
+        # Default: 0 means signal-only (no pad block emitted)
+        return 0
+
     # ------------------------------------------------------------------
     # Internal implementation
     # ------------------------------------------------------------------
 
     def _encode_shot_impl(
         self,
-        frames: np.ndarray,
+        frames: np.ndarray | None,
         signals: xr.Dataset,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Build the token stream and parallel block_kind array."""
         import numpy as np
 
-        frame_enc = self.frame_tokenizer.encode(frames)
-        signal_enc = self.signal_tokenizer.encode(signals)
+        has_frames = frames is not None
+        has_signals = bool(signals.data_vars)
 
-        # The frame tokenizer compresses time; the signal tokenizer
-        # emits one token-per-channel per timestep at the model grid.
-        # For v0 we pad the shorter axis with sep tokens; alignment is
-        # tracked in metadata so the model loader can resync.
-        n_frame_steps = frame_enc.token_ids.shape[0]
-        n_signal_steps = signal_enc.token_ids.shape[0]
-        n_steps = min(n_frame_steps, n_signal_steps)
+        if self.enforce_alignment and (has_frames or has_signals):
+            from imas_ambix.tokenizer.alignment import align_frames_signals
 
+            frames, signals = align_frames_signals(
+                frames, signals, self.model_hz
+            )
+            # Recompute after potential resampling
+            has_signals = bool(signals.data_vars)
+
+        # --- Encode each modality -------------------------------------
+        frame_enc = self.frame_tokenizer.encode(frames) if has_frames else None
+        signal_enc = self.signal_tokenizer.encode(signals) if has_signals else None
+
+        # Determine n_steps
+        if frame_enc is not None and signal_enc is not None:
+            if self.enforce_alignment:
+                # After alignment both axes should agree; trust frame enc
+                n_steps = min(
+                    frame_enc.token_ids.shape[0],
+                    signal_enc.token_ids.shape[0],
+                )
+            else:
+                n_steps = min(
+                    frame_enc.token_ids.shape[0],
+                    signal_enc.token_ids.shape[0],
+                )
+        elif frame_enc is not None:
+            n_steps = frame_enc.token_ids.shape[0]
+        elif signal_enc is not None:
+            n_steps = signal_enc.token_ids.shape[0]
+        else:
+            n_steps = 0
+
+        pad_token = np.array([CONTROL_TOKENS["pad"]], dtype=np.int32)
         sep = np.array([self.sep_token], dtype=np.int32)
+
+        # Per-step frame pad block length (for missing-frames case)
+        frame_pad_len = self._frame_block_len_per_step() if not has_frames else 0
 
         stream: list[np.ndarray] = [np.array([self.bos_token], dtype=np.int32)]
         kinds: list[np.ndarray] = [np.array([BlockKind.CONTROL], dtype=np.uint8)]
@@ -131,17 +228,32 @@ class ShotTokenizer:
             stream.append(sep)
             kinds.append(np.array([BlockKind.CONTROL], dtype=np.uint8))
 
-            # frame block
-            frame_flat = frame_enc.token_ids[step].reshape(-1).astype(np.int32)
-            stream.append(frame_flat)
-            kinds.append(np.full(frame_flat.shape[0], BlockKind.FRAME, dtype=np.uint8))
+            # frame block (real or pad)
+            if frame_enc is not None:
+                frame_flat = frame_enc.token_ids[step].reshape(-1).astype(np.int32)
+                stream.append(frame_flat)
+                kinds.append(
+                    np.full(frame_flat.shape[0], BlockKind.FRAME, dtype=np.uint8)
+                )
+            elif frame_pad_len > 0:
+                pad_block = np.full(frame_pad_len, CONTROL_TOKENS["pad"], dtype=np.int32)
+                stream.append(pad_block)
+                kinds.append(
+                    np.full(frame_pad_len, BlockKind.CONTROL, dtype=np.uint8)
+                )
+            # else: signal-only stream, no frame block emitted
 
-            # signal block
-            signal_flat = signal_enc.token_ids[step].reshape(-1).astype(np.int32)
-            stream.append(signal_flat)
-            kinds.append(
-                np.full(signal_flat.shape[0], BlockKind.SIGNAL, dtype=np.uint8)
-            )
+            # signal block (real or pad)
+            if signal_enc is not None:
+                signal_flat = signal_enc.token_ids[step].reshape(-1).astype(np.int32)
+                stream.append(signal_flat)
+                kinds.append(
+                    np.full(signal_flat.shape[0], BlockKind.SIGNAL, dtype=np.uint8)
+                )
+            else:
+                # Emit a single pad token for the signal position
+                stream.append(pad_token)
+                kinds.append(np.array([BlockKind.CONTROL], dtype=np.uint8))
 
         # <eos>
         stream.append(np.array([self.eos_token], dtype=np.int32))
