@@ -36,28 +36,56 @@ from Group A's reservation.
 
 ---
 
-## 2. Why training cannot co-locate with DeepSeek V4-Flash serving
+## 2. Concurrent training + V4-Flash serving — viable with micro-batch tuning
 
-DeepSeek V4-Flash, the current production serve, uses ~41 GB / GPU
-(weights 164 GB / 4 = 41 GB) and reserves additional headroom for KV
-cache. That leaves ~90 GB free per GPU. From the world-model FSDP budget
-in `world-model-v0.md` §4.2:
+**Revised 2026-05-20.** DeepSeek V4-Flash steady-state footprint per GPU
+breaks down as: ~41 GB weights + ~5-12 GB KV (FP8, capped by the
+profile's `max_total_tokens=262144`) + ~5-10 GB vLLM workspace =
+**51-63 GB/GPU used during active serving**. That leaves **77-89 GB/GPU
+headroom**. World-model FSDP budget (`world-model-v0.md` §4.2):
 
-| Model | Per-GPU peak (bf16, FSDP, activation ckpt, 16 K ctx, micro-batch 4) |
+| Train config | Train peak/GPU | + V4-Flash 63 GB | Fits 140? | Margin |
+|---|---:|---:|---|---:|
+| **125 M**, mb=4, ctx=16K | ~30 GB | 93 GB | yes | 47 GB |
+| 125 M, mb=8, ctx=16K | ~45 GB | 108 GB | yes | 32 GB |
+| **500 M**, mb=4, ctx=16K | ~85 GB | 148 GB | **NO** | −8 GB |
+| 500 M, **mb=2**, ctx=16K | ~50 GB | 113 GB | yes | 27 GB |
+| 500 M, mb=4, **ctx=8K** | ~50 GB | 113 GB | yes | 27 GB |
+| 1 B or larger | ≥140 GB | ≥200 GB | NO | n/a |
+
+Conclusion:
+
+- **125 M training is fully concurrent** with V4-Flash serving. No
+  reservation tweaks. Inference latency rises during training steps
+  (SM time-sharing) but does not crash.
+- **500 M training is concurrent with one knob turned**: either
+  `micro_batch_size=2` or `context_length=8192`. Effective tokens-per-step
+  drop 2×; step count compensates.
+- **1 B+ requires exclusive access** — no concurrent path on this hardware.
+
+Operational caveats (none of these are blockers, but the runbook lists
+them so on-call knows what to look for):
+
+| Concern | Mitigation |
 |---|---|
-| 125 M | ~30 GB |
-| **500 M** | **~85 GB** |
-| 1 B | ~140 GB (exceeds total, requires CPU offload or 8 GPU) |
+| SM time-sharing → inference latency 5–50× during active training | Acceptable if endpoint is rarely used; the maintainer announces planned heavy training windows. |
+| NCCL contention on NVLink (vLLM all_reduce vs FSDP all_gather) | Use separate communicators (PyTorch + vLLM already do); accept higher inference latency variance. |
+| Allocator fragmentation between vLLM + training | Set `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` on the trainer. |
+| Long-context inference request balloons KV mid-training | Cap V4-Flash `max_num_batched_tokens=16384` (down from 32768) during concurrent windows. |
+| OOM-triggered NCCL hang taking down both jobs | Monitor `nvidia-smi dmon -s u`; runbook is "scancel training first, leave serving". |
 
-500 M training **just barely fits** alongside V4-Flash on paper, with
-zero margin for unexpected OOMs (e.g. PyTorch CUDA-graph artefacts,
-optimizer state spikes). In practice this is too tight to operate
-reliably. We therefore plan for a **dedicated training reservation**.
+## 2b. Why a dedicated reservation is still worth filing
 
-The 125 M curriculum step **does** fit alongside V4-Flash (30 GB +
-41 GB = 71 GB / GPU << 141 GB), so the training loop can be brought up
-and debugged in shared mode. The 500 M step requires the dedicated
-slice.
+The `gpu_0003_grpA_train` request in §3 is now a **comfort / scalability**
+ask, not a hard prerequisite for v0:
+
+- v0 demo (500 M, mb=2, concurrent) is feasible on the existing
+  `gpu_0003_grpA` slot.
+- The dedicated slot becomes valuable when (a) we want full mb=4 at
+  ctx=16K with zero contention, (b) we scale to 1B+ models, (c) we
+  need predictable training throughput for benchmarking.
+- Operational benefit even at v0: training jobs don't have to
+  `scancel` the serve to reclaim VRAM headroom during peak windows.
 
 ---
 

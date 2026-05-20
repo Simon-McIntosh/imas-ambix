@@ -11,22 +11,26 @@ corpus, `compute.md` for SLURM.
 
 ---
 
-## 1. Recap — where we are 2026-05-20
+## 1. Recap — where we are 2026-05-20 (afternoon)
 
 | Track | Status |
 |---|---|
-| Level-2 mirror | **83 %** (9,614 / 11,573 shots, ETA ~1-2 h) |
+| Level-2 mirror | **87 %** (10,099 / 11,573 shots, ETA hours; bucket du = 464 GB authoritative) |
 | Level-1 camera mirror | **complete** (2.7 TB, 11,029 shot dirs) |
+| **Level-1 ALL-sources mirror** (xdc/amc/amb/aga/efm/etc.) | **in flight** — manifest level1-all.json launched ~07:00 UTC |
 | Tokenizer scaffold | **landed** — registry, alignment, multimodal aggregator, CLI |
-| Open-MAGVIT2 frame tokenizer | **wired** — real model end-to-end, MAE 324 on rbb |
-| Chronos signal tokenizer | **stub** (raises `NotImplementedError`) |
-| PatchTST signal tokenizer | **stub** |
-| Eval metrics module | **not started** |
-| WHAM model | **design only** |
-| Data loaders + token persistence | **not started** |
-| Training loop | **not started** |
+| Open-MAGVIT2 frame tokenizer | **wired** — real model end-to-end, MAE 324 on rbb; **CUDA wheel installed**, GPU runner code ready, GPU test skips on login |
+| Chronos signal tokenizer | **wired** (r ≈ 0.985 round-trip on synthetic sine/cosine) |
+| PatchTST identity wrapper | **wired** (bit-exact round-trip) |
+| Eval metrics module | **landed** (rFID, PSNR, LPIPS, centroid, chord, edge, rollout stub; 31 tests + 4 skips) |
+| WHAM model + 125M/500M Hydra configs | **landed** (8 tests; 125M=328M params, 500M=689M — embedding-table dominated) |
+| Data loaders + token persistence | **landed** (15 tests; ambix data tokens-status live) |
+| **block_kind side data** | **landed** (51 tokenizer tests; weighted-CE loss mask ready) |
+| **CLI smoke tests** (data + tokenize) | **landed** (42 tests; data/cli.py 86 % coverage, tokenizer/cli.py 97 %) |
+| Training loop FSDP scaffold | **not started** |
 | Demo CLI | **not started** |
 | SLURM dedicated reservation | **not requested** |
+| Concurrent training+serving analysis | **landed in compute.md §2** — 125M fully concurrent, 500M concurrent with mb=2 |
 
 ---
 
