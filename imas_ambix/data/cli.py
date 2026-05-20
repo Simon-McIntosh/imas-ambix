@@ -1081,3 +1081,358 @@ def audit_cmd(
         Path(output).parent.mkdir(parents=True, exist_ok=True)
         Path(output).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         console.print(f"[green]audit report written:[/green] {output}")
+
+
+# --- bulk-encode-frames -----------------------------------------------
+
+
+@data.command(name="bulk-encode-frames")
+@click.option(
+    "--shot-ids",
+    default=None,
+    help="Comma-separated shot IDs to encode.",
+)
+@click.option(
+    "--from-quality-index",
+    default=None,
+    type=click.Path(),
+    help=(
+        "Path to an `ambix data audit --output` JSON; uses shots with "
+        "usable_for_training=True."
+    ),
+)
+@click.option(
+    "--from-bucket-all",
+    is_flag=True,
+    default=False,
+    help="Encode all shots present in the L1 bucket directory.",
+)
+@click.option("--camera", default="rbb", show_default=True)
+@click.option(
+    "--tokenizer",
+    type=click.Choice(["placeholder", "open-magvit2"]),
+    default="open-magvit2",
+    show_default=True,
+)
+@click.option("--max-frames-per-shot", type=int, default=None)
+@click.option("--device", default="cpu", show_default=True)
+@click.option("--vocab-version", default="v1", show_default=True)
+@click.option("--workers", default=1, type=int, show_default=True)
+@click.option(
+    "--skip-existing/--no-skip-existing",
+    default=True,
+    show_default=True,
+)
+@click.option(
+    "--output",
+    default=None,
+    type=click.Path(),
+    help="Write JSON report to this path.",
+)
+def bulk_encode_frames_cmd(
+    shot_ids: str | None,
+    from_quality_index: str | None,
+    from_bucket_all: bool,
+    camera: str,
+    tokenizer: str,
+    max_frames_per_shot: int | None,
+    device: str,
+    vocab_version: str,
+    workers: int,
+    skip_existing: bool,
+    output: str | None,
+) -> None:
+    """Bulk-encode camera frames for multiple shots.
+
+    Shot IDs can be provided via ``--shot-ids``, inferred from an audit
+    quality index (``--from-quality-index``), or enumerated from the local
+    L1 directory (``--from-bucket-all``).
+
+    Examples
+    --------
+    Encode two shots using the placeholder tokenizer::
+
+        ambix data bulk-encode-frames --shot-ids 15085,15086 --tokenizer placeholder
+
+    Re-encode all shots whose quality index marks as usable::
+
+        ambix data bulk-encode-frames --from-quality-index /tmp/audit.json \\
+            --tokenizer open-magvit2
+    """
+    from imas_ambix.data.encoding import bulk_encode_frames
+
+    # --- resolve shot list -----------------------------------------------
+    ids = _resolve_shot_ids_frames(shot_ids, from_quality_index, from_bucket_all)
+    if not ids:
+        console.print("[red]No shot IDs resolved — nothing to encode.[/red]")
+        return
+
+    # --- build tokenizer factory -----------------------------------------
+    def _frame_factory():
+        if tokenizer == "placeholder":
+            from imas_ambix.tokenizer.frames import (
+                PlaceholderFrameTokenizer,  # noqa: PLC0415
+            )
+
+            return PlaceholderFrameTokenizer()
+        from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer  # noqa: PLC0415
+
+        return OpenMagvit2Tokenizer(device=device)
+
+    console.print(
+        f"Encoding [bold]{len(ids)}[/bold] shots  "
+        f"camera=[bold]{camera}[/bold]  "
+        f"tokenizer=[bold]{tokenizer}[/bold]  "
+        f"workers={workers}"
+    )
+
+    t_start = time.monotonic()
+    reports = bulk_encode_frames(
+        shot_ids=ids,
+        camera=camera,
+        tokenizer_factory=_frame_factory,
+        max_workers=workers,
+        skip_existing=skip_existing,
+        max_frames_per_shot=max_frames_per_shot,
+        vocab_version=vocab_version,
+    )
+    total_elapsed = time.monotonic() - t_start
+
+    _render_encode_summary(reports, total_elapsed, console)
+
+    if output:
+        _write_encode_report(reports, total_elapsed, Path(output))
+        console.print(f"[green]report written:[/green] {output}")
+
+
+# --- bulk-encode-signals -----------------------------------------------
+
+
+@data.command(name="bulk-encode-signals")
+@click.option(
+    "--shot-ids",
+    default=None,
+    help="Comma-separated shot IDs to encode.",
+)
+@click.option(
+    "--from-quality-index",
+    default=None,
+    type=click.Path(),
+    help=(
+        "Path to an `ambix data audit --output` JSON; uses shots with "
+        "usable_for_training=True."
+    ),
+)
+@click.option(
+    "--from-bucket-all",
+    is_flag=True,
+    default=False,
+    help="Encode all shots present in the L2 shots directory.",
+)
+@click.option("--group", default="magnetics", show_default=True)
+@click.option(
+    "--tokenizer",
+    type=click.Choice(["uniform", "chronos", "patchtst"]),
+    default="uniform",
+    show_default=True,
+)
+@click.option("--vocab-version", default="v1", show_default=True)
+@click.option("--workers", default=4, type=int, show_default=True)
+@click.option(
+    "--skip-existing/--no-skip-existing",
+    default=True,
+    show_default=True,
+)
+@click.option(
+    "--output",
+    default=None,
+    type=click.Path(),
+    help="Write JSON report to this path.",
+)
+def bulk_encode_signals_cmd(
+    shot_ids: str | None,
+    from_quality_index: str | None,
+    from_bucket_all: bool,
+    group: str,
+    tokenizer: str,
+    vocab_version: str,
+    workers: int,
+    skip_existing: bool,
+    output: str | None,
+) -> None:
+    """Bulk-encode signal groups for multiple shots.
+
+    Examples
+    --------
+    Encode magnetics for two shots::
+
+        ambix data bulk-encode-signals --shot-ids 15085,15086 --group magnetics
+
+    Use all usable shots from an audit index::
+
+        ambix data bulk-encode-signals --from-quality-index /tmp/audit.json \\
+            --tokenizer uniform
+    """
+    from imas_ambix.data.encoding import bulk_encode_signals
+
+    # --- resolve shot list -----------------------------------------------
+    ids = _resolve_shot_ids_signals(shot_ids, from_quality_index, from_bucket_all)
+    if not ids:
+        console.print("[red]No shot IDs resolved — nothing to encode.[/red]")
+        return
+
+    # --- build tokenizer factory -----------------------------------------
+    def _signal_factory():
+        if tokenizer == "chronos":
+            from imas_ambix.tokenizer.signals import (
+                ChronosSignalTokenizer,  # noqa: PLC0415
+            )
+
+            return ChronosSignalTokenizer()
+        if tokenizer == "patchtst":
+            from imas_ambix.tokenizer.signals import PatchTSTTokenizer  # noqa: PLC0415
+
+            return PatchTSTTokenizer()
+        from imas_ambix.tokenizer.signals import UniformQuantizer  # noqa: PLC0415
+
+        return UniformQuantizer()
+
+    console.print(
+        f"Encoding [bold]{len(ids)}[/bold] shots  "
+        f"group=[bold]{group}[/bold]  "
+        f"tokenizer=[bold]{tokenizer}[/bold]  "
+        f"workers={workers}"
+    )
+
+    t_start = time.monotonic()
+    reports = bulk_encode_signals(
+        shot_ids=ids,
+        group=group,
+        tokenizer_factory=_signal_factory,
+        max_workers=workers,
+        skip_existing=skip_existing,
+        vocab_version=vocab_version,
+    )
+    total_elapsed = time.monotonic() - t_start
+
+    _render_encode_summary(reports, total_elapsed, console)
+
+    if output:
+        _write_encode_report(reports, total_elapsed, Path(output))
+        console.print(f"[green]report written:[/green] {output}")
+
+
+# ---------------------------------------------------------------------------
+# Shared render / resolve helpers for bulk-encode commands
+# ---------------------------------------------------------------------------
+
+
+import time as time  # noqa: E402,PLC0415  # needed by bulk-encode commands above
+
+
+def _resolve_shot_ids_frames(
+    shot_ids: str | None,
+    from_quality_index: str | None,
+    from_bucket_all: bool,
+) -> list[int]:
+    """Resolve a list of frame shot IDs from the various source options."""
+    if shot_ids:
+        return [int(s.strip()) for s in shot_ids.split(",") if s.strip()]
+    if from_quality_index:
+        return _usable_shots_from_quality_index(from_quality_index)
+    if from_bucket_all:
+        from imas_ambix.data.paths import LEVEL1_DIR  # noqa: PLC0415
+
+        return sorted(int(p.stem) for p in LEVEL1_DIR.glob("*.zarr") if p.is_dir())
+    return []
+
+
+def _resolve_shot_ids_signals(
+    shot_ids: str | None,
+    from_quality_index: str | None,
+    from_bucket_all: bool,
+) -> list[int]:
+    """Resolve a list of signal shot IDs from the various source options."""
+    if shot_ids:
+        return [int(s.strip()) for s in shot_ids.split(",") if s.strip()]
+    if from_quality_index:
+        return _usable_shots_from_quality_index(from_quality_index)
+    if from_bucket_all:
+        from imas_ambix.data.paths import LEVEL2_DIR  # noqa: PLC0415
+
+        return sorted(int(p.stem) for p in LEVEL2_DIR.glob("*.zarr") if p.is_dir())
+    return []
+
+
+def _usable_shots_from_quality_index(index_path: str) -> list[int]:
+    """Extract shot IDs with ``usable_for_training=True`` from an audit JSON."""
+    payload = json.loads(Path(index_path).read_text(encoding="utf-8"))
+    usable: list[int] = []
+    for report in payload.get("per_shot", []):
+        flags = report.get("quality_flags", {})
+        if flags.get("usable_for_training", False):
+            usable.append(int(report["shot_id"]))
+    return sorted(usable)
+
+
+def _render_encode_summary(
+    reports: list,
+    total_elapsed: float,
+    con: Console,
+) -> None:
+    """Print a Rich progress table for a completed bulk-encode run."""
+    from rich.table import Table  # noqa: PLC0415
+
+    n_ok = sum(1 for r in reports if r.error is None and r.n_tokens > 0)
+    n_skip = sum(1 for r in reports if r.error is None and r.n_tokens == 0)
+    n_err = sum(1 for r in reports if r.error is not None)
+    total_tokens = sum(r.n_tokens for r in reports)
+
+    table = Table(title="Bulk encode summary")
+    table.add_column("metric")
+    table.add_column("value", justify="right")
+    table.add_row("shots encoded", str(n_ok))
+    table.add_row("shots skipped (existing)", str(n_skip))
+    table.add_row("shots errored", str(n_err))
+    table.add_row("total tokens", f"{total_tokens:,}")
+    table.add_row("total elapsed (s)", f"{total_elapsed:.1f}")
+    con.print(table)
+
+    if n_err:
+        err_table = Table(title="Errors")
+        err_table.add_column("shot_id")
+        err_table.add_column("error")
+        for r in reports:
+            if r.error is not None:
+                err_table.add_row(str(r.shot_id), r.error[:120])
+        con.print(err_table)
+
+
+def _write_encode_report(
+    reports: list,
+    total_elapsed: float,
+    path: Path,
+) -> None:
+    """Write a JSON encode report to *path*."""
+    payload = {
+        "total_elapsed_s": total_elapsed,
+        "n_ok": sum(1 for r in reports if r.error is None and r.n_tokens > 0),
+        "n_skipped": sum(1 for r in reports if r.error is None and r.n_tokens == 0),
+        "n_errored": sum(1 for r in reports if r.error is not None),
+        "total_tokens": sum(r.n_tokens for r in reports),
+        "per_shot": [
+            {
+                "shot_id": r.shot_id,
+                "modality": r.modality,
+                "group_or_camera": r.group_or_camera,
+                "tokenizer_name": r.tokenizer_name,
+                "n_tokens": r.n_tokens,
+                "elapsed_s": r.elapsed_s,
+                "output_path": str(r.output_path),
+                "error": r.error,
+            }
+            for r in reports
+        ],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
