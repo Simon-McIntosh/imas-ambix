@@ -36,56 +36,46 @@ from Group A's reservation.
 
 ---
 
-## 2. Concurrent training + V4-Flash serving — viable with micro-batch tuning
+## 2. Training takes exclusive access — V4-Flash is stopped before training
 
-**Revised 2026-05-20.** DeepSeek V4-Flash steady-state footprint per GPU
-breaks down as: ~41 GB weights + ~5-12 GB KV (FP8, capped by the
-profile's `max_total_tokens=262144`) + ~5-10 GB vLLM workspace =
-**51-63 GB/GPU used during active serving**. That leaves **77-89 GB/GPU
-headroom**. World-model FSDP budget (`world-model-v0.md` §4.2):
+**Decision 2026-05-20 (S. McIntosh):** training runs in exclusive-access
+mode on the existing `gpu_0003_grpA` reservation. The maintainer (this
+codebase's ambix agent CLI) **is authorised to `scancel` the DeepSeek
+V4-Flash serving job** to free VRAM for training without per-event
+confirmation.
 
-| Train config | Train peak/GPU | + V4-Flash 63 GB | Fits 140? | Margin |
-|---|---:|---:|---|---:|
-| **125 M**, mb=4, ctx=16K | ~30 GB | 93 GB | yes | 47 GB |
-| 125 M, mb=8, ctx=16K | ~45 GB | 108 GB | yes | 32 GB |
-| **500 M**, mb=4, ctx=16K | ~85 GB | 148 GB | **NO** | −8 GB |
-| 500 M, **mb=2**, ctx=16K | ~50 GB | 113 GB | yes | 27 GB |
-| 500 M, mb=4, **ctx=8K** | ~50 GB | 113 GB | yes | 27 GB |
-| 1 B or larger | ≥140 GB | ≥200 GB | NO | n/a |
+The protocol is:
 
-Conclusion:
+```bash
+ambix agent stop deepseek-v4-flash   # 1. scancel the serve
+ambix train submit --config v0-500m  # 2. submit training to gpu_0003_grpA
+# … training runs to completion or operator-pause …
+ambix agent serve deepseek-v4-flash  # 3. restart the serve
+```
 
-- **125 M training is fully concurrent** with V4-Flash serving. No
-  reservation tweaks. Inference latency rises during training steps
-  (SM time-sharing) but does not crash.
-- **500 M training is concurrent with one knob turned**: either
-  `micro_batch_size=2` or `context_length=8192`. Effective tokens-per-step
-  drop 2×; step count compensates.
-- **1 B+ requires exclusive access** — no concurrent path on this hardware.
+Rationale:
 
-Operational caveats (none of these are blockers, but the runbook lists
-them so on-call knows what to look for):
+- Cleaner operational model — no allocator fragmentation, no NCCL
+  contention, predictable training throughput.
+- We control both jobs. The serve is rarely used heavily, so the
+  serve-down window is invisible to most users.
+- VRAM math is comfortable in exclusive mode (~141 GB/GPU available):
+  125M trains at ~30 GB/GPU, 500M at ~85 GB/GPU, 1B borderline at
+  ~140 GB/GPU (CPU offload).
 
-| Concern | Mitigation |
-|---|---|
-| SM time-sharing → inference latency 5–50× during active training | Acceptable if endpoint is rarely used; the maintainer announces planned heavy training windows. |
-| NCCL contention on NVLink (vLLM all_reduce vs FSDP all_gather) | Use separate communicators (PyTorch + vLLM already do); accept higher inference latency variance. |
-| Allocator fragmentation between vLLM + training | Set `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` on the trainer. |
-| Long-context inference request balloons KV mid-training | Cap V4-Flash `max_num_batched_tokens=16384` (down from 32768) during concurrent windows. |
-| OOM-triggered NCCL hang taking down both jobs | Monitor `nvidia-smi dmon -s u`; runbook is "scancel training first, leave serving". |
+VRAM budget reference (FSDP ZeRO-3, bf16, activation ckpt, 16K context):
 
-## 2b. Why a dedicated reservation is still worth filing
+| Model | Per-GPU peak | Fits exclusive 141 GB? |
+|---|---:|---|
+| 125 M, mb=4 | ~30 GB | yes — generous margin |
+| **500 M, mb=4** | **~85 GB** | **yes — comfortable** |
+| 1 B, mb=4 | ~140 GB | borderline — needs CPU offload or mb=2 |
+| 2 B+ | exceeds | needs the second half of the node (8-GPU expansion) |
 
-The `gpu_0003_grpA_train` request in §3 is now a **comfort / scalability**
-ask, not a hard prerequisite for v0:
-
-- v0 demo (500 M, mb=2, concurrent) is feasible on the existing
-  `gpu_0003_grpA` slot.
-- The dedicated slot becomes valuable when (a) we want full mb=4 at
-  ctx=16K with zero contention, (b) we scale to 1B+ models, (c) we
-  need predictable training throughput for benchmarking.
-- Operational benefit even at v0: training jobs don't have to
-  `scancel` the serve to reclaim VRAM headroom during peak windows.
+**Concurrent-mode analysis archived in the git history** at
+[`plans/compute.md@1027af2`](https://github.com/Simon-McIntosh/imas-ambix/blob/1027af2/plans/compute.md)
+in case we ever need to revisit it (e.g. if the dedicated reservation
+discussion in §3 becomes urgent). For v0 we don't need it.
 
 ---
 

@@ -29,8 +29,8 @@ corpus, `compute.md` for SLURM.
 | **CLI smoke tests** (data + tokenize) | **landed** (42 tests; data/cli.py 86 % coverage, tokenizer/cli.py 97 %) |
 | Training loop FSDP scaffold | **not started** |
 | Demo CLI | **not started** |
-| SLURM dedicated reservation | **not requested** |
-| Concurrent training+serving analysis | **landed in compute.md §2** — 125M fully concurrent, 500M concurrent with mb=2 |
+| SLURM dedicated reservation | **not requested** (deferred — see below) |
+| **Training mode decision** | **EXCLUSIVE** (2026-05-20) — V4-Flash is stopped before training. Maintainer (ambix CLI) is authorised to `scancel` the serve. See `compute.md` §2. |
 
 ---
 
