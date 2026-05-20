@@ -438,3 +438,126 @@ def bench_cmd(
         out_path = Path(output)
         save_results_json(results, out_path)
         console.print(f"[green]results saved:[/green] {out_path}")
+
+
+# ---------------------------------------------------------------------------
+# finetune-decoder subcommand
+# ---------------------------------------------------------------------------
+
+
+@tokenize.command(name="finetune-decoder")
+@click.option(
+    "--train-shots",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Text file with newline-separated training shot IDs.",
+)
+@click.option(
+    "--val-shots",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Text file with newline-separated validation shot IDs.",
+)
+@click.option(
+    "--max-steps",
+    default=10_000,
+    show_default=True,
+    type=int,
+    help="Maximum number of training steps.",
+)
+@click.option(
+    "--batch-size",
+    default=16,
+    show_default=True,
+    type=int,
+    help="Frames per step per GPU.",
+)
+@click.option(
+    "--learning-rate",
+    default=1e-4,
+    show_default=True,
+    type=float,
+    help="AdamW initial learning rate.",
+)
+@click.option(
+    "--output-path",
+    default=None,
+    type=click.Path(),
+    help=(
+        "Destination for the fine-tuned decoder weights (.safetensors). "
+        "Defaults to {magvit2_root}/weights/plasma-decoder-v1.safetensors."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Build and print the config without running training.",
+)
+def finetune_decoder_cmd(
+    train_shots: str,
+    val_shots: str,
+    max_steps: int,
+    batch_size: int,
+    learning_rate: float,
+    output_path: str | None,
+    dry_run: bool,
+) -> None:
+    """Fine-tune the Open-MAGVIT2 decoder on plasma-domain camera frames.
+
+    Freezes the encoder + codebook; trains only the decoder using pixel-level
+    L1 + perceptual loss. Requires a 4×H200 exclusive GPU reservation.
+
+    See ``plans/tokenizers.md`` §12.1 for the design rationale and trigger
+    conditions.
+
+    Examples
+    --------
+    ::
+
+        # Dry-run: print config only
+        ambix tokenize finetune-decoder \\
+            --train-shots train_ids.txt --val-shots val_ids.txt --dry-run
+
+        # Real run (GPU node required):
+        ambix tokenize finetune-decoder \\
+            --train-shots train_ids.txt --val-shots val_ids.txt \\
+            --max-steps 10000 --batch-size 16
+    """
+    from imas_ambix.tokenizer.finetune_decoder import (
+        DecoderFinetuneConfig,
+        finetune_decoder,
+    )
+
+    # Parse shot ID files
+    def _read_shot_ids(path: str) -> list[int]:
+        ids = []
+        for line in Path(path).read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                ids.append(int(line))
+        return ids
+
+    train_ids = _read_shot_ids(train_shots)
+    val_ids = _read_shot_ids(val_shots)
+
+    config = DecoderFinetuneConfig(
+        train_shot_ids=train_ids,
+        val_shot_ids=val_ids,
+        max_steps=max_steps,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+    )
+    if output_path is not None:
+        config.output_path = Path(output_path)
+
+    if dry_run:
+        console.print("[bold]DecoderFinetuneConfig (dry-run — no training)[/bold]")
+        import dataclasses
+
+        for f in dataclasses.fields(config):
+            console.print(f"  [cyan]{f.name}[/cyan]: {getattr(config, f.name)}")
+        return
+
+    out = finetune_decoder(config)
+    console.print(f"[green]Fine-tune complete. Weights saved to:[/green] {out}")
