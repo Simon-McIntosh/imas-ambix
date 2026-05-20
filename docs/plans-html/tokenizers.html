@@ -61,7 +61,14 @@
 <li><a href="#123-equilibrium-2-d-tokenizer" class="h3-link">12.3 Equilibrium 2-D tokenizer</a></li>
 <li><a href="#124-multi-modal-alignment-improvements" class="h3-link">12.4 Multi-modal alignment improvements</a></li>
 <li><a href="#125-ir-camera-codebook-decision" class="h3-link">12.5 IR camera codebook decision</a></li>
-<li><a href="#126-cross-modality-alignment-quality-metric" class="h3-link">12.6 Cross-modality alignment quality metric</a></li></ul>
+<li><a href="#126-cross-modality-alignment-quality-metric" class="h3-link">12.6 Cross-modality alignment quality metric</a></li>
+<li><a href="#13-12-expansion-landed-2026-05-20" class="">13. §12 expansion landed — 2026-05-20</a></li>
+<li><a href="#131-121-plasma-decoder-fine-tune-scaffold" class="h3-link">13.1 §12.1 plasma-decoder fine-tune scaffold</a></li>
+<li><a href="#132-124-multi-modal-alignment-improvements" class="h3-link">13.2 §12.4 multi-modal alignment improvements</a></li>
+<li><a href="#133-125-ir-camera-codebook-benchmark-wiring" class="h3-link">13.3 §12.5 IR camera codebook benchmark wiring</a></li>
+<li><a href="#134-126-cross-modality-alignment-quality-metric" class="h3-link">13.4 §12.6 cross-modality alignment quality metric</a></li>
+<li><a href="#135-coordinator-note-commit-hygiene" class="h3-link">13.5 Coordinator note: commit hygiene</a></li>
+<li><a href="#136-items-remaining-in-12-still-deferred" class="h3-link">13.6 Items remaining in §12 (still deferred)</a></li></ul>
 </aside>
 
 <!-- main -->
@@ -893,6 +900,162 @@ extension to <code>benchmark_frame_tokenizer</code>'s data loading step.</p>
 <p><strong>Cross-links.</strong> <code>imas_ambix/eval/metrics.py:frame_centroid</code>,
 <code>imas_ambix/tokenizer/alignment.py</code>,
 <code>plans/tokenizer-benchmarks.md</code> §7 item 7.</p>
+<hr />
+<h3 id="124-multi-modal-alignment-improvements">13. §12 expansion landed — 2026-05-20</h2>
+<p>Four of the six §12 items shipped this session via a Sonnet 4.6 fleet
+(coordinator review, four parallel workers, non-overlapping file scopes).
+Items 12.2 (real PatchTST embedding) and 12.3 (equilibrium 2-D tokenizer)
+remain explicitly deferred — both are gated on the 125 M smoke run.</p>
+<h3 id="125-ir-camera-codebook-decision">13.1 §12.1 plasma-decoder fine-tune scaffold</h3>
+<p>The fine-tune <strong>trainer code</strong> is in (<code>imas_ambix/tokenizer/finetune_decoder.py</code>,
+commit <code>5e7c5fc</code>). The trainer itself is not yet run — that still depends on
+the corpus encode pass + baseline rFID measurement per §12.1's trigger.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Config dataclass</td>
+<td><code>DecoderFinetuneConfig</code> with lr=1e-4, max_steps=10 000, batch_size=16, l1_weight=1.0, perceptual_weight=0.1, adv_weight=0.0, patience=3</td>
+</tr>
+<tr>
+<td>Trainer class</td>
+<td><code>DecoderFinetuneTrainer.build_dataloaders / build_model / compute_loss / evaluate / train</code> — all imports lazy</td>
+</tr>
+<tr>
+<td>Loss</td>
+<td>L1 + VGG16 relu3_3 perceptual; falls back to L1-only when <code>torchvision</code> is absent</td>
+</tr>
+<tr>
+<td>Evaluation</td>
+<td><code>pytorch_fid</code> → <code>imas_ambix.eval.metrics.rfid</code> → NaN-with-warning fallback chain</td>
+</tr>
+<tr>
+<td>Output</td>
+<td>safetensors weights to <code>mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors</code></td>
+</tr>
+<tr>
+<td>CLI</td>
+<td><code>ambix tokenize finetune-decoder --train-shots PATH --val-shots PATH [--dry-run]</code></td>
+</tr>
+<tr>
+<td>Tests</td>
+<td>4 — config defaults, torch-free import, dry-run exit, no-eager-load constructor</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>OpenMagvit2Tokenizer.decoder_checkpoint</code> constructor argument
+described in §12.1 (&quot;loads the fine-tuned decoder into the decode path
+while leaving the encoder and codebook unchanged&quot;) is <strong>not yet
+implemented</strong> — that's the small follow-up PR that wires the trainer
+output back into the inference path. Track as a separate task.</p>
+<h3 id="126-cross-modality-alignment-quality-metric">13.2 §12.4 multi-modal alignment improvements</h3>
+<p>Landed in commit <code>72c0e0a</code>. <code>ShotTokenizer</code> gains:</p>
+<table>
+<thead>
+<tr>
+<th>Behaviour</th>
+<th>Surface</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mandatory alignment</td>
+<td><code>enforce_alignment: bool = True</code> keyword-only field on the dataclass</td>
+</tr>
+<tr>
+<td>Time-grid resampling</td>
+<td><code>align_frames_signals(frames, signals, model_hz)</code> helper in <code>alignment.py</code> — derives the grid from the signals time coord (synthetic fallback), resamples signals via <code>resample_to_grid</code>, evenly sub-samples excess frames via <code>np.linspace</code> index selection</td>
+</tr>
+<tr>
+<td>Signal-only stream</td>
+<td><code>ShotTokenizer.encode_shot_signal_only(signals) → (tokens, block_kind)</code> — frame positions emit <code>&lt;pad&gt;</code> / <code>BlockKind.CONTROL</code></td>
+</tr>
+<tr>
+<td>Frame-only stream</td>
+<td><code>ShotTokenizer.encode_shot_frames_only(frames) → (tokens, block_kind)</code> — signal positions are absent (<code>xr.Dataset()</code> short-circuits the signal tokenizer)</td>
+</tr>
+<tr>
+<td>Backward compat</td>
+<td><code>enforce_alignment=False</code> preserves the old <code>min(n_frame_steps, n_signal_steps)</code> behaviour</td>
+</tr>
+</tbody>
+</table>
+<p>Five new tests in <code>tests/test_tokenizer.py</code> (38 passing, up from 33).
+The deferred &quot;missing-modality padding for signal-only&quot; case currently
+emits a single <code>&lt;pad&gt;</code> token per step rather than a fixed-width block —
+revisit when the per-step signal block width is finalised.</p>
+<h2 id="13-12-expansion-landed-2026-05-20">13.3 §12.5 IR camera codebook benchmark wiring</h3>
+<p>Landed in commit <code>dec0082</code>. The IR benchmark is now one CLI call from
+running:</p>
+<pre><code>imas_ambix/bench/configs/v0-rir-25shot.yaml   # IR, 25 shots, Open-MAGVIT2, device=cuda
+imas_ambix/bench/configs/v0-rbb-25shot.yaml   # rbb baseline for the 2× comparison
+imas_ambix/bench/loader.py                    # load_bench_config(path) → (BenchConfig, run_kwargs)
+imas_ambix/bench/loader.py                    # bundled_config(&quot;v0-rir-25shot&quot;) → Path
+</code></pre>
+<p>The 25 shot IDs in both YAMLs are placeholders (<code>15080..15104</code>) — the
+data team should replace with the actual rir-bearing FAIR-MAST shot list
+from <code>s5cmd ls s3://mast/level1/shots/</code> per <code>data-acquisition.md</code> §10.4.</p>
+<p>The decision gate from §12.5 (MAE primary because 25 shots is too few
+for stable rFID) is preserved in the rendered comparison; the bench
+framework already reports per-shot MAE.</p>
+<h3 id="131-121-plasma-decoder-fine-tune-scaffold">13.4 §12.6 cross-modality alignment quality metric</h3>
+<p>Landed in commit <code>dec0082</code> (swept in alongside §12.5; see commit-hygiene
+note below).</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Metric</td>
+<td><code>imas_ambix.eval.metrics.modality_coherence(decoded_frames, magnetic_axis_r, frame_image_extent_m=None) -&gt; float</code></td>
+</tr>
+<tr>
+<td>Implementation</td>
+<td>Brightness centroid via existing <code>frame_centroid</code> → optionally mapped to physical R via the extent → inline Pearson r (no scipy) → returns <code>float(&quot;nan&quot;)</code> for &lt; 3 finite paired points or zero-variance series</td>
+</tr>
+<tr>
+<td>Bench wiring</td>
+<td><code>PerShotResult.modality_coherence: float | None</code>; <code>benchmark_frame_tokenizer(..., equilibrium_loader=fn)</code> accepts a <code>(shot_id) -&gt; np.ndarray | None</code> callable; aggregate gains <code>mean_modality_coherence</code> (NaN-tolerant mean)</td>
+</tr>
+<tr>
+<td>Bench re-export</td>
+<td><code>imas_ambix.bench.modality_coherence</code></td>
+</tr>
+<tr>
+<td>Tests</td>
+<td>6 — perfect correlation, anticorrelated, constant series, short series, loader-returns-array, loader-returns-None</td>
+</tr>
+</tbody>
+</table>
+<h3 id="132-124-multi-modal-alignment-improvements">13.5 Coordinator note: commit hygiene</h3>
+<p>The §12.5 worker (commit <code>dec0082</code>) used <code>git commit -a</code> and swept the
+§12.6 worker's in-progress edits into its commit alongside its own
+files. Content is correct (both §12.5 wiring and §12.6 metric land
+exactly as designed), but attribution is wrong — the commit message
+describes only the YAML loader. The §12.6 worker reported &quot;code is in
+that commit already&quot; on completion. Subsequent dispatches must
+explicitly ban <code>git commit -a</code> / <code>-am</code> (in addition to the existing
+<code>git add -A/./*</code> ban) — captured in <code>feedback_sonnet_file_scope_violation.md</code>.</p>
+<h3 id="133-125-ir-camera-codebook-benchmark-wiring">13.6 Items remaining in §12 (still deferred)</h3>
+<ul>
+<li><strong>§12.2 real PatchTST embedding</strong> — defer to post-smoke-run.
+Re-evaluate if magnetics Pearson r falls below 0.90 in the benchmark.</li>
+<li><strong>§12.3 equilibrium 2-D tokenizer</strong> — defer to v1. Re-evaluate if the
+125 M smoke run shows attention-collapse on the equilibrium
+cross-attention path.</li>
+<li><strong>§13.1 follow-up</strong> — wire the trained decoder back into
+<code>OpenMagvit2Tokenizer</code> via a <code>decoder_checkpoint</code> constructor
+argument (small, blocked on the first fine-tune actually running).</li>
+</ul>
 
     <nav class="plan-nav"><a href="data-quality.html"><span class="nav-label">← Previous</span><span class="nav-title">Data Quality</span></a><a href="tokenizer-benchmarks.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Tokenizer Benchmarks</span></a></nav>
   </div>

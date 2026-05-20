@@ -720,3 +720,106 @@ extension to `benchmark_frame_tokenizer`'s data loading step.
 **Cross-links.** `imas_ambix/eval/metrics.py:frame_centroid`,
 `imas_ambix/tokenizer/alignment.py`,
 `plans/tokenizer-benchmarks.md` §7 item 7.
+
+---
+
+## 13. §12 expansion landed — 2026-05-20
+
+Four of the six §12 items shipped this session via a Sonnet 4.6 fleet
+(coordinator review, four parallel workers, non-overlapping file scopes).
+Items 12.2 (real PatchTST embedding) and 12.3 (equilibrium 2-D tokenizer)
+remain explicitly deferred — both are gated on the 125 M smoke run.
+
+### 13.1 §12.1 plasma-decoder fine-tune scaffold
+
+The fine-tune **trainer code** is in (`imas_ambix/tokenizer/finetune_decoder.py`,
+commit `5e7c5fc`). The trainer itself is not yet run — that still depends on
+the corpus encode pass + baseline rFID measurement per §12.1's trigger.
+
+| Surface | Detail |
+|---|---|
+| Config dataclass | `DecoderFinetuneConfig` with lr=1e-4, max_steps=10 000, batch_size=16, l1_weight=1.0, perceptual_weight=0.1, adv_weight=0.0, patience=3 |
+| Trainer class | `DecoderFinetuneTrainer.build_dataloaders / build_model / compute_loss / evaluate / train` — all imports lazy |
+| Loss | L1 + VGG16 relu3_3 perceptual; falls back to L1-only when `torchvision` is absent |
+| Evaluation | `pytorch_fid` → `imas_ambix.eval.metrics.rfid` → NaN-with-warning fallback chain |
+| Output | safetensors weights to `mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors` |
+| CLI | `ambix tokenize finetune-decoder --train-shots PATH --val-shots PATH [--dry-run]` |
+| Tests | 4 — config defaults, torch-free import, dry-run exit, no-eager-load constructor |
+
+The `OpenMagvit2Tokenizer.decoder_checkpoint` constructor argument
+described in §12.1 ("loads the fine-tuned decoder into the decode path
+while leaving the encoder and codebook unchanged") is **not yet
+implemented** — that's the small follow-up PR that wires the trainer
+output back into the inference path. Track as a separate task.
+
+### 13.2 §12.4 multi-modal alignment improvements
+
+Landed in commit `72c0e0a`. `ShotTokenizer` gains:
+
+| Behaviour | Surface |
+|---|---|
+| Mandatory alignment | `enforce_alignment: bool = True` keyword-only field on the dataclass |
+| Time-grid resampling | `align_frames_signals(frames, signals, model_hz)` helper in `alignment.py` — derives the grid from the signals time coord (synthetic fallback), resamples signals via `resample_to_grid`, evenly sub-samples excess frames via `np.linspace` index selection |
+| Signal-only stream | `ShotTokenizer.encode_shot_signal_only(signals) → (tokens, block_kind)` — frame positions emit `<pad>` / `BlockKind.CONTROL` |
+| Frame-only stream | `ShotTokenizer.encode_shot_frames_only(frames) → (tokens, block_kind)` — signal positions are absent (`xr.Dataset()` short-circuits the signal tokenizer) |
+| Backward compat | `enforce_alignment=False` preserves the old `min(n_frame_steps, n_signal_steps)` behaviour |
+
+Five new tests in `tests/test_tokenizer.py` (38 passing, up from 33).
+The deferred "missing-modality padding for signal-only" case currently
+emits a single `<pad>` token per step rather than a fixed-width block —
+revisit when the per-step signal block width is finalised.
+
+### 13.3 §12.5 IR camera codebook benchmark wiring
+
+Landed in commit `dec0082`. The IR benchmark is now one CLI call from
+running:
+
+```
+imas_ambix/bench/configs/v0-rir-25shot.yaml   # IR, 25 shots, Open-MAGVIT2, device=cuda
+imas_ambix/bench/configs/v0-rbb-25shot.yaml   # rbb baseline for the 2× comparison
+imas_ambix/bench/loader.py                    # load_bench_config(path) → (BenchConfig, run_kwargs)
+imas_ambix/bench/loader.py                    # bundled_config("v0-rir-25shot") → Path
+```
+
+The 25 shot IDs in both YAMLs are placeholders (`15080..15104`) — the
+data team should replace with the actual rir-bearing FAIR-MAST shot list
+from `s5cmd ls s3://mast/level1/shots/` per `data-acquisition.md` §10.4.
+
+The decision gate from §12.5 (MAE primary because 25 shots is too few
+for stable rFID) is preserved in the rendered comparison; the bench
+framework already reports per-shot MAE.
+
+### 13.4 §12.6 cross-modality alignment quality metric
+
+Landed in commit `dec0082` (swept in alongside §12.5; see commit-hygiene
+note below).
+
+| Surface | Detail |
+|---|---|
+| Metric | `imas_ambix.eval.metrics.modality_coherence(decoded_frames, magnetic_axis_r, frame_image_extent_m=None) -> float` |
+| Implementation | Brightness centroid via existing `frame_centroid` → optionally mapped to physical R via the extent → inline Pearson r (no scipy) → returns `float("nan")` for < 3 finite paired points or zero-variance series |
+| Bench wiring | `PerShotResult.modality_coherence: float \| None`; `benchmark_frame_tokenizer(..., equilibrium_loader=fn)` accepts a `(shot_id) -> np.ndarray \| None` callable; aggregate gains `mean_modality_coherence` (NaN-tolerant mean) |
+| Bench re-export | `imas_ambix.bench.modality_coherence` |
+| Tests | 6 — perfect correlation, anticorrelated, constant series, short series, loader-returns-array, loader-returns-None |
+
+### 13.5 Coordinator note: commit hygiene
+
+The §12.5 worker (commit `dec0082`) used `git commit -a` and swept the
+§12.6 worker's in-progress edits into its commit alongside its own
+files. Content is correct (both §12.5 wiring and §12.6 metric land
+exactly as designed), but attribution is wrong — the commit message
+describes only the YAML loader. The §12.6 worker reported "code is in
+that commit already" on completion. Subsequent dispatches must
+explicitly ban `git commit -a` / `-am` (in addition to the existing
+`git add -A/./*` ban) — captured in `feedback_sonnet_file_scope_violation.md`.
+
+### 13.6 Items remaining in §12 (still deferred)
+
+- **§12.2 real PatchTST embedding** — defer to post-smoke-run.
+  Re-evaluate if magnetics Pearson r falls below 0.90 in the benchmark.
+- **§12.3 equilibrium 2-D tokenizer** — defer to v1. Re-evaluate if the
+  125 M smoke run shows attention-collapse on the equilibrium
+  cross-attention path.
+- **§13.1 follow-up** — wire the trained decoder back into
+  `OpenMagvit2Tokenizer` via a `decoder_checkpoint` constructor
+  argument (small, blocked on the first fine-tune actually running).
