@@ -252,3 +252,189 @@ def signals_cmd(shot: int, group: str, n_bins: int, output: str | None) -> None:
         Path(output).parent.mkdir(parents=True, exist_ok=True)
         np.save(output, enc.token_ids)
         console.print(f"[green]tokens saved:[/green] {output}")
+
+
+# ---------------------------------------------------------------------------
+# bench subcommand (appended — do not modify commands above this line)
+# ---------------------------------------------------------------------------
+
+_FRAME_TOKENIZER_CHOICES = ["placeholder", "open-magvit2"]
+_SIGNAL_TOKENIZER_CHOICES = ["uniform", "chronos", "patchtst"]
+
+
+def _make_frame_factory(name: str, device: str):
+    """Return a zero-arg factory for the named frame tokenizer."""
+    if name == "placeholder":
+        return PlaceholderFrameTokenizer
+    if name == "open-magvit2":
+        from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer
+
+        return lambda: OpenMagvit2Tokenizer(device=device)
+    raise click.UsageError(f"Unknown frame tokenizer: {name!r}")
+
+
+def _make_signal_factory(name: str):
+    """Return a zero-arg factory for the named signal tokenizer."""
+    if name == "uniform":
+        return UniformQuantizer
+    if name == "chronos":
+        from imas_ambix.tokenizer.signals import ChronosSignalTokenizer
+
+        return ChronosSignalTokenizer
+    if name == "patchtst":
+        from imas_ambix.tokenizer.signals import PatchTSTTokenizer
+
+        return PatchTSTTokenizer
+    raise click.UsageError(f"Unknown signal tokenizer: {name!r}")
+
+
+@tokenize.command(name="bench")
+@click.option(
+    "--tokenizer",
+    "tokenizers",
+    required=True,
+    multiple=True,
+    help=(
+        "Repeat for each tokenizer to benchmark. "
+        "Frame choices: placeholder, open-magvit2. "
+        "Signal choices: uniform, chronos, patchtst."
+    ),
+)
+@click.option(
+    "--kind",
+    type=click.Choice(["frame", "signal"]),
+    default="frame",
+    show_default=True,
+    help="Whether to benchmark frame or signal tokenizers.",
+)
+@click.option(
+    "--shot-ids",
+    required=True,
+    help="Comma-separated shot IDs, e.g. '15085,15086'.",
+)
+@click.option(
+    "--max-items-per-shot",
+    default=None,
+    type=int,
+    help="Cap on frames/timesteps per shot (useful for CPU benchmarks).",
+)
+@click.option(
+    "--camera",
+    default="rbb",
+    show_default=True,
+    help="Camera source name (frame mode only).",
+)
+@click.option(
+    "--group",
+    default="magnetics",
+    show_default=True,
+    help="Level-2 group name (signal mode only).",
+)
+@click.option(
+    "--tier",
+    default=None,
+    help="Data tier override. Defaults to level1 for frame, level2 for signal.",
+)
+@click.option(
+    "--device",
+    default="cpu",
+    show_default=True,
+    help="Device for tokenizers that support GPU (e.g. open-magvit2).",
+)
+@click.option(
+    "--output",
+    default=None,
+    type=click.Path(),
+    help="Write JSON results to this path.",
+)
+def bench_cmd(
+    tokenizers: tuple[str, ...],
+    kind: str,
+    shot_ids: str,
+    max_items_per_shot: int | None,
+    camera: str,
+    group: str,
+    tier: str | None,
+    device: str,
+    output: str | None,
+) -> None:
+    """Closed-loop tokenizer benchmark: encode → decode → measure → compare.
+
+    Runs each requested tokenizer in turn, prints a Rich comparison table,
+    and optionally writes JSON results.
+
+    Examples
+    --------
+    ::
+
+        ambix tokenize bench --tokenizer placeholder --kind frame \\
+            --shot-ids 15085 --max-items-per-shot 4
+
+        ambix tokenize bench --tokenizer uniform --kind signal \\
+            --shot-ids 15085,15086
+    """
+    from imas_ambix.bench.report import render_comparison_table, save_results_json
+    from imas_ambix.bench.tokenizer import (
+        BenchConfig,
+        benchmark_frame_tokenizer,
+        benchmark_signal_tokenizer,
+    )
+
+    parsed_shot_ids = [int(s.strip()) for s in shot_ids.split(",") if s.strip()]
+    if not parsed_shot_ids:
+        raise click.UsageError("--shot-ids must contain at least one integer shot id.")
+
+    # Resolve default tier
+    effective_tier = tier or ("level1" if kind == "frame" else "level2")
+
+    # Default metrics per mode
+    default_metrics: tuple[str, ...] = (
+        ("psnr",) if kind == "frame" else ("mae", "nrmse", "correlation")
+    )
+
+    results = []
+    for tok_name in tokenizers:
+        if kind == "frame":
+            factory = _make_frame_factory(tok_name, device)
+        else:
+            factory = _make_signal_factory(tok_name)
+
+        cfg = BenchConfig(
+            name=f"{tok_name}-{device}" if kind == "frame" else tok_name,
+            tokenizer_kind=kind,
+            tokenizer_factory=factory,
+            max_items_per_shot=max_items_per_shot,
+            metrics=default_metrics,
+            device=device,
+        )
+
+        console.print(f"[bold]Running benchmark:[/bold] {cfg.name} ...")
+
+        if kind == "frame":
+            result = benchmark_frame_tokenizer(
+                cfg,
+                parsed_shot_ids,
+                camera=camera,
+                tier=effective_tier,  # type: ignore[arg-type]
+            )
+        else:
+            result = benchmark_signal_tokenizer(
+                cfg,
+                parsed_shot_ids,
+                group=group,
+                tier=effective_tier,  # type: ignore[arg-type]
+            )
+        results.append(result)
+
+        # Report per-shot errors inline
+        for ps in result.per_shot:
+            if ps.error:
+                console.print(f"  [red]shot {ps.shot_id} FAILED:[/red]\n{ps.error}")
+
+    table = render_comparison_table(results)
+    console.print(table)
+
+    if output:
+        out_path = Path(output)
+        save_results_json(results, out_path)
+        console.print(f"[green]results saved:[/green] {out_path}")
