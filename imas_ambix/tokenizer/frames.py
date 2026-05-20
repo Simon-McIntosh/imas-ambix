@@ -167,6 +167,18 @@ class OpenMagvit2Tokenizer:
     every shot's frames into a single ``encode`` call to amortise. The
     GPU node brings this to sub-second once weights are warmed.
 
+    **Device split:**
+
+    - ``device="cpu"`` (default) — runs on any login or compute node; does
+      not require GPU hardware.  Suitable for smoke tests and single-frame
+      checks.  Per-frame encode/decode is ~30 s due to CPU-only torch.
+    - ``device="cuda"`` — must be run inside a SLURM allocation on the
+      ``betelgeuse`` partition (``--reservation=gpu_0003_grpA``).  The GPU
+      node has no outbound network, but the venv and weights already live on
+      GPFS.  Worker auto-selects batch size 8 when CUDA is used (vs. 4 for
+      CPU).  If ``torch.cuda.is_available()`` is ``False`` on the target
+      node, the worker exits immediately with a clear error naming the host.
+
     - Source: <https://github.com/TencentARC/Open-MAGVIT2> @ c1544ef (Apache-2.0)
     - Checkpoint: ``imagenet_256_L.ckpt`` (2^18 LFQ codebook, rFID 1.17 on ImageNet)
     - Compression: 16× spatial (256×256 → 16×16 tokens), no temporal compression
