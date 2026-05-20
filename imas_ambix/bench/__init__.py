@@ -42,6 +42,7 @@ from imas_ambix.bench.tokenizer import (
     benchmark_frame_tokenizer,
     benchmark_signal_tokenizer,
 )
+from imas_ambix.eval.metrics import modality_coherence
 
 __all__ = [
     "BenchConfig",
@@ -49,6 +50,7 @@ __all__ = [
     "PerShotResult",
     "benchmark_frame_tokenizer",
     "benchmark_signal_tokenizer",
+    "modality_coherence",
     "render_comparison_table",
     "save_results_json",
     "load_results_json",

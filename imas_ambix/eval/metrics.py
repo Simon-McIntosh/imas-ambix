@@ -197,6 +197,80 @@ def frame_centroid(frames: np.ndarray) -> np.ndarray:
     return centroids
 
 
+def modality_coherence(
+    decoded_frames: np.ndarray,
+    magnetic_axis_r: np.ndarray,
+    frame_image_extent_m: tuple[float, float] | None = None,
+) -> float:
+    """Pearson r between the frame brightness centroid R and the equilibrium magnetic axis R.
+
+    Measures cross-modality time-alignment quality: a high Pearson r (~0.7+)
+    indicates the camera centroid tracks the equilibrium magnetic axis, as
+    expected physically when frame and signal tokens are correctly aligned.
+
+    Parameters
+    ----------
+    decoded_frames:
+        ``(T, H, W)`` or ``(T, H, W, 3)`` uint8 frame array.
+    magnetic_axis_r:
+        ``(T,)`` float array of equilibrium magnetic axis R values (metres).
+    frame_image_extent_m:
+        Optional ``(R_min, R_max)`` in metres for the horizontal extent of
+        the image. When provided, the centroid column index is linearly
+        mapped to physical R before computing the correlation. When ``None``,
+        the raw column index is used (still gives a meaningful correlation).
+
+    Returns
+    -------
+    float
+        Pearson r in ``[-1, 1]``, or ``float("nan")`` if fewer than 3
+        valid paired samples exist or if either series is constant.
+    """
+    import numpy as np
+
+    centroids = frame_centroid(decoded_frames)  # (T, 2): [col, row]
+    col_r = centroids[:, 0]  # column index ≡ horizontal R-direction
+
+    # Convert column index → physical R if extent is provided
+    if frame_image_extent_m is not None:
+        r_min, r_max = frame_image_extent_m
+        arr = np.asarray(decoded_frames)
+        # width from the frame array
+        if arr.ndim == 4:
+            w = arr.shape[2]
+        else:
+            w = arr.shape[2]
+        col_r = r_min + col_r * (r_max - r_min) / max(w - 1, 1)
+
+    axis_r = np.asarray(magnetic_axis_r, dtype=np.float64)
+    col_r = np.asarray(col_r, dtype=np.float64)
+
+    # Align lengths
+    n = min(len(col_r), len(axis_r))
+    x = col_r[:n]
+    y = axis_r[:n]
+
+    # Need at least 3 finite paired points
+    finite_mask = np.isfinite(x) & np.isfinite(y)
+    if finite_mask.sum() < 3:
+        return float("nan")
+
+    x = x[finite_mask]
+    y = y[finite_mask]
+
+    x_std = float(np.std(x))
+    y_std = float(np.std(y))
+    if x_std < 1e-12 or y_std < 1e-12:
+        return float("nan")
+
+    # Inline Pearson r (no scipy)
+    x_z = (x - x.mean()) / x_std
+    y_z = (y - y.mean()) / y_std
+    r = float(np.mean(x_z * y_z))
+    # Clamp to [-1, 1] to guard against floating-point overrun
+    return max(-1.0, min(1.0, r))
+
+
 def centroid_mse(reference_frames: np.ndarray, prediction_frames: np.ndarray) -> float:
     """MSE between centroid trajectories of reference and prediction frames.
 

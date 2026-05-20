@@ -89,6 +89,10 @@ class PerShotResult:
     codebook_utilisation: float | None
     """Fraction of vocab seen across this shot, or ``None`` if not applicable."""
 
+    modality_coherence: float | None = None
+    """Pearson r between centroid R and equilibrium magnetic axis R, or ``None``
+    when no equilibrium loader was supplied or the loader returned ``None``."""
+
     error: str | None = None
     """Non-``None`` when the shot failed; other fields may be zero/empty."""
 
@@ -175,6 +179,7 @@ def benchmark_frame_tokenizer(
     shot_ids: list[int],
     camera: str = "rbb",
     tier: Tier = "level1",
+    equilibrium_loader: Callable[[int], np.ndarray | None] | None = None,
 ) -> BenchResult:
     """Benchmark a frame tokenizer over a list of shots.
 
@@ -185,6 +190,7 @@ def benchmark_frame_tokenizer(
     - bytes_in / bytes_out
     - requested metrics from :mod:`imas_ambix.eval.metrics`
     - codebook utilisation
+    - optional cross-modality coherence (Pearson r)
 
     Parameters
     ----------
@@ -196,6 +202,10 @@ def benchmark_frame_tokenizer(
         Camera source name at level-1 (e.g. ``"rbb"``).
     tier:
         Data tier (always ``"level1"`` for camera data).
+    equilibrium_loader:
+        Optional callable ``(shot_id) -> np.ndarray | None``. When provided
+        and returns a non-``None`` ``(T,)`` array of magnetic axis R values,
+        the cross-modality coherence score is computed for that shot.
     """
     import xarray as xr
 
@@ -203,6 +213,7 @@ def benchmark_frame_tokenizer(
     from imas_ambix.eval.metrics import (
         centroid_mse,
         chord_nrmse,
+        modality_coherence as _modality_coherence,
         psnr,
     )
 
@@ -265,6 +276,16 @@ def benchmark_frame_tokenizer(
                 encoded.token_ids, getattr(tok, "vocab_size", 0)
             )
 
+            # Cross-modality coherence (optional)
+            coh: float | None = None
+            if equilibrium_loader is not None:
+                try:
+                    mag_axis_r = equilibrium_loader(shot_id)
+                    if mag_axis_r is not None:
+                        coh = _modality_coherence(dec_u8, np.asarray(mag_axis_r))
+                except Exception:
+                    coh = None
+
             per_shot.append(
                 PerShotResult(
                     shot_id=shot_id,
@@ -275,6 +296,7 @@ def benchmark_frame_tokenizer(
                     bytes_out=bytes_out,
                     metrics=metrics,
                     codebook_utilisation=util,
+                    modality_coherence=coh,
                 )
             )
         except Exception:
@@ -294,6 +316,18 @@ def benchmark_frame_tokenizer(
 
     elapsed_s = time.perf_counter() - t0_wall
     aggregate = _aggregate(per_shot, config.metrics, elapsed_s)
+    # Add mean_modality_coherence to aggregate when loader was supplied
+    if equilibrium_loader is not None:
+        coh_vals = [
+            s.modality_coherence
+            for s in per_shot
+            if s.modality_coherence is not None and s.error is None
+        ]
+        import math as _math
+        finite_coh = [v for v in coh_vals if _math.isfinite(v)]
+        aggregate["mean_modality_coherence"] = (
+            float(np.mean(finite_coh)) if finite_coh else float("nan")
+        )
     return BenchResult(
         config=config,
         per_shot=tuple(per_shot),

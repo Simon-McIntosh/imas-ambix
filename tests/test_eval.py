@@ -386,3 +386,73 @@ def test_rollout_error_message_mentions_model():
     with pytest.raises(ValueError) as exc_info:
         rollout(model=None, initial_tokens=None, control_tokens=None, config=cfg)
     assert "model" in str(exc_info.value).lower()
+
+
+# ---------------------------------------------------------------------------
+# modality_coherence
+# ---------------------------------------------------------------------------
+
+
+def test_modality_coherence_perfect_correlation():
+    """Centroid column perfectly tracks magnetic axis R → Pearson r ≈ 1."""
+    from imas_ambix.eval.metrics import modality_coherence
+
+    t, h, w = 20, 32, 64
+    rng = np.random.default_rng(100)
+    # Bright spot sweeps left to right across frames
+    frames = np.zeros((t, h, w), dtype=np.uint8)
+    col_positions = np.linspace(4, w - 5, t).astype(int)
+    for i, col in enumerate(col_positions):
+        frames[i, h // 2, col] = 255
+
+    # magnetic_axis_r perfectly matches the column sweep (affinely)
+    magnetic_axis_r = 1.5 + col_positions * 0.002  # some linear scaling
+
+    r = modality_coherence(frames, magnetic_axis_r)
+    assert np.isfinite(r), f"Expected finite r, got {r}"
+    assert r > 0.95, f"Expected near-perfect correlation, got {r:.4f}"
+
+
+def test_modality_coherence_anticorrelated():
+    """Centroid column inversely tracks magnetic axis R → Pearson r ≈ -1."""
+    from imas_ambix.eval.metrics import modality_coherence
+
+    t, h, w = 20, 32, 64
+    frames = np.zeros((t, h, w), dtype=np.uint8)
+    col_positions = np.linspace(4, w - 5, t).astype(int)
+    for i, col in enumerate(col_positions):
+        frames[i, h // 2, col] = 255
+
+    # magnetic_axis_r decreases as col_positions increases
+    magnetic_axis_r = 3.0 - col_positions * 0.002
+
+    r = modality_coherence(frames, magnetic_axis_r)
+    assert np.isfinite(r), f"Expected finite r, got {r}"
+    assert r < -0.95, f"Expected near-perfect anticorrelation, got {r:.4f}"
+
+
+def test_modality_coherence_constant_series_returns_nan():
+    """Constant centroid or constant axis R → zero variance → nan."""
+    from imas_ambix.eval.metrics import modality_coherence
+
+    t, h, w = 10, 32, 32
+    # Uniform frames → centroid always at centre (constant series)
+    frames = np.full((t, h, w), fill_value=128, dtype=np.uint8)
+    magnetic_axis_r = np.linspace(1.5, 2.0, t)
+
+    r = modality_coherence(frames, magnetic_axis_r)
+    assert np.isnan(r), f"Expected nan for constant centroid, got {r}"
+
+
+def test_modality_coherence_short_series_returns_nan():
+    """Fewer than 3 valid points → nan."""
+    from imas_ambix.eval.metrics import modality_coherence
+
+    t, h, w = 2, 16, 16
+    frames = np.zeros((t, h, w), dtype=np.uint8)
+    frames[0, 8, 4] = 200
+    frames[1, 8, 12] = 200
+    magnetic_axis_r = np.array([1.5, 1.6])
+
+    r = modality_coherence(frames, magnetic_axis_r)
+    assert np.isnan(r), f"Expected nan for short series, got {r}"

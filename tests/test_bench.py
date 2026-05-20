@@ -532,3 +532,90 @@ def test_benchmark_frame_multi_shot_aggregate(
     assert result.aggregate["n_shots_err"] == 0.0
     assert result.aggregate["throughput_items_per_s"] > 0.0
     assert "mean_psnr" in result.aggregate
+
+
+# ---------------------------------------------------------------------------
+# 14. benchmark_frame_tokenizer: equilibrium_loader sets modality_coherence
+# ---------------------------------------------------------------------------
+
+
+def test_benchmark_frame_tokenizer_with_equilibrium_loader(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When equilibrium_loader returns a (T,) array, mean_modality_coherence is set."""
+    from imas_ambix.bench import BenchConfig, benchmark_frame_tokenizer
+    from imas_ambix.tokenizer.frames import PlaceholderFrameTokenizer
+
+    level1_shots = tmp_path / "level1" / "shots"
+    shot_zarr = level1_shots / "99030.zarr"
+    t_frames = 8
+    _make_frame_zarr(shot_zarr, t=t_frames, h=32, w=32)
+
+    import imas_ambix.data.paths as paths_mod
+
+    monkeypatch.setattr(paths_mod, "LEVEL1_DIR", level1_shots)
+
+    cfg = BenchConfig(
+        name="placeholder-cpu",
+        tokenizer_kind="frame",
+        tokenizer_factory=PlaceholderFrameTokenizer,
+        max_items_per_shot=t_frames,
+        metrics=("psnr",),
+    )
+
+    # Provide a fake equilibrium loader returning a linearly varying R series
+    def fake_eq_loader(shot_id: int) -> np.ndarray:
+        return np.linspace(1.5, 2.0, t_frames)
+
+    result = benchmark_frame_tokenizer(
+        cfg, [99030], camera="rbb", tier="level1", equilibrium_loader=fake_eq_loader
+    )
+
+    assert len(result.per_shot) == 1
+    ps = result.per_shot[0]
+    assert ps.error is None
+    # modality_coherence field must be set (may be nan if centroid is constant,
+    # but must not be None)
+    assert ps.modality_coherence is not None
+    # Aggregate must contain the key
+    assert "mean_modality_coherence" in result.aggregate
+
+
+def test_benchmark_frame_tokenizer_loader_returns_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When equilibrium_loader returns None for a shot, modality_coherence stays None."""
+    from imas_ambix.bench import BenchConfig, benchmark_frame_tokenizer
+    from imas_ambix.tokenizer.frames import PlaceholderFrameTokenizer
+
+    level1_shots = tmp_path / "level1" / "shots"
+    shot_zarr = level1_shots / "99031.zarr"
+    _make_frame_zarr(shot_zarr, t=8, h=32, w=32)
+
+    import imas_ambix.data.paths as paths_mod
+
+    monkeypatch.setattr(paths_mod, "LEVEL1_DIR", level1_shots)
+
+    cfg = BenchConfig(
+        name="placeholder-cpu",
+        tokenizer_kind="frame",
+        tokenizer_factory=PlaceholderFrameTokenizer,
+        max_items_per_shot=8,
+        metrics=("psnr",),
+    )
+
+    def none_eq_loader(shot_id: int) -> None:
+        return None
+
+    result = benchmark_frame_tokenizer(
+        cfg, [99031], camera="rbb", tier="level1", equilibrium_loader=none_eq_loader
+    )
+
+    ps = result.per_shot[0]
+    assert ps.error is None
+    assert ps.modality_coherence is None
+    # Aggregate key present but nan (all-None → no finite values)
+    assert "mean_modality_coherence" in result.aggregate
+    import math
+
+    assert math.isnan(result.aggregate["mean_modality_coherence"])

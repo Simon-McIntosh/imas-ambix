@@ -1,0 +1,43 @@
+name: v0-rbb-25shot-magvit2
+tokenizer_kind: frame
+tokenizer:
+  factory: imas_ambix.tokenizer.frames:OpenMagvit2Tokenizer
+  kwargs:
+    device: cuda
+    batch_size: 8
+    image_size: 256
+camera: rbb
+shot_ids:
+  # 25-shot subsample of rbb (which has ~9,494 shots in FAIR-MAST) chosen
+  # as the apples-to-apples visible-camera baseline for the §12.5 IR
+  # codebook decision gate (MAE threshold: IR ≤ 2× rbb MAE).
+  - 15080
+  - 15081
+  - 15082
+  - 15083
+  - 15084
+  - 15085
+  - 15086
+  - 15087
+  - 15088
+  - 15089
+  - 15090
+  - 15091
+  - 15092
+  - 15093
+  - 15094
+  - 15095
+  - 15096
+  - 15097
+  - 15098
+  - 15099
+  - 15100
+  - 15101
+  - 15102
+  - 15103
+  - 15104
+max_items_per_shot: 16
+metrics:
+  - psnr
+  - mae
+device: cuda
