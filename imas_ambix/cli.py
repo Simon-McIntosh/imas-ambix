@@ -67,3 +67,11 @@ tokenize = _LazyGroup(
     help="Multi-modal tokenizers for FAIR-MAST shots (see plans/tokenizers.md).",
 )
 main.add_command(tokenize)
+
+
+demo = _LazyGroup(
+    import_path="imas_ambix.demo.cli:demo",
+    name="demo",
+    help="Forward-prediction demo for held-out MAST shots (plans/demo.md).",
+)
+main.add_command(demo)

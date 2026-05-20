@@ -374,14 +374,15 @@ def test_rollout_config_custom_values():
     assert cfg.temperature == 1.0
 
 
-def test_rollout_raises_not_implemented():
+def test_rollout_raises_on_none_inputs():
+    # rollout() is now implemented; None inputs raise ValueError
     cfg = RolloutConfig()
-    with pytest.raises(NotImplementedError, match="not yet implemented"):
+    with pytest.raises(ValueError, match="non-None"):
         rollout(None, None, None, cfg)
 
 
-def test_rollout_stub_message_mentions_model():
+def test_rollout_error_message_mentions_model():
     cfg = RolloutConfig()
-    with pytest.raises(NotImplementedError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         rollout(model=None, initial_tokens=None, control_tokens=None, config=cfg)
     assert "model" in str(exc_info.value).lower()
