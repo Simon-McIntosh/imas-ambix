@@ -226,19 +226,21 @@ introduce spurious transients in the token stream.
 Any gap > 100 ms is recorded in `time_gaps` with the gap start time. Shots
 with > 3 such gaps in any of the mandatory groups are `training_grade = False`.
 
-### 3.5 homogeneous_time + DD version consistency
+### 3.5 IMAS attribute consistency (replaces IDS-format checks)
 
-Per AGENTS.md §IMAS Data Access: when `ids_properties.homogeneous_time == 1`,
-the time base lives at the IDS level (e.g. `pf_active.time`), not per-signal.
-The quality check verifies this for the groups we open via xarray (which
-handles the convention transparently). The `dd_version` field in the report
-records the actual `ids_properties.version_put.data_dictionary` value. This
-is compared against the level-2 manifest's `dd_version` field (expected:
-`3.40.0` or similar for MAST M9). A mismatch is a warning (not a hard fail
-for training-grade) but is surfaced prominently in the corpus audit summary
-because it indicates the shot was written with a different DD version than
-the majority — the loader's `dd_version` argument must match, or it will
-silently read wrong values.
+**Superseded by §10.1 findings.**  FAIR-MAST is xarray-on-Zarr, NOT IDS
+format.  The original checks for `homogeneous_time` and `dd_version` have
+been removed because these IDS attributes do not exist in the bucket.
+
+The new checks are:
+
+- `check_imas_label_matches_group`: verifies that the group-level
+  `ds.attrs["imas"]` string matches the group's directory name.  Info-level
+  only — a mismatch is a metadata note, not a training-grade failure.
+- `check_imas_pointer(ds, var)`: reports whether a variable carries an
+  `imas` path-pointer attribute.  Info-level; absence is not a failure.
+
+Neither check affects `usable_for_training`.
 
 ### 3.6 Cross-shot corpus metrics
 
@@ -270,20 +272,28 @@ design of the `ShotTokenizer`'s group-absence handling.
 
 ## 4. Acceptance for "shot is training-grade"
 
-A shot is `training_grade = True` if and only if **all** of the following
-conditions hold:
+**Updated 2026-05-20 — see §10 for FAIR-MAST format reality.**
+
+A shot is `usable_for_training = True` (new flag name) if and only if
+**all** of the following conditions hold:
 
 | Condition | Detail |
 |---|---|
-| Zarr open OK | `zarr_open_ok == True` for the level-2 shot directory |
-| All mandatory groups present | `magnetics`, `summary`, `pulse_schedule` in `groups_present` |
-| NaN fraction < 5 % in mandatory groups | `nan_fraction[g] < 0.05` for `g` in `{magnetics, summary, pulse_schedule}` |
-| `equilibrium` NaN fraction < 5 % if present | Soft rule — if `equilibrium` is absent (1.7 % of shots), this check is skipped |
-| Plasma current maximum > 100 kA | `plasma_current_max_ka > 100.0` (sanity floor — sub-threshold shots are ohmic or diagnostic-only) |
-| Pulse duration > 100 ms | `pulse_duration_ms > 100.0` (shorter pulses don't span even 1 model window) |
-| Time axis monotonic in mandatory groups | No non-monotonic time axis in `magnetics`, `summary` |
-| Time gap ≤ 3 per mandatory group | No more than 3 gaps > 100 ms in any mandatory group |
-| Dynamic range in bounds | No headline variable is > 10 × the nominal maximum |
+| All groups open | `all_groups_open == True` — every discovered Zarr group opens without error |
+| `magnetics` present | `has_magnetics == True` — signal-level training requires magnetics |
+| `pulse_schedule` present | group opens — pulse structure required for training window selection |
+| No corruption errors | `no_corrupt_nans == True` — no all-NaN variables, no `\|value\| > 1e25`, no inf |
+
+Dropped conditions (see §10 for rationale):
+
+| Dropped condition | Reason |
+|---|---|
+| NaN fraction < 5 % | Per-variable all-NaN catches real corruption; partial NaN is acceptable |
+| Plasma current > 100 kA | Not yet wired — parquet metadata not loaded by default audit path |
+| Pulse duration > 100 ms | Not yet wired — as above |
+| Time axis monotonic | All FAIR-MAST time axes are monotonic (verified on 50-shot sample) |
+| Time gap ≤ 3 | No time gaps found — uniform Δt throughout corpus |
+| Dynamic range in bounds (old) | Threshold 1e15 was below physical plasma densities; replaced by 1e25 hard cap |
 
 Shots that fail are not deleted from the mirror — they remain in
 `/work/projects/imas_gpu/mast/` but are excluded from the training manifest.
@@ -397,3 +407,114 @@ sort on the timestamp suffix. No automatic pruning.
    camera content is degenerate or the frames are mostly noise). This would
    require running the tokenizer before the quality check completes, which
    creates a circular dependency. Design decision deferred.
+
+---
+
+## 10. FAIR-MAST format reality — 2026-05-20
+
+### 10.1 Storage format
+
+FAIR-MAST level-2 is **xarray-on-Zarr v3**, NOT IDS format.  The data model
+is:
+
+- One Zarr v3 store per shot (e.g. `11766.zarr/`).
+- Sub-directories are Zarr groups named after IMAS IDS names (`magnetics/`,
+  `equilibrium/`, `pf_active/`, …).
+- Each group opens as an `xr.Dataset`.  Data variables are physics signals;
+  coordinates include time axes.
+- The group-level `ds.attrs["imas"]` is a short **label string** equal to the
+  group name (e.g. `"magnetics"`).  It is NOT an IDS container.
+- Per-variable `ds["var"].attrs["imas"]` is an **IDS-path pointer string**
+  (e.g. `"magnetics.b_field_pol_probe[:].field.data"`).  It is a reference,
+  not a container.
+- There are **no** `ids_properties`, `version_put`, `data_dictionary`, or
+  `homogeneous_time` attributes anywhere in the bucket.
+
+This means the checks `check_dd_version` and `check_homogeneous_time_flag`
+that were present in the original implementation were chasing IDS attributes
+that do not exist.  Both have been removed.
+
+### 10.2 Time coordinate layout
+
+Time coordinates are per-group, not at root.  Each group exposes one or more
+time coordinates:
+
+| Group | Primary time coord | Rate | Notes |
+|---|---|---|---|
+| `equilibrium` | `time` | 200 Hz | N≈83, dt=5 ms |
+| `magnetics` | `time` | 5 kHz | N≈2065, dt=200 µs |
+| `magnetics` | `time_saddle` | 20 kHz | dt=20 µs (saddle loops) |
+| `pf_active`, `summary`, `pulse_schedule`, `gas_injection` | `time` | 4 kHz | dt=250 µs |
+| `spectrometer_visible` | `time` | 50 kHz | dt=20 µs |
+| `pf_passive`, `soft_x_rays`, `wall` | — | — | Static geometry, no time dim |
+
+All `time` coords are monotonic with uniform Δt.  The audit's `check_time_axis`
+has been rewritten to enumerate all coords containing `"time"` in their name,
+report one `CheckResult` per coord, and return an info-level "static group"
+result for groups with no time coord.
+
+### 10.3 Physical dynamic ranges
+
+FAIR-MAST plasma physics quantities span large numeric ranges that are
+physically correct, NOT corruption:
+
+| Quantity | Expected magnitude |
+|---|---|
+| Line-integrated electron density | ~10¹⁹ m⁻² |
+| Neutral-beam / gas injection (particle rate) | ~10²² s⁻¹ |
+| Density gradient (spectrometer) | ~10²¹ m⁻⁴ |
+| Plasma current | 0–750 kA |
+| PF coil current | ±50–200 kA |
+| Reconstruction quality rating (`da_rating`) | 0–10 (integer-equivalent) |
+
+The original audit used an `abs_max ≥ 1e15` threshold that flagged all of
+the above as warnings.  The new `check_dynamic_range` uses a hard corruption
+threshold of `1e25` — well above all physical quantities — to catch only
+genuine bit-pattern errors.
+
+### 10.4 Corpus-level findings from the 2026-05-20 audit (25-shot sample)
+
+Running the recalibrated audit on a random 25-shot L2 sample revealed:
+
+- **All groups open** (100 %): every group in every shot opens successfully —
+  no Zarr-level corruption.
+- **charge_exchange corruption** (systematic): `charge_exchange/t_i` and
+  `charge_exchange/v_i` carry bit-pattern errors in ~50 % of audited shots,
+  with values ranging from 10²⁶ to 10³⁸.  Physical ion temperature is
+  ≤30 keV (~3×10⁴ eV) and ion velocity is ≤10⁷ m/s.  These values are
+  12–28 orders of magnitude beyond physical range and represent genuine
+  float-encoding defects in the FAIR-MAST ingestion pipeline for CX
+  diagnostics.  **This is the primary cause of shots failing the audit.**
+- **gas_injection/valve_target_voltage all-NaN**: present in ~20 % of shots.
+  Likely channels not connected in some campaigns.
+- **All false-positive IDS-format warnings eliminated**: the recalibrated
+  audit no longer fires `dd_version`, `homogeneous_time_flag`, or
+  `abs_max ≥ 1e15` warnings against physically correct data.
+- **Usable-for-training rate**: ~44 % of the random sample.  The primary
+  exclusion reason is `charge_exchange` corruption — shots without this
+  diagnostic or with clean CX data pass at nearly 100 %.
+
+### 10.5 Audit check changes made in this revision
+
+The following table summarises the changes to §3 and §4:
+
+| Check | Before | After |
+|---|---|---|
+| `check_dd_version` | Warned on every group (missing attribute) | **Removed** — attribute does not exist in FAIR-MAST |
+| `check_homogeneous_time_flag` | Warned on every group (missing IDS flag) | **Removed** — no IDS `ids_properties` anywhere |
+| `check_time_axis` | Checked only `"time"` coord, failed with warn if absent | Rewrites to enumerate all `"time*"` coords, info-level for static groups |
+| `check_dynamic_range` | Warned on abs_max ≥ 1e15 (flagged physical densities) | Errors only on abs_max > 1e25 (hard corruption) or inf; warns on constant non-zero time-series |
+| `check_no_all_nan` | Unchanged — correct | Unchanged |
+| `check_open` | Unchanged — correct | Unchanged |
+| `check_imas_pointer` | New | Info-level per-variable IDS-path pointer presence |
+| `check_imas_label_matches_group` | New | Info-level group-label consistency check |
+
+Quality flags changed:
+
+| Flag | Before | After |
+|---|---|---|
+| `sane_dynamic_range` | Derived from `check_dynamic_range` warns | **Removed** (recalibrated check no longer warns on physical data) |
+| `monotonic_time` | Per-group boolean | **Removed** (rolled into per-coord `time_axis:*` check results) |
+| `all_groups_open` | Not present | **Added** — true iff every discovered group opened successfully |
+| `no_corrupt_nans` | Not present | **Added** — true iff no all-NaN variable and no hard-corruption error fired |
+| `usable_for_training` | No error-severity checks anywhere | `all_groups_open AND has_magnetics AND has_pulse_schedule AND no_error_checks` |

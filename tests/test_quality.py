@@ -5,33 +5,41 @@ access to the live mirror at ``/work/projects/imas_gpu/mast``.
 
 Test inventory
 --------------
-Individual checks (12 cases):
-    test_check_open_pass               — check_open on valid group
-    test_check_open_fail               — check_open on missing path
-    test_check_no_all_nan_pass         — all-finite variable
-    test_check_no_all_nan_fail         — all-NaN variable returns error
-    test_check_dynamic_range_pass      — normal range passes
-    test_check_dynamic_range_fail      — extreme values produce warn
-    test_check_time_axis_pass          — monotonic time passes
-    test_check_time_axis_fail_nonmono  — non-monotonic time is error
-    test_check_time_axis_missing       — no time dim is warn
-    test_check_homogeneous_time_flag   — imas attr present/absent
-    test_check_dd_version_warn         — no version attr → warn
-    test_check_dd_version_mismatch     — wrong version → error
+Individual checks (18 cases):
+    test_check_open_pass                    — check_open on valid group
+    test_check_open_fail                    — check_open on missing path
+    test_check_no_all_nan_pass              — all-finite variable
+    test_check_no_all_nan_fail              — all-NaN variable returns error
+    test_check_dynamic_range_physical       — physical values (1e19) pass silently
+    test_check_dynamic_range_inf            — inf → error
+    test_check_dynamic_range_hard_corrupt   — |value| > 1e25 → error
+    test_check_dynamic_range_constant_time  — constant time-series → warn
+    test_check_dynamic_range_constant_static— constant non-time var → ok (no warn)
+    test_check_time_axis_pass               — monotonic uniform time passes
+    test_check_time_axis_fail_nonmono       — non-monotonic time → error
+    test_check_time_axis_static_group       — no time coord → info (static group)
+    test_check_time_axis_multi_coord        — group with time + time_saddle → list
+    test_check_time_axis_jitter             — >5% jitter → warn
+    test_check_imas_pointer_present         — imas attr on variable → info
+    test_check_imas_pointer_absent          — no imas attr → info (not fail)
+    test_check_imas_label_matches_group_ok  — label == group name → info pass
+    test_check_imas_label_matches_group_mismatch — label ≠ group name → info note
 
 Audit:
-    test_audit_shot_synthetic_clean    — all checks pass on good shot
-    test_audit_shot_all_nan            — NaN var is flagged
-    test_audit_shot_missing            — absent shot path produces error report
-    test_audit_corpus_three_shots      — corpus audit over 3 shots
+    test_audit_shot_synthetic_clean         — all checks pass on good shot
+    test_audit_shot_all_nan                 — NaN var is flagged, not usable
+    test_audit_shot_missing                 — absent shot path produces error report
+    test_audit_corpus_three_shots           — corpus audit over 3 shots
+    test_audit_quality_flags_new            — new quality flags present in report
 
 Aggregate:
-    test_aggregate_corpus_counts       — n_passed / n_warned / n_failed
-    test_aggregate_corpus_campaign     — campaign distribution
+    test_aggregate_corpus_counts            — n_passed / n_warned / n_failed
+    test_aggregate_corpus_campaign          — campaign distribution
+    test_aggregate_corpus_empty             — empty list safe
 
 CLI:
-    test_audit_cmd_help                — --help smoke test
-    test_audit_cmd_end_to_end          — full run with monkeypatched LEVEL2_DIR
+    test_audit_cmd_help                     — --help smoke test
+    test_audit_cmd_end_to_end               — full run with monkeypatched LEVEL2_DIR
 """
 
 from __future__ import annotations
@@ -59,6 +67,7 @@ def _write_zarr_group(
     time: np.ndarray | None = None,
     variables: dict[str, np.ndarray] | None = None,
     attrs: dict | None = None,
+    var_attrs: dict[str, dict] | None = None,
 ) -> Path:
     """Write a minimal Zarr group under *shot_path/group*.
 
@@ -69,6 +78,7 @@ def _write_zarr_group(
     time: optional 1-D float64 array for the ``time`` coordinate
     variables: mapping name → ndarray (must have ``time`` as first dim if given)
     attrs: dataset-level attributes
+    var_attrs: per-variable attribute dicts keyed by variable name
     """
     shot_path.mkdir(parents=True, exist_ok=True)
     grp_path = shot_path / group
@@ -91,6 +101,9 @@ def _write_zarr_group(
             da = xr.DataArray(arr, dims=dims)
         else:
             da = xr.DataArray(arr)
+        # Apply per-variable attributes if given
+        if var_attrs and name in var_attrs:
+            da = da.assign_attrs(var_attrs[name])
         data_vars_xr[name] = da
 
     ds = xr.Dataset(data_vars_xr, coords=coords, attrs=attrs or {"imas": group})
@@ -99,7 +112,7 @@ def _write_zarr_group(
 
 
 # ---------------------------------------------------------------------------
-# Individual check tests
+# Individual check tests — check_open
 # ---------------------------------------------------------------------------
 
 
@@ -126,6 +139,11 @@ def test_check_open_fail(tmp_path: Path) -> None:
     assert result.severity == "error"
 
 
+# ---------------------------------------------------------------------------
+# Individual check tests — check_no_all_nan
+# ---------------------------------------------------------------------------
+
+
 def test_check_no_all_nan_pass(tmp_path: Path) -> None:
     """check_no_all_nan passes for variables with finite values."""
     from imas_ambix.quality.checks import check_no_all_nan
@@ -149,26 +167,100 @@ def test_check_no_all_nan_fail() -> None:
     assert bad[0].metric == pytest.approx(1.0)
 
 
-def test_check_dynamic_range_pass() -> None:
-    """check_dynamic_range passes for physically reasonable values."""
+# ---------------------------------------------------------------------------
+# Individual check tests — check_dynamic_range
+# ---------------------------------------------------------------------------
+
+
+def test_check_dynamic_range_physical() -> None:
+    """Physical plasma values (1e19 density scale) pass without warning."""
     from imas_ambix.quality.checks import check_dynamic_range
 
-    ds = xr.Dataset({"ip": xr.DataArray(np.linspace(-1e6, 1e6, 100), dims=["time"])})
+    # Typical MAST line-integrated electron density ~6e19 m⁻³
+    ds = xr.Dataset(
+        {
+            "n_e": xr.DataArray(
+                np.linspace(1e19, 6e19, 100, dtype=np.float64), dims=["time"]
+            )
+        }
+    )
     results = check_dynamic_range(ds)
-    assert all(r.passed for r in results)
+    assert all(r.passed for r in results), [r.message for r in results if not r.passed]
 
 
-def test_check_dynamic_range_fail() -> None:
-    """check_dynamic_range warns when abs_max exceeds 1e15."""
+def test_check_dynamic_range_inf() -> None:
+    """Infinite values produce an error result."""
     from imas_ambix.quality.checks import check_dynamic_range
 
     ds = xr.Dataset(
-        {"signal": xr.DataArray(np.array([0.0, 1e16], dtype=np.float64), dims=["time"])}
+        {
+            "signal": xr.DataArray(
+                np.array([0.0, np.inf, 1.0], dtype=np.float64), dims=["time"]
+            )
+        }
     )
     results = check_dynamic_range(ds)
     bad = [r for r in results if not r.passed]
-    assert bad, "expected a failing dynamic range check"
+    assert bad, "expected error for inf"
+    assert bad[0].severity == "error"
+
+
+def test_check_dynamic_range_hard_corrupt() -> None:
+    """|value| > 1e25 is flagged as hard corruption (error)."""
+    from imas_ambix.quality.checks import check_dynamic_range
+
+    ds = xr.Dataset(
+        {
+            "signal": xr.DataArray(
+                np.array([0.0, 1e30], dtype=np.float64), dims=["time"]
+            )
+        }
+    )
+    results = check_dynamic_range(ds)
+    bad = [r for r in results if not r.passed]
+    assert bad, "expected error for 1e30"
+    assert bad[0].severity == "error"
+    assert "corruption" in bad[0].message.lower() or "hard" in bad[0].message.lower()
+
+
+def test_check_dynamic_range_constant_time() -> None:
+    """A constant value on a time dimension produces a warn (stuck channel)."""
+    from imas_ambix.quality.checks import check_dynamic_range
+
+    ds = xr.Dataset(
+        {
+            "stuck": xr.DataArray(
+                np.full(50, 3.14, dtype=np.float64), dims=["time"]
+            )
+        }
+    )
+    results = check_dynamic_range(ds)
+    bad = [r for r in results if not r.passed]
+    assert bad, "expected warn for constant time-series"
     assert bad[0].severity == "warn"
+    assert "constant" in bad[0].message.lower()
+
+
+def test_check_dynamic_range_constant_static() -> None:
+    """A constant value on a non-time dimension (geometry) is not flagged."""
+    from imas_ambix.quality.checks import check_dynamic_range
+
+    # Static geometry placeholder: no time dim
+    ds = xr.Dataset(
+        {
+            "r_minor": xr.DataArray(
+                np.full(10, 0.5, dtype=np.float64), dims=["channel"]
+            )
+        }
+    )
+    results = check_dynamic_range(ds)
+    # Should pass — constant but not on time axis
+    assert all(r.passed for r in results), [r.message for r in results if not r.passed]
+
+
+# ---------------------------------------------------------------------------
+# Individual check tests — check_time_axis
+# ---------------------------------------------------------------------------
 
 
 def test_check_time_axis_pass() -> None:
@@ -177,9 +269,12 @@ def test_check_time_axis_pass() -> None:
 
     t = np.linspace(-0.1, 0.5, 50)
     ds = xr.Dataset(coords={"time": t})
-    result = check_time_axis(ds)
-    assert result.passed is True
-    assert result.metric == pytest.approx(50.0)
+    results = check_time_axis(ds)
+    assert len(results) >= 1
+    assert all(r.passed for r in results)
+    # The result for 'time' should have metric == 50
+    time_res = [r for r in results if "time" in r.name]
+    assert time_res[0].metric == pytest.approx(50.0)
 
 
 def test_check_time_axis_fail_nonmono() -> None:
@@ -188,58 +283,124 @@ def test_check_time_axis_fail_nonmono() -> None:
 
     t = np.array([0.0, 0.1, 0.05, 0.2])  # 0.05 < 0.1 — not monotonic
     ds = xr.Dataset(coords={"time": t})
-    result = check_time_axis(ds)
-    assert result.passed is False
-    assert result.severity == "error"
+    results = check_time_axis(ds)
+    bad = [r for r in results if not r.passed]
+    assert bad, "expected error for non-monotonic time"
+    assert bad[0].severity == "error"
 
 
-def test_check_time_axis_missing() -> None:
-    """check_time_axis returns warn when no time dimension is present."""
+def test_check_time_axis_static_group() -> None:
+    """Groups with no time coordinate get a single info-level result."""
     from imas_ambix.quality.checks import check_time_axis
 
-    ds = xr.Dataset({"v": xr.DataArray(np.ones(3), dims=["x"])})
-    result = check_time_axis(ds)
-    assert result.passed is False
-    assert result.severity == "warn"
+    ds = xr.Dataset({"r": xr.DataArray(np.ones(3), dims=["channel"])})
+    results = check_time_axis(ds)
+    assert len(results) == 1
+    assert results[0].passed is True
+    assert results[0].severity == "info"
+    assert "static" in results[0].message.lower()
 
 
-def test_check_homogeneous_time_flag_present() -> None:
-    """check_homogeneous_time_flag passes when imas attr is present."""
-    from imas_ambix.quality.checks import check_homogeneous_time_flag
+def test_check_time_axis_multi_coord() -> None:
+    """Groups with time + time_saddle return one result per time coord."""
+    from imas_ambix.quality.checks import check_time_axis
+
+    t = np.linspace(0.0, 1.0, 20)
+    t_saddle = np.linspace(0.0, 1.0, 80)  # 4× denser
+    ds = xr.Dataset(
+        {
+            "b_pol": xr.DataArray(np.ones(20), dims=["time"]),
+            "saddle_flux": xr.DataArray(np.ones(80), dims=["time_saddle"]),
+        },
+        coords={"time": t, "time_saddle": t_saddle},
+    )
+    results = check_time_axis(ds)
+    coord_names = {r.name.split(":")[-1] for r in results}
+    assert "time" in coord_names
+    assert "time_saddle" in coord_names
+    assert all(r.passed for r in results)
+
+
+def test_check_time_axis_jitter() -> None:
+    """Δt jitter > 5 % of median triggers a warn."""
+    from imas_ambix.quality.checks import check_time_axis
+
+    # Uniform 10 ms steps with one 50 ms step in the middle — large jitter
+    t = np.concatenate(
+        [
+            np.arange(0, 10) * 0.01,
+            np.array([0.1 + 0.05]),
+            np.arange(11, 20) * 0.01 + 0.05,
+        ]
+    )
+    t = np.sort(t)  # keep monotonic
+    ds = xr.Dataset(coords={"time": t})
+    results = check_time_axis(ds)
+    # At least one result should warn
+    warn_results = [r for r in results if r.severity == "warn"]
+    assert warn_results, "expected jitter warn"
+
+
+# ---------------------------------------------------------------------------
+# Individual check tests — check_imas_pointer
+# ---------------------------------------------------------------------------
+
+
+def test_check_imas_pointer_present() -> None:
+    """check_imas_pointer reports info when imas attr is on a variable."""
+    from imas_ambix.quality.checks import check_imas_pointer
+
+    ds = xr.Dataset(
+        {
+            "field": xr.DataArray(
+                np.ones(5),
+                dims=["time"],
+                attrs={"imas": "magnetics.b_field_pol_probe[:].field.data"},
+            )
+        }
+    )
+    result = check_imas_pointer(ds, "field")
+    assert result.passed is True
+    assert result.severity == "info"
+    assert "present" in result.message.lower()
+
+
+def test_check_imas_pointer_absent() -> None:
+    """check_imas_pointer reports info (not fail) when imas attr is absent."""
+    from imas_ambix.quality.checks import check_imas_pointer
+
+    ds = xr.Dataset({"computed": xr.DataArray(np.ones(5), dims=["time"])})
+    result = check_imas_pointer(ds, "computed")
+    assert result.passed is True
+    assert result.severity == "info"
+
+
+# ---------------------------------------------------------------------------
+# Individual check tests — check_imas_label_matches_group
+# ---------------------------------------------------------------------------
+
+
+def test_check_imas_label_matches_group_ok() -> None:
+    """check_imas_label_matches_group passes when label == group name."""
+    from imas_ambix.quality.checks import check_imas_label_matches_group
 
     ds = xr.Dataset(attrs={"imas": "magnetics"})
-    result = check_homogeneous_time_flag(ds)
+    result = check_imas_label_matches_group(ds, "magnetics")
     assert result.passed is True
+    assert result.severity == "info"
+    assert "matches" in result.message.lower()
 
 
-def test_check_homogeneous_time_flag_absent() -> None:
-    """check_homogeneous_time_flag warns when imas attr is missing."""
-    from imas_ambix.quality.checks import check_homogeneous_time_flag
+def test_check_imas_label_matches_group_mismatch() -> None:
+    """check_imas_label_matches_group notes mismatch as info (not fail)."""
+    from imas_ambix.quality.checks import check_imas_label_matches_group
 
-    ds = xr.Dataset(attrs={})
-    result = check_homogeneous_time_flag(ds)
-    assert result.passed is False
-    assert result.severity == "warn"
-
-
-def test_check_dd_version_warn() -> None:
-    """check_dd_version warns when no version attribute is present."""
-    from imas_ambix.quality.checks import check_dd_version
-
-    ds = xr.Dataset(attrs={"imas": "summary"})
-    result = check_dd_version(ds)
-    assert result.passed is False
-    assert result.severity == "warn"
-
-
-def test_check_dd_version_mismatch() -> None:
-    """check_dd_version returns error when stored version != expected."""
-    from imas_ambix.quality.checks import check_dd_version
-
-    ds = xr.Dataset(attrs={"dd_version": "3.39.0"})
-    result = check_dd_version(ds, expected="3.40.0")
-    assert result.passed is False
-    assert result.severity == "error"
+    ds = xr.Dataset(attrs={"imas": "magnetics"})
+    result = check_imas_label_matches_group(ds, "equilibrium")
+    # Still passes — just informational
+    assert result.passed is True
+    assert result.severity == "info"
+    assert "differs" in result.message.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +415,7 @@ def test_audit_shot_synthetic_clean(tmp_path: Path) -> None:
     shots_dir = tmp_path / "level2" / "shots"
     shot_path = shots_dir / "99001.zarr"
     _write_zarr_group(shot_path, "magnetics")
+    _write_zarr_group(shot_path, "pulse_schedule")
     _write_zarr_group(
         shot_path,
         "equilibrium",
@@ -269,6 +431,8 @@ def test_audit_shot_synthetic_clean(tmp_path: Path) -> None:
     assert report.quality_flags["usable_for_training"] is True
     assert report.quality_flags["has_equilibrium"] is True
     assert report.quality_flags["has_magnetics"] is True
+    assert report.quality_flags["all_groups_open"] is True
+    assert report.quality_flags["no_corrupt_nans"] is True
 
 
 def test_audit_shot_all_nan(tmp_path: Path) -> None:
@@ -287,6 +451,7 @@ def test_audit_shot_all_nan(tmp_path: Path) -> None:
         report = audit_shot(99002, tier="level2")
 
     assert report.quality_flags["usable_for_training"] is False
+    assert report.quality_flags["no_corrupt_nans"] is False
     assert report.overall_severity == "error"
 
 
@@ -312,6 +477,7 @@ def test_audit_corpus_three_shots(tmp_path: Path) -> None:
     for sid in (10001, 10002, 10003):
         shot_path = shots_dir / f"{sid}.zarr"
         _write_zarr_group(shot_path, "magnetics")
+        _write_zarr_group(shot_path, "pulse_schedule")
 
     with patch("imas_ambix.quality.audit.LEVEL2_DIR", shots_dir):
         reports = audit_corpus([10001, 10002, 10003], tier="level2", max_workers=2)
@@ -319,6 +485,26 @@ def test_audit_corpus_three_shots(tmp_path: Path) -> None:
     assert len(reports) == 3
     assert [r.shot_id for r in reports] == [10001, 10002, 10003]
     assert all(r.overall_severity in ("info", "warn") for r in reports)
+
+
+def test_audit_quality_flags_new(tmp_path: Path) -> None:
+    """New quality flags (all_groups_open, no_corrupt_nans) are present."""
+    from imas_ambix.quality.audit import audit_shot
+
+    shots_dir = tmp_path / "level2" / "shots"
+    shot_path = shots_dir / "99010.zarr"
+    _write_zarr_group(shot_path, "magnetics")
+    _write_zarr_group(shot_path, "pulse_schedule")
+
+    with patch("imas_ambix.quality.audit.LEVEL2_DIR", shots_dir):
+        report = audit_shot(99010, tier="level2")
+
+    flags = report.quality_flags
+    assert "all_groups_open" in flags
+    assert "no_corrupt_nans" in flags
+    # Deprecated flags are gone
+    assert "sane_dynamic_range" not in flags
+    assert "monotonic_time" not in flags
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +612,7 @@ def test_audit_cmd_end_to_end(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     for sid in (20001, 20002):
         shot_path = shots_dir / f"{sid}.zarr"
         _write_zarr_group(shot_path, "magnetics")
+        _write_zarr_group(shot_path, "pulse_schedule")
         _write_zarr_group(
             shot_path,
             "equilibrium",

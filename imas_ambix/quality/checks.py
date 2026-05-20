@@ -12,6 +12,15 @@ Design principles
   ``CheckResult.message``.  Callers decide what to do with severity.
 - ``check_open`` is the only function that may raise (if ``xr.open_zarr``
   throws). All other checks receive a pre-opened dataset.
+
+FAIR-MAST format notes (2026-05-20)
+-------------------------------------
+FAIR-MAST level-2 is xarray-on-Zarr v3, NOT IDS format.  Groups have
+an ``imas`` string attribute (e.g. ``"magnetics"``) that is a label /
+cross-reference pointer — there are no ``ids_properties``, ``version_put``,
+``homogeneous_time``, or ``dd_version`` attributes anywhere in the bucket.
+Time coordinates are per-group, not at root.  Dynamic ranges are physical
+(1e19 – 1e22 for densities; 0–750 kA for plasma current).
 """
 
 from __future__ import annotations
@@ -29,8 +38,14 @@ if TYPE_CHECKING:
 # Result type
 # ---------------------------------------------------------------------------
 
-#: Upper bound for physically plausible absolute signal magnitude.
-_ABS_MAX_THRESHOLD: float = 1e15
+#: Hard corruption threshold — any |value| above this is a data error,
+#: not a physics outlier.  Set at 1e25 to cover all expected plasma physics
+#: quantities (densities ~ 1e22, currents ~ 1e6, temperatures ~ 1e4) with
+#: many orders of magnitude headroom.
+_HARD_CORRUPTION_THRESHOLD: float = 1e25
+
+#: Relative tolerance for uniform-Δt check on time coordinates.
+_DT_JITTER_RTOL: float = 0.05
 
 
 @dataclass(frozen=True)
@@ -157,12 +172,24 @@ def check_no_all_nan(ds: xr.Dataset) -> list[CheckResult]:
 
 
 def check_dynamic_range(ds: xr.Dataset) -> list[CheckResult]:
-    """Check that floating-point variables do not contain infinite values
-    and that their dynamic range is physically plausible.
+    """Check floating-point variables for hard corruption indicators.
 
-    Gate: ``abs_max`` must be finite and ``< 1e15``.  Values above this
-    threshold suggest a unit error, a fill-value leak, or a reconstruction
-    artefact.  One :class:`CheckResult` per variable.
+    Gates (corpus-calibrated for FAIR-MAST physical ranges):
+
+    * **Hard corruption** (severity ``"error"``): any ``|value| > 1e25``,
+      any ``inf`` / ``-inf``, or any ``nan`` payload that decodes as a
+      huge-but-finite number.
+    * **Constant time-series** (severity ``"warn"``): ``max == min`` for a
+      variable that has a ``time`` dimension — indicates a possibly stuck
+      channel.
+    * **All-zeros / all-constant static variable**: intentionally skipped
+      (geometry placeholders, pre-shot baselines).
+
+    Physical ranges that pass silently include densities ~1e19–1e22,
+    particle rates ~1e22, currents 0–750 kA, temperatures 0–30 keV, and
+    all other MAST-range quantities.
+
+    One :class:`CheckResult` per variable.
 
     Parameters
     ----------
@@ -196,193 +223,298 @@ def check_dynamic_range(ds: xr.Dataset) -> list[CheckResult]:
                 )
             )
             continue
-        finite = arr[np.isfinite(arr)]
+
         has_inf = bool(np.any(np.isinf(arr)))
-        if finite.size == 0:
+        finite = arr[np.isfinite(arr)]
+
+        if has_inf:
+            abs_max = float(np.abs(finite).max()) if finite.size > 0 else math.nan
             results.append(
                 CheckResult(
                     name=f"dynamic_range:{var}",
                     passed=False,
-                    severity="warn",
-                    message=f"{var}: no finite values",
+                    severity="error",
+                    message=f"{var}: contains inf/−inf (abs_max_finite={abs_max:.3e})",
+                    metric=abs_max,
+                )
+            )
+            continue
+
+        if finite.size == 0:
+            # All-NaN — handled by check_no_all_nan; pass here as info.
+            results.append(
+                CheckResult(
+                    name=f"dynamic_range:{var}",
+                    passed=True,
+                    severity="info",
+                    message=f"{var}: no finite values (deferred to no_all_nan check)",
                     metric=None,
                 )
             )
             continue
+
         abs_max = float(np.abs(finite).max())
-        if has_inf or abs_max >= _ABS_MAX_THRESHOLD:
+
+        if abs_max > _HARD_CORRUPTION_THRESHOLD:
+            results.append(
+                CheckResult(
+                    name=f"dynamic_range:{var}",
+                    passed=False,
+                    severity="error",
+                    message=f"{var}: hard corruption — abs_max={abs_max:.3e} > 1e25",
+                    metric=abs_max,
+                )
+            )
+            continue
+
+        # Constant time-series check — only relevant for time-varying variables.
+        # Skip all-zero signals (pre-shot baselines, geometry placeholders).
+        has_time_dim = "time" in da.dims
+        val_max = float(finite.max())
+        val_min = float(finite.min())
+        if has_time_dim and val_max == val_min and val_max != 0.0:
             results.append(
                 CheckResult(
                     name=f"dynamic_range:{var}",
                     passed=False,
                     severity="warn",
                     message=(
-                        f"{var}: extreme range — abs_max={abs_max:.3e}"
-                        + (" (has_inf)" if has_inf else "")
+                        f"{var}: constant non-zero time-series"
+                        f" (value={val_max:.3e})"
                     ),
                     metric=abs_max,
                 )
             )
-        else:
-            results.append(
-                CheckResult(
-                    name=f"dynamic_range:{var}",
-                    passed=True,
-                    severity="info",
-                    message=f"{var}: range ok (abs_max={abs_max:.3e})",
-                    metric=abs_max,
-                )
+            continue
+
+        results.append(
+            CheckResult(
+                name=f"dynamic_range:{var}",
+                passed=True,
+                severity="info",
+                message=f"{var}: range ok (abs_max={abs_max:.3e})",
+                metric=abs_max,
             )
+        )
     return results
 
 
-def check_time_axis(
-    ds: xr.Dataset,
-    expected_dim: str = "time",
-) -> CheckResult:
-    """Verify that the ``time`` coordinate is monotonically increasing and
-    contains no NaN / Inf values.
+def check_time_axis(ds: xr.Dataset) -> list[CheckResult]:
+    """Verify every time-like coordinate is monotonic and uniformly spaced.
+
+    Enumerates **all coordinates** whose name contains ``"time"``
+    (e.g. ``time``, ``time_saddle``).  For each such coordinate:
+
+    * Returns a severity ``"error"`` result if the axis is non-monotonic
+      or contains NaN / Inf.
+    * Returns a severity ``"warn"`` result if the time step jitter exceeds
+      5 % of the median Δt (loose uniformity check).
+    * Returns a severity ``"info"`` result if the axis passes.
+
+    If the group has **no** time-like coordinate (static geometry groups
+    such as ``pf_passive``, ``wall``, ``soft_x_rays``), returns a single
+    info-level ``"no time axis (static group)"`` result.
 
     Parameters
     ----------
     ds:
         Already-opened dataset for a single group.
-    expected_dim:
-        Name of the time dimension to inspect.  Defaults to ``"time"``.
     """
     import numpy as np
 
-    if expected_dim not in ds.coords and expected_dim not in ds.dims:
-        return CheckResult(
-            name="time_axis",
-            passed=False,
-            severity="warn",
-            message=f"no '{expected_dim}' dimension found",
-            metric=None,
-        )
-    try:
-        t = ds.coords[expected_dim].values.astype(float)
-    except (KeyError, Exception) as exc:  # noqa: BLE001
-        # Dimension exists but no coordinate array; try from sizes.
-        n = ds.sizes.get(expected_dim, 0)
-        return CheckResult(
-            name="time_axis",
-            passed=n > 0,
-            severity="warn" if n == 0 else "info",
-            message=f"time coord not readable ({exc!r}); n_steps={n}",
-            metric=float(n),
+    time_coords = [c for c in ds.coords if "time" in str(c)]
+
+    if not time_coords:
+        return [
+            CheckResult(
+                name="time_axis",
+                passed=True,
+                severity="info",
+                message="no time axis (static group)",
+                metric=0.0,
+            )
+        ]
+
+    results: list[CheckResult] = []
+    for coord_name in time_coords:
+        try:
+            t = ds.coords[coord_name].values.astype(float)
+        except Exception as exc:  # noqa: BLE001
+            results.append(
+                CheckResult(
+                    name=f"time_axis:{coord_name}",
+                    passed=False,
+                    severity="error",
+                    message=f"{coord_name}: could not read coord: {exc!r}",
+                    metric=None,
+                )
+            )
+            continue
+
+        n = len(t)
+        if n == 0:
+            results.append(
+                CheckResult(
+                    name=f"time_axis:{coord_name}",
+                    passed=False,
+                    severity="warn",
+                    message=f"{coord_name}: empty time axis",
+                    metric=0.0,
+                )
+            )
+            continue
+
+        has_nan = bool(np.any(np.isnan(t)))
+        has_inf = bool(np.any(np.isinf(t)))
+        if has_nan or has_inf:
+            results.append(
+                CheckResult(
+                    name=f"time_axis:{coord_name}",
+                    passed=False,
+                    severity="error",
+                    message=(
+                        f"{coord_name}: contains "
+                        f"{'NaN ' if has_nan else ''}{'Inf' if has_inf else ''}"
+                        f"(n={n})"
+                    ),
+                    metric=float(n),
+                )
+            )
+            continue
+
+        diffs = np.diff(t)
+        monotonic = bool(np.all(diffs >= 0))
+        if not monotonic:
+            results.append(
+                CheckResult(
+                    name=f"time_axis:{coord_name}",
+                    passed=False,
+                    severity="error",
+                    message=f"{coord_name}: non-monotonic (n={n})",
+                    metric=float(n),
+                )
+            )
+            continue
+
+        # Uniformity check — warn if Δt jitter > 5 % of median.
+        if n > 2:
+            dt_median = float(np.median(diffs))
+            if dt_median > 0:
+                jitter = float(np.abs(diffs - dt_median).max() / dt_median)
+                if jitter > _DT_JITTER_RTOL:
+                    results.append(
+                        CheckResult(
+                            name=f"time_axis:{coord_name}",
+                            passed=False,
+                            severity="warn",
+                            message=(
+                                f"{coord_name}: Δt jitter={jitter:.1%} "
+                                f"(>{_DT_JITTER_RTOL:.0%} of median "
+                                f"dt={dt_median:.4g}s) n={n}"
+                            ),
+                            metric=float(n),
+                        )
+                    )
+                    continue
+
+        results.append(
+            CheckResult(
+                name=f"time_axis:{coord_name}",
+                passed=True,
+                severity="info",
+                message=(
+                    f"{coord_name}: ok (n={n}, "
+                    f"span={t[-1] - t[0]:.4f}s)"
+                ),
+                metric=float(n),
+            )
         )
 
-    n = len(t)
-    if n == 0:
-        return CheckResult(
-            name="time_axis",
-            passed=False,
-            severity="warn",
-            message="time axis is empty",
-            metric=0.0,
-        )
-    has_nan = bool(np.any(np.isnan(t)))
-    has_inf = bool(np.any(np.isinf(t)))
-    if has_nan or has_inf:
-        return CheckResult(
-            name="time_axis",
-            passed=False,
-            severity="error",
-            message=(
-                f"time axis contains {'NaN' if has_nan else ''}"
-                f"{'Inf' if has_inf else ''} (n={n})"
-            ),
-            metric=float(n),
-        )
-    monotonic = bool(np.all(np.diff(t) >= 0))
-    if not monotonic:
-        return CheckResult(
-            name="time_axis",
-            passed=False,
-            severity="error",
-            message=f"time axis is not monotonically non-decreasing (n={n})",
-            metric=float(n),
-        )
-    return CheckResult(
-        name="time_axis",
-        passed=True,
-        severity="info",
-        message=f"time axis ok (n={n}, span={t[-1] - t[0]:.4f}s)",
-        metric=float(n),
-    )
+    return results
 
 
-def check_homogeneous_time_flag(ds: xr.Dataset) -> CheckResult:
-    """Check whether ``ids_properties.homogeneous_time`` is consistently
-    encoded as a dataset attribute.
+def check_imas_pointer(ds: xr.Dataset, var: str) -> CheckResult:
+    """Report whether a variable carries an ``imas`` attribute.
 
-    For FAIR-MAST Zarr stores the flag lives in ``ds.attrs['imas']`` or
-    as an attribute on the group.  This check looks for the ``imas``
-    attribute (group name) and verifies it is a non-empty string.  A
-    missing attribute is a ``"warn"`` (not fatal).
+    FAIR-MAST stores a per-variable ``imas`` string attribute that points
+    to the corresponding IDS path (e.g.
+    ``"magnetics.b_field_pol_probe[:].field.data"``).  This check is
+    *informational only* — absence is not a failure, because many
+    variables (e.g. computed quantities, coordinate arrays) legitimately
+    lack an IDS pointer.
 
     Parameters
     ----------
     ds:
         Already-opened dataset for a single group.
+    var:
+        Name of the variable to inspect.
+    """
+    if var not in ds.data_vars and var not in ds.coords:
+        return CheckResult(
+            name=f"imas_pointer:{var}",
+            passed=True,
+            severity="info",
+            message=f"{var}: variable not in dataset",
+        )
+    attrs = ds[var].attrs if var in ds.data_vars else ds.coords[var].attrs
+    imas_val = attrs.get("imas", None)
+    if imas_val:
+        return CheckResult(
+            name=f"imas_pointer:{var}",
+            passed=True,
+            severity="info",
+            message=f"{var}: imas pointer present → '{imas_val}'",
+        )
+    return CheckResult(
+        name=f"imas_pointer:{var}",
+        passed=True,
+        severity="info",
+        message=f"{var}: no imas pointer (expected for non-IDS vars)",
+    )
+
+
+def check_imas_label_matches_group(ds: xr.Dataset, group_name: str) -> CheckResult:
+    """Verify that the group-level ``imas`` attribute matches the group name.
+
+    FAIR-MAST level-2 groups carry a dataset-level ``imas`` string attribute
+    equal to the group's directory name (e.g. the ``magnetics/`` group has
+    ``imas: "magnetics"``).  A mismatch is informational — it may indicate
+    a metadata inconsistency in the bucket but is not a training-data
+    failure.
+
+    Parameters
+    ----------
+    ds:
+        Already-opened dataset for a single group.
+    group_name:
+        Expected group name (the directory component, e.g. ``"magnetics"``).
     """
     imas_attr = ds.attrs.get("imas", None)
     if imas_attr is None:
         return CheckResult(
-            name="homogeneous_time_flag",
-            passed=False,
-            severity="warn",
-            message="'imas' attribute missing from group attrs",
+            name="imas_label_matches_group",
+            passed=True,
+            severity="info",
+            message=(
+                f"group '{group_name}': no imas attribute"
+                " (ok for non-standard groups)"
+            ),
+        )
+    if str(imas_attr) != str(group_name):
+        return CheckResult(
+            name="imas_label_matches_group",
+            passed=True,
+            severity="info",
+            message=(
+                f"imas label '{imas_attr}' differs from group name '{group_name}'"
+            ),
         )
     return CheckResult(
-        name="homogeneous_time_flag",
+        name="imas_label_matches_group",
         passed=True,
         severity="info",
-        message=f"imas attr present: '{imas_attr}'",
-    )
-
-
-def check_dd_version(
-    ds: xr.Dataset,
-    expected: str | None = None,
-) -> CheckResult:
-    """Check that the dataset carries a ``dd_version`` attribute or that
-    its value matches *expected* when provided.
-
-    FAIR-MAST level-2 Zarr stores do not currently embed ``dd_version``
-    directly in group attributes — the version lives in the IMAS IDS
-    ``ids_properties``.  For Zarr-backed data this check looks for a
-    ``version`` or ``dd_version`` key in ``ds.attrs``.  A missing key is
-    ``"warn"``; a value mismatch with *expected* is ``"error"``.
-
-    Parameters
-    ----------
-    ds:
-        Already-opened dataset for a single group.
-    expected:
-        When not ``None``, the stored version must equal this string.
-    """
-    actual = ds.attrs.get("dd_version", ds.attrs.get("version", None))
-    if actual is None:
-        return CheckResult(
-            name="dd_version",
-            passed=False,
-            severity="warn",
-            message="dd_version attribute not found in group attrs",
-        )
-    if expected is not None and str(actual) != str(expected):
-        return CheckResult(
-            name="dd_version",
-            passed=False,
-            severity="error",
-            message=f"dd_version mismatch: stored={actual!r} expected={expected!r}",
-        )
-    return CheckResult(
-        name="dd_version",
-        passed=True,
-        severity="info",
-        message=f"dd_version={actual!r}",
+        message=f"imas label matches group name '{group_name}'",
     )
 
 

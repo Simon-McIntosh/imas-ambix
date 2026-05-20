@@ -17,9 +17,9 @@ from imas_ambix.quality.audit import (
 )
 from imas_ambix.quality.checks import (
     CheckResult,
-    check_dd_version,
     check_dynamic_range,
-    check_homogeneous_time_flag,
+    check_imas_label_matches_group,
+    check_imas_pointer,
     check_no_all_nan,
     check_open,
     check_time_axis,
@@ -32,8 +32,8 @@ __all__ = [
     "check_no_all_nan",
     "check_dynamic_range",
     "check_time_axis",
-    "check_homogeneous_time_flag",
-    "check_dd_version",
+    "check_imas_pointer",
+    "check_imas_label_matches_group",
     # audit
     "GroupStats",
     "ShotQualityReport",

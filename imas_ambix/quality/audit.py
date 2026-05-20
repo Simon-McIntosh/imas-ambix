@@ -19,6 +19,14 @@ Architecture
 - :func:`aggregate_corpus` reduces a list of reports to a dict of corpus-level
   statistics (campaign distribution, failure rates, plasma-current histogram,
   etc.) suitable for JSON export.
+
+FAIR-MAST format notes (2026-05-20)
+-------------------------------------
+FAIR-MAST level-2 is xarray-on-Zarr v3, NOT IDS format.  Quality flags
+are calibrated for this reality — no IDS-level checks (no ``ids_properties``,
+no ``dd_version``, no ``homogeneous_time``).  The ``usable_for_training``
+flag requires all groups to open, magnetics + pulse_schedule present, and
+no hard-corruption errors.
 """
 
 from __future__ import annotations
@@ -34,9 +42,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 from imas_ambix.quality.checks import (
     CheckResult,
-    check_dd_version,
     check_dynamic_range,
-    check_homogeneous_time_flag,
+    check_imas_label_matches_group,
     check_no_all_nan,
     check_open,
     check_time_axis,
@@ -118,11 +125,13 @@ class ShotQualityReport:
     quality_flags:
         Derived boolean flags:
 
-        - ``usable_for_training`` — no error-severity checks in any group.
+        - ``usable_for_training`` — all groups open, magnetics + pulse_schedule
+          present, and no error-severity checks in any group.
         - ``has_equilibrium``     — ``"equilibrium"`` group is present and opens.
         - ``has_magnetics``       — ``"magnetics"`` group is present and opens.
-        - ``sane_dynamic_range``  — no dynamic-range warnings in any group.
-        - ``monotonic_time``      — time axis passes in all opened groups.
+        - ``all_groups_open``     — every discovered group opened successfully.
+        - ``no_corrupt_nans``     — no variable was all-NaN and no hard-
+                                    corruption errors fired in any group.
     overall_severity:
         Maximum severity across all checks; one of ``"info"``, ``"warn"``,
         ``"error"``.
@@ -225,9 +234,8 @@ def _audit_group(shot_path: Path, group: str) -> GroupStats:
     # --- individual checks -----------------------------------------------
     all_checks.extend(check_no_all_nan(ds))
     all_checks.extend(check_dynamic_range(ds))
-    all_checks.append(check_time_axis(ds))
-    all_checks.append(check_homogeneous_time_flag(ds))
-    all_checks.append(check_dd_version(ds))
+    all_checks.extend(check_time_axis(ds))
+    all_checks.append(check_imas_label_matches_group(ds, group))
 
     # --- aggregate stats --------------------------------------------------
     n_vars = len(ds.data_vars)
@@ -307,29 +315,43 @@ def audit_shot(
         gs = per_group.get(name)
         return gs is not None and gs.open_ok
 
-    def _any_check_severity(sev: str) -> bool:
-        return any(c.severity == sev and not c.passed for c in all_checks_flat)
+    def _any_check_has_error() -> bool:
+        return any(
+            c.severity == "error" and not c.passed for c in all_checks_flat
+        )
 
-    def _time_monotonic_everywhere() -> bool:
-        for gs in per_group.values():
-            for c in gs.checks:
-                if c.name == "time_axis" and not c.passed:
-                    return False
+    def _all_groups_open() -> bool:
+        return all(gs.open_ok for gs in per_group.values())
+
+    def _no_corrupt_nans() -> bool:
+        """True iff no all-NaN variables and no hard-corruption errors."""
+        for c in all_checks_flat:
+            # Fired by check_no_all_nan or check_dynamic_range (inf/1e25)
+            if (
+                not c.passed
+                and c.severity == "error"
+                and (
+                    c.name.startswith("no_all_nan:")
+                    or c.name.startswith("dynamic_range:")
+                )
+            ):
+                return False
         return True
 
-    def _no_dynamic_range_warn() -> bool:
-        for gs in per_group.values():
-            for c in gs.checks:
-                if c.name.startswith("dynamic_range:") and not c.passed:
-                    return False
-        return True
+    has_magnetics = _group_open("magnetics")
+    has_pulse_schedule = _group_open("pulse_schedule")
 
     quality_flags = {
-        "usable_for_training": not _any_check_severity("error"),
+        "usable_for_training": (
+            _all_groups_open()
+            and has_magnetics
+            and has_pulse_schedule
+            and not _any_check_has_error()
+        ),
         "has_equilibrium": _group_open("equilibrium"),
-        "has_magnetics": _group_open("magnetics"),
-        "sane_dynamic_range": _no_dynamic_range_warn(),
-        "monotonic_time": _time_monotonic_everywhere(),
+        "has_magnetics": has_magnetics,
+        "all_groups_open": _all_groups_open(),
+        "no_corrupt_nans": _no_corrupt_nans(),
     }
 
     # --- parquet metadata -------------------------------------------------
@@ -412,8 +434,8 @@ def audit_corpus(
                             "usable_for_training": False,
                             "has_equilibrium": False,
                             "has_magnetics": False,
-                            "sane_dynamic_range": False,
-                            "monotonic_time": False,
+                            "all_groups_open": False,
+                            "no_corrupt_nans": False,
                         },
                         overall_severity="error",
                     )
