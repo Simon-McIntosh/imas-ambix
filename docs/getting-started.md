@@ -213,3 +213,31 @@ Full per-harness reference and tradeoffs: see [`harnesses.md`](./harnesses.md).
   and let the wrapper recreate it on next launch.
 - Per-tool config / install / known gotcha is documented in
   [`harnesses.md`](./harnesses.md) §1–10.
+
+---
+
+## 9. Ambix plan site (HTML coordination hub)
+
+The `plans/` directory contains the full Fusion World Model plan set.
+An interactive HTML site generated from those plans lives under
+`docs/plans-html/`:
+
+```bash
+xdg-open docs/plans-html/index.html
+```
+
+The site provides:
+
+- **Timeline** — milestone phases with status badges (click to expand)
+- **Status table** — all work items with filter buttons (Done / In flight / Next / Blocked)
+- **Blocking tasks** — what is currently blocked and what it is waiting for
+- **Open-decision widgets** — 9 interactive forms that generate copy-pasteable
+  follow-on prompts to paste back into the AI coordinator
+
+To regenerate after editing plan docs:
+
+```bash
+python docs/plans-html/_generate.py
+```
+
+See [`docs/plans-html/README.md`](./plans-html/README.md) for full operator instructions.
