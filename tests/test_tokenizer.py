@@ -32,6 +32,8 @@ from imas_ambix.tokenizer.registry import (
 )
 from imas_ambix.tokenizer.signals import (
     ChronosSignalTokenizer,
+    ChronosUnavailableError,
+    PatchTSTTokenizer,
     UniformQuantizer,
 )
 
@@ -260,8 +262,11 @@ def test_uniform_quantizer_skips_multidim_vars(fresh_registry):
 
 
 def test_chronos_signal_tokenizer_raises_not_implemented(fresh_registry):
-    with pytest.raises(NotImplementedError, match="not yet wired up"):
-        ChronosSignalTokenizer()
+    # Stub replaced by real implementation — instantiation now succeeds.
+    # This test is superseded by test_chronos_protocol below.
+    tok = ChronosSignalTokenizer()
+    assert tok.name == "signals_chronos_t5_small_v1"
+    assert tok.vocab_size == 4096
 
 
 # --- multimodal shot tokenizer ---------------------------------------
@@ -332,4 +337,125 @@ def test_resample_to_grid_linear_interp():
     out = resample_to_grid(ds, grid)
     np.testing.assert_allclose(
         np.asarray(out["x"].values), np.array([0.0, 2.5, 5.0, 7.5, 10.0])
+    )
+
+
+# --- Chronos signal tokenizer ----------------------------------------
+
+
+def _chronos_available() -> bool:
+    """Return True if chronos-forecasting is importable."""
+    try:
+        import chronos  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+_skip_no_chronos = pytest.mark.skipif(
+    not _chronos_available(), reason="chronos-forecasting not installed"
+)
+
+
+@_skip_no_chronos
+def test_chronos_protocol(fresh_registry):
+    """ChronosSignalTokenizer satisfies the SignalTokenizer protocol."""
+    tok = ChronosSignalTokenizer()
+    assert isinstance(tok, SignalTokenizer)
+    assert isinstance(tok, Tokenizer)
+    assert tok.patch_size == 1
+    assert tok.vocab_size == 4096
+
+
+@_skip_no_chronos
+def test_chronos_roundtrip(fresh_registry):
+    """Encode + decode a 64-step sine/cosine dataset, expect corr > 0.9."""
+    tok = ChronosSignalTokenizer()
+    ds = _toy_signal_dataset(n_time=64)
+    tok.fit([ds])
+    enc = tok.encode(ds)
+
+    assert isinstance(enc, EncodedSignals)
+    assert enc.token_ids.shape == (64, 2)
+    assert enc.token_ids.dtype == np.int32
+
+    # Global ids must be inside the allocated block
+    start, end = fresh_registry.allocate(tok.name, tok.vocab_size)
+    assert (enc.token_ids >= start).all() and (enc.token_ids < end).all()
+
+    decoded = tok.decode(enc)
+    for ch in ("ip", "ne"):
+        orig = np.asarray(ds[ch].values)
+        rec = np.asarray(decoded[ch].values)
+        corr = float(np.corrcoef(orig, rec)[0, 1])
+        assert corr > 0.9, f"channel {ch!r}: correlation {corr:.3f} < 0.9"
+
+
+def test_chronos_unavailable_when_missing(fresh_registry, monkeypatch):
+    """ChronosSignalTokenizer raises ChronosUnavailableError when import fails."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _fail_chronos(name: str, *args: object, **kwargs: object) -> object:
+        if name == "chronos":
+            raise ImportError("monkeypatched: chronos not available")
+        return real_import(name, *args, **kwargs)
+
+    tok = ChronosSignalTokenizer()
+    # Reset the cached tokenizer so the lazy import runs again
+    tok._tokenizer = None  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(builtins, "__import__", _fail_chronos)
+    with pytest.raises(ChronosUnavailableError):
+        tok.encode(_toy_signal_dataset())
+
+
+# --- PatchTST tokenizer -----------------------------------------------
+
+
+def test_patchtst_protocol(fresh_registry):
+    """PatchTSTTokenizer satisfies the SignalTokenizer protocol."""
+    tok = PatchTSTTokenizer()
+    assert isinstance(tok, SignalTokenizer)
+    assert isinstance(tok, Tokenizer)
+    assert tok.vocab_size == 1
+    assert tok.patch_size == 64
+
+
+def test_patchtst_roundtrip_exact(fresh_registry):
+    """Encode + decode a 256-step dataset round-trips exactly."""
+    tok = PatchTSTTokenizer(patch_size=64)
+    t = np.arange(256, dtype=np.float64) * 0.01
+    ip = np.sin(t) * 1000
+    ne = np.cos(t) * 1e19
+    ds = xr.Dataset(
+        {"ip": (("time",), ip), "ne": (("time",), ne)},
+        coords={"time": t},
+    )
+    enc = tok.encode(ds)
+    decoded = tok.decode(enc)
+
+    for ch in ("ip", "ne"):
+        orig = np.asarray(ds[ch].values)
+        rec = np.asarray(decoded[ch].values)
+        assert np.allclose(orig, rec), f"channel {ch!r} did not round-trip exactly"
+
+
+def test_patchtst_token_shape(fresh_registry):
+    """256 timesteps with patch_size=64 produces (4, n_channels) token_ids."""
+    tok = PatchTSTTokenizer(patch_size=64)
+    t = np.arange(256, dtype=np.float64) * 0.01
+    ds = xr.Dataset(
+        {
+            "ip": (("time",), np.sin(t)),
+            "ne": (("time",), np.cos(t)),
+        },
+        coords={"time": t},
+    )
+    enc = tok.encode(ds)
+    n_channels = len(enc.channel_names)
+    assert enc.token_ids.shape == (4, n_channels), (
+        f"expected (4, {n_channels}), got {enc.token_ids.shape}"
     )

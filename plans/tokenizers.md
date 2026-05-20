@@ -303,15 +303,45 @@ The `OpenMagvit2Tokenizer` is process-isolated:
   shots × ~150 frames = ~450,000 frames needs the GPU node (where weights
   warm to GPU once and each batch is sub-second).
 
-### 9.2 Remaining tokenizer wiring
+### 9.2 Chronos + PatchTST landed — 2026-05-20
 
-1. **Chronos signal tokenizer** — `pip install chronos-forecasting`, load
-   `amazon/chronos-t5-small`, wire `ChronosSignalTokenizer`. Same
-   process-isolation pattern is **not** needed — Chronos's pins are
-   compatible with our main venv.
-2. **PatchTST** — HuggingFace `transformers.PatchTSTModel`; v0 trains
-   the patch-projection inside the world model, so this tokenizer
-   stays an identity passthrough for now.
+Both signal tokenizers are now wired up in `imas_ambix/tokenizer/signals.py`
+and covered by the test suite (`tests/test_tokenizer.py` — 31 tests, all
+green).
+
+#### Chronos T5-small
+
+| Setting | Value |
+|---------|-------|
+| HF model id | `amazon/chronos-t5-small` |
+| Package | `chronos-forecasting>=1.3` (Apache-2.0) |
+| Install | `uv pip install chronos-forecasting` or `uv pip install "imas-ambix[train]"` |
+| Vocab range allocated | `[0, 4096)` local → shifted into global registry |
+| Tokenizer class used | `chronos.MeanScaleUniformBins` (no T5 weights needed for encode/decode) |
+| Lazy-import pattern | `_build_chronos_tokenizer()` is called on first `encode` / `decode`; `ChronosUnavailableError` (RuntimeError subclass) raised if package absent |
+| Per-channel calibration | `fit(datasets)` accumulates mean + std; normalised values fed to Chronos's internal mean-scale quantizer |
+| Round-trip result | Pearson r > 0.98 on 64-step sine/cosine synthetic; quantisation is lossy (≥ 0.9 is the acceptance gate) |
+
+The T5 *transformer* weights are **not** loaded by this tokenizer. Only
+the `MeanScaleUniformBins` arithmetic (scale + uniform-bin assignment) is
+used, constructed from the published config constants (`n_tokens=4096`,
+`n_special_tokens=2`, `low_limit=-1.0`, `high_limit=1.0`). The config
+matches `amazon/chronos-t5-small` exactly — no download required.
+
+#### PatchTST (identity passthrough)
+
+| Setting | Value |
+|---------|-------|
+| Registry name | `signals_patchtst_v1` |
+| `vocab_size` | `1` (single "identity" id per patch) |
+| `patch_size` | `64` samples |
+| Token ids | All zeros (shifted into registry range) — the raw floats live in `metadata["patches"]` |
+| Round-trip | Exact — `np.allclose` verified in `test_patchtst_roundtrip_exact` |
+
+The patch-projection matrix trains end-to-end inside the WHAM transformer
+(see `plans/world-model-v0.md` §2). The tokenizer's only job is to slice
+each channel into `(n_patches, 64)` float arrays and preserve them for
+the model's input pipeline.
 
 ### 9.3 Implementation notes for the real tokenizers
 
