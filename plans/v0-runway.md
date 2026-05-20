@@ -33,7 +33,12 @@ corpus, `compute.md` for SLURM.
 | **Training mode decision** | **EXCLUSIVE** (2026-05-20) — V4-Flash is stopped before training. Maintainer (ambix CLI) is authorised to `scancel` the serve. See `compute.md` §2. |
 | **Data quality framework + ambix data audit** | **in flight** (sonnet-data-quality) — `imas_ambix/quality/`, CLI sub-command `ambix data audit`. See `plans/data-quality.md`. |
 | **Tokenizer benchmark framework + ambix tokenize bench** | **in flight** (sonnet-bench-framework) — `imas_ambix/bench/`, CLI sub-command `ambix tokenize bench`. See `plans/tokenizer-benchmarks.md`. |
-| **Calibration library (signals + frames)** | **in flight** (sonnet-calibration) — `imas_ambix/calibration/`. |
+| **Calibration library (signals + frames)** | **landed** (fe18b34) — `imas_ambix/calibration/`, 17 tests; real-data smoke produced Ip mean 294 kA, density 4.6e19 m⁻³ |
+| **Data quality framework + ambix data audit** | **landed** (18a3385) — `imas_ambix/quality/`, 22 tests; **audit smoke on 25 L2 shots: 76 % usable_for_training**, dd_version + dynamic_range + time_axis warnings widespread (audit thresholds may need calibration) |
+| **Tokenizer benchmark framework** | **landed** (94565f3) — `imas_ambix/bench/`, 14 tests; real bench on 8 rbb frames |
+| **Bulk-encode CLI** (frames + signals) | **landed** (9306605) — `ambix data bulk-encode-frames` + `bulk-encode-signals`, 15 tests; CPU smoke on shot 15085 produced 9,380 tokens |
+| **Training loop FSDP scaffold** | **landed** (a948b19) — `imas_ambix/train/loop.py`, 25 tests; CPU smoke on tiny synthetic config: loss step 0 = 12.72, step 1 = 12.72 (log(280k) baseline) |
+| **Demo CLI + rollout impl** | **landed** (3e3bb2a) — `ambix demo wham-mast` + `rollout()`, 20 tests + 31 eval tests; mock-checkpoint pipeline working end-to-end |
 
 ---
 
