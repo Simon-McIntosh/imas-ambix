@@ -31,6 +31,9 @@ corpus, `compute.md` for SLURM.
 | Demo CLI | **not started** |
 | SLURM dedicated reservation | **not requested** (deferred — see below) |
 | **Training mode decision** | **EXCLUSIVE** (2026-05-20) — V4-Flash is stopped before training. Maintainer (ambix CLI) is authorised to `scancel` the serve. See `compute.md` §2. |
+| **Data quality framework + ambix data audit** | **in flight** (sonnet-data-quality) — `imas_ambix/quality/`, CLI sub-command `ambix data audit`. See `plans/data-quality.md`. |
+| **Tokenizer benchmark framework + ambix tokenize bench** | **in flight** (sonnet-bench-framework) — `imas_ambix/bench/`, CLI sub-command `ambix tokenize bench`. See `plans/tokenizer-benchmarks.md`. |
+| **Calibration library (signals + frames)** | **in flight** (sonnet-calibration) — `imas_ambix/calibration/`. |
 
 ---
 
@@ -38,20 +41,28 @@ corpus, `compute.md` for SLURM.
 
 ROI = value × probability of clean delivery / cost.
 
-| Rank | Track | Value | Cost | Risk | Sonnet 4.6? | Depends on |
-|---|---|---|---|---|---|---|
-| 1 | Chronos signal tokenizer + PatchTST identity wrapper | High (closes signal stream) | Low | Low | Yes | none |
-| 2 | Eval metrics scaffold (rFID, PSNR, LPIPS, centroid, chord, edge) | High (needed for training-time eval + demo) | Low | Low | Yes | none |
-| 3 | WHAM model scaffold + Hydra configs | Critical (no model = no demo) | Medium | Low | Yes | Open-MAGVIT2 + Chronos registries |
-| 4 | Data loaders + token persistence + bulk-encode CLI | Critical (no loader = no training) | Medium | Low | Yes | Open-MAGVIT2 |
-| 5 | Open-MAGVIT2 GPU runner | High (unlocks production tokenization on betelgeuse) | Low | Low | Yes (with guidance) | none |
-| 6 | Training-loop FSDP scaffold | Critical | Medium | Medium | Sonnet + Opus review | tracks 3 + 4 |
-| 7 | Demo CLI + rollout code | Critical | Medium | Low | Yes | track 6 |
-| 8 | Mirror integrity verification | Low | Low | Low | Yes | level-2 done |
-| 9 | SLURM dedicated-reservation request (`compute.md` §3) | High | Low | Low | No (operational, user files) | none |
+Items marked **DONE** are complete as of 2026-05-20; they remain here for
+historical reference. In-flight items will close before the training-loop
+track begins.
 
-Tracks 1 – 4 are independent and parallelisable. Tracks 5, 6, 7 are
-sequential.
+| Rank | Track | Value | Cost | Risk | Sonnet 4.6? | Depends on | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | ~~Chronos signal tokenizer + PatchTST identity wrapper~~ | High | Low | Low | Yes | none | **DONE** |
+| 2 | ~~Eval metrics scaffold (rFID, PSNR, LPIPS, centroid, chord, edge)~~ | High | Low | Low | Yes | none | **DONE** |
+| 3 | ~~WHAM model scaffold + Hydra configs~~ | Critical | Medium | Low | Yes | — | **DONE** |
+| 4 | ~~Data loaders + token persistence + bulk-encode CLI~~ | Critical | Medium | Low | Yes | — | **DONE** |
+| 5 | **Tokenizer expansion (plasma decoder fine-tune, PatchTST real, equilibrium 2-D)** | High (raises rFID floor, PatchTST fidelity) | Medium | Low–Medium | Sonnet (guided) | benchmark baseline measured + rFID > 5 trigger | **Pending — see `tokenizers.md` §12** |
+| 6 | Data quality framework + corpus audit (writing training index) | High (gates training set correctness) | Low | Low | Yes | level-2 mirror + level-1 camera mirror | **in flight** |
+| 7 | Tokenizer benchmark framework (rFID, Pearson r, throughput) | High (needed to trigger fine-tune decisions) | Low | Low | Yes | GPU runner working | **in flight** |
+| 8 | Calibration library (per-channel signal calibration, frame normalisation) | Medium (improves Chronos NRMSE) | Low | Low | Yes | none | **in flight** |
+| 9 | Training-loop FSDP scaffold | Critical | Medium | Medium | Sonnet + Opus review | tracks 3 + 4 (DONE) + quality audit | **not started** |
+| 10 | Demo CLI + rollout code | Critical | Medium | Low | Yes | training loop | **not started** |
+| 11 | Mirror integrity verification | Low | Low | Low | Yes | level-2 done | **not started** |
+| 12 | SLURM dedicated-reservation request (`compute.md` §3) | High | Low | Low | No (operational) | none | **deferred (user action)** |
+
+Tracks 6, 7, 8 are in flight in parallel. Track 9 (training loop) unblocks
+only after 6 is complete (quality audit produces the training index). Track 5
+(tokenizer expansion) runs after 7 provides the rFID baseline.
 
 ---
 

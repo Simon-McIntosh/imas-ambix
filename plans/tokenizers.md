@@ -441,3 +441,282 @@ present and maps each code to its weight.
 When a Zarr has no `block_kind` array the loader falls back to
 `loss_mask = 1.0` everywhere and emits a one-time `warnings.warn`.
 This keeps existing token caches working until they are re-encoded.
+
+---
+
+## 12. Tokenizer expansion plan — 2026-05-20
+
+This section records the "significant work" items that extend beyond the
+v0 defaults. None of these is on the critical path to the v0 demo — all
+can wait until `rFID ≤ 5` is measured on the baseline and the 125 M smoke
+run is green. They are documented now so future sessions can resume cleanly
+without reconstructing the rationale.
+
+### 12.1 Plasma-domain Open-MAGVIT2 decoder fine-tune
+
+**What.** Freeze the Open-MAGVIT2 encoder and codebook; train only the
+decoder on MAST visible-camera frames to adapt the reconstruction to plasma
+imagery. The encoder and codebook remain ImageNet-derived — the token IDs
+they assign are stable, so no re-encoding of previously tokenised shots is
+required when the decoder is swapped.
+
+**Why.** The ImageNet pretrained decoder is optimised for natural images:
+sharp edges, texture, colour balance. MAST plasma frames have a very
+different distribution — bright point sources (disruption arcs), diffuse
+glows, near-uniform backgrounds with a single bright annular structure.
+The current MAE of 324 (uint16 scale) on shot 15085 rbb is plausible for
+an ImageNet-off-the-shelf model; a plasma-tuned decoder should drive this
+down significantly.
+
+**Expected improvement.** ImageNet rFID baseline is ~1.17 (per Open-MAGVIT2
+paper on ImageNet 256×). On out-of-domain plasma imagery, rFID on a 100-shot
+rbb set is expected to be substantially higher (estimate 10 – 30 without
+fine-tune). Target after decoder fine-tune: rFID **~0.6 – 1.5** on the same
+100-shot set. Stated as ~50 % reduction from the plasma baseline because the
+decoder fine-tune won't recover the full domain gap, but will fix the most
+obvious artefacts.
+
+**Recipe.**
+
+```
+1. Collect ~5 k frames from training-set rbb shots as a fine-tune set.
+   Resize to 256×256 (same as inference input).
+2. Load the pretrained encoder + codebook weights (frozen).
+3. Initialise a fresh decoder (copy weights from the pretrained checkpoint
+   as starting point — this helps convergence vs random init).
+4. Loss: pixel-level L1 + perceptual loss (VGG feature L2), 1:0.1 ratio.
+   No adversarial component in v0 fine-tune (adds instability; revisit v1).
+5. Optimiser: AdamW, lr=1e-4, cosine decay, 10 k steps.
+6. Batch: 16 frames per step × 4 GPUs = 64 frames/step (exclusive mode).
+7. Validation: rFID on a 20-shot held-aside set every 1 k steps.
+8. Stop: when rFID plateaus for 3 consecutive evaluations.
+```
+
+**Cost.** Approximately **4 – 6 GPU-hours** on 4×H200 exclusive (the decoder
+is small relative to the encoder; 10 k steps × 64 frames/step is a modest
+training pass). One exclusive window on `gpu_0003_grpA` after stopping
+DeepSeek V4-Flash (per `compute.md` §2).
+
+**Trigger.** Begin when:
+1. ~3,000 rbb-bearing shots are tokenised (i.e. the full-corpus encode pass
+   completes on the GPU node), AND
+2. The rFID baseline is measured from the benchmark framework
+   (`plans/tokenizer-benchmarks.md` §4.1).
+
+If the measured baseline rFID is already ≤ 5, the decoder fine-tune is
+optional for v0 — it becomes a v1 quality improvement.
+
+**Output.** Fine-tuned decoder weights stored at:
+```
+/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/
+└── weights/
+    └── plasma-decoder-v1.safetensors
+```
+
+The `OpenMagvit2Tokenizer` gains a `decoder_checkpoint` constructor argument
+that defaults to `None` (use the bundled decoder). When set to the plasma
+fine-tuned path, it loads the fine-tuned decoder into the decode path while
+leaving the encoder and codebook unchanged. The registry and token caches
+are unaffected — `VOCAB_VERSION` is not incremented.
+
+### 12.2 Real PatchTST embedding
+
+**Current state.** `PatchTSTTokenizer` in `signals.py` is a pure identity
+passthrough: it slices each channel into `(n_patches, 64)` float arrays,
+assigns token ID 0 for every patch, and stores the raw floats in
+`metadata["patches"]`. The actual patch projection (the learned linear
+projection from R^64 → R^d_model) is deferred to the WHAM transformer's
+input pipeline.
+
+**What "real PatchTST" would add.** Replacing the identity with
+`transformers.PatchTSTModel` (HuggingFace `transformers >= 4.37`) would
+add ~1 M trainable parameters that run a proper channel-independent
+self-attention over patches before projecting into the model's hidden
+dimension. This would allow the PatchTST encoder to capture intra-patch
+temporal structure (e.g. frequency content within a 64-sample magnetics
+window) that the linear projection in the WHAM trunk cannot.
+
+**Recommendation: defer to post-smoke-run.**
+
+The current plan (`world-model-v0.md` §6, `tokenizers.md` §6.2) keeps
+PatchTST with random initialisation. The patch-projection layer trains
+end-to-end inside the 125 M smoke run. Adding the full `PatchTSTModel`
+here would:
+1. Require downloading `transformers.PatchTSTModel` weights or running a
+   PatchTST pre-training pass first.
+2. Change the input pipeline's token representation — the `metadata["patches"]`
+   float array approach is replaced by a discrete token-ID approach, which
+   changes what the WHAM trunk's input embedding layer expects.
+3. Require updating `ShotTokenizer` to handle the new output format.
+
+None of these are blockers, but they are non-trivial. The correct time to
+make this swap is *after* the 125 M smoke run demonstrates the existing
+pipeline produces a sane loss curve. If the magnetics reconstruction metrics
+from the benchmark (`plans/tokenizer-benchmarks.md` §4.2) show that Pearson
+r falls below 0.90 on headline channels even at training time, that is the
+signal to pull in the real PatchTST encoder.
+
+**Estimated effort.** 1 Sonnet session: update `signals.py`, update
+`ShotTokenizer`, update the WHAM input-embedding layer, re-run the 51
+tokenizer tests. No new training required — the PatchTST encoder trains
+within the WHAM loop.
+
+### 12.3 Equilibrium 2-D tokenizer
+
+**Current state.** Equilibrium 2-D fields (`profiles_2d[*].j_phi`, `psi`,
+`phi`, etc.) are explicitly excluded from the token stream in v0
+(`world-model-v0.md` §8): "Equilibrium enters as a continuous tensor via
+cross-attention to the model's first 4 layers. Tokenizing 2-D fields is a
+v1 task."
+
+**What bringing it forward would require.** Two candidate architectures:
+
+*Option A: Reuse Open-MAGVIT2 at upsampled 256×256.*
+The equilibrium grid is 65×65 in MAST level-2. Upsampling to 256×256 with
+bilinear interpolation and treating each 2-D slice as a single-channel
+"frame" allows Open-MAGVIT2 to tokenise it with the same codebook. The
+token output is 16×16 = 256 tokens per time slice (at 16× spatial
+compression). This reuses existing infrastructure but conflates the visible-
+light and equilibrium codebooks — the encoder was trained on RGB images, not
+scalar physics fields.
+
+*Option B: Cosmos-Tokenizer-DV at native 65×65.*
+Cosmos-Tokenizer-DV can operate at 8×8 spatial compression on arbitrary
+resolution inputs (it's a stride-8 CNN, not a 256-fixed architecture).
+Native 65×65 → ~8×8 = 64 tokens per equilibrium slice. Cleaner semantics
+than Option A; avoids the ImageNet-to-physics domain gap in the encoder.
+But Cosmos has NVIDIA OML weights — would require a license check before
+using in a publishable context. Also, the separate codebook would extend
+the registry and require re-encoding if the codebook changes.
+
+**Cost estimate.**
+
+| Option | Engineering effort | Fine-tune cost | Codebook change |
+|---|---|---|---|
+| A (Open-MAGVIT2 upsampled) | 0.5 Sonnet sessions (wiring only) | None (same ckpt) | No |
+| B (Cosmos native 65×65) | 1 Sonnet session | 2 – 4 GPU-hours on plasma eq. data | Yes — new registry range |
+
+**Recommendation.** Implement Option A first. If the benchmark shows that
+rFID on reconstructed equilibrium fields is > 10 (indicating the ImageNet
+encoder badly misrepresents physics fields), escalate to Option B or move
+equilibrium back to the continuous cross-attention path permanently.
+
+**Trigger.** Bring forward only if the v0 125 M smoke run shows that the
+continuous-tensor cross-attention for equilibrium is causing attention
+collapse or is limiting the model's ability to reproduce MHD-driven plasma
+shape changes. Otherwise keep in v1 scope.
+
+### 12.4 Multi-modal alignment improvements
+
+**Current state.** `ShotTokenizer.encode_shot` (in `multimodal.py`) pads
+to the **shorter** time axis when frame and signal step counts differ:
+
+```python
+n_steps = min(n_frame_steps, n_signal_steps)
+```
+
+This means any "extra" steps from the longer stream are silently discarded.
+For a typical shot where the camera runs at 100 fps and the signal grid is
+100 Hz, `n_frame_steps == n_signal_steps` and the issue doesn't arise. But
+for shots where the camera started late, stopped early, or ran at a different
+cadence, the discarded tokens represent real plasma data.
+
+**Better strategies.**
+
+*Time-axis interpolation.* Before calling `encode_shot`, resample both the
+frame and signal streams onto the same model time grid using
+`alignment.resample_to_grid`. This is already supported by the `TimeGrid`
+infrastructure in `alignment.py` but is not enforced at the `ShotTokenizer`
+level — the caller is responsible. The improvement: enforce this in
+`ShotTokenizer.__post_init__` or in `encode_shot` so the aligner is
+mandatory, not optional.
+
+*Per-modality re-sampling onto the 100 Hz model grid.* The 100 Hz model
+grid (`MODEL_HZ_DEFAULT = 100.0` in `alignment.py`) is the canonical time
+reference. All modalities should be interpolated onto this grid before
+entering `encode_shot`. The frame tokenizer's temporal compression (currently
+1× for Open-MAGVIT2 image model) means one frame per model step; any shot
+where the camera ran at, say, 250 fps needs a temporal downsampling to 100
+fps before encode.
+
+*Missing-modality padding.* When a shot has a signal stream but no camera
+frames (e.g. the rbb Zarr is corrupt), `ShotTokenizer` should emit a
+`<pad>` block for the frame positions rather than raising an exception.
+This allows signal-only shots to enter the training set with the frame
+block zero-weighted in the loss (matching `BlockKind.CONTROL` weight 0.0).
+
+**Cross-links.** `imas_ambix/tokenizer/alignment.py:resample_to_grid`,
+`imas_ambix/tokenizer/multimodal.py:ShotTokenizer._encode_shot_impl`,
+`plans/world-model-v0.md` §2 (token-stream layout and model time grid).
+
+**Recommendation.** Implement the mandatory-alignment wrapper in a single
+Sonnet session after the benchmark framework lands. The missing-modality
+padding is a separate PR (lower priority — do after the first corpus encode
+pass quantifies how many shots actually have this problem).
+
+### 12.5 IR camera codebook decision
+
+**Current state.** `tokenizers.md` §4 allocates a separate token range for
+IR (`camera_ir`) in the registry but uses the **same** Open-MAGVIT2
+checkpoint (shared visible/IR codebook) as the v0 default. The registry
+comment says "Sharing the visible tokenizer is the v0 default; IR-specific
+fine-tune deferred to v1."
+
+**The decision gate.** Run the IR benchmark (`plans/tokenizer-benchmarks.md`
+§4.1, third row) using the `v0-rir-25shot.yaml` config (only 25 rir shots in
+FAIR-MAST as of `data-acquisition.md` §10.4). If rFID for IR frames
+reconstructed through the visible codebook is:
+
+- ≤ 2× the rbb baseline rFID → shared codebook is acceptable; keep v0 default.
+- > 2× the rbb baseline → allocate a separate registry block for IR and
+  fine-tune a second decoder on the 25 available rir shots (very small; may
+  need data augmentation).
+
+**Note on the 25-shot limitation.** Accurate rFID estimation requires
+≥ 100 samples. With only 25 rir shots, the estimated rFID will have wide
+confidence intervals. Use MAE as the primary metric for the IR decision
+instead (it is unbiased with any sample size). If MAE for IR decoding is
+more than 2× the rbb MAE, allocate a separate codebook regardless of the
+noisy rFID.
+
+**Recommendation.** Run the IR benchmark immediately after the rbb baseline
+is measured. It requires < 5 min of GPU time for 25 shots. Record the result
+in the benchmarks archive and update this section with the decision.
+
+### 12.6 Cross-modality alignment quality metric
+
+**Motivation.** The WHAM world model is trained on an interleaved
+frame+signal stream. A key assumption is that the frame and signal tokens at
+timestep t are *consistent* — the plasma state encoded in the frame tokens
+and the plasma state encoded in the signal tokens should be correlated.
+If the time-alignment is off by even 50 ms, the model is trained on pairs
+that don't correspond to the same plasma state, degrading the quality of the
+learned dynamics.
+
+**Proposed metric.** "Modality coherence score": given the decoded frames at
+timestep t (from frame tokens) and the decoded signal values at the same
+timestep (from signal tokens), compute a physics-derived correlation:
+
+1. Extract the brightness centroid from the decoded frame (using
+   `imas_ambix/eval/metrics.py:frame_centroid`).
+2. Compare the centroid's radial position to the magnetic axis R from
+   `equilibrium.time_slice[t].global_quantities.magnetic_axis.r` (obtained
+   from signal tokens or from the raw equilibrium data).
+3. Report Pearson r between the centroid-R time series and the magnetic-axis-R
+   time series across the benchmark shots.
+
+A high Pearson r (~0.7+) indicates that the frame and signal streams are
+well-aligned: the model is seeing the camera's plasma centroid tracking the
+equilibrium's magnetic axis prediction, which is physically expected.
+A low Pearson r (<0.3) indicates a time-alignment problem in the
+`ShotTokenizer` that will degrade training.
+
+**Implementation.** Add `modality_coherence` to `BenchResult` in
+`imas_ambix/bench/config.py`. Compute it in `benchmark_frame_tokenizer` when
+equilibrium data is available. This requires opening the level-2 Zarr
+alongside the level-1 camera Zarr during the frame benchmark — a minor
+extension to `benchmark_frame_tokenizer`'s data loading step.
+
+**Cross-links.** `imas_ambix/eval/metrics.py:frame_centroid`,
+`imas_ambix/tokenizer/alignment.py`,
+`plans/tokenizer-benchmarks.md` §7 item 7.

@@ -904,3 +904,180 @@ def tokens_status_cmd(vocab_version: str) -> None:
     console.print(
         f"Total unique shots with any token file: [bold]{len(total_shots)}[/bold]"
     )
+
+
+# --- audit ------------------------------------------------------------
+
+
+@data.command(name="audit")
+@_tier_option
+@click.option(
+    "--sample-size",
+    default=50,
+    show_default=True,
+    help=(
+        "Number of randomly sampled shots to audit (ignored when --shot-ids is given)."
+    ),
+)
+@click.option(
+    "--from-bucket-all",
+    is_flag=True,
+    default=False,
+    help=(
+        "Enumerate ALL shot IDs from the S3 bucket and audit them "
+        "(ignores --sample-size)."
+    ),
+)
+@click.option(
+    "--workers",
+    default=8,
+    show_default=True,
+    help="Number of parallel audit workers.",
+)
+@click.option(
+    "--output",
+    default=None,
+    type=click.Path(),
+    help="Write per-shot reports + aggregate to this JSON path.",
+)
+@click.option(
+    "--shot-ids",
+    default=None,
+    help="Comma-separated explicit shot IDs to audit (overrides --sample-size).",
+)
+def audit_cmd(
+    tier: str,
+    sample_size: int,
+    from_bucket_all: bool,
+    workers: int,
+    output: str | None,
+    shot_ids: str | None,
+) -> None:
+    """Audit per-shot Zarr quality and emit a corpus report.
+
+    Opens each downloaded shot at --tier, runs data-quality checks
+    (openability, NaN fraction, dynamic range, time axis monotonicity,
+    dd_version), and renders a Rich summary table.  Writes a JSON report
+    when --output is given.
+
+    Examples
+    --------
+    Audit three specific shots::
+
+        ambix data audit --tier level2 --shot-ids 11766,11767,11768
+
+    Audit a 50-shot random sample and save results::
+
+        ambix data audit --tier level2 --sample-size 50 --output /tmp/audit.json
+    """
+    from imas_ambix.data.paths import LEVEL1_DIR as _L1
+    from imas_ambix.data.paths import LEVEL2_DIR as _L2
+    from imas_ambix.quality.audit import aggregate_corpus, audit_corpus
+
+    # --- resolve shot IDs ------------------------------------------------
+    if shot_ids:
+        ids = [int(s.strip()) for s in shot_ids.split(",") if s.strip()]
+    elif from_bucket_all:
+        from imas_ambix.data.manifest import shot_ids_from_bucket
+
+        ids = list(shot_ids_from_bucket(tier))  # type: ignore[arg-type]
+    else:
+        # Sample from locally present shots (avoids network dependency).
+        shots_dir = _L1 if tier == "level1" else _L2
+        if shots_dir.exists():
+            local_ids = sorted(
+                int(p.name.removesuffix(".zarr"))
+                for p in shots_dir.glob("*.zarr")
+                if p.is_dir()
+            )
+        else:
+            local_ids = []
+        if local_ids:
+            import random
+
+            rng = random.Random(0)
+            ids = rng.sample(local_ids, min(sample_size, len(local_ids)))
+            ids.sort()
+        else:
+            console.print(
+                f"[yellow]warning:[/yellow] no local shots found under {shots_dir}. "
+                "Pass --shot-ids or --from-bucket-all to specify shots explicitly."
+            )
+            ids = []
+
+    if not ids:
+        console.print("[red]No shot IDs to audit.[/red]")
+        return
+
+    console.print(
+        f"Auditing [bold]{len(ids)}[/bold] shots at tier=[bold]{tier}[/bold] "
+        f"({workers} workers)…"
+    )
+
+    reports = audit_corpus(ids, tier=tier, max_workers=workers)  # type: ignore[arg-type]
+    agg = aggregate_corpus(reports)
+
+    # --- render summary table -------------------------------------------
+    from rich.table import Table
+
+    summary = Table(title=f"Data-quality audit — {tier} ({len(ids)} shots)")
+    summary.add_column("metric")
+    summary.add_column("value", justify="right")
+    summary.add_row("shots audited", str(agg["n_total"]))
+    summary.add_row(
+        "passed (all-green)",
+        f"{agg['n_passed']} ({agg['pass_rate'] * 100:.1f}%)",
+    )
+    summary.add_row("warned", str(agg["n_warned"]))
+    summary.add_row("failed", str(agg["n_failed"]))
+    summary.add_row("usable_for_training", str(agg["usable_for_training"]))
+    console.print(summary)
+
+    # Campaign distribution
+    if agg["campaign_distribution"]:
+        camp_table = Table(title="Campaign distribution")
+        camp_table.add_column("campaign")
+        camp_table.add_column("shots", justify="right")
+        for camp, cnt in list(agg["campaign_distribution"].items())[:10]:
+            camp_table.add_row(camp, str(cnt))
+        console.print(camp_table)
+
+    # Quality flag rates
+    if agg["quality_flag_rates"]:
+        flag_table = Table(title="Quality flag rates")
+        flag_table.add_column("flag")
+        flag_table.add_column("fraction", justify="right")
+        for flag, rate in agg["quality_flag_rates"].items():
+            flag_table.add_row(flag, f"{rate * 100:.1f}%")
+        console.print(flag_table)
+
+    # Top failure modes
+    if agg["top_failure_modes"]:
+        fail_table = Table(title="Top failure modes")
+        fail_table.add_column("check")
+        fail_table.add_column("count", justify="right")
+        for entry in agg["top_failure_modes"]:
+            fail_table.add_row(entry["check"], str(entry["count"]))
+        console.print(fail_table)
+
+    # Plasma current deciles
+    if agg["plasma_current_deciles"]:
+        deciles = agg["plasma_current_deciles"]
+        console.print(
+            "Plasma current deciles (kA): "
+            + ", ".join(f"{v / 1000:.1f}" for v in deciles)
+        )
+
+    # --- JSON output -----------------------------------------------------
+    if output:
+        import json
+
+        payload = {
+            "tier": tier,
+            "shot_ids": ids,
+            "aggregate": agg,
+            "per_shot": [r.to_dict() for r in reports],
+        }
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        Path(output).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        console.print(f"[green]audit report written:[/green] {output}")

@@ -26,7 +26,14 @@
 
 | Plan | Scope | Status |
 |---|---|---|
-| [tokenizers.md](tokenizers.md) | Open-MAGVIT2 frame tokenizer + Chronos / PatchTST signal tokenizers, registry, persistence under `/work/projects/imas_gpu/mast-tokens/` | Draft — blocked by `data-acquisition.md` mirror |
+| [tokenizers.md](tokenizers.md) | Open-MAGVIT2 frame tokenizer + Chronos / PatchTST signal tokenizers, registry, persistence under `/work/projects/imas_gpu/mast-tokens/`; §12 adds plasma fine-tune, PatchTST-real, equilibrium 2-D, and multi-modal alignment expansion roadmap | Active — tokenizers wired; expansion items in §12 |
+
+## Phase 0/1 supporting plans
+
+| Plan | Scope | Status |
+|---|---|---|
+| [data-quality.md](data-quality.md) | Pre-training data validation framework — per-shot `ShotQualityReport`, corpus audit, CLI (`ambix data audit`), acceptance gates for training-grade shots | **In flight** — implementation: `imas_ambix/quality/` |
+| [tokenizer-benchmarks.md](tokenizer-benchmarks.md) | Quantitative tokenizer comparison framework — `BenchConfig`, `BenchResult`, frame metrics (rFID/PSNR/LPIPS), signal metrics (Pearson r/NRMSE), throughput, SLURM batch runner, results archive | **In flight** — implementation: `imas_ambix/bench/` |
 
 ## Phase 2 — World-model v0
 
@@ -87,3 +94,4 @@ non-trivial fine-tune in `tokenizers.md`.
 |---|---|---|
 | 2026-05-19 | Initial plan set created — STRATEGY, data-acquisition, tokenizers, world-model-v0, demo, compute, this README | Simon McIntosh |
 | 2026-05-20 | Added v0-runway.md (operational next-step plan); level-2 mirror 83 % done; Open-MAGVIT2 wired and working on real rbb frames; fleet dispatch underway. | Simon McIntosh |
+| 2026-05-20 | Added data-quality.md + tokenizer-benchmarks.md; appended tokenizers.md §12 (plasma fine-tune, PatchTST real, equilibrium 2-D, alignment improvements, IR codebook decision, modality coherence metric); updated v0-runway.md ROI ranking with three in-flight concurrent tracks. | Simon McIntosh |
