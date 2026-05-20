@@ -102,14 +102,38 @@ def inspect_cmd(shot: int, tier: str, group: str | None) -> None:
     help="Camera source name at level-1 (rba/rbb/rbc/rco/...).",
 )
 @click.option(
+    "--tokenizer",
+    type=click.Choice(["placeholder", "open-magvit2"]),
+    default="placeholder",
+    show_default=True,
+    help="Which frame tokenizer to use.",
+)
+@click.option(
     "--temporal-compression",
     default=4,
     show_default=True,
+    help="Placeholder tokenizer only.",
 )
 @click.option(
     "--spatial-compression",
     default=8,
     show_default=True,
+    help="Placeholder tokenizer only.",
+)
+@click.option(
+    "--max-frames",
+    default=None,
+    type=int,
+    help=(
+        "Only encode the first N frames (Open-MAGVIT2 on CPU is ~30 s/frame). "
+        "Useful for smoke-testing without burning hours."
+    ),
+)
+@click.option(
+    "--device",
+    default="cpu",
+    show_default=True,
+    help="open-magvit2: 'cpu' or 'cuda' (GPU node only).",
 )
 @click.option(
     "--output",
@@ -120,11 +144,14 @@ def inspect_cmd(shot: int, tier: str, group: str | None) -> None:
 def frames_cmd(
     shot: int,
     camera: str,
+    tokenizer: str,
     temporal_compression: int,
     spatial_compression: int,
+    max_frames: int | None,
+    device: str,
     output: str | None,
 ) -> None:
-    """Encode + round-trip a shot's camera frames (placeholder tokenizer)."""
+    """Encode + round-trip a shot's camera frames."""
     import numpy as np
     import xarray as xr
 
@@ -135,29 +162,38 @@ def frames_cmd(
         )
     ds = xr.open_zarr(str(shot_path), group=camera, consolidated=False)
     frames = np.asarray(ds["data"].values)
+    if max_frames is not None:
+        frames = frames[:max_frames]
     console.print(
         f"loaded {camera} for shot {shot}: shape={frames.shape}, dtype={frames.dtype}"
     )
 
-    tok = PlaceholderFrameTokenizer(
-        temporal_compression=temporal_compression,
-        spatial_compression=spatial_compression,
-    )
+    if tokenizer == "placeholder":
+        tok = PlaceholderFrameTokenizer(
+            temporal_compression=temporal_compression,
+            spatial_compression=spatial_compression,
+        )
+    else:
+        from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer
+
+        tok = OpenMagvit2Tokenizer(device=device)
+
     enc = tok.encode(frames)
     decoded = tok.decode(enc)
-    n_compare = decoded.shape[0]
+
+    n_compare = min(decoded.shape[0], frames.shape[0])
+    # Replicate single-channel input to 3-channel for comparison if needed.
+    src = frames[:n_compare]
+    if src.ndim == 3 and decoded.ndim == 4:
+        src = np.repeat(src[..., None], 3, axis=-1)
     mae = float(
-        abs(
-            frames.astype(np.float32)[:n_compare] - decoded.astype(np.float32)
-        ).mean()
+        abs(src.astype(np.float32) - decoded[:n_compare].astype(np.float32)).mean()
     )
     console.print(
         f"encoded shape: {enc.token_ids.shape}  "
         f"vocab range used: [{enc.token_ids.min()}, {enc.token_ids.max()}]"
     )
-    console.print(
-        f"decode shape:  {decoded.shape}  input vs decoded MAE: {mae:.2f}"
-    )
+    console.print(f"decode shape:  {decoded.shape}  input vs decoded MAE: {mae:.2f}")
 
     if output:
         Path(output).parent.mkdir(parents=True, exist_ok=True)

@@ -21,6 +21,7 @@ from imas_ambix.tokenizer import (
 )
 from imas_ambix.tokenizer.frames import (
     OpenMagvit2Tokenizer,
+    OpenMagvit2UnavailableError,
     PlaceholderFrameTokenizer,
 )
 from imas_ambix.tokenizer.multimodal import ShotTokenizer
@@ -170,9 +171,21 @@ def test_placeholder_frame_accepts_rgb_input(fresh_registry):
     assert enc.token_ids.ndim == 3  # T, h, w (channels collapsed)
 
 
-def test_open_magvit2_raises_not_implemented(fresh_registry):
-    with pytest.raises(NotImplementedError, match="not yet wired up"):
-        OpenMagvit2Tokenizer()
+def test_open_magvit2_unavailable_when_root_missing(fresh_registry, tmp_path):
+    """OpenMagvit2Tokenizer raises a clear error if the staging dir is absent."""
+    missing = tmp_path / "does-not-exist"
+    with pytest.raises(OpenMagvit2UnavailableError, match="not found"):
+        OpenMagvit2Tokenizer(root=missing)
+
+
+def test_open_magvit2_unavailable_when_weights_missing(fresh_registry, tmp_path):
+    """OpenMagvit2Tokenizer surfaces every missing dependency by path."""
+    root = tmp_path / "magvit2"
+    (root / ".venv" / "bin").mkdir(parents=True)
+    (root / ".venv" / "bin" / "python").touch()
+    (root / "worker.py").touch()
+    with pytest.raises(OpenMagvit2UnavailableError, match="missing"):
+        OpenMagvit2Tokenizer(root=root)
 
 
 # --- signal tokenizer (uniform quantizer) ----------------------------

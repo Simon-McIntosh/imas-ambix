@@ -6,8 +6,8 @@ Two implementations:
   scheme that works without any external dependency. Used for tests
   and end-to-end plumbing checks before Open-MAGVIT2 weights are
   downloaded.
-- :class:`OpenMagvit2Tokenizer` (planned, not yet implemented) — the
-  real Apache-2.0 Open-MAGVIT2 model from TencentARC. Weights live at
+- :class:`OpenMagvit2Tokenizer` — the real Apache-2.0 Open-MAGVIT2
+  model from TencentARC, driven via an isolated venv at
   ``/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/``.
 
 Both honour the :class:`FrameTokenizer` protocol and the global
@@ -16,7 +16,10 @@ Both honour the :class:`FrameTokenizer` protocol and the global
 
 from __future__ import annotations
 
+import subprocess
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -142,40 +145,146 @@ class PlaceholderFrameTokenizer:
         return out
 
 
+DEFAULT_MAGVIT2_ROOT = Path("/work/projects/imas_gpu/mast-tokens/v1/open-magvit2")
+
+
+class OpenMagvit2UnavailableError(RuntimeError):
+    """Raised when the Open-MAGVIT2 staging dir / venv / weights are missing."""
+
+
 @dataclass
 class OpenMagvit2Tokenizer:
-    """Open-MAGVIT2 wrapper — not yet implemented.
+    """Open-MAGVIT2 wrapper that drives the model via an isolated venv.
 
-    See ``plans/tokenizers.md`` §2 for the rationale. Implementation
-    notes:
+    Open-MAGVIT2 requires torch 2.1.1 + lightning 2.2.0 + transformers
+    4.37.2 — pins that conflict with the ambix main venv (torch ≥ 2.6).
+    The model therefore runs inside its own venv at
+    ``/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv`` and we
+    bridge over via the ``worker.py`` script under the same root, passing
+    numpy arrays through ``.npy`` temp files.
 
-    - Apache-2.0, source repo: https://github.com/TencentARC/Open-MAGVIT2
-    - Compression: 8 (spatial) × 4 (temporal)
-    - Codebook: 2^18 LFQ tokens (vocab_size = 262144)
-    - Weights to be staged at
-      ``/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/``
-    - First-use will fine-tune the **decoder** on plasma imagery if the
-      ImageNet checkpoint's rFID is > 5; the encoder + codebook stay
-      frozen so the registry allocation never moves.
+    Per-call overhead: ~5-10 s on CPU (Python startup + model load). Batch
+    every shot's frames into a single ``encode`` call to amortise. The
+    GPU node brings this to sub-second once weights are warmed.
 
-    Raising :class:`NotImplementedError` at construction makes us notice
-    at module-load time if downstream code accidentally picks this
-    instead of the placeholder.
+    - Source: <https://github.com/TencentARC/Open-MAGVIT2> @ c1544ef (Apache-2.0)
+    - Checkpoint: ``imagenet_256_L.ckpt`` (2^18 LFQ codebook, rFID 1.17 on ImageNet)
+    - Compression: 16× spatial (256×256 → 16×16 tokens), no temporal compression
     """
 
     name: str = "frames_open_magvit2_v1"
-    spatial_compression: int = 8
-    temporal_compression: int = 4
-    vocab_size: int = 1 << 18
+    root: Path = DEFAULT_MAGVIT2_ROOT
+    image_size: int = 256
+    spatial_compression: int = 16
+    temporal_compression: int = 1
+    vocab_size: int = 1 << 18  # 262144
+    device: str = "cpu"
+    batch_size: int = 4
 
     def __post_init__(self) -> None:
-        raise NotImplementedError(
-            "OpenMagvit2Tokenizer is not yet wired up — see "
-            "plans/tokenizers.md §2 for the rollout plan"
+        self.root = Path(self.root)
+        if not self.root.is_dir():
+            raise OpenMagvit2UnavailableError(
+                f"Open-MAGVIT2 staging directory not found at {self.root}. "
+                "Clone github.com/TencentARC/Open-MAGVIT2 there and run "
+                "`uv venv` + `uv pip install -r requirements.txt`."
+            )
+        self._python = self.root / ".venv" / "bin" / "python"
+        self._worker = self.root / "worker.py"
+        self._ckpt = self.root / "weights" / "imagenet_256_L.ckpt"
+        for p in (self._python, self._worker, self._ckpt):
+            if not p.exists():
+                raise OpenMagvit2UnavailableError(f"missing {p}")
+        registry.allocate(self.name, self.vocab_size)
+
+    def encode(self, frames: np.ndarray) -> EncodedFrames:
+        """Encode ``(T, H, W)`` or ``(T, H, W, C)`` frames into global token ids."""
+        import numpy as np
+
+        u8 = _normalise_frames_to_uint8(frames)
+        # The worker expects (T, H, W, 3) uint8
+        if u8.ndim == 3:
+            u8_rgb = np.repeat(u8[..., None], 3, axis=-1)
+        elif u8.ndim == 4 and u8.shape[-1] == 3:
+            u8_rgb = u8
+        else:
+            raise ValueError(f"frames must be (T,H,W) or (T,H,W,3), got {u8.shape}")
+
+        input_h, input_w = u8_rgb.shape[1], u8_rgb.shape[2]
+        with tempfile.TemporaryDirectory(prefix="magvit2-enc-") as tmp:
+            in_path = Path(tmp) / "frames.npy"
+            out_path = Path(tmp) / "tokens.npy"
+            np.save(in_path, u8_rgb)
+            self._run_worker(
+                "encode",
+                ["--input", str(in_path), "--output", str(out_path)],
+            )
+            local_ids = np.load(out_path)
+
+        global_ids = registry.shift(self.name, local_ids)
+        return EncodedFrames(
+            token_ids=global_ids,
+            shape=tuple(global_ids.shape),
+            tokenizer_name=self.name,
+            metadata={
+                "input_shape": list(frames.shape),
+                "model_image_size": self.image_size,
+                "spatial_compression": self.spatial_compression,
+                "temporal_compression": self.temporal_compression,
+                "original_hw": [int(input_h), int(input_w)],
+                "ckpt": "imagenet_256_L.ckpt",
+            },
         )
 
-    def encode(self, frames: np.ndarray) -> EncodedFrames:  # pragma: no cover
-        raise NotImplementedError
+    def decode(self, tokens: EncodedFrames) -> np.ndarray:
+        """Decode global token ids back to ``(T, H, W, 3)`` uint8 frames."""
+        import numpy as np
 
-    def decode(self, tokens: EncodedFrames) -> np.ndarray:  # pragma: no cover
-        raise NotImplementedError
+        start, _ = registry.allocate(self.name, self.vocab_size)
+        local = (np.asarray(tokens.token_ids, dtype=np.int64) - start).clip(
+            0, self.vocab_size - 1
+        )
+        orig_hw = tokens.metadata.get("original_hw", [self.image_size, self.image_size])
+        target = f"{int(orig_hw[0])},{int(orig_hw[1])}"
+
+        with tempfile.TemporaryDirectory(prefix="magvit2-dec-") as tmp:
+            in_path = Path(tmp) / "tokens.npy"
+            out_path = Path(tmp) / "recon.npy"
+            np.save(in_path, local.astype(np.int64))
+            self._run_worker(
+                "decode",
+                [
+                    "--input",
+                    str(in_path),
+                    "--output",
+                    str(out_path),
+                    "--target-hw",
+                    target,
+                ],
+            )
+            return np.load(out_path)
+
+    def _run_worker(self, mode: str, extra: list[str]) -> None:
+        """Invoke the worker subprocess in the isolated venv."""
+        cmd = [
+            str(self._python),
+            str(self._worker),
+            mode,
+            "--device",
+            self.device,
+            "--image-size",
+            str(self.image_size),
+            "--batch-size",
+            str(self.batch_size),
+            "--ckpt",
+            str(self._ckpt),
+            *extra,
+        ]
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=3600
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"Open-MAGVIT2 worker {mode!r} failed (exit {proc.returncode}):\n"
+                f"{proc.stderr[-2000:]}"
+            )

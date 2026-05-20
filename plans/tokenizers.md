@@ -265,24 +265,55 @@ These work without the Open-MAGVIT2 or Chronos weights — they exist so
 the rest of the pipeline (model loader, training loop, evaluation) can
 be exercised before the real tokenizers are plumbed in.
 
-### 9.1 Rollout path to real tokenizers
+### 9.1 Open-MAGVIT2 — live (2026-05-20)
 
-1. **Open-MAGVIT2** — clone <https://github.com/TencentARC/Open-MAGVIT2>,
-   place its `transform_8x8x4_imagenet256_lfq262144.ckpt` under
-   `/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/encoder.ckpt`,
-   wrap its `encode_to_indices` / `decode_from_indices` calls inside the
-   `OpenMagvit2Tokenizer` class (currently raises
-   `NotImplementedError`). The placeholder's `name = "frames_placeholder_v1"`
-   will become `name = "frames_open_magvit2_v1"` so the registry
-   allocation moves; existing placeholder-emitted tokens are invalidated
-   (which is fine — we only have synthetic test data so far).
-2. **Chronos** — `pip install chronos-forecasting`, load
-   `amazon/chronos-t5-small`, wire `ChronosSignalTokenizer` similarly.
-3. **PatchTST** — HuggingFace `transformers.PatchTSTModel`; v0 trains
+The real `OpenMagvit2Tokenizer` is now wired up. Staging layout:
+
+```
+/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/
+├── src/                       # github.com/TencentARC/Open-MAGVIT2 @ c1544ef
+├── weights/
+│   └── imagenet_256_L.ckpt    # 921 MB, 2^18 LFQ codebook, Apache-2.0
+├── .venv/                     # uv venv, Python 3.11.5
+│                              # torch 2.1.1+cpu, lightning 2.2.0,
+│                              # numpy<2, setuptools<81, transformers 4.37.2
+└── worker.py                  # ambix bridge — encode/decode via .npy tempfiles
+```
+
+Discovered details that the docs didn't quote:
+
+| Setting | Reality |
+|---|---|
+| Tokenizer 256 checkpoint name | `imagenet_256_L.ckpt` (the README's `_B/_L/_XL` suffix refers to **AR head** sizes — there is no `imagenet_256_B.ckpt`) |
+| Spatial compression | **16×** (256×256 → 16×16 tokens) — not 8× as the comparison table implies; 8× is only via the 128 model run at 256 input |
+| Temporal compression | **1×** for the image tokenizer (we will revisit for v1 if we add the 5×16×16 video tokenizer) |
+| `get_codebook_entry` API | `(indices: (B, h*w), bhwc: (B, h, w, embed_dim=18), order: "pre")` — undocumented but discovered in `lookup_free_quantize.py:192` |
+| Setuptools | Needs `<81` because Lightning 2.2.0 still calls `pkg_resources.declare_namespace` |
+| Numpy | Needs `<2` for torch 2.1.1's pre-numpy-2 ABI |
+
+The `OpenMagvit2Tokenizer` is process-isolated:
+
+- ambix `frames.py` runs in our main venv (torch ≥ 2.6).
+- Each `encode()` / `decode()` call serialises numpy arrays through `.npy`
+  temp files, invokes `.venv/bin/python worker.py {encode,decode}` in the
+  isolated venv, then loads the result back.
+- Per-call overhead on the login node CPU: ~5 s python startup + model load,
+  plus ~30 s per frame for encode and similar for decode. The login node is
+  fine for smoke tests; the production token pass for ~3,000 rbb-bearing
+  shots × ~150 frames = ~450,000 frames needs the GPU node (where weights
+  warm to GPU once and each batch is sub-second).
+
+### 9.2 Remaining tokenizer wiring
+
+1. **Chronos signal tokenizer** — `pip install chronos-forecasting`, load
+   `amazon/chronos-t5-small`, wire `ChronosSignalTokenizer`. Same
+   process-isolation pattern is **not** needed — Chronos's pins are
+   compatible with our main venv.
+2. **PatchTST** — HuggingFace `transformers.PatchTSTModel`; v0 trains
    the patch-projection inside the world model, so this tokenizer
    stays an identity passthrough for now.
 
-### 9.2 Implementation notes for the real tokenizers
+### 9.3 Implementation notes for the real tokenizers
 
 - The decoders need to run on **CPU during data prep** (the betelgeuse
   GPU node has no network access for weight downloads). Once the
