@@ -736,3 +736,171 @@ def status_cmd(tier: str) -> None:
             f"{tier} mirror progress: [green]{n_local}[/green] / ? shots "
             f"(no manifest under {MANIFEST_DIR})"
         )
+
+
+# --- encode-shot -------------------------------------------------------
+
+
+@data.command(name="encode-shot")
+@click.option("--shot", type=int, required=True, help="Shot ID to encode.")
+@click.option("--camera", default="rbb", show_default=True, help="Camera source name.")
+@click.option(
+    "--tokenizer",
+    type=click.Choice(["placeholder", "open-magvit2"]),
+    default="open-magvit2",
+    show_default=True,
+    help="Frame tokenizer to use.",
+)
+@click.option(
+    "--max-frames",
+    type=int,
+    default=None,
+    help="Truncate input to this many frames (default: all).",
+)
+@click.option(
+    "--device",
+    default="cpu",
+    show_default=True,
+    help="Torch device for Open-MAGVIT2 (ignored for placeholder).",
+)
+@click.option(
+    "--vocab-version",
+    default="v1",
+    show_default=True,
+    help="Token vocabulary version (output path prefix).",
+)
+def encode_shot_cmd(
+    shot: int,
+    camera: str,
+    tokenizer: str,
+    max_frames: int | None,
+    device: str,
+    vocab_version: str,
+) -> None:
+    """Encode a single shot's camera frames and save to the token store.
+
+    Loads the level-1 Zarr via xarray, encodes with the chosen tokenizer,
+    and writes to ``mast-tokens/{vocab-version}/frames/{shot}/{camera}.zarr``.
+    """
+    import xarray as xr
+
+    from imas_ambix.data.paths import LEVEL1_DIR
+    from imas_ambix.data.persist import save_frame_tokens
+
+    shot_zarr = LEVEL1_DIR / f"{shot}.zarr"
+    if not shot_zarr.exists():
+        raise click.ClickException(
+            f"Level-1 shot Zarr not found at {shot_zarr}. "
+            "Run `ambix data download` to mirror the data first."
+        )
+
+    console.print(f"Loading camera [bold]{camera}[/bold] from {shot_zarr} …")
+    try:
+        ds = xr.open_zarr(str(shot_zarr / camera))
+        # Camera data is typically under a variable matching the source name
+        # or the first available variable.
+        data_vars = list(ds.data_vars)
+        if not data_vars:
+            raise click.ClickException(
+                f"No data variables found in group '{camera}' of shot {shot}."
+            )
+        frames_da = ds[data_vars[0]]
+        frames = frames_da.values
+    except Exception as exc:
+        raise click.ClickException(f"Failed to load camera data: {exc}") from exc
+
+    if max_frames is not None:
+        frames = frames[:max_frames]
+
+    console.print(f"Frames shape: {frames.shape}, dtype: {frames.dtype}. Encoding …")
+
+    if tokenizer == "placeholder":
+        from imas_ambix.tokenizer.frames import PlaceholderFrameTokenizer
+
+        tok = PlaceholderFrameTokenizer()
+    else:
+        from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer
+
+        tok = OpenMagvit2Tokenizer(device=device)
+
+    encoded = tok.encode(frames)
+    out_path = save_frame_tokens(
+        shot_id=shot,
+        camera=camera,
+        encoded=encoded,
+        vocab_version=vocab_version,
+    )
+    console.print(
+        f"[green]Saved:[/green] {out_path}  (token shape: {encoded.token_ids.shape})"
+    )
+
+
+# --- tokens-status -----------------------------------------------------
+
+
+@data.command(name="tokens-status")
+@click.option(
+    "--vocab-version",
+    default="v1",
+    show_default=True,
+    help="Token vocabulary version directory to inspect.",
+)
+def tokens_status_cmd(vocab_version: str) -> None:
+    """Show how many shots have been tokenised for each modality / group.
+
+    Walks ``TOKEN_ROOT/{vocab_version}/`` and counts persisted ``.zarr``
+    files per modality (frames / signals) and per sub-group (camera or
+    diagnostic name).
+    """
+    from imas_ambix.data.paths import TOKEN_ROOT
+
+    root = TOKEN_ROOT / vocab_version
+    if not root.exists():
+        console.print(
+            f"[yellow]Token root does not exist:[/yellow] {root} "
+            f"(no shots tokenised yet at {vocab_version})"
+        )
+        return
+
+    table = Table(title=f"Persisted tokens — {vocab_version}")
+    table.add_column("modality")
+    table.add_column("group / camera")
+    table.add_column("shots", justify="right")
+
+    total_shots: set[int] = set()
+
+    for modality in ("frames", "signals"):
+        modality_dir = root / modality
+        if not modality_dir.exists():
+            table.add_row(modality, "(none)", "0")
+            continue
+
+        # Collect per-group counts: group → set of shot ids
+        group_shots: dict[str, set[int]] = {}
+        for shot_dir in modality_dir.iterdir():
+            if not shot_dir.is_dir():
+                continue
+            try:
+                sid = int(shot_dir.name)
+            except ValueError:
+                continue
+            for zarr_path in shot_dir.iterdir():
+                if zarr_path.suffix != ".zarr" and not (
+                    zarr_path.is_dir() and zarr_path.suffix == ".zarr"
+                ):
+                    continue
+                grp = zarr_path.stem
+                group_shots.setdefault(grp, set()).add(sid)
+                total_shots.add(sid)
+
+        if not group_shots:
+            table.add_row(modality, "(none)", "0")
+            continue
+
+        for grp, shot_set in sorted(group_shots.items()):
+            table.add_row(modality, grp, str(len(shot_set)))
+
+    console.print(table)
+    console.print(
+        f"Total unique shots with any token file: [bold]{len(total_shots)}[/bold]"
+    )
