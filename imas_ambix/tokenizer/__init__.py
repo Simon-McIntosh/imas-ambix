@@ -18,6 +18,7 @@ See ``plans/tokenizers.md`` for the design rationale.
 from __future__ import annotations
 
 from imas_ambix.tokenizer.base import (
+    BlockKind,
     EncodedFrames,
     EncodedSignals,
     FrameTokenizer,
@@ -27,6 +28,7 @@ from imas_ambix.tokenizer.base import (
 from imas_ambix.tokenizer.registry import TokenRegistry, registry
 
 __all__ = [
+    "BlockKind",
     "EncodedFrames",
     "EncodedSignals",
     "FrameTokenizer",

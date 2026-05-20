@@ -459,3 +459,55 @@ def test_patchtst_token_shape(fresh_registry):
     assert enc.token_ids.shape == (4, n_channels), (
         f"expected (4, {n_channels}), got {enc.token_ids.shape}"
     )
+
+
+# --- block_kind from ShotTokenizer -------------------------------------------
+
+
+def test_encode_shot_return_block_kind_tuple(fresh_registry):
+    """encode_shot(return_block_kind=True) returns a tuple with aligned arrays."""
+    from imas_ambix.tokenizer.base import BlockKind
+
+    ft = PlaceholderFrameTokenizer(spatial_compression=4, temporal_compression=1)
+    st = UniformQuantizer(n_bins=32)
+    ds = _toy_signal_dataset(n_time=4)
+    st.fit([ds])
+    frames = np.zeros((4, 16, 16), dtype=np.uint16)
+
+    shot_tok = ShotTokenizer(frame_tokenizer=ft, signal_tokenizer=st)
+    result = shot_tok.encode_shot(frames=frames, signals=ds, return_block_kind=True)
+
+    assert isinstance(result, tuple), "expected a 2-tuple when return_block_kind=True"
+    tokens, block_kind = result
+
+    assert tokens.dtype == np.int32
+    assert block_kind.dtype == np.uint8
+    assert tokens.shape == block_kind.shape
+
+    # bos and eos are CONTROL
+    assert block_kind[0] == BlockKind.CONTROL
+    assert block_kind[-1] == BlockKind.CONTROL
+
+    # FRAME and SIGNAL codes are present
+    assert BlockKind.FRAME in block_kind.tolist()
+    assert BlockKind.SIGNAL in block_kind.tolist()
+
+
+def test_encode_shot_with_block_kind_method(fresh_registry):
+    """encode_shot_with_block_kind always returns a tuple, same as the flag path."""
+    ft = PlaceholderFrameTokenizer(spatial_compression=4, temporal_compression=1)
+    st = UniformQuantizer(n_bins=32)
+    ds = _toy_signal_dataset(n_time=4)
+    st.fit([ds])
+    frames = np.zeros((4, 16, 16), dtype=np.uint16)
+
+    shot_tok = ShotTokenizer(frame_tokenizer=ft, signal_tokenizer=st)
+    tokens_flag, bk_flag = shot_tok.encode_shot(
+        frames=frames, signals=ds, return_block_kind=True
+    )
+    tokens_method, bk_method = shot_tok.encode_shot_with_block_kind(
+        frames=frames, signals=ds
+    )
+
+    np.testing.assert_array_equal(tokens_flag, tokens_method)
+    np.testing.assert_array_equal(bk_flag, bk_method)

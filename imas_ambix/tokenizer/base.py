@@ -15,6 +15,10 @@ Two specific protocols extend the generic :class:`Tokenizer`:
 The output dataclasses carry the **global** token ids
 (post-:func:`TokenRegistry.shift`) so the multi-modal aggregator can
 concatenate them without further bookkeeping.
+
+:class:`BlockKind` codes label each token position in the per-shot stream
+so the training loop can apply block-weighted cross-entropy loss
+(``plans/world-model-v0.md`` §4.1).
 """
 
 from __future__ import annotations
@@ -25,6 +29,32 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 if TYPE_CHECKING:
     import numpy as np
     import xarray as xr
+
+
+class BlockKind:
+    """Integer codes for per-token block classification.
+
+    Used in the ``block_kind`` side array emitted by
+    :meth:`ShotTokenizer.encode_shot_with_block_kind` and persisted
+    alongside the token stream in Zarr.  The training loop reads these
+    codes and converts them to loss-mask weights via ``BLOCK_WEIGHTS``.
+
+    Codes
+    -----
+    CONTROL = 0
+        Special / structural tokens: ``<pad>``, ``<bos>``, ``<eos>``, ``<sep>``.
+    FRAME = 1
+        Frame tokens emitted by the frame tokenizer (e.g. Open-MAGVIT2).
+    SIGNAL = 2
+        Signal tokens emitted by the signal tokenizer (e.g. Chronos).
+    ACTION = 3
+        Action / control-vector tokens.  Reserved for v1; not yet emitted.
+    """
+
+    CONTROL: int = 0
+    FRAME: int = 1
+    SIGNAL: int = 2
+    ACTION: int = 3
 
 
 @dataclass(frozen=True)

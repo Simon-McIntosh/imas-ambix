@@ -37,12 +37,29 @@ if TYPE_CHECKING:
 # Block-kind → loss-mask weight map
 # ---------------------------------------------------------------------------
 
-_BLOCK_KIND_WEIGHTS: dict[int, float] = {
+BLOCK_WEIGHTS: dict[int, float] = {
     0: 0.0,  # control
     1: 1.0,  # frame
     2: 0.3,  # signal
     3: 0.1,  # action
 }
+"""Per-block-kind loss-mask weights (``plans/world-model-v0.md`` §4.1).
+
+Keyed by :class:`~imas_ambix.tokenizer.base.BlockKind` integer code:
+
+=====  =======  =============
+Code   Name     loss_mask
+=====  =======  =============
+0      CONTROL  0.0
+1      FRAME    1.0
+2      SIGNAL   0.3
+3      ACTION   0.1
+=====  =======  =============
+"""
+
+# Private alias kept for backward compatibility with existing tests that
+# import ``_BLOCK_KIND_WEIGHTS``.
+_BLOCK_KIND_WEIGHTS = BLOCK_WEIGHTS
 
 _DEFAULT_LOSS_WEIGHT = 1.0
 
@@ -144,7 +161,7 @@ class ShotTokenDataset:
     def _loss_mask_from_block_kind(self, block_kind: np.ndarray) -> np.ndarray:
         """Convert a ``block_kind`` uint8 array to a float32 loss-mask."""
         mask = np.full(block_kind.shape, _DEFAULT_LOSS_WEIGHT, dtype=np.float32)
-        for code, weight in _BLOCK_KIND_WEIGHTS.items():
+        for code, weight in BLOCK_WEIGHTS.items():
             mask[block_kind == code] = weight
         return mask
 

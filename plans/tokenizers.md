@@ -355,3 +355,89 @@ the model's input pipeline.
 - The round-trip evaluation in §7 is the gate. The placeholder hits
   ~1% MAE on uint16 frames; Open-MAGVIT2 should hit rFID ≤ 5 once the
   encoder is plumbed in.
+
+---
+
+## 10. block_kind side data — 2026-05-20
+
+The training loop applies block-weighted cross-entropy loss
+(`plans/world-model-v0.md` §4.1). Each position in the token stream is
+labelled with an integer **block_kind** code so the loader can build
+the per-position `loss_mask` without re-parsing the token ids.
+
+### BlockKind enum
+
+Defined in `imas_ambix/tokenizer/base.py` and re-exported from
+`imas_ambix.tokenizer`:
+
+```python
+class BlockKind:
+    CONTROL = 0   # <pad>, <bos>, <eos>, <sep>  →  loss weight 0.0
+    FRAME   = 1   # frame tokens                 →  loss weight 1.0
+    SIGNAL  = 2   # signal tokens                →  loss weight 0.3
+    ACTION  = 3   # action tokens (v1)           →  loss weight 0.1
+```
+
+ACTION is reserved for v1; `ShotTokenizer` does not emit it yet.
+
+### ShotTokenizer API
+
+`ShotTokenizer.encode_shot` gains a `return_block_kind: bool = False`
+keyword argument:
+
+```python
+# Default — backward-compatible single-array return
+tokens = shot_tok.encode_shot(frames, signals)
+
+# New — returns (tokens, block_kind) tuple
+tokens, block_kind = shot_tok.encode_shot(frames, signals, return_block_kind=True)
+
+# Preferred for new code — unambiguous return type
+tokens, block_kind = shot_tok.encode_shot_with_block_kind(frames, signals)
+```
+
+`block_kind` is `uint8`, same length as `tokens`.
+
+Layout per step: `<bos>` → CONTROL; `<sep>` → CONTROL; frame block →
+all FRAME; signal block → all SIGNAL; `<eos>` → CONTROL.
+
+### Persistence layout extension
+
+`save_frame_tokens` and `save_signal_tokens` accept an optional
+`block_kind: np.ndarray | None = None` parameter. When provided the
+array is written as a sibling `block_kind` array (uint8) inside the
+same Zarr group.
+
+`load_frame_tokens` / `load_signal_tokens` attach the array to
+`EncodedFrames.metadata["block_kind"]` / `EncodedSignals.metadata["block_kind"]`
+when present.
+
+New convenience functions for the unified per-shot stream:
+
+```
+mast-tokens/v1/streams/{shot_id}.zarr
+    tokens      — 1-D int32
+    block_kind  — 1-D uint8
+```
+
+```python
+path = save_shot_stream(shot_id, tokens, block_kind)
+tokens, block_kind = load_shot_stream(shot_id)
+```
+
+### Loader BLOCK_WEIGHTS
+
+`imas_ambix/data/loaders.py` exports:
+
+```python
+BLOCK_WEIGHTS: dict[int, float] = {0: 0.0, 1: 1.0, 2: 0.3, 3: 0.1}
+```
+
+`ShotTokenDataset` reads `block_kind` from the Zarr store when
+present and maps each code to its weight.
+
+### Fallback behaviour
+
+When a Zarr has no `block_kind` array the loader falls back to
+`loss_mask = 1.0` everywhere and emits a one-time `warnings.warn`.
+This keeps existing token caches working until they are re-encoded.
