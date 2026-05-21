@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokenizer Benchmarks | Ambix Plans</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/state.js" defer></script>
+</head>
+<body>
+<!-- header -->
+<header class="site-header">
+  <div class="logo"><a href="index.html">⚗ Ambix Plans</a></div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="STRATEGY.html">Strategy</a>
+    <a href="v0-runway.html">v0 Runway</a>
+    <a href="compute.html">Compute</a>
+    <a href="data-acquisition.html">Data Acq</a>
+    <a href="data-quality.html">Quality</a>
+    <a href="tokenizers.html">Tokenizers</a>
+    <a href="tokenizer-benchmarks.html">Benchmarks</a>
+    <a href="world-model-v0.html">World Model</a>
+    <a href="demo.html">Demo</a>
+    <a href="decisions.html">Decisions</a>
+  </nav>
+  <div class="spacer"></div>
+  <button class="sidebar-toggle" id="sidebar-toggle">&#9776; Sections</button>
+  <button class="theme-toggle" id="theme-toggle">☽ Dark</button>
+</header>
+
+<div class="page-body">
+<!-- sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-title">On this page</div>
+  <ul><li><a href="#1-why-this-exists" class="">1. Why this exists</a></li>
+<li><a href="#11-quantitative-tokenizer-comparison" class="h3-link">1.1 Quantitative tokenizer comparison</a></li>
+<li><a href="#12-gating-tokenizer-promotion" class="h3-link">1.2 Gating tokenizer promotion</a></li>
+<li><a href="#13-comparative-baselines-for-future-tokenizer-upgrades" class="h3-link">1.3 Comparative baselines for future tokenizer …</a></li>
+<li><a href="#2-framework-architecture" class="">2. Framework architecture</a></li>
+<li><a href="#21-benchconfig" class="h3-link">2.1 BenchConfig</a></li>
+<li><a href="#22-benchresult" class="h3-link">2.2 BenchResult</a></li>
+<li><a href="#23-benchmarkframetokenizer" class="h3-link">2.3 benchmarkframetokenizer</a></li>
+<li><a href="#24-benchmarksignaltokenizer" class="h3-link">2.4 benchmarksignaltokenizer</a></li>
+<li><a href="#25-rendercomparisontable" class="h3-link">2.5 rendercomparisontable</a></li>
+<li><a href="#3-metric-definitions" class="">3. Metric definitions</a></li>
+<li><a href="#31-frame-metrics" class="h3-link">3.1 Frame metrics</a></li>
+<li><a href="#32-signal-metrics" class="h3-link">3.2 Signal metrics</a></li>
+<li><a href="#33-throughput-metrics" class="h3-link">3.3 Throughput metrics</a></li>
+<li><a href="#4-reference-comparisons-for-v0" class="">4. Reference comparisons for v0</a></li>
+<li><a href="#41-frame-tokenizer-comparisons" class="h3-link">4.1 Frame tokenizer comparisons</a></li>
+<li><a href="#42-signal-tokenizer-comparisons" class="h3-link">4.2 Signal tokenizer comparisons</a></li>
+<li><a href="#43-throughput-targets" class="h3-link">4.3 Throughput targets</a></li>
+<li><a href="#5-acceptance-gates-per-tokenizer" class="">5. Acceptance gates per tokenizer</a></li>
+<li><a href="#51-frame-tokenizer-open-magvit2" class="h3-link">5.1 Frame tokenizer (Open-MAGVIT2)</a></li>
+<li><a href="#52-signal-tokenizer-chronos" class="h3-link">5.2 Signal tokenizer (Chronos)</a></li>
+<li><a href="#53-patchtst-identity-passthrough" class="h3-link">5.3 PatchTST (identity passthrough)</a></li>
+<li><a href="#6-ci-integration" class="">6. CI integration</a></li>
+<li><a href="#61-why-not-in-pytest" class="h3-link">6.1 Why not in pytest</a></li>
+<li><a href="#62-slurm-batch-job-design" class="h3-link">6.2 SLURM batch job design</a></li>
+<li><a href="#63-result-archive-and-comparison" class="h3-link">6.3 Result archive and comparison</a></li>
+<li><a href="#7-open-questions-to-revisit" class="">7. Open questions to revisit</a></li></ul>
+</aside>
+
+<!-- main -->
+<main class="main-content">
+  <div class="content-inner">
+    <div class="breadcrumb"><a href="index.html">Plans</a><span>›</span><span>Tokenizer Benchmarks</span></div>
+    <h1 id="plan-tokenizer-benchmark-framework">Plan: Tokenizer Benchmark Framework</h1>
+<p>Status: <strong>In flight</strong> — implementation in <code>imas_ambix/bench/</code>, tracked by
+<code>sonnet-bench-framework</code> concurrent agent.</p>
+<p>This plan defines the quantitative comparison framework for tokenizer
+evaluation. Tokenizer choice is the highest-leverage architectural decision
+in the entire pipeline: the world model trains on token IDs, and a tokenizer
+that produces poor reconstructions means the model never sees high-fidelity
+plasma imagery regardless of how well it trains. Closing the loop with
+numbers — not intuition — is therefore a prerequisite to committing to any
+tokenizer configuration beyond the v0 defaults.</p>
+<p>The benchmark framework runs <em>outside</em> of the pytest suite (no GPU in CI)
+but is a first-class software artefact: version-controlled, reproducible,
+and hooked into a persistent results archive.</p>
+<hr />
+<h2 id="1-why-this-exists">1. Why this exists</h2>
+<h3 id="11-quantitative-tokenizer-comparison">1.1 Quantitative tokenizer comparison</h3>
+<p>The current Open-MAGVIT2 smoke test reports MAE 324 on a single rbb shot
+(per <code>tokenizers.md</code> §9.1) and the Chronos round-trip gives Pearson r &gt; 0.98
+on a synthetic sine/cosine. These figures answer &quot;does the code run&quot; — they
+do not answer the design questions that matter for v0:</p>
+<ul>
+<li>Is rFID 324 MAE acceptable, or does it hide structural plasma-boundary
+artefacts that the world model cannot recover?</li>
+<li>Does Chronos reconstructruct the <em>headline</em> diagnostic channels (plasma
+current, PF coil currents, gas injection) with sufficient fidelity, or
+only the smooth synthetic channels?</li>
+<li>How do throughput numbers translate to GPU-hours for the ~450,000-frame
+rbb corpus?</li>
+<li>When we eventually fine-tune Open-MAGVIT2 on plasma imagery (§6.1), by
+how much does rFID improve?</li>
+</ul>
+<p>The benchmark framework answers all of these with structured, archived,
+comparable results.</p>
+<h3 id="12-gating-tokenizer-promotion">1.2 Gating tokenizer promotion</h3>
+<p>The acceptance gates in <code>tokenizers.md</code> §7 (<code>rFID ≤ 5</code>, <code>NRMSE ≤ 0.05</code>) are
+stated as thresholds for graduating the tokenizer stage to world-model
+training. Without a rigorous measurement framework those gates are
+aspirational text. The benchmark framework makes them executable: a
+<code>BenchResult</code> either passes or fails each gate, and the pass/fail decision
+is recorded in the archive.</p>
+<h3 id="13-comparative-baselines-for-future-tokenizer-upgrades">1.3 Comparative baselines for future tokenizer upgrades</h3>
+<p>When the plasma-domain decoder fine-tune runs (<code>tokenizers.md</code> §12.1, this
+doc §4.1), the improvement in rFID relative to the ImageNet checkpoint needs
+to be measured against a stable baseline. The benchmark framework provides
+that baseline: every run is archived with a config hash, so the same shot
+subset at the same resolution against the same reference produces comparable
+numbers regardless of which checkpoint is being tested.</p>
+<hr />
+<h2 id="2-framework-architecture">2. Framework architecture</h2>
+<p>The framework lives under <code>imas_ambix/bench/</code>. The five modules are:</p>
+<pre><code>imas_ambix/bench/
+├── __init__.py          # public API: BenchConfig, BenchResult
+├── config.py            # BenchConfig dataclass + YAML loader
+├── frame.py             # benchmark_frame_tokenizer
+├── signal.py            # benchmark_signal_tokenizer
+├── runner.py            # SLURM batch runner + results archiver
+└── cli.py               # ambix tokenize bench (sub-command of tokenize group)
+</code></pre>
+<h3 id="21-benchconfig">2.1 BenchConfig</h3>
+<pre><code class="language-python">@dataclass(frozen=True)
+class BenchConfig:
+    # Shot selection
+    shot_ids: list[int]                  # pinned shot list for reproducibility
+    camera: str = &quot;rbb&quot;                  # which camera group for frames
+
+    # Tokenizer under test (any registered name from TokenRegistry)
+    frame_tokenizer_name: str = &quot;frames_open_magvit2_v1&quot;
+    signal_tokenizer_name: str = &quot;signals_chronos_v1&quot;
+
+    # Frame benchmark settings
+    frame_spatial_compression: int = 16  # Open-MAGVIT2 actual
+    frame_temporal_compression: int = 1  # image tokenizer
+    frame_target_height: int = 256       # resize before encode
+    frame_target_width: int = 256
+
+    # Signal benchmark settings
+    signal_groups: list[str] = field(
+        default_factory=lambda: [&quot;magnetics&quot;, &quot;summary&quot;, &quot;pf_active&quot;]
+    )
+    signal_n_bins: int = 4096            # Chronos default
+
+    # Infrastructure
+    device: str = &quot;cuda&quot;                 # or &quot;cpu&quot; for smoke runs
+    batch_size: int = 32                 # frames per encode call
+    n_warmup_batches: int = 3            # discarded for throughput measurement
+
+    # Acceptance gates (cross-references tokenizers.md §7)
+    rfid_max: float = 5.0
+    psnr_min_db: float = 20.0
+    lpips_max: float = 0.35
+    signal_pearson_r_min: float = 0.90
+    throughput_frames_per_s_min: float = 100.0
+</code></pre>
+<p>Configs are stored as YAML in <code>imas_ambix/bench/configs/</code>:</p>
+<pre><code>imas_ambix/bench/configs/
+├── v0-rbb-100shot.yaml       # reference: 100-shot rbb baseline
+├── v0-rbb-10shot-smoke.yaml  # fast smoke run (10 shots, CPU)
+└── v0-signals-100shot.yaml   # signal tokenizer baseline
+</code></pre>
+<h3 id="22-benchresult">2.2 BenchResult</h3>
+<pre><code class="language-python">@dataclass
+class BenchResult:
+    config_hash: str             # SHA-256 of the serialised BenchConfig
+    tokenizer_name: str
+    tokenizer_version: str       # from TokenRegistry
+    timestamp: str               # ISO-8601 UTC
+    shot_ids: list[int]
+
+    # Frame metrics (None if frame benchmark not run)
+    rfid: float | None
+    psnr_db: float | None
+    lpips: float | None
+    mae_per_pixel: float | None
+    codebook_utilisation: float | None   # fraction of codebook entries used
+    compression_ratio: float | None      # bytes_in / bytes_out
+
+    # Signal metrics (per-channel dicts keyed by &quot;{group}/{variable}&quot;)
+    mae_per_channel: dict[str, float] | None
+    nrmse_per_channel: dict[str, float] | None
+    pearson_r_per_channel: dict[str, float] | None
+    signal_codebook_utilisation: float | None
+
+    # Throughput metrics
+    encode_fps: float | None             # frames per second (encode)
+    decode_fps: float | None             # frames per second (decode)
+    total_wall_s: float
+
+    # Acceptance gate outcomes
+    gates_passed: dict[str, bool]        # keyed by gate name
+    all_gates_passed: bool
+    failure_reasons: list[str]
+</code></pre>
+<p>Results are JSON-serialisable and archived at:</p>
+<pre><code>/work/projects/imas_gpu/mast-tokens/v1/benchmarks/
+└── {tokenizer_name}-{config_hash[:8]}-{timestamp}.json
+</code></pre>
+<h3 id="23-benchmarkframetokenizer">2.3 benchmark_frame_tokenizer</h3>
+<p>Signature:</p>
+<pre><code class="language-python">def benchmark_frame_tokenizer(
+    tokenizer: FrameTokenizer,
+    shot_ids: list[int],
+    config: BenchConfig,
+    level1_root: str = &quot;/work/projects/imas_gpu/mast/level1/shots&quot;,
+) -&gt; BenchResult:
+    ...
+</code></pre>
+<p>Steps:</p>
+<ol>
+<li>For each shot: open the rbb Zarr, resize frames to 256×256.</li>
+<li>Encode in <code>config.batch_size</code> batches; record encode time.</li>
+<li>Decode; record decode time.</li>
+<li>Compute rFID, PSNR, LPIPS, MAE on the decoded vs original frames.</li>
+<li>Compute codebook utilisation (number of unique token IDs used / codebook
+size) and compression ratio (raw uint16 bytes / encoded int32 bytes).</li>
+<li>Aggregate across shots; apply acceptance gates.</li>
+</ol>
+<p>rFID is the primary gate. It requires an Inception v3 feature extractor
+(via <code>torchvision</code>). rFID is computed shot-by-shot against the
+ground-truth frames from the same shot (not against ImageNet statistics).
+This is the <em>reconstruction</em> FID — lower is better, and it measures how
+much the round-trip degrades the distribution of frame features.</p>
+<h3 id="24-benchmarksignaltokenizer">2.4 benchmark_signal_tokenizer</h3>
+<p>Signature:</p>
+<pre><code class="language-python">def benchmark_signal_tokenizer(
+    tokenizer: SignalTokenizer,
+    shot_ids: list[int],
+    config: BenchConfig,
+    level2_root: str = &quot;/work/projects/imas_gpu/mast/level2/shots&quot;,
+) -&gt; BenchResult:
+    ...
+</code></pre>
+<p>Steps:</p>
+<ol>
+<li>For each shot and each group in <code>config.signal_groups</code>: open the Zarr,
+resample to the 100 Hz model grid.</li>
+<li>Encode; decode.</li>
+<li>Compute MAE, NRMSE, Pearson r per channel.</li>
+<li>Codebook utilisation: fraction of bin IDs used out of <code>n_bins</code>.</li>
+<li>Apply acceptance gates: <code>pearson_r &gt;= signal_pearson_r_min</code> for all
+headline channels.</li>
+</ol>
+<p>&quot;Headline channels&quot; are: <code>summary/ip</code> (plasma current), <code>summary/b0</code>
+(toroidal field), <code>pf_active/*/current</code> (PF coil currents),
+<code>pulse_schedule/tf/b_field_tor</code> (target toroidal field), and
+<code>summary/global_quantities/li_3</code> (internal inductance). These are the
+control-adjacent signals most tightly coupled to the plasma macro-state.</p>
+<h3 id="25-rendercomparisontable">2.5 render_comparison_table</h3>
+<pre><code class="language-python">def render_comparison_table(results: list[BenchResult]) -&gt; str:
+    ...
+</code></pre>
+<p>Renders a markdown table comparing multiple <code>BenchResult</code> objects. Columns:
+tokenizer name, rFID, PSNR, LPIPS, Pearson-r (mean across headline channels),
+encode fps, gates. Used by the <code>ambix tokenize bench compare</code> sub-command.</p>
+<hr />
+<h2 id="3-metric-definitions">3. Metric definitions</h2>
+<h3 id="31-frame-metrics">3.1 Frame metrics</h3>
+<p><strong>rFID (reconstruction FID).</strong> Fréchet distance between the Inception v3
+feature distributions of the original frames and the decoded frames, both
+from the same shot set. This is <em>not</em> the generative FID (which compares to
+a reference dataset like ImageNet); it measures how much the tokenizer
+round-trip shifts the feature distribution. Lower is better. Reference:
+<code>imas_ambix/eval/metrics.py:rFID</code>.</p>
+<p><strong>PSNR.</strong> Peak signal-to-noise ratio between original and decoded frames,
+computed per-frame and averaged. In dB; higher is better. Formula:
+<code>10 * log10(MAX² / MSE)</code> where <code>MAX = 255</code> for uint8 frames.</p>
+<p><strong>LPIPS.</strong> Learned perceptual image patch similarity (VGG backbone). In [0,1];
+lower is better. Captures perceptual quality beyond pixel-level MSE. Reference:
+<code>imas_ambix/eval/metrics.py:LPIPS</code>.</p>
+<p><strong>MAE per pixel.</strong> Mean absolute error between original and decoded frames,
+averaged over all pixels and frames. In the same units as the input (uint16
+for raw rbb data; uint8 for the 256×256 resized input to Open-MAGVIT2).</p>
+<p><strong>Codebook utilisation.</strong> The fraction of the codebook's entries that appear
+at least once in the encoded output for the benchmark shot set. An
+Open-MAGVIT2 codebook with 2^18 = 262,144 entries will never be fully
+utilised on a 100-shot rbb sample; a utilisation below 1 % suggests the
+encoder is collapsing tokens into a small effective vocabulary, which hurts
+generation diversity.</p>
+<p><strong>Compression ratio.</strong> Raw bytes in (uint16 frames, no compression) divided
+by encoded bytes out (int32 token IDs, no compression). Open-MAGVIT2 at
+16×16 spatial compression on a 256×256 frame: <code>(256×256×2 bytes) / (16×16×4 bytes) = 32</code>. This is the theoretical value; measure empirically
+to confirm.</p>
+<h3 id="32-signal-metrics">3.2 Signal metrics</h3>
+<p><strong>MAE per channel.</strong> Mean absolute error between original and decoded signal,
+per variable, in the variable's native units after inverse-normalisation.
+The Chronos <code>MeanScaleUniformBins</code> normalisation must be inverted before
+computing MAE.</p>
+<p><strong>NRMSE per channel.</strong> Normalised RMSE = <code>RMSE / std(original)</code>. Scale-free
+metric. The acceptance gate in <code>tokenizers.md</code> §7 is <code>NRMSE ≤ 0.05</code> for
+headline channels.</p>
+<p><strong>Pearson r.</strong> Linear correlation between original and decoded channel.
+Gate: ≥ 0.90 for all headline channels. This is a loose gate; a pure
+autoencoder achieves r &gt; 0.999 on smooth time series. A shot tokenizer that
+fails this gate is producing qualitatively wrong reconstructions.</p>
+<p><strong>Signal codebook utilisation.</strong> For Chronos: fraction of the 4,096 bins
+used across all shots + channels. For PatchTST: always 1 (single identity
+token per patch).</p>
+<h3 id="33-throughput-metrics">3.3 Throughput metrics</h3>
+<p><strong>encode_fps.</strong> Frames per second for the encode call (excluding model load
+time, which is amortised). Measured by timing the encode loop over
+<code>n_warmup_batches + N</code> batches and reporting only the last <code>N</code> batches.</p>
+<p><strong>decode_fps.</strong> Same, for the decode call.</p>
+<p><strong>total_wall_s.</strong> Total elapsed time for the full benchmark including data
+loading, encode, decode, and metric computation (but not model load).</p>
+<hr />
+<h2 id="4-reference-comparisons-for-v0">4. Reference comparisons for v0</h2>
+<h3 id="41-frame-tokenizer-comparisons">4.1 Frame tokenizer comparisons</h3>
+<p>All comparisons run on the <strong>same 100-shot rbb subset</strong> to ensure
+comparability. The 100 shots are pinned in <code>v0-rbb-100shot.yaml</code> (sampled
+from the training set only — never from val/test/demo).</p>
+<table>
+<thead>
+<tr>
+<th>Comparison</th>
+<th>Tokenizer A</th>
+<th>Tokenizer B</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Baseline vs placeholder</td>
+<td><code>frames_open_magvit2_v1</code> (ImageNet ckpt)</td>
+<td><code>frames_placeholder_v1</code></td>
+<td>Confirm that Open-MAGVIT2 beats the placeholder on rFID</td>
+</tr>
+<tr>
+<td>Plasma fine-tune delta</td>
+<td><code>frames_open_magvit2_v1</code> (ImageNet)</td>
+<td><code>frames_open_magvit2_plasma_v1</code> (plasma fine-tuned)</td>
+<td>Measure rFID improvement from decoder fine-tune (§5 of this doc; see also <code>tokenizers.md</code> §12.1)</td>
+</tr>
+<tr>
+<td>IR baseline</td>
+<td><code>frames_open_magvit2_v1</code> on rir</td>
+<td>same</td>
+<td>Confirm shared visible/IR codebook is acceptable; gate for IR codebook decision (<code>tokenizers.md</code> §12.5)</td>
+</tr>
+</tbody>
+</table>
+<p>The Cosmos-Tokenizer-DV alternative is explicitly <strong>not</strong> benchmarked in v0
+because its NVIDIA OML weights are not pure-Apache. If the rFID after
+fine-tune is still &gt; 5, Cosmos becomes the escalation path — add a
+comparison run at that point.</p>
+<h3 id="42-signal-tokenizer-comparisons">4.2 Signal tokenizer comparisons</h3>
+<p>All comparisons run on the <strong>same 100-shot level-2 subset</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Comparison</th>
+<th>Tokenizer A</th>
+<th>Tokenizer B</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chronos vs uniform</td>
+<td><code>signals_chronos_v1</code></td>
+<td><code>signals_uniform_v1</code></td>
+<td>Confirm Chronos beats the placeholder on Pearson r</td>
+</tr>
+<tr>
+<td>PatchTST identity check</td>
+<td><code>signals_patchtst_v1</code></td>
+<td>N/A</td>
+<td>Confirm exact round-trip (Pearson r = 1.0, MAE = 0)</td>
+</tr>
+<tr>
+<td>Chronos vs PatchTST-real</td>
+<td><code>signals_chronos_v1</code></td>
+<td><code>signals_patchtst_real_v1</code> (HF model, see <code>tokenizers.md</code> §12.2)</td>
+<td>When PatchTST-real lands: compare reconstruction + codebook utilisation</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-throughput-targets">4.3 Throughput targets</h3>
+<table>
+<thead>
+<tr>
+<th>Tokenizer</th>
+<th>Target (GPU)</th>
+<th>Target (CPU)</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Open-MAGVIT2 encode (256×256)</td>
+<td>≥ 100 fps</td>
+<td>≥ 2 fps</td>
+<td>100 fps on GPU makes the 450k-frame encode pass finish in ~75 min (see <code>tokenizers.md</code> §9.1)</td>
+</tr>
+<tr>
+<td>Chronos encode (100 Hz, 1 s window)</td>
+<td>≥ 500 steps/s</td>
+<td>≥ 200 steps/s</td>
+<td>Signal encoding is not the bottleneck; 500 steps/s gives 1,000× margin on GPU</td>
+</tr>
+<tr>
+<td>PatchTST patch-project (64-sample patches)</td>
+<td>≥ 50,000 patches/s</td>
+<td>≥ 20,000 patches/s</td>
+<td>Magnetics has ~1.7K patches per shot; throughput is not a concern</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-acceptance-gates-per-tokenizer">5. Acceptance gates per tokenizer</h2>
+<p>Gates cross-reference <code>tokenizers.md</code> §7. A benchmark pass requires:</p>
+<h3 id="51-frame-tokenizer-open-magvit2">5.1 Frame tokenizer (Open-MAGVIT2)</h3>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Threshold</th>
+<th>On fail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rFID on 100-shot rbb</td>
+<td>≤ 5.0</td>
+<td>Trigger decoder fine-tune (§4.1 this doc; <code>tokenizers.md</code> §12.1)</td>
+</tr>
+<tr>
+<td>PSNR</td>
+<td>≥ 20 dB</td>
+<td>Informational; not a hard gate</td>
+</tr>
+<tr>
+<td>LPIPS</td>
+<td>≤ 0.35</td>
+<td>Informational</td>
+</tr>
+<tr>
+<td>Codebook utilisation</td>
+<td>≥ 0.5 %</td>
+<td>If &lt; 0.5 %: codebook collapse suspected — investigate encoder temperature</td>
+</tr>
+<tr>
+<td>encode_fps on GPU</td>
+<td>≥ 100 fps</td>
+<td>If &lt; 100 fps: profile the worker.py bridge; the bottleneck is likely the temp-file IPC — consider memory-mapped approach</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Passing rFID ≤ 5</strong> is the gate that unlocks tokenizer graduation to world-model
+training (<code>tokenizers.md</code> §7, <code>world-model-v0.md</code> §5).</p>
+<h3 id="52-signal-tokenizer-chronos">5.2 Signal tokenizer (Chronos)</h3>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Threshold</th>
+<th>On fail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pearson r (headline channels)</td>
+<td>≥ 0.90 for all</td>
+<td>Investigate per-channel calibration; check for out-of-range scaling</td>
+</tr>
+<tr>
+<td>NRMSE (headline channels)</td>
+<td>≤ 0.05 for all</td>
+<td>If &gt; 0.10: check bin count — may need <code>n_bins=8192</code> rather than 4096</td>
+</tr>
+<tr>
+<td>Codebook utilisation</td>
+<td>≥ 5 %</td>
+<td>If &lt; 5 %: signals cluster in a narrow quantile range; consider per-campaign recalibration</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53-patchtst-identity-passthrough">5.3 PatchTST (identity passthrough)</h3>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Threshold</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pearson r</td>
+<td>= 1.000 (exact)</td>
+<td>Identity: no quantisation, no lossy encoding</td>
+</tr>
+<tr>
+<td>MAE</td>
+<td>= 0.000 (exact)</td>
+<td>Same</td>
+</tr>
+</tbody>
+</table>
+<p>A failure here indicates a bug in the patch-slice / reassembly logic.</p>
+<hr />
+<h2 id="6-ci-integration">6. CI integration</h2>
+<h3 id="61-why-not-in-pytest">6.1 Why not in pytest</h3>
+<p>The full benchmark requires a GPU node, the Open-MAGVIT2 weights (921 MB),
+and a sample of the actual MAST corpus. All three are unavailable in CI.
+Running a CPU-only smoke test (10 shots, placeholder tokenizers) in pytest is
+acceptable for regression detection — this is implemented as <code>test_bench.py</code>
+with the real tokenizers guarded by <code>pytest.mark.skipif(no_gpu)</code>.</p>
+<p>The quantitative benchmarks with real weights run only on SLURM.</p>
+<h3 id="62-slurm-batch-job-design">6.2 SLURM batch job design</h3>
+<p>The benchmark job is submitted via <code>ambix tokenize bench run</code>:</p>
+<pre><code class="language-bash">ambix tokenize bench run \
+    --config imas_ambix/bench/configs/v0-rbb-100shot.yaml \
+    --output /work/projects/imas_gpu/mast-tokens/v1/benchmarks/ \
+    --slurm                          # submits to gpu_0003_grpA, exclusive
+</code></pre>
+<p>The <code>--slurm</code> flag wraps the benchmark in an <code>sbatch</code> script that:</p>
+<ol>
+<li>Stops the DeepSeek V4-Flash serving job (per <code>compute.md</code> §2 protocol).</li>
+<li>Runs the benchmark.</li>
+<li>Restarts the serving job.</li>
+</ol>
+<p>The benchmark result JSON is written to the benchmarks archive; a summary
+table is printed to the SLURM log and also appended to the job's W&amp;B run
+(project: <code>imas-ambix-benchmarks</code>).</p>
+<h3 id="63-result-archive-and-comparison">6.3 Result archive and comparison</h3>
+<p>Results accumulate in <code>/work/projects/imas_gpu/mast-tokens/v1/benchmarks/</code>.
+Compare any two results:</p>
+<pre><code class="language-bash">ambix tokenize bench compare \
+    /work/projects/imas_gpu/mast-tokens/v1/benchmarks/frames_open_magvit2_v1-*.json
+</code></pre>
+<p>This renders a markdown comparison table (via <code>render_comparison_table</code>) to
+stdout. Useful for communicating rFID deltas to stakeholders without
+manually extracting numbers from JSON.</p>
+<hr />
+<h2 id="7-open-questions-to-revisit">7. Open questions to revisit</h2>
+<ol>
+<li>
+<p><strong>rFID reference dataset.</strong> The current rFID implementation computes
+reconstruction FID against the same-shot ground truth. An alternative
+is to compute against all 100 benchmark shots (pooled). The pooled
+version is more stable (larger sample) but less sensitive to per-shot
+degradation. Decide after the first 100-shot run — if per-shot rFID
+variance is low, switch to pooled.</p>
+</li>
+<li>
+<p><strong>Throughput measurement validity.</strong> The Open-MAGVIT2 worker uses temp-file
+IPC (see <code>tokenizers.md</code> §9.1 process isolation note). The measured
+encode_fps on the GPU node includes subprocess startup time per batch.
+For the benchmark to measure true GPU throughput, the worker must be kept
+alive across batches (persistent mode). Implement before reporting any
+throughput numbers as &quot;GPU throughput&quot;.</p>
+</li>
+<li>
+<p><strong>Signal benchmark temporal scope.</strong> The 100 Hz model grid over a 1 s
+window gives 100 timesteps per benchmark window. Is that enough to measure
+Pearson r reliably for slowly-varying channels (e.g. PF coil current ramps)?
+Consider using full-pulse windows (up to 2 s) for signal benchmarks.</p>
+</li>
+<li>
+<p><strong>MAE unit reporting.</strong> MAE is computed after inverse-normalisation, so it
+carries physical units (e.g. kA for plasma current). The benchmark result
+must store the unit string alongside the MAE value so the comparison table
+is interpretable. Add a <code>units</code> dict to <code>BenchResult</code>.</p>
+</li>
+<li>
+<p><strong>Benchmark cadence.</strong> Should benchmarks run automatically after every
+tokenizer weight update, or only on demand? An automatic post-update run
+would close the loop cleanly but costs ~30 min of GPU time per run. Design
+as on-demand for v0; automate if the workflow stabilises.</p>
+</li>
+<li>
+<p><strong>IR camera benchmark.</strong> The rir source has only 25 shots in FAIR-MAST
+(per <code>data-acquisition.md</code> §10.4). A 100-shot rFID comparison is not
+possible. Define a separate <code>v0-rir-25shot.yaml</code> config and lower the
+expected rFID threshold (fewer shots = noisier FID estimate; use a
+relaxed gate of rFID ≤ 10 for the IR codebook decision).</p>
+</li>
+<li>
+<p><strong>Multi-modal coherence metric.</strong> The benchmark currently tests each
+modality independently. A joint coherence metric — do signal tokens at
+timestep t correlate with frame tokens at t? — would strengthen confidence
+in the interleaved stream. This is defined in <code>tokenizers.md</code> §12.6 as
+a future metric. Cross-link here once implemented.</p>
+</li>
+</ol>
+
+    <nav class="plan-nav"><a href="tokenizers.html"><span class="nav-label">← Previous</span><span class="nav-title">Tokenizers</span></a><a href="world-model-v0.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">World Model v0</span></a></nav>
+  </div>
+</main>
+</div>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

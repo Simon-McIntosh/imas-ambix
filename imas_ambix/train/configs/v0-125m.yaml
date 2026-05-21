@@ -1,0 +1,38 @@
+defaults:
+  - _self_
+
+model:
+  variant: variant_125m
+  vocab_size: 280000
+  max_position_embeddings: 16384
+
+data:
+  tokens_root: /work/projects/imas_gpu/mast-tokens/v1
+  manifest: /work/projects/imas_gpu/mast-tokens/v1/manifests/level1-cameras.json
+  context_length: 16384
+  window_stride: 4096
+
+training:
+  micro_batch_size: 4
+  max_steps: 30000
+  peak_lr: 3.0e-4
+  warmup_frac: 0.02
+  min_lr_frac: 0.1
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  precision: bf16
+  fsdp_sharding: FULL_SHARD
+  activation_checkpoint: true
+  grad_accum: 1
+
+checkpoint:
+  root: /work/projects/imas_gpu/mast-checkpoints
+  every_n_steps: 2000
+
+eval:
+  every_n_steps: 5000
+  demo_shot: 30420
+
+wandb:
+  project: imas-ambix-world-model
+  entity: null

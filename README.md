@@ -1,6 +1,18 @@
 # IMAS Ambix ⚗️
 
+[![Plans](https://img.shields.io/badge/plans-dashboard-2563eb?logo=github)](https://simon-mcintosh.github.io/imas-ambix/)
+
 **Fusion World Model — distilling experimental data into physics-informed generative models**
+
+> 📋 **Plans dashboard.** Project plans, strategy, v0 runway and decisions are
+> tracked as HTML documents under [`plans/`](plans/), published via GitHub
+> Pages at <https://simon-mcintosh.github.io/imas-ambix/>.  Markdown sources
+> are archived in [`plans/archive/`](plans/archive/); the HTML site is the
+> canonical record.  The plan system (state.js, mode banner, repo-tracked
+> JSON state) is shared with [imas-efit](https://github.com/Simon-McIntosh/efit)
+> and lives in the
+> [`html-docs` skill](https://github.com/anthropics/claude-code) — see
+> [`plans/_HTML_PLANS_README.md`](plans/_HTML_PLANS_README.md) for the layout.
 
 Ambix is a machine learning framework for training generative world models on
 tokamak experimental data. It distils data access patterns and IMAS mappings
@@ -26,6 +38,11 @@ The underlying approach follows Microsoft's WHAM (World and Human Action Model)
 architecture: given the current plasma state (diagnostic measurements at time *t*)
 and control actions (coil currents, gas injection, heating power), predict the
 plasma state at time *t+1*.
+
+The end-to-end plan from raw FAIR-MAST data through tokenization, training, and
+the wide-angle-camera forward-prediction demo lives under
+[`plans/`](plans/README.md) — start with
+[`plans/STRATEGY.md`](plans/STRATEGY.md) for the vision and roadmap.
 
 ## Architecture
 

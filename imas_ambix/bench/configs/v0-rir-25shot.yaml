@@ -1,0 +1,43 @@
+name: v0-rir-25shot-magvit2
+tokenizer_kind: frame
+tokenizer:
+  factory: imas_ambix.tokenizer.frames:OpenMagvit2Tokenizer
+  kwargs:
+    device: cuda
+    batch_size: 8
+    image_size: 256
+camera: rir
+shot_ids:
+  # TODO: populate from data-acquisition.md §10.4 — only 25 rir-bearing MAST
+  # shots are known to exist; the data team should replace these placeholder
+  # integers with the real shot IDs once confirmed via s5cmd ls.
+  - 15080
+  - 15081
+  - 15082
+  - 15083
+  - 15084
+  - 15085
+  - 15086
+  - 15087
+  - 15088
+  - 15089
+  - 15090
+  - 15091
+  - 15092
+  - 15093
+  - 15094
+  - 15095
+  - 15096
+  - 15097
+  - 15098
+  - 15099
+  - 15100
+  - 15101
+  - 15102
+  - 15103
+  - 15104
+max_items_per_shot: 16
+metrics:
+  - psnr
+  - mae
+device: cuda

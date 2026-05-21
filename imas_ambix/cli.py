@@ -51,3 +51,27 @@ agent = _LazyGroup(
     help="Manage LLM agent deployments on SLURM GPU clusters.",
 )
 main.add_command(agent)
+
+
+data = _LazyGroup(
+    import_path="imas_ambix.data.cli:data",
+    name="data",
+    help="FAIR-MAST data acquisition and access (see plans/data-acquisition.md).",
+)
+main.add_command(data)
+
+
+tokenize = _LazyGroup(
+    import_path="imas_ambix.tokenizer.cli:tokenize",
+    name="tokenize",
+    help="Multi-modal tokenizers for FAIR-MAST shots (see plans/tokenizers.md).",
+)
+main.add_command(tokenize)
+
+
+demo = _LazyGroup(
+    import_path="imas_ambix.demo.cli:demo",
+    name="demo",
+    help="Forward-prediction demo for held-out MAST shots (plans/demo.md).",
+)
+main.add_command(demo)

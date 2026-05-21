@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>v0 Runway | Ambix Plans</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/state.js" defer></script>
+</head>
+<body>
+<!-- header -->
+<header class="site-header">
+  <div class="logo"><a href="index.html">⚗ Ambix Plans</a></div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="STRATEGY.html">Strategy</a>
+    <a href="v0-runway.html">v0 Runway</a>
+    <a href="compute.html">Compute</a>
+    <a href="data-acquisition.html">Data Acq</a>
+    <a href="data-quality.html">Quality</a>
+    <a href="tokenizers.html">Tokenizers</a>
+    <a href="tokenizer-benchmarks.html">Benchmarks</a>
+    <a href="world-model-v0.html">World Model</a>
+    <a href="demo.html">Demo</a>
+    <a href="decisions.html">Decisions</a>
+  </nav>
+  <div class="spacer"></div>
+  <button class="sidebar-toggle" id="sidebar-toggle">&#9776; Sections</button>
+  <button class="theme-toggle" id="theme-toggle">☽ Dark</button>
+</header>
+
+<div class="page-body">
+<!-- sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-title">On this page</div>
+  <ul><li><a href="#1-recap-where-we-are-2026-05-20-afternoon" class="">1. Recap — where we are 2026-05-20 (afternoon)</a></li>
+<li><a href="#2-highest-roi-next-steps-ranked" class="">2. Highest-ROI next steps (ranked)</a></li>
+<li><a href="#3-fleet-dispatch-parallel-batch-2026-05-20" class="">3. Fleet dispatch — parallel batch (2026-05-20)</a></li>
+<li><a href="#4-sequenced-follow-up-after-the-parallel-batch" class="">4. Sequenced follow-up (after the parallel batch)</a></li>
+<li><a href="#5-review-rubric-for-sonnet-46-work" class="">5. Review rubric for Sonnet 4.6 work</a></li>
+<li><a href="#open-decisions" class="">Open Decisions</a></li></ul>
+</aside>
+
+<!-- main -->
+<main class="main-content">
+  <div class="content-inner">
+    <div class="breadcrumb"><a href="index.html">Plans</a><span>›</span><span>v0 Runway</span></div>
+    <h1 id="plan-v0-runway-next-steps">Plan: v0 Runway — Next Steps</h1>
+<p>Status: <strong>Active</strong> — updated 2026-05-20.</p>
+<p>This is the operational doc that tabulates the next set of work items on
+the way to the v0 demo (<code>plans/demo.md</code>). It is a <em>living document</em> — as
+items complete or new ones emerge, edit this file in place. Use
+<code>STRATEGY.md</code> for vision, <code>world-model-v0.md</code> for the model contract,
+<code>tokenizers.md</code> for tokenizer wiring, <code>data-acquisition.md</code> for the
+corpus, <code>compute.md</code> for SLURM.</p>
+<hr />
+<h2 id="1-recap-where-we-are-2026-05-20-afternoon">1. Recap — where we are 2026-05-20 (afternoon)</h2>
+<table>
+<thead>
+<tr>
+<th>Track</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Level-2 mirror</td>
+<td><strong>87 %</strong> (10,099 / 11,573 shots, ETA hours; bucket du = 464 GB authoritative)</td>
+</tr>
+<tr>
+<td>Level-1 camera mirror</td>
+<td><strong>complete</strong> (2.7 TB, 11,029 shot dirs)</td>
+</tr>
+<tr>
+<td><strong>Level-1 ALL-sources mirror</strong> (xdc/amc/amb/aga/efm/etc.)</td>
+<td><strong>in flight</strong> — manifest level1-all.json launched ~07:00 UTC</td>
+</tr>
+<tr>
+<td>Tokenizer scaffold</td>
+<td><strong>landed</strong> — registry, alignment, multimodal aggregator, CLI</td>
+</tr>
+<tr>
+<td>Open-MAGVIT2 frame tokenizer</td>
+<td><strong>wired</strong> — real model end-to-end, MAE 324 on rbb; <strong>CUDA wheel installed</strong>, GPU runner code ready, GPU test skips on login</td>
+</tr>
+<tr>
+<td>Chronos signal tokenizer</td>
+<td><strong>wired</strong> (r ≈ 0.985 round-trip on synthetic sine/cosine)</td>
+</tr>
+<tr>
+<td>PatchTST identity wrapper</td>
+<td><strong>wired</strong> (bit-exact round-trip)</td>
+</tr>
+<tr>
+<td>Eval metrics module</td>
+<td><strong>landed</strong> (rFID, PSNR, LPIPS, centroid, chord, edge, rollout stub; 31 tests + 4 skips)</td>
+</tr>
+<tr>
+<td>WHAM model + 125M/500M Hydra configs</td>
+<td><strong>landed</strong> (8 tests; 125M=328M params, 500M=689M — embedding-table dominated)</td>
+</tr>
+<tr>
+<td>Data loaders + token persistence</td>
+<td><strong>landed</strong> (15 tests; ambix data tokens-status live)</td>
+</tr>
+<tr>
+<td><strong>block_kind side data</strong></td>
+<td><strong>landed</strong> (51 tokenizer tests; weighted-CE loss mask ready)</td>
+</tr>
+<tr>
+<td><strong>CLI smoke tests</strong> (data + tokenize)</td>
+<td><strong>landed</strong> (42 tests; data/cli.py 86 % coverage, tokenizer/cli.py 97 %)</td>
+</tr>
+<tr>
+<td>Training loop FSDP scaffold</td>
+<td><strong>not started</strong></td>
+</tr>
+<tr>
+<td>Demo CLI</td>
+<td><strong>not started</strong></td>
+</tr>
+<tr>
+<td>SLURM dedicated reservation</td>
+<td><strong>not requested</strong> (deferred — see below)</td>
+</tr>
+<tr>
+<td><strong>Training mode decision</strong></td>
+<td><strong>EXCLUSIVE</strong> (2026-05-20) — V4-Flash is stopped before training. Maintainer (ambix CLI) is authorised to <code>scancel</code> the serve. See <code>compute.md</code> §2.</td>
+</tr>
+<tr>
+<td><strong>Data quality framework + ambix data audit</strong></td>
+<td><strong>in flight</strong> (sonnet-data-quality) — <code>imas_ambix/quality/</code>, CLI sub-command <code>ambix data audit</code>. See <code>plans/data-quality.md</code>.</td>
+</tr>
+<tr>
+<td><strong>Tokenizer benchmark framework + ambix tokenize bench</strong></td>
+<td><strong>in flight</strong> (sonnet-bench-framework) — <code>imas_ambix/bench/</code>, CLI sub-command <code>ambix tokenize bench</code>. See <code>plans/tokenizer-benchmarks.md</code>.</td>
+</tr>
+<tr>
+<td><strong>Calibration library (signals + frames)</strong></td>
+<td><strong>landed</strong> (fe18b34) — <code>imas_ambix/calibration/</code>, 17 tests; real-data smoke produced Ip mean 294 kA, density 4.6e19 m⁻³</td>
+</tr>
+<tr>
+<td><strong>Data quality framework + ambix data audit</strong></td>
+<td><strong>landed</strong> (18a3385) — <code>imas_ambix/quality/</code>, 22 tests; <strong>audit smoke on 25 L2 shots: 76 % usable_for_training</strong>, dd_version + dynamic_range + time_axis warnings widespread (audit thresholds may need calibration)</td>
+</tr>
+<tr>
+<td><strong>Tokenizer benchmark framework</strong></td>
+<td><strong>landed</strong> (94565f3) — <code>imas_ambix/bench/</code>, 14 tests; real bench on 8 rbb frames</td>
+</tr>
+<tr>
+<td><strong>Bulk-encode CLI</strong> (frames + signals)</td>
+<td><strong>landed</strong> (9306605) — <code>ambix data bulk-encode-frames</code> + <code>bulk-encode-signals</code>, 15 tests; CPU smoke on shot 15085 produced 9,380 tokens</td>
+</tr>
+<tr>
+<td><strong>Training loop FSDP scaffold</strong></td>
+<td><strong>landed</strong> (a948b19) — <code>imas_ambix/train/loop.py</code>, 25 tests; CPU smoke on tiny synthetic config: loss step 0 = 12.72, step 1 = 12.72 (log(280k) baseline)</td>
+</tr>
+<tr>
+<td><strong>Demo CLI + rollout impl</strong></td>
+<td><strong>landed</strong> (3e3bb2a) — <code>ambix demo wham-mast</code> + <code>rollout()</code>, 20 tests + 31 eval tests; mock-checkpoint pipeline working end-to-end</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-highest-roi-next-steps-ranked">2. Highest-ROI next steps (ranked)</h2>
+<p>ROI = value × probability of clean delivery / cost.</p>
+<p>Items marked <strong>DONE</strong> are complete as of 2026-05-20; they remain here for
+historical reference. In-flight items will close before the training-loop
+track begins.</p>
+<table>
+<thead>
+<tr>
+<th>Rank</th>
+<th>Track</th>
+<th>Value</th>
+<th>Cost</th>
+<th>Risk</th>
+<th>Sonnet 4.6?</th>
+<th>Depends on</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><s>Chronos signal tokenizer + PatchTST identity wrapper</s></td>
+<td>High</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>none</td>
+<td><strong>DONE</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td><s>Eval metrics scaffold (rFID, PSNR, LPIPS, centroid, chord, edge)</s></td>
+<td>High</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>none</td>
+<td><strong>DONE</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td><s>WHAM model scaffold + Hydra configs</s></td>
+<td>Critical</td>
+<td>Medium</td>
+<td>Low</td>
+<td>Yes</td>
+<td>—</td>
+<td><strong>DONE</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td><s>Data loaders + token persistence + bulk-encode CLI</s></td>
+<td>Critical</td>
+<td>Medium</td>
+<td>Low</td>
+<td>Yes</td>
+<td>—</td>
+<td><strong>DONE</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Tokenizer expansion (plasma decoder fine-tune, PatchTST real, equilibrium 2-D)</strong></td>
+<td>High (raises rFID floor, PatchTST fidelity)</td>
+<td>Medium</td>
+<td>Low–Medium</td>
+<td>Sonnet (guided)</td>
+<td>benchmark baseline measured + rFID &gt; 5 trigger</td>
+<td><strong>Pending — see <code>tokenizers.md</code> §12</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Data quality framework + corpus audit (writing training index)</td>
+<td>High (gates training set correctness)</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>level-2 mirror + level-1 camera mirror</td>
+<td><strong>in flight</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td>Tokenizer benchmark framework (rFID, Pearson r, throughput)</td>
+<td>High (needed to trigger fine-tune decisions)</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>GPU runner working</td>
+<td><strong>in flight</strong></td>
+</tr>
+<tr>
+<td>8</td>
+<td>Calibration library (per-channel signal calibration, frame normalisation)</td>
+<td>Medium (improves Chronos NRMSE)</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>none</td>
+<td><strong>in flight</strong></td>
+</tr>
+<tr>
+<td>9</td>
+<td>Training-loop FSDP scaffold</td>
+<td>Critical</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Sonnet + Opus review</td>
+<td>tracks 3 + 4 (DONE) + quality audit</td>
+<td><strong>not started</strong></td>
+</tr>
+<tr>
+<td>10</td>
+<td>Demo CLI + rollout code</td>
+<td>Critical</td>
+<td>Medium</td>
+<td>Low</td>
+<td>Yes</td>
+<td>training loop</td>
+<td><strong>not started</strong></td>
+</tr>
+<tr>
+<td>11</td>
+<td>Mirror integrity verification</td>
+<td>Low</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>level-2 done</td>
+<td><strong>not started</strong></td>
+</tr>
+<tr>
+<td>12</td>
+<td>SLURM dedicated-reservation request (<code>compute.md</code> §3)</td>
+<td>High</td>
+<td>Low</td>
+<td>Low</td>
+<td>No (operational)</td>
+<td>none</td>
+<td><strong>deferred (user action)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Tracks 6, 7, 8 are in flight in parallel. Track 9 (training loop) unblocks
+only after 6 is complete (quality audit produces the training index). Track 5
+(tokenizer expansion) runs after 7 provides the rFID baseline.</p>
+<hr />
+<h2 id="3-fleet-dispatch-parallel-batch-2026-05-20">3. Fleet dispatch — parallel batch (2026-05-20)</h2>
+<p>Four Sonnet 4.6 agents in parallel with <strong>non-overlapping write scopes</strong>.
+Coordinator (Opus) reviews each output post-completion. See
+[[fleet-sonnet-46-offload]] memory.</p>
+<table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Track</th>
+<th>Exclusive write scope</th>
+<th>Read-only references</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>S1</strong></td>
+<td>Chronos + PatchTST signal tokenizers</td>
+<td><code>imas_ambix/tokenizer/signals.py</code>; <code>tests/test_tokenizer.py</code> (additions); <code>plans/tokenizers.md</code> (§9.2 update)</td>
+<td><code>tokenizer/base.py</code>, <code>tokenizer/registry.py</code>, <code>tokenizer/frames.py</code> (the OpenMagvit2 pattern), <code>plans/tokenizers.md</code> §3</td>
+</tr>
+<tr>
+<td><strong>S2</strong></td>
+<td>Evaluation metrics + rollout stub</td>
+<td><code>imas_ambix/eval/__init__.py</code>, <code>imas_ambix/eval/metrics.py</code>, <code>imas_ambix/eval/rollout.py</code>; <code>tests/test_eval.py</code> (new)</td>
+<td><code>plans/demo.md</code> §4, <code>plans/world-model-v0.md</code> §5</td>
+</tr>
+<tr>
+<td><strong>S3</strong></td>
+<td>WHAM model scaffold</td>
+<td><code>imas_ambix/model/__init__.py</code>, <code>imas_ambix/model/config.py</code>, <code>imas_ambix/model/wham.py</code>; <code>imas_ambix/train/__init__.py</code>, <code>imas_ambix/train/configs/v0-125m.yaml</code>, <code>imas_ambix/train/configs/v0-500m.yaml</code>; <code>tests/test_model.py</code> (new)</td>
+<td><code>plans/world-model-v0.md</code> §1, §2, §4; <code>tokenizer/registry.py</code> for vocab size</td>
+</tr>
+<tr>
+<td><strong>S4</strong></td>
+<td>Data loaders + token persistence + bulk-encode CLI</td>
+<td><code>imas_ambix/data/loaders.py</code>, <code>imas_ambix/data/persist.py</code>; <code>imas_ambix/data/cli.py</code> (extension, do not touch existing commands); <code>tests/test_loaders.py</code>, <code>tests/test_persist.py</code> (new)</td>
+<td><code>plans/world-model-v0.md</code> §3, §6; <code>plans/tokenizers.md</code> §5; <code>tokenizer/frames.py</code>, <code>tokenizer/multimodal.py</code></td>
+</tr>
+</tbody>
+</table>
+<p>Mandatory dispatch preamble per AGENTS.md is embedded in every Agent
+prompt. Branch: <code>code/data-skeleton</code>. Each agent commits + pushes its
+own changes with a <code>feat(&lt;scope&gt;):</code> conventional commit.</p>
+<hr />
+<h2 id="4-sequenced-follow-up-after-the-parallel-batch">4. Sequenced follow-up (after the parallel batch)</h2>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Owner</th>
+<th>Dependency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Open-MAGVIT2 GPU runner adaptation</td>
+<td>Sonnet (with guidance)</td>
+<td>parallel batch complete</td>
+</tr>
+<tr>
+<td>Bulk-encode the rbb corpus on the GPU node</td>
+<td>Opus (operator)</td>
+<td>GPU runner + dedicated reservation</td>
+</tr>
+<tr>
+<td>Training-loop FSDP scaffold</td>
+<td>Sonnet, reviewed by Opus</td>
+<td>model + loaders + tokens</td>
+</tr>
+<tr>
+<td>First training smoke run (125 M, 1 GPU, 10 shots)</td>
+<td>Opus</td>
+<td>training loop</td>
+</tr>
+<tr>
+<td>500 M curriculum run on the dedicated reservation</td>
+<td>Opus</td>
+<td>smoke green + reservation granted</td>
+</tr>
+<tr>
+<td>Demo CLI + notebook + MP4</td>
+<td>Sonnet</td>
+<td>trained checkpoint</td>
+</tr>
+<tr>
+<td>File the SLURM reservation request (<code>compute.md</code> §3.2)</td>
+<td>User</td>
+<td>none — operational</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-review-rubric-for-sonnet-46-work">5. Review rubric for Sonnet 4.6 work</h2>
+<p>Every dispatched agent's output is reviewed by the coordinator against:</p>
+<ul>
+<li><strong>Protocol conformance</strong>: implements the documented <code>Tokenizer</code> /
+<code>WhamConfig</code> / etc. interface verbatim.</li>
+<li><strong>File scope adherence</strong>: touches only its allocated paths.</li>
+<li><strong>Test coverage</strong>: at least one test per public function and per
+documented behaviour.</li>
+<li><strong>Lint + format</strong>: <code>uv run ruff check &amp;&amp; uv run ruff format</code> clean.</li>
+<li><strong>Live execution</strong>: where applicable, the new code is exercised via
+its CLI on real data (a synthetic numpy/xarray fixture is fine for
+PRs that don't have GPU access).</li>
+<li><strong>Plan-doc alignment</strong>: cross-references to <code>plans/*.md</code> are accurate
+and the plan files are updated in lockstep if the implementation
+diverged from the design.</li>
+</ul>
+<p>Below standard ⇒ one round of correction via <code>SendMessage</code> to the same
+agent; if still below standard, the coordinator fixes in-session and
+records the failure mode in a new feedback memory.</p>
+
+    <h2 id="open-decisions">Open Decisions</h2>
+<p>
+  Click a row to record the call. State persists to
+  <code>~/docs-server/state/imas-ambix/&lt;this-page-stem&gt;.json</code> via
+  the docs-server, and is committed to git under
+  <code>docs/plans-html/state/imas-ambix/</code>.
+</p>
+<table id="decisions-table" class="decisions-table">
+  <thead>
+    <tr><th style="width:30%">Decision</th><th style="width:35%">Choice</th><th>Rationale</th><th style="width:120px">When</th></tr>
+  </thead>
+  <tbody>
+    <tr class="decision-row" data-key="smoke-training-timing">
+      <td>
+        <strong>125M smoke training run — run now or wait for bulk encode?</strong>
+        <div class="decision-context">Training loop FSDP scaffold is landed. Bulk-encode CLI produced 9,380 tokens for shot 15085 (CPU). A smoke run needs ~10 shots. The full GPU bulk-encode for ~3,000 rbb shots is pending the SLURM run. Source: <a href="#4-sequenced-follow-up-after-the-parallel-batch">v0-runway.html §4</a>.</div>
+      </td>
+      <td>
+        <div class="controls">
+          <button data-choice="run-now">Run now with the ~10 CPU-encoded shots (validate loop immediately)</button>
+          <button data-choice="wait-gpu">Wait for GPU bulk-encode to complete (~3,000 shots)</button>
+        </div>
+      </td>
+      <td><input type="text" placeholder="rationale..." style="width:100%"></td>
+      <td><span class="when"></span></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="decisions-toolbar">
+  <button id="copy-state">Copy state as JSON</button>
+  <button id="reset-state">Reset</button>
+</div>
+
+<script defer>
+(async function () {
+  const table = document.getElementById('decisions-table');
+  if (!table) return;
+  const rows = [...table.querySelectorAll('tr.decision-row')];
+
+  async function readAll() {
+    const out = {};
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const chosen = row.querySelector('button.chosen')?.dataset.choice ?? null;
+      const rationale = row.querySelector('input')?.value ?? '';
+      const when = row.querySelector('.when')?.textContent ?? '';
+      out[key] = { choice: chosen, rationale, when };
+    }
+    return out;
+  }
+
+  function applyAll(state) {
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const s = state?.[key];
+      if (!s) continue;
+      if (s.choice) {
+        row.querySelectorAll('button[data-choice]').forEach(b => {
+          b.classList.toggle('chosen', b.dataset.choice === s.choice);
+        });
+      }
+      const inp = row.querySelector('input');
+      if (inp && s.rationale) inp.value = s.rationale;
+      const when = row.querySelector('.when');
+      if (when && s.when) when.textContent = s.when;
+    }
+  }
+
+  async function persist() {
+    const data = await readAll();
+    await saveState(data);
+  }
+
+  rows.forEach(row => {
+    row.querySelectorAll('button[data-choice]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+        btn.classList.add('chosen');
+        row.querySelector('.when').textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        persist();
+      });
+    });
+    const inp = row.querySelector('input');
+    if (inp) inp.addEventListener('change', persist);
+  });
+
+  document.getElementById('copy-state').addEventListener('click', async () => {
+    await copyState(await readAll());
+  });
+  document.getElementById('reset-state').addEventListener('click', async () => {
+    if (!confirm('Reset all decisions on this page?')) return;
+    rows.forEach(row => {
+      row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+      const inp = row.querySelector('input'); if (inp) inp.value = '';
+      const when = row.querySelector('.when'); if (when) when.textContent = '';
+    });
+    await saveState({});
+  });
+
+  const initial = await loadState();
+  applyAll(initial.data || {});
+})();
+</script>
+
+    <nav class="plan-nav"><a href="STRATEGY.html"><span class="nav-label">← Previous</span><span class="nav-title">Strategy</span></a><a href="compute.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Compute</span></a></nav>
+  </div>
+</main>
+</div>
+
+<script src="assets/app.js"></script>
+</body>
+</html>
