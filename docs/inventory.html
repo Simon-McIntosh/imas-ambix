@@ -29,6 +29,7 @@
     const [groupBy, setGroupBy]     = useState("milestone");
     const [sortBy, setSortBy]       = useState("roi");
     const [filterStatus, setFilterStatus] = useState("");
+    const [hideShipped, setHideShipped] = useState(true);  // default: focus on what's still in play
     const [query, setQuery]         = useState("");
     const [selected, setSelected]   = useState("tokenizers");
     const [draft, setDraft]         = useState("");
@@ -53,6 +54,7 @@
 
     const filtered = sorted.filter(i =>
       (!filterStatus || i.status === filterStatus) &&
+      (!hideShipped || i.status !== "shipped") &&
       (!query || i.title.toLowerCase().includes(query.toLowerCase()) || i.slug.includes(query.toLowerCase()))
     );
 
@@ -149,6 +151,15 @@
                 <option value="modified">last modified</option>
               </select>
             </label>
+            <label className="field" style={{ cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={hideShipped}
+                onChange={(e) => setHideShipped(e.target.checked)}
+                style={{ marginRight: 4 }}
+              />
+              hide shipped
+            </label>
             <span className="count">{filtered.length} / {items.length}</span>
           </div>
 
@@ -236,7 +247,7 @@
                     {sel.slug === "tokenizers" ? (
                       <>
                         <div className="note">
-                          <header><Who name="smc" /><span className="when">2026-05-20 22:00</span></header>
+                          <header><Who name="Simon McIntosh" /><span className="when">2026-05-20 22:00</span></header>
                           <p>Locked the 4 §12 decisions on tokenizers-12-landed; keeping the evergreen page's decision rows open so anyone reading the live doc sees what's in flight.</p>
                         </div>
                         <div className="note">
@@ -246,7 +257,7 @@
                       </>
                     ) : sel.comments > 0 ? (
                       <div className="note">
-                        <header><Who name="smc" /><span className="when">{sel.last}</span></header>
+                        <header><Who name="Simon McIntosh" /><span className="when">{sel.last}</span></header>
                         <p>(mock) {sel.comments} note(s) on this plan. Open the plan to read or reply.</p>
                       </div>
                     ) : (

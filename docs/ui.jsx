@@ -181,46 +181,128 @@ Object.assign(window, {
 
 // ─── Persistence ──────────────────────────────────────────────────────────
 //
-// On localhost we write to localStorage immediately. This mirrors the
-// dotfiles state.js semantics (writes are browser-local until promoted to the
-// repo by editing the JSON and committing). The Persist module exposes a
-// small API both plan.html and decisions.html call from chip clicks +
-// rationale blurs.
+// Tight feedback loop:
 //
-// In production this thin shim is replaced by state.js's saveState().
+//   * On localhost (docs-server) — every save POSTs to
+//     /state/<project>/<plan> so the canonical JSON file on disk is updated
+//     immediately. The local site is the operational interface; clicks
+//     write through.
+//   * On GitHub Pages — server isn't reachable; saves go to localStorage
+//     only and a banner explains how to promote (clone repo, edit JSON,
+//     commit).
+//
+// The Persist API is patch-shaped: callers pass a flat object whose keys
+// may be dotted (e.g. `{ "decisions.plasma-decoder-finetune": {...} }`).
+// Persist merges the patch into the current canonical document and writes
+// the full merged document back via POST.
 
 (function () {
-  // The prototype runs inside an editor iframe whose hostname isn't
-  // necessarily "localhost". We always allow writes here; in production the
-  // dotfiles state.js handles the readonly-on-Pages distinction by hostname.
-  // Override per-session by setting `localStorage.__plans_readonly = "1"`.
-  const isLocal = localStorage.getItem("__plans_readonly") !== "1";
+  const PROJECT = (document.querySelector('meta[name="docs-project"]')?.content)
+                  || window.location.pathname.replace(/^\/+/, "").split("/")[0]
+                  || "unknown";
+  const localHosts = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]);
+  const isLocal = localHosts.has(window.location.hostname);
+  // Override per-session via `localStorage.__plans_readonly = "1"`.
+  const forceReadonly = localStorage.getItem("__plans_readonly") === "1";
+  const mode = (isLocal && !forceReadonly) ? "editable" : "readonly";
+
+  // Server URL — the docs-server lives at the origin in local mode.
+  const stateUrl     = (plan) => `${window.location.origin}/state/${PROJECT}/${plan}`;
+  const stateUrlJson = (plan) => `state/${PROJECT}/${plan}.json`;     // relative; works on Pages too
+
+  // Dotted-key merge into nested object.
+  function patchInto(target, patch) {
+    for (const [k, v] of Object.entries(patch)) {
+      const parts = k.split(".");
+      let cur = target;
+      for (let i = 0; i < parts.length - 1; i++) {
+        cur[parts[i]] = cur[parts[i]] || {};
+        cur = cur[parts[i]];
+      }
+      cur[parts[parts.length - 1]] = v;
+    }
+    return target;
+  }
+
+  function localSave(plan, patch) {
+    const key = `${PROJECT}:${plan}`;
+    let prev = {};
+    try { prev = JSON.parse(localStorage.getItem(key) || "{}"); } catch {}
+    const next = JSON.parse(JSON.stringify(prev));
+    patchInto(next, patch);
+    next._updated = new Date().toISOString();
+    localStorage.setItem(key, JSON.stringify(next));
+    return next;
+  }
+
+  async function fetchCanonical(plan) {
+    try {
+      const r = await fetch(stateUrlJson(plan), { cache: "no-store" });
+      if (!r.ok) return {};
+      const j = await r.json();
+      return (j && j.data) || j || {};
+    } catch { return {}; }
+  }
+
   window.Persist = {
     isLocal,
-    save(plan, patch) {
-      if (!isLocal) return { ok: false, reason: "read-only on published pages" };
-      const key = `imas-ambix:${plan}`;
-      let prev = {};
-      try { prev = JSON.parse(localStorage.getItem(key) || "{}"); } catch {}
-      // Patch keys can be dotted (e.g. "decisions.plasma-decoder-finetune");
-      // merge at the leaf.
-      const next = { ...prev };
-      for (const [k, v] of Object.entries(patch)) {
-        const parts = k.split(".");
-        let cur = next;
-        for (let i = 0; i < parts.length - 1; i++) {
-          cur[parts[i]] = cur[parts[i]] || {};
-          cur = cur[parts[i]];
-        }
-        cur[parts[parts.length - 1]] = v;
-      }
-      next._updated = new Date().toISOString();
-      localStorage.setItem(key, JSON.stringify(next));
-      return { ok: true, key, _updated: next._updated };
-    },
+    mode,
+    project: PROJECT,
+
+    // load() is SYNC — returns the localStorage cache. plan.html uses this
+    // for snappy initial render. The async loadCanonical() then merges in
+    // the server state for the live source of truth.
     load(plan) {
-      const key = `imas-ambix:${plan}`;
+      const key = `${PROJECT}:${plan}`;
       try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; }
+    },
+
+    async loadCanonical(plan) {
+      const cur = await fetchCanonical(plan);
+      // overlay localStorage on top — local edits not yet POSTed win for
+      // brief network blips
+      const overlay = this.load(plan);
+      delete overlay._updated;
+      return { ...cur, ...overlay };
+    },
+
+    // save() — patch-shaped. In editable mode, GET canonical, merge patch,
+    // POST back. On success, also writes localStorage. On any failure,
+    // falls back to localStorage only.
+    async save(plan, patch) {
+      // Always write the local cache so the UI is responsive.
+      const local = localSave(plan, patch);
+
+      if (mode !== "editable") {
+        return { ok: true, where: "localStorage (read-only site)", _updated: local._updated };
+      }
+
+      // Fetch + merge + POST.
+      try {
+        const current = await fetchCanonical(plan);
+        const merged = JSON.parse(JSON.stringify(current));
+        patchInto(merged, patch);
+        // strip any stale localStorage-only field
+        delete merged._updated;
+
+        const r = await fetch(stateUrl(plan), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(merged),
+        });
+        if (r.ok) {
+          const j = await r.json().catch(() => ({}));
+          return {
+            ok: true,
+            where: "docs-server → " + (j.path || `state/${PROJECT}/${plan}.json`),
+            _updated: local._updated,
+          };
+        }
+        console.warn("Persist.save: POST not ok", r.status);
+      } catch (e) {
+        console.warn("Persist.save: POST failed (docs-server unreachable?)", e);
+      }
+      return { ok: true, where: "localStorage (docs-server unreachable)", _updated: local._updated };
     },
   };
 

@@ -145,12 +145,12 @@
       const now = new Date().toISOString().slice(0, 16).replace("T", " ");
       setDecisions(ds => ds.map(d =>
         d.plan === plan && d.key === key
-          ? { ...d, chosen: choice, when: now, by: "smc" }
+          ? { ...d, chosen: choice, when: now, by: "Simon McIntosh" }
           : d
       ));
       const cur = decisions.find(d => d.plan === plan && d.key === key);
       const rationale = cur?.rationale || "";
-      Persist.save(plan, { [`decisions.${key}`]: { choice, rationale, when: now, by: "smc" } });
+      Persist.save(plan, { [`decisions.${key}`]: { choice, rationale, when: now, by: "Simon McIntosh" } });
       flashSaved(`${plan}.${key} → ${choice}`);
     };
     const setRationale = (plan, key, rationale) => {
@@ -161,7 +161,7 @@
     const saveRationale = (plan, key) => {
       const cur = decisions.find(d => d.plan === plan && d.key === key);
       if (!cur) return;
-      Persist.save(plan, { [`decisions.${key}`]: { choice: cur.chosen, rationale: cur.rationale, when: cur.when, by: cur.by || "smc" } });
+      Persist.save(plan, { [`decisions.${key}`]: { choice: cur.chosen, rationale: cur.rationale, when: cur.when, by: cur.by || "Simon McIntosh" } });
       flashSaved(`${plan}.${key} rationale`);
     };
 

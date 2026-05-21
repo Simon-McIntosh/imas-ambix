@@ -269,8 +269,8 @@
       const now = new Date().toISOString().slice(0, 16).replace("T", " ");
       const cur = decs.find(x => x.key === key);
       const rationale = cur?.rationale || "";
-      setDecs(d => d.map(x => x.key === key ? { ...x, chosen, when: now, by: "smc", _committedRationale: rationale } : x));
-      Persist.save(PG.slug, { [`decisions.${key}`]: { choice: chosen, rationale, when: now, by: "smc" } });
+      setDecs(d => d.map(x => x.key === key ? { ...x, chosen, when: now, by: "Simon McIntosh", _committedRationale: rationale } : x));
+      Persist.save(PG.slug, { [`decisions.${key}`]: { choice: chosen, rationale, when: now, by: "Simon McIntosh" } });
       flashSaved(chosen ? `${PG.slug}.${key} → ${chosen}` : `${PG.slug}.${key} rationale saved`);
     };
     const onChoose = onLock;  // back-compat for any caller
@@ -281,7 +281,7 @@
     const openQuestion = (section) => {
       const body = prompt(`Open question on "${section}":`);
       if (!body) return;
-      const q = { id: `q${Date.now()}`, section, body, opened_by: "smc", opened_at: new Date().toISOString().slice(0, 10) };
+      const q = { id: `q${Date.now()}`, section, body, opened_by: "Simon McIntosh", opened_at: new Date().toISOString().slice(0, 10) };
       setQuestions(qs => [...qs, q]);
     };
 
@@ -290,7 +290,7 @@
       const now = new Date().toISOString().slice(0, 16).replace("T", " ");
       const newId = `f-${Date.now()}`;
       setFollowups([{
-        id: newId, written_by: "smc", written_at: now,
+        id: newId, written_by: "Simon McIntosh", written_at: now,
         title: title || "(untitled handoff)",
         body: body || "(no body yet)",
         recommends_skill: skill,
@@ -364,7 +364,7 @@
                                 openQuestion={() => {
                                   const body = prompt(`Open question on "${s.h}":`);
                                   if (!body) return;
-                                  setQuestions(qs => [...qs, { id: `q${Date.now()}`, section: s.h, body, opened_by: "smc", opened_at: new Date().toISOString().slice(0,10) }]);
+                                  setQuestions(qs => [...qs, { id: `q${Date.now()}`, section: s.h, body, opened_by: "Simon McIntosh", opened_at: new Date().toISOString().slice(0,10) }]);
                                 }}>
                         {s.h}
                       </SectionH>
@@ -555,7 +555,7 @@
                   <span className="v"><StatusPillEdit value={status} onChange={setStatus} /></span>
                   <span className="k">milestone</span><span className="v"><a className="link" href="project.html">M1 · Tokenizer prototype</a></span>
                   <span className="k">sprint</span><span className="v"><a className="link" href="sprint.html">S2 · M1 ramp</a></span>
-                  <span className="k">owner</span><span className="v"><Who name="smc" /></span>
+                  <span className="k">owner</span><span className="v"><Who name="Simon McIntosh" /></span>
                   <span className="k">tier</span>
                   <span className="v">
                     <select

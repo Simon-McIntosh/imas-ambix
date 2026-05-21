@@ -25,7 +25,7 @@ window.MOCK = (function () {
       project: "imas-ambix",
       path: "~/Code/imas-ambix/docs",
       published: "simon-mcintosh.github.io/imas-ambix/",
-      owner: "smc",
+      owner: "Simon McIntosh",
       plans_count: 9, active: 3, blocked: 3, pending: 1, shipped: 2,
       last_modified: "2026-05-21",
       milestones: [
@@ -46,7 +46,7 @@ window.MOCK = (function () {
       project: "efitpp",
       path: "~/Code/efitpp/docs",
       published: "(private)",
-      owner: "smc",
+      owner: "Simon McIntosh",
       plans_count: 22, active: 6, blocked: 4, pending: 5, shipped: 7,
       last_modified: "2026-05-20",
       milestones: [
@@ -67,7 +67,7 @@ window.MOCK = (function () {
       project: "imas-codex",
       path: "~/Code/imas-codex/docs",
       published: "(private)",
-      owner: "smc",
+      owner: "Simon McIntosh",
       plans_count: 9, active: 2, blocked: 1, pending: 4, shipped: 2,
       last_modified: "2026-05-19",
       milestones: [
@@ -88,15 +88,15 @@ window.MOCK = (function () {
 
   // ─── imas-ambix plan inventory ────────────────────────────────────────────
   const inventory = [
-    { slug: "STRATEGY",             title: "STRATEGY — Fusion World Model",       status: "active",  ms: "M0", roi: "high", effort: "S", tier: "opus",   impl: 0.85, last: "2026-05-19", owner: "smc", blockers: 0, dec_open: 0, comments: 0, sprint: null },
-    { slug: "v0-runway",            title: "v0 runway plan",                      status: "active",  ms: "M1", roi: "high", effort: "M", tier: "opus",   impl: 0.62, last: "2026-05-20", owner: "smc", blockers: 1, dec_open: 1, comments: 3, sprint: "S2" },
-    { slug: "compute",              title: "Compute (SLURM, FSDP, reservation)",  status: "blocked", ms: "M1", roi: "high", effort: "S", tier: "sonnet", impl: 0.40, last: "2026-05-20", owner: "smc", blockers: 1, dec_open: 1, comments: 2, sprint: "S2" },
-    { slug: "data-acquisition",     title: "Data acquisition (FAIR-MAST mirror)", status: "shipped", ms: "M0", roi: "high", effort: "L", tier: "sonnet", impl: 1.00, last: "2026-05-19", owner: "smc", blockers: 0, dec_open: 0, comments: 0, sprint: "S1" },
-    { slug: "data-quality",         title: "Data quality (audit + gates)",        status: "active",  ms: "M1", roi: "mid",  effort: "M", tier: "sonnet", impl: 0.90, last: "2026-05-20", owner: "smc", blockers: 0, dec_open: 1, comments: 1, sprint: "S2" },
-    { slug: "tokenizers",           title: "Multi-modal tokenizers",              status: "active",  ms: "M1", roi: "high", effort: "L", tier: "opus",   impl: 0.78, last: "2026-05-20", owner: "smc", blockers: 0, dec_open: 4, comments: 6, sprint: "S2" },
-    { slug: "tokenizer-benchmarks", title: "Tokenizer benchmark harness",         status: "active",  ms: "M1", roi: "mid",  effort: "M", tier: "sonnet", impl: 0.80, last: "2026-05-20", owner: "smc", blockers: 0, dec_open: 0, comments: 0, sprint: "S2" },
-    { slug: "world-model-v0",       title: "World-model v0 (WHAM-style)",         status: "blocked", ms: "M2", roi: "high", effort: "L", tier: "opus",   impl: 0.18, last: "2026-05-21", owner: "smc", blockers: 2, dec_open: 1, comments: 4, sprint: "S2" },
-    { slug: "demo",                 title: "Public demo (wide-angle camera)",     status: "blocked", ms: "M3", roi: "low",  effort: "M", tier: "sonnet", impl: 0.05, last: "2026-04-22", owner: "smc", blockers: 1, dec_open: 1, comments: 2, sprint: null },
+    { slug: "STRATEGY",             title: "STRATEGY — Fusion World Model",       status: "active",  ms: "M0", roi: "high", effort: "S", tier: "opus",   impl: 0.85, last: "2026-05-19", owner: "Simon McIntosh", blockers: 0, dec_open: 0, comments: 0, sprint: null },
+    { slug: "v0-runway",            title: "v0 runway plan",                      status: "active",  ms: "M1", roi: "high", effort: "M", tier: "opus",   impl: 0.62, last: "2026-05-20", owner: "Simon McIntosh", blockers: 1, dec_open: 1, comments: 3, sprint: "S2" },
+    { slug: "compute",              title: "Compute (SLURM, FSDP, reservation)",  status: "blocked", ms: "M1", roi: "high", effort: "S", tier: "sonnet", impl: 0.40, last: "2026-05-20", owner: "Simon McIntosh", blockers: 1, dec_open: 1, comments: 2, sprint: "S2" },
+    { slug: "data-acquisition",     title: "Data acquisition (FAIR-MAST mirror)", status: "shipped", ms: "M0", roi: "high", effort: "L", tier: "sonnet", impl: 1.00, last: "2026-05-19", owner: "Simon McIntosh", blockers: 0, dec_open: 0, comments: 0, sprint: "S1" },
+    { slug: "data-quality",         title: "Data quality (audit + gates)",        status: "active",  ms: "M1", roi: "mid",  effort: "M", tier: "sonnet", impl: 0.90, last: "2026-05-20", owner: "Simon McIntosh", blockers: 0, dec_open: 1, comments: 1, sprint: "S2" },
+    { slug: "tokenizers",           title: "Multi-modal tokenizers",              status: "active",  ms: "M1", roi: "high", effort: "L", tier: "opus",   impl: 0.78, last: "2026-05-20", owner: "Simon McIntosh", blockers: 0, dec_open: 4, comments: 6, sprint: "S2" },
+    { slug: "tokenizer-benchmarks", title: "Tokenizer benchmark harness",         status: "active",  ms: "M1", roi: "mid",  effort: "M", tier: "sonnet", impl: 0.80, last: "2026-05-20", owner: "Simon McIntosh", blockers: 0, dec_open: 0, comments: 0, sprint: "S2" },
+    { slug: "world-model-v0",       title: "World-model v0 (WHAM-style)",         status: "blocked", ms: "M2", roi: "high", effort: "L", tier: "opus",   impl: 0.18, last: "2026-05-21", owner: "Simon McIntosh", blockers: 2, dec_open: 1, comments: 4, sprint: "S2" },
+    { slug: "demo",                 title: "Public demo (wide-angle camera)",     status: "blocked", ms: "M3", roi: "low",  effort: "M", tier: "sonnet", impl: 0.05, last: "2026-04-22", owner: "Simon McIntosh", blockers: 1, dec_open: 1, comments: 2, sprint: null },
   ];
 
   // ─── Multiple sprints ─────────────────────────────────────────────────────
@@ -132,17 +132,17 @@ window.MOCK = (function () {
   // ─── Top blockers (project-wide) ──────────────────────────────────────────
   const blockers = [
     { summary: "SDCC dedicated training reservation pending file",     origin: "compute",        n: 3, owner: "L. Holzl",  next: "ITER batch-services ticket #4421" },
-    { summary: "Bulk-encode SLURM run not started",                     origin: "tokenizers",     n: 2, owner: "smc",       next: "queue once compute reservation lands" },
-    { summary: "Trained checkpoint absent",                             origin: "demo",           n: 1, owner: "smc",       next: "after world-model-v0 first eval" },
+    { summary: "Bulk-encode SLURM run not started",                     origin: "tokenizers",     n: 2, owner: "Simon McIntosh",       next: "queue once compute reservation lands" },
+    { summary: "Trained checkpoint absent",                             origin: "demo",           n: 1, owner: "Simon McIntosh",       next: "after world-model-v0 first eval" },
   ];
 
   // ─── Project-wide activity ledger ─────────────────────────────────────────
   const timeline = [
     { when: "2026-05-21 09:14", who: "agent/sonnet",  what: "tokenizers §13.3 IR codebook benchmark wired (commit dec0082)" },
-    { when: "2026-05-20 22:00", who: "smc",            what: "locked 4 tokenizers §12 decisions on tokenizers-12-landed phase record" },
-    { when: "2026-05-20 18:02", who: "smc",            what: "v0-runway: added §3 fleet-dispatch block; 4 Sonnet agents launched" },
+    { when: "2026-05-20 22:00", who: "Simon McIntosh",            what: "locked 4 tokenizers §12 decisions on tokenizers-12-landed phase record" },
+    { when: "2026-05-20 18:02", who: "Simon McIntosh",            what: "v0-runway: added §3 fleet-dispatch block; 4 Sonnet agents launched" },
     { when: "2026-05-20 17:55", who: "agent/opus",     what: "tokenizers §12 expansion plan drafted (6 sub-items)" },
-    { when: "2026-05-20 09:10", who: "smc",            what: "compute §2 lock: exclusive-access training on gpu_0003_grpA" },
+    { when: "2026-05-20 09:10", who: "Simon McIntosh",            what: "compute §2 lock: exclusive-access training on gpu_0003_grpA" },
     { when: "2026-05-19 10:30", who: "agent/sonnet",   what: "data-acquisition L2 mirror complete (11,573 shots · 4.5 TB)" },
   ];
 
@@ -153,7 +153,7 @@ window.MOCK = (function () {
     "STRATEGY": {
       slug: "STRATEGY",
       title: "STRATEGY — Fusion World Model",
-      ms: "M0", sprint: null, status: "active", roi: "high", effort: "S", tier: "opus", owner: "smc",
+      ms: "M0", sprint: null, status: "active", roi: "high", effort: "S", tier: "opus", owner: "Simon McIntosh",
       impl: 0.85, phase: "evergreen vision doc",
       created: "2026-05-19", last_modified: "2026-05-19 12:00",
       depends_on: [], blocks: ["v0-runway"],
@@ -170,7 +170,7 @@ window.MOCK = (function () {
     "v0-runway": {
       slug: "v0-runway",
       title: "v0 runway plan",
-      ms: "M1", sprint: "S2", status: "active", roi: "high", effort: "M", tier: "opus", owner: "smc",
+      ms: "M1", sprint: "S2", status: "active", roi: "high", effort: "M", tier: "opus", owner: "Simon McIntosh",
       impl: 0.62, phase: "active operational plan",
       created: "2026-05-13", last_modified: "2026-05-20 18:02",
       depends_on: ["STRATEGY", "tokenizers", "compute"], blocks: ["world-model-v0"],
@@ -191,17 +191,17 @@ window.MOCK = (function () {
         },
       ],
       notes: [
-        { id: "n1", who: "smc", bot: false, when: "2026-05-20 18:02", body: "Adding §3 fleet-dispatch as a sub-plan; agent boundary table makes the parallelism real." },
+        { id: "n1", who: "Simon McIntosh", bot: false, when: "2026-05-20 18:02", body: "Adding §3 fleet-dispatch as a sub-plan; agent boundary table makes the parallelism real." },
       ],
       research: [
-        { id: "r1", type: "plan", title: "tokenizers.html — current state", source: "internal", added_by: "smc", when: "2026-05-20", url: "plan.html?slug=tokenizers" },
-        { id: "r2", type: "plan", title: "compute.html — blockers", source: "internal", added_by: "smc", when: "2026-05-20", url: "plan.html?slug=compute" },
+        { id: "r1", type: "plan", title: "tokenizers.html — current state", source: "internal", added_by: "Simon McIntosh", when: "2026-05-20", url: "plan.html?slug=tokenizers" },
+        { id: "r2", type: "plan", title: "compute.html — blockers", source: "internal", added_by: "Simon McIntosh", when: "2026-05-20", url: "plan.html?slug=compute" },
       ],
       questions: [],
       followups: [
         {
           id: "f-v0-2026-05-21",
-          written_by: "smc", written_at: "2026-05-20 18:02",
+          written_by: "Simon McIntosh", written_at: "2026-05-20 18:02",
           title: "Coordinator review of the 4-agent parallel batch outputs",
           body: "All 4 Sonnet agents have committed their work. Review each output against the §5 rubric and either accept the commits or flag for rework. Update §2 ROI ranking with the new items the batch produced.",
           recommends_skill: "/plan-edit v0-runway --section 5",
@@ -220,7 +220,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
         },
       ],
       followups_done: [
-        { id: "f-v0-2026-05-19", written_by: "smc", written_at: "2026-05-19 10:00", resolved_at: "2026-05-20 18:02", resolved_by: "smc",
+        { id: "f-v0-2026-05-19", written_by: "Simon McIntosh", written_at: "2026-05-19 10:00", resolved_at: "2026-05-20 18:02", resolved_by: "Simon McIntosh",
           title: "Add §3 fleet-dispatch table",
           outcome: "§3 added with 4-agent dispatch table; agent prompts captured under §3.1–§3.4." },
       ],
@@ -228,7 +228,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
     "compute": {
       slug: "compute",
       title: "Compute — SLURM, FSDP, reservation",
-      ms: "M1", sprint: "S2", status: "blocked", roi: "high", effort: "S", tier: "sonnet", owner: "smc",
+      ms: "M1", sprint: "S2", status: "blocked", roi: "high", effort: "S", tier: "sonnet", owner: "Simon McIntosh",
       impl: 0.40, phase: "blocked on SDCC reservation file",
       created: "2026-05-13", last_modified: "2026-05-20 09:10",
       depends_on: [], blocks: ["tokenizers", "world-model-v0", "demo"],
@@ -251,17 +251,17 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
         },
       ],
       notes: [
-        { id: "n1", who: "smc", bot: false, when: "2026-05-20 09:10", body: "Confirmed with L. Holzl that exclusive-pause window is fine for the smoke run; dedicated reservation only matters when curriculum training starts." },
+        { id: "n1", who: "Simon McIntosh", bot: false, when: "2026-05-20 09:10", body: "Confirmed with L. Holzl that exclusive-pause window is fine for the smoke run; dedicated reservation only matters when curriculum training starts." },
       ],
       research: [
-        { id: "r1", type: "doc",  title: "SDCC betelgeuse reservation policy v3.1", source: "ITER SDCC docs", added_by: "smc", when: "2026-05-13", url: "#" },
+        { id: "r1", type: "doc",  title: "SDCC betelgeuse reservation policy v3.1", source: "ITER SDCC docs", added_by: "Simon McIntosh", when: "2026-05-13", url: "#" },
         { id: "r2", type: "web",  title: "FSDP scaling notes (HF accelerate)",       source: "huggingface.co", added_by: "agent/sonnet", when: "2026-05-15", url: "#" },
       ],
       questions: [],
       followups: [
         {
           id: "f-compute-2026-05-21",
-          written_by: "smc", written_at: "2026-05-20 09:10",
+          written_by: "Simon McIntosh", written_at: "2026-05-20 09:10",
           title: "Stand up exclusive-pause SLURM wrapper script",
           body: "Until SDCC ticket #4421 clears, training runs need a wrapper that stops V4-Flash, claims the node exclusively, runs the job, restarts the serve. Should be a single sbatch template + a 30-line bash prologue.",
           recommends_skill: "/plan-implement compute --section 2",
@@ -275,7 +275,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
     "data-acquisition": {
       slug: "data-acquisition",
       title: "Data acquisition — FAIR-MAST mirror",
-      ms: "M0", sprint: "S1", status: "shipped", roi: "high", effort: "L", tier: "sonnet", owner: "smc",
+      ms: "M0", sprint: "S1", status: "shipped", roi: "high", effort: "L", tier: "sonnet", owner: "Simon McIntosh",
       impl: 1.00, phase: "shipped",
       created: "2026-05-06", last_modified: "2026-05-19 10:30",
       depends_on: [], blocks: ["tokenizers"],
@@ -287,7 +287,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
       decisions: [],
       notes: [],
       research: [
-        { id: "r1", type: "doc", title: "FAIR-MAST API v3.2", source: "fair-mast.org", added_by: "smc", when: "2026-05-06", url: "#" },
+        { id: "r1", type: "doc", title: "FAIR-MAST API v3.2", source: "fair-mast.org", added_by: "Simon McIntosh", when: "2026-05-06", url: "#" },
       ],
       questions: [],
       followups: [],
@@ -300,7 +300,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
     "data-quality": {
       slug: "data-quality",
       title: "Data quality — audit + training-grade gate",
-      ms: "M1", sprint: "S2", status: "active", roi: "mid", effort: "M", tier: "sonnet", owner: "smc",
+      ms: "M1", sprint: "S2", status: "active", roi: "mid", effort: "M", tier: "sonnet", owner: "Simon McIntosh",
       impl: 0.90, phase: "in flight · gate landing 2026-05-21",
       created: "2026-05-13", last_modified: "2026-05-20 11:00",
       depends_on: ["data-acquisition"], blocks: ["world-model-v0"],
@@ -321,11 +321,11 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
         },
       ],
       notes: [
-        { id: "n1", who: "smc", bot: false, when: "2026-05-20 11:00", body: "Re-deriving training-grade-shots.json without CX shrinks the corpus by ~8% — acceptable." },
+        { id: "n1", who: "Simon McIntosh", bot: false, when: "2026-05-20 11:00", body: "Re-deriving training-grade-shots.json without CX shrinks the corpus by ~8% — acceptable." },
       ],
       research: [],
       questions: [
-        { id: "q1", section: "5 training-grade gate", body: "Should we re-include charge_exchange in v1 once FAIR-MAST fixes the encoding, or treat it as a learned upstream untrustable?", opened_by: "smc", opened_at: "2026-05-20" },
+        { id: "q1", section: "5 training-grade gate", body: "Should we re-include charge_exchange in v1 once FAIR-MAST fixes the encoding, or treat it as a learned upstream untrustable?", opened_by: "Simon McIntosh", opened_at: "2026-05-20" },
       ],
       followups: [
         {
@@ -344,7 +344,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
     "tokenizer-benchmarks": {
       slug: "tokenizer-benchmarks",
       title: "Tokenizer benchmark harness",
-      ms: "M1", sprint: "S2", status: "active", roi: "mid", effort: "M", tier: "sonnet", owner: "smc",
+      ms: "M1", sprint: "S2", status: "active", roi: "mid", effort: "M", tier: "sonnet", owner: "Simon McIntosh",
       impl: 0.80, phase: "framework landed · awaiting real bench runs",
       created: "2026-05-13", last_modified: "2026-05-20 12:00",
       depends_on: ["tokenizers"], blocks: [],
@@ -378,7 +378,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
     "world-model-v0": {
       slug: "world-model-v0",
       title: "World-model v0 — WHAM-style decoder",
-      ms: "M2", sprint: "S2", status: "blocked", roi: "high", effort: "L", tier: "opus", owner: "smc",
+      ms: "M2", sprint: "S2", status: "blocked", roi: "high", effort: "L", tier: "opus", owner: "Simon McIntosh",
       impl: 0.18, phase: "spec landed · blocked on tokenizer round-trip",
       created: "2026-05-13", last_modified: "2026-05-21 09:00",
       depends_on: ["tokenizers", "compute", "data-quality"], blocks: ["demo"],
@@ -399,10 +399,10 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
         },
       ],
       notes: [
-        { id: "n1", who: "smc", bot: false, when: "2026-05-20 11:00", body: "Architecturally we're a thin layer over HF LlamaForCausalLM; the interesting bits are the block-aware embedding init and the weighted CE loss." },
+        { id: "n1", who: "Simon McIntosh", bot: false, when: "2026-05-20 11:00", body: "Architecturally we're a thin layer over HF LlamaForCausalLM; the interesting bits are the block-aware embedding init and the weighted CE loss." },
       ],
       research: [
-        { id: "r1", type: "paper", title: "WHAM — World and Human Action Models", source: "Nature 2025 · doi:10.1038/s41586-025-08600-3", added_by: "smc", when: "2026-05-13", url: "https://doi.org/10.1038/s41586-025-08600-3" },
+        { id: "r1", type: "paper", title: "WHAM — World and Human Action Models", source: "Nature 2025 · doi:10.1038/s41586-025-08600-3", added_by: "Simon McIntosh", when: "2026-05-13", url: "https://doi.org/10.1038/s41586-025-08600-3" },
         { id: "r2", type: "paper", title: "Llama 3 architecture report", source: "arXiv 2407.21783", added_by: "agent/opus", when: "2026-05-15", url: "#" },
       ],
       questions: [
@@ -411,7 +411,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
       followups: [
         {
           id: "f-wm-2026-05-21",
-          written_by: "smc", written_at: "2026-05-21 09:00",
+          written_by: "Simon McIntosh", written_at: "2026-05-21 09:00",
           title: "Lock model-size-curriculum decision",
           body: "tokenizers §12 expansion is closing this week. Before the smoke run can start, we need to commit to either 125M-smoke-first or 500M-direct. Read the decision context and lock it (rationale required).",
           recommends_skill: "/plan-edit world-model-v0 --decision model-size-curriculum",
@@ -426,7 +426,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
     "demo": {
       slug: "demo",
       title: "Public demo — wide-angle camera forward-prediction",
-      ms: "M3", sprint: null, status: "blocked", roi: "low", effort: "M", tier: "sonnet", owner: "smc",
+      ms: "M3", sprint: null, status: "blocked", roi: "low", effort: "M", tier: "sonnet", owner: "Simon McIntosh",
       impl: 0.05, phase: "blocked · waiting on world-model checkpoint",
       created: "2026-05-13", last_modified: "2026-04-22 14:00",
       depends_on: ["world-model-v0"], blocks: [],
@@ -455,7 +455,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
     "tokenizers": {
       slug: "tokenizers",
       title: "Multi-modal tokenizers",
-      ms: "M1", sprint: "S2", status: "active", roi: "high", effort: "L", tier: "opus", owner: "smc",
+      ms: "M1", sprint: "S2", status: "active", roi: "high", effort: "L", tier: "opus", owner: "Simon McIntosh",
       impl: 0.78, phase: "landed §1–§13 · §12 expansion in flight",
       created: "2026-05-13", last_modified: "2026-05-21 09:14",
       depends_on: ["data-acquisition", "compute"], blocks: ["world-model-v0"],
@@ -487,7 +487,7 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
     roi: "high",
     effort: "L",
     tier: "opus",
-    owner: "smc",
+    owner: "Simon McIntosh",
     impl: 0.78,
     phase: "landed §1–§13 · §12 expansion in flight",
     last_modified: "2026-05-21 09:14",
@@ -530,13 +530,13 @@ When done:
     ],
 
     followups_done: [
-      { id: "f-2026-05-20a", written_by: "smc",            written_at: "2026-05-20 18:02", resolved_at: "2026-05-21 09:14", resolved_by: "agent/sonnet",
+      { id: "f-2026-05-20a", written_by: "Simon McIntosh",            written_at: "2026-05-20 18:02", resolved_at: "2026-05-21 09:14", resolved_by: "agent/sonnet",
         title: "Wire IR codebook benchmark for §12.5",
         outcome: "Bench config landed (commit dec0082); ready to run pending GPU + real rir shot ids." },
       { id: "f-2026-05-20b", written_by: "agent/opus",     written_at: "2026-05-20 11:00", resolved_at: "2026-05-20 17:55", resolved_by: "agent/opus",
         title: "Draft §12 expansion plan (6 sub-items)",
         outcome: "All 6 §12 sub-items written and ranked. 4 decisions landed on tokenizers-12-landed.html." },
-      { id: "f-2026-05-19a", written_by: "smc",            written_at: "2026-05-19 14:00", resolved_at: "2026-05-20 11:00", resolved_by: "agent/opus",
+      { id: "f-2026-05-19a", written_by: "Simon McIntosh",            written_at: "2026-05-19 14:00", resolved_at: "2026-05-20 11:00", resolved_by: "agent/opus",
         title: "Land §9 v0 scaffold for tokenizer package",
         outcome: "imas_ambix.tokenizer/ exists with protocol surfaces + Open-MAGVIT2 / Chronos / PatchTST passthrough impls." },
     ],
@@ -565,25 +565,25 @@ When done:
     ],
 
     notes: [
-      { id: "n1", who: "smc",          bot: false, when: "2026-05-20 22:00", body: "Locked the 4 §12 decisions on tokenizers-12-landed; keeping the evergreen page's decision rows open so anyone reading the live doc sees what's in flight." },
+      { id: "n1", who: "Simon McIntosh",          bot: false, when: "2026-05-20 22:00", body: "Locked the 4 §12 decisions on tokenizers-12-landed; keeping the evergreen page's decision rows open so anyone reading the live doc sees what's in flight." },
       { id: "n2", who: "agent/sonnet", bot: true,  when: "2026-05-20 17:55", body: "Drafted §12 expansion plan as 6 sub-items. Ranked by ROI; cross-modality alignment quality metric (§12.6) is the lowest-cost and worth landing first.", quote: "re §12 expansion plan" },
-      { id: "n3", who: "smc",          bot: false, when: "2026-05-19 09:10", body: "The Apache-2.0 constraint is non-negotiable. If Cosmos-Tokenizer-DV needs an NVIDIA OML license check, we're out — Option B becomes dead even if cheaper to ship." },
+      { id: "n3", who: "Simon McIntosh",          bot: false, when: "2026-05-19 09:10", body: "The Apache-2.0 constraint is non-negotiable. If Cosmos-Tokenizer-DV needs an NVIDIA OML license check, we're out — Option B becomes dead even if cheaper to ship." },
     ],
 
     research: [
-      { id: "r1", type: "paper",   title: "Open-MAGVIT2: LFQ codebook for video",     source: "TencentARC · NeurIPS 2024",  added_by: "smc",          when: "2026-05-14", url: "#" },
+      { id: "r1", type: "paper",   title: "Open-MAGVIT2: LFQ codebook for video",     source: "TencentARC · NeurIPS 2024",  added_by: "Simon McIntosh",          when: "2026-05-14", url: "#" },
       { id: "r2", type: "paper",   title: "Chronos: pretrained scaling for time-series", source: "Amazon arXiv 2403.07815", added_by: "agent/opus",   when: "2026-05-15", url: "#" },
       { id: "r3", type: "paper",   title: "PatchTST: long-horizon time-series transformers", source: "arXiv 2211.14730",   added_by: "agent/opus",   when: "2026-05-15", url: "#" },
-      { id: "r4", type: "doc",     title: "FAIR-MAST IDS mapping reference",          source: "FAIR-MAST · v3.2 docs",      added_by: "smc",          when: "2026-05-13", url: "#" },
-      { id: "r5", type: "plan",    title: "world-model-v0.html §2 (token-stream)",    source: "internal · this project",    added_by: "smc",          when: "2026-05-16", url: "plan.html?slug=world-model-v0" },
+      { id: "r4", type: "doc",     title: "FAIR-MAST IDS mapping reference",          source: "FAIR-MAST · v3.2 docs",      added_by: "Simon McIntosh",          when: "2026-05-13", url: "#" },
+      { id: "r5", type: "plan",    title: "world-model-v0.html §2 (token-stream)",    source: "internal · this project",    added_by: "Simon McIntosh",          when: "2026-05-16", url: "plan.html?slug=world-model-v0" },
       { id: "r6", type: "image",   title: "rbb reconstruction MAE heatmap (shot 15085)", source: "tests/tokenizer_bench/mae-heatmap.png", added_by: "agent/sonnet", when: "2026-05-19", url: "#" },
-      { id: "r7", type: "thread",  title: "Slack #ml — IR codebook decision",         source: "#ml · 2026-05-14",           added_by: "smc",          when: "2026-05-14", url: "#" },
+      { id: "r7", type: "thread",  title: "Slack #ml — IR codebook decision",         source: "#ml · 2026-05-14",           added_by: "Simon McIntosh",          when: "2026-05-14", url: "#" },
       { id: "r8", type: "dataset", title: "rir shard inventory (25 shots, 410 MB)",   source: "scratch/rir-2026-05.parquet", added_by: "agent/sonnet", when: "2026-05-16", url: "#" },
-      { id: "r9", type: "web",     title: "Cosmos-Tokenizer license terms (NVIDIA OML)", source: "nvidia.com/cosmos-license", added_by: "smc",         when: "2026-05-15", url: "#" },
+      { id: "r9", type: "web",     title: "Cosmos-Tokenizer license terms (NVIDIA OML)", source: "nvidia.com/cosmos-license", added_by: "Simon McIntosh",         when: "2026-05-15", url: "#" },
     ],
 
     questions: [
-      { id: "q1", section: "12.4 multi-modal alignment",      body: "Should §12.4 use cosine on shared embeddings or per-modality InfoNCE? Need a 2-paragraph trade-off note before locking.", opened_by: "smc",         opened_at: "2026-05-20" },
+      { id: "q1", section: "12.4 multi-modal alignment",      body: "Should §12.4 use cosine on shared embeddings or per-modality InfoNCE? Need a 2-paragraph trade-off note before locking.", opened_by: "Simon McIntosh",         opened_at: "2026-05-20" },
       { id: "q2", section: "13.1 plasma-decoder fine-tune scaffold", body: "Does the §13.1 scaffold need to wait on §12.4 alignment improvements landing first, or are they independent?", opened_by: "agent/opus",  opened_at: "2026-05-21" },
     ],
 

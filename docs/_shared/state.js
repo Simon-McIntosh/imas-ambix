@@ -208,7 +208,7 @@
       choice,
       rationale: rationale || "",
       when: new Date().toISOString().slice(0, 16).replace("T", " "),
-      by: cur.by || "smc",
+      by: cur.by || "Simon McIntosh",
     };
     return mergeAndSave({ decisions });
   };
@@ -242,7 +242,7 @@
     arr[idx] = {
       ...arr[idx],
       resolved_at: stamp,
-      resolved_by: resolvedBy || "smc",
+      resolved_by: resolvedBy || "Simon McIntosh",
       outcome: outcome || "",
     };
     return mergeAndSave({ followups: arr });
