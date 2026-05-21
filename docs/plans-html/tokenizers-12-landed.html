@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tokenizers §12 — Landed (2026-05-20)</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/state.js" defer></script>
+  <style>
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 1rem 1.5rem 4rem; }
+    .meta { color: var(--muted, #888); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .meta .saved-pulse { opacity: 0; transition: opacity 0.4s; color: #2a8; }
+    .meta .saved-pulse.on { opacity: 1; }
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .status-card { border: 1px solid var(--border, #ddd); border-radius: 6px; padding: 0.75rem 1rem; }
+    .status-card .label { font-size: 0.8rem; color: var(--muted, #888); text-transform: uppercase; letter-spacing: 0.05em; }
+    .status-card .value { font-size: 1.1rem; margin-top: 0.25rem; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 600; }
+    .badge.landed { background: #d4edda; color: #155724; }
+    .badge.deferred { background: #fff3cd; color: #856404; }
+    .badge.scaffold { background: #d1ecf1; color: #0c5460; }
+    .badge.followup { background: #f8d7da; color: #721c24; }
+    table.outcomes { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    table.outcomes th, table.outcomes td { border-bottom: 1px solid var(--border, #ddd); padding: 0.6rem 0.5rem; text-align: left; vertical-align: top; }
+    table.outcomes th { background: var(--bg-alt, #f7f7f7); font-weight: 600; }
+    table.outcomes td code { font-size: 0.85rem; }
+    table.outcomes tr td:first-child { white-space: nowrap; }
+    #decisions-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    #decisions-table th, #decisions-table td { border-bottom: 1px solid var(--border, #ddd); padding: 0.6rem 0.5rem; vertical-align: middle; }
+    #decisions-table th { background: var(--bg-alt, #f7f7f7); text-align: left; }
+    .controls button { margin-right: 0.25rem; padding: 4px 10px; border: 1px solid var(--border, #ddd); background: white; border-radius: 4px; cursor: pointer; }
+    .controls button.chosen { background: #2a8; color: white; border-color: #2a8; }
+    .controls button:hover { background: var(--bg-alt, #f0f0f0); }
+    .controls button.chosen:hover { background: #229; }
+    .toolbar { margin-top: 1rem; }
+    .toolbar button { margin-right: 0.5rem; padding: 4px 12px; border: 1px solid var(--border, #ddd); background: white; border-radius: 4px; cursor: pointer; }
+    .commit { font-family: monospace; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="logo"><a href="index.html">⚗ Ambix Plans</a></div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="tokenizers.html">Tokenizers (main)</a>
+    <a href="decisions.html">Decisions</a>
+  </nav>
+</header>
+
+<main class="wrap">
+
+<h1>Tokenizers §12 — Landed</h1>
+<div class="meta">
+  <span>imas-ambix / plan / stage: §12 expansion landed</span>
+  <span> · </span>
+  <span>Captured: <time id="updated">2026-05-20</time></span>
+  <span> · </span>
+  <span class="saved-pulse" id="saved">saved</span>
+</div>
+
+<h2 id="quick-status">Quick status</h2>
+<div class="status-grid">
+  <div class="status-card">
+    <div class="label">Phase</div>
+    <div class="value"><span class="badge landed">§12 expansion landed</span></div>
+  </div>
+  <div class="status-card">
+    <div class="label">Items shipped</div>
+    <div class="value">4 of 6 — §12.1 scaffold, §12.4, §12.5 wiring, §12.6</div>
+  </div>
+  <div class="status-card">
+    <div class="label">Items deferred</div>
+    <div class="value">§12.2 (post-smoke), §12.3 (v1)</div>
+  </div>
+  <div class="status-card">
+    <div class="label">Test suite</div>
+    <div class="value">364 passed, 5 skipped, 0 regressions</div>
+  </div>
+</div>
+
+<h2 id="context">Context</h2>
+<p>
+  This is the per-stage record of the 2026-05-20 §12 fleet outcome. The
+  main <a href="tokenizers.html">tokenizers.html</a> plan tracks the
+  evergreen design; this page freezes the state of §12 at the moment
+  the four implementable items landed, so the call made on each
+  deferred item is auditable later.
+</p>
+<p>
+  Fleet: four Sonnet 4.6 workers dispatched in parallel by an Opus 4.7
+  coordinator, non-overlapping write scopes, four commits on
+  <code>code/data-skeleton</code>. One commit-hygiene incident captured
+  in the global guardrails memory.
+</p>
+
+<h2 id="outcomes">Outcomes per item</h2>
+<table class="outcomes">
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Status</th>
+      <th>Commit</th>
+      <th>Surface landed</th>
+      <th>Follow-up</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>§12.1</strong> Plasma decoder fine-tune</td>
+      <td><span class="badge scaffold">scaffold</span></td>
+      <td class="commit">5e7c5fc</td>
+      <td>
+        <code>imas_ambix/tokenizer/finetune_decoder.py</code> —
+        <code>DecoderFinetuneConfig</code> + <code>DecoderFinetuneTrainer</code> +
+        <code>finetune_decoder()</code>. CLI:
+        <code>ambix tokenize finetune-decoder</code>. L1 + VGG16 perceptual
+        loss with torchvision-absent fallback; rFID via
+        <code>pytorch_fid</code> → <code>imas_ambix.eval.metrics.rfid</code>
+        → NaN-warn chain. All torch imports lazy.
+      </td>
+      <td>
+        Wire trained decoder back into <code>OpenMagvit2Tokenizer</code> via
+        <code>decoder_checkpoint</code> ctor arg (blocked on the first
+        fine-tune actually running). Trigger: encode pass + baseline
+        rFID measured.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>§12.2</strong> Real PatchTST embedding</td>
+      <td><span class="badge deferred">deferred</span></td>
+      <td>—</td>
+      <td>None. Identity passthrough kept.</td>
+      <td>
+        Revisit if magnetics Pearson r &lt; 0.90 in the benchmark or
+        after 125 M smoke run shows pipeline needs intra-patch attention.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>§12.3</strong> Equilibrium 2-D tokenizer</td>
+      <td><span class="badge deferred">deferred</span></td>
+      <td>—</td>
+      <td>None. Continuous cross-attention path retained.</td>
+      <td>
+        Revisit if 125 M smoke shows attention collapse on the
+        equilibrium cross-attention path. Default plan: stay
+        continuous; tokenise only if a hard signal emerges.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>§12.4</strong> Multi-modal alignment</td>
+      <td><span class="badge landed">landed</span></td>
+      <td class="commit">72c0e0a</td>
+      <td>
+        <code>ShotTokenizer</code> gains <code>enforce_alignment=True</code>
+        and signal-only / frames-only encoders.
+        <code>align_frames_signals()</code> helper in
+        <code>alignment.py</code> resamples signals via
+        <code>resample_to_grid</code> + sub-samples excess frames via
+        <code>np.linspace</code>. 5 new tests; 38 passing.
+      </td>
+      <td>
+        Widen the signal-only <code>&lt;pad&gt;</code> block from a
+        single token to the per-step signal block width once that
+        width is finalised.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>§12.5</strong> IR camera codebook</td>
+      <td><span class="badge scaffold">bench wiring</span></td>
+      <td class="commit">dec0082</td>
+      <td>
+        <code>imas_ambix/bench/configs/{v0-rir-25shot,v0-rbb-25shot}.yaml</code>
+        + <code>bench/loader.py</code> exposing
+        <code>load_bench_config()</code> /
+        <code>bundled_config()</code>. One CLI invocation from running
+        once GPU is allocated. Decision gate (MAE primary, rFID
+        secondary at n=25) unchanged.
+      </td>
+      <td>
+        Replace placeholder shot IDs (<code>15080..15104</code>) with
+        the real rir-bearing FAIR-MAST list from
+        <code>s5cmd ls s3://mast/level1/shots/</code>. Then run the
+        benchmark — actual share/separate decision goes in the
+        decisions table below.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>§12.6</strong> Modality coherence metric</td>
+      <td><span class="badge landed">landed</span></td>
+      <td class="commit">dec0082</td>
+      <td>
+        <code>imas_ambix.eval.metrics.modality_coherence()</code> +
+        <code>PerShotResult.modality_coherence</code> +
+        <code>benchmark_frame_tokenizer(equilibrium_loader=…)</code> +
+        <code>BenchResult</code> aggregate
+        <code>mean_modality_coherence</code> (NaN-tolerant). 6 new tests.
+      </td>
+      <td>
+        Plumb a real <code>equilibrium_loader</code> wired to the
+        level-2 Zarr alongside the level-1 camera Zarr. Then read off
+        the cross-modality Pearson r on the rbb benchmark — record in
+        the decisions table.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="decisions">Decisions to lock</h2>
+<p>
+  These calls were made or are in flight. Click a row to record the
+  call. State persists to
+  <code>~/docs-server/state/imas-ambix/tokenizers-12-landed.json</code>.
+</p>
+<table id="decisions-table">
+  <thead>
+    <tr><th style="width:28%">Decision</th><th style="width:32%">Choice</th><th>Rationale</th><th style="width:120px">When</th></tr>
+  </thead>
+  <tbody>
+    <tr class="decision-row" data-key="patchtst-defer">
+      <td>§12.2 — Real PatchTST in v0?</td>
+      <td>
+        <div class="controls">
+          <button data-choice="defer">defer to post-smoke</button>
+          <button data-choice="now">land now</button>
+        </div>
+      </td>
+      <td><input type="text" placeholder="rationale..." style="width:100%" value="Plan recommendation: defer until 125 M smoke run shows magnetics Pearson r < 0.90."></td>
+      <td><span class="when"></span></td>
+    </tr>
+    <tr class="decision-row" data-key="equilibrium-2d-defer">
+      <td>§12.3 — Equilibrium 2-D tokenizer in v0?</td>
+      <td>
+        <div class="controls">
+          <button data-choice="defer">defer to v1</button>
+          <button data-choice="option-a">Option A (upsampled 256×256)</button>
+          <button data-choice="option-b">Option B (Cosmos native 65×65)</button>
+        </div>
+      </td>
+      <td><input type="text" placeholder="rationale..." style="width:100%" value="Plan recommendation: keep continuous cross-attention unless smoke shows attention collapse."></td>
+      <td><span class="when"></span></td>
+    </tr>
+    <tr class="decision-row" data-key="finetune-trigger">
+      <td>§12.1 — When to run plasma-decoder fine-tune?</td>
+      <td>
+        <div class="controls">
+          <button data-choice="if-rfid">only if measured rFID > 5</button>
+          <button data-choice="now">now (before smoke run)</button>
+          <button data-choice="defer-v1">defer to v1</button>
+        </div>
+      </td>
+      <td><input type="text" placeholder="rationale..." style="width:100%" value="Scaffold landed; trigger is empirical — measure baseline rFID first."></td>
+      <td><span class="when"></span></td>
+    </tr>
+    <tr class="decision-row" data-key="ir-codebook">
+      <td>§12.5 — IR codebook share or separate?</td>
+      <td>
+        <div class="controls">
+          <button data-choice="share">share visible (current default)</button>
+          <button data-choice="separate">allocate separate range</button>
+          <button data-choice="pending-bench">pending benchmark</button>
+        </div>
+      </td>
+      <td><input type="text" placeholder="rationale..." style="width:100%" value="Decision gate: IR MAE > 2× rbb MAE on 25-shot benchmark → separate."></td>
+      <td><span class="when"></span></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="toolbar">
+  <button id="copy-state">Copy state as JSON</button>
+  <button id="reset-state">Reset</button>
+</div>
+
+<h2 id="timeline">Timeline</h2>
+<ul>
+  <li><strong>2026-05-19</strong> — v0 tokenizer scaffold landed (registry, base protocols, placeholder + Open-MAGVIT2 + Chronos/PatchTST). See <a href="tokenizers.html#9-v0-scaffold-landed-2026-05-19">tokenizers.html §9</a>.</li>
+  <li><strong>2026-05-20 AM</strong> — Open-MAGVIT2 worker isolation + Chronos integration finalised; block_kind side-data persistence landed (commits leading up to <code>3dc11ba</code>).</li>
+  <li><strong>2026-05-20 PM</strong> — §12 expansion fleet (this page): four parallel Sonnet 4.6 workers committed <code>dec0082</code>, <code>72c0e0a</code>, <code>5e7c5fc</code>. Plan markdown + HTML refreshed in <code>847591a</code>.</li>
+</ul>
+
+<h2 id="how-this-page-was-made">How this page was made</h2>
+<p>
+  Authored directly using <code>~/.claude/skills/html-docs/</code> — no
+  markdown round-trip. State persists via the docs-server at
+  <code>http://127.0.0.1:8765/state/imas-ambix/tokenizers-12-landed</code>;
+  the same JSON is committed to git as
+  <code>~/docs-server/state/imas-ambix/tokenizers-12-landed.json</code> so
+  future agents can read the decision record without going through HTTP.
+</p>
+
+</main>
+
+<script defer>
+(async function () {
+  const saved = document.getElementById('saved');
+  const flash = () => { saved.classList.add('on'); setTimeout(() => saved.classList.remove('on'), 800); };
+
+  const table = document.getElementById('decisions-table');
+  const rows = [...table.querySelectorAll('tr.decision-row')];
+
+  async function readAll() {
+    const out = {};
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const chosen = row.querySelector('button.chosen')?.dataset.choice ?? null;
+      const rationale = row.querySelector('input')?.value ?? '';
+      const when = row.querySelector('.when')?.textContent ?? '';
+      out[key] = { choice: chosen, rationale, when };
+    }
+    return out;
+  }
+
+  function applyAll(state) {
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const s = state?.[key];
+      if (!s) continue;
+      if (s.choice) {
+        row.querySelectorAll('button[data-choice]').forEach(b => {
+          b.classList.toggle('chosen', b.dataset.choice === s.choice);
+        });
+      }
+      const inp = row.querySelector('input');
+      if (inp && s.rationale) inp.value = s.rationale;
+      const when = row.querySelector('.when');
+      if (when && s.when) when.textContent = s.when;
+    }
+  }
+
+  async function persist() {
+    const data = await readAll();
+    await saveState(data);
+    flash();
+  }
+
+  rows.forEach(row => {
+    row.querySelectorAll('button[data-choice]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+        btn.classList.add('chosen');
+        row.querySelector('.when').textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        persist();
+      });
+    });
+    const inp = row.querySelector('input');
+    if (inp) inp.addEventListener('change', persist);
+  });
+
+  document.getElementById('copy-state').addEventListener('click', async () => {
+    await copyState(await readAll());
+    flash();
+  });
+  document.getElementById('reset-state').addEventListener('click', async () => {
+    if (!confirm('Reset all decisions on this page?')) return;
+    rows.forEach(row => {
+      row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+      const inp = row.querySelector('input'); if (inp) inp.value = '';
+      const when = row.querySelector('.when'); if (when) when.textContent = '';
+    });
+    await saveState({});
+    flash();
+  });
+
+  const initial = await loadState();
+  applyAll(initial.data || {});
+})();
+</script>
+</body>
+</html>
