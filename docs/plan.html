@@ -139,10 +139,11 @@
   function InlineDecision({ d, onChoose, onRationale, onLock }) {
     const hasChoice    = !!d.chosen;
     const hasRationale = !!(d._committedRationale && d._committedRationale.length);
-    const locked       = hasChoice || hasRationale;
-    const [collapsed, setCollapsed] = React.useState(locked);
-    // When the data flips to locked from outside (e.g. just committed), collapse.
-    React.useEffect(() => { if (locked) setCollapsed(true); }, [locked, d.when]);
+    const locked   = hasChoice;                    // ✓ only when a chip was clicked
+    const engaged  = !hasChoice && hasRationale;   // rationale saved, no chip yet
+    const [collapsed, setCollapsed] = React.useState(locked || engaged);
+    // When the data flips to locked/engaged from outside (e.g. just committed), collapse.
+    React.useEffect(() => { if (locked || engaged) setCollapsed(true); }, [locked, engaged, d.when]);
 
     const rationaleDirty = (d.rationale || "") !== (d._committedRationale || "");
     const commit = (overrideChoice) => {
@@ -151,14 +152,16 @@
     };
 
     return (
-      <div className={`inline-decision ${locked ? "locked" : "open"} ${collapsed && locked ? "collapsed" : ""}`} id={`d-${d.key}`}>
+      <div className={`inline-decision ${locked ? "locked" : engaged ? "engaged" : "open"} ${collapsed && (locked || engaged) ? "collapsed" : ""}`} id={`d-${d.key}`}>
         <div className="h">
           <span className="k">{d.key}</span>
           <span className="t">{d.title}</span>
           {locked
             ? <span className="w">{collapsed ? "✓" : "open for edit"} · {d.when}</span>
+            : engaged
+            ? <span className="w">{collapsed ? "→" : "open for edit"} · {d.when}</span>
             : <span className="w">open</span>}
-          {locked && (
+          {(locked || engaged) && (
             <button className="reopen" onClick={() => setCollapsed(c => !c)}>
               {collapsed ? "edit" : "done"}
             </button>
@@ -289,8 +292,13 @@
       const now = new Date().toISOString().slice(0, 16).replace("T", " ");
       const cur = decs.find(x => x.key === key);
       const rationale = cur?.rationale || "";
-      setDecs(d => d.map(x => x.key === key ? { ...x, chosen, when: now, by: "Simon McIntosh", _committedRationale: rationale } : x));
-      Persist.save(PG.slug, { [`decisions.${key}`]: { choice: chosen, rationale, when: now, by: "Simon McIntosh" } });
+      const newDecs = decs.map(x => x.key === key ? { ...x, chosen, when: now, by: "Simon McIntosh", _committedRationale: rationale } : x);
+      setDecs(newDecs);
+      const openCount = newDecs.filter(d => !d.chosen).length;
+      Persist.save(PG.slug, {
+        [`decisions.${key}`]: { choice: chosen, rationale, when: now, by: "Simon McIntosh" },
+        dec_open: openCount,
+      });
       flashSaved(chosen ? `${PG.slug}.${key} → ${chosen}` : `${PG.slug}.${key} rationale saved`);
     };
     const onChoose = onLock;  // back-compat for any caller
