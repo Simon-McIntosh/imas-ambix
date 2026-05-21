@@ -167,35 +167,6 @@
     });
   }
 
-  /* ---- Decision form wiring ---------------------------------------- */
-  function initDecisionForms() {
-    document.querySelectorAll(".decision-card form").forEach((form) => {
-      form.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const decisionId = form.dataset.decisionId;
-        const selected = form.querySelector('input[type="radio"]:checked');
-        const notes = form.querySelector(".decision-notes");
-        if (!selected) {
-          alert("Please select an option before generating a prompt.");
-          return;
-        }
-        const choice = selected.value;
-        const noteText = notes ? notes.value.trim() : "";
-        if (typeof window.DECISIONS === "undefined" || !window.DECISIONS[decisionId]) {
-          alert("Decision prompt builder not found for: " + decisionId);
-          return;
-        }
-        const promptText = window.DECISIONS[decisionId](choice, noteText);
-        const output = form.querySelector(".prompt-output");
-        const pre = form.querySelector(".prompt-pre");
-        if (output && pre) {
-          pre.textContent = promptText;
-          output.classList.add("visible");
-        }
-      });
-    });
-  }
-
   /* ---- DOMContentLoaded -------------------------------------------- */
   document.addEventListener("DOMContentLoaded", () => {
     // Wire theme toggle
@@ -211,7 +182,6 @@
     initStatusFilter();
     initCopyButtons();
     initSmoothScroll();
-    initDecisionForms();
 
     // Active sidebar on scroll
     window.addEventListener("scroll", updateSidebarActive, { passive: true });

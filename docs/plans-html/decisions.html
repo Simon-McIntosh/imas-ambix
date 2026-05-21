@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>All Decisions | Ambix Plans</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/state.js" defer></script>
 </head>
 <body>
 <!-- header -->
@@ -32,184 +33,179 @@
 <!-- sidebar -->
 <aside class="sidebar">
   <div class="sidebar-title">On this page</div>
-  <ul><li><a href="#decision-drop-charge-exchange">Drop charge_exchange from v0 training corpus?</a></li><li><a href="#decision-plasma-decoder-finetune">Open-MAGVIT2 plasma-domain decoder fine-tune — when to …</a></li><li><a href="#decision-patchtst-real-embedding">PatchTST real embedding — defer to v1 vs land in v0?</a></li><li><a href="#decision-equilibrium-2d-tokenizer">Equilibrium 2-D tokenizer — which architecture?</a></li><li><a href="#decision-ir-camera-codebook">IR camera codebook — share with visible or allocate sep…</a></li><li><a href="#decision-slurm-training-reservation">SLURM dedicated training reservation — file with SDCC o…</a></li><li><a href="#decision-smoke-training-timing">125M smoke training run — run now or wait for bulk enco…</a></li><li><a href="#decision-demo-shots-selection">Demo shots final selection</a></li><li><a href="#decision-camera-selection-v0">Camera selection for v0 training</a></li></ul>
+  <ul>
+    <li><a href="#all-decisions">All decisions</a></li>
+    <li><a href="#how-it-works">How it works</a></li>
+  </ul>
 </aside>
 
 <!-- main -->
 <main class="main-content">
   <div class="content-inner">
     <div class="breadcrumb"><a href="index.html">Plans</a><span>›</span><span>All Decisions</span></div>
-    <h1 id="open-decisions">Open Decisions</h1>
-<div class="page-meta"><span>All open decision capture widgets in one place</span></div>
-<p>Each form generates a copy-pasteable follow-on prompt for the AI coordinator. Fill in your choice, optionally add notes, then copy the generated prompt and paste it into a new Claude Code conversation.</p>
-<h2 id="how-it-works">How it works</h2>
-<ol><li>Select an option from the radio group.</li><li>Add any clarifying notes in the text area.</li><li>Click <strong>Generate follow-on prompt</strong>.</li><li>Click <strong>Copy</strong> and paste the result into the AI coordinator.</li></ol>
 
-<div class="decision-card" id="decision-drop-charge-exchange">
-  <h3>Drop charge_exchange from v0 training corpus?</h3>
-  <div class="decision-context">Audit on a 25-shot L2 sample found ~50% bit-pattern corruption in <code>charge_exchange/t_i</code> and <code>charge_exchange/v_i</code>, with values 10²⁶–10³⁸ (physical range: ≤ 30 keV / 10⁷ m/s). The diagnostic is only present in 37.9% of the 11,573 shots regardless. Source: <code>plans/data-quality.md</code> §10.4.</div>
-  <form data-decision-id="drop-charge-exchange">
-    <div class="decision-options">
-<label><input type="radio" name="opt" value="yes-drop"> Yes — drop charge_exchange entirely from v0 training</label>
-<label><input type="radio" name="opt" value="keep-clip"> Keep but hard-clip abs > 1e25 and zero out corrupted channels</label>
-<label><input type="radio" name="opt" value="defer"> Defer — run the full 11,573-shot audit first, decide after</label>
+    <h1>All Decisions</h1>
+    <div class="page-meta">
+      <span>Read-only aggregator — decisions are owned by individual plan pages</span>
+      <span class="sep">·</span>
+      <span>Live state from <code>~/docs-server/state/imas-ambix/&lt;plan&gt;.json</code></span>
     </div>
-    <textarea class="decision-notes" placeholder="Optional notes or context…"></textarea>
-    <button type="submit" class="btn-generate">Generate follow-on prompt</button>
-    <div class="prompt-output">
-      <pre class="prompt-pre"></pre>
-      <button type="button" class="btn-copy">Copy</button>
-    </div>
-  </form>
-</div>
 
-<div class="decision-card" id="decision-plasma-decoder-finetune">
-  <h3>Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?</h3>
-  <div class="decision-context">The current ImageNet-pretrained decoder produces MAE 324 (uint16) on MAST rbb shot 15085. Expected rFID on plasma imagery without fine-tune: 10–30. Decoder fine-tune cost: ~4–6 GPU-hours exclusive. Trigger gate (from plan): rFID > 5 on the 100-shot rbb benchmark. Source: <code>plans/tokenizers.md</code> §12.1.</div>
-  <form data-decision-id="plasma-decoder-finetune">
-    <div class="decision-options">
-<label><input type="radio" name="opt" value="yes-now"> Fine-tune now — start before the 125M smoke run</label>
-<label><input type="radio" name="opt" value="yes-if-rfid"> Fine-tune only if measured rFID > 5 (benchmark first)</label>
-<label><input type="radio" name="opt" value="defer-v1"> Defer to v1 — proceed with ImageNet decoder for v0</label>
-    </div>
-    <textarea class="decision-notes" placeholder="Optional notes or context…"></textarea>
-    <button type="submit" class="btn-generate">Generate follow-on prompt</button>
-    <div class="prompt-output">
-      <pre class="prompt-pre"></pre>
-      <button type="button" class="btn-copy">Copy</button>
-    </div>
-  </form>
-</div>
+    <h2 id="all-decisions">Status</h2>
+    <p>
+      The current choice for each decision is loaded live from the owning
+      plan's state file. To change a decision, follow the "Owned by" link
+      and click an option button on that page — the choice will appear
+      here on next reload.
+    </p>
 
-<div class="decision-card" id="decision-patchtst-real-embedding">
-  <h3>PatchTST real embedding — defer to v1 vs land in v0?</h3>
-  <div class="decision-context">Current state: identity passthrough (token ID 0, raw floats in metadata). The patch-projection matrix trains end-to-end inside the WHAM trunk. Real PatchTST would add ~1M trainable params with channel-independent self-attention over patches. Estimated effort: 1 Sonnet session. Source: <code>plans/tokenizers.md</code> §12.2.</div>
-  <form data-decision-id="patchtst-real-embedding">
-    <div class="decision-options">
-<label><input type="radio" name="opt" value="defer-v1"> Defer to v1 — keep identity passthrough for v0</label>
-<label><input type="radio" name="opt" value="land-v0"> Land real PatchTST in v0 (after the 125M smoke run is green)</label>
-    </div>
-    <textarea class="decision-notes" placeholder="Optional notes or context…"></textarea>
-    <button type="submit" class="btn-generate">Generate follow-on prompt</button>
-    <div class="prompt-output">
-      <pre class="prompt-pre"></pre>
-      <button type="button" class="btn-copy">Copy</button>
-    </div>
-  </form>
-</div>
+    <table class="decisions-aggregate" id="aggregate-table">
+      <thead>
+        <tr>
+          <th>Decision</th>
+          <th>Owned by</th>
+          <th>Choice</th>
+          <th>Rationale</th>
+          <th>When</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr data-page="data-quality" data-key="drop-charge-exchange">
+          <td><strong>Drop charge_exchange from v0 training corpus?</strong></td>
+          <td><a href="data-quality.html#open-decisions">data-quality.html</a></td>
+          <td class="cell-choice">…</td>
+          <td class="cell-rationale">…</td>
+          <td class="cell-when">…</td>
+        </tr>
+        <tr data-page="tokenizers" data-key="plasma-decoder-finetune">
+          <td><strong>Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?</strong></td>
+          <td><a href="tokenizers.html#open-decisions">tokenizers.html</a> · <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a></td>
+          <td class="cell-choice">…</td>
+          <td class="cell-rationale">…</td>
+          <td class="cell-when">…</td>
+        </tr>
+        <tr data-page="tokenizers" data-key="patchtst-real-embedding">
+          <td><strong>PatchTST real embedding — defer to v1 vs land in v0?</strong></td>
+          <td><a href="tokenizers.html#open-decisions">tokenizers.html</a> · <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a></td>
+          <td class="cell-choice">…</td>
+          <td class="cell-rationale">…</td>
+          <td class="cell-when">…</td>
+        </tr>
+        <tr data-page="tokenizers" data-key="equilibrium-2d-tokenizer">
+          <td><strong>Equilibrium 2-D tokenizer — which architecture?</strong></td>
+          <td><a href="tokenizers.html#open-decisions">tokenizers.html</a> · <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a></td>
+          <td class="cell-choice">…</td>
+          <td class="cell-rationale">…</td>
+          <td class="cell-when">…</td>
+        </tr>
+        <tr data-page="tokenizers" data-key="ir-camera-codebook">
+          <td><strong>IR camera codebook — share with visible or allocate separate?</strong></td>
+          <td><a href="tokenizers.html#open-decisions">tokenizers.html</a> · <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a></td>
+          <td class="cell-choice">…</td>
+          <td class="cell-rationale">…</td>
+          <td class="cell-when">…</td>
+        </tr>
+        <tr data-page="compute" data-key="slurm-training-reservation">
+          <td><strong>SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</strong></td>
+          <td><a href="compute.html#open-decisions">compute.html</a></td>
+          <td class="cell-choice">…</td>
+          <td class="cell-rationale">…</td>
+          <td class="cell-when">…</td>
+        </tr>
+        <tr data-page="v0-runway" data-key="smoke-training-timing">
+          <td><strong>125M smoke training run — run now or wait for bulk encode?</strong></td>
+          <td><a href="v0-runway.html#open-decisions">v0-runway.html</a></td>
+          <td class="cell-choice">…</td>
+          <td class="cell-rationale">…</td>
+          <td class="cell-when">…</td>
+        </tr>
+        <tr data-page="demo" data-key="demo-shots-selection">
+          <td><strong>Demo shots final selection</strong></td>
+          <td><a href="demo.html#open-decisions">demo.html</a></td>
+          <td class="cell-choice">…</td>
+          <td class="cell-rationale">…</td>
+          <td class="cell-when">…</td>
+        </tr>
+        <tr data-page="data-acquisition" data-key="camera-selection-v0">
+          <td><strong>Camera selection for v0 training</strong></td>
+          <td><a href="data-acquisition.html#open-decisions">data-acquisition.html</a></td>
+          <td class="cell-choice">…</td>
+          <td class="cell-rationale">…</td>
+          <td class="cell-when">…</td>
+        </tr>
+      </tbody>
+    </table>
 
-<div class="decision-card" id="decision-equilibrium-2d-tokenizer">
-  <h3>Equilibrium 2-D tokenizer — which architecture?</h3>
-  <div class="decision-context">Currently: equilibrium 2-D enters as a continuous cross-attention tensor (not tokenized). Two options to tokenize: Option A — reuse Open-MAGVIT2 at upsampled 256×256 (0.5 Sonnet sessions, no fine-tune). Option B — Cosmos-Tokenizer-DV at native 65×65 (NVIDIA OML weights, license check needed). Source: <code>plans/tokenizers.md</code> §12.3.</div>
-  <form data-decision-id="equilibrium-2d-tokenizer">
-    <div class="decision-options">
-<label><input type="radio" name="opt" value="keep-v0"> Keep as continuous cross-attention tensor for v0 (current plan)</label>
-<label><input type="radio" name="opt" value="option-a"> Option A — Open-MAGVIT2 upsampled 256×256 (reuse codebook)</label>
-<label><input type="radio" name="opt" value="option-b"> Option B — Cosmos-Tokenizer-DV at native 65×65 (separate codebook)</label>
+    <div class="decisions-toolbar">
+      <button id="refresh-state">Refresh from server</button>
     </div>
-    <textarea class="decision-notes" placeholder="Optional notes or context…"></textarea>
-    <button type="submit" class="btn-generate">Generate follow-on prompt</button>
-    <div class="prompt-output">
-      <pre class="prompt-pre"></pre>
-      <button type="button" class="btn-copy">Copy</button>
-    </div>
-  </form>
-</div>
 
-<div class="decision-card" id="decision-ir-camera-codebook">
-  <h3>IR camera codebook — share with visible or allocate separate?</h3>
-  <div class="decision-context">Only 25 rir shots in FAIR-MAST (per data-acquisition.md §10.4). Current v0 default: share the Open-MAGVIT2 visible codebook. Decision gate: if IR MAE > 2× rbb MAE, allocate separate block. rFID unreliable with n=25; use MAE as primary metric. Source: <code>plans/tokenizers.md</code> §12.5.</div>
-  <form data-decision-id="ir-camera-codebook">
-    <div class="decision-options">
-<label><input type="radio" name="opt" value="share"> Share visible codebook for IR (v0 default)</label>
-<label><input type="radio" name="opt" value="separate"> Allocate separate registry block and fine-tune IR decoder</label>
-    </div>
-    <textarea class="decision-notes" placeholder="Optional notes or context…"></textarea>
-    <button type="submit" class="btn-generate">Generate follow-on prompt</button>
-    <div class="prompt-output">
-      <pre class="prompt-pre"></pre>
-      <button type="button" class="btn-copy">Copy</button>
-    </div>
-  </form>
-</div>
+    <h2 id="how-it-works">How it works</h2>
+    <ol>
+      <li>Each decision row above lists its owning plan page.</li>
+      <li>Open that page and click an option in its <em>Open Decisions</em>
+        table — the choice writes to
+        <code>~/docs-server/state/imas-ambix/&lt;plan&gt;.json</code>.</li>
+      <li>Return here (or click <strong>Refresh from server</strong>) to see
+        the current choice live.</li>
+      <li>Agents read the same JSON files directly from the filesystem at
+        <code>~/docs-server/state/imas-ambix/</code> — humans and agents
+        share one source of truth.</li>
+    </ol>
 
-<div class="decision-card" id="decision-slurm-training-reservation">
-  <h3>SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</h3>
-  <div class="decision-context">Current decision (2026-05-20): exclusive-pause mode — stop DeepSeek V4-Flash before training, restart after. Alternative: file a dedicated <code>gpu_0003_grpA_train</code> reservation (request body in <code>plans/compute.md</code> §3.2). Source: <code>plans/compute.md</code> §2–3.</div>
-  <form data-decision-id="slurm-training-reservation">
-    <div class="decision-options">
-<label><input type="radio" name="opt" value="exclusive-pause"> Stay with exclusive-pause (current plan, no SDCC request needed)</label>
-<label><input type="radio" name="opt" value="file-now"> File the dedicated reservation request with SDCC ops now</label>
-<label><input type="radio" name="opt" value="schedule-windows"> Schedule around serving in overnight/weekend windows</label>
-    </div>
-    <textarea class="decision-notes" placeholder="Optional notes or context…"></textarea>
-    <button type="submit" class="btn-generate">Generate follow-on prompt</button>
-    <div class="prompt-output">
-      <pre class="prompt-pre"></pre>
-      <button type="button" class="btn-copy">Copy</button>
-    </div>
-  </form>
-</div>
+    <p>
+      Per-stage landed records (e.g.
+      <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>)
+      have their own separate state files; this aggregator reads the
+      evergreen plan pages only.
+    </p>
 
-<div class="decision-card" id="decision-smoke-training-timing">
-  <h3>125M smoke training run — run now or wait for bulk encode?</h3>
-  <div class="decision-context">Training loop FSDP scaffold is landed. Bulk-encode CLI produced 9,380 tokens for shot 15085 (CPU). A smoke run needs ~10 shots. The full GPU bulk-encode for ~3,000 rbb shots is pending the SLURM run. Source: <code>plans/v0-runway.md</code> §4.</div>
-  <form data-decision-id="smoke-training-timing">
-    <div class="decision-options">
-<label><input type="radio" name="opt" value="run-now"> Run now with the ~10 CPU-encoded shots (validate loop immediately)</label>
-<label><input type="radio" name="opt" value="wait-gpu"> Wait for GPU bulk-encode to complete (~3,000 shots)</label>
-    </div>
-    <textarea class="decision-notes" placeholder="Optional notes or context…"></textarea>
-    <button type="submit" class="btn-generate">Generate follow-on prompt</button>
-    <div class="prompt-output">
-      <pre class="prompt-pre"></pre>
-      <button type="button" class="btn-copy">Copy</button>
-    </div>
-  </form>
-</div>
-
-<div class="decision-card" id="decision-demo-shots-selection">
-  <h3>Demo shots final selection</h3>
-  <div class="decision-context">Current candidates: 30420 + 30421 (FAIR-MAST quickstart shots) + one M6-era TBD. Audit data now available to pick shots with confirmed clean data. Charge-exchange corruption affects ~50% of shots but shots 30420/30421 are M9-era — need to verify their CX status. Source: <code>plans/demo.md</code> §3.</div>
-  <form data-decision-id="demo-shots-selection">
-    <div class="decision-options">
-<label><input type="radio" name="opt" value="30420-30421-m6"> 30420 + 30421 + M6-era TBD (original plan)</label>
-<label><input type="radio" name="opt" value="30420-30421-no-cx"> 30420 + 30421 + M8/M9 shot confirmed clean CX</label>
-<label><input type="radio" name="opt" value="defer"> Defer selection until full corpus audit is complete</label>
-    </div>
-    <textarea class="decision-notes" placeholder="Optional notes or context…"></textarea>
-    <button type="submit" class="btn-generate">Generate follow-on prompt</button>
-    <div class="prompt-output">
-      <pre class="prompt-pre"></pre>
-      <button type="button" class="btn-copy">Copy</button>
-    </div>
-  </form>
-</div>
-
-<div class="decision-card" id="decision-camera-selection-v0">
-  <h3>Camera selection for v0 training</h3>
-  <div class="decision-context">Level-1 inventory: rbb = 9,527 shots (55.7%), rba = 6,155 shots (36.0%), rir = 25 shots (rare). rbb is the wide-angle midplane view; rba is the lower/divertor view; rir is infrared divertor. Adding more cameras → more training data per shot but adds IR codebook complexity. Source: <code>plans/data-acquisition.md</code> §11.2.</div>
-  <form data-decision-id="camera-selection-v0">
-    <div class="decision-options">
-<label><input type="radio" name="opt" value="rbb-only"> rbb only — 9,527 shots, widest coverage</label>
-<label><input type="radio" name="opt" value="rbb-rba"> rbb + rba — both visible cameras, ~6,155 overlap shots</label>
-<label><input type="radio" name="opt" value="rbb-rba-rir"> rbb + rba + rir — all cameras including IR</label>
-    </div>
-    <textarea class="decision-notes" placeholder="Optional notes or context…"></textarea>
-    <button type="submit" class="btn-generate">Generate follow-on prompt</button>
-    <div class="prompt-output">
-      <pre class="prompt-pre"></pre>
-      <button type="button" class="btn-copy">Copy</button>
-    </div>
-  </form>
-</div>
-
-    
   </div>
 </main>
 </div>
 
-<script src="assets/prompts.js"></script>
+<script defer>
+(async function () {
+  const baseFromMeta = document.querySelector('meta[name="docs-server"]')?.getAttribute("content");
+  const base = baseFromMeta || window.location.origin;
+  const project = "imas-ambix";
+
+  async function fetchState(page) {
+    try {
+      const r = await fetch(`${base}/state/${project}/${page}`, { cache: "no-store" });
+      if (!r.ok) return {};
+      const env = await r.json();
+      return env.data || {};
+    } catch (e) {
+      console.warn(`fetchState(${page}) failed`, e);
+      return {};
+    }
+  }
+
+  async function refresh() {
+    const rows = [...document.querySelectorAll("#aggregate-table tbody tr")];
+    const pages = [...new Set(rows.map(r => r.dataset.page))];
+    const stateByPage = {};
+    await Promise.all(pages.map(async (p) => {
+      stateByPage[p] = await fetchState(p);
+    }));
+
+    for (const row of rows) {
+      const page = row.dataset.page;
+      const key = row.dataset.key;
+      const s = stateByPage[page]?.[key] ?? {};
+      row.querySelector(".cell-choice").textContent = s.choice ?? "—";
+      row.querySelector(".cell-rationale").textContent = s.rationale ?? "";
+      row.querySelector(".cell-when").textContent = s.when ?? "";
+      row.classList.toggle("chosen-row", !!s.choice);
+    }
+  }
+
+  document.getElementById("refresh-state").addEventListener("click", refresh);
+  await refresh();
+})();
+</script>
+
 <script src="assets/app.js"></script>
 </body>
 </html>
