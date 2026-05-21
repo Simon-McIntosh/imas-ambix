@@ -1,16 +1,16 @@
 {
-  "updated": "2026-05-21T15:10:00",
+  "updated": "2026-05-21T15:44:24",
   "project": "imas-ambix",
   "doc": "plans-agile-sprints",
   "data": {
     "slug": "plans-agile-sprints",
     "title": "Agile sprint flow with agent input",
-    "status": "draft",
+    "status": "active",
     "ms": "PS",
     "roi": "mid",
     "effort": "M",
     "tier": "opus",
-    "impl": 0.1,
+    "impl": 0.2,
     "last": "2026-05-21",
     "owner": "Simon McIntosh",
     "blockers": 0,
@@ -19,7 +19,7 @@
     "sprint": "S3",
     "phase": "draft \u00b7 designing the agent-input model",
     "created": "2026-05-21",
-    "last_modified": "2026-05-21 14:00",
+    "last_modified": "2026-05-21 15:55",
     "depends_on": [
       "plans-infra"
     ],
@@ -77,8 +77,35 @@
         ]
       }
     ],
-    "decisions": {},
-    "notes": [],
+    "decisions": {
+      "sprint-proposal-cadence": {
+        "choice": "scheduled (weekly)",
+        "rationale": "implement with the claude api - this would be a great use of a weekly task",
+        "when": "2026-05-21 13:36",
+        "by": "Simon McIntosh"
+      },
+      "agent-rationale-location": {
+        "choice": "",
+        "rationale": "what do you recomend? the why now seems fragile. proposal or justification is stronger. per-item should probaly be scoped per item",
+        "when": "2026-05-21 13:37",
+        "by": "Simon McIntosh"
+      },
+      "proposal-acceptance-ux": {
+        "choice": "Lock button on sprint.html",
+        "rationale": "we should be able to select sprints / switch between them. the agents should have access (easy access) to this sprint data",
+        "when": "2026-05-21 13:38",
+        "by": "Simon McIntosh"
+      }
+    },
+    "notes": [
+      {
+        "id": "n-coord-1",
+        "who": "opus-coordinator",
+        "bot": true,
+        "when": "2026-05-21 15:55",
+        "body": "Recommendation on agent-rationale-location (still open): keep per-item, but RENAME the field from `why_now` to `justification`. `why_now` is fragile (a question); `justification` is a stronger noun and matches the agile vocabulary (justification for inclusion in the sprint). Per-item scoping is what you asked for. To lock: click the per-item chip + add a rationale; the rename will land as a small schema patch when implementation begins."
+      }
+    ],
     "research": [],
     "questions": [],
     "followups": [
@@ -98,6 +125,7 @@
         "prompt": "Project: dotfiles\nPlan:    plans-agile-sprints\nSection: \u00a71\u2013\u00a73 (after the three \u00a7-decisions are locked)\nTier:    opus\n\nContext\n  Sprint flow with agent input. Decisions on cadence / rationale location /\n  acceptance UX must be locked first via inline-decision clicks on this page.\n  Once locked, this followup is unblocked.\n\nState to read\n  docs/state/imas-ambix/plans-agile-sprints.json\n\nLocked decisions to honour (none yet \u2014 block until they are)\n\nOpen decisions to surface\n  sprint-proposal-cadence, agent-rationale-location, proposal-acceptance-ux\n  (All three block this work. Do not implement before they are locked.)\n\nDone-when\n  1. plan-sprint SKILL.md documents the chosen cadence/rationale/UX.\n  2. sprint.html renders agent rationale per item.\n  3. (If 'Lock button' won) sprint.html has the click-to-activate button wired.\n  4. Followup written with outcome + the first proposed sprint authored by an agent."
       }
     ],
-    "followups_done": []
+    "followups_done": [],
+    "_version": 6
   }
 }

@@ -1,25 +1,25 @@
 {
-  "updated": "2026-05-21T14:54:45",
+  "updated": "2026-05-21T15:44:24",
   "project": "imas-ambix",
   "doc": "plans-infra",
   "data": {
     "slug": "plans-infra",
     "title": "Plan infra \u2014 state.js POST \u00b7 plan-style sync \u00b7 plan-init",
-    "status": "active",
+    "status": "shipped",
     "ms": "PS",
     "roi": "high",
     "effort": "M",
     "tier": "opus",
-    "impl": 0.55,
+    "impl": 0.95,
     "last": "2026-05-21",
     "owner": "Simon McIntosh",
     "blockers": 0,
     "dec_open": 3,
     "comments": 0,
     "sprint": "S3",
-    "phase": "Persist done; state.js + plan-style + plan-init pending",
+    "phase": "shipped \u2014 state.js POST + serve.py 412 + plan-style sync + plan-init landed; shared-css-delivery still open",
     "created": "2026-05-21",
-    "last_modified": "2026-05-21 14:00",
+    "last_modified": "2026-05-21 15:55",
     "depends_on": [],
     "blocks": [
       "plans-migration-ambix",
@@ -96,6 +96,12 @@
         "rationale": "",
         "when": "2026-05-21 12:54",
         "by": "Simon McIntosh"
+      },
+      "shared-css-delivery": {
+        "choice": "",
+        "rationale": "I like the actions idea but my dotfiles are private and therefore for my own fork only. explain more about the CDN option. Else maunal / agent sync",
+        "when": "2026-05-21 12:55",
+        "by": "Simon McIntosh"
       }
     },
     "notes": [],
@@ -127,9 +133,29 @@
         ],
         "tier": "opus",
         "est_turn": "~2h",
-        "prompt": "Project: dotfiles\nPlan:    plans-infra\nSection: \u00a7 2 + \u00a7 3 + \u00a7 4\nTier:    opus\n\nContext\n  Three connected dotfiles changes: state.js POST upgrade (per-plan free-form\n  pages get the same tight loop as the React templates), plan-style refresh\n  extended to sync system pages (not just CSS), and a new plan-init skill for\n  brand-new repos. Land all three in one PR-equivalent commit on main.\n\nState to read\n  docs/state/imas-ambix/plans-infra.json   (this plan's locked decisions)\n  ~/Code/dotfiles/claude/skills/html-docs/assets/state.js\n  ~/Code/dotfiles/claude/skills/html-docs/templates/ui.jsx  (Persist already POSTs)\n  ~/Code/dotfiles/claude/skills/plan-style/SKILL.md\n\nLocked decisions to honour (none yet \u2014 surface unresolved if user prefers)\n\nOpen decisions to surface\n  shared-css-delivery, rank-storage, conflict-detection\n  (Ship with sensible defaults; flag if any decision blocks progress.)\n\nDone-when\n  1. state.js POSTs to docs-server in local mode; falls back to localStorage.\n  2. /plan-style refresh syncs system pages + CSS from dotfiles canonical.\n  3. /plan-init creates a new repo's docs/, copies canonical, sets up state symlink + mounts.json.\n  4. All three documented in their SKILL.md.\n  5. Followup written with outcome + next-step for the migration plans."
+        "prompt": "Project: dotfiles\nPlan:    plans-infra\nSection: \u00a7 2 + \u00a7 3 + \u00a7 4\nTier:    opus\n\nContext\n  Three connected dotfiles changes: state.js POST upgrade (per-plan free-form\n  pages get the same tight loop as the React templates), plan-style refresh\n  extended to sync system pages (not just CSS), and a new plan-init skill for\n  brand-new repos. Land all three in one PR-equivalent commit on main.\n\nState to read\n  docs/state/imas-ambix/plans-infra.json   (this plan's locked decisions)\n  ~/Code/dotfiles/claude/skills/html-docs/assets/state.js\n  ~/Code/dotfiles/claude/skills/html-docs/templates/ui.jsx  (Persist already POSTs)\n  ~/Code/dotfiles/claude/skills/plan-style/SKILL.md\n\nLocked decisions to honour (none yet \u2014 surface unresolved if user prefers)\n\nOpen decisions to surface\n  shared-css-delivery, rank-storage, conflict-detection\n  (Ship with sensible defaults; flag if any decision blocks progress.)\n\nDone-when\n  1. state.js POSTs to docs-server in local mode; falls back to localStorage.\n  2. /plan-style refresh syncs system pages + CSS from dotfiles canonical.\n  3. /plan-init creates a new repo's docs/, copies canonical, sets up state symlink + mounts.json.\n  4. All three documented in their SKILL.md.\n  5. Followup written with outcome + next-step for the migration plans.",
+        "resolved_at": "2026-05-21 15:55",
+        "resolved_by": "opus-coordinator",
+        "outcome": "All four pieces shipped. Commits: dotfiles 4874ff8 (state.js POST + 412 + ui.jsx parity), 60e9a28 (plan-init skill + plan-style sync extension); ambix f80b586 (synced canonicals). 4/4 curl sanity checks pass on the 412 contract. shared-css-delivery decision still open per user (CDN deferred; default = manual /plan-style refresh)."
+      },
+      {
+        "id": "f-agile-1",
+        "written_by": "opus-coordinator",
+        "written_at": "2026-05-21 15:55",
+        "title": "Begin plans-agile-sprints implementation",
+        "body": "plans-infra is shipped. Per bootstrap-priority (serial), agile is next. Two of three plans-agile-sprints decisions locked (cadence=weekly via Claude API; UX=Lock button on sprint.html). agent-rationale-location needs lock \u2014 my recommendation noted on that plan: keep per-item, rename `why_now` \u2192 `justification` (stronger noun).",
+        "recommends_skill": "/plan-implement plans-agile-sprints",
+        "touches": [
+          "~/Code/dotfiles/claude/skills/plan-sprint/SKILL.md",
+          "~/Code/dotfiles/claude/skills/html-docs/templates/sprint.html",
+          "docs/state/imas-ambix/index.json (sprints schema)"
+        ],
+        "tier": "opus",
+        "est_turn": "~2-3h",
+        "prompt": "Project: imas-ambix\nPlan:    plans-agile-sprints\nSection: \u00a71\u2013\u00a73\nTier:    opus (design) + sonnet (impl)\n\nContext\n  plans-infra shipped. Agile next per bootstrap-priority.\n\nState to read\n  docs/state/imas-ambix/plans-agile-sprints.json\n\nLocked decisions to honour\n  sprint-proposal-cadence \u2192 scheduled (weekly) via Claude API\n  proposal-acceptance-ux \u2192 Lock button on sprint.html\n  agent access \u2014 sprint switcher + canonical sprint data\n\nOpen decisions to surface\n  agent-rationale-location (recommendation: per-item, rename why_now \u2192 justification)\n\nDone-when\n  1. agent-rationale-location locked.\n  2. /plan-sprint propose <N> wired to call Claude API and write proposal.\n  3. sprint.html gains Lock button + sprint switcher.\n  4. plan-sprint SKILL.md documents new cadence + UX.\n  5. Followup written for plans-migration-ambix pilot."
       }
     ],
-    "followups_done": []
+    "followups_done": [],
+    "_version": 5
   }
 }
