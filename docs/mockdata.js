@@ -97,6 +97,12 @@ window.MOCK = (function () {
     { slug: "tokenizer-benchmarks", title: "Tokenizer benchmark harness",         status: "active",  ms: "M1", roi: "mid",  effort: "M", tier: "sonnet", impl: 0.80, last: "2026-05-20", owner: "Simon McIntosh", blockers: 0, dec_open: 0, comments: 0, sprint: "S2" },
     { slug: "world-model-v0",       title: "World-model v0 (WHAM-style)",         status: "blocked", ms: "M2", roi: "high", effort: "L", tier: "opus",   impl: 0.18, last: "2026-05-21", owner: "Simon McIntosh", blockers: 2, dec_open: 1, comments: 4, sprint: "S2" },
     { slug: "demo",                 title: "Public demo (wide-angle camera)",     status: "blocked", ms: "M3", roi: "low",  effort: "M", tier: "sonnet", impl: 0.05, last: "2026-04-22", owner: "Simon McIntosh", blockers: 1, dec_open: 1, comments: 2, sprint: null },
+    // — Plan-system bootstrap sprint (S3) —
+    { slug: "plans-redesign-rollout", title: "Plan-system rollout — master",                       status: "active",  ms: "M1", roi: "high", effort: "S", tier: "opus",   impl: 0.40, last: "2026-05-21", owner: "Simon McIntosh", blockers: 0, dec_open: 1, comments: 0, sprint: "S3" },
+    { slug: "plans-infra",            title: "Plan infra — state.js POST · plan-style sync · plan-init", status: "active", ms: "M1", roi: "high", effort: "M", tier: "opus",   impl: 0.55, last: "2026-05-21", owner: "Simon McIntosh", blockers: 0, dec_open: 3, comments: 0, sprint: "S3" },
+    { slug: "plans-agile-sprints",    title: "Agile sprint flow with agent input",                  status: "draft",   ms: "M1", roi: "mid",  effort: "M", tier: "opus",   impl: 0.10, last: "2026-05-21", owner: "Simon McIntosh", blockers: 0, dec_open: 3, comments: 0, sprint: "S3" },
+    { slug: "plans-migration-ambix",  title: "Migrate 12 ambix per-plan pages to new format",       status: "active",  ms: "M1", roi: "high", effort: "L", tier: "sonnet", impl: 0.20, last: "2026-05-21", owner: "Simon McIntosh", blockers: 0, dec_open: 2, comments: 0, sprint: "S3" },
+    { slug: "plans-migration-efit",   title: "Migrate imas-efit plans + plan-test hook",            status: "pending", ms: "M1", roi: "mid",  effort: "L", tier: "sonnet", impl: 0.05, last: "2026-05-21", owner: "Simon McIntosh", blockers: 1, dec_open: 2, comments: 0, sprint: "S3" },
   ];
 
   // ─── Multiple sprints ─────────────────────────────────────────────────────
@@ -125,9 +131,21 @@ window.MOCK = (function () {
       ],
       summary: null,
     },
+    {
+      id: "S3", status: "active",
+      theme: "Plan-system bootstrap — eat our own dog food",
+      starts: "2026-05-21", ends: "2026-05-25",
+      items: [
+        "plans-redesign-rollout", "plans-infra", "plans-agile-sprints",
+        "plans-migration-ambix", "plans-migration-efit",
+      ],
+      summary: "Ship the plan-management redesign. Use the new infrastructure itself to track the work — sprint S3 lives inside the very system it builds.",
+    },
   ];
 
-  const activeSprint = sprints.find(s => s.status === "active");
+  // S3 is the priority — it owns the rollout. project.html etc. render
+  // M.sprint as "the" active sprint.
+  const activeSprint = sprints.find(s => s.id === "S3") || sprints.find(s => s.status === "active");
 
   // ─── Top blockers (project-wide) ──────────────────────────────────────────
   const blockers = [
@@ -474,6 +492,257 @@ Output a §3.1 summary table; flag any rework as new followups on the owning pla
       notes: [], research: [], questions: [],
       followups: [], followups_done: [],
     },
+
+    // ─── Plan-system bootstrap (sprint S3) — meta plans about the plan system ───
+
+    "plans-redesign-rollout": {
+      slug: "plans-redesign-rollout",
+      title: "Plan-system rollout — master",
+      ms: "M1", sprint: "S3", status: "active", roi: "high", effort: "S", tier: "opus", owner: "Simon McIntosh",
+      impl: 0.40, phase: "active · coordinating S3",
+      created: "2026-05-21", last_modified: "2026-05-21 14:00",
+      depends_on: [], blocks: ["plans-infra", "plans-agile-sprints", "plans-migration-ambix", "plans-migration-efit"],
+      summary: "Master plan tracking the end-to-end roll-out of the plan-system redesign. Owns the S3 sprint, the open decisions that apply across the rollout, and the bootstrap principle: use the new infrastructure to ship itself.",
+      sections: [
+        { id: "s1", sec: "§ 1", h: "Why this plan exists", body: "The plan-system redesign (prototype delivered 2026-05-21) is shipping in waves. dotfiles canonical landed at 7530860; ambix system pages landed at 3d3df82; tight-loop POST + identity fix + hide-shipped landed at 209b14c. This master plan owns the remaining waves and the open decisions that span them." },
+        { id: "s2", sec: "§ 2", h: "Sprint S3 contents", body: "Five items in S3: plans-infra (skill + state.js + plan-init), plans-agile-sprints (sprint flow with agent input), plans-migration-ambix (12 per-plan pages), plans-migration-efit (8 top-level + 51 curated/), and this master. Items are ordered by dependency: infra first (unlocks the rest), then agile (the sprint design itself), then migrations." },
+        { id: "s3", sec: "§ 3", h: "Bootstrap principle", body: "S3 lives inside the very system it builds. Every decision we make about the design is captured as an inline-decision row on the relevant plan. Every handoff between sessions is a followup with the §05 prompt template. The act of running S3 is itself the integration test." },
+        { id: "s4", sec: "§ 4", h: "Done-when", body: "S3 closes when (a) plan-infra has POSTing state.js + extended plan-style + new plan-init; (b) plans-agile-sprints has a locked cadence + agent-rationale model; (c) plans-migration-ambix has at least one redesigned per-plan page approved and the pattern proven; (d) plans-migration-efit has CSS migrated + plan-test demoed; (e) this master has resolved its open decisions and locked the bootstrap order." },
+      ],
+      decisions: [
+        {
+          key: "bootstrap-priority",
+          title: "Bootstrap ordering — what ships first within S3?",
+          context: "Five items in S3. They're not strictly serial — infra unblocks everything, but migration could start in parallel with reduced scope. Order shapes what the user sees first.",
+          choices: [
+            "Infra → Agile → Ambix migration → Efit migration (serial, dependency order)",
+            "Infra parallel with Ambix-migration-pilot; agile last (parallel where possible)",
+            "Migration first (visible UX); infra second; agile last",
+          ],
+          chosen: "", rationale: "", when: "",
+        },
+      ],
+      notes: [
+        { id: "n1", who: "Simon McIntosh", bot: false, when: "2026-05-21 14:00", body: "Created via /plan-create with the user's instruction to bootstrap. We use this very plan-page to track the rollout — the decisions on this page WILL be tested as feedback-loop drivers." },
+      ],
+      research: [
+        { id: "r1", type: "plan", title: "plans-prototype/implementation.html §01–§14",          source: "internal", added_by: "Simon McIntosh", when: "2026-05-21", url: "https://github.com/Simon-McIntosh/imas-ambix" },
+        { id: "r2", type: "doc",  title: "Tight-loop POST endpoint demo (curl round-trip)",      source: "internal", added_by: "opus-coordinator", when: "2026-05-21 13:56", url: "#" },
+      ],
+      questions: [],
+      followups: [
+        {
+          id: "f-prio-1",
+          written_by: "opus-coordinator", written_at: "2026-05-21 14:00",
+          title: "User test: lock a decision on this page; verify state JSON updates",
+          body: "The tight-loop POST is wired (Persist.save in ui.jsx POSTs to docs-server). Visit the local URL, click bootstrap-priority chips + type rationale, hit Send. We expect docs/state/imas-ambix/plans-redesign-rollout.json to appear and contain the locked decision. This is the integration test for the whole feedback loop.",
+          recommends_skill: "/plan-status",
+          touches: ["docs/state/imas-ambix/plans-redesign-rollout.json"],
+          tier: "haiku",
+          est_turn: "~5m",
+          prompt: "Project: imas-ambix\nPlan:    plans-redesign-rollout\nSection: § decisions · bootstrap-priority\nTier:    haiku (verify-only)\n\nContext\n  This followup is the first integration test of the tight-loop POST.\n  Open http://localhost:8765/imas-ambix/plan.html?slug=plans-redesign-rollout\n  on the local docs-server (with tunnel up), click one of the\n  bootstrap-priority chips, type a one-line rationale, hit Send/Enter.\n\nState to read\n  docs/state/imas-ambix/plans-redesign-rollout.json  (will be created on first POST)\n\nLocked decisions to honour (none yet on this plan)\n\nOpen decisions to surface\n  bootstrap-priority (this is the one being tested)\n\nDone-when\n  1. The state JSON appears in the repo with the locked choice.\n  2. The page UI shows the chosen chip + the typed rationale on reload.\n  3. Mark this followup resolved with outcome 'feedback loop verified'.\n  4. Write the next followup: which item in S3 to start on (infra vs migration-pilot vs agile)."
+        },
+      ],
+      followups_done: [],
+    },
+
+    "plans-infra": {
+      slug: "plans-infra",
+      title: "Plan infra — state.js POST · plan-style sync · plan-init",
+      ms: "M1", sprint: "S3", status: "active", roi: "high", effort: "M", tier: "opus", owner: "Simon McIntosh",
+      impl: 0.55, phase: "Persist done; state.js + plan-style + plan-init pending",
+      created: "2026-05-21", last_modified: "2026-05-21 14:00",
+      depends_on: [], blocks: ["plans-migration-ambix", "plans-migration-efit"],
+      summary: "Infrastructure work: extend state.js to POST in local mode (parallel to ui.jsx Persist); extend /plan-style refresh to sync system pages from dotfiles (not just CSS); write /plan-init for new-repo scaffolding. Settles three open decisions that span the whole rollout.",
+      sections: [
+        { id: "s1", sec: "§ 1", h: "Where things stand", body: "ui.jsx Persist already POSTs to docs-server in local mode (commit 209b14c). state.js (used by free-form per-plan pages) still does localStorage only. plan-style refresh syncs CSS only — it doesn't sync the system pages (project/inventory/sprint/decisions/plan.html). plan-init does not exist yet — new-repo onboarding is manual." },
+        { id: "s2", sec: "§ 2", h: "state.js POST upgrade", body: "Add the same fetch+merge+POST behaviour state.js's saveState() / lockDecision() / appendFollowup() needs in local mode. Read canonical from server first, merge patch, POST back, write localStorage as cache. Pages mode unchanged (read-only). Free-form per-plan HTML pages then enjoy the same tight loop the React templates already have." },
+        { id: "s3", sec: "§ 3", h: "plan-style refresh — also sync system pages", body: "Today /plan-style refresh copies foundation.css, dashboard.css, state.js into docs/_shared/. Extend it to also copy project.html→index.html, inventory.html, sprint.html, decisions.html, plan.html, ui.jsx from dotfiles/claude/skills/html-docs/templates/ → repo's docs/. Idempotent. plan-style migrate likewise: covers a one-shot for legacy repos." },
+        { id: "s4", sec: "§ 4", h: "plan-init for new repos", body: "New skill: scaffolds docs/, copies canonical CSS + system pages + ui.jsx + state.js, sets up docs/state/<project>/, symlinks ~/docs-server/state/<project> → repo dir, registers in mounts.json, drops .nojekyll. Repo-agnostic. Slash command /plan-init." },
+      ],
+      decisions: [
+        {
+          key: "shared-css-delivery",
+          title: "How do we serve the canonical CSS across local + Pages?",
+          context: "Today each repo holds copies in docs/_shared/ (committed; Pages can serve). plan-style refresh resyncs from dotfiles canonical. Alternatives: (a) GitHub Actions workflow that auto-syncs on dotfiles push, (b) keep manual /plan-style refresh, (c) CDN-host the canonical and link to it from project pages (still needs Pages-safe URL).",
+          choices: [
+            "Manual /plan-style refresh (today)",
+            "GitHub Actions auto-sync from dotfiles",
+            "CDN-host the canonical",
+          ],
+          chosen: "", rationale: "", when: "",
+        },
+        {
+          key: "rank-storage",
+          title: "Where does per-plan rank live for the inventory ordering?",
+          context: "Inventory shows plans grouped/sorted. Plans need an explicit rank for user-driven ordering beyond ROI/effort. Storage options: (a) plans[].rank inside index.json or mockdata.js, (b) a sibling rank.json indexed by slug, (c) implicit by array order in mockdata.js.",
+          choices: ["plans[].rank field", "sibling rank.json", "implicit by array order"],
+          chosen: "", rationale: "", when: "",
+        },
+        {
+          key: "conflict-detection",
+          title: "How do we detect simultaneous writes to the same state JSON?",
+          context: "Tight-loop POST replaces the document. Two browser tabs or an agent + a human could clobber each other. Mitigations: (a) add a `version` integer to state JSON; POST includes the expected version, server rejects if mismatched (412 Precondition Failed), (b) last-write-wins (current; simple but lossy), (c) JSON-patch operations instead of full replacement.",
+          choices: ["version field + 412 on mismatch", "last-write-wins (today)", "JSON-patch ops"],
+          chosen: "", rationale: "", when: "",
+        },
+      ],
+      notes: [],
+      research: [
+        { id: "r1", type: "doc", title: "dotfiles canonical foundation/dashboard/state.js", source: "internal", added_by: "Simon McIntosh", when: "2026-05-21", url: "https://github.com/Simon-McIntosh/dotfiles/tree/main/claude/skills/html-docs" },
+      ],
+      questions: [],
+      followups: [
+        {
+          id: "f-infra-state-js",
+          written_by: "opus-coordinator", written_at: "2026-05-21 14:00",
+          title: "Implement state.js POST + extend plan-style + write plan-init",
+          body: "Three connected pieces: (1) state.js gets the same fetch/merge/POST that Persist in ui.jsx has, with localStorage fallback. (2) /plan-style refresh learns to sync system pages, not just CSS. (3) /plan-init scaffolds a new repo's docs/. All three land in dotfiles main. Aspect the user has not yet decided: which of the three open decisions on this plan are blocking — likely none (we can ship with last-write-wins + manual refresh + plans[].rank as the simplest defaults and iterate).",
+          recommends_skill: "/plan-implement plans-infra",
+          touches: ["~/Code/dotfiles/claude/skills/html-docs/assets/state.js", "~/Code/dotfiles/claude/skills/plan-style/SKILL.md", "~/Code/dotfiles/claude/skills/plan-init/SKILL.md", "~/Code/dotfiles/claude/commands/plan-init.md"],
+          tier: "opus",
+          est_turn: "~2h",
+          prompt: "Project: dotfiles\nPlan:    plans-infra\nSection: § 2 + § 3 + § 4\nTier:    opus\n\nContext\n  Three connected dotfiles changes: state.js POST upgrade (per-plan free-form\n  pages get the same tight loop as the React templates), plan-style refresh\n  extended to sync system pages (not just CSS), and a new plan-init skill for\n  brand-new repos. Land all three in one PR-equivalent commit on main.\n\nState to read\n  docs/state/imas-ambix/plans-infra.json   (this plan's locked decisions)\n  ~/Code/dotfiles/claude/skills/html-docs/assets/state.js\n  ~/Code/dotfiles/claude/skills/html-docs/templates/ui.jsx  (Persist already POSTs)\n  ~/Code/dotfiles/claude/skills/plan-style/SKILL.md\n\nLocked decisions to honour (none yet — surface unresolved if user prefers)\n\nOpen decisions to surface\n  shared-css-delivery, rank-storage, conflict-detection\n  (Ship with sensible defaults; flag if any decision blocks progress.)\n\nDone-when\n  1. state.js POSTs to docs-server in local mode; falls back to localStorage.\n  2. /plan-style refresh syncs system pages + CSS from dotfiles canonical.\n  3. /plan-init creates a new repo's docs/, copies canonical, sets up state symlink + mounts.json.\n  4. All three documented in their SKILL.md.\n  5. Followup written with outcome + next-step for the migration plans."
+        },
+      ],
+      followups_done: [],
+    },
+
+    "plans-agile-sprints": {
+      slug: "plans-agile-sprints",
+      title: "Agile sprint flow with agent input",
+      ms: "M1", sprint: "S3", status: "draft", roi: "mid", effort: "M", tier: "opus", owner: "Simon McIntosh",
+      impl: 0.10, phase: "draft · designing the agent-input model",
+      created: "2026-05-21", last_modified: "2026-05-21 14:00",
+      depends_on: ["plans-infra"], blocks: [],
+      summary: "Sprint planning today is manual: edit mockdata.js#sprints[] by hand. Goal: agents PROPOSE sprint compositions based on plan ROI/effort/blockers/milestone; humans accept/override. The proposal + acceptance flow needs a clear data model and a UI on sprint.html.",
+      sections: [
+        { id: "s1", sec: "§ 1", h: "How sprints work today", body: "sprints[] in mockdata.js carries id, theme, starts, ends, status, items[] (slugs). project.html surfaces the activeSprint as a kanban preview; sprint.html shows the full board. There's no agent-proposed flow — sprint composition is hand-edited." },
+        { id: "s2", sec: "§ 2", h: "Agent-proposed flow", body: "New verb: /plan-sprint propose [N]. Agent reads inventory + per-plan ROI/effort/blockers/milestone + last activity. Builds a candidate sprint with proposed_by:'agent/opus' and agent_rationale[] (one line per item). Writes to sprints[] with status:'planned'. sprint.html renders proposed sprints distinctly, with a 'Lock' button that flips status to 'active'." },
+        { id: "s3", sec: "§ 3", h: "Human override + audit trail", body: "Once a sprint is active, humans can /plan-sprint move <slug> <to-sprint> to relocate items. Each move appends to overrides[] with timestamp + reason. The sprint.html UI shows agent rationale as a tooltip on each item and visually distinguishes human-moved items." },
+      ],
+      decisions: [
+        {
+          key: "sprint-proposal-cadence",
+          title: "When do agents propose sprints?",
+          context: "Three cadences: (a) on-demand — only when human runs /plan-sprint propose, (b) scheduled — weekly (cron skill?), (c) continuous — every agent that finishes work re-evaluates and may post a proposal note.",
+          choices: ["on-demand only", "scheduled (weekly)", "continuous (each agent finish-of-work)"],
+          chosen: "", rationale: "", when: "",
+        },
+        {
+          key: "agent-rationale-location",
+          title: "Where does agent rationale per item live?",
+          context: "Each proposed sprint item carries a why_now field. Options: (a) sprint.items[].why_now (item-scoped), (b) sprint.proposals[] array indexed by proposal_id (multiple proposals tracked), (c) per-plan field on the inventory.",
+          choices: ["sprint.items[].why_now", "sprint.proposals[]", "inventory[].agent_take"],
+          chosen: "", rationale: "", when: "",
+        },
+        {
+          key: "proposal-acceptance-ux",
+          title: "How do humans accept/reject a sprint proposal?",
+          context: "Proposal status is 'planned'. To make 'active': (a) a Lock button on sprint.html — single-click flips status, (b) /plan-sprint start <id> from CLI, (c) edit mockdata.js by hand. The Lock button is the tight-loop UX but adds a JS handler + POST.",
+          choices: ["Lock button on sprint.html", "/plan-sprint start <id> CLI only", "manual mockdata.js edit"],
+          chosen: "", rationale: "", when: "",
+        },
+      ],
+      notes: [], research: [], questions: [],
+      followups: [
+        {
+          id: "f-agile-design",
+          written_by: "opus-coordinator", written_at: "2026-05-21 14:00",
+          title: "Resolve the three decisions on this plan; then update plan-sprint SKILL.md",
+          body: "Once cadence, rationale-location, and acceptance-UX are locked, update ~/.claude/skills/plan-sprint/SKILL.md and add Lock button to sprint.html. Update mockdata.js (or its successor schema) to carry the new sprint fields.",
+          recommends_skill: "/plan-edit plans-agile-sprints",
+          touches: ["~/Code/dotfiles/claude/skills/plan-sprint/SKILL.md", "~/Code/dotfiles/claude/skills/html-docs/templates/sprint.html"],
+          tier: "opus",
+          est_turn: "~1h after decisions locked",
+          prompt: "Project: dotfiles\nPlan:    plans-agile-sprints\nSection: §1–§3 (after the three §-decisions are locked)\nTier:    opus\n\nContext\n  Sprint flow with agent input. Decisions on cadence / rationale location /\n  acceptance UX must be locked first via inline-decision clicks on this page.\n  Once locked, this followup is unblocked.\n\nState to read\n  docs/state/imas-ambix/plans-agile-sprints.json\n\nLocked decisions to honour (none yet — block until they are)\n\nOpen decisions to surface\n  sprint-proposal-cadence, agent-rationale-location, proposal-acceptance-ux\n  (All three block this work. Do not implement before they are locked.)\n\nDone-when\n  1. plan-sprint SKILL.md documents the chosen cadence/rationale/UX.\n  2. sprint.html renders agent rationale per item.\n  3. (If 'Lock button' won) sprint.html has the click-to-activate button wired.\n  4. Followup written with outcome + the first proposed sprint authored by an agent."
+        },
+      ],
+      followups_done: [],
+    },
+
+    "plans-migration-ambix": {
+      slug: "plans-migration-ambix",
+      title: "Migrate 12 ambix per-plan pages to new format",
+      ms: "M1", sprint: "S3", status: "active", roi: "high", effort: "L", tier: "sonnet", owner: "Simon McIntosh",
+      impl: 0.20, phase: "chrome + CSS migrated; layout strategy unresolved",
+      created: "2026-05-21", last_modified: "2026-05-21 14:00",
+      depends_on: ["plans-infra"], blocks: [],
+      summary: "12 per-plan pages in ambix/docs/ (tokenizers, world-model-v0, v0-runway, compute, data-acquisition, data-quality, tokenizer-benchmarks, demo, STRATEGY, decisions-aggregator, tokenizers-12-landed, redesign-rollout). Sonnet wave already migrated chrome + CSS class taxonomy. What's left: settle the content strategy (redirect vs rich-body) and migrate per the chosen pattern.",
+      sections: [
+        { id: "s1", sec: "§ 1", h: "Inventory", body: "12 per-plan files. 9 are 'live plans' (status active/blocked/draft), 1 is the decisions aggregator (system page; already lifted), 1 is per-stage frozen (tokenizers-12-landed), 1 is the redesign-rollout demo I authored earlier. Of the 9 live: tokenizers and v0-runway and compute are sprint-S2 active; demo and world-model-v0 are blocked; STRATEGY is the long-form vision; data-acquisition is shipped." },
+        { id: "s2", sec: "§ 2", h: "Strategy options", body: "Each existing per-plan page either (A) becomes a thin redirect → plan.html?slug=<slug> (uniform prototype design; content from mockdata.js); or (B) stays free-form HTML with the new chrome + state.js wiring (rich body preserved, look may vary); or (C) hybrid — the prototype's plan-layout shell wraps the existing rich body. (A) is fastest; (B) preserves work; (C) is the best UX but the most labour." },
+        { id: "s3", sec: "§ 3", h: "Pilot first", body: "Whichever strategy wins, pilot on ONE plan (probably tokenizers — most decisions, most contentful) and get user sign-off before fleeting the other 8 live ones. Per-stage frozen records like tokenizers-12-landed stay restyled-only (chrome + CSS, content frozen)." },
+      ],
+      decisions: [
+        {
+          key: "per-plan-content-strategy",
+          title: "Redirect to plan.html or keep free-form rich-body pages?",
+          context: "(A) Redirect: each <slug>.html → location.replace('plan.html?slug=<slug>'). Uniform design; bodies come from mockdata.js. Loses the rich hand-authored content of existing pages unless mockdata gets expanded. (B) Free-form: existing rich body stays; chrome + state.js link patches make them part of the system. Looks vary per author. (C) Hybrid: prototype's plan-layout shell + rich body inside .reading column. Best look; most work.",
+          choices: ["A — Redirect to plan.html?slug=", "B — Keep free-form rich body (chrome + state.js only)", "C — Hybrid: prototype shell + rich body"],
+          chosen: "", rationale: "", when: "",
+        },
+        {
+          key: "mockdata-live-fetch",
+          title: "Source of plan body content — hand-edited mockdata.js or live fetch?",
+          context: "Today mockdata.js hand-holds all plan inventory + per-plan content. Tight-loop POST updates state JSON but NOT mockdata. Long-term: have plan.html fetch state/<project>/index.json for inventory and state/<project>/<slug>.json for per-plan body. Eliminates mockdata.js drift. Cost: more endpoints, more JS, body must live in state JSON (probably as HTML string).",
+          choices: ["Hand-edited mockdata.js (today)", "Live fetch from state JSON", "Hybrid (inventory live, bodies still hand-edited)"],
+          chosen: "", rationale: "", when: "",
+        },
+      ],
+      notes: [],
+      research: [],
+      questions: [],
+      followups: [
+        {
+          id: "f-pilot-tokenizers",
+          written_by: "opus-coordinator", written_at: "2026-05-21 14:00",
+          title: "Pilot the chosen strategy on tokenizers.html; get sign-off; fleet the other 8",
+          body: "Tokenizers has the most going on: 4 active §12 decisions, rich body, history (per-stage tokenizers-12-landed). Pilot the chosen content-strategy here, then fleet to the other 8 live plans. Per-stage record stays as restyle-only.",
+          recommends_skill: "/plan-implement plans-migration-ambix",
+          touches: ["docs/tokenizers.html", "docs/state/imas-ambix/tokenizers.json"],
+          tier: "opus",
+          est_turn: "~2h for pilot; +Sonnet fleet for remaining 8",
+          prompt: "Project: imas-ambix\nPlan:    plans-migration-ambix\nSection: § 3 pilot\nTier:    opus (pilot); sonnet (fleet)\n\nContext\n  Settle per-plan-content-strategy first. Then pilot the chosen approach on\n  tokenizers.html (richest case). User signs off, then fleet sonnets for the\n  other 8 live plans. Per-stage frozen records stay restyle-only.\n\nState to read\n  docs/state/imas-ambix/plans-migration-ambix.json\n\nLocked decisions to honour\n  per-plan-content-strategy → (whichever is locked by the user)\n  mockdata-live-fetch → (whichever is locked; affects how bodies are sourced)\n\nOpen decisions to surface (do not resolve unilaterally)\n  (none on this plan once both are locked)\n\nDone-when\n  1. tokenizers.html renders the new layout end-to-end (including 4 §12 decisions wired to lockDecision).\n  2. User signs off on the pilot.\n  3. Fleet of sonnets migrates the remaining 8 live plans non-overlappingly.\n  4. Followup written: same recipe applied to efit; per-stage record handling confirmed."
+        },
+      ],
+      followups_done: [],
+    },
+
+    "plans-migration-efit": {
+      slug: "plans-migration-efit",
+      title: "Migrate imas-efit plans + plan-test hook",
+      ms: "M1", sprint: "S3", status: "pending", roi: "mid", effort: "L", tier: "sonnet", owner: "Simon McIntosh",
+      impl: 0.05, phase: "blocked on plans-migration-ambix pilot sign-off",
+      created: "2026-05-21", last_modified: "2026-05-21 14:00",
+      depends_on: ["plans-migration-ambix"], blocks: [],
+      summary: "Repeat the migration pattern in imas-efit: 8 top-level pages + ~51 curated/ plan pages. Plus demo the plan-test hook (data-test-source/data-test-parse) on at least one plan; the ctest UNIT suite needs SLURM so the demo is wire-only unless run on a compute node.",
+      sections: [
+        { id: "s1", sec: "§ 1", h: "Inventory", body: "imas-efit is private — no GitHub Pages. Local docs-server is the only way to view. 8 top-level: index, inventory, sprint (renamed sprints), milestones, blockers, questions, pivot-impact, plan (the generic renderer that already exists in this repo). 51 curated/ pages (the bulk of plans). Sonnet wave already migrated chrome+CSS+link paths on ALL 59 pages." },
+        { id: "s2", sec: "§ 2", h: "Strategy", body: "Apply whichever content strategy was locked for ambix (decision: per-plan-content-strategy on plans-migration-ambix). Per-stage records and historical curated/ pages stay restyle-only. Run /plan-style refresh once dotfiles syncs the system pages." },
+        { id: "s3", sec: "§ 3", h: "plan-test hook demo", body: "build-system-restructure.html already has data-test-source='ctest --output-on-failure -L UNIT -j2' + data-test-parse='ctest' (committed c8a20d87). The actual /plan-test run needs a SLURM compute node (per AGENTS.md rule: heavy ctest suites can't run on login). Either submit via sbatch and pipe the result file to plan-test, OR demo with a Python pytest suite instead." },
+      ],
+      decisions: [
+        {
+          key: "per-plan-content-strategy-efit",
+          title: "Same strategy as ambix, or different for efit?",
+          context: "ambix has 12 live plans. efit has ~60 (8 top + 51 curated). The strategy that works for ambix may be too labour-intensive for efit at this scale. Could split: live efit plans get the chosen ambix strategy; curated/ historical pages stay restyle-only (chrome + CSS, content frozen).",
+          choices: ["Mirror ambix strategy across all 60 pages", "Hybrid: live plans use ambix strategy; curated/ stays restyle-only", "Defer efit migration to a follow-up sprint"],
+          chosen: "", rationale: "", when: "",
+        },
+        {
+          key: "plan-test-runner",
+          title: "Which test runner do we wire for the plan-test demo?",
+          context: "ctest UNIT requires SLURM compute node. pytest tests/python/ can run on login but covers a smaller surface. The decision sets the data-test-source attribute on the demo plan.",
+          choices: ["ctest --preset imas -L UNIT (via SLURM)", "pytest tests/python/ (login-safe)", "Skip plan-test demo until SLURM session available"],
+          chosen: "", rationale: "", when: "",
+        },
+      ],
+      notes: [], research: [], questions: [],
+      followups: [],
+      followups_done: [],
+    },
+
   };
 
   // ─── Focused tokenizers plan (kept as the dedicated, full-content plan) ───
