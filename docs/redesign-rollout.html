@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redesign rollout · Ambix Plans</title>
+<link rel="stylesheet" href="_shared/foundation.css">
+<link rel="stylesheet" href="_shared/dashboard.css">
+<script src="_shared/state.js"></script>
+</head>
+<body>
+
+<header class="site-header" style="display:flex;align-items:center;padding:12px 28px;border-bottom:1px solid var(--line);gap:20px;">
+  <div><a href="index.html" style="font-weight:600;color:var(--ink);text-decoration:none;">⚗ Ambix Plans</a></div>
+  <nav style="display:flex;gap:14px;font-size:13.5px;color:var(--muted);">
+    <a href="index.html">Index</a>
+    <a href="STRATEGY.html">Strategy</a>
+    <a href="decisions.html">Decisions</a>
+    <a href="redesign-rollout.html" style="color:var(--ink);font-weight:500;">Redesign rollout</a>
+  </nav>
+</header>
+
+<main class="page" style="max-width:920px;margin:0 auto;padding:28px 28px 80px;">
+
+<div class="page-head" style="margin-bottom:24px;">
+  <div class="title">
+    <h1 style="font-size:28px;font-weight:600;letter-spacing:-0.012em;line-height:1.15;margin:0 0 6px;">Plan-system redesign — rollout</h1>
+    <div class="subtitle" style="color:var(--muted);font-size:13.5px;">
+      Demo plan exercising the post-redesign flow: locked decisions, open
+      questions, research items, and a §05 followup — every interaction
+      lands in <code>docs/state/imas-ambix/redesign-rollout.json</code>.
+      <span class="dim" style="margin-left:8px;">Updated: <time id="updated">2026-05-21</time></span>
+    </div>
+  </div>
+</div>
+
+<div id="plan-meta" class="kv" data-slug="redesign-rollout" style="margin-bottom:18px;">
+  <span class="k">status</span>           <span class="v" id="plan-status">in-progress</span>
+  <span class="k">tier</span>             <span class="v" id="plan-tier">sonnet</span>
+  <span class="k">milestone</span>        <span class="v"><span class="tag ms">M1</span></span>
+  <span class="k">roi</span>              <span class="v"><span class="roi high"><i></i><i></i><i></i></span> high</span>
+  <span class="k">effort</span>           <span class="v">M</span>
+  <span class="k">owner</span>            <span class="v">smc</span>
+</div>
+
+<!-- NEXT card — rendered from state.followups[] when present -->
+<div id="next-card-host"></div>
+
+<section class="prose" style="font-size:15.5px;line-height:1.7;color:var(--ink-2);max-width:68ch;">
+
+<h2 style="font-size:20px;font-weight:600;text-transform:none;letter-spacing:-0.005em;color:var(--ink);margin:32px 0 10px;">Why this plan exists</h2>
+
+<p>The redesign landed on 2026-05-21 across three repos:
+<a href="https://github.com/Simon-McIntosh/dotfiles" class="link">dotfiles</a>,
+<a href="https://github.com/Simon-McIntosh/imas-ambix" class="link">imas-ambix</a>,
+and
+<a href="https://github.com/Simon-McIntosh/imas-efit" class="link">imas-efit</a>.
+This page exists to <strong>exercise the full plan-system flow</strong>
+end-to-end so the round-trip from human/agent interaction → state JSON
+→ rendered page is verified.</p>
+
+<p>Every interaction below is captured in the plan's
+<a href="state/imas-ambix/redesign-rollout.json" class="link">state JSON</a>.
+That file is the canonical record — the HTML you're reading reads from
+it on mount.</p>
+
+<h2 style="font-size:20px;font-weight:600;text-transform:none;letter-spacing:-0.005em;color:var(--ink);margin:32px 0 10px;">Decisions</h2>
+
+<div class="decisions" id="decisions">
+  <!-- One locked decision, one open. Hydrated from state.json. -->
+  <div class="dec locked" data-key="ship-via-pages">
+    <div class="head">
+      <span class="key">ship-via-pages</span>
+      <span class="title">Where do we publish the dashboard for review?</span>
+      <span class="when" data-field="when">2026-05-21 12:40</span>
+    </div>
+    <div class="choices">
+      <button data-choice="github-pages">GitHub Pages</button>
+      <button data-choice="iter-internal">ITER internal</button>
+      <button data-choice="both">Both</button>
+    </div>
+    <input class="rationale" data-field="rationale" type="text"
+           placeholder="rationale…"
+           value="Pages is the public, zero-infra option. Internal mirror can come later if needed.">
+  </div>
+
+  <div class="dec open" data-key="project-accent">
+    <div class="head">
+      <span class="key">project-accent</span>
+      <span class="title">Should imas-ambix use a custom accent (project.css)?</span>
+      <span class="when" data-field="when"></span>
+    </div>
+    <div class="choices">
+      <button data-choice="dotfiles-default">Keep dotfiles default</button>
+      <button data-choice="warm-orange">Warm orange (ambix flavour)</button>
+      <button data-choice="defer">Defer to v1</button>
+    </div>
+    <input class="rationale" data-field="rationale" type="text"
+           placeholder="rationale…">
+  </div>
+</div>
+
+<h2 style="font-size:20px;font-weight:600;text-transform:none;letter-spacing:-0.005em;color:var(--ink);margin:32px 0 10px;">Open questions</h2>
+
+<ul id="questions-list" style="list-style:none;padding:0;">
+  <!-- Hydrated from state.questions[] -->
+</ul>
+
+<h2 style="font-size:20px;font-weight:600;text-transform:none;letter-spacing:-0.005em;color:var(--ink);margin:32px 0 10px;">Research</h2>
+
+<div class="research-list" id="research-list">
+  <!-- Hydrated from state.research[] -->
+</div>
+
+<h2 style="font-size:20px;font-weight:600;text-transform:none;letter-spacing:-0.005em;color:var(--ink);margin:32px 0 10px;">Followups</h2>
+
+<div id="followups-log" class="followup-log">
+  <!-- Resolved followups appear here; unresolved is shown above as the NEXT card. -->
+</div>
+
+</section>
+
+</main>
+
+<script>
+// Hydrate the page from the canonical state JSON. This is the
+// reading-first pattern documented in the html-docs skill: page
+// reads, renders; agents/humans write to the JSON.
+
+document.addEventListener("DOMContentLoaded", async () => {
+  const blob = await loadState();
+  const data = (blob && blob.data) || {};
+
+  // status + tier
+  const statusEl = document.getElementById("plan-status");
+  const tierEl   = document.getElementById("plan-tier");
+  if (data.status) statusEl.textContent = data.status;
+  if (data.tier)   tierEl.textContent   = data.tier;
+
+  // Decisions: merge state.decisions[<key>] onto the default rows.
+  const stateDecs = getDecisions(blob);
+  document.querySelectorAll(".dec[data-key]").forEach(row => {
+    const key = row.getAttribute("data-key");
+    const s   = stateDecs[key];
+    if (!s) return;
+    row.classList.add("locked");
+    row.classList.remove("open");
+    row.querySelectorAll(".choices button").forEach(b => {
+      if (b.getAttribute("data-choice") === s.choice) b.classList.add("chosen");
+    });
+    const rat = row.querySelector('input[data-field="rationale"]');
+    if (rat && s.rationale) rat.value = s.rationale;
+    const when = row.querySelector('[data-field="when"]');
+    if (when && s.when) when.textContent = s.when;
+  });
+
+  // Wire button clicks: clicking a choice saves locally; the user
+  // promotes by editing state.json and committing.
+  document.querySelectorAll(".dec[data-key]").forEach(row => {
+    const key = row.getAttribute("data-key");
+    row.querySelectorAll(".choices button").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const choice = btn.getAttribute("data-choice");
+        const rat = row.querySelector('input[data-field="rationale"]')?.value || "";
+        try {
+          await lockDecision(key, choice, rat);
+          row.querySelectorAll(".choices button").forEach(b => b.classList.remove("chosen"));
+          btn.classList.add("chosen");
+          row.classList.add("locked");
+          row.classList.remove("open");
+          const when = row.querySelector('[data-field="when"]');
+          if (when) when.textContent = "(saved locally — promote by editing the repo JSON)";
+        } catch (e) {
+          alert(e.message);
+        }
+      });
+    });
+  });
+
+  // Questions
+  const qs = getQuestions(blob);
+  const qList = document.getElementById("questions-list");
+  if (qs.length) {
+    qList.innerHTML = qs.map(q => `
+      <li style="padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;">
+        <strong>${q.body || q.question || "(question)"}</strong>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+          opened by ${q.opened_by || "?"} on ${q.opened_at || "?"}
+          ${q.resolved_at ? `· <span style="color:var(--ok);">resolved ${q.resolved_at}</span>` : ""}
+        </div>
+      </li>
+    `).join("");
+  } else {
+    qList.innerHTML = '<li class="dim" style="font-size:13px;color:var(--muted);">No open questions.</li>';
+  }
+
+  // Research
+  const rs = getResearch(blob);
+  const rEl = document.getElementById("research-list");
+  if (rs.length) {
+    rEl.innerHTML = rs.map(r => `
+      <div class="research-card">
+        <div class="icon">📎</div>
+        <div>
+          <div class="title">${r.title || r.url || "(research item)"}</div>
+          ${r.url ? `<div class="src"><a class="link" href="${r.url}">${r.url}</a></div>` : ""}
+          <div class="added">added by ${r.added_by || "?"} on ${r.when || "?"}</div>
+        </div>
+      </div>
+    `).join("");
+  } else {
+    rEl.innerHTML = '<div class="dim" style="font-size:13px;color:var(--muted);">No research items.</div>';
+  }
+
+  // Followups: unresolved becomes the NEXT card; resolved go into the log.
+  const fs = getFollowups(blob);
+  const next     = fs.find(f => !f.resolved_at);
+  const resolved = fs.filter(f => f.resolved_at);
+
+  const nextHost = document.getElementById("next-card-host");
+  if (next) {
+    nextHost.innerHTML = `
+      <div class="next-card">
+        <div class="head">
+          <span class="lbl">Next</span>
+          <span class="author">written by <strong>${next.written_by || "?"}</strong></span>
+          <span class="ts">${next.written_at || ""}</span>
+        </div>
+        <div class="title-line">${next.title || ""}</div>
+        <div class="body">${next.body || ""}</div>
+        <div class="meta-rows">
+          <span class="k">skill</span>
+          <span class="v">${next.recommends_skill ? `<code>${next.recommends_skill}</code>` : "—"}</span>
+          ${next.touches ? `
+            <span class="k">touches</span>
+            <span class="v">${next.touches.map(t => `<code>${t}</code>`).join(", ")}</span>` : ""}
+          ${next.tier ? `<span class="k">tier</span><span class="v">${next.tier}</span>` : ""}
+          ${next.est_turn ? `<span class="k">est.</span><span class="v dim">${next.est_turn}</span>` : ""}
+        </div>
+        ${next.prompt ? `
+          <details style="margin-top:8px;">
+            <summary style="cursor:pointer;color:var(--muted);font-size:12px;">show §05 prompt</summary>
+            <pre class="prompt" style="white-space:pre-wrap;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;padding:12px 14px;font-size:12.5px;line-height:1.5;margin-top:8px;">${next.prompt}</pre>
+          </details>` : ""}
+      </div>
+    `;
+  } else {
+    nextHost.innerHTML = `
+      <div class="next-card">
+        <div class="head"><span class="lbl">Next</span></div>
+        <div class="title-line">(no next step queued)</div>
+        <div class="body">Append an unresolved entry to <code>state.followups[]</code> to populate this card.</div>
+      </div>
+    `;
+  }
+
+  const logEl = document.getElementById("followups-log");
+  if (resolved.length) {
+    logEl.innerHTML = resolved.map(f => `
+      <div class="item">
+        <div class="mark">✓</div>
+        <div>
+          <div class="title">${f.title || ""}</div>
+          <div class="meta">resolved ${f.resolved_at || ""} by ${f.resolved_by || "?"} · ${f.recommends_skill || ""}</div>
+          <div class="outcome">${f.outcome || ""}</div>
+        </div>
+      </div>
+    `).join("");
+  } else {
+    logEl.innerHTML = '<div class="dim" style="font-size:13px;color:var(--muted);">No resolved followups yet.</div>';
+  }
+});
+</script>
+
+</body>
+</html>
