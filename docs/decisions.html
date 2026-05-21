@@ -3,169 +3,250 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>All Decisions | Ambix Plans</title>
-<link rel="stylesheet" href="assets/dashboard.css">
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/state.js" defer></script>
+<title>All Decisions · Ambix Plans</title>
+<link rel="stylesheet" href="_shared/foundation.css">
+<link rel="stylesheet" href="_shared/dashboard.css">
+<script src="_shared/state.js"></script>
 </head>
 <body>
-<!-- header -->
-<header class="site-header">
-  <div class="logo"><a href="index.html">⚗ Ambix Plans</a></div>
+
+<div class="topbar">
+  <a class="brand" href="index.html">
+    <span class="mark">A</span>
+    <span class="proj-name">imas-ambix</span>
+  </a>
   <nav>
     <a href="index.html">Index</a>
     <a href="STRATEGY.html">Strategy</a>
     <a href="v0-runway.html">v0 Runway</a>
     <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data Acq</a>
+    <a href="data-acquisition.html">Data acq</a>
     <a href="data-quality.html">Quality</a>
     <a href="tokenizers.html">Tokenizers</a>
     <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World Model</a>
+    <a href="world-model-v0.html">World model</a>
     <a href="demo.html">Demo</a>
-    <a href="decisions.html">Decisions</a>
+    <a href="decisions.html" class="active">Decisions</a>
   </nav>
-  <div class="spacer"></div>
-  <button class="sidebar-toggle" id="sidebar-toggle">&#9776; Sections</button>
-  <button class="theme-toggle" id="theme-toggle">☽ Dark</button>
-</header>
-
-<div class="page-body">
-<!-- sidebar -->
-<aside class="sidebar">
-  <div class="sidebar-title">On this page</div>
-  <ul>
-    <li><a href="#all-decisions">All decisions</a></li>
-    <li><a href="#how-it-works">How it works</a></li>
-  </ul>
-</aside>
-
-<!-- main -->
-<main class="main-content">
-  <div class="content-inner">
-    <div class="breadcrumb"><a href="index.html">Plans</a><span>›</span><span>All Decisions</span></div>
-
-    <h1>All Decisions</h1>
-    <div class="page-meta">
-      <span>Read-only aggregator — decisions are owned by individual plan pages</span>
-      <span class="sep">·</span>
-      <span>Live state from <code>~/docs-server/state/imas-ambix/&lt;plan&gt;.json</code></span>
-    </div>
-
-    <h2 id="all-decisions">Status</h2>
-    <p>
-      The current choice for each decision is loaded live from the owning
-      plan's state file. To change a decision, follow the "Owned by" link
-      and click an option button on that page — the choice will appear
-      here on next reload.
-    </p>
-
-    <table class="decisions-aggregate" id="aggregate-table">
-      <thead>
-        <tr>
-          <th>Decision</th>
-          <th>Owned by</th>
-          <th>Choice</th>
-          <th>Rationale</th>
-          <th>When</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr data-page="data-quality" data-key="drop-charge-exchange">
-          <td><strong>Drop charge_exchange from v0 training corpus?</strong></td>
-          <td><a href="data-quality.html#open-decisions">data-quality.html</a></td>
-          <td class="cell-choice">…</td>
-          <td class="cell-rationale">…</td>
-          <td class="cell-when">…</td>
-        </tr>
-        <tr data-page="tokenizers" data-key="plasma-decoder-finetune">
-          <td><strong>Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?</strong></td>
-          <td><a href="tokenizers.html#open-decisions">tokenizers.html</a> · <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a></td>
-          <td class="cell-choice">…</td>
-          <td class="cell-rationale">…</td>
-          <td class="cell-when">…</td>
-        </tr>
-        <tr data-page="tokenizers" data-key="patchtst-real-embedding">
-          <td><strong>PatchTST real embedding — defer to v1 vs land in v0?</strong></td>
-          <td><a href="tokenizers.html#open-decisions">tokenizers.html</a> · <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a></td>
-          <td class="cell-choice">…</td>
-          <td class="cell-rationale">…</td>
-          <td class="cell-when">…</td>
-        </tr>
-        <tr data-page="tokenizers" data-key="equilibrium-2d-tokenizer">
-          <td><strong>Equilibrium 2-D tokenizer — which architecture?</strong></td>
-          <td><a href="tokenizers.html#open-decisions">tokenizers.html</a> · <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a></td>
-          <td class="cell-choice">…</td>
-          <td class="cell-rationale">…</td>
-          <td class="cell-when">…</td>
-        </tr>
-        <tr data-page="tokenizers" data-key="ir-camera-codebook">
-          <td><strong>IR camera codebook — share with visible or allocate separate?</strong></td>
-          <td><a href="tokenizers.html#open-decisions">tokenizers.html</a> · <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a></td>
-          <td class="cell-choice">…</td>
-          <td class="cell-rationale">…</td>
-          <td class="cell-when">…</td>
-        </tr>
-        <tr data-page="compute" data-key="slurm-training-reservation">
-          <td><strong>SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</strong></td>
-          <td><a href="compute.html#open-decisions">compute.html</a></td>
-          <td class="cell-choice">…</td>
-          <td class="cell-rationale">…</td>
-          <td class="cell-when">…</td>
-        </tr>
-        <tr data-page="v0-runway" data-key="smoke-training-timing">
-          <td><strong>125M smoke training run — run now or wait for bulk encode?</strong></td>
-          <td><a href="v0-runway.html#open-decisions">v0-runway.html</a></td>
-          <td class="cell-choice">…</td>
-          <td class="cell-rationale">…</td>
-          <td class="cell-when">…</td>
-        </tr>
-        <tr data-page="demo" data-key="demo-shots-selection">
-          <td><strong>Demo shots final selection</strong></td>
-          <td><a href="demo.html#open-decisions">demo.html</a></td>
-          <td class="cell-choice">…</td>
-          <td class="cell-rationale">…</td>
-          <td class="cell-when">…</td>
-        </tr>
-        <tr data-page="data-acquisition" data-key="camera-selection-v0">
-          <td><strong>Camera selection for v0 training</strong></td>
-          <td><a href="data-acquisition.html#open-decisions">data-acquisition.html</a></td>
-          <td class="cell-choice">…</td>
-          <td class="cell-rationale">…</td>
-          <td class="cell-when">…</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="decisions-toolbar">
-      <button id="refresh-state">Refresh from server</button>
-    </div>
-
-    <h2 id="how-it-works">How it works</h2>
-    <ol>
-      <li>Each decision row above lists its owning plan page.</li>
-      <li>Open that page and click an option in its <em>Open Decisions</em>
-        table — the choice writes to
-        <code>~/docs-server/state/imas-ambix/&lt;plan&gt;.json</code>.</li>
-      <li>Return here (or click <strong>Refresh from server</strong>) to see
-        the current choice live.</li>
-      <li>Agents read the same JSON files directly from the filesystem at
-        <code>~/docs-server/state/imas-ambix/</code> — humans and agents
-        share one source of truth.</li>
-    </ol>
-
-    <p>
-      Per-stage landed records (e.g.
-      <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>)
-      have their own separate state files; this aggregator reads the
-      evergreen plan pages only.
-    </p>
-
-  </div>
-</main>
+  <div class="right"></div>
 </div>
 
-<script defer>
+<main class="page">
+
+<div class="page-head">
+  <div class="title">
+    <h1>All Decisions</h1>
+    <div class="subtitle">Read-only aggregator — decisions are owned by individual plan pages.
+      To lock a decision, open the plan that owns it and click an option there.
+      <span class="dim" style="margin-left:8px;">Updated <time id="updated">2026-05-21</time></span>
+    </div>
+  </div>
+</div>
+
+<section class="prose" style="font-size:15px;line-height:1.7;color:var(--ink-2);max-width:72ch;margin-bottom:28px;">
+  <p>
+    The current choice for each decision is loaded live from the owning
+    plan's state file. Each row title links to the owning plan where the
+    decision is wired — click there to lock a choice.
+  </p>
+</section>
+
+<div class="decisions" id="decisions-agg">
+
+  <!-- data-quality -->
+  <div class="dec open" data-page="data-quality" data-key="drop-charge-exchange">
+    <div class="head">
+      <span class="key">drop-charge-exchange</span>
+      <a class="title link" href="data-quality.html#open-decisions">Drop charge_exchange from v0 training corpus?</a>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
+      Owned by <a class="link" href="data-quality.html#open-decisions">data-quality.html</a>
+    </p>
+    <div class="choices read-only">
+      <button data-choice="yes" disabled>Yes — drop it</button>
+      <button data-choice="no" disabled>No — keep it</button>
+      <button data-choice="defer" disabled>Defer</button>
+    </div>
+    <input class="rationale" type="text" placeholder="rationale…" readonly>
+  </div>
+
+  <!-- tokenizers: plasma-decoder-finetune -->
+  <div class="dec open" data-page="tokenizers" data-key="plasma-decoder-finetune">
+    <div class="head">
+      <span class="key">plasma-decoder-finetune</span>
+      <a class="title link" href="tokenizers.html#open-decisions">Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?</a>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
+      Owned by <a class="link" href="tokenizers.html#open-decisions">tokenizers.html</a>
+      · <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>
+    </p>
+    <div class="choices read-only">
+      <button data-choice="v0-now" disabled>v0 now</button>
+      <button data-choice="post-encode" disabled>Post bulk encode</button>
+      <button data-choice="defer-v1" disabled>Defer to v1</button>
+    </div>
+    <input class="rationale" type="text" placeholder="rationale…" readonly>
+  </div>
+
+  <!-- tokenizers: patchtst-real-embedding -->
+  <div class="dec open" data-page="tokenizers" data-key="patchtst-real-embedding">
+    <div class="head">
+      <span class="key">patchtst-real-embedding</span>
+      <a class="title link" href="tokenizers.html#open-decisions">PatchTST real embedding — defer to v1 vs land in v0?</a>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
+      Owned by <a class="link" href="tokenizers.html#open-decisions">tokenizers.html</a>
+      · <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>
+    </p>
+    <div class="choices read-only">
+      <button data-choice="land-v0" disabled>Land in v0</button>
+      <button data-choice="defer-v1" disabled>Defer to v1</button>
+    </div>
+    <input class="rationale" type="text" placeholder="rationale…" readonly>
+  </div>
+
+  <!-- tokenizers: equilibrium-2d-tokenizer -->
+  <div class="dec open" data-page="tokenizers" data-key="equilibrium-2d-tokenizer">
+    <div class="head">
+      <span class="key">equilibrium-2d-tokenizer</span>
+      <a class="title link" href="tokenizers.html#open-decisions">Equilibrium 2-D tokenizer — which architecture?</a>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
+      Owned by <a class="link" href="tokenizers.html#open-decisions">tokenizers.html</a>
+      · <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>
+    </p>
+    <div class="choices read-only">
+      <button data-choice="vq-vae" disabled>VQ-VAE</button>
+      <button data-choice="magvit2" disabled>MAGVIT2 2-D</button>
+      <button data-choice="patchtst" disabled>PatchTST</button>
+      <button data-choice="defer" disabled>Defer</button>
+    </div>
+    <input class="rationale" type="text" placeholder="rationale…" readonly>
+  </div>
+
+  <!-- tokenizers: ir-camera-codebook -->
+  <div class="dec open" data-page="tokenizers" data-key="ir-camera-codebook">
+    <div class="head">
+      <span class="key">ir-camera-codebook</span>
+      <a class="title link" href="tokenizers.html#open-decisions">IR camera codebook — share with visible or allocate separate?</a>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
+      Owned by <a class="link" href="tokenizers.html#open-decisions">tokenizers.html</a>
+      · <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>
+    </p>
+    <div class="choices read-only">
+      <button data-choice="shared" disabled>Share codebook</button>
+      <button data-choice="separate" disabled>Separate codebook</button>
+    </div>
+    <input class="rationale" type="text" placeholder="rationale…" readonly>
+  </div>
+
+  <!-- compute: slurm-training-reservation -->
+  <div class="dec open" data-page="compute" data-key="slurm-training-reservation">
+    <div class="head">
+      <span class="key">slurm-training-reservation</span>
+      <a class="title link" href="compute.html#open-decisions">SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</a>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
+      Owned by <a class="link" href="compute.html#open-decisions">compute.html</a>
+    </p>
+    <div class="choices read-only">
+      <button data-choice="file-sdcc" disabled>File with SDCC</button>
+      <button data-choice="exclusive-pause" disabled>Stay with exclusive-pause</button>
+    </div>
+    <input class="rationale" type="text" placeholder="rationale…" readonly>
+  </div>
+
+  <!-- v0-runway: smoke-training-timing -->
+  <div class="dec open" data-page="v0-runway" data-key="smoke-training-timing">
+    <div class="head">
+      <span class="key">smoke-training-timing</span>
+      <a class="title link" href="v0-runway.html#open-decisions">125M smoke training run — run now or wait for bulk encode?</a>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
+      Owned by <a class="link" href="v0-runway.html#open-decisions">v0-runway.html</a>
+    </p>
+    <div class="choices read-only">
+      <button data-choice="run-now" disabled>Run now</button>
+      <button data-choice="wait-encode" disabled>Wait for bulk encode</button>
+    </div>
+    <input class="rationale" type="text" placeholder="rationale…" readonly>
+  </div>
+
+  <!-- demo: demo-shots-selection -->
+  <div class="dec open" data-page="demo" data-key="demo-shots-selection">
+    <div class="head">
+      <span class="key">demo-shots-selection</span>
+      <a class="title link" href="demo.html#open-decisions">Demo shots final selection</a>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
+      Owned by <a class="link" href="demo.html#open-decisions">demo.html</a>
+    </p>
+    <div class="choices read-only">
+      <button data-choice="curated" disabled>Curated set</button>
+      <button data-choice="random" disabled>Random sample</button>
+      <button data-choice="both" disabled>Both</button>
+    </div>
+    <input class="rationale" type="text" placeholder="rationale…" readonly>
+  </div>
+
+  <!-- data-acquisition: camera-selection-v0 -->
+  <div class="dec open" data-page="data-acquisition" data-key="camera-selection-v0">
+    <div class="head">
+      <span class="key">camera-selection-v0</span>
+      <a class="title link" href="data-acquisition.html#open-decisions">Camera selection for v0 training</a>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
+      Owned by <a class="link" href="data-acquisition.html#open-decisions">data-acquisition.html</a>
+    </p>
+    <div class="choices read-only">
+      <button data-choice="visible-only" disabled>Visible only</button>
+      <button data-choice="ir-only" disabled>IR only</button>
+      <button data-choice="both" disabled>Both visible + IR</button>
+    </div>
+    <input class="rationale" type="text" placeholder="rationale…" readonly>
+  </div>
+
+</div><!-- #decisions-agg -->
+
+<div style="margin-top:18px;display:flex;gap:10px;align-items:center;">
+  <button class="btn sm" id="refresh-state">Refresh from server</button>
+  <span id="refresh-status" style="font-size:12px;color:var(--muted);"></span>
+</div>
+
+<section class="prose" style="font-size:15px;line-height:1.7;color:var(--ink-2);max-width:68ch;margin-top:40px;">
+  <h2 style="font-size:18px;font-weight:600;color:var(--ink);margin:0 0 10px;" id="how-it-works">How it works</h2>
+  <ol style="padding-left:1.4em;">
+    <li>Each decision row above lists its owning plan page.</li>
+    <li>Open that page and click an option in its <em>Open Decisions</em>
+      section — the choice writes to
+      <code>~/docs-server/state/imas-ambix/&lt;plan&gt;.json</code>.</li>
+    <li>Return here (or click <strong>Refresh from server</strong>) to see
+      the current choice live.</li>
+    <li>Agents read the same JSON files directly from the filesystem at
+      <code>~/docs-server/state/imas-ambix/</code> — humans and agents
+      share one source of truth.</li>
+  </ol>
+  <p>
+    Per-stage landed records (e.g.
+    <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>)
+    have their own separate state files; this aggregator reads the
+    evergreen plan pages only.
+  </p>
+</section>
+
+</main>
+
+<script>
 (async function () {
   const baseFromMeta = document.querySelector('meta[name="docs-server"]')?.getAttribute("content");
   const base = baseFromMeta || window.location.origin;
@@ -176,7 +257,7 @@
       const r = await fetch(`${base}/state/${project}/${page}`, { cache: "no-store" });
       if (!r.ok) return {};
       const env = await r.json();
-      return env.data || {};
+      return env.data?.decisions || env.data || {};
     } catch (e) {
       console.warn(`fetchState(${page}) failed`, e);
       return {};
@@ -184,7 +265,7 @@
   }
 
   async function refresh() {
-    const rows = [...document.querySelectorAll("#aggregate-table tbody tr")];
+    const rows = [...document.querySelectorAll("#decisions-agg .dec[data-page]")];
     const pages = [...new Set(rows.map(r => r.dataset.page))];
     const stateByPage = {};
     await Promise.all(pages.map(async (p) => {
@@ -193,13 +274,34 @@
 
     for (const row of rows) {
       const page = row.dataset.page;
-      const key = row.dataset.key;
-      const s = stateByPage[page]?.[key] ?? {};
-      row.querySelector(".cell-choice").textContent = s.choice ?? "—";
-      row.querySelector(".cell-rationale").textContent = s.rationale ?? "";
-      row.querySelector(".cell-when").textContent = s.when ?? "";
-      row.classList.toggle("chosen-row", !!s.choice);
+      const key  = row.dataset.key;
+      const s    = stateByPage[page]?.[key] ?? {};
+
+      // Mark locked vs open
+      if (s.choice) {
+        row.classList.remove("open");
+        row.classList.add("locked");
+      } else {
+        row.classList.add("open");
+        row.classList.remove("locked");
+      }
+
+      // Highlight chosen button
+      row.querySelectorAll(".choices button").forEach(b => {
+        b.classList.toggle("chosen", b.getAttribute("data-choice") === s.choice);
+      });
+
+      // Fill rationale
+      const rat = row.querySelector('input.rationale');
+      if (rat) rat.value = s.rationale ?? "";
+
+      // Fill when
+      const when = row.querySelector('[data-field="when"]');
+      if (when) when.textContent = s.when ?? "";
     }
+
+    document.getElementById("refresh-status").textContent =
+      "Updated " + new Date().toLocaleTimeString();
   }
 
   document.getElementById("refresh-state").addEventListener("click", refresh);
