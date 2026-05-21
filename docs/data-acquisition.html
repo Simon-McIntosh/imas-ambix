@@ -1,82 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Data Acquisition | Ambix Plans</title>
-<link rel="stylesheet" href="assets/dashboard.css">
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/state.js" defer></script>
+<link rel="stylesheet" href="_shared/foundation.css">
+<link rel="stylesheet" href="_shared/dashboard.css">
+<script src="_shared/state.js"></script>
 </head>
 <body>
-<!-- header -->
-<header class="site-header">
-  <div class="logo"><a href="index.html">⚗ Ambix Plans</a></div>
+
+<div class="topbar">
+  <a class="brand" href="index.html">
+    <span class="mark">A</span>
+    <span class="proj-name">imas-ambix</span>
+  </a>
   <nav>
     <a href="index.html">Index</a>
     <a href="STRATEGY.html">Strategy</a>
     <a href="v0-runway.html">v0 Runway</a>
     <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data Acq</a>
+    <a href="data-acquisition.html" class="active">Data acq</a>
     <a href="data-quality.html">Quality</a>
     <a href="tokenizers.html">Tokenizers</a>
     <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World Model</a>
+    <a href="world-model-v0.html">World model</a>
     <a href="demo.html">Demo</a>
     <a href="decisions.html">Decisions</a>
   </nav>
-  <div class="spacer"></div>
-  <button class="sidebar-toggle" id="sidebar-toggle">&#9776; Sections</button>
-  <button class="theme-toggle" id="theme-toggle">☽ Dark</button>
-</header>
+  <div class="right"></div>
+</div>
 
-<div class="page-body">
-<!-- sidebar -->
-<aside class="sidebar">
-  <div class="sidebar-title">On this page</div>
-  <ul><li><a href="#1-endpoint-inventory-verbatim-from-fair-mast-docs" class="">1. Endpoint inventory (verbatim from FAIR-MAST …</a></li>
-<li><a href="#2-network-and-host-topology-why-this-matters" class="">2. Network and host topology (why this matters)</a></li>
-<li><a href="#3-sizing-probe-protocol" class="">3. Sizing probe protocol</a></li>
-<li><a href="#31-probe-steps-paste-verbatim-on-a-sirius-node" class="h3-link">3.1 Probe steps (paste verbatim on a sirius node)</a></li>
-<li><a href="#32-acceptance-thresholds" class="h3-link">3.2 Acceptance thresholds</a></li>
-<li><a href="#33-what-the-probe-does-not-do" class="h3-link">3.3 What the probe does not do</a></li>
-<li><a href="#34-probe-result-to-be-appended-after-the-first-run" class="h3-link">3.4 Probe result (to be appended after the firs…</a></li>
-<li><a href="#4-bulk-download-protocol" class="">4. Bulk download protocol</a></li>
-<li><a href="#41-storage-layout" class="h3-link">4.1 Storage layout</a></li>
-<li><a href="#42-slurm-job-spec" class="h3-link">4.2 SLURM job spec</a></li>
-<li><a href="#43-resumability" class="h3-link">4.3 Resumability</a></li>
-<li><a href="#44-permissions" class="h3-link">4.4 Permissions</a></li>
-<li><a href="#45-camera-shot-prioritisation" class="h3-link">4.5 Camera-shot prioritisation</a></li>
-<li><a href="#5-operating-the-mirror-after-download" class="">5. Operating the mirror after download</a></li>
-<li><a href="#6-recovery-re-run-rules" class="">6. Recovery / re-run rules</a></li>
-<li><a href="#7-out-of-scope-of-this-plan" class="">7. Out of scope of this plan</a></li>
-<li><a href="#10-live-probe-findings-2026-05-19-login-node" class="">10. Live-probe findings — 2026-05-19 (login node)</a></li>
-<li><a href="#101-headline-counts-verbatim-from-s5cmd-ls" class="h3-link">10.1 Headline counts (verbatim from s5cmd ls)</a></li>
-<li><a href="#102-level-2-does-not-carry-camera-groups" class="h3-link">10.2 Level-2 does not carry camera groups</a></li>
-<li><a href="#103-cameras-live-in-level-1" class="h3-link">10.3 Cameras live in level-1</a></li>
-<li><a href="#104-coverage-from-the-rest-api-cross-check-see-notes" class="h3-link">10.4 Coverage from the REST API (cross-check, s…</a></li>
-<li><a href="#105-revised-sizing-target" class="h3-link">10.5 Revised sizing target</a></li>
-<li><a href="#106-implications-for-the-plan" class="h3-link">10.6 Implications for the plan</a></li>
-<li><a href="#107-sources-for-10" class="h3-link">10.7 Sources for §10</a></li>
-<li><a href="#11-full-bucket-inventory-2026-05-19-definitive" class="">11. Full-bucket inventory — 2026-05-19 (definit…</a></li>
-<li><a href="#111-level-2-inventory" class="h3-link">11.1 Level-2 inventory</a></li>
-<li><a href="#112-level-1-inventory" class="h3-link">11.2 Level-1 inventory</a></li>
-<li><a href="#113-built-manifests" class="h3-link">11.3 Built manifests</a></li>
-<li><a href="#114-downloads" class="h3-link">11.4 Downloads</a></li>
-<li><a href="#12-correction-level-2-is-45-tb-not-04-tb-2026-05-19-late" class="">12. Correction — level-2 is 4.5 TB, not 0.4 TB …</a></li>
-<li><a href="#121-why-the-probe-was-wrong" class="h3-link">12.1 Why the probe was wrong</a></li>
-<li><a href="#122-the-right-way-to-size-the-corpus" class="h3-link">12.2 The right way to size the corpus</a></li>
-<li><a href="#123-revised-acceptance-gates" class="h3-link">12.3 Revised acceptance gates</a></li>
-<li><a href="#124-implications-for-the-v0-plan" class="h3-link">12.4 Implications for the v0 plan</a></li>
-<li><a href="#125-live-download-progress-snapshot" class="h3-link">12.5 Live download progress (snapshot)</a></li>
-<li><a href="#open-decisions" class="">Open Decisions</a></li></ul>
-</aside>
+<main class="page">
 
-<!-- main -->
-<main class="main-content">
-  <div class="content-inner">
-    <div class="breadcrumb"><a href="index.html">Plans</a><span>›</span><span>Data Acquisition</span></div>
-    <h1 id="plan-fair-mast-data-acquisition">Plan: FAIR-MAST Data Acquisition</h1>
+<div class="page-head">
+  <div class="title">
+    <h1>Plan: FAIR-MAST Data Acquisition</h1>
+    <div class="subtitle">imas-ambix / Fusion World Model ·
+      Updated <time id="updated">2026-05-19</time></div>
+  </div>
+</div>
+
 <p>Status: <strong>Draft</strong> — awaiting probe result + reservation grant.</p>
 <p>This plan defines how we move FAIR-MAST level-2 data from
 <code>s3.echo.stfc.ac.uk</code> to GPFS under <code>/work/projects/imas_gpu/mast/</code> so that
@@ -84,60 +48,37 @@ training jobs on the betelgeuse GPU node — which has <strong>no outbound netwo
 access</strong> — can read it. The probe protocol must run first; it gates the
 go / no-go on the full mirror and provides the throughput evidence we
 need before reserving 6 – 24 h of compute time on a <code>sirius</code>-class node.</p>
-<hr />
+
+<hr>
+
 <h2 id="1-endpoint-inventory-verbatim-from-fair-mast-docs">1. Endpoint inventory (verbatim from FAIR-MAST docs)</h2>
-<table>
+
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Channel</th>
-<th>Verbatim value</th>
-</tr>
+<tr><th>Channel</th><th>Verbatim value</th></tr>
 </thead>
 <tbody>
-<tr>
-<td>S3 endpoint</td>
-<td><code>https://s3.echo.stfc.ac.uk</code></td>
-</tr>
-<tr>
-<td>Bucket</td>
-<td><code>mast</code> (anonymous read; pass <code>--no-sign-request</code>)</td>
-</tr>
-<tr>
-<td>Level-2 per-shot path</td>
-<td><code>s3://mast/level2/shots/{shot_id}.zarr/{group}/</code></td>
-</tr>
-<tr>
-<td>Level-1 per-shot path</td>
-<td><code>s3://mast/level1/shots/{shot_id}.zarr/{group}/</code></td>
-</tr>
-<tr>
-<td>Direct HTTPS Zarr</td>
-<td><code>https://s3.echo.stfc.ac.uk/mast/level2/shots/{shot}.zarr</code></td>
-</tr>
-<tr>
-<td>Parquet shot index</td>
-<td><code>https://mastapp.site/parquet/level2/shots</code> (11,573 rows × 189 cols)</td>
-</tr>
-<tr>
-<td>REST shot endpoint</td>
-<td><code>https://mastapp.site/json/shots?filters=…&amp;cursor=…&amp;size=…</code></td>
-</tr>
-<tr>
-<td>GraphQL</td>
-<td><code>https://mastapp.site/graphql_api.html</code></td>
-</tr>
-<tr>
-<td>Region for boto3</td>
-<td><code>us-east-1</code> (Ceph default — endpoint URL overrides)</td>
-</tr>
+<tr><td>S3 endpoint</td><td><code>https://s3.echo.stfc.ac.uk</code></td></tr>
+<tr><td>Bucket</td><td><code>mast</code> (anonymous read; pass <code>--no-sign-request</code>)</td></tr>
+<tr><td>Level-2 per-shot path</td><td><code>s3://mast/level2/shots/{shot_id}.zarr/{group}/</code></td></tr>
+<tr><td>Level-1 per-shot path</td><td><code>s3://mast/level1/shots/{shot_id}.zarr/{group}/</code></td></tr>
+<tr><td>Direct HTTPS Zarr</td><td><code>https://s3.echo.stfc.ac.uk/mast/level2/shots/{shot}.zarr</code></td></tr>
+<tr><td>Parquet shot index</td><td><code>https://mastapp.site/parquet/level2/shots</code> (11,573 rows × 189 cols)</td></tr>
+<tr><td>REST shot endpoint</td><td><code>https://mastapp.site/json/shots?filters=…&amp;cursor=…&amp;size=…</code></td></tr>
+<tr><td>GraphQL</td><td><code>https://mastapp.site/graphql_api.html</code></td></tr>
+<tr><td>Region for boto3</td><td><code>us-east-1</code> (Ceph default — endpoint URL overrides)</td></tr>
 </tbody>
 </table>
+</div>
+
 <p>Licensing: data CC BY-SA 4.0; the <code>ukaea/fair-mast</code> and
-<code>ukaea/fair-mast-ingestion</code> codebases are MIT. The &quot;SA&quot; clause matters
+<code>ukaea/fair-mast-ingestion</code> codebases are MIT. The "SA" clause matters
 only if we redistribute <em>data</em> derivatives; it is generally interpreted
 as not contagious to model weights, but legal sign-off is needed before
 publishing any weights derived from raw FAIR-MAST signals (tracked in
 <code>STRATEGY.md</code> §6).</p>
+
 <p>Citations (BibTeX-ready):</p>
 <pre><code class="language-bibtex">@article{jackson2024fairmast,
   title   = {FAIR-MAST: A fusion device data management system},
@@ -160,53 +101,64 @@ publishing any weights derived from raw FAIR-MAST signals (tracked in
   doi     = {10.1109/TPS.2025.3583419}
 }
 </code></pre>
-<hr />
+
+<hr>
+
 <h2 id="2-network-and-host-topology-why-this-matters">2. Network and host topology (why this matters)</h2>
+
 <p>The SDCC partition assignment matters for both the probe and the bulk
 download. From <code>docs/cluster-usage.md</code> §2:</p>
-<table>
+
+<div class="table-scroll">
+<table class="t">
 <thead>
 <tr>
-<th>Host class</th>
-<th>Outbound network</th>
-<th><code>/work/projects/imas_gpu/</code> access</th>
-<th>Suitable for</th>
+  <th>Host class</th>
+  <th>Outbound network</th>
+  <th><code>/work/projects/imas_gpu/</code> access</th>
+  <th>Suitable for</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Login (<code>io-ls-hpc.iter.org</code> etc.)</td>
-<td>yes</td>
-<td><strong>no</strong> (group <code>sdcc-imas_gpu</code> missing)</td>
-<td>Reading parquet index, REST API only</td>
+  <td>Login (<code>io-ls-hpc.iter.org</code> etc.)</td>
+  <td>yes</td>
+  <td><strong>no</strong> (group <code>sdcc-imas_gpu</code> missing)</td>
+  <td>Reading parquet index, REST API only</td>
 </tr>
 <tr>
-<td><code>sirius</code> standard compute</td>
-<td><strong>yes</strong></td>
-<td><strong>yes</strong></td>
-<td>The probe <strong>and</strong> the bulk download</td>
+  <td><code>sirius</code> standard compute</td>
+  <td><strong>yes</strong></td>
+  <td><strong>yes</strong></td>
+  <td>The probe <strong>and</strong> the bulk download</td>
 </tr>
 <tr>
-<td><code>rigel</code> standard compute</td>
-<td>yes</td>
-<td>yes</td>
-<td>Backup option for the bulk download</td>
+  <td><code>rigel</code> standard compute</td>
+  <td>yes</td>
+  <td>yes</td>
+  <td>Backup option for the bulk download</td>
 </tr>
 <tr>
-<td><code>betelgeuse</code> GPU node</td>
-<td><strong>no</strong></td>
-<td>yes</td>
-<td>Only useful <strong>after</strong> mirror is complete</td>
+  <td><code>betelgeuse</code> GPU node</td>
+  <td><strong>no</strong></td>
+  <td>yes</td>
+  <td>Only useful <strong>after</strong> mirror is complete</td>
 </tr>
 </tbody>
 </table>
+</div>
+
 <p>Conclusion: both the probe and the bulk download run on <code>sirius</code> (or
 <code>rigel</code>). Login nodes can do dry-runs but cannot stage to GPFS.</p>
-<hr />
+
+<hr>
+
 <h2 id="3-sizing-probe-protocol">3. Sizing probe protocol</h2>
+
 <p><strong>Owner:</strong> runs from <code>sirius</code>. Wall-time budget: ~30 min. Result is appended
 to this document as a verbatim block in §3.4 before the bulk download is
 allowed to start.</p>
+
 <h3 id="31-probe-steps-paste-verbatim-on-a-sirius-node">3.1 Probe steps (paste verbatim on a <code>sirius</code> node)</h3>
 <pre><code class="language-bash"># 0. Allocate an interactive sirius node
 srun --partition=sun_debug --cpus-per-task=8 --mem=16G --time=01:00:00 --pty bash -l
@@ -216,20 +168,20 @@ export TMPDIR=/tmp
 mkdir -p ~/work/mast-probe &amp;&amp; cd ~/work/mast-probe
 python - &lt;&lt;'EOF'
 import pandas as pd
-df = pd.read_parquet(&quot;https://mastapp.site/parquet/level2/shots&quot;)
-print(f&quot;shots={len(df)} cols={len(df.columns)}&quot;)
-df.to_parquet(&quot;shots-index.parquet&quot;)
+df = pd.read_parquet("https://mastapp.site/parquet/level2/shots")
+print(f"shots={len(df)} cols={len(df.columns)}")
+df.to_parquet("shots-index.parquet")
 # Save a manifest of shot_id + boolean has-camera flags
-keep = [&quot;shot_id&quot;, &quot;campaign&quot;]
+keep = ["shot_id", "campaign"]
 for col in df.columns:
-    if &quot;camera_visible&quot; in col or &quot;camera_ir&quot; in col:
+    if "camera_visible" in col or "camera_ir" in col:
         keep.append(col)
-df[keep].to_parquet(&quot;shots-with-camera-flags.parquet&quot;)
+df[keep].to_parquet("shots-with-camera-flags.parquet")
 EOF
 
 # 2. Install s5cmd (Python wheel wraps the Go binary)
 pip install --user s5cmd
-export PATH=&quot;$HOME/.local/bin:$PATH&quot;
+export PATH="$HOME/.local/bin:$PATH"
 
 # 3. Enumerate level-2 shots — confirm bucket layout matches the docs
 s5cmd --no-sign-request --endpoint-url https://s3.echo.stfc.ac.uk \
@@ -254,57 +206,63 @@ time s5cmd --no-sign-request --endpoint-url https://s3.echo.stfc.ac.uk \
   ./throughput-test/
 # Throughput = (bytes copied) / (elapsed seconds), reported in MB/s.
 </code></pre>
+
 <p>The probe script lives in <code>imas_ambix/data/probe.py</code> (created in the
 code-skeleton PR following this plan PR). It accepts
 <code>ambix data probe --sirius</code> and writes a JSON summary to
 <code>/work/projects/imas_gpu/mast/.probe/&lt;timestamp&gt;.json</code>.</p>
-<h1 id="0-allocate-an-interactive-sirius-node">3.2 Acceptance thresholds</h3>
-<table>
+
+<h3 id="32-acceptance-thresholds">3.2 Acceptance thresholds</h3>
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Metric</th>
-<th>Threshold</th>
-<th>Action if missed</th>
-</tr>
+<tr><th>Metric</th><th>Threshold</th><th>Action if missed</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>Sustained throughput from STFC Echo</td>
-<td>≥ 200 MB/s on 32 workers</td>
-<td>If 50 – 200 MB/s: continue but extend wall-time budget to 36 h. If &lt; 50 MB/s: open a ticket with STFC and switch to per-diagnostic prioritised mirror.</td>
+  <td>Sustained throughput from STFC Echo</td>
+  <td>≥ 200 MB/s on 32 workers</td>
+  <td>If 50 – 200 MB/s: continue but extend wall-time budget to 36 h. If &lt; 50 MB/s: open a ticket with STFC and switch to per-diagnostic prioritised mirror.</td>
 </tr>
 <tr>
-<td>Total level-2 footprint extrapolated to 11,573 shots</td>
-<td>2 TB ≤ size ≤ 12 TB</td>
-<td>If &gt; 12 TB: split download into camera vs non-camera and stage camera-rich shots first; defer full-mirror decision.</td>
+  <td>Total level-2 footprint extrapolated to 11,573 shots</td>
+  <td>2 TB ≤ size ≤ 12 TB</td>
+  <td>If &gt; 12 TB: split download into camera vs non-camera and stage camera-rich shots first; defer full-mirror decision.</td>
 </tr>
 <tr>
-<td>Camera-bearing shot count</td>
-<td>≥ 1,000</td>
-<td>If &lt; 1,000: descope the camera demo and pivot v0 to a magnetics-only forecast — escalate to user, do not proceed silently.</td>
+  <td>Camera-bearing shot count</td>
+  <td>≥ 1,000</td>
+  <td>If &lt; 1,000: descope the camera demo and pivot v0 to a magnetics-only forecast — escalate to user, do not proceed silently.</td>
 </tr>
 <tr>
-<td>Per-shot p95 size</td>
-<td>≤ 5 GB</td>
-<td>If higher: alert (probably means full-rate magnetics is included unexpectedly).</td>
+  <td>Per-shot p95 size</td>
+  <td>≤ 5 GB</td>
+  <td>If higher: alert (probably means full-rate magnetics is included unexpectedly).</td>
 </tr>
 </tbody>
 </table>
-<h1 id="1-pull-the-parquet-shot-index">3.3 What the probe <em>does not</em> do</h3>
+</div>
+
+<h3 id="33-what-the-probe-does-not-do">3.3 What the probe <em>does not</em> do</h3>
 <ul>
 <li>Does not validate the IMAS-DD version embedded in each shot's Zarr
 attributes. That check belongs in the loader, not the probe.</li>
 <li>Does not pull any data into the mirror. The 50-shot sample lives under
 <code>~/work/mast-probe/</code> and is discarded after the probe report is filed.</li>
 </ul>
-<h1 id="save-a-manifest-of-shotid-boolean-has-camera-flags">3.4 Probe result (to be appended after the first run)</h3>
+
+<h3 id="34-probe-result-to-be-appended-after-the-first-run">3.4 Probe result (to be appended after the first run)</h3>
 <pre><code class="language-text">&lt;probe-result-block: paste the JSON summary here&gt;
 </code></pre>
 <p>Until that block is filled in, the bulk download in §4 is <strong>on hold</strong>.</p>
-<hr />
-<h1 id="2-install-s5cmd-python-wheel-wraps-the-go-binary">4. Bulk download protocol</h2>
+
+<hr>
+
+<h2 id="4-bulk-download-protocol">4. Bulk download protocol</h2>
+
 <p>Run only after §3.4 is filled and acceptance thresholds are met.</p>
-<h1 id="3-enumerate-level-2-shots-confirm-bucket-layout-matches-the-docs">4.1 Storage layout</h3>
+
+<h3 id="41-storage-layout">4.1 Storage layout</h3>
 <pre><code>/work/projects/imas_gpu/mast/                  # root, group sdcc-imas_gpu, mode 2770
 ├── README.md                                  # provenance + license note (CC BY-SA 4.0)
 ├── shots-index.parquet                        # snapshot of mastapp.site index at download time
@@ -323,7 +281,8 @@ existing <code>xarray.open_zarr</code> snippets from FAIR-MAST docs work unchang
 against the local mirror. Code paths just point at
 <code>/work/projects/imas_gpu/mast/level2/shots/{shot}.zarr</code> instead of
 <code>https://s3.echo.stfc.ac.uk/mast/level2/shots/{shot}.zarr</code>.</p>
-<h1 id="4-per-shot-footprint-on-a-50-shot-sample-cameras-included">4.2 SLURM job spec</h3>
+
+<h3 id="42-slurm-job-spec">4.2 SLURM job spec</h3>
 <pre><code class="language-bash">#!/bin/bash
 #SBATCH --job-name=mast-mirror
 #SBATCH --partition=sun                     # standard compute, outbound network OK
@@ -333,11 +292,11 @@ against the local mirror. Code paths just point at
 #SBATCH --output=%x-%j.log
 
 set -euo pipefail
-export TMPDIR=/scratch_local/$SLURM_JOB_ID &amp;&amp; mkdir -p &quot;$TMPDIR&quot;
-export PATH=&quot;$HOME/.local/bin:$PATH&quot;
+export TMPDIR=/scratch_local/$SLURM_JOB_ID &amp;&amp; mkdir -p "$TMPDIR"
+export PATH="$HOME/.local/bin:$PATH"
 
 DEST=/work/projects/imas_gpu/mast/level2/shots
-mkdir -p &quot;$DEST&quot;
+mkdir -p "$DEST"
 
 # Manifest-driven loop — pass shot IDs via stdin to allow restart
 python -m imas_ambix.data.manifest emit-shot-ids \
@@ -345,7 +304,7 @@ python -m imas_ambix.data.manifest emit-shot-ids \
 | while read SHOT; do
     s5cmd --no-sign-request --endpoint-url https://s3.echo.stfc.ac.uk \
       --numworkers 32 \
-      cp &quot;s3://mast/level2/shots/${SHOT}.zarr/*&quot; &quot;${DEST}/${SHOT}.zarr/&quot;
+      cp "s3://mast/level2/shots/${SHOT}.zarr/*" "${DEST}/${SHOT}.zarr/"
 done
 </code></pre>
 <p><code>partition=sun</code> is the standard compute partition with network access. We
@@ -353,7 +312,8 @@ deliberately do <strong>not</strong> use <code>*_debug</code> partitions for thi
 partitions cap at 1 h wall time. The 24 h limit is dimensioned for the
 worst-case 50 MB/s scenario; on a healthy network it should finish in
 6 – 12 h.</p>
-<h1 id="5-repeat-4-for-49-more-shot-ids-sampled-across-the-campaign-range">4.3 Resumability</h3>
+
+<h3 id="43-resumability">4.3 Resumability</h3>
 <ul>
 <li>s5cmd <code>cp</code> skips objects that already exist with matching size, so a
 re-run is a no-op for completed shots. We exploit this for restart
@@ -367,7 +327,8 @@ manifest, opens the Zarr with <code>xarray.open_zarr</code>, and counts groups +
 total bytes. Output written to
 <code>/work/projects/imas_gpu/mast/manifests/level2-{ts}.json</code>.</li>
 </ul>
-<h1 id="write-the-loop-into-a-script-pseudocode-shown">4.4 Permissions</h3>
+
+<h3 id="44-permissions">4.4 Permissions</h3>
 <pre><code class="language-bash">chgrp -R sdcc-imas_gpu /work/projects/imas_gpu/mast/
 chmod -R u+rwX,g+rsX,o-rwx /work/projects/imas_gpu/mast/
 find /work/projects/imas_gpu/mast/ -type d -exec chmod g+s {} +
@@ -375,7 +336,8 @@ find /work/projects/imas_gpu/mast/ -type d -exec chmod g+s {} +
 <p>The <code>g+s</code> setgid bit ensures every file created later inherits the
 <code>sdcc-imas_gpu</code> group, matching the existing layout under
 <code>/work/projects/imas_gpu/agents/</code>.</p>
-<h1 id="outputs-median-per-shot-mb-p95-per-shot-mb-camera-vs-non-ratio">4.5 Camera-shot prioritisation</h3>
+
+<h3 id="45-camera-shot-prioritisation">4.5 Camera-shot prioritisation</h3>
 <p>If the probe shows total footprint &gt; 12 TB, switch to a two-pass mirror:</p>
 <ol>
 <li><strong>Pass A:</strong> shots where <code>camera_visible</code> <em>or</em> <code>camera_ir</code> group is
@@ -388,15 +350,17 @@ summary + pulse_schedule groups only (skip <code>camera_visible</code>,
 <p>Pass A unlocks v0 training and the demo; Pass B fills out the corpus for
 the larger v1 runs. The split is captured in two manifest files so we can
 re-issue either independently.</p>
-<hr />
-<h1 id="6-throughput-probe-saturating-cp-of-a-single-camera-rich-shot">5. Operating the mirror after download</h2>
+
+<hr>
+
+<h2 id="5-operating-the-mirror-after-download">5. Operating the mirror after download</h2>
 <ul>
 <li>
 <p><strong>Read access</strong> — anyone in <code>sdcc-imas_gpu</code> can open shots directly:</p>
 <pre><code class="language-python">import xarray as xr
 ds = xr.open_zarr(
-    &quot;/work/projects/imas_gpu/mast/level2/shots/30420.zarr&quot;,
-    group=&quot;camera_visible/camera_center&quot;,
+    "/work/projects/imas_gpu/mast/level2/shots/30420.zarr",
+    group="camera_visible/camera_center",
 )
 </code></pre>
 </li>
@@ -405,40 +369,43 @@ ds = xr.open_zarr(
 </li>
 <li>
 <p><strong>Refresh policy</strong> — FAIR-MAST is read-mostly but does receive M9
-ingestion updates. We re-pull the parquet index quarterly and <code>s5cmd cp</code> only the new shot IDs. The manifest distinguishes &quot;original mirror
-date&quot; from &quot;last-checked date&quot; per shot.</p>
+ingestion updates. We re-pull the parquet index quarterly and <code>s5cmd cp</code> only the new shot IDs. The manifest distinguishes "original mirror
+date" from "last-checked date" per shot.</p>
 </li>
 </ul>
-<hr />
-<h1 id="throughput-bytes-copied-elapsed-seconds-reported-in-mbs">6. Recovery / re-run rules</h2>
-<table>
+
+<hr>
+
+<h2 id="6-recovery-re-run-rules">6. Recovery / re-run rules</h2>
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Symptom</th>
-<th>Action</th>
-</tr>
+<tr><th>Symptom</th><th>Action</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>SLURM job killed mid-stream</td>
-<td>Re-submit the same script — s5cmd skip-existing behaviour handles restart.</td>
+  <td>SLURM job killed mid-stream</td>
+  <td>Re-submit the same script — s5cmd skip-existing behaviour handles restart.</td>
 </tr>
 <tr>
-<td>Disk full on GPFS</td>
-<td>Surface immediately to the operator. Do <strong>not</strong> delete shots from the destination to make room without an authorisation note in this plan.</td>
+  <td>Disk full on GPFS</td>
+  <td>Surface immediately to the operator. Do <strong>not</strong> delete shots from the destination to make room without an authorisation note in this plan.</td>
 </tr>
 <tr>
-<td>Re-pulled object differs from the first pull</td>
-<td>Open a STFC ticket; quarantine the differing object under <code>.quarantine/</code> rather than overwriting.</td>
+  <td>Re-pulled object differs from the first pull</td>
+  <td>Open a STFC ticket; quarantine the differing object under <code>.quarantine/</code> rather than overwriting.</td>
 </tr>
 <tr>
-<td>Parquet index returns a different shot count from the documented 11,573</td>
-<td>Quote the new count in the next mirror's manifest and continue; do <strong>not</strong> rewrite this plan unless the count drops.</td>
+  <td>Parquet index returns a different shot count from the documented 11,573</td>
+  <td>Quote the new count in the next mirror's manifest and continue; do <strong>not</strong> rewrite this plan unless the count drops.</td>
 </tr>
 </tbody>
 </table>
-<hr />
-<h3 id="32-acceptance-thresholds">7. Out of scope of this plan</h2>
+</div>
+
+<hr>
+
+<h2 id="7-out-of-scope-of-this-plan">7. Out of scope of this plan</h2>
 <ul>
 <li><s>Level-1 raw mirror. Level-1 is per-source-file and includes
 unprocessed camera frames; the size budget grows dramatically. v0
@@ -452,36 +419,39 @@ AGENTS.md). The loader, not the mirror job, enforces this.</li>
 <code>/work/projects/imas_gpu/mast-tokens/</code>, never inside <code>mast/</code> itself.
 See <code>tokenizers.md</code>.</li>
 </ul>
-<hr />
-<h3 id="33-what-the-probe-does-not-do">10. Live-probe findings — 2026-05-19 (login node)</h2>
+
+<hr>
+
+<h2 id="10-live-probe-findings-2026-05-19-login-node">10. Live-probe findings — 2026-05-19 (login node)</h2>
+
 <p>Probe executed from <code>io-ls-hpc.iter.org</code> (login node, group
 <code>sdcc-imas_gpu</code>, internet OK). s5cmd v2.3.0 installed at
 <code>~/.local/bin/s5cmd</code> from the upstream Go-binary release.</p>
-<h3 id="34-probe-result-to-be-appended-after-the-first-run">10.1 Headline counts (verbatim from <code>s5cmd ls</code>)</h3>
-<table>
+
+<h3 id="101-headline-counts-verbatim-from-s5cmd-ls">10.1 Headline counts (verbatim from <code>s5cmd ls</code>)</h3>
+<div class="table-scroll">
+<table class="t compact">
 <thead>
-<tr>
-<th>Tier</th>
-<th style="text-align:right">Shot count</th>
-<th>Bucket prefix</th>
-</tr>
+<tr><th>Tier</th><th style="text-align:right">Shot count</th><th>Bucket prefix</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>level-2</td>
-<td style="text-align:right"><strong>11,573</strong></td>
-<td><code>s3://mast/level2/shots/</code></td>
+  <td>level-2</td>
+  <td style="text-align:right"><strong>11,573</strong></td>
+  <td><code>s3://mast/level2/shots/</code></td>
 </tr>
 <tr>
-<td>level-1</td>
-<td style="text-align:right"><strong>17,111</strong></td>
-<td><code>s3://mast/level1/shots/</code></td>
+  <td>level-1</td>
+  <td style="text-align:right"><strong>17,111</strong></td>
+  <td><code>s3://mast/level1/shots/</code></td>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>ls</code> of the level-2 prefix took 26 s; level-1 took 78 s. Both are
 cold-listing rates from the login node.</p>
-<h2 id="4-bulk-download-protocol">10.2 Level-2 does <strong>not</strong> carry camera groups</h3>
+
+<h3 id="102-level-2-does-not-carry-camera-groups">10.2 Level-2 does <strong>not</strong> carry camera groups</h3>
 <p>Random sample of 20 level-2 shots — checked each for
 <code>camera_visible/</code> or <code>camera_ir/</code> sub-prefixes via <code>s5cmd ls</code>:</p>
 <pre><code class="language-text">12984 30042 12101 27336 30034 12882 23815 29616 26155 20031
@@ -501,115 +471,110 @@ level-2 bucket.</p>
 <code>camera_visible</code> and <code>camera_ir</code> among the level-2 groups verbatim from
 <code>mappings/level2/mast.yml</code>; that YAML describes what level-2 <em>can</em> hold,
 not what the public bucket currently does.</p>
-<h3 id="41-storage-layout">10.3 Cameras live in level-1</h3>
+
+<h3 id="103-cameras-live-in-level-1">10.3 Cameras live in level-1</h3>
 <p>Shot 30420 level-1 carries: <code>rba/</code>, <code>rbb/</code>, <code>rbc/</code>, <code>rca/</code>, <code>rco/</code>,
 <code>rgb/</code>, <code>rgc/</code>, <code>rir/</code>, <code>rit/</code> (plus all non-camera sources). Per-camera
 sizes for shot 30420 (single-stream cold pull, 32 workers):</p>
-<table>
+<div class="table-scroll">
+<table class="t compact">
 <thead>
 <tr>
-<th>Source</th>
-<th>Mapping</th>
-<th style="text-align:right">Size</th>
-<th style="text-align:right">Wall time</th>
-<th style="text-align:right">Throughput</th>
+  <th>Source</th>
+  <th>Mapping</th>
+  <th style="text-align:right">Size</th>
+  <th style="text-align:right">Wall time</th>
+  <th style="text-align:right">Throughput</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>rba</code></td>
-<td>camera_visible.camera_lower</td>
-<td style="text-align:right">92 MB</td>
-<td style="text-align:right">1.2 s</td>
-<td style="text-align:right">76 MB/s</td>
+  <td><code>rba</code></td>
+  <td>camera_visible.camera_lower</td>
+  <td style="text-align:right">92 MB</td>
+  <td style="text-align:right">1.2 s</td>
+  <td style="text-align:right">76 MB/s</td>
 </tr>
 <tr>
-<td><code>rbb</code></td>
-<td>camera_visible.camera_center</td>
-<td style="text-align:right">73 MB</td>
-<td style="text-align:right">8.4 s</td>
-<td style="text-align:right">8.7 MB/s</td>
+  <td><code>rbb</code></td>
+  <td>camera_visible.camera_center</td>
+  <td style="text-align:right">73 MB</td>
+  <td style="text-align:right">8.4 s</td>
+  <td style="text-align:right">8.7 MB/s</td>
 </tr>
 <tr>
-<td><code>rir</code></td>
-<td>camera_ir</td>
-<td style="text-align:right">5.6 MB</td>
-<td style="text-align:right">0.9 s</td>
-<td style="text-align:right">6.2 MB/s</td>
+  <td><code>rir</code></td>
+  <td>camera_ir</td>
+  <td style="text-align:right">5.6 MB</td>
+  <td style="text-align:right">0.9 s</td>
+  <td style="text-align:right">6.2 MB/s</td>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Throughput varies wildly per object — STFC Echo is fast on the first
 object then drops. The single 18 MB/s overall single-shot rate is the
 honest summary; parallel multi-shot pulls should saturate higher.</p>
-<h3 id="42-slurm-job-spec">10.4 Coverage from the REST API (cross-check, see notes)</h3>
+
+<h3 id="104-coverage-from-the-rest-api-cross-check-see-notes">10.4 Coverage from the REST API (cross-check, see notes)</h3>
 <p><code>mastapp.site/json/sources?filters=name$eq:{src}&amp;size=100&amp;cursor=...</code>
 reports the following totals:</p>
-<table>
+<div class="table-scroll">
+<table class="t compact">
 <thead>
-<tr>
-<th>Source name</th>
-<th style="text-align:right">Shots reporting source</th>
-</tr>
+<tr><th>Source name</th><th style="text-align:right">Shots reporting source</th></tr>
 </thead>
 <tbody>
-<tr>
-<td><code>rba</code></td>
-<td style="text-align:right">6,139</td>
-</tr>
-<tr>
-<td><code>rbb</code></td>
-<td style="text-align:right">9,494</td>
-</tr>
-<tr>
-<td><code>rir</code></td>
-<td style="text-align:right">25</td>
-</tr>
+<tr><td><code>rba</code></td><td style="text-align:right">6,139</td></tr>
+<tr><td><code>rbb</code></td><td style="text-align:right">9,494</td></tr>
+<tr><td><code>rir</code></td><td style="text-align:right">25</td></tr>
 </tbody>
 </table>
+</div>
 <p>Caveat: the REST <code>sources</code> table includes shots that have never been
 ingested into the level-2 bucket — example <code>shot 15667</code> was listed by
 the API but <code>s5cmd ls s3://mast/level2/shots/15667.zarr/</code> returns
 <code>no object found</code>. Treat these counts as <strong>upper bounds</strong>; the actual
 level-1 prefix presence has to be confirmed by <code>s5cmd ls</code>.</p>
-<h1 id="manifest-driven-loop-pass-shot-ids-via-stdin-to-allow-restart">10.5 Revised sizing target</h3>
+
+<h3 id="105-revised-sizing-target">10.5 Revised sizing target</h3>
 <p>Best estimate of a working corpus for v0:</p>
-<table>
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Component</th>
-<th style="text-align:right">Size</th>
-</tr>
+<tr><th>Component</th><th style="text-align:right">Size</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>Level-2, all 11,573 shots, all 11 non-camera groups</td>
-<td style="text-align:right">~140 GB (assuming the shot 30420 figure of 111 MB is typical)</td>
+  <td>Level-2, all 11,573 shots, all 11 non-camera groups</td>
+  <td style="text-align:right">~140 GB (assuming the shot 30420 figure of 111 MB is typical)</td>
 </tr>
 <tr>
-<td>Level-1 RBA + RBB + RIR for the camera-bearing subset</td>
-<td style="text-align:right">~1.3 TB (9,494 × 73 MB rbb worst-case, plus 6,139 × 92 MB rba on the overlap)</td>
+  <td>Level-1 RBA + RBB + RIR for the camera-bearing subset</td>
+  <td style="text-align:right">~1.3 TB (9,494 × 73 MB rbb worst-case, plus 6,139 × 92 MB rba on the overlap)</td>
 </tr>
 <tr>
-<td><strong>Total</strong></td>
-<td style="text-align:right"><strong>~1.5 TB</strong></td>
+  <td><strong>Total</strong></td>
+  <td style="text-align:right"><strong>~1.5 TB</strong></td>
 </tr>
 </tbody>
 </table>
+</div>
 <p>This is <strong>well below</strong> the original ~5 TB working assumption and is
 comfortable on the 576 TB free GPFS partition. The acceptance gates in
 §3.2 — 2 TB ≤ total ≤ 12 TB — were too generous on the lower bound and
 need revision.</p>
-<h3 id="43-resumability">10.6 Implications for the plan</h3>
+
+<h3 id="106-implications-for-the-plan">10.6 Implications for the plan</h3>
 <ol>
 <li><strong>§3.2 acceptance gates</strong> — lower the <code>TOTAL_SIZE_MIN_TB</code> from 2 to
 0.5. The corpus we want is genuinely small. Drop the camera-shots
 gate (1,000 shots minimum) — it's measured by level-1 listing, not
-index columns. Add a new gate &quot;camera_visible coverage detected in
-level-1 sample ≥ 50 %&quot;.</li>
-<li><strong>§3 probe protocol</strong> — replace the &quot;parquet camera flags&quot; filter
+index columns. Add a new gate "camera_visible coverage detected in
+level-1 sample ≥ 50 %".</li>
+<li><strong>§3 probe protocol</strong> — replace the "parquet camera flags" filter
 with an S3-listing pass. The parquet index has 189 columns but
-<strong>none</strong> contain &quot;camera&quot;. The implementation refactor is tracked in
+<strong>none</strong> contain "camera". The implementation refactor is tracked in
 <code>imas_ambix/data/probe.py</code> (PR-pending).</li>
 <li><strong>§4 bulk download</strong> — split into two manifests:
 <ul>
@@ -626,7 +591,8 @@ download fits inside 6 – 12 h. SLURM is <strong>not strictly required</strong>
 v0 — a screened <code>s5cmd</code> invocation from the login node works. SLURM
 moves to optional infrastructure rather than a hard requirement.</li>
 </ol>
-<h3 id="44-permissions">10.7 Sources for §10</h3>
+
+<h3 id="107-sources-for-10">10.7 Sources for §10</h3>
 <ul>
 <li>Local commands: <code>~/.local/bin/s5cmd v2.3.0</code>, <code>pandas</code> over
 <code>https://mastapp.site/parquet/level2/shots</code>.</li>
@@ -636,79 +602,43 @@ GPU-procurement document (<code>imas-codex/plans/gpu-cluster-scoping.md</code>
 §3.3) which quoted ~5 TB based on partner-corpus extrapolation,
 not on the FAIR-MAST corpus specifically.</li>
 </ul>
-<hr />
-<h3 id="45-camera-shot-prioritisation">11. Full-bucket inventory — 2026-05-19 (definitive)</h2>
+
+<hr>
+
+<h2 id="11-full-bucket-inventory-2026-05-19-definitive">11. Full-bucket inventory — 2026-05-19 (definitive)</h2>
+
 <p>Full-bucket inventories taken after the §10 probe with
 <code>ambix data inventory --from-bucket --workers 16</code> from the login node.</p>
-<h2 id="5-operating-the-mirror-after-download">11.1 Level-2 inventory</h3>
+
+<h3 id="111-level-2-inventory">11.1 Level-2 inventory</h3>
 <ul>
 <li>
 <p><strong>Shot count</strong>: 11,573 (matches the parquet index exactly).</p>
 </li>
 <li>
 <p><strong>Distinct groups</strong>: 13. Verbatim coverage table:</p>
-<table>
+<div class="table-scroll">
+<table class="t compact">
 <thead>
-<tr>
-<th>Group</th>
-<th style="text-align:right">Coverage</th>
-</tr>
+<tr><th>Group</th><th style="text-align:right">Coverage</th></tr>
 </thead>
 <tbody>
-<tr>
-<td><code>magnetics</code></td>
-<td style="text-align:right">11,573 (100.0 %)</td>
-</tr>
-<tr>
-<td><code>pf_active</code></td>
-<td style="text-align:right">11,573 (100.0 %)</td>
-</tr>
-<tr>
-<td><code>pf_passive</code></td>
-<td style="text-align:right">11,573 (100.0 %)</td>
-</tr>
-<tr>
-<td><code>soft_x_rays</code></td>
-<td style="text-align:right">11,573 (100.0 %)</td>
-</tr>
-<tr>
-<td><code>summary</code></td>
-<td style="text-align:right">11,573 (100.0 %)</td>
-</tr>
-<tr>
-<td><code>wall</code></td>
-<td style="text-align:right">11,573 (100.0 %)</td>
-</tr>
-<tr>
-<td><code>gas_injection</code></td>
-<td style="text-align:right">11,564 (99.9 %)</td>
-</tr>
-<tr>
-<td><code>pulse_schedule</code></td>
-<td style="text-align:right">11,536 (99.7 %)</td>
-</tr>
-<tr>
-<td><code>spectrometer_visible</code></td>
-<td style="text-align:right">11,457 (99.0 %)</td>
-</tr>
-<tr>
-<td><code>equilibrium</code></td>
-<td style="text-align:right">11,378 (98.3 %)</td>
-</tr>
-<tr>
-<td><code>thomson_scattering</code></td>
-<td style="text-align:right">10,437 (90.2 %)</td>
-</tr>
-<tr>
-<td><code>interferometer</code></td>
-<td style="text-align:right">10,291 (88.9 %)</td>
-</tr>
-<tr>
-<td><code>charge_exchange</code></td>
-<td style="text-align:right">4,391 (37.9 %)</td>
-</tr>
+<tr><td><code>magnetics</code></td><td style="text-align:right">11,573 (100.0 %)</td></tr>
+<tr><td><code>pf_active</code></td><td style="text-align:right">11,573 (100.0 %)</td></tr>
+<tr><td><code>pf_passive</code></td><td style="text-align:right">11,573 (100.0 %)</td></tr>
+<tr><td><code>soft_x_rays</code></td><td style="text-align:right">11,573 (100.0 %)</td></tr>
+<tr><td><code>summary</code></td><td style="text-align:right">11,573 (100.0 %)</td></tr>
+<tr><td><code>wall</code></td><td style="text-align:right">11,573 (100.0 %)</td></tr>
+<tr><td><code>gas_injection</code></td><td style="text-align:right">11,564 (99.9 %)</td></tr>
+<tr><td><code>pulse_schedule</code></td><td style="text-align:right">11,536 (99.7 %)</td></tr>
+<tr><td><code>spectrometer_visible</code></td><td style="text-align:right">11,457 (99.0 %)</td></tr>
+<tr><td><code>equilibrium</code></td><td style="text-align:right">11,378 (98.3 %)</td></tr>
+<tr><td><code>thomson_scattering</code></td><td style="text-align:right">10,437 (90.2 %)</td></tr>
+<tr><td><code>interferometer</code></td><td style="text-align:right">10,291 (88.9 %)</td></tr>
+<tr><td><code>charge_exchange</code></td><td style="text-align:right">4,391 (37.9 %)</td></tr>
 </tbody>
 </table>
+</div>
 </li>
 <li>
 <p><strong>Camera-bearing shots</strong>: <strong>0 / 11,573</strong>. Definitive — every shot
@@ -720,7 +650,8 @@ or <code>camera_ir</code>.</p>
 <code>/work/projects/imas_gpu/mast/.probe/inventory-l2-full.json</code> (3.3 MB).</p>
 </li>
 </ul>
-<h2 id="6-recovery-re-run-rules">11.2 Level-1 inventory</h3>
+
+<h3 id="112-level-1-inventory">11.2 Level-1 inventory</h3>
 <ul>
 <li>
 <p><strong>Shot count</strong>: 17,111 (bucket listing — exceeds level-2 index by
@@ -728,52 +659,26 @@ or <code>camera_ir</code>.</p>
 </li>
 <li>
 <p><strong>Distinct sources</strong>: 49+ (top 30 shown). Camera-source coverage:</p>
-<table>
+<div class="table-scroll">
+<table class="t compact">
 <thead>
 <tr>
-<th>Source</th>
-<th style="text-align:right">Coverage</th>
-<th>Mapping</th>
+  <th>Source</th>
+  <th style="text-align:right">Coverage</th>
+  <th>Mapping</th>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>rbb</code></td>
-<td style="text-align:right">9,527 (55.7 %)</td>
-<td>camera_visible.camera_center</td>
-</tr>
-<tr>
-<td><code>rco</code></td>
-<td style="text-align:right">7,921 (46.3 %)</td>
-<td>camera_visible.camera_color</td>
-</tr>
-<tr>
-<td><code>rgb</code></td>
-<td style="text-align:right">7,506 (43.9 %)</td>
-<td>camera_visible.bremsstrahlung_a</td>
-</tr>
-<tr>
-<td><code>rgc</code></td>
-<td style="text-align:right">7,433 (43.4 %)</td>
-<td>camera_visible.bremsstrahlung_b</td>
-</tr>
-<tr>
-<td><code>rba</code></td>
-<td style="text-align:right">6,155 (36.0 %)</td>
-<td>camera_visible.camera_lower</td>
-</tr>
-<tr>
-<td><code>rir</code></td>
-<td style="text-align:right">rare</td>
-<td>camera_ir.divertor</td>
-</tr>
-<tr>
-<td><code>rit</code></td>
-<td style="text-align:right">rare</td>
-<td>camera_ir.target</td>
-</tr>
+<tr><td><code>rbb</code></td><td style="text-align:right">9,527 (55.7 %)</td><td>camera_visible.camera_center</td></tr>
+<tr><td><code>rco</code></td><td style="text-align:right">7,921 (46.3 %)</td><td>camera_visible.camera_color</td></tr>
+<tr><td><code>rgb</code></td><td style="text-align:right">7,506 (43.9 %)</td><td>camera_visible.bremsstrahlung_a</td></tr>
+<tr><td><code>rgc</code></td><td style="text-align:right">7,433 (43.4 %)</td><td>camera_visible.bremsstrahlung_b</td></tr>
+<tr><td><code>rba</code></td><td style="text-align:right">6,155 (36.0 %)</td><td>camera_visible.camera_lower</td></tr>
+<tr><td><code>rir</code></td><td style="text-align:right">rare</td><td>camera_ir.divertor</td></tr>
+<tr><td><code>rit</code></td><td style="text-align:right">rare</td><td>camera_ir.target</td></tr>
 </tbody>
 </table>
+</div>
 </li>
 <li>
 <p><strong>Any-camera coverage</strong> (union across rba/rbb/rbc/rco/rgb/rgc/rir/rit/rzz):
@@ -784,33 +689,37 @@ or <code>camera_ir</code>.</p>
 <code>/work/projects/imas_gpu/mast/.probe/inventory-l1-full.json</code>.</p>
 </li>
 </ul>
-<h2 id="7-out-of-scope-of-this-plan">11.3 Built manifests</h3>
-<table>
+
+<h3 id="113-built-manifests">11.3 Built manifests</h3>
+<div class="table-scroll">
+<table class="t">
 <thead>
 <tr>
-<th>Manifest</th>
-<th style="text-align:right">Shots</th>
-<th>Groups</th>
-<th style="text-align:right">Targets</th>
+  <th>Manifest</th>
+  <th style="text-align:right">Shots</th>
+  <th>Groups</th>
+  <th style="text-align:right">Targets</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>level2-all.json</code></td>
-<td style="text-align:right">11,573</td>
-<td>all (whole-shot copy)</td>
-<td style="text-align:right">11,573</td>
+  <td><code>level2-all.json</code></td>
+  <td style="text-align:right">11,573</td>
+  <td>all (whole-shot copy)</td>
+  <td style="text-align:right">11,573</td>
 </tr>
 <tr>
-<td><code>level1-cameras.json</code></td>
-<td style="text-align:right">11,029</td>
-<td>rba,rbb,rbc,rco,rgb,rgc,rir,rit,rzz</td>
-<td style="text-align:right">99,261 (with no-op skips for missing groups)</td>
+  <td><code>level1-cameras.json</code></td>
+  <td style="text-align:right">11,029</td>
+  <td>rba,rbb,rbc,rco,rgb,rgc,rir,rit,rzz</td>
+  <td style="text-align:right">99,261 (with no-op skips for missing groups)</td>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Stored at <code>/work/projects/imas_gpu/mast/manifests/</code>.</p>
-<h2 id="10-live-probe-findings-2026-05-19-login-node">11.4 Downloads</h3>
+
+<h3 id="114-downloads">11.4 Downloads</h3>
 <p>Both running concurrently from the login node, started 2026-05-19 ~21:00:</p>
 <ul>
 <li>Level-2: <code>ambix data targets level2-all.json | s5cmd ... run</code>, log at
@@ -822,13 +731,17 @@ or <code>camera_ir</code>.</p>
 absent groups silently (no error, zero bytes). Both jobs will be
 re-runnable end-to-end — re-issuing the same <code>targets | s5cmd run</code>
 command after completion will skip every object already mirrored, so
-recovery from a network blip is &quot;just re-run&quot;.</p>
-<hr />
-<h3 id="101-headline-counts-verbatim-from-s5cmd-ls">12. Correction — level-2 is 4.5 TB, not 0.4 TB (2026-05-19, late)</h2>
+recovery from a network blip is "just re-run".</p>
+
+<hr>
+
+<h2 id="12-correction-level-2-is-45-tb-not-04-tb-2026-05-19-late">12. Correction — level-2 is 4.5 TB, not 0.4 TB (2026-05-19, late)</h2>
+
 <p>The §10 / §11 size extrapolation under-estimated the level-2 corpus by
 <strong>~11×</strong>. Independent confirmation: level-2 is <strong>4.5 TB</strong>, not the
 0.39 TB the probe extrapolated.</p>
-<h3 id="102-level-2-does-not-carry-camera-groups">12.1 Why the probe was wrong</h3>
+
+<h3 id="121-why-the-probe-was-wrong">12.1 Why the probe was wrong</h3>
 <p>The §10 probe sampled 10 shots and computed
 <code>mean(shot_size_MB) × n_shots_in_index</code>. With a small sample, the mean
 was dominated by small shots — the corpus has a <strong>heavy-tailed
@@ -839,7 +752,8 @@ distribution</strong>:</p>
 </ul>
 <p>So our sample mean was about 11× lower than the true mean. The
 sample-statistic on a heavy-tailed corpus does not extrapolate.</p>
-<h3 id="103-cameras-live-in-level-1">12.2 The right way to size the corpus</h3>
+
+<h3 id="122-the-right-way-to-size-the-corpus">12.2 The right way to size the corpus</h3>
 <p>Use <code>s5cmd du</code> against the bucket prefix — it reads object sizes from
 S3 metadata without downloading bytes:</p>
 <pre><code class="language-bash">s5cmd --no-sign-request --endpoint-url https://s3.echo.stfc.ac.uk \
@@ -849,29 +763,29 @@ S3 metadata without downloading bytes:</p>
 the corpus size directly, in minutes of clock time.</p>
 <p>The <code>ambix data probe</code> extrapolation should be augmented (or replaced)
 with a <code>s5cmd du</code> sweep so future probes don't repeat the under-estimate.</p>
-<h3 id="104-coverage-from-the-rest-api-cross-check-see-notes">12.3 Revised acceptance gates</h3>
-<table>
+
+<h3 id="123-revised-acceptance-gates">12.3 Revised acceptance gates</h3>
+<div class="table-scroll">
+<table class="t compact">
 <thead>
-<tr>
-<th>Gate</th>
-<th>Old</th>
-<th>New</th>
-</tr>
+<tr><th>Gate</th><th>Old</th><th>New</th></tr>
 </thead>
 <tbody>
 <tr>
-<td><code>TOTAL_SIZE_MIN_TB</code></td>
-<td>0.05</td>
-<td><strong>2.0</strong> (level-2 alone is at least 4 TB)</td>
+  <td><code>TOTAL_SIZE_MIN_TB</code></td>
+  <td>0.05</td>
+  <td><strong>2.0</strong> (level-2 alone is at least 4 TB)</td>
 </tr>
 <tr>
-<td><code>TOTAL_SIZE_MAX_TB</code></td>
-<td>12.0</td>
-<td><strong>15.0</strong> (room for level-1 cameras headroom)</td>
+  <td><code>TOTAL_SIZE_MAX_TB</code></td>
+  <td>12.0</td>
+  <td><strong>15.0</strong> (room for level-1 cameras headroom)</td>
 </tr>
 </tbody>
 </table>
-<h3 id="105-revised-sizing-target">12.4 Implications for the v0 plan</h3>
+</div>
+
+<h3 id="124-implications-for-the-v0-plan">12.4 Implications for the v0 plan</h3>
 <ul>
 <li><strong>Disk budget</strong>: 4.5 TB level-2 + level-1 cameras (estimate revised
 upward — the level-1 inventory said 11k camera-bearing shots; if each
@@ -892,7 +806,8 @@ consumes tokens from <code>mast-tokens/</code>, not raw <code>mast/</code>. The 
 is a one-time cost; tokenisation is a one-time cost; training reads
 from <code>mast-tokens/</code>.</li>
 </ul>
-<h3 id="106-implications-for-the-plan">12.5 Live download progress (snapshot)</h3>
+
+<h3 id="125-live-download-progress-snapshot">12.5 Live download progress (snapshot)</h3>
 <p>At ~30 min after launch from the login node (both downloads running in
 parallel):</p>
 <ul>
@@ -905,116 +820,73 @@ smaller per shot, so this finishes first.</li>
 console session is fine since both downloads were launched via
 <code>run_in_background</code> and are decoupled from the interactive shell.</p>
 
-    <h2 id="open-decisions">Open Decisions</h2>
-<p>
-  Click a row to record the call. State persists to
-  <code>~/docs-server/state/imas-ambix/&lt;this-page-stem&gt;.json</code> via
-  the docs-server, and is committed to git under
-  <code>docs/plans-html/state/imas-ambix/</code>.
-</p>
-<table id="decisions-table" class="decisions-table">
-  <thead>
-    <tr><th style="width:30%">Decision</th><th style="width:35%">Choice</th><th>Rationale</th><th style="width:120px">When</th></tr>
-  </thead>
-  <tbody>
-    <tr class="decision-row" data-key="camera-selection-v0">
-  <td>
-    <strong>Camera selection for v0 training</strong>
-    <div class="decision-context">Level-1 inventory: rbb = 9,527 shots (55.7%), rba = 6,155 shots (36.0%), rir = 25 shots (rare). rbb is the wide-angle midplane view; rba is the lower/divertor view; rir is infrared divertor. Adding more cameras → more training data per shot but adds IR codebook complexity. Source: <a href="#112-level-1-inventory">§11.2</a>.</div>
-  </td>
-  <td>
-    <div class="controls">
+<hr>
+
+<h2 id="open-decisions">Open Decisions</h2>
+
+<p>Click a choice to record the call. State persists to
+<code>docs/state/imas-ambix/data-acquisition.json</code> via the docs-server.</p>
+
+<div class="decisions" id="decisions">
+  <div class="dec open" data-key="camera-selection-v0">
+    <div class="head">
+      <span class="key">camera-selection-v0</span>
+      <span class="title">Camera selection for v0 training</span>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line">Level-1 inventory: rbb = 9,527 shots (55.7%), rba = 6,155 shots (36.0%), rir = 25 shots (rare). rbb is the wide-angle midplane view; rba is the lower/divertor view; rir is infrared divertor. Adding more cameras → more training data per shot but adds IR codebook complexity. Source: <a href="#112-level-1-inventory">§11.2</a>.</p>
+    <div class="choices">
       <button data-choice="rbb-only">rbb only — 9,527 shots, widest coverage</button>
       <button data-choice="rbb-rba">rbb + rba — both visible cameras, ~6,155 overlap shots</button>
       <button data-choice="rbb-rba-rir">rbb + rba + rir — all cameras including IR</button>
     </div>
-  </td>
-  <td><input type="text" placeholder="rationale..." style="width:100%"></td>
-  <td><span class="when"></span></td>
-</tr>
-  </tbody>
-</table>
-
-<div class="decisions-toolbar">
-  <button id="copy-state">Copy state as JSON</button>
-  <button id="reset-state">Reset</button>
+    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
+  </div>
 </div>
 
-<script defer>
-(async function () {
-  const table = document.getElementById('decisions-table');
-  if (!table) return;
-  const rows = [...table.querySelectorAll('tr.decision-row')];
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const blob = await loadState();
+  const stateDecs = getDecisions(blob);
 
-  async function readAll() {
-    const out = {};
-    for (const row of rows) {
-      const key = row.dataset.key;
-      const chosen = row.querySelector('button.chosen')?.dataset.choice ?? null;
-      const rationale = row.querySelector('input')?.value ?? '';
-      const when = row.querySelector('.when')?.textContent ?? '';
-      out[key] = { choice: chosen, rationale, when };
-    }
-    return out;
-  }
-
-  function applyAll(state) {
-    for (const row of rows) {
-      const key = row.dataset.key;
-      const s = state?.[key];
-      if (!s) continue;
-      if (s.choice) {
-        row.querySelectorAll('button[data-choice]').forEach(b => {
-          b.classList.toggle('chosen', b.dataset.choice === s.choice);
-        });
-      }
-      const inp = row.querySelector('input');
-      if (inp && s.rationale) inp.value = s.rationale;
-      const when = row.querySelector('.when');
+  document.querySelectorAll(".dec[data-key]").forEach(row => {
+    const key = row.getAttribute("data-key");
+    const s = stateDecs[key];
+    if (s) {
+      row.classList.add("locked");
+      row.classList.remove("open");
+      row.querySelectorAll(".choices button").forEach(b => {
+        if (b.getAttribute("data-choice") === s.choice) b.classList.add("chosen");
+      });
+      const rat = row.querySelector('input[data-field="rationale"]');
+      if (rat && s.rationale) rat.value = s.rationale;
+      const when = row.querySelector('[data-field="when"]');
       if (when && s.when) when.textContent = s.when;
     }
-  }
 
-  async function persist() {
-    const data = await readAll();
-    await saveState(data);
-  }
-
-  rows.forEach(row => {
-    row.querySelectorAll('button[data-choice]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
-        btn.classList.add('chosen');
-        row.querySelector('.when').textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
-        persist();
+    // Wire click handlers
+    row.querySelectorAll(".choices button").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const choice = btn.getAttribute("data-choice");
+        const rat = row.querySelector('input[data-field="rationale"]')?.value || "";
+        try {
+          await lockDecision(key, choice, rat);
+          row.querySelectorAll(".choices button").forEach(b => b.classList.remove("chosen"));
+          btn.classList.add("chosen");
+          row.classList.add("locked");
+          row.classList.remove("open");
+          const when = row.querySelector('[data-field="when"]');
+          if (when) when.textContent = new Date().toISOString().slice(0, 16).replace("T", " ");
+        } catch (e) {
+          alert(e.message);
+        }
       });
     });
-    const inp = row.querySelector('input');
-    if (inp) inp.addEventListener('change', persist);
   });
-
-  document.getElementById('copy-state').addEventListener('click', async () => {
-    await copyState(await readAll());
-  });
-  document.getElementById('reset-state').addEventListener('click', async () => {
-    if (!confirm('Reset all decisions on this page?')) return;
-    rows.forEach(row => {
-      row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
-      const inp = row.querySelector('input'); if (inp) inp.value = '';
-      const when = row.querySelector('.when'); if (when) when.textContent = '';
-    });
-    await saveState({});
-  });
-
-  const initial = await loadState();
-  applyAll(initial.data || {});
-})();
+});
 </script>
 
-    <nav class="plan-nav"><a href="compute.html"><span class="nav-label">← Previous</span><span class="nav-title">Compute</span></a><a href="data-quality.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Data Quality</span></a></nav>
-  </div>
 </main>
-</div>
 
 <script src="assets/app.js"></script>
 </body>
