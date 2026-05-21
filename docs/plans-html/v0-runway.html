@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>v0 Runway | Ambix Plans</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/state.js" defer></script>
 </head>
 <body>
 <!-- header -->
@@ -36,7 +37,8 @@
 <li><a href="#2-highest-roi-next-steps-ranked" class="">2. Highest-ROI next steps (ranked)</a></li>
 <li><a href="#3-fleet-dispatch-parallel-batch-2026-05-20" class="">3. Fleet dispatch — parallel batch (2026-05-20)</a></li>
 <li><a href="#4-sequenced-follow-up-after-the-parallel-batch" class="">4. Sequenced follow-up (after the parallel batch)</a></li>
-<li><a href="#5-review-rubric-for-sonnet-46-work" class="">5. Review rubric for Sonnet 4.6 work</a></li></ul>
+<li><a href="#5-review-rubric-for-sonnet-46-work" class="">5. Review rubric for Sonnet 4.6 work</a></li>
+<li><a href="#open-decisions" class="">Open Decisions</a></li></ul>
 </aside>
 
 <!-- main -->
@@ -416,6 +418,111 @@ diverged from the design.</li>
 <p>Below standard ⇒ one round of correction via <code>SendMessage</code> to the same
 agent; if still below standard, the coordinator fixes in-session and
 records the failure mode in a new feedback memory.</p>
+
+    <h2 id="open-decisions">Open Decisions</h2>
+<p>
+  Click a row to record the call. State persists to
+  <code>~/docs-server/state/imas-ambix/&lt;this-page-stem&gt;.json</code> via
+  the docs-server, and is committed to git under
+  <code>docs/plans-html/state/imas-ambix/</code>.
+</p>
+<table id="decisions-table" class="decisions-table">
+  <thead>
+    <tr><th style="width:30%">Decision</th><th style="width:35%">Choice</th><th>Rationale</th><th style="width:120px">When</th></tr>
+  </thead>
+  <tbody>
+    <tr class="decision-row" data-key="smoke-training-timing">
+      <td>
+        <strong>125M smoke training run — run now or wait for bulk encode?</strong>
+        <div class="decision-context">Training loop FSDP scaffold is landed. Bulk-encode CLI produced 9,380 tokens for shot 15085 (CPU). A smoke run needs ~10 shots. The full GPU bulk-encode for ~3,000 rbb shots is pending the SLURM run. Source: <a href="#4-sequenced-follow-up-after-the-parallel-batch">v0-runway.html §4</a>.</div>
+      </td>
+      <td>
+        <div class="controls">
+          <button data-choice="run-now">Run now with the ~10 CPU-encoded shots (validate loop immediately)</button>
+          <button data-choice="wait-gpu">Wait for GPU bulk-encode to complete (~3,000 shots)</button>
+        </div>
+      </td>
+      <td><input type="text" placeholder="rationale..." style="width:100%"></td>
+      <td><span class="when"></span></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="decisions-toolbar">
+  <button id="copy-state">Copy state as JSON</button>
+  <button id="reset-state">Reset</button>
+</div>
+
+<script defer>
+(async function () {
+  const table = document.getElementById('decisions-table');
+  if (!table) return;
+  const rows = [...table.querySelectorAll('tr.decision-row')];
+
+  async function readAll() {
+    const out = {};
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const chosen = row.querySelector('button.chosen')?.dataset.choice ?? null;
+      const rationale = row.querySelector('input')?.value ?? '';
+      const when = row.querySelector('.when')?.textContent ?? '';
+      out[key] = { choice: chosen, rationale, when };
+    }
+    return out;
+  }
+
+  function applyAll(state) {
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const s = state?.[key];
+      if (!s) continue;
+      if (s.choice) {
+        row.querySelectorAll('button[data-choice]').forEach(b => {
+          b.classList.toggle('chosen', b.dataset.choice === s.choice);
+        });
+      }
+      const inp = row.querySelector('input');
+      if (inp && s.rationale) inp.value = s.rationale;
+      const when = row.querySelector('.when');
+      if (when && s.when) when.textContent = s.when;
+    }
+  }
+
+  async function persist() {
+    const data = await readAll();
+    await saveState(data);
+  }
+
+  rows.forEach(row => {
+    row.querySelectorAll('button[data-choice]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+        btn.classList.add('chosen');
+        row.querySelector('.when').textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        persist();
+      });
+    });
+    const inp = row.querySelector('input');
+    if (inp) inp.addEventListener('change', persist);
+  });
+
+  document.getElementById('copy-state').addEventListener('click', async () => {
+    await copyState(await readAll());
+  });
+  document.getElementById('reset-state').addEventListener('click', async () => {
+    if (!confirm('Reset all decisions on this page?')) return;
+    rows.forEach(row => {
+      row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+      const inp = row.querySelector('input'); if (inp) inp.value = '';
+      const when = row.querySelector('.when'); if (when) when.textContent = '';
+    });
+    await saveState({});
+  });
+
+  const initial = await loadState();
+  applyAll(initial.data || {});
+})();
+</script>
 
     <nav class="plan-nav"><a href="STRATEGY.html"><span class="nav-label">← Previous</span><span class="nav-title">Strategy</span></a><a href="compute.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Compute</span></a></nav>
   </div>
