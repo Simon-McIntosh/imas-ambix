@@ -40,10 +40,10 @@ gh pr create --repo iterorganization/imas-ambix --base main
 
 ## Plans dashboard
 
-HTML plans live under [`plans/`](plans/) (canonical).  Shared infrastructure
+HTML plans live under [`docs/`](docs/) (canonical).  Shared infrastructure
 (state.js, mode banner, repo-tracked static state JSON, `.nojekyll`,
 README badge) matches the [imas-efit](https://github.com/Simon-McIntosh/efit)
-pattern — see [`plans/_HTML_PLANS_README.md`](plans/_HTML_PLANS_README.md)
+pattern — see [`docs/_HTML_PLANS_README.md`](docs/_HTML_PLANS_README.md)
 and the user-global
 [`html-docs` skill](~/.claude/skills/html-docs/SKILL.md).
 

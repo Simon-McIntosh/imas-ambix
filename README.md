@@ -5,14 +5,14 @@
 **Fusion World Model — distilling experimental data into physics-informed generative models**
 
 > 📋 **Plans dashboard.** Project plans, strategy, v0 runway and decisions are
-> tracked as HTML documents under [`plans/`](plans/), published via GitHub
+> tracked as HTML documents under [`docs/`](docs/), published via GitHub
 > Pages at <https://simon-mcintosh.github.io/imas-ambix/>.  Markdown sources
-> are archived in [`plans/archive/`](plans/archive/); the HTML site is the
+> are archived in [`docs/archive/`](docs/archive/); the HTML site is the
 > canonical record.  The plan system (state.js, mode banner, repo-tracked
 > JSON state) is shared with [imas-efit](https://github.com/Simon-McIntosh/efit)
 > and lives in the
 > [`html-docs` skill](https://github.com/anthropics/claude-code) — see
-> [`plans/_HTML_PLANS_README.md`](plans/_HTML_PLANS_README.md) for the layout.
+> [`docs/_HTML_PLANS_README.md`](docs/_HTML_PLANS_README.md) for the layout.
 
 Ambix is a machine learning framework for training generative world models on
 tokamak experimental data. It distils data access patterns and IMAS mappings
@@ -41,8 +41,8 @@ plasma state at time *t+1*.
 
 The end-to-end plan from raw FAIR-MAST data through tokenization, training, and
 the wide-angle-camera forward-prediction demo lives under
-[`plans/`](plans/README.md) — start with
-[`plans/STRATEGY.md`](plans/STRATEGY.md) for the vision and roadmap.
+[`docs/`](docs/README.md) — start with
+[`docs/STRATEGY.md`](docs/STRATEGY.md) for the vision and roadmap.
 
 ## Architecture
 
