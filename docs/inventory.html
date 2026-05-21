@@ -21,10 +21,29 @@
 <script src="mockdata.js"></script>
 <script type="text/babel" src="ui.jsx"></script>
 <script type="text/babel">
-  const { useState, useMemo } = React;
-  const M = window.MOCK;
+  const { useState, useMemo, useEffect } = React;
+
+  function ReadyGate({ children }) {
+    const [ready, setReady] = React.useState(false);
+    React.useEffect(() => {
+      if (window.MOCK_READY) window.MOCK_READY.then(() => setReady(true));
+      else setReady(true);  // fallback if loader didn't run
+    }, []);
+    if (!ready) {
+      return (
+        <div className="dim" style={{
+          padding: 48, textAlign: "center",
+          fontFamily: "var(--mono)", fontSize: 13, color: "var(--muted)"
+        }}>
+          Loading state…
+        </div>
+      );
+    }
+    return children;
+  }
 
   function Plans() {
+    const M = window.MOCK;
     const [items, setItems]         = useState(M.inventory);
     const [groupBy, setGroupBy]     = useState("milestone");
     const [sortBy, setSortBy]       = useState("roi");
@@ -286,7 +305,9 @@
     );
   }
 
-  ReactDOM.createRoot(document.getElementById("root")).render(<Plans />);
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    <ReadyGate><Plans /></ReadyGate>
+  );
 </script>
 </body>
 </html>

@@ -22,14 +22,6 @@
 <script type="text/babel" src="ui.jsx"></script>
 <script type="text/babel">
   const { useState, useMemo, useEffect } = React;
-  const M = window.MOCK;
-  // Dispatch by ?slug=… ; defaults to the tokenizers exemplar.
-  const slugParam = new URLSearchParams(window.location.search).get("slug") || "tokenizers";
-  const isTokenizers = slugParam === "tokenizers";
-  // For tokenizers we use the rich, hand-authored body. For other plans, we
-  // dispatch to the generic data-driven renderer below.
-  const P  = isTokenizers ? M.planTokenizers : (M.plans[slugParam] || M.planTokenizers);
-  const PG = M.plans[slugParam] || M.plans.tokenizers;  // generic plan data (always present)
 
   // ─── Pieces ──────────────────────────────────────────────────────────────
 
@@ -243,7 +235,35 @@
 
   // ─── Page ───────────────────────────────────────────────────────────────
 
+  function ReadyGate({ children }) {
+    const [ready, setReady] = React.useState(false);
+    React.useEffect(() => {
+      if (window.MOCK_READY) window.MOCK_READY.then(() => setReady(true));
+      else setReady(true);  // fallback if loader didn't run
+    }, []);
+    if (!ready) {
+      return (
+        <div className="dim" style={{
+          padding: 48, textAlign: "center",
+          fontFamily: "var(--mono)", fontSize: 13, color: "var(--muted)"
+        }}>
+          Loading state…
+        </div>
+      );
+    }
+    return children;
+  }
+
   function Plan() {
+    const M = window.MOCK;
+    // Dispatch by ?slug=… ; defaults to the tokenizers exemplar.
+    const slugParam = new URLSearchParams(window.location.search).get("slug") || "tokenizers";
+    const isTokenizers = slugParam === "tokenizers";
+    // For tokenizers we use the rich, hand-authored body. For other plans, we
+    // dispatch to the generic data-driven renderer below.
+    const P  = isTokenizers ? M.planTokenizers : (M.plans[slugParam] || M.planTokenizers);
+    const PG = M.plans[slugParam] || M.plans.tokenizers;  // generic plan data (always present)
+
     // Hydrate from localStorage on mount so committed decisions survive reload.
     const stored = Persist.load(PG.slug);
     const storedDec = (stored && stored.decisions) || {};
@@ -637,7 +657,9 @@
     );
   }
 
-  ReactDOM.createRoot(document.getElementById("root")).render(<Plan />);
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    <ReadyGate><Plan /></ReadyGate>
+  );
 </script>
 </body>
 </html>
