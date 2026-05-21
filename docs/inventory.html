@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Plans · imas-ambix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="foundation.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="project.css">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="mockdata.js"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel">
+  const { useState, useMemo } = React;
+  const M = window.MOCK;
+
+  function Plans() {
+    const [items, setItems]         = useState(M.inventory);
+    const [groupBy, setGroupBy]     = useState("milestone");
+    const [sortBy, setSortBy]       = useState("roi");
+    const [filterStatus, setFilterStatus] = useState("");
+    const [query, setQuery]         = useState("");
+    const [selected, setSelected]   = useState("tokenizers");
+    const [draft, setDraft]         = useState("");
+
+    const ROI_SCORE    = { high: 3, mid: 2, low: 1 };
+    const EFFORT_SCORE = { S: 1, M: 2, L: 3, XL: 4 };
+
+    const sorted = useMemo(() => {
+      const score = {
+        roi:      i => ROI_SCORE[i.roi] * 10 + (i.impl < 1 ? 5 : 0) + (i.status === "active" ? 2 : 0),
+        effort:   i => -EFFORT_SCORE[i.effort],
+        impl:     i => -i.impl,
+        modified: i => i.last,
+        blockers: i => i.blockers * 10 + ROI_SCORE[i.roi],
+      };
+      return [...items].sort((a, b) => {
+        const va = score[sortBy](a), vb = score[sortBy](b);
+        if (typeof va === "string") return vb.localeCompare(va);
+        return vb - va;
+      });
+    }, [items, sortBy]);
+
+    const filtered = sorted.filter(i =>
+      (!filterStatus || i.status === filterStatus) &&
+      (!query || i.title.toLowerCase().includes(query.toLowerCase()) || i.slug.includes(query.toLowerCase()))
+    );
+
+    // Group by milestone, status, sprint, or none.
+    const grouped = useMemo(() => {
+      if (groupBy === "none") return [{ key: "All plans", items: filtered }];
+
+      const buckets = {};
+      for (const i of filtered) {
+        const key = groupBy === "milestone" ? (i.ms || "—")
+                  : groupBy === "status"    ? i.status
+                  : groupBy === "sprint"    ? (i.sprint || "backlog")
+                  : "All";
+        (buckets[key] = buckets[key] || []).push(i);
+      }
+      // Ordered group keys
+      const order = groupBy === "milestone" ? ["M0", "M1", "M2", "M3"]
+                  : groupBy === "status"    ? ["active", "blocked", "pending", "shipped", "draft"]
+                  : groupBy === "sprint"    ? ["S2", "S1", "S0", "backlog"]
+                  : [];
+      const keys = [...new Set([...order.filter(k => buckets[k]), ...Object.keys(buckets)])];
+      return keys.map(k => ({ key: k, items: buckets[k] }));
+    }, [filtered, groupBy]);
+
+    const sel = items.find(i => i.slug === selected);
+
+    const groupLabel = {
+      milestone: "by milestone",
+      status:    "by status",
+      sprint:    "by sprint",
+      none:      "flat list",
+    }[groupBy];
+
+    const groupHeading = (k) => {
+      if (groupBy === "milestone") {
+        const meta = M.projects[0].milestones.find(m => m.id === k);
+        return meta ? <>{k} <span className="dim" style={{ fontWeight: 400 }}>· {meta.name} · {meta.pct}%</span></> : k;
+      }
+      if (groupBy === "status") {
+        return <span className="flex" style={{ gap: 8 }}><Status s={k} label={k} /></span>;
+      }
+      if (groupBy === "sprint") {
+        return k === "backlog" ? <span className="dim">backlog · not in a sprint</span> : k;
+      }
+      return k;
+    };
+
+    return (
+      <div className="shell">
+        <Topbar project="imas-ambix" active="plans" />
+
+        <main className="page wide">
+          <div className="page-head">
+            <div className="title">
+              <h1>Plans</h1>
+              <div className="subtitle">
+                Every plan in the project, grouped {groupLabel}. {filtered.length} of {items.length} after filters.
+                Click into a plan to read it; the side rail captures notes inline.
+              </div>
+            </div>
+          </div>
+
+          <div className="filterbar">
+            <label className="search">
+              <span className="icon"><Icon name="search" /></span>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="filter by title or slug…" />
+            </label>
+            <label className="field">
+              group by
+              <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+                <option value="milestone">milestone</option>
+                <option value="status">status</option>
+                <option value="sprint">sprint</option>
+                <option value="none">none (flat)</option>
+              </select>
+            </label>
+            <label className="field">
+              status
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="">all</option>
+                <option>active</option>
+                <option>pending</option>
+                <option>blocked</option>
+                <option>shipped</option>
+              </select>
+            </label>
+            <label className="field">
+              sort within
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="roi">ROI</option>
+                <option value="impl">progress</option>
+                <option value="effort">effort</option>
+                <option value="blockers">blockers × ROI</option>
+                <option value="modified">last modified</option>
+              </select>
+            </label>
+            <span className="count">{filtered.length} / {items.length}</span>
+          </div>
+
+          <div className="with-rail" style={{ marginTop: 18 }}>
+            <div>
+              {grouped.map(g => (
+                <section key={g.key} style={{ marginBottom: 28 }}>
+                  <h2 style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    {groupHeading(g.key)}
+                    <span className="count">{g.items.length}</span>
+                  </h2>
+                  <div className="table-scroll">
+                    <table className="t">
+                      <thead>
+                        <tr>
+                          <th>Plan</th>
+                          <th>Status</th>
+                          <th>ROI</th>
+                          <th>Effort · tier</th>
+                          <th style={{ width: 150 }}>Progress</th>
+                          <th>Last write</th>
+                          <th className="num">Blk</th>
+                          <th className="num">Dec.</th>
+                          <th className="num">Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {g.items.map(i => (
+                          <tr key={i.slug}
+                              className={i.slug === selected ? "selected" : ""}
+                              onClick={() => setSelected(i.slug)}>
+                            <td className="title">
+                              <div className="cell-stack">
+                                <a className="link" href={`plan.html?slug=${encodeURIComponent(i.slug)}`}>{i.title}</a>
+                                <span className="sub">/{i.slug}</span>
+                              </div>
+                            </td>
+                            <td><Status s={i.status} /></td>
+                            <td><Roi v={i.roi} /></td>
+                            <td className="muted" style={{ fontSize: 12 }}>
+                              <span style={{ fontFamily: "var(--mono)" }}>{i.effort}</span> <span style={{ color: "var(--faint)" }}>·</span> {i.tier}
+                            </td>
+                            <td>
+                              <span className="flex" style={{ gap: 10 }}>
+                                <Bar v={i.impl} width={90} />
+                                <span className="num" style={{ color: "var(--muted)", fontSize: 12 }}>{Math.round(i.impl * 100)}%</span>
+                              </span>
+                            </td>
+                            <td className="muted" style={{ fontSize: 12, fontFamily: "var(--mono)" }}>{i.last}</td>
+                            <td className="num">{i.blockers ? <span style={{ color: "var(--bad)" }}>{i.blockers}</span> : <span className="dim">—</span>}</td>
+                            <td className="num">{i.dec_open || <span className="dim">—</span>}</td>
+                            <td className="num">{i.comments ? <span style={{ color: "var(--accent)", fontWeight: 600 }}>{i.comments}</span> : <span className="dim">—</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ))}
+              {grouped.every(g => g.items.length === 0) && (
+                <div className="dim" style={{ padding: 40, textAlign: "center" }}>
+                  No plans match the current filters.
+                </div>
+              )}
+            </div>
+
+            <aside className="rail">
+              <h2 style={{ margin: 0, marginBottom: 12 }}>Notes</h2>
+              {sel && (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <a className="link" href={`plan.html?slug=${encodeURIComponent(sel.slug)}`} style={{ fontSize: 15, fontWeight: 600 }}>{sel.title}</a>
+                    <div className="dim" style={{ fontSize: 12, fontFamily: "var(--mono)", marginTop: 2 }}>
+                      /{sel.slug} · last write {sel.last} · owner {sel.owner}
+                    </div>
+                  </div>
+                  <div className="flex" style={{ gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                    <Status s={sel.status} />
+                    <Tag kind="ms">{sel.ms}</Tag>
+                    <span className="flex" style={{ gap: 6 }}><Roi v={sel.roi} /> <span className="dim" style={{ fontSize: 12 }}>{sel.roi}</span></span>
+                    <Tag kind="dim">{sel.effort}</Tag>
+                  </div>
+
+                  <div className="thread">
+                    {sel.slug === "tokenizers" ? (
+                      <>
+                        <div className="note">
+                          <header><Who name="smc" /><span className="when">2026-05-20 22:00</span></header>
+                          <p>Locked the 4 §12 decisions on tokenizers-12-landed; keeping the evergreen page's decision rows open so anyone reading the live doc sees what's in flight.</p>
+                        </div>
+                        <div className="note">
+                          <header><Who name="agent/sonnet" bot /><span className="when">2026-05-20 17:55</span></header>
+                          <p>Drafted §12 expansion plan as 6 sub-items. Ranked by ROI; cross-modality alignment quality metric (§12.6) is the lowest-cost one and worth landing first.</p>
+                        </div>
+                      </>
+                    ) : sel.comments > 0 ? (
+                      <div className="note">
+                        <header><Who name="smc" /><span className="when">{sel.last}</span></header>
+                        <p>(mock) {sel.comments} note(s) on this plan. Open the plan to read or reply.</p>
+                      </div>
+                    ) : (
+                      <div className="dim" style={{ fontSize: 12.5 }}>No notes on this plan yet.</div>
+                    )}
+
+                    <div className="composer">
+                      <textarea
+                        placeholder={`add a note on /${sel.slug}…`}
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                      />
+                      <div className="row">
+                        <span>writes <code>state/imas-ambix/{sel.slug}.json#notes</code></span>
+                        <span className="sp"></span>
+                        <button className="btn sm">Post</button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </aside>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<Plans />);
+</script>
+</body>
+</html>

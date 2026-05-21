@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sprints · imas-ambix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="foundation.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="project.css">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="mockdata.js"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel">
+  const { useState, useMemo } = React;
+  const M = window.MOCK;
+
+  const STATUS_TO_COL = {
+    pending: "todo",
+    active:  "doing",
+    blocked: "doing",
+    shipped: "done",
+  };
+  const COLS = [
+    { id: "todo",  title: "To do" },
+    { id: "doing", title: "Doing" },
+    { id: "done",  title: "Done" },
+  ];
+
+  function KCard({ p, onDragStart }) {
+    return (
+      <a
+        className={`kanban-card ${p.status === "blocked" ? "blocked" : ""}`}
+        href={`plan.html?slug=${encodeURIComponent(p.slug)}`}
+        draggable={!!onDragStart}
+        onDragStart={onDragStart ? (e) => onDragStart(e, p.slug) : undefined}
+      >
+        <div className="t">{p.title}</div>
+        <div className="slug">/{p.slug}</div>
+        <div className="row">
+          <Roi v={p.roi} />
+          <span className="dim" style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{p.effort}</span>
+          <Tag kind="ms">{p.ms}</Tag>
+          <span className="sp"></span>
+          <Bar v={p.impl} width={50} />
+          <span className="dim" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{Math.round(p.impl * 100)}%</span>
+        </div>
+        {p.status === "blocked" && (
+          <div className="blocked-by">↳ gated by compute.html</div>
+        )}
+      </a>
+    );
+  }
+
+  function SprintBoard({ sprint, items, readOnly, onCols, onDragStart }) {
+    const cols = useMemo(() => {
+      const g = { todo: [], doing: [], done: [] };
+      for (const i of items) g[STATUS_TO_COL[i.status]]?.push(i);
+      return g;
+    }, [items]);
+
+    return (
+      <div className="kanban">
+        {COLS.map(col => (
+          <div
+            className="col"
+            key={col.id}
+            onDragOver={!readOnly && onDragStart ? (e) => e.preventDefault() : undefined}
+            onDrop={!readOnly && onCols ? (e) => { e.preventDefault(); onCols(col.id, e.dataTransfer.getData("text/plain")); } : undefined}
+          >
+            <div className="col-head">
+              <span className="title">{col.title}</span>
+              <span className="count">{cols[col.id].length}</span>
+              <span className="sp"></span>
+              {col.id === "todo" && !readOnly && <button className="btn ghost sm"><Icon name="plus" size={12} /></button>}
+            </div>
+            <div className="cards">
+              {cols[col.id].map(p => (
+                <KCard key={p.slug} p={p} onDragStart={!readOnly ? onDragStart : null} />
+              ))}
+              {cols[col.id].length === 0 && (
+                <div className="dim" style={{ fontSize: 12, textAlign: "center", padding: "20px 0" }}>empty</div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function PastSprintRow({ sprint }) {
+    const items = sprint.items.map(slug => M.inventory.find(i => i.slug === slug)).filter(Boolean);
+    const done  = items.filter(i => i.status === "shipped").length;
+    const total = items.length;
+    const [open, setOpen] = useState(false);
+
+    return (
+      <div style={{
+        border: "var(--hairline)",
+        borderRadius: "var(--radius-lg)",
+        marginBottom: 10,
+        background: "var(--bg)",
+      }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "70px 1fr auto auto",
+            gap: 16,
+            padding: "14px 18px",
+            alignItems: "center",
+            cursor: "pointer",
+          }}
+          onClick={() => setOpen(o => !o)}
+        >
+          <div>
+            <span style={{ fontFamily: "var(--mono)", fontSize: 16, fontWeight: 600 }}>{sprint.id}</span>
+            <Status s="shipped" label="shipped" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 500 }}>{sprint.theme}</div>
+            {sprint.summary && <div className="dim" style={{ fontSize: 12.5, marginTop: 3 }}>{sprint.summary}</div>}
+            <div className="dim" style={{ fontSize: 11.5, marginTop: 4, fontFamily: "var(--mono)" }}>{sprint.starts} → {sprint.ends}</div>
+          </div>
+          <div className="flex" style={{ gap: 10 }}>
+            <Bar v={done / total} width={120} />
+            <span className="num" style={{ fontFamily: "var(--mono)" }}>{done}/{total}</span>
+          </div>
+          <span className="dim" style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{open ? "▲" : "▼"}</span>
+        </div>
+        {open && (
+          <div style={{ padding: "0 18px 16px", borderTop: "var(--hairline)" }}>
+            <table className="t compact" style={{ marginTop: 8 }}>
+              <thead><tr><th>Plan</th><th>Status</th><th>ROI</th><th>Last write</th></tr></thead>
+              <tbody>
+                {items.map(p => (
+                  <tr key={p.slug} onClick={() => window.location.href = `plan.html?slug=${encodeURIComponent(p.slug)}`}>
+                    <td className="title"><a className="link" href={`plan.html?slug=${encodeURIComponent(p.slug)}`}>{p.title}</a> <span className="slug-cell">/{p.slug}</span></td>
+                    <td><Status s={p.status} /></td>
+                    <td><Roi v={p.roi} /></td>
+                    <td className="muted" style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{p.last}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function Sprint() {
+    const active = M.sprints.find(s => s.status === "active");
+    const past   = M.sprints.filter(s => s.status === "shipped").reverse();
+    const items  = active.items.map(slug => M.inventory.find(i => i.slug === slug)).filter(Boolean);
+    const done   = items.filter(i => i.status === "shipped").length;
+    const total  = items.length;
+
+    const [cols, setCols] = useState(() =>
+      Object.fromEntries(items.map(i => [i.slug, STATUS_TO_COL[i.status]]))
+    );
+
+    const onDragStart = (e, slug) => e.dataTransfer.setData("text/plain", slug);
+    const onCols = (col, slug) => setCols(prev => ({ ...prev, [slug]: col }));
+
+    // Map cols state back to items list w/ overridden status for kanban rendering.
+    const itemsByCol = items.map(i => {
+      const c = cols[i.slug];
+      const status = c === "done" ? "shipped" : c === "doing" ? (i.status === "blocked" ? "blocked" : "active") : "pending";
+      return { ...i, status };
+    });
+
+    return (
+      <div className="shell">
+        <Topbar project="imas-ambix" active="sprint" />
+
+        <main className="page wide">
+          <div className="page-head">
+            <div className="title">
+              <h1>Sprints</h1>
+              <div className="subtitle">
+                Current iteration plus the history. Sprints are weekly-to-fortnightly slices of the plan
+                catalog; a plan that's in <strong>sprint S2</strong> is what someone (agent or human) is
+                working on this iteration.
+              </div>
+            </div>
+            <div className="actions">
+              <a className="btn ghost" href="inventory.html">All plans</a>
+              <button className="btn">Plan next sprint…</button>
+            </div>
+          </div>
+
+          {/* Current sprint */}
+          <h2 style={{ marginTop: 8 }}>
+            Current · {active.id}
+            <span className="count">{active.theme} · {active.starts} → {active.ends}</span>
+          </h2>
+
+          <div className="sprint-strip" style={{ marginTop: 6 }}>
+            <div>
+              <div className="flex" style={{ gap: 12 }}>
+                <span className="id">{active.id}</span>
+                <Status s="active" label="active" />
+              </div>
+              <div className="theme">{active.theme}</div>
+              <div className="range">
+                {active.starts} → {active.ends} ·{" "}
+                {Math.round((new Date(active.ends) - new Date(M.today)) / 86400000)} days remaining
+              </div>
+            </div>
+            <div className="progress">
+              <Bar v={done / total} width={180} size="lg" />
+              <span className="num">{done}<span className="dim">/{total}</span></span>
+              <span className="dim">done · {Math.round(done / total * 100)}%</span>
+            </div>
+          </div>
+
+          <h3 style={{ marginTop: 22, marginBottom: 8 }}>Kanban <span className="dim" style={{ fontSize: 11.5, fontWeight: 400 }}>· drag cards between columns</span></h3>
+          <SprintBoard
+            sprint={active}
+            items={itemsByCol}
+            onDragStart={onDragStart}
+            onCols={onCols}
+          />
+
+          {/* Why-now + blockers */}
+          <div className="dashgrid even" style={{ marginTop: 28 }}>
+            <div>
+              <h3>Sprint goals</h3>
+              <div className="card">
+                <div className="card-body">
+                  <ul style={{ paddingLeft: 18, margin: 0, fontSize: 14, lineHeight: 1.7, color: "var(--ink-2)" }}>
+                    <li>Close the tokenizer track (<a className="link" href="plan.html?slug=tokenizers">tokenizers</a>) so M1 lands by the sprint end.</li>
+                    <li>Clear the SDCC <a className="link" href="plan.html?slug=compute">compute</a> reservation; this gates 3 downstream plans.</li>
+                    <li>Re-derive training-grade manifest excluding CX in <a className="link" href="plan.html?slug=data-quality">data-quality</a>.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3>Top blockers</h3>
+              <div className="card">
+                <div className="card-body">
+                  {M.blockers.map((b, i) => (
+                    <div className="blocker-row" key={i}>
+                      <div>
+                        <div className="what">{b.summary}</div>
+                        <div className="origin">↳ <a className="link" href={`plan.html?slug=${b.origin}`}>{b.origin}.html</a></div>
+                      </div>
+                      <div><Who name={b.owner} /></div>
+                      <div className="next">{b.next}</div>
+                      <span className="n">{b.n}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Past sprints */}
+          <h2 style={{ marginTop: 36 }}>
+            Past sprints
+            <span className="count">{past.length} shipped · click to expand</span>
+          </h2>
+          {past.map(s => <PastSprintRow sprint={s} key={s.id} />)}
+
+          {/* Cadence */}
+          <h2 style={{ marginTop: 36 }}>Cadence</h2>
+          <div className="card">
+            <div className="card-body" style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.65 }}>
+              <p style={{ marginTop: 0 }}>
+                Sprints in this project run roughly two weeks. A sprint closes when its <em>done</em> column
+                covers its goals (or rolls remaining items into the next sprint).
+                The <code>/plan-sprint</code> skill proposes the next allocation by re-scoring open plans
+                (ROI × probability ÷ cost), grouping coherent items, and printing a proposal table for
+                human review before promoting to <code>active</code>.
+              </p>
+              <p style={{ marginBottom: 0 }}>
+                Each sprint's items[] is stored in <code>docs/state/imas-ambix/index.json#sprints[]</code>;
+                the kanban column for each item is derived from the plan's own <code>status</code>, so
+                dragging a card here updates the plan's status field.
+              </p>
+            </div>
+          </div>
+
+        </main>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<Sprint />);
+</script>
+</body>
+</html>

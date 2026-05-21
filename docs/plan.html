@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Multi-modal tokenizers · imas-ambix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="foundation.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="project.css">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="mockdata.js"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel">
+  const { useState, useMemo, useEffect } = React;
+  const M = window.MOCK;
+  // Dispatch by ?slug=… ; defaults to the tokenizers exemplar.
+  const slugParam = new URLSearchParams(window.location.search).get("slug") || "tokenizers";
+  const isTokenizers = slugParam === "tokenizers";
+  // For tokenizers we use the rich, hand-authored body. For other plans, we
+  // dispatch to the generic data-driven renderer below.
+  const P  = isTokenizers ? M.planTokenizers : (M.plans[slugParam] || M.planTokenizers);
+  const PG = M.plans[slugParam] || M.plans.tokenizers;  // generic plan data (always present)
+
+  // ─── Pieces ──────────────────────────────────────────────────────────────
+
+  // Status pill — clickable to change plan-level status.
+  function StatusPillEdit({ value, onChange }) {
+    const [open, setOpen] = useState(false);
+    const opts = [
+      { v: "active",  l: "Active"  },
+      { v: "blocked", l: "Blocked" },
+      { v: "pending", l: "Pending" },
+      { v: "shipped", l: "Shipped" },
+    ];
+    return (
+      <span style={{ position: "relative" }}>
+        <button className={`status-pill-edit ${value}`} onClick={() => setOpen(o => !o)}>
+          <span className="dot"></span>
+          {opts.find(o => o.v === value)?.l || value}
+          <span className="car">▾</span>
+        </button>
+        {open && (
+          <div className="status-menu" onMouseLeave={() => setOpen(false)}>
+            {opts.map(o => (
+              <button key={o.v} className={o.v === value ? "current" : ""}
+                onClick={() => { onChange(o.v); setOpen(false); }}>
+                <span className={`status ${o.v}`}><span className="dot"></span></span> {o.l}
+              </button>
+            ))}
+          </div>
+        )}
+      </span>
+    );
+  }
+
+  // NEXT handoff card
+  function NextHandoff({ followup, onResolve }) {
+    const [showPrompt, setShowPrompt] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const copy = () => {
+      navigator.clipboard.writeText(followup.prompt);
+      setCopied(true); setTimeout(() => setCopied(false), 1400);
+    };
+    return (
+      <div className="next-card">
+        <div className="head">
+          <span className="lbl">Next</span>
+          <span className="author">written by <strong>{followup.written_by}</strong></span>
+          <span className="ts">{followup.written_at}</span>
+          <span className="sp"></span>
+        </div>
+        <div className="title-line">{followup.title}</div>
+        <div className="body">{followup.body}</div>
+        <div className="meta-rows">
+          <span className="k">skill</span>
+          <span className="v"><code>{followup.recommends_skill}</code></span>
+          <span className="k">touches</span>
+          <span className="v">{followup.touches.map((t, i) => (
+            <React.Fragment key={i}>{i > 0 && ", "}<code>{t}</code></React.Fragment>
+          ))}</span>
+          {followup.blocked_by && <>
+            <span className="k">blocked by</span>
+            <span className="v blocked">
+              <a className="link" href="#">{followup.blocked_by.slug}.html</a> — {followup.blocked_by.reason}
+            </span>
+          </>}
+          <span className="k">est.</span>
+          <span className="v dim">{followup.est_turn}</span>
+        </div>
+        <div className="actions">
+          <button className="btn primary" onClick={copy}>
+            <Icon name="copy" size={13} />
+            {copied ? "Copied" : "Copy agent prompt"}
+          </button>
+          <button className="btn" onClick={onResolve}>Mark resolved & write next…</button>
+          <span className="sp"></span>
+          <span className="prompt-toggle" onClick={() => setShowPrompt(s => !s)}>
+            {showPrompt ? "▲ hide" : "▼ show"} full prompt
+          </span>
+        </div>
+        {showPrompt && (
+          <div className="prompt">
+            <button className={`copy ${copied ? "copied" : ""}`} onClick={copy}>{copied ? "✓ copied" : "copy"}</button>
+            {followup.prompt}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Compose a new followup (when resolving the current NEXT)
+  function FollowupComposer({ onCancel, onPost }) {
+    const [title, setTitle] = useState("");
+    const [body, setBody]   = useState("");
+    const [skill, setSkill] = useState("/plan-implement tokenizers");
+    return (
+      <div className="followup-composer">
+        <h4>Write next handoff <span style={{ color: "var(--faint)", textTransform: "none", letterSpacing: 0, marginLeft: 6 }}>· becomes the NEXT card</span></h4>
+        <input placeholder="Headline — what's the next concrete thing?" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <textarea placeholder="A paragraph or two of context. Why this is what's next; what landed; what to read first; gates to clear." value={body} onChange={(e) => setBody(e.target.value)} />
+        <input placeholder="Recommended skill — e.g. /plan-implement tokenizers --section 13.4" value={skill} onChange={(e) => setSkill(e.target.value)} />
+        <div className="row">
+          <span className="dim" style={{ fontSize: 11.5 }}>
+            writes to <code>tokenizers.json#followups</code>; previous NEXT moves to the log
+          </span>
+          <span className="sp"></span>
+          <button className="btn" onClick={onCancel}>Cancel</button>
+          <button className="btn primary" onClick={() => onPost({ title, body, skill })}>Post handoff</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Inline decision — free-form. Click a chip = commit. Type + Send = commit.
+  // A commit captures (choice, rationale) — either may be empty. After commit
+  // the card collapses to a one-line summary; click "edit" to re-open.
+  function InlineDecision({ d, onChoose, onRationale, onLock }) {
+    const hasChoice    = !!d.chosen;
+    const hasRationale = !!(d._committedRationale && d._committedRationale.length);
+    const locked       = hasChoice || hasRationale;
+    const [collapsed, setCollapsed] = React.useState(locked);
+    // When the data flips to locked from outside (e.g. just committed), collapse.
+    React.useEffect(() => { if (locked) setCollapsed(true); }, [locked, d.when]);
+
+    const rationaleDirty = (d.rationale || "") !== (d._committedRationale || "");
+    const commit = (overrideChoice) => {
+      const choice = overrideChoice !== undefined ? overrideChoice : (d.chosen || "");
+      onLock(d.key, choice);
+    };
+
+    return (
+      <div className={`inline-decision ${locked ? "locked" : "open"} ${collapsed && locked ? "collapsed" : ""}`} id={`d-${d.key}`}>
+        <div className="h">
+          <span className="k">{d.key}</span>
+          <span className="t">{d.title}</span>
+          {locked
+            ? <span className="w">{collapsed ? "✓" : "open for edit"} · {d.when}</span>
+            : <span className="w">open</span>}
+          {locked && (
+            <button className="reopen" onClick={() => setCollapsed(c => !c)}>
+              {collapsed ? "edit" : "done"}
+            </button>
+          )}
+        </div>
+
+        <div className="summary-line">
+          {d.chosen && <><strong>{d.chosen}</strong>{d._committedRationale && " — "}</>}
+          {d._committedRationale && <span>{d._committedRationale}</span>}
+          {!d.chosen && !d._committedRationale && <em>(empty)</em>}
+        </div>
+
+        {d.context && <div style={{ color: "var(--muted)", fontSize: 13.5, marginBottom: 10, lineHeight: 1.55 }}>{d.context}</div>}
+        <div className="c">
+          {d.choices.map(c => (
+            <button
+              key={c}
+              className={`${c === d.chosen ? "chosen" : ""} ${c.toLowerCase().includes("defer") ? "defer" : ""}`}
+              onClick={() => commit(c)}
+              title="Clicking commits this choice + the current rationale text"
+            >{c}</button>
+          ))}
+        </div>
+        <div className="rationale-row">
+          <input
+            className={`r ${rationaleDirty ? "dirty" : ""}`}
+            placeholder="rationale or free-form comment (Enter to send)"
+            value={d.rationale}
+            onChange={(e) => onRationale(d.key, e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+          />
+          <button
+            className="send"
+            onClick={() => commit()}
+            title="Commit text (and current choice if any) to state"
+          >
+            {locked ? "Update ↵" : "Send ↵"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function ResearchCard({ item }) {
+    const iconFor = {
+      paper: "paper", image: "image", plan: "plan",
+      thread: "thread", doc: "paper", dataset: "dataset", web: "web",
+    }[item.type] || "link";
+    return (
+      <a className="research-card" href={item.url}>
+        <span className="icon"><Icon name={iconFor} size={15} /></span>
+        <span>
+          <div className="title">{item.title}</div>
+          <div className="src">{item.type} · {item.source}</div>
+          <div className="added">added by {item.added_by} · {item.when}</div>
+        </span>
+      </a>
+    );
+  }
+
+  // Section heading with optional question-flag (open question on this section)
+  function SectionH({ id, sec, children, question, openQuestion }) {
+    return (
+      <h2 id={id}>
+        <span className="sec">{sec}</span>
+        {children}
+        {question
+          ? <a className="q-flag" href={`#q-${question.id}`} title={question.body}>open · {question.opened_by}</a>
+          : <button className="q-add" onClick={openQuestion} title="Flag this section as having an open question agents should resolve">flag question</button>
+        }
+      </h2>
+    );
+  }
+
+  // ─── Page ───────────────────────────────────────────────────────────────
+
+  function Plan() {
+    // Hydrate from localStorage on mount so committed decisions survive reload.
+    const stored = Persist.load(PG.slug);
+    const storedDec = (stored && stored.decisions) || {};
+    const initialDecs = (P.decisions || []).map(d => {
+      const s = storedDec[d.key];
+      if (!s) return d;
+      return { ...d, chosen: s.choice || "", rationale: s.rationale || "", when: s.when || "", by: s.by || "", _committedRationale: s.rationale || "" };
+    });
+    const initialStatus = stored && stored.status ? stored.status : P.status;
+
+    const [status,    setStatus]    = useState(initialStatus);
+    const [decs,      setDecs]      = useState(initialDecs);
+    const [questions, setQuestions] = useState(P.questions || []);
+    const [followups, setFollowups] = useState(P.followups || []);
+    const [composing, setComposing] = useState(false);
+    const [tier,      setTier]      = useState(stored.tier || P.tier || "sonnet");
+
+    // Persist status + tier changes
+    React.useEffect(() => { Persist.save(PG.slug, { status }); }, [status]);
+    React.useEffect(() => { Persist.save(PG.slug, { tier   }); }, [tier]);
+
+    const onLock = (key, chosen) => {
+      const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const cur = decs.find(x => x.key === key);
+      const rationale = cur?.rationale || "";
+      setDecs(d => d.map(x => x.key === key ? { ...x, chosen, when: now, by: "smc", _committedRationale: rationale } : x));
+      Persist.save(PG.slug, { [`decisions.${key}`]: { choice: chosen, rationale, when: now, by: "smc" } });
+      flashSaved(chosen ? `${PG.slug}.${key} → ${chosen}` : `${PG.slug}.${key} rationale saved`);
+    };
+    const onChoose = onLock;  // back-compat for any caller
+    const onRationale = (key, rationale) =>
+      setDecs(d => d.map(x => x.key === key ? { ...x, rationale } : x));
+    const onRationaleBlur = () => {};  // no-op now
+
+    const openQuestion = (section) => {
+      const body = prompt(`Open question on "${section}":`);
+      if (!body) return;
+      const q = { id: `q${Date.now()}`, section, body, opened_by: "smc", opened_at: new Date().toISOString().slice(0, 10) };
+      setQuestions(qs => [...qs, q]);
+    };
+
+    const resolveAndComposeNext = () => { setComposing(true); };
+    const postNext = ({ title, body, skill }) => {
+      const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const newId = `f-${Date.now()}`;
+      setFollowups([{
+        id: newId, written_by: "smc", written_at: now,
+        title: title || "(untitled handoff)",
+        body: body || "(no body yet)",
+        recommends_skill: skill,
+        touches: [], est_turn: "—",
+        prompt: `Project: imas-ambix\nPlan: tokenizers\n\n${body || title}\n\nRecommended skill: ${skill}`,
+      }]);
+      setComposing(false);
+    };
+
+    const decByKey = (k) => decs.find(d => d.key === k);
+    const dPrimary = decByKey("plasma-decoder-finetune");
+    const dPatch   = decByKey("patchtst-real-embedding");
+    const dEqui    = decByKey("equilibrium-2d-tokenizer");
+    const dIr      = decByKey("ir-camera-codebook");
+
+    const qFor = (section) => questions.find(q => q.section === section);
+
+    return (
+      <div className="shell">
+        <Topbar project="imas-ambix" />
+        <Crumbs items={[
+          { label: "Overview", href: "project.html" },
+          { label: "Plans", href: "inventory.html" },
+          { label: `${PG.slug}.html` },
+        ]} />
+
+        <main className="page wide">
+          <div className="plan-layout">
+            <article className="reading">
+
+              {/* Header */}
+              <header className="plan-head">
+                <h1>{P.title}</h1>
+                <div className="sub">
+                  <code>/{PG.slug}</code>
+                  <span className="dot">·</span>
+                  <StatusPillEdit value={status} onChange={setStatus} />
+                  <span className="dot">·</span>
+                  <Tag kind="ms">{P.ms}</Tag>
+                  <span className="dot">·</span>
+                  <a className="link" href="sprint.html">sprint S2</a>
+                  <span className="dot">·</span>
+                  <span className="flex" style={{ gap: 6 }}><Roi v={P.roi} /> {P.roi}</span>
+                  <span className="dot">·</span>
+                  <span className="flex" style={{ gap: 6 }}><Bar v={P.impl} width={80} /> {Math.round(P.impl * 100)}%</span>
+                </div>
+              </header>
+
+              {/* NEXT handoff */}
+              {!composing && followups[0] && (
+                <NextHandoff
+                  followup={followups[0]}
+                  onResolve={resolveAndComposeNext}
+                />
+              )}
+              {composing && (
+                <FollowupComposer
+                  onCancel={() => setComposing(false)}
+                  onPost={postNext}
+                />
+              )}
+
+              {/* Plan body — real ambix tokenizers content for tokenizers; data-driven for the rest */}
+              {!isTokenizers ? (
+                <section className="prose">
+                  <p style={{ color: "var(--muted)" }}>{PG.summary}</p>
+                  {PG.sections.map(s => (
+                    <React.Fragment key={s.id}>
+                      <SectionH id={s.id} sec={s.sec}
+                                question={questions.find(q => q.section === s.h)}
+                                openQuestion={() => {
+                                  const body = prompt(`Open question on "${s.h}":`);
+                                  if (!body) return;
+                                  setQuestions(qs => [...qs, { id: `q${Date.now()}`, section: s.h, body, opened_by: "smc", opened_at: new Date().toISOString().slice(0,10) }]);
+                                }}>
+                        {s.h}
+                      </SectionH>
+                      <p>{s.body}</p>
+                    </React.Fragment>
+                  ))}
+
+                  {decs.length > 0 && <>
+                    <SectionH id="decisions" sec="§ decisions">Open decisions</SectionH>
+                    <p style={{ color: "var(--muted)", fontSize: 14 }}>
+                      Lock a call by clicking a choice. The chip POSTs to
+                      <code> state/imas-ambix/{PG.slug}.json#decisions</code>.
+                    </p>
+                    {decs.map(d => (
+                      <InlineDecision key={d.key} d={d} onChoose={onChoose} onRationale={onRationale} onLock={onLock} />
+                    ))}
+                  </>}
+
+                  <SectionH id="followups" sec="§ log">Followup chain</SectionH>
+                  {(PG.followups_done || []).length === 0 ? (
+                    <p className="dim" style={{ fontSize: 14 }}>No followups resolved on this plan yet. The pinned NEXT card above is the current handoff.</p>
+                  ) : (
+                    <div className="followup-log">
+                      {PG.followups_done.map(f => (
+                        <div className="item" key={f.id}>
+                          <div className="mark">✓</div>
+                          <div>
+                            <div className="title">{f.title}</div>
+                            <div className="meta">{f.written_by} → {f.resolved_by} · {f.written_at} → {f.resolved_at}</div>
+                            <div className="outcome">{f.outcome}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <hr />
+                  <p className="dim" style={{ fontSize: 13 }}>
+                    Source: <code>docs/{PG.slug}.html</code> ·
+                    live at <a href={`https://simon-mcintosh.github.io/imas-ambix/${PG.slug}.html`}> simon-mcintosh.github.io/imas-ambix/{PG.slug}.html</a>
+                  </p>
+                </section>
+              ) : (
+                <section className="prose">
+
+                <p>
+                  <strong>Status:</strong> {P.phase} · depends on <a href="#">data-acquisition</a> mirror (shipped) and <a href="#">compute</a> (blocked on SDCC reservation).
+                </p>
+                <p>
+                  The Fusion World Model treats every diagnostic stream as a sequence of integer tokens drawn from
+                  a shared vocabulary. This plan fixes the per-modality tokenizer choice, the codebook layout, the
+                  token-id namespacing across modalities, the training data, and the persistence format so that
+                  downstream model code (<code>imas_ambix/model/wham.py</code>) and training code
+                  (<code>imas_ambix/train/loop.py</code>) consume a stable interface.
+                </p>
+                <p>
+                  The choice is biased toward off-the-shelf, Apache-2.0-licensed components. We do not invent a
+                  new tokenizer. If a chosen tokenizer underperforms, the fallback is documented inline; the
+                  public interface does not change when we swap implementations.
+                </p>
+
+                <SectionH id="s1" sec="§ 1" question={qFor("1. Modality breakdown")}
+                          openQuestion={() => openQuestion("1. Modality breakdown")}>
+                  Modality breakdown and tokenizer choices
+                </SectionH>
+                <ul>
+                  <li><strong>Visible camera</strong> (<code>camera_visible.*.image_raw</code>) — Open-MAGVIT2 (TencentARC). 2<sup>18</sup> LFQ codebook, 8× spatial / 4× temporal compression, Apache-2.0, rFID 0.39 @ 8× ImageNet.</li>
+                  <li><strong>IR camera</strong> (<code>camera_ir.*.image_raw</code>) — Open-MAGVIT2, same checkpoint, possibly fine-tuned on IR. v0 default is to share with visible; <a href="#d-ir-camera-codebook">decision below</a>.</li>
+                  <li><strong>Magnetics (high rate)</strong> — PatchTST, patch length 64, stride 32. Channel-independent patches; fastest to retrofit; linear projection into token id space.</li>
+                  <li><strong>Low-frequency signals</strong> (4 kHz interpolated) — Chronos T5-small (Amazon). Scale-and-quantize to discrete token IDs; Apache-2.0; HF-native.</li>
+                  <li><strong>Scalar state / control actions</strong> — Learned embedding table per categorical field.</li>
+                </ul>
+
+                <div className="callout">
+                  <span className="lbl">Why off-the-shelf</span>
+                  Every chosen tokenizer is a stable, externally-maintained codebase with a permissive licence.
+                  We pay no maintenance cost on the tokenizer itself; we pay it on the protocol that lets us
+                  swap one out.
+                </div>
+
+                <SectionH id="s4" sec="§ 4" question={qFor("4. Token id namespacing")}
+                          openQuestion={() => openQuestion("4. Token id namespacing")}>
+                  Token id namespacing
+                </SectionH>
+                <p>
+                  A single global vocabulary serves all modalities. Each tokenizer is assigned a contiguous id
+                  range; the model never sees the modality string, only the integer. Block boundaries are
+                  recorded in <code>BLOCKWEIGHTS</code> so the loader can apply block-weighted cross-entropy.
+                </p>
+
+                <SectionH id="s8" sec="§ 8" question={qFor("8. Open questions to revisit")}
+                          openQuestion={() => openQuestion("8. Open questions to revisit")}>
+                  Open questions to revisit before Phase 2
+                </SectionH>
+                <ul>
+                  <li><strong>IR codebook sharing</strong> — confirmed at <a href="#d-ir-camera-codebook">§ 12.5</a>; gate is MAE 2× rbb.</li>
+                  <li><strong>PatchTST passthrough vs real embedding</strong> — <a href="#d-patchtst-real-embedding">§ 12.2</a>.</li>
+                  <li><strong>Equilibrium 2-D</strong> — currently continuous cross-attention; <a href="#d-equilibrium-2d-tokenizer">§ 12.3</a>.</li>
+                </ul>
+
+                <SectionH id="s12" sec="§ 12" question={qFor("12.4 multi-modal alignment")}
+                          openQuestion={() => openQuestion("12.4 multi-modal alignment")}>
+                  Decisions in flight (the four §12 open calls)
+                </SectionH>
+                <p>
+                  Click a choice to lock it. The chosen value POSTs to
+                  <code> state/imas-ambix/tokenizers.json#decisions</code>; agents pick it up on next read.
+                </p>
+
+                <InlineDecision d={dPrimary} onChoose={onChoose} onRationale={onRationale} onLock={onLock} />
+                <InlineDecision d={dPatch}   onChoose={onChoose} onRationale={onRationale} onLock={onLock} />
+                <InlineDecision d={dEqui}    onChoose={onChoose} onRationale={onRationale} onLock={onLock} />
+                <InlineDecision d={dIr}      onChoose={onChoose} onRationale={onRationale} onLock={onLock} />
+
+                <SectionH id="s13" sec="§ 13" question={qFor("13.1 plasma-decoder fine-tune scaffold")}
+                          openQuestion={() => openQuestion("13.1 plasma-decoder fine-tune scaffold")}>
+                  What landed — 2026-05-19 to 2026-05-21
+                </SectionH>
+                <ul className="ship">
+                  <li>§ 9 v0 tokenizer scaffold (imas_ambix.tokenizer protocol surfaces) <span className="sha">5a137fc</span></li>
+                  <li>§ 9.2 Chronos T5-small + PatchTST identity passthrough <span className="sha">7e1c4ab</span></li>
+                  <li>§ 10 BlockKind side data + block-weighted CE loss <span className="sha">3f04922</span></li>
+                  <li>§ 12.1 plasma-decoder fine-tune scaffold <span className="sha">5e7c5fc</span></li>
+                  <li>§ 13.3 IR camera codebook benchmark wiring <span className="sha">dec0082</span></li>
+                </ul>
+
+                <SectionH id="s-bench" sec="§ 7" openQuestion={() => openQuestion("7. Round-trip evaluation")}>
+                  Round-trip evaluation (CI hook)
+                </SectionH>
+                <div className="card"><div className="card-body" style={{ padding: "8px 16px" }}>
+                  <div className="tests">
+                    {P.tests.map(t => (
+                      <div className={`test ${t.fail_now ? "fail" : ""}`} key={t.name}>
+                        <span className="name">{t.name}</span>
+                        <span className="ratio"><span className="pass">{t.pass}</span> / {t.pass + t.fail}</span>
+                        <span className="pulse">
+                          {t.pulse.split("").map((c, i) => (<i key={i} className={c === "f" ? "f" : ""}></i>))}
+                        </span>
+                        <span className={t.fail_now ? "bad" : "ok"}>{t.fail_now ? "✗" : "✓"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div></div>
+                <p className="dim" style={{ fontSize: 13 }}>
+                  Source: <code>pytest -k tokenizer</code> · last 12 runs · refreshed on each CI artifact.
+                  Configurable per project (see handoff doc).
+                </p>
+
+                {/* Followup log */}
+                <SectionH id="followups" sec="§ log">
+                  Followup chain
+                </SectionH>
+                <p className="dim" style={{ fontSize: 14 }}>
+                  Each handoff between agents (or between agent and human) lands here. The most recent unresolved
+                  followup becomes the pinned NEXT card at the top of the page. Writing a followup is one of the
+                  primary ways agents communicate "what should happen next" through state.
+                </p>
+                <div className="followup-log">
+                  {P.followups_done.map(f => (
+                    <div className="item" key={f.id}>
+                      <div className="mark">✓</div>
+                      <div>
+                        <div className="title">{f.title}</div>
+                        <div className="meta">{f.written_by} → {f.resolved_by} · {f.written_at} → {f.resolved_at}</div>
+                        <div className="outcome">{f.outcome}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <hr />
+                <p className="dim" style={{ fontSize: 13 }}>
+                  Source: <code>docs/tokenizers.html</code> · authored by agents and humans · per-stage history:
+                  <a href="#"> tokenizers-12-landed.html</a> · live at
+                  <a href="https://simon-mcintosh.github.io/imas-ambix/tokenizers.html"> simon-mcintosh.github.io/imas-ambix/tokenizers.html</a>
+                </p>
+              </section>
+              )}
+            </article>
+
+            {/* ─── Meta rail ─── */}
+            <aside className="meta">
+
+              <div className="meta-block">
+                <h4>About</h4>
+                <div className="kv">
+                  <span className="k">status</span>
+                  <span className="v"><StatusPillEdit value={status} onChange={setStatus} /></span>
+                  <span className="k">milestone</span><span className="v"><a className="link" href="project.html">M1 · Tokenizer prototype</a></span>
+                  <span className="k">sprint</span><span className="v"><a className="link" href="sprint.html">S2 · M1 ramp</a></span>
+                  <span className="k">owner</span><span className="v"><Who name="smc" /></span>
+                  <span className="k">tier</span>
+                  <span className="v">
+                    <select
+                      className="picker"
+                      value={tier}
+                      onChange={(e) => setTier(e.target.value)}
+                      title="Default model tier for agents working this plan. Names only; runtime resolves to the latest version per family."
+                    >
+                      <option value="haiku">haiku</option>
+                      <option value="sonnet">sonnet</option>
+                      <option value="opus">opus</option>
+                    </select>
+                  </span>
+                  <span className="k">depends</span><span className="v">{P.depends_on.map((s, i) => <React.Fragment key={s}>{i > 0 && ", "}<a className="link" href="#">{s}</a></React.Fragment>)}</span>
+                  <span className="k">blocks</span><span className="v">{P.blocks.map((s, i) => <React.Fragment key={s}>{i > 0 && ", "}<a className="link" href="#">{s}</a></React.Fragment>)}</span>
+                  <span className="k">created</span><span className="v">{P.created}</span>
+                </div>
+              </div>
+
+              <div className="meta-block">
+                <h4>Questions · {questions.length}</h4>
+                {questions.length === 0
+                  ? <div className="dim" style={{ fontSize: 12.5 }}>None open. Hover any § heading to flag one.</div>
+                  : (
+                    <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 12.5 }}>
+                      {questions.map(q => (
+                        <li key={q.id} id={`q-${q.id}`} style={{ padding: "6px 0", borderBottom: "1px dotted var(--line)" }}>
+                          <div style={{ color: "var(--ink)", lineHeight: 1.4 }}>{q.body}</div>
+                          <div className="dim" style={{ fontSize: 11, marginTop: 2 }}>
+                            <code>§ {q.section}</code> · opened by {q.opened_by} · {q.opened_at}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                }
+              </div>
+
+              <div className="meta-block">
+                <h4>Research · {P.research.length}</h4>
+                <div className="research-list">
+                  {P.research.map(r => <ResearchCard item={r} key={r.id} />)}
+                </div>
+                <button className="research-add">+ add paper, doc, image, link…</button>
+                <div className="dim" style={{ fontSize: 11, marginTop: 6 }}>
+                  Agents drop research here as they encounter it. Multi-modal:
+                  papers, internal docs, plan cross-refs, images, threads, datasets, web links.
+                </div>
+              </div>
+
+              <div className="meta-block">
+                <h4>Notes · {P.notes.length}</h4>
+                <div className="thread">
+                  {P.notes.map(n => (
+                    <div className="note" key={n.id}>
+                      <header>
+                        <Who name={n.who} bot={n.bot} />
+                        <span className="when">{n.when}</span>
+                      </header>
+                      {n.quote && <div className="quote">{n.quote}</div>}
+                      <p>{n.body}</p>
+                    </div>
+                  ))}
+                  <div className="composer">
+                    <textarea placeholder="add a note…" />
+                    <div className="row">
+                      <span className="dim">posts to <code>tokenizers.json#notes</code></span>
+                      <span className="sp"></span>
+                      <button className="btn sm">Post</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </aside>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<Plan />);
+</script>
+</body>
+</html>

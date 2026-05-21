@@ -1,314 +1,273 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>All Decisions · Ambix Plans</title>
-<link rel="stylesheet" href="_shared/foundation.css">
-<link rel="stylesheet" href="_shared/dashboard.css">
-<script src="_shared/state.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Decisions · imas-ambix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="foundation.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="project.css">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 </head>
 <body>
 
-<div class="topbar">
-  <a class="brand" href="index.html">
-    <span class="mark">A</span>
-    <span class="proj-name">imas-ambix</span>
-  </a>
-  <nav>
-    <a href="index.html">Index</a>
-    <a href="STRATEGY.html">Strategy</a>
-    <a href="v0-runway.html">v0 Runway</a>
-    <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data acq</a>
-    <a href="data-quality.html">Quality</a>
-    <a href="tokenizers.html">Tokenizers</a>
-    <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World model</a>
-    <a href="demo.html">Demo</a>
-    <a href="decisions.html" class="active">Decisions</a>
-  </nav>
-  <div class="right"></div>
-</div>
+<div id="root"></div>
 
-<main class="page">
+<script src="mockdata.js"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel">
+  const { useState, useMemo } = React;
+  const M = window.MOCK;
 
-<div class="page-head">
-  <div class="title">
-    <h1>All Decisions</h1>
-    <div class="subtitle">Read-only aggregator — decisions are owned by individual plan pages.
-      To lock a decision, open the plan that owns it and click an option there.
-      <span class="dim" style="margin-left:8px;">Updated <time id="updated">2026-05-21</time></span>
-    </div>
-  </div>
-</div>
-
-<section class="prose" style="font-size:15px;line-height:1.7;color:var(--ink-2);max-width:72ch;margin-bottom:28px;">
-  <p>
-    The current choice for each decision is loaded live from the owning
-    plan's state file. Each row title links to the owning plan where the
-    decision is wired — click there to lock a choice.
-  </p>
-</section>
-
-<div class="decisions" id="decisions-agg">
-
-  <!-- data-quality -->
-  <div class="dec open" data-page="data-quality" data-key="drop-charge-exchange">
-    <div class="head">
-      <span class="key">drop-charge-exchange</span>
-      <a class="title link" href="data-quality.html#open-decisions">Drop charge_exchange from v0 training corpus?</a>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
-      Owned by <a class="link" href="data-quality.html#open-decisions">data-quality.html</a>
-    </p>
-    <div class="choices read-only">
-      <button data-choice="yes" disabled>Yes — drop it</button>
-      <button data-choice="no" disabled>No — keep it</button>
-      <button data-choice="defer" disabled>Defer</button>
-    </div>
-    <input class="rationale" type="text" placeholder="rationale…" readonly>
-  </div>
-
-  <!-- tokenizers: plasma-decoder-finetune -->
-  <div class="dec open" data-page="tokenizers" data-key="plasma-decoder-finetune">
-    <div class="head">
-      <span class="key">plasma-decoder-finetune</span>
-      <a class="title link" href="tokenizers.html#open-decisions">Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?</a>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
-      Owned by <a class="link" href="tokenizers.html#open-decisions">tokenizers.html</a>
-      · <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>
-    </p>
-    <div class="choices read-only">
-      <button data-choice="v0-now" disabled>v0 now</button>
-      <button data-choice="post-encode" disabled>Post bulk encode</button>
-      <button data-choice="defer-v1" disabled>Defer to v1</button>
-    </div>
-    <input class="rationale" type="text" placeholder="rationale…" readonly>
-  </div>
-
-  <!-- tokenizers: patchtst-real-embedding -->
-  <div class="dec open" data-page="tokenizers" data-key="patchtst-real-embedding">
-    <div class="head">
-      <span class="key">patchtst-real-embedding</span>
-      <a class="title link" href="tokenizers.html#open-decisions">PatchTST real embedding — defer to v1 vs land in v0?</a>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
-      Owned by <a class="link" href="tokenizers.html#open-decisions">tokenizers.html</a>
-      · <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>
-    </p>
-    <div class="choices read-only">
-      <button data-choice="land-v0" disabled>Land in v0</button>
-      <button data-choice="defer-v1" disabled>Defer to v1</button>
-    </div>
-    <input class="rationale" type="text" placeholder="rationale…" readonly>
-  </div>
-
-  <!-- tokenizers: equilibrium-2d-tokenizer -->
-  <div class="dec open" data-page="tokenizers" data-key="equilibrium-2d-tokenizer">
-    <div class="head">
-      <span class="key">equilibrium-2d-tokenizer</span>
-      <a class="title link" href="tokenizers.html#open-decisions">Equilibrium 2-D tokenizer — which architecture?</a>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
-      Owned by <a class="link" href="tokenizers.html#open-decisions">tokenizers.html</a>
-      · <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>
-    </p>
-    <div class="choices read-only">
-      <button data-choice="vq-vae" disabled>VQ-VAE</button>
-      <button data-choice="magvit2" disabled>MAGVIT2 2-D</button>
-      <button data-choice="patchtst" disabled>PatchTST</button>
-      <button data-choice="defer" disabled>Defer</button>
-    </div>
-    <input class="rationale" type="text" placeholder="rationale…" readonly>
-  </div>
-
-  <!-- tokenizers: ir-camera-codebook -->
-  <div class="dec open" data-page="tokenizers" data-key="ir-camera-codebook">
-    <div class="head">
-      <span class="key">ir-camera-codebook</span>
-      <a class="title link" href="tokenizers.html#open-decisions">IR camera codebook — share with visible or allocate separate?</a>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
-      Owned by <a class="link" href="tokenizers.html#open-decisions">tokenizers.html</a>
-      · <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>
-    </p>
-    <div class="choices read-only">
-      <button data-choice="shared" disabled>Share codebook</button>
-      <button data-choice="separate" disabled>Separate codebook</button>
-    </div>
-    <input class="rationale" type="text" placeholder="rationale…" readonly>
-  </div>
-
-  <!-- compute: slurm-training-reservation -->
-  <div class="dec open" data-page="compute" data-key="slurm-training-reservation">
-    <div class="head">
-      <span class="key">slurm-training-reservation</span>
-      <a class="title link" href="compute.html#open-decisions">SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</a>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
-      Owned by <a class="link" href="compute.html#open-decisions">compute.html</a>
-    </p>
-    <div class="choices read-only">
-      <button data-choice="file-sdcc" disabled>File with SDCC</button>
-      <button data-choice="exclusive-pause" disabled>Stay with exclusive-pause</button>
-    </div>
-    <input class="rationale" type="text" placeholder="rationale…" readonly>
-  </div>
-
-  <!-- v0-runway: smoke-training-timing -->
-  <div class="dec open" data-page="v0-runway" data-key="smoke-training-timing">
-    <div class="head">
-      <span class="key">smoke-training-timing</span>
-      <a class="title link" href="v0-runway.html#open-decisions">125M smoke training run — run now or wait for bulk encode?</a>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
-      Owned by <a class="link" href="v0-runway.html#open-decisions">v0-runway.html</a>
-    </p>
-    <div class="choices read-only">
-      <button data-choice="run-now" disabled>Run now</button>
-      <button data-choice="wait-encode" disabled>Wait for bulk encode</button>
-    </div>
-    <input class="rationale" type="text" placeholder="rationale…" readonly>
-  </div>
-
-  <!-- demo: demo-shots-selection -->
-  <div class="dec open" data-page="demo" data-key="demo-shots-selection">
-    <div class="head">
-      <span class="key">demo-shots-selection</span>
-      <a class="title link" href="demo.html#open-decisions">Demo shots final selection</a>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
-      Owned by <a class="link" href="demo.html#open-decisions">demo.html</a>
-    </p>
-    <div class="choices read-only">
-      <button data-choice="curated" disabled>Curated set</button>
-      <button data-choice="random" disabled>Random sample</button>
-      <button data-choice="both" disabled>Both</button>
-    </div>
-    <input class="rationale" type="text" placeholder="rationale…" readonly>
-  </div>
-
-  <!-- data-acquisition: camera-selection-v0 -->
-  <div class="dec open" data-page="data-acquisition" data-key="camera-selection-v0">
-    <div class="head">
-      <span class="key">camera-selection-v0</span>
-      <a class="title link" href="data-acquisition.html#open-decisions">Camera selection for v0 training</a>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line" style="margin:4px 0 6px;font-size:13px;color:var(--muted);">
-      Owned by <a class="link" href="data-acquisition.html#open-decisions">data-acquisition.html</a>
-    </p>
-    <div class="choices read-only">
-      <button data-choice="visible-only" disabled>Visible only</button>
-      <button data-choice="ir-only" disabled>IR only</button>
-      <button data-choice="both" disabled>Both visible + IR</button>
-    </div>
-    <input class="rationale" type="text" placeholder="rationale…" readonly>
-  </div>
-
-</div><!-- #decisions-agg -->
-
-<div style="margin-top:18px;display:flex;gap:10px;align-items:center;">
-  <button class="btn sm" id="refresh-state">Refresh from server</button>
-  <span id="refresh-status" style="font-size:12px;color:var(--muted);"></span>
-</div>
-
-<section class="prose" style="font-size:15px;line-height:1.7;color:var(--ink-2);max-width:68ch;margin-top:40px;">
-  <h2 style="font-size:18px;font-weight:600;color:var(--ink);margin:0 0 10px;" id="how-it-works">How it works</h2>
-  <ol style="padding-left:1.4em;">
-    <li>Each decision row above lists its owning plan page.</li>
-    <li>Open that page and click an option in its <em>Open Decisions</em>
-      section — the choice writes to
-      <code>~/docs-server/state/imas-ambix/&lt;plan&gt;.json</code>.</li>
-    <li>Return here (or click <strong>Refresh from server</strong>) to see
-      the current choice live.</li>
-    <li>Agents read the same JSON files directly from the filesystem at
-      <code>~/docs-server/state/imas-ambix/</code> — humans and agents
-      share one source of truth.</li>
-  </ol>
-  <p>
-    Per-stage landed records (e.g.
-    <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a>)
-    have their own separate state files; this aggregator reads the
-    evergreen plan pages only.
-  </p>
-</section>
-
-</main>
-
-<script>
-(async function () {
-  const baseFromMeta = document.querySelector('meta[name="docs-server"]')?.getAttribute("content");
-  const base = baseFromMeta || window.location.origin;
-  const project = "imas-ambix";
-
-  async function fetchState(page) {
-    try {
-      const r = await fetch(`${base}/state/${project}/${page}`, { cache: "no-store" });
-      if (!r.ok) return {};
-      const env = await r.json();
-      return env.data?.decisions || env.data || {};
-    } catch (e) {
-      console.warn(`fetchState(${page}) failed`, e);
-      return {};
-    }
-  }
-
-  async function refresh() {
-    const rows = [...document.querySelectorAll("#decisions-agg .dec[data-page]")];
-    const pages = [...new Set(rows.map(r => r.dataset.page))];
-    const stateByPage = {};
-    await Promise.all(pages.map(async (p) => {
-      stateByPage[p] = await fetchState(p);
-    }));
-
-    for (const row of rows) {
-      const page = row.dataset.page;
-      const key  = row.dataset.key;
-      const s    = stateByPage[page]?.[key] ?? {};
-
-      // Mark locked vs open
-      if (s.choice) {
-        row.classList.remove("open");
-        row.classList.add("locked");
-      } else {
-        row.classList.add("open");
-        row.classList.remove("locked");
+  // Collect every decision across every plan in one list, attaching the plan slug.
+  function collectAllDecisions() {
+    const out = [];
+    for (const [slug, plan] of Object.entries(M.plans)) {
+      for (const d of (plan.decisions || [])) {
+        out.push({
+          plan: slug,
+          planTitle: plan.title,
+          ms: plan.ms,
+          ...d,
+        });
       }
-
-      // Highlight chosen button
-      row.querySelectorAll(".choices button").forEach(b => {
-        b.classList.toggle("chosen", b.getAttribute("data-choice") === s.choice);
-      });
-
-      // Fill rationale
-      const rat = row.querySelector('input.rationale');
-      if (rat) rat.value = s.rationale ?? "";
-
-      // Fill when
-      const when = row.querySelector('[data-field="when"]');
-      if (when) when.textContent = s.when ?? "";
     }
-
-    document.getElementById("refresh-status").textContent =
-      "Updated " + new Date().toLocaleTimeString();
+    return out;
   }
 
-  document.getElementById("refresh-state").addEventListener("click", refresh);
-  await refresh();
-})();
-</script>
+  // Decision card — free-form: chips commit on click; text + Send commits too.
+  // Collapses to a one-line summary once committed.
+  function DecisionCard({ d, onRationale, onLock }) {
+    const hasChoice    = !!d.chosen;
+    const hasRationale = !!(d._committedRationale && d._committedRationale.length);
+    const locked       = hasChoice || hasRationale;
+    const [collapsed, setCollapsed] = React.useState(locked);
+    React.useEffect(() => { if (locked) setCollapsed(true); }, [locked, d.when]);
 
-<script src="assets/app.js"></script>
+    const rationaleDirty = (d.rationale || "") !== (d._committedRationale || "");
+    const commit = (overrideChoice) => {
+      const choice = overrideChoice !== undefined ? overrideChoice : (d.chosen || "");
+      onLock(choice);
+    };
+
+    return (
+      <div className={`inline-decision ${locked ? "locked" : "open"} ${collapsed && locked ? "collapsed" : ""}`} id={`d-${d.key}`}>
+        <div className="h">
+          <span className="k">{d.key}</span>
+          <span className="t">{d.title}</span>
+          {locked
+            ? <span className="dim" style={{ fontSize: 11.5, fontFamily: "var(--mono)" }}>{collapsed ? "✓" : "open for edit"} by {d.by || "—"} · {d.when}</span>
+            : <span style={{ fontSize: 11.5, fontFamily: "var(--mono)", color: "var(--accent)" }}>open</span>}
+          {locked && (
+            <button className="reopen" onClick={() => setCollapsed(c => !c)}>
+              {collapsed ? "edit" : "done"}
+            </button>
+          )}
+        </div>
+
+        <div className="summary-line">
+          {d.chosen && <><strong>{d.chosen}</strong>{d._committedRationale && " — "}</>}
+          {d._committedRationale && <span>{d._committedRationale}</span>}
+          {!d.chosen && !d._committedRationale && <em>(empty)</em>}
+        </div>
+
+        {d.context && (<div style={{ color: "var(--muted)", fontSize: 13.5, marginBottom: 10, lineHeight: 1.55 }}>{d.context}</div>)}
+        <div className="c">
+          {d.choices.map(c => (
+            <button
+              key={c}
+              className={`${c === d.chosen ? "chosen" : ""} ${c.toLowerCase().includes("defer") ? "defer" : ""}`}
+              onClick={() => commit(c)}
+              title="Clicking commits this choice + the current rationale"
+            >{c}</button>
+          ))}
+        </div>
+        <div className="rationale-row">
+          <input
+            className={`r ${rationaleDirty ? "dirty" : ""}`}
+            placeholder="rationale or free-form comment (Enter to send)"
+            value={d.rationale || ""}
+            onChange={(e) => onRationale(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+          />
+          <button
+            className="send"
+            onClick={() => commit()}
+            title="Commit text (and current choice if any) to state"
+          >
+            {locked ? "Update ↵" : "Send ↵"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function Page() {
+    const [decisions, setDecisions] = useState(() => {
+      // Hydrate from localStorage so already-committed decisions render locked.
+      return collectAllDecisions().map(d => {
+        const s = Persist.load(d.plan);
+        const stored = s && s.decisions && s.decisions[d.key];
+        if (!stored) return d;
+        return { ...d, chosen: stored.choice || "", rationale: stored.rationale || "", when: stored.when || "", by: stored.by || "", _committedRationale: stored.rationale || "" };
+      });
+    });
+    const [filterStatus, setFilterStatus] = useState("open");
+    const [filterPlan, setFilterPlan]     = useState("");
+    const [query, setQuery]               = useState("");
+
+    const planList = [...new Set(decisions.map(d => d.plan))].sort();
+
+    const isLocked = (d) => !!d.chosen || !!d._committedRationale;
+    const filtered = decisions.filter(d =>
+      (filterStatus === ""    || (filterStatus === "open" && !isLocked(d)) || (filterStatus === "locked" && isLocked(d))) &&
+      (filterPlan === ""      || d.plan === filterPlan) &&
+      (!query || d.title.toLowerCase().includes(query.toLowerCase()) || d.key.includes(query.toLowerCase()))
+    );
+
+    const openCount   = decisions.filter(d => !isLocked(d)).length;
+    const lockedCount = decisions.filter(d =>  isLocked(d)).length;
+
+    // Group by plan
+    const byPlan = useMemo(() => {
+      const g = {};
+      for (const d of filtered) (g[d.plan] = g[d.plan] || []).push(d);
+      const planOrder = filtered.map(d => d.plan).filter((p, i, a) => a.indexOf(p) === i);
+      return planOrder.map(p => ({ plan: p, planTitle: g[p][0].planTitle, ms: g[p][0].ms, decisions: g[p] }));
+    }, [filtered]);
+
+    const lock = (plan, key, choice) => {
+      const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+      setDecisions(ds => ds.map(d =>
+        d.plan === plan && d.key === key
+          ? { ...d, chosen: choice, when: now, by: "smc" }
+          : d
+      ));
+      const cur = decisions.find(d => d.plan === plan && d.key === key);
+      const rationale = cur?.rationale || "";
+      Persist.save(plan, { [`decisions.${key}`]: { choice, rationale, when: now, by: "smc" } });
+      flashSaved(`${plan}.${key} → ${choice}`);
+    };
+    const setRationale = (plan, key, rationale) => {
+      setDecisions(ds => ds.map(d =>
+        d.plan === plan && d.key === key ? { ...d, rationale } : d
+      ));
+    };
+    const saveRationale = (plan, key) => {
+      const cur = decisions.find(d => d.plan === plan && d.key === key);
+      if (!cur) return;
+      Persist.save(plan, { [`decisions.${key}`]: { choice: cur.chosen, rationale: cur.rationale, when: cur.when, by: cur.by || "smc" } });
+      flashSaved(`${plan}.${key} rationale`);
+    };
+
+    return (
+      <div className="shell">
+        <Topbar project="imas-ambix" active="decisions" />
+
+        <main className="page wide">
+          <div className="page-head">
+            <div className="title">
+              <h1>Decisions</h1>
+              <div className="subtitle">
+                Every choice on every plan in the project. <strong>{openCount}</strong> open ·
+                <strong> {lockedCount}</strong> locked. Lock or change a call right here — chips POST to the
+                owning plan's state JSON. Open the plan only if you need full context beyond the row.
+              </div>
+            </div>
+            <div className="actions">
+              <button className="btn">Export as JSON</button>
+            </div>
+          </div>
+
+          <div className="stats">
+            <div className="stat"><div className="l">total</div><div className="n">{decisions.length}</div></div>
+            <div className="stat"><div className="l">open</div><div className="n" style={{ color: "var(--accent)" }}>{openCount}</div></div>
+            <div className="stat"><div className="l">locked</div><div className="n">{lockedCount}</div></div>
+            <div className="stat"><div className="l">plans w/ open</div><div className="n">{new Set(decisions.filter(d => !d.chosen).map(d => d.plan)).size}</div></div>
+            <div className="stat"><div className="l">oldest open</div><div className="n" style={{ fontSize: 16 }}>3d</div></div>
+            <div className="stat"><div className="l">last locked</div><div className="n" style={{ fontSize: 14 }}>2026-05-20 22:00</div></div>
+          </div>
+
+          <div className="filterbar">
+            <label className="search">
+              <span className="icon"><Icon name="search" /></span>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="filter by title or key…" />
+            </label>
+            <label className="field">
+              show
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="open">open only</option>
+                <option value="locked">locked only</option>
+                <option value="">all</option>
+              </select>
+            </label>
+            <label className="field">
+              plan
+              <select value={filterPlan} onChange={(e) => setFilterPlan(e.target.value)}>
+                <option value="">(all)</option>
+                {planList.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
+            <span className="count">{filtered.length} of {decisions.length}</span>
+          </div>
+
+          {/* Decisions grouped by plan, each row is an actionable InlineDecision-equivalent */}
+          {byPlan.length === 0 && (
+            <div className="dim" style={{ padding: 40, textAlign: "center" }}>No decisions match.</div>
+          )}
+          {byPlan.map(g => (
+            <section key={g.plan} style={{ marginTop: 24 }}>
+              <h2 style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <a className="link" href={`plan.html?slug=${encodeURIComponent(g.plan)}`} style={{ color: "var(--ink)", border: 0, fontWeight: 600, textTransform: "none", letterSpacing: 0, fontSize: 14 }}>
+                  {g.planTitle}
+                </a>
+                <span className="dim" style={{ fontFamily: "var(--mono)", fontSize: 11.5, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>/{g.plan}</span>
+                <Tag kind="ms">{g.ms}</Tag>
+                <span className="count">{g.decisions.length}</span>
+                <span className="sp"></span>
+                <a className="link" href={`plan.html?slug=${encodeURIComponent(g.plan)}`} style={{ fontSize: 11.5, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>open plan ↗</a>
+              </h2>
+
+              {g.decisions.map(d => (
+                <DecisionCard
+                  key={d.key}
+                  d={d}
+                  onSelect={(c) => {/* visual selection only — local to card */}}
+                  onRationale={(text) => setRationale(d.plan, d.key, text)}
+                  onLock={(choice) => lock(d.plan, d.key, choice)}
+                />
+              ))}
+            </section>
+          ))}
+
+          <div className="card" style={{ marginTop: 36 }}>
+            <div className="card-head"><h3>How decisions move</h3></div>
+            <div className="card-body" style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.65 }}>
+              <p style={{ marginTop: 0 }}>
+                Each decision belongs to one plan. Clicking a choice on this page is exactly equivalent to
+                clicking it on the plan page — both POST to
+                <code> docs/state/imas-ambix/&lt;plan&gt;.json#decisions.&lt;key&gt;</code>. The aggregator
+                exists so you can sweep through every open call in one pass instead of opening every plan.
+              </p>
+              <p style={{ marginBottom: 0 }}>
+                On the published GitHub Pages site the chips are disabled (read-only mode banner explains).
+                To record a decision there, edit the state JSON in the repo and commit; the aggregator picks
+                it up on next load.
+              </p>
+            </div>
+          </div>
+
+        </main>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<Page />);
+</script>
 </body>
 </html>

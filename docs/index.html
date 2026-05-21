@@ -1,698 +1,242 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Coordination Hub | Ambix Plans</title>
-<link rel="stylesheet" href="_shared/foundation.css">
-<link rel="stylesheet" href="_shared/dashboard.css">
-<script src="_shared/state.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>imas-ambix · dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="foundation.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="project.css">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 </head>
 <body>
 
-<div class="topbar">
-  <a class="brand" href="index.html">
-    <span class="mark">A</span>
-    <span class="proj-name">imas-ambix</span>
-  </a>
-  <nav>
-    <a href="index.html" class="active">Index</a>
-    <a href="STRATEGY.html">Strategy</a>
-    <a href="v0-runway.html">v0 Runway</a>
-    <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data acq</a>
-    <a href="data-quality.html">Quality</a>
-    <a href="tokenizers.html">Tokenizers</a>
-    <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World model</a>
-    <a href="demo.html">Demo</a>
-    <a href="decisions.html">Decisions</a>
-  </nav>
-  <div class="right"></div>
-</div>
+<div id="root"></div>
 
-<main class="page wide">
+<script src="mockdata.js"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel">
+  const M = window.MOCK;
 
-<div class="page-head">
-  <div class="title">
-    <h1>Ambix Plans — Coordination Hub</h1>
-    <div class="subtitle">imas-ambix / Fusion World Model ·
-      Updated <time id="updated">2026-05-20</time> ·
-      <a href="decisions.html">All open decisions →</a>
-    </div>
-  </div>
-</div>
-
-<h2 id="quick-status">Quick Status</h2>
-
-<div class="stats">
-  <div class="stat">
-    <div class="l">L2 Mirror</div>
-    <div class="n">11,573 <span class="of">shots</span></div>
-    <div class="delta"><span class="status shipped"><span class="dot"></span>Complete · 4.5 TB</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">L1 Camera Mirror</div>
-    <div class="n">11,029 <span class="of">shot dirs</span></div>
-    <div class="delta"><span class="status shipped"><span class="dot"></span>Complete · 2.7 TB</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">L1 All-Sources</div>
-    <div class="n">In flight</div>
-    <div class="delta"><span class="status active"><span class="dot"></span>launched ~07:00 UTC</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">Tokenizer Scaffold</div>
-    <div class="n">Done</div>
-    <div class="delta"><span class="status shipped"><span class="dot"></span>registry + Open-MAGVIT2 + Chronos + PatchTST</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">Data Quality</div>
-    <div class="n">76%</div>
-    <div class="delta"><span class="status shipped"><span class="dot"></span>22 tests · usable rate on 25-shot sample</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">Bench Framework</div>
-    <div class="n">Done</div>
-    <div class="delta"><span class="status shipped"><span class="dot"></span>14 tests · real bench on 8 rbb frames</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">Training Loop</div>
-    <div class="n">Done</div>
-    <div class="delta"><span class="status shipped"><span class="dot"></span>FSDP + cosine LR + weighted CE · 25 tests</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">Demo CLI</div>
-    <div class="n">Done</div>
-    <div class="delta"><span class="status shipped"><span class="dot"></span>rollout() + 20 tests + 31 eval tests</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">Bulk GPU Encode</div>
-    <div class="n">Next</div>
-    <div class="delta"><span class="status pending"><span class="dot"></span>Open-MAGVIT2 GPU runner ready; needs SLURM run</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">Smoke Training Run</div>
-    <div class="n">Blocked</div>
-    <div class="delta"><span class="status blocked"><span class="dot"></span>needs bulk encode + reservation</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">500M Curriculum</div>
-    <div class="n">Blocked</div>
-    <div class="delta"><span class="status blocked"><span class="dot"></span>Phase 2d green + reservation granted</span></div>
-  </div>
-  <div class="stat">
-    <div class="l">v0 Demo</div>
-    <div class="n">Blocked</div>
-    <div class="delta"><span class="status blocked"><span class="dot"></span>trained checkpoint needed</span></div>
-  </div>
-</div>
-
-
-<h2 id="timeline">Timeline</h2>
-<p>Click any phase for details.</p>
-
-<div class="ms-stepper">
-  <div class="step shipped">
-    <div class="dot"></div>
-    <div class="line"><i></i></div>
-    <div class="id">M0</div>
-    <div class="name">Phase 0 — Probe &amp; Mirror</div>
-    <div class="pct">100%</div>
-    <div class="detail">
-      L2 mirror: 11,573 shots, 4.5 TB<br>
-      L1 cameras: 11,029 shots, 2.7 TB<br>
-      L1-all in flight (~07:00 UTC)
-    </div>
-  </div>
-  <div class="step shipped">
-    <div class="dot"></div>
-    <div class="line"><i></i></div>
-    <div class="id">M1</div>
-    <div class="name">Phase 1 — Tokenizer Proto</div>
-    <div class="pct">100%</div>
-    <div class="detail">
-      Registry + Open-MAGVIT2<br>
-      Chronos + PatchTST<br>
-      Multimodal aggregator<br>
-      51 tokenizer tests green
-    </div>
-  </div>
-  <div class="step shipped">
-    <div class="dot"></div>
-    <div class="line"><i></i></div>
-    <div class="id">M1.5</div>
-    <div class="name">Phase 1.5 — Quality &amp; Bench</div>
-    <div class="pct">100%</div>
-    <div class="detail">
-      Audit recalibrated (FAIR-MAST xarray-on-Zarr)<br>
-      Bench framework landed (14 tests)<br>
-      Calibration library (17 tests)<br>
-      76 % usable-for-training on 25-shot sample
-    </div>
-  </div>
-  <div class="step shipped">
-    <div class="dot"></div>
-    <div class="line"><i></i></div>
-    <div class="id">M2a</div>
-    <div class="name">Phase 2a — Model Scaffold</div>
-    <div class="pct">100%</div>
-    <div class="detail">
-      WhamConfig + WhamModel<br>
-      125M (328M params) + 500M (689M params) configs<br>
-      8 model tests green
-    </div>
-  </div>
-  <div class="step shipped">
-    <div class="dot"></div>
-    <div class="line"><i></i></div>
-    <div class="id">M2b</div>
-    <div class="name">Phase 2b — Training Loop</div>
-    <div class="pct">100%</div>
-    <div class="detail">
-      FSDP launcher + cosine LR + weighted CE<br>
-      CPU smoke: loss step 0 = 12.72 (log(280k) baseline ✓)<br>
-      25 tests green
-    </div>
-  </div>
-  <div class="step active">
-    <div class="dot"></div>
-    <div class="line"><i></i></div>
-    <div class="id">M2c</div>
-    <div class="name">Phase 2c — Bulk Encode</div>
-    <div class="pct">Next</div>
-    <div class="detail">
-      Open-MAGVIT2 GPU runner ready<br>
-      Needs SLURM run on betelgeuse<br>
-      ~450,000 rbb frames to encode
-    </div>
-  </div>
-  <div class="step blocked">
-    <div class="dot"></div>
-    <div class="line"><i></i></div>
-    <div class="id">M2d</div>
-    <div class="name">Phase 2d — Smoke Run</div>
-    <div class="pct">Blocked</div>
-    <div class="detail">
-      Blocked by: bulk encoding (2c) + dedicated reservation request<br>
-      125M model, 1 GPU, ~10 shots, validate loss curve
-    </div>
-  </div>
-  <div class="step blocked">
-    <div class="dot"></div>
-    <div class="line"><i></i></div>
-    <div class="id">M2e</div>
-    <div class="name">Phase 2e — 500M Curriculum</div>
-    <div class="pct">Blocked</div>
-    <div class="detail">
-      Blocked by: Phase 2d green + reservation granted<br>
-      4×H200 exclusive, 60K steps, bf16 FSDP ZeRO-3
-    </div>
-  </div>
-  <div class="step blocked">
-    <div class="dot"></div>
-    <div class="line"><i></i></div>
-    <div class="id">M2f</div>
-    <div class="name">Phase 2f — Demo</div>
-    <div class="pct">Blocked</div>
-    <div class="detail">
-      Blocked by: trained checkpoint<br>
-      Wide-angle camera forward-prediction on shots 30420/30421<br>
-      rFID ≤ 8 target, side-by-side MP4
-    </div>
-  </div>
-</div>
-
-
-<h2 id="plans">Plans</h2>
-
-<div class="table-scroll">
-  <table class="t">
-    <thead>
-      <tr><th>Plan</th><th>Scope</th><th>Status</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td class="title"><a class="link" href="STRATEGY.html">STRATEGY</a></td>
-        <td class="muted">Vision, roadmap, success criteria, risk register</td>
-        <td><span class="status active"><span class="dot"></span>Active</span></td>
-      </tr>
-      <tr>
-        <td class="title"><a class="link" href="v0-runway.html">v0 Runway</a></td>
-        <td class="muted">Active operational plan — next-step ranking, fleet-dispatch table</td>
-        <td><span class="status active"><span class="dot"></span>Active</span></td>
-      </tr>
-      <tr>
-        <td class="title"><a class="link" href="compute.html">Compute</a></td>
-        <td class="muted">SLURM patterns, FSDP, reservation request</td>
-        <td><span class="status active"><span class="dot"></span>Active</span></td>
-      </tr>
-      <tr>
-        <td class="title"><a class="link" href="data-acquisition.html">Data Acquisition</a></td>
-        <td class="muted">FAIR-MAST endpoints, probe, bulk-download protocol</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-      </tr>
-      <tr>
-        <td class="title"><a class="link" href="data-quality.html">Data Quality</a></td>
-        <td class="muted">Audit framework, FAIR-MAST format reality, training-grade gate</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-      </tr>
-      <tr>
-        <td class="title"><a class="link" href="tokenizers.html">Tokenizers</a></td>
-        <td class="muted">Multi-modal tokenizer design, expansion roadmap (§12)</td>
-        <td><span class="status active"><span class="dot"></span>Active</span></td>
-      </tr>
-      <tr>
-        <td class="title"><a class="link" href="tokenizer-benchmarks.html">Tokenizer Benchmarks</a></td>
-        <td class="muted">Closed-loop comparison framework, rFID acceptance gates</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-      </tr>
-      <tr>
-        <td class="title"><a class="link" href="world-model-v0.html">World Model v0</a></td>
-        <td class="muted">WHAM-style model, training recipe, rollout</td>
-        <td><span class="status active"><span class="dot"></span>In progress</span></td>
-      </tr>
-      <tr>
-        <td class="title"><a class="link" href="demo.html">Demo</a></td>
-        <td class="muted">Wide-angle viewing system forward-prediction demo</td>
-        <td><span class="status blocked"><span class="dot"></span>Blocked</span></td>
-      </tr>
-      <tr>
-        <td class="title"><a class="link" href="decisions.html">All Decisions</a></td>
-        <td class="muted">Aggregated open-decision capture view</td>
-        <td>—</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
-
-<h2 id="current-status">Current Status Table</h2>
-
-<div class="filterbar">
-  <h2 style="margin:0">Status</h2>
-  <span class="sp"></span>
-  <label class="field">
-    filter
-    <select id="status-filter">
-      <option value="all">all</option>
-      <option value="done">done</option>
-      <option value="flight">in flight</option>
-      <option value="next">next</option>
-      <option value="blocked">blocked</option>
-      <option value="pending">pending</option>
-    </select>
-  </label>
-</div>
-
-<div class="table-scroll">
-  <table class="t compact" id="status-table">
-    <thead>
-      <tr>
-        <th>Track</th>
-        <th>Status</th>
-        <th>Notes</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr class="status-row" data-status="done">
-        <td>Level-2 mirror</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>11,573 shots, 4.5 TB; bucket du authoritative</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Level-1 camera mirror</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>2.7 TB, 11,029 shot dirs</td>
-      </tr>
-      <tr class="status-row" data-status="flight">
-        <td>Level-1 ALL-sources mirror</td>
-        <td><span class="status active"><span class="dot"></span>In flight</span></td>
-        <td>manifest level1-all.json launched ~07:00 UTC</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Tokenizer scaffold</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>registry + alignment + multimodal aggregator + CLI</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Open-MAGVIT2 frame tokenizer</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>real model end-to-end; MAE 324 on rbb; CUDA wheel installed</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Chronos signal tokenizer</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>r ≈ 0.985 round-trip on synthetic sine/cosine</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>PatchTST identity wrapper</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>bit-exact round-trip</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Eval metrics module</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>rFID, PSNR, LPIPS, centroid, chord, edge; 31 tests</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>WHAM model + 125M/500M configs</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>8 tests; 125M=328M params (embedding-table dominated)</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Data loaders + token persistence</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>15 tests; ambix data tokens-status live</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>block_kind side data</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>51 tokenizer tests; weighted-CE loss mask ready</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>CLI smoke tests</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>42 tests; data/cli.py 86%, tokenizer/cli.py 97%</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Data quality framework</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>22 tests; 25-shot audit: 76% usable_for_training</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Tokenizer benchmark framework</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>14 tests; real bench on 8 rbb frames</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Calibration library</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>17 tests; real data: Ip mean 294 kA, density 4.6e19 m⁻³</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Bulk-encode CLI</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>15 tests; CPU smoke on shot 15085: 9,380 tokens</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Training loop FSDP scaffold</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>25 tests; CPU smoke loss=12.72 (log(280k) baseline)</td>
-      </tr>
-      <tr class="status-row" data-status="done">
-        <td>Demo CLI + rollout impl</td>
-        <td><span class="status shipped"><span class="dot"></span>Done</span></td>
-        <td>20 tests + 31 eval tests; mock-checkpoint pipeline working</td>
-      </tr>
-      <tr class="status-row" data-status="next">
-        <td>Bulk GPU encode (rbb corpus)</td>
-        <td><span class="status pending"><span class="dot"></span>Next</span></td>
-        <td>Open-MAGVIT2 GPU runner ready; needs SLURM run on betelgeuse</td>
-      </tr>
-      <tr class="status-row" data-status="blocked">
-        <td>Smoke training run (125M)</td>
-        <td><span class="status blocked"><span class="dot"></span>Blocked</span></td>
-        <td>Waiting on: bulk encode + SLURM reservation</td>
-      </tr>
-      <tr class="status-row" data-status="blocked">
-        <td>500M curriculum run</td>
-        <td><span class="status blocked"><span class="dot"></span>Blocked</span></td>
-        <td>Waiting on: smoke run green + reservation granted</td>
-      </tr>
-      <tr class="status-row" data-status="blocked">
-        <td>v0 Demo</td>
-        <td><span class="status blocked"><span class="dot"></span>Blocked</span></td>
-        <td>Waiting on: trained checkpoint</td>
-      </tr>
-      <tr class="status-row" data-status="pending">
-        <td>Tokenizer expansion (§12)</td>
-        <td><span class="status pending"><span class="dot"></span>Pending</span></td>
-        <td>Plasma decoder fine-tune + PatchTST real + eq. 2-D — after bench baseline</td>
-      </tr>
-      <tr class="status-row" data-status="pending">
-        <td>Mirror integrity verification</td>
-        <td><span class="status pending"><span class="dot"></span>Pending</span></td>
-        <td>After level-2 done; re-run s5cmd cp, check zero new objects</td>
-      </tr>
-      <tr class="status-row" data-status="pending">
-        <td>SLURM dedicated reservation</td>
-        <td><span class="status pending"><span class="dot"></span>Pending</span></td>
-        <td>User action: file with SDCC ops (request body in compute.md §3.2)</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
-
-<h2 id="blocking-tasks">Blocking Tasks</h2>
-
-<div class="card surface" style="margin-top:14px;">
-  <div class="card-head"><h3>Blocking tasks</h3></div>
-  <div class="card-body">
-    <div class="blocker-row">
-      <div>
-        <div class="what">Bulk GPU encode of rbb corpus</div>
-        <div class="origin">Action: run <code>ambix data bulk-encode-frames</code> on betelgeuse with Open-MAGVIT2 GPU runner</div>
-        <div class="next">What it unblocks: smoke training run + benchmark baselines</div>
+  function MsStepper({ items }) {
+    return (
+      <div className="ms-stepper">
+        {items.map((m, i) => (
+          <div className={`step ${m.status}`} key={m.id}>
+            <div className="dot"></div>
+            <div className="line"><i style={{ width: `${m.pct}%` }}></i></div>
+            <div className="id">{m.id} · {m.status}</div>
+            <div className="name">{m.name}</div>
+            <div className="pct">{m.pct}%</div>
+          </div>
+        ))}
       </div>
-      <span class="status blocked"><span class="dot"></span>Blocked</span>
-    </div>
-    <div class="blocker-row">
-      <div>
-        <div class="what">SLURM dedicated reservation request (compute.md §3.2)</div>
-        <div class="origin">Action: user files request with SDCC ops — request body ready in <a href="compute.html">compute.html</a> §3.2</div>
-        <div class="next">What it unblocks: 500M curriculum training run</div>
-      </div>
-      <span class="status blocked"><span class="dot"></span>Blocked</span>
-    </div>
-    <div class="blocker-row">
-      <div>
-        <div class="what">125M smoke training run</div>
-        <div class="origin">Waiting on: bulk GPU encode (above)</div>
-        <div class="next">What it unblocks: 500M curriculum + confidence in FSDP pipeline</div>
-      </div>
-      <span class="status blocked"><span class="dot"></span>Blocked</span>
-    </div>
-    <div class="blocker-row">
-      <div>
-        <div class="what">500M curriculum training</div>
-        <div class="origin">Waiting on: smoke run green + reservation granted</div>
-        <div class="next">What it unblocks: v0 demo</div>
-      </div>
-      <span class="status blocked"><span class="dot"></span>Blocked</span>
-    </div>
-    <div class="blocker-row">
-      <div>
-        <div class="what">Demo shot selection finalisation</div>
-        <div class="origin">Waiting on: charge_exchange decision (see open decisions below)</div>
-        <div class="next">Current candidates: 30420, 30421, one M6-era TBD</div>
-      </div>
-      <span class="status blocked"><span class="dot"></span>Blocked</span>
-    </div>
-  </div>
-</div>
-
-
-<h2 id="open-decisions">Open Decisions</h2>
-<p>Each decision below surfaces a choice that can be made now. Click a choice button to record your decision.</p>
-
-<div class="decisions" id="decisions">
-
-  <div class="dec open" data-key="drop-charge-exchange">
-    <div class="head">
-      <span class="key">drop-charge-exchange</span>
-      <span class="title">Drop charge_exchange from v0 training corpus?</span>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line">Audit on a 25-shot L2 sample found ~50% bit-pattern corruption in <code>charge_exchange/t_i</code> and <code>charge_exchange/v_i</code>, with values 10²⁶–10³⁸ (physical range: ≤ 30 keV / 10⁷ m/s). The diagnostic is only present in 37.9% of the 11,573 shots regardless. Source: <code>plans/data-quality.md</code> §10.4.</p>
-    <div class="choices">
-      <button data-choice="yes-drop">Yes — drop charge_exchange entirely from v0 training</button>
-      <button data-choice="keep-clip">Keep but hard-clip abs &gt; 1e25 and zero out corrupted channels</button>
-      <button data-choice="defer">Defer — run the full 11,573-shot audit first, decide after</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-
-  <div class="dec open" data-key="plasma-decoder-finetune">
-    <div class="head">
-      <span class="key">plasma-decoder-finetune</span>
-      <span class="title">Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?</span>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line">The current ImageNet-pretrained decoder produces MAE 324 (uint16) on MAST rbb shot 15085. Expected rFID on plasma imagery without fine-tune: 10–30. Decoder fine-tune cost: ~4–6 GPU-hours exclusive. Trigger gate (from plan): rFID &gt; 5 on the 100-shot rbb benchmark. Source: <code>plans/tokenizers.md</code> §12.1.</p>
-    <div class="choices">
-      <button data-choice="yes-now">Fine-tune now — start before the 125M smoke run</button>
-      <button data-choice="yes-if-rfid">Fine-tune only if measured rFID &gt; 5 (benchmark first)</button>
-      <button data-choice="defer-v1">Defer to v1 — proceed with ImageNet decoder for v0</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-
-  <div class="dec open" data-key="patchtst-real-embedding">
-    <div class="head">
-      <span class="key">patchtst-real-embedding</span>
-      <span class="title">PatchTST real embedding — defer to v1 vs land in v0?</span>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line">Current state: identity passthrough (token ID 0, raw floats in metadata). The patch-projection matrix trains end-to-end inside the WHAM trunk. Real PatchTST would add ~1M trainable params with channel-independent self-attention over patches. Estimated effort: 1 Sonnet session. Source: <code>plans/tokenizers.md</code> §12.2.</p>
-    <div class="choices">
-      <button data-choice="defer-v1">Defer to v1 — keep identity passthrough for v0</button>
-      <button data-choice="land-v0">Land real PatchTST in v0 (after the 125M smoke run is green)</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-
-  <div class="dec open" data-key="equilibrium-2d-tokenizer">
-    <div class="head">
-      <span class="key">equilibrium-2d-tokenizer</span>
-      <span class="title">Equilibrium 2-D tokenizer — which architecture?</span>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line">Currently: equilibrium 2-D enters as a continuous cross-attention tensor (not tokenized). Two options to tokenize: Option A — reuse Open-MAGVIT2 at upsampled 256×256 (0.5 Sonnet sessions, no fine-tune). Option B — Cosmos-Tokenizer-DV at native 65×65 (NVIDIA OML weights, license check needed). Source: <code>plans/tokenizers.md</code> §12.3.</p>
-    <div class="choices">
-      <button data-choice="keep-v0">Keep as continuous cross-attention tensor for v0 (current plan)</button>
-      <button data-choice="option-a">Option A — Open-MAGVIT2 upsampled 256×256 (reuse codebook)</button>
-      <button data-choice="option-b">Option B — Cosmos-Tokenizer-DV at native 65×65 (separate codebook)</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-
-  <div class="dec open" data-key="ir-camera-codebook">
-    <div class="head">
-      <span class="key">ir-camera-codebook</span>
-      <span class="title">IR camera codebook — share with visible or allocate separate?</span>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line">Only 25 rir shots in FAIR-MAST (per data-acquisition.md §10.4). Current v0 default: share the Open-MAGVIT2 visible codebook. Decision gate: if IR MAE &gt; 2× rbb MAE, allocate separate block. rFID unreliable with n=25; use MAE as primary metric. Source: <code>plans/tokenizers.md</code> §12.5.</p>
-    <div class="choices">
-      <button data-choice="share">Share visible codebook for IR (v0 default)</button>
-      <button data-choice="separate">Allocate separate registry block and fine-tune IR decoder</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-
-  <div class="dec open" data-key="slurm-training-reservation">
-    <div class="head">
-      <span class="key">slurm-training-reservation</span>
-      <span class="title">SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</span>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line">Current decision (2026-05-20): exclusive-pause mode — stop DeepSeek V4-Flash before training, restart after. Alternative: file a dedicated <code>gpu_0003_grpA_train</code> reservation (request body in <code>plans/compute.md</code> §3.2). Source: <code>plans/compute.md</code> §2–3.</p>
-    <div class="choices">
-      <button data-choice="exclusive-pause">Stay with exclusive-pause (current plan, no SDCC request needed)</button>
-      <button data-choice="file-now">File the dedicated reservation request with SDCC ops now</button>
-      <button data-choice="schedule-windows">Schedule around serving in overnight/weekend windows</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-
-  <div class="dec open" data-key="smoke-training-timing">
-    <div class="head">
-      <span class="key">smoke-training-timing</span>
-      <span class="title">125M smoke training run — run now or wait for bulk encode?</span>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line">Training loop FSDP scaffold is landed. Bulk-encode CLI produced 9,380 tokens for shot 15085 (CPU). A smoke run needs ~10 shots. The full GPU bulk-encode for ~3,000 rbb shots is pending the SLURM run. Source: <code>plans/v0-runway.md</code> §4.</p>
-    <div class="choices">
-      <button data-choice="run-now">Run now with the ~10 CPU-encoded shots (validate loop immediately)</button>
-      <button data-choice="wait-gpu">Wait for GPU bulk-encode to complete (~3,000 shots)</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-
-  <div class="dec open" data-key="demo-shots-selection">
-    <div class="head">
-      <span class="key">demo-shots-selection</span>
-      <span class="title">Demo shots final selection</span>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line">Current candidates: 30420 + 30421 (FAIR-MAST quickstart shots) + one M6-era TBD. Audit data now available to pick shots with confirmed clean data. Charge-exchange corruption affects ~50% of shots but shots 30420/30421 are M9-era — need to verify their CX status. Source: <code>plans/demo.md</code> §3.</p>
-    <div class="choices">
-      <button data-choice="30420-30421-m6">30420 + 30421 + M6-era TBD (original plan)</button>
-      <button data-choice="30420-30421-no-cx">30420 + 30421 + M8/M9 shot confirmed clean CX</button>
-      <button data-choice="defer">Defer selection until full corpus audit is complete</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-
-  <div class="dec open" data-key="camera-selection-v0">
-    <div class="head">
-      <span class="key">camera-selection-v0</span>
-      <span class="title">Camera selection for v0 training</span>
-      <span class="when" data-field="when"></span>
-    </div>
-    <p class="subtitle-line">Level-1 inventory: rbb = 9,527 shots (55.7%), rba = 6,155 shots (36.0%), rir = 25 shots (rare). rbb is the wide-angle midplane view; rba is the lower/divertor view; rir is infrared divertor. Adding more cameras → more training data per shot but adds IR codebook complexity. Source: <code>plans/data-acquisition.md</code> §11.2.</p>
-    <div class="choices">
-      <button data-choice="rbb-only">rbb only — 9,527 shots, widest coverage</button>
-      <button data-choice="rbb-rba">rbb + rba — both visible cameras, ~6,155 overlap shots</button>
-      <button data-choice="rbb-rba-rir">rbb + rba + rir — all cameras including IR</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-
-</div>
-
-</main>
-
-<script src="assets/app.js"></script>
-<script>
-// Wire decision choice buttons to lockDecision() from state.js
-document.addEventListener("DOMContentLoaded", async () => {
-  const blob = await loadState();
-  const stateDecs = getDecisions(blob);
-
-  // Hydrate locked decisions from state JSON
-  document.querySelectorAll(".dec[data-key]").forEach(row => {
-    const key = row.getAttribute("data-key");
-    const s = stateDecs[key];
-    if (!s) return;
-    row.classList.add("locked");
-    row.classList.remove("open");
-    row.querySelectorAll(".choices button").forEach(b => {
-      if (b.getAttribute("data-choice") === s.choice) b.classList.add("chosen");
-    });
-    const rat = row.querySelector('input[data-field="rationale"]');
-    if (rat && s.rationale) rat.value = s.rationale;
-    const when = row.querySelector('[data-field="when"]');
-    if (when && s.when) when.textContent = s.when;
-  });
-
-  // Wire choice button clicks
-  document.querySelectorAll(".dec[data-key]").forEach(row => {
-    const key = row.getAttribute("data-key");
-    row.querySelectorAll(".choices button").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const choice = btn.getAttribute("data-choice");
-        const rat = row.querySelector('input[data-field="rationale"]')?.value || "";
-        try {
-          await lockDecision(key, choice, rat);
-          row.querySelectorAll(".choices button").forEach(b => b.classList.remove("chosen"));
-          btn.classList.add("chosen");
-          row.classList.add("locked");
-          row.classList.remove("open");
-          const when = row.querySelector('[data-field="when"]');
-          if (when) when.textContent = "(saved locally — promote by editing the repo JSON)";
-        } catch (e) {
-          alert(e.message);
-        }
-      });
-    });
-  });
-
-  // Wire status filter select
-  const filterSelect = document.getElementById("status-filter");
-  if (filterSelect) {
-    filterSelect.addEventListener("change", () => {
-      const val = filterSelect.value;
-      document.querySelectorAll(".status-row").forEach(row => {
-        const s = row.getAttribute("data-status");
-        row.style.display = (val === "all" || s === val) ? "" : "none";
-      });
-    });
+    );
   }
-});
-</script>
 
+  function MiniKCard({ p }) {
+    return (
+      <a className={`kanban-card ${p.status === "blocked" ? "blocked" : ""}`} href={`plan.html?slug=${encodeURIComponent(p.slug)}`}>
+        <div className="t">{p.title}</div>
+        <div className="row">
+          <Roi v={p.roi} />
+          <Tag kind="ms">{p.ms}</Tag>
+          <span className="sp"></span>
+          <Bar v={p.impl} width={40} />
+        </div>
+      </a>
+    );
+  }
+
+  function Project() {
+    const p = M.projects[0];
+    const sprint = M.sprint;
+    const items = sprint.items.map(slug => M.inventory.find(i => i.slug === slug)).filter(Boolean);
+    const STATUS_TO_COL = { pending: "todo", active: "doing", blocked: "doing", shipped: "done" };
+    const grouped = { todo: [], doing: [], done: [] };
+    for (const i of items) grouped[STATUS_TO_COL[i.status]]?.push(i);
+
+    // group all plans by status for the "plans" section
+    const planGroups = {
+      active:  M.inventory.filter(i => i.status === "active"),
+      blocked: M.inventory.filter(i => i.status === "blocked"),
+      pending: M.inventory.filter(i => i.status === "pending"),
+      shipped: M.inventory.filter(i => i.status === "shipped"),
+    };
+
+    const sprintDone = grouped.done.length;
+    const sprintTotal = items.length;
+
+    return (
+      <div className="shell">
+        <Topbar project={p.project} active="overview" />
+
+        <main className="page wide">
+          <div className="page-head">
+            <div className="title">
+              <h1>{p.project}</h1>
+              <div className="subtitle">
+                Project landing. Where things stand: milestone arc, current sprint, every plan grouped by status.
+                {" "}{p.plans_count} plans &middot; sprint <strong>{sprint.id}</strong> in flight &middot; M1 active, M2 pending &middot; owner {p.owner}.
+              </div>
+            </div>
+            <div className="actions">
+              <a className="btn ghost" href="inventory.html">All plans</a>
+              <button className="btn primary">+ New plan</button>
+            </div>
+          </div>
+
+          {/* MILESTONES — agile stepper */}
+          <h2>Milestone arc</h2>
+          <MsStepper items={p.milestones} />
+
+          {/* PROGRESS STATS — kept; user said they liked this */}
+          <div className="stats" style={{ marginTop: 8 }}>
+            <div className="stat"><div className="l">total</div><div className="n">{p.plans_count}</div></div>
+            <div className="stat"><div className="l">active</div><div className="n">{p.active}</div></div>
+            <div className="stat"><div className="l">blocked</div><div className="n" style={{ color: "var(--bad)" }}>{p.blocked}</div></div>
+            <div className="stat"><div className="l">pending</div><div className="n">{p.pending}</div></div>
+            <div className="stat"><div className="l">shipped</div><div className="n">{p.shipped}</div></div>
+            <div className="stat">
+              <div className="l">impl.</div>
+              <div className="n">{Math.round(p.shipped / p.plans_count * 100)}<span className="of">%</span></div>
+              <div className="mt-2"><Bar v={p.shipped / p.plans_count} width={110} /></div>
+            </div>
+          </div>
+
+          {/* ACTIVE SPRINT — compact kanban preview */}
+          <h2>
+            Sprint {sprint.id}
+            <span className="count">
+              {sprint.theme} · {sprintDone}/{sprintTotal} done
+            </span>
+            <span className="sp"></span>
+            <a className="btn sm" href="sprint.html" style={{ float: "right", marginTop: -4 }}>Open board →</a>
+          </h2>
+
+          <div className="kanban">
+            {[
+              { id: "todo",  title: "To do",  cards: grouped.todo },
+              { id: "doing", title: "Doing",  cards: grouped.doing },
+              { id: "done",  title: "Done",   cards: grouped.done },
+            ].map(col => (
+              <div className="col" key={col.id}>
+                <div className="col-head">
+                  <span className="title">{col.title}</span>
+                  <span className="count">{col.cards.length}</span>
+                </div>
+                <div className="cards">
+                  {col.cards.map(p => <MiniKCard p={p} key={p.slug} />)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* PLANS — by status group; click into plan.html */}
+          <h2>Plans by status <span className="count">{M.inventory.length} total</span></h2>
+          <div className="dashgrid even" style={{ alignItems: "start" }}>
+            <div>
+              <h3 style={{ color: "var(--accent)" }}>Active <span className="dim">· {planGroups.active.length}</span></h3>
+              <div className="card">
+                <div className="card-body flush">
+                  {planGroups.active.map(i => (
+                    <a key={i.slug} href={`plan.html?slug=${encodeURIComponent(i.slug)}`} className="blocker-row" style={{ padding: "10px 16px", textDecoration: "none" }}>
+                      <div>
+                        <div className="what">{i.title}</div>
+                        <div className="origin">/{i.slug} · last write {i.last}</div>
+                      </div>
+                      <Roi v={i.roi} />
+                      <Bar v={i.impl} width={70} />
+                      <Tag kind="ms">{i.ms}</Tag>
+                    </a>
+                  ))}
+                </div>
+              </div>
+
+              <h3 style={{ color: "var(--bad)", marginTop: 18 }}>Blocked <span className="dim">· {planGroups.blocked.length}</span></h3>
+              <div className="card">
+                <div className="card-body flush">
+                  {planGroups.blocked.map(i => (
+                    <a key={i.slug} href={`plan.html?slug=${encodeURIComponent(i.slug)}`} className="blocker-row" style={{ padding: "10px 16px", textDecoration: "none" }}>
+                      <div>
+                        <div className="what">{i.title}</div>
+                        <div className="origin">/{i.slug} · {i.blockers} blocker{i.blockers === 1 ? "" : "s"}</div>
+                      </div>
+                      <Roi v={i.roi} />
+                      <Bar v={i.impl} width={70} />
+                      <Tag kind="ms">{i.ms}</Tag>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="dim">Pending <span className="dim">· {planGroups.pending.length}</span></h3>
+              <div className="card">
+                <div className="card-body flush">
+                  {planGroups.pending.map(i => (
+                    <a key={i.slug} href={`plan.html?slug=${encodeURIComponent(i.slug)}`} className="blocker-row" style={{ padding: "10px 16px", textDecoration: "none" }}>
+                      <div>
+                        <div className="what">{i.title}</div>
+                        <div className="origin">/{i.slug} · ready when sprint picks up</div>
+                      </div>
+                      <Roi v={i.roi} />
+                      <Tag kind="ms">{i.ms}</Tag>
+                      <span className="dim" style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{i.effort}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+
+              <h3 className="dim" style={{ marginTop: 18 }}>Shipped <span className="dim">· {planGroups.shipped.length}</span></h3>
+              <div className="card">
+                <div className="card-body flush">
+                  {planGroups.shipped.map(i => (
+                    <a key={i.slug} href={`plan.html?slug=${encodeURIComponent(i.slug)}`} className="blocker-row" style={{ padding: "10px 16px", textDecoration: "none" }}>
+                      <div>
+                        <div className="what">{i.title}</div>
+                        <div className="origin">/{i.slug} · shipped {i.last}</div>
+                      </div>
+                      <Tag kind="ms">{i.ms}</Tag>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RECENT ACTIVITY */}
+          <h2>Recent activity <span className="count">last 30 days</span></h2>
+          <div className="card">
+            <div className="card-body">
+              <div className="flex mb-2">
+                <Heat data={p.activity30} />
+                <span className="dim" style={{ marginLeft: 12, fontSize: 12 }}>writes per day</span>
+              </div>
+              <div className="ledger mt-3">
+                {M.timeline.slice(0, 5).map((t, i) => (
+                  <React.Fragment key={i}>
+                    <span className="when">{t.when}</span>
+                    <span className={`who ${t.who.startsWith("agent") ? "bot" : ""}`}>{t.who}</span>
+                    <span className="what">{t.what}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        </main>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<Project />);
+</script>
 </body>
 </html>
