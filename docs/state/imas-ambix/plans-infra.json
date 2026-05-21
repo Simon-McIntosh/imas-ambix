@@ -1,12 +1,12 @@
 {
-  "updated": "2026-05-21T14:30:00",
+  "updated": "2026-05-21T14:54:45",
   "project": "imas-ambix",
   "doc": "plans-infra",
   "data": {
     "slug": "plans-infra",
-    "title": "Plan infra — state.js POST · plan-style sync · plan-init",
+    "title": "Plan infra \u2014 state.js POST \u00b7 plan-style sync \u00b7 plan-init",
     "status": "active",
-    "ms": "M1",
+    "ms": "PS",
     "roi": "high",
     "effort": "M",
     "tier": "opus",
@@ -21,13 +21,36 @@
     "created": "2026-05-21",
     "last_modified": "2026-05-21 14:00",
     "depends_on": [],
-    "blocks": ["plans-migration-ambix", "plans-migration-efit"],
+    "blocks": [
+      "plans-migration-ambix",
+      "plans-migration-efit"
+    ],
     "summary": "Infrastructure work: extend state.js to POST in local mode (parallel to ui.jsx Persist); extend /plan-style refresh to sync system pages from dotfiles (not just CSS); write /plan-init for new-repo scaffolding. Settles three open decisions that span the whole rollout.",
     "sections": [
-      { "id": "s1", "sec": "§ 1", "h": "Where things stand", "body": "ui.jsx Persist already POSTs to docs-server in local mode (commit 209b14c). state.js (used by free-form per-plan pages) still does localStorage only. plan-style refresh syncs CSS only — it doesn't sync the system pages (project/inventory/sprint/decisions/plan.html). plan-init does not exist yet — new-repo onboarding is manual." },
-      { "id": "s2", "sec": "§ 2", "h": "state.js POST upgrade", "body": "Add the same fetch+merge+POST behaviour state.js's saveState() / lockDecision() / appendFollowup() needs in local mode. Read canonical from server first, merge patch, POST back, write localStorage as cache. Pages mode unchanged (read-only). Free-form per-plan HTML pages then enjoy the same tight loop the React templates already have." },
-      { "id": "s3", "sec": "§ 3", "h": "plan-style refresh — also sync system pages", "body": "Today /plan-style refresh copies foundation.css, dashboard.css, state.js into docs/_shared/. Extend it to also copy project.html→index.html, inventory.html, sprint.html, decisions.html, plan.html, ui.jsx from dotfiles/claude/skills/html-docs/templates/ → repo's docs/. Idempotent. plan-style migrate likewise: covers a one-shot for legacy repos." },
-      { "id": "s4", "sec": "§ 4", "h": "plan-init for new repos", "body": "New skill: scaffolds docs/, copies canonical CSS + system pages + ui.jsx + state.js, sets up docs/state/<project>/, symlinks ~/docs-server/state/<project> → repo dir, registers in mounts.json, drops .nojekyll. Repo-agnostic. Slash command /plan-init." }
+      {
+        "id": "s1",
+        "sec": "\u00a7 1",
+        "h": "Where things stand",
+        "body": "ui.jsx Persist already POSTs to docs-server in local mode (commit 209b14c). state.js (used by free-form per-plan pages) still does localStorage only. plan-style refresh syncs CSS only \u2014 it doesn't sync the system pages (project/inventory/sprint/decisions/plan.html). plan-init does not exist yet \u2014 new-repo onboarding is manual."
+      },
+      {
+        "id": "s2",
+        "sec": "\u00a7 2",
+        "h": "state.js POST upgrade",
+        "body": "Add the same fetch+merge+POST behaviour state.js's saveState() / lockDecision() / appendFollowup() needs in local mode. Read canonical from server first, merge patch, POST back, write localStorage as cache. Pages mode unchanged (read-only). Free-form per-plan HTML pages then enjoy the same tight loop the React templates already have."
+      },
+      {
+        "id": "s3",
+        "sec": "\u00a7 3",
+        "h": "plan-style refresh \u2014 also sync system pages",
+        "body": "Today /plan-style refresh copies foundation.css, dashboard.css, state.js into docs/_shared/. Extend it to also copy project.html\u2192index.html, inventory.html, sprint.html, decisions.html, plan.html, ui.jsx from dotfiles/claude/skills/html-docs/templates/ \u2192 repo's docs/. Idempotent. plan-style migrate likewise: covers a one-shot for legacy repos."
+      },
+      {
+        "id": "s4",
+        "sec": "\u00a7 4",
+        "h": "plan-init for new repos",
+        "body": "New skill: scaffolds docs/, copies canonical CSS + system pages + ui.jsx + state.js, sets up docs/state/<project>/, symlinks ~/docs-server/state/<project> \u2192 repo dir, registers in mounts.json, drops .nojekyll. Repo-agnostic. Slash command /plan-init."
+      }
     ],
     "decisions_def": [
       {
@@ -44,19 +67,48 @@
         "key": "rank-storage",
         "title": "Where does per-plan rank live for the inventory ordering?",
         "context": "Inventory shows plans grouped/sorted. Plans need an explicit rank for user-driven ordering beyond ROI/effort. Storage options: (a) plans[].rank inside index.json or mockdata.js, (b) a sibling rank.json indexed by slug, (c) implicit by array order in mockdata.js.",
-        "choices": ["plans[].rank field", "sibling rank.json", "implicit by array order"]
+        "choices": [
+          "plans[].rank field",
+          "sibling rank.json",
+          "implicit by array order"
+        ]
       },
       {
         "key": "conflict-detection",
         "title": "How do we detect simultaneous writes to the same state JSON?",
         "context": "Tight-loop POST replaces the document. Two browser tabs or an agent + a human could clobber each other. Mitigations: (a) add a `version` integer to state JSON; POST includes the expected version, server rejects if mismatched (412 Precondition Failed), (b) last-write-wins (current; simple but lossy), (c) JSON-patch operations instead of full replacement.",
-        "choices": ["version field + 412 on mismatch", "last-write-wins (today)", "JSON-patch ops"]
+        "choices": [
+          "version field + 412 on mismatch",
+          "last-write-wins (today)",
+          "JSON-patch ops"
+        ]
       }
     ],
-    "decisions": {},
+    "decisions": {
+      "conflict-detection": {
+        "choice": "version field + 412 on mismatch",
+        "rationale": "",
+        "when": "2026-05-21 12:54",
+        "by": "Simon McIntosh"
+      },
+      "rank-storage": {
+        "choice": "sibling rank.json",
+        "rationale": "",
+        "when": "2026-05-21 12:54",
+        "by": "Simon McIntosh"
+      }
+    },
     "notes": [],
     "research": [
-      { "id": "r1", "type": "doc", "title": "dotfiles canonical foundation/dashboard/state.js", "source": "internal", "added_by": "Simon McIntosh", "when": "2026-05-21", "url": "https://github.com/Simon-McIntosh/dotfiles/tree/main/claude/skills/html-docs" }
+      {
+        "id": "r1",
+        "type": "doc",
+        "title": "dotfiles canonical foundation/dashboard/state.js",
+        "source": "internal",
+        "added_by": "Simon McIntosh",
+        "when": "2026-05-21",
+        "url": "https://github.com/Simon-McIntosh/dotfiles/tree/main/claude/skills/html-docs"
+      }
     ],
     "questions": [],
     "followups": [
@@ -65,12 +117,17 @@
         "written_by": "opus-coordinator",
         "written_at": "2026-05-21 14:00",
         "title": "Implement state.js POST + extend plan-style + write plan-init",
-        "body": "Three connected pieces: (1) state.js gets the same fetch/merge/POST that Persist in ui.jsx has, with localStorage fallback. (2) /plan-style refresh learns to sync system pages, not just CSS. (3) /plan-init scaffolds a new repo's docs/. All three land in dotfiles main. Aspect the user has not yet decided: which of the three open decisions on this plan are blocking — likely none (we can ship with last-write-wins + manual refresh + plans[].rank as the simplest defaults and iterate).",
+        "body": "Three connected pieces: (1) state.js gets the same fetch/merge/POST that Persist in ui.jsx has, with localStorage fallback. (2) /plan-style refresh learns to sync system pages, not just CSS. (3) /plan-init scaffolds a new repo's docs/. All three land in dotfiles main. Aspect the user has not yet decided: which of the three open decisions on this plan are blocking \u2014 likely none (we can ship with last-write-wins + manual refresh + plans[].rank as the simplest defaults and iterate).",
         "recommends_skill": "/plan-implement plans-infra",
-        "touches": ["~/Code/dotfiles/claude/skills/html-docs/assets/state.js", "~/Code/dotfiles/claude/skills/plan-style/SKILL.md", "~/Code/dotfiles/claude/skills/plan-init/SKILL.md", "~/Code/dotfiles/claude/commands/plan-init.md"],
+        "touches": [
+          "~/Code/dotfiles/claude/skills/html-docs/assets/state.js",
+          "~/Code/dotfiles/claude/skills/plan-style/SKILL.md",
+          "~/Code/dotfiles/claude/skills/plan-init/SKILL.md",
+          "~/Code/dotfiles/claude/commands/plan-init.md"
+        ],
         "tier": "opus",
         "est_turn": "~2h",
-        "prompt": "Project: dotfiles\nPlan:    plans-infra\nSection: § 2 + § 3 + § 4\nTier:    opus\n\nContext\n  Three connected dotfiles changes: state.js POST upgrade (per-plan free-form\n  pages get the same tight loop as the React templates), plan-style refresh\n  extended to sync system pages (not just CSS), and a new plan-init skill for\n  brand-new repos. Land all three in one PR-equivalent commit on main.\n\nState to read\n  docs/state/imas-ambix/plans-infra.json   (this plan's locked decisions)\n  ~/Code/dotfiles/claude/skills/html-docs/assets/state.js\n  ~/Code/dotfiles/claude/skills/html-docs/templates/ui.jsx  (Persist already POSTs)\n  ~/Code/dotfiles/claude/skills/plan-style/SKILL.md\n\nLocked decisions to honour (none yet — surface unresolved if user prefers)\n\nOpen decisions to surface\n  shared-css-delivery, rank-storage, conflict-detection\n  (Ship with sensible defaults; flag if any decision blocks progress.)\n\nDone-when\n  1. state.js POSTs to docs-server in local mode; falls back to localStorage.\n  2. /plan-style refresh syncs system pages + CSS from dotfiles canonical.\n  3. /plan-init creates a new repo's docs/, copies canonical, sets up state symlink + mounts.json.\n  4. All three documented in their SKILL.md.\n  5. Followup written with outcome + next-step for the migration plans."
+        "prompt": "Project: dotfiles\nPlan:    plans-infra\nSection: \u00a7 2 + \u00a7 3 + \u00a7 4\nTier:    opus\n\nContext\n  Three connected dotfiles changes: state.js POST upgrade (per-plan free-form\n  pages get the same tight loop as the React templates), plan-style refresh\n  extended to sync system pages (not just CSS), and a new plan-init skill for\n  brand-new repos. Land all three in one PR-equivalent commit on main.\n\nState to read\n  docs/state/imas-ambix/plans-infra.json   (this plan's locked decisions)\n  ~/Code/dotfiles/claude/skills/html-docs/assets/state.js\n  ~/Code/dotfiles/claude/skills/html-docs/templates/ui.jsx  (Persist already POSTs)\n  ~/Code/dotfiles/claude/skills/plan-style/SKILL.md\n\nLocked decisions to honour (none yet \u2014 surface unresolved if user prefers)\n\nOpen decisions to surface\n  shared-css-delivery, rank-storage, conflict-detection\n  (Ship with sensible defaults; flag if any decision blocks progress.)\n\nDone-when\n  1. state.js POSTs to docs-server in local mode; falls back to localStorage.\n  2. /plan-style refresh syncs system pages + CSS from dotfiles canonical.\n  3. /plan-init creates a new repo's docs/, copies canonical, sets up state symlink + mounts.json.\n  4. All three documented in their SKILL.md.\n  5. Followup written with outcome + next-step for the migration plans."
       }
     ],
     "followups_done": []
