@@ -3,75 +3,47 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Data Quality | Ambix Plans</title>
-<link rel="stylesheet" href="assets/dashboard.css">
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/state.js" defer></script>
+<title>Data Quality · Ambix Plans</title>
+<link rel="stylesheet" href="_shared/foundation.css">
+<link rel="stylesheet" href="_shared/dashboard.css">
+<script src="_shared/state.js"></script>
 </head>
 <body>
-<!-- header -->
-<header class="site-header">
-  <div class="logo"><a href="index.html">⚗ Ambix Plans</a></div>
+
+<div class="topbar">
+  <a class="brand" href="index.html">
+    <span class="mark">A</span>
+    <span class="proj-name">imas-ambix</span>
+  </a>
   <nav>
     <a href="index.html">Index</a>
     <a href="STRATEGY.html">Strategy</a>
     <a href="v0-runway.html">v0 Runway</a>
     <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data Acq</a>
-    <a href="data-quality.html">Quality</a>
+    <a href="data-acquisition.html">Data acq</a>
+    <a href="data-quality.html" class="active">Quality</a>
     <a href="tokenizers.html">Tokenizers</a>
     <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World Model</a>
+    <a href="world-model-v0.html">World model</a>
     <a href="demo.html">Demo</a>
     <a href="decisions.html">Decisions</a>
   </nav>
-  <div class="spacer"></div>
-  <button class="sidebar-toggle" id="sidebar-toggle">&#9776; Sections</button>
-  <button class="theme-toggle" id="theme-toggle">☽ Dark</button>
-</header>
+  <div class="right"></div>
+</div>
 
-<div class="page-body">
-<!-- sidebar -->
-<aside class="sidebar">
-  <div class="sidebar-title">On this page</div>
-  <ul><li><a href="#1-why-this-exists" class="">1. Why this exists</a></li>
-<li><a href="#11-pre-training-data-validation" class="h3-link">1.1 Pre-training data validation</a></li>
-<li><a href="#12-surfacing-failure-modes-early" class="h3-link">1.2 Surfacing failure modes early</a></li>
-<li><a href="#13-building-the-train-val-test-split-decision" class="h3-link">1.3 Building the train / val / test split decision</a></li>
-<li><a href="#2-framework-architecture" class="">2. Framework architecture</a></li>
-<li><a href="#21-shotqualityreport" class="h3-link">2.1 ShotQualityReport</a></li>
-<li><a href="#22-corpusaudit" class="h3-link">2.2 CorpusAudit</a></li>
-<li><a href="#23-cli-surface" class="h3-link">2.3 CLI surface</a></li>
-<li><a href="#3-quality-dimensions" class="">3. Quality dimensions</a></li>
-<li><a href="#31-zarr-open-no-corruption" class="h3-link">3.1 Zarr-open / no-corruption</a></li>
-<li><a href="#32-per-variable-nan-fraction" class="h3-link">3.2 Per-variable NaN fraction</a></li>
-<li><a href="#33-dynamic-range-plausibility" class="h3-link">3.3 Dynamic-range plausibility</a></li>
-<li><a href="#34-time-axis-monotonic-no-gaps" class="h3-link">3.4 Time-axis monotonic / no gaps</a></li>
-<li><a href="#35-imas-attribute-consistency-replaces-ids-format-checks" class="h3-link">3.5 IMAS attribute consistency (replaces IDS-fo…</a></li>
-<li><a href="#36-cross-shot-corpus-metrics" class="h3-link">3.6 Cross-shot corpus metrics</a></li>
-<li><a href="#4-acceptance-for-shot-is-training-grade" class="">4. Acceptance for "shot is training-grade"</a></li>
-<li><a href="#5-operational-protocol" class="">5. Operational protocol</a></li>
-<li><a href="#51-first-time-corpus-audit" class="h3-link">5.1 First-time corpus audit</a></li>
-<li><a href="#52-re-audit-after-new-data-ingestion" class="h3-link">5.2 Re-audit after new data ingestion</a></li>
-<li><a href="#53-training-data-loader-integration" class="h3-link">5.3 Training data loader integration</a></li>
-<li><a href="#54-audit-artefact-retention" class="h3-link">5.4 Audit artefact retention</a></li>
-<li><a href="#6-open-questions-to-revisit" class="">6. Open questions to revisit</a></li>
-<li><a href="#10-fair-mast-format-reality-2026-05-20" class="">10. FAIR-MAST format reality — 2026-05-20</a></li>
-<li><a href="#101-storage-format" class="h3-link">10.1 Storage format</a></li>
-<li><a href="#102-time-coordinate-layout" class="h3-link">10.2 Time coordinate layout</a></li>
-<li><a href="#103-physical-dynamic-ranges" class="h3-link">10.3 Physical dynamic ranges</a></li>
-<li><a href="#104-corpus-level-findings-from-the-2026-05-20-audit-25-shot-sample" class="h3-link">10.4 Corpus-level findings from the 2026-05-20 …</a></li>
-<li><a href="#105-audit-check-changes-made-in-this-revision" class="h3-link">10.5 Audit check changes made in this revision</a></li>
-<li><a href="#open-decisions" class="">Open Decisions</a></li></ul>
-</aside>
+<main class="page">
 
-<!-- main -->
-<main class="main-content">
-  <div class="content-inner">
-    <div class="breadcrumb"><a href="index.html">Plans</a><span>›</span><span>Data Quality</span></div>
-    <h1 id="plan-data-quality-framework">Plan: Data Quality Framework</h1>
-<p>Status: <strong>In flight</strong> — implementation in <code>imas_ambix/quality/</code>, tracked by
+<div class="page-head">
+  <div class="title">
+    <h1>Plan: Data Quality Framework</h1>
+    <div class="subtitle">imas-ambix / Fusion World Model ·
+      Updated <time id="updated">2026-05-20</time></div>
+  </div>
+</div>
+
+<p>Status: <span class="status active"><span class="dot"></span>In flight</span> — implementation in <code>imas_ambix/quality/</code>, tracked by
 <code>sonnet-data-quality</code> concurrent agent.</p>
+
 <p>This plan defines the pre-training data validation layer for the FAIR-MAST
 training corpus. Before any shot's token stream enters the training set it
 must pass a quality audit. Without this layer we risk training on corrupted
@@ -79,11 +51,16 @@ Zarr files, NaN-poisoned signal channels, or shots with degenerate physics
 (sub-threshold plasma current, near-zero pulse duration). A world model
 trained on such shots learns from noise, and the resulting loss curves are
 indistinguishable from a legitimately bad model.</p>
+
 <p>The quality framework is therefore not optional scaffolding — it is a
 <strong>load-bearing gate</strong> in the <code>mast-tokens → training-set</code> pipeline.</p>
-<hr />
+
+<hr>
+
 <h2 id="1-why-this-exists">1. Why this exists</h2>
+
 <h3 id="11-pre-training-data-validation">1.1 Pre-training data validation</h3>
+
 <p>The tokenized corpus under <code>/work/projects/imas_gpu/mast-tokens/v1/</code> is a
 derived product from the FAIR-MAST level-2 and level-1 mirrors. Zarr files
 can be partially written, truncated by network interruption, or missing
@@ -91,43 +68,56 @@ expected groups — the bulk download job at <code>plans/data-acquisition.md</co
 uses resumable <code>s5cmd cp</code> which skips existing objects, so a shot that was
 half-copied on a previous run will not be re-fetched. Every shot therefore
 needs to be validated before it is allowed into the training index.</p>
+
 <p>Additionally, FAIR-MAST covers MAST campaigns M5 – M9 spanning ~15 years.
 Earlier campaigns have sparser diagnostics, lower plasma current, and shorter
 pulses. Including every shot with equal weight risks overrepresenting low-
 quality shots in a training batch and wastes the 16 K-token context window
 on sub-threshold physics.</p>
+
 <h3 id="12-surfacing-failure-modes-early">1.2 Surfacing failure modes early</h3>
+
 <p>The first full corpus audit will surface systematic issues we cannot see from
 a 10-shot sample:</p>
 <ul>
-<li>Missing <code>equilibrium</code> group in ~1.7 % of shots (per the full inventory in
-<code>data-acquisition.md</code> §11.1).</li>
-<li><code>charge_exchange</code> present in only 37.9 % of shots — the model must not
-treat absence as a zero measurement.</li>
-<li>Unknown but possible: NaN-poisoned time slices in <code>magnetics</code> from sensor
-failures, or discontinuous time axes from stitched acquisitions.</li>
+  <li>Missing <code>equilibrium</code> group in ~1.7 % of shots (per the full inventory in
+    <code>data-acquisition.md</code> §11.1).</li>
+  <li><code>charge_exchange</code> present in only 37.9 % of shots — the model must not
+    treat absence as a zero measurement.</li>
+  <li>Unknown but possible: NaN-poisoned time slices in <code>magnetics</code> from sensor
+    failures, or discontinuous time axes from stitched acquisitions.</li>
 </ul>
+
 <p>The quality framework converts these into per-shot flags that the data loader
 reads to filter training samples. Problems are visible and actionable rather
 than silently absorbed into gradient noise.</p>
+
 <h3 id="13-building-the-train-val-test-split-decision">1.3 Building the train / val / test split decision</h3>
+
 <p>The quality report includes a corpus-level view: plasma-current histogram,
 pulse-duration distribution, campaign distribution, and group-presence joint
 distribution. This view is the input to the stratified split in
 <code>plans/demo.md</code> §3 — equal campaign representation in val/test, demo shots
 frozen from the camera-bearing subset, etc. The split decision cannot be made
 correctly without knowing the quality distribution of the full corpus.</p>
-<hr />
+
+<hr>
+
 <h2 id="2-framework-architecture">2. Framework architecture</h2>
+
 <p>The framework lives under <code>imas_ambix/quality/</code>. The four modules are:</p>
+
 <pre><code>imas_ambix/quality/
 ├── __init__.py          # public API: ShotQualityReport, CorpusAudit
 ├── shot.py              # per-shot checks → ShotQualityReport
 ├── corpus.py            # aggregate over all shots → CorpusAudit
 └── cli.py               # ambix data audit (sub-command of the data group)
 </code></pre>
+
 <h3 id="21-shotqualityreport">2.1 ShotQualityReport</h3>
+
 <p>A frozen dataclass capturing the quality outcome for a single shot:</p>
+
 <pre><code class="language-python">@dataclass(frozen=True)
 class ShotQualityReport:
     shot_id: int
@@ -144,11 +134,15 @@ class ShotQualityReport:
     training_grade: bool                 # aggregate pass/fail (§4)
     failure_reasons: list[str]           # if not training_grade, why
 </code></pre>
+
 <p>All fields are populated in a single pass over the shot's Zarr files. The
 report is JSON-serialisable (all values are primitives or lists/dicts of
 primitives).</p>
+
 <h3 id="22-corpusaudit">2.2 CorpusAudit</h3>
+
 <p>Aggregates across all shot reports:</p>
+
 <pre><code class="language-python">@dataclass
 class CorpusAudit:
     timestamp: str                       # ISO-8601 UTC
@@ -165,11 +159,14 @@ class CorpusAudit:
     group_presence_matrix: dict[str, float]  # group → fraction of shots
     shot_reports: list[ShotQualityReport]  # full per-shot data
 </code></pre>
+
 <p>Serialised to JSON and stored at
 <code>/work/projects/imas_gpu/mast-tokens/v1/quality/audit-{ts}.json</code>. The
 training data loader reads the <strong>latest</strong> audit from this directory on
 startup.</p>
+
 <h3 id="23-cli-surface">2.3 CLI surface</h3>
+
 <pre><code class="language-bash"># Full corpus audit (writes to mast-tokens/v1/quality/)
 ambix data audit --manifest level2-all.json [--workers 16]
 
@@ -182,34 +179,47 @@ ambix data audit --summary
 # Inspect per-group NaN fractions across the corpus
 ambix data audit --nan-fractions
 </code></pre>
+
 <p>The <code>audit</code> sub-command is implemented in <code>imas_ambix/quality/cli.py</code> and
 registered under the existing <code>ambix data</code> CLI group defined in
 <code>imas_ambix/data/cli.py</code>.</p>
-<hr />
-<h1 id="full-corpus-audit-writes-to-mast-tokensv1quality">3. Quality dimensions</h2>
-<h1 id="single-shot-quick-check-prints-the-shotqualityreport-as-json">3.1 Zarr-open / no-corruption</h3>
+
+<hr>
+
+<h2 id="3-quality-dimensions">3. Quality dimensions</h2>
+
+<h3 id="31-zarr-open-no-corruption">3.1 Zarr-open / no-corruption</h3>
+
 <p>Every shot's level-2 Zarr directory is opened with <code>xarray.open_zarr</code> before
 any other check. A failure here is an immediate <code>training_grade = False</code>.</p>
+
 <p>Common failure modes:</p>
 <ul>
-<li>Truncated <code>.zarray</code> metadata (half-written file from interrupted download).</li>
-<li>Missing <code>.zmetadata</code> consolidated metadata (Zarr v2 default, required by
-xarray's consolidated mode).</li>
-<li>Byte-level corruption in a chunk file (rare but possible after an OOM kill).</li>
+  <li>Truncated <code>.zarray</code> metadata (half-written file from interrupted download).</li>
+  <li>Missing <code>.zmetadata</code> consolidated metadata (Zarr v2 default, required by
+    xarray's consolidated mode).</li>
+  <li>Byte-level corruption in a chunk file (rare but possible after an OOM kill).</li>
 </ul>
+
 <p>Detection: open with <code>xr.open_zarr(path, consolidated=True)</code> and catch
 <code>Exception</code>. On failure, log the error text into <code>failure_reasons</code>.</p>
+
 <p>Level-1 camera Zarr files (the rbb/rba sources under
 <code>/work/projects/imas_gpu/mast/level1/shots/{shot}/</code>) receive the same open
 check. A shot whose level-2 opens but whose rbb Zarr is corrupt is still
 <code>training_grade = True</code> for the signal-only training set; the frame
 tokenizer marks its output as unavailable.</p>
-<h1 id="summary-table-from-the-latest-audit">3.2 Per-variable NaN fraction</h3>
+
+<h3 id="32-per-variable-nan-fraction">3.2 Per-variable NaN fraction</h3>
+
 <p>For each open group and each data variable, compute:</p>
+
 <pre><code class="language-python">nan_frac = float(np.isnan(ds[var].values).mean())
 </code></pre>
+
 <p>Groups checked for the training-grade gate (§4): <code>magnetics</code>, <code>summary</code>,
 <code>pulse_schedule</code>, <code>equilibrium</code>. NaN fraction threshold: <strong>&lt; 5 %</strong>.</p>
+
 <p>Why 5 %? A NaN fraction of 5 % means that in a 1-second pulse at 100 Hz
 (100 timesteps), 5 timesteps have missing values. The training window is
 16 K tokens; a 5 % NaN rate will produce ~800 NaN-corrupted token positions.
@@ -217,173 +227,163 @@ At the per-channel mean-scale normalisation used by Chronos, NaN values in
 the input are forward-filled by the loader — so they do not cause a gradient
 explosion, but they do corrupt the signal. 5 % is the threshold below which
 this corruption is tolerable as label noise; above it, the shot is excluded.</p>
-<h1 id="inspect-per-group-nan-fractions-across-the-corpus">3.3 Dynamic-range plausibility</h3>
-<p>For a pre-defined set of &quot;headline&quot; variables, check that the observed
+
+<h3 id="33-dynamic-range-plausibility">3.3 Dynamic-range plausibility</h3>
+
+<p>For a pre-defined set of "headline" variables, check that the observed
 min/max falls inside a physics-reasonable interval:</p>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>IDS path</th>
-<th>Expected range</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Plasma current</td>
-<td><code>summary.global_quantities.ip.value</code></td>
-<td>–20 MA to +20 MA</td>
-</tr>
-<tr>
-<td>Line-integrated density</td>
-<td><code>summary.line_average.n_e.value</code></td>
-<td>0 to 10²¹ m⁻²</td>
-</tr>
-<tr>
-<td>Toroidal field</td>
-<td><code>summary.global_quantities.b0.value</code></td>
-<td>–10 T to +10 T</td>
-</tr>
-<tr>
-<td>PF coil current</td>
-<td><code>pf_active.coil[*].current.data</code></td>
-<td>–200 kA to +200 kA</td>
-</tr>
-<tr>
-<td>Electron temperature (TS)</td>
-<td><code>thomson_scattering.channel[*].t_e.data</code></td>
-<td>0 to 30 keV</td>
-</tr>
-</tbody>
+
+<div class="table-scroll">
+<table class="t">
+  <thead>
+    <tr><th>Variable</th><th>IDS path</th><th>Expected range</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Plasma current</td><td><code>summary.global_quantities.ip.value</code></td><td>–20 MA to +20 MA</td></tr>
+    <tr><td>Line-integrated density</td><td><code>summary.line_average.n_e.value</code></td><td>0 to 10²¹ m⁻²</td></tr>
+    <tr><td>Toroidal field</td><td><code>summary.global_quantities.b0.value</code></td><td>–10 T to +10 T</td></tr>
+    <tr><td>PF coil current</td><td><code>pf_active.coil[*].current.data</code></td><td>–200 kA to +200 kA</td></tr>
+    <tr><td>Electron temperature (TS)</td><td><code>thomson_scattering.channel[*].t_e.data</code></td><td>0 to 30 keV</td></tr>
+  </tbody>
 </table>
+</div>
+
 <p>Out-of-range values are not always wrong (e.g. a MAST shot with a disruption
 spike could transiently exceed the PF limit), but values that are <em>orders of
 magnitude</em> out of range — say, a plasma current of 10¹² A — indicate a unit
 error or a corrupted scaling factor in the IMAS ingestion. Flag and exclude.</p>
+
 <p>Implementation: soft thresholds (2 × range gives a warning, 10 × range gives
 a hard fail). The thresholds are stored as constants in
 <code>imas_ambix/quality/shot.py</code>.</p>
-<h2 id="3-quality-dimensions">3.4 Time-axis monotonic / no gaps</h3>
+
+<h3 id="34-time-axis-monotonic-no-gaps">3.4 Time-axis monotonic / no gaps</h3>
+
 <p>For each group, verify:</p>
 <ol>
-<li>The time axis is strictly monotonically increasing.</li>
-<li>No gap larger than 2× the median time step (<code>dt_median</code>).</li>
+  <li>The time axis is strictly monotonically increasing.</li>
+  <li>No gap larger than 2× the median time step (<code>dt_median</code>).</li>
 </ol>
+
 <p>Non-monotonic time axes indicate a stitching artefact or data-ingest bug.
 Large time gaps (&gt; 100 ms at the 100 Hz model grid) indicate that the
 Chronos resampler will extrapolate across a region with no data — this can
 introduce spurious transients in the token stream.</p>
+
 <p>Any gap &gt; 100 ms is recorded in <code>time_gaps</code> with the gap start time. Shots
 with &gt; 3 such gaps in any of the mandatory groups are <code>training_grade = False</code>.</p>
-<h3 id="31-zarr-open-no-corruption">3.5 IMAS attribute consistency (replaces IDS-format checks)</h3>
+
+<h3 id="35-imas-attribute-consistency-replaces-ids-format-checks">3.5 IMAS attribute consistency (replaces IDS-format checks)</h3>
+
 <p><strong>Superseded by §10.1 findings.</strong>  FAIR-MAST is xarray-on-Zarr, NOT IDS
 format.  The original checks for <code>homogeneous_time</code> and <code>dd_version</code> have
 been removed because these IDS attributes do not exist in the bucket.</p>
+
 <p>The new checks are:</p>
 <ul>
-<li><code>check_imas_label_matches_group</code>: verifies that the group-level
-<code>ds.attrs[&quot;imas&quot;]</code> string matches the group's directory name.  Info-level
-only — a mismatch is a metadata note, not a training-grade failure.</li>
-<li><code>check_imas_pointer(ds, var)</code>: reports whether a variable carries an
-<code>imas</code> path-pointer attribute.  Info-level; absence is not a failure.</li>
+  <li><code>check_imas_label_matches_group</code>: verifies that the group-level
+    <code>ds.attrs["imas"]</code> string matches the group's directory name.  Info-level
+    only — a mismatch is a metadata note, not a training-grade failure.</li>
+  <li><code>check_imas_pointer(ds, var)</code>: reports whether a variable carries an
+    <code>imas</code> path-pointer attribute.  Info-level; absence is not a failure.</li>
 </ul>
+
 <p>Neither check affects <code>usable_for_training</code>.</p>
-<h3 id="32-per-variable-nan-fraction">3.6 Cross-shot corpus metrics</h3>
+
+<h3 id="36-cross-shot-corpus-metrics">3.6 Cross-shot corpus metrics</h3>
+
 <p>Computed at corpus level by <code>CorpusAudit</code>:</p>
+
 <p><strong>Campaign distribution.</strong> The val/test split in <code>plans/demo.md</code> §3 requires
 stratified campaign sampling. The audit counts shots per campaign tag and
 flags campaigns with &lt; 50 shots (too small to split meaningfully).</p>
+
 <p><strong>Plasma-current histogram.</strong> 20 bins from 0 to 10 MA. Expected shape:
 skewed, with a mode around 300 – 600 kA for MAST. Shots below 100 kA are
 excluded by the acceptance gate (§4). The histogram is plotted in the audit
 summary.</p>
+
 <p><strong>Pulse-duration distribution.</strong> 20 bins from 0 to 2,000 ms. MAST pulses
 range from a few hundred milliseconds to ~1 second for long-pulse campaigns.
 Very short pulses (&lt; 100 ms) are excluded by the acceptance gate. The
 distribution drives the context-window economics: the 16 K-token window at
 100 Hz covers ~1.25 s, so most MAST pulses fit in 2 windows.</p>
+
 <p><strong>Group-presence joint distribution.</strong> A sparse matrix: for each pair
 (group_A, group_B), what fraction of shots have both? This surfaces which
 diagnostic pairs are always co-present (e.g. <code>magnetics</code> + <code>pf_active</code>) and
 which are weakly correlated (e.g. <code>charge_exchange</code> + <code>equilibrium</code>). The
 training loop cannot assume a fixed diagnostic set; this matrix informs the
 design of the <code>ShotTokenizer</code>'s group-absence handling.</p>
-<hr />
-<h3 id="33-dynamic-range-plausibility">4. Acceptance for &quot;shot is training-grade&quot;</h2>
+
+<hr>
+
+<h2 id="4-acceptance-for-shot-is-training-grade">4. Acceptance for "shot is training-grade"</h2>
+
 <p><strong>Updated 2026-05-20 — see §10 for FAIR-MAST format reality.</strong></p>
+
 <p>A shot is <code>usable_for_training = True</code> (new flag name) if and only if
 <strong>all</strong> of the following conditions hold:</p>
-<table>
-<thead>
-<tr>
-<th>Condition</th>
-<th>Detail</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>All groups open</td>
-<td><code>all_groups_open == True</code> — every discovered Zarr group opens without error</td>
-</tr>
-<tr>
-<td><code>magnetics</code> present</td>
-<td><code>has_magnetics == True</code> — signal-level training requires magnetics</td>
-</tr>
-<tr>
-<td><code>pulse_schedule</code> present</td>
-<td>group opens — pulse structure required for training window selection</td>
-</tr>
-<tr>
-<td>No corruption errors</td>
-<td><code>no_corrupt_nans == True</code> — no all-NaN variables, no <code>|value| &gt; 1e25</code>, no inf</td>
-</tr>
-</tbody>
+
+<div class="table-scroll">
+<table class="t">
+  <thead>
+    <tr><th>Condition</th><th>Detail</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>All groups open</td>
+      <td><code>all_groups_open == True</code> — every discovered Zarr group opens without error</td>
+    </tr>
+    <tr>
+      <td><code>magnetics</code> present</td>
+      <td><code>has_magnetics == True</code> — signal-level training requires magnetics</td>
+    </tr>
+    <tr>
+      <td><code>pulse_schedule</code> present</td>
+      <td>group opens — pulse structure required for training window selection</td>
+    </tr>
+    <tr>
+      <td>No corruption errors</td>
+      <td><code>no_corrupt_nans == True</code> — no all-NaN variables, no <code>|value| &gt; 1e25</code>, no inf</td>
+    </tr>
+  </tbody>
 </table>
+</div>
+
 <p>Dropped conditions (see §10 for rationale):</p>
-<table>
-<thead>
-<tr>
-<th>Dropped condition</th>
-<th>Reason</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>NaN fraction &lt; 5 %</td>
-<td>Per-variable all-NaN catches real corruption; partial NaN is acceptable</td>
-</tr>
-<tr>
-<td>Plasma current &gt; 100 kA</td>
-<td>Not yet wired — parquet metadata not loaded by default audit path</td>
-</tr>
-<tr>
-<td>Pulse duration &gt; 100 ms</td>
-<td>Not yet wired — as above</td>
-</tr>
-<tr>
-<td>Time axis monotonic</td>
-<td>All FAIR-MAST time axes are monotonic (verified on 50-shot sample)</td>
-</tr>
-<tr>
-<td>Time gap ≤ 3</td>
-<td>No time gaps found — uniform Δt throughout corpus</td>
-</tr>
-<tr>
-<td>Dynamic range in bounds (old)</td>
-<td>Threshold 1e15 was below physical plasma densities; replaced by 1e25 hard cap</td>
-</tr>
-</tbody>
+
+<div class="table-scroll">
+<table class="t">
+  <thead>
+    <tr><th>Dropped condition</th><th>Reason</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>NaN fraction &lt; 5 %</td><td>Per-variable all-NaN catches real corruption; partial NaN is acceptable</td></tr>
+    <tr><td>Plasma current &gt; 100 kA</td><td>Not yet wired — parquet metadata not loaded by default audit path</td></tr>
+    <tr><td>Pulse duration &gt; 100 ms</td><td>Not yet wired — as above</td></tr>
+    <tr><td>Time axis monotonic</td><td>All FAIR-MAST time axes are monotonic (verified on 50-shot sample)</td></tr>
+    <tr><td>Time gap ≤ 3</td><td>No time gaps found — uniform Δt throughout corpus</td></tr>
+    <tr><td>Dynamic range in bounds (old)</td><td>Threshold 1e15 was below physical plasma densities; replaced by 1e25 hard cap</td></tr>
+  </tbody>
 </table>
+</div>
+
 <p>Shots that fail are not deleted from the mirror — they remain in
 <code>/work/projects/imas_gpu/mast/</code> but are excluded from the training manifest.
 Their <code>failure_reasons</code> are recorded in the audit JSON. If a systematic
 failure mode appears (e.g. all M5 shots have a NaN-poisoned
 <code>pulse_schedule</code>), that is actionable data for the ingestion pipeline.</p>
-<hr />
-<h3 id="34-time-axis-monotonic-no-gaps">5. Operational protocol</h2>
-<h3 id="35-imas-attribute-consistency-replaces-ids-format-checks">5.1 First-time corpus audit</h3>
+
+<hr>
+
+<h2 id="5-operational-protocol">5. Operational protocol</h2>
+
+<h3 id="51-first-time-corpus-audit">5.1 First-time corpus audit</h3>
+
 <p>Run after the level-2 and level-1-camera downloads complete (tracked in
 <code>data-acquisition.md</code> §11.4). Steps:</p>
+
 <pre><code class="language-bash"># 1. Allocate a sirius node (quality audit reads GPFS; not run on login node)
 srun --partition=sun_debug --cpus-per-task=8 --mem=32G --time=01:00:00 --pty bash -l
 
@@ -397,424 +397,368 @@ uv run ambix data audit \
 # 3. Print summary
 uv run ambix data audit --summary
 </code></pre>
+
 <p>Expected wall time: ~2 h for 11,573 shots at 16 workers (each shot check
 involves an <code>xr.open_zarr</code> + a scan of 3 – 5 variables × 2 – 4 groups).</p>
+
 <p>The audit writes to:</p>
+
 <pre><code>/work/projects/imas_gpu/mast-tokens/v1/quality/
 └── audit-{YYYYMMDD-HHMMSS}.json    # full CorpusAudit JSON
 </code></pre>
-<h3 id="36-cross-shot-corpus-metrics">5.2 Re-audit after new data ingestion</h3>
+
+<h3 id="52-re-audit-after-new-data-ingestion">5.2 Re-audit after new data ingestion</h3>
+
 <p>Any time new shots are added to the mirror (e.g. a new MAST campaign becomes
 available, or the FAIR-MAST ingestion runs for camera sources that are
 currently level-2 absent), re-run the audit with the updated manifest. The
 audit compares the new manifest hash against the latest audit; if unchanged,
 it is a no-op.</p>
-<h2 id="4-acceptance-for-shot-is-training-grade">5.3 Training data loader integration</h3>
+
+<h3 id="53-training-data-loader-integration">5.3 Training data loader integration</h3>
+
 <p><code>imas_ambix/data/loaders.py:ShotTokenDataset</code> reads the latest audit on
 construction:</p>
+
 <pre><code class="language-python">dataset = ShotTokenDataset(
-    token_root=&quot;/work/projects/imas_gpu/mast-tokens/v1/&quot;,
-    quality_dir=&quot;/work/projects/imas_gpu/mast-tokens/v1/quality/&quot;,
+    token_root="/work/projects/imas_gpu/mast-tokens/v1/",
+    quality_dir="/work/projects/imas_gpu/mast-tokens/v1/quality/",
     # loads the most-recent audit-*.json, filters to training_grade=True
 )
 </code></pre>
+
 <p>Shot ids with <code>training_grade = False</code> are silently excluded. The number of
 excluded shots is logged at <code>INFO</code> level on construction so anomalies are
 visible in the training log.</p>
-<h2 id="5-operational-protocol">5.4 Audit artefact retention</h3>
+
+<h3 id="54-audit-artefact-retention">5.4 Audit artefact retention</h3>
+
 <p>Old audit JSON files are retained indefinitely — they provide a history of
 data quality over time. The latest audit is determined by lexicographic
 sort on the timestamp suffix. No automatic pruning.</p>
-<hr />
-<h3 id="51-first-time-corpus-audit">6. Open questions to revisit</h2>
+
+<hr>
+
+<h2 id="6-open-questions-to-revisit">6. Open questions to revisit</h2>
+
 <ol>
-<li>
-<p><strong>Camera Zarr open check.</strong> The level-1 rbb/rba files are raw arrays, not
-IMAS Zarr groups. The open check needs a separate code path (<code>xr.open_zarr</code>
-on the level-1 prefix vs. the level-2 IMAS layout). Confirm before the
-first audit run.</p>
-</li>
-<li>
-<p><strong>DD version multiplicity.</strong> If shots from different campaigns were
-ingested with different DD versions (e.g. M5 with <code>3.38.0</code>, M9 with
-<code>3.40.0</code>), the loader needs to open each shot with its stored DD version —
-not a single corpus-wide version. The audit surfaces the per-shot
-<code>dd_version</code>; the loader needs to consume this. Cross-reference to the
-AGENTS.md rule: &quot;Always open data with the DD version it was written in.&quot;</p>
-</li>
-<li>
-<p><strong>NaN threshold for magnetics.</strong> The 5 % threshold is heuristic. If the
-magnetics <code>flux_loop</code> channels have systematic fill-value NaNs for probes
-that were not operational in some campaigns, 5 % may be too tight. Consider
-per-variable thresholds after the first corpus audit surfaces the actual
-distribution.</p>
-</li>
-<li>
-<p><strong>plasma_current_max source.</strong> The plan reads from <code>summary</code> — confirm
-that <code>summary.global_quantities.ip.value</code> is populated for all 100 % of
-shots where <code>summary</code> is present. If the field is often NaN, fall back to
-the <code>pf_active</code> derived current or skip the threshold check entirely.</p>
-</li>
-<li>
-<p><strong>Partial-shot quality.</strong> A shot may have a good <code>magnetics</code> group but a
-corrupt <code>equilibrium</code>. Should the shot be training-grade for signal-only
-windows? The current design uses a single <code>training_grade</code> boolean. A more
-granular <code>training_grade_signals / training_grade_frames</code> split would allow
-the loader to use such shots for signal training while excluding them from
-the mixed frame+signal windows. This adds complexity; defer to post-audit
-analysis.</p>
-</li>
-<li>
-<p><strong>Quality metric evolution.</strong> As the benchmark framework
-(<code>plans/tokenizer-benchmarks.md</code>) matures, tokenizer-level reconstruction
-quality may feed back into the quality filter — e.g. excluding shots where
-the frame tokenizer achieves an anomalously high rFID (suggesting the
-camera content is degenerate or the frames are mostly noise). This would
-require running the tokenizer before the quality check completes, which
-creates a circular dependency. Design decision deferred.</p>
-</li>
+  <li>
+    <p><strong>Camera Zarr open check.</strong> The level-1 rbb/rba files are raw arrays, not
+    IMAS Zarr groups. The open check needs a separate code path (<code>xr.open_zarr</code>
+    on the level-1 prefix vs. the level-2 IMAS layout). Confirm before the
+    first audit run.</p>
+  </li>
+  <li>
+    <p><strong>DD version multiplicity.</strong> If shots from different campaigns were
+    ingested with different DD versions (e.g. M5 with <code>3.38.0</code>, M9 with
+    <code>3.40.0</code>), the loader needs to open each shot with its stored DD version —
+    not a single corpus-wide version. The audit surfaces the per-shot
+    <code>dd_version</code>; the loader needs to consume this. Cross-reference to the
+    AGENTS.md rule: "Always open data with the DD version it was written in."</p>
+  </li>
+  <li>
+    <p><strong>NaN threshold for magnetics.</strong> The 5 % threshold is heuristic. If the
+    magnetics <code>flux_loop</code> channels have systematic fill-value NaNs for probes
+    that were not operational in some campaigns, 5 % may be too tight. Consider
+    per-variable thresholds after the first corpus audit surfaces the actual
+    distribution.</p>
+  </li>
+  <li>
+    <p><strong>plasma_current_max source.</strong> The plan reads from <code>summary</code> — confirm
+    that <code>summary.global_quantities.ip.value</code> is populated for all 100 % of
+    shots where <code>summary</code> is present. If the field is often NaN, fall back to
+    the <code>pf_active</code> derived current or skip the threshold check entirely.</p>
+  </li>
+  <li>
+    <p><strong>Partial-shot quality.</strong> A shot may have a good <code>magnetics</code> group but a
+    corrupt <code>equilibrium</code>. Should the shot be training-grade for signal-only
+    windows? The current design uses a single <code>training_grade</code> boolean. A more
+    granular <code>training_grade_signals / training_grade_frames</code> split would allow
+    the loader to use such shots for signal training while excluding them from
+    the mixed frame+signal windows. This adds complexity; defer to post-audit
+    analysis.</p>
+  </li>
+  <li>
+    <p><strong>Quality metric evolution.</strong> As the benchmark framework
+    (<code>plans/tokenizer-benchmarks.md</code>) matures, tokenizer-level reconstruction
+    quality may feed back into the quality filter — e.g. excluding shots where
+    the frame tokenizer achieves an anomalously high rFID (suggesting the
+    camera content is degenerate or the frames are mostly noise). This would
+    require running the tokenizer before the quality check completes, which
+    creates a circular dependency. Design decision deferred.</p>
+  </li>
 </ol>
-<hr />
-<h1 id="1-allocate-a-sirius-node-quality-audit-reads-gpfs-not-run-on-login-node">10. FAIR-MAST format reality — 2026-05-20</h2>
-<h1 id="2-run-the-full-audit-16-workers-io-bound-not-cpu-bound">10.1 Storage format</h3>
+
+<hr>
+
+<h2 id="10-fair-mast-format-reality-2026-05-20">10. FAIR-MAST format reality — 2026-05-20</h2>
+
+<h3 id="101-storage-format">10.1 Storage format</h3>
+
 <p>FAIR-MAST level-2 is <strong>xarray-on-Zarr v3</strong>, NOT IDS format.  The data model
 is:</p>
 <ul>
-<li>One Zarr v3 store per shot (e.g. <code>11766.zarr/</code>).</li>
-<li>Sub-directories are Zarr groups named after IMAS IDS names (<code>magnetics/</code>,
-<code>equilibrium/</code>, <code>pf_active/</code>, …).</li>
-<li>Each group opens as an <code>xr.Dataset</code>.  Data variables are physics signals;
-coordinates include time axes.</li>
-<li>The group-level <code>ds.attrs[&quot;imas&quot;]</code> is a short <strong>label string</strong> equal to the
-group name (e.g. <code>&quot;magnetics&quot;</code>).  It is NOT an IDS container.</li>
-<li>Per-variable <code>ds[&quot;var&quot;].attrs[&quot;imas&quot;]</code> is an <strong>IDS-path pointer string</strong>
-(e.g. <code>&quot;magnetics.b_field_pol_probe[:].field.data&quot;</code>).  It is a reference,
-not a container.</li>
-<li>There are <strong>no</strong> <code>ids_properties</code>, <code>version_put</code>, <code>data_dictionary</code>, or
-<code>homogeneous_time</code> attributes anywhere in the bucket.</li>
+  <li>One Zarr v3 store per shot (e.g. <code>11766.zarr/</code>).</li>
+  <li>Sub-directories are Zarr groups named after IMAS IDS names (<code>magnetics/</code>,
+    <code>equilibrium/</code>, <code>pf_active/</code>, …).</li>
+  <li>Each group opens as an <code>xr.Dataset</code>.  Data variables are physics signals;
+    coordinates include time axes.</li>
+  <li>The group-level <code>ds.attrs["imas"]</code> is a short <strong>label string</strong> equal to the
+    group name (e.g. <code>"magnetics"</code>).  It is NOT an IDS container.</li>
+  <li>Per-variable <code>ds["var"].attrs["imas"]</code> is an <strong>IDS-path pointer string</strong>
+    (e.g. <code>"magnetics.b_field_pol_probe[:].field.data"</code>).  It is a reference,
+    not a container.</li>
+  <li>There are <strong>no</strong> <code>ids_properties</code>, <code>version_put</code>, <code>data_dictionary</code>, or
+    <code>homogeneous_time</code> attributes anywhere in the bucket.</li>
 </ul>
+
 <p>This means the checks <code>check_dd_version</code> and <code>check_homogeneous_time_flag</code>
 that were present in the original implementation were chasing IDS attributes
 that do not exist.  Both have been removed.</p>
-<h1 id="3-print-summary">10.2 Time coordinate layout</h3>
+
+<h3 id="102-time-coordinate-layout">10.2 Time coordinate layout</h3>
+
 <p>Time coordinates are per-group, not at root.  Each group exposes one or more
 time coordinates:</p>
-<table>
-<thead>
-<tr>
-<th>Group</th>
-<th>Primary time coord</th>
-<th>Rate</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>equilibrium</code></td>
-<td><code>time</code></td>
-<td>200 Hz</td>
-<td>N≈83, dt=5 ms</td>
-</tr>
-<tr>
-<td><code>magnetics</code></td>
-<td><code>time</code></td>
-<td>5 kHz</td>
-<td>N≈2065, dt=200 µs</td>
-</tr>
-<tr>
-<td><code>magnetics</code></td>
-<td><code>time_saddle</code></td>
-<td>20 kHz</td>
-<td>dt=20 µs (saddle loops)</td>
-</tr>
-<tr>
-<td><code>pf_active</code>, <code>summary</code>, <code>pulse_schedule</code>, <code>gas_injection</code></td>
-<td><code>time</code></td>
-<td>4 kHz</td>
-<td>dt=250 µs</td>
-</tr>
-<tr>
-<td><code>spectrometer_visible</code></td>
-<td><code>time</code></td>
-<td>50 kHz</td>
-<td>dt=20 µs</td>
-</tr>
-<tr>
-<td><code>pf_passive</code>, <code>soft_x_rays</code>, <code>wall</code></td>
-<td>—</td>
-<td>—</td>
-<td>Static geometry, no time dim</td>
-</tr>
-</tbody>
+
+<div class="table-scroll">
+<table class="t">
+  <thead>
+    <tr><th>Group</th><th>Primary time coord</th><th>Rate</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>equilibrium</code></td><td><code>time</code></td><td>200 Hz</td><td>N≈83, dt=5 ms</td></tr>
+    <tr><td><code>magnetics</code></td><td><code>time</code></td><td>5 kHz</td><td>N≈2065, dt=200 µs</td></tr>
+    <tr><td><code>magnetics</code></td><td><code>time_saddle</code></td><td>20 kHz</td><td>dt=20 µs (saddle loops)</td></tr>
+    <tr><td><code>pf_active</code>, <code>summary</code>, <code>pulse_schedule</code>, <code>gas_injection</code></td><td><code>time</code></td><td>4 kHz</td><td>dt=250 µs</td></tr>
+    <tr><td><code>spectrometer_visible</code></td><td><code>time</code></td><td>50 kHz</td><td>dt=20 µs</td></tr>
+    <tr><td><code>pf_passive</code>, <code>soft_x_rays</code>, <code>wall</code></td><td>—</td><td>—</td><td>Static geometry, no time dim</td></tr>
+  </tbody>
 </table>
+</div>
+
 <p>All <code>time</code> coords are monotonic with uniform Δt.  The audit's <code>check_time_axis</code>
-has been rewritten to enumerate all coords containing <code>&quot;time&quot;</code> in their name,
-report one <code>CheckResult</code> per coord, and return an info-level &quot;static group&quot;
+has been rewritten to enumerate all coords containing <code>"time"</code> in their name,
+report one <code>CheckResult</code> per coord, and return an info-level "static group"
 result for groups with no time coord.</p>
-<h3 id="52-re-audit-after-new-data-ingestion">10.3 Physical dynamic ranges</h3>
+
+<h3 id="103-physical-dynamic-ranges">10.3 Physical dynamic ranges</h3>
+
 <p>FAIR-MAST plasma physics quantities span large numeric ranges that are
 physically correct, NOT corruption:</p>
-<table>
-<thead>
-<tr>
-<th>Quantity</th>
-<th>Expected magnitude</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Line-integrated electron density</td>
-<td>~10¹⁹ m⁻²</td>
-</tr>
-<tr>
-<td>Neutral-beam / gas injection (particle rate)</td>
-<td>~10²² s⁻¹</td>
-</tr>
-<tr>
-<td>Density gradient (spectrometer)</td>
-<td>~10²¹ m⁻⁴</td>
-</tr>
-<tr>
-<td>Plasma current</td>
-<td>0–750 kA</td>
-</tr>
-<tr>
-<td>PF coil current</td>
-<td>±50–200 kA</td>
-</tr>
-<tr>
-<td>Reconstruction quality rating (<code>da_rating</code>)</td>
-<td>0–10 (integer-equivalent)</td>
-</tr>
-</tbody>
+
+<div class="table-scroll">
+<table class="t">
+  <thead>
+    <tr><th>Quantity</th><th>Expected magnitude</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Line-integrated electron density</td><td>~10¹⁹ m⁻²</td></tr>
+    <tr><td>Neutral-beam / gas injection (particle rate)</td><td>~10²² s⁻¹</td></tr>
+    <tr><td>Density gradient (spectrometer)</td><td>~10²¹ m⁻⁴</td></tr>
+    <tr><td>Plasma current</td><td>0–750 kA</td></tr>
+    <tr><td>PF coil current</td><td>±50–200 kA</td></tr>
+    <tr><td>Reconstruction quality rating (<code>da_rating</code>)</td><td>0–10 (integer-equivalent)</td></tr>
+  </tbody>
 </table>
+</div>
+
 <p>The original audit used an <code>abs_max ≥ 1e15</code> threshold that flagged all of
 the above as warnings.  The new <code>check_dynamic_range</code> uses a hard corruption
 threshold of <code>1e25</code> — well above all physical quantities — to catch only
 genuine bit-pattern errors.</p>
-<h3 id="53-training-data-loader-integration">10.4 Corpus-level findings from the 2026-05-20 audit (25-shot sample)</h3>
+
+<h3 id="104-corpus-level-findings-from-the-2026-05-20-audit-25-shot-sample">10.4 Corpus-level findings from the 2026-05-20 audit (25-shot sample)</h3>
+
 <p>Running the recalibrated audit on a random 25-shot L2 sample revealed:</p>
 <ul>
-<li><strong>All groups open</strong> (100 %): every group in every shot opens successfully —
-no Zarr-level corruption.</li>
-<li><strong>charge_exchange corruption</strong> (systematic): <code>charge_exchange/t_i</code> and
-<code>charge_exchange/v_i</code> carry bit-pattern errors in ~50 % of audited shots,
-with values ranging from 10²⁶ to 10³⁸.  Physical ion temperature is
-≤30 keV (~3×10⁴ eV) and ion velocity is ≤10⁷ m/s.  These values are
-12–28 orders of magnitude beyond physical range and represent genuine
-float-encoding defects in the FAIR-MAST ingestion pipeline for CX
-diagnostics.  <strong>This is the primary cause of shots failing the audit.</strong></li>
-<li><strong>gas_injection/valve_target_voltage all-NaN</strong>: present in ~20 % of shots.
-Likely channels not connected in some campaigns.</li>
-<li><strong>All false-positive IDS-format warnings eliminated</strong>: the recalibrated
-audit no longer fires <code>dd_version</code>, <code>homogeneous_time_flag</code>, or
-<code>abs_max ≥ 1e15</code> warnings against physically correct data.</li>
-<li><strong>Usable-for-training rate</strong>: ~44 % of the random sample.  The primary
-exclusion reason is <code>charge_exchange</code> corruption — shots without this
-diagnostic or with clean CX data pass at nearly 100 %.</li>
+  <li><strong>All groups open</strong> (100 %): every group in every shot opens successfully —
+    no Zarr-level corruption.</li>
+  <li><strong>charge_exchange corruption</strong> (systematic): <code>charge_exchange/t_i</code> and
+    <code>charge_exchange/v_i</code> carry bit-pattern errors in ~50 % of audited shots,
+    with values ranging from 10²⁶ to 10³⁸.  Physical ion temperature is
+    ≤30 keV (~3×10⁴ eV) and ion velocity is ≤10⁷ m/s.  These values are
+    12–28 orders of magnitude beyond physical range and represent genuine
+    float-encoding defects in the FAIR-MAST ingestion pipeline for CX
+    diagnostics.  <strong>This is the primary cause of shots failing the audit.</strong></li>
+  <li><strong>gas_injection/valve_target_voltage all-NaN</strong>: present in ~20 % of shots.
+    Likely channels not connected in some campaigns.</li>
+  <li><strong>All false-positive IDS-format warnings eliminated</strong>: the recalibrated
+    audit no longer fires <code>dd_version</code>, <code>homogeneous_time_flag</code>, or
+    <code>abs_max ≥ 1e15</code> warnings against physically correct data.</li>
+  <li><strong>Usable-for-training rate</strong>: ~44 % of the random sample.  The primary
+    exclusion reason is <code>charge_exchange</code> corruption — shots without this
+    diagnostic or with clean CX data pass at nearly 100 %.</li>
 </ul>
-<h3 id="54-audit-artefact-retention">10.5 Audit check changes made in this revision</h3>
-<p>The following table summarises the changes to §3 and §4:</p>
-<table>
-<thead>
-<tr>
-<th>Check</th>
-<th>Before</th>
-<th>After</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>check_dd_version</code></td>
-<td>Warned on every group (missing attribute)</td>
-<td><strong>Removed</strong> — attribute does not exist in FAIR-MAST</td>
-</tr>
-<tr>
-<td><code>check_homogeneous_time_flag</code></td>
-<td>Warned on every group (missing IDS flag)</td>
-<td><strong>Removed</strong> — no IDS <code>ids_properties</code> anywhere</td>
-</tr>
-<tr>
-<td><code>check_time_axis</code></td>
-<td>Checked only <code>&quot;time&quot;</code> coord, failed with warn if absent</td>
-<td>Rewrites to enumerate all <code>&quot;time*&quot;</code> coords, info-level for static groups</td>
-</tr>
-<tr>
-<td><code>check_dynamic_range</code></td>
-<td>Warned on abs_max ≥ 1e15 (flagged physical densities)</td>
-<td>Errors only on abs_max &gt; 1e25 (hard corruption) or inf; warns on constant non-zero time-series</td>
-</tr>
-<tr>
-<td><code>check_no_all_nan</code></td>
-<td>Unchanged — correct</td>
-<td>Unchanged</td>
-</tr>
-<tr>
-<td><code>check_open</code></td>
-<td>Unchanged — correct</td>
-<td>Unchanged</td>
-</tr>
-<tr>
-<td><code>check_imas_pointer</code></td>
-<td>New</td>
-<td>Info-level per-variable IDS-path pointer presence</td>
-</tr>
-<tr>
-<td><code>check_imas_label_matches_group</code></td>
-<td>New</td>
-<td>Info-level group-label consistency check</td>
-</tr>
-</tbody>
-</table>
-<p>Quality flags changed:</p>
-<table>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Before</th>
-<th>After</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>sane_dynamic_range</code></td>
-<td>Derived from <code>check_dynamic_range</code> warns</td>
-<td><strong>Removed</strong> (recalibrated check no longer warns on physical data)</td>
-</tr>
-<tr>
-<td><code>monotonic_time</code></td>
-<td>Per-group boolean</td>
-<td><strong>Removed</strong> (rolled into per-coord <code>time_axis:*</code> check results)</td>
-</tr>
-<tr>
-<td><code>all_groups_open</code></td>
-<td>Not present</td>
-<td><strong>Added</strong> — true iff every discovered group opened successfully</td>
-</tr>
-<tr>
-<td><code>no_corrupt_nans</code></td>
-<td>Not present</td>
-<td><strong>Added</strong> — true iff no all-NaN variable and no hard-corruption error fired</td>
-</tr>
-<tr>
-<td><code>usable_for_training</code></td>
-<td>No error-severity checks anywhere</td>
-<td><code>all_groups_open AND has_magnetics AND has_pulse_schedule AND no_error_checks</code></td>
-</tr>
-</tbody>
-</table>
 
-    <h2 id="open-decisions">Open Decisions</h2>
-<p>
-  Click a row to record the call. State persists to
-  <code>~/docs-server/state/imas-ambix/&lt;this-page-stem&gt;.json</code> via
-  the docs-server, and is committed to git under
-  <code>docs/plans-html/state/imas-ambix/</code>.
-</p>
-<table id="decisions-table" class="decisions-table">
+<h3 id="105-audit-check-changes-made-in-this-revision">10.5 Audit check changes made in this revision</h3>
+
+<p>The following table summarises the changes to §3 and §4:</p>
+
+<div class="table-scroll">
+<table class="t">
   <thead>
-    <tr><th style="width:30%">Decision</th><th style="width:35%">Choice</th><th>Rationale</th><th style="width:120px">When</th></tr>
+    <tr><th>Check</th><th>Before</th><th>After</th></tr>
   </thead>
   <tbody>
-    <tr class="decision-row" data-key="drop-charge-exchange">
-      <td>
-        <strong>Drop charge_exchange from v0 training corpus?</strong>
-        <div class="decision-context">Audit on a 25-shot L2 sample found ~50% bit-pattern corruption in <code>charge_exchange/t_i</code> and <code>charge_exchange/v_i</code>, with values 10²⁶–10³⁸ (physical range: ≤ 30 keV / 10⁷ m/s). The diagnostic is only present in 37.9% of the 11,573 shots regardless. Source: <a href="#104-corpus-level-findings-from-the-2026-05-20-audit-25-shot-sample">§10.4</a>.</div>
-      </td>
-      <td>
-        <div class="controls">
-          <button data-choice="yes-drop">Yes — drop entirely</button>
-          <button data-choice="keep-clip">Keep but hard-clip abs &gt; 1e25</button>
-          <button data-choice="defer">Defer — full 11,573-shot audit first</button>
-        </div>
-      </td>
-      <td><input type="text" placeholder="rationale..." style="width:100%"></td>
-      <td><span class="when"></span></td>
+    <tr>
+      <td><code>check_dd_version</code></td>
+      <td>Warned on every group (missing attribute)</td>
+      <td><strong>Removed</strong> — attribute does not exist in FAIR-MAST</td>
+    </tr>
+    <tr>
+      <td><code>check_homogeneous_time_flag</code></td>
+      <td>Warned on every group (missing IDS flag)</td>
+      <td><strong>Removed</strong> — no IDS <code>ids_properties</code> anywhere</td>
+    </tr>
+    <tr>
+      <td><code>check_time_axis</code></td>
+      <td>Checked only <code>"time"</code> coord, failed with warn if absent</td>
+      <td>Rewrites to enumerate all <code>"time*"</code> coords, info-level for static groups</td>
+    </tr>
+    <tr>
+      <td><code>check_dynamic_range</code></td>
+      <td>Warned on abs_max ≥ 1e15 (flagged physical densities)</td>
+      <td>Errors only on abs_max &gt; 1e25 (hard corruption) or inf; warns on constant non-zero time-series</td>
+    </tr>
+    <tr>
+      <td><code>check_no_all_nan</code></td>
+      <td>Unchanged — correct</td>
+      <td>Unchanged</td>
+    </tr>
+    <tr>
+      <td><code>check_open</code></td>
+      <td>Unchanged — correct</td>
+      <td>Unchanged</td>
+    </tr>
+    <tr>
+      <td><code>check_imas_pointer</code></td>
+      <td>New</td>
+      <td>Info-level per-variable IDS-path pointer presence</td>
+    </tr>
+    <tr>
+      <td><code>check_imas_label_matches_group</code></td>
+      <td>New</td>
+      <td>Info-level group-label consistency check</td>
     </tr>
   </tbody>
 </table>
-
-<div class="decisions-toolbar">
-  <button id="copy-state">Copy state as JSON</button>
-  <button id="reset-state">Reset</button>
 </div>
 
-<script defer>
-(async function () {
-  const table = document.getElementById('decisions-table');
-  if (!table) return;
-  const rows = [...table.querySelectorAll('tr.decision-row')];
+<p>Quality flags changed:</p>
 
-  async function readAll() {
-    const out = {};
-    for (const row of rows) {
-      const key = row.dataset.key;
-      const chosen = row.querySelector('button.chosen')?.dataset.choice ?? null;
-      const rationale = row.querySelector('input')?.value ?? '';
-      const when = row.querySelector('.when')?.textContent ?? '';
-      out[key] = { choice: chosen, rationale, when };
-    }
-    return out;
-  }
+<div class="table-scroll">
+<table class="t">
+  <thead>
+    <tr><th>Flag</th><th>Before</th><th>After</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>sane_dynamic_range</code></td>
+      <td>Derived from <code>check_dynamic_range</code> warns</td>
+      <td><strong>Removed</strong> (recalibrated check no longer warns on physical data)</td>
+    </tr>
+    <tr>
+      <td><code>monotonic_time</code></td>
+      <td>Per-group boolean</td>
+      <td><strong>Removed</strong> (rolled into per-coord <code>time_axis:*</code> check results)</td>
+    </tr>
+    <tr>
+      <td><code>all_groups_open</code></td>
+      <td>Not present</td>
+      <td><strong>Added</strong> — true iff every discovered group opened successfully</td>
+    </tr>
+    <tr>
+      <td><code>no_corrupt_nans</code></td>
+      <td>Not present</td>
+      <td><strong>Added</strong> — true iff no all-NaN variable and no hard-corruption error fired</td>
+    </tr>
+    <tr>
+      <td><code>usable_for_training</code></td>
+      <td>No error-severity checks anywhere</td>
+      <td><code>all_groups_open AND has_magnetics AND has_pulse_schedule AND no_error_checks</code></td>
+    </tr>
+  </tbody>
+</table>
+</div>
 
-  function applyAll(state) {
-    for (const row of rows) {
-      const key = row.dataset.key;
-      const s = state?.[key];
-      if (!s) continue;
-      if (s.choice) {
-        row.querySelectorAll('button[data-choice]').forEach(b => {
-          b.classList.toggle('chosen', b.dataset.choice === s.choice);
+<h2 id="open-decisions">Open Decisions</h2>
+
+<p>Click a choice to record the call. State persists to
+<code>docs/state/imas-ambix/data-quality.json</code> via the docs-server.</p>
+
+<div class="decisions" id="decisions">
+  <div class="dec open" data-key="drop-charge-exchange">
+    <div class="head">
+      <span class="key">drop-charge-exchange</span>
+      <span class="title">Drop charge_exchange from v0 training corpus?</span>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line">Audit on a 25-shot L2 sample found ~50% bit-pattern corruption in
+      <code>charge_exchange/t_i</code> and <code>charge_exchange/v_i</code>, with values 10²⁶–10³⁸
+      (physical range: ≤ 30 keV / 10⁷ m/s). The diagnostic is only present in 37.9%
+      of the 11,573 shots regardless. Source: <a href="#104-corpus-level-findings-from-the-2026-05-20-audit-25-shot-sample">§10.4</a>.</p>
+    <div class="choices">
+      <button data-choice="yes-drop">Yes — drop entirely</button>
+      <button data-choice="keep-clip">Keep but hard-clip abs &gt; 1e25</button>
+      <button data-choice="defer">Defer — full 11,573-shot audit first</button>
+    </div>
+    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
+  </div>
+</div>
+
+<nav class="plan-nav">
+  <a href="data-acquisition.html"><span class="nav-label">← Previous</span><span class="nav-title">Data Acquisition</span></a>
+  <a href="tokenizers.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Tokenizers</span></a>
+</nav>
+
+</main>
+
+<script src="assets/app.js"></script>
+
+<script>
+(function () {
+  // Wire decisions: load state, apply, then persist on click.
+  document.addEventListener("DOMContentLoaded", async () => {
+    const blob = await loadState();
+    const stateDecs = getDecisions(blob);
+
+    document.querySelectorAll(".dec[data-key]").forEach(row => {
+      const key = row.getAttribute("data-key");
+      const s = stateDecs[key];
+      if (s) {
+        row.classList.add("locked");
+        row.classList.remove("open");
+        row.querySelectorAll(".choices button").forEach(b => {
+          if (b.getAttribute("data-choice") === s.choice) b.classList.add("chosen");
         });
+        const rat = row.querySelector('input[data-field="rationale"]');
+        if (rat && s.rationale) rat.value = s.rationale;
+        const when = row.querySelector('[data-field="when"]');
+        if (when && s.when) when.textContent = s.when;
       }
-      const inp = row.querySelector('input');
-      if (inp && s.rationale) inp.value = s.rationale;
-      const when = row.querySelector('.when');
-      if (when && s.when) when.textContent = s.when;
-    }
-  }
 
-  async function persist() {
-    const data = await readAll();
-    await saveState(data);
-  }
-
-  rows.forEach(row => {
-    row.querySelectorAll('button[data-choice]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
-        btn.classList.add('chosen');
-        row.querySelector('.when').textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
-        persist();
+      row.querySelectorAll(".choices button").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const choice = btn.getAttribute("data-choice");
+          const rat = row.querySelector('input[data-field="rationale"]')?.value || "";
+          try {
+            await lockDecision(key, choice, rat);
+            row.querySelectorAll(".choices button").forEach(b => b.classList.remove("chosen"));
+            btn.classList.add("chosen");
+            row.classList.add("locked");
+            row.classList.remove("open");
+            const when = row.querySelector('[data-field="when"]');
+            if (when) when.textContent = new Date().toISOString().slice(0, 16).replace("T", " ");
+          } catch (e) {
+            alert(e.message);
+          }
+        });
       });
     });
-    const inp = row.querySelector('input');
-    if (inp) inp.addEventListener('change', persist);
   });
-
-  document.getElementById('copy-state').addEventListener('click', async () => {
-    await copyState(await readAll());
-  });
-  document.getElementById('reset-state').addEventListener('click', async () => {
-    if (!confirm('Reset all decisions on this page?')) return;
-    rows.forEach(row => {
-      row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
-      const inp = row.querySelector('input'); if (inp) inp.value = '';
-      const when = row.querySelector('.when'); if (when) when.textContent = '';
-    });
-    await saveState({});
-  });
-
-  const initial = await loadState();
-  applyAll(initial.data || {});
 })();
 </script>
 
-    <nav class="plan-nav"><a href="data-acquisition.html"><span class="nav-label">← Previous</span><span class="nav-title">Data Acquisition</span></a><a href="tokenizers.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Tokenizers</span></a></nav>
-  </div>
-</main>
-</div>
-
-<script src="assets/app.js"></script>
 </body>
 </html>
