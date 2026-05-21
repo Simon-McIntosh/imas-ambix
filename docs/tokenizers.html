@@ -4,81 +4,43 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tokenizers | Ambix Plans</title>
-<link rel="stylesheet" href="assets/dashboard.css">
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/state.js" defer></script>
+<link rel="stylesheet" href="_shared/foundation.css">
+<link rel="stylesheet" href="_shared/dashboard.css">
+<script src="_shared/state.js"></script>
 </head>
 <body>
-<!-- header -->
-<header class="site-header">
-  <div class="logo"><a href="index.html">⚗ Ambix Plans</a></div>
+
+<div class="topbar">
+  <a class="brand" href="index.html">
+    <span class="mark">A</span>
+    <span class="proj-name">imas-ambix</span>
+  </a>
   <nav>
     <a href="index.html">Index</a>
     <a href="STRATEGY.html">Strategy</a>
     <a href="v0-runway.html">v0 Runway</a>
     <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data Acq</a>
+    <a href="data-acquisition.html">Data acq</a>
     <a href="data-quality.html">Quality</a>
-    <a href="tokenizers.html">Tokenizers</a>
+    <a href="tokenizers.html" class="active">Tokenizers</a>
     <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World Model</a>
+    <a href="world-model-v0.html">World model</a>
     <a href="demo.html">Demo</a>
     <a href="decisions.html">Decisions</a>
   </nav>
-  <div class="spacer"></div>
-  <button class="sidebar-toggle" id="sidebar-toggle">&#9776; Sections</button>
-  <button class="theme-toggle" id="theme-toggle">☽ Dark</button>
-</header>
+  <div class="right"></div>
+</div>
 
-<div class="page-body">
-<!-- sidebar -->
-<aside class="sidebar">
-  <div class="sidebar-title">On this page</div>
-  <ul><li><a href="#1-modality-breakdown-and-tokenizer-choices" class="">1. Modality breakdown and tokenizer choices</a></li>
-<li><a href="#2-why-open-magvit2-not-cosmos-tokenizer-not-vq-gan" class="">2. Why Open-MAGVIT2 (not Cosmos-Tokenizer, not …</a></li>
-<li><a href="#3-why-chronos-patchtst-for-signals" class="">3. Why Chronos + PatchTST for signals</a></li>
-<li><a href="#4-token-id-namespacing" class="">4. Token id namespacing</a></li>
-<li><a href="#5-persistence-layout" class="">5. Persistence layout</a></li>
-<li><a href="#6-training-fine-tuning-the-tokenizers" class="">6. Training / fine-tuning the tokenizers</a></li>
-<li><a href="#61-frame-tokenizer" class="h3-link">6.1 Frame tokenizer</a></li>
-<li><a href="#62-signal-tokenizer" class="h3-link">6.2 Signal tokenizer</a></li>
-<li><a href="#63-retraining-triggers" class="h3-link">6.3 Retraining triggers</a></li>
-<li><a href="#7-round-trip-evaluation" class="">7. Round-trip evaluation</a></li>
-<li><a href="#8-open-questions-to-revisit-before-phase-2-kicks-off" class="">8. Open questions to revisit before Phase 2 kic…</a></li>
-<li><a href="#9-v0-scaffold-landed-2026-05-19" class="">9. v0 scaffold landed — 2026-05-19</a></li>
-<li><a href="#91-open-magvit2-live-2026-05-20" class="h3-link">9.1 Open-MAGVIT2 — live (2026-05-20)</a></li>
-<li><a href="#92-chronos-patchtst-landed-2026-05-20" class="h3-link">9.2 Chronos + PatchTST landed — 2026-05-20</a></li>
-<li><a href="#chronos-t5-small" class="h3-link">Chronos T5-small</a></li>
-<li><a href="#patchtst-identity-passthrough" class="h3-link">PatchTST (identity passthrough)</a></li>
-<li><a href="#93-implementation-notes-for-the-real-tokenizers" class="h3-link">9.3 Implementation notes for the real tokenizers</a></li>
-<li><a href="#10-blockkind-side-data-2026-05-20" class="">10. blockkind side data — 2026-05-20</a></li>
-<li><a href="#blockkind-enum" class="h3-link">BlockKind enum</a></li>
-<li><a href="#shottokenizer-api" class="h3-link">ShotTokenizer API</a></li>
-<li><a href="#persistence-layout-extension" class="h3-link">Persistence layout extension</a></li>
-<li><a href="#loader-blockweights" class="h3-link">Loader BLOCKWEIGHTS</a></li>
-<li><a href="#fallback-behaviour" class="h3-link">Fallback behaviour</a></li>
-<li><a href="#12-tokenizer-expansion-plan-2026-05-20" class="">12. Tokenizer expansion plan — 2026-05-20</a></li>
-<li><a href="#121-plasma-domain-open-magvit2-decoder-fine-tune" class="h3-link">12.1 Plasma-domain Open-MAGVIT2 decoder fine-tune</a></li>
-<li><a href="#122-real-patchtst-embedding" class="h3-link">12.2 Real PatchTST embedding</a></li>
-<li><a href="#123-equilibrium-2-d-tokenizer" class="h3-link">12.3 Equilibrium 2-D tokenizer</a></li>
-<li><a href="#124-multi-modal-alignment-improvements" class="h3-link">12.4 Multi-modal alignment improvements</a></li>
-<li><a href="#125-ir-camera-codebook-decision" class="h3-link">12.5 IR camera codebook decision</a></li>
-<li><a href="#126-cross-modality-alignment-quality-metric" class="h3-link">12.6 Cross-modality alignment quality metric</a></li>
-<li><a href="#13-12-expansion-landed-2026-05-20" class="">13. §12 expansion landed — 2026-05-20</a></li>
-<li><a href="#131-121-plasma-decoder-fine-tune-scaffold" class="h3-link">13.1 §12.1 plasma-decoder fine-tune scaffold</a></li>
-<li><a href="#132-124-multi-modal-alignment-improvements" class="h3-link">13.2 §12.4 multi-modal alignment improvements</a></li>
-<li><a href="#133-125-ir-camera-codebook-benchmark-wiring" class="h3-link">13.3 §12.5 IR camera codebook benchmark wiring</a></li>
-<li><a href="#134-126-cross-modality-alignment-quality-metric" class="h3-link">13.4 §12.6 cross-modality alignment quality metric</a></li>
-<li><a href="#135-coordinator-note-commit-hygiene" class="h3-link">13.5 Coordinator note: commit hygiene</a></li>
-<li><a href="#136-items-remaining-in-12-still-deferred" class="h3-link">13.6 Items remaining in §12 (still deferred)</a></li>
-<li><a href="#open-decisions" class="">Open Decisions</a></li></ul>
-</aside>
+<main class="page">
 
-<!-- main -->
-<main class="main-content">
-  <div class="content-inner">
-    <div class="breadcrumb"><a href="index.html">Plans</a><span>›</span><span>Tokenizers</span></div>
-    <h1 id="plan-multi-modal-tokenizers">Plan: Multi-Modal Tokenizers</h1>
+<div class="page-head">
+  <div class="title">
+    <h1>Plan: Multi-Modal Tokenizers</h1>
+    <div class="subtitle">imas-ambix / Fusion World Model ·
+      Updated <time id="updated">2026-05-20</time></div>
+  </div>
+</div>
+
 <p>Status: <strong>Draft</strong> — depends on <code>data-acquisition.md</code> mirror completing.</p>
 <p>The Fusion World Model treats every diagnostic stream as a sequence of
 integer tokens drawn from a shared vocabulary. This plan fixes the
@@ -90,97 +52,91 @@ training code (<code>imas_ambix/train/loop.py</code>) consume a stable interface
 components. We do not invent a new tokenizer. If a chosen tokenizer
 underperforms, the fallback is documented inline; the public interface
 does not change when we swap implementations.</p>
-<hr />
+
+<hr>
+
 <h2 id="1-modality-breakdown-and-tokenizer-choices">1. Modality breakdown and tokenizer choices</h2>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Modality</th>
-<th>Source IDS / column</th>
-<th>Native shape</th>
-<th>Tokenizer</th>
-<th>Reason</th>
-</tr>
+<tr><th>Modality</th><th>Source IDS / column</th><th>Native shape</th><th>Tokenizer</th><th>Reason</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>Visible camera</td>
-<td><code>camera_visible.{camera_lower,camera_center,camera_color}.image_raw</code></td>
-<td><code>(H, W, T)</code> per camera, native cadence</td>
-<td>Open-MAGVIT2 (TencentARC)</td>
-<td>2^18 LFQ codebook, 8× spatial / 4× temporal compression, Apache-2.0, rFID 0.39 @ 8× ImageNet (state-of-the-art on open discrete tokenizers).</td>
+  <td>Visible camera</td>
+  <td><code>camera_visible.{camera_lower,camera_center,camera_color}.image_raw</code></td>
+  <td><code>(H, W, T)</code> per camera, native cadence</td>
+  <td>Open-MAGVIT2 (TencentARC)</td>
+  <td>2^18 LFQ codebook, 8× spatial / 4× temporal compression, Apache-2.0, rFID 0.39 @ 8× ImageNet (state-of-the-art on open discrete tokenizers).</td>
 </tr>
 <tr>
-<td>IR camera</td>
-<td><code>camera_ir.{camera_lower,etc.}.image_raw</code></td>
-<td><code>(H, W, T)</code>, single channel</td>
-<td>Open-MAGVIT2 (same checkpoint, fine-tuned on IR)</td>
-<td>Sharing the visible tokenizer is the v0 default; IR-specific fine-tune deferred to v1.</td>
+  <td>IR camera</td>
+  <td><code>camera_ir.{camera_lower,etc.}.image_raw</code></td>
+  <td><code>(H, W, T)</code>, single channel</td>
+  <td>Open-MAGVIT2 (same checkpoint, fine-tuned on IR)</td>
+  <td>Sharing the visible tokenizer is the v0 default; IR-specific fine-tune deferred to v1.</td>
 </tr>
 <tr>
-<td>Magnetics (high rate)</td>
-<td><code>magnetics.flux_loop[*].flux.data</code>, <code>magnetics.b_field_pol_probe[*].field.data</code>, OMAHA channels</td>
-<td>1D, MHz cadence, up to 7.26 M samples / shot</td>
-<td>PatchTST (patch length 64, stride 32)</td>
-<td>Channel-independent patches; fastest to retrofit; output dimension feeds a learned linear projection into the token id space.</td>
+  <td>Magnetics (high rate)</td>
+  <td><code>magnetics.flux_loop[*].flux.data</code>, <code>magnetics.b_field_pol_probe[*].field.data</code>, OMAHA channels</td>
+  <td>1D, MHz cadence, up to 7.26 M samples / shot</td>
+  <td>PatchTST (patch length 64, stride 32)</td>
+  <td>Channel-independent patches; fastest to retrofit; output dimension feeds a learned linear projection into the token id space.</td>
 </tr>
 <tr>
-<td>Low-frequency signals</td>
-<td><code>equilibrium.time_slice[*].global_quantities.*</code>, <code>pf_active.coil[*].current.data</code>, <code>summary.*</code>, <code>gas_injection.*</code>, <code>thomson_scattering.*</code> (profile-time series)</td>
-<td>1D or low-D, 4 kHz interpolated grid</td>
-<td>Chronos T5-small (Amazon)</td>
-<td>Scale-and-quantize → discrete token IDs already, Apache-2.0, HF <code>transformers</code>-native.</td>
+  <td>Low-frequency signals</td>
+  <td><code>equilibrium.time_slice[*].global_quantities.*</code>, <code>pf_active.coil[*].current.data</code>, <code>summary.*</code>, <code>gas_injection.*</code>, <code>thomson_scattering.*</code> (profile-time series)</td>
+  <td>1D or low-D, 4 kHz interpolated grid</td>
+  <td>Chronos T5-small (Amazon)</td>
+  <td>Scale-and-quantize → discrete token IDs already, Apache-2.0, HF <code>transformers</code>-native.</td>
 </tr>
 <tr>
-<td>Scalar state / control actions</td>
-<td><code>pulse_schedule.*</code>, time-step index, shot id, campaign tag</td>
-<td>scalar per step</td>
-<td>Learned embedding table</td>
-<td>Trivial; treat each scalar field as a tiny categorical with a learned embedding row.</td>
+  <td>Scalar state / control actions</td>
+  <td><code>pulse_schedule.*</code>, time-step index, shot id, campaign tag</td>
+  <td>scalar per step</td>
+  <td>Learned embedding table</td>
+  <td>Trivial; treat each scalar field as a tiny categorical with a learned embedding row.</td>
 </tr>
 </tbody>
-</table>
+</table></div>
+
 <p>We do <strong>not</strong> tokenize equilibrium 2-D profiles (<code>profiles_2d[*].j_phi</code>,
-<code>psi</code>, …) in v0. They go into a separate &quot;auxiliary&quot; conditioning path
+<code>psi</code>, …) in v0. They go into a separate "auxiliary" conditioning path
 read directly as continuous tensors by the model's cross-attention. v1 may
 revisit this once Open-MAGVIT2 has been fine-tuned for grid-shape data.</p>
-<hr />
+
+<hr>
+
 <h2 id="2-why-open-magvit2-not-cosmos-tokenizer-not-vq-gan">2. Why Open-MAGVIT2 (not Cosmos-Tokenizer, not VQ-GAN)</h2>
 <p>The three credible discrete frame tokenizers for v0:</p>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Option</th>
-<th>License</th>
-<th>Compression</th>
-<th>Codebook</th>
-<th>Eval (rFID lower is better)</th>
-</tr>
+<tr><th>Option</th><th>License</th><th>Compression</th><th>Codebook</th><th>Eval (rFID lower is better)</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>Open-MAGVIT2 (TencentARC)</td>
-<td><strong>Apache-2.0</strong></td>
-<td>8×8×4</td>
-<td>2^18 LFQ</td>
-<td><strong>0.39</strong> ImageNet 256×, 0.50 on 128×-class</td>
+  <td>Open-MAGVIT2 (TencentARC)</td>
+  <td><strong>Apache-2.0</strong></td>
+  <td>8×8×4</td>
+  <td>2^18 LFQ</td>
+  <td><strong>0.39</strong> ImageNet 256×, 0.50 on 128×-class</td>
 </tr>
 <tr>
-<td>Cosmos-Tokenizer-DV (NVIDIA)</td>
-<td>Apache-2.0 code + NVIDIA OML weights</td>
-<td>8×8×8</td>
-<td>64 K</td>
-<td>0.50-class</td>
+  <td>Cosmos-Tokenizer-DV (NVIDIA)</td>
+  <td>Apache-2.0 code + NVIDIA OML weights</td>
+  <td>8×8×8</td>
+  <td>64 K</td>
+  <td>0.50-class</td>
 </tr>
 <tr>
-<td>ViT-VQGAN (WHAM original)</td>
-<td>MIT/Apache mixes</td>
-<td>16× spatial</td>
-<td>~16 K</td>
-<td>~1.5</td>
+  <td>ViT-VQGAN (WHAM original)</td>
+  <td>MIT/Apache mixes</td>
+  <td>16× spatial</td>
+  <td>~16 K</td>
+  <td>~1.5</td>
 </tr>
 </tbody>
-</table>
+</table></div>
+
 <p>Open-MAGVIT2 wins on every axis that matters for v0: pure-Apache stack,
 strongest reconstruction on the open benchmarks, and the same temporal
 compression (4×) that WHAM/WHAMM are converging on. The Cosmos OML weights
@@ -202,56 +158,57 @@ forecasting and the camera output becomes a v1 concern.</li>
 </ol>
 <p>Reference repos:</p>
 <ul>
-<li><a href="https://github.com/TencentARC/Open-MAGVIT2">https://github.com/TencentARC/Open-MAGVIT2</a> — primary</li>
-<li><a href="https://github.com/NVIDIA/Cosmos-Tokenizer">https://github.com/NVIDIA/Cosmos-Tokenizer</a> — fallback continuous variant</li>
-<li><a href="https://arxiv.org/abs/2409.04410">https://arxiv.org/abs/2409.04410</a> — Open-MAGVIT2 paper</li>
+<li><a class="link" href="https://github.com/TencentARC/Open-MAGVIT2">https://github.com/TencentARC/Open-MAGVIT2</a> — primary</li>
+<li><a class="link" href="https://github.com/NVIDIA/Cosmos-Tokenizer">https://github.com/NVIDIA/Cosmos-Tokenizer</a> — fallback continuous variant</li>
+<li><a class="link" href="https://arxiv.org/abs/2409.04410">https://arxiv.org/abs/2409.04410</a> — Open-MAGVIT2 paper</li>
 </ul>
-<hr />
+
+<hr>
+
 <h2 id="3-why-chronos-patchtst-for-signals">3. Why Chronos + PatchTST for signals</h2>
 <p>The signal landscape is heterogeneous: 4 kHz interpolated low-frequency
 signals (most diagnostics), MHz raw magnetics (OMAHA), and 5 ms / 65×65
 equilibrium 2-D grids. No single signal tokenizer covers all three well.
 The v0 choice:</p>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Tokenizer</th>
-<th>Best fit modality</th>
-<th>Why</th>
-</tr>
+<tr><th>Tokenizer</th><th>Best fit modality</th><th>Why</th></tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Chronos T5-small</strong></td>
-<td>4 kHz interpolated signals</td>
-<td>Scale + uniform quantize → token IDs, already T5-shaped, drop-in HF <code>transformers</code>. Apache-2.0.</td>
+  <td><strong>Chronos T5-small</strong></td>
+  <td>4 kHz interpolated signals</td>
+  <td>Scale + uniform quantize → token IDs, already T5-shaped, drop-in HF <code>transformers</code>. Apache-2.0.</td>
 </tr>
 <tr>
-<td><strong>PatchTST</strong></td>
-<td>MHz magnetics, OMAHA, raw probe signals</td>
-<td>Channel-independent patch tokens; patch length 64 means ~110 K tokens per shot at MHz cadence is reduced to a tractable ~1.7 K patch tokens.</td>
+  <td><strong>PatchTST</strong></td>
+  <td>MHz magnetics, OMAHA, raw probe signals</td>
+  <td>Channel-independent patch tokens; patch length 64 means ~110 K tokens per shot at MHz cadence is reduced to a tractable ~1.7 K patch tokens.</td>
 </tr>
 <tr>
-<td><strong>(none — direct tensor)</strong></td>
-<td>Equilibrium 2-D, scalar metadata</td>
-<td>Skip discrete tokenization for v0.</td>
+  <td><strong>(none — direct tensor)</strong></td>
+  <td>Equilibrium 2-D, scalar metadata</td>
+  <td>Skip discrete tokenization for v0.</td>
 </tr>
 </tbody>
-</table>
-<p>Chronos paper / repo: <a href="https://github.com/amazon-science/chronos-forecasting">https://github.com/amazon-science/chronos-forecasting</a>.
+</table></div>
+
+<p>Chronos paper / repo: <a class="link" href="https://github.com/amazon-science/chronos-forecasting">https://github.com/amazon-science/chronos-forecasting</a>.
 PatchTST: ICLR 2023 paper; HF wrapper available.</p>
-<p>We deliberately reject Moirai-MoE for v0 even though its &quot;any-variate&quot;
+<p>We deliberately reject Moirai-MoE for v0 even though its "any-variate"
 attention is the cleanest answer to multi-rate signals. The reason is
 operational: Moirai is BSD-3 licensed but its open implementation is
 smaller and less HF-integrated than Chronos. Adopting it adds engineering
 overhead we cannot afford in v0. v1 should revisit.</p>
-<hr />
+
+<hr>
+
 <h2 id="4-token-id-namespacing">4. Token id namespacing</h2>
 <p>A single global vocabulary serves all modalities. Each tokenizer is
 assigned a contiguous id range; the model never sees the modality string,
 only token ids. The mapping is captured in
 <code>imas_ambix/tokenizer/registry.py</code>:</p>
-<pre><code class="language-text">[       0,        4) — control tokens: &lt;pad&gt;, &lt;bos&gt;, &lt;eos&gt;, &lt;sep&gt;
+<pre><code>[       0,        4) — control tokens: &lt;pad&gt;, &lt;bos&gt;, &lt;eos&gt;, &lt;sep&gt;
 [       4,    4+N1) — Open-MAGVIT2 frame tokens (visible)         N1 ≈ 2^18
 [ 4+N1,   4+N1+N2) — Open-MAGVIT2 frame tokens (IR — shared CB?)  N2 = N1 in v0
 [ 4+N1+N2,   ...  ) — Chronos signal tokens, per-channel offset by channel-id
@@ -266,7 +223,9 @@ file is the single source of truth.</p>
 <p>The registry is a pure Python module — no runtime DB. Versioning is by
 the registry module's <code>VOCAB_VERSION</code> constant. Any change increments the
 version and requires re-tokenisation of cached tokens.</p>
-<hr />
+
+<hr>
+
 <h2 id="5-persistence-layout">5. Persistence layout</h2>
 <p>Tokenized data lives under
 <code>/work/projects/imas_gpu/mast-tokens/</code>, parallel to but separate from the
@@ -295,7 +254,9 @@ old token caches around for direct A/B comparisons. The per-vocab
 <code>open-magvit2-decoder.safetensors</code> is the only weight file we need to
 reconstruct frames from tokens — the encoder is not needed at training
 time.</p>
-<hr />
+
+<hr>
+
 <h2 id="6-training-fine-tuning-the-tokenizers">6. Training / fine-tuning the tokenizers</h2>
 <h3 id="61-frame-tokenizer">6.1 Frame tokenizer</h3>
 <ul>
@@ -312,7 +273,7 @@ training starts.</li>
 <ul>
 <li><strong>Chronos:</strong> ships pre-trained on a broad time-series corpus
 (electricity, traffic, etc.). v0 uses the <strong>pretrained T5-small
-checkpoint as-is</strong>. The &quot;quantize then index&quot; step is calibrated
+checkpoint as-is</strong>. The "quantize then index" step is calibrated
 per-channel from the MAST training split (compute per-channel mean +
 std on the training shots; freeze for inference).</li>
 <li><strong>PatchTST:</strong> v0 uses <strong>random initialisation</strong>. PatchTST is a small
@@ -322,29 +283,28 @@ WHAM transformer's input pipeline. This avoids a separate pre-training
 pass.</li>
 </ul>
 <h3 id="63-retraining-triggers">6.3 Retraining triggers</h3>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Trigger</th>
-<th>Action</th>
-</tr>
+<tr><th>Trigger</th><th>Action</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>New MAST campaign data lands (M10+)</td>
-<td>Recompute Chronos per-channel calibration; do not retrain Open-MAGVIT2 unless rFID degrades.</td>
+  <td>New MAST campaign data lands (M10+)</td>
+  <td>Recompute Chronos per-channel calibration; do not retrain Open-MAGVIT2 unless rFID degrades.</td>
 </tr>
 <tr>
-<td>New facility added (TCV, JT-60SA, …)</td>
-<td>Recompute per-channel calibration; re-evaluate Open-MAGVIT2 decoder fine-tune for facility-specific cameras.</td>
+  <td>New facility added (TCV, JT-60SA, …)</td>
+  <td>Recompute per-channel calibration; re-evaluate Open-MAGVIT2 decoder fine-tune for facility-specific cameras.</td>
 </tr>
 <tr>
-<td>Vocab-impacting bug fix</td>
-<td>Bump <code>VOCAB_VERSION</code>, re-encode in a new <code>mast-tokens/v{N+1}/</code> directory; keep <code>v{N}/</code> until model trained on <code>v{N+1}/</code> is validated.</td>
+  <td>Vocab-impacting bug fix</td>
+  <td>Bump <code>VOCAB_VERSION</code>, re-encode in a new <code>mast-tokens/v{N+1}/</code> directory; keep <code>v{N}/</code> until model trained on <code>v{N+1}/</code> is validated.</td>
 </tr>
 </tbody>
-</table>
-<hr />
+</table></div>
+
+<hr>
+
 <h2 id="7-round-trip-evaluation">7. Round-trip evaluation</h2>
 <p>A standalone tool (<code>ambix tokenize round-trip --shot {id}</code>) encodes a
 single shot through the full pipeline, decodes back, and reports
@@ -359,7 +319,9 @@ world-model training is <code>rFID ≤ 5 on visible camera frames</code> and
 <code>NRMSE ≤ 0.05 on each of the headline diagnostic channels</code> (pulse
 schedule control variables, PF coil currents, plasma current, line-
 integrated density).</p>
-<hr />
+
+<hr>
+
 <h2 id="8-open-questions-to-revisit-before-phase-2-kicks-off">8. Open questions to revisit before Phase 2 kicks off</h2>
 <ul>
 <li><strong>IR codebook sharing</strong>: confirm after the round-trip that the visible
@@ -373,52 +335,52 @@ a continuous tensor via cross-attention. v1 should consider a 2-D
 Open-MAGVIT2 fine-tune on the grid representation so equilibrium
 enters the token stream the same way frames do.</li>
 </ul>
-<hr />
+
+<hr>
+
 <h2 id="9-v0-scaffold-landed-2026-05-19">9. v0 scaffold landed — 2026-05-19</h2>
 <p>The <code>imas_ambix.tokenizer</code> package now exists with the protocol surfaces
 and placeholder implementations described above:</p>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Module</th>
-<th>Role</th>
-</tr>
+<tr><th>Module</th><th>Role</th></tr>
 </thead>
 <tbody>
 <tr>
-<td><code>base.py</code></td>
-<td><code>Tokenizer</code> / <code>FrameTokenizer</code> / <code>SignalTokenizer</code> protocols, <code>EncodedFrames</code> / <code>EncodedSignals</code> dataclasses</td>
+  <td><code>base.py</code></td>
+  <td><code>Tokenizer</code> / <code>FrameTokenizer</code> / <code>SignalTokenizer</code> protocols, <code>EncodedFrames</code> / <code>EncodedSignals</code> dataclasses</td>
 </tr>
 <tr>
-<td><code>registry.py</code></td>
-<td><code>TokenRegistry</code> global id allocator, <code>CONTROL_TOKENS</code> reserved range, <code>VOCAB_VERSION</code></td>
+  <td><code>registry.py</code></td>
+  <td><code>TokenRegistry</code> global id allocator, <code>CONTROL_TOKENS</code> reserved range, <code>VOCAB_VERSION</code></td>
 </tr>
 <tr>
-<td><code>alignment.py</code></td>
-<td><code>TimeGrid</code>, <code>shot_time_window</code>, <code>resample_to_grid</code></td>
+  <td><code>alignment.py</code></td>
+  <td><code>TimeGrid</code>, <code>shot_time_window</code>, <code>resample_to_grid</code></td>
 </tr>
 <tr>
-<td><code>frames.py</code></td>
-<td><code>PlaceholderFrameTokenizer</code> (working) + <code>OpenMagvit2Tokenizer</code> (stub)</td>
+  <td><code>frames.py</code></td>
+  <td><code>PlaceholderFrameTokenizer</code> (working) + <code>OpenMagvit2Tokenizer</code> (stub)</td>
 </tr>
 <tr>
-<td><code>signals.py</code></td>
-<td><code>UniformQuantizer</code> (working) + <code>ChronosSignalTokenizer</code> (stub)</td>
+  <td><code>signals.py</code></td>
+  <td><code>UniformQuantizer</code> (working) + <code>ChronosSignalTokenizer</code> (stub)</td>
 </tr>
 <tr>
-<td><code>multimodal.py</code></td>
-<td><code>ShotTokenizer</code> — interleaves frame+signal tokens with <code>&lt;bos&gt;/&lt;sep&gt;/&lt;eos&gt;</code></td>
+  <td><code>multimodal.py</code></td>
+  <td><code>ShotTokenizer</code> — interleaves frame+signal tokens with <code>&lt;bos&gt;/&lt;sep&gt;/&lt;eos&gt;</code></td>
 </tr>
 <tr>
-<td><code>cli.py</code></td>
-<td><code>ambix tokenize {registry, inspect, frames, signals}</code></td>
+  <td><code>cli.py</code></td>
+  <td><code>ambix tokenize {registry, inspect, frames, signals}</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
+
 <p>The two <code>*_v1</code> placeholder tokenizers (<code>frames_placeholder_v1</code>,
 <code>signals_uniform_v1</code>) emit valid global token ids inside the
 registry-allocated range, and round-trip cleanly:</p>
-<pre><code class="language-text">$ ambix tokenize frames --shot 15085 --camera rbb --temporal-compression 4 --spatial-compression 8
+<pre><code>$ ambix tokenize frames --shot 15085 --camera rbb --temporal-compression 4 --spatial-compression 8
 loaded rbb for shot 15085: shape=(149, 536, 560), dtype=uint16
 encoded shape: (37, 67, 70)  vocab range used: [4, 259]
 decode shape:  (148, 536, 560)  input vs decoded MAE: 631.09
@@ -433,6 +395,7 @@ vocab_size (per ch.): 64
 <p>These work without the Open-MAGVIT2 or Chronos weights — they exist so
 the rest of the pipeline (model loader, training loop, evaluation) can
 be exercised before the real tokenizers are plumbed in.</p>
+
 <h3 id="91-open-magvit2-live-2026-05-20">9.1 Open-MAGVIT2 — live (2026-05-20)</h3>
 <p>The real <code>OpenMagvit2Tokenizer</code> is now wired up. Staging layout:</p>
 <pre><code>/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/
@@ -445,40 +408,38 @@ be exercised before the real tokenizers are plumbed in.</p>
 └── worker.py                  # ambix bridge — encode/decode via .npy tempfiles
 </code></pre>
 <p>Discovered details that the docs didn't quote:</p>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Setting</th>
-<th>Reality</th>
-</tr>
+<tr><th>Setting</th><th>Reality</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>Tokenizer 256 checkpoint name</td>
-<td><code>imagenet_256_L.ckpt</code> (the README's <code>_B/_L/_XL</code> suffix refers to <strong>AR head</strong> sizes — there is no <code>imagenet_256_B.ckpt</code>)</td>
+  <td>Tokenizer 256 checkpoint name</td>
+  <td><code>imagenet_256_L.ckpt</code> (the README's <code>_B/_L/_XL</code> suffix refers to <strong>AR head</strong> sizes — there is no <code>imagenet_256_B.ckpt</code>)</td>
 </tr>
 <tr>
-<td>Spatial compression</td>
-<td><strong>16×</strong> (256×256 → 16×16 tokens) — not 8× as the comparison table implies; 8× is only via the 128 model run at 256 input</td>
+  <td>Spatial compression</td>
+  <td><strong>16×</strong> (256×256 → 16×16 tokens) — not 8× as the comparison table implies; 8× is only via the 128 model run at 256 input</td>
 </tr>
 <tr>
-<td>Temporal compression</td>
-<td><strong>1×</strong> for the image tokenizer (we will revisit for v1 if we add the 5×16×16 video tokenizer)</td>
+  <td>Temporal compression</td>
+  <td><strong>1×</strong> for the image tokenizer (we will revisit for v1 if we add the 5×16×16 video tokenizer)</td>
 </tr>
 <tr>
-<td><code>get_codebook_entry</code> API</td>
-<td><code>(indices: (B, h*w), bhwc: (B, h, w, embed_dim=18), order: &quot;pre&quot;)</code> — undocumented but discovered in <code>lookup_free_quantize.py:192</code></td>
+  <td><code>get_codebook_entry</code> API</td>
+  <td><code>(indices: (B, h*w), bhwc: (B, h, w, embed_dim=18), order: "pre")</code> — undocumented but discovered in <code>lookup_free_quantize.py:192</code></td>
 </tr>
 <tr>
-<td>Setuptools</td>
-<td>Needs <code>&lt;81</code> because Lightning 2.2.0 still calls <code>pkg_resources.declare_namespace</code></td>
+  <td>Setuptools</td>
+  <td>Needs <code>&lt;81</code> because Lightning 2.2.0 still calls <code>pkg_resources.declare_namespace</code></td>
 </tr>
 <tr>
-<td>Numpy</td>
-<td>Needs <code>&lt;2</code> for torch 2.1.1's pre-numpy-2 ABI</td>
+  <td>Numpy</td>
+  <td>Needs <code>&lt;2</code> for torch 2.1.1's pre-numpy-2 ABI</td>
 </tr>
 </tbody>
-</table>
+</table></div>
+
 <p>The <code>OpenMagvit2Tokenizer</code> is process-isolated:</p>
 <ul>
 <li>ambix <code>frames.py</code> runs in our main venv (torch ≥ 2.6).</li>
@@ -491,93 +452,93 @@ fine for smoke tests; the production token pass for ~3,000 rbb-bearing
 shots × ~150 frames = ~450,000 frames needs the GPU node (where weights
 warm to GPU once and each batch is sub-second).</li>
 </ul>
+
 <h3 id="92-chronos-patchtst-landed-2026-05-20">9.2 Chronos + PatchTST landed — 2026-05-20</h3>
 <p>Both signal tokenizers are now wired up in <code>imas_ambix/tokenizer/signals.py</code>
 and covered by the test suite (<code>tests/test_tokenizer.py</code> — 31 tests, all
 green).</p>
+
 <h4 id="chronos-t5-small">Chronos T5-small</h4>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Setting</th>
-<th>Value</th>
-</tr>
+<tr><th>Setting</th><th>Value</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>HF model id</td>
-<td><code>amazon/chronos-t5-small</code></td>
+  <td>HF model id</td>
+  <td><code>amazon/chronos-t5-small</code></td>
 </tr>
 <tr>
-<td>Package</td>
-<td><code>chronos-forecasting&gt;=1.3</code> (Apache-2.0)</td>
+  <td>Package</td>
+  <td><code>chronos-forecasting&gt;=1.3</code> (Apache-2.0)</td>
 </tr>
 <tr>
-<td>Install</td>
-<td><code>uv pip install chronos-forecasting</code> or <code>uv pip install &quot;imas-ambix[train]&quot;</code></td>
+  <td>Install</td>
+  <td><code>uv pip install chronos-forecasting</code> or <code>uv pip install "imas-ambix[train]"</code></td>
 </tr>
 <tr>
-<td>Vocab range allocated</td>
-<td><code>[0, 4096)</code> local → shifted into global registry</td>
+  <td>Vocab range allocated</td>
+  <td><code>[0, 4096)</code> local → shifted into global registry</td>
 </tr>
 <tr>
-<td>Tokenizer class used</td>
-<td><code>chronos.MeanScaleUniformBins</code> (no T5 weights needed for encode/decode)</td>
+  <td>Tokenizer class used</td>
+  <td><code>chronos.MeanScaleUniformBins</code> (no T5 weights needed for encode/decode)</td>
 </tr>
 <tr>
-<td>Lazy-import pattern</td>
-<td><code>_build_chronos_tokenizer()</code> is called on first <code>encode</code> / <code>decode</code>; <code>ChronosUnavailableError</code> (RuntimeError subclass) raised if package absent</td>
+  <td>Lazy-import pattern</td>
+  <td><code>_build_chronos_tokenizer()</code> is called on first <code>encode</code> / <code>decode</code>; <code>ChronosUnavailableError</code> (RuntimeError subclass) raised if package absent</td>
 </tr>
 <tr>
-<td>Per-channel calibration</td>
-<td><code>fit(datasets)</code> accumulates mean + std; normalised values fed to Chronos's internal mean-scale quantizer</td>
+  <td>Per-channel calibration</td>
+  <td><code>fit(datasets)</code> accumulates mean + std; normalised values fed to Chronos's internal mean-scale quantizer</td>
 </tr>
 <tr>
-<td>Round-trip result</td>
-<td>Pearson r &gt; 0.98 on 64-step sine/cosine synthetic; quantisation is lossy (≥ 0.9 is the acceptance gate)</td>
+  <td>Round-trip result</td>
+  <td>Pearson r &gt; 0.98 on 64-step sine/cosine synthetic; quantisation is lossy (≥ 0.9 is the acceptance gate)</td>
 </tr>
 </tbody>
-</table>
+</table></div>
+
 <p>The T5 <em>transformer</em> weights are <strong>not</strong> loaded by this tokenizer. Only
 the <code>MeanScaleUniformBins</code> arithmetic (scale + uniform-bin assignment) is
 used, constructed from the published config constants (<code>n_tokens=4096</code>,
 <code>n_special_tokens=2</code>, <code>low_limit=-1.0</code>, <code>high_limit=1.0</code>). The config
 matches <code>amazon/chronos-t5-small</code> exactly — no download required.</p>
+
 <h4 id="patchtst-identity-passthrough">PatchTST (identity passthrough)</h4>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Setting</th>
-<th>Value</th>
-</tr>
+<tr><th>Setting</th><th>Value</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>Registry name</td>
-<td><code>signals_patchtst_v1</code></td>
+  <td>Registry name</td>
+  <td><code>signals_patchtst_v1</code></td>
 </tr>
 <tr>
-<td><code>vocab_size</code></td>
-<td><code>1</code> (single &quot;identity&quot; id per patch)</td>
+  <td><code>vocab_size</code></td>
+  <td><code>1</code> (single "identity" id per patch)</td>
 </tr>
 <tr>
-<td><code>patch_size</code></td>
-<td><code>64</code> samples</td>
+  <td><code>patch_size</code></td>
+  <td><code>64</code> samples</td>
 </tr>
 <tr>
-<td>Token ids</td>
-<td>All zeros (shifted into registry range) — the raw floats live in <code>metadata[&quot;patches&quot;]</code></td>
+  <td>Token ids</td>
+  <td>All zeros (shifted into registry range) — the raw floats live in <code>metadata["patches"]</code></td>
 </tr>
 <tr>
-<td>Round-trip</td>
-<td>Exact — <code>np.allclose</code> verified in <code>test_patchtst_roundtrip_exact</code></td>
+  <td>Round-trip</td>
+  <td>Exact — <code>np.allclose</code> verified in <code>test_patchtst_roundtrip_exact</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
+
 <p>The patch-projection matrix trains end-to-end inside the WHAM transformer
 (see <code>plans/world-model-v0.md</code> §2). The tokenizer's only job is to slice
 each channel into <code>(n_patches, 64)</code> float arrays and preserve them for
 the model's input pipeline.</p>
+
 <h3 id="93-implementation-notes-for-the-real-tokenizers">9.3 Implementation notes for the real tokenizers</h3>
 <ul>
 <li>The decoders need to run on <strong>CPU during data prep</strong> (the betelgeuse
@@ -591,12 +552,15 @@ swaps placeholders for the real tokenizers also writes
 ~1% MAE on uint16 frames; Open-MAGVIT2 should hit rFID ≤ 5 once the
 encoder is plumbed in.</li>
 </ul>
-<hr />
+
+<hr>
+
 <h2 id="10-blockkind-side-data-2026-05-20">10. block_kind side data — 2026-05-20</h2>
 <p>The training loop applies block-weighted cross-entropy loss
 (<code>plans/world-model-v0.md</code> §4.1). Each position in the token stream is
 labelled with an integer <strong>block_kind</strong> code so the loader can build
 the per-position <code>loss_mask</code> without re-parsing the token ids.</p>
+
 <h3 id="blockkind-enum">BlockKind enum</h3>
 <p>Defined in <code>imas_ambix/tokenizer/base.py</code> and re-exported from
 <code>imas_ambix.tokenizer</code>:</p>
@@ -607,6 +571,7 @@ the per-position <code>loss_mask</code> without re-parsing the token ids.</p>
     ACTION  = 3   # action tokens (v1)           →  loss weight 0.1
 </code></pre>
 <p>ACTION is reserved for v1; <code>ShotTokenizer</code> does not emit it yet.</p>
+
 <h3 id="shottokenizer-api">ShotTokenizer API</h3>
 <p><code>ShotTokenizer.encode_shot</code> gains a <code>return_block_kind: bool = False</code>
 keyword argument:</p>
@@ -622,13 +587,14 @@ tokens, block_kind = shot_tok.encode_shot_with_block_kind(frames, signals)
 <p><code>block_kind</code> is <code>uint8</code>, same length as <code>tokens</code>.</p>
 <p>Layout per step: <code>&lt;bos&gt;</code> → CONTROL; <code>&lt;sep&gt;</code> → CONTROL; frame block →
 all FRAME; signal block → all SIGNAL; <code>&lt;eos&gt;</code> → CONTROL.</p>
-<h1 id="default-backward-compatible-single-array-return">Persistence layout extension</h3>
+
+<h3 id="persistence-layout-extension">Persistence layout extension</h3>
 <p><code>save_frame_tokens</code> and <code>save_signal_tokens</code> accept an optional
 <code>block_kind: np.ndarray | None = None</code> parameter. When provided the
 array is written as a sibling <code>block_kind</code> array (uint8) inside the
 same Zarr group.</p>
 <p><code>load_frame_tokens</code> / <code>load_signal_tokens</code> attach the array to
-<code>EncodedFrames.metadata[&quot;block_kind&quot;]</code> / <code>EncodedSignals.metadata[&quot;block_kind&quot;]</code>
+<code>EncodedFrames.metadata["block_kind"]</code> / <code>EncodedSignals.metadata["block_kind"]</code>
 when present.</p>
 <p>New convenience functions for the unified per-shot stream:</p>
 <pre><code>mast-tokens/v1/streams/{shot_id}.zarr
@@ -638,24 +604,29 @@ when present.</p>
 <pre><code class="language-python">path = save_shot_stream(shot_id, tokens, block_kind)
 tokens, block_kind = load_shot_stream(shot_id)
 </code></pre>
-<h1 id="new-returns-tokens-blockkind-tuple">Loader BLOCK_WEIGHTS</h3>
+
+<h3 id="loader-blockweights">Loader BLOCK_WEIGHTS</h3>
 <p><code>imas_ambix/data/loaders.py</code> exports:</p>
 <pre><code class="language-python">BLOCK_WEIGHTS: dict[int, float] = {0: 0.0, 1: 1.0, 2: 0.3, 3: 0.1}
 </code></pre>
 <p><code>ShotTokenDataset</code> reads <code>block_kind</code> from the Zarr store when
 present and maps each code to its weight.</p>
-<h1 id="preferred-for-new-code-unambiguous-return-type">Fallback behaviour</h3>
+
+<h3 id="fallback-behaviour">Fallback behaviour</h3>
 <p>When a Zarr has no <code>block_kind</code> array the loader falls back to
 <code>loss_mask = 1.0</code> everywhere and emits a one-time <code>warnings.warn</code>.
 This keeps existing token caches working until they are re-encoded.</p>
-<hr />
-<h3 id="persistence-layout-extension">12. Tokenizer expansion plan — 2026-05-20</h2>
-<p>This section records the &quot;significant work&quot; items that extend beyond the
+
+<hr>
+
+<h2 id="12-tokenizer-expansion-plan-2026-05-20">12. Tokenizer expansion plan — 2026-05-20</h2>
+<p>This section records the "significant work" items that extend beyond the
 v0 defaults. None of these is on the critical path to the v0 demo — all
 can wait until <code>rFID ≤ 5</code> is measured on the baseline and the 125 M smoke
 run is green. They are documented now so future sessions can resume cleanly
 without reconstructing the rationale.</p>
-<h3 id="loader-blockweights">12.1 Plasma-domain Open-MAGVIT2 decoder fine-tune</h3>
+
+<h3 id="121-plasma-domain-open-magvit2-decoder-fine-tune">12.1 Plasma-domain Open-MAGVIT2 decoder fine-tune</h3>
 <p><strong>What.</strong> Freeze the Open-MAGVIT2 encoder and codebook; train only the
 decoder on MAST visible-camera frames to adapt the reconstruction to plasma
 imagery. The encoder and codebook remain ImageNet-derived — the token IDs
@@ -711,14 +682,15 @@ that defaults to <code>None</code> (use the bundled decoder). When set to the pl
 fine-tuned path, it loads the fine-tuned decoder into the decode path while
 leaving the encoder and codebook unchanged. The registry and token caches
 are unaffected — <code>VOCAB_VERSION</code> is not incremented.</p>
-<h3 id="fallback-behaviour">12.2 Real PatchTST embedding</h3>
+
+<h3 id="122-real-patchtst-embedding">12.2 Real PatchTST embedding</h3>
 <p><strong>Current state.</strong> <code>PatchTSTTokenizer</code> in <code>signals.py</code> is a pure identity
 passthrough: it slices each channel into <code>(n_patches, 64)</code> float arrays,
 assigns token ID 0 for every patch, and stores the raw floats in
-<code>metadata[&quot;patches&quot;]</code>. The actual patch projection (the learned linear
+<code>metadata["patches"]</code>. The actual patch projection (the learned linear
 projection from R^64 → R^d_model) is deferred to the WHAM transformer's
 input pipeline.</p>
-<p><strong>What &quot;real PatchTST&quot; would add.</strong> Replacing the identity with
+<p><strong>What "real PatchTST" would add.</strong> Replacing the identity with
 <code>transformers.PatchTSTModel</code> (HuggingFace <code>transformers &gt;= 4.37</code>) would
 add ~1 M trainable parameters that run a proper channel-independent
 self-attention over patches before projecting into the model's hidden
@@ -733,7 +705,7 @@ here would:</p>
 <ol>
 <li>Require downloading <code>transformers.PatchTSTModel</code> weights or running a
 PatchTST pre-training pass first.</li>
-<li>Change the input pipeline's token representation — the <code>metadata[&quot;patches&quot;]</code>
+<li>Change the input pipeline's token representation — the <code>metadata["patches"]</code>
 float array approach is replaced by a discrete token-ID approach, which
 changes what the WHAM trunk's input embedding layer expects.</li>
 <li>Require updating <code>ShotTokenizer</code> to handle the new output format.</li>
@@ -748,17 +720,18 @@ signal to pull in the real PatchTST encoder.</p>
 <code>ShotTokenizer</code>, update the WHAM input-embedding layer, re-run the 51
 tokenizer tests. No new training required — the PatchTST encoder trains
 within the WHAM loop.</p>
-<h2 id="12-tokenizer-expansion-plan-2026-05-20">12.3 Equilibrium 2-D tokenizer</h3>
+
+<h3 id="123-equilibrium-2-d-tokenizer">12.3 Equilibrium 2-D tokenizer</h3>
 <p><strong>Current state.</strong> Equilibrium 2-D fields (<code>profiles_2d[*].j_phi</code>, <code>psi</code>,
 <code>phi</code>, etc.) are explicitly excluded from the token stream in v0
-(<code>world-model-v0.md</code> §8): &quot;Equilibrium enters as a continuous tensor via
+(<code>world-model-v0.md</code> §8): "Equilibrium enters as a continuous tensor via
 cross-attention to the model's first 4 layers. Tokenizing 2-D fields is a
-v1 task.&quot;</p>
+v1 task."</p>
 <p><strong>What bringing it forward would require.</strong> Two candidate architectures:</p>
 <p><em>Option A: Reuse Open-MAGVIT2 at upsampled 256×256.</em>
 The equilibrium grid is 65×65 in MAST level-2. Upsampling to 256×256 with
 bilinear interpolation and treating each 2-D slice as a single-channel
-&quot;frame&quot; allows Open-MAGVIT2 to tokenise it with the same codebook. The
+"frame" allows Open-MAGVIT2 to tokenise it with the same codebook. The
 token output is 16×16 = 256 tokens per time slice (at 16× spatial
 compression). This reuses existing infrastructure but conflates the visible-
 light and equilibrium codebooks — the encoder was trained on RGB images, not
@@ -772,30 +745,26 @@ But Cosmos has NVIDIA OML weights — would require a license check before
 using in a publishable context. Also, the separate codebook would extend
 the registry and require re-encoding if the codebook changes.</p>
 <p><strong>Cost estimate.</strong></p>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Option</th>
-<th>Engineering effort</th>
-<th>Fine-tune cost</th>
-<th>Codebook change</th>
-</tr>
+<tr><th>Option</th><th>Engineering effort</th><th>Fine-tune cost</th><th>Codebook change</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>A (Open-MAGVIT2 upsampled)</td>
-<td>0.5 Sonnet sessions (wiring only)</td>
-<td>None (same ckpt)</td>
-<td>No</td>
+  <td>A (Open-MAGVIT2 upsampled)</td>
+  <td>0.5 Sonnet sessions (wiring only)</td>
+  <td>None (same ckpt)</td>
+  <td>No</td>
 </tr>
 <tr>
-<td>B (Cosmos native 65×65)</td>
-<td>1 Sonnet session</td>
-<td>2 – 4 GPU-hours on plasma eq. data</td>
-<td>Yes — new registry range</td>
+  <td>B (Cosmos native 65×65)</td>
+  <td>1 Sonnet session</td>
+  <td>2 – 4 GPU-hours on plasma eq. data</td>
+  <td>Yes — new registry range</td>
 </tr>
 </tbody>
-</table>
+</table></div>
+
 <p><strong>Recommendation.</strong> Implement Option A first. If the benchmark shows that
 rFID on reconstructed equilibrium fields is &gt; 10 (indicating the ImageNet
 encoder badly misrepresents physics fields), escalate to Option B or move
@@ -804,12 +773,13 @@ equilibrium back to the continuous cross-attention path permanently.</p>
 continuous-tensor cross-attention for equilibrium is causing attention
 collapse or is limiting the model's ability to reproduce MHD-driven plasma
 shape changes. Otherwise keep in v1 scope.</p>
-<h3 id="121-plasma-domain-open-magvit2-decoder-fine-tune">12.4 Multi-modal alignment improvements</h3>
+
+<h3 id="124-multi-modal-alignment-improvements">12.4 Multi-modal alignment improvements</h3>
 <p><strong>Current state.</strong> <code>ShotTokenizer.encode_shot</code> (in <code>multimodal.py</code>) pads
 to the <strong>shorter</strong> time axis when frame and signal step counts differ:</p>
 <pre><code class="language-python">n_steps = min(n_frame_steps, n_signal_steps)
 </code></pre>
-<p>This means any &quot;extra&quot; steps from the longer stream are silently discarded.
+<p>This means any "extra" steps from the longer stream are silently discarded.
 For a typical shot where the camera runs at 100 fps and the signal grid is
 100 Hz, <code>n_frame_steps == n_signal_steps</code> and the issue doesn't arise. But
 for shots where the camera started late, stopped early, or ran at a different
@@ -841,25 +811,22 @@ block zero-weighted in the loss (matching <code>BlockKind.CONTROL</code> weight 
 Sonnet session after the benchmark framework lands. The missing-modality
 padding is a separate PR (lower priority — do after the first corpus encode
 pass quantifies how many shots actually have this problem).</p>
-<h3 id="122-real-patchtst-embedding">12.5 IR camera codebook decision</h3>
+
+<h3 id="125-ir-camera-codebook-decision">12.5 IR camera codebook decision</h3>
 <p><strong>Current state.</strong> <code>tokenizers.md</code> §4 allocates a separate token range for
 IR (<code>camera_ir</code>) in the registry but uses the <strong>same</strong> Open-MAGVIT2
 checkpoint (shared visible/IR codebook) as the v0 default. The registry
-comment says &quot;Sharing the visible tokenizer is the v0 default; IR-specific
-fine-tune deferred to v1.&quot;</p>
+comment says "Sharing the visible tokenizer is the v0 default; IR-specific
+fine-tune deferred to v1."</p>
 <p><strong>The decision gate.</strong> Run the IR benchmark (<code>plans/tokenizer-benchmarks.md</code>
 §4.1, third row) using the <code>v0-rir-25shot.yaml</code> config (only 25 rir shots in
 FAIR-MAST as of <code>data-acquisition.md</code> §10.4). If rFID for IR frames
 reconstructed through the visible codebook is:</p>
 <ul>
 <li>≤ 2× the rbb baseline rFID → shared codebook is acceptable; keep v0 default.</li>
-<li>
-<blockquote>
-<p>2× the rbb baseline → allocate a separate registry block for IR and
+<li>&gt; 2× the rbb baseline → allocate a separate registry block for IR and
 fine-tune a second decoder on the 25 available rir shots (very small; may
-need data augmentation).</p>
-</blockquote>
-</li>
+need data augmentation).</li>
 </ul>
 <p><strong>Note on the 25-shot limitation.</strong> Accurate rFID estimation requires
 ≥ 100 samples. With only 25 rir shots, the estimated rFID will have wide
@@ -870,7 +837,8 @@ noisy rFID.</p>
 <p><strong>Recommendation.</strong> Run the IR benchmark immediately after the rbb baseline
 is measured. It requires &lt; 5 min of GPU time for 25 shots. Record the result
 in the benchmarks archive and update this section with the decision.</p>
-<h3 id="123-equilibrium-2-d-tokenizer">12.6 Cross-modality alignment quality metric</h3>
+
+<h3 id="126-cross-modality-alignment-quality-metric">12.6 Cross-modality alignment quality metric</h3>
 <p><strong>Motivation.</strong> The WHAM world model is trained on an interleaved
 frame+signal stream. A key assumption is that the frame and signal tokens at
 timestep t are <em>consistent</em> — the plasma state encoded in the frame tokens
@@ -878,7 +846,7 @@ and the plasma state encoded in the signal tokens should be correlated.
 If the time-alignment is off by even 50 ms, the model is trained on pairs
 that don't correspond to the same plasma state, degrading the quality of the
 learned dynamics.</p>
-<p><strong>Proposed metric.</strong> &quot;Modality coherence score&quot;: given the decoded frames at
+<p><strong>Proposed metric.</strong> "Modality coherence score": given the decoded frames at
 timestep t (from frame tokens) and the decoded signal values at the same
 timestep (from signal tokens), compute a physics-derived correlation:</p>
 <ol>
@@ -903,102 +871,103 @@ extension to <code>benchmark_frame_tokenizer</code>'s data loading step.</p>
 <p><strong>Cross-links.</strong> <code>imas_ambix/eval/metrics.py:frame_centroid</code>,
 <code>imas_ambix/tokenizer/alignment.py</code>,
 <code>plans/tokenizer-benchmarks.md</code> §7 item 7.</p>
-<hr />
-<h3 id="124-multi-modal-alignment-improvements">13. §12 expansion landed — 2026-05-20</h2>
+
+<hr>
+
+<h2 id="13-12-expansion-landed-2026-05-20">13. §12 expansion landed — 2026-05-20</h2>
 <p>Four of the six §12 items shipped this session via a Sonnet 4.6 fleet
 (coordinator review, four parallel workers, non-overlapping file scopes).
 Items 12.2 (real PatchTST embedding) and 12.3 (equilibrium 2-D tokenizer)
 remain explicitly deferred — both are gated on the 125 M smoke run.</p>
-<h3 id="125-ir-camera-codebook-decision">13.1 §12.1 plasma-decoder fine-tune scaffold</h3>
+
+<h3 id="131-121-plasma-decoder-fine-tune-scaffold">13.1 §12.1 plasma-decoder fine-tune scaffold</h3>
 <p>The fine-tune <strong>trainer code</strong> is in (<code>imas_ambix/tokenizer/finetune_decoder.py</code>,
 commit <code>5e7c5fc</code>). The trainer itself is not yet run — that still depends on
 the corpus encode pass + baseline rFID measurement per §12.1's trigger.</p>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Surface</th>
-<th>Detail</th>
-</tr>
+<tr><th>Surface</th><th>Detail</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>Config dataclass</td>
-<td><code>DecoderFinetuneConfig</code> with lr=1e-4, max_steps=10 000, batch_size=16, l1_weight=1.0, perceptual_weight=0.1, adv_weight=0.0, patience=3</td>
+  <td>Config dataclass</td>
+  <td><code>DecoderFinetuneConfig</code> with lr=1e-4, max_steps=10 000, batch_size=16, l1_weight=1.0, perceptual_weight=0.1, adv_weight=0.0, patience=3</td>
 </tr>
 <tr>
-<td>Trainer class</td>
-<td><code>DecoderFinetuneTrainer.build_dataloaders / build_model / compute_loss / evaluate / train</code> — all imports lazy</td>
+  <td>Trainer class</td>
+  <td><code>DecoderFinetuneTrainer.build_dataloaders / build_model / compute_loss / evaluate / train</code> — all imports lazy</td>
 </tr>
 <tr>
-<td>Loss</td>
-<td>L1 + VGG16 relu3_3 perceptual; falls back to L1-only when <code>torchvision</code> is absent</td>
+  <td>Loss</td>
+  <td>L1 + VGG16 relu3_3 perceptual; falls back to L1-only when <code>torchvision</code> is absent</td>
 </tr>
 <tr>
-<td>Evaluation</td>
-<td><code>pytorch_fid</code> → <code>imas_ambix.eval.metrics.rfid</code> → NaN-with-warning fallback chain</td>
+  <td>Evaluation</td>
+  <td><code>pytorch_fid</code> → <code>imas_ambix.eval.metrics.rfid</code> → NaN-with-warning fallback chain</td>
 </tr>
 <tr>
-<td>Output</td>
-<td>safetensors weights to <code>mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors</code></td>
+  <td>Output</td>
+  <td>safetensors weights to <code>mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors</code></td>
 </tr>
 <tr>
-<td>CLI</td>
-<td><code>ambix tokenize finetune-decoder --train-shots PATH --val-shots PATH [--dry-run]</code></td>
+  <td>CLI</td>
+  <td><code>ambix tokenize finetune-decoder --train-shots PATH --val-shots PATH [--dry-run]</code></td>
 </tr>
 <tr>
-<td>Tests</td>
-<td>4 — config defaults, torch-free import, dry-run exit, no-eager-load constructor</td>
+  <td>Tests</td>
+  <td>4 — config defaults, torch-free import, dry-run exit, no-eager-load constructor</td>
 </tr>
 </tbody>
-</table>
+</table></div>
+
 <p>The <code>OpenMagvit2Tokenizer.decoder_checkpoint</code> constructor argument
-described in §12.1 (&quot;loads the fine-tuned decoder into the decode path
-while leaving the encoder and codebook unchanged&quot;) is <strong>not yet
+described in §12.1 ("loads the fine-tuned decoder into the decode path
+while leaving the encoder and codebook unchanged") is <strong>not yet
 implemented</strong> — that's the small follow-up PR that wires the trainer
 output back into the inference path. Track as a separate task.</p>
-<h3 id="126-cross-modality-alignment-quality-metric">13.2 §12.4 multi-modal alignment improvements</h3>
+
+<h3 id="132-124-multi-modal-alignment-improvements">13.2 §12.4 multi-modal alignment improvements</h3>
 <p>Landed in commit <code>72c0e0a</code>. <code>ShotTokenizer</code> gains:</p>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Behaviour</th>
-<th>Surface</th>
-</tr>
+<tr><th>Behaviour</th><th>Surface</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>Mandatory alignment</td>
-<td><code>enforce_alignment: bool = True</code> keyword-only field on the dataclass</td>
+  <td>Mandatory alignment</td>
+  <td><code>enforce_alignment: bool = True</code> keyword-only field on the dataclass</td>
 </tr>
 <tr>
-<td>Time-grid resampling</td>
-<td><code>align_frames_signals(frames, signals, model_hz)</code> helper in <code>alignment.py</code> — derives the grid from the signals time coord (synthetic fallback), resamples signals via <code>resample_to_grid</code>, evenly sub-samples excess frames via <code>np.linspace</code> index selection</td>
+  <td>Time-grid resampling</td>
+  <td><code>align_frames_signals(frames, signals, model_hz)</code> helper in <code>alignment.py</code> — derives the grid from the signals time coord (synthetic fallback), resamples signals via <code>resample_to_grid</code>, evenly sub-samples excess frames via <code>np.linspace</code> index selection</td>
 </tr>
 <tr>
-<td>Signal-only stream</td>
-<td><code>ShotTokenizer.encode_shot_signal_only(signals) → (tokens, block_kind)</code> — frame positions emit <code>&lt;pad&gt;</code> / <code>BlockKind.CONTROL</code></td>
+  <td>Signal-only stream</td>
+  <td><code>ShotTokenizer.encode_shot_signal_only(signals) → (tokens, block_kind)</code> — frame positions emit <code>&lt;pad&gt;</code> / <code>BlockKind.CONTROL</code></td>
 </tr>
 <tr>
-<td>Frame-only stream</td>
-<td><code>ShotTokenizer.encode_shot_frames_only(frames) → (tokens, block_kind)</code> — signal positions are absent (<code>xr.Dataset()</code> short-circuits the signal tokenizer)</td>
+  <td>Frame-only stream</td>
+  <td><code>ShotTokenizer.encode_shot_frames_only(frames) → (tokens, block_kind)</code> — signal positions are absent (<code>xr.Dataset()</code> short-circuits the signal tokenizer)</td>
 </tr>
 <tr>
-<td>Backward compat</td>
-<td><code>enforce_alignment=False</code> preserves the old <code>min(n_frame_steps, n_signal_steps)</code> behaviour</td>
+  <td>Backward compat</td>
+  <td><code>enforce_alignment=False</code> preserves the old <code>min(n_frame_steps, n_signal_steps)</code> behaviour</td>
 </tr>
 </tbody>
-</table>
+</table></div>
+
 <p>Five new tests in <code>tests/test_tokenizer.py</code> (38 passing, up from 33).
-The deferred &quot;missing-modality padding for signal-only&quot; case currently
+The deferred "missing-modality padding for signal-only" case currently
 emits a single <code>&lt;pad&gt;</code> token per step rather than a fixed-width block —
 revisit when the per-step signal block width is finalised.</p>
-<h2 id="13-12-expansion-landed-2026-05-20">13.3 §12.5 IR camera codebook benchmark wiring</h3>
+
+<h3 id="133-125-ir-camera-codebook-benchmark-wiring">13.3 §12.5 IR camera codebook benchmark wiring</h3>
 <p>Landed in commit <code>dec0082</code>. The IR benchmark is now one CLI call from
 running:</p>
 <pre><code>imas_ambix/bench/configs/v0-rir-25shot.yaml   # IR, 25 shots, Open-MAGVIT2, device=cuda
 imas_ambix/bench/configs/v0-rbb-25shot.yaml   # rbb baseline for the 2× comparison
 imas_ambix/bench/loader.py                    # load_bench_config(path) → (BenchConfig, run_kwargs)
-imas_ambix/bench/loader.py                    # bundled_config(&quot;v0-rir-25shot&quot;) → Path
+imas_ambix/bench/loader.py                    # bundled_config("v0-rir-25shot") → Path
 </code></pre>
 <p>The 25 shot IDs in both YAMLs are placeholders (<code>15080..15104</code>) — the
 data team should replace with the actual rir-bearing FAIR-MAST shot list
@@ -1006,49 +975,49 @@ from <code>s5cmd ls s3://mast/level1/shots/</code> per <code>data-acquisition.md
 <p>The decision gate from §12.5 (MAE primary because 25 shots is too few
 for stable rFID) is preserved in the rendered comparison; the bench
 framework already reports per-shot MAE.</p>
-<h3 id="131-121-plasma-decoder-fine-tune-scaffold">13.4 §12.6 cross-modality alignment quality metric</h3>
+
+<h3 id="134-126-cross-modality-alignment-quality-metric">13.4 §12.6 cross-modality alignment quality metric</h3>
 <p>Landed in commit <code>dec0082</code> (swept in alongside §12.5; see commit-hygiene
 note below).</p>
-<table>
+<div class="table-scroll"><table class="t">
 <thead>
-<tr>
-<th>Surface</th>
-<th>Detail</th>
-</tr>
+<tr><th>Surface</th><th>Detail</th></tr>
 </thead>
 <tbody>
 <tr>
-<td>Metric</td>
-<td><code>imas_ambix.eval.metrics.modality_coherence(decoded_frames, magnetic_axis_r, frame_image_extent_m=None) -&gt; float</code></td>
+  <td>Metric</td>
+  <td><code>imas_ambix.eval.metrics.modality_coherence(decoded_frames, magnetic_axis_r, frame_image_extent_m=None) -&gt; float</code></td>
 </tr>
 <tr>
-<td>Implementation</td>
-<td>Brightness centroid via existing <code>frame_centroid</code> → optionally mapped to physical R via the extent → inline Pearson r (no scipy) → returns <code>float(&quot;nan&quot;)</code> for &lt; 3 finite paired points or zero-variance series</td>
+  <td>Implementation</td>
+  <td>Brightness centroid via existing <code>frame_centroid</code> → optionally mapped to physical R via the extent → inline Pearson r (no scipy) → returns <code>float("nan")</code> for &lt; 3 finite paired points or zero-variance series</td>
 </tr>
 <tr>
-<td>Bench wiring</td>
-<td><code>PerShotResult.modality_coherence: float | None</code>; <code>benchmark_frame_tokenizer(..., equilibrium_loader=fn)</code> accepts a <code>(shot_id) -&gt; np.ndarray | None</code> callable; aggregate gains <code>mean_modality_coherence</code> (NaN-tolerant mean)</td>
+  <td>Bench wiring</td>
+  <td><code>PerShotResult.modality_coherence: float | None</code>; <code>benchmark_frame_tokenizer(..., equilibrium_loader=fn)</code> accepts a <code>(shot_id) -&gt; np.ndarray | None</code> callable; aggregate gains <code>mean_modality_coherence</code> (NaN-tolerant mean)</td>
 </tr>
 <tr>
-<td>Bench re-export</td>
-<td><code>imas_ambix.bench.modality_coherence</code></td>
+  <td>Bench re-export</td>
+  <td><code>imas_ambix.bench.modality_coherence</code></td>
 </tr>
 <tr>
-<td>Tests</td>
-<td>6 — perfect correlation, anticorrelated, constant series, short series, loader-returns-array, loader-returns-None</td>
+  <td>Tests</td>
+  <td>6 — perfect correlation, anticorrelated, constant series, short series, loader-returns-array, loader-returns-None</td>
 </tr>
 </tbody>
-</table>
-<h3 id="132-124-multi-modal-alignment-improvements">13.5 Coordinator note: commit hygiene</h3>
+</table></div>
+
+<h3 id="135-coordinator-note-commit-hygiene">13.5 Coordinator note: commit hygiene</h3>
 <p>The §12.5 worker (commit <code>dec0082</code>) used <code>git commit -a</code> and swept the
 §12.6 worker's in-progress edits into its commit alongside its own
 files. Content is correct (both §12.5 wiring and §12.6 metric land
 exactly as designed), but attribution is wrong — the commit message
-describes only the YAML loader. The §12.6 worker reported &quot;code is in
-that commit already&quot; on completion. Subsequent dispatches must
+describes only the YAML loader. The §12.6 worker reported "code is in
+that commit already" on completion. Subsequent dispatches must
 explicitly ban <code>git commit -a</code> / <code>-am</code> (in addition to the existing
 <code>git add -A/./*</code> ban) — captured in <code>feedback_sonnet_file_scope_violation.md</code>.</p>
-<h3 id="133-125-ir-camera-codebook-benchmark-wiring">13.6 Items remaining in §12 (still deferred)</h3>
+
+<h3 id="136-items-remaining-in-12-still-deferred">13.6 Items remaining in §12 (still deferred)</h3>
 <ul>
 <li><strong>§12.2 real PatchTST embedding</strong> — defer to post-smoke-run.
 Re-evaluate if magnetics Pearson r falls below 0.90 in the benchmark.</li>
@@ -1060,160 +1029,144 @@ cross-attention path.</li>
 argument (small, blocked on the first fine-tune actually running).</li>
 </ul>
 
-    <h2 id="open-decisions">Open Decisions</h2>
+<hr>
+
+<h2 id="open-decisions">Open Decisions</h2>
 <p>
-  Click a row to record the call. State persists to
+  Click a choice to record the call. State persists to
   <code>~/docs-server/state/imas-ambix/tokenizers.json</code> via
   the docs-server, and is committed to git under
   <code>docs/plans-html/state/imas-ambix/</code>.
 </p>
-<p>These four decisions are also captured per-stage on <a href="tokenizers-12-landed.html">tokenizers-12-landed.html</a> for the 2026-05-20 phase. The state here writes to <code>tokenizers.json</code>; the landed page has its own state file.</p>
-<table id="decisions-table" class="decisions-table">
-  <thead>
-    <tr><th style="width:30%">Decision</th><th style="width:35%">Choice</th><th>Rationale</th><th style="width:120px">When</th></tr>
-  </thead>
-  <tbody>
-    <tr class="decision-row" data-key="plasma-decoder-finetune">
-      <td>
-        <strong>Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?</strong>
-        <div class="decision-context">The current ImageNet-pretrained decoder produces MAE 324 (uint16) on MAST rbb shot 15085. Expected rFID on plasma imagery without fine-tune: 10–30. Decoder fine-tune cost: ~4–6 GPU-hours exclusive. Trigger gate (from plan): rFID &gt; 5 on the 100-shot rbb benchmark. Source: <a href="#121-plasma-domain-open-magvit2-decoder-fine-tune">§12.1</a>.</div>
-      </td>
-      <td>
-        <div class="controls">
-          <button data-choice="yes-now">Fine-tune now</button>
-          <button data-choice="yes-if-rfid">Fine-tune only if rFID &gt; 5</button>
-          <button data-choice="defer-v1">Defer to v1</button>
-        </div>
-      </td>
-      <td><input type="text" placeholder="rationale..." style="width:100%"></td>
-      <td><span class="when"></span></td>
-    </tr>
-    <tr class="decision-row" data-key="patchtst-real-embedding">
-      <td>
-        <strong>PatchTST real embedding — defer to v1 vs land in v0?</strong>
-        <div class="decision-context">Current state: identity passthrough (token ID 0, raw floats in metadata). The patch-projection matrix trains end-to-end inside the WHAM trunk. Real PatchTST would add ~1M trainable params with channel-independent self-attention over patches. Estimated effort: 1 Sonnet session. Source: <a href="#122-real-patchtst-embedding">§12.2</a>.</div>
-      </td>
-      <td>
-        <div class="controls">
-          <button data-choice="defer-v1">Defer to v1</button>
-          <button data-choice="land-v0">Land real PatchTST in v0</button>
-        </div>
-      </td>
-      <td><input type="text" placeholder="rationale..." style="width:100%"></td>
-      <td><span class="when"></span></td>
-    </tr>
-    <tr class="decision-row" data-key="equilibrium-2d-tokenizer">
-      <td>
-        <strong>Equilibrium 2-D tokenizer — which architecture?</strong>
-        <div class="decision-context">Currently: equilibrium 2-D enters as a continuous cross-attention tensor (not tokenized). Option A — reuse Open-MAGVIT2 at upsampled 256×256 (0.5 Sonnet sessions, no fine-tune). Option B — Cosmos-Tokenizer-DV at native 65×65 (NVIDIA OML weights, license check needed). Source: <a href="#123-equilibrium-2-d-tokenizer">§12.3</a>.</div>
-      </td>
-      <td>
-        <div class="controls">
-          <button data-choice="keep-v0">Keep as continuous cross-attention (v0)</button>
-          <button data-choice="option-a">Option A — Open-MAGVIT2 upsampled 256×256</button>
-          <button data-choice="option-b">Option B — Cosmos-Tokenizer-DV 65×65</button>
-        </div>
-      </td>
-      <td><input type="text" placeholder="rationale..." style="width:100%"></td>
-      <td><span class="when"></span></td>
-    </tr>
-    <tr class="decision-row" data-key="ir-camera-codebook">
-      <td>
-        <strong>IR camera codebook — share with visible or allocate separate?</strong>
-        <div class="decision-context">Only 25 rir shots in FAIR-MAST (per <code>data-acquisition.html</code> §10.4). Current v0 default: share the Open-MAGVIT2 visible codebook. Decision gate: if IR MAE &gt; 2× rbb MAE, allocate separate block. rFID unreliable with n=25; use MAE as primary metric. Source: <a href="#122-real-patchtst-embedding">§12.5</a>.</div>
-      </td>
-      <td>
-        <div class="controls">
-          <button data-choice="share">Share visible codebook for IR (v0 default)</button>
-          <button data-choice="separate">Allocate separate registry block and fine-tune IR decoder</button>
-        </div>
-      </td>
-      <td><input type="text" placeholder="rationale..." style="width:100%"></td>
-      <td><span class="when"></span></td>
-    </tr>
-  </tbody>
-</table>
+<p>These four decisions are also captured per-stage on <a class="link" href="tokenizers-12-landed.html">tokenizers-12-landed.html</a> for the 2026-05-20 phase. The state here writes to <code>tokenizers.json</code>; the landed page has its own state file.</p>
 
-<div class="decisions-toolbar">
-  <button id="copy-state">Copy state as JSON</button>
-  <button id="reset-state">Reset</button>
+<div class="decisions" id="decisions">
+
+  <div class="dec open" data-key="plasma-decoder-finetune">
+    <div class="head">
+      <span class="key">plasma-decoder-finetune</span>
+      <span class="title">Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?</span>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line">The current ImageNet-pretrained decoder produces MAE 324 (uint16) on MAST rbb shot 15085. Expected rFID on plasma imagery without fine-tune: 10–30. Decoder fine-tune cost: ~4–6 GPU-hours exclusive. Trigger gate (from plan): rFID &gt; 5 on the 100-shot rbb benchmark. Source: <a class="link" href="#121-plasma-domain-open-magvit2-decoder-fine-tune">§12.1</a>.</p>
+    <div class="choices">
+      <button data-choice="yes-now">Fine-tune now</button>
+      <button data-choice="yes-if-rfid">Fine-tune only if rFID &gt; 5</button>
+      <button data-choice="defer-v1">Defer to v1</button>
+    </div>
+    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
+  </div>
+
+  <div class="dec open" data-key="patchtst-real-embedding">
+    <div class="head">
+      <span class="key">patchtst-real-embedding</span>
+      <span class="title">PatchTST real embedding — defer to v1 vs land in v0?</span>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line">Current state: identity passthrough (token ID 0, raw floats in metadata). The patch-projection matrix trains end-to-end inside the WHAM trunk. Real PatchTST would add ~1M trainable params with channel-independent self-attention over patches. Estimated effort: 1 Sonnet session. Source: <a class="link" href="#122-real-patchtst-embedding">§12.2</a>.</p>
+    <div class="choices">
+      <button data-choice="defer-v1">Defer to v1</button>
+      <button data-choice="land-v0">Land real PatchTST in v0</button>
+    </div>
+    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
+  </div>
+
+  <div class="dec open" data-key="equilibrium-2d-tokenizer">
+    <div class="head">
+      <span class="key">equilibrium-2d-tokenizer</span>
+      <span class="title">Equilibrium 2-D tokenizer — which architecture?</span>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line">Currently: equilibrium 2-D enters as a continuous cross-attention tensor (not tokenized). Option A — reuse Open-MAGVIT2 at upsampled 256×256 (0.5 Sonnet sessions, no fine-tune). Option B — Cosmos-Tokenizer-DV at native 65×65 (NVIDIA OML weights, license check needed). Source: <a class="link" href="#123-equilibrium-2-d-tokenizer">§12.3</a>.</p>
+    <div class="choices">
+      <button data-choice="keep-v0">Keep as continuous cross-attention (v0)</button>
+      <button data-choice="option-a">Option A — Open-MAGVIT2 upsampled 256×256</button>
+      <button data-choice="option-b">Option B — Cosmos-Tokenizer-DV 65×65</button>
+    </div>
+    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
+  </div>
+
+  <div class="dec open" data-key="ir-camera-codebook">
+    <div class="head">
+      <span class="key">ir-camera-codebook</span>
+      <span class="title">IR camera codebook — share with visible or allocate separate?</span>
+      <span class="when" data-field="when"></span>
+    </div>
+    <p class="subtitle-line">Only 25 rir shots in FAIR-MAST (per <code>data-acquisition.html</code> §10.4). Current v0 default: share the Open-MAGVIT2 visible codebook. Decision gate: if IR MAE &gt; 2× rbb MAE, allocate separate block. rFID unreliable with n=25; use MAE as primary metric. Source: <a class="link" href="#122-real-patchtst-embedding">§12.5</a>.</p>
+    <div class="choices">
+      <button data-choice="share">Share visible codebook for IR (v0 default)</button>
+      <button data-choice="separate">Allocate separate registry block and fine-tune IR decoder</button>
+    </div>
+    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
+  </div>
+
 </div>
 
-<script defer>
+<nav class="plan-nav">
+  <a href="data-quality.html"><span class="nav-label">← Previous</span><span class="nav-title">Data Quality</span></a>
+  <a href="tokenizer-benchmarks.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Tokenizer Benchmarks</span></a>
+</nav>
+
+</main>
+
+<script>
 (async function () {
-  const table = document.getElementById('decisions-table');
-  if (!table) return;
-  const rows = [...table.querySelectorAll('tr.decision-row')];
+  const decsEl = document.getElementById('decisions');
+  if (!decsEl) return;
+  const rows = [...decsEl.querySelectorAll('.dec[data-key]')];
 
-  async function readAll() {
-    const out = {};
-    for (const row of rows) {
-      const key = row.dataset.key;
-      const chosen = row.querySelector('button.chosen')?.dataset.choice ?? null;
-      const rationale = row.querySelector('input')?.value ?? '';
-      const when = row.querySelector('.when')?.textContent ?? '';
-      out[key] = { choice: chosen, rationale, when };
-    }
-    return out;
-  }
-
-  function applyAll(state) {
-    for (const row of rows) {
-      const key = row.dataset.key;
-      const s = state?.[key];
-      if (!s) continue;
-      if (s.choice) {
-        row.querySelectorAll('button[data-choice]').forEach(b => {
-          b.classList.toggle('chosen', b.dataset.choice === s.choice);
-        });
-      }
-      const inp = row.querySelector('input');
-      if (inp && s.rationale) inp.value = s.rationale;
-      const when = row.querySelector('.when');
-      if (when && s.when) when.textContent = s.when;
-    }
-  }
-
-  async function persist() {
-    const data = await readAll();
-    await saveState(data);
-  }
-
+  // Hydrate from state
+  const blob = await loadState();
+  const stateDecs = getDecisions(blob);
   rows.forEach(row => {
-    row.querySelectorAll('button[data-choice]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
-        btn.classList.add('chosen');
-        row.querySelector('.when').textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
-        persist();
+    const key = row.getAttribute('data-key');
+    const s = stateDecs[key];
+    if (!s) return;
+    if (s.choice) {
+      row.querySelectorAll('.choices button').forEach(b => {
+        b.classList.toggle('chosen', b.getAttribute('data-choice') === s.choice);
+      });
+      row.classList.remove('open');
+      row.classList.add('locked');
+    }
+    const rat = row.querySelector('input[data-field="rationale"]');
+    if (rat && s.rationale) rat.value = s.rationale;
+    const when = row.querySelector('[data-field="when"]');
+    if (when && s.when) when.textContent = s.when;
+  });
+
+  // Wire clicks
+  rows.forEach(row => {
+    const key = row.getAttribute('data-key');
+    row.querySelectorAll('.choices button').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const choice = btn.getAttribute('data-choice');
+        const rat = row.querySelector('input[data-field="rationale"]')?.value || '';
+        try {
+          await lockDecision(key, choice, rat);
+          row.querySelectorAll('.choices button').forEach(b => b.classList.remove('chosen'));
+          btn.classList.add('chosen');
+          row.classList.remove('open');
+          row.classList.add('locked');
+          const when = row.querySelector('[data-field="when"]');
+          if (when) when.textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        } catch (e) {
+          alert(e.message);
+        }
       });
     });
-    const inp = row.querySelector('input');
-    if (inp) inp.addEventListener('change', persist);
+    const inp = row.querySelector('input[data-field="rationale"]');
+    if (inp) {
+      inp.addEventListener('change', async () => {
+        const chosenBtn = row.querySelector('.choices button.chosen');
+        if (!chosenBtn) return;
+        const choice = chosenBtn.getAttribute('data-choice');
+        try { await lockDecision(key, choice, inp.value); } catch (_) {}
+      });
+    }
   });
-
-  document.getElementById('copy-state').addEventListener('click', async () => {
-    await copyState(await readAll());
-  });
-  document.getElementById('reset-state').addEventListener('click', async () => {
-    if (!confirm('Reset all decisions on this page?')) return;
-    rows.forEach(row => {
-      row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
-      const inp = row.querySelector('input'); if (inp) inp.value = '';
-      const when = row.querySelector('.when'); if (when) when.textContent = '';
-    });
-    await saveState({});
-  });
-
-  const initial = await loadState();
-  applyAll(initial.data || {});
 })();
 </script>
-
-    <nav class="plan-nav"><a href="data-quality.html"><span class="nav-label">← Previous</span><span class="nav-title">Data Quality</span></a><a href="tokenizer-benchmarks.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Tokenizer Benchmarks</span></a></nav>
-  </div>
-</main>
-</div>
 
 <script src="assets/app.js"></script>
 </body>
