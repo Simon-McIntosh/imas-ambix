@@ -9,7 +9,7 @@
 > Pages at <https://simon-mcintosh.github.io/imas-ambix/>.  Markdown sources
 > are archived in [`docs/archive/`](docs/archive/); the HTML site is the
 > canonical record.  The plan system (state.js, mode banner, repo-tracked
-> JSON state) is shared with [imas-efit](https://github.com/Simon-McIntosh/efit)
+> JSON state) is shared with [imas-efit](https://github.com/Simon-McIntosh/imas-efit)
 > and lives in the
 > [`html-docs` skill](https://github.com/anthropics/claude-code) — see
 > [`docs/_HTML_PLANS_README.md`](docs/_HTML_PLANS_README.md) for the layout.

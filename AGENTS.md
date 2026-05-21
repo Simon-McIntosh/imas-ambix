@@ -42,7 +42,7 @@ gh pr create --repo iterorganization/imas-ambix --base main
 
 HTML plans live under [`docs/`](docs/) (canonical).  Shared infrastructure
 (state.js, mode banner, repo-tracked static state JSON, `.nojekyll`,
-README badge) matches the [imas-efit](https://github.com/Simon-McIntosh/efit)
+README badge) matches the [imas-efit](https://github.com/Simon-McIntosh/imas-efit)
 pattern — see [`docs/_HTML_PLANS_README.md`](docs/_HTML_PLANS_README.md)
 and the user-global
 [`html-docs` skill](~/.claude/skills/html-docs/SKILL.md).
