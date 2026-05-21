@@ -62,15 +62,22 @@ window.STATE_READY = (async function () {
     sprints.find(s => s.status === "active");
 
   // 4. Populate window.STATE
+  // individual plan JSONs are the per-plan source of truth for status, impl,
+  // dec_open, etc. Use the merged `plans` data for inventory so UI reads
+  // never need to look in two places. index.json inventory values serve only
+  // as a fallback when no individual plan JSON exists.
+  const mergedInventory = inventory.map(inv => plans[inv.slug] || inv);
+
   window.STATE = {
-    today:          new Date().toISOString().slice(0, 10),
-    projects:       Array.isArray(idx.projects) ? idx.projects : [],
-    inventory,
+    today:            new Date().toISOString().slice(0, 10),
+    projects:         Array.isArray(idx.projects) ? idx.projects : [],
+    inventory:        mergedInventory,
+    active_sprint_id: idx.active_sprint_id || null,
     sprints,
-    sprint:         activeSprint,
-    blockers:       Array.isArray(idx.blockers) ? idx.blockers : [],
-    timeline:       Array.isArray(idx.timeline) ? idx.timeline : [],
+    sprint:           activeSprint,
+    blockers:         Array.isArray(idx.blockers) ? idx.blockers : [],
+    timeline:         Array.isArray(idx.timeline) ? idx.timeline : [],
     plans,
-    planTokenizers: plans["tokenizers"] || null,
+    planTokenizers:   plans["tokenizers"] || null,
   };
 })();
