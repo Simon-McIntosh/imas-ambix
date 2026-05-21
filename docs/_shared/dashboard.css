@@ -405,6 +405,150 @@ svg.spark .dot  { fill: var(--accent); }
   margin-top: 6px;
   font-family: var(--mono);
 }
+.kanban-card .justification {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-2);
+  margin-top: 6px;
+  line-height: 1.4;
+  border-left: 2px solid var(--accent-3);
+  padding-left: 8px;
+}
+
+/* ===== Sprint switcher (pill row of sprints) ===================== */
+
+.sprint-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 20px 0 14px;
+  padding: 6px;
+  background: var(--bg-2);
+  border: var(--hairline);
+  border-radius: var(--radius-lg);
+}
+.sprint-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  background: var(--bg);
+  border: var(--hairline-2);
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms, transform 80ms;
+}
+.sprint-tab:hover { border-color: var(--ink); transform: translateY(-1px); }
+.sprint-tab .id {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+.sprint-tab .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.sprint-tab .lbl {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: lowercase;
+  font-family: var(--mono);
+}
+
+.sprint-tab.planned { border-color: var(--accent-2); }
+.sprint-tab.planned .dot { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-3); }
+.sprint-tab.planned .lbl { color: var(--accent); }
+
+.sprint-tab.active .dot { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-3); }
+.sprint-tab.active .lbl { color: var(--accent); }
+
+.sprint-tab.shipped { color: var(--muted); }
+.sprint-tab.shipped .dot { background: var(--ok); }
+.sprint-tab.shipped .lbl { color: var(--muted); }
+
+.sprint-tab.blocked .dot { background: var(--bad); }
+.sprint-tab.blocked .lbl { color: var(--bad); }
+
+.sprint-tab.sel {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+.sprint-tab.sel .id { color: var(--bg); }
+.sprint-tab.sel .lbl { color: var(--bg); opacity: 0.7; }
+.sprint-tab.sel .dot { box-shadow: 0 0 0 2px rgba(255,255,255,0.18); }
+.sprint-tab.sel:hover { transform: translateY(-1px); background: var(--ink); }
+
+/* ===== Lock banner (activate a planned sprint) =================== */
+
+.lock-banner {
+  border: 1px solid var(--accent-2);
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  margin: 16px 0 8px;
+  box-shadow: 0 1px 0 var(--accent-3);
+}
+.lock-banner .lock-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.lock-banner .lock-banner-head .lbl {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  background: var(--accent-3);
+  padding: 3px 7px;
+  border-radius: 3px;
+}
+.lock-banner .lock-banner-head .title-line {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.lock-banner .lock-banner-body {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+.lock-banner .lock-banner-body p {
+  margin: 4px 0;
+}
+.lock-banner .lock-banner-body p.warn {
+  color: var(--bad);
+}
+.lock-banner .lock-banner-body p.warn strong { color: var(--bad); }
+.lock-banner .lock-banner-body code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 1px 5px;
+  background: var(--bg-2);
+  border-radius: 3px;
+}
+.lock-banner .lock-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: var(--hairline);
+}
+.lock-banner .lock-banner-actions .sp { flex: 1; }
+.lock-banner .lock-banner-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 /* ===== Sprint summary strip ====================================== */
 
@@ -658,7 +802,8 @@ svg.spark .dot  { fill: var(--accent); }
   margin: 14px 0;
 }
 .inline-decision.open { border-color: var(--accent-2); }
-.inline-decision.locked { background: var(--bg-2); }
+.inline-decision.locked  { background: var(--bg-2); }
+.inline-decision.engaged { background: var(--bg-2); border-color: var(--accent-2); }
 .inline-decision .h {
   display: flex;
   align-items: baseline;
@@ -736,19 +881,27 @@ svg.spark .dot  { fill: var(--accent); }
 .inline-decision .send:not(:disabled):hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .inline-decision .send:disabled { opacity: 0.5; cursor: default; }
 .inline-decision.locked .h .t,
-.inline-decision.locked .h .k {
+.inline-decision.locked .h .k,
+.inline-decision.engaged .h .t,
+.inline-decision.engaged .h .k {
   opacity: 0.7;
 }
-.inline-decision.locked.collapsed {
+.inline-decision.locked.collapsed,
+.inline-decision.engaged.collapsed {
   padding: 8px 14px;
 }
 .inline-decision.locked.collapsed .context,
 .inline-decision.locked.collapsed .c,
 .inline-decision.locked.collapsed .rationale-row,
-.inline-decision.locked.collapsed > div[style*="color: var(--muted)"] {
+.inline-decision.locked.collapsed > div[style*="color: var(--muted)"],
+.inline-decision.engaged.collapsed .context,
+.inline-decision.engaged.collapsed .c,
+.inline-decision.engaged.collapsed .rationale-row,
+.inline-decision.engaged.collapsed > div[style*="color: var(--muted)"] {
   display: none;
 }
-.inline-decision.locked.collapsed .h {
+.inline-decision.locked.collapsed .h,
+.inline-decision.engaged.collapsed .h {
   margin-bottom: 0;
 }
 .inline-decision .summary-line {
@@ -757,10 +910,12 @@ svg.spark .dot  { fill: var(--accent); }
   color: var(--muted);
   margin-top: 4px;
 }
-.inline-decision.locked.collapsed .summary-line {
+.inline-decision.locked.collapsed .summary-line,
+.inline-decision.engaged.collapsed .summary-line {
   display: block;
 }
-.inline-decision.locked.collapsed .summary-line strong {
+.inline-decision.locked.collapsed .summary-line strong,
+.inline-decision.engaged.collapsed .summary-line strong {
   color: var(--ink);
   font-weight: 600;
 }
