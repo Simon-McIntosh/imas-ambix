@@ -195,6 +195,17 @@ Object.assign(window, {
 // may be dotted (e.g. `{ "decisions.plasma-decoder-finetune": {...} }`).
 // Persist merges the patch into the current canonical document and writes
 // the full merged document back via POST.
+//
+// Version / 412 contract:
+//   - On loadCanonical(), data._version is cached in
+//     Persist._versions[plan] so save() can send If-Match without an
+//     extra GET on every write.
+//   - POST sends `If-Match: <version>` header.
+//   - 200 response carries {ok, path, version} — cache updated.
+//   - 412 response carries {current_version, current_data} — re-apply
+//     patch over current_data and retry once with the fresh version.
+//   - Second 412: surface conflict warning + localStorage fallback.
+//   - Network error: localStorage fallback.
 
 (function () {
   const PROJECT = (document.querySelector('meta[name="docs-project"]')?.content)
@@ -224,15 +235,12 @@ Object.assign(window, {
     return target;
   }
 
-  function localSave(plan, patch) {
+  function localSave(plan, data) {
     const key = `${PROJECT}:${plan}`;
-    let prev = {};
-    try { prev = JSON.parse(localStorage.getItem(key) || "{}"); } catch {}
-    const next = JSON.parse(JSON.stringify(prev));
-    patchInto(next, patch);
-    next._updated = new Date().toISOString();
-    localStorage.setItem(key, JSON.stringify(next));
-    return next;
+    const entry = JSON.parse(JSON.stringify(data));
+    entry._updated = new Date().toISOString();
+    localStorage.setItem(key, JSON.stringify(entry));
+    return entry;
   }
 
   async function fetchCanonical(plan) {
@@ -240,7 +248,12 @@ Object.assign(window, {
       const r = await fetch(stateUrlJson(plan), { cache: "no-store" });
       if (!r.ok) return {};
       const j = await r.json();
-      return (j && j.data) || j || {};
+      const data = (j && j.data) || j || {};
+      // Cache version whenever we fetch canonical state.
+      if (typeof data._version === "number") {
+        Persist._versions[plan] = data._version;
+      }
+      return data;
     } catch { return {}; }
   }
 
@@ -248,6 +261,10 @@ Object.assign(window, {
     isLocal,
     mode,
     project: PROJECT,
+
+    // Per-plan version cache — populated by loadCanonical() and updated
+    // after every successful POST.
+    _versions: {},
 
     // load() is SYNC — returns the localStorage cache. plan.html uses this
     // for snappy initial render. The async loadCanonical() then merges in
@@ -258,7 +275,7 @@ Object.assign(window, {
     },
 
     async loadCanonical(plan) {
-      const cur = await fetchCanonical(plan);
+      const cur = await fetchCanonical(plan);   // also caches _version
       // overlay localStorage on top — local edits not yet POSTed win for
       // brief network blips
       const overlay = this.load(plan);
@@ -266,43 +283,106 @@ Object.assign(window, {
       return { ...cur, ...overlay };
     },
 
-    // save() — patch-shaped. In editable mode, GET canonical, merge patch,
-    // POST back. On success, also writes localStorage. On any failure,
-    // falls back to localStorage only.
+    // save() — patch-shaped. In editable mode: GET canonical (if version
+    // not cached), merge patch, POST with If-Match. On 412 retry once.
+    // On second 412 or network error: localStorage fallback.
     async save(plan, patch) {
-      // Always write the local cache so the UI is responsive.
-      const local = localSave(plan, patch);
-
       if (mode !== "editable") {
-        return { ok: true, where: "localStorage (read-only site)", _updated: local._updated };
+        // Read-only: merge into localStorage cache only.
+        const prev = this.load(plan);
+        const next = JSON.parse(JSON.stringify(prev));
+        patchInto(next, patch);
+        localSave(plan, next);
+        return { ok: true, where: "localStorage (read-only site)", version: null };
       }
 
-      // Fetch + merge + POST.
-      try {
-        const current = await fetchCanonical(plan);
-        const merged = JSON.parse(JSON.stringify(current));
-        patchInto(merged, patch);
-        // strip any stale localStorage-only field
-        delete merged._updated;
+      // Ensure we have canonical data and a version to compare against.
+      const current = await fetchCanonical(plan);   // caches _version
+      const merged = JSON.parse(JSON.stringify(current));
+      patchInto(merged, patch);
+      delete merged._updated;
+      delete merged._version;   // server owns this
 
+      const version = typeof this._versions[plan] === "number"
+        ? this._versions[plan] : 0;
+
+      try {
         const r = await fetch(stateUrl(plan), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "If-Match": String(version),
+          },
           body: JSON.stringify(merged),
         });
+
         if (r.ok) {
           const j = await r.json().catch(() => ({}));
+          if (typeof j.version === "number") {
+            this._versions[plan] = j.version;
+          }
+          localSave(plan, merged);
           return {
             ok: true,
             where: "docs-server → " + (j.path || `state/${PROJECT}/${plan}.json`),
-            _updated: local._updated,
+            version: j.version,
           };
         }
+
+        if (r.status === 412) {
+          // First 412 — resync with server state and retry.
+          const conflict = await r.json().catch(() => ({}));
+          const curData = conflict.current_data || {};
+          const curVersion = typeof conflict.current_version === "number"
+            ? conflict.current_version : 0;
+
+          const retryMerged = JSON.parse(JSON.stringify(curData));
+          patchInto(retryMerged, patch);
+          delete retryMerged._updated;
+          delete retryMerged._version;
+
+          const r2 = await fetch(stateUrl(plan), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "If-Match": String(curVersion),
+            },
+            body: JSON.stringify(retryMerged),
+          });
+
+          if (r2.ok) {
+            const j2 = await r2.json().catch(() => ({}));
+            if (typeof j2.version === "number") {
+              this._versions[plan] = j2.version;
+            }
+            localSave(plan, retryMerged);
+            return {
+              ok: true,
+              where: "docs-server (retry) → " + (j2.path || `state/${PROJECT}/${plan}.json`),
+              version: j2.version,
+            };
+          }
+
+          // Second 412 — genuine concurrent conflict.
+          alert(
+            "Conflict: another session updated this plan since you loaded it.\n" +
+            "Please refresh the page and retry your change."
+          );
+          localSave(plan, merged);
+          return {
+            ok: false,
+            where: "localStorage (conflict — refresh and retry)",
+            version: null,
+          };
+        }
+
         console.warn("Persist.save: POST not ok", r.status);
       } catch (e) {
         console.warn("Persist.save: POST failed (docs-server unreachable?)", e);
       }
-      return { ok: true, where: "localStorage (docs-server unreachable)", _updated: local._updated };
+
+      localSave(plan, merged);
+      return { ok: true, where: "localStorage (docs-server unreachable)", version: null };
     },
   };
 
@@ -315,7 +395,9 @@ Object.assign(window, {
       t.style.cssText = "position:fixed;bottom:24px;right:24px;background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:6px;font:500 12.5px/1.4 var(--mono);z-index:1000;opacity:0;transition:opacity 180ms;box-shadow:0 4px 12px rgba(0,0,0,0.15);pointer-events:none;";
       document.body.appendChild(t);
     }
-    t.textContent = "✓ " + (msg || "saved to localStorage");
+    const versionTag = (msg && msg.version != null) ? ` · v${msg.version}` : "";
+    const text = typeof msg === "string" ? msg : (msg && msg.text) || "saved";
+    t.textContent = "✓ " + text + versionTag;
     t.style.opacity = "1";
     clearTimeout(window.__savedTimer);
     window.__savedTimer = setTimeout(() => { t.style.opacity = "0"; }, 1600);

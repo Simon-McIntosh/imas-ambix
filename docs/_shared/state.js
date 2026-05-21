@@ -14,6 +14,7 @@
 //
 // SCHEMA (additive — old files keep working unchanged):
 //   {
+//     _version:  <integer>,   // set by serve.py; incremented on every write
 //     status:    "active" | "pending" | "blocked" | "shipped" | "draft",
 //     tier:      "haiku" | "sonnet" | "opus",
 //     decisions: { <key>: { choice, rationale, when, by } },
@@ -36,9 +37,21 @@
 //   loadProjectsState() → fetches /_projects/index.json (cross-project rollup,
 //                         only available from the docs-server root)
 //
-// Writes go to localStorage only — decisions are browser-local until promoted
-// to the repo by editing the state JSON and committing. Agents promote
-// directly via filesystem writes; this script never POSTs to the server.
+// Write API (local docs-server mode only):
+//   saveState(data)     → POST with versioning; falls back to localStorage on
+//                         network error or persistent conflict.
+//   lockDecision / appendNote / appendFollowup / appendResearch /
+//   appendQuestion / resolveFollowup / setStatus / setTier  — all call the
+//   internal postState(patch) helper which manages GET-version → POST flow.
+//
+// Version / 412 contract (mirrors serve.py):
+//   - On load, the returned data._version is cached in
+//     window._stateVersions[<docId>].
+//   - Every POST sends `If-Match: <version>` header.
+//   - 200 response carries {ok, path, version} — cache updated.
+//   - 412 response carries {current_version, current_data} — re-apply patch
+//     over current_data and retry once. Second 412 → alert + localStorage only.
+//   - Network error → localStorage fallback (today's behaviour).
 //
 // Mode detection: localhost/127.0.0.1 = editable; anything else (Pages) =
 // readonly. window.docMode reflects this; saveState refuses writes when
@@ -72,15 +85,29 @@
     return origin + siteRoot + "state/" + project + "/" + docName + ".json";
   }
 
+  // Server POST URL (docs-server endpoint, no .json suffix).
+  function statePostUrl(docName) {
+    return origin + "/state/" + project + "/" + docName;
+  }
+
   window.docMeta = { project, docId, siteRoot, origin, mode };
   window.docMode = mode;
+
+  // Version cache: window._stateVersions[docId] = integer
+  if (!window._stateVersions) window._stateVersions = {};
 
   // --- Reads ---------------------------------------------------------
   window.loadIndexState = async function loadIndexState() {
     try {
       const r = await fetch(stateUrl("index"), { cache: "no-store" });
       if (!r.ok) return {};
-      return await r.json();
+      const j = await r.json();
+      // Cache version from loaded data.
+      const data = (j && j.data) || j || {};
+      if (typeof data._version === "number") {
+        window._stateVersions["index"] = data._version;
+      }
+      return j;
     } catch (e) {
       console.warn("loadIndexState failed", e);
       return {};
@@ -91,7 +118,13 @@
     try {
       const r = await fetch(stateUrl(docId), { cache: "no-store" });
       if (!r.ok) return {};
-      return await r.json();
+      const j = await r.json();
+      // Cache version from loaded data.
+      const data = (j && j.data) || j || {};
+      if (typeof data._version === "number") {
+        window._stateVersions[docId] = data._version;
+      }
+      return j;
     } catch (e) {
       console.warn("loadState failed", e);
       return {};
@@ -111,15 +144,11 @@
     }
   };
 
-  // --- Writes (localStorage only) -----------------------------------
+  // --- Writes -------------------------------------------------------
   const lsKey = (doc) => project + ":" + doc;
 
-  window.saveState = async function saveState(data) {
-    if (mode !== "editable") {
-      throw new Error(
-        "read-only: this site is published; edit the repo state JSON to record a decision"
-      );
-    }
+  // Low-level localStorage write (always available as fallback).
+  function writeLocalStorage(data) {
     try {
       localStorage.setItem(
         lsKey(docId),
@@ -128,10 +157,113 @@
           data: data ?? {},
         })
       );
-      return { ok: true, storage: "localStorage" };
     } catch (e) {
-      throw new Error("localStorage write failed: " + e.message);
+      console.warn("localStorage write failed", e);
     }
+  }
+
+  // Fetch current version for docId. Uses cached value if available,
+  // otherwise fetches from the server.
+  async function getVersion() {
+    if (typeof window._stateVersions[docId] === "number") {
+      return window._stateVersions[docId];
+    }
+    try {
+      const r = await fetch(stateUrl(docId), { cache: "no-store" });
+      if (!r.ok) return 0;
+      const j = await r.json();
+      const data = (j && j.data) || j || {};
+      const v = typeof data._version === "number" ? data._version : 0;
+      window._stateVersions[docId] = v;
+      return v;
+    } catch {
+      return 0;
+    }
+  }
+
+  // Internal POST helper — version-aware. Returns {ok, version} on success.
+  // On 412 (first): re-applies patch over server's current_data and retries.
+  // On second 412 or network error: falls back to localStorage.
+  async function postState(data) {
+    const version = await getVersion();
+    // Strip any _version the caller may have included — server owns it.
+    const body = Object.assign({}, data);
+    delete body._version;
+
+    try {
+      const r = await fetch(statePostUrl(docId), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "If-Match": String(version),
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (r.ok) {
+        const j = await r.json().catch(() => ({}));
+        if (typeof j.version === "number") {
+          window._stateVersions[docId] = j.version;
+        }
+        writeLocalStorage(body);
+        return { ok: true, storage: "docs-server", version: j.version };
+      }
+
+      if (r.status === 412) {
+        // First 412 — server gave us current state. Re-apply patch and retry.
+        const conflict = await r.json().catch(() => ({}));
+        const curData = conflict.current_data || {};
+        const curVersion = typeof conflict.current_version === "number"
+          ? conflict.current_version : 0;
+
+        // Merge: current server data wins on structure; patch wins on keys.
+        const retryBody = Object.assign({}, curData, body);
+        delete retryBody._version;
+
+        const r2 = await fetch(statePostUrl(docId), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "If-Match": String(curVersion),
+          },
+          body: JSON.stringify(retryBody),
+        });
+
+        if (r2.ok) {
+          const j2 = await r2.json().catch(() => ({}));
+          if (typeof j2.version === "number") {
+            window._stateVersions[docId] = j2.version;
+          }
+          writeLocalStorage(retryBody);
+          return { ok: true, storage: "docs-server (retry)", version: j2.version };
+        }
+
+        // Second 412 — genuine conflict. Alert and fall back.
+        alert(
+          "Conflict detected — another session has updated this page since you loaded it.\n" +
+          "Please refresh the page and retry your change."
+        );
+        writeLocalStorage(body);
+        return { ok: false, storage: "localStorage (conflict)", version };
+      }
+
+      console.warn("postState: unexpected status", r.status);
+    } catch (e) {
+      console.warn("postState: network error (docs-server unreachable?)", e);
+    }
+
+    // Network error fallback.
+    writeLocalStorage(body);
+    return { ok: false, storage: "localStorage (network error)", version };
+  }
+
+  window.saveState = async function saveState(data) {
+    if (mode !== "editable") {
+      throw new Error(
+        "read-only: this site is published; edit the repo state JSON to record a decision"
+      );
+    }
+    return postState(data);
   };
 
   window.loadLocalOverlay = function loadLocalOverlay() {
@@ -161,8 +293,8 @@
 
   // --- Schema-aware helpers (additive; safe with old format) -------
   //
-  // All helpers operate on the localStorage overlay. The overlay is merged
-  // over the canonical repo JSON on read by the page's own hydration code.
+  // In editable mode, helpers POST through to the docs-server via postState.
+  // localStorage is written as a cache + fallback path.
 
   // Return the decision map regardless of file shape.
   //   New shape: data.decisions = { <key>: {choice,...} }
@@ -190,12 +322,20 @@
   window.getStatus    = (blob) => ((blob && blob.data) || blob || {}).status    || null;
   window.getTier      = (blob) => ((blob && blob.data) || blob || {}).tier      || null;
 
-  // Merge an updated data object with the current localStorage overlay and
-  // persist. Returns the merged data so callers can re-render.
+  // Build a merged data object from the localStorage overlay, then POST it.
+  // In editable mode, postState handles server write + local cache.
+  // In readonly mode, only the local cache is updated (via the old path).
   async function mergeAndSave(patch) {
+    if (mode !== "editable") {
+      const cur = window.loadLocalOverlay();
+      const data = { ...(cur.data || {}), ...patch };
+      writeLocalStorage(data);
+      return data;
+    }
+    // Build merged from localStorage overlay (most recent known state).
     const cur = window.loadLocalOverlay();
     const data = { ...(cur.data || {}), ...patch };
-    await window.saveState(data);
+    await postState(data);
     return data;
   }
 
@@ -267,11 +407,11 @@
         "/&lt;doc&gt;.json</code> (or HTML), and open a PR.";
     } else {
       banner.innerHTML =
-        "<strong>Local docs-server.</strong> Decisions you click are saved to <code>localStorage</code> only — " +
-        "not written to the repo. To make a decision permanent, edit " +
+        "<strong>Local docs-server.</strong> Decisions you click are written through to the " +
         "<code>docs/state/" +
         project +
-        "/&lt;doc&gt;.json</code> and commit.";
+        "/&lt;doc&gt;.json</code> file via the docs-server (versioned POST). " +
+        "Changes are immediately visible to other sessions and committed to git on next push.";
     }
     document.body.insertBefore(banner, document.body.firstChild);
 
