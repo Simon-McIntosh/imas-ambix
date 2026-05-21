@@ -1,3 +1,52 @@
+# Agent Guidelines — IMAS Ambix
+
+Repo-specific guardrails for this workstation.  The user-global rules in
+[`~/.agents/AGENTS.md`](~/.agents/AGENTS.md) apply in full — git safety,
+parallel-agent safety, model selection, compute infrastructure, IMAS data
+access, shell hygiene, test execution.  Only the **repo-specific**
+overrides and additions live here.
+
+## Git Workflow
+
+**Primary branch: `main`** (per [`~/.agents/AGENTS.md`](~/.agents/AGENTS.md)
+"Branch Hygiene").  Trunk-based — all agent commits land directly on `main`.
+Feature branches are only created by the user when preparing a PR.
+
+Remotes:
+
+| Remote | Repository | Purpose |
+|--------|------------|---------|
+| `origin` | [`Simon-McIntosh/imas-ambix`](https://github.com/Simon-McIntosh/imas-ambix) | Fork — daily development; **GitHub Pages source** for the public plans dashboard at <https://simon-mcintosh.github.io/imas-ambix/> |
+| `upstream` | [`iterorganization/imas-ambix`](https://github.com/iterorganization/imas-ambix) | Canonical |
+
+Routine flow:
+
+```bash
+git checkout main
+git pull --no-rebase origin main
+# ... edit ...
+git add <specific-files>
+git commit -m "type(scope): ..."
+git push origin main
+```
+
+When the user asks for an upstream PR, only then create a feature branch:
+
+```bash
+git checkout -b feature/my-change
+git push origin feature/my-change
+gh pr create --repo iterorganization/imas-ambix --base main
+```
+
+## Plans dashboard
+
+HTML plans live under [`plans/`](plans/) (canonical).  Shared infrastructure
+(state.js, mode banner, repo-tracked static state JSON, `.nojekyll`,
+README badge) matches the [imas-efit](https://github.com/Simon-McIntosh/efit)
+pattern — see [`plans/_HTML_PLANS_README.md`](plans/_HTML_PLANS_README.md)
+and the user-global
+[`html-docs` skill](~/.claude/skills/html-docs/SKILL.md).
+
 ## 1. GPU Server Hardware
 
 Node: 98dci4-gpu-0003 on the `betelgeuse` SLURM partition.

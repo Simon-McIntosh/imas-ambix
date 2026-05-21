@@ -534,38 +534,3 @@ h2:hover .anchor-link, h3:hover .anchor-link { opacity: 1; }
   pre { white-space: pre-wrap; }
   a[href]::after { content: " (" attr(href) ")"; font-size: 0.8em; }
 }
-
-/* ===================================================
-   Mode banner — read-only / editable indicator
-   Surfaces whether the site is the editable local docs-server view
-   or the read-only GitHub Pages publish.
-   =================================================== */
-.mode-banner {
-  padding: .55rem .9rem;
-  font-size: .85em;
-  line-height: 1.4;
-  border-bottom: 1px solid var(--border, #d0d7de);
-  background: var(--bg-alt, #f6f8fa);
-  color: var(--fg, #1f2328);
-}
-.mode-banner code {
-  background: var(--bg, #ffffff);
-  padding: .05rem .35rem;
-  border-radius: 3px;
-  font-size: .92em;
-}
-.mode-banner.mode-readonly {
-  background: rgba(154,103,0,.12);
-  border-color: var(--warn, #9a6700);
-}
-.mode-banner.mode-readonly strong { color: var(--warn, #9a6700); }
-.mode-banner.mode-editable strong { color: var(--ok, #1a7f37); }
-
-button[disabled] {
-  opacity: .5;
-  cursor: not-allowed;
-}
-button[disabled]:hover {
-  border-color: var(--border, #d0d7de);
-  color: var(--muted, #6e7781);
-}
