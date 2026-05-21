@@ -4,57 +4,45 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>World Model v0 | Ambix Plans</title>
-<link rel="stylesheet" href="assets/dashboard.css">
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/state.js" defer></script>
+<link rel="stylesheet" href="_shared/foundation.css">
+<link rel="stylesheet" href="_shared/dashboard.css">
+<script src="_shared/state.js"></script>
 </head>
 <body>
-<!-- header -->
-<header class="site-header">
-  <div class="logo"><a href="index.html">⚗ Ambix Plans</a></div>
+
+<div class="topbar">
+  <a class="brand" href="index.html">
+    <span class="mark">A</span>
+    <span class="proj-name">imas-ambix</span>
+  </a>
   <nav>
     <a href="index.html">Index</a>
     <a href="STRATEGY.html">Strategy</a>
     <a href="v0-runway.html">v0 Runway</a>
     <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data Acq</a>
+    <a href="data-acquisition.html">Data acq</a>
     <a href="data-quality.html">Quality</a>
     <a href="tokenizers.html">Tokenizers</a>
     <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World Model</a>
+    <a href="world-model-v0.html" class="active">World model</a>
     <a href="demo.html">Demo</a>
     <a href="decisions.html">Decisions</a>
   </nav>
-  <div class="spacer"></div>
-  <button class="sidebar-toggle" id="sidebar-toggle">&#9776; Sections</button>
-  <button class="theme-toggle" id="theme-toggle">☽ Dark</button>
-</header>
+  <div class="right"></div>
+</div>
 
-<div class="page-body">
-<!-- sidebar -->
-<aside class="sidebar">
-  <div class="sidebar-title">On this page</div>
-  <ul><li><a href="#1-model-architecture" class="">1. Model architecture</a></li>
-<li><a href="#2-token-stream-layout" class="">2. Token-stream layout</a></li>
-<li><a href="#why-per-step-framing-not-strict-frame-then-signal-then-action" class="h3-link">Why per-step framing (not strict frame-then-sig…</a></li>
-<li><a href="#3-training-data-shape" class="">3. Training data shape</a></li>
-<li><a href="#4-training-recipe" class="">4. Training recipe</a></li>
-<li><a href="#41-optimization" class="h3-link">4.1 Optimization</a></li>
-<li><a href="#42-parallelism-on-4-h200" class="h3-link">4.2 Parallelism on 4 × H200</a></li>
-<li><a href="#43-configs" class="h3-link">4.3 Configs</a></li>
-<li><a href="#44-checkpoints-logging" class="h3-link">4.4 Checkpoints + logging</a></li>
-<li><a href="#5-evaluation" class="">5. Evaluation</a></li>
-<li><a href="#6-sequence-packing-strategy" class="">6. Sequence-packing strategy</a></li>
-<li><a href="#7-generation-rollout" class="">7. Generation / rollout</a></li>
-<li><a href="#8-what-v0-deliberately-leaves-out" class="">8. What v0 deliberately leaves out</a></li>
-<li><a href="#9-references" class="">9. References</a></li></ul>
-</aside>
+<main class="page">
 
-<!-- main -->
-<main class="main-content">
-  <div class="content-inner">
-    <div class="breadcrumb"><a href="index.html">Plans</a><span>›</span><span>World Model v0</span></div>
-    <h1 id="plan-world-model-v0-wham-style-decoder-only-ar-transformer">Plan: World-Model v0 — WHAM-style Decoder-Only AR Transformer</h1>
+<div class="page-head">
+  <div class="title">
+    <h1>World-Model v0 — WHAM-style Decoder-Only AR Transformer</h1>
+    <div class="subtitle">imas-ambix / Fusion World Model ·
+      Updated <time id="updated">2026-05-20</time></div>
+  </div>
+</div>
+
+<section class="prose">
+
 <p>Status: <strong>Draft</strong> — depends on <code>tokenizers.md</code> round-trip passing.</p>
 <p>This plan specifies the v0 Fusion World Model: a Microsoft-WHAM-flavoured
 decoder-only autoregressive transformer trained on interleaved
@@ -64,7 +52,7 @@ parameter records. The success criterion is the demo described in
 held-out shot given the diagnostic+control context.</p>
 <p>The reference architecture is Kanervisto <em>et al.</em>, &quot;World and Human Action
 Models towards gameplay ideation&quot;, <em>Nature</em> <strong>638</strong> (2025), DOI
-<a href="https://doi.org/10.1038/s41586-025-08600-3"><code>10.1038/s41586-025-08600-3</code></a>.
+<a class="link" href="https://doi.org/10.1038/s41586-025-08600-3"><code>10.1038/s41586-025-08600-3</code></a>.
 We follow their recipe with three deliberate substitutions:</p>
 <ol>
 <li>Frame tokenizer = <strong>Open-MAGVIT2</strong> (theirs is ViT-VQGAN).</li>
@@ -77,126 +65,64 @@ training code is not open-released.</li>
 <p>WHAMM (the real-time variant) replaces the dense decoder with a MaskGIT
 parallel sampler. v0 stays with WHAM's dense AR sampling; WHAMM-style
 parallel decoding is a v1 question once we have a stable baseline.</p>
-<hr />
+
+<hr>
+
 <h2 id="1-model-architecture">1. Model architecture</h2>
-<table>
+
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Parameter</th>
-<th>v0 value</th>
-<th>v1 ambition</th>
-</tr>
+<tr><th>Parameter</th><th>v0 value</th><th>v1 ambition</th></tr>
 </thead>
 <tbody>
-<tr>
-<td>Backbone</td>
-<td>Decoder-only Llama-class transformer</td>
-<td>same</td>
-</tr>
-<tr>
-<td>Param count</td>
-<td><strong>125 M → 500 M</strong> (curriculum)</td>
-<td>1 – 2 B</td>
-</tr>
-<tr>
-<td>Hidden size</td>
-<td>1024</td>
-<td>2048</td>
-</tr>
-<tr>
-<td>Layers</td>
-<td>24</td>
-<td>32</td>
-</tr>
-<tr>
-<td>Attention heads</td>
-<td>16 (head_dim 64)</td>
-<td>32 (head_dim 64)</td>
-</tr>
-<tr>
-<td>Vocab size</td>
-<td>~280 K (see <code>tokenizers.md</code> §4)</td>
-<td>same</td>
-</tr>
-<tr>
-<td>Positional encoding</td>
-<td>RoPE (Llama default)</td>
-<td>same</td>
-</tr>
-<tr>
-<td>Norm</td>
-<td>RMSNorm (Llama default)</td>
-<td>same</td>
-</tr>
-<tr>
-<td>Activation</td>
-<td>SwiGLU (Llama default)</td>
-<td>same</td>
-</tr>
-<tr>
-<td>Context window</td>
-<td><strong>16 K tokens</strong></td>
-<td>64 K</td>
-</tr>
-<tr>
-<td>FFN ratio</td>
-<td>4× (Llama default)</td>
-<td>same</td>
-</tr>
-<tr>
-<td>Sliding-window attention</td>
-<td>None (full attention)</td>
-<td>Optional 4 K sliding window</td>
-</tr>
-<tr>
-<td>Tying input/output embeddings</td>
-<td>yes</td>
-<td>yes</td>
-</tr>
+<tr><td>Backbone</td><td>Decoder-only Llama-class transformer</td><td>same</td></tr>
+<tr><td>Param count</td><td><strong>125 M → 500 M</strong> (curriculum)</td><td>1 – 2 B</td></tr>
+<tr><td>Hidden size</td><td>1024</td><td>2048</td></tr>
+<tr><td>Layers</td><td>24</td><td>32</td></tr>
+<tr><td>Attention heads</td><td>16 (head_dim 64)</td><td>32 (head_dim 64)</td></tr>
+<tr><td>Vocab size</td><td>~280 K (see <code>tokenizers.md</code> §4)</td><td>same</td></tr>
+<tr><td>Positional encoding</td><td>RoPE (Llama default)</td><td>same</td></tr>
+<tr><td>Norm</td><td>RMSNorm (Llama default)</td><td>same</td></tr>
+<tr><td>Activation</td><td>SwiGLU (Llama default)</td><td>same</td></tr>
+<tr><td>Context window</td><td><strong>16 K tokens</strong></td><td>64 K</td></tr>
+<tr><td>FFN ratio</td><td>4× (Llama default)</td><td>same</td></tr>
+<tr><td>Sliding-window attention</td><td>None (full attention)</td><td>Optional 4 K sliding window</td></tr>
+<tr><td>Tying input/output embeddings</td><td>yes</td><td>yes</td></tr>
 </tbody>
 </table>
+</div>
+
 <p>The 125 M → 500 M curriculum exists because the cheapest way to validate
 the data-loader + tokenizer + training-loop integration is to train a
 tiny model first. 125 M trains end-to-end on 1 GPU in ~6 h on a 10-shot
 subset — small enough to debug interactively, large enough to produce
 a sane loss curve.</p>
-<hr />
+
+<hr>
+
 <h2 id="2-token-stream-layout">2. Token-stream layout</h2>
 <p>The model sees one long interleaved sequence per training sample.
 Schema, per <strong>timestep</strong>:</p>
 <pre><code>&lt;step_start&gt; &lt;frame_tokens&gt; &lt;signal_tokens&gt; &lt;action_tokens&gt; &lt;step_end&gt;
 </code></pre>
 <p>with token counts as follows (single-camera, 4 kHz signal grid):</p>
-<table>
+
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Block</th>
-<th>Token count</th>
-</tr>
+<tr><th>Block</th><th>Token count</th></tr>
 </thead>
 <tbody>
-<tr>
-<td><code>&lt;step_start&gt;</code></td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>&lt;frame_tokens&gt;</code> (Open-MAGVIT2 visible camera, 256² → 32² spatial after 8× compression, 4× temporal grouping → effectively 256 tokens per 4-frame chunk)</td>
-<td><strong>256 per 4-frame chunk → 64 tokens / frame amortised</strong></td>
-</tr>
-<tr>
-<td><code>&lt;signal_tokens&gt;</code> (Chronos quantized: 30 diagnostic channels × 1 token / channel + PatchTST magnetics ~20 patch tokens per chunk)</td>
-<td>~50</td>
-</tr>
-<tr>
-<td><code>&lt;action_tokens&gt;</code> (control vector: PF coil currents × 6 + gas valves × 4 + heating × 2 + pulse-schedule waypoint id, all quantized)</td>
-<td>~12</td>
-</tr>
-<tr>
-<td><code>&lt;step_end&gt;</code></td>
-<td>1</td>
-</tr>
+<tr><td><code>&lt;step_start&gt;</code></td><td>1</td></tr>
+<tr><td><code>&lt;frame_tokens&gt;</code> (Open-MAGVIT2 visible camera, 256² → 32² spatial after 8× compression, 4× temporal grouping → effectively 256 tokens per 4-frame chunk)</td><td><strong>256 per 4-frame chunk → 64 tokens / frame amortised</strong></td></tr>
+<tr><td><code>&lt;signal_tokens&gt;</code> (Chronos quantized: 30 diagnostic channels × 1 token / channel + PatchTST magnetics ~20 patch tokens per chunk)</td><td>~50</td></tr>
+<tr><td><code>&lt;action_tokens&gt;</code> (control vector: PF coil currents × 6 + gas valves × 4 + heating × 2 + pulse-schedule waypoint id, all quantized)</td><td>~12</td></tr>
+<tr><td><code>&lt;step_end&gt;</code></td><td>1</td></tr>
 </tbody>
 </table>
+</div>
+
 <p>Per timestep ≈ <strong>130 tokens</strong>. At 4 kHz the model would see 4,000 timesteps
 per second of physical pulse time — clearly too much. We downsample the
 <em>model time grid</em> to 100 Hz (every 40th 4 kHz sample), giving:</p>
@@ -214,17 +140,20 @@ the v0 mitigation is dropping the magnetics PatchTST patch-token rate
 extend context window beyond 16 K in v0 because positional encoding
 behaviour with RoPE past 16 K needs proper testing we are not budgeted
 for.</p>
+
 <h3 id="why-per-step-framing-not-strict-frame-then-signal-then-action">Why per-step framing (not strict frame-then-signal-then-action)</h3>
 <p>We tried both orderings on paper. The per-step <code>&lt;frame, signal, action&gt;</code>
 ordering keeps each timestep's blocks contiguous in the sequence, which:</p>
 <ul>
 <li>Makes the causal mask correct without special-case masking.</li>
-<li>Lets the loss weighting (next-frame loss &gt; next-signal loss &gt; next-
-action loss) attach cleanly to each block.</li>
+<li>Lets the loss weighting (next-frame loss &gt; next-signal loss &gt; next-action
+loss) attach cleanly to each block.</li>
 <li>Matches WHAM's <code>(image, action, image, action, ...)</code> interleaving even
 though our content is richer.</li>
 </ul>
-<hr />
+
+<hr>
+
 <h2 id="3-training-data-shape">3. Training data shape</h2>
 <p>Training samples are 16 K-token windows extracted from the per-shot
 token streams under <code>/work/projects/imas_gpu/mast-tokens/</code>. Window
@@ -232,8 +161,7 @@ stride during training: 4 K tokens (so the model sees every part of every
 shot at least 4× per epoch).</p>
 <p>Estimated dataset sizes:</p>
 <ul>
-<li><strong>Camera-bearing MAST shots</strong>: ~3,000 shots (verified via probe
-manifest).</li>
+<li><strong>Camera-bearing MAST shots</strong>: ~3,000 shots (verified via probe manifest).</li>
 <li>Average pulse length ~0.4 s of recorded physical time → 0.4 s × 13 K
 tokens = ~5 K tokens / shot.</li>
 <li>That gives ~15 M raw training tokens — far too small for a 500 M model.</li>
@@ -254,14 +182,15 @@ short-clip data.</li>
 <p>The v0 success criterion is <em>qualitative</em>. The model is not expected to
 extrapolate plasma physics from 15 M tokens; it is expected to demonstrate
 the pipeline.</p>
-<hr />
+
+<hr>
+
 <h2 id="4-training-recipe">4. Training recipe</h2>
 <h3 id="41-optimization">4.1 Optimization</h3>
 <ul>
 <li>Optimizer: <strong>AdamW</strong> with <code>betas=(0.9, 0.95)</code>, <code>weight_decay=0.1</code>,
 <code>eps=1e-8</code> (Llama-2 standard).</li>
-<li>Schedule: linear warm-up 2 % of steps → cosine decay to 10 % of peak
-LR.</li>
+<li>Schedule: linear warm-up 2 % of steps → cosine decay to 10 % of peak LR.</li>
 <li>Peak LR: <strong>3e-4</strong> for 125 M; <strong>1.5e-4</strong> for 500 M.</li>
 <li>Loss: token-level cross-entropy. <strong>Block-weighted</strong>: w_frame = 1.0,
 w_signal = 0.3, w_action = 0.1, w_control = 0.0 (control tokens are
@@ -270,6 +199,7 @@ ground-truth observations, not predictions — masked out of loss).</li>
 tokens / step.</li>
 <li>Total steps: 30 K for 125 M; 60 K for 500 M.</li>
 </ul>
+
 <h3 id="42-parallelism-on-4-h200">4.2 Parallelism on 4 × H200</h3>
 <ul>
 <li><strong>FSDP</strong> via HuggingFace <code>accelerate</code> ≥ 1.0. ZeRO-3 sharding for
@@ -282,6 +212,7 @@ comfortable on 141 GB H200, but <strong>does not co-locate with DeepSeek
 V4-Flash serving</strong> (which already occupies ~41 GB / GPU). This is the
 driving reason for the dedicated reservation request in <code>compute.md</code>.</li>
 </ul>
+
 <h3 id="43-configs">4.3 Configs</h3>
 <pre><code>imas_ambix/train/configs/
 ├── v0-125m.yaml
@@ -290,6 +221,7 @@ driving reason for the dedicated reservation request in <code>compute.md</code>.
 <p>Hydra-managed. The 125 M config inherits from the 500 M config and
 overrides <code>hidden_size</code>, <code>num_hidden_layers</code>, <code>num_attention_heads</code>,
 <code>max_steps</code>.</p>
+
 <h3 id="44-checkpoints-logging">4.4 Checkpoints + logging</h3>
 <ul>
 <li>W&amp;B project: <code>imas-ambix-world-model</code>. Run names derived from the Hydra
@@ -300,45 +232,33 @@ config hash plus the data manifest hash.</li>
 <li>Eval rollouts on the held-out demo shot every 5 K steps; latest
 rollout PNG/JSON in the W&amp;B artefact.</li>
 </ul>
-<hr />
+
+<hr>
+
 <h2 id="5-evaluation">5. Evaluation</h2>
 <p>We follow <code>demo.md</code> for the headline demo. The training-time evaluation
 hooks (run every 5 K steps) are subset:</p>
-<table>
+
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Metric</th>
-<th>What it measures</th>
-<th>Acceptance for v0 demo</th>
-</tr>
+<tr><th>Metric</th><th>What it measures</th><th>Acceptance for v0 demo</th></tr>
 </thead>
 <tbody>
-<tr>
-<td>Validation loss</td>
-<td>overall token CE</td>
-<td>strictly decreasing across the cosine schedule</td>
-</tr>
-<tr>
-<td>Held-out frame rFID</td>
-<td>reconstruction quality at the next frame</td>
-<td>≤ 8 (qualitative recognisability)</td>
-</tr>
-<tr>
-<td>Centroid MSE</td>
-<td>physics-derived: emission centroid trajectory MSE vs ground truth</td>
-<td>≤ 2× the centroid trajectory variance of the held-out shot — i.e. trajectory is &quot;in the same ballpark&quot;</td>
-</tr>
-<tr>
-<td>Chord-integrated emission MSE</td>
-<td>physics-derived</td>
-<td>order-of-magnitude agreement</td>
-</tr>
+<tr><td>Validation loss</td><td>overall token CE</td><td>strictly decreasing across the cosine schedule</td></tr>
+<tr><td>Held-out frame rFID</td><td>reconstruction quality at the next frame</td><td>≤ 8 (qualitative recognisability)</td></tr>
+<tr><td>Centroid MSE</td><td>physics-derived: emission centroid trajectory MSE vs ground truth</td><td>≤ 2× the centroid trajectory variance of the held-out shot — i.e. trajectory is &quot;in the same ballpark&quot;</td></tr>
+<tr><td>Chord-integrated emission MSE</td><td>physics-derived</td><td>order-of-magnitude agreement</td></tr>
 </tbody>
 </table>
+</div>
+
 <p>We <strong>do not</strong> require state-of-the-art frame-FID. The aim is a
 sufficiently good baseline that the pipeline is unblocked, not a
 publishable model.</p>
-<hr />
+
+<hr>
+
 <h2 id="6-sequence-packing-strategy">6. Sequence-packing strategy</h2>
 <p>Each training-data file under <code>/work/projects/imas_gpu/mast-tokens/</code>
 holds the per-shot token stream as a 1-D <code>int32</code> Zarr array. The data
@@ -357,7 +277,9 @@ model learning fake transitions between unrelated shots.</p>
 later); the persistent token files are written by
 <code>imas_ambix/tokenizer/...</code>. There is no per-step <code>xr.open_zarr</code> round
 trip — we mmap the 1-D <code>int32</code> array and slice it directly.</p>
-<hr />
+
+<hr>
+
 <h2 id="7-generation-rollout">7. Generation / rollout</h2>
 <p>At inference, the model receives:</p>
 <ul>
@@ -387,7 +309,9 @@ scheduler-provided values</strong> instead of sampling them.</li>
 <li>Use top-k sampling (k=64) with temperature 0.8 on frame tokens to
 reduce drift relative to greedy.</li>
 </ul>
-<hr />
+
+<hr>
+
 <h2 id="8-what-v0-deliberately-leaves-out">8. What v0 deliberately leaves out</h2>
 <ul>
 <li><strong>No classifier-free guidance.</strong> WHAM uses it; we will add it in v1
@@ -403,25 +327,25 @@ v1 feature.</li>
 continuous tensor via cross-attention to the model's first 4 layers.
 Tokenizing 2-D fields is a v1 task.</li>
 </ul>
-<hr />
+
+<hr>
+
 <h2 id="9-references">9. References</h2>
 <ul>
-<li>WHAM Nature paper: <a href="https://doi.org/10.1038/s41586-025-08600-3">https://doi.org/10.1038/s41586-025-08600-3</a></li>
+<li>WHAM Nature paper: <a class="link" href="https://doi.org/10.1038/s41586-025-08600-3">https://doi.org/10.1038/s41586-025-08600-3</a></li>
 <li>WHAMM technical article (real-time variant):
-<a href="https://www.microsoft.com/en-us/research/articles/whamm-real-time-world-modelling-of-interactive-environments/">https://www.microsoft.com/en-us/research/articles/whamm-real-time-world-modelling-of-interactive-environments/</a></li>
-<li>Open-MAGVIT2: <a href="https://github.com/TencentARC/Open-MAGVIT2">https://github.com/TencentARC/Open-MAGVIT2</a></li>
+<a class="link" href="https://www.microsoft.com/en-us/research/articles/whamm-real-time-world-modelling-of-interactive-environments/">https://www.microsoft.com/en-us/research/articles/whamm-real-time-world-modelling-of-interactive-environments/</a></li>
+<li>Open-MAGVIT2: <a class="link" href="https://github.com/TencentARC/Open-MAGVIT2">https://github.com/TencentARC/Open-MAGVIT2</a></li>
 <li>HF <code>transformers</code> Llama implementation: <code>transformers.models.llama</code></li>
 <li>HF <code>accelerate</code> FSDP guide:
-<a href="https://huggingface.co/docs/accelerate/usage_guides/fsdp">https://huggingface.co/docs/accelerate/usage_guides/fsdp</a></li>
-<li>Chronos: <a href="https://github.com/amazon-science/chronos-forecasting">https://github.com/amazon-science/chronos-forecasting</a></li>
-<li>PatchTST paper (ICLR 2023): <a href="https://arxiv.org/abs/2211.14730">https://arxiv.org/abs/2211.14730</a></li>
+<a class="link" href="https://huggingface.co/docs/accelerate/usage_guides/fsdp">https://huggingface.co/docs/accelerate/usage_guides/fsdp</a></li>
+<li>Chronos: <a class="link" href="https://github.com/amazon-science/chronos-forecasting">https://github.com/amazon-science/chronos-forecasting</a></li>
+<li>PatchTST paper (ICLR 2023): <a class="link" href="https://arxiv.org/abs/2211.14730">https://arxiv.org/abs/2211.14730</a></li>
 </ul>
 
-    <nav class="plan-nav"><a href="tokenizer-benchmarks.html"><span class="nav-label">← Previous</span><span class="nav-title">Tokenizer Benchmarks</span></a><a href="demo.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Demo</span></a></nav>
-  </div>
-</main>
-</div>
+</section>
 
 <script src="assets/app.js"></script>
+</main>
 </body>
 </html>
