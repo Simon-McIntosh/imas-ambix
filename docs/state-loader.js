@@ -1,14 +1,14 @@
-// mockdata.js — live loader.
+// state-loader.js — live state fetcher.
 //
 // Fetches state/<project>/index.json and per-plan state/<project>/<slug>.json
-// to build window.MOCK at runtime. The state JSON files are the canonical
+// to build window.STATE at runtime. The state JSON files are the canonical
 // source; this file is just the bridge so the existing templates don't have
 // to change their data-shape assumptions.
 //
-// window.MOCK_READY is a Promise that resolves once window.MOCK is populated.
+// window.STATE_READY is a Promise that resolves once window.STATE is populated.
 // Templates wait on it before rendering (see ReadyGate in each template).
 
-window.MOCK_READY = (async function () {
+window.STATE_READY = (async function () {
   const PROJECT = (document.querySelector('meta[name="docs-project"]')?.content) ||
                   window.location.pathname.replace(/^\/+/, "").split("/")[0] ||
                   "unknown";
@@ -61,8 +61,8 @@ window.MOCK_READY = (async function () {
     sprints.find(s => s.id === idx.active_sprint_id) ||
     sprints.find(s => s.status === "active");
 
-  // 4. Populate window.MOCK
-  window.MOCK = {
+  // 4. Populate window.STATE
+  window.STATE = {
     today:          new Date().toISOString().slice(0, 10),
     projects:       Array.isArray(idx.projects) ? idx.projects : [],
     inventory,

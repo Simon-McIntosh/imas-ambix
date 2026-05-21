@@ -18,7 +18,7 @@
 
 <div id="root"></div>
 
-<script src="mockdata.js"></script>
+<script src="state-loader.js"></script>
 <script type="text/babel" src="ui.jsx"></script>
 <script type="text/babel">
   const { useState, useMemo, useEffect } = React;
@@ -238,7 +238,7 @@
   function ReadyGate({ children }) {
     const [ready, setReady] = React.useState(false);
     React.useEffect(() => {
-      if (window.MOCK_READY) window.MOCK_READY.then(() => setReady(true));
+      if (window.STATE_READY) window.STATE_READY.then(() => setReady(true));
       else setReady(true);  // fallback if loader didn't run
     }, []);
     if (!ready) {
@@ -255,7 +255,7 @@
   }
 
   function Plan() {
-    const M = window.MOCK;
+    const M = window.STATE;
     // Dispatch by ?slug=… ; defaults to the tokenizers exemplar.
     const slugParam = new URLSearchParams(window.location.search).get("slug") || "tokenizers";
     const isTokenizers = slugParam === "tokenizers";

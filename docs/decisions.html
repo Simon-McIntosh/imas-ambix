@@ -18,14 +18,14 @@
 
 <div id="root"></div>
 
-<script src="mockdata.js"></script>
+<script src="state-loader.js"></script>
 <script type="text/babel" src="ui.jsx"></script>
 <script type="text/babel">
   const { useState, useMemo, useEffect } = React;
 
   // Collect every decision across every plan in one list, attaching the plan slug.
   function collectAllDecisions() {
-    const M = window.MOCK;
+    const M = window.STATE;
     const out = [];
     for (const [slug, plan] of Object.entries(M.plans)) {
       for (const d of (plan.decisions || [])) {
@@ -270,7 +270,7 @@
   function ReadyGate({ children }) {
     const [ready, setReady] = React.useState(false);
     React.useEffect(() => {
-      if (window.MOCK_READY) window.MOCK_READY.then(() => setReady(true));
+      if (window.STATE_READY) window.STATE_READY.then(() => setReady(true));
       else setReady(true);  // fallback if loader didn't run
     }, []);
     if (!ready) {
