@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compute | Ambix Plans</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/state.js" defer></script>
 </head>
 <body>
 <!-- header -->
@@ -45,7 +46,8 @@
 <li><a href="#6-checkpoint-and-artefact-paths" class="">6. Checkpoint and artefact paths</a></li>
 <li><a href="#7-future-scaling" class="">7. Future scaling</a></li>
 <li><a href="#8-risks-training-compute-specific" class="">8. Risks (training-compute-specific)</a></li>
-<li><a href="#9-related-plans" class="">9. Related plans</a></li></ul>
+<li><a href="#9-related-plans" class="">9. Related plans</a></li>
+<li><a href="#open-decisions" class="">Open Decisions</a></li></ul>
 </aside>
 
 <!-- main -->
@@ -397,6 +399,112 @@ expansion path.</p>
 <li><code>../docs/cluster-usage.md</code> — the canonical serving / SLURM docs that
 this plan references.</li>
 </ul>
+
+    <h2 id="open-decisions">Open Decisions</h2>
+<p>
+  Click a row to record the call. State persists to
+  <code>~/docs-server/state/imas-ambix/&lt;this-page-stem&gt;.json</code> via
+  the docs-server, and is committed to git under
+  <code>docs/plans-html/state/imas-ambix/</code>.
+</p>
+<table id="decisions-table" class="decisions-table">
+  <thead>
+    <tr><th style="width:30%">Decision</th><th style="width:35%">Choice</th><th>Rationale</th><th style="width:120px">When</th></tr>
+  </thead>
+  <tbody>
+    <tr class="decision-row" data-key="slurm-training-reservation">
+  <td>
+    <strong>SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</strong>
+    <div class="decision-context">Current decision (2026-05-20): exclusive-pause mode — stop DeepSeek V4-Flash before training, restart after. Alternative: file a dedicated <code>gpu_0003_grpA_train</code> reservation (request body in <a href="#32-request-body">§3.2</a>). Source: <a href="#2-training-takes-exclusive-access-v4-flash-is-stopped-before-training">§2</a>–<a href="#3-dedicated-training-reservation-request">§3</a>.</div>
+  </td>
+  <td>
+    <div class="controls">
+      <button data-choice="exclusive-pause">Stay with exclusive-pause (current plan, no SDCC request needed)</button>
+      <button data-choice="file-now">File the dedicated reservation request with SDCC ops now</button>
+      <button data-choice="schedule-windows">Schedule around serving in overnight/weekend windows</button>
+    </div>
+  </td>
+  <td><input type="text" placeholder="rationale..." style="width:100%"></td>
+  <td><span class="when"></span></td>
+</tr>
+  </tbody>
+</table>
+
+<div class="decisions-toolbar">
+  <button id="copy-state">Copy state as JSON</button>
+  <button id="reset-state">Reset</button>
+</div>
+
+<script defer>
+(async function () {
+  const table = document.getElementById('decisions-table');
+  if (!table) return;
+  const rows = [...table.querySelectorAll('tr.decision-row')];
+
+  async function readAll() {
+    const out = {};
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const chosen = row.querySelector('button.chosen')?.dataset.choice ?? null;
+      const rationale = row.querySelector('input')?.value ?? '';
+      const when = row.querySelector('.when')?.textContent ?? '';
+      out[key] = { choice: chosen, rationale, when };
+    }
+    return out;
+  }
+
+  function applyAll(state) {
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const s = state?.[key];
+      if (!s) continue;
+      if (s.choice) {
+        row.querySelectorAll('button[data-choice]').forEach(b => {
+          b.classList.toggle('chosen', b.dataset.choice === s.choice);
+        });
+      }
+      const inp = row.querySelector('input');
+      if (inp && s.rationale) inp.value = s.rationale;
+      const when = row.querySelector('.when');
+      if (when && s.when) when.textContent = s.when;
+    }
+  }
+
+  async function persist() {
+    const data = await readAll();
+    await saveState(data);
+  }
+
+  rows.forEach(row => {
+    row.querySelectorAll('button[data-choice]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+        btn.classList.add('chosen');
+        row.querySelector('.when').textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        persist();
+      });
+    });
+    const inp = row.querySelector('input');
+    if (inp) inp.addEventListener('change', persist);
+  });
+
+  document.getElementById('copy-state').addEventListener('click', async () => {
+    await copyState(await readAll());
+  });
+  document.getElementById('reset-state').addEventListener('click', async () => {
+    if (!confirm('Reset all decisions on this page?')) return;
+    rows.forEach(row => {
+      row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+      const inp = row.querySelector('input'); if (inp) inp.value = '';
+      const when = row.querySelector('.when'); if (when) when.textContent = '';
+    });
+    await saveState({});
+  });
+
+  const initial = await loadState();
+  applyAll(initial.data || {});
+})();
+</script>
 
     <nav class="plan-nav"><a href="v0-runway.html"><span class="nav-label">← Previous</span><span class="nav-title">v0 Runway</span></a><a href="data-acquisition.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Data Acquisition</span></a></nav>
   </div>
