@@ -4,72 +4,68 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Strategy | Ambix Plans</title>
-<link rel="stylesheet" href="assets/dashboard.css">
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/state.js" defer></script>
+<link rel="stylesheet" href="_shared/foundation.css">
+<link rel="stylesheet" href="_shared/dashboard.css">
+<script src="_shared/state.js"></script>
 </head>
 <body>
-<!-- header -->
-<header class="site-header">
-  <div class="logo"><a href="index.html">⚗ Ambix Plans</a></div>
+
+<div class="topbar">
+  <a class="brand" href="index.html">
+    <span class="mark">A</span>
+    <span class="proj-name">imas-ambix</span>
+  </a>
   <nav>
     <a href="index.html">Index</a>
-    <a href="STRATEGY.html">Strategy</a>
+    <a href="STRATEGY.html" class="active">Strategy</a>
     <a href="v0-runway.html">v0 Runway</a>
     <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data Acq</a>
+    <a href="data-acquisition.html">Data acq</a>
     <a href="data-quality.html">Quality</a>
     <a href="tokenizers.html">Tokenizers</a>
     <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World Model</a>
+    <a href="world-model-v0.html">World model</a>
     <a href="demo.html">Demo</a>
     <a href="decisions.html">Decisions</a>
   </nav>
-  <div class="spacer"></div>
-  <button class="sidebar-toggle" id="sidebar-toggle">&#9776; Sections</button>
-  <button class="theme-toggle" id="theme-toggle">☽ Dark</button>
-</header>
+  <div class="right"></div>
+</div>
 
-<div class="page-body">
-<!-- sidebar -->
-<aside class="sidebar">
-  <div class="sidebar-title">On this page</div>
-  <ul><li><a href="#1-executive-vision" class="">1. Executive Vision</a></li>
-<li><a href="#2-why-mast-first" class="">2. Why MAST first</a></li>
-<li><a href="#3-roadmap" class="">3. Roadmap</a></li>
-<li><a href="#4-dependency-on-imas-codex" class="">4. Dependency on imas-codex</a></li>
-<li><a href="#5-success-criteria" class="">5. Success criteria</a></li>
-<li><a href="#v0-this-plan-set" class="h3-link">v0 (this plan set)</a></li>
-<li><a href="#v1-out-of-scope-of-this-plan-set-but-the-target-phase-2-closes" class="h3-link">v1 (out of scope of this plan set, but the targ…</a></li>
-<li><a href="#anti-goals-explicitly-out-of-scope-for-v0v1" class="h3-link">Anti-goals (explicitly out of scope for v0/v1)</a></li>
-<li><a href="#6-risk-register" class="">6. Risk register</a></li>
-<li><a href="#7-plan-documents" class="">7. Plan documents</a></li>
-<li><a href="#8-references" class="">8. References</a></li></ul>
-</aside>
+<main class="page">
 
-<!-- main -->
-<main class="main-content">
-  <div class="content-inner">
-    <div class="breadcrumb"><a href="index.html">Plans</a><span>›</span><span>Strategy</span></div>
-    <h1 id="ambix-fusion-world-model-strategy">Ambix: Fusion World Model Strategy</h1>
+<div class="page-head">
+  <div class="title">
+    <h1>Ambix: Fusion World Model Strategy</h1>
+    <div class="subtitle">imas-ambix / Fusion World Model ·
+      Updated <time id="updated">2026-05-21</time></div>
+  </div>
+</div>
+
+<div class="prose" style="max-width:none">
+
 <p><strong>System:</strong> <code>imas-ambix</code>
 <strong>Role:</strong> Distillation &amp; Generative Modelling (consumer of imas-codex
 mappings, producer of Fusion World Model weights)
 <strong>Output:</strong> Trained transformer checkpoints that predict plasma evolution
 given control inputs, plus a multi-modal tokenizer toolchain that lets us
 do so on heterogeneous tokamak diagnostic streams.</p>
-<hr />
+
+<hr>
+
 <h2 id="1-executive-vision">1. Executive Vision</h2>
+
 <p>Ambix builds the generative engine of the Fusion World Model. Where
-<a href="https://github.com/iterorganization/imas-codex">imas-codex</a> answers &quot;what
-data exists and how it maps to IMAS&quot;, ambix answers &quot;given the data and the
-mapping, what does the plasma do next?&quot;.</p>
+<a href="https://github.com/iterorganization/imas-codex">imas-codex</a> answers "what
+data exists and how it maps to IMAS", ambix answers "given the data and the
+mapping, what does the plasma do next?".</p>
+
 <p>The strategic motivation is captured in the GPU-procurement document
 prepared for Science Division (see
 <code>../../imas-codex/plans/gpu-cluster-scoping.md</code> §3.3). The headline
 argument: a Microsoft-style world model trained on tokamak diagnostic
 streams gives ITER three capabilities that are unreachable with current
 analysis tooling:</p>
+
 <ol>
 <li><strong>Pre-play</strong> of planned pulses against learned plasma physics, before
 machine time is consumed.</li>
@@ -78,6 +74,7 @@ can probe scenario boundaries without risking the device.</li>
 <li><strong>Validation of physics models</strong> by comparing generated plasma states
 to first-principles predictions on the same control input.</li>
 </ol>
+
 <p>The reference architecture is Microsoft's WHAM (World and Human Action
 Model, Kanervisto <em>et al.</em>, <em>Nature</em> <strong>638</strong> (2025) — DOI
 <a href="https://doi.org/10.1038/s41586-025-08600-3"><code>10.1038/s41586-025-08600-3</code></a>,
@@ -89,17 +86,22 @@ with diagnostic measurements (including camera frames), replace controller
 actions with the engineered control vector (coil currents, gas-injection
 rates, heating power, pulse-schedule waypoints), and predict the next
 multi-modal state token-by-token.</p>
+
 <p>The Fusion World Model is not a substitute for first-principles solvers
 (GENE, JOREK, EFIT). It is a generative model of <em>observed</em> tokamak
 behaviour — extracted directly from experimental data, validated against
 held-out shots, and useful precisely where first-principles models are too
 expensive or too uncertain to run in the loop.</p>
-<hr />
+
+<hr>
+
 <h2 id="2-why-mast-first">2. Why MAST first</h2>
+
 <p>The 26 B state-transition corpus across JET / TCV / JT-60SA / AUG / DIII-D
 described in the GPU-procurement document is the long-term training target.
 It cannot be the v0 dataset. Three reasons make FAIR-MAST the right
 starting point:</p>
+
 <ol>
 <li><strong>Permissive open access.</strong> Data is licensed CC BY-SA 4.0, the
 <code>ukaea/fair-mast</code> tooling is MIT, and the S3 endpoint at
@@ -117,73 +119,77 @@ infrared system (RIR / AIT → <code>camera_ir</code>) across enough shots in th
 – M9 campaigns to support a frame-prediction prototype. Camera-rich
 tokamaks are rarer than people assume.</li>
 </ol>
+
 <p>The trade-off: MAST is a smaller, lower-current spherical tokamak. The
 plasma physics it produces is not directly transferable to ITER scenarios.
 We accept this. The v0 model is for <em>workflow</em>, not <em>physics transfer</em>:
 prove the pipeline (download → tokenise → train → roll out) end-to-end on
 a permissive corpus, then graft on additional facilities through
 imas-codex once their mappings land.</p>
-<hr />
+
+<hr>
+
 <h2 id="3-roadmap">3. Roadmap</h2>
-<table>
+
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Phase</th>
-<th>Scope</th>
-<th>Status</th>
-<th>Driver</th>
-</tr>
+<tr><th>Phase</th><th>Scope</th><th>Status</th><th>Driver</th></tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>0</strong> — Probe &amp; mirror</td>
 <td>Probe FAIR-MAST S3 throughput; mirror level-2 to GPFS</td>
-<td>Draft</td>
+<td><span class="status pending"><span class="dot"></span>Draft</span></td>
 <td>This plan set</td>
 </tr>
 <tr>
 <td><strong>1</strong> — Tokenizer prototype</td>
 <td>Open-MAGVIT2 frame tokens + Chronos/PatchTST signal tokens, end-to-end round-trip on 10 shots</td>
-<td>Draft</td>
+<td><span class="status pending"><span class="dot"></span>Draft</span></td>
 <td><code>tokenizers.md</code></td>
 </tr>
 <tr>
 <td><strong>2</strong> — World-model v0</td>
 <td>~500 M decoder-only AR transformer; WHAM-style interleaved stream; demo on a held-out MAST shot</td>
-<td>Draft</td>
+<td><span class="status pending"><span class="dot"></span>Draft</span></td>
 <td><code>world-model-v0.md</code>, <code>demo.md</code></td>
 </tr>
 <tr>
 <td><strong>3</strong> — Multi-facility expansion</td>
 <td>Add TCV (DOI-published level-2 on Zenodo), then JT-60SA (via imas-codex mapping work)</td>
-<td>Pending Phase 2</td>
+<td><span class="status pending"><span class="dot"></span>Pending Phase 2</span></td>
 <td>imas-codex Phase 5</td>
 </tr>
 <tr>
 <td><strong>4</strong> — Scaling</td>
 <td>Move to multi-billion parameter models on additional GPU allocation (8-GPU or multi-node)</td>
-<td>Pending Phase 3</td>
+<td><span class="status pending"><span class="dot"></span>Pending Phase 3</span></td>
 <td>Compute procurement</td>
 </tr>
 <tr>
 <td><strong>5</strong> — Operational pre-play</td>
 <td>Wrap the trained model in an <code>ambix pre-play</code> CLI for operations team use</td>
-<td>Pending Phase 4</td>
+<td><span class="status pending"><span class="dot"></span>Pending Phase 4</span></td>
 <td>Operations stakeholder</td>
 </tr>
 </tbody>
 </table>
+</div>
+
 <p>Only Phase 0 – 2 are scoped in detail by this plan set. Phase 3+ depends on
 data and compute that are not yet committed.</p>
-<hr />
+
+<hr>
+
 <h2 id="4-dependency-on-imas-codex">4. Dependency on imas-codex</h2>
+
 <p>Ambix and codex are tightly coupled by design:</p>
-<table>
+
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Codex provides</th>
-<th>Ambix consumes</th>
-</tr>
+<tr><th>Codex provides</th><th>Ambix consumes</th></tr>
 </thead>
 <tbody>
 <tr>
@@ -204,14 +210,19 @@ data and compute that are not yet committed.</p>
 </tr>
 </tbody>
 </table>
+</div>
+
 <p>For the MAST v0 work, ambix does <strong>not</strong> strictly need codex outputs —
 FAIR-MAST publishes its own IMAS mapping. But the moment we add a second
 facility, codex becomes load-bearing. The <code>imas_ambix/data/manifest.py</code>
 module is therefore designed to consume codex-style facility manifests
 even in v0, even though the MAST manifest is hand-written. This keeps the
 data-loader interface stable as we add facilities.</p>
-<hr />
+
+<hr>
+
 <h2 id="5-success-criteria">5. Success criteria</h2>
+
 <h3 id="v0-this-plan-set">v0 (this plan set)</h3>
 <ul>
 <li>All 11,573 FAIR-MAST level-2 shots mirrored to
@@ -229,8 +240,8 @@ compared to the held-out ground truth.</li>
 comparison and reports physics-derived quantities (chord-integrated
 emission, frame centroid).</li>
 </ul>
-<h3 id="v1-out-of-scope-of-this-plan-set-but-the-target-phase-2-closes">v1 (out of scope of this plan set, but the target Phase 2 closes</h3>
-<p>toward)</p>
+
+<h3 id="v1-out-of-scope-of-this-plan-set-but-the-target-phase-2-closes">v1 (out of scope of this plan set, but the target Phase 2 closes toward)</h3>
 <ul>
 <li>Quantitative agreement with held-out plasma metrics: chord-integrated
 emission MSE within 10 % of mean over the held-out validation shots;
@@ -241,6 +252,7 @@ in the correct sign / magnitude).</li>
 <li>Tokenizer codebook adapted to plasma imagery — i.e. fine-tuned Open-MAGVIT2
 decoder weights checked into <code>/work/projects/imas_gpu/mast-tokens/</code>.</li>
 </ul>
+
 <h3 id="anti-goals-explicitly-out-of-scope-for-v0v1">Anti-goals (explicitly out of scope for v0/v1)</h3>
 <ul>
 <li>Real-time control. The world model is offline-only. Real-time deployment
@@ -253,16 +265,15 @@ off the shelf. If they fail, we swap them; we do not invent.</li>
 <li>A new training framework. HuggingFace <code>transformers</code> + <code>accelerate</code>
 FSDP only.</li>
 </ul>
-<hr />
+
+<hr>
+
 <h2 id="6-risk-register">6. Risk register</h2>
-<table>
+
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Risk</th>
-<th>Likelihood</th>
-<th>Impact</th>
-<th>Mitigation</th>
-</tr>
+<tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr>
 </thead>
 <tbody>
 <tr>
@@ -296,73 +307,79 @@ FSDP only.</li>
 <td>v0 demo limits to ≤ 1 s rollout; long-horizon stability is a v1 problem</td>
 </tr>
 <tr>
-<td>CC BY-SA 4.0 &quot;SA&quot; clause contaminates downstream model weights</td>
+<td>CC BY-SA 4.0 "SA" clause contaminates downstream model weights</td>
 <td>Low</td>
 <td>Low (legal, not technical)</td>
 <td>Legal check before publishing weights; for now keep weights internal</td>
 </tr>
 </tbody>
 </table>
-<hr />
+</div>
+
+<hr>
+
 <h2 id="7-plan-documents">7. Plan documents</h2>
-<table>
+
+<div class="table-scroll">
+<table class="t">
 <thead>
-<tr>
-<th>Plan</th>
-<th>Scope</th>
-</tr>
+<tr><th>Plan</th><th>Scope</th></tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="STRATEGY.md"><code>STRATEGY.md</code></a> (this file)</td>
+<td><a href="STRATEGY.md" class="link"><code>STRATEGY.md</code></a> (this file)</td>
 <td>Vision, roadmap, success criteria, risk register</td>
 </tr>
 <tr>
-<td><a href="data-acquisition.md"><code>data-acquisition.md</code></a></td>
+<td><a href="data-acquisition.md" class="link"><code>data-acquisition.md</code></a></td>
 <td>FAIR-MAST endpoint inventory, probe protocol, bulk-download protocol</td>
 </tr>
 <tr>
-<td><a href="tokenizers.md"><code>tokenizers.md</code></a></td>
+<td><a href="tokenizers.md" class="link"><code>tokenizers.md</code></a></td>
 <td>Per-modality tokenizer design and persistence layout</td>
 </tr>
 <tr>
-<td><a href="world-model-v0.md"><code>world-model-v0.md</code></a></td>
+<td><a href="world-model-v0.md" class="link"><code>world-model-v0.md</code></a></td>
 <td>Decoder-only AR transformer spec and training recipe</td>
 </tr>
 <tr>
-<td><a href="demo.md"><code>demo.md</code></a></td>
+<td><a href="demo.md" class="link"><code>demo.md</code></a></td>
 <td>Wide-angle viewing-system forward-prediction demo</td>
 </tr>
 <tr>
-<td><a href="compute.md"><code>compute.md</code></a></td>
+<td><a href="compute.md" class="link"><code>compute.md</code></a></td>
 <td>SLURM patterns, reservation request, FSDP sharding</td>
 </tr>
 <tr>
-<td><a href="README.md"><code>README.md</code></a></td>
+<td><a href="README.md" class="link"><code>README.md</code></a></td>
 <td>Index page (status, summaries)</td>
 </tr>
 </tbody>
 </table>
-<hr />
+</div>
+
+<hr>
+
 <h2 id="8-references">8. References</h2>
 <ul>
-<li>Kanervisto <em>et al.</em>, &quot;World and Human Action Models towards gameplay
-ideation&quot;, <em>Nature</em> <strong>638</strong> (2025) — primary reference for WHAM
-architecture. DOI: <a href="https://doi.org/10.1038/s41586-025-08600-3"><code>10.1038/s41586-025-08600-3</code></a>.</li>
-<li>Jackson <em>et al.</em>, &quot;FAIR-MAST: A fusion device data management system&quot;,
+<li>Kanervisto <em>et al.</em>, "World and Human Action Models towards gameplay
+ideation", <em>Nature</em> <strong>638</strong> (2025) — primary reference for WHAM
+architecture. DOI: <a href="https://doi.org/10.1038/s41586-025-08600-3" class="link"><code>10.1038/s41586-025-08600-3</code></a>.</li>
+<li>Jackson <em>et al.</em>, "FAIR-MAST: A fusion device data management system",
 <em>SoftwareX</em> <strong>27</strong> (2024) 101869. DOI:
-<a href="https://doi.org/10.1016/j.softx.2024.101869"><code>10.1016/j.softx.2024.101869</code></a>.</li>
-<li>Jackson <em>et al.</em>, &quot;An Open Data Service for Supporting Research in
-Machine Learning on Tokamak Data&quot;, <em>IEEE Trans. Plasma Sci.</em> (2025).
-DOI: <a href="https://doi.org/10.1109/TPS.2025.3583419"><code>10.1109/TPS.2025.3583419</code></a>.</li>
-<li>ITER Science Division GPU-procurement document, §3.3 &quot;Fusion World Model
-Development&quot;: <code>../../imas-codex/plans/gpu-cluster-scoping.md</code>.</li>
+<a href="https://doi.org/10.1016/j.softx.2024.101869" class="link"><code>10.1016/j.softx.2024.101869</code></a>.</li>
+<li>Jackson <em>et al.</em>, "An Open Data Service for Supporting Research in
+Machine Learning on Tokamak Data", <em>IEEE Trans. Plasma Sci.</em> (2025).
+DOI: <a href="https://doi.org/10.1109/TPS.2025.3583419" class="link"><code>10.1109/TPS.2025.3583419</code></a>.</li>
+<li>ITER Science Division GPU-procurement document, §3.3 "Fusion World Model
+Development": <code>../../imas-codex/plans/gpu-cluster-scoping.md</code>.</li>
 </ul>
 
-    <nav class="plan-nav"><a href="v0-runway.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">v0 Runway</span></a></nav>
-  </div>
-</main>
+<nav class="plan-nav"><a href="v0-runway.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">v0 Runway</span></a></nav>
+
 </div>
+
+</main>
 
 <script src="assets/app.js"></script>
 </body>
