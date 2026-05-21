@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Data Acquisition | Ambix Plans</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/state.js" defer></script>
 </head>
 <body>
 <!-- header -->
@@ -66,7 +67,8 @@
 <li><a href="#122-the-right-way-to-size-the-corpus" class="h3-link">12.2 The right way to size the corpus</a></li>
 <li><a href="#123-revised-acceptance-gates" class="h3-link">12.3 Revised acceptance gates</a></li>
 <li><a href="#124-implications-for-the-v0-plan" class="h3-link">12.4 Implications for the v0 plan</a></li>
-<li><a href="#125-live-download-progress-snapshot" class="h3-link">12.5 Live download progress (snapshot)</a></li></ul>
+<li><a href="#125-live-download-progress-snapshot" class="h3-link">12.5 Live download progress (snapshot)</a></li>
+<li><a href="#open-decisions" class="">Open Decisions</a></li></ul>
 </aside>
 
 <!-- main -->
@@ -901,6 +903,112 @@ smaller per shot, so this finishes first.</li>
 <p>ETA for level-2 completion: <strong>~8 h</strong> at the observed rate. Single
 console session is fine since both downloads were launched via
 <code>run_in_background</code> and are decoupled from the interactive shell.</p>
+
+    <h2 id="open-decisions">Open Decisions</h2>
+<p>
+  Click a row to record the call. State persists to
+  <code>~/docs-server/state/imas-ambix/&lt;this-page-stem&gt;.json</code> via
+  the docs-server, and is committed to git under
+  <code>docs/plans-html/state/imas-ambix/</code>.
+</p>
+<table id="decisions-table" class="decisions-table">
+  <thead>
+    <tr><th style="width:30%">Decision</th><th style="width:35%">Choice</th><th>Rationale</th><th style="width:120px">When</th></tr>
+  </thead>
+  <tbody>
+    <tr class="decision-row" data-key="camera-selection-v0">
+  <td>
+    <strong>Camera selection for v0 training</strong>
+    <div class="decision-context">Level-1 inventory: rbb = 9,527 shots (55.7%), rba = 6,155 shots (36.0%), rir = 25 shots (rare). rbb is the wide-angle midplane view; rba is the lower/divertor view; rir is infrared divertor. Adding more cameras → more training data per shot but adds IR codebook complexity. Source: <a href="#112-level-1-inventory">§11.2</a>.</div>
+  </td>
+  <td>
+    <div class="controls">
+      <button data-choice="rbb-only">rbb only — 9,527 shots, widest coverage</button>
+      <button data-choice="rbb-rba">rbb + rba — both visible cameras, ~6,155 overlap shots</button>
+      <button data-choice="rbb-rba-rir">rbb + rba + rir — all cameras including IR</button>
+    </div>
+  </td>
+  <td><input type="text" placeholder="rationale..." style="width:100%"></td>
+  <td><span class="when"></span></td>
+</tr>
+  </tbody>
+</table>
+
+<div class="decisions-toolbar">
+  <button id="copy-state">Copy state as JSON</button>
+  <button id="reset-state">Reset</button>
+</div>
+
+<script defer>
+(async function () {
+  const table = document.getElementById('decisions-table');
+  if (!table) return;
+  const rows = [...table.querySelectorAll('tr.decision-row')];
+
+  async function readAll() {
+    const out = {};
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const chosen = row.querySelector('button.chosen')?.dataset.choice ?? null;
+      const rationale = row.querySelector('input')?.value ?? '';
+      const when = row.querySelector('.when')?.textContent ?? '';
+      out[key] = { choice: chosen, rationale, when };
+    }
+    return out;
+  }
+
+  function applyAll(state) {
+    for (const row of rows) {
+      const key = row.dataset.key;
+      const s = state?.[key];
+      if (!s) continue;
+      if (s.choice) {
+        row.querySelectorAll('button[data-choice]').forEach(b => {
+          b.classList.toggle('chosen', b.dataset.choice === s.choice);
+        });
+      }
+      const inp = row.querySelector('input');
+      if (inp && s.rationale) inp.value = s.rationale;
+      const when = row.querySelector('.when');
+      if (when && s.when) when.textContent = s.when;
+    }
+  }
+
+  async function persist() {
+    const data = await readAll();
+    await saveState(data);
+  }
+
+  rows.forEach(row => {
+    row.querySelectorAll('button[data-choice]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+        btn.classList.add('chosen');
+        row.querySelector('.when').textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        persist();
+      });
+    });
+    const inp = row.querySelector('input');
+    if (inp) inp.addEventListener('change', persist);
+  });
+
+  document.getElementById('copy-state').addEventListener('click', async () => {
+    await copyState(await readAll());
+  });
+  document.getElementById('reset-state').addEventListener('click', async () => {
+    if (!confirm('Reset all decisions on this page?')) return;
+    rows.forEach(row => {
+      row.querySelectorAll('button[data-choice]').forEach(b => b.classList.remove('chosen'));
+      const inp = row.querySelector('input'); if (inp) inp.value = '';
+      const when = row.querySelector('.when'); if (when) when.textContent = '';
+    });
+    await saveState({});
+  });
+
+  const initial = await loadState();
+  applyAll(initial.data || {});
+})();
+</script>
 
     <nav class="plan-nav"><a href="compute.html"><span class="nav-label">← Previous</span><span class="nav-title">Compute</span></a><a href="data-quality.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Data Quality</span></a></nav>
   </div>
