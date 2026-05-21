@@ -5,21 +5,21 @@
   "data": {
     "slug": "plans-agile-sprints",
     "title": "Agile sprint flow with agent input",
-    "status": "draft",
+    "status": "active",
     "ms": "PS",
     "roi": "mid",
     "effort": "M",
     "tier": "opus",
-    "impl": 0.2,
+    "impl": 0.85,
     "last": "2026-05-21",
     "owner": "Simon McIntosh",
     "blockers": 0,
     "dec_open": 0,
     "comments": 0,
     "sprint": "S3",
-    "phase": "draft \u00b7 designing the agent-input model",
+    "phase": "active \u00b7 SKILL.md + sprint.html shipped; first proposal pending",
     "created": "2026-05-21",
-    "last_modified": "2026-05-21 15:55",
+    "last_modified": "2026-05-21 17:30",
     "depends_on": [
       "plans-infra"
     ],
@@ -122,7 +122,24 @@
         ],
         "tier": "opus",
         "est_turn": "~1h after decisions locked",
-        "prompt": "Project: dotfiles\nPlan:    plans-agile-sprints\nSection: \u00a71\u2013\u00a73 (after the three \u00a7-decisions are locked)\nTier:    opus\n\nContext\n  Sprint flow with agent input. Decisions on cadence / rationale location /\n  acceptance UX must be locked first via inline-decision clicks on this page.\n  Once locked, this followup is unblocked.\n\nState to read\n  docs/state/imas-ambix/plans-agile-sprints.json\n\nLocked decisions to honour (none yet \u2014 block until they are)\n\nOpen decisions to surface\n  sprint-proposal-cadence, agent-rationale-location, proposal-acceptance-ux\n  (All three block this work. Do not implement before they are locked.)\n\nDone-when\n  1. plan-sprint SKILL.md documents the chosen cadence/rationale/UX.\n  2. sprint.html renders agent rationale per item.\n  3. (If 'Lock button' won) sprint.html has the click-to-activate button wired.\n  4. Followup written with outcome + the first proposed sprint authored by an agent."
+        "prompt": "Project: dotfiles\nPlan:    plans-agile-sprints\nSection: \u00a71\u2013\u00a73 (after the three \u00a7-decisions are locked)\nTier:    opus\n\nContext\n  Sprint flow with agent input. Decisions on cadence / rationale location /\n  acceptance UX must be locked first via inline-decision clicks on this page.\n  Once locked, this followup is unblocked.\n\nState to read\n  docs/state/imas-ambix/plans-agile-sprints.json\n\nLocked decisions to honour (none yet \u2014 block until they are)\n\nOpen decisions to surface\n  sprint-proposal-cadence, agent-rationale-location, proposal-acceptance-ux\n  (All three block this work. Do not implement before they are locked.)\n\nDone-when\n  1. plan-sprint SKILL.md documents the chosen cadence/rationale/UX.\n  2. sprint.html renders agent rationale per item.\n  3. (If 'Lock button' won) sprint.html has the click-to-activate button wired.\n  4. Followup written with outcome + the first proposed sprint authored by an agent.",
+        "resolved_at": "2026-05-21 17:30",
+        "resolved_by": "opus-coordinator",
+        "outcome": "All three decisions locked. plan-sprint SKILL.md updated (cadence: weekly cron; justification field documented; Lock button noted as primary UX). sprint.html redesigned with sprint switcher (pill tabs), LockBanner for planned sprints, per-item justification in KCard. plan.html bug fixed: \u2713 indicator now requires chip click; dec_open decremented on lock. Both dotfiles canonical and imas-ambix copies updated. Commits: f4d39ff (dotfiles), 58b4aba + f31b69c (imas-ambix)."
+      },
+      {
+        "id": "f-first-sprint-proposal",
+        "written_by": "opus-coordinator",
+        "written_at": "2026-05-21 17:30",
+        "title": "Run /plan-sprint propose to author the first agent-generated sprint",
+        "body": "The infrastructure is now in place (sprint.html + SKILL.md). Next: run /plan-sprint propose to generate the first agent-authored sprint allocation for imas-ambix. The proposal should use the locked decisions \u2014 weekly cadence, per-item justification, Lock button activation. Also: set up the weekly Claude API cron job so future proposals run automatically.",
+        "recommends_skill": "/plan-sprint propose",
+        "touches": [
+          "docs/state/imas-ambix/index.json"
+        ],
+        "tier": "sonnet",
+        "est_turn": "~20min",
+        "prompt": "Project: imas-ambix\nPlan:    plans-agile-sprints (docs/state/imas-ambix/plans-agile-sprints.json)\nSection: first sprint proposal + cron setup\nTier:    sonnet\n\nContext\n  The agent-proposed sprint infrastructure just landed: sprint.html has a\n  sprint switcher and Lock button; plan-sprint SKILL.md is updated with\n  cadence (weekly), justification field, and Lock button UX. This followup\n  generates the first actual sprint proposal.\n\nState to read\n  docs/state/imas-ambix/index.json        (inventory + current sprints)\n  docs/state/imas-ambix/plans-agile-sprints.json\n\nLocked decisions to honour\n  sprint-proposal-cadence    \u2192 scheduled (weekly), via Claude API cron\n  agent-rationale-location   \u2192 sprint.items[].justification (renamed from why_now)\n  proposal-acceptance-ux     \u2192 Lock button on sprint.html\n\nOpen decisions to surface\n  (none \u2014 all locked)\n\nConstraints\n  - Items in the proposed sprint must be objects: {slug, justification, tier, done_when}\n  - Do not activate the sprint \u2014 write it as status:'planned' and let the human click Lock\n  - Use /plan-sprint propose verb from the SKILL.md\n  - After proposing, set up the weekly Claude API cron job (see /schedule skill)\n\nDone-when\n  1. A new planned sprint entry in docs/state/imas-ambix/index.json with object items[]\n  2. Each item has a non-empty justification field\n  3. This followup resolved with outcome\n  4. Weekly cron job registered (or deferred with a note if not yet possible)"
       }
     ],
     "followups_done": [],
