@@ -1,0 +1,68 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "data-quality",
+  "data": {
+    "slug": "data-quality",
+    "title": "Data quality (audit + gates)",
+    "status": "active",
+    "ms": "M1",
+    "roi": "mid",
+    "effort": "M",
+    "tier": "sonnet",
+    "impl": 0.90,
+    "last": "2026-05-20",
+    "owner": "Simon McIntosh",
+    "blockers": 0,
+    "dec_open": 1,
+    "comments": 1,
+    "sprint": "S2",
+    "phase": "in flight · gate landing 2026-05-21",
+    "created": "2026-05-13",
+    "last_modified": "2026-05-20 11:00",
+    "depends_on": ["data-acquisition"],
+    "blocks": ["world-model-v0"],
+    "summary": "Per-shot ShotQualityReport, corpus audit, ambix data audit CLI, acceptance gates for training-grade shots.",
+    "sections": [
+      { "id": "s1", "sec": "§ 1", "h": "Audit framework", "body": "Twenty-two pytest tests on a 25-shot sample give 76% usable rate. Failures: charge_exchange ~50% bit-pattern corruption; thomson_scattering ~12% timestamp drift; magnetics ~3% NaN sections. Tracked per-shot in imas_ambix.quality.ShotQualityReport." },
+      { "id": "s5", "sec": "§ 5", "h": "Training-grade gate", "body": "A shot is training-grade if (a) magnetics complete, (b) ≥1 camera channel complete, (c) equilibrium time-slice present, (d) no NaN in summary scalars. Drop charge_exchange entirely from the v0 corpus (decision 2026-05-20)." }
+    ],
+    "decisions_def": [
+      {
+        "key": "drop-charge-exchange",
+        "title": "Drop charge_exchange from v0 training corpus?",
+        "context": "Audit found ~50% bit-pattern corruption in t_i and v_i columns (values 10^26 – 10^38 K / m/s; physical ranges ≤ 30 keV / 10^7 m/s). These are float-encoding defects in the FAIR-MAST CX ingestion.",
+        "choices": ["Yes — drop entirely", "No — keep with corruption filter", "Defer"]
+      }
+    ],
+    "decisions": {
+      "drop-charge-exchange": {
+        "choice": "Yes — drop entirely",
+        "rationale": "12–28 orders of magnitude beyond physical range; filter would mask the underlying ingestion bug. Re-include in v1 after upstream fix.",
+        "when": "2026-05-20 11:00",
+        "by": "Simon McIntosh"
+      }
+    },
+    "notes": [
+      { "id": "n1", "who": "Simon McIntosh", "bot": false, "when": "2026-05-20 11:00", "body": "Re-deriving training-grade-shots.json without CX shrinks the corpus by ~8% — acceptable." }
+    ],
+    "research": [],
+    "questions": [
+      { "id": "q1", "section": "5 training-grade gate", "body": "Should we re-include charge_exchange in v1 once FAIR-MAST fixes the encoding, or treat it as a learned upstream untrustable?", "opened_by": "Simon McIntosh", "opened_at": "2026-05-20" }
+    ],
+    "followups": [
+      {
+        "id": "f-dq-2026-05-21",
+        "written_by": "agent/sonnet",
+        "written_at": "2026-05-20 14:00",
+        "title": "Re-derive training-grade-shots.json excluding CX",
+        "body": "drop-charge-exchange decision is locked. Regenerate the training-grade manifest, update §5 with the new shot count, and confirm world-model-v0 read path picks up the new file.",
+        "recommends_skill": "/plan-implement data-quality --section 5",
+        "touches": ["imas_ambix/quality/manifest.py", "training-grade-shots.json"],
+        "est_turn": "single Sonnet turn · ~30 min",
+        "prompt": "Project: imas-ambix\nPlan: data-quality\n\nDecision drop-charge-exchange is locked → yes. Re-derive training-grade-shots.json.\n\nWhen done, update §5 with the new shot count and post a followup confirming world-model-v0 reads from the regenerated file."
+      }
+    ],
+    "followups_done": []
+  }
+}

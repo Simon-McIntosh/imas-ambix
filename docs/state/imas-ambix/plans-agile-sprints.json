@@ -1,0 +1,71 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "plans-agile-sprints",
+  "data": {
+    "slug": "plans-agile-sprints",
+    "title": "Agile sprint flow with agent input",
+    "status": "draft",
+    "ms": "M1",
+    "roi": "mid",
+    "effort": "M",
+    "tier": "opus",
+    "impl": 0.10,
+    "last": "2026-05-21",
+    "owner": "Simon McIntosh",
+    "blockers": 0,
+    "dec_open": 3,
+    "comments": 0,
+    "sprint": "S3",
+    "phase": "draft · designing the agent-input model",
+    "created": "2026-05-21",
+    "last_modified": "2026-05-21 14:00",
+    "depends_on": ["plans-infra"],
+    "blocks": [],
+    "summary": "Sprint planning today is manual: edit mockdata.js#sprints[] by hand. Goal: agents PROPOSE sprint compositions based on plan ROI/effort/blockers/milestone; humans accept/override. The proposal + acceptance flow needs a clear data model and a UI on sprint.html.",
+    "sections": [
+      { "id": "s1", "sec": "§ 1", "h": "How sprints work today", "body": "sprints[] in mockdata.js carries id, theme, starts, ends, status, items[] (slugs). project.html surfaces the activeSprint as a kanban preview; sprint.html shows the full board. There's no agent-proposed flow — sprint composition is hand-edited." },
+      { "id": "s2", "sec": "§ 2", "h": "Agent-proposed flow", "body": "New verb: /plan-sprint propose [N]. Agent reads inventory + per-plan ROI/effort/blockers/milestone + last activity. Builds a candidate sprint with proposed_by:'agent/opus' and agent_rationale[] (one line per item). Writes to sprints[] with status:'planned'. sprint.html renders proposed sprints distinctly, with a 'Lock' button that flips status to 'active'." },
+      { "id": "s3", "sec": "§ 3", "h": "Human override + audit trail", "body": "Once a sprint is active, humans can /plan-sprint move <slug> <to-sprint> to relocate items. Each move appends to overrides[] with timestamp + reason. The sprint.html UI shows agent rationale as a tooltip on each item and visually distinguishes human-moved items." }
+    ],
+    "decisions_def": [
+      {
+        "key": "sprint-proposal-cadence",
+        "title": "When do agents propose sprints?",
+        "context": "Three cadences: (a) on-demand — only when human runs /plan-sprint propose, (b) scheduled — weekly (cron skill?), (c) continuous — every agent that finishes work re-evaluates and may post a proposal note.",
+        "choices": ["on-demand only", "scheduled (weekly)", "continuous (each agent finish-of-work)"]
+      },
+      {
+        "key": "agent-rationale-location",
+        "title": "Where does agent rationale per item live?",
+        "context": "Each proposed sprint item carries a why_now field. Options: (a) sprint.items[].why_now (item-scoped), (b) sprint.proposals[] array indexed by proposal_id (multiple proposals tracked), (c) per-plan field on the inventory.",
+        "choices": ["sprint.items[].why_now", "sprint.proposals[]", "inventory[].agent_take"]
+      },
+      {
+        "key": "proposal-acceptance-ux",
+        "title": "How do humans accept/reject a sprint proposal?",
+        "context": "Proposal status is 'planned'. To make 'active': (a) a Lock button on sprint.html — single-click flips status, (b) /plan-sprint start <id> from CLI, (c) edit mockdata.js by hand. The Lock button is the tight-loop UX but adds a JS handler + POST.",
+        "choices": ["Lock button on sprint.html", "/plan-sprint start <id> CLI only", "manual mockdata.js edit"]
+      }
+    ],
+    "decisions": {},
+    "notes": [],
+    "research": [],
+    "questions": [],
+    "followups": [
+      {
+        "id": "f-agile-design",
+        "written_by": "opus-coordinator",
+        "written_at": "2026-05-21 14:00",
+        "title": "Resolve the three decisions on this plan; then update plan-sprint SKILL.md",
+        "body": "Once cadence, rationale-location, and acceptance-UX are locked, update ~/.claude/skills/plan-sprint/SKILL.md and add Lock button to sprint.html. Update mockdata.js (or its successor schema) to carry the new sprint fields.",
+        "recommends_skill": "/plan-edit plans-agile-sprints",
+        "touches": ["~/Code/dotfiles/claude/skills/plan-sprint/SKILL.md", "~/Code/dotfiles/claude/skills/html-docs/templates/sprint.html"],
+        "tier": "opus",
+        "est_turn": "~1h after decisions locked",
+        "prompt": "Project: dotfiles\nPlan:    plans-agile-sprints\nSection: §1–§3 (after the three §-decisions are locked)\nTier:    opus\n\nContext\n  Sprint flow with agent input. Decisions on cadence / rationale location /\n  acceptance UX must be locked first via inline-decision clicks on this page.\n  Once locked, this followup is unblocked.\n\nState to read\n  docs/state/imas-ambix/plans-agile-sprints.json\n\nLocked decisions to honour (none yet — block until they are)\n\nOpen decisions to surface\n  sprint-proposal-cadence, agent-rationale-location, proposal-acceptance-ux\n  (All three block this work. Do not implement before they are locked.)\n\nDone-when\n  1. plan-sprint SKILL.md documents the chosen cadence/rationale/UX.\n  2. sprint.html renders agent rationale per item.\n  3. (If 'Lock button' won) sprint.html has the click-to-activate button wired.\n  4. Followup written with outcome + the first proposed sprint authored by an agent."
+      }
+    ],
+    "followups_done": []
+  }
+}

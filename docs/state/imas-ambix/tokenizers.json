@@ -1,0 +1,109 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "tokenizers",
+  "data": {
+    "slug": "tokenizers",
+    "title": "Multi-modal tokenizers",
+    "status": "active",
+    "ms": "M1",
+    "roi": "high",
+    "effort": "L",
+    "tier": "opus",
+    "impl": 0.78,
+    "last": "2026-05-20",
+    "owner": "Simon McIntosh",
+    "blockers": 0,
+    "dec_open": 4,
+    "comments": 6,
+    "sprint": "S2",
+    "phase": "landed §1–§13 · §12 expansion in flight",
+    "created": "2026-05-13",
+    "last_modified": "2026-05-21 09:14",
+    "depends_on": ["data-acquisition", "compute"],
+    "blocks": ["world-model-v0"],
+    "summary": "Per-modality tokenizer choice, codebook layout, token-id namespacing, persistence format — the interface world-model-v0 consumes.",
+    "isHeroPlan": true,
+    "sections": [],
+    "decisions_def": [
+      {
+        "key": "plasma-decoder-finetune",
+        "title": "Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?",
+        "context": "Current ImageNet-pretrained decoder produces MAE 324 (uint16) on MAST rbb shot 15085. Expected rFID without fine-tune: 10–30. Decoder fine-tune cost: ~4–6 GPU-hours exclusive. Trigger gate (from plan): rFID > 5 on the 100-shot rbb benchmark.",
+        "choices": ["Fine-tune now", "Fine-tune only if rFID > 5", "Defer to v1"]
+      },
+      {
+        "key": "patchtst-real-embedding",
+        "title": "PatchTST real embedding — defer to v1 vs land in v0?",
+        "context": "Current state: identity passthrough (token ID 0, raw floats in metadata). Real PatchTST adds ~1M trainable params with channel-independent self-attention. Estimated effort: 1 Sonnet session.",
+        "choices": ["Defer to v1", "Land real PatchTST in v0"]
+      },
+      {
+        "key": "equilibrium-2d-tokenizer",
+        "title": "Equilibrium 2-D tokenizer — which architecture?",
+        "context": "Currently: equilibrium 2-D enters as a continuous cross-attention tensor (not tokenized). Option A — Open-MAGVIT2 at upsampled 256×256. Option B — Cosmos-Tokenizer-DV at native 65×65 (license check needed).",
+        "choices": ["Keep as cross-attention", "Open-MAGVIT2 upsampled 256×256", "Cosmos-Tokenizer-DV 65×65"]
+      },
+      {
+        "key": "ir-camera-codebook",
+        "title": "IR camera codebook — share with visible or allocate separate?",
+        "context": "Only 25 rir shots in FAIR-MAST. Current v0 default: share the Open-MAGVIT2 visible codebook. Decision gate: if IR MAE > 2× rbb MAE, allocate separate block.",
+        "choices": ["Share visible codebook (v0 default)", "Allocate separate registry block"]
+      }
+    ],
+    "decisions": {},
+    "notes": [
+      { "id": "n1", "who": "Simon McIntosh", "bot": false, "when": "2026-05-20 22:00", "body": "Locked the 4 §12 decisions on tokenizers-12-landed; keeping the evergreen page's decision rows open so anyone reading the live doc sees what's in flight." },
+      { "id": "n2", "who": "agent/sonnet", "bot": true, "when": "2026-05-20 17:55", "body": "Drafted §12 expansion plan as 6 sub-items. Ranked by ROI; cross-modality alignment quality metric (§12.6) is the lowest-cost and worth landing first.", "quote": "re §12 expansion plan" },
+      { "id": "n3", "who": "Simon McIntosh", "bot": false, "when": "2026-05-19 09:10", "body": "The Apache-2.0 constraint is non-negotiable. If Cosmos-Tokenizer-DV needs an NVIDIA OML license check, we're out — Option B becomes dead even if cheaper to ship." }
+    ],
+    "research": [
+      { "id": "r1", "type": "paper",   "title": "Open-MAGVIT2: LFQ codebook for video",             "source": "TencentARC · NeurIPS 2024",      "added_by": "Simon McIntosh", "when": "2026-05-14", "url": "#" },
+      { "id": "r2", "type": "paper",   "title": "Chronos: pretrained scaling for time-series",       "source": "Amazon arXiv 2403.07815",        "added_by": "agent/opus",    "when": "2026-05-15", "url": "#" },
+      { "id": "r3", "type": "paper",   "title": "PatchTST: long-horizon time-series transformers",   "source": "arXiv 2211.14730",               "added_by": "agent/opus",    "when": "2026-05-15", "url": "#" },
+      { "id": "r4", "type": "doc",     "title": "FAIR-MAST IDS mapping reference",                   "source": "FAIR-MAST · v3.2 docs",          "added_by": "Simon McIntosh", "when": "2026-05-13", "url": "#" },
+      { "id": "r5", "type": "plan",    "title": "world-model-v0.html §2 (token-stream)",             "source": "internal · this project",        "added_by": "Simon McIntosh", "when": "2026-05-16", "url": "plan.html?slug=world-model-v0" },
+      { "id": "r6", "type": "image",   "title": "rbb reconstruction MAE heatmap (shot 15085)",       "source": "tests/tokenizer_bench/mae-heatmap.png", "added_by": "agent/sonnet", "when": "2026-05-19", "url": "#" },
+      { "id": "r7", "type": "thread",  "title": "Slack #ml — IR codebook decision",                  "source": "#ml · 2026-05-14",               "added_by": "Simon McIntosh", "when": "2026-05-14", "url": "#" },
+      { "id": "r8", "type": "dataset", "title": "rir shard inventory (25 shots, 410 MB)",            "source": "scratch/rir-2026-05.parquet",    "added_by": "agent/sonnet",  "when": "2026-05-16", "url": "#" },
+      { "id": "r9", "type": "web",     "title": "Cosmos-Tokenizer license terms (NVIDIA OML)",       "source": "nvidia.com/cosmos-license",      "added_by": "Simon McIntosh", "when": "2026-05-15", "url": "#" }
+    ],
+    "questions": [
+      { "id": "q1", "section": "12.4 multi-modal alignment",           "body": "Should §12.4 use cosine on shared embeddings or per-modality InfoNCE? Need a 2-paragraph trade-off note before locking.", "opened_by": "Simon McIntosh", "opened_at": "2026-05-20" },
+      { "id": "q2", "section": "13.1 plasma-decoder fine-tune scaffold", "body": "Does the §13.1 scaffold need to wait on §12.4 alignment improvements landing first, or are they independent?",            "opened_by": "agent/opus",    "opened_at": "2026-05-21" }
+    ],
+    "tests": [
+      { "name": "test_tokenizer_roundtrip",   "pass": 12, "fail": 0, "pulse": "ssssssssssss" },
+      { "name": "test_blockkind_persistence", "pass": 11, "fail": 1, "pulse": "ssssfsssssss" },
+      { "name": "test_chronos_t5_small",      "pass": 10, "fail": 2, "pulse": "ssssfssfssss" },
+      { "name": "test_patchtst_identity",     "pass": 12, "fail": 0, "pulse": "ssssssssssss" },
+      { "name": "test_codebook_sharing",      "pass":  9, "fail": 3, "pulse": "fsfssssfssss", "fail_now": true },
+      { "name": "test_token_id_namespacing",  "pass": 12, "fail": 0, "pulse": "ssssssssssss" }
+    ],
+    "followups": [
+      {
+        "id": "f-2026-05-21a",
+        "written_by": "agent/sonnet",
+        "written_at": "2026-05-21 09:14",
+        "title": "Run bulk-encode on rbb + magnetics shards (§12.5 follow-on)",
+        "body": "§13.3 landed the IR codebook benchmark wiring. To close §12.5 and unblock world-model-v0, we need the real bulk-encode pass across rbb (visible) + magnetics shards.",
+        "recommends_skill": "/plan-implement tokenizers --section 12.5",
+        "touches": ["imas_ambix/tokenizer/bulk_encode.py", "scripts/slurm/bench_ir.sbatch"],
+        "blocked_by": { "slug": "compute", "reason": "SDCC training reservation pending — ticket #4421" },
+        "est_turn": "single Opus turn once compute clears · ~4h SLURM",
+        "prompt": "Project: imas-ambix\nPlan: tokenizers (https://simon-mcintosh.github.io/imas-ambix/tokenizers.html)\n\nRun the bulk-encode pass that closes §12.5 (IR camera codebook decision).\n\nState to read:\n  docs/state/imas-ambix/tokenizers.json\n  docs/state/imas-ambix/compute.json   (confirm reservation cleared)\n\nLocked decisions to honour:\n  primary-approach     → A (Open-MAGVIT2 visible codebook)\n  vocab-cap            → 32k\n\nOpen decisions to surface, not resolve:\n  plasma-decoder-finetune, ir-camera-codebook\n\nWhen done:\n  1. Write the bench numbers into tokenizers.html §12.5\n  2. POST a new followup to tokenizers.json#followups\n  3. Mark this followup resolved"
+      }
+    ],
+    "followups_done": [
+      { "id": "f-2026-05-20a", "written_by": "Simon McIntosh", "written_at": "2026-05-20 18:02", "resolved_at": "2026-05-21 09:14", "resolved_by": "agent/sonnet",
+        "title": "Wire IR codebook benchmark for §12.5",
+        "outcome": "Bench config landed (commit dec0082); ready to run pending GPU + real rir shot ids." },
+      { "id": "f-2026-05-20b", "written_by": "agent/opus", "written_at": "2026-05-20 11:00", "resolved_at": "2026-05-20 17:55", "resolved_by": "agent/opus",
+        "title": "Draft §12 expansion plan (6 sub-items)",
+        "outcome": "All 6 §12 sub-items written and ranked. 4 decisions landed on tokenizers-12-landed.html." },
+      { "id": "f-2026-05-19a", "written_by": "Simon McIntosh", "written_at": "2026-05-19 14:00", "resolved_at": "2026-05-20 11:00", "resolved_by": "agent/opus",
+        "title": "Land §9 v0 scaffold for tokenizer package",
+        "outcome": "imas_ambix.tokenizer/ exists with protocol surfaces + Open-MAGVIT2 / Chronos / PatchTST passthrough impls." }
+    ]
+  }
+}

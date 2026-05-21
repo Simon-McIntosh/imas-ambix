@@ -1,0 +1,71 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "compute",
+  "data": {
+    "slug": "compute",
+    "title": "Compute (SLURM, FSDP, reservation)",
+    "status": "blocked",
+    "ms": "M1",
+    "roi": "high",
+    "effort": "S",
+    "tier": "sonnet",
+    "impl": 0.40,
+    "last": "2026-05-20",
+    "owner": "Simon McIntosh",
+    "blockers": 1,
+    "dec_open": 1,
+    "comments": 2,
+    "sprint": "S2",
+    "phase": "blocked on SDCC reservation file",
+    "created": "2026-05-13",
+    "last_modified": "2026-05-20 09:10",
+    "depends_on": [],
+    "blocks": ["tokenizers", "world-model-v0", "demo"],
+    "summary": "SLURM patterns for training on the 4 × H200 Group A reservation; dedicated training reservation request; scheduled-around-serving fallback.",
+    "sections": [
+      { "id": "s1", "sec": "§ 1", "h": "Hardware budget recap", "body": "The Group A reservation on 98dci4-gpu-0003 (betelgeuse SLURM partition) grants 4 × H200 nodes shared with the V4-Flash production serve. Training has to either preempt the serve (exclusive-access window) or schedule around its idle slots." },
+      { "id": "s2", "sec": "§ 2", "h": "Training takes exclusive access", "body": "Decision 2026-05-20 (S. McIntosh): training runs in exclusive-access mode on the existing gpu_0003_grpA reservation. The maintainer of V4-Flash stops the serve before each training run and restarts after. Locks the serve operator into the loop but avoids a second reservation file." },
+      { "id": "s3", "sec": "§ 3", "h": "Dedicated training-reservation request", "body": "Proposed name: gpu_0003_grpA_train — same node, same group, separate reservation slot that can be drained without affecting the production serve. Filed as ITER batch-services ticket #4421; pending L. Holzl signoff." },
+      { "id": "s8", "sec": "§ 8", "h": "Risks", "body": "Top risk: ticket #4421 slips past the M1 close window (2026-05-27). Mitigation: continue exclusive-access fallback. Second risk: FSDP across nodes hits the betelgeuse interconnect ceiling at 4 nodes; we expect ~70% scaling — adequate for 500M but tight for v1." }
+    ],
+    "decisions_def": [
+      {
+        "key": "slurm-training-reservation",
+        "title": "SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?",
+        "context": "Currently exclusive-pause works but couples to V4-Flash operator. Filing a dedicated training reservation (#4421) decouples but adds queue + paperwork.",
+        "choices": ["File dedicated reservation #4421", "Stay with exclusive-pause", "Both — file but use exclusive in the meantime"]
+      }
+    ],
+    "decisions": {
+      "slurm-training-reservation": {
+        "choice": "Both — file but use exclusive in the meantime",
+        "rationale": "Filed 2026-05-20; using exclusive while ticket is in queue. Will switch when SDCC responds.",
+        "when": "2026-05-20 09:10",
+        "by": "Simon McIntosh"
+      }
+    },
+    "notes": [
+      { "id": "n1", "who": "Simon McIntosh", "bot": false, "when": "2026-05-20 09:10", "body": "Confirmed with L. Holzl that exclusive-pause window is fine for the smoke run; dedicated reservation only matters when curriculum training starts." }
+    ],
+    "research": [
+      { "id": "r1", "type": "doc",  "title": "SDCC betelgeuse reservation policy v3.1", "source": "ITER SDCC docs", "added_by": "Simon McIntosh", "when": "2026-05-13", "url": "#" },
+      { "id": "r2", "type": "web",  "title": "FSDP scaling notes (HF accelerate)", "source": "huggingface.co", "added_by": "agent/sonnet", "when": "2026-05-15", "url": "#" }
+    ],
+    "questions": [],
+    "followups": [
+      {
+        "id": "f-compute-2026-05-21",
+        "written_by": "Simon McIntosh",
+        "written_at": "2026-05-20 09:10",
+        "title": "Stand up exclusive-pause SLURM wrapper script",
+        "body": "Until SDCC ticket #4421 clears, training runs need a wrapper that stops V4-Flash, claims the node exclusively, runs the job, restarts the serve. Should be a single sbatch template + a 30-line bash prologue.",
+        "recommends_skill": "/plan-implement compute --section 2",
+        "touches": ["scripts/slurm/train_exclusive.sbatch", "scripts/slurm/preempt_v4flash.sh"],
+        "est_turn": "single Sonnet turn · ~2h",
+        "prompt": "Project: imas-ambix\nPlan: compute\n\nWrite the exclusive-pause SLURM wrapper described in §2. Validate by dry-running the prologue (no actual stop of V4-Flash). When done, document the wrapper inline at §2 and write a followup with the dry-run log."
+      }
+    ],
+    "followups_done": []
+  }
+}

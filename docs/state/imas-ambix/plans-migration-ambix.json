@@ -1,0 +1,65 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "plans-migration-ambix",
+  "data": {
+    "slug": "plans-migration-ambix",
+    "title": "Migrate 12 ambix per-plan pages to new format",
+    "status": "active",
+    "ms": "M1",
+    "roi": "high",
+    "effort": "L",
+    "tier": "sonnet",
+    "impl": 0.20,
+    "last": "2026-05-21",
+    "owner": "Simon McIntosh",
+    "blockers": 0,
+    "dec_open": 2,
+    "comments": 0,
+    "sprint": "S3",
+    "phase": "chrome + CSS migrated; layout strategy unresolved",
+    "created": "2026-05-21",
+    "last_modified": "2026-05-21 14:00",
+    "depends_on": ["plans-infra"],
+    "blocks": [],
+    "summary": "12 per-plan pages in ambix/docs/ (tokenizers, world-model-v0, v0-runway, compute, data-acquisition, data-quality, tokenizer-benchmarks, demo, STRATEGY, decisions-aggregator, tokenizers-12-landed, redesign-rollout). Sonnet wave already migrated chrome + CSS class taxonomy. What's left: settle the content strategy (redirect vs rich-body) and migrate per the chosen pattern.",
+    "sections": [
+      { "id": "s1", "sec": "§ 1", "h": "Inventory", "body": "12 per-plan files. 9 are 'live plans' (status active/blocked/draft), 1 is the decisions aggregator (system page; already lifted), 1 is per-stage frozen (tokenizers-12-landed), 1 is the redesign-rollout demo I authored earlier. Of the 9 live: tokenizers and v0-runway and compute are sprint-S2 active; demo and world-model-v0 are blocked; STRATEGY is the long-form vision; data-acquisition is shipped." },
+      { "id": "s2", "sec": "§ 2", "h": "Strategy options", "body": "Each existing per-plan page either (A) becomes a thin redirect → plan.html?slug=<slug> (uniform prototype design; content from mockdata.js); or (B) stays free-form HTML with the new chrome + state.js wiring (rich body preserved, look may vary); or (C) hybrid — the prototype's plan-layout shell wraps the existing rich body. (A) is fastest; (B) preserves work; (C) is the best UX but the most labour." },
+      { "id": "s3", "sec": "§ 3", "h": "Pilot first", "body": "Whichever strategy wins, pilot on ONE plan (probably tokenizers — most decisions, most contentful) and get user sign-off before fleeting the other 8 live ones. Per-stage frozen records like tokenizers-12-landed stay restyled-only (chrome + CSS, content frozen)." }
+    ],
+    "decisions_def": [
+      {
+        "key": "per-plan-content-strategy",
+        "title": "Redirect to plan.html or keep free-form rich-body pages?",
+        "context": "(A) Redirect: each <slug>.html → location.replace('plan.html?slug=<slug>'). Uniform design; bodies come from mockdata.js. Loses the rich hand-authored content of existing pages unless mockdata gets expanded. (B) Free-form: existing rich body stays; chrome + state.js link patches make them part of the system. Looks vary per author. (C) Hybrid: prototype's plan-layout shell + rich body inside .reading column. Best look; most work.",
+        "choices": ["A — Redirect to plan.html?slug=", "B — Keep free-form rich body (chrome + state.js only)", "C — Hybrid: prototype shell + rich body"]
+      },
+      {
+        "key": "mockdata-live-fetch",
+        "title": "Source of plan body content — hand-edited mockdata.js or live fetch?",
+        "context": "Today mockdata.js hand-holds all plan inventory + per-plan content. Tight-loop POST updates state JSON but NOT mockdata. Long-term: have plan.html fetch state/<project>/index.json for inventory and state/<project>/<slug>.json for per-plan body. Eliminates mockdata.js drift. Cost: more endpoints, more JS, body must live in state JSON (probably as HTML string).",
+        "choices": ["Hand-edited mockdata.js (today)", "Live fetch from state JSON", "Hybrid (inventory live, bodies still hand-edited)"]
+      }
+    ],
+    "decisions": {},
+    "notes": [],
+    "research": [],
+    "questions": [],
+    "followups": [
+      {
+        "id": "f-pilot-tokenizers",
+        "written_by": "opus-coordinator",
+        "written_at": "2026-05-21 14:00",
+        "title": "Pilot the chosen strategy on tokenizers.html; get sign-off; fleet the other 8",
+        "body": "Tokenizers has the most going on: 4 active §12 decisions, rich body, history (per-stage tokenizers-12-landed). Pilot the chosen content-strategy here, then fleet to the other 8 live plans. Per-stage record stays as restyle-only.",
+        "recommends_skill": "/plan-implement plans-migration-ambix",
+        "touches": ["docs/tokenizers.html", "docs/state/imas-ambix/tokenizers.json"],
+        "tier": "opus",
+        "est_turn": "~2h for pilot; +Sonnet fleet for remaining 8",
+        "prompt": "Project: imas-ambix\nPlan:    plans-migration-ambix\nSection: § 3 pilot\nTier:    opus (pilot); sonnet (fleet)\n\nContext\n  Settle per-plan-content-strategy first. Then pilot the chosen approach on\n  tokenizers.html (richest case). User signs off, then fleet sonnets for the\n  other 8 live plans. Per-stage frozen records stay restyle-only.\n\nState to read\n  docs/state/imas-ambix/plans-migration-ambix.json\n\nLocked decisions to honour\n  per-plan-content-strategy → (whichever is locked by the user)\n  mockdata-live-fetch → (whichever is locked; affects how bodies are sourced)\n\nOpen decisions to surface (do not resolve unilaterally)\n  (none on this plan once both are locked)\n\nDone-when\n  1. tokenizers.html renders the new layout end-to-end (including 4 §12 decisions wired to lockDecision).\n  2. User signs off on the pilot.\n  3. Fleet of sonnets migrates the remaining 8 live plans non-overlappingly.\n  4. Followup written: same recipe applied to efit; per-stage record handling confirmed."
+      }
+    ],
+    "followups_done": []
+  }
+}

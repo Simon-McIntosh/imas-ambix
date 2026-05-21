@@ -1,0 +1,76 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "plans-redesign-rollout",
+  "data": {
+    "slug": "plans-redesign-rollout",
+    "title": "Plan-system rollout — master",
+    "status": "active",
+    "ms": "M1",
+    "roi": "high",
+    "effort": "S",
+    "tier": "opus",
+    "impl": 0.40,
+    "last": "2026-05-21",
+    "owner": "Simon McIntosh",
+    "blockers": 0,
+    "dec_open": 1,
+    "comments": 0,
+    "sprint": "S3",
+    "phase": "active · coordinating S3",
+    "created": "2026-05-21",
+    "last_modified": "2026-05-21 14:00",
+    "depends_on": [],
+    "blocks": ["plans-infra", "plans-agile-sprints", "plans-migration-ambix", "plans-migration-efit"],
+    "summary": "Master plan tracking the end-to-end roll-out of the plan-system redesign. Owns the S3 sprint, the open decisions that apply across the rollout, and the bootstrap principle: use the new infrastructure to ship itself.",
+    "sections": [
+      { "id": "s1", "sec": "§ 1", "h": "Why this plan exists", "body": "The plan-system redesign (prototype delivered 2026-05-21) is shipping in waves. dotfiles canonical landed at 7530860; ambix system pages landed at 3d3df82; tight-loop POST + identity fix + hide-shipped landed at 209b14c. This master plan owns the remaining waves and the open decisions that span them." },
+      { "id": "s2", "sec": "§ 2", "h": "Sprint S3 contents", "body": "Five items in S3: plans-infra (skill + state.js + plan-init), plans-agile-sprints (sprint flow with agent input), plans-migration-ambix (12 per-plan pages), plans-migration-efit (8 top-level + 51 curated/), and this master. Items are ordered by dependency: infra first (unlocks the rest), then agile (the sprint design itself), then migrations." },
+      { "id": "s3", "sec": "§ 3", "h": "Bootstrap principle", "body": "S3 lives inside the very system it builds. Every decision we make about the design is captured as an inline-decision row on the relevant plan. Every handoff between sessions is a followup with the §05 prompt template. The act of running S3 is itself the integration test." },
+      { "id": "s4", "sec": "§ 4", "h": "Done-when", "body": "S3 closes when (a) plan-infra has POSTing state.js + extended plan-style + new plan-init; (b) plans-agile-sprints has a locked cadence + agent-rationale model; (c) plans-migration-ambix has at least one redesigned per-plan page approved and the pattern proven; (d) plans-migration-efit has CSS migrated + plan-test demoed; (e) this master has resolved its open decisions and locked the bootstrap order." }
+    ],
+    "decisions_def": [
+      {
+        "key": "bootstrap-priority",
+        "title": "Bootstrap ordering — what ships first within S3?",
+        "context": "Five items in S3. They're not strictly serial — infra unblocks everything, but migration could start in parallel with reduced scope. Order shapes what the user sees first.",
+        "choices": [
+          "Infra → Agile → Ambix migration → Efit migration (serial, dependency order)",
+          "Infra parallel with Ambix-migration-pilot; agile last (parallel where possible)",
+          "Migration first (visible UX); infra second; agile last"
+        ]
+      }
+    ],
+    "decisions": {
+      "bootstrap-priority": {
+        "choice": "",
+        "rationale": "rationale",
+        "when": "2026-05-21 12:25",
+        "by": "Simon McIntosh"
+      }
+    },
+    "notes": [
+      { "id": "n1", "who": "Simon McIntosh", "bot": false, "when": "2026-05-21 14:00", "body": "Created via /plan-create with the user's instruction to bootstrap. We use this very plan-page to track the rollout — the decisions on this page WILL be tested as feedback-loop drivers." }
+    ],
+    "research": [
+      { "id": "r1", "type": "plan", "title": "plans-prototype/implementation.html §01–§14",     "source": "internal", "added_by": "Simon McIntosh",   "when": "2026-05-21", "url": "https://github.com/Simon-McIntosh/imas-ambix" },
+      { "id": "r2", "type": "doc",  "title": "Tight-loop POST endpoint demo (curl round-trip)", "source": "internal", "added_by": "opus-coordinator", "when": "2026-05-21 13:56", "url": "#" }
+    ],
+    "questions": [],
+    "followups": [
+      {
+        "id": "f-prio-1",
+        "written_by": "opus-coordinator",
+        "written_at": "2026-05-21 14:00",
+        "title": "User test: lock a decision on this page; verify state JSON updates",
+        "body": "The tight-loop POST is wired (Persist.save in ui.jsx POSTs to docs-server). Visit the local URL, click bootstrap-priority chips + type rationale, hit Send. We expect docs/state/imas-ambix/plans-redesign-rollout.json to appear and contain the locked decision. This is the integration test for the whole feedback loop.",
+        "recommends_skill": "/plan-status",
+        "touches": ["docs/state/imas-ambix/plans-redesign-rollout.json"],
+        "tier": "haiku",
+        "est_turn": "~5m",
+        "prompt": "Project: imas-ambix\nPlan:    plans-redesign-rollout\nSection: § decisions · bootstrap-priority\nTier:    haiku (verify-only)\n\nContext\n  This followup is the first integration test of the tight-loop POST.\n  Open http://localhost:8765/imas-ambix/plan.html?slug=plans-redesign-rollout\n  on the local docs-server (with tunnel up), click one of the\n  bootstrap-priority chips, type a one-line rationale, hit Send/Enter.\n\nState to read\n  docs/state/imas-ambix/plans-redesign-rollout.json  (will be created on first POST)\n\nLocked decisions to honour (none yet on this plan)\n\nOpen decisions to surface\n  bootstrap-priority (this is the one being tested)\n\nDone-when\n  1. The state JSON appears in the repo with the locked choice.\n  2. The page UI shows the chosen chip + the typed rationale on reload.\n  3. Mark this followup resolved with outcome 'feedback loop verified'.\n  4. Write the next followup: which item in S3 to start on (infra vs migration-pilot vs agile)."
+      }
+    ],
+    "followups_done": []
+  }
+}

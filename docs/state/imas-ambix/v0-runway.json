@@ -1,0 +1,68 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "v0-runway",
+  "data": {
+    "slug": "v0-runway",
+    "title": "v0 runway plan",
+    "status": "active",
+    "ms": "M1",
+    "roi": "high",
+    "effort": "M",
+    "tier": "opus",
+    "impl": 0.62,
+    "last": "2026-05-20",
+    "owner": "Simon McIntosh",
+    "blockers": 1,
+    "dec_open": 1,
+    "comments": 3,
+    "sprint": "S2",
+    "phase": "active operational plan",
+    "created": "2026-05-13",
+    "last_modified": "2026-05-20 18:02",
+    "depends_on": ["STRATEGY", "tokenizers", "compute"],
+    "blocks": ["world-model-v0"],
+    "summary": "Next-step ranking by ROI · fleet-dispatch table · review rubric.",
+    "sections": [
+      { "id": "s1", "sec": "§ 1", "h": "Where we are — 2026-05-20", "body": "L2 mirror complete (11,573 shots, 4.5 TB). L1 camera mirror complete (11,029 shot dirs, 2.7 TB). L1 all-sources mirror in flight (launched ~07:00 UTC). Tokenizer scaffold: registry, Open-MAGVIT2, Chronos, PatchTST passthrough — all wired. Bench framework + training loop + demo CLI all green." },
+      { "id": "s2", "sec": "§ 2", "h": "Highest-ROI next steps (ranked)", "body": "ROI = value × probability of clean delivery / cost. Top of the queue: bulk GPU encode (Open-MAGVIT2 runner ready; needs SLURM), then 125M smoke training run, then 500M curriculum, then demo. Items marked DONE retained for context." },
+      { "id": "s3", "sec": "§ 3", "h": "Fleet dispatch — parallel batch", "body": "Four Sonnet 4.6 agents in parallel with non-overlapping write scopes. Coordinator (Opus) reviews each post-completion. Each agent gets a scoped prompt naming the plan section, the read-state, and the write-target. Every dispatched agent commits its own changes with a feat(<scope>): conventional commit." },
+      { "id": "s5", "sec": "§ 5", "h": "Review rubric", "body": "Every dispatched agent's output is reviewed against: (1) does it land what the plan promised, (2) are tests green, (3) is the commit message scoped right, (4) did it update the plan's followup chain. Failures are captured in a new feedback memory." }
+    ],
+    "decisions_def": [
+      {
+        "key": "smoke-training-timing",
+        "title": "125M smoke training run — run now or wait for bulk encode?",
+        "context": "Current state: training loop tested on tiny shards. Bulk encode is the prerequisite for real-sized training. Option A: kick a small smoke run on tokenized 5-shot subset to validate loss + checkpoint shape. Option B: wait for bulk encode so we don't double-spend GPU time. Cost of A: ~30 min on 1 H200. Cost of B: 0 but delays smoke validation.",
+        "choices": ["Run smoke now on subset", "Wait for bulk encode"]
+      }
+    ],
+    "decisions": {},
+    "notes": [
+      { "id": "n1", "who": "Simon McIntosh", "bot": false, "when": "2026-05-20 18:02", "body": "Adding §3 fleet-dispatch as a sub-plan; agent boundary table makes the parallelism real." }
+    ],
+    "research": [
+      { "id": "r1", "type": "plan", "title": "tokenizers.html — current state", "source": "internal", "added_by": "Simon McIntosh", "when": "2026-05-20", "url": "plan.html?slug=tokenizers" },
+      { "id": "r2", "type": "plan", "title": "compute.html — blockers", "source": "internal", "added_by": "Simon McIntosh", "when": "2026-05-20", "url": "plan.html?slug=compute" }
+    ],
+    "questions": [],
+    "followups": [
+      {
+        "id": "f-v0-2026-05-21",
+        "written_by": "Simon McIntosh",
+        "written_at": "2026-05-20 18:02",
+        "title": "Coordinator review of the 4-agent parallel batch outputs",
+        "body": "All 4 Sonnet agents have committed their work. Review each output against the §5 rubric and either accept the commits or flag for rework. Update §2 ROI ranking with the new items the batch produced.",
+        "recommends_skill": "/plan-edit v0-runway --section 5",
+        "touches": ["docs/v0-runway.html", "imas_ambix/*/*.py (review only)"],
+        "est_turn": "single Opus turn · ~1h",
+        "prompt": "Project: imas-ambix\nPlan: v0-runway\n\nCoordinator review of the 4-agent parallel batch (see §3 fleet-dispatch).\nFor each of the 4 commits, score against §5 review rubric:\n  (1) lands what plan promised\n  (2) tests green\n  (3) commit message scoped right\n  (4) followup chain updated\nOutput a §3.1 summary table; flag any rework as new followups on the owning plan."
+      }
+    ],
+    "followups_done": [
+      { "id": "f-v0-2026-05-19", "written_by": "Simon McIntosh", "written_at": "2026-05-19 10:00", "resolved_at": "2026-05-20 18:02", "resolved_by": "Simon McIntosh",
+        "title": "Add §3 fleet-dispatch table",
+        "outcome": "§3 added with 4-agent dispatch table; agent prompts captured under §3.1–§3.4." }
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "tokenizer-benchmarks",
+  "data": {
+    "slug": "tokenizer-benchmarks",
+    "title": "Tokenizer benchmark harness",
+    "status": "active",
+    "ms": "M1",
+    "roi": "mid",
+    "effort": "M",
+    "tier": "sonnet",
+    "impl": 0.80,
+    "last": "2026-05-20",
+    "owner": "Simon McIntosh",
+    "blockers": 0,
+    "dec_open": 0,
+    "comments": 0,
+    "sprint": "S2",
+    "phase": "framework landed · awaiting real bench runs",
+    "created": "2026-05-13",
+    "last_modified": "2026-05-20 12:00",
+    "depends_on": ["tokenizers"],
+    "blocks": [],
+    "summary": "Quantitative tokenizer comparison framework — BenchConfig, BenchResult, frame metrics (rFID/PSNR/LPIPS), signal metrics (Pearson r/NRMSE), throughput, SLURM batch runner.",
+    "sections": [
+      { "id": "s1", "sec": "§ 1", "h": "BenchConfig", "body": "One YAML per benchmark run: tokenizer choice, shot ids, metric set, batch size, output dir. The CLI ambix bench run reads it and writes BenchResult JSON. Composable: same config works on visible, IR, magnetics with module swap." },
+      { "id": "s2", "sec": "§ 2", "h": "Frame metrics — rFID / PSNR / LPIPS", "body": "rFID computed against the v0 plasma feature extractor (placeholder until §12.1 lands). PSNR + LPIPS as fallback. Acceptance gate: rFID < 5 on 100-shot rbb benchmark for plasma-decoder fine-tune trigger." },
+      { "id": "s3", "sec": "§ 3", "h": "Signal metrics — Pearson r / NRMSE", "body": "Per-channel reconstruction quality. Magnetics target Pearson r ≥ 0.95; low-freq signals target NRMSE ≤ 0.02. Below these gates, fall back to identity passthrough." }
+    ],
+    "decisions_def": [],
+    "decisions": {},
+    "notes": [],
+    "research": [
+      { "id": "r1", "type": "paper", "title": "rFID — image reconstruction quality metric", "source": "arXiv 2104.06692", "added_by": "agent/sonnet", "when": "2026-05-15", "url": "#" }
+    ],
+    "questions": [],
+    "followups": [
+      {
+        "id": "f-bench-2026-05-21",
+        "written_by": "agent/sonnet",
+        "written_at": "2026-05-20 12:00",
+        "title": "Run real bench on 100-shot rbb sample",
+        "body": "Framework is wired. Need a real run to set the rFID baseline that the tokenizers §12.1 plasma-decoder fine-tune decision depends on. Blocked on compute reservation.",
+        "recommends_skill": "/plan-implement tokenizer-benchmarks --section 2",
+        "touches": ["scripts/slurm/bench_rbb.sbatch"],
+        "blocked_by": { "slug": "compute", "reason": "reservation gating GPU access" },
+        "est_turn": "single Sonnet turn once compute clears · ~3h SLURM",
+        "prompt": "Project: imas-ambix\nPlan: tokenizer-benchmarks\n\nRun the 100-shot rbb benchmark. Use the YAML at configs/bench/rbb-100.yaml. When done, write the rFID number into §2 and post a followup linking it to tokenizers §12.1 plasma-decoder fine-tune decision gate."
+      }
+    ],
+    "followups_done": []
+  }
+}

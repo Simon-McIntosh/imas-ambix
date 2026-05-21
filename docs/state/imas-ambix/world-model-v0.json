@@ -1,0 +1,67 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "world-model-v0",
+  "data": {
+    "slug": "world-model-v0",
+    "title": "World-model v0 (WHAM-style)",
+    "status": "blocked",
+    "ms": "M2",
+    "roi": "high",
+    "effort": "L",
+    "tier": "opus",
+    "impl": 0.18,
+    "last": "2026-05-21",
+    "owner": "Simon McIntosh",
+    "blockers": 2,
+    "dec_open": 1,
+    "comments": 4,
+    "sprint": "S2",
+    "phase": "spec landed · blocked on tokenizer round-trip",
+    "created": "2026-05-13",
+    "last_modified": "2026-05-21 09:00",
+    "depends_on": ["tokenizers", "compute", "data-quality"],
+    "blocks": ["demo"],
+    "summary": "~500M decoder-only Llama-class AR transformer over interleaved token streams; 125M → 500M curriculum; HF transformers + accelerate FSDP.",
+    "sections": [
+      { "id": "s1", "sec": "§ 1", "h": "Model architecture", "body": "Llama-class decoder-only, ~500M parameters at the headline size. 28 layers, d_model=1280, 20 attention heads, RoPE, SwiGLU. We use the HuggingFace LlamaForCausalLM with custom embedding init (block-aware) and the WHAM block-weighted CE loss. Speculative or parallel decoding is a v1 question." },
+      { "id": "s2", "sec": "§ 2", "h": "Token-stream layout", "body": "One long interleaved sequence per training sample. Per-timestep schema: <pre>[t] [magnetics block] [low-freq signal block] [visible frame patch* k] [IR frame patch* m] [equil cross-attn key] [scalar actions]</pre> Block boundaries are recorded in BLOCKWEIGHTS so the loader can apply weighted CE." },
+      { "id": "s4", "sec": "§ 4", "h": "Training recipe", "body": "Optimizer AdamW(0.95, 0.95, 1e-8), weight decay 0.1, cosine LR 6e-4 → 6e-5 over 30k steps. Warmup 500. FSDP across 4 H200; batch size 32 sequences of 16k tokens. Eval every 5k steps on a held-out 1% slice." },
+      { "id": "s5", "sec": "§ 5", "h": "Evaluation", "body": "Headline demo per demo.html. Training-time hooks: token perplexity per block, magnetics Pearson r on next-step prediction, visible frame rFID on next-frame prediction. All three must be improving by step 10k to continue." }
+    ],
+    "decisions_def": [
+      {
+        "key": "model-size-curriculum",
+        "title": "Start at 125M or jump to 500M direct?",
+        "context": "Curriculum approach: train 125M to ~10k steps to validate loss curve + data pipeline, then scale to 500M. Direct approach: skip 125M, save 4-6 GPU-hours but risk burning a longer 500M run on a data bug.",
+        "choices": ["Curriculum — 125M smoke → 500M", "Direct — 500M only"]
+      }
+    ],
+    "decisions": {},
+    "notes": [
+      { "id": "n1", "who": "Simon McIntosh", "bot": false, "when": "2026-05-20 11:00", "body": "Architecturally we're a thin layer over HF LlamaForCausalLM; the interesting bits are the block-aware embedding init and the weighted CE loss." }
+    ],
+    "research": [
+      { "id": "r1", "type": "paper", "title": "WHAM — World and Human Action Models", "source": "Nature 2025 · doi:10.1038/s41586-025-08600-3", "added_by": "Simon McIntosh", "when": "2026-05-13", "url": "https://doi.org/10.1038/s41586-025-08600-3" },
+      { "id": "r2", "type": "paper", "title": "Llama 3 architecture report", "source": "arXiv 2407.21783", "added_by": "agent/opus", "when": "2026-05-15", "url": "#" }
+    ],
+    "questions": [
+      { "id": "q1", "section": "4 training recipe", "body": "Should we use HuggingFace's accelerate FSDP wrapper or roll our own with torch.distributed.fsdp? The wrapper is simpler but pins us to the HF training loop semantics.", "opened_by": "agent/opus", "opened_at": "2026-05-20" }
+    ],
+    "followups": [
+      {
+        "id": "f-wm-2026-05-21",
+        "written_by": "Simon McIntosh",
+        "written_at": "2026-05-21 09:00",
+        "title": "Lock model-size-curriculum decision",
+        "body": "tokenizers §12 expansion is closing this week. Before the smoke run can start, we need to commit to either 125M-smoke-first or 500M-direct. Read the decision context and lock it (rationale required).",
+        "recommends_skill": "/plan-edit world-model-v0 --decision model-size-curriculum",
+        "touches": ["docs/world-model-v0.html"],
+        "blocked_by": { "slug": "tokenizers", "reason": "§12 expansion still landing" },
+        "est_turn": "smc desk-decision · 15min",
+        "prompt": "Lock decision model-size-curriculum on plan world-model-v0. Read §1, §4, and compute reservation status; choose curriculum vs direct."
+      }
+    ],
+    "followups_done": []
+  }
+}

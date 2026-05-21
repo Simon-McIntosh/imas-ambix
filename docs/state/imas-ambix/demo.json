@@ -1,0 +1,45 @@
+{
+  "updated": "2026-05-21T14:30:00",
+  "project": "imas-ambix",
+  "doc": "demo",
+  "data": {
+    "slug": "demo",
+    "title": "Public demo (wide-angle camera)",
+    "status": "blocked",
+    "ms": "M3",
+    "roi": "low",
+    "effort": "M",
+    "tier": "sonnet",
+    "impl": 0.05,
+    "last": "2026-04-22",
+    "owner": "Simon McIntosh",
+    "blockers": 1,
+    "dec_open": 1,
+    "comments": 2,
+    "sprint": null,
+    "phase": "blocked · waiting on world-model checkpoint",
+    "created": "2026-05-13",
+    "last_modified": "2026-04-22 14:00",
+    "depends_on": ["world-model-v0"],
+    "blocks": [],
+    "summary": "Wide-angle viewing system forward-prediction demo on three pinned held-out MAST shots; rFID + centroid MSE acceptance.",
+    "sections": [
+      { "id": "s1", "sec": "§ 1", "h": "Three pinned held-out shots", "body": "Three shots withheld from training; demo predicts frames N+1..N+30 given first N. Acceptance: rFID < 8 on each held-out shot and centroid trajectory MSE within 2 pixels." },
+      { "id": "s2", "sec": "§ 2", "h": "Public-facing UI", "body": "Single-page HTML rendering the predicted vs ground-truth frames side-by-side as an animation. Hosted at simon-mcintosh.github.io/imas-ambix/demo.html alongside this plan." }
+    ],
+    "decisions_def": [
+      {
+        "key": "held-out-shot-selection",
+        "title": "Pinned held-out shot ids — auto-pick or hand-pick three?",
+        "context": "Hand-pick: choose three shots covering different plasma regimes (ohmic, NBI-heated, disrupted). Auto-pick: random 3 from training-grade pool. Hand-pick is more demonstrative; auto-pick is more honest.",
+        "choices": ["Hand-pick three regimes", "Auto-pick random three"]
+      }
+    ],
+    "decisions": {},
+    "notes": [],
+    "research": [],
+    "questions": [],
+    "followups": [],
+    "followups_done": []
+  }
+}
