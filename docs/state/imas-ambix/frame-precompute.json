@@ -1,62 +1,68 @@
 {
-  "updated": "2026-05-26T18:30:00Z",
+  "updated": "2026-05-26T21:01:59",
   "project": "imas-ambix",
   "doc": "frame-precompute",
   "data": {
     "slug": "frame-precompute",
-    "title": "Pre-decoded + pre-resized rbb frames at 256² uint8",
-    "status": "pending",
+    "title": "Pre-decoded + pre-resized rbb frames at 256\u00b2 uint8",
+    "status": "active",
     "ms": "M1",
     "roi": "high",
     "effort": "M",
     "tier": "sonnet",
-    "impl": 0.0,
+    "impl": 0.5,
     "owner": "Simon McIntosh",
     "blockers": 0,
     "comments": 0,
     "sprint": "S4",
-    "phase": "spec drafted 2026-05-26",
-    "last_modified": "2026-05-26 18:30",
-    "depends_on": ["data-acquisition", "zarr-consolidate"],
-    "blocks": ["tokenizers", "world-model-v0"],
-    "summary": "Precompute the per-shot uint8 RGB 256×256 frame tensor once and store it next to the raw Zarr. Saves the uint16→uint8 normalisation and the 536×560→256×256 bilinear interp on every encode. ~12 GB total for the rbb corpus; converts the encode loop from I/O+CPU+GPU to pure GPU.",
+    "phase": "\u00a73 implementation written + validated 2026-05-26",
+    "last_modified": "2026-05-26",
+    "depends_on": [
+      "data-acquisition",
+      "zarr-consolidate"
+    ],
+    "blocks": [
+      "tokenizers",
+      "world-model-v0"
+    ],
+    "summary": "Precompute the per-shot uint8 RGB 256\u00d7256 frame tensor once and store it next to the raw Zarr. Saves the uint16\u2192uint8 normalisation and the 536\u00d7560\u2192256\u00d7256 bilinear interp on every encode. ~12 GB total for the rbb corpus; converts the encode loop from I/O+CPU+GPU to pure GPU.",
     "isHeroPlan": false,
     "sections": [
       {
         "id": "s1",
-        "sec": "§ 1",
+        "sec": "\u00a7 1",
         "h": "Why precompute",
-        "body": "Current encode path per shot: open_zarr → load uint16 (T,H,W) ≈ 89 MB → `_normalise_frames_to_uint8` (per-shot min/max scan + cast) → np.repeat to RGB → torch.bfloat16 cast → bilinear interp 536×560→256×256. The CPU/IO portion is ~0.4 s per shot. With 4 GPUs and a target encode time of ~3 s/shot, CPU/IO is 13% of wall. At larger batches or with longer rbb shots, this fraction grows. Precomputing once amortises the cost across every future encode AND the eventual training data loader."
+        "body": "Current encode path per shot: open_zarr \u2192 load uint16 (T,H,W) \u2248 89 MB \u2192 `_normalise_frames_to_uint8` (per-shot min/max scan + cast) \u2192 np.repeat to RGB \u2192 torch.bfloat16 cast \u2192 bilinear interp 536\u00d7560\u2192256\u00d7256. The CPU/IO portion is ~0.4 s per shot. With 4 GPUs and a target encode time of ~3 s/shot, CPU/IO is 13% of wall. At larger batches or with longer rbb shots, this fraction grows. Precomputing once amortises the cost across every future encode AND the eventual training data loader."
       },
       {
         "id": "s2",
-        "sec": "§ 2",
+        "sec": "\u00a7 2",
         "h": "Output layout",
-        "body": "Write to `/work/projects/imas_gpu/mast/preprocessed/rbb-256/<shot>.zarr` with a single 4-D array `data: (T, 256, 256, 3) uint8`. Per-shot bytes: 149×256×256×3 ≈ 30 MB → corpus total ~290 GB (9,527 shots). Fits comfortably in GPFS quota and stays compatible with `xr.open_zarr` for the encoding/training loader. Keep the original L1 corpus untouched."
+        "body": "Write to `/work/projects/imas_gpu/mast/preprocessed/rbb-256/<shot>.zarr` with a single 4-D array `data: (T, 256, 256, 3) uint8`. Per-shot bytes: 149\u00d7256\u00d7256\u00d73 \u2248 30 MB \u2192 corpus total ~290 GB (9,527 shots). Fits comfortably in GPFS quota and stays compatible with `xr.open_zarr` for the encoding/training loader. Keep the original L1 corpus untouched."
       },
       {
         "id": "s3",
-        "sec": "§ 3",
+        "sec": "\u00a7 3",
         "h": "Implementation",
         "body": "New module `imas_ambix/data/preprocess.py`:\n\n```python\ndef preprocess_rbb_shot(shot_id, src_root, dst_root, image_size=256):\n    ds = xr.open_zarr(src_root / f'{shot_id}.zarr/rbb', consolidated=True)\n    raw = ds['data'].values  # (T, 536, 560) uint16\n    # Per-shot lo/hi (matches today's normalisation) so reconstruction is bit-exact.\n    lo, hi = raw.min(), raw.max()\n    u8 = ((raw - lo) * 255.0 / (hi - lo)).clip(0, 255).astype(np.uint8)\n    rgb = np.repeat(u8[..., None], 3, axis=-1)  # (T, 536, 560, 3)\n    # Resize on CPU once using cv2.INTER_LINEAR (matches torch F.interpolate bilinear closely).\n    out = np.stack([cv2.resize(f, (image_size, image_size), interpolation=cv2.INTER_LINEAR) for f in rgb])\n    zarr.save_array(dst_root / f'{shot_id}.zarr/rbb', out)\n```\n\nCLI hook: `ambix data preprocess-frames --camera rbb --image-size 256 --workers 16 --from-bucket-all`. Sharded across CPU cores on a `sun_debug` SLURM allocation (no GPU needed, just RAM + GPFS bandwidth)."
       },
       {
         "id": "s4",
-        "sec": "§ 4",
+        "sec": "\u00a7 4",
         "h": "Encode-path integration",
-        "body": "`OpenMagvit2Tokenizer.encode_shot(shot_id)` gains a preprocessed-aware path: if `preprocess_root/<shot>.zarr` exists, skip the normalise/repeat/resize and go straight from `(T,256,256,3) uint8` → bf16 → daemon. Falls back to the legacy path for shots without a precomputed cache. Expected per-shot encode time after this lands: drop from ~3 s to ~1.5 s on H200 (GPU-bound)."
+        "body": "`OpenMagvit2Tokenizer.encode_shot(shot_id)` gains a preprocessed-aware path: if `preprocess_root/<shot>.zarr` exists, skip the normalise/repeat/resize and go straight from `(T,256,256,3) uint8` \u2192 bf16 \u2192 daemon. Falls back to the legacy path for shots without a precomputed cache. Expected per-shot encode time after this lands: drop from ~3 s to ~1.5 s on H200 (GPU-bound)."
       },
       {
         "id": "s5",
-        "sec": "§ 5",
+        "sec": "\u00a7 5",
         "h": "Validation",
-        "body": "Bit-exact reconstruction check: encode shot 15085 via (a) the legacy path and (b) the preprocessed path; assert identical token output. Throughput check: 100-shot encode wall time goes from estimated 5 min to estimated 2.5 min (2× speedup) on a single H200."
+        "body": "Bit-exact reconstruction check: encode shot 15085 via (a) the legacy path and (b) the preprocessed path; assert identical token output. Throughput check: 100-shot encode wall time goes from estimated 5 min to estimated 2.5 min (2\u00d7 speedup) on a single H200."
       }
     ],
     "decisions": {
       "image-size": {
         "choice": "256 (matches Open-MAGVIT2 default)",
-        "rationale": "The frame tokenizer downsamples to 256² internally anyway. Storing at a higher resolution wastes space without gain.",
+        "rationale": "The frame tokenizer downsamples to 256\u00b2 internally anyway. Storing at a higher resolution wastes space without gain.",
         "when": "2026-05-26T18:30:00Z",
         "by": "Simon McIntosh"
       },
@@ -78,14 +84,64 @@
         "opened_at": "2026-05-26"
       }
     ],
-    "tests": [],
+    "tests": [
+      {
+        "name": "normalise_bit_exact_vs_tokenizer",
+        "pass": true,
+        "fail": false,
+        "pulse": "synthetic"
+      },
+      {
+        "name": "normalise_flat_returns_zeros",
+        "pass": true,
+        "fail": false,
+        "pulse": "synthetic"
+      },
+      {
+        "name": "normalise_known_values",
+        "pass": true,
+        "fail": false,
+        "pulse": "synthetic"
+      },
+      {
+        "name": "5shot_bit_exact_15085",
+        "pass": true,
+        "fail": false,
+        "pulse": 15085
+      },
+      {
+        "name": "5shot_bit_exact_15086",
+        "pass": true,
+        "fail": false,
+        "pulse": 15086
+      },
+      {
+        "name": "5shot_bit_exact_15087",
+        "pass": true,
+        "fail": false,
+        "pulse": 15087
+      },
+      {
+        "name": "5shot_bit_exact_16000",
+        "pass": true,
+        "fail": false,
+        "pulse": 16000
+      },
+      {
+        "name": "5shot_bit_exact_25000_no_rbb",
+        "pass": false,
+        "fail": true,
+        "pulse": 25000,
+        "fail_now": false
+      }
+    ],
     "followups": [
       {
         "id": "f-fp-2026-05-26",
         "written_by": "Simon McIntosh",
         "written_at": "2026-05-26 18:30",
         "title": "Implement preprocess.py + run on full rbb corpus",
-        "body": "Wait for zarr-consolidate to land first (depends_on). Then write preprocess.py + CLI hook, validate bit-exact on 5 shots, then sbatch a CPU array (sun_debug, 16 cores × 4 tasks) to chew through 9,527 shots. Total expected wall: ~30 min on 64 CPUs.",
+        "body": "Wait for zarr-consolidate to land first (depends_on). Then write preprocess.py + CLI hook, validate bit-exact on 5 shots, then sbatch a CPU array (sun_debug, 16 cores \u00d7 4 tasks) to chew through 9,527 shots. Total expected wall: ~30 min on 64 CPUs.",
         "recommends_skill": "/reckon-ship frame-precompute --section 3",
         "touches": [
           "imas_ambix/data/preprocess.py",
@@ -93,12 +149,34 @@
           "scripts/slurm/preprocess_frames.sbatch",
           "/work/projects/imas_gpu/mast/preprocessed/rbb-256/"
         ],
-        "blocked_by": {"slug": "zarr-consolidate", "reason": "needs consolidated metadata for the input reads"},
+        "blocked_by": {
+          "slug": "zarr-consolidate",
+          "reason": "needs consolidated metadata for the input reads"
+        },
         "tier": "sonnet",
-        "est_turn": "single Sonnet turn · ~2h dev + 30 min run",
-        "prompt": "Project: imas-ambix\nPlan: frame-precompute\nSection: §3 implementation\nTier: sonnet\n\nContext\n  zarr-consolidate has landed → opens are now O(10ms). Time to amortise the normalisation + resize step too. Pre-decode every rbb shot into (T,256,256,3) uint8 stored at /work/projects/imas_gpu/mast/preprocessed/rbb-256/<shot>.zarr.\n\nLocked decisions to honour\n  image-size      → 256\n  normalisation   → per-shot min/max\n\nOpen decision to surface (do not resolve)\n  q1: cv2.resize INTER_LINEAR vs F.interpolate (do a 100-shot A/B before deciding)\n\nDone-when\n  1. imas_ambix/data/preprocess.py + `ambix data preprocess-frames` CLI.\n  2. scripts/slurm/preprocess_frames.sbatch — sun_debug, --array=0-3, --cpus-per-task=16, --mem=64G, no GPU.\n  3. Run completes for the full rbb-camera manifest (9,527 shots). Output verified at /work/projects/imas_gpu/mast/preprocessed/rbb-256/.\n  4. Bit-exact A/B against legacy path on shots 15085, 15086, 15087, 16000, 25000.\n  5. OpenMagvit2Tokenizer.encode_shot gains a preprocessed-aware fast path (legacy path stays).\n  6. data.impl → 1.0, status → shipped, plan §5 updated with measured speedup."
+        "est_turn": "single Sonnet turn \u00b7 ~2h dev + 30 min run",
+        "prompt": "Project: imas-ambix\nPlan: frame-precompute\nSection: \u00a73 implementation\nTier: sonnet\n\nContext\n  zarr-consolidate has landed \u2192 opens are now O(10ms). Time to amortise the normalisation + resize step too. Pre-decode every rbb shot into (T,256,256,3) uint8 stored at /work/projects/imas_gpu/mast/preprocessed/rbb-256/<shot>.zarr.\n\nLocked decisions to honour\n  image-size      \u2192 256\n  normalisation   \u2192 per-shot min/max\n\nOpen decision to surface (do not resolve)\n  q1: cv2.resize INTER_LINEAR vs F.interpolate (do a 100-shot A/B before deciding)\n\nDone-when\n  1. imas_ambix/data/preprocess.py + `ambix data preprocess-frames` CLI.\n  2. scripts/slurm/preprocess_frames.sbatch \u2014 sun_debug, --array=0-3, --cpus-per-task=16, --mem=64G, no GPU.\n  3. Run completes for the full rbb-camera manifest (9,527 shots). Output verified at /work/projects/imas_gpu/mast/preprocessed/rbb-256/.\n  4. Bit-exact A/B against legacy path on shots 15085, 15086, 15087, 16000, 25000.\n  5. OpenMagvit2Tokenizer.encode_shot gains a preprocessed-aware fast path (legacy path stays).\n  6. data.impl \u2192 1.0, status \u2192 shipped, plan \u00a75 updated with measured speedup."
+      },
+      {
+        "id": "f-fp-run-2026-05-26",
+        "written_by": "agent (Sonnet 4.6)",
+        "written_at": "2026-05-26",
+        "title": "Run preprocess_frames.sbatch once L1 zarr-consolidate (1207977) lands",
+        "body": "preprocess.py + CLI + sbatch script are written and validated (4/4 shots with rbb data pass bit-exact; shot 25000 has no rbb group \u2014 expected data gap). Full-corpus run (9,527 shots) is blocked on zarr-consolidate job 1207977 finishing on sun partition. Once that completes, submit scripts/slurm/preprocess_frames.sbatch. Open decision q1 (cv2 vs torch F.interpolate) should be settled with a 100-shot A/B before the full run.",
+        "recommends_skill": "/reckon-ship frame-precompute",
+        "touches": [
+          "scripts/slurm/preprocess_frames.sbatch",
+          "/work/projects/imas_gpu/mast/preprocessed/rbb-256/"
+        ],
+        "blocked_by": {
+          "slug": "zarr-consolidate",
+          "reason": "job 1207977 must complete before full-corpus run; unconsolidated opens are slow but validation reads are fine"
+        },
+        "tier": "sonnet",
+        "est_turn": "10 min to submit + monitor 3h sbatch job",
+        "prompt": "Project: imas-ambix\nPlan:    frame-precompute (docs/frame-precompute.html)\nSection: full-corpus run\nTier:    sonnet\n\nContext\n  preprocess.py, CLI, and sbatch script are written (feat(data) commit). Bit-exact\n  validation passed 4/4 shots with rbb data (shot 25000 has no rbb group \u2014 expected).\n  zarr-consolidate job 1207977 has now completed. Time to run the full corpus.\n\nState to read\n  docs/state/imas-ambix/frame-precompute.json\n\nLocked decisions to honour\n  image-size    \u2192 256\n  normalisation \u2192 per-shot min/max\n\nOpen decisions to surface (do not resolve)\n  q1 \u2014 cv2.resize(INTER_LINEAR) vs torch F.interpolate: do a 100-shot A/B for token-id\n       divergence before committing the full corpus to one backend.\n\nConstraints\n  - MUST run on sun partition (NOT login node, NOT GPU node)\n  - sbatch script is at scripts/slurm/preprocess_frames.sbatch\n  - uv run ambix data preprocess-frames --from-bucket-all --workers 36\n\nDone-when\n  1. sbatch submitted and job completes (check with squeue / sacct)\n  2. /work/projects/imas_gpu/mast/preprocessed/rbb-256/<shot>.zarr exists for\n     the majority of the 9,527-shot rbb corpus (some shots lack rbb group \u2014 that is expected)\n  3. JSON report at /work/projects/imas_gpu/mast/preprocessed/preprocess_report_<jobid>.json\n  4. data.impl \u2192 0.8 (full run done; encode-path integration still pending)\n  5. This followup resolved + new followup for encode-path integration written"
       }
     ],
-    "_version": 0
+    "_version": 3
   }
 }

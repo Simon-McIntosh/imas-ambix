@@ -1418,6 +1418,199 @@ def bulk_encode_signals_cmd(
         console.print(f"[green]report written:[/green] {output}")
 
 
+# --- preprocess-frames -----------------------------------------------
+
+
+@data.command(name="preprocess-frames")
+@click.option(
+    "--shot-ids",
+    default=None,
+    help="Comma-separated shot IDs to preprocess.",
+)
+@click.option(
+    "--from-bucket-all",
+    is_flag=True,
+    default=False,
+    help=(
+        "Preprocess every shot present in the L1 shots directory "
+        "(enumerates ``<LEVEL1_DIR>/*.zarr``)."
+    ),
+)
+@click.option("--camera", default="rbb", show_default=True, help="Camera group name.")
+@click.option(
+    "--image-size",
+    default=256,
+    show_default=True,
+    type=int,
+    help="Target square output resolution (locked decision: 256).",
+)
+@click.option(
+    "--workers",
+    default=1,
+    show_default=True,
+    type=int,
+    help="Number of parallel worker threads.",
+)
+@click.option(
+    "--skip-existing/--no-skip-existing",
+    default=True,
+    show_default=True,
+    help="Skip shots whose output Zarr already exists.",
+)
+@click.option(
+    "--output-dir",
+    default=None,
+    type=click.Path(),
+    help=(
+        "Root directory for preprocessed Zarr stores.  "
+        "Default: ``<MIRROR_ROOT>/preprocessed/<camera>-<image_size>/``."
+    ),
+)
+@click.option(
+    "--resize-backend",
+    type=click.Choice(["cv2", "torch"]),
+    default="cv2",
+    show_default=True,
+    help=(
+        "Resize backend.  cv2=INTER_LINEAR (default).  "
+        "torch=F.interpolate(bilinear).  "
+        "Open decision q1: run 100-shot A/B before the full corpus."
+    ),
+)
+@click.option(
+    "--output",
+    default=None,
+    type=click.Path(),
+    help="Write JSON report to this path.",
+)
+def preprocess_frames_cmd(
+    shot_ids: str | None,
+    from_bucket_all: bool,
+    camera: str,
+    image_size: int,
+    workers: int,
+    skip_existing: bool,
+    output_dir: str | None,
+    resize_backend: str,
+    output: str | None,
+) -> None:
+    """Pre-decode rbb frames to (T, image_size², 3) uint8 Zarr stores.
+
+    Reads level-1 ``<LEVEL1_DIR>/<shot>.zarr/<camera>``, normalises
+    uint16→uint8 with per-shot min/max (bit-exact with the tokenizer),
+    RGB-replicates, and bilinear-resizes to ``image_size×image_size``.
+    Output lands at ``<output-dir>/<shot>.zarr``.
+
+    Open decision (q1): cv2.INTER_LINEAR vs torch F.interpolate.
+    Run with both backends on 100 shots and compare token-id divergence
+    before committing the full corpus to one backend.
+
+    Examples
+    --------
+    Preprocess five shots::
+
+        ambix data preprocess-frames --shot-ids 15085,15086,15087,16000,25000 \\
+            --camera rbb --image-size 256 --workers 4
+
+    Preprocess all L1 shots (run this via sbatch, not on login node)::
+
+        ambix data preprocess-frames --from-bucket-all --workers 36
+    """
+    from imas_ambix.data.preprocess import PreprocessReport, bulk_preprocess
+
+    # --- resolve destination root ----------------------------------------
+    if output_dir:
+        dst_root = Path(output_dir)
+    else:
+        dst_root = MIRROR_ROOT / "preprocessed" / f"{camera}-{image_size}"
+
+    # --- resolve shot list -----------------------------------------------
+    if shot_ids:
+        ids = [int(s.strip()) for s in shot_ids.split(",") if s.strip()]
+    elif from_bucket_all:
+        ids = sorted(int(p.stem) for p in LEVEL1_DIR.glob("*.zarr") if p.is_dir())
+    else:
+        ids = []
+
+    if not ids:
+        console.print("[yellow]No shot IDs resolved — nothing to preprocess.[/yellow]")
+        return
+
+    console.print(
+        f"Preprocessing [bold]{len(ids)}[/bold] shots  "
+        f"camera=[bold]{camera}[/bold]  "
+        f"image_size={image_size}  "
+        f"backend={resize_backend}  "
+        f"workers={workers}  "
+        f"dst={dst_root}"
+    )
+
+    t_start = time.monotonic()
+    reports: list[PreprocessReport] = bulk_preprocess(
+        shot_ids=ids,
+        src_root=LEVEL1_DIR,
+        dst_root=dst_root,
+        image_size=image_size,
+        resize_backend=resize_backend,
+        skip_existing=skip_existing,
+        camera=camera,
+        workers=workers,
+    )
+    total_elapsed = time.monotonic() - t_start
+
+    # --- render summary --------------------------------------------------
+    from rich.table import Table  # noqa: PLC0415
+
+    n_ok = sum(
+        1 for r in reports if r.error is None and not r.skipped and r.n_frames > 0
+    )
+    n_skip = sum(1 for r in reports if r.skipped)
+    n_err = sum(1 for r in reports if r.error is not None)
+
+    summary = Table(title="Preprocess summary")
+    summary.add_column("metric")
+    summary.add_column("value", justify="right")
+    summary.add_row("shots processed", str(n_ok))
+    summary.add_row("shots skipped (existing)", str(n_skip))
+    summary.add_row("shots errored", str(n_err))
+    summary.add_row("total elapsed (s)", f"{total_elapsed:.1f}")
+    console.print(summary)
+
+    if n_err:
+        err_table = Table(title="Errors")
+        err_table.add_column("shot_id")
+        err_table.add_column("error")
+        for r in reports:
+            if r.error is not None:
+                err_table.add_row(str(r.shot_id), r.error[:120])
+        console.print(err_table)
+
+    if output:
+        payload = {
+            "camera": camera,
+            "image_size": image_size,
+            "resize_backend": resize_backend,
+            "total_elapsed_s": total_elapsed,
+            "n_ok": n_ok,
+            "n_skipped": n_skip,
+            "n_errored": n_err,
+            "per_shot": [
+                {
+                    "shot_id": r.shot_id,
+                    "n_frames": r.n_frames,
+                    "elapsed_s": r.elapsed_s,
+                    "output_path": str(r.output_path),
+                    "skipped": r.skipped,
+                    "error": r.error,
+                }
+                for r in reports
+            ],
+        }
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        Path(output).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        console.print(f"[green]report written:[/green] {output}")
+
+
 # ---------------------------------------------------------------------------
 # Shared render / resolve helpers for bulk-encode commands
 # ---------------------------------------------------------------------------
