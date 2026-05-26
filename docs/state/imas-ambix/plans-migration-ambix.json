@@ -1,0 +1,88 @@
+{
+  "updated": "2026-05-26T00:00:00Z",
+  "project": "imas-ambix",
+  "doc": "plans-migration-ambix",
+  "data": {
+    "slug": "plans-migration-ambix",
+    "title": "Migrate imas-ambix per-plan pages to reckon format",
+    "status": "active",
+    "ms": null,
+    "roi": "high",
+    "effort": "L",
+    "tier": "sonnet",
+    "impl": 0.5,
+    "owner": "Simon McIntosh",
+    "blockers": 0,
+    "comments": 0,
+    "sprint": null,
+    "phase": "legacy field strip landed 2026-05-26; per-plan content authoring remaining",
+    "last_modified": "2026-05-26",
+    "depends_on": [],
+    "blocks": [],
+    "summary": "Ambix-side migration from the pre-redesign markdown-and-mockdata format to the reckon state-JSON + SPA-page format. Depends on reckon/plans-infra (shipped). Phase 1 complete: legacy field strip surgery landed 2026-05-26 (commit a02d447) — five banned legacy fields (decisions_def, followups_done, dec_open, last, created) removed from all 16 per-plan JSONs in docs/state/imas-ambix/. Phase 2 remaining: per-plan content authoring — sections[] bodies, followup prompts, and rich body content for the 9 live plans.",
+    "sections": [
+      {
+        "id": "s1",
+        "sec": "§ 1",
+        "h": "Pre-redesign baseline",
+        "body": "As of 2026-05-21, all 16 per-plan JSONs in docs/state/imas-ambix/ were written before the reckon schema was finalised. They carried five legacy fields in data{}: decisions_def (old open-choices array, pre-dates the decisions{} map), followups_done (resolved followups in a separate array; schema uses in-place resolved_at/resolved_by/outcome on the main followups[]), dec_open (counter field, now computed by the SPA from decisions{}), last (duplicate of last_modified; the canonical field is last_modified), created (creation timestamp not in the canonical schema). The reckon SPA did not read any of these fields and they were purely noise."
+      },
+      {
+        "id": "s2",
+        "sec": "§ 2",
+        "h": "What shipped — legacy field strip (2026-05-26)",
+        "body": "A single-pass Python surgery stripped the five banned fields from all 16 per-plan JSON files (skipping index.json and the newly-created plan-refactor-imas-ambix.json). The script also applied stub fix-ups for two phase-record artifacts: redesign-rollout.json (added title, summary, changed status from 'in-progress' to 'shipped') and tokenizers-12-landed.json (added title, summary, status='shipped' so the SPA can display the plan without crashing while preserving the four locked decisions as historical data). Commit: a02d447 in imas-ambix. The plan-refactor-imas-ambix.html page and its state JSON document the full scope. The chosen content-strategy decision was locked: option C — Hybrid (prototype shell + rich body)."
+      },
+      {
+        "id": "s3",
+        "sec": "§ 3",
+        "h": "What remains — per-plan content authoring",
+        "body": "Phase 2: author sections[] bodies for the 9 live plans (STRATEGY, v0-runway, compute, data-quality, tokenizers, tokenizer-benchmarks, world-model-v0, demo, and the redesign-rollout legacy page). The SPA's plan view reads sections[] for the rich body display; empty sections render as blank panels. Pilot on tokenizers (most decisions, most contentful), get user sign-off, then fleet Sonnets for the remaining 8. Per-stage frozen records (tokenizers-12-landed, redesign-rollout) stay as stub-only (content frozen). The mockdata-live-fetch decision is locked: live fetch from state JSON (not from a mockdata.js static file)."
+      }
+    ],
+    "decisions": {
+      "per-plan-content-strategy": {
+        "choice": "C — Hybrid: prototype shell + rich body",
+        "rationale": "make sure to update the skills for plan creation in dotfiles to permit this pattern",
+        "when": "2026-05-21 13:01",
+        "by": "Simon McIntosh"
+      },
+      "mockdata-live-fetch": {
+        "choice": "Live fetch from state JSON",
+        "rationale": "",
+        "when": "2026-05-21 13:02",
+        "by": "Simon McIntosh"
+      }
+    },
+    "notes": [
+      {
+        "id": "n-rehome",
+        "who": "sonnet-agent",
+        "bot": true,
+        "when": "2026-05-26",
+        "body": "This plan was originally authored in the reckon repo as reckon/plans-migration-ambix while the migration plans were incorrectly co-located. Moved to imas-ambix 2026-05-26 as this plan describes imas-ambix work. Cross-project dep on reckon/plans-infra dropped (that plan is shipped); noted in prose of summary instead."
+      }
+    ],
+    "research": [],
+    "questions": [],
+    "followups": [
+      {
+        "id": "f-pilot-tokenizers",
+        "written_by": "opus-coordinator",
+        "written_at": "2026-05-21 14:00",
+        "title": "Pilot content-strategy C on tokenizers.html; get sign-off; fleet the other 8",
+        "body": "Tokenizers has the most going on: 4 active §12 decisions, rich body, history (per-stage tokenizers-12-landed). Pilot the chosen content-strategy (C — Hybrid) here, then fleet to the other 8 live plans. Per-stage record stays as restyle-only stub.",
+        "recommends_skill": "/reckon-ship plans-migration-ambix",
+        "touches": [
+          "docs/tokenizers.html",
+          "docs/state/imas-ambix/tokenizers.json"
+        ],
+        "tier": "opus",
+        "est_turn": "~2h for pilot; +Sonnet fleet for remaining 8",
+        "prompt": "Project: imas-ambix\nPlan:    plans-migration-ambix\nSection: § 3 pilot\nTier:    opus (pilot); sonnet (fleet)\n\nContext\n  Legacy field strip landed 2026-05-26 (a02d447). Content strategy C — Hybrid\n  is locked: prototype SPA shell + rich body sections[] in the JSON.\n  mockdata-live-fetch is locked: live fetch from state JSON.\n  Pilot the chosen approach on tokenizers.html (richest case). User signs off,\n  then fleet sonnets for the other 8 live plans.\n\nState to read\n  docs/state/imas-ambix/plans-migration-ambix.json\n  docs/state/imas-ambix/tokenizers.json\n\nLocked decisions to honour\n  per-plan-content-strategy → C — Hybrid: prototype shell + rich body\n  mockdata-live-fetch → Live fetch from state JSON\n\nOpen decisions to surface (do not resolve unilaterally)\n  (none on this plan — both decisions locked)\n\nDone-when\n  1. tokenizers.html renders the new layout end-to-end (including 4 §12 decisions wired to lockDecision).\n  2. User signs off on the pilot.\n  3. Fleet of sonnets migrates the remaining 8 live plans non-overlappingly.\n  4. This followup resolved with outcome.\n  5. New followup written: same recipe applied to efit; per-stage record handling confirmed."
+      }
+    ],
+    "_version": 1,
+    "project": "imas-ambix"
+  }
+}
