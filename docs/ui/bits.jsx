@@ -1,5 +1,5 @@
-// v6 shared bits — comment popover, prompt modal, helpers.
-// Made global on window so other Babel scripts can use them.
+// Shared bits — comment popover, prompt modal, helpers.
+// Made global on window.planUtils so other Babel scripts can use them.
 
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
@@ -74,7 +74,7 @@ function buildHandoffPrompt(plan, decisions, followups) {
   may resolve one yourself if and only if you record a clear rationale.
   Quote-anchored comments locate the user's intent inside the section's
   prose. This planning system is repo-agnostic; the canonical state lives in
-  the `reckon` repository (formerly part of dotfiles).
+  the \`reckon\` repository (formerly part of dotfiles).
 
 Project: ${plan.project || "project"}
 Plan:    ${plan.slug}
@@ -105,8 +105,7 @@ ${next.blocked_by ? `  Blocked by: ${next.blocked_by.slug} — ${next.blocked_by
 
 Recommended skill
   ${next.recommends_skill || "/plan-implement " + plan.slug}
-` : "Next-up\n  (no pending followup — propose one)\n"}
-Done-when
+` : "Next-up\n  (no pending followup — propose one)\n"}Done-when
   1. Land the work this prompt describes.
   2. Update the plan body / section the work touches.
   3. POST a new followup to ${plan.slug}.json#followups with what landed.
@@ -133,11 +132,11 @@ function PromptModal({ initialPrompt, planSlug, onClose }) {
   };
 
   return (
-    <div className="v6-modal-scrim" onClick={onClose}>
-      <div className="v6-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-scrim" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="head">
           <div>
-            <div className="v6-eyebrow">Handoff prompt</div>
+            <div className="eyebrow">Handoff prompt</div>
             <h3>{planSlug}</h3>
             <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 2 }}>
               Paste into a new Claude conversation. Edit before copying if you want to refine the framing.
@@ -195,7 +194,7 @@ function CommentPopover({ anchor, onClose, onPost }) {
   return (
     <div
       ref={ref}
-      className="v6-pop"
+      className="comment-popover"
       style={{
         top: anchor.top + 8,
         left: Math.max(20, Math.min(anchor.left - 200, window.innerWidth - 440)),
@@ -272,9 +271,9 @@ function useSelectionToComment(rootRef, planSlug) {
 function SectionComments({ comments }) {
   if (!comments || comments.length === 0) return null;
   return (
-    <div className="v6-section-comments">
+    <div className="section-comments">
       {comments.map(c => (
-        <div key={c.id} className="v6-inline-comment">
+        <div key={c.id} className="inline-comment">
           <div className="meta">{c.who} · {c.when}</div>
           {c.quote && <div className="quote">"{c.quote}"</div>}
           <div>{c.body}</div>
@@ -285,7 +284,7 @@ function SectionComments({ comments }) {
 }
 
 Object.assign(window, {
-  v6: {
+  planUtils: {
     fmtPct, whenShort, planSave, planLoad,
     buildHandoffPrompt,
     PromptModal, CommentPopover, useSelectionToComment, SectionComments,

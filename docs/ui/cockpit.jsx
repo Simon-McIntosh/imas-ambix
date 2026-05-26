@@ -1,24 +1,22 @@
-// v6 Cockpit — minimal landing.
-// Sidebar handles plan navigation; cockpit is just project-level state
-// (milestones, decisions across plans, active sprint, recent activity).
+// Cockpit — project-level overview (sidebar-based layout, legacy).
+// Not used by the 3-column shell; kept as a standalone component.
 
-function V6Cockpit({ onNav }) {
+function Cockpit({ onNav }) {
   const M = window.STATE;
   if (!M) return null;
   const project = M.projects[0];
   const sprint = M.sprint;
 
-  // Plans with open decisions
   const decisionPlans = M.inventory
     .filter(i => (i.dec_open || 0) > 0)
     .sort((a, b) => (b.dec_open || 0) - (a.dec_open || 0));
   const decisionTotal = decisionPlans.reduce((n, p) => n + (p.dec_open || 0), 0);
 
   return (
-    <div className="v6-page wide">
-      <div className="v6-ck-head">
+    <div className="plan-page wide">
+      <div className="ck-header">
         <div>
-          <div className="v6-eyebrow">project · {project.project}</div>
+          <div className="eyebrow">project · {project.project}</div>
           <h1>{project.project}</h1>
           <div className="sub">
             {project.plans_count} plans · sprint <strong>{sprint.id}</strong> in flight · owner {project.owner}
@@ -28,13 +26,12 @@ function V6Cockpit({ onNav }) {
         <button className="btn primary">+ New plan</button>
       </div>
 
-      {/* Milestone arc — each milestone clickable */}
-      <div className="v6-eyebrow">Milestone arc</div>
-      <div className="v6-ms">
+      <div className="eyebrow">Milestone arc</div>
+      <div className="ms-grid">
         {project.milestones.map(m => (
           <button
             key={m.id}
-            className={`v6-ms-tile ${m.status}`}
+            className={`ms-tile ${m.status}`}
             onClick={() => {
               const target = M.inventory.find(i => i.ms === m.id && i.status === "active")
                 || M.inventory.find(i => i.ms === m.id);
@@ -50,20 +47,19 @@ function V6Cockpit({ onNav }) {
         ))}
       </div>
 
-      {/* Decisions */}
-      <div className="v6-eyebrow" style={{ marginTop: 8 }}>
+      <div className="eyebrow" style={{ marginTop: 8 }}>
         Decisions · {decisionTotal} open across {decisionPlans.length} plan{decisionPlans.length === 1 ? "" : "s"}
       </div>
       {decisionPlans.length === 0 ? (
-        <div className="v6-dec-list" style={{ padding: 24, textAlign: "center", color: "var(--muted)" }}>
+        <div className="decision-list" style={{ padding: 24, textAlign: "center", color: "var(--muted)" }}>
           No open decisions.
         </div>
       ) : (
-        <div className="v6-dec-list">
+        <div className="decision-list">
           {decisionPlans.map(p => (
             <a
               key={p.slug}
-              className="v6-dec-row"
+              className="decision-list-item"
               href={`#plan/${p.slug}`}
             >
               <span className="c">{p.dec_open}</span>
@@ -80,16 +76,15 @@ function V6Cockpit({ onNav }) {
         </div>
       )}
 
-      {/* Active sprint */}
-      <div className="v6-eyebrow" style={{ marginTop: 26 }}>Sprint {sprint.id} · {sprint.theme}</div>
-      <div className="v6-dec-list">
+      <div className="eyebrow" style={{ marginTop: 26 }}>Sprint {sprint.id} · {sprint.theme}</div>
+      <div className="decision-list">
         {sprint.items.map((it, i) => {
           const slug = typeof it === "string" ? it : it.slug;
           const justification = typeof it === "object" ? it.justification : null;
           const p = M.inventory.find(x => x.slug === slug);
           if (!p) return null;
           return (
-            <a key={slug} className="v6-dec-row" href={`#plan/${slug}`}>
+            <a key={slug} className="decision-list-item" href={`#plan/${slug}`}>
               <span className="c" style={{ background: "var(--bg-3)", color: "var(--ink-2)" }}>
                 {p.impl ? Math.round(p.impl * 100) + "%" : "—"}
               </span>
@@ -108,8 +103,7 @@ function V6Cockpit({ onNav }) {
         <a className="btn ghost" href={`#sprint/${sprint.id}`}>Open sprint board →</a>
       </div>
 
-      {/* Recent activity */}
-      <div className="v6-eyebrow" style={{ marginTop: 26 }}>Recent activity</div>
+      <div className="eyebrow" style={{ marginTop: 26 }}>Recent activity</div>
       <div className="card">
         <div className="card-body">
           <div className="ledger">
@@ -127,4 +121,4 @@ function V6Cockpit({ onNav }) {
   );
 }
 
-window.V6Cockpit = V6Cockpit;
+window.Cockpit = Cockpit;

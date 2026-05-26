@@ -1,8 +1,7 @@
-// v6 Tokenizers body — the rich hand-authored prose for the hero plan.
-// Decisions inline under § 12. Same content as the current site, but
-// rendered inside the v6 SPA reading layout.
+// Tokenizers plan body — rich hand-authored prose for the tokenizers plan.
+// Decisions inline under § 12.
 
-function V6TokenizersBody({ P, decs, onUpdateDec, comments }) {
+function TokenizersBody({ P, decs, onUpdateDec, comments }) {
   const dByKey = (k) => decs.find(d => d.key === k);
   const sectionComments = (sid) => <SectionComments comments={comments[sid]} />;
 
@@ -63,7 +62,7 @@ function V6TokenizersBody({ P, decs, onUpdateDec, comments }) {
         Decisions POST to <code>state/{window.Persist?.project || "project"}/tokenizers.json#decisions</code>; follow-on agents read them on pickup.
       </p>
       {(decs || []).map(d => (
-        <V6Decision key={d.key} d={d}
+        <DecisionRow key={d.key} d={d}
           onUpdate={(choice, rat) => onUpdateDec(d.key, choice, rat)} />
       ))}
       {sectionComments("s12")}
@@ -100,4 +99,4 @@ function V6TokenizersBody({ P, decs, onUpdateDec, comments }) {
   );
 }
 
-window.V6TokenizersBody = V6TokenizersBody;
+window.TokenizersBody = TokenizersBody;

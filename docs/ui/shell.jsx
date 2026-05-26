@@ -1,14 +1,16 @@
-// v7 Shell — top bar + three-column body.
+// Shell — top bar + three-column body.
 // Brand: reckon (the system). Project name comes from state.
-// Changes from design bundle v7:
+// Changes from design bundle:
 //   A. Brand shows "reckon" (not project name)
-//   B. Fleet prompts use dynamic project name (no imas_ambix hardcoding)
+//   B. Fleet prompts use dynamic project name
 //   C. Fleet prompts allow unilateral decision resolution
 //   D/E. "Decisions N" button replaces "Resolve N" — cycles through blocked plans (sprint)
 //   F. Sidebar collapse (⌘B handle) collapses BOTH filter + plan list → full-screen
 //   G. Sprint nav (‹ ›) also appears in the cockpit/overview view
 
-function v7ParseHash() {
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+function parseHash() {
   const h = (window.location.hash || "").replace(/^#/, "");
   if (!h || h === "cockpit") return { view: "cockpit" };
   if (h.startsWith("plan/")) return { view: "plan", slug: decodeURIComponent(h.slice(5)) };
@@ -16,10 +18,10 @@ function v7ParseHash() {
   return { view: "cockpit" };
 }
 
-function useV7Hash() {
-  const [route, setRoute] = useState(v7ParseHash());
+function useHashRoute() {
+  const [route, setRoute] = useState(parseHash());
   useEffect(() => {
-    const onHash = () => setRoute(v7ParseHash());
+    const onHash = () => setRoute(parseHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -33,7 +35,7 @@ function useV7Hash() {
 
 // ─── Top bar ────────────────────────────────────────────────────────────
 
-function V7TopBar({ route, onNav }) {
+function AppTopBar({ route, onNav }) {
   const onOverview = route.view === "cockpit";
   const goPlans = () => {
     const M = window.STATE;
@@ -47,7 +49,7 @@ function V7TopBar({ route, onNav }) {
   const projectName = window.STATE?.projects?.[0]?.project ||
     document.querySelector('meta[name="docs-project"]')?.content || "";
   return (
-    <div className="v7-topbar">
+    <div className="plan-topbar">
       <div className="brand">
         <a href="/" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none", color: "inherit" }}>
           <span className="mark">R</span>
@@ -61,9 +63,9 @@ function V7TopBar({ route, onNav }) {
         )}
       </div>
       <span className="sp"></span>
-      <div className="v7-glyph-tabs">
+      <div className="view-tabs">
         <button
-          className={`v7-glyph ${!onOverview ? "active" : ""}`}
+          className={`view-tab ${!onOverview ? "active" : ""}`}
           onClick={goPlans}
           title="Plans — work on individual plans"
         >
@@ -73,7 +75,7 @@ function V7TopBar({ route, onNav }) {
           Plans
         </button>
         <button
-          className={`v7-glyph ${onOverview ? "active" : ""}`}
+          className={`view-tab ${onOverview ? "active" : ""}`}
           onClick={goOverview}
           title="Overview — milestones, decisions, recent activity"
         >
@@ -109,14 +111,14 @@ function FiltersCol({ filters, setFilters }) {
   const anyActive = (filters.status?.length || 0) + (filters.ms?.length || 0) + (filters.sprint?.length || 0) > 0;
 
   return (
-    <aside className="v7-filters">
-      <div className="v7-filter-group">
-        <div className="v7-filter-h">Status</div>
+    <aside className="filters-col">
+      <div className="filter-group">
+        <div className="filter-heading">Status</div>
         {statuses.map(s => {
           const n = M.inventory.filter(p => p.status === s).length;
           const on = (filters.status || []).includes(s);
           return (
-            <div key={s} className={`v7-chip ${on ? "on" : ""}`} onClick={() => toggle("status", s)}>
+            <div key={s} className={`filter-chip ${on ? "on" : ""}`} onClick={() => toggle("status", s)}>
               <span className={`dot ${s}`}></span>
               <span style={{ textTransform: "capitalize" }}>{s}</span>
               <span className="n">{n}</span>
@@ -125,14 +127,14 @@ function FiltersCol({ filters, setFilters }) {
         })}
       </div>
 
-      <div className="v7-filter-group">
-        <div className="v7-filter-h">Milestone</div>
+      <div className="filter-group">
+        <div className="filter-heading">Milestone</div>
         {milestones.map(m => {
           const n = M.inventory.filter(p => p.ms === m.id).length;
           const on = (filters.ms || []).includes(m.id);
           if (n === 0) return null;
           return (
-            <div key={m.id} className={`v7-chip ${on ? "on" : ""}`} onClick={() => toggle("ms", m.id)}>
+            <div key={m.id} className={`filter-chip ${on ? "on" : ""}`} onClick={() => toggle("ms", m.id)}>
               <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: m.status === "active" ? "var(--accent)" : m.status === "shipped" ? "var(--good)" : "var(--muted)", minWidth: 22 }}>{m.id}</span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{m.name}</span>
               <span className="n">{n}</span>
@@ -141,14 +143,14 @@ function FiltersCol({ filters, setFilters }) {
         })}
       </div>
 
-      <div className="v7-filter-group">
-        <div className="v7-filter-h">Sprint</div>
+      <div className="filter-group">
+        <div className="filter-heading">Sprint</div>
         {sprints.map(s => {
           const slugs = (s.items || []).map(it => typeof it === "string" ? it : it.slug);
           const n = slugs.length;
           const on = (filters.sprint || []).includes(s.id);
           return (
-            <div key={s.id} className={`v7-chip ${on ? "on" : ""}`} onClick={() => toggle("sprint", s.id)}>
+            <div key={s.id} className={`filter-chip ${on ? "on" : ""}`} onClick={() => toggle("sprint", s.id)}>
               <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: s.status === "active" ? "var(--accent)" : s.status === "shipped" ? "var(--good)" : "var(--muted)", minWidth: 22 }}>{s.id}</span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{s.theme?.slice(0, 22) + (s.theme?.length > 22 ? "…" : "")}</span>
               <span className="n">{n}</span>
@@ -157,7 +159,7 @@ function FiltersCol({ filters, setFilters }) {
         })}
       </div>
 
-      <button className="v7-clear" disabled={!anyActive} onClick={() => setFilters({})}>
+      <button className="clear-filters" disabled={!anyActive} onClick={() => setFilters({})}>
         {anyActive ? "× clear filters" : "no filters set"}
       </button>
     </aside>
@@ -196,8 +198,8 @@ function ListCol({ search, setSearch, route, onNav, items }) {
   const toggle = (id) => setCollapsed(c => ({ ...c, [id]: !c[id] }));
 
   return (
-    <div className="v7-list">
-      <div className="v7-search">
+    <div className="plans-list">
+      <div className="plan-search">
         <input
           placeholder="Search plans…"
           value={search}
@@ -206,14 +208,14 @@ function ListCol({ search, setSearch, route, onNav, items }) {
         <div className="count">{items.length} plan{items.length === 1 ? "" : "s"}</div>
       </div>
       {items.length === 0 ? (
-        <div className="v7-list-empty">No plans match.</div>
+        <div className="plans-empty">No plans match.</div>
       ) : groups.map(g => {
         const id = g.sprint?.id || "_none";
         const isOpen = !collapsed[id];
         const isActiveSprintRoute = route.view === "sprint" && route.sprint === id;
         return (
-          <div key={id} className="v7-sgroup">
-            <div className={`v7-sgroup-h ${isActiveSprintRoute ? "route-active" : ""}`} onClick={() => toggle(id)}>
+          <div key={id} className="sprint-group">
+            <div className={`sprint-group-header ${isActiveSprintRoute ? "route-active" : ""}`} onClick={() => toggle(id)}>
               <span className="car">{isOpen ? "▾" : "▸"}</span>
               <span className="id">{g.sprint ? g.sprint.id : "—"}</span>
               <span className="theme">
@@ -237,7 +239,7 @@ function ListCol({ search, setSearch, route, onNav, items }) {
               return (
                 <div
                   key={p.slug}
-                  className={`v7-row ${active ? "active" : ""}`}
+                  className={`plan-row ${active ? "active" : ""}`}
                   onClick={() => onNav({ view: "plan", slug: p.slug })}
                 >
                   <span className={`dot ${p.status}`}></span>
@@ -273,7 +275,7 @@ function TitleBar({ route, onNav, onOpenPrompt }) {
   const M = window.STATE;
   if (route.view === "cockpit") {
     return (
-      <div className="v7-titlebar">
+      <div className="plan-titlebar">
         <div className="row1">
           <span className="title">Overview</span>
         </div>
@@ -286,7 +288,7 @@ function TitleBar({ route, onNav, onOpenPrompt }) {
     const openDecs = (p.decisions || []).filter(d => !d.chosen).length;
     const blockedByDecisions = openDecs > 0;
     return (
-      <div className="v7-titlebar">
+      <div className="plan-titlebar">
         <div className="row1">
           <span className="crumbs"><code>/{route.slug}</code></span>
           <span className="title">{p.title}</span>
@@ -295,7 +297,7 @@ function TitleBar({ route, onNav, onOpenPrompt }) {
               <button
                 className="decisions-btn"
                 onClick={() => {
-                  const el = document.querySelector(".v6-dec:not(.taken)") || document.querySelector(".v6-dec");
+                  const el = document.querySelector(".decision:not(.taken)") || document.querySelector(".decision");
                   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
                 title={`${openDecs} pending decision${openDecs === 1 ? "" : "s"}`}
@@ -346,7 +348,7 @@ function TitleBar({ route, onNav, onOpenPrompt }) {
     const inv = [...slugSet].map(slug => {
       const p = M.inventory.find(x => x.slug === slug);
       if (!p) return null;
-      const stored = (window.v6?.planLoad?.(slug)) || {};
+      const stored = (window.planUtils?.planLoad?.(slug)) || {};
       const overlay = stored.decisions || {};
       const liveDecs = (p.decisions || []).map(d => {
         const ov = overlay[d.key];
@@ -359,7 +361,6 @@ function TitleBar({ route, onNav, onOpenPrompt }) {
     const blocked = totalOpen > 0;
     const blockedPlans = inv.filter(p => (p.decisions || []).some(d => !d.chosen));
 
-    // Cycle through all blocked plans on repeated clicks
     const handleDecisions = () => {
       if (blockedPlans.length === 0) return;
       const currentSlug = route.view === "plan" ? route.slug : null;
@@ -371,16 +372,16 @@ function TitleBar({ route, onNav, onOpenPrompt }) {
     };
 
     const handleGen = () => {
-      window.dispatchEvent(new CustomEvent("v7-open-fleet-prompt"));
+      window.dispatchEvent(new CustomEvent("open-fleet-prompt"));
     };
     return (
-      <div className="v7-titlebar">
+      <div className="plan-titlebar">
         <div className="row1">
           <span className="crumbs">sprint</span>
           <span className="title">{s ? `${s.id} · ${s.theme}` : route.sprint}</span>
           <div className="actions">
-            <button className="v7-nav-btn" disabled={idx <= 0} onClick={() => onNav({ view: "sprint", sprint: sprints[idx - 1].id })}>‹</button>
-            <button className="v7-nav-btn" disabled={idx >= sprints.length - 1} onClick={() => onNav({ view: "sprint", sprint: sprints[idx + 1].id })}>›</button>
+            <button className="sprint-nav-btn" disabled={idx <= 0} onClick={() => onNav({ view: "sprint", sprint: sprints[idx - 1].id })}>‹</button>
+            <button className="sprint-nav-btn" disabled={idx >= sprints.length - 1} onClick={() => onNav({ view: "sprint", sprint: sprints[idx + 1].id })}>›</button>
             {blocked && (
               <button className="decisions-btn" onClick={handleDecisions} title="Navigate to next plan with pending decisions">
                 Decisions <span className="dec-badge">{totalOpen}</span>
@@ -426,7 +427,7 @@ function PlanDeps({ slug }) {
   const blocks = p.blocks || [];
   if (deps.length === 0 && blocks.length === 0) return null;
   return (
-    <div className="v7-deps">
+    <div className="plan-deps">
       {deps.length > 0 && <>
         <span className="lbl">depends on</span>
         {deps.map(s => {
@@ -446,7 +447,7 @@ function PlanDeps({ slug }) {
 
 // ─── App ────────────────────────────────────────────────────────────────
 
-function V7ReadyGate({ children }) {
+function ReadyGate({ children }) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (window.STATE_READY) window.STATE_READY.then(() => setReady(true));
@@ -458,8 +459,8 @@ function V7ReadyGate({ children }) {
   return children;
 }
 
-function V7App() {
-  const [route, nav] = useV7Hash();
+function PlanApp() {
+  const [route, nav] = useHashRoute();
   const [filters, setFilters] = useState({});
   const [search, setSearch] = useState("");
   const [promptOpen, setPromptOpen] = useState(false);
@@ -487,7 +488,7 @@ function V7App() {
   useEffect(() => {
     if (!promptOpen) return;
     setPromptOpen(false);
-    window.dispatchEvent(new CustomEvent("v7-open-prompt"));
+    window.dispatchEvent(new CustomEvent("open-prompt"));
   }, [promptOpen]);
 
   // ⌘B / Ctrl+B toggles the sidebar (filters + plan list)
@@ -503,11 +504,11 @@ function V7App() {
   }, []);
 
   return (
-    <div className="v7-app">
-      <V7TopBar route={route} onNav={nav} />
-      <div className={`v7-3col ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${route.view === "cockpit" ? "overview-mode" : ""}`}>
+    <div className="plan-app">
+      <AppTopBar route={route} onNav={nav} />
+      <div className={`plan-layout ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${route.view === "cockpit" ? "overview-mode" : ""}`}>
         <button
-          className="v7-filter-handle"
+          className="sidebar-handle"
           onClick={() => setSidebarCollapsed(c => !c)}
           title={sidebarCollapsed ? "Show sidebar · ⌘B" : "Hide sidebar · ⌘B"}
           aria-label="Toggle sidebar"
@@ -516,14 +517,14 @@ function V7App() {
         </button>
         <FiltersCol filters={filters} setFilters={setFilters} />
         <ListCol search={search} setSearch={setSearch} route={route} onNav={nav} items={items} />
-        <div className="v7-content">
+        <div className="content-col">
           <TitleBar route={route} onNav={nav} onOpenPrompt={() => setPromptOpen(true)} />
-          <div className="v7-body">
-            {route.view === "sprint" && <V7FleetPrompt sprintId={route.sprint} />}
+          <div className="plan-content-body">
+            {route.view === "sprint" && <FleetPrompt sprintId={route.sprint} />}
             {route.view === "plan" && <PlanDeps slug={route.slug} />}
-            {route.view === "cockpit" && <V7CockpitBody onNav={nav} cockpitSprintIdx={cockpitSprintIdx} setCockpitSprintIdx={setCockpitSprintIdx} />}
-            {route.view === "plan" && <V6Plan slug={route.slug} onNav={nav} />}
-            {route.view === "sprint" && <V6Sprint sprintId={route.sprint} onNav={nav} />}
+            {route.view === "cockpit" && <CockpitBody onNav={nav} cockpitSprintIdx={cockpitSprintIdx} setCockpitSprintIdx={setCockpitSprintIdx} />}
+            {route.view === "plan" && <PlanView slug={route.slug} onNav={nav} />}
+            {route.view === "sprint" && <SprintView sprintId={route.sprint} onNav={nav} />}
           </div>
         </div>
       </div>
@@ -532,9 +533,8 @@ function V7App() {
 }
 
 // ─── Cockpit body ────────────────────────────────────────────────────────
-// Change G: accepts cockpitSprintIdx + setCockpitSprintIdx for sprint nav.
 
-function V7CockpitBody({ onNav, cockpitSprintIdx, setCockpitSprintIdx }) {
+function CockpitBody({ onNav, cockpitSprintIdx, setCockpitSprintIdx }) {
   const M = window.STATE;
   if (!M) return null;
   const project = M.projects[0] || {};
@@ -551,17 +551,17 @@ function V7CockpitBody({ onNav, cockpitSprintIdx, setCockpitSprintIdx }) {
   return (
     <>
       {project.plans_count != null && (
-        <div className="v7-ck-sub">
+        <div className="ck-sub">
           {project.plans_count} plans · owner {project.owner}
         </div>
       )}
 
-      <div className="v7-ck-h">
-        <span className="v6-eyebrow">Milestones</span>
+      <div className="ck-heading">
+        <span className="eyebrow">Milestones</span>
       </div>
-      <div className="v6-ms" style={{ marginBottom: 4 }}>
+      <div className="ms-grid" style={{ marginBottom: 4 }}>
         {(project.milestones || []).map(m => (
-          <button key={m.id} className={`v6-ms-tile ${m.status}`}
+          <button key={m.id} className={`ms-tile ${m.status}`}
             onClick={() => {
               const target = M.inventory.find(i => i.ms === m.id && i.status === "active")
                 || M.inventory.find(i => i.ms === m.id);
@@ -575,15 +575,15 @@ function V7CockpitBody({ onNav, cockpitSprintIdx, setCockpitSprintIdx }) {
         ))}
       </div>
 
-      <div className="v7-ck-h">
-        <span className="v6-eyebrow">Sprint {sprint?.id} · {sprint?.theme}</span>
-        <div className="v7-sprint-nav">
-          <button className="v7-nav-btn" disabled={displayIdx <= 0} onClick={() => setCockpitSprintIdx(displayIdx - 1)}>‹</button>
-          <button className="v7-nav-btn" disabled={displayIdx >= allSprints.length - 1} onClick={() => setCockpitSprintIdx(displayIdx + 1)}>›</button>
+      <div className="ck-heading">
+        <span className="eyebrow">Sprint {sprint?.id} · {sprint?.theme}</span>
+        <div className="sprint-nav">
+          <button className="sprint-nav-btn" disabled={displayIdx <= 0} onClick={() => setCockpitSprintIdx(displayIdx - 1)}>‹</button>
+          <button className="sprint-nav-btn" disabled={displayIdx >= allSprints.length - 1} onClick={() => setCockpitSprintIdx(displayIdx + 1)}>›</button>
         </div>
-        <a className="v7-board-icon" href={`#sprint/${sprint?.id}`} title="Open sprint board">▦</a>
+        <a className="board-icon" href={`#sprint/${sprint?.id}`} title="Open sprint board">▦</a>
       </div>
-      <div className="v7-ck-list" style={{ marginBottom: 22 }}>
+      <div className="ck-list" style={{ marginBottom: 22 }}>
         {(sprint?.items || []).map(it => {
           const slug = typeof it === "string" ? it : it.slug;
           const justification = typeof it === "object" ? it.justification : null;
@@ -591,43 +591,43 @@ function V7CockpitBody({ onNav, cockpitSprintIdx, setCockpitSprintIdx }) {
           if (!p) return null;
           const pct = Math.round((p.impl || 0) * 100);
           return (
-            <a key={slug} className="v7-ck-row" href={`#plan/${slug}`}>
-              <span className={`v7-ck-dot ${p.status}`}></span>
-              <div className="v7-ck-body">
-                <div className="v7-ck-title">{p.title}</div>
-                {justification && <div className="v7-ck-just">{justification}</div>}
+            <a key={slug} className="ck-row" href={`#plan/${slug}`}>
+              <span className={`ck-dot ${p.status}`}></span>
+              <div className="ck-body">
+                <div className="ck-title">{p.title}</div>
+                {justification && <div className="ck-just">{justification}</div>}
               </div>
-              <div className="v7-ck-prog">
-                <span className="v7-ck-bar"><i style={{ width: `${pct}%` }} className={p.status === "shipped" ? "shipped" : p.status === "blocked" ? "blocked" : ""}></i></span>
-                <span className="v7-ck-pct">{pct}%</span>
+              <div className="ck-progress">
+                <span className="ck-bar"><i style={{ width: `${pct}%` }} className={p.status === "shipped" ? "shipped" : p.status === "blocked" ? "blocked" : ""}></i></span>
+                <span className="ck-pct">{pct}%</span>
               </div>
-              <span className="v7-ck-arr">›</span>
+              <span className="ck-arrow">›</span>
             </a>
           );
         })}
       </div>
 
-      <div className="v7-ck-h">
-        <span className="v6-eyebrow">Decisions · {decisionTotal} open across {decisionPlans.length} plan{decisionPlans.length === 1 ? "" : "s"}</span>
+      <div className="ck-heading">
+        <span className="eyebrow">Decisions · {decisionTotal} open across {decisionPlans.length} plan{decisionPlans.length === 1 ? "" : "s"}</span>
       </div>
       {decisionPlans.length === 0 ? (
-        <div className="v7-ck-empty">No open decisions.</div>
+        <div className="ck-empty">No open decisions.</div>
       ) : (
-        <div className="v7-ck-list">
+        <div className="ck-list">
           {decisionPlans.map(p => (
-            <a key={p.slug} className="v7-ck-row" href={`#plan/${p.slug}`}>
-              <span className="v7-ck-num">{p.dec_open}</span>
-              <div className="v7-ck-body">
-                <div className="v7-ck-title">{p.title}</div>
-                <div className="v7-ck-slug">/{p.slug}</div>
+            <a key={p.slug} className="ck-row" href={`#plan/${p.slug}`}>
+              <span className="ck-num">{p.dec_open}</span>
+              <div className="ck-body">
+                <div className="ck-title">{p.title}</div>
+                <div className="ck-slug">/{p.slug}</div>
               </div>
-              <span className="v7-ck-arr">›</span>
+              <span className="ck-arrow">›</span>
             </a>
           ))}
         </div>
       )}
 
-      <div className="v7-ck-h"><span className="v6-eyebrow">Recent activity</span></div>
+      <div className="ck-heading"><span className="eyebrow">Recent activity</span></div>
       <div className="card">
         <div className="card-body">
           <div className="ledger">
@@ -646,17 +646,16 @@ function V7CockpitBody({ onNav, cockpitSprintIdx, setCockpitSprintIdx }) {
 }
 
 // ─── Fleet prompt modal ─────────────────────────────────────────────────
-// Change B: dynamic project name. Change C: allow unilateral decisions.
 
-function V7FleetPrompt({ sprintId }) {
+function FleetPrompt({ sprintId }) {
   const M = window.STATE;
   const sprint = M.sprints.find(s => s.id === sprintId);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const h = () => setOpen(true);
-    window.addEventListener("v7-open-fleet-prompt", h);
-    return () => window.removeEventListener("v7-open-fleet-prompt", h);
+    window.addEventListener("open-fleet-prompt", h);
+    return () => window.removeEventListener("open-fleet-prompt", h);
   }, []);
 
   if (!sprint) return null;
@@ -683,7 +682,6 @@ function V7FleetPrompt({ sprintId }) {
   for (const p of itemsArr) visit(p);
 
   const buildPrompt = () => {
-    // Change B: dynamic project name from state
     const projectName = M.projects[0]?.project ||
       document.querySelector('meta[name="docs-project"]')?.content ||
       "project";
@@ -701,7 +699,7 @@ function V7FleetPrompt({ sprintId }) {
       const lockedBlock = locked.length === 0 ? "  (none)" : locked.map(d => `  ${d.key} → ${d.chosen}`).join("\n");
       const openBlock = openD.length === 0 ? "  (none)" : openD.map(d => `  ${d.key} — ${d.title}`).join("\n");
       const next = (p.followups || [])[0];
-      const comments = (p.comments) || (window.v6?.planLoad?.(p.slug)?.comments) || {};
+      const comments = (p.comments) || (window.planUtils?.planLoad?.(p.slug)?.comments) || {};
       const commentEntries = Object.entries(comments).filter(([_, arr]) => (arr || []).length > 0);
       const commentsBlock = commentEntries.length === 0 ? "  (none)" :
         commentEntries.map(([sid, arr]) =>
@@ -740,8 +738,8 @@ function PromptModalAdHoc({ title, subtitle, buildText, onClose }) {
     if (window.flashSaved) window.flashSaved("prompt copied");
   };
   return (
-    <div className="v6-modal-scrim" onClick={onClose}>
-      <div className="v6-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-scrim" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="head">
           <div>
             <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, letterSpacing: "0.10em", textTransform: "uppercase", color: "var(--accent)", fontWeight: 600 }}>{title}</div>
@@ -761,5 +759,5 @@ function PromptModalAdHoc({ title, subtitle, buildText, onClose }) {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <V7ReadyGate><V7App /></V7ReadyGate>
+  <ReadyGate><PlanApp /></ReadyGate>
 );

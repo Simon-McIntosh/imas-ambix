@@ -1,18 +1,15 @@
-// v6 Plan view — reading-first document with inline decisions, select-to-comment,
-// and a "Generate handoff prompt" button in the header. No internal topbar/breadcrumb
-// because the sidebar handles nav.
+// Plan view — reading-first document with inline decisions, select-to-comment,
+// and a "Generate handoff prompt" button in the header.
 
-function V6Plan({ slug, onNav }) {
+function PlanView({ slug, onNav }) {
   const M = window.STATE;
   if (!M) return null;
   const PG = M.plans[slug];
-  if (!PG) return <div className="v6-page">Plan "{slug}" not found.</div>;
+  if (!PG) return <div className="plan-page">Plan "{slug}" not found.</div>;
 
-  // For tokenizers we use the rich hand-authored prose. For other plans the data-driven path.
   const isTokenizers = slug === "tokenizers";
   const P = isTokenizers ? (M.planTokenizers || PG) : PG;
 
-  // Hydrate decisions from local persist overlay
   const stored = planLoad(slug) || {};
   const storedDec = stored.decisions || {};
   const initialDecs = (P.decisions || []).map(d => {
@@ -25,27 +22,24 @@ function V6Plan({ slug, onNav }) {
   const [showPrompt, setShowPrompt] = useState(false);
   const [composingAt, setComposingAt] = useState(null);
 
-  // v7 integration: listen for "open prompt" event from the title bar
   useEffect(() => {
     const open = () => {
       const openDecs = decs.filter(d => !d.chosen);
       if (openDecs.length > 0) {
-        // Refuse — caller will see no modal. Toast explains why.
         if (window.flashSaved) window.flashSaved(`✗ ${openDecs.length} open decision${openDecs.length === 1 ? "" : "s"} — take them first`);
         return;
       }
       setShowPrompt(true);
     };
-    window.addEventListener("v7-open-prompt", open);
-    return () => window.removeEventListener("v7-open-prompt", open);
+    window.addEventListener("open-prompt", open);
+    return () => window.removeEventListener("open-prompt", open);
   }, [decs]);
 
-  // Comments — section-anchored. Source: state JSON + local overlay.
   const initialComments = (stored.comments) || P.comments || {};
   const [comments, setComments] = useState(initialComments);
 
   const articleRef = useRef(null);
-  const [sel, clearSel] = window.v6.useSelectionToComment(articleRef, slug);
+  const [sel, clearSel] = window.planUtils.useSelectionToComment(articleRef, slug);
 
   const author = window.STATE?.projects?.[0]?.owner || "user";
 
@@ -74,11 +68,9 @@ function V6Plan({ slug, onNav }) {
     if (window.flashSaved) window.flashSaved(`${slug}.comments.${sectionId} +1`);
   };
 
-  const decByKey = (k) => decs.find(d => d.key === k);
-
   return (
-    <div className="v6-page">
-      <div className="v6-plan-head">
+    <div className="plan-page">
+      <div className="plan-header">
         <div>
           <h1>{P.title || PG.title}</h1>
           <div className="sub">
@@ -95,29 +87,28 @@ function V6Plan({ slug, onNav }) {
             <span>{fmtPct(PG.impl)}</span>
           </div>
         </div>
-        <div className="v6-plan-actions">
+        <div className="plan-actions">
           <button className="btn" onClick={() => setShowPrompt(true)}>⌘ Generate handoff prompt</button>
         </div>
       </div>
 
-      <div className="v6-plan-layout">
-        <article className="v6-reading" ref={articleRef}>
+      <div className="plan-view-layout">
+        <article className="reading-area" ref={articleRef}>
           {isTokenizers ? (
-            <V6TokenizersBody P={P} decs={decs} onUpdateDec={onUpdateDec} comments={comments} />
+            <TokenizersBody P={P} decs={decs} onUpdateDec={onUpdateDec} comments={comments} />
           ) : (
-            <V6GenericBody PG={PG} decs={decs} onUpdateDec={onUpdateDec} comments={comments} />
+            <PlanBody PG={PG} decs={decs} onUpdateDec={onUpdateDec} comments={comments} />
           )}
         </article>
 
-        <aside className="v6-rail">
-          <V6PlanRail plan={PG} comments={comments} onNav={onNav} />
+        <aside className="plan-rail">
+          <PlanRail plan={PG} comments={comments} onNav={onNav} />
         </aside>
       </div>
 
-      {/* Floating Comment button when selection is active */}
       {sel && !composingAt && (
         <button
-          className="v6-float-btn"
+          className="float-comment-btn"
           style={{ top: sel.top + 6, left: Math.min(sel.left - 60, window.innerWidth - 140) }}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
@@ -154,7 +145,7 @@ function V6Plan({ slug, onNav }) {
 
 // ─── Generic data-driven body (sections[] + decisions at bottom) ─────────
 
-function V6GenericBody({ PG, decs, onUpdateDec, comments }) {
+function PlanBody({ PG, decs, onUpdateDec, comments }) {
   return (
     <>
       <p style={{ color: "var(--muted)", fontSize: 14 }}>{PG.summary}</p>
@@ -170,7 +161,7 @@ function V6GenericBody({ PG, decs, onUpdateDec, comments }) {
         <>
           <h2 id="decisions"><span className="sec">§</span>Decisions</h2>
           {decs.map(d => (
-            <V6Decision key={d.key} d={d}
+            <DecisionRow key={d.key} d={d}
               onUpdate={(choice, rat) => onUpdateDec(d.key, choice, rat)} />
           ))}
           <SectionComments comments={comments["decisions"]} />
@@ -200,7 +191,7 @@ function V6GenericBody({ PG, decs, onUpdateDec, comments }) {
 
 // ─── Right rail ───────────────────────────────────────────────────────────
 
-function V6PlanRail({ plan, comments, onNav }) {
+function PlanRail({ plan, comments, onNav }) {
   const totalComments = Object.values(comments || {}).reduce((n, arr) => n + arr.length, 0);
   return (
     <>
@@ -283,6 +274,6 @@ function V6PlanRail({ plan, comments, onNav }) {
   );
 }
 
-window.V6Plan = V6Plan;
-window.V6GenericBody = V6GenericBody;
-window.V6PlanRail = V6PlanRail;
+window.PlanView = PlanView;
+window.PlanBody = PlanBody;
+window.PlanRail = PlanRail;

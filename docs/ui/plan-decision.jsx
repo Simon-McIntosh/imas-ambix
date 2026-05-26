@@ -1,9 +1,8 @@
-// v6 Plan view — reading-first document, decisions inline, comments anchored.
+// Decision row — select a choice + rationale, commit with Update.
 
-const { PromptModal, CommentPopover, useSelectionToComment, SectionComments, buildHandoffPrompt, planSave, planLoad, fmtPct } = window.v6;
+const { PromptModal, CommentPopover, useSelectionToComment, SectionComments, buildHandoffPrompt, planSave, planLoad, fmtPct } = window.planUtils;
 
-// Decision inline — select doesn't commit; Update commits + collapses.
-function V6Decision({ d, onUpdate }) {
+function DecisionRow({ d, onUpdate }) {
   const [selected, setSelected] = useState(d.chosen || null);
   const [rationale, setRationale] = useState(d.rationale || "");
   const [editing, setEditing] = useState(false);
@@ -18,7 +17,7 @@ function V6Decision({ d, onUpdate }) {
   const canCommit = !!selected || rationale.trim() !== (d.rationale || "");
 
   return (
-    <div className={`v6-dec ${isTaken ? "taken" : ""} ${editing ? "editing" : ""}`}>
+    <div className={`decision ${isTaken ? "taken" : ""} ${editing ? "editing" : ""}`}>
       <div className="h">
         <span className="key">{d.key}</span>
         <span className="title">{d.title}</span>
@@ -31,7 +30,7 @@ function V6Decision({ d, onUpdate }) {
           <span className="edit-link" onClick={() => setEditing(true)}>edit</span>
         </div>
       ) : (
-        <div className="v6-dec-form">
+        <div className="decision-form">
           <div className="ctx">{d.context}</div>
           <div className="choices">
             {d.choices.map(c => (
@@ -62,4 +61,4 @@ function V6Decision({ d, onUpdate }) {
   );
 }
 
-window.V6Decision = V6Decision;
+window.DecisionRow = DecisionRow;
