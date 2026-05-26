@@ -245,23 +245,42 @@ class OpenMagvit2Tokenizer:
             bufsize=1,
         )
         self._lock = threading.Lock()
-        ready_line = self._proc.stdout.readline()
-        if not ready_line:
-            stderr_tail = self._proc.stderr.read()[-2000:] if self._proc.stderr else ""
-            raise OpenMagvit2UnavailableError(
-                f"daemon produced no ready line; stderr:\n{stderr_tail}"
-            )
-        try:
-            ready = json.loads(ready_line)
-        except json.JSONDecodeError as exc:
-            stderr_tail = self._proc.stderr.read()[-2000:] if self._proc.stderr else ""
-            raise OpenMagvit2UnavailableError(
-                f"daemon ready line not JSON: {ready_line!r}; stderr:\n{stderr_tail}"
-            ) from exc
+        ready = self._read_json_line(context="ready")
         if not ready.get("ready"):
             raise OpenMagvit2UnavailableError(
                 f"daemon failed to start: {ready.get('error', ready)}"
             )
+
+    def _read_json_line(self, *, context: str, max_noise_lines: int = 200) -> dict:
+        """Read lines from the daemon's stdout, skipping any non-JSON noise.
+
+        Open-MAGVIT2 / lpips / lightning print model-load notices to stdout
+        before our JSON ready line arrives. We tolerate that by reading and
+        discarding any line that does not parse as JSON, up to a safety cap
+        so a runaway daemon can't lock us forever.
+        """
+        if self._proc is None:
+            raise RuntimeError("daemon not spawned")
+        assert self._proc.stdout is not None
+        for _ in range(max_noise_lines):
+            line = self._proc.stdout.readline()
+            if not line:
+                stderr_tail = (
+                    self._proc.stderr.read()[-2000:] if self._proc.stderr else ""
+                )
+                raise OpenMagvit2UnavailableError(
+                    f"daemon closed before {context!r} line; stderr:\n{stderr_tail}"
+                )
+            stripped = line.strip()
+            if not stripped or stripped[0] not in "{[":
+                continue  # skip noise (lpips/lightning prints, blank lines)
+            try:
+                return json.loads(stripped)
+            except json.JSONDecodeError:
+                continue  # not parseable JSON — treat as noise
+        raise OpenMagvit2UnavailableError(
+            f"daemon produced {max_noise_lines} non-JSON lines before {context!r}"
+        )
 
     def _daemon_request(self, payload: dict) -> dict:
         """Send one JSON request to the daemon and read one reply."""
@@ -271,11 +290,7 @@ class OpenMagvit2Tokenizer:
         with self._lock:
             self._proc.stdin.write(json.dumps(payload) + "\n")
             self._proc.stdin.flush()
-            line = self._proc.stdout.readline()
-        if not line:
-            stderr_tail = self._proc.stderr.read()[-2000:] if self._proc.stderr else ""
-            raise RuntimeError(f"daemon closed unexpectedly; stderr:\n{stderr_tail}")
-        resp = json.loads(line)
+            resp = self._read_json_line(context=f"reply to {payload.get('op')}")
         if not resp.get("ok"):
             raise RuntimeError(f"daemon error: {resp.get('error', resp)}")
         return resp

@@ -193,6 +193,7 @@ def daemon(args: argparse.Namespace) -> None:
 
     On EOF or {"op":"shutdown"} the daemon exits 0.
     """
+    import contextlib
     import json
 
     device = args.device
@@ -203,7 +204,14 @@ def daemon(args: argparse.Namespace) -> None:
         }), flush=True)
         sys.exit(1)
 
-    model = load_model(Path(args.config), Path(args.ckpt), device)
+    # Open-MAGVIT2 / lpips / lightning prints model-construction notices to
+    # stdout ("loaded pretrained LPIPS loss…", "Use the Discriminator without
+    # Bluring", "VQLPIPSWithDiscriminator running with hinge loss"). If those
+    # bytes land on our stdout the parent's JSON readline picks them up and
+    # the wire protocol desynchronises. Redirect stdout to stderr during
+    # model load so only our JSON reply lands on stdout.
+    with contextlib.redirect_stdout(sys.stderr):
+        model = load_model(Path(args.config), Path(args.ckpt), device)
     print(json.dumps({
         "ready": True,
         "device": device,
