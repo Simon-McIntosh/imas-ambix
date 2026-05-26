@@ -47,11 +47,13 @@ function V6Plan({ slug, onNav }) {
   const articleRef = useRef(null);
   const [sel, clearSel] = window.v6.useSelectionToComment(articleRef, slug);
 
+  const author = window.STATE?.projects?.[0]?.owner || "user";
+
   const onUpdateDec = (key, choice, rationale) => {
     const now = new Date().toISOString().slice(0, 16).replace("T", " ");
-    setDecs(arr => arr.map(x => x.key === key ? { ...x, chosen: choice || "", rationale, when: now, by: "Simon McIntosh" } : x));
+    setDecs(arr => arr.map(x => x.key === key ? { ...x, chosen: choice || "", rationale, when: now, by: author } : x));
     planSave(slug, {
-      [`decisions.${key}`]: { choice: choice || null, rationale, when: now, by: "Simon McIntosh" },
+      [`decisions.${key}`]: { choice: choice || null, rationale, when: now, by: author },
     });
     if (window.flashSaved) window.flashSaved(`${slug}.${key} → ${choice || "rationale saved"}`);
   };
@@ -61,7 +63,7 @@ function V6Plan({ slug, onNav }) {
     const now = new Date().toISOString().slice(0, 16).replace("T", " ");
     const c = {
       id: `c-${Date.now()}`,
-      who: "Simon McIntosh",
+      who: author,
       when: now,
       body: body.trim(),
       ...(quote ? { quote } : {}),

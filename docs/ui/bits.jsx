@@ -20,7 +20,8 @@ function planSave(slug, patch) {
   }
   // Fallback to localStorage
   try {
-    const key = `imas-ambix:${slug}`;
+    const proj = window.Persist?.project || document.querySelector('meta[name="docs-project"]')?.content || "unknown";
+    const key = `${proj}:${slug}`;
     const prev = JSON.parse(localStorage.getItem(key) || "{}");
     const next = { ...prev, ...patch, _updated: new Date().toISOString() };
     localStorage.setItem(key, JSON.stringify(next));
@@ -31,7 +32,10 @@ function planLoad(slug) {
   if (window.Persist && window.Persist.load) {
     return window.Persist.load(slug) || {};
   }
-  try { return JSON.parse(localStorage.getItem(`imas-ambix:${slug}`) || "{}"); } catch { return {}; }
+  try {
+    const proj = window.Persist?.project || document.querySelector('meta[name="docs-project"]')?.content || "unknown";
+    return JSON.parse(localStorage.getItem(`${proj}:${slug}`) || "{}");
+  } catch { return {}; }
 }
 
 // ─── Build handoff prompt ───────────────────────────────────────────────

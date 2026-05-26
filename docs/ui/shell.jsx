@@ -537,7 +537,7 @@ function V7App() {
 function V7CockpitBody({ onNav, cockpitSprintIdx, setCockpitSprintIdx }) {
   const M = window.STATE;
   if (!M) return null;
-  const project = M.projects[0];
+  const project = M.projects[0] || {};
   const allSprints = M.sprints || [];
   const defaultIdx = allSprints.findIndex(s => s.id === M.active_sprint_id);
   const displayIdx = cockpitSprintIdx !== null ? cockpitSprintIdx : (defaultIdx >= 0 ? defaultIdx : 0);
@@ -550,15 +550,17 @@ function V7CockpitBody({ onNav, cockpitSprintIdx, setCockpitSprintIdx }) {
 
   return (
     <>
-      <div className="v7-ck-sub">
-        {project.plans_count} plans · owner {project.owner}
-      </div>
+      {project.plans_count != null && (
+        <div className="v7-ck-sub">
+          {project.plans_count} plans · owner {project.owner}
+        </div>
+      )}
 
       <div className="v7-ck-h">
         <span className="v6-eyebrow">Milestones</span>
       </div>
       <div className="v6-ms" style={{ marginBottom: 4 }}>
-        {project.milestones.map(m => (
+        {(project.milestones || []).map(m => (
           <button key={m.id} className={`v6-ms-tile ${m.status}`}
             onClick={() => {
               const target = M.inventory.find(i => i.ms === m.id && i.status === "active")

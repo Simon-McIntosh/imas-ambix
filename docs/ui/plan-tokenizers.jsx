@@ -60,7 +60,7 @@ function V6TokenizersBody({ P, decs, onUpdateDec, comments }) {
       <h2 id="s12"><span className="sec">§ 12</span>Decisions in flight</h2>
       <p style={{ color: "var(--muted)", fontSize: 13.5 }}>
         Click a choice to select it, then click <strong>Take decision</strong> (or just type a rationale and Update) to commit.
-        Decisions POST to <code>state/imas-ambix/tokenizers.json#decisions</code>; follow-on agents read them on pickup.
+        Decisions POST to <code>state/{window.Persist?.project || "project"}/tokenizers.json#decisions</code>; follow-on agents read them on pickup.
       </p>
       {(decs || []).map(d => (
         <V6Decision key={d.key} d={d}
