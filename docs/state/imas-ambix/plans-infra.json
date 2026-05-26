@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-21T15:50:19",
+  "updated": "2026-05-26T13:34:15",
   "project": "imas-ambix",
   "doc": "plans-infra",
   "data": {
@@ -11,14 +11,11 @@
     "effort": "M",
     "tier": "opus",
     "impl": 0.95,
-    "last": "2026-05-21",
     "owner": "Simon McIntosh",
     "blockers": 0,
-    "dec_open": 3,
     "comments": 0,
     "sprint": "S3",
     "phase": "shipped \u2014 state.js POST + serve.py 412 + plan-style sync + plan-init landed; shared-css-delivery still open",
-    "created": "2026-05-21",
     "last_modified": "2026-05-21 15:55",
     "depends_on": [],
     "blocks": [
@@ -50,38 +47,6 @@
         "sec": "\u00a7 4",
         "h": "plan-init for new repos",
         "body": "New skill: scaffolds docs/, copies canonical CSS + system pages + ui.jsx + state.js, sets up docs/state/<project>/, symlinks ~/docs-server/state/<project> \u2192 repo dir, registers in mounts.json, drops .nojekyll. Repo-agnostic. Slash command /plan-init."
-      }
-    ],
-    "decisions_def": [
-      {
-        "key": "shared-css-delivery",
-        "title": "How do we serve the canonical CSS across local + Pages?",
-        "context": "Today each repo holds copies in docs/_shared/ (committed; Pages can serve). plan-style refresh resyncs from dotfiles canonical. Alternatives: (a) GitHub Actions workflow that auto-syncs on dotfiles push, (b) keep manual /plan-style refresh, (c) CDN-host the canonical and link to it from project pages (still needs Pages-safe URL).",
-        "choices": [
-          "Manual /plan-style refresh (today)",
-          "GitHub Actions auto-sync from dotfiles",
-          "CDN-host the canonical"
-        ]
-      },
-      {
-        "key": "rank-storage",
-        "title": "Where does per-plan rank live for the inventory ordering?",
-        "context": "Inventory shows plans grouped/sorted. Plans need an explicit rank for user-driven ordering beyond ROI/effort. Storage options: (a) plans[].rank inside index.json or mockdata.js, (b) a sibling rank.json indexed by slug, (c) implicit by array order in mockdata.js.",
-        "choices": [
-          "plans[].rank field",
-          "sibling rank.json",
-          "implicit by array order"
-        ]
-      },
-      {
-        "key": "conflict-detection",
-        "title": "How do we detect simultaneous writes to the same state JSON?",
-        "context": "Tight-loop POST replaces the document. Two browser tabs or an agent + a human could clobber each other. Mitigations: (a) add a `version` integer to state JSON; POST includes the expected version, server rejects if mismatched (412 Precondition Failed), (b) last-write-wins (current; simple but lossy), (c) JSON-patch operations instead of full replacement.",
-        "choices": [
-          "version field + 412 on mismatch",
-          "last-write-wins (today)",
-          "JSON-patch ops"
-        ]
       }
     ],
     "decisions": {
@@ -155,7 +120,6 @@
         "prompt": "Project: imas-ambix\nPlan:    plans-agile-sprints\nSection: \u00a71\u2013\u00a73\nTier:    opus (design) + sonnet (impl)\n\nContext\n  plans-infra shipped. Agile next per bootstrap-priority.\n\nState to read\n  docs/state/imas-ambix/plans-agile-sprints.json\n\nLocked decisions to honour\n  sprint-proposal-cadence \u2192 scheduled (weekly) via Claude API\n  proposal-acceptance-ux \u2192 Lock button on sprint.html\n  agent access \u2014 sprint switcher + canonical sprint data\n\nOpen decisions to surface\n  agent-rationale-location (recommendation: per-item, rename why_now \u2192 justification)\n\nDone-when\n  1. agent-rationale-location locked.\n  2. /plan-sprint propose <N> wired to call Claude API and write proposal.\n  3. sprint.html gains Lock button + sprint switcher.\n  4. plan-sprint SKILL.md documents new cadence + UX.\n  5. Followup written for plans-migration-ambix pilot."
       }
     ],
-    "followups_done": [],
     "_version": 8
   }
 }

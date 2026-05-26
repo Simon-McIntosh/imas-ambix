@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-status" content="active">
+<meta name="plan-roi" content="mid">
+<meta name="plan-effort" content="M">
+<title>plan-refactor-imas-ambix | Ambix Plans</title>
+<link rel="stylesheet" href="_shared/foundation.css">
+<link rel="stylesheet" href="_shared/dashboard.css">
+<script src="_shared/state.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="brand" href="index.html">
+    <span class="mark">A</span>
+    <span class="proj-name">imas-ambix</span>
+  </a>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="STRATEGY.html">Strategy</a>
+    <a href="v0-runway.html">v0 Runway</a>
+    <a href="compute.html">Compute</a>
+    <a href="data-acquisition.html">Data acq</a>
+    <a href="data-quality.html">Quality</a>
+    <a href="tokenizers.html">Tokenizers</a>
+    <a href="tokenizer-benchmarks.html">Benchmarks</a>
+    <a href="world-model-v0.html">World model</a>
+    <a href="demo.html">Demo</a>
+    <a href="decisions.html">Decisions</a>
+  </nav>
+  <div class="right"></div>
+</div>
+
+<main class="page">
+
+<div class="page-head">
+  <div class="title">
+    <h1>imas-ambix plan-refactor</h1>
+    <div class="subtitle">imas-ambix · Plan system ·
+      Updated <time id="updated">2026-05-26</time></div>
+  </div>
+</div>
+
+<div class="prose" style="max-width:none">
+
+<p><strong>Intent:</strong> Bring all imas-ambix per-plan JSON files into conformance with the
+reckon redesign schema, stripping legacy fields from pre-redesign tooling and
+adding minimal stubs where phase-record artifacts are missing required fields.</p>
+
+<hr>
+
+<h2 id="1-background">1. Background</h2>
+
+<p>The reckon redesign landed on 2026-05-26 across three repos (reckon, imas-ambix,
+imas-efit). The redesign defined a canonical per-plan JSON envelope and a
+bespoke dashboard format for the central <code>index.json</code>. Every per-plan file in
+<code>docs/state/imas-ambix/</code> was written before this schema was finalised and
+carries five legacy fields in <code>data{}</code> that are no longer part of the
+canonical schema and are not read by the reckon SPA:</p>
+
+<ul>
+<li><code>decisions_def</code> — old open-choices array, pre-dates the <code>decisions{}</code> map</li>
+<li><code>followups_done</code> — resolved followups stored in a separate array; schema uses in-place <code>resolved_at</code>/<code>resolved_by</code>/<code>outcome</code> on the main <code>followups[]</code></li>
+<li><code>dec_open</code> — counter field, now computed by the SPA from <code>decisions{}</code></li>
+<li><code>last</code> — duplicate of <code>last_modified</code>; the canonical field is <code>last_modified</code></li>
+<li><code>created</code> — creation timestamp not in the canonical schema</li>
+</ul>
+
+<p>Fields that look non-canonical but are intentionally kept because the reckon
+SPA or docs-server reads them: <code>slug</code>, <code>phase</code>, <code>owner</code>, <code>blockers</code>,
+<code>comments</code>, <code>last_modified</code>, <code>_version</code>, <code>isHeroPlan</code>.</p>
+
+<p>The <code>index.json</code> central file uses the bespoke imas-ambix dashboard format
+(<code>inventory[]</code>, <code>projects[]</code>, <code>timeline[]</code>) which the reckon SPA handles
+natively via <code>state-loader.js</code>. That format is intentionally retained.</p>
+
+<hr>
+
+<h2 id="2-scope">2. Scope — per-file audit</h2>
+
+<div class="table-scroll">
+<table class="t">
+<thead>
+<tr><th>File</th><th>Status</th><th>Legacy fields present</th><th>Special action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>STRATEGY.json</code></td><td>active</td><td>decisions_def, dec_open, last, created, last_modified</td><td>Strip only</td></tr>
+<tr><td><code>compute.json</code></td><td>blocked</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>data-acquisition.json</code></td><td>shipped</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>data-quality.json</code></td><td>active</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>demo.json</code></td><td>blocked</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>plans-agile-sprints.json</code></td><td>draft</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>plans-infra.json</code></td><td>shipped</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>plans-migration-ambix.json</code></td><td>active</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>plans-migration-efit.json</code></td><td>pending</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>plans-redesign-rollout.json</code></td><td>active</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>tokenizer-benchmarks.json</code></td><td>active</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>tokenizers.json</code></td><td>active</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only; <code>sections[]</code> empty by design (JSX takes over)</td></tr>
+<tr><td><code>v0-runway.json</code></td><td>active</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>world-model-v0.json</code></td><td>blocked</td><td>decisions_def, followups_done, dec_open, last, created</td><td>Strip only</td></tr>
+<tr><td><code>redesign-rollout.json</code></td><td>in-progress</td><td>—</td><td>Phase-record stub: add title, summary; set status to "shipped"</td></tr>
+<tr><td><code>tokenizers-12-landed.json</code></td><td>—</td><td>—</td><td>Phase-record stub: entire data{} is flat decision store; add envelope fields title, summary, status</td></tr>
+<tr><td><code>index.json</code></td><td>—</td><td>—</td><td>Not touched (dashboard format intentionally kept)</td></tr>
+</tbody>
+</table>
+</div>
+
+<hr>
+
+<h2 id="3-surgery">3. Surgery plan</h2>
+
+<p>A single Python script strips the five banned legacy fields from every
+per-plan JSON in one pass, skipping <code>index.json</code> and the newly-created
+<code>plan-refactor-imas-ambix.json</code>. The script also applies the stub fix-ups
+for the two phase-record artifacts.</p>
+
+<h3>Fields to strip (from <code>data{}</code>)</h3>
+<ul>
+<li><code>decisions_def</code></li>
+<li><code>followups_done</code></li>
+<li><code>dec_open</code></li>
+<li><code>last</code></li>
+<li><code>created</code></li>
+</ul>
+
+<h3>Fields to keep (referenced by SPA / docs-server)</h3>
+<ul>
+<li><code>slug</code> — used by the SPA plan-view routing</li>
+<li><code>phase</code> — plan lifecycle badge</li>
+<li><code>owner</code> — displayed in plan header</li>
+<li><code>blockers</code> — blocker count rendered by the cockpit</li>
+<li><code>comments</code> — comment count rendered by the cockpit</li>
+<li><code>last_modified</code> — recent-activity ledger</li>
+<li><code>_version</code> — docs-server version-write contract</li>
+<li><code>isHeroPlan</code> — flag used by the cockpit to pin the hero plan card</li>
+</ul>
+
+<h3>Stub fix-ups (option a — preserve in place, not archived)</h3>
+<p><code>redesign-rollout.json</code> and <code>tokenizers-12-landed.json</code> are phase-record
+artifacts: frozen records of decisions locked at a specific point in time.
+They are not active plans. Both receive minimal fields to prevent SPA parse
+errors, with <code>status: "shipped"</code> because the work they record has landed.</p>
+
+<hr>
+
+<h2 id="4-stubs">4. Status of stub / phase-record files</h2>
+
+<p><strong><code>redesign-rollout.json</code></strong> was created as a demo page for the plan-system
+redesign rollout on 2026-05-21. Its <code>data{}</code> carries decisions, questions,
+research items, notes, and one followup — all well-formed. The only gaps are
+missing <code>title</code>, <code>summary</code>, <code>depends_on</code>, <code>blocks</code>, and an invalid
+<code>status: "in-progress"</code> (schema allows <code>active</code> but not <code>in-progress</code> as
+a separate value). Fix: add title + summary; change status to <code>shipped</code>
+since the redesign rollout is complete.</p>
+
+<p><strong><code>tokenizers-12-landed.json</code></strong> is a flat decision store — the four locked
+decisions from tokenizers §12 captured at 2026-05-20 22:00. Its <code>data{}</code>
+is not a plan-shape at all. Fix: add <code>title</code>, <code>summary</code>, <code>status: "shipped"</code>
+at the top of <code>data{}</code> so the SPA can at minimum display the plan name and
+status without crashing. The four decision entries are preserved as-is
+(they are historically accurate and useful reference data).</p>
+
+<hr>
+
+<h2 id="5-done-when">5. Done-when</h2>
+
+<ul>
+<li>Every per-plan JSON in <code>docs/state/imas-ambix/</code> has no <code>decisions_def</code>,
+<code>followups_done</code>, <code>dec_open</code>, <code>last</code>, or <code>created</code> in its <code>data{}</code>.</li>
+<li><code>redesign-rollout.json</code> has <code>title</code>, <code>summary</code>, and <code>status: "shipped"</code>.</li>
+<li><code>tokenizers-12-landed.json</code> has <code>title</code>, <code>summary</code>, and <code>status: "shipped"</code>.</li>
+<li>The SPA renders all plans in the inventory without a JSON parse error.</li>
+<li>The temporary audit markdown at <code>/tmp/reckon-plan-audit.md</code> is deleted.</li>
+<li>This plan page and its state JSON are committed and the inventory entry
+in <code>index.json</code> is present.</li>
+</ul>
+
+<nav class="plan-nav"><a href="index.html" class="nav-next"><span class="nav-label">← Back</span><span class="nav-title">Plan Index</span></a></nav>
+
+</div>
+
+</main>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

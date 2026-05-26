@@ -1,9 +1,9 @@
 {
-  "updated": "2026-05-21T12:50:00",
+  "updated": "2026-05-26T13:34:15",
   "project": "imas-ambix",
   "doc": "redesign-rollout",
   "data": {
-    "status": "in-progress",
+    "status": "shipped",
     "tier": "sonnet",
     "decisions": {
       "ship-via-pages": {
@@ -33,7 +33,7 @@
       {
         "id": "r-prototype-zip",
         "type": "spec",
-        "title": "Plan-system redesign prototype (implementation.html §01–§14)",
+        "title": "Plan-system redesign prototype (implementation.html \u00a701\u2013\u00a714)",
         "source": "user",
         "added_by": "opus-coordinator",
         "when": "2026-05-21 11:52",
@@ -42,7 +42,7 @@
       {
         "id": "r-blog-html-first",
         "type": "external",
-        "title": "Anthropic — The unreasonable effectiveness of HTML",
+        "title": "Anthropic \u2014 The unreasonable effectiveness of HTML",
         "source": "claude.com",
         "added_by": "opus-coordinator",
         "when": "2026-05-21 12:00",
@@ -64,13 +64,21 @@
         "written_by": "opus-coordinator",
         "written_at": "2026-05-21 12:48",
         "title": "Confirm imas-efit pages render via local docs-server (no Pages site)",
-        "body": "imas-efit Pages is disabled — verify rendering only on localhost:8765/imas-efit/. Spot-check top-level (index.html, inventory.html) and one curated/ (build-system-restructure.html), confirming the new _shared/ CSS resolves and the plan-test hook attributes appear in the rendered #plan-meta div.",
+        "body": "imas-efit Pages is disabled \u2014 verify rendering only on localhost:8765/imas-efit/. Spot-check top-level (index.html, inventory.html) and one curated/ (build-system-restructure.html), confirming the new _shared/ CSS resolves and the plan-test hook attributes appear in the rendered #plan-meta div.",
         "recommends_skill": "/plan-status",
-        "touches": ["docs/index.html", "docs/inventory.html", "docs/curated/build-system-restructure.html"],
+        "touches": [
+          "docs/index.html",
+          "docs/inventory.html",
+          "docs/curated/build-system-restructure.html"
+        ],
         "tier": "haiku",
         "est_turn": "~10m",
-        "prompt": "Project: imas-efit\nPlan:    redesign-rollout (https://simon-mcintosh.github.io/imas-ambix/redesign-rollout.html — note: this followup lives in the ambix repo because efit has no public Pages)\nSection: 13 — imas-efit migration\nTier:    haiku\n\nContext\n  The plan-system redesign rolled out across 3 repos on 2026-05-21. imas-efit's\n  CSS migration landed at 59d124f8 (develop). imas-efit has no GitHub Pages site\n  (private repo). Need to spot-check that the docs-server renders top-level\n  and curated/ pages correctly with the new _shared/ CSS, AND that the\n  plan-test hook attributes on build-system-restructure.html appear in the\n  DOM (they don't run anything; just need to be present for /plan-test to read).\n\nState to read\n  docs/state/imas-ambix/redesign-rollout.json   (this followup)\n  No imas-efit state file required.\n\nLocked decisions to honour\n  ship-via-pages → github-pages (ambix only; efit stays internal)\n  shared-css-relative-href → href=\"_shared/foundation.css\" (no leading slash)\n\nOpen decisions to surface (do not resolve)\n  shared-css-delivery, rank-storage, conflict-detection (from prototype §05)\n  project-accent (whether imas-ambix uses a warm-orange project.css)\n\nConstraints\n  - Run-only: no edits. If a render is broken, file a separate followup\n    rather than fixing inline.\n  - Use curl from localhost — do NOT try to access the imas-efit URL\n    over the internet (no Pages).\n\nDone-when\n  1. curl /imas-efit/index.html and /imas-efit/curated/build-system-restructure.html\n     return 200 with the new _shared/ asset paths resolving.\n  2. grep finds data-test-source/data-test-parse attributes in the served\n     HTML of build-system-restructure.html.\n  3. This followup is marked resolved with outcome 'verified renders OK'\n     (or detailing what failed).\n  4. If verified OK, the next followup in this state file is \"done — no\n     followup\" (close the chain)."
+        "prompt": "Project: imas-efit\nPlan:    redesign-rollout (https://simon-mcintosh.github.io/imas-ambix/redesign-rollout.html \u2014 note: this followup lives in the ambix repo because efit has no public Pages)\nSection: 13 \u2014 imas-efit migration\nTier:    haiku\n\nContext\n  The plan-system redesign rolled out across 3 repos on 2026-05-21. imas-efit's\n  CSS migration landed at 59d124f8 (develop). imas-efit has no GitHub Pages site\n  (private repo). Need to spot-check that the docs-server renders top-level\n  and curated/ pages correctly with the new _shared/ CSS, AND that the\n  plan-test hook attributes on build-system-restructure.html appear in the\n  DOM (they don't run anything; just need to be present for /plan-test to read).\n\nState to read\n  docs/state/imas-ambix/redesign-rollout.json   (this followup)\n  No imas-efit state file required.\n\nLocked decisions to honour\n  ship-via-pages \u2192 github-pages (ambix only; efit stays internal)\n  shared-css-relative-href \u2192 href=\"_shared/foundation.css\" (no leading slash)\n\nOpen decisions to surface (do not resolve)\n  shared-css-delivery, rank-storage, conflict-detection (from prototype \u00a705)\n  project-accent (whether imas-ambix uses a warm-orange project.css)\n\nConstraints\n  - Run-only: no edits. If a render is broken, file a separate followup\n    rather than fixing inline.\n  - Use curl from localhost \u2014 do NOT try to access the imas-efit URL\n    over the internet (no Pages).\n\nDone-when\n  1. curl /imas-efit/index.html and /imas-efit/curated/build-system-restructure.html\n     return 200 with the new _shared/ asset paths resolving.\n  2. grep finds data-test-source/data-test-parse attributes in the served\n     HTML of build-system-restructure.html.\n  3. This followup is marked resolved with outcome 'verified renders OK'\n     (or detailing what failed).\n  4. If verified OK, the next followup in this state file is \"done \u2014 no\n     followup\" (close the chain)."
       }
-    ]
+    ],
+    "title": "redesign rollout (phase record)",
+    "summary": "Frozen record of the plan-system redesign rollout phases. Read-only audit trail.",
+    "depends_on": [],
+    "blocks": []
   }
 }

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-21T14:30:00",
+  "updated": "2026-05-26T13:34:15",
   "project": "imas-ambix",
   "doc": "data-acquisition",
   "data": {
@@ -10,35 +10,46 @@
     "roi": "high",
     "effort": "L",
     "tier": "sonnet",
-    "impl": 1.00,
-    "last": "2026-05-19",
+    "impl": 1.0,
     "owner": "Simon McIntosh",
     "blockers": 0,
-    "dec_open": 0,
     "comments": 0,
     "sprint": "S1",
     "phase": "shipped",
-    "created": "2026-05-06",
     "last_modified": "2026-05-19 10:30",
     "depends_on": [],
-    "blocks": ["tokenizers"],
+    "blocks": [
+      "tokenizers"
+    ],
     "summary": "FAIR-MAST endpoint inventory, sizing-probe protocol, bulk-download SLURM spec.",
     "sections": [
-      { "id": "s1", "sec": "§ 1", "h": "FAIR-MAST endpoint inventory", "body": "Eight L2 endpoints across magnetics, cameras, equilibrium, summary, pulse_schedule, gas_injection, thomson_scattering, and pf_active. Each has a published IMAS mapping; bulk download via s5cmd cp." },
-      { "id": "s10", "sec": "§ 10", "h": "Mirror status — complete 2026-05-19", "body": "Final mirror: 11,573 shots, 4.5 TB landed at /work/projects/imas_gpu/mast/. L1 camera mirror at 11,029 shot dirs / 2.7 TB. L1 all-sources mirror at 83% as of 2026-05-20 (background completion)." }
+      {
+        "id": "s1",
+        "sec": "\u00a7 1",
+        "h": "FAIR-MAST endpoint inventory",
+        "body": "Eight L2 endpoints across magnetics, cameras, equilibrium, summary, pulse_schedule, gas_injection, thomson_scattering, and pf_active. Each has a published IMAS mapping; bulk download via s5cmd cp."
+      },
+      {
+        "id": "s10",
+        "sec": "\u00a7 10",
+        "h": "Mirror status \u2014 complete 2026-05-19",
+        "body": "Final mirror: 11,573 shots, 4.5 TB landed at /work/projects/imas_gpu/mast/. L1 camera mirror at 11,029 shot dirs / 2.7 TB. L1 all-sources mirror at 83% as of 2026-05-20 (background completion)."
+      }
     ],
-    "decisions_def": [],
     "decisions": {},
     "notes": [],
     "research": [
-      { "id": "r1", "type": "doc", "title": "FAIR-MAST API v3.2", "source": "fair-mast.org", "added_by": "Simon McIntosh", "when": "2026-05-06", "url": "#" }
+      {
+        "id": "r1",
+        "type": "doc",
+        "title": "FAIR-MAST API v3.2",
+        "source": "fair-mast.org",
+        "added_by": "Simon McIntosh",
+        "when": "2026-05-06",
+        "url": "#"
+      }
     ],
     "questions": [],
-    "followups": [],
-    "followups_done": [
-      { "id": "f-da-shipped", "written_by": "agent/sonnet", "written_at": "2026-05-19 10:30", "resolved_at": "2026-05-19 10:30", "resolved_by": "agent/sonnet",
-        "title": "Final L2 mirror sync + checksum verification",
-        "outcome": "11,573/11,573 shots present; all SHA-256 checksums match published manifest. Plan moved to shipped." }
-    ]
+    "followups": []
   }
 }
