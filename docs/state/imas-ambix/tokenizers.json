@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-26T16:29:13",
+  "updated": "2026-05-26T16:38:09",
   "project": "imas-ambix",
   "doc": "tokenizers",
   "data": {
@@ -15,8 +15,8 @@
     "blockers": 0,
     "comments": 6,
     "sprint": "S2",
-    "phase": "landed \u00a71\u2013\u00a713 \u00b7 \u00a712.5 bulk-encode launching 2026-05-26",
-    "last_modified": "2026-05-26 14:30",
+    "phase": "\u00a712.5 bulk-encode running \u00b7 SLURM 1207499 (frames/rbb) + 1207500 (signals/magnetics)",
+    "last_modified": "2026-05-26",
     "depends_on": [
       "data-acquisition",
       "compute"
@@ -65,6 +65,13 @@
         "bot": true,
         "when": "2026-05-26T14:14:11+00:00",
         "body": "q1 (\u00a712.4 alignment metric) resolved 2026-05-26: per-modality InfoNCE chosen over cosine on shared embeddings. Decision alignment-12-4 locked. \u00a713.1 scaffold dependency question (q2) remains open \u2014 see tokenizers.json#questions[q2]."
+      },
+      {
+        "id": "n5",
+        "who": "agent/sonnet",
+        "bot": true,
+        "when": "2026-05-26T16:45:00+00:00",
+        "body": "\u00a712.5 bulk-encode submitted 2026-05-26. Frames job 1207499 (rbb, --from-bucket-all, open-magvit2, 4 workers, cuda) RUNNING on 98dci4-gpu-0003. Signals job 1207500 (magnetics, --from-bucket-all, chronos, 4 workers) PENDING resources (queued behind frames \u2014 sequential on 4-GPU reservation). Fallback reason: Agent B sbatch used --from-quality-index which resolves to 0 shots (no local mirror); inline /tmp/ sbatch with --from-bucket-all submitted instead. 17111 level1 shots, 11573 level2 shots in S3."
       }
     ],
     "research": [
@@ -225,6 +232,6 @@
         "prompt": "Project: imas-ambix\nPlan: tokenizers (\u00a712.5 bulk-encode)\nTier: opus\n\nContext\n  Open-MAGVIT2 frame tokenizer and Chronos/PatchTST signal tokenizers are all wired. CLI: `ambix data bulk-encode-frames` and `ambix data bulk-encode-signals` already exist. Compute is now exclusive on gpu_0003_grpA (Simon authorized 2026-05-26). Time to run them on the real corpus.\n\nState to read\n  docs/state/imas-ambix/tokenizers.json\n  docs/state/imas-ambix/data-quality.json   (use training-grade-shots.json if Agent A has landed it; otherwise fall back to a 500-shot bucket sample)\n  AGENTS.md \u00a71-3                            (SLURM reservation flags)\n\nLocked decisions to honour\n  primary-approach     \u2192 A (Open-MAGVIT2 visible codebook)\n  vocab-cap            \u2192 32k\n  alignment-12-4       \u2192 per-modality InfoNCE\n  drop-charge-exchange \u2192 yes (filter applied via training-grade manifest)\n\nOpen decisions to surface (do not resolve)\n  plasma-decoder-finetune, ir-camera-codebook (\u00a713.1 \u2014 gates on rFID bench)\n\nConstraints\n  - sbatch flags: --partition=betelgeuse --reservation=gpu_0003_grpA --account=grpa --gres=gpu:4 --cpus-per-task=30 --mem=640G\n  - DO NOT pass --qos (auto-applied; explicit qos errors)\n  - export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p \"$TMPDIR\"\n  - Output dir: /work/projects/imas_gpu/mast/tokens/ (rbb, ir, magnetics subdirs)\n  - Stream stdout to /tmp/tok_${SLURM_JOB_ID}.log; poll with tail.\n  - Run rbb (visible) + magnetics IN PARALLEL across the 4 GPUs (4 workers, 1 GPU each) via the bulk-encode-frames `--workers 4` knob and a separate bulk-encode-signals job\n\nDone-when\n  1. SLURM job submitted; job-id captured\n  2. Tokens land at /work/projects/imas_gpu/mast/tokens/rbb/* and .../magnetics/*\n  3. `ambix data tokens-status` reports \u2265 80% coverage on training-grade shotlist (or \u2265 500 shots if running a sample)\n  4. Plan state updated: data.impl \u2192 0.92, \u00a712.5 marked landed\n  5. This followup resolved with shot count + GPU-hours; new followup for \u00a713.1 plasma-decoder fine-tune gate (gated on bench rFID)\n"
       }
     ],
-    "_version": 3
+    "_version": 4
   }
 }
