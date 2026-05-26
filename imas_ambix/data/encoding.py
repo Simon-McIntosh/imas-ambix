@@ -310,11 +310,21 @@ def bulk_encode_frames(
         One report per shot ID, in input order.
     """
 
+    # Build the tokenizer ONCE and share across shots. For tokenizers backed
+    # by a persistent subprocess (Open-MAGVIT2 daemon mode), this is the
+    # difference between loading the 250MB checkpoint once vs N_shots times.
+    # Thread-safety: the persistent daemon serialises stdin writes via an
+    # internal lock; placeholder tokenizers are stateless. Workers > 1 will
+    # bottleneck on the lock — for true multi-GPU parallelism, run one driver
+    # per GPU (e.g. sbatch --array).
+    _shared_tok = tokenizer_factory()
+    _shared_factory: Callable[[], FrameTokenizer] = lambda: _shared_tok
+
     def _encode(sid: int) -> EncodeReport:
         return encode_one_shot_frames(
             sid,
             camera,
-            tokenizer_factory,
+            _shared_factory,
             vocab_version=vocab_version,
             max_frames=max_frames_per_shot,
             overwrite=not skip_existing,
