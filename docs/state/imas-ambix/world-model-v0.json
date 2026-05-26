@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-26T13:34:15",
+  "updated": "2026-05-26T16:14:08",
   "project": "imas-ambix",
   "doc": "world-model-v0",
   "data": {
@@ -52,7 +52,14 @@
         "body": "Headline demo per demo.html. Training-time hooks: token perplexity per block, magnetics Pearson r on next-step prediction, visible frame rFID on next-frame prediction. All three must be improving by step 10k to continue."
       }
     ],
-    "decisions": {},
+    "decisions": {
+      "model-size-curriculum": {
+        "choice": "125M smoke-first",
+        "rationale": "Validate full pipeline (tokenizer \u2192 loader \u2192 FSDP training loop) cheaply before committing the full 500M GPU-budget. De-risks FSDP wiring and token-stream bugs; any training-loop issue discovered at 125M costs ~4h exclusive window vs a full 500M run.",
+        "when": "2026-05-26T14:13:22+00:00",
+        "by": "Simon McIntosh"
+      }
+    },
     "notes": [
       {
         "id": "n1",
@@ -107,8 +114,31 @@
           "reason": "\u00a712 expansion still landing"
         },
         "est_turn": "smc desk-decision \u00b7 15min",
-        "prompt": "Lock decision model-size-curriculum on plan world-model-v0. Read \u00a71, \u00a74, and compute reservation status; choose curriculum vs direct."
+        "prompt": "Lock decision model-size-curriculum on plan world-model-v0. Read \u00a71, \u00a74, and compute reservation status; choose curriculum vs direct.",
+        "resolved_at": "2026-05-26T14:13:42+00:00",
+        "resolved_by": "Simon McIntosh",
+        "outcome": "model-size-curriculum locked \u2192 125M smoke-first. Decision captured 2026-05-26 by Simon McIntosh. Smoke run queued once compute reservation clears (SDCC ticket #4421)."
+      },
+      {
+        "id": "f-wm-smoke-run",
+        "written_by": "claude-sonnet-4-6",
+        "written_at": "2026-05-26 00:00",
+        "title": "Kick off 125M smoke training run once compute clears",
+        "body": "model-size-curriculum is locked \u2192 125M smoke-first (2026-05-26). Once SDCC ticket #4421 clears and the exclusive-pause SLURM wrapper lands on the compute plan, queue the 125M smoke run using the \u00a74 training recipe. Eval hooks (token perplexity, magnetics Pearson r, visible rFID) must all improve by step 10k \u2014 if not, stop and investigate before spending the full budget.",
+        "recommends_skill": "/reckon-ship world-model-v0 --section 4",
+        "touches": [
+          "scripts/slurm/train_exclusive.sbatch",
+          "imas_ambix/training/smoke_run.py"
+        ],
+        "blocked_by": {
+          "slug": "compute",
+          "reason": "exclusive-pause wrapper + SDCC #4421 must clear first"
+        },
+        "tier": "opus",
+        "est_turn": "single Opus turn \u00b7 ~4h SLURM once compute clears",
+        "prompt": "Project: imas-ambix\nPlan:    world-model-v0\nSection: \u00a74 training recipe\nTier:    opus\n\nContext\n  model-size-curriculum is locked \u2192 125M smoke-first (2026-05-26). The tokenizer\n  bulk-encode pass (\u00a712.5) is landing this week. Once compute clears (SDCC ticket\n  #4421 + exclusive-pause wrapper), the 125M smoke run is the highest-ROI next step.\n\nState to read\n  docs/state/imas-ambix/world-model-v0.json\n  docs/state/imas-ambix/compute.json     (confirm reservation cleared + wrapper landed)\n  docs/state/imas-ambix/tokenizers.json  (confirm \u00a712.5 bulk-encode done)\n\nLocked decisions to honour\n  model-size-curriculum \u2192 125M smoke-first\n  alignment-12-4        \u2192 per-modality InfoNCE\n\nOpen decisions to surface (do not resolve)\n  fsdp-wrapper (\u00a74 q1): HF accelerate FSDP wrapper vs torch.distributed.fsdp\n\nConstraints\n  - Training runs via exclusive-pause SLURM wrapper (scripts/slurm/train_exclusive.sbatch)\n  - Stop at step 10k if all 3 eval hooks are not improving\n  - Apache-2.0 components only\n\nDone-when\n  1. 125M smoke run reaches step 10k with improving eval hooks\n  2. Bench numbers (perplexity, Pearson r, rFID) written into \u00a75 of world-model-v0.html\n  3. This followup resolved with outcome + a new followup for either 500M curriculum (if smoke passes) or investigation (if hooks plateau)\n  4. data.impl updated to reflect smoke run landing"
       }
-    ]
+    ],
+    "_version": 3
   }
 }

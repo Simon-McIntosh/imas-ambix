@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-26T13:34:15",
+  "updated": "2026-05-26T16:14:11",
   "project": "imas-ambix",
   "doc": "tokenizers",
   "data": {
@@ -27,7 +27,14 @@
     "summary": "Per-modality tokenizer choice, codebook layout, token-id namespacing, persistence format \u2014 the interface world-model-v0 consumes.",
     "isHeroPlan": true,
     "sections": [],
-    "decisions": {},
+    "decisions": {
+      "alignment-12-4": {
+        "choice": "Per-modality InfoNCE",
+        "rationale": "Separate encoders + contrastive NT-Xent / InfoNCE for \u00a712.4 multi-modal alignment. More expressive cross-modal structure than cosine on a shared projection; proven in CLIP/ALIGN. Accepted ~10\u201315% parameter overhead and the second training stage as the right trade-off for plasma + camera + magnetics alignment quality.",
+        "when": "2026-05-26T14:13:25+00:00",
+        "by": "Simon McIntosh"
+      }
+    },
     "notes": [
       {
         "id": "n1",
@@ -50,6 +57,14 @@
         "bot": false,
         "when": "2026-05-19 09:10",
         "body": "The Apache-2.0 constraint is non-negotiable. If Cosmos-Tokenizer-DV needs an NVIDIA OML license check, we're out \u2014 Option B becomes dead even if cheaper to ship."
+      },
+      {
+        "id": "n4",
+        "section_id": "s1",
+        "who": "Simon McIntosh",
+        "bot": true,
+        "when": "2026-05-26T14:14:11+00:00",
+        "body": "q1 (\u00a712.4 alignment metric) resolved 2026-05-26: per-modality InfoNCE chosen over cosine on shared embeddings. Decision alignment-12-4 locked. \u00a713.1 scaffold dependency question (q2) remains open \u2014 see tokenizers.json#questions[q2]."
       }
     ],
     "research": [
@@ -209,6 +224,7 @@
         "est_turn": "single Opus turn once compute clears \u00b7 ~4h SLURM",
         "prompt": "Project: imas-ambix\nPlan: tokenizers (https://simon-mcintosh.github.io/imas-ambix/tokenizers.html)\n\nRun the bulk-encode pass that closes \u00a712.5 (IR camera codebook decision).\n\nState to read:\n  docs/state/imas-ambix/tokenizers.json\n  docs/state/imas-ambix/compute.json   (confirm reservation cleared)\n\nLocked decisions to honour:\n  primary-approach     \u2192 A (Open-MAGVIT2 visible codebook)\n  vocab-cap            \u2192 32k\n\nOpen decisions to surface, not resolve:\n  plasma-decoder-finetune, ir-camera-codebook\n\nWhen done:\n  1. Write the bench numbers into tokenizers.html \u00a712.5\n  2. POST a new followup to tokenizers.json#followups\n  3. Mark this followup resolved"
       }
-    ]
+    ],
+    "_version": 2
   }
 }

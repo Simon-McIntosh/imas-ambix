@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-26T13:34:15",
+  "updated": "2026-05-26T16:13:40",
   "project": "imas-ambix",
   "doc": "STRATEGY",
   "data": {
@@ -48,7 +48,20 @@
         "body": "Top three risks: (1) tokenizer compression collapses high-frequency physics into a single token, (2) compute reservation slips past the M1 close window, (3) world-model overfits the small MAST corpus before partner-facility data lands. Mitigations tracked on the owning plans."
       }
     ],
-    "decisions": {},
+    "decisions": {
+      "shared-css-delivery": {
+        "choice": "Per-repo copies + /reckon-sync",
+        "rationale": "Works offline, no CI dependency, no PAT/secret management. Manual sync cost is negligible \u2014 only run when reckon's CSS changes. GitHub Action auto-sync adds complexity and a production CI dependency for a cosmetic concern.",
+        "when": "2026-05-26T14:13:27+00:00",
+        "by": "Simon McIntosh"
+      },
+      "project-accent": {
+        "choice": "reckon defaults via /reckon-sync; no per-project CSS",
+        "rationale": "Project accent is not an imas-ambix concern. The reckon canonical CSS (foundation + dashboard) provides the default palette. Keep docs/_shared/ in sync with reckon via /reckon-sync on each reckon update. No project.css override.",
+        "when": "2026-05-26T14:13:40+00:00",
+        "by": "Simon McIntosh"
+      }
+    },
     "notes": [
       {
         "id": "n-redesign-landed",
@@ -78,6 +91,7 @@
         "est_turn": "~30m to verify, ~2h to resolve any one open decision",
         "prompt": "Project: imas-ambix + imas-efit + dotfiles (cross-repo)\nPlan:    plan-system-redesign rollout aftermath\nSection: \u2014\nTier:    opus (cross-cutting; one of haiku for verify-only)\n\nContext\n  The plan-system redesign landed on 2026-05-21 end-to-end. This\n  followup is the handoff: read it to see what landed where, what's\n  still unresolved, and what's blocking. Three coordinated commit\n  chains and three GitHub repo renames are described in the body.\n\nState to read\n  docs/state/imas-ambix/STRATEGY.json          (this file)\n  docs/state/imas-ambix/redesign-rollout.json  (the demo plan with the\n                                                full UX flow exercised)\n  ~/Code/imas-efit/docs/state/imas-efit/index.json\n                                               (existing inventory;\n                                                shows up in the cross-\n                                                project rollup at\n                                                localhost:8765/)\n\nLocked decisions to honour\n  layered-css           \u2192 foundation + dashboard + project (3 files, cascade)\n  state-promotion       \u2192 repo-tracked JSON; localStorage on localhost only\n  prompt-template       \u2192 \u00a705 of dotfiles/agents/AGENTS.md \"HTML-first plans\";\n                          mandatory on every followup\n  model-tier-naming     \u2192 haiku|sonnet|opus only; never version-pin\n  archived-markdown     \u2192 docs/archive/ with ARCHIVE_NOTE.md; do not delete\n  per-stage-history     \u2192 <slug>-<n>-landed.html per the html-docs skill\n  decisions-aggregator  \u2192 actionable rows (lock inline, not jump-and-back)\n  shared-css-relative-href \u2192 href=\"_shared/foundation.css\" works on docs-server\n                          AND GitHub Pages because each repo keeps a copy in\n                          docs/_shared/\n  ship-via-pages        \u2192 imas-ambix is publicly Pages-deployed at\n                          simon-mcintosh.github.io/imas-ambix/; imas-efit\n                          stays private (no Pages)\n\nOpen decisions to surface (do not resolve unilaterally)\n  shared-css-delivery, rank-storage, conflict-detection, project-accent,\n  react-templates-usage  (see this followup's body for each)\n\nConstraints\n  - Apache-2.0 / open-licence components only for imas-ambix and imas-efit.\n  - Don't commit to the iterorganization/imas-efit upstream main without\n    user approval \u2014 commits land on Simon-McIntosh forks first.\n  - imas-efit primary branch is `develop` (Gitflow). imas-ambix and\n    dotfiles use `main` (trunk-based).\n  - Heavy ctest suites run on SLURM, never login nodes.\n\nDone-when (for the next agent)\n  1. Either: pick one of the open decisions and propose a resolution\n     (write a new followup to the redesign-rollout plan with\n     recommends_skill: /plan-edit redesign-rollout).\n  2. Or: spot-check one of the unfinished items (e.g. run\n     /plan-test build-system-restructure on a SLURM compute node,\n     or add an initial state/imas-ambix/index.json so the cross-\n     project rollup populates).\n  3. Resolve THIS followup with outcome = what was done + a fresh\n     followup carrying the next step (or 'done \u2014 no followup' if the\n     redesign rollout is fully closed).\n  4. Whatever the work, ensure the state JSON has the result before\n     declaring done. Decisions, notes, research, questions, followups \u2014\n     all interactions must reach docs/state/imas-ambix/*.json."
       }
-    ]
+    ],
+    "_version": 2
   }
 }
