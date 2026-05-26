@@ -1083,6 +1083,102 @@ def audit_cmd(
         console.print(f"[green]audit report written:[/green] {output}")
 
 
+# --- training-grade ---------------------------------------------------
+
+
+@data.command(name="training-grade")
+@click.option(
+    "--audit-path",
+    required=True,
+    type=click.Path(exists=True),
+    help=(
+        "Path to a JSON file produced by `ambix data audit --output`. "
+        "Must contain a top-level `per_shot` list."
+    ),
+)
+@click.option(
+    "--output",
+    default="training-grade-shots.json",
+    show_default=True,
+    type=click.Path(),
+    help="Destination path for the training-grade manifest JSON.",
+)
+@click.option(
+    "--drop-categories",
+    default="charge_exchange",
+    show_default=True,
+    help=(
+        "Comma-separated group names to exclude regardless of other gates. "
+        "Default: charge_exchange (locked decision 2026-05-20)."
+    ),
+)
+def training_grade_cmd(
+    audit_path: str,
+    output: str,
+    drop_categories: str,
+) -> None:
+    """Derive the training-grade shot manifest from a corpus audit.
+
+    Applies the §4 gates (data-quality plan, updated 2026-05-20) to every
+    shot in the audit JSON and writes a filtered manifest to --output:
+
+    \\b
+    (a) magnetics complete       — quality_flags.has_magnetics
+    (b) equilibrium present      — quality_flags.has_equilibrium
+    (c) all groups open          — quality_flags.all_groups_open
+    (d) no NaN / corrupt values  — quality_flags.no_corrupt_nans
+    (e) not a dropped category   — default: charge_exchange
+
+    Camera groups (rba/rbb/rir) live in the level-1 store and are NOT a
+    level-2 acceptance gate (dropped in §10 of the plan).
+
+    Locked decision: drop-charge-exchange → yes (data-quality 2026-05-20).
+    Open question (data-quality q1): re-include CX in v1 once FAIR-MAST
+    fixes the encoding? Not resolved here.
+
+    Examples
+    --------
+    Derive from a full audit::
+
+        ambix data training-grade \\
+            --audit-path /tmp/audit-full.json \\
+            --output training-grade-shots.json
+    """
+    from imas_ambix.data.training_grade import TrainingGradeFilter
+
+    drop_tuple = tuple(g.strip() for g in drop_categories.split(",") if g.strip())
+    filt = TrainingGradeFilter(
+        audit_path=Path(audit_path),
+        drop_categories=drop_tuple,
+    )
+    out_path = Path(output)
+    console.print(
+        f"Applying §4 training-grade gates to [bold]{audit_path}[/bold] …"
+    )
+    counts = filt.write_manifest(out_path)
+
+    summary = Table(title="Training-grade filter (§4)")
+    summary.add_column("metric")
+    summary.add_column("value", justify="right")
+    summary.add_row("shots in audit", str(counts["n_total"]))
+    summary.add_row("training-grade (passed)", str(counts["n_passed"]))
+    summary.add_row("excluded", str(counts["n_excluded"]))
+    if counts["n_total"]:
+        rate = counts["n_passed"] / counts["n_total"] * 100
+        summary.add_row("pass rate", f"{rate:.1f}%")
+    console.print(summary)
+
+    if counts["by_reason"]:
+        reason_table = Table(title="Exclusions by reason")
+        reason_table.add_column("reason")
+        reason_table.add_column("shots", justify="right")
+        for reason, n in counts["by_reason"].items():
+            reason_table.add_row(reason, str(n))
+        console.print(reason_table)
+
+    console.print(f"[green]manifest written:[/green] {out_path}")
+
+
 # --- bulk-encode-frames -----------------------------------------------
 
 
