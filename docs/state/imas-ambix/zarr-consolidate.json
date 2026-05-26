@@ -1,11 +1,11 @@
 {
-  "updated": "2026-05-26T18:30:00Z",
+  "updated": "2026-05-26T19:50:46",
   "project": "imas-ambix",
   "doc": "zarr-consolidate",
   "data": {
     "slug": "zarr-consolidate",
     "title": "Consolidated Zarr metadata across L1+L2 corpus",
-    "status": "pending",
+    "status": "active",
     "ms": "M1",
     "roi": "high",
     "effort": "S",
@@ -17,34 +17,39 @@
     "sprint": "S4",
     "phase": "spec drafted 2026-05-26",
     "last_modified": "2026-05-26 18:30",
-    "depends_on": ["data-acquisition"],
-    "blocks": ["tokenizers", "world-model-v0"],
-    "summary": "Run zarr.consolidate_metadata() once across the L1 and L2 corpora so every xarray.open_zarr() lands fast (~10ms) instead of falling back to a non-consolidated listing (10-100×slower). Eliminates the RuntimeWarning spam and removes a 0.5-2 s per-shot Zarr-open tax we saw on the failed signals job.",
+    "depends_on": [
+      "data-acquisition"
+    ],
+    "blocks": [
+      "tokenizers",
+      "world-model-v0"
+    ],
+    "summary": "Run zarr.consolidate_metadata() once across the L1 and L2 corpora so every xarray.open_zarr() lands fast (~10ms) instead of falling back to a non-consolidated listing (10-100\u00d7slower). Eliminates the RuntimeWarning spam and removes a 0.5-2 s per-shot Zarr-open tax we saw on the failed signals job.",
     "isHeroPlan": false,
     "sections": [
       {
         "id": "s1",
-        "sec": "§ 1",
+        "sec": "\u00a7 1",
         "h": "Problem statement",
         "body": "Every ambix data audit / bulk-encode worker prints `RuntimeWarning: Failed to open Zarr store with consolidated metadata, but successfully read with non-consolidated metadata. This is typically much slower for opening a dataset.` On the 9,527-shot rbb corpus we already observed Zarr open dominating the per-shot wall time for the failed signals job (0% GPU util while CPU read the .zmetadata-less store). With 4 GPUs each fetching shots concurrently this becomes a real I/O bottleneck."
       },
       {
         "id": "s2",
-        "sec": "§ 2",
-        "h": "Fix — zarr.consolidate_metadata()",
+        "sec": "\u00a7 2",
+        "h": "Fix \u2014 zarr.consolidate_metadata()",
         "body": "Run once across both corpora:\n\n```python\nimport zarr\nfor shot_zarr in Path('/work/projects/imas_gpu/mast/level2/shots').glob('*.zarr'):\n    zarr.consolidate_metadata(str(shot_zarr))\nfor shot_zarr in Path('/work/projects/imas_gpu/mast/level1/shots').glob('*.zarr'):\n    zarr.consolidate_metadata(str(shot_zarr))\n```\n\nWrites a `.zmetadata` file at each shot root. Subsequent `open_zarr(..., consolidated=True)` reads it in one HTTP/GPFS roundtrip instead of recursively listing groups."
       },
       {
         "id": "s3",
-        "sec": "§ 3",
+        "sec": "\u00a7 3",
         "h": "Validation",
-        "body": "Measure `time xr.open_zarr(shot/rbb)` on three representative shots before/after:\n  - shot 15085 (rbb era)\n  - shot 28000 (mid corpus)\n  - shot 30470 (most recent)\nTarget: ≥10× speed-up on open(). Confirm no RuntimeWarnings in the bulk-encode driver after."
+        "body": "Measure `time xr.open_zarr(shot/rbb)` on three representative shots before/after:\n  - shot 15085 (rbb era)\n  - shot 28000 (mid corpus)\n  - shot 30470 (most recent)\nTarget: \u226510\u00d7 speed-up on open(). Confirm no RuntimeWarnings in the bulk-encode driver after."
       },
       {
         "id": "s4",
-        "sec": "§ 4",
+        "sec": "\u00a7 4",
         "h": "Cost & timing",
-        "body": "Single-pass over the 11,573 L2 + ~17,111 L1 shots takes ~15 min on the login node (CPU only — pure metadata work, no array reads). Idempotent — safe to re-run when new shots arrive."
+        "body": "Single-pass over the 11,573 L2 + ~17,111 L1 shots takes ~15 min on the login node (CPU only \u2014 pure metadata work, no array reads). Idempotent \u2014 safe to re-run when new shots arrive."
       }
     ],
     "decisions": {},
@@ -66,10 +71,10 @@
           "/work/projects/imas_gpu/mast/level2/shots/*.zarr/.zmetadata"
         ],
         "tier": "sonnet",
-        "est_turn": "single Sonnet turn · ~30 min dev + ~15 min run",
-        "prompt": "Project: imas-ambix\nPlan: zarr-consolidate (§2)\nTier: sonnet\n\nContext\n  Every ambix data audit / bulk-encode emits a Zarr non-consolidated-metadata RuntimeWarning and pays a ~0.5-2 s per-shot open cost. Run zarr.consolidate_metadata() once across both corpora so subsequent opens are O(10 ms).\n\nDone-when\n  1. scripts/consolidate_zarr_metadata.py committed — single-file CLI, idempotent, takes --root and --workers.\n  2. Run completes for both /work/projects/imas_gpu/mast/level1/shots/ and .../level2/shots/.\n  3. /work/projects/imas_gpu/mast/level{1,2}/shots/<shot>.zarr/.zmetadata files exist for every shot.\n  4. Validation: time `xr.open_zarr(...)` on 3 representative shots before/after, log to plan §3.\n  5. data.impl → 1.0, status → shipped; followup resolved with the speed-up numbers."
+        "est_turn": "single Sonnet turn \u00b7 ~30 min dev + ~15 min run",
+        "prompt": "Project: imas-ambix\nPlan: zarr-consolidate (\u00a72)\nTier: sonnet\n\nContext\n  Every ambix data audit / bulk-encode emits a Zarr non-consolidated-metadata RuntimeWarning and pays a ~0.5-2 s per-shot open cost. Run zarr.consolidate_metadata() once across both corpora so subsequent opens are O(10 ms).\n\nDone-when\n  1. scripts/consolidate_zarr_metadata.py committed \u2014 single-file CLI, idempotent, takes --root and --workers.\n  2. Run completes for both /work/projects/imas_gpu/mast/level1/shots/ and .../level2/shots/.\n  3. /work/projects/imas_gpu/mast/level{1,2}/shots/<shot>.zarr/.zmetadata files exist for every shot.\n  4. Validation: time `xr.open_zarr(...)` on 3 representative shots before/after, log to plan \u00a73.\n  5. data.impl \u2192 1.0, status \u2192 shipped; followup resolved with the speed-up numbers."
       }
     ],
-    "_version": 0
+    "_version": 1
   }
 }
