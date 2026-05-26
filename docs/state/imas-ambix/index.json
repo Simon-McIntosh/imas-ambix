@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-26T00:00:00Z",
+  "updated": "2026-05-26T18:42:31",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -10,10 +10,10 @@
         "path": "~/Code/imas-ambix/docs",
         "published": "simon-mcintosh.github.io/imas-ambix/",
         "owner": "Simon McIntosh",
-        "plans_count": 11,
+        "plans_count": 13,
         "active": 7,
         "blocked": 3,
-        "pending": 0,
+        "pending": 2,
         "shipped": 1,
         "last_modified": "2026-05-26",
         "milestones": [
@@ -50,6 +50,28 @@
         ],
         "top": [
           {
+            "slug": "zarr-consolidate",
+            "title": "Consolidated Zarr metadata",
+            "status": "pending",
+            "roi": "high",
+            "effort": "S",
+            "ms": "M1",
+            "impl": 0,
+            "blockers": 0,
+            "dec_open": 0
+          },
+          {
+            "slug": "frame-precompute",
+            "title": "Pre-decoded rbb frames at 256\u00b2",
+            "status": "pending",
+            "roi": "high",
+            "effort": "M",
+            "ms": "M1",
+            "impl": 0,
+            "blockers": 0,
+            "dec_open": 1
+          },
+          {
             "slug": "tokenizers",
             "title": "Multi-modal tokenizers",
             "status": "active",
@@ -59,28 +81,6 @@
             "impl": 0.78,
             "blockers": 0,
             "dec_open": 4
-          },
-          {
-            "slug": "v0-runway",
-            "title": "v0 runway plan",
-            "status": "active",
-            "roi": "high",
-            "effort": "M",
-            "ms": "M1",
-            "impl": 0.62,
-            "blockers": 1,
-            "dec_open": 1
-          },
-          {
-            "slug": "compute",
-            "title": "Compute (SLURM, FSDP)",
-            "status": "blocked",
-            "roi": "high",
-            "effort": "S",
-            "ms": "M1",
-            "impl": 0.4,
-            "blockers": 1,
-            "dec_open": 1
           }
         ],
         "activity30": [
@@ -113,7 +113,7 @@
           2,
           3,
           4,
-          3
+          9
         ],
         "tests_30d": {
           "pass": 0.94,
@@ -146,8 +146,8 @@
         "roi": "high",
         "effort": "M",
         "tier": "opus",
-        "impl": 0.62,
-        "last": "2026-05-20",
+        "impl": 0.78,
+        "last": "2026-05-26",
         "owner": "Simon McIntosh",
         "blockers": 1,
         "dec_open": 1,
@@ -157,15 +157,15 @@
       {
         "slug": "compute",
         "title": "Compute (SLURM, FSDP, reservation)",
-        "status": "blocked",
+        "status": "active",
         "ms": "M1",
         "roi": "high",
         "effort": "S",
         "tier": "sonnet",
-        "impl": 0.4,
-        "last": "2026-05-20",
+        "impl": 0.85,
+        "last": "2026-05-26",
         "owner": "Simon McIntosh",
-        "blockers": 1,
+        "blockers": 0,
         "dec_open": 1,
         "comments": 2,
         "sprint": "S2"
@@ -178,7 +178,7 @@
         "roi": "high",
         "effort": "L",
         "tier": "sonnet",
-        "impl": 1.0,
+        "impl": 1,
         "last": "2026-05-19",
         "owner": "Simon McIntosh",
         "blockers": 0,
@@ -189,13 +189,13 @@
       {
         "slug": "data-quality",
         "title": "Data quality (audit + gates)",
-        "status": "active",
+        "status": "shipped",
         "ms": "M1",
         "roi": "mid",
         "effort": "M",
         "tier": "sonnet",
-        "impl": 0.9,
-        "last": "2026-05-20",
+        "impl": 1,
+        "last": "2026-05-26",
         "owner": "Simon McIntosh",
         "blockers": 0,
         "dec_open": 1,
@@ -211,9 +211,9 @@
         "effort": "L",
         "tier": "opus",
         "impl": 0.78,
-        "last": "2026-05-20",
+        "last": "2026-05-26",
         "owner": "Simon McIntosh",
-        "blockers": 0,
+        "blockers": 1,
         "dec_open": 4,
         "comments": 6,
         "sprint": "S2"
@@ -229,7 +229,7 @@
         "impl": 0.8,
         "last": "2026-05-20",
         "owner": "Simon McIntosh",
-        "blockers": 0,
+        "blockers": 1,
         "dec_open": 0,
         "comments": 0,
         "sprint": "S2"
@@ -237,15 +237,15 @@
       {
         "slug": "world-model-v0",
         "title": "World-model v0 (WHAM-style)",
-        "status": "blocked",
+        "status": "active",
         "ms": "M2",
         "roi": "high",
         "effort": "L",
         "tier": "opus",
         "impl": 0.18,
-        "last": "2026-05-21",
+        "last": "2026-05-26",
         "owner": "Simon McIntosh",
-        "blockers": 2,
+        "blockers": 1,
         "dec_open": 1,
         "comments": 4,
         "sprint": "S2"
@@ -274,7 +274,7 @@
         "roi": "mid",
         "effort": "M",
         "tier": "sonnet",
-        "impl": 0.0,
+        "impl": 0,
         "last": "2026-05-26",
         "owner": "Simon McIntosh",
         "blockers": 0,
@@ -297,6 +297,38 @@
         "dec_open": 0,
         "comments": 0,
         "sprint": null
+      },
+      {
+        "slug": "zarr-consolidate",
+        "title": "Consolidated Zarr metadata across L1+L2 corpus",
+        "status": "pending",
+        "ms": "M1",
+        "roi": "high",
+        "effort": "S",
+        "tier": "sonnet",
+        "impl": 0,
+        "last": "2026-05-26",
+        "owner": "Simon McIntosh",
+        "blockers": 0,
+        "dec_open": 0,
+        "comments": 0,
+        "sprint": "S4"
+      },
+      {
+        "slug": "frame-precompute",
+        "title": "Pre-decoded + pre-resized rbb frames at 256\u00b2 uint8",
+        "status": "pending",
+        "ms": "M1",
+        "roi": "high",
+        "effort": "M",
+        "tier": "sonnet",
+        "impl": 0,
+        "last": "2026-05-26",
+        "owner": "Simon McIntosh",
+        "blockers": 0,
+        "dec_open": 1,
+        "comments": 0,
+        "sprint": "S4"
       }
     ],
     "sprints": [
@@ -347,22 +379,34 @@
         "ends": "2026-05-25",
         "items": [],
         "summary": "Ship the plan-management redesign. Use the new infrastructure itself to track the work \u2014 sprint S3 lives inside the very system it builds."
+      },
+      {
+        "id": "S4",
+        "status": "active",
+        "theme": "Saturate 4\u00d7H200 \u2014 GPU-bound by killing I/O+CPU tax in the encode path",
+        "starts": "2026-05-27",
+        "ends": "2026-06-03",
+        "items": [
+          "zarr-consolidate",
+          "frame-precompute"
+        ],
+        "summary": "Two perf wins identified during the failed bulk-encode attempts on 2026-05-26: (1) Zarr non-consolidated metadata costs 0.5\u20132 s per shot open; (2) per-shot uint16\u2192uint8 + bilinear resize CPU work runs every encode. Land both so the next bulk-encode is genuinely GPU-bound."
       }
     ],
     "blockers": [
       {
-        "summary": "SDCC dedicated training reservation pending file",
-        "origin": "compute",
-        "n": 3,
-        "owner": "L. Holzl",
-        "next": "ITER batch-services ticket #4421"
+        "summary": "Open-MAGVIT2 bulk-encode blocked on node 98dci4-gpu-0003 CUDA driver state",
+        "origin": "tokenizers",
+        "n": 1,
+        "owner": "SDCC admin",
+        "next": "ticket draft at docs/sdcc-cuda-init-failure-2026-05-26.md \u2014 cuInit rc=3 from pure C since Group B job 1207566 came online concurrent with Group A; node now DOWN+DRAIN+NOT_RESPONDING"
       },
       {
-        "summary": "Bulk-encode SLURM run not started",
-        "origin": "tokenizers",
-        "n": 2,
-        "owner": "Simon McIntosh",
-        "next": "queue once compute reservation lands"
+        "summary": "SDCC dedicated training reservation pending file",
+        "origin": "compute",
+        "n": 1,
+        "owner": "L. Holzl",
+        "next": "ITER batch-services ticket #4421 \u2014 lower urgency now that exclusive-pause wrapper landed"
       },
       {
         "summary": "Trained checkpoint absent",
@@ -374,36 +418,36 @@
     ],
     "timeline": [
       {
+        "when": "2026-05-26 18:30",
+        "who": "Simon McIntosh",
+        "what": "S4 sprint opened \u2014 zarr-consolidate + frame-precompute drafted for the post-driver-fix push"
+      },
+      {
+        "when": "2026-05-26 18:18",
+        "who": "SDCC (auto)",
+        "what": "98dci4-gpu-0003 DOWN+DRAIN+NOT_RESPONDING after CUDA driver state wedged by Group B contention \u2014 reboot pending"
+      },
+      {
+        "when": "2026-05-26 17:25",
+        "who": "agent/sonnet (supervisor)",
+        "what": "torch upgraded in Open-MAGVIT2 venv to 2.5.1+cu124 + bf16 + TF32 + NHWC perf knobs (commit 4bb53f4)"
+      },
+      {
+        "when": "2026-05-26 16:31",
+        "who": "agent/sonnet",
+        "what": "training-grade-shots.json landed \u2014 430/1000 sample = 43% pass (commit 055f299)"
+      },
+      {
+        "when": "2026-05-26 14:15",
+        "who": "agent/sonnet (Agent B)",
+        "what": "compute \u00a72 SLURM wrapper set landed (commit a14f1ef); 4-shard array driver added (dce6c26)"
+      },
+      {
         "when": "2026-05-21 09:14",
         "who": "agent/sonnet",
         "what": "tokenizers \u00a713.3 IR codebook benchmark wired (commit dec0082)"
-      },
-      {
-        "when": "2026-05-20 22:00",
-        "who": "Simon McIntosh",
-        "what": "locked 4 tokenizers \u00a712 decisions on tokenizers-12-landed phase record"
-      },
-      {
-        "when": "2026-05-20 18:02",
-        "who": "Simon McIntosh",
-        "what": "v0-runway: added \u00a73 fleet-dispatch block; 4 Sonnet agents launched"
-      },
-      {
-        "when": "2026-05-20 17:55",
-        "who": "agent/opus",
-        "what": "tokenizers \u00a712 expansion plan drafted (6 sub-items)"
-      },
-      {
-        "when": "2026-05-20 09:10",
-        "who": "Simon McIntosh",
-        "what": "compute \u00a72 lock: exclusive-access training on gpu_0003_grpA"
-      },
-      {
-        "when": "2026-05-19 10:30",
-        "who": "agent/sonnet",
-        "what": "data-acquisition L2 mirror complete (11,573 shots \u00b7 4.5 TB)"
       }
     ],
-    "_version": 3
+    "_version": 4
   }
 }

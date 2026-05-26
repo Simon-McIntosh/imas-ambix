@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zarr Consolidate · Ambix Plans</title>
+<meta name="plan-slug" content="zarr-consolidate">
+<meta name="plan-project" content="imas-ambix">
+<meta name="plan-title" content="Consolidated Zarr metadata across L1+L2 corpus">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-sprint" content="S4">
+<meta name="plan-status" content="pending">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="S">
+<meta name="plan-tier" content="sonnet">
+<link rel="stylesheet" href="_shared/foundation.css">
+<link rel="stylesheet" href="_shared/dashboard.css">
+<script src="_shared/state.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="brand" href="index.html">
+    <span class="mark">A</span>
+    <span class="proj-name">imas-ambix</span>
+  </a>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="STRATEGY.html">Strategy</a>
+    <a href="v0-runway.html">v0 Runway</a>
+    <a href="compute.html">Compute</a>
+    <a href="data-acquisition.html">Data acq</a>
+    <a href="data-quality.html">Quality</a>
+    <a href="tokenizers.html">Tokenizers</a>
+    <a href="tokenizer-benchmarks.html">Benchmarks</a>
+    <a href="zarr-consolidate.html" class="active">Zarr</a>
+    <a href="frame-precompute.html">Frame preproc</a>
+    <a href="world-model-v0.html">World model</a>
+    <a href="demo.html">Demo</a>
+    <a href="decisions.html">Decisions</a>
+  </nav>
+  <div class="right"></div>
+</div>
+
+<main class="page">
+
+<div class="page-head">
+  <div class="title">
+    <h1>Plan: Consolidated Zarr metadata across L1+L2 corpus</h1>
+    <div class="subtitle">imas-ambix / Fusion World Model · Sprint S4 ·
+      Updated <time id="updated">2026-05-26</time></div>
+  </div>
+</div>
+
+<section class="prose">
+
+<p><span class="status pending"><span class="dot"></span>Pending</span> — sprint S4 (data-pipeline perf).</p>
+
+<p>Every <code>ambix data audit</code> and <code>ambix data bulk-encode-frames</code> worker
+prints <code>RuntimeWarning: Failed to open Zarr store with consolidated metadata,
+but successfully read with non-consolidated metadata. This is typically much
+slower for opening a dataset.</code> On the 9,527-shot rbb corpus, this pays
+0.5–2 s of metadata listing per shot — visible as the 0% GPU util on the
+earlier signals job and the 12-minute startup of the failed frames job.</p>
+
+<p>Fix: run <code>zarr.consolidate_metadata()</code> once over both corpora. Writes a
+<code>.zmetadata</code> file at each shot root; subsequent opens read it in one GPFS
+roundtrip instead of recursively listing groups.</p>
+
+<h2 id="1-problem">1. Problem statement</h2>
+<p>See <a href="state/imas-ambix/zarr-consolidate.json#s1">state §1</a>.</p>
+
+<h2 id="2-fix">2. Fix — <code>zarr.consolidate_metadata()</code></h2>
+<p>Idempotent one-pass script. See <a href="state/imas-ambix/zarr-consolidate.json#s2">state §2</a>.</p>
+
+<h2 id="3-validation">3. Validation</h2>
+<p>≥10× open-time speed-up on 3 representative shots, no RuntimeWarnings in
+downstream drivers. See <a href="state/imas-ambix/zarr-consolidate.json#s3">state §3</a>.</p>
+
+<h2 id="4-cost">4. Cost &amp; timing</h2>
+<p>~15 min single-pass on login node. CPU only, idempotent, re-runnable when new
+shots arrive.</p>
+
+</section>
+
+<div id="decisions"></div>
+<div id="followups"></div>
+
+</main>
+</body>
+</html>
