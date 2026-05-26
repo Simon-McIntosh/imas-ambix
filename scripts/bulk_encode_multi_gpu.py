@@ -43,8 +43,15 @@ def _worker(
     skip_existing: bool,
     result_queue: "mp.Queue",
 ) -> None:
-    """Per-GPU worker: pin to one GPU, spawn one daemon, encode the shard."""
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    """Per-GPU worker: pin to one GPU, spawn one daemon, encode the shard.
+
+    DO NOT set CUDA_VISIBLE_DEVICES here — inside a SLURM --gres=gpu:N
+    allocation, overriding CVD in a child process breaks the CUDA driver
+    init (cuda_avail=False even though device_count()=1). Instead leave
+    CVD alone (all GPUs visible to the cgroup) and pass an explicit
+    cuda:<i> device string so each daemon binds to a different physical
+    device.
+    """
     os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
     os.environ.setdefault("OMP_NUM_THREADS", "1")
 
@@ -53,7 +60,7 @@ def _worker(
     from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer
 
     t0 = time.monotonic()
-    tok = OpenMagvit2Tokenizer(device="cuda", batch_size=8)
+    tok = OpenMagvit2Tokenizer(device=f"cuda:{gpu_id}", batch_size=8)
     t_ready = time.monotonic() - t0
     print(f"[gpu{gpu_id}] daemon ready in {t_ready:.1f}s, encoding {len(shot_ids)} shots", flush=True)
 
