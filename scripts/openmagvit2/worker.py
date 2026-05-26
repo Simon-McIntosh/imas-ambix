@@ -212,7 +212,13 @@ def daemon(args: argparse.Namespace) -> None:
         "batch_size": args.batch_size,
     }), flush=True)
 
-    for raw in sys.stdin:
+    # NOTE: `for line in sys.stdin` block-buffers when stdin is a pipe (not a
+    # tty) — single-line JSON requests never trigger the loop body until the
+    # buffer fills. Use explicit readline() to get one request at a time.
+    while True:
+        raw = sys.stdin.readline()
+        if not raw:
+            return  # EOF
         raw = raw.strip()
         if not raw:
             continue
