@@ -9,7 +9,7 @@
 <meta name="plan-title" content="Consolidated Zarr metadata across L1+L2 corpus">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-sprint" content="S4">
-<meta name="plan-status" content="pending">
+<meta name="plan-status" content="active">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="S">
 <meta name="plan-tier" content="sonnet">
@@ -54,38 +54,94 @@
 
 <section class="prose">
 
-<p><span class="status pending"><span class="dot"></span>Pending</span> — sprint S4 (data-pipeline perf).</p>
+<p><span class="status active"><span class="dot"></span>Active</span> — sprint S4
+(data-pipeline perf). Blocks tokenizers and world-model-v0; depends on
+data-acquisition landing first.</p>
 
-<p>Every <code>ambix data audit</code> and <code>ambix data bulk-encode-frames</code> worker
-prints <code>RuntimeWarning: Failed to open Zarr store with consolidated metadata,
-but successfully read with non-consolidated metadata. This is typically much
-slower for opening a dataset.</code> On the 9,527-shot rbb corpus, this pays
-0.5–2 s of metadata listing per shot — visible as the 0% GPU util on the
-earlier signals job and the 12-minute startup of the failed frames job.</p>
+<p>Run <code>zarr.consolidate_metadata()</code> once across the L1 and L2 corpora so every
+<code>xarray.open_zarr()</code> lands fast (~10 ms) instead of falling back to a non-consolidated
+listing (10–100× slower). Eliminates the RuntimeWarning spam and removes the 0.5–2 s
+per-shot Zarr-open tax.</p>
 
-<p>Fix: run <code>zarr.consolidate_metadata()</code> once over both corpora. Writes a
-<code>.zmetadata</code> file at each shot root; subsequent opens read it in one GPFS
-roundtrip instead of recursively listing groups.</p>
+<h2 id="s1">§1 · Problem statement</h2>
 
-<h2 id="1-problem">1. Problem statement</h2>
-<p>See <a href="state/imas-ambix/zarr-consolidate.json#s1">state §1</a>.</p>
+<p>Every <code>ambix data audit</code> and <code>ambix data bulk-encode-frames</code> worker prints:</p>
 
-<h2 id="2-fix">2. Fix — <code>zarr.consolidate_metadata()</code></h2>
-<p>Idempotent one-pass script. See <a href="state/imas-ambix/zarr-consolidate.json#s2">state §2</a>.</p>
+<pre><code>RuntimeWarning: Failed to open Zarr store with consolidated metadata,
+but successfully read with non-consolidated metadata.
+This is typically much slower for opening a dataset.</code></pre>
 
-<h2 id="3-validation">3. Validation</h2>
-<p>≥10× open-time speed-up on 3 representative shots, no RuntimeWarnings in
-downstream drivers. See <a href="state/imas-ambix/zarr-consolidate.json#s3">state §3</a>.</p>
+<p>On the 9,527-shot rbb corpus, this pays <strong>0.5–2 s of metadata listing per shot</strong>.
+The cost was directly visible as 0% GPU utilisation on the failed signals job and the
+12-minute startup of the failed frames job. With 4 GPUs each fetching shots concurrently
+this becomes a real I/O bottleneck — the encode loop is CPU/IO-bound rather than GPU-bound.</p>
 
-<h2 id="4-cost">4. Cost &amp; timing</h2>
-<p>~15 min single-pass on login node. CPU only, idempotent, re-runnable when new
-shots arrive.</p>
+<p>Every <code>open_zarr()</code> without a consolidated <code>.zmetadata</code> file must recursively
+list every group and array in the Zarr hierarchy via GPFS. Consolidation writes a single
+<code>.zmetadata</code> JSON at the shot root; subsequent opens read it in one GPFS roundtrip.</p>
+
+<h2 id="s2">§2 · Fix — <code>zarr.consolidate_metadata()</code></h2>
+
+<p>Run once across both corpora:</p>
+
+<pre><code class="language-python">import zarr
+from pathlib import Path
+
+for shot_zarr in Path('/work/projects/imas_gpu/mast/level2/shots').glob('*.zarr'):
+    zarr.consolidate_metadata(str(shot_zarr))
+
+for shot_zarr in Path('/work/projects/imas_gpu/mast/level1/shots').glob('*.zarr'):
+    zarr.consolidate_metadata(str(shot_zarr))
+</code></pre>
+
+<p>Writes a <code>.zmetadata</code> file at each shot root. Subsequent
+<code>open_zarr(..., consolidated=True)</code> reads it in one HTTP/GPFS roundtrip instead of
+recursively listing groups. The operation is <strong>idempotent</strong> — safe to re-run when
+new shots arrive.</p>
+
+<p>Deliver as <code>scripts/consolidate_zarr_metadata.py</code>: a single-file CLI taking
+<code>--root</code> and <code>--workers</code> flags so it can be run on both corpora in parallel
+and scheduled for future ingestion runs.</p>
+
+<h2 id="s3">§3 · Validation</h2>
+
+<p>Measure <code>time xr.open_zarr(shot/rbb)</code> on three representative shots before and after:</p>
+
+<ul>
+  <li>shot 15085 (rbb era)</li>
+  <li>shot 28000 (mid corpus)</li>
+  <li>shot 30470 (most recent)</li>
+</ul>
+
+<p><strong>Target:</strong> ≥10× speed-up on open time. Confirm no RuntimeWarnings appear in the
+bulk-encode driver after consolidation.</p>
+
+<h2 id="s4">§4 · Cost &amp; timing</h2>
+
+<p>Single-pass over <strong>11,573 L2 + ~17,111 L1 shots</strong> takes approximately
+<strong>15 min on the login node</strong> (CPU only — pure metadata work, no array reads).
+Idempotent — safe to re-run when new shots arrive via the data-acquisition pipeline.</p>
+
+<h2 id="followups">Followups</h2>
+
+<p><strong>f-zc-2026-05-26</strong> · <em>Run zarr.consolidate_metadata() across L1 + L2 corpora</em><br>
+Single CPU-only run. Idempotent. Should finish in ~15 min and eliminate the RuntimeWarning
+on every Zarr open. Sets the table for the 4-GPU bulk-encode to be GPU-bound rather than
+I/O-bound.<br>
+<span style="color:var(--muted);font-size:12px">recommends: /reckon-ship zarr-consolidate --section 2 · tier: sonnet · ~30 min dev + ~15 min run</span></p>
 
 </section>
 
-<div id="decisions"></div>
-<div id="followups"></div>
-
 </main>
+
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  if (typeof loadState !== "function") return;
+  const blob = await loadState();
+  const el = document.getElementById("updated");
+  if (el && blob?.updated) el.textContent = blob.updated.slice(0, 10);
+});
+</script>
+
 </body>
 </html>
