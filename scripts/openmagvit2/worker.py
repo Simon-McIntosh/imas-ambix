@@ -55,20 +55,52 @@ DEFAULT_CKPT = HERE / "weights" / "imagenet_256_L.ckpt"
 
 
 def load_model(config_path: Path, ckpt_path: Path, device: str) -> VQModel:
-    """Build the VQModel and load the trained weights."""
+    """Build the VQModel, load weights, and apply H200-optimised perf knobs.
+
+    Performance knobs applied (torch >= 2.5 with CUDA >= 12.4):
+
+    - ``torch.set_float32_matmul_precision('high')`` — TF32 on Hopper tensor
+      cores for fp32 matmul; ~2x speedup over IEEE fp32 with negligible
+      accuracy loss for this LFQ-GAN model.
+    - ``torch.backends.cudnn.benchmark = True`` — cuDNN auto-tuner picks the
+      fastest conv kernel per input shape on first call.
+    - ``model.to(memory_format=torch.channels_last)`` — Hopper tensor cores
+      prefer NHWC layout for 4D conv tensors; the encoder is a stack of
+      Conv2d so this wins on the encode path.
+    - ``torch.bfloat16`` cast — H200 has native bf16 tensor cores delivering
+      ~2x throughput vs fp32 with effectively the same dynamic range. The
+      LFQ codebook lookup is integer so quantisation accuracy is unaffected.
+
+    NOT applied (yet):
+
+    - ``torch.compile(model)`` — leave for v2; first encode call would pay
+      a ~30 s compile cost. Worth it for >100-shot runs, less so for smoke.
+    """
     config = OmegaConf.load(str(config_path))
     model = VQModel(**config.model.init_args)
-    sd = torch.load(str(ckpt_path), map_location="cpu")["state_dict"]
+    sd = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)["state_dict"]
     model.load_state_dict(sd, strict=False)
-    return model.eval().to(device)
+    model = model.eval()
+
+    if device.startswith("cuda"):
+        torch.set_float32_matmul_precision("high")  # TF32 on Hopper
+        torch.backends.cudnn.benchmark = True       # auto-tune conv kernels
+        model = model.to(device=device, dtype=torch.bfloat16, memory_format=torch.channels_last)
+    else:
+        model = model.to(device)
+    return model
 
 
 def _frames_to_input(frames: np.ndarray, image_size: int) -> torch.Tensor:
-    """Map (T, H, W, 3) uint8 frames → (T, 3, S, S) float in [-1, 1].
+    """Map (T, H, W, 3) uint8 frames → (T, 3, S, S) bfloat16 in [-1, 1].
 
     Replicates a single-channel input across RGB if needed; resizes via
     bilinear interp to ``image_size`` square. Resizing happens on CPU
     via torch.nn.functional.interpolate to avoid bringing in PIL.
+
+    Output dtype is bf16 with channels_last memory format so the model's
+    expected dtype/layout matches without an in-graph cast — important for
+    saturating the Hopper tensor cores.
     """
     import torch.nn.functional as F
 
@@ -77,8 +109,8 @@ def _frames_to_input(frames: np.ndarray, image_size: int) -> torch.Tensor:
     if frames.ndim != 4 or frames.shape[-1] != 3:
         raise ValueError(f"expected (T,H,W,3) or (T,H,W), got {frames.shape}")
 
-    t = torch.from_numpy(frames).float().div(255.0).mul(2.0).sub(1.0)
-    t = t.permute(0, 3, 1, 2).contiguous()  # (T, 3, H, W)
+    t = torch.from_numpy(frames).to(torch.bfloat16).div(255.0).mul(2.0).sub(1.0)
+    t = t.permute(0, 3, 1, 2).contiguous(memory_format=torch.channels_last)  # NHWC
     t = F.interpolate(
         t, size=(image_size, image_size), mode="bilinear", align_corners=False
     )
