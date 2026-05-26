@@ -1,0 +1,62 @@
+/* project.css — per-project overrides.
+ *
+ * The top layer of the three-layer CSS architecture. Empty by default.
+ * This file is project-specific, lives in <project>/docs/assets/project.css,
+ * and is NOT shipped from dotfiles.
+ *
+ * It loads LAST. Anything written here overrides foundation.css and
+ * dashboard.css via normal cascade.
+ *
+ * What to put here (with examples):
+ *
+ *   1. Brand accent
+ *      :root { --accent: oklch(0.55 0.18 30); }   // imas-ambix: warmer
+ *      :root { --accent: oklch(0.52 0.15 195); }  // efitpp: teal
+ *
+ *   2. Custom pill categories  (e.g. project-specific status not in core)
+ *      .pill.s-historical { background: var(--bg-2); color: var(--muted); }
+ *      .pill.s-pivot      { background: oklch(0.93 0.05 320); color: oklch(0.45 0.18 320); }
+ *
+ *   3. Extra widgets for plan-page extensions
+ *      .my-project .calibration-grid { ... }   // a project that needs a
+ *                                              // hardware calibration view
+ *
+ *   4. Per-project test-result styling
+ *      .tests.efitpp .test::before { ... }     // CTest pulse vs pytest pulse
+ *
+ *   5. Branding header swap
+ *      .topbar .brand .mark { background: url("logo.svg"); ... }
+ *
+ *   6. Composition with other docs in the same repo
+ *      .architecture-md .mermaid { ... }       // styling for non-plan
+ *                                              // markdown reference docs
+ *
+ * Examples below are commented out — uncomment or adapt per project.
+ */
+
+/* ----- imas-ambix example (commented) -------------------------- *
+:root {
+  --accent:    oklch(0.55 0.17 30);
+  --accent-2:  oklch(0.70 0.12 30);
+  --accent-3:  oklch(0.96 0.030 30);
+}
+* -------------------------------------------------------------- */
+
+/* ----- efitpp example (commented) ------------------------------ *
+:root {
+  --accent:    oklch(0.52 0.15 195);
+  --accent-2:  oklch(0.68 0.10 195);
+  --accent-3:  oklch(0.96 0.030 195);
+}
+
+.tests.ctest .test .name::after {
+  content: " · ctest";
+  color: var(--muted);
+  font-size: 10.5px;
+}
+* -------------------------------------------------------------- */
+
+/* ----- Add a project-specific pill for the "pivot" status ----- *
+.status.pivot .dot { background: oklch(0.65 0.20 320); }
+.status.pivot      { color: oklch(0.45 0.18 320); }
+* -------------------------------------------------------------- */

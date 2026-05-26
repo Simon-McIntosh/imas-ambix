@@ -2,276 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>imas-ambix · dashboard</title>
+  <title>reckon · plan system</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="foundation.css">
-  <link rel="stylesheet" href="dashboard.css">
-  <link rel="stylesheet" href="project.css">
+  <link rel="stylesheet" href="_shared/foundation.css">
+  <link rel="stylesheet" href="_shared/dashboard.css">
+  <link rel="stylesheet" href="ui/project.css">
+  <link rel="stylesheet" href="ui/styles.css">
   <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 </head>
 <body>
-
-<div id="root"></div>
-
-<script src="state-loader.js"></script>
-<script type="text/babel" src="ui.jsx"></script>
-<script type="text/babel">
-  const { useState, useEffect } = React;
-
-  function MsStepper({ items }) {
-    return (
-      <div className="ms-stepper">
-        {items.map((m, i) => (
-          <div className={`step ${m.status}`} key={m.id}>
-            <div className="dot"></div>
-            <div className="line"><i style={{ width: `${m.pct}%` }}></i></div>
-            <div className="id">{m.id} · {m.status}</div>
-            <div className="name">{m.name}</div>
-            <div className="pct">{m.pct}%</div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  function MiniKCard({ p }) {
-    return (
-      <a className={`kanban-card ${p.status === "blocked" ? "blocked" : ""}`} href={`plan.html?slug=${encodeURIComponent(p.slug)}`}>
-        <div className="t">{p.title}</div>
-        <div className="row">
-          <Roi v={p.roi} />
-          <Tag kind="ms">{p.ms}</Tag>
-          <span className="sp"></span>
-          <Bar v={p.impl} width={40} />
-        </div>
-      </a>
-    );
-  }
-
-  function ReadyGate({ children }) {
-    const [ready, setReady] = React.useState(false);
-    React.useEffect(() => {
-      if (window.STATE_READY) window.STATE_READY.then(() => setReady(true));
-      else setReady(true);  // fallback if loader didn't run
-    }, []);
-    if (!ready) {
-      return (
-        <div className="dim" style={{
-          padding: 48, textAlign: "center",
-          fontFamily: "var(--mono)", fontSize: 13, color: "var(--muted)"
-        }}>
-          Loading state…
-        </div>
-      );
-    }
-    return children;
-  }
-
-  function Project() {
-    const M = window.STATE;
-    const [showShipped, setShowShipped] = useState(false);  // default: hide completed
-    const p = M.projects[0];
-    const sprint = M.sprint;
-    const items = sprint.items.map(slug => M.inventory.find(i => i.slug === slug)).filter(Boolean);
-    const STATUS_TO_COL = { pending: "todo", active: "doing", blocked: "doing", shipped: "done" };
-    const grouped = { todo: [], doing: [], done: [] };
-    for (const i of items) grouped[STATUS_TO_COL[i.status]]?.push(i);
-
-    // group all plans by status for the "plans" section
-    const planGroups = {
-      active:  M.inventory.filter(i => i.status === "active"),
-      blocked: M.inventory.filter(i => i.status === "blocked"),
-      pending: M.inventory.filter(i => i.status === "pending"),
-      shipped: M.inventory.filter(i => i.status === "shipped"),
-    };
-
-    const sprintDone = grouped.done.length;
-    const sprintTotal = items.length;
-
-    return (
-      <div className="shell">
-        <Topbar project={p.project} active="overview" />
-
-        <main className="page wide">
-          <div className="page-head">
-            <div className="title">
-              <h1>{p.project}</h1>
-              <div className="subtitle">
-                Project landing. Where things stand: milestone arc, current sprint, every plan grouped by status.
-                {" "}{p.plans_count} plans &middot; sprint <strong>{sprint.id}</strong> in flight &middot; M1 active, M2 pending &middot; owner {p.owner}.
-              </div>
-            </div>
-            <div className="actions">
-              <a className="btn ghost" href="inventory.html">All plans</a>
-              <button className="btn primary">+ New plan</button>
-            </div>
-          </div>
-
-          {/* MILESTONES — agile stepper */}
-          <h2>Milestone arc</h2>
-          <MsStepper items={p.milestones} />
-
-          {/* PROGRESS STATS — kept; user said they liked this */}
-          <div className="stats" style={{ marginTop: 8 }}>
-            <div className="stat"><div className="l">total</div><div className="n">{p.plans_count}</div></div>
-            <div className="stat"><div className="l">active</div><div className="n">{p.active}</div></div>
-            <div className="stat"><div className="l">blocked</div><div className="n" style={{ color: "var(--bad)" }}>{p.blocked}</div></div>
-            <div className="stat"><div className="l">pending</div><div className="n">{p.pending}</div></div>
-            <div className="stat"><div className="l">shipped</div><div className="n">{p.shipped}</div></div>
-            <div className="stat">
-              <div className="l">impl.</div>
-              <div className="n">{Math.round(p.shipped / p.plans_count * 100)}<span className="of">%</span></div>
-              <div className="mt-2"><Bar v={p.shipped / p.plans_count} width={110} /></div>
-            </div>
-          </div>
-
-          {/* ACTIVE SPRINT — compact kanban preview */}
-          <h2>
-            Sprint {sprint.id}
-            <span className="count">
-              {sprint.theme} · {sprintDone}/{sprintTotal} done
-            </span>
-            <span className="sp"></span>
-            <a className="btn sm" href="sprint.html" style={{ float: "right", marginTop: -4 }}>Open board →</a>
-          </h2>
-
-          <div className="kanban">
-            {[
-              { id: "todo",  title: "To do",  cards: grouped.todo },
-              { id: "doing", title: "Doing",  cards: grouped.doing },
-              { id: "done",  title: "Done",   cards: grouped.done },
-            ].map(col => (
-              <div className="col" key={col.id}>
-                <div className="col-head">
-                  <span className="title">{col.title}</span>
-                  <span className="count">{col.cards.length}</span>
-                </div>
-                <div className="cards">
-                  {col.cards.map(p => <MiniKCard p={p} key={p.slug} />)}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* PLANS — by status group; click into plan.html */}
-          <h2>Plans by status <span className="count">{M.inventory.length} total</span></h2>
-          <div className="dashgrid even" style={{ alignItems: "start" }}>
-            <div>
-              <h3 style={{ color: "var(--accent)" }}>Active <span className="dim">· {planGroups.active.length}</span></h3>
-              <div className="card">
-                <div className="card-body flush">
-                  {planGroups.active.map(i => (
-                    <a key={i.slug} href={`plan.html?slug=${encodeURIComponent(i.slug)}`} className="blocker-row" style={{ padding: "10px 16px", textDecoration: "none" }}>
-                      <div>
-                        <div className="what">{i.title}</div>
-                        <div className="origin">/{i.slug} · last write {i.last}</div>
-                      </div>
-                      <Roi v={i.roi} />
-                      <Bar v={i.impl} width={70} />
-                      <Tag kind="ms">{i.ms}</Tag>
-                    </a>
-                  ))}
-                </div>
-              </div>
-
-              <h3 style={{ color: "var(--bad)", marginTop: 18 }}>Blocked <span className="dim">· {planGroups.blocked.length}</span></h3>
-              <div className="card">
-                <div className="card-body flush">
-                  {planGroups.blocked.map(i => (
-                    <a key={i.slug} href={`plan.html?slug=${encodeURIComponent(i.slug)}`} className="blocker-row" style={{ padding: "10px 16px", textDecoration: "none" }}>
-                      <div>
-                        <div className="what">{i.title}</div>
-                        <div className="origin">/{i.slug} · {i.blockers} blocker{i.blockers === 1 ? "" : "s"}</div>
-                      </div>
-                      <Roi v={i.roi} />
-                      <Bar v={i.impl} width={70} />
-                      <Tag kind="ms">{i.ms}</Tag>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="dim">Pending <span className="dim">· {planGroups.pending.length}</span></h3>
-              <div className="card">
-                <div className="card-body flush">
-                  {planGroups.pending.map(i => (
-                    <a key={i.slug} href={`plan.html?slug=${encodeURIComponent(i.slug)}`} className="blocker-row" style={{ padding: "10px 16px", textDecoration: "none" }}>
-                      <div>
-                        <div className="what">{i.title}</div>
-                        <div className="origin">/{i.slug} · ready when sprint picks up</div>
-                      </div>
-                      <Roi v={i.roi} />
-                      <Tag kind="ms">{i.ms}</Tag>
-                      <span className="dim" style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{i.effort}</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-
-              <h3 className="dim" style={{ marginTop: 18, display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span>Shipped <span className="dim">· {planGroups.shipped.length}</span></span>
-                <span className="sp" style={{ flex: 1 }}></span>
-                <button
-                  className="btn sm ghost"
-                  onClick={() => setShowShipped(s => !s)}
-                  style={{ fontWeight: 400 }}
-                >
-                  {showShipped ? "hide" : "show"}
-                </button>
-              </h3>
-              {showShipped && (
-                <div className="card">
-                  <div className="card-body flush">
-                    {planGroups.shipped.map(i => (
-                      <a key={i.slug} href={`plan.html?slug=${encodeURIComponent(i.slug)}`} className="blocker-row" style={{ padding: "10px 16px", textDecoration: "none" }}>
-                        <div>
-                          <div className="what">{i.title}</div>
-                          <div className="origin">/{i.slug} · shipped {i.last}</div>
-                        </div>
-                        <Tag kind="ms">{i.ms}</Tag>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* RECENT ACTIVITY */}
-          <h2>Recent activity <span className="count">last 30 days</span></h2>
-          <div className="card">
-            <div className="card-body">
-              <div className="flex mb-2">
-                <Heat data={p.activity30} />
-                <span className="dim" style={{ marginLeft: 12, fontSize: 12 }}>writes per day</span>
-              </div>
-              <div className="ledger mt-3">
-                {M.timeline.slice(0, 5).map((t, i) => (
-                  <React.Fragment key={i}>
-                    <span className="when">{t.when}</span>
-                    <span className={`who ${t.who.startsWith("agent") ? "bot" : ""}`}>{t.who}</span>
-                    <span className="what">{t.what}</span>
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-          </div>
-
-        </main>
-      </div>
-    );
-  }
-
-  ReactDOM.createRoot(document.getElementById("root")).render(
-    <ReadyGate><Project /></ReadyGate>
-  );
-</script>
+  <div id="root"></div>
+  <script src="ui/state-loader.js"></script>
+  <script type="text/babel" src="ui/ui.jsx"></script>
+  <script type="text/babel" src="ui/bits.jsx"></script>
+  <script type="text/babel" src="ui/plan-decision.jsx"></script>
+  <script type="text/babel" src="ui/plan-tokenizers.jsx"></script>
+  <script type="text/babel" src="ui/cockpit.jsx"></script>
+  <script type="text/babel" src="ui/plan.jsx"></script>
+  <script type="text/babel" src="ui/sprint.jsx"></script>
+  <script type="text/babel" src="ui/shell.jsx"></script>
 </body>
 </html>
