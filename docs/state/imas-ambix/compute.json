@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-26T16:28:40",
+  "updated": "2026-05-26T16:35:33",
   "project": "imas-ambix",
   "doc": "compute",
   "data": {
@@ -10,13 +10,13 @@
     "roi": "high",
     "effort": "S",
     "tier": "sonnet",
-    "impl": 0.4,
+    "impl": 0.85,
     "owner": "Simon McIntosh",
     "blockers": 0,
     "comments": 2,
     "sprint": "S2",
     "phase": "exclusive-access cleared by Simon 2026-05-26 \u2014 wrappers landing",
-    "last_modified": "2026-05-26 14:30",
+    "last_modified": "2026-05-26",
     "depends_on": [],
     "blocks": [
       "tokenizers",
@@ -105,9 +105,26 @@
         ],
         "est_turn": "single Sonnet turn \u00b7 ~2h",
         "tier": "sonnet",
-        "prompt": "Project: imas-ambix\nPlan: compute (\u00a72)\nTier: sonnet\n\nContext\n  Simon authorized exclusive access on the gpu_0003_grpA reservation 2026-05-26. V4-Flash is not running. Write the canonical SLURM wrapper set for ambix training + bulk-encode + bench jobs.\n\nState to read\n  docs/state/imas-ambix/compute.json\n  /home/ITER/mcintos/Code/imas-ambix/AGENTS.md  (\u00a72-5 \u2014 reservation, account, qos, NUMA, memory budget)\n\nLocked decisions to honour\n  slurm-training-reservation \u2192 Both \u2014 file but use exclusive in the meantime\n\nConstraints\n  - sbatch flags: --partition=betelgeuse --reservation=gpu_0003_grpA --account=grpa --gres=gpu:4 --cpus-per-task=30 --mem=640G\n  - DO NOT pass --qos (auto-applied; explicit qos errors)\n  - export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p \"$TMPDIR\" in every prologue\n  - preempt_v4flash.sh must be idempotent: stop only if running, restart only if it was stopped by this script\n\nDone-when\n  1. scripts/slurm/{train_exclusive,bulk_encode_frames,bulk_encode_signals,bench_rbb}.sbatch + preempt_v4flash.sh all committed\n  2. Each sbatch is parameterised via --export=ALL,VAR=val and reads JOB_NAME, OUTPUT_DIR, SHOT_SOURCE from env\n  3. bulk_encode_frames.sbatch wraps `ambix data bulk-encode-frames --from-quality-index $QUALITY_INDEX --tokenizer open-magvit2 --device cuda --workers 4`\n  4. preempt_v4flash.sh dry-runs without ssh \u2014 just prints the curl/squeue commands it would issue (V4-Flash is not running)\n  5. This followup resolved with the commit SHA + a new followup for first real exclusive-pause run\n"
+        "prompt": "Project: imas-ambix\nPlan: compute (\u00a72)\nTier: sonnet\n\nContext\n  Simon authorized exclusive access on the gpu_0003_grpA reservation 2026-05-26. V4-Flash is not running. Write the canonical SLURM wrapper set for ambix training + bulk-encode + bench jobs.\n\nState to read\n  docs/state/imas-ambix/compute.json\n  /home/ITER/mcintos/Code/imas-ambix/AGENTS.md  (\u00a72-5 \u2014 reservation, account, qos, NUMA, memory budget)\n\nLocked decisions to honour\n  slurm-training-reservation \u2192 Both \u2014 file but use exclusive in the meantime\n\nConstraints\n  - sbatch flags: --partition=betelgeuse --reservation=gpu_0003_grpA --account=grpa --gres=gpu:4 --cpus-per-task=30 --mem=640G\n  - DO NOT pass --qos (auto-applied; explicit qos errors)\n  - export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p \"$TMPDIR\" in every prologue\n  - preempt_v4flash.sh must be idempotent: stop only if running, restart only if it was stopped by this script\n\nDone-when\n  1. scripts/slurm/{train_exclusive,bulk_encode_frames,bulk_encode_signals,bench_rbb}.sbatch + preempt_v4flash.sh all committed\n  2. Each sbatch is parameterised via --export=ALL,VAR=val and reads JOB_NAME, OUTPUT_DIR, SHOT_SOURCE from env\n  3. bulk_encode_frames.sbatch wraps `ambix data bulk-encode-frames --from-quality-index $QUALITY_INDEX --tokenizer open-magvit2 --device cuda --workers 4`\n  4. preempt_v4flash.sh dry-runs without ssh \u2014 just prints the curl/squeue commands it would issue (V4-Flash is not running)\n  5. This followup resolved with the commit SHA + a new followup for first real exclusive-pause run\n",
+        "resolved_at": "2026-05-26T14:35:14+00:00",
+        "resolved_by": "agent/sonnet (Agent B)",
+        "outcome": "Landed commit a14f1ef: 6 files in scripts/slurm/ \u2014 preempt_v4flash.sh, train_exclusive.sbatch, bulk_encode_frames.sbatch, bulk_encode_signals.sbatch, bench_rbb.sbatch, README.md. All four sbatch scripts passed sbatch --test-only (exit 0) against the betelgeuse/gpu_0003_grpA reservation."
+      },
+      {
+        "id": "f-compute-2026-05-26-bulk",
+        "written_by": "agent/sonnet (Agent B)",
+        "written_at": "2026-05-26",
+        "title": "First real exclusive-pause run via Agent D bulk-encode (in-flight)",
+        "body": "Agent D is using bulk_encode_frames.sbatch and bulk_encode_signals.sbatch to run the first real GPU bulk-encode jobs. Monitor job exit codes, check output reports in /work/projects/imas_gpu/mast/tokens/, and verify the token Zarr files are well-formed. If any encode jobs fail, diagnose from /tmp/ambix-encode-frames-<jobid>.out logs.",
+        "tier": "sonnet",
+        "est_turn": "single Sonnet turn \u00b7 ~1h",
+        "touches": [
+          "docs/state/imas-ambix/tokenizers.json",
+          "docs/state/imas-ambix/compute.json"
+        ],
+        "prompt": "Project: imas-ambix\nPlan:    compute (https://simon-mcintosh.github.io/imas-ambix/compute.html)\nSection: \u00a72 training takes exclusive access\nTier:    sonnet\n\nContext\n  Agent D launched the first real bulk-encode jobs using scripts/slurm/bulk_encode_frames.sbatch\n  and bulk_encode_signals.sbatch on the gpu_0003_grpA reservation (exclusive-pause protocol).\n  The SLURM wrapper set was committed at a14f1ef (compute \u00a72). This followup covers\n  post-run validation and state update.\n\nState to read\n  docs/state/imas-ambix/compute.json\n  docs/state/imas-ambix/tokenizers.json\n\nLocked decisions to honour\n  slurm-training-reservation \u2192 Both \u2014 file but use exclusive in the meantime\n\nOpen decisions to surface (do not resolve)\n  ticket-4421-status (dedicated reservation; pending L. Holzl signoff)\n\nConstraints\n  - Read job output logs from /tmp/ambix-encode-frames-<jobid>.out\n  - Check token Zarr files in /work/projects/imas_gpu/mast/tokens/\n  - Do not modify imas_ambix/data/ or docs/v0-runway.html (Agent A/C scope)\n\nDone-when\n  1. Job exit codes confirmed (squeue / sacct)\n  2. At least one per-camera JSON report present in OUTPUT_DIR\n  3. compute.json impl advanced (target 0.90 if bulk-encode validated)\n  4. This followup resolved with outcome + a next followup or 'done \u2014 no followup'\n"
       }
     ],
-    "_version": 1
+    "_version": 4
   }
 }
