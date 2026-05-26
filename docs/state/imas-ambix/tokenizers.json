@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-26T16:14:11",
+  "updated": "2026-05-26T16:29:13",
   "project": "imas-ambix",
   "doc": "tokenizers",
   "data": {
@@ -15,8 +15,8 @@
     "blockers": 0,
     "comments": 6,
     "sprint": "S2",
-    "phase": "landed \u00a71\u2013\u00a713 \u00b7 \u00a712 expansion in flight",
-    "last_modified": "2026-05-21 09:14",
+    "phase": "landed \u00a71\u2013\u00a713 \u00b7 \u00a712.5 bulk-encode launching 2026-05-26",
+    "last_modified": "2026-05-26 14:30",
     "depends_on": [
       "data-acquisition",
       "compute"
@@ -211,20 +211,20 @@
         "written_by": "agent/sonnet",
         "written_at": "2026-05-21 09:14",
         "title": "Run bulk-encode on rbb + magnetics shards (\u00a712.5 follow-on)",
-        "body": "\u00a713.3 landed the IR codebook benchmark wiring. To close \u00a712.5 and unblock world-model-v0, we need the real bulk-encode pass across rbb (visible) + magnetics shards.",
-        "recommends_skill": "/plan-implement tokenizers --section 12.5",
+        "body": "\u00a713.3 landed the IR codebook benchmark wiring. \u00a712.5 close-out: bulk-encode pass across rbb (visible) + magnetics shards using the existing CLI surface (`ambix data bulk-encode-frames` + `ambix data bulk-encode-signals`). UNBLOCKED 2026-05-26: Simon authorized exclusive access on gpu_0003_grpA reservation.",
+        "recommends_skill": "/reckon-ship tokenizers --section 12.5",
         "touches": [
-          "imas_ambix/tokenizer/bulk_encode.py",
-          "scripts/slurm/bench_ir.sbatch"
+          "imas_ambix/data/encoding.py",
+          "imas_ambix/data/cli.py",
+          "scripts/slurm/bulk_encode_frames.sbatch",
+          "scripts/slurm/bulk_encode_signals.sbatch",
+          "/work/projects/imas_gpu/mast/tokens/"
         ],
-        "blocked_by": {
-          "slug": "compute",
-          "reason": "SDCC training reservation pending \u2014 ticket #4421"
-        },
-        "est_turn": "single Opus turn once compute clears \u00b7 ~4h SLURM",
-        "prompt": "Project: imas-ambix\nPlan: tokenizers (https://simon-mcintosh.github.io/imas-ambix/tokenizers.html)\n\nRun the bulk-encode pass that closes \u00a712.5 (IR camera codebook decision).\n\nState to read:\n  docs/state/imas-ambix/tokenizers.json\n  docs/state/imas-ambix/compute.json   (confirm reservation cleared)\n\nLocked decisions to honour:\n  primary-approach     \u2192 A (Open-MAGVIT2 visible codebook)\n  vocab-cap            \u2192 32k\n\nOpen decisions to surface, not resolve:\n  plasma-decoder-finetune, ir-camera-codebook\n\nWhen done:\n  1. Write the bench numbers into tokenizers.html \u00a712.5\n  2. POST a new followup to tokenizers.json#followups\n  3. Mark this followup resolved"
+        "est_turn": "single Opus turn \u00b7 ~4h SLURM (exclusive-pause)",
+        "tier": "opus",
+        "prompt": "Project: imas-ambix\nPlan: tokenizers (\u00a712.5 bulk-encode)\nTier: opus\n\nContext\n  Open-MAGVIT2 frame tokenizer and Chronos/PatchTST signal tokenizers are all wired. CLI: `ambix data bulk-encode-frames` and `ambix data bulk-encode-signals` already exist. Compute is now exclusive on gpu_0003_grpA (Simon authorized 2026-05-26). Time to run them on the real corpus.\n\nState to read\n  docs/state/imas-ambix/tokenizers.json\n  docs/state/imas-ambix/data-quality.json   (use training-grade-shots.json if Agent A has landed it; otherwise fall back to a 500-shot bucket sample)\n  AGENTS.md \u00a71-3                            (SLURM reservation flags)\n\nLocked decisions to honour\n  primary-approach     \u2192 A (Open-MAGVIT2 visible codebook)\n  vocab-cap            \u2192 32k\n  alignment-12-4       \u2192 per-modality InfoNCE\n  drop-charge-exchange \u2192 yes (filter applied via training-grade manifest)\n\nOpen decisions to surface (do not resolve)\n  plasma-decoder-finetune, ir-camera-codebook (\u00a713.1 \u2014 gates on rFID bench)\n\nConstraints\n  - sbatch flags: --partition=betelgeuse --reservation=gpu_0003_grpA --account=grpa --gres=gpu:4 --cpus-per-task=30 --mem=640G\n  - DO NOT pass --qos (auto-applied; explicit qos errors)\n  - export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p \"$TMPDIR\"\n  - Output dir: /work/projects/imas_gpu/mast/tokens/ (rbb, ir, magnetics subdirs)\n  - Stream stdout to /tmp/tok_${SLURM_JOB_ID}.log; poll with tail.\n  - Run rbb (visible) + magnetics IN PARALLEL across the 4 GPUs (4 workers, 1 GPU each) via the bulk-encode-frames `--workers 4` knob and a separate bulk-encode-signals job\n\nDone-when\n  1. SLURM job submitted; job-id captured\n  2. Tokens land at /work/projects/imas_gpu/mast/tokens/rbb/* and .../magnetics/*\n  3. `ambix data tokens-status` reports \u2265 80% coverage on training-grade shotlist (or \u2265 500 shots if running a sample)\n  4. Plan state updated: data.impl \u2192 0.92, \u00a712.5 marked landed\n  5. This followup resolved with shot count + GPU-hours; new followup for \u00a713.1 plasma-decoder fine-tune gate (gated on bench rFID)\n"
       }
     ],
-    "_version": 2
+    "_version": 3
   }
 }

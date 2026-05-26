@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-26T13:34:15",
+  "updated": "2026-05-26T16:29:42",
   "project": "imas-ambix",
   "doc": "tokenizer-benchmarks",
   "data": {
@@ -16,7 +16,7 @@
     "comments": 0,
     "sprint": "S2",
     "phase": "framework landed \u00b7 awaiting real bench runs",
-    "last_modified": "2026-05-20 12:00",
+    "last_modified": "2026-05-26 14:30",
     "depends_on": [
       "tokenizers"
     ],
@@ -62,18 +62,21 @@
         "written_by": "agent/sonnet",
         "written_at": "2026-05-20 12:00",
         "title": "Run real bench on 100-shot rbb sample",
-        "body": "Framework is wired. Need a real run to set the rFID baseline that the tokenizers \u00a712.1 plasma-decoder fine-tune decision depends on. Blocked on compute reservation.",
-        "recommends_skill": "/plan-implement tokenizer-benchmarks --section 2",
+        "body": "Framework is wired. Need a real run to set the rFID baseline that the tokenizers \u00a712.1 plasma-decoder fine-tune decision depends on. Compute now exclusive (Simon 2026-05-26). Configs already exist at imas_ambix/bench/configs/v0-rbb-25shot.yaml \u2014 extend to 100-shot variant for the gate run.",
+        "recommends_skill": "/reckon-ship tokenizer-benchmarks --section 2",
         "touches": [
+          "imas_ambix/bench/configs/v0-rbb-100shot.yaml",
           "scripts/slurm/bench_rbb.sbatch"
         ],
         "blocked_by": {
-          "slug": "compute",
-          "reason": "reservation gating GPU access"
+          "slug": "tokenizers",
+          "reason": "depends on \u00a712.5 bulk-encode landing tokens first"
         },
-        "est_turn": "single Sonnet turn once compute clears \u00b7 ~3h SLURM",
-        "prompt": "Project: imas-ambix\nPlan: tokenizer-benchmarks\n\nRun the 100-shot rbb benchmark. Use the YAML at configs/bench/rbb-100.yaml. When done, write the rFID number into \u00a72 and post a followup linking it to tokenizers \u00a712.1 plasma-decoder fine-tune decision gate."
+        "est_turn": "single Sonnet turn once tokens clear \u00b7 ~3h SLURM",
+        "tier": "sonnet",
+        "prompt": "Project: imas-ambix\nPlan: tokenizer-benchmarks (\u00a72 rFID baseline)\nTier: sonnet\n\nRun the 100-shot rbb benchmark to set the rFID gate that triggers \u00a712.1 plasma-decoder fine-tune.\n\nState to read\n  docs/state/imas-ambix/tokenizer-benchmarks.json\n  imas_ambix/bench/configs/v0-rbb-25shot.yaml  (extend to 100-shot)\n  /work/projects/imas_gpu/mast/tokens/rbb/     (Agent D output)\n\nLocked decisions to honour\n  primary-approach \u2192 A (Open-MAGVIT2 visible codebook)\n\nConstraints\n  - sbatch via scripts/slurm/bench_rbb.sbatch (Agent B)\n  - reservation=gpu_0003_grpA, account=grpa, gres=gpu:4\n  - Output: imas_ambix/bench/results/v0-rbb-100shot-<jobid>.json\n\nDone-when\n  1. Bench job completes; rFID written to plan \u00a72\n  2. If rFID < 5 \u2192 close tokenizers \u00a712.1 finetune-decoder decision with \"trigger\"\n  3. If rFID \u2265 5 \u2192 trigger plasma-decoder fine-tune scaffold (already exists at imas_ambix/tokenizer/finetune_decoder.py)\n  4. Followup resolved + new followup for the resulting branch"
       }
-    ]
+    ],
+    "_version": 1
   }
 }

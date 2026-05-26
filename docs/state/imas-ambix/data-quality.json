@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-26T13:34:15",
+  "updated": "2026-05-26T16:28:55",
   "project": "imas-ambix",
   "doc": "data-quality",
   "data": {
@@ -16,7 +16,7 @@
     "comments": 1,
     "sprint": "S2",
     "phase": "in flight \u00b7 gate landing 2026-05-21",
-    "last_modified": "2026-05-20 11:00",
+    "last_modified": "2026-05-26 14:30",
     "depends_on": [
       "data-acquisition"
     ],
@@ -71,15 +71,18 @@
         "written_by": "agent/sonnet",
         "written_at": "2026-05-20 14:00",
         "title": "Re-derive training-grade-shots.json excluding CX",
-        "body": "drop-charge-exchange decision is locked. Regenerate the training-grade manifest, update \u00a75 with the new shot count, and confirm world-model-v0 read path picks up the new file.",
-        "recommends_skill": "/plan-implement data-quality --section 5",
+        "body": "drop-charge-exchange decision is locked. Regenerate the training-grade manifest from the full 11,573-shot L2 audit, update \u00a75 with the new shot count, and confirm world-model-v0 read path picks up the new file. Code path: extend imas_ambix/data/manifest.py (the existing manifest module) \u2014 there is no imas_ambix/quality/manifest.py.",
+        "recommends_skill": "/reckon-ship data-quality --section 5",
         "touches": [
-          "imas_ambix/quality/manifest.py",
+          "imas_ambix/data/manifest.py",
+          "imas_ambix/data/training_grade.py",
           "training-grade-shots.json"
         ],
         "est_turn": "single Sonnet turn \u00b7 ~30 min",
-        "prompt": "Project: imas-ambix\nPlan: data-quality\n\nDecision drop-charge-exchange is locked \u2192 yes. Re-derive training-grade-shots.json.\n\nWhen done, update \u00a75 with the new shot count and post a followup confirming world-model-v0 reads from the regenerated file."
+        "tier": "sonnet",
+        "prompt": "Project: imas-ambix\nPlan: data-quality (\u00a75 training-grade gate)\nTier: sonnet\n\nContext\n  Decision drop-charge-exchange is locked \u2192 drop entirely. We need a deterministic training_grade.py that loads the corpus audit, filters by the \u00a75 criteria (magnetics complete, \u22651 camera channel, equilibrium time-slice, no scalar NaNs, no charge_exchange), and writes training-grade-shots.json to the repo root.\n\nState to read\n  docs/state/imas-ambix/data-quality.json\n  imas_ambix/data/manifest.py    (existing manifest module \u2014 extend, do NOT create imas_ambix/quality/manifest.py)\n  imas_ambix/quality/audit.py    (ShotQualityReport schema)\n\nLocked decisions to honour\n  drop-charge-exchange \u2192 yes \u2014 drop entirely from v0 corpus\n\nOpen decisions to surface (do not resolve)\n  data-quality q1 (re-include CX in v1?)\n\nConstraints\n  - The full L2 mirror lives at /work/projects/imas_gpu/mast/level2/\n  - Audit can be run with: uv run ambix data audit --from-bucket-all --tier level2 --workers 16 --output /tmp/audit-full.json\n  - This is CPU-only; do NOT submit to SLURM. Run on a login node or background it with `run_in_background`.\n  - Workers=16 is safe; the login node has 64 cores and we are exclusive on the GPU node so no contention.\n\nDone-when\n  1. New file imas_ambix/data/training_grade.py with a TrainingGradeFilter class + CLI hook (`ambix data training-grade --audit-path ...` ideally, or a small module-run path)\n  2. training-grade-shots.json at repo root with the filtered shot id list + counts by exclusion reason\n  3. Plan state updated: docs/state/imas-ambix/data-quality.json `data.impl` \u2192 1.0, `data.status` \u2192 shipped\n  4. This followup resolved with the new shot count + new followup for world-model-v0 confirming read-path\n  5. Tests added in tests/ for the filter logic (no integration test required for the corpus run)\n"
       }
-    ]
+    ],
+    "_version": 1
   }
 }

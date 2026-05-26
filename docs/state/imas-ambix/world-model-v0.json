@@ -1,22 +1,22 @@
 {
-  "updated": "2026-05-26T16:14:08",
+  "updated": "2026-05-26T16:29:32",
   "project": "imas-ambix",
   "doc": "world-model-v0",
   "data": {
     "slug": "world-model-v0",
     "title": "World-model v0 (WHAM-style)",
-    "status": "blocked",
+    "status": "active",
     "ms": "M2",
     "roi": "high",
     "effort": "L",
     "tier": "opus",
     "impl": 0.18,
     "owner": "Simon McIntosh",
-    "blockers": 2,
+    "blockers": 1,
     "comments": 4,
     "sprint": "S2",
-    "phase": "spec landed \u00b7 blocked on tokenizer round-trip",
-    "last_modified": "2026-05-21 09:00",
+    "phase": "spec landed \u00b7 compute cleared \u00b7 waiting on tokens + smoke wrapper",
+    "last_modified": "2026-05-26 14:30",
     "depends_on": [
       "tokenizers",
       "compute",
@@ -105,7 +105,7 @@
         "written_at": "2026-05-21 09:00",
         "title": "Lock model-size-curriculum decision",
         "body": "tokenizers \u00a712 expansion is closing this week. Before the smoke run can start, we need to commit to either 125M-smoke-first or 500M-direct. Read the decision context and lock it (rationale required).",
-        "recommends_skill": "/plan-edit world-model-v0 --decision model-size-curriculum",
+        "recommends_skill": "/reckon-edit world-model-v0 --decision model-size-curriculum",
         "touches": [
           "docs/world-model-v0.html"
         ],
@@ -123,22 +123,24 @@
         "id": "f-wm-smoke-run",
         "written_by": "claude-sonnet-4-6",
         "written_at": "2026-05-26 00:00",
-        "title": "Kick off 125M smoke training run once compute clears",
-        "body": "model-size-curriculum is locked \u2192 125M smoke-first (2026-05-26). Once SDCC ticket #4421 clears and the exclusive-pause SLURM wrapper lands on the compute plan, queue the 125M smoke run using the \u00a74 training recipe. Eval hooks (token perplexity, magnetics Pearson r, visible rFID) must all improve by step 10k \u2014 if not, stop and investigate before spending the full budget.",
+        "title": "Kick off 125M smoke training run once tokens land",
+        "body": "model-size-curriculum locked \u2192 125M smoke-first. Compute is exclusive (Simon authorized 2026-05-26). Once Agent D's bulk-encode produces tokens at /work/projects/imas_gpu/mast/tokens/ AND Agent B's scripts/slurm/train_exclusive.sbatch lands, queue the 125M smoke run using the \u00a74 training recipe. Eval hooks must all improve by step 10k.",
         "recommends_skill": "/reckon-ship world-model-v0 --section 4",
         "touches": [
           "scripts/slurm/train_exclusive.sbatch",
-          "imas_ambix/training/smoke_run.py"
+          "imas_ambix/train/smoke_run.py",
+          "imas_ambix/train/loader.py",
+          "imas_ambix/train/configs/v0-125m.yaml"
         ],
         "blocked_by": {
-          "slug": "compute",
-          "reason": "exclusive-pause wrapper + SDCC #4421 must clear first"
+          "slug": "tokenizers",
+          "reason": "Need tokens at /work/projects/imas_gpu/mast/tokens/ from \u00a712.5 bulk-encode"
         },
         "tier": "opus",
-        "est_turn": "single Opus turn \u00b7 ~4h SLURM once compute clears",
-        "prompt": "Project: imas-ambix\nPlan:    world-model-v0\nSection: \u00a74 training recipe\nTier:    opus\n\nContext\n  model-size-curriculum is locked \u2192 125M smoke-first (2026-05-26). The tokenizer\n  bulk-encode pass (\u00a712.5) is landing this week. Once compute clears (SDCC ticket\n  #4421 + exclusive-pause wrapper), the 125M smoke run is the highest-ROI next step.\n\nState to read\n  docs/state/imas-ambix/world-model-v0.json\n  docs/state/imas-ambix/compute.json     (confirm reservation cleared + wrapper landed)\n  docs/state/imas-ambix/tokenizers.json  (confirm \u00a712.5 bulk-encode done)\n\nLocked decisions to honour\n  model-size-curriculum \u2192 125M smoke-first\n  alignment-12-4        \u2192 per-modality InfoNCE\n\nOpen decisions to surface (do not resolve)\n  fsdp-wrapper (\u00a74 q1): HF accelerate FSDP wrapper vs torch.distributed.fsdp\n\nConstraints\n  - Training runs via exclusive-pause SLURM wrapper (scripts/slurm/train_exclusive.sbatch)\n  - Stop at step 10k if all 3 eval hooks are not improving\n  - Apache-2.0 components only\n\nDone-when\n  1. 125M smoke run reaches step 10k with improving eval hooks\n  2. Bench numbers (perplexity, Pearson r, rFID) written into \u00a75 of world-model-v0.html\n  3. This followup resolved with outcome + a new followup for either 500M curriculum (if smoke passes) or investigation (if hooks plateau)\n  4. data.impl updated to reflect smoke run landing"
+        "est_turn": "single Opus turn \u00b7 ~4h SLURM",
+        "prompt": "Project: imas-ambix\nPlan:    world-model-v0\nSection: \u00a74 training recipe\nTier:    opus\n\nContext\n  model-size-curriculum is locked \u2192 125M smoke-first. Compute is exclusive (Simon authorized 2026-05-26). Bulk-encode tokens are landing this turn. Smoke run is the keystone for M1 close.\n\nState to read\n  docs/state/imas-ambix/world-model-v0.json\n  docs/state/imas-ambix/compute.json     (confirm wrapper landed)\n  docs/state/imas-ambix/tokenizers.json  (confirm \u00a712.5 tokens landed)\n  imas_ambix/train/                      (existing training scaffold \u2014 NOT imas_ambix/training/)\n  imas_ambix/train/configs/v0-125m.yaml\n\nLocked decisions to honour\n  model-size-curriculum \u2192 125M smoke-first\n  alignment-12-4        \u2192 per-modality InfoNCE\n\nOpen decisions to surface (do not resolve)\n  fsdp-wrapper (\u00a74 q1): HF accelerate FSDP wrapper vs torch.distributed.fsdp\n\nConstraints\n  - Training runs via scripts/slurm/train_exclusive.sbatch (Agent B)\n  - 4 \u00d7 H200 FSDP, batch=32 \u00d7 16k tokens, AdamW(0.95,0.95), cosine 6e-4\u21926e-5 over 30k steps\n  - Stop at step 10k if all 3 eval hooks (perplexity, magnetics Pearson r, visible rFID) are not improving\n  - Apache-2.0 components only\n\nDone-when\n  1. 125M smoke run reaches step 10k with improving eval hooks\n  2. Bench numbers (perplexity, Pearson r, rFID) written into \u00a75\n  3. This followup resolved + new followup for either 500M curriculum (smoke passed) or investigation (hooks plateau)\n  4. data.impl \u2192 0.45, status \u2192 in-progress"
       }
     ],
-    "_version": 3
+    "_version": 4
   }
 }
