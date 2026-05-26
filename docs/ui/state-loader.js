@@ -118,9 +118,41 @@ window.STATE_READY = (async function () {
     inv._central ? inv : (plans[inv.slug] || inv)
   );
 
+  // Ensure projects[0] is populated. Some central-index repos (e.g. imas-efit)
+  // have data.plans[] + data.counts + data.milestones at the top level and no
+  // data.projects[]. Synthesise one so the SPA components can read uniformly.
+  let projects = Array.isArray(idx.projects) ? idx.projects.slice() : [];
+  if (projects.length === 0) {
+    const status = (idx.counts && idx.counts.status) || {};
+    const total  = (idx.counts && idx.counts.total) || mergedInventory.length;
+    const count  = (s) => status[s] !== undefined
+                          ? status[s]
+                          : mergedInventory.filter(p => p.status === s).length;
+    projects = [{
+      project:       PROJECT,
+      path:          window.location.pathname.replace(/\/$/, "").split("/").pop() || PROJECT,
+      published:     "",
+      owner:         "",
+      plans_count:   total,
+      active:        count("active"),
+      blocked:       count("blocked"),
+      pending:       count("pending"),
+      shipped:       count("shipped"),
+      last_modified: idx.audit_date || "",
+      milestones,
+      top:           [],
+      activity30:    [],
+      tests_30d:     { pass: 0, runs: 0 },
+    }];
+  } else if (!Array.isArray(projects[0].milestones) || projects[0].milestones.length === 0) {
+    // projects[0] exists but lacks milestones — merge from top-level if any
+    projects = projects.map((p, i) => i === 0 ? { ...p, milestones: p.milestones || milestones } : p);
+  }
+
   window.STATE = {
     today:            new Date().toISOString().slice(0, 10),
-    projects:         Array.isArray(idx.projects) ? idx.projects : [],
+    project:          PROJECT,
+    projects,
     milestones,
     inventory:        mergedInventory,
     active_sprint_id: idx.active_sprint_id || null,

@@ -1,6 +1,8 @@
-// Sprint view — goal block, kanban with drag-drop hover feedback.
+// v6 Sprint view — cleaned up.
+// One clear goal block, a switcher, a kanban with drag-drop hover feedback.
+// No "what is a sprint" explainer, no past-sprints accordion.
 
-function SprintView({ sprintId, onNav }) {
+function Sprint({ sprintId, onNav }) {
   const M = window.STATE;
   if (!M) return null;
   const allSprints = M.sprints || [];
@@ -11,8 +13,9 @@ function SprintView({ sprintId, onNav }) {
   }, [sprintId, allSprints]);
 
   const sprint = allSprints[idx];
-  if (!sprint) return <div className="plan-page">No sprint.</div>;
+  if (!sprint) return <div className="r-page">No sprint.</div>;
 
+  // Materialise items with their plan info + justification
   const items = sprint.items.map(it => {
     const slug = typeof it === "string" ? it : it.slug;
     const justification = typeof it === "object" ? it.justification : null;
@@ -20,6 +23,7 @@ function SprintView({ sprintId, onNav }) {
     return plan ? { ...plan, justification } : null;
   }).filter(Boolean);
 
+  // Local kanban state — overrides plan.status for drag-drop demo
   const [localStatus, setLocalStatus] = useState({});
   const [dragOver, setDragOver] = useState(null);
   const STATUS_TO_COL = { pending: "todo", draft: "todo", active: "doing", blocked: "doing", in_progress: "doing", shipped: "done", done: "done" };
@@ -52,10 +56,10 @@ function SprintView({ sprintId, onNav }) {
   };
 
   return (
-    <div className="plan-page wide">
-      <div className="sprint-header">
-        <div className="eyebrow">Sprint</div>
-        <div className="sprint-switcher">
+    <div className="r-page wide">
+      <div className="r-sp-head">
+        <div className="r-eyebrow">Sprint</div>
+        <div className="r-sp-switcher">
           <button className="nav-btn" disabled={idx <= 0} onClick={() => onNav({ view: "sprint", sprint: allSprints[idx - 1].id })}>←</button>
           <div className="current">
             <span className="id">{sprint.id}</span>
@@ -66,13 +70,13 @@ function SprintView({ sprintId, onNav }) {
         </div>
       </div>
 
-      <div className="sprint-goal">
+      <div className="r-sp-goal">
         <div className="lbl">Goal</div>
         <div className="theme">{sprint.theme}</div>
         {sprint.summary && <div className="summary">{sprint.summary}</div>}
       </div>
 
-      <div className="kanban">
+      <div className="r-kanban">
         {[
           { id: "todo",  title: "To do",  cards: cols.todo  },
           { id: "doing", title: "Doing",  cards: cols.doing },
@@ -80,9 +84,10 @@ function SprintView({ sprintId, onNav }) {
         ].map(col => (
           <div
             key={col.id}
-            className={`kanban-col ${dragOver === col.id ? "drag-over" : ""}`}
+            className={`r-col ${dragOver === col.id ? "drag-over" : ""}`}
             onDragOver={(e) => { e.preventDefault(); setDragOver(col.id); }}
             onDragLeave={(e) => {
+              // Only clear if we actually left the column (not just moved within children)
               if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(null);
             }}
             onDrop={(e) => onDrop(e, col.id)}
@@ -94,7 +99,7 @@ function SprintView({ sprintId, onNav }) {
             {col.cards.map(p => (
               <a
                 key={p.slug}
-                className={`kanban-card ${p._eff === "blocked" ? "blocked" : ""}`}
+                className={`r-kcard ${p._eff === "blocked" ? "blocked" : ""}`}
                 href={`#plan/${p.slug}`}
                 draggable
                 onDragStart={(e) => onDragStart(e, p.slug)}
@@ -128,4 +133,8 @@ function SprintView({ sprintId, onNav }) {
   );
 }
 
+// SprintView is an alias for backward-compat with shell.jsx which calls <SprintView>.
+const SprintView = Sprint;
+
+window.Sprint = Sprint;
 window.SprintView = SprintView;

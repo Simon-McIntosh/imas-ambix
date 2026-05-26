@@ -1,22 +1,24 @@
-// Cockpit — project-level overview (sidebar-based layout, legacy).
-// Not used by the 3-column shell; kept as a standalone component.
+// Cockpit — minimal landing.
+// Sidebar handles plan navigation; cockpit is just project-level state
+// (milestones, decisions across plans, active sprint, recent activity).
 
 function Cockpit({ onNav }) {
   const M = window.STATE;
   if (!M) return null;
-  const project = M.projects[0];
+  const project = M.projects?.[0] || { project: M.project || "", plans_count: M.inventory?.length || 0, milestones: M.milestones || [], owner: "" };
   const sprint = M.sprint;
 
+  // Plans with open decisions
   const decisionPlans = M.inventory
     .filter(i => (i.dec_open || 0) > 0)
     .sort((a, b) => (b.dec_open || 0) - (a.dec_open || 0));
   const decisionTotal = decisionPlans.reduce((n, p) => n + (p.dec_open || 0), 0);
 
   return (
-    <div className="plan-page wide">
-      <div className="ck-header">
+    <div className="r-page wide">
+      <div className="r-ck-head">
         <div>
-          <div className="eyebrow">project · {project.project}</div>
+          <div className="r-eyebrow">project · {project.project}</div>
           <h1>{project.project}</h1>
           <div className="sub">
             {project.plans_count} plans · sprint <strong>{sprint.id}</strong> in flight · owner {project.owner}
@@ -26,12 +28,13 @@ function Cockpit({ onNav }) {
         <button className="btn primary">+ New plan</button>
       </div>
 
-      <div className="eyebrow">Milestone arc</div>
-      <div className="ms-grid">
+      {/* Milestone arc — each milestone clickable */}
+      <div className="r-eyebrow">Milestone arc</div>
+      <div className="r-ms">
         {project.milestones.map(m => (
           <button
             key={m.id}
-            className={`ms-tile ${m.status}`}
+            className={`r-ms-tile ${m.status}`}
             onClick={() => {
               const target = M.inventory.find(i => i.ms === m.id && i.status === "active")
                 || M.inventory.find(i => i.ms === m.id);
@@ -47,19 +50,20 @@ function Cockpit({ onNav }) {
         ))}
       </div>
 
-      <div className="eyebrow" style={{ marginTop: 8 }}>
+      {/* Decisions */}
+      <div className="r-eyebrow" style={{ marginTop: 8 }}>
         Decisions · {decisionTotal} open across {decisionPlans.length} plan{decisionPlans.length === 1 ? "" : "s"}
       </div>
       {decisionPlans.length === 0 ? (
-        <div className="decision-list" style={{ padding: 24, textAlign: "center", color: "var(--muted)" }}>
+        <div className="r-dec-list" style={{ padding: 24, textAlign: "center", color: "var(--muted)" }}>
           No open decisions.
         </div>
       ) : (
-        <div className="decision-list">
+        <div className="r-dec-list">
           {decisionPlans.map(p => (
             <a
               key={p.slug}
-              className="decision-list-item"
+              className="r-dec-row"
               href={`#plan/${p.slug}`}
             >
               <span className="c">{p.dec_open}</span>
@@ -76,15 +80,16 @@ function Cockpit({ onNav }) {
         </div>
       )}
 
-      <div className="eyebrow" style={{ marginTop: 26 }}>Sprint {sprint.id} · {sprint.theme}</div>
-      <div className="decision-list">
+      {/* Active sprint */}
+      <div className="r-eyebrow" style={{ marginTop: 26 }}>Sprint {sprint.id} · {sprint.theme}</div>
+      <div className="r-dec-list">
         {sprint.items.map((it, i) => {
           const slug = typeof it === "string" ? it : it.slug;
           const justification = typeof it === "object" ? it.justification : null;
           const p = M.inventory.find(x => x.slug === slug);
           if (!p) return null;
           return (
-            <a key={slug} className="decision-list-item" href={`#plan/${slug}`}>
+            <a key={slug} className="r-dec-row" href={`#plan/${slug}`}>
               <span className="c" style={{ background: "var(--bg-3)", color: "var(--ink-2)" }}>
                 {p.impl ? Math.round(p.impl * 100) + "%" : "—"}
               </span>
@@ -103,7 +108,8 @@ function Cockpit({ onNav }) {
         <a className="btn ghost" href={`#sprint/${sprint.id}`}>Open sprint board →</a>
       </div>
 
-      <div className="eyebrow" style={{ marginTop: 26 }}>Recent activity</div>
+      {/* Recent activity */}
+      <div className="r-eyebrow" style={{ marginTop: 26 }}>Recent activity</div>
       <div className="card">
         <div className="card-body">
           <div className="ledger">

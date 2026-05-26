@@ -1,11 +1,18 @@
-// Plan view — reading-first document with inline decisions, select-to-comment,
-// and a "Generate handoff prompt" button in the header.
+// Plan view — reading-first document with inline decisions and select-to-comment.
+// No internal topbar/breadcrumb because the sidebar handles nav.
+// The right rail has been removed; About/Graph/Comments live in the title bar
+// row 2 and inline in the section thread.
+//
+// Row 2 of the plan title bar (rendered in shell.jsx) carries the plan meta.
+// Inside the plan body there is a Reading | Graph toggle near the top.
+// Graph mode replaces the article body with RadialFan; followup + decision
+// sections are hidden in graph mode for cleaner focus.
 
-function PlanView({ slug, onNav }) {
+function Plan({ slug, onNav }) {
   const M = window.STATE;
   if (!M) return null;
   const PG = M.plans[slug];
-  if (!PG) return <div className="plan-page">Plan "{slug}" not found.</div>;
+  if (!PG) return <div className="r-page">Plan "{slug}" not found.</div>;
 
   const isTokenizers = slug === "tokenizers";
   const P = isTokenizers ? (M.planTokenizers || PG) : PG;
@@ -22,24 +29,31 @@ function PlanView({ slug, onNav }) {
   const [showPrompt, setShowPrompt] = useState(false);
   const [composingAt, setComposingAt] = useState(null);
 
+  // Reading / Graph toggle — resets to Reading on each navigation (slug change)
+  const [viewMode, setViewMode] = useState("reading");
+  useEffect(() => {
+    setViewMode("reading");
+  }, [slug]);
+
+  // Listen for "open prompt" event from the title bar
   useEffect(() => {
     const open = () => {
       const openDecs = decs.filter(d => !d.chosen);
       if (openDecs.length > 0) {
-        if (window.flashSaved) window.flashSaved(`✗ ${openDecs.length} open decision${openDecs.length === 1 ? "" : "s"} — take them first`);
+        if (window.flashSaved) window.flashSaved(`✗ ${openDecs.length} open decision${openDecs.length === 1 ? "" : "s"} — resolve them first`);
         return;
       }
       setShowPrompt(true);
     };
-    window.addEventListener("open-prompt", open);
-    return () => window.removeEventListener("open-prompt", open);
+    window.addEventListener("reckon:open-prompt", open);
+    return () => window.removeEventListener("reckon:open-prompt", open);
   }, [decs]);
 
   const initialComments = (stored.comments) || P.comments || {};
   const [comments, setComments] = useState(initialComments);
 
   const articleRef = useRef(null);
-  const [sel, clearSel] = window.planUtils.useSelectionToComment(articleRef, slug);
+  const [sel, clearSel] = window.reckon.useSelectionToComment(articleRef, slug);
 
   const author = window.STATE?.projects?.[0]?.owner || "user";
 
@@ -69,46 +83,39 @@ function PlanView({ slug, onNav }) {
   };
 
   return (
-    <div className="plan-page">
-      <div className="plan-header">
-        <div>
-          <h1>{P.title || PG.title}</h1>
-          <div className="sub">
-            <code>/{slug}</code>
-            <span>·</span>
-            <span className={`status ${PG.status}`}><span className="dot"></span><span>{PG.status}</span></span>
-            <span>·</span>
-            <span className="badge ms" style={{ background: "var(--bg-3)", padding: "1px 7px", borderRadius: 4, fontFamily: "var(--mono)", fontSize: 11 }}>{PG.ms}</span>
-            {PG.sprint && <>
-              <span>·</span>
-              <a href={`#sprint/${PG.sprint}`} style={{ color: "var(--ink-2)", borderBottom: "1px dotted var(--line)" }}>{PG.sprint}</a>
-            </>}
-            <span>·</span>
-            <span>{fmtPct(PG.impl)}</span>
-          </div>
-        </div>
-        <div className="plan-actions">
-          <button className="btn" onClick={() => setShowPrompt(true)}>⌘ Generate handoff prompt</button>
-        </div>
+    <div className="r-page">
+      {/* Reading / Graph toggle — sits above the article */}
+      <div className="r-plan-mode-toggle">
+        <button
+          className={`r-mode-pill${viewMode === "reading" ? " active" : ""}`}
+          onClick={() => setViewMode("reading")}
+        >Reading</button>
+        <button
+          className={`r-mode-pill${viewMode === "graph" ? " active" : ""}`}
+          onClick={() => setViewMode("graph")}
+        >Graph</button>
       </div>
 
-      <div className="plan-view-layout">
-        <article className="reading-area" ref={articleRef}>
+      {viewMode === "graph" ? (
+        /* Graph mode — radial fan only; no article or followups */
+        window.RadialFan
+          ? <window.RadialFan focalSlug={slug} onNav={onNav} />
+          : <div style={{ padding: 24, color: "var(--muted)" }}>Graph view loading…</div>
+      ) : (
+        /* Reading mode (default) */
+        <article className="r-reading" ref={articleRef}>
           {isTokenizers ? (
             <TokenizersBody P={P} decs={decs} onUpdateDec={onUpdateDec} comments={comments} />
           ) : (
-            <PlanBody PG={PG} decs={decs} onUpdateDec={onUpdateDec} comments={comments} />
+            <GenericBody PG={PG} decs={decs} onUpdateDec={onUpdateDec} comments={comments} />
           )}
         </article>
+      )}
 
-        <aside className="plan-rail">
-          <PlanRail plan={PG} comments={comments} onNav={onNav} />
-        </aside>
-      </div>
-
-      {sel && !composingAt && (
+      {/* Floating comment button — only in reading mode */}
+      {viewMode === "reading" && sel && !composingAt && (
         <button
-          className="float-comment-btn"
+          className="r-float-btn"
           style={{ top: sel.top + 6, left: Math.min(sel.left - 60, window.innerWidth - 140) }}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
@@ -143,9 +150,9 @@ function PlanView({ slug, onNav }) {
   );
 }
 
-// ─── Generic data-driven body (sections[] + decisions at bottom) ─────────
+// ─── Generic data-driven body (sections[] + decisions inline at end) ─────
 
-function PlanBody({ PG, decs, onUpdateDec, comments }) {
+function GenericBody({ PG, decs, onUpdateDec, comments }) {
   return (
     <>
       <p style={{ color: "var(--muted)", fontSize: 14 }}>{PG.summary}</p>
@@ -161,7 +168,7 @@ function PlanBody({ PG, decs, onUpdateDec, comments }) {
         <>
           <h2 id="decisions"><span className="sec">§</span>Decisions</h2>
           {decs.map(d => (
-            <DecisionRow key={d.key} d={d}
+            <Decision key={d.key} d={d}
               onUpdate={(choice, rat) => onUpdateDec(d.key, choice, rat)} />
           ))}
           <SectionComments comments={comments["decisions"]} />
@@ -189,91 +196,5 @@ function PlanBody({ PG, decs, onUpdateDec, comments }) {
   );
 }
 
-// ─── Right rail ───────────────────────────────────────────────────────────
-
-function PlanRail({ plan, comments, onNav }) {
-  const totalComments = Object.values(comments || {}).reduce((n, arr) => n + arr.length, 0);
-  return (
-    <>
-      <div className="block">
-        <h4>About</h4>
-        <div className="kv">
-          <span className="k">owner</span>
-          <span className="v">{plan.owner || "—"}</span>
-          <span className="k">milestone</span>
-          <span className="v">{plan.ms}</span>
-          {plan.sprint && <>
-            <span className="k">sprint</span>
-            <span className="v">
-              <a onClick={() => onNav({ view: "sprint", sprint: plan.sprint })}
-                 style={{ cursor: "pointer", borderBottom: "1px dotted var(--line)" }}>{plan.sprint}</a>
-            </span>
-          </>}
-          <span className="k">last write</span>
-          <span className="v" style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{plan.last}</span>
-          <span className="k">phase</span>
-          <span className="v" style={{ fontSize: 12 }}>{plan.phase}</span>
-        </div>
-      </div>
-
-      {((plan.depends_on?.length || 0) > 0 || (plan.blocks?.length || 0) > 0) && (
-        <div className="block">
-          <h4>Graph</h4>
-          {plan.depends_on?.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--muted)", marginBottom: 4 }}>depends on</div>
-              <div className="pills">
-                {plan.depends_on.map(s => {
-                  const target = window.STATE.inventory.find(i => i.slug === s);
-                  const blocked = target?.status === "blocked";
-                  return (
-                    <a key={s} href={`#plan/${s}`} className={`pill ${blocked ? "blocked" : ""}`}>{s}</a>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {plan.blocks?.length > 0 && (
-            <div>
-              <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--muted)", marginBottom: 4 }}>blocks</div>
-              <div className="pills">
-                {plan.blocks.map(s => <a key={s} href={`#plan/${s}`} className="pill">{s}</a>)}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="block">
-        <h4>Comments · {totalComments}</h4>
-        {totalComments === 0
-          ? <div style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.5 }}>
-              Select any text in the plan to add a comment. Persists to <code style={{ fontSize: 11 }}>{plan.slug}.json#comments</code>.
-            </div>
-          : (
-            <div>
-              {Object.entries(comments).map(([sid, arr]) => (
-                <div key={sid} style={{ marginBottom: 10 }}>
-                  <a href={`#${sid}`} style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}
-                     onClick={(e) => { e.preventDefault(); document.getElementById(sid)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>
-                    § {sid} · {arr.length}
-                  </a>
-                  {arr.slice(-2).map(c => (
-                    <div key={c.id} style={{ padding: "6px 10px", background: "var(--bg-2)", borderLeft: "2px solid var(--accent)", borderRadius: "0 6px 6px 0", marginTop: 4, fontSize: 12 }}>
-                      <div style={{ color: "var(--muted)", fontSize: 11 }}>{c.who} · {c.when}</div>
-                      <div style={{ marginTop: 3 }}>{c.body}</div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )
-        }
-      </div>
-    </>
-  );
-}
-
-window.PlanView = PlanView;
-window.PlanBody = PlanBody;
-window.PlanRail = PlanRail;
+window.Plan = Plan;
+window.GenericBody = GenericBody;

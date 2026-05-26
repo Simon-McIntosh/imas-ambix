@@ -1,5 +1,5 @@
 // Shared bits — comment popover, prompt modal, helpers.
-// Made global on window.planUtils so other Babel scripts can use them.
+// Exposed on window.reckon (canonical) and window.planUtils (backward-compat alias).
 
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
@@ -283,10 +283,17 @@ function SectionComments({ comments }) {
   );
 }
 
+// Canonical namespace: window.reckon
+// window.planUtils is kept as a backward-compat alias for shell.jsx / plan.jsx (other agents' files).
+const _reckonUtils = {
+  fmtPct, whenShort, planSave, planLoad,
+  buildHandoffPrompt,
+  PromptModal, CommentPopover, useSelectionToComment, SectionComments,
+};
+
 Object.assign(window, {
-  planUtils: {
-    fmtPct, whenShort, planSave, planLoad,
-    buildHandoffPrompt,
-    PromptModal, CommentPopover, useSelectionToComment, SectionComments,
-  },
+  reckon:    _reckonUtils,
+  planUtils: _reckonUtils,  // backward-compat alias
+  // Top-level window properties for cross-Babel-script access
+  planSave, planLoad, PromptModal, CommentPopover, useSelectionToComment, SectionComments,
 });

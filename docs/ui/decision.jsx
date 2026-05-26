@@ -1,8 +1,7 @@
 // Decision row — select a choice + rationale, commit with Update.
+// Renamed from plan-decision.jsx; canonical namespace is window.reckon.
 
-const { PromptModal, CommentPopover, useSelectionToComment, SectionComments, buildHandoffPrompt, planSave, planLoad, fmtPct } = window.planUtils;
-
-function DecisionRow({ d, onUpdate }) {
+function Decision({ d, onUpdate }) {
   const [selected, setSelected] = useState(d.chosen || null);
   const [rationale, setRationale] = useState(d.rationale || "");
   const [editing, setEditing] = useState(false);
@@ -17,7 +16,7 @@ function DecisionRow({ d, onUpdate }) {
   const canCommit = !!selected || rationale.trim() !== (d.rationale || "");
 
   return (
-    <div className={`decision ${isTaken ? "taken" : ""} ${editing ? "editing" : ""}`}>
+    <div className={`r-dec ${isTaken ? "taken" : ""} ${editing ? "editing" : ""}`}>
       <div className="h">
         <span className="key">{d.key}</span>
         <span className="title">{d.title}</span>
@@ -30,7 +29,7 @@ function DecisionRow({ d, onUpdate }) {
           <span className="edit-link" onClick={() => setEditing(true)}>edit</span>
         </div>
       ) : (
-        <div className="decision-form">
+        <div className="r-dec-form">
           <div className="ctx">{d.context}</div>
           <div className="choices">
             {d.choices.map(c => (
@@ -61,4 +60,6 @@ function DecisionRow({ d, onUpdate }) {
   );
 }
 
-window.DecisionRow = DecisionRow;
+// Export under both names — plan.jsx uses <Decision>, plan-tokenizers.jsx uses <DecisionRow>.
+window.Decision = Decision;
+window.DecisionRow = Decision;
