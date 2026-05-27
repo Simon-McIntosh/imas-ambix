@@ -1,71 +1,48 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Strategy | Ambix Plans</title>
-<link rel="stylesheet" href="_shared/foundation.css">
-<link rel="stylesheet" href="_shared/dashboard.css">
-<script src="_shared/state.js"></script>
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="STRATEGY">
+<title>STRATEGY — Fusion World Model | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="reckon-type" content="plan">
+<meta name="plan-title" content="STRATEGY — Fusion World Model">
+<meta name="plan-summary" content="Vision, partner-facility roadmap, why MAST first, v0/v1 success criteria, risk register.">
+<meta name="plan-status" content="active">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="S">
+<meta name="plan-milestone" content="M0">
+<meta name="plan-tier" content="opus">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-19 12:00">
+<meta name="plan-depends-on" content="">
+<meta name="plan-blocks" content="v0-runway">
+<meta name="plan-impl" content="0.85">
+<meta name="plan-version" content="3">
 </head>
 <body>
-
-<div class="topbar">
-  <a class="brand" href="index.html">
-    <span class="mark">A</span>
-    <span class="proj-name">imas-ambix</span>
-  </a>
-  <nav>
-    <a href="index.html">Index</a>
-    <a href="STRATEGY.html" class="active">Strategy</a>
-    <a href="v0-runway.html">v0 Runway</a>
-    <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data acq</a>
-    <a href="data-quality.html">Quality</a>
-    <a href="tokenizers.html">Tokenizers</a>
-    <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World model</a>
-    <a href="demo.html">Demo</a>
-    <a href="decisions.html">Decisions</a>
-  </nav>
-  <div class="right"></div>
-</div>
-
-<main class="page">
-
-<div class="page-head">
-  <div class="title">
-    <h1>Ambix: Fusion World Model Strategy</h1>
-    <div class="subtitle">imas-ambix / Fusion World Model ·
-      Updated <time id="updated">2026-05-21</time></div>
-  </div>
-</div>
-
-<div class="prose" style="max-width:none">
-
+<main class="plan-doc">
 <p><strong>System:</strong> <code>imas-ambix</code>
 <strong>Role:</strong> Distillation &amp; Generative Modelling (consumer of imas-codex
 mappings, producer of Fusion World Model weights)
 <strong>Output:</strong> Trained transformer checkpoints that predict plasma evolution
 given control inputs, plus a multi-modal tokenizer toolchain that lets us
 do so on heterogeneous tokamak diagnostic streams.</p>
-
-<hr>
-
+<hr/>
 <h2 id="1-executive-vision">1. Executive Vision</h2>
-
 <p>Ambix builds the generative engine of the Fusion World Model. Where
 <a href="https://github.com/iterorganization/imas-codex">imas-codex</a> answers "what
 data exists and how it maps to IMAS", ambix answers "given the data and the
 mapping, what does the plasma do next?".</p>
-
 <p>The strategic motivation is captured in the GPU-procurement document
 prepared for Science Division (see
 <code>../../imas-codex/plans/gpu-cluster-scoping.md</code> §3.3). The headline
 argument: a Microsoft-style world model trained on tokamak diagnostic
 streams gives ITER three capabilities that are unreachable with current
 analysis tooling:</p>
-
 <ol>
 <li><strong>Pre-play</strong> of planned pulses against learned plasma physics, before
 machine time is consumed.</li>
@@ -74,7 +51,6 @@ can probe scenario boundaries without risking the device.</li>
 <li><strong>Validation of physics models</strong> by comparing generated plasma states
 to first-principles predictions on the same control input.</li>
 </ol>
-
 <p>The reference architecture is Microsoft's WHAM (World and Human Action
 Model, Kanervisto <em>et al.</em>, <em>Nature</em> <strong>638</strong> (2025) — DOI
 <a href="https://doi.org/10.1038/s41586-025-08600-3"><code>10.1038/s41586-025-08600-3</code></a>,
@@ -86,22 +62,17 @@ with diagnostic measurements (including camera frames), replace controller
 actions with the engineered control vector (coil currents, gas-injection
 rates, heating power, pulse-schedule waypoints), and predict the next
 multi-modal state token-by-token.</p>
-
 <p>The Fusion World Model is not a substitute for first-principles solvers
 (GENE, JOREK, EFIT). It is a generative model of <em>observed</em> tokamak
 behaviour — extracted directly from experimental data, validated against
 held-out shots, and useful precisely where first-principles models are too
 expensive or too uncertain to run in the loop.</p>
-
-<hr>
-
+<hr/>
 <h2 id="2-why-mast-first">2. Why MAST first</h2>
-
 <p>The 26 B state-transition corpus across JET / TCV / JT-60SA / AUG / DIII-D
 described in the GPU-procurement document is the long-term training target.
 It cannot be the v0 dataset. Three reasons make FAIR-MAST the right
 starting point:</p>
-
 <ol>
 <li><strong>Permissive open access.</strong> Data is licensed CC BY-SA 4.0, the
 <code>ukaea/fair-mast</code> tooling is MIT, and the S3 endpoint at
@@ -119,18 +90,14 @@ infrared system (RIR / AIT → <code>camera_ir</code>) across enough shots in th
 – M9 campaigns to support a frame-prediction prototype. Camera-rich
 tokamaks are rarer than people assume.</li>
 </ol>
-
 <p>The trade-off: MAST is a smaller, lower-current spherical tokamak. The
 plasma physics it produces is not directly transferable to ITER scenarios.
 We accept this. The v0 model is for <em>workflow</em>, not <em>physics transfer</em>:
 prove the pipeline (download → tokenise → train → roll out) end-to-end on
 a permissive corpus, then graft on additional facilities through
 imas-codex once their mappings land.</p>
-
-<hr>
-
+<hr/>
 <h2 id="3-roadmap">3. Roadmap</h2>
-
 <div class="table-scroll">
 <table class="t">
 <thead>
@@ -176,16 +143,11 @@ imas-codex once their mappings land.</p>
 </tbody>
 </table>
 </div>
-
 <p>Only Phase 0 – 2 are scoped in detail by this plan set. Phase 3+ depends on
 data and compute that are not yet committed.</p>
-
-<hr>
-
+<hr/>
 <h2 id="4-dependency-on-imas-codex">4. Dependency on imas-codex</h2>
-
 <p>Ambix and codex are tightly coupled by design:</p>
-
 <div class="table-scroll">
 <table class="t">
 <thead>
@@ -211,18 +173,14 @@ data and compute that are not yet committed.</p>
 </tbody>
 </table>
 </div>
-
 <p>For the MAST v0 work, ambix does <strong>not</strong> strictly need codex outputs —
 FAIR-MAST publishes its own IMAS mapping. But the moment we add a second
 facility, codex becomes load-bearing. The <code>imas_ambix/data/manifest.py</code>
 module is therefore designed to consume codex-style facility manifests
 even in v0, even though the MAST manifest is hand-written. This keeps the
 data-loader interface stable as we add facilities.</p>
-
-<hr>
-
+<hr/>
 <h2 id="5-success-criteria">5. Success criteria</h2>
-
 <h3 id="v0-this-plan-set">v0 (this plan set)</h3>
 <ul>
 <li>All 11,573 FAIR-MAST level-2 shots mirrored to
@@ -240,7 +198,6 @@ compared to the held-out ground truth.</li>
 comparison and reports physics-derived quantities (chord-integrated
 emission, frame centroid).</li>
 </ul>
-
 <h3 id="v1-out-of-scope-of-this-plan-set-but-the-target-phase-2-closes">v1 (out of scope of this plan set, but the target Phase 2 closes toward)</h3>
 <ul>
 <li>Quantitative agreement with held-out plasma metrics: chord-integrated
@@ -252,7 +209,6 @@ in the correct sign / magnitude).</li>
 <li>Tokenizer codebook adapted to plasma imagery — i.e. fine-tuned Open-MAGVIT2
 decoder weights checked into <code>/work/projects/imas_gpu/mast-tokens/</code>.</li>
 </ul>
-
 <h3 id="anti-goals-explicitly-out-of-scope-for-v0v1">Anti-goals (explicitly out of scope for v0/v1)</h3>
 <ul>
 <li>Real-time control. The world model is offline-only. Real-time deployment
@@ -265,11 +221,8 @@ off the shelf. If they fail, we swap them; we do not invent.</li>
 <li>A new training framework. HuggingFace <code>transformers</code> + <code>accelerate</code>
 FSDP only.</li>
 </ul>
-
-<hr>
-
+<hr/>
 <h2 id="6-risk-register">6. Risk register</h2>
-
 <div class="table-scroll">
 <table class="t">
 <thead>
@@ -315,11 +268,8 @@ FSDP only.</li>
 </tbody>
 </table>
 </div>
-
-<hr>
-
+<hr/>
 <h2 id="7-plan-documents">7. Plan documents</h2>
-
 <div class="table-scroll">
 <table class="t">
 <thead>
@@ -327,60 +277,199 @@ FSDP only.</li>
 </thead>
 <tbody>
 <tr>
-<td><a href="STRATEGY.md" class="link"><code>STRATEGY.md</code></a> (this file)</td>
+<td><a class="link" href="STRATEGY.md"><code>STRATEGY.md</code></a> (this file)</td>
 <td>Vision, roadmap, success criteria, risk register</td>
 </tr>
 <tr>
-<td><a href="data-acquisition.md" class="link"><code>data-acquisition.md</code></a></td>
+<td><a class="link" href="data-acquisition.md"><code>data-acquisition.md</code></a></td>
 <td>FAIR-MAST endpoint inventory, probe protocol, bulk-download protocol</td>
 </tr>
 <tr>
-<td><a href="tokenizers.md" class="link"><code>tokenizers.md</code></a></td>
+<td><a class="link" href="tokenizers.md"><code>tokenizers.md</code></a></td>
 <td>Per-modality tokenizer design and persistence layout</td>
 </tr>
 <tr>
-<td><a href="world-model-v0.md" class="link"><code>world-model-v0.md</code></a></td>
+<td><a class="link" href="world-model-v0.md"><code>world-model-v0.md</code></a></td>
 <td>Decoder-only AR transformer spec and training recipe</td>
 </tr>
 <tr>
-<td><a href="demo.md" class="link"><code>demo.md</code></a></td>
+<td><a class="link" href="demo.md"><code>demo.md</code></a></td>
 <td>Wide-angle viewing-system forward-prediction demo</td>
 </tr>
 <tr>
-<td><a href="compute.md" class="link"><code>compute.md</code></a></td>
+<td><a class="link" href="compute.md"><code>compute.md</code></a></td>
 <td>SLURM patterns, reservation request, FSDP sharding</td>
 </tr>
 <tr>
-<td><a href="README.md" class="link"><code>README.md</code></a></td>
+<td><a class="link" href="README.md"><code>README.md</code></a></td>
 <td>Index page (status, summaries)</td>
 </tr>
 </tbody>
 </table>
 </div>
-
-<hr>
-
+<hr/>
 <h2 id="8-references">8. References</h2>
 <ul>
 <li>Kanervisto <em>et al.</em>, "World and Human Action Models towards gameplay
 ideation", <em>Nature</em> <strong>638</strong> (2025) — primary reference for WHAM
-architecture. DOI: <a href="https://doi.org/10.1038/s41586-025-08600-3" class="link"><code>10.1038/s41586-025-08600-3</code></a>.</li>
+architecture. DOI: <a class="link" href="https://doi.org/10.1038/s41586-025-08600-3"><code>10.1038/s41586-025-08600-3</code></a>.</li>
 <li>Jackson <em>et al.</em>, "FAIR-MAST: A fusion device data management system",
 <em>SoftwareX</em> <strong>27</strong> (2024) 101869. DOI:
-<a href="https://doi.org/10.1016/j.softx.2024.101869" class="link"><code>10.1016/j.softx.2024.101869</code></a>.</li>
+<a class="link" href="https://doi.org/10.1016/j.softx.2024.101869"><code>10.1016/j.softx.2024.101869</code></a>.</li>
 <li>Jackson <em>et al.</em>, "An Open Data Service for Supporting Research in
 Machine Learning on Tokamak Data", <em>IEEE Trans. Plasma Sci.</em> (2025).
-DOI: <a href="https://doi.org/10.1109/TPS.2025.3583419" class="link"><code>10.1109/TPS.2025.3583419</code></a>.</li>
+DOI: <a class="link" href="https://doi.org/10.1109/TPS.2025.3583419"><code>10.1109/TPS.2025.3583419</code></a>.</li>
 <li>ITER Science Division GPU-procurement document, §3.3 "Fusion World Model
 Development": <code>../../imas-codex/plans/gpu-cluster-scoping.md</code>.</li>
 </ul>
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="shared-css-delivery" data-choice="Per-repo copies + /reckon-sync" data-by="Simon McIntosh" data-when="2026-05-26T14:13:27+00:00">
+    <p class="r-dec-q">shared-css-delivery</p>
+    <p class="r-dec-rat">Works offline, no CI dependency, no PAT/secret management. Manual sync cost is negligible — only run when reckon&#x27;s CSS changes. GitHub Action auto-sync adds complexity and a production CI dependency for a cosmetic concern.</p>
+    </div>
+<div class="r-dec" data-key="project-accent" data-choice="reckon defaults via /reckon-sync; no per-project CSS" data-by="Simon McIntosh" data-when="2026-05-26T14:13:40+00:00">
+    <p class="r-dec-q">project-accent</p>
+    <p class="r-dec-rat">Project accent is not an imas-ambix concern. The reckon canonical CSS (foundation + dashboard) provides the default palette. Keep docs/_shared/ in sync with reckon via /reckon-sync on each reckon update. No project.css override.</p>
+    </div>
+</section>
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-strategy-handoff" data-status="open" data-tier="opus" data-written-by="opus-coordinator" data-written-at="2026-05-21 12:55" data-recommends-skill="/plan-status" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Plan-system redesign landed across dotfiles + imas-ambix + imas-efit</h4>
+    <div class="r-fu-body">The HTML-Plans redesign prototype shipped end-to-end on 2026-05-21. Three coordinated commit chains landed:
 
-<nav class="plan-nav"><a href="v0-runway.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">v0 Runway</span></a></nav>
+• dotfiles (main, Simon-McIntosh/dotfiles):
+  – 7c9b044  feat(html-docs): add 3-layer CSS (foundation + dashboard + project)
+  – 12aabdf  feat(html-docs): add 5 redesigned page templates + ui.jsx + mockdata.js
+  – 7530860  feat(plans): layered CSS + extended schema + NEXT handoff card
+             (state.js helpers, serve.py /_shared/ + /_projects/, home.html,
+              SKILL.md edits, plan-style and plan-test skills, AGENTS.md
+              prompt-template + dissent flow)
+  Pre-redesign rename commits also landed (efit → imas-efit URL refresh).
 
-</div>
+• imas-ambix (main, Simon-McIntosh/imas-ambix; public, Pages-deployed):
+  – 2ab3664  docs(rename): point imas-efit links to renamed repo
+  – af14de7  docs(plans): migrate to 3-layer CSS (foundation + dashboard via _shared/)
+  – 0ba48cb  docs(plans): foundation.css before dashboard.css (cascade order)
+  – 22deacc  docs(plans): add redesign-rollout — full UX flow demo
+  Verified live: https://simon-mcintosh.github.io/imas-ambix/ renders the new
+  CSS; /_shared/foundation.css, /_shared/dashboard.css, /_shared/state.js all
+  resolve; redesign-rollout.html hydrates from its state JSON with locked
+  decision, open questions, followup §05 prompt, notes, and research items.
 
+• imas-efit (develop, Simon-McIntosh/imas-efit; private; no Pages):
+  – ae93a611  docs(rename): update efit → imas-efit URLs after GitHub repo rename
+  – 59d124f8  docs(plans): migrate to 3-layer CSS (8 top-level + 51 curated)
+  – c8a20d87  docs(plans): wire plan-test hook on build-system-restructure (ctest UNIT)
+  Verified local: 59 pages return 200 from the docs-server; assets/efit.css
+  retained as the project-specific accent layer.
+
+GitHub renames (irreversible from the prior session):
+  Simon-McIntosh/efit            → Simon-McIntosh/imas-efit
+  iterorganization/efit          → iterorganization/imas-efit
+  ~/Code/efitpp                  → ~/Code/imas-efit
+  ~/docs-server/mounts.json      now maps imas-efit → /home/ITER/mcintos/Code/imas-efit/docs
+  Old URLs auto-redirect; old shellId=&quot;efit&quot; examples in agents/AGENTS.md
+  intentionally kept (they&#x27;re local shell handles, not URLs).
+
+Open decisions surfaced (NOT resolved — see also the redesign-rollout plan):
+  • shared-css-delivery        — currently solved by per-repo copies in docs/_shared/
+                                 refreshed via /plan-style refresh. Long-term option:
+                                 a GitHub Action that auto-syncs from dotfiles.
+  • rank-storage               — index.json#plans[].rank vs a sibling rank.json
+                                 (unresolved; first time it bites will be when imas-ambix
+                                  grows to &gt;10 plans)
+  • conflict-detection         — version field on state files vs last-write-wins
+                                 (unresolved; not yet a problem with two writers)
+  • project-accent             — does imas-ambix want a warm-orange project.css,
+                                 or keep the dotfiles default? Captured in
+                                 redesign-rollout.json#decisions
+  • react-templates-usage      — the new plan.html/project.html/inventory.html/
+                                 sprint.html/decisions.html templates use React
+                                 from CDN. New plans get them by default, but
+                                 the existing vanilla pattern still works.
+
+Known unfinished items:
+  • /plan-test was wired on build-system-restructure but NOT executed —
+    ctest UNIT requires SLURM per AGENTS.md, and the hook needs the user
+    to choose between (a) running on an SDCC compute node, (b) running
+    the pytest variant instead, or (c) leaving the pulse empty for now.
+  • The new home.html cross-project rollup at localhost:8765/ renders
+    when at least one mounted project has a state/&lt;project&gt;/index.json
+    with the central-index schema. imas-ambix does NOT yet have an
+    index.json — the rollup will show ambix with empty counts until
+    one is authored. imas-efit&#x27;s existing index.json populates fine.
+  • The new templates (plan.html, project.html, …) ship verbatim from
+    the prototype with React+MOCK wiring. Until /plan-create is updated
+    to swap MOCK→state.js calls, scaffolding from these templates
+    requires manual edits. The redesign-rollout.html demonstrates the
+    vanilla-state.js pattern as the lighter alternative.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix + imas-efit + dotfiles (cross-repo)
+Plan:    plan-system-redesign rollout aftermath
+Section: —
+Tier:    opus (cross-cutting; one of haiku for verify-only)
+
+Context
+  The plan-system redesign landed on 2026-05-21 end-to-end. This
+  followup is the handoff: read it to see what landed where, what&#x27;s
+  still unresolved, and what&#x27;s blocking. Three coordinated commit
+  chains and three GitHub repo renames are described in the body.
+
+State to read
+  docs/state/imas-ambix/STRATEGY.json          (this file)
+  docs/state/imas-ambix/redesign-rollout.json  (the demo plan with the
+                                                full UX flow exercised)
+  ~/Code/imas-efit/docs/state/imas-efit/index.json
+                                               (existing inventory;
+                                                shows up in the cross-
+                                                project rollup at
+                                                localhost:8765/)
+
+Locked decisions to honour
+  layered-css           → foundation + dashboard + project (3 files, cascade)
+  state-promotion       → repo-tracked JSON; localStorage on localhost only
+  prompt-template       → §05 of dotfiles/agents/AGENTS.md &quot;HTML-first plans&quot;;
+                          mandatory on every followup
+  model-tier-naming     → haiku|sonnet|opus only; never version-pin
+  archived-markdown     → docs/archive/ with ARCHIVE_NOTE.md; do not delete
+  per-stage-history     → &lt;slug&gt;-&lt;n&gt;-landed.html per the html-docs skill
+  decisions-aggregator  → actionable rows (lock inline, not jump-and-back)
+  shared-css-relative-href → href=&quot;_shared/foundation.css&quot; works on docs-server
+                          AND GitHub Pages because each repo keeps a copy in
+                          docs/_shared/
+  ship-via-pages        → imas-ambix is publicly Pages-deployed at
+                          simon-mcintosh.github.io/imas-ambix/; imas-efit
+                          stays private (no Pages)
+
+Open decisions to surface (do not resolve unilaterally)
+  shared-css-delivery, rank-storage, conflict-detection, project-accent,
+  react-templates-usage  (see this followup&#x27;s body for each)
+
+Constraints
+  - Apache-2.0 / open-licence components only for imas-ambix and imas-efit.
+  - Don&#x27;t commit to the iterorganization/imas-efit upstream main without
+    user approval — commits land on Simon-McIntosh forks first.
+  - imas-efit primary branch is `develop` (Gitflow). imas-ambix and
+    dotfiles use `main` (trunk-based).
+  - Heavy ctest suites run on SLURM, never login nodes.
+
+Done-when (for the next agent)
+  1. Either: pick one of the open decisions and propose a resolution
+     (write a new followup to the redesign-rollout plan with
+     recommends_skill: /plan-edit redesign-rollout).
+  2. Or: spot-check one of the unfinished items (e.g. run
+     /plan-test build-system-restructure on a SLURM compute node,
+     or add an initial state/imas-ambix/index.json so the cross-
+     project rollup populates).
+  3. Resolve THIS followup with outcome = what was done + a fresh
+     followup carrying the next step (or &#x27;done — no followup&#x27; if the
+     redesign rollout is fully closed).
+  4. Whatever the work, ensure the state JSON has the result before
+     declaring done. Decisions, notes, research, questions, followups —
+     all interactions must reach docs/state/imas-ambix/*.json.</pre>
+    </article>
+</section>
 </main>
-
-<script src="assets/app.js"></script>
 </body>
 </html>

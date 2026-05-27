@@ -3,148 +3,108 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Compute · Ambix Plans</title>
-<link rel="stylesheet" href="_shared/foundation.css">
-<link rel="stylesheet" href="_shared/dashboard.css">
-<script src="_shared/state.js"></script>
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="compute">
+<title>Compute (SLURM, FSDP, reservation) | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="reckon-type" content="plan">
+<meta name="plan-title" content="Compute (SLURM, FSDP, reservation)">
+<meta name="plan-summary" content="SLURM patterns for training on the 4 × H200 Group A reservation; dedicated training reservation request; scheduled-around-serving fallback.">
+<meta name="plan-status" content="active">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="S">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-sprint" content="S2">
+<meta name="plan-tier" content="sonnet">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-26">
+<meta name="plan-depends-on" content="">
+<meta name="plan-blocks" content="tokenizers,world-model-v0,demo">
+<meta name="plan-impl" content="0.85">
+<meta name="plan-version" content="5">
 </head>
 <body>
-
-<div class="topbar">
-  <a class="brand" href="index.html">
-    <span class="mark">A</span>
-    <span class="proj-name">imas-ambix</span>
-  </a>
-  <nav>
-    <a href="index.html">Index</a>
-    <a href="STRATEGY.html">Strategy</a>
-    <a href="v0-runway.html">v0 Runway</a>
-    <a href="compute.html" class="active">Compute</a>
-    <a href="data-acquisition.html">Data acq</a>
-    <a href="data-quality.html">Quality</a>
-    <a href="tokenizers.html">Tokenizers</a>
-    <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World model</a>
-    <a href="demo.html">Demo</a>
-    <a href="decisions.html">Decisions</a>
-  </nav>
-  <div class="right"></div>
-</div>
-
-<main class="page">
-
-<div class="page-head">
-  <div class="title">
-    <h1>Plan: Compute — SLURM Patterns for World-Model Training</h1>
-    <div class="subtitle">imas-ambix / Fusion World Model ·
-      Updated <time id="updated">2026-05-20</time></div>
-  </div>
-</div>
-
-<section class="prose">
-
+<main class="plan-doc">
 <p><span class="status pending"><span class="dot"></span>Draft</span> — reservation request not yet filed.</p>
-
 <p>This plan covers the SLURM patterns for training the Fusion World Model.
 The agent-serving deployment under <code>imas-ambix/imas_ambix/agent/</code> already
 documents the <strong>serving</strong> patterns in <code>docs/cluster-usage.md</code>; the
 training patterns are distinct enough to warrant their own document.</p>
-
 <p>The headline question this plan answers: <strong>how do we get 4 × H200
 exclusively for training while the LLM-serving job is still useful?</strong>
 The short answer: request a separate reservation and run training in
 scheduled-around-serving windows in the meantime.</p>
-
-<hr>
-
+<hr/>
 <h2 id="1-hardware-budget-recap">1. Hardware budget recap</h2>
-
 <p>The Group A reservation on <code>98dci4-gpu-0003</code> (<code>betelgeuse</code> SLURM
 partition) currently grants:</p>
-
 <div class="table-scroll"><table class="t">
 <thead>
-  <tr><th>Resource</th><th>Allocated to Group A</th></tr>
+<tr><th>Resource</th><th>Allocated to Group A</th></tr>
 </thead>
 <tbody>
-  <tr><td>GPUs</td><td>4 × NVIDIA H200 NVL (140.4 GB HBM3e each, 561 GB total)</td></tr>
-  <tr><td>CPU cores</td><td>30 (NUMA: 15-29, 47-61)</td></tr>
-  <tr><td>RAM</td><td>650 GB</td></tr>
-  <tr><td>QoS</td><td><code>gpu_0003_grpa</code></td></tr>
-  <tr><td>Reservation name</td><td><code>gpu_0003_grpA</code></td></tr>
-  <tr><td>Account</td><td><code>grpa</code></td></tr>
-  <tr><td>NVLink</td><td>18 links / GPU @ 26.562 GB/s (478 GB/s bidirectional per GPU)</td></tr>
-  <tr><td>Local scratch</td><td>5.9 TB NVMe at <code>/scratch_local</code> (ephemeral, cleared on reboot)</td></tr>
-  <tr><td>Shared storage</td><td>1.5 PB GPFS at <code>/work/projects</code> (576 TB free at time of writing)</td></tr>
+<tr><td>GPUs</td><td>4 × NVIDIA H200 NVL (140.4 GB HBM3e each, 561 GB total)</td></tr>
+<tr><td>CPU cores</td><td>30 (NUMA: 15-29, 47-61)</td></tr>
+<tr><td>RAM</td><td>650 GB</td></tr>
+<tr><td>QoS</td><td><code>gpu_0003_grpa</code></td></tr>
+<tr><td>Reservation name</td><td><code>gpu_0003_grpA</code></td></tr>
+<tr><td>Account</td><td><code>grpa</code></td></tr>
+<tr><td>NVLink</td><td>18 links / GPU @ 26.562 GB/s (478 GB/s bidirectional per GPU)</td></tr>
+<tr><td>Local scratch</td><td>5.9 TB NVMe at <code>/scratch_local</code> (ephemeral, cleared on reboot)</td></tr>
+<tr><td>Shared storage</td><td>1.5 PB GPFS at <code>/work/projects</code> (576 TB free at time of writing)</td></tr>
 </tbody>
 </table></div>
-
 <p>The other half of the node is allocated to Group B; we cannot reach it
 from Group A's reservation.</p>
-
-<hr>
-
+<hr/>
 <h2 id="2-training-takes-exclusive-access-v4-flash-is-stopped-before-training">2. Training takes exclusive access — V4-Flash is stopped before training</h2>
-
 <p><strong>Decision 2026-05-20 (S. McIntosh):</strong> training runs in exclusive-access
 mode on the existing <code>gpu_0003_grpA</code> reservation. The maintainer (this
 codebase's ambix agent CLI) <strong>is authorised to <code>scancel</code> the DeepSeek
 V4-Flash serving job</strong> to free VRAM for training without per-event
 confirmation.</p>
-
 <p>The protocol is:</p>
-
 <pre><code>ambix agent stop deepseek-v4-flash   # 1. scancel the serve
 ambix train submit --config v0-500m  # 2. submit training to gpu_0003_grpA
 # … training runs to completion or operator-pause …
 ambix agent serve deepseek-v4-flash  # 3. restart the serve
 </code></pre>
-
 <p>Rationale:</p>
 <ul>
-  <li>Cleaner operational model — no allocator fragmentation, no NCCL
+<li>Cleaner operational model — no allocator fragmentation, no NCCL
   contention, predictable training throughput.</li>
-  <li>We control both jobs. The serve is rarely used heavily, so the
+<li>We control both jobs. The serve is rarely used heavily, so the
   serve-down window is invisible to most users.</li>
-  <li>VRAM math is comfortable in exclusive mode (~141 GB/GPU available):
+<li>VRAM math is comfortable in exclusive mode (~141 GB/GPU available):
   125M trains at ~30 GB/GPU, 500M at ~85 GB/GPU, 1B borderline at
   ~140 GB/GPU (CPU offload).</li>
 </ul>
-
 <p>VRAM budget reference (FSDP ZeRO-3, bf16, activation ckpt, 16K context):</p>
-
 <div class="table-scroll"><table class="t">
 <thead>
-  <tr><th>Model</th><th style="text-align:right">Per-GPU peak</th><th>Fits exclusive 141 GB?</th></tr>
+<tr><th>Model</th><th style="text-align:right">Per-GPU peak</th><th>Fits exclusive 141 GB?</th></tr>
 </thead>
 <tbody>
-  <tr><td>125 M, mb=4</td><td style="text-align:right">~30 GB</td><td>yes — generous margin</td></tr>
-  <tr><td><strong>500 M, mb=4</strong></td><td style="text-align:right"><strong>~85 GB</strong></td><td><strong>yes — comfortable</strong></td></tr>
-  <tr><td>1 B, mb=4</td><td style="text-align:right">~140 GB</td><td>borderline — needs CPU offload or mb=2</td></tr>
-  <tr><td>2 B+</td><td style="text-align:right">exceeds</td><td>needs the second half of the node (8-GPU expansion)</td></tr>
+<tr><td>125 M, mb=4</td><td style="text-align:right">~30 GB</td><td>yes — generous margin</td></tr>
+<tr><td><strong>500 M, mb=4</strong></td><td style="text-align:right"><strong>~85 GB</strong></td><td><strong>yes — comfortable</strong></td></tr>
+<tr><td>1 B, mb=4</td><td style="text-align:right">~140 GB</td><td>borderline — needs CPU offload or mb=2</td></tr>
+<tr><td>2 B+</td><td style="text-align:right">exceeds</td><td>needs the second half of the node (8-GPU expansion)</td></tr>
 </tbody>
 </table></div>
-
 <p><strong>Concurrent-mode analysis archived in the git history</strong> at
-<a href="https://github.com/Simon-McIntosh/imas-ambix/blob/1027af2/plans/compute.md" class="link"><code>plans/compute.md@1027af2</code></a>
+<a class="link" href="https://github.com/Simon-McIntosh/imas-ambix/blob/1027af2/plans/compute.md"><code>plans/compute.md@1027af2</code></a>
 in case we ever need to revisit it (e.g. if the dedicated reservation
 discussion in §3 becomes urgent). For v0 we don't need it.</p>
-
-<hr>
-
+<hr/>
 <h2 id="3-dedicated-training-reservation-request">3. Dedicated training-reservation request</h2>
-
 <h3 id="31-reservation-name-proposed">3.1 Reservation name (proposed)</h3>
-
 <p><code>gpu_0003_grpA_train</code> — same node, same group, separate reservation slot
 that can be drained without affecting the production serve.</p>
-
 <h3 id="32-request-body">3.2 Request body</h3>
-
 <p>To file with the SDCC operations team. The body below quotes the
 existing <code>gpu_0003_grpA</code> pattern from <code>docs/cluster-usage.md</code> §2 so the
 ops team can copy-paste the boilerplate.</p>
-
 <pre><code>Subject: New SLURM reservation request — gpu_0003_grpA_train
 
 Node:        98dci4-gpu-0003 (existing Group A allocation)
@@ -177,12 +137,9 @@ Operating model:
 Owner: &lt;maintainer name + ITER account&gt;
 Stakeholder: Science Division (S. Pinches)
 </code></pre>
-
 <h3 id="33-interim-scheduled-around-serving">3.3 Interim — scheduled-around-serving</h3>
-
 <p>Until the dedicated reservation lands, training runs in windows when the
 serve is paused. The protocol:</p>
-
 <pre><code># 1. Pause the serve (CLI exists; this just `scancel`s the serve job
 #    after recording its config so we can restart it later)
 ambix agent stop deepseek-v4-flash
@@ -196,17 +153,12 @@ squeue -u $USER --start
 # 4. Restart the serve
 ambix agent serve deepseek-v4-flash
 </code></pre>
-
 <p>Reasonable windows: weekends, overnight (00:00 – 06:00 local), and any
 explicitly-coordinated maintenance window. The maintainer announces in
 the SDCC GPU / Ambix Teams channel before stopping the serve.</p>
-
-<hr>
-
+<hr/>
 <h2 id="4-slurm-submission-patterns">4. SLURM submission patterns</h2>
-
 <h3 id="41-training-submission-writes-the-script-the-cli-submits">4.1 Training submission (writes the script the CLI submits)</h3>
-
 <pre><code>#!/bin/bash
 #SBATCH --job-name=ambix-train-v0-500m
 #SBATCH --partition=betelgeuse
@@ -243,13 +195,10 @@ accelerate launch \
     -m imas_ambix.train.loop \
     --config-name v0-500m
 </code></pre>
-
 <p>Note that we deliberately <strong>do not</strong> pass <code>--qos=...</code> explicitly — per
 <code>docs/cluster-usage.md</code>, the QoS auto-applies from the reservation; an
 explicit <code>--qos</code> causes a SLURM error in this environment.</p>
-
 <h3 id="42-smoke-test-submission-debug">4.2 Smoke-test submission (debug)</h3>
-
 <pre><code>#!/bin/bash
 #SBATCH --partition=betelgeuse
 #SBATCH --reservation=gpu_0003_grpA
@@ -262,36 +211,28 @@ explicit <code>--qos</code> causes a SLURM error in this environment.</p>
 # Smoke target: one training step, finite loss, no NaN
 python -m imas_ambix.train.loop --config-name v0-125m --debug
 </code></pre>
-
 <p>Smoke tests run during the serving window because they fit (125 M model
 @ 30 GB &lt;&lt; remaining 90 GB).</p>
-
-<hr>
-
+<hr/>
 <h2 id="5-fsdp-sharding-strategy">5. FSDP sharding strategy</h2>
-
 <ul>
-  <li>Strategy: <strong>FULL_SHARD</strong> (ZeRO-3). Shards weights, gradients, optimizer
+<li>Strategy: <strong>FULL_SHARD</strong> (ZeRO-3). Shards weights, gradients, optimizer
   state across the 4 ranks. Maximum memory savings, minimal coding
   overhead via <code>accelerate</code>'s FSDP integration.</li>
-  <li><strong>Sharded state-dict checkpoints</strong>: each rank writes its own shard;
+<li><strong>Sharded state-dict checkpoints</strong>: each rank writes its own shard;
   reassembled at load. This avoids OOMing the CPU during checkpoint
   consolidation.</li>
-  <li><strong>No CPU offload</strong> for v0 — model fits in HBM with activation
+<li><strong>No CPU offload</strong> for v0 — model fits in HBM with activation
   checkpointing.</li>
-  <li><strong>Activation checkpointing</strong> every other transformer block (Llama
+<li><strong>Activation checkpointing</strong> every other transformer block (Llama
   default in <code>accelerate</code>).</li>
-  <li><strong>FlashAttention-2</strong> via the HF Llama implementation; default with the
+<li><strong>FlashAttention-2</strong> via the HF Llama implementation; default with the
   declared <code>torch ≥ 2.6</code> dep.</li>
 </ul>
-
 <p>For v1 (multi-billion params), the choice between FSDP and Megatron-LM
 tensor parallelism becomes interesting. Out of scope here.</p>
-
-<hr>
-
+<hr/>
 <h2 id="6-checkpoint-and-artefact-paths">6. Checkpoint and artefact paths</h2>
-
 <pre><code>/work/projects/imas_gpu/mast-checkpoints/
 └── {run-id}/                              # run-id = config-hash + manifest-hash + timestamp
     ├── manifest.json                      # data manifest + tokenizer vocab version
@@ -304,157 +245,157 @@ tensor parallelism becomes interesting. Out of scope here.</p>
     │   └── ...
     └── final/                             # symlink to the best checkpoint
 </code></pre>
-
 <p>Checkpoint cadence: every 2 K steps. Retention policy: keep all
 checkpoints for a run while the run is "active" (training); after a run
 finishes or is abandoned, keep only <code>step-0</code>, <code>step-{halfway}</code>, and
 <code>final/</code>. The cleanup is a manual operator job (no auto-prune script in
 v0) so we cannot accidentally lose state.</p>
-
-<hr>
-
+<hr/>
 <h2 id="7-future-scaling">7. Future scaling</h2>
-
 <p>The 4 × H200 reservation is a single-node budget. v1+ growth options:</p>
-
 <div class="table-scroll"><table class="t">
 <thead>
-  <tr><th>Direction</th><th>Trigger</th><th>Cost</th></tr>
+<tr><th>Direction</th><th>Trigger</th><th>Cost</th></tr>
 </thead>
 <tbody>
-  <tr>
-    <td><strong>Larger model on the same node</strong> (1 B / 2 B)</td>
-    <td>v0 demo successful, more partner data online</td>
-    <td>Needs CPU offload or 8-GPU reservation; check if Group A can be expanded to all 8 H200 on the node (this is the same node, just the other half)</td>
-  </tr>
-  <tr>
-    <td><strong>Multi-node</strong></td>
-    <td>2 B+ models or larger context windows</td>
-    <td>Requires multi-node interconnect QoS that we do not currently have — file with SDCC; cost real</td>
-  </tr>
-  <tr>
-    <td><strong>FP8 training</strong></td>
-    <td>If H200 FP8 path becomes stable for FSDP in HF <code>transformers</code></td>
-    <td>Free other than engineering time</td>
-  </tr>
+<tr>
+<td><strong>Larger model on the same node</strong> (1 B / 2 B)</td>
+<td>v0 demo successful, more partner data online</td>
+<td>Needs CPU offload or 8-GPU reservation; check if Group A can be expanded to all 8 H200 on the node (this is the same node, just the other half)</td>
+</tr>
+<tr>
+<td><strong>Multi-node</strong></td>
+<td>2 B+ models or larger context windows</td>
+<td>Requires multi-node interconnect QoS that we do not currently have — file with SDCC; cost real</td>
+</tr>
+<tr>
+<td><strong>FP8 training</strong></td>
+<td>If H200 FP8 path becomes stable for FSDP in HF <code>transformers</code></td>
+<td>Free other than engineering time</td>
+</tr>
 </tbody>
 </table></div>
-
 <p>Note: the GPU-procurement doc anticipated 8-GPU access for the
 serving-class agents (see §3.2 of <code>gpu-cluster-scoping.md</code>). Expanding
 the training reservation onto the same 8 GPUs is the natural Phase 4
 expansion path.</p>
-
-<hr>
-
+<hr/>
 <h2 id="8-risks-training-compute-specific">8. Risks (training-compute-specific)</h2>
-
 <div class="table-scroll"><table class="t">
 <thead>
-  <tr><th>Risk</th><th>Mitigation</th></tr>
+<tr><th>Risk</th><th>Mitigation</th></tr>
 </thead>
 <tbody>
-  <tr>
-    <td>Dedicated reservation request denied / delayed</td>
-    <td>Stay on scheduled-around-serving until granted; v0 demo can still complete in interim windows.</td>
-  </tr>
-  <tr>
-    <td>FSDP + sharded state-dict not stable on HF <code>transformers</code> 4.48 + accelerate 1.0</td>
-    <td>Single-shard fallback documented (write full state on rank 0); 500 M model fits in 650 GB CPU RAM.</td>
-  </tr>
-  <tr>
-    <td>H200 NVL NCCL flakiness (seen in MiniMax serve, see <code>AGENTS.md</code>)</td>
-    <td>Run <code>accelerate launch</code> with <code>NCCL_DEBUG=INFO</code>; fall back to <code>gloo</code> for CPU-only debug if NCCL throws.</td>
-  </tr>
-  <tr>
-    <td>Disk full at <code>/work/projects/imas_gpu/mast-checkpoints/</code></td>
-    <td>Each checkpoint is ~5 GB at 500 M params; full run = ~150 GB. 576 TB free is fine; monitor with the existing <code>df</code> cron.</td>
-  </tr>
+<tr>
+<td>Dedicated reservation request denied / delayed</td>
+<td>Stay on scheduled-around-serving until granted; v0 demo can still complete in interim windows.</td>
+</tr>
+<tr>
+<td>FSDP + sharded state-dict not stable on HF <code>transformers</code> 4.48 + accelerate 1.0</td>
+<td>Single-shard fallback documented (write full state on rank 0); 500 M model fits in 650 GB CPU RAM.</td>
+</tr>
+<tr>
+<td>H200 NVL NCCL flakiness (seen in MiniMax serve, see <code>AGENTS.md</code>)</td>
+<td>Run <code>accelerate launch</code> with <code>NCCL_DEBUG=INFO</code>; fall back to <code>gloo</code> for CPU-only debug if NCCL throws.</td>
+</tr>
+<tr>
+<td>Disk full at <code>/work/projects/imas_gpu/mast-checkpoints/</code></td>
+<td>Each checkpoint is ~5 GB at 500 M params; full run = ~150 GB. 576 TB free is fine; monitor with the existing <code>df</code> cron.</td>
+</tr>
 </tbody>
 </table></div>
-
-<hr>
-
+<hr/>
 <h2 id="9-related-plans">9. Related plans</h2>
-
 <ul>
-  <li><code>STRATEGY.md</code> — roadmap that this compute plan supports.</li>
-  <li><code>world-model-v0.md</code> — the model whose budget drives this plan.</li>
-  <li><code>data-acquisition.md</code> — the data the training reads from GPFS.</li>
-  <li><code>../docs/cluster-usage.md</code> — the canonical serving / SLURM docs that
+<li><code>STRATEGY.md</code> — roadmap that this compute plan supports.</li>
+<li><code>world-model-v0.md</code> — the model whose budget drives this plan.</li>
+<li><code>data-acquisition.md</code> — the data the training reads from GPFS.</li>
+<li><code>../docs/cluster-usage.md</code> — the canonical serving / SLURM docs that
   this plan references.</li>
 </ul>
-
-<h2 id="open-decisions">Open Decisions</h2>
-
-<p>Click a choice to record the call. State persists to
-<code>~/docs-server/state/imas-ambix/compute.json</code> via the docs-server,
-and is committed to git under <code>docs/state/imas-ambix/</code>.</p>
-
-<div class="decisions" id="decisions">
-  <div class="dec open" data-key="slurm-training-reservation">
-    <div class="head">
-      <span class="key">slurm-training-reservation</span>
-      <span class="title">SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</span>
-      <span class="when" data-field="when"></span>
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="slurm-training-reservation" data-choice="Both — file but use exclusive in the meantime" data-by="Simon McIntosh" data-when="2026-05-20 09:10">
+    <p class="r-dec-q">SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="exclusive-pause">Stay with exclusive-pause (current plan, no SDCC request needed)</button>
+      <button class="r-opt" data-value="file-now">File the dedicated reservation request with SDCC ops now</button>
+      <button class="r-opt" data-value="schedule-windows">Schedule around serving in overnight/weekend windows</button>
+      </p>
+    <p class="r-dec-rat">Filed 2026-05-20; using exclusive while ticket is in queue. Will switch when SDCC responds.</p>
     </div>
-    <p class="subtitle-line">Current decision (2026-05-20): exclusive-pause mode — stop DeepSeek V4-Flash before training, restart after. Alternative: file a dedicated <code>gpu_0003_grpA_train</code> reservation (request body in <a href="#32-request-body">§3.2</a>). Source: <a href="#2-training-takes-exclusive-access-v4-flash-is-stopped-before-training">§2</a>–<a href="#3-dedicated-training-reservation-request">§3</a>.</p>
-    <div class="choices">
-      <button data-choice="exclusive-pause">Stay with exclusive-pause (current plan, no SDCC request needed)</button>
-      <button data-choice="file-now">File the dedicated reservation request with SDCC ops now</button>
-      <button data-choice="schedule-windows">Schedule around serving in overnight/weekend windows</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-</div>
-
 </section>
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-compute-2026-05-21" data-status="open" data-tier="sonnet" data-written-by="Simon McIntosh" data-written-at="2026-05-20 09:10" data-recommends-skill="/reckon-ship compute --section 2" data-resolved-at="2026-05-26T14:35:14+00:00" data-resolved-by="agent/sonnet (Agent B)">
+    <h4 class="r-fu-title">Stand up exclusive-pause SLURM wrapper script</h4>
+    <div class="r-fu-body">Until SDCC ticket #4421 clears, training runs need a wrapper that stops V4-Flash, claims the node exclusively, runs the job, restarts the serve. Should be a single sbatch template + a 30-line bash prologue. Now actively needed — Simon authorized exclusive access 2026-05-26.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: compute (§2)
+Tier: sonnet
 
+Context
+  Simon authorized exclusive access on the gpu_0003_grpA reservation 2026-05-26. V4-Flash is not running. Write the canonical SLURM wrapper set for ambix training + bulk-encode + bench jobs.
+
+State to read
+  docs/state/imas-ambix/compute.json
+  /home/ITER/mcintos/Code/imas-ambix/AGENTS.md  (§2-5 — reservation, account, qos, NUMA, memory budget)
+
+Locked decisions to honour
+  slurm-training-reservation → Both — file but use exclusive in the meantime
+
+Constraints
+  - sbatch flags: --partition=betelgeuse --reservation=gpu_0003_grpA --account=grpa --gres=gpu:4 --cpus-per-task=30 --mem=640G
+  - DO NOT pass --qos (auto-applied; explicit qos errors)
+  - export TMPDIR=/scratch_local/$SLURM_JOB_ID &amp;&amp; mkdir -p &quot;$TMPDIR&quot; in every prologue
+  - preempt_v4flash.sh must be idempotent: stop only if running, restart only if it was stopped by this script
+
+Done-when
+  1. scripts/slurm/{train_exclusive,bulk_encode_frames,bulk_encode_signals,bench_rbb}.sbatch + preempt_v4flash.sh all committed
+  2. Each sbatch is parameterised via --export=ALL,VAR=val and reads JOB_NAME, OUTPUT_DIR, SHOT_SOURCE from env
+  3. bulk_encode_frames.sbatch wraps `ambix data bulk-encode-frames --from-quality-index $QUALITY_INDEX --tokenizer open-magvit2 --device cuda --workers 4`
+  4. preempt_v4flash.sh dry-runs without ssh — just prints the curl/squeue commands it would issue (V4-Flash is not running)
+  5. This followup resolved with the commit SHA + a new followup for first real exclusive-pause run
+</pre>
+    <p class="r-fu-outcome">Landed commit a14f1ef: 6 files in scripts/slurm/ — preempt_v4flash.sh, train_exclusive.sbatch, bulk_encode_frames.sbatch, bulk_encode_signals.sbatch, bench_rbb.sbatch, README.md. All four sbatch scripts passed sbatch --test-only (exit 0) against the betelgeuse/gpu_0003_grpA reservation.</p>
+    </article>
+<article class="r-fu" data-id="f-compute-2026-05-26-bulk" data-status="open" data-tier="sonnet" data-written-by="agent/sonnet (Agent B)" data-written-at="2026-05-26" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">First real exclusive-pause run via Agent D bulk-encode (in-flight)</h4>
+    <div class="r-fu-body">Agent D is using bulk_encode_frames.sbatch and bulk_encode_signals.sbatch to run the first real GPU bulk-encode jobs. Monitor job exit codes, check output reports in /work/projects/imas_gpu/mast/tokens/, and verify the token Zarr files are well-formed. If any encode jobs fail, diagnose from /tmp/ambix-encode-frames-&lt;jobid&gt;.out logs.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    compute (https://simon-mcintosh.github.io/imas-ambix/compute.html)
+Section: §2 training takes exclusive access
+Tier:    sonnet
+
+Context
+  Agent D launched the first real bulk-encode jobs using scripts/slurm/bulk_encode_frames.sbatch
+  and bulk_encode_signals.sbatch on the gpu_0003_grpA reservation (exclusive-pause protocol).
+  The SLURM wrapper set was committed at a14f1ef (compute §2). This followup covers
+  post-run validation and state update.
+
+State to read
+  docs/state/imas-ambix/compute.json
+  docs/state/imas-ambix/tokenizers.json
+
+Locked decisions to honour
+  slurm-training-reservation → Both — file but use exclusive in the meantime
+
+Open decisions to surface (do not resolve)
+  ticket-4421-status (dedicated reservation; pending L. Holzl signoff)
+
+Constraints
+  - Read job output logs from /tmp/ambix-encode-frames-&lt;jobid&gt;.out
+  - Check token Zarr files in /work/projects/imas_gpu/mast/tokens/
+  - Do not modify imas_ambix/data/ or docs/v0-runway.html (Agent A/C scope)
+
+Done-when
+  1. Job exit codes confirmed (squeue / sacct)
+  2. At least one per-camera JSON report present in OUTPUT_DIR
+  3. compute.json impl advanced (target 0.90 if bulk-encode validated)
+  4. This followup resolved with outcome + a next followup or &#x27;done — no followup&#x27;
+</pre>
+    </article>
+</section>
 </main>
-
-<script src="assets/app.js"></script>
-<script>
-document.addEventListener("DOMContentLoaded", async () => {
-  const blob = await loadState();
-  const stateDecs = getDecisions ? getDecisions(blob) : (blob?.data?.decisions || {});
-
-  document.querySelectorAll(".dec[data-key]").forEach(row => {
-    const key = row.getAttribute("data-key");
-    const s = stateDecs[key];
-    if (!s) return;
-    row.classList.add("locked");
-    row.classList.remove("open");
-    row.querySelectorAll(".choices button").forEach(b => {
-      if (b.getAttribute("data-choice") === s.choice) b.classList.add("chosen");
-    });
-    const rat = row.querySelector('input[data-field="rationale"]');
-    if (rat && s.rationale) rat.value = s.rationale;
-    const when = row.querySelector('[data-field="when"]');
-    if (when && s.when) when.textContent = s.when;
-  });
-
-  document.querySelectorAll(".dec[data-key]").forEach(row => {
-    const key = row.getAttribute("data-key");
-    row.querySelectorAll(".choices button").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const choice = btn.getAttribute("data-choice");
-        const rat = row.querySelector('input[data-field="rationale"]')?.value || "";
-        try {
-          await lockDecision(key, choice, rat);
-          row.querySelectorAll(".choices button").forEach(b => b.classList.remove("chosen"));
-          btn.classList.add("chosen");
-          row.classList.add("locked");
-          row.classList.remove("open");
-          const when = row.querySelector('[data-field="when"]');
-          if (when) when.textContent = new Date().toISOString().slice(0, 16).replace("T", " ");
-        } catch (e) {
-          alert(e.message);
-        }
-      });
-    });
-  });
-});
-</script>
-
 </body>
 </html>

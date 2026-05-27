@@ -3,83 +3,57 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Demo · Ambix Plans</title>
-<link rel="stylesheet" href="_shared/foundation.css">
-<link rel="stylesheet" href="_shared/dashboard.css">
-<script src="_shared/state.js"></script>
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="demo">
+<title>Public demo (wide-angle camera) | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="reckon-type" content="plan">
+<meta name="plan-title" content="Public demo (wide-angle camera)">
+<meta name="plan-summary" content="Wide-angle viewing system forward-prediction demo on three pinned held-out MAST shots; rFID + centroid MSE acceptance.">
+<meta name="plan-status" content="blocked">
+<meta name="plan-roi" content="low">
+<meta name="plan-effort" content="M">
+<meta name="plan-milestone" content="M3">
+<meta name="plan-tier" content="sonnet">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-04-22 14:00">
+<meta name="plan-depends-on" content="world-model-v0">
+<meta name="plan-blocks" content="">
+<meta name="plan-impl" content="0.05">
+<meta name="plan-version" content="1">
 </head>
 <body>
-
-<div class="topbar">
-  <a class="brand" href="index.html">
-    <span class="mark">A</span>
-    <span class="proj-name">imas-ambix</span>
-  </a>
-  <nav>
-    <a href="index.html">Index</a>
-    <a href="STRATEGY.html">Strategy</a>
-    <a href="v0-runway.html">v0 Runway</a>
-    <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data acq</a>
-    <a href="data-quality.html">Quality</a>
-    <a href="tokenizers.html">Tokenizers</a>
-    <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World model</a>
-    <a href="demo.html" class="active">Demo</a>
-    <a href="decisions.html">Decisions</a>
-  </nav>
-  <div class="right"></div>
-</div>
-
-<main class="page">
-
-<div class="page-head">
-  <div class="title">
-    <h1>Plan: Wide-Angle Viewing System Forward-Prediction Demo</h1>
-    <div class="subtitle">imas-ambix / Fusion World Model ·
-      Updated <time id="updated">2026-05-21</time></div>
-  </div>
-</div>
-
+<main class="plan-doc">
 <p>Status: <span class="status pending"><span class="dot"></span>Draft</span> — depends on <code>world-model-v0.html</code> model converging.</p>
-
 <p>The demo is the singular v0 deliverable that an outside reader can
 understand at a glance: given a held-out MAST shot's control schedule
 and the first ~150 ms of plasma evolution, generate the next ~1 second of
 the wide-angle visible camera and compare side-by-side with the ground
 truth. This document specifies the inputs, outputs, evaluation metrics,
 shot split, and the notebook layout.</p>
-
-<hr>
-
+<hr/>
 <h2 id="1-demo-target">1. Demo target</h2>
-
 <p><strong>Task:</strong> Forward-predict the <strong><code>camera_visible.camera_center.image_raw</code></strong>
 frames of a held-out MAST shot, conditioned on:</p>
-
 <ol>
-  <li><strong>Initial state</strong> — the first ~150 ms of the same shot's full
+<li><strong>Initial state</strong> — the first ~150 ms of the same shot's full
   diagnostic + control vector (Open-MAGVIT2 + Chronos + PatchTST tokens
   for that prefix).</li>
-  <li><strong>Ongoing control schedule</strong> — the ground-truth control vector for
+<li><strong>Ongoing control schedule</strong> — the ground-truth control vector for
   the remainder of the shot (the model is <em>not</em> asked to invent the
   schedule).</li>
 </ol>
-
 <p><strong>Output:</strong> Predicted next-frame tokens for ~1 second of physical time,
 decoded back to 256² RGB frames at 100 Hz model cadence; written
 alongside the ground truth in a single Zarr archive plus a static MP4
 overlay.</p>
-
 <p>We pick <code>camera_center</code> (RBB) rather than <code>camera_lower</code> or
 <code>camera_color</code> because RBB is the wide-angle midplane view that is most
 generally informative about the plasma — the same view a human operator
 would skim in post-pulse analysis.</p>
-
-<hr>
-
+<hr/>
 <h2 id="2-why-a-forward-prediction-demo-not-classification-not-retrieval">2. Why a forward-prediction demo (not classification, not retrieval)</h2>
-
 <p>A forward-prediction demo is the cleanest test of "did the world model
 learn dynamics, or did it learn an autoencoder". A reconstruction demo
 proves only the tokenizer round-trip; a classification demo only proves
@@ -87,133 +61,112 @@ that a representation exists. Forward prediction requires the model to
 extrapolate from prefix → suffix using the control schedule, which is
 the only capability that actually unlocks the downstream pre-play /
 disruption-exploration use cases.</p>
-
-<hr>
-
+<hr/>
 <h2 id="3-shot-split">3. Shot split</h2>
-
 <p>From the camera-bearing MAST shot subset (verified during the probe in
 <code>data-acquisition.html</code> §3.4 — target ≥ 3 K shots):</p>
-
 <div class="table-scroll">
 <table class="t">
-  <thead>
-    <tr><th>Split</th><th>Fraction</th><th>Selection rule</th></tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Train</td>
-      <td>80 %</td>
-      <td>all camera-bearing shots not in val/test/demo</td>
-    </tr>
-    <tr>
-      <td>Val</td>
-      <td>10 %</td>
-      <td>random sample with stratified campaign distribution (M5 – M9 equally represented)</td>
-    </tr>
-    <tr>
-      <td>Test</td>
-      <td>10 %</td>
-      <td>held out for v1 quantitative evaluation; <strong>not used in v0</strong></td>
-    </tr>
-    <tr>
-      <td><strong>Demo</strong></td>
-      <td>3 specific shot ids</td>
-      <td>pinned-by-name in <code>docs/demo.html</code> (this file)</td>
-    </tr>
-  </tbody>
+<thead>
+<tr><th>Split</th><th>Fraction</th><th>Selection rule</th></tr>
+</thead>
+<tbody>
+<tr>
+<td>Train</td>
+<td>80 %</td>
+<td>all camera-bearing shots not in val/test/demo</td>
+</tr>
+<tr>
+<td>Val</td>
+<td>10 %</td>
+<td>random sample with stratified campaign distribution (M5 – M9 equally represented)</td>
+</tr>
+<tr>
+<td>Test</td>
+<td>10 %</td>
+<td>held out for v1 quantitative evaluation; <strong>not used in v0</strong></td>
+</tr>
+<tr>
+<td><strong>Demo</strong></td>
+<td>3 specific shot ids</td>
+<td>pinned-by-name in <code>docs/demo.html</code> (this file)</td>
+</tr>
+</tbody>
 </table>
 </div>
-
 <p>Demo shots (subject to confirmation post-probe — the IDs below are
 candidates with known good camera coverage from the FAIR-MAST tooling
 examples and need replacement with whatever the probe surfaces):</p>
-
 <ul>
-  <li><code>30420</code> — appears in <code>bulk_download.html</code> quickstart; representative
+<li><code>30420</code> — appears in <code>bulk_download.html</code> quickstart; representative
   M9 shot, all level-2 groups present including <code>camera_visible</code>.</li>
-  <li><code>30421</code> — adjacent, used in the FAIR-MAST quickstart for the level-1
+<li><code>30421</code> — adjacent, used in the FAIR-MAST quickstart for the level-1
   examples. Provides continuity with the existing tutorial.</li>
-  <li>One M6-era shot from the camera-bearing set — to be picked from the
+<li>One M6-era shot from the camera-bearing set — to be picked from the
   probe manifest based on <code>pulse_schedule</code> diversity.</li>
 </ul>
-
 <p>The demo shots are <em>frozen for v0</em>. Changing them invalidates the demo
 comparisons; if a demo shot turns out to lack camera coverage we
 document the replacement in this plan with a dated update note.</p>
-
-<hr>
-
+<hr/>
 <h2 id="4-evaluation-metrics">4. Evaluation metrics</h2>
-
 <h3 id="41-reconstruction-quality-metrics">4.1 Reconstruction-quality metrics</h3>
-
 <div class="table-scroll">
 <table class="t">
-  <thead>
-    <tr><th>Metric</th><th>Computed on</th><th>Target</th></tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>rFID (reconstruction FID)</td>
-      <td>predicted vs ground-truth frames</td>
-      <td>≤ 8</td>
-    </tr>
-    <tr>
-      <td>PSNR</td>
-      <td>per-frame, averaged across rollout</td>
-      <td>≥ 14 dB</td>
-    </tr>
-    <tr>
-      <td>LPIPS</td>
-      <td>per-frame, averaged</td>
-      <td>≤ 0.45</td>
-    </tr>
-  </tbody>
+<thead>
+<tr><th>Metric</th><th>Computed on</th><th>Target</th></tr>
+</thead>
+<tbody>
+<tr>
+<td>rFID (reconstruction FID)</td>
+<td>predicted vs ground-truth frames</td>
+<td>≤ 8</td>
+</tr>
+<tr>
+<td>PSNR</td>
+<td>per-frame, averaged across rollout</td>
+<td>≥ 14 dB</td>
+</tr>
+<tr>
+<td>LPIPS</td>
+<td>per-frame, averaged</td>
+<td>≤ 0.45</td>
+</tr>
+</tbody>
 </table>
 </div>
-
 <h3 id="42-physics-derived-metrics">4.2 Physics-derived metrics</h3>
-
 <p>Compute these from both ground-truth and predicted frames using a fixed
 post-processing pipeline (<code>imas_ambix/eval/metrics.py</code>):</p>
-
 <ul>
-  <li><strong>Frame centroid trajectory</strong>: brightness-weighted centroid <code>(x, y)</code>
+<li><strong>Frame centroid trajectory</strong>: brightness-weighted centroid <code>(x, y)</code>
   per frame. Compare predicted vs ground-truth as MSE of the trajectory
   over the rollout horizon.</li>
-  <li><strong>Chord-integrated emission</strong>: integrate the brightness along the
+<li><strong>Chord-integrated emission</strong>: integrate the brightness along the
   midplane chord defined by <code>camera_center</code> geometry. Compare predicted
   vs ground-truth time-series as NRMSE.</li>
-  <li><strong>Outer-boundary edge detection</strong>: simple intensity-threshold edge.
+<li><strong>Outer-boundary edge detection</strong>: simple intensity-threshold edge.
   Compare predicted vs ground-truth edge displacement as
   median-absolute-deviation.</li>
 </ul>
-
 <p>The point is not perfect physics. The point is that the predicted frames
 contain <em>enough structure</em> that physically meaningful quantities can be
 extracted, and those quantities track the truth at least in sign and
 order of magnitude.</p>
-
 <h3 id="43-qualitative">4.3 Qualitative</h3>
-
 <ul>
-  <li>A 4-panel matplotlib figure per demo shot: top = ground-truth frames
+<li>A 4-panel matplotlib figure per demo shot: top = ground-truth frames
   at t=0.0, 0.2, 0.5, 1.0 s; bottom = predicted frames at the same
   times. Saved as <code>demo-{shot_id}.png</code>.</li>
-  <li>A side-by-side MP4 (ground truth left, prediction right) at the model
+<li>A side-by-side MP4 (ground truth left, prediction right) at the model
   cadence. Saved as <code>demo-{shot_id}.mp4</code>.</li>
 </ul>
-
 <p>We do not require the model to predict pixel-accurate plasma boundary in
 v0. We require the model to predict a sequence that, looked at by a
 plasma physicist, is recognisably plasma evolving in roughly the right
 direction.</p>
-
-<hr>
-
+<hr/>
 <h2 id="5-cli-surface">5. CLI surface</h2>
-
 <pre><code class="language-bash"># Pull the demo shot's ground-truth tokens (already part of the
 # mast-tokens corpus) and run the rollout
 ambix demo wham-mast --shot 30420 \
@@ -222,9 +175,7 @@ ambix demo wham-mast --shot 30420 \
     --rollout-ms 1000 \
     --output /work/projects/imas_gpu/mast-demos/v0/30420/
 </code></pre>
-
 <p>Generates:</p>
-
 <pre><code>/work/projects/imas_gpu/mast-demos/v0/30420/
 ├── ground-truth.zarr          # frame tensor (decoded)
 ├── prediction.zarr            # frame tensor from rollout
@@ -234,183 +185,100 @@ ambix demo wham-mast --shot 30420 \
 ├── demo-30420.png             # 4-panel ground-truth vs prediction
 └── demo-30420.mp4             # side-by-side video
 </code></pre>
-
 <p>The corresponding <code>ambix demo</code> lazy group is defined in
 <code>imas_ambix/cli.py</code> alongside the existing <code>ambix agent</code> group.</p>
-
-<hr>
-
+<hr/>
 <h2 id="6-demo-notebook-outline">6. Demo notebook outline</h2>
-
 <p><code>docs/demo.ipynb</code> — generated by <code>ambix demo notebook --shot 30420</code> so
 the notebook is reproducible and version-controlled by configuration,
 not by hand-editing.</p>
-
 <p>Cells:</p>
-
 <ol>
-  <li>Markdown header: shot id, model checkpoint, date, manifest hashes.</li>
-  <li>Load ground-truth and predicted Zarr archives.</li>
-  <li>Show 4-panel figure inline (the same one written to PNG).</li>
-  <li>Embed MP4 via IPython's <code>Video</code> widget.</li>
-  <li>Print metrics dict as a markdown table.</li>
-  <li>Markdown discussion: what's qualitatively right, what's qualitatively
+<li>Markdown header: shot id, model checkpoint, date, manifest hashes.</li>
+<li>Load ground-truth and predicted Zarr archives.</li>
+<li>Show 4-panel figure inline (the same one written to PNG).</li>
+<li>Embed MP4 via IPython's <code>Video</code> widget.</li>
+<li>Print metrics dict as a markdown table.</li>
+<li>Markdown discussion: what's qualitatively right, what's qualitatively
   wrong, residual artefacts. <strong>This is the only hand-edited cell</strong> —
   it captures the human commentary that the metrics cannot.</li>
 </ol>
-
 <p>The notebook is intended for emailable distribution. It contains no
 secrets and no private data.</p>
-
-<hr>
-
+<hr/>
 <h2 id="7-acceptance-for-v0-sign-off">7. Acceptance for v0 sign-off</h2>
-
 <p>All of the following must hold simultaneously for one demo shot before
 v0 is declared complete:</p>
-
 <ol>
-  <li>rFID ≤ 8 on the rollout (computed against the corresponding
+<li>rFID ≤ 8 on the rollout (computed against the corresponding
   ground-truth frames).</li>
-  <li>Centroid trajectory MSE within 2× of the ground-truth centroid
+<li>Centroid trajectory MSE within 2× of the ground-truth centroid
   variance across the rollout window.</li>
-  <li>The MP4 is "recognisable as plasma" by an unprompted physicist
+<li>The MP4 is "recognisable as plasma" by an unprompted physicist
   colleague — qualitative sign-off, captured in the notebook's
   commentary cell with name and date.</li>
-  <li>The full demo pipeline runs end-to-end from <code>ambix demo wham-mast</code> in
+<li>The full demo pipeline runs end-to-end from <code>ambix demo wham-mast</code> in
   &lt; 5 min on the 4 × H200 reservation.</li>
 </ol>
-
 <p>Failing 1 or 2 is a science problem (loss curve insufficient, more
 training needed). Failing 3 is the strongest argument for revisiting the
 tokenizer choice. Failing 4 is an engineering problem with the rollout
 code path.</p>
-
-<hr>
-
+<hr/>
 <h2 id="8-demo-day-sequencing">8. Demo-day sequencing</h2>
-
 <div class="table-scroll">
 <table class="t">
-  <thead>
-    <tr><th>Step</th><th>Owner</th><th>Wall time</th></tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Pull latest checkpoint, freeze it to a tagged release</td>
-      <td>maintainer</td>
-      <td>5 min</td>
-    </tr>
-    <tr>
-      <td>Run <code>ambix demo wham-mast</code> for all three demo shots in turn</td>
-      <td>maintainer</td>
-      <td>15 min</td>
-    </tr>
-    <tr>
-      <td>Render the notebook</td>
-      <td>maintainer</td>
-      <td>5 min</td>
-    </tr>
-    <tr>
-      <td>Email the notebook + one MP4 to the stakeholder list</td>
-      <td>maintainer</td>
-      <td>5 min</td>
-    </tr>
-  </tbody>
+<thead>
+<tr><th>Step</th><th>Owner</th><th>Wall time</th></tr>
+</thead>
+<tbody>
+<tr>
+<td>Pull latest checkpoint, freeze it to a tagged release</td>
+<td>maintainer</td>
+<td>5 min</td>
+</tr>
+<tr>
+<td>Run <code>ambix demo wham-mast</code> for all three demo shots in turn</td>
+<td>maintainer</td>
+<td>15 min</td>
+</tr>
+<tr>
+<td>Render the notebook</td>
+<td>maintainer</td>
+<td>5 min</td>
+</tr>
+<tr>
+<td>Email the notebook + one MP4 to the stakeholder list</td>
+<td>maintainer</td>
+<td>5 min</td>
+</tr>
+</tbody>
 </table>
 </div>
-
 <p>This pipeline is intentionally short — the v0 demo is a smoke test, not
 a polished release.</p>
-
-<hr>
-
+<hr/>
 <h2 id="9-related-plans">9. Related plans</h2>
-
 <ul>
-  <li><a href="world-model-v0.html" class="link"><code>world-model-v0.html</code></a> — defines the model that produces the rollout.</li>
-  <li><a href="tokenizers.html" class="link"><code>tokenizers.html</code></a> — defines the encode/decode used in this demo.</li>
-  <li><a href="data-acquisition.html" class="link"><code>data-acquisition.html</code></a> — the shot split and the demo-shot list depend
+<li><a class="link" href="world-model-v0.html"><code>world-model-v0.html</code></a> — defines the model that produces the rollout.</li>
+<li><a class="link" href="tokenizers.html"><code>tokenizers.html</code></a> — defines the encode/decode used in this demo.</li>
+<li><a class="link" href="data-acquisition.html"><code>data-acquisition.html</code></a> — the shot split and the demo-shot list depend
   on the probe-time manifest, which is what tells us which shots really
   do carry camera frames.</li>
 </ul>
-
-<hr>
-
-<h2 id="open-decisions">Open Decisions</h2>
-
-<p>Click a choice to record the call. State persists via
-<code>_shared/state.js</code> to the docs-server and is committed to git under
-<code>docs/state/imas-ambix/</code>.</p>
-
-<div class="decisions" id="decisions">
-  <div class="dec open" data-key="demo-shots-selection">
-    <div class="head">
-      <span class="key">demo-shots-selection</span>
-      <span class="title">Demo shots final selection</span>
-      <span class="when" data-field="when"></span>
+<hr/>
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="demo-shots-selection" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Demo shots final selection</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="30420-30421-m6">30420 + 30421 + M6-era TBD (original plan)</button>
+      <button class="r-opt" data-value="30420-30421-no-cx">30420 + 30421 + M8/M9 shot confirmed clean CX</button>
+      <button class="r-opt" data-value="defer">Defer selection until full corpus audit is complete</button>
+      </p>
+    <p class="r-dec-rat"></p>
     </div>
-    <p class="subtitle-line">Current candidates: 30420 + 30421 (FAIR-MAST quickstart shots) + one M6-era TBD.
-    Audit data now available to pick shots with confirmed clean data. Charge-exchange corruption
-    affects ~50% of shots but shots 30420/30421 are M9-era — need to verify their CX status.
-    Source: <a href="#3-shot-split">§3</a>.</p>
-    <div class="choices">
-      <button data-choice="30420-30421-m6">30420 + 30421 + M6-era TBD (original plan)</button>
-      <button data-choice="30420-30421-no-cx">30420 + 30421 + M8/M9 shot confirmed clean CX</button>
-      <button data-choice="defer">Defer selection until full corpus audit is complete</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-</div>
-
-<nav class="plan-nav"><a href="world-model-v0.html"><span class="nav-label">← Previous</span><span class="nav-title">World Model v0</span></a></nav>
-
+</section>
 </main>
-
-<script src="assets/app.js"></script>
-
-<script>
-document.addEventListener("DOMContentLoaded", async () => {
-  const blob = await loadState();
-  const stateDecs = getDecisions(blob);
-
-  document.querySelectorAll(".dec[data-key]").forEach(row => {
-    const key = row.getAttribute("data-key");
-    const s   = stateDecs[key];
-    if (!s) return;
-    row.classList.add("locked");
-    row.classList.remove("open");
-    row.querySelectorAll(".choices button").forEach(b => {
-      if (b.getAttribute("data-choice") === s.choice) b.classList.add("chosen");
-    });
-    const rat = row.querySelector('input[data-field="rationale"]');
-    if (rat && s.rationale) rat.value = s.rationale;
-    const when = row.querySelector('[data-field="when"]');
-    if (when && s.when) when.textContent = s.when;
-  });
-
-  document.querySelectorAll(".dec[data-key]").forEach(row => {
-    const key = row.getAttribute("data-key");
-    row.querySelectorAll(".choices button").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const choice = btn.getAttribute("data-choice");
-        const rat = row.querySelector('input[data-field="rationale"]')?.value || "";
-        try {
-          await lockDecision(key, choice, rat);
-          row.querySelectorAll(".choices button").forEach(b => b.classList.remove("chosen"));
-          btn.classList.add("chosen");
-          row.classList.add("locked");
-          row.classList.remove("open");
-          const when = row.querySelector('[data-field="when"]');
-          if (when) when.textContent = new Date().toISOString().slice(0, 16).replace("T", " ");
-        } catch (e) {
-          alert(e.message);
-        }
-      });
-    });
-  });
-});
-</script>
-
 </body>
 </html>

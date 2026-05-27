@@ -1,46 +1,31 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>v0 Runway | Ambix Plans</title>
-<link rel="stylesheet" href="_shared/foundation.css">
-<link rel="stylesheet" href="_shared/dashboard.css">
-<script src="_shared/state.js"></script>
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="v0-runway">
+<title>v0 runway plan | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="reckon-type" content="plan">
+<meta name="plan-title" content="v0 runway plan">
+<meta name="plan-summary" content="Next-step ranking by ROI · fleet-dispatch table · review rubric.">
+<meta name="plan-status" content="active">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="M">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-sprint" content="S2">
+<meta name="plan-tier" content="opus">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-26">
+<meta name="plan-depends-on" content="STRATEGY,tokenizers,compute">
+<meta name="plan-blocks" content="world-model-v0">
+<meta name="plan-impl" content="0.78">
+<meta name="plan-version" content="4">
 </head>
 <body>
-
-<div class="topbar">
-  <a class="brand" href="index.html">
-    <span class="mark">A</span>
-    <span class="proj-name">imas-ambix</span>
-  </a>
-  <nav>
-    <a href="index.html">Index</a>
-    <a href="STRATEGY.html">Strategy</a>
-    <a href="v0-runway.html" class="active">v0 Runway</a>
-    <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data acq</a>
-    <a href="data-quality.html">Quality</a>
-    <a href="tokenizers.html">Tokenizers</a>
-    <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html">World model</a>
-    <a href="demo.html">Demo</a>
-    <a href="decisions.html">Decisions</a>
-  </nav>
-  <div class="right"></div>
-</div>
-
-<main class="page wide">
-
-<div class="page-head">
-  <div class="title">
-    <h1>Plan: v0 Runway — Next Steps</h1>
-    <div class="subtitle">imas-ambix / Fusion World Model ·
-      Updated <time id="updated">2026-05-26</time></div>
-  </div>
-</div>
-
+<main class="plan-doc">
 <p>Status: <strong>Active</strong> — updated 2026-05-26.</p>
 <p>This is the operational doc that tabulates the next set of work items on
 the way to the v0 demo (<code>plans/demo.md</code>). It is a <em>living document</em> — as
@@ -48,384 +33,372 @@ items complete or new ones emerge, edit this file in place. Use
 <code>STRATEGY.md</code> for vision, <code>world-model-v0.md</code> for the model contract,
 <code>tokenizers.md</code> for tokenizer wiring, <code>data-acquisition.md</code> for the
 corpus, <code>compute.md</code> for SLURM.</p>
-
-<hr>
-
+<hr/>
 <h2 id="1-recap-where-we-are-2026-05-26">1. Recap — where we are 2026-05-26</h2>
-
 <div class="table-scroll">
 <table class="t compact">
-  <thead>
-    <tr><th>Track</th><th>Status</th></tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Level-2 mirror</td>
-      <td><span class="status shipped"><span class="dot"></span>complete</span> — 11,573 shots</td>
-    </tr>
-    <tr>
-      <td>Level-1 camera mirror</td>
-      <td><span class="status shipped"><span class="dot"></span>complete</span> (2.7 TB, 11,029 shot dirs)</td>
-    </tr>
-    <tr>
-      <td>Level-1 ALL-sources mirror (xdc/amc/amb/aga/efm/etc.)</td>
-      <td><span class="status shipped"><span class="dot"></span>complete</span> — both L1 + L2 mirrors done (11,573 shots total)</td>
-    </tr>
-    <tr>
-      <td>Tokenizer stack</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> — Open-MAGVIT2 frames, Chronos signals, PatchTST, alignment.py, multimodal aggregator, block_kind</td>
-    </tr>
-    <tr>
-      <td>Open-MAGVIT2 frame tokenizer</td>
-      <td><span class="status shipped"><span class="dot"></span>wired</span> — real model end-to-end, MAE 324 on rbb; <strong>CUDA wheel installed</strong>, GPU runner code ready, GPU test skips on login</td>
-    </tr>
-    <tr>
-      <td>Chronos signal tokenizer</td>
-      <td><span class="status shipped"><span class="dot"></span>wired</span> (r ≈ 0.985 round-trip on synthetic sine/cosine)</td>
-    </tr>
-    <tr>
-      <td>PatchTST identity wrapper</td>
-      <td><span class="status shipped"><span class="dot"></span>wired</span> (bit-exact round-trip)</td>
-    </tr>
-    <tr>
-      <td>Alignment + missing-modality padding</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (72c0e0a) — enforce_alignment + encode_shot_signal_only/frames_only, 5 tests</td>
-    </tr>
-    <tr>
-      <td>Plasma-domain decoder fine-tune scaffold</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (5e7c5fc) — DecoderFinetuneTrainer + CLI finetune-decoder, 4 tests; GPU run deferred</td>
-    </tr>
-    <tr>
-      <td>Bench YAML config loader + 25-shot configs</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (dec0082) — v0-rir-25shot + v0-rbb-25shot, 8 tests</td>
-    </tr>
-    <tr>
-      <td>Data quality framework (recalibrated)</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (d3896e5) — FAIR-MAST xarray-on-Zarr reality; 28 tests; usable_for_training definition updated</td>
-    </tr>
-    <tr>
-      <td>Eval metrics module</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (rFID, PSNR, LPIPS, centroid, chord, edge, rollout stub; 31 tests + 4 skips)</td>
-    </tr>
-    <tr>
-      <td>WHAM model + 125M/500M Hydra configs</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (8 tests; 125M=328M params, 500M=689M — embedding-table dominated)</td>
-    </tr>
-    <tr>
-      <td>Data loaders + token persistence</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (15 tests; ambix data tokens-status live)</td>
-    </tr>
-    <tr>
-      <td>block_kind side data</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (51 tokenizer tests; weighted-CE loss mask ready)</td>
-    </tr>
-    <tr>
-      <td>CLI smoke tests (data + tokenize)</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (42 tests; data/cli.py 86 % coverage, tokenizer/cli.py 97 %)</td>
-    </tr>
-    <tr>
-      <td>Calibration library (signals + frames)</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (fe18b34) — <code>imas_ambix/calibration/</code>, 17 tests</td>
-    </tr>
-    <tr>
-      <td>Bulk-encode CLI (frames + signals)</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (9306605) — <code>ambix data bulk-encode-frames</code> + <code>bulk-encode-signals</code>, 15 tests</td>
-    </tr>
-    <tr>
-      <td>Training loop FSDP scaffold</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (a948b19) — <code>imas_ambix/train/loop.py</code>, 25 tests; CPU smoke baseline confirmed</td>
-    </tr>
-    <tr>
-      <td>Demo CLI + rollout impl</td>
-      <td><span class="status shipped"><span class="dot"></span>landed</span> (3e3bb2a) — <code>ambix demo wham-mast</code> + <code>rollout()</code>, 20 tests + 31 eval tests</td>
-    </tr>
-    <tr>
-      <td><strong>Exclusive compute authorised</strong></td>
-      <td><strong>ACTIVE 2026-05-26</strong> — V4-Flash stopped, 4×H200 reservation dedicated to training. See <code>compute.html</code>.</td>
-    </tr>
-    <tr>
-      <td><strong>Bulk GPU encode</strong> (Open-MAGVIT2 on 11,573 shots)</td>
-      <td><span class="status active"><span class="dot"></span>in flight</span> — Agent D dispatched 2026-05-26; gates 125M smoke run</td>
-    </tr>
-    <tr>
-      <td><strong>Training-grade shot derivation</strong></td>
-      <td><span class="status active"><span class="dot"></span>in flight</span> — Agent A dispatched 2026-05-26 (training-grade-shots.json)</td>
-    </tr>
-    <tr>
-      <td><strong>SLURM wrapper set</strong></td>
-      <td><span class="status active"><span class="dot"></span>landing</span> — Agent B dispatched 2026-05-26 (scripts/slurm/)</td>
-    </tr>
-    <tr>
-      <td><strong>125M smoke training run</strong></td>
-      <td><span class="status pending"><span class="dot"></span>queued</span> — gated on Agent D bulk-encode output + Agent A training-grade list</td>
-    </tr>
-  </tbody>
+<thead>
+<tr><th>Track</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr>
+<td>Level-2 mirror</td>
+<td><span class="status shipped"><span class="dot"></span>complete</span> — 11,573 shots</td>
+</tr>
+<tr>
+<td>Level-1 camera mirror</td>
+<td><span class="status shipped"><span class="dot"></span>complete</span> (2.7 TB, 11,029 shot dirs)</td>
+</tr>
+<tr>
+<td>Level-1 ALL-sources mirror (xdc/amc/amb/aga/efm/etc.)</td>
+<td><span class="status shipped"><span class="dot"></span>complete</span> — both L1 + L2 mirrors done (11,573 shots total)</td>
+</tr>
+<tr>
+<td>Tokenizer stack</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> — Open-MAGVIT2 frames, Chronos signals, PatchTST, alignment.py, multimodal aggregator, block_kind</td>
+</tr>
+<tr>
+<td>Open-MAGVIT2 frame tokenizer</td>
+<td><span class="status shipped"><span class="dot"></span>wired</span> — real model end-to-end, MAE 324 on rbb; <strong>CUDA wheel installed</strong>, GPU runner code ready, GPU test skips on login</td>
+</tr>
+<tr>
+<td>Chronos signal tokenizer</td>
+<td><span class="status shipped"><span class="dot"></span>wired</span> (r ≈ 0.985 round-trip on synthetic sine/cosine)</td>
+</tr>
+<tr>
+<td>PatchTST identity wrapper</td>
+<td><span class="status shipped"><span class="dot"></span>wired</span> (bit-exact round-trip)</td>
+</tr>
+<tr>
+<td>Alignment + missing-modality padding</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (72c0e0a) — enforce_alignment + encode_shot_signal_only/frames_only, 5 tests</td>
+</tr>
+<tr>
+<td>Plasma-domain decoder fine-tune scaffold</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (5e7c5fc) — DecoderFinetuneTrainer + CLI finetune-decoder, 4 tests; GPU run deferred</td>
+</tr>
+<tr>
+<td>Bench YAML config loader + 25-shot configs</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (dec0082) — v0-rir-25shot + v0-rbb-25shot, 8 tests</td>
+</tr>
+<tr>
+<td>Data quality framework (recalibrated)</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (d3896e5) — FAIR-MAST xarray-on-Zarr reality; 28 tests; usable_for_training definition updated</td>
+</tr>
+<tr>
+<td>Eval metrics module</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (rFID, PSNR, LPIPS, centroid, chord, edge, rollout stub; 31 tests + 4 skips)</td>
+</tr>
+<tr>
+<td>WHAM model + 125M/500M Hydra configs</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (8 tests; 125M=328M params, 500M=689M — embedding-table dominated)</td>
+</tr>
+<tr>
+<td>Data loaders + token persistence</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (15 tests; ambix data tokens-status live)</td>
+</tr>
+<tr>
+<td>block_kind side data</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (51 tokenizer tests; weighted-CE loss mask ready)</td>
+</tr>
+<tr>
+<td>CLI smoke tests (data + tokenize)</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (42 tests; data/cli.py 86 % coverage, tokenizer/cli.py 97 %)</td>
+</tr>
+<tr>
+<td>Calibration library (signals + frames)</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (fe18b34) — <code>imas_ambix/calibration/</code>, 17 tests</td>
+</tr>
+<tr>
+<td>Bulk-encode CLI (frames + signals)</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (9306605) — <code>ambix data bulk-encode-frames</code> + <code>bulk-encode-signals</code>, 15 tests</td>
+</tr>
+<tr>
+<td>Training loop FSDP scaffold</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (a948b19) — <code>imas_ambix/train/loop.py</code>, 25 tests; CPU smoke baseline confirmed</td>
+</tr>
+<tr>
+<td>Demo CLI + rollout impl</td>
+<td><span class="status shipped"><span class="dot"></span>landed</span> (3e3bb2a) — <code>ambix demo wham-mast</code> + <code>rollout()</code>, 20 tests + 31 eval tests</td>
+</tr>
+<tr>
+<td><strong>Exclusive compute authorised</strong></td>
+<td><strong>ACTIVE 2026-05-26</strong> — V4-Flash stopped, 4×H200 reservation dedicated to training. See <code>compute.html</code>.</td>
+</tr>
+<tr>
+<td><strong>Bulk GPU encode</strong> (Open-MAGVIT2 on 11,573 shots)</td>
+<td><span class="status active"><span class="dot"></span>in flight</span> — Agent D dispatched 2026-05-26; gates 125M smoke run</td>
+</tr>
+<tr>
+<td><strong>Training-grade shot derivation</strong></td>
+<td><span class="status active"><span class="dot"></span>in flight</span> — Agent A dispatched 2026-05-26 (training-grade-shots.json)</td>
+</tr>
+<tr>
+<td><strong>SLURM wrapper set</strong></td>
+<td><span class="status active"><span class="dot"></span>landing</span> — Agent B dispatched 2026-05-26 (scripts/slurm/)</td>
+</tr>
+<tr>
+<td><strong>125M smoke training run</strong></td>
+<td><span class="status pending"><span class="dot"></span>queued</span> — gated on Agent D bulk-encode output + Agent A training-grade list</td>
+</tr>
+</tbody>
 </table>
 </div>
-
-<hr>
-
+<hr/>
 <h2 id="2-highest-roi-next-steps-ranked">2. Highest-ROI next steps (ranked)</h2>
 <p>ROI = value × probability of clean delivery / cost.</p>
 <p>Items marked <strong>DONE</strong> are complete; they remain here for historical reference.
 Updated 2026-05-26: exclusive compute is live, bulk-encode is ACTIVE (no longer blocked).</p>
-
 <div class="table-scroll">
 <table class="t compact">
-  <thead>
-    <tr>
-      <th>Rank</th>
-      <th>Track</th>
-      <th>Value</th>
-      <th>Cost</th>
-      <th>Risk</th>
-      <th>Sonnet 4.6?</th>
-      <th>Depends on</th>
-      <th>Status</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>1</td>
-      <td><s>Chronos signal tokenizer + PatchTST identity wrapper</s></td>
-      <td>High</td>
-      <td>Low</td>
-      <td>Low</td>
-      <td>Yes</td>
-      <td>none</td>
-      <td><span class="status shipped"><span class="dot"></span>DONE</span></td>
-    </tr>
-    <tr>
-      <td>2</td>
-      <td><s>Eval metrics scaffold (rFID, PSNR, LPIPS, centroid, chord, edge)</s></td>
-      <td>High</td>
-      <td>Low</td>
-      <td>Low</td>
-      <td>Yes</td>
-      <td>none</td>
-      <td><span class="status shipped"><span class="dot"></span>DONE</span></td>
-    </tr>
-    <tr>
-      <td>3</td>
-      <td><s>WHAM model scaffold + Hydra configs</s></td>
-      <td>Critical</td>
-      <td>Medium</td>
-      <td>Low</td>
-      <td>Yes</td>
-      <td>—</td>
-      <td><span class="status shipped"><span class="dot"></span>DONE</span></td>
-    </tr>
-    <tr>
-      <td>4</td>
-      <td><s>Data loaders + token persistence + bulk-encode CLI</s></td>
-      <td>Critical</td>
-      <td>Medium</td>
-      <td>Low</td>
-      <td>Yes</td>
-      <td>—</td>
-      <td><span class="status shipped"><span class="dot"></span>DONE</span></td>
-    </tr>
-    <tr>
-      <td>5</td>
-      <td><strong>Tokenizer expansion (plasma decoder fine-tune, PatchTST real, equilibrium 2-D)</strong></td>
-      <td>High (raises rFID floor, PatchTST fidelity)</td>
-      <td>Medium</td>
-      <td>Low–Medium</td>
-      <td>Sonnet (guided)</td>
-      <td>benchmark baseline measured + rFID &gt; 5 trigger</td>
-      <td><span class="status pending"><span class="dot"></span>Pending — see <code>tokenizers.md</code> §12</span></td>
-    </tr>
-    <tr>
-      <td>6</td>
-      <td><s>Data quality framework + corpus audit (writing training index)</s></td>
-      <td>High (gates training set correctness)</td>
-      <td>Low</td>
-      <td>Low</td>
-      <td>Yes</td>
-      <td>level-2 mirror + level-1 camera mirror</td>
-      <td><span class="status shipped"><span class="dot"></span>DONE</span> (recalibrated: d3896e5; Agent A training-grade in flight)</td>
-    </tr>
-    <tr>
-      <td>7</td>
-      <td><s>Tokenizer benchmark framework (rFID, Pearson r, throughput)</s></td>
-      <td>High (needed to trigger fine-tune decisions)</td>
-      <td>Low</td>
-      <td>Low</td>
-      <td>Yes</td>
-      <td>GPU runner working</td>
-      <td><span class="status shipped"><span class="dot"></span>DONE</span> (94565f3 + dec0082 bench configs)</td>
-    </tr>
-    <tr>
-      <td>8</td>
-      <td><s>Calibration library (per-channel signal calibration, frame normalisation)</s></td>
-      <td>Medium (improves Chronos NRMSE)</td>
-      <td>Low</td>
-      <td>Low</td>
-      <td>Yes</td>
-      <td>none</td>
-      <td><span class="status shipped"><span class="dot"></span>DONE</span> (fe18b34)</td>
-    </tr>
-    <tr>
-      <td>9</td>
-      <td><strong>Bulk GPU encode</strong> (Open-MAGVIT2 on 11,573 shots)</td>
-      <td>Critical (unblocks smoke run)</td>
-      <td>Low</td>
-      <td>Low</td>
-      <td>Yes</td>
-      <td>exclusive compute (ACTIVE 2026-05-26)</td>
-      <td><span class="status active"><span class="dot"></span>ACTIVE</span> — Agent D dispatched; gates rank 10</td>
-    </tr>
-    <tr>
-      <td>10</td>
-      <td><strong>125M smoke training run</strong> (1 GPU, ~100 shots)</td>
-      <td>Critical</td>
-      <td>Low</td>
-      <td>Medium</td>
-      <td>Opus (operator)</td>
-      <td>Agent D bulk-encode + Agent A training-grade</td>
-      <td><span class="status pending"><span class="dot"></span>queued</span> — gated on 9 + Agent A</td>
-    </tr>
-    <tr>
-      <td>11</td>
-      <td>500M curriculum run on dedicated reservation</td>
-      <td>Critical</td>
-      <td>Medium</td>
-      <td>Medium</td>
-      <td>Opus</td>
-      <td>smoke run green</td>
-      <td><span class="status pending"><span class="dot"></span>not started</span></td>
-    </tr>
-    <tr>
-      <td>12</td>
-      <td><s>Demo CLI + rollout code</s></td>
-      <td>Critical</td>
-      <td>Medium</td>
-      <td>Low</td>
-      <td>Yes</td>
-      <td>training loop</td>
-      <td><span class="status shipped"><span class="dot"></span>DONE</span> (3e3bb2a)</td>
-    </tr>
-  </tbody>
+<thead>
+<tr>
+<th>Rank</th>
+<th>Track</th>
+<th>Value</th>
+<th>Cost</th>
+<th>Risk</th>
+<th>Sonnet 4.6?</th>
+<th>Depends on</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><s>Chronos signal tokenizer + PatchTST identity wrapper</s></td>
+<td>High</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>none</td>
+<td><span class="status shipped"><span class="dot"></span>DONE</span></td>
+</tr>
+<tr>
+<td>2</td>
+<td><s>Eval metrics scaffold (rFID, PSNR, LPIPS, centroid, chord, edge)</s></td>
+<td>High</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>none</td>
+<td><span class="status shipped"><span class="dot"></span>DONE</span></td>
+</tr>
+<tr>
+<td>3</td>
+<td><s>WHAM model scaffold + Hydra configs</s></td>
+<td>Critical</td>
+<td>Medium</td>
+<td>Low</td>
+<td>Yes</td>
+<td>—</td>
+<td><span class="status shipped"><span class="dot"></span>DONE</span></td>
+</tr>
+<tr>
+<td>4</td>
+<td><s>Data loaders + token persistence + bulk-encode CLI</s></td>
+<td>Critical</td>
+<td>Medium</td>
+<td>Low</td>
+<td>Yes</td>
+<td>—</td>
+<td><span class="status shipped"><span class="dot"></span>DONE</span></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Tokenizer expansion (plasma decoder fine-tune, PatchTST real, equilibrium 2-D)</strong></td>
+<td>High (raises rFID floor, PatchTST fidelity)</td>
+<td>Medium</td>
+<td>Low–Medium</td>
+<td>Sonnet (guided)</td>
+<td>benchmark baseline measured + rFID &gt; 5 trigger</td>
+<td><span class="status pending"><span class="dot"></span>Pending — see <code>tokenizers.md</code> §12</span></td>
+</tr>
+<tr>
+<td>6</td>
+<td><s>Data quality framework + corpus audit (writing training index)</s></td>
+<td>High (gates training set correctness)</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>level-2 mirror + level-1 camera mirror</td>
+<td><span class="status shipped"><span class="dot"></span>DONE</span> (recalibrated: d3896e5; Agent A training-grade in flight)</td>
+</tr>
+<tr>
+<td>7</td>
+<td><s>Tokenizer benchmark framework (rFID, Pearson r, throughput)</s></td>
+<td>High (needed to trigger fine-tune decisions)</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>GPU runner working</td>
+<td><span class="status shipped"><span class="dot"></span>DONE</span> (94565f3 + dec0082 bench configs)</td>
+</tr>
+<tr>
+<td>8</td>
+<td><s>Calibration library (per-channel signal calibration, frame normalisation)</s></td>
+<td>Medium (improves Chronos NRMSE)</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>none</td>
+<td><span class="status shipped"><span class="dot"></span>DONE</span> (fe18b34)</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>Bulk GPU encode</strong> (Open-MAGVIT2 on 11,573 shots)</td>
+<td>Critical (unblocks smoke run)</td>
+<td>Low</td>
+<td>Low</td>
+<td>Yes</td>
+<td>exclusive compute (ACTIVE 2026-05-26)</td>
+<td><span class="status active"><span class="dot"></span>ACTIVE</span> — Agent D dispatched; gates rank 10</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>125M smoke training run</strong> (1 GPU, ~100 shots)</td>
+<td>Critical</td>
+<td>Low</td>
+<td>Medium</td>
+<td>Opus (operator)</td>
+<td>Agent D bulk-encode + Agent A training-grade</td>
+<td><span class="status pending"><span class="dot"></span>queued</span> — gated on 9 + Agent A</td>
+</tr>
+<tr>
+<td>11</td>
+<td>500M curriculum run on dedicated reservation</td>
+<td>Critical</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Opus</td>
+<td>smoke run green</td>
+<td><span class="status pending"><span class="dot"></span>not started</span></td>
+</tr>
+<tr>
+<td>12</td>
+<td><s>Demo CLI + rollout code</s></td>
+<td>Critical</td>
+<td>Medium</td>
+<td>Low</td>
+<td>Yes</td>
+<td>training loop</td>
+<td><span class="status shipped"><span class="dot"></span>DONE</span> (3e3bb2a)</td>
+</tr>
+</tbody>
 </table>
 </div>
-
 <p>Tracks 6, 7, 8 are now complete (DONE 2026-05-20/21). Track 9 (bulk GPU encode)
 is active — it gates the 125M smoke run at rank 10. Tokenizer expansion (rank 5)
 runs after rank 7 provides the rFID baseline from GPU inference.</p>
-
-<hr>
-
+<hr/>
 <h2 id="3-fleet-dispatch-parallel-batch-2026-05-20">3. Fleet dispatch — parallel batch (2026-05-20)</h2>
 <p>Four Sonnet 4.6 agents in parallel with <strong>non-overlapping write scopes</strong>.
 Coordinator (Opus) reviews each output post-completion. See
 [[fleet-sonnet-46-offload]] memory.</p>
-
 <div class="table-scroll">
 <table class="t compact">
-  <thead>
-    <tr>
-      <th>Agent</th>
-      <th>Track</th>
-      <th>Exclusive write scope</th>
-      <th>Read-only references</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>S1</strong></td>
-      <td>Chronos + PatchTST signal tokenizers</td>
-      <td><code>imas_ambix/tokenizer/signals.py</code>; <code>tests/test_tokenizer.py</code> (additions); <code>plans/tokenizers.md</code> (§9.2 update)</td>
-      <td><code>tokenizer/base.py</code>, <code>tokenizer/registry.py</code>, <code>tokenizer/frames.py</code> (the OpenMagvit2 pattern), <code>plans/tokenizers.md</code> §3</td>
-    </tr>
-    <tr>
-      <td><strong>S2</strong></td>
-      <td>Evaluation metrics + rollout stub</td>
-      <td><code>imas_ambix/eval/__init__.py</code>, <code>imas_ambix/eval/metrics.py</code>, <code>imas_ambix/eval/rollout.py</code>; <code>tests/test_eval.py</code> (new)</td>
-      <td><code>plans/demo.md</code> §4, <code>plans/world-model-v0.md</code> §5</td>
-    </tr>
-    <tr>
-      <td><strong>S3</strong></td>
-      <td>WHAM model scaffold</td>
-      <td><code>imas_ambix/model/__init__.py</code>, <code>imas_ambix/model/config.py</code>, <code>imas_ambix/model/wham.py</code>; <code>imas_ambix/train/__init__.py</code>, <code>imas_ambix/train/configs/v0-125m.yaml</code>, <code>imas_ambix/train/configs/v0-500m.yaml</code>; <code>tests/test_model.py</code> (new)</td>
-      <td><code>plans/world-model-v0.md</code> §1, §2, §4; <code>tokenizer/registry.py</code> for vocab size</td>
-    </tr>
-    <tr>
-      <td><strong>S4</strong></td>
-      <td>Data loaders + token persistence + bulk-encode CLI</td>
-      <td><code>imas_ambix/data/loaders.py</code>, <code>imas_ambix/data/persist.py</code>; <code>imas_ambix/data/cli.py</code> (extension, do not touch existing commands); <code>tests/test_loaders.py</code>, <code>tests/test_persist.py</code> (new)</td>
-      <td><code>plans/world-model-v0.md</code> §3, §6; <code>plans/tokenizers.md</code> §5; <code>tokenizer/frames.py</code>, <code>tokenizer/multimodal.py</code></td>
-    </tr>
-  </tbody>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Track</th>
+<th>Exclusive write scope</th>
+<th>Read-only references</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>S1</strong></td>
+<td>Chronos + PatchTST signal tokenizers</td>
+<td><code>imas_ambix/tokenizer/signals.py</code>; <code>tests/test_tokenizer.py</code> (additions); <code>plans/tokenizers.md</code> (§9.2 update)</td>
+<td><code>tokenizer/base.py</code>, <code>tokenizer/registry.py</code>, <code>tokenizer/frames.py</code> (the OpenMagvit2 pattern), <code>plans/tokenizers.md</code> §3</td>
+</tr>
+<tr>
+<td><strong>S2</strong></td>
+<td>Evaluation metrics + rollout stub</td>
+<td><code>imas_ambix/eval/__init__.py</code>, <code>imas_ambix/eval/metrics.py</code>, <code>imas_ambix/eval/rollout.py</code>; <code>tests/test_eval.py</code> (new)</td>
+<td><code>plans/demo.md</code> §4, <code>plans/world-model-v0.md</code> §5</td>
+</tr>
+<tr>
+<td><strong>S3</strong></td>
+<td>WHAM model scaffold</td>
+<td><code>imas_ambix/model/__init__.py</code>, <code>imas_ambix/model/config.py</code>, <code>imas_ambix/model/wham.py</code>; <code>imas_ambix/train/__init__.py</code>, <code>imas_ambix/train/configs/v0-125m.yaml</code>, <code>imas_ambix/train/configs/v0-500m.yaml</code>; <code>tests/test_model.py</code> (new)</td>
+<td><code>plans/world-model-v0.md</code> §1, §2, §4; <code>tokenizer/registry.py</code> for vocab size</td>
+</tr>
+<tr>
+<td><strong>S4</strong></td>
+<td>Data loaders + token persistence + bulk-encode CLI</td>
+<td><code>imas_ambix/data/loaders.py</code>, <code>imas_ambix/data/persist.py</code>; <code>imas_ambix/data/cli.py</code> (extension, do not touch existing commands); <code>tests/test_loaders.py</code>, <code>tests/test_persist.py</code> (new)</td>
+<td><code>plans/world-model-v0.md</code> §3, §6; <code>plans/tokenizers.md</code> §5; <code>tokenizer/frames.py</code>, <code>tokenizer/multimodal.py</code></td>
+</tr>
+</tbody>
 </table>
 </div>
-
 <p>Mandatory dispatch preamble per AGENTS.md is embedded in every Agent
 prompt. Branch: <code>code/data-skeleton</code>. Each agent commits + pushes its
 own changes with a <code>feat(&lt;scope&gt;):</code> conventional commit.</p>
-
 <h3 id="3-1-coordinator-review-2026-05-26">3.1 Coordinator review — 2026-05-26</h3>
 <p>Rubric: (1) lands what plan promised, (2) tests green, (3) commit message scoped right, (4) followup chain updated.</p>
 <div class="table-scroll">
 <table class="t compact">
-  <thead>
-    <tr>
-      <th>Commit</th>
-      <th>Agent</th>
-      <th>§-target</th>
-      <th>Files changed</th>
-      <th>(1) Scope</th>
-      <th>(2) Tests</th>
-      <th>(3) Msg</th>
-      <th>(4) Chain</th>
-      <th>Verdict</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>5e7c5fc</code></td>
-      <td>S-tokenizer-A</td>
-      <td>§12.1 decoder fine-tune</td>
-      <td><code>tokenizer/cli.py</code>, <code>finetune_decoder.py</code>, <code>tests/test_finetune_decoder.py</code> (919 lines +)</td>
-      <td class="pass">✓</td>
-      <td class="pass">✓ 4 tests, collection clean (368 total)</td>
-      <td class="pass">✓ <code>feat(tokenizer):</code></td>
-      <td class="fail">— followup not written</td>
-      <td><span class="status shipped"><span class="dot"></span>Accepted</span> — no GPU run yet; fine-tune train loop deferred pending bulk-encode</td>
-    </tr>
-    <tr>
-      <td><code>72c0e0a</code></td>
-      <td>S-tokenizer-B</td>
-      <td>§12.4 alignment + padding</td>
-      <td><code>tokenizer/alignment.py</code>, <code>multimodal.py</code>, <code>tests/test_tokenizer.py</code> (388 lines +)</td>
-      <td class="pass">✓</td>
-      <td class="pass">✓ 5 new §12.4 tests; backward-compat path covered</td>
-      <td class="pass">✓ <code>feat(tokenizer):</code></td>
-      <td class="fail">— followup not written</td>
-      <td><span class="status shipped"><span class="dot"></span>Accepted</span> — enforce_alignment=True is the right default; alignment.py is clean</td>
-    </tr>
-    <tr>
-      <td><code>dec0082</code></td>
-      <td>S-bench</td>
-      <td>§12.5 bench YAML + IR decision gate</td>
-      <td><code>bench/__init__.py</code>, <code>configs/</code> (2 YAML), <code>loader.py</code>, <code>tokenizer.py</code>, <code>eval/metrics.py</code>, <code>tests/test_bench*.py</code>, <code>test_eval.py</code> (549 lines +)</td>
-      <td class="pass">✓</td>
-      <td class="pass">✓ 8 new tests (bench_loader + bench); eval metrics extended</td>
-      <td class="pass">✓ <code>feat(bench):</code></td>
-      <td class="fail">— followup not written</td>
-      <td><span class="status shipped"><span class="dot"></span>Accepted</span> — v0-rir-25shot + v0-rbb-25shot ready for GPU benchmark run</td>
-    </tr>
-    <tr>
-      <td><code>d3896e5</code></td>
-      <td>S-quality</td>
-      <td>§10 FAIR-MAST audit recalibration</td>
-      <td><code>quality/__init__.py</code>, <code>audit.py</code>, <code>checks.py</code>, <code>plans/data-quality.md</code>, <code>tests/test_quality.py</code> (712 lines +/−)</td>
-      <td class="pass">✓</td>
-      <td class="pass">✓ 22 → 28 tests; dynamic-range cap raised to 1e25 (physical plasma values)</td>
-      <td class="pass">✓ <code>fix(quality):</code></td>
-      <td class="fail">— followup not written</td>
-      <td><span class="status shipped"><span class="dot"></span>Accepted</span> — recalibration is correct: dd_version + homogeneous_time do not exist in FAIR-MAST xarray-on-Zarr</td>
-    </tr>
-  </tbody>
+<thead>
+<tr>
+<th>Commit</th>
+<th>Agent</th>
+<th>§-target</th>
+<th>Files changed</th>
+<th>(1) Scope</th>
+<th>(2) Tests</th>
+<th>(3) Msg</th>
+<th>(4) Chain</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>5e7c5fc</code></td>
+<td>S-tokenizer-A</td>
+<td>§12.1 decoder fine-tune</td>
+<td><code>tokenizer/cli.py</code>, <code>finetune_decoder.py</code>, <code>tests/test_finetune_decoder.py</code> (919 lines +)</td>
+<td class="pass">✓</td>
+<td class="pass">✓ 4 tests, collection clean (368 total)</td>
+<td class="pass">✓ <code>feat(tokenizer):</code></td>
+<td class="fail">— followup not written</td>
+<td><span class="status shipped"><span class="dot"></span>Accepted</span> — no GPU run yet; fine-tune train loop deferred pending bulk-encode</td>
+</tr>
+<tr>
+<td><code>72c0e0a</code></td>
+<td>S-tokenizer-B</td>
+<td>§12.4 alignment + padding</td>
+<td><code>tokenizer/alignment.py</code>, <code>multimodal.py</code>, <code>tests/test_tokenizer.py</code> (388 lines +)</td>
+<td class="pass">✓</td>
+<td class="pass">✓ 5 new §12.4 tests; backward-compat path covered</td>
+<td class="pass">✓ <code>feat(tokenizer):</code></td>
+<td class="fail">— followup not written</td>
+<td><span class="status shipped"><span class="dot"></span>Accepted</span> — enforce_alignment=True is the right default; alignment.py is clean</td>
+</tr>
+<tr>
+<td><code>dec0082</code></td>
+<td>S-bench</td>
+<td>§12.5 bench YAML + IR decision gate</td>
+<td><code>bench/__init__.py</code>, <code>configs/</code> (2 YAML), <code>loader.py</code>, <code>tokenizer.py</code>, <code>eval/metrics.py</code>, <code>tests/test_bench*.py</code>, <code>test_eval.py</code> (549 lines +)</td>
+<td class="pass">✓</td>
+<td class="pass">✓ 8 new tests (bench_loader + bench); eval metrics extended</td>
+<td class="pass">✓ <code>feat(bench):</code></td>
+<td class="fail">— followup not written</td>
+<td><span class="status shipped"><span class="dot"></span>Accepted</span> — v0-rir-25shot + v0-rbb-25shot ready for GPU benchmark run</td>
+</tr>
+<tr>
+<td><code>d3896e5</code></td>
+<td>S-quality</td>
+<td>§10 FAIR-MAST audit recalibration</td>
+<td><code>quality/__init__.py</code>, <code>audit.py</code>, <code>checks.py</code>, <code>plans/data-quality.md</code>, <code>tests/test_quality.py</code> (712 lines +/−)</td>
+<td class="pass">✓</td>
+<td class="pass">✓ 22 → 28 tests; dynamic-range cap raised to 1e25 (physical plasma values)</td>
+<td class="pass">✓ <code>fix(quality):</code></td>
+<td class="fail">— followup not written</td>
+<td><span class="status shipped"><span class="dot"></span>Accepted</span> — recalibration is correct: dd_version + homogeneous_time do not exist in FAIR-MAST xarray-on-Zarr</td>
+</tr>
+</tbody>
 </table>
 </div>
 <p><strong>Summary:</strong> all 4 commits accepted. Rubric items (1)–(3) pass across the board.
@@ -433,62 +406,57 @@ Item (4) failed for all 4 agents (none wrote a plan followup). This is the
 known pattern documented in the fleet-sonnet-46-offload memory; the coordinator
 writes the closing followup here. 368 tests collected clean on login node
 (<code>uv run pytest --co -q tests/</code>, EXIT=0; 1 GPU skip expected).</p>
-
-<hr>
-
+<hr/>
 <h2 id="4-sequenced-follow-up-after-the-parallel-batch">4. Sequenced follow-up (after the parallel batch)</h2>
-
 <div class="table-scroll">
 <table class="t compact">
-  <thead>
-    <tr>
-      <th>Step</th>
-      <th>Owner</th>
-      <th>Dependency</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Open-MAGVIT2 GPU runner adaptation</td>
-      <td>Sonnet (with guidance)</td>
-      <td>parallel batch complete</td>
-    </tr>
-    <tr>
-      <td>Bulk-encode the rbb corpus on the GPU node</td>
-      <td>Opus (operator)</td>
-      <td>GPU runner + dedicated reservation</td>
-    </tr>
-    <tr>
-      <td>Training-loop FSDP scaffold</td>
-      <td>Sonnet, reviewed by Opus</td>
-      <td>model + loaders + tokens</td>
-    </tr>
-    <tr>
-      <td>First training smoke run (125 M, 1 GPU, 10 shots)</td>
-      <td>Opus</td>
-      <td>training loop</td>
-    </tr>
-    <tr>
-      <td>500 M curriculum run on the dedicated reservation</td>
-      <td>Opus</td>
-      <td>smoke green + reservation granted</td>
-    </tr>
-    <tr>
-      <td>Demo CLI + notebook + MP4</td>
-      <td>Sonnet</td>
-      <td>trained checkpoint</td>
-    </tr>
-    <tr>
-      <td>File the SLURM reservation request (<code>compute.md</code> §3.2)</td>
-      <td>User</td>
-      <td>none — operational</td>
-    </tr>
-  </tbody>
+<thead>
+<tr>
+<th>Step</th>
+<th>Owner</th>
+<th>Dependency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Open-MAGVIT2 GPU runner adaptation</td>
+<td>Sonnet (with guidance)</td>
+<td>parallel batch complete</td>
+</tr>
+<tr>
+<td>Bulk-encode the rbb corpus on the GPU node</td>
+<td>Opus (operator)</td>
+<td>GPU runner + dedicated reservation</td>
+</tr>
+<tr>
+<td>Training-loop FSDP scaffold</td>
+<td>Sonnet, reviewed by Opus</td>
+<td>model + loaders + tokens</td>
+</tr>
+<tr>
+<td>First training smoke run (125 M, 1 GPU, 10 shots)</td>
+<td>Opus</td>
+<td>training loop</td>
+</tr>
+<tr>
+<td>500 M curriculum run on the dedicated reservation</td>
+<td>Opus</td>
+<td>smoke green + reservation granted</td>
+</tr>
+<tr>
+<td>Demo CLI + notebook + MP4</td>
+<td>Sonnet</td>
+<td>trained checkpoint</td>
+</tr>
+<tr>
+<td>File the SLURM reservation request (<code>compute.md</code> §3.2)</td>
+<td>User</td>
+<td>none — operational</td>
+</tr>
+</tbody>
 </table>
 </div>
-
-<hr>
-
+<hr/>
 <h2 id="5-review-rubric-for-sonnet-46-work">5. Review rubric for Sonnet 4.6 work</h2>
 <p>Every dispatched agent's output is reviewed by the coordinator against:</p>
 <ul>
@@ -508,78 +476,75 @@ diverged from the design.</li>
 <p>Below standard ⇒ one round of correction via <code>SendMessage</code> to the same
 agent; if still below standard, the coordinator fixes in-session and
 records the failure mode in a new feedback memory.</p>
-
-<hr>
-
-<h2 id="open-decisions">Open Decisions</h2>
-<p>Click a choice to lock it. State persists to
-<code>~/docs-server/state/imas-ambix/v0-runway.json</code> via the docs-server,
-and is committed to git under <code>docs/plans-html/state/imas-ambix/</code>.</p>
-
-<div class="decisions" id="decisions">
-  <div class="dec open" data-key="smoke-training-timing">
-    <div class="head">
-      <span class="key">smoke-training-timing</span>
-      <span class="title">125M smoke training run — run now or wait for bulk encode?</span>
-      <span class="when" data-field="when"></span>
+<hr/>
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="smoke-training-timing" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">125M smoke training run — run now or wait for bulk encode?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="run-now">Run now with the ~10 CPU-encoded shots (validate loop immediately)</button>
+      <button class="r-opt" data-value="wait-gpu">Wait for GPU bulk-encode to complete (~3,000 shots)</button>
+      </p>
+    <p class="r-dec-rat"></p>
     </div>
-    <p class="subtitle-line">Training loop FSDP scaffold is landed. Bulk-encode CLI produced 9,380 tokens for shot 15085 (CPU). A smoke run needs ~10 shots. The full GPU bulk-encode for ~3,000 rbb shots is pending the SLURM run. Source: <a href="#4-sequenced-follow-up-after-the-parallel-batch">v0-runway.html §4</a>.</p>
-    <div class="choices">
-      <button data-choice="run-now">Run now with the ~10 CPU-encoded shots (validate loop immediately)</button>
-      <button data-choice="wait-gpu">Wait for GPU bulk-encode to complete (~3,000 shots)</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" placeholder="rationale…">
-  </div>
-</div>
+</section>
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-v0-2026-05-21" data-status="open" data-tier="" data-written-by="Simon McIntosh" data-written-at="2026-05-20 18:02" data-recommends-skill="/plan-edit v0-runway --section 5" data-resolved-at="2026-05-26T14:35:59+00:00" data-resolved-by="Agent C (Opus coordinator)">
+    <h4 class="r-fu-title">Coordinator review of the 4-agent parallel batch outputs</h4>
+    <div class="r-fu-body">All 4 Sonnet agents have committed their work. Review each output against the §5 rubric and either accept the commits or flag for rework. Update §2 ROI ranking with the new items the batch produced.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: v0-runway
 
-<nav class="plan-nav">
-  <a href="STRATEGY.html"><span class="nav-label">← Previous</span><span class="nav-title">Strategy</span></a>
-  <a href="compute.html" class="nav-next"><span class="nav-label">Next →</span><span class="nav-title">Compute</span></a>
-</nav>
+Coordinator review of the 4-agent parallel batch (see §3 fleet-dispatch).
+For each of the 4 commits, score against §5 review rubric:
+  (1) lands what plan promised
+  (2) tests green
+  (3) commit message scoped right
+  (4) followup chain updated
+Output a §3.1 summary table; flag any rework as new followups on the owning plan.</pre>
+    <p class="r-fu-outcome">All 4 S2 batch commits accepted. Rubric scores: 5e7c5fc (decoder fine-tune scaffold) — 1:pass 2:pass 3:pass 4:fail; 72c0e0a (alignment + padding) — 1:pass 2:pass 3:pass 4:fail; dec0082 (bench YAML configs) — 1:pass 2:pass 3:pass 4:fail; d3896e5 (quality recalibration) — 1:pass 2:pass 3:pass 4:fail. All 4 failed item (4) — followup chain not updated (known Sonnet fleet pattern). 368 tests collected clean (EXIT=0), 1 GPU skip. §1 refreshed to 2026-05-26. §2 bulk-encode now ACTIVE. §3.1 table written to v0-runway.html. impl advanced to 0.78.</p>
+    </article>
+<article class="r-fu" data-id="f-v0-2026-05-26" data-status="open" data-tier="opus" data-written-by="Agent C (Opus coordinator)" data-written-at="2026-05-26" data-recommends-skill="/reckon-ship v0-runway" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Second coordinator review — gate the 125M smoke-run dispatch</h4>
+    <div class="r-fu-body">Agent D bulk-encode and Agent A training-grade derivation are both in flight. Once they land, review their outputs and dispatch the 125M smoke training run. Verify: (1) bulk-encode token count is plausible (expect ~9k tokens/shot * 11k shots), (2) training-grade-shots.json is populated with shot IDs + quality flags, (3) SLURM wrappers from Agent B are present and functional, (4) smoke run can be dispatched on 1 GPU with 100 shots.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    v0-runway (https://simon-mcintosh.github.io/imas-ambix/v0-runway.html)
+Section: post-bulk-encode smoke-run gate
+Tier:    opus
 
+Context
+  Agent D (bulk-encode) and Agent A (training-grade derivation) were dispatched
+  2026-05-26. This followup fires once both have committed their outputs.
+  The coordinator review (§3.1, f-v0-2026-05-21) closed 2026-05-26 with all 4
+  S2 batch commits accepted. impl is now 0.78.
+
+State to read
+  docs/state/imas-ambix/v0-runway.json
+  docs/state/imas-ambix/tokenizers.json
+  docs/state/imas-ambix/data-quality.json
+
+Locked decisions to honour
+  smoke-training-timing: wait-gpu (default pending) — if Agent D has landed
+  tokens, override to run-now with the GPU-encoded shots.
+
+Open decisions to surface (do not resolve)
+  smoke-training-timing (lock it if tokens are available)
+
+Constraints
+  Exclusive 4xH200 reservation active. SLURM wrappers from Agent B must be
+  present at scripts/slurm/ before dispatching the smoke run.
+
+Done-when
+  1. Confirm Agent D token output count is plausible (&gt;1M tokens total)
+  2. Confirm training-grade-shots.json has &gt;50 shot entries
+  3. Dispatch 125M smoke run on 1 GPU / 100 shots via Agent B SLURM wrappers
+  4. Record smoke-run SLURM job ID + initial loss in §1 table
+  5. Update impl &gt;= 0.88
+  6. Resolve this followup with outcome + write next followup for 500M curriculum
+  7. Followup chain: this followup marked resolved</pre>
+    </article>
+</section>
 </main>
-
-<script>
-document.addEventListener("DOMContentLoaded", async () => {
-  const blob = await loadState();
-  const decs = getDecisions(blob);
-
-  document.querySelectorAll(".dec[data-key]").forEach(row => {
-    const key = row.getAttribute("data-key");
-    const s = decs[key];
-    if (s) {
-      row.classList.remove("open");
-      row.classList.add("locked");
-      row.querySelectorAll(".choices button").forEach(b => {
-        if (b.getAttribute("data-choice") === s.choice) b.classList.add("chosen");
-      });
-      const rat = row.querySelector('input[data-field="rationale"]');
-      if (rat && s.rationale) rat.value = s.rationale;
-      const when = row.querySelector('[data-field="when"]');
-      if (when && s.when) when.textContent = s.when;
-    }
-
-    row.querySelectorAll(".choices button").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const choice = btn.getAttribute("data-choice");
-        const rat = row.querySelector('input[data-field="rationale"]')?.value || "";
-        try {
-          await lockDecision(key, choice, rat);
-          row.querySelectorAll(".choices button").forEach(b => b.classList.remove("chosen"));
-          btn.classList.add("chosen");
-          row.classList.add("locked");
-          row.classList.remove("open");
-          const when = row.querySelector('[data-field="when"]');
-          if (when) when.textContent = "(saved — promote by editing the repo JSON)";
-        } catch (e) {
-          alert(e.message);
-        }
-      });
-    });
-  });
-});
-</script>
-
-<script src="assets/app.js"></script>
 </body>
 </html>

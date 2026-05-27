@@ -1,48 +1,31 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>World Model v0 | Ambix Plans</title>
-<link rel="stylesheet" href="_shared/foundation.css">
-<link rel="stylesheet" href="_shared/dashboard.css">
-<script src="_shared/state.js"></script>
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="world-model-v0">
+<title>World-model v0 (WHAM-style) | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="reckon-type" content="plan">
+<meta name="plan-title" content="World-model v0 (WHAM-style)">
+<meta name="plan-summary" content="~500M decoder-only Llama-class AR transformer over interleaved token streams; 125M → 500M curriculum; HF transformers + accelerate FSDP.">
+<meta name="plan-status" content="active">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="L">
+<meta name="plan-milestone" content="M2">
+<meta name="plan-sprint" content="S2">
+<meta name="plan-tier" content="opus">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-26 14:30">
+<meta name="plan-depends-on" content="tokenizers,compute,data-quality">
+<meta name="plan-blocks" content="demo">
+<meta name="plan-impl" content="0.18">
+<meta name="plan-version" content="5">
 </head>
 <body>
-
-<div class="topbar">
-  <a class="brand" href="index.html">
-    <span class="mark">A</span>
-    <span class="proj-name">imas-ambix</span>
-  </a>
-  <nav>
-    <a href="index.html">Index</a>
-    <a href="STRATEGY.html">Strategy</a>
-    <a href="v0-runway.html">v0 Runway</a>
-    <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data acq</a>
-    <a href="data-quality.html">Quality</a>
-    <a href="tokenizers.html">Tokenizers</a>
-    <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="world-model-v0.html" class="active">World model</a>
-    <a href="demo.html">Demo</a>
-    <a href="decisions.html">Decisions</a>
-  </nav>
-  <div class="right"></div>
-</div>
-
-<main class="page">
-
-<div class="page-head">
-  <div class="title">
-    <h1>World-Model v0 — WHAM-style Decoder-Only AR Transformer</h1>
-    <div class="subtitle">imas-ambix / Fusion World Model ·
-      Updated <time id="updated">2026-05-20</time></div>
-  </div>
-</div>
-
-<section class="prose">
-
+<main class="plan-doc">
 <p>Status: <strong>Draft</strong> — depends on <code>tokenizers.md</code> round-trip passing.</p>
 <p>This plan specifies the v0 Fusion World Model: a Microsoft-WHAM-flavoured
 decoder-only autoregressive transformer trained on interleaved
@@ -50,8 +33,8 @@ multi-modal token streams from FAIR-MAST. The aim is <em>workflow proof</em>, no
 parameter records. The success criterion is the demo described in
 <code>demo.md</code> — produce a recognisable wide-angle-camera rollout for a
 held-out shot given the diagnostic+control context.</p>
-<p>The reference architecture is Kanervisto <em>et al.</em>, &quot;World and Human Action
-Models towards gameplay ideation&quot;, <em>Nature</em> <strong>638</strong> (2025), DOI
+<p>The reference architecture is Kanervisto <em>et al.</em>, "World and Human Action
+Models towards gameplay ideation", <em>Nature</em> <strong>638</strong> (2025), DOI
 <a class="link" href="https://doi.org/10.1038/s41586-025-08600-3"><code>10.1038/s41586-025-08600-3</code></a>.
 We follow their recipe with three deliberate substitutions:</p>
 <ol>
@@ -65,11 +48,8 @@ training code is not open-released.</li>
 <p>WHAMM (the real-time variant) replaces the dense decoder with a MaskGIT
 parallel sampler. v0 stays with WHAM's dense AR sampling; WHAMM-style
 parallel decoding is a v1 question once we have a stable baseline.</p>
-
-<hr>
-
+<hr/>
 <h2 id="1-model-architecture">1. Model architecture</h2>
-
 <div class="table-scroll">
 <table class="t">
 <thead>
@@ -92,22 +72,18 @@ parallel decoding is a v1 question once we have a stable baseline.</p>
 </tbody>
 </table>
 </div>
-
 <p>The 125 M → 500 M curriculum exists because the cheapest way to validate
 the data-loader + tokenizer + training-loop integration is to train a
 tiny model first. 125 M trains end-to-end on 1 GPU in ~6 h on a 10-shot
 subset — small enough to debug interactively, large enough to produce
 a sane loss curve.</p>
-
-<hr>
-
+<hr/>
 <h2 id="2-token-stream-layout">2. Token-stream layout</h2>
 <p>The model sees one long interleaved sequence per training sample.
 Schema, per <strong>timestep</strong>:</p>
 <pre><code>&lt;step_start&gt; &lt;frame_tokens&gt; &lt;signal_tokens&gt; &lt;action_tokens&gt; &lt;step_end&gt;
 </code></pre>
 <p>with token counts as follows (single-camera, 4 kHz signal grid):</p>
-
 <div class="table-scroll">
 <table class="t">
 <thead>
@@ -122,7 +98,6 @@ Schema, per <strong>timestep</strong>:</p>
 </tbody>
 </table>
 </div>
-
 <p>Per timestep ≈ <strong>130 tokens</strong>. At 4 kHz the model would see 4,000 timesteps
 per second of physical pulse time — clearly too much. We downsample the
 <em>model time grid</em> to 100 Hz (every 40th 4 kHz sample), giving:</p>
@@ -140,7 +115,6 @@ the v0 mitigation is dropping the magnetics PatchTST patch-token rate
 extend context window beyond 16 K in v0 because positional encoding
 behaviour with RoPE past 16 K needs proper testing we are not budgeted
 for.</p>
-
 <h3 id="why-per-step-framing-not-strict-frame-then-signal-then-action">Why per-step framing (not strict frame-then-signal-then-action)</h3>
 <p>We tried both orderings on paper. The per-step <code>&lt;frame, signal, action&gt;</code>
 ordering keeps each timestep's blocks contiguous in the sequence, which:</p>
@@ -151,9 +125,7 @@ loss) attach cleanly to each block.</li>
 <li>Matches WHAM's <code>(image, action, image, action, ...)</code> interleaving even
 though our content is richer.</li>
 </ul>
-
-<hr>
-
+<hr/>
 <h2 id="3-training-data-shape">3. Training data shape</h2>
 <p>Training samples are 16 K-token windows extracted from the per-shot
 token streams under <code>/work/projects/imas_gpu/mast-tokens/</code>. Window
@@ -182,9 +154,7 @@ short-clip data.</li>
 <p>The v0 success criterion is <em>qualitative</em>. The model is not expected to
 extrapolate plasma physics from 15 M tokens; it is expected to demonstrate
 the pipeline.</p>
-
-<hr>
-
+<hr/>
 <h2 id="4-training-recipe">4. Training recipe</h2>
 <h3 id="41-optimization">4.1 Optimization</h3>
 <ul>
@@ -199,7 +169,6 @@ ground-truth observations, not predictions — masked out of loss).</li>
 tokens / step.</li>
 <li>Total steps: 30 K for 125 M; 60 K for 500 M.</li>
 </ul>
-
 <h3 id="42-parallelism-on-4-h200">4.2 Parallelism on 4 × H200</h3>
 <ul>
 <li><strong>FSDP</strong> via HuggingFace <code>accelerate</code> ≥ 1.0. ZeRO-3 sharding for
@@ -212,7 +181,6 @@ comfortable on 141 GB H200, but <strong>does not co-locate with DeepSeek
 V4-Flash serving</strong> (which already occupies ~41 GB / GPU). This is the
 driving reason for the dedicated reservation request in <code>compute.md</code>.</li>
 </ul>
-
 <h3 id="43-configs">4.3 Configs</h3>
 <pre><code>imas_ambix/train/configs/
 ├── v0-125m.yaml
@@ -221,7 +189,6 @@ driving reason for the dedicated reservation request in <code>compute.md</code>.
 <p>Hydra-managed. The 125 M config inherits from the 500 M config and
 overrides <code>hidden_size</code>, <code>num_hidden_layers</code>, <code>num_attention_heads</code>,
 <code>max_steps</code>.</p>
-
 <h3 id="44-checkpoints-logging">4.4 Checkpoints + logging</h3>
 <ul>
 <li>W&amp;B project: <code>imas-ambix-world-model</code>. Run names derived from the Hydra
@@ -232,13 +199,10 @@ config hash plus the data manifest hash.</li>
 <li>Eval rollouts on the held-out demo shot every 5 K steps; latest
 rollout PNG/JSON in the W&amp;B artefact.</li>
 </ul>
-
-<hr>
-
+<hr/>
 <h2 id="5-evaluation">5. Evaluation</h2>
 <p>We follow <code>demo.md</code> for the headline demo. The training-time evaluation
 hooks (run every 5 K steps) are subset:</p>
-
 <div class="table-scroll">
 <table class="t">
 <thead>
@@ -247,18 +211,15 @@ hooks (run every 5 K steps) are subset:</p>
 <tbody>
 <tr><td>Validation loss</td><td>overall token CE</td><td>strictly decreasing across the cosine schedule</td></tr>
 <tr><td>Held-out frame rFID</td><td>reconstruction quality at the next frame</td><td>≤ 8 (qualitative recognisability)</td></tr>
-<tr><td>Centroid MSE</td><td>physics-derived: emission centroid trajectory MSE vs ground truth</td><td>≤ 2× the centroid trajectory variance of the held-out shot — i.e. trajectory is &quot;in the same ballpark&quot;</td></tr>
+<tr><td>Centroid MSE</td><td>physics-derived: emission centroid trajectory MSE vs ground truth</td><td>≤ 2× the centroid trajectory variance of the held-out shot — i.e. trajectory is "in the same ballpark"</td></tr>
 <tr><td>Chord-integrated emission MSE</td><td>physics-derived</td><td>order-of-magnitude agreement</td></tr>
 </tbody>
 </table>
 </div>
-
 <p>We <strong>do not</strong> require state-of-the-art frame-FID. The aim is a
 sufficiently good baseline that the pipeline is unblocked, not a
 publishable model.</p>
-
-<hr>
-
+<hr/>
 <h2 id="6-sequence-packing-strategy">6. Sequence-packing strategy</h2>
 <p>Each training-data file under <code>/work/projects/imas_gpu/mast-tokens/</code>
 holds the per-shot token stream as a 1-D <code>int32</code> Zarr array. The data
@@ -277,16 +238,14 @@ model learning fake transitions between unrelated shots.</p>
 later); the persistent token files are written by
 <code>imas_ambix/tokenizer/...</code>. There is no per-step <code>xr.open_zarr</code> round
 trip — we mmap the 1-D <code>int32</code> array and slice it directly.</p>
-
-<hr>
-
+<hr/>
 <h2 id="7-generation-rollout">7. Generation / rollout</h2>
 <p>At inference, the model receives:</p>
 <ul>
 <li>An initial context window of length <code>N_ctx_init</code> (typically 2 K
 tokens, ~0.15 s of physical time).</li>
 <li>A control schedule that extends beyond the context window (the
-diagnostic / control vector the operator wants to &quot;play forward&quot;).</li>
+diagnostic / control vector the operator wants to "play forward").</li>
 </ul>
 <p>It then alternates:</p>
 <ol>
@@ -294,7 +253,7 @@ diagnostic / control vector the operator wants to &quot;play forward&quot;).</li
 feeding back into the prefix.</li>
 <li><strong>Splice in known signal + action tokens for the next timestep</strong>: do
 not let the model hallucinate the control input — the control is the
-&quot;action&quot; the human / scheduler is supplying.</li>
+"action" the human / scheduler is supplying.</li>
 <li>Continue until <code>N_target</code> steps reached or <code>&lt;eos&gt;</code> predicted.</li>
 </ol>
 <p>Output of rollout: the predicted frame-token sequence is decoded back
@@ -309,14 +268,12 @@ scheduler-provided values</strong> instead of sampling them.</li>
 <li>Use top-k sampling (k=64) with temperature 0.8 on frame tokens to
 reduce drift relative to greedy.</li>
 </ul>
-
-<hr>
-
+<hr/>
 <h2 id="8-what-v0-deliberately-leaves-out">8. What v0 deliberately leaves out</h2>
 <ul>
 <li><strong>No classifier-free guidance.</strong> WHAM uses it; we will add it in v1
 once we have a clean baseline.</li>
-<li><strong>No latent-action learning.</strong> Genie's &quot;actions inferred from video&quot;
+<li><strong>No latent-action learning.</strong> Genie's "actions inferred from video"
 approach is appealing but adds engineering scope we do not have.</li>
 <li><strong>No physics losses.</strong> No first-principles solver in the loop. Loss
 is pure token CE.</li>
@@ -327,9 +284,7 @@ v1 feature.</li>
 continuous tensor via cross-attention to the model's first 4 layers.
 Tokenizing 2-D fields is a v1 task.</li>
 </ul>
-
-<hr>
-
+<hr/>
 <h2 id="9-references">9. References</h2>
 <ul>
 <li>WHAM Nature paper: <a class="link" href="https://doi.org/10.1038/s41586-025-08600-3">https://doi.org/10.1038/s41586-025-08600-3</a></li>
@@ -342,10 +297,65 @@ Tokenizing 2-D fields is a v1 task.</li>
 <li>Chronos: <a class="link" href="https://github.com/amazon-science/chronos-forecasting">https://github.com/amazon-science/chronos-forecasting</a></li>
 <li>PatchTST paper (ICLR 2023): <a class="link" href="https://arxiv.org/abs/2211.14730">https://arxiv.org/abs/2211.14730</a></li>
 </ul>
-
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="model-size-curriculum" data-choice="125M smoke-first" data-by="Simon McIntosh" data-when="2026-05-26T14:13:22+00:00">
+    <p class="r-dec-q">model-size-curriculum</p>
+    <p class="r-dec-rat">Validate full pipeline (tokenizer → loader → FSDP training loop) cheaply before committing the full 500M GPU-budget. De-risks FSDP wiring and token-stream bugs; any training-loop issue discovered at 125M costs ~4h exclusive window vs a full 500M run.</p>
+    </div>
 </section>
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-wm-2026-05-21" data-status="open" data-tier="" data-written-by="Simon McIntosh" data-written-at="2026-05-21 09:00" data-recommends-skill="/reckon-edit world-model-v0 --decision model-size-curriculum" data-resolved-at="2026-05-26T14:13:42+00:00" data-resolved-by="Simon McIntosh">
+    <h4 class="r-fu-title">Lock model-size-curriculum decision</h4>
+    <div class="r-fu-body">tokenizers §12 expansion is closing this week. Before the smoke run can start, we need to commit to either 125M-smoke-first or 500M-direct. Read the decision context and lock it (rationale required).</div>
+    <pre class="r-fu-prompt">Lock decision model-size-curriculum on plan world-model-v0. Read §1, §4, and compute reservation status; choose curriculum vs direct.</pre>
+    <p class="r-fu-outcome">model-size-curriculum locked → 125M smoke-first. Decision captured 2026-05-26 by Simon McIntosh. Smoke run queued once compute reservation clears (SDCC ticket #4421).</p>
+    </article>
+<article class="r-fu" data-id="f-wm-smoke-run" data-status="open" data-tier="opus" data-written-by="claude-sonnet-4-6" data-written-at="2026-05-26 00:00" data-recommends-skill="/reckon-ship world-model-v0 --section 4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Kick off 125M smoke training run once tokens land</h4>
+    <div class="r-fu-body">model-size-curriculum locked → 125M smoke-first. Compute is exclusive (Simon authorized 2026-05-26). Once Agent D&#x27;s bulk-encode produces tokens at /work/projects/imas_gpu/mast/tokens/ AND Agent B&#x27;s scripts/slurm/train_exclusive.sbatch lands, queue the 125M smoke run using the §4 training recipe. Eval hooks must all improve by step 10k.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    world-model-v0
+Section: §4 training recipe
+Tier:    opus
 
-<script src="assets/app.js"></script>
+Context
+  model-size-curriculum is locked → 125M smoke-first. Compute is exclusive (Simon authorized 2026-05-26). Bulk-encode tokens are landing this turn. Smoke run is the keystone for M1 close.
+
+State to read
+  docs/state/imas-ambix/world-model-v0.json
+  docs/state/imas-ambix/compute.json     (confirm wrapper landed)
+  docs/state/imas-ambix/tokenizers.json  (confirm §12.5 tokens landed)
+  imas_ambix/train/                      (existing training scaffold — NOT imas_ambix/training/)
+  imas_ambix/train/configs/v0-125m.yaml
+
+Locked decisions to honour
+  model-size-curriculum → 125M smoke-first
+  alignment-12-4        → per-modality InfoNCE
+
+Open decisions to surface (do not resolve)
+  fsdp-wrapper (§4 q1): HF accelerate FSDP wrapper vs torch.distributed.fsdp
+
+Constraints
+  - Training runs via scripts/slurm/train_exclusive.sbatch (Agent B)
+  - 4 × H200 FSDP, batch=32 × 16k tokens, AdamW(0.95,0.95), cosine 6e-4→6e-5 over 30k steps
+  - Stop at step 10k if all 3 eval hooks (perplexity, magnetics Pearson r, visible rFID) are not improving
+  - Apache-2.0 components only
+
+Done-when
+  1. 125M smoke run reaches step 10k with improving eval hooks
+  2. Bench numbers (perplexity, Pearson r, rFID) written into §5
+  3. This followup resolved + new followup for either 500M curriculum (smoke passed) or investigation (hooks plateau)
+  4. data.impl → 0.45, status → in-progress</pre>
+    </article>
+</section>
+<section data-reckon="questions" id="questions" class="r-questions">
+<h2><span class="sec">§</span> Open questions</h2>
+<div class="r-q" data-id="q1" data-section="4 training recipe" data-status="open" data-opened-by="agent/opus" data-opened-at="2026-05-20" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">Should we use HuggingFace&#x27;s accelerate FSDP wrapper or roll our own with torch.distributed.fsdp? The wrapper is simpler but pins us to the HF training loop semantics.</p>
+    </div>
+</section>
 </main>
 </body>
 </html>

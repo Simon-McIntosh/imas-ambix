@@ -3,97 +3,59 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Frame Precompute · Ambix Plans</title>
+<meta name="docs-project" content="imas-ambix">
 <meta name="plan-slug" content="frame-precompute">
-<meta name="plan-project" content="imas-ambix">
+<title>Pre-decoded + pre-resized rbb frames at 256² uint8 | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="reckon-type" content="plan">
 <meta name="plan-title" content="Pre-decoded + pre-resized rbb frames at 256² uint8">
-<meta name="plan-milestone" content="M1">
-<meta name="plan-sprint" content="S4">
-<meta name="plan-status" content="pending">
+<meta name="plan-summary" content="Precompute the per-shot uint8 RGB 256×256 frame tensor once and store it next to the raw Zarr. Saves the uint16→uint8 normalisation and the 536×560→256×256 bilinear interp on every encode. ~12 GB total for the rbb corpus; converts the encode loop from I/O+CPU+GPU to pure GPU.">
+<meta name="plan-status" content="active">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="M">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-sprint" content="S4">
 <meta name="plan-tier" content="sonnet">
-<link rel="stylesheet" href="_shared/foundation.css">
-<link rel="stylesheet" href="_shared/dashboard.css">
-<script src="_shared/state.js"></script>
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-26">
+<meta name="plan-depends-on" content="data-acquisition,zarr-consolidate">
+<meta name="plan-blocks" content="tokenizers,world-model-v0">
+<meta name="plan-impl" content="0.5">
+<meta name="plan-version" content="5">
 </head>
 <body>
-
-<div class="topbar">
-  <a class="brand" href="index.html">
-    <span class="mark">A</span>
-    <span class="proj-name">imas-ambix</span>
-  </a>
-  <nav>
-    <a href="index.html">Index</a>
-    <a href="STRATEGY.html">Strategy</a>
-    <a href="v0-runway.html">v0 Runway</a>
-    <a href="compute.html">Compute</a>
-    <a href="data-acquisition.html">Data acq</a>
-    <a href="data-quality.html">Quality</a>
-    <a href="tokenizers.html">Tokenizers</a>
-    <a href="tokenizer-benchmarks.html">Benchmarks</a>
-    <a href="zarr-consolidate.html">Zarr</a>
-    <a href="frame-precompute.html" class="active">Frame preproc</a>
-    <a href="world-model-v0.html">World model</a>
-    <a href="demo.html">Demo</a>
-    <a href="decisions.html">Decisions</a>
-  </nav>
-  <div class="right"></div>
-</div>
-
-<main class="page">
-
-<div class="page-head">
-  <div class="title">
-    <h1>Plan: Pre-decoded + pre-resized rbb frames at 256² uint8</h1>
-    <div class="subtitle">imas-ambix / Fusion World Model · Sprint S4 ·
-      Updated <time id="updated">2026-05-26</time></div>
-  </div>
-</div>
-
-<section class="prose">
-
+<main class="plan-doc">
 <p><span class="status pending"><span class="dot"></span>Pending</span> —
 sprint S4, blocked on <a href="zarr-consolidate.html">zarr-consolidate</a> landing first.</p>
-
 <p>Precompute the per-shot uint8 RGB 256×256 frame tensor once and store it next to the raw
 Zarr. Saves the uint16→uint8 normalisation and the 536×560→256×256 bilinear interp on every
 encode — converting the encode loop from I/O+CPU+GPU to pure GPU.</p>
-
 <h2 id="s1">§1 · Why precompute</h2>
-
 <p>Current encode path per shot:</p>
 <ul>
-  <li><code>open_zarr</code> → load uint16 <code>(T, H, W)</code> ≈ 89 MB</li>
-  <li><code>_normalise_frames_to_uint8</code> — per-shot min/max scan + cast</li>
-  <li><code>np.repeat</code> to RGB</li>
-  <li><code>torch.bfloat16</code> cast</li>
-  <li>bilinear interp 536×560 → 256×256</li>
+<li><code>open_zarr</code> → load uint16 <code>(T, H, W)</code> ≈ 89 MB</li>
+<li><code>_normalise_frames_to_uint8</code> — per-shot min/max scan + cast</li>
+<li><code>np.repeat</code> to RGB</li>
+<li><code>torch.bfloat16</code> cast</li>
+<li>bilinear interp 536×560 → 256×256</li>
 </ul>
-
 <p>The CPU/IO portion is ~0.4 s per shot. With 4 GPUs and a target encode time of ~3 s/shot,
 CPU/IO is <strong>13 % of wall</strong>. At larger batches or with longer rbb shots, this fraction
 grows. Precomputing once amortises the cost across every future encode <em>and</em> the eventual
 training data loader.</p>
-
 <h2 id="s2">§2 · Output layout</h2>
-
 <p>Write to <code>/work/projects/imas_gpu/mast/preprocessed/rbb-256/&lt;shot&gt;.zarr</code>
 with a single 4-D array <code>data: (T, 256, 256, 3) uint8</code>.</p>
-
 <ul>
-  <li>Per-shot bytes: 149×256×256×3 ≈ <strong>30 MB</strong></li>
-  <li>Corpus total: ~<strong>290 GB</strong> (9,527 shots)</li>
-  <li>Fits comfortably in GPFS quota</li>
-  <li>Compatible with <code>xr.open_zarr</code> for the encoding/training loader</li>
-  <li>Original L1 corpus left untouched</li>
+<li>Per-shot bytes: 149×256×256×3 ≈ <strong>30 MB</strong></li>
+<li>Corpus total: ~<strong>290 GB</strong> (9,527 shots)</li>
+<li>Fits comfortably in GPFS quota</li>
+<li>Compatible with <code>xr.open_zarr</code> for the encoding/training loader</li>
+<li>Original L1 corpus left untouched</li>
 </ul>
-
 <h2 id="s3">§3 · Implementation</h2>
-
 <p>New module <code>imas_ambix/data/preprocess.py</code>:</p>
-
 <pre><code class="language-python">def preprocess_rbb_shot(shot_id, src_root, dst_root, image_size=256):
     ds = xr.open_zarr(src_root / f'{shot_id}.zarr/rbb', consolidated=True)
     raw = ds['data'].values  # (T, 536, 560) uint16
@@ -110,126 +72,115 @@ with a single 4-D array <code>data: (T, 256, 256, 3) uint8</code>.</p>
     ])
     zarr.save_array(dst_root / f'{shot_id}.zarr/rbb', out)
 </code></pre>
-
 <p>CLI hook: <code>ambix data preprocess-frames --camera rbb --image-size 256 --workers 16 --from-bucket-all</code>.
 Sharded across CPU cores on a <code>sun_debug</code> SLURM allocation — no GPU needed,
 just RAM + GPFS bandwidth.</p>
-
 <h2 id="s4">§4 · Encode-path integration</h2>
-
 <p><code>OpenMagvit2Tokenizer.encode_shot(shot_id)</code> gains a preprocessed-aware fast path:
 if <code>preprocess_root/&lt;shot&gt;.zarr</code> exists, skip the normalise/repeat/resize and go
 straight from <code>(T, 256, 256, 3) uint8</code> → bf16 → daemon. Falls back to the legacy
 path for shots without a precomputed cache.</p>
-
 <p>Expected per-shot encode time after landing: drop from ~3 s to <strong>~1.5 s on H200</strong>
 (GPU-bound once CPU preprocessing is eliminated).</p>
-
 <h2 id="s5">§5 · Validation</h2>
-
 <ul>
-  <li><strong>Bit-exact check:</strong> encode shot 15085 via (a) legacy path and (b)
+<li><strong>Bit-exact check:</strong> encode shot 15085 via (a) legacy path and (b)
     preprocessed path — assert identical token output.</li>
-  <li><strong>Throughput check:</strong> 100-shot encode wall time goes from estimated 5 min
+<li><strong>Throughput check:</strong> 100-shot encode wall time goes from estimated 5 min
     to estimated 2.5 min on a single H200 (2× speedup).</li>
 </ul>
-
-<h2 id="open-decisions">Decisions</h2>
-
-<div class="decisions" id="decisions">
-
-  <div class="dec locked" data-key="image-size">
-    <div class="head">
-      <span class="key">image-size</span>
-      <span class="title">Output resolution — 256² or higher?</span>
-      <span class="when" data-field="when">2026-05-26T18:30:00Z · Simon McIntosh</span>
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="image-size" data-choice="256" data-by="Simon McIntosh" data-when="2026-05-26T18:30:00Z">
+    <p class="r-dec-q">Output resolution — 256² or higher?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="256">256² (matches Open-MAGVIT2 default)</button>
+      <button class="r-opt" data-value="512">512²</button>
+      </p>
+    <p class="r-dec-rat">The frame tokenizer downsamples to 256² internally anyway. Storing at a higher resolution wastes space without gain.</p>
     </div>
-    <div class="choices">
-      <button data-choice="256" class="chosen">256² (matches Open-MAGVIT2 default)</button>
-      <button data-choice="512">512²</button>
+<div class="r-dec" data-key="normalisation" data-choice="per-shot-minmax" data-by="Simon McIntosh" data-when="2026-05-26T18:30:00Z">
+    <p class="r-dec-q">Normalisation strategy — per-shot min/max or global?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="per-shot-minmax">per-shot min/max (match existing _normalise_frames_to_uint8)</button>
+      <button class="r-opt" data-value="global">global lo/hi across corpus</button>
+      <button class="r-opt" data-value="per-frame">per-frame normalisation</button>
+      </p>
+    <p class="r-dec-rat">Existing encoder is calibrated against this normalisation. Switching to a global lo/hi or per-frame would require retraining/re-validating the LFQ codebook coverage.</p>
     </div>
-    <input class="rationale" data-field="rationale" type="text" readonly
-      value="The frame tokenizer downsamples to 256² internally anyway. Storing at a higher resolution wastes space without gain.">
-  </div>
-
-  <div class="dec locked" data-key="normalisation">
-    <div class="head">
-      <span class="key">normalisation</span>
-      <span class="title">Normalisation strategy — per-shot min/max or global?</span>
-      <span class="when" data-field="when">2026-05-26T18:30:00Z · Simon McIntosh</span>
-    </div>
-    <div class="choices">
-      <button data-choice="per-shot-minmax" class="chosen">per-shot min/max (match existing _normalise_frames_to_uint8)</button>
-      <button data-choice="global">global lo/hi across corpus</button>
-      <button data-choice="per-frame">per-frame normalisation</button>
-    </div>
-    <input class="rationale" data-field="rationale" type="text" readonly
-      value="Existing encoder is calibrated against this normalisation. Switching to global or per-frame would require retraining/re-validating the LFQ codebook coverage.">
-  </div>
-
-</div>
-
-<h2 id="open-questions">Open Questions</h2>
-
-<p id="q1"><strong>q1 · Resize backend:</strong> use <code>cv2.resize(INTER_LINEAR)</code>
-on CPU, or pre-load to GPU and use <code>torch.nn.functional.interpolate</code>?
-<code>cv2</code> is simpler and saves the GPU for actual encode; <code>F.interpolate</code>
-matches the daemon's resize path byte-for-byte. Worth a 100-shot A/B for token-id divergence
-count before locking.</p>
-
-<h2 id="followups">Followups</h2>
-
-<p><strong>f-fp-2026-05-26</strong> · <em>Implement preprocess.py + run on full rbb corpus</em><br>
-Wait for zarr-consolidate to land first. Then write <code>preprocess.py</code> + CLI hook,
-validate bit-exact on 5 shots, then sbatch a CPU array (<code>sun_debug</code>, 16 cores × 4 tasks)
-to chew through 9,527 shots. Total expected wall: ~30 min on 64 CPUs.<br>
-<span style="color:var(--muted);font-size:12px">Blocked by: zarr-consolidate · tier: sonnet · ~2h dev + 30 min run</span></p>
-
 </section>
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-fp-2026-05-26" data-status="open" data-tier="sonnet" data-written-by="Simon McIntosh" data-written-at="2026-05-26 18:30" data-recommends-skill="/reckon-ship frame-precompute --section 3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Implement preprocess.py + run on full rbb corpus</h4>
+    <div class="r-fu-body">Wait for zarr-consolidate to land first (depends_on). Then write preprocess.py + CLI hook, validate bit-exact on 5 shots, then sbatch a CPU array (sun_debug, 16 cores × 4 tasks) to chew through 9,527 shots. Total expected wall: ~30 min on 64 CPUs.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: frame-precompute
+Section: §3 implementation
+Tier: sonnet
 
+Context
+  zarr-consolidate has landed → opens are now O(10ms). Time to amortise the normalisation + resize step too. Pre-decode every rbb shot into (T,256,256,3) uint8 stored at /work/projects/imas_gpu/mast/preprocessed/rbb-256/&lt;shot&gt;.zarr.
+
+Locked decisions to honour
+  image-size      → 256
+  normalisation   → per-shot min/max
+
+Open decision to surface (do not resolve)
+  q1: cv2.resize INTER_LINEAR vs F.interpolate (do a 100-shot A/B before deciding)
+
+Done-when
+  1. imas_ambix/data/preprocess.py + `ambix data preprocess-frames` CLI.
+  2. scripts/slurm/preprocess_frames.sbatch — sun_debug, --array=0-3, --cpus-per-task=16, --mem=64G, no GPU.
+  3. Run completes for the full rbb-camera manifest (9,527 shots). Output verified at /work/projects/imas_gpu/mast/preprocessed/rbb-256/.
+  4. Bit-exact A/B against legacy path on shots 15085, 15086, 15087, 16000, 25000.
+  5. OpenMagvit2Tokenizer.encode_shot gains a preprocessed-aware fast path (legacy path stays).
+  6. data.impl → 1.0, status → shipped, plan §5 updated with measured speedup.</pre>
+    </article>
+<article class="r-fu" data-id="f-fp-run-2026-05-26" data-status="open" data-tier="sonnet" data-written-by="agent (Sonnet 4.6)" data-written-at="2026-05-26" data-recommends-skill="/reckon-ship frame-precompute" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Run preprocess_frames.sbatch once L1 zarr-consolidate (1207977) lands</h4>
+    <div class="r-fu-body">preprocess.py + CLI + sbatch script are written and validated (4/4 shots with rbb data pass bit-exact; shot 25000 has no rbb group — expected data gap). Full-corpus run (9,527 shots) is blocked on zarr-consolidate job 1207977 finishing on sun partition. Once that completes, submit scripts/slurm/preprocess_frames.sbatch. Open decision q1 (cv2 vs torch F.interpolate) should be settled with a 100-shot A/B before the full run.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    frame-precompute (docs/frame-precompute.html)
+Section: full-corpus run
+Tier:    sonnet
+
+Context
+  preprocess.py, CLI, and sbatch script are written (feat(data) commit). Bit-exact
+  validation passed 4/4 shots with rbb data (shot 25000 has no rbb group — expected).
+  zarr-consolidate job 1207977 has now completed. Time to run the full corpus.
+
+State to read
+  docs/state/imas-ambix/frame-precompute.json
+
+Locked decisions to honour
+  image-size    → 256
+  normalisation → per-shot min/max
+
+Open decisions to surface (do not resolve)
+  q1 — cv2.resize(INTER_LINEAR) vs torch F.interpolate: do a 100-shot A/B for token-id
+       divergence before committing the full corpus to one backend.
+
+Constraints
+  - MUST run on sun partition (NOT login node, NOT GPU node)
+  - sbatch script is at scripts/slurm/preprocess_frames.sbatch
+  - uv run ambix data preprocess-frames --from-bucket-all --workers 36
+
+Done-when
+  1. sbatch submitted and job completes (check with squeue / sacct)
+  2. /work/projects/imas_gpu/mast/preprocessed/rbb-256/&lt;shot&gt;.zarr exists for
+     the majority of the 9,527-shot rbb corpus (some shots lack rbb group — that is expected)
+  3. JSON report at /work/projects/imas_gpu/mast/preprocessed/preprocess_report_&lt;jobid&gt;.json
+  4. data.impl → 0.8 (full run done; encode-path integration still pending)
+  5. This followup resolved + new followup for encode-path integration written</pre>
+    </article>
+</section>
+<section data-reckon="questions" id="questions" class="r-questions">
+<h2><span class="sec">§</span> Open questions</h2>
+<div class="r-q" data-id="q1" data-section="3 implementation" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-05-26" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">Use cv2.resize(INTER_LINEAR) on CPU or pre-load to GPU and use torch.nn.functional.interpolate? cv2 is simpler and saves the GPU for actual encode; F.interpolate matches the daemon&#x27;s resize path byte-for-byte. Worth a 100-shot A/B for token-id divergence count.</p>
+    </div>
+</section>
 </main>
-
-<script>
-document.addEventListener("DOMContentLoaded", async () => {
-  if (typeof loadState !== "function") return;
-  const blob = await loadState();
-  const stateDecs = (typeof getDecisions === "function") ? getDecisions(blob) : (blob?.data?.decisions || {});
-
-  document.querySelectorAll(".dec[data-key]").forEach(row => {
-    const key = row.getAttribute("data-key");
-    const s = stateDecs[key];
-    if (!s) return;
-    row.classList.add("locked");
-    row.classList.remove("open");
-    row.querySelectorAll(".choices button").forEach(b => {
-      b.classList.toggle("chosen", b.getAttribute("data-choice") === s.choice);
-    });
-    const rat = row.querySelector('input[data-field="rationale"]');
-    if (rat && s.rationale) rat.value = s.rationale;
-    const when = row.querySelector('[data-field="when"]');
-    if (when && s.when) when.textContent = s.when;
-  });
-
-  document.querySelectorAll(".dec[data-key]").forEach(row => {
-    const key = row.getAttribute("data-key");
-    row.querySelectorAll(".choices button").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const choice = btn.getAttribute("data-choice");
-        const rat = row.querySelector('input[data-field="rationale"]')?.value || "";
-        try {
-          await lockDecision(key, choice, rat);
-          row.querySelectorAll(".choices button").forEach(b => b.classList.remove("chosen"));
-          btn.classList.add("chosen");
-          row.classList.add("locked");
-          row.classList.remove("open");
-          const when = row.querySelector('[data-field="when"]');
-          if (when) when.textContent = new Date().toISOString().slice(0, 16).replace("T", " ");
-        } catch (e) { alert(e.message); }
-      });
-    });
-  });
-});
-</script>
-
 </body>
 </html>
