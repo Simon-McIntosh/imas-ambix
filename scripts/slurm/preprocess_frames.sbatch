@@ -27,13 +27,13 @@
 #SBATCH --cpus-per-task=36
 #SBATCH --mem=64G
 #SBATCH --time=03:00:00
-#SBATCH --output=%x-%j.log
-#SBATCH --error=%x-%j.err
+#SBATCH --output=/work/projects/imas_gpu/preprocess-frames-%j.log
+#SBATCH --error=/work/projects/imas_gpu/preprocess-frames-%j.log
 
 set -euo pipefail
 
-# Ephemeral scratch (never write model intermediates to login-node /tmp)
-export TMPDIR=/scratch_local/${SLURM_JOB_ID:-$$}
+# /scratch_local only exists on betelgeuse; sun nodes use /tmp (auto-purged).
+export TMPDIR=/tmp
 mkdir -p "$TMPDIR"
 
 # Activate ambix uv environment (adjust if using a different venv layout)
@@ -43,18 +43,17 @@ cd /home/ITER/mcintos/Code/imas-ambix
 echo "[$(date -Iseconds)] node=$(hostname) job=${SLURM_JOB_ID:-local} cpus=36"
 echo "[$(date -Iseconds)] TMPDIR=$TMPDIR"
 
+# resize-backend=torch (q1 locked 2026-05-27): cv2 is not installed in the
+# ambix venv, and torch F.interpolate matches the daemon resize byte-for-byte
+# so precomputed and live-encoded shots yield identical tokens.
+mkdir -p /work/projects/imas_gpu/mast/preprocessed/rbb-256
 uv run ambix data preprocess-frames \
     --from-bucket-all \
     --camera rbb \
     --image-size 256 \
-    --resize-backend cv2 \
+    --resize-backend torch \
     --workers 36 \
     --skip-existing \
-    --output "${TMPDIR}/preprocess_report.json"
-
-# Copy report to a persistent location alongside the job log
-cp "${TMPDIR}/preprocess_report.json" \
-    "/work/projects/imas_gpu/mast/preprocessed/preprocess_report_${SLURM_JOB_ID:-local}.json" \
-    2>/dev/null || true
+    --output "/work/projects/imas_gpu/mast/preprocessed/preprocess_report_${SLURM_JOB_ID:-local}.json"
 
 echo "[$(date -Iseconds)] DONE"

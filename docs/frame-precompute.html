@@ -18,11 +18,11 @@
 <meta name="plan-sprint" content="S4">
 <meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-26">
+<meta name="plan-modified" content="2026-05-27">
 <meta name="plan-depends-on" content="data-acquisition,zarr-consolidate">
 <meta name="plan-blocks" content="tokenizers,world-model-v0">
-<meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="5">
+<meta name="plan-impl" content="0.7">
+<meta name="plan-version" content="7">
 </head>
 <body>
 <main class="plan-doc">
@@ -91,7 +91,7 @@ path for shots without a precomputed cache.</p>
 </ul>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="image-size" data-choice="256" data-by="Simon McIntosh" data-when="2026-05-26T18:30:00Z">
+<div class="r-dec" data-key="image-size" data-choice="256" data-by="exercise" data-when="2026-05-27">
     <p class="r-dec-q">Output resolution — 256² or higher?</p>
     <p class="r-dec-opts">
       <button class="r-opt chosen" data-value="256">256² (matches Open-MAGVIT2 default)</button>
@@ -107,6 +107,14 @@ path for shots without a precomputed cache.</p>
       <button class="r-opt" data-value="per-frame">per-frame normalisation</button>
       </p>
     <p class="r-dec-rat">Existing encoder is calibrated against this normalisation. Switching to a global lo/hi or per-frame would require retraining/re-validating the LFQ codebook coverage.</p>
+    </div>
+<div class="r-dec" data-key="resize-backend" data-choice="torch" data-by="Simon McIntosh" data-when="2026-05-27T09:30:00Z">
+    <p class="r-dec-q">Resize backend — cv2 or torch F.interpolate? (resolves q1)</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="torch">torch F.interpolate (bilinear)</button>
+      <button class="r-opt" data-value="cv2">cv2.resize (INTER_LINEAR)</button>
+      </p>
+    <p class="r-dec-rat">cv2/opencv-python is NOT installed in the ambix venv (would hard-fail the run), and torch F.interpolate matches the daemon's resize path byte-for-byte — so a precomputed shot and a live-encoded shot yield identical tokens. The byte-exact match removes the divergence risk the planned A/B was meant to measure, so no A/B was needed. Full-corpus run (job 1208031) uses --resize-backend torch.</p>
     </div>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
@@ -177,8 +185,9 @@ Done-when
 </section>
 <section data-reckon="questions" id="questions" class="r-questions">
 <h2><span class="sec">§</span> Open questions</h2>
-<div class="r-q" data-id="q1" data-section="3 implementation" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-05-26" data-resolved-at="" data-resolved-by="">
+<div class="r-q" data-id="q1" data-section="3 implementation" data-status="resolved" data-opened-by="Simon McIntosh" data-opened-at="2026-05-26" data-resolved-at="2026-05-27" data-resolved-by="Simon McIntosh">
     <p class="r-q-body">Use cv2.resize(INTER_LINEAR) on CPU or pre-load to GPU and use torch.nn.functional.interpolate? cv2 is simpler and saves the GPU for actual encode; F.interpolate matches the daemon&#x27;s resize path byte-for-byte. Worth a 100-shot A/B for token-id divergence count.</p>
+    <p class="r-q-resolution">RESOLVED 2026-05-27 → torch (see decisions §resize-backend). cv2 absent from venv + torch byte-exact match made the A/B unnecessary.</p>
     </div>
 </section>
 </main>
