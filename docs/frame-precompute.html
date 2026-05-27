@@ -22,7 +22,7 @@
 <meta name="plan-depends-on" content="data-acquisition,zarr-consolidate">
 <meta name="plan-blocks" content="tokenizers,world-model-v0">
 <meta name="plan-impl" content="0.7">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="8">
 </head>
 <body>
 <main class="plan-doc">
@@ -114,12 +114,12 @@ path for shots without a precomputed cache.</p>
       <button class="r-opt chosen" data-value="torch">torch F.interpolate (bilinear)</button>
       <button class="r-opt" data-value="cv2">cv2.resize (INTER_LINEAR)</button>
       </p>
-    <p class="r-dec-rat">cv2/opencv-python is NOT installed in the ambix venv (would hard-fail the run), and torch F.interpolate matches the daemon's resize path byte-for-byte — so a precomputed shot and a live-encoded shot yield identical tokens. The byte-exact match removes the divergence risk the planned A/B was meant to measure, so no A/B was needed. Full-corpus run (job 1208031) uses --resize-backend torch.</p>
+    <p class="r-dec-rat">cv2/opencv-python is NOT installed in the ambix venv (would hard-fail the run), and torch F.interpolate matches the daemon&#x27;s resize path byte-for-byte — so a precomputed shot and a live-encoded shot yield identical tokens. The byte-exact match removes the divergence risk the planned A/B was meant to measure, so no A/B was needed. Full-corpus run (job 1208031) uses --resize-backend torch.</p>
     </div>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-fp-2026-05-26" data-status="open" data-tier="sonnet" data-written-by="Simon McIntosh" data-written-at="2026-05-26 18:30" data-recommends-skill="/reckon-ship frame-precompute --section 3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-fp-2026-05-26" data-status="open" data-tier="sonnet" data-written-by="Simon McIntosh" data-written-at="2026-05-26 18:30" data-recommends-skill="/reckon-ship frame-precompute --section 3" data-resolved-at="2026-05-27T07:25:09+00:00" data-resolved-by="agent/sonnet (supervisor)">
     <h4 class="r-fu-title">Implement preprocess.py + run on full rbb corpus</h4>
     <div class="r-fu-body">Wait for zarr-consolidate to land first (depends_on). Then write preprocess.py + CLI hook, validate bit-exact on 5 shots, then sbatch a CPU array (sun_debug, 16 cores × 4 tasks) to chew through 9,527 shots. Total expected wall: ~30 min on 64 CPUs.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -144,6 +144,7 @@ Done-when
   4. Bit-exact A/B against legacy path on shots 15085, 15086, 15087, 16000, 25000.
   5. OpenMagvit2Tokenizer.encode_shot gains a preprocessed-aware fast path (legacy path stays).
   6. data.impl → 1.0, status → shipped, plan §5 updated with measured speedup.</pre>
+    <p class="r-fu-outcome">Code shipped 2026-05-26 (commit 46d86e7): imas_ambix/data/preprocess.py + `ambix data preprocess-frames` CLI + scripts/slurm/preprocess_frames.sbatch + tests/test_preprocess.py. Bit-exact normalise validated 4/4 reachable shots. q1 resolved → torch backend (resize-backend decision locked). Full-corpus run is now in flight as job 1208031 (sun, torch) — tracked by successor followup f-fp-run-2026-05-26.</p>
     </article>
 <article class="r-fu" data-id="f-fp-run-2026-05-26" data-status="open" data-tier="sonnet" data-written-by="agent (Sonnet 4.6)" data-written-at="2026-05-26" data-recommends-skill="/reckon-ship frame-precompute" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Run preprocess_frames.sbatch once L1 zarr-consolidate (1207977) lands</h4>
