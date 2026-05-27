@@ -1,5 +1,5 @@
-"""Tests for imas_ambix.data.encoding (bulk encode helpers) and the
-bulk-encode-frames / bulk-encode-signals CLI subcommands.
+"""Tests for imas_ambix.data.encoding (encode helpers) and the
+bulk-encode-signals CLI subcommand.
 
 All tests are fully offline — they use synthetic Zarr data in tmp_path,
 the PlaceholderFrameTokenizer / UniformQuantizer, and monkeypatched paths.
@@ -190,77 +190,6 @@ def test_encode_one_shot_frames_missing_shot_populates_error(
 
 
 # ---------------------------------------------------------------------------
-# bulk_encode_frames
-# ---------------------------------------------------------------------------
-
-
-def test_bulk_encode_frames_three_shots(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """bulk_encode_frames returns one report per shot; all succeed."""
-    import imas_ambix.data.paths as paths_mod
-    import imas_ambix.data.persist as persist_mod
-    from imas_ambix.data.encoding import bulk_encode_frames
-    from imas_ambix.tokenizer.frames import PlaceholderFrameTokenizer
-
-    level1 = tmp_path / "level1" / "shots"
-    for sid in [2001, 2002, 2003]:
-        make_frame_zarr(level1, sid, "rbb", t=4, h=8, w=8)
-
-    monkeypatch.setattr(paths_mod, "LEVEL1_DIR", level1)
-    monkeypatch.setattr(persist_mod, "TOKEN_ROOT", tmp_path / "tokens")
-
-    reports = bulk_encode_frames(
-        shot_ids=[2001, 2002, 2003],
-        camera="rbb",
-        tokenizer_factory=PlaceholderFrameTokenizer,
-        max_workers=1,
-        skip_existing=False,
-        vocab_version="v1",
-    )
-
-    assert len(reports) == 3
-    for r in reports:
-        assert r.error is None, f"shot {r.shot_id} failed: {r.error}"
-        assert r.n_tokens > 0
-
-
-def test_bulk_encode_frames_skip_existing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """bulk_encode_frames skips shots that already have token files."""
-    import imas_ambix.data.paths as paths_mod
-    import imas_ambix.data.persist as persist_mod
-    from imas_ambix.data.encoding import bulk_encode_frames
-    from imas_ambix.tokenizer.frames import PlaceholderFrameTokenizer
-
-    level1 = tmp_path / "level1" / "shots"
-    for sid in [3001, 3002]:
-        make_frame_zarr(level1, sid, "rbb", t=4, h=8, w=8)
-
-    monkeypatch.setattr(paths_mod, "LEVEL1_DIR", level1)
-    monkeypatch.setattr(persist_mod, "TOKEN_ROOT", tmp_path / "tokens")
-
-    # First run encodes everything
-    reports1 = bulk_encode_frames(
-        shot_ids=[3001, 3002],
-        camera="rbb",
-        tokenizer_factory=PlaceholderFrameTokenizer,
-        skip_existing=False,
-    )
-    assert all(r.n_tokens > 0 for r in reports1)
-
-    # Second run with skip_existing=True → all skipped
-    reports2 = bulk_encode_frames(
-        shot_ids=[3001, 3002],
-        camera="rbb",
-        tokenizer_factory=PlaceholderFrameTokenizer,
-        skip_existing=True,
-    )
-    assert all(r.n_tokens == 0 for r in reports2)
-
-
-# ---------------------------------------------------------------------------
 # bulk_encode_signals (UniformQuantizer)
 # ---------------------------------------------------------------------------
 
@@ -324,81 +253,6 @@ def test_bulk_encode_signals_error_path(
     assert len(reports) == 1
     assert reports[0].error is not None
     assert reports[0].n_tokens == 0
-
-
-# ---------------------------------------------------------------------------
-# CLI smoke — bulk-encode-frames
-# ---------------------------------------------------------------------------
-
-
-def test_bulk_encode_frames_cli_help() -> None:
-    runner = CliRunner()
-    result = runner.invoke(data, ["bulk-encode-frames", "--help"])
-    assert result.exit_code == 0
-    assert "--shot-ids" in result.output
-    assert "--tokenizer" in result.output
-    assert "--camera" in result.output
-
-
-def test_bulk_encode_frames_cli_smoke(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """CLI smoke: bulk-encode-frames with placeholder tokenizer on 2 shots."""
-    import imas_ambix.data.paths as paths_mod
-    import imas_ambix.data.persist as persist_mod
-
-    level1 = tmp_path / "level1" / "shots"
-    for sid in [6001, 6002]:
-        make_frame_zarr(level1, sid, "rbb", t=4, h=8, w=8)
-
-    out_json = tmp_path / "report.json"
-
-    monkeypatch.setattr(paths_mod, "LEVEL1_DIR", level1)
-    monkeypatch.setattr(persist_mod, "TOKEN_ROOT", tmp_path / "tokens")
-
-    with patch("imas_ambix.data.paths.LEVEL1_DIR", level1):
-        runner = CliRunner()
-        result = runner.invoke(
-            data,
-            [
-                "bulk-encode-frames",
-                "--shot-ids",
-                "6001,6002",
-                "--camera",
-                "rbb",
-                "--tokenizer",
-                "placeholder",
-                "--vocab-version",
-                "v1",
-                "--workers",
-                "1",
-                "--no-skip-existing",
-                "--output",
-                str(out_json),
-            ],
-        )
-    assert result.exit_code == 0, result.output
-    assert out_json.exists()
-    payload = json.loads(out_json.read_text())
-    assert payload["n_ok"] == 2
-    assert payload["n_errored"] == 0
-
-
-def test_bulk_encode_frames_cli_no_shot_ids_exits_cleanly(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """CLI exits cleanly with a message when no shot IDs are resolved."""
-    import imas_ambix.data.paths as paths_mod
-
-    # Empty LEVEL1_DIR
-    level1 = tmp_path / "level1" / "shots"
-    level1.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(paths_mod, "LEVEL1_DIR", level1)
-
-    runner = CliRunner()
-    result = runner.invoke(data, ["bulk-encode-frames"])
-    assert result.exit_code == 0
-    assert "No shot IDs" in result.output or "no shot ids" in result.output.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -470,15 +324,15 @@ def test_from_quality_index_filters_usable_shots(
     import imas_ambix.data.paths as paths_mod
     import imas_ambix.data.persist as persist_mod
 
-    level1 = tmp_path / "level1" / "shots"
+    level2 = tmp_path / "level2" / "shots"
     for sid in [8001, 8002, 8003]:
-        make_frame_zarr(level1, sid, "rbb", t=4, h=8, w=8)
+        make_signal_zarr(level2, sid, "magnetics", t=20, n_channels=3)
 
     out_json = tmp_path / "enc_report.json"
 
     # Build a synthetic audit JSON: only 8001 and 8003 are usable
     audit = {
-        "tier": "level1",
+        "tier": "level2",
         "shot_ids": [8001, 8002, 8003],
         "aggregate": {},
         "per_shot": [
@@ -502,21 +356,21 @@ def test_from_quality_index_filters_usable_shots(
     audit_path = tmp_path / "audit.json"
     audit_path.write_text(json.dumps(audit), encoding="utf-8")
 
-    monkeypatch.setattr(paths_mod, "LEVEL1_DIR", level1)
+    monkeypatch.setattr(paths_mod, "LEVEL2_DIR", level2)
     monkeypatch.setattr(persist_mod, "TOKEN_ROOT", tmp_path / "tokens")
 
-    with patch("imas_ambix.data.paths.LEVEL1_DIR", level1):
+    with patch("imas_ambix.data.paths.LEVEL2_DIR", level2):
         runner = CliRunner()
         result = runner.invoke(
             data,
             [
-                "bulk-encode-frames",
+                "bulk-encode-signals",
                 "--from-quality-index",
                 str(audit_path),
-                "--camera",
-                "rbb",
+                "--group",
+                "magnetics",
                 "--tokenizer",
-                "placeholder",
+                "uniform",
                 "--no-skip-existing",
                 "--output",
                 str(out_json),
@@ -536,9 +390,9 @@ def test_from_quality_index_empty_produces_no_shots(
     """--from-quality-index with all non-usable shots produces no encoding."""
     import imas_ambix.data.paths as paths_mod
 
-    level1 = tmp_path / "level1" / "shots"
-    level1.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(paths_mod, "LEVEL1_DIR", level1)
+    level2 = tmp_path / "level2" / "shots"
+    level2.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(paths_mod, "LEVEL2_DIR", level2)
 
     audit = {
         "per_shot": [
@@ -555,13 +409,13 @@ def test_from_quality_index_empty_produces_no_shots(
     result = runner.invoke(
         data,
         [
-            "bulk-encode-frames",
+            "bulk-encode-signals",
             "--from-quality-index",
             str(audit_path),
-            "--camera",
-            "rbb",
+            "--group",
+            "magnetics",
             "--tokenizer",
-            "placeholder",
+            "uniform",
         ],
     )
     assert result.exit_code == 0

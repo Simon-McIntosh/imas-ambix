@@ -1,21 +1,22 @@
-"""Bulk-encode helpers for frame and signal tokenisation.
+"""Encode helpers for frame and signal tokenisation.
 
 These pure-Python helpers (no Click) drive the per-shot encode/persist loop
 and collect structured :class:`EncodeReport` objects.  The CLI in
-:mod:`imas_ambix.data.cli` wires them up to ``ambix data bulk-encode-frames``
-and ``ambix data bulk-encode-signals``.
+:mod:`imas_ambix.data.cli` wires :func:`bulk_encode_signals` up to
+``ambix data bulk-encode-signals``; frame corpus encoding runs through the
+in-process streaming encoder in :mod:`imas_ambix.data.stream_encode`.
 
 Usage example
 -------------
 ::
 
-    from imas_ambix.data.encoding import bulk_encode_frames
-    from imas_ambix.tokenizer.frames import PlaceholderFrameTokenizer
+    from imas_ambix.data.encoding import bulk_encode_signals
+    from imas_ambix.tokenizer.signals import UniformQuantizer
 
-    reports = bulk_encode_frames(
+    reports = bulk_encode_signals(
         shot_ids=[15085, 15086],
-        camera="rbb",
-        tokenizer_factory=PlaceholderFrameTokenizer,
+        group="magnetics",
+        tokenizer_factory=UniformQuantizer,
     )
     for r in reports:
         if r.error:
@@ -26,8 +27,6 @@ Usage example
 
 from __future__ import annotations
 
-import queue
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -332,281 +331,6 @@ def encode_one_shot_signals(
 # ---------------------------------------------------------------------------
 # Bulk helpers
 # ---------------------------------------------------------------------------
-
-
-def bulk_encode_frames(
-    shot_ids: list[int],
-    camera: str,
-    tokenizer_factory: Callable[[], FrameTokenizer],
-    *,
-    max_workers: int = 1,
-    skip_existing: bool = True,
-    max_frames_per_shot: int | None = None,
-    vocab_version: str = "v1",
-    prefetch: bool = True,
-    prefetch_workers: int = 2,
-    prefetch_queue_size: int = 4,
-    preprocessed_root: Path | None = None,
-) -> list[EncodeReport]:
-    """Encode frames for multiple shots and return one :class:`EncodeReport` per shot.
-
-    Parameters
-    ----------
-    shot_ids:
-        List of shot IDs to process.
-    camera:
-        Camera source name.
-    tokenizer_factory:
-        Zero-argument callable returning a fresh :class:`FrameTokenizer`.
-        A new instance is created per shot to avoid sharing state across
-        threads (FrameTokenizer instances are not thread-safe).
-    max_workers:
-        Legacy thread-pool size for the non-prefetch path. Default 1
-        (sequential). Ignored when ``prefetch`` is ``True``.
-    skip_existing:
-        Skip shots whose token file already exists (default ``True``).
-    max_frames_per_shot:
-        Truncate frames to this many before encoding (``None`` = all).
-    vocab_version:
-        Token vocabulary version directory (default ``"v1"``).
-    prefetch:
-        When ``True`` (default) a small producer pool stages the CPU/IO prep
-        (open + normalise + RGB + write ``.npy``) for shot N+1 while the main
-        thread issues the daemon GPU-encode of shot N — closing the per-shot
-        GPU-idle gap. Set ``False`` to use the legacy serial / thread-pool
-        path. The daemon is still called from a single thread; only prep is
-        parallelised.
-    prefetch_workers:
-        Number of CPU-prep producer threads (default 2).
-    prefetch_queue_size:
-        Max prepped items buffered ahead of the consumer (default 4) — caps
-        memory used by staged frame arrays.
-    preprocessed_root:
-        When set and ``<root>/<shot>.zarr`` exists, read that precomputed
-        ``(T,256,256,3)`` uint8 store directly (R3b fast path). ``None``
-        (default) always uses the legacy L1 path. The fast path is opt-in-safe
-        per shot: any shot lacking a precompute falls back to L1.
-
-    Returns
-    -------
-    list[EncodeReport]
-        One report per shot ID, in input order.
-    """
-
-    # Build the tokenizer ONCE and share across shots. For tokenizers backed
-    # by a persistent subprocess (Open-MAGVIT2 daemon mode), this is the
-    # difference between loading the 250MB checkpoint once vs N_shots times.
-    # Thread-safety: the persistent daemon serialises stdin writes via an
-    # internal lock; placeholder tokenizers are stateless. Workers > 1 will
-    # bottleneck on the lock — for true multi-GPU parallelism, run one driver
-    # per GPU (e.g. sbatch --array).
-    _shared_tok = tokenizer_factory()
-
-    if prefetch:
-        return _bulk_encode_frames_prefetch(
-            shot_ids,
-            camera,
-            _shared_tok,
-            skip_existing=skip_existing,
-            max_frames_per_shot=max_frames_per_shot,
-            vocab_version=vocab_version,
-            prefetch_workers=prefetch_workers,
-            prefetch_queue_size=prefetch_queue_size,
-            preprocessed_root=preprocessed_root,
-        )
-
-    def _shared_factory() -> FrameTokenizer:
-        return _shared_tok
-
-    def _encode(sid: int) -> EncodeReport:
-        return encode_one_shot_frames(
-            sid,
-            camera,
-            _shared_factory,
-            vocab_version=vocab_version,
-            max_frames=max_frames_per_shot,
-            overwrite=not skip_existing,
-            preprocessed_root=preprocessed_root,
-        )
-
-    if max_workers <= 1:
-        return [_encode(sid) for sid in shot_ids]
-
-    reports: dict[int, EncodeReport] = {}
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(_encode, sid): sid for sid in shot_ids}
-        for fut in futures:
-            sid = futures[fut]
-            reports[sid] = fut.result()
-    return [reports[sid] for sid in shot_ids]
-
-
-# Sentinel pushed onto the prefetch queue when a producer finishes a shot.
-@dataclass
-class _PrepItem:
-    """One unit of work flowing producer → consumer in the prefetch path."""
-
-    shot_id: int
-    # When skip/error short-circuits in the producer, `report` is set and the
-    # consumer emits it directly (no daemon call). Otherwise `prepared`
-    # carries either a tokenizer PreparedFrames (two-phase API available) or a
-    # raw (frames, presized) tuple for tokenizers without the two-phase API.
-    report: EncodeReport | None = None
-    prepared: object = None
-    frames: object = None
-    presized: bool = False
-    error: str | None = None
-
-
-def _bulk_encode_frames_prefetch(
-    shot_ids: list[int],
-    camera: str,
-    tok: FrameTokenizer,
-    *,
-    skip_existing: bool,
-    max_frames_per_shot: int | None,
-    vocab_version: str,
-    prefetch_workers: int,
-    prefetch_queue_size: int,
-    preprocessed_root: Path | None,
-) -> list[EncodeReport]:
-    """Producer→consumer prefetch encode (R2).
-
-    Producers (a bounded thread pool) run the CPU prep — load frames + stage a
-    ``.npy`` (or fall back to raw frames for non-two-phase tokenizers) — and
-    push results onto a bounded queue. The single consumer (this thread) pulls
-    prepped items in submission order and issues the daemon encode + persist
-    serially, so the GPU sees one stream while the next shot's CPU work
-    overlaps. Skip-existing, per-shot error capture, EncodeReport shape and
-    output paths all match the serial path.
-    """
-    import numpy as np
-
-    from imas_ambix.data.persist import frames_token_path, save_frame_tokens
-
-    has_two_phase = hasattr(tok, "prepare") and hasattr(tok, "encode_prepared")
-    tok_name = getattr(tok, "name", "unknown")
-
-    def _prepare_one(sid: int) -> _PrepItem:
-        out_path = frames_token_path(sid, camera, vocab_version)
-        if skip_existing and out_path.exists():
-            return _PrepItem(
-                shot_id=sid,
-                report=EncodeReport(
-                    shot_id=sid,
-                    modality="frames",
-                    group_or_camera=camera,
-                    tokenizer_name=tok_name,
-                    n_tokens=0,
-                    elapsed_s=0.0,
-                    output_path=out_path,
-                    error=None,
-                ),
-            )
-        try:
-            frames, presized = _load_frames_for_encode(
-                sid,
-                camera,
-                preprocessed_root=preprocessed_root,
-                max_frames=max_frames_per_shot,
-            )
-            if has_two_phase:
-                prepared = tok.prepare(frames, presized=presized)  # type: ignore[attr-defined]
-                return _PrepItem(shot_id=sid, prepared=prepared)
-            return _PrepItem(shot_id=sid, frames=frames, presized=presized)
-        except Exception as exc:  # noqa: BLE001
-            return _PrepItem(shot_id=sid, error=str(exc))
-
-    def _consume_one(item: _PrepItem, t0: float) -> EncodeReport:
-        out_path = frames_token_path(item.shot_id, camera, vocab_version)
-        if item.report is not None:
-            return item.report
-        if item.error is not None:
-            return EncodeReport(
-                shot_id=item.shot_id,
-                modality="frames",
-                group_or_camera=camera,
-                tokenizer_name=tok_name,
-                n_tokens=0,
-                elapsed_s=time.monotonic() - t0,
-                output_path=out_path,
-                error=item.error,
-            )
-        try:
-            if item.prepared is not None:
-                encoded = tok.encode_prepared(item.prepared)  # type: ignore[attr-defined]
-            else:
-                encoded = _encode_frames(tok, item.frames, presized=item.presized)
-            save_frame_tokens(
-                shot_id=item.shot_id,
-                camera=camera,
-                encoded=encoded,
-                vocab_version=vocab_version,
-            )
-            n_tokens = int(np.asarray(encoded.token_ids).size)
-            return EncodeReport(
-                shot_id=item.shot_id,
-                modality="frames",
-                group_or_camera=camera,
-                tokenizer_name=tok_name,
-                n_tokens=n_tokens,
-                elapsed_s=time.monotonic() - t0,
-                output_path=out_path,
-                error=None,
-            )
-        except Exception as exc:  # noqa: BLE001
-            # Release any staged temp dir on failure.
-            cleanup = getattr(item.prepared, "cleanup", None)
-            if cleanup is not None:
-                cleanup()
-            return EncodeReport(
-                shot_id=item.shot_id,
-                modality="frames",
-                group_or_camera=camera,
-                tokenizer_name=tok_name,
-                n_tokens=0,
-                elapsed_s=time.monotonic() - t0,
-                output_path=out_path,
-                error=str(exc),
-            )
-
-    results: dict[int, EncodeReport] = {}
-    work_q: queue.Queue[_PrepItem] = queue.Queue(maxsize=max(1, prefetch_queue_size))
-    n_workers = max(1, prefetch_workers)
-    # Bound how many shots are submitted ahead of the consumer so producers
-    # block on the queue rather than racing the entire shotlist into memory.
-    semaphore = threading.Semaphore(max(1, prefetch_queue_size) + n_workers)
-    next_idx = 0
-    next_idx_lock = threading.Lock()
-    t_start = time.monotonic()
-
-    def _producer() -> None:
-        nonlocal next_idx
-        while True:
-            with next_idx_lock:
-                i = next_idx
-                if i >= len(shot_ids):
-                    return
-                next_idx += 1
-            semaphore.acquire()
-            work_q.put(_prepare_one(shot_ids[i]))
-
-    pool = ThreadPoolExecutor(max_workers=n_workers)
-    producer_futures = [pool.submit(_producer) for _ in range(n_workers)]
-    try:
-        for _ in range(len(shot_ids)):
-            item = work_q.get()
-            try:
-                report = _consume_one(item, t_start)
-            finally:
-                semaphore.release()
-            results[item.shot_id] = report
-    finally:
-        for fut in producer_futures:
-            fut.result()  # surface any unexpected producer crash
-        pool.shutdown(wait=True)
-
-    return [results[sid] for sid in shot_ids]
 
 
 def bulk_encode_signals(

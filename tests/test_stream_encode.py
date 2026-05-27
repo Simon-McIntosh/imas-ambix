@@ -26,7 +26,6 @@ if str(REPO_ROOT) not in sys.path:
 
 from imas_ambix.data import stream_encode as se  # noqa: E402
 
-
 # --- Stub prepare + encode --------------------------------------------------
 #
 # The real pipeline resizes each shot's native-resolution frames to 256²
@@ -269,11 +268,20 @@ def test_stream_reassembly_mixed_native_resolutions(tmp_path, batch_frames):
 
 
 def test_registry_offset_matches_live_registry():
-    """The hardcoded REGISTRY_OFFSET must equal the live registry's offset for
-    the magvit2 frame block, or stream tokens diverge from the live path."""
-    from imas_ambix.tokenizer.registry import registry
+    """The hardcoded REGISTRY_OFFSET must equal the offset the magvit2 frame
+    block gets as the first non-control allocation, or stream tokens diverge
+    from the live path.
 
-    start, end = registry.allocate(se.TOKENIZER_NAME, se.VOCAB_SIZE)
+    Uses a fresh :class:`TokenRegistry` rather than the process-global
+    singleton: in a real encode process magvit2 is the first tokenizer to
+    allocate, so its start is exactly the control-range end. The shared
+    singleton is polluted by other tokenizers allocated earlier in the test
+    session, which would shift the offset and make this order-dependent.
+    """
+    from imas_ambix.tokenizer.registry import TokenRegistry
+
+    reg = TokenRegistry()
+    start, end = reg.allocate(se.TOKENIZER_NAME, se.VOCAB_SIZE)
     assert start == se.REGISTRY_OFFSET, (start, se.REGISTRY_OFFSET)
     assert end - start == se.VOCAB_SIZE
 

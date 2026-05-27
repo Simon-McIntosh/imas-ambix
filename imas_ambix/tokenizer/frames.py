@@ -16,11 +16,8 @@ Both honour the :class:`FrameTokenizer` protocol and the global
 
 from __future__ import annotations
 
-import atexit
-import json
 import subprocess
 import tempfile
-import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -38,9 +35,8 @@ class PreparedFrames:
 
     Produced by :meth:`OpenMagvit2Tokenizer.prepare` (the CPU/IO half of an
     encode: load + normalise + RGB-replicate + write ``.npy``) and consumed
-    by :meth:`OpenMagvit2Tokenizer.encode_prepared` (the GPU half: daemon
-    request + registry shift).  Splitting the two phases lets a prefetch
-    producer overlap shot N+1's CPU prep with shot N's GPU encode.
+    by :meth:`OpenMagvit2Tokenizer.encode_prepared` (the GPU half: worker
+    subprocess request + registry shift).
 
     ``cleanup`` releases any temp resources (the staged ``.npy`` dir).  It is
     idempotent and called by ``encode_prepared``; callers that abandon a
@@ -194,9 +190,12 @@ class OpenMagvit2Tokenizer:
     bridge over via the ``worker.py`` script under the same root, passing
     numpy arrays through ``.npy`` temp files.
 
-    Per-call overhead: ~5-10 s on CPU (Python startup + model load). Batch
-    every shot's frames into a single ``encode`` call to amortise. The
-    GPU node brings this to sub-second once weights are warmed.
+    Each ``encode``/``decode`` call spawns a one-shot worker subprocess that
+    loads the checkpoint (~5-10 s on CPU, sub-second once warm on GPU), so
+    batch every shot's frames into a single call to amortise. This wrapper
+    is for smoke tests, single-shot CLI use and calibration; high-throughput
+    corpus encoding runs through the in-process streaming encoder in
+    :mod:`imas_ambix.data.stream_encode`.
 
     **Device split:**
 
@@ -223,10 +222,6 @@ class OpenMagvit2Tokenizer:
     vocab_size: int = 1 << 18  # 262144
     device: str = "cpu"
     batch_size: int = 4
-    persistent: bool = True
-
-    _proc: subprocess.Popen | None = field(default=None, repr=False, compare=False)
-    _lock: threading.Lock | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         self.root = Path(self.root)
@@ -243,100 +238,6 @@ class OpenMagvit2Tokenizer:
             if not p.exists():
                 raise OpenMagvit2UnavailableError(f"missing {p}")
         registry.allocate(self.name, self.vocab_size)
-        if self.persistent:
-            self._spawn_daemon()
-            atexit.register(self._shutdown_daemon)
-
-    def _spawn_daemon(self) -> None:
-        """Launch the worker subprocess in daemon mode and wait for READY.
-
-        Loading the Open-MAGVIT2 checkpoint takes 5-10 s; doing it once per
-        instance instead of once per shot is the single biggest speedup for
-        bulk-encode jobs. The daemon stays alive for the lifetime of this
-        tokenizer instance.
-        """
-        cmd = [
-            str(self._python),
-            str(self._worker),
-            "daemon",
-            "--device",
-            self.device,
-            "--image-size",
-            str(self.image_size),
-            "--batch-size",
-            str(self.batch_size),
-            "--ckpt",
-            str(self._ckpt),
-        ]
-        self._proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-        )
-        self._lock = threading.Lock()
-        ready = self._read_json_line(context="ready")
-        if not ready.get("ready"):
-            raise OpenMagvit2UnavailableError(
-                f"daemon failed to start: {ready.get('error', ready)}"
-            )
-
-    def _read_json_line(self, *, context: str, max_noise_lines: int = 200) -> dict:
-        """Read lines from the daemon's stdout, skipping any non-JSON noise.
-
-        Open-MAGVIT2 / lpips / lightning print model-load notices to stdout
-        before our JSON ready line arrives. We tolerate that by reading and
-        discarding any line that does not parse as JSON, up to a safety cap
-        so a runaway daemon can't lock us forever.
-        """
-        if self._proc is None:
-            raise RuntimeError("daemon not spawned")
-        assert self._proc.stdout is not None
-        for _ in range(max_noise_lines):
-            line = self._proc.stdout.readline()
-            if not line:
-                stderr_tail = (
-                    self._proc.stderr.read()[-2000:] if self._proc.stderr else ""
-                )
-                raise OpenMagvit2UnavailableError(
-                    f"daemon closed before {context!r} line; stderr:\n{stderr_tail}"
-                )
-            stripped = line.strip()
-            if not stripped or stripped[0] not in "{[":
-                continue  # skip noise (lpips/lightning prints, blank lines)
-            try:
-                return json.loads(stripped)
-            except json.JSONDecodeError:
-                continue  # not parseable JSON — treat as noise
-        raise OpenMagvit2UnavailableError(
-            f"daemon produced {max_noise_lines} non-JSON lines before {context!r}"
-        )
-
-    def _daemon_request(self, payload: dict) -> dict:
-        """Send one JSON request to the daemon and read one reply."""
-        if self._proc is None or self._proc.poll() is not None:
-            raise RuntimeError("Open-MAGVIT2 daemon is not running")
-        assert self._lock is not None  # for type-checkers
-        with self._lock:
-            self._proc.stdin.write(json.dumps(payload) + "\n")
-            self._proc.stdin.flush()
-            resp = self._read_json_line(context=f"reply to {payload.get('op')}")
-        if not resp.get("ok"):
-            raise RuntimeError(f"daemon error: {resp.get('error', resp)}")
-        return resp
-
-    def _shutdown_daemon(self) -> None:
-        if self._proc is None or self._proc.poll() is not None:
-            return
-        try:
-            self._proc.stdin.write(json.dumps({"op": "shutdown"}) + "\n")
-            self._proc.stdin.flush()
-            self._proc.stdin.close()
-            self._proc.wait(timeout=10)
-        except Exception:
-            self._proc.kill()
 
     def prepare(self, frames: np.ndarray, *, presized: bool = False) -> PreparedFrames:
         """Stage the CPU/IO half of an encode and return a :class:`PreparedFrames`.
@@ -401,19 +302,10 @@ class OpenMagvit2Tokenizer:
         try:
             in_path = prepared.input_path
             out_path = in_path.parent / "tokens.npy"
-            if self.persistent and self._proc is not None:
-                self._daemon_request(
-                    {
-                        "op": "encode",
-                        "input": str(in_path),
-                        "output": str(out_path),
-                    }
-                )
-            else:
-                self._run_worker(
-                    "encode",
-                    ["--input", str(in_path), "--output", str(out_path)],
-                )
+            self._run_worker(
+                "encode",
+                ["--input", str(in_path), "--output", str(out_path)],
+            )
             local_ids = np.load(out_path)
         finally:
             prepared.cleanup()
@@ -452,27 +344,17 @@ class OpenMagvit2Tokenizer:
             in_path = Path(tmp) / "tokens.npy"
             out_path = Path(tmp) / "recon.npy"
             np.save(in_path, local.astype(np.int64))
-            if self.persistent and self._proc is not None:
-                self._daemon_request(
-                    {
-                        "op": "decode",
-                        "input": str(in_path),
-                        "output": str(out_path),
-                        "target_hw": target,
-                    }
-                )
-            else:
-                self._run_worker(
-                    "decode",
-                    [
-                        "--input",
-                        str(in_path),
-                        "--output",
-                        str(out_path),
-                        "--target-hw",
-                        target,
-                    ],
-                )
+            self._run_worker(
+                "decode",
+                [
+                    "--input",
+                    str(in_path),
+                    "--output",
+                    str(out_path),
+                    "--target-hw",
+                    target,
+                ],
+            )
             return np.load(out_path)
 
     def _run_worker(self, mode: str, extra: list[str]) -> None:
