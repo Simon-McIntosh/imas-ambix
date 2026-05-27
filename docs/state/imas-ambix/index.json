@@ -1,9 +1,9 @@
 {
-  "updated": "2026-05-26T18:42:31",
+  "updated": "2026-05-27T09:36:11",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
-    "active_sprint_id": "S3",
+    "active_sprint_id": "S4",
     "projects": [
       {
         "project": "imas-ambix",
@@ -301,12 +301,12 @@
       {
         "slug": "zarr-consolidate",
         "title": "Consolidated Zarr metadata across L1+L2 corpus",
-        "status": "pending",
+        "status": "shipped",
         "ms": "M1",
         "roi": "high",
         "effort": "S",
         "tier": "sonnet",
-        "impl": 0,
+        "impl": 1,
         "last": "2026-05-26",
         "owner": "Simon McIntosh",
         "blockers": 0,
@@ -373,12 +373,20 @@
       },
       {
         "id": "S3",
-        "status": "active",
+        "status": "done",
         "theme": "Plan-system bootstrap \u2014 eat our own dog food",
         "starts": "2026-05-21",
         "ends": "2026-05-25",
-        "items": [],
-        "summary": "Ship the plan-management redesign. Use the new infrastructure itself to track the work \u2014 sprint S3 lives inside the very system it builds."
+        "items": [
+          {
+            "slug": "plans-migration-ambix",
+            "why_now": "S3 deliverable \u2014 the JSON\u2192HTML island migration that S3 set out to ship",
+            "tier": "sonnet",
+            "done_when": "per-plan state served from HTML islands; sidecar JSON removed",
+            "status": "shipped"
+          }
+        ],
+        "summary": "Shipped 2026-05-27: plan-system migrated from per-plan JSON sidecars to embedded HTML islands (meta tags + data-reckon sections). reckon MCP server reads/writes the islands; index.json retained for project config (sprints/milestones/timeline) only. Eat-the-dog-food validated this session \u2014 the migration was tracked in the very system it built."
       },
       {
         "id": "S4",
@@ -448,6 +456,6 @@
         "what": "tokenizers \u00a713.3 IR codebook benchmark wired (commit dec0082)"
       }
     ],
-    "_version": 4
+    "_version": 8
   }
 }
