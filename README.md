@@ -8,8 +8,8 @@
 > plus non-plan docs (RCAs, tickets, explainers) — are tracked as **HTML**
 > under [`docs/`](docs/), published via GitHub Pages at
 > <https://simon-mcintosh.github.io/imas-ambix/>.  State lives in each page's
-> HTML island (`<meta name="plan-*">` + `data-reckon` sections); there are no
-> per-plan sidecar JSON files.  Authoring goes through the **reckon** skill set
+> plan's own HTML (`<meta name="plan-*">` + `data-reckon` sections); there are
+> no per-plan sidecar JSON files.  Authoring goes through the **reckon** skill set
 > (`reckon-create` / `reckon-edit` / `reckon-ship` / `reckon-status`) — see
 > [`AGENTS.md`](AGENTS.md) "Plans & docs" and the architecture in
 > [`~/Code/reckon/AGENTS.md`](https://github.com/Simon-McIntosh/reckon).

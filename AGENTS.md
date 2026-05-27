@@ -43,9 +43,11 @@ gh pr create --repo iterorganization/imas-ambix --base main
 All plans **and** non-plan structured docs (RCAs, incident reports,
 SDCC/ops tickets, reviews, explainers, dashboards) live under
 [`docs/`](docs/) as **HTML** — never markdown (markdown only for READMEs /
-brief prose). State lives **in the HTML island** (`<meta name="plan-*">`
-scalars + `data-reckon` sections); there are **no per-plan sidecar JSON
-files** (migrated 2026-05-27 — `docs/state/<project>/index.json` keeps
+brief prose). State lives **in the plan's own HTML** — `<meta name="plan-*">`
+scalars in the head + `data-reckon` section elements in the body; there are
+**no per-plan sidecar JSON files**. Agents edit the plan file directly
+(reckon MCP tools / `reckon-edit` for version-safe writes, or by hand with a
+bypass note) — the HTML *is* the store, not a separate state object (migrated 2026-05-27 — `docs/state/<project>/index.json` keeps
 only project config: sprints, milestones, timeline).
 
 Use the reckon skills — do not hand-edit `docs/*.html`:
