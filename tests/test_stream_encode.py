@@ -27,15 +27,57 @@ if str(REPO_ROOT) not in sys.path:
 from imas_ambix.data import stream_encode as se  # noqa: E402
 
 
-# A deterministic per-frame "encode": maps each (H,W,3) uint8 frame to a
-# (16,16) int64 token grid using only that frame's bytes — exactly the
+# --- Stub prepare + encode --------------------------------------------------
+#
+# The real pipeline resizes each shot's native-resolution frames to 256²
+# *per-shot, before the cross-shot buffer* (so frames from shots with
+# different native (H,W) stack cleanly). The CPU parity stub mirrors that
+# split: `_stub_prepare` does a cheap deterministic per-shot "resize" to a
+# uniform shape, and `_stub_encode` fingerprints the prepared frame. Both the
+# stream path and the per-shot reference apply the SAME prepare, so the parity
+# assertion proves the reassembly is byte-identical irrespective of native
+# resolution.
+
+# Fixed uniform "prepared" frame size for the stub (analogue of 256²). Small,
+# so the test stays fast, but >1 so resize-by-mean actually mixes pixels.
+STUB_SIZE = 8
+
+
+def _stub_prepare(shot_u8_rgb: np.ndarray) -> np.ndarray:
+    """Deterministic per-shot 'resize' (T,H,W,3) uint8 -> (T,STUB_SIZE,STUB_SIZE,3).
+
+    Mirrors the structural role of ``frames_to_input``: applied per-shot where
+    the frames are uniform, producing fixed-shape slices that stack across
+    shots regardless of native (H,W). It is a pure, per-frame function (block
+    mean down to a fixed grid), so splitting a shot's frames across batches and
+    reassembling is byte-identical to processing the shot whole.
+    """
+    arr = np.asarray(shot_u8_rgb)
+    if arr.ndim != 4 or arr.shape[-1] != 3:
+        raise ValueError(f"expected (T,H,W,3), got {arr.shape}")
+    t, h, w, c = arr.shape
+    out = np.empty((t, STUB_SIZE, STUB_SIZE, c), dtype=np.uint8)
+    # Block-mean each frame into a STUB_SIZE×STUB_SIZE grid (a per-frame,
+    # deterministic reduction — the stub analogue of a bilinear downsample).
+    ys = np.linspace(0, h, STUB_SIZE + 1).astype(int)
+    xs = np.linspace(0, w, STUB_SIZE + 1).astype(int)
+    for fi in range(t):
+        for yi in range(STUB_SIZE):
+            for xi in range(STUB_SIZE):
+                block = arr[fi, ys[yi] : ys[yi + 1], xs[xi] : xs[xi + 1], :]
+                out[fi, yi, xi, :] = block.reshape(-1, c).mean(axis=0).astype(np.uint8)
+    return out
+
+
+# A deterministic per-frame "encode": maps each prepared (uniform-shape) frame
+# to a (16,16) int64 token grid using only that frame's bytes — exactly the
 # property the real model has (no cross-frame state on the encode path).
-# We derive a stable per-frame fingerprint and tile it, so identical frames
-# always produce identical tokens regardless of which batch they land in.
-def _stub_encode(model, frames_u8_rgb_batch: np.ndarray) -> np.ndarray:
-    b = frames_u8_rgb_batch.shape[0]
+# We derive a stable per-frame fingerprint and tile it, so identical prepared
+# frames always produce identical tokens regardless of which batch they land in.
+def _stub_encode(model, prepared_batch: np.ndarray) -> np.ndarray:
+    b = prepared_batch.shape[0]
     out = np.empty((b, se.TOKEN_HW, se.TOKEN_HW), dtype=np.int64)
-    flat = frames_u8_rgb_batch.reshape(b, -1).astype(np.int64)
+    flat = np.asarray(prepared_batch).reshape(b, -1).astype(np.int64)
     # Per-frame deterministic value in [0, 2^18) — within the magvit2 vocab.
     fp = (flat.sum(axis=1) * 2654435761) % se.VOCAB_SIZE
     for i in range(b):
@@ -46,9 +88,19 @@ def _stub_encode(model, frames_u8_rgb_batch: np.ndarray) -> np.ndarray:
     return out
 
 
-def _make_frames(shot_id: int, n_frames: int, rng: np.random.Generator) -> np.ndarray:
-    """A fake L1 raw frame array (T,H,W) uint16, distinct per shot."""
-    h, w = 40, 56  # non-square, non-256 → exercises the resize/normalise path
+def _make_frames(
+    shot_id: int,
+    n_frames: int,
+    rng: np.random.Generator,
+    hw: tuple[int, int] = (40, 56),
+) -> np.ndarray:
+    """A fake L1 raw frame array (T,H,W) uint16, distinct per shot.
+
+    *hw* defaults to a non-square, non-256 shape so the resize/normalise path
+    is exercised; pass different *hw* per shot to mix native resolutions
+    across the cross-shot stream (the bug the post-stack resize design hit).
+    """
+    h, w = hw
     base = rng.integers(0, 4000, size=(n_frames, h, w), dtype=np.uint16)
     return base + shot_id  # shift so shots differ
 
@@ -63,7 +115,8 @@ def _per_shot_reference(shot_ids, frame_arrays, camera) -> dict[int, np.ndarray]
     for sid in shot_ids:
         raw = frame_arrays[sid]
         u8_rgb = se.frames_to_rgb_uint8(raw, presized=False)
-        toks = _stub_encode(None, u8_rgb)  # (T,16,16) int64
+        prepared = _stub_prepare(u8_rgb)  # per-shot resize, exactly as stream
+        toks = _stub_encode(None, prepared)  # (T,16,16) int64
         ref[sid] = (toks.astype(np.int64) + se.REGISTRY_OFFSET).astype(np.int32)
     return ref
 
@@ -121,6 +174,7 @@ def test_stream_reassembly_matches_per_shot(tmp_path, batch_frames):
             batch_frames=batch_frames,
             num_workers=0,
             encode_fn=_stub_encode,
+            prepare_fn=_stub_prepare,
         )
     finally:
         se.ShotFrameDataset = orig_ctor  # type: ignore[assignment]
@@ -131,6 +185,76 @@ def test_stream_reassembly_matches_per_shot(tmp_path, batch_frames):
     assert stats.write_errors == []
 
     # Read back every shot's Zarr and compare byte-for-byte to the reference.
+    import zarr
+
+    for sid in shot_ids:
+        path = se.stream_frames_token_path(sid, camera, stream_root)
+        assert path.exists(), f"missing output for shot {sid}"
+        store = zarr.open_group(str(path), mode="r")
+        got = np.asarray(store["tokens"], dtype=np.int32)
+        ref = reference[sid]
+        assert got.shape == ref.shape, (sid, got.shape, ref.shape)
+        assert got.dtype == np.int32
+        np.testing.assert_array_equal(got, ref)
+
+
+@pytest.mark.parametrize("batch_frames", [1, 7, 32, 256])
+def test_stream_reassembly_mixed_native_resolutions(tmp_path, batch_frames):
+    """Cross-shot batches that MIX shots of DIFFERENT native (H,W) must still
+    produce byte-identical per-shot tokens.
+
+    This is the regression for the byte-diff failure (jobs 1208239 / 1208235):
+    the old design stacked native-resolution frames across shots *before*
+    resizing, so a batch spanning shots of different (H,W) hit
+    ``ValueError: all input arrays must have the same shape``. The fix resizes
+    per-shot before the cross-shot buffer; this test exercises real-world
+    geometries (536×560, 402×512, 1024×512) with frame counts chosen so that
+    for several batch sizes a single batch contains frames from two shots of
+    DIFFERENT native resolution.
+    """
+    rng = np.random.default_rng(7)
+    camera = "rbb"
+    # (frame_count, (H, W)) per shot — geometries lifted from the live path.
+    spec = {
+        301: (50, (536, 560)),
+        302: (30, (402, 512)),
+        303: (40, (1024, 512)),
+        304: (5, (200, 248)),
+        305: (17, (536, 560)),
+    }
+    shot_ids = list(spec)
+    counts = {sid: spec[sid][0] for sid in shot_ids}
+    frame_arrays = {
+        sid: _make_frames(sid, spec[sid][0], rng, hw=spec[sid][1]) for sid in shot_ids
+    }
+
+    reference = _per_shot_reference(shot_ids, frame_arrays, camera)
+
+    dataset = _DictDataset(shot_ids, frame_arrays, camera)
+    stream_root = tmp_path / "frames-stream"
+
+    orig_ctor = se.ShotFrameDataset
+    se.ShotFrameDataset = lambda *a, **k: dataset  # type: ignore[assignment]
+    try:
+        stats = se.stream_encode(
+            shot_ids,
+            camera,
+            model=None,
+            device="cpu",
+            stream_root=stream_root,
+            batch_frames=batch_frames,
+            num_workers=0,
+            encode_fn=_stub_encode,
+            prepare_fn=_stub_prepare,
+        )
+    finally:
+        se.ShotFrameDataset = orig_ctor  # type: ignore[assignment]
+
+    assert stats.shots_fail == 0, stats.load_errors
+    assert stats.shots_ok == len(shot_ids)
+    assert stats.frames_encoded == sum(counts.values())
+    assert stats.write_errors == []
+
     import zarr
 
     for sid in shot_ids:
@@ -298,6 +422,7 @@ def test_sigterm_handler_sets_flag_and_loop_breaks(tmp_path, monkeypatch):
         batch_frames=1,
         num_workers=0,
         encode_fn=_encode_one,
+        prepare_fn=_stub_prepare,
     )
 
     assert stats.aborted is True
@@ -349,6 +474,7 @@ def test_watchdog_fires_on_slow_batch_and_stops(tmp_path, monkeypatch):
         batch_frames=4,  # multiple batches across the two shots
         num_workers=0,
         encode_fn=_slow_encode,
+        prepare_fn=_stub_prepare,
         batch_timeout_s=0.3,
     )
     elapsed = _time.monotonic() - t0
@@ -381,6 +507,7 @@ def test_clean_run_does_not_abort(tmp_path, monkeypatch):
         batch_frames=4,
         num_workers=0,
         encode_fn=_stub_encode,
+        prepare_fn=_stub_prepare,
         batch_timeout_s=30.0,
     )
     assert stats.aborted is False

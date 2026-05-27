@@ -11,9 +11,11 @@ file-IPC daemon (:mod:`imas_ambix.data.encoding` +
    many CPU workers, each opening one shot's L1 zarr and producing
    ``(T, 256, 256, 3)`` uint8 frames — the **exact bytes** the live daemon
    consumes (same normalise → RGB-replicate → resize path).
-3. **Cross-shot continuous batching:** flattening all shots' frames into a
-   single stream tagged by shot id and running ``model.encode`` on
-   fixed-size batches so the GPU never idles at a shot boundary.
+3. **Cross-shot continuous batching:** resizing each shot's frames to the
+   fixed model input size (``256²``) *first* — so they are uniform — then
+   flattening all shots' resized frames into a single stream tagged by shot
+   id and running ``model.encode`` on fixed-size batches so the GPU never
+   idles at a shot boundary.
 4. An **async writer thread** persisting completed per-shot token arrays so
    output IO never blocks the GPU.
 
@@ -34,9 +36,17 @@ reshape ``(B, 16, 16)`` → int64) and the registry shift (``+4`` offset,
 cast to int32) are likewise replicated exactly.
 
 Because frame-token encode is deterministic per-frame (no cross-frame
-state in the encoder), splitting the stream into arbitrary fixed-size
+state in the encoder) AND the ``F.interpolate`` resize is applied
+*per-frame independently*, the resize op can move from "after the
+cross-shot stack" (where it would fail — shots have different native
+``(H,W)``) to "per-shot, before the buffer" without changing a single
+output bit: each frame is resized to ``256²`` exactly as the live
+``worker._frames_to_input`` does it (same dtype-cast order, no antialias,
+``align_corners=False``). Once resized, every buffered frame is the same
+``(3,256,256)`` shape, so splitting the stream into arbitrary fixed-size
 batches and reassembling per-shot is provably identical to per-shot
-encoding — this is what the CPU parity test proves.
+encoding — this is what the CPU parity test (including its
+mixed-native-resolution case) proves.
 
 This module runs inside the Open-MAGVIT2 venv (torch 2.5.1+cu124) and is
 imported directly by ``scripts/slurm/stream_encode_rbb.sbatch``; it does
@@ -366,9 +376,14 @@ class ShotFrameDataset:
 
     ``__getitem__`` opens one shot's L1 zarr, normalises to RGB uint8 (the
     exact live bytes), and returns ``(shot_id, frames_u8_rgb, input_shape,
-    original_hw)``. Frames stay on the CPU as uint8 — resize to 256² happens
-    on the GPU side in :func:`frames_to_input` (matching the live daemon,
-    which resizes after loading the staged uint8 ``.npy``).
+    original_hw)``. Frames stay on the CPU as **native-resolution** uint8 —
+    the resize to 256² happens per-shot in :func:`stream_encode` (via
+    :func:`frames_to_input`) right after the shot is yielded, *before* the
+    frames enter the cross-shot buffer. This is required for correctness:
+    shots have different native ``(H,W)`` (e.g. 536×560, 402×512, 1024×512),
+    so they cannot be stacked into a cross-shot batch until they are all the
+    same 256² size. The resize op is byte-identical to the live daemon's —
+    only its position moves (per-shot, pre-batch, vs the live per-shot load).
     """
 
     def __init__(
@@ -558,14 +573,24 @@ def stream_encode(
     num_workers: int = 12,
     max_frames: int | None = None,
     encode_fn=None,
+    prepare_fn=None,
     batch_timeout_s: float = 0.0,
 ) -> StreamStats:
     """Continuous-batching encode of *shot_ids* into per-shot token Zarrs.
 
-    Flattens all shots' frames into one stream tagged by shot id, runs the
-    model on fixed-size ``batch_frames`` batches (so the GPU never waits for
-    a shot boundary), reassembles per-shot ``(T,16,16)`` int32 token arrays
-    from the stream, and hands each completed shot to an async writer.
+    Resizes each shot's frames to the fixed model input size (``256²``)
+    *first* — per-shot, where the frames are uniform — then flattens all
+    shots' resized frames into one stream tagged by shot id, runs the model
+    on fixed-size ``batch_frames`` batches (so the GPU never waits for a shot
+    boundary), reassembles per-shot ``(T,16,16)`` int32 token arrays from the
+    stream, and hands each completed shot to an async writer.
+
+    Resizing per-shot before the cross-shot buffer is required for
+    correctness: shots have different native ``(H,W)`` and cannot be stacked
+    into a cross-shot batch at native resolution. The resize is byte-identical
+    to the live ``worker._frames_to_input`` (same dtype cast order, no
+    antialias, ``align_corners=False``) — only its position moves, so tokens
+    stay byte-identical to the live path.
 
     Parameters
     ----------
@@ -580,9 +605,19 @@ def stream_encode(
         batches are pure fixed-size slices of the flattened stream.
     encode_fn:
         Override for the per-batch encode (used by the parity test to inject
-        a deterministic stub). Signature ``(model, frames_u8_rgb_batch) ->
-        (B,16,16) int64``. When ``None``, the real GPU path is used:
-        :func:`frames_to_input` + :func:`encode_batch_indices`.
+        a deterministic stub). Signature ``(model, prepared_batch) ->
+        (B,16,16) int64``, where *prepared_batch* is a fixed-size stack of the
+        per-shot *prepared* frames (see *prepare_fn*). When ``None``, the real
+        GPU path is used: the prepared batch is the ``(B,3,256,256)`` tensor
+        and :func:`encode_batch_indices` runs it through the model.
+    prepare_fn:
+        Override for the per-shot resize/normalise step that turns a shot's
+        native-resolution ``(T,H,W,3)`` uint8 frames into uniform per-frame
+        slices that stack cleanly into the cross-shot buffer. Signature
+        ``(shot_u8_rgb) -> (T, ...)`` where the leading axis is the frame axis
+        and every slice ``out[i]`` has the same shape across all shots. When
+        ``None``, the real path uses :func:`frames_to_input` (resize to
+        ``256²``, dtype per device), producing a ``(T,3,256,256)`` tensor.
     batch_timeout_s:
         Per-batch watchdog timeout in seconds. ``0`` (default) means *auto*:
         the watchdog uses ``max(60, 8 × running-median batch time)`` once a
@@ -613,14 +648,47 @@ def stream_encode(
     # on CPU + the live load path keeps the model float32 off-cuda).
     _input_dtype = torch.bfloat16 if device.startswith("cuda") else torch.float32
 
-    def _default_encode(frames_u8_rgb_batch: np.ndarray) -> np.ndarray:
-        images = frames_to_input(frames_u8_rgb_batch, IMAGE_SIZE, dtype=_input_dtype)
-        return encode_batch_indices(model, images, device)
+    # --- Per-shot prepare (resize to 256², BEFORE the cross-shot buffer) ----
+    # Each shot's native-resolution (T,H,W,3) uint8 frames are resized here,
+    # where they are uniform, into per-frame slices that stack cleanly across
+    # shots. The real path produces a (T,3,256,256) tensor via frames_to_input
+    # — byte-identical to worker._frames_to_input — and we index frame-by-frame
+    # into the cross-shot buffer; batching re-stacks them with torch.stack.
+    def _default_prepare(shot_u8_rgb: np.ndarray):
+        # (T,H,W,3) uint8 -> (T,3,256,256) on the model dtype/device layout.
+        return frames_to_input(shot_u8_rgb, IMAGE_SIZE, dtype=_input_dtype)
+
+    _prepare = prepare_fn if prepare_fn is not None else _default_prepare
+
+    # --- Per-batch encode (operates on the stacked prepared frames) ---------
+    # The default encode receives the (B,3,256,256) prepared tensor directly —
+    # the resize already happened in _prepare, so this is just the model
+    # forward. The stub path (encode_fn) receives whatever _prepare produced,
+    # re-stacked to a fixed-size batch.
+    def _default_encode(prepared_batch) -> np.ndarray:
+        return encode_batch_indices(model, prepared_batch, device)
 
     if encode_fn is not None:
         _raw_encode = lambda batch: encode_fn(model, batch)  # noqa: E731
     else:
         _raw_encode = _default_encode
+
+    def _stack_batch(slices: list):
+        """Stack per-frame prepared slices into one fixed-size batch.
+
+        Torch tensors (the real path) stack via ``torch.stack`` so the
+        prepared ``(3,256,256)`` frames become ``(B,3,256,256)`` preserving
+        the ``channels_last`` byte layout; everything else (numpy stub slices)
+        stacks via ``np.stack``. The slices ARE uniform — the per-shot resize
+        guarantees it — so this never hits the mixed-shape ValueError that the
+        old post-stack-resize design did.
+        """
+        first = slices[0]
+        if isinstance(first, torch.Tensor):
+            return torch.stack(slices, dim=0).contiguous(
+                memory_format=torch.channels_last
+            )
+        return np.stack(slices, axis=0)
 
     # --- Per-batch watchdog ------------------------------------------------
     # We cannot safely interrupt a wedged CUDA kernel from Python, but we CAN
@@ -696,12 +764,16 @@ def stream_encode(
 
     t_start = time.monotonic()
 
-    # Flat stream buffers. Each shot's frames are appended in arrival order,
-    # tagged by a monotonically increasing `sidx`. When the buffer reaches
-    # `batch_frames` we encode fixed-size chunks off the front. Encoded token
-    # slices land in `shot_tokens[sidx]` in stream order; a shot is emitted to
-    # the writer exactly when it has received all `frame_count[sidx]` slices.
-    buf_frames: list[np.ndarray] = []  # each (H,W,3) uint8
+    # Flat stream buffers. Each shot's frames are resized to 256² (per-shot,
+    # see _prepare) then appended frame-by-frame in arrival order, tagged by a
+    # monotonically increasing `sidx`. Because they are already resized, every
+    # buffered slice is the SAME shape (e.g. (3,256,256)) regardless of the
+    # shot's native resolution, so cross-shot batches stack cleanly. When the
+    # buffer reaches `batch_frames` we encode fixed-size chunks off the front.
+    # Encoded token slices land in `shot_tokens[sidx]` in stream order; a shot
+    # is emitted to the writer exactly when it has received all
+    # `frame_count[sidx]` slices.
+    buf_frames: list = []  # each a prepared per-frame slice (e.g. (3,256,256))
     buf_shotidx: list[int] = []
     shot_tokens: dict[int, list[np.ndarray]] = {}
     shot_meta: dict[int, tuple[int, tuple, tuple]] = {}  # sidx -> (id,inshape,hw)
@@ -733,7 +805,7 @@ def stream_encode(
         pos = 0
         while pos < target:
             hi = min(pos + batch_frames, target)
-            chunk = np.stack(buf_frames[pos:hi], axis=0)
+            chunk = _stack_batch(buf_frames[pos:hi])
             toks = _encode(chunk)  # (b,16,16) int64
             for j in range(hi - pos):
                 sidx = buf_shotidx[pos + j]
@@ -771,11 +843,21 @@ def stream_encode(
                 stats.shots_fail += 1
                 stats.load_errors.append((int(shot_id), "zero frames"))
                 continue
+            # Resize this shot's frames to 256² NOW, while they are uniform,
+            # before they enter the cross-shot buffer. Each `prepared[f]` is a
+            # fixed-shape slice that stacks cleanly with slices from any other
+            # shot regardless of native resolution.
+            try:
+                prepared = _prepare(u8_rgb)
+            except Exception as exc:  # noqa: BLE001
+                stats.shots_fail += 1
+                stats.load_errors.append((int(shot_id), f"prepare: {exc}"))
+                continue
             shot_tokens[sidx] = []
             shot_meta[sidx] = (int(shot_id), input_shape, original_hw)
             frame_count[sidx] = n
             for f in range(n):
-                buf_frames.append(u8_rgb[f])
+                buf_frames.append(prepared[f])
                 buf_shotidx.append(sidx)
             # Encode only whole batch_frames chunks; keep the remainder
             # buffered so batches stay fixed-size (full GPU forwards) until the
