@@ -7,7 +7,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=7
 #SBATCH --mem=160G
-#SBATCH --time=04:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=/work/projects/imas_gpu/stream-rbb-shard-%A_%a.out
 #
 # NEW high-throughput rbb encoder — in-process, continuous-batching, GPU
