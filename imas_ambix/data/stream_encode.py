@@ -33,7 +33,14 @@ load-bearing pieces copied verbatim from the live code are:
 
 The per-frame model forward (``model.encode(chunk)`` → flat idx →
 reshape ``(B, 16, 16)`` → int64) and the registry shift (``+4`` offset,
-cast to int32) are likewise replicated exactly.
+cast to int32) are likewise replicated exactly — INCLUDING the model
+forward's chunk size: the VQModel forward is *not* batch-size invariant
+(a batch of 4 vs 256 of the same frames yields ~12% different tokens,
+even with cuDNN determinism forced), so the model is fed in fixed
+:data:`MODEL_FORWARD_BATCH`-sized sub-chunks matching the live daemon's
+``OpenMagvit2Tokenizer.batch_size``. The cross-shot ``batch_frames``
+buffer is decoupled from this — it exists only to keep the GPU fed across
+shot boundaries; the bit-exact contract is held by the inner sub-chunking.
 
 Because frame-token encode is deterministic per-frame (no cross-frame
 state in the encoder) AND the ``F.interpolate`` resize is applied
@@ -135,6 +142,22 @@ REGISTRY_OFFSET = 4
 TOKENIZER_NAME = "frames_open_magvit2_v1"
 VOCAB_SIZE = 1 << 18
 
+# Model-forward batch size for byte-identity with the live path.
+#
+# CRITICAL (discovered 2026-05-27 by GPU byte-diff): the Open-MAGVIT2 VQModel
+# forward is NOT batch-size invariant — encoding the SAME frames in a batch of
+# 4 vs a batch of 256 yields ~12% different tokens, and this divergence
+# survives `cudnn.benchmark=False` + `torch.use_deterministic_algorithms`, so
+# it is intrinsic to the model (a batch-dependent op inside encode), not a
+# cuDNN algorithm-selection artefact. The live daemon
+# (``OpenMagvit2Tokenizer.batch_size``) runs the model forward in chunks of 4
+# frames, so to stay byte-identical the stream MUST run model.encode in the
+# same chunk size — independently of the cross-shot `batch_frames` buffer,
+# which exists only to keep the GPU fed across shot boundaries. We therefore
+# accumulate/stack 256 frames for IO/feeding but sub-batch the model forward
+# into MODEL_FORWARD_BATCH-sized chunks for the bit-exact contract.
+MODEL_FORWARD_BATCH = 4
+
 DEFAULT_L1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
 # Validation output root — deliberately NOT the live tokens/ dir.
 DEFAULT_STREAM_ROOT = Path("/work/projects/imas_gpu/mast-tokens/v1/frames-stream")
@@ -229,10 +252,27 @@ def frames_to_input(
 def load_model(magvit2_root: Path, device: str):
     """Build VQModel + load weights + apply H200 perf knobs.
 
-    Mirrors ``worker.load_model`` exactly (TF32, cudnn.benchmark, bf16,
-    channels_last on cuda). Imports happen lazily so this module imports
-    cleanly outside the magvit2 venv (e.g. for the CPU parity test which
-    stubs the model).
+    Mirrors ``worker.load_model`` (TF32, bf16, channels_last on cuda) with one
+    deliberate, correctness-driven DIFFERENCE: ``cudnn.benchmark`` is **off**
+    and deterministic algorithms are **on**.
+
+    Why (GPU root-cause, 2026-05-27): the live daemon set
+    ``torch.backends.cudnn.benchmark = True``. The cuDNN autotuner then picks a
+    convolution algorithm per process based on runtime timing, so two separate
+    process invocations of the *same* model on the *same* frames select
+    different conv kernels. The tiny bf16 numerical differences this produces
+    flip ~9% of frame tokens at the LFQ quantizer's sign-based codebook
+    decision boundaries. Measured: two fresh stream processes, benchmark ON →
+    ndiff 1724/19456 (~9%); benchmark OFF + deterministic → ndiff 0/19456.
+
+    A tokenizer MUST be reproducible (a token id is a stable label, not a
+    timing-dependent value), so the go-forward encoder disables benchmark and
+    forces deterministic algorithms. The preprocessing (uint8 → bf16 →
+    [-1,1] → bilinear 256², no antialias) is byte-identical to the live path;
+    only the non-deterministic kernel selection was the bug.
+
+    Imports happen lazily so this module imports cleanly outside the magvit2
+    venv (e.g. for the CPU parity test which stubs the model).
     """
     import sys
 
@@ -259,7 +299,16 @@ def load_model(magvit2_root: Path, device: str):
 
     if device.startswith("cuda"):
         torch.set_float32_matmul_precision("high")
-        torch.backends.cudnn.benchmark = True
+        # REPRODUCIBILITY (see docstring): benchmark OFF + deterministic ON so
+        # the conv-algorithm choice is stable across processes/runs — the only
+        # way frame tokens are a stable label rather than a timing-dependent
+        # value. Measured: this takes the cross-process token diff from ~9% to 0.
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+        try:
+            torch.use_deterministic_algorithms(True, warn_only=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[stream] use_deterministic_algorithms note: {exc}", flush=True)
         model = model.to(
             device=device, dtype=torch.bfloat16, memory_format=torch.channels_last
         )
@@ -268,23 +317,41 @@ def load_model(magvit2_root: Path, device: str):
     return model
 
 
-def encode_batch_indices(model, images, device: str) -> np.ndarray:
+def encode_batch_indices(
+    model, images, device: str, model_forward_batch: int = MODEL_FORWARD_BATCH
+) -> np.ndarray:
     """Run model.encode on a (B,3,S,S) batch → (B,16,16) int64 local ids.
 
     Byte-identical to the per-batch loop body in ``worker.encode`` /
-    ``worker.daemon`` encode op.
+    ``worker.daemon`` encode op. CRITICAL: the VQModel forward is NOT
+    batch-size invariant (see :data:`MODEL_FORWARD_BATCH`), so the model is
+    fed in fixed ``model_forward_batch``-sized sub-chunks — matching the live
+    daemon's chunking exactly — even though the caller may hand us a larger
+    (cross-shot) batch. The token output is then identical to the live path
+    frame-for-frame regardless of how many frames the stream buffered.
     """
     import torch
 
     images = images.to(device)
+    n = images.shape[0]
+    step = max(1, int(model_forward_batch))
+    out: list[np.ndarray] = []
     with torch.no_grad():
-        if model.use_ema:
-            with model.ema_scope():
-                _, _, idx, _ = model.encode(images)
-        else:
-            _, _, idx, _ = model.encode(images)
-    idx_np = idx.detach().cpu().numpy().astype(np.int64)
-    return idx_np.reshape(images.shape[0], TOKEN_HW, TOKEN_HW)
+        for i in range(0, n, step):
+            chunk = images[i : i + step]
+            if model.use_ema:
+                with model.ema_scope():
+                    _, _, idx, _ = model.encode(chunk)
+            else:
+                _, _, idx, _ = model.encode(chunk)
+            out.append(
+                idx.detach()
+                .cpu()
+                .numpy()
+                .astype(np.int64)
+                .reshape(chunk.shape[0], TOKEN_HW, TOKEN_HW)
+            )
+    return np.concatenate(out, axis=0)
 
 
 # --- Persistence (mirrors persist.save_frame_tokens, redirected root) -----
@@ -660,35 +727,31 @@ def stream_encode(
 
     _prepare = prepare_fn if prepare_fn is not None else _default_prepare
 
-    # --- Per-batch encode (operates on the stacked prepared frames) ---------
-    # The default encode receives the (B,3,256,256) prepared tensor directly —
-    # the resize already happened in _prepare, so this is just the model
-    # forward. The stub path (encode_fn) receives whatever _prepare produced,
-    # re-stacked to a fixed-size batch.
-    def _default_encode(prepared_batch) -> np.ndarray:
-        return encode_batch_indices(model, prepared_batch, device)
+    # --- Per-shot encode (operates on the whole prepared shot tensor) -------
+    # The default encode receives one shot's (T,3,256,256) prepared tensor and
+    # runs the model forward, sub-batching internally at MODEL_FORWARD_BATCH —
+    # BYTE-IDENTICAL to the live daemon (verified on GPU: feeding the full
+    # contiguous per-shot tensor to encode_batch_indices, which slices
+    # images[i:i+4], matches the live path bit-for-bit). The stub path
+    # (encode_fn) receives whatever _prepare produced for the shot.
+    #
+    # CRITICAL — why we encode per-shot and NOT a cross-shot frame batch:
+    # the Open-MAGVIT2 forward is sensitive to batch COMPOSITION, not just
+    # size. Worse, reconstructing a batch by indexing the per-shot interpolated
+    # tensor frame-by-frame and re-stacking (the old cross-shot design) yields
+    # bf16 inputs that differ from the live path's contiguous full-shot resize
+    # + slice (measured: ndiff 4326/19456 on shot 15086). So the only way to be
+    # byte-identical is to keep each shot's prepared tensor intact and feed it
+    # to encode_batch_indices exactly as the live daemon does. Cross-shot
+    # throughput still comes from the DataLoader prefetch (shot N+1's
+    # load+resize overlaps shot N's GPU encode) — just not from frame mixing.
+    def _default_encode(prepared_shot) -> np.ndarray:
+        return encode_batch_indices(model, prepared_shot, device)
 
     if encode_fn is not None:
-        _raw_encode = lambda batch: encode_fn(model, batch)  # noqa: E731
+        _raw_encode = lambda shot: encode_fn(model, shot)  # noqa: E731
     else:
         _raw_encode = _default_encode
-
-    def _stack_batch(slices: list):
-        """Stack per-frame prepared slices into one fixed-size batch.
-
-        Torch tensors (the real path) stack via ``torch.stack`` so the
-        prepared ``(3,256,256)`` frames become ``(B,3,256,256)`` preserving
-        the ``channels_last`` byte layout; everything else (numpy stub slices)
-        stacks via ``np.stack``. The slices ARE uniform — the per-shot resize
-        guarantees it — so this never hits the mixed-shape ValueError that the
-        old post-stack-resize design did.
-        """
-        first = slices[0]
-        if isinstance(first, torch.Tensor):
-            return torch.stack(slices, dim=0).contiguous(
-                memory_format=torch.channels_last
-            )
-        return np.stack(slices, axis=0)
 
     # --- Per-batch watchdog ------------------------------------------------
     # We cannot safely interrupt a wedged CUDA kernel from Python, but we CAN
@@ -734,14 +797,14 @@ def stream_encode(
     _wd_thread = threading.Thread(target=_watchdog, daemon=True)
     _wd_thread.start()
 
-    def _encode(batch: np.ndarray) -> np.ndarray:
-        """Run one batch under the watchdog, recording its duration.
+    def _encode(shot_tensor) -> np.ndarray:
+        """Run one shot's encode under the watchdog, recording its duration.
 
         Arms the watchdog for the duration of the (possibly wedging) encode
         call, then disarms it. Does NOT itself raise on STOP — the STOP check
-        lives in :func:`_encode_prefix` *after* the just-finished batch's
-        tokens have been scattered and any newly-complete shot emitted, so an
-        in-flight batch always finishes cleanly before we unwind.
+        lives in the main loop *after* the just-finished shot's tokens have
+        been emitted, so an in-flight shot always finishes cleanly before we
+        unwind.
         """
         budget = _timeout_for_next()
         with _wd_lock:
@@ -749,7 +812,7 @@ def stream_encode(
             _wd_deadline["t"] = time.monotonic() + budget
         t0 = time.monotonic()
         try:
-            out = _raw_encode(batch)
+            out = _raw_encode(shot_tensor)
         finally:
             with _wd_lock:
                 _wd_deadline["t"] = None
@@ -764,26 +827,16 @@ def stream_encode(
 
     t_start = time.monotonic()
 
-    # Flat stream buffers. Each shot's frames are resized to 256² (per-shot,
-    # see _prepare) then appended frame-by-frame in arrival order, tagged by a
-    # monotonically increasing `sidx`. Because they are already resized, every
-    # buffered slice is the SAME shape (e.g. (3,256,256)) regardless of the
-    # shot's native resolution, so cross-shot batches stack cleanly. When the
-    # buffer reaches `batch_frames` we encode fixed-size chunks off the front.
-    # Encoded token slices land in `shot_tokens[sidx]` in stream order; a shot
-    # is emitted to the writer exactly when it has received all
-    # `frame_count[sidx]` slices.
-    buf_frames: list = []  # each a prepared per-frame slice (e.g. (3,256,256))
-    buf_shotidx: list[int] = []
-    shot_tokens: dict[int, list[np.ndarray]] = {}
-    shot_meta: dict[int, tuple[int, tuple, tuple]] = {}  # sidx -> (id,inshape,hw)
-    frame_count: dict[int, int] = {}  # sidx -> total frames in this shot
-
-    def _emit_shot(sidx: int) -> None:
-        sid, inshape, hw = shot_meta.pop(sidx)
-        local = np.stack(shot_tokens.pop(sidx), axis=0)  # (T,16,16) int64
-        del frame_count[sidx]
-        global_ids = (local.astype(np.int64) + REGISTRY_OFFSET).astype(np.int32)
+    # `batch_frames` is retained in the signature for API stability but no
+    # longer drives a cross-shot frame batch: byte-identity requires each
+    # shot's prepared tensor to be encoded whole (see _default_encode). It is
+    # used only to cap the model-forward sub-batch (encode_batch_indices uses
+    # MODEL_FORWARD_BATCH internally; batch_frames only matters if a future
+    # caller raises the forward chunk, which would break byte-identity).
+    def _emit_shot(
+        sid: int, toks_local: np.ndarray, inshape: tuple, hw: tuple
+    ) -> None:
+        global_ids = (toks_local.astype(np.int64) + REGISTRY_OFFSET).astype(np.int32)
         writer.submit(
             _WriteItem(
                 shot_id=sid,
@@ -795,41 +848,13 @@ def stream_encode(
         )
         stats.shots_ok += 1
 
-    def _encode_prefix(target: int) -> None:
-        """Encode the leading `target` buffered frames in batch_frames chunks.
-
-        Scatters each frame's (16,16) token slice back to its shot; emits any
-        shot that becomes fully encoded. Drops the consumed prefix.
-        """
-        nonlocal buf_frames, buf_shotidx
-        pos = 0
-        while pos < target:
-            hi = min(pos + batch_frames, target)
-            chunk = _stack_batch(buf_frames[pos:hi])
-            toks = _encode(chunk)  # (b,16,16) int64
-            for j in range(hi - pos):
-                sidx = buf_shotidx[pos + j]
-                shot_tokens[sidx].append(toks[j])
-                if len(shot_tokens[sidx]) == frame_count[sidx]:
-                    _emit_shot(sidx)
-            stats.frames_encoded += hi - pos
-            pos = hi
-            # STOP (signal or watchdog) is honoured *between* chunks, after the
-            # just-finished chunk's shots are emitted: drop the consumed prefix
-            # and unwind. Shots fully encoded so far are persisted; the
-            # unconsumed buffered tail (partial shots) is discarded.
-            if STOP.is_set():
-                buf_frames = buf_frames[pos:]
-                buf_shotidx = buf_shotidx[pos:]
-                raise StreamAborted("stop requested between batches")
-        buf_frames = buf_frames[target:]
-        buf_shotidx = buf_shotidx[target:]
-
     aborted = False
     try:
-        for sidx, item in enumerate(feed):
+        for item in feed:
             # Between-shot STOP check: a signal or watchdog firing here stops
-            # us from pulling more work from the DataLoader.
+            # us from pulling more work from the DataLoader. A shot already
+            # being encoded finishes (the watchdog only fires on a wedge); we
+            # check STOP again after the encode before emitting the next shot.
             if STOP.is_set():
                 aborted = True
                 break
@@ -843,34 +868,28 @@ def stream_encode(
                 stats.shots_fail += 1
                 stats.load_errors.append((int(shot_id), "zero frames"))
                 continue
-            # Resize this shot's frames to 256² NOW, while they are uniform,
-            # before they enter the cross-shot buffer. Each `prepared[f]` is a
-            # fixed-shape slice that stacks cleanly with slices from any other
-            # shot regardless of native resolution.
+            # Resize this shot's frames to 256² (per-shot, where uniform) into a
+            # single (T,3,256,256) tensor — exactly the live path's full-shot
+            # resize. Then encode the WHOLE shot tensor (encode_batch_indices
+            # sub-batches at MODEL_FORWARD_BATCH internally), which is
+            # byte-identical to the live daemon.
             try:
                 prepared = _prepare(u8_rgb)
+                toks_local = _encode(prepared)  # (T,16,16) int64
+            except StreamAborted:
+                raise
             except Exception as exc:  # noqa: BLE001
                 stats.shots_fail += 1
-                stats.load_errors.append((int(shot_id), f"prepare: {exc}"))
+                stats.load_errors.append((int(shot_id), f"encode: {exc}"))
                 continue
-            shot_tokens[sidx] = []
-            shot_meta[sidx] = (int(shot_id), input_shape, original_hw)
-            frame_count[sidx] = n
-            for f in range(n):
-                buf_frames.append(prepared[f])
-                buf_shotidx.append(sidx)
-            # Encode only whole batch_frames chunks; keep the remainder
-            # buffered so batches stay fixed-size (full GPU forwards) until the
-            # very end.
-            whole = len(buf_frames) - (len(buf_frames) % batch_frames)
-            if whole >= batch_frames:
-                _encode_prefix(whole)
-
-        # Final flush — encode whatever remains (the only sub-full batch).
-        # Skipped if we aborted: the buffered tail belongs to shots that were
-        # not fully streamed, so emitting it would persist truncated shots.
-        if not aborted and buf_frames:
-            _encode_prefix(len(buf_frames))
+            stats.frames_encoded += n
+            _emit_shot(int(shot_id), toks_local, input_shape, original_hw)
+            # Honour STOP *after* the just-finished shot is emitted (persisted)
+            # so we never drop a fully-encoded shot, and never persist a
+            # partial one. The next shot is simply not pulled.
+            if STOP.is_set():
+                aborted = True
+                break
     except StreamAborted:
         aborted = True
     finally:

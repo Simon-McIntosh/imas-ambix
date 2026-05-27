@@ -331,6 +331,63 @@ def test_normalise_byte_identical_to_live():
     )
 
 
+def test_encode_batch_indices_subchunks_at_model_forward_batch():
+    """encode_batch_indices must feed model.encode in MODEL_FORWARD_BATCH-sized
+    chunks regardless of the (larger, cross-shot) input batch.
+
+    The Open-MAGVIT2 VQModel forward is NOT batch-size invariant (GPU byte-diff
+    2026-05-27: batch-4 vs batch-256 of the same frames differ ~12%, even with
+    cuDNN determinism forced). The live daemon runs the forward in chunks of
+    OpenMagvit2Tokenizer.batch_size; the stream must match that chunk size to
+    stay byte-identical. This stub records the per-call batch sizes to prove
+    the sub-chunking, and returns batch-position-independent tokens to prove
+    the reassembly preserves frame order.
+    """
+    import torch
+
+    class _RecordingModel:
+        use_ema = False
+
+        def __init__(self):
+            self.seen_batch_sizes = []
+
+        def encode(self, x):
+            b = x.shape[0]
+            self.seen_batch_sizes.append(b)
+            # Per-frame deterministic ids from the frame's mean (pure function
+            # of the frame, independent of batch position).
+            flat = x.reshape(b, -1).to(torch.float64)
+            base = (flat.mean(dim=1).abs() * 1000).to(torch.int64) % se.VOCAB_SIZE
+            idx = (
+                base[:, None] + torch.arange(se.TOKEN_HW * se.TOKEN_HW)
+            ) % se.VOCAB_SIZE
+            return None, None, idx.reshape(-1), None
+
+    rng = np.random.default_rng(11)
+    frames = rng.integers(0, 256, size=(10, 40, 56, 3), dtype=np.uint8)
+    images = se.frames_to_input(frames, dtype=torch.float32)  # (10,3,256,256)
+
+    model = _RecordingModel()
+    out = se.encode_batch_indices(model, images, "cpu")
+    assert out.shape == (10, se.TOKEN_HW, se.TOKEN_HW)
+    # 10 frames at MODEL_FORWARD_BATCH=4 -> chunks [4,4,2].
+    assert model.seen_batch_sizes == [4, 4, 2], model.seen_batch_sizes
+    assert all(b <= se.MODEL_FORWARD_BATCH for b in model.seen_batch_sizes)
+
+    # The reassembled output must be independent of how the caller batches:
+    # encoding the whole 10 in one call equals encoding each frame's chunk.
+    model2 = _RecordingModel()
+    per_frame = np.concatenate(
+        [
+            se.encode_batch_indices(model2, images[i : i + 1], "cpu")
+            for i in range(10)
+        ],
+        axis=0,
+    )
+    np.testing.assert_array_equal(out, per_frame)
+    assert se.MODEL_FORWARD_BATCH == 4  # must track the live daemon default
+
+
 # ===========================================================================
 # Hardening tests (graceful SIGTERM, per-batch watchdog, CPU-runnable load).
 # Motivated by docs/rca-node-drain-2026-05-27.md: a hung GPU process that
