@@ -59,7 +59,14 @@ VENV_PY=/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv/bin/python
 N_SHARDS="${N_SHARDS:-4}"
 CAMERA="${CAMERA:-rbb}"
 BATCH_FRAMES="${BATCH_FRAMES:-256}"
-NUM_WORKERS="${NUM_WORKERS:-12}"
+# Workers MUST be <= cpus-per-task (7) — oversubscribing froze a DataLoader
+# worker in the 30-shot smoke (1208671), starving the next shot until the
+# per-shot watchdog fired and aborted. 6 leaves one core for the main/model.
+NUM_WORKERS="${NUM_WORKERS:-6}"
+# Per-shot watchdog ceiling. 0=auto (max(60, 8x median)) false-fired on a large
+# shot; a fixed 300s never false-fires (no shot is ~37k frames at ~124 fps) yet
+# still bounds a genuine wedge so the job exits cleanly (no node drain).
+BATCH_TIMEOUT_S="${BATCH_TIMEOUT_S:-300}"
 STREAM_ROOT="${STREAM_ROOT:-/work/projects/imas_gpu/mast-tokens/v1/frames-stream}"
 REPORT=/work/projects/imas_gpu/stream-rbb-shard-${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.json
 
@@ -82,6 +89,7 @@ time "$VENV_PY" "$REPO/imas_ambix/data/stream_encode.py" \
     --device cuda \
     --batch-frames "$BATCH_FRAMES" \
     --num-workers "$NUM_WORKERS" \
+    --batch-timeout-s "$BATCH_TIMEOUT_S" \
     --stream-root "$STREAM_ROOT" \
     --report "$REPORT" \
     "${EXTRA[@]}"
