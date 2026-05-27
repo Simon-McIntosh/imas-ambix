@@ -4,15 +4,15 @@
 
 **Fusion World Model — distilling experimental data into physics-informed generative models**
 
-> 📋 **Plans dashboard.** Project plans, strategy, v0 runway and decisions are
-> tracked as HTML documents under [`docs/`](docs/), published via GitHub
-> Pages at <https://simon-mcintosh.github.io/imas-ambix/>.  Markdown sources
-> are archived in [`docs/archive/`](docs/archive/); the HTML site is the
-> canonical record.  The plan system (state.js, mode banner, repo-tracked
-> JSON state) is shared with [imas-efit](https://github.com/Simon-McIntosh/imas-efit)
-> and lives in the
-> [`html-docs` skill](https://github.com/anthropics/claude-code) — see
-> [`docs/_HTML_PLANS_README.md`](docs/_HTML_PLANS_README.md) for the layout.
+> 📋 **Plans dashboard.** Project plans, strategy, v0 runway and decisions —
+> plus non-plan docs (RCAs, tickets, explainers) — are tracked as **HTML**
+> under [`docs/`](docs/), published via GitHub Pages at
+> <https://simon-mcintosh.github.io/imas-ambix/>.  State lives in each page's
+> HTML island (`<meta name="plan-*">` + `data-reckon` sections); there are no
+> per-plan sidecar JSON files.  Authoring goes through the **reckon** skill set
+> (`reckon-create` / `reckon-edit` / `reckon-ship` / `reckon-status`) — see
+> [`AGENTS.md`](AGENTS.md) "Plans & docs" and the architecture in
+> [`~/Code/reckon/AGENTS.md`](https://github.com/Simon-McIntosh/reckon).
 
 Ambix is a machine learning framework for training generative world models on
 tokamak experimental data. It distils data access patterns and IMAS mappings

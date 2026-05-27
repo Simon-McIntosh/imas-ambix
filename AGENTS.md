@@ -38,14 +38,33 @@ git push origin feature/my-change
 gh pr create --repo iterorganization/imas-ambix --base main
 ```
 
-## Plans dashboard
+## Plans & docs (reckon — HTML-first)
 
-HTML plans live under [`docs/`](docs/) (canonical).  Shared infrastructure
-(state.js, mode banner, repo-tracked static state JSON, `.nojekyll`,
-README badge) matches the [imas-efit](https://github.com/Simon-McIntosh/imas-efit)
-pattern — see [`docs/_HTML_PLANS_README.md`](docs/_HTML_PLANS_README.md)
-and the user-global
-[`html-docs` skill](~/.claude/skills/html-docs/SKILL.md).
+All plans **and** non-plan structured docs (RCAs, incident reports,
+SDCC/ops tickets, reviews, explainers, dashboards) live under
+[`docs/`](docs/) as **HTML** — never markdown (markdown only for READMEs /
+brief prose). State lives **in the HTML island** (`<meta name="plan-*">`
+scalars + `data-reckon` sections); there are **no per-plan sidecar JSON
+files** (migrated 2026-05-27 — `docs/state/<project>/index.json` keeps
+only project config: sprints, milestones, timeline).
+
+Use the reckon skills — do not hand-edit `docs/*.html`:
+
+| Intent | Skill |
+|---|---|
+| New plan **or** non-plan doc (RCA, ticket, explainer → `reckon-type=doc`) | `reckon-create` |
+| Edit / lock decision / followup / sprint / archive | `reckon-edit` |
+| Implement plan work + record outcomes + collapse-on-landing | `reckon-ship` |
+| Read-only status / health audit | `reckon-status` |
+| Set up / refresh reckon infra | `reckon-sync` |
+
+State mutations go through the reckon MCP tools (or `POST /plan/...`); if
+the MCP server is down, still author the HTML via `reckon-create` and
+apply state changes once it reconnects — **never fall back to markdown.**
+Closure: a shipped section collapses to a 2-4 line landed-summary on the
+evergreen with full detail archived under `docs/archive/` (reckon-ship §5b);
+plans retire via `reckon-edit`. Full architecture:
+[`~/Code/reckon/AGENTS.md`](~/Code/reckon/AGENTS.md).
 
 ## 1. GPU Server Hardware
 
