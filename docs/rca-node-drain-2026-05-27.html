@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="rca-node-drain-2026-05-27">
+<title>RCA — 98dci4-gpu-0003 node drain 2026-05-27 | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="reckon-type" content="doc">
+<meta name="plan-title" content="RCA — 98dci4-gpu-0003 node drain (2026-05-27 12:04:46)">
+<meta name="plan-summary" content="Self-inflicted node drain: our rbb encode (prefetch on) deadlocked, its CUDA process was unkillable, SLURM 'Kill task failed' → auto-drain. No Group B involvement (proven via sacct). Mechanism, prevention, and admin instructions.">
+<meta name="plan-status" content="shipped">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="S">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-27">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><span class="status shipped"><span class="dot"></span>Incident RCA</span> —
+node <code>98dci4-gpu-0003</code> drained 2026-05-27 12:04:46. <strong>Verdict:
+self-inflicted</strong> (our hung GPU job could not be killed). <strong>No
+other-user / Group B involvement</strong> — proven below.</p>
+
+<h2 id="cause">One-line cause</h2>
+<p>Our rbb bulk-encode <code>1208195</code> deadlocked (prefetch
+producer/consumer), leaving a GPU process stuck in uninterruptible state. On
+<code>scancel</code> it did not die within SLURM's
+<code>UnkillableStepTimeout</code> (~60&nbsp;s), so slurmd marked
+<strong>"Kill task failed"</strong> and auto-drained the node.</p>
+
+<h2 id="timeline">Forensic timeline (from <code>sacct</code>)</h2>
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Time</th><th>Event</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>11:34:29</td><td><code>1208195</code> (4-shard rbb, prefetch ON, batch 32) starts</td><td>sacct Start</td></tr>
+<tr><td>11:38–11:41</td><td>producing ~15 shots/min (prefetch alive)</td><td>token count 1910→1941</td></tr>
+<tr><td>~11:55</td><td>deadlocks — token count frozen at <strong>2119</strong></td><td>0 delta over 30&nbsp;s, twice</td></tr>
+<tr><td>12:03:45</td><td><code>scancel</code> → job <code>CANCELLED</code></td><td>sacct End</td></tr>
+<tr><td>12:03:45→12:04:46</td><td>batch step won't die on SIGTERM (61&nbsp;s)</td><td><code>.batch</code> ExitCode <code>0:15</code></td></tr>
+<tr><td><strong>12:04:46</strong></td><td>slurmd <strong>"Kill task failed"</strong> → node DRAIN</td><td><code>scontrol</code> Reason <code>[root@…12:04:46]</code></td></tr>
+</tbody>
+</table></div>
+<p>The 61&nbsp;s gap ≈ SLURM's default <code>UnkillableStepTimeout</code> (60&nbsp;s):
+after the kill signal slurmd waited, the step stayed in uninterruptible
+<code>D</code> state (wedged CUDA/GPFS call), so the node was drained.</p>
+
+<h2 id="attribution">Did we cause it? Yes. Group B? No.</h2>
+<pre><code># ALL jobs on 98dci4-gpu-0003, 2026-05-27 00:00–12:10, all users:
+#   every job: user=mcintos, account=grpa (Group A)
+# Non-grpa jobs on the node today:   NONE
+# Group B (gpu_0003_grpB) jobs today: NONE</code></pre>
+<p>Drain timestamp (12:04:46) matches our cancelled step's kill-failure to the
+second; no other user had a job on the node at any point today.</p>
+<p><strong>Contrast — yesterday (2026-05-26 18:18:49):</strong> Reason was
+<code>"Kill task failed : Not responding"</code> (extra "Not responding") and
+coincided with Group B user <code>murawan</code> + <code>cuInit rc=3</code>
+failures — a partly-external signature. Today has neither.</p>
+
+<h2 id="mechanism">Why the process was unkillable</h2>
+<ol>
+<li>The prefetch double-buffer (commit <code>4f7ab48</code>) used a producer
+thread pool feeding a bounded queue. A producer raised on a bad shot and died
+without signalling → the consumer blocked forever on <code>queue.get()</code> →
+<strong>deadlock</strong>.</li>
+<li>With the daemon mid-CUDA and threads blocked, the process sat in
+uninterruptible kernel sleep (<code>D</code>). <code>SIGKILL</code> cannot reap a
+<code>D</code>-state process until the kernel call returns — which never happens
+for a wedged CUDA/GPFS op.</li>
+<li><code>UnkillableStepTimeout</code> expired → "Kill task failed" → drain.</li>
+</ol>
+
+<h2 id="prevention">Prevention (in motion)</h2>
+<ol>
+<li><strong>Retire the legacy frame-daemon path.</strong> <code>stream_encode.py</code>
+(in-process, no subprocess daemon, no prefetch threads) removes both drain
+surfaces and becomes the sole frame encoder once GPU-validated.</li>
+<li><strong>Graceful SIGTERM handler</strong> — clean shutdown in &lt;5&nbsp;s
+(HARDEN-STREAM).</li>
+<li><strong>Per-shot/batch watchdog</strong> — abort a stuck unit instead of hanging.</li>
+<li><strong>Never <code>scancel</code> a CUDA-wedged job</strong> expecting clean
+teardown — detect the hang early (token-rate watchdog) and exit cleanly.</li>
+</ol>
+
+<h2 id="admin">Admin instructions (ordered)</h2>
+<ol>
+<li><strong>Check for stuck processes</strong> (cards held 5–22&nbsp;GB at 0% after
+the drain — un-reaped CUDA contexts):
+<pre><code>nvidia-smi
+ps -eo pid,stat,user,cmd | grep -E "worker.py|encode_one_shard|magvit|python" | grep -v grep
+#   look for state 'D' (uninterruptible) or 'Z' (zombie) owned by mcintos</code></pre></li>
+<li><strong>If stuck procs / held memory remain</strong> (likely): a plain resume
+hands the next job a dirty GPU. Clear it: <code>nvidia-smi --gpu-reset</code> (per
+GPU; reboot if a process is wedged).</li>
+<li><strong>Resume</strong> once GPUs are clean (0 procs, 0 MiB):
+<pre><code>scontrol update nodename=98dci4-gpu-0003 state=resume reason=""</code></pre></li>
+<li><strong>Consider</strong> raising <code>UnkillableStepTimeout</code> (~120&nbsp;s)
+for this partition — though the real fix is our side (above).</li>
+</ol>
+
+<h2 id="status">Queued work (auto-runs on resume)</h2>
+<ul>
+<li><code>1208239</code> (stream byte-diff vs live) + <code>1208235</code>
+(200-shot util/HBM/throughput) → <code>…/_stream_validation/RESULTS.txt</code>.</li>
+<li>2,119 rbb shots already tokenised are preserved (skip-existing).</li>
+<li>Before re-running production: land the SIGTERM handler + watchdog and switch
+to <code>stream_encode.py</code>, so a future hang exits cleanly instead of
+draining the node.</li>
+</ul>
+
+</main>
+</body>
+</html>

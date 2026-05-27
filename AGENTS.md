@@ -122,9 +122,13 @@ requires `nvidia-smi --gpu-reset` or a reboot to clear.
    threads) over the legacy file-IPC daemon. Both removed surfaces were drain
    causes: a prefetch producer dying on a bad shot blocked the consumer
    forever; a subprocess daemon mid-CUDA was unkillable.
-4. **Until the legacy prefetch path has an exception-safe queue + watchdog,
-   run it with `--no-prefetch`** (the prefetch path deadlocked; `--no-prefetch`
-   ran stably).
+4. **The legacy frame-daemon / prefetch path is deprecated.** `stream_encode.py`
+   (in-process, hardened: graceful SIGTERM + per-batch watchdog, commit
+   `4f820da`) is the sole frame encoder going forward. The legacy path
+   (`OpenMagvit2Tokenizer` subprocess daemon + the `bulk_encode_frames`
+   prefetch + `encode_one_shard.py`) **deadlocked and drained the node** — do
+   NOT run it. It is slated for deletion once `stream_encode` passes GPU
+   validation; we do not harden or carry it.
 5. **Never `scancel` a CUDA-wedged job and assume clean teardown.** Detect the
    hang early — a token-rate / heartbeat watchdog that exits cleanly — instead
    of killing a wedged process and triggering the drain.

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="sdcc-cuda-init-failure-2026-05-26">
+<title>SDCC ticket — CUDA init failure 98dci4-gpu-0003 (2026-05-26) | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="reckon-type" content="doc">
+<meta name="plan-title" content="SDCC ticket — CUDA init failure on 98dci4-gpu-0003 (2026-05-26)">
+<meta name="plan-summary" content="cuInit rc=3 from pure C across the Group A reservation starting 18:31, coincident with Group B job 1208566 coming online; node went DOWN+DRAIN+NOT_RESPONDING. Minimal repro + proposed fix.">
+<meta name="plan-status" content="shipped">
+<meta name="plan-roi" content="mid">
+<meta name="plan-effort" content="S">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-26">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><span class="status shipped"><span class="dot"></span>SDCC ticket</span> —
+CUDA-runtime init failure on <code>98dci4-gpu-0003</code>, 2026-05-26.
+Node recovered after reboot; superseded by the 2026-05-27 drain RCA
+(<a href="rca-node-drain-2026-05-27.html">rca-node-drain-2026-05-27</a>).</p>
+
+<h2 id="symptom">Symptom</h2>
+<p>Every CUDA-driver call inside a Group A allocation failed with
+<code>cuInit() rc = 3</code> (<code>CUDA_ERROR_NOT_INITIALIZED</code>),
+reproducible from pure C with no PyTorch. <code>nvidia-smi</code> / NVML kept
+working — only the CUDA runtime/driver API path was broken. Node then went
+<code>DOWN+DRAIN+NOT_RESPONDING</code>.</p>
+
+<h2 id="repro">Minimal repro (pure C, no torch)</h2>
+<pre><code>sbatch --partition=betelgeuse --reservation=gpu_0003_grpA --account=grpa \
+       --gres=gpu:1 --cpus-per-task=1 --mem=4G --time=00:02:00 --wrap='
+cat &gt; /tmp/t.c &lt;&lt;EOF
+#include &lt;stdio.h&gt;
+#include &lt;dlfcn.h&gt;
+int main(){ void*h=dlopen("libcuda.so.1",RTLD_NOW);
+  int(*cuInit)(unsigned)=dlsym(h,"cuInit");
+  printf("cuInit rc=%d\n",cuInit(0)); return 0; }
+EOF
+gcc /tmp/t.c -o /tmp/t -ldl &amp;&amp; /tmp/t'</code></pre>
+<p>Expected <code>cuInit rc=0</code>; observed <code>cuInit rc=3</code>.</p>
+
+<h2 id="cause">Hypothesised cause</h2>
+<p>Driver/cgroup state degraded after concurrent Group A + Group B activity —
+the failure began when Group B job <code>1208566</code> (<code>murawan</code>)
+started, the only concurrent change. Group A lost CUDA-runtime access while
+keeping NVML. Looks like a driver state machine wedged between two cgroup
+contexts on the same physical device.</p>
+
+<h2 id="fix">Proposed fix (in order)</h2>
+<ol>
+<li><code>nvidia-smi --gpu-reset</code> while no jobs run.</li>
+<li>Reload nvidia modules (<code>rmmod nvidia_uvm nvidia_modeset nvidia</code> +
+<code>modprobe</code>) after draining.</li>
+<li>Reboot the node if module reload isn't feasible.</li>
+</ol>
+<p>Follow-up question for SDCC: does the SLURM gres cgroup plugin correctly
+isolate CUDA/UVM/NVRM state between concurrent Group A and Group B jobs? If
+Group B can wedge Group A's CUDA path, the device-cgroup isolation may need a
+kernel-module config tweak.</p>
+
+</main>
+</body>
+</html>
