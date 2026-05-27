@@ -28,10 +28,32 @@
 #          scripts/slurm/stream_encode_rbb.sbatch
 
 set -e
-cd /home/ITER/mcintos/Code/imas-ambix
+REPO=/home/ITER/mcintos/Code/imas-ambix
+MAGVIT2_ROOT=/work/projects/imas_gpu/mast-tokens/v1/open-magvit2
+
+# CWD MUST be the magvit2 root. VQModel.__init__ builds the LPIPS loss, which
+# loads vgg.pth via a CWD-RELATIVE path. betelgeuse has NO outbound network, so
+# a wrong CWD makes the vendored loader try to DOWNLOAD the weights and hang in
+# unkillable I/O — and a scancel of that hang DRAINS the node ("Kill task
+# failed", node-drain 2026-05-27 #3, RCA docs/rca-node-drain-2026-05-27b.html).
+cd "$MAGVIT2_ROOT"
+
 export TMPDIR=/tmp
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONUNBUFFERED=1
-export PYTHONPATH="$PWD:$PYTHONPATH"
+export PYTHONPATH="$REPO:$PYTHONPATH"
+# Force offline: any stray HF/torch-hub fetch fails fast instead of hanging on
+# a doomed (no-network) download that can wedge and drain the node.
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+
+# Preflight: the LPIPS weights MUST be on disk at the CWD-relative path the
+# vendored loader uses. Fail FAST (clear error, clean exit) rather than letting
+# a download attempt hang — converting a node-drain risk into a 1-line error.
+LPIPS_REL="src/Open_MAGVIT2/modules/autoencoder/lpips/vgg.pth"
+if [ ! -f "$MAGVIT2_ROOT/$LPIPS_REL" ]; then
+    echo "FATAL: LPIPS weights missing at $MAGVIT2_ROOT/$LPIPS_REL" >&2
+    echo "       (betelgeuse has no network — cannot download). Aborting." >&2
+    exit 1
+fi
 
 VENV_PY=/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv/bin/python
 N_SHARDS="${N_SHARDS:-4}"
@@ -53,7 +75,7 @@ echo "batch_frames=$BATCH_FRAMES num_workers=$NUM_WORKERS"
 echo "stream_root=$STREAM_ROOT"
 echo "report:     $REPORT"
 
-time "$VENV_PY" imas_ambix/data/stream_encode.py \
+time "$VENV_PY" "$REPO/imas_ambix/data/stream_encode.py" \
     --shard "$SLURM_ARRAY_TASK_ID" \
     --n-shards "$N_SHARDS" \
     --camera "$CAMERA" \
