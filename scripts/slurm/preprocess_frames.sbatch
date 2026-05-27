@@ -16,17 +16,19 @@
 #
 # Partition: sun (CPU, network + GPFS access — no GPU needed)
 # Cores:     36 (saturates GPFS bandwidth for the open+normalise+write loop)
-# Memory:    64G (36 × ~1.8 GB per worker peak for uint16 + intermediates)
-# Time:      3h (conservative: ~9,527 shots at ~0.4 s/shot / 36 workers ≈ 1.7 h)
-#
-# DO NOT submit until job 1207977 (zarr-consolidate) completes.
-# Monitor: squeue -j 1207977
+# Memory:    256G  [OOM fix 2026-05-27: job 1208031 OOM'd at ~95/9527 shots
+#                  with 36 workers × ~2 GB peak >> 64 GB; drop to 12 workers
+#                  (12 × ~2 GB = ~24 GB + overhead, comfortable in 256 GB)]
+# Workers:   12 (memory-bounded; GPFS throughput still saturated by 12 threads)
+# Time:      6h (conservative: ~9,432 remaining shots / 12 workers ≈ 3-4 h)
+# Resize:    torch (q1 locked 2026-05-27 — cv2 not installed in ambix venv)
+# Skip:      --skip-existing so the ~95 already-done shots are not redone.
 
 #SBATCH --job-name=ambix-preprocess-frames
 #SBATCH --partition=sun
 #SBATCH --cpus-per-task=36
-#SBATCH --mem=64G
-#SBATCH --time=03:00:00
+#SBATCH --mem=256G
+#SBATCH --time=06:00:00
 #SBATCH --output=/work/projects/imas_gpu/preprocess-frames-%j.log
 #SBATCH --error=/work/projects/imas_gpu/preprocess-frames-%j.log
 
@@ -40,19 +42,21 @@ mkdir -p "$TMPDIR"
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 cd /home/ITER/mcintos/Code/imas-ambix
 
-echo "[$(date -Iseconds)] node=$(hostname) job=${SLURM_JOB_ID:-local} cpus=36"
+echo "[$(date -Iseconds)] node=$(hostname) job=${SLURM_JOB_ID:-local} cpus=36 workers=12 mem=256G"
 echo "[$(date -Iseconds)] TMPDIR=$TMPDIR"
 
-# resize-backend=torch (q1 locked 2026-05-27): cv2 is not installed in the
-# ambix venv, and torch F.interpolate matches the daemon resize byte-for-byte
-# so precomputed and live-encoded shots yield identical tokens.
 mkdir -p /work/projects/imas_gpu/mast/preprocessed/rbb-256
+
+# --workers 12: memory-bounded (12 × ~2 GB peak ≈ 24 GB + overhead << 256 GB)
+# --resize-backend torch: q1 locked — cv2 not installed; torch F.interpolate
+#   matches the daemon resize byte-for-byte for token-id parity.
+# --skip-existing: ~95 shots from job 1208031 are already done; do not redo.
 uv run ambix data preprocess-frames \
     --from-bucket-all \
     --camera rbb \
     --image-size 256 \
     --resize-backend torch \
-    --workers 36 \
+    --workers 12 \
     --skip-existing \
     --output "/work/projects/imas_gpu/mast/preprocessed/preprocess_report_${SLURM_JOB_ID:-local}.json"
 
