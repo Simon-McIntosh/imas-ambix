@@ -23,13 +23,41 @@ import tempfile
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import numpy as np
 
 from imas_ambix.tokenizer.base import EncodedFrames
 from imas_ambix.tokenizer.registry import registry
+
+
+@dataclass
+class PreparedFrames:
+    """CPU-side staged frame input ready for the GPU encode step.
+
+    Produced by :meth:`OpenMagvit2Tokenizer.prepare` (the CPU/IO half of an
+    encode: load + normalise + RGB-replicate + write ``.npy``) and consumed
+    by :meth:`OpenMagvit2Tokenizer.encode_prepared` (the GPU half: daemon
+    request + registry shift).  Splitting the two phases lets a prefetch
+    producer overlap shot N+1's CPU prep with shot N's GPU encode.
+
+    ``cleanup`` releases any temp resources (the staged ``.npy`` dir).  It is
+    idempotent and called by ``encode_prepared``; callers that abandon a
+    prepared item (e.g. on error) must call it themselves.
+    """
+
+    input_path: Path
+    input_h: int
+    input_w: int
+    input_shape: tuple[int, ...]
+    _tmpdir: Any = field(default=None, repr=False, compare=False)
+
+    def cleanup(self) -> None:
+        """Release the staged temp directory (idempotent)."""
+        if self._tmpdir is not None:
+            self._tmpdir.cleanup()
+            self._tmpdir = None
 
 
 def _normalise_frames_to_uint8(frames: np.ndarray) -> np.ndarray:
@@ -197,8 +225,8 @@ class OpenMagvit2Tokenizer:
     batch_size: int = 4
     persistent: bool = True
 
-    _proc: Optional[subprocess.Popen] = field(default=None, repr=False, compare=False)
-    _lock: Optional[threading.Lock] = field(default=None, repr=False, compare=False)
+    _proc: subprocess.Popen | None = field(default=None, repr=False, compare=False)
+    _lock: threading.Lock | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         self.root = Path(self.root)
@@ -231,10 +259,14 @@ class OpenMagvit2Tokenizer:
             str(self._python),
             str(self._worker),
             "daemon",
-            "--device", self.device,
-            "--image-size", str(self.image_size),
-            "--batch-size", str(self.batch_size),
-            "--ckpt", str(self._ckpt),
+            "--device",
+            self.device,
+            "--image-size",
+            str(self.image_size),
+            "--batch-size",
+            str(self.batch_size),
+            "--ckpt",
+            str(self._ckpt),
         ]
         self._proc = subprocess.Popen(
             cmd,
@@ -306,36 +338,85 @@ class OpenMagvit2Tokenizer:
         except Exception:
             self._proc.kill()
 
-    def encode(self, frames: np.ndarray) -> EncodedFrames:
-        """Encode ``(T, H, W)`` or ``(T, H, W, C)`` frames into global token ids."""
+    def prepare(self, frames: np.ndarray, *, presized: bool = False) -> PreparedFrames:
+        """Stage the CPU/IO half of an encode and return a :class:`PreparedFrames`.
+
+        This does normalise → RGB-replicate → write a temp ``.npy`` — every
+        byte the daemon consumes — but issues no GPU work.  Pair it with
+        :meth:`encode_prepared`.  ``encode`` is exactly
+        ``encode_prepared(prepare(frames))`` so the single-call path is
+        byte-for-byte unchanged.
+
+        Parameters
+        ----------
+        frames:
+            ``(T, H, W)`` or ``(T, H, W, 3)`` array.  When *presized* is
+            ``True`` the input is taken to be already-normalised RGB uint8
+            (e.g. read from a precomputed ``rbb-256`` store) and is written
+            straight through without re-normalising — the daemon's resize to
+            ``image_size`` is a near-identity on already-``image_size``²
+            input.  When ``False`` (default) the legacy normalise+RGB path
+            runs, preserving the running job's behaviour exactly.
+        """
         import numpy as np
 
-        u8 = _normalise_frames_to_uint8(frames)
-        # The worker expects (T, H, W, 3) uint8
-        if u8.ndim == 3:
-            u8_rgb = np.repeat(u8[..., None], 3, axis=-1)
-        elif u8.ndim == 4 and u8.shape[-1] == 3:
-            u8_rgb = u8
+        if presized:
+            u8_rgb = np.asarray(frames)
+            if u8_rgb.dtype != np.uint8 or u8_rgb.ndim != 4 or u8_rgb.shape[-1] != 3:
+                raise ValueError(
+                    "presized frames must be (T,H,W,3) uint8, got "
+                    f"shape={u8_rgb.shape} dtype={u8_rgb.dtype}"
+                )
         else:
-            raise ValueError(f"frames must be (T,H,W) or (T,H,W,3), got {u8.shape}")
+            u8 = _normalise_frames_to_uint8(frames)
+            # The worker expects (T, H, W, 3) uint8
+            if u8.ndim == 3:
+                u8_rgb = np.repeat(u8[..., None], 3, axis=-1)
+            elif u8.ndim == 4 and u8.shape[-1] == 3:
+                u8_rgb = u8
+            else:
+                raise ValueError(f"frames must be (T,H,W) or (T,H,W,3), got {u8.shape}")
 
         input_h, input_w = u8_rgb.shape[1], u8_rgb.shape[2]
-        with tempfile.TemporaryDirectory(prefix="magvit2-enc-") as tmp:
-            in_path = Path(tmp) / "frames.npy"
-            out_path = Path(tmp) / "tokens.npy"
-            np.save(in_path, u8_rgb)
+        tmp = tempfile.TemporaryDirectory(prefix="magvit2-enc-")
+        in_path = Path(tmp.name) / "frames.npy"
+        np.save(in_path, u8_rgb)
+        return PreparedFrames(
+            input_path=in_path,
+            input_h=int(input_h),
+            input_w=int(input_w),
+            input_shape=tuple(int(x) for x in frames.shape),
+            _tmpdir=tmp,
+        )
+
+    def encode_prepared(self, prepared: PreparedFrames) -> EncodedFrames:
+        """Run the GPU half of an encode on a :class:`PreparedFrames`.
+
+        Issues the daemon encode request on the pre-staged ``.npy`` and
+        applies the registry shift.  Always releases the prepared item's
+        temp dir before returning (including on error).
+        """
+        import numpy as np
+
+        try:
+            in_path = prepared.input_path
+            out_path = in_path.parent / "tokens.npy"
             if self.persistent and self._proc is not None:
-                self._daemon_request({
-                    "op": "encode",
-                    "input": str(in_path),
-                    "output": str(out_path),
-                })
+                self._daemon_request(
+                    {
+                        "op": "encode",
+                        "input": str(in_path),
+                        "output": str(out_path),
+                    }
+                )
             else:
                 self._run_worker(
                     "encode",
                     ["--input", str(in_path), "--output", str(out_path)],
                 )
             local_ids = np.load(out_path)
+        finally:
+            prepared.cleanup()
 
         global_ids = registry.shift(self.name, local_ids)
         return EncodedFrames(
@@ -343,14 +424,18 @@ class OpenMagvit2Tokenizer:
             shape=tuple(global_ids.shape),
             tokenizer_name=self.name,
             metadata={
-                "input_shape": list(frames.shape),
+                "input_shape": list(prepared.input_shape),
                 "model_image_size": self.image_size,
                 "spatial_compression": self.spatial_compression,
                 "temporal_compression": self.temporal_compression,
-                "original_hw": [int(input_h), int(input_w)],
+                "original_hw": [int(prepared.input_h), int(prepared.input_w)],
                 "ckpt": "imagenet_256_L.ckpt",
             },
         )
+
+    def encode(self, frames: np.ndarray) -> EncodedFrames:
+        """Encode ``(T, H, W)`` or ``(T, H, W, C)`` frames into global token ids."""
+        return self.encode_prepared(self.prepare(frames))
 
     def decode(self, tokens: EncodedFrames) -> np.ndarray:
         """Decode global token ids back to ``(T, H, W, 3)`` uint8 frames."""
@@ -368,12 +453,14 @@ class OpenMagvit2Tokenizer:
             out_path = Path(tmp) / "recon.npy"
             np.save(in_path, local.astype(np.int64))
             if self.persistent and self._proc is not None:
-                self._daemon_request({
-                    "op": "decode",
-                    "input": str(in_path),
-                    "output": str(out_path),
-                    "target_hw": target,
-                })
+                self._daemon_request(
+                    {
+                        "op": "decode",
+                        "input": str(in_path),
+                        "output": str(out_path),
+                        "target_hw": target,
+                    }
+                )
             else:
                 self._run_worker(
                     "decode",

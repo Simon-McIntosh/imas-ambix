@@ -27,14 +27,38 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--shard", type=int, required=True, help="this shard index (0-based)")
-    parser.add_argument("--n-shards", type=int, required=True, help="total number of shards")
+    parser.add_argument(
+        "--shard", type=int, required=True, help="this shard index (0-based)"
+    )
+    parser.add_argument(
+        "--n-shards", type=int, required=True, help="total number of shards"
+    )
     parser.add_argument("--camera", default="rbb")
     parser.add_argument("--output-dir", default="/work/projects/imas_gpu/mast/tokens")
     parser.add_argument("--report", required=True)
     parser.add_argument("--vocab-version", default="v1")
     parser.add_argument("--max-shots", type=int, default=None)
     parser.add_argument("--no-skip-existing", action="store_true")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=32,
+        help="daemon GPU batch size (default 32; GPU mem ~22%% used at 8)",
+    )
+    parser.add_argument(
+        "--no-prefetch",
+        action="store_true",
+        help="disable the CPU-prep double-buffer (use the legacy serial path)",
+    )
+    parser.add_argument(
+        "--preprocessed-root",
+        default=None,
+        help=(
+            "root of precomputed (T,256,256,3) uint8 frame stores; when a "
+            "shot's <root>/<shot>.zarr exists it is read directly, skipping "
+            "L1 open + normalise + resize. Default: legacy L1 path only."
+        ),
+    )
     args = parser.parse_args()
 
     os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
@@ -61,10 +85,15 @@ def main() -> int:
     )
 
     t0 = time.monotonic()
-    tok = OpenMagvit2Tokenizer(device="cuda", batch_size=8)
+    tok = OpenMagvit2Tokenizer(device="cuda", batch_size=args.batch_size)
     t_ready = time.monotonic() - t0
-    print(f"[shard{args.shard}] daemon ready in {t_ready:.1f}s", flush=True)
+    print(
+        f"[shard{args.shard}] daemon ready in {t_ready:.1f}s "
+        f"(batch_size={args.batch_size})",
+        flush=True,
+    )
 
+    preprocessed_root = Path(args.preprocessed_root) if args.preprocessed_root else None
     reports = bulk_encode_frames(
         shard,
         args.camera,
@@ -72,6 +101,8 @@ def main() -> int:
         max_workers=1,
         skip_existing=not args.no_skip_existing,
         vocab_version=args.vocab_version,
+        prefetch=not args.no_prefetch,
+        preprocessed_root=preprocessed_root,
     )
     elapsed = time.monotonic() - t0
     n_ok = sum(1 for r in reports if r.error is None)
@@ -82,19 +113,25 @@ def main() -> int:
         flush=True,
     )
 
-    Path(args.report).write_text(json.dumps({
-        "shard": args.shard,
-        "n_shards": args.n_shards,
-        "n_shots": len(shard),
-        "n_ok": n_ok,
-        "n_fail": n_fail,
-        "daemon_startup_s": round(t_ready, 1),
-        "total_s": round(elapsed, 1),
-        "errors": [
-            {"shot_id": r.shot_id, "error": r.error}
-            for r in reports if r.error is not None
-        ][:50],
-    }, indent=2))
+    Path(args.report).write_text(
+        json.dumps(
+            {
+                "shard": args.shard,
+                "n_shards": args.n_shards,
+                "n_shots": len(shard),
+                "n_ok": n_ok,
+                "n_fail": n_fail,
+                "daemon_startup_s": round(t_ready, 1),
+                "total_s": round(elapsed, 1),
+                "errors": [
+                    {"shot_id": r.shot_id, "error": r.error}
+                    for r in reports
+                    if r.error is not None
+                ][:50],
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
