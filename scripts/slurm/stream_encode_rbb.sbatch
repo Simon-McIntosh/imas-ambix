@@ -77,6 +77,9 @@ EXTRA=()
 [ -n "${MAX_SHOTS:-}" ] && EXTRA+=(--max-shots "$MAX_SHOTS")
 [ -n "${MAX_FRAMES:-}" ] && EXTRA+=(--max-frames "$MAX_FRAMES")
 [ -n "${EXPLICIT_SHOTS:-}" ] && EXTRA+=(--explicit-shots "$EXPLICIT_SHOTS")
+# Resumable re-run after a walltime timeout: skip shots already encoded with
+# the CURRENT tokenizer. Set SKIP_EXISTING=1 for the resume, not the first run.
+[ "${SKIP_EXISTING:-0}" = "1" ] && EXTRA+=(--skip-existing)
 
 echo "=== stream shard ${SLURM_ARRAY_TASK_ID}/${N_SHARDS} on $(hostname) ==="
 echo "started:    $(date +%H:%M:%S)"

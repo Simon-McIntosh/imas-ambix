@@ -989,6 +989,28 @@ def _build_shotlist(
     return shots[shard::n_shards]
 
 
+def _output_complete(shot_id: int, camera: str, stream_root: Path) -> bool:
+    """True if a readable token zarr already exists for this shot.
+
+    Used by --skip-existing to make the corpus encode RESUMABLE: a run that
+    times out at the SLURM walltime leaves completed shots persisted (the
+    SIGTERM handler flushes the async writer on graceful stop), and a re-run
+    skips them. Validates the zarr opens and has a non-empty ``tokens`` array
+    so a torn write (should not happen on graceful stop, but be safe) is
+    re-encoded rather than silently skipped.
+    """
+    import zarr
+
+    path = stream_frames_token_path(shot_id, camera, stream_root)
+    if not path.exists():
+        return False
+    try:
+        store = zarr.open_group(str(path), mode="r")
+        return int(np.asarray(store["tokens"]).shape[0]) > 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -1035,6 +1057,13 @@ def main(argv: list[str] | None = None) -> int:
         help="comma-separated shot ids; bypasses manifest sharding",
     )
     parser.add_argument("--report", default=None)
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="skip shots whose token zarr already exists (resumable re-run "
+        "after a walltime timeout). Safe only when existing outputs are the "
+        "CURRENT tokenization.",
+    )
     args = parser.parse_args(argv)
 
     if args.explicit_shots:
@@ -1049,6 +1078,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.max_shots:
             shots = shots[: args.max_shots]
+
+    if args.skip_existing:
+        before = len(shots)
+        shots = [
+            s
+            for s in shots
+            if not _output_complete(s, args.camera, Path(args.stream_root))
+        ]
+        print(
+            f"[stream] skip-existing: {before - len(shots)} already done, "
+            f"{len(shots)} to encode",
+            flush=True,
+        )
 
     print(
         f"[stream shard{args.shard}/{args.n_shards}] {len(shots)} shots "
