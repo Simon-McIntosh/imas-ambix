@@ -111,6 +111,101 @@ LPIPS uses a CWD-relative weights path; any harness that runs it must
 <code>cd</code> to the magvit2 root (and the production sbatch now does).</li>
 </ul>
 
+<h2 id="attribution-vs-fragility">Is this all our fault? Attribution vs. fragility</h2>
+<p>These are two separate questions, and conflating them is what makes the node
+look entirely like an ambix problem when it is not:</p>
+<table class="grid">
+<thead><tr><th>Drain</th><th>Trigger</th><th>Whose trigger?</th></tr></thead>
+<tbody>
+<tr><td>#1 — 2026-05-26 18:18</td><td>CUDA-init failure
+("Not responding"), <em>coincident with Group B contention</em></td>
+<td><strong>Ambiguous / shared</strong> — Group B was active on the node</td></tr>
+<tr><td>#2 — 2026-05-27 12:04</td><td>our prefetch producer/consumer
+deadlock</td><td>Ours (job logic)</td></tr>
+<tr><td>#3 — 2026-05-27 16:04</td><td>wrong-CWD → no-network download hang +
+our scancel</td><td>Ours (trigger)</td></tr>
+</tbody>
+</table>
+<p><strong>Trigger ≠ outage.</strong> Yes, 2 of 3 triggers were our jobs (the
+third was at least partly external). We own that and have hardened our jobs
+accordingly. But the <em>trigger</em> is a routine, recoverable user mistake —
+a hung process. What turns it into a <strong>shared, multi-hour outage</strong>
+is the node/cluster configuration, and that is independent of who pulled the
+trigger:</p>
+<ul>
+<li><strong>No auto-recovery.</strong> A single unkillable step
+<code>DRAIN</code>s the <em>whole node</em> and it stays down until a human runs
+<code>scontrol resume</code> — even when the GPUs are provably clean. Today the
+job never touched CUDA, yet the node has sat drained for ~45 min awaiting manual
+action. That is pure configuration fragility, not a property of our code.</li>
+<li><strong>Egress that <code>DROP</code>s instead of <code>REJECT</code>s.</strong>
+A correctly air-gapped node would make a stray download fail in milliseconds.
+Instead the connection hung for minutes — long enough to wedge the step. A
+network-policy choice, not ours.</li>
+<li><strong>Single node, two groups, shared fate.</strong> Any wedge by
+<em>either</em> group takes the resource offline for <em>both</em>. A
+provisioning choice that amplifies every individual error into a collective
+outage.</li>
+<li><strong>Manual <code>gpu-reset</code> for D-state cleanup.</strong> Inherent
+to the OS/driver, but with no health-check automation every instance needs a
+human.</li>
+</ul>
+<p><strong>Conclusion.</strong> We own our triggers and have closed them
+(offline+preflight, SIGTERM handlers, watchdogs, in-process pipeline). But the
+<em>severity and duration</em> of each event is a property of the cluster setup,
+not of ambix. The identical triggers — from us, from Group B, or from a hardware
+hiccup — would be self-healing non-events on a node configured for resilient
+shared use. The recommendations below are the levers that make that true.</p>
+
+<h2 id="admin-recs">Recommendations for SDCC admins — node resilience</h2>
+<p>Three drains in two days from three <em>different</em> failure modes (CUDA
+deadlock, prefetch deadlock, no-network download hang) point at a structural
+fragility: SLURM's default reaction to <em>any</em> unkillable step is to
+<code>DRAIN</code> the whole node, and recovery is a manual
+<code>scontrol resume</code>. On a single shared H200 split between two groups,
+one user's wedge becomes everyone's multi-hour outage. We have hardened our
+jobs (offline + preflight + SIGTERM handlers + watchdogs), but defence-in-depth
+on the node side would make the resource far more robust for both groups:</p>
+<ol>
+<li><strong>Automatic health-check + resume (highest value).</strong> A
+<code>HealthCheckProgram</code> / <code>nhc</code> (or controller cron) that, on
+a node in <code>DRAIN</code> with <code>Reason=Kill task failed</code>, verifies
+the GPUs are clean (<code>nvidia-smi</code> shows no compute procs, memory near
+0) and orphaned PIDs are gone, then <strong>auto-resumes</strong> — escalating to
+a human only when a process is genuinely wedged or GPU memory is dirty. This
+turns the common clean case (like today's — the job never touched CUDA) from a
+multi-hour manual outage into seconds.</li>
+<li><strong>cgroup-based process tracking.</strong> Ensure
+<code>ProctrackType=proctrack/cgroup</code> + <code>TaskPlugin=task/cgroup</code>
+(cgroup v2 <code>cgroup.kill</code>) so an escaped <em>process tree</em>
+(DataLoader workers, subprocess daemons) is reaped via the cgroup freezer rather
+than by PID signalling. Note this does <em>not</em> rescue a genuinely
+<code>D</code>-state (uninterruptible) process — see (3)/(4) for that — but it
+removes the "orphaned child survived" class entirely.</li>
+<li><strong>Egress: REJECT, don't DROP.</strong> betelgeuse has no outbound
+network, but today's download <em>hung for minutes</em> rather than failing —
+the classic signature of a firewall that silently <code>DROP</code>s packets so
+the client waits out a long connect/read timeout. Configuring egress to
+<code>REJECT</code> (send RST/ICMP-unreachable) makes any stray network call
+fail in milliseconds instead of blocking — which would have prevented this
+drain outright, for any user.</li>
+<li><strong>Shared-filesystem I/O timeouts.</strong> The unkillable class is
+processes stuck in <code>D</code> state on a GPFS/driver syscall. Where feasible,
+GPFS/NFS mount timeouts (so I/O errors rather than blocks indefinitely) and
+keeping the NVIDIA fabric-manager/persistence-mode healthy reduce how often a
+process becomes truly unreapable.</li>
+<li><strong>Diagnose before draining.</strong> Set
+<code>UnkillableStepProgram</code> to capture <code>/proc/&lt;pid&gt;/stack</code>,
+<code>nvidia-smi</code>, and the process tree at the moment of the unkillable
+event, and consider a modest bump to <code>UnkillableStepTimeout</code> so a
+merely-slow teardown isn't misread as wedged. This makes every future RCA
+instant instead of forensic.</li>
+</ol>
+<p>Priority order for impact-vs-effort: <strong>(1) auto-resume health-check</strong>
+and <strong>(3) egress REJECT</strong> are the two changes that would have
+prevented today's outage entirely; (2) and (4) reduce the frequency of the
+harder <code>D</code>-state class.</p>
+
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
 </section>
