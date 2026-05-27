@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="rca-node-drain-2026-05-27b">
+<title>RCA — 98dci4-gpu-0003 node drain 2026-05-27 (#3) | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="reckon-type" content="doc">
+<meta name="plan-title" content="RCA — 98dci4-gpu-0003 node drain (2026-05-27 16:04:35, #3)">
+<meta name="plan-summary" content="Third self-inflicted drain: a batch-size probe job had the wrong CWD, so the vendored Open-MAGVIT2 LPIPS loader tried to DOWNLOAD vgg.pth on the no-network betelgeuse node; the download hung in unkillable I/O during model init, scancel could not reap it within UnkillableStepTimeout (60s) → 'Kill task failed' → auto-drain. No Group B involvement. Fix committed 1657bb9.">
+<meta name="plan-status" content="shipped">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="S">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-27">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><span class="status shipped"><span class="dot"></span>Incident RCA</span> —
+node <code>98dci4-gpu-0003</code> drained 2026-05-27 16:04:35. <strong>Verdict:
+self-inflicted</strong> (a probe job hung on a doomed network download and
+could not be killed). <strong>No other-user / Group B involvement</strong> —
+proven below. This is the <strong>third</strong> drain (see
+<a href="/imas-ambix/rca-node-drain-2026-05-27.html">RCA #2, 12:04:46</a>),
+but a <em>new</em> mechanism: network I/O, not a CUDA deadlock.</p>
+
+<h2 id="cause">One-line cause</h2>
+<p>Batch-size probe job <code>1208591</code> ran with the wrong working
+directory (the repo, not the Open-MAGVIT2 root), so the vendored LPIPS loss in
+<code>VQModel.__init__</code> resolved its <em>CWD-relative</em> weights path to
+a non-existent file and fell back to <strong>downloading
+<code>vgg.pth</code></strong> from <code>heibox.uni-heidelberg.de</code>.
+betelgeuse has <strong>no outbound network</strong>, so the download hung in
+uninterruptible I/O <em>during model init, before any CUDA call</em>. A
+<code>scancel</code> could not reap the process within SLURM's
+<code>UnkillableStepTimeout</code> (~60&nbsp;s), slurmd logged
+<code>Kill task failed</code> and <strong>auto-drained the node</strong>.</p>
+
+<h2 id="timeline">Timeline (local)</h2>
+<ul>
+<li><code>15:56:37</code> — job <code>1208591</code> (ambix-bsprobe) starts; model
+init begins.</li>
+<li><code>~15:56:40</code> — LPIPS loader prints <code>Downloading vgg_lpips
+model from https://heibox.uni-heidelberg.de/…</code> and blocks (no network).</li>
+<li><code>16:03:34</code> — I <code>scancel</code> the hung job; SIGTERM sent,
+process does not exit (stuck in I/O).</li>
+<li><code>16:04:35</code> — <code>1208591.batch</code> End, ExitCode
+<code>0:15</code>; slurmd: <code>STEPD TERMINATED … DUE TO JOB NOT ENDING WITH
+SIGNALS</code>; node <code>Reason=Kill task failed [root@2026-05-27T16:04:35]</code>.</li>
+</ul>
+<p>The 61-second gap (16:03:34 → 16:04:35) is exactly the
+<code>UnkillableStepTimeout</code> window.</p>
+
+<h2 id="attribution">Attribution — 100% ours, zero Group B</h2>
+<p><code>sacct -a -N 98dci4-gpu-0003 --starttime=15:50 --endtime=16:06</code>
+lists <strong>only <code>mcintos</code>/<code>grpa</code> jobs</strong> in the
+window — no other account, no Group B step. The node
+<code>Reason</code> timestamp <code>root@16:04:35</code> matches
+<code>1208591.batch</code> End <code>16:04:35</code> to the second. There is no
+ambiguity: this drain is mine.</p>
+
+<h2 id="gpu-state">GPU state — expected clean</h2>
+<p>The job hung in <code>VQModel.__init__</code> (LPIPS download), <em>before</em>
+<code>model.to("cuda")</code> — so no CUDA context was ever created and no GPU
+memory was allocated by this job. Unlike RCA&nbsp;#1/#2 (CUDA-wedged), a
+<code>--gpu-reset</code> or reboot should <strong>not</strong> be required; the
+GPUs should come back clean. Admin should still verify before resume.</p>
+
+<h2 id="fix">Fix (committed <code>1657bb9</code>)</h2>
+<p><code>scripts/slurm/stream_encode_rbb.sbatch</code> hardened so a wrong CWD
+can never trigger a download again:</p>
+<ul>
+<li><strong><code>cd</code> to the magvit2 root</strong> so the LPIPS
+CWD-relative weights path resolves to the on-disk file; the encoder script is
+invoked by absolute path.</li>
+<li><strong>Force offline</strong>: <code>HF_HUB_OFFLINE=1</code>,
+<code>TRANSFORMERS_OFFLINE=1</code>, <code>HF_DATASETS_OFFLINE=1</code> — any
+stray fetch fails fast instead of hanging.</li>
+<li><strong>Preflight assertion</strong>: abort with a clear 1-line error if
+<code>vgg.pth</code> is missing at the expected path — converts a node-drain
+risk into an immediate clean exit.</li>
+</ul>
+
+<h2 id="admin">Admin instructions to resume</h2>
+<ol>
+<li>Confirm GPUs are clean (no stuck procs — expected, since the job never
+reached CUDA):
+<pre>ssh 98dci4-gpu-0003 'nvidia-smi; ps -eo pid,stat,cmd | grep -iE "python|defunct" | grep -v grep'</pre></li>
+<li>Resume (no GPU reset expected):
+<pre>sudo scontrol update nodename=98dci4-gpu-0003 state=resume reason=""</pre></li>
+<li>Only if a python proc is wedged in <code>D</code> state holding GPU memory:
+<code>nvidia-smi --gpu-reset</code> (or reboot), <em>then</em> resume.</li>
+</ol>
+
+<h2 id="lesson">Lessons</h2>
+<ul>
+<li><strong>Never let a GPU job attempt network I/O on betelgeuse.</strong> The
+node has no egress; a download hangs uninterruptibly and a kill of that hang
+drains the node. Offline env + a preflight file check make misconfiguration
+fail fast.</li>
+<li><strong>A <code>scancel</code> is not free.</strong> Cancelling a job stuck
+in network/GPFS I/O can drain the node just as a CUDA-wedge does. Prefer
+preventing the hang to killing it.</li>
+<li><strong>CWD is load-bearing for vendored model code.</strong> Open-MAGVIT2's
+LPIPS uses a CWD-relative weights path; any harness that runs it must
+<code>cd</code> to the magvit2 root (and the production sbatch now does).</li>
+</ul>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+</section>
+
+</main>
+</body>
+</html>
