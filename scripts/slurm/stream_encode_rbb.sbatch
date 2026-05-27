@@ -67,6 +67,9 @@ NUM_WORKERS="${NUM_WORKERS:-6}"
 # shot; a fixed 300s never false-fires (no shot is ~37k frames at ~124 fps) yet
 # still bounds a genuine wedge so the job exits cleanly (no node drain).
 BATCH_TIMEOUT_S="${BATCH_TIMEOUT_S:-300}"
+# Frames per model.encode() forward. Defines the tokenization (the VQ forward
+# is not batch-size invariant) AND drives GPU saturation. Tuned via util tests.
+MODEL_FORWARD_BATCH="${MODEL_FORWARD_BATCH:-256}"
 STREAM_ROOT="${STREAM_ROOT:-/work/projects/imas_gpu/mast-tokens/v1/frames-stream}"
 REPORT=/work/projects/imas_gpu/stream-rbb-shard-${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.json
 
@@ -90,6 +93,7 @@ time "$VENV_PY" "$REPO/imas_ambix/data/stream_encode.py" \
     --batch-frames "$BATCH_FRAMES" \
     --num-workers "$NUM_WORKERS" \
     --batch-timeout-s "$BATCH_TIMEOUT_S" \
+    --model-forward-batch "$MODEL_FORWARD_BATCH" \
     --stream-root "$STREAM_ROOT" \
     --report "$REPORT" \
     "${EXTRA[@]}"

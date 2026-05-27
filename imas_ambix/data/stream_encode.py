@@ -246,6 +246,55 @@ def frames_to_input(
     return t
 
 
+def frames_to_input_device(
+    frames_u8_rgb: np.ndarray,
+    image_size: int,
+    device: str,
+    dtype,
+    resize_chunk: int = 256,
+):
+    """(T,H,W,3) uint8 → (T,3,S,S) in [-1,1] on *device*, resized ON *device*.
+
+    Same math as :func:`frames_to_input` (cast → div255·2−1 → channels_last →
+    bilinear, no antialias, align_corners=False), but the cast+interpolate run
+    on *device*. On cuda this moves the resize off the CPU main thread (it was
+    ~29% of wall time, serialised between GPU forwards — see pipe_diag), so the
+    GPU does resize+forward back-to-back and stays busy.
+
+    Resizing is done in ``resize_chunk``-frame slices so the native-resolution
+    intermediate on the GPU stays bounded (a 11k-frame shot at full res would
+    otherwise be tens of GB). The resize is per-frame independent, so chunking
+    does not change a single output value — only the forward batch (handled in
+    :func:`encode_batch_indices`) is batch-size sensitive.
+
+    NOTE: GPU bilinear interpolate is numerically distinct from CPU interpolate,
+    so tokens from this path differ from the CPU :func:`frames_to_input` path —
+    but they are deterministic/reproducible (the corpus-stability contract),
+    which is what matters. This is the go-forward GPU encode path.
+    """
+    import torch
+    import torch.nn.functional as F
+
+    frames = frames_u8_rgb
+    if frames.ndim == 3:
+        frames = np.repeat(frames[..., None], 3, axis=-1)
+    if frames.ndim != 4 or frames.shape[-1] != 3:
+        raise ValueError(f"expected (T,H,W,3) or (T,H,W), got {frames.shape}")
+
+    n = frames.shape[0]
+    step = max(1, int(resize_chunk))
+    outs = []
+    for i in range(0, n, step):
+        c = torch.from_numpy(frames[i : i + step]).to(device)
+        c = c.to(dtype).div(255.0).mul(2.0).sub(1.0)
+        c = c.permute(0, 3, 1, 2).contiguous(memory_format=torch.channels_last)
+        c = F.interpolate(
+            c, size=(image_size, image_size), mode="bilinear", align_corners=False
+        )
+        outs.append(c)
+    return torch.cat(outs, dim=0) if len(outs) > 1 else outs[0]
+
+
 # --- Model load (mirrors worker.load_model) -------------------------------
 
 
@@ -642,6 +691,7 @@ def stream_encode(
     encode_fn=None,
     prepare_fn=None,
     batch_timeout_s: float = 0.0,
+    model_forward_batch: int = MODEL_FORWARD_BATCH,
 ) -> StreamStats:
     """Continuous-batching encode of *shot_ids* into per-shot token Zarrs.
 
@@ -722,8 +772,13 @@ def stream_encode(
     # — byte-identical to worker._frames_to_input — and we index frame-by-frame
     # into the cross-shot buffer; batching re-stacks them with torch.stack.
     def _default_prepare(shot_u8_rgb: np.ndarray):
-        # (T,H,W,3) uint8 -> (T,3,256,256) on the model dtype/device layout.
-        return frames_to_input(shot_u8_rgb, IMAGE_SIZE, dtype=_input_dtype)
+        # (T,H,W,3) uint8 -> (T,3,256,256) resized ON device. Moving the resize
+        # to the GPU removes the ~29% CPU-resize stall (pipe_diag) that left the
+        # GPU idle between forwards; the returned tensor is already on `device`
+        # so encode_batch_indices' .to(device) is a no-op.
+        return frames_to_input_device(
+            shot_u8_rgb, IMAGE_SIZE, device, _input_dtype
+        )
 
     _prepare = prepare_fn if prepare_fn is not None else _default_prepare
 
@@ -746,7 +801,7 @@ def stream_encode(
     # throughput still comes from the DataLoader prefetch (shot N+1's
     # load+resize overlaps shot N's GPU encode) — just not from frame mixing.
     def _default_encode(prepared_shot) -> np.ndarray:
-        return encode_batch_indices(model, prepared_shot, device)
+        return encode_batch_indices(model, prepared_shot, device, model_forward_batch)
 
     if encode_fn is not None:
         _raw_encode = lambda shot: encode_fn(model, shot)  # noqa: E731
@@ -955,6 +1010,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--batch-frames", type=int, default=256)
+    parser.add_argument(
+        "--model-forward-batch",
+        type=int,
+        default=MODEL_FORWARD_BATCH,
+        help="frames per model.encode() forward. Larger = higher GPU util "
+        "(fewer, bigger kernel launches) but DIFFERENT tokens (the VQ forward "
+        "is not batch-size invariant). FIXED per corpus — it defines the "
+        "tokenization. Must be re-validated for cross-process reproducibility.",
+    )
     parser.add_argument("--num-workers", type=int, default=12)
     parser.add_argument(
         "--batch-timeout-s",
@@ -1018,6 +1082,7 @@ def main(argv: list[str] | None = None) -> int:
             num_workers=args.num_workers,
             max_frames=args.max_frames,
             batch_timeout_s=args.batch_timeout_s,
+            model_forward_batch=args.model_forward_batch,
         )
     finally:
         # Always release the model + free HBM, even on the abort path. This is
