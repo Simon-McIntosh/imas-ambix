@@ -91,8 +91,54 @@ sbatch --partition=betelgeuse \
 - **Strategy**: Download models and install packages from standard compute nodes into shared GPFS, then serve from GPU nodes.
 
 **SLURM workarounds:**
-- `export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p "$TMPDIR"` — default TMPDIR is broken on this node
+- `export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p "$TMPDIR"` — default TMPDIR is broken on this node (on non-betelgeuse partitions like `sun` use `TMPDIR=/tmp`; `/scratch_local` only exists on betelgeuse)
 - Use `srun` with the same flags for interactive jobs
+
+## 2a. GPU Job Safety — node-drain prevention (MANDATORY)
+
+`98dci4-gpu-0003` is the **only** H200 node, shared with Group B. It has been
+**drained twice** by hung ambix GPU jobs (2026-05-26, 2026-05-27 — see
+`docs/rca-node-drain-2026-05-27.md`). A drain takes the whole reservation
+offline until an admin resumes it. **Do not crash this node.**
+
+**Failure mechanism.** A GPU process stuck in uninterruptible kernel sleep
+(`D` state — wedged on a CUDA or GPFS call) cannot be reaped by SIGTERM or
+SIGKILL. When `scancel` can't kill the step within SLURM's
+`UnkillableStepTimeout` (~60 s), slurmd marks **"Kill task failed"** and
+auto-DRAINs the node. Stale GPU memory from the un-reaped process then
+requires `nvidia-smi --gpu-reset` or a reboot to clear.
+
+**Binding rules for any long-running GPU job:**
+
+1. **Install a SIGTERM/SIGINT handler** that cleanly shuts down workers,
+   flushes writers, releases the model, and exits in < 5 s — well under
+   `UnkillableStepTimeout`. A clean self-exit does NOT drain the node; an
+   unkillable kill DOES.
+2. **Add a per-shot / per-batch watchdog timeout.** Abort a single stuck unit
+   (e.g. > N× the median time) rather than letting it hang the whole job.
+3. **No deadlock-prone IPC.** Prefer the **in-process streaming encoder**
+   (`imas_ambix/data/stream_encode.py`: torch `DataLoader` + cross-shot
+   continuous batching, no subprocess daemon, no prefetch producer/consumer
+   threads) over the legacy file-IPC daemon. Both removed surfaces were drain
+   causes: a prefetch producer dying on a bad shot blocked the consumer
+   forever; a subprocess daemon mid-CUDA was unkillable.
+4. **Until the legacy prefetch path has an exception-safe queue + watchdog,
+   run it with `--no-prefetch`** (the prefetch path deadlocked; `--no-prefetch`
+   ran stably).
+5. **Never `scancel` a CUDA-wedged job and assume clean teardown.** Detect the
+   hang early — a token-rate / heartbeat watchdog that exits cleanly — instead
+   of killing a wedged process and triggering the drain.
+
+**When a drain happens (RCA procedure):**
+1. `sacct -a -N 98dci4-gpu-0003 --starttime=<window>` — list ALL users' jobs to
+   determine cause and rule Group B in/out (check for non-`grpa` accounts).
+2. Match the node `Reason=...[root@<ts>]` timestamp against your `scancel` /
+   job-end times (`sacct` End + `.batch` ExitCode) to attribute it.
+3. Write `docs/rca-node-drain-<date>.md` and give ordered admin instructions:
+   **check stuck procs (`nvidia-smi`, `ps -eo pid,stat,cmd`) → `nvidia-smi
+   --gpu-reset` or reboot → `scontrol update nodename=98dci4-gpu-0003
+   state=resume reason=""`** (resume only after the GPUs are confirmed clean,
+   else the next job inherits a dirty GPU).
 
 ## 3. Storage Paths
 
