@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import json
 import queue
+import signal
 import threading
 import time
 from dataclasses import dataclass, field
@@ -58,6 +59,58 @@ import numpy as np
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+
+# --- Graceful-shutdown stop flag ------------------------------------------
+#
+# The RCA (docs/rca-node-drain-2026-05-27.md) showed that a GPU process which
+# does not exit within SLURM's UnkillableStepTimeout (~60 s) on scancel auto-
+# drains the H200 node. The entire hardening contract here is: on SIGTERM/
+# SIGINT, set this flag; the encode loop checks it between batches and breaks
+# out of the run; main() then tears down workers + writer + model in a
+# try/finally so we exit cleanly well under the timeout.
+#
+# It is a module-level threading.Event so a watchdog thread (per-batch
+# timeout) and the signal handler can both set it, and the main encode loop
+# (and any helper) can poll it without passing state around.
+STOP = threading.Event()
+
+
+class StreamAborted(RuntimeError):  # noqa: N818  # not an Error-class, a control-flow unwind
+    """Raised to unwind the encode loop when STOP is set mid-batch.
+
+    Lets a watchdog-triggered or signal-triggered stop propagate out of the
+    nested batch loop cleanly (encoded shots already handed to the writer are
+    preserved; the partially-buffered tail is dropped).
+    """
+
+
+def _install_signal_handlers() -> None:
+    """Install SIGTERM/SIGINT handlers that set the module STOP flag.
+
+    Idempotent and best-effort: signal handlers can only be installed from the
+    main thread, so this is a no-op (with a logged note) off the main thread.
+    The handler does the *minimum* — set the flag — so it is async-signal-safe;
+    all teardown happens back in main()'s try/finally once the loop unwinds.
+    """
+
+    def _handler(signum, _frame):  # noqa: ANN001
+        STOP.set()
+        print(
+            f"[stream] signal {signum} received -> graceful stop requested",
+            flush=True,
+        )
+
+    try:
+        signal.signal(signal.SIGTERM, _handler)
+        signal.signal(signal.SIGINT, _handler)
+    except ValueError:
+        # Not on the main thread (e.g. under a test runner) — skip silently.
+        print(
+            "[stream] could not install signal handlers (not main thread)",
+            flush=True,
+        )
+
 
 # --- Constants mirrored from the live path --------------------------------
 
@@ -120,14 +173,31 @@ def frames_to_rgb_uint8(frames: np.ndarray, *, presized: bool) -> np.ndarray:
     raise ValueError(f"frames must be (T,H,W) or (T,H,W,3), got {u8.shape}")
 
 
-def frames_to_input(frames_u8_rgb: np.ndarray, image_size: int = IMAGE_SIZE):
-    """(T,H,W,3) uint8 → (T,3,S,S) bf16 in [-1,1], channels_last.
+def frames_to_input(
+    frames_u8_rgb: np.ndarray,
+    image_size: int = IMAGE_SIZE,
+    *,
+    dtype=None,
+):
+    """(T,H,W,3) uint8 → (T,3,S,S) in [-1,1], channels_last.
 
     Byte-for-byte copy of ``worker._frames_to_input`` — the load-bearing
     resize path. Same dtype cast order, NO antialias, align_corners=False.
+
+    *dtype* selects the working precision. On the GPU path this MUST be
+    ``torch.bfloat16`` (the model is bf16 on cuda, and the byte-identity
+    contract is defined against bf16). On CPU the Open-MAGVIT2 ``VQModel``
+    stays float32 (PyTorch has no bf16 conv2d on CPU and the live load path
+    only casts to bf16 on cuda), so CPU runs pass ``torch.float32`` to avoid
+    the "Input type (CPUBFloat16Type) and weight type (torch.FloatTensor)"
+    mismatch. When *dtype* is ``None`` we default to bf16 to preserve the
+    historical GPU behaviour for any caller that does not pass it.
     """
     import torch
     import torch.nn.functional as F
+
+    if dtype is None:
+        dtype = torch.bfloat16
 
     frames = frames_u8_rgb
     if frames.ndim == 3:  # (T, H, W) single-channel
@@ -135,7 +205,7 @@ def frames_to_input(frames_u8_rgb: np.ndarray, image_size: int = IMAGE_SIZE):
     if frames.ndim != 4 or frames.shape[-1] != 3:
         raise ValueError(f"expected (T,H,W,3) or (T,H,W), got {frames.shape}")
 
-    t = torch.from_numpy(frames).to(torch.bfloat16).div(255.0).mul(2.0).sub(1.0)
+    t = torch.from_numpy(frames).to(dtype).div(255.0).mul(2.0).sub(1.0)
     t = t.permute(0, 3, 1, 2).contiguous(memory_format=torch.channels_last)
     t = F.interpolate(
         t, size=(image_size, image_size), mode="bilinear", align_corners=False
@@ -210,9 +280,7 @@ def encode_batch_indices(model, images, device: str) -> np.ndarray:
 # --- Persistence (mirrors persist.save_frame_tokens, redirected root) -----
 
 
-def stream_frames_token_path(
-    shot_id: int, camera: str, stream_root: Path
-) -> Path:
+def stream_frames_token_path(shot_id: int, camera: str, stream_root: Path) -> Path:
     """Output Zarr path under the *stream_root* validation dir.
 
     Mirrors ``persist.frames_token_path`` layout (``frames/{shot}/{cam}.zarr``)
@@ -321,9 +389,7 @@ class ShotFrameDataset:
     def __getitem__(self, i: int):
         shot_id = self.shot_ids[i]
         try:
-            raw = load_shot_frames(
-                shot_id, self.camera, self.l1_root, self.max_frames
-            )
+            raw = load_shot_frames(shot_id, self.camera, self.l1_root, self.max_frames)
             u8_rgb = frames_to_rgb_uint8(raw, presized=False)
             input_shape = tuple(int(x) for x in raw.shape)
             original_hw = (int(u8_rgb.shape[1]), int(u8_rgb.shape[2]))
@@ -406,6 +472,7 @@ class StreamStats:
     frames_encoded: int = 0
     elapsed_s: float = 0.0
     peak_hbm_gb: float = 0.0
+    aborted: bool = False
     load_errors: list[tuple[int, str]] = field(default_factory=list)
     write_errors: list[tuple[int, str]] = field(default_factory=list)
 
@@ -418,29 +485,65 @@ class StreamStats:
         return self.frames_encoded / self.elapsed_s if self.elapsed_s else 0.0
 
 
-def _iter_dataset(dataset: ShotFrameDataset, num_workers: int) -> Iterable:
-    """Yield dataset items, using a torch DataLoader when workers > 0.
+class _DatasetFeed:
+    """Iterates a dataset (optionally via a torch DataLoader) with clean
+    teardown.
 
     A trivial ``collate_fn`` keeps each item intact (no tensor stacking —
     shots have variable frame counts). When *num_workers* is 0 we iterate
-    directly (used by the CPU parity test, which has no torch DataLoader
-    need and avoids worker fork overhead).
+    directly (used by the CPU parity test, which has no torch DataLoader need
+    and avoids worker fork overhead).
+
+    The DataLoader's worker subprocesses are the RCA's wedge risk: if they are
+    left orphaned in 'D' state the node drains on scancel. :meth:`close`
+    therefore explicitly shuts down the loader's ``_iterator`` (terminating +
+    joining the worker pool) so no worker outlives the run, and is called from
+    the encode loop's ``finally`` even on the graceful-stop path.
     """
-    if num_workers <= 0:
-        for i in range(len(dataset)):
-            yield dataset[i]
-        return
 
-    from torch.utils.data import DataLoader
+    def __init__(self, dataset: ShotFrameDataset, num_workers: int) -> None:
+        self._dataset = dataset
+        self._num_workers = num_workers
+        self._loader = None
 
-    loader = DataLoader(
-        dataset,
-        batch_size=1,
-        num_workers=num_workers,
-        collate_fn=lambda batch: batch[0],
-        prefetch_factor=2,
-    )
-    yield from loader
+    def __iter__(self) -> Iterable:
+        if self._num_workers <= 0:
+            for i in range(len(self._dataset)):
+                yield self._dataset[i]
+            return
+
+        from torch.utils.data import DataLoader
+
+        self._loader = DataLoader(
+            self._dataset,
+            batch_size=1,
+            num_workers=self._num_workers,
+            collate_fn=lambda batch: batch[0],
+            prefetch_factor=2,
+        )
+        yield from self._loader
+
+    def close(self) -> None:
+        """Terminate + join any DataLoader worker subprocesses.
+
+        Idempotent. Shutting down ``loader._iterator`` (the private
+        ``_MultiProcessingDataLoaderIter``) sends the workers their exit
+        sentinel, terminates them, and joins — guaranteeing no orphaned worker
+        is left in uninterruptible sleep to wedge the node.
+        """
+        loader = self._loader
+        if loader is None:
+            return
+        self._loader = None
+        try:
+            it = getattr(loader, "_iterator", None)
+            if it is not None and hasattr(it, "_shutdown_workers"):
+                it._shutdown_workers()
+            loader._iterator = None
+        except Exception as exc:  # noqa: BLE001
+            print(f"[stream] DataLoader teardown warning: {exc}", flush=True)
+        finally:
+            del loader
 
 
 def stream_encode(
@@ -455,6 +558,7 @@ def stream_encode(
     num_workers: int = 12,
     max_frames: int | None = None,
     encode_fn=None,
+    batch_timeout_s: float = 0.0,
 ) -> StreamStats:
     """Continuous-batching encode of *shot_ids* into per-shot token Zarrs.
 
@@ -479,6 +583,13 @@ def stream_encode(
         a deterministic stub). Signature ``(model, frames_u8_rgb_batch) ->
         (B,16,16) int64``. When ``None``, the real GPU path is used:
         :func:`frames_to_input` + :func:`encode_batch_indices`.
+    batch_timeout_s:
+        Per-batch watchdog timeout in seconds. ``0`` (default) means *auto*:
+        the watchdog uses ``max(60, 8 × running-median batch time)`` once a
+        few batches have been measured. A batch that exceeds its budget — i.e.
+        a wedged CUDA kernel — has the module ``STOP`` flag set by a watchdog
+        thread, so the loop stops feeding new work and unwinds cleanly instead
+        of accumulating an unkillable hang (the RCA's node-drain mechanism).
 
     Returns
     -------
@@ -487,22 +598,101 @@ def stream_encode(
     """
     import torch
 
+    # Fresh run: clear any STOP left set by a prior run/test. main() installs
+    # the signal handlers; once we are inside this call a set STOP can only
+    # come from a signal that arrives during THIS run or from the watchdog.
+    STOP.clear()
+
     stats = StreamStats()
     writer = AsyncZarrWriter(stream_root)
 
     if device.startswith("cuda"):
         torch.cuda.reset_peak_memory_stats()
 
+    # bf16 on cuda (byte-identity contract); float32 on cpu (no bf16 conv2d
+    # on CPU + the live load path keeps the model float32 off-cuda).
+    _input_dtype = torch.bfloat16 if device.startswith("cuda") else torch.float32
+
     def _default_encode(frames_u8_rgb_batch: np.ndarray) -> np.ndarray:
-        images = frames_to_input(frames_u8_rgb_batch, IMAGE_SIZE)
+        images = frames_to_input(frames_u8_rgb_batch, IMAGE_SIZE, dtype=_input_dtype)
         return encode_batch_indices(model, images, device)
 
     if encode_fn is not None:
-        _encode = lambda batch: encode_fn(model, batch)  # noqa: E731
+        _raw_encode = lambda batch: encode_fn(model, batch)  # noqa: E731
     else:
-        _encode = _default_encode
+        _raw_encode = _default_encode
+
+    # --- Per-batch watchdog ------------------------------------------------
+    # We cannot safely interrupt a wedged CUDA kernel from Python, but we CAN
+    # detect that a batch has overrun its budget and set STOP so the loop
+    # stops feeding new work and exits — converting "hang forever" into "exit
+    # under the SLURM kill timeout". A single background thread arms a per-
+    # batch deadline; if the deadline passes before the batch disarms it, the
+    # thread sets STOP (and the loop, checking STOP between/around batches,
+    # raises StreamAborted to unwind).
+    _median_samples: list[float] = []
+
+    def _timeout_for_next() -> float:
+        if batch_timeout_s > 0:
+            return float(batch_timeout_s)
+        if len(_median_samples) >= 3:
+            med = float(np.median(_median_samples))
+            return max(60.0, 8.0 * med)
+        return 60.0  # auto, before we have a median estimate
+
+    # Watchdog deadline + budget shared with the watcher thread.
+    # deadline None => disarmed (no batch in flight).
+    _wd_deadline: dict[str, float | None] = {"t": None}
+    _wd_budget: dict[str, float] = {"s": 0.0}
+    _wd_lock = threading.Lock()
+    _wd_done = threading.Event()
+
+    def _watchdog() -> None:
+        while not _wd_done.is_set():
+            with _wd_lock:
+                deadline = _wd_deadline["t"]
+                budget = _wd_budget["s"]
+            if deadline is not None and time.monotonic() >= deadline:
+                STOP.set()
+                print(
+                    f"[stream] per-batch watchdog FIRED (batch exceeded "
+                    f"{budget:.0f}s budget) -> graceful stop requested",
+                    flush=True,
+                )
+                return
+            # Poll at a fine granularity so the watchdog reacts promptly.
+            _wd_done.wait(0.05)
+
+    _wd_thread = threading.Thread(target=_watchdog, daemon=True)
+    _wd_thread.start()
+
+    def _encode(batch: np.ndarray) -> np.ndarray:
+        """Run one batch under the watchdog, recording its duration.
+
+        Arms the watchdog for the duration of the (possibly wedging) encode
+        call, then disarms it. Does NOT itself raise on STOP — the STOP check
+        lives in :func:`_encode_prefix` *after* the just-finished batch's
+        tokens have been scattered and any newly-complete shot emitted, so an
+        in-flight batch always finishes cleanly before we unwind.
+        """
+        budget = _timeout_for_next()
+        with _wd_lock:
+            _wd_budget["s"] = budget
+            _wd_deadline["t"] = time.monotonic() + budget
+        t0 = time.monotonic()
+        try:
+            out = _raw_encode(batch)
+        finally:
+            with _wd_lock:
+                _wd_deadline["t"] = None
+        dt = time.monotonic() - t0
+        _median_samples.append(dt)
+        if len(_median_samples) > 64:
+            del _median_samples[0]
+        return out
 
     dataset = ShotFrameDataset(shot_ids, camera, l1_root, max_frames)
+    feed = _DatasetFeed(dataset, num_workers)
 
     t_start = time.monotonic()
 
@@ -552,37 +742,68 @@ def stream_encode(
                     _emit_shot(sidx)
             stats.frames_encoded += hi - pos
             pos = hi
+            # STOP (signal or watchdog) is honoured *between* chunks, after the
+            # just-finished chunk's shots are emitted: drop the consumed prefix
+            # and unwind. Shots fully encoded so far are persisted; the
+            # unconsumed buffered tail (partial shots) is discarded.
+            if STOP.is_set():
+                buf_frames = buf_frames[pos:]
+                buf_shotidx = buf_shotidx[pos:]
+                raise StreamAborted("stop requested between batches")
         buf_frames = buf_frames[target:]
         buf_shotidx = buf_shotidx[target:]
 
-    for sidx, item in enumerate(_iter_dataset(dataset, num_workers)):
-        shot_id, u8_rgb, input_shape, original_hw, err = item
-        if err is not None or u8_rgb is None:
-            stats.shots_fail += 1
-            stats.load_errors.append((int(shot_id), err or "empty"))
-            continue
-        n = int(u8_rgb.shape[0])
-        if n == 0:
-            stats.shots_fail += 1
-            stats.load_errors.append((int(shot_id), "zero frames"))
-            continue
-        shot_tokens[sidx] = []
-        shot_meta[sidx] = (int(shot_id), input_shape, original_hw)
-        frame_count[sidx] = n
-        for f in range(n):
-            buf_frames.append(u8_rgb[f])
-            buf_shotidx.append(sidx)
-        # Encode only whole batch_frames chunks; keep the remainder buffered
-        # so batches stay fixed-size (full GPU forwards) until the very end.
-        whole = len(buf_frames) - (len(buf_frames) % batch_frames)
-        if whole >= batch_frames:
-            _encode_prefix(whole)
+    aborted = False
+    try:
+        for sidx, item in enumerate(feed):
+            # Between-shot STOP check: a signal or watchdog firing here stops
+            # us from pulling more work from the DataLoader.
+            if STOP.is_set():
+                aborted = True
+                break
+            shot_id, u8_rgb, input_shape, original_hw, err = item
+            if err is not None or u8_rgb is None:
+                stats.shots_fail += 1
+                stats.load_errors.append((int(shot_id), err or "empty"))
+                continue
+            n = int(u8_rgb.shape[0])
+            if n == 0:
+                stats.shots_fail += 1
+                stats.load_errors.append((int(shot_id), "zero frames"))
+                continue
+            shot_tokens[sidx] = []
+            shot_meta[sidx] = (int(shot_id), input_shape, original_hw)
+            frame_count[sidx] = n
+            for f in range(n):
+                buf_frames.append(u8_rgb[f])
+                buf_shotidx.append(sidx)
+            # Encode only whole batch_frames chunks; keep the remainder
+            # buffered so batches stay fixed-size (full GPU forwards) until the
+            # very end.
+            whole = len(buf_frames) - (len(buf_frames) % batch_frames)
+            if whole >= batch_frames:
+                _encode_prefix(whole)
 
-    # Final flush — encode whatever remains (the only sub-full batch).
-    if buf_frames:
-        _encode_prefix(len(buf_frames))
+        # Final flush — encode whatever remains (the only sub-full batch).
+        # Skipped if we aborted: the buffered tail belongs to shots that were
+        # not fully streamed, so emitting it would persist truncated shots.
+        if not aborted and buf_frames:
+            _encode_prefix(len(buf_frames))
+    except StreamAborted:
+        aborted = True
+    finally:
+        # Stop the watchdog and tear down DataLoader workers BEFORE joining the
+        # writer, so no worker subprocess is left wedged while we flush output.
+        _wd_done.set()
+        with _wd_lock:
+            _wd_deadline["t"] = None
+        _wd_thread.join(timeout=1.0)
+        feed.close()
+        # Flush + join the async writer so every shot already encoded is
+        # persisted, even on the abort path.
+        writer.join()
 
-    writer.join()
+    stats.aborted = aborted
     stats.elapsed_s = time.monotonic() - t_start
     stats.write_errors = writer.errors
     # The async writer may have failed some; reconcile counts.
@@ -608,9 +829,7 @@ def _build_shotlist(
     """
     manifest = json.loads(Path(manifest_path).read_text())
     all_shots = sorted(manifest["shot_ids"])
-    shots = [
-        s for s in all_shots if (Path(l1_root) / f"{s}.zarr" / camera).is_dir()
-    ]
+    shots = [s for s in all_shots if (Path(l1_root) / f"{s}.zarr" / camera).is_dir()]
     return shots[shard::n_shards]
 
 
@@ -636,10 +855,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--batch-frames", type=int, default=256)
     parser.add_argument("--num-workers", type=int, default=12)
+    parser.add_argument(
+        "--batch-timeout-s",
+        type=float,
+        default=0.0,
+        help="per-batch watchdog timeout in seconds; 0 = auto "
+        "(max(60, 8x running-median batch time))",
+    )
     parser.add_argument("--max-shots", type=int, default=None)
     parser.add_argument("--max-frames", type=int, default=None)
-    parser.add_argument("--explicit-shots", default=None,
-                        help="comma-separated shot ids; bypasses manifest sharding")
+    parser.add_argument(
+        "--explicit-shots",
+        default=None,
+        help="comma-separated shot ids; bypasses manifest sharding",
+    )
     parser.add_argument("--report", default=None)
     args = parser.parse_args(argv)
 
@@ -662,25 +891,46 @@ def main(argv: list[str] | None = None) -> int:
         flush=True,
     )
 
+    # Install graceful-shutdown handlers up front so a SIGTERM during the
+    # (potentially long) model load is also honoured — STOP is checked inside
+    # stream_encode's loop, and the finally below always releases the model.
+    STOP.clear()
+    _install_signal_handlers()
+
     t0 = time.monotonic()
     model = None
-    if args.device.startswith("cuda") or args.device == "cpu-real":
-        dev = "cpu" if args.device == "cpu-real" else args.device
-        model = load_model(Path(args.magvit2_root), dev)
-        args.device = dev
-        print(f"[stream] model loaded in {time.monotonic() - t0:.1f}s", flush=True)
+    try:
+        if args.device.startswith("cuda") or args.device == "cpu-real":
+            dev = "cpu" if args.device == "cpu-real" else args.device
+            model = load_model(Path(args.magvit2_root), dev)
+            args.device = dev
+            print(f"[stream] model loaded in {time.monotonic() - t0:.1f}s", flush=True)
 
-    stats = stream_encode(
-        shots,
-        args.camera,
-        model,
-        device=args.device,
-        stream_root=Path(args.stream_root),
-        l1_root=Path(args.l1_root),
-        batch_frames=args.batch_frames,
-        num_workers=args.num_workers,
-        max_frames=args.max_frames,
-    )
+        stats = stream_encode(
+            shots,
+            args.camera,
+            model,
+            device=args.device,
+            stream_root=Path(args.stream_root),
+            l1_root=Path(args.l1_root),
+            batch_frames=args.batch_frames,
+            num_workers=args.num_workers,
+            max_frames=args.max_frames,
+            batch_timeout_s=args.batch_timeout_s,
+        )
+    finally:
+        # Always release the model + free HBM, even on the abort path. This is
+        # the last step of the <5 s graceful-shutdown target: the encode loop
+        # has already torn down the DataLoader workers and flushed the writer.
+        if model is not None:
+            try:
+                import torch
+
+                del model
+                if args.device.startswith("cuda"):
+                    torch.cuda.empty_cache()
+            except Exception as exc:  # noqa: BLE001
+                print(f"[stream] model release warning: {exc}", flush=True)
 
     summary = {
         "shard": args.shard,
@@ -691,6 +941,7 @@ def main(argv: list[str] | None = None) -> int:
         "shots_fail": stats.shots_fail,
         "frames_encoded": stats.frames_encoded,
         "elapsed_s": round(stats.elapsed_s, 1),
+        "aborted": stats.aborted,
         "shots_per_min": round(stats.shots_per_min, 2),
         "frames_per_s": round(stats.frames_per_s, 1),
         "peak_hbm_gb": round(stats.peak_hbm_gb, 2),
@@ -702,7 +953,9 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(summary, indent=2), flush=True)
     if args.report:
         Path(args.report).write_text(json.dumps(summary, indent=2))
-    return 0
+    # Non-zero exit on abort so SLURM/sbatch sees the run did not complete the
+    # full shotlist (a clean exit, well under UnkillableStepTimeout).
+    return 130 if stats.aborted else 0
 
 
 if __name__ == "__main__":

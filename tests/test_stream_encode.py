@@ -53,9 +53,7 @@ def _make_frames(shot_id: int, n_frames: int, rng: np.random.Generator) -> np.nd
     return base + shot_id  # shift so shots differ
 
 
-def _per_shot_reference(
-    shot_ids, frame_arrays, camera
-) -> dict[int, np.ndarray]:
+def _per_shot_reference(shot_ids, frame_arrays, camera) -> dict[int, np.ndarray]:
     """Encode each shot independently with the stub → global int32 tokens.
 
     Mirrors the live single-shot path: normalise→RGB (presized=False) then
@@ -207,3 +205,213 @@ def test_normalise_byte_identical_to_live():
     np.testing.assert_array_equal(
         se.normalise_frames_to_uint8(flat), _normalise_frames_to_uint8(flat)
     )
+
+
+# ===========================================================================
+# Hardening tests (graceful SIGTERM, per-batch watchdog, CPU-runnable load).
+# Motivated by docs/rca-node-drain-2026-05-27.md: a hung GPU process that
+# cannot be reaped within SLURM's UnkillableStepTimeout auto-drains the node.
+# ===========================================================================
+
+
+def _two_shot_dict():
+    """Two distinct shots with a handful of frames each, served in-memory."""
+    rng = np.random.default_rng(42)
+    counts = {201: 6, 202: 8}
+    frame_arrays = {sid: _make_frames(sid, counts[sid], rng) for sid in counts}
+    return list(counts), counts, frame_arrays
+
+
+def test_frames_to_input_cpu_uses_float32():
+    """CPU model load casts the model to float32, so the input cast must be
+    float32 (not bf16) or model.encode raises a dtype mismatch. bf16 stays the
+    GPU default to preserve byte-identity."""
+    import torch
+
+    rng = np.random.default_rng(3)
+    frames = rng.integers(0, 256, size=(2, 40, 56, 3), dtype=np.uint8)
+
+    # Default (no dtype) preserves historical GPU behaviour: bf16.
+    assert se.frames_to_input(frames).dtype == torch.bfloat16
+    # Explicit float32 for the CPU path.
+    assert se.frames_to_input(frames, dtype=torch.float32).dtype == torch.float32
+    # The real CPU code path inside stream_encode must feed a float32-castable
+    # model: a float32 stub conv proves the dtype lines up end-to-end.
+
+    class _F32Conv:
+        """Minimal stand-in for VQModel: a real float32 conv2d so a bf16 input
+        would raise the exact RCA dtype mismatch."""
+
+        use_ema = False
+
+        def __init__(self):
+            self.conv = torch.nn.Conv2d(3, 3, 1).to(torch.float32).eval()
+
+        def encode(self, x):
+            self.conv(x)  # raises if x is bf16 and weight is f32
+            b = x.shape[0]
+            idx = torch.zeros(b * se.TOKEN_HW * se.TOKEN_HW, dtype=torch.int64)
+            return None, None, idx, None
+
+    # device='cpu' => stream_encode selects float32 input dtype; the conv runs.
+    model = _F32Conv()
+    out = se.encode_batch_indices(
+        model, se.frames_to_input(frames, dtype=torch.float32), "cpu"
+    )
+    assert out.shape == (2, se.TOKEN_HW, se.TOKEN_HW)
+
+
+def test_sigterm_handler_sets_flag_and_loop_breaks(tmp_path, monkeypatch):
+    """A SIGTERM (simulated by setting STOP between shots) makes the encode
+    loop stop pulling work; already-encoded shots are persisted by the writer,
+    and the partially-buffered tail is NOT emitted (no truncated shots)."""
+    import zarr
+
+    shot_ids, counts, frame_arrays = _two_shot_dict()
+    camera = "rbb"
+    stream_root = tmp_path / "frames-stream"
+
+    dataset = _DictDataset(shot_ids, frame_arrays, camera)
+    monkeypatch.setattr(se, "ShotFrameDataset", lambda *a, **k: dataset)
+
+    # Simulate a signal arriving mid-run: the stub sets STOP once shot 201's
+    # frames are all encoded. batch_frames=1 makes each call one frame so we
+    # can count deterministically. The between-shot STOP check then prevents
+    # shot 202 from being pulled/emitted.
+    seen = {"frames": 0}
+
+    def _encode_one(model, batch):
+        seen["frames"] += batch.shape[0]
+        out = _stub_encode(model, batch)
+        # After shot 201 (first 6 frames) fully encoded, request stop.
+        if seen["frames"] >= counts[201]:
+            se.STOP.set()
+        return out
+
+    se.STOP.clear()
+    stats = se.stream_encode(
+        shot_ids,
+        camera,
+        model=None,
+        device="cpu",
+        stream_root=stream_root,
+        batch_frames=1,
+        num_workers=0,
+        encode_fn=_encode_one,
+    )
+
+    assert stats.aborted is True
+    # Shot 201 was fully encoded before STOP -> persisted.
+    p201 = se.stream_frames_token_path(201, camera, stream_root)
+    assert p201.exists(), "fully-encoded shot must be persisted on graceful stop"
+    store = zarr.open_group(str(p201), mode="r")
+    assert np.asarray(store["tokens"]).shape[0] == counts[201]
+    # Shot 202 was only partially buffered -> NOT persisted (no truncated shot).
+    p202 = se.stream_frames_token_path(202, camera, stream_root)
+    assert not p202.exists(), "partially-streamed shot must NOT be persisted"
+    # STOP left set is fine; next run clears it. Confirm a fresh run clears it.
+    se.STOP.clear()
+
+
+def test_watchdog_fires_on_slow_batch_and_stops(tmp_path, monkeypatch):
+    """A deliberately-slow stub encode that exceeds the batch timeout triggers
+    the watchdog, which sets STOP -> the run aborts cleanly instead of
+    hanging. We use a tiny explicit batch_timeout_s so the test is fast."""
+    shot_ids, counts, frame_arrays = _two_shot_dict()
+    camera = "rbb"
+    stream_root = tmp_path / "frames-stream"
+
+    dataset = _DictDataset(shot_ids, frame_arrays, camera)
+    monkeypatch.setattr(se, "ShotFrameDataset", lambda *a, **k: dataset)
+
+    import time as _time
+
+    calls = {"n": 0}
+
+    def _slow_encode(model, batch):
+        calls["n"] += 1
+        # First batch is fast (so a median can form / watchdog arms cleanly);
+        # the second batch hangs past the 0.3 s budget -> watchdog fires.
+        if calls["n"] >= 2:
+            # Sleep longer than the timeout; the watchdog should set STOP and
+            # _encode raises StreamAborted on return, unwinding the loop.
+            _time.sleep(1.5)
+        return _stub_encode(model, batch)
+
+    se.STOP.clear()
+    t0 = _time.monotonic()
+    stats = se.stream_encode(
+        shot_ids,
+        camera,
+        model=None,
+        device="cpu",
+        stream_root=stream_root,
+        batch_frames=4,  # multiple batches across the two shots
+        num_workers=0,
+        encode_fn=_slow_encode,
+        batch_timeout_s=0.3,
+    )
+    elapsed = _time.monotonic() - t0
+
+    assert stats.aborted is True, "watchdog must abort the run"
+    # The run must not hang far beyond the slow batch's sleep — it returns once
+    # the slow batch finishes and the post-batch STOP check unwinds.
+    assert elapsed < 5.0, f"run took {elapsed:.1f}s — watchdog did not stop it"
+    se.STOP.clear()
+
+
+def test_clean_run_does_not_abort(tmp_path, monkeypatch):
+    """A normal run (no signal, no slow batch) completes with aborted=False and
+    a generous watchdog budget that never fires — guards against the watchdog
+    firing spuriously on healthy runs."""
+    shot_ids, counts, frame_arrays = _two_shot_dict()
+    camera = "rbb"
+    stream_root = tmp_path / "frames-stream"
+
+    dataset = _DictDataset(shot_ids, frame_arrays, camera)
+    monkeypatch.setattr(se, "ShotFrameDataset", lambda *a, **k: dataset)
+
+    se.STOP.clear()
+    stats = se.stream_encode(
+        shot_ids,
+        camera,
+        model=None,
+        device="cpu",
+        stream_root=stream_root,
+        batch_frames=4,
+        num_workers=0,
+        encode_fn=_stub_encode,
+        batch_timeout_s=30.0,
+    )
+    assert stats.aborted is False
+    assert stats.shots_ok == len(shot_ids)
+    assert stats.shots_fail == 0
+    assert se.STOP.is_set() is False
+
+
+def test_signal_handler_installs_and_sets_stop():
+    """_install_signal_handlers wires SIGTERM to set the module STOP flag.
+    We install, fire SIGTERM at our own process, and confirm STOP is set, then
+    restore default handlers so we don't perturb the test runner."""
+    import os
+    import signal as _signal
+
+    prev_term = _signal.getsignal(_signal.SIGTERM)
+    prev_int = _signal.getsignal(_signal.SIGINT)
+    try:
+        se.STOP.clear()
+        se._install_signal_handlers()
+        os.kill(os.getpid(), _signal.SIGTERM)
+        # Signal delivery is synchronous on the main thread between bytecodes;
+        # a short spin lets the handler run.
+        import time as _t
+
+        for _ in range(100):
+            if se.STOP.is_set():
+                break
+            _t.sleep(0.01)
+        assert se.STOP.is_set(), "SIGTERM did not set STOP"
+    finally:
+        _signal.signal(_signal.SIGTERM, prev_term)
+        _signal.signal(_signal.SIGINT, prev_int)
+        se.STOP.clear()
