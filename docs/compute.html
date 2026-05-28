@@ -18,11 +18,11 @@
 <meta name="plan-sprint" content="S2">
 <meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-27">
+<meta name="plan-modified" content="2026-05-28">
 <meta name="plan-depends-on" content="">
 <meta name="plan-blocks" content="tokenizers,world-model-v0,demo">
-<meta name="plan-impl" content="0.85">
-<meta name="plan-version" content="6">
+<meta name="plan-impl" content="0.95">
+<meta name="plan-version" content="8">
 </head>
 <body>
 <main class="plan-doc">
@@ -359,7 +359,7 @@ Done-when
 </pre>
     <p class="r-fu-outcome">Landed commit a14f1ef: 6 files in scripts/slurm/ — preempt_v4flash.sh, train_exclusive.sbatch, bulk_encode_frames.sbatch, bulk_encode_signals.sbatch, bench_rbb.sbatch, README.md. All four sbatch scripts passed sbatch --test-only (exit 0) against the betelgeuse/gpu_0003_grpA reservation.</p>
     </article>
-<article class="r-fu" data-id="f-compute-2026-05-26-bulk" data-status="open" data-tier="sonnet" data-written-by="agent/sonnet (Agent B)" data-written-at="2026-05-26" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-compute-2026-05-26-bulk" data-status="resolved" data-tier="sonnet" data-written-by="agent/sonnet (Agent B)" data-written-at="2026-05-26" data-recommends-skill="" data-resolved-at="2026-05-28T05:02:35+00:00" data-resolved-by="agent/opus (coordinator)">
     <h4 class="r-fu-title">First real exclusive-pause run via Agent D bulk-encode (in-flight)</h4>
     <div class="r-fu-body">Agent D is using bulk_encode_frames.sbatch and bulk_encode_signals.sbatch to run the first real GPU bulk-encode jobs. Monitor job exit codes, check output reports in /work/projects/imas_gpu/mast/tokens/, and verify the token Zarr files are well-formed. If any encode jobs fail, diagnose from /tmp/ambix-encode-frames-&lt;jobid&gt;.out logs.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -394,6 +394,7 @@ Done-when
   3. compute.json impl advanced (target 0.90 if bulk-encode validated)
   4. This followup resolved with outcome + a next followup or &#x27;done — no followup&#x27;
 </pre>
+    <p class="r-fu-outcome">DONE 2026-05-28 — bulk-encode + signals + bench all landed via the SLURM wrapper set. Frame corpus: 9,528 rbb shots / ~4.02B tokens (commit 37798a2). Magnetics corpus: 11,573 shots. Bench harness now wired (commits 05c7b5e, 2535eb4, 155b73e, 9c904e5): rFID + LPIPS dispatched in bench_frame_tokenizer; CLI accepts --config YAML; v0-rbb-100shot.yaml drives the §12.1 plasma-decoder fine-tune gate. Bench job 1208852 RUNNING on gpu_0003_grpA at the moment of resolution. SLURM wrapper set has now driven 3 production workflows (encode, bench, stream); pattern is validated. Required fix: bench_rbb.sbatch needed BASH_SOURCE→SLURM_SUBMIT_DIR (commit 9c904e5) — applies retroactively to other wrappers if their RESULTS_DIR uses REPO_ROOT.</p>
     </article>
 </section>
 <section data-reckon="research" id="research" class="r-research-list">

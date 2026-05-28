@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="reckon-type" content="plan">
 <meta name="plan-title" content="Tokenizer benchmark harness">
-<meta name="plan-summary" content="Quantitative tokenizer comparison framework — BenchConfig, BenchResult, frame metrics (rFID/PSNR/LPIPS), signal metrics (Pearson r/NRMSE), throughput, SLURM batch runner.">
+<meta name="plan-summary" content="Quantitative tokenizer comparison framework — BenchConfig, BenchResult, frame metrics (rFID/PSNR/LPIPS/centroid_mse/chord_nrmse), signal metrics (mae/nrmse/correlation), throughput, SLURM batch runner. As of 2026-05-28 the harness is fully wired: rFID + LPIPS dispatched in the frame benchmark loop, the bench CLI accepts a --config YAML, and v0-rbb-100shot.yaml drives the §12.1 plasma-decoder fine-tune rFID gate via scripts/slurm/bench_rbb.sbatch on gpu_0003_grpA.">
 <meta name="plan-status" content="active">
 <meta name="plan-roi" content="mid">
 <meta name="plan-effort" content="M">
@@ -18,11 +18,11 @@
 <meta name="plan-sprint" content="S2">
 <meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-26 14:30">
+<meta name="plan-modified" content="2026-05-28">
 <meta name="plan-depends-on" content="tokenizers">
 <meta name="plan-blocks" content="">
-<meta name="plan-impl" content="0.8">
-<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.95">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
