@@ -22,7 +22,7 @@
 <title>Plasma-domain decoder fine-tune (Open-MAGVIT2) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 </head>
 <body>
 <main class="plan-doc">
@@ -203,6 +203,11 @@ Implementation landed (commit 907fd41):
 - `finetune_decoder.sbatch`: betelgeuse / gpu_0003_grpA, 24 h, single CUDA GPU, random-7500-2000 split seed=42 from 9,527 tokenised shots.
 
 Job running on 98dci4-gpu-0003. Expected completion: ~2026-05-29.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260528T111108549330" data-who="agent/opus" data-when="2026-05-28T11:11:08+00:00">
+    <div class="r-comment-body">**2026-05-28 — job 1208968 failed; job 1208972 resubmitted.**
+
+Root cause: `ds[var].values` loaded all T frames per shot (not just 50 sampled), causing 134 GB peak RSS before OOM/error — GPU never started. Fix (commit ca1df30): lazy streaming `_PlasmaFrameDataset` with zarr direct access (`zarr.open_group`), per-worker store cache, `num_workers=8, prefetch_factor=2, persistent_workers=True, pin_memory=True` — mirrors `stream_encode.py` in-process approach. RAM drops from ~134 GB to ~1 GB in flight; GPU starts from step 1 after ~2 min metadata scan. Job 1208972 submitted.</div>
 </div>
 </section>
 </main>
