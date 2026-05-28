@@ -213,8 +213,10 @@ def benchmark_frame_tokenizer(
     from imas_ambix.eval.metrics import (
         centroid_mse,
         chord_nrmse,
+        lpips,
         modality_coherence as _modality_coherence,
         psnr,
+        rfid,
     )
 
     data_root = LEVEL1_DIR if tier == "level1" else LEVEL2_DIR
@@ -264,6 +266,8 @@ def benchmark_frame_tokenizer(
                 "psnr": psnr,
                 "centroid_mse": centroid_mse,
                 "chord_nrmse": chord_nrmse,
+                "rfid": rfid,
+                "lpips": lpips,
             }
             for m in config.metrics:
                 if m in metric_fns:
