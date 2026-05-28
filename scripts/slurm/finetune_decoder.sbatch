@@ -24,7 +24,11 @@ export OMP_NUM_THREADS=1
 export TORCHINDUCTOR_CACHE_DIR=$TMPDIR/.torch_inductor
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# SLURM copies the script to /var/spool before execution — BASH_SOURCE[0]
+# points there, not the repo. Use SLURM_SUBMIT_DIR (the directory sbatch was
+# invoked from) to locate the repo (same pattern as bench_rbb.sbatch).
+REPO_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
+cd "${REPO_ROOT}"
 export MAGVIT2_ROOT="/work/projects/imas_gpu/mast-tokens/v1/open-magvit2"
 export FRAMES_ROOT="/work/projects/imas_gpu/mast-tokens/v1/frames"
 MAGVIT2_PYTHON="${MAGVIT2_ROOT}/.venv/bin/python"
@@ -46,7 +50,7 @@ bash "${REPO_ROOT}/scripts/slurm/preempt_v4flash.sh"
 TRAIN_SHOTS="$TMPDIR/train_shots.txt"
 VAL_SHOTS="$TMPDIR/val_shots.txt"
 
-python3 - <<'PYEOF'
+"${MAGVIT2_PYTHON}" - <<'PYEOF'
 import os, json, random
 from pathlib import Path
 
