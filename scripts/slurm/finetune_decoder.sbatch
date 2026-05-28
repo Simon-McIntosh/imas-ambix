@@ -26,6 +26,13 @@ export OMP_NUM_THREADS=1
 export TORCHINDUCTOR_CACHE_DIR=$TMPDIR/.torch_inductor
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
 
+# Required for torch.use_deterministic_algorithms with CuBLAS on CUDA ≥ 10.2
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+
+# NCCL tuning for NVLink topology on 98dci4-gpu-0003
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=1   # no InfiniBand on this node; use NVLink/PCIe
+
 # SLURM copies the script to /var/spool before execution — BASH_SOURCE[0]
 # points there, not the repo. Use SLURM_SUBMIT_DIR (the directory sbatch was
 # invoked from) to locate the repo (same pattern as bench_rbb.sbatch).
@@ -100,12 +107,15 @@ TRAIN_LOG="/work/projects/imas_gpu/logs/ambix-finetune-decoder-${SLURM_JOB_ID}.l
 # PYTHONPATH includes the ambix repo so imas_ambix is importable for
 # the rfid metric; Open-MAGVIT2 src is added to sys.path inside build_model.
 PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}" \
-    "${MAGVIT2_PYTHON}" \
+    "${MAGVIT2_ROOT}/.venv/bin/torchrun" \
+    --nproc_per_node=4 \
+    --master_addr=localhost \
+    --master_port=29500 \
     "${REPO_ROOT}/imas_ambix/tokenizer/finetune_decoder.py" \
     --train-shots "${TRAIN_SHOTS}" \
     --val-shots   "${VAL_SHOTS}" \
     --max-steps   10000 \
-    --batch-size  64 \
+    --batch-size  16 \
     --device      cuda \
     2>&1 | tee "${TRAIN_LOG}"
 

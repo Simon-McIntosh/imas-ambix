@@ -23,6 +23,7 @@ DecoderFinetuneTrainer internally).
 
 from __future__ import annotations
 
+import os
 import signal
 import sys
 import threading
@@ -61,6 +62,41 @@ def _install_signal_handlers() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Distributed helpers
+# ---------------------------------------------------------------------------
+
+
+def _init_distributed() -> tuple[int, int]:
+    """Initialise NCCL process group when launched via torchrun.
+
+    Returns ``(rank, world_size)``.  When not running under torchrun
+    (WORLD_SIZE absent or 1) returns ``(0, 1)`` and leaves the process group
+    uninitialised — single-GPU path is unchanged.
+    """
+    import torch
+    import torch.distributed as dist
+
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    rank = int(os.environ.get("RANK", "0"))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+
+    if world_size > 1:
+        dist.init_process_group(backend="nccl")
+        torch.cuda.set_device(local_rank)
+    else:
+        if torch.cuda.is_available():
+            torch.cuda.set_device(0)
+
+    return rank, world_size
+
+
+def _cleanup_distributed() -> None:
+    import torch.distributed as dist
+    if dist.is_available() and dist.is_initialized():
+        dist.destroy_process_group()
+
+
+# ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
@@ -86,7 +122,7 @@ class DecoderFinetuneConfig:
     camera: str = "rbb"
     image_size: int = 256
     frames_per_shot: int = 50
-    batch_size: int = 64  # single-GPU effective batch (plan spec: 16/GPU × 4 GPUs)
+    batch_size: int = 16  # per-GPU; effective = batch_size × world_size (plan spec: 16 × 4 = 64)
     learning_rate: float = 1e-4
     max_steps: int = 10_000
     warmup_steps: int = 200
@@ -157,8 +193,13 @@ class DecoderFinetuneTrainer:
         """
         import numpy as np
         import torch
+        import torch.distributed as dist
         import zarr
         from torch.utils.data import DataLoader
+        from torch.utils.data.distributed import DistributedSampler
+
+        rank = dist.get_rank() if (dist.is_available() and dist.is_initialized()) else 0
+        world_size = dist.get_world_size() if (dist.is_available() and dist.is_initialized()) else 1
 
         cfg = self.config
 
@@ -274,35 +315,45 @@ class DecoderFinetuneTrainer:
             )
             return entries
 
-        print(
-            f"[finetune-decoder] scanning {len(cfg.train_shot_ids)} train + "
-            f"{len(cfg.val_shot_ids)} val shots (metadata only) ...",
-            flush=True,
-        )
+        # Only rank-0 needs to print the scan header; all ranks scan independently
+        # (each needs the full entry list for the sampler).
+        if rank == 0:
+            print(
+                f"[finetune-decoder] scanning {len(cfg.train_shot_ids)} train + "
+                f"{len(cfg.val_shot_ids)} val shots (metadata only) ...",
+                flush=True,
+            )
         train_entries = _scan_shots(cfg.train_shot_ids, "train")
         val_entries = _scan_shots(cfg.val_shot_ids, "val")
 
-        # Shuffle training entry order once at startup (DataLoader also shuffles)
-        rng = np.random.default_rng(cfg.seed)
-        rng.shuffle(train_entries)
+        train_ds = _PlasmaFrameDataset(train_entries, cfg.image_size)
+        val_ds = _PlasmaFrameDataset(val_entries, cfg.image_size)
 
-        # num_workers overlaps zarr I/O with GPU compute; persistent_workers
-        # keeps per-worker zarr caches warm across epoch boundaries.
+        # DDP: each rank sees a non-overlapping shard of the data.
+        # Single-GPU: DistributedSampler with world_size=1 == plain shuffle.
+        train_sampler = DistributedSampler(
+            train_ds, num_replicas=world_size, rank=rank, shuffle=True, drop_last=True
+        )
+        val_sampler = DistributedSampler(
+            val_ds, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False
+        )
+
+        # num_workers per rank: 4 GPUs × 4 workers = 16 total (fits in 30 CPUs).
+        n_workers = 4
         train_loader = DataLoader(
-            _PlasmaFrameDataset(train_entries, cfg.image_size),
+            train_ds,
             batch_size=cfg.batch_size,
-            shuffle=True,
-            num_workers=8,
+            sampler=train_sampler,
+            num_workers=n_workers,
             prefetch_factor=2,
             persistent_workers=True,
             pin_memory=cfg.device.startswith("cuda"),
-            drop_last=True,
         )
         val_loader = DataLoader(
-            _PlasmaFrameDataset(val_entries, cfg.image_size),
+            val_ds,
             batch_size=cfg.batch_size,
-            shuffle=False,
-            num_workers=4,
+            sampler=val_sampler,
+            num_workers=n_workers,
             prefetch_factor=2,
             persistent_workers=True,
             pin_memory=cfg.device.startswith("cuda"),
@@ -327,7 +378,9 @@ class DecoderFinetuneTrainer:
             Full VQModel with encoder/codebook frozen and decoder trainable.
         """
         import torch
+        import torch.distributed as dist
         from omegaconf import OmegaConf
+        from torch.nn.parallel import DistributedDataParallel as DDP
 
         cfg = self.config
         magvit2_root = cfg.magvit2_root
@@ -335,7 +388,6 @@ class DecoderFinetuneTrainer:
         if str(src) not in sys.path:
             sys.path.insert(0, str(src))
 
-        # Import VQModel from the Open-MAGVIT2 source tree
         from src.Open_MAGVIT2.models.lfqgan import VQModel  # noqa: PLC0415
 
         config_path = (
@@ -343,9 +395,7 @@ class DecoderFinetuneTrainer:
         )
         ckpt_path = magvit2_root / "weights" / "imagenet_256_L.ckpt"
         if not ckpt_path.exists():
-            raise RuntimeError(
-                f"Open-MAGVIT2 checkpoint not found at {ckpt_path}."
-            )
+            raise RuntimeError(f"Open-MAGVIT2 checkpoint not found at {ckpt_path}.")
 
         model_cfg = OmegaConf.load(str(config_path))
         model = VQModel(**model_cfg.model.init_args)
@@ -358,32 +408,46 @@ class DecoderFinetuneTrainer:
         model.requires_grad_(False)
         model.decoder.requires_grad_(True)
 
-        if cfg.device.startswith("cuda"):
+        # Device: use LOCAL_RANK when torchrun sets it, else fall back to cfg.device
+        local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+        device = f"cuda:{local_rank}" if cfg.device.startswith("cuda") else cfg.device
+
+        if device.startswith("cuda"):
             torch.set_float32_matmul_precision("high")
             torch.backends.cudnn.benchmark = False
             torch.backends.cudnn.deterministic = True
             try:
                 torch.use_deterministic_algorithms(True, warn_only=True)
             except Exception as exc:  # noqa: BLE001
-                print(
-                    f"[finetune-decoder] use_deterministic_algorithms note: {exc}",
-                    flush=True,
-                )
+                print(f"[finetune-decoder] deterministic note: {exc}", flush=True)
             model = model.to(
-                device=cfg.device,
+                device=device,
                 dtype=torch.bfloat16,
                 memory_format=torch.channels_last,
             )
         else:
-            model = model.to(cfg.device)
+            model = model.to(device)
 
+        # Wrap in DDP when running multi-GPU; only sync decoder gradients
+        # (frozen encoder/codebook have no grad so they're ignored automatically).
+        if dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1:
+            model = DDP(
+                model,
+                device_ids=[local_rank],
+                output_device=local_rank,
+                find_unused_parameters=True,  # frozen encoder/codebook have no grad
+            )
+
+        rank = dist.get_rank() if (dist.is_available() and dist.is_initialized()) else 0
         n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
         n_total = sum(p.numel() for p in model.parameters())
-        print(
-            f"[finetune-decoder] model loaded: "
-            f"{n_trainable:,} trainable / {n_total:,} total params",
-            flush=True,
-        )
+        if rank == 0:
+            print(
+                f"[finetune-decoder] model loaded: "
+                f"{n_trainable:,} trainable / {n_total:,} total params  "
+                f"device={device}  world_size={dist.get_world_size() if dist.is_initialized() else 1}",
+                flush=True,
+            )
         self._model = model
         return model
 
@@ -417,7 +481,10 @@ class DecoderFinetuneTrainer:
         """
         import torch
 
-        target_dtype = next(model.decoder.parameters()).dtype
+        # Access the underlying VQModel when DDP-wrapped
+        raw = model.module if hasattr(model, "module") else model
+
+        target_dtype = next(raw.decoder.parameters()).dtype
         frames_normed = frames_input.to(target_dtype).mul(2.0).sub(1.0)  # [-1,1]
 
         # Encode with frozen encoder — never use ema_scope() during fine-tune.
@@ -426,24 +493,26 @@ class DecoderFinetuneTrainer:
         # ema_scope() raises AssertionError after our requires_grad freeze.
         # The encoder is frozen anyway, so live weights == checkpoint weights == EMA.
         with torch.no_grad():
-            _, _, idx, _ = model.encode(frames_normed)
+            _, _, idx, _ = raw.encode(frames_normed)
 
         # Reshape token indices
         B = frames_input.shape[0]
         h = w = self._TOKEN_HW
         idx_flat = idx.reshape(B, h * w)
-        bhwc = (B, h, w, int(model.quantize.codebook_dim))
+        bhwc = (B, h, w, int(raw.quantize.codebook_dim))
 
         # Codebook lookup (codebook frozen; no ema_scope for same reason)
-        quant = model.quantize.get_codebook_entry(idx_flat, bhwc=bhwc, order="pre")
+        quant = raw.quantize.get_codebook_entry(idx_flat, bhwc=bhwc, order="pre")
         quant = quant.to(target_dtype)
 
-        # Decode — with or without grad depending on phase
+        # Decode via raw module.  DDP gradient sync is driven by parameter-level
+        # autograd hooks registered at DDP.__init__ time — independent of the
+        # call path — so raw.decode() correctly syncs decoder grads across ranks.
         if training:
-            recon_m11 = model.decode(quant)
+            recon_m11 = raw.decode(quant)
         else:
             with torch.no_grad():
-                recon_m11 = model.decode(quant)
+                recon_m11 = raw.decode(quant)
 
         return (recon_m11.float().clamp(-1, 1) + 1.0) / 2.0  # [0,1] float32
 
@@ -601,6 +670,7 @@ class DecoderFinetuneTrainer:
         import math
 
         import torch
+        import torch.distributed as dist
         from torch.optim import AdamW
         from torch.optim.lr_scheduler import LambdaLR
 
@@ -614,7 +684,11 @@ class DecoderFinetuneTrainer:
         _install_signal_handlers()
         STOP.clear()
 
-        torch.manual_seed(cfg.seed)
+        # Initialise NCCL when launched via torchrun; no-op for single-GPU.
+        rank, world_size = _init_distributed()
+        is_primary = rank == 0  # gate logging, checkpointing, early-stop
+
+        torch.manual_seed(cfg.seed + rank)  # different seed per rank for data variety
 
         # ── Watchdog ───────────────────────────────────────────────────────
         _step_times: list[float] = []
@@ -647,12 +721,17 @@ class DecoderFinetuneTrainer:
         wd_thread = threading.Thread(target=_watchdog, daemon=True)
         wd_thread.start()
 
+        # Device string for moving batches (matches what build_model used)
+        local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+        train_device = f"cuda:{local_rank}" if cfg.device.startswith("cuda") else cfg.device
+
         model = None
         try:
             train_loader, val_loader = self.build_dataloaders()
 
             if STOP.is_set():
-                print("[finetune-decoder] stopped during data load", flush=True)
+                if is_primary:
+                    print("[finetune-decoder] stopped during data load", flush=True)
                 return cfg.output_path
 
             model = self.build_model()
@@ -670,20 +749,26 @@ class DecoderFinetuneTrainer:
             optimiser = AdamW(trainable_params, lr=cfg.learning_rate)
             scheduler = LambdaLR(optimiser, lr_lambda=_lr_lambda)
 
-            cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
+            if is_primary:
+                cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
 
             best_rfid = float("inf")
             no_improve_count = 0
             step = 0
+            epoch = 0
+            # Set initial epoch for DistributedSampler shuffling
+            if hasattr(train_loader.sampler, "set_epoch"):
+                train_loader.sampler.set_epoch(epoch)
             train_iter = iter(train_loader)
             t_step_start = time.monotonic()
 
-            print(
-                f"[finetune-decoder] training: max_steps={cfg.max_steps} "
-                f"batch_size={cfg.batch_size} lr={cfg.learning_rate} "
-                f"eval_every={cfg.eval_every_n_steps}",
-                flush=True,
-            )
+            if is_primary:
+                print(
+                    f"[finetune-decoder] training: max_steps={cfg.max_steps} "
+                    f"batch_size={cfg.batch_size}/GPU×{world_size}GPU "
+                    f"lr={cfg.learning_rate} eval_every={cfg.eval_every_n_steps}",
+                    flush=True,
+                )
 
             while step < cfg.max_steps and not STOP.is_set():
                 # Arm watchdog for this step
@@ -695,6 +780,9 @@ class DecoderFinetuneTrainer:
                 try:
                     batch = next(train_iter)
                 except StopIteration:
+                    epoch += 1
+                    if hasattr(train_loader.sampler, "set_epoch"):
+                        train_loader.sampler.set_epoch(epoch)
                     train_iter = iter(train_loader)
                     try:
                         batch = next(train_iter)
@@ -702,7 +790,7 @@ class DecoderFinetuneTrainer:
                         break
 
                 model.train()
-                frames = batch.float().permute(0, 3, 1, 2).to(cfg.device) / 255.0
+                frames = batch.float().permute(0, 3, 1, 2).to(train_device) / 255.0
                 recon = self._encode_decode(model, frames, training=True)
 
                 loss = self.compute_loss(frames, recon)
@@ -711,9 +799,7 @@ class DecoderFinetuneTrainer:
                 optimiser.step()
                 scheduler.step()
 
-                # EMA update intentionally skipped: LitEma.forward has the same
-                # frozen-param assertion as copy_to; we patch EMA in the merged
-                # checkpoint at save time instead (see _save_merged_checkpoint).
+                # EMA update intentionally skipped — see _save_merged_checkpoint.
 
                 # Disarm watchdog
                 with _wd_lock:
@@ -727,7 +813,7 @@ class DecoderFinetuneTrainer:
 
                 step += 1
 
-                if step % 100 == 0 or step == 1:
+                if is_primary and (step % 100 == 0 or step == 1):
                     print(
                         f"[finetune-decoder] step {step}/{cfg.max_steps} "
                         f"loss={float(loss):.4f} "
@@ -762,42 +848,59 @@ class DecoderFinetuneTrainer:
                         not (current_rfid != current_rfid)  # not NaN
                         and current_rfid < best_rfid
                     )
-                    if improved:
-                        best_rfid = current_rfid
-                        no_improve_count = 0
-                        self._save_checkpoint(model)
-                        print(
-                            f"[finetune-decoder] ✓ new best rFID={best_rfid:.3f} "
-                            f"— checkpoint saved",
-                            flush=True,
-                        )
-                    else:
-                        no_improve_count += 1
-                        print(
-                            f"[finetune-decoder] no improvement "
-                            f"({no_improve_count}/{cfg.patience})",
-                            flush=True,
-                        )
+                    if is_primary:
+                        if improved:
+                            best_rfid = current_rfid
+                            no_improve_count = 0
+                            self._save_checkpoint(model)
+                            print(
+                                f"[finetune-decoder] ✓ new best rFID={best_rfid:.3f} "
+                                f"— checkpoint saved",
+                                flush=True,
+                            )
+                        else:
+                            no_improve_count += 1
+                            print(
+                                f"[finetune-decoder] no improvement "
+                                f"({no_improve_count}/{cfg.patience})",
+                                flush=True,
+                            )
 
-                    if no_improve_count >= cfg.patience:
-                        print(
-                            f"[finetune-decoder] early stop: patience {cfg.patience} "
-                            "exhausted",
-                            flush=True,
+                    # Broadcast early-stop decision from rank 0 to all ranks
+                    if world_size > 1:
+                        import torch as _t
+                        stop_tensor = _t.tensor(
+                            int(is_primary and no_improve_count >= cfg.patience),
+                            device=train_device,
                         )
+                        dist.broadcast(stop_tensor, src=0)
+                        should_stop = bool(stop_tensor.item())
+                    else:
+                        should_stop = is_primary and no_improve_count >= cfg.patience
+
+                    if should_stop:
+                        if is_primary:
+                            print(
+                                f"[finetune-decoder] early stop: patience "
+                                f"{cfg.patience} exhausted",
+                                flush=True,
+                            )
                         break
 
-            # Save final weights (decoder-only safetensors + full merged ckpt)
-            if not cfg.output_path.exists():
-                self._save_checkpoint(model)
-            merged_path = self._save_merged_checkpoint(model)
-            print(
-                f"[finetune-decoder] training complete "
-                f"(best rFID={best_rfid:.3f})\n"
-                f"  decoder weights : {cfg.output_path}\n"
-                f"  merged ckpt     : {merged_path}",
-                flush=True,
-            )
+            # Rank 0 saves final weights; all ranks wait.
+            if is_primary:
+                if not cfg.output_path.exists():
+                    self._save_checkpoint(model)
+                merged_path = self._save_merged_checkpoint(model)
+                print(
+                    f"[finetune-decoder] training complete "
+                    f"(best rFID={best_rfid:.3f})\n"
+                    f"  decoder weights : {cfg.output_path}\n"
+                    f"  merged ckpt     : {merged_path}",
+                    flush=True,
+                )
+            if world_size > 1:
+                dist.barrier()
 
         finally:
             _wd_done.set()
@@ -809,13 +912,14 @@ class DecoderFinetuneTrainer:
                     import torch as _torch
 
                     del model
-                    if cfg.device.startswith("cuda"):
-                        _torch.cuda.empty_cache()
+                    _torch.cuda.empty_cache()
                 except Exception as exc:  # noqa: BLE001
-                    print(
-                        f"[finetune-decoder] model release warning: {exc}",
-                        flush=True,
-                    )
+                    if is_primary:
+                        print(
+                            f"[finetune-decoder] model release warning: {exc}",
+                            flush=True,
+                        )
+            _cleanup_distributed()
 
         return cfg.output_path
 
@@ -829,12 +933,13 @@ class DecoderFinetuneTrainer:
 
         cfg = self.config
         cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
+        raw = model.module if hasattr(model, "module") else model
 
-        if hasattr(model, "decoder") and hasattr(model.decoder, "state_dict"):
-            state_dict = {k: v.cpu() for k, v in model.decoder.state_dict().items()}
+        if hasattr(raw, "decoder") and hasattr(raw.decoder, "state_dict"):
+            state_dict = {k: v.cpu() for k, v in raw.decoder.state_dict().items()}
         else:
             state_dict = {
-                k: v.cpu() for k, v in model.state_dict().items() if v.requires_grad
+                k: v.cpu() for k, v in raw.state_dict().items() if v.requires_grad
             }
 
         try:
@@ -879,8 +984,9 @@ class DecoderFinetuneTrainer:
         )
         sd = dict(orig["state_dict"])
 
+        raw = model.module if hasattr(model, "module") else model
         # Fine-tuned decoder weights (cpu float32 for maximum compat)
-        dec_sd = {k: v.cpu().float() for k, v in model.decoder.state_dict().items()}
+        dec_sd = {k: v.cpu().float() for k, v in raw.decoder.state_dict().items()}
 
         # Replace live decoder keys: "decoder.<local>" → patched value
         for local_k, val in dec_sd.items():
