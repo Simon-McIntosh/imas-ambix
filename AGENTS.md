@@ -165,6 +165,67 @@ requires `nvidia-smi --gpu-reset` or a reboot to clear.
    state=resume reason=""`** (resume only after the GPUs are confirmed clean,
    else the next job inherits a dirty GPU).
 
+## 2b. Performant GPU code (in-process default)
+
+**Principle:** GPU code in this repo runs in a **single long-lived process** that
+loads the model once and processes many shots in a loop. Any pattern that
+pays model-load cost per item — subprocess-per-shot, daemon-with-IPC, or
+prefetch producer/consumer threads — is **PROHIBITED** for production code.
+(Smoke tests and one-shot CLI tools are exempt.)
+
+**Why — three measured regressions from this repo:**
+
+1. **Corpus encode:** legacy frame daemon drained the node 3× (§2a RCAs) and
+   delivered poor throughput. Replacing it with in-process `stream_encode.py`
+   (torch `DataLoader`, bounded queues) yielded 308 fps/GPU peak and encoded
+   4.02B tokens in ~7 h on a single GPU.
+2. **Bench — subprocess-per-shot:** 100-shot rbb bench took **65 min** (job
+   1208872) because `OpenMagvit2Tokenizer` spawned ~200 subprocesses, each
+   reloading the VQModel. In-process `stream_worker.py` (job 1208918) ran the
+   same 100 shots in **8 min 46 s** — ~55× speedup on the GPU phase, ~7.4×
+   overall including CPU metrics.
+3. **Fragility:** interim subprocess-per-shot bench (job 1208896) hit
+   "Bus error (core dumped)" mid-run after a filesystem hiccup. The in-process
+   run immediately after processed all 100 shots without incident.
+
+**Canonical reference modules — copy these patterns:**
+
+- `imas_ambix/data/stream_encode.py` — corpus encoder. Holds VQModel across
+  all shots. torch `DataLoader` for shot loading. SIGTERM handler flushes async
+  Zarr writers and tears down DataLoader workers cleanly within
+  `UnkillableStepTimeout`.
+- `imas_ambix/bench/stream_worker.py` — bench encoder + decoder. Same
+  hardening: SIGTERM handler sets a `STOP` flag, per-shot watchdog
+  auto-tunes its timeout from the running median, `try/finally` releases
+  model + calls `torch.cuda.empty_cache()`.
+
+**Required of every new GPU-bound code path:**
+
+- Model loaded **once** outside the per-item loop.
+- `SIGTERM`/`SIGINT` handler sets a `STOP` flag and exits cleanly in < 5 s.
+- Per-item watchdog that sets `STOP` on timeout rather than blocking forever.
+- `try/finally` releasing the model + `torch.cuda.empty_cache()`.
+- `torch.backends.cudnn.benchmark = False` + `torch.backends.cudnn.deterministic = True`
+  for reproducibility (see root-cause comment in `stream_encode.py`).
+- `torch.set_float32_matmul_precision("high")` + bf16 on CUDA (H200 tensor cores).
+
+**Forbidden patterns:**
+
+- `subprocess.run` / `subprocess.Popen` per shot to a worker that reloads the
+  model. Model load is the dominant cost; this is never performant.
+- A persistent worker daemon driven by named pipes / FIFOs / file-IPC. These
+  have deadlock failure modes that drained the node 3× (see §2a). They offer
+  no advantage over in-process now that `stream_encode.py` exists.
+- Prefetch producer/consumer threads with unbounded queues. A failure in either
+  thread wedges the other. Use the torch `DataLoader` worker pool with bounded
+  queues instead.
+
+**Tooling:**
+
+- `ambix tokenize bench --in-process` is the default. The `--no-in-process`
+  flag is a debug escape hatch only.
+- `scripts/slurm/bench_rbb.sbatch` always runs in-process.
+
 ## 3. Storage Paths
 
 | Path | Purpose | Type | Size |
