@@ -364,16 +364,16 @@ def _make_signal_factory(name: str):
     help="Write JSON results to this path.",
 )
 @click.option(
-    "--in-process",
+    "--in-process/--no-in-process",
     "in_process",
-    is_flag=True,
-    default=False,
+    default=True,
+    show_default=True,
     help=(
-        "Frame mode only. Launch a single worker subprocess that holds the "
-        "VQModel in memory for the entire bench, eliminating the ~10 s/shot "
-        "venv-init overhead. Requires the Open-MAGVIT2 venv at "
-        "/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv. "
-        "Expected speedup: ~10× (65 min → ~5-8 min for 100 shots)."
+        "Frame mode only. --in-process (default) uses a single worker that holds "
+        "VQModel in memory for the entire bench — 7-55× faster than the legacy "
+        "subprocess-per-shot path. --no-in-process falls back to the legacy path "
+        "for non-OpenMagvit2 tokenizers (e.g. PlaceholderFrameTokenizer) or for "
+        "low-level debugging; it will error if the tokenizer is OpenMagvit2Tokenizer."
     ),
 )
 def bench_cmd(
@@ -440,6 +440,15 @@ def bench_cmd(
             console.print("[dim]--in-process: dispatching to stream_worker (hold VQModel in memory)[/dim]")
             result = benchmark_frame_tokenizer_in_process(cfg, **run_kwargs)
         elif cfg.tokenizer_kind == "frame":
+            # Guard: benchmark_frame_tokenizer raises for OpenMagvit2Tokenizer —
+            # surface a clear CLI error before entering the function.
+            from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer as _OMT
+            if isinstance(cfg.tokenizer_factory(), _OMT):
+                raise click.UsageError(
+                    "OpenMagvit2Tokenizer requires --in-process (the default). "
+                    "The legacy subprocess-per-shot path is unsupported for this "
+                    "tokenizer. Drop --no-in-process or omit it entirely."
+                )
             result = benchmark_frame_tokenizer(cfg, **run_kwargs)
         else:
             result = benchmark_signal_tokenizer(cfg, **run_kwargs)
@@ -498,6 +507,15 @@ def bench_cmd(
                     tier=effective_tier,  # type: ignore[arg-type]
                 )
             elif kind == "frame":
+                # Guard: benchmark_frame_tokenizer raises for OpenMagvit2Tokenizer —
+                # surface a clear CLI error before entering the function.
+                from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer as _OMT
+                if isinstance(cfg.tokenizer_factory(), _OMT):
+                    raise click.UsageError(
+                        "OpenMagvit2Tokenizer requires --in-process (the default). "
+                        "The legacy subprocess-per-shot path is unsupported for this "
+                        "tokenizer. Drop --no-in-process or omit it entirely."
+                    )
                 result = benchmark_frame_tokenizer(
                     cfg,
                     parsed_shot_ids,
