@@ -1,24 +1,39 @@
 """Plasma-domain Open-MAGVIT2 decoder fine-tune.
 
-Freezes the encoder + LFQ codebook; trains only the decoder with pixel L1 +
-perceptual (VGG16) loss on MAST rbb plasma frames.  The encoder and codebook
-remain ImageNet-derived — token IDs are stable, so no re-encoding of the
-9,528-shot corpus is needed when the decoder is swapped.
+Freezes the encoder + LFQ codebook (seeded from the original checkpoint's
+EMA shadow to match the corpus tokenizer's ``ema_scope`` behaviour); trains
+only the decoder with pixel L1 + VGG16 perceptual loss on MAST rbb plasma
+frames.
 
-Hardening mirrors ``imas_ambix.bench.stream_worker``:
+Correctness contracts that MUST hold (any divergence destroys the rFID gate):
+
+1. Encoder weights at train-time MUST equal encoder weights at bench-time.
+   The corpus encoder reads via ``with model.ema_scope(): model.encode(...)``.
+   We seed live encoder/decoder weights from the EMA shadow at startup so
+   plain ``model.encode()`` returns the same tokens as the bench.
+
+2. Frame normalization at train-time MUST equal corpus-encode normalization.
+   The corpus uses per-shot min/max (``stream_encode.normalise_frames_to_uint8``).
+   We pre-compute per-shot ``(lo, hi)`` during metadata scan and apply the
+   same per-shot transform per frame.
+
+3. Optimizer state precision: model params + AdamW moments in fp32; forward
+   pass under ``torch.amp.autocast(dtype=torch.bfloat16)`` for compute speed.
+   bf16-everywhere training loses precision in moment estimators.
+
+4. rFID evaluation runs on rank 0 with the FULL val set (not the per-rank
+   DistributedSampler shard). Result is broadcast so all ranks see the same
+   early-stop decision.
+
+Hardening (mirrors ``imas_ambix.bench.stream_worker``):
 - SIGTERM/SIGINT handler sets STOP flag (< 5 s graceful exit).
 - Per-step watchdog auto-calibrated from the running-median step time.
-- ``try/finally`` releases model + empties CUDA cache.
+- ``try/finally`` releases model + empties CUDA cache + destroys NCCL group.
 
-Run inside the Open-MAGVIT2 venv (Python 3.11, torch 2.1.1):
+Run via torchrun (4×H200 DDP):
 
-    PYTHONPATH=/path/to/imas-ambix \\
-      /path/to/open-magvit2/.venv/bin/python \\
-      imas_ambix/tokenizer/finetune_decoder.py \\
-      --train-shots train_ids.txt --val-shots val_ids.txt
-
-CLI is also exposed via ``ambix tokenize finetune-decoder`` (uses same
-DecoderFinetuneTrainer internally).
+    torchrun --nproc_per_node=4 imas_ambix/tokenizer/finetune_decoder.py \\
+        --train-shots train.txt --val-shots val.txt
 """
 
 from __future__ import annotations
@@ -67,12 +82,7 @@ def _install_signal_handlers() -> None:
 
 
 def _init_distributed() -> tuple[int, int]:
-    """Initialise NCCL process group when launched via torchrun.
-
-    Returns ``(rank, world_size)``.  When not running under torchrun
-    (WORLD_SIZE absent or 1) returns ``(0, 1)`` and leaves the process group
-    uninitialised — single-GPU path is unchanged.
-    """
+    """Initialise NCCL when launched via torchrun.  Returns ``(rank, world_size)``."""
     import torch
     import torch.distributed as dist
 
@@ -83,15 +93,15 @@ def _init_distributed() -> tuple[int, int]:
     if world_size > 1:
         dist.init_process_group(backend="nccl")
         torch.cuda.set_device(local_rank)
-    else:
-        if torch.cuda.is_available():
-            torch.cuda.set_device(0)
+    elif torch.cuda.is_available():
+        torch.cuda.set_device(0)
 
     return rank, world_size
 
 
 def _cleanup_distributed() -> None:
     import torch.distributed as dist
+
     if dist.is_available() and dist.is_initialized():
         dist.destroy_process_group()
 
@@ -108,13 +118,10 @@ _DEFAULT_L1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
 class DecoderFinetuneConfig:
     """Configuration for the plasma-domain Open-MAGVIT2 decoder fine-tune.
 
-    Defaults correspond to the recipe in the tokenizers plan §12.1:
-    ~375 k frames from 7,500 rbb shots, 4×H200 exclusive (used as single GPU),
-    AdamW + cosine LR, 10 k steps, early-stop on rFID plateau.
+    Per-GPU batch_size; effective batch = batch_size × world_size.
     """
 
     frame_root: Path = _DEFAULT_L1_ROOT
-    """Level-1 zarr root. Shot zarrs at ``{frame_root}/{shot_id}.zarr/{camera}``."""
     magvit2_root: Path = _DEFAULT_MAGVIT2_ROOT
     output_path: Path = _DEFAULT_MAGVIT2_ROOT / "weights" / "plasma-decoder-v1.safetensors"
     train_shot_ids: list[int] = field(default_factory=list)
@@ -122,13 +129,13 @@ class DecoderFinetuneConfig:
     camera: str = "rbb"
     image_size: int = 256
     frames_per_shot: int = 50
-    batch_size: int = 16  # per-GPU; effective = batch_size × world_size (plan spec: 16 × 4 = 64)
+    batch_size: int = 16  # per-GPU; effective = batch_size × world_size
     learning_rate: float = 1e-4
     max_steps: int = 10_000
     warmup_steps: int = 200
     l1_weight: float = 1.0
     perceptual_weight: float = 0.1  # locked decision: lpips-weight = 0.1
-    adv_weight: float = 0.0  # no adversarial in v0
+    grad_clip_norm: float = 1.0
     eval_every_n_steps: int = 1_000
     patience: int = 3
     seed: int = 0
@@ -145,56 +152,128 @@ class DecoderFinetuneConfig:
 # ---------------------------------------------------------------------------
 
 
+# VGG16 expects ImageNet normalization. Stored as module-level constants so
+# they can be moved to the model device once and reused across steps.
+_IMAGENET_MEAN = (0.485, 0.456, 0.406)
+_IMAGENET_STD = (0.229, 0.224, 0.225)
+
+
 class DecoderFinetuneTrainer:
     """Drives the Open-MAGVIT2 decoder fine-tune loop for plasma imagery.
 
-    All heavy imports (torch, torchvision, Open-MAGVIT2) are lazy — the
-    constructor does not load weights or open data so the object can be
-    instantiated without a GPU.
-
-    Usage::
-
-        config = DecoderFinetuneConfig(
-            train_shot_ids=[15085, 15086, ...],
-            val_shot_ids=[15100, 15101, ...],
-        )
-        trainer = DecoderFinetuneTrainer(config)
-        output_path = trainer.train()
+    Heavy imports (torch, torchvision, Open-MAGVIT2) are lazy so the
+    constructor can be instantiated without a GPU.
     """
 
-    # TOKEN_HW: 256 / 16 = 16 (Open-MAGVIT2 spatial compression factor)
-    _TOKEN_HW: int = 16
+    _TOKEN_HW: int = 16  # Open-MAGVIT2 spatial compression: 256/16 = 16
 
     def __init__(self, config: DecoderFinetuneConfig) -> None:
         self.config = config
         self._model: object | None = None
         self._vgg_features: object | None = None
+        self._vgg_mean: object | None = None
+        self._vgg_std: object | None = None
 
     # ------------------------------------------------------------------
     # Data
     # ------------------------------------------------------------------
 
-    def build_dataloaders(self) -> tuple[Iterable, Iterable]:
-        """Build training and validation data loaders (lazy, streaming).
+    def _scan_shots(self, shot_ids: list[int], label: str) -> list[tuple]:
+        """Scan zarr metadata + per-shot intensity stats.
 
-        Pre-scans zarr metadata to enumerate (path, variable, frame_index) tuples
-        without reading any pixel data — identical in spirit to stream_encode.py.
-        Each DataLoader worker opens its own zarr store handles and reads single
-        frames on demand, overlapping I/O with GPU compute.
+        Returns a list of tuples ``(zarr_path, arr_key, frame_idx, lo, hi)``
+        per frame.  ``(lo, hi)`` are the per-shot min/max — identical to what
+        ``stream_encode.normalise_frames_to_uint8`` computes — so frames
+        normalize the same way the corpus encoder did.
+        """
+        import numpy as np
+        import zarr
 
-        Level-1 zarr layout::
+        cfg = self.config
+        entries: list[tuple[str, str, int, float, float]] = []
+        n_missing = 0
+        t0 = time.monotonic()
 
-            {frame_root}/{shot_id}.zarr/{camera}/
+        for shot_id in shot_ids:
+            if STOP.is_set():
+                break
+            zarr_path = cfg.frame_root / f"{shot_id}.zarr" / cfg.camera
+            if not zarr_path.is_dir():
+                n_missing += 1
+                continue
+            try:
+                z = zarr.open_group(str(zarr_path), mode="r")
+                arr_keys = [k for k in z.array_keys() if z[k].ndim >= 3]
+                if not arr_keys:
+                    n_missing += 1
+                    continue
+                arr_key = arr_keys[0]
+                arr = z[arr_key]
+                t_len = int(arr.shape[0])
+                if t_len == 0:
+                    continue
+
+                # Per-shot min/max — match corpus normalise_frames_to_uint8.
+                # For shots with > 200 frames we sample 200 evenly-spaced
+                # frames to compute (lo, hi); the corpus encoder reads the
+                # whole shot at once anyway so this is a cheap approximation
+                # and the worst-case error on (lo, hi) is well under the
+                # quantization step.  For ≤ 200 frames we read all of them.
+                stats_indices = np.linspace(
+                    0, t_len - 1, min(200, t_len), dtype=int
+                )
+                # Read those frames via fancy indexing (sorted to be efficient)
+                stats_indices = np.unique(stats_indices)
+                stats_data = arr[stats_indices.tolist()]
+                stats_data = np.asarray(stats_data)
+                if stats_data.dtype != np.uint8:
+                    lo = float(stats_data.astype(np.float32).min())
+                    hi = float(stats_data.astype(np.float32).max())
+                else:
+                    lo, hi = 0.0, 255.0
+                if hi <= lo:
+                    lo, hi = 0.0, 1.0  # degenerate shot: avoid div-by-zero
+
+                # Training sample indices (evenly spaced)
+                sample_indices = np.linspace(
+                    0, t_len - 1, min(cfg.frames_per_shot, t_len), dtype=int
+                )
+                for idx in sample_indices:
+                    entries.append((str(zarr_path), arr_key, int(idx), lo, hi))
+
+            except Exception as exc:  # noqa: BLE001
+                warnings.warn(
+                    f"[finetune-decoder] scan {shot_id} failed: {exc}",
+                    stacklevel=2,
+                )
+                n_missing += 1
+
+        elapsed = time.monotonic() - t0
+        rank = int(os.environ.get("RANK", "0"))
+        if rank == 0:
+            print(
+                f"[finetune-decoder] {label}: scanned {len(shot_ids)} shots → "
+                f"{len(entries)} frames "
+                f"({n_missing} missing/skipped) in {elapsed:.1f}s",
+                flush=True,
+            )
+        return entries
+
+    def build_dataloaders(self) -> tuple[Iterable, Iterable, Iterable | None]:
+        """Build training and validation data loaders.
 
         Returns
         -------
-        tuple[Iterable, Iterable]
-            ``(train_loader, val_loader)`` as :class:`torch.utils.data.DataLoader`.
+        tuple
+            ``(train_loader, val_loader_distributed, val_loader_full)``.
+            ``val_loader_distributed`` is per-rank (used only for tests that
+            want sharded eval).  ``val_loader_full`` is the unsharded loader
+            built only on rank 0 — used by :meth:`evaluate` so rFID is
+            computed on the full 93 k-frame val set.
         """
         import numpy as np
         import torch
         import torch.distributed as dist
-        import zarr
         from torch.utils.data import DataLoader
         from torch.utils.data.distributed import DistributedSampler
 
@@ -203,57 +282,57 @@ class DecoderFinetuneTrainer:
 
         cfg = self.config
 
-        # ------------------------------------------------------------------
-        # Lazy frame dataset — no pixel data loaded at __init__ time
-        # ------------------------------------------------------------------
         class _PlasmaFrameDataset(torch.utils.data.Dataset):
-            """Each item is one (H, W, 3) uint8 frame, loaded lazily from zarr."""
+            """One (image_size, image_size, 3) uint8 frame per item.
+
+            Normalization uses the per-shot (lo, hi) precomputed in
+            ``_scan_shots`` so train-time frames match corpus-encode frames.
+            """
 
             def __init__(
                 self,
-                entries: list[tuple[str, str, int]],
+                entries: list[tuple[str, str, int, float, float]],
                 image_size: int,
             ) -> None:
-                self.entries = entries    # (zarr_path, arr_key, frame_idx)
+                self.entries = entries
                 self.image_size = image_size
 
             def __len__(self) -> int:
                 return len(self.entries)
 
             def __getitem__(self, i: int) -> "torch.Tensor":
-                import numpy as np
+                import numpy as _np
+                import zarr as _zarr
                 from PIL import Image
 
-                zarr_path, arr_key, frame_idx = self.entries[i]
+                zarr_path, arr_key, frame_idx, lo, hi = self.entries[i]
 
-                # Per-worker zarr store cache (not shared across processes)
+                # Per-worker zarr-store cache (bounded LRU-ish)
                 if not hasattr(self, "_z_cache"):
                     self._z_cache: dict[str, object] = {}
-
                 if zarr_path not in self._z_cache:
                     if len(self._z_cache) > 128:
                         del self._z_cache[next(iter(self._z_cache))]
-                    self._z_cache[zarr_path] = zarr.open_group(
+                    self._z_cache[zarr_path] = _zarr.open_group(
                         zarr_path, mode="r"
                     )
-
                 z = self._z_cache[zarr_path]
-                frame = np.asarray(z[arr_key][frame_idx])  # single frame read
 
-                if frame.dtype != np.uint8:
-                    lo = float(frame.min())
-                    hi = float(frame.max())
-                    if hi > lo:
-                        frame = (
-                            (frame.astype(np.float32) - lo) * 255.0 / (hi - lo)
-                        ).clip(0, 255).astype(np.uint8)
-                    else:
-                        frame = np.zeros(frame.shape, dtype=np.uint8)
+                raw = _np.asarray(z[arr_key][frame_idx])
+
+                # Per-shot normalization (matches corpus encoder)
+                if raw.dtype != _np.uint8:
+                    f = raw.astype(_np.float32)
+                    frame = (
+                        (f - lo) * 255.0 / max(hi - lo, 1e-12)
+                    ).clip(0, 255).astype(_np.uint8)
+                else:
+                    frame = raw
 
                 if frame.ndim == 2:
-                    frame = np.repeat(frame[..., np.newaxis], 3, axis=-1)
+                    frame = _np.repeat(frame[..., _np.newaxis], 3, axis=-1)
                 elif frame.ndim == 3 and frame.shape[-1] == 1:
-                    frame = np.repeat(frame, 3, axis=-1)
+                    frame = _np.repeat(frame, 3, axis=-1)
                 elif frame.ndim == 3 and frame.shape[-1] != 3:
                     frame = frame[:, :, :3]
 
@@ -262,83 +341,34 @@ class DecoderFinetuneTrainer:
                     img = img.resize(
                         (self.image_size, self.image_size), Image.BILINEAR
                     )
-                    frame = np.asarray(img)
+                    frame = _np.asarray(img)
 
-                return torch.from_numpy(np.ascontiguousarray(frame))
+                return torch.from_numpy(_np.ascontiguousarray(frame))
 
-        # ------------------------------------------------------------------
-        # Metadata scan: enumerate frame (path, key, index) pairs only
-        # ------------------------------------------------------------------
-        def _scan_shots(
-            shot_ids: list[int], label: str
-        ) -> list[tuple[str, str, int]]:
-            entries: list[tuple[str, str, int]] = []
-            n_missing = 0
-            t0 = time.monotonic()
-            for shot_id in shot_ids:
-                if STOP.is_set():
-                    break
-                zarr_path = cfg.frame_root / f"{shot_id}.zarr" / cfg.camera
-                if not zarr_path.is_dir():
-                    n_missing += 1
-                    continue
-                try:
-                    z = zarr.open_group(str(zarr_path), mode="r")
-                    arr_keys = [
-                        k for k in z.array_keys()
-                        if z[k].ndim >= 3  # skip 1D coord arrays
-                    ]
-                    if not arr_keys:
-                        n_missing += 1
-                        continue
-                    arr_key = arr_keys[0]
-                    t_len = int(z[arr_key].shape[0])
-                    if t_len == 0:
-                        continue
-                    indices = np.linspace(
-                        0, t_len - 1, min(cfg.frames_per_shot, t_len), dtype=int
-                    )
-                    for idx in indices:
-                        entries.append((str(zarr_path), arr_key, int(idx)))
-                except Exception as exc:  # noqa: BLE001
-                    warnings.warn(
-                        f"[finetune-decoder] scan {shot_id} failed: {exc}",
-                        stacklevel=2,
-                    )
-                    n_missing += 1
-            elapsed = time.monotonic() - t0
-            print(
-                f"[finetune-decoder] {label}: scanned {len(shot_ids)} shots "
-                f"→ {len(entries)} frames "
-                f"({n_missing} missing/skipped) in {elapsed:.1f}s",
-                flush=True,
-            )
-            return entries
-
-        # Only rank-0 needs to print the scan header; all ranks scan independently
-        # (each needs the full entry list for the sampler).
         if rank == 0:
             print(
                 f"[finetune-decoder] scanning {len(cfg.train_shot_ids)} train + "
-                f"{len(cfg.val_shot_ids)} val shots (metadata only) ...",
+                f"{len(cfg.val_shot_ids)} val shots ...",
                 flush=True,
             )
-        train_entries = _scan_shots(cfg.train_shot_ids, "train")
-        val_entries = _scan_shots(cfg.val_shot_ids, "val")
+        # All ranks scan independently (each needs the full entry list).
+        # Per-shot (lo, hi) reads ~200 KB/shot (200 frames × ~1 KB header
+        # accesses), so 7,500-shot scan stays under a minute on GPFS.
+        train_entries = self._scan_shots(cfg.train_shot_ids, "train")
+        val_entries = self._scan_shots(cfg.val_shot_ids, "val")
 
         train_ds = _PlasmaFrameDataset(train_entries, cfg.image_size)
         val_ds = _PlasmaFrameDataset(val_entries, cfg.image_size)
 
-        # DDP: each rank sees a non-overlapping shard of the data.
-        # Single-GPU: DistributedSampler with world_size=1 == plain shuffle.
         train_sampler = DistributedSampler(
-            train_ds, num_replicas=world_size, rank=rank, shuffle=True, drop_last=True
-        )
-        val_sampler = DistributedSampler(
-            val_ds, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False
+            train_ds,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=True,
+            drop_last=True,
+            seed=cfg.seed,
         )
 
-        # num_workers per rank: 4 GPUs × 4 workers = 16 total (fits in 30 CPUs).
         n_workers = 4
         train_loader = DataLoader(
             train_ds,
@@ -349,7 +379,13 @@ class DecoderFinetuneTrainer:
             persistent_workers=True,
             pin_memory=cfg.device.startswith("cuda"),
         )
-        val_loader = DataLoader(
+
+        # Distributed val loader — kept for completeness but currently
+        # unused (evaluate() uses val_loader_full on rank 0 only).
+        val_sampler = DistributedSampler(
+            val_ds, num_replicas=world_size, rank=rank, shuffle=False
+        )
+        val_loader_distributed = DataLoader(
             val_ds,
             batch_size=cfg.batch_size,
             sampler=val_sampler,
@@ -358,24 +394,45 @@ class DecoderFinetuneTrainer:
             persistent_workers=True,
             pin_memory=cfg.device.startswith("cuda"),
         )
-        return train_loader, val_loader
+
+        # Full unsharded val loader — only used by rank 0 in evaluate().
+        # We always build it (cheap, just a sampler-less DataLoader) so the
+        # API is symmetric across ranks; non-rank-0 ranks never iterate it.
+        val_loader_full = DataLoader(
+            val_ds,
+            batch_size=cfg.batch_size,
+            shuffle=False,
+            num_workers=n_workers,
+            prefetch_factor=2,
+            persistent_workers=True,
+            pin_memory=cfg.device.startswith("cuda"),
+        )
+        return train_loader, val_loader_distributed, val_loader_full
 
     # ------------------------------------------------------------------
     # Model
     # ------------------------------------------------------------------
 
     def build_model(self) -> object:
-        """Load the real Open-MAGVIT2 VQModel; freeze encoder + codebook.
+        """Load Open-MAGVIT2 VQModel; seed encoder+decoder from EMA shadow; freeze.
 
-        Uses the same ``load_model`` logic as ``imas_ambix.bench.stream_worker``
-        to ensure byte-consistency with the corpus encode.  After loading,
-        ALL parameters are frozen, then ``model.decoder`` is unfrozen for
-        fine-tuning.
+        Steps:
+        1. Load checkpoint (live + EMA shadow keys both present in state_dict).
+        2. Construct VQModel via OmegaConf.
+        3. ``load_state_dict(strict=False)`` populates both live and EMA.
+        4. **Patch live encoder/decoder weights with EMA shadow values** so
+           ``model.encode()`` (no ema_scope) returns the same tokens as the
+           bench's ``with model.ema_scope(): model.encode()`` path.
+        5. Freeze all params; unfreeze ``model.decoder``.
+        6. Cast to channels_last on the local device; KEEP fp32 (autocast
+           handles bf16 forward).
+        7. Wrap in DDP if world_size > 1.
 
         Returns
         -------
         torch.nn.Module
-            Full VQModel with encoder/codebook frozen and decoder trainable.
+            DDP-wrapped (or bare) VQModel with encoder/codebook frozen,
+            decoder trainable.
         """
         import torch
         import torch.distributed as dist
@@ -399,16 +456,42 @@ class DecoderFinetuneTrainer:
 
         model_cfg = OmegaConf.load(str(config_path))
         model = VQModel(**model_cfg.model.init_args)
-        sd = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)[
-            "state_dict"
-        ]
+
+        ckpt = torch.load(
+            str(ckpt_path), map_location="cpu", weights_only=False
+        )
+        sd = ckpt["state_dict"]
         model.load_state_dict(sd, strict=False)
 
-        # Freeze everything, then unfreeze the decoder only
+        # ── Seed live encoder/decoder weights from EMA shadow ─────────────
+        # Bench reads encoder via ema_scope(); we need the same weights at
+        # train time so token sequences match.  LitEma's m_name2s_name maps
+        # "encoder.conv_in.weight" → "encoderconv_inweight".
+        n_patched = 0
+        live_state = model.state_dict()
+        with torch.no_grad():
+            for live_key, live_tensor in list(live_state.items()):
+                if not (
+                    live_key.startswith("encoder.")
+                    or live_key.startswith("decoder.")
+                ):
+                    continue
+                # Buffers (BN running stats) and non-EMA-tracked params have
+                # no EMA shadow — skip them silently.
+                ema_key = "model_ema." + live_key.replace(".", "")
+                if ema_key in sd:
+                    live_tensor.copy_(sd[ema_key])
+                    n_patched += 1
+        # ── Freeze everything; unfreeze decoder only ──────────────────────
         model.requires_grad_(False)
         model.decoder.requires_grad_(True)
 
-        # Device: use LOCAL_RANK when torchrun sets it, else fall back to cfg.device
+        # Disable the model's own EMA hooks — we never call them during
+        # fine-tune (LitEma.forward/copy_to assert frozen params are not in
+        # m_name2s_name, but they are; see commit 9e53e02).  We patch the
+        # EMA shadow at save time in _save_merged_checkpoint().
+        model.use_ema = False
+
         local_rank = int(os.environ.get("LOCAL_RANK", "0"))
         device = f"cuda:{local_rank}" if cfg.device.startswith("cuda") else cfg.device
 
@@ -420,32 +503,33 @@ class DecoderFinetuneTrainer:
                 torch.use_deterministic_algorithms(True, warn_only=True)
             except Exception as exc:  # noqa: BLE001
                 print(f"[finetune-decoder] deterministic note: {exc}", flush=True)
-            model = model.to(
-                device=device,
-                dtype=torch.bfloat16,
-                memory_format=torch.channels_last,
-            )
+            # Keep fp32 params (AdamW state stays fp32 → numerically stable).
+            # Forward pass uses autocast bf16 — see _encode_decode/compute_loss.
+            model = model.to(device=device, memory_format=torch.channels_last)
         else:
             model = model.to(device)
 
-        # Wrap in DDP when running multi-GPU; only sync decoder gradients
-        # (frozen encoder/codebook have no grad so they're ignored automatically).
         if dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1:
             model = DDP(
                 model,
                 device_ids=[local_rank],
                 output_device=local_rank,
-                find_unused_parameters=True,  # frozen encoder/codebook have no grad
+                # All decoder params see grads every step; encoder/codebook
+                # are excluded by requires_grad=False.  find_unused=False
+                # saves the per-step param-graph walk.
+                find_unused_parameters=False,
             )
 
         rank = dist.get_rank() if (dist.is_available() and dist.is_initialized()) else 0
         n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
         n_total = sum(p.numel() for p in model.parameters())
         if rank == 0:
+            ws = dist.get_world_size() if dist.is_initialized() else 1
             print(
                 f"[finetune-decoder] model loaded: "
                 f"{n_trainable:,} trainable / {n_total:,} total params  "
-                f"device={device}  world_size={dist.get_world_size() if dist.is_initialized() else 1}",
+                f"device={device}  world_size={ws}  "
+                f"ema-seeded keys={n_patched}",
                 flush=True,
             )
         self._model = model
@@ -462,80 +546,77 @@ class DecoderFinetuneTrainer:
         *,
         training: bool,
     ) -> object:
-        """Encode with frozen encoder; decode with trainable decoder.
+        """Encode (frozen) → quant → decode (trainable).
+
+        Wrapped in ``torch.amp.autocast(bf16)`` for forward speed; model
+        params stay fp32 so AdamW state is fp32.
 
         Parameters
         ----------
-        model:
-            VQModel returned by :meth:`build_model`.
         frames_input:
-            ``(B, 3, H, W)`` float32 in [0, 1], on device.
+            ``(B, 3, H, W)`` fp32 in ``[0, 1]``, on device.
         training:
-            When True, decode is computed with grad (for backward pass).
-            When False, wrapped in ``torch.no_grad()``.
-
-        Returns
-        -------
-        torch.Tensor
-            ``(B, 3, H, W)`` float32 in [0, 1].
+            When True, decode is computed with grad.  When False, wrapped
+            in ``torch.no_grad()``.
         """
         import torch
 
-        # Access the underlying VQModel when DDP-wrapped
         raw = model.module if hasattr(model, "module") else model
 
-        target_dtype = next(raw.decoder.parameters()).dtype
-        frames_normed = frames_input.to(target_dtype).mul(2.0).sub(1.0)  # [-1,1]
-
-        # Encode with frozen encoder — never use ema_scope() during fine-tune.
-        # LitEma.copy_to/forward assert that frozen params are NOT in m_name2s_name,
-        # but they are (the EMA was built when all params were trainable), so
-        # ema_scope() raises AssertionError after our requires_grad freeze.
-        # The encoder is frozen anyway, so live weights == checkpoint weights == EMA.
-        with torch.no_grad():
+        # Encode + codebook lookup: no_grad, autocast bf16.
+        with torch.no_grad(), torch.amp.autocast(
+            device_type="cuda", dtype=torch.bfloat16
+        ):
+            frames_normed = frames_input.mul(2.0).sub(1.0)  # [-1, 1]
+            frames_normed = frames_normed.to(memory_format=torch.channels_last)
             _, _, idx, _ = raw.encode(frames_normed)
 
-        # Reshape token indices
-        B = frames_input.shape[0]
-        h = w = self._TOKEN_HW
-        idx_flat = idx.reshape(B, h * w)
-        bhwc = (B, h, w, int(raw.quantize.codebook_dim))
+            B = frames_input.shape[0]
+            h = w = self._TOKEN_HW
+            idx_flat = idx.reshape(B, h * w)
+            bhwc = (B, h, w, int(raw.quantize.codebook_dim))
+            quant = raw.quantize.get_codebook_entry(idx_flat, bhwc=bhwc, order="pre")
 
-        # Codebook lookup (codebook frozen; no ema_scope for same reason)
-        quant = raw.quantize.get_codebook_entry(idx_flat, bhwc=bhwc, order="pre")
-        quant = quant.to(target_dtype)
-
-        # Decode via raw module.  DDP gradient sync is driven by parameter-level
-        # autograd hooks registered at DDP.__init__ time — independent of the
-        # call path — so raw.decode() correctly syncs decoder grads across ranks.
+        # Decode: autocast bf16 forward; backward populates fp32 .grad tensors.
         if training:
-            recon_m11 = raw.decode(quant)
+            with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
+                recon_m11 = raw.decode(quant)
         else:
-            with torch.no_grad():
+            with torch.no_grad(), torch.amp.autocast(
+                device_type="cuda", dtype=torch.bfloat16
+            ):
                 recon_m11 = raw.decode(quant)
 
-        return (recon_m11.float().clamp(-1, 1) + 1.0) / 2.0  # [0,1] float32
+        # Cast to fp32 for loss computation (stable L1 + VGG).
+        return (recon_m11.float().clamp(-1, 1) + 1.0) / 2.0  # [0,1] fp32
 
     # ------------------------------------------------------------------
     # Loss
     # ------------------------------------------------------------------
+
+    def _vgg_normalize(self, x: object) -> object:
+        """Apply ImageNet mean/std normalization to ``(B,3,H,W)`` in [0,1]."""
+        import torch
+
+        if self._vgg_mean is None:
+            self._vgg_mean = torch.tensor(_IMAGENET_MEAN, dtype=torch.float32).view(
+                1, 3, 1, 1
+            ).to(x.device)
+            self._vgg_std = torch.tensor(_IMAGENET_STD, dtype=torch.float32).view(
+                1, 3, 1, 1
+            ).to(x.device)
+        return (x - self._vgg_mean) / self._vgg_std
 
     def compute_loss(
         self,
         target_frames: object,
         recon_frames: object,
     ) -> object:
-        """L1 + optional VGG16 perceptual loss.
+        """L1 + ImageNet-normalized VGG16 perceptual loss.
 
-        Falls back to L1-only if torchvision is absent or VGG16 weights
-        cannot be loaded (e.g. GPU node has no outbound network).
-
-        Parameters
-        ----------
-        target_frames:
-            ``(B, 3, H, W)`` float32 in [0, 1].
-        recon_frames:
-            ``(B, 3, H, W)`` float32 in [0, 1].
+        Both inputs are ``(B, 3, H, W)`` fp32 in [0, 1].  VGG features are
+        compared after ImageNet mean/std normalization (the distribution
+        VGG was trained on).
         """
         import torch
         import torch.nn.functional as F
@@ -545,9 +626,6 @@ class DecoderFinetuneTrainer:
         loss = cfg.l1_weight * l1
 
         if cfg.perceptual_weight > 0.0 and self._vgg_features is not False:
-            # _vgg_features states: None = not yet loaded, False = failed/disabled,
-            # nn.Module = ready.  This avoids the TypeError bug where object() was
-            # called as a function on every step after a failed download.
             try:
                 import torchvision.models as tvm
 
@@ -555,14 +633,22 @@ class DecoderFinetuneTrainer:
                     vgg = tvm.vgg16(weights=tvm.VGG16_Weights.IMAGENET1K_V1)
                     self._vgg_features = torch.nn.Sequential(
                         *list(vgg.features.children())[:16]
-                    ).to(cfg.device)
+                    ).to(target_frames.device)
                     self._vgg_features.requires_grad_(False)
                     self._vgg_features.eval()
-                    print("[finetune-decoder] VGG16 perceptual loss enabled", flush=True)
+                    rank = int(os.environ.get("RANK", "0"))
+                    if rank == 0:
+                        print(
+                            "[finetune-decoder] VGG16 perceptual loss enabled "
+                            "(ImageNet-normalized input)",
+                            flush=True,
+                        )
 
+                t_norm = self._vgg_normalize(target_frames)
+                r_norm = self._vgg_normalize(recon_frames)
                 with torch.no_grad():
-                    feat_target = self._vgg_features(target_frames)
-                feat_recon = self._vgg_features(recon_frames)
+                    feat_target = self._vgg_features(t_norm)
+                feat_recon = self._vgg_features(r_norm)
                 perceptual = F.mse_loss(feat_recon, feat_target)
                 loss = loss + cfg.perceptual_weight * perceptual
 
@@ -571,21 +657,20 @@ class DecoderFinetuneTrainer:
                     f"VGG16 perceptual loss disabled ({exc}); falling back to L1.",
                     stacklevel=2,
                 )
-                self._vgg_features = False  # permanently disable; never retry
+                self._vgg_features = False
 
         return loss
 
     # ------------------------------------------------------------------
-    # Evaluation
+    # Evaluation — rank 0 only, full val set
     # ------------------------------------------------------------------
 
     def evaluate(self, model: object, val_loader: Iterable) -> dict[str, float]:
-        """Evaluate rFID + L1 on the validation set.
+        """Evaluate rFID + L1 on the full validation set (rank 0 only).
 
-        Returns
-        -------
-        dict[str, float]
-            ``{"rfid": <float>, "l1": <float>}``
+        Other ranks block on the surrounding ``dist.barrier()`` while rank 0
+        iterates; the rFID result tensor is broadcast back so all ranks agree
+        on the early-stop decision.
         """
         import numpy as np
         import torch
@@ -597,27 +682,33 @@ class DecoderFinetuneTrainer:
         l1_sum = 0.0
         n_batches = 0
 
-        # Cap rFID buffer at 5 k frames (statistically sufficient; avoids 36 GB accumulation)
+        # Cap rFID buffer at 5 k frames (statistically sufficient for FID).
         _RFID_MAX_FRAMES = 5_000
         model.eval()
         try:
             for batch in val_loader:
                 if STOP.is_set():
                     break
-                frames = batch.float().permute(0, 3, 1, 2).to(cfg.device) / 255.0
+                # cfg.device may be "cuda"; current device set in build_model.
+                local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+                dev = f"cuda:{local_rank}" if cfg.device.startswith("cuda") else cfg.device
+                frames = batch.float().permute(0, 3, 1, 2).to(dev) / 255.0
                 recon = self._encode_decode(model, frames, training=False)
 
                 l1_sum += float(F.l1_loss(recon, frames).item())
                 n_batches += 1
 
-                # Accumulate for rFID (capped to avoid multi-GB RAM usage)
                 current_total = sum(a.shape[0] for a in all_targets)
                 if current_total < _RFID_MAX_FRAMES:
-                    t_np = (frames.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-                    r_np = (recon.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                    t_np = (
+                        frames.permute(0, 2, 3, 1).cpu().numpy() * 255
+                    ).clip(0, 255).astype(np.uint8)
+                    r_np = (
+                        recon.permute(0, 2, 3, 1).cpu().numpy() * 255
+                    ).clip(0, 255).astype(np.uint8)
                     all_targets.append(t_np)
                     all_recons.append(r_np)
-        except Exception as exc:  # noqa: BLE001 — worker crash, CUDA error, etc.
+        except Exception as exc:  # noqa: BLE001
             warnings.warn(
                 f"[finetune-decoder] evaluate() interrupted ({exc}); "
                 "reporting partial metrics.",
@@ -650,23 +741,7 @@ class DecoderFinetuneTrainer:
     # ------------------------------------------------------------------
 
     def train(self) -> Path:
-        """Run the full decoder fine-tune loop.
-
-        Algorithm
-        ---------
-        1. Install SIGTERM/SIGINT handlers + per-step watchdog.
-        2. Build dataloaders (:meth:`build_dataloaders`).
-        3. Build VQModel, freeze encoder + codebook (:meth:`build_model`).
-        4. AdamW, cosine LR + linear warmup.
-        5. Loop: encode (frozen) → decode (trainable) → L1+perceptual loss → step.
-        6. Every ``eval_every_n_steps``: rFID eval; save on improvement; early-stop.
-        7. Save decoder-only weights (.safetensors) + full merged weights (.ckpt).
-
-        Returns
-        -------
-        pathlib.Path
-            Path to the saved ``.safetensors`` decoder weights.
-        """
+        """Run the full decoder fine-tune loop."""
         import math
 
         import torch
@@ -684,11 +759,10 @@ class DecoderFinetuneTrainer:
         _install_signal_handlers()
         STOP.clear()
 
-        # Initialise NCCL when launched via torchrun; no-op for single-GPU.
         rank, world_size = _init_distributed()
-        is_primary = rank == 0  # gate logging, checkpointing, early-stop
+        is_primary = rank == 0
 
-        torch.manual_seed(cfg.seed + rank)  # different seed per rank for data variety
+        torch.manual_seed(cfg.seed + rank)
 
         # ── Watchdog ───────────────────────────────────────────────────────
         _step_times: list[float] = []
@@ -701,7 +775,7 @@ class DecoderFinetuneTrainer:
             if len(_step_times) >= 5:
                 med = sorted(_step_times)[len(_step_times) // 2]
                 return max(120.0, 5.0 * med)
-            return 300.0  # generous initial timeout for data loading
+            return 300.0
 
         def _watchdog() -> None:
             while not _wd_done.is_set():
@@ -721,13 +795,14 @@ class DecoderFinetuneTrainer:
         wd_thread = threading.Thread(target=_watchdog, daemon=True)
         wd_thread.start()
 
-        # Device string for moving batches (matches what build_model used)
         local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-        train_device = f"cuda:{local_rank}" if cfg.device.startswith("cuda") else cfg.device
+        train_device = (
+            f"cuda:{local_rank}" if cfg.device.startswith("cuda") else cfg.device
+        )
 
         model = None
         try:
-            train_loader, val_loader = self.build_dataloaders()
+            train_loader, _val_loader_dist, val_loader_full = self.build_dataloaders()
 
             if STOP.is_set():
                 if is_primary:
@@ -756,7 +831,6 @@ class DecoderFinetuneTrainer:
             no_improve_count = 0
             step = 0
             epoch = 0
-            # Set initial epoch for DistributedSampler shuffling
             if hasattr(train_loader.sampler, "set_epoch"):
                 train_loader.sampler.set_epoch(epoch)
             train_iter = iter(train_loader)
@@ -766,12 +840,14 @@ class DecoderFinetuneTrainer:
                 print(
                     f"[finetune-decoder] training: max_steps={cfg.max_steps} "
                     f"batch_size={cfg.batch_size}/GPU×{world_size}GPU "
-                    f"lr={cfg.learning_rate} eval_every={cfg.eval_every_n_steps}",
+                    f"lr={cfg.learning_rate} eval_every={cfg.eval_every_n_steps} "
+                    f"grad_clip={cfg.grad_clip_norm}",
                     flush=True,
                 )
 
+            model.train()  # set once; only flipped during eval
+
             while step < cfg.max_steps and not STOP.is_set():
-                # Arm watchdog for this step
                 budget = _step_timeout()
                 with _wd_lock:
                     _wd_budget["s"] = budget
@@ -789,19 +865,19 @@ class DecoderFinetuneTrainer:
                     except StopIteration:
                         break
 
-                model.train()
                 frames = batch.float().permute(0, 3, 1, 2).to(train_device) / 255.0
                 recon = self._encode_decode(model, frames, training=True)
-
                 loss = self.compute_loss(frames, recon)
-                optimiser.zero_grad()
+
+                optimiser.zero_grad(set_to_none=True)
                 loss.backward()
+                if cfg.grad_clip_norm > 0:
+                    torch.nn.utils.clip_grad_norm_(
+                        trainable_params, cfg.grad_clip_norm
+                    )
                 optimiser.step()
                 scheduler.step()
 
-                # EMA update intentionally skipped — see _save_merged_checkpoint.
-
-                # Disarm watchdog
                 with _wd_lock:
                     _wd_deadline["t"] = None
 
@@ -810,52 +886,58 @@ class DecoderFinetuneTrainer:
                 if len(_step_times) > 64:
                     del _step_times[0]
                 t_step_start = time.monotonic()
-
                 step += 1
 
-                if is_primary and (step % 100 == 0 or step == 1):
+                if is_primary and (step % 50 == 0 or step == 1):
                     print(
                         f"[finetune-decoder] step {step}/{cfg.max_steps} "
                         f"loss={float(loss):.4f} "
-                        f"lr={scheduler.get_last_lr()[0]:.2e}",
+                        f"lr={scheduler.get_last_lr()[0]:.2e} "
+                        f"step_time={step_time:.2f}s",
                         flush=True,
                     )
 
-                # Evaluation + early stopping
+                # ── Evaluation + early stop (rank 0 only) ─────────────────
                 if step % cfg.eval_every_n_steps == 0 or step == cfg.max_steps:
                     if STOP.is_set():
                         break
-                    model.eval()
-                    t_eval = time.monotonic()
-                    try:
-                        metrics = self.evaluate(model, val_loader)
-                    except Exception as exc:  # noqa: BLE001
+
+                    # All ranks barrier first so we have a clean sync point.
+                    if world_size > 1:
+                        dist.barrier()
+
+                    if is_primary:
+                        model.eval()
+                        t_eval = time.monotonic()
+                        try:
+                            metrics = self.evaluate(model, val_loader_full)
+                        except Exception as exc:  # noqa: BLE001
+                            print(
+                                f"[finetune-decoder] eval at step {step} raised "
+                                f"{type(exc).__name__}: {exc} — skipping",
+                                flush=True,
+                            )
+                            metrics = {"rfid": float("nan"), "l1": float("nan")}
+                        current_rfid = float(metrics.get("rfid", float("nan")))
+                        current_l1 = float(metrics.get("l1", float("nan")))
                         print(
-                            f"[finetune-decoder] eval at step {step} raised "
-                            f"{type(exc).__name__}: {exc} — skipping",
+                            f"[finetune-decoder] eval step {step}: "
+                            f"rFID={current_rfid:.3f} L1={current_l1:.4f} "
+                            f"({time.monotonic() - t_eval:.1f}s)",
                             flush=True,
                         )
-                        metrics = {"rfid": float("nan"), "l1": float("nan")}
-                    current_rfid = metrics.get("rfid", float("nan"))
-                    print(
-                        f"[finetune-decoder] eval step {step}: "
-                        f"rFID={current_rfid:.3f} L1={metrics.get('l1', float('nan')):.4f} "
-                        f"({time.monotonic() - t_eval:.1f}s)",
-                        flush=True,
-                    )
 
-                    improved = (
-                        not (current_rfid != current_rfid)  # not NaN
-                        and current_rfid < best_rfid
-                    )
-                    if is_primary:
+                        improved = (
+                            not (current_rfid != current_rfid)
+                            and current_rfid < best_rfid
+                        )
                         if improved:
                             best_rfid = current_rfid
                             no_improve_count = 0
                             self._save_checkpoint(model)
                             print(
-                                f"[finetune-decoder] ✓ new best rFID={best_rfid:.3f} "
-                                f"— checkpoint saved",
+                                f"[finetune-decoder] ✓ new best rFID="
+                                f"{best_rfid:.3f} — checkpoint saved",
                                 flush=True,
                             )
                         else:
@@ -865,18 +947,18 @@ class DecoderFinetuneTrainer:
                                 f"({no_improve_count}/{cfg.patience})",
                                 flush=True,
                             )
+                        model.train()
 
-                    # Broadcast early-stop decision from rank 0 to all ranks
+                    # Broadcast early-stop decision from rank 0.
                     if world_size > 1:
-                        import torch as _t
-                        stop_tensor = _t.tensor(
+                        stop_tensor = torch.tensor(
                             int(is_primary and no_improve_count >= cfg.patience),
                             device=train_device,
                         )
                         dist.broadcast(stop_tensor, src=0)
                         should_stop = bool(stop_tensor.item())
                     else:
-                        should_stop = is_primary and no_improve_count >= cfg.patience
+                        should_stop = no_improve_count >= cfg.patience
 
                     if should_stop:
                         if is_primary:
@@ -887,7 +969,7 @@ class DecoderFinetuneTrainer:
                             )
                         break
 
-            # Rank 0 saves final weights; all ranks wait.
+            # Save final weights on rank 0.
             if is_primary:
                 if not cfg.output_path.exists():
                     self._save_checkpoint(model)
@@ -935,12 +1017,7 @@ class DecoderFinetuneTrainer:
         cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
         raw = model.module if hasattr(model, "module") else model
 
-        if hasattr(raw, "decoder") and hasattr(raw.decoder, "state_dict"):
-            state_dict = {k: v.cpu() for k, v in raw.decoder.state_dict().items()}
-        else:
-            state_dict = {
-                k: v.cpu() for k, v in raw.state_dict().items() if v.requires_grad
-            }
+        state_dict = {k: v.cpu() for k, v in raw.decoder.state_dict().items()}
 
         try:
             from safetensors.torch import save_file
@@ -955,20 +1032,17 @@ class DecoderFinetuneTrainer:
             torch.save(state_dict, str(fallback))
 
     def _save_merged_checkpoint(self, model: object) -> Path:
-        """Patch the original checkpoint with fine-tuned decoder and save as .ckpt.
+        """Patch original ckpt with fine-tuned decoder weights → save as .ckpt.
 
-        Starts from the original ``imagenet_256_L.ckpt`` (which has a consistent
-        EMA state) and replaces both the live ``decoder.*`` weights and the
-        corresponding ``model_ema.*`` shadow buffers with the fine-tuned decoder.
+        Starts from ``imagenet_256_L.ckpt`` (which has consistent EMA + live
+        state).  We replaced live encoder weights with EMA at startup, so
+        live-encoder == EMA-encoder; both are unchanged by training.
 
-        This lets ``stream_worker.load_model`` load the file and use
-        ``ema_scope()`` for inference exactly as it does today — the EMA shadow
-        now carries the fine-tuned decoder instead of the ImageNet one.
-
-        Returns
-        -------
-        pathlib.Path
-            Path to the saved merged ``.ckpt`` file.
+        For the decoder, we patch BOTH the live ``decoder.*`` keys AND the
+        ``model_ema.decoder*`` shadow buffers with the fine-tuned values.
+        At bench time, ``stream_worker.load_model`` reads this checkpoint and
+        ``ema_scope()`` copies the EMA shadow (= fine-tuned) over the live
+        weights for inference.
         """
         import torch
 
@@ -976,7 +1050,6 @@ class DecoderFinetuneTrainer:
         merged_path = cfg.output_path.with_name("plasma-decoder-v1-merged.ckpt")
         merged_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Load original checkpoint (encoder + codebook + EMA all consistent)
         orig = torch.load(
             str(cfg.magvit2_root / "weights" / "imagenet_256_L.ckpt"),
             map_location="cpu",
@@ -985,27 +1058,26 @@ class DecoderFinetuneTrainer:
         sd = dict(orig["state_dict"])
 
         raw = model.module if hasattr(model, "module") else model
-        # Fine-tuned decoder weights (cpu float32 for maximum compat)
         dec_sd = {k: v.cpu().float() for k, v in raw.decoder.state_dict().items()}
 
-        # Replace live decoder keys: "decoder.<local>" → patched value
+        n_live = 0
+        n_ema = 0
         for local_k, val in dec_sd.items():
             full_k = f"decoder.{local_k}"
             if full_k in sd:
                 sd[full_k] = val
-
-        # Replace EMA shadow keys for decoder.
-        # LitEma stores buffer under name = full_param_name.replace('.', ''),
-        # prefixed by "model_ema." in the module's state_dict.
-        # E.g. "decoder.conv_in.weight" → buffer "model_ema.decoderconv_inweight"
-        for local_k, val in dec_sd.items():
-            full_param = f"decoder.{local_k}"
-            ema_buf = f"model_ema.{full_param.replace('.', '')}"
+                n_live += 1
+            ema_buf = f"model_ema.{full_k.replace('.', '')}"
             if ema_buf in sd:
                 sd[ema_buf] = val
+                n_ema += 1
 
         torch.save({"state_dict": sd}, str(merged_path))
-        print(f"[finetune-decoder] merged ckpt saved: {merged_path}", flush=True)
+        print(
+            f"[finetune-decoder] merged ckpt saved: {merged_path}  "
+            f"(patched {n_live} live + {n_ema} EMA decoder keys)",
+            flush=True,
+        )
         return merged_path
 
 
@@ -1021,12 +1093,11 @@ def finetune_decoder(config: DecoderFinetuneConfig) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# CLI entry point (``python finetune_decoder.py`` or ``python -m ...``)
+# CLI
 # ---------------------------------------------------------------------------
 
 
 def _parse_shot_ids(path: str) -> list[int]:
-    """Read one shot ID per line from a text file, skip blank/comment lines."""
     ids = []
     for line in Path(path).read_text().splitlines():
         line = line.strip()
@@ -1041,42 +1112,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
             "Fine-tune the Open-MAGVIT2 decoder on plasma rbb frames. "
-            "Run inside the Open-MAGVIT2 venv (torch 2.1.1)."
+            "Run via torchrun inside the Open-MAGVIT2 venv."
         )
     )
-    parser.add_argument(
-        "--train-shots",
-        required=True,
-        help="Text file with one train shot ID per line.",
-    )
-    parser.add_argument(
-        "--val-shots",
-        required=True,
-        help="Text file with one val shot ID per line.",
-    )
-    parser.add_argument(
-        "--max-steps", type=int, default=10_000, help="Training steps."
-    )
+    parser.add_argument("--train-shots", required=True)
+    parser.add_argument("--val-shots", required=True)
+    parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=64,
-        help="Frames per gradient step (single GPU; plan spec 16×4=64).",
+        default=16,
+        help="Per-GPU batch size (effective batch = batch_size × world_size).",
     )
-    parser.add_argument(
-        "--learning-rate", type=float, default=1e-4, help="AdamW initial LR."
-    )
-    parser.add_argument(
-        "--output-path",
-        default=None,
-        help=(
-            "Destination for fine-tuned decoder weights (.safetensors). "
-            "Defaults to {magvit2_root}/weights/plasma-decoder-v1.safetensors."
-        ),
-    )
-    parser.add_argument(
-        "--device", default="cuda", help="'cuda' or 'cpu'."
-    )
+    parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--eval-every", type=int, default=1_000)
+    parser.add_argument("--output-path", default=None)
+    parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
 
     train_ids = _parse_shot_ids(args.train_shots)
@@ -1088,6 +1139,7 @@ if __name__ == "__main__":
         max_steps=args.max_steps,
         batch_size=args.batch_size,
         learning_rate=args.learning_rate,
+        eval_every_n_steps=args.eval_every,
         device=args.device,
     )
     if args.output_path is not None:
