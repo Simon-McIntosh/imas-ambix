@@ -642,7 +642,28 @@ class DecoderFinetuneTrainer:
         """
         import torch
 
+        # MODEL_FORWARD_BATCH is part of the tokenizer's bit-exact contract
+        # (see imas_ambix/data/stream_encode.py:159).  The Open-MAGVIT2 VQ
+        # encoder forward is batch-size sensitive — feeding 16 frames at once
+        # produces different LFQ token IDs than feeding 4 (1209084 confirmed:
+        # bench rFID 28.87 vs training-time 14.04 on the same decoder weights,
+        # attributed to this mismatch).  C6 fix: sub-batch the encoder forward
+        # to MODEL_FORWARD_BATCH=4, matching bench/corpus.
+        try:
+            from imas_ambix.data.stream_encode import MODEL_FORWARD_BATCH
+        except ImportError:
+            MODEL_FORWARD_BATCH = 4  # fallback if module not importable
+
         raw = model.module if hasattr(model, "module") else model
+
+        # C7 fix: encoder + quantize must run in EVAL mode to match
+        # bench/corpus contract (stream_worker calls model.eval() at load).
+        # The training loop's model.train() sets all submodules to train mode;
+        # if any encoder layer has BatchNorm/Dropout, train-mode forward
+        # produces different outputs than eval-mode.  Explicit reset before
+        # every encode call is bulletproof and zero-cost.
+        raw.encoder.eval()
+        raw.quantize.eval()
 
         # Encode + codebook lookup: no_grad, autocast bf16.
         with torch.no_grad(), torch.amp.autocast(
@@ -650,9 +671,20 @@ class DecoderFinetuneTrainer:
         ):
             frames_normed = frames_input.mul(2.0).sub(1.0)  # [-1, 1]
             frames_normed = frames_normed.to(memory_format=torch.channels_last)
-            _, _, idx, _ = raw.encode(frames_normed)
 
             B = frames_input.shape[0]
+            # C6: chunk encoder forward to MODEL_FORWARD_BATCH-sized batches.
+            idx_chunks = []
+            for i in range(0, B, MODEL_FORWARD_BATCH):
+                chunk = frames_normed[i : i + MODEL_FORWARD_BATCH]
+                _, _, idx_i, _ = raw.encode(chunk)
+                idx_chunks.append(idx_i)
+            idx = (
+                idx_chunks[0]
+                if len(idx_chunks) == 1
+                else torch.cat(idx_chunks, dim=0)
+            )
+
             h = w = self._TOKEN_HW
             idx_flat = idx.reshape(B, h * w)
             bhwc = (B, h, w, int(raw.quantize.codebook_dim))
