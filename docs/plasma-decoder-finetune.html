@@ -15,14 +15,14 @@
 <meta name="plan-sprint" content="S5">
 <meta name="plan-tier" content="opus">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-28">
+<meta name="plan-modified" content="2026-05-29">
 <meta name="plan-depends-on" content="tokenizers,compute,tokenizer-benchmarks">
 <meta name="plan-blocks" content="world-model-v0">
 <meta name="plan-impl" content="0.6">
 <title>Plasma-domain decoder fine-tune (Open-MAGVIT2) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="8">
 </head>
 <body>
 <main class="plan-doc">
@@ -245,6 +245,47 @@ Production run history:
 - `f-finetune-decoder-kickoff-2026-05-28` (kickoff): originally open; effectively superseded by the C5+C6+C7 corrective work.  Will be resolved when 1209092&#x27;s bench shows a trustworthy result.
 - `f-rebench-after-finetune-2026-05-29` (re-bench): the bench portion has now been run TWICE (1209047, 1209084) with regression each time.  Will fire again on 1209092&#x27;s ckpt.
 - v1 plans ([transient-fidelity](/imas-ambix/tokenizer-transient-fidelity.html), [cosmos-evaluation](/imas-ambix/tokenizer-cosmos-evaluation.html)) remain dormant until 1209092&#x27;s stratified re-bench produces a trustworthy baseline.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260528T231238805436" data-who="agent/opus (coordinator)" data-when="2026-05-28T23:12:38+00:00">
+    <div class="r-comment-body">**2026-05-29 — FINAL VERDICT: skip the fine-tune; use baseline imagenet OMAG2 decoder for world-model-v0.**
+
+Three paths evaluated head-to-head on the 100-shot rbb config (C8 frame selection, all on the same 798-frame rFID pool):
+
+| Path | rFID overall | quiescent | transient | blank | PSNR | LPIPS | chord_nrmse |
+|---|---|---|---|---|---|---|---|
+| **Baseline 1209100** (untrained OMAG2) | **17.04** | 26.36 | 23.57 | 0.00 | 35.54 | 0.131 | 0.22 |
+| v0 1209101 (L1 + 0.1·LPIPS) | 26.22 | 39.61 | 32.09 | 1.44 | 36.41 | 0.153 | 0.26 |
+| **Option B 1209130** (L1 + 1.0·LPIPS) | **24.49** | 37.13 | 29.88 | 1.85 | 35.83 | 0.147 | 0.15 |
+| Cosmos 1209109 (zero-shot DI16x16) | 47.52 | 58.54 | 52.12 | 71.77 | 33.10 | 0.166 | — |
+
+**Outcome**: no fine-tune path beats baseline.  Option B is the best of the three (1.73 pt better than v0; chord_nrmse no longer degenerate), confirming that higher perceptual weight DOES move training in the right direction.  But the gap to baseline (7.45 pt) is too large to close with loss reweighting alone.  Cosmos zero-shot is catastrophically worse; the codebook architecture is not the bottleneck.
+
+**Mechanism (best current understanding)**:
+
+1. Encoder (frozen ImageNet weights) maps plasma frames into the LFQ codebook.  Only 2.5 % of the 262 K codes are used on plasma — the encoder has compressed plasma into a narrow vocabulary the imagenet decoder happens to handle well at the InceptionV3-perceptual scale.
+2. Fine-tuning the decoder on L1+LPIPS pulls it toward pixel-accurate reconstruction of the training distribution.  PSNR improves slightly.  But the decoder loses generality — its InceptionV3-feature outputs drift away from the target distribution.  rFID worsens.
+3. Higher perceptual weight (Option B) partly counteracts this by anchoring training to a perceptual rather than pixel objective.  Still not enough.
+4. Switching tokenizers (Cosmos) doesn&#x27;t help because its encoder was trained on natural images/video; plasma is OOD and the FSQ &quot;structural utilisation&quot; guarantee buys nothing.
+
+**Bugs surfaced and fixed during this investigation** (commits in chronological order):
+
+- `2649370` — **C5** PIL→F.interpolate resize (training/bench resize-operator mismatch).
+- `78c9786` — **C6** encoder forward chunked to MODEL_FORWARD_BATCH=4 + **C7** encoder/quantize forced to eval mode.  Both no-ops empirically (OMAG2 encoder is invariant) but defensive.
+- `b0d3704` — **C8** bench frame selection `frames[:N]` → `np.linspace(0, T-1, N)` uniform stride across full shot.  Shifted baseline rFID by ~0.8.
+- `966ae41` — `_save_merged_checkpoint` filename derived from `output_path` stem (was hardcoded, would have clobbered across runs) + `--perceptual-weight` CLI arg added.
+- `0d1356c` — bench config moved from `/tmp/` (login-node-only) to repo (GPFS-visible from GPU compute nodes).
+
+**Decision lock recommendation** (pending user confirmation):
+
+- This plan&#x27;s `f-finetune-decoder-kickoff-2026-05-28` followup: **resolve with NEGATIVE result** — fine-tune attempted, validated regressing vs baseline; recommend baseline.
+- `f-rebench-after-finetune-2026-05-29` followup: **resolve** — re-bench done 4× (1209047, 1209084, 1209099, 1209101, 1209130), all confirm fine-tuned decoder is worse than baseline.
+- Plan status → **shipped with negative result**: the fine-tune was implemented end-to-end, all bugs fixed, all alternative paths explored.  The decoder fine-tune approach does not work for the rFID metric on plasma.  World-model-v0 unblocked with baseline OMAG2 imagenet decoder.
+
+**Open questions for future iteration** (NOT v0):
+
+- Encoder fine-tune on plasma (re-tokenise 4.02 B-token corpus, ~7 h GPU).  Most principled fix but largest scope.
+- Direct rFID-as-loss (train against InceptionV3 features explicitly).  Training-on-the-test-metric concern.
+- v1 plans ([transient-fidelity](/imas-ambix/tokenizer-transient-fidelity.html), [cosmos-evaluation](/imas-ambix/tokenizer-cosmos-evaluation.html)) **superseded** by this negative finding.  Both should be moved to `shipped`/`superseded` status.</div>
 </div>
 </section>
 </main>

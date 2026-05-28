@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-title" content="Cosmos-Tokenizer evaluation (FSQ alternative)">
 <meta name="plan-modified" content="2026-05-28">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -474,7 +474,7 @@ Done-when
        - either is already &lt; 5: gate met, both v1 plans deferred
   5. Resolve THIS followup with the classification + recommended next plan to activate</pre>
     </article>
-<article class="r-fu" data-id="f-jit-load-test-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jit-load-test-2026-05-28" data-status="resolved" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="2026-05-28T21:41:51+00:00" data-resolved-by="agent/opus (coordinator)">
     <h4 class="r-fu-title">De-risk: test Cosmos .jit load in our torch 2.5.1 magvit2 venv</h4>
     <div class="r-fu-body">Before committing to Phase 1, verify the .jit archives actually load. JIT cross-version load is a known failure mode. 30-min experiment, no GPU needed (CPU load + smoke forward should be enough). De-risks the entire plan.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -505,6 +505,7 @@ Done-when
   1. Either: both .jit files load and forward cleanly → resolve this followup with &quot;Phase 1 unblocked&quot;
   2. Or: load fails → resolve with the error message + recommendation (downgrade torch, or wait for Cosmos to retrain on newer torch, or alternative path)
   3. The result decides whether Phase 1 starts immediately or is blocked.</pre>
+    <p class="r-fu-outcome">JIT load verified 2026-05-28: torch.jit.load() works cleanly in our magvit2 venv (torch 2.5.1+cu124) for both encoder.jit and decoder.jit, on CPU AND cuda:0. Output shapes match the HF README: indices (1, 16, 16) int32 in [0, 65535], codes (1, 6, 16, 16) bf16 in [-1, 1] (FSQ continuous codes pre-quantization), and a (1, 1, 1, 1) fp32 scalar (internal, ignored). Decoder takes the int32 indices, returns (1, 3, 256, 256) bf16 in [-1, 1]. NO cross-version load failures observed. Test script: /tmp/cosmos_load_test.py. Phase 1 unblocked — but the subsequent Phase 2 zero-shot bench (job 1209109) showed catastrophic regression vs Open-MAGVIT2 baseline, so the plan as a whole is now superseded (see §1 comment 2026-05-28 23:22).</p>
     </article>
 </section>
 
@@ -532,6 +533,39 @@ Cannot yet decide whether this plan&#x27;s Phase 1 (Cosmos evaluation) is justif
 - `codebook_util` = 2.53 % (unchanged across runs — encoder frozen)
 
 Both v1 plans (this one + transient-fidelity) remain dormant until the 1209092 stratified re-bench produces a trustworthy baseline.  Plan re-activates from the same `f-phase0-trigger-check` followup once we have that number.</div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-20260528T214134385954" data-who="agent/opus (coordinator)" data-when="2026-05-28T21:41:34+00:00">
+    <div class="r-comment-body">**2026-05-28 23:22 — COSMOS-WORSE verdict from zero-shot bench 1209109.**
+
+Phase 1 (download + JIT load) + Phase 2 (zero-shot bench on the 100-shot rbb config with C8 frame selection) executed.  The hypothesis that the FSQ codebook structurally solves Open-MAGVIT2&#x27;s 2.5%-utilisation problem is **disproved on plasma data**.
+
+| Bench | Decoder | rfid_overall | quiescent | transient | blank | PSNR | LPIPS |
+|---|---|---|---|---|---|---|---|
+| 1209100 | OMAG2 baseline (untrained) | **17.04** | 26.36 | 23.57 | 0.00 | 35.54 | 0.131 |
+| 1209101 | OMAG2 C5+C6+C7 fine-tuned | 26.22 | 39.61 | 32.09 | 1.44 | 36.41 | 0.153 |
+| **1209109** | **Cosmos DI16x16 zero-shot** | **47.52** | **58.54** | **52.12** | **71.77** | **33.10** | **0.166** |
+
+Cosmos is **catastrophically worse than even untrained Open-MAGVIT2** on plasma.  All rFID classes worse; PSNR and LPIPS also worse.  `rfid_blank=71.77` (vs OMAG2 baseline 0.00) is particularly damning — Cosmos cannot even reconstruct dark frames to near-zero, which OMAG2 does trivially.
+
+**Mechanism**: Cosmos was trained on natural-image/video distribution.  Plasma frames are far OOD.  The Cosmos encoder maps plasma frames to tokens that the Cosmos decoder reconstructs to &quot;natural-image-like&quot; output, which is further from the plasma target than Open-MAGVIT2&#x27;s reconstructions.  FSQ&#x27;s structural utilisation guarantee is at the *training* distribution — on OOD data, all 64 K codes are visited but the mapping isn&#x27;t aligned with plasma structure.
+
+**Mean centroid MSE 271.73** (vs OMAG2 baseline ~24) — Cosmos reconstructions don&#x27;t preserve brightness centroids; physically meaningless.
+
+**mean_chord_nrmse = Infinity** — chord-length-normalized errors overflow because reconstructed plasma cross-sections are degenerate.
+
+**Conclusion**: codebook architecture (FSQ vs LFQ) is **not** the bottleneck for Open-MAGVIT2&#x27;s 17.04 plasma baseline.  Open-MAGVIT2&#x27;s 2.5%-utilised 262 K LFQ codebook is genuinely a better plasma representation than Cosmos&#x27;s 100%-utilised 64 K FSQ codebook.
+
+**Phase 3+ (decoder fine-tune on plasma) for Cosmos is NOT worth pursuing.**  Even if fine-tuning could reduce 47.52 → 17 (matching OMAG2 baseline), that&#x27;s the same number Open-MAGVIT2 already achieves without any fine-tune.  The structural advantage is undone by the OOD encoder distribution.
+
+**Decisions effectively locked by this result** (will record formally if user confirms):
+- `evaluate-trigger` → `defer` (Cosmos is not the right path)
+- `variant-choice` → moot (DI16x16 evaluated, eliminated)
+- `encoder-fine-tune-budget` → `reject` (Phase 4 not worth it given Phase 2 catastrophic failure)
+- `comparison-scope` → moot (no need to compare MGVQ/MambaVideo if Cosmos already disproves the codebook-architecture hypothesis)
+
+**Followups resolved**:
+- `f-jit-load-test-2026-05-28` — JIT loaded cleanly in torch 2.5.1+cu124 on both CPU and CUDA. Will resolve formally.
+- `f-phase0-trigger-check-2026-05-28` — partial: trigger check was for OMAG2-side baseline (1209092→1209099 verdict, also still bad), but Cosmos has now been tested zero-shot and ruled out.</div>
 </div>
 </section>
 </main>
