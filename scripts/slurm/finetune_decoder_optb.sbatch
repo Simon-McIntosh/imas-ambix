@@ -117,16 +117,17 @@ EXIT_CODE=${PIPESTATUS[0]}
 echo "[$(date)] ambix-finetune-decoder-optb finished (exit=${EXIT_CODE})"
 
 WEIGHTS="${OUT_PATH}"
-# Merged ckpt uses the trainer's hard-coded "plasma-decoder-v1-merged.ckpt" name
-# in the SAME directory as output_path — so the merged from this run will be at
-# .../weights/plasma-decoder-v1-merged.ckpt (overwriting the v0 one!).  This
-# could clobber.  Document the overlap; manual cleanup may be needed.
-MERGED="$(dirname "${OUT_PATH}")/plasma-decoder-v1-merged.ckpt"
+# Trainer derives merged-ckpt name from OUT_PATH stem (post commit 966ae41 bug
+# fix), so Option B's merged is plasma-decoder-v1-optb-merged.ckpt — distinct
+# from v0's plasma-decoder-v1-merged.ckpt.  No clobber.
+MERGED="$(dirname "${OUT_PATH}")/$(basename "${OUT_PATH}" .safetensors)-merged.ckpt"
 if [[ -f "${WEIGHTS}" ]]; then
     echo "[verify] decoder weights: $(du -h "${WEIGHTS}" | cut -f1)  ${WEIGHTS}"
 fi
 if [[ -f "${MERGED}" ]]; then
     echo "[verify] merged ckpt:     $(du -h "${MERGED}" | cut -f1)  ${MERGED}"
+else
+    echo "[verify] WARNING: merged ckpt missing at ${MERGED}"
 fi
 
 exit "${EXIT_CODE}"
