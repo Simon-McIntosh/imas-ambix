@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="reckon-type" content="plan">
+<meta name="plan-slug" content="tokenizer-frame-quality-filter">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="M">
+<meta name="plan-tier" content="sonnet">
+<meta name="plan-summary" content="Corpus-side sidecar mask flagging blank/degenerate camera frames so fine-tune, bench, and world-model all skip them. Empirical 2026-05-28 audit (30-shot sample) found 1.79% blank frames concentrated in specific shots; no filter exists today, so the decoder wastes capacity learning to reproduce near-zero tensors and rFID is artificially deflated by easy-to-reconstruct blanks. Implementation is non-invasive: token rows stay intact, only a per-shot valid_mask is added.">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-sprint" content="S6">
+<meta name="plan-depends-on" content="tokenizers,plasma-decoder-finetune,tokenizer-benchmarks">
+<title>Frame-quality filter (sidecar mask) | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+<h1>Frame-quality filter (sidecar mask)</h1>
+
+<p>Status: <span class="status active"><span class="dot"></span>Active</span> — empirical
+audit landed 2026-05-28; implementation queued as a v1 follow-on after
+production 1209004 completes.  Non-blocking for the current fine-tune run.</p>
+
+<h2 id="s1">§1 — Why now</h2>
+<p>The 2026-05-28 frame-quality audit (30 random shots, 67 754 frames, results
+at <code>/work/projects/imas_gpu/mast-tokens/v1/frames-quality-audit-2026-05-28.json</code>)
+quantified a category of error frames that the entire pipeline has been silently
+processing as if they were valid plasma data:</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Category</th><th>Heuristic</th><th>Prevalence (sample)</th><th>Worst shot in sample</th></tr></thead>
+<tbody>
+<tr><td>All-saturated ("all white")</td><td>mean &gt; 1000, std &lt; 1</td><td><strong>0.00 %</strong> — none found</td><td>—</td></tr>
+<tr><td>Near-black blank</td><td>mean &lt; 5, std &lt; 1</td><td><strong>1.79 %</strong> (1 210 / 67 754)</td><td><code>24827</code>: <strong>15.6 %</strong> (1 125 / 7 202)</td></tr>
+<tr><td>Entirely degenerate shot</td><td>shot max ≤ 16</td><td>2 of 30 shots (<code>22719</code> max=13, <code>26160</code> max=16)</td><td><code>22719</code>: 100 % degenerate</td></tr>
+</tbody>
+</table></div>
+
+<p>Three concrete failure modes the filter prevents:</p>
+
+<ol>
+<li><strong>Wasted decoder capacity.</strong>  Production fine-tune 1209004 samples
+~50 frames per shot × 7 500 train shots = 375 k frames.  At 1.79 %
+prevalence ≈ <strong>6 700 blank frames in the training set</strong>.  These
+trivially satisfy L1 (decoder learns to output near-zero) without learning
+anything useful about plasma reconstruction — capacity that should have gone
+to transient frames is burned on noise.</li>
+<li><strong>Garbage tokens from degenerate shots.</strong>  For shots like
+<code>22719</code> where the camera was on but recorded only noise (max=13),
+the per-shot <code>(lo, hi)</code> normalization stretches that 13-count
+noise to the full [0, 255] range.  The encoder then sees pure noise and
+produces meaningless LFQ token IDs, which the world model will later try
+to learn temporal patterns from.</li>
+<li><strong>Artificially deflated rFID.</strong>  Blank frames are trivially
+reconstructed (the decoder maps near-zero tokens back to near-zero
+output) so they contribute very low per-frame FID error.  A mean rFID that
+includes blanks therefore <em>understates</em> the actual error on
+physically-relevant frames.  See companion plan
+<a href="/imas-ambix/tokenizer-transient-fidelity.html">tokenizer-transient-fidelity</a>
+for the stratified-metric solution.</li>
+</ol>
+
+<h2 id="s2">§2 — Approach</h2>
+<p>Per-shot JSON sidecar at
+<code>/work/projects/imas_gpu/mast-tokens/v1/frame-quality/&lt;shot_id&gt;-&lt;camera&gt;.json</code>
+with the following schema:</p>
+
+<pre><code>{
+  "shot": 24827,
+  "camera": "rbb",
+  "n_frames": 7202,
+  "n_valid": 6077,
+  "n_blank": 1125,
+  "n_saturated": 0,
+  "n_constant": 0,
+  "valid_fraction": 0.8438,
+  "shot_min": 0,
+  "shot_max": 1023,
+  "shot_min_nonblank": 2,
+  "shot_max_nonblank": 1023,
+  "valid_mask": "01001110…",      // hex-packed bitmask, len = ceil(n_frames/4)
+  "computed_at": "2026-05-28T17:00:00Z",
+  "computed_by": "ambix data frame-quality-scan v1.0",
+  "schema_version": 1
+}</code></pre>
+
+<p>Key design choices:</p>
+
+<ul>
+<li><strong>Sidecar, not re-tokenization.</strong>  The corpus token files at
+<code>/work/projects/imas_gpu/mast-tokens/v1/frames/&lt;shot&gt;/rbb.zarr/</code>
+stay byte-identical.  The mask only tells downstream consumers which token
+rows to skip.  Avoids the ~7 h corpus re-encode that would otherwise be
+required, and keeps existing offsets stable for any prior consumer that
+already has token indices baked in.</li>
+<li><strong>Both stats AND mask co-located.</strong>  The shot scan reads
+every frame once and computes per-shot <code>(lo, hi)</code> alongside the
+validity mask.  This merges naturally with
+<a href="/imas-ambix/plasma-decoder-finetune.html#decisions">task #11</a>
+(the per-shot stats cache) — both are per-shot metadata that justify a
+single full-frame pass.</li>
+<li><strong>Hex-packed bitmask.</strong>  For a 14 360-frame shot the
+mask is &lt; 2 KB.  Trivial to gzip if storage becomes a concern.</li>
+<li><strong>Schema version pinned.</strong>  Consumers gate on
+<code>schema_version</code>; bumping it triggers a re-scan rather than
+silent compatibility issues.</li>
+</ul>
+
+<h2 id="s3">§3 — Acceptance criteria</h2>
+<ol>
+<li>Per-shot sidecar exists for every shot in the rbb tokenized corpus
+(9 528 files at <code>/work/projects/imas_gpu/mast-tokens/v1/frame-quality/</code>).</li>
+<li><code>imas_ambix.tokenizer.finetune_decoder._scan_shots()</code> reads the
+sidecar and excludes invalid frames from its entry list.</li>
+<li><code>imas_ambix.bench.stream_worker</code> (and any other val-pool
+consumer) similarly skips invalid frames.</li>
+<li>Inspection of known-bad shot <code>24827</code> shows mask-valid count
+in [6000, 6200] (≈ 1100 blanks excluded out of 7 202).</li>
+<li>Inspection of entirely-degenerate shot <code>22719</code> shows
+<code>valid_fraction = 0</code>; consumers drop this shot wholesale.</li>
+<li>A re-bench of 1209004's weights with the filter applied shows the
+stratified <code>rfid_quiescent</code> bin no longer contains blank frames
+(check via <code>count_blank</code> in the bench output).</li>
+<li>New training run shows training pool size reduced by the audited 1.79 %
+(±0.5 % per-shot variance) — confirms the mask is wired correctly end-to-end.</li>
+</ol>
+
+<h2 id="s4">§4 — Implementation phases</h2>
+
+<h3>Phase 1 — Audit module + CLI</h3>
+<p>Land <code>imas_ambix/data/frame_quality.py</code> with the per-shot
+function <code>compute_shot_quality(shot_id, zarr_path, camera) -&gt; dict</code>
+that reads ALL frames, applies the heuristics from <a href="#s1">§1</a>, and
+returns the schema-1 dict.  Add CLI:
+<code>ambix data frame-quality-scan --camera rbb [--shot-list FILE]
+[--workers N] [--overwrite]</code>.</p>
+<p>Uses the same in-process streaming pattern as
+<code>stream_encode.py</code> — torch <code>DataLoader</code> workers reading
+zarr stores, no subprocess daemon, no prefetch threads — to avoid the
+node-drain failure modes from
+<a href="/imas-ambix/rca-node-drain-2026-05-27.html">prior incidents</a>.
+Includes the STOP-FILE check from <code>AGENTS.md §2a-cancel</code>.</p>
+
+<h3>Phase 2 — Corpus scan SLURM</h3>
+<p>Single SLURM job to scan the full 9 528-shot rbb corpus.  Header
+follows the three-layer pattern from
+<code>AGENTS.md §2a-cancel-time</code>: <code>--time=02:00:00</code> (~2x
+expected runtime of ~30-60 min), <code>--signal=B:USR1@600</code>,
+<code>AMBIX_SOFT_TIME_LIMIT=5100</code> (85 % of ceiling).</p>
+<p>Output: 9 528 sidecar JSONs.  Aggregate stats logged: total invalid
+frames, per-shot invalid distribution, list of entirely-degenerate shots.
+The aggregate goes into a NEW followup on this plan (not the consuming
+plans) so we have a single canonical "corpus is now filtered" reference.</p>
+
+<h3>Phase 3 — Fine-tune integration</h3>
+<p>Update <code>imas_ambix/tokenizer/finetune_decoder._scan_shots()</code>:
+read the sidecar before sampling frame indices; drop invalid indices from
+the entry list; log the resulting "valid frames available" and the
+filter-effective-fraction.  Add a fallback: if the sidecar is missing for a
+shot, fall back to the existing 200-sample stats path AND emit a warning
+(so missing sidecars don't silently propagate).</p>
+
+<h3>Phase 4 — Bench integration</h3>
+<p>Update <code>imas_ambix/bench/stream_worker.py</code>: read the sidecar
+mask; in <code>run_worker</code>, drop frames where mask[i] = False before
+feeding to encode/decode.  Adjust the <code>n_items</code> per-shot report
+so the bench output reflects only-valid frames.  Update
+<code>v0-rbb-100shot.yaml</code> and the finetune variant: no change needed
+to the metric list (the existing rfid_stratified already handles blank
+classification via the spatial-std heuristic; the sidecar just prevents
+the blanks from being included in the bench pool in the first place).</p>
+
+<h3>Phase 5 — Validation + re-bench</h3>
+<p>Re-bench production 1209004's <code>plasma-decoder-v1-merged.ckpt</code>
+with the filter applied.  Compare the new bench result against the
+unfiltered baseline:</p>
+<ul>
+<li><code>count_blank</code> in <code>rfid_stratified</code> should drop to ~0</li>
+<li><code>rfid_quiescent</code> may rise slightly (no more easy blanks
+"helping" the mean)</li>
+<li><code>rfid_transient</code> unchanged (transients were never blank)</li>
+<li><code>rfid_overall</code> rises slightly — this is correct, the
+unfiltered number was misleadingly low</li>
+</ul>
+<p>Document the before/after in a comment on this plan.  If transient rFID
+is the gate (see <a href="/imas-ambix/tokenizer-transient-fidelity.html">tokenizer-transient-fidelity</a>),
+the overall rFID change is informational.</p>
+
+<h2 id="s5">§5 — Out of scope</h2>
+<ul>
+<li><strong>Re-tokenization of the corpus.</strong>  Existing tokens stay
+unchanged; only the mask is added.  Re-encoding would be a separate v2
+project costing ~7 h GPU.</li>
+<li><strong>Other cameras.</strong>  Initial scope is rbb only.  IR (rir)
+follows the same pattern but is gated on the IR-codebook decision in
+the parent <a href="/imas-ambix/tokenizers.html">tokenizers</a> plan.</li>
+<li><strong>Subtler degeneracy modes</strong> (e.g., frames with realistic
+mean but no plasma signal — pure background light).  v1 catches the
+obvious near-black case; physics-aware detection (low gradient, no
+filamentary structure) is a v2 ML-classifier project.</li>
+<li><strong>Re-scoring previously-trained models.</strong>  We only
+re-bench production 1209004's weights; we don't retroactively
+re-evaluate the earlier baseline bench 1208918.</li>
+</ul>
+
+<h2 id="s6">§6 — Compute</h2>
+<p>Phase 2 corpus scan: I/O-bound (~30-60 min wall-clock on betelgeuse,
+single-GPU sufficient since this is metadata only — no model forward).
+Phase 3-4 are pure code changes.  Phase 5 re-bench: standard 100-shot
+in-process bench (~9 min) using the same SLURM pattern as
+<code>scripts/slurm/bench_rbb.sbatch</code>.</p>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+
+<div class="r-dec" data-key="degenerate-shot-handling" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">How should entirely-degenerate shots (valid_fraction = 0) be handled?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="drop">drop the shot entirely from train + val + bench pools</button>
+    <button class="r-opt" data-value="quarantine">keep tokens but quarantine to a separate audit pool for inspection</button>
+    <button class="r-opt" data-value="report-only">v1 reports them but doesn't drop; deciders revisit per-shot</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+
+<div class="r-dec" data-key="mask-recompute-trigger" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">When should sidecar masks be recomputed?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="schema-bump">only when schema_version is bumped (manual)</button>
+    <button class="r-opt" data-value="zarr-mtime">when the source zarr's mtime exceeds the sidecar's computed_at</button>
+    <button class="r-opt" data-value="never">never automatically; treat sidecar as ground truth once written</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+
+<div class="r-dec" data-key="heuristic-thresholds" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">Are the audit-derived thresholds (mean&lt;5, std&lt;1) appropriate for production, or do we need per-camera tuning?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="keep-audit">keep audit thresholds across all cameras (simple, defensible from data)</button>
+    <button class="r-opt" data-value="per-camera">allow per-camera override in the CLI (rir has different dynamic range)</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+</section>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-phase1-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28">
+  <h4 class="r-fu-title">Phase 1: land imas_ambix/data/frame_quality.py + CLI</h4>
+  <div class="r-fu-body">Module with compute_shot_quality(); CLI ambix data frame-quality-scan; uses in-process streaming pattern from stream_encode.py with the STOP-FILE contract from AGENTS.md §2a-cancel. Phases 2-5 cannot start until this lands.</div>
+  <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    tokenizer-frame-quality-filter (http://localhost:8765/imas-ambix/tokenizer-frame-quality-filter.html)
+Section: §4 Phase 1
+Tier:    sonnet
+
+Context
+  2026-05-28 audit confirmed blank frames at 1.79% prevalence, concentrated in specific shots.
+  Sidecar mask is the agreed approach (no re-tokenization).  This phase lands the per-shot scan logic.
+
+State to read
+  GET /plan/imas-ambix/tokenizer-frame-quality-filter
+  imas_ambix/data/stream_encode.py        (reference for in-process streaming + SIGTERM/STOP-FILE)
+  imas_ambix/eval/metrics.py              (frame_activity_class — share thresholds; mean&lt;5, std&lt;1)
+  /work/projects/imas_gpu/mast-tokens/v1/frames-quality-audit-2026-05-28.json (target schema/heuristics)
+
+Locked decisions to honour
+  (none yet — open decisions tracked in §Decisions, surface but do not resolve)
+
+Open decisions to surface (do not resolve)
+  degenerate-shot-handling, mask-recompute-trigger, heuristic-thresholds
+
+Constraints
+  - In-process streaming only — NO subprocess daemon, NO prefetch threads (AGENTS.md §2a / 2b)
+  - SIGTERM handler + STOP-FILE check (AGENTS.md §2a-cancel)
+  - Hex-packed bitmask for valid_mask (memory + storage efficiency)
+  - schema_version=1 pinned; bumping triggers re-scan
+
+Done-when
+  1. imas_ambix/data/frame_quality.py exists with compute_shot_quality()
+  2. ambix data frame-quality-scan CLI works on a single test shot (e.g. 24827)
+  3. Output JSON matches schema in §2
+  4. Test on shot 24827: expect n_blank in [1100, 1200], valid_fraction in [0.83, 0.86]
+  5. Test on shot 22719: expect valid_fraction = 0
+  6. This followup resolved; phase-2 followup written</pre>
+</article>
+</section>
+
+</main>
+</body>
+</html>

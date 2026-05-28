@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="reckon-type" content="plan">
+<meta name="plan-slug" content="tokenizer-transient-fidelity">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="L">
+<meta name="plan-tier" content="opus">
+<meta name="plan-summary" content="Make the decoder good on transient frames (ELMs, L-H transitions, filaments) — the physics-relevant ones the world model will need. Mean rFID is misleading because it averages over quiescent and transient frames; stratified rFID with a transient-specific gate replaces it. Combined with importance sampling and per-class loss weighting to make transient frames a first-class training citizen, not a tail.">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-sprint" content="S6">
+<meta name="plan-depends-on" content="tokenizers,plasma-decoder-finetune,tokenizer-benchmarks,tokenizer-frame-quality-filter">
+<meta name="plan-blocks" content="world-model-v0">
+<title>Tokenizer transient-frame fidelity | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+<h1>Tokenizer transient-frame fidelity</h1>
+
+<p>Status: <span class="status active"><span class="dot"></span>Active</span> — stratified
+rFID classifier landed 2026-05-28 (commit <code>e792c71</code>); first measurement
+will come from the re-bench of production 1209004.  v1 phases queued depending
+on what that measurement shows.</p>
+
+<h2 id="s1">§1 — Why this exists</h2>
+<p>The tokenizers plan's M1 gate is <code>rFID &lt; 5</code> on the 100-shot
+bench.  We measured rFID=16.25 on the ImageNet baseline (job 1208918) and
+1209004 is running to drive it below 5.  But mean rFID across all
+val frames is the WRONG quantity for the physics that comes next.</p>
+
+<p>A plasma shot is dominated by quiet frames: ohmic ramp-up, steady-state,
+controlled flat-top, soft termination.  Transient frames — ELM crashes,
+L-H / H-L transitions, internal modes, disruptions — are a small minority
+(typically 5-30 % of frames).  But they are precisely the events the world
+model is being built to predict.  If the decoder reconstructs quiescent
+frames at rFID=2 and transient frames at rFID=20, the mean rFID can pass
+the &lt; 5 gate while the world model is trained to predict tokens that
+fail on every interesting event.</p>
+
+<p>A second compounding effect: from <a href="/imas-ambix/tokenizer-frame-quality-filter.html">tokenizer-frame-quality-filter</a>,
+1.79 % of corpus frames are blank near-black "easy" frames.  Decoder-on-blank
+is essentially zero rFID, dragging the mean down further.  Mean rFID is
+inflated by easy frames at both ends (blank + quiescent) and the
+physically-relevant transient bin gets averaged into invisibility.</p>
+
+<p>This plan fixes that by: (1) reporting per-class rFID separately, (2)
+making the rFID&lt;5 gate apply to the transient class (not the mean), and
+(3) training the decoder so transient frames are over-represented and
+over-weighted vs the quiescent default.</p>
+
+<h2 id="s2">§2 — Classification approach</h2>
+<p>Two complementary classifiers, layered:</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Classifier</th><th>Signal</th><th>What it captures</th><th>Status</th></tr></thead>
+<tbody>
+<tr>
+  <td>Spatial std (v0)</td>
+  <td>per-frame pixel std</td>
+  <td>frames with bright filamentary structure, edge structure, plasma vs no-plasma</td>
+  <td>landed (commit <code>e792c71</code>); <code>frame_activity_class()</code> in <code>imas_ambix/eval/metrics.py</code></td>
+</tr>
+<tr>
+  <td>Temporal gradient (v1)</td>
+  <td><code>|frame_t − frame_{t-1}| / max(|frame_{t-1}|, 1)</code></td>
+  <td>L-H transitions, ELM crashes, MARFEs — events that are transient in TIME even if individual frames look quiescent</td>
+  <td>queued — needs adjacent-frame access in the eval loop</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>A frame is "transient" if EITHER spatial-std OR temporal-gradient flags
+it.  Quiescent frames have low values for both.  Blank frames are flagged
+separately (mean&lt;5, std&lt;1) and the
+<a href="/imas-ambix/tokenizer-frame-quality-filter.html">frame-quality
+filter</a> drops them entirely so they don't pollute either bin.</p>
+
+<h3>Spatial-std heuristic (v0 — already in use)</h3>
+<pre><code># From imas_ambix/eval/metrics.py:frame_activity_class
+flat = arr.reshape(T, -1)
+fmean = flat.mean(axis=1)
+fstd = flat.std(axis=1)
+
+blank_mask = (fstd &lt; 1.0) &amp; (fmean &lt; 5.0)
+nonblank = ~blank_mask
+median_std = float(np.median(fstd[nonblank]))
+quiescent = nonblank &amp; (fstd &lt; median_std)
+transient = nonblank &amp; (fstd &gt;= median_std)</code></pre>
+
+<p>Strengths: zero dependency on previous frame, fast, captures spatially
+busy frames.  Weakness: a bright but stationary plasma can look "transient"
+without being one; a small fast feature on a dim background can look
+"quiescent" and miss the L-H signature.</p>
+
+<h3>Temporal-gradient heuristic (v1 — queued)</h3>
+<pre><code># Per-shot, after loading frames in order:
+diff = np.abs(frames[1:] - frames[:-1]).astype(np.float32)
+norm = np.maximum(np.abs(frames[:-1]).astype(np.float32), 1.0)
+temporal_gradient = (diff / norm).reshape(T-1, -1).mean(axis=1)
+# frame i is temporal-transient if temporal_gradient[i-1] &gt; threshold
+# (frame 0 inherits the classifier from frame 1)</code></pre>
+
+<p>The threshold is calibrated on a small labelled set of known L-H
+transitions (in §4 Phase 2).  Once both classifiers are in place, the
+union (OR) gives the final transient label.</p>
+
+<h2 id="s3">§3 — Training intervention</h2>
+<p>Three changes to <code>imas_ambix/tokenizer/finetune_decoder.py</code>:</p>
+
+<h3>3a. Importance sampling (replace uniform stride)</h3>
+<p>Currently:
+<code>indices = np.linspace(0, T-1, frames_per_shot, dtype=int)</code> —
+each frame has equal sampling weight.  Replace with:</p>
+<pre><code># Compute spatial-std per frame (cheap; one pass over the shot's data)
+fstd = compute_per_frame_std(shot)  # cached in the sidecar from frame-quality scan
+# Weight: 1.0 for quiescent, alpha (=2.5) for transient
+weights = np.where(fstd &gt;= median_std, alpha_transient, 1.0)
+weights[blank_mask] = 0.0  # safety belt — should also be filtered by sidecar
+# Sample without replacement
+indices = rng.choice(T, size=frames_per_shot, p=weights/weights.sum(), replace=False)</code></pre>
+<p>Total compute budget unchanged (still 50 frames/shot).  Effective
+transient representation in the training pool rises from ~50 % (uniform,
+assuming 50/50 quiescent/transient split) to ~71 % (with alpha=2.5).</p>
+
+<h3>3b. Per-class loss weighting</h3>
+<p>The current loss is <code>L = l1_weight × L1 + perceptual_weight × LPIPS</code>,
+both unweighted across the batch.  Replace with:</p>
+<pre><code># Per-sample class label passed alongside the frame batch via the dataset
+# (extend _PlasmaFrameDataset.__getitem__ to return (frame, class_id))
+loss_per_sample = l1_per_sample + cfg.perceptual_weight * lpips_per_sample
+class_weights = torch.tensor({
+    "quiescent": 1.0,
+    "transient": cfg.transient_loss_weight,  # default 2.5
+}[label] for label in batch_labels)
+loss = (loss_per_sample * class_weights).mean()</code></pre>
+<p>Note: this requires per-sample (not per-batch) loss computation —
+straightforward since both L1 and LPIPS are reductions of per-pixel
+distances.  Adds &lt; 1 % overhead per step.</p>
+
+<h3>3c. Transient-rich mini-batch composition (optional, v1.5)</h3>
+<p>Beyond per-sample weighting, optionally enforce a minimum transient
+fraction per batch.  E.g., for batch_size=16 ensure at least 8 are
+transient.  Implementation: custom <code>BatchSampler</code> that draws
+from stratified pools.  Trade-off: tighter sampling guarantees vs. lost
+gradient noise.  Defer to v1.5 — measure 3a+3b first to see if it's
+needed.</p>
+
+<h2 id="s4">§4 — Implementation phases</h2>
+
+<h3>Phase 1 — Stratified rFID in production bench (LANDED 2026-05-28)</h3>
+<p><code>frame_activity_class()</code> + <code>rfid_stratified()</code> in
+<code>imas_ambix/eval/metrics.py</code>; wired into <code>bench/tokenizer.py</code>
+when <code>"rfid_stratified"</code> is in <code>config.metrics</code>; both
+bench configs (<code>v0-rbb-100shot.yaml</code> and <code>-finetune.yaml</code>)
+opt in.  First measurement comes from the re-bench of 1209004.</p>
+
+<h3>Phase 2 — Temporal-gradient classifier + calibration</h3>
+<p>Extend <code>frame_activity_class()</code> to accept an optional
+<code>temporal_threshold</code> and prev-frame tensor.  Update
+<code>evaluate()</code> in <code>finetune_decoder.py</code> to keep the
+previous frame's tensor around so the classifier sees consecutive pairs.</p>
+<p>Calibration set: 5-10 shots with hand-labelled L-H transition windows
+(work with diagnostics team — Ben Dudson / NSF-MAST collaborator).
+Pick the threshold so a labelled L-H window is &gt;70 % flagged transient.</p>
+
+<h3>Phase 3 — Importance-sampling in finetune scan</h3>
+<p>Update <code>_scan_shots()</code> to read per-frame std from the
+<a href="/imas-ambix/tokenizer-frame-quality-filter.html">sidecar</a>
+(or compute on the fly if absent); weight indices by class; return
+weighted entries.  Verify training pool composition: ~71 % transient
+with alpha=2.5 vs ~50 % with uniform.</p>
+
+<h3>Phase 4 — Per-sample loss weighting in compute_loss</h3>
+<p>Refactor <code>compute_loss()</code> to accept per-sample weights and
+reduce after weighting.  Default <code>transient_loss_weight=2.5</code>.
+Expose via <code>DecoderFinetuneConfig</code>.</p>
+
+<h3>Phase 5 — v1 fine-tune run + re-bench</h3>
+<p>Re-train decoder with phases 2-4 applied.  Goal: <code>rfid_transient
+&lt; 5</code> on the 100-shot bench.  Compare against the v0 (1209004)
+result:</p>
+<ul>
+<li>v0 (no transient handling) — expect <code>rfid_overall ≈ rfid_quiescent</code>,
+<code>rfid_transient</code> notably higher.</li>
+<li>v1 (this plan) — expect <code>rfid_transient</code> reduced by 50-70 %,
+<code>rfid_quiescent</code> slightly worse (no longer the entire training
+focus) but still below the gate.</li>
+</ul>
+
+<h3>Phase 6 — Promote transient-rFID as the M1 gate</h3>
+<p>Once v1 ships, update the tokenizers plan to make
+<code>rfid_transient &lt; 5</code> the M1 success criterion (replacing
+or alongside the mean-rFID criterion).  Document the rationale in a
+comment on the tokenizers plan.</p>
+
+<h2 id="s5">§5 — Decision: is this v1 required, or polish?</h2>
+<p>The data point that decides is the re-bench of production 1209004 (after
+it completes).  Two scenarios:</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Re-bench result</th><th>Gap (transient − quiescent)</th><th>Action</th></tr></thead>
+<tbody>
+<tr>
+  <td>rfid_overall ≈ 4, rfid_quiescent ≈ 3, rfid_transient ≈ 6</td>
+  <td>~3 points</td>
+  <td>v1 is polish — proceed to world-model-v0 with v0 weights; queue this plan as v1.5</td>
+</tr>
+<tr>
+  <td>rfid_overall ≈ 5, rfid_quiescent ≈ 3, rfid_transient ≈ 12</td>
+  <td>~9 points</td>
+  <td>v1 mandatory — block world-model-v0 until transient-rFID &lt; 5 achieved via this plan</td>
+</tr>
+<tr>
+  <td>rfid_overall ≈ 8, rfid_quiescent ≈ 4, rfid_transient ≈ 16</td>
+  <td>~12 points</td>
+  <td>v1 needed + likely escalate to Cosmos-Tokenizer (the LFQ codebook is too coarse for plasma transients)</td>
+</tr>
+</tbody>
+</table></div>
+
+<h2 id="s6">§6 — Out of scope</h2>
+<ul>
+<li><strong>Temporal modeling in the tokenizer.</strong>  Open-MAGVIT2 is a
+per-frame autoencoder by design.  Modeling motion is the world-model's
+job, not the tokenizer's.  This plan makes the tokenizer faithful on
+transient FRAMES, not on transient TRAJECTORIES.</li>
+<li><strong>Curriculum learning</strong> (start easy, gradually mix in
+hard).  Worth trying if §5 says we're far from the gate; defer to v2.</li>
+<li><strong>Multi-resolution / hierarchical tokenizer.</strong>  Bigger
+architectural change; v2 if Cosmos-Tokenizer doesn't close the gap.</li>
+<li><strong>Online active learning</strong> from world-model failure
+modes (re-finetune on frames the world-model fails on).  v3 + concept.</li>
+<li><strong>Other cameras.</strong>  rir IR transients are
+qualitatively different (longer time-scales) — same framework should
+work but thresholds need re-calibration.</li>
+</ul>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+
+<div class="r-dec" data-key="transient-loss-weight" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">What loss-weighting factor for transient frames?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="1.5">1.5 — mild reweighting, conservative</button>
+    <button class="r-opt" data-value="2.5">2.5 — moderate (matches transient prevalence inverse)</button>
+    <button class="r-opt" data-value="4.0">4.0 — aggressive, may destabilise quiescent reconstruction</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+
+<div class="r-dec" data-key="importance-sampling-alpha" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">Importance-sampling alpha (relative weight of transients in the train pool)?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="1.0">1.0 — disable importance sampling, rely only on loss weighting</button>
+    <button class="r-opt" data-value="2.5">2.5 — pair with transient_loss_weight=2.5</button>
+    <button class="r-opt" data-value="4.0">4.0 — heavy transient emphasis</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+
+<div class="r-dec" data-key="transient-rfid-gate" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">Should rfid_transient &lt; 5 REPLACE or be IN ADDITION TO the mean-rFID gate?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="replace">replace — transient is the only physics-relevant metric</button>
+    <button class="r-opt" data-value="both">both — pass if BOTH rfid_overall &lt; 5 AND rfid_transient &lt; 5</button>
+    <button class="r-opt" data-value="overall-relaxed">overall-relaxed — rfid_overall &lt; 8 AND rfid_transient &lt; 5</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+
+<div class="r-dec" data-key="temporal-threshold-calibration" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">Source for temporal-gradient threshold calibration?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="hand-labelled">hand-labelled set of 5-10 known L-H shots from diagnostics team</button>
+    <button class="r-opt" data-value="equilibrium-derived">derived from equilibrium IDS dW/dt spikes (automated, no human labels)</button>
+    <button class="r-opt" data-value="percentile">simple 90th-percentile of temporal_gradient distribution (no physics ground truth)</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+</section>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+
+<article class="r-fu" data-id="f-rebench-1209004-stratified-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28">
+  <h4 class="r-fu-title">Re-bench 1209004 weights with stratified rFID to decide v1 scope</h4>
+  <div class="r-fu-body">Once 1209004 finishes, re-bench plasma-decoder-v1-merged.ckpt with v0-rbb-100shot-finetune.yaml (which already enables rfid_stratified). The resulting rfid_quiescent vs rfid_transient gap is the data point that decides whether this plan is v1-mandatory or v1.5-polish (§5).</div>
+  <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    tokenizer-transient-fidelity (http://localhost:8765/imas-ambix/tokenizer-transient-fidelity.html)
+Section: §5 Decision
+Tier:    sonnet
+
+Context
+  Production fine-tune 1209004 just landed.  Need stratified rFID measurement to decide whether
+  the v1 transient-handling phases (§4 Phase 2-5) are mandatory or polish.
+
+State to read
+  GET /plan/imas-ambix/tokenizer-transient-fidelity
+  imas_ambix/bench/configs/v0-rbb-100shot-finetune.yaml  (already requests rfid_stratified)
+  /work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1-merged.ckpt
+
+Locked decisions to honour
+  (none — open decisions in §Decisions, surface but do not resolve)
+
+Constraints
+  - Submit via scripts/slurm/bench_rbb.sbatch with --export=ALL,BENCH_CONFIG=…/v0-rbb-100shot-finetune.yaml
+  - SLURM safety pattern from AGENTS.md §2a-cancel-time (--signal=B:USR1, AMBIX_SOFT_TIME_LIMIT)
+  - NEVER scancel (AGENTS.md §2a)
+  - Result lands in imas_ambix/bench/results/v0-rbb-100shot-magvit2-finetune-&lt;jobid&gt;.json
+
+Done-when
+  1. Bench job completes; result JSON written
+  2. Per-class rFID values logged: rfid_overall, rfid_quiescent, rfid_transient, rfid_blank
+  3. Comment posted on this plan (§5) with the numbers + scenario classification
+  4. New followup written: either &quot;Phase 2 mandatory&quot; (gap &gt; 5) or &quot;defer to v1.5&quot; (gap &lt; 3)
+  5. This followup resolved</pre>
+</article>
+</section>
+
+</main>
+</body>
+</html>
