@@ -385,7 +385,7 @@ class DecoderFinetuneTrainer:
             def __getitem__(self, i: int) -> "torch.Tensor":
                 import numpy as _np
                 import zarr as _zarr
-                from PIL import Image
+                import torch.nn.functional as _F
 
                 zarr_path, arr_key, frame_idx, lo, hi = self.entries[i]
 
@@ -419,11 +419,25 @@ class DecoderFinetuneTrainer:
                     frame = frame[:, :, :3]
 
                 if frame.shape[:2] != (self.image_size, self.image_size):
-                    img = Image.fromarray(frame)
-                    img = img.resize(
-                        (self.image_size, self.image_size), Image.BILINEAR
+                    # Match corpus encoder's resize EXACTLY:
+                    # F.interpolate(bilinear, no antialias, align_corners=False)
+                    # — see stream_encode.frames_to_input_device.  The decoder
+                    # was previously fine-tuned with PIL.Image.resize which
+                    # produced subtly different pixel values, causing a
+                    # bench-time regression vs the imagenet baseline (job
+                    # 1209047 measured rFID=27.4 vs baseline 16.25 because the
+                    # decoder overfit to PIL-resized inputs and saw
+                    # F.interpolate-resized inputs at bench/world-model time).
+                    t = torch.from_numpy(_np.ascontiguousarray(frame)).float()
+                    t = t.permute(2, 0, 1).unsqueeze(0)  # (1, 3, H, W)
+                    t = _F.interpolate(
+                        t,
+                        size=(self.image_size, self.image_size),
+                        mode="bilinear",
+                        align_corners=False,
                     )
-                    frame = _np.asarray(img)
+                    t = t.squeeze(0).permute(1, 2, 0).clamp(0, 255).round()
+                    return t.to(torch.uint8)
 
                 return torch.from_numpy(_np.ascontiguousarray(frame))
 
