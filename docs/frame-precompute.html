@@ -10,19 +10,19 @@
 <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="reckon-type" content="plan">
 <meta name="plan-title" content="Pre-decoded + pre-resized rbb frames at 256² uint8">
-<meta name="plan-summary" content="Precompute the per-shot uint8 RGB 256×256 frame tensor once and store it next to the raw Zarr. Saves the uint16→uint8 normalisation and the 536×560→256×256 bilinear interp on every encode. ~12 GB total for the rbb corpus; converts the encode loop from I/O+CPU+GPU to pure GPU.">
-<meta name="plan-status" content="active">
+<meta name="plan-summary" content="Precompute the per-shot uint8 RGB 256×256 frame tensor once and store it next to the raw Zarr. Saves the uint16→uint8 normalisation and the 536×560→256×256 bilinear interp on every encode. ~12 GB total for the rbb corpus; converts the encode loop from I/O+CPU+GPU to pure GPU. Code shipped + bit-exact validated. Full-corpus run not needed — stream_encode.py (GPU-side resize) supersedes the optimisation; corpus encoded directly via stream_encode at 9528 rbb shots / 4.02B tokens (commit 37798a2).">
+<meta name="plan-status" content="shipped">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="M">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-sprint" content="S4">
 <meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-27">
+<meta name="plan-modified" content="2026-05-28">
 <meta name="plan-depends-on" content="data-acquisition,zarr-consolidate">
 <meta name="plan-blocks" content="tokenizers,world-model-v0">
-<meta name="plan-impl" content="0.7">
-<meta name="plan-version" content="10">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="14">
 </head>
 <body>
 <main class="plan-doc">
@@ -146,7 +146,7 @@ Done-when
   6. data.impl → 1.0, status → shipped, plan §5 updated with measured speedup.</pre>
     <p class="r-fu-outcome">Code shipped 2026-05-26 (commit 46d86e7): imas_ambix/data/preprocess.py + `ambix data preprocess-frames` CLI + scripts/slurm/preprocess_frames.sbatch + tests/test_preprocess.py. Bit-exact normalise validated 4/4 reachable shots. q1 resolved → torch backend (resize-backend decision locked). Full-corpus run is now in flight as job 1208031 (sun, torch) — tracked by successor followup f-fp-run-2026-05-26.</p>
     </article>
-<article class="r-fu" data-id="f-fp-run-2026-05-26" data-status="open" data-tier="sonnet" data-written-by="agent (Sonnet 4.6)" data-written-at="2026-05-26" data-recommends-skill="/reckon-ship frame-precompute" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-fp-run-2026-05-26" data-status="resolved" data-tier="sonnet" data-written-by="agent (Sonnet 4.6)" data-written-at="2026-05-26" data-recommends-skill="/reckon-ship frame-precompute" data-resolved-at="2026-05-28T08:15:10+00:00" data-resolved-by="agent/sonnet (Agent B)">
     <h4 class="r-fu-title">Run preprocess_frames.sbatch once L1 zarr-consolidate (1207977) lands</h4>
     <div class="r-fu-body">preprocess.py + CLI + sbatch script are written and validated (4/4 shots with rbb data pass bit-exact; shot 25000 has no rbb group — expected data gap). Full-corpus run (9,527 shots) is blocked on zarr-consolidate job 1207977 finishing on sun partition. Once that completes, submit scripts/slurm/preprocess_frames.sbatch. Open decision q1 (cv2 vs torch F.interpolate) should be settled with a 100-shot A/B before the full run.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -182,6 +182,7 @@ Done-when
   3. JSON report at /work/projects/imas_gpu/mast/preprocessed/preprocess_report_&lt;jobid&gt;.json
   4. data.impl → 0.8 (full run done; encode-path integration still pending)
   5. This followup resolved + new followup for encode-path integration written</pre>
+    <p class="r-fu-outcome">Full-corpus precompute run not needed. stream_encode.py (GPU-side resize, commit 4f820da) performs the normalisation + resize internally during encode, superseding the CPU precompute optimisation. The entire rbb corpus (9528 shots) was tokenized directly via stream_encode without precomputed frames — 4.02B tokens written (commit 37798a2). frame-precompute code remains (bit-exact validated, decisions locked) as historical record and a fallback if the encode path changes.</p>
     </article>
 </section>
 <section data-reckon="questions" id="questions" class="r-questions">
