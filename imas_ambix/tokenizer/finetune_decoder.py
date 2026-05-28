@@ -1387,7 +1387,14 @@ class DecoderFinetuneTrainer:
         import torch
 
         cfg = self.config
-        merged_path = cfg.output_path.with_name("plasma-decoder-v1-merged.ckpt")
+        # Derive merged ckpt name from the safetensors output stem so different
+        # runs (e.g. v0 vs Option B with --perceptual-weight 1.0) write to
+        # distinct files instead of clobbering each other.  E.g.:
+        #   plasma-decoder-v1.safetensors → plasma-decoder-v1-merged.ckpt
+        #   plasma-decoder-v1-optb.safetensors → plasma-decoder-v1-optb-merged.ckpt
+        merged_path = cfg.output_path.with_name(
+            f"{cfg.output_path.stem}-merged.ckpt"
+        )
         merged_path.parent.mkdir(parents=True, exist_ok=True)
 
         orig = torch.load(
@@ -1472,6 +1479,19 @@ if __name__ == "__main__":
     )
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--eval-every", type=int, default=1_000)
+    parser.add_argument(
+        "--perceptual-weight",
+        type=float,
+        default=None,
+        help=(
+            "VGG16 perceptual loss weight (default: DecoderFinetuneConfig 0.1). "
+            "Option B (commit 2026-05-28) explores higher values to test whether "
+            "L1-dominant training was misaligned with the bench rFID metric — "
+            "verdict bench 1209101 showed fine-tune regressed all rFID classes "
+            "vs baseline despite PSNR improvement, suggesting the loss objective "
+            "doesn't transfer to InceptionV3-based rFID. Try 1.0 or higher."
+        ),
+    )
     parser.add_argument("--output-path", default=None)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
@@ -1490,6 +1510,8 @@ if __name__ == "__main__":
     )
     if args.output_path is not None:
         config.output_path = Path(args.output_path)
+    if args.perceptual_weight is not None:
+        config.perceptual_weight = args.perceptual_weight
 
     out = finetune_decoder(config)
     print(f"[finetune-decoder] weights saved to: {out}", flush=True)
