@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="reckon-type" content="plan">
 <meta name="plan-title" content="Tokenizer benchmark harness">
-<meta name="plan-summary" content="Quantitative tokenizer comparison framework — BenchConfig, BenchResult, frame metrics (rFID/PSNR/LPIPS/centroid_mse/chord_nrmse), signal metrics (mae/nrmse/correlation), throughput, SLURM batch runner. As of 2026-05-28 the harness is fully wired: rFID + LPIPS dispatched in the frame benchmark loop, the bench CLI accepts a --config YAML, and v0-rbb-100shot.yaml drives the §12.1 plasma-decoder fine-tune rFID gate via scripts/slurm/bench_rbb.sbatch on gpu_0003_grpA.">
-<meta name="plan-status" content="active">
+<meta name="plan-summary" content="Quantitative tokenizer comparison framework — BenchConfig, BenchResult, frame metrics (rFID/PSNR/LPIPS/centroid_mse/chord_nrmse), signal metrics (mae/nrmse/correlation), throughput, SLURM batch runner. Shipped 2026-05-28 via in-process bench architecture (imas_ambix/bench/stream_worker.py, commit c759282) — ~55× speedup on GPU phase over the deprecated subprocess-per-shot path. Final §12.1 gate measurement on 100-shot rbb (job 1208918): rFID 16.25, PSNR 36.68 dB, LPIPS 0.127. Gate triggered → plasma-decoder-finetune locked to yes-if-rfid.">
+<meta name="plan-status" content="shipped">
 <meta name="plan-roi" content="mid">
 <meta name="plan-effort" content="M">
 <meta name="plan-milestone" content="M1">
@@ -21,8 +21,8 @@
 <meta name="plan-modified" content="2026-05-28">
 <meta name="plan-depends-on" content="tokenizers">
 <meta name="plan-blocks" content="">
-<meta name="plan-impl" content="0.95">
-<meta name="plan-version" content="4">
+<meta name="plan-impl" content="1">
+<meta name="plan-version" content="6">
 </head>
 <body>
 <main class="plan-doc">
@@ -563,7 +563,7 @@ manually extracting numbers from JSON.</p>
 </ol>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-bench-2026-05-21" data-status="open" data-tier="sonnet" data-written-by="agent/sonnet" data-written-at="2026-05-20 12:00" data-recommends-skill="/reckon-ship tokenizer-benchmarks --section 2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-bench-2026-05-21" data-status="resolved" data-tier="sonnet" data-written-by="agent/sonnet" data-written-at="2026-05-20 12:00" data-recommends-skill="/reckon-ship tokenizer-benchmarks --section 2" data-resolved-at="2026-05-28T08:44:50+00:00" data-resolved-by="agent/opus (coordinator)">
     <h4 class="r-fu-title">Run real bench on 100-shot rbb sample</h4>
     <div class="r-fu-body">Framework is wired. Need a real run to set the rFID baseline that the tokenizers §12.1 plasma-decoder fine-tune decision depends on. Compute now exclusive (Simon 2026-05-26). Configs already exist at imas_ambix/bench/configs/v0-rbb-25shot.yaml — extend to 100-shot variant for the gate run.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -590,6 +590,7 @@ Done-when
   2. If rFID &lt; 5 → close tokenizers §12.1 finetune-decoder decision with &quot;trigger&quot;
   3. If rFID ≥ 5 → trigger plasma-decoder fine-tune scaffold (already exists at imas_ambix/tokenizer/finetune_decoder.py)
   4. Followup resolved + new followup for the resulting branch</pre>
+    <p class="r-fu-outcome">DONE 2026-05-28 — 100-shot rbb bench landed via in-process worker (job 1208918, 8:46 wall, vs 65 min on legacy subprocess path = ~7.4× overall / ~55× on GPU phase). Measurements: rFID 16.25, PSNR 36.68 dB, LPIPS 0.127, centroid_mse 77.5, chord_nrmse 0.286, codebook utilisation 2.5%. rFID ≥ 5 → plasma-decoder-finetune locked to yes-if-rfid in tokenizers plan. Architectural side-quest: replaced subprocess-per-shot with `imas_ambix/bench/stream_worker.py` (in-process, mirrors stream_encode.py — SIGTERM + per-shot watchdog). Result JSON: imas_ambix/bench/results/v0-rbb-100shot-1208918.json.</p>
     </article>
 </section>
 <section data-reckon="research" id="research" class="r-research-list">

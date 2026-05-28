@@ -21,8 +21,8 @@
 <meta name="plan-modified" content="2026-05-28">
 <meta name="plan-depends-on" content="data-acquisition,compute">
 <meta name="plan-blocks" content="world-model-v0">
-<meta name="plan-impl" content="0.92">
-<meta name="plan-version" content="9">
+<meta name="plan-impl" content="0.95">
+<meta name="plan-version" content="12">
 </head>
 <body>
 <main class="plan-doc">
@@ -998,14 +998,14 @@ consistency. Re-runs are resumable (<code>--skip-existing</code>).</li>
 <hr/>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="plasma-decoder-finetune" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="plasma-decoder-finetune" data-choice="yes-if-rfid" data-by="agent/opus (coordinator)" data-when="2026-05-28T08:44:47+00:00">
     <p class="r-dec-q">Open-MAGVIT2 plasma-domain decoder fine-tune — when to trigger?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="yes-now">Fine-tune now</button>
-      <button class="r-opt" data-value="yes-if-rfid">Fine-tune only if rFID &gt; 5</button>
+      <button class="r-opt chosen" data-value="yes-if-rfid">Fine-tune only if rFID &gt; 5</button>
       <button class="r-opt" data-value="defer-v1">Defer to v1</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">100-shot in-process bench (job 1208918, commit c759282) measured mean_rfid = 16.25 (well above the 5.0 trigger threshold) on the rbb corpus tokens. Codebook utilisation only 2.5% of 2^18 ImageNet codebook — confirms plasma-frame distribution mismatch. PSNR 36.68 dB / LPIPS 0.127 reasonable for generic ImageNet decoder but §13.1 scaffold (imas_ambix/tokenizer/finetune_decoder.py) should run to fit the decoder to plasma frames before world-model-v0 training.</p>
     </div>
 <div class="r-dec" data-key="patchtst-real-embedding" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">PatchTST real embedding — defer to v1 vs land in v0?</p>
@@ -1079,6 +1079,40 @@ Done-when
   5. This followup resolved with shot count + GPU-hours; new followup for §13.1 plasma-decoder fine-tune gate (gated on bench rFID)
 </pre>
     <p class="r-fu-outcome">DONE 2026-05-28 — full rbb + magnetics corpus encoded. rbb: 9528 shots, 15,720,684 frames, ~4.02B frame tokens (16×16=256 tok/frame, vocab 2^18 + offset 4), 0 failures. magnetics: 11573 shots. APPROACH DIVERGED from this followup&#x27;s plan: the legacy bulk-encode-frames CLI + daemon path was deleted (it deadlocked/drained the H200 node 3×; commits 558483f + ea15fde) and replaced by the in-process stream_encode path (imas_ambix/data/stream_encode.py). Tokenizer is now DETERMINISTIC + cross-process byte-reproducible: cuDNN-deterministic, GPU-side resize, model-forward-batch=256 — and because the Open-MAGVIT2 VQ forward is batch-size sensitive, forward-batch=256 is now PART OF the tokenizer definition (fixed for the corpus). Earlier byte-diff was root-caused to cuDNN cross-process nondeterminism (benchmark=True), not a logic bug. Output promoted to live /work/projects/imas_gpu/mast-tokens/v1/frames/ (9528 shots); prior 2123-shot legacy tokenization backed up at frames-legacy-backup-20260528. Corpus is now single-tokenizer consistent. Ran on gpu_0003_grpA at ~94-100% GPU util (308 fps/GPU peak; GPFS degradation slowed the wall-clock to ~7h). Follow-on for §13.1 plasma-decoder rFID gate remains open (q2).</p>
+    </article>
+<article class="r-fu" data-id="f-finetune-decoder-2026-05-28" data-status="open" data-tier="opus" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship tokenizers --section 13.1" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Run §13.1 plasma-decoder fine-tune scaffold (rFID gate triggered)</h4>
+    <div class="r-fu-body">100-shot rbb bench (1208918) measured rFID 16.25 / codebook util 2.5% — clearly above the 5.0 gate. Fine-tune scaffold at imas_ambix/tokenizer/finetune_decoder.py needs to run: freeze encoder + codebook, train ONLY the decoder with pixel L1 + perceptual loss for ~10k steps. Train shots: random sample (or full) of the 9528 rbb-tokenized corpus. Output: plasma-decoder-v1.safetensors at /work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/. Stop criterion: rFID plateau (use the existing bench harness against the new decoder, target rFID &lt; 5 or whatever plateau emerges). Once landed, re-bench with the new decoder weights to confirm the gate clears.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: tokenizers (§13.1 plasma-decoder fine-tune scaffold)
+Tier: opus
+
+Context
+  rFID gate from §12.1 triggered: 100-shot in-process bench (job 1208918) measured rFID 16.25 (threshold 5.0). ImageNet codebook utilisation is 2.5% — confirms plasma-domain mismatch. Run the existing scaffold at imas_ambix/tokenizer/finetune_decoder.py.
+
+State to read
+  imas_ambix/tokenizer/finetune_decoder.py
+  /work/projects/imas_gpu/mast-tokens/v1/frames/ (token corpus, 9528 shots)
+  imas_ambix/bench/results/v0-rbb-100shot-1208918.json (baseline measurements)
+
+Locked decisions to honour
+  primary-approach        → A (Open-MAGVIT2 visible codebook)
+  plasma-decoder-finetune → yes-if-rfid (locked 2026-05-28)
+  alignment-12-4          → per-modality InfoNCE
+  drop-charge-exchange    → yes (training-grade manifest)
+
+Constraints
+  - sbatch: --partition=betelgeuse --reservation=gpu_0003_grpA --account=grpa --gres=gpu:4 --cpus-per-task=30 --mem=640G
+  - 4×H200 exclusive; preempt V4-Flash if necessary
+  - Output: /work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors
+  - Run the existing bench (with --in-process) against the new decoder weights to confirm rFID drops below 5 (or plateaus)
+
+Done-when
+  1. Fine-tune SLURM job completes with weights at the output path
+  2. Re-bench 100-shot rbb in-process: rFID measured + recorded
+  3. If rFID &lt; 5 → §12.1 gate cleared; world-model-v0 unblocked
+  4. If rFID stays ≥ 5 → write RCA + decide between (a) more training steps, (b) larger LR, (c) per-modality codebook block expansion
+  5. This followup resolved with the resulting rFID + decoder weight path</pre>
     </article>
 </section>
 <section data-reckon="questions" id="questions" class="r-questions">
