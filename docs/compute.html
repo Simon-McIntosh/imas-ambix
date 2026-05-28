@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="reckon-type" content="plan">
 <meta name="plan-title" content="Compute (SLURM, FSDP, reservation)">
-<meta name="plan-summary" content="SLURM patterns for training on the 4 × H200 Group A reservation; dedicated training reservation request; scheduled-around-serving fallback.">
-<meta name="plan-status" content="active">
+<meta name="plan-summary" content="SLURM patterns for training on the 4×H200 Group A reservation, shipped 2026-05-28. Exclusive-pause wrapper set (a14f1ef) is the production path — has driven corpus encode (9528 rbb shots / 4.02B tokens), bench (job 1208918 in-process), and stream encode without contention. slurm-training-reservation locked to exclusive-pause; SDCC #4421 remains filed but lower urgency.">
+<meta name="plan-status" content="shipped">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="S">
 <meta name="plan-milestone" content="M1">
@@ -21,8 +21,8 @@
 <meta name="plan-modified" content="2026-05-28">
 <meta name="plan-depends-on" content="">
 <meta name="plan-blocks" content="tokenizers,world-model-v0,demo">
-<meta name="plan-impl" content="0.95">
-<meta name="plan-version" content="8">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="12">
 </head>
 <body>
 <main class="plan-doc">
@@ -315,14 +315,14 @@ expansion path.</p>
 </ul>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="slurm-training-reservation" data-choice="Both — file but use exclusive in the meantime" data-by="Simon McIntosh" data-when="2026-05-20 09:10">
+<div class="r-dec" data-key="slurm-training-reservation" data-choice="exclusive-pause" data-by="Simon McIntosh (via coordinator)" data-when="2026-05-28T09:47:46+00:00">
     <p class="r-dec-q">SLURM dedicated training reservation — file with SDCC or stay with exclusive-pause?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="exclusive-pause">Stay with exclusive-pause (current plan, no SDCC request needed)</button>
+      <button class="r-opt chosen" data-value="exclusive-pause">Stay with exclusive-pause (current plan, no SDCC request needed)</button>
       <button class="r-opt" data-value="file-now">File the dedicated reservation request with SDCC ops now</button>
       <button class="r-opt" data-value="schedule-windows">Schedule around serving in overnight/weekend windows</button>
       </p>
-    <p class="r-dec-rat">Filed 2026-05-20; using exclusive while ticket is in queue. Will switch when SDCC responds.</p>
+    <p class="r-dec-rat">Closing compute as shipped 2026-05-28 with exclusive-pause as the locked path. The &quot;Both — file but use exclusive&quot; rationale from 2026-05-20 was a transitional stance pending SDCC ticket #4421; in practice the exclusive-pause wrapper set (a14f1ef) has driven three production workflows (corpus encode, bench, stream) without contention, V4-Flash is not currently running, and Simon has authorized exclusive access for ambix training. If SDCC #4421 ever returns a dedicated reservation we can revisit; until then exclusive-pause is the production path.</p>
     </div>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
