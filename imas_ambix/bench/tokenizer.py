@@ -225,6 +225,20 @@ def benchmark_frame_tokenizer(
     per_shot: list[PerShotResult] = []
     t0_wall = time.perf_counter()
 
+    # rFID is degenerate per-shot (T frames << 2048 Inception feature dim makes
+    # the sample covariance rank-deficient; the matrix-sqrt then collapses to ~0
+    # and the per-shot FID just reports the floor). To get a meaningful gate
+    # number we accumulate decoded/reference pairs across shots and compute
+    # rfid ONCE on the aggregate at the end of the loop. PSNR / LPIPS / centroid
+    # / chord remain per-shot (each averages cleanly over a small T).
+    compute_corpus_rfid = "rfid" in config.metrics
+    rfid_src_buf: list[np.ndarray] = []
+    rfid_dec_buf: list[np.ndarray] = []
+    # Cap per-shot contribution to bound the aggregate memory footprint —
+    # 8 frames × 100 shots × 256² × 3 ≈ 150 MB, plenty to make the InceptionV3
+    # covariance well-conditioned.
+    rfid_frames_per_shot = 8
+
     for shot_id in shot_ids:
         shot_path = data_root / f"{shot_id}.zarr"
         try:
@@ -260,13 +274,21 @@ def benchmark_frame_tokenizer(
             src_u8 = np.clip(src, 0, 255).astype(np.uint8)
             dec_u8 = np.clip(dec, 0, 255).astype(np.uint8)
 
-            # Compute requested metrics
+            # Accumulate a bounded slice of this shot's frames for corpus rFID
+            if compute_corpus_rfid and n_compare > 0:
+                k = min(rfid_frames_per_shot, n_compare)
+                # Evenly-spaced indices so a 32-frame shot contributes 8 spread
+                # across its time axis rather than the first 8.
+                idx = np.linspace(0, n_compare - 1, k).round().astype(int)
+                rfid_src_buf.append(src_u8[idx])
+                rfid_dec_buf.append(dec_u8[idx])
+
+            # Compute requested metrics — skip rfid here (computed on aggregate)
             metrics: dict[str, float] = {}
             metric_fns = {
                 "psnr": psnr,
                 "centroid_mse": centroid_mse,
                 "chord_nrmse": chord_nrmse,
-                "rfid": rfid,
                 "lpips": lpips,
             }
             for m in config.metrics:
@@ -320,6 +342,16 @@ def benchmark_frame_tokenizer(
 
     elapsed_s = time.perf_counter() - t0_wall
     aggregate = _aggregate(per_shot, config.metrics, elapsed_s)
+    # Corpus-level rFID: one InceptionV3 pass over the union of sampled frames.
+    # This is the meaningful FID number — per-shot would be degenerate.
+    if compute_corpus_rfid and rfid_src_buf:
+        try:
+            src_all = np.concatenate(rfid_src_buf, axis=0)
+            dec_all = np.concatenate(rfid_dec_buf, axis=0)
+            aggregate["mean_rfid"] = float(rfid(src_all, dec_all))
+            aggregate["rfid_n_frames"] = float(src_all.shape[0])
+        except Exception:
+            aggregate["mean_rfid"] = float("nan")
     # Add mean_modality_coherence to aggregate when loader was supplied
     if equilibrium_loader is not None:
         coh_vals = [
