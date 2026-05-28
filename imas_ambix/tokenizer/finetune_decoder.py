@@ -967,59 +967,83 @@ class DecoderFinetuneTrainer:
                     if world_size > 1:
                         dist.barrier()
 
+                    # Rank-0-only block: any exception here is caught so the
+                    # broadcast below ALWAYS runs.  Without this guard, a
+                    # rank-0 crash (e.g. checkpoint save error) leaves the
+                    # non-primary ranks stuck in dist.broadcast() — a deadlock
+                    # that took job 1208992 down post-smoke.
+                    rank0_failed = 0
                     if is_primary:
-                        model.eval()
-                        t_eval = time.monotonic()
                         try:
-                            metrics = self.evaluate(model, val_loader_full)
+                            model.eval()
+                            t_eval = time.monotonic()
+                            try:
+                                metrics = self.evaluate(model, val_loader_full)
+                            except Exception as exc:  # noqa: BLE001
+                                print(
+                                    f"[finetune-decoder] eval at step {step} raised "
+                                    f"{type(exc).__name__}: {exc} — skipping",
+                                    flush=True,
+                                )
+                                metrics = {"rfid": float("nan"), "l1": float("nan")}
+                            current_rfid = float(metrics.get("rfid", float("nan")))
+                            current_l1 = float(metrics.get("l1", float("nan")))
+                            print(
+                                f"[finetune-decoder] eval step {step}: "
+                                f"rFID={current_rfid:.3f} L1={current_l1:.4f} "
+                                f"({time.monotonic() - t_eval:.1f}s)",
+                                flush=True,
+                            )
+
+                            improved = (
+                                not (current_rfid != current_rfid)
+                                and current_rfid < best_rfid
+                            )
+                            if improved:
+                                best_rfid = current_rfid
+                                no_improve_count = 0
+                                self._save_checkpoint(model)
+                                print(
+                                    f"[finetune-decoder] ✓ new best rFID="
+                                    f"{best_rfid:.3f} — checkpoint saved",
+                                    flush=True,
+                                )
+                            else:
+                                no_improve_count += 1
+                                print(
+                                    f"[finetune-decoder] no improvement "
+                                    f"({no_improve_count}/{cfg.patience})",
+                                    flush=True,
+                                )
+                            model.train()
                         except Exception as exc:  # noqa: BLE001
+                            # Catch-all: log + signal failure to other ranks.
                             print(
-                                f"[finetune-decoder] eval at step {step} raised "
-                                f"{type(exc).__name__}: {exc} — skipping",
+                                f"[finetune-decoder] rank 0 FATAL during eval/save: "
+                                f"{type(exc).__name__}: {exc} — aborting all ranks",
                                 flush=True,
                             )
-                            metrics = {"rfid": float("nan"), "l1": float("nan")}
-                        current_rfid = float(metrics.get("rfid", float("nan")))
-                        current_l1 = float(metrics.get("l1", float("nan")))
-                        print(
-                            f"[finetune-decoder] eval step {step}: "
-                            f"rFID={current_rfid:.3f} L1={current_l1:.4f} "
-                            f"({time.monotonic() - t_eval:.1f}s)",
-                            flush=True,
-                        )
+                            import traceback
 
-                        improved = (
-                            not (current_rfid != current_rfid)
-                            and current_rfid < best_rfid
-                        )
-                        if improved:
-                            best_rfid = current_rfid
-                            no_improve_count = 0
-                            self._save_checkpoint(model)
-                            print(
-                                f"[finetune-decoder] ✓ new best rFID="
-                                f"{best_rfid:.3f} — checkpoint saved",
-                                flush=True,
-                            )
-                        else:
-                            no_improve_count += 1
-                            print(
-                                f"[finetune-decoder] no improvement "
-                                f"({no_improve_count}/{cfg.patience})",
-                                flush=True,
-                            )
-                        model.train()
+                            traceback.print_exc()
+                            rank0_failed = 1
 
-                    # Broadcast early-stop decision from rank 0.
+                    # Broadcast stop decision (incl. rank-0 failure) from rank 0.
+                    # All ranks MUST reach this point — see rank0_failed catch.
                     if world_size > 1:
                         stop_tensor = torch.tensor(
-                            int(is_primary and no_improve_count >= cfg.patience),
+                            int(
+                                (is_primary and no_improve_count >= cfg.patience)
+                                or rank0_failed
+                            ),
                             device=train_device,
                         )
                         dist.broadcast(stop_tensor, src=0)
                         should_stop = bool(stop_tensor.item())
                     else:
-                        should_stop = no_improve_count >= cfg.patience
+                        should_stop = (
+                            no_improve_count >= cfg.patience or bool(rank0_failed)
+                        )
 
                     if should_stop:
                         if is_primary:
@@ -1030,18 +1054,29 @@ class DecoderFinetuneTrainer:
                             )
                         break
 
-            # Save final weights on rank 0.
+            # Save final weights on rank 0; wrap in try/except so a save
+            # failure can't deadlock the dist.barrier() below.
             if is_primary:
-                if not cfg.output_path.exists():
-                    self._save_checkpoint(model)
-                merged_path = self._save_merged_checkpoint(model)
-                print(
-                    f"[finetune-decoder] training complete "
-                    f"(best rFID={best_rfid:.3f})\n"
-                    f"  decoder weights : {cfg.output_path}\n"
-                    f"  merged ckpt     : {merged_path}",
-                    flush=True,
-                )
+                try:
+                    if not cfg.output_path.exists():
+                        self._save_checkpoint(model)
+                    merged_path = self._save_merged_checkpoint(model)
+                    print(
+                        f"[finetune-decoder] training complete "
+                        f"(best rFID={best_rfid:.3f})\n"
+                        f"  decoder weights : {cfg.output_path}\n"
+                        f"  merged ckpt     : {merged_path}",
+                        flush=True,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    print(
+                        f"[finetune-decoder] final save FAILED: "
+                        f"{type(exc).__name__}: {exc}",
+                        flush=True,
+                    )
+                    import traceback
+
+                    traceback.print_exc()
             if world_size > 1:
                 dist.barrier()
 
@@ -1071,14 +1106,23 @@ class DecoderFinetuneTrainer:
     # ------------------------------------------------------------------
 
     def _save_checkpoint(self, model: object) -> None:
-        """Save decoder-only weights to ``output_path`` in safetensors format."""
+        """Save decoder-only weights to ``output_path`` in safetensors format.
+
+        ``.contiguous()`` is mandatory: BN-fused conv weights in the
+        Open-MAGVIT2 decoder are non-contiguous after the channels_last
+        memory-format conversion, and ``safetensors.save_file`` rejects
+        non-contiguous tensors with a ``ValueError``.
+        """
         import torch
 
         cfg = self.config
         cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
         raw = model.module if hasattr(model, "module") else model
 
-        state_dict = {k: v.cpu() for k, v in raw.decoder.state_dict().items()}
+        state_dict = {
+            k: v.detach().cpu().contiguous()
+            for k, v in raw.decoder.state_dict().items()
+        }
 
         try:
             from safetensors.torch import save_file
@@ -1119,7 +1163,13 @@ class DecoderFinetuneTrainer:
         sd = dict(orig["state_dict"])
 
         raw = model.module if hasattr(model, "module") else model
-        dec_sd = {k: v.cpu().float() for k, v in raw.decoder.state_dict().items()}
+        # Fine-tuned decoder weights, cpu float32 contiguous (torch.save is more
+        # forgiving than safetensors but contiguous keeps the merged ckpt
+        # loadable by stream_worker.load_model without surprises).
+        dec_sd = {
+            k: v.detach().cpu().float().contiguous()
+            for k, v in raw.decoder.state_dict().items()
+        }
 
         n_live = 0
         n_ema = 0
