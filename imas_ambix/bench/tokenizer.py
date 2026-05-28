@@ -231,13 +231,35 @@ def benchmark_frame_tokenizer(
     # number we accumulate decoded/reference pairs across shots and compute
     # rfid ONCE on the aggregate at the end of the loop. PSNR / LPIPS / centroid
     # / chord remain per-shot (each averages cleanly over a small T).
+    #
+    # IMPORTANT: shots have different native (H,W) (e.g. 536×560, 402×512,
+    # 1024×512), so we resize each sampled frame to RFID_RESIZE before adding
+    # to the buffer — otherwise np.concatenate raises on the first cross-shot
+    # mix. The Inception net inside rfid() resizes to 299² internally anyway,
+    # so the only effect of an earlier resize is to enable the concatenate.
     compute_corpus_rfid = "rfid" in config.metrics
     rfid_src_buf: list[np.ndarray] = []
     rfid_dec_buf: list[np.ndarray] = []
-    # Cap per-shot contribution to bound the aggregate memory footprint —
-    # 8 frames × 100 shots × 256² × 3 ≈ 150 MB, plenty to make the InceptionV3
-    # covariance well-conditioned.
     rfid_frames_per_shot = 8
+    RFID_RESIZE = 256
+
+    def _resize_for_rfid(frames_u8: np.ndarray) -> np.ndarray:
+        """(T,H,W,3) uint8 → (T,RFID_RESIZE,RFID_RESIZE,3) uint8 via PIL.
+
+        PIL bilinear matches torchvision/Inception preprocessing well and
+        avoids importing torch in the bench loop (torch may not be in the
+        signal-only test env).
+        """
+        from PIL import Image
+        out = np.empty(
+            (frames_u8.shape[0], RFID_RESIZE, RFID_RESIZE, 3), dtype=np.uint8
+        )
+        for i in range(frames_u8.shape[0]):
+            img = Image.fromarray(frames_u8[i]).resize(
+                (RFID_RESIZE, RFID_RESIZE), Image.BILINEAR
+            )
+            out[i] = np.asarray(img, dtype=np.uint8)
+        return out
 
     for shot_id in shot_ids:
         shot_path = data_root / f"{shot_id}.zarr"
@@ -274,14 +296,19 @@ def benchmark_frame_tokenizer(
             src_u8 = np.clip(src, 0, 255).astype(np.uint8)
             dec_u8 = np.clip(dec, 0, 255).astype(np.uint8)
 
-            # Accumulate a bounded slice of this shot's frames for corpus rFID
+            # Accumulate a bounded slice of this shot's frames for corpus rFID.
+            # Resize to RFID_RESIZE here so frames from differently-sized shots
+            # can concatenate; Inception will resize to 299² inside rfid().
             if compute_corpus_rfid and n_compare > 0:
                 k = min(rfid_frames_per_shot, n_compare)
-                # Evenly-spaced indices so a 32-frame shot contributes 8 spread
-                # across its time axis rather than the first 8.
+                # Evenly-spaced indices so a 32-frame shot contributes k spread
+                # across its time axis rather than the first k.
                 idx = np.linspace(0, n_compare - 1, k).round().astype(int)
-                rfid_src_buf.append(src_u8[idx])
-                rfid_dec_buf.append(dec_u8[idx])
+                try:
+                    rfid_src_buf.append(_resize_for_rfid(src_u8[idx]))
+                    rfid_dec_buf.append(_resize_for_rfid(dec_u8[idx]))
+                except Exception:  # noqa: BLE001
+                    pass  # skip this shot from the rfid pool; bench continues
 
             # Compute requested metrics — skip rfid here (computed on aggregate)
             metrics: dict[str, float] = {}
