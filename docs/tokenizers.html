@@ -18,11 +18,11 @@
 <meta name="plan-sprint" content="S2">
 <meta name="plan-tier" content="opus">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-27">
+<meta name="plan-modified" content="2026-05-28">
 <meta name="plan-depends-on" content="data-acquisition,compute">
 <meta name="plan-blocks" content="world-model-v0">
-<meta name="plan-impl" content="0.78">
-<meta name="plan-version" content="6">
+<meta name="plan-impl" content="0.92">
+<meta name="plan-version" content="9">
 </head>
 <body>
 <main class="plan-doc">
@@ -958,6 +958,44 @@ cross-attention path.</li>
 argument (small, blocked on the first fine-tune actually running).</li>
 </ul>
 <hr/>
+<h2 id="14-token-corpus-encoded-2026-05-28">14. Token corpus encoded — 2026-05-28</h2>
+<p>The full <strong>rbb (visible) frame-token corpus</strong> and the
+<strong>magnetics signal corpus</strong> are encoded and live. This closes the
+§12.5 bulk-encode follow-on (<code>f-2026-05-21a</code>); plan impl → 0.92.</p>
+<ul>
+<li><strong>rbb frames:</strong> 9 528 shots · 15 720 684 frames ·
+<strong>~4.02 B frame tokens</strong> (16×16 = 256 tok/frame, vocab 2<sup>18</sup>
++ control offset 4) · 0 failures.</li>
+<li><strong>magnetics signals:</strong> 11 573 shots (Chronos/PatchTST path).</li>
+<li><strong>Live path:</strong> <code>/work/projects/imas_gpu/mast-tokens/v1/frames/</code>
+(9 528 shots). The prior 2 123-shot tokenization is preserved at
+<code>frames-legacy-backup-20260528</code>.</li>
+</ul>
+<h3 id="141-tokenizer-definition-change">14.1 Tokenizer definition — now deterministic + batch-fixed</h3>
+<p>The frame tokenizer changed in a way that is part of its <em>definition</em>,
+not just its implementation:</p>
+<ul>
+<li><strong>Encoder:</strong> the legacy file-IPC daemon / prefetch path was
+<strong>deleted</strong> (it deadlocked and drained the H200 node three times;
+commits <code>558483f</code> + <code>ea15fde</code>). The sole go-forward encoder is the
+in-process <code>imas_ambix/data/stream_encode.py</code> (torch DataLoader, GPU-side
+per-shot resize, async Zarr writer).</li>
+<li><strong>Determinism:</strong> <code>cudnn.benchmark=False</code> +
+<code>use_deterministic_algorithms(True)</code>. The earlier byte-diff vs the live
+daemon was root-caused to cuDNN <em>cross-process</em> kernel-selection
+nondeterminism (benchmark autotuner), <strong>not</strong> a preprocessing bug.
+Two separate processes now produce byte-identical tokens (verified).</li>
+<li><strong>Forward batch is load-bearing:</strong> the Open-MAGVIT2 VQ forward is
+<em>not</em> batch-size invariant (different forward-batch → different tokens at
+LFQ sign boundaries, even with determinism on). The corpus is encoded at a
+<strong>fixed model-forward-batch of 256</strong>; this value is now part of the
+tokenizer contract and must not change without re-encoding. (256 + GPU-side
+resize gives ~94–100 % GPU util / ~308 fps/GPU.)</li>
+<li><strong>Consequence:</strong> tokens differ from the old chunk-4/legacy
+tokenization, so the whole corpus was re-encoded for single-tokenizer
+consistency. Re-runs are resumable (<code>--skip-existing</code>).</li>
+</ul>
+<hr/>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="plasma-decoder-finetune" data-choice="" data-by="" data-when="">
@@ -1001,7 +1039,7 @@ argument (small, blocked on the first fine-tune actually running).</li>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-2026-05-21a" data-status="open" data-tier="opus" data-written-by="agent/sonnet" data-written-at="2026-05-21 09:14" data-recommends-skill="/reckon-ship tokenizers --section 12.5" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-2026-05-21a" data-status="resolved" data-tier="opus" data-written-by="agent/sonnet" data-written-at="2026-05-21 09:14" data-recommends-skill="/reckon-ship tokenizers --section 12.5" data-resolved-at="2026-05-28T01:43:12+00:00" data-resolved-by="agent/opus (coordinator)">
     <h4 class="r-fu-title">Run bulk-encode on rbb + magnetics shards (§12.5 follow-on)</h4>
     <div class="r-fu-body">§13.3 landed the IR codebook benchmark wiring. §12.5 close-out: bulk-encode pass across rbb (visible) + magnetics shards using the existing CLI surface (`ambix data bulk-encode-frames` + `ambix data bulk-encode-signals`). UNBLOCKED 2026-05-26: Simon authorized exclusive access on gpu_0003_grpA reservation.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -1040,6 +1078,7 @@ Done-when
   4. Plan state updated: data.impl → 0.92, §12.5 marked landed
   5. This followup resolved with shot count + GPU-hours; new followup for §13.1 plasma-decoder fine-tune gate (gated on bench rFID)
 </pre>
+    <p class="r-fu-outcome">DONE 2026-05-28 — full rbb + magnetics corpus encoded. rbb: 9528 shots, 15,720,684 frames, ~4.02B frame tokens (16×16=256 tok/frame, vocab 2^18 + offset 4), 0 failures. magnetics: 11573 shots. APPROACH DIVERGED from this followup&#x27;s plan: the legacy bulk-encode-frames CLI + daemon path was deleted (it deadlocked/drained the H200 node 3×; commits 558483f + ea15fde) and replaced by the in-process stream_encode path (imas_ambix/data/stream_encode.py). Tokenizer is now DETERMINISTIC + cross-process byte-reproducible: cuDNN-deterministic, GPU-side resize, model-forward-batch=256 — and because the Open-MAGVIT2 VQ forward is batch-size sensitive, forward-batch=256 is now PART OF the tokenizer definition (fixed for the corpus). Earlier byte-diff was root-caused to cuDNN cross-process nondeterminism (benchmark=True), not a logic bug. Output promoted to live /work/projects/imas_gpu/mast-tokens/v1/frames/ (9528 shots); prior 2123-shot legacy tokenization backed up at frames-legacy-backup-20260528. Corpus is now single-tokenizer consistent. Ran on gpu_0003_grpA at ~94-100% GPU util (308 fps/GPU peak; GPFS degradation slowed the wall-clock to ~7h). Follow-on for §13.1 plasma-decoder rFID gate remains open (q2).</p>
     </article>
 </section>
 <section data-reckon="questions" id="questions" class="r-questions">
