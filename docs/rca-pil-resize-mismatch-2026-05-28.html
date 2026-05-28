@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="rca-pil-resize-mismatch-2026-05-28">
+<meta name="reckon-type" content="doc">
+<meta name="plan-title" content="RCA — PIL vs F.interpolate resize mismatch in plasma-decoder fine-tune (C5)">
+<meta name="plan-summary" content="The plasma-decoder fine-tune (job 1209004) measured training-time rFID 12.488 but bench (job 1209047) measured rFID 27.40 — a 70% regression vs baseline 16.25. Root cause: training used PIL.Image.resize while the corpus encoder + bench use F.interpolate(bilinear, no antialias). The two operators produce subtly different pixel values; the decoder overfit to PIL-resized inputs. C2's twin, missed in the deep review. Fixed in commit 2649370.">
+<meta name="plan-status" content="shipped">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="S">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-28">
+<title>RCA — PIL vs F.interpolate resize mismatch (C5) | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><span class="status shipped"><span class="dot"></span>Incident RCA</span> —
+<a href="/imas-ambix/plasma-decoder-finetune.html">plasma-decoder-finetune</a>
+production run 1209004 measured training-time best rFID 12.488 (apparent 23&nbsp;%
+improvement from baseline 16.25), but the matching bench re-run 1209047
+measured rFID <strong>27.40 — a 69&nbsp;% regression below baseline</strong>.
+Verdict: silent correctness bug in the fine-tune dataset (PIL.Image.resize
+vs corpus contract F.interpolate).  Fixed in commit
+<code>2649370</code>; corrective fine-tune submitted as job 1209073.</p>
+
+<h2 id="cause">One-line cause</h2>
+<p>Training resized frames to 256×256 using <code>PIL.Image.resize</code>;
+the corpus encoder (and therefore the bench, world-model, and every other
+downstream consumer of the LFQ tokens) uses
+<code>torch.nn.functional.interpolate(bilinear, align_corners=False)</code>
+with no antialias.  PIL and torch bilinear produce subtly different
+pixel values for the same input — the decoder overfit to the PIL-input
+distribution and performs worse than the untrained ImageNet baseline
+when fed F.interpolate-resized frames at bench time.</p>
+
+<h2 id="evidence">Evidence (forensic verification)</h2>
+
+<h3>1209004 training-time vs 1209047 bench-time rFID</h3>
+<div class="table-scroll"><table class="t">
+<thead><tr>
+<th>Stage</th><th>Pipeline</th><th>Measurement</th><th>Reported rFID</th>
+</tr></thead>
+<tbody>
+<tr><td>Baseline bench (job 1208918)</td>
+    <td>F.interpolate resize → encode (EMA scope) → decode (untrained ImageNet) → F.interpolate resize back → PIL resize for rFID</td>
+    <td>mean_rfid</td>
+    <td>16.25</td></tr>
+<tr><td>1209004 step-1000 eval</td>
+    <td>PIL resize → encode → decode (fine-tune live) → PIL-implicit (no extra resize)</td>
+    <td>training-time rfid</td>
+    <td>12.758</td></tr>
+<tr><td>1209004 step-8000 eval</td>
+    <td>same as above (best)</td>
+    <td>training-time rfid</td>
+    <td>12.488</td></tr>
+<tr><td><strong>1209047 bench (re-bench of 1209004 weights)</strong></td>
+    <td><strong>F.interpolate resize → encode (EMA scope, same encoder as baseline) → decode (fine-tuned via EMA-patched merged ckpt) → F.interpolate resize back → PIL resize for rFID</strong></td>
+    <td><strong>mean_rfid</strong></td>
+    <td><strong>27.40</strong></td></tr>
+</tbody>
+</table></div>
+
+<p>The 12.488 → 27.40 gap is 119&nbsp;%; the decoder's training-time
+measurement was over-optimistic by 2.2×.</p>
+
+<h3>The merged checkpoint is correctly patched (ruled out as cause)</h3>
+<pre><code># Forensic check, run via the magvit2 venv on 2026-05-28 17:43:
+import torch
+orig   = torch.load(".../imagenet_256_L.ckpt", weights_only=False)["state_dict"]
+merged = torch.load(".../plasma-decoder-v1-merged.ckpt", weights_only=False)["state_dict"]
+
+# Live decoder differs (was patched):
+decoder.conv_in.weight                : max-abs diff = 2.694e-02
+decoder.up.0.block.0.conv1.weight     : max-abs diff = 4.018e-02
+
+# EMA shadow decoder differs (was patched):
+model_ema.decoderconv_inweight        : max-abs diff = 2.696e-02
+
+# Encoder UNCHANGED (correct — encoder is frozen):
+encoder.conv_in.weight                : max-abs diff = 0.000e+00
+model_ema.encoderconv_inweight        : max-abs diff = 0.000e+00
+
+# Live decoder == EMA decoder in merged (correct — both patched):
+torch.allclose(live_dec, ema_dec) → True
+</code></pre>
+
+<p>So the fine-tuned decoder weights ARE being loaded by the bench's
+<code>load_model</code>.  This rules out a checkpoint-load failure and
+points the diagnosis at the input pipeline.</p>
+
+<h3>Code locations of the mismatch</h3>
+<pre><code>imas_ambix/data/stream_encode.py:291  (corpus encoder — tokenizer contract)
+    c = F.interpolate(c, size=(image_size, image_size),
+                      mode="bilinear", align_corners=False)
+# Module docstring (line 31-32) is explicit:
+#   "permute, and F.interpolate(size=256, bilinear, align_corners=False)
+#    resize (NO antialias)."
+
+imas_ambix/tokenizer/finetune_decoder.py:421  (fine-tune dataset, BEFORE fix)
+    img = PIL.Image.fromarray(frame)
+    img = img.resize((self.image_size, self.image_size), Image.BILINEAR)
+    frame = np.asarray(img)
+</code></pre>
+
+<h2 id="mechanism">Mechanism — why the regression below baseline?</h2>
+
+<p>Counter-intuitively, the fine-tuned decoder is WORSE than the
+untrained ImageNet decoder.  Two reinforcing effects:</p>
+
+<ol>
+<li><strong>Distribution shift at the decoder input.</strong>  The decoder
+sees quantised codes produced by the encoder from F.interpolate-resized
+inputs at bench time.  At training time, the encoder was fed PIL-resized
+inputs.  The two produce different pixel values for the same raw frame
+→ different uint8 → different floats fed to the encoder → different LFQ
+quantisation regions hit → different token IDs → the decoder sees a
+token distribution at bench time that it never saw during training.</li>
+
+<li><strong>The decoder over-specialised.</strong>  The untrained
+ImageNet decoder is robust across a wide pixel distribution (its
+training data on ImageNet includes natural variation).  Fine-tuning
+narrowed it to the PIL-resized plasma-frame distribution.  When that
+narrow distribution is no longer what the encoder feeds it (bench uses
+F.interpolate), the decoder's narrow specialisation is now
+<em>actively hurting</em> — it has reduced robustness to inputs the
+ImageNet pretrain handled fine.</li>
+</ol>
+
+<p>The math: PIL's bilinear filter and torch's <code>F.interpolate</code>
+bilinear filter differ in the convolution kernel weights AT THE NON-INTEGER
+SAMPLE POINTS — PIL uses a slightly wider triangular filter footprint at
+sub-pixel offsets, torch uses an exact bilinear interpolant.  The two are
+mathematically distinct.  Maximum per-pixel uint8 difference is typically
+1-3 counts, but it's enough to push borderline LFQ-quantisation samples
+across partition boundaries, which is precisely what the C1 EMA-seed RCA
+identified as the silent-correctness-killer pattern.</p>
+
+<h2 id="why-missed">Why this slipped past the deep review</h2>
+
+<p>The 2026-05-28 deep review caught seven bugs (<a href="#refs">commit
+fa0c3b6</a>) including the per-shot normalisation mismatch (C2) which is
+in the same class as C5.  But C2 was framed as "the value-side contract"
+(min/max normalisation), and the review focused there.  The
+<em>spatial-resampling-side contract</em> didn't get the same scrutiny
+because:</p>
+
+<ul>
+<li>The PIL-based code looked syntactically fine and uses a long-standing
+PIL pattern.</li>
+<li>The corpus encoder's resize is in <code>stream_encode.py</code>
+(separate module); the fine-tune dataset is in
+<code>finetune_decoder.py</code>.  No grep would link them unless you
+were looking for "what does corpus do here vs what does training do
+here" for every operator in the chain.</li>
+<li>Training and bench were not byte-equivalence-tested against each
+other — only the fine-tune's internal consistency was tested via the
+smoke (which trained AND eval'd through PIL, so resize artifacts
+cancelled within the smoke's pipeline but not against the bench's
+pipeline).</li>
+</ul>
+
+<p><strong>Lesson:</strong> the byte-equivalence contract isn't just
+about value normalisation; it covers every operator that transforms the
+input on its way to the encoder.  A new test should compare a training
+batch and a bench batch from the SAME source frame and assert
+<code>torch.allclose</code> bitwise.  Tracked as a follow-up in §followups.</p>
+
+<h2 id="fix">Fix (commit <code>2649370</code>)</h2>
+<pre><code>--- imas_ambix/tokenizer/finetune_decoder.py
++++ imas_ambix/tokenizer/finetune_decoder.py
+@@ __getitem__:
+- from PIL import Image
++ import torch.nn.functional as _F
+  ...
+- img = Image.fromarray(frame).resize(
+-     (self.image_size, self.image_size), Image.BILINEAR
+- )
+- frame = _np.asarray(img)
++ # Match corpus encoder's resize EXACTLY (no antialias, align_corners=False).
++ t = torch.from_numpy(_np.ascontiguousarray(frame)).float()
++ t = t.permute(2, 0, 1).unsqueeze(0)
++ t = _F.interpolate(
++     t, size=(self.image_size, self.image_size),
++     mode="bilinear", align_corners=False,
++ )
++ t = t.squeeze(0).permute(1, 2, 0).clamp(0, 255).round()
++ return t.to(torch.uint8)
+</code></pre>
+
+<p>Verified on shot 15086 (native 402 × 512) that the new code path
+produces a 256 × 256 × 3 uint8 tensor in the [0, 255] range using the
+exact same operator the corpus encoder uses.</p>
+
+<h2 id="impact">Impact &amp; what we're rerunning</h2>
+
+<ul>
+<li><strong>Corrective fine-tune submitted as job 1209073.</strong>
+Same recipe as 1209004 (10 k steps, 7 500 train + 2 000 val shots,
+4×H200 DDP, all C1-C4 + H1-H3 fixes intact); only the resize operator
+changed.  Expected wall-clock ≈ 1 h 30 m.</li>
+
+<li><strong>Training-time rFID will rise — and that is correct.</strong>
+The over-optimistic 12.488 measurement should disappear; the new
+training-time rFID will be aligned with what the bench measures.  If
+the corrective run lands at training rFID ≈ 16 and bench rFID ≈ 16,
+the fix is working but the decoder isn't improving on plasma —
+expected, and that's the signal for the v1 plans.  If training rFID
+&lt; baseline and bench rFID confirms within 1-2 points, the fine-tune
+IS improving the decoder, just at smaller magnitude than the broken
+measurement claimed.</li>
+
+<li><strong>v1 plans remain blocked.</strong>
+<a href="/imas-ambix/tokenizer-transient-fidelity.html">transient-fidelity</a>
+and
+<a href="/imas-ambix/tokenizer-cosmos-evaluation.html">cosmos-evaluation</a>
+each carry a <code>f-phase0-trigger-check</code> followup that
+consumes the bench result; both will re-fire when the 1209073-derived
+ckpt is benched.  Until then, neither plan activates.</li>
+
+<li><strong>Prior smoke results (1209002 et al.) remain valid as
+correctness signals</strong> — they validated the training pipeline
+self-consistency (loss decreasing, no NaN, no drain).  Their rFID
+numbers were also PIL-pipeline so equally over-optimistic, but they
+were never used as gate measurements; only the bench-aligned numbers
+count.</li>
+</ul>
+
+<h2 id="similar">Are there similar pipeline-mismatch bugs lurking?</h2>
+
+<p>Audit list — every operator the training pipeline applies must match
+the corpus contract:</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Operator</th><th>Corpus (stream_encode.py)</th><th>Fine-tune (finetune_decoder.py)</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Per-shot normalisation</td><td>per-shot lo/hi over ALL frames</td><td>per-shot lo/hi over 200-sample stride</td><td>Fixed in C2 (sample stats are statistically equivalent; ~10⁻⁹ peak-miss probability)</td></tr>
+<tr><td>uint8 ↔ float scaling</td><td>div(255) → mul(2) → sub(1) → [-1,1]</td><td>div(255) in train loop, then mul(2)/sub(1) in _encode_decode</td><td>OK (mathematically identical)</td></tr>
+<tr><td><strong>Spatial resize</strong></td><td><strong>F.interpolate bilinear, no antialias, align_corners=False</strong></td><td><strong>PIL.Image.resize bilinear (BEFORE FIX) → F.interpolate (AFTER C5 FIX)</strong></td><td><strong>Fixed by this RCA</strong></td></tr>
+<tr><td>Channel format</td><td>permute (B, H, W, 3) → (B, 3, H, W); channels_last memory format</td><td>same permute in train loop; channels_last in _encode_decode</td><td>OK</td></tr>
+<tr><td>EMA encoder seeding</td><td>uses model.ema_scope() (live = EMA at forward)</td><td>seeds live from EMA shadow at startup (= same effect since encoder is frozen)</td><td>Fixed in C1</td></tr>
+<tr><td>FP precision in forward</td><td>bf16 model, autocast forward</td><td>fp32 model, bf16 autocast forward</td><td>OK (bf16 forward identical; only optimizer state differs)</td></tr>
+</tbody>
+</table></div>
+
+<p>No other mismatches identified in this scan.  But the byte-equivalence
+test follow-up (§followups) is the durable safeguard against future
+recurrence.</p>
+
+<h2 id="followups">Follow-ups</h2>
+
+<p>Tracked in:</p>
+<ul>
+<li>Code task #15 (this commit landed).</li>
+<li>Production fine-tune monitoring task #16 (job 1209073).</li>
+<li><strong>NEW</strong>: byte-equivalence test — given a sample raw frame
+from a shot zarr, the fine-tune's
+<code>_PlasmaFrameDataset.__getitem__</code> and the corpus
+<code>stream_encode.frames_to_input_device</code> must produce
+identical uint8 256×256×3 outputs (up to ≤ 2 counts due to PIL→torch
+quantisation tolerance once we accept it as a difference, ideally 0).
+Should run as a pytest fixture; failing the test blocks any fine-tune
+run.  Will be added to the test suite after job 1209073 completes
+verifying the fix.</li>
+</ul>
+
+<h2 id="refs">Commit references</h2>
+<ul>
+<li><code>fa0c3b6</code> — 2026-05-28 deep review (C1-C4 + H1-H3 + smoke wiring).</li>
+<li><code>0d8cb54</code> — .contiguous() + rank-0 deadlock guard.</li>
+<li><code>995d3c4</code> — GPU-Inception eval (8× faster eval).</li>
+<li><strong><code>2649370</code></strong> — <strong>C5: PIL→F.interpolate
+resize.  This RCA's fix.</strong></li>
+</ul>
+
+</main>
+</body>
+</html>
