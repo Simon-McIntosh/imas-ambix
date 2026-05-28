@@ -7,7 +7,9 @@
 #SBATCH --cpus-per-task=30
 #SBATCH --mem=640G
 #SBATCH --time=04:00:00
-#SBATCH --output=/tmp/ambix-%x-%j.out
+#SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
+#SBATCH --mail-type=FAIL,END
+#SBATCH --mail-user=simon.mcintosh@iter.org
 # NOTE: --qos intentionally omitted — see train_exclusive.sbatch for rationale.
 
 # ── Environment ────────────────────────────────────────────────────────────
@@ -26,6 +28,7 @@ export OMP_NUM_THREADS=1
 # and write results back into the repo tree.
 REPO_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${REPO_ROOT}"
+mkdir -p "/work/projects/imas_gpu/logs"
 VENV="${REPO_ROOT}/.venv"
 if [[ -f "${VENV}/bin/activate" ]]; then
     # shellcheck source=/dev/null

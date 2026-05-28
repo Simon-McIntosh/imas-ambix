@@ -479,7 +479,10 @@ class DecoderFinetuneTrainer:
         l1 = F.l1_loss(recon_frames, target_frames)
         loss = cfg.l1_weight * l1
 
-        if cfg.perceptual_weight > 0.0:
+        if cfg.perceptual_weight > 0.0 and self._vgg_features is not False:
+            # _vgg_features states: None = not yet loaded, False = failed/disabled,
+            # nn.Module = ready.  This avoids the TypeError bug where object() was
+            # called as a function on every step after a failed download.
             try:
                 import torchvision.models as tvm
 
@@ -490,6 +493,7 @@ class DecoderFinetuneTrainer:
                     ).to(cfg.device)
                     self._vgg_features.requires_grad_(False)
                     self._vgg_features.eval()
+                    print("[finetune-decoder] VGG16 perceptual loss enabled", flush=True)
 
                 with torch.no_grad():
                     feat_target = self._vgg_features(target_frames)
@@ -498,14 +502,11 @@ class DecoderFinetuneTrainer:
                 loss = loss + cfg.perceptual_weight * perceptual
 
             except Exception as exc:  # noqa: BLE001
-                if self._vgg_features is None:
-                    warnings.warn(
-                        f"VGG16 perceptual loss unavailable ({exc}); "
-                        "falling back to L1-only for this run.",
-                        stacklevel=2,
-                    )
-                    # Suppress further warnings by setting a sentinel
-                    self._vgg_features = object()
+                warnings.warn(
+                    f"VGG16 perceptual loss disabled ({exc}); falling back to L1.",
+                    stacklevel=2,
+                )
+                self._vgg_features = False  # permanently disable; never retry
 
         return loss
 
@@ -531,20 +532,32 @@ class DecoderFinetuneTrainer:
         l1_sum = 0.0
         n_batches = 0
 
+        # Cap rFID buffer at 5 k frames (statistically sufficient; avoids 36 GB accumulation)
+        _RFID_MAX_FRAMES = 5_000
         model.eval()
-        for batch in val_loader:
-            if STOP.is_set():
-                break
-            frames = batch.float().permute(0, 3, 1, 2).to(cfg.device) / 255.0
-            recon = self._encode_decode(model, frames, training=False)
+        try:
+            for batch in val_loader:
+                if STOP.is_set():
+                    break
+                frames = batch.float().permute(0, 3, 1, 2).to(cfg.device) / 255.0
+                recon = self._encode_decode(model, frames, training=False)
 
-            l1_sum += float(F.l1_loss(recon, frames).item())
-            n_batches += 1
+                l1_sum += float(F.l1_loss(recon, frames).item())
+                n_batches += 1
 
-            t_np = (frames.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-            r_np = (recon.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-            all_targets.append(t_np)
-            all_recons.append(r_np)
+                # Accumulate for rFID (capped to avoid multi-GB RAM usage)
+                current_total = sum(a.shape[0] for a in all_targets)
+                if current_total < _RFID_MAX_FRAMES:
+                    t_np = (frames.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                    r_np = (recon.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                    all_targets.append(t_np)
+                    all_recons.append(r_np)
+        except Exception as exc:  # noqa: BLE001 — worker crash, CUDA error, etc.
+            warnings.warn(
+                f"[finetune-decoder] evaluate() interrupted ({exc}); "
+                "reporting partial metrics.",
+                stacklevel=2,
+            )
 
         mean_l1 = l1_sum / max(n_batches, 1)
 
@@ -732,7 +745,15 @@ class DecoderFinetuneTrainer:
                         break
                     model.eval()
                     t_eval = time.monotonic()
-                    metrics = self.evaluate(model, val_loader)
+                    try:
+                        metrics = self.evaluate(model, val_loader)
+                    except Exception as exc:  # noqa: BLE001
+                        print(
+                            f"[finetune-decoder] eval at step {step} raised "
+                            f"{type(exc).__name__}: {exc} — skipping",
+                            flush=True,
+                        )
+                        metrics = {"rfid": float("nan"), "l1": float("nan")}
                     current_rfid = metrics.get("rfid", float("nan"))
                     print(
                         f"[finetune-decoder] eval step {step}: "

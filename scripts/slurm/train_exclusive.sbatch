@@ -7,7 +7,9 @@
 #SBATCH --cpus-per-task=30
 #SBATCH --mem=640G
 #SBATCH --time=04:00:00
-#SBATCH --output=/tmp/ambix-%x-%j.out
+#SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
+#SBATCH --mail-type=FAIL,END
+#SBATCH --mail-user=simon.mcintosh@iter.org
 # NOTE: --qos is intentionally omitted — auto-applied for this account/reservation.
 #       Passing --qos explicitly errors with "QOS not permitted".
 

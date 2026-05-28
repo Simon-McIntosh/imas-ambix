@@ -7,17 +7,21 @@
 #SBATCH --cpus-per-task=30
 #SBATCH --mem=640G
 #SBATCH --time=24:00:00
-#SBATCH --output=/tmp/ambix-%x-%j.out
+#SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
+#SBATCH --mail-type=FAIL,END
+#SBATCH --mail-user=simon.mcintosh@iter.org
 # NOTE: --qos is intentionally omitted — auto-applied for this account/reservation.
 #       Training uses a single GPU (cuda:0) from the 4-GPU allocation; the
 #       reservation keeps all 4 GPUs exclusive to prevent node drain from
 #       concurrent CUDA processes (see AGENTS.md §2a).
+#       Log written to GPFS so it is readable from the login node after the job.
 
 # ── Environment ────────────────────────────────────────────────────────────
 set -euo pipefail
 
 export TMPDIR=/scratch_local/$SLURM_JOB_ID
 mkdir -p "$TMPDIR"
+mkdir -p "/work/projects/imas_gpu/logs"
 
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
@@ -33,11 +37,12 @@ export MAGVIT2_ROOT="/work/projects/imas_gpu/mast-tokens/v1/open-magvit2"
 export FRAMES_ROOT="/work/projects/imas_gpu/mast-tokens/v1/frames"
 MAGVIT2_PYTHON="${MAGVIT2_ROOT}/.venv/bin/python"
 
+LOG_FILE="/work/projects/imas_gpu/logs/ambix-${SLURM_JOB_NAME}-${SLURM_JOB_ID}.out"
 echo "[$(date)] ambix-finetune-decoder starting"
 echo "  job-id:      ${SLURM_JOB_ID}"
 echo "  node:        $(hostname)"
 echo "  repo:        ${REPO_ROOT}"
-echo "  log:         /tmp/ambix-${SLURM_JOB_NAME}-${SLURM_JOB_ID}.out"
+echo "  log:         ${LOG_FILE}"
 
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 
@@ -90,7 +95,7 @@ echo "[$(date)] shot split written: train=$(wc -l < "${TRAIN_SHOTS}") val=$(wc -
 #
 export TORCH_HOME="${HOME}/.cache/torch"
 
-LOG_FILE="/tmp/ambix-finetune-decoder-${SLURM_JOB_ID}.log"
+TRAIN_LOG="/work/projects/imas_gpu/logs/ambix-finetune-decoder-${SLURM_JOB_ID}.log"
 
 # ── Launch fine-tune ───────────────────────────────────────────────────────
 # Run inside the Open-MAGVIT2 venv (torch 2.1.1 + lightning 2.2.0).
@@ -104,7 +109,7 @@ PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}" \
     --max-steps   10000 \
     --batch-size  64 \
     --device      cuda \
-    2>&1 | tee "${LOG_FILE}"
+    2>&1 | tee "${TRAIN_LOG}"
 
 EXIT_CODE=${PIPESTATUS[0]}
 echo "[$(date)] ambix-finetune-decoder finished (exit=${EXIT_CODE})"
