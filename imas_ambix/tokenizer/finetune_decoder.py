@@ -223,7 +223,7 @@ class DecoderFinetuneTrainer:
                     )
                     frame = np.asarray(img)
 
-                return torch.from_numpy(frame)
+                return torch.from_numpy(np.ascontiguousarray(frame))
 
         # ------------------------------------------------------------------
         # Metadata scan: enumerate frame (path, key, index) pairs only
@@ -420,13 +420,13 @@ class DecoderFinetuneTrainer:
         target_dtype = next(model.decoder.parameters()).dtype
         frames_normed = frames_input.to(target_dtype).mul(2.0).sub(1.0)  # [-1,1]
 
-        # Encode with frozen encoder (always no_grad)
+        # Encode with frozen encoder — never use ema_scope() during fine-tune.
+        # LitEma.copy_to/forward assert that frozen params are NOT in m_name2s_name,
+        # but they are (the EMA was built when all params were trainable), so
+        # ema_scope() raises AssertionError after our requires_grad freeze.
+        # The encoder is frozen anyway, so live weights == checkpoint weights == EMA.
         with torch.no_grad():
-            if model.use_ema:
-                with model.ema_scope():
-                    _, _, idx, _ = model.encode(frames_normed)
-            else:
-                _, _, idx, _ = model.encode(frames_normed)
+            _, _, idx, _ = model.encode(frames_normed)
 
         # Reshape token indices
         B = frames_input.shape[0]
@@ -434,12 +434,8 @@ class DecoderFinetuneTrainer:
         idx_flat = idx.reshape(B, h * w)
         bhwc = (B, h, w, int(model.quantize.codebook_dim))
 
-        # Codebook lookup (codebook frozen — no grad through embeddings)
-        if model.use_ema:
-            with model.ema_scope():
-                quant = model.quantize.get_codebook_entry(idx_flat, bhwc=bhwc, order="pre")
-        else:
-            quant = model.quantize.get_codebook_entry(idx_flat, bhwc=bhwc, order="pre")
+        # Codebook lookup (codebook frozen; no ema_scope for same reason)
+        quant = model.quantize.get_codebook_entry(idx_flat, bhwc=bhwc, order="pre")
         quant = quant.to(target_dtype)
 
         # Decode — with or without grad depending on phase
@@ -715,9 +711,9 @@ class DecoderFinetuneTrainer:
                 optimiser.step()
                 scheduler.step()
 
-                # Update EMA shadow so bench decode uses fine-tuned weights
-                if hasattr(model, "model_ema") and model.use_ema:
-                    model.model_ema(model)
+                # EMA update intentionally skipped: LitEma.forward has the same
+                # frozen-param assertion as copy_to; we patch EMA in the merged
+                # checkpoint at save time instead (see _save_merged_checkpoint).
 
                 # Disarm watchdog
                 with _wd_lock:
@@ -854,11 +850,15 @@ class DecoderFinetuneTrainer:
             torch.save(state_dict, str(fallback))
 
     def _save_merged_checkpoint(self, model: object) -> Path:
-        """Save full model state dict (encoder + fine-tuned decoder) as .ckpt.
+        """Patch the original checkpoint with fine-tuned decoder and save as .ckpt.
 
-        The merged checkpoint can be used by ``stream_worker.load_model`` (via
-        the optional ``ckpt_path`` argument) so the bench evaluates the
-        fine-tuned decoder rather than the ImageNet one.
+        Starts from the original ``imagenet_256_L.ckpt`` (which has a consistent
+        EMA state) and replaces both the live ``decoder.*`` weights and the
+        corresponding ``model_ema.*`` shadow buffers with the fine-tuned decoder.
+
+        This lets ``stream_worker.load_model`` load the file and use
+        ``ema_scope()`` for inference exactly as it does today — the EMA shadow
+        now carries the fine-tuned decoder instead of the ImageNet one.
 
         Returns
         -------
@@ -868,13 +868,38 @@ class DecoderFinetuneTrainer:
         import torch
 
         cfg = self.config
-        merged_path = cfg.output_path.with_name(
-            cfg.output_path.stem.replace("plasma-decoder-v1", "plasma-decoder-v1-merged")
-            + ".ckpt"
-        )
+        merged_path = cfg.output_path.with_name("plasma-decoder-v1-merged.ckpt")
         merged_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save({"state_dict": {k: v.cpu() for k, v in model.state_dict().items()}},
-                   str(merged_path))
+
+        # Load original checkpoint (encoder + codebook + EMA all consistent)
+        orig = torch.load(
+            str(cfg.magvit2_root / "weights" / "imagenet_256_L.ckpt"),
+            map_location="cpu",
+            weights_only=False,
+        )
+        sd = dict(orig["state_dict"])
+
+        # Fine-tuned decoder weights (cpu float32 for maximum compat)
+        dec_sd = {k: v.cpu().float() for k, v in model.decoder.state_dict().items()}
+
+        # Replace live decoder keys: "decoder.<local>" → patched value
+        for local_k, val in dec_sd.items():
+            full_k = f"decoder.{local_k}"
+            if full_k in sd:
+                sd[full_k] = val
+
+        # Replace EMA shadow keys for decoder.
+        # LitEma stores buffer under name = full_param_name.replace('.', ''),
+        # prefixed by "model_ema." in the module's state_dict.
+        # E.g. "decoder.conv_in.weight" → buffer "model_ema.decoderconv_inweight"
+        for local_k, val in dec_sd.items():
+            full_param = f"decoder.{local_k}"
+            ema_buf = f"model_ema.{full_param.replace('.', '')}"
+            if ema_buf in sd:
+                sd[ema_buf] = val
+
+        torch.save({"state_dict": sd}, str(merged_path))
+        print(f"[finetune-decoder] merged ckpt saved: {merged_path}", flush=True)
         return merged_path
 
 
