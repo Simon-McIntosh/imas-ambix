@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="plasma-decoder-finetune">
+<meta name="reckon-type" content="plan">
+<meta name="plan-title" content="Plasma-domain decoder fine-tune (Open-MAGVIT2)">
+<meta name="plan-summary" content="Fine-tune the Open-MAGVIT2 decoder on plasma camera frames. Freeze encoder + LFQ codebook; train ONLY the decoder with pixel L1 + perceptual loss. Targets the rFID 16.25 baseline (100-shot in-process bench, job 1208918) down to &lt; 5 so the world-model-v0 decoder is plasma-faithful. Scaffold lives at imas_ambix/tokenizer/finetune_decoder.py; output weights at /work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors.">
+<meta name="plan-status" content="active">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="M">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-sprint" content="S5">
+<meta name="plan-tier" content="opus">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-28">
+<meta name="plan-depends-on" content="tokenizers,compute,tokenizer-benchmarks">
+<meta name="plan-blocks" content="world-model-v0">
+<meta name="plan-impl" content="0.1">
+<title>Plasma-domain decoder fine-tune (Open-MAGVIT2) | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+<h1>Plasma-domain decoder fine-tune (Open-MAGVIT2)</h1>
+
+<p>Status: <span class="status active"><span class="dot"></span>Active</span> — scaffold exists at
+<code>imas_ambix/tokenizer/finetune_decoder.py</code>; no run yet. rFID gate triggered at 16.25
+(100-shot in-process bench, job 1208918). S5 sprint deliverable; blocks world-model-v0.</p>
+
+<h2 id="s1">§1 — Why</h2>
+<p>The 100-shot rbb bench (job 1208918) landed rFID 16.25 — more than 3× the rFID ≤ 5 gate.
+The primary signal is codebook utilisation: only 2.5% of the 2<sup>18</sup> = 262,144 ImageNet
+LFQ codebook entries were touched across 100 plasma shots (~6,554 unique entries). The
+encoder has converged on a narrow vocabulary for plasma frames, but the <em>decoder</em> still
+carries full ImageNet-trained weights — so reconstructions look plausible in a generic
+image sense but are not plasma-faithful (edge artefacts, colour shift, loss of fine
+boundary structure).</p>
+<p>Fine-tuning only the decoder solves this without disturbing the corpus. The encoder and
+LFQ codebook are frozen — the 9,528 rbb-tokenized shot files at
+<code>/work/projects/imas_gpu/mast-tokens/v1/rbb/</code> remain valid. No re-encode pass is
+needed. The decoder learns to render the narrow plasma vocabulary faithfully.</p>
+
+<h2 id="s2">§2 — Approach</h2>
+<p><strong>What is frozen:</strong> encoder weights + <code>LFQ.codebook</code> (all parameters in
+<code>model.encoder</code> and <code>model.quantize</code>). <strong>What is trained:</strong> decoder only
+(<code>model.decoder</code> parameters).</p>
+<p><strong>Loss:</strong> <code>L = l1_weight × L1(pixel) + perceptual_weight × LPIPS(perceptual)</code>.
+Defaults from scaffold: <code>l1_weight=1.0</code>, <code>perceptual_weight=0.1</code>. See
+<a href="#decisions">Decisions</a> for the <code>lpips-weight</code> open decision.</p>
+<p><strong>Training data:</strong> random sample of the 9,528-shot rbb-tokenized corpus.
+Split: 7,500 train / 2,000 val (see <a href="#decisions">Decisions</a> for <code>train-val-split</code>).
+Images are sampled as 256×256 uint8 rbb frames (pre-decoded via the frame-precompute
+LMDB store); tokens from the matching <code>.npy</code> shard are decoded through the frozen
+encoder+codebook path to produce the encode→decode round-trip for the L1 + LPIPS loss.</p>
+<p><strong>Optimiser:</strong> AdamW, LR 1e-4 (from scaffold default), cosine decay, 200-step warmup.
+<strong>Steps:</strong> 10,000 max; early-stop if val rFID plateaus for 3 consecutive evals
+(eval every 1,000 steps). <strong>Batch:</strong> 16 frames/GPU × 4 GPUs = 64 frames/step.</p>
+
+<h2 id="s3">§3 — Compute</h2>
+<p><strong>Partition:</strong> <code>betelgeuse</code> / reservation <code>gpu_0003_grpA</code> / account <code>grpa</code>.</p>
+<p><strong>Resources:</strong> 4×H200 (140 GB each), 30 CPUs, 640 GB RAM, 24 h walltime.</p>
+<p><strong>Template:</strong> use <code>scripts/slurm/train_exclusive.sbatch</code> as the SLURM header
+pattern. Entry point: <code>imas_ambix/tokenizer/finetune_decoder.py</code> (has a
+<code>if __name__ == "__main__":</code> block; check or add <code>argparse</code> for config path).</p>
+<p><strong>Safety (AGENTS.md §2a):</strong> the job MUST install a <code>SIGTERM/SIGINT</code> handler that
+shuts down cleanly in &lt; 5 s. Add a per-step watchdog that aborts if a single
+training step exceeds 5× the median step time. Do NOT use the legacy prefetch
+daemon or subprocess-based IPC — use in-process DataLoader only (mirrors
+<code>stream_encode.py</code> pattern).</p>
+<p><strong>Output:</strong> weights saved to
+<code>/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors</code>.</p>
+<p><strong>Submit command (after SLURM template is ready):</strong></p>
+<pre><code>sbatch --partition=betelgeuse \
+       --reservation=gpu_0003_grpA \
+       --account=grpa \
+       --gres=gpu:4 \
+       --cpus-per-task=30 \
+       --mem=640G \
+       --time=24:00:00 \
+       scripts/slurm/finetune_decoder.sbatch
+</code></pre>
+
+<h2 id="s4">§4 — Done-when</h2>
+<ol>
+<li><code>plasma-decoder-v1.safetensors</code> exists at
+    <code>/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors</code>.</li>
+<li>Re-bench via <code>ambix tokenize bench --config imas_ambix/bench/configs/v0-rbb-100shot.yaml</code>
+    returns <strong>rFID &lt; 5</strong> (or clearly plateaued and we escalate to Cosmos-Tokenizer).</li>
+<li>Followup <code>f-finetune-decoder-2026-05-28</code> in <code>tokenizers</code> plan resolved with
+    resulting rFID + weight path.</li>
+<li>world-model-v0 unblocked (tokenizer gate lifted).</li>
+</ol>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="train-val-split" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">How to split the 9,528 rbb-tokenized shots into train / val sets?</p>
+  <p class="r-dec-ctx">Need stable val set for rFID tracking; temporal split guards against leakage if campaigns differ systematically.</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="random-7500-2000">random-7500-2000 (recommended for v0)</button>
+    <button class="r-opt" data-value="temporal">temporal (chronological split)</button>
+    <button class="r-opt" data-value="stratified-quality">stratified-quality (by quality gate pass rate)</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+<div class="r-dec" data-key="lpips-weight" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">What LPIPS (perceptual) loss weight to use for decoder fine-tune?</p>
+  <p class="r-dec-ctx">Scaffold defaults to perceptual_weight=0.1 (l1_weight=1.0). Higher LPIPS weight pushes toward sharper boundaries but may destabilise early training on the narrow plasma vocabulary.</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="0.1">0.1 (scaffold default — conservative, recommended for v0)</button>
+    <button class="r-opt" data-value="0.25">0.25</button>
+    <button class="r-opt" data-value="0.5">0.5</button>
+    <button class="r-opt" data-value="1.0">1.0</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+</section>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-finetune-decoder-kickoff-2026-05-28" data-status="open" data-tier="opus" data-written-by="agent/sonnet" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship plasma-decoder-finetune --section 3" data-resolved-at="" data-resolved-by="">
+  <h4 class="r-fu-title">Submit the SLURM decoder fine-tune training job</h4>
+  <div class="r-fu-body">Scaffold exists. Decisions to lock first: train-val-split (recommend random-7500-2000) and lpips-weight (scaffold default 0.1). Then submit sbatch, monitor exit, save weights, and re-bench rFID. Unblocks world-model-v0.</div>
+  <pre class="r-fu-prompt">Project: imas-ambix
+Plan: plasma-decoder-finetune (§3 Compute)
+Tier: opus
+
+Lock open decisions, submit the SLURM decoder fine-tune job, and re-bench rFID.
+
+State to read
+  docs/plasma-decoder-finetune.html       (this plan)
+  imas_ambix/tokenizer/finetune_decoder.py  (scaffold — DecoderFinetuneConfig)
+  scripts/slurm/train_exclusive.sbatch    (SLURM header template)
+  imas_ambix/bench/configs/v0-rbb-100shot.yaml  (re-bench config)
+
+Locked decisions to honour
+  train-val-split → random-7500-2000 (recommended unless overridden)
+  lpips-weight    → 0.1 (scaffold default, unless overridden)
+
+Steps
+  1. Lock both decisions in docs/plasma-decoder-finetune.html via reckon-edit.
+  2. Create scripts/slurm/finetune_decoder.sbatch (clone train_exclusive.sbatch header;
+     entry = python imas_ambix/tokenizer/finetune_decoder.py).
+  3. Verify SIGTERM handler + watchdog are present in the scaffold; add if missing.
+  4. sbatch submit (partition=betelgeuse, reservation=gpu_0003_grpA, account=grpa,
+     gres=gpu:4, cpus-per-task=30, mem=640G, time=24:00:00).
+  5. Monitor job; confirm weights written to
+     /work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors.
+  6. Re-bench: ambix tokenize bench --config imas_ambix/bench/configs/v0-rbb-100shot.yaml
+  7. Record rFID result in tokenizers plan §13.1 followup f-finetune-decoder-2026-05-28.
+  8. Resolve this followup with rFID + weight path.
+
+Done-when
+  plasma-decoder-v1.safetensors exists AND re-bench rFID &lt; 5 (or plateau documented).</pre>
+</article>
+</section>
+
+</main>
+</body>
+</html>

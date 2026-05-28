@@ -1,9 +1,9 @@
 {
-  "updated": "2026-05-27T09:36:11",
+  "updated": "2026-05-28T00:00:00",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
-    "active_sprint_id": "S4",
+    "active_sprint_id": "S5",
     "projects": [
       {
         "project": "imas-ambix",
@@ -15,7 +15,7 @@
         "blocked": 3,
         "pending": 2,
         "shipped": 1,
-        "last_modified": "2026-05-26",
+        "last_modified": "2026-05-28",
         "milestones": [
           {
             "id": "M0",
@@ -317,18 +317,34 @@
       {
         "slug": "frame-precompute",
         "title": "Pre-decoded + pre-resized rbb frames at 256\u00b2 uint8",
-        "status": "pending",
+        "status": "shipped",
         "ms": "M1",
         "roi": "high",
         "effort": "M",
         "tier": "sonnet",
-        "impl": 0,
-        "last": "2026-05-26",
+        "impl": 1,
+        "last": "2026-05-28",
         "owner": "Simon McIntosh",
         "blockers": 0,
-        "dec_open": 1,
+        "dec_open": 0,
         "comments": 0,
         "sprint": "S4"
+      },
+      {
+        "slug": "plasma-decoder-finetune",
+        "title": "Plasma-domain decoder fine-tune (Open-MAGVIT2)",
+        "status": "active",
+        "ms": "M1",
+        "roi": "high",
+        "effort": "M",
+        "tier": "opus",
+        "impl": 0.1,
+        "last": "2026-05-28",
+        "owner": "Simon McIntosh",
+        "blockers": 0,
+        "dec_open": 2,
+        "comments": 0,
+        "sprint": "S5"
       }
     ],
     "sprints": [
@@ -390,7 +406,7 @@
       },
       {
         "id": "S4",
-        "status": "active",
+        "status": "shipped",
         "theme": "Saturate 4\u00d7H200 \u2014 GPU-bound by killing I/O+CPU tax in the encode path",
         "starts": "2026-05-27",
         "ends": "2026-06-03",
@@ -398,7 +414,19 @@
           "zarr-consolidate",
           "frame-precompute"
         ],
-        "summary": "Two perf wins identified during the failed bulk-encode attempts on 2026-05-26: (1) Zarr non-consolidated metadata costs 0.5\u20132 s per shot open; (2) per-shot uint16\u2192uint8 + bilinear resize CPU work runs every encode. Land both so the next bulk-encode is genuinely GPU-bound."
+        "summary": "Shipped 2026-05-27 (zarr-consolidate) + 2026-05-28 (frame-precompute). Both perf wins land; corpus encode hit 308 fps/GPU peak via the in-process stream_encode.py path that replaced the optimisation targets. Side-quest: bench harness moved to the same in-process pattern (commit c759282) \u2014 ~55\u00d7 speedup; rFID gate measurement landed at 16.25 on the 100-shot in-process bench (job 1208918)."
+      },
+      {
+        "id": "S5",
+        "status": "active",
+        "theme": "Plasma-domain decoder fine-tune \u2192 world-model-v0 kickoff",
+        "starts": "2026-05-28",
+        "ends": "2026-06-10",
+        "items": [
+          "plasma-decoder-finetune",
+          "world-model-v0"
+        ],
+        "summary": "rFID gate triggered at 16.25 (100-shot in-process bench, 1208918). Codebook util only 2.5% of 2^18 ImageNet entries \u2014 clear plasma-domain mismatch. Fine-tune the decoder, re-bench, then unblock world-model-v0 training."
       }
     ],
     "blockers": [
@@ -425,6 +453,11 @@
       }
     ],
     "timeline": [
+      {
+        "when": "2026-05-28 00:00",
+        "who": "agent/sonnet",
+        "what": "S4 closed (shipped) — zarr-consolidate + frame-precompute done; S5 opened: plasma-decoder-finetune + world-model-v0; new plan plasma-decoder-finetune.html scaffolded"
+      },
       {
         "when": "2026-05-26 18:30",
         "who": "Simon McIntosh",
@@ -456,6 +489,6 @@
         "what": "tokenizers \u00a713.3 IR codebook benchmark wired (commit dec0082)"
       }
     ],
-    "_version": 8
+    "_version": 9
   }
 }
