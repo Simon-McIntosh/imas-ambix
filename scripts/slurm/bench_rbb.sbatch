@@ -39,16 +39,21 @@ fi
 # ── Env vars (override via sbatch --export=ALL,VAR=val) ───────────────────
 : "${BENCH_CONFIG:=imas_ambix/bench/configs/v0-rbb-100shot.yaml}"
 : "${RESULTS_DIR:=${REPO_ROOT}/imas_ambix/bench/results}"
+: "${IN_PROCESS:=0}"  # set to 1 for the in-process bench (no subprocess-per-shot)
 
 BENCH_NAME="$(basename "${BENCH_CONFIG}" .yaml)"
 RESULT_FILE="${RESULTS_DIR}/${BENCH_NAME}-${SLURM_JOB_ID}.json"
 
+EXTRA_FLAGS=""
+[[ "${IN_PROCESS}" == "1" ]] && EXTRA_FLAGS="--in-process"
+
 echo "[$(date)] bench-rbb starting"
-echo "  job-id:      ${SLURM_JOB_ID}"
-echo "  node:        $(hostname)"
+echo "  job-id:       ${SLURM_JOB_ID}"
+echo "  node:         $(hostname)"
 echo "  bench_config: ${BENCH_CONFIG}"
-echo "  results_dir: ${RESULTS_DIR}"
-echo "  output:      ${RESULT_FILE}"
+echo "  results_dir:  ${RESULTS_DIR}"
+echo "  output:       ${RESULT_FILE}"
+echo "  in_process:   ${IN_PROCESS}"
 
 mkdir -p "${RESULTS_DIR}"
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
@@ -56,7 +61,8 @@ nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 # ── Run the benchmark ──────────────────────────────────────────────────────
 $AMBIX tokenize bench \
     --config "${BENCH_CONFIG}" \
-    --output "${RESULT_FILE}"
+    --output "${RESULT_FILE}" \
+    ${EXTRA_FLAGS}
 
 EXIT_CODE=$?
 echo "[$(date)] bench-rbb finished (exit=${EXIT_CODE})"
