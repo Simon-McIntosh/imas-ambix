@@ -22,7 +22,7 @@
 <meta name="plan-depends-on" content="data-acquisition,compute">
 <meta name="plan-blocks" content="world-model-v0">
 <meta name="plan-impl" content="0.95">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="14">
 </head>
 <body>
 <main class="plan-doc">
@@ -1113,6 +1113,62 @@ Done-when
   3. If rFID &lt; 5 → §12.1 gate cleared; world-model-v0 unblocked
   4. If rFID stays ≥ 5 → write RCA + decide between (a) more training steps, (b) larger LR, (c) per-modality codebook block expansion
   5. This followup resolved with the resulting rFID + decoder weight path</pre>
+    </article>
+<article class="r-fu" data-id="f-v1-stratified-rfid-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship tokenizers --section 13.4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">v1: stratified rFID by frame activity + transient-frame focus</h4>
+    <div class="r-fu-body">Mean rFID across all val frames is misleading: it can be dominated by easy frames (blank/quiescent backgrounds) and hide poor reconstruction on the physically-relevant transients (ELM crashes, L-H transitions, filament eruptions). 2026-05-28 implementation landed: imas_ambix.eval.metrics.frame_activity_class() classifies frames as blank/quiescent/transient by spatial std; rfid_stratified() computes rFID per class; bench configs v0-rbb-100shot.yaml and -finetune.yaml now request rfid_stratified metric. v1 ask: extend the bench to (a) also stratify by TEMPORAL gradient (|frame_t - frame_t-1|) so we catch L-H transitions which are transient in time even if individual frames look quiescent; (b) add a &#x27;transient-focus&#x27; bench config that samples DENSE consecutive frames around L-H/H-L transitions (need a labelled transition list — work with diagnostics team); (c) report all three classes&#x27; rFIDs in the per-shot result JSON so we can see which shots have inhomogeneous error structure; (d) make the rFID &lt; 5 gate apply specifically to the transient class, not the overall mean — that is the physics-relevant threshold.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: tokenizers (§13.4 stratified rFID v1)
+Tier: sonnet
+
+Context
+  v0 added spatial-std-based frame classification (blank/quiescent/transient) and per-class rFID to the bench (commit landing 2026-05-28).  The mean rFID was 12.97 at step 3000 of the production fine-tune (job 1209004) — the v1 question is whether that&#x27;s evenly distributed or hiding a tail of bad-on-transient frames.
+
+State to read
+  imas_ambix/eval/metrics.py             (frame_activity_class, rfid_stratified)
+  imas_ambix/bench/configs/v0-rbb-100shot*.yaml
+  imas_ambix/bench/tokenizer.py          (where stratified merging into aggregate happens)
+
+Steps
+  1. Add temporal-gradient classification: a frame is &#x27;temporal-transient&#x27; if |frame_t - frame_t-1| / max(|frame_t-1|, 1) &gt; threshold.  Requires keeping the previous-frame reference inside the eval loop (currently dropped).  Add a temporal_threshold param to frame_activity_class.
+  2. Build a transient-focus bench config that uses a shotlist + frame-index manifest of known L-H transitions (or: identify transitions automatically via large dWdt change in stored equilibrium).
+  3. Per-shot JSON should include the count and rFID of each class.
+  4. Lock the rFID-on-transient gate at &lt; 5 (replacing or alongside the mean rFID gate).
+  5. Re-bench plasma-decoder-v1 with the stratified metric — if rfid_transient is much higher than rfid_quiescent, that&#x27;s the world-model-v0 risk we need to fix before unblocking it.
+
+Done-when
+  - Temporal classification working (smoke + golden-test on a known L-H shot)
+  - Stratified metric reported by all production bench runs
+  - Transient-rFID &lt; 5 either confirmed or escalated as a new fine-tune iteration</pre>
+    </article>
+<article class="r-fu" data-id="f-v1-frame-quality-filter-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship tokenizers --section 13.5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">v1: frame-quality filter for blank/saturated/degenerate frames</h4>
+    <div class="r-fu-body">2026-05-28 audit (30-shot sample, 67754 frames, /work/projects/imas_gpu/mast-tokens/v1/frames-quality-audit-2026-05-28.json) found 1.79% of rbb frames are blank near-black (mean&lt;5, std&lt;1; camera-on, plasma-off). Concentrated in shots like 24827 (15.6% blank) and entirely-dark shots like 22719 (max=13). Currently there is NO frame-level filter at any stage: training samples them, bench measures them, and the world-model would learn to predict them. Recommendation: per-shot frame_quality.json sidecar at /work/projects/imas_gpu/mast-tokens/v1/frame-quality/{shot}-{camera}.json with the per-frame valid mask. Compute once during a corpus pass (~30 min), then every downstream consumer reads the sidecar and skips invalid frames. NO re-tokenization needed (the .npy token rows stay intact, the mask just tells consumers which rows to ignore). This complements the per-shot (lo, hi) cache (task #11) since both are per-shot metadata computed from a full-frame pass.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: tokenizers (§13.5 frame-quality filter)
+Tier: sonnet
+
+Context
+  Empirical 2026-05-28 audit confirmed near-black &#x27;blank&#x27; frames exist (1.79% across 30-shot sample, up to 15.6% in worst shot).  No filter exists.  v0 production fine-tune 1209004 likely sees ~6700 blank frames in 375k training frames — wasted decoder capacity learning to reproduce noise.
+
+State to read
+  /work/projects/imas_gpu/mast-tokens/v1/frames-quality-audit-2026-05-28.json
+  imas_ambix/eval/metrics.py:frame_activity_class (already classifies blank)
+  imas_ambix/data/stream_encode.py                 (corpus encoder — where to compute the mask)
+
+Steps
+  1. Add imas_ambix/data/frame_quality.py: compute_shot_quality(shot_id, zarr_path, camera) reads ALL frames, returns np.bool_ array (T,) True=valid; cache at /work/projects/imas_gpu/mast-tokens/v1/frame-quality/{shot}-{camera}.json (also store per-shot (lo, hi) here to merge with task #11).
+  2. Add CLI: `ambix data frame-quality-scan --camera rbb` to run the full corpus.  Use the same in-process pattern as stream_encode: zarr DataLoader workers, no subprocess daemon.
+  3. Update finetune_decoder._scan_shots to read the sidecar and exclude invalid frames from entries[].
+  4. Update bench/tokenizer.py + stream_worker.py to similarly skip invalid frames in val pool (so bench rFID is over real plasma frames only).
+  5. Verify on shot 24827: expect ~1125 frames flagged invalid; resulting train pool drops from 350684 to ~344k.
+  6. Update tokenizers plan: §13.5 marked landed; frame-quality coverage metric added to data-quality.json.
+
+Done-when
+  - Sidecar JSONs written for all 9528 rbb shots
+  - finetune + bench both skip flagged frames
+  - Worst-shot inspection (24827, 22719) confirms expected fractions
+  - New training run shows train pool size reduced by the audited 1.79% and rFID-on-quiescent metric improves (since blank frames no longer artificially inflate the &#x27;easy&#x27; bucket)</pre>
     </article>
 </section>
 <section data-reckon="questions" id="questions" class="r-questions">

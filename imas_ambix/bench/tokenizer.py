@@ -389,6 +389,19 @@ def benchmark_frame_tokenizer(
             dec_all = np.concatenate(rfid_dec_buf, axis=0)
             aggregate["mean_rfid"] = float(rfid(src_all, dec_all))
             aggregate["rfid_n_frames"] = float(src_all.shape[0])
+
+            # Stratified rFID — split by frame activity class.  Mean rFID alone
+            # can be misleading: a low mean dominated by blank/quiescent frames
+            # hides poor performance on physically-relevant transients (ELMs,
+            # L-H transitions, filaments).  See 2026-05-28 frame-quality audit
+            # + tokenizers plan v1.
+            if "rfid_stratified" in config.metrics:
+                from imas_ambix.eval.metrics import (
+                    rfid_stratified as _rfid_stratified,
+                )
+
+                strat = _rfid_stratified(src_all, dec_all)
+                aggregate.update(strat)
         except Exception:
             aggregate["mean_rfid"] = float("nan")
     # Add mean_modality_coherence to aggregate when loader was supplied
@@ -714,6 +727,19 @@ def benchmark_frame_tokenizer_in_process(
             dec_all = np.concatenate(rfid_dec_buf, axis=0)
             aggregate["mean_rfid"] = float(rfid(src_all, dec_all))
             aggregate["rfid_n_frames"] = float(src_all.shape[0])
+
+            # Stratified rFID — split by frame activity class.  Mean rFID alone
+            # can be misleading: a low mean dominated by blank/quiescent frames
+            # hides poor performance on physically-relevant transients (ELMs,
+            # L-H transitions, filaments).  See 2026-05-28 frame-quality audit
+            # + tokenizers plan v1.
+            if "rfid_stratified" in config.metrics:
+                from imas_ambix.eval.metrics import (
+                    rfid_stratified as _rfid_stratified,
+                )
+
+                strat = _rfid_stratified(src_all, dec_all)
+                aggregate.update(strat)
         except Exception:
             aggregate["mean_rfid"] = float("nan")
 

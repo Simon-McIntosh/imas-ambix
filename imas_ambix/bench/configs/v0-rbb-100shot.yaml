@@ -122,6 +122,9 @@ max_items_per_shot: 32      # amortise subprocess startup; 100 shots × 32 frame
 metrics:
   - psnr
   - rfid
+  - rfid_stratified   # split rFID by frame activity (blank/quiescent/transient).
+                      # 2026-05-28 audit found 1.79% blank frames inflating mean rFID;
+                      # transient (high-activity) frames are the physics-relevant ones.
   - lpips
   - centroid_mse
   - chord_nrmse

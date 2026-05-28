@@ -154,6 +154,111 @@ def rfid(reference: np.ndarray, prediction: np.ndarray) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Frame activity classification (for stratified metrics)
+# ---------------------------------------------------------------------------
+
+
+def frame_activity_class(
+    frames: np.ndarray,
+    *,
+    blank_std_threshold: float = 1.0,
+    blank_mean_threshold: float = 5.0,
+) -> np.ndarray:
+    """Classify each frame as ``blank`` / ``quiescent`` / ``transient``.
+
+    The 2026-05-28 audit found 1.79 % of rbb frames are near-black blanks
+    (camera-on, plasma-off) — these inflate a mean rFID by "easy" frames the
+    decoder learns to reproduce trivially.  Stratifying by activity exposes
+    whether the decoder is good on the physically-relevant transient frames
+    or just on the trivial-to-reconstruct quiescent ones.
+
+    Parameters
+    ----------
+    frames:
+        ``(T, H, W)`` or ``(T, H, W, C)`` uint8 array.
+    blank_std_threshold:
+        Frames with std < this are flat (degenerate input).
+    blank_mean_threshold:
+        Frames with mean < this AND flat (std<threshold) are near-black blanks.
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(T,)`` of strings in ``{"blank", "quiescent", "transient"}``.
+        ``blank`` = degenerate frame (no useful signal).
+        ``quiescent`` = active frame, std below median of non-blank frames.
+        ``transient`` = active frame, std at or above median.
+
+    Notes
+    -----
+    The blank/quiescent/transient split is by *spatial* std as a proxy for
+    "is the plasma doing something interesting in this frame".  A more
+    sophisticated split would use *temporal* gradient (|frame_t - frame_t-1|)
+    which is dominant during ELM crashes / L-H transitions — recorded as a
+    v1 follow-up in plans/tokenizers.md.
+    """
+    import numpy as np
+
+    arr = np.asarray(frames, dtype=np.float32)
+    if arr.ndim == 4:
+        arr = arr.mean(axis=-1)  # collapse channels for activity score
+    T = arr.shape[0]
+    flat = arr.reshape(T, -1)
+    fmean = flat.mean(axis=1)
+    fstd = flat.std(axis=1)
+
+    blank_mask = (fstd < blank_std_threshold) & (fmean < blank_mean_threshold)
+
+    classes = np.empty(T, dtype=object)
+    classes[blank_mask] = "blank"
+
+    # For non-blank frames, split at the median std into quiescent / transient.
+    nonblank = ~blank_mask
+    if nonblank.any():
+        median_std = float(np.median(fstd[nonblank]))
+        classes[nonblank & (fstd < median_std)] = "quiescent"
+        classes[nonblank & (fstd >= median_std)] = "transient"
+    return classes
+
+
+def rfid_stratified(
+    reference: np.ndarray,
+    prediction: np.ndarray,
+) -> dict[str, float]:
+    """Compute rFID separately for blank / quiescent / transient frames.
+
+    Returns
+    -------
+    dict[str, float]
+        Keys: ``rfid_overall``, ``rfid_blank``, ``rfid_quiescent``,
+        ``rfid_transient``, plus ``count_blank``, ``count_quiescent``,
+        ``count_transient`` for the bin populations.  Any rFID with < 2
+        frames in its bin is ``nan`` (FID requires a covariance estimate).
+    """
+    import numpy as np
+
+    classes = frame_activity_class(reference)
+    out: dict[str, float] = {
+        "rfid_overall": rfid(reference, prediction),
+        "count_blank": int(np.sum(classes == "blank")),
+        "count_quiescent": int(np.sum(classes == "quiescent")),
+        "count_transient": int(np.sum(classes == "transient")),
+    }
+
+    for label in ("blank", "quiescent", "transient"):
+        mask = classes == label
+        n = int(mask.sum())
+        if n < 2:
+            out[f"rfid_{label}"] = float("nan")
+            continue
+        try:
+            out[f"rfid_{label}"] = rfid(reference[mask], prediction[mask])
+        except Exception:  # noqa: BLE001
+            out[f"rfid_{label}"] = float("nan")
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Physics-derived metrics
 # ---------------------------------------------------------------------------
 

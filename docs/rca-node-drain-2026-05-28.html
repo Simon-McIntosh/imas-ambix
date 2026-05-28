@@ -7,7 +7,7 @@
 <meta name="plan-slug" content="rca-node-drain-2026-05-28">
 <meta name="reckon-type" content="doc">
 <meta name="plan-title" content="RCA — 98dci4-gpu-0003 node drain (2026-05-28 13:52:08)">
-<meta name="plan-summary" content="Third self-inflicted drain. Cause: agent issued scancel on a healthy CUDA-DDP job to apply code fixes; SIGTERM could not unwind the rank-0 process during a NCCL collective inside loss.backward(); slurmd 'Kill task failed' → auto-drain. Prevention: STOP-FILE mechanism replaces scancel for agent-launched GPU jobs. Admin feedback included.">
+<meta name="plan-summary" content="Third self-inflicted drain. Cause: agent issued scancel on a healthy CUDA-DDP job to apply code fixes; SIGTERM could not unwind the rank-0 process during a NCCL collective inside loss.backward(); slurmd &#x27;Kill task failed&#x27; → auto-drain. Prevention: STOP-FILE mechanism replaces scancel for agent-launched GPU jobs. Admin feedback included.">
 <meta name="plan-status" content="shipped">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="S">
@@ -17,6 +17,7 @@
 <title>RCA — 98dci4-gpu-0003 node drain 2026-05-28 | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -408,6 +409,7 @@ regardless.</li>
 in <code>finetune_decoder.py</code>, AGENTS.md §2a strengthened. See follow-up
 commits for the production rollout.</li>
 </ul>
+
 
 </main>
 </body>
