@@ -207,6 +207,18 @@ def benchmark_frame_tokenizer(
         and returns a non-``None`` ``(T,)`` array of magnetic axis R values,
         the cross-modality coherence score is computed for that shot.
     """
+    from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer
+
+    _probe = config.tokenizer_factory()
+    if isinstance(_probe, OpenMagvit2Tokenizer):
+        raise RuntimeError(
+            "benchmark_frame_tokenizer no longer supports OpenMagvit2Tokenizer: the "
+            "subprocess-per-shot path is 10-55x slower than the in-process worker AND "
+            "fragile (susceptible to SIGBUS on filesystem hiccups). Use "
+            "benchmark_frame_tokenizer_in_process() instead — or `ambix tokenize bench` "
+            "without --no-in-process."
+        )
+
     import xarray as xr
 
     from imas_ambix.data.paths import LEVEL1_DIR, LEVEL2_DIR
@@ -221,7 +233,7 @@ def benchmark_frame_tokenizer(
 
     data_root = LEVEL1_DIR if tier == "level1" else LEVEL2_DIR
 
-    tok = config.tokenizer_factory()
+    tok = _probe
     per_shot: list[PerShotResult] = []
     t0_wall = time.perf_counter()
 
