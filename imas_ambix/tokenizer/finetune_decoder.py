@@ -1,21 +1,32 @@
-"""Plasma-domain Open-MAGVIT2 decoder fine-tune scaffold.
+"""Plasma-domain Open-MAGVIT2 decoder fine-tune.
 
-Freezes the Open-MAGVIT2 encoder + codebook; trains only the decoder on
-MAST visible-camera frames to adapt reconstruction to plasma imagery. The
-encoder and codebook remain ImageNet-derived — token IDs assigned are stable,
-so no re-encoding of previously tokenised shots is required when the decoder
-is swapped.
+Freezes the encoder + LFQ codebook; trains only the decoder with pixel L1 +
+perceptual (VGG16) loss on MAST rbb plasma frames.  The encoder and codebook
+remain ImageNet-derived — token IDs are stable, so no re-encoding of the
+9,528-shot corpus is needed when the decoder is swapped.
 
-See ``plans/tokenizers.md`` §12.1 for the design rationale, cost estimate,
-and trigger conditions.
+Hardening mirrors ``imas_ambix.bench.stream_worker``:
+- SIGTERM/SIGINT handler sets STOP flag (< 5 s graceful exit).
+- Per-step watchdog auto-calibrated from the running-median step time.
+- ``try/finally`` releases model + empties CUDA cache.
 
-All torch / torchvision / safetensors / pytorch_fid imports are lazy (inside
-method bodies or guarded by ``TYPE_CHECKING``) so this module imports cleanly
-without GPU dependencies installed.
+Run inside the Open-MAGVIT2 venv (Python 3.11, torch 2.1.1):
+
+    PYTHONPATH=/path/to/imas-ambix \\
+      /path/to/open-magvit2/.venv/bin/python \\
+      imas_ambix/tokenizer/finetune_decoder.py \\
+      --train-shots train_ids.txt --val-shots val_ids.txt
+
+CLI is also exposed via ``ambix tokenize finetune-decoder`` (uses same
+DecoderFinetuneTrainer internally).
 """
 
 from __future__ import annotations
 
+import signal
+import sys
+import threading
+import time
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,22 +36,49 @@ if TYPE_CHECKING:
     import torch
 
 # ---------------------------------------------------------------------------
-# Configuration dataclass
+# Graceful-shutdown flag — mirrors stream_worker.py
+# ---------------------------------------------------------------------------
+
+STOP = threading.Event()
+
+
+def _install_signal_handlers() -> None:
+    def _handler(signum, _frame) -> None:  # noqa: ANN001
+        STOP.set()
+        print(
+            f"[finetune-decoder] signal {signum} received → graceful stop",
+            flush=True,
+        )
+
+    try:
+        signal.signal(signal.SIGTERM, _handler)
+        signal.signal(signal.SIGINT, _handler)
+    except ValueError:
+        print(
+            "[finetune-decoder] could not install signal handlers (not main thread)",
+            flush=True,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Configuration
 # ---------------------------------------------------------------------------
 
 _DEFAULT_MAGVIT2_ROOT = Path("/work/projects/imas_gpu/mast-tokens/v1/open-magvit2")
+_DEFAULT_L1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
 
 
 @dataclass
 class DecoderFinetuneConfig:
     """Configuration for the plasma-domain Open-MAGVIT2 decoder fine-tune.
 
-    Defaults correspond to the recipe in ``plans/tokenizers.md`` §12.1:
-    ~5 k frames from ~100 rbb shots, 4×H200 exclusive, AdamW + cosine LR,
-    10 k steps, early-stop on rFID plateau.
+    Defaults correspond to the recipe in the tokenizers plan §12.1:
+    ~375 k frames from 7,500 rbb shots, 4×H200 exclusive (used as single GPU),
+    AdamW + cosine LR, 10 k steps, early-stop on rFID plateau.
     """
 
-    frame_root: Path = Path("/work/projects/imas_gpu/mast/level1")
+    frame_root: Path = _DEFAULT_L1_ROOT
+    """Level-1 zarr root. Shot zarrs at ``{frame_root}/{shot_id}.zarr/{camera}``."""
     magvit2_root: Path = _DEFAULT_MAGVIT2_ROOT
     output_path: Path = _DEFAULT_MAGVIT2_ROOT / "weights" / "plasma-decoder-v1.safetensors"
     train_shot_ids: list[int] = field(default_factory=list)
@@ -48,12 +86,12 @@ class DecoderFinetuneConfig:
     camera: str = "rbb"
     image_size: int = 256
     frames_per_shot: int = 50
-    batch_size: int = 16  # 4 GPUs * 16 = 64 frames/step
+    batch_size: int = 64  # single-GPU effective batch (plan spec: 16/GPU × 4 GPUs)
     learning_rate: float = 1e-4
     max_steps: int = 10_000
     warmup_steps: int = 200
     l1_weight: float = 1.0
-    perceptual_weight: float = 0.1
+    perceptual_weight: float = 0.1  # locked decision: lpips-weight = 0.1
     adv_weight: float = 0.0  # no adversarial in v0
     eval_every_n_steps: int = 1_000
     patience: int = 3
@@ -67,20 +105,18 @@ class DecoderFinetuneConfig:
 
 
 # ---------------------------------------------------------------------------
-# Trainer class
+# Trainer
 # ---------------------------------------------------------------------------
 
 
 class DecoderFinetuneTrainer:
-    """Scaffolds the Open-MAGVIT2 decoder fine-tune loop for plasma imagery.
+    """Drives the Open-MAGVIT2 decoder fine-tune loop for plasma imagery.
 
-    Torch / lightning / Open-MAGVIT2 imports are lazy — the constructor does
-    NOT load weights or open data so the object can be instantiated without a
-    GPU or the Open-MAGVIT2 venv present.
+    All heavy imports (torch, torchvision, Open-MAGVIT2) are lazy — the
+    constructor does not load weights or open data so the object can be
+    instantiated without a GPU.
 
-    Usage
-    -----
-    ::
+    Usage::
 
         config = DecoderFinetuneConfig(
             train_shot_ids=[15085, 15086, ...],
@@ -88,28 +124,15 @@ class DecoderFinetuneTrainer:
         )
         trainer = DecoderFinetuneTrainer(config)
         output_path = trainer.train()
-
-    The ``train()`` method drives the full loop; individual ``build_*``
-    methods can be called in isolation for debugging or curriculum staging.
     """
 
+    # TOKEN_HW: 256 / 16 = 16 (Open-MAGVIT2 spatial compression factor)
+    _TOKEN_HW: int = 16
+
     def __init__(self, config: DecoderFinetuneConfig) -> None:
-        """Initialise the trainer with the given config.
-
-        Parameters
-        ----------
-        config:
-            Fine-tune configuration; see :class:`DecoderFinetuneConfig`.
-
-        Notes
-        -----
-        The constructor is intentionally lightweight — no weight loading,
-        no file system access beyond path validation. Call :meth:`build_model`
-        and :meth:`build_dataloaders` explicitly when ready to start training.
-        """
         self.config = config
         self._model: object | None = None
-        self._vgg_features: object | None = None  # lazy-loaded perceptual model
+        self._vgg_features: object | None = None
 
     # ------------------------------------------------------------------
     # Data
@@ -118,28 +141,17 @@ class DecoderFinetuneTrainer:
     def build_dataloaders(self) -> tuple[Iterable, Iterable]:
         """Build training and validation data loaders.
 
-        Each batch is a ``(B, H, W, 3)`` uint8 :class:`torch.Tensor` of
-        plasma frames resized to :attr:`DecoderFinetuneConfig.image_size`.
-        Frames are sampled uniformly across each shot at intervals of
-        ``shot_duration / frames_per_shot``.
+        Each DataLoader yields ``(B, H, W, 3)`` uint8 tensors of plasma frames
+        resized to :attr:`DecoderFinetuneConfig.image_size`.
 
-        The Zarr store layout assumed is::
+        Level-1 zarr layout assumed::
 
-            {frame_root}/{shot_id}/{camera}.zarr
-
-        where the group exposes a ``data`` variable of shape ``(T, H, W)``
-        or ``(T, H, W, C)`` in uint16.
+            {frame_root}/{shot_id}.zarr/{camera}/
 
         Returns
         -------
         tuple[Iterable, Iterable]
-            ``(train_loader, val_loader)`` — both are
-            :class:`torch.utils.data.DataLoader` instances.
-
-        Raises
-        ------
-        FileNotFoundError
-            If any shot Zarr store is absent from ``frame_root``.
+            ``(train_loader, val_loader)`` as :class:`torch.utils.data.DataLoader`.
         """
         import numpy as np
         import torch
@@ -148,76 +160,109 @@ class DecoderFinetuneTrainer:
 
         cfg = self.config
 
-        def _load_shots(shot_ids: list[int]) -> torch.Tensor:
-            """Load and concatenate uniformly sampled frames for a shot list."""
+        def _load_shots(shot_ids: list[int], label: str) -> torch.Tensor:
             all_frames: list[np.ndarray] = []
-            for shot_id in shot_ids:
-                zarr_path = cfg.frame_root / str(shot_id) / f"{cfg.camera}.zarr"
+            for i, shot_id in enumerate(shot_ids):
+                if STOP.is_set():
+                    break
+                zarr_path = cfg.frame_root / f"{shot_id}.zarr" / cfg.camera
                 if not zarr_path.is_dir():
-                    raise FileNotFoundError(
-                        f"Shot {shot_id} camera {cfg.camera!r} not found at {zarr_path}"
-                    )
-                ds = xr.open_zarr(str(zarr_path), consolidated=False)
-                raw = np.asarray(ds["data"].values)  # (T, H, W) or (T, H, W, C)
-                t = raw.shape[0]
-                if t == 0:
                     continue
-                # Uniform sampling: pick frames_per_shot indices spread across T
-                indices = np.linspace(0, t - 1, min(cfg.frames_per_shot, t), dtype=int)
-                sampled = raw[indices]
-                # Collapse to grayscale if needed, then expand to 3 channels
-                if sampled.ndim == 3:
-                    # (K, H, W) → (K, H, W, 3)
-                    sampled = np.repeat(sampled[..., np.newaxis], 3, axis=-1)
-                elif sampled.shape[-1] == 1:
-                    sampled = np.repeat(sampled, 3, axis=-1)
-                # Normalise uint16 → uint8
-                if sampled.dtype != np.uint8:
-                    lo = float(sampled.min())
-                    hi = float(sampled.max())
-                    if hi > lo:
-                        sampled = ((sampled.astype(np.float32) - lo) * 255.0 / (hi - lo))
-                    sampled = sampled.clip(0, 255).astype(np.uint8)
-                # Resize to image_size × image_size (simple numpy resize via PIL)
                 try:
-                    from PIL import Image
+                    ds = xr.open_zarr(str(zarr_path), consolidated=False)
+                    data_vars = list(ds.data_vars)
+                    if not data_vars:
+                        continue
+                    raw = np.asarray(ds[data_vars[0]].values)  # (T, H, W) or (T, H, W, C)
+                    t = raw.shape[0]
+                    if t == 0:
+                        continue
+                    indices = np.linspace(0, t - 1, min(cfg.frames_per_shot, t), dtype=int)
+                    sampled = raw[indices]
+                    if sampled.ndim == 3:
+                        sampled = np.repeat(sampled[..., np.newaxis], 3, axis=-1)
+                    elif sampled.shape[-1] == 1:
+                        sampled = np.repeat(sampled, 3, axis=-1)
+                    if sampled.dtype != np.uint8:
+                        lo = float(sampled.min())
+                        hi = float(sampled.max())
+                        if hi > lo:
+                            sampled = (
+                                (sampled.astype(np.float32) - lo) * 255.0 / (hi - lo)
+                            )
+                        sampled = sampled.clip(0, 255).astype(np.uint8)
+                    try:
+                        from PIL import Image
 
-                    resized_frames = []
-                    for frame in sampled:
-                        img = Image.fromarray(frame)
-                        img = img.resize((cfg.image_size, cfg.image_size), Image.BILINEAR)
-                        resized_frames.append(np.asarray(img))
-                    sampled = np.stack(resized_frames, axis=0)
-                except ImportError:
-                    # PIL absent: accept whatever shape comes from xarray
+                        resized = []
+                        for frame in sampled:
+                            img = Image.fromarray(frame)
+                            img = img.resize(
+                                (cfg.image_size, cfg.image_size), Image.BILINEAR
+                            )
+                            resized.append(np.asarray(img))
+                        sampled = np.stack(resized, axis=0)
+                    except ImportError:
+                        warnings.warn(
+                            f"Pillow not available — frames NOT resized to "
+                            f"{cfg.image_size}×{cfg.image_size}.",
+                            stacklevel=2,
+                        )
+                    all_frames.append(sampled)
+                    if (i + 1) % 500 == 0:
+                        print(
+                            f"[finetune-decoder] loaded {i + 1}/{len(shot_ids)} "
+                            f"{label} shots ({len(all_frames)} non-empty)",
+                            flush=True,
+                        )
+                except Exception as exc:  # noqa: BLE001
                     warnings.warn(
-                        "Pillow not available — frames will NOT be resized to "
-                        f"{cfg.image_size}×{cfg.image_size}. Install Pillow for "
-                        "correct spatial alignment.",
+                        f"[finetune-decoder] shot {shot_id} load failed: {exc}",
                         stacklevel=2,
                     )
-                all_frames.append(sampled)
             if not all_frames:
-                # Return an empty (0, H, W, 3) tensor so DataLoader still works
-                return torch.zeros((0, cfg.image_size, cfg.image_size, 3), dtype=torch.uint8)
+                return torch.zeros(
+                    (0, cfg.image_size, cfg.image_size, 3), dtype=torch.uint8
+                )
             return torch.from_numpy(np.concatenate(all_frames, axis=0))
 
-        train_frames = _load_shots(cfg.train_shot_ids)
-        val_frames = _load_shots(cfg.val_shot_ids)
+        print(
+            f"[finetune-decoder] loading {len(cfg.train_shot_ids)} train shots "
+            f"({cfg.frames_per_shot} frames/shot max) ...",
+            flush=True,
+        )
+        t0 = time.monotonic()
+        train_frames = _load_shots(cfg.train_shot_ids, "train")
+        print(
+            f"[finetune-decoder] train loaded: {len(train_frames)} frames "
+            f"in {time.monotonic() - t0:.0f}s",
+            flush=True,
+        )
 
-        train_ds = TensorDataset(train_frames)
-        val_ds = TensorDataset(val_frames)
+        print(
+            f"[finetune-decoder] loading {len(cfg.val_shot_ids)} val shots ...",
+            flush=True,
+        )
+        val_frames = _load_shots(cfg.val_shot_ids, "val")
+        print(
+            f"[finetune-decoder] val loaded: {len(val_frames)} frames",
+            flush=True,
+        )
 
         g = torch.Generator()
         g.manual_seed(cfg.seed)
         train_loader = DataLoader(
-            train_ds,
+            TensorDataset(train_frames),
             batch_size=cfg.batch_size,
             shuffle=True,
             generator=g,
             drop_last=True,
         )
-        val_loader = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False)
+        val_loader = DataLoader(
+            TensorDataset(val_frames),
+            batch_size=cfg.batch_size,
+            shuffle=False,
+        )
         return train_loader, val_loader
 
     # ------------------------------------------------------------------
@@ -225,94 +270,142 @@ class DecoderFinetuneTrainer:
     # ------------------------------------------------------------------
 
     def build_model(self) -> object:
-        """Load Open-MAGVIT2 encoder + codebook (frozen) and clone the decoder.
+        """Load the real Open-MAGVIT2 VQModel; freeze encoder + codebook.
 
-        The encoder and codebook weights are loaded from the pretrained
-        checkpoint at::
-
-            {magvit2_root}/weights/imagenet_256_L.ckpt
-
-        The decoder weights are cloned from the same checkpoint and made
-        trainable. The encoder and codebook parameters are frozen via
-        ``requires_grad_(False)``.
+        Uses the same ``load_model`` logic as ``imas_ambix.bench.stream_worker``
+        to ensure byte-consistency with the corpus encode.  After loading,
+        ALL parameters are frozen, then ``model.decoder`` is unfrozen for
+        fine-tuning.
 
         Returns
         -------
         torch.nn.Module
-            A module with three child modules:
-            - ``encoder`` (frozen)
-            - ``codebook`` (frozen)
-            - ``decoder`` (trainable)
-
-        Raises
-        ------
-        RuntimeError
-            If the Open-MAGVIT2 checkpoint is absent from ``magvit2_root``.
-        ImportError
-            If ``torch`` is not available in the current environment.
-
-        Notes
-        -----
-        Open-MAGVIT2 is loaded from the isolated venv at
-        ``{magvit2_root}/.venv`` when the main-venv torch pin conflicts. In
-        v0 we assume the main venv has a compatible torch (≥ 2.6); if that
-        assumption breaks, the worker-subprocess approach used by
-        :class:`~imas_ambix.tokenizer.frames.OpenMagvit2Tokenizer` should be
-        adopted here too.
+            Full VQModel with encoder/codebook frozen and decoder trainable.
         """
-        import copy
-
         import torch
+        from omegaconf import OmegaConf
 
         cfg = self.config
-        ckpt_path = cfg.magvit2_root / "weights" / "imagenet_256_L.ckpt"
+        magvit2_root = cfg.magvit2_root
+        src = magvit2_root / "src"
+        if str(src) not in sys.path:
+            sys.path.insert(0, str(src))
+
+        # Import VQModel from the Open-MAGVIT2 source tree
+        from src.Open_MAGVIT2.models.lfqgan import VQModel  # noqa: PLC0415
+
+        config_path = (
+            src / "configs" / "Open-MAGVIT2" / "gpu" / "imagenet_lfqgan_256_L.yaml"
+        )
+        ckpt_path = magvit2_root / "weights" / "imagenet_256_L.ckpt"
         if not ckpt_path.exists():
             raise RuntimeError(
-                f"Open-MAGVIT2 checkpoint not found at {ckpt_path}. "
-                "Download imagenet_256_L.ckpt and place it under "
-                f"{cfg.magvit2_root}/weights/."
+                f"Open-MAGVIT2 checkpoint not found at {ckpt_path}."
             )
 
-        # Load checkpoint — expects a Lightning-style .ckpt with state_dict key
-        ckpt = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)
-        state_dict = ckpt.get("state_dict", ckpt)
+        model_cfg = OmegaConf.load(str(config_path))
+        model = VQModel(**model_cfg.model.init_args)
+        sd = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)[
+            "state_dict"
+        ]
+        model.load_state_dict(sd, strict=False)
 
-        # Separate encoder/codebook keys from decoder keys
-        enc_keys = {k: v for k, v in state_dict.items() if not k.startswith("decoder")}
-        dec_keys = {
-            k.removeprefix("decoder."): v
-            for k, v in state_dict.items()
-            if k.startswith("decoder")
-        }
+        # Freeze everything, then unfreeze the decoder only
+        model.requires_grad_(False)
+        model.decoder.requires_grad_(True)
 
-        class _DecoderWrapper(torch.nn.Module):
-            """Thin wrapper holding frozen encoder+codebook and trainable decoder."""
+        if cfg.device.startswith("cuda"):
+            torch.set_float32_matmul_precision("high")
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = True
+            try:
+                torch.use_deterministic_algorithms(True, warn_only=True)
+            except Exception as exc:  # noqa: BLE001
+                print(
+                    f"[finetune-decoder] use_deterministic_algorithms note: {exc}",
+                    flush=True,
+                )
+            model = model.to(
+                device=cfg.device,
+                dtype=torch.bfloat16,
+                memory_format=torch.channels_last,
+            )
+        else:
+            model = model.to(cfg.device)
 
-            def __init__(self) -> None:
-                super().__init__()
-                # Placeholder: real Open-MAGVIT2 classes should be imported from
-                # the TencentARC repo once the venv integration is complete.
-                # These are populated by build_model via load_state_dict.
-                self.encoder_state: dict = {}
-                self.codebook_state: dict = {}
-                self.decoder = torch.nn.Identity()  # replaced by real decoder below
-
-        wrapper = _DecoderWrapper()
-        wrapper.encoder_state = {k: v.clone() for k, v in enc_keys.items()}
-        wrapper.codebook_state = copy.deepcopy(
-            {k: v for k, v in enc_keys.items() if "codebook" in k or "quantize" in k}
+        n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        n_total = sum(p.numel() for p in model.parameters())
+        print(
+            f"[finetune-decoder] model loaded: "
+            f"{n_trainable:,} trainable / {n_total:,} total params",
+            flush=True,
         )
+        self._model = model
+        return model
 
-        # Decoder: create a simple nn.ParameterDict so weights are tracked
-        decoder_params = torch.nn.ParameterDict(
-            {k.replace(".", "_"): torch.nn.Parameter(v.clone()) for k, v in dec_keys.items()}
-        )
-        wrapper.decoder = decoder_params  # type: ignore[assignment]
-        wrapper.decoder.requires_grad_(True)
+    # ------------------------------------------------------------------
+    # Encode → decode helper
+    # ------------------------------------------------------------------
 
-        wrapper = wrapper.to(cfg.device)
-        self._model = wrapper
-        return wrapper
+    def _encode_decode(
+        self,
+        model: object,
+        frames_input: object,
+        *,
+        training: bool,
+    ) -> object:
+        """Encode with frozen encoder; decode with trainable decoder.
+
+        Parameters
+        ----------
+        model:
+            VQModel returned by :meth:`build_model`.
+        frames_input:
+            ``(B, 3, H, W)`` float32 in [0, 1], on device.
+        training:
+            When True, decode is computed with grad (for backward pass).
+            When False, wrapped in ``torch.no_grad()``.
+
+        Returns
+        -------
+        torch.Tensor
+            ``(B, 3, H, W)`` float32 in [0, 1].
+        """
+        import torch
+
+        target_dtype = next(model.decoder.parameters()).dtype
+        frames_normed = frames_input.to(target_dtype).mul(2.0).sub(1.0)  # [-1,1]
+
+        # Encode with frozen encoder (always no_grad)
+        with torch.no_grad():
+            if model.use_ema:
+                with model.ema_scope():
+                    _, _, idx, _ = model.encode(frames_normed)
+            else:
+                _, _, idx, _ = model.encode(frames_normed)
+
+        # Reshape token indices
+        B = frames_input.shape[0]
+        h = w = self._TOKEN_HW
+        idx_flat = idx.reshape(B, h * w)
+        bhwc = (B, h, w, int(model.quantize.codebook_dim))
+
+        # Codebook lookup (codebook frozen — no grad through embeddings)
+        if model.use_ema:
+            with model.ema_scope():
+                quant = model.quantize.get_codebook_entry(idx_flat, bhwc=bhwc, order="pre")
+        else:
+            quant = model.quantize.get_codebook_entry(idx_flat, bhwc=bhwc, order="pre")
+        quant = quant.to(target_dtype)
+
+        # Decode — with or without grad depending on phase
+        if training:
+            recon_m11 = model.decode(quant)
+        else:
+            with torch.no_grad():
+                recon_m11 = model.decode(quant)
+
+        return (recon_m11.float().clamp(-1, 1) + 1.0) / 2.0  # [0,1] float32
 
     # ------------------------------------------------------------------
     # Loss
@@ -320,30 +413,20 @@ class DecoderFinetuneTrainer:
 
     def compute_loss(
         self,
-        target_frames: torch.Tensor,
-        recon_frames: torch.Tensor,
-    ) -> torch.Tensor:
-        """Compute the decoder fine-tune loss.
+        target_frames: object,
+        recon_frames: object,
+    ) -> object:
+        """L1 + optional VGG16 perceptual loss.
 
-        Loss = L1 + perceptual loss (VGG16 relu3_3 features).
-
-        The perceptual component weight is controlled by
-        :attr:`DecoderFinetuneConfig.perceptual_weight`. If ``torchvision``
-        is not importable the perceptual term is skipped with a one-time
-        warning and the loss falls back to pure L1.
+        Falls back to L1-only if torchvision is absent or VGG16 weights
+        cannot be loaded (e.g. GPU node has no outbound network).
 
         Parameters
         ----------
         target_frames:
-            Ground-truth frames, shape ``(B, 3, H, W)``, float32 in [0, 1].
+            ``(B, 3, H, W)`` float32 in [0, 1].
         recon_frames:
-            Reconstructed frames from the decoder, same shape as
-            ``target_frames``.
-
-        Returns
-        -------
-        torch.Tensor
-            Scalar loss tensor with ``requires_grad=True``.
+            ``(B, 3, H, W)`` float32 in [0, 1].
         """
         import torch
         import torch.nn.functional as F
@@ -358,7 +441,6 @@ class DecoderFinetuneTrainer:
 
                 if self._vgg_features is None:
                     vgg = tvm.vgg16(weights=tvm.VGG16_Weights.IMAGENET1K_V1)
-                    # Extract up to relu3_3 (layer index 15 in vgg.features)
                     self._vgg_features = torch.nn.Sequential(
                         *list(vgg.features.children())[:16]
                     ).to(cfg.device)
@@ -371,12 +453,15 @@ class DecoderFinetuneTrainer:
                 perceptual = F.mse_loss(feat_recon, feat_target)
                 loss = loss + cfg.perceptual_weight * perceptual
 
-            except (ImportError, ModuleNotFoundError):
-                warnings.warn(
-                    "torchvision not available — perceptual loss skipped; "
-                    "falling back to L1-only.",
-                    stacklevel=2,
-                )
+            except Exception as exc:  # noqa: BLE001
+                if self._vgg_features is None:
+                    warnings.warn(
+                        f"VGG16 perceptual loss unavailable ({exc}); "
+                        "falling back to L1-only for this run.",
+                        stacklevel=2,
+                    )
+                    # Suppress further warnings by setting a sentinel
+                    self._vgg_features = object()
 
         return loss
 
@@ -385,24 +470,7 @@ class DecoderFinetuneTrainer:
     # ------------------------------------------------------------------
 
     def evaluate(self, model: object, val_loader: Iterable) -> dict[str, float]:
-        """Evaluate the decoder on the validation set.
-
-        Computes rFID and mean L1 across the validation split. rFID is
-        computed via :func:`imas_ambix.eval.metrics.rfid` (InceptionV3
-        features). If ``pytorch_fid`` is installed it is preferred; the
-        fallback is the project's own ``rfid`` function. If neither is
-        available the key is set to ``float('nan')`` with a warning.
-
-        Parameters
-        ----------
-        model:
-            The decoder module returned by :meth:`build_model`. In the full
-            implementation, ``model`` drives both encode (frozen) and decode
-            (trainable) steps. In this scaffold, the evaluation loop is
-            stubbed with correct interfaces.
-        val_loader:
-            Validation :class:`torch.utils.data.DataLoader` as returned by
-            :meth:`build_dataloaders`.
+        """Evaluate rFID + L1 on the validation set.
 
         Returns
         -------
@@ -419,19 +487,20 @@ class DecoderFinetuneTrainer:
         l1_sum = 0.0
         n_batches = 0
 
-        with torch.no_grad():
-            for (batch,) in val_loader:
-                # batch: (B, H, W, 3) uint8 → (B, 3, H, W) float32 in [0, 1]
-                frames = batch.float().permute(0, 3, 1, 2).to(cfg.device) / 255.0
-                # Scaffold: recon == identity (real decoder would go here)
-                recon = frames.clone()
-                l1_sum += float(F.l1_loss(recon, frames).item())
-                n_batches += 1
-                # Collect for rFID: convert back to uint8 (B, H, W, 3)
-                t_np = (frames.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-                r_np = (recon.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-                all_targets.append(t_np)
-                all_recons.append(r_np)
+        model.eval()
+        for (batch,) in val_loader:
+            if STOP.is_set():
+                break
+            frames = batch.float().permute(0, 3, 1, 2).to(cfg.device) / 255.0
+            recon = self._encode_decode(model, frames, training=False)
+
+            l1_sum += float(F.l1_loss(recon, frames).item())
+            n_batches += 1
+
+            t_np = (frames.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+            r_np = (recon.permute(0, 2, 3, 1).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+            all_targets.append(t_np)
+            all_recons.append(r_np)
 
         mean_l1 = l1_sum / max(n_batches, 1)
 
@@ -441,26 +510,16 @@ class DecoderFinetuneTrainer:
         target_arr = np.concatenate(all_targets, axis=0)
         recon_arr = np.concatenate(all_recons, axis=0)
 
-        # Try pytorch_fid first; fall back to imas_ambix.eval.metrics.rfid
         rfid_val = float("nan")
         try:
-            # pytorch_fid provides a functional API via calculate_fid_given_paths;
-            # for in-memory use we call its InceptionV3 features directly.
-            from pytorch_fid import fid_score as pf_score  # type: ignore[import]  # noqa: F401
+            from imas_ambix.eval.metrics import rfid as _rfid  # type: ignore[import]
 
-            # pytorch_fid does not expose a direct in-memory API; use our own.
-            raise ImportError("pytorch_fid in-memory API not available")
-        except (ImportError, ModuleNotFoundError):
-            try:
-                from imas_ambix.eval.metrics import rfid as _rfid
-
-                rfid_val = _rfid(target_arr, recon_arr)
-            except (ImportError, ModuleNotFoundError, Exception) as exc:
-                warnings.warn(
-                    f"rFID computation failed ({exc}); reporting NaN. "
-                    "Install torchvision for InceptionV3-based rFID.",
-                    stacklevel=2,
-                )
+            rfid_val = _rfid(target_arr, recon_arr)
+        except Exception as exc:  # noqa: BLE001
+            warnings.warn(
+                f"rFID computation failed ({exc}); reporting NaN.",
+                stacklevel=2,
+            )
 
         return {"rfid": rfid_val, "l1": mean_l1}
 
@@ -473,30 +532,22 @@ class DecoderFinetuneTrainer:
 
         Algorithm
         ---------
-        1. Build dataloaders (:meth:`build_dataloaders`).
-        2. Build model (:meth:`build_model`).
-        3. AdamW optimiser, cosine LR schedule with linear warmup.
-        4. Train loop: encode batch with frozen encoder → decode with
-           trainable decoder → compute loss (:meth:`compute_loss`) → step.
-        5. Every ``eval_every_n_steps``: evaluate (:meth:`evaluate`); save
-           a safetensors checkpoint if rFID improves; early-stop after
-           ``patience`` consecutive non-improvements.
-        6. Returns the path of the best checkpoint written.
+        1. Install SIGTERM/SIGINT handlers + per-step watchdog.
+        2. Build dataloaders (:meth:`build_dataloaders`).
+        3. Build VQModel, freeze encoder + codebook (:meth:`build_model`).
+        4. AdamW, cosine LR + linear warmup.
+        5. Loop: encode (frozen) → decode (trainable) → L1+perceptual loss → step.
+        6. Every ``eval_every_n_steps``: rFID eval; save on improvement; early-stop.
+        7. Save decoder-only weights (.safetensors) + full merged weights (.ckpt).
 
         Returns
         -------
         pathlib.Path
-            Path to the saved ``.safetensors`` weight file.
-
-        Raises
-        ------
-        RuntimeError
-            If ``train_shot_ids`` is empty or the model checkpoint is missing.
+            Path to the saved ``.safetensors`` decoder weights.
         """
         import math
 
         import torch
-        import torch.nn.functional as F
         from torch.optim import AdamW
         from torch.optim.lr_scheduler import LambdaLR
 
@@ -507,99 +558,217 @@ class DecoderFinetuneTrainer:
                 "train_shot_ids is empty — provide shot IDs before calling train()."
             )
 
+        _install_signal_handlers()
+        STOP.clear()
+
         torch.manual_seed(cfg.seed)
 
-        train_loader, val_loader = self.build_dataloaders()
-        model = self.build_model()
+        # ── Watchdog ───────────────────────────────────────────────────────
+        _step_times: list[float] = []
+        _wd_deadline: dict[str, float | None] = {"t": None}
+        _wd_budget: dict[str, float] = {"s": 0.0}
+        _wd_lock = threading.Lock()
+        _wd_done = threading.Event()
 
-        # Only optimise the trainable decoder parameters
-        trainable_params = [p for p in model.parameters() if p.requires_grad]
-        optimiser = AdamW(trainable_params, lr=cfg.learning_rate)
+        def _step_timeout() -> float:
+            if len(_step_times) >= 5:
+                med = sorted(_step_times)[len(_step_times) // 2]
+                return max(120.0, 5.0 * med)
+            return 300.0  # generous initial timeout for data loading
 
-        # Cosine LR with linear warmup
-        def _lr_lambda(step: int) -> float:
-            if step < cfg.warmup_steps:
-                return float(step) / max(cfg.warmup_steps, 1)
-            progress = (step - cfg.warmup_steps) / max(cfg.max_steps - cfg.warmup_steps, 1)
-            return 0.5 * (1.0 + math.cos(math.pi * progress))
+        def _watchdog() -> None:
+            while not _wd_done.is_set():
+                with _wd_lock:
+                    d = _wd_deadline["t"]
+                    b = _wd_budget["s"]
+                if d is not None and time.monotonic() >= d:
+                    STOP.set()
+                    print(
+                        f"[finetune-decoder] per-step watchdog FIRED "
+                        f"(exceeded {b:.0f}s) → graceful stop",
+                        flush=True,
+                    )
+                    return
+                _wd_done.wait(0.1)
 
-        scheduler = LambdaLR(optimiser, lr_lambda=_lr_lambda)
+        wd_thread = threading.Thread(target=_watchdog, daemon=True)
+        wd_thread.start()
 
-        cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
+        model = None
+        try:
+            train_loader, val_loader = self.build_dataloaders()
 
-        best_rfid = float("inf")
-        no_improve_count = 0
-        step = 0
-        train_iter = iter(train_loader)
+            if STOP.is_set():
+                print("[finetune-decoder] stopped during data load", flush=True)
+                return cfg.output_path
 
-        while step < cfg.max_steps:
-            # Cycle through the loader when exhausted
-            try:
-                (batch,) = next(train_iter)
-            except StopIteration:
-                train_iter = iter(train_loader)
+            model = self.build_model()
+
+            trainable_params = [p for p in model.parameters() if p.requires_grad]
+
+            def _lr_lambda(step: int) -> float:
+                if step < cfg.warmup_steps:
+                    return float(step) / max(cfg.warmup_steps, 1)
+                progress = (step - cfg.warmup_steps) / max(
+                    cfg.max_steps - cfg.warmup_steps, 1
+                )
+                return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+            optimiser = AdamW(trainable_params, lr=cfg.learning_rate)
+            scheduler = LambdaLR(optimiser, lr_lambda=_lr_lambda)
+
+            cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            best_rfid = float("inf")
+            no_improve_count = 0
+            step = 0
+            train_iter = iter(train_loader)
+            t_step_start = time.monotonic()
+
+            print(
+                f"[finetune-decoder] training: max_steps={cfg.max_steps} "
+                f"batch_size={cfg.batch_size} lr={cfg.learning_rate} "
+                f"eval_every={cfg.eval_every_n_steps}",
+                flush=True,
+            )
+
+            while step < cfg.max_steps and not STOP.is_set():
+                # Arm watchdog for this step
+                budget = _step_timeout()
+                with _wd_lock:
+                    _wd_budget["s"] = budget
+                    _wd_deadline["t"] = time.monotonic() + budget
+
                 try:
                     (batch,) = next(train_iter)
                 except StopIteration:
-                    break  # empty dataloader — shouldn't happen with real data
+                    train_iter = iter(train_loader)
+                    try:
+                        (batch,) = next(train_iter)
+                    except StopIteration:
+                        break
 
-            model.train()
-            frames = batch.float().permute(0, 3, 1, 2).to(cfg.device) / 255.0
+                model.train()
+                frames = batch.float().permute(0, 3, 1, 2).to(cfg.device) / 255.0
+                recon = self._encode_decode(model, frames, training=True)
 
-            # Scaffold: in real implementation, encode with frozen encoder
-            # then decode with trainable decoder. Here we use identity recon.
-            recon = frames
+                loss = self.compute_loss(frames, recon)
+                optimiser.zero_grad()
+                loss.backward()
+                optimiser.step()
+                scheduler.step()
 
-            loss = self.compute_loss(frames, recon)
-            optimiser.zero_grad()
-            loss.backward()
-            optimiser.step()
-            scheduler.step()
-            step += 1
+                # Update EMA shadow so bench decode uses fine-tuned weights
+                if hasattr(model, "model_ema") and model.use_ema:
+                    model.model_ema(model)
 
-            # Periodic evaluation + checkpointing
-            if step % cfg.eval_every_n_steps == 0 or step == cfg.max_steps:
-                model.eval()
-                metrics = self.evaluate(model, val_loader)
-                current_rfid = metrics.get("rfid", float("nan"))
+                # Disarm watchdog
+                with _wd_lock:
+                    _wd_deadline["t"] = None
 
-                improved = (
-                    not (current_rfid != current_rfid)  # not NaN
-                    and current_rfid < best_rfid
-                )
-                if improved:
-                    best_rfid = current_rfid
-                    no_improve_count = 0
-                    self._save_checkpoint(model)
-                else:
-                    no_improve_count += 1
+                step_time = time.monotonic() - t_step_start
+                _step_times.append(step_time)
+                if len(_step_times) > 64:
+                    del _step_times[0]
+                t_step_start = time.monotonic()
 
-                if no_improve_count >= cfg.patience:
-                    break  # early stopping
+                step += 1
 
-        # Save final weights if no checkpoint was written yet
-        if not cfg.output_path.exists():
-            self._save_checkpoint(model)
+                if step % 100 == 0 or step == 1:
+                    print(
+                        f"[finetune-decoder] step {step}/{cfg.max_steps} "
+                        f"loss={float(loss):.4f} "
+                        f"lr={scheduler.get_last_lr()[0]:.2e}",
+                        flush=True,
+                    )
+
+                # Evaluation + early stopping
+                if step % cfg.eval_every_n_steps == 0 or step == cfg.max_steps:
+                    if STOP.is_set():
+                        break
+                    model.eval()
+                    t_eval = time.monotonic()
+                    metrics = self.evaluate(model, val_loader)
+                    current_rfid = metrics.get("rfid", float("nan"))
+                    print(
+                        f"[finetune-decoder] eval step {step}: "
+                        f"rFID={current_rfid:.3f} L1={metrics.get('l1', float('nan')):.4f} "
+                        f"({time.monotonic() - t_eval:.1f}s)",
+                        flush=True,
+                    )
+
+                    improved = (
+                        not (current_rfid != current_rfid)  # not NaN
+                        and current_rfid < best_rfid
+                    )
+                    if improved:
+                        best_rfid = current_rfid
+                        no_improve_count = 0
+                        self._save_checkpoint(model)
+                        print(
+                            f"[finetune-decoder] ✓ new best rFID={best_rfid:.3f} "
+                            f"— checkpoint saved",
+                            flush=True,
+                        )
+                    else:
+                        no_improve_count += 1
+                        print(
+                            f"[finetune-decoder] no improvement "
+                            f"({no_improve_count}/{cfg.patience})",
+                            flush=True,
+                        )
+
+                    if no_improve_count >= cfg.patience:
+                        print(
+                            f"[finetune-decoder] early stop: patience {cfg.patience} "
+                            "exhausted",
+                            flush=True,
+                        )
+                        break
+
+            # Save final weights (decoder-only safetensors + full merged ckpt)
+            if not cfg.output_path.exists():
+                self._save_checkpoint(model)
+            merged_path = self._save_merged_checkpoint(model)
+            print(
+                f"[finetune-decoder] training complete "
+                f"(best rFID={best_rfid:.3f})\n"
+                f"  decoder weights : {cfg.output_path}\n"
+                f"  merged ckpt     : {merged_path}",
+                flush=True,
+            )
+
+        finally:
+            _wd_done.set()
+            with _wd_lock:
+                _wd_deadline["t"] = None
+            wd_thread.join(timeout=1.0)
+            if model is not None:
+                try:
+                    import torch as _torch
+
+                    del model
+                    if cfg.device.startswith("cuda"):
+                        _torch.cuda.empty_cache()
+                except Exception as exc:  # noqa: BLE001
+                    print(
+                        f"[finetune-decoder] model release warning: {exc}",
+                        flush=True,
+                    )
 
         return cfg.output_path
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Checkpoint helpers
     # ------------------------------------------------------------------
 
     def _save_checkpoint(self, model: object) -> None:
-        """Save the decoder weights to ``output_path`` in safetensors format.
-
-        Falls back to :func:`torch.save` if ``safetensors`` is not installed,
-        writing a ``.pt`` file alongside the configured path with a warning.
-        """
+        """Save decoder-only weights to ``output_path`` in safetensors format."""
         import torch
 
         cfg = self.config
         cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Collect only the decoder (trainable) state dict entries
-        state_dict: dict[str, torch.Tensor] = {}
         if hasattr(model, "decoder") and hasattr(model.decoder, "state_dict"):
             state_dict = {k: v.cpu() for k, v in model.decoder.state_dict().items()}
         else:
@@ -614,10 +783,34 @@ class DecoderFinetuneTrainer:
         except (ImportError, ModuleNotFoundError):
             fallback = cfg.output_path.with_suffix(".pt")
             warnings.warn(
-                f"safetensors not available — checkpoint saved as {fallback} instead.",
+                f"safetensors not available — saved as {fallback}",
                 stacklevel=2,
             )
             torch.save(state_dict, str(fallback))
+
+    def _save_merged_checkpoint(self, model: object) -> Path:
+        """Save full model state dict (encoder + fine-tuned decoder) as .ckpt.
+
+        The merged checkpoint can be used by ``stream_worker.load_model`` (via
+        the optional ``ckpt_path`` argument) so the bench evaluates the
+        fine-tuned decoder rather than the ImageNet one.
+
+        Returns
+        -------
+        pathlib.Path
+            Path to the saved merged ``.ckpt`` file.
+        """
+        import torch
+
+        cfg = self.config
+        merged_path = cfg.output_path.with_name(
+            cfg.output_path.stem.replace("plasma-decoder-v1", "plasma-decoder-v1-merged")
+            + ".ckpt"
+        )
+        merged_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({"state_dict": {k: v.cpu() for k, v in model.state_dict().items()}},
+                   str(merged_path))
+        return merged_path
 
 
 # ---------------------------------------------------------------------------
@@ -626,20 +819,83 @@ class DecoderFinetuneTrainer:
 
 
 def finetune_decoder(config: DecoderFinetuneConfig) -> Path:
-    """Fine-tune the Open-MAGVIT2 decoder on plasma imagery.
-
-    Convenience wrapper around :class:`DecoderFinetuneTrainer`. Builds the
-    trainer and calls :meth:`~DecoderFinetuneTrainer.train`.
-
-    Parameters
-    ----------
-    config:
-        Fine-tune configuration; see :class:`DecoderFinetuneConfig`.
-
-    Returns
-    -------
-    pathlib.Path
-        Path to the saved decoder weights.
-    """
+    """Fine-tune the decoder and return the saved safetensors path."""
     trainer = DecoderFinetuneTrainer(config)
     return trainer.train()
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point (``python finetune_decoder.py`` or ``python -m ...``)
+# ---------------------------------------------------------------------------
+
+
+def _parse_shot_ids(path: str) -> list[int]:
+    """Read one shot ID per line from a text file, skip blank/comment lines."""
+    ids = []
+    for line in Path(path).read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            ids.append(int(line))
+    return ids
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Fine-tune the Open-MAGVIT2 decoder on plasma rbb frames. "
+            "Run inside the Open-MAGVIT2 venv (torch 2.1.1)."
+        )
+    )
+    parser.add_argument(
+        "--train-shots",
+        required=True,
+        help="Text file with one train shot ID per line.",
+    )
+    parser.add_argument(
+        "--val-shots",
+        required=True,
+        help="Text file with one val shot ID per line.",
+    )
+    parser.add_argument(
+        "--max-steps", type=int, default=10_000, help="Training steps."
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=64,
+        help="Frames per gradient step (single GPU; plan spec 16×4=64).",
+    )
+    parser.add_argument(
+        "--learning-rate", type=float, default=1e-4, help="AdamW initial LR."
+    )
+    parser.add_argument(
+        "--output-path",
+        default=None,
+        help=(
+            "Destination for fine-tuned decoder weights (.safetensors). "
+            "Defaults to {magvit2_root}/weights/plasma-decoder-v1.safetensors."
+        ),
+    )
+    parser.add_argument(
+        "--device", default="cuda", help="'cuda' or 'cpu'."
+    )
+    args = parser.parse_args()
+
+    train_ids = _parse_shot_ids(args.train_shots)
+    val_ids = _parse_shot_ids(args.val_shots)
+
+    config = DecoderFinetuneConfig(
+        train_shot_ids=train_ids,
+        val_shot_ids=val_ids,
+        max_steps=args.max_steps,
+        batch_size=args.batch_size,
+        learning_rate=args.learning_rate,
+        device=args.device,
+    )
+    if args.output_path is not None:
+        config.output_path = Path(args.output_path)
+
+    out = finetune_decoder(config)
+    print(f"[finetune-decoder] weights saved to: {out}", flush=True)

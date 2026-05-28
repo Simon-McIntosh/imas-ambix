@@ -207,7 +207,7 @@ except ImportError:
             frames = frames[:max_frames]
         return np.asarray(frames)
 
-    def load_model(magvit2_root: Path, device: str):
+    def load_model(magvit2_root: Path, device: str, ckpt_path: "Path | None" = None):
         import torch
         from omegaconf import OmegaConf
 
@@ -219,10 +219,14 @@ except ImportError:
         config_path = (
             src / "configs" / "Open-MAGVIT2" / "gpu" / "imagenet_lfqgan_256_L.yaml"
         )
-        ckpt_path = Path(magvit2_root) / "weights" / "imagenet_256_L.ckpt"
+        _ckpt_path = (
+            Path(ckpt_path)
+            if ckpt_path is not None
+            else Path(magvit2_root) / "weights" / "imagenet_256_L.ckpt"
+        )
         config = OmegaConf.load(str(config_path))
         model = VQModel(**config.model.init_args)
-        sd = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)[
+        sd = torch.load(str(_ckpt_path), map_location="cpu", weights_only=False)[
             "state_dict"
         ]
         model.load_state_dict(sd, strict=False)
@@ -337,6 +341,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int, batch_time
     magvit2_root = Path(manifest["magvit2_root"])
     max_items: int | None = manifest.get("max_items_per_shot")
     output_dir = Path(manifest["output_dir"])
+    ckpt_path_str: str | None = manifest.get("ckpt_path")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     _input_dtype = torch.bfloat16 if device.startswith("cuda") else torch.float32
@@ -387,7 +392,11 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int, batch_time
     errors: list[dict] = []
 
     try:
-        model = load_model(magvit2_root, device)
+        model = load_model(
+            magvit2_root,
+            device,
+            ckpt_path=Path(ckpt_path_str) if ckpt_path_str else None,
+        )
         print(
             f"[bench-worker] model loaded in {time.monotonic() - t0_total:.1f}s "
             f"device={device} shots={len(shots)} camera={camera}",

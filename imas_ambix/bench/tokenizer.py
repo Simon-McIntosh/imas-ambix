@@ -433,6 +433,7 @@ def benchmark_frame_tokenizer_in_process(
     magvit2_python: str = _MAGVIT2_PYTHON,
     magvit2_root: str = _MAGVIT2_ROOT,
     l1_root: str | None = None,
+    ckpt_path: str | None = None,
 ) -> BenchResult:
     """Benchmark via a single in-process worker that holds VQModel in memory.
 
@@ -543,6 +544,8 @@ def benchmark_frame_tokenizer_in_process(
         "max_items_per_shot": config.max_items_per_shot,
         "output_dir": str(output_dir),
     }
+    if ckpt_path is not None:
+        manifest["ckpt_path"] = str(ckpt_path)
     manifest_path = tmpdir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest))
     report_path = tmpdir / "report.json"
