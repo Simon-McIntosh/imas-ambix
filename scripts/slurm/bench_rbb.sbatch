@@ -20,7 +20,12 @@ export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 
 # ── Activate project venv ──────────────────────────────────────────────────
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# SLURM copies the batch script to /var/spool/slurm/job_*/slurm_script before
+# executing, so BASH_SOURCE[0] points there — NOT the original repo. Use
+# SLURM_SUBMIT_DIR (the directory sbatch was invoked from) to find the venv
+# and write results back into the repo tree.
+REPO_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
+cd "${REPO_ROOT}"
 VENV="${REPO_ROOT}/.venv"
 if [[ -f "${VENV}/bin/activate" ]]; then
     # shellcheck source=/dev/null
