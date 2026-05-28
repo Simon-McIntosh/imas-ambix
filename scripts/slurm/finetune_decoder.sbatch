@@ -8,8 +8,6 @@
 #SBATCH --mem=640G
 #SBATCH --time=24:00:00
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
-#SBATCH --mail-type=FAIL,END
-#SBATCH --mail-user=simon.mcintosh@iter.org
 # NOTE: --qos is intentionally omitted — auto-applied for this account/reservation.
 #       Training uses a single GPU (cuda:0) from the 4-GPU allocation; the
 #       reservation keeps all 4 GPUs exclusive to prevent node drain from

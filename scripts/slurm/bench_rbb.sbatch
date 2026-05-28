@@ -8,8 +8,6 @@
 #SBATCH --mem=640G
 #SBATCH --time=04:00:00
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
-#SBATCH --mail-type=FAIL,END
-#SBATCH --mail-user=simon.mcintosh@iter.org
 # NOTE: --qos intentionally omitted — see train_exclusive.sbatch for rationale.
 
 # ── Environment ────────────────────────────────────────────────────────────
