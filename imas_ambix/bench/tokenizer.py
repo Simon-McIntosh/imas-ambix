@@ -400,6 +400,336 @@ def benchmark_frame_tokenizer(
 
 
 # ---------------------------------------------------------------------------
+# In-process frame benchmark (10× speedup over subprocess-per-shot path)
+# ---------------------------------------------------------------------------
+
+#: Python interpreter inside the Open-MAGVIT2 venv (holds VQModel in memory).
+_MAGVIT2_PYTHON = (
+    "/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv/bin/python"
+)
+
+#: Default magvit2 root — matches the corpus encoder path.
+_MAGVIT2_ROOT = "/work/projects/imas_gpu/mast-tokens/v1/open-magvit2"
+
+
+def benchmark_frame_tokenizer_in_process(
+    config: BenchConfig,
+    shot_ids: list[int],
+    camera: str = "rbb",
+    tier: "Tier" = "level1",
+    equilibrium_loader: "Callable[[int], np.ndarray | None] | None" = None,
+    magvit2_python: str = _MAGVIT2_PYTHON,
+    magvit2_root: str = _MAGVIT2_ROOT,
+    l1_root: str | None = None,
+) -> BenchResult:
+    """Benchmark via a single in-process worker that holds VQModel in memory.
+
+    Eliminates the ~10 s/shot Python venv init + checkpoint load overhead of
+    the legacy :func:`benchmark_frame_tokenizer` path (which spawns one
+    subprocess per encode and one per decode). Expected speedup: **~10×**
+    (65 min → ~5-8 min for 100 shots at full GPU utilisation).
+
+    The worker is :mod:`imas_ambix.bench.stream_worker`, launched via the
+    Open-MAGVIT2 venv Python interpreter. It loads VQModel once, encodes +
+    decodes every shot, saves ``<shot_id>-tokens.npy``, ``-decoded.npy``,
+    and ``-src.npy`` to a ``TemporaryDirectory``, then exits. The caller
+    (this function) reads those arrays, computes per-shot metrics, accumulates
+    the corpus rFID buffer, and returns a :class:`BenchResult` with the same
+    schema as :func:`benchmark_frame_tokenizer`.
+
+    Parameters
+    ----------
+    config:
+        Benchmark configuration. ``config.tokenizer_kind`` must be ``"frame"``.
+    shot_ids:
+        Shots to benchmark.
+    camera:
+        Camera source name at level-1 (e.g. ``"rbb"``).
+    tier:
+        Data tier (always ``"level1"`` for camera data).
+    equilibrium_loader:
+        Optional ``(shot_id) -> np.ndarray | None`` for cross-modality coherence.
+    magvit2_python:
+        Path to the Open-MAGVIT2 venv Python interpreter.
+    magvit2_root:
+        Path to the Open-MAGVIT2 root directory (weights + src).
+    l1_root:
+        Override for level-1 zarr root. Defaults to ``LEVEL1_DIR``.
+    """
+    import json
+    import math as _math
+    import os
+    import subprocess
+    import tempfile
+    from pathlib import Path as _Path
+
+    from imas_ambix.data.paths import LEVEL1_DIR
+    from imas_ambix.eval.metrics import (
+        centroid_mse,
+        chord_nrmse,
+        lpips,
+        modality_coherence as _modality_coherence,
+        psnr,
+        rfid,
+    )
+
+    if config.tokenizer_kind != "frame":
+        raise ValueError(
+            f"benchmark_frame_tokenizer_in_process requires tokenizer_kind='frame', "
+            f"got {config.tokenizer_kind!r}"
+        )
+
+    _l1_root = str(l1_root) if l1_root is not None else str(LEVEL1_DIR)
+    _worker_path = str(
+        _Path(__file__).parent / "stream_worker.py"
+    )
+
+    # rFID accumulation (same logic as benchmark_frame_tokenizer)
+    compute_corpus_rfid = "rfid" in config.metrics
+    rfid_src_buf: list[np.ndarray] = []
+    rfid_dec_buf: list[np.ndarray] = []
+    rfid_frames_per_shot = 8
+    RFID_RESIZE = 256
+
+    def _resize_for_rfid(frames_u8: np.ndarray) -> np.ndarray:
+        from PIL import Image
+        out = np.empty(
+            (frames_u8.shape[0], RFID_RESIZE, RFID_RESIZE, 3), dtype=np.uint8
+        )
+        for i in range(frames_u8.shape[0]):
+            img = Image.fromarray(frames_u8[i]).resize(
+                (RFID_RESIZE, RFID_RESIZE), Image.BILINEAR
+            )
+            out[i] = np.asarray(img, dtype=np.uint8)
+        return out
+
+    metric_fns = {
+        "psnr": psnr,
+        "centroid_mse": centroid_mse,
+        "chord_nrmse": chord_nrmse,
+        "lpips": lpips,
+    }
+
+    t0_wall = time.perf_counter()
+    per_shot: list[PerShotResult] = []
+
+    # Per-shot encode/decode times streamed from worker stdout JSON lines.
+    worker_shot_times: dict[int, dict] = {}
+
+    tmpdir_obj = tempfile.TemporaryDirectory(
+        prefix="ambix-bench-", dir=os.environ.get("TMPDIR", "/tmp")
+    )
+    tmpdir = _Path(tmpdir_obj.name)
+    output_dir = tmpdir / "outputs"
+    output_dir.mkdir()
+
+    manifest = {
+        "shots": list(shot_ids),
+        "camera": camera,
+        "l1_root": _l1_root,
+        "magvit2_root": magvit2_root,
+        "max_items_per_shot": config.max_items_per_shot,
+        "output_dir": str(output_dir),
+    }
+    manifest_path = tmpdir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+    report_path = tmpdir / "report.json"
+
+    cmd = [
+        magvit2_python,
+        _worker_path,
+        "--manifest", str(manifest_path),
+        "--device", config.device,
+        "--report", str(report_path),
+    ]
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    # Stream stdout — parse JSON progress lines, pass everything to caller.
+    try:
+        assert proc.stdout is not None
+        for raw_line in proc.stdout:
+            line = raw_line.rstrip()
+            if not line:
+                continue
+            print(line, flush=True)
+            try:
+                obj = json.loads(line)
+                # Detect per-shot progress lines (have "shot_id" and "encode_seconds")
+                if "shot_id" in obj and "encode_seconds" in obj:
+                    worker_shot_times[int(obj["shot_id"])] = obj
+            except (json.JSONDecodeError, KeyError):
+                pass
+    finally:
+        proc.wait()
+
+    worker_exit = proc.returncode
+    aborted = worker_exit == 130
+
+    # Now collect results per shot from saved .npy files.
+    for shot_id in shot_ids:
+        tokens_path = output_dir / f"{shot_id}-tokens.npy"
+        decoded_path = output_dir / f"{shot_id}-decoded.npy"
+        src_path = output_dir / f"{shot_id}-src.npy"
+
+        worker_info = worker_shot_times.get(shot_id, {})
+
+        if worker_info.get("error"):
+            per_shot.append(
+                PerShotResult(
+                    shot_id=shot_id,
+                    n_items=0,
+                    encode_seconds=0.0,
+                    decode_seconds=0.0,
+                    bytes_in=0,
+                    bytes_out=0,
+                    metrics={},
+                    codebook_utilisation=None,
+                    error=str(worker_info["error"]),
+                )
+            )
+            continue
+
+        if not (tokens_path.exists() and decoded_path.exists() and src_path.exists()):
+            per_shot.append(
+                PerShotResult(
+                    shot_id=shot_id,
+                    n_items=0,
+                    encode_seconds=0.0,
+                    decode_seconds=0.0,
+                    bytes_in=0,
+                    bytes_out=0,
+                    metrics={},
+                    codebook_utilisation=None,
+                    error="worker did not produce output files (aborted or error)",
+                )
+            )
+            continue
+
+        try:
+            tokens_global = np.load(str(tokens_path))   # (T, 16, 16) int32
+            decoded = np.load(str(decoded_path))         # (T, H, W, 3) uint8
+            src_u8 = np.load(str(src_path))              # (T, H, W, 3) uint8
+
+            n_items = int(tokens_global.shape[0])
+            bytes_in = int(src_u8.nbytes)
+            bytes_out = int(tokens_global.nbytes)
+
+            encode_seconds = float(worker_info.get("encode_seconds", 0.0))
+            decode_seconds = float(worker_info.get("decode_seconds", 0.0))
+
+            n_compare = min(decoded.shape[0], src_u8.shape[0])
+            src_cmp = src_u8[:n_compare]
+            dec_cmp = decoded[:n_compare]
+
+            # Accumulate for corpus rFID
+            if compute_corpus_rfid and n_compare > 0:
+                k = min(rfid_frames_per_shot, n_compare)
+                idx = np.linspace(0, n_compare - 1, k).round().astype(int)
+                try:
+                    rfid_src_buf.append(_resize_for_rfid(src_cmp[idx]))
+                    rfid_dec_buf.append(_resize_for_rfid(dec_cmp[idx]))
+                except Exception:  # noqa: BLE001
+                    pass
+
+            metrics: dict[str, float] = {}
+            for m in config.metrics:
+                if m in metric_fns:
+                    try:
+                        metrics[m] = metric_fns[m](src_cmp, dec_cmp)  # type: ignore[call-arg,operator]
+                    except Exception:
+                        metrics[m] = float("nan")
+
+            # Codebook utilisation against local ids (subtract REGISTRY_OFFSET)
+            _REGISTRY_OFFSET = 4  # mirrors stream_worker constant
+            tokens_local = tokens_global.astype(np.int64) - _REGISTRY_OFFSET
+            vocab_size = 1 << 18  # VOCAB_SIZE from stream_encode / stream_worker
+            util = _codebook_utilisation(tokens_local, vocab_size)
+
+            coh: float | None = None
+            if equilibrium_loader is not None:
+                try:
+                    mag_axis_r = equilibrium_loader(shot_id)
+                    if mag_axis_r is not None:
+                        coh = _modality_coherence(dec_cmp, np.asarray(mag_axis_r))
+                except Exception:
+                    coh = None
+
+            per_shot.append(
+                PerShotResult(
+                    shot_id=shot_id,
+                    n_items=n_items,
+                    encode_seconds=encode_seconds,
+                    decode_seconds=decode_seconds,
+                    bytes_in=bytes_in,
+                    bytes_out=bytes_out,
+                    metrics=metrics,
+                    codebook_utilisation=util,
+                    modality_coherence=coh,
+                )
+            )
+        except Exception:
+            import traceback as _tb
+            per_shot.append(
+                PerShotResult(
+                    shot_id=shot_id,
+                    n_items=0,
+                    encode_seconds=0.0,
+                    decode_seconds=0.0,
+                    bytes_in=0,
+                    bytes_out=0,
+                    metrics={},
+                    codebook_utilisation=None,
+                    error=_tb.format_exc(limit=3),
+                )
+            )
+
+    elapsed_s = time.perf_counter() - t0_wall
+    aggregate = _aggregate(per_shot, config.metrics, elapsed_s)
+
+    if compute_corpus_rfid and rfid_src_buf:
+        try:
+            src_all = np.concatenate(rfid_src_buf, axis=0)
+            dec_all = np.concatenate(rfid_dec_buf, axis=0)
+            aggregate["mean_rfid"] = float(rfid(src_all, dec_all))
+            aggregate["rfid_n_frames"] = float(src_all.shape[0])
+        except Exception:
+            aggregate["mean_rfid"] = float("nan")
+
+    if equilibrium_loader is not None:
+        coh_vals = [
+            s.modality_coherence
+            for s in per_shot
+            if s.modality_coherence is not None and s.error is None
+        ]
+        finite_coh = [v for v in coh_vals if _math.isfinite(v)]
+        aggregate["mean_modality_coherence"] = (
+            float(np.mean(finite_coh)) if finite_coh else float("nan")
+        )
+
+    aggregate["worker_exit_code"] = float(worker_exit)
+
+    # Cleanup temp dir (idempotent — ignore errors if worker already cleaned up)
+    try:
+        tmpdir_obj.cleanup()
+    except Exception:  # noqa: BLE001
+        pass
+
+    return BenchResult(
+        config=config,
+        per_shot=tuple(per_shot),
+        aggregate=aggregate,
+        elapsed_s=elapsed_s,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Signal benchmark
 # ---------------------------------------------------------------------------
 

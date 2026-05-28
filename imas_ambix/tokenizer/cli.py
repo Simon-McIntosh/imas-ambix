@@ -363,6 +363,19 @@ def _make_signal_factory(name: str):
     type=click.Path(),
     help="Write JSON results to this path.",
 )
+@click.option(
+    "--in-process",
+    "in_process",
+    is_flag=True,
+    default=False,
+    help=(
+        "Frame mode only. Launch a single worker subprocess that holds the "
+        "VQModel in memory for the entire bench, eliminating the ~10 s/shot "
+        "venv-init overhead. Requires the Open-MAGVIT2 venv at "
+        "/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv. "
+        "Expected speedup: ~10× (65 min → ~5-8 min for 100 shots)."
+    ),
+)
 def bench_cmd(
     config_path: str | None,
     tokenizers: tuple[str, ...],
@@ -374,6 +387,7 @@ def bench_cmd(
     tier: str | None,
     device: str,
     output: str | None,
+    in_process: bool,
 ) -> None:
     """Closed-loop tokenizer benchmark: encode → decode → measure → compare.
 
@@ -402,6 +416,7 @@ def bench_cmd(
     from imas_ambix.bench.tokenizer import (
         BenchConfig,
         benchmark_frame_tokenizer,
+        benchmark_frame_tokenizer_in_process,
         benchmark_signal_tokenizer,
     )
 
@@ -421,7 +436,10 @@ def bench_cmd(
 
         console.print(f"[bold]Running benchmark:[/bold] {cfg.name} ...")
 
-        if cfg.tokenizer_kind == "frame":
+        if cfg.tokenizer_kind == "frame" and in_process:
+            console.print("[dim]--in-process: dispatching to stream_worker (hold VQModel in memory)[/dim]")
+            result = benchmark_frame_tokenizer_in_process(cfg, **run_kwargs)
+        elif cfg.tokenizer_kind == "frame":
             result = benchmark_frame_tokenizer(cfg, **run_kwargs)
         else:
             result = benchmark_signal_tokenizer(cfg, **run_kwargs)
@@ -471,7 +489,15 @@ def bench_cmd(
 
             console.print(f"[bold]Running benchmark:[/bold] {cfg.name} ...")
 
-            if kind == "frame":
+            if kind == "frame" and in_process:
+                console.print("[dim]--in-process: dispatching to stream_worker (hold VQModel in memory)[/dim]")
+                result = benchmark_frame_tokenizer_in_process(
+                    cfg,
+                    parsed_shot_ids,
+                    camera=camera,
+                    tier=effective_tier,  # type: ignore[arg-type]
+                )
+            elif kind == "frame":
                 result = benchmark_frame_tokenizer(
                     cfg,
                     parsed_shot_ids,
