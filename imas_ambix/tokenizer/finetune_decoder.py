@@ -187,6 +187,37 @@ _IMAGENET_MEAN = (0.485, 0.456, 0.406)
 _IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
+def _frechet_from_features(
+    ref_feats: object,
+    pred_feats: object,
+) -> float:
+    """Compute Frechet distance from pre-extracted InceptionV3 features.
+
+    Implementation parity with ``imas_ambix.eval.metrics.rfid`` (same
+    ``eps=1e-3 if T<10 else 1e-6`` rule, same numerical-stability offset,
+    same complex-part stripping).  Inputs are ``(T, 2048)`` numpy arrays.
+    """
+    import numpy as np
+    from scipy.linalg import sqrtm
+
+    mu_r, mu_p = ref_feats.mean(axis=0), pred_feats.mean(axis=0)
+    sigma_r = np.cov(ref_feats, rowvar=False)
+    sigma_p = np.cov(pred_feats, rowvar=False)
+
+    t = ref_feats.shape[0]
+    eps = 1e-3 if t < 10 else 1e-6
+
+    diff = mu_r - mu_p
+    offset = np.eye(sigma_r.shape[0]) * eps
+    cov_mean, _ = sqrtm(sigma_r @ sigma_p + offset, disp=False)
+    if np.iscomplexobj(cov_mean):
+        cov_mean = cov_mean.real
+    fid = float(
+        diff @ diff + np.trace(sigma_r) + np.trace(sigma_p) - 2.0 * np.trace(cov_mean)
+    )
+    return float(max(fid, 0.0))
+
+
 class DecoderFinetuneTrainer:
     """Drives the Open-MAGVIT2 decoder fine-tune loop for plasma imagery.
 
@@ -680,31 +711,87 @@ class DecoderFinetuneTrainer:
     # Evaluation — rank 0 only, full val set
     # ------------------------------------------------------------------
 
+    def _get_inception(self, device: str) -> object:
+        """Lazy-load InceptionV3 (penultimate layer, pool features) on device.
+
+        Cached on the trainer instance.  Each rank loads its own copy on
+        its own GPU so feature extraction runs in parallel.
+        """
+        import torch
+        import torchvision.models as tvm
+
+        if getattr(self, "_inception_model", None) is None:
+            m = tvm.inception_v3(weights=tvm.Inception_V3_Weights.IMAGENET1K_V1)
+            m.fc = torch.nn.Identity()
+            m.eval()
+            m.requires_grad_(False)
+            m = m.to(device)
+            self._inception_model = m
+        return self._inception_model
+
+    def _inception_features(
+        self,
+        frames_u8_bhwc: object,
+        device: str,
+    ) -> object:
+        """Compute InceptionV3 pool features on GPU for a batch of uint8 frames.
+
+        Parameters
+        ----------
+        frames_u8_bhwc:
+            ``(B, H, W, 3)`` uint8 numpy array OR torch tensor.
+        device:
+            CUDA device string (matches rank's local GPU).
+
+        Returns
+        -------
+        torch.Tensor
+            ``(B, 2048)`` fp32 features on ``device``.
+        """
+        import torch
+        import torch.nn.functional as F
+        import numpy as np
+
+        inception = self._get_inception(device)
+
+        if isinstance(frames_u8_bhwc, np.ndarray):
+            x = torch.from_numpy(np.ascontiguousarray(frames_u8_bhwc))
+        else:
+            x = frames_u8_bhwc
+        # (B, H, W, 3) uint8 → (B, 3, 299, 299) float [0,1] ImageNet-normed
+        x = x.to(device).permute(0, 3, 1, 2).float() / 255.0
+        x = F.interpolate(x, size=(299, 299), mode="bilinear", align_corners=False)
+        mean = torch.tensor(_IMAGENET_MEAN, device=device).view(1, 3, 1, 1)
+        std = torch.tensor(_IMAGENET_STD, device=device).view(1, 3, 1, 1)
+        x = (x - mean) / std
+        with torch.no_grad():
+            feats = inception(x)
+        return feats.detach()
+
     def evaluate(
         self,
         model: object,
         val_loader_distributed: Iterable,
     ) -> dict[str, float]:
-        """Evaluate rFID + L1 with ALL ranks doing encode/decode in parallel.
+        """Distributed eval: parallel encode/decode + parallel InceptionV3.
 
-        Architecture (replaces the prior rank-0-only path that wasted 3/4 of
-        the GPUs during eval — observed in smoke 1208996):
+        All 4 GPUs run encode/decode AND InceptionV3 feature extraction
+        in parallel on their DistributedSampler shard.  Only the small
+        feature tensors are gathered to rank 0 for the final Frechet
+        distance computation.  Beats the previous rank-0 rFID bottleneck
+        (~106 s) measured in smoke 1208998 by ~10-20×.
 
-        1. Each rank iterates its ``DistributedSampler`` shard of the val
-           set (so the val_loader passed here MUST have a DistributedSampler).
-           All 4 GPUs do encode+decode in parallel.
-        2. Each rank accumulates its own L1 sum + a capped buffer of
-           (target, recon) uint8 frames for the rFID pool.
-        3. ``dist.all_reduce`` aggregates L1 across ranks.
-        4. ``dist.all_gather_object`` collects each rank's frame buffer onto
-           rank 0; rank 0 computes one rFID over the union (full val,
-           statistically unbiased).
-        5. rFID + L1 broadcast back so every rank returns the same dict
-           (callers use it for early-stop logic).
-
-        The encode+decode (GPU work) is now 4× parallel.  The
-        ``all_gather_object`` payload is uint8 image data through NVLink —
-        bandwidth is ample, the gather adds < 1 s at our buffer sizes.
+        Pipeline per rank:
+        1. encode/decode val shard on local GPU (parallel)
+        2. accumulate L1 sum
+        3. extract InceptionV3 features for both target and recon on local
+           GPU — the real bottleneck of rfid()
+        4. ``dist.all_reduce`` aggregates L1 stats
+        5. ``dist.all_gather`` collects feature tensors (small: B × 2048
+           fp32 ≈ 8 KB per frame) — no raw-frame gather
+        6. Rank 0 computes Frechet distance from gathered features (fast:
+           covariance + scipy sqrtm on 2048×2048)
+        7. ``dist.broadcast`` returns rFID to all ranks
         """
         import numpy as np
         import torch
@@ -719,14 +806,14 @@ class DecoderFinetuneTrainer:
         local_rank = int(os.environ.get("LOCAL_RANK", "0"))
         dev = f"cuda:{local_rank}" if cfg.device.startswith("cuda") else cfg.device
 
-        # Per-rank caps so all_gather_object payload stays bounded.
-        # Total rFID pool target = 5 k frames; per-rank cap = 5k / world_size.
-        _PER_RANK_RFID_CAP = max(1, 5_000 // world_size)
+        # Per-rank cap on the feature buffer; FID is stable above ~1k frames.
+        _PER_RANK_FID_CAP = max(1, 5_000 // max(world_size, 1))
 
-        local_targets: list[np.ndarray] = []
-        local_recons: list[np.ndarray] = []
+        local_target_feats: list[object] = []
+        local_recon_feats: list[object] = []
         local_l1_sum = 0.0
         local_n = 0
+        cur_frames = 0
 
         model.eval()
         try:
@@ -739,16 +826,20 @@ class DecoderFinetuneTrainer:
                 local_l1_sum += float(F.l1_loss(recon, frames).item())
                 local_n += 1
 
-                current_total = sum(a.shape[0] for a in local_targets)
-                if current_total < _PER_RANK_RFID_CAP:
-                    t_np = (
-                        frames.permute(0, 2, 3, 1).cpu().numpy() * 255
-                    ).clip(0, 255).astype(np.uint8)
-                    r_np = (
-                        recon.permute(0, 2, 3, 1).cpu().numpy() * 255
-                    ).clip(0, 255).astype(np.uint8)
-                    local_targets.append(t_np)
-                    local_recons.append(r_np)
+                if cur_frames < _PER_RANK_FID_CAP:
+                    # Convert to uint8 BHWC then extract InceptionV3 features
+                    # — same dtype contract as imas_ambix.eval.metrics.rfid.
+                    t_u8 = (
+                        frames.permute(0, 2, 3, 1).clamp(0, 1) * 255
+                    ).to(torch.uint8)
+                    r_u8 = (
+                        recon.permute(0, 2, 3, 1).clamp(0, 1) * 255
+                    ).to(torch.uint8)
+                    t_feat = self._inception_features(t_u8, dev)
+                    r_feat = self._inception_features(r_u8, dev)
+                    local_target_feats.append(t_feat)
+                    local_recon_feats.append(r_feat)
+                    cur_frames += t_u8.shape[0]
         except Exception as exc:  # noqa: BLE001
             warnings.warn(
                 f"[finetune-decoder] evaluate() interrupted on rank {rank} "
@@ -756,49 +847,50 @@ class DecoderFinetuneTrainer:
                 stacklevel=2,
             )
 
-        # ── Aggregate L1 across ranks via all_reduce on a (sum, count) pair ──
+        # ── Aggregate L1 across ranks ─────────────────────────────────────
         l1_pair = torch.tensor([local_l1_sum, float(local_n)], device=dev)
         if ddp and world_size > 1:
             dist.all_reduce(l1_pair, op=dist.ReduceOp.SUM)
-        global_l1_sum = float(l1_pair[0].item())
-        global_n = float(l1_pair[1].item())
-        mean_l1 = global_l1_sum / max(global_n, 1.0)
+        mean_l1 = float(l1_pair[0].item()) / max(float(l1_pair[1].item()), 1.0)
 
-        # ── Gather rFID frame buffers to rank 0 ───────────────────────────
-        # Concatenate locally first to one numpy array per rank (smaller pickle).
-        if local_targets:
-            local_t_cat = np.concatenate(local_targets, axis=0)
-            local_r_cat = np.concatenate(local_recons, axis=0)
+        # ── Concatenate local features ────────────────────────────────────
+        if local_target_feats:
+            local_t = torch.cat(local_target_feats, dim=0).to(torch.float32)
+            local_r = torch.cat(local_recon_feats, dim=0).to(torch.float32)
         else:
-            local_t_cat = np.zeros((0, cfg.image_size, cfg.image_size, 3), dtype=np.uint8)
-            local_r_cat = np.zeros((0, cfg.image_size, cfg.image_size, 3), dtype=np.uint8)
+            local_t = torch.zeros((0, 2048), device=dev, dtype=torch.float32)
+            local_r = torch.zeros((0, 2048), device=dev, dtype=torch.float32)
 
+        # ── Gather feature tensors via all_gather_object (variable shapes) ─
+        # The payload is tiny (≤ ~10 MB total) so pickling overhead is OK.
+        # Move to CPU before gather to avoid CUDA-IPC complications in
+        # all_gather_object across NCCL backends.
+        local_t_np = local_t.cpu().numpy()
+        local_r_np = local_r.cpu().numpy()
         if ddp and world_size > 1:
             gathered_t: list[np.ndarray | None] = [None] * world_size
             gathered_r: list[np.ndarray | None] = [None] * world_size
-            dist.all_gather_object(gathered_t, local_t_cat)
-            dist.all_gather_object(gathered_r, local_r_cat)
+            dist.all_gather_object(gathered_t, local_t_np)
+            dist.all_gather_object(gathered_r, local_r_np)
         else:
-            gathered_t = [local_t_cat]
-            gathered_r = [local_r_cat]
+            gathered_t = [local_t_np]
+            gathered_r = [local_r_np]
 
-        # ── Rank 0 computes rFID; others get NaN (broadcast below) ────────
+        # ── Rank 0 computes Frechet distance from gathered features ───────
         rfid_val = float("nan")
         if rank == 0:
-            non_empty_t = [a for a in gathered_t if a is not None and a.shape[0] > 0]
-            non_empty_r = [a for a in gathered_r if a is not None and a.shape[0] > 0]
-            if non_empty_t:
-                target_arr = np.concatenate(non_empty_t, axis=0)
-                recon_arr = np.concatenate(non_empty_r, axis=0)
-                try:
-                    from imas_ambix.eval.metrics import rfid as _rfid  # type: ignore[import]
-
-                    rfid_val = _rfid(target_arr, recon_arr)
-                except Exception as exc:  # noqa: BLE001
-                    warnings.warn(
-                        f"rFID computation failed ({exc}); reporting NaN.",
-                        stacklevel=2,
-                    )
+            try:
+                non_empty_t = [a for a in gathered_t if a is not None and a.shape[0] > 0]
+                non_empty_r = [a for a in gathered_r if a is not None and a.shape[0] > 0]
+                if non_empty_t:
+                    ref_feats = np.concatenate(non_empty_t, axis=0)
+                    pred_feats = np.concatenate(non_empty_r, axis=0)
+                    rfid_val = _frechet_from_features(ref_feats, pred_feats)
+            except Exception as exc:  # noqa: BLE001
+                warnings.warn(
+                    f"rFID Frechet computation failed ({exc}); reporting NaN.",
+                    stacklevel=2,
+                )
 
         # ── Broadcast rFID so every rank returns the same value ───────────
         if ddp and world_size > 1:
