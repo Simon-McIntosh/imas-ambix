@@ -18,10 +18,11 @@
 <meta name="plan-modified" content="2026-05-28">
 <meta name="plan-depends-on" content="tokenizers,compute,tokenizer-benchmarks">
 <meta name="plan-blocks" content="world-model-v0">
-<meta name="plan-impl" content="0.1">
+<meta name="plan-impl" content="0.6">
 <title>Plasma-domain decoder fine-tune (Open-MAGVIT2) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="5">
 </head>
 <body>
 <main class="plan-doc">
@@ -97,35 +98,35 @@ daemon or subprocess-based IPC — use in-process DataLoader only (mirrors
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="train-val-split" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">How to split the 9,528 rbb-tokenized shots into train / val sets?</p>
-  <p class="r-dec-ctx">Need stable val set for rFID tracking; temporal split guards against leakage if campaigns differ systematically.</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="random-7500-2000">random-7500-2000 (recommended for v0)</button>
-    <button class="r-opt" data-value="temporal">temporal (chronological split)</button>
-    <button class="r-opt" data-value="stratified-quality">stratified-quality (by quality gate pass rate)</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
-<div class="r-dec" data-key="lpips-weight" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">What LPIPS (perceptual) loss weight to use for decoder fine-tune?</p>
-  <p class="r-dec-ctx">Scaffold defaults to perceptual_weight=0.1 (l1_weight=1.0). Higher LPIPS weight pushes toward sharper boundaries but may destabilise early training on the narrow plasma vocabulary.</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="0.1">0.1 (scaffold default — conservative, recommended for v0)</button>
-    <button class="r-opt" data-value="0.25">0.25</button>
-    <button class="r-opt" data-value="0.5">0.5</button>
-    <button class="r-opt" data-value="1.0">1.0</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
+<div class="r-dec" data-key="train-val-split" data-choice="random-7500-2000" data-by="Simon McIntosh" data-when="2026-05-28 10:17">
+    <p class="r-dec-q">How to split the 9,528 rbb-tokenized shots into train / val sets?</p>
+    <p class="r-dec-ctx">Need stable val set for rFID tracking; temporal split guards against leakage if campaigns differ systematically.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="random-7500-2000">random-7500-2000 (recommended for v0)</button>
+      <button class="r-opt" data-value="temporal">temporal (chronological split)</button>
+      <button class="r-opt" data-value="stratified-quality">stratified-quality (by quality gate pass rate)</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="lpips-weight" data-choice="0.1" data-by="Simon McIntosh" data-when="2026-05-28 10:17">
+    <p class="r-dec-q">What LPIPS (perceptual) loss weight to use for decoder fine-tune?</p>
+    <p class="r-dec-ctx">Scaffold defaults to perceptual_weight=0.1 (l1_weight=1.0). Higher LPIPS weight pushes toward sharper boundaries but may destabilise early training on the narrow plasma vocabulary.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="0.1">0.1 (scaffold default — conservative, recommended for v0)</button>
+      <button class="r-opt" data-value="0.25">0.25</button>
+      <button class="r-opt" data-value="0.5">0.5</button>
+      <button class="r-opt" data-value="1.0">1.0</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-finetune-decoder-kickoff-2026-05-28" data-status="open" data-tier="opus" data-written-by="agent/sonnet" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship plasma-decoder-finetune --section 3" data-resolved-at="" data-resolved-by="">
-  <h4 class="r-fu-title">Submit the SLURM decoder fine-tune training job</h4>
-  <div class="r-fu-body">Scaffold exists. Decisions to lock first: train-val-split (recommend random-7500-2000) and lpips-weight (scaffold default 0.1). Then submit sbatch, monitor exit, save weights, and re-bench rFID. Unblocks world-model-v0.</div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+    <h4 class="r-fu-title">Submit the SLURM decoder fine-tune training job</h4>
+    <div class="r-fu-body">Scaffold exists. Decisions to lock first: train-val-split (recommend random-7500-2000) and lpips-weight (scaffold default 0.1). Then submit sbatch, monitor exit, save weights, and re-bench rFID. Unblocks world-model-v0.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan: plasma-decoder-finetune (§3 Compute)
 Tier: opus
 
@@ -156,9 +157,54 @@ Steps
 
 Done-when
   plasma-decoder-v1.safetensors exists AND re-bench rFID &lt; 5 (or plateau documented).</pre>
-</article>
+    </article>
+<article class="r-fu" data-id="f-rebench-after-finetune-2026-05-29" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship plasma-decoder-finetune --section 4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Re-bench rFID after training job 1208968 completes</h4>
+    <div class="r-fu-body">Job 1208968 submitted 2026-05-28, expected ~24h. When complete: verify weights, run re-bench with v0-rbb-100shot-finetune.yaml (routes to plasma-decoder-v1-merged.ckpt), record rFID in tokenizers §13.1 followup, resolve kickoff followup, gate world-model-v0.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: plasma-decoder-finetune (§4 Done-when)
+Tier: opus
+
+Job 1208968 (ambix-finetune-decoder) has completed. Verify weights and re-bench rFID.
+
+State to read
+  docs/plasma-decoder-finetune.html    (this plan — §3 comment has job details)
+  imas_ambix/bench/configs/v0-rbb-100shot-finetune.yaml  (re-bench config)
+
+Pre-conditions to verify
+  /work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors  (decoder-only)
+  /work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1-merged.ckpt  (full model for bench)
+
+Steps
+  1. Check sacct -j 1208968 --format=State,ExitCode for exit=0.
+  2. Verify both weight files exist and have non-zero size.
+  3. Submit re-bench sbatch (bench_rbb.sbatch with BENCH_CONFIG=v0-rbb-100shot-finetune.yaml):
+       sbatch --export=ALL,BENCH_CONFIG=imas_ambix/bench/configs/v0-rbb-100shot-finetune.yaml \
+              scripts/slurm/bench_rbb.sbatch
+  4. When bench completes, read the result JSON from imas_ambix/bench/results/.
+  5. Record rFID in tokenizers plan §13.1 followup f-finetune-decoder-2026-05-28.
+  6. If rFID &lt; 5: resolve f-finetune-decoder-kickoff-2026-05-28 with the result; set plan status=shipped; unblock world-model-v0.
+  7. If rFID &gt;= 5 but improved: document plateau, escalate decision (Cosmos-Tokenizer or more epochs).
+
+Done-when
+  rFID &lt; 5 (gate met) OR plateau documented and next step decided.</pre>
+    </article>
 </section>
 
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s3" data-id="c-20260528T104235702165" data-who="agent/opus" data-when="2026-05-28T10:42:35+00:00">
+    <div class="r-comment-body">**2026-05-28 — job 1208968 submitted (agent/opus).**
+
+Implementation landed (commit 907fd41):
+- `finetune_decoder.py` rewritten with real VQModel (OmegaConf load, freeze all → unfreeze decoder), SIGTERM handler, per-step watchdog (mirrors `stream_worker.py`), EMA shadow updated each step so bench `ema_scope` uses fine-tuned decoder.
+- Level-1 path bug fixed: `{frame_root}/{shot_id}.zarr/{camera}` (was wrong).
+- `_save_merged_checkpoint()` writes `plasma-decoder-v1-merged.ckpt` (full state dict) for bench re-use.
+- `stream_worker.load_model()` + `benchmark_frame_tokenizer_in_process()` patched with optional `ckpt_path`; `v0-rbb-100shot-finetune.yaml` routes to the merged ckpt.
+- `finetune_decoder.sbatch`: betelgeuse / gpu_0003_grpA, 24 h, single CUDA GPU, random-7500-2000 split seed=42 from 9,527 tokenised shots.
+
+Job running on 98dci4-gpu-0003. Expected completion: ~2026-05-29.</div>
+</div>
+</section>
 </main>
 </body>
 </html>
