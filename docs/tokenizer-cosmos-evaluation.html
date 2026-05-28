@@ -9,13 +9,16 @@
 <meta name="plan-roi" content="mid">
 <meta name="plan-effort" content="L">
 <meta name="plan-tier" content="opus">
-<meta name="plan-summary" content="Evaluate NVIDIA Cosmos-Tokenizer DI16x16 (FSQ, 64K codebook) as a candidate replacement for Open-MAGVIT2 if v1 transient-fidelity work doesn't close the rFID gate. NOT a 'switch to Cosmos' plan — Cosmos image rFID is actually WORSE than Open-MAGVIT2 on standard benchmarks, but its FSQ codebook structurally avoids the 2.5%-utilisation problem we hit on plasma. Includes head-to-head comparison vs MGVQ and MambaVideo (2025 alternatives) before committing.">
+<meta name="plan-summary" content="Evaluate NVIDIA Cosmos-Tokenizer DI16x16 (FSQ, 64K codebook) as a candidate replacement for Open-MAGVIT2 if v1 transient-fidelity work doesn&#x27;t close the rFID gate. NOT a &#x27;switch to Cosmos&#x27; plan — Cosmos image rFID is actually WORSE than Open-MAGVIT2 on standard benchmarks, but its FSQ codebook structurally avoids the 2.5%-utilisation problem we hit on plasma. Includes head-to-head comparison vs MGVQ and MambaVideo (2025 alternatives) before committing.">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-sprint" content="S6">
 <meta name="plan-depends-on" content="tokenizers,plasma-decoder-finetune,tokenizer-benchmarks,tokenizer-transient-fidelity">
 <title>Cosmos-Tokenizer evaluation (FSQ alternative) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-title" content="Cosmos-Tokenizer evaluation (FSQ alternative)">
+<meta name="plan-modified" content="2026-05-28">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
@@ -394,54 +397,49 @@ training cost.</li>
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-
 <div class="r-dec" data-key="evaluate-trigger" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">When should this plan's Phase 1 actually start?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="after-v1">after the transient-fidelity v1 work ships and re-bench still doesn't clear the gate (default — evidence-driven)</button>
-    <button class="r-opt" data-value="parallel">run Phase 1-2 (smoke + zero-shot bench) in parallel with v1 fine-tune to get the data point sooner</button>
-    <button class="r-opt" data-value="defer">defer indefinitely; revisit only if world-model-v0 fails on transient prediction</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
-
+    <p class="r-dec-q">When should this plan&#x27;s Phase 1 actually start?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="after-v1">after the transient-fidelity v1 work ships and re-bench still doesn&#x27;t clear the gate (default — evidence-driven)</button>
+      <button class="r-opt" data-value="parallel">run Phase 1-2 (smoke + zero-shot bench) in parallel with v1 fine-tune to get the data point sooner</button>
+      <button class="r-opt" data-value="defer">defer indefinitely; revisit only if world-model-v0 fails on transient prediction</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 <div class="r-dec" data-key="variant-choice" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">Which Cosmos variant for the initial evaluation?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="di16x16">DI16x16 — discrete, image-only, 16× spatial (drop-in for our pipeline)</button>
-    <button class="r-opt" data-value="di8x8">DI8x8 — discrete, image-only, 8× spatial (4× more tokens per frame, finer-grained but heavier downstream)</button>
-    <button class="r-opt" data-value="both">evaluate both DI16x16 and DI8x8; let the 8× variant prove the spatial-detail hypothesis</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
-
+    <p class="r-dec-q">Which Cosmos variant for the initial evaluation?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="di16x16">DI16x16 — discrete, image-only, 16× spatial (drop-in for our pipeline)</button>
+      <button class="r-opt" data-value="di8x8">DI8x8 — discrete, image-only, 8× spatial (4× more tokens per frame, finer-grained but heavier downstream)</button>
+      <button class="r-opt" data-value="both">evaluate both DI16x16 and DI8x8; let the 8× variant prove the spatial-detail hypothesis</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 <div class="r-dec" data-key="encoder-fine-tune-budget" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">If Phase 3 (decoder-only) plateaus, do we commit to Phase 4 (encoder fine-tune)?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="commit">yes — encoder fine-tune is the principled fix; budget ~7 h GPU + re-tokenise the corpus</button>
-    <button class="r-opt" data-value="alternatives-first">no — escalate to Phase 5 (MGVQ / MambaVideo comparison) before re-training Cosmos</button>
-    <button class="r-opt" data-value="reject">no — if decoder-only fails on Cosmos, declare Cosmos a no-go and revisit Open-MAGVIT2 encoder fine-tune instead</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
-
+    <p class="r-dec-q">If Phase 3 (decoder-only) plateaus, do we commit to Phase 4 (encoder fine-tune)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="commit">yes — encoder fine-tune is the principled fix; budget ~7 h GPU + re-tokenise the corpus</button>
+      <button class="r-opt" data-value="alternatives-first">no — escalate to Phase 5 (MGVQ / MambaVideo comparison) before re-training Cosmos</button>
+      <button class="r-opt" data-value="reject">no — if decoder-only fails on Cosmos, declare Cosmos a no-go and revisit Open-MAGVIT2 encoder fine-tune instead</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 <div class="r-dec" data-key="comparison-scope" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">If Cosmos wins Phase 3, do we still bake-off against MGVQ + MambaVideo?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="bake-off">yes — Phase 5 mandatory; 3-way comparison before committing the corpus re-tokenisation effort</button>
-    <button class="r-opt" data-value="skip">no — Cosmos clearing the gate is sufficient; ship it and revisit alternatives if they overtake Cosmos materially later</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
+    <p class="r-dec-q">If Cosmos wins Phase 3, do we still bake-off against MGVQ + MambaVideo?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="bake-off">yes — Phase 5 mandatory; 3-way comparison before committing the corpus re-tokenisation effort</button>
+      <button class="r-opt" data-value="skip">no — Cosmos clearing the gate is sufficient; ship it and revisit alternatives if they overtake Cosmos materially later</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-
-<article class="r-fu" data-id="f-phase0-trigger-check-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28">
-  <h4 class="r-fu-title">Phase 0: re-bench 1209004 with stratified rFID before deciding evaluate-trigger</h4>
-  <div class="r-fu-body">Cannot decide whether Phase 1 is justified until we see what the stratified rFID looks like on plasma-decoder-v1-merged.ckpt. This followup IS the trigger-condition check — it gates the entire plan.</div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-phase0-trigger-check-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Phase 0: re-bench 1209004 with stratified rFID before deciding evaluate-trigger</h4>
+    <div class="r-fu-body">Cannot decide whether Phase 1 is justified until we see what the stratified rFID looks like on plasma-decoder-v1-merged.ckpt. This followup IS the trigger-condition check — it gates the entire plan.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    tokenizer-cosmos-evaluation (http://localhost:8765/imas-ambix/tokenizer-cosmos-evaluation.html)
 Section: §0 Trigger conditions
 Tier:    sonnet
@@ -471,16 +469,15 @@ Done-when
   2. Per-class rFID values logged: rfid_overall, rfid_quiescent, rfid_transient, rfid_blank
   3. Post a comment on tokenizer-transient-fidelity §5 with the scenario classification
   4. Decide evaluate-trigger:
-       - quiescent ≪ transient AND transient ≥ 15: this plan's Phase 1 NOT yet justified — transient-fidelity v1 first
-       - quiescent ≈ transient AND both ≥ 10: this plan's Phase 1 IS justified — codebook architecture is suspect
-       - either is already < 5: gate met, both v1 plans deferred
+       - quiescent ≪ transient AND transient ≥ 15: this plan&#x27;s Phase 1 NOT yet justified — transient-fidelity v1 first
+       - quiescent ≈ transient AND both ≥ 10: this plan&#x27;s Phase 1 IS justified — codebook architecture is suspect
+       - either is already &lt; 5: gate met, both v1 plans deferred
   5. Resolve THIS followup with the classification + recommended next plan to activate</pre>
-</article>
-
-<article class="r-fu" data-id="f-jit-load-test-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28">
-  <h4 class="r-fu-title">De-risk: test Cosmos .jit load in our torch 2.5.1 magvit2 venv</h4>
-  <div class="r-fu-body">Before committing to Phase 1, verify the .jit archives actually load. JIT cross-version load is a known failure mode. 30-min experiment, no GPU needed (CPU load + smoke forward should be enough). De-risks the entire plan.</div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+    </article>
+<article class="r-fu" data-id="f-jit-load-test-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">De-risk: test Cosmos .jit load in our torch 2.5.1 magvit2 venv</h4>
+    <div class="r-fu-body">Before committing to Phase 1, verify the .jit archives actually load. JIT cross-version load is a known failure mode. 30-min experiment, no GPU needed (CPU load + smoke forward should be enough). De-risks the entire plan.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    tokenizer-cosmos-evaluation (http://localhost:8765/imas-ambix/tokenizer-cosmos-evaluation.html)
 Section: §5 Phase 1 + §7 Risks
 Tier:    sonnet
@@ -500,17 +497,43 @@ Constraints
 
 Steps
   1. Download encoder.jit + decoder.jit from HF.
-  2. Load into the magvit2 venv via torch.jit.load(path, map_location='cpu')
+  2. Load into the magvit2 venv via torch.jit.load(path, map_location=&#x27;cpu&#x27;)
   3. Forward a [1, 3, 256, 256] zeros tensor; verify encoder output shape [1, 16, 16] (indices) or [1, 6, 16, 16] (continuous codes)
   4. Forward the encoded result through decoder; verify output shape [1, 3, 256, 256]
 
 Done-when
-  1. Either: both .jit files load and forward cleanly → resolve this followup with "Phase 1 unblocked"
+  1. Either: both .jit files load and forward cleanly → resolve this followup with &quot;Phase 1 unblocked&quot;
   2. Or: load fails → resolve with the error message + recommendation (downgrade torch, or wait for Cosmos to retrain on newer torch, or alternative path)
   3. The result decides whether Phase 1 starts immediately or is blocked.</pre>
-</article>
+    </article>
 </section>
 
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-20260528T185246849145" data-who="agent/opus (coordinator)" data-when="2026-05-28T18:52:46+00:00">
+    <div class="r-comment-body">**2026-05-28 — `f-phase0-trigger-check` BLOCKED on C5/C6/C7 pipeline mismatches; awaiting 1209092.**
+
+Cannot yet decide whether this plan&#x27;s Phase 1 (Cosmos evaluation) is justified.  The expected trigger — the stratified rFID of `plasma-decoder-v1-merged.ckpt` — has been measured TWICE but the measurement was untrustworthy both times due to a training/bench pipeline misalignment chain:
+
+| Run | Decoder weights | Bench rFID | Status |
+|---|---|---|---|
+| 1208918 (baseline) | imagenet, untrained | **16.25** | floor we need to beat |
+| 1209047 | 1209004&#x27;s ckpt (pre-C5) | **27.40** | regression — PIL resize used in training, F.interpolate at bench |
+| 1209084 | 1209073&#x27;s ckpt (C5 fix) | **28.87** | still regression — C5 alone insufficient |
+| 1209092 (running) | C5+C6+C7 fix | TBD | committed `78c9786`; expected ~1 h |
+
+**Diagnosis:** three mismatches identified between the fine-tune training pipeline and the corpus/bench encoder pipeline.  C5 (resize operator) landed in commit 2649370 but was alone insufficient.  C6 (encoder forward batch size 16 in training vs `MODEL_FORWARD_BATCH=4` bit-exact contract in corpus) and C7 (encoder + quantize modules in train() mode during fine-tune vs eval() in bench) landed in commit 78c9786.
+
+**C2/normalization ruled out:** empirically verified 200-sample (lo, hi) byte-identical to ALL-frames (lo, hi) on 5 shots spanning 76 → 12380 frames.  Detector saturation values present in every 200-stride sample.
+
+**Stratified numbers from 1209084 (still untrustworthy):**
+- `rfid_overall` = 28.87
+- `rfid_quiescent` = 43.20, `rfid_transient` = 29.98, `rfid_blank` = 3.10
+- `count_blank`=74, `count_quiescent`=362, `count_transient`=362
+- `codebook_util` = 2.53 % (unchanged across runs — encoder frozen)
+
+Both v1 plans (this one + transient-fidelity) remain dormant until the 1209092 stratified re-bench produces a trustworthy baseline.  Plan re-activates from the same `f-phase0-trigger-check` followup once we have that number.</div>
+</div>
+</section>
 </main>
 </body>
 </html>

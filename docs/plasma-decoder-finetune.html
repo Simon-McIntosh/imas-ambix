@@ -22,7 +22,7 @@
 <title>Plasma-domain decoder fine-tune (Open-MAGVIT2) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 </head>
 <body>
 <main class="plan-doc">
@@ -208,6 +208,43 @@ Job running on 98dci4-gpu-0003. Expected completion: ~2026-05-29.</div>
     <div class="r-comment-body">**2026-05-28 — job 1208968 failed; job 1208972 resubmitted.**
 
 Root cause: `ds[var].values` loaded all T frames per shot (not just 50 sampled), causing 134 GB peak RSS before OOM/error — GPU never started. Fix (commit ca1df30): lazy streaming `_PlasmaFrameDataset` with zarr direct access (`zarr.open_group`), per-worker store cache, `num_workers=8, prefetch_factor=2, persistent_workers=True, pin_memory=True` — mirrors `stream_encode.py` in-process approach. RAM drops from ~134 GB to ~1 GB in flight; GPU starts from step 1 after ~2 min metadata scan. Job 1208972 submitted.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260528T185342743385" data-who="agent/opus (coordinator)" data-when="2026-05-28T18:53:42+00:00">
+    <div class="r-comment-body">**2026-05-28 (afternoon) — full saga summary; v0 found to have THREE residual pipeline mismatches; v0 bench regressed; corrective run 1209092 in flight.**
+
+Production run history:
+
+| Job | Code revision | Outcome |
+|---|---|---|
+| 1209004 | base v0 (commits up to `995d3c4`) | trained 10k steps, training-time best rFID **12.488** at step 8000, 1h54 runtime |
+| 1209047 | bench of 1209004&#x27;s `plasma-decoder-v1-merged.ckpt` | bench rFID **27.40** (REGRESSION from baseline 16.25) — diagnosed PIL vs F.interpolate mismatch (C5) |
+| 1209073 | C5 fix (commit `2649370`) | retrained, early-stopped at step 4000, training-time best rFID **14.037** at step 1000, 57min runtime |
+| 1209084 | bench of 1209073&#x27;s ckpt | bench rFID **28.87** (regression PERSISTS — C5 alone insufficient) |
+| **1209092** | **C5 + C6 + C7 fixes (commit `78c9786`)** | **running** — submitted ~18:50; expected ~1h |
+
+**Identified pipeline mismatches** (all between fine-tune training and bench/corpus encode):
+
+- **C5 (RESIZE)** — training used `PIL.Image.resize`; corpus + bench use `F.interpolate(bilinear, no antialias)`.  Different bilinear filter kernels.  Fixed `2649370`.  See [RCA](/imas-ambix/rca-pil-resize-mismatch-2026-05-28.html).
+- **C6 (ENCODER BATCH SIZE)** — training fed encoder at `batch=16`; corpus + bench at `MODEL_FORWARD_BATCH=4` (&quot;PART OF the tokenizer&#x27;s bit-exact contract&quot; per `stream_encode.py:159`).  Open-MAGVIT2 LFQ quantizer is batch-size sensitive — small numerical micro-differences flip token IDs at sign-bit boundaries.  Fixed `78c9786`.
+- **C7 (ENCODER EVAL MODE)** — training had encoder in `train()` mode (model.train() at loop top); bench always uses `eval()`.  Any BatchNorm / Dropout in the encoder would differ.  Fixed `78c9786`.
+
+**Empirically ruled out:**
+- **C2 (normalization)** — 200-sample (lo, hi) is byte-identical to ALL-frames (lo, hi) on 5 test shots covering 76 → 12380 frames.  Detector saturation present in every stride sample.
+
+**Bench classifier (rfid_stratified) numbers from 1209084** (still untrustworthy due to C6+C7, retained as reference only):
+
+| Class | rFID | Count |
+|---|---|---|
+| overall | 28.87 | 798 |
+| quiescent | 43.20 | 362 |
+| transient | 29.98 | 362 |
+| blank | 3.10 | 74 |
+| (codebook util) | 2.53 % | unchanged across runs (encoder frozen) |
+
+**Followups status:**
+- `f-finetune-decoder-kickoff-2026-05-28` (kickoff): originally open; effectively superseded by the C5+C6+C7 corrective work.  Will be resolved when 1209092&#x27;s bench shows a trustworthy result.
+- `f-rebench-after-finetune-2026-05-29` (re-bench): the bench portion has now been run TWICE (1209047, 1209084) with regression each time.  Will fire again on 1209092&#x27;s ckpt.
+- v1 plans ([transient-fidelity](/imas-ambix/tokenizer-transient-fidelity.html), [cosmos-evaluation](/imas-ambix/tokenizer-cosmos-evaluation.html)) remain dormant until 1209092&#x27;s stratified re-bench produces a trustworthy baseline.</div>
 </div>
 </section>
 </main>

@@ -6,8 +6,8 @@
 <meta name="docs-project" content="imas-ambix">
 <meta name="plan-slug" content="rca-pil-resize-mismatch-2026-05-28">
 <meta name="reckon-type" content="doc">
-<meta name="plan-title" content="RCA — PIL vs F.interpolate resize mismatch in plasma-decoder fine-tune (C5)">
-<meta name="plan-summary" content="The plasma-decoder fine-tune (job 1209004) measured training-time rFID 12.488 but bench (job 1209047) measured rFID 27.40 — a 70% regression vs baseline 16.25. Root cause: training used PIL.Image.resize while the corpus encoder + bench use F.interpolate(bilinear, no antialias). The two operators produce subtly different pixel values; the decoder overfit to PIL-resized inputs. C2's twin, missed in the deep review. Fixed in commit 2649370.">
+<meta name="plan-title" content="RCA — fine-tune pipeline / corpus contract mismatches (C5, C6, C7)">
+<meta name="plan-summary" content="Plasma-decoder fine-tune (job 1209004) measured training-time rFID 12.488 but bench (1209047) measured 27.40 — regression vs baseline 16.25. Root cause: THREE training/bench pipeline mismatches. C5 (PIL vs F.interpolate resize) fixed in commit 2649370 but alone insufficient (1209084 bench still 28.87). C6 (encoder forward batch 16 vs MODEL_FORWARD_BATCH=4 bit-exact contract) and C7 (encoder/quantize in train() mode vs eval()) fixed in commit 78c9786. C2/normalization empirically ruled out. Job 1209092 (C5+C6+C7) running to validate.">
 <meta name="plan-status" content="shipped">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="S">
@@ -249,9 +249,115 @@ the corpus contract:</p>
 </tbody>
 </table></div>
 
-<p>No other mismatches identified in this scan.  But the byte-equivalence
-test follow-up (§followups) is the durable safeguard against future
-recurrence.</p>
+<p><strong>UPDATE 2026-05-28 (later same day):</strong> the audit table above
+was <em>incomplete</em>.  Two additional mismatches were missed and surfaced
+when 1209084 (the C5 re-bench) showed the regression PERSISTED (rFID 28.87,
+worse than even the pre-C5 27.40).  Documented in §post-C5 below.  The
+byte-equivalence test (§followups) is the durable safeguard against
+this class of recurrence — until that test exists, the audit table is
+"best effort" not "complete."</p>
+
+<h2 id="post-c5">Post-C5 — two more mismatches (C6 + C7)</h2>
+
+<p>After commit <code>2649370</code> (C5 resize fix) landed and a corrective
+fine-tune run (1209073) produced training-time rFID 14.037, the bench
+re-run (1209047 result was 27.40; 1209084 result was <strong>28.87</strong>)
+still showed regression below baseline 16.25.  Forensic verification
+ruled out checkpoint-load failure (live + EMA decoder weights both
+differ from imagenet by ~0.027 max-abs — the patched values ARE being
+loaded by the bench).  So another pipeline mismatch was still active.</p>
+
+<h3>Empirically ruled out: C2 / per-shot normalization</h3>
+<p>Tested 5 representative shots (76, 260, 5851, 7202, 12380 frames).  The
+training pipeline's 200-sample (lo, hi) was <strong>byte-identical</strong>
+to the corpus / bench's ALL-frames (lo, hi) on all five.  Detector
+saturation min/max values appear in every 200-stride sample.  So C2 is
+fine; the earlier "statistically safe" claim was correct.</p>
+
+<h3>C6 — encoder forward batch-size mismatch</h3>
+<p>The Open-MAGVIT2 LFQ quantizer is <strong>batch-size sensitive</strong>.
+The corpus encoder
+(<code>imas_ambix/data/stream_encode.py:159</code>) explicitly states this
+in the module docstring:</p>
+<pre><code># MODEL_FORWARD_BATCH = 4
+# ... sub-batching internally at MODEL_FORWARD_BATCH — matching the live
+# daemon's bit-exact contract</code></pre>
+
+<p>The bench (<code>imas_ambix/bench/stream_worker.py</code>) inherits the
+same constant.  But the fine-tune training was feeding the encoder at
+<code>training batch_size = 16</code> per GPU.  Small numerical
+micro-differences in the encoder forward across batch sizes flipped LFQ
+token IDs at the sign-bit partition boundaries.  The decoder learned to
+reconstruct the WRONG tokens.</p>
+
+<h3>C7 — encoder / quantize in train() mode during fine-tune</h3>
+<p>The training loop calls <code>model.train()</code> once at the top.  This
+sets ALL submodules — including the frozen encoder and quantize — to
+train mode.  Bench / corpus use <code>model.eval()</code> throughout.  If
+the encoder has any BatchNorm or Dropout layer, train-mode forward
+produces different outputs than eval-mode for the same input.</p>
+
+<h3>Fix (commit <code>78c9786</code>)</h3>
+<pre><code>--- imas_ambix/tokenizer/finetune_decoder.py:_encode_decode
++++ ...
+ def _encode_decode(self, model, frames_input, *, training):
+     import torch
++    try:
++        from imas_ambix.data.stream_encode import MODEL_FORWARD_BATCH
++    except ImportError:
++        MODEL_FORWARD_BATCH = 4
+     raw = model.module if hasattr(model, "module") else model
++    # C7: encoder + quantize must run in eval mode (bench/corpus contract).
++    raw.encoder.eval()
++    raw.quantize.eval()
+     ...
+     with torch.no_grad(), torch.amp.autocast(...):
+         frames_normed = frames_input.mul(2.0).sub(1.0)
+         frames_normed = frames_normed.to(memory_format=torch.channels_last)
+-        _, _, idx, _ = raw.encode(frames_normed)
++        # C6: chunk encoder forward to MODEL_FORWARD_BATCH=4 (bit-exact contract).
++        B = frames_normed.shape[0]
++        idx_chunks = []
++        for i in range(0, B, MODEL_FORWARD_BATCH):
++            _, _, idx_i, _ = raw.encode(frames_normed[i : i + MODEL_FORWARD_BATCH])
++            idx_chunks.append(idx_i)
++        idx = idx_chunks[0] if len(idx_chunks) == 1 else torch.cat(idx_chunks, dim=0)
+     ...
+</code></pre>
+
+<h3>Bench measurements — full chain</h3>
+
+<div class="table-scroll"><table class="t">
+<thead><tr>
+<th>Bench job</th><th>Decoder ckpt</th><th>rFID overall</th><th>quiescent</th><th>transient</th><th>blank</th><th>Status</th>
+</tr></thead>
+<tbody>
+<tr><td>1208918</td><td>untrained imagenet</td><td>16.25</td><td>—</td><td>—</td><td>—</td><td>baseline floor</td></tr>
+<tr><td>1209047</td><td>1209004 (pre-C5)</td><td>27.40</td><td>40.82</td><td>28.92</td><td>2.95</td><td>regression — C5 found</td></tr>
+<tr><td>1209084</td><td>1209073 (C5 only)</td><td>28.87</td><td>43.20</td><td>29.98</td><td>3.10</td><td>regression persisted — C6 + C7 found</td></tr>
+<tr><td>(pending)</td><td>1209092 (C5 + C6 + C7)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>expected ~16 ± 2 if all mismatches now closed</td></tr>
+</tbody></table></div>
+
+<h3>Updated audit table (incorporating C6 + C7 findings)</h3>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Operator</th><th>Corpus (stream_encode.py / stream_worker.py)</th><th>Fine-tune (finetune_decoder.py)</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Per-shot normalisation</td><td>per-shot lo/hi over ALL frames (read at encode time)</td><td>per-shot lo/hi over 200-sample stride at scan time</td><td>OK — empirically byte-identical on 5 test shots (2026-05-28)</td></tr>
+<tr><td>Spatial resize</td><td><code>F.interpolate(bilinear, align_corners=False, no antialias)</code></td><td>was <code>PIL.Image.resize</code> → now <code>F.interpolate</code> matching corpus</td><td>Fixed by C5 (commit <code>2649370</code>)</td></tr>
+<tr><td><strong>Encoder forward batch size</strong></td><td><code>MODEL_FORWARD_BATCH = 4</code> (bit-exact contract per docstring)</td><td>was <code>batch_size = 16</code> per GPU → now chunked to 4</td><td>Fixed by <strong>C6</strong> (commit <code>78c9786</code>)</td></tr>
+<tr><td><strong>Encoder / quantize mode</strong></td><td><code>model.eval()</code> at load, never toggled</td><td>was inheriting <code>model.train()</code> → now explicit <code>raw.encoder.eval()</code> + <code>raw.quantize.eval()</code> before every encode</td><td>Fixed by <strong>C7</strong> (commit <code>78c9786</code>)</td></tr>
+<tr><td>uint8 ↔ float scaling</td><td>div(255) → mul(2) → sub(1) → [-1,1]</td><td>div(255) in train loop, then mul(2)/sub(1) in _encode_decode</td><td>OK (mathematically identical)</td></tr>
+<tr><td>Channel format</td><td>permute (T, H, W, 3) → (T, 3, H, W); channels_last</td><td>same</td><td>OK</td></tr>
+<tr><td>EMA encoder seeding</td><td>uses model.ema_scope() (live = EMA at forward)</td><td>seeds live from EMA shadow at startup (= same effect since encoder is frozen)</td><td>OK — fixed in C1</td></tr>
+<tr><td>FP precision in forward</td><td>bf16 model, autocast forward</td><td>fp32 model, bf16 autocast forward</td><td>OK (bf16 forward identical; only optimizer state differs)</td></tr>
+</tbody>
+</table></div>
+
+<p>No other mismatches identified in this expanded scan, but the durable
+fix is the byte-equivalence test (§followups) which would have caught
+all of C5, C6, and C7 at PR time rather than after 2 wasted 1h+ GPU runs
+and a ~$X opportunity cost.</p>
 
 <h2 id="followups">Follow-ups</h2>
 
@@ -275,9 +381,24 @@ verifying the fix.</li>
 <li><code>fa0c3b6</code> — 2026-05-28 deep review (C1-C4 + H1-H3 + smoke wiring).</li>
 <li><code>0d8cb54</code> — .contiguous() + rank-0 deadlock guard.</li>
 <li><code>995d3c4</code> — GPU-Inception eval (8× faster eval).</li>
-<li><strong><code>2649370</code></strong> — <strong>C5: PIL→F.interpolate
-resize.  This RCA's fix.</strong></li>
+<li><code>2649370</code> — C5: PIL→F.interpolate resize.</li>
+<li><strong><code>78c9786</code></strong> — <strong>C6 + C7: encoder forward
+batch=4 + encoder/quantize eval mode.  Companion fix to this RCA.</strong></li>
 </ul>
+
+<h2 id="job-history">Production job chronology</h2>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Job</th><th>Kind</th><th>Code revision</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>1208918</td><td>baseline bench</td><td>n/a (imagenet decoder)</td><td>rFID 16.25</td></tr>
+<tr><td>1209004</td><td>v0 fine-tune (10k steps)</td><td>up to <code>995d3c4</code></td><td>training-time best rFID 12.488 (over-optimistic)</td></tr>
+<tr><td>1209047</td><td>re-bench of 1209004</td><td>same code</td><td>rFID 27.40 (regression revealed C5)</td></tr>
+<tr><td>1209073</td><td>corrective fine-tune (C5 only)</td><td><code>2649370</code></td><td>training best 14.037, early-stop step 4000, 57min</td></tr>
+<tr><td>1209084</td><td>re-bench of 1209073</td><td>same code</td><td>rFID 28.87 (regression PERSISTED — C6 + C7 found)</td></tr>
+<tr><td><strong>1209092</strong></td><td><strong>corrective fine-tune (C5+C6+C7)</strong></td><td><strong><code>78c9786</code></strong></td><td><strong>running</strong></td></tr>
+</tbody>
+</table></div>
 
 </main>
 </body>

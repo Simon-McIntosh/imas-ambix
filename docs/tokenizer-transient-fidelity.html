@@ -17,6 +17,9 @@
 <title>Tokenizer transient-frame fidelity | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-title" content="Tokenizer transient-frame fidelity">
+<meta name="plan-modified" content="2026-05-28">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -242,55 +245,50 @@ work but thresholds need re-calibration.</li>
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-
 <div class="r-dec" data-key="transient-loss-weight" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">What loss-weighting factor for transient frames?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="1.5">1.5 — mild reweighting, conservative</button>
-    <button class="r-opt" data-value="2.5">2.5 — moderate (matches transient prevalence inverse)</button>
-    <button class="r-opt" data-value="4.0">4.0 — aggressive, may destabilise quiescent reconstruction</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
-
+    <p class="r-dec-q">What loss-weighting factor for transient frames?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="1.5">1.5 — mild reweighting, conservative</button>
+      <button class="r-opt" data-value="2.5">2.5 — moderate (matches transient prevalence inverse)</button>
+      <button class="r-opt" data-value="4.0">4.0 — aggressive, may destabilise quiescent reconstruction</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 <div class="r-dec" data-key="importance-sampling-alpha" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">Importance-sampling alpha (relative weight of transients in the train pool)?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="1.0">1.0 — disable importance sampling, rely only on loss weighting</button>
-    <button class="r-opt" data-value="2.5">2.5 — pair with transient_loss_weight=2.5</button>
-    <button class="r-opt" data-value="4.0">4.0 — heavy transient emphasis</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
-
+    <p class="r-dec-q">Importance-sampling alpha (relative weight of transients in the train pool)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="1.0">1.0 — disable importance sampling, rely only on loss weighting</button>
+      <button class="r-opt" data-value="2.5">2.5 — pair with transient_loss_weight=2.5</button>
+      <button class="r-opt" data-value="4.0">4.0 — heavy transient emphasis</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 <div class="r-dec" data-key="transient-rfid-gate" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">Should rfid_transient &lt; 5 REPLACE or be IN ADDITION TO the mean-rFID gate?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="replace">replace — transient is the only physics-relevant metric</button>
-    <button class="r-opt" data-value="both">both — pass if BOTH rfid_overall &lt; 5 AND rfid_transient &lt; 5</button>
-    <button class="r-opt" data-value="overall-relaxed">overall-relaxed — rfid_overall &lt; 8 AND rfid_transient &lt; 5</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
-
+    <p class="r-dec-q">Should rfid_transient &lt; 5 REPLACE or be IN ADDITION TO the mean-rFID gate?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="replace">replace — transient is the only physics-relevant metric</button>
+      <button class="r-opt" data-value="both">both — pass if BOTH rfid_overall &lt; 5 AND rfid_transient &lt; 5</button>
+      <button class="r-opt" data-value="overall-relaxed">overall-relaxed — rfid_overall &lt; 8 AND rfid_transient &lt; 5</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 <div class="r-dec" data-key="temporal-threshold-calibration" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">Source for temporal-gradient threshold calibration?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="hand-labelled">hand-labelled set of 5-10 known L-H shots from diagnostics team</button>
-    <button class="r-opt" data-value="equilibrium-derived">derived from equilibrium IDS dW/dt spikes (automated, no human labels)</button>
-    <button class="r-opt" data-value="percentile">simple 90th-percentile of temporal_gradient distribution (no physics ground truth)</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
+    <p class="r-dec-q">Source for temporal-gradient threshold calibration?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="hand-labelled">hand-labelled set of 5-10 known L-H shots from diagnostics team</button>
+      <button class="r-opt" data-value="equilibrium-derived">derived from equilibrium IDS dW/dt spikes (automated, no human labels)</button>
+      <button class="r-opt" data-value="percentile">simple 90th-percentile of temporal_gradient distribution (no physics ground truth)</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-
-<article class="r-fu" data-id="f-rebench-1209004-stratified-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28">
-  <h4 class="r-fu-title">Re-bench 1209004 weights with stratified rFID to decide v1 scope</h4>
-  <div class="r-fu-body">Once 1209004 finishes, re-bench plasma-decoder-v1-merged.ckpt with v0-rbb-100shot-finetune.yaml (which already enables rfid_stratified). The resulting rfid_quiescent vs rfid_transient gap is the data point that decides whether this plan is v1-mandatory or v1.5-polish (§5).</div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-rebench-1209004-stratified-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Re-bench 1209004 weights with stratified rFID to decide v1 scope</h4>
+    <div class="r-fu-body">Once 1209004 finishes, re-bench plasma-decoder-v1-merged.ckpt with v0-rbb-100shot-finetune.yaml (which already enables rfid_stratified). The resulting rfid_quiescent vs rfid_transient gap is the data point that decides whether this plan is v1-mandatory or v1.5-polish (§5).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    tokenizer-transient-fidelity (http://localhost:8765/imas-ambix/tokenizer-transient-fidelity.html)
 Section: §5 Decision
 Tier:    sonnet
@@ -319,9 +317,33 @@ Done-when
   3. Comment posted on this plan (§5) with the numbers + scenario classification
   4. New followup written: either &quot;Phase 2 mandatory&quot; (gap &gt; 5) or &quot;defer to v1.5&quot; (gap &lt; 3)
   5. This followup resolved</pre>
-</article>
+    </article>
 </section>
 
+
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s5" data-id="c-20260528T185310985520" data-who="agent/opus (coordinator)" data-when="2026-05-28T18:53:10+00:00">
+    <div class="r-comment-body">**2026-05-28 — scenario classification BLOCKED on pipeline mismatches; awaiting 1209092.**
+
+Cannot yet apply the §5 scenario matrix.  The bench numbers we have are not trustworthy — three training/bench mismatches identified, two fixed, one running.
+
+| Bench | Decoder ckpt | rFID overall | rFID quiescent | rFID transient | rFID blank | Trustworthy? |
+|---|---|---|---|---|---|---|
+| 1208918 | baseline (no fine-tune) | 16.25 | – | – | – | yes |
+| 1209047 | 1209004 (pre-C5) | 27.40 | 40.82 | 28.92 | 2.95 | **no** (PIL/F.interp mismatch) |
+| 1209084 | 1209073 (C5 fix) | 28.87 | 43.20 | 29.98 | 3.10 | **no** (C6+C7 mismatches remain) |
+| (pending) | 1209092 (C5+C6+C7) | TBD | TBD | TBD | TBD | should be trustworthy |
+
+**Mismatches identified between fine-tune training and bench/corpus pipelines**:
+- C5 (resize operator): training used `PIL.Image.resize`; corpus and bench use `F.interpolate(bilinear, no antialias)`.  Fixed in commit `2649370` — but not sufficient alone.
+- C6 (encoder forward batch): training fed encoder at `batch=16`; corpus and bench use `MODEL_FORWARD_BATCH=4` (&quot;bit-exact contract&quot; per `stream_encode.py:159`).  LFQ quantizer is batch-size sensitive.  Fixed in commit `78c9786`.
+- C7 (encoder mode): training had encoder in `train()` mode (via `model.train()` at loop top); bench uses `eval()`.  BatchNorm / Dropout could differ.  Fixed in commit `78c9786`.
+
+C2 (per-shot normalization) **NOT** the issue — empirically verified 200-sample (lo, hi) is byte-identical to ALL-frames (lo, hi) on 5 test shots spanning 76 → 12380 frames.
+
+**§5 scenario classification will fire on 1209092&#x27;s stratified re-bench result.**  Until then, the f-rebench-1209004-stratified followup is on hold (would need to be re-pointed at 1209092&#x27;s merged ckpt before resolution).</div>
+</div>
+</section>
 </main>
 </body>
 </html>
