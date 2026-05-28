@@ -7,7 +7,12 @@
 #SBATCH --cpus-per-task=30
 #SBATCH --mem=640G
 #SBATCH --time=00:30:00
+#SBATCH --signal=B:USR1@120
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
+# --time=30m is the safety ceiling for smoke (expected ~3-5 min); SIGUSR1
+# fires at 2 min pre-limit so a runaway smoke still exits cleanly.
+# AMBIX_SOFT_TIME_LIMIT below = 0.85 × 30m = 1530 s.  See AGENTS.md
+# §2a-cancel-time for the three-layer pattern.
 # 4-GPU DDP SMOKE TEST — verifies the fine-tune pipeline before a 24h submit.
 # 50 train + 10 val shots, 200 max steps, eval every 100. Goal: confirm
 #   (1) all 4 GPUs > 80% utilization,
@@ -31,6 +36,16 @@ mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
 mkdir -p /work/projects/imas_gpu/stops
 export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
 rm -f "${AMBIX_STOP_FILE}"
+
+# §2a-cancel-time three-layer defence — Layer 1: SIGUSR1 trap.
+_on_sigusr1() {
+    echo "[sbatch] SIGUSR1 received from SLURM (pre-limit) — touching STOP-FILE" >&2
+    touch "${AMBIX_STOP_FILE}"
+}
+trap _on_sigusr1 USR1
+
+# Layer 2: internal soft wall-clock limit (0.85 × 30m = 1530 s).
+export AMBIX_SOFT_TIME_LIMIT=1530
 
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 export NCCL_DEBUG=WARN

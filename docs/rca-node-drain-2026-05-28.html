@@ -77,23 +77,71 @@ to the second; no other user had a job on the node at any point in the relevant
 window. <strong>Third self-inflicted drain</strong> in three days (2026-05-26,
 2026-05-27, 2026-05-28).</p>
 
-<h2 id="mechanism">Why scancel cannot unwind a healthy CUDA-DDP rank</h2>
+<h2 id="mechanism">Does SIGTERM immediately drain the node?</h2>
+<p><strong>No — and that's important to be precise about.</strong>  A clean
+SIGTERM handler that exits within the timeout window does <em>not</em> drain
+the node.  The drain happens because of what comes <em>after</em> SIGTERM
+fails to unwind a CUDA-DDP process within SLURM's <code>UnkillableStepTimeout</code>
+window.  The full sequence:</p>
+
 <ol>
-<li>Python signal handlers run only between bytecodes. <code>signal.signal()</code>
-sets a flag the interpreter checks at the next opcode boundary.</li>
-<li><code>loss.backward()</code> calls into C++ (autograd engine + cuBLAS +
-NCCL). The C++ stack does not periodically yield to Python's signal-check, so
-<strong>SIGTERM received mid-backward is queued, not handled</strong>, until
-the call returns to Python.</li>
-<li>DDP gradient sync uses NCCL collectives (<code>all_reduce</code>). These are
-<em>blocking</em> kernel-mode operations that wait on every peer. If any peer's
-return is delayed, all ranks sit in the collective.</li>
-<li>SIGKILL cannot reap a process in uninterruptible kernel sleep
-(<code>D</code> state) — kernel calls (CUDA, GPFS, NCCL) must return first.</li>
-<li>After <code>UnkillableStepTimeout</code> (~60&nbsp;s) slurmd marks "Kill
-task failed" → DRAIN. The reservation goes offline until an admin runs
-<code>scontrol update state=resume</code>.</li>
+<li><strong>SLURM sends SIGTERM</strong> to every process in the job step
+(via <code>scancel</code>, time-limit, or admin intervention).  Up to this
+point, the node is fine — SIGTERM is a polite request to exit.</li>
+
+<li><strong>Python receives the signal flag but cannot act on it</strong>
+while inside C++.  Python signal handlers only run between bytecodes; while
+the interpreter is in a multi-second C call to <code>loss.backward()</code>
+(autograd + cuBLAS + NCCL), the signal flag is set but the handler doesn't
+fire.</li>
+
+<li><strong>NCCL collectives are atomic.</strong>  <code>dist.all_reduce</code>
+inside backward blocks all 4 ranks in kernel mode (<code>D</code> state) on
+NVLink P2P transactions.  Until every rank completes the collective, no rank
+can return to Python and run the signal handler.  Even if one rank's SIGTERM
+handler did fire and called <code>STOP.set()</code>, the other ranks are
+still in the collective waiting for it.</li>
+
+<li><strong>SLURM waits <code>UnkillableStepTimeout</code></strong> (default
+60&nbsp;s on betelgeuse) for the process to exit voluntarily.  If the process
+hasn't exited:</li>
+
+<li><strong>SLURM sends SIGKILL.</strong>  SIGKILL is uncatchable — but it
+<em>also</em> cannot reap a process in uninterruptible kernel sleep
+(<code>D</code> state).  The kernel call (CUDA driver, GPFS, NCCL P2P) has to
+return before any signal — including SIGKILL — can be delivered to the
+process.  For a wedged CUDA call that never returns, SIGKILL is effectively
+a no-op.</li>
+
+<li><strong>SLURM waits a second timeout.</strong>  If the process <em>still</em>
+hasn't exited:</li>
+
+<li><strong>slurmd marks "Kill task failed" → node DRAIN.</strong>  This is
+the actual drain.  The reservation goes offline until an admin runs
+<code>scontrol update state=resume</code>.  Stale GPU memory from the
+un-reaped process persists and must be cleared with <code>nvidia-smi --gpu-reset</code>
+or a node reboot before resume — otherwise the next job inherits dirty CUDA
+contexts and fails (as smoke 1208985 demonstrated within minutes of resume).</li>
 </ol>
+
+<p>So <strong>SIGTERM is not the drain trigger</strong>.  The drain trigger
+is the <strong>combination</strong> of (a) SIGTERM unable to reach a Python
+handler because of step 2, plus (b) the process unable to be force-killed
+because of step 5, plus (c) the timeout in step 7.  A CPU-bound process or
+a GPU process between collectives <em>can</em> handle SIGTERM cleanly within
+the timeout, and those cases do not drain.</p>
+
+<p>The fundamental cure is therefore: <strong>do not let SIGTERM arrive during
+a collective</strong>.  The STOP-FILE mechanism (§prevention) achieves this
+by giving the script a way to exit voluntarily at a known clean boundary,
+without SIGTERM ever being sent.  The three-layer time-limit defence
+(§time-limits) extends this to time-bounded jobs.</p>
+
+<p>This is also why <code>scancel --signal=SIGUSR1</code> doesn't help: any
+signal sent to the worker python processes during a collective has the same
+queued-handler problem.  Only signals sent to the <em>bash batch script</em>
+(<code>--signal=B:USR1@N</code>) can fire promptly, because bash isn't
+running CUDA.</p>
 
 <h2 id="prevention">Prevention — STOP-FILE mechanism (binding)</h2>
 
@@ -134,7 +182,6 @@ unavailable AND the job is genuinely wedged AND the user has authorised it.</li>
 <p>If a job never reaches a stop-file check (deadlocked NCCL, hung GPFS), the
 stop-file mechanism cannot rescue it. In that case the only options are:</p>
 <ol>
-<li>Wait for SLURM time limit to expire (preferred — natural cleanup).</li>
 <li>Wait for our internal watchdog (per-step timeout) to <code>STOP.set()</code>
 — but only if its own check happens to land between collectives.</li>
 <li>Ask the user to take responsibility for a <code>scancel</code>, accepting
@@ -142,6 +189,140 @@ the drain risk and committing to perform the admin recovery (§admin).</li>
 </ol>
 <p><strong>The agent must never <code>scancel</code> a CUDA-DDP job on its own
 initiative.</strong></p>
+
+<h2 id="time-limits">Update — SLURM time limits ARE scancel-equivalent</h2>
+<p><strong>(Added 2026-05-28 16:00, post-session insight.)</strong> The
+original RCA listed "wait for SLURM time limit to expire" as an option for
+wedged jobs, framing it as <em>preferred — natural cleanup</em>. <strong>That
+guidance was wrong.</strong> A SLURM time limit firing is functionally identical
+to <code>scancel</code>: slurmd sends SIGTERM to the job step, the same
+Python-signal-handler-can't-run-mid-NCCL problem applies, the same
+<code>UnkillableStepTimeout</code> expires, the same drain occurs.</p>
+
+<p>Any <code>#SBATCH --time=N</code> we set is therefore <strong>a delayed
+<code>scancel</code> with the same drain risk</strong>. Setting
+<code>--time=24:00:00</code> means: "in 24 hours, if I'm still running,
+auto-scancel me." That is exactly the dangerous action <code>§prevention</code>
+above forbids — just timer-delayed.</p>
+
+<h3>Three-layer fix for time-bounded GPU jobs</h3>
+<p>Replace the dangerous <code>--time</code>-only pattern with a three-layer
+defence:</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Layer</th><th>Mechanism</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td>1. Pre-warning signal</td>
+<td><code>#SBATCH --signal=B:USR1@600</code> + bash trap that touches the
+STOP-FILE</td>
+<td>SLURM sends SIGUSR1 to the <em>batch script</em> (not the workers) 10&nbsp;min
+before time limit. Bash traps it cleanly (no NCCL involvement) and touches
+<code>${AMBIX_STOP_FILE}</code>. The python workers see the file at the next
+step boundary and exit normally with code 0. <strong>Clean exit, no SIGTERM,
+no drain.</strong></td></tr>
+<tr><td>2. Internal soft wall-clock</td>
+<td><code>AMBIX_SOFT_TIME_LIMIT</code> env var — training loop checks
+<code>time.monotonic() - t_start &gt; soft_limit</code> at every step
+boundary</td>
+<td>Backup if the SIGUSR1 trap fails or the bash script dies. Same clean-exit
+behaviour as STOP-FILE detection. Set this to ~85&nbsp;% of <code>--time</code>
+so it fires before the SLURM signal.</td></tr>
+<tr><td>3. <code>--time</code> as ceiling only</td>
+<td>Set <code>--time</code> to 2-4× the realistic expected runtime</td>
+<td>Final safety net if both layers 1 and 2 fail. The bigger the gap between
+expected runtime and <code>--time</code>, the smaller the chance of hitting it
+— and if you DO hit it, you have evidence something is genuinely wedged
+(triggering the wedged-job protocol in §prevention).</td></tr>
+</tbody>
+</table></div>
+
+<h3>Why the signal-to-bash pattern works where signal-to-workers fails</h3>
+<p>The bash batch script is a plain shell process. Signal traps in bash
+execute as soon as the current foreground builtin returns — they do not get
+queued behind multi-second C++ NCCL calls (because bash isn't running NCCL).
+So the SIGUSR1 trap fires within milliseconds, touches the STOP-FILE, and
+the python workers detect it at the next step boundary. The path
+SLURM-signal → bash-trap → file → python-poll is entirely safe for CUDA-DDP
+processes — the only signal target is the bash, which has no GPU
+involvement.</p>
+
+<p>Contrast: <code>--signal=USR1@N</code> (no <code>B:</code>) sends the
+signal to the job step, i.e. the python workers themselves. That has the
+same problem as scancel — the workers can't process the signal while inside
+a collective.</p>
+
+<h3>Recommended sbatch header pattern</h3>
+<pre><code>#SBATCH --time=04:00:00              # Safety ceiling (2-4× expected)
+#SBATCH --signal=B:USR1@600          # SIGUSR1 → batch script, 10 min before limit
+
+mkdir -p /work/projects/imas_gpu/stops
+export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
+rm -f "${AMBIX_STOP_FILE}"
+
+# Layer 1: SIGUSR1 trap → touch STOP-FILE
+_on_sigusr1() {
+    echo "[sbatch] SIGUSR1 received — SLURM time limit approaches; touching STOP-FILE"
+    touch "${AMBIX_STOP_FILE}"
+}
+trap _on_sigusr1 USR1
+
+# Layer 2: pass soft wall-clock limit to training script via env
+# Set to ~85% of --time, in seconds
+export AMBIX_SOFT_TIME_LIMIT=12240   # 3h24m, for a 4h ceiling
+</code></pre>
+
+<h2 id="findings">Additional findings from the same session</h2>
+
+<h3>Smoke 1208992 — rank-0 crash deadlock (4m22s near-miss)</h3>
+<p>After applying all 7 correctness fixes, smoke 1208992 hit a different
+deadlock: rank 0 crashed during <code>_save_checkpoint</code> with
+<code>ValueError: non contiguous tensor 'conv_in.weight'</code> (BN-fused
+conv weights are non-contiguous in channels-last layout, which
+<code>safetensors.save_file</code> rejects). Rank 0 entered its
+<code>finally</code> block and hung in <code>dist.destroy_process_group()</code>;
+ranks 1-3 stuck in <code>dist.broadcast()</code> waiting for rank 0.</p>
+
+<p>torchrun's elastic launcher reaped the workers in 4&nbsp;m&nbsp;22&nbsp;s
+(presumably its own watchdog) — we got <strong>lucky</strong>. Had it not,
+the next SLURM time-limit fire would have drained the node, and there was
+already 30&nbsp;min of contention with another job's recovery.</p>
+
+<p><strong>Fix landed (commit <code>0d8cb54</code>):</strong></p>
+<ul>
+<li><code>.detach().cpu().contiguous()</code> before
+<code>safetensors.save_file</code> — the immediate bug.</li>
+<li><strong>Rank-0 deadlock guard</strong>: every rank-0-only block in the
+training loop is wrapped in <code>try/except</code>. Any exception sets
+<code>rank0_failed = 1</code> and the broadcast tensor is OR'd with that
+flag, so non-primary ranks <em>always</em> unblock and exit together.</li>
+</ul>
+
+<h3>Smoke 1208998 — GPU 0 idle during eval (perf, not drain)</h3>
+<p>The "C4 fix" (rFID on rank 0 only) introduced a separate-but-related
+issue: during the rank-0 eval window (~106&nbsp;s per eval), GPU 0 ran
+<code>imas_ambix.eval.metrics.rfid()</code> on <strong>CPU</strong> (no
+<code>.to(device)</code>) while GPUs 1-3 spin-waited on
+<code>dist.broadcast</code>. The user observation was "GPU 0 at 0%, others
+at 100%" — looked like a hang, was actually CPU-bound rFID. The pattern
+persists across eval windows in a way that an observer can't distinguish
+from a wedge.</p>
+
+<p><strong>Fix landed (commits <code>8eb3afd</code> + <code>995d3c4</code>):</strong>
+distributed eval — each rank runs encode/decode + InceptionV3 feature
+extraction on its own GPU; only the small <code>(N, 2048)</code> feature
+tensors are gathered to rank 0 for the Frechet distance computation. Eval
+time dropped from 106.5&nbsp;s → 13.4&nbsp;s (8× faster) and GPU 0
+participates throughout.</p>
+
+<h3>Smoke 1208985 — dirty GPU state inherited from drained node</h3>
+<p>After admin resumed the node, the first submitted smoke (1208985)
+failed in 17&nbsp;s with <code>RuntimeError: device &gt;= 0 && device &lt;
+num_gpus INTERNAL ASSERT FAILED ... device=1, num_gpus=</code> on rank 1.
+The previous drain had left orphaned CUDA contexts on the node; the resume
+without <code>nvidia-smi --gpu-reset</code> handed dirty GPUs to the next
+job. This is exactly the <code>nvidia-smi --gpu-reset in epilogue</code>
+admin recommendation manifesting as a real-world failure within minutes of
+the drain.</p>
 
 <h2 id="admin">Admin instructions to resume the node (today's drain)</h2>
 <ol>

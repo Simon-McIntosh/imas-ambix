@@ -161,6 +161,17 @@ requires `nvidia-smi --gpu-reset` or a reboot to clear.
    If STOP-FILE is unavailable AND the job is genuinely wedged AND the user
    has explicitly authorised the cancellation AND committed to the admin
    recovery, only then may a user (not an agent) issue `scancel`.
+6. **`#SBATCH --time` is a delayed `scancel` — same drain risk.** When SLURM
+   hits the time limit it sends SIGTERM to the job step, which has the
+   identical "Python can't process signals mid-NCCL" problem as a manual
+   `scancel`. Setting `--time=24:00:00` is "auto-scancel me in 24 hours"
+   and carries the same drain risk if the job is still running at the limit.
+   **DO NOT set `--time` as the actual run budget.** Use the three-layer
+   pattern in §2a-cancel-time below.
+7. **`#SBATCH --signal=USR1@N` (without `B:`) is also unsafe** — it sends the
+   signal to the worker python processes, same problem. ONLY
+   `--signal=B:USR1@N` (signal the BATCH SCRIPT) is safe, because bash can
+   process signals immediately and touch the STOP-FILE for us.
 
 **When a drain happens (RCA procedure):**
 1. `sacct -a -N 98dci4-gpu-0003 --starttime=<window>` — list ALL users' jobs to
@@ -237,10 +248,74 @@ training script.
 
 **When STOP-FILE is not enough:**
 - A job that never reaches a step boundary (deadlocked NCCL init, hung
-  GPFS read) cannot see the stop-file. Wait for SLURM time limit, or escalate
-  to the user.
+  GPFS read) cannot see the stop-file. Surface to the user and escalate —
+  do NOT fall back to SLURM time limit (see §2a-cancel-time).
 - The agent **must not** decide unilaterally that "the stop-file is taking too
   long" and issue `scancel` — that is exactly the bug this section prevents.
+
+## 2a-cancel-time. Time limits — the three-layer rule (MANDATORY)
+
+**`#SBATCH --time=N` is a scheduled `scancel`** (rule #6 in §2a above). When
+the limit fires, SLURM sends SIGTERM to the job step, which has the same
+Python-can't-handle-signals-mid-NCCL problem as a manual scancel → drain.
+**Setting `--time` as your actual run budget is a self-scheduled drain.**
+
+Every long-running agent-launched GPU sbatch MUST implement the three-layer
+defence — combined with the §2a-cancel STOP-FILE — so the worst case is a
+clean exit, not a drain:
+
+| Layer | Mechanism | What it catches |
+|---|---|---|
+| 1. **SIGUSR1 pre-warning** | `#SBATCH --signal=B:USR1@600` + bash `trap` that `touch`es STOP-FILE | SLURM signals the BATCH SCRIPT (not workers) 600 s before time-limit. Bash has no NCCL involvement; trap fires in ms; STOP-FILE appears; workers exit cleanly at next step boundary. |
+| 2. **Internal soft wall-clock** | `AMBIX_SOFT_TIME_LIMIT` env var. Training loop checks `time.monotonic() - t_start > soft_limit` at every step boundary; if true, behave like STOP-FILE was touched. Set to ~85 % of `--time`. | Layer 1 fails (e.g. bash exited, trap missed). Python-level safety net. |
+| 3. **`--time` as ceiling only** | Set `--time` to 2-4× realistic expected runtime. | Both layers above fail. Final emergency stop. |
+
+**Required sbatch header pattern** for any new agent-launched GPU job:
+
+```bash
+#SBATCH --time=04:00:00              # Safety ceiling — 2-4× expected runtime
+#SBATCH --signal=B:USR1@600          # SIGUSR1 to BATCH SCRIPT, 10 min pre-limit
+
+set -euo pipefail
+
+mkdir -p /work/projects/imas_gpu/stops
+export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
+rm -f "${AMBIX_STOP_FILE}"
+
+# Layer 1: SIGUSR1 trap → touch STOP-FILE for clean shutdown.
+_on_sigusr1() {
+    echo "[sbatch] SIGUSR1 received — SLURM time limit approaches; touching STOP-FILE for clean shutdown" >&2
+    touch "${AMBIX_STOP_FILE}"
+}
+trap _on_sigusr1 USR1
+
+# Layer 2: pass soft wall-clock limit to the training script (~85% of --time)
+export AMBIX_SOFT_TIME_LIMIT=12240   # 3h24m = 0.85 × 4h ceiling
+```
+
+**Critical sub-rules** (these have all caused incidents):
+
+1. The `B:` prefix on `--signal=B:USR1@600` is non-negotiable. Without it,
+   SLURM signals the WORKER python processes — same drain risk as scancel.
+   ONLY the batch script can be safely signal-trapped.
+2. The trap is set BEFORE `torchrun` is invoked. After `torchrun` starts, bash
+   is in `wait` (foreground builtin) and the trap still fires on signal —
+   that's standard bash semantics. Verify with `man bash` § SIGNALS.
+3. The soft wall-clock limit (`AMBIX_SOFT_TIME_LIMIT`) and the SIGUSR1
+   pre-warning are BOTH required. They guard different failure modes — a
+   bash-level crash kills the trap; a Python-level OOM-killer kills the soft
+   limit. Belt and braces.
+4. NEVER set `--time` to your expected runtime. Even with both layers, the
+   ceiling needs margin. A 1.5 h expected run gets `--time=04:00:00`, not
+   `--time=02:00:00`. The gap is your insurance.
+5. The bash trap MUST be set AFTER the `export AMBIX_STOP_FILE=` line and
+   BEFORE the python launch. If the trap fires before `AMBIX_STOP_FILE` is
+   exported it can't touch the file; if it's set after `torchrun` blocks,
+   bash can't accept new traps.
+
+**Reference implementation:** `scripts/slurm/finetune_decoder.sbatch` (commit
+landing this section).  Any new GPU sbatch MUST clone this header pattern
+verbatim; deviations require an RCA written before the run.
 
 ## 2b. Performant GPU code (in-process default)
 

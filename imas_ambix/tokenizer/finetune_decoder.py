@@ -105,6 +105,27 @@ def _check_stop_file() -> bool:
     return p is not None and p.exists()
 
 
+def _soft_time_limit_s() -> float | None:
+    """Return ``AMBIX_SOFT_TIME_LIMIT`` (seconds) or None if unset.
+
+    Layer 2 of the §2a-cancel-time three-layer defence: when the elapsed
+    wall-clock since training start exceeds this value, the training loop
+    breaks cleanly as if STOP-FILE was touched.  Set the env var to ~85% of
+    the sbatch ``--time`` ceiling.
+    """
+    v = os.environ.get("AMBIX_SOFT_TIME_LIMIT")
+    if not v:
+        return None
+    try:
+        return float(v)
+    except ValueError:
+        warnings.warn(
+            f"AMBIX_SOFT_TIME_LIMIT={v!r} not parseable as float — ignored",
+            stacklevel=2,
+        )
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Distributed helpers
 # ---------------------------------------------------------------------------
@@ -1029,6 +1050,16 @@ class DecoderFinetuneTrainer:
 
             model.train()  # set once; only flipped during eval
 
+            # Wall-clock start for the §2a-cancel-time soft limit (Layer 2).
+            t_train_start = time.monotonic()
+            soft_limit = _soft_time_limit_s()
+            if is_primary and soft_limit is not None:
+                print(
+                    f"[finetune-decoder] AMBIX_SOFT_TIME_LIMIT={soft_limit:.0f}s "
+                    f"— training will self-exit cleanly at this elapsed wall clock",
+                    flush=True,
+                )
+
             while step < cfg.max_steps and not STOP.is_set():
                 # STOP-FILE check: safe-cancel boundary (AGENTS.md §2a-cancel).
                 # Runs between collectives → no NCCL deadlock, no drain risk.
@@ -1041,6 +1072,21 @@ class DecoderFinetuneTrainer:
                         )
                     STOP.set()
                     break
+
+                # Soft wall-clock check (§2a-cancel-time Layer 2): same
+                # clean-exit path as STOP-FILE, fires before SLURM SIGTERM.
+                if soft_limit is not None:
+                    elapsed = time.monotonic() - t_train_start
+                    if elapsed > soft_limit:
+                        if is_primary:
+                            print(
+                                f"[finetune-decoder] AMBIX_SOFT_TIME_LIMIT "
+                                f"({soft_limit:.0f}s) exceeded at elapsed "
+                                f"{elapsed:.0f}s, step {step} → clean exit",
+                                flush=True,
+                            )
+                        STOP.set()
+                        break
 
                 budget = _step_timeout()
                 with _wd_lock:

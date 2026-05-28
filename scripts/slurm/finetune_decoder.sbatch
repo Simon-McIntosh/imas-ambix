@@ -6,12 +6,16 @@
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=30
 #SBATCH --mem=640G
-#SBATCH --time=24:00:00
+#SBATCH --time=04:00:00
+#SBATCH --signal=B:USR1@600
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
 # NOTE: --qos is intentionally omitted — auto-applied for this account/reservation.
-#       Training uses a single GPU (cuda:0) from the 4-GPU allocation; the
-#       reservation keeps all 4 GPUs exclusive to prevent node drain from
-#       concurrent CUDA processes (see AGENTS.md §2a).
+#       --time is the SAFETY CEILING — see AGENTS.md §2a-cancel-time.  Expected
+#       runtime is ~1.5 h; the 4 h ceiling is 2-3× margin.  When the SLURM
+#       limit nears, the --signal=B:USR1@600 below sends SIGUSR1 to this batch
+#       script 600 s before the limit; our USR1 trap touches the STOP-FILE so
+#       the workers exit cleanly via the §2a-cancel mechanism — no SIGTERM-mid-
+#       NCCL drain risk.  Belt+braces with AMBIX_SOFT_TIME_LIMIT below.
 #       Log written to GPFS so it is readable from the login node after the job.
 
 # ── Environment ────────────────────────────────────────────────────────────
@@ -36,6 +40,22 @@ mkdir -p /work/projects/imas_gpu/stops
 export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
 # Ensure no stale stop-file lingers from a previous job with the same ID.
 rm -f "${AMBIX_STOP_FILE}"
+
+# Layer 1 of the §2a-cancel-time three-layer defence: SIGUSR1 trap that
+# touches the STOP-FILE.  Fires from --signal=B:USR1@600 above, 600 s before
+# the --time ceiling.  Bash signal handling is reliable (no NCCL involvement)
+# so the trap touches the file in milliseconds, the workers see it at their
+# next step boundary, and the job exits cleanly with code 0 → no drain risk.
+_on_sigusr1() {
+    echo "[sbatch] SIGUSR1 received from SLURM (10 min pre-limit) — touching STOP-FILE for graceful shutdown" >&2
+    touch "${AMBIX_STOP_FILE}"
+}
+trap _on_sigusr1 USR1
+
+# Layer 2: internal soft wall-clock limit consumed by the training script.
+# Set to ~85% of the --time ceiling so it fires BEFORE the SLURM SIGUSR1.
+# 4h ceiling × 0.85 = 3h24m = 12240 s.
+export AMBIX_SOFT_TIME_LIMIT=12240
 
 # Required for torch.use_deterministic_algorithms with CuBLAS on CUDA ≥ 10.2
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
