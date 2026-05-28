@@ -1283,3 +1283,180 @@ svg.spark .dot  { fill: var(--accent); }
   font-size: 12px;
   font-weight: 600;
 }
+
+/* ===== Project picker / nav dropdown ============================== */
+
+.pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s;
+  position: relative;
+}
+.pick:hover { background: var(--bg-2); }
+.pick-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.pick-mark svg { width: 16px; height: 16px; display: block; }
+.pick-name {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+.pick-name.fleet { color: var(--ink-2); font-weight: 500; }
+.pick-caret { color: var(--muted); font-size: 10px; transition: transform .15s; }
+.pick.open .pick-caret { transform: rotate(180deg); }
+.pick-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.10);
+  padding: 4px;
+  z-index: 20;
+}
+[data-theme="dark"] .pick-menu { background: var(--bg-2); }
+.pick-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.pick-item:hover { background: var(--bg-2); }
+.pick-item.active { background: color-mix(in oklch, var(--accent) 6%, transparent); color: var(--accent); }
+.pick-divider { border-top: var(--hairline); margin: 4px 2px; }
+
+/* ===== Settings menu ============================================== */
+
+.settings { position: relative; }
+.settings-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 160px;
+  background: #fff;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  padding: 4px;
+  z-index: 20;
+}
+[data-theme="dark"] .settings-menu { background: var(--bg-2); }
+.settings-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 6px 10px 2px;
+  font-weight: 600;
+}
+.settings-item {
+  display: block;
+  text-align: left;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.settings-item:hover { background: var(--bg-2); }
+.settings-item.on { background: var(--accent-3); color: var(--accent); font-weight: 500; }
+
+/* ===== Status chips (dot + label pill) ============================ */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  line-height: 1.4;
+}
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+.chip.active { background: var(--accent-3); color: var(--accent); }
+.chip.active .dot { background: var(--accent); }
+.chip.blocked { background: var(--bad-2); color: var(--bad); }
+.chip.blocked .dot { background: var(--bad); }
+.chip.pending { background: var(--bg-2); color: var(--muted); border: var(--hairline); }
+.chip.pending .dot { background: var(--line-2); border: 1.5px solid var(--muted); }
+.chip.shipped { background: oklch(0.95 0.04 155); color: var(--ok); }
+.chip.shipped .dot { background: var(--ok); }
+.chip.zero { display: none; }
+
+/* ===== Icon button ================================================= */
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: var(--hairline);
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.icon-btn:hover { background: var(--bg-2); color: var(--ink); }
+
+/* ===== Top-right group + meta time ================================= */
+
+.top-r { display: flex; align-items: center; gap: 8px; }
+.meta-time { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* ===== Cmd-K trigger button ======================================== */
+
+.r-cmdk-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: var(--hairline);
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-family: inherit;
+}
+.r-cmdk-trigger:hover { background: var(--bg-2); color: var(--ink); }
+.r-cmdk-trigger .kbd {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  background: #fff;
+  border: var(--hairline);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.r-cmdk-trigger svg { color: var(--muted); }
