@@ -139,12 +139,14 @@ class DecoderFinetuneTrainer:
     # ------------------------------------------------------------------
 
     def build_dataloaders(self) -> tuple[Iterable, Iterable]:
-        """Build training and validation data loaders.
+        """Build training and validation data loaders (lazy, streaming).
 
-        Each DataLoader yields ``(B, H, W, 3)`` uint8 tensors of plasma frames
-        resized to :attr:`DecoderFinetuneConfig.image_size`.
+        Pre-scans zarr metadata to enumerate (path, variable, frame_index) tuples
+        without reading any pixel data — identical in spirit to stream_encode.py.
+        Each DataLoader worker opens its own zarr store handles and reads single
+        frames on demand, overlapping I/O with GPU compute.
 
-        Level-1 zarr layout assumed::
+        Level-1 zarr layout::
 
             {frame_root}/{shot_id}.zarr/{camera}/
 
@@ -155,113 +157,155 @@ class DecoderFinetuneTrainer:
         """
         import numpy as np
         import torch
-        import xarray as xr
-        from torch.utils.data import DataLoader, TensorDataset
+        import zarr
+        from torch.utils.data import DataLoader
 
         cfg = self.config
 
-        def _load_shots(shot_ids: list[int], label: str) -> torch.Tensor:
-            all_frames: list[np.ndarray] = []
-            for i, shot_id in enumerate(shot_ids):
+        # ------------------------------------------------------------------
+        # Lazy frame dataset — no pixel data loaded at __init__ time
+        # ------------------------------------------------------------------
+        class _PlasmaFrameDataset(torch.utils.data.Dataset):
+            """Each item is one (H, W, 3) uint8 frame, loaded lazily from zarr."""
+
+            def __init__(
+                self,
+                entries: list[tuple[str, str, int]],
+                image_size: int,
+            ) -> None:
+                self.entries = entries    # (zarr_path, arr_key, frame_idx)
+                self.image_size = image_size
+
+            def __len__(self) -> int:
+                return len(self.entries)
+
+            def __getitem__(self, i: int) -> "torch.Tensor":
+                import numpy as np
+                from PIL import Image
+
+                zarr_path, arr_key, frame_idx = self.entries[i]
+
+                # Per-worker zarr store cache (not shared across processes)
+                if not hasattr(self, "_z_cache"):
+                    self._z_cache: dict[str, object] = {}
+
+                if zarr_path not in self._z_cache:
+                    if len(self._z_cache) > 128:
+                        del self._z_cache[next(iter(self._z_cache))]
+                    self._z_cache[zarr_path] = zarr.open_group(
+                        zarr_path, mode="r"
+                    )
+
+                z = self._z_cache[zarr_path]
+                frame = np.asarray(z[arr_key][frame_idx])  # single frame read
+
+                if frame.dtype != np.uint8:
+                    lo = float(frame.min())
+                    hi = float(frame.max())
+                    if hi > lo:
+                        frame = (
+                            (frame.astype(np.float32) - lo) * 255.0 / (hi - lo)
+                        ).clip(0, 255).astype(np.uint8)
+                    else:
+                        frame = np.zeros(frame.shape, dtype=np.uint8)
+
+                if frame.ndim == 2:
+                    frame = np.repeat(frame[..., np.newaxis], 3, axis=-1)
+                elif frame.ndim == 3 and frame.shape[-1] == 1:
+                    frame = np.repeat(frame, 3, axis=-1)
+                elif frame.ndim == 3 and frame.shape[-1] != 3:
+                    frame = frame[:, :, :3]
+
+                if frame.shape[:2] != (self.image_size, self.image_size):
+                    img = Image.fromarray(frame)
+                    img = img.resize(
+                        (self.image_size, self.image_size), Image.BILINEAR
+                    )
+                    frame = np.asarray(img)
+
+                return torch.from_numpy(frame)
+
+        # ------------------------------------------------------------------
+        # Metadata scan: enumerate frame (path, key, index) pairs only
+        # ------------------------------------------------------------------
+        def _scan_shots(
+            shot_ids: list[int], label: str
+        ) -> list[tuple[str, str, int]]:
+            entries: list[tuple[str, str, int]] = []
+            n_missing = 0
+            t0 = time.monotonic()
+            for shot_id in shot_ids:
                 if STOP.is_set():
                     break
                 zarr_path = cfg.frame_root / f"{shot_id}.zarr" / cfg.camera
                 if not zarr_path.is_dir():
+                    n_missing += 1
                     continue
                 try:
-                    ds = xr.open_zarr(str(zarr_path), consolidated=False)
-                    data_vars = list(ds.data_vars)
-                    if not data_vars:
+                    z = zarr.open_group(str(zarr_path), mode="r")
+                    arr_keys = [
+                        k for k in z.array_keys()
+                        if z[k].ndim >= 3  # skip 1D coord arrays
+                    ]
+                    if not arr_keys:
+                        n_missing += 1
                         continue
-                    raw = np.asarray(ds[data_vars[0]].values)  # (T, H, W) or (T, H, W, C)
-                    t = raw.shape[0]
-                    if t == 0:
+                    arr_key = arr_keys[0]
+                    t_len = int(z[arr_key].shape[0])
+                    if t_len == 0:
                         continue
-                    indices = np.linspace(0, t - 1, min(cfg.frames_per_shot, t), dtype=int)
-                    sampled = raw[indices]
-                    if sampled.ndim == 3:
-                        sampled = np.repeat(sampled[..., np.newaxis], 3, axis=-1)
-                    elif sampled.shape[-1] == 1:
-                        sampled = np.repeat(sampled, 3, axis=-1)
-                    if sampled.dtype != np.uint8:
-                        lo = float(sampled.min())
-                        hi = float(sampled.max())
-                        if hi > lo:
-                            sampled = (
-                                (sampled.astype(np.float32) - lo) * 255.0 / (hi - lo)
-                            )
-                        sampled = sampled.clip(0, 255).astype(np.uint8)
-                    try:
-                        from PIL import Image
-
-                        resized = []
-                        for frame in sampled:
-                            img = Image.fromarray(frame)
-                            img = img.resize(
-                                (cfg.image_size, cfg.image_size), Image.BILINEAR
-                            )
-                            resized.append(np.asarray(img))
-                        sampled = np.stack(resized, axis=0)
-                    except ImportError:
-                        warnings.warn(
-                            f"Pillow not available — frames NOT resized to "
-                            f"{cfg.image_size}×{cfg.image_size}.",
-                            stacklevel=2,
-                        )
-                    all_frames.append(sampled)
-                    if (i + 1) % 500 == 0:
-                        print(
-                            f"[finetune-decoder] loaded {i + 1}/{len(shot_ids)} "
-                            f"{label} shots ({len(all_frames)} non-empty)",
-                            flush=True,
-                        )
+                    indices = np.linspace(
+                        0, t_len - 1, min(cfg.frames_per_shot, t_len), dtype=int
+                    )
+                    for idx in indices:
+                        entries.append((str(zarr_path), arr_key, int(idx)))
                 except Exception as exc:  # noqa: BLE001
                     warnings.warn(
-                        f"[finetune-decoder] shot {shot_id} load failed: {exc}",
+                        f"[finetune-decoder] scan {shot_id} failed: {exc}",
                         stacklevel=2,
                     )
-            if not all_frames:
-                return torch.zeros(
-                    (0, cfg.image_size, cfg.image_size, 3), dtype=torch.uint8
-                )
-            return torch.from_numpy(np.concatenate(all_frames, axis=0))
+                    n_missing += 1
+            elapsed = time.monotonic() - t0
+            print(
+                f"[finetune-decoder] {label}: scanned {len(shot_ids)} shots "
+                f"→ {len(entries)} frames "
+                f"({n_missing} missing/skipped) in {elapsed:.1f}s",
+                flush=True,
+            )
+            return entries
 
         print(
-            f"[finetune-decoder] loading {len(cfg.train_shot_ids)} train shots "
-            f"({cfg.frames_per_shot} frames/shot max) ...",
+            f"[finetune-decoder] scanning {len(cfg.train_shot_ids)} train + "
+            f"{len(cfg.val_shot_ids)} val shots (metadata only) ...",
             flush=True,
         )
-        t0 = time.monotonic()
-        train_frames = _load_shots(cfg.train_shot_ids, "train")
-        print(
-            f"[finetune-decoder] train loaded: {len(train_frames)} frames "
-            f"in {time.monotonic() - t0:.0f}s",
-            flush=True,
-        )
+        train_entries = _scan_shots(cfg.train_shot_ids, "train")
+        val_entries = _scan_shots(cfg.val_shot_ids, "val")
 
-        print(
-            f"[finetune-decoder] loading {len(cfg.val_shot_ids)} val shots ...",
-            flush=True,
-        )
-        val_frames = _load_shots(cfg.val_shot_ids, "val")
-        print(
-            f"[finetune-decoder] val loaded: {len(val_frames)} frames",
-            flush=True,
-        )
+        # Shuffle training entry order once at startup (DataLoader also shuffles)
+        rng = np.random.default_rng(cfg.seed)
+        rng.shuffle(train_entries)
 
-        g = torch.Generator()
-        g.manual_seed(cfg.seed)
+        # num_workers overlaps zarr I/O with GPU compute; persistent_workers
+        # keeps per-worker zarr caches warm across epoch boundaries.
         train_loader = DataLoader(
-            TensorDataset(train_frames),
+            _PlasmaFrameDataset(train_entries, cfg.image_size),
             batch_size=cfg.batch_size,
             shuffle=True,
-            generator=g,
+            num_workers=8,
+            prefetch_factor=2,
+            persistent_workers=True,
+            pin_memory=cfg.device.startswith("cuda"),
             drop_last=True,
         )
         val_loader = DataLoader(
-            TensorDataset(val_frames),
+            _PlasmaFrameDataset(val_entries, cfg.image_size),
             batch_size=cfg.batch_size,
             shuffle=False,
+            num_workers=4,
+            prefetch_factor=2,
+            persistent_workers=True,
+            pin_memory=cfg.device.startswith("cuda"),
         )
         return train_loader, val_loader
 
@@ -488,7 +532,7 @@ class DecoderFinetuneTrainer:
         n_batches = 0
 
         model.eval()
-        for (batch,) in val_loader:
+        for batch in val_loader:
             if STOP.is_set():
                 break
             frames = batch.float().permute(0, 3, 1, 2).to(cfg.device) / 255.0
@@ -640,11 +684,11 @@ class DecoderFinetuneTrainer:
                     _wd_deadline["t"] = time.monotonic() + budget
 
                 try:
-                    (batch,) = next(train_iter)
+                    batch = next(train_iter)
                 except StopIteration:
                     train_iter = iter(train_loader)
                     try:
-                        (batch,) = next(train_iter)
+                        batch = next(train_iter)
                     except StopIteration:
                         break
 
