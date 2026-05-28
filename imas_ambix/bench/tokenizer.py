@@ -279,8 +279,17 @@ def benchmark_frame_tokenizer(
             ds = xr.open_zarr(str(shot_path), group=camera, consolidated=False)
             frames = np.asarray(ds["data"].values)
 
-            if config.max_items_per_shot is not None:
-                frames = frames[: config.max_items_per_shot]
+            if (
+                config.max_items_per_shot is not None
+                and frames.shape[0] > config.max_items_per_shot
+            ):
+                # C8 fix (2026-05-28): uniform stride across the full shot
+                # matches training's np.linspace.  See stream_worker.py for
+                # the rationale.
+                indices = np.linspace(
+                    0, frames.shape[0] - 1, config.max_items_per_shot, dtype=int
+                )
+                frames = frames[indices]
 
             n_items = frames.shape[0]
             bytes_in = int(frames.nbytes)

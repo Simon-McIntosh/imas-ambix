@@ -193,6 +193,18 @@ except ImportError:
     def load_shot_frames(
         shot_id: int, camera: str, l1_root: Path, max_frames: int | None = None
     ) -> np.ndarray:
+        """Load shot frames, optionally subsampled to ``max_frames`` via uniform
+        stride across the full shot duration.
+
+        C8 fix (2026-05-28): previously ``frames = frames[:max_frames]`` took
+        the FIRST N frames only — for MAST plasma shots this is the dim
+        ramp-up phase.  The fine-tune training samples via ``np.linspace``
+        across the full shot (ramp-up + flat-top + decay).  The frame
+        populations therefore differed structurally between training and
+        bench, producing a measurement gap (training rFID ≈ 14, bench rFID
+        ≈ 29) that we mis-attributed to encoder pipeline mismatches.  Fix:
+        match training's selection by using uniform stride here too.
+        """
         import xarray as xr
 
         shot_zarr = Path(l1_root) / f"{shot_id}.zarr"
@@ -203,8 +215,11 @@ except ImportError:
                 f"no data variables in group '{camera}' of shot {shot_id}"
             )
         frames = ds[data_vars[0]].values
-        if max_frames is not None:
-            frames = frames[:max_frames]
+        if max_frames is not None and frames.shape[0] > max_frames:
+            # Uniform stride across the full shot — matches training's
+            # _scan_shots which uses np.linspace(0, T-1, frames_per_shot).
+            indices = np.linspace(0, frames.shape[0] - 1, max_frames, dtype=int)
+            frames = frames[indices]
         return np.asarray(frames)
 
     def load_model(magvit2_root: Path, device: str, ckpt_path: "Path | None" = None):
