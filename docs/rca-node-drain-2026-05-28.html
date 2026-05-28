@@ -212,9 +212,13 @@ need to remember the right mechanism per job.</li>
 <h2 id="status">Status</h2>
 <ul>
 <li><strong>Smoke job 1208985</strong> (200-step, 50 train + 10 val) launched
-14:11 — still on the drained node (drain blocks new scheduling, not in-flight
-jobs). Will complete and produce verification artefacts. <strong>Do not
-scancel.</strong></li>
+14:11 onto the drained node, <strong>failed at 14:11:26</strong> (17&nbsp;s)
+with <code>RuntimeError: device &gt;= 0 && device &lt; num_gpus INTERNAL
+ASSERT FAILED ... device=1, num_gpus=</code> on rank 1.  Root cause: dirty
+GPU state inherited from the cancelled jobs that triggered the drain — the
+exact failure mode recommendation #2 (epilogue <code>nvidia-smi --gpu-reset</code>)
+is designed to prevent.  The smoke must be rerun after admin resumes the
+node with a clean GPU state.</li>
 <li><strong>Production 24h job</strong> will not auto-submit on smoke
 completion — the agent's wakeup prompt has been updated to require user
 authorisation given the drain. Production job needs admin resume first
