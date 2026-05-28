@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="reckon-type" content="plan">
+<meta name="plan-slug" content="tokenizer-cosmos-evaluation">
+<meta name="plan-roi" content="mid">
+<meta name="plan-effort" content="L">
+<meta name="plan-tier" content="opus">
+<meta name="plan-summary" content="Evaluate NVIDIA Cosmos-Tokenizer DI16x16 (FSQ, 64K codebook) as a candidate replacement for Open-MAGVIT2 if v1 transient-fidelity work doesn't close the rFID gate. NOT a 'switch to Cosmos' plan — Cosmos image rFID is actually WORSE than Open-MAGVIT2 on standard benchmarks, but its FSQ codebook structurally avoids the 2.5%-utilisation problem we hit on plasma. Includes head-to-head comparison vs MGVQ and MambaVideo (2025 alternatives) before committing.">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-sprint" content="S6">
+<meta name="plan-depends-on" content="tokenizers,plasma-decoder-finetune,tokenizer-benchmarks,tokenizer-transient-fidelity">
+<title>Cosmos-Tokenizer evaluation (FSQ alternative) | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+<h1>Cosmos-Tokenizer evaluation (FSQ alternative)</h1>
+
+<p>Status: <span class="status active"><span class="dot"></span>Active</span> —
+research landed 2026-05-28; this is a contingency plan that activates only if
+the
+<a href="/imas-ambix/tokenizer-transient-fidelity.html">transient-fidelity</a>
+v1 work fails to close the rFID gate on plasma data.</p>
+
+<h2 id="s1">§1 — Why this exists</h2>
+
+<p>Production fine-tune
+<a href="/imas-ambix/plasma-decoder-finetune.html">plasma-decoder-finetune</a>
+(job 1209004) is plateauing at rFID ≈ 12.5 vs a &lt; 5 gate — a 22 %
+improvement from baseline 16.25 but far from the target.  Continuing
+diagnosis points at a structural issue: the Open-MAGVIT2 LFQ codebook with
+2<sup>18</sup> = 262 144 entries is only <strong>2.5 % utilised</strong> on
+plasma data.  The decoder is doing its best, but the encoder is mapping the
+narrow plasma distribution onto ~6 500 tokens out of 262 144 — a tiny corner
+of the vocabulary that may be too coarse to encode the visual structure
+faithfully.</p>
+
+<p>Two architectural fixes that could close the gap:</p>
+
+<ol>
+<li><strong>Better use of the existing codebook</strong> — train the encoder
+on plasma data (currently we freeze it).  But this requires re-tokenising
+the 4.02 B-token corpus.</li>
+<li><strong>Switch to a codebook architecture that doesn't have dead entries
+by construction</strong>.  This is what NVIDIA Cosmos-Tokenizer offers via
+FSQ (Finite Scalar Quantization).</li>
+</ol>
+
+<p>The user (2026-05-28) asked specifically about
+<a href="https://github.com/NVIDIA/Cosmos-Tokenizer">Cosmos-Tokenizer</a>.
+This plan evaluates whether adopting it would actually solve the plateau —
+and the answer is <strong>not obviously yes</strong>.  The research below
+shows Cosmos has a worse image rFID on natural-image benchmarks than
+Open-MAGVIT2.  Its advantage on plasma would come from FSQ
+structural-utilisation guarantees, not raw fidelity.  This plan therefore
+treats Cosmos as a <em>candidate</em> to evaluate alongside MGVQ and
+MambaVideo, not a foregone conclusion.</p>
+
+<h2 id="s2">§2 — Cosmos-Tokenizer at a glance</h2>
+
+<h3>Project status</h3>
+<ul>
+<li>Original repo
+<a href="https://github.com/NVIDIA/Cosmos-Tokenizer">github.com/NVIDIA/Cosmos-Tokenizer</a>
+was <strong>archived 2025-02-11</strong> (read-only).  Development moved to
+<a href="https://github.com/NVIDIA/Cosmos">NVIDIA/Cosmos</a> v1 monorepo and
+again to <a href="https://github.com/nvidia-cosmos">nvidia-cosmos</a> org
+(latest <code>cosmos-predict2.5</code> v1.5.1 dated 2026-04-03).</li>
+<li><strong>Tokenizer weights have not been retrained</strong> — Cosmos 1.0
+(Jan 2025) remains the latest released version.  16 + months frozen.  No
+"Cosmos-Tokenizer 2.0" exists.</li>
+<li>Tokenizer training code lives in
+<a href="https://docs.nvidia.com/cosmos/latest/predict1/tokenizer/index.html">cosmos-predict1</a>;
+post-training guide is intact.</li>
+</ul>
+
+<h3>Variants released (12 total)</h3>
+
+<div class="table-scroll"><table class="t">
+<thead><tr>
+<th>Variant</th><th>Type</th><th>Spatial</th><th>Temporal</th><th>Codebook</th><th>Params</th>
+</tr></thead>
+<tbody>
+<tr><td>CI8x8 / CI16x16</td><td>Continuous Image</td><td>8× / 16×</td><td>—</td><td>continuous 16-D latent</td><td>~64 M</td></tr>
+<tr><td>DI8x8</td><td>Discrete Image</td><td>8×</td><td>—</td><td><strong>FSQ 64 K</strong> (6 levels × 6 dims)</td><td>~64-79 M</td></tr>
+<tr><td><strong>DI16x16</strong></td><td>Discrete Image</td><td>16×</td><td>—</td><td><strong>FSQ 64 K</strong></td><td>~64-79 M</td></tr>
+<tr><td>CV4x8x8, CV8x8x8, CV8x16x16</td><td>Continuous Video</td><td>8 / 16×</td><td>4 / 8×</td><td>continuous</td><td>~105 M</td></tr>
+<tr><td>DV4x8x8, DV8x8x8, DV8x16x16</td><td>Discrete Video</td><td>8 / 16×</td><td>4 / 8×</td><td>FSQ 64 K</td><td>~105 M+</td></tr>
+</tbody></table></div>
+
+<p>For our 256 × 256 plasma frames, <strong>DI16x16 is the natural drop-in</strong>:
+256 / 16 = 16, so the encoder produces a 16 × 16 grid of int16 indices —
+<em>identical spatial layout</em> to our current Open-MAGVIT2 tokens.  The
+DV variants would be a bigger pipeline change (temporal compression) but
+worth considering for a future world-model architecture iteration.</p>
+
+<h3>Weights, license, integration</h3>
+<ul>
+<li>Weights: HuggingFace at
+<code>nvidia/Cosmos-1.0-Tokenizer-{variant}</code>, distributed as
+<code>encoder.jit</code> + <code>decoder.jit</code> TorchScript files
+(~250-320 MB per image tokenizer file).</li>
+<li>Model license:
+<a href="https://developer.download.nvidia.com/licenses/nvidia-open-model-license-agreement-june-2024.pdf">NVIDIA
+Open Model License</a> — commercial use permitted, derivatives permitted,
+no output ownership claim.  Friendlier than Llama-style RAIL.  Code
+license: Apache 2.0.</li>
+<li>Inference: BF16 on Ampere / Hopper; A100 / H200 sufficient.  Compatible
+with our existing torch 2.5.1 + cu124 magvit2 venv.</li>
+</ul>
+
+<h2 id="s3">§3 — The honest comparison (Cosmos is NOT obviously better)</h2>
+
+<p>NVIDIA's own reported numbers and the Open-MAGVIT2 paper's head-to-head
+comparison:</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr>
+<th>Benchmark (16× compression)</th>
+<th>Open-MAGVIT2 (LFQ, 262K)</th>
+<th>Cosmos DI16x16 (FSQ, 64K)</th>
+<th>Verdict</th>
+</tr></thead>
+<tbody>
+<tr>
+  <td>ImageNet-1k rFID (zero-shot)</td>
+  <td><strong>1.17</strong> <sup>[1]</sup></td>
+  <td>~4.57 (their measurement) / 1.67 (ours)</td>
+  <td>Open-MAGVIT2 wins</td>
+</tr>
+<tr>
+  <td>MS-COCO rFID (zero-shot)</td>
+  <td><strong>6.76</strong> <sup>[1]</sup></td>
+  <td>11.97 / 12.25 (NVIDIA's own card) <sup>[2]</sup></td>
+  <td>Open-MAGVIT2 wins</td>
+</tr>
+<tr>
+  <td>Codebook utilisation (plasma rbb, our data)</td>
+  <td>2.5 % of 262 K (~6.5 K active) <sup>[3]</sup></td>
+  <td><strong>~100 % of 64 K by construction</strong></td>
+  <td>Cosmos wins structurally</td>
+</tr>
+<tr>
+  <td>Video reconstruction (DAVIS)</td>
+  <td>n/a (image-only)</td>
+  <td>CV4x8x8: PSNR 35.28, rFVD 15.93</td>
+  <td>Cosmos has video; not directly comparable</td>
+</tr>
+</tbody></table></div>
+
+<p style="font-size: 0.9em">
+<sup>[1]</sup> <a href="https://arxiv.org/abs/2409.04410">Open-MAGVIT2 paper
+arXiv:2409.04410</a>, Table 3.
+<sup>[2]</sup> <a href="https://huggingface.co/nvidia/Cosmos-Tokenizer-DI16x16">HF
+nvidia/Cosmos-Tokenizer-DI16x16</a>.
+<sup>[3]</sup> Measured by us at corpus encode time
+(<code>imas_ambix/data/stream_encode.py</code>).
+</p>
+
+<p><strong>Critical reading:</strong> on standard image benchmarks, Cosmos's
+discrete tokenizer is <em>worse</em> than what we already use.  If our
+plasma plateau came from "the tokenizer is fundamentally bad on natural
+images," Cosmos would not help.  The plateau is a <strong>domain-shift
+problem</strong> (plasma frames ≠ ImageNet frames the tokenizer was
+trained on).  Swapping tokenizers without re-training the encoder on
+plasma data would just trade one out-of-distribution tokenizer for
+another.</p>
+
+<p>The legitimate case for Cosmos is <strong>structural codebook
+utilisation</strong>.  FSQ quantises each of 6 dimensions into 6 levels
+independently — every region of the latent space corresponds to a code,
+so there are no dead codes by construction.  Our 2.5 %-utilisation
+problem cannot recur with FSQ.  Whether that's the actual cause of our
+plateau is the empirical question this plan answers.</p>
+
+<h2 id="s4">§4 — Alternatives also worth considering</h2>
+
+<p>Cosmos is <strong>not the SOTA</strong> as of mid-2026.  A short survey
+suggests three other 2025+ tokenizers that should be on the comparison
+table before committing:</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Candidate</th><th>Reported edge</th><th>Source</th><th>Note</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>MGVQ</strong> (2025)</td>
+  <td>Multi-group quantization; claims SOTA on standard image benchmarks</td>
+  <td><a href="https://arxiv.org/html/2507.07997v1">arXiv:2507.07997</a></td>
+  <td>Newer than Cosmos; published 2025-07.  Need to inspect weights availability.</td>
+</tr>
+<tr>
+  <td><strong>MambaVideo Tokenizer</strong> (2025)</td>
+  <td>+0.9 dB PSNR over MAGVIT-v2 at equal compression; long-range sequence inductive bias</td>
+  <td><a href="https://arxiv.org/html/2507.04559v1">arXiv:2507.04559</a></td>
+  <td>Mamba-based; potentially plasma-friendly for the temporal regime.</td>
+</tr>
+<tr>
+  <td><strong>FlowMo</strong> (mode-seeking diffusion AE)</td>
+  <td>Reports SOTA ImageNet rFID</td>
+  <td><a href="https://arxiv.org/html/2503.11056">arXiv:2503.11056</a></td>
+  <td>Diffusion-based tokenisation; not a 1:1 drop-in.</td>
+</tr>
+<tr>
+  <td><strong>MAR</strong> (Masked Autoregressive)</td>
+  <td>Bypasses tokenisation entirely; continuous-latent AR</td>
+  <td>(option-of-last-resort if "stop tokenizing" is on the table)</td>
+  <td>Largest architectural change of all options.</td>
+</tr>
+</tbody></table></div>
+
+<p>The 2026-05-28 research did not deep-dive these — they're flagged for a
+focused literature review if we get to the decision point of switching
+tokenizers.</p>
+
+<h2 id="s5">§5 — Implementation phases</h2>
+
+<p>Structured as an <strong>evaluation</strong>, not a migration.  We don't
+adopt Cosmos unless empirical evidence on plasma data justifies it.</p>
+
+<h3>Phase 0 — Trigger conditions (do not start unless)</h3>
+<p>This plan activates ONLY when:</p>
+<ol>
+<li><a href="/imas-ambix/tokenizer-transient-fidelity.html">transient-fidelity</a>
+v1 has shipped (Phases 2-5 done) and the resulting rFID still does NOT
+clear the gate, OR</li>
+<li>The stratified rFID re-bench shows
+<code>rfid_transient ≥ 15</code> while quiescent is low, indicating the
+codebook fundamentally cannot represent transient structure (i.e., adding
+loss-weight to transient frames won't help because the tokens aren't
+expressive enough), OR</li>
+<li>The user explicitly decides to evaluate the alternative ahead of v1
+results.</li>
+</ol>
+
+<h3>Phase 1 — Set up Cosmos inference (no training)</h3>
+<ol>
+<li>Clone <code>cosmos-predict1</code> at the version that matches our
+torch 2.5.1.  Verify the <code>.jit</code> files load on a single H200
+in our magvit2 venv.</li>
+<li>Download DI16x16 weights from
+<a href="https://huggingface.co/nvidia/Cosmos-Tokenizer-DI16x16">HF
+nvidia/Cosmos-Tokenizer-DI16x16</a> to
+<code>/work/projects/imas_gpu/mast-tokens/cosmos/v1/DI16x16/</code>.</li>
+<li>Wrap with a thin <code>CosmosDI16x16Tokenizer</code> class implementing
+our existing <code>FrameTokenizer</code> protocol (see
+<code>imas_ambix/tokenizer/frames.py</code>) so the bench harness works
+unchanged.</li>
+<li>Smoke-test on a single shot (the same 1-shot smoke we use for
+Open-MAGVIT2 in
+<code>imas_ambix/bench/configs/_smoke-1shot.yaml</code>).</li>
+</ol>
+
+<h3>Phase 2 — Head-to-head bench (zero-shot, no fine-tune)</h3>
+<ol>
+<li>Run our existing 100-shot rbb bench
+(<code>v0-rbb-100shot.yaml</code>) with the Cosmos DI16x16 factory.
+This measures <strong>baseline Cosmos rFID on plasma</strong>, no
+domain adaptation.</li>
+<li>Compare to our Open-MAGVIT2 baseline (rFID 16.25 from job 1208918)
+and the post-finetune result (rFID ~12.5 from 1209004).</li>
+<li>Use the <code>rfid_stratified</code> metric (already landed
+2026-05-28) — we need per-class numbers to attribute any difference.</li>
+<li>Report codebook utilisation: expect ~100 % for FSQ vs 2.5 % for
+LFQ.  Confirms the structural claim.</li>
+</ol>
+
+<h3>Phase 3 — Decoder fine-tune (mirror our Open-MAGVIT2 recipe)</h3>
+<ol>
+<li>Adapt <code>imas_ambix/tokenizer/finetune_decoder.py</code> to accept
+the Cosmos encoder/decoder split.  The FSQ quantiser is parameter-free
+(just rounding), so freezing the encoder also freezes token IDs — same
+fine-tune contract as Open-MAGVIT2.</li>
+<li>Run the same 10 k-step DDP fine-tune on 4×H200 (same SLURM template
+from
+<a href="/imas-ambix/plasma-decoder-finetune.html">plasma-decoder-finetune</a>).</li>
+<li>Re-bench with <code>rfid_stratified</code>.</li>
+</ol>
+
+<h3>Phase 4 — Encoder fine-tune (if Phase 3 still plateaus)</h3>
+<p>If decoder-only fine-tune does not clear the gate, train the encoder
+on plasma data.  This re-tokenises the corpus (~7 h) and breaks
+back-compatibility with the existing token store — gated on Phase 3
+results.  Requires the
+<a href="https://docs.nvidia.com/cosmos/latest/predict1/tokenizer/post-training_guide.html">cosmos-predict1
+post-training</a> framework (LazyDict configs, torchrun
+<code>--nproc_per_node=8</code> default).  Our 4-GPU reservation may need
+the single-node config adapted.</p>
+
+<h3>Phase 5 — MGVQ / MambaVideo comparison (if Phase 4 wins)</h3>
+<p>Only if Cosmos beats Open-MAGVIT2 on plasma after decoder fine-tune do
+we go through the engineering of evaluating MGVQ / MambaVideo too — at
+that point a 3-way comparison gives us the confidence to commit to a
+non-Open-MAGVIT2 pipeline.</p>
+
+<h3>Phase 6 — Adopt or reject decision</h3>
+<p>Lock decision <code>frame-tokenizer-architecture</code> in the parent
+<a href="/imas-ambix/tokenizers.html">tokenizers</a> plan.  If Cosmos
+wins, write a migration plan
+(<code>plan-cosmos-corpus-encode.html</code>) covering re-tokenisation
+of the 9 528-shot corpus.  If Cosmos does NOT win, document the negative
+result here so future iterations have the evidence.</p>
+
+<h2 id="s6">§6 — Acceptance criteria (when does Cosmos win?)</h2>
+
+<p>Cosmos is adopted (replacing Open-MAGVIT2 as our primary frame tokenizer)
+ONLY if ALL of the following hold after Phase 3:</p>
+
+<ol>
+<li><code>rfid_overall &lt; 5</code> on the 100-shot plasma bench (the
+absolute gate), OR <code>rfid_transient &lt; 5</code> if we've switched
+to the transient-rFID gate per
+<a href="/imas-ambix/tokenizer-transient-fidelity.html#s5">transient-fidelity §5</a>.</li>
+<li>Cosmos rFID is <strong>at least 2 points lower</strong> than what
+Open-MAGVIT2 achieves on the same plasma corpus after its own decoder
+fine-tune.  A tie or slight win doesn't justify the migration cost.</li>
+<li>Cosmos codebook utilisation ≥ 50 % across all 64 K entries (sanity
+check: FSQ should give this for free — if it doesn't, something is
+wrong with our integration).</li>
+<li>Cosmos token throughput at corpus encode time (frames / sec / GPU) is
+≥ 80 % of Open-MAGVIT2's measured 308 fps/GPU.  Slower is acceptable;
+much slower delays world-model training.</li>
+<li>License + dependency stack review confirms no blocker for ITER
+publication path.</li>
+</ol>
+
+<p>Cosmos is rejected (we keep Open-MAGVIT2) if:</p>
+
+<ul>
+<li>Phase 2 baseline rFID on plasma is &gt; Open-MAGVIT2 baseline by
+&gt; 3 points (Cosmos starts worse and never catches up).</li>
+<li>Phase 3 decoder fine-tune plateaus at the same rFID as Open-MAGVIT2.
+The architecture isn't the limiting factor; the data / training recipe
+is.</li>
+<li>Engineering blockers surface (JIT cross-version load failures,
+license conflict, etc).</li>
+</ul>
+
+<h2 id="s7">§7 — Risks &amp; unknowns</h2>
+
+<ul>
+<li><strong>JIT brittleness.</strong>  Cosmos ships
+<code>encoder.jit</code> / <code>decoder.jit</code> archives traced on a
+specific PyTorch version.  Cross-version load failures are common.  Must
+test load on our exact torch 2.5.1 build before designing Phase 1.</li>
+<li><strong>No plasma / scientific imaging community usage found.</strong>
+Zero hits on "Cosmos-Tokenizer plasma" or similar.  We would be the
+first plasma group to evaluate this — no prior art, no
+community-confirmed gotchas to lean on.</li>
+<li><strong>Cosmos is frozen.</strong>  16 months no updates to the
+tokenizer.  Any bugs we encounter, we fix ourselves; NVIDIA upstream is
+read-only.  The active <code>cosmos-predict2.5</code> is a higher-level
+world-model framework that reuses the 1.0 tokenizer.</li>
+<li><strong>FSQ utilisation claim is at the training distribution.</strong>
+Cosmos was pre-trained on natural images / video.  On plasma data, FSQ
+still produces all 64 K codes (by construction), but the codes may be
+poorly aligned with plasma structure — encoder still sees an
+out-of-distribution input.  This is the same domain-shift issue that's
+already biting us, just with different numerics.</li>
+<li><strong>SOTA has moved past Cosmos.</strong>  Per
+<a href="#s4">§4</a>, mid-2026 tokenizers (MGVQ, MambaVideo) report
+better numbers.  Investing in Cosmos when newer alternatives exist
+needs justification.  Phase 5 mitigates by requiring a 3-way bake-off
+if Cosmos becomes the lead candidate.</li>
+</ul>
+
+<h2 id="s8">§8 — Out of scope</h2>
+
+<ul>
+<li><strong>Cosmos video tokenizers (CV / DV variants).</strong>
+Switching to video tokenisation is a bigger pipeline change (token
+shape changes, world-model architecture changes) and is gated on a
+separate "should we tokenise in time" decision.  Tracked in the
+<a href="/imas-ambix/tokenizers.html">tokenizers</a> parent under
+<code>equilibrium-2d-tokenizer</code> and related decisions, not
+here.</li>
+<li><strong>Re-tokenising the entire corpus.</strong>  Only triggered by
+Phase 6 if Cosmos wins; that work would land in a separate
+<code>plan-cosmos-corpus-encode.html</code>.</li>
+<li><strong>Multi-camera (rir / IR) experiments.</strong>  Cosmos
+DI16x16 only takes 3-channel RGB; the IR-camera-codebook decision in
+the parent
+<a href="/imas-ambix/tokenizers.html">tokenizers</a> plan determines
+whether we share or split.</li>
+<li><strong>Training a custom FSQ tokenizer from scratch.</strong>  FSQ
+is a published technique (Mentzer et al. 2023); we could implement our
+own.  Not in scope here — using off-the-shelf Cosmos avoids the
+training cost.</li>
+</ul>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+
+<div class="r-dec" data-key="evaluate-trigger" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">When should this plan's Phase 1 actually start?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="after-v1">after the transient-fidelity v1 work ships and re-bench still doesn't clear the gate (default — evidence-driven)</button>
+    <button class="r-opt" data-value="parallel">run Phase 1-2 (smoke + zero-shot bench) in parallel with v1 fine-tune to get the data point sooner</button>
+    <button class="r-opt" data-value="defer">defer indefinitely; revisit only if world-model-v0 fails on transient prediction</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+
+<div class="r-dec" data-key="variant-choice" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">Which Cosmos variant for the initial evaluation?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="di16x16">DI16x16 — discrete, image-only, 16× spatial (drop-in for our pipeline)</button>
+    <button class="r-opt" data-value="di8x8">DI8x8 — discrete, image-only, 8× spatial (4× more tokens per frame, finer-grained but heavier downstream)</button>
+    <button class="r-opt" data-value="both">evaluate both DI16x16 and DI8x8; let the 8× variant prove the spatial-detail hypothesis</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+
+<div class="r-dec" data-key="encoder-fine-tune-budget" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">If Phase 3 (decoder-only) plateaus, do we commit to Phase 4 (encoder fine-tune)?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="commit">yes — encoder fine-tune is the principled fix; budget ~7 h GPU + re-tokenise the corpus</button>
+    <button class="r-opt" data-value="alternatives-first">no — escalate to Phase 5 (MGVQ / MambaVideo comparison) before re-training Cosmos</button>
+    <button class="r-opt" data-value="reject">no — if decoder-only fails on Cosmos, declare Cosmos a no-go and revisit Open-MAGVIT2 encoder fine-tune instead</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+
+<div class="r-dec" data-key="comparison-scope" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">If Cosmos wins Phase 3, do we still bake-off against MGVQ + MambaVideo?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="bake-off">yes — Phase 5 mandatory; 3-way comparison before committing the corpus re-tokenisation effort</button>
+    <button class="r-opt" data-value="skip">no — Cosmos clearing the gate is sufficient; ship it and revisit alternatives if they overtake Cosmos materially later</button>
+  </p>
+  <p class="r-dec-rat"></p>
+</div>
+</section>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+
+<article class="r-fu" data-id="f-phase0-trigger-check-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28">
+  <h4 class="r-fu-title">Phase 0: re-bench 1209004 with stratified rFID before deciding evaluate-trigger</h4>
+  <div class="r-fu-body">Cannot decide whether Phase 1 is justified until we see what the stratified rFID looks like on plasma-decoder-v1-merged.ckpt. This followup IS the trigger-condition check — it gates the entire plan.</div>
+  <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    tokenizer-cosmos-evaluation (http://localhost:8765/imas-ambix/tokenizer-cosmos-evaluation.html)
+Section: §0 Trigger conditions
+Tier:    sonnet
+
+Context
+  Production 1209004 plateau at rFID ≈ 12.5 raised the question of whether to evaluate Cosmos.
+  But the actual decision depends on the stratified rFID (rfid_quiescent vs rfid_transient).
+  If rfid_transient is way higher than rfid_quiescent → transient-fidelity v1 is the right next move.
+  If both are bad → tokenizer architecture is suspect → Phase 1 of this plan activates.
+
+State to read
+  GET /plan/imas-ambix/tokenizer-cosmos-evaluation
+  GET /plan/imas-ambix/tokenizer-transient-fidelity   (§5 scenario matrix)
+  imas_ambix/bench/configs/v0-rbb-100shot-finetune.yaml (already requests rfid_stratified)
+
+Locked decisions to honour
+  (none yet — open decisions in §Decisions, surface but do not resolve)
+
+Constraints
+  - 1209004 must have completed and produced plasma-decoder-v1-merged.ckpt
+  - Submit via scripts/slurm/bench_rbb.sbatch with --export=ALL,BENCH_CONFIG=…/v0-rbb-100shot-finetune.yaml
+  - SLURM safety pattern from AGENTS.md §2a-cancel-time
+  - NEVER scancel (AGENTS.md §2a)
+
+Done-when
+  1. Bench job completes; result JSON written
+  2. Per-class rFID values logged: rfid_overall, rfid_quiescent, rfid_transient, rfid_blank
+  3. Post a comment on tokenizer-transient-fidelity §5 with the scenario classification
+  4. Decide evaluate-trigger:
+       - quiescent ≪ transient AND transient ≥ 15: this plan's Phase 1 NOT yet justified — transient-fidelity v1 first
+       - quiescent ≈ transient AND both ≥ 10: this plan's Phase 1 IS justified — codebook architecture is suspect
+       - either is already < 5: gate met, both v1 plans deferred
+  5. Resolve THIS followup with the classification + recommended next plan to activate</pre>
+</article>
+
+<article class="r-fu" data-id="f-jit-load-test-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28">
+  <h4 class="r-fu-title">De-risk: test Cosmos .jit load in our torch 2.5.1 magvit2 venv</h4>
+  <div class="r-fu-body">Before committing to Phase 1, verify the .jit archives actually load. JIT cross-version load is a known failure mode. 30-min experiment, no GPU needed (CPU load + smoke forward should be enough). De-risks the entire plan.</div>
+  <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    tokenizer-cosmos-evaluation (http://localhost:8765/imas-ambix/tokenizer-cosmos-evaluation.html)
+Section: §5 Phase 1 + §7 Risks
+Tier:    sonnet
+
+Context
+  Cosmos tokenizer ships .jit (TorchScript) archives. Cross-version load is unreliable.
+  Need to confirm our torch 2.5.1+cu124 in the magvit2 venv can load them before any deeper work.
+
+State to read
+  https://huggingface.co/nvidia/Cosmos-Tokenizer-DI16x16  (download one .jit pair)
+
+Constraints
+  - Run from a sirius/sun_debug node (has outbound network for the HF download)
+  - Cache weights to /work/projects/imas_gpu/mast-tokens/cosmos/v1/DI16x16/ (encoder.jit + decoder.jit)
+  - Use the magvit2 venv: /work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv/bin/python
+  - No GPU required for this test (CPU load + a single 256×256 forward is enough proof)
+
+Steps
+  1. Download encoder.jit + decoder.jit from HF.
+  2. Load into the magvit2 venv via torch.jit.load(path, map_location='cpu')
+  3. Forward a [1, 3, 256, 256] zeros tensor; verify encoder output shape [1, 16, 16] (indices) or [1, 6, 16, 16] (continuous codes)
+  4. Forward the encoded result through decoder; verify output shape [1, 3, 256, 256]
+
+Done-when
+  1. Either: both .jit files load and forward cleanly → resolve this followup with "Phase 1 unblocked"
+  2. Or: load fails → resolve with the error message + recommendation (downgrade torch, or wait for Cosmos to retrain on newer torch, or alternative path)
+  3. The result decides whether Phase 1 starts immediately or is blocked.</pre>
+</article>
+</section>
+
+</main>
+</body>
+</html>
