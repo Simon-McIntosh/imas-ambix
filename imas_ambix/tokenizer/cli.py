@@ -290,14 +290,26 @@ def _make_signal_factory(name: str):
 
 @tokenize.command(name="bench")
 @click.option(
+    "--config",
+    "config_path",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help=(
+        "Path to a YAML bench config file. When provided, all tokenizer, "
+        "shot, metrics, and kwargs are read from the file. Ad-hoc flags "
+        "(--tokenizer, --shot-ids, etc.) are overridden by --config."
+    ),
+)
+@click.option(
     "--tokenizer",
     "tokenizers",
-    required=True,
+    required=False,
     multiple=True,
     help=(
         "Repeat for each tokenizer to benchmark. "
         "Frame choices: placeholder, open-magvit2. "
-        "Signal choices: uniform, chronos, patchtst."
+        "Signal choices: uniform, chronos, patchtst. "
+        "Required when --config is not provided."
     ),
 )
 @click.option(
@@ -309,8 +321,12 @@ def _make_signal_factory(name: str):
 )
 @click.option(
     "--shot-ids",
-    required=True,
-    help="Comma-separated shot IDs, e.g. '15085,15086'.",
+    required=False,
+    default=None,
+    help=(
+        "Comma-separated shot IDs, e.g. '15085,15086'. "
+        "Required when --config is not provided."
+    ),
 )
 @click.option(
     "--max-items-per-shot",
@@ -348,9 +364,10 @@ def _make_signal_factory(name: str):
     help="Write JSON results to this path.",
 )
 def bench_cmd(
+    config_path: str | None,
     tokenizers: tuple[str, ...],
     kind: str,
-    shot_ids: str,
+    shot_ids: str | None,
     max_items_per_shot: int | None,
     camera: str,
     group: str,
@@ -363,10 +380,18 @@ def bench_cmd(
     Runs each requested tokenizer in turn, prints a Rich comparison table,
     and optionally writes JSON results.
 
+    When --config is provided, the YAML file drives the benchmark (tokenizer
+    factory, kwargs, shot_ids, metrics, max_items_per_shot, camera, device).
+    Ad-hoc flags are ignored in that mode.
+
     Examples
     --------
     ::
 
+        # YAML-driven (recommended — carries metrics + tokenizer kwargs):
+        ambix tokenize bench --config bench-v0.yaml
+
+        # Ad-hoc (legacy):
         ambix tokenize bench --tokenizer placeholder --kind frame \\
             --shot-ids 15085 --max-items-per-shot 4
 
@@ -380,56 +405,92 @@ def bench_cmd(
         benchmark_signal_tokenizer,
     )
 
-    parsed_shot_ids = [int(s.strip()) for s in shot_ids.split(",") if s.strip()]
-    if not parsed_shot_ids:
-        raise click.UsageError("--shot-ids must contain at least one integer shot id.")
-
-    # Resolve default tier
-    effective_tier = tier or ("level1" if kind == "frame" else "level2")
-
-    # Default metrics per mode
-    default_metrics: tuple[str, ...] = (
-        ("psnr",) if kind == "frame" else ("mae", "nrmse", "correlation")
-    )
-
     results = []
-    for tok_name in tokenizers:
-        if kind == "frame":
-            factory = _make_frame_factory(tok_name, device)
-        else:
-            factory = _make_signal_factory(tok_name)
 
-        cfg = BenchConfig(
-            name=f"{tok_name}-{device}" if kind == "frame" else tok_name,
-            tokenizer_kind=kind,
-            tokenizer_factory=factory,
-            max_items_per_shot=max_items_per_shot,
-            metrics=default_metrics,
-            device=device,
-        )
+    if config_path is not None:
+        # --config mode: YAML drives everything.
+        if tokenizers or shot_ids is not None:
+            console.print(
+                "[yellow]WARNING:[/yellow] --config provided alongside ad-hoc flags "
+                "(--tokenizer / --shot-ids). --config wins; ad-hoc flags are ignored."
+            )
+
+        from imas_ambix.bench.loader import load_bench_config
+
+        cfg, run_kwargs = load_bench_config(config_path)
 
         console.print(f"[bold]Running benchmark:[/bold] {cfg.name} ...")
 
-        if kind == "frame":
-            result = benchmark_frame_tokenizer(
-                cfg,
-                parsed_shot_ids,
-                camera=camera,
-                tier=effective_tier,  # type: ignore[arg-type]
-            )
+        if cfg.tokenizer_kind == "frame":
+            result = benchmark_frame_tokenizer(cfg, **run_kwargs)
         else:
-            result = benchmark_signal_tokenizer(
-                cfg,
-                parsed_shot_ids,
-                group=group,
-                tier=effective_tier,  # type: ignore[arg-type]
-            )
+            result = benchmark_signal_tokenizer(cfg, **run_kwargs)
         results.append(result)
 
-        # Report per-shot errors inline
         for ps in result.per_shot:
             if ps.error:
                 console.print(f"  [red]shot {ps.shot_id} FAILED:[/red]\n{ps.error}")
+
+    else:
+        # Ad-hoc mode: build BenchConfig from CLI flags.
+        if not tokenizers:
+            raise click.UsageError(
+                "Either --config FILE or at least one --tokenizer NAME must be provided."
+            )
+        if shot_ids is None:
+            raise click.UsageError(
+                "Either --config FILE or --shot-ids must be provided."
+            )
+
+        parsed_shot_ids = [int(s.strip()) for s in shot_ids.split(",") if s.strip()]
+        if not parsed_shot_ids:
+            raise click.UsageError("--shot-ids must contain at least one integer shot id.")
+
+        # Resolve default tier
+        effective_tier = tier or ("level1" if kind == "frame" else "level2")
+
+        # Default metrics per mode
+        default_metrics: tuple[str, ...] = (
+            ("psnr",) if kind == "frame" else ("mae", "nrmse", "correlation")
+        )
+
+        for tok_name in tokenizers:
+            if kind == "frame":
+                factory = _make_frame_factory(tok_name, device)
+            else:
+                factory = _make_signal_factory(tok_name)
+
+            cfg = BenchConfig(
+                name=f"{tok_name}-{device}" if kind == "frame" else tok_name,
+                tokenizer_kind=kind,
+                tokenizer_factory=factory,
+                max_items_per_shot=max_items_per_shot,
+                metrics=default_metrics,
+                device=device,
+            )
+
+            console.print(f"[bold]Running benchmark:[/bold] {cfg.name} ...")
+
+            if kind == "frame":
+                result = benchmark_frame_tokenizer(
+                    cfg,
+                    parsed_shot_ids,
+                    camera=camera,
+                    tier=effective_tier,  # type: ignore[arg-type]
+                )
+            else:
+                result = benchmark_signal_tokenizer(
+                    cfg,
+                    parsed_shot_ids,
+                    group=group,
+                    tier=effective_tier,  # type: ignore[arg-type]
+                )
+            results.append(result)
+
+            # Report per-shot errors inline
+            for ps in result.per_shot:
+                if ps.error:
+                    console.print(f"  [red]shot {ps.shot_id} FAILED:[/red]\n{ps.error}")
 
     table = render_comparison_table(results)
     console.print(table)
