@@ -288,17 +288,18 @@ class DecoderFinetuneTrainer:
             )
         return entries
 
-    def build_dataloaders(self) -> tuple[Iterable, Iterable, Iterable | None]:
+    def build_dataloaders(self) -> tuple[Iterable, Iterable]:
         """Build training and validation data loaders.
+
+        Both loaders use :class:`DistributedSampler` so that DDP training
+        and (parallel) eval shard the data non-overlappingly across ranks.
+        Eval uses ``dist.all_gather`` of per-rank frame buffers + rank-0
+        rFID computation so the metric covers the FULL val set (unbiased).
 
         Returns
         -------
         tuple
-            ``(train_loader, val_loader_distributed, val_loader_full)``.
-            ``val_loader_distributed`` is per-rank (used only for tests that
-            want sharded eval).  ``val_loader_full`` is the unsharded loader
-            built only on rank 0 — used by :meth:`evaluate` so rFID is
-            computed on the full 93 k-frame val set.
+            ``(train_loader, val_loader)``.
         """
         import numpy as np
         import torch
@@ -409,12 +410,10 @@ class DecoderFinetuneTrainer:
             pin_memory=cfg.device.startswith("cuda"),
         )
 
-        # Distributed val loader — kept for completeness but currently
-        # unused (evaluate() uses val_loader_full on rank 0 only).
         val_sampler = DistributedSampler(
             val_ds, num_replicas=world_size, rank=rank, shuffle=False
         )
-        val_loader_distributed = DataLoader(
+        val_loader = DataLoader(
             val_ds,
             batch_size=cfg.batch_size,
             sampler=val_sampler,
@@ -423,20 +422,7 @@ class DecoderFinetuneTrainer:
             persistent_workers=True,
             pin_memory=cfg.device.startswith("cuda"),
         )
-
-        # Full unsharded val loader — only used by rank 0 in evaluate().
-        # We always build it (cheap, just a sampler-less DataLoader) so the
-        # API is symmetric across ranks; non-rank-0 ranks never iterate it.
-        val_loader_full = DataLoader(
-            val_ds,
-            batch_size=cfg.batch_size,
-            shuffle=False,
-            num_workers=n_workers,
-            prefetch_factor=2,
-            persistent_workers=True,
-            pin_memory=cfg.device.startswith("cuda"),
-        )
-        return train_loader, val_loader_distributed, val_loader_full
+        return train_loader, val_loader
 
     # ------------------------------------------------------------------
     # Model
@@ -694,76 +680,131 @@ class DecoderFinetuneTrainer:
     # Evaluation — rank 0 only, full val set
     # ------------------------------------------------------------------
 
-    def evaluate(self, model: object, val_loader: Iterable) -> dict[str, float]:
-        """Evaluate rFID + L1 on the full validation set (rank 0 only).
+    def evaluate(
+        self,
+        model: object,
+        val_loader_distributed: Iterable,
+    ) -> dict[str, float]:
+        """Evaluate rFID + L1 with ALL ranks doing encode/decode in parallel.
 
-        Other ranks block on the surrounding ``dist.barrier()`` while rank 0
-        iterates; the rFID result tensor is broadcast back so all ranks agree
-        on the early-stop decision.
+        Architecture (replaces the prior rank-0-only path that wasted 3/4 of
+        the GPUs during eval — observed in smoke 1208996):
+
+        1. Each rank iterates its ``DistributedSampler`` shard of the val
+           set (so the val_loader passed here MUST have a DistributedSampler).
+           All 4 GPUs do encode+decode in parallel.
+        2. Each rank accumulates its own L1 sum + a capped buffer of
+           (target, recon) uint8 frames for the rFID pool.
+        3. ``dist.all_reduce`` aggregates L1 across ranks.
+        4. ``dist.all_gather_object`` collects each rank's frame buffer onto
+           rank 0; rank 0 computes one rFID over the union (full val,
+           statistically unbiased).
+        5. rFID + L1 broadcast back so every rank returns the same dict
+           (callers use it for early-stop logic).
+
+        The encode+decode (GPU work) is now 4× parallel.  The
+        ``all_gather_object`` payload is uint8 image data through NVLink —
+        bandwidth is ample, the gather adds < 1 s at our buffer sizes.
         """
         import numpy as np
         import torch
+        import torch.distributed as dist
         import torch.nn.functional as F
 
         cfg = self.config
-        all_targets: list[np.ndarray] = []
-        all_recons: list[np.ndarray] = []
-        l1_sum = 0.0
-        n_batches = 0
 
-        # Cap rFID buffer at 5 k frames (statistically sufficient for FID).
-        _RFID_MAX_FRAMES = 5_000
+        ddp = dist.is_available() and dist.is_initialized()
+        rank = dist.get_rank() if ddp else 0
+        world_size = dist.get_world_size() if ddp else 1
+        local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+        dev = f"cuda:{local_rank}" if cfg.device.startswith("cuda") else cfg.device
+
+        # Per-rank caps so all_gather_object payload stays bounded.
+        # Total rFID pool target = 5 k frames; per-rank cap = 5k / world_size.
+        _PER_RANK_RFID_CAP = max(1, 5_000 // world_size)
+
+        local_targets: list[np.ndarray] = []
+        local_recons: list[np.ndarray] = []
+        local_l1_sum = 0.0
+        local_n = 0
+
         model.eval()
         try:
-            for batch in val_loader:
-                # Honour STOP-FILE during eval too (long val passes still
-                # need to be cancellable).
+            for batch in val_loader_distributed:
                 if STOP.is_set() or _check_stop_file():
                     break
-                # cfg.device may be "cuda"; current device set in build_model.
-                local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-                dev = f"cuda:{local_rank}" if cfg.device.startswith("cuda") else cfg.device
                 frames = batch.float().permute(0, 3, 1, 2).to(dev) / 255.0
                 recon = self._encode_decode(model, frames, training=False)
 
-                l1_sum += float(F.l1_loss(recon, frames).item())
-                n_batches += 1
+                local_l1_sum += float(F.l1_loss(recon, frames).item())
+                local_n += 1
 
-                current_total = sum(a.shape[0] for a in all_targets)
-                if current_total < _RFID_MAX_FRAMES:
+                current_total = sum(a.shape[0] for a in local_targets)
+                if current_total < _PER_RANK_RFID_CAP:
                     t_np = (
                         frames.permute(0, 2, 3, 1).cpu().numpy() * 255
                     ).clip(0, 255).astype(np.uint8)
                     r_np = (
                         recon.permute(0, 2, 3, 1).cpu().numpy() * 255
                     ).clip(0, 255).astype(np.uint8)
-                    all_targets.append(t_np)
-                    all_recons.append(r_np)
+                    local_targets.append(t_np)
+                    local_recons.append(r_np)
         except Exception as exc:  # noqa: BLE001
             warnings.warn(
-                f"[finetune-decoder] evaluate() interrupted ({exc}); "
-                "reporting partial metrics.",
+                f"[finetune-decoder] evaluate() interrupted on rank {rank} "
+                f"({exc}); reporting partial metrics.",
                 stacklevel=2,
             )
 
-        mean_l1 = l1_sum / max(n_batches, 1)
+        # ── Aggregate L1 across ranks via all_reduce on a (sum, count) pair ──
+        l1_pair = torch.tensor([local_l1_sum, float(local_n)], device=dev)
+        if ddp and world_size > 1:
+            dist.all_reduce(l1_pair, op=dist.ReduceOp.SUM)
+        global_l1_sum = float(l1_pair[0].item())
+        global_n = float(l1_pair[1].item())
+        mean_l1 = global_l1_sum / max(global_n, 1.0)
 
-        if not all_targets:
-            return {"rfid": float("nan"), "l1": float("nan")}
+        # ── Gather rFID frame buffers to rank 0 ───────────────────────────
+        # Concatenate locally first to one numpy array per rank (smaller pickle).
+        if local_targets:
+            local_t_cat = np.concatenate(local_targets, axis=0)
+            local_r_cat = np.concatenate(local_recons, axis=0)
+        else:
+            local_t_cat = np.zeros((0, cfg.image_size, cfg.image_size, 3), dtype=np.uint8)
+            local_r_cat = np.zeros((0, cfg.image_size, cfg.image_size, 3), dtype=np.uint8)
 
-        target_arr = np.concatenate(all_targets, axis=0)
-        recon_arr = np.concatenate(all_recons, axis=0)
+        if ddp and world_size > 1:
+            gathered_t: list[np.ndarray | None] = [None] * world_size
+            gathered_r: list[np.ndarray | None] = [None] * world_size
+            dist.all_gather_object(gathered_t, local_t_cat)
+            dist.all_gather_object(gathered_r, local_r_cat)
+        else:
+            gathered_t = [local_t_cat]
+            gathered_r = [local_r_cat]
 
+        # ── Rank 0 computes rFID; others get NaN (broadcast below) ────────
         rfid_val = float("nan")
-        try:
-            from imas_ambix.eval.metrics import rfid as _rfid  # type: ignore[import]
+        if rank == 0:
+            non_empty_t = [a for a in gathered_t if a is not None and a.shape[0] > 0]
+            non_empty_r = [a for a in gathered_r if a is not None and a.shape[0] > 0]
+            if non_empty_t:
+                target_arr = np.concatenate(non_empty_t, axis=0)
+                recon_arr = np.concatenate(non_empty_r, axis=0)
+                try:
+                    from imas_ambix.eval.metrics import rfid as _rfid  # type: ignore[import]
 
-            rfid_val = _rfid(target_arr, recon_arr)
-        except Exception as exc:  # noqa: BLE001
-            warnings.warn(
-                f"rFID computation failed ({exc}); reporting NaN.",
-                stacklevel=2,
-            )
+                    rfid_val = _rfid(target_arr, recon_arr)
+                except Exception as exc:  # noqa: BLE001
+                    warnings.warn(
+                        f"rFID computation failed ({exc}); reporting NaN.",
+                        stacklevel=2,
+                    )
+
+        # ── Broadcast rFID so every rank returns the same value ───────────
+        if ddp and world_size > 1:
+            rfid_tensor = torch.tensor([rfid_val], device=dev, dtype=torch.float64)
+            dist.broadcast(rfid_tensor, src=0)
+            rfid_val = float(rfid_tensor.item())
 
         return {"rfid": rfid_val, "l1": mean_l1}
 
@@ -851,7 +892,7 @@ class DecoderFinetuneTrainer:
 
         model = None
         try:
-            train_loader, _val_loader_dist, val_loader_full = self.build_dataloaders()
+            train_loader, val_loader = self.build_dataloaders()
 
             if STOP.is_set():
                 if is_primary:
@@ -958,36 +999,48 @@ class DecoderFinetuneTrainer:
                         flush=True,
                     )
 
-                # ── Evaluation + early stop (rank 0 only) ─────────────────
+                # ── Evaluation + early stop (DISTRIBUTED — all 4 ranks) ──
                 if step % cfg.eval_every_n_steps == 0 or step == cfg.max_steps:
                     if STOP.is_set():
                         break
 
-                    # All ranks barrier first so we have a clean sync point.
+                    # All ranks barrier for a clean sync point before eval.
                     if world_size > 1:
                         dist.barrier()
 
-                    # Rank-0-only block: any exception here is caught so the
-                    # broadcast below ALWAYS runs.  Without this guard, a
-                    # rank-0 crash (e.g. checkpoint save error) leaves the
-                    # non-primary ranks stuck in dist.broadcast() — a deadlock
-                    # that took job 1208992 down post-smoke.
+                    # ── Distributed eval: every rank runs encode/decode on
+                    # its DistributedSampler shard of the val set, then
+                    # all_gather frame buffers to rank 0 for rFID.  All 4
+                    # GPUs busy throughout — no spin-wait imbalance.
                     rank0_failed = 0
+                    t_eval = time.monotonic()
+                    try:
+                        model.eval()
+                        # evaluate() is the parallel path — see method docs.
+                        metrics = self.evaluate(model, val_loader)
+                        model.train()
+                    except Exception as exc:  # noqa: BLE001
+                        # On any rank's failure, every rank gets a NaN dict
+                        # and rank 0 marks the eval as failed below.
+                        if is_primary:
+                            print(
+                                f"[finetune-decoder] eval at step {step} raised "
+                                f"{type(exc).__name__}: {exc} — skipping",
+                                flush=True,
+                            )
+                            import traceback
+
+                            traceback.print_exc()
+                        metrics = {"rfid": float("nan"), "l1": float("nan")}
+
+                    current_rfid = float(metrics.get("rfid", float("nan")))
+                    current_l1 = float(metrics.get("l1", float("nan")))
+
+                    # Rank-0-only logging + checkpoint save + patience tracking.
+                    # Wrapped in try/except so a save failure can't deadlock the
+                    # broadcast below (job 1208992 lesson).
                     if is_primary:
                         try:
-                            model.eval()
-                            t_eval = time.monotonic()
-                            try:
-                                metrics = self.evaluate(model, val_loader_full)
-                            except Exception as exc:  # noqa: BLE001
-                                print(
-                                    f"[finetune-decoder] eval at step {step} raised "
-                                    f"{type(exc).__name__}: {exc} — skipping",
-                                    flush=True,
-                                )
-                                metrics = {"rfid": float("nan"), "l1": float("nan")}
-                            current_rfid = float(metrics.get("rfid", float("nan")))
-                            current_l1 = float(metrics.get("l1", float("nan")))
                             print(
                                 f"[finetune-decoder] eval step {step}: "
                                 f"rFID={current_rfid:.3f} L1={current_l1:.4f} "
@@ -1015,11 +1068,9 @@ class DecoderFinetuneTrainer:
                                     f"({no_improve_count}/{cfg.patience})",
                                     flush=True,
                                 )
-                            model.train()
                         except Exception as exc:  # noqa: BLE001
-                            # Catch-all: log + signal failure to other ranks.
                             print(
-                                f"[finetune-decoder] rank 0 FATAL during eval/save: "
+                                f"[finetune-decoder] rank 0 FATAL post-eval: "
                                 f"{type(exc).__name__}: {exc} — aborting all ranks",
                                 flush=True,
                             )
