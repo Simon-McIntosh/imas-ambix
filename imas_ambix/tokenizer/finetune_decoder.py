@@ -59,6 +59,16 @@ STOP = threading.Event()
 
 
 def _install_signal_handlers() -> None:
+    """Install best-effort SIGTERM/SIGINT handlers.
+
+    NOTE: Signals cannot reliably stop CUDA-DDP training (Python signal
+    handlers only run between bytecodes; we may be inside multi-second NCCL
+    collectives).  These handlers are a fallback for non-CUDA paths and for
+    forwarding cluster-level termination signals.  The PRIMARY cancellation
+    mechanism is the STOP-FILE (see ``_check_stop_file`` and AGENTS.md
+    §2a-cancel) — agents must use that, NEVER ``scancel``.
+    """
+
     def _handler(signum, _frame) -> None:  # noqa: ANN001
         STOP.set()
         print(
@@ -74,6 +84,25 @@ def _install_signal_handlers() -> None:
             "[finetune-decoder] could not install signal handlers (not main thread)",
             flush=True,
         )
+
+
+def _stop_file_path() -> Path | None:
+    """Return the STOP-FILE path from ``AMBIX_STOP_FILE`` env, or None.
+
+    See AGENTS.md §2a-cancel for the full contract.  When the file exists,
+    the training loop breaks cleanly at the next step boundary — safe under
+    NCCL/CUDA collectives in a way SIGTERM is not.
+    """
+    p = os.environ.get("AMBIX_STOP_FILE")
+    if not p:
+        return None
+    return Path(p)
+
+
+def _check_stop_file() -> bool:
+    """Return True if the STOP-FILE exists. Single filesystem stat (~µs)."""
+    p = _stop_file_path()
+    return p is not None and p.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -687,7 +716,9 @@ class DecoderFinetuneTrainer:
         model.eval()
         try:
             for batch in val_loader:
-                if STOP.is_set():
+                # Honour STOP-FILE during eval too (long val passes still
+                # need to be cancellable).
+                if STOP.is_set() or _check_stop_file():
                     break
                 # cfg.device may be "cuda"; current device set in build_model.
                 local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -761,6 +792,24 @@ class DecoderFinetuneTrainer:
 
         rank, world_size = _init_distributed()
         is_primary = rank == 0
+
+        # Surface the STOP-FILE path so cancellation is straightforward.
+        # See AGENTS.md §2a-cancel — touch this path to stop the job cleanly.
+        stop_file = _stop_file_path()
+        if is_primary:
+            if stop_file is not None:
+                print(
+                    f"[finetune-decoder] STOP-FILE: touch {stop_file} to "
+                    "request graceful exit (no scancel needed; no drain risk)",
+                    flush=True,
+                )
+            else:
+                print(
+                    "[finetune-decoder] WARNING: AMBIX_STOP_FILE env var not "
+                    "set — graceful cancellation unavailable. The sbatch "
+                    "wrapper should export it (AGENTS.md §2a-cancel).",
+                    flush=True,
+                )
 
         torch.manual_seed(cfg.seed + rank)
 
@@ -848,6 +897,18 @@ class DecoderFinetuneTrainer:
             model.train()  # set once; only flipped during eval
 
             while step < cfg.max_steps and not STOP.is_set():
+                # STOP-FILE check: safe-cancel boundary (AGENTS.md §2a-cancel).
+                # Runs between collectives → no NCCL deadlock, no drain risk.
+                if _check_stop_file():
+                    if is_primary:
+                        print(
+                            f"[finetune-decoder] STOP-FILE detected at step "
+                            f"{step} → clean exit",
+                            flush=True,
+                        )
+                    STOP.set()
+                    break
+
                 budget = _step_timeout()
                 with _wd_lock:
                     _wd_budget["s"] = budget

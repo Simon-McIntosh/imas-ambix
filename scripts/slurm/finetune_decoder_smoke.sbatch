@@ -25,6 +25,13 @@ export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export TORCHINDUCTOR_CACHE_DIR=$TMPDIR/.torch_inductor
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
+
+# STOP-FILE for safe cancellation — AGENTS.md §2a-cancel.
+# To cancel cleanly: touch /work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
+mkdir -p /work/projects/imas_gpu/stops
+export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
+rm -f "${AMBIX_STOP_FILE}"
+
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 export NCCL_DEBUG=WARN
 export NCCL_IB_DISABLE=1

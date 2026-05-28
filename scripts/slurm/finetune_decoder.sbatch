@@ -26,6 +26,17 @@ export OMP_NUM_THREADS=1
 export TORCHINDUCTOR_CACHE_DIR=$TMPDIR/.torch_inductor
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
 
+# STOP-FILE for safe cancellation — see AGENTS.md §2a-cancel.
+# To cancel this job cleanly (no drain risk):
+#     touch /work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
+# NEVER `scancel` a CUDA-DDP job — it can leave processes in D-state and
+# trigger a node drain.  The 2026-05-28 drain (3rd this week) was caused by
+# exactly that mistake.
+mkdir -p /work/projects/imas_gpu/stops
+export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
+# Ensure no stale stop-file lingers from a previous job with the same ID.
+rm -f "${AMBIX_STOP_FILE}"
+
 # Required for torch.use_deterministic_algorithms with CuBLAS on CUDA ≥ 10.2
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 
@@ -48,6 +59,7 @@ echo "  job-id:      ${SLURM_JOB_ID}"
 echo "  node:        $(hostname)"
 echo "  repo:        ${REPO_ROOT}"
 echo "  log:         ${LOG_FILE}"
+echo "  stop-file:   ${AMBIX_STOP_FILE}  (touch to cancel cleanly — DO NOT scancel)"
 
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 

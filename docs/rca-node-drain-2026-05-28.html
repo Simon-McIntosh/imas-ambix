@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-slug" content="rca-node-drain-2026-05-28">
+<meta name="reckon-type" content="doc">
+<meta name="plan-title" content="RCA — 98dci4-gpu-0003 node drain (2026-05-28 13:52:08)">
+<meta name="plan-summary" content="Third self-inflicted drain. Cause: agent issued scancel on a healthy CUDA-DDP job to apply code fixes; SIGTERM could not unwind the rank-0 process during a NCCL collective inside loss.backward(); slurmd 'Kill task failed' → auto-drain. Prevention: STOP-FILE mechanism replaces scancel for agent-launched GPU jobs. Admin feedback included.">
+<meta name="plan-status" content="shipped">
+<meta name="plan-roi" content="high">
+<meta name="plan-effort" content="S">
+<meta name="plan-milestone" content="M1">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-05-28">
+<title>RCA — 98dci4-gpu-0003 node drain 2026-05-28 | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><span class="status shipped"><span class="dot"></span>Incident RCA</span> —
+node <code>98dci4-gpu-0003</code> drained 2026-05-28 13:52:08. <strong>Verdict:
+self-inflicted</strong> (agent <code>scancel</code> on a healthy CUDA-DDP job).
+<strong>No Group B involvement</strong> — proven below.</p>
+
+<h2 id="cause">One-line cause</h2>
+<p>The orchestrating agent issued <code>scancel 1208975</code> to free the
+reservation for an improved code revision. The cancelled job's rank-0 CUDA
+process was inside a NCCL collective at the moment SIGTERM arrived; the Python
+signal handler could not run because Python's interpreter only processes
+signals between bytecodes, and we were in a multi-second C++ call to
+<code>torch.cuda.synchronize</code> / NCCL all-reduce. <code>UnkillableStepTimeout</code>
+expired → "Kill task failed" → drain.</p>
+
+<h2 id="contrast">Why §2a's existing rule did not save us</h2>
+<p>The current <code>AGENTS.md §2a</code> says:</p>
+<blockquote><strong>"Never <code>scancel</code> a CUDA-wedged job and assume clean
+teardown."</strong></blockquote>
+<p>The rule was scoped to <em>wedged</em> jobs. Today's cancelled job was
+<strong>healthy</strong> (training, 100&nbsp;% GPU on rank 0, loss decreasing) —
+the agent assumed the SIGTERM handler in <code>finetune_decoder.py</code> would
+unwind cleanly inside the <code>UnkillableStepTimeout</code> window. <strong>It
+cannot</strong>, and the rule failed to apply by its literal reading. The
+strengthened rule (§prevention below) is now scope-broadened to <em>any</em>
+CUDA-DDP job, healthy or wedged.</p>
+
+<h2 id="timeline">Forensic timeline (from <code>sacct</code> + <code>scontrol</code>)</h2>
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Time</th><th>Event</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>13:36:20</td><td><code>1208975</code> (single-GPU finetune) starts</td><td>sacct Start</td></tr>
+<tr><td>~13:44</td><td>agent <code>scancel 1208975</code> ("use all 4 GPUs")</td><td>session log</td></tr>
+<tr><td>13:44:38</td><td><code>1208975.bat+</code> ends, ExitCode <code>0:15</code> (SIGTERM, not clean)</td><td>sacct End / ExitCode</td></tr>
+<tr><td>13:48:31</td><td><code>1208980</code> (4-GPU DDP finetune) starts on same node</td><td>sacct Start</td></tr>
+<tr><td><strong>13:52:08</strong></td><td>slurmd <strong>"Kill task failed"</strong> → node DRAIN</td><td><code>scontrol</code> Reason <code>[root@…13:52:08]</code></td></tr>
+<tr><td>14:01</td><td>agent <code>scancel 1208980</code> ("apply bug-fix revision")</td><td>session log</td></tr>
+<tr><td>14:02:58</td><td><code>1208980</code> ends, batch step ExitCode <code>0:15</code></td><td>sacct End</td></tr>
+</tbody>
+</table></div>
+<p>The 7.5&nbsp;min gap between <code>1208975</code> cancellation (13:44:38) and
+slurmd's drain timestamp (13:52:08) reflects slurmd's periodic node health
+check: it noticed leftover <code>D</code>-state CUDA processes from
+<code>1208975</code> that <code>SIGKILL</code> could not reap, and marked the
+drain on its next pass. <code>1208980</code> launched into a dirty node and
+amplified the issue.</p>
+
+<h2 id="attribution">Did we cause it? Yes. Group B? No.</h2>
+<pre><code># sacct -a -N 98dci4-gpu-0003 --starttime=2026-05-28T13:40 --format=Account
+# All accounts on the node during the incident window:
+#   grpa     (only)
+# Group B (gpu_0003_grpB) jobs:  NONE</code></pre>
+<p>Drain timestamp (13:52:08) and our cancelled job's kill-failure window line up
+to the second; no other user had a job on the node at any point in the relevant
+window. <strong>Third self-inflicted drain</strong> in three days (2026-05-26,
+2026-05-27, 2026-05-28).</p>
+
+<h2 id="mechanism">Why scancel cannot unwind a healthy CUDA-DDP rank</h2>
+<ol>
+<li>Python signal handlers run only between bytecodes. <code>signal.signal()</code>
+sets a flag the interpreter checks at the next opcode boundary.</li>
+<li><code>loss.backward()</code> calls into C++ (autograd engine + cuBLAS +
+NCCL). The C++ stack does not periodically yield to Python's signal-check, so
+<strong>SIGTERM received mid-backward is queued, not handled</strong>, until
+the call returns to Python.</li>
+<li>DDP gradient sync uses NCCL collectives (<code>all_reduce</code>). These are
+<em>blocking</em> kernel-mode operations that wait on every peer. If any peer's
+return is delayed, all ranks sit in the collective.</li>
+<li>SIGKILL cannot reap a process in uninterruptible kernel sleep
+(<code>D</code> state) — kernel calls (CUDA, GPFS, NCCL) must return first.</li>
+<li>After <code>UnkillableStepTimeout</code> (~60&nbsp;s) slurmd marks "Kill
+task failed" → DRAIN. The reservation goes offline until an admin runs
+<code>scontrol update state=resume</code>.</li>
+</ol>
+
+<h2 id="prevention">Prevention — STOP-FILE mechanism (binding)</h2>
+
+<p>Signals are unsuitable for cancelling CUDA-DDP jobs. The replacement is a
+<strong>stop-file polled at safe exit boundaries</strong>:</p>
+
+<h3>Contract</h3>
+<ol>
+<li>Every long-running agent-launched GPU training script writes its job's
+stop-file path into stdout at startup, and the sbatch sets
+<code>AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/&lt;jobid&gt;.stop</code>.</li>
+<li>The training loop checks <code>STOP_FILE.exists()</code> at <strong>every
+step</strong> — immediately after <code>optimiser.step()</code>, before
+fetching the next batch. The check is a single <code>stat()</code> call
+(~&nbsp;μs); cost is negligible vs a 0.5&nbsp;s training step.</li>
+<li>If the stop-file exists: break the training loop. Normal try/finally
+teardown runs (model release, NCCL destroy, GPU cache clear, file flush).
+Process exits with code 0 inside ~5&nbsp;s.</li>
+<li>To cancel a job: <code>touch /work/projects/imas_gpu/stops/&lt;jobid&gt;.stop</code>.
+<strong>Never <code>scancel</code></strong> unless the stop-file mechanism is
+unavailable AND the job is genuinely wedged AND the user has authorised it.</li>
+</ol>
+
+<h3>Why this is fundamentally safer than scancel</h3>
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Aspect</th><th><code>scancel</code></th><th>STOP-FILE</th></tr></thead>
+<tbody>
+<tr><td>Trigger</td><td>SIGTERM mid-call</td><td>filesystem stat at step boundary</td></tr>
+<tr><td>Handler runs</td><td>Only between bytecodes (queued if in C++)</td><td>Inline Python check (always)</td></tr>
+<tr><td>Mid-NCCL?</td><td>Stuck — collectives are atomic</td><td>N/A — check runs between collectives</td></tr>
+<tr><td>D-state risk</td><td>HIGH — SIGKILL can't reap</td><td>NONE — process exits voluntarily</td></tr>
+<tr><td>Drain risk</td><td>HIGH</td><td>NEAR-ZERO</td></tr>
+<tr><td>Latency</td><td>Up to UnkillableStepTimeout (60&nbsp;s)</td><td>One step (~0.5–1&nbsp;s)</td></tr>
+</tbody>
+</table></div>
+
+<h3>Edge case — job is genuinely wedged (no progress for &gt; 10 min)</h3>
+<p>If a job never reaches a stop-file check (deadlocked NCCL, hung GPFS), the
+stop-file mechanism cannot rescue it. In that case the only options are:</p>
+<ol>
+<li>Wait for SLURM time limit to expire (preferred — natural cleanup).</li>
+<li>Wait for our internal watchdog (per-step timeout) to <code>STOP.set()</code>
+— but only if its own check happens to land between collectives.</li>
+<li>Ask the user to take responsibility for a <code>scancel</code>, accepting
+the drain risk and committing to perform the admin recovery (§admin).</li>
+</ol>
+<p><strong>The agent must never <code>scancel</code> a CUDA-DDP job on its own
+initiative.</strong></p>
+
+<h2 id="admin">Admin instructions to resume the node (today's drain)</h2>
+<ol>
+<li><strong>Verify which process is stuck</strong> (held GPU memory at 0%
+utilisation):
+<pre><code>ssh 98dci4-gpu-0003
+nvidia-smi
+ps -eo pid,stat,user,cmd | grep -E "torchrun|finetune_decoder|python" | grep -v grep
+#   look for state 'D' (uninterruptible) owned by mcintos
+</code></pre></li>
+<li><strong>If GPUs hold memory</strong> with no process owner (orphan) or with a
+<code>D</code>-state Python: a plain resume hands the next job a dirty GPU.
+Clear it: <code>nvidia-smi --gpu-reset</code> (per GPU); reboot the node if
+<code>--gpu-reset</code> hangs.</li>
+<li><strong>Resume</strong> once all 8 GPUs report 0 procs / 0 MiB:
+<pre><code>scontrol update nodename=98dci4-gpu-0003 state=resume reason=""</code></pre></li>
+<li><strong>Verify</strong>: <code>scontrol show node 98dci4-gpu-0003 | grep State</code>
+should show <code>IDLE+RESERVED</code> (no <code>DRAIN</code>).</li>
+</ol>
+
+<h2 id="admin-feedback">Feedback to SDCC admin (server hardening recommendations)</h2>
+<p>Three drains in three days on the only H200 node points to fragility that
+agent discipline alone cannot fully fix. The application side has now landed
+all reasonable mitigations (SIGTERM handler, watchdog, in-process training,
+stop-file mechanism); residual risk is on the SLURM / kernel side. Suggestions
+ranked by impact:</p>
+
+<ol>
+<li><strong>Raise <code>UnkillableStepTimeout</code></strong> on
+<code>betelgeuse</code> from the default 60&nbsp;s to <strong>300&nbsp;s</strong>.
+A clean DDP teardown — particularly NCCL collective drain + model release +
+CUDA cache empty on 4 ranks — can legitimately take 60–120&nbsp;s on slow days.
+A 300&nbsp;s window would convert most "Kill task failed" events into clean
+exits. Trade-off: a genuinely wedged job ties up the node 4&nbsp;min longer
+before drain, but that's far cheaper than the multi-hour admin intervention to
+resume after a drain.</li>
+
+<li><strong>Run <code>nvidia-smi --gpu-reset</code> in the SLURM
+epilogue</strong> (or use <code>PrologFlags=Contain</code> + an epilogue script)
+so a previous job's leaked GPU state never bleeds into the next. This is the
+single biggest source of "1208975 drained but 1208980 amplified it" cascades
+in our incident history.</li>
+
+<li><strong>Use cgroups v2 with the kill semantics enabled</strong>
+(<code>cgroup.kill</code> in <code>/sys/fs/cgroup/...</code>). On v2-capable
+kernels this lets SLURM kill the entire cgroup atomically — including processes
+in <code>D</code> state, because cgroup destruction propagates through the
+kernel scheduler in a way <code>SIGKILL</code> does not.</li>
+
+<li><strong>Switch to NVIDIA MPS (Multi-Process Service) or
+container-isolated</strong> GPU access for each job. When the container goes
+away, the GPU context is cleaned up automatically by NVIDIA's runtime; no
+orphaned CUDA contexts.</li>
+
+<li><strong>Alert on node entering DRAIN within 60&nbsp;s</strong> rather than
+on the next admin walk-through — every minute of drain costs the user a job
+slot, and quick admin response can often resume the node before the next
+shift's queue empties.</li>
+
+<li><strong>Provide a user-callable <code>safe-cancel</code> wrapper</strong>
+(e.g. <code>sbatch_safe_cancel JOBID</code>) that first touches a known
+<code>AMBIX_STOP_FILE</code> path, polls for graceful exit for 60&nbsp;s, and
+only falls back to <code>scancel</code> if the job is genuinely wedged. This
+codifies the §prevention rule above into the cluster's tooling so users don't
+need to remember the right mechanism per job.</li>
+</ol>
+
+<h2 id="status">Status</h2>
+<ul>
+<li><strong>Smoke job 1208985</strong> (200-step, 50 train + 10 val) launched
+14:11 — still on the drained node (drain blocks new scheduling, not in-flight
+jobs). Will complete and produce verification artefacts. <strong>Do not
+scancel.</strong></li>
+<li><strong>Production 24h job</strong> will not auto-submit on smoke
+completion — the agent's wakeup prompt has been updated to require user
+authorisation given the drain. Production job needs admin resume first
+regardless.</li>
+<li><strong>Application-side mitigations landed</strong> — stop-file mechanism
+in <code>finetune_decoder.py</code>, AGENTS.md §2a strengthened. See follow-up
+commits for the production rollout.</li>
+</ul>
+
+</main>
+</body>
+</html>

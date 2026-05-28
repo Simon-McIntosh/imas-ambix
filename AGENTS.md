@@ -118,9 +118,10 @@ sbatch --partition=betelgeuse \
 ## 2a. GPU Job Safety — node-drain prevention (MANDATORY)
 
 `98dci4-gpu-0003` is the **only** H200 node, shared with Group B. It has been
-**drained twice** by hung ambix GPU jobs (2026-05-26, 2026-05-27 — see
-`docs/rca-node-drain-2026-05-27.md`). A drain takes the whole reservation
-offline until an admin resumes it. **Do not crash this node.**
+**drained three times** by hung ambix GPU jobs (2026-05-26, 2026-05-27,
+2026-05-28 — see `docs/rca-node-drain-2026-05-{27,27b,28}.html`). A drain
+takes the whole reservation offline until an admin resumes it manually. **Do
+not crash this node.**
 
 **Failure mechanism.** A GPU process stuck in uninterruptible kernel sleep
 (`D` state — wedged on a CUDA or GPFS call) cannot be reaped by SIGTERM or
@@ -150,9 +151,16 @@ requires `nvidia-smi --gpu-reset` or a reboot to clear.
    prefetch + `encode_one_shard.py`) **deadlocked and drained the node** — do
    NOT run it. It is slated for deletion once `stream_encode` passes GPU
    validation; we do not harden or carry it.
-5. **Never `scancel` a CUDA-wedged job and assume clean teardown.** Detect the
-   hang early — a token-rate / heartbeat watchdog that exits cleanly — instead
-   of killing a wedged process and triggering the drain.
+5. **NEVER `scancel` an agent-launched CUDA job.** This rule was previously
+   scoped to *wedged* jobs (§rca-node-drain-2026-05-27); the 2026-05-28 drain
+   proved that `scancel` on a *healthy* DDP job is equally dangerous, because
+   the SIGTERM handler cannot run while Python is inside a multi-second NCCL
+   collective inside `loss.backward()`. The rule is now broadened: agents
+   **must not** issue `scancel` on any CUDA / GPU job, healthy or wedged,
+   under any circumstances. Use the STOP-FILE mechanism (§2a-cancel) instead.
+   If STOP-FILE is unavailable AND the job is genuinely wedged AND the user
+   has explicitly authorised the cancellation AND committed to the admin
+   recovery, only then may a user (not an agent) issue `scancel`.
 
 **When a drain happens (RCA procedure):**
 1. `sacct -a -N 98dci4-gpu-0003 --starttime=<window>` — list ALL users' jobs to
@@ -164,6 +172,75 @@ requires `nvidia-smi --gpu-reset` or a reboot to clear.
    --gpu-reset` or reboot → `scontrol update nodename=98dci4-gpu-0003
    state=resume reason=""`** (resume only after the GPUs are confirmed clean,
    else the next job inherits a dirty GPU).
+
+## 2a-cancel. Safe cancellation — STOP-FILE mechanism (MANDATORY)
+
+**Signals are unsafe for cancelling CUDA-DDP jobs.** Python signal handlers
+run only between bytecodes; multi-second NCCL collectives inside
+`loss.backward()` block the handler indefinitely. SIGTERM that can't be
+acknowledged → `UnkillableStepTimeout` → "Kill task failed" → DRAIN.
+
+**Every long-running agent-launched GPU script MUST implement the stop-file
+contract:**
+
+| Layer | Requirement |
+|---|---|
+| **sbatch** | Export `AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop` before the python launch. Create `/work/projects/imas_gpu/stops/` if missing. |
+| **training script** | At startup, print the resolved stop-file path so it appears in the job's log. |
+| **training loop** | At every step boundary (after `optimiser.step()`, before fetching the next batch), check `Path(os.environ["AMBIX_STOP_FILE"]).exists()`. If true, log `[finetune] STOP-FILE detected → clean exit` and `break` out of the loop. |
+| **eval loop** | Same check inside per-batch eval iteration, so a cancellation during eval also unwinds cleanly. |
+| **teardown** | The existing `try/finally` releases the model, destroys NCCL, and exits with code 0. |
+
+**To cancel a running job (agent or user):**
+
+```bash
+# Find the job's stop-file path from its log (printed at startup), or compute it:
+STOP_FILE=/work/projects/imas_gpu/stops/${JOBID}.stop
+
+# Signal the job to exit cleanly:
+touch "${STOP_FILE}"
+
+# Poll for clean exit (should take ≤ 1 training step, typically < 5 s):
+while squeue -j ${JOBID} -h 2>/dev/null | grep -q .; do sleep 5; done
+echo "Job ${JOBID} exited cleanly."
+
+# Clean up:
+rm -f "${STOP_FILE}"
+```
+
+**Why this works where `scancel` fails:** the stop-file check is a single
+filesystem `stat()` (~µs) at a Python-controlled boundary between collectives.
+The training loop voluntarily breaks; the process unwinds through normal
+try/finally cleanup; CUDA contexts release; NCCL destroys cleanly; exit
+code 0; **no drain risk**.
+
+**Performance cost:** one `Path.exists()` per training step ≈ 0.5 µs on
+local filesystem, ~10 µs on GPFS. Negligible vs a 500 ms training step.
+
+**Hardening rules for stop-file users:**
+
+1. The check **must** be inside the main training loop, not in the watchdog
+   thread — the watchdog thread can call `STOP.set()` but the main loop
+   makes the actual exit decision.
+2. The check **must** happen between collectives, never inside `loss.backward()`
+   or `dist.all_reduce`. The natural place is right after `optimiser.step()`.
+3. **Do not** wrap the stop-file check in a signal handler — that defeats
+   the purpose. The whole point is to avoid signals.
+4. The stop-file path **must** be unique per job (use `$SLURM_JOB_ID`), so a
+   stale stop-file from a previous job does not kill the next one.
+5. The script **must** print the stop-file path to stdout at startup so a
+   future agent / user / admin can find it without reading the sbatch.
+
+**Reference implementation:** `imas_ambix/tokenizer/finetune_decoder.py`
+(commit landing this RCA). Copy this pattern verbatim for any new GPU
+training script.
+
+**When STOP-FILE is not enough:**
+- A job that never reaches a step boundary (deadlocked NCCL init, hung
+  GPFS read) cannot see the stop-file. Wait for SLURM time limit, or escalate
+  to the user.
+- The agent **must not** decide unilaterally that "the stop-file is taking too
+  long" and issue `scancel` — that is exactly the bug this section prevents.
 
 ## 2b. Performant GPU code (in-process default)
 
