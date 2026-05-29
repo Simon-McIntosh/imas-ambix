@@ -86,8 +86,11 @@ nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 # byte-identical to every established bench.
 export AMBIX_DECODE_NO_EMA=1
 
-BASELINE_CFG="imas_ambix/bench/configs/v0-rbb-100shot.yaml"        # imagenet decoder
-OPTB_CFG="imas_ambix/bench/configs/v0-rbb-100shot-optb.yaml"       # fine-tuned merged ckpt
+# Pinned-pool diagnostic configs (rfid_frames_per_shot:8 explicit) so all 4
+# cells use a uniform pool regardless of the BenchConfig default (8->32 in
+# 3ff5585).  8-frame/800-frame pool is ample for the large bf16-vs-fp32 delta.
+BASELINE_CFG="imas_ambix/bench/configs/_precdiag-baseline.yaml"     # imagenet decoder
+OPTB_CFG="imas_ambix/bench/configs/_precdiag-optb.yaml"            # fine-tuned merged ckpt
 
 run_cell () {
     local tag="$1" cfg="$2" fp32="$3"

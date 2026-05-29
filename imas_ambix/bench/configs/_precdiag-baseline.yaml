@@ -1,0 +1,125 @@
+# DECODE-PRECISION DIAGNOSTIC config (RCA 2026-05-29) — clone of
+# v0-rbb-100shot.yaml with rfid_frames_per_shot PINNED to 8 so the
+# bf16-vs-fp32 grid uses a uniform pool regardless of the BenchConfig
+# default (which changed 8->32 in commit 3ff5585). 8-frame/800-frame
+# pool is ample for the large bf16-vs-fp32 delta. Tokenizer: baseline imagenet decoder.
+name: v0-rbb-100shot-magvit2-precdiag
+tokenizer_kind: frame
+tokenizer:
+  factory: imas_ambix.tokenizer.frames:OpenMagvit2Tokenizer
+  kwargs:
+    device: cuda
+    batch_size: 4
+    image_size: 256
+camera: rbb
+shot_ids:
+- 15086
+- 15093
+- 15104
+- 15106
+- 15112
+- 15144
+- 15147
+- 15149
+- 15160
+- 15178
+- 15275
+- 15286
+- 15308
+- 15313
+- 15316
+- 15368
+- 15376
+- 15381
+- 15382
+- 15441
+- 15449
+- 15509
+- 15523
+- 15536
+- 15548
+- 15569
+- 15580
+- 15591
+- 15593
+- 15622
+- 15629
+- 15630
+- 15674
+- 15684
+- 15697
+- 15898
+- 15930
+- 15989
+- 16011
+- 16012
+- 16045
+- 16068
+- 16092
+- 16157
+- 16188
+- 16299
+- 16377
+- 16378
+- 16409
+- 16411
+- 16701
+- 16708
+- 16731
+- 16735
+- 16954
+- 16959
+- 16983
+- 16986
+- 16990
+- 17007
+- 17102
+- 17426
+- 17459
+- 17503
+- 17776
+- 18045
+- 18447
+- 18485
+- 18788
+- 18845
+- 18846
+- 19532
+- 19549
+- 19637
+- 19682
+- 19848
+- 19874
+- 19886
+- 19889
+- 20236
+- 20434
+- 20791
+- 20796
+- 21040
+- 21066
+- 21303
+- 21466
+- 21482
+- 21623
+- 21729
+- 21800
+- 21848
+- 21853
+- 21854
+- 21857
+- 21861
+- 22119
+- 22124
+- 22217
+- 22376
+max_items_per_shot: 32
+metrics:
+- psnr
+- rfid
+- rfid_stratified
+- lpips
+- centroid_mse
+- chord_nrmse
+device: cuda
+rfid_frames_per_shot: 8
