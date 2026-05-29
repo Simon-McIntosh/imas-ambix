@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="plan">
+  <meta name="plan-slug"     content="physics-world-model-strategy">
+  <meta name="plan-roi"      content="high">
+  <meta name="plan-effort"   content="XL">
+  <meta name="plan-tier"     content="opus">
+  <meta name="plan-summary"  content="Foundational objective: a learned probabilistic state-space model of the tokamak plasma — flexible where our equations are wrong, structured in invariant coordinates where extrapolation demands it — that turns scarce shots into state estimation, what-if forecasting, and discovered structure, and extrapolates toward ITER.">
+  <meta name="plan-milestone" content="M0">
+  <meta name="plan-sprint"   content="S7">
+  <meta name="plan-depends-on" content="probabilistic-state-space-methods,tokenizer-spatiotemporal-survey">
+  <title>Physics World Model — Strategy &amp; North Star | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Physics World Model — Strategy &amp; North Star</h1>
+    <p><em>The foundational objective the rest of the project hangs from. Authored 2026-05-29 after a working dialogue that re-founded the project away from a generative camera-video model toward a learned probabilistic state-space model. Methods + precedents: <a href="/imas-ambix/probabilistic-state-space-methods.html">probabilistic-state-space-methods</a>. First experiment: <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a>.</em></p>
+
+    <h2 id="s1">§1 — North star</h2>
+    <p><strong>A data-led, physics-aware dynamical model of the tokamak plasma — flexible enough to be right where our equations are wrong, and structured in invariant/dimensionless terms enough to extrapolate to ITER and beyond — that turns scarce, expensive experimental shots into predictive understanding and a faster path to high performance.</strong></p>
+    <p>The deliverable is twofold and inseparable: an <em>operational</em> model (state estimation, what-if forecasting, calibrated uncertainty) <strong>and</strong> <em>understanding</em> (the reduced structure and coefficients the model reveals). We demonstrate understanding by building a model that works — and the model that works is the instrument that reveals the structure.</p>
+    <p>What this is <strong>not</strong>: predictive simulation of known equations, integrated modelling, or data labelling. We are not re-solving MHD. We are learning the plasma's effective dynamics from data and extracting transferable structure.</p>
+
+    <h2 id="s2">§2 — Why a "world model": it is a learned state-space model</h2>
+    <p>The unifying identity: an ML world model — encoder → latent state → learned transition → observation model — <em>is</em> a learned nonlinear state-space model. That single object subsumes the three threads we care about:</p>
+    <ul>
+      <li><strong>State estimation / data assimilation</strong> = Bayesian inference over this model given streaming observations. The Kalman filter is the linear-Gaussian special case; the general case is a learned, nonlinear, possibly non-Gaussian filter/smoother.</li>
+      <li><strong>Dynamics</strong> live in the <strong>transition kernel</strong> p(state<sub>t</sub> | state<sub>t-1</sub>, actuators).</li>
+      <li><strong>Discovery</strong> = recovering the <em>structure and coefficients</em> of that transition kernel (Koopman modes, sparse terms, conservation). <strong>The kernel is simultaneously the dynamics and the physics we want to discover.</strong></li>
+    </ul>
+    <p>This is precisely what fusion's existing Bayesian machinery lacks. Integrated data analysis (Minerva@JET, IDA@AUG/W7-X) does excellent <em>static, per-slice</em> inference p(state | data) — but treats slices independently; it has no transition kernel, hence no dynamics. <strong>Learning that kernel, and doing honest filtering/smoothing through it, is the contribution.</strong> (Bayesian modelling's difficulty with dynamics is exactly this missing Markov transition; the state-space structure is the resolution.)</p>
+
+    <h2 id="s3">§3 — How much probability? (instrumental, not a religion)</h2>
+    <p>The probabilistic framing is <strong>not inevitable</strong> — a deterministic observer is possible — but it is <em>motivated</em>, and only as far as it earns its keep. Probability buys exactly three things we genuinely need:</p>
+    <ol>
+      <li><strong>Honest "I don't know"</strong> — the precondition for <em>safe extrapolation</em>: a model that flags when it is outside its support.</li>
+      <li><strong>Optimal assimilation</strong> — fusing model prior with noisy/partial observations is inherently a weighting-by-confidence operation (the Kalman gain <em>is</em> relative uncertainty).</li>
+      <li><strong>Calibrated decisions</strong> under scarce, expensive data.</li>
+    </ol>
+    <p>There is a spectrum — deterministic observer → deep ensembles → calibrated/conformal intervals → full variational/MCMC posterior — and we adopt the <strong>lightest level that is genuinely calibrated</strong>, not the heaviest. The goal is the dynamics and the understanding; uncertainty is a property we require, not the point. We will not "go full Bayes" where a calibrated interval suffices.</p>
+
+    <h2 id="s4">§4 — Three operations, named precisely</h2>
+    <p>"Predictive state estimation" conflates distinct operations of a state-space model; we name them separately because their value differs:</p>
+    <ul>
+      <li><strong>Filtering</strong> — estimate the state <em>now</em> from past + present observations. Causal/online → real-time state for control and commissioning.</li>
+      <li><strong>Forecasting</strong> — project the state into the <em>future</em> with no future observations. The "what-if" → reduces wasted shots, accelerates commissioning.</li>
+      <li><strong>Smoothing</strong> — reconstruct the best <em>past trajectory</em> using all observations. Offline → understanding and structure discovery.</li>
+    </ul>
+
+    <h2 id="s5">§5 — Data discipline: raw signals, physics as <em>our own</em> falsifiable prior</h2>
+    <p><strong>Observations are raw measured sensor signals. Physics is a prior we add explicitly and can relax. We never train on regression/solver output.</strong> Training on EFIT-reconstructed flux surfaces would hoover up Grad–Shafranov-as-a-hard-constraint, a fixed current-profile parameterisation, and the fit weighting — we would be learning EFIT, not the plasma, and inheriting every assumption that breaks in a new regime ("modelling fails before it starts").</p>
+    <p>Instead we add Grad–Shafranov ourselves as a <em>soft, falsifiable</em> residual linking the latent state to <em>raw</em> magnetics. The payoff is the capability EFIT structurally cannot give: because GS is a prior the data can override, a <strong>persistent GS residual is not an error to fit away — it is a measurement of where force balance breaks</strong> (fast dynamics, non-MHD effects, off-normal evolution). We invert "inheriting bias" into "discovering departures from equilibrium" — the same logic as a filter's innovations: a residual against a physics prior is a discovery signal.</p>
+    <p><strong>Clarification on IMAS:</strong> IMAS (the Data Dictionary) is a <em>format</em> for interoperability; it is orthogonal to which signals we can read. MAST signals — cameras, magnetics, everything — are already accessible in native MAST form (level-1 zarr groups: <code>rbb</code> camera, <code>amb</code>/<code>amc</code>/<code>amm</code> magnetics, <code>efm</code> EFIT equilibrium, …). "Go IMAS" is a later interoperability enhancement, <strong>not</strong> a prerequisite for raw-signal access. So the work is multi-modal from day one.</p>
+
+    <h2 id="s6">§6 — Extrapolation: robust structure, not brittle assumptions</h2>
+    <p>Extrapolation needs structure, but structure usually means assumptions — the brittleness we are fleeing. The resolution: <strong>not all structure is brittle.</strong></p>
+    <ul>
+      <li><strong>Brittle structure</strong> = phenomenological closures and boundary conditions. Keep these data-led and flexible — let the data write them.</li>
+      <li><strong>Robust structure</strong> = invariances: conservation laws, symmetries, and <strong>dimensionless scaling</strong>. This is not an assumption about the plasma, it is an assumption about physics being physics. ITER was sized by dimensionless scaling (ρ*, β, ν*, …) from existing devices; a model whose <em>coordinates</em> are dimensionless extrapolates across machine scale by construction, without committing to a closure.</li>
+    </ul>
+    <p>So physics enters as the <strong>coordinate system and soft regularisers</strong>, never as a hard dynamics law. Data-led flexibility buys assumption-tolerance; invariant coordinates buy extrapolation; and <strong>calibrated uncertainty makes extrapolation safe</strong> — the model says "out of support" near genuinely novel regimes (burning-plasma ρ*, α-heating) rather than extrapolating blindly. Cross-machine transfer is not aspirational: deep-learning disruption prediction has already transferred DIII-D → JET (Kates-Harbeck, Nature 2019), explicitly ITER-motivated.</p>
+
+    <h2 id="s7">§7 — Where ML is, and is not, the right tool</h2>
+    <p>We agree ML is <em>not</em> the right tool to <strong>solve</strong> large known PDE systems — numerical solvers win on accuracy and guarantees, and ML surrogates merely trade fidelity for speed while inheriting the training simulations' assumptions. But that is not our job. ML/data is uniquely right for the part first-principles cannot do: the <strong>closure problem</strong> (turbulent transport, the pedestal, the L–H threshold, detachment, the disruption boundary) — where gyrokinetics is too expensive to run in the loop and reduced models rely on fitted closures that do not extrapolate. Closure uncertainty is the largest source of error in predicting ITER performance, and it is exactly a "structure + coefficients we don't know" problem. <strong>Don't use ML to solve the PDEs you have; use it to discover the closures and reduced dynamics you don't</strong> — and compose with first-principles where the equations <em>are</em> known and cheap.</p>
+
+    <h2 id="s8">§8 — Utility for ITER (the point)</h2>
+    <ul>
+      <li><strong>Commissioning &amp; operations acceleration</strong> — forecasting + active sensing reduce the number of wasted/risky shots needed to map the operating space; ITER shots are the most expensive in history.</li>
+      <li><strong>Virtual diagnostics / real-time state estimation</strong> — infer the unmeasured from the measured, with calibrated uncertainty, when burning-plasma diagnostic access is limited.</li>
+      <li><strong>Safety</strong> — OOD flagging and innovation/latent-trajectory signals for earlier off-normal and limit-proximity warning.</li>
+      <li><strong>Transferable understanding</strong> — discovered structure (equation form, coefficient scaling) carries MAST → JET → ITER where raw data never will. This is the real answer to ITER's data scarcity: bootstrap on physics, not pixels.</li>
+    </ul>
+
+    <h2 id="s9">§9 — Two-stage plan</h2>
+    <p><strong>Stage 1 — the engine, on raw multi-modal MAST data (now).</strong> Build and validate a learned stochastic latent state-space model + Bayesian filter with <em>calibrated</em> uncertainty and OOD flagging, across the operating space. First concrete target: predict separatrix shape parameters from raw diagnostics (camera + magnetics) with honest error bars — see <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a>. Acceptance is calibration, not reconstruction fidelity.</p>
+    <p><strong>Stage 2 — physical grounding + discovery.</strong> Add our own GS prior on raw magnetics; the latent becomes physically grounded; virtual diagnostics become physical; GS-residual monitoring becomes a discovery instrument. Structure/coefficient discovery (SINDy/Koopman on the latent dynamics) rides on top, expressed toward dimensionless coordinates for extrapolation.</p>
+
+    <h2 id="s10">§10 — Honest limits</h2>
+    <p>We will not rediscover gyrokinetics or two-fluid MHD from data — the true equations are high-dimensional, multi-scale, turbulent, stochastic, and not closed. The realistic, valuable target is <strong>reduced-order / effective dynamics and their coefficients</strong>: Koopman modes, sparse reduced models, effective transport coefficients, mode-coupling terms, force-balance departures. Camera emission is an <em>indirect, projected, line-integrated</em> observation — it constrains a latent that predicts camera dynamics, not the physical state directly; physical grounding needs magnetics (Stage 2). And some ITER regimes are genuinely outside existing dimensionless support — there, the right behaviour is the model flagging "I don't know," not a confident extrapolation.</p>
+
+    <h2 id="s11">§11 — Relationship to work in flight</h2>
+    <p>The centre of gravity moves from <em>generative camera-video world model</em> to <em>probabilistic state-space model + assimilation + discovery</em>. The camera becomes <strong>one diagnostic modality</strong> feeding the state estimator; generating camera streams is a <strong>byproduct, never the guiding goal</strong>. The tokenizer/corpus work (<a href="/imas-ambix/world-model-v0.html">world-model-v0</a>, <a href="/imas-ambix/tokenizer-spatiotemporal-pivot.html">tokenizer-spatiotemporal-pivot</a>) is not wasted — it is representation learning for one modality — but it is no longer the headline. The rFID dead-end (<a href="/imas-ambix/plasma-decoder-finetune.html">plasma-decoder-finetune</a>) becomes a non-issue: reconstruction fidelity was never the objective; calibrated state estimation and discovered structure are.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="uq-level-v0" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What level of probabilistic machinery for the Stage-1 engine?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="ensemble-plus-conformal">deep-ensemble + conformal calibration (recommended — lightest genuinely-calibrated level)</button>
+          <button class="r-opt" data-value="deterministic-first">deterministic observer first, add UQ later</button>
+          <button class="r-opt" data-value="full-variational">full variational/Bayesian filter from the start</button>
+        </p>
+        <p class="r-dec-rat">Recommend deep-ensemble + conformal intervals for v0: honest, distribution-free coverage guarantees, cheap, no MCMC. Escalate to a variational filter only if calibration/assimilation demands it. Keeps us from over-committing to Bayes (§3).</p>
+      </div>
+
+      <div class="r-dec" data-key="extrapolation-coordinates" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Do we build toward dimensionless/invariant latent coordinates now, or defer?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="design-for-invariance">design for invariance from v0 (recommended — extrapolation is a v0 design constraint, even if not exercised yet)</button>
+          <button class="r-opt" data-value="defer-to-stage2">raw coordinates for v0; introduce invariance in Stage 2</button>
+        </p>
+        <p class="r-dec-rat">Recommend designing the state representation so dimensionless scaling can be imposed/learned, even if cross-machine extrapolation isn't tested until later — retrofitting invariance is costly.</p>
+      </div>
+
+      <div class="r-dec" data-key="camera-role" data-choice="one-modality" data-by="Simon McIntosh" data-when="2026-05-29">
+        <p class="r-dec-q">What is the camera's role in the world model?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="one-modality">one diagnostic modality among many; generation is a byproduct</button>
+          <button class="r-opt" data-value="primary">primary modality; generative video is the goal</button>
+        </p>
+        <p class="r-dec-rat">Locked by the user 2026-05-29: "eventually it would be nice to also have the facility to generate camera streams - but this is a byproduct and is in no way our guiding goal." Camera is one input modality to the state estimator.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+
+      <article class="r-fu" data-id="f-stage1-engine" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
+        <h4 class="r-fu-title">Execute Stage-1 engine — see plasma-state-space-v0 (the sprint home)</h4>
+        <div class="r-fu-body">The Stage-1 demonstrator (separatrix shape parameters from raw diagnostics with calibrated uncertainty) is specified in <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a> and is the home of sprint S7. This followup tracks Stage-1 closure against the strategy.</div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    physics-world-model-strategy (§9 Stage 1)
+Tier:    opus
+
+Stage-1 is owned by plasma-state-space-v0 (sprint S7). When that plan's acceptance criteria are met (calibrated coverage + OOD on held-out shots/regimes), record the outcome here and decide Stage-2 entry (GS prior + discovery).
+
+Done-when
+  Stage-1 acceptance met in plasma-state-space-v0; Stage-2 go/no-go recorded here.</pre>
+      </article>
+
+      <article class="r-fu" data-id="f-stage2-gs-discovery" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
+        <h4 class="r-fu-title">Stage-2 — self-applied GS prior + structure discovery</h4>
+        <div class="r-fu-body">After the engine is validated: add Grad–Shafranov as a soft falsifiable prior on raw magnetics; ground the latent physically; stand up GS-residual monitoring as a discovery instrument; apply SINDy/Koopman to the latent transition kernel toward dimensionless coordinates. Do NOT start before Stage-1 calibration is demonstrated.</div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    physics-world-model-strategy (§9 Stage 2)
+Tier:    opus
+
+Gated on Stage-1 acceptance. Then: (1) add GS as a soft residual linking latent state to raw magnetics (amb/amc/amm), weighted so data can override it; (2) monitor the GS residual as a force-balance-departure detector; (3) discovery layer (SINDy/Koopman) on the latent transition kernel, expressed toward dimensionless coordinates for cross-machine extrapolation. Surface, do not resolve, the uq-level and extrapolation-coordinates decisions if still open.
+
+Done-when
+  GS-residual departure detector demonstrated on known transient shots; first discovered reduced-structure result documented.</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
