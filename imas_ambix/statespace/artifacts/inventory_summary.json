@@ -105,7 +105,7 @@
     "xpc": 58,
     "xsx": 13944
   },
-  "regime_scalars_n": 9524,
+  "regime_scalars_n": 9010,
   "regime_distribution": {
     "_method": "plasma-on masking: ip=mean|Ip| over |Ip|>max(50kA,0.2*peak) window; ne=median over same time window, clipped to [0,30e19] m^-2 (line-integrated)",
     "_units": {
@@ -115,21 +115,21 @@
     "_filter": "ip>100kA and ne>0 (real flat-top); 9524 of 12590 co-available shots",
     "ip_kA": {
       "p0": 100.4428939819336,
-      "p10": 391.8434326171875,
-      "p25": 507.896484375,
-      "p50": 586.7866516113281,
-      "p75": 647.6335601806641,
-      "p90": 686.3833740234376,
+      "p10": 391.67070617675785,
+      "p25": 505.5987319946289,
+      "p50": 584.8143310546875,
+      "p75": 646.6448974609375,
+      "p90": 684.6978210449219,
       "p100": 976.29345703125
     },
     "ne_1e19_m2": {
-      "p0": 0.0026187626784489474,
-      "p10": 5.979129014604959,
-      "p25": 8.144033368815908,
-      "p50": 10.342644527409817,
-      "p75": 12.331306139703155,
-      "p90": 14.338994756734692,
-      "p100": 28.23748170268279
+      "p0": 0.05971668927166546,
+      "p10": 6.054038521903013,
+      "p25": 8.217910214793154,
+      "p50": 10.359176784245058,
+      "p75": 12.327246083066429,
+      "p90": 14.322381927687369,
+      "p100": 27.132011601493545
     }
   },
   "leakage_audit": {
@@ -323,15 +323,15 @@
       "amc",
       "ane"
     ],
-    "n_train": 10829,
-    "n_calibration": 1477,
-    "n_test_ood_regime": 284,
+    "n_train": 10846,
+    "n_calibration": 1479,
+    "n_test_ood_regime": 265,
     "ood_box": {
-      "ip_min_kA": 667.2298510742188,
+      "ip_min_kA": 666.9210327148437,
       "ip_max_kA": 986.0563916015625,
-      "ne_min_1e19": 13.40839825039978,
-      "ne_max_1e19": 28.519856519709617,
-      "description": "High-I\u209a (>667 kA) \u00d7 high-density (>13.41\u00d710\u00b9\u2079 m\u207b\u00b2) corner"
+      "ne_min_1e19": 13.40141355440582,
+      "ne_max_1e19": 27.403331717508483,
+      "description": "High-I\u209a (>667 kA) \u00d7 high-density (>13.40\u00d710\u00b9\u2079 m\u207b\u00b2) corner"
     },
     "circularity_warning": "",
     "notes": [
@@ -340,157 +340,207 @@
     ]
   },
   "corpus_n_report": {
-    "_note": "n_ood from PHYSICAL plasma-on-masked OOD box (Ip>667kA & ne>13.4e19 m^-2). magnetics target requires alternative split axis (circularity: Ip from amc).",
+    "_note": "n_ood from PHYSICAL plasma-on-masked OOD box (Ip>667kA & ne>13.4e19 m^-2; joint p84 corner). magnetics target requires alternative split axis (circularity: Ip from amc).",
     "_ood_box": {
-      "ip_min_kA": 667.2298510742188,
+      "ip_min_kA": 666.9210327148437,
       "ip_max_kA": 986.0563916015625,
-      "ne_min_1e19": 13.40839825039978,
-      "ne_max_1e19": 28.519856519709617,
-      "description": "High-I\u209a (>667 kA) \u00d7 high-density (>13.41\u00d710\u00b9\u2079 m\u207b\u00b2) corner"
+      "ne_min_1e19": 13.40141355440582,
+      "ne_max_1e19": 27.403331717508483,
+      "description": "High-I\u209a (>667 kA) \u00d7 high-density (>13.40\u00d710\u00b9\u2079 m\u207b\u00b2) corner"
+    },
+    "_ood_box_size_menu": {
+      "_semantics": "propose_ood_box(ood_fraction_target=t) sets EACH axis at the (1-2t) percentile; the JOINT high-corner fraction comes out ~t^2 (Spearman Ip-ne ~0.31), so t=0.08 yields ~2.9%% not 8%%. The locked v0 box is joint_p84 (265 shots). Orchestrator may pick a larger hole from this menu (axis locked = by-current-density).",
+      "options": {
+        "joint_p70": {
+          "ip_min_kA": 634.0,
+          "ne_min_1e19": 11.9,
+          "n": 1042,
+          "frac_pct": 11.6
+        },
+        "joint_p75": {
+          "ip_min_kA": 647.0,
+          "ne_min_1e19": 12.3,
+          "n": 730,
+          "frac_pct": 8.1
+        },
+        "joint_p80": {
+          "ip_min_kA": 658.0,
+          "ne_min_1e19": 12.9,
+          "n": 461,
+          "frac_pct": 5.1
+        },
+        "joint_p84": {
+          "ip_min_kA": 667.0,
+          "ne_min_1e19": 13.4,
+          "n": 265,
+          "frac_pct": 2.9
+        },
+        "joint_p90": {
+          "ip_min_kA": 685.0,
+          "ne_min_1e19": 14.3,
+          "n": 87,
+          "frac_pct": 1.0
+        },
+        "ip_only_p80": {
+          "ip_min_kA": 658.0,
+          "n": 1802,
+          "frac_pct": 20.0
+        },
+        "ip_only_p85": {
+          "ip_min_kA": 669.0,
+          "n": 1352,
+          "frac_pct": 15.0
+        },
+        "ip_only_p90": {
+          "ip_min_kA": 685.0,
+          "n": 901,
+          "frac_pct": 10.0
+        }
+      }
     },
     "rows": [
       {
         "target": "dalpha (xim+ada+aim)",
         "input_combo": "mag(amc+amb+ama)",
         "n_total_coavailable": 12827,
-        "n_ood_regime": 284,
-        "n_train": 11038,
-        "n_calibration": 1505,
+        "n_ood_regime": 265,
+        "n_train": 11055,
+        "n_calibration": 1507,
         "cal_adequate": true
       },
       {
         "target": "dalpha (xim+ada+aim)",
         "input_combo": "mag+ane",
         "n_total_coavailable": 12590,
-        "n_ood_regime": 284,
-        "n_train": 10829,
-        "n_calibration": 1477,
+        "n_ood_regime": 265,
+        "n_train": 10846,
+        "n_calibration": 1479,
         "cal_adequate": true
       },
       {
         "target": "dalpha (xim+ada+aim)",
         "input_combo": "mag+ane+abm",
         "n_total_coavailable": 10205,
-        "n_ood_regime": 256,
-        "n_train": 8755,
-        "n_calibration": 1194,
+        "n_ood_regime": 245,
+        "n_train": 8765,
+        "n_calibration": 1195,
         "cal_adequate": true
       },
       {
         "target": "dalpha (xim+ada+aim)",
         "input_combo": "mag+ane+rbb",
         "n_total_coavailable": 8321,
-        "n_ood_regime": 164,
-        "n_train": 7178,
-        "n_calibration": 979,
+        "n_ood_regime": 146,
+        "n_train": 7194,
+        "n_calibration": 981,
         "cal_adequate": true
       },
       {
         "target": "dalpha_primary (xim)",
         "input_combo": "mag(amc+amb+ama)",
         "n_total_coavailable": 13670,
-        "n_ood_regime": 284,
-        "n_train": 11780,
-        "n_calibration": 1606,
+        "n_ood_regime": 265,
+        "n_train": 11796,
+        "n_calibration": 1609,
         "cal_adequate": true
       },
       {
         "target": "dalpha_primary (xim)",
         "input_combo": "mag+ane",
         "n_total_coavailable": 13256,
-        "n_ood_regime": 284,
-        "n_train": 11415,
-        "n_calibration": 1557,
+        "n_ood_regime": 265,
+        "n_train": 11432,
+        "n_calibration": 1559,
         "cal_adequate": true
       },
       {
         "target": "dalpha_primary (xim)",
         "input_combo": "mag+ane+abm",
         "n_total_coavailable": 10820,
-        "n_ood_regime": 256,
-        "n_train": 9296,
-        "n_calibration": 1268,
+        "n_ood_regime": 245,
+        "n_train": 9306,
+        "n_calibration": 1269,
         "cal_adequate": true
       },
       {
         "target": "dalpha_primary (xim)",
         "input_combo": "mag+ane+rbb",
         "n_total_coavailable": 8786,
-        "n_ood_regime": 164,
-        "n_train": 7587,
-        "n_calibration": 1035,
+        "n_ood_regime": 146,
+        "n_train": 7603,
+        "n_calibration": 1037,
         "cal_adequate": true
       },
       {
         "target": "camera_boundary (rbb)",
         "input_combo": "mag(amc+amb+ama)",
         "n_total_coavailable": 9158,
-        "n_ood_regime": 164,
-        "n_train": 7915,
-        "n_calibration": 1079,
+        "n_ood_regime": 146,
+        "n_train": 7931,
+        "n_calibration": 1081,
         "cal_adequate": true
       },
       {
         "target": "camera_boundary (rbb)",
         "input_combo": "mag+ane",
         "n_total_coavailable": 8817,
-        "n_ood_regime": 164,
-        "n_train": 7615,
-        "n_calibration": 1038,
+        "n_ood_regime": 146,
+        "n_train": 7630,
+        "n_calibration": 1041,
         "cal_adequate": true
       },
       {
         "target": "camera_boundary (rbb)",
         "input_combo": "mag+ane+abm",
         "n_total_coavailable": 7158,
-        "n_ood_regime": 142,
-        "n_train": 6174,
-        "n_calibration": 842,
+        "n_ood_regime": 132,
+        "n_train": 6183,
+        "n_calibration": 843,
         "cal_adequate": true
       },
       {
         "target": "camera_boundary (rbb)",
         "input_combo": "mag+ane+rbb",
         "n_total_coavailable": 8817,
-        "n_ood_regime": 164,
-        "n_train": 7615,
-        "n_calibration": 1038,
+        "n_ood_regime": 146,
+        "n_train": 7630,
+        "n_calibration": 1041,
         "cal_adequate": true
       },
       {
         "target": "magnetics (ama+amb+amc)",
         "input_combo": "mag(amc+amb+ama)",
         "n_total_coavailable": 14091,
-        "n_ood_regime": 284,
-        "n_train": 12150,
-        "n_calibration": 1657,
+        "n_ood_regime": 265,
+        "n_train": 12167,
+        "n_calibration": 1659,
         "cal_adequate": true
       },
       {
         "target": "magnetics (ama+amb+amc)",
         "input_combo": "mag+ane",
         "n_total_coavailable": 13486,
-        "n_ood_regime": 284,
-        "n_train": 11618,
-        "n_calibration": 1584,
+        "n_ood_regime": 265,
+        "n_train": 11634,
+        "n_calibration": 1587,
         "cal_adequate": true
       },
       {
         "target": "magnetics (ama+amb+amc)",
         "input_combo": "mag+ane+abm",
         "n_total_coavailable": 10935,
-        "n_ood_regime": 256,
-        "n_train": 9398,
-        "n_calibration": 1281,
+        "n_ood_regime": 245,
+        "n_train": 9407,
+        "n_calibration": 1283,
         "cal_adequate": true
       },
       {
         "target": "magnetics (ama+amb+amc)",
         "input_combo": "mag+ane+rbb",
         "n_total_coavailable": 8817,
-        "n_ood_regime": 164,
-        "n_train": 7615,
-        "n_calibration": 1038,
+        "n_ood_regime": 146,
+        "n_train": 7630,
+        "n_calibration": 1041,
         "cal_adequate": true
       }
     ]

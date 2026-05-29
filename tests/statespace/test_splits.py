@@ -226,6 +226,76 @@ class TestComputeRegimeScalarsOne:
             f"Expected ~5e19 (spike rejected), got {s['ne_mean']:.2e}"
         )
 
+    def test_ne_valid_fraction_guard_drops_nan_dominated(
+        self, tmp_path: Path
+    ) -> None:
+        """A NaN-dominated interferometer trace must NOT yield an ne_mean.
+
+        Mirrors real shot 16061 (99.4 % NaN in the plasma-on window): a
+        broken fringe-lock trace whose few survivors median to a high value
+        would otherwise contaminate the OOD high-ne edge. ip_mean is still
+        returned (Iₚ is fine); ne_mean is dropped.
+        """
+        import xarray as xr  # noqa: PLC0415
+
+        shot_dir = tmp_path / "10006.zarr"
+        shot_dir.mkdir()
+        n_pre, n_on, n_post = 300, 200, 300
+        n = n_pre + n_on + n_post
+        time = (np.arange(n) * 2e-4 - n_pre * 2e-4).astype(np.float64)
+        ip = np.zeros(n)
+        ip[n_pre : n_pre + n_on] = 600.0
+        # ne: mostly NaN inside the plasma-on window, only a few survivors
+        ne = np.full(n, np.nan)
+        on_lo = n_pre
+        # Only 5 % of the plasma-on window is valid → below the 50 % guard
+        n_valid = max(1, n_on // 20)
+        ne[on_lo : on_lo + n_valid] = 25e19  # high-ne survivors
+        xr.Dataset(
+            {"plasma_current": (("time",), ip)},
+            coords={"time": time},
+        ).to_zarr(str(shot_dir), group="amc", mode="w")
+        xr.Dataset(
+            {"density": (("time",), ne)},
+            coords={"time": time},
+        ).to_zarr(str(shot_dir), group="ane", mode="a")
+
+        s = _compute_regime_scalars_one(shot_dir)
+        assert "ip_mean" in s  # Iₚ is fine
+        assert "ne_mean" not in s, (
+            "NaN-dominated ne trace must be dropped by the valid-fraction guard"
+        )
+
+    def test_ne_valid_fraction_guard_keeps_mostly_valid(
+        self, tmp_path: Path
+    ) -> None:
+        """A trace with a few NaNs but mostly valid data keeps its ne_mean."""
+        import xarray as xr  # noqa: PLC0415
+
+        shot_dir = tmp_path / "10007.zarr"
+        shot_dir.mkdir()
+        n_pre, n_on, n_post = 300, 200, 300
+        n = n_pre + n_on + n_post
+        time = (np.arange(n) * 2e-4 - n_pre * 2e-4).astype(np.float64)
+        ip = np.zeros(n)
+        ip[n_pre : n_pre + n_on] = 600.0
+        ne = np.zeros(n)
+        ne[n_pre : n_pre + n_on] = 5e19
+        # Drop 10 % of the plasma-on window to NaN — still well above the guard
+        ne[n_pre : n_pre + n_on // 10] = np.nan
+        xr.Dataset(
+            {"plasma_current": (("time",), ip)},
+            coords={"time": time},
+        ).to_zarr(str(shot_dir), group="amc", mode="w")
+        xr.Dataset(
+            {"density": (("time",), ne)},
+            coords={"time": time},
+        ).to_zarr(str(shot_dir), group="ane", mode="a")
+
+        s = _compute_regime_scalars_one(shot_dir)
+        assert "ne_mean" in s
+        assert abs(s["ne_mean"] - 5e19) < 0.5e19
+
     def test_no_amc_returns_empty(self, tmp_path: Path) -> None:
         """A shot without amc returns an empty dict."""
         shot_dir = tmp_path / "10003.zarr"

@@ -83,6 +83,11 @@ _IP_THRESHOLD_FRACTION = 0.2  # plasma-on = |Iₚ| > 0.2 × peak|Iₚ|
 _NE_PHYSICAL_MAX = 30e19  # reject line-integrated ne above this (m⁻²) — values
 # above are fringe-locked / saturated (physical MAST line-integral ≤ ~25e19 m⁻²)
 _NE_PHYSICAL_MIN = 0.0  # reject negative ne (instrument DC offset / noise)
+_NE_MIN_VALID_FRACTION = 0.50  # require ≥50 % of plasma-on ne samples to be
+# finite-and-in-range. A trace that lost fringe lock for most of the burn
+# (e.g. shot 16061: 99.4 % NaN) is a BROKEN interferometer, not a high-density
+# shot; its median-of-survivors is not a trustworthy regime coordinate and
+# must NOT define the OOD high-ne edge. Such shots get no ne_mean (dropped).
 
 
 def _plasma_on_window(
@@ -183,13 +188,22 @@ def _compute_regime_scalars_one(
                 ne_mask = np.ones_like(ne, dtype=bool)
             ne_window = ne[ne_mask]
             # Reject non-physical interferometer values (negative DC offsets,
-            # fringe-jump spikes) BEFORE taking the median
+            # fringe-jump spikes, NaN-filled fringe-lock losses) BEFORE the
+            # median
             ne_clip = ne_window[
                 np.isfinite(ne_window)
                 & (ne_window >= _NE_PHYSICAL_MIN)
                 & (ne_window <= _NE_PHYSICAL_MAX)
             ]
-            if ne_clip.size > 0:
+            # Valid-fraction guard: a trace that lost fringe lock for most of
+            # the burn is a broken interferometer, not a high-density shot.
+            # Require enough of the plasma-on window to be valid; otherwise
+            # drop ne_mean entirely (the shot keeps ip_mean but is excluded
+            # from the ne axis / OOD high-ne edge).
+            valid_fraction = (
+                ne_clip.size / ne_window.size if ne_window.size > 0 else 0.0
+            )
+            if ne_clip.size > 0 and valid_fraction >= _NE_MIN_VALID_FRACTION:
                 scalars["ne_mean"] = float(np.median(ne_clip))  # m⁻², robust
 
     return scalars
