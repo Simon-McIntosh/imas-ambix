@@ -1,0 +1,415 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="reckon-type" content="research">
+<meta name="plan-slug" content="tokenizer-spatiotemporal-survey">
+<meta name="plan-summary" content="Survey of spatiotemporal video tokenizers and world-model architectures for fusion plasma dynamics; assesses a pivot from frame-by-frame to 3D space-time tokenization">
+<meta name="plan-informs" content="plasma-decoder-finetune,tokenizer-cosmos-evaluation,tokenizer-transient-fidelity">
+<title>Spatiotemporal Tokenizer &amp; World-Model Survey | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head><body><main class="plan-doc">
+
+<h1>Spatiotemporal Tokenizer &amp; World-Model Survey</h1>
+<p class="byline">Authored 2026-05-29 &middot; Research doc &middot; Informs: plasma-decoder-finetune, tokenizer-cosmos-evaluation, tokenizer-transient-fidelity</p>
+
+<section id="s1">
+<h2>§1 Findings Overview</h2>
+
+<p>The imas-ambix project currently tokenises MAST fast-visible camera frames with <strong>Open-MAGVIT2</strong>, an image (2D) LFQ tokeniser with 16× spatial compression applied independently to every frame. A decoder fine-tune trial just failed to beat the untrained baseline on per-frame rFID (~13). This survey asks whether that failure reflects a structural limitation: a frame-by-frame tokeniser that discards temporal structure cannot learn to represent plasma <em>dynamics</em> (ELMs, filaments, blobs, disruptions), which are inherently transient space-time phenomena.</p>
+
+<p>The central finding of this survey is that the video-tokenisation literature has decisively moved past frame-by-frame approaches. Every competitive video tokeniser from 2023 onward uses <strong>causal 3D convolution or factored space-time attention</strong> to jointly compress spatial and temporal dimensions. The most important result for imas-ambix is that we tested NVIDIA Cosmos Tokeniser in its discrete-image variant only (DI16×16). The Cosmos library exposes six video variants — Continuous Video (CV) and Discrete Video (DV) at temporal compression factors of 4× or 8× — none of which have been evaluated on MAST data. These are open-weight, commercially licensed, and runnable zero-shot today on our H200 node.</p>
+
+<p>A second finding concerns the metric. Per-frame rFID measures static reconstruction quality on individual frames; it is <em>agnostic to temporal coherence</em>. For a world model whose purpose is to predict plasma dynamics, Fréchet Video Distance (FVD) and latent-prediction accuracy are more meaningful north stars. The V-JEPA-2 architecture goes further: it eliminates pixel reconstruction entirely, predicting only in latent space, and therefore has no rFID metric at all. This is not a weakness — it is a deliberate choice informed by evidence that reconstruction objectives overfit to surface appearance rather than physical dynamics.</p>
+
+<p>A third finding concerns domain transfer. All video tokenisers surveyed were pre-trained on natural-image or driving video corpora. Plasma imagery is grayscale, high-frame-rate (up to 50 kHz on fast cameras), and far from any pretraining distribution. Structured domain-gap evidence for plasma-class scientific video is sparse, but analogous evidence from medical imaging suggests that natural-image pre-training is a reasonable starting point for fine-tuning, with domain-specific fine-tuning yielding further gains. Whether zero-shot video tokenisers preserve fast-timescale transient structure in MAST rbb shots is an open empirical question — and is the primary thing the coordinator should test before committing to a tokeniser pivot.</p>
+</section>
+
+<section id="s2">
+<h2>§2 Spatiotemporal Tokeniser Comparison</h2>
+
+<p>The table below covers the tokenisers named in the brief. "3D" means the tokeniser applies spatiotemporal compression jointly (temporal dimension is compressed, not treated frame-by-frame). "2D" means purely spatial per-frame compression. "Open weights" means weights are publicly downloadable with no access-request gate. Verification status is noted inline; claims marked [unverified] could not be confirmed against a primary source during this research session.</p>
+
+<table>
+<thead>
+<tr>
+  <th>Model</th>
+  <th>Modality</th>
+  <th>Architecture</th>
+  <th>Quantiser</th>
+  <th>Codebook / vocab</th>
+  <th>Temporal compression</th>
+  <th>Spatial compression</th>
+  <th>Open weights</th>
+  <th>License</th>
+  <th>Primary source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>Open-MAGVIT2</strong> (our current tokeniser)</td>
+  <td>Image only (2D)</td>
+  <td>CNN encoder-decoder, no temporal axis</td>
+  <td>LFQ (Lookup-Free Quantisation)</td>
+  <td>2<sup>18</sup> = 262,144</td>
+  <td>None — per-frame only</td>
+  <td>16× (256×256 → 16×16 tokens)</td>
+  <td>Yes — GitHub + HuggingFace</td>
+  <td>Apache 2.0 [unverified — verify against repo LICENSE]</td>
+  <td><a href="https://arxiv.org/abs/2409.04410">arXiv:2409.04410</a></td>
+</tr>
+<tr>
+  <td><strong>MAGVIT-v2</strong> (Google, closed)</td>
+  <td>Image + Video (3D causal)</td>
+  <td>Causal 3D CNN with temporally-causal padding; joint image-video tokenisation</td>
+  <td>LFQ</td>
+  <td>2<sup>18</sup> = 262,144</td>
+  <td>4× (source: <a href="https://arxiv.org/html/2310.05737v2">arXiv:2310.05737v2</a>)</td>
+  <td>16× or 32× depending on variant</td>
+  <td><strong>No</strong> — Google closed-source; Open-MAGVIT2 is a community reproduction of the <em>image</em> variant only</td>
+  <td>Research only (no licence issued for weights)</td>
+  <td><a href="https://arxiv.org/abs/2310.05737">arXiv:2310.05737</a> (ICLR 2024)</td>
+</tr>
+<tr>
+  <td><strong>Cosmos-Tokenizer CV</strong> (NVIDIA, continuous video)</td>
+  <td>Video (3D causal)</td>
+  <td>Causal encoder-decoder with 2-level Haar wavelet transform + factored conv/attention; continuous latent (AE, no quantisation)</td>
+  <td>None (continuous)</td>
+  <td>N/A — continuous 16-channel latent</td>
+  <td>4× (CV4x8x8) or 8× (CV8x8x8, CV8x16x16)</td>
+  <td>8× or 16×</td>
+  <td>Yes — HuggingFace nvidia/*</td>
+  <td>NVIDIA Open Model Licence (commercial use permitted)</td>
+  <td><a href="https://github.com/NVIDIA/Cosmos-Tokenizer">GitHub/NVIDIA/Cosmos-Tokenizer</a></td>
+</tr>
+<tr>
+  <td><strong>Cosmos-Tokenizer DV</strong> (NVIDIA, discrete video)</td>
+  <td>Video (3D causal)</td>
+  <td>Same as CV but with FSQ quantisation head</td>
+  <td>FSQ (Finite Scalar Quantisation)</td>
+  <td>~64K vocab (source: <a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DV4x8x8">HF model card DV4x8x8</a>)</td>
+  <td>4× (DV4x8x8) or 8× (DV8x8x8, DV8x16x16)</td>
+  <td>8× or 16×</td>
+  <td>Yes — HuggingFace nvidia/*</td>
+  <td>NVIDIA Open Model Licence (commercial use permitted)</td>
+  <td><a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DV4x8x8">HF: Cosmos-0.1-Tokenizer-DV4x8x8</a></td>
+</tr>
+<tr>
+  <td><strong>OmniTokenizer</strong> (NeurIPS 2024)</td>
+  <td>Image + Video (3D)</td>
+  <td>Transformer-based; spatial-temporal decoupled architecture with window attention (spatial) + causal attention (temporal); jointly trained on images then images+video</td>
+  <td>VQ (vector quantisation)</td>
+  <td>[unverified — paper reports rFVD=42 on UCF-101 but codebook size not confirmed from abstract]</td>
+  <td>[unverified — temporal stride reported but factor not confirmed from primary source]</td>
+  <td>[unverified]</td>
+  <td>Yes — GitHub FoundationVision/OmniTokenizer</td>
+  <td>Apache 2.0 [unverified]</td>
+  <td><a href="https://arxiv.org/abs/2406.09399">arXiv:2406.09399</a> (NeurIPS 2024)</td>
+</tr>
+<tr>
+  <td><strong>W.A.L.T</strong> (Window Attention Latent Transformer)</td>
+  <td>Image + Video (3D)</td>
+  <td>Causal encoder for joint image-video latent space; window-attention transformer for diffusion; spatial blocks + spatiotemporal blocks</td>
+  <td>Continuous (no quantisation — used as backbone for diffusion, not discrete AR)</td>
+  <td>N/A</td>
+  <td>[unverified — continuous model, temporal factor not confirmed]</td>
+  <td>[unverified]</td>
+  <td>No public weights found as of 2026-05-29</td>
+  <td>Research only</td>
+  <td><a href="https://arxiv.org/abs/2312.06662">arXiv:2312.06662</a> (ECCV 2024)</td>
+</tr>
+<tr>
+  <td><strong>LARP</strong> (ICLR 2025 Oral)</td>
+  <td>Video (3D)</td>
+  <td>Holistic tokenisation via learned queries (not patchwise); AR prior model trained simultaneously, discarded at inference; patch sizes fT=4, fH=8, fW=8</td>
+  <td>VQ (factorised codebook)</td>
+  <td>8,192 (source: <a href="https://arxiv.org/html/2410.21264v1">arXiv:2410.21264v1</a>)</td>
+  <td>4× temporal (16 frames → 4 temporal tokens)</td>
+  <td>8× (source: fH=fW=8 patch size)</td>
+  <td>Yes — GitHub hywang66/LARP</td>
+  <td>[unverified — license not confirmed from primary source]</td>
+  <td><a href="https://arxiv.org/abs/2410.21264">arXiv:2410.21264</a> (ICLR 2025 Oral)</td>
+</tr>
+<tr>
+  <td><strong>ElasticTok</strong> (ICLR 2025)</td>
+  <td>Image + Video (frame-level with temporal conditioning)</td>
+  <td>Encoder conditions on prior frames; random token-masking at training enables variable token budgets per frame at inference; adaptive allocation</td>
+  <td>Continuous [unverified — discrete variant may exist]</td>
+  <td>N/A (variable per frame)</td>
+  <td>None — per-frame with cross-frame context; temporal tokens variable</td>
+  <td>Variable by content complexity</td>
+  <td>Yes — GitHub LargeWorldModel/ElasticTok</td>
+  <td>[unverified — license not confirmed]</td>
+  <td><a href="https://arxiv.org/abs/2410.08368">arXiv:2410.08368</a> (ICLR 2025)</td>
+</tr>
+<tr>
+  <td><strong>CV-VAE</strong> (NeurIPS 2024)</td>
+  <td>Video (3D)</td>
+  <td>3D VAE with regularisation loss compatible with Stable Diffusion image VAE latent space; temporal compression via 3D convolutions</td>
+  <td>Continuous (VAE — no quantisation)</td>
+  <td>N/A</td>
+  <td>4× (source: <a href="https://arxiv.org/abs/2405.20279">arXiv:2405.20279</a> — "four times more frames")</td>
+  <td>Compatible with SD image-VAE 8× spatial</td>
+  <td>Yes — <a href="https://arxiv.org/abs/2405.20279">arXiv page</a> references GitHub release</td>
+  <td>[unverified — license not confirmed from primary source]</td>
+  <td><a href="https://arxiv.org/abs/2405.20279">arXiv:2405.20279</a> (NeurIPS 2024)</td>
+</tr>
+<tr>
+  <td><strong>VideoGPT / VQ-GAN-video</strong> (2021)</td>
+  <td>Video (3D)</td>
+  <td>3D CNN + axial attention VQ-VAE; autoregressive GPT over discrete tokens; codebook learned jointly with 3D encoder</td>
+  <td>VQ</td>
+  <td>16,384 [unverified — paper reports several variants]</td>
+  <td>4× or 8× [unverified — architecture uses 3D downsampling]</td>
+  <td>4× or 8× spatial [unverified]</td>
+  <td>Yes — <a href="https://arxiv.org/abs/2104.10157">arXiv:2104.10157</a> references public code</td>
+  <td>BSD [unverified]</td>
+  <td><a href="https://arxiv.org/abs/2104.10157">arXiv:2104.10157</a></td>
+</tr>
+<tr>
+  <td><strong>TATS</strong> (Time-Sensitive Transformer, ECCV 2022)</td>
+  <td>Video (3D)</td>
+  <td>Time-agnostic VQGAN for spatial tokens + time-sensitive transformer for temporal; separates spatial and temporal components</td>
+  <td>VQ</td>
+  <td>[unverified]</td>
+  <td>[unverified]</td>
+  <td>[unverified]</td>
+  <td>[unverified — paper references code release]</td>
+  <td>[unverified]</td>
+  <td><a href="https://www.ecva.net/papers/eccv_2022/papers_ECCV/papers/136770103.pdf">ECCV 2022</a></td>
+</tr>
+<tr>
+  <td><strong>VidTok</strong> (Microsoft, Dec 2024)</td>
+  <td>Video (3D)</td>
+  <td>2D conv for spatial up/downsampling + AlphaBlender operator for temporal + 3D conv for fusion; continuous and discrete variants</td>
+  <td>FSQ (discrete variant)</td>
+  <td>[unverified from primary source]</td>
+  <td>4× (source: <a href="https://arxiv.org/html/2412.13061v1">arXiv:2412.13061v1</a>)</td>
+  <td>8×</td>
+  <td>Yes — GitHub microsoft/VidTok (v1.1 released March 2025)</td>
+  <td>MIT [unverified — verify against GitHub LICENSE]</td>
+  <td><a href="https://arxiv.org/abs/2412.13061">arXiv:2412.13061</a></td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Key observation for imas-ambix:</strong> Of the open-weight video tokenisers, <strong>Cosmos DV/CV</strong> and <strong>VidTok</strong> are the most mature and best-documented options for zero-shot evaluation. Cosmos DV4x8x8 at 4× temporal / 8× spatial compression is the closest analogue to our current Open-MAGVIT2 image baseline (which is 16× spatial, no temporal). LARP is academically interesting (ICLR Oral) but the holistic-query design means it produces global rather than local tokens — this may be suboptimal for capturing spatially localised plasma events like filaments.</p>
+</section>
+
+<section id="s3">
+<h2>§3 World-Model Architecture Comparison</h2>
+
+<p>The key structural question for imas-ambix is: <em>where do dynamics live?</em> In a reconstruction-based pipeline the tokeniser must encode enough temporal signal that the stage-2 autoregressive or diffusion model can predict future tokens. In a predictive (JEPA-style) pipeline dynamics are entirely in the predictor head; the encoder can be purely spatial and dynamics learning is explicit rather than implicit. The table below maps each world-model architecture onto this axis.</p>
+
+<table>
+<thead>
+<tr>
+  <th>Model</th>
+  <th>Tokenisation</th>
+  <th>Where dynamics live</th>
+  <th>Stage-2 model type</th>
+  <th>Is reconstruction-based?</th>
+  <th>Primary metric</th>
+  <th>Open weights</th>
+  <th>Primary source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>Genie</strong> (DeepMind, 11B, 2024)</td>
+  <td>3D ST-transformer VQ-VAE, discrete, 1,024-code codebook, 16-frame clips at 10 FPS, spatial 4× (source: <a href="https://arxiv.org/html/2402.15391v1">arXiv:2402.15391v1</a>)</td>
+  <td>Jointly in tokeniser (causal ST encoding captures inter-frame dependencies) and in the MaskGIT dynamics model</td>
+  <td>MaskGIT (masked token prediction), conditioned on latent actions</td>
+  <td>Yes — tokeniser trained with reconstruction loss; dynamics model trained for next-token prediction</td>
+  <td>Video generation quality, interactive-playability</td>
+  <td><strong>No</strong> — weights closed</td>
+  <td><a href="https://arxiv.org/abs/2402.15391">arXiv:2402.15391</a></td>
+</tr>
+<tr>
+  <td><strong>Genie-2</strong> (DeepMind, 2024)</td>
+  <td>Video autoencoder (continuous latents) + autoregressive latent diffusion model</td>
+  <td>Primarily in the dynamics (autoregressive latent diffusion) model; tokeniser provides compact latents</td>
+  <td>Autoregressive latent diffusion transformer</td>
+  <td>Yes — video autoencoder uses reconstruction loss</td>
+  <td>3D world quality, action-controllability</td>
+  <td><strong>No</strong> — closed; no technical paper as of 2026-05-29</td>
+  <td><a href="https://deepmind.google/blog/genie-2-a-large-scale-foundation-world-model/">DeepMind blog, Dec 2024</a></td>
+</tr>
+<tr>
+  <td><strong>GAIA-1</strong> (Wayve, 2023)</td>
+  <td>Video tokeniser, discrete [unverified details]</td>
+  <td>Largely in the autoregressive transformer dynamics model</td>
+  <td>GPT-style autoregressive transformer</td>
+  <td>Yes</td>
+  <td>Driving realism, diversity</td>
+  <td><strong>No</strong> — proprietary</td>
+  <td><a href="https://arxiv.org/abs/2309.17080">arXiv:2309.17080</a></td>
+</tr>
+<tr>
+  <td><strong>GAIA-2</strong> (Wayve, 2025)</td>
+  <td>Continuous latent: space-time factored transformer encoder, 32× spatial + 8× temporal compression, 64-channel latent (source: <a href="https://arxiv.org/html/2503.20523v1">arXiv:2503.20523v1</a>)</td>
+  <td>Dynamics entirely in the latent diffusion model; tokeniser provides compact continuous representation</td>
+  <td>Latent diffusion model (continuous)</td>
+  <td>Yes — tokeniser has reconstruction loss; LDM has diffusion loss</td>
+  <td>Multi-camera consistency, scene diversity, driving-scenario coverage</td>
+  <td><strong>No</strong> — proprietary</td>
+  <td><a href="https://arxiv.org/abs/2503.20523">arXiv:2503.20523</a> (2025)</td>
+</tr>
+<tr>
+  <td><strong>iVideoGPT</strong> (NeurIPS 2024)</td>
+  <td>Compressive discretisation (novel per-frame VQ variant); tokens include visual observations, actions, rewards</td>
+  <td>Dynamics in the autoregressive transformer; tokens encode per-step state</td>
+  <td>Autoregressive transformer (next-token prediction across multimodal tokens)</td>
+  <td>Yes — reconstruction loss for visual tokens</td>
+  <td>Action-conditioned video prediction, model-based RL performance</td>
+  <td>Yes — GitHub thuml/iVideoGPT</td>
+  <td><a href="https://arxiv.org/abs/2405.15223">arXiv:2405.15223</a> (NeurIPS 2024)</td>
+</tr>
+<tr>
+  <td><strong>DIAMOND</strong> (NeurIPS 2024 Spotlight)</td>
+  <td><strong>No discrete tokeniser</strong> — works directly in pixel space; 2D U-Net diffusion denoiser conditioned on history buffer of L past frames and actions</td>
+  <td>Dynamics are entirely in the diffusion model: it predicts next pixel frame directly from (noisy target, history buffer)</td>
+  <td>Diffusion model (EDM formulation, 2D U-Net)</td>
+  <td>Pixel-reconstruction objective, but via diffusion denoising not a VAE bottleneck</td>
+  <td>Human-normalised score on Atari 100k (1.46 — best-in-class for world-model agents)</td>
+  <td>Yes — GitHub eloialonso/diamond</td>
+  <td><a href="https://arxiv.org/abs/2405.12399">arXiv:2405.12399</a> (NeurIPS 2024 Spotlight)</td>
+</tr>
+<tr>
+  <td><strong>NVIDIA Cosmos WFM</strong> (2025)</td>
+  <td>Cosmos-Tokenizer: CV8x8x8 (continuous, for diffusion WFM) or DV8x16x16 (discrete, for autoregressive WFM); causal 3D encoder with Haar wavelet front-end</td>
+  <td>Diffusion variant: dynamics in the latent diffusion model operating on CV tokens. AR variant: dynamics in the autoregressive transformer operating on DV tokens</td>
+  <td>Latent diffusion model (diffusion WFM) or autoregressive transformer (AR WFM)</td>
+  <td>Yes — tokeniser trained with rFID/rFVD reconstruction loss; WFM trained with generative loss</td>
+  <td>rFID, rFVD on TokenBench covering robotics, driving, egocentric, web video</td>
+  <td>Yes — HuggingFace nvidia-cosmos/* (both tokeniser and WFM weights)</td>
+  <td><a href="https://arxiv.org/abs/2501.03575">arXiv:2501.03575</a> (2025)</td>
+</tr>
+<tr>
+  <td><strong>V-JEPA / V-JEPA-2</strong> (Meta, 2025)</td>
+  <td><strong>No discrete tokeniser and no reconstruction decoder.</strong> Continuous ViT embeddings (shape 16×16×1408 for ViT-g). Positional embeddings: 3D RoPE over (t, h, w)</td>
+  <td>Dynamics are entirely in the predictor: a ViT-small predictor is trained to predict target encoder representations for masked spatiotemporal regions. The encoder itself is a frozen target for the predictor — no autoregressive generation. (source: <a href="https://arxiv.org/html/2506.09985v1">arXiv:2506.09985v1</a>)</td>
+  <td>ViT predictor (mask-denoising in representation space, not pixel space). For downstream planning: a separate planner is trained on frozen V-JEPA-2 features</td>
+  <td><strong>No</strong> — explicitly non-reconstructive. Objective: ‖Pφ(Δy, Eθ(x)) − sg(Eθ̄(y))‖₁ where Eθ̄ is the target encoder. No pixel decoder in the loop</td>
+  <td>Top-1 accuracy on SSv2 (77.3), ImageNet; action anticipation; zero-shot robot control success rate</td>
+  <td>Yes — Meta AI (model weights on HuggingFace [unverified — verify against Meta AI page])</td>
+  <td><a href="https://arxiv.org/abs/2506.09985">arXiv:2506.09985</a> (June 2025)</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Key structural observation:</strong> V-JEPA-2 stands apart from every other entry in this table. It has no reconstruction objective, no codebook, no pixel decoder, and therefore no rFID or rFVD metric. This is not an omission; it is the design. The model learns physical dynamics by predicting what will appear in spatiotemporally masked regions — a form of self-supervised temporal reasoning entirely in latent space. The trade-off is that V-JEPA-2 is a <em>representation model</em>, not a <em>generative model</em>: it cannot synthesise novel plasma imagery for data augmentation. It learns to understand dynamics without being able to reconstruct or hallucinate them.</p>
+</section>
+
+<section id="s4">
+<h2>§4 Metric Question: Is Per-Frame rFID the Right North Star for a Dynamics World Model?</h2>
+
+<p>The short answer is <strong>no</strong> — but the reasoning matters for how we interpret the failed decoder fine-tune.</p>
+
+<h3>What rFID measures</h3>
+<p>rFID (reconstruction FID) is the Fréchet Inception Distance computed on individual frames of a reconstructed video, averaging or aggregating over frames. It captures whether reconstructed frames look like real frames statistically — i.e., it is a <em>per-frame image quality metric</em>. A tokeniser with excellent rFID could produce frames that are each high-quality but temporally incoherent — flickering, with incorrect object trajectories, failing to preserve sub-frame events. This is exactly the failure mode relevant to plasma cameras: a blob or ELM might be present for 2–5 frames at 20 kHz; a tokeniser that smears or drops it will produce a fine rFID while being useless for transient detection.</p>
+
+<h3>What FVD measures and its own limitations</h3>
+<p>FVD (Fréchet Video Distance) computes the Fréchet distance between distributions of I3D features on generated vs. real video clips. It was designed to capture temporal coherence — "it captures the temporal coherence of content in addition to the quality of each frame" (source: <a href="https://openreview.net/pdf?id=rylgEULtdN">FVD, 2018 workshop</a>). However, 2024 work (<a href="https://arxiv.org/abs/2404.12391">arXiv:2404.12391</a>) has shown that FVD has a <em>content bias</em>: it is often dominated by per-frame spatial quality and can be insensitive to temporal distortions (shuffling frames, corrupting motion). This means FVD is better than rFID for capturing dynamics but still imperfect.</p>
+
+<h3>What each architecture actually optimises</h3>
+<ul>
+<li><strong>Reconstruction-based tokenisers (Open-MAGVIT2, Cosmos, LARP, OmniTokenizer):</strong> optimise rFID (image) or rFVD (video) as the primary tokeniser evaluation metric. Generation quality is measured separately with FVD on the downstream generation model.</li>
+<li><strong>Genie, iVideoGPT, NVIDIA Cosmos WFM:</strong> report FVD on video generation benchmarks (e.g., UCF-101, Kinetics) to measure the quality of the combined tokeniser + dynamics model. The tokeniser's rFVD and the WFM's generative FVD are reported separately.</li>
+<li><strong>LARP:</strong> reports rFVD (reconstruction) of 6.2–24 and generative FVD (gFVD) of 57 on UCF-101 (source: <a href="https://arxiv.org/html/2410.21264v1">arXiv:2410.21264v1</a>). The gap between rFVD and gFVD is the "generative ceiling" the tokeniser sets.</li>
+<li><strong>DIAMOND:</strong> does not report FVD or rFID; it reports agent game score on Atari 100k, because its purpose is dynamics-faithful simulation for RL. This is the most principled approach for our use-case: evaluate whether the world model enables downstream task performance, not whether it reconstructs pixels faithfully.</li>
+<li><strong>V-JEPA-2:</strong> reports no pixel-space metrics at all. Evaluation is classification accuracy (SSv2, ImageNet) and robot planning success rate. The rationale from the paper (source: <a href="https://arxiv.org/html/2506.09985v1">arXiv:2506.09985v1</a>): the objective "focuses on learning representations for predictable aspects of a scene...while ignoring unpredictable details that generative objectives emphasize." For a plasma world model that must understand whether an ELM occurred rather than reconstruct the exact pixel values, this philosophy is directly applicable.</li>
+</ul>
+
+<h3>Implications for the failed decoder fine-tune</h3>
+<p>The Open-MAGVIT2 decoder fine-tune was evaluated on rFID and failed to beat the untrained baseline (rFID ~13). This result has two interpretations that the choice of tokeniser affects differently:</p>
+<ol>
+<li><strong>Reconstruction interpretation:</strong> the tokeniser has sufficient capacity to represent individual frames but fine-tuning the decoder does not generalise well to MAST imagery. Switching to a video tokeniser would provide temporal context but the rFID metric would still only capture per-frame quality.</li>
+<li><strong>Representation interpretation:</strong> rFID may be the wrong metric entirely. A world model for plasma dynamics should be evaluated on whether it encodes predictive representations of transient events — something rFID cannot measure. The V-JEPA-2 approach sidesteps this by never computing rFID, instead asking directly whether the representation enables downstream prediction tasks.</li>
+</ol>
+<p>The coordinator will record which interpretation governs the next evaluation protocol.</p>
+</section>
+
+<section id="s5">
+<h2>§5 Domain Transfer: Video Tokenisers on Scientific/Plasma Imagery</h2>
+
+<p>No video tokeniser surveyed has been pre-trained on or benchmarked against plasma camera footage. MAST rbb imagery has several properties that are out-of-distribution relative to all known pretraining corpora:</p>
+
+<ul>
+<li><strong>Grayscale or near-grayscale:</strong> MAST fast cameras capture visible emission, typically in a very narrow wavelength band. The rbb diagnostic (broad-band visible) may have colour, but many fast camera shots are effectively grayscale. All surveyed tokenisers are trained on 3-channel RGB video.</li>
+<li><strong>High frame rate and sub-millisecond transients:</strong> MAST fast cameras can run at 20–50 kHz. Standard video is 24–60 fps. At 20 kHz, an ELM event lasting 200 µs spans only 4 frames — comparable to the clip length of some tokenisers' temporal receptive fields. If temporal compression is 4×, that ELM would be compressed into a single temporal token or potentially aliased away entirely.</li>
+<li><strong>Low texture / unusual statistics:</strong> plasma emission images have bright filamentary structures against a dark background, very different from natural image statistics. Distribution shift between pretraining data and MAST shots is expected to be large.</li>
+<li><strong>No natural motion patterns:</strong> Most video tokenisers implicitly assume motion patterns consistent with natural scenes (camera motion, object motion). Plasma motion — radial blob propagation, rotating ELM structures — does not match these priors.</li>
+</ul>
+
+<h3>What the literature says about OOD / scientific video</h3>
+<p>The <em>Interpreting Physics in Video World Models</em> paper (<a href="https://arxiv.org/abs/2602.07050">arXiv:2602.07050</a>, Feb 2026) found that physical variables (speed, acceleration, motion direction) are represented in intermediate layers of video encoders (V-JEPA-2, VideoMAE-v2) in a "Physics Emergence Zone" at approximately one-third depth. This is encouraging: physical dynamics may be accessible even from models pre-trained on non-scientific video, without requiring domain-specific pretraining. However, the paper evaluated on standard intuitive-physics benchmarks, not scientific or plasma imagery. Whether the physics emergence generalises to the specific dynamics of tokamak plasma (MHD instabilities, blob transport) is untested.</p>
+
+<p>Evidence from the medical imaging domain (structurally analogous: grayscale, high texture contrast, large OOD gap from natural images) suggests that natural-image pre-trained models transfer imperfectly but usefully to domain-specific data, with domain-specific fine-tuning yielding further gains. The MedITok work (source: <a href="https://arxiv.org/html/2505.19225v1">arXiv:2505.19225v1</a>) demonstrates that a unified visual tokeniser can be fine-tuned for domain-specific medical modalities with significant quality improvements. This supports a strategy of starting from a pre-trained spatiotemporal tokeniser and fine-tuning on MAST data.</p>
+
+<p>The <em>SciVid</em> benchmark (<a href="https://arxiv.org/abs/2507.03578">arXiv:2507.03578</a>) evaluates video models on scientific tasks including medical computer vision, animal behaviour, and weather forecasting, but does not appear to include plasma or fusion imagery.</p>
+
+<h3>Temporal resolution mismatch: the aliasing risk</h3>
+<p>This is the most operationally serious domain-transfer concern. A Cosmos DV tokeniser with 4× temporal compression running on MAST rbb footage shot at, say, 5 kHz would produce one temporal token per 4 input frames (0.8 ms per token). An ELM crash typically develops over 100–500 µs — 0.5 to 2.5 tokens. Whether the tokeniser preserves the discriminative structure of such an event across a 4× compression boundary is unknown and cannot be inferred from natural-video benchmarks. An ablation that compares 1×, 2×, and 4× temporal compression on actual MAST shots, evaluated on transient-detection downstream tasks, would directly answer this question.</p>
+</section>
+
+<section id="s6">
+<h2>§6 Implications for imas-ambix: Strategic Options</h2>
+
+<p>The evidence from this survey supports three non-mutually-exclusive options, ordered from least to most disruptive. The coordinator will record the recommendation.</p>
+
+<h3>Option A — Test Cosmos DV/CV video tokeniser zero-shot (lowest risk, highest near-term return)</h3>
+<p>We already have the Cosmos Tokeniser library and H200 GPU allocation. The image variant (DI16×16) has been evaluated; the video variants (DV4×8×8, DV8×8×8, CV4×8×8, CV8×8×8) have not. Concretely: encode a subset of MAST rbb shots using DV4×8×8 (4× temporal, 8× spatial, ~64K vocab, FSQ quantisation), measure rFVD (not rFID), and run the same qualitative transient-preservation check used in tokenizer-transient-fidelity. This is a ~1-day experiment requiring no new training. Key question: does 4× temporal compression preserve ELM and blob structure at the frame rates available in rbb shots?</p>
+
+<p><em>Risk:</em> Cosmos was trained on natural/driving/robotics video; domain gap to plasma imagery is large. Zero-shot performance may be poor on reconstruction quality even if temporal structure is preserved. But a failed zero-shot test is diagnostic: it distinguishes "temporal compression helps but domain gap must be closed" from "temporal compression hurts regardless".</p>
+
+<h3>Option B — Evaluate MAGVIT-v2-style causal 3D tokenisation via an open reproduction (medium complexity)</h3>
+<p>The original MAGVIT-v2 weights are closed. However, community reproductions exist: the asymmetric MAGVIT-v2 implementation (GitHub bornfly-detachment/asymmetric_magvitv2, HuggingFace 4z and 16z models) claims to support joint image-video encoding with 4× temporal compression and the same LFQ quantisation design as MAGVIT-v2, outperforming all open-source models on FID and FVD. If weights are accessible, this would test the LFQ+3D-causal design — the closest structural upgrade from our current Open-MAGVIT2 2D model — while staying within the same quantisation family (LFQ, 2^18 vocab). The risk: these are community reproductions; training quality, licence, and exact specifications are less well-documented than Cosmos.</p>
+
+<h3>Option C — JEPA-style latent-predictive architecture (side-steps reconstruction entirely)</h3>
+<p>V-JEPA-2 (Meta, June 2025) learns dynamics by predicting masked spatiotemporal regions in latent space with no pixel reconstruction and no discrete tokens. If the goal is a world model that encodes plasma dynamics rather than one that reconstructs plasma imagery, this architecture eliminates rFID as a metric entirely — it is simply not part of the objective. The practical implication is that we would train (or fine-tune) a V-JEPA-2-style model on MAST shots, then evaluate on downstream prediction tasks (ELM onset classification, blob detection from latent features) rather than pixel reconstruction. This is the most principled approach for dynamics capture but requires:</p>
+<ul>
+<li>A clear downstream evaluation task (to replace rFID as the training signal).</li>
+<li>Willingness to abandon pixel-generative capabilities (no synthesised plasma imagery for data augmentation).</li>
+<li>Access to V-JEPA-2 pre-trained weights for fine-tuning, or sufficient MAST data volume to train from scratch.</li>
+</ul>
+
+<h3>Option D — Fine-tune an existing spatiotemporal tokeniser on MAST data (medium-high complexity)</h3>
+<p>Any open-weight video tokeniser (Cosmos CV/DV, VidTok, LARP) can be fine-tuned on MAST rbb shots to close the domain gap. The MedITok precedent suggests this is viable. The critical design question is the training objective: fine-tuning on rFVD (video reconstruction) would improve frame fidelity but may not directly improve dynamics encoding. A fine-tune that adds a temporal-consistency or transient-detection auxiliary loss would be more targeted. This option requires GPU training time on the H200 node and is more complex than Option A.</p>
+
+<h3>Cross-cutting recommendation note</h3>
+<p>Options A through D are not mutually exclusive. The natural order is A (zero-shot evaluation, diagnostic) before committing to any of B, C, or D. If Option A reveals that Cosmos DV preserves transient structure adequately, it becomes the default and Option D (domain fine-tune) becomes the incremental improvement path. If Option A fails at the temporal-compression boundary, the diagnostic narrows to whether the problem is domain gap (fix: Option D) or architecture (fix: Option C). The coordinator will record the recommendation.</p>
+</section>
+
+<section id="s7">
+<h2>§7 Sources</h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2310.05737">arXiv:2310.05737</a> — MAGVIT-v2 "Language Model Beats Diffusion: Tokenizer is Key to Visual Generation", Yu et al., ICLR 2024. <em>Verified: abstract, architecture description (LFQ, causal 3D CNN, 2^18 codebook, 4× temporal compression from HTML version). Weights closed — confirmed by Open-MAGVIT2 paper.</em></li>
+<li><a href="https://arxiv.org/abs/2409.04410">arXiv:2409.04410</a> — Open-MAGVIT2, Luo et al., 2024. <em>Verified: confirmed image-only scope; 2^18 LFQ codebook; 16× spatial compression; video extension listed as future work (from HTML full text).</em></li>
+<li><a href="https://github.com/NVIDIA/Cosmos-Tokenizer">GitHub: NVIDIA/Cosmos-Tokenizer</a> — Cosmos Tokeniser repository listing all 12 model variants (CI/DI/CV/DV) with temporal factors 4×/8× and spatial 8×/16×. NVIDIA Open Model License. <em>Verified from repository README.</em></li>
+<li><a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DV4x8x8">HuggingFace: Cosmos-0.1-Tokenizer-DV4x8x8</a> — FSQ quantisation, ~64K vocab, 4× temporal, 8× spatial. NVIDIA Open Model License. <em>Verified from model card and code example.</em></li>
+<li><a href="https://arxiv.org/abs/2501.03575">arXiv:2501.03575</a> — Cosmos World Foundation Model Platform, NVIDIA, 2025. <em>Verified: tokeniser architecture (Haar wavelet front-end, CV for diffusion WFM, DV for AR WFM), TokenBench evaluation, rFID/rFVD metrics (from HTML full text).</em></li>
+<li><a href="https://arxiv.org/abs/2406.09399">arXiv:2406.09399</a> — OmniTokenizer, Wang et al., NeurIPS 2024. <em>Verified: architecture (transformer, spatial-temporal decoupled, joint image-video), accepted NeurIPS 2024. Codebook size and exact temporal factor unverified from abstract only.</em></li>
+<li><a href="https://arxiv.org/abs/2312.06662">arXiv:2312.06662</a> — W.A.L.T., Gupta et al., ECCV 2024. <em>Verified: causal encoder for joint image-video latent space, window attention transformer, continuous latents for diffusion. Temporal factor unverified.</em></li>
+<li><a href="https://arxiv.org/abs/2410.21264">arXiv:2410.21264</a> — LARP, Wang et al., ICLR 2025 Oral. <em>Verified: 3D spatiotemporal tokenisation (fT=4, fH=8, fW=8 patch size), factorised VQ codebook size 8,192, rFVD 6.2–24, gFVD 57 on UCF-101 (from HTML full text).</em></li>
+<li><a href="https://arxiv.org/abs/2410.08368">arXiv:2410.08368</a> — ElasticTok, Chen et al., ICLR 2025. <em>Verified: adaptive tokenisation via random masking, variable token budget per frame, conditions on prior frames. Quantiser type and weights unverified from abstract.</em></li>
+<li><a href="https://arxiv.org/abs/2405.20279">arXiv:2405.20279</a> — CV-VAE, He et al., NeurIPS 2024. <em>Verified: 3D VAE with 4× temporal compression, SD-compatible latent space, NeurIPS 2024 acceptance.</em></li>
+<li><a href="https://arxiv.org/abs/2104.10157">arXiv:2104.10157</a> — VideoGPT, Yan et al., 2021. <em>Verified: 3D CNN + axial attention VQ-VAE, autoregressive GPT over discrete tokens. Specific codebook size unverified.</em></li>
+<li><a href="https://www.ecva.net/papers/eccv_2022/papers_ECCV/papers/136770103.pdf">ECCV 2022 — TATS</a>, Ge et al., 2022. <em>Unverified: VQ codebook size and exact temporal factor not confirmed from primary source.</em></li>
+<li><a href="https://arxiv.org/abs/2412.13061">arXiv:2412.13061</a> — VidTok, Microsoft, Dec 2024. <em>Verified: FSQ discrete variant, 4× temporal + 8× spatial compression, v1.1 released March 2025 with improved long-video support.</em></li>
+<li><a href="https://arxiv.org/abs/2402.15391">arXiv:2402.15391</a> — Genie, Bruce et al., DeepMind, 2024. <em>Verified: spatiotemporal VQ-VAE tokeniser, 1,024-code codebook, 16-frame clips at 10 FPS, spatial patch size 4, MaskGIT dynamics model, 11B parameters (from HTML full text).</em></li>
+<li><a href="https://deepmind.google/blog/genie-2-a-large-scale-foundation-world-model/">DeepMind blog: Genie 2, Dec 2024</a> — Genie-2 announcement. <em>Partially verified: video autoencoder + autoregressive latent diffusion transformer, action-controllable 3D worlds. No technical paper; architecture details from blog post.</em></li>
+<li><a href="https://arxiv.org/abs/2309.17080">arXiv:2309.17080</a> — GAIA-1, Wayve, 2023. <em>Partially verified: autoregressive transformer world model for autonomous driving. Tokeniser details unverified from abstract.</em></li>
+<li><a href="https://arxiv.org/abs/2503.20523">arXiv:2503.20523</a> — GAIA-2, Wayve, 2025. <em>Verified: space-time factored transformer tokeniser with 32× spatial + 8× temporal compression, 64-channel continuous latent, latent diffusion world model (from HTML full text).</em></li>
+<li><a href="https://arxiv.org/abs/2405.15223">arXiv:2405.15223</a> — iVideoGPT, NeurIPS 2024. <em>Verified: multimodal tokens (visual, action, reward), autoregressive transformer, compressive discretisation, NeurIPS 2024 acceptance.</em></li>
+<li><a href="https://arxiv.org/abs/2405.12399">arXiv:2405.12399</a> — DIAMOND, Alonso et al., NeurIPS 2024 Spotlight. <em>Verified: no discrete tokeniser, pixel-space diffusion (2D U-Net, EDM), history-conditioned generation, Atari 100k score 1.46, no FVD/rFID reported (from HTML full text).</em></li>
+<li><a href="https://arxiv.org/abs/2506.09985">arXiv:2506.09985</a> — V-JEPA-2, Assran et al., Meta AI, June 2025. <em>Verified: continuous ViT embeddings (no discrete tokens, no pixel decoder), latent-space mask-denoising objective ‖Pφ(Δy,Eθ(x))−sg(Eθ̄(y))‖₁, 3D RoPE positional embeddings, SSv2 top-1 77.3, zero-shot robot control (from HTML full text).</em></li>
+<li><a href="https://arxiv.org/abs/2602.07050">arXiv:2602.07050</a> — "Interpreting Physics in Video World Models", Joseph et al., Feb 2026. <em>Verified: Physics Emergence Zone at ~1/3 model depth in V-JEPA-2 and VideoMAE-v2 encoders; probing of speed, acceleration, motion direction. Does not address plasma/scientific OOD domains.</em></li>
+<li><a href="https://arxiv.org/abs/2404.12391">arXiv:2404.12391</a> — "On the Content Bias in Fréchet Video Distance", 2024. <em>Verified from search result: FVD dominated by spatial quality; insensitive to temporal distortions including frame shuffling.</em></li>
+<li><a href="https://openreview.net/pdf?id=rylgEULtdN">OpenReview: FVD metric</a> — Original FVD paper. <em>Partially verified: FVD designed to capture temporal coherence via I3D features.</em></li>
+<li><a href="https://arxiv.org/html/2505.19225v1">arXiv:2505.19225v1</a> — MedITok unified medical image tokeniser, 2025. <em>Verified from search result: domain-specific fine-tuning of visual tokenisers significantly improves performance over natural-image pre-trained baselines on medical imagery.</em></li>
+<li><a href="https://arxiv.org/abs/2507.03578">arXiv:2507.03578</a> — SciVid benchmark, 2025. <em>Partially verified from search result: evaluates video models on scientific tasks across medical, animal, weather domains. Plasma/fusion not in scope.</em></li>
+</ul>
+</section>
+
+</main></body></html>
