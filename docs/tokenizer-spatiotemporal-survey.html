@@ -40,6 +40,7 @@
   <th>Codebook / vocab</th>
   <th>Temporal compression</th>
   <th>Spatial compression</th>
+  <th>Typical resolution / clip length</th>
   <th>Open weights</th>
   <th>License</th>
   <th>Primary source</th>
@@ -54,6 +55,7 @@
   <td>2<sup>18</sup> = 262,144</td>
   <td>None — per-frame only</td>
   <td>16× (256×256 → 16×16 tokens)</td>
+  <td>256×256 or 512×512 per frame; single frame only</td>
   <td>Yes — GitHub + HuggingFace</td>
   <td>Apache 2.0 [unverified — verify against repo LICENSE]</td>
   <td><a href="https://arxiv.org/abs/2409.04410">arXiv:2409.04410</a></td>
@@ -66,6 +68,7 @@
   <td>2<sup>18</sup> = 262,144</td>
   <td>4× (source: <a href="https://arxiv.org/html/2310.05737v2">arXiv:2310.05737v2</a>)</td>
   <td>16× or 32× depending on variant</td>
+  <td>17 frames @ 128×128 (video); 256×256 or 512×512 (image) (source: <a href="https://arxiv.org/html/2310.05737v2">arXiv:2310.05737v2</a>)</td>
   <td><strong>No</strong> — Google closed-source; Open-MAGVIT2 is a community reproduction of the <em>image</em> variant only</td>
   <td>Research only (no licence issued for weights)</td>
   <td><a href="https://arxiv.org/abs/2310.05737">arXiv:2310.05737</a> (ICLR 2024)</td>
@@ -75,9 +78,10 @@
   <td>Video (3D causal)</td>
   <td>Causal encoder-decoder with 2-level Haar wavelet transform + factored conv/attention; continuous latent (AE, no quantisation)</td>
   <td>None (continuous)</td>
-  <td>N/A — continuous 16-channel latent</td>
+  <td>N/A — continuous latent [channel count unverified from primary source]</td>
   <td>4× (CV4x8x8) or 8× (CV8x8x8, CV8x16x16)</td>
   <td>8× or 16×</td>
+  <td>Flexible resolution; trained on diverse video including robotics, driving, web (source: <a href="https://arxiv.org/abs/2501.03575">arXiv:2501.03575</a>); exact benchmark clip length [unverified]</td>
   <td>Yes — HuggingFace nvidia/*</td>
   <td>NVIDIA Open Model Licence (commercial use permitted)</td>
   <td><a href="https://github.com/NVIDIA/Cosmos-Tokenizer">GitHub/NVIDIA/Cosmos-Tokenizer</a></td>
@@ -90,6 +94,7 @@
   <td>~64K vocab (source: <a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DV4x8x8">HF model card DV4x8x8</a>)</td>
   <td>4× (DV4x8x8) or 8× (DV8x8x8, DV8x16x16)</td>
   <td>8× or 16×</td>
+  <td>Flexible resolution; typical example: 512×512 input (source: HF model card)</td>
   <td>Yes — HuggingFace nvidia/*</td>
   <td>NVIDIA Open Model Licence (commercial use permitted)</td>
   <td><a href="https://huggingface.co/nvidia/Cosmos-0.1-Tokenizer-DV4x8x8">HF: Cosmos-0.1-Tokenizer-DV4x8x8</a></td>
@@ -102,6 +107,7 @@
   <td>[unverified — paper reports rFVD=42 on UCF-101 but codebook size not confirmed from abstract]</td>
   <td>[unverified — temporal stride reported but factor not confirmed from primary source]</td>
   <td>[unverified]</td>
+  <td>[unverified — resolution and clip length not confirmed from abstract]</td>
   <td>Yes — GitHub FoundationVision/OmniTokenizer</td>
   <td>Apache 2.0 [unverified]</td>
   <td><a href="https://arxiv.org/abs/2406.09399">arXiv:2406.09399</a> (NeurIPS 2024)</td>
@@ -114,6 +120,7 @@
   <td>N/A</td>
   <td>[unverified — continuous model, temporal factor not confirmed]</td>
   <td>[unverified]</td>
+  <td>Text-to-video generation: 512×896 at 8 fps (source: <a href="https://arxiv.org/abs/2312.06662">arXiv:2312.06662</a>)</td>
   <td>No public weights found as of 2026-05-29</td>
   <td>Research only</td>
   <td><a href="https://arxiv.org/abs/2312.06662">arXiv:2312.06662</a> (ECCV 2024)</td>
@@ -126,7 +133,8 @@
   <td>8,192 (source: <a href="https://arxiv.org/html/2410.21264v1">arXiv:2410.21264v1</a>)</td>
   <td>4× temporal (16 frames → 4 temporal tokens)</td>
   <td>8× (source: fH=fW=8 patch size)</td>
-  <td>Yes — GitHub hywang66/LARP</td>
+  <td>16-frame clips; benchmark: UCF-101 (256×256) [resolution unverified from primary source]</td>
+  <td>Code released — GitHub hywang66/LARP; model weights availability [unverified — paper does not explicitly confirm checkpoint release]</td>
   <td>[unverified — license not confirmed from primary source]</td>
   <td><a href="https://arxiv.org/abs/2410.21264">arXiv:2410.21264</a> (ICLR 2025 Oral)</td>
 </tr>
@@ -138,6 +146,7 @@
   <td>N/A (variable per frame)</td>
   <td>None — per-frame with cross-frame context; temporal tokens variable</td>
   <td>Variable by content complexity</td>
+  <td>[unverified — resolution and clip length not confirmed from abstract]</td>
   <td>Yes — GitHub LargeWorldModel/ElasticTok</td>
   <td>[unverified — license not confirmed]</td>
   <td><a href="https://arxiv.org/abs/2410.08368">arXiv:2410.08368</a> (ICLR 2025)</td>
@@ -150,6 +159,7 @@
   <td>N/A</td>
   <td>4× (source: <a href="https://arxiv.org/abs/2405.20279">arXiv:2405.20279</a> — "four times more frames")</td>
   <td>Compatible with SD image-VAE 8× spatial</td>
+  <td>[unverified — typical resolution and clip length not confirmed from abstract]</td>
   <td>Yes — <a href="https://arxiv.org/abs/2405.20279">arXiv page</a> references GitHub release</td>
   <td>[unverified — license not confirmed from primary source]</td>
   <td><a href="https://arxiv.org/abs/2405.20279">arXiv:2405.20279</a> (NeurIPS 2024)</td>
@@ -162,6 +172,7 @@
   <td>16,384 [unverified — paper reports several variants]</td>
   <td>4× or 8× [unverified — architecture uses 3D downsampling]</td>
   <td>4× or 8× spatial [unverified]</td>
+  <td>64×64 or 128×128 typical; 16-frame clips [unverified — confirm from paper]</td>
   <td>Yes — <a href="https://arxiv.org/abs/2104.10157">arXiv:2104.10157</a> references public code</td>
   <td>BSD [unverified]</td>
   <td><a href="https://arxiv.org/abs/2104.10157">arXiv:2104.10157</a></td>
@@ -171,6 +182,7 @@
   <td>Video (3D)</td>
   <td>Time-agnostic VQGAN for spatial tokens + time-sensitive transformer for temporal; separates spatial and temporal components</td>
   <td>VQ</td>
+  <td>[unverified]</td>
   <td>[unverified]</td>
   <td>[unverified]</td>
   <td>[unverified]</td>
@@ -186,6 +198,7 @@
   <td>[unverified from primary source]</td>
   <td>4× (source: <a href="https://arxiv.org/html/2412.13061v1">arXiv:2412.13061v1</a>)</td>
   <td>8×</td>
+  <td>[unverified — typical resolution not confirmed from primary source]; v1.1 adds arbitrary-length video support</td>
   <td>Yes — GitHub microsoft/VidTok (v1.1 released March 2025)</td>
   <td>MIT [unverified — verify against GitHub LICENSE]</td>
   <td><a href="https://arxiv.org/abs/2412.13061">arXiv:2412.13061</a></td>
