@@ -885,11 +885,19 @@ def _score_horizons(
     y: np.ndarray,
     horizons: tuple[int, ...],
     conformal_q: dict[int, float] | None = None,
+    transient_flag: np.ndarray | None = None,
 ) -> dict:
     """Per-horizon CRPS / NLL (raw σ) + coverage / PI-width (conformal σ).
 
     mu, var, y : (P, H, D).  CRPS/NLL use raw σ (baseline convention); coverage
     uses the per-horizon conformal scale ``conformal_q[h]`` if supplied.
+
+    transient_flag : (P, H) bool.  If supplied, CRPS is ALSO reported on the
+    subset where the FORECAST TARGET Dα_{t+h} is itself ELM-active — the
+    transient-target stratum where "calibrated widening beats confidently-narrow"
+    is supposed to live (the task's "explicit reporting on transient windows").
+    The overall (window-straddles-ELM) aggregate is ~97% quiescent and hides
+    this; the transient-target subset is the acceptance-relevant slice.
     """
     from imas_ambix.statespace.calibration import (  # noqa: PLC0415
         crps_gaussian,
@@ -908,13 +916,13 @@ def _score_horizons(
         if ok.sum() < 10:
             out[str(h)] = {"n": int(ok.sum())}
             continue
-        m, v, yt = m[ok], v[ok], yt[ok]
-        sigma_raw = np.sqrt(np.maximum(v, 1e-12))
+        mo, vo, yto = m[ok], v[ok], yt[ok]
+        sigma_raw = np.sqrt(np.maximum(vo, 1e-12))
         rec = {
             "n": int(ok.sum()),
-            "crps_raw": float(crps_gaussian(yt, m, sigma_raw)),
-            "nll_raw": float(nll_gaussian(yt, m, sigma_raw)),
-            "rmse": float(np.sqrt(np.mean((yt - m) ** 2))),
+            "crps_raw": float(crps_gaussian(yto, mo, sigma_raw)),
+            "nll_raw": float(nll_gaussian(yto, mo, sigma_raw)),
+            "rmse": float(np.sqrt(np.mean((yto - mo) ** 2))),
             "mean_sigma_raw": float(np.mean(sigma_raw)),
         }
         if conformal_q is not None and h in conformal_q:
@@ -923,16 +931,32 @@ def _score_horizons(
             z = float(norm.ppf(0.95))
             sigma_conf = conformal_q[h] * sigma_raw / z
             rec["coverage_90_conf"] = float(
-                interval_coverage(yt, m, sigma_conf, alpha=0.10)
+                interval_coverage(yto, mo, sigma_conf, alpha=0.10)
             )
             rec["pi_width_90_conf"] = float(
                 prediction_interval_width(sigma_conf, alpha=0.10)
             )
+        # Transient-target stratum: forecast TARGET Dα_{t+h} is ELM-active.
+        if transient_flag is not None:
+            tf = transient_flag[:, i] & ok
+            if tf.sum() >= 10:
+                mt = mu[tf, i, 0]
+                vt = var[tf, i, 0]
+                ytt = y[tf, i, 0]
+                st = np.sqrt(np.maximum(vt, 1e-12))
+                rec["n_transient"] = int(tf.sum())
+                rec["crps_raw_transient"] = float(crps_gaussian(ytt, mt, st))
+                rec["nll_raw_transient"] = float(nll_gaussian(ytt, mt, st))
+                rec["rmse_transient"] = float(np.sqrt(np.mean((ytt - mt) ** 2)))
+                rec["mean_sigma_raw_transient"] = float(np.mean(st))
+            else:
+                rec["n_transient"] = int(tf.sum())
         out[str(h)] = rec
     logger.info(
-        "[%s] per-horizon CRPS(raw): %s",
+        "[%s] per-horizon CRPS(raw) all=%s transient=%s",
         label,
         {h: round(out[str(h)].get("crps_raw", float("nan")), 4) for h in h_sorted},
+        {h: round(out[str(h)].get("crps_raw_transient", float("nan")), 4) for h in h_sorted},
     )
     return out
 
@@ -1120,22 +1144,28 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     # --- 9. FORECASTING comparison on the SAME dense transient windows ------
     eng_mu, eng_var, eng_y = _engine_horizon_pairs(model, idt_runs, idt_anchors, cfg.horizons, stats, cfg.device)
     stat_mu, stat_var, stat_y = _static_horizon_predict(ensemble, stats, idt_runs, idt_anchors, cfg.horizons)
+    # Per-(pair,horizon) flag: is the forecast TARGET Dα_{t+h} itself ELM-active?
+    idt_tflag = _target_transient_flag(idt_runs, idt_anchors, cfg.horizons)
     # Verify the two models scored the SAME (t, t+h) truths (identical windows).
     same_truth = _verify_same_truths(eng_y, stat_y)
+    # Dump per-pair arrays to scratch for offline stratification (last run).
+    _dump_pairs("idt", eng_mu, eng_var, stat_mu, stat_var, eng_y, idt_tflag, cfg.horizons)
     metrics["forecasting_indist_dense_transient"] = {
         "n_anchor_pairs": int(eng_mu.shape[0]),
         "same_truths_engine_vs_static": same_truth,
-        "engine": _score_horizons("ENGINE/idt", eng_mu, eng_var, eng_y, cfg.horizons, eng_q),
-        "static": _score_horizons("STATIC/idt", stat_mu, stat_var, stat_y, cfg.horizons, stat_q),
+        "engine": _score_horizons("ENGINE/idt", eng_mu, eng_var, eng_y, cfg.horizons, eng_q, idt_tflag),
+        "static": _score_horizons("STATIC/idt", stat_mu, stat_var, stat_y, cfg.horizons, stat_q, idt_tflag),
     }
 
     # --- 10. OOD honesty (forecasting on OOD dense transient windows) -------
     eng_mu_o, eng_var_o, eng_y_o = _engine_horizon_pairs(model, ood_runs, ood_anchors, cfg.horizons, stats, cfg.device)
     stat_mu_o, stat_var_o, stat_y_o = _static_horizon_predict(ensemble, stats, ood_runs, ood_anchors, cfg.horizons)
+    ood_tflag = _target_transient_flag(ood_runs, ood_anchors, cfg.horizons)
+    _dump_pairs("ood", eng_mu_o, eng_var_o, stat_mu_o, stat_var_o, eng_y_o, ood_tflag, cfg.horizons)
     metrics["forecasting_ood_dense_transient"] = {
         "n_anchor_pairs": int(eng_mu_o.shape[0]),
-        "engine": _score_horizons("ENGINE/ood", eng_mu_o, eng_var_o, eng_y_o, cfg.horizons, eng_q),
-        "static": _score_horizons("STATIC/ood", stat_mu_o, stat_var_o, stat_y_o, cfg.horizons, stat_q),
+        "engine": _score_horizons("ENGINE/ood", eng_mu_o, eng_var_o, eng_y_o, cfg.horizons, eng_q, ood_tflag),
+        "static": _score_horizons("STATIC/ood", stat_mu_o, stat_var_o, stat_y_o, cfg.horizons, stat_q, ood_tflag),
     }
     metrics["ood_honesty"] = _ood_honesty(
         model, ensemble, idt_runs, ood_runs, stats, regime_scalars, train_runs, cfg.device
@@ -1235,6 +1265,56 @@ def _verify_same_truths(y_eng: np.ndarray, y_stat: np.ndarray) -> bool:
     a, b = y_eng, y_stat
     both_nan = np.isnan(a) & np.isnan(b)
     return bool(np.all(both_nan | (a == b)))
+
+
+def _target_transient_flag(runs, anchors_per_run, horizons) -> np.ndarray:
+    """(P, H) bool: is the forecast TARGET Dα_{t+h} itself ELM-active?
+
+    Aligned EXACTLY to the engine/static (run, valid-anchor, horizon) triples
+    (same valid rule: t + h_max < T).  Uses baseline.compute_transient_mask on
+    each run's full-1 kHz Dα and indexes the mask at t+h.
+    """
+    from imas_ambix.statespace.baseline import compute_transient_mask  # noqa: PLC0415
+
+    H = len(horizons)
+    h_sorted = sorted(horizons)
+    h_max = max(horizons)
+    flags = []
+    for run, anchors in zip(runs, anchors_per_run, strict=True):
+        T = run.y.shape[0]
+        valid = [int(a) for a in anchors if int(a) + h_max < T]
+        if not valid:
+            continue
+        tmask = compute_transient_mask(run.y)  # (T,)
+        for t in valid:
+            row = np.zeros(H, dtype=bool)
+            for i, h in enumerate(h_sorted):
+                if t + h < T:
+                    row[i] = bool(tmask[t + h])
+            flags.append(row)
+    if not flags:
+        return np.zeros((0, H), dtype=bool)
+    return np.stack(flags)
+
+
+def _dump_pairs(tag, eng_mu, eng_var, stat_mu, stat_var, y, tflag, horizons) -> None:
+    """Dump per-(pair,horizon) arrays to /work scratch for offline stratification.
+
+    Lets any further analysis (e.g. spike-amplitude bins) run in seconds without
+    re-running the full pipeline.  Both models share the same y / tflag.
+    """
+    try:
+        path = _SCRATCH / f"pairs_{tag}.npz"
+        np.savez_compressed(
+            path,
+            horizons=np.array(sorted(horizons)),
+            eng_mu=eng_mu[:, :, 0], eng_var=eng_var[:, :, 0],
+            stat_mu=stat_mu[:, :, 0], stat_var=stat_var[:, :, 0],
+            y=y[:, :, 0], transient_flag=tflag,
+        )
+        logger.info("[%s] per-pair arrays dumped to %s (%d pairs)", tag, path, eng_mu.shape[0])
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to dump pairs for %s: %s", tag, e)
 
 
 def _eval_filtering(model, idt_runs, conf_runs, stats, device, burn_in: int = 20) -> dict:
@@ -1434,6 +1514,29 @@ def _verdict(metrics: dict) -> dict:
         any(wins[h]["engine_wins"] for h in h_pos)
     )
     v["same_windows_verified"] = fc.get("same_truths_engine_vs_static", False)
+
+    # (2b) ACCEPTANCE-RELEVANT slice: CRPS on the TRANSIENT TARGET subset
+    # (Dα_{t+h} itself ELM-active).  The overall aggregate above is ~97%
+    # quiescent and hides the calibrated-widening mechanism; this stratum is
+    # where "dynamics earn their keep" must show if it shows anywhere.
+    wins_t = {}
+    for h in eng:
+        e = eng[h].get("crps_raw_transient")
+        s = stat.get(h, {}).get("crps_raw_transient")
+        if e is not None and s is not None:
+            wins_t[h] = {
+                "engine_crps_transient": e, "static_crps_transient": s,
+                "n_transient": eng[h].get("n_transient"),
+                "engine_wins": bool(e < s),
+            }
+    v["forecast_crps_transient_by_horizon"] = wins_t
+    h_pos_t = [h for h in wins_t if int(h) > 0]
+    v["forecast_beats_static_transient_any_Hgt0"] = bool(
+        any(wins_t[h]["engine_wins"] for h in h_pos_t)
+    )
+    v["forecast_beats_static_transient_all_Hgt0"] = bool(
+        h_pos_t and all(wins_t[h]["engine_wins"] for h in h_pos_t)
+    )
 
     # Calibration-quality diagnostic: is the engine's predictive σ ≈ its rmse at
     # each horizon?  σ≈rmse → honest widening (the win mechanism is working);
