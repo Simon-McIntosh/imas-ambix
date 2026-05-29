@@ -124,10 +124,19 @@ _MAGNETICS_CHANNEL_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"diamagnetic"),
 ]
 
+# Camera-boundary leakage patterns (in addition to primary groups)
+_CAMERA_BOUNDARY_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"edge"),          # edge_pixel, edge_radius (xho)
+    re.compile(r"boundary"),      # any boundary-derived channel
+    re.compile(r"ridge"),         # ridge_pixel (xho)
+    re.compile(r"rp_radius"),     # arp/rp_radius
+]
+
 # Map candidate target → leakage channel patterns
 _TARGET_PATTERNS: dict[str, list[re.Pattern[str]]] = {
     "dalpha": _DALPHA_CHANNEL_PATTERNS,
     "magnetics": _MAGNETICS_CHANNEL_PATTERNS,
+    "camera_boundary": _CAMERA_BOUNDARY_PATTERNS,
 }
 
 # ---------------------------------------------------------------------------
@@ -293,10 +302,60 @@ def build_leakage_audit(
         f"({min(scan_shots)}–{max(scan_shots)})"
     )
 
+    # Primary family groups that MUST always be held out (regardless of channel
+    # names).  The hold-out set = primary_family_groups ∪ pattern-matched groups.
+    # Pattern matching alone misses groups whose channels don't name-match but
+    # ARE the physical quantity (e.g. ama/amb/amh/amm/asm coil currents don't
+    # contain 'b_' / 'flux' / 'plasma_current' but ARE magnetics measurements).
+    _primary_family_groups: dict[str, frozenset[str]] = {  # noqa: N806 — module-level constant inside fn
+        "dalpha": frozenset({"xim", "ada", "aim"}),
+        "magnetics": frozenset(
+            {"ama", "amb", "amc", "amh", "amm", "asm", "xma", "xmb", "xmc", "xmo"}
+        ),
+        "camera_boundary": frozenset(
+            # rbb is the primary target; xho is a pre-computed boundary analysis
+            # from rbb (edge_pixel/edge_radius) — leaks the target directly.
+            # air/ait = IR camera heat-load analysis (different physical quantity
+            # but derived from boundary position); arp has rp_gap_efit (EFIT-
+            # derived and already excluded), rp_radius (position near boundary).
+            {"rbb", "xho", "rca"}  # rca = single-frame visible camera
+        ),
+    }
+
     for target, patterns in _TARGET_PATTERNS.items():
         entries: list[ChannelLeakageEntry] = []
+        # Step 1: add ALL channels from primary family groups
+        primary_groups = _primary_family_groups.get(target, frozenset())
+        for grp in sorted(primary_groups):
+            if grp not in seen_channels:
+                # Group was not present in scanned shots; still mark it as leaking
+                entries.append(
+                    ChannelLeakageEntry(
+                        group=grp,
+                        channel="*",
+                        matched_pattern="primary_family_group",
+                        example_shot=-1,
+                    )
+                )
+                continue
+            for ch in sorted(seen_channels[grp]):
+                entries.append(
+                    ChannelLeakageEntry(
+                        group=grp,
+                        channel=ch,
+                        matched_pattern="primary_family_group",
+                        example_shot=example_shots.get((grp, ch), -1),
+                    )
+                )
+        # Step 2: pattern-match for additional leaking groups OUTSIDE the
+        # primary family (cross-group leakage)
+        seen_key = {(e.group, e.channel) for e in entries}
         for grp, channels in sorted(seen_channels.items()):
+            if grp in primary_groups:
+                continue  # already included above
             for ch in sorted(channels):
+                if (grp, ch) in seen_key:
+                    continue
                 ch_lower = ch.lower()
                 for pat in patterns:
                     if pat.search(ch_lower):
@@ -308,7 +367,9 @@ def build_leakage_audit(
                                 example_shot=example_shots.get((grp, ch), -1),
                             )
                         )
+                        seen_key.add((grp, ch))
                         break  # only record first matching pattern per channel
+
         audit.target_leakage[target] = entries
         logger.info(
             "Target '%s': %d leaking channels across %d groups",
@@ -322,16 +383,39 @@ def build_leakage_audit(
     dalpha_groups = sorted({e.group for e in dalpha_entries})
     audit.notes.append(
         f"Dα leakage: channels found in groups {dalpha_groups}. "
-        "Hold-out MUST exclude all of these groups, not just xim."
+        "Hold-out MUST exclude all of these groups, not just xim. "
+        "NOTE: ada/inner_integrated, inner_peak_radius, geo_full are also "
+        "Dα-derived (in the ada group) but not explicitly listed because the "
+        "entire ada group is held out."
     )
 
     mag_entries = audit.target_leakage.get("magnetics", [])
-    mag_groups = sorted({e.group for e in mag_entries})
+    mag_primary = sorted(
+        {e.group for e in mag_entries if e.matched_pattern == "primary_family_group"}
+    )
+    mag_cross = sorted(
+        {
+            g
+            for g in {e.group for e in mag_entries}
+            if g not in set(mag_primary)
+        }
+    )
     audit.notes.append(
-        f"Magnetics leakage: channels found in groups {mag_groups}. "
-        "NOTE: regime split uses Iₚ from amc — if magnetics is the target, "
+        f"Magnetics leakage: primary groups {mag_primary} "
+        f"+ cross-group pattern matches in {mag_cross}. "
+        "NOTE: regime split uses Ip from amc — if magnetics is the target, "
         "the split axis itself leaks. Flag this to the orchestrator."
     )
+
+    cam_entries = audit.target_leakage.get("camera_boundary", [])
+    if cam_entries:
+        cam_groups = sorted({e.group for e in cam_entries})
+        audit.notes.append(
+            f"Camera-boundary leakage: groups {cam_groups} include xho "
+            "(pre-computed edge_radius/edge_pixel — directly leaks camera boundary). "
+            "Also exclude rba/rbc/rco/rgb/rgc (other visible cameras — correlated "
+            "emission)."
+        )
 
     return audit
 
