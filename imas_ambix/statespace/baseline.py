@@ -577,8 +577,17 @@ class MLPGaussian:
         batch_size: int = 512,
         lr: float = 1e-3,
         rng: np.random.Generator | None = None,
+        grad_clip: float | None = None,
     ) -> list[float]:
-        """Mini-batch Adam training. Returns list of per-epoch mean NLL."""
+        """Mini-batch Adam training. Returns list of per-epoch mean NLL.
+
+        ``grad_clip`` (opt-in; default ``None`` = off, preserving the original
+        decimated-data behaviour) applies global-norm gradient clipping. Set it
+        (e.g. ``grad_clip=10.0``) when training on sharp targets — dense,
+        un-decimated Dα ELM spikes drove unclipped members to NLL≈+7 / σ≈87 and
+        a meaningless predictor (found during S7.3, 2026-05-29). Off by default
+        so existing S7.2 (decimated-slice) runs are bit-for-bit unchanged.
+        """
         if rng is None:
             rng = np.random.default_rng(self.seed + 1000)
         N = X_train.shape[0]
@@ -590,6 +599,11 @@ class MLPGaussian:
             for start in range(0, N, batch_size):
                 idx = perm[start : start + batch_size]
                 loss, grads = self.nll_and_grads(X_train[idx], y_train[idx])
+                if grad_clip is not None and grad_clip > 0:
+                    gnorm = math.sqrt(sum(float(np.sum(g * g)) for g in grads))
+                    if gnorm > grad_clip:
+                        scale = grad_clip / (gnorm + 1e-12)
+                        grads = [g * scale for g in grads]
                 self.adam_step(grads, lr=lr)
                 epoch_loss += loss
                 n_batches += 1
