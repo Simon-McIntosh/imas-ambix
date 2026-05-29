@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="plan">
+  <meta name="plan-slug"     content="tokenizer-spatiotemporal-pivot">
+  <meta name="plan-roi"      content="high">
+  <meta name="plan-effort"   content="L">
+  <meta name="plan-tier"     content="opus">
+  <meta name="plan-summary"  content="Assess pivoting the fusion world-model tokenizer from per-frame 2D (Open-MAGVIT2) to 3D spatiotemporal tokenization, and whether rFID is the right north-star. De-risk via cheap zero-shot video-tokenizer evals before any wholesale pivot.">
+  <meta name="plan-milestone" content="M2">
+  <meta name="plan-sprint"   content="S5">
+  <meta name="plan-depends-on" content="tokenizer-spatiotemporal-survey,plasma-decoder-finetune,tokenizer-benchmarks">
+  <title>Spatiotemporal Tokenizer Pivot Assessment | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Spatiotemporal Tokenizer Pivot Assessment</h1>
+    <p><em>Coordinator (Opus) synthesis, 2026-05-29. Evidence base: the linked
+    literature survey
+    <a href="/imas-ambix/tokenizer-spatiotemporal-survey.html">tokenizer-spatiotemporal-survey</a>
+    (B2 fleet agent, all claims source-verified). This plan assesses a strategic
+    question raised directly by the user: a fusion world model must extract
+    <strong>dynamics and transients</strong>, yet we tokenize the plasma camera
+    stream <strong>frame-by-frame in 2D</strong> rather than taking 3D
+    space-time cubes the way a video patch transformer would. Should we
+    pivot?</em></p>
+
+    <h2 id="s1">§1 — Problem framing</h2>
+    <p>The Fusion World Model is a two-stage system: (1) a <strong>tokenizer</strong>
+    compresses raw MAST fast-camera frames into discrete tokens, and (2) a
+    <strong>dynamics model</strong> (a sequence model over those tokens) learns
+    to predict the future. Today the tokenizer is <strong>Open-MAGVIT2</strong>,
+    a 2D <em>image</em> LFQ autoencoder (2<sup>18</sup> codebook, 16× spatial
+    compression) applied independently to each frame. There is no temporal axis
+    in the tokenizer at all.</p>
+    <p>The physics we care about is fast: ELMs, filament/blob ejection, and
+    disruptions evolve on sub-millisecond to ~100&nbsp;µs timescales on the rbb
+    fast visible cameras. The user's concern is well-posed: are we throwing away
+    the temporal structure by tokenizing statically?</p>
+
+    <h2 id="s2">§2 — Where do dynamics live? (the honest answer)</h2>
+    <p>In the two-stage paradigm, <strong>dynamics do not have to live in the
+    tokenizer</strong>. A per-frame tokenizer + a temporally-deep stage-2 model
+    is a valid and widely-deployed design — GAIA-1 (Wayve), iVideoGPT, and the
+    autoregressive Cosmos world model all place most of the dynamics in the
+    sequence model, with tokenization doing compression. So frame-by-frame
+    tokenization is <em>not</em> inherently broken for capturing dynamics,
+    <strong>provided stage-2 carries temporal context</strong> (which ours
+    will). The user's surprise is reasonable, but this axis alone is not a bug.</p>
+    <p>That said, 3D (spatiotemporal) tokenization carries three concrete
+    advantages that matter specifically for plasma:</p>
+    <ul>
+      <li><strong>Token compression → longer physical-time context.</strong>
+      Video tokenizers add 4–8× <em>temporal</em> compression (verified: Cosmos
+      DV/CV 4×/8×, MAGVIT-v2 4×, VidTok 4×, LARP 4×). For a fixed stage-2 token
+      budget, that is 4–8× more milliseconds of plasma evolution per context
+      window — a large win when the dynamics are fast.</li>
+      <li><strong>Motion primitives in-token.</strong> A 3D tokenizer encodes
+      local space-time structure (a moving filament, an ELM burst) into single
+      tokens, so the dynamics model learns higher-order evolution rather than
+      re-deriving motion from static frames every step.</li>
+      <li><strong>Transient fidelity.</strong> Temporally-causal 3D convolutions
+      represent fast transients as coherent space-time codes — the exact thing
+      the user wants preserved.</li>
+    </ul>
+
+    <h2 id="s3">§3 — The deeper critique: rFID is probably the wrong north-star</h2>
+    <p>The entire decoder fine-tune effort (see
+    <a href="/imas-ambix/plasma-decoder-finetune.html">plasma-decoder-finetune</a>)
+    optimized and gated on <strong>rFID</strong> — a per-frame reconstruction
+    Fréchet distance in ImageNet-InceptionV3 feature space. For a dynamics world
+    model this is questionable on three grounds:</p>
+    <ol>
+      <li><strong>It is per-frame and temporally blind.</strong> rFID is a
+      set-level statistic over individual frames; it cannot see temporal
+      coherence at all. A tokenizer could ace rFID and destroy dynamics, or the
+      reverse.</li>
+      <li><strong>The feature space is out-of-domain.</strong> InceptionV3 was
+      trained on natural images; plasma is far OOD, so rFID may not even rank
+      plasma reconstructions meaningfully (cf. MedITok, arXiv:2505.19225, where
+      domain-specific tokenizers dramatically beat natural-image ones on OOD
+      medical imagery).</li>
+      <li><strong>Even FVD — the temporal upgrade — is weak.</strong> FVD
+      (I3D-feature Fréchet) has documented <em>content bias</em> and is
+      insensitive to temporal distortions (arXiv:2404.12391).</li>
+    </ol>
+    <p>The right north-star for a dynamics-WM tokenizer is <strong>downstream</strong>:
+    does the token stream support accurate multi-step <em>rollout</em> prediction
+    of physics-relevant quantities (centroid, chord profile, stored energy, mode
+    amplitude, ELM timing)? Or skip reconstruction entirely and go JEPA-style
+    (predict in latent space — V-JEPA-2 has no pixel decoder and no rFID at
+    all). <strong>This reframes the fine-tune saga: it may have been chasing the
+    wrong metric.</strong> Whatever the bf16 diagnostic concludes (see §6), a
+    decoder that is "worse on rFID" might be fine — or irrelevant — for the world
+    model.</p>
+
+    <h2 id="s4">§4 — What is actually runnable (from the survey)</h2>
+    <p>Full table + sources in
+    <a href="/imas-ambix/tokenizer-spatiotemporal-survey.html">the survey</a>.
+    The decision-relevant facts:</p>
+    <ul>
+      <li><strong>MAGVIT-v2</strong> — the <em>video</em> sibling of our
+      Open-MAGVIT2 (causal-3D, LFQ, 2<sup>18</sup>, 4× temporal). <strong>Weights
+      are closed-source</strong>; only a community reproduction
+      (<code>asymmetric_magvitv2</code>) exists.</li>
+      <li><strong>Cosmos CV/DV</strong> (NVIDIA) — <strong>open weights,
+      commercial-OK</strong>, video, 4×/8× temporal + 8×/16× spatial; DV uses FSQ
+      (~64K), CV is continuous. <strong>We have only ever run the <em>image</em>
+      variant DI16x16</strong> (downloaded; CV/DV not downloaded). This is the
+      single biggest untested gap.</li>
+      <li><strong>VidTok</strong> (Microsoft) — <strong>open, MIT</strong>, FSQ,
+      4× temporal + 8× spatial, supports arbitrary-length video.</li>
+      <li><strong>V-JEPA-2</strong> (Meta) — open, non-reconstructive
+      latent-predictive; eliminates rFID; evaluation becomes downstream tasks.</li>
+      <li><strong>DIAMOND</strong> — a world model with <em>no discrete tokenizer
+      at all</em> (pixel-space diffusion); proof that the discrete-token route is
+      not the only one.</li>
+    </ul>
+
+    <h2 id="s5">§5 — Options &amp; assessment</h2>
+    <table>
+      <thead><tr><th>Option</th><th>What</th><th>Cost / risk</th><th>Coordinator read</th></tr></thead>
+      <tbody>
+        <tr><td><strong>A. Stay 2D for v0, 3D as v1</strong></td>
+            <td>Keep Open-MAGVIT2 + the 4.02B-token corpus already encoded; build stage-2 dynamics now; evaluate 3D in parallel.</td>
+            <td>Low — no re-tokenize, no new training.</td>
+            <td><strong>Recommended baseline.</strong> Dynamics live in stage-2; don't block v0 on tokenizer rFID.</td></tr>
+        <tr><td><strong>B. Cosmos DV/CV video zero-shot</strong></td>
+            <td>Encode MAST rbb with DV4x8x8 (4× temporal); measure rFVD + qualitative transient preservation.</td>
+            <td>Low — ~1 day, download (sirius) + video bench harness, no training.</td>
+            <td><strong>Recommended first experiment.</strong> Closes the "only tested image mode" gap directly and cheaply.</td></tr>
+        <tr><td>C. VidTok zero-shot</td>
+            <td>Same as B with the MIT-licensed Microsoft model.</td>
+            <td>Low.</td>
+            <td>Good fallback / second data point if Cosmos-DV is promising.</td></tr>
+        <tr><td>D. JEPA-style latent dynamics</td>
+            <td>Adopt a non-reconstructive predictor; evaluate on downstream physics tasks.</td>
+            <td>High — paradigm shift, needs a defined downstream task + data.</td>
+            <td>Strategically important; stage as a feasibility spike, not v0.</td></tr>
+        <tr><td>E. Fine-tune an open 3D tokenizer on MAST</td>
+            <td>Domain-adapt Cosmos/VidTok/LARP on rbb (MedITok precedent).</td>
+            <td>Medium-high — training; only worth it if a zero-shot eval (B/C) shows promise.</td>
+            <td>Defer until B/C results.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s6">§6 — Recommended sequencing &amp; interaction with the bf16 verdict</h2>
+    <p>The decode-precision diagnostic (job 1209184, see
+    <a href="/imas-ambix/plasma-decoder-finetune.html">plasma-decoder-finetune</a>)
+    is testing whether the 2D decoder's apparent rFID regression is a bf16
+    measurement artifact. It interacts with this plan but does not block it:</p>
+    <ul>
+      <li><strong>If H-bf16</strong> (fine-tune actually healthy): the 2D path is
+      in good shape (rFID ~13). v0 proceeds on 2D; spatiotemporal becomes a clean
+      v1 optimization.</li>
+      <li><strong>If H-real</strong> (2D decoder reconstruction plateaued): per
+      §3 this may not matter for the WM, but it strengthens the case to evaluate
+      3D + better metrics sooner.</li>
+    </ul>
+    <p><strong>In both branches the recommended actions are the same and
+    low-risk:</strong> (1) do <em>not</em> pivot v0 wholesale or re-tokenize the
+    corpus now; (2) run the cheap Cosmos-DV video zero-shot to get real plasma
+    numbers on a 3D tokenizer; (3) add a temporal/rollout metric so future
+    tokenizer decisions are made on the right signal. Lock the final v0-vs-pivot
+    decision only after the bf16 verdict and the Cosmos-DV result.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="v0-tokenizer" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which tokenizer powers world-model-v0?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="stay-2d-omagvit2">stay-2d-omagvit2 (recommended for v0 — corpus already encoded)</button>
+          <button class="r-opt" data-value="pivot-3d-now">pivot-3d-now (re-tokenize corpus with a video tokenizer)</button>
+        </p>
+        <p class="r-dec-rat">Recommend stay-2d for v0: dynamics live in stage-2, the 4.02B-token corpus exists, and a pivot should be evidence-driven (gated on the Cosmos-DV zero-shot + bf16 verdict). Do not lock until both land.</p>
+      </div>
+
+      <div class="r-dec" data-key="spatiotemporal-first-eval" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which 3D / spatiotemporal approach do we evaluate FIRST?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="cosmos-dv-zero-shot">cosmos-dv-zero-shot (recommended — open, commercial-OK, closes the image-only gap)</button>
+          <button class="r-opt" data-value="vidtok-zero-shot">vidtok-zero-shot (MIT)</button>
+          <button class="r-opt" data-value="magvit2-video-repro">magvit2-video-repro (community weights only)</button>
+          <button class="r-opt" data-value="jepa-spike">jepa-spike (non-reconstructive paradigm)</button>
+        </p>
+        <p class="r-dec-rat">Recommend Cosmos-DV4x8x8 zero-shot: lowest risk, open weights, directly tests whether temporal compression preserves plasma transients. VidTok as a second data point.</p>
+      </div>
+
+      <div class="r-dec" data-key="tokenizer-north-star-metric" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What metric should gate tokenizer decisions for a DYNAMICS world model?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="add-rollout-metric">add-rollout-metric (recommended — downstream multi-step prediction of physics quantities)</button>
+          <button class="r-opt" data-value="rfid-plus-rfvd">rfid-plus-rfvd (add temporal FVD; cheap but content-biased)</button>
+          <button class="r-opt" data-value="rfid-only">rfid-only (status quo — per-frame, temporally blind)</button>
+        </p>
+        <p class="r-dec-rat">rFID alone is per-frame, OOD, and temporally blind. Recommend adding a rollout/temporal-consistency metric as the real north-star; rFVD is a cheap interim addition but carries known content-bias.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+
+      <article class="r-fu" data-id="f-cosmos-dv-video-zeroshot" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
+        <h4 class="r-fu-title">Cosmos DV4x8x8 VIDEO zero-shot bench on MAST rbb (closes the image-only gap)</h4>
+        <div class="r-fu-body">Our Cosmos trial only ever used the image variant DI16x16 (rFID 47.52, catastrophic). The VIDEO variants (CV/DV) with 4–8× temporal compression were never tested. Download DV4x8x8 + run a clip-based zero-shot bench; report rFVD and a qualitative transient-preservation check, NOT just per-frame rFID. Gated on the betelgeuse reservation being free (do not contend with the in-flight decode-precision diagnostic 1209184).</div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    tokenizer-spatiotemporal-pivot (http://localhost:8765/imas-ambix/tokenizer-spatiotemporal-pivot.html)
+Section: §5 / decision spatiotemporal-first-eval
+Tier:    opus
+
+Context
+  We have only ever benched Cosmos in IMAGE mode (DI16x16 -> rFID 47.52, catastrophic).
+  The VIDEO variants (CV/DV, 4-8x temporal compression) are the real test of the
+  spatiotemporal hypothesis and were never run. Only DI16x16 is downloaded.
+
+State to read
+  GET /plan/imas-ambix/tokenizer-spatiotemporal-pivot
+  docs/tokenizer-spatiotemporal-survey.html  (Cosmos CV/DV specs + sources)
+  scripts/slurm/download_cosmos.sbatch        (DI16x16 download template — clone for DV4x8x8)
+  imas_ambix/bench/cosmos_worker.py           (existing Cosmos image worker — extend for video clips)
+
+Constraints
+  - Download nvidia/Cosmos-Tokenizer-DV4x8x8 on a NETWORK node (sirius/sun), NOT betelgeuse.
+  - GPU bench on betelgeuse ONLY after the decode-precision diagnostic 1209184 has finished
+    (do not contend for the 4-GPU reservation; check `squeue -u mcintos`).
+  - Hardened sbatch: STOP-FILE + --signal=B:USR1 + --time ceiling; NEVER scancel (AGENTS.md 2a).
+  - Report rFVD (temporal) + a qualitative ELM/filament transient-preservation check, NOT rFID alone.
+  - DV is a video tokenizer: feed CLIPS (e.g. 17-frame windows), not single frames.
+
+Done-when
+  1. DV4x8x8 encodes+decodes MAST rbb clips; rFVD + transient check recorded in this plan.
+  2. Verdict: does 4x temporal compression preserve plasma transients vs the 2D OMAG2 baseline?
+  3. Followup written; this followup resolved.</pre>
+      </article>
+
+      <article class="r-fu" data-id="f-rollout-temporal-metric" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
+        <h4 class="r-fu-title">Add a temporal / rollout metric to the bench (the real north-star)</h4>
+        <div class="r-fu-body">rFID is per-frame and temporally blind; for a dynamics WM the gate should be downstream multi-step prediction fidelity of physics-relevant quantities. Add a temporal-consistency metric (e.g. frame-to-frame latent/optical-flow consistency) and, when stage-2 exists, a rollout-prediction metric on centroid/chord/mode-amplitude. Interim: add rFVD alongside rFID (cheap, but note content-bias arXiv:2404.12391).</div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    tokenizer-spatiotemporal-pivot (http://localhost:8765/imas-ambix/tokenizer-spatiotemporal-pivot.html)
+Section: §3 / decision tokenizer-north-star-metric
+Tier:    opus
+
+Context
+  The decoder fine-tune saga optimized rFID, a per-frame ImageNet-InceptionV3 metric that
+  is temporally blind and OOD for plasma. For a dynamics world model the right signal is
+  downstream temporal/rollout fidelity.
+
+State to read
+  GET /plan/imas-ambix/tokenizer-spatiotemporal-pivot
+  imas_ambix/eval/metrics.py        (rfid, rfid_stratified, centroid_mse, chord_nrmse live here)
+  imas_ambix/eval/rollout.py        (rollout scaffolding)
+  imas_ambix/bench/tokenizer.py     (BenchConfig.metrics wiring)
+
+Steps
+  1. Add a temporal-consistency metric (frame-to-frame) to imas_ambix/eval/metrics.py.
+  2. Add rFVD (I3D-feature Frechet over clips) as an interim temporal metric; document content-bias caveat.
+  3. Wire both into BenchConfig.metrics so configs can opt in.
+  4. (When stage-2 exists) a rollout-prediction metric on centroid/chord/mode-amplitude over N steps.
+
+Done-when
+  Temporal metric(s) available in the bench and documented; recommendation on the north-star recorded.</pre>
+      </article>
+
+      <article class="r-fu" data-id="f-jepa-spike" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
+        <h4 class="r-fu-title">(Stretch) V-JEPA-2 latent-dynamics feasibility spike</h4>
+        <div class="r-fu-body">Evaluate the non-reconstructive paradigm: learn plasma dynamics by predicting masked spatiotemporal latent regions, no pixel decoder, no rFID. Requires a defined downstream task (e.g. ELM-onset classification, disruption precursor detection) and a check that MAST data volume suffices for fine-tuning. Stage only if the Cosmos-DV result and stage-2 progress justify the paradigm shift.</div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    tokenizer-spatiotemporal-pivot (http://localhost:8765/imas-ambix/tokenizer-spatiotemporal-pivot.html)
+Section: §5 option D
+Tier:    opus
+
+Context
+  V-JEPA-2 (arXiv:2506.09985) learns dynamics in latent space with no reconstruction and no rFID.
+  This sidesteps the entire reconstruction-metric problem but is a paradigm shift.
+
+Done-when
+  A short feasibility note: candidate downstream task(s) for plasma, data-volume sufficiency,
+  and a go/no-go on a full spike. Do NOT start a full implementation without user sign-off.</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
