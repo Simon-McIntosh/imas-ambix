@@ -68,6 +68,16 @@ class BenchConfig:
     device: str = "cpu"
     """Device hint passed to the tokenizer factory when relevant."""
 
+    rfid_frames_per_shot: int = 8
+    """How many frames per shot to include in the corpus-rFID pool.
+
+    Smaller values reduce InceptionV3 forward cost but give noisier rFID
+    estimates.  When set to or exceeding ``max_items_per_shot`` the bench
+    uses every frame the worker processed (no random sub-sampling).
+    Default 8 retained for back-compat; 32 (or matching max_items_per_shot)
+    is recommended for tighter measurements when comparing close rFIDs.
+    """
+
 
 @dataclass(frozen=True)
 class PerShotResult:
@@ -252,7 +262,7 @@ def benchmark_frame_tokenizer(
     compute_corpus_rfid = "rfid" in config.metrics
     rfid_src_buf: list[np.ndarray] = []
     rfid_dec_buf: list[np.ndarray] = []
-    rfid_frames_per_shot = 8
+    rfid_frames_per_shot = config.rfid_frames_per_shot
     RFID_RESIZE = 256
 
     def _resize_for_rfid(frames_u8: np.ndarray) -> np.ndarray:
@@ -523,7 +533,7 @@ def benchmark_frame_tokenizer_in_process(
     compute_corpus_rfid = "rfid" in config.metrics
     rfid_src_buf: list[np.ndarray] = []
     rfid_dec_buf: list[np.ndarray] = []
-    rfid_frames_per_shot = 8
+    rfid_frames_per_shot = config.rfid_frames_per_shot
     RFID_RESIZE = 256
 
     def _resize_for_rfid(frames_u8: np.ndarray) -> np.ndarray:
