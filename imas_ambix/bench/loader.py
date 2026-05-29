@@ -109,7 +109,7 @@ def load_bench_config(path: str | Path) -> tuple[Any, dict[str, Any]]:
     metrics_raw = raw.pop("metrics", ("psnr",))
     metrics: tuple[str, ...] = tuple(metrics_raw)
     device: str = raw.pop("device", "cpu")
-    rfid_frames_per_shot: int = int(raw.pop("rfid_frames_per_shot", 8))
+    rfid_frames_per_shot: int = int(raw.pop("rfid_frames_per_shot", 32))
 
     cfg = BenchConfig(
         name=name,

@@ -68,14 +68,15 @@ class BenchConfig:
     device: str = "cpu"
     """Device hint passed to the tokenizer factory when relevant."""
 
-    rfid_frames_per_shot: int = 8
+    rfid_frames_per_shot: int = 32
     """How many frames per shot to include in the corpus-rFID pool.
 
     Smaller values reduce InceptionV3 forward cost but give noisier rFID
     estimates.  When set to or exceeding ``max_items_per_shot`` the bench
     uses every frame the worker processed (no random sub-sampling).
-    Default 8 retained for back-compat; 32 (or matching max_items_per_shot)
-    is recommended for tighter measurements when comparing close rFIDs.
+    Default 32 matches ``max_items_per_shot=32`` so every loaded frame enters
+    the rFID pool — Option D showed the old default of 8 biased rFID by ~+4 pt
+    (Fréchet bias from small N; baseline shifted 17.04→13.29 when raised to 32).
     """
 
 
