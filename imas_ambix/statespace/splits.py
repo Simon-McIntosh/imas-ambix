@@ -23,8 +23,8 @@ Regime axis
 -----------
 The regime axis is derived from two scalar per-shot operating-point
 estimates:
-    ip_mean   : flat-top mean Iₚ (MA), from amc/plasma_current
-    ne_mean   : flat-top mean line density (m⁻³), from ane/density
+    ip_mean   : plasma-on mean |Iₚ| (kA), from amc/plasma_current
+    ne_mean   : plasma-on median line-integrated density (m⁻²), from ane/density
 
 These scalars are computed by :func:`compute_regime_scalars` and stored
 in the split artifact for auditing.
@@ -52,42 +52,159 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Regime scalar computation
+# Regime scalar computation — PHYSICAL plasma-on masking
 # ---------------------------------------------------------------------------
+#
+# IMPORTANT (RCA 2026-05-29): An index-based "flat-top" mean over the FULL
+# ~30k-sample amc record dilutes the operating point with off-plasma zeros —
+# plasma-on occupies only ~7% of the record window (e.g. amc time spans
+# [-2, 4]s but the burn is ~0.04-0.4s). The earlier middle-80% trim gave a
+# diluted Iₚ p50 ≈ 119 kA against a physical MAST flat-top of ~400-900 kA.
+#
+# The fix: define the plasma-on window from |Iₚ| itself (contiguous span where
+# |Iₚ| > threshold), take the MEAN of Iₚ over that window (physical), and take
+# the MEDIAN of ne over the SAME window — selected by ne's OWN time axis, since
+# amc (250 µs grid, 30k samples, [-2,4]s) and ane (~40 µs grid, 32768 samples,
+# ~[-0.01,1.3]s) live on DIFFERENT time bases. Median + physical clipping
+# rejects interferometer fringe-jump spikes and NaN-filled / fringe-locked
+# saturated traces.
+#
+# UNITS (verified 2026-05-29 from the channel attrs):
+#   - amc/plasma_current: peaks ~760-1122 → already in kA (NOT amps), no /1000.
+#   - ane/density: units attr = '1 / m ** 2', description "integrated electron
+#     density" → this is LINE-INTEGRATED density (m⁻²), NOT volumetric (m⁻³).
+#     It remains a valid monotone regime axis; it is labelled m⁻² everywhere.
+#     Typical physical line-integral for MAST is ~5-25e19 m⁻²; values pinned
+#     near the old 50e19 clip with mostly-NaN traces (e.g. shots 15952/16000)
+#     are fringe-locked / saturated artifacts → clip tightened to 30e19 m⁻².
 
-_FLAT_TOP_TRIM = 0.1  # trim fraction at each end of shot for flat-top estimate
+_IP_THRESHOLD_FLOOR_KA = 50.0  # absolute floor for plasma-on detection (kA)
+_IP_THRESHOLD_FRACTION = 0.2  # plasma-on = |Iₚ| > 0.2 × peak|Iₚ|
+_NE_PHYSICAL_MAX = 30e19  # reject line-integrated ne above this (m⁻²) — values
+# above are fringe-locked / saturated (physical MAST line-integral ≤ ~25e19 m⁻²)
+_NE_PHYSICAL_MIN = 0.0  # reject negative ne (instrument DC offset / noise)
 
 
-def _compute_scalar_from_zarr(
+def _plasma_on_window(
+    ip: np.ndarray,
+    ip_time: np.ndarray | None,
+) -> tuple[float, float, np.ndarray] | None:
+    """Return (t_start, t_end, plasma_on_mask) for the plasma burn.
+
+    The plasma-on window is the contiguous span (first→last index) where
+    ``|Iₚ| > max(floor, fraction × peak|Iₚ|)``.
+
+    Returns None if no sample exceeds the threshold (no plasma) or if the
+    time axis is missing/degenerate.
+    """
+    if ip.ndim != 1 or ip.size < 4:
+        return None
+    abs_ip = np.abs(ip)
+    peak = float(np.nanmax(abs_ip))
+    if not np.isfinite(peak) or peak <= _IP_THRESHOLD_FLOOR_KA:
+        return None
+    threshold = max(_IP_THRESHOLD_FLOOR_KA, _IP_THRESHOLD_FRACTION * peak)
+    on = abs_ip > threshold
+    idx = np.where(on)[0]
+    if idx.size == 0:
+        return None
+    lo, hi = int(idx[0]), int(idx[-1])
+    # Contiguous span first→last (fills any brief sub-threshold dips)
+    span_mask = np.zeros_like(on)
+    span_mask[lo : hi + 1] = True
+    if ip_time is not None and ip_time.size == ip.size:
+        t_start = float(ip_time[lo])
+        t_end = float(ip_time[hi])
+    else:
+        # No usable time axis — fall back to index bounds as pseudo-time
+        t_start, t_end = float(lo), float(hi)
+    return t_start, t_end, span_mask
+
+
+def _compute_regime_scalars_one(
     shot_zarr_path: Path,
-    group: str,
-    channel: str,
-    trim: float = _FLAT_TOP_TRIM,
-) -> float | None:
-    """Open one channel from a shot's Zarr and return the flat-top mean.
+) -> dict[str, float]:
+    """Compute physical ``ip_mean`` (kA) and ``ne_mean`` (m⁻², line-integrated).
 
-    Returns None on any read error (missing group, missing channel, etc.).
+    ``ip_mean`` is the mean of Iₚ over the plasma-on window.
+    ``ne_mean`` is the median of ane/density over the SAME time window
+    (selected via ane's own time axis), after rejecting non-physical values.
+
+    Returns an empty dict if amc is missing or no plasma is detected.
+    Keys are present only when their channel could be read.
     """
     import zarr  # noqa: PLC0415
 
-    grp_path = shot_zarr_path / group
-    if not grp_path.exists():
-        return None
+    if not (shot_zarr_path / "amc").exists():
+        return {}
     try:
         store = zarr.open_group(str(shot_zarr_path), mode="r")
-        data = np.asarray(store[group][channel])
-        if data.ndim != 1 or data.size < 4:
-            return None
-        # Flat-top window: middle (1-2*trim) fraction
-        n = data.size
-        lo = int(round(n * trim))
-        hi = int(round(n * (1 - trim)))
-        if lo >= hi:
-            lo, hi = 0, n
-        return float(np.nanmean(data[lo:hi]))
     except Exception as e:
-        logger.debug("Cannot read %s/%s/%s: %s", shot_zarr_path.name, group, channel, e)
-        return None
+        logger.debug("Cannot open %s: %s", shot_zarr_path.name, e)
+        return {}
+
+    scalars: dict[str, float] = {}
+
+    # --- Iₚ: plasma-on window + physical mean -------------------------------
+    try:
+        amc = store["amc"]
+        ip = np.asarray(amc["plasma_current"])
+        ip_time = np.asarray(amc["time"]) if "time" in amc else None
+    except Exception as e:
+        logger.debug(
+            "Cannot read amc/plasma_current for %s: %s", shot_zarr_path.name, e
+        )
+        return {}
+
+    window = _plasma_on_window(ip, ip_time)
+    if window is None:
+        return {}  # no plasma → no regime point
+    t_start, t_end, span_mask = window
+    ip_on = np.abs(ip[span_mask])
+    ip_on = ip_on[np.isfinite(ip_on)]
+    if ip_on.size == 0:
+        return {}
+    scalars["ip_mean"] = float(np.mean(ip_on))  # kA, physical flat-top
+
+    # --- ne: median over the SAME time window (ane's own time axis) ---------
+    if (shot_zarr_path / "ane").exists():
+        try:
+            ane = store["ane"]
+            ne = np.asarray(ane["density"])
+            ne_time = np.asarray(ane["time"]) if "time" in ane else None
+        except Exception:
+            ne = None
+            ne_time = None
+        if ne is not None and ne.ndim == 1 and ne.size >= 4:
+            if ne_time is not None and ne_time.size == ne.size:
+                ne_mask = (ne_time >= t_start) & (ne_time <= t_end)
+            else:
+                # No ne time axis — fall back to whole record (rare)
+                ne_mask = np.ones_like(ne, dtype=bool)
+            ne_window = ne[ne_mask]
+            # Reject non-physical interferometer values (negative DC offsets,
+            # fringe-jump spikes) BEFORE taking the median
+            ne_clip = ne_window[
+                np.isfinite(ne_window)
+                & (ne_window >= _NE_PHYSICAL_MIN)
+                & (ne_window <= _NE_PHYSICAL_MAX)
+            ]
+            if ne_clip.size > 0:
+                scalars["ne_mean"] = float(np.median(ne_clip))  # m⁻², robust
+
+    return scalars
+
+
+def _regime_worker(root_str: str, sid: int) -> tuple[int, dict[str, float]]:
+    """Module-level (picklable) worker for :func:`compute_regime_scalars`.
+
+    Defined at module scope so it can be sent to a ProcessPoolExecutor under
+    the forkserver/spawn start methods (Python 3.14+ no longer defaults to
+    fork, so a closure inside ``compute_regime_scalars`` is not picklable).
+    """
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    return sid, _compute_regime_scalars_one(_Path(root_str) / f"{sid}.zarr")
 
 
 def compute_regime_scalars(
@@ -95,7 +212,12 @@ def compute_regime_scalars(
     level1_dir: Path,
     max_workers: int = 8,
 ) -> dict[int, dict[str, float]]:
-    """Compute per-shot operating-point scalars for regime-split definition.
+    """Compute per-shot PHYSICAL operating-point scalars for regime splits.
+
+    Uses plasma-on masking (see :func:`_plasma_on_window`):
+    - ``ip_mean`` = mean |Iₚ| (kA) over the plasma-on window.
+    - ``ne_mean`` = median ane/density (m⁻², line-integrated) over the same
+      time window, after rejecting non-physical values.
 
     Parameters
     ----------
@@ -108,30 +230,24 @@ def compute_regime_scalars(
 
     Returns
     -------
-    dict mapping shot_id → {``"ip_mean"``: float (MA), ``"ne_mean"``: float (m⁻³)}
-    For shots where a scalar cannot be read, the key is absent.
+    dict mapping shot_id → {``"ip_mean"``: float (kA), ``"ne_mean"``: float (m⁻²)}
+    Shots with no detectable plasma are omitted entirely.
     """
     from concurrent.futures import ProcessPoolExecutor, as_completed  # noqa: PLC0415
+    from functools import partial  # noqa: PLC0415
 
     from imas_ambix.data.paths import LEVEL1_DIR  # noqa: PLC0415
 
     root = level1_dir or LEVEL1_DIR
 
-    def _worker(sid: int) -> tuple[int, dict[str, float]]:
-        shot_path = root / f"{sid}.zarr"
-        scalars: dict[str, float] = {}
-        ip = _compute_scalar_from_zarr(shot_path, "amc", "plasma_current")
-        if ip is not None:
-            # amc/plasma_current is in kA (MAST convention; range ~100–900 kA)
-            scalars["ip_mean"] = abs(ip)  # kA
-        ne = _compute_scalar_from_zarr(shot_path, "ane", "density")
-        if ne is not None:
-            scalars["ne_mean"] = float(ne)
-        return sid, scalars
+    # Module-level worker (picklable under forkserver/spawn — the default
+    # start method changed in Python 3.14, so a local closure can no longer
+    # be sent to workers).
+    worker = partial(_regime_worker, str(root))
 
     results: dict[int, dict[str, float]] = {}
     with ProcessPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(_worker, sid): sid for sid in shot_ids}
+        futures = {pool.submit(worker, sid): sid for sid in shot_ids}
         for n_done, fut in enumerate(as_completed(futures), start=1):
             sid, scalars = fut.result()
             if scalars:
@@ -165,19 +281,19 @@ class RegimeBox:
     ip_min, ip_max:
         Iₚ range in kA (MAST convention; amc/plasma_current is in kA).
     ne_min, ne_max:
-        Line density range in 10^19 m⁻³ (i.e. ne_mean / 1e19).
+        Line-integrated density range in 10^19 m⁻² (i.e. ne_mean / 1e19).
     description:
         Human-readable label (e.g. "high-current / high-density corner").
     """
 
     ip_min: float
     ip_max: float
-    ne_min: float  # in units of 1e19 m⁻³
+    ne_min: float  # in units of 1e19 m⁻² (line-integrated)
     ne_max: float
     description: str = ""
 
     def contains(self, ip_mean: float, ne_mean: float) -> bool:
-        """Return True if (ip_mean [kA], ne_mean [10¹⁹ m⁻³]) falls inside this box.
+        """Return True if (ip_mean [kA], ne_mean [10¹⁹ m⁻²]) falls inside this box.
 
         Both arguments are in the units that :attr:`ip_min`/:attr:`ne_min` use:
         ip in kA, ne already divided by 10¹⁹ (i.e. ne_scaled = ne_raw / 1e19).
@@ -356,7 +472,7 @@ def propose_ood_box(
         ne_max=ne_max,
         description=(
             f"High-Iₚ (>{ip_thresh:.0f} kA) × "
-            f"high-density (>{ne_thresh:.2f}×10¹⁹ m⁻³) corner"
+            f"high-density (>{ne_thresh:.2f}×10¹⁹ m⁻²) corner"
         ),
     )
 
@@ -364,7 +480,7 @@ def propose_ood_box(
 
     actual_frac = len(ood_shots) / max(len(shots_with_both), 1)
     logger.info(
-        "Proposed OOD box: Iₚ>%.0f kA, ne>%.2f×1e19 m⁻³ → %d shots (%.1f%%)",
+        "Proposed OOD box: Iₚ>%.0f kA, ne>%.2f×1e19 m⁻² → %d shots (%.1f%%)",
         ip_thresh,
         ne_thresh,
         len(ood_shots),

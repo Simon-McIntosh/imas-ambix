@@ -14,6 +14,8 @@ import pytest
 from imas_ambix.statespace.splits import (
     RegimeBox,
     ShotSplits,
+    _compute_regime_scalars_one,
+    _plasma_on_window,
     build_splits,
     propose_ood_box,
 )
@@ -41,6 +43,51 @@ def _make_regime_scalars(
     }
 
 
+def _make_shot_with_plasma(
+    shot_dir: Path,
+    ip_flat_top: float = 600.0,
+    ne_flat_top: float = 5e19,
+    n_pre: int = 500,
+    n_on: int = 300,
+    n_post: int = 500,
+    ne_spike: float | None = None,
+) -> None:
+    """Write a synthetic shot Zarr with amc/ane: zero pre-window, flat-top,
+    zero post-window.
+
+    The amc and ane share an identical time base for simplicity, so the
+    plasma-on window selection is exercised end-to-end. A diluted middle-80%
+    mean would NOT recover ``ip_flat_top`` because the off-plasma zeros pull
+    it down; the plasma-on mask must.
+    """
+    import xarray as xr  # noqa: PLC0415
+
+    n = n_pre + n_on + n_post
+    dt = 2e-4  # 250 µs grid
+    time = (np.arange(n) * dt - n_pre * dt).astype(np.float64)
+
+    ip = np.zeros(n, dtype=np.float64)
+    ip[n_pre : n_pre + n_on] = ip_flat_top
+
+    ne = np.zeros(n, dtype=np.float64)
+    ne[n_pre : n_pre + n_on] = ne_flat_top
+    if ne_spike is not None:
+        # Inject a single fringe-jump spike inside the plasma-on window
+        ne[n_pre + n_on // 2] = ne_spike
+
+    shot_dir.mkdir(parents=True, exist_ok=True)
+    ds_amc = xr.Dataset(
+        {"plasma_current": (("time",), ip)},
+        coords={"time": time},
+    )
+    ds_amc.to_zarr(str(shot_dir), group="amc", mode="w")
+    ds_ane = xr.Dataset(
+        {"density": (("time",), ne)},
+        coords={"time": time},
+    )
+    ds_ane.to_zarr(str(shot_dir), group="ane", mode="a")
+
+
 # ---------------------------------------------------------------------------
 # Tests for RegimeBox
 # ---------------------------------------------------------------------------
@@ -49,7 +96,7 @@ def _make_regime_scalars(
 class TestRegimeBox:
     def test_contains_inside(self) -> None:
         box = RegimeBox(ip_min=150, ip_max=300, ne_min=10.0, ne_max=50.0)
-        # ip=200 kA, ne=15 (×10¹⁹ m⁻³) — inside
+        # ip=200 kA, ne=15 (×10¹⁹ m⁻², line-integrated) — inside
         assert box.contains(200.0, 15.0) is True
 
     def test_contains_outside_ip(self) -> None:
@@ -77,12 +124,163 @@ class TestRegimeBox:
 
     def test_units_consistent_with_scalars(self) -> None:
         """box.contains expects ip in kA and ne in 1e19 units (pre-scaled)."""
-        # Real MAST shot: ip=200 kA, ne=7e19 m^-3 → ne_scaled=7.0
+        # Real MAST shot: ip=200 kA, ne=7e19 m^-2 (line-integrated) → ne_scaled=7.0
         box = RegimeBox(ip_min=150, ip_max=300, ne_min=5.0, ne_max=15.0)
         # Pass ip in kA and ne already divided by 1e19
         ne_raw = 7e19
         ne_scaled = ne_raw / 1e19  # = 7.0
         assert box.contains(200.0, ne_scaled) is True
+
+
+# ---------------------------------------------------------------------------
+# Tests for plasma-on masking (physical regime scalars)
+# ---------------------------------------------------------------------------
+
+
+class TestPlasmaOnWindow:
+    def test_recovers_contiguous_span(self) -> None:
+        """The plasma-on window should be the first→last over-threshold index."""
+        n_pre, n_on, n_post = 100, 50, 100
+        ip = np.zeros(n_pre + n_on + n_post)
+        ip[n_pre : n_pre + n_on] = 600.0
+        time = np.arange(ip.size, dtype=float) * 1e-3
+        result = _plasma_on_window(ip, time)
+        assert result is not None
+        t_start, t_end, mask = result
+        assert mask.sum() == n_on
+        assert t_start == time[n_pre]
+        assert t_end == time[n_pre + n_on - 1]
+
+    def test_no_plasma_returns_none(self) -> None:
+        """A record entirely below the floor returns None (no plasma)."""
+        ip = np.full(1000, 10.0)  # below the 50 kA floor
+        time = np.arange(1000, dtype=float)
+        assert _plasma_on_window(ip, time) is None
+
+    def test_handles_negative_current(self) -> None:
+        """Plasma-on detection uses |Iₚ| (MAST Iₚ can be signed)."""
+        n = 300
+        ip = np.zeros(n)
+        ip[100:200] = -600.0  # negative-signed plasma current
+        time = np.arange(n, dtype=float) * 1e-3
+        result = _plasma_on_window(ip, time)
+        assert result is not None
+        _, _, mask = result
+        assert mask.sum() == 100
+
+    def test_fraction_threshold(self) -> None:
+        """Threshold = 0.2 × peak, so a ramp keeps only the high portion."""
+        # Ramp from 0 to 1000 kA — only |Iₚ| > 200 kA is plasma-on
+        ip = np.linspace(0, 1000, 1000)
+        time = np.arange(1000, dtype=float)
+        result = _plasma_on_window(ip, time)
+        assert result is not None
+        _, _, mask = result
+        # Indices where ip > 200 → roughly the top 80% of the ramp
+        first_on = np.where(mask)[0][0]
+        assert ip[first_on] >= 200.0 * 0.99  # threshold ≈ 200 kA
+
+
+class TestComputeRegimeScalarsOne:
+    def test_recovers_flat_top_not_diluted_mean(self, tmp_path: Path) -> None:
+        """The plasma-on mask must recover ip_flat_top, not the diluted mean.
+
+        With 500 zeros + 300 flat-top(600) + 500 zeros, the middle-80% mean
+        is heavily diluted (~138 kA), but the plasma-on mean must be ~600 kA.
+        """
+        shot_dir = tmp_path / "10001.zarr"
+        _make_shot_with_plasma(
+            shot_dir,
+            ip_flat_top=600.0,
+            ne_flat_top=5e19,
+            n_pre=500,
+            n_on=300,
+            n_post=500,
+        )
+        s = _compute_regime_scalars_one(shot_dir)
+        assert "ip_mean" in s
+        # Must recover the flat-top, NOT the diluted middle-80% mean
+        assert abs(s["ip_mean"] - 600.0) < 1.0, (
+            f"Expected ~600 kA flat-top, got diluted {s['ip_mean']:.1f}"
+        )
+        # Sanity: the naive middle-80% mean would be far lower
+        diluted = 600.0 * 300 / (0.8 * 1300)
+        assert s["ip_mean"] > diluted * 2
+
+    def test_ne_median_rejects_spike(self, tmp_path: Path) -> None:
+        """A density fringe-jump spike must be rejected by median + clip."""
+        shot_dir = tmp_path / "10002.zarr"
+        _make_shot_with_plasma(
+            shot_dir,
+            ip_flat_top=600.0,
+            ne_flat_top=5e19,
+            n_pre=300,
+            n_on=200,
+            n_post=300,
+            ne_spike=400e19,  # non-physical spike (> 50e19 clip)
+        )
+        s = _compute_regime_scalars_one(shot_dir)
+        assert "ne_mean" in s
+        # Median over the flat-top + clip rejects the 400e19 spike → ~5e19
+        assert abs(s["ne_mean"] - 5e19) < 0.5e19, (
+            f"Expected ~5e19 (spike rejected), got {s['ne_mean']:.2e}"
+        )
+
+    def test_no_amc_returns_empty(self, tmp_path: Path) -> None:
+        """A shot without amc returns an empty dict."""
+        shot_dir = tmp_path / "10003.zarr"
+        shot_dir.mkdir()
+        assert _compute_regime_scalars_one(shot_dir) == {}
+
+    def test_no_plasma_returns_empty(self, tmp_path: Path) -> None:
+        """A shot whose Iₚ never exceeds the floor is omitted."""
+        import xarray as xr  # noqa: PLC0415
+
+        shot_dir = tmp_path / "10004.zarr"
+        shot_dir.mkdir()
+        n = 1000
+        time = np.arange(n, dtype=float) * 1e-3
+        xr.Dataset(
+            {"plasma_current": (("time",), np.full(n, 10.0))},  # below floor
+            coords={"time": time},
+        ).to_zarr(str(shot_dir), group="amc", mode="w")
+        assert _compute_regime_scalars_one(shot_dir) == {}
+
+    def test_ne_uses_own_time_axis(self, tmp_path: Path) -> None:
+        """ne is selected by ITS OWN time axis within the Iₚ plasma window.
+
+        amc and ane have different lengths / time grids in real data; the
+        window bounds come from amc time, ne selection uses ane time.
+        """
+        import xarray as xr  # noqa: PLC0415
+
+        shot_dir = tmp_path / "10005.zarr"
+        shot_dir.mkdir()
+        # amc: 800 samples at 250 µs, plasma-on in [100,300)
+        n_amc = 800
+        amc_time = np.arange(n_amc) * 2e-4 - 100 * 2e-4
+        ip = np.zeros(n_amc)
+        ip[100:300] = 600.0
+        xr.Dataset(
+            {"plasma_current": (("time",), ip)},
+            coords={"time": amc_time},
+        ).to_zarr(str(shot_dir), group="amc", mode="w")
+        # ane: DIFFERENT length/grid (1600 samples at 100 µs)
+        n_ane = 1600
+        ane_time = np.arange(n_ane) * 1e-4 - 100 * 1e-4
+        ne = np.zeros(n_ane)
+        # Set ne=5e19 only inside the amc plasma-on time window
+        t_start = amc_time[100]
+        t_end = amc_time[299]
+        ne[(ane_time >= t_start) & (ane_time <= t_end)] = 5e19
+        xr.Dataset(
+            {"density": (("time",), ne)},
+            coords={"time": ane_time},
+        ).to_zarr(str(shot_dir), group="ane", mode="a")
+
+        s = _compute_regime_scalars_one(shot_dir)
+        assert "ne_mean" in s
+        assert abs(s["ne_mean"] - 5e19) < 0.5e19
 
 
 # ---------------------------------------------------------------------------
