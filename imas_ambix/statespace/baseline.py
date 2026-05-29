@@ -869,8 +869,15 @@ def _load_split_slices(
     max_slices_per_shot: int,
     max_shots: int | None = None,
     rng: np.random.Generator | None = None,
-) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
-    """Load slices for a list of shots, return (Xs, ys, transient_masks)."""
+) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray], list[int]]:
+    """Load slices for a list of shots.
+
+    Returns
+    -------
+    (Xs, ys, transient_masks, surviving_shot_ids)
+        surviving_shot_ids — shot IDs that were successfully loaded (same
+        length as Xs/ys/tmasks).  Used to align per-shot distances to slices.
+    """
     if max_shots is not None and max_shots < len(shot_ids):
         if rng is None:
             rng = np.random.default_rng(42)
@@ -880,6 +887,7 @@ def _load_split_slices(
     Xs: list[np.ndarray] = []
     ys: list[np.ndarray] = []
     tmasks: list[np.ndarray] = []
+    ok_ids: list[int] = []
 
     n_ok = 0
     n_skip = 0
@@ -899,6 +907,7 @@ def _load_split_slices(
         Xs.append(X_shot)
         ys.append(y_shot)
         tmasks.append(tmask)
+        ok_ids.append(int(sid))
         n_ok += 1
 
     logger.info(
@@ -907,7 +916,7 @@ def _load_split_slices(
         n_ok + n_skip,
         n_skip,
     )
-    return Xs, ys, tmasks
+    return Xs, ys, tmasks, ok_ids
 
 
 def _compute_regime_distances(
@@ -1109,38 +1118,6 @@ def _eval_split(
 
 
 # ---------------------------------------------------------------------------
-# Incremental lift: ane contribution
-# ---------------------------------------------------------------------------
-
-
-def _ane_lift_metrics(
-    y_1d: np.ndarray,
-    mu_mag: np.ndarray,
-    sc_mag: np.ndarray,
-    sr_mag: np.ndarray,
-    mu_ane: np.ndarray,
-    sc_ane: np.ndarray,
-    sr_ane: np.ndarray,
-) -> dict:
-    """Compute CRPS / NLL delta from adding ane to magnetics."""
-    from imas_ambix.statespace.calibration import (  # noqa: PLC0415
-        crps_gaussian,
-        interval_coverage,
-        nll_gaussian,
-    )
-    return {
-        "mag_only_crps": float(crps_gaussian(y_1d, mu_mag, sr_mag)),
-        "mag_ane_crps": float(crps_gaussian(y_1d, mu_ane, sr_ane)),
-        "crps_lift": float(crps_gaussian(y_1d, mu_mag, sr_mag) - crps_gaussian(y_1d, mu_ane, sr_ane)),
-        "mag_only_nll": float(nll_gaussian(y_1d, mu_mag, sr_mag)),
-        "mag_ane_nll": float(nll_gaussian(y_1d, mu_ane, sr_ane)),
-        "nll_lift": float(nll_gaussian(y_1d, mu_mag, sr_mag) - nll_gaussian(y_1d, mu_ane, sr_ane)),
-        "mag_only_cov90": float(interval_coverage(y_1d, mu_mag, sc_mag, alpha=0.10)),
-        "mag_ane_cov90": float(interval_coverage(y_1d, mu_ane, sc_ane, alpha=0.10)),
-    }
-
-
-# ---------------------------------------------------------------------------
 # Top-level entrypoint
 # ---------------------------------------------------------------------------
 
@@ -1217,7 +1194,7 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     # -----------------------------------------------------------------------
     logger.info("Loading TRAIN slices (max_shots=%s)...", cfg.max_train_shots)
     rng_load = np.random.default_rng(cfg.sub_split_seed + 1)
-    Xs_train, ys_train, tmasks_train = _load_split_slices(
+    Xs_train, ys_train, tmasks_train, train_ok_ids = _load_split_slices(
         train_shots,
         feature_schema,
         target_channels,
@@ -1264,7 +1241,7 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     # 7. Load CONFORMAL-CAL slices + fit conformal quantile
     # -----------------------------------------------------------------------
     logger.info("Loading CONFORMAL-CAL slices...")
-    Xs_conf, ys_conf, tmasks_conf = _load_split_slices(
+    Xs_conf, ys_conf, tmasks_conf, conf_ok_ids = _load_split_slices(
         conf_cal_shots, feature_schema, target_channels, cfg.level1_dir, cfg.max_slices_per_shot
     )
     result.n_conf_cal_shots = len(Xs_conf)
@@ -1283,7 +1260,7 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     # 8. Load IN-DIST-TEST slices + evaluate (coverage gate)
     # -----------------------------------------------------------------------
     logger.info("Loading IN-DIST-TEST slices...")
-    Xs_idt, ys_idt, tmasks_idt = _load_split_slices(
+    Xs_idt, ys_idt, tmasks_idt, _idt_ok_ids = _load_split_slices(
         in_dist_test_shots, feature_schema, target_channels, cfg.level1_dir, cfg.max_slices_per_shot
     )
     result.n_in_dist_test_shots = len(Xs_idt)
@@ -1303,7 +1280,7 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     # 9. Load OOD slices + evaluate
     # -----------------------------------------------------------------------
     logger.info("Loading OOD-REGIME-TEST slices...")
-    Xs_ood, ys_ood, tmasks_ood = _load_split_slices(
+    Xs_ood, ys_ood, tmasks_ood, ood_ok_ids = _load_split_slices(
         ood_shots, feature_schema, target_channels, cfg.level1_dir, cfg.max_slices_per_shot
     )
     result.n_ood_shots = len(Xs_ood)
@@ -1335,17 +1312,13 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     train_ip_arr = np.array(train_ip_vals) if train_ip_vals else np.array([500.0])
     train_ne_arr = np.array(train_ne_vals) if train_ne_vals else np.array([1e19])
 
-    # OOD shot distances
-    ood_shot_dists = _compute_regime_distances(ood_shots, regime_scalars, train_ip_arr, train_ne_arr)
-    # Broadcast per-shot distances to per-slice: replicate each shot's distance N_slices_per_shot times
+    # OOD shot distances — use ood_ok_ids (surviving shots) not ood_shots (full list)
+    # This avoids indexing Xs_ood by position in the full list (which includes skipped shots)
+    ood_ok_dists = _compute_regime_distances(ood_ok_ids, regime_scalars, train_ip_arr, train_ne_arr)
+    # Broadcast per-shot distances to per-slice
     ood_slice_dists: list[float] = []
-    for i, sid in enumerate(ood_shots):
-        if i < len(Xs_ood):
-            n_slices = len(Xs_ood[i]) if i < len(Xs_ood) else 0
-        else:
-            n_slices = 0
-        if n_slices > 0:
-            ood_slice_dists.extend([float(ood_shot_dists[i])] * n_slices)
+    for i, (sid, xs) in enumerate(zip(ood_ok_ids, Xs_ood, strict=True)):
+        ood_slice_dists.extend([float(ood_ok_dists[i])] * len(xs))
     ood_slice_dist_arr = np.array(ood_slice_dists) if ood_slice_dists else None
 
     ood_metrics = _eval_split(
@@ -1359,19 +1332,20 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     result.ood = ood_metrics
 
     # -----------------------------------------------------------------------
-    # 10. ane lift: train mag-only on same shot set, compare on in-dist-test
+    # 10. ane lift: mag-only via column-slicing of already-loaded arrays
+    #    (no new Zarr reads — avoids data confound and I/O bottleneck)
     # -----------------------------------------------------------------------
     logger.info("Computing ane lift (mag-only vs mag+ane)...")
     result.ane_lift = _compute_ane_lift(
         cfg,
-        train_shots,
-        conf_cal_shots,
-        in_dist_test_shots,
-        target_channels,
-        conformal,
-        stats,
+        Xs_train,
+        ys_train,
+        Xs_conf,
+        ys_conf,
         Xs_idt,
         ys_idt,
+        conformal,
+        stats,
     )
 
     elapsed = time.time() - t_total
@@ -1382,18 +1356,21 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
 
 def _compute_ane_lift(
     cfg: BaselineConfig,
-    train_shots: list[int],
-    conf_cal_shots: list[int],
-    in_dist_test_shots: list[int],
-    target_channels: list[str],
+    Xs_train: list[np.ndarray],
+    ys_train: list[np.ndarray],
+    Xs_conf: list[np.ndarray],
+    ys_conf: list[np.ndarray],
+    Xs_idt: list[np.ndarray],
+    ys_idt: list[np.ndarray],
     conformal_mag_ane: ConformalWrapper,
     stats_mag_ane: ChannelStats,
-    Xs_idt_mag_ane: list[np.ndarray],
-    ys_idt: list[np.ndarray],
 ) -> dict:
-    """Train a mag-only model on the SAME shots as mag+ane.
+    """Compute incremental lift from adding ane to magnetics.
 
-    Returns a dict with per-metric lift values.
+    Uses column-slicing of already-loaded mag+ane arrays — NO new Zarr reads.
+    The last column group is ane (1 column), so ``X[:, :-1]`` = mag-only.
+    This ensures the same shots/slices/ordering for both models, making the
+    comparison element-wise and confound-free.
     """
     from imas_ambix.statespace.calibration import (  # noqa: PLC0415
         crps_gaussian,
@@ -1401,92 +1378,91 @@ def _compute_ane_lift(
         nll_gaussian,
     )
 
-    feat_mag = _FEATURE_SCHEMA_MAG
-    rng_load = np.random.default_rng(cfg.sub_split_seed + 7)
+    # --- 1. Derive mag-only arrays by column-slicing (drop last ane column) ---
+    # Feature layout: [ama (6 cols), amb (73 cols), amc (42 cols), ane (1 col)]
+    # Total mag+ane = 122; mag-only = 121 = X[:, :-1]
+    n_ane_cols = len(_ANE_CHANNELS)  # = 1
 
-    # Load mag-only train slices (same shot subset as mag+ane)
-    logger.info("  ane lift: loading mag-only train slices...")
-    Xs_tr_mag, ys_tr_mag, _ = _load_split_slices(
-        train_shots, feat_mag, target_channels, cfg.level1_dir,
-        cfg.max_slices_per_shot, max_shots=cfg.max_train_shots, rng=rng_load,
-    )
+    def _slice_mag(Xs: list[np.ndarray]) -> list[np.ndarray]:
+        return [X[:, :-n_ane_cols] for X in Xs]
+
+    Xs_tr_mag = _slice_mag(Xs_train)
+    Xs_cf_mag = _slice_mag(Xs_conf)
+    Xs_idt_mag = _slice_mag(Xs_idt)
+
     if not Xs_tr_mag:
-        return {"error": "no mag-only train data"}
+        return {"error": "no mag-only train data (Xs_train empty)"}
 
-    stats_mag = ChannelStats.fit(Xs_tr_mag, ys_tr_mag)
-    X_tr_mag = np.concatenate(Xs_tr_mag, axis=0)
-    y_tr_mag = np.concatenate(ys_tr_mag, axis=0)
-    X_tr_mag_n = stats_mag.normalise_X(X_tr_mag)
-    y_tr_mag_n = stats_mag.normalise_y(y_tr_mag)
+    # --- 2. Fit normaliser on mag-only training slices ---
+    stats_mag = ChannelStats.fit(Xs_tr_mag, ys_train)
+    X_tr_mag_n = stats_mag.normalise_X(np.concatenate(Xs_tr_mag, axis=0))
+    y_tr_mag_n = stats_mag.normalise_y(np.concatenate(ys_train, axis=0))
 
-    ens_mag = DeepEnsemble.build(X_tr_mag_n.shape[1], y_tr_mag_n.shape[1] if y_tr_mag_n.ndim == 2 else 1, cfg.ensemble)
-    ens_mag.fit(X_tr_mag_n, y_tr_mag_n, cfg.ensemble)
-
-    # Conformal on mag-only — subsample conf-cal shots to keep ane-lift tractable
-    # (conformal coverage guarantee only needs ≥~200 cal samples; use 200 shots max)
-    logger.info("  ane lift: fitting mag-only conformal...")
-    max_conf_shots_ane = min(200, len(conf_cal_shots))
-    rng_conf = np.random.default_rng(cfg.sub_split_seed + 13)
-    Xs_cf_mag, ys_cf_mag, _ = _load_split_slices(
-        conf_cal_shots, feat_mag, target_channels, cfg.level1_dir, cfg.max_slices_per_shot,
-        max_shots=max_conf_shots_ane, rng=rng_conf,
+    # --- 3. Train mag-only ensemble ---
+    logger.info("  ane lift: training mag-only ensemble (col-sliced, no I/O)...")
+    mag_cfg = EnsembleConfig(
+        n_members=cfg.ensemble.n_members,
+        hidden_size=cfg.ensemble.hidden_size,
+        n_epochs=cfg.ensemble.n_epochs,
+        batch_size=cfg.ensemble.batch_size,
+        lr=cfg.ensemble.lr,
+        seed_base=cfg.ensemble.seed_base + 100,  # different seed from main model
     )
-    if not Xs_cf_mag:
-        return {"error": "no mag-only conformal data"}
+    ens_mag = DeepEnsemble.build(
+        X_tr_mag_n.shape[1],
+        y_tr_mag_n.shape[1] if y_tr_mag_n.ndim == 2 else 1,
+        mag_cfg,
+    )
+    ens_mag.fit(X_tr_mag_n, y_tr_mag_n, mag_cfg)
 
-    conf_mag = ConformalWrapper(ens_mag, stats_mag)
+    # --- 4. Fit conformal on same conf-cal slices (mag-only features) ---
+    logger.info("  ane lift: fitting mag-only conformal (same conf-cal shots)...")
     X_cf_mag_n = stats_mag.normalise_X(np.concatenate(Xs_cf_mag, axis=0))
-    y_cf_mag_n = stats_mag.normalise_y(np.concatenate(ys_cf_mag, axis=0))
+    y_cf_mag_n = stats_mag.normalise_y(np.concatenate(ys_conf, axis=0))
+    conf_mag = ConformalWrapper(ens_mag, stats_mag)
     conf_mag.fit_conformal(X_cf_mag_n, y_cf_mag_n)
 
-    # Evaluate on in-dist-test using mag-only features (subsample for tractability)
-    logger.info("  ane lift: evaluating mag-only on IN-DIST-TEST...")
-    max_test_shots_ane = min(200, len(in_dist_test_shots))
-    rng_test = np.random.default_rng(cfg.sub_split_seed + 17)
-    Xs_idt_mag, ys_idt_mag, _ = _load_split_slices(
-        in_dist_test_shots, feat_mag, target_channels, cfg.level1_dir, cfg.max_slices_per_shot,
-        max_shots=max_test_shots_ane, rng=rng_test,
-    )
-    if not Xs_idt_mag:
-        return {"error": "no mag-only test data"}
-
-    X_idt_mag = np.concatenate(Xs_idt_mag, axis=0)
-    y_idt_mag = np.concatenate(ys_idt_mag, axis=0)
-    y_1d_mag = y_idt_mag[:, 0] if y_idt_mag.ndim == 2 else y_idt_mag
+    # --- 5. Evaluate on the SAME in-dist-test slices ---
+    y_all = np.concatenate(ys_idt, axis=0)
+    y_1d = y_all[:, 0] if y_all.ndim == 2 else y_all  # (N,)
 
     # Mag-only predictions
-    X_idt_mag_n = stats_mag.normalise_X(X_idt_mag)
+    X_idt_mag_n = stats_mag.normalise_X(np.concatenate(Xs_idt_mag, axis=0))
     mu_mag_n, sr_mag_n, sc_mag_n, _ = conf_mag.predict_calibrated(X_idt_mag_n)
     mu_mag_p = stats_mag.denormalise_y_mean(mu_mag_n)[:, 0]
     sr_mag_p = stats_mag.denormalise_y_std(sr_mag_n)[:, 0]
     sc_mag_p = stats_mag.denormalise_y_std(sc_mag_n)[:, 0]
 
-    # Mag+ane predictions on in-dist-test
-    if Xs_idt_mag_ane:
-        X_idt_mane = np.concatenate(Xs_idt_mag_ane, axis=0)
-        y_1d_mane = np.concatenate(ys_idt, axis=0)[:, 0] if ys_idt else y_1d_mag
-        X_idt_mane_n = stats_mag_ane.normalise_X(X_idt_mane)
-        mu_mane_n, sr_mane_n, sc_mane_n, _ = conformal_mag_ane.predict_calibrated(X_idt_mane_n)
-        mu_mane_p = stats_mag_ane.denormalise_y_mean(mu_mane_n)[:, 0]
-        sr_mane_p = stats_mag_ane.denormalise_y_std(sr_mane_n)[:, 0]
-        sc_mane_p = stats_mag_ane.denormalise_y_std(sc_mane_n)[:, 0]
-    else:
-        return {"error": "no mag+ane test data"}
+    # Mag+ane predictions on the SAME slices
+    X_idt_mane_n = stats_mag_ane.normalise_X(np.concatenate(Xs_idt, axis=0))
+    mu_mane_n, sr_mane_n, sc_mane_n, _ = conformal_mag_ane.predict_calibrated(X_idt_mane_n)
+    mu_mane_p = stats_mag_ane.denormalise_y_mean(mu_mane_n)[:, 0]
+    sr_mane_p = stats_mag_ane.denormalise_y_std(sr_mane_n)[:, 0]
+    sc_mane_p = stats_mag_ane.denormalise_y_std(sc_mane_n)[:, 0]
 
-    # Use the shorter of the two test sets for fair comparison
-    n = min(len(y_1d_mag), len(y_1d_mane))
-    y_cmp = y_1d_mag[:n]
+    # All arrays have identical (N,) shape — no truncation needed
+    assert len(y_1d) == len(mu_mag_p) == len(mu_mane_p), (
+        f"Length mismatch: y={len(y_1d)}, mag={len(mu_mag_p)}, mane={len(mu_mane_p)}"
+    )
 
     return {
-        "n_test_slices": int(n),
-        "mag_only_crps": float(crps_gaussian(y_cmp, mu_mag_p[:n], sr_mag_p[:n])),
-        "mag_ane_crps": float(crps_gaussian(y_cmp, mu_mane_p[:n], sr_mane_p[:n])),
-        "crps_lift": float(crps_gaussian(y_cmp, mu_mag_p[:n], sr_mag_p[:n]) - crps_gaussian(y_cmp, mu_mane_p[:n], sr_mane_p[:n])),
-        "mag_only_nll": float(nll_gaussian(y_cmp, mu_mag_p[:n], sr_mag_p[:n])),
-        "mag_ane_nll": float(nll_gaussian(y_cmp, mu_mane_p[:n], sr_mane_p[:n])),
-        "nll_lift": float(nll_gaussian(y_cmp, mu_mag_p[:n], sr_mag_p[:n]) - nll_gaussian(y_cmp, mu_mane_p[:n], sr_mane_p[:n])),
-        "mag_only_coverage90": float(interval_coverage(y_cmp, mu_mag_p[:n], sc_mag_p[:n], alpha=0.10)),
-        "mag_ane_coverage90": float(interval_coverage(y_cmp, mu_mane_p[:n], sc_mane_p[:n], alpha=0.10)),
+        "n_test_slices": int(len(y_1d)),
+        "n_train_slices_mag_only": int(sum(len(x) for x in Xs_tr_mag)),
+        "mag_only_crps": float(crps_gaussian(y_1d, mu_mag_p, sr_mag_p)),
+        "mag_ane_crps": float(crps_gaussian(y_1d, mu_mane_p, sr_mane_p)),
+        "crps_lift": float(
+            crps_gaussian(y_1d, mu_mag_p, sr_mag_p)
+            - crps_gaussian(y_1d, mu_mane_p, sr_mane_p)
+        ),
+        "mag_only_nll": float(nll_gaussian(y_1d, mu_mag_p, sr_mag_p)),
+        "mag_ane_nll": float(nll_gaussian(y_1d, mu_mane_p, sr_mane_p)),
+        "nll_lift": float(
+            nll_gaussian(y_1d, mu_mag_p, sr_mag_p)
+            - nll_gaussian(y_1d, mu_mane_p, sr_mane_p)
+        ),
+        "mag_only_coverage90": float(interval_coverage(y_1d, mu_mag_p, sc_mag_p, alpha=0.10)),
+        "mag_ane_coverage90": float(interval_coverage(y_1d, mu_mane_p, sc_mane_p, alpha=0.10)),
+        "method": "column-slice: mag-only = mag+ane X[:, :-1] (same shots/slices)",
         "note": "positive CRPS/NLL lift = mag+ane is better (lower score); negative = mag-only is better",
     }
 
