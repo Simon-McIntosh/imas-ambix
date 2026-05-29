@@ -9,7 +9,7 @@
   <meta name="plan-roi"      content="high">
   <meta name="plan-effort"   content="L">
   <meta name="plan-tier"     content="opus">
-  <meta name="plan-summary"  content="Stage-1 engine demonstrator: a learned latent state-space model + Bayesian filter on RAW MAST diagnostics, judged on CALIBRATED uncertainty + OOD flagging. Primary gate is a raw-signal virtual-diagnostic / forecast-through-transients task (ground-truth labels, exercises dynamics); shape-from-EFIT is a clearly-labelled emulation sanity check, not the gate.">
+  <meta name="plan-summary"  content="Stage-1 engine: a learned latent state-space model + Bayesian filter on RAW MAST diagnostics that predicts and forecasts a WHOLE HELD-OUT diagnostic family (e.g. Dalpha, or the camera-derived boundary) from the OTHER families, through transients, with calibrated uncertainty + OOD flagging. Acceptance = calibration on ground-truth measured signals; no EFIT, no rFID.">
   <meta name="plan-milestone" content="M1">
   <meta name="plan-sprint"   content="S7">
   <meta name="plan-depends-on" content="physics-world-model-strategy,probabilistic-state-space-methods">
@@ -20,147 +20,148 @@
 <body>
   <main class="plan-doc">
     <h1>Plasma State-Space Engine v0</h1>
-    <p><em>Stage-1 of <a href="/imas-ambix/physics-world-model-strategy.html">physics-world-model-strategy</a>. The home of sprint <strong>S7</strong>. Goal: prove the probabilistic state-space engine — and that its uncertainty is honest — on a well-posed, general, multi-modal task built on <strong>raw</strong> MAST signals, before we invest in physical grounding (GS prior) and discovery.</em></p>
+    <p><em>Stage-1 of <a href="/imas-ambix/physics-world-model-strategy.html">physics-world-model-strategy</a>. Home of sprint <strong>S7</strong>. Prove the probabilistic state-space engine — and that its uncertainty is honest — on a meaningful, EFIT-free, cross-family virtual-diagnostic task built on <strong>raw</strong> MAST signals, before physical grounding (GS prior) and discovery.</em></p>
 
     <h2 id="s1">§1 — Objective</h2>
-    <p><strong>Build a learned latent state-space model + Bayesian filter on raw MAST diagnostics (camera + magnetics) and demonstrate that it estimates and forecasts plasma signals with calibrated uncertainty, and flags out-of-distribution regimes.</strong></p>
-    <p>The <strong>acceptance gate is a raw-signal task</strong> (see §3): predict a <em>held-out raw diagnostic channel</em> from the others, and <em>forecast</em> a signal through its transients. This is the truest "virtual diagnostic" (our stated ITER utility), its labels are <em>ground-truth measurements</em> (no solver, no inherited bias), and forecasting through transients genuinely exercises the transition kernel — the thing that makes this a world model rather than a regression.</p>
-    <p class="r-note"><strong>Why not lead with separatrix shape?</strong> Shape parameters (κ, δ, volume…) come from <code>efm</code> = EFIT output. A model predicting them is an <em>EFIT emulator</em>: "calibration" would mean calibrated <em>to EFIT</em>, not to truth (where EFIT is biased the model is confidently wrong the same way, invisibly); and shape is quasi-static, so it under-tests the dynamics. That quietly reintroduces the regressor-output dependency the whole project pivoted to avoid (strategy §5). So shape-from-EFIT is retained only as a <strong>clearly-labelled emulation sanity check</strong> — useful to confirm the diagnostics carry boundary information — <em>not</em> the acceptance gate. (The choice of primary target is an open decision below — the user proposed shape; this plan recommends the raw-signal gate and surfaces the trade rather than swapping unilaterally.)</p>
-    <p>Generating camera streams is explicitly a <em>byproduct</em>, never a goal.</p>
-
-    <h2 id="s2">§2 — Data (raw, available now — no IMAS migration needed)</h2>
+    <p><strong>Build a learned latent state-space model + Bayesian filter on raw MAST diagnostics that predicts (filtering) and forecasts (through transients) a <em>whole held-out diagnostic family</em> from the other families, with calibrated uncertainty, and flags out-of-distribution regimes.</strong></p>
+    <p><strong>Whole-family hold-out — not within-family.</strong> Predicting one magnetic probe from the other ~60 is near-trivial spatial interpolation across a redundant array; it proves nothing about physical understanding. The meaningful test is <em>cross-family</em>: hold an entire diagnostic family out of the inputs and infer it from the others. That tests whether the latent state genuinely carries the shared physical information linking distinct measurement systems — the essence of a virtual diagnostic and of state estimation.</p>
+    <p><strong>EFIT-free targets.</strong> No EFIT/<code>efm</code> labels anywhere — the target is a <em>measured</em> family, so "calibration" means calibrated to ground truth, not to a solver. Leading candidates (final pick in S7.1, by availability + signal richness):</p>
     <ul>
-      <li><strong>Inputs (raw):</strong> <code>rbb</code> fast camera + magnetics groups <code>amb</code>/<code>amc</code>/<code>amm</code> from <code>/work/projects/imas_gpu/mast/level1/shots/&lt;shot&gt;.zarr</code>. Exact signal selection is sprint task S7.1.</li>
-      <li><strong>Primary targets (ground truth):</strong> held-out raw diagnostic channels and their short-horizon future — i.e. predict measured signal(s) from other measured signals, and forecast through transients. No solver in the label path.</li>
-      <li><strong>Sanity-check target (EFIT-emulation, caveated):</strong> separatrix shape parameters from <code>efm</code>. Always reported as <em>"calibrated to EFIT-reconstructed shape"</em>, never as "honest uncertainty about the plasma state." Confirms diagnostics carry boundary info; is <strong>not</strong> the gate.</li>
-      <li><strong>Splits:</strong> held-out <em>shots</em> (calibration) AND held-out <em>regimes</em> (OOD test) — split by I<sub>p</sub>/density/shape class/campaign so a whole region of operating space is unseen. Defining the regime split is S7.1.</li>
+      <li><strong>Dα</strong> (Balmer-α edge/recycling emission) held out, predicted from magnetics + camera. Dα carries strong ELM/transient structure → the best <em>dynamics</em> test.</li>
+      <li><strong>Camera-derived boundary</strong> — the visible emission boundary extracted directly from the rbb image (a measurement, <em>not</em> EFIT) — predicted from magnetics. "The boundary directly from measurement." (Note: the emission boundary is a measured quantity related to, but distinct from, the magnetic separatrix — and that's fine.)</li>
+      <li><strong>Magnetics family</strong> held out, predicted from the camera — a strong cross-modal inference.</li>
+    </ul>
+    <p>Generating camera streams remains a <em>byproduct</em>, never a goal.</p>
+
+    <h2 id="s2">§2 — Data (raw, available now — no IMAS migration)</h2>
+    <ul>
+      <li><strong>Inputs / targets (all raw, ground truth):</strong> level-1 zarr families at <code>/work/projects/imas_gpu/mast/level1/shots/&lt;shot&gt;.zarr</code> — <code>rbb</code> camera, magnetics <code>amb</code>/<code>amc</code>/<code>amm</code>, and the remaining families (<code>esm</code>/<code>xdc</code>/…); plus Dα wherever it lives (S7.1 locates it). One family is designated the <strong>held-out target</strong> (never an input); the rest are inputs.</li>
+      <li><strong>No EFIT.</strong> The <code>efm</code> group (EFIT reconstruction) is excluded from inputs and from labels. The camera-derived boundary, if used, is extracted from the rbb image by our own image processing, not from <code>efm</code>.</li>
+      <li><strong>Splits:</strong> held-out <em>shots</em> (calibration) AND held-out <em>regimes</em> (OOD) — split by Iₚ/density/shape class/campaign so a whole region of operating space is unseen. Note the held-out <em>family</em> (cross-family generalisation) and held-out <em>regime</em> (OOD) are orthogonal axes; we test both.</li>
     </ul>
 
     <h2 id="s3">§3 — Approach (baseline → engine, one variable at a time)</h2>
     <ol>
-      <li><strong>Static baseline.</strong> Per-slice regression (other channels → held-out channel) with a <em>deep ensemble</em> for uncertainty. Establishes the observation model, multi-modal fusion, and the calibration harness. No dynamics.</li>
-      <li><strong>Dynamic engine.</strong> A learned latent state + stochastic transition kernel + Bayesian filter (light UQ per strategy §3: ensemble/conformal, not full-variational unless needed). Delivers the three operations: <strong>filtering</strong> (estimate now), <strong>forecasting</strong> (predict forward through transients — the what-if), <strong>smoothing</strong> (best trajectory, for later discovery).</li>
+      <li><strong>Static baseline.</strong> Per-slice cross-family regression (other families<sub>t</sub> → held-out family<sub>t</sub>) with a <em>deep ensemble</em> for uncertainty. Establishes the cross-family observation model, multi-modal fusion, and the calibration harness. No dynamics.</li>
+      <li><strong>Dynamic engine.</strong> A learned latent state + stochastic transition kernel + Bayesian filter (light UQ per strategy §3 — deep-ensemble + conformal, or RKN-style; not full-variational unless needed). Delivers <strong>filtering</strong> (estimate the held-out family now), <strong>forecasting</strong> (predict it forward through transients — the what-if), <strong>smoothing</strong> (best trajectory, for later discovery).</li>
     </ol>
-    <p>Baseline and engine are evaluated on the <em>same</em> held-out shots/regimes with the <em>same</em> harness, so the engine's value — does modelling dynamics improve calibrated <em>forecasting</em> over per-slice regression? — is isolated. Forecasting through transients is precisely where the static baseline should fail and the dynamic engine should earn its keep.</p>
+    <p>Baseline and engine share the same held-out family / shots / regimes and the same harness, so the engine's value — does modelling dynamics improve calibrated <em>forecasting</em> through transients over per-slice regression? — is isolated. Transients (e.g. ELMs in Dα) are exactly where the static baseline should fail and the dynamic engine should earn its keep.</p>
 
     <h2 id="s4">§4 — Acceptance criteria (what "calibrated and honest" must mean)</h2>
     <ul>
-      <li><strong>Calibration:</strong> 90% predictive intervals contain truth in 88–92% of held-out-shot slices (reliability diagram near-diagonal across nominal levels).</li>
-      <li><strong>Forecasting:</strong> calibrated to a stated horizon H <em>through transients</em>; the dynamic engine's CRPS must beat the static baseline's at H &gt; 0 (this is the test that dynamics matter).</li>
-      <li><strong>Sharpness:</strong> mean interval width reported; as tight as possible subject to calibration.</li>
-      <li><strong>Proper scores:</strong> CRPS and NLL vs the static baseline.</li>
-      <li><strong>OOD honesty:</strong> on held-out <em>regimes</em>, intervals visibly widen / novelty score rises; coverage must not collapse silently (report OOD-detection AUROC or a coverage-vs-distance curve).</li>
-      <li><strong>Sanity:</strong> shape-from-EFIT emulation calibrated-to-EFIT (confirms boundary info present) — reported, not gating.</li>
+      <li><strong>Cross-family calibration:</strong> 90% predictive intervals on the held-out family contain truth in 88–92% of held-out-shot slices (reliability diagram near-diagonal).</li>
+      <li><strong>Forecasting through transients:</strong> calibrated to a stated horizon H; the dynamic engine's CRPS must beat the static baseline's at H&gt;0 (the test that dynamics matter), with explicit reporting on transient windows.</li>
+      <li><strong>Sharpness:</strong> mean interval width; as tight as possible subject to calibration.</li>
+      <li><strong>Proper scores:</strong> CRPS, NLL vs the static baseline.</li>
+      <li><strong>OOD honesty:</strong> on held-out <em>regimes</em>, intervals visibly widen / novelty score rises; coverage must not collapse silently (report OOD-detection AUROC or coverage-vs-distance).</li>
     </ul>
-    <p>Acceptance is <strong>calibration on ground-truth signals, not rFID or pixel fidelity</strong> — deliberately, per the strategy.</p>
+    <p>Acceptance is <strong>calibration on ground-truth measured signals</strong> — no EFIT, no rFID, no pixel fidelity.</p>
 
     <h2 id="s5">§5 — Out of scope for v0</h2>
-    <p>GS prior / physical grounding (Stage-2); structure discovery (SINDy/Koopman); cross-machine extrapolation; camera-stream generation; IMAS-format migration. v0 proves the engine + honesty on raw signals; these build on it.</p>
+    <p>GS prior / physical grounding (Stage-2); structure discovery (SINDy/Koopman); cross-machine extrapolation; camera-stream generation; IMAS-format migration; any EFIT-derived label. v0 proves the engine + honesty on a cross-family raw-signal task; these build on it.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
       <h2><span class="sec">§</span> Decisions</h2>
 
-      <div class="r-dec" data-key="primary-target" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What is the Stage-1 <strong>acceptance</strong> target? (THE gating decision for S7 — for the user)</p>
+      <div class="r-dec" data-key="held-out-family" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which diagnostic family is the held-out target? (locked principle: WHOLE family out; EFIT-free)</p>
         <p class="r-dec-opts">
-          <button class="r-opt" data-value="raw-signal">raw held-out-channel prediction + forecast-through-transients (recommended — ground-truth labels, exercises dynamics, truest virtual diagnostic)</button>
-          <button class="r-opt" data-value="shape-emulation">separatrix shape from EFIT (user-proposed; but an EFIT-emulator, calibrated-to-EFIT, quasi-static)</button>
-          <button class="r-opt" data-value="both">both — raw-signal as the gate, shape-emulation as a labelled sanity check</button>
+          <button class="r-opt" data-value="dalpha">Dα held out, predict from magnetics + camera (recommended — richest transients = best dynamics test)</button>
+          <button class="r-opt" data-value="camera-boundary">camera-derived boundary, predict from magnetics (boundary from measurement, EFIT-free)</button>
+          <button class="r-opt" data-value="magnetics">magnetics held out, predict from camera (cross-modal)</button>
         </p>
-        <p class="r-dec-rat">Recommend "both": raw-signal forecasting as the acceptance gate (honest labels + real dynamics), shape-from-EFIT retained as a sanity check that the diagnostics carry boundary info. Surfaced because the user proposed shape, and the trade (escaping vs re-emulating the solver) is theirs to make knowingly — strategy §5.</p>
+        <p class="r-dec-rat">Locked principle (user, 2026-05-29): hold out a WHOLE diagnostic family and infer it from the others; no within-family probe-from-probes; no EFIT-shape. Recommend Dα (strong ELM transients exercise the dynamics) as primary, with camera-derived boundary as a strong second target. Final pick in S7.1 once family availability (esp. Dα) is scoped.</p>
       </div>
 
       <div class="r-dec" data-key="input-modality-v0" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which input modalities for the v0 engine?</p>
+        <p class="r-dec-q">How do we sequence the input families?</p>
         <p class="r-dec-opts">
-          <button class="r-opt" data-value="magnetics-first-then-camera">magnetics-only baseline, then add camera and measure the lift (recommended — isolates each modality's contribution)</button>
-          <button class="r-opt" data-value="both-from-start">camera + magnetics jointly from the start</button>
+          <button class="r-opt" data-value="add-incrementally">single strongest input family first, then add families and measure each one's lift (recommended)</button>
+          <button class="r-opt" data-value="all-from-start">all non-target families jointly from the start</button>
         </p>
-        <p class="r-dec-rat">Recommend magnetics-only baseline first (the classical observable), then add the camera and quantify what it buys.</p>
+        <p class="r-dec-rat">Recommend adding input families incrementally and quantifying each one's contribution to predicting the held-out family — it tells us which physical information lives where.</p>
       </div>
 
       <div class="r-dec" data-key="regime-split-axis" data-choice="" data-by="" data-when="">
         <p class="r-dec-q">How do we define held-out REGIMES for the OOD test?</p>
         <p class="r-dec-opts">
-          <button class="r-opt" data-value="by-current-density">by I_p × density operating region (recommended)</button>
+          <button class="r-opt" data-value="by-current-density">by Iₚ × density operating region (recommended)</button>
           <button class="r-opt" data-value="by-shape-class">by shape class (limited vs diverted, single vs double null)</button>
           <button class="r-opt" data-value="by-campaign">by experimental campaign / date</button>
         </p>
-        <p class="r-dec-rat">Recommend holding out an I_p×density region as primary (a clear operating-space hole the model must flag); shape-class / campaign as secondary OOD axes. Final choice in S7.1 once the data distribution is scoped.</p>
+        <p class="r-dec-rat">Recommend holding out an Iₚ×density region as primary (a clear operating-space hole the model must flag); shape-class / campaign secondary. Final choice in S7.1.</p>
       </div>
     </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
       <h2><span class="sec">§</span> Followups (sprint S7 items)</h2>
 
-      <article class="r-fu" data-id="f-s7-1-data-assembly" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">S7.1 — Assemble the dataset + calibration harness (target-agnostic; safe to start now)</h4>
-        <div class="r-fu-body">Load rbb + amb/amc/amm + efm from level-1 zarr; enumerate the available raw magnetic channels (candidate held-out targets — pick ones with genuine transient structure) and the efm shape fields (sanity target); time-align modalities; build train / held-out-shot / held-out-regime splits; implement the calibration harness (coverage, sharpness, CRPS, NLL, reliability diagram, OOD score). Produce a data-characterisation note so the user can lock the primary-target decision.</div>
+      <article class="r-fu" data-id="f-s7-1-data-assembly" data-status="open" data-tier="sonnet" data-written-by="agent/opus" data-written-at="2026-05-29">
+        <h4 class="r-fu-title">S7.1 — Family inventory + dataset + calibration harness (target-agnostic; start now)</h4>
+        <div class="r-fu-body">Enumerate the level-1 diagnostic families and their signals; locate Dα; prototype camera-derived-boundary extraction from rbb; time-align families; build held-out-shot AND held-out-regime splits; implement the calibration harness (coverage, sharpness, CRPS, NLL, reliability, OOD score). Produce a family-characterisation note so the user/coordinator can lock held-out-family + regime-split.</div>
         <pre class="r-fu-prompt">Project: imas-ambix
-Plan:    plasma-state-space-v0 (§2, §4)
-Tier:    opus
+Plan:    plasma-state-space-v0 (§1, §2, §4)
+Tier:    sonnet  (data plumbing + standard eval harness; coordinator=opus designs the split + reviews)
 
 Context
-  Stage-1 engine demonstrator. Raw multi-modal MAST level-1 data is available now (no IMAS migration).
-  Acceptance target is a RAW-SIGNAL task (NOT EFIT shape) — but the primary-target decision is the
-  user's; this task is target-agnostic and unblocks either choice.
+  Stage-1 engine. RAW multi-modal MAST level-1 data, available now (no IMAS migration). The acceptance
+  target is a WHOLE held-out diagnostic FAMILY predicted from the OTHERS (no within-family probe-from-probes;
+  NO EFIT/efm labels). This task is target-agnostic and unblocks the family choice.
 
 State to read
   GET /plan/imas-ambix/plasma-state-space-v0 ; GET /plan/imas-ambix/physics-world-model-strategy
-  /work/projects/imas_gpu/mast/level1/shots/<shot>.zarr  (groups: rbb, amb, amc, amm, efm, esm, xdc)
+  /work/projects/imas_gpu/mast/level1/shots/<shot>.zarr  (families: rbb, amb, amc, amm, esm, xdc, [efm=EXCLUDED])
   imas_ambix/tokenizer/signals.py , imas_ambix/data/  (existing signal-loading patterns)
+  docs/probabilistic-state-space-methods.html §4 (calibration/OOD metric definitions)
 
 Steps
-  1. Enumerate amb/amc/amm channels (flux loops, Mirnov/pickup coils, coil currents); identify candidate
-     held-out RAW targets that have real transient structure (good for the dynamics test). Record rates.
-  2. Enumerate efm shape fields (elongation, triangularity, volume, R_geo, a) for the sanity-check target.
-  3. Time-align modalities to a common base (document resample/interp choice); note camera vs magnetics vs efm rates.
-  4. Build splits: train, held-out-shots, held-out-REGIME (scope the I_p×density distribution; propose the regime-split-axis).
+  1. Enumerate every level-1 family and its channels; classify by diagnostic family. LOCATE Dα (which group?).
+  2. Prototype camera-derived-boundary extraction from rbb (emission-edge detection) — a measured boundary, NOT efm.
+  3. Time-align families to a common base (document resample/interp; note per-family rates).
+  4. Build splits: train / held-out-shots / held-out-REGIME (scope the Iₚ×density distribution; propose the axis).
   5. Implement + unit-test the calibration harness: interval coverage, sharpness, CRPS, NLL, reliability diagram, OOD novelty score.
-  6. Post a data-characterisation note (channel inventory, transient candidates, distributions, alignment) so the user can lock primary-target, input-modality, regime-split.
+  6. Post a family-characterisation note (channel inventory, Dα availability, boundary-extraction feasibility, distributions, alignment) so held-out-family / regime-split can be locked.
 
 Done-when
-  Reproducible dataset (inputs + raw targets + efm-sanity labels + splits) + tested calibration harness;
-  data-characterisation note posted; the three decisions surfaced with concrete options.
-  Heavy work on GPU uses the hardened sbatch + STOP-FILE (never scancel).</pre>
+  Reproducible dataset (per-family raw signals + splits) + tested calibration harness; family note posted;
+  held-out-family, input-modality, regime-split decisions surfaced with concrete options.
+  Any GPU work uses the hardened sbatch + STOP-FILE (NEVER scancel; AGENTS.md §2a).</pre>
       </article>
 
-      <article class="r-fu" data-id="f-s7-2-static-baseline" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">S7.2 — Static baseline (per-slice regression + deep ensemble)</h4>
-        <div class="r-fu-body">Per-slice regression on the locked primary target (raw held-out channel) with a deep ensemble for uncertainty; magnetics-only first, then +camera. Run the calibration harness on held-out shots AND regimes. This is the comparator the dynamic engine must beat on forecasting. (If the user keeps shape as the/an target, run it too — labelled as EFIT-emulation.)</div>
+      <article class="r-fu" data-id="f-s7-2-static-baseline" data-status="open" data-tier="sonnet" data-written-by="agent/opus" data-written-at="2026-05-29">
+        <h4 class="r-fu-title">S7.2 — Static cross-family baseline (deep ensemble + conformal)</h4>
+        <div class="r-fu-body">Per-slice cross-family regression (other families → held-out family) with a deep ensemble (≥5) + split conformal. Add input families incrementally; report each one's lift. Run the harness on held-out shots AND regimes. This is the comparator the dynamic engine must beat on forecasting.</div>
         <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    plasma-state-space-v0 (§3 step 1, §4)
-Tier:    opus
+Tier:    sonnet  (standard ensemble regression + conformal; coordinator=opus reviews calibration)
 
-Depends on S7.1 (dataset + harness) and the locked primary-target decision. Build a per-slice predictor
-(other-channels_t -> target_t) with a deep ensemble (>=5 members); optionally conformal-calibrate on a
-calibration split. Report all §4 metrics on held-out shots AND held-out regimes. Magnetics-only first,
-then +camera (report the lift). If shape-emulation is in scope, report it separately, labelled
-"calibrated to EFIT-reconstructed shape" — never as plasma-state truth.
+Depends on S7.1 + locked held-out-family. Build a per-slice cross-family predictor (other-families_t ->
+held-out-family_t), deep ensemble (>=5 members) + split-conformal calibration. Add input families
+incrementally (report each family's lift). Report all §4 metrics on held-out shots AND held-out regimes.
 
 Done-when
-  Calibrated static baseline (coverage 88-92% at 90% nominal on held-out shots) on the raw-signal target;
-  camera-lift quantified; all §4 metrics logged here.</pre>
+  Calibrated static baseline (coverage 88-92% at 90% nominal on held-out shots); per-family lift quantified;
+  all §4 metrics logged to this plan. NO EFIT labels anywhere.</pre>
       </article>
 
       <article class="r-fu" data-id="f-s7-3-dynamic-engine" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
         <h4 class="r-fu-title">S7.3 — Dynamic engine (latent state-space + filter) + Stage-1 acceptance</h4>
-        <div class="r-fu-body">A learned latent state + stochastic transition + Bayesian filter (light UQ). Demonstrate filtering, forecasting through transients (the dynamics test), and smoothing. Must beat the static baseline on calibrated forecasting (CRPS at H&gt;0) and flag held-out regimes as OOD. This is the Stage-1 acceptance gate.</div>
+        <div class="r-fu-body">A learned latent state + stochastic transition kernel + Bayesian filter (RKN-style or ensemble/conformal; light UQ). Demonstrate filtering, forecasting the held-out family through transients, and smoothing. Must beat the static baseline on calibrated forecasting (CRPS at H&gt;0, esp. transient windows) and flag held-out regimes as OOD. The Stage-1 acceptance gate. OPUS — this is the novel architectural core.</div>
         <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    plasma-state-space-v0 (§3 step 2, §4)
-Tier:    opus
+Tier:    opus  (novel latent state-space + filtering architecture; multi-file; calibration-through-transients)
 
-Depends on S7.2. Build a learned latent state-space model: encoder(diagnostics)->latent, stochastic
-transition kernel (light/structured form; ensemble or conformal UQ, NOT full-variational unless needed),
-observation head -> target. Implement filtering, multi-step forecasting (report calibration vs horizon,
-emphasising transients), and smoothing. Compare to the static baseline on all §4 metrics; quantify OOD
-honesty on held-out regimes.
+Depends on S7.2. Build a learned latent state-space model: encoder(input families)->latent, stochastic
+transition kernel (light/structured — RKN-style factorised covariance or ensemble/conformal UQ; NOT
+full-variational unless needed), observation head -> held-out family. Implement filtering, multi-step
+forecasting (report calibration vs horizon, emphasising transient windows e.g. ELMs), and smoothing.
+Compare to the static baseline on all §4 metrics; quantify OOD honesty on held-out regimes.
 
 Done-when (Stage-1 ACCEPTANCE)
   Filtering calibrated (88-92%); forecasting calibrated to a stated horizon AND CRPS beats the static
-  baseline at H>0 (dynamics earn their keep); held-out regimes visibly flagged (quantified OOD signal);
-  results + honest caveats posted here and rolled up to physics-world-model-strategy f-stage1-engine.
-  Then decide Stage-2 (GS prior + discovery) entry.</pre>
+  baseline at H>0 through transients (dynamics earn their keep); held-out regimes visibly flagged
+  (quantified OOD signal); results + honest caveats posted here and rolled up to
+  physics-world-model-strategy f-stage1-engine. Then decide Stage-2 (GS prior + discovery) entry.</pre>
       </article>
     </section>
   </main>

@@ -78,7 +78,7 @@
     </ul>
 
     <h2 id="s9">§9 — Two-stage plan</h2>
-    <p><strong>Stage 1 — the engine, on raw multi-modal MAST data (now).</strong> Build and validate a learned stochastic latent state-space model + Bayesian filter with <em>calibrated</em> uncertainty and OOD flagging, across the operating space. First concrete target: predict separatrix shape parameters from raw diagnostics (camera + magnetics) with honest error bars — see <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a>. Acceptance is calibration, not reconstruction fidelity.</p>
+    <p><strong>Stage 1 — the engine, on raw multi-modal MAST data (now).</strong> Build and validate a learned stochastic latent state-space model + Bayesian filter with <em>calibrated</em> uncertainty and OOD flagging, across the operating space. First concrete target: predict a <em>whole held-out diagnostic family</em> (e.g. Dα, or the camera-derived emission boundary) from the other raw families, and forecast it through its transients, with honest error bars — see <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a>. Cross-family (not within-family probe-from-probes), EFIT-free. Acceptance is calibration, not reconstruction fidelity.</p>
     <p><strong>Stage 2 — physical grounding + discovery.</strong> Add our own GS prior on raw magnetics; the latent becomes physically grounded; virtual diagnostics become physical; GS-residual monitoring becomes a discovery instrument. Structure/coefficient discovery (SINDy/Koopman on the latent dynamics) rides on top, expressed toward dimensionless coordinates for extrapolation.</p>
 
     <h2 id="s10">§10 — Honest limits</h2>
