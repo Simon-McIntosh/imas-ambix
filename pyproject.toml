@@ -124,6 +124,10 @@ src = [".", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "N", "B", "A", "SIM", "TCH"]
 
+[tool.ruff.lint.per-file-ignores]
+# Tests use uppercase N/M/D for matrix dimensions and Path is fine in test files
+"tests/**/*.py" = ["N806", "TC003"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
