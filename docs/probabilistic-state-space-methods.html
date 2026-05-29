@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="reckon-type" content="research">
+<meta name="plan-slug" content="probabilistic-state-space-methods">
+<meta name="plan-summary" content="Methods + fusion precedents for a probabilistic state-space physics world model: latent dynamics models, the UQ spectrum, calibration/OOD metrics, structure discovery, and fusion ML precedents">
+<meta name="plan-informs" content="physics-world-model-strategy,plasma-state-space-v0">
+<title>Probabilistic State-Space Methods &amp; Fusion Precedents | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<h1>Probabilistic State-Space Methods &amp; Fusion Precedents</h1>
+<p>
+  Research survey informing <em>physics-world-model-strategy</em> and <em>plasma-state-space-v0</em>.
+  Last updated: 2026-05-29.
+  Verification status is noted inline: <strong>[✓]</strong> = primary source confirmed,
+  <strong>[~]</strong> = secondary source / broadly confirmed, <strong>[?]</strong> = unverified / from training.
+</p>
+<p>
+  <strong>Scope.</strong> The imas-ambix objective has been reframed from a generative video model
+  toward a <em>learned probabilistic state-space model</em>: an encoder that maps raw diagnostic
+  measurements to a latent plasma state; a stochastic transition kernel that captures the
+  dynamics (the physics to be discovered, not imposed); and an observation model that
+  maps the latent state back to raw signals. This architecture supports Bayesian
+  filtering/smoothing for state estimation, what-if forecasting, and structure discovery.
+  Three binding principles shape every method choice:
+</p>
+<ol>
+  <li><strong>Physics as soft, falsifiable priors.</strong> A persistent physics residual is a
+    <em>discovery signal</em>, not an error to fit away. Hard boundary conditions are banned.</li>
+  <li><strong>Train on raw measured signals only.</strong> Never on regression/solver outputs
+    (e.g.&nbsp;not EFIT-reconstructed equilibrium — those carry solver assumptions).
+    Grad-Shafranov enters as our own soft prior instead.</li>
+  <li><strong>Data-scarce / extrapolation-to-ITER regime.</strong> Data-efficiency and calibrated
+    uncertainty for safe extrapolation dominate over peak in-distribution accuracy.</li>
+</ol>
+<p>
+  <strong>First concrete experiment.</strong> Predict plasma separatrix shape parameters
+  (volume, elongation, triangularity, &hellip;) from raw diagnostic measurements including
+  camera, with calibrated uncertainty. Everything in §§4–7 is assessed against this target.
+</p>
+
+<hr/>
+
+<h2 id="s1">1. Overview and Architecture</h2>
+<p>
+  A probabilistic state-space model (PSSM) over a sequence of observations
+  <em>y</em><sub>1:T</sub> has three components:
+</p>
+<ul>
+  <li><strong>Encoder / recognition model</strong> <em>q</em>(<em>z</em><sub>t</sub> | <em>y</em><sub>1:t</sub>):
+    maps raw diagnostics to a distribution over latent plasma state <em>z</em><sub>t</sub>.</li>
+  <li><strong>Transition kernel</strong> <em>p</em>(<em>z</em><sub>t+1</sub> | <em>z</em><sub>t</sub>):
+    the learned dynamics — the thing we are most interested in discovering.</li>
+  <li><strong>Observation model</strong> <em>p</em>(<em>y</em><sub>t</sub> | <em>z</em><sub>t</sub>):
+    maps latent state back to measurements.</li>
+</ul>
+<p>
+  Inference in this model is Bayesian filtering (online, causal) or smoothing
+  (offline, full-sequence). The posterior over <em>z</em><sub>t</sub> is the
+  "plasma state estimate with uncertainty". Forecasting means rolling out
+  <em>p</em>(<em>z</em><sub>t+k</sub> | <em>z</em><sub>t</sub>) and pushing through
+  the observation model. Structure discovery means reading off the learned
+  transition kernel — ideally in interpretable coordinates (§5).
+</p>
+<p>
+  The key design choice is <em>where</em> on the deterministic–probabilistic spectrum
+  to sit (§3), and how deep/nonlinear to make each component (§2). The fusion
+  precedents (§6) clarify what has already been solved and what remains open.
+</p>
+
+<hr/>
+
+<h2 id="s2">2. Latent State-Space and Dynamics Models</h2>
+<p>
+  The table below covers the major families, from classical to learned.
+  For each: whether uncertainty is explicit (probabilistic) or absent/implicit (deterministic),
+  how nonlinear transitions can be, training cost, maturity, and key open implementations.
+  "Posterior" means the model maintains a distribution over latent state at runtime.
+</p>
+<div class="table-scroll"><table class="t">
+<thead>
+<tr>
+  <th>Model</th>
+  <th>Year / Venue</th>
+  <th>Det. vs Prob.</th>
+  <th>Linearity</th>
+  <th>Uncertainty</th>
+  <th>Training cost</th>
+  <th>Maturity</th>
+  <th>Key implementations</th>
+  <th>Notes for imas-ambix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>Kalman Filter (KF)</strong></td>
+  <td>1960 [✓]</td>
+  <td>Prob.</td>
+  <td>Linear Gaussian</td>
+  <td>Exact closed-form posterior</td>
+  <td>Negligible</td>
+  <td>Mature / production</td>
+  <td>scipy.signal, filterpy, pykalman</td>
+  <td>Exact only for linear/Gaussian; plasma dynamics are neither, but KF is the baseline reference</td>
+</tr>
+<tr>
+  <td><strong>Extended KF (EKF)</strong></td>
+  <td>1960s–70s [✓]</td>
+  <td>Prob.</td>
+  <td>Nonlinear (local linearisation)</td>
+  <td>Gaussian, first-order approx.</td>
+  <td>Negligible</td>
+  <td>Mature / production</td>
+  <td>filterpy, pykalman</td>
+  <td>Fast but poorly calibrated when dynamics are highly nonlinear</td>
+</tr>
+<tr>
+  <td><strong>Unscented KF (UKF)</strong></td>
+  <td>Julier &amp; Uhlmann 1997 [✓]</td>
+  <td>Prob.</td>
+  <td>Nonlinear (sigma-point)</td>
+  <td>Gaussian, second-order approx.</td>
+  <td>O(n³)</td>
+  <td>Mature / production</td>
+  <td>filterpy, pykalman</td>
+  <td>Better than EKF for mildly nonlinear; still Gaussian posterior</td>
+</tr>
+<tr>
+  <td><strong>Ensemble KF (EnKF)</strong></td>
+  <td>Evensen 1994 / 2003 [✓]</td>
+  <td>Prob.</td>
+  <td>Nonlinear (ensemble MC)</td>
+  <td>Sample approximation of full posterior</td>
+  <td>O(N_ens × model_cost)</td>
+  <td>Mature / operational (NWP)</td>
+  <td>dapper, EnsembleKalmanInversion.jl</td>
+  <td>Gold standard for geophysical DA; naturally handles non-Gaussian; requires forward model evaluations — costly if model is an expensive NN</td>
+</tr>
+<tr>
+  <td><strong>Particle Filter (PF / SMC)</strong></td>
+  <td>Gordon et al. 1993 [~]</td>
+  <td>Prob.</td>
+  <td>Fully nonlinear / non-Gaussian</td>
+  <td>Full nonparametric posterior</td>
+  <td>O(N_particles × model_cost); exponential in dim</td>
+  <td>Mature; limited to low-dim latent</td>
+  <td>particles (Python), SMCpy</td>
+  <td>Theoretically ideal; curse of dimensionality severe for high-dim plasma latent; useful as reference</td>
+</tr>
+<tr>
+  <td><strong>Deep Kalman Filter (DKF)</strong></td>
+  <td>Krishnan, Shalit, Sontag 2015 arXiv:1511.05121 [✓]</td>
+  <td>Prob.</td>
+  <td>Nonlinear (NN transition)</td>
+  <td>Gaussian posterior per step (variational)</td>
+  <td>Moderate (VAE-style ELBO)</td>
+  <td>Research; no dominant production impl.</td>
+  <td>PyTorch Pyro, author's repo (GitHub kokikwbt/deep-kalman-filter)</td>
+  <td>First clean deep extension of KF; simple ELBO; posterior factored per step — ignores smoothing correlations</td>
+</tr>
+<tr>
+  <td><strong>Deep Variational Bayes Filter (DVBF)</strong></td>
+  <td>Karl et al. 2017 ICLR, arXiv:1605.06432 [✓]</td>
+  <td>Prob.</td>
+  <td>Nonlinear (NN)</td>
+  <td>Variational Gaussian; enforces state-space structure</td>
+  <td>Moderate</td>
+  <td>Research; open repo (axelbr/dvbf)</td>
+  <td>axelbr/dvbf, argmax.org blog</td>
+  <td>Backprop through transitions enforces SSM structure; better long-term predictions than DKF in experiments; no action conditioning needed</td>
+</tr>
+<tr>
+  <td><strong>Kalman VAE (KVAE)</strong></td>
+  <td>Fraccaro et al. 2017 NeurIPS, arXiv:1710.05741 [✓]</td>
+  <td>Prob.</td>
+  <td>Linear Gaussian (LGSSM) in latent; nonlinear recognition</td>
+  <td>Gaussian; exact Kalman updates in latent space</td>
+  <td>Moderate</td>
+  <td>Research; open repo</td>
+  <td>simonkamronn/kvae</td>
+  <td>Disentangles perception (CNN-VAE) from dynamics (LGSSM). Elegant but LGSSM transition is linear — may underfit plasma dynamics. Good starting point for understanding the encoder/dynamics split</td>
+</tr>
+<tr>
+  <td><strong>Recurrent Kalman Networks (RKN)</strong></td>
+  <td>Becker et al. 2019 ICML, arXiv:1905.07357 [✓]</td>
+  <td>Prob.</td>
+  <td>Nonlinear encoder + factorised Kalman</td>
+  <td>Gaussian; factorised covariance avoids matrix inversions</td>
+  <td>Low-Moderate</td>
+  <td>Research; open code</td>
+  <td>proceedings.mlr.press/v97/becker19a</td>
+  <td>High-dim factorised latent; no matrix inversions in backprop; better uncertainty than LSTM/GRU in benchmarks. Promising for high-dim diagnostic inputs</td>
+</tr>
+<tr>
+  <td><strong>Latent ODE</strong></td>
+  <td>Rubanova, Chen, Duvenaud 2019 NeurIPS, arXiv:1907.03907 [✓]</td>
+  <td>Det./Prob. (VAE encoder)</td>
+  <td>Nonlinear continuous (ODE-RNN encoder)</td>
+  <td>Gaussian posterior via VAE; deterministic latent trajectory</td>
+  <td>Moderate; ODE solve adds cost</td>
+  <td>Research; well-known; open code</td>
+  <td>YuliaRubanova/latent_ode</td>
+  <td>Natural for irregular-time tokamak data (shot-to-shot gaps, missing diagnostics). Deterministic dynamics — uncertainty only at encoding step, not propagated</td>
+</tr>
+<tr>
+  <td><strong>Latent SDE</strong></td>
+  <td>Li et al. 2020 arXiv (NeurIPS workshop) [~]</td>
+  <td>Prob.</td>
+  <td>Nonlinear continuous (SDE drift + diffusion)</td>
+  <td>KL divergence between prior and posterior SDE paths</td>
+  <td>Moderate–High; SDE solve more expensive</td>
+  <td>Research; open code (torchsde)</td>
+  <td>google-research/torchsde</td>
+  <td>Extends Latent ODE with intrinsic stochastic dynamics — important for plasma (turbulence, ELMs). Diffusion term is an explicit discovery target ("noise structure = physics")</td>
+</tr>
+<tr>
+  <td><strong>Differentiable Particle Filter (DPF)</strong></td>
+  <td>Jonschkowski et al. 2018, arXiv:1805.11122 [✓]</td>
+  <td>Prob.</td>
+  <td>Nonlinear / non-Gaussian (learned proposal)</td>
+  <td>Particle approximation; full nonparametric posterior</td>
+  <td>High; N_particles × NN forward pass</td>
+  <td>Research; active development</td>
+  <td>tu-rbo/differentiable-particle-filters</td>
+  <td>End-to-end: learns transition and observation models together. Handles non-Gaussian posteriors. High cost; may be suitable as a refinement once latent dim is known</td>
+</tr>
+<tr>
+  <td><strong>Deep SSMs (S4 / Mamba)</strong></td>
+  <td>Gu et al. 2022 (S4) [~]; Gu &amp; Dao 2023 (Mamba), arXiv:2312.00752 [~]</td>
+  <td>Det.</td>
+  <td>Structured linear recurrence (hardware-optimised)</td>
+  <td>None (sequence-to-sequence map)</td>
+  <td>Low at inference; moderate training</td>
+  <td>Growing; popular in NLP/vision</td>
+  <td>state-spaces/mamba</td>
+  <td><strong>Contrast with filtering:</strong> S4/Mamba optimise sequence prediction throughput; they do not maintain a probabilistic belief state and do not support Bayesian filtering. Inappropriate as the core dynamics model; potentially useful as a fast sequence encoder before a proper PSSM</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>
+  <strong>Synthesis.</strong> The KVAE/DVBF/RKN family — which keeps explicit Gaussian
+  beliefs updated by learned NN transitions — is the most natural starting point for a
+  plasma PSSM. Latent SDE is the principled upgrade once the Gaussian assumption needs
+  relaxing (e.g.&nbsp;for ELM bifurcations). Differentiable PFs remain the gold standard
+  for non-Gaussian posteriors but are expensive. Classical KF/EnKF remain important
+  as calibration baselines and as priors for the Grad-Shafranov residual.
+</p>
+
+<hr/>
+
+<h2 id="s3">3. The Uncertainty-Quantification Spectrum</h2>
+<p>
+  "Probabilistic" is a means to an end — honest uncertainty for safe extrapolation and
+  optimal data assimilation — not a commitment to full Bayes everywhere. The spectrum
+  below runs from cheapest/least expressive to most expressive/most expensive.
+  The data-scarce, extrapolation-to-ITER regime imposes a specific constraint set
+  that narrows the recommended first cut considerably.
+</p>
+
+<h3>3.1 The Spectrum</h3>
+<dl>
+<dt><strong>Deterministic observer / point predictor</strong></dt>
+<dd>
+  A single neural network (MLP, CNN, LSTM) trained with MSE. Zero uncertainty.
+  Calibration is impossible by construction. <em>Appropriate when:</em> proof-of-concept
+  only; never for safe extrapolation. For the separatrix experiment this is the
+  "does learning work at all?" baseline, nothing more.
+</dd>
+<dt><strong>Monte-Carlo Dropout (MC-Dropout)</strong></dt>
+<dd>
+  Gal &amp; Ghahramani 2016 [~]. Dropout at test time provides a cheap approximate
+  posterior. Well-known to be poorly calibrated in practice — uncertainty does not
+  grow reliably OOD. Low implementation cost but unreliable for safety-critical UQ.
+  <em>Not recommended as a primary method;</em> acceptable as a cheap sanity check.
+</dd>
+<dt><strong>Deep Ensembles</strong></dt>
+<dd>
+  Lakshminarayanan, Pritzel, Blundell 2017 NeurIPS, arXiv:1612.01474 [✓]. Train
+  M ≥ 5 independent networks with random initialisation + adversarial training.
+  Ensemble disagreement estimates <em>epistemic</em> (model) uncertainty, which is
+  exactly what grows at OOD inputs and toward ITER operating conditions.
+  Empirically the best-calibrated method on regression benchmarks, beating MC-Dropout
+  and Bayesian NNs (Lakshminarayanan et al. Table 1). Cost = M × single-model cost.
+  <em>Appropriate for data-scarce regimes</em> because it captures model uncertainty
+  without requiring a hand-specified prior over weights.
+</dd>
+<dt><strong>Conformal Prediction</strong></dt>
+<dd>
+  Angelopoulos &amp; Bates 2021 tutorial [~] (arXiv:2107.07511). <em>Distribution-free</em>
+  coverage guarantee: given a calibration set and a nominal coverage level (1−α),
+  the resulting prediction interval contains the true value with probability at least
+  1−α, for any exchangeable data. Requires only a scoring function — the base
+  predictor can be any model (including a deep ensemble). Split conformal is a
+  single model-fit step + calibration; computationally trivial.
+  <em>Key limitation:</em> provides marginal (not conditional) coverage; does not
+  provide a full predictive distribution; does not capture epistemic uncertainty beyond
+  what the score function reflects.
+  <em>Appropriate as a calibration wrapper</em> around any base model to guarantee
+  the coverage numbers reported in the experiment.
+</dd>
+<dt><strong>Variational Inference / VAE-based PSSM</strong></dt>
+<dd>
+  The latent SSM models in §2 (DKF, DVBF, RKN, KVAE, Latent SDE) all use variational
+  inference with an ELBO objective. This provides a full predictive distribution,
+  not just intervals. The posterior is approximate (factorised Gaussian in most cases).
+  Training cost is moderate. <em>Appropriate as the core dynamics model</em> once
+  the point-predictor baseline is established.
+</dd>
+<dt><strong>MCMC / Full Bayes</strong></dt>
+<dd>
+  HMC, NUTS (Stan, NumPyro), or Stein VI. Asymptotically correct posterior; extremely
+  expensive for neural network parameter spaces. <em>Not appropriate as the primary
+  method in a data-scarce NN context</em>; may be relevant for small, interpretable
+  models (e.g.&nbsp;a Gaussian process transition in a very low-dim latent space).
+</dd>
+</dl>
+
+<h3 id="s3-rec">3.2 Recommended First Cut for imas-ambix (data-scarce regime)</h3>
+<p>
+  Four constraints discriminate the methods above for the separatrix experiment:
+</p>
+<ol>
+  <li><strong>Data scarcity favours robust, cheap methods.</strong> Full MCMC and
+    large ensembles are expensive; M=5 ensembles add only 5× training cost, which
+    is acceptable.</li>
+  <li><strong>"Probabilistic is instrumental."</strong> We need <em>epistemic</em>
+    uncertainty (grows OOD toward ITER) and a calibration guarantee — not a
+    philosophically correct posterior. Full variational inference is not required
+    at the first experiment stage.</li>
+  <li><strong>Extrapolation requires epistemic uncertainty.</strong> Conformal alone
+    does not capture model uncertainty — it only redistributes the residuals of
+    whatever model it wraps. Single-model conformal on a deterministic predictor
+    will have narrow, overconfident intervals at OOD inputs. An ensemble base
+    predictor is required before conformal provides meaningful extrapolation guarantees.</li>
+  <li><strong>Coverage guarantee is required</strong> to turn the first experiment
+    into a publishable/deployable safety statement. Conformal delivers this
+    distribution-free; no other method does at finite sample sizes.</li>
+</ol>
+<p>
+  <strong>Recommended first cut: Deep Ensemble (M=5) + Split Conformal wrapper.</strong>
+</p>
+<ul>
+  <li>The ensemble base model is trained on raw diagnostic signals → separatrix shape
+    parameters (the deterministic point predictor, replicated M=5 times).</li>
+  <li>Ensemble variance provides epistemic uncertainty signal that grows at OOD
+    (e.g.&nbsp;unusual plasma configurations or simulated ITER-scale conditions).</li>
+  <li>Conformal calibration on a held-out calibration set converts the ensemble
+    score into prediction intervals with provable marginal coverage (e.g.&nbsp;90%).</li>
+  <li>The full variational PSSM (DVBF or Latent SDE) is the principled
+    <em>next step</em> — it handles temporal dependencies properly and captures the
+    dynamics — but requires first knowing that the point-predictor task is learnable.</li>
+</ul>
+<p>
+  <strong>Path to the full PSSM.</strong> Once the ensemble baseline is established:
+  (1) wrap in a KVAE or DVBF to add proper temporal state estimation;
+  (2) replace Gaussian transitions with a Latent SDE if ELM / bifurcation behaviour
+  needs non-Gaussian diffusion; (3) layer structure discovery (§5) onto the transition
+  kernel. The full Bayesian smoother (EnKF or DPF) becomes relevant when we have a
+  forward model to assimilate against (e.g.&nbsp;the Grad-Shafranov soft prior).
+</p>
+
+<hr/>
+
+<h2 id="s4">4. Calibration, UQ, and OOD Metrics</h2>
+<p>
+  These are the concrete acceptance criteria for the first experiment. Each is
+  operational — it can be computed from model outputs and ground-truth labels.
+</p>
+<div class="table-scroll"><table class="t">
+<thead>
+<tr>
+  <th>Metric</th>
+  <th>What it measures</th>
+  <th>Target / interpretation</th>
+  <th>How to compute</th>
+  <th>When to prefer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>Empirical coverage</strong> (PI coverage @ 90%)</td>
+  <td>Fraction of test points whose true value falls inside the 90% prediction interval</td>
+  <td>≥ 0.90 (pass/fail); should be close to nominal, not ≫ 0.90 (overwidth)</td>
+  <td>Count <code>y ∈ [ŷ_lo, ŷ_hi]</code> over test set</td>
+  <td>Always; first and easiest sanity check</td>
+</tr>
+<tr>
+  <td><strong>Conformal coverage guarantee</strong></td>
+  <td>Distribution-free finite-sample guarantee that marginal coverage ≥ 1−α on exchangeable data</td>
+  <td>Formal statement: "at 90% nominal, empirical coverage is at least 90% with probability over calibration set draws." No model assumptions.</td>
+  <td>Apply split conformal: calibrate nonconformity scores on a held-out calibration set; expand intervals by the (⌈(n+1)(1−α)⌉/n)-th quantile of scores</td>
+  <td>Publication / deployment safety claim; when the data distribution may differ from training</td>
+</tr>
+<tr>
+  <td><strong>Sharpness</strong> (PI width)</td>
+  <td>Mean width of the prediction interval</td>
+  <td>Minimise subject to coverage constraint. Very wide intervals pass coverage but are useless for control/forecasting</td>
+  <td>Mean of <code>(ŷ_hi − ŷ_lo)</code> over test set</td>
+  <td>To compare methods that both achieve coverage</td>
+</tr>
+<tr>
+  <td><strong>CRPS</strong> (Continuous Ranked Probability Score)</td>
+  <td>Strictly proper scoring rule combining sharpness and calibration: <code>CRPS(F, y) = ∫ (F(t) − 1{t ≥ y})² dt</code></td>
+  <td>Lower is better; reduces to MAE for point forecasts; penalises both overconfidence and underconfidence</td>
+  <td>properscoring library in Python; analytically tractable for Gaussian predictive</td>
+  <td>When comparing probabilistic forecasters; not affected by distributional assumptions</td>
+</tr>
+<tr>
+  <td><strong>NLL</strong> (Negative Log-Likelihood)</td>
+  <td>Log-probability of the true label under the predictive distribution</td>
+  <td>Lower is better; directly incentivises well-calibrated predictive distributions; penalises overconfident wrong predictions heavily</td>
+  <td><code>-log p(y | x)</code>; for Gaussian predictive: <code>½ log σ² + (y − μ)²/(2σ²)</code></td>
+  <td>As the training loss objective; sensitive to outliers and distributional mismatch</td>
+</tr>
+<tr>
+  <td><strong>Reliability diagram</strong></td>
+  <td>For each nominal PI level α, plots empirical coverage vs. α. Calibrated = diagonal</td>
+  <td>Curve should lie on the diagonal; systematic over-confidence = curve below diagonal; under-confidence = above</td>
+  <td>Compute empirical coverage at 10–20 nominal α levels; plot; measure ECE (Expected Calibration Error)</td>
+  <td>Diagnostic plot; should appear in all experiment reports</td>
+</tr>
+<tr>
+  <td><strong>Ensemble disagreement (epistemic UQ)</strong></td>
+  <td>Variance across M ensemble members' predictions</td>
+  <td>Should be small in-distribution, large OOD (e.g.&nbsp;unusual plasma config, high β, near disruptive) — this is the extrapolation-to-ITER signal</td>
+  <td>Var over M predictions; or normalise by aleatoric variance to get epistemic fraction</td>
+  <td>OOD detection; a key output for ITER extrapolation claims</td>
+</tr>
+<tr>
+  <td><strong>Energy score</strong> (multivariate CRPS generalisation)</td>
+  <td>Proper scoring rule for multivariate predictive distributions over a vector of shape parameters (κ, δ, V, …)</td>
+  <td>Lower is better; tests calibration of the joint distribution, not just marginals</td>
+  <td>properscoring library; <code>energy_score(ensemble_members, observation)</code></td>
+  <td>When predicting a vector of separatrix parameters jointly</td>
+</tr>
+<tr>
+  <td><strong>OOD / novelty detection</strong></td>
+  <td>Detect when input diagnostics are outside the training distribution (unseen plasma scenario, sensor drift)</td>
+  <td>Flag shots with ensemble disagreement &gt; threshold; or use a learned density estimator (e.g.&nbsp;normalising flow on the encoder's output) as an OOD score</td>
+  <td>Threshold on ensemble variance; or reconstruction error from the encoder as anomaly score</td>
+  <td>Deployment-time safety; especially important for ITER-scale extrapolation where no ground truth exists</td>
+</tr>
+</tbody>
+</table></div>
+<p>
+  <strong>Recommended acceptance-criterion set for the first experiment:</strong>
+</p>
+<ul>
+  <li>Empirical PI coverage @ 90% ≥ 0.90 (with conformal guarantee).</li>
+  <li>PI width &lt; 5% of the quantity's range for in-distribution shots
+    (sharpness requirement — wide intervals trivially pass coverage).</li>
+  <li>CRPS lower than a Gaussian baseline trained on marginal statistics (i.e.&nbsp;the
+    model adds value over "predict the mean with training-set variance").</li>
+  <li>Reliability diagram ECE &lt; 0.05.</li>
+  <li>Ensemble disagreement positively correlated (Spearman ρ &gt; 0.3) with
+    absolute prediction error on a held-out OOD set (e.g.&nbsp;shots with unusual
+    triangularity or near-L-H transition).</li>
+</ul>
+
+<hr/>
+
+<h2 id="s5">5. Structure and Equation Discovery on Latent Dynamics</h2>
+<p>
+  Once a PSSM is trained, its learned transition kernel is a black box. The methods
+  below aim to make it interpretable — ideally recovering dimensionless groups,
+  conservation laws, or closed-form equations. This is the "physics residual as
+  discovery signal" principle in action: if the model needs more than the
+  Grad-Shafranov ansatz to explain the data, the excess is new structure.
+</p>
+<div class="table-scroll"><table class="t">
+<thead>
+<tr>
+  <th>Method</th>
+  <th>Year / Venue</th>
+  <th>What it discovers</th>
+  <th>Data-efficiency</th>
+  <th>Interpretability</th>
+  <th>Key implementation</th>
+  <th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>SINDy</strong> (Sparse ID of Nonlinear Dynamics)</td>
+  <td>Brunton, Proctor, Kutz 2016 PNAS [~]</td>
+  <td>Sparse coefficient vector in a user-specified library of candidate functions</td>
+  <td>Good (no neural net; analytic)</td>
+  <td>Explicit ODE / recurrence</td>
+  <td>PySINDy (Python)</td>
+  <td>Requires clean, low-noise trajectories in interpretable coordinates. Works on MAST data if coordinates are good. Main limitation: library must be specified by user — embedding physics knowledge</td>
+</tr>
+<tr>
+  <td><strong>SINDy Autoencoder</strong></td>
+  <td>Champion, Lusch, Kutz, Brunton 2019 PNAS, arXiv:1904.02107 [✓]</td>
+  <td>Latent coordinates + sparse dynamics simultaneously</td>
+  <td>Moderate (end-to-end NN + sparsity)</td>
+  <td>Explicit ODE in discovered coordinates</td>
+  <td>Champion et al. GitHub (see arXiv)</td>
+  <td>Directly relevant: jointly learns the encoder (observation→latent) and the sparse dynamics. Demonstrated on Lorenz, λ-ω reaction-diffusion, nonlinear pendulum. The "right" architecture for the discovery phase once a PSSM is trained</td>
+</tr>
+<tr>
+  <td><strong>DMD / Koopman</strong> (Dynamic Mode Decomposition)</td>
+  <td>Schmid 2010 (DMD); Lusch, Kutz, Brunton 2018 Nature Comms [✓]</td>
+  <td>Linear operators in Koopman eigenfunction space; global linearisation</td>
+  <td>Good for DMD; moderate for deep Koopman</td>
+  <td>Linear system in lifted coordinates; interpretable eigenvalues / frequencies</td>
+  <td>PyDMD; DLKoopman</td>
+  <td>If plasma dynamics are approximately Koopman-linear in some latent space, DMD gives spectra interpretable as plasma modes (e.g.&nbsp;tearing modes, NTMs). Deep Koopman (Lusch 2018) handles continuous spectra</td>
+</tr>
+<tr>
+  <td><strong>Symbolic regression</strong> (PySR / AI-Feynman)</td>
+  <td>Cranmer 2023 (PySR) [~]; Udrescu &amp; Tegmark 2020 (AI-Feynman) [~]</td>
+  <td>Explicit analytic expressions from data</td>
+  <td>Low–moderate (expensive GP-based search or neural guided)</td>
+  <td>Fully explicit formulas</td>
+  <td>MilesCranmer/PySR; AI Feynman GitHub</td>
+  <td>Best interpretability; requires good latent coordinates as input. PySR is the most practical current tool (GPU-accelerated). Apply after SINDy to try to simplify discovered terms</td>
+</tr>
+<tr>
+  <td><strong>Hamiltonian NNs (HNN)</strong></td>
+  <td>Greydanus, Dzamba, Yosinski 2019 NeurIPS, arXiv:1906.01563 [✓]</td>
+  <td>Conserved Hamiltonian (energy-like quantity)</td>
+  <td>Moderate</td>
+  <td>Explicit energy function; time-reversible dynamics</td>
+  <td>greydanus/hamiltonian-nn</td>
+  <td>Encodes exact energy conservation as a structural prior — a soft physics constraint of the right type. Trains faster and generalises better than unconstrained NNs on conservative systems. Relevant if the plasma dynamics in some latent subspace are approximately conservative</td>
+</tr>
+<tr>
+  <td><strong>Lagrangian NNs (LNN)</strong></td>
+  <td>Cranmer et al. 2020 NeurIPS [~]</td>
+  <td>Learned Lagrangian; satisfies Euler-Lagrange equations</td>
+  <td>Moderate</td>
+  <td>Explicit action principle</td>
+  <td>MilesCranmer/lagrangian-nns</td>
+  <td>Generalises HNN to non-conservative forces. Less directly applicable to plasma (Lagrangian mechanics = particles, not fields) but conceptually relevant for MHD</td>
+</tr>
+</tbody>
+</table></div>
+<p>
+  <strong>Recommended discovery pipeline:</strong> (1) Train PSSM to convergence
+  (§3). (2) Extract latent state trajectories <em>z</em>(t) over all shots.
+  (3) Apply SINDy Autoencoder jointly on encoder + dynamics to search for
+  a sparse ODE in the latent space — the Grad-Shafranov constraint enters
+  here as a term in the candidate library. (4) Residuals that SINDy cannot
+  explain are flagged as novel structure for symbolic regression (PySR).
+  (5) Check whether discovered conserved quantities match known MHD invariants
+  (magnetic helicity, energy) — this is the "physics residual as discovery signal"
+  test.
+</p>
+
+<hr/>
+
+<h2 id="s6">6. Fusion-Specific ML Precedents</h2>
+<p>
+  The critical columns for imas-ambix are: <strong>raw signals vs. reconstruction</strong>
+  (principle #2) and <strong>deterministic vs. probabilistic</strong>. For each entry
+  the "reconstruction" flag means the model was trained on, or inherits assumptions from,
+  a physics reconstruction code (typically EFIT or similar).
+</p>
+<div class="table-scroll"><table class="t">
+<thead>
+<tr>
+  <th>Work</th>
+  <th>Year / Venue</th>
+  <th>Task</th>
+  <th>Inputs</th>
+  <th>Outputs</th>
+  <th>Raw vs. Recon.</th>
+  <th>Det. vs Prob.</th>
+  <th>Dynamics?</th>
+  <th>Relevance to imas-ambix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>Kates-Harbeck et al. FRNN</strong></td>
+  <td>2019 Nature 568 [✓]</td>
+  <td>Disruption prediction; cross-machine transfer (DIII-D → JET → ITER)</td>
+  <td>Time series of diagnostic signals (magnetics, temperature, density, …) including both raw and EFIT-derived features</td>
+  <td>Binary disruption probability, warning time</td>
+  <td>Mixed: includes some EFIT-derived features alongside raw signals [~]</td>
+  <td>Deterministic (softmax output is a score, not a calibrated probability)</td>
+  <td>Yes: LSTM over time window</td>
+  <td>Key precedent for cross-machine transfer. Demonstrates that temporal diagnostic sequences can predict a macro outcome. Does not provide calibrated UQ. The use of EFIT features is a contamination risk under principle #2 — our experiment should replicate with raw-only inputs</td>
+</tr>
+<tr>
+  <td><strong>Degrave et al. / DeepMind+EPFL TCV</strong></td>
+  <td>2022 Nature 602, pp. 414–419 [✓]</td>
+  <td>Real-time magnetic control of plasma shape, position, current</td>
+  <td>Magnetics, actuator commands (via simulator in training; real tokamak in deployment)</td>
+  <td>Coil voltages (control policy)</td>
+  <td>Raw magnetics (real-time control; no EFIT in the loop during deployment) [✓]</td>
+  <td>Deterministic (RL policy)</td>
+  <td>Yes: the RL agent implicitly learns a forward model in the simulator</td>
+  <td>Important: proves that raw magnetics alone contain enough information to control plasma shape precisely. Supports the case for training on raw signals. <strong>Not a filtering / estimation task</strong> — this is a control policy, not a state estimator. Does not provide calibrated shape parameters with UQ</td>
+</tr>
+<tr>
+  <td><strong>NN real-time equilibrium (EAST, HL-3, KSTAR, …)</strong></td>
+  <td>2020–2024, various (e.g.&nbsp;arXiv:2405.11221 for HL-3 [✓]; arXiv:2305.12098 for EAST [~])</td>
+  <td>Real-time equilibrium reconstruction (flux surfaces, shape parameters)</td>
+  <td>Raw magnetics (probe signals, flux loops, Rogowski coils)</td>
+  <td>Poloidal flux (ψ), shape parameters — same as EFIT outputs</td>
+  <td><strong>Reconstruction (supervised against EFIT).</strong> The NN learns to reproduce EFIT outputs from raw inputs. EFIT's assumptions (Grad-Shafranov, grad-p ~ j × B, pressure and current profiles) are baked into every training label [✓]</td>
+  <td>Deterministic</td>
+  <td>No: single-slice estimation</td>
+  <td>High-relevance baseline for the separatrix experiment, but <strong>violates principle #2</strong>. The imas-ambix approach: use the same raw magnetics as input, but do NOT supervise against EFIT labels — instead add Grad-Shafranov as a differentiable soft-prior loss term (source: our design, not existing literature)</td>
+</tr>
+<tr>
+  <td><strong>GS-DeepNet</strong></td>
+  <td>2023 Scientific Reports [~] (PMC10516960)</td>
+  <td>Equilibrium reconstruction with physics constraint</td>
+  <td>Raw magnetics + boundary geometry</td>
+  <td>Flux map + shape params</td>
+  <td><strong>Reconstruction (Grad-Shafranov constraint used as loss term).</strong> Labels still come from EFIT but the GS equation is a regulariser [~]</td>
+  <td>Deterministic</td>
+  <td>No: single-slice</td>
+  <td>Closest existing work to our soft-prior approach. Key difference: still supervised with EFIT labels. Our approach would remove EFIT from the label entirely, relying on consistency (forward model reconstructs the raw diagnostics) + GS prior</td>
+</tr>
+<tr>
+  <td><strong>Minerva (JET Bayesian IDA)</strong></td>
+  <td>~2011–2020, Svensson et al. [~] (ADS:2017APS..DPPPO6008S [✓]; ResearchGate [✓])</td>
+  <td>Joint Bayesian inference of plasma profiles from multiple diagnostics</td>
+  <td>Thomson scattering, interferometer, spectroscopy, …</td>
+  <td>Posterior distributions over T_e(r), n_e(r), equilibrium flux surfaces</td>
+  <td>Raw signals (forward-model from first principles, not EFIT regression) [✓]</td>
+  <td>Probabilistic (full MCMC posterior) [✓]</td>
+  <td><strong>No: static per-time-slice inference only.</strong> No learned transition between slices. [✓]</td>
+  <td>The closest existing work in spirit: raw signals, Bayesian, physics-forward-model priors. The gap imas-ambix fills: Minerva is (1) static/no dynamics, (2) physics-hard-coded (not learned), (3) extremely expensive (MCMC per slice). Our PSSM adds a learned temporal transition kernel — Minerva is the "oracle" for per-slice UQ</td>
+</tr>
+<tr>
+  <td><strong>IDA (ASDEX Upgrade / W7-X)</strong></td>
+  <td>Fischer, Dinklage, Pasch 2003 PPCF [✓]; W7-X 2024 NF arXiv:2305.12889 [✓]</td>
+  <td>Integrated data analysis: joint Bayesian profile inference across diagnostic types</td>
+  <td>Thomson scattering, reflectometry, ECE, …</td>
+  <td>Posterior T_e(r), n_e(r), possibly flux surfaces</td>
+  <td>Raw signals (forward models from first principles) [✓]</td>
+  <td>Probabilistic (MCMC) [✓]</td>
+  <td><strong>No: static per-slice.</strong> [✓]</td>
+  <td>Same as Minerva: physics IDA framework, not a learning system. Accelerated by NN emulators in recent work (arXiv:2305.12889). The imas-ambix approach generalises IDA to the temporal domain with learned (rather than hand-coded) physics</td>
+</tr>
+<tr>
+  <td><strong>Optical plasma boundary (EAST, TCV)</strong></td>
+  <td>2015–2024, various [✓] (TCV: ResearchGate 276940603; EAST: arXiv/PPCF)</td>
+  <td>Plasma shape / boundary detection from visible cameras</td>
+  <td>Visible-light camera images</td>
+  <td>Plasma boundary coordinates, shape parameters</td>
+  <td>Mixed: camera images are raw, but boundary labels typically derived from EFIT [~]</td>
+  <td>Deterministic</td>
+  <td>No: per-frame</td>
+  <td>Direct precedent for the camera → separatrix input modality in the first experiment. Key limitation: labels from EFIT. Our design would use camera as one of several raw input modalities, not the sole input</td>
+</tr>
+<tr>
+  <td><strong>Bayesian simultaneous kinetic + equilibrium inference</strong></td>
+  <td>2025, arXiv:2502.07805 [✓]</td>
+  <td>Simultaneous kinetic profile + equilibrium inference preparing for ITER</td>
+  <td>Thomson scattering, magnetics, interferometry</td>
+  <td>Posterior T_e, n_e + equilibrium, designed for ITER-scale</td>
+  <td>Raw signals [~]</td>
+  <td>Probabilistic (Bayesian)</td>
+  <td>No: static per-slice [~]</td>
+  <td>Most recent extension of the Minerva/IDA approach; directly ITER-focused; static. Confirms the community is moving toward raw-signal Bayesian inference but has not yet added a learned dynamics model</td>
+</tr>
+<tr>
+  <td><strong>Transfer learning disruption (cross-tokamak)</strong></td>
+  <td>2023 Communications Physics [✓] (nature.com/s42005-023-01296-9)</td>
+  <td>Disruption prediction parameter-based transfer</td>
+  <td>Dimensionless parameters (q95, β_N, …) — derived from equilibrium</td>
+  <td>Disruption probability</td>
+  <td><strong>Reconstruction-derived.</strong> Dimensionless parameters come from EFIT [~]</td>
+  <td>Deterministic</td>
+  <td>Yes: time series</td>
+  <td>Demonstrates that dimensionless (machine-independent) coordinates enable cross-machine transfer — directly supporting principle #1 (invariant coordinates). The lesson applies even if we use raw signals: the latent state should be expressed in dimensionless groups</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>
+  <strong>Key gap confirmed by §6:</strong> no existing published work combines (a) raw
+  diagnostic signals as inputs, (b) a learned temporal transition kernel, (c) calibrated
+  probabilistic outputs, and (d) avoidance of EFIT as supervision signal. Minerva/IDA
+  has (a), (c); lacks (b), (d)-learning. Degrave/TCV has (a); lacks (b) as a filter,
+  and (c). NN equilibrium recons have (a) as input but (d) is violated by supervision.
+  This combination is the novel contribution space for imas-ambix.
+</p>
+
+<hr/>
+
+<h2 id="s7">7. Recommendations for imas-ambix</h2>
+<p>
+  <strong>Note:</strong> this section identifies method options grounded in the survey
+  and flags the key decision points. The coordinator owns final decisions for the
+  sibling plans.
+</p>
+
+<h3>7.1 First experiment: separatrix shape prediction with calibrated UQ</h3>
+<ol>
+  <li>
+    <strong>Base predictor: small deep ensemble (M = 5), raw-signal inputs.</strong>
+    Input: concatenated raw diagnostic time-series (poloidal field probes, Rogowski coils,
+    visible camera features). Output: vector (V<sub>plasma</sub>, κ, δ<sub>upper</sub>,
+    δ<sub>lower</sub>, …). Train with NLL loss on Gaussian predictive.
+    No EFIT labels. A Grad-Shafranov residual term (computed from the predicted
+    shape + plasma current) enters as an additional soft-prior regulariser.
+    <em>Reason:</em> ensemble is the most data-efficient method for epistemic UQ;
+    NLL loss encourages calibrated variances; the GS residual tests principle #1.
+  </li>
+  <li>
+    <strong>Calibration wrapper: split conformal prediction.</strong>
+    Reserve ~20% of shots as calibration set. Apply split conformal to convert
+    ensemble outputs to prediction intervals with provable marginal 90% coverage.
+    Report empirical coverage, CRPS, NLL, reliability diagram, and PI width
+    against the acceptance criteria in §4.
+    <em>Reason:</em> distribution-free coverage guarantee for the safety statement;
+    free to add after any base model; interpretable.
+  </li>
+  <li>
+    <strong>Baseline to beat:</strong> a single-slice Kalman filter / Gaussian
+    process on engineering parameters (magnetics only, no camera), trained with
+    EFIT labels. This quantifies the cost of the "no-EFIT" constraint and the
+    value of the camera modality.
+  </li>
+</ol>
+
+<h3>7.2 Path to the full temporal PSSM</h3>
+<ol>
+  <li>
+    <strong>Temporal state-space model: RKN or DVBF.</strong>
+    Once the point-predictor baseline is established, wrap the encoder in a
+    Recurrent Kalman Network (RKN, Becker 2019) or Deep Variational Bayes Filter
+    (DVBF, Karl 2017). Both maintain explicit Gaussian belief states updated at
+    each new diagnostic observation — enabling Bayesian filtering along a shot.
+    <em>RKN is preferred for the first step</em> because its factorised covariance
+    avoids expensive matrix inversions and it outperforms LSTM on uncertainty quality.
+  </li>
+  <li>
+    <strong>Continuous-time extension: Latent ODE → Latent SDE.</strong>
+    MAST data has irregular sampling and multi-rate diagnostics. Latent ODE
+    (Rubanova 2019) handles irregular time naturally; Latent SDE adds intrinsic
+    stochasticity for ELM/bifurcation regimes.
+  </li>
+  <li>
+    <strong>Data assimilation mode: EnKF around the learned PSSM.</strong>
+    The trained PSSM forward model (encoder + transition) can serve as the
+    "numerical model" inside an Ensemble Kalman Filter for assimilating real-time
+    diagnostics during a shot. This is the path to online plasma state estimation.
+  </li>
+</ol>
+
+<h3>7.3 Structure discovery (later stage)</h3>
+<ol>
+  <li>
+    Apply SINDy (PySINDy) to latent trajectories from the trained PSSM.
+    Candidate library should include dimensionless MHD invariants.
+  </li>
+  <li>
+    Use PySR for symbolic regression on any residuals SINDy cannot explain.
+  </li>
+  <li>
+    Test whether discovered conserved quantities match known MHD invariants
+    (magnetic helicity, energy). Any excess is the discovery signal.
+  </li>
+</ol>
+
+<h3>7.4 Key open questions for the sibling plans</h3>
+<ul>
+  <li><strong>Latent dimension.</strong> How many latent state variables are needed?
+    Start with a sweep [4, 8, 16, 32]; monitor CRPS vs.&nbsp;latent dimension.</li>
+  <li><strong>GS soft-prior weight.</strong> The Grad-Shafranov residual loss weight
+    λ controls how strongly physics is asserted. This is the tunable "soft" vs.
+    "hard" knob — set too high, it regresses to EFIT; set too low, it adds no
+    information. Sweep λ ∈ {0, 1e-3, 1e-2, 1e-1}.</li>
+  <li><strong>Camera feature extraction.</strong> Concatenate raw pixel frames (expensive),
+    CNN features (moderate), or only camera-derived boundary coordinates (cheap)?
+    Recommend CNN features as default — avoids the high-dim pixel space while
+    preserving spatial structure.</li>
+  <li><strong>OOD test set.</strong> What qualifies as an OOD shot for MAST?
+    Near-disruption, high-β, snowflake, or negative-triangularity configurations
+    are natural candidates. Needs explicit labelling before the experiment begins.</li>
+</ul>
+
+<hr/>
+
+<h2 id="s8">8. Sources</h2>
+<p>Sources are listed by section. Verification: [✓] = primary source (arXiv / journal
+URL confirmed); [~] = secondary source or confirmed from official paper page;
+[?] = training knowledge only, unverified.</p>
+<div class="table-scroll"><table class="t">
+<thead>
+<tr><th>#</th><th>Reference</th><th>URL</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>Krishnan, Shalit, Sontag — Deep Kalman Filters (2015)</td><td><a href="https://arxiv.org/abs/1511.05121">arXiv:1511.05121</a></td><td>[✓]</td></tr>
+<tr><td>2</td><td>Karl et al. — DVBF (2017 ICLR)</td><td><a href="https://arxiv.org/abs/1605.06432">arXiv:1605.06432</a></td><td>[✓]</td></tr>
+<tr><td>3</td><td>Fraccaro et al. — KVAE (2017 NeurIPS)</td><td><a href="https://arxiv.org/abs/1710.05741">arXiv:1710.05741</a></td><td>[✓]</td></tr>
+<tr><td>4</td><td>Becker et al. — RKN (2019 ICML)</td><td><a href="https://arxiv.org/abs/1905.07357">arXiv:1905.07357</a></td><td>[✓]</td></tr>
+<tr><td>5</td><td>Rubanova, Chen, Duvenaud — Latent ODE (2019 NeurIPS)</td><td><a href="https://arxiv.org/abs/1907.03907">arXiv:1907.03907</a></td><td>[✓]</td></tr>
+<tr><td>6</td><td>Li et al. — Latent SDE (2020)</td><td><a href="https://github.com/google-research/torchsde">github.com/google-research/torchsde</a></td><td>[~]</td></tr>
+<tr><td>7</td><td>Jonschkowski et al. — Differentiable PF (2018)</td><td><a href="https://arxiv.org/abs/1805.11122">arXiv:1805.11122</a></td><td>[✓]</td></tr>
+<tr><td>8</td><td>Gu &amp; Dao — Mamba (2023)</td><td><a href="https://arxiv.org/abs/2312.00752">arXiv:2312.00752</a></td><td>[~]</td></tr>
+<tr><td>9</td><td>Evensen — EnKF Theoretical Formulation (2003, Ocean Dynamics)</td><td><a href="https://link.springer.com/article/10.1007/s10236-003-0036-9">Springer Ocean Dynamics 53:343–367</a></td><td>[✓]</td></tr>
+<tr><td>10</td><td>Lakshminarayanan, Pritzel, Blundell — Deep Ensembles (2017 NeurIPS)</td><td><a href="https://arxiv.org/abs/1612.01474">arXiv:1612.01474</a></td><td>[✓]</td></tr>
+<tr><td>11</td><td>Angelopoulos &amp; Bates — Conformal Prediction Tutorial (2021)</td><td><a href="https://arxiv.org/abs/2107.07511">arXiv:2107.07511</a></td><td>[~]</td></tr>
+<tr><td>12</td><td>Champion, Lusch, Kutz, Brunton — SINDy Autoencoder (2019 PNAS)</td><td><a href="https://arxiv.org/abs/1904.02107">arXiv:1904.02107</a></td><td>[✓]</td></tr>
+<tr><td>13</td><td>Lusch, Kutz, Brunton — Deep Koopman (2018 Nature Comms)</td><td><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6251871/">PMC6251871</a></td><td>[✓]</td></tr>
+<tr><td>14</td><td>Greydanus, Dzamba, Yosinski — Hamiltonian NNs (2019 NeurIPS)</td><td><a href="https://arxiv.org/abs/1906.01563">arXiv:1906.01563</a></td><td>[✓]</td></tr>
+<tr><td>15</td><td>Brunton, Proctor, Kutz — SINDy (2016 PNAS)</td><td><a href="https://www.pnas.org/doi/10.1073/pnas.1517384113">PNAS 113(15):3932–3937</a></td><td>[~]</td></tr>
+<tr><td>16</td><td>Kates-Harbeck, Svyatkovskiy, Tang — FRNN disruption prediction (2019 Nature 568)</td><td><a href="https://www.nature.com/articles/s41586-019-1116-4">nature.com/s41586-019-1116-4</a></td><td>[✓]</td></tr>
+<tr><td>17</td><td>Degrave et al. — DeepMind+EPFL TCV magnetic control (2022 Nature 602)</td><td><a href="https://www.nature.com/articles/s41586-021-04301-9">nature.com/s41586-021-04301-9</a></td><td>[✓]</td></tr>
+<tr><td>18</td><td>HL-3 NN equilibrium reconstruction (2024)</td><td><a href="https://arxiv.org/abs/2405.11221">arXiv:2405.11221</a></td><td>[✓]</td></tr>
+<tr><td>19</td><td>EAST deep learning equilibrium reconstruction (2023)</td><td><a href="https://arxiv.org/abs/2305.12098">arXiv:2305.12098</a></td><td>[~]</td></tr>
+<tr><td>20</td><td>GS-DeepNet — Grad-Shafranov constrained NN (2023 Scientific Reports)</td><td><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC10516960/">PMC10516960</a></td><td>[~]</td></tr>
+<tr><td>21</td><td>Svensson et al. — Minerva / Bayesian Equilibrium Inference (2017 APS)</td><td><a href="https://ui.adsabs.harvard.edu/abs/2017APS..DPPPO6008S/abstract">ADS 2017APS..DPPPO6008S</a></td><td>[✓]</td></tr>
+<tr><td>22</td><td>Fischer, Dinklage, Pasch — IDA at ASDEX Upgrade (2003 PPCF)</td><td><a href="https://pubs.aip.org/aip/rsi/article-abstract/75/10/4237/1071432/">Rev. Sci. Instrum. 75 (2004)</a></td><td>[✓]</td></tr>
+<tr><td>23</td><td>Bozhenkov et al. — Accelerated Bayesian W7-X via NN (2023)</td><td><a href="https://arxiv.org/abs/2305.12889">arXiv:2305.12889</a></td><td>[✓]</td></tr>
+<tr><td>24</td><td>Simultaneous kinetic profile + equilibrium inference for ITER (2025)</td><td><a href="https://arxiv.org/abs/2502.07805">arXiv:2502.07805</a></td><td>[✓]</td></tr>
+<tr><td>25</td><td>Transfer learning disruption prediction cross-tokamak (2023 Comms. Phys.)</td><td><a href="https://www.nature.com/articles/s42005-023-01296-9">nature.com/s42005-023-01296-9</a></td><td>[✓]</td></tr>
+<tr><td>26</td><td>TCV optical plasma boundary reconstruction</td><td><a href="https://www.researchgate.net/publication/276940603_Real-time_optical_plasma_boundary_reconstruction_for_plasma_position_control_at_the_TCV_Tokamak">ResearchGate 276940603</a></td><td>[~]</td></tr>
+<tr><td>27</td><td>EAST optical plasma boundary (2023 PPCF)</td><td><a href="https://ui.adsabs.harvard.edu/abs/2023PPCF...65e5010Y/abstract">ADS 2023PPCF...65e5010Y</a></td><td>[✓]</td></tr>
+<tr><td>28</td><td>Cranmer — PySR (symbolic regression)</td><td><a href="https://github.com/MilesCranmer/PySR">github.com/MilesCranmer/PySR</a></td><td>[~]</td></tr>
+<tr><td>29</td><td>Gal &amp; Ghahramani — MC-Dropout (2016 ICML)</td><td><a href="https://arxiv.org/abs/1506.02157">arXiv:1506.02157</a></td><td>[~]</td></tr>
+<tr><td>30</td><td>Svensson &amp; Werner — Minerva graphical model JET (2011)</td><td><a href="https://maths.anu.edu.au/files/2011_svensson1.pdf">ANU 2011_svensson1.pdf</a></td><td>[✓]</td></tr>
+</tbody>
+</table></div>
+
+</main>
+</body>
+</html>
