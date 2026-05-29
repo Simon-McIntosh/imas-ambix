@@ -937,6 +937,49 @@ def _score_horizons(
     return out
 
 
+def _fit_ensemble_clipped(
+    ensemble,
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    cfg,
+    grad_clip: float = 5.0,
+) -> None:
+    """Train a baseline DeepEnsemble with global-norm gradient clipping.
+
+    In-scope replacement for ``DeepEnsemble.fit`` that reuses MLPGaussian's
+    PUBLIC ``nll_and_grads`` / ``adam_step`` API (no edit to baseline.py) and
+    inserts a global L2-norm gradient clip between them — mirroring the engine's
+    ``clip_grad_norm_(…, 5.0)``.  This bounds the runaway step that otherwise
+    diverges the unclipped MLP on dense ELM-spike targets.  Same minibatch
+    schedule, seeds and Adam as ``MLPGaussian.fit_sgd`` otherwise.
+    """
+    n = x_train.shape[0]
+    for i, m in enumerate(ensemble.members):
+        t0 = time.time()
+        rng = np.random.default_rng(cfg.seed_base + i + 999)
+        last = float("nan")
+        for _epoch in range(cfg.n_epochs):
+            perm = rng.permutation(n)
+            ep = 0.0
+            nb = 0
+            for start in range(0, n, cfg.batch_size):
+                idx = perm[start : start + cfg.batch_size]
+                loss, grads = m.nll_and_grads(x_train[idx], y_train[idx])
+                # global L2 grad-norm clip
+                total = math.sqrt(sum(float(np.sum(g * g)) for g in grads))
+                if total > grad_clip and total > 0:
+                    scale = grad_clip / total
+                    grads = [g * scale for g in grads]
+                m.adam_step(grads, lr=cfg.lr)
+                ep += loss
+                nb += 1
+            last = ep / max(nb, 1)
+        logger.info(
+            "  [static-clip] member %d/%d final NLL=%.4f (%.0fs)",
+            i + 1, len(ensemble.members), last, time.time() - t0,
+        )
+
+
 def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     """Run the full S7.3 acceptance experiment and return the metrics dict.
 
@@ -1037,7 +1080,17 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     ytr_n = stats.normalise_y(ytr.astype(np.float64))
     ens_cfg = EnsembleConfig(n_members=5, n_epochs=60, hidden_size=128, seed_base=0)
     ensemble = DeepEnsemble.build(input_dim, output_dim, ens_cfg)
-    ensemble.fit(Xtr_n, ytr_n, ens_cfg)
+    # NOTE: train with a GRADIENT-CLIPPED loop (in-scope; uses MLPGaussian's
+    # public nll_and_grads/adam_step API).  baseline.MLPGaussian.fit_sgd has NO
+    # grad clipping, which DIVERGES on dense un-decimated ELM-spike targets
+    # (seed-dependent: members get NLL≈+7/+9, μ/σ explode → static rmse≈25,
+    # σ≈87 → a meaningless comparator).  S7.2 never hit this because its
+    # max_slices_per_shot=200 linspace-decimation aliased the ms-scale spikes
+    # away — exactly what S7.3 must NOT do.  Clipping the global grad norm at 5.0
+    # (mirrors the engine's clip_grad_norm_) makes all seeds converge.  The
+    # missing clip in baseline.py is a latent bug → recommended followup for the
+    # orchestrator to fix at source (also hardens S7.2 on un-decimated data).
+    _fit_ensemble_clipped(ensemble, Xtr_n, ytr_n, ens_cfg, grad_clip=5.0)
     # static conformal at h=0 (S7.2-style split-conformal on the dense runs)
     Xcf, ycf = _stack_runs_for_static(conf_runs)
     static_conf = ConformalWrapper(ensemble, stats)
