@@ -223,6 +223,7 @@ except ImportError:
         return np.asarray(frames)
 
     def load_model(magvit2_root: Path, device: str, ckpt_path: "Path | None" = None):
+        import os
         import torch
         from omegaconf import OmegaConf
 
@@ -257,6 +258,46 @@ except ImportError:
             model = model.to(
                 device=device, dtype=torch.bfloat16, memory_format=torch.channels_last
             )
+            # ── Diagnostic toggle: AMBIX_DECODER_FP32 (RCA 2026-05-29) ────────
+            # Tests whether the fine-tune "regression" (bench rFID 24.5 vs
+            # baseline 13.3) is a bf16 weight-PRECISION artifact in the decode
+            # path rather than a real reconstruction failure.  The encoder and
+            # quantizer stay bf16, so the LFQ token IDs remain byte-identical to
+            # every established bench (the regression is provably decode-only:
+            # encoder frozen, C6/C7 were no-ops).  We upcast ONLY the decoder
+            # (and post_quant_conv if present) to fp32 using the EXACT fp32
+            # values from the checkpoint — note we ``.float()`` the module first
+            # so the subsequent ``load_state_dict`` copy preserves full fp32
+            # precision instead of inheriting the bf16 rounding.  Pair with
+            # AMBIX_DECODE_NO_EMA=1 so ``decode_batch`` uses these live fp32
+            # weights instead of letting ``ema_scope`` copy the bf16 shadow back
+            # over them.  No-op unless the env var is set → corpus encode and
+            # production benches are unaffected.
+            if os.environ.get("AMBIX_DECODER_FP32") == "1":
+                model.decoder.float()
+                dec_fp32 = {
+                    k[len("decoder.") :]: v.float()
+                    for k, v in sd.items()
+                    if k.startswith("decoder.")
+                }
+                md, ud = model.decoder.load_state_dict(dec_fp32, strict=False)
+                n_pqc = 0
+                if getattr(model, "post_quant_conv", None) is not None:
+                    model.post_quant_conv.float()
+                    pqc_fp32 = {
+                        k[len("post_quant_conv.") :]: v.float()
+                        for k, v in sd.items()
+                        if k.startswith("post_quant_conv.")
+                    }
+                    if pqc_fp32:
+                        model.post_quant_conv.load_state_dict(pqc_fp32, strict=False)
+                        n_pqc = len(pqc_fp32)
+                print(
+                    f"[bench-worker] AMBIX_DECODER_FP32=1 → decoder upcast to fp32 "
+                    f"from ckpt ({len(dec_fp32)} decoder + {n_pqc} post_quant_conv "
+                    f"tensors; missing={len(md)} unexpected={len(ud)})",
+                    flush=True,
+                )
         else:
             model = model.to(device)
         return model
@@ -292,6 +333,7 @@ def decode_batch(
     np.ndarray
         ``(T, H, W, 3)`` uint8.
     """
+    import os
     import torch
     import torch.nn.functional as F
 
@@ -299,13 +341,27 @@ def decode_batch(
     embed_dim = int(model.quantize.codebook_dim)
     T, h, w = tokens_local_int64.shape
     out: list[np.ndarray] = []
+
+    # AMBIX_DECODE_NO_EMA (RCA 2026-05-29): decode via the LIVE decoder weights
+    # instead of ema_scope().  Needed by the AMBIX_DECODER_FP32 diagnostic: with
+    # the live decoder upcast to fp32 in load_model, ema_scope() would copy the
+    # bf16 EMA shadow back over our fp32 weights and silently defeat the test.
+    # For the fine-tuned MERGED ckpt the live decoder == EMA shadow (both
+    # patched to the fine-tuned values in _save_merged_checkpoint), so this is
+    # value-identical to the ema path; it only differs for the imagenet
+    # baseline, where it is still a valid matched control (the bf16-vs-fp32
+    # delta is measured on the same live weights for both ckpts).  No-op unless
+    # the env var is set.
+    _use_ema = bool(getattr(model, "use_ema", False)) and (
+        os.environ.get("AMBIX_DECODE_NO_EMA") != "1"
+    )
     with torch.no_grad():
         for i in range(0, T, model_forward_batch):
             chunk = tokens_local_int64[i : i + model_forward_batch]  # (B, h, w)
             B = chunk.shape[0]
             idx = torch.from_numpy(chunk).to(device).reshape(B, h * w)
             bhwc = (B, h, w, embed_dim)
-            if model.use_ema:
+            if _use_ema:
                 with model.ema_scope():
                     quant = model.quantize.get_codebook_entry(idx, bhwc=bhwc, order="pre")
                     quant = quant.to(target_dtype)
