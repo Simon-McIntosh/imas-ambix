@@ -308,8 +308,29 @@ def load_shot_slices(
                 thresh = max(50.0, 0.2 * peak)
                 plasma_on = ip_on_grid > thresh
 
-    # Drop NaN slices (row has any NaN in X or y)
-    valid = np.isfinite(X).all(axis=1) & np.isfinite(y).all(axis=1)
+    # Impute NaN features with column mean (channels absent in this shot or
+    # with missing values get imputed to 0 after normalization, i.e. the
+    # training-set channel mean).  Target NaN slices are dropped.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        col_means = np.nanmean(X, axis=0)
+    col_means = np.where(np.isfinite(col_means), col_means, 0.0)
+    for j in range(X.shape[1]):
+        nan_mask = ~np.isfinite(X[:, j])
+        if nan_mask.any():
+            X[nan_mask, j] = col_means[j]
+
+    # Drop slices where target is NaN (cannot train/evaluate on these)
+    valid = np.isfinite(y).all(axis=1)
+    if not valid.any():
+        return None
+    X = X[valid]
+    y = y[valid]
+    times = times[valid]
+    plasma_on = plasma_on[valid]
+
+    # After imputation X should be all finite; guard anyway
+    valid = np.isfinite(X).all(axis=1)
     if not valid.any():
         return None
 
@@ -1401,10 +1422,14 @@ def _compute_ane_lift(
     ens_mag = DeepEnsemble.build(X_tr_mag_n.shape[1], y_tr_mag_n.shape[1] if y_tr_mag_n.ndim == 2 else 1, cfg.ensemble)
     ens_mag.fit(X_tr_mag_n, y_tr_mag_n, cfg.ensemble)
 
-    # Conformal on mag-only
+    # Conformal on mag-only — subsample conf-cal shots to keep ane-lift tractable
+    # (conformal coverage guarantee only needs ≥~200 cal samples; use 200 shots max)
     logger.info("  ane lift: fitting mag-only conformal...")
+    max_conf_shots_ane = min(200, len(conf_cal_shots))
+    rng_conf = np.random.default_rng(cfg.sub_split_seed + 13)
     Xs_cf_mag, ys_cf_mag, _ = _load_split_slices(
-        conf_cal_shots, feat_mag, target_channels, cfg.level1_dir, cfg.max_slices_per_shot
+        conf_cal_shots, feat_mag, target_channels, cfg.level1_dir, cfg.max_slices_per_shot,
+        max_shots=max_conf_shots_ane, rng=rng_conf,
     )
     if not Xs_cf_mag:
         return {"error": "no mag-only conformal data"}
@@ -1414,11 +1439,13 @@ def _compute_ane_lift(
     y_cf_mag_n = stats_mag.normalise_y(np.concatenate(ys_cf_mag, axis=0))
     conf_mag.fit_conformal(X_cf_mag_n, y_cf_mag_n)
 
-    # Evaluate on in-dist-test using mag-only features
-    # Re-load test slices with mag-only schema
+    # Evaluate on in-dist-test using mag-only features (subsample for tractability)
     logger.info("  ane lift: evaluating mag-only on IN-DIST-TEST...")
+    max_test_shots_ane = min(200, len(in_dist_test_shots))
+    rng_test = np.random.default_rng(cfg.sub_split_seed + 17)
     Xs_idt_mag, ys_idt_mag, _ = _load_split_slices(
-        in_dist_test_shots, feat_mag, target_channels, cfg.level1_dir, cfg.max_slices_per_shot
+        in_dist_test_shots, feat_mag, target_channels, cfg.level1_dir, cfg.max_slices_per_shot,
+        max_shots=max_test_shots_ane, rng=rng_test,
     )
     if not Xs_idt_mag:
         return {"error": "no mag-only test data"}
