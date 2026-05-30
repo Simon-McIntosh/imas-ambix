@@ -2847,16 +2847,37 @@ def _grounding_help_hurt(metrics: dict, v2_path: Path | None) -> dict:
 
 
 def _grounding_verdict(metrics: dict) -> dict:
-    """Honest grounding-value verdict across the three re-scoped criteria."""
+    """Honest grounding-value verdict across the three re-scoped criteria.
+
+    CRITICAL COUPLING (criteria 1 ↔ 2): a WIDENED discovery gap is evidence of
+    ENRICHED f_θ *only if Dα is preserved*.  If grounding wrecks Dα, a bigger
+    identity-vs-true gap can simply mean "a WORSE model's f_θ thrashes more than
+    a frozen belief" — NOT enrichment.  The verdict states this explicitly so a
+    confounded win is not over-claimed: ``grounding_enriched_latent`` requires
+    BOTH (gap widened + discriminates) AND (Dα preserved).  The clean-comparison
+    flag also asserts the run matched v2 (student_t + drift_reg=0.3) so the
+    gap-widening is attributable to grounding, not to dropping drift_reg (which
+    alone unfreezes f_θ — discovery_sindy crux_1).
+    """
     hh = metrics.get("help_hurt_dalpha", {})
     dd = metrics.get("discovery_discriminate", {})
     pi = metrics.get("physical_interpretability", {})
+    cfgd = metrics.get("config", {})
     rel = hh.get("filtering_crps_rel_change")
+    dalpha_preserved = bool(rel is not None and rel <= 0.10)
+    gap_widened = bool(dd.get("widened_beyond_t8")) and bool(
+        dd.get("metric_discriminates")
+    )
+    # clean comparison = grounded run matched v2's emission + drift_reg
+    clean_vs_v2 = bool(
+        cfgd.get("emission") == "student_t"
+        and abs(float(cfgd.get("drift_reg_weight", -1)) - 0.3) < 1e-9
+    )
     return {
         "criterion1_dalpha_help_hurt": hh.get("filtering_crps_verdict"),
         "criterion1_filtering_crps_rel_change": rel,
         # "did not silently destroy Dα" = within ~10% of v2 (or better)
-        "criterion1_dalpha_preserved": bool(rel is not None and rel <= 0.10),
+        "criterion1_dalpha_preserved": dalpha_preserved,
         "criterion2_discovery_gap_grounded": dd.get("identity_minus_true_rel"),
         "criterion2_t8_baseline_gap": dd.get("t8_baseline_gap"),
         "criterion2_widened_beyond_t8": dd.get("widened_beyond_t8"),
@@ -2865,6 +2886,26 @@ def _grounding_verdict(metrics: dict) -> dict:
             "median_net_nearvac_over_flattop_ratio_GROUNDED"
         ),
         "criterion3_near_vacuum_ok": pi.get("near_vacuum_ok_GROUNDED"),
+        # --- coupled grounding-value claim (the honest headline) -------------
+        "clean_comparison_vs_v2": clean_vs_v2,
+        "grounding_enriched_latent": bool(gap_widened and dalpha_preserved),
+        "enrichment_claim_note": (
+            "ENRICHED — gap widened beyond T8 AND Dα preserved AND clean v2 "
+            "comparison."
+            if (gap_widened and dalpha_preserved and clean_vs_v2)
+            else (
+                "CONFOUNDED — gap widened but Dα NOT preserved: the bigger gap "
+                "may be a worse model's f_θ thrashing, not enrichment."
+                if (gap_widened and not dalpha_preserved)
+                else (
+                    "gap did NOT widen — grounding did not enrich f_θ."
+                    if not gap_widened
+                    else "gap widened but the v2 comparison is NOT clean "
+                    "(emission/drift_reg differ) — attribution to grounding "
+                    "(vs dropping drift_reg) is ambiguous."
+                )
+            )
+        ),
     }
 
 
