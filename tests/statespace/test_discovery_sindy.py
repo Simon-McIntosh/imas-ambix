@@ -81,33 +81,79 @@ def test_stlsq_recovers_sparse_linear():
     true[powers.index((0, 1)), 0] = -0.3
     true[powers.index((1, 0)), 1] = 0.1
     dxi = theta @ true
-    xi_fit = stlsq(theta, dxi, threshold=0.05)
-    np.testing.assert_allclose(xi_fit, true, atol=1e-6)
+    xi_fit = stlsq(theta, dxi, rel_threshold=0.10)
+    # ridge (alpha=1e-3) shrinks coefficients slightly; support + magnitude
+    # recovered to ridge tolerance, exact zeros elsewhere.
+    np.testing.assert_allclose(xi_fit, true, atol=2e-3)
+    assert (xi_fit[true == 0.0] == 0.0).all(), "spurious terms must be exact zeros"
     # R² should be ~1 on the noise-free target
     assert _r2_score(theta, dxi, xi_fit) > 0.999
 
 
+def test_stlsq_recovers_sparse_on_badly_scaled_columns():
+    """REGRESSION: the real-data scale bug (ξ std≈3, quadratic col norms≈47).
+
+    A fixed ABSOLUTE coefficient threshold zeroes everything here because the
+    coefficients are inversely related to the column scale.  Column-normalised
+    relative thresholding must still recover the correct sparse support.  This
+    is the exact blind spot that unit-scale synthetic data hides.
+    """
+    rng = np.random.default_rng(11)
+    # Badly-scaled reduced coords: std ≈ 3.4 / 1.4 / 1.6 (mirrors the latent).
+    xi = rng.standard_normal((4000, 3)) * np.array([3.4, 1.4, 1.6])
+    theta, powers = build_library(xi, degree=2)
+    true = np.zeros((len(powers), 3))
+    # A linear term AND a quadratic term (the quadratic col has a huge norm, so
+    # its physical coefficient is tiny — an absolute floor would kill it).
+    true[powers.index((1, 0, 0)), 0] = 0.30  # 0.30 * xi0
+    true[powers.index((2, 0, 0)), 0] = 0.02  # 0.02 * xi0^2 (tiny coeff, big col)
+    true[powers.index((0, 1, 0)), 1] = -0.25
+    dxi = theta @ true
+    xi_fit = stlsq(theta, dxi, rel_threshold=0.10)
+    # support recovered exactly (both the big-coeff linear AND tiny-coeff quad)
+    assert xi_fit[powers.index((1, 0, 0)), 0] != 0.0
+    assert xi_fit[powers.index((2, 0, 0)), 0] != 0.0, (
+        "the tiny-coefficient quadratic term on a high-norm column must survive"
+    )
+    assert xi_fit[powers.index((0, 1, 0)), 1] != 0.0
+    # ridge shrinkage tolerance (alpha=1e-3); the tiny quad coeff is ~0.02
+    np.testing.assert_allclose(xi_fit, true, atol=3e-3)
+    assert _r2_score(theta, dxi, xi_fit) > 0.999
+
+
 def test_stlsq_thresholds_small_terms():
-    """A tiny coefficient (< threshold) is driven to zero."""
+    """A term contributing < rel_threshold × RMS(Δξ) is driven to zero."""
     rng = np.random.default_rng(2)
     xi = rng.standard_normal((2000, 2))
     theta, powers = build_library(xi, degree=2)
     true = np.zeros((len(powers), 2))
     true[powers.index((1, 0)), 0] = 0.5
-    true[powers.index((0, 1)), 0] = 0.01  # below threshold 0.05
+    true[powers.index((0, 1)), 0] = 0.001  # negligible contribution
     dxi = theta @ true
-    xi_fit = stlsq(theta, dxi, threshold=0.05)
+    xi_fit = stlsq(theta, dxi, rel_threshold=0.10)
     assert abs(xi_fit[powers.index((0, 1)), 0]) < 1e-9
     assert abs(xi_fit[powers.index((1, 0)), 0] - 0.5) < 1e-3
+
+
+def test_stlsq_identity_map_resolves_to_empty():
+    """A near-zero increment (drift_reg→identity) resolves to the empty map."""
+    rng = np.random.default_rng(12)
+    xi = rng.standard_normal((2000, 3)) * 2.0
+    theta, _ = build_library(xi, degree=2)
+    dxi = np.zeros((2000, 3))  # f_θ ≡ 0 (the quiescent drift_reg limit)
+    xi_fit = stlsq(theta, dxi, rel_threshold=0.10)
+    assert np.count_nonzero(xi_fit) == 0
 
 
 def test_render_recurrence_runs():
     powers = _poly_powers(2, 2)
     xi = np.zeros((len(powers), 2))
     xi[powers.index((1, 0)), 0] = 0.4
-    lines = render_recurrence(xi, powers, threshold=0.05)
+    lines = render_recurrence(xi, powers)
     assert len(lines) == 2
     assert "xi0" in lines[0]
+    # a zero row renders as "0"
+    assert lines[1].endswith("0")
 
 
 # ---------------------------------------------------------------------------

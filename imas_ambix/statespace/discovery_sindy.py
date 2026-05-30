@@ -78,6 +78,8 @@ logger = logging.getLogger(__name__)
 
 _SCRATCH = Path("/work/projects/imas_gpu/mast/scratch/statespace_v0")
 _TRAJ_CACHE = _SCRATCH / "discovery_trajectories_v0.npz"
+_MANIFESTS = Path("/work/projects/imas_gpu/mast/manifests")
+_SPLITS_MANIFEST = _MANIFESTS / "statespace_splits_dalpha_v0.json"
 
 # Latent sampling-rate: the engine runs at 1 kHz → dt = 1 ms.  Used to convert
 # discrete-time eigenvalues μ to continuous rates λ = log(μ)/dt.
@@ -89,7 +91,18 @@ _NYQUIST_HZ = _MODEL_HZ / 2.0  # 500 Hz — spectral validation ceiling (crux 2)
 _R_DEFAULT = 3
 
 # STLSQ defaults — sequentially-thresholded ridge (Brunton et al. 2016).
-_STLSQ_THRESHOLD = 0.05  # coefficient magnitude floor (in reduced/standardised units)
+# The threshold is RELATIVE: a library column is dropped when its standardised
+# coefficient (≈ that term's contribution to Δξ, after column-norm
+# normalisation) falls below ``rel_threshold × RMS(Δξ_dim)``.  Raw-coefficient
+# thresholding is meaningless here because the reduced coords are NOT unit-scale
+# (ξ std ≈ 3.4 / 1.4 / 1.6) so quadratic columns have norms up to ~47 — a fixed
+# absolute floor would compare apples to oranges and zero everything.
+_STLSQ_REL_THRESHOLD = 0.10  # fraction of RMS(Δξ_dim) a term must contribute
+# Sparsity/skill frontier — spans low (near-dense) to high (aggressive prune).
+# f_θ in reduced coords turns out to be a DENSE low-order polynomial (no
+# dominant-few-terms structure), so the frontier mostly shows that pruning only
+# starts above ~0.75 — itself an honest finding reported in the artifact.
+_STLSQ_FRONTIER = (0.10, 0.50, 1.0, 2.0, 3.0)
 _STLSQ_ALPHA = 1e-3  # ridge regularisation
 _STLSQ_MAX_ITER = 20
 _POLY_DEGREE = 2  # library: 1, ξ_i, ξ_iξ_j
@@ -164,55 +177,79 @@ def build_library(
 def stlsq(
     theta: np.ndarray,
     dxi: np.ndarray,
-    threshold: float = _STLSQ_THRESHOLD,
+    rel_threshold: float = _STLSQ_REL_THRESHOLD,
     alpha: float = _STLSQ_ALPHA,
     max_iter: int = _STLSQ_MAX_ITER,
 ) -> np.ndarray:
     """Sequentially-thresholded ridge regression (Brunton/Proctor/Kutz 2016).
 
-    Solves Δξ ≈ Θ(ξ) Ξ with an L2 (ridge) penalty, then iteratively zeroes
-    coefficients below ``threshold`` and refits on the surviving terms — the
-    standard SINDy sparse-regression loop.  Zero new deps: uses ``np.linalg``
-    (ridge has a closed form).
+    Solves Δξ ≈ Θ(ξ) Ξ with an L2 (ridge) penalty, then iteratively zeroes the
+    least-contributing terms and refits on the survivors — the standard SINDy
+    sparse-regression loop.  Zero new deps: ``np.linalg`` (ridge has a closed
+    form).
+
+    CRITICAL — column normalisation.  The library columns are NOT unit-scale
+    (the reduced coords have std ≈ 3.4 / 1.4 / 1.6, so quadratic columns have
+    norms up to ~47).  A raw-coefficient threshold compares apples to oranges:
+    a column with norm 47 needs a tiny coefficient to contribute as much as a
+    column with norm 1.5, so thresholding on |Ξ| preferentially keeps
+    small-scale columns and drops the real terms regardless of contribution.
+    We therefore fit on column-NORMALISED Θ, threshold on the STANDARDISED
+    coefficient (≈ that term's contribution to Δξ), and rescale back to the
+    physical Ξ.  The threshold is RELATIVE: a term survives only if its
+    standardised |coeff| ≥ ``rel_threshold × RMS(Δξ_dim)``.
 
     Parameters
     ----------
     theta : (n, p) library feature matrix.
     dxi   : (n, r) exact reduced increments Δξ = f_θ projected.
-    threshold : coefficients with |Ξ| < threshold are dropped.
-    alpha : ridge regularisation strength.
+    rel_threshold : fraction of RMS(Δξ_dim) a term must contribute to survive.
+    alpha : ridge regularisation strength (on the normalised columns).
     max_iter : max refit iterations.
 
     Returns
     -------
-    Xi : (p, r) sparse coefficient matrix.
+    Xi : (p, r) sparse coefficient matrix in PHYSICAL (un-normalised) units.
     """
     p = theta.shape[1]
     r = dxi.shape[1]
 
+    # Column-norm normalisation: Θ_n[:,k] = Θ[:,k] / ||Θ[:,k]||.  A unit-norm
+    # column means its standardised coefficient is directly comparable to Δξ.
+    col_norm = np.linalg.norm(theta, axis=0)
+    col_norm = np.where(col_norm < 1e-30, 1.0, col_norm)
+    theta_n = theta / col_norm  # (n, p) unit-norm columns
+
     def _ridge(th: np.ndarray, y: np.ndarray) -> np.ndarray:
-        # closed-form ridge: (ΘᵀΘ + αI)⁻¹ Θᵀ y
         gram = th.T @ th + alpha * np.eye(th.shape[1])
         return np.linalg.solve(gram, th.T @ y)
 
-    xi = _ridge(theta, dxi)  # (p, r)
+    # Per-dimension absolute threshold = rel × RMS(Δξ_dim).  A near-zero
+    # increment dim (drift_reg → identity) thus gets a near-zero threshold but
+    # also a near-zero coefficient → it correctly resolves to the empty map.
+    dxi_rms = np.sqrt(np.mean(dxi**2, axis=0))  # (r,)
+    abs_thr = rel_threshold * np.maximum(dxi_rms, 1e-12)  # (r,)
+
+    xi_n = _ridge(theta_n, dxi)  # (p, r) — standardised coefficients
     for _ in range(max_iter):
-        small = np.abs(xi) < threshold
-        xi[small] = 0.0
+        small = np.abs(xi_n) < abs_thr[np.newaxis, :]
+        xi_n[small] = 0.0
         changed = False
         for j in range(r):
             big = ~small[:, j]
             if not big.any():
                 continue
-            coeff = _ridge(theta[:, big], dxi[:, j : j + 1])[:, 0]
+            coeff = _ridge(theta_n[:, big], dxi[:, j : j + 1])[:, 0]
             new_col = np.zeros(p)
             new_col[big] = coeff
-            if not np.allclose(new_col, xi[:, j]):
+            if not np.allclose(new_col, xi_n[:, j]):
                 changed = True
-            xi[:, j] = new_col
+            xi_n[:, j] = new_col
         if not changed:
             break
-    return xi
+
+    # Rescale standardised coefficients back to physical (un-normalised) units.
+    return xi_n / col_norm[:, np.newaxis]
 
 
 def _r2_score(theta: np.ndarray, dxi: np.ndarray, xi: np.ndarray) -> float:
@@ -225,24 +262,23 @@ def _r2_score(theta: np.ndarray, dxi: np.ndarray, xi: np.ndarray) -> float:
     return 1.0 - ss_res / ss_tot
 
 
-def render_recurrence(
-    xi: np.ndarray, powers: list, threshold: float = _STLSQ_THRESHOLD
-) -> list[str]:
+def render_recurrence(xi: np.ndarray, powers: list) -> list[str]:
     """Render the sparse recurrence Δξ_j = Σ_k Ξ_kj · monomial_k as strings.
 
-    Uses sympy to simplify each row to a clean symbolic expression.
+    ``xi`` is the PHYSICAL (already-thresholded) coefficient matrix from
+    :func:`stlsq`; dropped terms are exactly 0, so only the survivors are
+    rendered.  Uses sympy to simplify each row to a clean symbolic expression.
     """
     import sympy as sp  # noqa: PLC0415
 
     r = xi.shape[1]
     syms = sp.symbols(f"xi0:{r}")
-    names = _feature_names(powers)
     exprs = []
     for j in range(r):
         expr = sp.Integer(0)
         for k, exps in enumerate(powers):
             c = xi[k, j]
-            if abs(c) < threshold:
+            if c == 0.0:
                 continue
             mono = sp.Integer(1)
             for i, e in enumerate(exps):
@@ -250,7 +286,6 @@ def render_recurrence(
                     mono = mono * syms[i] ** e
             expr = expr + sp.Float(round(float(c), 5)) * mono
         exprs.append(f"d(xi{j}) = {sp.sstr(sp.nsimplify(expr, rational=False))}")
-    _ = names  # names available for debugging / future artifact detail
     return exprs
 
 
@@ -494,13 +529,15 @@ class StratumFit:
     n_samples: int
     dz_rms: float  # ‖Δz‖ RMS over the full latent (drift_reg visibility)
     dxi_rms: float  # ‖Δξ‖ RMS in reduced coords
-    xi_coeffs: np.ndarray  # (p, r) sparse
+    xi_coeffs: np.ndarray  # (p, r) sparse, PHYSICAL units (at rel_threshold)
     xi_coeffs_dense: np.ndarray  # (p, r) dense (no threshold)
     powers: list[tuple[int, ...]]
+    rel_threshold: float  # the relative threshold used for xi_coeffs
     r2_sparse: float
     r2_dense: float
     n_active_terms: int
     recurrence: list[str] = field(default_factory=list)
+    frontier: list[dict] = field(default_factory=list)  # sparsity/skill levels
     dmd: dict = field(default_factory=dict)
     jacobian: dict = field(default_factory=dict)
 
@@ -511,15 +548,17 @@ def distil_stratum(
     basis: ReducedBasis,
     label: str,
     device: str = "cpu",
-    threshold: float = _STLSQ_THRESHOLD,
+    rel_threshold: float = _STLSQ_REL_THRESHOLD,
+    frontier: tuple[float, ...] = _STLSQ_FRONTIER,
     degree: int = _POLY_DEGREE,
     max_samples: int = 40000,
 ) -> StratumFit:
     """Distil f_θ on one stratum's latent cloud into a sparse reduced recurrence.
 
     Steps: subsample z (cap cost) → exact Δz = f_θ(z) → project both to reduced
-    coords → build the polynomial library Θ(ξ) → STLSQ (sparse) + dense ridge
-    (no threshold) → DMD/Koopman + fixed-point Jacobian.
+    coords → build the polynomial library Θ(ξ) → STLSQ (sparse, column-normalised
+    relative threshold) + dense ridge (no threshold) → sparsity/skill frontier
+    over ``frontier`` thresholds → DMD/Koopman + fixed-point Jacobian.
     """
     rng = np.random.default_rng(0)
     if z_stratum.shape[0] > max_samples:
@@ -536,14 +575,28 @@ def distil_stratum(
     dxi_rms = float(np.sqrt(np.mean(dxi**2)))
 
     theta, powers = build_library(xi, degree=degree)
-    xi_sparse = stlsq(theta, dxi, threshold=threshold)
     # dense ridge with NO threshold → the r-truncation reference
     gram = theta.T @ theta + _STLSQ_ALPHA * np.eye(theta.shape[1])
     xi_dense = np.linalg.solve(gram, theta.T @ dxi)
-
-    r2_sparse = _r2_score(theta, dxi, xi_sparse)
     r2_dense = _r2_score(theta, dxi, xi_dense)
-    n_active = int(np.count_nonzero(np.abs(xi_sparse) >= threshold))
+
+    # Sparsity/skill frontier: the same threshold-vs-fit trade reported elsewhere
+    # in this plan (λ × profile-DOF).  The primary ``rel_threshold`` row is the
+    # one the skill test uses.
+    frontier_rows = []
+    for f in sorted(set(frontier) | {rel_threshold}):
+        xi_f = stlsq(theta, dxi, rel_threshold=f)
+        frontier_rows.append(
+            {
+                "rel_threshold": float(f),
+                "n_active_terms": int(np.count_nonzero(xi_f)),
+                "r2": _r2_score(theta, dxi, xi_f),
+            }
+        )
+
+    xi_sparse = stlsq(theta, dxi, rel_threshold=rel_threshold)
+    r2_sparse = _r2_score(theta, dxi, xi_sparse)
+    n_active = int(np.count_nonzero(xi_sparse))
 
     fit = StratumFit(
         label=label,
@@ -553,11 +606,13 @@ def distil_stratum(
         xi_coeffs=xi_sparse,
         xi_coeffs_dense=xi_dense,
         powers=powers,
+        rel_threshold=rel_threshold,
         r2_sparse=r2_sparse,
         r2_dense=r2_dense,
         n_active_terms=n_active,
+        frontier=frontier_rows,
     )
-    fit.recurrence = render_recurrence(xi_sparse, powers, threshold=threshold)
+    fit.recurrence = render_recurrence(xi_sparse, powers)
     fit.dmd = dmd_koopman(xi, dxi)
     fit.jacobian = fixed_point_jacobian(
         model, basis, z_mean_stratum=z_s.mean(axis=0), device=device
@@ -659,6 +714,19 @@ def _score_with_transition(
     return {"label": label, "n": int(mu.shape[0]), "per_horizon": scores}
 
 
+def _mean_crps(s: dict, key: str = "crps_raw") -> float:
+    """Mean over horizons of a per-horizon CRPS dict (NaN-safe)."""
+    if not s or "per_horizon" not in s:
+        return float("nan")
+    vals = [
+        s["per_horizon"][h].get(key)
+        for h in s["per_horizon"]
+        if isinstance(s["per_horizon"][h], dict)
+    ]
+    vals = [v for v in vals if v is not None and np.isfinite(v)]
+    return float(np.mean(vals)) if vals else float("nan")
+
+
 def skill_preservation(
     model,
     runs: list,
@@ -669,17 +737,30 @@ def skill_preservation(
     device: str = "cpu",
     max_runs: int = 40,
 ) -> dict:
-    """Three-way skill attribution through the FROZEN observation head.
+    """Four-way skill attribution through the FROZEN observation head.
 
-    true-fθ (16-d) → dense-reduced (r, no threshold) → sparse-reduced (STLSQ).
-    The true→dense gap is the r-TRUNCATION loss; the dense→sparse gap is the
-    SPARSITY loss.  All three re-scored on the SAME anchors/horizons.
+    identity (Δz≡0) → true-fθ (16-d) → dense-reduced (r, no threshold) →
+    sparse-reduced (STLSQ).  Gaps:
+      - true→dense   = r-TRUNCATION loss (the dimension).
+      - dense→sparse = SPARSITY loss (the thresholding).
+      - identity→true = how much the LEARNED dynamics buy over a frozen-belief
+        rollout.  THIS IS THE DISCRIMINATION GUARD: the rule "skill-preserving
+        sparsity ⇒ real dynamics" is only valid if identity scores MEANINGFULLY
+        WORSE than true.  drift_reg=0.3 made f_θ tiny, so an identity rollout
+        may already be nearly as good for Dα — in which case the skill metric
+        CANNOT discriminate (a drift_reg confound propagating INTO validation,
+        not a success).  All four re-scored on the SAME anchors/horizons.
 
     The transient-stratum fit's coefficients are used for the reduced maps (it
     carries the real dynamics; the quiescent fit is ≈identity by drift_reg).
     """
     runs_eval = runs[:max_runs]
 
+    # Identity/null baseline: a ReducedTransition with ZERO coefficients → Δz≡0
+    # → the autonomous rollout freezes the belief mean at the anchor (variance
+    # still widens via Q, so the obs head still produces a calibrated forecast).
+    null_coeffs = np.zeros_like(transient_fit.xi_coeffs)
+    identity_mod = ReducedTransition(basis, null_coeffs, transient_fit.powers)
     dense_mod = ReducedTransition(
         basis, transient_fit.xi_coeffs_dense, transient_fit.powers
     )
@@ -687,6 +768,9 @@ def skill_preservation(
 
     true_scores = _score_with_transition(
         model, runs_eval, stats, horizons, None, "true_ftheta", device=device
+    )
+    identity_scores = _score_with_transition(
+        model, runs_eval, stats, horizons, identity_mod, "identity_null", device=device
     )
     dense_scores = _score_with_transition(
         model, runs_eval, stats, horizons, dense_mod, "dense_reduced", device=device
@@ -704,26 +788,64 @@ def skill_preservation(
             if isinstance(s["per_horizon"][h], dict)
         }
 
+    # Discrimination guard: is identity meaningfully worse than true?
+    crps_true = _mean_crps(true_scores)
+    crps_identity = _mean_crps(identity_scores)
+    rel_gap = (
+        (crps_identity - crps_true) / crps_true
+        if np.isfinite(crps_true) and crps_true > 1e-12
+        else float("nan")
+    )
+    # 2% mean-CRPS gap is the (conservative) discrimination floor.
+    discriminates = bool(np.isfinite(rel_gap) and rel_gap > 0.02)
+    guard = {
+        "mean_crps_true": crps_true,
+        "mean_crps_identity": crps_identity,
+        "identity_minus_true_rel": rel_gap,
+        "metric_discriminates": discriminates,
+        "interpretation": (
+            "The skill metric DISCRIMINATES: identity (Δz≡0) is "
+            f"{rel_gap:.1%} worse than the true kernel, so 'skill-preserving "
+            "sparsity ⇒ captured real dynamics' is a valid inference here."
+            if discriminates
+            else (
+                "WARNING — the skill metric does NOT discriminate at these "
+                f"horizons: identity (Δz≡0) is only {rel_gap:.1%} worse than the "
+                "true kernel. This is the drift_reg=0.3 confound propagating INTO "
+                "validation (f_θ was made tiny, so a frozen-belief rollout is "
+                "nearly as good for Dα). A 'skill-preserving' sparse map therefore "
+                "does NOT by itself prove it captured real dynamics — the test is "
+                "under-powered until the T6-grounded latent (larger f_θ) lands."
+            )
+        ),
+    }
+
     delta = {
         "crps_overall": {
+            "identity_null": _crps_by_h(identity_scores),
             "true": _crps_by_h(true_scores),
             "dense_reduced": _crps_by_h(dense_scores),
             "sparse_reduced": _crps_by_h(sparse_scores),
         },
         "crps_transient_target": {
+            "identity_null": _crps_by_h(identity_scores, "crps_raw_transient"),
             "true": _crps_by_h(true_scores, "crps_raw_transient"),
             "dense_reduced": _crps_by_h(dense_scores, "crps_raw_transient"),
             "sparse_reduced": _crps_by_h(sparse_scores, "crps_raw_transient"),
         },
+        "discrimination_guard": guard,
         "attribution": (
             "true→dense gap = r-truncation loss (the dimension); "
-            "dense→sparse gap = sparsity loss (the thresholding). "
-            "Skill-preserving sparsity ⇒ the sparse map captured the real "
-            "dynamics; skill-losing sparsity ⇒ thresholding discarded real terms."
+            "dense→sparse gap = sparsity loss (the thresholding); "
+            "identity→true gap = value of the learned dynamics (the "
+            "discrimination guard). Skill-preserving sparsity ⇒ the sparse map "
+            "captured the real dynamics — BUT ONLY IF metric_discriminates is "
+            "true; otherwise the test is under-powered (drift_reg confound)."
         ),
     }
     return {
         "n_runs_scored": len(runs_eval),
+        "identity_null": identity_scores,
         "true_ftheta": true_scores,
         "dense_reduced": dense_scores,
         "sparse_reduced": sparse_scores,
@@ -748,7 +870,8 @@ def load_trajectories(path: Path = _TRAJ_CACHE) -> dict:
 
 def run_distillation(
     r: int = _R_DEFAULT,
-    threshold: float = _STLSQ_THRESHOLD,
+    rel_threshold: float = _STLSQ_REL_THRESHOLD,
+    frontier: tuple[float, ...] = _STLSQ_FRONTIER,
     degree: int = _POLY_DEGREE,
     max_samples: int = 40000,
     max_skill_runs: int = 40,
@@ -759,13 +882,15 @@ def run_distillation(
 
     Returns the artifact dict (also written to artifacts/discovery_sindy_v0.json).
     """
+    from imas_ambix.statespace.baseline import (  # noqa: PLC0415
+        _FEATURE_SCHEMA_MAG_ANE,
+        _LEVEL1_DIR,
+        _XIM_CHANNELS_PRIMARY,
+    )
     from imas_ambix.statespace.discovery_extract import (  # noqa: PLC0415
         load_or_train_engine,
     )
     from imas_ambix.statespace.engine import (  # noqa: PLC0415
-        _FEATURE_SCHEMA_MAG_ANE,
-        _LEVEL1_DIR,
-        _XIM_CHANNELS_PRIMARY,
         _load_split_runs,
     )
 
@@ -793,7 +918,8 @@ def run_distillation(
         basis,
         "transient",
         device=device,
-        threshold=threshold,
+        rel_threshold=rel_threshold,
+        frontier=frontier,
         degree=degree,
         max_samples=max_samples,
     )
@@ -803,14 +929,15 @@ def run_distillation(
         basis,
         "quiescent",
         device=device,
-        threshold=threshold,
+        rel_threshold=rel_threshold,
+        frontier=frontier,
         degree=degree,
         max_samples=max_samples,
     )
 
     # Skill preservation needs ShotRun objects (forecast_pairs filters internally).
     # Reuse the SAME train split + horizons as the engine acceptance experiment.
-    with open(_SCRATCH.parent / "manifests" / "statespace_splits_dalpha_v0.json") as f:
+    with open(_SPLITS_MANIFEST) as f:
         splits = json.load(f)
     train_shots = [int(x) for x in splits["train"]]
     runs = _load_split_runs(
@@ -835,7 +962,7 @@ def run_distillation(
     )
 
     artifact = _assemble_artifact(
-        model, basis, fit_trans, fit_quies, skill, r, threshold, degree
+        model, basis, fit_trans, fit_quies, skill, r, rel_threshold, degree
     )
     if output is None:
         output = Path(__file__).parent / "artifacts" / "discovery_sindy_v0.json"
@@ -852,9 +979,11 @@ def _stratum_to_dict(fit: StratumFit) -> dict:
         "n_samples": fit.n_samples,
         "dz_rms": fit.dz_rms,
         "dxi_rms": fit.dxi_rms,
+        "rel_threshold": fit.rel_threshold,
         "n_active_terms": fit.n_active_terms,
         "r2_sparse": fit.r2_sparse,
         "r2_dense": fit.r2_dense,
+        "sparsity_skill_frontier": fit.frontier,
         "recurrence": fit.recurrence,
         "sparse_coefficients": fit.xi_coeffs.tolist(),
         "feature_names": _feature_names(fit.powers),
@@ -864,7 +993,7 @@ def _stratum_to_dict(fit: StratumFit) -> dict:
 
 
 def _assemble_artifact(
-    model, basis, fit_trans, fit_quies, skill, r, threshold, degree
+    model, basis, fit_trans, fit_quies, skill, r, rel_threshold, degree
 ) -> dict:
     """Build the compact JSON artifact with the honesty cruxes baked in."""
     dz_ratio = (
@@ -907,7 +1036,12 @@ def _assemble_artifact(
         ),
         "config": {
             "reduced_dim_r": r,
-            "stlsq_threshold": threshold,
+            "stlsq_rel_threshold": rel_threshold,
+            "stlsq_threshold_units": (
+                "RELATIVE: a term survives if its column-normalised |coeff| ≥ "
+                "rel_threshold × RMS(Δξ_dim); coefficients reported in physical "
+                "(un-normalised) reduced-coordinate units"
+            ),
             "stlsq_alpha": _STLSQ_ALPHA,
             "poly_degree": degree,
             "model_hz": _MODEL_HZ,
@@ -955,7 +1089,12 @@ def main() -> None:
     )
     p = argparse.ArgumentParser(description="T8: SINDy distillation of f_θ")
     p.add_argument("--r", type=int, default=_R_DEFAULT, help="reduced dimension")
-    p.add_argument("--threshold", type=float, default=_STLSQ_THRESHOLD)
+    p.add_argument(
+        "--rel-threshold",
+        type=float,
+        default=_STLSQ_REL_THRESHOLD,
+        help="STLSQ relative threshold (fraction of RMS(Δξ_dim))",
+    )
     p.add_argument("--degree", type=int, default=_POLY_DEGREE)
     p.add_argument("--max-samples", type=int, default=40000)
     p.add_argument("--max-skill-runs", type=int, default=40)
@@ -969,7 +1108,7 @@ def main() -> None:
 
     artifact = run_distillation(
         r=args.r,
-        threshold=args.threshold,
+        rel_threshold=args.rel_threshold,
         degree=args.degree,
         max_samples=args.max_samples,
         max_skill_runs=args.max_skill_runs,
@@ -987,10 +1126,16 @@ def main() -> None:
         )
         for line in s["recurrence"]:
             print(f"    {line}")
-    print("\n--- SKILL PRESERVATION (CRPS overall, transient stratum) ---")
-    d = artifact["skill_preservation"]["delta"]
-    print("  overall:", d["crps_overall"])
-    print("  transient-target:", d["crps_transient_target"])
+        print(f"  frontier: {s['sparsity_skill_frontier']}")
+    print("\n--- SKILL PRESERVATION (4-way; CRPS overall) ---")
+    sk = artifact["skill_preservation"]["delta"]
+    print("  overall:", sk["crps_overall"])
+    g = sk["discrimination_guard"]
+    print(
+        f"  GUARD: identity−true rel gap={g['identity_minus_true_rel']:.1%} "
+        f"discriminates={g['metric_discriminates']}"
+    )
+    print(f"  {g['interpretation']}")
 
 
 if __name__ == "__main__":
