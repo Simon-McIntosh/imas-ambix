@@ -24,11 +24,15 @@ from imas_ambix.statespace.engine import (
     RKNEngine,
     _quiescent_drift_penalty,
     _verdict,
+    crps_student_t,
     gaussian_nll,
+    student_t_nll,
+    student_t_nll_np,
     train_engine,
 )
 from imas_ambix.statespace.filter import (
     fit_horizon_conformal,
+    filter_innovation_shot,
     forecast_pairs,
     filter_shot,
     smooth_shot,
@@ -464,7 +468,15 @@ def test_verdict_criterion2_nll_branch():
             },
         },
         "ood_honesty": {
-            "ood_auroc_ensemble_disagreement": 0.81,
+            # S7.5: criterion 3 is now judged on the ENGINE-NATIVE OOD-AUROC
+            # (the engine's own innovation signal), with the static-ensemble
+            # disagreement kept only as a clearly-labelled reference.  Here the
+            # engine-native score clearly beats the static (~random) baseline.
+            "ood_auroc_engine": 0.78,
+            "ood_auroc_engine_innovation": 0.78,
+            "ood_auroc_engine_predictive_sigma": 0.71,
+            "ood_auroc_static_ensemble_disagreement": 0.57,
+            "ood_auroc_ensemble_disagreement": 0.57,
             "filter_coverage90_raw_indist": 0.945,
             "filter_coverage90_raw_ood": 0.734,
         },
@@ -481,10 +493,46 @@ def test_verdict_criterion2_nll_branch():
     assert rs["criterion2_transient_dynamics_win"] is True
     assert rs["criterion2_win_basis"] == "transient_NLL"
     assert rs["criterion1_filtering_calibrated"] is True
+    # criterion 3 now uses the engine-native AUROC (0.78), beating the static
+    # reference (0.57) by a clear margin — and is sourced from the engine.
     assert rs["criterion3_ood_honesty"] is True
+    assert rs["criterion3_auroc_basis"] == "engine_native_innovation"
+    assert rs["ood_auroc_engine_native"] == 0.78
     assert rs["all_met"] is True
     # bulk CRPS still a (failed) stretch goal, not the gate
     assert rs["stretch_bulk_crps_beats_static"] is False
+
+
+def test_verdict_ood_uses_engine_native_not_static():
+    """Criterion 3 must NOT pass on the static ensemble's disagreement alone.
+
+    The S7.4 artifact mislabelled the STATIC ensemble's 0.81 disagreement as the
+    engine's OOD signal.  S7.5 fixes this: with NO engine-native score present
+    and only the static disagreement available, criterion 3 falls back to the
+    static — but then the gate (auroc > static + 0.10) can never be met by the
+    static beating itself, so a static-only metrics dict does NOT pass crit 3.
+    """
+    metrics = {
+        "filtering": {"coverage_90_conf": 0.903},
+        "forecasting_indist_dense_transient": {
+            "same_truths_engine_vs_static": True,
+            "engine": {"5": {"nll_raw_transient": -0.17, "n_transient": 100}},
+            "static": {"5": {"nll_raw_transient": 0.59}},
+        },
+        "ood_honesty": {
+            # ONLY the static disagreement (the mislabelled v0/v1 key), no
+            # engine-native score → criterion 3 must NOT be satisfiable by it.
+            "ood_auroc_ensemble_disagreement": 0.81,
+            "filter_coverage90_raw_indist": 0.945,
+            "filter_coverage90_raw_ood": 0.734,
+        },
+    }
+    v = _verdict(metrics)
+    rs = v["rescoped_acceptance"]
+    assert rs["criterion3_auroc_basis"] == "static_fallback"
+    # static can't beat itself by +0.10 → criterion 3 not met on static alone
+    assert rs["criterion3_ood_honesty"] is False
+    assert v["ood_auroc_engine_native"] is None
 
 
 def test_gaussian_nll_matches_numpy():
@@ -498,6 +546,163 @@ def test_gaussian_nll_matches_numpy():
         np.mean(0.5 * (np.log(2 * np.pi * sig) + (y.numpy() - mu.numpy()) ** 2 / sig))
     )
     assert abs(got - expect) < 1e-6
+
+
+# ---------------------------------------------------------------------------
+# S7.5: Student-t emission head — CRPS / NLL correctness
+# ---------------------------------------------------------------------------
+
+
+def test_student_t_crps_matches_monte_carlo():
+    """Closed-form Student-t CRPS must match an MC estimate across ν."""
+    from scipy.stats import t as student_t
+
+    rng = np.random.default_rng(0)
+    mu, scale = 0.3, 0.7
+    y = np.array([0.5])
+    for nu in (3.0, 5.0, 12.0):
+        n = 2_000_000
+        X = mu + scale * student_t.rvs(df=nu, size=n, random_state=rng)
+        Xp = mu + scale * student_t.rvs(df=nu, size=n, random_state=rng)
+        mc = float(np.mean(np.abs(X - y[0])) - 0.5 * np.mean(np.abs(X - Xp)))
+        cf = crps_student_t(y, np.array([mu]), np.array([scale]), nu)
+        assert abs(cf - mc) / mc < 0.02, f"nu={nu}: CRPS cf={cf} vs MC={mc}"
+
+
+def test_student_t_crps_reduces_to_gaussian_at_large_nu():
+    """As ν→∞ the Student-t CRPS must converge to the Gaussian CRPS."""
+    from imas_ambix.statespace.calibration import crps_gaussian
+
+    y, mu, s = np.array([0.5]), np.array([0.3]), np.array([0.7])
+    g = crps_gaussian(y, mu, s)
+    t_big = crps_student_t(y, mu, s, 5000.0)
+    assert abs(g - t_big) < 1e-3, f"t-CRPS(ν=5000)={t_big} != gauss-CRPS={g}"
+
+
+def test_student_t_nll_matches_scipy():
+    """Closed-form Student-t NLL (numpy + torch) must match scipy.stats.t."""
+    from scipy.stats import t as student_t
+
+    rng = np.random.default_rng(1)
+    mu = rng.normal(0, 1, (200, 1))
+    scale2 = np.abs(rng.normal(1, 0.2, (200, 1))) + 0.1
+    y = rng.normal(0, 1, (200, 1))
+    nu = 4.5
+    # scipy log-density of a location-scale t: logpdf((y-mu)/s)/s = logpdf - 0.5 log s²
+    s = np.sqrt(scale2)
+    sp = float(np.mean(-(student_t.logpdf((y - mu) / s, df=nu) - np.log(s))))
+    np_got = student_t_nll_np(y, mu, scale2, nu)
+    assert abs(np_got - sp) < 1e-9
+    # torch version matches the numpy version
+    t_got = float(
+        student_t_nll(
+            torch.tensor(y),
+            torch.tensor(mu),
+            torch.tensor(scale2),
+            torch.tensor(nu),
+        )
+    )
+    assert abs(t_got - np_got) < 1e-6
+
+
+def test_student_t_head_shapes_and_nu():
+    """The Student-t observation head returns (μ, scale², ν>floor)."""
+    cfg = EngineConfig(
+        input_dim=5,
+        latent_dim=6,
+        output_dim=1,
+        emission="student_t",
+        student_t_nu=5.0,
+        student_t_nu_floor=2.1,
+    )
+    model = RKNEngine(cfg)
+    z = torch.randn(4, cfg.latent_dim)
+    var = torch.rand(4, cfg.latent_dim) + 0.1
+    mu, scale2, nu = model.observe_student_t(z, var)
+    assert mu.shape == (4, 1)
+    assert scale2.shape == (4, 1)
+    assert (scale2 > 0).all()
+    assert nu.shape == (1,)
+    assert float(nu.detach()) > 2.0  # finite variance
+    # scale² equals the Gaussian observe variance (same propagation machinery)
+    _, var_g = model.observe(z, var)
+    assert torch.allclose(scale2, var_g)
+
+
+def test_student_t_training_reduces_loss():
+    """Training with the Student-t head must reduce the loss (learnable ν)."""
+    rng = np.random.default_rng(0)
+    cfg = EngineConfig(
+        input_dim=4,
+        latent_dim=8,
+        output_dim=1,
+        n_epochs=8,
+        batch_size=8,
+        seq_len=40,
+        lr=3e-3,
+        train_horizons=(1, 2, 5),
+        emission="student_t",
+        num_threads=2,
+    )
+    xs, ys = [], []
+    for _ in range(40):
+        T = 80
+        drive = rng.normal(0, 1, (T, cfg.input_dim))
+        latent = np.cumsum(drive[:, 0]) * 0.1
+        # heavy-tailed target: occasional spikes
+        y = np.sin(latent)[:, None]
+        spikes = (rng.random(T) < 0.05)[:, None]
+        y = y + spikes * rng.normal(0, 3, (T, 1))
+        x = drive + rng.normal(0, 0.05, (T, cfg.input_dim))
+        xs.append(x.astype(np.float64))
+        ys.append(y.astype(np.float64))
+    model = RKNEngine(cfg)
+    state = train_engine(model, xs, ys, cfg, device="cpu")
+    assert len(state.epoch_losses) == cfg.n_epochs
+    assert state.epoch_losses[-1] < state.epoch_losses[0]
+    # ν learned to a finite (heavy-tailed) value
+    assert float(model.nu()[0].detach()) > 2.0
+
+
+def test_num_threads_restored_after_training():
+    """train_engine must restore the process-wide thread count it changed."""
+    before = torch.get_num_threads()
+    rng = np.random.default_rng(0)
+    cfg = EngineConfig(
+        input_dim=3,
+        latent_dim=4,
+        output_dim=1,
+        n_epochs=2,
+        batch_size=8,
+        seq_len=40,
+        train_horizons=(1, 2),
+        num_threads=2,
+    )
+    xs = [rng.normal(0, 1, (60, 3)) for _ in range(8)]
+    ys = [rng.normal(0, 1, (60, 1)) for _ in range(8)]
+    train_engine(RKNEngine(cfg), xs, ys, cfg, device="cpu")
+    assert torch.get_num_threads() == before
+
+
+def test_filter_innovation_is_engine_native_ood_score():
+    """filter_innovation must be larger on OOD-like inputs than in-dist.
+
+    The engine-native OOD score is the normalised filter-innovation magnitude:
+    inputs that surprise the learned dynamics produce a larger innovation.  A
+    far-from-prior input sequence must score higher than a quiet one.
+    """
+    torch.manual_seed(0)
+    cfg = EngineConfig(input_dim=6, latent_dim=8, output_dim=1)
+    model = RKNEngine(cfg)
+    model.eval()
+    T = 60
+    x_quiet = np.random.RandomState(0).randn(T, cfg.input_dim).astype(np.float64) * 0.1
+    x_wild = np.random.RandomState(1).randn(T, cfg.input_dim).astype(np.float64) * 8.0
+    s_quiet = filter_innovation_shot(model, x_quiet)
+    s_wild = filter_innovation_shot(model, x_wild)
+    assert s_quiet.shape == (T,)
+    assert (s_quiet >= 0).all() and (s_wild >= 0).all()
+    assert float(np.mean(s_wild)) > float(np.mean(s_quiet))
 
 
 if __name__ == "__main__":

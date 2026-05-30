@@ -118,6 +118,31 @@ class EngineConfig:
     # inflating the residual tail) and — unlike σ-rescaling — shrinks RESIDUALS,
     # so it helps CRPS and NLL together (no σ zero-sum).  0.0 = off (v0 behaviour).
     drift_reg_weight: float = 0.0
+    # --- S7.5 heavy-tailed emission head ------------------------------------
+    # "gaussian" (v0/v1) or "student_t".  A single-Gaussian observation head
+    # cannot be CRPS-sharp on the ~97%-quiescent Dα bulk AND NLL-tail-safe on the
+    # heavy-tailed ELM spikes at once — the NLL-optimal σ ≈ rmse ≫ the
+    # CRPS-optimal σ ≈ typical |residual| on a heavy-tailed residual.  A Student-t
+    # predictive resolves the tension: a SHARP scale tracks the bulk (low CRPS)
+    # while the heavy tail (finite ν) keeps the spike NLL bounded.  This is the
+    # principled fix for the v1 transient/bulk-CRPS loss.
+    emission: str = "gaussian"
+    # Student-t degrees of freedom.  If student_t_learn_nu, ν is a learned
+    # per-output parameter (softplus, floored at student_t_nu_floor so Var is
+    # finite, ν>2); else ν is FIXED at student_t_nu.  A moderate fixed ν≈4-6 is a
+    # robust default for ELM-spiked residuals (clear excess kurtosis but not
+    # Cauchy-like).
+    student_t_learn_nu: bool = True
+    student_t_nu: float = 5.0  # used when student_t_learn_nu is False
+    student_t_nu_floor: float = 2.1  # keep ν>2 so the t variance ν/(ν-2) is finite
+    # --- S7.5 perf: cap intra-op threads in training (the real ~100x lever) --
+    # The model is tiny (latent≤32) so training is OVERHEAD-bound: torch's default
+    # intra-op thread count (48 on the data host) thrashes and inflates the
+    # per-batch time ~100x (3 s vs 30 ms), which is what made the S7.4 drift-reg
+    # run look "85x slower" — it was actually thread oversubscription, present
+    # with drift-reg OFF too.  4-8 threads is the measured sweet spot.  None =
+    # leave torch's setting untouched.
+    num_threads: int | None = 4
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +196,13 @@ class RKNEngine(nn.Module):
         self.obs_var_w = nn.Parameter(torch.zeros(L, cfg.output_dim))
         self.log_obs_noise = nn.Parameter(torch.full((cfg.output_dim,), math.log(0.1)))
 
+        # S7.5: learned Student-t degrees of freedom (per output dim).  Only used
+        # when cfg.emission == "student_t".  Parameterised as ν = floor +
+        # softplus(raw) so ν > floor > 2 (finite variance).  Init near ν≈5.
+        nu_init = max(cfg.student_t_nu, cfg.student_t_nu_floor + 0.5)
+        raw_init = math.log(math.expm1(nu_init - cfg.student_t_nu_floor))
+        self.t_log_nu = nn.Parameter(torch.full((cfg.output_dim,), raw_init))
+
         # Initial belief (prior at t=0): learned mean ~0, broad variance.
         self.z0 = nn.Parameter(torch.zeros(L))
         self.log_var0 = nn.Parameter(torch.full((L,), math.log(1.0)))
@@ -216,8 +248,8 @@ class RKNEngine(nn.Module):
         return z_post, var_post
 
     def predict_step(
-        self, z: torch.Tensor, var: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        self, z: torch.Tensor, var: torch.Tensor, return_incr: bool = False
+    ):
         """Learned transition (predict).  INPUT-FREE: latent -> latent only.
 
         z_{t+1}   = z_t + f_theta(z_t)
@@ -225,12 +257,20 @@ class RKNEngine(nn.Module):
 
         Each call adds Q → variance grows with the number of predict steps →
         calibrated widening through transients during autonomous rollout.
+
+        ``return_incr`` (S7.5 perf): also return the transition-mean increment
+        f_θ(z) so the quiescent-drift penalty can REUSE the increment computed in
+        the forward scan instead of running a second full ``trans_mean`` forward
+        over all (B·T) latents (which built a redundant autograd subgraph).
         """
-        z_next = z + self.trans_mean(z)
+        incr = self.trans_mean(z)
+        z_next = z + incr
         a2 = self.trans_log_a.exp().pow(2.0)
         q = self.log_q.exp() + _VAR_FLOOR
         var_next = a2.unsqueeze(0) * var + q.unsqueeze(0)
         var_next = var_next.clamp(_VAR_FLOOR, _VAR_CEIL)
+        if return_incr:
+            return z_next, var_next, incr
         return z_next, var_next
 
     def observe(
@@ -247,6 +287,37 @@ class RKNEngine(nn.Module):
         out_var = out_var + self.log_obs_noise.exp().pow(2.0).unsqueeze(0)
         out_var = out_var.clamp(_VAR_FLOOR, _VAR_CEIL)
         return mu, out_var
+
+    def nu(self) -> torch.Tensor:
+        """Student-t degrees of freedom ν (D,) = floor + softplus(raw) (> floor > 2).
+
+        Learned when cfg.student_t_learn_nu; otherwise frozen at cfg.student_t_nu
+        (the parameter is initialised there and detached from the optimiser by
+        ``configure`` — see train_engine).  ν > 2 guarantees a finite t variance.
+        """
+        return self.cfg.student_t_nu_floor + F.softplus(self.t_log_nu)
+
+    def observe_student_t(
+        self, z: torch.Tensor, var: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Latent belief -> Student-t predictive (location μ, SCALE², ν).
+
+        Reuses the exact mean head and variance-propagation machinery of
+        ``observe`` but REINTERPRETS the propagated quantity as the t SCALE²
+        (the location-scale parameter), not the variance.  The predictive
+        *variance* is then scale² · ν/(ν-2) — wider than the Gaussian for the
+        same scale, which is the heavy tail.  Keeping the scale tied to the same
+        well-behaved belief-variable map means the only added expressiveness is
+        the tail shape ν, exactly the degree of freedom we want.
+
+        Returns
+        -------
+        mu    : (B, D) location.
+        scale2: (B, D) squared scale (the t's σ² location-scale parameter).
+        nu    : (D,)   degrees of freedom (broadcast over the batch).
+        """
+        mu, scale2 = self.observe(z, var)  # scale2 == the propagated belief var
+        return mu, scale2, self.nu()
 
     # -- sequence ops -------------------------------------------------------
 
@@ -308,6 +379,43 @@ class RKNEngine(nn.Module):
         obs_var = obs_var.reshape(B, T, -1)
         return z_post, var_post, obs_mu, obs_var
 
+    def filter_innovation(self, x_seq: torch.Tensor) -> torch.Tensor:
+        """Per-step normalised filter-innovation magnitude (S7.5 ENGINE-NATIVE OOD).
+
+        The innovation at t is the latent observation w_t (from the encoder)
+        minus the one-step PRIOR mean z_prior_t (predicted from the previous
+        posterior).  Normalised by the innovation variance var_prior + r — a
+        Mahalanobis-style "surprise" — and summed over latent dims:
+
+            s_t = Σ_d (w_{t,d} − z_prior_{t,d})² / (var_prior_{t,d} + r_{t,d})
+
+        A LARGE innovation means the encoder's read of inputs_t disagrees with
+        what the learned dynamics predicted — exactly the model-internal signal
+        that the current operating point is novel.  Unlike the static ensemble's
+        disagreement (an input-space novelty external to the dynamics), this is a
+        TRUE engine signal: it uses the transition kernel + belief.  Returns
+        (B, T); t=0 (no prior) is set to its t=1 value to avoid a warmup spike.
+        """
+        B, T, _ = x_seq.shape  # noqa: N806
+        device, dtype = x_seq.device, x_seq.dtype
+        z, var = self.initial_belief(B, device, dtype)
+        w_all, r_all = self.encode(x_seq.reshape(B * T, x_seq.shape[-1]))
+        w_all = w_all.reshape(B, T, -1)
+        r_all = r_all.reshape(B, T, -1)
+        scores = []
+        for t in range(T):
+            if t > 0:
+                z, var = self.predict_step(z, var)
+            innov = w_all[:, t] - z  # (B, L) prior-mean innovation
+            denom = (var + r_all[:, t]).clamp_min(_VAR_FLOOR)
+            s = (innov * innov / denom).sum(dim=-1)  # (B,)
+            scores.append(s)
+            z, var = self.update_step(z, var, w_all[:, t], r_all[:, t])
+        out = torch.stack(scores, dim=1)  # (B, T)
+        if T > 1:
+            out[:, 0] = out[:, 1]
+        return out
+
     def rollout(
         self,
         z_anchor: torch.Tensor,
@@ -360,6 +468,92 @@ def gaussian_nll(y: torch.Tensor, mu: torch.Tensor, var: torch.Tensor) -> torch.
     return 0.5 * (torch.log(2.0 * math.pi * var) + (y - mu) ** 2 / var).mean()
 
 
+def student_t_nll(
+    y: torch.Tensor, mu: torch.Tensor, scale2: torch.Tensor, nu: torch.Tensor
+) -> torch.Tensor:
+    """Mean Student-t NLL for a location-scale t with squared scale ``scale2``.
+
+    For X ~ t_ν(μ, s) with s² = scale2:
+        log p(y) = log Γ((ν+1)/2) − log Γ(ν/2) − 0.5 log(ν π s²)
+                   − (ν+1)/2 · log(1 + (y−μ)² / (ν s²))
+    The first two (constant-in-data) terms still depend on ν (a free parameter),
+    so learning ν is well-posed.  This is the training counterpart of
+    ``gaussian_nll`` for the heavy-tailed emission head.
+    """
+    scale2 = scale2.clamp(_VAR_FLOOR, _VAR_CEIL)
+    nu = nu.clamp_min(2.0 + 1e-3)
+    z2 = (y - mu) ** 2 / scale2
+    log_norm = (
+        torch.lgamma((nu + 1.0) / 2.0)
+        - torch.lgamma(nu / 2.0)
+        - 0.5 * torch.log(nu * math.pi * scale2)
+    )
+    log_kernel = -((nu + 1.0) / 2.0) * torch.log1p(z2 / nu)
+    return (-(log_norm + log_kernel)).mean()
+
+
+# ---------------------------------------------------------------------------
+# Student-t scoring (numpy) — CRPS + NLL for the harness
+# ---------------------------------------------------------------------------
+#
+# calibration.py (import-only for S7.5) provides only Gaussian closed forms, so
+# the Student-t emission head's CRPS/NLL live here.  Both are standard
+# closed-form expressions validated against Monte-Carlo in the engine tests.
+
+
+def student_t_nll_np(
+    y: np.ndarray, mu: np.ndarray, scale2: np.ndarray, nu: np.ndarray | float
+) -> float:
+    """Mean Student-t NLL (numpy), location-scale t with squared scale scale2."""
+    from scipy.special import gammaln  # noqa: PLC0415
+
+    scale2 = np.maximum(np.asarray(scale2, dtype=np.float64), 1e-12)
+    nu = np.asarray(nu, dtype=np.float64)
+    nu = np.maximum(nu, 2.0 + 1e-3)
+    z2 = (np.asarray(y) - np.asarray(mu)) ** 2 / scale2
+    log_norm = (
+        gammaln((nu + 1.0) / 2.0)
+        - gammaln(nu / 2.0)
+        - 0.5 * np.log(nu * np.pi * scale2)
+    )
+    log_kernel = -((nu + 1.0) / 2.0) * np.log1p(z2 / nu)
+    return float(np.mean(-(log_norm + log_kernel)))
+
+
+def crps_student_t(
+    y: np.ndarray, mu: np.ndarray, scale: np.ndarray, nu: np.ndarray | float
+) -> float:
+    """CRPS for a location-scale Student-t predictive (analytic closed form).
+
+    For Y ~ t_ν(μ, σ) with σ = ``scale`` and ω = (y-μ)/σ (Jordan, Krüger &
+    Lerch 2019, "Evaluating probabilistic forecasts with scoringRules", eq. for
+    crps_t; equivalently scoringRules::crps_t):
+
+      CRPS/σ = ω (2 T_ν(ω) − 1)
+               + 2 f_ν(ω) (ν + ω²)/(ν − 1)
+               − (2 √ν)/(ν − 1) · B(½, ν − ½) / B(½, ν/2)²
+
+    where f_ν, T_ν are the standard-t pdf/cdf and B is the beta function.  Valid
+    for ν > 1.  Units match ``y``.  Returns the mean over all samples.
+    """
+    from scipy.special import beta as betafn  # noqa: PLC0415
+    from scipy.stats import t as student_t  # noqa: PLC0415
+
+    scale = np.maximum(np.abs(np.asarray(scale, dtype=np.float64)), 1e-12)
+    nu = np.asarray(nu, dtype=np.float64)
+    nu = np.maximum(nu, 1.0 + 1e-3)
+    omega = (np.asarray(y) - np.asarray(mu)) / scale
+    f = student_t.pdf(omega, df=nu)
+    Tc = student_t.cdf(omega, df=nu)  # noqa: N806
+    term1 = omega * (2.0 * Tc - 1.0)
+    term2 = 2.0 * f * (nu + omega**2) / (nu - 1.0)
+    term3 = (2.0 * np.sqrt(nu) / (nu - 1.0)) * (
+        betafn(0.5, nu - 0.5) / (betafn(0.5, nu / 2.0) ** 2)
+    )
+    crps = scale * (term1 + term2 - term3)
+    return float(np.mean(crps))
+
+
 # ---------------------------------------------------------------------------
 # Training
 # ---------------------------------------------------------------------------
@@ -389,7 +583,8 @@ def _sample_anchor_rollout_loss(
 
     For ``n_anchors`` sampled anchor indices t (each with t + max(h) < T), take
     the FILTERED posterior belief at t (uses inputs_{1:t} only), roll the predict
-    step forward, and accumulate Gaussian NLL of the true Dα_{t+h}.
+    step forward, and accumulate the emission NLL (Gaussian or Student-t per
+    ``model.cfg.emission``) of the true Dα_{t+h}.
 
     CRITICAL (acceptance): the engine is *scored* on dense transient windows, so
     the propagated process noise Q must be calibrated to TRANSIENT rollout error,
@@ -425,15 +620,20 @@ def _sample_anchor_rollout_loss(
         anchors = torch.multinomial(probs, n_anchors, replacement=True, generator=rng)
 
     h_sorted = sorted(horizons)
+    is_t = model.cfg.emission == "student_t"
+    nu = model.nu() if is_t else None
     losses = []
     for t_anchor in anchors.tolist():
         t_anchor = int(t_anchor)
         z_a = z_post[:, t_anchor, :]
         var_a = var_post[:, t_anchor, :]
-        mu, var = model.rollout(z_a, var_a, horizons)  # (B, H, D)
+        mu, var = model.rollout(z_a, var_a, horizons)  # (B, H, D); var == scale² for t
         for i, h in enumerate(h_sorted):
             y_h = y_seq[:, t_anchor + h, :]  # (B, D)
-            losses.append(gaussian_nll(y_h, mu[:, i, :], var[:, i, :]))
+            if is_t:
+                losses.append(student_t_nll(y_h, mu[:, i, :], var[:, i, :], nu))
+            else:
+                losses.append(gaussian_nll(y_h, mu[:, i, :], var[:, i, :]))
     return torch.stack(losses).mean()
 
 
@@ -493,9 +693,28 @@ def train_engine(
     -------
     TrainState with per-epoch losses.
     """
+    # S7.5 PERF FIX: cap intra-op threads.  The model is tiny (latent≤32) so the
+    # forward+backward is overhead-bound; torch's default 48-thread pool thrashes
+    # and inflates the per-batch time ~100x (3 s vs ~30 ms at 4-8 threads).  This —
+    # NOT the drift regulariser — was the S7.4 "85x slower per batch" finding (the
+    # 48-thread cost is present with drift-reg OFF too; the penalty itself adds
+    # only ~7%).  We restore the original thread count after training.
+    _saved_threads = torch.get_num_threads()
+    if cfg.num_threads is not None:
+        torch.set_num_threads(int(cfg.num_threads))
+        logger.info(
+            "[engine] torch intra-op threads capped %d -> %d (perf; model is tiny)",
+            _saved_threads,
+            cfg.num_threads,
+        )
+
     model = model.to(device)
     model.train()
-    opt = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    # Freeze ν when fixed: keep it out of the optimiser so it stays at the init.
+    if cfg.emission == "student_t" and not cfg.student_t_learn_nu:
+        model.t_log_nu.requires_grad_(False)
+    params = [p for p in model.parameters() if p.requires_grad]
+    opt = torch.optim.Adam(params, lr=cfg.lr, weight_decay=cfg.weight_decay)
     torch.manual_seed(cfg.seed)
     rng = torch.Generator()
     rng.manual_seed(cfg.seed + 7)
@@ -526,6 +745,7 @@ def train_engine(
     state = TrainState()
     t0 = time.time()
     np_rng = np.random.default_rng(cfg.seed + 11)
+    epoch_loop_complete = False
     for epoch in range(cfg.n_epochs):
         if stop_flag is not None and stop_flag():
             logger.info(
@@ -542,7 +762,11 @@ def train_engine(
 
             wb = W[idx].to(device)  # (B, T) transient weights
             z_post, var_post, obs_mu, obs_var = model.filter_sequence(xb)
-            filt = gaussian_nll(yb, obs_mu, obs_var)
+            # obs_var == the t SCALE² when emission == "student_t".
+            if cfg.emission == "student_t":
+                filt = student_t_nll(yb, obs_mu, obs_var, model.nu())
+            else:
+                filt = gaussian_nll(yb, obs_mu, obs_var)
             # Batch-mean transient weight per timestep drives anchor sampling.
             roll = _sample_anchor_rollout_loss(
                 model,
@@ -580,8 +804,13 @@ def train_engine(
                 state.epoch_rollout_nll[-1],
                 time.time() - t0,
             )
+    epoch_loop_complete = True
     state.seconds = time.time() - t0
     model.eval()
+    # Restore the process-wide thread count we changed for the training run.
+    if cfg.num_threads is not None:
+        torch.set_num_threads(_saved_threads)
+    _ = epoch_loop_complete  # documents normal completion (no early raise)
     return state
 
 
@@ -854,6 +1083,11 @@ class ExperimentConfig:
     # S7.4 levers (bounded iteration; reported, not silent)
     drift_reg_weight: float = 0.0  # quiescent persistence regulariser (0 = v0)
     train_horizons: tuple[int, ...] | None = None  # override training rollout horizons
+    # S7.5 levers
+    emission: str = "gaussian"  # "gaussian" (v0/v1) or "student_t" (heavy-tail head)
+    student_t_learn_nu: bool = True
+    student_t_nu: float = 5.0
+    num_threads: int | None = 4  # cap intra-op threads in training (perf)
 
 
 def _stack_runs_for_static(runs: list[ShotRun]) -> tuple[np.ndarray, np.ndarray]:
@@ -956,11 +1190,19 @@ def _score_horizons(
     horizons: tuple[int, ...],
     conformal_q: dict[int, float] | None = None,
     transient_flag: np.ndarray | None = None,
+    nu: float | None = None,
 ) -> dict:
     """Per-horizon CRPS / NLL (raw σ) + coverage / PI-width (conformal σ).
 
     mu, var, y : (P, H, D).  CRPS/NLL use raw σ (baseline convention); coverage
     uses the per-horizon conformal scale ``conformal_q[h]`` if supplied.
+
+    nu : if not None, ``var`` is interpreted as the Student-t SCALE² (location-
+    scale parameter) and CRPS/NLL use the closed-form Student-t scores (S7.5
+    heavy-tail head).  The reported ``mean_sigma_raw`` is then the predictive
+    STD = scale·√(ν/(ν-2)) (so the σ-vs-rmse diagnostic stays comparable), while
+    the conformal interval rescales the predictive std — conformal coverage is
+    distribution-corrected either way.  ``nu`` None → Gaussian (v0/v1 behaviour).
 
     transient_flag : (P, H) bool.  If supplied, CRPS is ALSO reported on the
     subset where the FORECAST TARGET Dα_{t+h} is itself ELM-active — the
@@ -976,6 +1218,20 @@ def _score_horizons(
         prediction_interval_width,
     )
 
+    is_t = nu is not None
+    # For a t_ν the predictive std relates to the scale by √(ν/(ν-2)).
+    std_factor = math.sqrt(nu / (nu - 2.0)) if (is_t and nu > 2.0) else 1.0
+
+    def _crps(yv, mv, scale_or_sigma):
+        if is_t:
+            return crps_student_t(yv, mv, scale_or_sigma, nu)
+        return crps_gaussian(yv, mv, scale_or_sigma)
+
+    def _nll(yv, mv, scale_or_sigma):
+        if is_t:
+            return student_t_nll_np(yv, mv, scale_or_sigma**2, nu)
+        return nll_gaussian(yv, mv, scale_or_sigma)
+
     out: dict[str, dict] = {}
     h_sorted = sorted(horizons)
     for i, h in enumerate(h_sorted):
@@ -987,19 +1243,25 @@ def _score_horizons(
             out[str(h)] = {"n": int(ok.sum())}
             continue
         mo, vo, yto = m[ok], v[ok], yt[ok]
-        sigma_raw = np.sqrt(np.maximum(vo, 1e-12))
+        # ``scale_raw`` is the t scale (or the Gaussian σ); ``std`` is the
+        # predictive std reported for the σ-vs-rmse diagnostic.
+        scale_raw = np.sqrt(np.maximum(vo, 1e-12))
+        std = scale_raw * std_factor
         rec = {
             "n": int(ok.sum()),
-            "crps_raw": float(crps_gaussian(yto, mo, sigma_raw)),
-            "nll_raw": float(nll_gaussian(yto, mo, sigma_raw)),
+            "crps_raw": float(_crps(yto, mo, scale_raw)),
+            "nll_raw": float(_nll(yto, mo, scale_raw)),
             "rmse": float(np.sqrt(np.mean((yto - mo) ** 2))),
-            "mean_sigma_raw": float(np.mean(sigma_raw)),
+            "mean_sigma_raw": float(np.mean(std)),
         }
         if conformal_q is not None and h in conformal_q:
             from scipy.stats import norm  # noqa: PLC0415
 
             z = float(norm.ppf(0.95))
-            sigma_conf = conformal_q[h] * sigma_raw / z
+            # Conformal rescales the PREDICTIVE STD; the residual-quantile fit
+            # (fit_horizon_conformal) used the same std, so coverage is correct
+            # for either emission.
+            sigma_conf = conformal_q[h] * std / z
             rec["coverage_90_conf"] = float(
                 interval_coverage(yto, mo, sigma_conf, alpha=0.10)
             )
@@ -1013,12 +1275,12 @@ def _score_horizons(
                 mt = mu[tf, i, 0]
                 vt = var[tf, i, 0]
                 ytt = y[tf, i, 0]
-                st = np.sqrt(np.maximum(vt, 1e-12))
+                st = np.sqrt(np.maximum(vt, 1e-12))  # t scale or Gaussian σ
                 rec["n_transient"] = int(tf.sum())
-                rec["crps_raw_transient"] = float(crps_gaussian(ytt, mt, st))
-                rec["nll_raw_transient"] = float(nll_gaussian(ytt, mt, st))
+                rec["crps_raw_transient"] = float(_crps(ytt, mt, st))
+                rec["nll_raw_transient"] = float(_nll(ytt, mt, st))
                 rec["rmse_transient"] = float(np.sqrt(np.mean((ytt - mt) ** 2)))
-                rec["mean_sigma_raw_transient"] = float(np.mean(st))
+                rec["mean_sigma_raw_transient"] = float(np.mean(st * std_factor))
             else:
                 rec["n_transient"] = int(tf.sum())
         out[str(h)] = rec
@@ -1121,6 +1383,10 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
             "train_horizons": list(cfg.train_horizons)
             if cfg.train_horizons is not None
             else list(cfg.horizons),
+            "emission": cfg.emission,
+            "student_t_learn_nu": cfg.student_t_learn_nu,
+            "student_t_nu_init": cfg.student_t_nu,
+            "num_threads": cfg.num_threads,
         }
     }
 
@@ -1184,6 +1450,10 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         train_horizons=tuple(train_h),
         seed=cfg.seed,
         drift_reg_weight=cfg.drift_reg_weight,
+        emission=cfg.emission,
+        student_t_learn_nu=cfg.student_t_learn_nu,
+        student_t_nu=cfg.student_t_nu,
+        num_threads=cfg.num_threads,
     )
     x_train_n = [stats.normalise_X(r.X.astype(np.float64)) for r in train_runs]
     y_train_n = [stats.normalise_y(r.y.astype(np.float64)) for r in train_runs]
@@ -1192,6 +1462,8 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     tstate = train_engine(
         model, x_train_n, y_train_n, eng_cfg, device=cfg.device, stop_flag=stop
     )
+    # Student-t dof to pass into the scoring path (None for Gaussian).
+    eng_nu = float(model.nu()[0].item()) if cfg.emission == "student_t" else None
     metrics["engine_train"] = {
         "epochs_run": len(tstate.epoch_losses),
         "final_loss": tstate.epoch_losses[-1] if tstate.epoch_losses else None,
@@ -1202,6 +1474,8 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         if tstate.epoch_rollout_nll
         else None,
         "seconds": round(tstate.seconds, 1),
+        "emission": cfg.emission,
+        "student_t_nu_learned": eng_nu,
     }
 
     # --- 5. retrain static comparator (baseline classes, same train slices) --
@@ -1238,7 +1512,7 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
 
     # --- 6. FILTERING eval (engine, causal, in-dist-test) -------------------
     metrics["filtering"] = _eval_filtering(
-        model, idt_runs, conf_runs, stats, cfg.device
+        model, idt_runs, conf_runs, stats, cfg.device, nu=eng_nu
     )
 
     # --- 7. dense transient anchors (shared selector) -----------------------
@@ -1256,11 +1530,21 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
 
     # --- 8. per-horizon conformal calibration on CONF runs (dense windows) --
     # Engine conformal: from engine forecasts on conf anchors.
+    eng_std_factor = (
+        math.sqrt(eng_nu / (eng_nu - 2.0))
+        if (eng_nu is not None and eng_nu > 2.0)
+        else 1.0
+    )
     eng_mu_cf, eng_var_cf, eng_y_cf = _engine_horizon_pairs(
         model, conf_runs, conf_anchors, cfg.horizons, stats, cfg.device
     )
     eng_q = _per_horizon_q(
-        eng_mu_cf, eng_var_cf, eng_y_cf, cfg.horizons, fit_horizon_conformal
+        eng_mu_cf,
+        eng_var_cf,
+        eng_y_cf,
+        cfg.horizons,
+        fit_horizon_conformal,
+        std_factor=eng_std_factor,
     )
     # Static conformal: static map at each horizon on conf anchors.
     stat_mu_cf, stat_var_cf, stat_y_cf = _static_horizon_predict(
@@ -1289,7 +1573,14 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         "n_anchor_pairs": int(eng_mu.shape[0]),
         "same_truths_engine_vs_static": same_truth,
         "engine": _score_horizons(
-            "ENGINE/idt", eng_mu, eng_var, eng_y, cfg.horizons, eng_q, idt_tflag
+            "ENGINE/idt",
+            eng_mu,
+            eng_var,
+            eng_y,
+            cfg.horizons,
+            eng_q,
+            idt_tflag,
+            nu=eng_nu,
         ),
         "static": _score_horizons(
             "STATIC/idt", stat_mu, stat_var, stat_y, cfg.horizons, stat_q, idt_tflag
@@ -1317,7 +1608,14 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     metrics["forecasting_ood_dense_transient"] = {
         "n_anchor_pairs": int(eng_mu_o.shape[0]),
         "engine": _score_horizons(
-            "ENGINE/ood", eng_mu_o, eng_var_o, eng_y_o, cfg.horizons, eng_q, ood_tflag
+            "ENGINE/ood",
+            eng_mu_o,
+            eng_var_o,
+            eng_y_o,
+            cfg.horizons,
+            eng_q,
+            ood_tflag,
+            nu=eng_nu,
         ),
         "static": _score_horizons(
             "STATIC/ood",
@@ -1338,6 +1636,7 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         regime_scalars,
         train_runs,
         cfg.device,
+        nu=eng_nu,
     )
 
     # --- 11. optional smoothing --------------------------------------------
@@ -1377,8 +1676,15 @@ def _make_stop_flag():
     return _flag
 
 
-def _per_horizon_q(mu, var, y, horizons, fit_fn) -> dict[int, float]:
-    """Fit a split-conformal scale q̂ per horizon from calibration forecasts."""
+def _per_horizon_q(
+    mu, var, y, horizons, fit_fn, std_factor: float = 1.0
+) -> dict[int, float]:
+    """Fit a split-conformal scale q̂ per horizon from calibration forecasts.
+
+    ``std_factor`` (S7.5 Student-t): the conformal residual-quantile is fit on
+    the PREDICTIVE STD = scale·std_factor (std_factor = √(ν/(ν-2)) for a t_ν),
+    matching what ``_score_horizons`` rescales for coverage.  1.0 = Gaussian.
+    """
     q: dict[int, float] = {}
     for i, h in enumerate(sorted(horizons)):
         m, v, yt = mu[:, i, 0], var[:, i, 0], y[:, i, 0]
@@ -1386,7 +1692,8 @@ def _per_horizon_q(mu, var, y, horizons, fit_fn) -> dict[int, float]:
         if ok.sum() < 10:
             q[h] = 1.0
             continue
-        q[h] = fit_fn(yt[ok], m[ok], np.sqrt(np.maximum(v[ok], 1e-12)), alpha=0.10)
+        std = np.sqrt(np.maximum(v[ok], 1e-12)) * std_factor
+        q[h] = fit_fn(yt[ok], m[ok], std, alpha=0.10)
     return q
 
 
@@ -1492,11 +1799,21 @@ def _dump_pairs(tag, eng_mu, eng_var, stat_mu, stat_var, y, tflag, horizons) -> 
 
 
 def _eval_filtering(
-    model, idt_runs, conf_runs, stats, device, burn_in: int = 20
+    model,
+    idt_runs,
+    conf_runs,
+    stats,
+    device,
+    burn_in: int = 20,
+    nu: float | None = None,
 ) -> dict:
     """Causal filtering coverage / CRPS / NLL on in-dist-test runs.
 
     Coverage uses split-conformal fit on conf runs' filtered residuals.
+
+    ``nu`` (S7.5): if set, the filtered ``var`` is the Student-t SCALE² and the
+    CRPS/NLL use the closed-form t scores; the conformal fit + coverage use the
+    predictive std = scale·√(ν/(ν-2)).  ``nu`` None → Gaussian (v0/v1 behaviour).
 
     BURN-IN (critical for honest coverage): the belief starts at the broad prior
     (var0 = data-std); the first few updates are prior-dominated, so the filtered
@@ -1521,8 +1838,13 @@ def _eval_filtering(
         fit_horizon_conformal,
     )
 
+    is_t = nu is not None
+    std_factor = math.sqrt(nu / (nu - 2.0)) if (is_t and nu > 2.0) else 1.0
+
     def _collect(runs):
-        ys, mus, sigs = [], [], []
+        # Returns y, mu, SCALE (t scale, or Gaussian σ).  Predictive std =
+        # scale·std_factor is derived where coverage is computed.
+        ys, mus, scales = [], [], []
         for r in runs:
             if r.X.shape[0] <= burn_in + 1:
                 continue
@@ -1530,30 +1852,39 @@ def _eval_filtering(
                 model, stats.normalise_X(r.X.astype(np.float64)), device
             )
             mu_p = stats.denormalise_y_mean(mu_n)[:, 0]
-            sig_p = np.sqrt(np.maximum(var_n[:, 0] * stats.target_std[0] ** 2, 1e-12))
+            scale_p = np.sqrt(np.maximum(var_n[:, 0] * stats.target_std[0] ** 2, 1e-12))
             ys.append(r.y[burn_in:, 0])
             mus.append(mu_p[burn_in:])
-            sigs.append(sig_p[burn_in:])
-        return (np.concatenate(ys), np.concatenate(mus), np.concatenate(sigs))
+            scales.append(scale_p[burn_in:])
+        return (np.concatenate(ys), np.concatenate(mus), np.concatenate(scales))
 
-    cf_y, cf_mu, cf_sig = _collect(conf_runs)
-    q = fit_horizon_conformal(cf_y, cf_mu, cf_sig, alpha=0.10)
     z = float(norm.ppf(0.95))
+    cf_y, cf_mu, cf_scale = _collect(conf_runs)
+    # conformal fits on the PREDICTIVE STD (matches coverage rescale)
+    q = fit_horizon_conformal(cf_y, cf_mu, cf_scale * std_factor, alpha=0.10)
 
-    y, mu, sig = _collect(idt_runs)
-    sig_conf = q * sig / z
+    y, mu, scale = _collect(idt_runs)
+    std = scale * std_factor  # predictive std (for coverage / PI width)
+    sig_conf = q * std / z
+    if is_t:
+        crps = crps_student_t(y, mu, scale, nu)
+        nll = student_t_nll_np(y, mu, scale**2, nu)
+    else:
+        crps = crps_gaussian(y, mu, scale)
+        nll = nll_gaussian(y, mu, scale)
     return {
         "n_slices": int(len(y)),
         "burn_in_dropped": int(burn_in),
         "conformal_q": float(q),
-        "coverage_90_raw": float(interval_coverage(y, mu, sig, alpha=0.10)),
+        "coverage_90_raw": float(interval_coverage(y, mu, std, alpha=0.10)),
         "coverage_90_conf": float(interval_coverage(y, mu, sig_conf, alpha=0.10)),
         "pi_width_90_conf": float(prediction_interval_width(sig_conf, alpha=0.10)),
-        "mean_sigma_raw": float(np.mean(sig)),
+        "mean_sigma_raw": float(np.mean(std)),
         "mean_sigma_conf": float(np.mean(sig_conf)),
-        "crps_raw": float(crps_gaussian(y, mu, sig)),
-        "nll_raw": float(nll_gaussian(y, mu, sig)),
+        "crps_raw": float(crps),
+        "nll_raw": float(nll),
         "rmse": float(np.sqrt(np.mean((y - mu) ** 2))),
+        "emission": "student_t" if is_t else "gaussian",
     }
 
 
@@ -1586,15 +1917,29 @@ def _eval_smoothing(model, idt_runs, stats, device) -> dict:
 
 
 def _ood_honesty(
-    model, ensemble, idt_runs, ood_runs, stats, regime_scalars, train_runs, device
+    model,
+    ensemble,
+    idt_runs,
+    ood_runs,
+    stats,
+    regime_scalars,
+    train_runs,
+    device,
+    nu: float | None = None,
 ) -> dict:
-    """OOD honesty: coverage non-collapse + a quantified novelty signal.
+    """OOD honesty: coverage non-collapse + quantified novelty signals.
 
     Reports (a) engine filtering coverage on OOD vs in-dist (non-collapse),
-    (b) OOD-AUROC from ensemble disagreement (input-novelty), and
-    (c) coverage-vs-distance from the regime axis.  Reported honestly — not
-    hard-thresholded (static OOD-AUROC≈0.568 ~ random; the high-Iₚ×ne axis may
-    not surface as encoder-visible input novelty).
+    (b) ENGINE-NATIVE OOD-AUROC from the engine's OWN signals — the filtered
+    predictive σ and the normalised filter-innovation magnitude — so the OOD
+    comparison is a TRUE engine-vs-static one (S7.5 refinement #2), (c) the
+    static deep-ensemble disagreement AUROC kept for reference (CLEARLY labelled
+    as the static model's, not the engine's — the S7.4 artifact mislabelled it),
+    and (d) coverage-vs-distance from the regime axis using the engine-native
+    score.  Reported honestly — not hard-thresholded.
+
+    ``nu`` (S7.5): when set, the filtered ``var`` is the Student-t SCALE² and the
+    reported predictive σ = scale·√(ν/(ν-2)).
     """
     from imas_ambix.statespace.calibration import (  # noqa: PLC0415
         coverage_vs_distance,
@@ -1602,25 +1947,40 @@ def _ood_honesty(
         interval_coverage,
         ood_auroc,
     )
-    from imas_ambix.statespace.filter import filter_shot  # noqa: PLC0415
+    from imas_ambix.statespace.filter import (  # noqa: PLC0415
+        filter_innovation_shot,
+        filter_shot,
+    )
+
+    is_t = nu is not None
+    std_factor = math.sqrt(nu / (nu - 2.0)) if (is_t and nu > 2.0) else 1.0
 
     def _cov(runs):
-        ys, mus, sigs = [], [], []
+        # Per-slice: truth, mean, predictive std, AND the two engine-native OOD
+        # scores (predictive σ itself, and the filter-innovation magnitude).
+        ys, mus, sigs, innos = [], [], [], []
         for r in runs:
-            mu_n, var_n = filter_shot(
-                model, stats.normalise_X(r.X.astype(np.float64)), device
-            )
+            x_norm = stats.normalise_X(r.X.astype(np.float64))
+            mu_n, var_n = filter_shot(model, x_norm, device)
             mu_p = stats.denormalise_y_mean(mu_n)[:, 0]
-            sig_p = np.sqrt(np.maximum(var_n[:, 0] * stats.target_std[0] ** 2, 1e-12))
+            scale_p = np.sqrt(np.maximum(var_n[:, 0] * stats.target_std[0] ** 2, 1e-12))
+            sig_p = scale_p * std_factor  # predictive std (t or Gaussian)
+            inno_p = filter_innovation_shot(model, x_norm, device)  # (T,)
             ys.append(r.y[:, 0])
             mus.append(mu_p)
             sigs.append(sig_p)
+            innos.append(inno_p)
         if not ys:
-            return None, None, None
-        return np.concatenate(ys), np.concatenate(mus), np.concatenate(sigs)
+            return None, None, None, None
+        return (
+            np.concatenate(ys),
+            np.concatenate(mus),
+            np.concatenate(sigs),
+            np.concatenate(innos),
+        )
 
-    y_i, mu_i, sig_i = _cov(idt_runs)
-    y_o, mu_o, sig_o = _cov(ood_runs)
+    y_i, mu_i, sig_i, inno_i = _cov(idt_runs)
+    y_o, mu_o, sig_o, inno_o = _cov(ood_runs)
     out: dict = {}
     if y_i is not None and y_o is not None:
         # raw (unconformalised) coverage so we see the model's native widening
@@ -1633,15 +1993,38 @@ def _ood_honesty(
         out["mean_sigma_indist"] = float(np.mean(sig_i))
         out["mean_sigma_ood"] = float(np.mean(sig_o))
 
-    # OOD-AUROC from ensemble disagreement (static-model novelty score)
+    # ENGINE-NATIVE OOD-AUROC (S7.5 refinement #2): the engine's own signals.
+    #   (1) predictive σ magnitude — does the model widen its belief on OOD?
+    #   (2) filter-innovation magnitude — does inputs_t surprise the dynamics?
+    if y_i is not None and y_o is not None:
+        try:
+            out["ood_auroc_engine_predictive_sigma"] = float(ood_auroc(sig_i, sig_o))
+        except Exception as e:  # noqa: BLE001
+            out["ood_auroc_engine_predictive_sigma_error"] = str(e)
+        try:
+            out["ood_auroc_engine_innovation"] = float(ood_auroc(inno_i, inno_o))
+        except Exception as e:  # noqa: BLE001
+            out["ood_auroc_engine_innovation_error"] = str(e)
+        # Headline engine-native score = the better-motivated innovation signal.
+        out["ood_auroc_engine"] = out.get("ood_auroc_engine_innovation")
+        out["mean_innovation_indist"] = float(np.mean(inno_i))
+        out["mean_innovation_ood"] = float(np.mean(inno_o))
+
+    # STATIC deep-ensemble disagreement AUROC — kept for reference, CLEARLY
+    # labelled as the STATIC model's input-novelty score (NOT an engine signal;
+    # the S7.4 artifact's "ood_auroc 0.81" was this number, mislabelled).
     Xi = np.concatenate([r.X for r in idt_runs]).astype(np.float64)
     Xo = np.concatenate([r.X for r in ood_runs]).astype(np.float64)
     _, _, ens_i = ensemble.predict(stats.normalise_X(Xi))
     _, _, ens_o = ensemble.predict(stats.normalise_X(Xo))
     try:
-        out["ood_auroc_ensemble_disagreement"] = float(
+        out["ood_auroc_static_ensemble_disagreement"] = float(
             ood_auroc(ensemble_disagreement(ens_i), ensemble_disagreement(ens_o))
         )
+        # back-compat alias (the v0/v1 key) — same static number, now labelled
+        out["ood_auroc_ensemble_disagreement"] = out[
+            "ood_auroc_static_ensemble_disagreement"
+        ]
     except Exception as e:  # noqa: BLE001
         out["ood_auroc_error"] = str(e)
 
@@ -1814,7 +2197,23 @@ def _verdict(metrics: dict) -> dict:
 
     # (3) OOD honesty quantified + coverage non-collapse
     ood = metrics.get("ood_honesty", {})
-    v["ood_auroc"] = ood.get("ood_auroc_ensemble_disagreement")
+    # S7.5: criterion 3 now uses the ENGINE-NATIVE OOD-AUROC (the engine's own
+    # innovation / predictive-σ signal), falling back to the static-ensemble
+    # disagreement only if the engine-native key is absent (v0/v1 dicts).  The
+    # static number is recorded as a clearly-labelled REFERENCE, never the gate.
+    engine_auroc = ood.get("ood_auroc_engine")
+    static_disagreement = ood.get(
+        "ood_auroc_static_ensemble_disagreement",
+        ood.get("ood_auroc_ensemble_disagreement"),
+    )
+    # The headline ood_auroc is the engine-native one when available.
+    v["ood_auroc"] = engine_auroc if engine_auroc is not None else static_disagreement
+    v["ood_auroc_engine_native"] = engine_auroc
+    v["ood_auroc_engine_predictive_sigma"] = ood.get(
+        "ood_auroc_engine_predictive_sigma"
+    )
+    v["ood_auroc_engine_innovation"] = ood.get("ood_auroc_engine_innovation")
+    v["ood_auroc_static_ensemble_disagreement"] = static_disagreement
     ci = ood.get("filter_coverage90_raw_indist")
     co = ood.get("filter_coverage90_raw_ood")
     v["ood_coverage_noncollapse"] = bool(co is not None and co > 0.5)
@@ -1824,10 +2223,11 @@ def _verdict(metrics: dict) -> dict:
     # ---- RE-SCOPED STAGE-1 ACCEPTANCE (f-s7-stage1-decision, A+B) -----------
     # (1) filtering calibrated 88-92%; (2) engine beats static on transient
     # CRPS OR NLL at H>0 on identical dense windows; (3) OOD honesty: coverage
-    # non-collapse + a quantified OOD signal CLEARLY exceeding the static (the
-    # static OOD-AUROC is ~0.57 ≈ random; we require the engine's > 0.65 and a
-    # clear margin over the static).  same_windows_verified must stay true.
-    static_ood_auroc = 0.568  # S7.2 baseline_metrics_v0.json (static deep-ensemble)
+    # non-collapse + a quantified OOD signal CLEARLY exceeding the static
+    # comparator.  S7.5: criterion 3 is now judged on the ENGINE-NATIVE OOD score
+    # vs the static ensemble's (~0.57 ≈ random).  We require the engine's > 0.65
+    # AND a clear margin over the static.  same_windows_verified must stay true.
+    static_ood_auroc = static_disagreement if static_disagreement is not None else 0.568
     crit1 = bool(v["filtering_coverage_in_band"])
     crit2 = bool(v["criterion2_transient_win_any_Hgt0"] and v["same_windows_verified"])
     auroc = v["ood_auroc"]
@@ -1850,7 +2250,13 @@ def _verdict(metrics: dict) -> dict:
             )
         ),
         "criterion3_ood_honesty": crit3,
+        "criterion3_auroc_basis": (
+            "engine_native_innovation"
+            if engine_auroc is not None
+            else "static_fallback"
+        ),
         "ood_auroc_engine": auroc,
+        "ood_auroc_engine_native": engine_auroc,
         "ood_auroc_static_ref": static_ood_auroc,
         "all_met": bool(crit1 and crit2 and crit3),
         "stretch_bulk_crps_beats_static": bool(v["forecast_beats_static_at_Hgt0"]),
@@ -1892,6 +2298,24 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         help="comma-separated training rollout horizons (e.g. 1,2,5,10,20,40)",
     )
+    p.add_argument(
+        "--emission",
+        choices=["gaussian", "student_t"],
+        default="gaussian",
+        help="emission head (S7.5: student_t = heavy-tailed predictive)",
+    )
+    p.add_argument(
+        "--student-t-fixed-nu",
+        type=float,
+        default=None,
+        help="fix Student-t dof to this value (else ν is learned, init=5)",
+    )
+    p.add_argument(
+        "--num-threads",
+        type=int,
+        default=4,
+        help="cap torch intra-op threads in training (S7.5 perf; 0=untouched)",
+    )
     p.add_argument("--output", type=Path, default=None)
     a = p.parse_args(argv)
 
@@ -1910,6 +2334,12 @@ def main(argv: list[str] | None = None) -> None:
         device=a.device,
         drift_reg_weight=a.drift_reg_weight,
         train_horizons=train_h,
+        emission=a.emission,
+        student_t_learn_nu=(a.student_t_fixed_nu is None),
+        student_t_nu=(
+            a.student_t_fixed_nu if a.student_t_fixed_nu is not None else 5.0
+        ),
+        num_threads=(a.num_threads if a.num_threads and a.num_threads > 0 else None),
     )
     out = a.output or (Path(__file__).parent / "artifacts" / "engine_metrics_v0.json")
     metrics = run_experiment(cfg, output=out)
@@ -1940,7 +2370,12 @@ def main(argv: list[str] | None = None) -> None:
         f"    bulk CRPS beats static at all H>0 (STRETCH) = {acc['forecast_beats_static_at_Hgt0']}"
     )
     print(
-        f"(3) OOD: AUROC={acc.get('ood_auroc')}  cov(indist)={acc.get('ood_coverage_indist')}  cov(ood)={acc.get('ood_coverage_ood')}  noncollapse={acc['ood_coverage_noncollapse']}"
+        f"(3) OOD: engine-native AUROC={acc.get('ood_auroc_engine_native')}"
+        f"  (innovation={acc.get('ood_auroc_engine_innovation')}, "
+        f"pred-σ={acc.get('ood_auroc_engine_predictive_sigma')})"
+        f"  static-ref={acc.get('ood_auroc_static_ensemble_disagreement')}"
+        f"  cov(indist)={acc.get('ood_coverage_indist')}  cov(ood)={acc.get('ood_coverage_ood')}"
+        f"  noncollapse={acc['ood_coverage_noncollapse']}"
     )
     rs = acc.get("rescoped_acceptance", {})
     print("-" * 64)

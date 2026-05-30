@@ -63,6 +63,24 @@ def filter_shot(
     return obs_mu[0].cpu().numpy(), obs_var[0].cpu().numpy()
 
 
+@torch.no_grad()
+def filter_innovation_shot(
+    model: RKNEngine,
+    x_norm: np.ndarray,
+    device: str = "cpu",
+) -> np.ndarray:
+    """Per-slice engine-native OOD score (normalised filter-innovation magnitude).
+
+    Wraps ``RKNEngine.filter_innovation`` for one contiguous run.  Returns (T,):
+    the Mahalanobis innovation Σ_d (w−z_prior)²/(var_prior+r) at each timestep.
+    Larger = the operating point surprises the learned dynamics → more OOD.
+    """
+    model.eval()
+    xb = torch.from_numpy(x_norm[np.newaxis]).float().to(device)  # (1, T, F)
+    s = model.filter_innovation(xb)  # (1, T)
+    return s[0].cpu().numpy()
+
+
 # ---------------------------------------------------------------------------
 # Forecasting — pure autonomous rollout
 # ---------------------------------------------------------------------------
@@ -109,7 +127,7 @@ def forecast_pairs(
         D = model.cfg.output_dim
         return np.empty((0, len(horizons), D)), np.empty((0, len(horizons), D))
 
-    z_a = z_post[0, valid, :]      # (A, L)
+    z_a = z_post[0, valid, :]  # (A, L)
     var_a = var_post[0, valid, :]  # (A, L)
     mu, var = model.rollout(z_a, var_a, tuple(horizons))  # (A, H, D)
     return mu.cpu().numpy(), var.cpu().numpy()
@@ -144,7 +162,7 @@ def smooth_shot(
     T, L = z_f.shape
 
     a2 = model.trans_log_a.exp().pow(2.0).to(z_f.device)  # (L,)
-    q = model.log_q.exp().to(z_f.device)                  # (L,)
+    q = model.log_q.exp().to(z_f.device)  # (L,)
 
     z_s = z_f.clone()
     var_s = var_f.clone()
