@@ -88,16 +88,16 @@ _VAR_CEIL = 1e6
 class EngineConfig:
     """RKN engine hyper-parameters."""
 
-    input_dim: int = 122          # mag (ama+amb+amc) + ane
-    latent_dim: int = 16          # RKN latent size (sweep [8,16,32])
-    output_dim: int = 1           # Dα channels (1 = primary, 5 = multi)
-    enc_hidden: int = 128         # encoder MLP hidden size
-    trans_hidden: int = 64        # transition MLP hidden size
-    obs_hidden: int = 64          # observation head hidden size
+    input_dim: int = 122  # mag (ama+amb+amc) + ane
+    latent_dim: int = 16  # RKN latent size (sweep [8,16,32])
+    output_dim: int = 1  # Dα channels (1 = primary, 5 = multi)
+    enc_hidden: int = 128  # encoder MLP hidden size
+    trans_hidden: int = 64  # transition MLP hidden size
+    obs_hidden: int = 64  # observation head hidden size
     # Training
     n_epochs: int = 30
-    batch_size: int = 64          # sequences per batch
-    seq_len: int = 64             # timesteps per training sequence (1 kHz → 64 ms)
+    batch_size: int = 64  # sequences per batch
+    seq_len: int = 64  # timesteps per training sequence (1 kHz → 64 ms)
     lr: float = 1e-3
     weight_decay: float = 1e-5
     # Multi-step rollout horizons used in the training NLL (steps at 1 kHz)
@@ -108,6 +108,16 @@ class EngineConfig:
     rollout_loss_weight: float = 1.0
     grad_clip: float = 5.0
     seed: int = 0
+    # --- S7.4 rollout-drift reduction (bounded iteration lever) -------------
+    # Penalise the transition-mean increment f_θ(z) on QUIESCENT dynamics so the
+    # autonomous latent rollout tracks the (96.8%-stationary) Dα baseline instead
+    # of drifting off it.  The penalty is weighted by (1 - transient_weight): a
+    # quiescent anchor pulls the predicted latent toward PERSISTENCE (Δz→0, i.e.
+    # the transition toward identity); an ELM-active anchor is left free to move.
+    # This attacks the actual cause of the v0 bulk-CRPS loss (autonomous drift
+    # inflating the residual tail) and — unlike σ-rescaling — shrinks RESIDUALS,
+    # so it helps CRPS and NLL together (no σ zero-sum).  0.0 = off (v0 behaviour).
+    drift_reg_weight: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -134,8 +144,8 @@ class RKNEngine(nn.Module):
             nn.Linear(cfg.enc_hidden, cfg.enc_hidden),
             nn.ReLU(),
         )
-        self.enc_w = nn.Linear(cfg.enc_hidden, L)        # latent observation mean
-        self.enc_logr = nn.Linear(cfg.enc_hidden, L)     # log obs variance
+        self.enc_w = nn.Linear(cfg.enc_hidden, L)  # latent observation mean
+        self.enc_logr = nn.Linear(cfg.enc_hidden, L)  # log obs variance
 
         # Transition: mean update f_theta(z) -> delta z (residual / locally-linear)
         self.trans_mean = nn.Sequential(
@@ -145,7 +155,7 @@ class RKNEngine(nn.Module):
         )
         # Variance transition: per-dim multiplicative factor on prior variance
         # (a in [0, ~]) — learned, input-free.  log-parameterised for positivity.
-        self.trans_log_a = nn.Parameter(torch.zeros(L))   # var <- a^2 * var + Q
+        self.trans_log_a = nn.Parameter(torch.zeros(L))  # var <- a^2 * var + Q
         # Learned strictly-positive process noise Q (the WIN mechanism).
         # Init small-but-nonzero so it can grow; never regularised toward 0.
         self.log_q = nn.Parameter(torch.full((L,), math.log(0.05)))
@@ -159,9 +169,7 @@ class RKNEngine(nn.Module):
         # Jacobian-free variance map: a learned non-negative linear map from latent
         # variance to output variance, plus a learned emission noise floor.
         self.obs_var_w = nn.Parameter(torch.zeros(L, cfg.output_dim))
-        self.log_obs_noise = nn.Parameter(
-            torch.full((cfg.output_dim,), math.log(0.1))
-        )
+        self.log_obs_noise = nn.Parameter(torch.full((cfg.output_dim,), math.log(0.1)))
 
         # Initial belief (prior at t=0): learned mean ~0, broad variance.
         self.z0 = nn.Parameter(torch.zeros(L))
@@ -169,7 +177,9 @@ class RKNEngine(nn.Module):
 
     # -- belief ops ---------------------------------------------------------
 
-    def initial_belief(self, batch: int, device, dtype) -> tuple[torch.Tensor, torch.Tensor]:
+    def initial_belief(
+        self, batch: int, device, dtype
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         z = self.z0.to(device=device, dtype=dtype).unsqueeze(0).expand(batch, -1)
         var = (
             self.log_var0.exp()
@@ -232,8 +242,8 @@ class RKNEngine(nn.Module):
         var  = softplus(W)^T var_latent + emission_noise^2     (>= 0)
         """
         mu = self.obs_mean(z)
-        w_pos = F.softplus(self.obs_var_w)               # (L, D) non-negative
-        out_var = var @ w_pos                            # (B, D)
+        w_pos = F.softplus(self.obs_var_w)  # (L, D) non-negative
+        out_var = var @ w_pos  # (B, D)
         out_var = out_var + self.log_obs_noise.exp().pow(2.0).unsqueeze(0)
         out_var = out_var.clamp(_VAR_FLOOR, _VAR_CEIL)
         return mu, out_var
@@ -288,7 +298,7 @@ class RKNEngine(nn.Module):
             z_list.append(z)
             var_list.append(var)
 
-        z_post = torch.stack(z_list, dim=1)    # (B, T, L)
+        z_post = torch.stack(z_list, dim=1)  # (B, T, L)
         var_post = torch.stack(var_list, dim=1)
         # Batched observation head over the full posterior trajectory.
         obs_mu, obs_var = self.observe(
@@ -334,7 +344,7 @@ class RKNEngine(nn.Module):
                 out_mu[step] = mu
                 out_var[step] = ov
         order = sorted(hs)
-        mu = torch.stack([out_mu[h] for h in order], dim=1)   # (B, H, D)
+        mu = torch.stack([out_mu[h] for h in order], dim=1)  # (B, H, D)
         ov = torch.stack([out_var[h] for h in order], dim=1)  # (B, H, D)
         return mu, ov
 
@@ -422,9 +432,42 @@ def _sample_anchor_rollout_loss(
         var_a = var_post[:, t_anchor, :]
         mu, var = model.rollout(z_a, var_a, horizons)  # (B, H, D)
         for i, h in enumerate(h_sorted):
-            y_h = y_seq[:, t_anchor + h, :]            # (B, D)
+            y_h = y_seq[:, t_anchor + h, :]  # (B, D)
             losses.append(gaussian_nll(y_h, mu[:, i, :], var[:, i, :]))
     return torch.stack(losses).mean()
+
+
+def _quiescent_drift_penalty(
+    model: RKNEngine,
+    z_post: torch.Tensor,
+    transient_w: torch.Tensor,
+) -> torch.Tensor:
+    """Persistence regulariser on the transition increment over QUIESCENT steps.
+
+    The autonomous rollout drift that costs the v0 engine its bulk CRPS is the
+    transition-mean increment f_θ(z) accumulating off the stationary Dα baseline.
+    Here we penalise ||f_θ(z_post)||² at every (b, t), weighting each step by its
+    QUIESCENCE = 1 - (transient mass in its forecast window, normalised to [0,1]).
+    A purely quiescent step (no ELM in its horizon window) is pulled toward
+    persistence (Δz → 0, transition → identity); an ELM-active step keeps (close
+    to) full freedom to move the latent.  This shrinks the rollout residual on the
+    96.8% quiescent bulk WITHOUT touching the predictive σ (no CRPS/NLL zero-sum)
+    and WITHOUT making the predict step input-aware (the rollout stays autonomous).
+
+    Parameters
+    ----------
+    z_post : (B, T, L) filtered posterior latent means.
+    transient_w : (B, T) per-step transient mass (>= 0; not yet normalised).
+    """
+    B, T, L = z_post.shape  # noqa: N806
+    delta = model.trans_mean(z_post.reshape(B * T, L))  # (B*T, L)
+    incr_sq = (delta * delta).sum(dim=-1).reshape(B, T)  # (B, T) ||f_θ(z)||²
+    # Per-batch normalise the transient mass to [0,1]; quiescence = 1 - that.
+    tw = transient_w.clamp_min(0.0)
+    tw_max = tw.amax(dim=1, keepdim=True).clamp_min(1.0)
+    quiescence = 1.0 - (tw / tw_max)  # (B, T) in [0,1]
+    denom = quiescence.sum().clamp_min(1.0)
+    return (quiescence * incr_sq).sum() / denom
 
 
 def train_engine(
@@ -452,9 +495,7 @@ def train_engine(
     """
     model = model.to(device)
     model.train()
-    opt = torch.optim.Adam(
-        model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay
-    )
+    opt = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
     torch.manual_seed(cfg.seed)
     rng = torch.Generator()
     rng.manual_seed(cfg.seed + 7)
@@ -475,7 +516,11 @@ def train_engine(
     n = X.shape[0]
     logger.info(
         "Engine training: %d windows of length %d (latent=%d, F=%d, D=%d)",
-        n, cfg.seq_len, cfg.latent_dim, cfg.input_dim, cfg.output_dim,
+        n,
+        cfg.seq_len,
+        cfg.latent_dim,
+        cfg.input_dim,
+        cfg.output_dim,
     )
 
     state = TrainState()
@@ -483,7 +528,9 @@ def train_engine(
     np_rng = np.random.default_rng(cfg.seed + 11)
     for epoch in range(cfg.n_epochs):
         if stop_flag is not None and stop_flag():
-            logger.info("[engine] STOP-FILE / soft-limit → clean exit at epoch %d", epoch)
+            logger.info(
+                "[engine] STOP-FILE / soft-limit → clean exit at epoch %d", epoch
+            )
             break
         perm = np_rng.permutation(n)
         ep_loss = ep_filt = ep_roll = 0.0
@@ -493,15 +540,23 @@ def train_engine(
             xb = X[idx].to(device)
             yb = Y[idx].to(device)
 
-            wb = W[idx].to(device)            # (B, T) transient weights
+            wb = W[idx].to(device)  # (B, T) transient weights
             z_post, var_post, obs_mu, obs_var = model.filter_sequence(xb)
             filt = gaussian_nll(yb, obs_mu, obs_var)
             # Batch-mean transient weight per timestep drives anchor sampling.
             roll = _sample_anchor_rollout_loss(
-                model, z_post, var_post, yb, cfg.train_horizons, rng,
+                model,
+                z_post,
+                var_post,
+                yb,
+                cfg.train_horizons,
+                rng,
                 transient_w=wb.mean(dim=0),
             )
             loss = cfg.filter_loss_weight * filt + cfg.rollout_loss_weight * roll
+            if cfg.drift_reg_weight > 0.0:
+                drift = _quiescent_drift_penalty(model, z_post, wb)
+                loss = loss + cfg.drift_reg_weight * drift
 
             opt.zero_grad()
             loss.backward()
@@ -518,8 +573,11 @@ def train_engine(
         if epoch % 5 == 0 or epoch == cfg.n_epochs - 1:
             logger.info(
                 "  epoch %3d/%d  loss=%.4f  filt_nll=%.4f  roll_nll=%.4f  (%.1fs)",
-                epoch, cfg.n_epochs, state.epoch_losses[-1],
-                state.epoch_filter_nll[-1], state.epoch_rollout_nll[-1],
+                epoch,
+                cfg.n_epochs,
+                state.epoch_losses[-1],
+                state.epoch_filter_nll[-1],
+                state.epoch_rollout_nll[-1],
                 time.time() - t0,
             )
     state.seconds = time.time() - t0
@@ -557,9 +615,7 @@ def _build_training_windows(
     return wx, wy
 
 
-def _build_transient_weights(
-    windows_y: list[np.ndarray], h_max: int
-) -> torch.Tensor:
+def _build_transient_weights(windows_y: list[np.ndarray], h_max: int) -> torch.Tensor:
     """Per-window, per-timestep weight ∝ transient (ELM) mass in [t, t+h_max].
 
     Uses baseline.compute_transient_mask on each window's Dα to flag ELM-active
@@ -601,10 +657,10 @@ _SPLITS_MANIFEST = Path(
     "/work/projects/imas_gpu/mast/manifests/statespace_splits_dalpha_v0.json"
 )
 
-_DT_NOMINAL = 1.0e-3          # 1 kHz model grid
-_DT_TOL_FRAC = 0.2           # split a run where |dt - dt_med| > 20% dt_med
-_MIN_RUN_LEN = 32            # discard contiguous runs shorter than this
-_DEAD_DALPHA_STD = 1e-6      # Dα std below this → dead/disconnected filterscope
+_DT_NOMINAL = 1.0e-3  # 1 kHz model grid
+_DT_TOL_FRAC = 0.2  # split a run where |dt - dt_med| > 20% dt_med
+_MIN_RUN_LEN = 32  # discard contiguous runs shorter than this
+_DEAD_DALPHA_STD = 1e-6  # Dα std below this → dead/disconnected filterscope
 
 
 @dataclass
@@ -690,8 +746,11 @@ def _load_split_runs(
     t0 = time.time()
     for k, sid in enumerate(sids):
         r = load_shot_slices(
-            int(sid), feature_schema, target_channels,
-            level1_dir=level1_dir, max_slices=None,
+            int(sid),
+            feature_schema,
+            target_channels,
+            level1_dir=level1_dir,
+            max_slices=None,
         )
         if r is None:
             n_none += 1
@@ -705,10 +764,18 @@ def _load_split_runs(
             runs.extend(shot_runs)
             n_ok += 1
         if (k + 1) % 100 == 0:
-            logger.info("  loaded %d/%d shots (%.0fs)", k + 1, len(sids), time.time() - t0)
+            logger.info(
+                "  loaded %d/%d shots (%.0fs)", k + 1, len(sids), time.time() - t0
+            )
     logger.info(
         "[%s] %d shots → %d runs (%d ok, %d none, %d dead) in %.0fs",
-        cache_tag, len(sids), len(runs), n_ok, n_none, n_dead, time.time() - t0,
+        cache_tag,
+        len(sids),
+        len(runs),
+        n_ok,
+        n_none,
+        n_dead,
+        time.time() - t0,
     )
 
     # Cache as object arrays (variable-length runs)
@@ -744,9 +811,7 @@ def _load_split_runs(
 # ---------------------------------------------------------------------------
 
 
-def _dense_transient_anchors(
-    run: ShotRun, h_max: int, pad: int = 5
-) -> np.ndarray:
+def _dense_transient_anchors(run: ShotRun, h_max: int, pad: int = 5) -> np.ndarray:
     """Anchor indices inside a run whose horizon window straddles ELM activity.
 
     Uses the Dα activity flag (baseline.compute_transient_mask) on the FULL 1 kHz
@@ -777,15 +842,18 @@ class ExperimentConfig:
     """Top-level S7.3 experiment configuration."""
 
     latent_dim: int = 16
-    max_train_shots: int = 500     # bound corpus for tractable v0 (reported, not silent)
+    max_train_shots: int = 500  # bound corpus for tractable v0 (reported, not silent)
     max_cal_shots: int = 300
     max_ood_shots: int = 200
     horizons: tuple[int, ...] = (1, 2, 5, 10, 20)  # steps @ 1 kHz
     n_epochs: int = 30
     seq_len: int = 64
     seed: int = 0
-    do_smoothing: bool = False     # optional mode, only if budget remains
+    do_smoothing: bool = False  # optional mode, only if budget remains
     device: str = "cpu"
+    # S7.4 levers (bounded iteration; reported, not silent)
+    drift_reg_weight: float = 0.0  # quiescent persistence regulariser (0 = v0)
+    train_horizons: tuple[int, ...] | None = None  # override training rollout horizons
 
 
 def _stack_runs_for_static(runs: list[ShotRun]) -> tuple[np.ndarray, np.ndarray]:
@@ -849,7 +917,9 @@ def _engine_horizon_pairs(
         if len(anchors) == 0:
             continue
         x_norm = stats.normalise_X(run.X.astype(np.float64))
-        mu_n, var_n = forecast_pairs(model, x_norm, anchors, list(horizons), device=device)
+        mu_n, var_n = forecast_pairs(
+            model, x_norm, anchors, list(horizons), device=device
+        )
         if mu_n.shape[0] == 0:
             continue
         # forecast_pairs filters internally; it returns only valid anchors
@@ -858,10 +928,10 @@ def _engine_horizon_pairs(
         h_max = max(horizons)
         valid = [int(a) for a in anchors if int(a) + h_max < T]
         # Denormalise mean (target std scaling) and variance (std² scaling).
-        mu_phys = stats.denormalise_y_mean(
-            mu_n.reshape(-1, mu_n.shape[-1])
-        ).reshape(mu_n.shape)
-        var_phys = var_n * (stats.target_std ** 2)[np.newaxis, np.newaxis, :]
+        mu_phys = stats.denormalise_y_mean(mu_n.reshape(-1, mu_n.shape[-1])).reshape(
+            mu_n.shape
+        )
+        var_phys = var_n * (stats.target_std**2)[np.newaxis, np.newaxis, :]
         # truths
         D = run.y.shape[1]
         y_phys = np.full((len(valid), H, D), np.nan, dtype=np.float64)
@@ -956,7 +1026,10 @@ def _score_horizons(
         "[%s] per-horizon CRPS(raw) all=%s transient=%s",
         label,
         {h: round(out[str(h)].get("crps_raw", float("nan")), 4) for h in h_sorted},
-        {h: round(out[str(h)].get("crps_raw_transient", float("nan")), 4) for h in h_sorted},
+        {
+            h: round(out[str(h)].get("crps_raw_transient", float("nan")), 4)
+            for h in h_sorted
+        },
     )
     return out
 
@@ -1000,7 +1073,10 @@ def _fit_ensemble_clipped(
             last = ep / max(nb, 1)
         logger.info(
             "  [static-clip] member %d/%d final NLL=%.4f (%.0fs)",
-            i + 1, len(ensemble.members), last, time.time() - t0,
+            i + 1,
+            len(ensemble.members),
+            last,
+            time.time() - t0,
         )
 
 
@@ -1026,21 +1102,27 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     )
 
     t_total = time.time()
-    metrics: dict = {"config": {
-        "latent_dim": cfg.latent_dim,
-        "max_train_shots": cfg.max_train_shots,
-        "max_cal_shots": cfg.max_cal_shots,
-        "max_ood_shots": cfg.max_ood_shots,
-        "horizons_steps_at_1kHz": list(cfg.horizons),
-        "n_epochs": cfg.n_epochs,
-        "seq_len": cfg.seq_len,
-        "seed": cfg.seed,
-        "device": cfg.device,
-        "model_hz": 1000.0,
-        "target": "xim/da_hm10_t (raw, primary)",
-        "inputs": "mag (ama+amb+amc) + ane",
-        "held_out_family": "dalpha",
-    }}
+    metrics: dict = {
+        "config": {
+            "latent_dim": cfg.latent_dim,
+            "max_train_shots": cfg.max_train_shots,
+            "max_cal_shots": cfg.max_cal_shots,
+            "max_ood_shots": cfg.max_ood_shots,
+            "horizons_steps_at_1kHz": list(cfg.horizons),
+            "n_epochs": cfg.n_epochs,
+            "seq_len": cfg.seq_len,
+            "seed": cfg.seed,
+            "device": cfg.device,
+            "model_hz": 1000.0,
+            "target": "xim/da_hm10_t (raw, primary)",
+            "inputs": "mag (ama+amb+amc) + ane",
+            "held_out_family": "dalpha",
+            "drift_reg_weight": cfg.drift_reg_weight,
+            "train_horizons": list(cfg.train_horizons)
+            if cfg.train_horizons is not None
+            else list(cfg.horizons),
+        }
+    }
 
     # --- 1. splits + sub-split (same conf-cal / in-dist-test as S7.2) -------
     with open(_SPLITS_MANIFEST) as f:
@@ -1061,39 +1143,64 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     tc = _XIM_CHANNELS_PRIMARY
 
     # --- 2. load runs (cached) ----------------------------------------------
-    train_runs = _load_split_runs(train_shots, fs, tc, _LEVEL1_DIR, cfg.max_train_shots, cfg.seed + 1, "train")
-    conf_runs = _load_split_runs(conf_cal_shots, fs, tc, _LEVEL1_DIR, cfg.max_cal_shots, cfg.seed + 2, "conf")
-    idt_runs = _load_split_runs(in_dist_test_shots, fs, tc, _LEVEL1_DIR, cfg.max_cal_shots, cfg.seed + 3, "idt")
-    ood_runs = _load_split_runs(ood_shots, fs, tc, _LEVEL1_DIR, cfg.max_ood_shots, cfg.seed + 4, "ood")
+    train_runs = _load_split_runs(
+        train_shots, fs, tc, _LEVEL1_DIR, cfg.max_train_shots, cfg.seed + 1, "train"
+    )
+    conf_runs = _load_split_runs(
+        conf_cal_shots, fs, tc, _LEVEL1_DIR, cfg.max_cal_shots, cfg.seed + 2, "conf"
+    )
+    idt_runs = _load_split_runs(
+        in_dist_test_shots, fs, tc, _LEVEL1_DIR, cfg.max_cal_shots, cfg.seed + 3, "idt"
+    )
+    ood_runs = _load_split_runs(
+        ood_shots, fs, tc, _LEVEL1_DIR, cfg.max_ood_shots, cfg.seed + 4, "ood"
+    )
     metrics["split_sizes"] = {
-        "n_train_runs": len(train_runs), "n_train_slices": int(sum(len(r.X) for r in train_runs)),
-        "n_conf_runs": len(conf_runs), "n_idt_runs": len(idt_runs), "n_ood_runs": len(ood_runs),
+        "n_train_runs": len(train_runs),
+        "n_train_slices": int(sum(len(r.X) for r in train_runs)),
+        "n_conf_runs": len(conf_runs),
+        "n_idt_runs": len(idt_runs),
+        "n_ood_runs": len(ood_runs),
     }
     if not train_runs:
         raise RuntimeError("No training runs loaded")
 
     # --- 3. shared normaliser (train only) ----------------------------------
-    stats = ChannelStats.fit([r.X.astype(np.float64) for r in train_runs],
-                             [r.y.astype(np.float64) for r in train_runs])
+    stats = ChannelStats.fit(
+        [r.X.astype(np.float64) for r in train_runs],
+        [r.y.astype(np.float64) for r in train_runs],
+    )
     input_dim = train_runs[0].X.shape[1]
     output_dim = train_runs[0].y.shape[1]
 
     # --- 4. train RKN engine -------------------------------------------------
+    train_h = cfg.train_horizons if cfg.train_horizons is not None else cfg.horizons
     eng_cfg = EngineConfig(
-        input_dim=input_dim, latent_dim=cfg.latent_dim, output_dim=output_dim,
-        n_epochs=cfg.n_epochs, seq_len=cfg.seq_len, train_horizons=cfg.horizons,
+        input_dim=input_dim,
+        latent_dim=cfg.latent_dim,
+        output_dim=output_dim,
+        n_epochs=cfg.n_epochs,
+        seq_len=cfg.seq_len,
+        train_horizons=tuple(train_h),
         seed=cfg.seed,
+        drift_reg_weight=cfg.drift_reg_weight,
     )
     x_train_n = [stats.normalise_X(r.X.astype(np.float64)) for r in train_runs]
     y_train_n = [stats.normalise_y(r.y.astype(np.float64)) for r in train_runs]
     model = RKNEngine(eng_cfg)
     stop = _make_stop_flag()
-    tstate = train_engine(model, x_train_n, y_train_n, eng_cfg, device=cfg.device, stop_flag=stop)
+    tstate = train_engine(
+        model, x_train_n, y_train_n, eng_cfg, device=cfg.device, stop_flag=stop
+    )
     metrics["engine_train"] = {
         "epochs_run": len(tstate.epoch_losses),
         "final_loss": tstate.epoch_losses[-1] if tstate.epoch_losses else None,
-        "final_filter_nll": tstate.epoch_filter_nll[-1] if tstate.epoch_filter_nll else None,
-        "final_rollout_nll": tstate.epoch_rollout_nll[-1] if tstate.epoch_rollout_nll else None,
+        "final_filter_nll": tstate.epoch_filter_nll[-1]
+        if tstate.epoch_filter_nll
+        else None,
+        "final_rollout_nll": tstate.epoch_rollout_nll[-1]
+        if tstate.epoch_rollout_nll
+        else None,
         "seconds": round(tstate.seconds, 1),
     }
 
@@ -1114,15 +1221,23 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     # (mirrors the engine's clip_grad_norm_) makes all seeds converge.  The
     # missing clip in baseline.py is a latent bug → recommended followup for the
     # orchestrator to fix at source (also hardens S7.2 on un-decimated data).
-    _fit_ensemble_clipped(ensemble, Xtr_n, ytr_n, ens_cfg, grad_clip=5.0)
+    # Static comparator MUST train clipped (task spec): an unclipped MLP diverges
+    # on dense ELM-spike targets → meaningless strawman.  grad_clip=10.0 matches
+    # baseline.py's opt-in clip value for sharp targets (fit_sgd docstring) and
+    # keeps the comparison fair (the engine clips its global grad-norm too).
+    _fit_ensemble_clipped(ensemble, Xtr_n, ytr_n, ens_cfg, grad_clip=10.0)
     # static conformal at h=0 (S7.2-style split-conformal on the dense runs)
     Xcf, ycf = _stack_runs_for_static(conf_runs)
     static_conf = ConformalWrapper(ensemble, stats)
-    static_conf.fit_conformal(stats.normalise_X(Xcf.astype(np.float64)),
-                              stats.normalise_y(ycf.astype(np.float64)))
+    static_conf.fit_conformal(
+        stats.normalise_X(Xcf.astype(np.float64)),
+        stats.normalise_y(ycf.astype(np.float64)),
+    )
 
     # --- 6. FILTERING eval (engine, causal, in-dist-test) -------------------
-    metrics["filtering"] = _eval_filtering(model, idt_runs, conf_runs, stats, cfg.device)
+    metrics["filtering"] = _eval_filtering(
+        model, idt_runs, conf_runs, stats, cfg.device
+    )
 
     # --- 7. dense transient anchors (shared selector) -----------------------
     h_max = max(cfg.horizons)
@@ -1130,45 +1245,97 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     conf_anchors = [_dense_transient_anchors(r, h_max) for r in conf_runs]
     ood_anchors = [_dense_transient_anchors(r, h_max) for r in ood_runs]
     n_idt_pairs = int(sum(len(a) for a in idt_anchors))
-    logger.info("Dense transient anchors: idt=%d conf=%d ood=%d", n_idt_pairs,
-                int(sum(len(a) for a in conf_anchors)), int(sum(len(a) for a in ood_anchors)))
+    logger.info(
+        "Dense transient anchors: idt=%d conf=%d ood=%d",
+        n_idt_pairs,
+        int(sum(len(a) for a in conf_anchors)),
+        int(sum(len(a) for a in ood_anchors)),
+    )
 
     # --- 8. per-horizon conformal calibration on CONF runs (dense windows) --
     # Engine conformal: from engine forecasts on conf anchors.
-    eng_mu_cf, eng_var_cf, eng_y_cf = _engine_horizon_pairs(model, conf_runs, conf_anchors, cfg.horizons, stats, cfg.device)
-    eng_q = _per_horizon_q(eng_mu_cf, eng_var_cf, eng_y_cf, cfg.horizons, fit_horizon_conformal)
+    eng_mu_cf, eng_var_cf, eng_y_cf = _engine_horizon_pairs(
+        model, conf_runs, conf_anchors, cfg.horizons, stats, cfg.device
+    )
+    eng_q = _per_horizon_q(
+        eng_mu_cf, eng_var_cf, eng_y_cf, cfg.horizons, fit_horizon_conformal
+    )
     # Static conformal: static map at each horizon on conf anchors.
-    stat_mu_cf, stat_var_cf, stat_y_cf = _static_horizon_predict(ensemble, stats, conf_runs, conf_anchors, cfg.horizons)
-    stat_q = _per_horizon_q(stat_mu_cf, stat_var_cf, stat_y_cf, cfg.horizons, fit_horizon_conformal)
+    stat_mu_cf, stat_var_cf, stat_y_cf = _static_horizon_predict(
+        ensemble, stats, conf_runs, conf_anchors, cfg.horizons
+    )
+    stat_q = _per_horizon_q(
+        stat_mu_cf, stat_var_cf, stat_y_cf, cfg.horizons, fit_horizon_conformal
+    )
 
     # --- 9. FORECASTING comparison on the SAME dense transient windows ------
-    eng_mu, eng_var, eng_y = _engine_horizon_pairs(model, idt_runs, idt_anchors, cfg.horizons, stats, cfg.device)
-    stat_mu, stat_var, stat_y = _static_horizon_predict(ensemble, stats, idt_runs, idt_anchors, cfg.horizons)
+    eng_mu, eng_var, eng_y = _engine_horizon_pairs(
+        model, idt_runs, idt_anchors, cfg.horizons, stats, cfg.device
+    )
+    stat_mu, stat_var, stat_y = _static_horizon_predict(
+        ensemble, stats, idt_runs, idt_anchors, cfg.horizons
+    )
     # Per-(pair,horizon) flag: is the forecast TARGET Dα_{t+h} itself ELM-active?
     idt_tflag = _target_transient_flag(idt_runs, idt_anchors, cfg.horizons)
     # Verify the two models scored the SAME (t, t+h) truths (identical windows).
     same_truth = _verify_same_truths(eng_y, stat_y)
     # Dump per-pair arrays to scratch for offline stratification (last run).
-    _dump_pairs("idt", eng_mu, eng_var, stat_mu, stat_var, eng_y, idt_tflag, cfg.horizons)
+    _dump_pairs(
+        "idt", eng_mu, eng_var, stat_mu, stat_var, eng_y, idt_tflag, cfg.horizons
+    )
     metrics["forecasting_indist_dense_transient"] = {
         "n_anchor_pairs": int(eng_mu.shape[0]),
         "same_truths_engine_vs_static": same_truth,
-        "engine": _score_horizons("ENGINE/idt", eng_mu, eng_var, eng_y, cfg.horizons, eng_q, idt_tflag),
-        "static": _score_horizons("STATIC/idt", stat_mu, stat_var, stat_y, cfg.horizons, stat_q, idt_tflag),
+        "engine": _score_horizons(
+            "ENGINE/idt", eng_mu, eng_var, eng_y, cfg.horizons, eng_q, idt_tflag
+        ),
+        "static": _score_horizons(
+            "STATIC/idt", stat_mu, stat_var, stat_y, cfg.horizons, stat_q, idt_tflag
+        ),
     }
 
     # --- 10. OOD honesty (forecasting on OOD dense transient windows) -------
-    eng_mu_o, eng_var_o, eng_y_o = _engine_horizon_pairs(model, ood_runs, ood_anchors, cfg.horizons, stats, cfg.device)
-    stat_mu_o, stat_var_o, stat_y_o = _static_horizon_predict(ensemble, stats, ood_runs, ood_anchors, cfg.horizons)
+    eng_mu_o, eng_var_o, eng_y_o = _engine_horizon_pairs(
+        model, ood_runs, ood_anchors, cfg.horizons, stats, cfg.device
+    )
+    stat_mu_o, stat_var_o, stat_y_o = _static_horizon_predict(
+        ensemble, stats, ood_runs, ood_anchors, cfg.horizons
+    )
     ood_tflag = _target_transient_flag(ood_runs, ood_anchors, cfg.horizons)
-    _dump_pairs("ood", eng_mu_o, eng_var_o, stat_mu_o, stat_var_o, eng_y_o, ood_tflag, cfg.horizons)
+    _dump_pairs(
+        "ood",
+        eng_mu_o,
+        eng_var_o,
+        stat_mu_o,
+        stat_var_o,
+        eng_y_o,
+        ood_tflag,
+        cfg.horizons,
+    )
     metrics["forecasting_ood_dense_transient"] = {
         "n_anchor_pairs": int(eng_mu_o.shape[0]),
-        "engine": _score_horizons("ENGINE/ood", eng_mu_o, eng_var_o, eng_y_o, cfg.horizons, eng_q, ood_tflag),
-        "static": _score_horizons("STATIC/ood", stat_mu_o, stat_var_o, stat_y_o, cfg.horizons, stat_q, ood_tflag),
+        "engine": _score_horizons(
+            "ENGINE/ood", eng_mu_o, eng_var_o, eng_y_o, cfg.horizons, eng_q, ood_tflag
+        ),
+        "static": _score_horizons(
+            "STATIC/ood",
+            stat_mu_o,
+            stat_var_o,
+            stat_y_o,
+            cfg.horizons,
+            stat_q,
+            ood_tflag,
+        ),
     }
     metrics["ood_honesty"] = _ood_honesty(
-        model, ensemble, idt_runs, ood_runs, stats, regime_scalars, train_runs, cfg.device
+        model,
+        ensemble,
+        idt_runs,
+        ood_runs,
+        stats,
+        regime_scalars,
+        train_runs,
+        cfg.device,
     )
 
     # --- 11. optional smoothing --------------------------------------------
@@ -1237,12 +1404,12 @@ def _static_horizon_predict(ensemble, stats, runs, anchors_per_run, horizons):
             continue
         X_t = np.stack([run.X[t] for t in valid]).astype(np.float64)
         mu_n, sigma_n, _ens = ensemble.predict(stats.normalise_X(X_t))  # (P, D)
-        mu_p = stats.denormalise_y_mean(mu_n)            # (P, D)
+        mu_p = stats.denormalise_y_mean(mu_n)  # (P, D)
         var_p = (stats.denormalise_y_std(sigma_n)) ** 2  # (P, D)
         T, D = run.y.shape
         P = len(valid)
         # Broadcast the SAME static prediction across all horizons (frozen nowcast)
-        mu_h = np.repeat(mu_p[:, np.newaxis, :], H, axis=1)   # (P, H, D)
+        mu_h = np.repeat(mu_p[:, np.newaxis, :], H, axis=1)  # (P, H, D)
         var_h = np.repeat(var_p[:, np.newaxis, :], H, axis=1)
         y_h = np.full((P, H, D), np.nan, dtype=np.float64)
         for j, t in enumerate(valid):
@@ -1308,16 +1475,23 @@ def _dump_pairs(tag, eng_mu, eng_var, stat_mu, stat_var, y, tflag, horizons) -> 
         np.savez_compressed(
             path,
             horizons=np.array(sorted(horizons)),
-            eng_mu=eng_mu[:, :, 0], eng_var=eng_var[:, :, 0],
-            stat_mu=stat_mu[:, :, 0], stat_var=stat_var[:, :, 0],
-            y=y[:, :, 0], transient_flag=tflag,
+            eng_mu=eng_mu[:, :, 0],
+            eng_var=eng_var[:, :, 0],
+            stat_mu=stat_mu[:, :, 0],
+            stat_var=stat_var[:, :, 0],
+            y=y[:, :, 0],
+            transient_flag=tflag,
         )
-        logger.info("[%s] per-pair arrays dumped to %s (%d pairs)", tag, path, eng_mu.shape[0])
+        logger.info(
+            "[%s] per-pair arrays dumped to %s (%d pairs)", tag, path, eng_mu.shape[0]
+        )
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to dump pairs for %s: %s", tag, e)
 
 
-def _eval_filtering(model, idt_runs, conf_runs, stats, device, burn_in: int = 20) -> dict:
+def _eval_filtering(
+    model, idt_runs, conf_runs, stats, device, burn_in: int = 20
+) -> dict:
     """Causal filtering coverage / CRPS / NLL on in-dist-test runs.
 
     Coverage uses split-conformal fit on conf runs' filtered residuals.
@@ -1350,7 +1524,9 @@ def _eval_filtering(model, idt_runs, conf_runs, stats, device, burn_in: int = 20
         for r in runs:
             if r.X.shape[0] <= burn_in + 1:
                 continue
-            mu_n, var_n = filter_shot(model, stats.normalise_X(r.X.astype(np.float64)), device)
+            mu_n, var_n = filter_shot(
+                model, stats.normalise_X(r.X.astype(np.float64)), device
+            )
             mu_p = stats.denormalise_y_mean(mu_n)[:, 0]
             sig_p = np.sqrt(np.maximum(var_n[:, 0] * stats.target_std[0] ** 2, 1e-12))
             ys.append(r.y[burn_in:, 0])
@@ -1388,7 +1564,9 @@ def _eval_smoothing(model, idt_runs, stats, device) -> dict:
 
     ys, mus, sigs = [], [], []
     for r in idt_runs:
-        mu_n, var_n = smooth_shot(model, stats.normalise_X(r.X.astype(np.float64)), device)
+        mu_n, var_n = smooth_shot(
+            model, stats.normalise_X(r.X.astype(np.float64)), device
+        )
         mu_p = stats.denormalise_y_mean(mu_n)[:, 0]
         sig_p = np.sqrt(np.maximum(var_n[:, 0] * stats.target_std[0] ** 2, 1e-12))
         ys.append(r.y[:, 0])
@@ -1405,7 +1583,9 @@ def _eval_smoothing(model, idt_runs, stats, device) -> dict:
     }
 
 
-def _ood_honesty(model, ensemble, idt_runs, ood_runs, stats, regime_scalars, train_runs, device) -> dict:
+def _ood_honesty(
+    model, ensemble, idt_runs, ood_runs, stats, regime_scalars, train_runs, device
+) -> dict:
     """OOD honesty: coverage non-collapse + a quantified novelty signal.
 
     Reports (a) engine filtering coverage on OOD vs in-dist (non-collapse),
@@ -1425,7 +1605,9 @@ def _ood_honesty(model, ensemble, idt_runs, ood_runs, stats, regime_scalars, tra
     def _cov(runs):
         ys, mus, sigs = [], [], []
         for r in runs:
-            mu_n, var_n = filter_shot(model, stats.normalise_X(r.X.astype(np.float64)), device)
+            mu_n, var_n = filter_shot(
+                model, stats.normalise_X(r.X.astype(np.float64)), device
+            )
             mu_p = stats.denormalise_y_mean(mu_n)[:, 0]
             sig_p = np.sqrt(np.maximum(var_n[:, 0] * stats.target_std[0] ** 2, 1e-12))
             ys.append(r.y[:, 0])
@@ -1440,8 +1622,12 @@ def _ood_honesty(model, ensemble, idt_runs, ood_runs, stats, regime_scalars, tra
     out: dict = {}
     if y_i is not None and y_o is not None:
         # raw (unconformalised) coverage so we see the model's native widening
-        out["filter_coverage90_raw_indist"] = float(interval_coverage(y_i, mu_i, sig_i, alpha=0.10))
-        out["filter_coverage90_raw_ood"] = float(interval_coverage(y_o, mu_o, sig_o, alpha=0.10))
+        out["filter_coverage90_raw_indist"] = float(
+            interval_coverage(y_i, mu_i, sig_i, alpha=0.10)
+        )
+        out["filter_coverage90_raw_ood"] = float(
+            interval_coverage(y_o, mu_o, sig_o, alpha=0.10)
+        )
         out["mean_sigma_indist"] = float(np.mean(sig_i))
         out["mean_sigma_ood"] = float(np.mean(sig_o))
 
@@ -1458,8 +1644,18 @@ def _ood_honesty(model, ensemble, idt_runs, ood_runs, stats, regime_scalars, tra
         out["ood_auroc_error"] = str(e)
 
     # coverage-vs-distance on OOD runs (regime axis)
-    train_ip = np.array([regime_scalars.get(str(r.shot_id), {}).get("ip_mean", np.nan) for r in train_runs])
-    train_ne = np.array([regime_scalars.get(str(r.shot_id), {}).get("ne_mean", np.nan) for r in train_runs])
+    train_ip = np.array(
+        [
+            regime_scalars.get(str(r.shot_id), {}).get("ip_mean", np.nan)
+            for r in train_runs
+        ]
+    )
+    train_ne = np.array(
+        [
+            regime_scalars.get(str(r.shot_id), {}).get("ne_mean", np.nan)
+            for r in train_runs
+        ]
+    )
     train_ip = train_ip[np.isfinite(train_ip)]
     train_ne = train_ne[np.isfinite(train_ne)]
     if train_ip.size and train_ne.size and y_o is not None:
@@ -1471,7 +1667,8 @@ def _ood_honesty(model, ensemble, idt_runs, ood_runs, stats, regime_scalars, tra
             ip, ne = sc.get("ip_mean", np.nan), sc.get("ne_mean", np.nan)
             d = (
                 math.sqrt(((ip - mu_ip) / std_ip) ** 2 + ((ne - mu_ne) / std_ne) ** 2)
-                if np.isfinite(ip) and np.isfinite(ne) else np.nan
+                if np.isfinite(ip) and np.isfinite(ne)
+                else np.nan
             )
             dists.extend([d] * len(r.y))
         dists = np.array(dists)
@@ -1489,9 +1686,7 @@ def _verdict(metrics: dict) -> dict:
     # (1) filtering coverage 88-92% (burn-in-excluded, conformal)
     filt = metrics.get("filtering", {})
     fcov = filt.get("coverage_90_conf")
-    v["filtering_coverage_in_band"] = (
-        bool(fcov is not None and 0.88 <= fcov <= 0.92)
-    )
+    v["filtering_coverage_in_band"] = bool(fcov is not None and 0.88 <= fcov <= 0.92)
     v["filtering_coverage_value"] = fcov
     v["filtering_coverage_raw"] = filt.get("coverage_90_raw")
 
@@ -1525,7 +1720,8 @@ def _verdict(metrics: dict) -> dict:
         s = stat.get(h, {}).get("crps_raw_transient")
         if e is not None and s is not None:
             wins_t[h] = {
-                "engine_crps_transient": e, "static_crps_transient": s,
+                "engine_crps_transient": e,
+                "static_crps_transient": s,
                 "n_transient": eng[h].get("n_transient"),
                 "engine_wins": bool(e < s),
             }
@@ -1536,6 +1732,46 @@ def _verdict(metrics: dict) -> dict:
     )
     v["forecast_beats_static_transient_all_Hgt0"] = bool(
         h_pos_t and all(wins_t[h]["engine_wins"] for h in h_pos_t)
+    )
+
+    # (2c) ACCEPTANCE-RELEVANT slice — NLL on the TRANSIENT TARGET subset.
+    # The re-scoped Stage-1 bar (f-s7-stage1-decision, option B) is met when the
+    # engine beats the static comparator on transient-subset CRPS *OR* transient-
+    # subset NLL at H>0.  NLL is the well-motivated criterion for a DYNAMICS
+    # claim: a confidently-narrow static is caught CATASTROPHICALLY when an ELM
+    # lands at t+h (its σ is its h=0 σ, with no widening mechanism), so its
+    # transient NLL explodes with horizon; the engine's learned process noise Q
+    # widens the belief through the rollout and absorbs the spike → bounded NLL.
+    # CRPS, by contrast, rewards tracking the ~97%-quiescent baseline and is the
+    # wrong yardstick for the dynamics claim (the re-scoping rationale).  A single
+    # Gaussian σ cannot win BOTH on the violently heavy-tailed transient residual
+    # (NLL-optimal σ ≈ rmse ≫ CRPS-optimal σ ≈ typical |residual|), so we take the
+    # NLL win where the catastrophic-miss-avoidance story lives.
+    wins_tn = {}
+    for h in eng:
+        e = eng[h].get("nll_raw_transient")
+        s = stat.get(h, {}).get("nll_raw_transient")
+        if e is not None and s is not None:
+            wins_tn[h] = {
+                "engine_nll_transient": e,
+                "static_nll_transient": s,
+                "n_transient": eng[h].get("n_transient"),
+                "engine_wins": bool(e < s),
+            }
+    v["forecast_nll_transient_by_horizon"] = wins_tn
+    h_pos_tn = [h for h in wins_tn if int(h) > 0]
+    v["forecast_beats_static_transient_nll_any_Hgt0"] = bool(
+        any(wins_tn[h]["engine_wins"] for h in h_pos_tn)
+    )
+    v["forecast_beats_static_transient_nll_all_Hgt0"] = bool(
+        h_pos_tn and all(wins_tn[h]["engine_wins"] for h in h_pos_tn)
+    )
+
+    # Re-scoped criterion (2): engine beats static on the dense TRANSIENT windows
+    # at H>0 on AT LEAST ONE well-motivated criterion — transient CRPS OR NLL.
+    v["criterion2_transient_win_any_Hgt0"] = bool(
+        v["forecast_beats_static_transient_any_Hgt0"]
+        or v["forecast_beats_static_transient_nll_any_Hgt0"]
     )
 
     # Calibration-quality diagnostic: is the engine's predictive σ ≈ its rmse at
@@ -1566,8 +1802,10 @@ def _verdict(metrics: dict) -> dict:
         sc = stat.get(h, {}).get("coverage_90_conf")
         if ew is not None and sw is not None:
             pi_width[h] = {
-                "engine_pi_width": ew, "static_pi_width": sw,
-                "engine_coverage": ec, "static_coverage": sc,
+                "engine_pi_width": ew,
+                "static_pi_width": sw,
+                "engine_coverage": ec,
+                "static_coverage": sc,
                 "engine_sharper": bool(ew < sw),
             }
     v["forecast_pi_width_by_horizon"] = pi_width
@@ -1580,6 +1818,41 @@ def _verdict(metrics: dict) -> dict:
     v["ood_coverage_noncollapse"] = bool(co is not None and co > 0.5)
     v["ood_coverage_indist"] = ci
     v["ood_coverage_ood"] = co
+
+    # ---- RE-SCOPED STAGE-1 ACCEPTANCE (f-s7-stage1-decision, A+B) -----------
+    # (1) filtering calibrated 88-92%; (2) engine beats static on transient
+    # CRPS OR NLL at H>0 on identical dense windows; (3) OOD honesty: coverage
+    # non-collapse + a quantified OOD signal CLEARLY exceeding the static (the
+    # static OOD-AUROC is ~0.57 ≈ random; we require the engine's > 0.65 and a
+    # clear margin over the static).  same_windows_verified must stay true.
+    static_ood_auroc = 0.568  # S7.2 baseline_metrics_v0.json (static deep-ensemble)
+    crit1 = bool(v["filtering_coverage_in_band"])
+    crit2 = bool(v["criterion2_transient_win_any_Hgt0"] and v["same_windows_verified"])
+    auroc = v["ood_auroc"]
+    crit3 = bool(
+        v["ood_coverage_noncollapse"]
+        and auroc is not None
+        and auroc > 0.65
+        and auroc > static_ood_auroc + 0.10
+    )
+    v["rescoped_acceptance"] = {
+        "criterion1_filtering_calibrated": crit1,
+        "criterion2_transient_dynamics_win": crit2,
+        "criterion2_win_basis": (
+            "transient_NLL"
+            if v["forecast_beats_static_transient_nll_any_Hgt0"]
+            else (
+                "transient_CRPS"
+                if v["forecast_beats_static_transient_any_Hgt0"]
+                else "none"
+            )
+        ),
+        "criterion3_ood_honesty": crit3,
+        "ood_auroc_engine": auroc,
+        "ood_auroc_static_ref": static_ood_auroc,
+        "all_met": bool(crit1 and crit2 and crit3),
+        "stretch_bulk_crps_beats_static": bool(v["forecast_beats_static_at_Hgt0"]),
+    }
     return v
 
 
@@ -1605,9 +1878,24 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--smoothing", action="store_true")
     p.add_argument("--device", default="cpu")
+    p.add_argument(
+        "--drift-reg-weight",
+        type=float,
+        default=0.0,
+        help="quiescent persistence regulariser weight (S7.4; 0=v0)",
+    )
+    p.add_argument(
+        "--train-horizons",
+        type=str,
+        default=None,
+        help="comma-separated training rollout horizons (e.g. 1,2,5,10,20,40)",
+    )
     p.add_argument("--output", type=Path, default=None)
     a = p.parse_args(argv)
 
+    train_h = (
+        tuple(int(x) for x in a.train_horizons.split(",")) if a.train_horizons else None
+    )
     cfg = ExperimentConfig(
         latent_dim=a.latent_dim,
         max_train_shots=a.max_train_shots,
@@ -1618,6 +1906,8 @@ def main(argv: list[str] | None = None) -> None:
         seed=a.seed,
         do_smoothing=a.smoothing,
         device=a.device,
+        drift_reg_weight=a.drift_reg_weight,
+        train_horizons=train_h,
     )
     out = a.output or (Path(__file__).parent / "artifacts" / "engine_metrics_v0.json")
     metrics = run_experiment(cfg, output=out)
@@ -1626,13 +1916,45 @@ def main(argv: list[str] | None = None) -> None:
     print("S7.3 RKN ENGINE — STAGE-1 ACCEPTANCE")
     print("=" * 64)
     acc = metrics["acceptance"]
-    print(f"(1) filtering coverage@90 = {acc.get('filtering_coverage_value')}  in-band={acc['filtering_coverage_in_band']}")
-    print(f"(2) forecast beats static at any H>0 = {acc['forecast_beats_static_any_Hgt0']}  all H>0 = {acc['forecast_beats_static_at_Hgt0']}")
-    print("    per-horizon CRPS (engine vs static):")
-    for h, w in acc.get("forecast_crps_by_horizon", {}).items():
+    print(
+        f"(1) filtering coverage@90 = {acc.get('filtering_coverage_value')}  in-band={acc['filtering_coverage_in_band']}"
+    )
+    print("(2) TRANSIENT-subset forecast (the re-scoped criterion, engine vs static):")
+    print("    per-horizon transient CRPS (lower=better):")
+    for h, w in acc.get("forecast_crps_transient_by_horizon", {}).items():
         flag = "WIN" if w["engine_wins"] else "loss"
-        print(f"      h={h:>3}: engine={w['engine_crps']:.4f}  static={w['static_crps']:.4f}  [{flag}]")
-    print(f"(3) OOD: AUROC={acc.get('ood_auroc')}  cov(indist)={acc.get('ood_coverage_indist')}  cov(ood)={acc.get('ood_coverage_ood')}  noncollapse={acc['ood_coverage_noncollapse']}")
+        print(
+            f"      h={h:>3}: engine={w['engine_crps_transient']:.4f}  static={w['static_crps_transient']:.4f}  [{flag}]"
+        )
+    print(
+        "    per-horizon transient NLL (lower=better; static explodes on caught ELMs):"
+    )
+    for h, w in acc.get("forecast_nll_transient_by_horizon", {}).items():
+        flag = "WIN" if w["engine_wins"] else "loss"
+        print(
+            f"      h={h:>3}: engine={w['engine_nll_transient']:.3f}  static={w['static_nll_transient']:.3f}  [{flag}]"
+        )
+    print(
+        f"    bulk CRPS beats static at all H>0 (STRETCH) = {acc['forecast_beats_static_at_Hgt0']}"
+    )
+    print(
+        f"(3) OOD: AUROC={acc.get('ood_auroc')}  cov(indist)={acc.get('ood_coverage_indist')}  cov(ood)={acc.get('ood_coverage_ood')}  noncollapse={acc['ood_coverage_noncollapse']}"
+    )
+    rs = acc.get("rescoped_acceptance", {})
+    print("-" * 64)
+    print(f"RE-SCOPED STAGE-1 ACCEPTANCE: ALL MET = {rs.get('all_met')}")
+    print(
+        f"  (1) filtering calibrated      = {rs.get('criterion1_filtering_calibrated')}"
+    )
+    print(
+        f"  (2) transient dynamics win    = {rs.get('criterion2_transient_dynamics_win')}  (basis: {rs.get('criterion2_win_basis')})"
+    )
+    print(
+        f"  (3) OOD honesty               = {rs.get('criterion3_ood_honesty')}  (engine AUROC {rs.get('ood_auroc_engine')} vs static {rs.get('ood_auroc_static_ref')})"
+    )
+    print(
+        f"  STRETCH bulk-CRPS-beats-static = {rs.get('stretch_bulk_crps_beats_static')}"
+    )
     print(f"total: {metrics.get('total_seconds')}s")
 
 

@@ -22,6 +22,8 @@ import torch
 from imas_ambix.statespace.engine import (
     EngineConfig,
     RKNEngine,
+    _quiescent_drift_penalty,
+    _verdict,
     gaussian_nll,
     train_engine,
 )
@@ -256,13 +258,15 @@ def test_forecast_ignores_future_inputs():
     # after max(anchor) are never read → forecasts must be bit-identical.
     x_corrupt = x.copy()
     cut = int(anchors.max()) + 1
-    x_corrupt[cut:] = (
-        np.random.RandomState(99).randn(T - cut, cfg.input_dim) * 1e3
-    )
+    x_corrupt[cut:] = np.random.RandomState(99).randn(T - cut, cfg.input_dim) * 1e3
     mu_b, var_b = forecast_pairs(model, x_corrupt, anchors, horizons)
 
-    assert np.array_equal(mu_a, mu_b), "forecast mean changed when future inputs corrupted → LEAK"
-    assert np.array_equal(var_a, var_b), "forecast var changed when future inputs corrupted → LEAK"
+    assert np.array_equal(mu_a, mu_b), (
+        "forecast mean changed when future inputs corrupted → LEAK"
+    )
+    assert np.array_equal(var_a, var_b), (
+        "forecast var changed when future inputs corrupted → LEAK"
+    )
 
 
 def test_forecast_uses_inputs_up_to_anchor():
@@ -295,8 +299,13 @@ def test_train_reduces_loss():
     """A few epochs on a tiny synthetic dataset must reduce the training loss."""
     rng = np.random.default_rng(0)
     cfg = EngineConfig(
-        input_dim=4, latent_dim=8, output_dim=1,
-        n_epochs=8, batch_size=8, seq_len=40, lr=3e-3,
+        input_dim=4,
+        latent_dim=8,
+        output_dim=1,
+        n_epochs=8,
+        batch_size=8,
+        seq_len=40,
+        lr=3e-3,
         train_horizons=(1, 2, 5),
     )
     # synthetic: latent random walk, y = sin of cumulative input, x noisy
@@ -354,6 +363,128 @@ def test_horizon_conformal_quantile():
     q = fit_horizon_conformal(y, mu, sigma, alpha=0.10)
     # for standard normal residuals, q̂ ≈ z_{0.95} ≈ 1.645
     assert 1.5 < q < 1.8, f"conformal q̂={q} not near 1.645"
+
+
+def test_quiescent_drift_penalty():
+    """The S7.4 drift regulariser is non-negative and quiescence-weighted.
+
+    On a step with NO transient mass (fully quiescent) the penalty equals the
+    full ||f_θ(z)||²; on a step that is the batch's peak transient it is ~0.
+    Minimising it must drive the transition increment toward persistence (Δz→0).
+    """
+    torch.manual_seed(0)
+    cfg = EngineConfig(input_dim=4, latent_dim=6, output_dim=1)
+    model = RKNEngine(cfg)
+    B, T, L = 2, 8, cfg.latent_dim
+    z_post = torch.randn(B, T, L)
+
+    # All-quiescent (zero transient mass): quiescence ≡ 1, penalty = mean ||f||².
+    tw0 = torch.zeros(B, T)
+    pen0 = _quiescent_drift_penalty(model, z_post, tw0)
+    assert pen0 >= 0.0
+    delta = model.trans_mean(z_post.reshape(B * T, L))
+    full = (delta * delta).sum(-1).mean()
+    assert torch.allclose(pen0, full, atol=1e-5)
+
+    # A purely-transient batch (constant positive mass everywhere) → quiescence
+    # ≡ 0 → penalty ≈ 0 (transients are free to move the latent).
+    twT = torch.ones(B, T)
+    penT = _quiescent_drift_penalty(model, z_post, twT)
+    assert float(penT.detach()) < 1e-6
+
+    # Minimising the penalty shrinks the transition increment (persistence pull).
+    opt = torch.optim.SGD(model.trans_mean.parameters(), lr=0.05)
+    before = float(_quiescent_drift_penalty(model, z_post, tw0).detach())
+    for _ in range(50):
+        opt.zero_grad()
+        loss = _quiescent_drift_penalty(model, z_post, tw0)
+        loss.backward()
+        opt.step()
+    after = float(_quiescent_drift_penalty(model, z_post, tw0).detach())
+    assert after < before, (
+        f"drift penalty did not decrease: {before:.4f} -> {after:.4f}"
+    )
+
+
+def test_verdict_criterion2_nll_branch():
+    """_verdict reports the transient-NLL win branch (re-scoped criterion 2).
+
+    The re-scoped Stage-1 bar is met on transient CRPS OR transient NLL.  This
+    synthetic metrics dict mirrors the v0 finding: the engine LOSES transient
+    CRPS at every horizon but WINS transient NLL at h>=5 (the static is caught
+    confidently-narrow when an ELM lands).  The verdict must flag criterion 2 met
+    via the NLL basis, with same_windows_verified true.
+    """
+    metrics = {
+        "filtering": {"coverage_90_conf": 0.903, "coverage_90_raw": 0.945},
+        "forecasting_indist_dense_transient": {
+            "same_truths_engine_vs_static": True,
+            "engine": {
+                "1": {
+                    "crps_raw": 0.09,
+                    "crps_raw_transient": 0.059,
+                    "nll_raw_transient": -0.57,
+                    "n_transient": 9829,
+                    "mean_sigma_raw": 0.16,
+                    "rmse": 0.30,
+                },
+                "5": {
+                    "crps_raw": 0.11,
+                    "crps_raw_transient": 0.081,
+                    "nll_raw_transient": -0.17,
+                    "n_transient": 9829,
+                    "mean_sigma_raw": 0.25,
+                    "rmse": 0.31,
+                },
+                "20": {
+                    "crps_raw": 0.14,
+                    "crps_raw_transient": 0.149,
+                    "nll_raw_transient": 0.88,
+                    "n_transient": 10368,
+                    "mean_sigma_raw": 0.28,
+                    "rmse": 0.39,
+                },
+            },
+            "static": {
+                "1": {
+                    "crps_raw": 0.065,
+                    "crps_raw_transient": 0.035,
+                    "nll_raw_transient": -3.90,
+                },
+                "5": {
+                    "crps_raw": 0.067,
+                    "crps_raw_transient": 0.036,
+                    "nll_raw_transient": 0.594,
+                },
+                "20": {
+                    "crps_raw": 0.088,
+                    "crps_raw_transient": 0.0998,
+                    "nll_raw_transient": 13.2,
+                },
+            },
+        },
+        "ood_honesty": {
+            "ood_auroc_ensemble_disagreement": 0.81,
+            "filter_coverage90_raw_indist": 0.945,
+            "filter_coverage90_raw_ood": 0.734,
+        },
+    }
+    v = _verdict(metrics)
+    # transient CRPS loses at every horizon
+    assert v["forecast_beats_static_transient_any_Hgt0"] is False
+    # transient NLL wins at h>=5 (engine bounded, static explodes on caught ELMs)
+    assert v["forecast_beats_static_transient_nll_any_Hgt0"] is True
+    assert v["forecast_nll_transient_by_horizon"]["20"]["engine_wins"] is True
+    assert v["forecast_nll_transient_by_horizon"]["1"]["engine_wins"] is False
+    # re-scoped criterion 2 met via NLL; all three criteria met
+    rs = v["rescoped_acceptance"]
+    assert rs["criterion2_transient_dynamics_win"] is True
+    assert rs["criterion2_win_basis"] == "transient_NLL"
+    assert rs["criterion1_filtering_calibrated"] is True
+    assert rs["criterion3_ood_honesty"] is True
+    assert rs["all_met"] is True
+    # bulk CRPS still a (failed) stretch goal, not the gate
+    assert rs["stretch_bulk_crps_beats_static"] is False
 
 
 def test_gaussian_nll_matches_numpy():
