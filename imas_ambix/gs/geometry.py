@@ -98,10 +98,18 @@ if TYPE_CHECKING:
 # `extrapolation-coordinates` decision here.
 
 MAST_R0 = 0.85
-"""MAST nominal geometric major radius [m] (fixed vessel geometry)."""
+"""MAST nominal plasma major radius [m] (device constant, not per-shot).
+
+A *nominal* value, NOT derived from the limiter contour — a downstream
+consumer that needs a geometry-exact R0/a should derive it from the table's
+``limiter_r`` / ``limiter_z`` instead.  Carried only so a later dimensionless
+framing has a fixed reference; the ``extrapolation-coordinates`` decision is
+left open."""
 
 MAST_A = 0.65
-"""MAST nominal minor radius [m] (fixed vessel geometry, outboard limiter)."""
+"""MAST nominal plasma minor radius [m] (device constant; the quantity used by
+the Greenwald density limit).  Nominal, not a limiter dimension — see the
+:data:`MAST_R0` note on deriving a geometry-exact value from the contour."""
 
 # --- efm static-geometry array names (the auditable read-list) --------
 
@@ -726,6 +734,13 @@ def write_tables(
         "efm_arrays_read": list(EFM_GEOMETRY_ARRAYS),
         "r0": MAST_R0,
         "minor_radius": MAST_A,
+        "shots_are_sampled_representatives": True,
+        "shots_note": (
+            "each campaign's 'shots' is the SAMPLED set found with that "
+            "signature, NOT the full in-use population. Match a new shot to a "
+            "campaign by recomputing setup_signature(...).key, never by "
+            "membership in this list."
+        ),
         "n_campaigns": len(tables),
         "campaigns": {k: t.to_dict() for k, t in tables.items()},
     }
@@ -741,11 +756,19 @@ def summarise(tables: dict[str, GeometryTable]) -> dict[str, object]:
         "efm_arrays_read": list(EFM_GEOMETRY_ARRAYS),
         "r0": MAST_R0,
         "minor_radius": MAST_A,
+        "shots_are_sampled_representatives": True,
+        "shots_note": (
+            "n_shots / shot_range count the SAMPLED shots found with each "
+            "signature, NOT the full in-use population; match new shots by "
+            "recomputing the signature key, not by membership."
+        ),
         "n_campaigns": len(tables),
         "campaigns": {
             k: {
-                "n_shots": len(t.shots),
-                "shot_range": [min(t.shots), max(t.shots)] if t.shots else [],
+                "n_shots_sampled": len(t.shots),
+                "shot_range_sampled": [min(t.shots), max(t.shots)]
+                if t.shots
+                else [],
                 "example_shots": t.shots[:3],
                 "coverage": t.coverage(),
                 "flagged_amb": [
