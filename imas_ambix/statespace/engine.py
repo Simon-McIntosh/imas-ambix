@@ -2197,22 +2197,24 @@ def _verdict(metrics: dict) -> dict:
 
     # (3) OOD honesty quantified + coverage non-collapse
     ood = metrics.get("ood_honesty", {})
-    # S7.5: criterion 3 now uses the ENGINE-NATIVE OOD-AUROC (the engine's own
-    # innovation / predictive-σ signal), falling back to the static-ensemble
-    # disagreement only if the engine-native key is absent (v0/v1 dicts).  The
-    # static number is recorded as a clearly-labelled REFERENCE, never the gate.
-    engine_auroc = ood.get("ood_auroc_engine")
+    # S7.5: criterion 3 is judged on ENGINE-NATIVE OOD signals (the engine's own
+    # innovation + predictive-σ AUROC), NOT the static-ensemble disagreement.
+    # We report BOTH engine signals; the headline engine-native AUROC is the
+    # innovation (the most-principled "inputs surprise the dynamics" signal), with
+    # the predictive-σ AUROC reported alongside.  The static-ensemble disagreement
+    # is kept ONLY as a clearly-labelled SAME-DATA reference (v1 mislabelled this
+    # 0.81 as the engine's — it is the STATIC model's input-novelty score).
+    engine_innov = ood.get("ood_auroc_engine_innovation")
+    engine_sigma = ood.get("ood_auroc_engine_predictive_sigma")
+    engine_auroc = ood.get("ood_auroc_engine")  # headline = innovation
     static_disagreement = ood.get(
         "ood_auroc_static_ensemble_disagreement",
         ood.get("ood_auroc_ensemble_disagreement"),
     )
-    # The headline ood_auroc is the engine-native one when available.
     v["ood_auroc"] = engine_auroc if engine_auroc is not None else static_disagreement
     v["ood_auroc_engine_native"] = engine_auroc
-    v["ood_auroc_engine_predictive_sigma"] = ood.get(
-        "ood_auroc_engine_predictive_sigma"
-    )
-    v["ood_auroc_engine_innovation"] = ood.get("ood_auroc_engine_innovation")
+    v["ood_auroc_engine_predictive_sigma"] = engine_sigma
+    v["ood_auroc_engine_innovation"] = engine_innov
     v["ood_auroc_static_ensemble_disagreement"] = static_disagreement
     ci = ood.get("filter_coverage90_raw_indist")
     co = ood.get("filter_coverage90_raw_ood")
@@ -2222,21 +2224,45 @@ def _verdict(metrics: dict) -> dict:
 
     # ---- RE-SCOPED STAGE-1 ACCEPTANCE (f-s7-stage1-decision, A+B) -----------
     # (1) filtering calibrated 88-92%; (2) engine beats static on transient
-    # CRPS OR NLL at H>0 on identical dense windows; (3) OOD honesty: coverage
-    # non-collapse + a quantified OOD signal CLEARLY exceeding the static
-    # comparator.  S7.5: criterion 3 is now judged on the ENGINE-NATIVE OOD score
-    # vs the static ensemble's (~0.57 ≈ random).  We require the engine's > 0.65
-    # AND a clear margin over the static.  same_windows_verified must stay true.
-    static_ood_auroc = static_disagreement if static_disagreement is not None else 0.568
+    # CRPS OR NLL at H>0 on identical dense windows; (3) OOD honesty.
+    #
+    # S7.5 criterion-3 honesty (the v1 number was the mislabelled static score).
+    # The plan wording is "a quantified OOD signal CLEARLY EXCEEDING the static",
+    # so criterion 3 is decomposed into two EXPLICIT sub-parts, both required:
+    #   (3a) coverage non-collapse (OOD filter coverage stays > 0.5);
+    #   (3b) the DYNAMICS-NATIVE engine OOD-AUROC (the filter-innovation — a signal
+    #        the static CANNOT produce) is (i) usable (> 0.65 absolute) AND
+    #        (ii) CLEARLY exceeds the SAME-DATA static-ensemble disagreement (a
+    #        REAL margin ≥ 0.05 — not a within-noise tie).  The apples-to-apples
+    #        reference is the SAME-DATA static disagreement, NOT the 0.568
+    #        decimated number (a cross-dataset mismatch would relaunder v1's bug).
+    # The predictive-σ AUROC is REPORTED but NOT used for (3b): predictive-σ
+    # inflation and the static ensemble-disagreement measure the SAME construct
+    # (predictive-uncertainty growth), so "engine pred-σ ≈ static disagreement" is
+    # the engine MATCHING the static at the same detector, not its DYNAMICS adding
+    # an OOD signal the static lacks — privileging pred-σ would launder a tie into
+    # a win.  If (3a) holds but (3b) does not, criterion 3 is an honest PARTIAL —
+    # recorded as such, NOT forced to pass.  Reference choice is the ORCHESTRATOR's;
+    # this verdict surfaces all four numbers and does not retune the gate to taste.
+    _MARGIN = 0.05  # "clearly exceeds" demands a real margin, not a tie
     crit1 = bool(v["filtering_coverage_in_band"])
     crit2 = bool(v["criterion2_transient_win_any_Hgt0"] and v["same_windows_verified"])
-    auroc = v["ood_auroc"]
-    crit3 = bool(
-        v["ood_coverage_noncollapse"]
-        and auroc is not None
-        and auroc > 0.65
-        and auroc > static_ood_auroc + 0.10
+    best_engine_auroc = max(
+        [a for a in (engine_innov, engine_sigma) if a is not None], default=None
     )
+    crit3a_noncollapse = bool(v["ood_coverage_noncollapse"])
+    # (3b) uses the DYNAMICS-NATIVE innovation signal (NOT pred-σ; see note above).
+    crit3b_auroc = bool(
+        engine_innov is not None
+        and engine_innov > 0.65
+        and static_disagreement is not None
+        and engine_innov >= static_disagreement + _MARGIN
+    )
+    crit3 = bool(crit3a_noncollapse and crit3b_auroc)
+    v["ood_best_engine_auroc"] = best_engine_auroc
+    # criterion 3 is a PARTIAL when coverage non-collapse holds but the
+    # engine-native AUROC does not clearly match/exceed the same-data static.
+    crit3_partial = bool(crit3a_noncollapse and not crit3)
     v["rescoped_acceptance"] = {
         "criterion1_filtering_calibrated": crit1,
         "criterion2_transient_dynamics_win": crit2,
@@ -2250,15 +2276,17 @@ def _verdict(metrics: dict) -> dict:
             )
         ),
         "criterion3_ood_honesty": crit3,
-        "criterion3_auroc_basis": (
-            "engine_native_innovation"
-            if engine_auroc is not None
-            else "static_fallback"
-        ),
-        "ood_auroc_engine": auroc,
-        "ood_auroc_engine_native": engine_auroc,
-        "ood_auroc_static_ref": static_ood_auroc,
+        "criterion3_partial": crit3_partial,
+        "criterion3a_coverage_noncollapse": crit3a_noncollapse,
+        "criterion3b_innovation_auroc_clearly_exceeds_same_data_static": crit3b_auroc,
+        "criterion3b_margin_required": _MARGIN,
+        "ood_auroc_engine_innovation": engine_innov,
+        "ood_auroc_engine_predictive_sigma": engine_sigma,
+        "ood_best_engine_auroc": best_engine_auroc,
+        "ood_auroc_static_ensemble_disagreement_same_data": static_disagreement,
+        "ood_auroc_static_decimated_ref": 0.568,
         "all_met": bool(crit1 and crit2 and crit3),
+        "all_met_with_partial_ood": bool(crit1 and crit2 and crit3a_noncollapse),
         "stretch_bulk_crps_beats_static": bool(v["forecast_beats_static_at_Hgt0"]),
     }
     return v
@@ -2387,8 +2415,18 @@ def main(argv: list[str] | None = None) -> None:
         f"  (2) transient dynamics win    = {rs.get('criterion2_transient_dynamics_win')}  (basis: {rs.get('criterion2_win_basis')})"
     )
     print(
-        f"  (3) OOD honesty               = {rs.get('criterion3_ood_honesty')}  (engine AUROC {rs.get('ood_auroc_engine')} vs static {rs.get('ood_auroc_static_ref')})"
+        f"  (3) OOD honesty               = {rs.get('criterion3_ood_honesty')}"
+        f"  (partial={rs.get('criterion3_partial')}; "
+        f"3a-noncollapse={rs.get('criterion3a_coverage_noncollapse')}, "
+        f"3b-innovation-clearly-exceeds-same-data-static={rs.get('criterion3b_innovation_auroc_clearly_exceeds_same_data_static')})"
     )
+    print(
+        f"      engine-native AUROC: innovation={rs.get('ood_auroc_engine_innovation')}, "
+        f"pred-σ={rs.get('ood_auroc_engine_predictive_sigma')}  "
+        f"vs same-data static={rs.get('ood_auroc_static_ensemble_disagreement_same_data')} "
+        f"(decimated-ref={rs.get('ood_auroc_static_decimated_ref')})"
+    )
+    print(f"  ALL MET (with PARTIAL OOD)    = {rs.get('all_met_with_partial_ood')}")
     print(
         f"  STRETCH bulk-CRPS-beats-static = {rs.get('stretch_bulk_crps_beats_static')}"
     )

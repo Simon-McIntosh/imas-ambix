@@ -31,13 +31,12 @@ from imas_ambix.statespace.engine import (
     train_engine,
 )
 from imas_ambix.statespace.filter import (
-    fit_horizon_conformal,
     filter_innovation_shot,
-    forecast_pairs,
     filter_shot,
+    fit_horizon_conformal,
+    forecast_pairs,
     smooth_shot,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shapes
@@ -493,25 +492,82 @@ def test_verdict_criterion2_nll_branch():
     assert rs["criterion2_transient_dynamics_win"] is True
     assert rs["criterion2_win_basis"] == "transient_NLL"
     assert rs["criterion1_filtering_calibrated"] is True
-    # criterion 3 now uses the engine-native AUROC (0.78), beating the static
-    # reference (0.57) by a clear margin — and is sourced from the engine.
+    # criterion 3 uses the DYNAMICS-NATIVE innovation AUROC (0.78), which is
+    # > 0.65 AND CLEARLY exceeds the same-data static disagreement (0.57) by a
+    # real margin (≥ 0.05) → criterion 3 met.
     assert rs["criterion3_ood_honesty"] is True
-    assert rs["criterion3_auroc_basis"] == "engine_native_innovation"
-    assert rs["ood_auroc_engine_native"] == 0.78
+    assert rs["criterion3a_coverage_noncollapse"] is True
+    assert rs["criterion3b_innovation_auroc_clearly_exceeds_same_data_static"] is True
     assert rs["all_met"] is True
     # bulk CRPS still a (failed) stretch goal, not the gate
     assert rs["stretch_bulk_crps_beats_static"] is False
 
 
-def test_verdict_ood_uses_engine_native_not_static():
-    """Criterion 3 must NOT pass on the static ensemble's disagreement alone.
+def test_verdict_ood_partial_mirrors_v2_finding():
+    """Criterion 3 is a PARTIAL — the EXACT v2 finding (the headline of S7.5).
 
-    The S7.4 artifact mislabelled the STATIC ensemble's 0.81 disagreement as the
-    engine's OOD signal.  S7.5 fixes this: with NO engine-native score present
-    and only the static disagreement available, criterion 3 falls back to the
-    static — but then the gate (auroc > static + 0.10) can never be met by the
-    static beating itself, so a static-only metrics dict does NOT pass crit 3.
+    The dynamics-native innovation AUROC (0.748) does NOT clearly exceed the
+    same-data static disagreement (0.810); the predictive-σ AUROC (0.831) only
+    TIES it (and measures the same construct, so it can't count for 3b).  Coverage
+    non-collapse (3a) holds.  → criterion 3 is a PARTIAL, NOT forced to pass by
+    privileging pred-σ via max() or by swapping in the decimated 0.568 baseline.
+    This corrects v1's mislabelled "criterion 3 met" (which used the static's own
+    0.81 disagreement as if it were the engine's signal).
     """
+    metrics = {
+        "filtering": {"coverage_90_conf": 0.913},
+        "forecasting_indist_dense_transient": {
+            "same_truths_engine_vs_static": True,
+            "engine": {"5": {"nll_raw_transient": -0.55, "n_transient": 100}},
+            "static": {"5": {"nll_raw_transient": 0.59}},
+        },
+        "ood_honesty": {
+            "ood_auroc_engine": 0.748,
+            "ood_auroc_engine_innovation": 0.748,  # dynamics-native; below static
+            "ood_auroc_engine_predictive_sigma": 0.831,  # only ties static; not used for 3b
+            "ood_auroc_static_ensemble_disagreement": 0.810,
+            "filter_coverage90_raw_indist": 0.944,
+            "filter_coverage90_raw_ood": 0.755,  # non-collapse holds
+        },
+    }
+    v = _verdict(metrics)
+    rs = v["rescoped_acceptance"]
+    assert rs["criterion3a_coverage_noncollapse"] is True
+    # 3b uses the dynamics-native innovation (0.748), NOT the pred-σ tie (0.831).
+    assert rs["criterion3b_innovation_auroc_clearly_exceeds_same_data_static"] is False
+    assert rs["criterion3_ood_honesty"] is False
+    assert rs["criterion3_partial"] is True
+    # all-met is False; the "with PARTIAL OOD" variant is True (crit1+2+3a)
+    assert rs["all_met"] is False
+    assert rs["all_met_with_partial_ood"] is True
+
+
+def test_verdict_ood_tie_is_not_clearly_exceeds():
+    """A within-noise tie (engine 0.831 vs static 0.810, margin 0.021 < 0.05) does
+    NOT satisfy 'clearly exceeds' even when the innovation IS the tying signal."""
+    metrics = {
+        "filtering": {"coverage_90_conf": 0.91},
+        "forecasting_indist_dense_transient": {
+            "same_truths_engine_vs_static": True,
+            "engine": {"5": {"nll_raw_transient": -0.5, "n_transient": 100}},
+            "static": {"5": {"nll_raw_transient": 0.6}},
+        },
+        "ood_honesty": {
+            "ood_auroc_engine_innovation": 0.831,  # ties static within noise
+            "ood_auroc_engine_predictive_sigma": 0.70,
+            "ood_auroc_static_ensemble_disagreement": 0.810,  # margin 0.021 < 0.05
+            "filter_coverage90_raw_indist": 0.94,
+            "filter_coverage90_raw_ood": 0.75,
+        },
+    }
+    rs = _verdict(metrics)["rescoped_acceptance"]
+    assert rs["criterion3b_innovation_auroc_clearly_exceeds_same_data_static"] is False
+    assert rs["criterion3_ood_honesty"] is False
+
+
+def test_verdict_ood_no_engine_score_not_satisfiable():
+    """With NO engine-native score, criterion 3b cannot be satisfied (no fallback
+    to the static-as-engine number that v1 mislabelled)."""
     metrics = {
         "filtering": {"coverage_90_conf": 0.903},
         "forecasting_indist_dense_transient": {
@@ -520,17 +576,14 @@ def test_verdict_ood_uses_engine_native_not_static():
             "static": {"5": {"nll_raw_transient": 0.59}},
         },
         "ood_honesty": {
-            # ONLY the static disagreement (the mislabelled v0/v1 key), no
-            # engine-native score → criterion 3 must NOT be satisfiable by it.
-            "ood_auroc_ensemble_disagreement": 0.81,
+            "ood_auroc_ensemble_disagreement": 0.81,  # static only, mislabelled in v1
             "filter_coverage90_raw_indist": 0.945,
             "filter_coverage90_raw_ood": 0.734,
         },
     }
     v = _verdict(metrics)
     rs = v["rescoped_acceptance"]
-    assert rs["criterion3_auroc_basis"] == "static_fallback"
-    # static can't beat itself by +0.10 → criterion 3 not met on static alone
+    assert rs["criterion3b_innovation_auroc_clearly_exceeds_same_data_static"] is False
     assert rs["criterion3_ood_honesty"] is False
     assert v["ood_auroc_engine_native"] is None
 
