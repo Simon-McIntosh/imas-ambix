@@ -1222,6 +1222,15 @@ class ExperimentConfig:
     gs_passive_rank: int = 4
     gs_lambda: float = 1e-2
     gs_data_weight: float = 0.1
+    # Static-comparator ensemble size.  Defaults reproduce v2 (5×60) so the
+    # ungrounded path is bit-identical.  The GROUNDING-VALUE acceptance (criteria
+    # 1/2/3) is ENGINE-ONLY (filtering, discovery-gap, near-vacuum) — the static
+    # comparator does not enter the grounding verdict — so the grounding run may
+    # shrink it (e.g. 2×10) to cut the dominant ~13 min OpenBLAS static cost; the
+    # static numbers then become a documented throwaway (n_members≥2 keeps
+    # ensemble_disagreement well-defined).  Reported in the artifact config.
+    static_ensemble_members: int = 5
+    static_ensemble_epochs: int = 60
 
 
 def _stack_runs_for_static(runs: list[ShotRun]) -> tuple[np.ndarray, np.ndarray]:
@@ -1521,6 +1530,9 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
             "student_t_learn_nu": cfg.student_t_learn_nu,
             "student_t_nu_init": cfg.student_t_nu,
             "num_threads": cfg.num_threads,
+            "grounding": cfg.grounding,
+            "static_ensemble_members": cfg.static_ensemble_members,
+            "static_ensemble_epochs": cfg.static_ensemble_epochs,
         }
     }
 
@@ -1674,7 +1686,12 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     Xtr, ytr = _stack_runs_for_static(train_runs)
     Xtr_n = stats.normalise_X(Xtr.astype(np.float64))
     ytr_n = stats.normalise_y(ytr.astype(np.float64))
-    ens_cfg = EnsembleConfig(n_members=5, n_epochs=60, hidden_size=128, seed_base=0)
+    ens_cfg = EnsembleConfig(
+        n_members=cfg.static_ensemble_members,
+        n_epochs=cfg.static_ensemble_epochs,
+        hidden_size=128,
+        seed_base=0,
+    )
     ensemble = DeepEnsemble.build(input_dim, output_dim, ens_cfg)
     # NOTE: train with a GRADIENT-CLIPPED loop (in-scope; uses MLPGaussian's
     # public nll_and_grads/adam_step API).  baseline.MLPGaussian.fit_sgd has NO
@@ -2890,8 +2907,7 @@ def _grounding_verdict(metrics: dict) -> dict:
         "clean_comparison_vs_v2": clean_vs_v2,
         "grounding_enriched_latent": bool(gap_widened and dalpha_preserved),
         "enrichment_claim_note": (
-            "ENRICHED — gap widened beyond T8 AND Dα preserved AND clean v2 "
-            "comparison."
+            "ENRICHED — gap widened beyond T8 AND Dα preserved AND clean v2 comparison."
             if (gap_widened and dalpha_preserved and clean_vs_v2)
             else (
                 "CONFOUNDED — gap widened but Dα NOT preserved: the bigger gap "
@@ -2983,6 +2999,14 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--gs-profile-order", type=int, default=1)
     p.add_argument("--gs-passive-rank", type=int, default=4)
     p.add_argument(
+        "--static-members",
+        type=int,
+        default=5,
+        help="static-comparator ensemble members (grounding run may shrink to 2; "
+        "static is a throwaway for the grounding-value acceptance)",
+    )
+    p.add_argument("--static-epochs", type=int, default=60)
+    p.add_argument(
         "--v2-metrics",
         type=Path,
         default=Path(__file__).parent / "artifacts" / "engine_metrics_v2.json",
@@ -3016,6 +3040,8 @@ def main(argv: list[str] | None = None) -> None:
         gs_data_weight=a.gs_data_weight,
         gs_profile_order=a.gs_profile_order,
         gs_passive_rank=a.gs_passive_rank,
+        static_ensemble_members=a.static_members,
+        static_ensemble_epochs=a.static_epochs,
     )
     if a.grounding:
         out = a.output or (
