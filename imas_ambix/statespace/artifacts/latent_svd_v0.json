@@ -1,0 +1,77 @@
+{
+  "description": "Effective latent dimension via SVD on stacked smoothed trajectories (RTS smoother over train split, seed=0 deterministic checkpoint). Primary result: transient effective dimension. Confound: drift_reg=0.3 biased f_theta->identity on quiescent steps \u2014 quiescent spectrum is expected near-degenerate by construction, not a physics result.",
+  "config": {
+    "latent_dim": 16,
+    "emission": "student_t",
+    "drift_reg_weight": 0.3,
+    "seed": 0,
+    "burn_in": 20,
+    "split": "train",
+    "n_runs": 381,
+    "student_t_nu_learned": 4.854225158691406
+  },
+  "open_decisions": {
+    "uq-level-v0": "STILL-OPEN \u2014 UQ stack for engine + GS forward-model UQ",
+    "extrapolation-coordinates": "STILL-OPEN \u2014 dimensionless / invariant coordinate framing; note that SVD here is in the raw latent space (not dimensionless)"
+  },
+  "smoothed_summary": {
+    "overall": {
+      "label": "smoothed/overall",
+      "n_samples": 640254,
+      "latent_dim": 16,
+      "participation_ratio": 1.762096881866455,
+      "effective_rank_90pct": 3,
+      "effective_rank_95pct": 3,
+      "effective_rank_99pct": 7
+    },
+    "transient": {
+      "label": "smoothed/transient",
+      "n_samples": 18647,
+      "latent_dim": 16,
+      "participation_ratio": 1.8008205890655518,
+      "effective_rank_90pct": 3,
+      "effective_rank_95pct": 4,
+      "effective_rank_99pct": 9
+    },
+    "quiescent": {
+      "label": "smoothed/quiescent",
+      "n_samples": 621607,
+      "latent_dim": 16,
+      "participation_ratio": 1.7459269762039185,
+      "effective_rank_90pct": 3,
+      "effective_rank_95pct": 3,
+      "effective_rank_99pct": 6
+    },
+    "note": "Primary result. Smoother uses information from the full run; compare with filtered/overall for causal-vs-smoothed gap."
+  },
+  "filtered_summary": {
+    "overall": {
+      "label": "filtered/overall",
+      "n_samples": 640254,
+      "latent_dim": 16,
+      "participation_ratio": 1.7667818069458008,
+      "effective_rank_90pct": 3,
+      "effective_rank_95pct": 3,
+      "effective_rank_99pct": 7
+    },
+    "transient": {
+      "label": "filtered/transient",
+      "n_samples": 18647,
+      "latent_dim": 16,
+      "participation_ratio": 1.7991571426391602,
+      "effective_rank_90pct": 3,
+      "effective_rank_95pct": 4,
+      "effective_rank_99pct": 9
+    },
+    "quiescent": {
+      "label": "filtered/quiescent",
+      "n_samples": 621607,
+      "latent_dim": 16,
+      "participation_ratio": 1.7503671646118164,
+      "effective_rank_90pct": 3,
+      "effective_rank_95pct": 3,
+      "effective_rank_99pct": 6
+    },
+    "note": "Causal filtered latents \u2014 no future information."
+  }
+}

@@ -182,6 +182,91 @@ def smooth_shot(
 
 
 # ---------------------------------------------------------------------------
+# Latent-surfacing variants (T7 discovery track — additive; no change to above)
+# ---------------------------------------------------------------------------
+
+
+@torch.no_grad()
+def filter_shot_latents(
+    model: RKNEngine,
+    x_norm: np.ndarray,
+    device: str = "cpu",
+) -> tuple[np.ndarray, np.ndarray]:
+    """Causal filtering — same as filter_shot but returns the LATENT trajectories.
+
+    A strict superset of :func:`filter_shot`: the existing public function is
+    unchanged and its return contract is unchanged.  This companion surfaces the
+    posterior latent means / variances that ``filter_shot`` previously discarded
+    (the ``_z, _v`` stubs in the original).
+
+    Parameters
+    ----------
+    x_norm : (T, F) normalised inputs for a single contiguous run.
+
+    Returns
+    -------
+    z_post : (T, L)    filtered posterior latent mean at each timestep.
+    var_post : (T, L)  filtered posterior latent variance at each timestep.
+    """
+    model.eval()
+    xb = torch.from_numpy(x_norm[np.newaxis]).float().to(device)  # (1, T, F)
+    z_post, var_post, _obs_mu, _obs_var = model.filter_sequence(xb)
+    return z_post[0].cpu().numpy(), var_post[0].cpu().numpy()
+
+
+@torch.no_grad()
+def smooth_shot_latents(
+    model: RKNEngine,
+    x_norm: np.ndarray,
+    device: str = "cpu",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """RTS smoother — same backward pass as smooth_shot but returns the LATENT trajectories.
+
+    A strict superset of :func:`smooth_shot`: the existing public function is
+    unchanged.  This companion exposes the per-timestep smoothed (and filtered)
+    latent means / variances that the discovery track (T7+) needs, without
+    duplicating the backward pass.
+
+    Parameters
+    ----------
+    x_norm : (T, F) normalised inputs for a single contiguous run.
+
+    Returns
+    -------
+    z_f   : (T, L)  filtered posterior latent mean  (from the forward pass).
+    var_f : (T, L)  filtered posterior latent variance (from the forward pass).
+    z_s   : (T, L)  RTS-smoothed latent mean  (backward pass output).
+    var_s : (T, L)  RTS-smoothed latent variance (backward pass output).
+    """
+    model.eval()
+    xb = torch.from_numpy(x_norm[np.newaxis]).float().to(device)
+    z_filt, var_filt, _mu, _ov = model.filter_sequence(xb)  # filtered (1, T, L)
+    z_f = z_filt[0]
+    var_f = var_filt[0]
+    T, L = z_f.shape
+
+    a2 = model.trans_log_a.exp().pow(2.0).to(z_f.device)  # (L,)
+    q = model.log_q.exp().to(z_f.device)  # (L,)
+
+    z_s = z_f.clone()
+    var_s = var_f.clone()
+    for t in range(T - 2, -1, -1):
+        z_pred = z_f[t] + model.trans_mean(z_f[t : t + 1])[0]
+        var_pred = (a2 * var_f[t] + q).clamp(1e-6, 1e6)
+        gain = a2 * var_f[t] / var_pred
+        z_s[t] = z_f[t] + gain * (z_s[t + 1] - z_pred)
+        var_s[t] = var_f[t] + gain * gain * (var_s[t + 1] - var_pred)
+    var_s = var_s.clamp(1e-6, 1e6)
+
+    return (
+        z_f.cpu().numpy(),
+        var_f.cpu().numpy(),
+        z_s.cpu().numpy(),
+        var_s.cpu().numpy(),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Per-horizon split-conformal calibration
 # ---------------------------------------------------------------------------
 
