@@ -1222,10 +1222,12 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     # missing clip in baseline.py is a latent bug → recommended followup for the
     # orchestrator to fix at source (also hardens S7.2 on un-decimated data).
     # Static comparator MUST train clipped (task spec): an unclipped MLP diverges
-    # on dense ELM-spike targets → meaningless strawman.  grad_clip=10.0 matches
-    # baseline.py's opt-in clip value for sharp targets (fit_sgd docstring) and
-    # keeps the comparison fair (the engine clips its global grad-norm too).
-    _fit_ensemble_clipped(ensemble, Xtr_n, ytr_n, ens_cfg, grad_clip=10.0)
+    # on dense ELM-spike targets → meaningless strawman.  We REUSE the existing
+    # _fit_ensemble_clipped with grad_clip=5.0 — bit-identical to the S7.3 (v0)
+    # static fit — so the v0→v1 comparison is purely engine-driven (the static
+    # comparator does not move between versions; clean head-to-head).  This
+    # mirrors the engine's own clip_grad_norm_(…, 5.0).
+    _fit_ensemble_clipped(ensemble, Xtr_n, ytr_n, ens_cfg, grad_clip=5.0)
     # static conformal at h=0 (S7.2-style split-conformal on the dense runs)
     Xcf, ycf = _stack_runs_for_static(conf_runs)
     static_conf = ConformalWrapper(ensemble, stats)
