@@ -143,6 +143,33 @@ class EngineConfig:
     # with drift-reg OFF too.  4-8 threads is the measured sweet spot.  None =
     # leave torch's setting untouched.
     num_threads: int | None = 4
+    # --- S8-T6 GS GROUNDING (additive; 0/off = the ungrounded v2 path) -------
+    # When ``grounding`` is True, a GroundingHead (gs/grounding.py) maps the
+    # filtered latent z_t to the LOCKED restricted GS currents (order-1 plasma
+    # poly DOF + rank-4 passive SVD) pushed through the T2 forward operator to
+    # predict RAW magnetics.  Two terms add to the joint loss:
+    #   gs_data_weight · L_data  (raw-magnetics reconstruction NLL through G)
+    #   L_GS  (the GS force-balance soft prior, current-space L2, weight gs_lambda)
+    # The collinearity fix is STRUCTURAL (low DOF + low-rank passive — the head
+    # emits exactly the DOF the standalone frontier found near-vacuum-sound at
+    # λ=0); gs_lambda only biases toward small currents (soft so data overrides).
+    grounding: bool = False
+    gs_profile_order: int = 1  # locked order-1 plasma poly (3 DOF)
+    gs_passive_rank: int = 4  # locked passive SVD rank
+    gs_lambda: float = 1e-2  # L_GS soft-prior weight (current-space L2)
+    gs_data_weight: float = 0.1  # weight on L_data in the joint objective
+
+
+def _plasma_poly_dof(order: int) -> int:
+    """Number of 2-D polynomial profile-DOF for a given order (matches
+    residual.plasma_poly_basis): order-0→1, order-1→3, order-2→6, order-4→15."""
+    if order >= 4:
+        return 15
+    if order >= 2:
+        return 6
+    if order >= 1:
+        return 3
+    return 1
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +233,18 @@ class RKNEngine(nn.Module):
         # Initial belief (prior at t=0): learned mean ~0, broad variance.
         self.z0 = nn.Parameter(torch.zeros(L))
         self.log_var0 = nn.Parameter(torch.full((L,), math.log(1.0)))
+
+        # S8-T6: GS grounding head (latent → restricted GS currents).  Only
+        # constructed when grounding is on; the plasma DOF count is derived from
+        # the locked profile order (order-1 → {1, ρ_R, ρ_Z} = 3 DOF) so the head
+        # is built without any campaign data.  The forward operator + per-campaign
+        # tensors are supplied at train time (gs/grounding.CampaignGrounding).
+        self.grounding_head: nn.Module | None = None
+        if cfg.grounding:
+            from imas_ambix.gs.grounding import GroundingHead  # noqa: PLC0415
+
+            n_dof = _plasma_poly_dof(cfg.gs_profile_order)
+            self.grounding_head = GroundingHead(L, n_dof, cfg.gs_passive_rank)
 
     # -- belief ops ---------------------------------------------------------
 
@@ -567,6 +606,9 @@ class TrainState:
     epoch_filter_nll: list[float] = field(default_factory=list)
     epoch_rollout_nll: list[float] = field(default_factory=list)
     seconds: float = 0.0
+    # S8-T6 GS grounding (per-epoch mean L_data / L_GS; empty when ungrounded)
+    epoch_gs_data: list[float] = field(default_factory=list)
+    epoch_gs_prior: list[float] = field(default_factory=list)
 
 
 def _sample_anchor_rollout_loss(
@@ -677,6 +719,7 @@ def train_engine(
     cfg: EngineConfig,
     device: str = "cpu",
     stop_flag=None,
+    grounding_ctx=None,
 ) -> TrainState:
     """Train the RKN engine with combined filtering + multi-step rollout NLL.
 
@@ -688,10 +731,13 @@ def train_engine(
     cfg : EngineConfig.
     stop_flag : optional callable returning True to request a clean early exit
         (STOP-FILE / soft-time-limit contract, AGENTS.md §2a-cancel).
-
-    Returns
-    -------
-    TrainState with per-epoch losses.
+    grounding_ctx : optional ``gs.grounding.GroundingContext`` (S8-T6).  When
+        supplied AND ``cfg.grounding``, the joint loss adds the per-campaign GS
+        grounding terms (L_data raw-magnetics reconstruction NLL through the T2
+        operator + the L_GS force-balance soft prior) on the windows whose shot
+        has a campaign operator.  The window→run order MUST match the order
+        produced by ``_build_training_windows(..., return_run_index=True)`` with
+        the SAME seq_len/seed (the experiment builds the context that way).
     """
     # S7.5 PERF FIX: cap intra-op threads.  The model is tiny (latent≤32) so the
     # forward+backward is overhead-bound; torch's default 48-thread pool thrashes
@@ -720,13 +766,35 @@ def train_engine(
     rng.manual_seed(cfg.seed + 7)
 
     # Build fixed-length training windows (contiguous slices of each shot run).
-    windows_x, windows_y = _build_training_windows(
-        x_train, y_train, cfg.seq_len, seed=cfg.seed
+    # With grounding, also return the per-window source-run index so the window
+    # order matches the GroundingContext's per-window signature list (built with
+    # the SAME seq_len/seed) — the selection itself is unchanged either way.
+    use_grounding = bool(
+        cfg.grounding and grounding_ctx is not None and model.grounding_head is not None
     )
+    if use_grounding:
+        windows_x, windows_y, _window_runidx = _build_training_windows(
+            x_train, y_train, cfg.seq_len, seed=cfg.seed, return_run_index=True
+        )
+    else:
+        windows_x, windows_y = _build_training_windows(
+            x_train, y_train, cfg.seq_len, seed=cfg.seed
+        )
     if not windows_x:
         raise RuntimeError(
             f"No training windows of length {cfg.seq_len} — shots too short."
         )
+    if use_grounding:
+        win_sig = grounding_ctx.window_signature
+        if len(win_sig) != len(windows_x):
+            raise RuntimeError(
+                f"GroundingContext window count {len(win_sig)} != training "
+                f"window count {len(windows_x)} — seq_len/seed mismatch."
+            )
+        from imas_ambix.gs.grounding import grounding_losses  # noqa: PLC0415
+
+        ep_gs_data = 0.0
+        ep_gs_prior = 0.0
     X = torch.from_numpy(np.stack(windows_x)).float()  # (N, T, F)
     Y = torch.from_numpy(np.stack(windows_y)).float()  # (N, T, D)
     # Per-window, per-timestep transient weight ∝ ELM mass in [t, t+h_max].
@@ -782,6 +850,44 @@ def train_engine(
                 drift = _quiescent_drift_penalty(model, z_post, wb)
                 loss = loss + cfg.drift_reg_weight * drift
 
+            # --- S8-T6 GS grounding terms (per-campaign subset of the batch) --
+            # For each campaign signature present in this batch, gather the
+            # subset's filtered z_post + the NORMALISED inputs xb at ALL
+            # timesteps (the operator de-normalises internally), flatten over
+            # (window, time), and add gs_data_weight·L_data + L_GS.  Windows
+            # whose shot has no operator (signature None) contribute Dα loss
+            # only — the ungrounded path for them is untouched.
+            if use_grounding:
+                sigs_batch = [win_sig[int(i)] for i in idx]
+                # group window-positions in the batch by signature
+                by_sig: dict[str, list[int]] = {}
+                for bpos, sg in enumerate(sigs_batch):
+                    if sg is not None and sg in grounding_ctx.by_signature:
+                        by_sig.setdefault(sg, []).append(bpos)
+                gs_terms = []
+                for sg, positions in by_sig.items():
+                    cg = grounding_ctx.by_signature[sg]
+                    sel = torch.tensor(positions, dtype=torch.long, device=device)
+                    z_sub = z_post.index_select(0, sel)  # (b, T, L)
+                    x_sub = xb.index_select(0, sel)  # (b, T, F)
+                    z_fl = z_sub.reshape(-1, z_sub.shape[-1])  # (b*T, L)
+                    x_fl = x_sub.reshape(-1, x_sub.shape[-1])  # (b*T, F)
+                    l_data, l_gs, _ = grounding_losses(
+                        model.grounding_head, z_fl, x_fl, cg, grounding_ctx.gs_lambda
+                    )
+                    gs_terms.append(
+                        (grounding_ctx.gs_data_weight * l_data + l_gs, l_data, l_gs)
+                    )
+                if gs_terms:
+                    gs_total = torch.stack([t[0] for t in gs_terms]).mean()
+                    loss = loss + gs_total
+                    ep_gs_data += float(
+                        torch.stack([t[1] for t in gs_terms]).mean().item()
+                    )
+                    ep_gs_prior += float(
+                        torch.stack([t[2] for t in gs_terms]).mean().item()
+                    )
+
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
@@ -794,14 +900,25 @@ def train_engine(
         state.epoch_losses.append(ep_loss / max(nb, 1))
         state.epoch_filter_nll.append(ep_filt / max(nb, 1))
         state.epoch_rollout_nll.append(ep_roll / max(nb, 1))
+        if use_grounding:
+            state.epoch_gs_data.append(ep_gs_data / max(nb, 1))
+            state.epoch_gs_prior.append(ep_gs_prior / max(nb, 1))
+            ep_gs_data = 0.0
+            ep_gs_prior = 0.0
         if epoch % 5 == 0 or epoch == cfg.n_epochs - 1:
+            gs_msg = (
+                f"  gs_data={state.epoch_gs_data[-1]:.4f}  gs_prior={state.epoch_gs_prior[-1]:.4f}"
+                if use_grounding and state.epoch_gs_data
+                else ""
+            )
             logger.info(
-                "  epoch %3d/%d  loss=%.4f  filt_nll=%.4f  roll_nll=%.4f  (%.1fs)",
+                "  epoch %3d/%d  loss=%.4f  filt_nll=%.4f  roll_nll=%.4f%s  (%.1fs)",
                 epoch,
                 cfg.n_epochs,
                 state.epoch_losses[-1],
                 state.epoch_filter_nll[-1],
                 state.epoch_rollout_nll[-1],
+                gs_msg,
                 time.time() - t0,
             )
     epoch_loop_complete = True
@@ -820,17 +937,25 @@ def _build_training_windows(
     seq_len: int,
     max_windows_per_shot: int = 8,
     seed: int = 0,
-) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    return_run_index: bool = False,
+):
     """Slice each contiguous shot run into fixed-length training windows.
 
     Non-overlapping windows of length ``seq_len`` are taken from each run; if a
     run yields more than ``max_windows_per_shot``, a random subset is kept (so a
     handful of very long shots do not dominate the batch distribution).
+
+    ``return_run_index`` (S8-T6, additive): also return a per-window int index
+    into ``x_list`` (the source run), so the GS grounding can map each window to
+    its shot's campaign operator.  The window selection is UNCHANGED (same rng,
+    same order) whether or not the index is returned — the ungrounded path is
+    bit-identical.
     """
     rng = np.random.default_rng(seed)
     wx: list[np.ndarray] = []
     wy: list[np.ndarray] = []
-    for x, y in zip(x_list, y_list, strict=True):
+    wr: list[int] = []
+    for ri, (x, y) in enumerate(zip(x_list, y_list, strict=True)):
         T = x.shape[0]
         if seq_len > T:
             continue
@@ -841,6 +966,9 @@ def _build_training_windows(
         for s in starts:
             wx.append(x[s : s + seq_len])
             wy.append(y[s : s + seq_len])
+            wr.append(ri)
+    if return_run_index:
+        return wx, wy, wr
     return wx, wy
 
 
@@ -1088,6 +1216,12 @@ class ExperimentConfig:
     student_t_learn_nu: bool = True
     student_t_nu: float = 5.0
     num_threads: int | None = 4  # cap intra-op threads in training (perf)
+    # S8-T6 GS grounding (0/off = the ungrounded v2 path; both stay runnable)
+    grounding: bool = False
+    gs_profile_order: int = 1
+    gs_passive_rank: int = 4
+    gs_lambda: float = 1e-2
+    gs_data_weight: float = 0.1
 
 
 def _stack_runs_for_static(runs: list[ShotRun]) -> tuple[np.ndarray, np.ndarray]:
@@ -1454,14 +1588,68 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         student_t_learn_nu=cfg.student_t_learn_nu,
         student_t_nu=cfg.student_t_nu,
         num_threads=cfg.num_threads,
+        grounding=cfg.grounding,
+        gs_profile_order=cfg.gs_profile_order,
+        gs_passive_rank=cfg.gs_passive_rank,
+        gs_lambda=cfg.gs_lambda,
+        gs_data_weight=cfg.gs_data_weight,
     )
     x_train_n = [stats.normalise_X(r.X.astype(np.float64)) for r in train_runs]
     y_train_n = [stats.normalise_y(r.y.astype(np.float64)) for r in train_runs]
     model = RKNEngine(eng_cfg)
     stop = _make_stop_flag()
+    # --- S8-T6: build the GS grounding context (per-campaign operators +
+    # whitening + per-window signature) when grounding is on. ---------------
+    grounding_ctx = None
+    if cfg.grounding:
+        from imas_ambix.gs.grounding import build_grounding_context  # noqa: PLC0415
+
+        grounding_ctx = build_grounding_context(
+            train_runs,
+            stats,
+            fs,
+            profile_order=cfg.gs_profile_order,
+            passive_rank=cfg.gs_passive_rank,
+            lam=cfg.gs_lambda,
+            gs_data_weight=cfg.gs_data_weight,
+            seq_len=cfg.seq_len,
+            seed=cfg.seed,
+        )
+        metrics["grounding_coverage"] = {
+            "n_campaign_operators": len(grounding_ctx.by_signature),
+            "n_grounded_windows": grounding_ctx.n_grounded_windows,
+            "n_total_windows": grounding_ctx.n_total_windows,
+            "grounded_timestep_fraction": grounding_ctx.grounded_timestep_fraction,
+            "campaign_window_counts": grounding_ctx.campaign_window_counts,
+            "gs_profile_order": cfg.gs_profile_order,
+            "gs_passive_rank": cfg.gs_passive_rank,
+            "gs_lambda": cfg.gs_lambda,
+            "gs_data_weight": cfg.gs_data_weight,
+            "collinearity_fix": (
+                "STRUCTURAL — head emits exactly the locked order-1 plasma poly "
+                "(3 DOF) + rank-4 passive SVD the standalone frontier found "
+                "near-vacuum-sound at lambda=0 (q1 net-current ratio 0.030). "
+                "gs_lambda only biases toward small currents (current-space L2 "
+                "Tikhonov M=blkdiag(B^TB, V^TV)); data overrides (soft)."
+            ),
+        }
     tstate = train_engine(
-        model, x_train_n, y_train_n, eng_cfg, device=cfg.device, stop_flag=stop
+        model,
+        x_train_n,
+        y_train_n,
+        eng_cfg,
+        device=cfg.device,
+        stop_flag=stop,
+        grounding_ctx=grounding_ctx,
     )
+    # S8-T6: capture the trained model + grounding context for the grounding
+    # evaluators (run_grounding_experiment reuses these — no second train).
+    if cfg.grounding:
+        global _LAST_MODEL, _LAST_GROUNDING_CTX, _LAST_TRAIN_RUNS, _LAST_STATS
+        _LAST_MODEL = model
+        _LAST_GROUNDING_CTX = grounding_ctx
+        _LAST_TRAIN_RUNS = train_runs
+        _LAST_STATS = stats
     # Student-t dof to pass into the scoring path (None for Gaussian).
     eng_nu = float(model.nu()[0].item()) if cfg.emission == "student_t" else None
     metrics["engine_train"] = {
@@ -1476,6 +1664,9 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         "seconds": round(tstate.seconds, 1),
         "emission": cfg.emission,
         "student_t_nu_learned": eng_nu,
+        "grounding": cfg.grounding,
+        "final_gs_data_nll": tstate.epoch_gs_data[-1] if tstate.epoch_gs_data else None,
+        "final_gs_prior": tstate.epoch_gs_prior[-1] if tstate.epoch_gs_prior else None,
     }
 
     # --- 5. retrain static comparator (baseline classes, same train slices) --
@@ -2292,6 +2483,399 @@ def _verdict(metrics: dict) -> dict:
     return v
 
 
+# ===========================================================================
+# S8-T6 GROUNDING-VALUE ACCEPTANCE EVALUATORS
+# ===========================================================================
+#
+# These judge the GROUNDED latent on GROUNDING VALUE (NOT |dB/dt| detection):
+#   (1) help/hurt Dα — comes from run_experiment's filtering + forecasting
+#       numbers on the SAME S7 harness (compared to v2 in the driver below);
+#   (2) DISCOVERY-DISCRIMINATE — the T8 identity-null vs true-fθ Dα-skill gap on
+#       the grounded latent (does grounding enrich fθ beyond T8's 1.3%?);
+#   (3) PHYSICAL INTERPRETABILITY — near-vacuum c_plasma collapse + the grounded
+#       latent carrying force-balance structure.
+
+
+def _discovery_discriminate_grounded(
+    model: RKNEngine,
+    train_runs: list[ShotRun],
+    stats,
+    horizons: tuple[int, ...],
+    device: str,
+    max_runs: int = 40,
+    max_basis_samples: int = 40000,
+) -> dict:
+    """T8 identity-null vs true-fθ Dα-skill gap, re-run on the GROUNDED latent.
+
+    The KEY grounding test (acceptance #2).  Reuses the T8 skill-validator
+    machinery (discovery_sindy.build_reduced_basis + ReducedTransition +
+    _score_with_transition).  The identity-null transition (Δz≡0) is
+    BASIS-INDEPENDENT (zero coefficients → Δz=0 regardless of V_r), so we do NOT
+    need to regenerate the discovery trajectory cache — we build a fresh basis
+    from a sample of THIS model's filtered latents purely to instantiate the
+    zero-coefficient ReducedTransition, then score:
+
+        true-fθ    : the grounded ``model.trans_mean`` (transition unchanged)
+        identity   : a ReducedTransition with ZERO coefficients (Δz≡0 rollout)
+
+    on the SAME train runs / horizons / max_runs as T8.  A WIDENED gap (beyond
+    T8's 1.3%) ⇒ grounding gave the latent real dynamics (fθ now rich enough
+    that the discovery metric DISCRIMINATES).  ~1.3% still ⇒ grounding did not
+    enrich fθ.
+    """
+    from imas_ambix.statespace.discovery_sindy import (  # noqa: PLC0415
+        ReducedTransition,
+        _mean_crps,
+        _score_with_transition,
+        build_library,
+        build_reduced_basis,
+    )
+
+    # Collect a sample of filtered latents to build the reduced basis.
+    z_samples = []
+    for r in train_runs[:max_runs]:
+        x_norm = stats.normalise_X(r.X.astype(np.float64))
+        z_post, _var = _filter_latent(model, x_norm, device)
+        if z_post.shape[0]:
+            z_samples.append(z_post)
+        if sum(z.shape[0] for z in z_samples) > max_basis_samples:
+            break
+    if not z_samples:
+        return {"error": "no latent samples for basis"}
+    z_all = np.concatenate(z_samples, axis=0)[:max_basis_samples]
+    r_dim = min(3, z_all.shape[1])
+    basis = build_reduced_basis(z_all, r=r_dim)
+    # zero-coefficient library → Δz≡0 identity transition (basis-independent)
+    _theta, powers = build_library(basis.project(z_all[:2]), degree=2)
+    null_coeffs = np.zeros((len(powers), r_dim), dtype=np.float64)
+    identity_mod = ReducedTransition(basis, null_coeffs, powers)
+
+    true_scores = _score_with_transition(
+        model,
+        train_runs[:max_runs],
+        stats,
+        horizons,
+        None,
+        "true_ftheta_grounded",
+        device=device,
+    )
+    identity_scores = _score_with_transition(
+        model,
+        train_runs[:max_runs],
+        stats,
+        horizons,
+        identity_mod,
+        "identity_null_grounded",
+        device=device,
+    )
+    crps_true = _mean_crps(true_scores)
+    crps_identity = _mean_crps(identity_scores)
+    rel_gap = (
+        (crps_identity - crps_true) / crps_true
+        if np.isfinite(crps_true) and crps_true > 1e-12
+        else float("nan")
+    )
+    discriminates = bool(np.isfinite(rel_gap) and rel_gap > 0.02)
+    return {
+        "mean_crps_true": crps_true,
+        "mean_crps_identity": crps_identity,
+        "identity_minus_true_rel": rel_gap,
+        "metric_discriminates": discriminates,
+        "t8_baseline_gap": 0.012776796636206629,
+        "widened_beyond_t8": bool(
+            np.isfinite(rel_gap) and rel_gap > 0.012776796636206629 + 1e-9
+        ),
+        "n_runs_scored": min(max_runs, len(train_runs)),
+        "interpretation": (
+            f"Grounded-latent discovery gap = {rel_gap:.2%} "
+            f"(T8 ungrounded baseline = 1.28%). "
+            + (
+                "WIDENED — grounding enriched fθ; the discovery metric now "
+                "discriminates."
+                if discriminates
+                else "NOT materially widened — grounding did not enrich fθ "
+                "(the discovery metric remains under-powered)."
+            )
+        ),
+    }
+
+
+def _filter_latent(model: RKNEngine, x_norm: np.ndarray, device: str):
+    """Return (z_post (T,L), var_post (T,L)) filtered latent for one run."""
+    with torch.no_grad():
+        xb = torch.from_numpy(np.ascontiguousarray(x_norm)).float().unsqueeze(0)
+        z_post, var_post, _mu, _v = model.filter_sequence(xb.to(device))
+    return z_post[0].cpu().numpy(), var_post[0].cpu().numpy()
+
+
+def _grounded_physical_interpretability(
+    model: RKNEngine,
+    grounding_ctx,
+    train_runs: list[ShotRun],
+    stats,
+    device: str,
+    max_shots: int = 60,
+) -> dict:
+    """Near-vacuum c_plasma collapse + force-balance structure on the GROUNDED head.
+
+    Acceptance #3.  Unlike the standalone monitor (which solves c_plasma per slice
+    by lstsq), here the currents are PREDICTED from z by the grounding head — so
+    near-vacuum soundness does NOT transfer for free; it must be re-checked.  For
+    each shot with a near-vacuum slice (|Ip|≈0, solenoid sizeable) we read the
+    head's predicted net toroidal plasma current at near-vacuum vs flat-top and
+    report the ratio (PHYSICAL, references only |Ip|, never labels) — the same
+    metric the standalone near_vacuum_sanity uses.
+    """
+    by_sig = grounding_ctx.by_signature
+    head = model.grounding_head
+    head.eval()
+
+    ratios: list[float] = []
+    per_shot: list[dict] = []
+    n_checked = 0
+    for r in train_runs:
+        if n_checked >= max_shots:
+            break
+        # _grounded_near_vacuum_for_run derives this shot's campaign itself (via
+        # its geometry signature) and returns None if it has no operator / no
+        # near-vacuum slice.
+        info = _grounded_near_vacuum_for_run(model, r, by_sig, stats, device)
+        if info is None:
+            continue
+        n_checked += 1
+        per_shot.append(info)
+        if info.get("net_ratio") is not None and np.isfinite(info["net_ratio"]):
+            ratios.append(info["net_ratio"])
+
+    med_ratio = float(np.median(ratios)) if ratios else float("nan")
+    return {
+        "n_near_vacuum_shots_checked": len(ratios),
+        "median_net_nearvac_over_flattop_ratio_GROUNDED": med_ratio,
+        "tol_frac": 0.25,
+        "near_vacuum_ok_GROUNDED": bool(np.isfinite(med_ratio) and med_ratio <= 0.25),
+        "standalone_monitor_ratio_ref": 0.030235146241937558,
+        "per_shot_sample": per_shot[:10],
+        "note": (
+            "GROUNDED near-vacuum check: net toroidal plasma current predicted by "
+            "the head from z at the near-vacuum slice vs flat-top (|sum c_plasma|). "
+            "References only raw |Ip| (EFIT-free), never labels. The standalone "
+            "monitor (per-slice lstsq) achieved 0.030; this re-checks the head."
+        ),
+    }
+
+
+def _grounded_near_vacuum_for_run(model, run, by_sig, stats, device):
+    """Predict the head's net plasma current at near-vacuum vs flat-top for a run.
+
+    Returns None if the run has no campaign operator or no near-vacuum slice.
+    Uses the raw amc plasma_current proxy already in ShotRun.X to find the
+    near-vacuum / flat-top slices, and the head's predicted θ→c_plasma.
+    """
+    from imas_ambix.gs.geometry import build_table_for_shot  # noqa: PLC0415
+    from imas_ambix.gs.grounding import _feature_offsets  # noqa: PLC0415
+    from imas_ambix.statespace.baseline import _FEATURE_SCHEMA_MAG_ANE  # noqa: PLC0415
+
+    try:
+        sig = build_table_for_shot(int(run.shot_id)).signature.key
+    except Exception:  # noqa: BLE001
+        return None
+    cg = by_sig.get(sig)
+    if cg is None:
+        return None
+    # find Ip proxy: amc plasma_current column in X
+    fs = _FEATURE_SCHEMA_MAG_ANE
+    offsets = _feature_offsets(fs)
+    amc_off = offsets["amc"]
+    amc_feat = fs["amc"]
+    if "plasma_current" not in amc_feat or "sol_current" not in amc_feat:
+        return None
+    ip_col = amc_off + amc_feat.index("plasma_current")
+    sol_col = amc_off + amc_feat.index("sol_current")
+    x = np.asarray(run.X, dtype=np.float64)
+    ip = x[:, ip_col]
+    sol = x[:, sol_col]
+    nv_mask = (np.abs(ip) < 3.0) & (np.abs(sol) > 5.0)
+    if not nv_mask.any():
+        return None
+    nv_idx = int(np.where(nv_mask)[0][np.argmax(np.abs(sol[np.where(nv_mask)[0]]))])
+    ft_idx = int(np.argmax(np.abs(ip)))
+    # filter the run to get the latent at those slices
+    x_norm = stats.normalise_X(x)
+    z_post, _v = _filter_latent(model, x_norm, device)
+    if z_post.shape[0] <= max(nv_idx, ft_idx):
+        return None
+    head = model.grounding_head
+    with torch.no_grad():
+        zt = torch.from_numpy(z_post[[nv_idx, ft_idx]]).float().to(device)
+        theta, _psi = head(zt)
+        theta = theta.cpu().numpy()
+    # c_plasma = B_poly @ theta; net toroidal current = sum(c_plasma)
+    b_poly = _campaign_b_poly(cg)
+    c_nv = b_poly @ theta[0]
+    c_ft = b_poly @ theta[1]
+    net_nv = float(abs(np.sum(c_nv)))
+    net_ft = float(abs(np.sum(c_ft)))
+    net_ratio = net_nv / net_ft if net_ft > 0 else float("nan")
+    return {
+        "shot_id": int(run.shot_id),
+        "ip_near_vacuum": float(ip[nv_idx]),
+        "ip_flattop": float(ip[ft_idx]),
+        "net_plasma_current_near_vacuum_A": net_nv,
+        "net_plasma_current_flattop_A": net_ft,
+        "net_ratio": float(net_ratio) if np.isfinite(net_ratio) else None,
+    }
+
+
+def _campaign_b_poly(cg) -> np.ndarray:
+    """Recover the plasma poly basis B for a campaign (for c_plasma = B@theta)."""
+    from imas_ambix.gs.residual import plasma_poly_basis  # noqa: PLC0415
+
+    op = cg.operator
+    return plasma_poly_basis(op.plasma_rz, cg.profile_order, op.r0, op.minor_radius)
+
+
+def run_grounding_experiment(
+    cfg: ExperimentConfig,
+    output: Path | None = None,
+    v2_metrics_path: Path | None = None,
+) -> dict:
+    """S8-T6 grounding-value experiment: grounded retrain + re-scoped acceptance.
+
+    Runs the GROUNDED engine through the SAME run_experiment harness (so the
+    filtering + forecasting numbers are directly comparable to v2), then adds the
+    two grounding-specific evaluators (discovery-discriminate gap; near-vacuum /
+    physical interpretability).  The help/hurt-Dα delta vs v2 is computed from
+    the v2 metrics artifact.
+    """
+    if not cfg.grounding:
+        raise ValueError("run_grounding_experiment requires cfg.grounding=True")
+
+    # Run the grounded engine through the shared harness.  We need the trained
+    # model + grounding_ctx + train_runs for the grounding evals, so we run the
+    # harness and then re-derive them — but to avoid a second train we capture
+    # them by running the harness body's pieces here is heavy; instead we attach
+    # the grounding evals by re-loading the model state from run_experiment.
+    # run_experiment returns metrics; for the grounding evals we re-train would be
+    # wasteful, so we instead call an instrumented harness that also returns the
+    # model.  We do that by setting a module-level capture.
+    global _LAST_MODEL, _LAST_GROUNDING_CTX, _LAST_TRAIN_RUNS, _LAST_STATS
+    _LAST_MODEL = None
+    _LAST_GROUNDING_CTX = None
+    _LAST_TRAIN_RUNS = None
+    _LAST_STATS = None
+    metrics = run_experiment(cfg, output=None)
+
+    model = _LAST_MODEL
+    grounding_ctx = _LAST_GROUNDING_CTX
+    train_runs = _LAST_TRAIN_RUNS
+    stats = _LAST_STATS
+
+    # --- (2) discovery-discriminate gap on the grounded latent --------------
+    if model is not None and train_runs is not None:
+        logger.info("[grounding] discovery-discriminate gap on grounded latent...")
+        metrics["discovery_discriminate"] = _discovery_discriminate_grounded(
+            model, train_runs, stats, cfg.horizons, cfg.device
+        )
+
+    # --- (3) near-vacuum / physical interpretability ------------------------
+    if model is not None and grounding_ctx is not None and train_runs is not None:
+        logger.info("[grounding] near-vacuum / physical interpretability...")
+        metrics["physical_interpretability"] = _grounded_physical_interpretability(
+            model, grounding_ctx, train_runs, stats, cfg.device
+        )
+
+    # --- (1) help/hurt Dα vs v2 (same harness numbers) ----------------------
+    metrics["help_hurt_dalpha"] = _grounding_help_hurt(metrics, v2_metrics_path)
+
+    metrics["grounding_verdict"] = _grounding_verdict(metrics)
+
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with open(output, "w") as f:
+            json.dump(metrics, f, indent=2, default=float)
+        logger.info("Grounding metrics written to %s", output)
+    return metrics
+
+
+def _grounding_help_hurt(metrics: dict, v2_path: Path | None) -> dict:
+    """Compare grounded filtering + forecasting Dα skill vs the v2 (ungrounded)."""
+    out: dict = {"v2_metrics_path": str(v2_path) if v2_path else None}
+    if v2_path is None or not v2_path.exists():
+        out["error"] = "v2 metrics not found — cannot compute help/hurt delta"
+        return out
+    with open(v2_path) as f:
+        v2 = json.load(f)
+    gf = metrics.get("filtering", {})
+    vf = v2.get("filtering", {})
+    out["filtering"] = {
+        k: {
+            "grounded": gf.get(k),
+            "v2": vf.get(k),
+            "delta": (gf.get(k) - vf.get(k))
+            if (gf.get(k) is not None and vf.get(k) is not None)
+            else None,
+        }
+        for k in ("crps_raw", "nll_raw", "rmse", "coverage_90_conf")
+    }
+    # forecasting CRPS/NLL per horizon (overall)
+    g_eng = metrics.get("forecasting_indist_dense_transient", {}).get("engine", {})
+    v_eng = v2.get("forecasting_indist_dense_transient", {}).get("engine", {})
+    fc = {}
+    for h in sorted(set(g_eng) | set(v_eng), key=lambda x: int(x)):
+        gh = g_eng.get(h, {})
+        vh = v_eng.get(h, {})
+        fc[h] = {
+            "crps_grounded": gh.get("crps_raw"),
+            "crps_v2": vh.get("crps_raw"),
+            "nll_grounded": gh.get("nll_raw"),
+            "nll_v2": vh.get("nll_raw"),
+        }
+    out["forecasting_by_horizon"] = fc
+    # honest help/hurt summary on filtering CRPS (the headline Dα skill)
+    fc_crps_g = gf.get("crps_raw")
+    fc_crps_v = vf.get("crps_raw")
+    if fc_crps_g is not None and fc_crps_v is not None:
+        out["filtering_crps_verdict"] = (
+            "HELP (lower CRPS)"
+            if fc_crps_g < fc_crps_v
+            else "HURT (higher CRPS)"
+            if fc_crps_g > fc_crps_v
+            else "NEUTRAL"
+        )
+        out["filtering_crps_rel_change"] = (fc_crps_g - fc_crps_v) / fc_crps_v
+    return out
+
+
+def _grounding_verdict(metrics: dict) -> dict:
+    """Honest grounding-value verdict across the three re-scoped criteria."""
+    hh = metrics.get("help_hurt_dalpha", {})
+    dd = metrics.get("discovery_discriminate", {})
+    pi = metrics.get("physical_interpretability", {})
+    rel = hh.get("filtering_crps_rel_change")
+    return {
+        "criterion1_dalpha_help_hurt": hh.get("filtering_crps_verdict"),
+        "criterion1_filtering_crps_rel_change": rel,
+        # "did not silently destroy Dα" = within ~10% of v2 (or better)
+        "criterion1_dalpha_preserved": bool(rel is not None and rel <= 0.10),
+        "criterion2_discovery_gap_grounded": dd.get("identity_minus_true_rel"),
+        "criterion2_t8_baseline_gap": dd.get("t8_baseline_gap"),
+        "criterion2_widened_beyond_t8": dd.get("widened_beyond_t8"),
+        "criterion2_metric_discriminates": dd.get("metric_discriminates"),
+        "criterion3_near_vacuum_ratio_grounded": pi.get(
+            "median_net_nearvac_over_flattop_ratio_GROUNDED"
+        ),
+        "criterion3_near_vacuum_ok": pi.get("near_vacuum_ok_GROUNDED"),
+    }
+
+
+# module-level capture so run_grounding_experiment can reuse the trained model
+# without a second train (set inside run_experiment when grounding is on).
+_LAST_MODEL = None
+_LAST_GROUNDING_CTX = None
+_LAST_TRAIN_RUNS = None
+_LAST_STATS = None
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -2345,6 +2929,24 @@ def main(argv: list[str] | None = None) -> None:
         help="cap torch intra-op threads in training (S7.5 perf; 0=untouched)",
     )
     p.add_argument("--output", type=Path, default=None)
+    p.add_argument(
+        "--grounding",
+        action="store_true",
+        help="S8-T6: enable the GS grounding head + run the grounding-value "
+        "acceptance (discovery-discriminate gap + near-vacuum/interpretability)",
+    )
+    p.add_argument(
+        "--gs-lambda", type=float, default=1e-2, help="L_GS soft-prior weight"
+    )
+    p.add_argument("--gs-data-weight", type=float, default=0.1, help="weight on L_data")
+    p.add_argument("--gs-profile-order", type=int, default=1)
+    p.add_argument("--gs-passive-rank", type=int, default=4)
+    p.add_argument(
+        "--v2-metrics",
+        type=Path,
+        default=Path(__file__).parent / "artifacts" / "engine_metrics_v2.json",
+        help="ungrounded v2 metrics for the help/hurt-Dα comparison",
+    )
     a = p.parse_args(argv)
 
     train_h = (
@@ -2368,7 +2970,48 @@ def main(argv: list[str] | None = None) -> None:
             a.student_t_fixed_nu if a.student_t_fixed_nu is not None else 5.0
         ),
         num_threads=(a.num_threads if a.num_threads and a.num_threads > 0 else None),
+        grounding=a.grounding,
+        gs_lambda=a.gs_lambda,
+        gs_data_weight=a.gs_data_weight,
+        gs_profile_order=a.gs_profile_order,
+        gs_passive_rank=a.gs_passive_rank,
     )
+    if a.grounding:
+        out = a.output or (
+            Path(__file__).parent / "artifacts" / "grounding_metrics_v0.json"
+        )
+        metrics = run_grounding_experiment(
+            cfg, output=out, v2_metrics_path=a.v2_metrics
+        )
+        gv = metrics.get("grounding_verdict", {})
+        cov = metrics.get("grounding_coverage", {})
+        print("\n" + "=" * 64)
+        print("S8-T6 GS GROUNDING — GROUNDING-VALUE ACCEPTANCE")
+        print("=" * 64)
+        print(
+            f"coverage: {cov.get('n_grounded_windows')}/{cov.get('n_total_windows')} "
+            f"windows grounded ({100.0 * (cov.get('grounded_timestep_fraction') or 0):.1f}% "
+            f"of timesteps); campaigns={cov.get('campaign_window_counts')}"
+        )
+        print(
+            f"(1) Dα help/hurt (filtering CRPS): {gv.get('criterion1_dalpha_help_hurt')} "
+            f"(rel change {gv.get('criterion1_filtering_crps_rel_change')}); "
+            f"preserved={gv.get('criterion1_dalpha_preserved')}"
+        )
+        print(
+            f"(2) DISCOVERY-DISCRIMINATE gap (grounded) = "
+            f"{gv.get('criterion2_discovery_gap_grounded')}  "
+            f"(T8 baseline = {gv.get('criterion2_t8_baseline_gap')}; "
+            f"widened={gv.get('criterion2_widened_beyond_t8')}, "
+            f"discriminates={gv.get('criterion2_metric_discriminates')})"
+        )
+        print(
+            f"(3) near-vacuum c_plasma ratio (grounded) = "
+            f"{gv.get('criterion3_near_vacuum_ratio_grounded')}  "
+            f"ok={gv.get('criterion3_near_vacuum_ok')}"
+        )
+        print(f"total: {metrics.get('total_seconds')}s")
+        return
     out = a.output or (Path(__file__).parent / "artifacts" / "engine_metrics_v0.json")
     metrics = run_experiment(cfg, output=out)
 
