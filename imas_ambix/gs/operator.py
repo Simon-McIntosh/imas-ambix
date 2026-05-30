@@ -228,8 +228,6 @@ _COIL_MATCH_M = 0.08
 """A circuit centroid within this distance of a known PF-coil centroid is
 labelled that coil (KNOWN amc-driven); else the circuit is INFERRED passive."""
 
-_AMC_NON_COIL = ("efps", "error_field", "plasma", "sol_current", "tf_current")
-
 
 @dataclass(frozen=True)
 class CircuitClass:

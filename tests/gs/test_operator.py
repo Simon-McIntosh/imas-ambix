@@ -419,25 +419,76 @@ def test_real_operator_known_pf_maps_solenoid_and_pf_coils():
 
 
 @_skip_no_tables
-def test_real_operator_vacuum_round_trip_with_raw_amc():
-    """End-to-end: read RAW amc currents for a real shot, assemble the KNOWN
-    PF term, and produce a finite vacuum-field prediction at the probes."""
+def test_real_vacuum_round_trip_matches_raw_amb_at_near_vacuum_slice():
+    """DONE-WHEN #2: at a NEAR-VACUUM slice (|Ip|≈0, coils sizable) the PF-only
+    vacuum prediction must match raw ``amb`` per-probe to ~unity.
+
+    This is the ABSOLUTE SI / flux-convention / orientation anchor — it pins
+    that the operator's physical units are right end-to-end (raw amc → A,
+    Green's functions → Wb/T, orientation projection), validated against real
+    raw magnetics with no EFIT reference.  Its sharpest catch is a 2π-class
+    flux-convention slip (stream-function vs total flux sends the median to
+    ~6.7 or ~0.16) or a unit/μ0 error (gross) — both trip the [0.5, 1.5] band.
+    The PF-only prediction tracks raw amb here because, with no plasma, the
+    field is vacuum + a small eddy term (the residual T3 will infer).
+
+    NOTE: this is NOT the double-count guard — the only clean near-vacuum
+    slices are solenoid-dominated (a singleton circuit the merge does not
+    touch), so a reverted merge only nudges the median.  The deterministic
+    double-count guard is the one-G_pf-column-per-coil structural assertion in
+    ``test_real_operators_build_for_all_campaigns`` + the merge-math invariant
+    in ``test_redundant_circuits_merge_no_double_count``.
+    """
+    import zarr  # noqa: PLC0415
+
+    from imas_ambix.data.paths import local_shot_path  # noqa: PLC0415
+
     tables = _load_real_tables()
     operators = op.build_all_operators(tables)
     key = next(k for k in operators if "fc938" in k)
     operator = operators[key]
     shot = tables[key].shots[0]
-    from imas_ambix.data.paths import local_shot_path  # noqa: PLC0415
-
     if not local_shot_path(shot, tier="level1").exists():
         pytest.skip("representative shot not in mirror")
-    # mid-shot time index (plasma flat-top); amc has ~15k samples
-    amc = op.read_amc_currents_at_index(shot, t_index=7000)
-    i_pf = operator.assemble_pf_currents(amc)
+
+    store = zarr.open(str(local_shot_path(shot, tier="level1")), mode="r")
+    amc, amb = store["amc"], store["amb"]
+    ip = np.asarray(amc["plasma_current"][:])
+    amc_t = np.asarray(amc["time"][:])
+    sol = np.asarray(amc["sol_current"][:])
+    fin = np.isfinite(ip) & np.isfinite(sol)
+    # near-vacuum: |Ip| < 3 kA but solenoid sizable (>5 kA)
+    mask = fin & (np.abs(ip) < 3.0) & (np.abs(sol) > 5.0)
+    if not mask.any():
+        pytest.skip("no near-vacuum slice in representative shot")
+    cand = np.where(mask)[0]
+    ti = int(cand[np.argmax(np.abs(sol[cand]))])
+    t0 = float(amc_t[ti])
+
+    amc_vals = {
+        k: (v if np.isfinite(v) else 0.0)
+        for k, v in op.read_amc_currents_at_index(shot, ti).items()
+    }
+    i_pf = operator.assemble_pf_currents(amc_vals)
     pred = operator.vacuum_prediction(i_pf)
     assert pred.shape[0] == len(operator.sensor_channels)
     assert np.all(np.isfinite(pred))
-    assert np.any(np.abs(pred) > 0)  # a real coil current → non-zero field
+
+    amb_t = np.asarray(amb["time"][:])
+    ai = int(np.argmin(np.abs(amb_t - t0)))
+    ratios = []
+    for idx, ch in enumerate(operator.sensor_channels):
+        if operator.sensor_kind[idx] != "b_probe" or ch not in amb:
+            continue
+        rawv = float(np.asarray(amb[ch][:])[ai])
+        if abs(rawv) > 0.01:  # only probes with real signal
+            ratios.append(pred[idx] / rawv)
+    ratios = np.array(ratios)
+    assert ratios.size >= 10  # enough probes to be meaningful
+    med = float(np.median(ratios))
+    # [0.5, 1.5] band is the absolute SI/flux/orientation anchor — a 2π flux
+    # slip → ~6.7 or ~0.16, a unit/μ0 error → gross; both trip this.
+    assert 0.5 < med < 1.5, f"median pred/raw={med:.3f} (SI/flux/orientation off?)"
 
 
 @_skip_no_tables
