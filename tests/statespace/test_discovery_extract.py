@@ -47,9 +47,9 @@ def _make_model():
     return m
 
 
-def _rand_input(T: int = _T) -> np.ndarray:
+def _rand_input(n_t: int = _T) -> np.ndarray:
     rng = np.random.default_rng(42)
-    return rng.standard_normal((T, _F)).astype(np.float32)
+    return rng.standard_normal((n_t, _F)).astype(np.float32)
 
 
 # ---------------------------------------------------------------------------
@@ -137,13 +137,13 @@ def test_filter_shot_latents_consistent_with_filter_shot():
         mu_obs,
         mu_from_z,
         atol=1e-5,
-        err_msg="filter_shot_latents z_f pushed through observe must match filter_shot mu",
+        err_msg="filter z_f via observe must match filter_shot mu",
     )
     np.testing.assert_allclose(
         var_obs,
         var_from_z,
         atol=1e-5,
-        err_msg="filter_shot_latents var_f pushed through observe must match filter_shot var",
+        err_msg="filter var_f via observe must match filter_shot var",
     )
 
 
@@ -166,13 +166,13 @@ def test_smooth_shot_latents_consistent_with_smooth_shot():
         mu_smooth,
         mu_from_zs,
         atol=1e-5,
-        err_msg="smooth_shot_latents z_s pushed through observe must match smooth_shot mu",
+        err_msg="smooth z_s via observe must match smooth_shot mu",
     )
     np.testing.assert_allclose(
         var_smooth,
         var_from_zs,
         atol=1e-5,
-        err_msg="smooth_shot_latents var_s pushed through observe must match smooth_shot var",
+        err_msg="smooth var_s via observe must match smooth_shot var",
     )
 
 
@@ -269,7 +269,7 @@ def test_extract_trajectories_burn_in():
     from imas_ambix.statespace.engine import ShotRun  # type: ignore[attr-defined]
 
     class _DummyStats:
-        def normalise_X(self, x):
+        def normalise_X(self, x):  # noqa: N802 — mirrors ChannelStats public API
             return x.astype(np.float32)
 
     rng = np.random.default_rng(99)

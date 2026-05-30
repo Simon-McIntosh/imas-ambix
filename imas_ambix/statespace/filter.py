@@ -220,7 +220,7 @@ def smooth_shot_latents(
     x_norm: np.ndarray,
     device: str = "cpu",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """RTS smoother — same backward pass as smooth_shot but returns the LATENT trajectories.
+    """RTS smoother — same backward pass as smooth_shot, returns LATENT trajectories.
 
     A strict superset of :func:`smooth_shot`: the existing public function is
     unchanged.  This companion exposes the per-timestep smoothed (and filtered)

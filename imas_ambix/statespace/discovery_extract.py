@@ -29,9 +29,9 @@ STATE dimension — consistent with the update-pulls-toward-magnetics reasoning.
 
 Usage
 -----
-    from imas_ambix.statespace.discovery_extract import run_svd_report, load_or_train_engine
-    model, stats = load_or_train_engine()
-    report = run_svd_report(model, stats)
+    from imas_ambix.statespace import discovery_extract as dx
+    model, stats = dx.load_or_train_engine()
+    report = dx.run_svd_report(model, stats)
 """
 
 from __future__ import annotations
@@ -275,7 +275,7 @@ def load_or_train_engine(force_retrain: bool = False):
             "Check engine config (seed, drift_reg, emission) or data cache."
         )
     logger.info(
-        "[discovery] Reproduction gate PASSED: nu=%.4f (tol %.2f), loss=%.4f (tol %.3f)",
+        "[discovery] gate PASSED: nu=%.4f (tol %.2f), loss=%.4f (tol %.2f)",
         nu_learned,
         _GATE_NU_TOL,
         final_loss,
@@ -396,7 +396,7 @@ def extract_trajectories(
     cache.run_lengths = np.array(lengths, dtype=int)
     cache.shot_ids = np.array(sids, dtype=int)
     logger.info(
-        "[discovery/%s] %d runs → %d timesteps (%d transient / %d quiescent, %.1f%% trans)",
+        "[discovery/%s] %d runs, %d steps (%d transient / %d quiescent, %.1f%% trans)",
         split_label,
         len(zs_list),
         cache.z_s.shape[0],
@@ -584,6 +584,8 @@ def run_svd_report(
     # Compact in-repo artifact — summary stats only (no raw singular values)
     compact = {
         "description": report["description"],
+        "confound_note": report["confound_note"],
+        "checkpoint_provenance": report["checkpoint_provenance"],
         "config": report["config"],
         "open_decisions": report["open_decisions"],
         "smoothed_summary": {

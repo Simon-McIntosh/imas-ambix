@@ -1,5 +1,7 @@
 {
-  "description": "Effective latent dimension via SVD on stacked smoothed trajectories (RTS smoother over train split, seed=0 deterministic checkpoint). Primary result: transient effective dimension. Confound: drift_reg=0.3 biased f_theta->identity on quiescent steps \u2014 quiescent spectrum is expected near-degenerate by construction, not a physics result.",
+  "description": "Effective latent dimension via SVD on stacked latent trajectories (RTS smoother + causal filter over the train split, seed=0 checkpoint reproduced + gate-passed against v2). Reports the singular-value spectrum + effective rank per stratum (overall / transient / quiescent). T7 scope is extraction + SVD ONLY \u2014 no dynamics claim about f_theta (that is T8). The transient stratum is reported as the primary result (structure expected in transients per discovery-method-first); the quiescent stratum is the contrast.",
+  "confound_note": "Checkpoint trained with drift_reg=0.3, which penalises the transition increment ||f_theta(z)||^2 on quiescent steps (shapes the PREDICT step). It does NOT directly constrain the smoothed/filtered STATE trajectory, because the Kalman update pulls z toward the encoded magnetics every step. EMPIRICALLY this run finds the quiescent and transient spectra nearly identical (PR ~1.75 vs ~1.80), so drift_reg does NOT collapse the quiescent state dimension. Whether the regulariser leaves any signature in the transition kernel is a T8 (SINDy) question, deliberately left open here.",
+  "checkpoint_provenance": "Re-trained from cached train runs with the v2 config (seed=0, drift_reg=0.3, emission=student_t, latent_dim=16); NOT byte-identical to the v2 metrics (num_threads=4 reduction order is non-deterministic). Gate-passed: nu_learned=4.8542 (v2: 4.8142, tol 0.10), loss within tol 0.02. Effective rank is robust to this jitter.",
   "config": {
     "latent_dim": 16,
     "emission": "student_t",
@@ -8,11 +10,18 @@
     "burn_in": 20,
     "split": "train",
     "n_runs": 381,
-    "student_t_nu_learned": 4.854225158691406
+    "n_timesteps": 640254,
+    "n_transient": 18647,
+    "n_quiescent": 621607,
+    "pct_transient": 2.91,
+    "student_t_nu_learned": 4.854225158691406,
+    "centered_before_svd": true,
+    "standardized_per_dim": false,
+    "trajectory_cache": "/work/projects/imas_gpu/mast/scratch/statespace_v0/discovery_trajectories_v0.npz"
   },
   "open_decisions": {
     "uq-level-v0": "STILL-OPEN \u2014 UQ stack for engine + GS forward-model UQ",
-    "extrapolation-coordinates": "STILL-OPEN \u2014 dimensionless / invariant coordinate framing; note that SVD here is in the raw latent space (not dimensionless)"
+    "extrapolation-coordinates": "STILL-OPEN \u2014 dimensionless / invariant coordinate framing; note this SVD is in the RAW latent space (not dimensionless), so the effective rank is reported in the engine's native latent units"
   },
   "smoothed_summary": {
     "overall": {
@@ -42,7 +51,7 @@
       "effective_rank_95pct": 3,
       "effective_rank_99pct": 6
     },
-    "note": "Primary result. Smoother uses information from the full run; compare with filtered/overall for causal-vs-smoothed gap."
+    "note": "Acausal RTS smoother (uses information from the full run). Transient stratum is the reported primary result."
   },
   "filtered_summary": {
     "overall": {
