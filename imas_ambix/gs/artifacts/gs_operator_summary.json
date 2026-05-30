@@ -1,0 +1,770 @@
+{
+  "schema": "gs-operator-summary-v0",
+  "latent_to_psi_representation": "current-distribution-greens",
+  "si_denorm": "raw-SI (Wb, T, A; mu0 carried; amc kA*turn x1000)",
+  "amm_currents": "EXCLUDED (EFIT-wall-model output; c-s8-amm-adjudication)",
+  "passive_currents": "INFERRED nuisance (fcoil structural circuits, not amm-read)",
+  "plasma_current": "INFERRED (low-dim jphi basis); measured Ip is a T3 constraint, not a known term",
+  "known_pf_merge": "each physical PF coil is represented by >1 fcoil circuit (redundant fine+coarse discretisations, each \u03a3xmult=1); same-amc circuits are AVERAGED into one G_pf column so the coil current is applied once (a near-vacuum slice showed ~2x over-prediction without the merge).",
+  "r0": 0.85,
+  "minor_radius": 0.65,
+  "n_campaigns": 3,
+  "campaigns": {
+    "mp78-fl46-fc1004-lim37-9425ae4a8bf3bc15": {
+      "signature_key": "mp78-fl46-fc1004-lim37-9425ae4a8bf3bc15",
+      "n_sensor": 81,
+      "n_flux_loop": 12,
+      "n_b_probe": 69,
+      "g_pf_shape": [
+        81,
+        13
+      ],
+      "g_plasma_shape": [
+        81,
+        84
+      ],
+      "g_passive_shape": [
+        81,
+        144
+      ],
+      "n_known_coil": 13,
+      "n_plasma_node": 84,
+      "n_passive_node": 144,
+      "n_excluded_channel": 2,
+      "n_flagged_channel": 11,
+      "pf_coils": [
+        {
+          "amc_channel": "p2il_coil_current",
+          "coil_label": "p2il",
+          "merged_circuits": [
+            4,
+            15
+          ],
+          "centroid": [
+            0.474,
+            -1.75
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p2iu_coil_current",
+          "coil_label": "p2iu",
+          "merged_circuits": [
+            2,
+            14
+          ],
+          "centroid": [
+            0.4754,
+            1.7501
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p2ol_coil_current",
+          "coil_label": "p2ol",
+          "merged_circuits": [
+            5
+          ],
+          "centroid": [
+            0.527,
+            -1.712
+          ],
+          "note": ""
+        },
+        {
+          "amc_channel": "p2ou_coil_current",
+          "coil_label": "p2ou",
+          "merged_circuits": [
+            3
+          ],
+          "centroid": [
+            0.5284,
+            1.7121
+          ],
+          "note": ""
+        },
+        {
+          "amc_channel": "p3l_coil_current",
+          "coil_label": "p3l",
+          "merged_circuits": [
+            7,
+            17
+          ],
+          "centroid": [
+            1.1027,
+            -1.1002
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p3u_coil_current",
+          "coil_label": "p3u",
+          "merged_circuits": [
+            6,
+            16
+          ],
+          "centroid": [
+            1.103,
+            1.0945
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p4l_coil_current",
+          "coil_label": "p4l",
+          "merged_circuits": [
+            9,
+            19
+          ],
+          "centroid": [
+            1.4968,
+            -1.1018
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p4u_coil_current",
+          "coil_label": "p4u",
+          "merged_circuits": [
+            8,
+            18
+          ],
+          "centroid": [
+            1.4962,
+            1.0992
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p5l_coil_current",
+          "coil_label": "p5l",
+          "merged_circuits": [
+            11,
+            21
+          ],
+          "centroid": [
+            1.6468,
+            -0.4985
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p5u_coil_current",
+          "coil_label": "p5u",
+          "merged_circuits": [
+            10,
+            20
+          ],
+          "centroid": [
+            1.6468,
+            0.5021
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p6l_current",
+          "coil_label": "p6l",
+          "merged_circuits": [
+            13,
+            23
+          ],
+          "centroid": [
+            1.4404,
+            -0.8951
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p6u_current",
+          "coil_label": "p6u",
+          "merged_circuits": [
+            12,
+            22
+          ],
+          "centroid": [
+            1.4408,
+            0.8947
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "sol_current",
+          "coil_label": "sol",
+          "merged_circuits": [
+            1
+          ],
+          "centroid": [
+            0.139,
+            0.0
+          ],
+          "note": ""
+        }
+      ],
+      "n_inferred_passive_circuit": 144,
+      "circuit_flags": [],
+      "unmapped_amc_siblings": [
+        "p2il_feed_current",
+        "p2iu_feed_current",
+        "p2ol_feed_current",
+        "p2ou_feed_current",
+        "p3l_case_current",
+        "p3l_current",
+        "p3l_feed_current",
+        "p3u_case_current",
+        "p3u_current",
+        "p3u_feed_current",
+        "p4l_case_current",
+        "p4l_current",
+        "p4l_feed_current",
+        "p4u_case_current",
+        "p4u_current",
+        "p4u_feed_current",
+        "p5l_case_current",
+        "p5l_current",
+        "p5l_feed_current",
+        "p5u_case_current",
+        "p5u_current",
+        "p5u_feed_current"
+      ],
+      "excluded_channels": [
+        "fl_p2u_1",
+        "fl_p2u_2"
+      ],
+      "flagged_channels": [
+        "fl_cc01",
+        "fl_cc02",
+        "fl_cc03",
+        "fl_cc05",
+        "fl_p3u_1",
+        "fl_p4l_1",
+        "fl_p4l_4",
+        "fl_p4u_4",
+        "fl_p5l_1",
+        "fl_p5l_4",
+        "fl_p5u_1"
+      ],
+      "si_denorm": {
+        "psi_units": "Wb",
+        "b_units": "T",
+        "current_units": "A",
+        "amc_raw_units": "kA*turn",
+        "amc_to_si_factor": 1000.0,
+        "note": "raw-SI forward map (mu0 carried; turns=1 so per-filament weight = xmult). Dimensionless framing (extrapolation-coordinates) is deferred; MAST_R0/MAST_A carried but not used to rescale G."
+      }
+    },
+    "mp78-fl46-fc1004-lim37-edd753d282903679": {
+      "signature_key": "mp78-fl46-fc1004-lim37-edd753d282903679",
+      "n_sensor": 97,
+      "n_flux_loop": 21,
+      "n_b_probe": 76,
+      "g_pf_shape": [
+        97,
+        13
+      ],
+      "g_plasma_shape": [
+        97,
+        84
+      ],
+      "g_passive_shape": [
+        97,
+        144
+      ],
+      "n_known_coil": 13,
+      "n_plasma_node": 84,
+      "n_passive_node": 144,
+      "n_excluded_channel": 8,
+      "n_flagged_channel": 20,
+      "pf_coils": [
+        {
+          "amc_channel": "p2il_coil_current",
+          "coil_label": "p2il",
+          "merged_circuits": [
+            4,
+            15
+          ],
+          "centroid": [
+            0.474,
+            -1.7491
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p2iu_coil_current",
+          "coil_label": "p2iu",
+          "merged_circuits": [
+            2,
+            14
+          ],
+          "centroid": [
+            0.4754,
+            1.7538
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p2ol_coil_current",
+          "coil_label": "p2ol",
+          "merged_circuits": [
+            5
+          ],
+          "centroid": [
+            0.527,
+            -1.7111
+          ],
+          "note": ""
+        },
+        {
+          "amc_channel": "p2ou_coil_current",
+          "coil_label": "p2ou",
+          "merged_circuits": [
+            3
+          ],
+          "centroid": [
+            0.5284,
+            1.7158
+          ],
+          "note": ""
+        },
+        {
+          "amc_channel": "p3l_coil_current",
+          "coil_label": "p3l",
+          "merged_circuits": [
+            7,
+            17
+          ],
+          "centroid": [
+            1.1027,
+            -1.0933
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p3u_coil_current",
+          "coil_label": "p3u",
+          "merged_circuits": [
+            6,
+            16
+          ],
+          "centroid": [
+            1.103,
+            1.0998
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p4l_coil_current",
+          "coil_label": "p4l",
+          "merged_circuits": [
+            9,
+            19
+          ],
+          "centroid": [
+            1.4967,
+            -1.0971
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p4u_coil_current",
+          "coil_label": "p4u",
+          "merged_circuits": [
+            8,
+            18
+          ],
+          "centroid": [
+            1.4962,
+            1.1009
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p5l_coil_current",
+          "coil_label": "p5l",
+          "merged_circuits": [
+            11,
+            21
+          ],
+          "centroid": [
+            1.6467,
+            -0.4938
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p5u_coil_current",
+          "coil_label": "p5u",
+          "merged_circuits": [
+            10,
+            20
+          ],
+          "centroid": [
+            1.6467,
+            0.5025
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p6l_current",
+          "coil_label": "p6l",
+          "merged_circuits": [
+            13,
+            23
+          ],
+          "centroid": [
+            1.4404,
+            -0.8951
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p6u_current",
+          "coil_label": "p6u",
+          "merged_circuits": [
+            12,
+            22
+          ],
+          "centroid": [
+            1.4408,
+            0.8947
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "sol_current",
+          "coil_label": "sol",
+          "merged_circuits": [
+            1
+          ],
+          "centroid": [
+            0.1382,
+            -0.0057
+          ],
+          "note": ""
+        }
+      ],
+      "n_inferred_passive_circuit": 144,
+      "circuit_flags": [],
+      "unmapped_amc_siblings": [
+        "p2il_feed_current",
+        "p2iu_feed_current",
+        "p2ol_feed_current",
+        "p2ou_feed_current",
+        "p3l_case_current",
+        "p3l_current",
+        "p3l_feed_current",
+        "p3u_case_current",
+        "p3u_current",
+        "p3u_feed_current",
+        "p4l_case_current",
+        "p4l_current",
+        "p4l_feed_current",
+        "p4u_case_current",
+        "p4u_current",
+        "p4u_feed_current",
+        "p5l_case_current",
+        "p5l_current",
+        "p5l_feed_current",
+        "p5u_case_current",
+        "p5u_current",
+        "p5u_feed_current"
+      ],
+      "excluded_channels": [
+        "fl_p2l_1",
+        "fl_p2l_2",
+        "fl_p2l_3",
+        "fl_p2l_4",
+        "fl_p2u_1",
+        "fl_p2u_2",
+        "fl_p2u_3",
+        "fl_p2u_4"
+      ],
+      "flagged_channels": [
+        "fl_cc01",
+        "fl_cc02",
+        "fl_cc03",
+        "fl_cc04",
+        "fl_cc05",
+        "fl_cc07",
+        "fl_cc09",
+        "fl_cc10",
+        "fl_p3l_1",
+        "fl_p3l_4",
+        "fl_p3u_1",
+        "fl_p3u_4",
+        "fl_p4l_1",
+        "fl_p4l_4",
+        "fl_p4u_4",
+        "fl_p5l_1",
+        "fl_p5l_4",
+        "fl_p5u_1",
+        "fl_p5u_4",
+        "fl_p6u_1"
+      ],
+      "si_denorm": {
+        "psi_units": "Wb",
+        "b_units": "T",
+        "current_units": "A",
+        "amc_raw_units": "kA*turn",
+        "amc_to_si_factor": 1000.0,
+        "note": "raw-SI forward map (mu0 carried; turns=1 so per-filament weight = xmult). Dimensionless framing (extrapolation-coordinates) is deferred; MAST_R0/MAST_A carried but not used to rescale G."
+      }
+    },
+    "mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4": {
+      "signature_key": "mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4",
+      "n_sensor": 97,
+      "n_flux_loop": 21,
+      "n_b_probe": 76,
+      "g_pf_shape": [
+        97,
+        13
+      ],
+      "g_plasma_shape": [
+        97,
+        84
+      ],
+      "g_passive_shape": [
+        97,
+        78
+      ],
+      "n_known_coil": 13,
+      "n_plasma_node": 84,
+      "n_passive_node": 78,
+      "n_excluded_channel": 8,
+      "n_flagged_channel": 20,
+      "pf_coils": [
+        {
+          "amc_channel": "p2il_coil_current",
+          "coil_label": "p2il",
+          "merged_circuits": [
+            4,
+            15
+          ],
+          "centroid": [
+            0.474,
+            -1.7491
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p2iu_coil_current",
+          "coil_label": "p2iu",
+          "merged_circuits": [
+            2,
+            14
+          ],
+          "centroid": [
+            0.4754,
+            1.7538
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p2ol_coil_current",
+          "coil_label": "p2ol",
+          "merged_circuits": [
+            5
+          ],
+          "centroid": [
+            0.527,
+            -1.7111
+          ],
+          "note": ""
+        },
+        {
+          "amc_channel": "p2ou_coil_current",
+          "coil_label": "p2ou",
+          "merged_circuits": [
+            3
+          ],
+          "centroid": [
+            0.5284,
+            1.7158
+          ],
+          "note": ""
+        },
+        {
+          "amc_channel": "p3l_coil_current",
+          "coil_label": "p3l",
+          "merged_circuits": [
+            7,
+            17
+          ],
+          "centroid": [
+            1.1027,
+            -1.0933
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p3u_coil_current",
+          "coil_label": "p3u",
+          "merged_circuits": [
+            6,
+            16
+          ],
+          "centroid": [
+            1.103,
+            1.0998
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p4l_coil_current",
+          "coil_label": "p4l",
+          "merged_circuits": [
+            9,
+            19
+          ],
+          "centroid": [
+            1.4967,
+            -1.0971
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p4u_coil_current",
+          "coil_label": "p4u",
+          "merged_circuits": [
+            8,
+            18
+          ],
+          "centroid": [
+            1.4962,
+            1.1009
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p5l_coil_current",
+          "coil_label": "p5l",
+          "merged_circuits": [
+            11,
+            21
+          ],
+          "centroid": [
+            1.6467,
+            -0.4938
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p5u_coil_current",
+          "coil_label": "p5u",
+          "merged_circuits": [
+            10,
+            20
+          ],
+          "centroid": [
+            1.6467,
+            0.5025
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p6l_current",
+          "coil_label": "p6l",
+          "merged_circuits": [
+            13,
+            23
+          ],
+          "centroid": [
+            1.4404,
+            -0.8951
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "p6u_current",
+          "coil_label": "p6u",
+          "merged_circuits": [
+            12,
+            22
+          ],
+          "centroid": [
+            1.4408,
+            0.8947
+          ],
+          "note": "EFIT represents this coil with >1 fcoil circuit (redundant fine+coarse discretisations); averaged into one column so the amc current is applied once (no double-count)."
+        },
+        {
+          "amc_channel": "sol_current",
+          "coil_label": "sol",
+          "merged_circuits": [
+            1
+          ],
+          "centroid": [
+            0.1382,
+            -0.0057
+          ],
+          "note": ""
+        }
+      ],
+      "n_inferred_passive_circuit": 78,
+      "circuit_flags": [],
+      "unmapped_amc_siblings": [
+        "p2il_feed_current",
+        "p2iu_feed_current",
+        "p2ol_feed_current",
+        "p2ou_feed_current",
+        "p3l_case_current",
+        "p3l_current",
+        "p3l_feed_current",
+        "p3u_case_current",
+        "p3u_current",
+        "p3u_feed_current",
+        "p4l_case_current",
+        "p4l_current",
+        "p4l_feed_current",
+        "p4u_case_current",
+        "p4u_current",
+        "p4u_feed_current",
+        "p5l_case_current",
+        "p5l_current",
+        "p5l_feed_current",
+        "p5u_case_current",
+        "p5u_current",
+        "p5u_feed_current"
+      ],
+      "excluded_channels": [
+        "fl_p2l_1",
+        "fl_p2l_2",
+        "fl_p2l_3",
+        "fl_p2l_4",
+        "fl_p2u_1",
+        "fl_p2u_2",
+        "fl_p2u_3",
+        "fl_p2u_4"
+      ],
+      "flagged_channels": [
+        "fl_cc01",
+        "fl_cc02",
+        "fl_cc03",
+        "fl_cc04",
+        "fl_cc05",
+        "fl_cc07",
+        "fl_cc09",
+        "fl_cc10",
+        "fl_p3l_1",
+        "fl_p3l_4",
+        "fl_p3u_1",
+        "fl_p3u_4",
+        "fl_p4l_1",
+        "fl_p4l_4",
+        "fl_p4u_4",
+        "fl_p5l_1",
+        "fl_p5l_4",
+        "fl_p5u_1",
+        "fl_p5u_4",
+        "fl_p6u_1"
+      ],
+      "si_denorm": {
+        "psi_units": "Wb",
+        "b_units": "T",
+        "current_units": "A",
+        "amc_raw_units": "kA*turn",
+        "amc_to_si_factor": 1000.0,
+        "note": "raw-SI forward map (mu0 carried; turns=1 so per-filament weight = xmult). Dimensionless framing (extrapolation-coordinates) is deferred; MAST_R0/MAST_A carried but not used to rescale G."
+      }
+    }
+  }
+}
