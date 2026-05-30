@@ -1,0 +1,820 @@
+{
+  "description": "T8 SINDy distillation of the closed-form RKN transition kernel f_\u03b8 (engine.trans_mean) into a sparse symbolic recurrence in the reduced (r=3) coordinates from T7's SVD. f_\u03b8 is an exactly-evaluable autonomous map \u2192 exact increments \u0394z=f_\u03b8(z) read directly (no derivative estimation). STLSQ in reduced coords, stratified transient/quiescent. DMD/Koopman + quiescent-fixed-point Jacobian report SUB-500 Hz decay rates only. Validated by D\u03b1-skill preservation through the FROZEN observation head (three-way attribution). FIRST distillation on the current D\u03b1-grounded latent; the definitive discovery re-runs once T6 grounding lands.",
+  "crux_1_drift_reg_confound": "The landed checkpoint trained with drift_reg=0.3, which penalises \u2016f_\u03b8(z)\u2016\u00b2 on QUIESCENT steps \u2192 biases f_\u03b8\u2192IDENTITY there. This confound lives on the TRANSITION KERNEL \u2014 exactly this object (T7 separately showed the STATE SVD is full-effective-rank-3 even quiescent; plan comment c-s8-t7-correction). EMPIRICAL signature: \u2016\u0394z\u2016 quiescent=0.0364 vs transient=0.05424 (ratio 0.671); the quiescent fixed-point Jacobian eigenvalues clustering at \u03bc\u22481 (decay\u22480) are the drift_reg\u2192identity signature, NOT a near-conservation physics result. The TRANSIENT stratum carries the real terms.",
+  "crux_2_aliasing": "ama MHD modes are multi-kHz (median 3\u20136 kHz, p95 ~10 kHz) vs the 1 kHz latent's 500 Hz Nyquist \u2192 eigenfrequency-to-MHD-mode matching is DEAD (aliased). Spectral validation is SUB-500 Hz ONLY: decay RATES (Re \u03bb) are reported (meaningful for genuinely slow modes); oscillation FREQUENCIES are reported folded into [0, 500] Hz but oscillation\u2192MHD-mode matching is explicitly DISCLAIMED.",
+  "config": {
+    "reduced_dim_r": 3,
+    "stlsq_rel_threshold": 0.1,
+    "stlsq_threshold_units": "RELATIVE: a term survives if its column-normalised |coeff| \u2265 rel_threshold \u00d7 RMS(\u0394\u03be_dim); coefficients reported in physical (un-normalised) reduced-coordinate units",
+    "stlsq_alpha": 0.001,
+    "poly_degree": 2,
+    "model_hz": 1000.0,
+    "nyquist_hz": 500.0,
+    "increment_source": "EXACT trans_mean(z) on filtered z_post (not finite diff)",
+    "latent_used": "filtered z_post (T7 cache; filtered\u2248smoothed)",
+    "latent_dim": 16,
+    "drift_reg_weight": 0.3,
+    "emission": "student_t",
+    "seed": 0,
+    "singular_values_top8": [
+      1797.2375,
+      731.6997,
+      682.0457,
+      261.7816,
+      173.5967,
+      136.3776,
+      115.759,
+      92.393
+    ]
+  },
+  "open_decisions": {
+    "uq-level-v0": "STILL-OPEN \u2014 not resolved by T8",
+    "extrapolation-coordinates": "STILL-OPEN \u2014 the reduced coords are V_r of the RAW latent SVD (not dimensionless); the dimensionless framing is unresolved"
+  },
+  "transient": {
+    "label": "transient",
+    "n_samples": 18647,
+    "dz_rms": 0.054239865296131166,
+    "dxi_rms": 0.05059816092810304,
+    "rel_threshold": 0.1,
+    "n_active_terms": 30,
+    "r2_sparse": 0.5911602129072957,
+    "r2_dense": 0.5912119129107976,
+    "sparsity_skill_frontier": [
+      {
+        "rel_threshold": 0.1,
+        "n_active_terms": 30,
+        "r2": 0.5911602129072957
+      },
+      {
+        "rel_threshold": 0.5,
+        "n_active_terms": 29,
+        "r2": 0.5911593810718871
+      },
+      {
+        "rel_threshold": 1.0,
+        "n_active_terms": 28,
+        "r2": 0.5911604582987611
+      },
+      {
+        "rel_threshold": 2.0,
+        "n_active_terms": 28,
+        "r2": 0.5911604582987611
+      },
+      {
+        "rel_threshold": 3.0,
+        "n_active_terms": 28,
+        "r2": 0.5911604582987611
+      }
+    ],
+    "recurrence": [
+      "d(xi0) = 31*xi0**2/20000 - 123*xi0*xi1/100000 + 9*xi0*xi2/50000 - 17*xi0/20000 + 33*xi1**2/100000 - 33*xi1*xi2/20000 + 3599*xi1/100000 - 83*xi2**2/50000 + 1177*xi2/100000 - 613/12500",
+      "d(xi1) = -13*xi0**2/20000 + 9*xi0*xi1/12500 - 23*xi0*xi2/50000 + 4*xi0/3125 + 29*xi1**2/50000 - 73*xi1*xi2/100000 - 27*xi1/12500 - xi2**2/50000 + 7*xi2/100000 + 119/4000",
+      "d(xi2) = 3*xi0**2/5000 + 31*xi0*xi1/50000 + 101*xi0*xi2/100000 + 9*xi0/1000 + 157*xi1**2/100000 - 91*xi1*xi2/100000 + 953*xi1/20000 - 23*xi2**2/100000 + 1653*xi2/100000 - 633/100000"
+    ],
+    "sparse_coefficients": [
+      [
+        -0.04903934361743035,
+        0.029748684536575646,
+        -0.006329903847903701
+      ],
+      [
+        -0.0008517529495278236,
+        0.0012803186525531655,
+        0.009000552711210181
+      ],
+      [
+        0.03599478284584531,
+        -0.0021628248259883847,
+        0.04765322284210935
+      ],
+      [
+        0.011771391573410537,
+        6.934104989751717e-05,
+        0.016526810441247045
+      ],
+      [
+        0.0015509710187355606,
+        -0.0006537099961548635,
+        0.0006029803918460279
+      ],
+      [
+        -0.0012257018242102832,
+        0.0007188894906581121,
+        0.0006154625145860638
+      ],
+      [
+        0.00017685640404790213,
+        -0.0004575406376607003,
+        0.0010146924768424104
+      ],
+      [
+        0.0003346240788803234,
+        0.0005781425529636068,
+        0.0015721336216420881
+      ],
+      [
+        -0.001646008363280759,
+        -0.0007346134959615041,
+        -0.0009052976581517448
+      ],
+      [
+        -0.001658847821227136,
+        -1.7914861005427286e-05,
+        -0.00023139283517196397
+      ]
+    ],
+    "feature_names": [
+      "1",
+      "xi0",
+      "xi1",
+      "xi2",
+      "xi0^2",
+      "xi0*xi1",
+      "xi0*xi2",
+      "xi1^2",
+      "xi1*xi2",
+      "xi2^2"
+    ],
+    "dmd_koopman": {
+      "A": [
+        [
+          -0.0009530331619148092,
+          0.016422259428462004,
+          0.004459550600704295
+        ],
+        [
+          0.003654223057148239,
+          0.003915597471922158,
+          0.006498074119545674
+        ],
+        [
+          0.006285702516593291,
+          0.01343034509768738,
+          0.008111415432539102
+        ]
+      ],
+      "M_eigenvalues_re": [
+        1.0197902776039507,
+        0.9944130315116918,
+        0.996870670626903
+      ],
+      "M_eigenvalues_im": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spectrum": {
+        "rates": [
+          {
+            "mu_re": 1.0197902776039507,
+            "mu_im": 0.0,
+            "mu_abs": 1.0197902776039507,
+            "decay_rate_per_s": 19.59699596330106,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          },
+          {
+            "mu_re": 0.9944130315116918,
+            "mu_im": 0.0,
+            "mu_abs": 0.9944130315116918,
+            "decay_rate_per_s": -5.602633972377221,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          },
+          {
+            "mu_re": 0.996870670626903,
+            "mu_im": 0.0,
+            "mu_abs": 0.996870670626903,
+            "decay_rate_per_s": -3.134235963157727,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          }
+        ],
+        "nyquist_hz": 500.0
+      },
+      "eigvecs_abs": [
+        [
+          0.49839207032483923,
+          0.9501088862108642,
+          0.8597356513433778
+        ],
+        [
+          0.4242139406344113,
+          0.20402600697069548,
+          0.024599825736194708
+        ],
+        [
+          0.7560739889777617,
+          0.2359374765117757,
+          0.5101465067830284
+        ]
+      ]
+    },
+    "fixed_point_jacobian": {
+      "linearisation_point": "stratum_mean_latent",
+      "reduced_map_eigenvalues_re": [
+        0.9594208370095416,
+        0.9961469318923425,
+        1.0063515329554853
+      ],
+      "reduced_map_eigenvalues_im": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "jacobian_increment_fro_norm": 1.0659488191783446,
+      "spectrum": {
+        "rates": [
+          {
+            "mu_re": 0.9594208370095416,
+            "mu_im": 0.0,
+            "mu_abs": 0.9594208370095416,
+            "decay_rate_per_s": -41.425471357505224,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          },
+          {
+            "mu_re": 0.9961469318923425,
+            "mu_im": 0.0,
+            "mu_abs": 0.9961469318923425,
+            "decay_rate_per_s": -3.8605102975725614,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          },
+          {
+            "mu_re": 1.0063515329554853,
+            "mu_im": 0.0,
+            "mu_abs": 1.0063515329554853,
+            "decay_rate_per_s": 6.33144697635003,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          }
+        ],
+        "nyquist_hz": 500.0
+      }
+    }
+  },
+  "quiescent": {
+    "label": "quiescent",
+    "n_samples": 40000,
+    "dz_rms": 0.036403596339360945,
+    "dxi_rms": 0.03886978397359251,
+    "rel_threshold": 0.1,
+    "n_active_terms": 30,
+    "r2_sparse": 0.7342418250159117,
+    "r2_dense": 0.7343524676391666,
+    "sparsity_skill_frontier": [
+      {
+        "rel_threshold": 0.1,
+        "n_active_terms": 30,
+        "r2": 0.7342418250159117
+      },
+      {
+        "rel_threshold": 0.5,
+        "n_active_terms": 30,
+        "r2": 0.7342418250159117
+      },
+      {
+        "rel_threshold": 1.0,
+        "n_active_terms": 29,
+        "r2": 0.7342397707503148
+      },
+      {
+        "rel_threshold": 2.0,
+        "n_active_terms": 29,
+        "r2": 0.7342397707503148
+      },
+      {
+        "rel_threshold": 3.0,
+        "n_active_terms": 29,
+        "r2": 0.7342397707503148
+      }
+    ],
+    "recurrence": [
+      "d(xi0) = 153*xi0**2/100000 + 47*xi0*xi1/50000 + 9*xi0*xi2/10000 - xi0/625 - xi1**2/50000 - 459*xi1*xi2/100000 + 3269*xi1/100000 - 83*xi2**2/20000 + 117*xi2/5000 - 119/2500",
+      "d(xi1) = -xi0**2/5000 + 31*xi0*xi1/25000 - 151*xi0*xi2/100000 + 41*xi0/10000 + 19*xi1**2/100000 - 29*xi1*xi2/10000 + 161*xi1/100000 + 113*xi2**2/100000 - 547*xi2/50000 + 37/1250",
+      "d(xi2) = 9*xi0**2/100000 - xi0*xi1/10000 + 173*xi0*xi2/100000 + 37*xi0/5000 + 29*xi1**2/20000 + 79*xi1*xi2/100000 + 47*xi1/1250 - 41*xi2**2/100000 + 979*xi2/50000 + 77/100000"
+    ],
+    "sparse_coefficients": [
+      [
+        -0.047601655453923225,
+        0.02960253367083579,
+        0.0007661078075857266
+      ],
+      [
+        -0.001598973143186184,
+        0.00409658530564833,
+        0.007399718430733496
+      ],
+      [
+        0.03269078655036825,
+        0.001605527837306863,
+        0.03760255203423717
+      ],
+      [
+        0.02339964087763876,
+        -0.010937284938488358,
+        0.019576607853198945
+      ],
+      [
+        0.0015312570061838098,
+        -0.00020004324579168614,
+        8.899101517747487e-05
+      ],
+      [
+        0.0009394538692022883,
+        0.0012442319831331354,
+        -0.00010331823434007134
+      ],
+      [
+        0.0008979705961305865,
+        -0.001510396744781097,
+        0.0017270333903789056
+      ],
+      [
+        -1.8287758752739864e-05,
+        0.00019243571706278106,
+        0.001453277544354187
+      ],
+      [
+        -0.00458855011278295,
+        -0.0029037289419293166,
+        0.0007924108145972643
+      ],
+      [
+        -0.004154468610580998,
+        0.0011325537574184787,
+        -0.0004067131346928306
+      ]
+    ],
+    "feature_names": [
+      "1",
+      "xi0",
+      "xi1",
+      "xi2",
+      "xi0^2",
+      "xi0*xi1",
+      "xi0*xi2",
+      "xi1^2",
+      "xi1*xi2",
+      "xi2^2"
+    ],
+    "dmd_koopman": {
+      "A": [
+        [
+          -0.005205501218093803,
+          0.007216817102240771,
+          0.0175329206186876
+        ],
+        [
+          0.005534078328323009,
+          0.005462310219041975,
+          -0.0033549515446774855
+        ],
+        [
+          0.006716094572076854,
+          0.012907126526364596,
+          0.015598967056928825
+        ]
+      ],
+      "M_eigenvalues_re": [
+        0.9907955858729743,
+        1.0206019859405078,
+        1.0044582042443924
+      ],
+      "M_eigenvalues_im": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spectrum": {
+        "rates": [
+          {
+            "mu_re": 0.9907955858729743,
+            "mu_im": 0.0,
+            "mu_abs": 0.9907955858729743,
+            "decay_rate_per_s": -9.247036490931764,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          },
+          {
+            "mu_re": 1.0206019859405078,
+            "mu_im": 0.0,
+            "mu_abs": 1.0206019859405078,
+            "decay_rate_per_s": 20.392635501717564,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          },
+          {
+            "mu_re": 1.0044582042443924,
+            "mu_im": 0.0,
+            "mu_abs": 1.0044582042443924,
+            "decay_rate_per_s": 4.448295889913806,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          }
+        ],
+        "nyquist_hz": 500.0
+      },
+      "eigvecs_abs": [
+        [
+          0.9290747645938037,
+          0.5664706221198816,
+          0.45661218700758655
+        ],
+        [
+          0.3646945364626491,
+          0.0245291160712334,
+          0.7054664319055349
+        ],
+        [
+          0.06178977965053653,
+          0.8237167940134996,
+          0.5420538941199687
+        ]
+      ]
+    },
+    "fixed_point_jacobian": {
+      "linearisation_point": "stratum_mean_latent",
+      "reduced_map_eigenvalues_re": [
+        0.9587361511379995,
+        0.9944978042049648,
+        1.0075341894579646
+      ],
+      "reduced_map_eigenvalues_im": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "jacobian_increment_fro_norm": 1.0694909007525761,
+      "spectrum": {
+        "rates": [
+          {
+            "mu_re": 0.9587361511379995,
+            "mu_im": 0.0,
+            "mu_abs": 0.9587361511379995,
+            "decay_rate_per_s": -42.139371111125186,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          },
+          {
+            "mu_re": 0.9944978042049648,
+            "mu_im": 0.0,
+            "mu_abs": 0.9944978042049648,
+            "decay_rate_per_s": -5.517388629245693,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          },
+          {
+            "mu_re": 1.0075341894579646,
+            "mu_im": 0.0,
+            "mu_abs": 1.0075341894579646,
+            "decay_rate_per_s": 7.505949208794296,
+            "osc_freq_hz_folded": 0.0,
+            "below_nyquist": true
+          }
+        ],
+        "nyquist_hz": 500.0
+      }
+    }
+  },
+  "skill_preservation": {
+    "n_runs_scored": 40,
+    "identity_null": {
+      "label": "identity_null",
+      "n": 2524,
+      "per_horizon": {
+        "1": {
+          "n": 2524,
+          "crps_raw": 0.06915065128161883,
+          "nll_raw": -0.6761315568270564,
+          "rmse": 0.1570783149538946,
+          "mean_sigma_raw": 0.18662526706038943,
+          "n_transient": 51,
+          "crps_raw_transient": 0.1783395214268962,
+          "nll_raw_transient": 0.05851080614975862,
+          "rmse_transient": 0.4640659925400205,
+          "mean_sigma_raw_transient": 0.18912589129196428
+        },
+        "2": {
+          "n": 2524,
+          "crps_raw": 0.07353710441564248,
+          "nll_raw": -0.5704131761430609,
+          "rmse": 0.15914107963843807,
+          "mean_sigma_raw": 0.21507416048412165,
+          "n_transient": 35,
+          "crps_raw_transient": 0.2148627986261501,
+          "nll_raw_transient": 0.3158337678737994,
+          "rmse_transient": 0.5331015232279497,
+          "mean_sigma_raw_transient": 0.2148348697247218
+        },
+        "5": {
+          "n": 2524,
+          "crps_raw": 0.07822985300250355,
+          "nll_raw": -0.4825365657170196,
+          "rmse": 0.1647640065353751,
+          "mean_sigma_raw": 0.23997606665046695,
+          "n_transient": 31,
+          "crps_raw_transient": 0.2344025840628071,
+          "nll_raw_transient": 0.42249284780130403,
+          "rmse_transient": 0.5761760642470781,
+          "mean_sigma_raw_transient": 0.23988339273183212
+        },
+        "10": {
+          "n": 2524,
+          "crps_raw": 0.08235122534759748,
+          "nll_raw": -0.4457267747295581,
+          "rmse": 0.1786421388141101,
+          "mean_sigma_raw": 0.24428100754650878,
+          "n_transient": 38,
+          "crps_raw_transient": 0.2394784290242459,
+          "nll_raw_transient": 0.4492273942889555,
+          "rmse_transient": 0.5838570367464011,
+          "mean_sigma_raw_transient": 0.24429800010481637
+        },
+        "20": {
+          "n": 2524,
+          "crps_raw": 0.09476221096562396,
+          "nll_raw": -0.3649790348505036,
+          "rmse": 0.22675777977137954,
+          "mean_sigma_raw": 0.24449977144856005,
+          "n_transient": 59,
+          "crps_raw_transient": 0.44319892452146253,
+          "nll_raw_transient": 1.5587418125934793,
+          "rmse_transient": 0.8878579708978948,
+          "mean_sigma_raw_transient": 0.2444997615592407
+        }
+      }
+    },
+    "true_ftheta": {
+      "label": "true_ftheta",
+      "n": 2524,
+      "per_horizon": {
+        "1": {
+          "n": 2524,
+          "crps_raw": 0.06797783604617931,
+          "nll_raw": -0.677694925804357,
+          "rmse": 0.14411292005522863,
+          "mean_sigma_raw": 0.18662526706038943,
+          "n_transient": 51,
+          "crps_raw_transient": 0.17025809864391336,
+          "nll_raw_transient": 0.015271603755947808,
+          "rmse_transient": 0.4471169752090607,
+          "mean_sigma_raw_transient": 0.18912589129196428
+        },
+        "2": {
+          "n": 2524,
+          "crps_raw": 0.07248399907564751,
+          "nll_raw": -0.5709725260255492,
+          "rmse": 0.14613146277478972,
+          "mean_sigma_raw": 0.21507416048412165,
+          "n_transient": 35,
+          "crps_raw_transient": 0.21236143804550087,
+          "nll_raw_transient": 0.30710662700970964,
+          "rmse_transient": 0.5256186225538342,
+          "mean_sigma_raw_transient": 0.2148348697247218
+        },
+        "5": {
+          "n": 2524,
+          "crps_raw": 0.07742123011979787,
+          "nll_raw": -0.4804342028597279,
+          "rmse": 0.15075439352705258,
+          "mean_sigma_raw": 0.23997606665046695,
+          "n_transient": 31,
+          "crps_raw_transient": 0.20935260235857617,
+          "nll_raw_transient": 0.3021969857679773,
+          "rmse_transient": 0.5265990603940395,
+          "mean_sigma_raw_transient": 0.23988339273183212
+        },
+        "10": {
+          "n": 2524,
+          "crps_raw": 0.08103141002125336,
+          "nll_raw": -0.4470392463155997,
+          "rmse": 0.16296745599626736,
+          "mean_sigma_raw": 0.24428100754650878,
+          "n_transient": 38,
+          "crps_raw_transient": 0.22837591723164194,
+          "nll_raw_transient": 0.39799875564630827,
+          "rmse_transient": 0.5627560749771378,
+          "mean_sigma_raw_transient": 0.24429800010481637
+        },
+        "20": {
+          "n": 2524,
+          "crps_raw": 0.09409516549408789,
+          "nll_raw": -0.35581864780880074,
+          "rmse": 0.20765978197775253,
+          "mean_sigma_raw": 0.24449977144856005,
+          "n_transient": 59,
+          "crps_raw_transient": 0.3809315815674489,
+          "nll_raw_transient": 1.3274537992150255,
+          "rmse_transient": 0.7637036594982539,
+          "mean_sigma_raw_transient": 0.2444997615592407
+        }
+      }
+    },
+    "dense_reduced": {
+      "label": "dense_reduced",
+      "n": 2524,
+      "per_horizon": {
+        "1": {
+          "n": 2524,
+          "crps_raw": 0.06812277640306583,
+          "nll_raw": -0.6795974067622613,
+          "rmse": 0.14755461235706024,
+          "mean_sigma_raw": 0.18662526706038943,
+          "n_transient": 51,
+          "crps_raw_transient": 0.17311594777860187,
+          "nll_raw_transient": 0.033938356477637974,
+          "rmse_transient": 0.45124477620884784,
+          "mean_sigma_raw_transient": 0.18912589129196428
+        },
+        "2": {
+          "n": 2524,
+          "crps_raw": 0.07239374495158553,
+          "nll_raw": -0.5742944607491325,
+          "rmse": 0.14865989580352468,
+          "mean_sigma_raw": 0.21507416048412165,
+          "n_transient": 35,
+          "crps_raw_transient": 0.20991525232153374,
+          "nll_raw_transient": 0.29213108466690213,
+          "rmse_transient": 0.5211777531989741,
+          "mean_sigma_raw_transient": 0.2148348697247218
+        },
+        "5": {
+          "n": 2524,
+          "crps_raw": 0.07699450537122414,
+          "nll_raw": -0.48530248608237275,
+          "rmse": 0.15145872262603363,
+          "mean_sigma_raw": 0.23997606665046695,
+          "n_transient": 31,
+          "crps_raw_transient": 0.22039166648472286,
+          "nll_raw_transient": 0.37321108213300963,
+          "rmse_transient": 0.5380075589211618,
+          "mean_sigma_raw_transient": 0.23988339273183212
+        },
+        "10": {
+          "n": 2524,
+          "crps_raw": 0.0813282610544264,
+          "nll_raw": -0.4432508723287562,
+          "rmse": 0.16166217863587204,
+          "mean_sigma_raw": 0.24428100754650878,
+          "n_transient": 38,
+          "crps_raw_transient": 0.22138914907871252,
+          "nll_raw_transient": 0.3731691014597877,
+          "rmse_transient": 0.5404628486294067,
+          "mean_sigma_raw_transient": 0.24429800010481637
+        },
+        "20": {
+          "n": 2524,
+          "crps_raw": 0.0962713980523081,
+          "nll_raw": -0.3341258880355551,
+          "rmse": 0.20716255132517367,
+          "mean_sigma_raw": 0.24449977144856005,
+          "n_transient": 59,
+          "crps_raw_transient": 0.38600788932756935,
+          "nll_raw_transient": 1.3902274610389302,
+          "rmse_transient": 0.7561830147012435,
+          "mean_sigma_raw_transient": 0.2444997615592407
+        }
+      }
+    },
+    "sparse_reduced": {
+      "label": "sparse_reduced",
+      "n": 2524,
+      "per_horizon": {
+        "1": {
+          "n": 2524,
+          "crps_raw": 0.06812775334996646,
+          "nll_raw": -0.6795872840012336,
+          "rmse": 0.14760804354238405,
+          "mean_sigma_raw": 0.18662526706038943,
+          "n_transient": 51,
+          "crps_raw_transient": 0.1731327186014869,
+          "nll_raw_transient": 0.034003538146936435,
+          "rmse_transient": 0.45128534345700944,
+          "mean_sigma_raw_transient": 0.18912589129196428
+        },
+        "2": {
+          "n": 2524,
+          "crps_raw": 0.07239930480311138,
+          "nll_raw": -0.5742814262548602,
+          "rmse": 0.14871694932677845,
+          "mean_sigma_raw": 0.21507416048412165,
+          "n_transient": 35,
+          "crps_raw_transient": 0.20992556588162156,
+          "nll_raw_transient": 0.292180394829746,
+          "rmse_transient": 0.5211998788220725,
+          "mean_sigma_raw_transient": 0.2148348697247218
+        },
+        "5": {
+          "n": 2524,
+          "crps_raw": 0.07699967343436807,
+          "nll_raw": -0.48530300622122513,
+          "rmse": 0.15152856550481714,
+          "mean_sigma_raw": 0.23997606665046695,
+          "n_transient": 31,
+          "crps_raw_transient": 0.2204706773297123,
+          "nll_raw_transient": 0.3734864456879687,
+          "rmse_transient": 0.5382117500203332,
+          "mean_sigma_raw_transient": 0.23988339273183212
+        },
+        "10": {
+          "n": 2524,
+          "crps_raw": 0.08133106957593403,
+          "nll_raw": -0.4432881423279156,
+          "rmse": 0.1617441056545336,
+          "mean_sigma_raw": 0.24428100754650878,
+          "n_transient": 38,
+          "crps_raw_transient": 0.22145729240774822,
+          "nll_raw_transient": 0.3734084232036381,
+          "rmse_transient": 0.5406476276037342,
+          "mean_sigma_raw_transient": 0.24429800010481637
+        },
+        "20": {
+          "n": 2524,
+          "crps_raw": 0.09624842712354778,
+          "nll_raw": -0.33440441081916467,
+          "rmse": 0.20721329097359667,
+          "mean_sigma_raw": 0.24449977144856005,
+          "n_transient": 59,
+          "crps_raw_transient": 0.3866527531958632,
+          "nll_raw_transient": 1.3934452111647118,
+          "rmse_transient": 0.7570294942112534,
+          "mean_sigma_raw_transient": 0.2444997615592407
+        }
+      }
+    },
+    "delta": {
+      "crps_overall": {
+        "identity_null": {
+          "1": 0.06915065128161883,
+          "2": 0.07353710441564248,
+          "5": 0.07822985300250355,
+          "10": 0.08235122534759748,
+          "20": 0.09476221096562396
+        },
+        "true": {
+          "1": 0.06797783604617931,
+          "2": 0.07248399907564751,
+          "5": 0.07742123011979787,
+          "10": 0.08103141002125336,
+          "20": 0.09409516549408789
+        },
+        "dense_reduced": {
+          "1": 0.06812277640306583,
+          "2": 0.07239374495158553,
+          "5": 0.07699450537122414,
+          "10": 0.0813282610544264,
+          "20": 0.0962713980523081
+        },
+        "sparse_reduced": {
+          "1": 0.06812775334996646,
+          "2": 0.07239930480311138,
+          "5": 0.07699967343436807,
+          "10": 0.08133106957593403,
+          "20": 0.09624842712354778
+        }
+      },
+      "crps_transient_target": {
+        "identity_null": {
+          "1": 0.1783395214268962,
+          "2": 0.2148627986261501,
+          "5": 0.2344025840628071,
+          "10": 0.2394784290242459,
+          "20": 0.44319892452146253
+        },
+        "true": {
+          "1": 0.17025809864391336,
+          "2": 0.21236143804550087,
+          "5": 0.20935260235857617,
+          "10": 0.22837591723164194,
+          "20": 0.3809315815674489
+        },
+        "dense_reduced": {
+          "1": 0.17311594777860187,
+          "2": 0.20991525232153374,
+          "5": 0.22039166648472286,
+          "10": 0.22138914907871252,
+          "20": 0.38600788932756935
+        },
+        "sparse_reduced": {
+          "1": 0.1731327186014869,
+          "2": 0.20992556588162156,
+          "5": 0.2204706773297123,
+          "10": 0.22145729240774822,
+          "20": 0.3866527531958632
+        }
+      },
+      "discrimination_guard": {
+        "mean_crps_true": 0.07860192815139319,
+        "mean_crps_identity": 0.07960620900259727,
+        "identity_minus_true_rel": 0.012776796636206629,
+        "metric_discriminates": false,
+        "interpretation": "WARNING \u2014 the skill metric does NOT discriminate at these horizons: identity (\u0394z\u22610) is only 1.3% worse than the true kernel. This is the drift_reg=0.3 confound propagating INTO validation (f_\u03b8 was made tiny, so a frozen-belief rollout is nearly as good for D\u03b1). A 'skill-preserving' sparse map therefore does NOT by itself prove it captured real dynamics \u2014 the test is under-powered until the T6-grounded latent (larger f_\u03b8) lands."
+      },
+      "attribution": "true\u2192dense gap = r-truncation loss (the dimension); dense\u2192sparse gap = sparsity loss (the thresholding); identity\u2192true gap = value of the learned dynamics (the discrimination guard). Skill-preserving sparsity \u21d2 the sparse map captured the real dynamics \u2014 BUT ONLY IF metric_discriminates is true; otherwise the test is under-powered (drift_reg confound)."
+    }
+  },
+  "gated_final_rerun": "This is the FIRST distillation on the current D\u03b1-grounded latent. The DEFINITIVE discovery (sparse recurrence + spectrum + skill delta) must be RE-RUN once the T6 GS-grounded latent lands \u2014 the transition kernel changes with the grounding, so these coefficients are provisional."
+}
