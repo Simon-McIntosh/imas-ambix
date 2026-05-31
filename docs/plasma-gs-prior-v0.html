@@ -27,6 +27,11 @@
     <h1>Plasma GS Soft-Prior &amp; Structure Discovery — Stage-2</h1>
     <p><em>Stage-2 of <a href="/imas-ambix/physics-world-model-strategy.html">physics-world-model-strategy</a> (§9), home of sprint <strong>S8</strong>. Builds on the Stage-1 engine in <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a>. Scope synthesised 2026-05-30 from a 4-perspective design workflow (GS formulation · residual-as-discovery/OOD · structure discovery · data/compute feasibility); full design notes archived in the run transcript.</em></p>
 
+    <aside class="r-landed" style="border-left:4px solid #b45309;background:#fffbeb;padding:0.8rem 1rem;margin:1rem 0;border-radius:4px">
+      <p style="margin:0 0 0.4rem"><strong>✓ LANDED — shipped 2026-05-31 (Stage-2, honest negative).</strong> Full illustrated detail: <a href="/imas-ambix/stage1-stage2-results.html">stage1-stage2-results</a>. Re-founded the direction → Stage-3 pivot <a href="/imas-ambix/mse-free-current-recovery-v0.html">mse-free-current-recovery-v0</a>.</p>
+      <p style="margin:0">The GS force-balance residual <strong>fails Q1</strong> (AUROC 0.68 &lt; trivial |dB/dt| 0.76 ELM / 0.92 disruption); grounding preserved Dα but did not enrich the dynamics, and the from-latent near-vacuum current ratio 0.98 confirmed that <strong>magnetics + boundary cannot constrain the internal current profile</strong> (equilibrium under-determination); MSE is unusable from level-1 (γ ~99&nbsp;% NaN). <strong>Durable asset:</strong> a validated, EFIT-free GS Green's-function forward operator (<code>gs/operator.py</code>) — the seed for the Stage-3 filter. The detailed gated-deliverable prose below is the original plan, retained for the record.</p>
+    </aside>
+
     <h2 id="s1">§1 — Objective</h2>
     <p><strong>Physically ground the Stage-1 RKN latent state-space engine with a self-applied Grad–Shafranov (GS) <em>soft, falsifiable</em> prior on raw magnetics, and stand up the GS force-balance residual as a dynamics-native discovery + OOD instrument — then distil the latent dynamics toward dimensionless coordinates.</strong> Three gated deliverables:</p>
     <ol>
