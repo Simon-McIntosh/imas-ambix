@@ -4,18 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"  content="imas-ambix">
-  <meta name="reckon-type"   content="plan">
-  <meta name="plan-slug"     content="plasma-state-space-v0">
-  <meta name="plan-roi"      content="high">
-  <meta name="plan-effort"   content="L">
-  <meta name="plan-tier"     content="opus">
-  <meta name="plan-summary"  content="Stage-1 engine: a learned latent state-space model + Bayesian filter on RAW MAST diagnostics that predicts and forecasts a WHOLE HELD-OUT diagnostic family (e.g. Dalpha, or the camera-derived boundary) from the OTHER families, through transients, with calibrated uncertainty + OOD flagging. Acceptance = calibration on ground-truth measured signals; no EFIT, no rFID.">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="plasma-state-space-v0">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-summary" content="Stage-1 engine: a learned latent state-space model + Bayesian filter on RAW MAST diagnostics that predicts and forecasts a WHOLE HELD-OUT diagnostic family (e.g. Dalpha, or the camera-derived boundary) from the OTHER families, through transients, with calibrated uncertainty + OOD flagging. Acceptance = calibration on ground-truth measured signals; no EFIT, no rFID.">
   <meta name="plan-milestone" content="M1">
-  <meta name="plan-sprint"   content="S7">
+  <meta name="plan-sprint" content="S7">
   <meta name="plan-depends-on" content="physics-world-model-strategy,probabilistic-state-space-methods">
   <title>Plasma State-Space Engine v0 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-title" content="Plasma State-Space Engine v0">
+<meta name="plan-modified" content="2026-05-30">
+<meta name="plan-version" content="14">
 </head>
 <body>
   <main class="plan-doc">
@@ -61,45 +64,41 @@
     <p>GS prior / physical grounding (Stage-2); structure discovery (SINDy/Koopman); cross-machine extrapolation; camera-stream generation; IMAS-format migration; any EFIT-derived label. v0 proves the engine + honesty on a cross-family raw-signal task; these build on it.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="held-out-family" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which diagnostic family is the held-out target? (locked principle: WHOLE family out; EFIT-free)</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="dalpha">Dα held out, predict from magnetics + camera (recommended — richest transients = best dynamics test)</button>
-          <button class="r-opt" data-value="camera-boundary">camera-derived boundary, predict from magnetics (boundary from measurement, EFIT-free)</button>
-          <button class="r-opt" data-value="magnetics">magnetics held out, predict from camera (cross-modal)</button>
-        </p>
-        <p class="r-dec-rat">Locked principle (user, 2026-05-29): hold out a WHOLE diagnostic family and infer it from the others; no within-family probe-from-probes; no EFIT-shape. Recommend Dα (strong ELM transients exercise the dynamics) as primary, with camera-derived boundary as a strong second target. Final pick in S7.1 once family availability (esp. Dα) is scoped.</p>
-      </div>
-
-      <div class="r-dec" data-key="input-modality-v0" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How do we sequence the input families?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="add-incrementally">single strongest input family first, then add families and measure each one's lift (recommended)</button>
-          <button class="r-opt" data-value="all-from-start">all non-target families jointly from the start</button>
-        </p>
-        <p class="r-dec-rat">Recommend adding input families incrementally and quantifying each one's contribution to predicting the held-out family — it tells us which physical information lives where.</p>
-      </div>
-
-      <div class="r-dec" data-key="regime-split-axis" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How do we define held-out REGIMES for the OOD test?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="by-current-density">by Iₚ × density operating region (recommended)</button>
-          <button class="r-opt" data-value="by-shape-class">by shape class (limited vs diverted, single vs double null)</button>
-          <button class="r-opt" data-value="by-campaign">by experimental campaign / date</button>
-        </p>
-        <p class="r-dec-rat">Recommend holding out an Iₚ×density region as primary (a clear operating-space hole the model must flag); shape-class / campaign secondary. Final choice in S7.1.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="held-out-family" data-choice="dalpha" data-by="agent/opus (S7 orchestrator)" data-when="2026-05-29T13:27:21+00:00">
+    <p class="r-dec-q">Which diagnostic family is the held-out target? (locked principle: WHOLE family out; EFIT-free)</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="dalpha">Dα held out, predict from magnetics + camera (recommended — richest transients = best dynamics test)</button>
+      <button class="r-opt" data-value="camera-boundary">camera-derived boundary, predict from magnetics (boundary from measurement, EFIT-free)</button>
+      <button class="r-opt" data-value="magnetics">magnetics held out, predict from camera (cross-modal)</button>
+      </p>
+    <p class="r-dec-rat">S7 gate (orchestrator/opus, 2026-05-29), gated on a VERIFIED-COMPLETE leakage audit. Dα is held out as a PHYSICAL QUANTITY, not a single group: all 19 Dα signals across {xim raw filterscopes da_bo10/da_hl11_*/da_hm10_*/da_hu10_*/da_to10/pellet_halpha_2; ada dalpha_integrated/inverted/peak_radius/raw_full; aim da_hm10_t/da_to10+errors} are held out together. Verified: esm/efm_rating_da already excluded as solver outputs; adg is density_gradient (NOT Dα); no camera group exposes a pre-extracted Dα channel. Corpus: 12,590 co-available shots with magnetics+ane inputs; calibration set 1,430 shots (ample for split-conformal coverage). Magnetics-as-target REJECTED: the Iₚ×density regime axis derives from amc/plasma_current, so a magnetics target makes the OOD split axis itself leak (circularity, confirmed in S7.1 audit). camera-boundary retained as documented backup (note: xho carries a pre-computed edge_radius that must be held out if camera-boundary is ever the target). Artifacts: imas_ambix/statespace/artifacts/{leakage_audit,inventory_summary}.json.</p>
+    </div>
+<div class="r-dec" data-key="input-modality-v0" data-choice="add-incrementally" data-by="agent/opus (S7 orchestrator)" data-when="2026-05-29T13:27:29+00:00">
+    <p class="r-dec-q">How do we sequence the input families?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="add-incrementally">single strongest input family first, then add families and measure each one&#x27;s lift (recommended)</button>
+      <button class="r-opt" data-value="all-from-start">all non-target families jointly from the start</button>
+      </p>
+    <p class="r-dec-rat">S7 gate (orchestrator/opus, 2026-05-29). v0 input = magnetics (ama+amb+amc) + interferometer (ane) → 12,590 co-available shots (max corpus for the Dα target). Add families as measured-lift increments and quantify each one&#x27;s contribution to predicting Dα: +bolometer abm → 10,205 shots; +camera rbb → 8,321 (~34% corpus cut, not a halving). Camera is a lift experiment, NOT the v0 default — preserves corpus and avoids the cross-modal subtlety that a visible camera optically contains Dα emission (handled by holding the Dα filterscope/diode family out, but worth measuring camera&#x27;s lift separately). Corpus N&#x27;s per increment in inventory_summary.json#corpus_n_report.</p>
+    </div>
+<div class="r-dec" data-key="regime-split-axis" data-choice="by-current-density" data-by="agent/opus (S7 orchestrator)" data-when="2026-05-29T13:27:41+00:00">
+    <p class="r-dec-q">How do we define held-out REGIMES for the OOD test?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="by-current-density">by Iₚ × density operating region (recommended)</button>
+      <button class="r-opt" data-value="by-shape-class">by shape class (limited vs diverted, single vs double null)</button>
+      <button class="r-opt" data-value="by-campaign">by experimental campaign / date</button>
+      </p>
+    <p class="r-dec-rat">S7 gate (orchestrator/opus, 2026-05-29). Held-out OOD region = high-Iₚ × high-density corner of the Iₚ(amc/plasma_current) × ne(ane/density) operating space — a clear operating-space hole the engine must flag (target ~5% of shots; S7.1 proposed 677 shots). For a Dα target, Iₚ is an INPUT not the target, so there is no circularity (unlike a magnetics target). CAVEAT — scalar fix queued before S7.2 consumes the split: the v0 regime scalar averages the middle-80% of the FULL record, which dilutes the flat-top with off-plasma zeros (ip p50=119 kA vs physical MAST flat-top ~400-900 kA) and admits non-physical density outliers (ne max=382e19). The scalar must be recomputed over the plasma-on window (|Iₚ|&gt;~50 kA) with density outlier rejection, and the OOD box regenerated. The AXIS choice (by-current-density) is unaffected by this fix; only the box boundaries change.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups (sprint S7 items)</h2>
-
-      <article class="r-fu" data-id="f-s7-1-data-assembly" data-status="open" data-tier="sonnet" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">S7.1 — Family inventory + dataset + calibration harness (target-agnostic; start now)</h4>
-        <div class="r-fu-body">Enumerate the level-1 diagnostic families and their signals; locate Dα; prototype camera-derived-boundary extraction from rbb; time-align families; build held-out-shot AND held-out-regime splits; implement the calibration harness (coverage, sharpness, CRPS, NLL, reliability, OOD score). Produce a family-characterisation note so the user/coordinator can lock held-out-family + regime-split.</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-s7-1-data-assembly" data-status="resolved" data-tier="sonnet" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="2026-05-29T13:28:29+00:00" data-resolved-by="agent/opus (S7 orchestrator)">
+    <h4 class="r-fu-title">S7.1 — Family inventory + dataset + calibration harness (target-agnostic; start now)</h4>
+    <div class="r-fu-body">Enumerate the level-1 diagnostic families and their signals; locate Dα; prototype camera-derived-boundary extraction from rbb; time-align families; build held-out-shot AND held-out-regime splits; implement the calibration harness (coverage, sharpness, CRPS, NLL, reliability, OOD score). Produce a family-characterisation note so the user/coordinator can lock held-out-family + regime-split.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    plasma-state-space-v0 (§1, §2, §4)
 Tier:    sonnet  (data plumbing + standard eval harness; coordinator=opus designs the split + reviews)
 
@@ -110,7 +109,7 @@ Context
 
 State to read
   GET /plan/imas-ambix/plasma-state-space-v0 ; GET /plan/imas-ambix/physics-world-model-strategy
-  /work/projects/imas_gpu/mast/level1/shots/<shot>.zarr  (families: rbb, amb, amc, amm, esm, xdc, [efm=EXCLUDED])
+  /work/projects/imas_gpu/mast/level1/shots/.zarr  (families: rbb, amb, amc, amm, esm, xdc, [efm=EXCLUDED])
   imas_ambix/tokenizer/signals.py , imas_ambix/data/  (existing signal-loading patterns)
   docs/probabilistic-state-space-methods.html §4 (calibration/OOD metric definitions)
 
@@ -126,44 +125,214 @@ Done-when
   Reproducible dataset (per-family raw signals + splits) + tested calibration harness; family note posted;
   held-out-family, input-modality, regime-split decisions surfaced with concrete options.
   Any GPU work uses the hardened sbatch + STOP-FILE (NEVER scancel; AGENTS.md §2a).</pre>
-      </article>
-
-      <article class="r-fu" data-id="f-s7-2-static-baseline" data-status="open" data-tier="sonnet" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">S7.2 — Static cross-family baseline (deep ensemble + conformal)</h4>
-        <div class="r-fu-body">Per-slice cross-family regression (other families → held-out family) with a deep ensemble (≥5) + split conformal. Add input families incrementally; report each one's lift. Run the harness on held-out shots AND regimes. This is the comparator the dynamic engine must beat on forecasting.</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <p class="r-fu-outcome">Landed (commits 688874a, 0f13b1b; 62/62 tests). imas_ambix/statespace/ package: inventory (17,111 shots, 50 groups), verified-complete leakage audit (Dα = {xim,ada,aim}, by physical quantity), splits (train/cal/OOD-regime), calibration harness (coverage/sharpness/CRPS/NLL/ECE/OOD-AUROC, CRPS validated vs MC), align, dataset, camera_boundary prototype. Decisions locked by orchestrator: held-out-family=dalpha, input-modality-v0=add-incrementally, regime-split-axis=by-current-density. One fast-follow before S7.2: regime-scalar plasma-on masking + density outlier rejection (see followups-section comment). dataset.py + camera_boundary.py are prototype-grade (documented).</p>
+    </article>
+<article class="r-fu" data-id="f-s7-2-static-baseline" data-status="resolved" data-tier="sonnet" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="2026-05-29T18:31:35+00:00" data-resolved-by="agent/opus (S7 orchestrator)">
+    <h4 class="r-fu-title">S7.2 — Static cross-family baseline (deep ensemble + conformal)</h4>
+    <div class="r-fu-body">Per-slice cross-family regression (other families → held-out family) with a deep ensemble (≥5) + split conformal. Add input families incrementally; report each one&#x27;s lift. Run the harness on held-out shots AND regimes. This is the comparator the dynamic engine must beat on forecasting.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    plasma-state-space-v0 (§3 step 1, §4)
 Tier:    sonnet  (standard ensemble regression + conformal; coordinator=opus reviews calibration)
 
-Depends on S7.1 + locked held-out-family. Build a per-slice cross-family predictor (other-families_t ->
-held-out-family_t), deep ensemble (>=5 members) + split-conformal calibration. Add input families
-incrementally (report each family's lift). Report all §4 metrics on held-out shots AND held-out regimes.
+Depends on S7.1 + locked held-out-family. Build a per-slice cross-family predictor (other-families_t -&gt;
+held-out-family_t), deep ensemble (&gt;=5 members) + split-conformal calibration. Add input families
+incrementally (report each family&#x27;s lift). Report all §4 metrics on held-out shots AND held-out regimes.
 
 Done-when
   Calibrated static baseline (coverage 88-92% at 90% nominal on held-out shots); per-family lift quantified;
   all §4 metrics logged to this plan. NO EFIT labels anywhere.</pre>
-      </article>
-
-      <article class="r-fu" data-id="f-s7-3-dynamic-engine" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">S7.3 — Dynamic engine (latent state-space + filter) + Stage-1 acceptance</h4>
-        <div class="r-fu-body">A learned latent state + stochastic transition kernel + Bayesian filter (RKN-style or ensemble/conformal; light UQ). Demonstrate filtering, forecasting the held-out family through transients, and smoothing. Must beat the static baseline on calibrated forecasting (CRPS at H&gt;0, esp. transient windows) and flag held-out regimes as OOD. The Stage-1 acceptance gate. OPUS — this is the novel architectural core.</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <p class="r-fu-outcome">Landed (commits ca3dcee, 7907a66, f648593, b105563; 16/16 baseline tests; orchestrator code-reviewed — correct 4-way DISJOINT split with asserts, no Dα leakage (inputs=mag+ane only), valid split-conformal, confound-free ane-lift via column-slice). v0 subsampled: 445 train / 646 conf-cal / 665 in-dist-test / 260 ood shots; 100 slices/shot. COVERAGE GATE PASSED: in-dist cov@90=0.903 in [0.88,0.92]; CRPS 0.090; ECE 0.067. Static baseline FAILS on ELM transients (the gap S7.3 must close): in-dist transient cov=0.806 CRPS=0.334 vs quiescent cov=0.906 CRPS=0.082; OOD transient CRPS=0.634. ane lift POSITIVE on CRPS: mag-only 0.120 -&gt; mag+ane 0.090 (+25% rel) — density helps predict Dα (NLL mildly favours mag-only). OOD-regime: coverage degrades gracefully to 0.885 BUT OOD-AUROC=0.568 (~random) — static ensemble barely flags the high-Iₚ×density hole. Metrics: artifacts/baseline_metrics_v0.json. CAVEAT: linspace slice-subsampling aliases ms ELMs (only 3.2% slices flagged transient) — S7.3 transient eval MUST use dense/contiguous windows around ELMs.</p>
+    </article>
+<article class="r-fu" data-id="f-s7-3-dynamic-engine" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="2026-05-29T21:33:23+00:00" data-resolved-by="agent/opus (S7 orchestrator)">
+    <h4 class="r-fu-title">S7.3 — Dynamic engine (latent state-space + filter) + Stage-1 acceptance</h4>
+    <div class="r-fu-body">A learned latent state + stochastic transition kernel + Bayesian filter (RKN-style or ensemble/conformal; light UQ). Demonstrate filtering, forecasting the held-out family through transients, and smoothing. Must beat the static baseline on calibrated forecasting (CRPS at H&gt;0, esp. transient windows) and flag held-out regimes as OOD. The Stage-1 acceptance gate. OPUS — this is the novel architectural core.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    plasma-state-space-v0 (§3 step 2, §4)
 Tier:    opus  (novel latent state-space + filtering architecture; multi-file; calibration-through-transients)
 
-Depends on S7.2. Build a learned latent state-space model: encoder(input families)->latent, stochastic
+Depends on S7.2. Build a learned latent state-space model: encoder(input families)-&gt;latent, stochastic
 transition kernel (light/structured — RKN-style factorised covariance or ensemble/conformal UQ; NOT
-full-variational unless needed), observation head -> held-out family. Implement filtering, multi-step
+full-variational unless needed), observation head -&gt; held-out family. Implement filtering, multi-step
 forecasting (report calibration vs horizon, emphasising transient windows e.g. ELMs), and smoothing.
 Compare to the static baseline on all §4 metrics; quantify OOD honesty on held-out regimes.
 
 Done-when (Stage-1 ACCEPTANCE)
   Filtering calibrated (88-92%); forecasting calibrated to a stated horizon AND CRPS beats the static
-  baseline at H>0 through transients (dynamics earn their keep); held-out regimes visibly flagged
+  baseline at H&gt;0 through transients (dynamics earn their keep); held-out regimes visibly flagged
   (quantified OOD signal); results + honest caveats posted here and rolled up to
   physics-world-model-strategy f-stage1-engine. Then decide Stage-2 (GS prior + discovery) entry.</pre>
-      </article>
-    </section>
-  </main>
+    <p class="r-fu-outcome">Landed (commits a991c50,c7202fb,b84612c,aefd861,42cd964,0c6204d; 9/9 engine tests incl. no-future-input LEAKAGE test (forecast bit-identical under corrupted future inputs) + Kalman-recovery; orchestrator-verified). RKN-style latent SSM (latent=16, torch, CPU), 500/300/200 shots, horizons {1,2,5,10,20}@1kHz on DENSE contiguous ELM windows; static comparator = persistence-of-nowcast retrained on the SAME dense windows (caught+fixed a divergence bug in baseline.py&#x27;s unclipped ensemble — see comment). STAGE-1 ACCEPTANCE: (1) filtering coverage 0.903 in [0.88,0.92] MET; (2) forecast CRPS beats static at H&gt;0 NOT MET — static wins at EVERY horizon (h=1: engine 0.089 vs static 0.065; transient subset same), robust on identical slices/horizons/info-set (same_windows_verified=true); (3) OOD honesty MET (AUROC 0.81, coverage non-collapse 0.945→0.734). HONEST NEGATIVE w/ nuance: engine has BETTER mean accuracy (RMSE 0.30 vs 0.40) + far better long-horizon transient NLL (h=20: 0.88 vs static&#x27;s catastrophic 13.2) + wins OOD short-horizon CRPS, but loses aggregate CRPS because the static&#x27;s sharp nowcast tracks the quiescent baseline (96.8% of slices) better than the engine&#x27;s drifting autonomous rollout. Verdict is METRIC-SENSITIVE. Metrics: artifacts/engine_metrics_v0.json.</p>
+    </article>
+<article class="r-fu" data-id="f-s7-stage1-decision" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S7 orchestrator)" data-written-at="2026-05-29" data-recommends-skill="/reckon-edit plasma-state-space-v0" data-resolved-at="2026-05-30T05:42:03+00:00" data-resolved-by="Simon McIntosh (via orchestrator)">
+    <h4 class="r-fu-title">DECISION: Stage-1 direction after a metric-sensitive negative</h4>
+    <div class="r-fu-body">S7.3 forecast-CRPS acceptance FAILED at all horizons vs a (properly-trained) static persistence-of-nowcast, but the engine has better mean accuracy, far better long-horizon transient NLL (avoids confident-catastrophic misses), and clear OOD wins. The verdict flips by metric. A founding-premise direction call is needed before Stage-2. Orchestrator recommends A+B.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-state-space-v0 (§4 acceptance)
+Tier:    opus
+DECISION: Stage-1 direction after a metric-sensitive negative.
+
+Context
+  S7.3 ran the full RKN engine vs the static baseline on identical dense ELM windows (same info-set, verified no future-input leakage). Acceptance criterion 2 (forecast CRPS beats static at H&gt;0) FAILED at every horizon. BUT the engine has better mean accuracy (RMSE 0.30 vs 0.40), far better long-horizon transient NLL (h=20: 0.88 vs static&#x27;s catastrophic 13.2 — the static is confidently wrong when ELMs hit), and wins OOD short-horizon CRPS (AUROC 0.81). It loses bulk CRPS only because the static&#x27;s sharp nowcast tracks the quiescent Dα baseline (96.8% of slices) better than the engine&#x27;s drifting autonomous rollout.
+
+State to read
+  GET /plan/imas-ambix/plasma-state-space-v0  (f-s7-3 outcome, c-s7-3-gate comment)
+  imas_ambix/statespace/artifacts/engine_metrics_v0.json
+
+Options (orchestrator recommends A+B together)
+  A. ITERATE Stage-1: the engine&#x27;s RMSE already beats static — its CRPS loss is over-wide σ on the quiescent bulk + autonomous-rollout baseline drift. Fix σ-calibration + baseline tracking; sweep latent dim/epochs/corpus; consider Latent SDE (methods §2) for ELM stochasticity. Re-test CRPS.
+  B. RE-SCOPE acceptance: elevate transient-NLL (catastrophic-miss avoidance) + OOD honesty as co-equal acceptance criteria to bulk CRPS — they match the strategy&#x27;s &#x27;honest uncertainty for safe extrapolation&#x27; goal better than a baseline-dominated bulk CRPS.
+  C. PIVOT to the OOD/regime-shift forecasting angle where dynamics demonstrably help today.
+  D. PROCEED to Stage-2 (GS prior) anyway — risky on an unproven-by-CRPS dynamics engine; the GS prior could be what grounds the latent and flips the result, or could compound an unvalidated base.
+
+Constraints
+  Raw signals only; no EFIT/esm; whole-family hold-out; calibration on ground-truth. Reuse the S7.1 harness + splits.
+
+Done-when
+  1. Stage-1 direction chosen + recorded in this plan (decision/comment).
+  2. If iterate (A): the bounded iteration scope is written as a followup with a §05 prompt.
+  3. physics-world-model-strategy f-stage1-engine + Stage-2 gating updated to match.</pre>
+    <p class="r-fu-outcome">DIRECTION CHOSEN: A+B — iterate the engine AND re-scope acceptance (user, 2026-05-30). RE-SCOPED STAGE-1 ACCEPTANCE (principled: bulk-CRPS-vs-persistence rewards baseline-tracking on a 96.8%-stationary target — wrong yardstick for a dynamics claim): Stage-1 is MET when (1) filtering calibrated 88-92% [MET]; (2) the engine beats the static comparator on the DENSE TRANSIENT windows by at least one well-motivated forecast criterion at H&gt;0 — transient-subset CRPS OR transient-subset NLL — on identical windows/horizons/info-set; (3) OOD honesty: coverage non-collapse + quantified OOD signal clearly exceeding static. Bulk-CRPS-beats-static becomes a STRETCH goal, not the gate. The iteration (S7.4, f-s7-4-engine-iteration) still pursues bulk CRPS via the identified σ-calibration + autonomous-rollout-drift fixes (engine already beats static on RMSE 0.30 vs 0.40, so the CRPS gap is fixable over-width/drift, not a mean-accuracy deficit).</p>
+    </article>
+<article class="r-fu" data-id="f-s7-4-engine-iteration" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S7 orchestrator)" data-written-at="2026-05-30" data-recommends-skill="/reckon-ship plasma-state-space-v0" data-resolved-at="2026-05-30T09:19:49+00:00" data-resolved-by="agent/opus (S7 orchestrator)">
+    <h4 class="r-fu-title">S7.4 — Stage-1 engine iteration (σ-calibration + rollout-drift) under re-scoped acceptance</h4>
+    <div class="r-fu-body">Bounded iteration of the RKN engine to clear the re-scoped Stage-1 bar (transient CRPS/NLL win + OOD), and ideally win bulk CRPS too. Fix the two identified weaknesses: over-wide predictive σ on the quiescent bulk, and autonomous-rollout baseline drift. Small latent/epoch/corpus sweep; optional Latent SDE for ELM stochasticity. Re-test on the SAME dense windows vs the (clipped) static comparator.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-state-space-v0 (§3 step 2, §4 re-scoped acceptance)
+Tier:    opus  (engine iteration; the S7.3 RKN + harness already exist)
+
+Context
+  S7.3 built the RKN latent state-space engine (imas_ambix/statespace/engine.py + filter.py) and the full acceptance harness (dense-ELM-window loader, static persistence-of-nowcast comparator, per-horizon conformal, transient stratification, OOD). Verdict: filtering calibrated (0.903 ✓); forecast CRPS LOSES to static at all horizons; OOD honesty strong (AUROC 0.81). The engine has BETTER mean accuracy (RMSE 0.30 vs 0.40) but over-wide σ on the quiescent bulk + autonomous-rollout baseline drift → worse bulk CRPS. User chose A+B: iterate + re-scope.
+
+RE-SCOPED ACCEPTANCE (the bar to clear)
+  1. Filtering calibrated 88-92% (maintain).
+  2. On the DENSE TRANSIENT windows, the engine beats the (clipped) static comparator at H&gt;0 on at least ONE well-motivated criterion — transient-subset CRPS OR transient-subset NLL — same windows/horizons/info-set (reuse the S7.3 harness; same_windows_verified must stay true).
+  3. OOD honesty: coverage non-collapse + quantified OOD signal clearly &gt; static.
+  STRETCH (not required): bulk forecast CRPS beats static at H&gt;0.
+
+Iteration levers (bounded — do NOT open-endedly sweep)
+  - σ-CALIBRATION: the engine&#x27;s σ is over-wide vs its (good) error on the bulk. Options: β-NLL / separate aleatoric+epistemic heads / per-horizon post-hoc σ-recalibration on the conformal-cal set so σ matches residuals (DISTINCT from the conformal interval rescale — fix the raw σ that feeds CRPS/NLL).
+  - ROLLOUT DRIFT: the autonomous latent rollout drifts off the quiescent baseline. Options: regularise the transition kernel toward persistence/identity on quiescent dynamics; anchor/residual toward the last filtered latent; longer multi-step-rollout training horizon.
+  - SWEEP (small, report what you ran): latent dim {16,32}; epochs {30,60}; train shots up to ~1000-2000 (more data may reduce drift). OPTIONAL: Latent-SDE diffusion term for ELM stochasticity (methods §2) only if budget.
+
+State to read
+  GET /plan/imas-ambix/plasma-state-space-v0 (f-s7-3 outcome, c-s7-3-gate, this decision)
+  imas_ambix/statespace/engine.py, filter.py, artifacts/engine_metrics_v0.json (the S7.3 baseline to beat)
+
+Locked decisions to honour
+  held-out-family=dalpha (whole {xim,ada,aim} family out); inputs=mag(ama+amb+amc)+ane; regime-split=by-current-density. NO efm/esm. Same splits/target/harness as S7.3.
+
+Constraints
+  File scope (EXCLUSIVE): imas_ambix/statespace/engine.py, filter.py, tests/statespace/test_engine.py, imas_ambix/statespace/artifacts/engine_metrics_v1.json (NEW — keep v0 for comparison). Import-only: baseline.py (USE its opt-in grad_clip=10.0 / the existing _fit_ensemble_clipped so the static comparator stays converged + the comparison fair), calibration.py, splits.py, align.py, dataset.py.
+  CPU-first on 98dci4-srv-1006 (drain-safe). GPU only with the hardened sbatch (--signal=B:USR1@600 + trap + AMBIX_SOFT_TIME_LIMIT; --time=2-4× ceiling) + STOP-FILE; NEVER scancel (AGENTS.md §2a). COMMIT INCREMENTALLY. Keep the no-future-input forecast leakage test green.
+
+Done-when
+  1. Re-scoped acceptance (1)+(2)+(3) MET and logged to engine_metrics_v1.json with the paired engine-vs-static table on identical dense windows — OR an HONEST report that bounded iteration does not clear the bar (a second clean negative is decisive — say so plainly).
+  2. tests green; committed + pushed.
+  3. Followup written; this followup resolved; result rolled up to physics-world-model-strategy f-stage1-engine + Stage-2 go/no-go updated.</pre>
+    <p class="r-fu-outcome">Landed (commits 56f538f transient-NLL verdict branch + quiescent rollout-drift regulariser; b5e0c5f static-clip 5.0; 8262483 v1 metrics; orchestrator-verified, no-future-input leakage test green). RE-SCOPED STAGE-1 ACCEPTANCE: ALL MET. (1) filtering 0.914 in [0.88,0.92]; (2) transient dynamics win via NLL at h=5/10/20 (engine -0.05/+0.10/+1.28 vs static +0.59/+9.67/+13.22 — static is confidently-catastrophic when ELMs land at t+h; the engine&#x27;s calibrated belief bounds the loss exactly where forecasting-through-transients is hard); (3) OOD honesty — coverage non-collapse 0.944-&gt;0.788, predictive-sigma inflation x3.6 (0.035-&gt;0.126), AND engine WINS OOD-aggregate forecast CRPS at every horizon (h=1 0.185 vs static 0.227). HONEST QUALIFICATIONS: transient CRPS still LOSES at all horizons and bulk CRPS loses (STRETCH NOT met) — a single-Gaussian emission head cannot be CRPS-sharp AND NLL-tail-safe on heavy-tailed ELM residuals; the drift-regulariser was neutral on the bulk-CRPS stretch (and ~85x slower per batch — queued as an S7.5 perf fix). OOD-AUROC CORRECTION: the 0.81 in the artifact is the STATIC ENSEMBLE&#x27;s disagreement on dense data (the engine is a single RKN, not an ensemble) — NOT an engine signal; engine OOD honesty rests on the coverage/sigma/OOD-CRPS evidence above (engine-native OOD score queued S7.5). v0 kept (engine_metrics_v0.json) for before/after. Metrics: engine_metrics_v1.json. User direction: refine the engine (S7.5) before Stage-2.</p>
+    </article>
+<article class="r-fu" data-id="f-s7-5-engine-refinement" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S7 orchestrator)" data-written-at="2026-05-30" data-recommends-skill="/reckon-ship plasma-state-space-v0" data-resolved-at="2026-05-30T10:28:42+00:00" data-resolved-by="agent/opus (S7.5)">
+    <h4 class="r-fu-title">S7.5 — engine refinement before Stage-2: Student-t head + engine-native OOD score + drift-reg perf</h4>
+    <div class="r-fu-body">User chose to refine the engine before the Stage-2 GS prior. Three refinements close the engine&#x27;s known gaps: (1) heavy-tailed Student-t emission head so the engine can be CRPS-sharp AND NLL-tail-safe at once (the principled fix for the transient/bulk-CRPS loss a Gaussian can&#x27;t win); (2) engine-native OOD score (predictive-sigma / filter-innovation) for a true engine-vs-static OOD comparison; (3) fix the drift-reg backward (~85x per-batch overhead).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-state-space-v0 (§4 re-scoped acceptance; post-Stage-1 refinement)
+Tier:    opus
+
+Context
+  Stage-1 re-scoped acceptance is MET (S7.4 / engine_metrics_v1.json): filtering 0.914, transient-NLL win at h&gt;=5, OOD honesty (coverage non-collapse + sigma-inflation + OOD-aggregate-CRPS win). The engine still LOSES transient &amp; bulk CRPS (single-Gaussian head can&#x27;t be both sharp and tail-safe on heavy-tailed ELM residuals), and the &#x27;OOD-AUROC 0.81&#x27; is the STATIC ensemble&#x27;s, not the engine&#x27;s. User chose to REFINE the engine before the Stage-2 GS prior.
+
+State to read
+  GET /plan/imas-ambix/plasma-state-space-v0 (f-s7-4 outcome, c-s7-3-gate)
+  imas_ambix/statespace/engine.py, filter.py, artifacts/engine_metrics_v1.json (+ v0)
+
+Scope (3 refinements)
+  1. STUDENT-T EMISSION HEAD: replace the single-Gaussian observation head with a heavy-tailed Student-t predictive, so the engine can be CRPS-sharp on the quiescent bulk AND NLL-tail-safe on ELM spikes simultaneously. Re-test vs the clipped static on the SAME dense windows; target a transient-CRPS win (not just NLL) and/or the bulk-CRPS stretch.
+  2. ENGINE-NATIVE OOD SCORE: add an OOD score from the ENGINE itself (predictive-sigma or filter-innovation magnitude) so OOD honesty is a true engine-vs-static comparison; report engine-native OOD-AUROC + coverage-vs-distance.
+  3. DRIFT-REG BACKWARD PERF: profile + fix the ~85x per-batch overhead (heavier backward through the T=64 filter scan) so the drift regulariser is a usable production lever.
+
+Locked decisions to honour
+  held-out-family=dalpha (whole {xim,ada,aim} out); inputs=mag(ama+amb+amc)+ane; regime-split=by-current-density. NO efm/esm. Same splits/target/harness; static comparator stays clipped (fair).
+
+Open decisions to surface (do not resolve)
+  uq-level-v0, extrapolation-coordinates (on physics-world-model-strategy)
+
+Constraints
+  File scope: imas_ambix/statespace/engine.py, filter.py, tests/statespace/test_engine.py, imas_ambix/statespace/artifacts/engine_metrics_v2.json (keep v0/v1). Import-only: baseline.py/calibration.py/splits.py/align.py/dataset.py. CPU-first on 98dci4-srv-1006; GPU only with hardened sbatch + STOP-FILE, NEVER scancel. Commit incrementally; do NOT leave an orphaned training process (wait for your own training in-session). Keep the no-future-input leakage test green.
+
+Done-when
+  1. Student-t head + engine-native OOD score + drift-reg perf fix landed; engine_metrics_v2.json with the paired engine-vs-static table (does Student-t now win transient/bulk CRPS? engine-native OOD-AUROC?) + v1-&gt;v2 delta.
+  2. tests green; committed + pushed.
+  3. A Stage-2-readiness followup written; this followup resolved. Result rolled up to physics-world-model-strategy.</pre>
+    <p class="r-fu-outcome">Landed (commits 74eb90d Student-t head + engine-native OOD + thread-cap perf fix; 08106eb v2 metrics + honest verdict; 21/21 engine + 110 statespace tests green, no-future-input leakage + Kalman-recovery tests green; CPU on 98dci4-srv-1006, cached corpus 381/215/227/133 runs, horizons 1-20, clean exit no drain). All three refinements delivered. (1) STUDENT-T EMISSION HEAD (learned nu=4.81, closed-form CRPS+NLL validated vs MC &lt;0.3%, nu-&gt;inf reduces to Gaussian): NARROWED but did NOT close the CRPS gap. Bulk CRPS improved every horizon (idt h=1 0.092-&gt;0.086, h=10 0.114-&gt;0.104), transient CRPS improved (h=5 0.080-&gt;0.075), and crucially SHARPENED the transient-NLL win (h=20 +1.28-&gt;-0.16, h=1 -0.46-&gt;-0.87) — the heavy tail bounds the spike AND tightens the bulk. Static frozen-nowcast still wins transient+bulk CRPS (the STRETCH stays unmet); a sharp persistence-of-nowcast on a 96.8%-quiescent target is hard to beat on CRPS. (2) ENGINE-NATIVE OOD SCORE added (filter-innovation + predictive-sigma AUROC). This CORRECTS v1&#x27;s mislabelled criterion-3 pass: v1&#x27;s &#x27;OOD-AUROC 0.81&#x27; was the STATIC ensemble&#x27;s disagreement, not the engine&#x27;s. On the engine&#x27;s OWN signals: dynamics-native innovation AUROC=0.748 does NOT clearly exceed the SAME-DATA static disagreement 0.810; pred-σ AUROC=0.831 only TIES it (and measures the same predictive-uncertainty construct, so it cannot count as the dynamics adding an OOD signal the static lacks). So criterion 3 is now an HONEST PARTIAL: 3a coverage non-collapse MET (0.94-&gt;0.76, sigma x3.3) + the engine widens its belief on OOD; 3b &#x27;engine OOD-AUROC clearly exceeds same-data static&#x27; NOT met. (3) DRIFT-REG PERF root-caused + fixed: the ~85x slowdown was NOT the regulariser — it was torch 48-thread oversubscription on a tiny model (3 s/batch at 48 threads vs ~30 ms at 4; the penalty itself is ~7%). train_engine now caps intra-op threads (default 4, restored after). Result: engine train 4047s-&gt;34s (119x), total 10898s-&gt;843s (13x). A Gaussian+thread-cap CONTROL (847s) reproduces v1&#x27;s Gaussian acceptance bit-for-bit (filtering in-band, transient-NLL win h&gt;=5, coverage non-collapse, bulk-CRPS-stretch unmet) — so the perf fix is a NO-OP on results; the v1-&gt;v2 deltas are purely the Student-t head. NET VERDICT: criteria 1+2 MET (filtering 0.913; transient-NLL win sharpened); criterion 3 is now an HONEST PARTIAL that corrects v1&#x27;s mislabelled pass; all_met=False, all_met_with_partial_ood=True; bulk-CRPS STRETCH unmet. The Student-t head is a clear positive (narrowed CRPS, sharper NLL, better engine-native OOD signal) but did not flip the CRPS verdict. Metrics: artifacts/engine_metrics_v2.json (v0/v1 kept). NOT Stage-2-decided: the rollup + Stage-2 go/no-go is the orchestrator&#x27;s call (see f-s7-6).</p>
+    </article>
+<article class="r-fu" data-id="f-s7-6-stage2-readiness" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S7.5)" data-written-at="2026-05-30" data-recommends-skill="/reckon-edit plasma-state-space-v0" data-resolved-at="2026-05-30T11:50:25+00:00" data-resolved-by="Simon McIntosh (via orchestrator)">
+    <h4 class="r-fu-title">S7.6 — Stage-2 go/no-go after S7.5 refinement (engine-native OOD reveals criterion-3 is a PARTIAL)</h4>
+    <div class="r-fu-body">S7.5 landed the three refinements. The engine-native OOD score CORRECTS v1&#x27;s mislabelled criterion-3 pass: on the engine&#x27;s own dynamics-native signal (filter-innovation AUROC 0.748) criterion 3 does NOT clearly exceed the same-data static disagreement (0.810) — it is an HONEST PARTIAL (coverage non-collapse + sigma-inflation hold; the clear-AUROC-win does not). The Student-t head narrowed but did not close the transient/bulk-CRPS gap, while sharpening the transient-NLL win. Net: criteria 1+2 MET, criterion 3 PARTIAL, bulk-CRPS STRETCH unmet. A founding-premise go/no-go is needed: enter Stage-2 (Grad-Shafranov prior) on a criterion-1+2-clear / criterion-3-partial engine, or iterate further on OOD/CRPS first. The orchestrator owns this call AND the rollup to physics-world-model-strategy f-stage1-engine (do NOT decide Stage-2 inside S7.5).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-state-space-v0 (§4 re-scoped acceptance; Stage-1-&gt;Stage-2 gate)
+Tier:    opus
+DECISION: Stage-2 go/no-go after the S7.5 engine refinement.
+
+Context
+  S7.5 landed the Student-t head, the engine-native OOD score, and the drift-reg perf fix (commits 74eb90d, 08106eb; engine_metrics_v2.json). The engine-native OOD score is the decisive new evidence: it CORRECTS v1&#x27;s criterion-3 &#x27;pass&#x27;, which had used the STATIC ensemble&#x27;s disagreement (0.81) mislabelled as the engine&#x27;s. On the engine&#x27;s OWN signals criterion 3 is now an HONEST PARTIAL:
+    - 3a coverage non-collapse MET: OOD filter coverage 0.94-&gt;0.76, predictive-sigma inflates x3.3 (the engine widens its belief on OOD).
+    - 3b &#x27;engine OOD-AUROC CLEARLY exceeds same-data static&#x27; NOT met: dynamics-native filter-innovation AUROC=0.748 &lt; same-data static disagreement 0.810; predictive-sigma AUROC=0.831 only TIES the static and measures the same predictive-uncertainty construct (so it cannot count as the dynamics contributing an OOD signal the static lacks).
+  Student-t head: NARROWED but did NOT close the CRPS gap (bulk+transient CRPS improved at every horizon; static frozen-nowcast still wins), while SHARPENING the transient-NLL win (h=20 +1.28-&gt;-0.16). Perf fix: engine train 119x faster, total 13x, clean exit; a Gaussian+thread-cap control reproduced v1&#x27;s acceptance bit-for-bit (perf fix is a no-op on results).
+  Net: criteria 1 (filtering 0.913) + 2 (transient-NLL win, sharpened) MET; criterion 3 PARTIAL; bulk-CRPS STRETCH unmet.
+
+State to read
+  GET /plan/imas-ambix/plasma-state-space-v0 (f-s7-5 outcome, c-s7-3-gate)
+  imas_ambix/statespace/artifacts/engine_metrics_v2.json (+ v0, v1 for before/after)
+  GET /plan/imas-ambix/physics-world-model-strategy (f-stage1-engine, Stage-2 gating, open decisions uq-level-v0 + extrapolation-coordinates)
+
+Options
+  A. ENTER Stage-2 (GS prior + discovery): criteria 1+2 are clear and the criterion-3 partial is honest (coverage + sigma-inflation hold). The GS prior may ground the latent and lift the OOD/CRPS story; risk is compounding an engine whose dynamics-native OOD signal does not yet beat a static detector.
+  B. ITERATE Stage-1 once more on the criterion-3 gap: the dynamics-native innovation OOD signal (0.748) is the weak link. Options: train the innovation as an explicit OOD head; add the bolometer/camera input lift (input-modality-v0 increments) which may sharpen the dynamics; latent/epoch sweep. Re-test the engine-native OOD-AUROC vs same-data static.
+  C. RE-SCOPE criterion 3: accept coverage-non-collapse + sigma-inflation (both engine-native, both MET) as the criterion-3 bar and DROP the &#x27;AUROC clearly exceeds static&#x27; sub-part as the wrong yardstick (the same-data static disagreement is itself a strong input-novelty detector on this axis; the engine&#x27;s honesty is in its CALIBRATED widening, not in out-detecting a deep ensemble). This would flip criterion 3 to MET on principled grounds — a founding-premise call, not a retune.
+
+Constraints
+  Raw signals only; no EFIT/esm; whole-family hold-out=dalpha; inputs=mag+ane; regime-split=by-current-density. Reuse the S7.1 harness + splits. Static comparator stays clipped.
+
+Done-when
+  1. Stage-2 go/no-go chosen + recorded in this plan (decision/comment).
+  2. If iterate (B) or re-scope (C): the bounded scope written as a followup with a 05 prompt.
+  3. physics-world-model-strategy f-stage1-engine + Stage-2 gating updated to match. Surface (do not resolve) the open uq-level-v0 + extrapolation-coordinates decisions there.</pre>
+    <p class="r-fu-outcome">STAGE-2 ENTRY: GO (user, 2026-05-30, option A). Stage-1 recorded HONESTLY as criteria 1+2 MET (filtering 0.913; transient-NLL win, SHARPENED by the Student-t head at every horizon) + criterion 3 HONEST PARTIAL — the engine is OOD-honest (coverage non-collapse 0.94-&gt;0.76, sigma-inflation x3.3) but its dynamics-native OOD-AUROC (filter-innovation 0.748) does NOT beat the same-data static ensemble (0.810); pred-sigma 0.831 only ties it. NOT re-scoped to a clean pass (option C declined) — crit 3 stands as a documented partial. Bulk-CRPS stretch unmet (Student-t narrowed, didn&#x27;t close). RATIONALE for GO: OOD *detection* is well-served by the deep ensemble (run it alongside; it&#x27;s not the dynamics model&#x27;s job); the engine&#x27;s demonstrated value is calibrated forecasting-through-transients + honest uncertainty widening; and the Stage-2 Grad-Shafranov soft prior is the PRINCIPLED path to a dynamics-native OOD signal (the GS residual is a force-balance-departure detector) that may itself close criterion 3. Sprint S7 (Stage-1) closes; Stage-2 (GS prior + structure discovery) proceeds via physics-world-model-strategy f-stage2-gs-discovery. Open decisions uq-level-v0 + extrapolation-coordinates surfaced (not resolved) for Stage-2.</p>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="followups" data-id="c-20260529T132820973103" data-who="agent/opus (S7 orchestrator)" data-when="2026-05-29T13:28:20+00:00">
+    <div class="r-comment-body">**S7.1 gate — landed &amp; reviewed (2026-05-29).** Delivered `imas_ambix/statespace/` (inventory, families+leakage-audit, splits, calibration harness, align, dataset, camera_boundary) — commits 688874a + 0f13b1b on main; 62/62 unit tests pass (CRPS validated vs Monte-Carlo). Artifacts: statespace/artifacts/{leakage_audit,inventory_summary}.json.
+
+LEAKAGE AUDIT VERIFIED COMPLETE by orchestrator: Dα held out by PHYSICAL QUANTITY across {xim, ada, aim} = 19 channels; adg confirmed density_gradient (NOT Dα); esm/efm_rating_da already excluded as solver outputs; no camera group exposes a pre-extracted Dα channel. This closes the within-family-leak trap that would have passed every calibration metric while proving nothing.
+
+Locked: held-out-family=dalpha, input-modality-v0=add-incrementally (mag+ane v0; +abm/+rbb as measured-lift increments), regime-split-axis=by-current-density. Corpus (Dα target, mag+ane inputs): 12,590 co-avail → train 10,483 / cal 1,430 / OOD-regime 677.
+
+EXCLUSIONS extended vs original plan §2 text: esm (equilibrium_solovev) excluded as a SOLVER output alongside efm; xdc (pulse_schedule) treated as exogenous control input (u), not a measured diagnostic.
+
+OPEN FAST-FOLLOW (must land + be verified before S7.2 consumes the OOD split): the v0 regime scalar averages the middle-80% of the full record → dilutes the flat-top with off-plasma zeros (ip p50=119 kA vs physical MAST flat-top ~400-900 kA) and admits non-physical ne outliers (max=382e19). Fix = plasma-on masking (|Iₚ|&gt;~50 kA) + density outlier rejection; regenerate the OOD box. Axis choice unaffected.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-s7-scalar-fix-resolved" data-who="agent/opus (S7 orchestrator)" data-when="2026-05-29T14:05:00+00:00">
+    <div class="r-comment-body">**Scalar-fix RESOLVED (2026-05-29) — supersedes the OPEN FAST-FOLLOW in the comment above.** Commits 37c2e27 + 966702e on main; 73/73 statespace tests pass. The regime scalar is now computed over the plasma-on window (|Iₚ| &gt; max(50 kA, 0.2·peak)): Iₚ p50 corrected 119 → 585 kA (physical MAST flat-top, max 976 kA). UNITS CORRECTION: ane/density is LINE-INTEGRATED (m⁻², units attr `1/m**2`), NOT volumetric m⁻³ — it had been mislabelled; relabelled everywhere; still a valid monotone regime axis. A valid-fraction guard dropped 22 NaN-dominated interferometer traces that had polluted the OOD high-density edge (now 100% clean). FINAL v0 OOD box (joint_p84): Iₚ &gt; 667 kA × ne &gt; 13.4e19 m⁻² → n_OOD = 265; splits train = 10,846 / cal = 1,479 / ood = 265. An OOD-box size menu (1.0 %–11.6 %) is recorded in artifacts/inventory_summary.json#corpus_n_report._ood_box_size_menu — the axis stays locked = by-current-density; only the corner threshold is tunable. S7.2 (static deep-ensemble + conformal baseline) is now consuming this verified split, sub-splitting the 1,479 calibration shots into DISJOINT conformal-cal + in-dist-test so the 88–92 % coverage gate is measured out-of-sample.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-s7-2-gate" data-who="agent/opus (S7 orchestrator)" data-when="2026-05-29T20:40:00+00:00">
+    <div class="r-comment-body">**S7.2 gate — static baseline landed &amp; reviewed (2026-05-29).** Calibrated comparator established; coverage gate PASSED (in-dist cov@90=0.903). Full metrics in artifacts/baseline_metrics_v0.json (committed b105563). The agent thrashed operationally (3 runs, confused final message) but the committed code is correct (orchestrator reviewed all 1559 lines).
+
+The baseline cleanly exposes WHERE dynamics must earn their keep — these are the explicit bars S7.3 must beat:
+  1. TRANSIENT FORECASTING (the headline): static in-dist transient CRPS=0.334 (cov 0.806), OOD transient CRPS=0.634 (cov 0.738). The per-slice model cannot predict ELM spikes from instantaneous mag+ane; it widens intervals 3.6× yet still under-covers. S7.3 must lower transient CRPS at horizon&gt;0.
+  2. OOD HONESTY: static OOD-AUROC=0.568 (~random) and non-monotonic coverage-vs-distance — the deep ensemble barely flags the high-Iₚ×density hole. S7.3 must improve OOD detection / show interval widening on held-out regimes.
+  3. FILTERING must stay calibrated (88–92%) — baseline quiescent cov=0.906 is the in-distribution bar to maintain.
+
+ane lift confirmed positive (CRPS 0.120→0.090). CAVEAT carried to S7.3: the baseline&#x27;s linspace slice-subsampling aliases ms-scale ELMs (only 3.2% slices transient), so the transient comparison is underpowered — S7.3&#x27;s eval MUST sample dense/contiguous windows around ELMs (not decimate) for the dynamics-vs-static transient comparison to be meaningful. S7.3 (opus) now dispatched.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-s7-3-gate" data-who="agent/opus (S7 orchestrator)" data-when="2026-05-29T22:30:00+00:00">
+    <div class="r-comment-body">**S7.3 / Stage-1 acceptance gate — HONEST NEGATIVE (metric-sensitive), reviewed (2026-05-29).** Filtering MET (0.903); forecast-CRPS-beats-static NOT MET (static wins all horizons on identical dense ELM windows); OOD MET (AUROC 0.81 vs static 0.57). The engine is NOT worse across the board — it has better mean accuracy and avoids the static&#x27;s confidently-catastrophic transient misses (transient NLL h=20: engine 0.88 vs static 13.2), and wins OOD short-horizon CRPS — but bulk CRPS is dominated by the 96.8% quiescent slices where a sharp persistence-of-nowcast tracks the Dα baseline better than an autonomous latent rollout. The agent&#x27;s rigour is notable: it caught a FALSE &#x27;win&#x27; against a diverged static comparator (commit 1078f75), root-caused it, and fixed it (b84612c) before reporting the true negative.
+
+LATENT BUG (recommend orchestrator fix at source): baseline.py MLPGaussian.fit_sgd has NO gradient clipping and DIVERGES on dense un-decimated ELM-spike targets (members → NLL≈+7, σ≈87). S7.2&#x27;s committed metrics are on DECIMATED data (converged, unaffected), but any dense-data reuse of baseline.py needs the clip. S7.3 worked around it in-scope (_fit_ensemble_clipped in engine.py). 
+
+CAVEATS: v0 config (latent=16, 30 epochs, 500 shots, no sweep); persistence-of-nowcast is a strong baseline for a near-stationary target with slow magnetic inputs; engine σ over-wide on the quiescent bulk relative to its (good) error. See f-s7-stage1-decision for the Stage-1 direction options + orchestrator recommendation.</div>
+</div>
+</section>
+</main>
 </body>
 </html>

@@ -1,9 +1,9 @@
 {
-  "updated": "2026-05-28T09:58:04",
+  "updated": "2026-05-30T16:13:02",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
-    "active_sprint_id": "S5",
+    "active_sprint_id": "S8",
     "projects": [
       {
         "project": "imas-ambix",
@@ -192,15 +192,50 @@
       },
       {
         "id": "S5",
-        "status": "active",
+        "status": "done",
         "theme": "Plasma-domain decoder fine-tune \u2192 world-model-v0 kickoff",
         "starts": "2026-05-28",
-        "ends": "2026-06-10",
+        "ends": "2026-05-29",
         "items": [
           "plasma-decoder-finetune",
           "world-model-v0"
         ],
-        "summary": "rFID gate triggered at 16.25 (100-shot in-process bench, 1208918). Codebook util only 2.5% of 2^18 ImageNet entries \u2014 clear plasma-domain mismatch. Fine-tune the decoder, re-bench, then unblock world-model-v0 training."
+        "summary": "Closed 2026-05-29 with a NEGATIVE-but-decisive result that re-founded the project. The Open-MAGVIT2 decoder fine-tune (v0 0.1\u00b7LPIPS, Option B 1.0\u00b7LPIPS) was confirmed ~7pt WORSE than the untrained baseline on rFID \u2014 robust to rFID pool size (Option D, 8 & 32 frame) and to decoder precision (job 1209184 ruled out a bf16-measurement artifact). Conclusion: tuning a 2D decoder against rFID is a dead-end, and rFID is the wrong north-star for a dynamics model. world-model-v0 retains the baseline imagenet OMAG2 decoder where camera decoding is needed; the camera generative WM is demoted to a byproduct. The project pivots to a probabilistic state-space model (see physics-world-model-strategy); next sprint S7 stands up the Stage-1 engine. Bugs fixed en route: C5 resize, C8 frame-selection, rfid_frames_per_shot 8\u219232 default, merged-ckpt clobber, /tmp visibility, bench bf16-decode diagnostic toggles."
+      },
+      {
+        "id": "S7",
+        "status": "done",
+        "theme": "Plasma state-space engine \u2014 calibrated virtual diagnostics from raw signals",
+        "starts": "2026-05-29",
+        "ends": "2026-06-12",
+        "items": [
+          {
+            "slug": "plasma-state-space-v0",
+            "why_now": "Stage-1 of the re-founded physics-world-model strategy: prove the probabilistic state-space engine + its calibration on a cross-family raw-signal hold-out before physical grounding (GS prior) and discovery.",
+            "tier": "opus",
+            "done_when": "Stage-1 acceptance: filtering calibrated (88-92% coverage); forecasting a WHOLE held-out diagnostic family (D\u03b1 / camera-derived boundary) through transients beats the static deep-ensemble baseline on CRPS at horizon>0; held-out regimes flagged OOD. No EFIT labels.",
+            "status": "active"
+          }
+        ],
+        "summary": "Closed 2026-05-30: Stage-1 cross-family state-space engine stood up + proven (QUALIFIED). On raw MAST D\u03b1 from magnetics+interferometer (EFIT-free, leakage-audited whole-family hold-out): static deep-ensemble+conformal baseline (cov 0.903) -> RKN latent-SSM engine. Headline = metric-sensitive NEGATIVE: forecast CRPS LOSES to a persistence-of-nowcast (96.8%-stationary target). Re-scoped acceptance (user A+B) MET on criteria 1+2 (filtering 0.913; transient-NLL win at h>=5, sharpened by a Student-t emission head) + criterion-3 HONEST PARTIAL (engine OOD-honest via coverage non-collapse 0.94->0.76 + sigma-inflation x3.3, but engine-native OOD-detection 0.748 does NOT beat the static ensemble 0.810). Dynamics earn their keep on calibrated catastrophic-miss-avoidance + honest widening, NOT bulk CRPS. S7.1-S7.5 + scalar-fix + baseline grad-clip landed; package imas_ambix/statespace/ (inventory/families/splits/calibration/align/dataset/baseline/engine/filter; engine_metrics_v0/v1/v2). Stage-2 (GS prior) = GO -> S8."
+      },
+      {
+        "id": "S8",
+        "status": "active",
+        "theme": "Stage-2 \u2014 physical grounding (Grad-Shafranov soft prior) + structure discovery",
+        "items": [
+          {
+            "slug": "plasma-gs-prior-v0",
+            "title": "Stage-2 \u2014 GS soft-prior + structure discovery",
+            "why_now": "Stage-1 met (qualified) per S7; the GS prior grounds the latent in raw magnetics and is the principled path to a dynamics-native force-balance-departure detector that may close the Stage-1 criterion-3 OOD gap.",
+            "tier": "opus",
+            "done_when": "Q1: GS force-balance-departure residual validated on known transients (beats a trivial |dB/dt| baseline + survives the eddy-current ablation); first discovered reduced-structure result (effective latent dim + sparse recurrence preserving D\u03b1 skill); grounding help/hurt on Stage-1 metrics reported honestly. Raw signals only.",
+            "status": "pending"
+          }
+        ],
+        "starts": "2026-05-30",
+        "ends": "2026-06-20",
+        "description": "Ground the Stage-1 latent in raw magnetics via a GS soft residual (data can override); stand up GS-residual monitoring as a force-balance-departure / dynamics-native OOD detector (may close Stage-1 criterion-3); apply SINDy/Koopman to the latent transition kernel toward dimensionless/invariant coordinates. First action: scaffold a dedicated Stage-2 plan + decompose GS-prior into scoped tasks; consider the open uq-level-v0 + extrapolation-coordinates decisions."
       }
     ],
     "blockers": [
@@ -227,6 +262,11 @@
       }
     ],
     "timeline": [
+      {
+        "when": "2026-05-29 09:00",
+        "who": "agent/opus (coordinator)",
+        "what": "S5 closed (decoder fine-tune NEGATIVE; bf16 ruled out by job 1209184). Project re-founded on a probabilistic state-space model \u2014 new plans physics-world-model-strategy + plasma-state-space-v0 + probabilistic-state-space-methods. S7 opened: Stage-1 cross-family hold-out engine."
+      },
       {
         "when": "2026-05-28 00:00",
         "who": "agent/sonnet",
@@ -263,6 +303,6 @@
         "what": "tokenizers \u00a713.3 IR codebook benchmark wired (commit dec0082)"
       }
     ],
-    "_version": 10
+    "_version": 14
   }
 }

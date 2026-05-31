@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="plasma-gs-prior-v0">
+  <meta name="plan-title" content="Plasma GS Soft-Prior &amp; Structure Discovery (Stage-2)">
+  <meta name="plan-summary" content="Stage-2: physically ground the Stage-1 RKN latent with a self-applied Grad-Shafranov SOFT, FALSIFIABLE prior on RAW magnetics; stand up the GS force-balance residual as a dynamics-native discovery/OOD instrument; distil the latent dynamics toward dimensionless coordinates. Raw signals only; no EFIT/esm supervision.">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-milestone" content="M2">
+  <meta name="plan-sprint" content="S8">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-depends-on" content="plasma-state-space-v0,physics-world-model-strategy,probabilistic-state-space-methods">
+  <title>Plasma GS Soft-Prior &amp; Structure Discovery (Stage-2) | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-05-31">
+<meta name="plan-version" content="17">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Plasma GS Soft-Prior &amp; Structure Discovery — Stage-2</h1>
+    <p><em>Stage-2 of <a href="/imas-ambix/physics-world-model-strategy.html">physics-world-model-strategy</a> (§9), home of sprint <strong>S8</strong>. Builds on the Stage-1 engine in <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a>. Scope synthesised 2026-05-30 from a 4-perspective design workflow (GS formulation · residual-as-discovery/OOD · structure discovery · data/compute feasibility); full design notes archived in the run transcript.</em></p>
+
+    <h2 id="s1">§1 — Objective</h2>
+    <p><strong>Physically ground the Stage-1 RKN latent state-space engine with a self-applied Grad–Shafranov (GS) <em>soft, falsifiable</em> prior on raw magnetics, and stand up the GS force-balance residual as a dynamics-native discovery + OOD instrument — then distil the latent dynamics toward dimensionless coordinates.</strong> Three gated deliverables:</p>
+    <ol>
+      <li><strong>Standalone GS force-balance monitor</strong> (no engine retrain) — a dimensionless/fractional residual + persistence statistic computed from raw magnetics alone.</li>
+      <li><strong>Grounding head</strong> — a latent → (low-DOF plasma current <em>j<sub>φ</sub></em>, restricted <em>p′/FF′</em>, <em>ψ</em>) → raw-magnetics decoder, added to the engine as a soft λ-weighted GS prior (gated on the monitor proving informative).</li>
+      <li><strong>Discovery layer</strong> — effective-dimension SVD + SINDy distillation of the closed-form transition kernel + DMD/Koopman, toward dimensionless coordinates.</li>
+    </ol>
+    <p><strong>The EFIT-label-free trick:</strong> the over-determining data constraint that replaces EFIT supervision is <em>reconstruction of the ~50–120 raw magnetic sensors</em> (amb flux loops [Wb] + B-probes [T]) from a low-DOF latent-decoded plasma current plus the <em>known measured</em> conductor currents (amc PF/plasma + amm passive). <strong>Raw measured signals only — never efm/esm as inputs OR labels.</strong> (The machine <em>geometry</em> source for the forward operator is a separate gating decision — see Decisions.)</p>
+
+    <h2 id="s2">§2 — Approach (gated phases + work split)</h2>
+    <p>The GS-prior track (T1–T6) is gated on a principle decision (geometry source) and on each prior phase's acceptance; the discovery track (T7–T8) is <strong>geometry-independent and runs in parallel</strong>. CPU-only throughout (fixed-matmul operator + tiny engine) — off the fragile H200 node entirely.</p>
+    <ul>
+      <li><strong>Phase 0 — gate (USER decisions, no code):</strong> resolve geometry-source (the principle call) + criterion-3 target; lock the technical decisions; confirm the landed S7.5 checkpoint (latent=16, student-t, drift_reg=0.3) is loadable / deterministically re-runnable (seed=0).</li>
+      <li><strong>Phase 1 — data substrate + forward operator</strong> (gated on geometry clearance): per-campaign machine-geometry table; precomputed differentiable Green's-function operator <em>G<sub>ψ</sub></em>(loop;src) + <em>G<sub>B</sub></em>(probe;src); fold amc/amm measured currents as KNOWN sources; SI denormalisation.</li>
+      <li><strong>Phase 2 — standalone GS monitor</strong> (no retrain): per-slice low-DOF GS-consistent fit → fractional residual <em>r<sub>t</sub></em> + persistence <em>P<sub>t</sub></em>; falsifiability verified on the λ × profile-DOF frontier.</li>
+      <li><strong>Phase 3 — grounding head</strong> (gated on Phase-2 Q1 PASS): add the latent→magnetics head + <em>L<sub>data</sub></em> + λ·<em>L<sub>GS</sub></em> to the engine; joint retrain + latent-dim/λ/profile-DOF sweep; honest help/hurt report on Stage-1 Dα skill.</li>
+      <li><strong>Phase 4 — discovery</strong> (extractor + SVD run parallel-early to de-risk; final discovery re-runs on the grounded latent): effective-dim SVD; SINDy distillation of the closed-form <em>f<sub>θ</sub></em>; DMD/Koopman + quiescent-Jacobian for sub-500 Hz rates; closed-loop Dα-skill-preservation check.</li>
+    </ul>
+    <div class="table-scroll"><table class="t">
+      <thead><tr><th>Task</th><th>Tier</th><th>Depends</th><th>Exclusive scope</th><th>Done-when (short)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>T0</strong> gate: decisions + checkpoint repro</td><td>opus</td><td>—</td><td>docs (decision locks); no source</td><td>geometry-source + criterion-3 resolved by user; technical decisions recorded; checkpoint confirmed; CPU-only confirmed</td></tr>
+        <tr><td><strong>T1</strong> machine-geometry table</td><td>opus</td><td>T0</td><td>NEW <code>imas_ambix/gs/geometry.py</code> + manifests artifact</td><td>per-campaign {sensor R,Z,orient; coil/passive filament R,Z,turns; limiter}, orientation resolved authoritatively; unmatched channels flagged</td></tr>
+        <tr><td><strong>T2</strong> Green's-function operator + SI denorm</td><td>opus</td><td>T1</td><td>NEW <code>gs/operator.py</code>, <code>gs/denorm.py</code></td><td>fixed differentiable G matrices; amc/amm known sources; SI inversion; flux-loop datum/de-dup; sign/scale sanity (not an efm fit)</td></tr>
+        <tr><td><strong>T3</strong> standalone GS monitor</td><td>opus</td><td>T2</td><td>NEW <code>gs/monitor.py</code></td><td>fractional <em>r<sub>t</sub></em> + persistence <em>P<sub>t</sub></em>; falsifiability on the λ×DOF frontier</td></tr>
+        <tr><td><strong>T4</strong> Q1 validation — PRIMARY GATE</td><td>opus</td><td>T3</td><td>NEW <code>gs/validate_q1.py</code> + gs/artifacts</td><td>r<sub>t</sub> spikes at ELMs (Dα mask) + disruptions (dIp/dt) AND beats a trivial |dB/dt| baseline AND survives the eddy-current ablation → unlocks T6</td></tr>
+        <tr><td><strong>T5</strong> Q2 validation — honest, not the gate</td><td>opus</td><td>T3</td><td>NEW <code>gs/validate_q2.py</code></td><td>P<sub>t</sub> OOD-AUROC vs 0.748/0.831/0.810, reported ONLY after Iₚ/ne deconfounding + quiescent/transient decomposition, with pre-committed interpretation</td></tr>
+        <tr><td><strong>T6</strong> grounding head + joint retrain</td><td>opus</td><td>T4 PASS</td><td><code>statespace/engine.py</code> (SOLE editor) + NEW <code>gs/grounding.py</code></td><td>head + L<sub>data</sub> + λ·L<sub>GS</sub>; latent-dim {16,32,48} × λ×DOF sweep; honest help/hurt on Stage-1 Dα metrics</td></tr>
+        <tr><td><strong>T7</strong> latent extractor + effective-dim SVD</td><td>sonnet</td><td>T0</td><td><code>statespace/filter.py</code> (SOLE editor; additive) + NEW <code>statespace/discovery_extract.py</code></td><td>surface+cache filtered z_post / smoothed z_s; SVD energy spectrum + effective rank r (~3–5) — first reduced-structure result; geometry-INDEPENDENT (can start at T0)</td></tr>
+        <tr><td><strong>T8</strong> SINDy distill + DMD/Koopman</td><td>opus</td><td>T7</td><td>NEW <code>statespace/discovery_sindy.py</code></td><td>exact Δz=f<sub>θ</sub>(z) distilled to a sparse symbolic recurrence (sklearn+sympy, zero new deps); sub-500 Hz spectra; skill-preserving through the FROZEN obs head; final re-run on the grounded latent</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2 id="s3">§3 — Acceptance criteria (what "the GS prior earns its keep" means)</h2>
+    <ul>
+      <li><strong>PRIMARY (Q1, leak-free + trivial-baseline-guarded):</strong> on held-out known-transient shots the GS residual <em>r<sub>t</sub></em> spikes at ELMs (labelled from the raw-Dα <code>compute_transient_mask</code> — an independent label, since the residual consumes magnetics only) and disruptions (raw dIp/dt collapse), AND <strong>beats a trivial raw-magnetics-activity baseline</strong> (|dB/dt| / B-probe variance) at the same event AUROC, AND <strong>survives the eddy-current ablation</strong> (amc case/feed + amm folded in as known sources). Without these guards the monitor is just a high-pass filter / eddy detector — Stage-1's pick-a-metric-a-trivial-baseline-wins mistake, one level up.</li>
+      <li><strong>SECONDARY (Q2, criterion-3 closure — honest, NOT the gate):</strong> P<sub>t</sub> OOD-AUROC head-to-head vs Stage-1's innovation 0.748 / pred-σ 0.831 / static-ensemble 0.810 in the identical <code>engine_metrics</code> protocol — but reported <strong>ONLY after (i) regressing Iₚ+ne out (or Iₚ/ne-matched subsamples) and (ii) decomposing quiescent vs transient</strong>. Pre-committed reading: survives-deconfound + transient-carried = real physics-native detection; vanishes = the Iₚ²/ne scaling leak (fake win); uniform quiescent offset = closure-misspecification (the ensemble's epistemic mechanism re-derived).</li>
+      <li><strong>FALSIFIABILITY:</strong> on the 2-D λ × profile-DOF frontier, the residual is NOT trivially ≈0 at the chosen DOF (p′/FF′ restriction makes <em>r</em> a real measurement) AND data overrides at high λ. Report the frontier, never λ alone.</li>
+      <li><strong>GROUNDING HONESTY:</strong> report whether the grounding head HELPS or HURTS Stage-1 Dα forecast CRPS/NLL + filtering coverage on the same S7 harness (magnetics are already inputs → L<sub>data</sub> partly autoencodes; grounding is representation-shaping, not new-quantity prediction).</li>
+      <li><strong>TERTIARY (first discovered structure — validated):</strong> an effective latent dim r (~3–5, with energy spectrum) + a sparse symbolic recurrence in reduced coords that PRESERVES Dα skill when simulated through the FROZEN obs head and re-scored. Spectral validation sub-500 Hz only (1 kHz Nyquist).</li>
+    </ul>
+
+    <h2 id="s4">§4 — Out of scope</h2>
+    <p>EFIT/efm/esm as inputs OR labels (solver <em>outputs</em>; geometry <em>setup</em> arrays are a separate gating decision, not a relaxation). Cross-machine transfer testing (single-machine MAST → invariance is designed, not tested). EFIT-shape reconstruction as a fit target. Conserved-quantity matching to helicity/energy (gated on flux-grounding; this latent is Dα-grounded). Latent-eigenfrequency↔MHD-mode matching (ama modes multi-kHz vs 500 Hz Nyquist — aliased). SINDYc / input-driven transition (expands the locked mag+ane set — separate decision). GPU/H200 use. Hard GS constraint. Re-opening pred-σ 0.831 as a criterion-3 closer (strategy excludes passive σ-inflation; the residual must be an ACTIVE detector).</p>
+
+    <h2 id="s5">§5 — Top risks</h2>
+    <ul>
+      <li><strong>Geometry-source principle deadlock</strong> — the whole GS chain (T1–T6) blocks on the user's geometry call; if efm-static-geometry is denied and amb-parsing proves unreliable, Phase 1 stalls pending external-DD ingestion. (Discovery T7–T8 is geometry-independent and proceeds regardless.)</li>
+      <li><strong>Trivial-baseline / eddy-current confound</strong> — a residual that merely tracks |dB/dt| or spikes on eddy currents is not physics-native; T4 makes beating-trivial + surviving-ablation the PRIMARY gate.</li>
+      <li><strong>Q2 scaling leak</strong> — a dimensional residual ~Iₚ²/ne reconstructs the OOD-box label axes; T5 reports only the deconfounded AUROC.</li>
+      <li><strong>Falsifiability collapse</strong> — pointwise-free p′/FF′ zeroes the residual; the restricted-DOF basis is load-bearing, swept as a first-class knob.</li>
+      <li><strong>drift_reg=0.3 confound</strong> — the landed engine's quiescent regulariser biases f<sub>θ</sub>→identity, confounding "discovered near-conservation"; T8 stratifies transient/quiescent and flags it.</li>
+      <li><strong>Deepest risk — criterion-3 may be the wrong target</strong>: a force-balance-departure detector is suited to TRANSIENT/off-normal departures, not a STATIC high-Iₚ×ne regime label where force balance still holds — so Q2 may not close criterion-3 even when Q1 succeeds. See the criterion-3-target decision.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="gs-geometry-source" data-choice="efm-static-geometry" data-by="Simon McIntosh (via orchestrator)" data-when="2026-05-30T15:16:32+00:00">
+    <p class="r-dec-q">Where does the machine GEOMETRY for the Green&#x27;s-function operator come from, given the locked &quot;never efm&quot; principle? (#1 gating decision — blocks all of Phase 1; a USER principle call.)</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="efm-static-geometry">read efm&#x27;s STATIC setup arrays (magpr_r/z/ang, silop_r/z, fcoil_r/z/turns, limiter) — the fixed a-priori every solver is GIVEN, categorically distinct from efm&#x27;s reconstructed psirz/profiles (recommended, with explicit clearance)</button>
+      <button class="r-opt" data-value="amb-description-parsing">parse R,Z + orientation from amb channel descriptions — principle-safe (touches no efm) but has a confirmed orientation bug + duplicate loops (needs an audited correction table)</button>
+      <button class="r-opt" data-value="external-dd">source from the imas-dd pf_active + magnetics IDS machine description — cleanest/EFIT-free by construction, but not in this corpus (needs ingestion)</button>
+      </p>
+    <p class="r-dec-rat">USER-CLEARED 2026-05-30: read efm&#x27;s STATIC setup/machine-description arrays for the Green&#x27;s-function operator — magpr_r/z/ang (sensor positions + orientation), silop_r/z (flux-loop positions), fcoil_r/z/turns (PF-coil filaments), limiterr/z. STRICT BOUNDARY (binding): geometry/setup arrays ONLY — NEVER efm&#x27;s reconstructed psirz / pressure or current profiles / separatrix / shape outputs (those are solver OUTPUTS and stay excluded as inputs AND labels). Setup geometry = the fixed a-priori machine description (what the device IS), categorically distinct from solver output. This unblocks Phase 1 (T1 geometry-table extractor). amb-description-parsing remains the documented principle-safe fallback if a clean efm-geometry-only read proves infeasible.</p>
+    </div>
+<div class="r-dec" data-key="criterion-3-target" data-choice="reframe-to-transient-offnormal" data-by="Simon McIntosh (via orchestrator)" data-when="2026-05-30T15:16:32+00:00">
+    <p class="r-dec-q">Is the inherited criterion-3 (a STATIC high-Iₚ×ne regime-OOD label) the right target for a GS force-balance-departure detector — or should Stage-2&#x27;s OOD target be re-framed?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="reframe-to-transient-offnormal">re-frame: a force-balance residual is physically a TRANSIENT/off-normal-departure detector; make Q1 (known transients) the real objective + add a re-framed off-normal OOD label, and treat the static-regime criterion-3 closure as honest-secondary only (recommended)</button>
+      <button class="r-opt" data-value="close-inherited-static-ood">hold the inherited target: try to close criterion-3 (beat static 0.810 on the high-Iₚ×ne regime) as the primary OOD objective</button>
+      </p>
+    <p class="r-dec-rat">USER-DECIDED 2026-05-30: REFRAME. Q1 — force-balance-departure detection on KNOWN transients (ELMs via the raw-Dα compute_transient_mask, disruptions via raw dIp/dt collapse), beating a trivial |dB/dt|/B-variance baseline AND surviving the eddy-current ablation — is the REAL Stage-2 OOD objective, matching what a GS residual physically detects (where force balance BREAKS). Add a re-framed off-normal OOD label the residual is suited to. The inherited STATIC high-Iₚ×ne criterion-3 closure is honest-SECONDARY only, reported strictly after Iₚ/ne deconfounding + quiescent/transient decomposition. This avoids repeating Stage-1&#x27;s pick-the-wrong-metric trap at the strategy level.</p>
+    </div>
+<div class="r-dec" data-key="gs-grounding-sequencing" data-choice="standalone-first" data-by="agent/opus (S8 scope)" data-when="2026-05-30">
+    <p class="r-dec-q">Standalone magnetics-consistency monitor first (no retrain), or jointly retrain a latent→magnetics grounding head from the start?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="standalone-first">standalone-first: build/validate the GS monitor independent of the latent; GATE the joint-retrain head on the monitor passing Q1 (recommended)</button>
+      <button class="r-opt" data-value="joint-retrain-first">joint-retrain-first: add L_data + λ·L_GS to the engine from the outset</button>
+      </p>
+    <p class="r-dec-rat">Locked (technical, orchestrator). The current 16-d latent is Dα-grounded, not flux — a residual is computable/validatable WITHOUT touching engine.py, de-risking before any retrain and isolating engine edits to one later gated task (T6, gated on T4 Q1 PASS).</p>
+    </div>
+<div class="r-dec" data-key="latent-to-psi-representation" data-choice="current-distribution-greens" data-by="agent/opus (S8 scope)" data-when="2026-05-30">
+    <p class="r-dec-q">How does the latent decode to a force-balance state for the GS operator?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="current-distribution-greens">low-dim toroidal j_φ(R,Z) + precomputed geometry-only Green&#x27;s functions (Minerva/FreeGS-like); ψ,B at each sensor = G·current; known coil/eddy currents are exact additive terms (recommended)</button>
+      <button class="r-opt" data-value="coarse-psi-grid">coarse ψ grid (33²/65²) + 5-point Δ* stencil + free-boundary BC from known amc currents (more literal, heavier decoder + boundary solve)</button>
+      </p>
+    <p class="r-dec-rat">Locked (technical). Cleanly separates KNOWN (coil/eddy currents + G) / INFERRED (plasma current) / PRIOR (GS on that current); G is a one-time geometry-only matmul → CPU-tiny. Coarse-ψ-grid is the documented fallback if the current-distribution decoder underfits the ~50–120 probes.</p>
+    </div>
+<div class="r-dec" data-key="gs-soft-weight-lambda-x-profile-dof" data-choice="2d-sweep" data-by="agent/opus (S8 scope)" data-when="2026-05-30">
+    <p class="r-dec-q">How are the GS soft-prior weight λ and the p′/FF′ profile-DOF restriction set?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="2d-sweep">2-D sweep λ∈{0,1e-3,1e-2,1e-1} × profile-DOF∈{order-1,order-2,order-4/small-spline}, reported as a frontier (recommended)</button>
+      <button class="r-opt" data-value="fixed">fixed small λ + a single chosen profile-DOF</button>
+      <button class="r-opt" data-value="annealed">annealed / per-regime-learned λ</button>
+      </p>
+    <p class="r-dec-rat">Locked (technical). λ is meaningless without the profile-DOF restriction: with pointwise-free p′/FF′ any smooth ψ drives r→0 and the residual measures nothing. The frontier defines the instrument&#x27;s resolution (min DOF for non-trivial r; max DOF before trivial r→0). Annealing deferred as a refinement.</p>
+    </div>
+<div class="r-dec" data-key="discovery-method-first" data-choice="effdim-svd-then-sindy" data-by="agent/opus (S8 scope)" data-when="2026-05-30">
+    <p class="r-dec-q">Which discovery method runs first?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="effdim-svd-then-sindy">effective-dim SVD first (standalone first result), then closed-form transition distillation via SINDy (exact Δz=f_θ(z) targets — dissolves derivative estimation; zero new deps), DMD/Koopman secondary (recommended)</button>
+      <button class="r-opt" data-value="dmd-koopman">DMD/Koopman on empirical filtered/smoothed trajectories first</button>
+      <button class="r-opt" data-value="pysr">PySR symbolic regression (Julia backend — deferred stretch)</button>
+      </p>
+    <p class="r-dec-rat">Locked (technical). f_θ is an exactly-evaluable autonomous map → sample on-manifold z, read EXACT increments. Stratify transient/quiescent (drift_reg=0.3 drove f_θ→identity on quiescent steps; real structure is in transients). PySINDy/PyDMD are a convenience upgrade via uv add from a network node later; PySR (Julia) deferred.</p>
+    </div>
+<div class="r-dec" data-key="uq-level-v0" data-choice="ensemble-plus-conformal" data-by="Simon McIntosh (via orchestrator)" data-when="2026-05-31T06:08:59+00:00">
+    <p class="r-dec-q">[STILL-OPEN from strategy] UQ stack for the engine + the new GS forward-model UQ layer.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="ensemble-plus-conformal">keep deep-ensemble + split-conformal (Stage-1 stack)</button>
+      <button class="r-opt" data-value="variational">escalate to a variational / fully-Bayesian posterior</button>
+      </p>
+    <p class="r-dec-rat">Orchestrator lock (2026-05-31): keep the Stage-1 stack — RKN factorised-Gaussian filter + split-conformal — for the integrated grounded engine v0. Validated as calibrated across S7/S7.5; the GS grounding head adds a forward-model NLL layer (L_data on magnetics). Evaluate whether that suffices before any escalation to a full variational/Bayesian posterior; no reason to escalate for v0.</p>
+    </div>
+<div class="r-dec" data-key="extrapolation-coordinates" data-choice="design-for-invariance" data-by="Simon McIntosh (via orchestrator)" data-when="2026-05-31T06:08:59+00:00">
+    <p class="r-dec-q">[STILL-OPEN from strategy] Dimensionless / invariant coordinate framing for the operator + residual + discovery library.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="design-for-invariance">dimensionless framing now: operator in R/R0, ψ/(μ0 Ip R0), j_φ/Ip, profiles on ψ_N∈[0,1]; Greenwald-/q*-like groups from RAW amc/ane + fixed MAST a,R0</button>
+      <button class="r-opt" data-value="raw-coordinates">raw machine-absolute coordinates for v0</button>
+      </p>
+    <p class="r-dec-rat">Orchestrator lock (2026-05-31): design the GS operator + residual + the grounded latent in DIMENSIONLESS/invariant coordinates (R/R0, ψ/(μ0 Ip R0), jφ/Ip, profiles on ψ_N∈[0,1]; the operator already carries MAST_R0/a). Justified now: (a) Q2 deconfounding REQUIRES a fractional/dimensionless residual (raw-Tesla reconstructs the Iₚ²/ne axes); (b) cross-machine extrapolation (the north-star) needs invariant coords + retrofitting is costly. Single-machine MAST → invariance DESIGNED not TESTED. Verify any Greenwald/q* groups use FIXED vessel geometry only (no EFIT dependency).</p>
+    </div>
+<div class="r-dec" data-key="integrated-input-set" data-choice="internal-core" data-by="Simon McIntosh (via orchestrator)" data-when="2026-05-31T06:08:59+00:00">
+    <p class="r-dec-q">Which integrated input set for the GROUNDED engine (the wider set that fixes the magnetics-only internal-profile under-determination)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="internal-core">mag+ane+MSE(ams)+Thomson(ayc/atm/aye) — the two GS internal-profile constraints magnetics lack (MSE→current/q, Thomson→pressure); N=4415, cal=512, ood=128 (recommended)</button>
+      <button class="r-opt" data-value="plus-emission">internal-core + bolometer(abm)+SXR(xsx) — adds emission/boundary; N=3659, cal=423</button>
+      <button class="r-opt" data-value="full">+ visible-camera(rbb) shape feature; N=3294, cal=380</button>
+      </p>
+    <p class="r-dec-rat">Orchestrator lock on the T9 feasibility (user delegated &#x27;you decide&#x27;, 2026-05-31). internal-core = mag+ane+MSE+Thomson adds EXACTLY the two internal-profile constraints the GS equation needs and magnetics lack — MSE→internal current/q (the FF&#x27; term), Thomson→pressure p(ψ) (the p&#x27; term) — at the largest internal-complete corpus (cal=512). Emission (bolometer/SXR) + camera are SECONDARY for the internal CURRENT/PRESSURE profile and cost corpus + OOD power, so plus-emission/full are add-incrementally LIFT experiments AFTER internal-core (per the input-modality philosophy). ACCEPTED COST: OOD-test power halves (128 vs v0&#x27;s 265) — inherent to input-widening; flagged. GS-geometry restriction NON-BINDING (all MSE/Thomson shots fall in the efm campaign envelope; per-shot signature matching in T10). Thomson quality varies (full-profile ayc/atm vs edge-only aye) — T10 weights the pressure likelihood by per-shot profile completeness; ayc-only (cal=348) is the documented stricter fallback if mixed-quality Thomson dilutes the constraint.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-s8-t7-discovery-extract" data-status="resolved" data-tier="sonnet" data-written-by="agent/opus (S8 orchestrator)" data-written-at="2026-05-30" data-recommends-skill="" data-resolved-at="2026-05-30T15:49:43+00:00" data-resolved-by="agent/opus (S8 orchestrator)">
+    <h4 class="r-fu-title">T7 — Latent-trajectory extractor + effective-dimension SVD (geometry-INDEPENDENT; ready now)</h4>
+    <div class="r-fu-body">Surface + cache the filtered/smoothed latent trajectories the Stage-1 filter currently discards, and report the effective latent dimension via SVD — the first reduced-structure result. Geometry-independent, so it runs in parallel with the (gated) GS-prior track. Sole editor of filter.py.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2 Phase 4, T7)
+Section: T7
+Tier:    sonnet
+
+Context
+  Stage-2 discovery track, geometry-INDEPENDENT (can start before the GS-prior geometry decision). The Stage-1 RKN engine&#x27;s filter.py computes filtered z_post and smoothed z_s but discards them (returns only Dα obs). Surface + cache them, then SVD the stacked smoothed trajectories for the effective latent dimension — the first reduced-structure result. Reuses the landed S7.5 checkpoint (latent=16, student-t, drift_reg=0.3; deterministic seed=0).
+
+State to read
+  GET /plan/imas-ambix/plasma-gs-prior-v0 (this plan; decisions discovery-method-first, extrapolation-coordinates)
+  GET /plan/imas-ambix/plasma-state-space-v0 (the engine)
+  imas_ambix/statespace/filter.py (filter_shot/smooth_shot discard z_post/z_s); engine.py; artifacts/engine_metrics_v2.json
+
+Locked decisions to honour
+  discovery-method-first → effdim-SVD first, then SINDy (T8); raw signals only.
+
+Open decisions to surface (do not resolve)
+  uq-level-v0, extrapolation-coordinates
+
+Constraints
+  File scope (EXCLUSIVE): imas_ambix/statespace/filter.py (additive only — surface+cache z_post/z_s, no behaviour change to existing returns) + NEW imas_ambix/statespace/discovery_extract.py + tests. Import-only: engine.py, dataset.py, splits.py. Do NOT touch engine.py (T6 is its sole editor). CPU on 98dci4-srv-1006; commit incrementally; do NOT leave an orphaned background process (wait for any run in-session).
+
+Done-when
+  1. filter.py surfaces + caches per-shot filtered z_post + smoothed z_s to /work scratch (tagged like the existing pairs caches), additively (existing tests stay green).
+  2. discovery_extract.py reports the singular-value energy spectrum + effective rank r (~3–5) of the stacked smoothed z(t) on the existing checkpoint — committed as the first reduced-structure result + a compact artifact.
+  3. tests green; committed + pushed; followup written (T8 SINDy distillation) + this followup resolved.</pre>
+    <p class="r-fu-outcome">Landed (commit 17cf814; 126/126 statespace tests green incl. existing + new test_discovery_extract; orchestrator-verified + committed on the agent&#x27;s behalf — the agent backgrounded the run and ended without committing). filter.py change is STRICTLY ADDITIVE: new filter_shot_latents/smooth_shot_latents supersets surface the posterior/smoothed latent trajectories the originals discarded; existing function contracts unchanged. FIRST REDUCED-STRUCTURE RESULT: the 16-d latent collapses to effective rank ~3 (90%: smoothed eff_rank=3, participation ratio 1.76; 99%: 7), consistent filtered-vs-smoothed. Transient slightly richer (eff_rank 4 @95%, 9 @99%) than quiescent (3/6) — real structure concentrates in transients, as expected. HONEST confounds recorded in the artifact: (a) drift_reg=0.3 biased f_theta-&gt;identity on quiescent steps → quiescent near-degeneracy is partly by-construction, NOT a physics claim; (b) SVD is in RAW latent space (extrapolation-coordinates still open). Artifact: artifacts/latent_svd_v0.json. T7 stayed in scope (extraction+SVD only; no dynamics attribution — that&#x27;s T8).</p>
+    </article>
+<article class="r-fu" data-id="f-s8-t1-geometry" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S8 orchestrator)" data-written-at="2026-05-30" data-recommends-skill="" data-resolved-at="2026-05-30T15:59:55+00:00" data-resolved-by="agent/opus (S8 T1)">
+    <h4 class="r-fu-title">T1 — Machine-geometry table extractor (GATED on the gs-geometry-source decision)</h4>
+    <div class="r-fu-body">Build the per-campaign machine-geometry table (sensor R,Z,orientation; PF + passive filament R,Z,turns; limiter) the Green&#x27;s-function operator needs. BLOCKED until the user resolves gs-geometry-source — the source (efm-static / amb-parsing / external-DD) determines the extractor entirely. Do NOT start before that decision is locked.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2 Phase 1, T1)
+Section: T1
+Tier:    opus
+
+Context
+  First task of the GS-prior track. BLOCKED on the gs-geometry-source decision (a USER principle call). Build the per-campaign machine-geometry table for the Green&#x27;s-function forward operator. Stage-2 grounds the Stage-1 latent in raw magnetics; the geometry is the one piece not in the raw signal data.
+
+State to read
+  GET /plan/imas-ambix/plasma-gs-prior-v0 (decisions gs-geometry-source [MUST be locked], latent-to-psi-representation, extrapolation-coordinates)
+  imas_ambix/data/paths.py (LEVEL1_SOURCES; magnetics amb/amc/amm); the level-1 corpus geometry source named in the locked gs-geometry-source decision
+
+Locked decisions to honour
+  gs-geometry-source → &lt;the user&#x27;s choice&gt; (this dictates the source: efm-static setup arrays magpr_r/z/ang+silop_r/z+fcoil_r/z/turns+limiter, OR audited amb-description parsing, OR external imas-dd). NEVER read efm reconstructed psirz/profiles/separatrix regardless. raw signals only.
+
+Open decisions to surface (do not resolve)
+  uq-level-v0, extrapolation-coordinates
+
+Constraints
+  File scope (EXCLUSIVE): NEW imas_ambix/gs/geometry.py + a NEW manifests artifact under MIRROR_ROOT/manifests/. Do NOT edit statespace/. CPU; commit incrementally.
+
+Done-when
+  1. A structured geometry artifact: per-campaign tables keyed by a setup signature (fcoil length/checksum; silop_z/magpr_z drift ~1cm between campaigns); each amb sensor mapped to (R,Z,orientation) with orientation resolved authoritatively per the locked source; unmatched channels flagged.
+  2. tests green; committed + pushed; followup written (T2 operator) + this followup resolved.
+  GATED: do not begin until gs-geometry-source is locked (data-choice non-empty).</pre>
+    <p class="r-fu-outcome">LANDED (commits a44c7e6 module+tests, aee4fb3 summary; pushed to origin/main). Built imas_ambix/gs/geometry.py + tests/gs/test_geometry.py (15 tests green; mypy-strict + ruff clean). AUDITABLE efm read-list (EFM_GEOMETRY_ARRAYS, enforced by test_read_list_is_geometry_only) — ONLY these 15 STATIC arrays were ever opened: magpr_r/z/ang/len (78), silop_r/z (46), fcoil_r/z/turns/width/height/circ/xmult (1004 or 938), limiterr/z (37). Discriminator is mechanical+auditable: every one has NO leading time axis and is indexed by a geometry dimension (magpr_n / fcoil_segs_n / nlimiter); EFIT&#x27;s time base is length-50. NO reconstructed/solver-output array was touched — explicitly EXCLUDED (and named in the test) the tempting prefix-neighbours magpr_c/magpr_x, silop_c/silop_x, fcoil_c/fcoil_x (all (50,N) fitted/experimental currents) plus psirz, pprime, ffprime, lcfs_r/z, qpsi_c, plasma_current_*, magnetic_axis_*, betap, li, and every other (50,...) quantity. ARTIFACT: 3 campaigns over the full S7 in-use span 11764..30473 (sampled 500 shots evenly), keyed by setup signature (valid-count + rounded-position SHA): fc1004/9425a (17 shots, 11764..12342, 167 PF circuits), fc1004/edd75 (27 shots, 12417..13349, 167), fc938 (449 shots, 12533..30473, 101). BOTH the 1004 and 938 fcoil discretisations appear in-use AND the two fc1004 campaigns carry distinct position hashes (the ~13mm magpr_z drift) — confirms per-campaign keying is necessary, not theoretical. SENSOR MAPPING: all 78 magpr B-probes present; the 69 amb B-probes (ccbv/obr/obv) map BIJECTIVELY (zero index collisions) with EVERY matched magpr_ang agreeing with the name-expected orientation — orientation resolved authoritatively from magpr_ang via an orientation-CONSTRAINED nearest-neighbour. EMPIRICAL PROOF the locked decision was right: plain (R,Z) NN is degenerate at the co-located obr/obv radii (1.44/1.59/1.85 m) — it collided 13 pairs and assigned the WRONG orientation to 17 obr/obv channels; the ang-constrained NN fixes all of them (amb obv* channels even carry &#x27;Br&#x27; in their description — a copy-paste bug — yet magpr_ang=90 correctly marks them vertical). FLAGGED/UNMATCHED (honest data-quality outcome, NOT an error): of 46 silop flux loops only ~8 amb FL columns map cleanly; fl_cc01-10 share one placeholder (R,Z) — flagged non-unique; the 8 fl_p2l_*/fl_p2u_* are &gt;50mm from any silop (placeholder/displaced amb descriptions) — listed UNMATCHED. Consequence for T2: those amb flux-loop columns cannot be predicted by the operator; carried into the T2 prompt. AMBIGUOUS/EXCLUDED items for orchestrator adjudication (NONE were read as solver output): (1) amm passive-structure CURRENTS are an EFIT-wall-model OUTPUT per amm&#x27;s own description (&#x27;calculated induced currents in toroidal vessel elements for input to EFIT&#x27;) — T1 captured only the amm R,Z GEOMETRY (76 elements, 34 non-obsolete) as candidate passive-source LOCATIONS, but whether T2 may consume the amm current VALUES as a &#x27;known source&#x27; bears on the never-efm principle and is FLAGGED for the user/orchestrator (carried into T2 prompt). (2) fcoil_circ + fcoil_xmult read borderline (&#x27;circuit&#x27;/&#x27;multiplier&#x27;) but are pure static geometry — they map the 938/1004 filaments to the 101/167 circuits + weight each filament&#x27;s share; needed by T2&#x27;s known-coil additive term; documented in the read-list. Open decisions surfaced NOT resolved: uq-level-v0, extrapolation-coordinates (table carries fixed MAST_R0=0.85, MAST_A=0.65 for LATER dimensionless framing — framing NOT locked). T2 followup (f-s8-t2-greens-operator) written. Full tables (920 KiB) at MIRROR_ROOT/manifests/gs_geometry_tables.json; committed summary imas_ambix/gs/artifacts/gs_geometry_summary.json.</p>
+    </article>
+<article class="r-fu" data-id="f-s8-t8-discovery-sindy" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S8 orchestrator)" data-written-at="2026-05-30" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="2026-05-30T16:55:24+00:00" data-resolved-by="agent/opus (S8 T8)">
+    <h4 class="r-fu-title">T8 — SINDy distillation of the closed-form transition kernel + DMD/Koopman (discovery track)</h4>
+    <div class="r-fu-body">With the latent trajectories cached + effective rank ~3 known (T7), distil the closed-form RKN transition f_theta into a sparse symbolic recurrence in the reduced (r~3) coordinates, validated by Da-skill preservation through the FROZEN observation head. The transition is an exactly-evaluable autonomous map, so SINDy reads EXACT increments (no derivative estimation). Zero new deps (sklearn+sympy). First run on the current latent; FINAL re-run on the T6-grounded latent once available.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2 Phase 4, T8)
+Section: T8
+Tier:    opus
+
+Context
+  Discovery track. T7 cached the latent trajectories + found the 16-d latent collapses to effective rank ~3 (artifacts/latent_svd_v0.json; filter_shot_latents/smooth_shot_latents in filter.py). Now distil the closed-form transition kernel into a sparse symbolic recurrence. The RKN transition f_theta (engine.py trans_mean) is an exactly-evaluable autonomous map — sample on-manifold z, read EXACT increments Delta z = f_theta(z) (this dissolves SINDy&#x27;s derivative-estimation problem). Two honesty cruxes (carry, do not bury): (1) the landed checkpoint trained with drift_reg=0.3 biases f_theta-&gt;identity on quiescent steps — stratify transient/quiescent and flag any &#x27;near-conservation&#x27; as confounded; (2) ama MHD modes are multi-kHz vs the 1 kHz latent&#x27;s 500 Hz Nyquist — spectral validation is SUB-500 Hz ONLY (no eigenfrequency-to-MHD matching).
+
+State to read
+  GET /plan/imas-ambix/plasma-gs-prior-v0 (decision discovery-method-first = effdim-SVD-&gt;SINDy; this followup; f-s8-t7 outcome)
+  imas_ambix/statespace/discovery_extract.py + filter.py (the cached trajectories + extractor) ; engine.py (f_theta = trans_mean; the FROZEN obs head) ; artifacts/latent_svd_v0.json
+
+Locked decisions to honour
+  discovery-method-first → SINDy distillation (this), DMD/Koopman secondary; raw signals only; reduced coords from T7&#x27;s SVD (r~3).
+
+Open decisions to surface (do not resolve)
+  uq-level-v0, extrapolation-coordinates
+
+Constraints
+  File scope (EXCLUSIVE): NEW imas_ambix/statespace/discovery_sindy.py + tests + writes to statespace/artifacts/. Import-only: engine.py, discovery_extract.py, filter.py, forecast_pairs/_score_horizons (read-only). Do NOT edit engine.py or filter.py. Do NOT touch imas_ambix/gs/. Zero new deps (sklearn STLSQ + sympy + numpy; PySINDy/PyDMD are an optional uv-add convenience from a NETWORK node, PySR/Julia deferred). CPU; commit incrementally; do NOT leave an orphaned background process (wait for any run in-session).
+
+Done-when
+  1. Exact Delta z = f_theta(z) sampled (stratified transient/quiescent) + distilled to a sparse symbolic recurrence in the reduced (r~3) coords (STLSQ); DMD/Koopman + quiescent-fixed-point Jacobian report SUB-500 Hz rates only.
+  2. The sparse map simulated through the FROZEN observation head + re-scored on forecast_pairs/_score_horizons — skill-preservation delta reported (skill-preserving sparsity = real dynamics; skill-losing = the sparsity discarded real dynamics).
+  3. tests green; committed + pushed; a follow-up noting the FINAL re-run is gated on the T6-grounded latent; this followup resolved.
+  NOTE: this is the FIRST distillation on the current (Da-grounded) latent; the definitive discovery re-runs once T6 grounding lands.</pre>
+    <p class="r-fu-outcome">LANDED (commits 4a8b31a module+tests, c9154e3 STLSQ-normalisation+identity-guard fix, 693efc7 results artifact; all pushed to origin/main; 144/144 statespace tests green = 126 prior + 18 new test_discovery_sindy). Built imas_ambix/statespace/discovery_sindy.py + tests; artifact imas_ambix/statespace/artifacts/discovery_sindy_v0.json. Import-only from engine.py/discovery_extract.py/filter.py; runtime model.trans_mean SWAP (no engine.py edit) for the skill test. Zero new deps (numpy + hand-rolled column-normalised STLSQ + sympy). EXACT increments: read dz=trans_mean(z) FRESH on the cached filtered z_post (NOT trajectory finite-diffs), so the derivative-estimation problem is dissolved as designed. CORE METHOD FIX (commit c9154e3, advisor-flagged): a first cut thresholded RAW coefficients and zeroed EVERY term (false &#x27;sparsity kills all dynamics&#x27; read) — the reduced coords are NOT unit-scale (std ~3.4/1.4/1.6 so quadratic library columns have norms up to ~47), so STLSQ now normalises columns, thresholds the standardised coeff relative to RMS(dxi_dim), and rescales back to physical units; a badly-scaled-column regression test locks it.
+
+FINDINGS (honesty cruxes carried, NOT buried):
+(1) THE SPARSE RECURRENCE: f_theta in the reduced r=3 coords is a DENSE low-order quadratic, NOT sparse. Stratified STLSQ keeps 30/30 library terms at the operating threshold; R2(sparse)=R2(dense) (transient 0.591, quiescent 0.734); the sparsity/skill frontier (rel_threshold 0.1-&gt;3.0) only prunes 30-&gt;28/29 terms at high thresholds with no R2 change — there is no dominant-few-terms structure to discover. The r=3 reduced map captures ~59% (transient) / 73% (quiescent) of the increment variance; the remainder lives in the dims T7&#x27;s SVD discarded (r99=7), i.e. r=3 truncation loss, NOT a fitting failure.
+(2) DRIFT_REG CONFOUND reported AS A NUMBER (crux 1): ||dz||_rms quiescent=0.0364 &lt; transient=0.0542 (ratio 0.67) — the drift_reg=0.3 -&gt; f_theta-shrink bias IS visible on the transition kernel (its proper domain per c-s8-t7-correction), though it does NOT collapse to identity (Jacobian Fro-norm ~1.07 at both stratum means). Flagged as drift_reg-confounded, not a conservation/identity physics result.
+(3) SPECTRUM SUB-500 Hz ONLY (crux 2): DMD/Koopman (M=I+A on reduced increments) AND the stratum-mean Jacobian (autograd dF/dz, projected to r=3) both yield ALL-REAL eigenvalues (osc_freq=0.0 Hz, every mode below the 500 Hz Nyquist), near mu~1 with |decay rate|&lt;42/s — a near-marginal slow manifold, one slightly-growing + two decaying modes. No oscillatory modes; frequency-&gt;MHD-mode matching explicitly DISCLAIMED in the artifact (aliased, dead per crux 2).
+(4) Da-SKILL PRESERVATION through the FROZEN obs head, FOUR-way (identity-null dz=0 -&gt; true-ftheta 16-d -&gt; dense-reduced r=3 -&gt; sparse-reduced STLSQ), re-scored on the same train split/anchors/horizons as engine_metrics_v2 with true-ftheta recomputed IN-PROCESS (not diffed against a stored scalar). Dense and sparse track true within ~2% at every horizon; sparse ~= dense (sparsification was negligible, consistent with the dense-map finding). CRITICAL HONESTY RESULT — a DISCRIMINATION GUARD (advisor-flagged) reveals the skill metric is UNDER-POWERED: the identity null (dz=0) is only 1.3% worse than the true kernel, so &#x27;skill-preserving sparsity =&gt; captured real dynamics&#x27; CANNOT be inferred here. This is the drift_reg confound propagating INTO validation (f_theta was made small, so a frozen-belief rollout is nearly as good for Da). metric_discriminates=false is recorded in the artifact; the definitive skill validation is gated on a latent with a LARGER f_theta (the T6 GS-grounded latent).
+
+Open decisions SURFACED not resolved: uq-level-v0 (T8 adds no UQ); extrapolation-coordinates (the reduced coords are V_r of the RAW latent SVD, NOT dimensionless — recorded in the artifact open_decisions). FIRST distillation on the current Da-grounded latent; the definitive discovery re-runs once T6 grounding lands (gated-final-rerun followup f-s8-t8b written).</p>
+    </article>
+<article class="r-fu" data-id="f-s8-t2-greens-operator" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S8 T1)" data-written-at="2026-05-30" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="2026-05-30T17:03:15+00:00" data-resolved-by="agent/opus (S8 T2)">
+    <h4 class="r-fu-title">T2 — Green&#x27;s-function forward operator (geometry-only G) + SI denorm</h4>
+    <div class="r-fu-body">With the per-campaign geometry table landed (T1: imas_ambix/gs/geometry.py; tables at MIRROR_ROOT/manifests/gs_geometry_tables.json keyed by setup signature; committed summary at imas_ambix/gs/artifacts/gs_geometry_summary.json), build the geometry-only Green&#x27;s-function operator that maps a toroidal current distribution j_phi(R,Z) + the KNOWN coil/eddy currents to the predicted amb flux-loops + B-probes. G is a one-time geometry-only matmul (CPU-tiny) per campaign signature, consuming T1&#x27;s (R,Z,orientation) sensor table + PF/passive filament (R,Z,turns). Honours latent-to-psi-representation = current-distribution-greens. Decide the SI denorm so the predicted Wb/Tesla compare to raw amb in physical units.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2 Phase 1, T2)
+Section: T2
+Tier:    opus
+
+Context
+  Second task of the GS-prior track. T1 landed the per-campaign machine-geometry table (imas_ambix/gs/geometry.py + tables artifact). Build the Green&#x27;s-function FORWARD operator: psi/B at each sensor = G . current, where G is a geometry-only (campaign-keyed) Green&#x27;s-function matrix and the KNOWN coil/eddy currents (amc PF/plasma, amm passive) are exact additive terms. The plasma j_phi(R,Z) is the INFERRED part. CPU-only; G is a one-time matmul per campaign.
+
+State to read
+  GET /plan/imas-ambix/plasma-gs-prior-v0 (decisions latent-to-psi-representation=current-distribution-greens [LOCKED], gs-soft-weight-lambda-x-profile-dof, extrapolation-coordinates [open], uq-level-v0 [open])
+  imas_ambix/gs/geometry.py (GeometryTable: BProbe(r,z,angle_deg), FluxLoop(r,z), PFFilament(r,z,turns,circuit,xmult), passive_structures, sensor_map, extract_campaign_tables); imas_ambix/gs/artifacts/gs_geometry_summary.json; the full tables at MIRROR_ROOT/manifests/gs_geometry_tables.json
+  amc current channels (PF/plasma current sources) + amm passive currents (signal DATA this time, for the known-source additive term)
+
+Locked decisions to honour
+  latent-to-psi-representation = current-distribution-greens: low-dim j_phi(R,Z) basis + precomputed geometry-only Green&#x27;s functions; psi,B at each sensor = G.current; known coil/eddy currents are exact additive terms. Orientation of each B-probe (radial vs vertical) comes from the T1 table&#x27;s angle_deg (authoritative from magpr_ang), NOT amb names. Per-campaign: build one G per setup signature. NEVER read efm reconstructed psirz/profiles/separatrix.
+
+CRITICAL geometry-consumption rules carried from T1 (read the report):
+  - The B-probe Green&#x27;s function must project onto the probe ORIENTATION: a magpr_ang=90 (vertical/Bv) probe sees B_z, a magpr_ang=0 (radial/Br) probe sees B_R. Co-located obr/obv pairs share (R,Z) but differ ONLY in orientation — use angle_deg to pick the component. Getting this wrong silently corrupts ~17 channels (the exact bug T1&#x27;s orientation-constrained mapping exists to prevent).
+  - The 8 fl_p2l_*/fl_p2u_* flux loops are UNMATCHED in the T1 table (placeholder/displaced amb descriptions) — the operator cannot predict those amb columns; exclude them from the prediction target, do not fabricate positions.
+  - amm passive-structure CURRENT VALUES are an EFIT-wall-model OUTPUT (the amm group&#x27;s own description: &#x27;calculated induced currents ... for input to EFIT&#x27;). The amm R,Z geometry is fine as a known passive-source LOCATION, but using the amm current VALUES as a &#x27;known source&#x27; re-introduces an EFIT-derived quantity — this needs a USER/orchestrator adjudication (see T1 report, flagged item). Until adjudicated, prefer treating eddy/passive currents as INFERRED nuisance terms rather than consuming the amm-computed values. Surface this; do not resolve it unilaterally.
+  - PFFilament.xmult + .circuit map the ~938/1004 filaments to the ~101/167 circuits; the amc coil current per circuit is shared across its filaments weighted by xmult. Use this to assemble the known-coil additive term.
+
+Open decisions to surface (do not resolve)
+  uq-level-v0, extrapolation-coordinates (the SI vs dimensionless framing of G&#x27;s output bears on extrapolation-coordinates — carry the fixed MAST_R0/MAST_A from the T1 table; do NOT lock the framing).
+
+Constraints
+  File scope (EXCLUSIVE): NEW imas_ambix/gs/operator.py (the G builder + forward apply + SI denorm) + tests/gs/test_operator.py + artifacts. Import-only: imas_ambix/gs/geometry.py, imas_ambix/data/paths.py. Do NOT edit geometry.py. Do NOT touch imas_ambix/statespace/. CPU on 98dci4-srv-1006; commit incrementally; do NOT leave an orphaned background process (wait for any run in-session).
+
+Done-when
+  1. A geometry-only Green&#x27;s-function matrix G per campaign signature: maps a low-dim j_phi(R,Z) basis + known coil currents (assembled from PFFilament circuit/xmult + amc) to predicted (flux-loop Wb, B-probe Tesla) at the T1-mapped sensors, with B-probe rows projected onto angle_deg. SI-denorm decided + documented so predictions compare to raw amb in physical units. Excludes the T1-unmatched flux loops.
+  2. A round-trip sanity check (e.g. a single known PF-coil current produces the expected vacuum-field signature at the probes; vacuum-field self-consistency without any plasma term).
+  3. tests green; committed + pushed; followup written (T3/T4 residual + Q1 transient-detection) + this followup resolved. Do NOT decide anything strategic (lambda x profile-DOF sweep is T3+).</pre>
+    <p class="r-fu-outcome">LANDED (commits d8b5340 operator+tests+artifact, 8b8d8af test-strengthening; both pushed to origin/main; 34/34 gs tests green = 15 T1 + 19 T2; mypy-strict + ruff clean). Built imas_ambix/gs/operator.py + tests/gs/test_operator.py + artifact imas_ambix/gs/artifacts/gs_operator_summary.json. The forward map is pred = G_pf·I_pf + G_plasma·c_plasma + G_passive·c_passive, each G a geometry-only campaign-keyed matrix (CPU-tiny one matmul). Import-only from geometry.py/paths.py; geometry.py untouched.
+
+HEADLINE — CONFIRMED + FIXED DOUBLE-COUNT (the non-obvious result): EFIT represents each physical MAST PF coil with &gt;1 fcoil circuit (a fine interior grid + a coarse corner set), each ALREADY normalised to the FULL coil current (Σxmult=1; verified circuits 8 &amp; 18 both at Rc≈1.50,Zc≈1.10 produce sensor responses agreeing to &lt;1%). Naively giving all of them the same amc current applies the coil current ONCE PER CIRCUIT → ~2× over-prediction. PROVEN on a near-vacuum slice (|Ip|≈0.85kA, solenoid sizable): B-probe median pred/raw was 2.0 pre-merge → 1.08 post-merge (IQR [0.99,1.20]). FIX: same-amc circuits are MERGED (averaged) into ONE G_pf column so the coil current is applied once. The residual ~8% is the eddy-current term near breakdown (T3&#x27;s to infer). The merge is guarded DETERMINISTICALLY by a structural test (g_pf.shape[1] == #distinct amc channels; an unmerged build gives 23 cols vs 13 channels → fails) + a synthetic merge-math invariant test.
+
+KNOWN-PF BLOCK (13 physical coils per campaign): solenoid (sol_current) + P2iu/il/ou/ol + P3u/l + P4u/l + P5u/l + P6u/l, each mapped to its RAW amc *_current channel by verify-and-flag geometric centroid match (≤80mm to a known MAST coil centroid; no amc channel present → INFERRED, never fabricated). UNITS verified per channel: amc coils are kA·turn (sol is kA), turns=1 throughout fcoil so the per-filament weight is exactly xmult and the SI conversion is a flat ×1000 → A. unmapped_amc_siblings (p4u_case/feed/current etc.) are surfaced in the summary for auditability (advisor-flagged) — the per-coil channel choice is inspectable, not hidden.
+
+GREEN&#x27;S FUNCTIONS (raw SI, validated absolutely, no EFIT reference): axisymmetric circular-filament (Jackson §5.5/FreeGS) — TOTAL poloidal flux Φ [Wb] for flux loops (Φ=2πR·A_φ; NOT the stream function Φ/2π — a 2π convention slip caught + fixed in dev via the FD test), (B_R,B_Z) [T] for B-probes. scipy ellipk/ellipe take m=k² (pinned). On-axis Bz matches the textbook μ0a²/(2(a²+Δz²)^1.5) to 1e-6; ∂Φ/∂R,∂Φ/∂Z finite-difference matches analytic B to 1e-3. ORIENTATION (the T1-crux): B-probe rows use the GENERAL projection B=B_R·cosθ+B_Z·sinθ with θ=angle_deg from the T1 table (90°→Bz, 0°→Br) — pinned to both cases + oblique; co-located obr/obv pairs differ ONLY by angle_deg.
+
+PREDICTED vs EXCLUDED sensors (per campaign): predicts the 69-76 amb B-probes + the cleanly-mapped flux loops. EXCLUDES the 8 unmatched fl_p2* loops (absent from G — ForwardOperator.excluded_channels). The ~20 non-unique flagged fl_cc*/fl_p* loops are predicted at the placeholder silop index but listed in ForwardOperator.flagged_channels (amb identity ambiguous → keep OUT of the comparison target). Carried into the T3 prompt as the trustworthy-target rule.
+
+INFERRED terms (per the adjudication): plasma jφ(R,Z) is INFERRED on a coarse limiter-masked grid basis (G_plasma, 84 nodes default; resolution is a T3 knob) — measured Ip is a T3 NORMALIZATION CONSTRAINT, NOT a known additive term (avoiding the plasma double-count the advisor flagged). Passive/eddy are INFERRED nuisance on the fcoil STRUCTURAL circuits (G_passive, 78 fc938 / 144 fc1004) — amm computed CURRENTS are EXCLUDED (EFIT-wall-model output, c-s8-amm-adjudication); only fcoil structural geometry is used (single passive source). passive_amm_coincidence() documents that 52/144 fc1004 structural singletons coincide with amm passive (R,Z) within 2cm (double-representation reconciled to the fcoil source, no double-count).
+
+VACUUM ROUND-TRIP (DONE-WHEN #2, committed): test_real_vacuum_round_trip_matches_raw_amb_at_near_vacuum_slice validates the PF-only prediction against RAW amb at a near-vacuum slice — median pred/raw ∈ [0.5,1.5]. This is the ABSOLUTE SI/flux/orientation anchor (a 2π flux slip → ~6.7/0.16, a unit/μ0 slip → gross). NOTE it is NOT the double-count guard (near-vacuum slices are solenoid-dominated, a singleton the merge doesn&#x27;t touch); that guard is the structural one-column-per-coil + merge-math tests.
+
+SI-DENORM (decided + documented): raw SI — flux Wb, field T, currents A, μ0 carried; framing-NEUTRAL. extrapolation-coordinates SURFACED not resolved (a raw-SI map leaves dimensionless R/R0, ψ/(μ0 Ip R0) framing to a later consumer; MAST_R0=0.85/MAST_A=0.65 carried through but NOT used to rescale G). uq-level-v0 also surfaced not resolved (T2 adds no UQ). NOTE for T3: the over-complete map (~84 plasma + 78..144 passive cols vs ~77 trustworthy sensors) means the inverse solve REQUIRES the locked λ×profile-DOF restriction or the residual collapses to a meaningless zero — flagged as the first thing T3 confronts. T3/T4 followup (f-s8-t3-residual-monitor) written. Artifact: imas_ambix/gs/artifacts/gs_operator_summary.json (shapes, per-coil merge map, unmapped siblings, excluded/flagged channels, SI-denorm note).</p>
+    </article>
+<article class="r-fu" data-id="f-s8-t8b-discovery-sindy-rerun" data-status="open" data-tier="opus" data-written-by="agent/opus (S8 T8)" data-written-at="2026-05-30" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">T8b — DEFINITIVE SINDy/DMD re-run on the T6 GS-grounded latent (GATED on T6)</h4>
+    <div class="r-fu-body">The T8 distillation (commits 4a8b31a/c9154e3/693efc7; artifact discovery_sindy_v0.json) ran on the CURRENT Da-grounded latent and found (a) f_theta in r=3 is a DENSE low-order quadratic (no sparsity to discover), and (b) the Da-skill validator is UNDER-POWERED — the identity-null (dz=0) is only 1.3% worse than the true kernel, so the discrimination guard reports metric_discriminates=false. That under-power is the drift_reg=0.3 confound propagating into validation (f_theta is small). The definitive distillation MUST re-run once the T6 GS-grounded latent lands, because (i) the transition kernel changes with the grounding, so the T8 coefficients/spectrum are PROVISIONAL, and (ii) a flux-grounded latent with a larger f_theta is the condition under which the skill metric can actually discriminate. Re-running on the same machinery (discovery_sindy.run_distillation, the cached-trajectory + checkpoint path retargeted to the T6 checkpoint) closes both gaps.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2 Phase 4, T8b)
+Section: T8
+Tier:    opus
+
+Context
+  GATED on T6 (the GS-grounded engine retrain). T8 (commits 4a8b31a/c9154e3/693efc7) landed the SINDy/DMD/Koopman distillation MACHINERY (imas_ambix/statespace/discovery_sindy.py) and ran it on the CURRENT Da-grounded latent. Two results force a re-run: (1) f_theta in the reduced r=3 coords is a DENSE low-order quadratic (30/30 library terms survive; R2(sparse)=R2(dense)=0.59 transient / 0.73 quiescent) — no sparse structure to discover on THIS latent; (2) the Da-skill validator is UNDER-POWERED — the identity null (dz=0) is only 1.3% worse than the true kernel (discrimination guard metric_discriminates=false), because drift_reg=0.3 made f_theta small. This is THE FIRST distillation; the definitive one runs on the T6-grounded latent.
+
+State to read
+  GET /plan/imas-ambix/plasma-gs-prior-v0 (decision discovery-method-first; this followup; f-s8-t8 outcome)
+  imas_ambix/statespace/discovery_sindy.py (run_distillation, stlsq column-normalised, skill_preservation 4-way + discrimination_guard, dmd_koopman, fixed_point_jacobian) ; artifacts/discovery_sindy_v0.json (the provisional Da-grounded result) ; the T6 GS-grounded checkpoint + its cached trajectories (the T6 outcome will name the paths)
+
+Locked decisions to honour
+  discovery-method-first → effdim-SVD (T7) → SINDy distillation (T8/T8b), DMD/Koopman secondary; raw signals only; reduced coords from the (re-run) T7-style SVD on the T6 latent.
+
+Open decisions to surface (do not resolve)
+  uq-level-v0, extrapolation-coordinates (the T8 reduced coords are RAW-latent V_r, NOT dimensionless — the framing is still open; re-evaluate whether the GS-grounded latent should be SVD&#x27;d in dimensionless coords).
+
+Constraints
+  File scope (EXCLUSIVE): imas_ambix/statespace/discovery_sindy.py (retarget the checkpoint/trajectory paths to T6; additive only) + tests + a NEW artifact discovery_sindy_v1.json. Do NOT edit engine.py or filter.py. Do NOT touch imas_ambix/gs/. Zero new deps unless PySINDy/PyDMD added via a NETWORK node first. CPU; commit incrementally; do NOT leave an orphaned background process.
+
+Done-when
+  1. Re-run discovery_sindy on the T6 GS-grounded latent: re-extract trajectories + reduced basis, distil f_theta (stratified), DMD/Koopman + Jacobian SUB-500 Hz only.
+  2. The skill validator&#x27;s DISCRIMINATION GUARD now PASSES (identity-null meaningfully worse than true) — OR, if it still does not, that itself is reported as a finding about the grounded latent&#x27;s dynamics. Re-report whether f_theta is sparse on the GROUNDED latent (the dense-quadratic result on the Da latent may or may not survive grounding).
+  3. Compare v1 vs the provisional v0 (discovery_sindy_v0.json): did grounding change the recurrence / spectrum / skill-discrimination? tests green; committed + pushed; this followup resolved.
+  GATED: do not begin until T6 (the GS-grounded retrain) has landed a checkpoint.</pre>
+    </article>
+<article class="r-fu" data-id="f-s8-t3-residual-monitor" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S8 T2)" data-written-at="2026-05-30" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="2026-05-30T20:21:00+00:00" data-resolved-by="agent/opus (S8 T3/T4)">
+    <h4 class="r-fu-title">T3/T4 — standalone GS force-balance residual monitor + Q1 transient-detection</h4>
+    <div class="r-fu-body">With the per-campaign forward operator landed (T2: imas_ambix/gs/operator.py; G_pf[97,13]/G_plasma[97,84]/G_passive[97,78..144]; summary gs_operator_summary.json), build the standalone GS residual MONITOR (gs-grounding-sequencing=standalone-first; no engine.py retrain) and run the Q1 transient-departure detection (criterion-3-target=reframe-to-transient-offnormal). T3 confronts the λ×profile-DOF sweep FIRST — the forward map is intentionally OVER-COMPLETE (~84 plasma + 78..144 passive columns vs ~77 trustworthy sensors) so an unconstrained solve drives the residual to a meaningless zero; the locked gs-soft-weight-lambda-x-profile-dof 2-D frontier (λ×profile-DOF) is exactly what gives the residual non-trivial resolution. T4 runs Q1: force-balance departure on KNOWN transients (raw-Dα compute_transient_mask ELMs, raw dIp/dt disruptions), beating the trivial |dB/dt|/B-variance baseline AND surviving the eddy-current ablation.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2 Phase 1-2, T3/T4)
+Section: T3
+Tier:    opus
+
+Context
+  Third+fourth tasks of the GS-prior track. T2 landed the geometry-only Green&#x27;s-function FORWARD operator (imas_ambix/gs/operator.py; ForwardOperator with G_pf/G_plasma/G_passive per campaign; build_operator/build_all_operators; read_amc_currents_at_index; gs_operator_summary.json). Now build the standalone GS force-balance RESIDUAL monitor (NO engine.py retrain — gs-grounding-sequencing=standalone-first) and run Q1 transient-departure detection. The operator gives pred = G_pf·I_pf + G_plasma·c_plasma + G_passive·c_passive; T3 INVERTS it (regularised solve for c_plasma/c_passive given raw amb + the known PF term) and forms the GS force-balance residual.
+
+State to read
+  GET /plan/imas-ambix/plasma-gs-prior-v0 (decisions gs-soft-weight-lambda-x-profile-dof [LOCKED 2d-sweep], gs-grounding-sequencing [standalone-first], criterion-3-target [reframe-to-transient-offnormal], extrapolation-coordinates [OPEN — Q2 deconfounding REQUIRES a fractional/dimensionless residual; a raw-Tesla residual reconstructs the Ip²/ne axes], uq-level-v0 [open])
+  imas_ambix/gs/operator.py (ForwardOperator.predict/vacuum_prediction/assemble_pf_currents; G blocks; read_amc_currents_at_index) ; gs_operator_summary.json ; imas_ambix/gs/geometry.py ; the raw-Dα transient mask (compute_transient_mask in the statespace dataset/transient code) ; the Stage-1 splits
+
+Locked decisions to honour
+  gs-soft-weight-lambda-x-profile-dof = 2d-sweep: λ∈{0,1e-3,1e-2,1e-1} × profile-DOF∈{order-1,order-2,order-4/small-spline}, reported as a FRONTIER. THIS IS THE FIRST THING T3 CONFRONTS — the T2 forward map is intentionally over-complete (~84 plasma + 78..144 passive cols vs ~77 trustworthy sensors), so a pointwise-free / unconstrained solve drives the residual r→0 and measures NOTHING; the profile-DOF restriction + λ are what give the instrument resolution (min DOF for non-trivial r; max DOF before trivial r→0). criterion-3-target = reframe-to-transient-offnormal: Q1 (known transients) is the REAL objective. raw signals only; NEVER read efm psirz/profiles/separatrix; amm CURRENTS excluded (c-s8-amm-adjudication) — passive/eddy are INFERRED via G_passive.
+
+CRITICAL consumption rules carried from T2 (read the f-s8-t2 outcome):
+  - TRUSTWORTHY COMPARISON TARGET = the 76 B-probes + the 1 cleanly-mapped flux loop ONLY. EXCLUDE BOTH (a) the 8 unmatched fl_p2* loops (absent from G — ForwardOperator.excluded_channels) AND (b) the ~20 flagged non-unique fl_cc*/fl_p* loops (present in G at a placeholder silop index but the amb identity is AMBIGUOUS — ForwardOperator.flagged_channels). Comparing the residual against the flagged/excluded rows compares against garbage. Use sensor_channels filtered by (kind==&#x27;b_probe&#x27;) OR (flux_loop AND channel NOT in flagged_channels).
+  - The NEAR-VACUUM slice (|Ip|≈0, solenoid sizable) is the eddy-free ANCHOR for validating any inferred-current solve — at that slice c_plasma≈0 and the PF-only prediction already matches raw amb (median≈1.08), so the inverse solve must recover c_plasma≈0 there. Use it to sanity-check the regulariser before trusting transient residuals.
+  - SI denorm is raw-SI (Wb/T/A). For Q2 deconfounding you will likely need a FRACTIONAL/dimensionless residual (||pred-raw||/||raw||) — surface the extrapolation-coordinates bearing; do NOT lock it.
+
+Open decisions to surface (do not resolve)
+  uq-level-v0 (T3 adds a forward-model residual; evaluate whether ensemble+conformal suffices), extrapolation-coordinates (raw-Tesla vs fractional residual — Q2 needs the latter).
+
+Constraints
+  File scope (EXCLUSIVE): NEW imas_ambix/gs/residual.py (the regularised inverse solve + GS force-balance residual + the λ×profile-DOF frontier) + NEW imas_ambix/gs/q1_detect.py (Q1 transient-departure detection + baseline + eddy ablation) + tests + writes to imas_ambix/gs/artifacts/. Import-only: imas_ambix/gs/operator.py, imas_ambix/gs/geometry.py, imas_ambix/data/paths.py, the raw-Dα transient mask. Do NOT edit operator.py or geometry.py. Do NOT touch imas_ambix/statespace/ or engine.py (T6 is its sole editor, gated on T4 Q1 PASS). CPU on 98dci4-srv-1006; commit incrementally; do NOT leave an orphaned background process (wait for any run in-session).
+
+Done-when
+  1. T3: a regularised inverse solve (c_plasma/c_passive from raw amb + known PF, against the 76 B-probes + 1 clean FL target) + the GS force-balance residual, with the LOCKED λ×profile-DOF 2-D frontier reported (the frontier defining the instrument&#x27;s resolution: min DOF for non-trivial r, max DOF before trivial r→0). The near-vacuum slice recovers c_plasma≈0 (regulariser sanity check). A compact frontier artifact.
+  2. T4/Q1: force-balance departure on KNOWN transients (raw-Dα ELMs, raw dIp/dt disruptions) beating the trivial |dB/dt|/B-variance baseline AND surviving the eddy-current ablation (compare residual with/without the inferred G_passive term). Q1 PASS/FAIL reported as the gate for T6.
+  3. tests green; committed + pushed; followup written (T5/T6 — the gated latent→magnetics grounding head, gated on Q1 PASS) + this followup resolved. Do NOT retrain engine.py (T6); do NOT decide uq-level-v0 / extrapolation-coordinates.</pre>
+    <p class="r-fu-outcome">LANDED (commits 453382e module+tests, bef02de artifacts; pushed to origin/main; 49/49 gs tests green = 15 T1 + 19 T2 + 15 new T3/T4; mypy-strict + ruff clean). Built imas_ambix/gs/residual.py (regularised inverse + frontier) + imas_ambix/gs/q1_detect.py (Q1 detection + baseline + eddy ablation + near-vacuum sanity + the multi-shot runner) + tests/gs/test_residual.py; artifacts gs_residual_frontier.json + gs_q1_detection.json. Import-only from operator.py/geometry.py/paths.py + the raw-Da compute_transient_mask; NO engine.py retrain (standalone-first). 40-shot foreground run, CPU on 98dci4-srv-1006.
+
+=== Q1 VERDICT: FAIL (the gate for T6) — a SOUND instrument beaten by the trivial baseline ===
+The GS force-balance residual GENUINELY detects transients (ELM AUROC 0.684, disruption 0.673 — both well above chance, ablation-ROBUST) but the TRIVIAL |dB/dt| baseline BEATS it on BOTH labels: ELM 0.763 (margin -0.079), disruption 0.925 (margin -0.251). The PASS criterion (written BEFORE the run: &gt;=1 label beats best |dB/dt|/B-var baseline by &gt;=+0.02 AUROC AND survives the eddy ablation) is NOT met. Verdict is INVARIANT under the fractional residual statistic too (ELM 0.526, disruption 0.351 — the 1/field denominator confound makes it even worse). This is the honest, valuable negative: a global axisymmetric equilibrium residual is poorly matched to edge-localised ELMs, and disruptions ARE dB/dt current-quench events so the 0.92 baseline is near-unbeatable by any equilibrium residual. NO TUNING was done to chase a PASS.
+
+=== T3 frontier (DONE-WHEN #1) — the instrument HAS resolution ===
+The locked lambda x profile-DOF 2-D frontier (lambda in {0,1e-3,1e-2,1e-1} x profile-DOF order-1/2/4 = 3/6/15 plasma DOF), pooled quiescent fractional residual median per cell: order-1 0.40 -&gt; order-2 0.34 -&gt; order-4(lam=0) 0.19; lambda raises r back (order-4: 0.19-&gt;0.29 across the lambda grid). Non-trivial at every cell (floor 0.02, ceiling 0.9) — min-DOF-for-non-trivial-r is order-1, max-DOF-before-trivial is order-4 (still 0.19, not collapsed). DECISIVE DIAGNOSTIC that shaped the design: the nominal over-completeness (84 plasma + 78 passive cols vs 77 trustworthy sensors) is MISLEADING — row-scaled SVD effective rank is ~5 (plasma) / ~2 (passive) / ~6 (combined) at 99% energy (smooth Green kernels are highly correlated); after the profile-DOF + passive-SVD reduction the reduced design is well-conditioned (cond 12-576, NOT 1e19). Profile-DOF = a 2-D polynomial in dimensionless (R-R0)/a,Z/a over the plasma nodes (the current-space translation of the locked p&#x27;/FF&#x27; DOF in the locked current-distribution-greens representation; documented in the artifact, not re-decided). TRUSTWORTHY TARGET honoured exactly: 76 B-probes + the 1 cleanly-mapped flux loop; the 8 unmatched fl_p2* + ~20 flagged non-unique fl_cc*/fl_p* excluded (filtered via flagged_channels). Per-sensor robust scale W fit on QUIESCENT slices, used in BOTH the weighted lstsq and the residual norm (and the baseline) — a single coherent scale (B-probe Tesla + flux-loop Wb mixed coherently).
+
+=== Near-vacuum sanity (regulariser soundness) — NUANCED, honestly caveated ===
+The physical statement (at |Ip|~0 the net toroidal plasma current ~0) is tested by the ABSOLUTE net inferred current |sum(c_plasma)|_nearvac vs the same shot&#x27;s flat-top. RELATIVE ratio PASSES (median 0.030 &lt;= 0.25), BUT the ABSOLUTE near-vacuum inferred plasma current is ~19 kA (median) while measured |Ip| there is ~0 (a few A): c_plasma is NOT literally driven to 0. ROOT CAUSE (measured): the plasma and passive Green blocks are 0.99-COLLINEAR (a plasma poly mode and a passive SVD mode produce near-identical smooth fields), so the inverse trades huge canceling currents between them; the locked lambda ceiling (0.1, trace-matched = 10% of the data term) cannot separate them — the absolute near-vacuum plasma current only collapses at lambda&gt;=10 (OUTSIDE the locked grid). The physical-amplitude Tikhonov soft prior (penalises ||c_plasma||^2+||c_passive||^2 = the locked GS soft prior; lifted Q1 ELM AUROC from a broken 0.52 to 0.68) is correctly implemented; the locked grid simply does not reach the separating regime. Reported as a STRUCTURAL finding, not a bug; the absolute caveat is written into gs_q1_detection.json near_vacuum.absolute_current_caveat.
+
+=== Eddy ablation (DONE-WHEN #2) ===
+Residual with vs without the inferred G_passive term: ablation-ROBUST both labels (with-passive AUROC ~= ablated, delta &lt; 0.015) — so the detection lives in the plasma-force-balance part, NOT a passive-refit artefact. CAVEAT (honest, in the artifact): at 0.99 collinearity the plasma block alone spans nearly the same field space, so ablation-robustness is PARTLY trivial (plasma re-absorbs what passive lost) — the delta is attributed to the collinearity, NOT claimed as clean physical localisation.
+
+ANTI-TUNING (gate integrity): the PASS criterion + the trivial/starved frontier band + the near-vacuum tolerance were ALL fixed in code BEFORE the run; the operating point is selected by the SANITY rule (min plasma-DOF with non-trivial quiescent r, smallest lambda), NEVER by Q1 AUROC. Both residual statistics (absolute primary, fractional secondary) reported side-by-side; verdict invariant. Open decisions SURFACED not resolved: uq-level-v0 (T3/T4 add a forward-model residual; no UQ layer added — ensemble+conformal still the v0 recommendation), extrapolation-coordinates (the residual is reported in the fractional/dimensionless form ||W(pred-raw)||/||W*raw|| AND the absolute ||W(pred-raw)||; the fractional form&#x27;s 1/field denominator is a Q1 confound and is reported as secondary — this BEARS on extrapolation-coordinates but is NOT locked). T5/T6 followup f-s8-t5t6-grounding-head written (T6 NOT unblocked — Q1 FAILed).</p>
+    </article>
+<article class="r-fu" data-id="f-s8-t5t6-grounding-head" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S8 T3/T4)" data-written-at="2026-05-30" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="2026-05-30T22:20:17+00:00" data-resolved-by="agent/opus (S8 T6)">
+    <h4 class="r-fu-title">T5/T6 — latent-&gt;magnetics GS grounding head (GATED on Q1 PASS — currently BLOCKED: Q1 FAILED)</h4>
+    <div class="r-fu-body">The joint latent-&gt;magnetics grounding head (add L_data + lambda*L_GS to engine.py). GATED on the T4 Q1 PASS per gs-grounding-sequencing=standalone-first. Q1 FAILED (f-s8-t3 outcome; gs_q1_detection.json): the standalone GS residual detects transients (ELM AUROC 0.68, disruption 0.67, ablation-robust) but is BEATEN by the trivial |dB/dt| baseline on both labels (margins -0.08 / -0.25), AND within the locked lambda grid the 0.99 plasma/passive collinearity prevents clean near-vacuum c_plasma~0 (absolute net current ~19 kA at near-vacuum). Per the locked sequencing, T6 (the engine.py retrain) MUST NOT proceed on this residual as-is — building a grounding head on an instrument that does not beat |dB/dt| would bake in the very weakness the gate caught. This followup therefore captures the REDIRECT, not a green light: the user/orchestrator must decide whether to (a) escalate the operator (extend lambda beyond the locked 0.1 ceiling to reach the collinearity-separating regime lambda&gt;=10 — REQUIRES re-opening gs-soft-weight-lambda-x-profile-dof; OR add an independent passive constraint / fewer passive modes to break the 0.99 collinearity), (b) re-frame the GS residual as a complement to |dB/dt| rather than a standalone detector (an ensemble that ADDS the equilibrium residual to the temporal-activity baseline, tested for incremental AUROC), or (c) retire the standalone-first hypothesis and fold the GS term directly into engine.py as a weak auxiliary loss (joint-retrain) accepting it is not a standalone OOD instrument. Do NOT start the engine.py retrain until the user picks a path.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2 Phase 2-3, T5/T6)
+Section: T6
+Tier:    opus
+
+Context
+  GATED on the T4 Q1 PASS (gs-grounding-sequencing=standalone-first). Q1 FAILED (f-s8-t3 outcome; imas_ambix/gs/artifacts/gs_q1_detection.json): the standalone GS force-balance residual (imas_ambix/gs/residual.py + q1_detect.py) DETECTS transients (ELM AUROC 0.684, disruption 0.673, eddy-ablation-robust) but the TRIVIAL |dB/dt| baseline BEATS it on BOTH labels (ELM 0.763, disruption 0.925; margins -0.08 / -0.25), and within the LOCKED lambda grid the 0.99 plasma/passive Green-block collinearity prevents a clean near-vacuum c_plasma~0 (absolute net inferred current ~19 kA at |Ip|~0). T6 (add L_data + lambda*L_GS to engine.py) MUST NOT proceed on this residual as-is. This is a REDIRECT task: surface the three options below to the user, do NOT unilaterally retrain engine.py.
+
+State to read
+  GET /plan/imas-ambix/plasma-gs-prior-v0 (decisions gs-grounding-sequencing [standalone-first], gs-soft-weight-lambda-x-profile-dof [LOCKED 2d-sweep — its lambda ceiling 0.1 is the binding constraint], criterion-3-target [reframe-to-transient-offnormal], uq-level-v0 [open], extrapolation-coordinates [open]); f-s8-t3 outcome
+  imas_ambix/gs/residual.py (InverseSolver physical-Tikhonov solve, sweep_frontier, _select_operating_point) ; imas_ambix/gs/q1_detect.py (run_gs_monitor, near_vacuum_sanity, evaluate_q1) ; artifacts gs_residual_frontier.json + gs_q1_detection.json ; imas_ambix/statespace/engine.py (T6&#x27;s sole-editor target)
+
+Locked decisions to honour
+  gs-grounding-sequencing = standalone-first: T6 is GATED on Q1 PASS. Q1 FAILED → T6 is BLOCKED. raw signals only; NEVER read efm psirz/profiles/separatrix; amm CURRENTS excluded.
+
+The DECISION to surface (do not resolve unilaterally — needs the user):
+  Q1 FAILed for two distinct reasons. Pick the path:
+  (a) ESCALATE THE OPERATOR — extend lambda beyond the locked 0.1 ceiling to reach the collinearity-separating regime (lambda&gt;=10, measured), OR break the 0.99 plasma/passive collinearity (fewer passive SVD modes / an independent passive constraint), then re-run Q1. REQUIRES re-opening the locked gs-soft-weight-lambda-x-profile-dof decision.
+  (b) RE-FRAME AS A COMPLEMENT — the GS residual ADDS to |dB/dt| rather than replacing it; test an ensemble (|dB/dt| + GS residual) for INCREMENTAL AUROC over the baseline alone. If the GS residual adds orthogonal signal, that is a weaker but real PASS.
+  (c) RETIRE STANDALONE-FIRST — fold the GS term into engine.py as a weak auxiliary loss (joint-retrain) accepting it is not a standalone OOD instrument; the grounding may still improve the latent dynamics (T8b would re-test).
+
+Open decisions to surface (do not resolve)
+  uq-level-v0, extrapolation-coordinates (the fractional residual&#x27;s 1/field denominator is a detection confound — bears on the framing).
+
+Constraints
+  File scope: depends on the path. (a)/(b) → imas_ambix/gs/ only (residual.py/q1_detect.py + a re-run; do NOT touch engine.py). (c) → engine.py (T6 sole editor) ONLY after the user authorises retiring standalone-first. Do NOT touch imas_ambix/statespace/ filter.py or discovery_*. CPU for the operator work; GPU (betelgeuse, STOP-FILE + 3-layer time limit per AGENTS.md §2a) ONLY for a (c) engine retrain. Commit incrementally; do NOT leave an orphaned background process.
+
+Done-when
+  1. The three paths surfaced to the user with the f-s8-t3 evidence; the user picks one.
+  2. Path executed: (a) re-run Q1 at the escalated operator + report the new verdict; (b) the incremental-AUROC ensemble test + verdict; (c) the gated engine retrain (only after explicit authorisation) + T8b re-run.
+  3. tests green; committed + pushed; this followup resolved.
+  GATED: do not retrain engine.py until the user authorises a path that includes it.</pre>
+    <p class="r-fu-outcome">T6 BUILT + ONE focused v2-matched joint-retrain DONE (in-session). Grounding head (gs/grounding.py): latent z -&gt; restricted GS currents (order-1 plasma poly 3 DOF + rank-4 passive SVD) -&gt; raw magnetics via the T2 ForwardOperator; added L_data (whitened raw-magnetics recon NLL) + lambda*L_GS (current-space L2 Tikhonov, the GS soft prior) to engine.py&#x27;s joint objective (ADDITIVE; grounding=False keeps the v2 path bit-identical). Alignment: trustworthy amb + 13 PF amc sliced from ShotRun.X (raw, grid-aligned to z_t) then de-normalised to raw SI; windows grouped by campaign signature (2 operators cover 196/361 train shots = 55.6% of timesteps; ~1/3 of shots lack amm geometry -&gt; Da-only). Collinearity handled STRUCTURALLY (low DOF + low-rank passive), NOT brute lambda. RUN (grounding_metrics_v0.json; latent=16, student_t, drift_reg=0.3 = clean v2 match, gs_lambda=1e-2, gs_data_weight=0.03, 500 shots, 30 epochs): (1) Da HELP/PRESERVED -- filtering CRPS 0.0318 vs v2 0.0340 (-6.4%), NLL -2.706 vs -2.650, RMSE 0.204 vs 0.229, cov 0.892 vs 0.913; (2) discovery-discriminate gap 0.78% vs T8 1.28% -- did NOT widen (an interim drift_reg=0 smoke showed 6.2% but that was the drift_reg confound, not grounding); (3) near-vacuum c_plasma ratio 0.98 FAIL (head-from-z does not collapse currents at near-vacuum; standalone per-slice solve got 0.030). HONEST VERDICT: grounding PRESERVED (slightly improved) Da but did NOT enrich the latent&#x27;s dynamics and did NOT yield physically-sound near-vacuum currents -- grounding_enriched_latent=false. Commits 0ad19e6 (head+objective), 44f6039 (coupled verdict), 5b6afb2 (configurable static), 29b263c (artifact). uq-level-v0 / extrapolation-coordinates NOT decided.</p>
+    </article>
+<article class="r-fu" data-id="f-s8-t6a-grounding-sweep" data-status="open" data-tier="opus" data-written-by="agent/opus (S8 T6)" data-written-at="2026-05-31" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">T6a -- latent{16,32,48} x (gs_lambda, gs_data_weight) grounding SWEEP</h4>
+    <div class="r-fu-body">The focused T6 first run found Da HELP (filtering CRPS -6.4% vs v2) but the discovery-discriminate gap did NOT widen (0.78% vs T8 1.28%) and near-vacuum c_plasma FAILED (ratio 0.98 vs the standalone per-slice 0.030) AT THIS operating point (latent=16, gs_lambda=1e-2, gs_data_weight=0.03). Sweep latent_dim{16,32,48} x gs_data_weight{0.03,0.1,0.3} x gs_lambda{1e-3,1e-2,1e-1} (engine.py --grounding --static-members 2 --static-epochs 10) to find whether ANY cell makes grounding ENRICH the latent (widen the gap beyond 1.28%) and/or produce a near-vacuum-sound head (ratio &lt;=0.25) WITHOUT hurting Da. If none does, the honest conclusion is the latent-&gt;magnetics head does not enrich the Da-trained latent -- surface to the orchestrator.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (Phase 3, T6a)
+Section: T6a
+Tier:    opus
+
+Context
+  The focused T6 first run (grounding_metrics_v0.json; latent=16, gs_lambda=1e-2, gs_data_weight=0.03, v2-matched student_t + drift_reg=0.3) found: Da HELP (filtering CRPS -6.4% vs v2) but discovery-discriminate gap did NOT widen (0.78% vs T8 1.28%) and near-vacuum c_plasma FAILED (ratio 0.98 vs the standalone per-slice 0.030). So the head preserves Da but neither enriches ftheta nor produces physically-sound currents AT THIS operating point.
+
+Task
+  Sweep to find whether ANY (latent_dim, gs_lambda, gs_data_weight) cell makes grounding ENRICH the latent (widen the discovery gap materially beyond 1.28%) AND/OR produce a near-vacuum-sound head (ratio &lt;= 0.25) WITHOUT hurting Da:
+    - latent_dim in {16, 32, 48} (more room for richer ftheta);
+    - gs_data_weight in {0.03, 0.1, 0.3} (0.03 kept grounding a minority of the Da objective -&gt; Da preserved but maybe too weak to shape z);
+    - gs_lambda in {1e-3, 1e-2, 1e-1} (higher should pull near-vacuum currents down -- test whether it fixes the 0.98 ratio without killing the fit).
+  Use engine.py `--grounding --static-members 2 --static-epochs 10` (static is a throwaway -- do NOT pay the 5x60 ~13 min cost). Run each cell FOREGROUND, WAITED (CPU; ~12-17 min/cell under load). Report the 3-criterion table per cell vs v2 + the focused-run baseline.
+
+Acceptance
+  A cell that (a) keeps Da preserved (filtering CRPS rel &lt;= +0.10 vs v2) AND (b) widens the discovery gap beyond 1.28% OR drives near-vacuum ratio &lt;= 0.25 is evidence grounding has REAL value at some operating point. If NO cell does either, record that the head does not enrich the Da-trained latent and surface it for the founding-strategy decision.
+
+Scope
+  EXCLUSIVE: grounding_sweep_*.json + a sweep-summary. Import-only: gs/grounding.py, statespace/engine.py. Do NOT decide uq-level-v0 / extrapolation-coordinates.</pre>
+    </article>
+<article class="r-fu" data-id="f-s8-t6c-q2-offnormal-secondary" data-status="open" data-tier="sonnet" data-written-by="agent/opus (S8 T6)" data-written-at="2026-05-31" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">T6c -- Q2 off-normal / criterion-3 transient-departure on the GROUNDED latent (honest-SECONDARY)</h4>
+    <div class="r-fu-body">Q2 / criterion-3 (does the GS force-balance signal on the GROUNDED latent flag off-normal / transient-departure events?) was explicitly honest-SECONDARY in T6 -- noted, NOT gated. Now that a grounded head exists, run the secondary check: compute the head&#x27;s per-slice GS residual (whitened ||pred-raw|| through the operator) as a score and evaluate its AUROC for ELM + disruption windows vs the standalone Q1 (ELM 0.684 / disruption 0.673, both beaten by |dB/dt|). Narrow question: does GROUNDING the residual in the latent change the off-normal picture at all? Report honestly; do NOT re-litigate the Q1-vs-|dB/dt| bar (the user re-scoped away from it).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (Phase 3, T6c)
+Section: T6c
+Tier:    sonnet
+
+Context
+  The T6 grounding run judged grounding VALUE on the three primary criteria (Da help/hurt, discovery-discriminate gap, near-vacuum interpretability). Q2 / criterion-3 (GS force-balance on the GROUNDED latent flagging off-normal / transient-departure) was honest-SECONDARY -- noted, NOT gated (criterion-3-target=reframe-to-transient-offnormal). This runs that secondary check now a grounded head exists.
+
+Task
+  On the grounded model (reproduce from grounding_metrics_v0.json&#x27;s engine config or re-train; latent=16, student_t, drift_reg=0.3, grounding=True), compute the head&#x27;s per-slice GS residual (whitened ||pred-raw|| through the operator, or L_data per slice) and evaluate its AUROC for (a) ELM transients and (b) disruption windows -- the SAME labels q1_detect.py used. Compare to the standalone Q1 (ELM 0.684 / disruption 0.673). The QUESTION is narrow + SECONDARY: does GROUNDING the residual in the latent change the off-normal picture? Report honestly; do NOT re-litigate the Q1-vs-|dB/dt| bar.
+
+Scope
+  EXCLUSIVE: grounding_offnormal_q2.json + import-only from gs/grounding.py, gs/q1_detect.py (baseline_dbdt, disruption_mask, auroc), statespace/engine.py. Do NOT gate the plan on this. Do NOT decide uq-level-v0 / extrapolation-coordinates.</pre>
+    </article>
+<article class="r-fu" data-id="f-s8-t9-integrated-input-feasibility" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S8 orchestrator)" data-written-at="2026-05-31" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="2026-05-31T06:02:31+00:00" data-resolved-by="agent/opus (S8 — T9 feasibility)">
+    <h4 class="r-fu-title">T9 — integrated-input feasibility: co-availability + alignment for internal diagnostics + visible camera (the grounding-fix scoping)</h4>
+    <div class="r-fu-body">T6 showed magnetics-only can&#x27;t ground the internal current profile (expected physics). User&#x27;s fix: widen the input set with internal diagnostics (MSE, Thomson, bolometer, SXR, CXRS) + visible camera. FEASIBILITY-FIRST (co-availability is binding): inventory the candidate diagnostics&#x27; channels/rates/physical-constraint, compute the co-available corpus across input combos vs the Dα target + the GS-geometry campaigns, assess multi-rate time-alignment + camera-feature extraction, flag IR-absence, and recommend the integrated input set that maximizes internal-profile constraint per corpus-cost. Output unblocks locking the integrated-input-set decision + the integrated-grounding retrain (T10).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2; integrated-grounding redirect)
+Section: T9
+Tier:    opus
+
+Context
+  T6 (the GS grounding head) preserved Dα but did NOT enrich the latent + the head couldn&#x27;t produce force-balance-sound internal currents from z (near-vacuum ratio 0.98). DIAGNOSIS (user, comment c-s8-integrated-direction): magnetics + boundary alone CANNOT determine the internal current profile — you need INTERNAL measurements. FIX: widen the engine&#x27;s input set with internal diagnostics + the visible camera so the integrated Bayesian filter + GS prior can ground the latent. This task is the FEASIBILITY scoping (co-availability is the binding constraint, as it was in S7.1) — NOT the retrain.
+
+State to read
+  GET /plan/imas-ambix/plasma-gs-prior-v0 (comment c-s8-integrated-direction; decisions; the T6 outcome f-s8-t5t6) ; GET /plan/imas-ambix/plasma-state-space-v0 (input-modality-v0 = mag+ane, the Stage-1 lock this supersedes for the grounded engine)
+  imas_ambix/data/paths.py (LEVEL1_SOURCES) ; imas_ambix/statespace/inventory.py + artifacts/family_inventory.json (the S7.1 per-family coverage — reuse it) ; imas_ambix/statespace/splits.py + statespace_splits_dalpha_v0.json ; imas_ambix/gs/geometry.py (the 3 GS-geometry campaigns + their shot spans) ; imas_ambix/statespace/camera_boundary.py + tokenizer/ (existing camera handling)
+
+Candidate input diagnostics (classify each by what it constrains for the GS internal profile + its level-1 availability):
+  - MSE (ams): magnetic pitch angle → internal CURRENT / q-profile (THE key internal-current constraint magnetics lack) — ~4882 shots.
+  - Thomson (atm core / ayc combined / aye edge): Te(r), ne(r) → PRESSURE p(ψ) (the p&#x27; term in GS) — ~4-6k.
+  - Bolometer (abm): radiated power (edge/impurity/boundary) — ~12k.
+  - Soft-xray (xsx): emissivity (core profile shape / tomography) — ~14k.
+  - CXRS (act): Ti, rotation — ~8k.
+  - Visible camera (rbb): boundary/emission — ~9.5k (needs feature extraction — reuse the camera tokenizer / camera_boundary, do NOT feed raw pixels into the latent naïvely).
+  - IR cameras (rir/rit): ESSENTIALLY ABSENT (~14-25 shots) — EXCLUDE as a required input; quantify + flag.
+  (interferometer ane already in v0; magnetics ama/amb/amc in v0.)
+
+Steps
+  1. Per-diagnostic channel inventory + native sampling rate + the physical quantity it constrains (current/pressure/emission/boundary) + its level-1 shot coverage (reuse family_inventory.json; verify a few shots).
+  2. CO-AVAILABILITY MATRIX: for candidate input combos — e.g. [mag+ane] (v0 baseline) ; +MSE+Thomson (the internal-profile core) ; +bolometer+SXR ; +visible-camera ; the full set — compute co-available shot count vs the Dα target (xim) AND restricted to the GS-geometry campaigns (T1&#x27;s 3 campaigns). Report total → after the Iₚ×ne regime-OOD holdout → train/cal/test sizes. Flag where the calibration set drops below ~200 (conformal becomes high-variance).
+  3. Time-alignment: per-diagnostic cadence vs the engine&#x27;s model grid (Thomson is SPARSE/asynchronous ~few-ms; MSE moderate; SXR/bolometer faster; cameras are frames). Propose the alignment (interp/hold/feature) per diagnostic; flag any that are too sparse to align usefully.
+  4. Camera-feature plan: how to feed rbb visible frames as a COMPACT feature (reuse the existing tokenizer / camera_boundary edge feature / a small CNN embedding) — NOT raw pixels into the RKN latent.
+  5. RECOMMENDATION: the integrated input set that maximizes internal-profile constraint (esp. MSE+Thomson) per corpus-cost, with a viable cal set; present 2-3 concrete options (e.g. &#x27;internal-core: mag+ane+MSE+Thomson → N&#x27; vs &#x27;full: +bolometer+SXR+camera → fewer&#x27;) with the N&#x27;s, so the orchestrator can LOCK the integrated-input-set decision.
+
+Locked decisions to honour
+  raw signals only (NEVER efm/esm/solver outputs as inputs/labels; efm GEOMETRY-only per T1 still holds; amm currents excluded). Held-out target stays Dα. regime-split = by-current-density. The integrated input set SUPERSEDES mag+ane for the grounded engine (that&#x27;s the point).
+
+Open decisions to surface (do not resolve): uq-level-v0, extrapolation-coordinates.
+
+Constraints
+  File scope (EXCLUSIVE): NEW imas_ambix/gs/integrated_inventory.py (or a sibling scoping module) + tests + a compact artifact under imas_ambix/gs/artifacts/ (the co-availability matrix + recommendation); large per-shot dumps → /work scratch. Import-only: data/paths.py, statespace/inventory.py, statespace/splits.py, gs/geometry.py, tokenizer/*. Do NOT edit engine.py / operator.py / grounding.py / geometry.py. Do NOT touch docs/*.html. Use zarr/xarray (FAIR-MAST zarr, NOT h5py/imas-python). CPU on 98dci4-srv-1006; commit incrementally; do NOT leave an orphaned background process (wait in-session).
+
+Done-when
+  1. A committed integrated-input feasibility artifact: per-diagnostic inventory + the co-availability matrix (per combo, vs Dα + GS campaigns, with train/cal/test sizes) + the alignment plan + the camera-feature plan + the IR-absence flag.
+  2. A clear RECOMMENDATION (2-3 integrated-input-set options with corpus N&#x27;s) for the orchestrator to lock.
+  3. tests green; committed + pushed; followup written (T10 integrated-grounding retrain, gated on the locked input set) + this followup resolved. Do NOT retrain anything; do NOT decide the input set unilaterally (recommend; orchestrator locks).</pre>
+    <p class="r-fu-outcome">LANDED bb8aad1. Built imas_ambix/gs/integrated_inventory.py + tests (12 green) + the compact artifact imas_ambix/gs/artifacts/gs_integrated_feasibility.json. Reused the persisted family inventory (17111 shots) + S7.1 regime scalars (9144 with ip+ne) + the LOCKED v0 joint_p84 OOD box — NO per-shot reads. PER-DIAGNOSTIC (n_shots, native rate, GS constraint): MSE ams 4882 @2kHz -&gt; internal current/q (the term magnetics lack); Thomson-any ayc|atm|aye 10789 @200-240Hz SPARSE -&gt; pressure p(psi); bolometer abm 12166 @2.5kHz -&gt; radiated power; SXR xsx 13944 @500kHz -&gt; core emissivity; CXRS act 7991 @200Hz -&gt; Ti/rotation; visible camera rbb 9527 @~1kHz frames -&gt; shape FEATURE; IR rir=25/rit=14 EXCLUDED (corpus-collapsing). CO-AVAILABILITY MATRIX (vs Da/xim, through the locked OOD box; n_total / n_train / n_cal / n_ood, all cal_ok): mag+ane 13256/11229/1531/265; +MSE 4670/3979/543/128; +MSE+TS-any 4415/3757/512/128; +MSE+Thomson(ayc) 2985/2549/348/75; +MSE+TS-any+bolo+SXR 3659/3100/423/120; full+camera 3294/2785/380/114. HEADLINE: MSE is the binding constraint (13.3k-&gt;4.7k) but is non-negotiable for internal-current grounding; Thomson-any then near-free. GS-geometry restriction NON-BINDING (all MSE/TS shots inside the efm envelope). All cal sets &gt;&gt; the 200 conformal floor. ALIGNMENT: MSE/mag/bolo interp_to_grid; Thomson/CXRS held at native ~5ms cadence (GS prior weights at measurement times, not every 1ms step); SXR aggregate 500kHz-&gt;1kHz; camera = feature. CAMERA-FEATURE: camera_boundary edge (CPU, zero new training) or magvit2 token-pool — NEVER raw pixels. RECOMMENDED 3 input-set options for the orchestrator to LOCK (did NOT lock): (A/default) internal-core mag+ane+MSE+TS-any N=4415 cal=512; (B) +bolo+SXR N=3659; (C) full +camera N=3294. uq-level-v0 + extrapolation-coordinates surfaced (still OPEN). NEXT: lock integrated-input-set-v0 -&gt; T10 integrated-grounding retrain (f-s8-t10, queued, gated on the lock).</p>
+    </article>
+<article class="r-fu" data-id="f-s8-t10-integrated-grounding-retrain" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S8 — T9 feasibility)" data-written-at="2026-05-31" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="2026-05-31T07:40:41+00:00" data-resolved-by="agent/opus (S8 — T10 integrated-grounding retrain)">
+    <h4 class="r-fu-title">T10 — integrated-grounding retrain (GATED on the orchestrator locking the integrated input set from the T9 feasibility matrix)</h4>
+    <div class="r-fu-body">T9 (f-s8-t9, landed bb8aad1) scoped the wider input set&#x27;s viable corpus. Headline: MSE (ams) is the BINDING co-availability constraint — adding it drops the corpus from ~13.3k (mag+ane) to ~4.7k — but MSE is the ONE diagnostic that directly constrains the internal current/q profile magnetics cannot see, so it is non-negotiable for grounding. Thomson-any (ayc|atm|aye) then costs almost nothing beyond MSE (4670 -&gt; 4415). The GS-geometry-campaign restriction is NON-BINDING (all MSE/Thomson shots fall inside the efm envelope). All candidate combos keep a viable calibration set (&gt;=348 &gt;&gt; the 200 floor). T9 recommended 3 input-set options (RECOMMENDED internal-core MSE+TS-any N=4415 cal=512; OPTION B +bolo+SXR N=3659 cal=423; OPTION C full +camera-feature N=3294 cal=380). T10 is the integrated-grounding RETRAIN — GATED on the orchestrator LOCKING ONE option (do NOT start until the lock + uq-level-v0 + extrapolation-coordinates are settled). It reuses the validated GS operator (T2), the grounding head (T6), and the discovery tools at the locked, widened input set, and re-tests whether the integrated multi-diagnostic + Bayesian filter + GS soft prior now (a) preserve Da, (b) produce force-balance-sound internal currents (near-vacuum c_plasma ratio, the T6 0.98 FAIL), and (c) enrich ftheta on the discovery metric. Artifact: imas_ambix/gs/artifacts/gs_integrated_feasibility.json.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2; integrated-grounding redirect)
+Section: T10
+Tier:    opus
+
+GATE (do NOT start until ALL true)
+  (1) The orchestrator has LOCKED ONE integrated-input-set option from the T9 feasibility matrix (recommends_skill /reckon-edit: lock an &#x27;integrated-input-set-v0&#x27; decision with the chosen combo_key + corpus N). The recommended default is core_internal (mag+ane+MSE+Thomson-any, N=4415, cal=512). This LOCK SUPERSEDES input-modality-v0=mag+ane for the grounded engine.
+  (2) uq-level-v0 is decided (the engine UQ stack + the GS forward-model UQ layer).
+  (3) extrapolation-coordinates is decided (the dimensionless/invariant coordinate framing).
+  If any is open, STOP and report the gate as the blocker — do NOT retrain on an unlocked input set.
+
+Context
+  T6 showed the magnetics-only latent could NOT produce force-balance-sound internal currents from z (near-vacuum c_plasma ratio 0.98 FAIL) and did NOT enrich ftheta (identity-true gap 0.78% vs T8&#x27;s 1.28%). DIAGNOSIS (user, c-s8-integrated-direction): EXPECTED under-determination — z was fed only mag+ane; external magnetics fix the boundary + total Ip + low moments, NOT p&#x27;/FF&#x27; internally. FIX: widen the engine&#x27;s input set with INTERNAL diagnostics (MSE -&gt; current/q; Thomson -&gt; pressure p(psi)) + optionally emission/camera so the integrated Bayesian filter + GS soft prior can ground the latent (a learned, temporal Minerva/IDA-style equilibrium+kinetic inference). T9 scoped co-availability (the binding constraint) and recommended the input set; T10 is the retrain.
+
+State to read
+  GET /plan/imas-ambix/plasma-gs-prior-v0 (the locked integrated-input-set-v0 decision; the T9 feasibility followup f-s8-t9; the T6 outcome f-s8-t5t6 + comments c-s8-t6-landed / c-s8-t6-framing / c-s8-integrated-direction; decisions uq-level-v0, extrapolation-coordinates)
+  imas_ambix/gs/artifacts/gs_integrated_feasibility.json (the co-availability matrix + per-diagnostic alignment plan + camera-feature plan + recommendation) ; imas_ambix/gs/integrated_inventory.py (the combo definitions + the GS-envelope proxy)
+  imas_ambix/statespace/engine.py (the engine + the v2 Da-trained latent) ; imas_ambix/gs/grounding.py (the T6 grounding head) ; imas_ambix/gs/operator.py (the validated per-campaign Green&#x27;s operator) ; imas_ambix/statespace/discovery_extract.py + discovery_sindy.py (the discovery tools) ; imas_ambix/statespace/splits.py (build the locked split for the widened corpus with the v0 joint_p84 OOD box)
+
+Steps
+  1. Build the train/cal/test splits for the LOCKED integrated input set using statespace/splits.build_splits with the LOCKED v0 OOD box (joint_p84, by-current-density) so the OOD hole + cal set match T9&#x27;s reported sizes and stay comparable with v0. Persist the split artifact.
+  2. Wire the widened input set into the engine input stream per the T9 alignment plan: MSE/magnetics/bolometer interp_to_grid; Thomson/CXRS held at native cadence with the GS prior weighting their likelihood at measurement times only (sparse, ~5 ms, NOT every 1 ms grid step); SXR aggregate 500 kHz -&gt; 1 kHz before ingest; the camera (if OPTION C) as a COMPACT FEATURE per the camera-feature plan (camera_boundary edge OR magvit2 token-pool), NEVER raw pixels into the RKN latent.
+  3. Retrain the integrated-grounding engine at the locked input set (reuse T2 operator + T6 grounding head). HONOUR THE GPU SAFETY CONTRACT verbatim (AGENTS.md §2a / §2a-cancel / §2a-cancel-time): STOP-FILE, --signal=B:USR1@600 bash trap, AMBIX_SOFT_TIME_LIMIT, --time as a 2-4x ceiling; NEVER scancel a CUDA job. Pin all experiment knobs in a dedicated config (editable-install propagation hazard).
+  4. Re-evaluate the three T6 criteria at the widened input set: (a) Da PRESERVED (filtering CRPS/NLL/coverage vs v2 — the primary bar); (b) force-balance-sound internal currents — the near-vacuum c_plasma ratio (T6&#x27;s 0.98 FAIL) must approach the standalone per-slice lstsq 0.030; (c) ftheta enrichment on the discovery metric (identity-true gap vs the 2% discrimination floor). Report each with the single-seed/thread-floor caveat from c-s8-t6-framing.
+  5. Decide whether the integrated grounding earns its keep (the T8 founding premise &#x27;discovery NEEDS a grounded latent&#x27;). If (b)+(c) now pass, the redirect is vindicated; if not, report which internal constraint is still missing and recommend the next input increment from the T9 matrix.
+
+Locked decisions to honour
+  raw signals only (NEVER efm/esm/xdc/amm outputs as inputs/labels; efm GEOMETRY-only per T1 holds). Held-out target stays Da (xim). regime-split = by-current-density (the locked v0 joint_p84 box). The locked integrated input set SUPERSEDES mag+ane for the grounded engine.
+
+Constraints
+  File scope: engine.py / grounding.py wiring for the widened inputs + a dedicated retrain config + the split + metrics artifacts under statespace/artifacts/ + gs/artifacts/. Reuse operator.py (T2) + the discovery tools unchanged. GPU on the betelgeuse reservation; foreground or sbatch with the full safety header; commit incrementally.
+
+Done-when
+  1. The integrated-grounding engine retrained at the LOCKED input set, with the persisted split + metrics artifact (the three T6 criteria re-evaluated).
+  2. A verdict on whether integrated grounding produces force-balance-sound internal currents + enriches ftheta (the redirect&#x27;s success test), with the next-increment recommendation if it does not.
+  3. tests green; committed + pushed; this followup resolved; outcome recorded on the evergreen (collapse-on-landing). Do NOT start until the GATE is satisfied.</pre>
+    <p class="r-fu-outcome">LANDED (grounding_metrics_integrated_v0.json; commits 6d84a72, 4b12a47, f10ef41, f33b488). VERDICT: redirect NOT cleanly testable from level-1 — it is only HALF-implementable. CORPUS FINDING (verified 25/25 co-available shots + a gamma/pitch/polarisation grep across all shot groups): level-1 ams (MSE) carries ONLY the static a-coefficient geometry table (acoeff attr shape [1,6,N], size-1 time dim; 6 finite rows = the 6 MSE radial channels), NOT a time-resolved pitch-angle / internal-current signal. So the MSE-&gt;current/q half of the locked internal-core set — the half that targets the FAILED T6 criterion (near-vacuum internal-current soundness) — is UNREALIZABLE from this corpus. Only the Thomson-&gt;pressure (p&#x27;) half was wired: pe(t,R) reduced to a 14-d gridding-invariant feature vector (8-node fixed-vessel-R profile + 5 robust scalars + a decaying freshness flag), held at native ~5ms cadence onto the 1kHz grid, weighted by per-shot profile completeness (full ayc/atm vs edge-only aye); de-normalised mag still drives the GS operator unchanged. Split = locked core_internal (train=3757 cal=512 ood=128, v0 joint_p84 box; matches T9 exactly). Run: CPU on 98dci4-srv-1006, 54 min (load-dominated; 500/300/200 shot caps within the locked split, matching T6). THREE T6 CRITERIA re-read with the built-in corpus-shift control (the UNGROUNDED static comparator): (a) Da NOT cleanly evaluable — filtering CRPS 0.0602 vs v2 0.0340 looks +77%, but the ungrounded static rose MORE (h=1 +38%: 0.066-&gt;0.091) than the grounded engine (+23%: 0.083-&gt;0.103) on the harder internal-core corpus (NBI/H-mode/ELMy-biased), and filtering RMSE IMPROVED (0.229-&gt;0.194) while coverage fell (0.913-&gt;0.875) = a sigma-calibration/distribution shift, NOT a grounding skill loss; a same-split integrated-UNGROUNDED control is required for a clean a/c verdict. (b) near-vacuum c_plasma ratio 0.799 (T6 0.98; standalone lstsq 0.030) but at n=3 near-vacuum shots (T6 had 22) — INCONCLUSIVE/underpowered, not a persistent FAIL; (b) probes the internal-CURRENT collapse that only the absent MSE term constrains. (c) ftheta-enrichment gap 22.5% (T6 0.78%, T8 1.28%, floor 2%) — widened+discriminates but CONFOUNDED (no same-split control; sparse-Thomson forward-fill itself injects dynamical structure ftheta tracks). Attribution-independent fact: the discovery metric is no longer degenerate (22.5% &gt;&gt; 2% floor), which unblocks t8b&#x27;s POWER precondition regardless of the enrichment cause. NEXT INCREMENT: source a TIME-RESOLVED MSE current signal (raw UDA gamma(t) / another data level / external DD) — NOT bolo/SXR/camera (no current term; the &#x27;queue B/C if vindicated&#x27; branch is not met). Followups queued: f-s8-t11-source-mse-current (PRIMARY), f-s8-t12-integrated-ungrounded-control, f-s8-t13-internal-core-relock; f-s8-t8b updated (precondition now met, attribution murky).</p>
+    </article>
+<article class="r-fu" data-id="f-s8-t11-source-mse-current" data-status="open" data-tier="opus" data-written-by="agent/opus (S8 — T10 landed)" data-written-at="2026-05-31" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">T11 (PRIMARY next increment) — source a TIME-RESOLVED MSE internal-current signal (the half internal-core is missing in level-1)</h4>
+    <div class="r-fu-body">T10 proved the level-1 ams group carries ONLY the static MSE a-coefficient geometry table (acoeff shape [1,6,N], size-1 time dim), NOT a time-resolved pitch-angle gamma(t) / internal-current signal. The MSE-&gt;current/q (FF&#x27;) term is the ONE internal constraint that targets the T6 criterion that failed (near-vacuum internal-current soundness); Thomson (p&#x27;) cannot substitute. This followup sources a real time-resolved MSE current constraint so the integrated-grounding hypothesis can be cleanly tested.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2; integrated-grounding redirect)
+Section: T11
+Tier:    opus
+
+Context
+  T10 (f-s8-t10, landed f10ef41) showed the locked internal-core set is only HALF-implementable from level-1: the ams (MSE) group carries ONLY the STATIC a-coefficient geometry table (acoeff attr shape [1,6,N], time_index=0 -&gt; size-1 time dim; the 6 finite rows are the 6 MSE radial channels), NOT a time-resolved pitch-angle gamma(t). Verified across 25/25 co-available shots + a grep for gamma/pitch/polarisation across all shot groups (none). The Thomson-&gt;pressure half was wired and gave a corpus-confounded result (criterion-a not cleanly evaluable; near-vacuum n=3 inconclusive; discovery gap 22.5% but confounded). The MSE-&gt;current/q term is the constraint that targets the FAILED T6 criterion (near-vacuum internal-current soundness) — Thomson (p&#x27;) cannot supply it.
+
+Goal
+  Source a TIME-RESOLVED MSE internal-current / pitch-angle signal for the MAST corpus and wire it as the internal-CURRENT input the grounded engine needs. Candidate sources, in order of likely effort:
+    1. Raw UDA: pull the MSE gamma(t) / tan(gamma) trace (the polarisation-angle time series the a-coefficients map to B) directly from the UDA archive for the internal-core shots — the level-1 flattening dropped it.
+    2. A higher / different processed level than level-1 that retains the time-resolved MSE analysis.
+    3. External DD (mse IDS / equilibrium-independent) machine-description + signal ingestion.
+  HONOUR the locks: raw signals only (never efm/esm/xdc/amm OUTPUTS as inputs or labels; efm GEOMETRY-only per T1). The a-coefficients themselves are static GEOMETRY (a-priori, like the gs-geometry-source decision) and may be used to map gamma-&gt;B, but the gamma(t) measurement is the input.
+
+Steps
+  1. Inventory the candidate MSE current sources (UDA raw / other level / external DD); quantify per-shot time-resolution + co-availability against the locked internal-core shot set (statespace_splits_integrated_core_internal_v0.json).
+  2. Wire the time-resolved MSE signal into the integrated input set (extend statespace/integrated_inputs.py with an MSE current-feature loader alongside the Thomson one; gridding-invariant, native cadence held to the 1kHz grid). Keep the Thomson-pressure half.
+  3. Re-run the integrated-grounding engine (reuse the T10 config + harness; pin a dedicated config) and re-evaluate the 3 T6 criteria — ESPECIALLY (b) near-vacuum internal-current soundness, now with the current constraint present.
+  4. Pair with the T12 same-split integrated-UNGROUNDED control so criterion-a/c are cleanly attributable (NOT a corpus artifact).
+
+Done-when
+  1. A time-resolved MSE current signal sourced + co-availability quantified, OR a documented finding that none is accessible (with the next-best internal-current proxy).
+  2. If sourced: the integrated-grounding engine re-run WITH the MSE current term; the 3 criteria re-evaluated against the T12 ungrounded control; a clean verdict on whether the internal-current constraint produces force-balance-sound near-vacuum currents.
+  3. tests green; committed + pushed; this followup resolved; outcome on the evergreen.</pre>
+    </article>
+<article class="r-fu" data-id="f-s8-t12-integrated-ungrounded-control" data-status="open" data-tier="sonnet" data-written-by="agent/opus (S8 — T10 landed)" data-written-at="2026-05-31" data-recommends-skill="/reckon-ship plasma-gs-prior-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">T12 — same-split integrated-UNGROUNDED control run (clean attribution for the Da help/hurt + fθ-enrichment criteria)</h4>
+    <div class="r-fu-body">T10&#x27;s criterion-a (Da help/hurt) and criterion-c (ftheta enrichment) are CONFOUNDED because the only comparison baseline (v2) is on a DIFFERENT split/corpus (mag-ane). The built-in static comparator showed the integrated-corpus CRPS rise is mostly a corpus artifact (ungrounded static rose +38% vs grounded engine +23%), but a clean attribution needs an integrated-UNGROUNDED engine on the SAME integrated split. This is a cheap control run (no grounding context build, no near-vacuum eval).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2; integrated-grounding redirect)
+Section: T12
+Tier:    sonnet
+
+Context
+  T10 (landed f10ef41) wired the Thomson-pressure half of internal-core and found criterion-a (Da help/hurt vs v2) and criterion-c (ftheta-enrichment gap) CONFOUNDED: the only baseline (engine_metrics_v2.json) is on the mag-ane split, NOT the integrated split, so the +77% filtering-CRPS &#x27;HURT&#x27; conflates grounding with the harder internal-core corpus. The ungrounded static comparator (built-in control) showed the rise is mostly corpus (static h=1 CRPS 0.066-&gt;0.091 +38% vs grounded engine 0.083-&gt;0.103 +23%; RMSE IMPROVED 0.229-&gt;0.194). A clean attribution needs an integrated-input engine trained UNGROUNDED on the SAME split.
+
+Steps
+  1. Run run_experiment (NOT run_grounding_experiment) with integrated=True + splits_manifest=statespace_splits_integrated_core_internal_v0.json + grounding=False, matching the T10 config otherwise (emission=student_t, drift_reg=0.3, latent=16, 500/300/200 caps, num_threads=4). Pin a dedicated config. CPU on 98dci4-srv-1006 (~50 min; STOP-FILE + soft-time-limit contract per AGENTS.md).
+  2. Persist engine_metrics_integrated_ungrounded_v0.json.
+  3. Re-point the T10 grounded help/hurt + discovery-gap comparison at THIS integrated-ungrounded baseline (same split): the clean criterion-a delta and a clean criterion-c attribution (does grounding widen the gap BEYOND the ungrounded integrated latent, or is the 22.5% just the sparse-TS forward-fill dynamics?).
+
+Done-when
+  1. integrated-ungrounded metrics persisted on the same split.
+  2. Clean criterion-a (Da preserved? vs the same-split ungrounded) + criterion-c (grounding-attributable gap?) deltas recorded on the evergreen.
+  3. tests green; committed + pushed; this followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-s8-t13-internal-core-relock" data-status="open" data-tier="sonnet" data-written-by="agent/opus (S8 — T10 landed)" data-written-at="2026-05-31" data-recommends-skill="/reckon-edit plasma-gs-prior-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">T13 — content-validate T9 co-availability + re-lock integrated-input-set (the internal-core premise is half-unrealizable)</h4>
+    <div class="r-fu-body">The integrated-input-set=internal-core lock rests on T9&#x27;s co-availability matrix, which counted ams (MSE) PRESENT and described acoeff&#x27;s trailing dim as &#x27;polarimetry channels&#x27;. T10 proved acoeff is the STATIC a-coefficient geometry table (size-1 time dim), so the MSE-&gt;current/q half is unrealizable from level-1 — a CONTENT (not presence) gap T9 did not check. The lock + T9 feasibility need a content-validation pass and a re-lock decision (orchestrator/user call).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-gs-prior-v0 (§2; integrated-grounding redirect)
+Section: T13
+Tier:    sonnet
+
+Context
+  T10 (landed f10ef41) found that the level-1 ams group is the static MSE a-coefficient geometry table (acoeff attr shape [1,6,N], size-1 time dim), NOT a time-resolved current signal — so the MSE-&gt;current/q half of the LOCKED integrated-input-set=internal-core is unrealizable from this corpus. T9&#x27;s co-availability scoping (gs_integrated_feasibility.json) counted ams as PRESENT (a presence check, correct) and labelled acoeff&#x27;s trailing dim &#x27;~15-35 polarimetry channels&#x27; (a CONTENT misread). The lock thus rests on a half-unrealizable premise.
+
+Steps (reckon-edit, mostly a decision + doc pass — no heavy compute)
+  1. Content-validate the T9 co-availability matrix: for each candidate diagnostic in gs_integrated_feasibility.json that contributes an INTERNAL constraint (ams, the Thomson systems, act CXRS), confirm the group carries a TIME-RESOLVED physical signal (not a static geometry/calibration table) by inspecting the array attrs (shape / time_index) on a sample of co-available shots. Record per-diagnostic &#x27;time-resolved? yes/no&#x27; + the realizable physical quantity.
+  2. Update the integrated-input-set decision: either (a) re-lock to &#x27;internal-core-pressure-only (mag+ane+TS-pe)&#x27; as the realizable v0 set with MSE-current deferred to T11, or (b) keep internal-core but annotate that MSE is GATED on T11 sourcing a real current signal. Orchestrator/user call — surface both options with the corpus evidence.
+  3. Annotate gs_integrated_feasibility.json (or a sibling note) with the content-validation result so a future agent does not re-trust the presence count.
+
+Done-when
+  1. Per-diagnostic content-validation recorded (time-resolved vs static).
+  2. integrated-input-set decision re-locked or annotated with the realizable set.
+  3. T9 artifact annotated; committed + pushed; this followup resolved.</pre>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="followups" data-id="c-s8-t7-correction" data-who="agent/opus (S8 orchestrator)" data-when="2026-05-30T16:10:00+00:00">
+    <div class="r-comment-body">CORRECTION to the f-s8-t7 outcome (surfaced by the T7 agent post-resolution; precise statement in latent_svd_v0.json#confound_note). My outcome loosely said &#x27;quiescent near-degeneracy is partly by-construction&#x27; from drift_reg — that conflates two different objects. PRECISE: the quiescent STATE-trajectory SVD is NOT collapsed (participation ratio 1.75 ≈ transient 1.80; eff-rank 3 either way) — the state stays full-effective-rank-3 because the Kalman update pulls z toward the encoded magnetics at every step. The drift_reg=0.3 → f_θ-identity bias lives on the TRANSITION KERNEL (T8&#x27;s domain), NOT on the state SVD (T7). So T7&#x27;s effective-rank-~3 result stands cleanly; the drift_reg confound is correctly scoped to T8 (and the T8 prompt already carries it). No physics claim is weakened — the latent genuinely occupies ~3 effective dimensions.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-s8-amm-adjudication" data-who="agent/opus (S8 orchestrator)" data-when="2026-05-30T16:12:00+00:00">
+    <div class="r-comment-body">ADJUDICATION (orchestrator, applying the locked raw-signals-only principle) — surfaced by T1 for T2+: amm passive-structure CURRENT VALUES are an EFIT-wall-MODEL OUTPUT (amm&#x27;s own description: &#x27;calculated induced currents in toroidal vessel elements for input to EFIT&#x27;). They are therefore a SOLVER/MODEL OUTPUT and are EXCLUDED as inputs/known-sources — same class as efm/esm. RULING for T2 onward: (1) amm GEOMETRY (passive-structure R,Z element locations) is machine description → OK to use, exactly like the efm static geometry. (2) amm passive/eddy CURRENT VALUES are EXCLUDED → the operator must INFER passive/eddy currents as nuisance terms, NOT read amm&#x27;s computed values. (3) amc PF-coil + plasma currents (Rogowski/coil-measured, RAW) ARE valid known sources. This affirms T1&#x27;s safe default; it is the direct analogue of the Stage-1 esm exclusion. The user may override, but the principle is unambiguous: computed induced currents = model output = excluded.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-s8-q1-decision" data-who="Simon McIntosh (via orchestrator)" data-when="2026-05-30T22:40:00+00:00">
+    <div class="r-comment-body">DECISION (user, 2026-05-30) on the Q1 FAIL: PROCEED TO GROUNDING (T6), RE-SCOPED — path (c). The standalone GS residual is physics-native (survives eddy ablation, detects transients at ~0.68 AUROC) but beaten by the trivial |dB/dt| baseline; that detection-vs-derivative bar is the MIS-SPECIFICATION (transients ARE fast field-changes; disruptions literally ARE dB/dt events; a global axisymmetric residual mismatches edge-localized ELMs). The GS prior&#x27;s STRATEGIC purpose is GROUNDING the latent — and T8 independently showed discovery NEEDS a grounded latent — not out-detecting |dB/dt|. ENGINE RETRAIN AUTHORIZED (overrides the Q1-PASS gate; the de-risk&#x27;s REAL question — is the residual physics-native + informative? — was YES). T6 = retire standalone-first; build the latent→(low-dim j_phi, restricted p&#x27;/FF&#x27;, psi)→raw-magnetics grounding head + L_data + lambda*L_GS into engine.py; joint retrain. RE-SCOPED ACCEPTANCE (grounding value, NOT detection): (1) HELP/HURT on Stage-1 Dα forecast CRPS/NLL + filtering coverage (grounding must not silently destroy Dα skill); (2) DISCOVERY-DISCRIMINATE — re-run the T8 skill-validator on the grounded latent: does the identity-null become MATERIALLY worse than the true kernel (i.e. is f_theta now rich enough that the discovery metric DISCRIMINATES — it did NOT on the Dα-grounded latent, 1.3% gap)?; (3) physical interpretability of the grounded latent. Address the 0.99 plasma/passive collinearity (structural: fewer passive SVD modes / independent constraint; OR escalate lambda beyond the standalone-monitor&#x27;s 0.1 ceiling — that ceiling was the MONITOR context, the grounding head may differ; document the deviation, the 2-D-sweep STRUCTURE of gs-soft-weight-lambda-x-profile-dof still holds). Off-normal Q2 (criterion-3 reframe) is honest-secondary. Downstream: T8b discovery re-run on the grounded latent; Q2 off-normal.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-s8-integrated-direction" data-who="Simon McIntosh (via orchestrator)" data-when="2026-05-31T08:00:00+00:00">
+    <div class="r-comment-body">DIRECTION (user, 2026-05-31) — reframes the T6 negative + sets the INTEGRATED-GROUNDING path. PHYSICS: magnetics + boundary alone CANNOT determine the internal current profile (classic equilibrium-reconstruction under-determination — external magnetics fix the boundary + total current + low moments, NOT p&#x27;/FF&#x27; internally; EFIT itself needs internal constraints). So T6&#x27;s &#x27;grounding head can&#x27;t produce sound internal currents from z (near-vacuum 0.98) + doesn&#x27;t enrich the latent&#x27; is EXPECTED, not a dead-end — z was fed ONLY mag+ane. THE FIX (user): widen the engine&#x27;s INPUT set with INTERNAL diagnostics (Thomson Te/ne→pressure p; MSE→current/q-profile; bolometer; SXR; CXRS) + the VISIBLE camera (rbb); the INTEGRATED multi-diagnostic analysis + Bayesian filter + GS soft prior together should make grounding earn its keep — a learned, temporal Minerva/IDA-style integrated equilibrium+kinetic inference. This SUPERSEDES the Stage-1 input-modality-v0=mag+ane lock for the GROUNDED engine. ORCHESTRATOR DECISIONS (user delegated &#x27;you decide&#x27;): (1) FEASIBILITY-FIRST — co-availability is the binding constraint (as in S7.1); scope the wider input set&#x27;s viable corpus BEFORE the integrated retrain. (2) Core internal-profile constraints = MSE (ams — internal current/q, the quantity magnetics can&#x27;t see) + Thomson (atm/ayc/aye — pressure); broadly-available emission = bolometer (abm ~12k) + SXR (xsx ~14k); + visible camera (rbb ~9.5k). (3) IR cameras (rir/rit) EXCLUDED — essentially absent in level-1 (~14-25 shots); requiring them collapses the corpus. Still raw-signals-only; efm geometry-only (T1 boundary) holds; amm currents still excluded. NEXT: T9 integrated-input feasibility scoping → lock the integrated input set → integrated-grounding retrain (T10). The validated GS operator (T2) + grounding head (T6) + discovery tools are reused.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-s8-t8b-t10-update" data-who="" data-when="">
+    <div class="r-comment-body">T10 update (2026-05-31): t8b&#x27;s POWER precondition is now MET on the integrated grounded latent — the discovery-discriminate gap is 22.5% (&gt;&gt; the 2% discrimination floor), no longer the degenerate 0.78% of the T6 mag-ane grounded latent that left t8b under-powered. HOWEVER attribution is MURKY: the integrated run&#x27;s Da is corpus-confounded (criterion-a not cleanly evaluable) and the sparse-Thomson forward-fill itself injects dynamical structure ftheta tracks, so a t8b SINDy/DMD re-run on THIS latent would distil a transition kernel whose richness is not cleanly grounding-attributable. RECOMMENDATION: run t8b on the latent from f-s8-t12 (the same-split integrated-UNGROUNDED control) and/or f-s8-t11 (with the real MSE current term) so the distilled kernel&#x27;s enrichment is attributable. Until then t8b stays gated on a clean, attributable grounded latent rather than just an un-degenerate one.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-s8-t10-mse-verified" data-who="agent/opus (S8 orchestrator)" data-when="2026-05-31T10:30:00+00:00">
+    <div class="r-comment-body">ORCHESTRATOR VERIFICATION of T10&#x27;s load-bearing MSE-content finding (independent check, 2026-05-31): CONFIRMED IN SUBSTANCE, reason sharpened. The level-1 ams group&#x27;s time-resolved MSE arrays (gamma, pitcha, Stokes s0-s3; shape [time,channel]) DO exist in some shots (24600, 29400, 28000) — so T10&#x27;s phrasing &#x27;ams carries ONLY static acoeff geometry, no gamma&#x27; was imprecise. BUT the VALID-DATA fraction is the point: gamma/pitcha are ~99% NaN (finite fraction 0.007-0.010), and many internal-core shots (25000/26000/27000) have NO ams/gamma at all; 0/60 sampled internal-core shots have &gt;5%-finite gamma. So a USABLE time-resolved MSE pitch/current signal is NOT available from level-1 — the MSE→internal-current grounding half (the FF&#x27; term, targeting the criterion-b internal-current soundness that FAILED at T6) is UNREALIZABLE from L1. T10&#x27;s verdict STANDS: only Thomson→pressure was wired; the integrated-grounding redirect could not be CLEANLY tested (its 3 criteria are inconclusive/confounded — corpus-shift, n=3 near-vacuum, forward-fill attribution). FIX path: source time-resolved MSE γ(t) from raw UDA / level-2 / external DD (the level-1 ams gamma is a near-empty stub), per f-s8-t11. Decided with the user.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-s8-t6-landed" data-who="" data-when="">
+    <div class="r-comment-body">T6 grounding head LANDED (grounding_metrics_v0.json). Re-scoped grounding-value verdict: (1) Da PRESERVED/HELPED (filtering CRPS 0.0318 vs v2 0.0340, -6.4%; NLL/RMSE also better) -- grounding did NOT destroy Da skill; (2) discovery-discriminate gap 0.78% vs T8&#x27;s 1.28% -- did NOT widen, so grounding did NOT enrich ftheta on the discovery metric (NOTE: an interim drift_reg=0 smoke showed 6.2%, but that gap-widening was the drift_reg confound -- the clean v2-matched run with drift_reg=0.3 shows 0.78%); (3) near-vacuum c_plasma ratio 0.98 FAIL -- the head predicting currents FROM z does not collapse them at near-vacuum (the standalone per-slice lstsq got 0.030; predicting-from-z loses that structural soundness). BEARING ON f-s8-t8b-discovery-sindy-rerun (the gated DEFINITIVE SINDy/DMD re-run): T6 is now landed so t8b is UNBLOCKED, but the discovery metric remains under-powered on this grounded latent (identity-true gap 0.78% &lt; the 2% discrimination floor), so a t8b rerun at THIS operating point will inherit the same under-power -- run t8b AFTER the T6a sweep finds (if any) an operating point that widens the gap. Followups queued: T6a sweep (f-s8-t6a-grounding-sweep), T6c Q2 off-normal secondary (f-s8-t6c-q2-offnormal-secondary). uq-level-v0 / extrapolation-coordinates remain OPEN (not decided).</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-s8-t6-framing" data-who="" data-when="">
+    <div class="r-comment-body">Framing precision on c-s8-t6-landed (avoid over-claiming): (1) STRATEGIC HEADLINE -- the T8 founding premise was &#x27;discovery NEEDS a grounded latent&#x27;; T6 FALSIFIES that at this operating point: grounding the Da-trained latent did NOT enrich ftheta (identity-true gap 0.78% vs T8&#x27;s 1.28% -- marginally SMALLER, i.e. ftheta became slightly MORE identity-like). (2) Criterion-1 is &#x27;Da PRESERVED&#x27; (primary bar met), NOT &#x27;grounding improves Da&#x27; -- the -6.4% filtering-CRPS point estimate is single-seed and v2 is not bit-reproducible (discovery_extract&#x27;s own gate carries +/-0.02 loss / +/-0.10 nu from num_threads=4 reduction nondeterminism; grounded nu 4.881 sits in-band vs v2 4.814), so the improvement is within the single-seed/thread floor; coverage 0.892 is slightly DOWN from v2 0.913 (still in the 0.88-0.92 band) -- sharper but marginally less covered. (3) The interim smoke&#x27;s 6.2% gap is attributable PRIMARILY to the non-v2-matched config (notably drift_reg=0, which alone unfreezes ftheta), not proven-sole-cause -- the clean v2-matched 0.78% is the number that carries the conclusion. (4) f-s8-t8b is pre-existing + gated + now unblocked, deferred pending the T6a sweep (the discovery metric stays under-powered at this operating point).</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-s8-t10-landed" data-who="" data-when="">
+    <div class="r-comment-body">T10 integrated-grounding retrain LANDED (grounding_metrics_integrated_v0.json). The user&#x27;s grounding-fix redirect could NOT be cleanly tested because it is only HALF-implementable from level-1. LOAD-BEARING CORPUS FINDING: ams (MSE) in level-1 is the STATIC a-coefficient geometry table (acoeff attr shape [1,6,N], size-1 time dim — verified 25/25 co-available shots + no gamma/pitch/polarisation series in any group), NOT a time-resolved internal-current measurement. T9&#x27;s co-availability scoping counted ams PRESENT (true) but the content is geometry, not a current signal — so the integrated-input-set=internal-core lock rests on a half-unrealizable premise. Only Thomson-&gt;pressure (p&#x27;) was wired (pe(t,R) -&gt; 14-d gridding-invariant feature, native ~5ms cadence, completeness-weighted). The MSE-&gt;current/q half is exactly the term that targets the FAILED T6 criterion (b, near-vacuum internal-current soundness), so its absence is the crux. Re-read of the 3 criteria with the UNGROUNDED static as a corpus-shift control: (a) Da NOT cleanly evaluable — the ungrounded static&#x27;s CRPS rose MORE than the grounded engine&#x27;s on the harder internal-core corpus (static h=1 +38% vs engine +23%) and RMSE IMPROVED (0.229-&gt;0.194); the naive +77% vs-v2 is a corpus/split artifact, not grounding hurting Da. (b) near-vacuum 0.799 at n=3 — INCONCLUSIVE (T6 had n=22). (c) gap 22.5% (&gt;&gt; 2% floor; T6 0.78%) — widened but CONFOUNDED (no same-split control; sparse-TS forward-fill injects dynamics). Honest framing: &#x27;could not properly test it&#x27; (points to sourcing real MSE), NOT &#x27;it failed&#x27;. Single-seed / num_threads=4 caveat per c-s8-t6-framing.</div>
+</div>
+</section>
+</main>
+</body>
+</html>
