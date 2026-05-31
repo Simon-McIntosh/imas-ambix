@@ -1,0 +1,23 @@
+{
+  "_comment": "T10 integrated-grounding config (PINNED — editable-install propagation hazard). Matches the T6 grounding config (grounding_metrics_v0.json) EXACTLY so the only difference vs T6 is the WIDENED input set: this is the clean comparison the redirect needs. Keys are engine.py argparse dests; a CLI flag overrides a field only if left at its argparse default. CORPUS FINDING (T10): the MSE (ams) current/q half of the locked internal-core set is unrealizable from level-1 (static a-coefficient geometry table, not gamma(t)); only the Thomson p-prime half is wired (pressure-only internal grounding). See statespace/integrated_inputs.py + the T10 verdict.",
+  "integrated": true,
+  "splits_manifest": "/work/projects/imas_gpu/mast/manifests/statespace_splits_integrated_core_internal_v0.json",
+  "grounding": true,
+  "latent_dim": 16,
+  "n_epochs": 30,
+  "seq_len": 64,
+  "seed": 0,
+  "device": "cpu",
+  "emission": "student_t",
+  "drift_reg_weight": 0.3,
+  "num_threads": 4,
+  "gs_lambda": 0.01,
+  "gs_data_weight": 0.03,
+  "gs_profile_order": 1,
+  "gs_passive_rank": 4,
+  "static_members": 2,
+  "static_epochs": 10,
+  "max_train_shots": 4000,
+  "max_cal_shots": 600,
+  "max_ood_shots": 200
+}

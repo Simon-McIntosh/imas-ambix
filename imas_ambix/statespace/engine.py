@@ -1071,15 +1071,27 @@ def _load_split_runs(
     max_shots: int | None,
     seed: int,
     cache_tag: str,
+    integrated: bool = False,
+    completeness_out: dict[int, float] | None = None,
 ) -> list[ShotRun]:
     """Load a list of shots as contiguous runs, with /work scratch caching.
 
     Dead filterscopes (Dα std < floor) are dropped — this auto-applies to BOTH
     models because the runs are the shared substrate.
+
+    ``integrated`` (T10): when True, load the WIDENED input set via
+    ``integrated_inputs.load_shot_integrated`` (mag+ane + the 14-d Thomson
+    pressure features) instead of the v2 mag+ane ``baseline.load_shot_slices``.
+    The Thomson block is appended LAST so the mag column layout (and hence the
+    GS grounding head's amb/amc slice map) is unchanged.  Per-shot Thomson
+    profile-completeness is recorded into ``completeness_out`` (shot_id → weight)
+    for the sparse-pressure weighting.  The cache tag is namespaced so the wider
+    runs never collide with the v2 mag-ane cache.
     """
     from imas_ambix.statespace.baseline import load_shot_slices  # noqa: PLC0415
 
-    cache = _SCRATCH / f"runs_{cache_tag}_n{max_shots}_s{seed}.npz"
+    suffix = "_int" if integrated else ""
+    cache = _SCRATCH / f"runs_{cache_tag}{suffix}_n{max_shots}_s{seed}.npz"
     if cache.exists():
         logger.info("Loading cached runs from %s", cache)
         data = np.load(cache, allow_pickle=True)
@@ -1089,8 +1101,16 @@ def _load_split_runs(
                 data["shot_ids"], data["Xs"], data["ys"], data["times"], strict=True
             )
         ]
+        if completeness_out is not None and "completeness" in data:
+            for s, c in zip(data["shot_ids"], data["completeness"], strict=True):
+                completeness_out[int(s)] = float(c)
         logger.info("  %d cached runs", len(runs))
         return runs
+
+    if integrated:
+        from imas_ambix.statespace.integrated_inputs import (  # noqa: PLC0415
+            load_shot_integrated,
+        )
 
     sids = list(shot_ids)
     if max_shots is not None and max_shots < len(sids):
@@ -1099,16 +1119,25 @@ def _load_split_runs(
         sids = [sids[i] for i in sorted(sel)]
 
     runs: list[ShotRun] = []
+    shot_completeness: dict[int, float] = {}
     n_none = n_dead = n_ok = 0
     t0 = time.time()
     for k, sid in enumerate(sids):
-        r = load_shot_slices(
-            int(sid),
-            feature_schema,
-            target_channels,
-            level1_dir=level1_dir,
-            max_slices=None,
-        )
+        if integrated:
+            ri = load_shot_integrated(
+                int(sid), level1_dir, target_channels, model_hz=1000.0
+            )
+            r = ri[:4] if ri is not None else None
+            if ri is not None:
+                shot_completeness[int(sid)] = float(ri[4])
+        else:
+            r = load_shot_slices(
+                int(sid),
+                feature_schema,
+                target_channels,
+                level1_dir=level1_dir,
+                max_slices=None,
+            )
         if r is None:
             n_none += 1
             continue
@@ -1124,6 +1153,8 @@ def _load_split_runs(
             logger.info(
                 "  loaded %d/%d shots (%.0fs)", k + 1, len(sids), time.time() - t0
             )
+    if completeness_out is not None:
+        completeness_out.update(shot_completeness)
     logger.info(
         "[%s] %d shots → %d runs (%d ok, %d none, %d dead) in %.0fs",
         cache_tag,
@@ -1137,13 +1168,17 @@ def _load_split_runs(
 
     # Cache as object arrays (variable-length runs)
     _SCRATCH.mkdir(parents=True, exist_ok=True)
-    np.savez(
-        cache,
+    save_kw = dict(
         shot_ids=np.array([r.shot_id for r in runs]),
         Xs=np.array([r.X for r in runs], dtype=object),
         ys=np.array([r.y for r in runs], dtype=object),
         times=np.array([r.times for r in runs], dtype=object),
     )
+    if integrated:
+        save_kw["completeness"] = np.array(
+            [shot_completeness.get(r.shot_id, 0.0) for r in runs]
+        )
+    np.savez(cache, **save_kw)
     return runs
 
 
@@ -1231,6 +1266,19 @@ class ExperimentConfig:
     # ensemble_disagreement well-defined).  Reported in the artifact config.
     static_ensemble_members: int = 5
     static_ensemble_epochs: int = 60
+    # S8-T10 INTEGRATED INPUT SET (the grounding-fix; 0/off = the v2 mag+ane path)
+    # When ``integrated`` is True the engine consumes the WIDENED input set
+    # (mag+ane + the 14-d Thomson pressure features per the LOCKED internal-core
+    # decision) loaded via ``integrated_inputs.load_shot_integrated``, and the
+    # splits come from ``splits_manifest`` (the locked integrated split with the
+    # v0 joint_p84 OOD box).  The GS grounding head still reconstructs RAW
+    # magnetics through the T2 operator (the Thomson block is encoder-only — it
+    # enriches the latent; the GS pressure-likelihood term is the documented
+    # next increment).  CORPUS FINDING (T10): the MSE (ams) current/q half of
+    # internal-core is unrealizable from level-1 (static a-coeff geometry table,
+    # not γ(t)); only the Thomson p′ half is wired — see integrated_inputs.py.
+    integrated: bool = False
+    splits_manifest: Path | None = None  # override; None → v0 mag-ane manifest
 
 
 def _stack_runs_for_static(runs: list[ShotRun]) -> tuple[np.ndarray, np.ndarray]:
@@ -1507,6 +1555,9 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     )
 
     t_total = time.time()
+    splits_path = (
+        cfg.splits_manifest if cfg.splits_manifest is not None else _SPLITS_MANIFEST
+    )
     metrics: dict = {
         "config": {
             "latent_dim": cfg.latent_dim,
@@ -1520,7 +1571,13 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
             "device": cfg.device,
             "model_hz": 1000.0,
             "target": "xim/da_hm10_t (raw, primary)",
-            "inputs": "mag (ama+amb+amc) + ane",
+            "inputs": (
+                "mag (ama+amb+amc) + ane + Thomson-pe-features (14)"
+                if cfg.integrated
+                else "mag (ama+amb+amc) + ane"
+            ),
+            "integrated": cfg.integrated,
+            "splits_manifest": str(splits_path),
             "held_out_family": "dalpha",
             "drift_reg_weight": cfg.drift_reg_weight,
             "train_horizons": list(cfg.train_horizons)
@@ -1537,7 +1594,7 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     }
 
     # --- 1. splits + sub-split (same conf-cal / in-dist-test as S7.2) -------
-    with open(_SPLITS_MANIFEST) as f:
+    with open(splits_path) as f:
         splits = json.load(f)
     train_shots = [int(x) for x in splits["train"]]
     cal_shots = [int(x) for x in splits["calibration"]]
@@ -1551,21 +1608,63 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     conf_cal_shots = sorted(cal_arr[perm[:n_conf]].tolist())
     in_dist_test_shots = sorted(cal_arr[perm[n_conf:]].tolist())
 
-    fs = _FEATURE_SCHEMA_MAG_ANE
+    if cfg.integrated:
+        from imas_ambix.statespace.integrated_inputs import (  # noqa: PLC0415
+            integrated_feature_schema,
+        )
+
+        fs = integrated_feature_schema()  # mag+ane + 14-d Thomson pressure block
+    else:
+        fs = _FEATURE_SCHEMA_MAG_ANE
     tc = _XIM_CHANNELS_PRIMARY
 
     # --- 2. load runs (cached) ----------------------------------------------
+    # Per-shot Thomson profile-completeness (integrated only) → sparse-pressure
+    # weighting; recorded on the metrics for the verdict.
+    completeness: dict[int, float] = {}
     train_runs = _load_split_runs(
-        train_shots, fs, tc, _LEVEL1_DIR, cfg.max_train_shots, cfg.seed + 1, "train"
+        train_shots,
+        fs,
+        tc,
+        _LEVEL1_DIR,
+        cfg.max_train_shots,
+        cfg.seed + 1,
+        "train",
+        integrated=cfg.integrated,
+        completeness_out=completeness,
     )
     conf_runs = _load_split_runs(
-        conf_cal_shots, fs, tc, _LEVEL1_DIR, cfg.max_cal_shots, cfg.seed + 2, "conf"
+        conf_cal_shots,
+        fs,
+        tc,
+        _LEVEL1_DIR,
+        cfg.max_cal_shots,
+        cfg.seed + 2,
+        "conf",
+        integrated=cfg.integrated,
+        completeness_out=completeness,
     )
     idt_runs = _load_split_runs(
-        in_dist_test_shots, fs, tc, _LEVEL1_DIR, cfg.max_cal_shots, cfg.seed + 3, "idt"
+        in_dist_test_shots,
+        fs,
+        tc,
+        _LEVEL1_DIR,
+        cfg.max_cal_shots,
+        cfg.seed + 3,
+        "idt",
+        integrated=cfg.integrated,
+        completeness_out=completeness,
     )
     ood_runs = _load_split_runs(
-        ood_shots, fs, tc, _LEVEL1_DIR, cfg.max_ood_shots, cfg.seed + 4, "ood"
+        ood_shots,
+        fs,
+        tc,
+        _LEVEL1_DIR,
+        cfg.max_ood_shots,
+        cfg.seed + 4,
+        "ood",
+        integrated=cfg.integrated,
+        completeness_out=completeness,
     )
     metrics["split_sizes"] = {
         "n_train_runs": len(train_runs),
@@ -1574,6 +1673,23 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         "n_idt_runs": len(idt_runs),
         "n_ood_runs": len(ood_runs),
     }
+    if cfg.integrated and completeness:
+        comp_vals = np.array(list(completeness.values()), dtype=float)
+        metrics["thomson_completeness"] = {
+            "n_shots_with_thomson": int((comp_vals > 0).sum()),
+            "n_shots_total": int(comp_vals.size),
+            "mean_completeness": float(comp_vals.mean()),
+            "median_completeness": float(np.median(comp_vals)),
+            "n_full_profile_ge_0p9": int((comp_vals >= 0.9).sum()),
+            "n_edge_only_lt_0p3": int(((comp_vals > 0) & (comp_vals < 0.3)).sum()),
+            "note": (
+                "Per-shot Thomson profile-completeness (full-profile ayc/atm ≈1.0 "
+                "vs edge-only aye ≪1). Weights the (future) GS pressure likelihood; "
+                "at the input level it rides in the Thomson features (extent scalar "
+                "+ freshness flag). The MSE current/q half of internal-core is "
+                "unrealizable from level-1 (see integrated_inputs.py)."
+            ),
+        }
     if not train_runs:
         raise RuntimeError("No training runs loaded")
 
@@ -3012,7 +3128,35 @@ def main(argv: list[str] | None = None) -> None:
         default=Path(__file__).parent / "artifacts" / "engine_metrics_v2.json",
         help="ungrounded v2 metrics for the help/hurt-Dα comparison",
     )
+    p.add_argument(
+        "--integrated",
+        action="store_true",
+        help="S8-T10: use the WIDENED internal-core input set (mag+ane + Thomson "
+        "pressure features) + the locked integrated split (the grounding-fix)",
+    )
+    p.add_argument(
+        "--splits-manifest",
+        type=Path,
+        default=None,
+        help="override the splits manifest path (T10: the locked integrated split)",
+    )
+    p.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="JSON config pinning all experiment knobs (editable-install hazard); "
+        "CLI flags override individual fields",
+    )
     a = p.parse_args(argv)
+
+    # Config file pins experiment knobs against editable-install propagation;
+    # explicit CLI flags still override (argparse defaults are the fallback).
+    _cfg_file: dict = {}
+    if a.config is not None:
+        _cfg_file = json.loads(a.config.read_text())
+        for k, val in _cfg_file.items():
+            if hasattr(a, k) and getattr(a, k) == p.get_default(k):
+                setattr(a, k, val)
 
     train_h = (
         tuple(int(x) for x in a.train_horizons.split(",")) if a.train_horizons else None
@@ -3042,11 +3186,16 @@ def main(argv: list[str] | None = None) -> None:
         gs_passive_rank=a.gs_passive_rank,
         static_ensemble_members=a.static_members,
         static_ensemble_epochs=a.static_epochs,
+        integrated=a.integrated,
+        splits_manifest=a.splits_manifest,
     )
     if a.grounding:
-        out = a.output or (
-            Path(__file__).parent / "artifacts" / "grounding_metrics_v0.json"
+        _default_name = (
+            "grounding_metrics_integrated_v0.json"
+            if a.integrated
+            else "grounding_metrics_v0.json"
         )
+        out = a.output or (Path(__file__).parent / "artifacts" / _default_name)
         metrics = run_grounding_experiment(
             cfg, output=out, v2_metrics_path=a.v2_metrics
         )
