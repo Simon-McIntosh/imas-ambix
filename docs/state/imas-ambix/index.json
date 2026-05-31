@@ -15,7 +15,7 @@
         "blocked": 3,
         "pending": 2,
         "shipped": 1,
-        "last_modified": "2026-05-28",
+        "last_modified": "2026-05-31",
         "milestones": [
           {
             "id": "M0",
@@ -25,21 +25,21 @@
           },
           {
             "id": "M1",
-            "name": "Tokenizer prototype",
-            "status": "active",
-            "pct": 64
+            "name": "Stage-1 state-space engine",
+            "status": "shipped",
+            "pct": 100
           },
           {
             "id": "M2",
-            "name": "World-model v0",
-            "status": "pending",
-            "pct": 12
+            "name": "Stage-2 GS prior + discovery",
+            "status": "shipped",
+            "pct": 100
           },
           {
             "id": "M3",
-            "name": "Public demo",
-            "status": "pending",
-            "pct": 0
+            "name": "MSE-free current recovery",
+            "status": "active",
+            "pct": 5
           },
           {
             "id": "PS",
@@ -50,37 +50,37 @@
         ],
         "top": [
           {
-            "slug": "zarr-consolidate",
-            "title": "Consolidated Zarr metadata",
-            "status": "pending",
+            "slug": "mse-free-current-recovery-v0",
+            "title": "MSE-Free Multi-Modal Current-Profile Recovery",
+            "status": "active",
             "roi": "high",
-            "effort": "S",
-            "ms": "M1",
+            "effort": "XL",
+            "ms": "M3",
             "impl": 0,
+            "blockers": 0,
+            "dec_open": 4
+          },
+          {
+            "slug": "plasma-gs-prior-v0",
+            "title": "Stage-2 \u2014 GS soft-prior + structure discovery",
+            "status": "shipped",
+            "roi": "high",
+            "effort": "L",
+            "ms": "M2",
+            "impl": 1.0,
             "blockers": 0,
             "dec_open": 0
           },
           {
-            "slug": "frame-precompute",
-            "title": "Pre-decoded rbb frames at 256\u00b2",
-            "status": "pending",
-            "roi": "high",
-            "effort": "M",
-            "ms": "M1",
-            "impl": 0,
-            "blockers": 0,
-            "dec_open": 1
-          },
-          {
-            "slug": "tokenizers",
-            "title": "Multi-modal tokenizers",
-            "status": "active",
+            "slug": "plasma-state-space-v0",
+            "title": "Stage-1 state-space engine",
+            "status": "shipped",
             "roi": "high",
             "effort": "L",
             "ms": "M1",
-            "impl": 0.78,
+            "impl": 1.0,
             "blockers": 0,
-            "dec_open": 4
+            "dec_open": 0
           }
         ],
         "activity30": [
@@ -257,25 +257,11 @@
     ],
     "blockers": [
       {
-        "summary": "Open-MAGVIT2 bulk-encode blocked on node 98dci4-gpu-0003 CUDA driver state",
-        "origin": "tokenizers",
-        "n": 1,
-        "owner": "SDCC admin",
-        "next": "ticket draft at docs/sdcc-cuda-init-failure-2026-05-26.md \u2014 cuInit rc=3 from pure C since Group B job 1207566 came online concurrent with Group A; node now DOWN+DRAIN+NOT_RESPONDING"
-      },
-      {
         "summary": "SDCC dedicated training reservation pending file",
         "origin": "compute",
         "n": 1,
         "owner": "L. Holzl",
         "next": "ITER batch-services ticket #4421 \u2014 lower urgency now that exclusive-pause wrapper landed"
-      },
-      {
-        "summary": "Trained checkpoint absent",
-        "origin": "demo",
-        "n": 1,
-        "owner": "Simon McIntosh",
-        "next": "after world-model-v0 first eval"
       }
     ],
     "timeline": [
@@ -325,6 +311,6 @@
         "what": "S8 closed (Stage-2 GS-prior HONEST NEGATIVE: Q1 FAIL; magnetics under-determine the internal current; MSE unusable from level-1). PIVOT ratified -> S9 opened: MSE-free multi-modal current-profile recovery beating an EnKF baseline (plan mse-free-current-recovery-v0). 7-reader deep review wpy0754zv; figures + completed-work doc landed."
       }
     ],
-    "_version": 15
+    "_version": 16
   }
 }
