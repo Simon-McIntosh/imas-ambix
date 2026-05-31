@@ -1,0 +1,775 @@
+{
+  "config": {
+    "latent_dim": 16,
+    "max_train_shots": 500,
+    "max_cal_shots": 300,
+    "max_ood_shots": 200,
+    "horizons_steps_at_1kHz": [
+      1,
+      2,
+      5,
+      10,
+      20
+    ],
+    "n_epochs": 30,
+    "seq_len": 64,
+    "seed": 0,
+    "device": "cpu",
+    "model_hz": 1000.0,
+    "target": "xim/da_hm10_t (raw, primary)",
+    "inputs": "mag (ama+amb+amc) + ane + Thomson-pe-features (14)",
+    "integrated": true,
+    "splits_manifest": "/work/projects/imas_gpu/mast/manifests/statespace_splits_integrated_core_internal_v0.json",
+    "held_out_family": "dalpha",
+    "drift_reg_weight": 0.3,
+    "train_horizons": [
+      1,
+      2,
+      5,
+      10,
+      20
+    ],
+    "emission": "student_t",
+    "student_t_learn_nu": true,
+    "student_t_nu_init": 5.0,
+    "num_threads": 4,
+    "grounding": true,
+    "static_ensemble_members": 2,
+    "static_ensemble_epochs": 10
+  },
+  "split_sizes": {
+    "n_train_runs": 448,
+    "n_train_slices": 279739,
+    "n_conf_runs": 234,
+    "n_idt_runs": 236,
+    "n_ood_runs": 127
+  },
+  "thomson_completeness": {
+    "n_shots_with_thomson": 1047,
+    "n_shots_total": 1047,
+    "mean_completeness": 0.9974737521894587,
+    "median_completeness": 1.0,
+    "n_full_profile_ge_0p9": 1041,
+    "n_edge_only_lt_0p3": 0,
+    "note": "Per-shot Thomson profile-completeness (full-profile ayc/atm \u22481.0 vs edge-only aye \u226a1). Weights the (future) GS pressure likelihood; at the input level it rides in the Thomson features (extent scalar + freshness flag). The MSE current/q half of internal-core is unrealizable from level-1 (see integrated_inputs.py)."
+  },
+  "grounding_coverage": {
+    "n_campaign_operators": 1,
+    "n_grounded_windows": 844,
+    "n_total_windows": 2457,
+    "grounded_timestep_fraction": 0.3435083435083435,
+    "campaign_window_counts": {
+      "mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4": 844
+    },
+    "gs_profile_order": 1,
+    "gs_passive_rank": 4,
+    "gs_lambda": 0.01,
+    "gs_data_weight": 0.03,
+    "collinearity_fix": "STRUCTURAL \u2014 head emits exactly the locked order-1 plasma poly (3 DOF) + rank-4 passive SVD the standalone frontier found near-vacuum-sound at lambda=0 (q1 net-current ratio 0.030). gs_lambda only biases toward small currents (current-space L2 Tikhonov M=blkdiag(B^TB, V^TV)); data overrides (soft)."
+  },
+  "engine_train": {
+    "epochs_run": 30,
+    "final_loss": 0.692097870967327,
+    "final_filter_nll": -0.002974358900712851,
+    "final_rollout_nll": 0.4944933110322708,
+    "seconds": 41.0,
+    "emission": "student_t",
+    "student_t_nu_learned": 5.247635364532471,
+    "grounding": true,
+    "final_gs_data_nll": 6.3932890464098024,
+    "final_gs_prior": 0.0014035338312029266
+  },
+  "filtering": {
+    "n_slices": 179808,
+    "burn_in_dropped": 20,
+    "conformal_q": 1.4235941086430413,
+    "coverage_90_raw": 0.8951437088449902,
+    "coverage_90_conf": 0.8746162573411639,
+    "pi_width_90_conf": 0.2085724050968717,
+    "mean_sigma_raw": 0.07325557328123578,
+    "mean_sigma_conf": 0.06340150931345612,
+    "crps_raw": 0.060233523155567036,
+    "nll_raw": -1.4061534489625163,
+    "rmse": 0.1941363304255509,
+    "emission": "student_t"
+  },
+  "forecasting_indist_dense_transient": {
+    "n_anchor_pairs": 30864,
+    "same_truths_engine_vs_static": true,
+    "engine": {
+      "1": {
+        "n": 30864,
+        "crps_raw": 0.10293060186049975,
+        "nll_raw": -0.34153017001151437,
+        "rmse": 0.22858462292238266,
+        "mean_sigma_raw": 0.2161653671636496,
+        "coverage_90_conf": 0.8702695697252463,
+        "pi_width_90_conf": 0.5137827255184199,
+        "n_transient": 6842,
+        "crps_raw_transient": 0.09592243802313231,
+        "nll_raw_transient": -0.41623055076245563,
+        "rmse_transient": 0.22187465320570587,
+        "mean_sigma_raw_transient": 0.2089108720085627
+      },
+      "2": {
+        "n": 30864,
+        "crps_raw": 0.1078640423448676,
+        "nll_raw": -0.24875752814648933,
+        "rmse": 0.23201865530516008,
+        "mean_sigma_raw": 0.24743991928879486,
+        "coverage_90_conf": 0.8677747537584241,
+        "pi_width_90_conf": 0.53461368958064,
+        "n_transient": 6850,
+        "crps_raw_transient": 0.10147138893797131,
+        "nll_raw_transient": -0.3024873004331819,
+        "rmse_transient": 0.2229774723397388,
+        "mean_sigma_raw_transient": 0.24456291533378202
+      },
+      "5": {
+        "n": 30864,
+        "crps_raw": 0.11399692007854983,
+        "nll_raw": -0.17484464098323485,
+        "rmse": 0.24176463913403268,
+        "mean_sigma_raw": 0.26844763443037456,
+        "coverage_90_conf": 0.8693947641264904,
+        "pi_width_90_conf": 0.5686442718404393,
+        "n_transient": 6876,
+        "crps_raw_transient": 0.10824793623903912,
+        "nll_raw_transient": -0.2178036939901663,
+        "rmse_transient": 0.2346501403272637,
+        "mean_sigma_raw_transient": 0.26819365526580324
+      },
+      "10": {
+        "n": 30864,
+        "crps_raw": 0.12034039006571587,
+        "nll_raw": -0.12940144678089668,
+        "rmse": 0.25623899813854994,
+        "mean_sigma_raw": 0.2705028373118623,
+        "coverage_90_conf": 0.8680339554173147,
+        "pi_width_90_conf": 0.6125573743685065,
+        "n_transient": 6940,
+        "crps_raw_transient": 0.11649979676615331,
+        "nll_raw_transient": -0.16443593065583995,
+        "rmse_transient": 0.2605313217924223,
+        "mean_sigma_raw_transient": 0.2704977606716914
+      },
+      "20": {
+        "n": 30864,
+        "crps_raw": 0.17011365661580502,
+        "nll_raw": 0.13467528749287205,
+        "rmse": 0.41850607938451745,
+        "mean_sigma_raw": 0.2705441260553965,
+        "coverage_90_conf": 0.8646643338517367,
+        "pi_width_90_conf": 0.7727439192292581,
+        "n_transient": 7799,
+        "crps_raw_transient": 0.24450525193543637,
+        "nll_raw_transient": 0.4936667792209395,
+        "rmse_transient": 0.6021445245496118,
+        "mean_sigma_raw_transient": 0.270544125287371
+      }
+    },
+    "static": {
+      "1": {
+        "n": 30864,
+        "crps_raw": 0.09110121718359272,
+        "nll_raw": 0.21682067223756718,
+        "rmse": 0.23337897121446358,
+        "mean_sigma_raw": 0.17024796614186608,
+        "coverage_90_conf": 0.9163426645930534,
+        "pi_width_90_conf": 0.6754009940280038,
+        "n_transient": 6842,
+        "crps_raw_transient": 0.07095771159101288,
+        "nll_raw_transient": 2.9892740671893128,
+        "rmse_transient": 0.221087790555739,
+        "mean_sigma_raw_transient": 0.11264021709295133
+      },
+      "2": {
+        "n": 30864,
+        "crps_raw": 0.09200739659110792,
+        "nll_raw": 0.3265308166887049,
+        "rmse": 0.23607808618150677,
+        "mean_sigma_raw": 0.17024796614186608,
+        "coverage_90_conf": 0.9170230689476413,
+        "pi_width_90_conf": 0.6791353622344937,
+        "n_transient": 6850,
+        "crps_raw_transient": 0.07227110986955727,
+        "nll_raw_transient": 3.743207446753121,
+        "rmse_transient": 0.22385642487402613,
+        "mean_sigma_raw_transient": 0.11218697546004312
+      },
+      "5": {
+        "n": 30864,
+        "crps_raw": 0.09471342300295084,
+        "nll_raw": 0.582206724322002,
+        "rmse": 0.24457010661748227,
+        "mean_sigma_raw": 0.17024796614186608,
+        "coverage_90_conf": 0.9181570762052877,
+        "pi_width_90_conf": 0.6864176616379567,
+        "n_transient": 6876,
+        "crps_raw_transient": 0.07512614055946888,
+        "nll_raw_transient": 3.716020411946346,
+        "rmse_transient": 0.23506355313182245,
+        "mean_sigma_raw_transient": 0.11393550568623818
+      },
+      "10": {
+        "n": 30864,
+        "crps_raw": 0.10019410426909539,
+        "nll_raw": -0.24874370111383493,
+        "rmse": 0.2617118771778921,
+        "mean_sigma_raw": 0.17024796614186608,
+        "coverage_90_conf": 0.9152086573354069,
+        "pi_width_90_conf": 0.6937766167069372,
+        "n_transient": 6940,
+        "crps_raw_transient": 0.0808550420204392,
+        "nll_raw_transient": 1.0952311346052417,
+        "rmse_transient": 0.2566248380354836,
+        "mean_sigma_raw_transient": 0.11648039908561629
+      },
+      "20": {
+        "n": 30864,
+        "crps_raw": 0.143868423236328,
+        "nll_raw": 1.0389939952696132,
+        "rmse": 0.4121258822372036,
+        "mean_sigma_raw": 0.17024796614186608,
+        "coverage_90_conf": 0.912940642820114,
+        "pi_width_90_conf": 0.7580553905542885,
+        "n_transient": 7799,
+        "crps_raw_transient": 0.19920324867805347,
+        "nll_raw_transient": 4.8418154491560905,
+        "rmse_transient": 0.5794683026164597,
+        "mean_sigma_raw_transient": 0.13374828784057893
+      }
+    }
+  },
+  "forecasting_ood_dense_transient": {
+    "n_anchor_pairs": 6782,
+    "engine": {
+      "1": {
+        "n": 6782,
+        "crps_raw": 0.14456547552541024,
+        "nll_raw": 0.011699797702658322,
+        "rmse": 0.2988315212979478,
+        "mean_sigma_raw": 0.22679751646904683,
+        "coverage_90_conf": 0.8007962253022707,
+        "pi_width_90_conf": 0.5390532613120202,
+        "n_transient": 643,
+        "crps_raw_transient": 0.21356861724350143,
+        "nll_raw_transient": 0.4875896947825307,
+        "rmse_transient": 0.44122025945832377,
+        "mean_sigma_raw_transient": 0.22987579427962737
+      },
+      "2": {
+        "n": 6782,
+        "crps_raw": 0.1470615834116649,
+        "nll_raw": 0.04215225841135157,
+        "rmse": 0.3049293702966756,
+        "mean_sigma_raw": 0.2516944987520228,
+        "coverage_90_conf": 0.7974048953111177,
+        "pi_width_90_conf": 0.5438060479963231,
+        "n_transient": 648,
+        "crps_raw_transient": 0.21430366639828902,
+        "nll_raw_transient": 0.47514866289456315,
+        "rmse_transient": 0.4431152135464167,
+        "mean_sigma_raw_transient": 0.2530502232849944
+      },
+      "5": {
+        "n": 6782,
+        "crps_raw": 0.15349560899287623,
+        "nll_raw": 0.08876398454253175,
+        "rmse": 0.3250115233803158,
+        "mean_sigma_raw": 0.2688289891832867,
+        "coverage_90_conf": 0.8034503096431731,
+        "pi_width_90_conf": 0.5694520837484962,
+        "n_transient": 672,
+        "crps_raw_transient": 0.2271306550743639,
+        "nll_raw_transient": 0.5253619809581974,
+        "rmse_transient": 0.4832024722953759,
+        "mean_sigma_raw_transient": 0.26893002949631106
+      },
+      "10": {
+        "n": 6782,
+        "crps_raw": 0.16789492079326437,
+        "nll_raw": 0.16622038225000174,
+        "rmse": 0.36760736252840964,
+        "mean_sigma_raw": 0.270510668832204,
+        "coverage_90_conf": 0.8125921557062813,
+        "pi_width_90_conf": 0.6125751089534207,
+        "n_transient": 737,
+        "crps_raw_transient": 0.2699006331025226,
+        "nll_raw_transient": 0.7549363485977507,
+        "rmse_transient": 0.5636763230082674,
+        "mean_sigma_raw_transient": 0.2705121208329138
+      },
+      "20": {
+        "n": 6782,
+        "crps_raw": 0.360881869702195,
+        "nll_raw": 1.0472515369622672,
+        "rmse": 0.8295991355793246,
+        "mean_sigma_raw": 0.2705441276390729,
+        "coverage_90_conf": 0.7435859628428192,
+        "pi_width_90_conf": 0.7727439237526471,
+        "n_transient": 1320,
+        "crps_raw_transient": 0.9081480524369798,
+        "nll_raw_transient": 3.6532348980119718,
+        "rmse_transient": 1.4584986613796098,
+        "mean_sigma_raw_transient": 0.2705441279830214
+      }
+    },
+    "static": {
+      "1": {
+        "n": 6782,
+        "crps_raw": 0.15973346975179006,
+        "nll_raw": 0.01959709673629738,
+        "rmse": 0.3517453510013743,
+        "mean_sigma_raw": 0.280186106795013,
+        "coverage_90_conf": 0.9613683279268652,
+        "pi_width_90_conf": 1.111543235027536,
+        "n_transient": 643,
+        "crps_raw_transient": 0.21521504415696371,
+        "nll_raw_transient": 0.5476598098682216,
+        "rmse_transient": 0.48403232511232636,
+        "mean_sigma_raw_transient": 0.33640147325547387
+      },
+      "2": {
+        "n": 6782,
+        "crps_raw": 0.1613634300773318,
+        "nll_raw": 0.036800546316913554,
+        "rmse": 0.35805322435134856,
+        "mean_sigma_raw": 0.280186106795013,
+        "coverage_90_conf": 0.9603361840165143,
+        "pi_width_90_conf": 1.117689082833104,
+        "n_transient": 648,
+        "crps_raw_transient": 0.2236856578818093,
+        "nll_raw_transient": 0.6406081019027378,
+        "rmse_transient": 0.49651983034631336,
+        "mean_sigma_raw_transient": 0.33413194537608903
+      },
+      "5": {
+        "n": 6782,
+        "crps_raw": 0.16656932750082856,
+        "nll_raw": 0.08850177475296113,
+        "rmse": 0.37670634083776133,
+        "mean_sigma_raw": 0.280186106795013,
+        "coverage_90_conf": 0.9579769979357122,
+        "pi_width_90_conf": 1.1296739491701957,
+        "n_transient": 672,
+        "crps_raw_transient": 0.23527777886575982,
+        "nll_raw_transient": 0.7854933967599674,
+        "rmse_transient": 0.5323842211319475,
+        "mean_sigma_raw_transient": 0.3278612300693225
+      },
+      "10": {
+        "n": 6782,
+        "crps_raw": 0.17713163551955013,
+        "nll_raw": 0.21095703593617526,
+        "rmse": 0.4045042323412814,
+        "mean_sigma_raw": 0.280186106795013,
+        "coverage_90_conf": 0.9447065762312002,
+        "pi_width_90_conf": 1.1417849718013793,
+        "n_transient": 737,
+        "crps_raw_transient": 0.25940658833057334,
+        "nll_raw_transient": 1.3197798640708651,
+        "rmse_transient": 0.5772497975153595,
+        "mean_sigma_raw_transient": 0.32304175248648703
+      },
+      "20": {
+        "n": 6782,
+        "crps_raw": 0.344934199335443,
+        "nll_raw": 4.6147199852151495,
+        "rmse": 0.8085031276060565,
+        "mean_sigma_raw": 0.280186106795013,
+        "coverage_90_conf": 0.8580064877617222,
+        "pi_width_90_conf": 1.2475719588766836,
+        "n_transient": 1320,
+        "crps_raw_transient": 0.8282619977179172,
+        "nll_raw_transient": 17.891886340853976,
+        "rmse_transient": 1.3891437948719936,
+        "mean_sigma_raw_transient": 0.3053464391308902
+      }
+    }
+  },
+  "ood_honesty": {
+    "filter_coverage90_raw_indist": 0.894996965230209,
+    "filter_coverage90_raw_ood": 0.7943795152773788,
+    "mean_sigma_indist": 0.07375975123554841,
+    "mean_sigma_ood": 0.13559923038015642,
+    "ood_auroc_engine_predictive_sigma": 0.7880801578487747,
+    "ood_auroc_engine_innovation": 0.7595110050396349,
+    "ood_auroc_engine": 0.7595110050396349,
+    "mean_innovation_indist": 6.392882347106934,
+    "mean_innovation_ood": 11.168066024780273,
+    "ood_auroc_static_ensemble_disagreement": 0.7428001674056642,
+    "ood_auroc_ensemble_disagreement": 0.7428001674056642,
+    "coverage_vs_distance_ood": {
+      "bin_centers": [
+        1.581664594296199,
+        1.8409195736238875,
+        2.0344078738374654,
+        2.3486765265440788,
+        3.257645677212487
+      ],
+      "coverage": [
+        0.7748287671232876,
+        0.7534652417733573,
+        0.8237330815234498,
+        0.8100085726532362,
+        0.834056399132321
+      ],
+      "n_samples": [
+        9344,
+        9451,
+        9531,
+        9332,
+        9220
+      ]
+    }
+  },
+  "acceptance": {
+    "filtering_coverage_in_band": false,
+    "filtering_coverage_value": 0.8746162573411639,
+    "filtering_coverage_raw": 0.8951437088449902,
+    "forecast_crps_by_horizon": {
+      "1": {
+        "engine_crps": 0.10293060186049975,
+        "static_crps": 0.09110121718359272,
+        "engine_wins": false
+      },
+      "2": {
+        "engine_crps": 0.1078640423448676,
+        "static_crps": 0.09200739659110792,
+        "engine_wins": false
+      },
+      "5": {
+        "engine_crps": 0.11399692007854983,
+        "static_crps": 0.09471342300295084,
+        "engine_wins": false
+      },
+      "10": {
+        "engine_crps": 0.12034039006571587,
+        "static_crps": 0.10019410426909539,
+        "engine_wins": false
+      },
+      "20": {
+        "engine_crps": 0.17011365661580502,
+        "static_crps": 0.143868423236328,
+        "engine_wins": false
+      }
+    },
+    "forecast_beats_static_at_Hgt0": false,
+    "forecast_beats_static_any_Hgt0": false,
+    "same_windows_verified": true,
+    "forecast_crps_transient_by_horizon": {
+      "1": {
+        "engine_crps_transient": 0.09592243802313231,
+        "static_crps_transient": 0.07095771159101288,
+        "n_transient": 6842,
+        "engine_wins": false
+      },
+      "2": {
+        "engine_crps_transient": 0.10147138893797131,
+        "static_crps_transient": 0.07227110986955727,
+        "n_transient": 6850,
+        "engine_wins": false
+      },
+      "5": {
+        "engine_crps_transient": 0.10824793623903912,
+        "static_crps_transient": 0.07512614055946888,
+        "n_transient": 6876,
+        "engine_wins": false
+      },
+      "10": {
+        "engine_crps_transient": 0.11649979676615331,
+        "static_crps_transient": 0.0808550420204392,
+        "n_transient": 6940,
+        "engine_wins": false
+      },
+      "20": {
+        "engine_crps_transient": 0.24450525193543637,
+        "static_crps_transient": 0.19920324867805347,
+        "n_transient": 7799,
+        "engine_wins": false
+      }
+    },
+    "forecast_beats_static_transient_any_Hgt0": false,
+    "forecast_beats_static_transient_all_Hgt0": false,
+    "forecast_nll_transient_by_horizon": {
+      "1": {
+        "engine_nll_transient": -0.41623055076245563,
+        "static_nll_transient": 2.9892740671893128,
+        "n_transient": 6842,
+        "engine_wins": true
+      },
+      "2": {
+        "engine_nll_transient": -0.3024873004331819,
+        "static_nll_transient": 3.743207446753121,
+        "n_transient": 6850,
+        "engine_wins": true
+      },
+      "5": {
+        "engine_nll_transient": -0.2178036939901663,
+        "static_nll_transient": 3.716020411946346,
+        "n_transient": 6876,
+        "engine_wins": true
+      },
+      "10": {
+        "engine_nll_transient": -0.16443593065583995,
+        "static_nll_transient": 1.0952311346052417,
+        "n_transient": 6940,
+        "engine_wins": true
+      },
+      "20": {
+        "engine_nll_transient": 0.4936667792209395,
+        "static_nll_transient": 4.8418154491560905,
+        "n_transient": 7799,
+        "engine_wins": true
+      }
+    },
+    "forecast_beats_static_transient_nll_any_Hgt0": true,
+    "forecast_beats_static_transient_nll_all_Hgt0": true,
+    "criterion2_transient_win_any_Hgt0": true,
+    "engine_sigma_vs_rmse_by_horizon": {
+      "1": {
+        "engine_mean_sigma": 0.2161653671636496,
+        "engine_rmse": 0.22858462292238266,
+        "sigma_over_rmse": 0.9456688923342402
+      },
+      "2": {
+        "engine_mean_sigma": 0.24743991928879486,
+        "engine_rmse": 0.23201865530516008,
+        "sigma_over_rmse": 1.0664656208930792
+      },
+      "5": {
+        "engine_mean_sigma": 0.26844763443037456,
+        "engine_rmse": 0.24176463913403268,
+        "sigma_over_rmse": 1.1103676509183338
+      },
+      "10": {
+        "engine_mean_sigma": 0.2705028373118623,
+        "engine_rmse": 0.25623899813854994,
+        "sigma_over_rmse": 1.055666152603359
+      },
+      "20": {
+        "engine_mean_sigma": 0.2705441260553965,
+        "engine_rmse": 0.41850607938451745,
+        "sigma_over_rmse": 0.6464520813013672
+      }
+    },
+    "forecast_pi_width_by_horizon": {
+      "1": {
+        "engine_pi_width": 0.5137827255184199,
+        "static_pi_width": 0.6754009940280038,
+        "engine_coverage": 0.8702695697252463,
+        "static_coverage": 0.9163426645930534,
+        "engine_sharper": true
+      },
+      "2": {
+        "engine_pi_width": 0.53461368958064,
+        "static_pi_width": 0.6791353622344937,
+        "engine_coverage": 0.8677747537584241,
+        "static_coverage": 0.9170230689476413,
+        "engine_sharper": true
+      },
+      "5": {
+        "engine_pi_width": 0.5686442718404393,
+        "static_pi_width": 0.6864176616379567,
+        "engine_coverage": 0.8693947641264904,
+        "static_coverage": 0.9181570762052877,
+        "engine_sharper": true
+      },
+      "10": {
+        "engine_pi_width": 0.6125573743685065,
+        "static_pi_width": 0.6937766167069372,
+        "engine_coverage": 0.8680339554173147,
+        "static_coverage": 0.9152086573354069,
+        "engine_sharper": true
+      },
+      "20": {
+        "engine_pi_width": 0.7727439192292581,
+        "static_pi_width": 0.7580553905542885,
+        "engine_coverage": 0.8646643338517367,
+        "static_coverage": 0.912940642820114,
+        "engine_sharper": false
+      }
+    },
+    "ood_auroc": 0.7595110050396349,
+    "ood_auroc_engine_native": 0.7595110050396349,
+    "ood_auroc_engine_predictive_sigma": 0.7880801578487747,
+    "ood_auroc_engine_innovation": 0.7595110050396349,
+    "ood_auroc_static_ensemble_disagreement": 0.7428001674056642,
+    "ood_coverage_noncollapse": true,
+    "ood_coverage_indist": 0.894996965230209,
+    "ood_coverage_ood": 0.7943795152773788,
+    "ood_best_engine_auroc": 0.7880801578487747,
+    "rescoped_acceptance": {
+      "criterion1_filtering_calibrated": false,
+      "criterion2_transient_dynamics_win": true,
+      "criterion2_win_basis": "transient_NLL",
+      "criterion3_ood_honesty": false,
+      "criterion3_partial": true,
+      "criterion3a_coverage_noncollapse": true,
+      "criterion3b_innovation_auroc_clearly_exceeds_same_data_static": false,
+      "criterion3b_margin_required": 0.05,
+      "ood_auroc_engine_innovation": 0.7595110050396349,
+      "ood_auroc_engine_predictive_sigma": 0.7880801578487747,
+      "ood_best_engine_auroc": 0.7880801578487747,
+      "ood_auroc_static_ensemble_disagreement_same_data": 0.7428001674056642,
+      "ood_auroc_static_decimated_ref": 0.568,
+      "all_met": false,
+      "all_met_with_partial_ood": false,
+      "stretch_bulk_crps_beats_static": false
+    }
+  },
+  "total_seconds": 3228.5,
+  "discovery_discriminate": {
+    "mean_crps_true": 0.10099402223967784,
+    "mean_crps_identity": 0.12371883036281425,
+    "identity_minus_true_rel": 0.22501141769763527,
+    "metric_discriminates": true,
+    "t8_baseline_gap": 0.012776796636206629,
+    "widened_beyond_t8": true,
+    "n_runs_scored": 40,
+    "interpretation": "Grounded-latent discovery gap = 22.50% (T8 ungrounded baseline = 1.28%). WIDENED \u2014 grounding enriched f\u03b8; the discovery metric now discriminates."
+  },
+  "physical_interpretability": {
+    "n_near_vacuum_shots_checked": 3,
+    "median_net_nearvac_over_flattop_ratio_GROUNDED": 0.7986606889294375,
+    "tol_frac": 0.25,
+    "near_vacuum_ok_GROUNDED": false,
+    "standalone_monitor_ratio_ref": 0.030235146241937558,
+    "per_shot_sample": [
+      {
+        "shot_id": 20830,
+        "ip_near_vacuum": 1.56911039352417,
+        "ip_flattop": -3.905388832092285,
+        "net_plasma_current_near_vacuum_A": 2.479297953810627,
+        "net_plasma_current_flattop_A": 3.388390404642074,
+        "net_ratio": 0.7317037465381805
+      },
+      {
+        "shot_id": 21660,
+        "ip_near_vacuum": -2.295088052749634,
+        "ip_flattop": 20.745635986328125,
+        "net_plasma_current_near_vacuum_A": 47.31488278759205,
+        "net_plasma_current_flattop_A": 33.70608669916083,
+        "net_ratio": 1.4037489195911323
+      },
+      {
+        "shot_id": 21760,
+        "ip_near_vacuum": 2.8401448726654053,
+        "ip_flattop": -4.0291547775268555,
+        "net_plasma_current_near_vacuum_A": 2.7583876883590377,
+        "net_plasma_current_flattop_A": 3.453766695411678,
+        "net_ratio": 0.7986606889294375
+      }
+    ],
+    "note": "GROUNDED near-vacuum check: net toroidal plasma current predicted by the head from z at the near-vacuum slice vs flat-top (|sum c_plasma|). References only raw |Ip| (EFIT-free), never labels. The standalone monitor (per-slice lstsq) achieved 0.030; this re-checks the head."
+  },
+  "help_hurt_dalpha": {
+    "v2_metrics_path": "/home/ITER/mcintos/Code/imas-ambix/imas_ambix/statespace/artifacts/engine_metrics_v2.json",
+    "filtering": {
+      "crps_raw": {
+        "grounded": 0.060233523155567036,
+        "v2": 0.033957539236990034,
+        "delta": 0.026275983918577002
+      },
+      "nll_raw": {
+        "grounded": -1.4061534489625163,
+        "v2": -2.649955325285683,
+        "delta": 1.2438018763231669
+      },
+      "rmse": {
+        "grounded": 0.1941363304255509,
+        "v2": 0.22907110514872286,
+        "delta": -0.03493477472317197
+      },
+      "coverage_90_conf": {
+        "grounded": 0.8746162573411639,
+        "v2": 0.9128978224455612,
+        "delta": -0.038281565104397286
+      }
+    },
+    "forecasting_by_horizon": {
+      "1": {
+        "crps_grounded": 0.10293060186049975,
+        "crps_v2": 0.08608962531027545,
+        "nll_grounded": -0.34153017001151437,
+        "nll_v2": -0.683817561411167
+      },
+      "2": {
+        "crps_grounded": 0.1078640423448676,
+        "crps_v2": 0.09204235718878985,
+        "nll_grounded": -0.24875752814648933,
+        "nll_v2": -0.5323202170870898
+      },
+      "5": {
+        "crps_grounded": 0.11399692007854983,
+        "crps_v2": 0.09864503648583742,
+        "nll_grounded": -0.17484464098323485,
+        "nll_v2": -0.41404923361517815
+      },
+      "10": {
+        "crps_grounded": 0.12034039006571587,
+        "crps_v2": 0.10355142529520453,
+        "nll_grounded": -0.12940144678089668,
+        "nll_v2": -0.3733985241576469
+      },
+      "20": {
+        "crps_grounded": 0.17011365661580502,
+        "crps_v2": 0.12774605677578868,
+        "nll_grounded": 0.13467528749287205,
+        "nll_v2": -0.25403925226822915
+      }
+    },
+    "filtering_crps_verdict": "HURT (higher CRPS)",
+    "filtering_crps_rel_change": 0.7737894002034902
+  },
+  "grounding_verdict": {
+    "criterion1_dalpha_help_hurt": "HURT (higher CRPS)",
+    "criterion1_filtering_crps_rel_change": 0.7737894002034902,
+    "criterion1_dalpha_preserved": false,
+    "criterion2_discovery_gap_grounded": 0.22501141769763527,
+    "criterion2_t8_baseline_gap": 0.012776796636206629,
+    "criterion2_widened_beyond_t8": true,
+    "criterion2_metric_discriminates": true,
+    "criterion3_near_vacuum_ratio_grounded": 0.7986606889294375,
+    "criterion3_near_vacuum_ok": false,
+    "clean_comparison_vs_v2": true,
+    "grounding_enriched_latent": false,
+    "enrichment_claim_note": "CONFOUNDED \u2014 gap widened but D\u03b1 NOT preserved: the bigger gap may be a worse model's f_\u03b8 thrashing, not enrichment."
+  },
+  "t10_verdict": {
+    "headline": "REDIRECT ONLY HALF-IMPLEMENTABLE FROM LEVEL-1 \u2014 not a clean test of the integrated-grounding hypothesis.",
+    "corpus_finding": "The locked internal-core set = mag+ane+MSE(ams)+Thomson(TS). The MSE half is UNREALIZABLE: level-1 ams carries only the STATIC a-coefficient geometry table (acoeff attr shape [1,6,N], size-1 time dim; 6 finite rows = 6 MSE radial channels), NOT a time-resolved pitch-angle / internal-current signal. Verified across 25/25 co-available shots + a grep for gamma/pitch/polarisation across all shot groups (none). Only the Thomson->pressure (p-prime) half was wired (pressure-only internal grounding).",
+    "criterion_a_dalpha": {
+      "reading": "NOT CLEANLY EVALUABLE (corpus+split confound) \u2014 do NOT claim hurt or preserved.",
+      "integrated_filtering_crps": 0.0602,
+      "v2_filtering_crps": 0.034,
+      "naive_rel_change": 0.774,
+      "rmse_integrated": 0.194,
+      "rmse_v2": 0.229,
+      "coverage_conf_integrated": 0.875,
+      "coverage_conf_v2": 0.913,
+      "corpus_shift_control": "The UNGROUNDED static comparator (built-in control) rose MORE than the grounded engine on the integrated corpus: static h=1 CRPS 0.066->0.091 (+38%) vs engine 0.083->0.103 (+23%). RMSE IMPROVED (0.229->0.194) while CRPS rose + coverage fell = a sigma-calibration/distribution shift on a harder corpus (internal-core is biased to NBI-heated/H-mode/ELMy shots that carry MSE+Thomson), NOT a grounding-induced skill loss. A same-split integrated-UNGROUNDED control is required for a clean a/c verdict."
+    },
+    "criterion_b_near_vacuum": {
+      "reading": "INCONCLUSIVE (underpowered) \u2014 NOT a persistent FAIL.",
+      "ratio_grounded": 0.799,
+      "t6_ratio": 0.981,
+      "standalone_lstsq_ref": 0.03,
+      "n_near_vacuum_shots_checked": 3,
+      "t6_n_checked": 22,
+      "note": "Only 3 near-vacuum shots in this corpus (internal-core shots rarely sit near-vacuum) vs T6 22. Near-vacuum probes the internal CURRENT collapse \u2014 exactly the constraint MSE would supply, the half proven unavailable. Thomson constrains p-prime, not the current term, so it was never expected to fix (b)."
+    },
+    "criterion_c_ftheta_enrichment": {
+      "reading": "CONFOUNDED (per the existing verdict logic) \u2014 gap widened but Dalpha not cleanly preserved + no same-split control.",
+      "discovery_gap_grounded": 0.225,
+      "t6_gap": 0.0078,
+      "t8_baseline": 0.0128,
+      "discrimination_floor": 0.02,
+      "attribution_independent_fact": "The discovery metric is no longer degenerate: 22.5% >> the 2% floor (T6 was 0.78%, under-powered). This unblocks t8b POWER precondition independent of whether grounding caused it \u2014 but the sparse-Thomson forward-fill itself injects dynamical structure f_theta tracks, so the 22.5% is NOT cleanly attributable to grounding."
+    },
+    "overall_verdict": "Redirect NOT vindicated and NOT refuted \u2014 it could not be properly tested. The internal constraint that targets the FAILED T6 criterion (near-vacuum internal-current soundness) is the MSE->current/q term, which is absent from level-1. The Thomson->pressure half alone, on a confounded corpus with no same-split control, cannot decide it.",
+    "next_increment_recommendation": "PRIMARY: source a TIME-RESOLVED MSE pitch-angle / internal-current signal (raw UDA gamma(t), another data level, or external DD) \u2014 it is the missing internal-CURRENT constraint. Do NOT queue B/C (bolometer/SXR/camera) as the primary next step: emission adds no current term and the task's \"queue B/C if vindicated\" branch is not met. Also queue a same-split integrated-UNGROUNDED control for clean a/c attribution.",
+    "caveats": "Single seed; num_threads=4 reduction nondeterminism (+/-0.02 loss / +/-0.10 nu per c-s8-t6-framing); 500/300/200 shot caps within the locked 3757/512/128 split."
+  }
+}
