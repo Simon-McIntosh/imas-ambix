@@ -1,9 +1,9 @@
 {
-  "updated": "2026-05-30T16:13:02",
+  "updated": "2026-05-31T14:00:06",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
-    "active_sprint_id": "S8",
+    "active_sprint_id": "S9",
     "projects": [
       {
         "project": "imas-ambix",
@@ -221,7 +221,7 @@
       },
       {
         "id": "S8",
-        "status": "active",
+        "status": "done",
         "theme": "Stage-2 \u2014 physical grounding (Grad-Shafranov soft prior) + structure discovery",
         "items": [
           {
@@ -236,6 +236,23 @@
         "starts": "2026-05-30",
         "ends": "2026-06-20",
         "description": "Ground the Stage-1 latent in raw magnetics via a GS soft residual (data can override); stand up GS-residual monitoring as a force-balance-departure / dynamics-native OOD detector (may close Stage-1 criterion-3); apply SINDy/Koopman to the latent transition kernel toward dimensionless/invariant coordinates. First action: scaffold a dedicated Stage-2 plan + decompose GS-prior into scoped tasks; consider the open uq-level-v0 + extrapolation-coordinates decisions."
+      },
+      {
+        "id": "S9",
+        "status": "active",
+        "theme": "Stage-3 \u2014 MSE-free multi-modal current-profile recovery (beat EnKF)",
+        "items": [
+          {
+            "slug": "mse-free-current-recovery-v0",
+            "why_now": "The ratified pivot. Stage-1 + Stage-2 closed with honest results; recover the internal current profile WITHOUT MSE from raw multi-modal data, beating a classical EnKF baseline \u2014 the ITER-startup problem (no MSE, must still recover the current profile).",
+            "tier": "opus",
+            "done_when": "An MSE-free end-to-end obs->state neural filter beats the EnKF baseline on the three-axis win (MSE-observable RMSE; coverage [0.88,0.92]; CRPS/NLL on transients), validated on held-out raw MSE. The EnKF baseline + held-out-MSE eval harness are built first.",
+            "status": "active"
+          }
+        ],
+        "starts": "2026-05-31",
+        "ends": "2026-06-27",
+        "description": "Build an end-to-end observation->state deep neural filter on raw multi-modal diagnostics (magnetics + ane + bolometer + SXR + visible camera + Thomson) that recovers MSE-derived internal-current observables it never sees as input, beating a classical EnKF baseline. Front-load the EnKF baseline + held-out-MSE eval harness to learn the bar early. Scope locks: observables/on-axis only (full continuous q(psi) OUT); EFIT eval-only boundary/global sanity-check; architecture = end-to-end obs->state. Grounded in the 7-reader deep review (wpy0754zv, 2026-05-31)."
       }
     ],
     "blockers": [
@@ -301,8 +318,13 @@
         "when": "2026-05-21 09:14",
         "who": "agent/sonnet",
         "what": "tokenizers \u00a713.3 IR codebook benchmark wired (commit dec0082)"
+      },
+      {
+        "when": "2026-05-31 11:30",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "S8 closed (Stage-2 GS-prior HONEST NEGATIVE: Q1 FAIL; magnetics under-determine the internal current; MSE unusable from level-1). PIVOT ratified -> S9 opened: MSE-free multi-modal current-profile recovery beating an EnKF baseline (plan mse-free-current-recovery-v0). 7-reader deep review wpy0754zv; figures + completed-work doc landed."
       }
     ],
-    "_version": 14
+    "_version": 15
   }
 }

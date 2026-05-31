@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="doc">
+  <meta name="plan-slug"    content="stage1-stage2-results">
+  <meta name="plan-title"   content="Stage-1 + Stage-2 Results — Completed Work (Illustrated)">
+  <meta name="plan-summary" content="Illustrated record of the completed Stage-1 (latent state-space engine) and Stage-2 (Grad-Shafranov prior) work: what was proven, what was an honest negative, and the durable assets that seed the MSE-free current-recovery pivot. Every figure is plotted from the committed JSON artifacts.">
+  <meta name="plan-informs" content="mse-free-current-recovery-v0,physics-world-model-strategy,plasma-state-space-v0,plasma-gs-prior-v0">
+  <title>Stage-1 + Stage-2 Results — Completed Work | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+  <style>
+    figure.r-fig { margin: 1.5rem 0; padding: 0; }
+    figure.r-fig img { max-width: 100%; height: auto; border: 1px solid #d0d4da; border-radius: 6px; background: #fff; }
+    figure.r-fig figcaption { font-size: 0.9rem; color: #555; margin-top: 0.5rem; line-height: 1.45; }
+    figure.r-fig figcaption b { color: #222; }
+    .r-ledger { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+    .r-ledger th, .r-ledger td { border: 1px solid #d0d4da; padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
+    .r-ledger th { background: #f4f6f8; }
+    .r-verdict-win { color: #15803d; font-weight: 600; }
+    .r-verdict-loss { color: #b91c1c; font-weight: 600; }
+    .r-verdict-honest { color: #b45309; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Stage-1 + Stage-2 Results — Completed Work</h1>
+    <p><em>An illustrated, honest record of the work completed before the 2026-05-31 pivot. It captures what the latent state-space engine (Stage-1) and the Grad–Shafranov prior (Stage-2) actually delivered — wins, losses, and the corrected mislabels — and the durable assets carried into <a href="/imas-ambix/mse-free-current-recovery-v0.html">mse-free-current-recovery-v0</a>. Every figure below is plotted directly from the committed JSON artifacts under <code>imas_ambix/{statespace,gs}/artifacts/</code>; the source artifact + plotted values are recorded in each figure's generation manifest.</em></p>
+
+    <h2 id="s1">§1 — The honest arc</h2>
+    <p>
+      Two stages were completed. Both produced <strong>calibration-honest</strong> results in which a
+      <em>learned</em> or <em>physics</em> component lost the headline proper-score to a trivial
+      baseline — yet both produced a durable asset and a sharp insight that, taken together, define
+      the next move.
+    </p>
+    <ul>
+      <li><strong>Stage-1</strong> — a Recurrent-Kalman-Network latent state-space engine that
+        forecasts a whole held-out diagnostic family (Dα) from raw magnetics + interferometer.
+        It is well-calibrated and avoids confident-catastrophic transient misses, but a
+        persistence-of-nowcast wins aggregate CRPS because the Dα target is ~96.8&nbsp;% quiescent.
+        <strong>Dynamics did not pay on a near-stationary target.</strong></li>
+      <li><strong>Stage-2</strong> — a self-applied Grad–Shafranov soft prior. The force-balance
+        residual is a real signal but is beaten by a trivial <code>|dB/dt|</code> detector; grounding
+        the latent in magnetics neither enriched the dynamics nor recovered the internal current
+        (near-vacuum ratio 0.98). This was the decisive insight: <strong>magnetics + boundary cannot
+        constrain the internal current profile</strong> — and MSE is unusable from level-1 as a dense
+        input. But Stage-2 delivered a <strong>validated, EFIT-free GS forward operator</strong>.</li>
+      <li><strong>The pivot</strong> (<a href="/imas-ambix/mse-free-current-recovery-v0.html">mse-free-current-recovery-v0</a>)
+        turns these into the ITER-relevant thesis: recover the current profile <em>without</em> MSE,
+        from raw multi-modal data, beating a classical EnKF — on a genuinely dynamic target where the
+        dynamics should finally pay.</li>
+    </ul>
+
+    <h2 id="s2">§2 — Stage-1: the latent state-space engine</h2>
+
+    <h3 id="s2a">§2.1 — Forecasting: the headline loss, and the real win</h3>
+    <p>
+      On identical dense ELM windows, the engine's autonomous latent rollout <span class="r-verdict-loss">loses</span>
+      forecast CRPS to a persistence-of-nowcast at every horizon — bulk h=1 0.0861 vs 0.0651, h=20
+      0.1277 vs 0.0879. The mechanism: a near-stationary target rewards a sharp frozen nowcast, and
+      the engine's predictive σ is over-wide on the quiescent bulk.
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s1-fc-crps-vs-horizon.svg" alt="Forecast CRPS vs horizon: engine vs static, bulk and transient">
+      <figcaption><b>Forecast CRPS vs horizon.</b> The static persistence-of-nowcast wins every horizon on both bulk and transient CRPS; the engine gap widens with horizon. <em>(engine_metrics_v2.json · acceptance.forecast_crps_by_horizon / forecast_crps_transient_by_horizon)</em></figcaption>
+    </figure>
+    <p>
+      The genuine win is on the safety-relevant axis: <span class="r-verdict-win">long-horizon transient NLL</span>.
+      When an ELM lands at <code>t+h</code>, the static nowcast is confidently catastrophic
+      (NLL +13.2 at h=20); the engine's calibrated belief bounds the loss (stays in [−0.87, −0.16]),
+      winning at h≥5.
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s1-fc-transient-nll.svg" alt="Transient NLL vs horizon: bounded engine vs catastrophic static">
+      <figcaption><b>Transient NLL vs horizon.</b> Engine NLL stays bounded while the static nowcast diverges to +13.2 at h=20 — the engine avoids confident-catastrophic transient misses (it wins at h≥5). <em>(engine_metrics_v2.json · acceptance.forecast_nll_transient_by_horizon)</em></figcaption>
+    </figure>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s1-fc-sigma-mechanism.svg" alt="Engine predictive sigma growth vs static frozen sigma, with RMSE">
+      <figcaption><b>The over-wide-σ mechanism.</b> The engine's predictive σ grows 0.176→0.246 across the horizon (vs the static's flat frozen σ≈0.125), explaining the CRPS loss on the quiescent bulk even though the engine's mean RMSE is competitive. <em>(engine_metrics_v2.json · acceptance.engine_sigma_vs_rmse_by_horizon)</em></figcaption>
+    </figure>
+
+    <h3 id="s2b">§2.2 — Calibration &amp; out-of-distribution honesty</h3>
+    <p>
+      Filtering is well-calibrated — conformal 90&nbsp;% coverage 0.913, inside the [0.88, 0.92] gate —
+      and the reliability curves track the diagonal both in- and out-of-distribution (ECE 0.067 / 0.047).
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s1-ood-reliability.svg" alt="Reliability diagram in-distribution and OOD">
+      <figcaption><b>Reliability diagram.</b> Nominal vs empirical coverage tracks the y=x diagonal in- and out-of-distribution — the calibration is honest. <em>(baseline_metrics_v0.json · in_dist/ood.reliability_diagram, ece_conf)</em></figcaption>
+    </figure>
+    <p>
+      Under regime shift the engine widens <em>honestly</em>: coverage degrades gracefully (0.944→0.755,
+      non-collapse) with ~3.3× σ-inflation. But — the <strong>corrected</strong> finding — the engine's
+      <em>dynamics-native</em> OOD signal (filter-innovation AUROC 0.748) does <span class="r-verdict-loss">not beat</span>
+      a static deep-ensemble's disagreement on the same data (0.810). The "0.81 AUROC" reported as an
+      engine win in earlier records was the <em>static ensemble's</em> number, mislabelled.
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s1-ood-auroc-bars.svg" alt="OOD-AUROC comparison bars">
+      <figcaption><b>OOD-AUROC — the mislabel correction.</b> Engine filter-innovation (0.748) does not beat the same-data static ensemble disagreement (0.810); engine predictive-σ (0.831) only ties it (same uncertainty construct). The 0.81 was always the static's number. <em>(engine_metrics_v2.json · ood_honesty.* ; baseline_metrics_v0.json · ood.ood_auroc)</em></figcaption>
+    </figure>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s1-ood-coverage-inflation.svg" alt="OOD coverage degradation and sigma inflation">
+      <figcaption><b>Honest widening, not collapse.</b> In-distribution→OOD: coverage 0.944→0.755 (non-collapse) with mean-σ inflation ×3.30 — the engine knows it is less sure. <em>(engine_metrics_v2.json · ood_honesty.{filter_coverage90_raw_*, mean_sigma_*})</em></figcaption>
+    </figure>
+
+    <h3 id="s2c">§2.3 — Refinement progression &amp; latent structure</h3>
+    <p>
+      Across v0 (Gaussian) → v1 (+drift-reg) → v2 (+Student-t) the refinements improved monotonically
+      (the Student-t head sharpened the transient-NLL win and narrowed the CRPS gap) but never flipped
+      the headline verdict; the static comparator was unchanged throughout (CRPS h=1 = 0.0651 in all three).
+      The learned 16-D latent lives on a ~3-D manifold (participation ratio ≈ 1.76, 90&nbsp;%-rank 3).
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s1-prog-versions.svg" alt="v0 to v1 to v2 refinement progression">
+      <figcaption><b>v0→v1→v2 progression.</b> Monotone improvement (filtering coverage, CRPS h=1, transient-NLL h=20) that never flips the headline — the Student-t head's effect is real but sub-threshold. <em>(engine_metrics_v0/v1/v2.json)</em></figcaption>
+    </figure>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s1-prog-latent-rank.svg" alt="Latent effective-rank spectrum">
+      <figcaption><b>Latent effective rank.</b> The learned 16-D latent occupies a ~3-D manifold (PR≈1.76, rank₉₀=3) — a reusable structural result informing the pivot's latent-dim choice. <em>(latent_svd_v0.json · smoothed_summary)</em></figcaption>
+    </figure>
+
+    <h2 id="s3">§3 — Stage-2: the Grad–Shafranov prior</h2>
+
+    <h3 id="s3a">§3.1 — The force-balance residual frontier</h3>
+    <p>
+      The GS residual instrument has genuine resolution — the pooled quiescent residual sits well
+      above the trivial floor (0.02) and below the starved ceiling (0.9) across the profile-DOF × λ
+      grid — and the operating point (order-1, λ=0, median ≈ 0.40) was chosen by a min-DOF sanity rule,
+      not by tuning to the detection metric.
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s2-gs-frontier.svg" alt="GS residual frontier over profile order and lambda">
+      <figcaption><b>GS-residual frontier.</b> Quiescent residual median vs profile-DOF and ridge λ; the instrument is non-trivial at every cell. Operating point (order-1, λ=0) selected by the min-DOF sanity rule, anti-tuned to the Q1 metric. <em>(gs_residual_frontier.json · cells[*])</em></figcaption>
+    </figure>
+
+    <h3 id="s3b">§3.2 — Q1: the residual is beaten by a trivial baseline</h3>
+    <p>
+      The pre-committed Q1 gate <span class="r-verdict-loss">FAILS</span>: the GS force-balance-departure
+      residual detects transients (AUROC ≈ 0.68) but is beaten by a trivial <code>|dB/dt|</code>/B-variance
+      baseline on both labels (ELM 0.68 vs 0.76, margin −0.079; disruption 0.67 vs 0.92, margin −0.252).
+      The negative is principled: a global axisymmetric residual is poorly matched to edge-localised ELMs,
+      and disruptions <em>are</em> dB/dt current-quench events.
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s2-q1-auroc.svg" alt="Q1 AUROC comparison: GS residual vs trivial baselines">
+      <figcaption><b>Q1 detection — FAIL.</b> The GS residual (with-passive / ablated / fractional) is beaten by the trivial |dB/dt| and B-variance baselines on both ELM and disruption labels. <em>(gs_q1_detection.json · per_label.{elm,disruption})</em></figcaption>
+    </figure>
+
+    <h3 id="s3c">§3.3 — Grounding: the decisive insight</h3>
+    <p>
+      Grounding the latent in raw magnetics <em>preserved</em> Dα skill (filtering CRPS −6.4&nbsp;%, within
+      the single-seed/thread floor) but did <span class="r-verdict-loss">not enrich</span> the dynamics
+      (discovery gap 0.78&nbsp;% vs the ungrounded 1.28&nbsp;% — not widened) and, decisively, the current
+      inferred <em>from the latent</em> did not vanish in near-vacuum (ratio 0.98 vs the per-slice solver's
+      0.03). This is the project's <strong>central insight</strong>, and an expected physics result rather
+      than a bug: <strong>magnetics + boundary fundamentally under-determine the internal current profile</strong>
+      — the latent was fed only magnetics + density, so it cannot see inside the plasma.
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s2-grounding-deltas.svg" alt="GS grounding help/hurt deltas and verdict scalars">
+      <figcaption><b>GS-grounding help/hurt.</b> Dα preserved; no fθ-enrichment (discovery gap 0.78&nbsp;% &lt; 1.28&nbsp;% baseline); near-vacuum from-z current ratio 0.98 (vs 0.03 standalone) — <code>grounding_enriched_latent=false</code>. Magnetics alone cannot ground the internal current. <em>(grounding_metrics_v0.json · help_hurt_dalpha, grounding_verdict, discovery_discriminate)</em></figcaption>
+    </figure>
+
+    <h3 id="s3d">§3.4 — The MSE data wall</h3>
+    <p>
+      The proposed fix — feed the latent an internal-current diagnostic (MSE) — ran into a
+      <strong>presence-vs-content wall</strong>. MSE (<code>ams</code>) is present in 4,882 shots, but the
+      time-resolved pitch-angle array (<code>gamma</code>) is <strong>~99&nbsp;% NaN</strong> (per-element
+      finite fraction ≈ 0.86&nbsp;%, valid only during beam-on), and a large fraction of shots carry no
+      <code>gamma</code> at all. The MSE→internal-current half — precisely the term targeting the
+      under-determination — is unrealizable from level-1 as a dense input.
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s2-mse-finite-hist.svg" alt="MSE gamma finite-fraction: element-sparse but slice-dense">
+      <figcaption><b>MSE is element-sparse but slice-dense.</b> Across sampled shots only ~0.86&nbsp;% of (time×channel) elements are finite (most channel columns are padded), yet ~56&nbsp;% of time slices carry ≥1 live channel during beam-on. The sparsity is the wall for dense input — but the slice-density is exactly what makes held-out MSE usable as <em>eval truth</em>. <em>(level-1 ams re-extraction; verified vs the prior ~0.7–1.0&nbsp;% finding)</em></figcaption>
+    </figure>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/fig-s2-mse-presence-content.svg" alt="MSE presence vs usable content">
+      <figcaption><b>Presence ≠ usable content.</b> <code>ams</code> is present in 4,882 shots, but only ~half carry the actual pitch-angle array (≈2,400 estimated) — presence-counting overstated the available MSE. <em>(gs_integrated_feasibility.json + level-1 re-extraction)</em></figcaption>
+    </figure>
+
+    <h2 id="s4">§4 — What carries forward</h2>
+    <p>The completed work hands the pivot three durable assets and one re-framing:</p>
+    <ul>
+      <li><strong>A validated, EFIT-free GS forward operator</strong> (<code>gs/operator.py</code>) — a
+        geometry-only differentiable observation operator (vacuum round-trip, on-axis Bz to 1e-6,
+        FD-vs-analytic to 1e-3) already wired as the magnetics-consistency head. This is exactly the
+        forward model a learned multi-modal filter wraps, and that a classical EnKF measurement update needs.</li>
+      <li><strong>The latent SSM + calibration stack</strong> — engine, filter/RTS-smoother, split-conformal
+        calibration, the leakage-audit and cross-family hold-out machinery — all target-agnostic and reusable.</li>
+      <li><strong>The MSE wall, re-cast</strong> — MSE is too sparse to be a dense <em>input</em>, but it is a
+        <em>raw</em> diagnostic (not a banned solver output), and slice-dense during beam-on. So it becomes
+        the <strong>validation key</strong>: train MSE-free, validate against held-out MSE.</li>
+      <li><strong>The under-determination insight</strong> — magnetics alone cannot constrain the interior;
+        closure requires time-history through a forward dynamics model + a Te-derived conductivity, plus
+        multi-modal channels. That is the design brief for the pivot.</li>
+    </ul>
+    <p>
+      → Continue in <a href="/imas-ambix/mse-free-current-recovery-v0.html"><strong>mse-free-current-recovery-v0</strong></a>
+      (the Stage-3 pivot) and the north-star <a href="/imas-ambix/physics-world-model-strategy.html">physics-world-model-strategy</a> §9.
+    </p>
+
+    <h2 id="s5">§5 — Honesty ledger</h2>
+    <p>For the record, the corrections and qualifications that this documentation makes explicit:</p>
+    <table class="r-ledger">
+      <thead><tr><th>Claim</th><th>Honest status</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Engine beats baseline on forecast CRPS</td><td class="r-verdict-loss">FALSE — loses at every horizon</td><td>engine_metrics_v2.json · forecast_crps_by_horizon (96.8 %-stationary target favours persistence)</td></tr>
+        <tr><td>Engine wins long-horizon transient NLL</td><td class="r-verdict-win">TRUE at h≥5 only</td><td>engine_metrics_v2.json · forecast_nll_transient_by_horizon (loses at h=1,2)</td></tr>
+        <tr><td>Engine OOD-AUROC 0.81</td><td class="r-verdict-honest">MISLABEL — 0.81 was the static ensemble; engine innovation = 0.748</td><td>engine_metrics_v2.json · ood_honesty</td></tr>
+        <tr><td>Filtering calibrated</td><td class="r-verdict-win">TRUE — coverage 0.913 ∈ [0.88, 0.92]</td><td>engine_metrics_v2.json · filtering.coverage_90_conf</td></tr>
+        <tr><td>GS residual beats trivial transient detector (Q1)</td><td class="r-verdict-loss">FALSE — beaten by |dB/dt| on both labels</td><td>gs_q1_detection.json · verdict.q1_pass=false</td></tr>
+        <tr><td>GS grounding recovers internal current</td><td class="r-verdict-loss">FALSE — near-vacuum ratio 0.98; magnetics under-determine the interior</td><td>grounding_metrics_v0.json · grounding_verdict</td></tr>
+        <tr><td>MSE available from level-1 for dense input</td><td class="r-verdict-loss">FALSE — ~99 % NaN (beam-on only); usable only as eval truth</td><td>level-1 ams re-extraction; gs_integrated_feasibility.json</td></tr>
+        <tr><td>GS forward operator is a reusable asset</td><td class="r-verdict-win">TRUE — validated, EFIT-free, differentiable</td><td>gs/operator.py; gs_operator_summary.json</td></tr>
+      </tbody>
+    </table>
+
+  </main>
+</body>
+</html>
