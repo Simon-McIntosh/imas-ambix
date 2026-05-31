@@ -1,0 +1,509 @@
+{
+  "schema": "gs_integrated_feasibility_v0",
+  "meta": {
+    "task": "T9 integrated-input feasibility scoping",
+    "n_shots_inventory": 17111,
+    "n_shots_with_regime_scalars": 9144,
+    "target": "dalpha_primary (xim)",
+    "regime_split_axis": "by-current-density (LOCKED v0 joint_p84 OOD box)",
+    "ood_box": {
+      "ip_min_kA": 666.9210327148437,
+      "ip_max_kA": 986.0563916015625,
+      "ne_min_1e19": 13.40141355440582,
+      "ne_max_1e19": 27.403331717508483,
+      "description": "High-I\u209a (>667 kA) \u00d7 high-density (>13.40\u00d710\u00b9\u2079 m\u207b\u00b2) corner"
+    },
+    "engine_grid_hz": 1000.0,
+    "cal_viability_floor": 200,
+    "gs_envelope_note": "GS-geometry restriction uses the cheap proxy efm-present AND shot in [11764,30473] (the union of the 3 campaign sampled-spans). It is NON-BINDING: all MSE/Thomson shots fall inside the envelope and have efm, so n_gs_envelope \u2248 n_total_coavailable. Exact per-shot setup-signature matching is deferred to T10 (cheap there \u2014 the corpus is already small).",
+    "locks_honoured": [
+      "raw signals only (no efm/esm/xdc/amm outputs as inputs or labels)",
+      "efm GEOMETRY-only (T1)",
+      "target = D\u03b1 (xim)",
+      "regime-split = by-current-density",
+      "integrated input set SUPERSEDES mag+ane for the grounded engine"
+    ],
+    "open_decisions_surfaced": [
+      "uq-level-v0",
+      "extrapolation-coordinates"
+    ],
+    "sources": {
+      "family_inventory": "/work/projects/imas_gpu/mast/manifests/statespace_family_inventory.json",
+      "regime_scalars": "/work/projects/imas_gpu/mast/manifests/statespace_regime_scalars.json",
+      "splits_dalpha_v0_locked_box": "/work/projects/imas_gpu/mast/manifests/statespace_splits_dalpha_v0.json"
+    }
+  },
+  "diagnostic_inventory": [
+    {
+      "name": "magnetics (ama+amb+amc)",
+      "groups": [
+        "ama",
+        "amb",
+        "amc"
+      ],
+      "coverage_mode": "all-of",
+      "per_group_coverage": {
+        "ama": 14208,
+        "amb": 15149,
+        "amc": 15163
+      },
+      "n_shots": 14091,
+      "native_hz": 5000.0,
+      "constrains": "boundary + total I\u209a + low flux moments (NOT internal p\u2032/FF\u2032)",
+      "alignment": "interp_to_grid",
+      "note": "v0 baseline input. amm (Omaha MHz) excluded per lock."
+    },
+    {
+      "name": "interferometer (ane)",
+      "groups": [
+        "ane"
+      ],
+      "coverage_mode": "single",
+      "per_group_coverage": {
+        "ane": 14090
+      },
+      "n_shots": 14090,
+      "native_hz": 66000.0,
+      "constrains": "line-integrated n\u2091 (weak pressure-scale prior)",
+      "alignment": "decimate_then_interp",
+      "note": "v0 baseline input."
+    },
+    {
+      "name": "MSE (ams)",
+      "groups": [
+        "ams"
+      ],
+      "coverage_mode": "single",
+      "per_group_coverage": {
+        "ams": 4882
+      },
+      "n_shots": 4882,
+      "native_hz": 2000.0,
+      "constrains": "magnetic pitch angle \u2192 INTERNAL current / q-profile (THE constraint magnetics lack \u2014 the p\u2032/FF\u2032 current term)",
+      "alignment": "interp_to_grid",
+      "note": "~15-35 polarimetry channels (acoeff trailing dim). The single most physically valuable internal-current constraint; also the BINDING co-availability constraint (\u22484882 shots)."
+    },
+    {
+      "name": "Thomson any (ayc|atm|aye)",
+      "groups": [
+        "ayc",
+        "atm",
+        "aye"
+      ],
+      "coverage_mode": "any-of",
+      "per_group_coverage": {
+        "ayc": 4665,
+        "atm": 6122,
+        "aye": 3792
+      },
+      "n_shots": 10789,
+      "native_hz": 240.0,
+      "constrains": "T\u2091(r), n\u2091(r) \u2192 kinetic PRESSURE p(\u03c8) (the p\u2032 term in GS)",
+      "alignment": "hold_at_native_cadence",
+      "note": "any-of the three TS systems (combined ayc / core atm / edge aye). SPARSE (~5 ms) vs the 1 ms grid \u2192 the GS prior weights p(\u03c8) only at measurement times, not every grid step."
+    },
+    {
+      "name": "Thomson combined (ayc)",
+      "groups": [
+        "ayc"
+      ],
+      "coverage_mode": "single",
+      "per_group_coverage": {
+        "ayc": 4665
+      },
+      "n_shots": 4665,
+      "native_hz": 240.0,
+      "constrains": "T\u2091(r), n\u2091(r) \u2192 kinetic PRESSURE p(\u03c8) (full-profile)",
+      "alignment": "hold_at_native_cadence",
+      "note": "combined-system TS \u2014 the cleanest single full-profile pressure source."
+    },
+    {
+      "name": "Thomson core (atm)",
+      "groups": [
+        "atm"
+      ],
+      "coverage_mode": "single",
+      "per_group_coverage": {
+        "atm": 6122
+      },
+      "n_shots": 6122,
+      "native_hz": 200.0,
+      "constrains": "core T\u2091(r), n\u2091(r) \u2192 on-axis pressure",
+      "alignment": "hold_at_native_cadence",
+      "note": "core-only TS \u2014 highest single-TS coverage (6122) but core-only."
+    },
+    {
+      "name": "bolometer (abm)",
+      "groups": [
+        "abm"
+      ],
+      "coverage_mode": "single",
+      "per_group_coverage": {
+        "abm": 12166
+      },
+      "n_shots": 12166,
+      "native_hz": 2500.0,
+      "constrains": "radiated power (edge/impurity/boundary radiation)",
+      "alignment": "interp_to_grid",
+      "note": "~32 channels. Broadly available (12166)."
+    },
+    {
+      "name": "soft-xray (xsx)",
+      "groups": [
+        "xsx"
+      ],
+      "coverage_mode": "single",
+      "per_group_coverage": {
+        "xsx": 13944
+      },
+      "n_shots": 13944,
+      "native_hz": 500000.0,
+      "constrains": "emissivity (core profile shape / tomography)",
+      "alignment": "decimate_aggregate_then_interp",
+      "note": "VERY fast (500 kHz, 300k samples/chan) \u2192 MUST decimate/aggregate to the 1 ms grid before ingest. Broadly available (13944)."
+    },
+    {
+      "name": "CXRS (act)",
+      "groups": [
+        "act"
+      ],
+      "coverage_mode": "single",
+      "per_group_coverage": {
+        "act": 7991
+      },
+      "n_shots": 7991,
+      "native_hz": 200.0,
+      "constrains": "T\u1d62(r), toroidal rotation (ion pressure / rotation prior)",
+      "alignment": "hold_at_native_cadence",
+      "note": "SPARSE (~5 ms). Secondary kinetic constraint (7991)."
+    },
+    {
+      "name": "visible camera (rbb)",
+      "groups": [
+        "rbb"
+      ],
+      "coverage_mode": "single",
+      "per_group_coverage": {
+        "rbb": 9527
+      },
+      "n_shots": 9527,
+      "native_hz": 1000.0,
+      "constrains": "boundary / emission pattern (shape prior, via a FEATURE)",
+      "alignment": "feature_then_interp",
+      "note": "FRAMES (T,1024,1024) uint16 \u2014 fed as a COMPACT feature, NEVER raw pixels into the RKN latent (see camera_feature_plan)."
+    },
+    {
+      "name": "IR cameras (rir/rit)",
+      "groups": [
+        "rir",
+        "rit"
+      ],
+      "coverage_mode": "any-of",
+      "per_group_coverage": {
+        "rir": 25,
+        "rit": 14
+      },
+      "n_shots": 25,
+      "native_hz": 0.0,
+      "constrains": "(divertor/target heat load \u2014 EXCLUDED)",
+      "alignment": "excluded",
+      "note": "ESSENTIALLY ABSENT in level-1 (rir\u224825, rit\u224814 shots). Requiring IR as an input collapses the corpus \u2192 EXCLUDED."
+    }
+  ],
+  "coavailability_matrix": [
+    {
+      "key": "v0_baseline",
+      "label": "mag+ane (v0 baseline)",
+      "target": "dalpha_primary (xim)",
+      "require_groups": [
+        "ama",
+        "amb",
+        "amc",
+        "ane"
+      ],
+      "any_of": [],
+      "n_total_coavailable": 13256,
+      "n_gs_envelope": 13025,
+      "n_train": 11229,
+      "n_calibration": 1531,
+      "n_test_ood_regime": 265,
+      "cal_adequate": true,
+      "rationale": "The Stage-1 input-modality-v0 lock the grounded engine supersedes."
+    },
+    {
+      "key": "core_mse",
+      "label": "mag+ane+MSE",
+      "target": "dalpha_primary (xim)",
+      "require_groups": [
+        "ama",
+        "amb",
+        "amc",
+        "ane",
+        "ams"
+      ],
+      "any_of": [],
+      "n_total_coavailable": 4670,
+      "n_gs_envelope": 4650,
+      "n_train": 3979,
+      "n_calibration": 543,
+      "n_test_ood_regime": 128,
+      "cal_adequate": true,
+      "rationale": "Add the internal-current/q constraint (MSE) magnetics lack."
+    },
+    {
+      "key": "core_internal",
+      "label": "mag+ane+MSE+TS-any",
+      "target": "dalpha_primary (xim)",
+      "require_groups": [
+        "ama",
+        "amb",
+        "amc",
+        "ane",
+        "ams"
+      ],
+      "any_of": [
+        "ayc",
+        "atm",
+        "aye"
+      ],
+      "n_total_coavailable": 4415,
+      "n_gs_envelope": 4397,
+      "n_train": 3757,
+      "n_calibration": 512,
+      "n_test_ood_regime": 128,
+      "cal_adequate": true,
+      "rationale": "Internal-profile CORE: current/q (MSE) + pressure p(\u03c8) (Thomson). TS-any maximises N at near-zero cost beyond MSE."
+    },
+    {
+      "key": "core_internal_combined",
+      "label": "mag+ane+MSE+Thomson(ayc)",
+      "target": "dalpha_primary (xim)",
+      "require_groups": [
+        "ama",
+        "amb",
+        "amc",
+        "ane",
+        "ams",
+        "ayc"
+      ],
+      "any_of": [],
+      "n_total_coavailable": 2985,
+      "n_gs_envelope": 2972,
+      "n_train": 2549,
+      "n_calibration": 348,
+      "n_test_ood_regime": 75,
+      "cal_adequate": true,
+      "rationale": "Internal core with the cleanest single full-profile pressure source."
+    },
+    {
+      "key": "core_plus_emission",
+      "label": "mag+ane+MSE+TS-any+bolo+SXR",
+      "target": "dalpha_primary (xim)",
+      "require_groups": [
+        "ama",
+        "amb",
+        "amc",
+        "ane",
+        "ams",
+        "abm",
+        "xsx"
+      ],
+      "any_of": [
+        "ayc",
+        "atm",
+        "aye"
+      ],
+      "n_total_coavailable": 3659,
+      "n_gs_envelope": 3643,
+      "n_train": 3100,
+      "n_calibration": 423,
+      "n_test_ood_regime": 120,
+      "cal_adequate": true,
+      "rationale": "Internal core + broadly-available emission (radiation + SXR shape)."
+    },
+    {
+      "key": "full",
+      "label": "mag+ane+MSE+TS-any+bolo+SXR+camera",
+      "target": "dalpha_primary (xim)",
+      "require_groups": [
+        "ama",
+        "amb",
+        "amc",
+        "ane",
+        "ams",
+        "abm",
+        "xsx",
+        "rbb"
+      ],
+      "any_of": [
+        "ayc",
+        "atm",
+        "aye"
+      ],
+      "n_total_coavailable": 3294,
+      "n_gs_envelope": 3279,
+      "n_train": 2785,
+      "n_calibration": 380,
+      "n_test_ood_regime": 114,
+      "cal_adequate": true,
+      "rationale": "Maximal integrated input set incl. the visible-camera feature."
+    }
+  ],
+  "alignment_plan": [
+    {
+      "diagnostic": "magnetics (ama+amb+amc)",
+      "native_hz": 5000.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 5.0,
+      "strategy": "interp_to_grid",
+      "rationale": "native 5000 Hz \u2265 grid \u2192 linear interp onto the grid (resample_to_grid)."
+    },
+    {
+      "diagnostic": "interferometer (ane)",
+      "native_hz": 66000.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 66.0,
+      "strategy": "decimate_then_interp",
+      "rationale": "native 66000 Hz >> grid -> decimate to grid (anti-alias)."
+    },
+    {
+      "diagnostic": "MSE (ams)",
+      "native_hz": 2000.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 2.0,
+      "strategy": "interp_to_grid",
+      "rationale": "native 2000 Hz \u2265 grid \u2192 linear interp onto the grid (resample_to_grid)."
+    },
+    {
+      "diagnostic": "Thomson any (ayc|atm|aye)",
+      "native_hz": 240.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 0.24,
+      "strategy": "hold_at_native_cadence",
+      "rationale": "native 240 Hz is ~4.2\u00d7 SLOWER than the 1000 Hz grid \u2192 the model sees a held/interpolated value between samples; the GS prior should weight this constraint at measurement times only (sparse-likelihood), not every grid step."
+    },
+    {
+      "diagnostic": "Thomson combined (ayc)",
+      "native_hz": 240.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 0.24,
+      "strategy": "hold_at_native_cadence",
+      "rationale": "native 240 Hz is ~4.2\u00d7 SLOWER than the 1000 Hz grid \u2192 the model sees a held/interpolated value between samples; the GS prior should weight this constraint at measurement times only (sparse-likelihood), not every grid step."
+    },
+    {
+      "diagnostic": "Thomson core (atm)",
+      "native_hz": 200.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 0.2,
+      "strategy": "hold_at_native_cadence",
+      "rationale": "native 200 Hz is ~5.0\u00d7 SLOWER than the 1000 Hz grid \u2192 the model sees a held/interpolated value between samples; the GS prior should weight this constraint at measurement times only (sparse-likelihood), not every grid step."
+    },
+    {
+      "diagnostic": "bolometer (abm)",
+      "native_hz": 2500.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 2.5,
+      "strategy": "interp_to_grid",
+      "rationale": "native 2500 Hz \u2265 grid \u2192 linear interp onto the grid (resample_to_grid)."
+    },
+    {
+      "diagnostic": "soft-xray (xsx)",
+      "native_hz": 500000.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 500.0,
+      "strategy": "decimate_aggregate_then_interp",
+      "rationale": "native 500000 Hz is ~500\u00d7 FASTER than the grid \u2192 aggregate (mean/RMS within each 1 ms bin) then place on the grid; feeding raw is wasteful and aliases fast MHD."
+    },
+    {
+      "diagnostic": "CXRS (act)",
+      "native_hz": 200.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 0.2,
+      "strategy": "hold_at_native_cadence",
+      "rationale": "native 200 Hz is ~5.0\u00d7 SLOWER than the 1000 Hz grid \u2192 the model sees a held/interpolated value between samples; the GS prior should weight this constraint at measurement times only (sparse-likelihood), not every grid step."
+    },
+    {
+      "diagnostic": "visible camera (rbb)",
+      "native_hz": 1000.0,
+      "engine_grid_hz": 1000.0,
+      "rate_ratio_vs_grid": 1.0,
+      "strategy": "feature_then_interp",
+      "rationale": "frames \u2192 extract a compact per-frame feature (see camera_feature_plan), then interp the feature vector onto the grid."
+    }
+  ],
+  "camera_feature_plan": {
+    "principle": "Feed rbb as a COMPACT per-frame feature vector aligned to the engine grid \u2014 NEVER raw (T,1024,1024) pixels into the RKN latent (that would dwarf the latent dim and destabilise the filter).",
+    "options": [
+      {
+        "name": "magvit2_token_pool",
+        "detail": "Reuse the existing Open-MAGVIT2 frame tokenizer (imas_ambix.tokenizer.frames.OpenMagvit2Tokenizer / the in-process stream_encode.py path): 256\u219216\u00d716 LFQ tokens per frame; pool/embed the 16\u00d716 token grid to a small (~16-64 dim) per-frame vector, then interp onto the 1 ms grid.",
+        "pros": "reuses a validated encoder + the corpus encode pipeline.",
+        "cons": "token grid \u2192 vector pooling needs a learned/avg projection."
+      },
+      {
+        "name": "camera_boundary_edge",
+        "detail": "Reuse statespace.camera_boundary: Sobel emission-edge \u2192 a ~36-dim boundary-radius(angle) vector per frame (pixel-space shape proxy). Cheap, no GPU, interpretable.",
+        "pros": "no model, CPU-only, directly a shape prior.",
+        "cons": "pixel-space (no camera calibration \u2192 not a physical LCFS)."
+      },
+      {
+        "name": "small_cnn_embedding",
+        "detail": "A small CNN (e.g. 4-conv) trained jointly with the engine to emit a ~32-dim per-frame embedding.",
+        "pros": "task-tuned feature.",
+        "cons": "adds trainable params + a frame loader to the engine."
+      }
+    ],
+    "recommendation": "Start with camera_boundary_edge (CPU, zero new training surface) as a shape prior; promote to magvit2_token_pool if the camera earns lift. Either way the camera is a SECONDARY/optional input \u2014 it costs ~1k shots of corpus (see the matrix) and is not part of the internal-profile core."
+  },
+  "ir_absence": {
+    "groups": {
+      "rir": 25,
+      "rit": 14
+    },
+    "n_shots_any_ir": 39,
+    "decision": "EXCLUDED",
+    "reason": "IR cameras are essentially absent in level-1 (rir=25, rit=14 shots out of ~17k). Requiring IR as an input collapses the corpus to single digits \u2014 excluded as a required input."
+  },
+  "recommendation": {
+    "headline": "MSE is the BINDING co-availability constraint: adding MSE drops the corpus from ~13.3k (mag+ane) to ~4.7k, but MSE is the ONE diagnostic that directly constrains the internal current/q profile magnetics cannot see \u2014 so it is non-negotiable for grounding. Thomson-any then costs almost nothing beyond MSE (MSE shots overwhelmingly carry TS).",
+    "options": [
+      {
+        "option": "RECOMMENDED \u2014 internal-profile core (MSE + Thomson-any)",
+        "combo_key": "core_internal",
+        "label": "mag+ane+MSE+TS-any",
+        "n_total_coavailable": 4415,
+        "n_train": 3757,
+        "n_calibration": 512,
+        "n_test_ood_regime": 128,
+        "cal_adequate": true,
+        "why": "Adds BOTH the current/q constraint (MSE) and the pressure p(\u03c8) constraint (Thomson) \u2014 the two GS internal-profile terms \u2014 at the minimal corpus cost beyond MSE alone. Comfortable calibration set. This is the smallest set that can actually ground the latent."
+      },
+      {
+        "option": "OPTION B \u2014 internal core + emission (add bolometer + SXR)",
+        "combo_key": "core_plus_emission",
+        "label": "mag+ane+MSE+TS-any+bolo+SXR",
+        "n_total_coavailable": 3659,
+        "n_train": 3100,
+        "n_calibration": 423,
+        "n_test_ood_regime": 120,
+        "cal_adequate": true,
+        "why": "Adds broadly-available radiation (abm) + core-shape SXR (xsx) for a richer integrated inference, at a modest further corpus cost. SXR needs 500 kHz\u21921 kHz aggregation. Good if emission earns lift."
+      },
+      {
+        "option": "OPTION C \u2014 full integrated set (+ visible-camera feature)",
+        "combo_key": "full",
+        "label": "mag+ane+MSE+TS-any+bolo+SXR+camera",
+        "n_total_coavailable": 3294,
+        "n_train": 2785,
+        "n_calibration": 380,
+        "n_test_ood_regime": 114,
+        "cal_adequate": true,
+        "why": "Maximal input set incl. the rbb camera FEATURE. Smallest corpus; camera is a secondary shape prior. Choose only if the camera feature is shown to help and the cal set stays viable."
+      }
+    ],
+    "do_not_use": {
+      "core_internal_combined": "mag+ane+MSE+Thomson(ayc) specifically restricts to the COMBINED TS system and roughly halves the core corpus vs TS-any for no physics gain over any-TS pressure \u2014 prefer TS-any."
+    },
+    "orchestrator_action": "LOCK ONE integrated-input-set option above as the grounded-engine input modality (it supersedes input-modality-v0=mag+ane), then dispatch T10 (integrated-grounding retrain) gated on the locked set. uq-level-v0 and extrapolation-coordinates remain OPEN and must be settled before T10."
+  }
+}
