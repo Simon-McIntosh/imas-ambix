@@ -18,11 +18,11 @@
 <meta name="plan-sprint" content="S1">
 <meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-19 10:30">
+<meta name="plan-modified" content="2026-05-29">
 <meta name="plan-depends-on" content="">
-<meta name="plan-blocks" content="tokenizers">
+<meta name="plan-blocks" content="">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -750,14 +750,14 @@ console session is fine since both downloads were launched via
 <hr/>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="camera-selection-v0" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="camera-selection-v0" data-choice="rbb-only" data-by="agent/sonnet (housekeeping)" data-when="2026-05-29T08:52:07+00:00">
     <p class="r-dec-q">Camera selection for v0 training</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="rbb-only">rbb only — 9,527 shots, widest coverage</button>
+      <button class="r-opt chosen" data-value="rbb-only">rbb only — 9,527 shots, widest coverage</button>
       <button class="r-opt" data-value="rbb-rba">rbb + rba — both visible cameras, ~6,155 overlap shots</button>
       <button class="r-opt" data-value="rbb-rba-rir">rbb + rba + rir — all cameras including IR</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">All v0 downstream work used rbb exclusively: 9,528 rbb shots tokenized end-to-end (stream_encode.py, 4.02B tokens). rba/rir not used in v0.</p>
     </div>
 </section>
 </main>

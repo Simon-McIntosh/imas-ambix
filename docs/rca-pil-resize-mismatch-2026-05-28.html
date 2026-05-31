@@ -13,16 +13,17 @@
 <meta name="plan-effort" content="S">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-28">
+<meta name="plan-modified" content="2026-05-29">
 <title>RCA — PIL vs F.interpolate resize mismatch (C5) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
 
 <p><span class="status shipped"><span class="dot"></span>Incident RCA</span> —
-<a href="/imas-ambix/plasma-decoder-finetune.html">plasma-decoder-finetune</a>
+<a href="/imas-ambix/archive/plasma-decoder-finetune.html">plasma-decoder-finetune</a>
 production run 1209004 measured training-time best rFID 12.488 (apparent 23&nbsp;%
 improvement from baseline 16.25), but the matching bench re-run 1209047
 measured rFID <strong>27.40 — a 69&nbsp;% regression below baseline</strong>.
@@ -217,9 +218,9 @@ IS improving the decoder, just at smaller magnitude than the broken
 measurement claimed.</li>
 
 <li><strong>v1 plans remain blocked.</strong>
-<a href="/imas-ambix/tokenizer-transient-fidelity.html">transient-fidelity</a>
+<a href="/imas-ambix/archive/tokenizer-transient-fidelity.html">transient-fidelity</a>
 and
-<a href="/imas-ambix/tokenizer-cosmos-evaluation.html">cosmos-evaluation</a>
+<a href="/imas-ambix/archive/tokenizer-cosmos-evaluation.html">cosmos-evaluation</a>
 each carry a <code>f-phase0-trigger-check</code> followup that
 consumes the bench result; both will re-fire when the 1209073-derived
 ckpt is benched.  Until then, neither plan activates.</li>
@@ -400,6 +401,11 @@ batch=4 + encoder/quantize eval mode.  Companion fix to this RCA.</strong></li>
 </tbody>
 </table></div>
 
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-20260529T085221556165" data-who="agent/sonnet (housekeeping)" data-when="2026-05-29T08:52:21+00:00">
+    <div class="r-comment-body">Loop closed 2026-05-29: C5 (resize) was a real fix; C6/C7 (encoder batch/eval) were empirically no-ops (Open-MAGVIT2 encoder is invariant — train-eval rFID byte-identical across 1209073/1209092). The C5+C6+C7 corrected bench still showed the decoder fine-tune ~7pt worse than baseline; final verdict = fine-tune NEGATIVE, and a later decode-precision diagnostic (job 1209184) ruled out bf16 as the cause. See plasma-decoder-finetune (shipped).</div>
+</div>
+</section>
 </main>
 </body>
 </html>
