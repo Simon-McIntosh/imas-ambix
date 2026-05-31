@@ -4,18 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"  content="imas-ambix">
-  <meta name="reckon-type"   content="plan">
-  <meta name="plan-slug"     content="physics-world-model-strategy">
-  <meta name="plan-roi"      content="high">
-  <meta name="plan-effort"   content="XL">
-  <meta name="plan-tier"     content="opus">
-  <meta name="plan-summary"  content="Foundational objective: a learned probabilistic state-space model of the tokamak plasma — flexible where our equations are wrong, structured in invariant coordinates where extrapolation demands it — that turns scarce shots into state estimation, what-if forecasting, and discovered structure, and extrapolates toward ITER.">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="physics-world-model-strategy">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-summary" content="Foundational objective: a learned probabilistic state-space model of the tokamak plasma — flexible where our equations are wrong, structured in invariant coordinates where extrapolation demands it — that turns scarce shots into state estimation, what-if forecasting, and discovered structure, and extrapolates toward ITER.">
   <meta name="plan-milestone" content="M0">
-  <meta name="plan-sprint"   content="S7">
+  <meta name="plan-sprint" content="S7">
   <meta name="plan-depends-on" content="probabilistic-state-space-methods,tokenizer-spatiotemporal-survey">
   <title>Physics World Model — Strategy &amp; North Star | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-title" content="Physics World Model — Strategy &amp; North Star">
+<meta name="plan-modified" content="2026-05-31">
+<meta name="plan-version" content="5">
 </head>
 <body>
   <main class="plan-doc">
@@ -77,9 +80,10 @@
       <li><strong>Transferable understanding</strong> — discovered structure (equation form, coefficient scaling) carries MAST → JET → ITER where raw data never will. This is the real answer to ITER's data scarcity: bootstrap on physics, not pixels.</li>
     </ul>
 
-    <h2 id="s9">§9 — Two-stage plan</h2>
+    <h2 id="s9">§9 — Staged plan (three stages; Stage-3 pivot added 2026-05-31)</h2>
     <p><strong>Stage 1 — the engine, on raw multi-modal MAST data (now).</strong> Build and validate a learned stochastic latent state-space model + Bayesian filter with <em>calibrated</em> uncertainty and OOD flagging, across the operating space. First concrete target: predict a <em>whole held-out diagnostic family</em> (e.g. Dα, or the camera-derived emission boundary) from the other raw families, and forecast it through its transients, with honest error bars — see <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a>. Cross-family (not within-family probe-from-probes), EFIT-free. Acceptance is calibration, not reconstruction fidelity.</p>
     <p><strong>Stage 2 — physical grounding + discovery.</strong> Add our own GS prior on raw magnetics; the latent becomes physically grounded; virtual diagnostics become physical; GS-residual monitoring becomes a discovery instrument. Structure/coefficient discovery (SINDy/Koopman on the latent dynamics) rides on top, expressed toward dimensionless coordinates for extrapolation.</p>
+    <p><strong>Stage 3 — MSE-free multi-modal current-profile recovery (the pivot, 2026-05-31).</strong> Stages&nbsp;1–2 delivered honest results that re-centred the project on its founding multi-modal motivation. Stage-1's engine is calibration-honest, but a trivial persistence-of-nowcast wins the headline proper-scores on its near-stationary Dα target (dynamics did not pay); Stage-2 confirmed that magnetics + boundary <em>cannot</em> constrain the internal current profile, and that MSE is unusable from level-1 as a dense input — while delivering a validated, EFIT-free Grad–Shafranov forward operator. Stage-3 turns both findings into the ITER-relevant thesis: <em>at ITER startup there is no MSE, yet the current profile must still be recovered.</em> We build an <strong>end-to-end observation→state deep neural filter</strong> on raw multi-modal diagnostics (magnetics + interferometer + bolometer + soft-X-ray + visible camera + Thomson) that recovers MSE-derived internal-current observables it never sees as input, and must <strong>beat a classical EnKF baseline</strong> (which we stand up — it does not yet exist). The MSE wall becomes the <strong>validation key</strong>: train MSE-free, validate against held-out raw MSE on beam-on slices. Current evolution is genuinely dynamic, so dynamics should finally pay where the near-stationary Dα target denied them. See <a href="/imas-ambix/mse-free-current-recovery-v0.html">mse-free-current-recovery-v0</a> (sprint&nbsp;S9). Grounded in the 7-reader deep review of 2026-05-31.</p>
 
     <h2 id="s10">§10 — Honest limits</h2>
     <p>We will not rediscover gyrokinetics or two-fluid MHD from data — the true equations are high-dimensional, multi-scale, turbulent, stochastic, and not closed. The realistic, valuable target is <strong>reduced-order / effective dynamics and their coefficients</strong>: Koopman modes, sparse reduced models, effective transport coefficients, mode-coupling terms, force-balance departures. Camera emission is an <em>indirect, projected, line-integrated</em> observation — it constrains a latent that predicts camera dynamics, not the physical state directly; physical grounding needs magnetics (Stage 2). And some ITER regimes are genuinely outside existing dimensionless support — there, the right behaviour is the model flagging "I don't know," not a confident extrapolation.</p>
@@ -88,57 +92,53 @@
     <p>The centre of gravity moves from <em>generative camera-video world model</em> to <em>probabilistic state-space model + assimilation + discovery</em>. The camera becomes <strong>one diagnostic modality</strong> feeding the state estimator; generating camera streams is a <strong>byproduct, never the guiding goal</strong>. The tokenizer/corpus work (<a href="/imas-ambix/world-model-v0.html">world-model-v0</a>, <a href="/imas-ambix/tokenizer-spatiotemporal-pivot.html">tokenizer-spatiotemporal-pivot</a>) is not wasted — it is representation learning for one modality — but it is no longer the headline. The rFID dead-end (<a href="/imas-ambix/plasma-decoder-finetune.html">plasma-decoder-finetune</a>) becomes a non-issue: reconstruction fidelity was never the objective; calibrated state estimation and discovered structure are.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="uq-level-v0" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What level of probabilistic machinery for the Stage-1 engine?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="ensemble-plus-conformal">deep-ensemble + conformal calibration (recommended — lightest genuinely-calibrated level)</button>
-          <button class="r-opt" data-value="deterministic-first">deterministic observer first, add UQ later</button>
-          <button class="r-opt" data-value="full-variational">full variational/Bayesian filter from the start</button>
-        </p>
-        <p class="r-dec-rat">Recommend deep-ensemble + conformal intervals for v0: honest, distribution-free coverage guarantees, cheap, no MCMC. Escalate to a variational filter only if calibration/assimilation demands it. Keeps us from over-committing to Bayes (§3).</p>
-      </div>
-
-      <div class="r-dec" data-key="extrapolation-coordinates" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Do we build toward dimensionless/invariant latent coordinates now, or defer?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="design-for-invariance">design for invariance from v0 (recommended — extrapolation is a v0 design constraint, even if not exercised yet)</button>
-          <button class="r-opt" data-value="defer-to-stage2">raw coordinates for v0; introduce invariance in Stage 2</button>
-        </p>
-        <p class="r-dec-rat">Recommend designing the state representation so dimensionless scaling can be imposed/learned, even if cross-machine extrapolation isn't tested until later — retrofitting invariance is costly.</p>
-      </div>
-
-      <div class="r-dec" data-key="camera-role" data-choice="one-modality" data-by="Simon McIntosh" data-when="2026-05-29">
-        <p class="r-dec-q">What is the camera's role in the world model?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="one-modality">one diagnostic modality among many; generation is a byproduct</button>
-          <button class="r-opt" data-value="primary">primary modality; generative video is the goal</button>
-        </p>
-        <p class="r-dec-rat">Locked by the user 2026-05-29: "eventually it would be nice to also have the facility to generate camera streams - but this is a byproduct and is in no way our guiding goal." Camera is one input modality to the state estimator.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="uq-level-v0" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">What level of probabilistic machinery for the Stage-1 engine?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="ensemble-plus-conformal">deep-ensemble + conformal calibration (recommended — lightest genuinely-calibrated level)</button>
+      <button class="r-opt" data-value="deterministic-first">deterministic observer first, add UQ later</button>
+      <button class="r-opt" data-value="full-variational">full variational/Bayesian filter from the start</button>
+      </p>
+    <p class="r-dec-rat">Recommend deep-ensemble + conformal intervals for v0: honest, distribution-free coverage guarantees, cheap, no MCMC. Escalate to a variational filter only if calibration/assimilation demands it. Keeps us from over-committing to Bayes (§3).</p>
+    </div>
+<div class="r-dec" data-key="extrapolation-coordinates" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Do we build toward dimensionless/invariant latent coordinates now, or defer?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="design-for-invariance">design for invariance from v0 (recommended — extrapolation is a v0 design constraint, even if not exercised yet)</button>
+      <button class="r-opt" data-value="defer-to-stage2">raw coordinates for v0; introduce invariance in Stage 2</button>
+      </p>
+    <p class="r-dec-rat">Recommend designing the state representation so dimensionless scaling can be imposed/learned, even if cross-machine extrapolation isn&#x27;t tested until later — retrofitting invariance is costly.</p>
+    </div>
+<div class="r-dec" data-key="camera-role" data-choice="one-modality" data-by="Simon McIntosh" data-when="2026-05-29">
+    <p class="r-dec-q">What is the camera&#x27;s role in the world model?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="one-modality">one diagnostic modality among many; generation is a byproduct</button>
+      <button class="r-opt" data-value="primary">primary modality; generative video is the goal</button>
+      </p>
+    <p class="r-dec-rat">Locked by the user 2026-05-29: &quot;eventually it would be nice to also have the facility to generate camera streams - but this is a byproduct and is in no way our guiding goal.&quot; Camera is one input modality to the state estimator.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-
-      <article class="r-fu" data-id="f-stage1-engine" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">Execute Stage-1 engine — see plasma-state-space-v0 (the sprint home)</h4>
-        <div class="r-fu-body">The Stage-1 demonstrator (separatrix shape parameters from raw diagnostics with calibrated uncertainty) is specified in <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a> and is the home of sprint S7. This followup tracks Stage-1 closure against the strategy.</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-stage1-engine" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="2026-05-30T09:20:37+00:00" data-resolved-by="agent/opus (S7 orchestrator)">
+    <h4 class="r-fu-title">Execute Stage-1 engine — see plasma-state-space-v0 (the sprint home)</h4>
+    <div class="r-fu-body">The Stage-1 demonstrator (separatrix shape parameters from raw diagnostics with calibrated uncertainty) is specified in plasma-state-space-v0 and is the home of sprint S7. This followup tracks Stage-1 closure against the strategy.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    physics-world-model-strategy (§9 Stage 1)
 Tier:    opus
 
-Stage-1 is owned by plasma-state-space-v0 (sprint S7). When that plan's acceptance criteria are met (calibrated coverage + OOD on held-out shots/regimes), record the outcome here and decide Stage-2 entry (GS prior + discovery).
+Stage-1 is owned by plasma-state-space-v0 (sprint S7). When that plan&#x27;s acceptance criteria are met (calibrated coverage + OOD on held-out shots/regimes), record the outcome here and decide Stage-2 entry (GS prior + discovery).
 
 Done-when
   Stage-1 acceptance met in plasma-state-space-v0; Stage-2 go/no-go recorded here.</pre>
-      </article>
-
-      <article class="r-fu" data-id="f-stage2-gs-discovery" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">Stage-2 — self-applied GS prior + structure discovery</h4>
-        <div class="r-fu-body">After the engine is validated: add Grad–Shafranov as a soft falsifiable prior on raw magnetics; ground the latent physically; stand up GS-residual monitoring as a discovery instrument; apply SINDy/Koopman to the latent transition kernel toward dimensionless coordinates. Do NOT start before Stage-1 calibration is demonstrated.</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <p class="r-fu-outcome">Stage-1 MET under the re-scoped bar (sprint S7, plasma-state-space-v0, engine_metrics_v1.json): (1) filtering calibrated 0.914; (2) forecasting-through-transients dynamics win via NLL at h&gt;=5 (engine bounds the loss where the static persistence-of-nowcast is confidently-catastrophic on caught ELMs: h=20 engine +1.28 vs static +13.2); (3) OOD honesty — coverage non-collapse 0.944-&gt;0.788 + predictive-sigma inflation x3.6 + engine wins OOD-aggregate forecast CRPS at all horizons. QUALIFIED: transient &amp; bulk CRPS still lose to the persistence nowcast (single-Gaussian head; 96.8%-stationary target) — the dynamics earn their keep on the SAFETY-relevant axes this strategy targets (calibrated catastrophic-miss-avoidance + OOD-regime forecasting + honest uncertainty inflation), NOT on bulk in-distribution accuracy. STAGE-2 GO/NO-GO = GO, but SEQUENCED AFTER S7.5 (user decision 2026-05-30: engine-refine-first). S7.5 (plasma-state-space-v0 f-s7-5-engine-refinement, dispatched) adds a Student-t emission head (principled fix for the transient/bulk-CRPS loss a Gaussian can&#x27;t win), an engine-native OOD score (the 0.81 AUROC was the STATIC ensemble&#x27;s, not the engine&#x27;s), and a drift-reg perf fix — giving Stage-2&#x27;s GS prior a CRPS-competitive, cleanly-measured base. f-stage2-gs-discovery remains gated: now on S7.5 completion. uq-level-v0 + extrapolation-coordinates stay OPEN, surfaced for Stage-2.</p>
+    </article>
+<article class="r-fu" data-id="f-stage2-gs-discovery" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="2026-05-31T11:38:01+00:00" data-resolved-by="agent/opus (S9 orchestrator)">
+    <h4 class="r-fu-title">Stage-2 — self-applied GS prior + structure discovery</h4>
+    <div class="r-fu-body">After the engine is validated: add Grad–Shafranov as a soft falsifiable prior on raw magnetics; ground the latent physically; stand up GS-residual monitoring as a discovery instrument; apply SINDy/Koopman to the latent transition kernel toward dimensionless coordinates. Do NOT start before Stage-1 calibration is demonstrated.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    physics-world-model-strategy (§9 Stage 2)
 Tier:    opus
 
@@ -146,8 +146,56 @@ Gated on Stage-1 acceptance. Then: (1) add GS as a soft residual linking latent 
 
 Done-when
   GS-residual departure detector demonstrated on known transient shots; first discovered reduced-structure result documented.</pre>
-      </article>
-    </section>
-  </main>
+    <p class="r-fu-outcome">Stage-2 (plasma-gs-prior-v0, sprint S8) closed 2026-05-31 with HONEST NEGATIVES that re-founded the direction. (1) Q1 FAIL — the GS force-balance residual genuinely detects transients but is BEATEN by the trivial |dB/dt| baseline (ELM AUROC 0.68 vs 0.76; disruption 0.67 vs 0.92). (2) T6 grounding — Dα PRESERVED (filtering CRPS -6.4%, within the single-seed/thread floor) but NO fθ-enrichment (discovery gap 0.78% &lt; T8 baseline 1.28%) and near-vacuum from-z current ratio 0.98 FAIL: confirms magnetics+boundary CANNOT constrain the internal current profile (classic equilibrium under-determination, not a bug). (3) The integrated-grounding fix (T10) was only HALF-testable — MSE is unusable from level-1 as a dense input (gamma ~99% NaN, beam-on only; ~0.86% finite verified). DURABLE ASSET: a validated, EFIT-free GS Green&#x27;s-function forward operator (gs/operator.py), already wired as a differentiable observation operator. These findings re-centred the project on its founding multi-modal motivation → Stage-3 (the pivot): MSE-FREE multi-modal current-profile recovery beating an EnKF baseline, validated on held-out raw MSE. See f-stage3-current-recovery + plan mse-free-current-recovery-v0 (sprint S9). Grounded in the 7-reader deep review (workflow wpy0754zv, 2026-05-31).</p>
+    </article>
+<article class="r-fu" data-id="f-stage3-current-recovery" data-status="open" data-tier="opus" data-written-by="agent/opus (S9 orchestrator)" data-written-at="2026-05-31 11:30" data-recommends-skill="/reckon-ship mse-free-current-recovery-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Stage-3 — MSE-free multi-modal current-profile recovery (the pivot)</h4>
+    <div class="r-fu-body">Stage-1 + Stage-2 closed with honest results that re-founded the project on MSE-free multi-modal current recovery. Stage-3 is owned by mse-free-current-recovery-v0 (sprint S9). This followup tracks Stage-3 closure against the strategy north-star.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    mse-free-current-recovery-v0 (§7) — the Stage-3 sprint home (http://localhost:8765/imas-ambix/mse-free-current-recovery-v0.html)
+Tier:    opus
+
+Context
+  Stage-1 (plasma-state-space-v0) + Stage-2 (plasma-gs-prior-v0) closed with honest results that
+  re-founded the project on MSE-free multi-modal current recovery. Stage-3 is owned by
+  mse-free-current-recovery-v0 (sprint S9). This followup tracks Stage-3 closure against §9 of the strategy.
+
+State to read
+  GET /plan/imas-ambix/mse-free-current-recovery-v0   (decisions, followups, status, version)
+
+Locked decisions to honour
+  win-scope           -&gt; MSE observables / on-axis (full continuous q(psi) OUT)
+  efit-eval-use       -&gt; eval-only boundary/global sanity-check
+  filter-architecture -&gt; end-to-end obs-&gt;state
+
+Open decisions to surface (do not resolve)
+  uq-level-v0, extrapolation-coordinates (this strategy);
+  enkf-baseline-form, obs-state-readout, camera-encoding, input-tier-v0 (the Stage-3 plan)
+
+Done-when
+  Stage-3 acceptance met in mse-free-current-recovery-v0 (the MSE-free filter beats the EnKF baseline
+  on the three-axis win condition: MSE-observable RMSE, coverage [0.88,0.92], CRPS/NLL on transients);
+  record the outcome + ITER-transfer implications here.</pre>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="followups" data-id="c-stage1-result" data-who="agent/opus (S7 orchestrator)" data-when="2026-05-29T22:30:00+00:00">
+    <div class="r-comment-body">**Stage-1 engine result (sprint S7, plasma-state-space-v0) — acceptance gate NOT met (metric-sensitive negative); Stage-2 remains GATED.** The full RKN latent state-space engine + Bayesian filter ran and was compared to a static deep-ensemble baseline on identical dense ELM windows (raw Dα from mag+ane, EFIT-free, whole-family hold-out). Filtering calibrated (0.903) and OOD honesty strong (AUROC 0.81), but the engine does NOT beat the static comparator on forecast CRPS at H&gt;0 (static&#x27;s sharp persistence-of-nowcast wins the quiescent-dominated bulk). IMPORTANTLY the engine shows the strategy&#x27;s intended value where it matters — better mean accuracy, far better long-horizon transient NLL (avoids confident-catastrophic misses), and OOD short-horizon CRPS wins. Per §9, Stage-2 (GS prior + structure discovery) is gated on Stage-1 acceptance, which is NOT met — so f-stage2-gs-discovery stays gated. f-stage1-engine stays OPEN pending the Stage-1 direction decision (iterate / re-scope acceptance / pivot-to-OOD / proceed-anyway) — surfaced to the user in plasma-state-space-v0 f-s7-stage1-decision. This negative is informative, like the decoder-finetune re-founding: the dynamics earn their keep on calibrated catastrophic-miss-avoidance and OOD, not on bulk CRPS against a near-stationary target.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-stage1-final" data-who="agent/opus (S7 orchestrator)" data-when="2026-05-30T11:30:00+00:00">
+    <div class="r-comment-body">**Stage-1 FINAL (sprint S7, plasma-state-space-v0) — re-scoped acceptance MET (qualified), Stage-2 gate now eligible.** After the user chose A+B (iterate + re-scope), S7.4 ran the iterated RKN engine (drift-regulariser, latent=16, CPU) vs the clipped static persistence-of-nowcast on identical dense ELM windows. Re-scoped acceptance ALL MET: (1) filtering calibrated 0.914 ∈[0.88,0.92]; (2) transient dynamics win via NLL at h=5/10/20 (engine -0.05/+0.10/+1.28 vs static +0.59/+9.67/+13.22 — the static is confidently-catastrophic when ELMs land at t+h; the engine&#x27;s calibrated belief bounds the loss) — the principled forecasting-through-transients win; (3) OOD honesty (see corrected framing below). HONEST QUALIFICATIONS: transient CRPS STILL loses at all horizons and bulk CRPS loses (STRETCH not met) — a single-Gaussian emission head cannot be both CRPS-sharp and NLL-tail-safe on heavy-tailed ELM residuals (→ Student-t head, queued S7.5). The drift-regulariser was neutral on the bulk-CRPS stretch.
+
+OOD FRAMING CORRECTION (supersedes the earlier &#x27;engine AUROC 0.81&#x27; phrasing): the 0.81 AUROC in the artifact is the STATIC ENSEMBLE&#x27;s disagreement on dense data (the engine is a single RKN, not an ensemble) — NOT an engine signal. The engine&#x27;s GENUINE, attributable OOD honesty is: coverage non-collapse (0.944→0.788), predictive-σ inflation ×3.6 (0.035→0.126), AND the engine WINS OOD-aggregate forecast CRPS at every horizon (h=1 0.185 vs static 0.227) — its adaptive belief beats the static&#x27;s in-dist-fit nowcast under regime shift. An engine-native OOD score is queued (S7.5).
+
+VERDICT: the dynamics earn their keep on exactly the SAFETY-RELEVANT properties this strategy targets — calibrated catastrophic-miss-avoidance through transients, OOD-regime forecasting, and honest uncertainty inflation — NOT on bulk in-distribution accuracy vs a persistence nowcast (which a near-stationary target structurally favours). uq-level-v0 + extrapolation-coordinates decisions remain OPEN and are surfaced (not resolved) for Stage-2. Metrics: plasma-state-space-v0 artifacts/engine_metrics_v1.json (v0 kept for the before/after). Stage-2 (GS prior + discovery, f-stage2-gs-discovery) entry decision is being taken with the user now; f-stage1-engine stays open until that go/no-go is recorded.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-stage2-go" data-who="Simon McIntosh (via orchestrator)" data-when="2026-05-30T12:30:00+00:00">
+    <div class="r-comment-body">**STAGE-2 ENTRY: GO (user, 2026-05-30).** Stage-1 (plasma-state-space-v0) closed after S7.5 refinement. FINAL Stage-1 standing (honest): criteria 1+2 MET (filtering 0.913; forecasting-through-transients NLL win, sharpened by a Student-t emission head); criterion 3 HONEST PARTIAL — the engine is OOD-honest (coverage non-collapse 0.94-&gt;0.76, predictive-sigma inflation x3.3) but the engine-native OOD-detection AUROC (filter-innovation 0.748) does NOT beat the static deep-ensemble&#x27;s same-data disagreement (0.810). This CORRECTS the earlier &#x27;OOD-AUROC 0.81&#x27; which was the static ensemble&#x27;s number, not the engine&#x27;s. Criterion 3 was NOT re-scoped to a clean pass — it stands as a documented partial. Bulk-CRPS stretch unmet (a persistence-of-nowcast wins a 96.8%-stationary target on CRPS). VERDICT: the dynamics earn their keep on calibrated catastrophic-miss-avoidance through transients + honest uncertainty widening; OOD *detection* is left to the ensemble. Entering Stage-2 (f-stage2-gs-discovery): the GS soft prior is the principled path to ground the latent physically + provide a dynamics-native force-balance-departure OOD detector that may close criterion 3. uq-level-v0 + extrapolation-coordinates remain OPEN, to be considered (not yet locked) during Stage-2 — the GS residual should be designed in invariant/dimensionless coordinates per extrapolation-coordinates. Sprint S7 closes; Stage-2 = sprint S8.</div>
+</div>
+<div class="r-comment" data-section="followups" data-id="c-pivot-s9" data-who="Simon McIntosh (via orchestrator)" data-when="2026-05-31T11:30:00+00:00">
+    <div class="r-comment-body">**PIVOT TO STAGE-3 — MSE-free multi-modal current recovery (ratified 2026-05-31).** After Stage-1 (calibration-honest but a trivial persistence-of-nowcast wins headline proper-scores on the near-stationary Dα target) and Stage-2 (GS honest-negative; magnetics cannot constrain internal current; MSE unusable from level-1), the project re-centres on its founding multi-modal motivation. THESIS: an end-to-end obs→state deep neural filter on RAW multi-modal signals (magnetics + ane + bolometer + SXR + visible camera + Thomson) recovers MSE-derived internal-current observables it never sees as input, BEATING a classical EnKF baseline — the ITER-startup problem (no MSE, must still recover the current profile). RATIFIED SCOPE (user, 3 gate decisions): (1) win = MSE observables / on-axis (q0_kappa1.85, rax, pitch-angle) — full continuous q(ψ) is OUT (no non-circular truth); (2) EFIT eval-only boundary/global sanity-check; (3) arch = end-to-end obs→state. The MSE wall becomes the VALIDATION KEY: train MSE-free, validate against held-out raw MSE on beam-on slices (MSE is a raw diagnostic, not a banned solver output). MUST BUILD: the EnKF baseline (does not exist) + the held-out-MSE eval harness, front-loaded to learn the bar early. Plan = mse-free-current-recovery-v0 (S9). The open uq-level-v0 + extrapolation-coordinates decisions are carried into Stage-3.</div>
+</div>
+</section>
+</main>
 </body>
 </html>

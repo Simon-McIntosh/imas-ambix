@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"    content="imas-ambix">
+  <meta name="reckon-type"     content="plan">
+  <meta name="plan-slug"       content="mse-free-current-recovery-v0">
+  <meta name="plan-title"      content="MSE-Free Multi-Modal Current-Profile Recovery">
+  <meta name="plan-summary"    content="End-to-end obs→state neural filter that recovers MSE-derived internal-current observables from raw multi-modal diagnostics (no MSE input), beating a classical EnKF baseline — the ITER-startup current-recovery problem.">
+  <meta name="plan-status"     content="active">
+  <meta name="plan-roi"        content="high">
+  <meta name="plan-effort"     content="XL">
+  <meta name="plan-tier"       content="opus">
+  <meta name="plan-milestone"  content="M3">
+  <meta name="plan-sprint"     content="S9">
+  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="plan-depends-on" content="physics-world-model-strategy,plasma-gs-prior-v0,plasma-state-space-v0,probabilistic-state-space-methods">
+  <title>MSE-Free Multi-Modal Current-Profile Recovery | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Thesis &amp; motivation</h2>
+    <p>
+      <strong>At the start of ITER operations there will be no Motional-Stark-Effect (MSE)
+      diagnostic, yet the internal current profile must still be recovered.</strong> That
+      constraint — once read as a data wall — is the founding opportunity of this plan. The
+      established tool for recovering internal plasma dynamics from external measurements
+      <em>without</em> MSE is an Ensemble / Extended Kalman Filter wrapped around a
+      current-diffusion forward model (the RAPTOR-EKF lineage, deployed on TCV, ASDEX-Upgrade
+      and RFX-mod). <strong>That EnKF is the baseline we must beat.</strong>
+    </p>
+    <p>
+      We aim well beyond a hand-built Kalman filter. The pivot is to a <strong>deep,
+      end-to-end observation→state neural filter / smoother</strong> that ingests raw
+      multi-modal diagnostics — magnetics, interferometer, bolometer, soft-X-ray,
+      visible camera, Thomson scattering — and emits a calibrated estimate of the internal
+      current state, <strong>recovering MSE-derived current observables it never sees as input</strong>,
+      and fully exploiting the 4×H200 reservation. This recovers the project's original
+      motivation: <em>use large volumes of raw, multi-modal data — including the camera streams —
+      to go beyond what current equilibrium-reconstruction tools can do.</em>
+    </p>
+    <p>
+      This plan is grounded in a deep review of all prior work (workflow <code>wpy0754zv</code>,
+      2026-05-31; 7 readers across Stage-1, Stage-2, code assets, EnKF/DA SOTA, the multi-modal
+      corpus, and the eval-truth protocol). The arc that justifies it:
+    </p>
+    <ul>
+      <li><strong>Stage-1</strong> (<a href="plan.html?slug=plasma-state-space-v0">plasma-state-space-v0</a>)
+        proved a calibration-honest latent state-space engine, but lost every headline
+        proper-score to a trivial persistence-of-nowcast — because its Dα target is
+        ~96.8&nbsp;% quiescent, where a frozen nowcast is unbeatable. <strong>Dynamics did not
+        pay on a near-stationary target.</strong></li>
+      <li><strong>Stage-2</strong> (<a href="plan.html?slug=plasma-gs-prior-v0">plasma-gs-prior-v0</a>)
+        confirmed, with an honest negative, that magnetics + boundary alone <em>cannot</em>
+        constrain the internal current profile (classic equilibrium under-determination), and
+        that MSE is unusable from level-1 as a dense input (~99&nbsp;% NaN, beam-on only). But it
+        delivered a <strong>validated, EFIT-free Grad–Shafranov forward operator</strong>
+        (<code>gs/operator.py</code>) already wired as a differentiable observation operator.</li>
+      <li><strong>This plan</strong> turns both findings into the design: a genuinely dynamic
+        target (current evolution, where dynamics <em>should</em> finally pay), the GS operator as
+        a physics-consistency head, and the MSE wall re-cast as the <strong>validation key</strong>
+        rather than a blocker.</li>
+    </ul>
+
+    <h2 id="s2">§2 — The measurable win condition (ratified 2026-05-31)</h2>
+    <p>
+      The eval-truth question — <em>against what do we score "recovers the current profile" when
+      EFIT is banned as a label and MSE is mostly NaN?</em> — is resolved by the observation that
+      <strong>MSE is a raw diagnostic, not a banned solver output.</strong> So:
+    </p>
+    <p class="r-callout">
+      <strong>Train MSE-free. Validate against held-out raw MSE.</strong> The filter sees raw
+      multi-modal inputs with <em>no</em> MSE; at scoring time we reveal the held-out MSE
+      observables on the beam-on slices where they are valid and measure how well the MSE-free
+      estimate recovered them. Holding MSE out of inputs and scoring against it bends
+      <strong>zero</strong> locked principles, and matches "recover the current profile without
+      MSE" one-to-one.
+    </p>
+    <p>The win is declared on three axes, all against the EnKF baseline at matched compute:</p>
+    <ol>
+      <li><strong>Accuracy</strong> — MSE-observable RMSE (on-axis safety factor
+        <code>q0_kappa1.85</code>, magnetic-axis <code>rax</code>, and live pitch-angle channels)
+        <strong>≥ 10–20&nbsp;% lower than the EnKF</strong> on held-out beam-on slices.</li>
+      <li><strong>Calibration</strong> — conformal coverage in the <code>[0.88, 0.92]</code> band
+        (the same gate Stage-1 met), with honest widening out-of-distribution.</li>
+      <li><strong>Proper score</strong> — a strictly-proper CRPS / NLL win over the EnKF,
+        <em>especially on transient windows</em> (ramps, MHD, disruptive precursors) where a
+        Gaussian EnKF is known to degrade — exactly where a learned non-Gaussian filter earns
+        its keep.</li>
+    </ol>
+
+    <h2 id="s3">§3 — Scope locks (ratified)</h2>
+    <p>Three decisions were ratified at the gate and are binding for v0:</p>
+    <ul>
+      <li><strong>Target scope = MSE observables / on-axis only.</strong> We recover the on-axis
+        safety factor, magnetic-axis position, and pitch-angle observables. <strong>The full
+        continuous <code>q(ψ)</code> / <code>j(ψ)</code> profile is explicitly out of scope</strong>
+        — there is no non-circular ground truth for it in the corpus (magnetics-only EFIT assumes a
+        2-coefficient linear interior, so scoring against its <code>qpsi_c</code> would score
+        agreement-with-an-assumption). A full-profile track would first require building a trusted
+        synthetic-equilibrium + synthetic-diagnostic forward model; that is deferred (see §8).</li>
+      <li><strong>EFIT (<code>efm</code>) = eval-only boundary/global sanity-check.</strong> EFIT
+        may cross-check boundary / global quantities (LCFS shape, total <code>Ip</code>,
+        <code>q95</code>) where magnetics genuinely constrain — never as a training input, label,
+        or interior-current reference. The primary internal-current score is held-out MSE. This
+        continues the project's existing "EFIT-shape demoted to sanity check" stance.</li>
+      <li><strong>Architecture = end-to-end observation→state.</strong> One model maps raw
+        heterogeneous diagnostics straight to the plasma state — no hand-built assimilation
+        pipeline (the Aardvark-Weather precedent for raw-obs→state). This is the most ambitious
+        of the four reviewed classes, with the biggest H200 lift and the longest runway, so it is
+        staged behind de-risking milestones (§7).</li>
+    </ul>
+
+    <h2 id="s4">§4 — Why MSE-free recovery is physically possible</h2>
+    <p>
+      Stage-2's under-determination finding is a <em>single-instant, spatial</em> statement:
+      external magnetics at one time constrain only <code>Ip</code>, boundary, <code>li</code>,
+      and <code>βp</code> — not the detailed internal <code>j(ψ)</code>. EnKF/RAPTOR recovers the
+      interior through a <strong>different information channel: time-history pushed through a
+      forward dynamics model</strong>, not an extra spatial measurement. The closure mechanism is
+      the poloidal-field-diffusion equation, which deterministically evolves <code>q(ρ,t)</code>
+      given three things a magnetics snapshot lacks:
+    </p>
+    <ol>
+      <li>the loop-voltage / <code>Ip</code> boundary condition <em>over time</em> (the surface drive);</li>
+      <li>the <strong>conductivity profile <code>σ(Te)</code></strong> — set by neoclassical
+        resistivity from <code>Te</code>, a non-MSE channel (Thomson / ECE) — which localises where
+        current diffuses, <em>substituting for the spatial pitch-angle constraint MSE would give</em>;</li>
+      <li>the non-ohmic (bootstrap + auxiliary) current sources.</li>
+    </ol>
+    <p>
+      This is precisely where a neural filter can exceed a classical EnKF: a <strong>learned</strong>
+      (rather than hand-coded resistive-diffusion) forward dynamics model, <strong>non-Gaussian</strong>
+      posteriors for the ELM / bifurcation / disruption regimes where the EKF's Gaussian assumption
+      breaks, and native fusion of <strong>high-dimensional multi-modal channels</strong>
+      (camera, bolometry, SXR tomography) that an <code>O(N_ens × model_cost)</code> EnKF cannot
+      easily ingest. Secondary non-MSE constraints that further tighten the interior — diamagnetic
+      <code>βp</code>, soft-X-ray / Mirnov rational-surface markers — come for free from the
+      multi-modal input set.
+    </p>
+
+    <h2 id="s5">§5 — Data plan</h2>
+    <p>
+      <strong>Input set (raw signals only).</strong> Magnetics <code>ama</code>+<code>amb</code>+<code>amc</code>,
+      interferometer <code>ane</code>, bolometer <code>abm</code> (32-chan radiated power),
+      soft-X-ray <code>xsx</code> (3×18-chord cameras, the densest internal-emission signal in the
+      corpus), visible camera <code>rbb</code> (centre-stack), and Thomson <code>ayc</code>
+      (<code>ne</code>/<code>Te</code> for the <code>σ(Te)</code> term). The exogenous control
+      reference <code>xdc</code> is the conditioning input <code>u</code> (with its magnetics-derived
+      <code>shape_s_fluxerr*</code> channels gated out).
+    </p>
+    <p>
+      <strong>Corpus tiers (co-availability, from the level-1 scan).</strong>
+    </p>
+    <ul>
+      <li><strong>Tier-1</strong> magnetics + camera + bolometer + SXR ≈ <strong>7,349 shots</strong> — the practical multi-modal floor that includes imaging.</li>
+      <li><strong>Tier-2</strong> + Thomson <code>ayc</code> ≈ <strong>3,657 shots</strong> (Thomson exists only from ~shot 23000).</li>
+      <li><strong>MSE-eval overlap</strong> ≈ <strong>2,000 shots</strong> with usable <code>ams</code>, of which ~128 sit in a held-out OOD slice — the effective independent eval N (the ~540–650 beam-on slices per shot are autocorrelated; the shot is the independent unit).</li>
+    </ul>
+    <p>
+      <strong>Excluded:</strong> IR cameras (<code>rir</code>=25, <code>rit</code>=14 shots — effectively
+      absent); the banned solver outputs <code>efm</code> / <code>esm</code> from inputs and labels;
+      the Dα leakage groups (<code>ada</code>/<code>aim</code>/<code>xim</code>) from inputs.
+      <strong>MSE (<code>ams</code>) is never an input and never a training label or loss term</strong> —
+      eval truth only.
+    </p>
+    <p>
+      <strong>Leakage note (corrects the Stage-1 circularity trap).</strong> Total <code>Ip</code>
+      (from <code>amc</code>) is <em>kept</em> as an input: it is a legitimate magnetics measurement
+      and is precisely the quantity that does <em>not</em> determine internal current shape, so it is
+      not a leak for an internal-current target. (The Stage-1 audit's "amc leaks Ip" concern applies
+      only when magnetics itself is the prediction target.) The held-out split must be re-derived for
+      the current target — do <strong>not</strong> reuse the Dα <code>dalpha_v0</code> split.
+    </p>
+
+    <h2 id="s6">§6 — Architecture &amp; reusable assets</h2>
+    <p>
+      <strong>The end-to-end obs→state model.</strong> Per-modality encoders map each raw diagnostic
+      stream (1-D signals, chord arrays, camera frames) into a shared latent; a learned stochastic
+      transition kernel evolves the latent on a common time grid; a readout head emits the
+      current-state observables with a calibrated predictive distribution. The
+      <strong>GS Green's-function forward operator</strong> (<code>gs/operator.py</code>) enters as a
+      differentiable physics-consistency / observation term (latent → restricted currents →
+      predicted magnetics), making the magnetics channel self-consistent without any EFIT label.
+    </p>
+    <p><strong>Reusable assets identified by the review (do not rebuild):</strong></p>
+    <ul>
+      <li><code>statespace/engine.py</code> — RKN latent SSM + filtering / rollout / RTS smoothing +
+        the GS grounding head + STOP-FILE / soft-time-limit hooks. The dynamics backbone.</li>
+      <li><code>statespace/filter.py</code> — causal filter, h-step forecast, RTS smoother
+        (structurally an EnKF-smoother analogue), Mahalanobis innovation OOD score.</li>
+      <li><code>statespace/calibration.py</code> — target-agnostic CRPS / NLL / coverage / ECE /
+        reliability — the acceptance layer, verbatim.</li>
+      <li><code>gs/operator.py</code>, <code>gs/residual.py</code>, <code>gs/grounding.py</code> —
+        the validated EFIT-free forward operator, the per-slice inverse solver (the linearised
+        observation operator <code>H</code> for the EnKF), and the differentiable grounding head.</li>
+      <li><code>statespace/{splits,families,inventory}.py</code> — regime-split, whole-family
+        hold-out, leakage-audit machinery (re-target to the current observable).</li>
+      <li><code>statespace/{align,dataset}.py</code> — multi-rate alignment (already documents camera
+        rates) and the target-agnostic multi-family dataset (extend <code>_open_group_as_dataset</code>
+        to admit 2-D camera / chord arrays).</li>
+    </ul>
+    <p>
+      <strong>H200 utilisation.</strong> bf16 + TF32 tensor cores, <code>matmul_precision="high"</code>,
+      deterministic cuDNN, multi-GPU data/model parallel — and the hardened in-process pattern
+      (single long-lived process, SIGTERM handler, per-batch watchdog, STOP-FILE) mandated by
+      <code>AGENTS.md</code> §2a/§2b. No subprocess-per-shot, no prefetch daemons.
+    </p>
+
+    <h2 id="s7">§7 — Implementation sequence (de-risked)</h2>
+    <p>
+      The build is front-loaded so we learn the bar <em>before</em> investing in the large model —
+      the explicit guard against repeating the two-stage "calibration-honest but the baseline wins"
+      pattern. Each task lands a committed artifact + green tests.
+    </p>
+    <ol>
+      <li><strong>T1 — Eval harness + held-out-MSE split (the gate).</strong> Re-derive a
+        cross-family + cross-shot split for the current target; build the MSE-observable scorer
+        (CRPS / NLL / coverage / RMSE on beam-on slices only). Nothing downstream is scorable
+        without this. <em>(opus)</em></li>
+      <li><strong>T2 — EnKF baseline (the bar).</strong> Stand up the classical EnKF/EKF comparator
+        — it does <strong>not</strong> exist today; "our EnKF" is a methods-survey entry, and the
+        deep-ensemble MLP is a different, weaker comparator. Score it on T1's harness. <em>(opus)</em></li>
+      <li><strong>T3 — Multi-modal loaders.</strong> Extend the dataset to SXR / bolometer / camera /
+        Thomson with per-modality alignment + missing-channel handling. <em>(sonnet)</em></li>
+      <li><strong>T4 — obs→state v0.</strong> A first end-to-end model on Tier-1 inputs with the GS
+        consistency head; beat the EnKF on at least one win axis. <em>(opus)</em></li>
+      <li><strong>T5 — Scale + non-Gaussian head.</strong> Full multi-modal fusion + heavy-tail /
+        flow posterior; full 4×H200 training. <em>(opus)</em></li>
+      <li><strong>T6 — Acceptance.</strong> The three-axis comparison vs EnKF, reported honestly
+        (including where it loses). <em>(opus)</em></li>
+    </ol>
+
+    <h2 id="s8">§8 — Out of scope for v0 (candidate follow-ons)</h2>
+    <ul>
+      <li><strong>Full continuous <code>q(ψ)</code>/<code>j(ψ)</code> recovery</strong> — gated on a
+        trusted synthetic-equilibrium + synthetic-diagnostic forward model to supply non-circular
+        ground truth.</li>
+      <li><strong>Sourcing time-resolved MSE <code>γ(t)</code></strong> from raw UDA / level-2 / an
+        external DD (the level-1 <code>ams</code> gamma is a near-empty stub) — would expand both the
+        eval set and a possible weak-supervision signal.</li>
+      <li><strong>Real-time / control-coupled inference</strong> (the amortised single-forward-pass
+        story) once the offline filter beats the EnKF.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="win-scope" data-choice="mse-observables-on-axis" data-by="Simon McIntosh" data-when="2026-05-31">
+        <p class="r-dec-q">What does the filter recover and get scored on?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="mse-observables-on-axis">MSE observables / on-axis (q0, rax, pitch)</button>
+          <button class="r-opt" data-value="full-continuous-profile">Full continuous q(ψ)/j(ψ)</button>
+          <button class="r-opt" data-value="observables-now-profile-later">Observables now + profile as stretch</button>
+        </p>
+        <p class="r-dec-rat">LOCKED: MSE-observable / on-axis recovery is the only rule-clean, non-circular, authorable-now win condition (held-out raw MSE on beam-on slices). Full continuous q(ψ) has no non-circular truth in the corpus and is deferred to a synthetic-truth follow-on (§8).</p>
+      </div>
+
+      <div class="r-dec" data-key="efit-eval-use" data-choice="boundary-global-sanity-only" data-by="Simon McIntosh" data-when="2026-05-31">
+        <p class="r-dec-q">May EFIT (efm, a banned solver output) be used at evaluation time?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="boundary-global-sanity-only">Eval-only boundary/global sanity-check</button>
+          <button class="r-opt" data-value="ban-entirely">Ban EFIT entirely (MSE-only eval)</button>
+          <button class="r-opt" data-value="allow-qpsi-eval">Allow EFIT for q(ψ) eval too</button>
+        </p>
+        <p class="r-dec-rat">LOCKED: EFIT may cross-check LCFS / total Ip / q95 only (where magnetics genuinely constrain); never an input, label, or interior-current reference. Primary internal-current score stays held-out MSE.</p>
+      </div>
+
+      <div class="r-dec" data-key="filter-architecture" data-choice="end-to-end-obs-state" data-by="Simon McIntosh" data-when="2026-05-31">
+        <p class="r-dec-q">Which "beyond-Kalman" architecture anchors the neural filter?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="end-to-end-obs-state">End-to-end obs→state (Aardvark-style)</button>
+          <button class="r-opt" data-value="amortized-rkn-gs">Amortized neural filtering (extend RKN+GS)</button>
+          <button class="r-opt" data-value="score-diffusion-da">Score/diffusion DA on the latent</button>
+          <button class="r-opt" data-value="diff-variational-4dvarnet">Differentiable variational DA (4DVarNet)</button>
+        </p>
+        <p class="r-dec-rat">LOCKED: end-to-end obs→state — one model maps raw heterogeneous diagnostics straight to state, recovering the raw-multi-modal-from-day-one motivation and the largest H200 lift. Highest risk / longest runway, so staged behind T1–T4 de-risking. The amortized-RKN+GS path (option 2) is the natural v0 stepping-stone toward it.</p>
+      </div>
+
+      <div class="r-dec" data-key="enkf-baseline-form" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What form does the EnKF baseline (the bar to beat) take?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="raptor-pfde-ekf">RAPTOR-style PFDE forward + EKF</button>
+          <button class="r-opt" data-value="gs-operator-enkf">GS forward operator + EnKF ensemble update</button>
+          <button class="r-opt" data-value="enkf-around-pssm">EnKF around the learned PSSM</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+
+      <div class="r-dec" data-key="obs-state-readout" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How is the MSE observable read out from the latent state (kept clean of MSE leakage)?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="gs-grounded-physical">GS-grounded physical readout (no extra fit)</button>
+          <button class="r-opt" data-value="disjoint-eval-only-learned">Disjoint eval-only learned readout</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+
+      <div class="r-dec" data-key="camera-encoding" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How are visible-camera (rbb) frames encoded into the input set?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="pixel-cnn">Learned pixel CNN encoder</button>
+          <button class="r-opt" data-value="boundary-feature">Boundary/edge feature (camera_boundary.py)</button>
+          <button class="r-opt" data-value="pretrained-token-pool">Pretrained token-pool feature</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+
+      <div class="r-dec" data-key="input-tier-v0" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which corpus tier does v0 train on?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="tier1-no-thomson">Tier-1 (mag+cam+bolo+SXR, ~7349)</button>
+          <button class="r-opt" data-value="tier2-with-thomson">Tier-2 (+Thomson, ~3657)</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-mfcr-t1-eval-harness" data-status="open" data-tier="opus" data-written-by="agent/opus (S9 orchestrator)" data-written-at="2026-05-31 11:00">
+        <h4 class="r-fu-title">T1 — Build the held-out-MSE eval harness + split (the gate)</h4>
+        <div class="r-fu-body">
+          The pivot is ratified; nothing is scorable until the held-out-MSE eval harness and split
+          exist. This defines acceptance and must land before the EnKF baseline (T2) or any model.
+          Re-use the existing splits / leakage machinery; re-derive the split for the current target
+          (the Dα <code>dalpha_v0</code> split must NOT be reused).
+        </div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    mse-free-current-recovery-v0 (http://localhost:8765/imas-ambix/mse-free-current-recovery-v0.html)
+Section: §7 T1 — eval harness + held-out-MSE split
+Tier:    opus
+
+Context
+  Pivot ratified: recover MSE-derived internal-current observables (on-axis q0_kappa1.85,
+  rax, live pitch-angle channels) from raw multi-modal inputs WITHOUT MSE, beating an EnKF
+  baseline. Nothing downstream is scorable until the held-out-MSE eval harness + split exist.
+
+State to read
+  GET /plan/imas-ambix/mse-free-current-recovery-v0   (decisions, followups, status, version)
+
+Locked decisions to honour
+  win-scope        -> MSE-observables / on-axis only (full continuous q(psi) is OUT)
+  efit-eval-use    -> eval-only boundary/global sanity-check (LCFS/Ip/q95); NEVER input/label/internal
+  filter-architecture -> end-to-end obs->state
+
+Open decisions to surface (do not resolve)
+  enkf-baseline-form, obs-state-readout, camera-encoding, input-tier-v0
+
+Constraints
+  - MSE (ams) is NEVER an input and NEVER a training label/loss term — eval truth only, scored
+    ONLY on finite beam-on slices (avoids the ~99%-NaN trap; per-element finite ~1%, but
+    per-beam-on-slice >=1 live channel ~50%; median ~540-650 usable slices/shot on the 1 kHz grid).
+  - Raw-signals-only inputs: KEEP total Ip (amc) — it does not fix internal shape, so it is not a
+    leak for an internal-current target; EXCLUDE efm/esm + Da leakage groups (ada/aim/xim) +
+    xdc shape_s_fluxerr* from inputs.
+  - Cross-family AND cross-shot held-out split; the SHOT is the independent unit (beam-on slices
+    within a shot are autocorrelated => effective N ~= number of held-out MSE shots, ~128).
+    Reuse statespace/{splits,families,inventory}.py; do NOT reuse statespace_splits_dalpha_v0.json.
+  - Metric: CRPS/NLL (calibration.py, already target-agnostic) + conformal coverage [0.88,0.92]
+    + MSE-observable RMSE. properscoring is absent — CRPS lives in calibration.py already.
+  - Env: uv run; CPU-first on 98dci4-srv-1006 (/work access). Any GPU step obeys AGENTS.md
+    §2a/§2a-cancel (STOP-FILE, never scancel, hardened sbatch with --signal=B:USR1@600 +
+    AMBIX_SOFT_TIME_LIMIT). Run training/eval in-session in the foreground — NO orphaned
+    backgrounded processes ended with a "waiting" monologue.
+
+Done-when
+  1. A locked held-out-MSE split manifest (committed JSON artifact): cross-family + cross-shot,
+     with the usable-MSE shot list, the OOD/calibration/train partition, and a per-shot beam-on
+     slice mask. Print the usable-MSE shot count + effective held-out N.
+  2. An eval harness module that, given predicted MSE observables + held-out truth, computes
+     CRPS/NLL + conformal coverage + MSE-observable RMSE on beam-on slices, with a smoke test green.
+  3. A followup written for T2 (build the EnKF baseline on this harness) + this followup resolved.</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
