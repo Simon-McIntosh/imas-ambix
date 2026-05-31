@@ -12,18 +12,7 @@
   <title>Stage-1 + Stage-2 Results — Completed Work | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-  <style>
-    figure.r-fig { margin: 1.5rem 0; padding: 0; }
-    figure.r-fig img { max-width: 100%; height: auto; border: 1px solid #d0d4da; border-radius: 6px; background: #fff; }
-    figure.r-fig figcaption { font-size: 0.9rem; color: #555; margin-top: 0.5rem; line-height: 1.45; }
-    figure.r-fig figcaption b { color: #222; }
-    .r-ledger { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
-    .r-ledger th, .r-ledger td { border: 1px solid #d0d4da; padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
-    .r-ledger th { background: #f4f6f8; }
-    .r-verdict-win { color: #15803d; font-weight: 600; }
-    .r-verdict-loss { color: #b91c1c; font-weight: 600; }
-    .r-verdict-honest { color: #b45309; font-weight: 600; }
-  </style>
+
 </head>
 <body>
   <main class="plan-doc">
@@ -59,7 +48,7 @@
 
     <h3 id="s2a">§2.1 — Forecasting: the headline loss, and the real win</h3>
     <p>
-      On identical dense ELM windows, the engine's autonomous latent rollout <span class="r-verdict-loss">loses</span>
+      On identical dense ELM windows, the engine's autonomous latent rollout <span class="r-verdict-loss" style="color:#b91c1c;font-weight:600">loses</span>
       forecast CRPS to a persistence-of-nowcast at every horizon — bulk h=1 0.0861 vs 0.0651, h=20
       0.1277 vs 0.0879. The mechanism: a near-stationary target rewards a sharp frozen nowcast, and
       the engine's predictive σ is over-wide on the quiescent bulk.
@@ -69,7 +58,7 @@
       <figcaption><b>Forecast CRPS vs horizon.</b> The static persistence-of-nowcast wins every horizon on both bulk and transient CRPS; the engine gap widens with horizon. <em>(engine_metrics_v2.json · acceptance.forecast_crps_by_horizon / forecast_crps_transient_by_horizon)</em></figcaption>
     </figure>
     <p>
-      The genuine win is on the safety-relevant axis: <span class="r-verdict-win">long-horizon transient NLL</span>.
+      The genuine win is on the safety-relevant axis: <span class="r-verdict-win" style="color:#15803d;font-weight:600">long-horizon transient NLL</span>.
       When an ELM lands at <code>t+h</code>, the static nowcast is confidently catastrophic
       (NLL +13.2 at h=20); the engine's calibrated belief bounds the loss (stays in [−0.87, −0.16]),
       winning at h≥5.
@@ -95,7 +84,7 @@
     <p>
       Under regime shift the engine widens <em>honestly</em>: coverage degrades gracefully (0.944→0.755,
       non-collapse) with ~3.3× σ-inflation. But — the <strong>corrected</strong> finding — the engine's
-      <em>dynamics-native</em> OOD signal (filter-innovation AUROC 0.748) does <span class="r-verdict-loss">not beat</span>
+      <em>dynamics-native</em> OOD signal (filter-innovation AUROC 0.748) does <span class="r-verdict-loss" style="color:#b91c1c;font-weight:600">not beat</span>
       a static deep-ensemble's disagreement on the same data (0.810). The "0.81 AUROC" reported as an
       engine win in earlier records was the <em>static ensemble's</em> number, mislabelled.
     </p>
@@ -140,7 +129,7 @@
 
     <h3 id="s3b">§3.2 — Q1: the residual is beaten by a trivial baseline</h3>
     <p>
-      The pre-committed Q1 gate <span class="r-verdict-loss">FAILS</span>: the GS force-balance-departure
+      The pre-committed Q1 gate <span class="r-verdict-loss" style="color:#b91c1c;font-weight:600">FAILS</span>: the GS force-balance-departure
       residual detects transients (AUROC ≈ 0.68) but is beaten by a trivial <code>|dB/dt|</code>/B-variance
       baseline on both labels (ELM 0.68 vs 0.76, margin −0.079; disruption 0.67 vs 0.92, margin −0.252).
       The negative is principled: a global axisymmetric residual is poorly matched to edge-localised ELMs,
@@ -154,7 +143,7 @@
     <h3 id="s3c">§3.3 — Grounding: the decisive insight</h3>
     <p>
       Grounding the latent in raw magnetics <em>preserved</em> Dα skill (filtering CRPS −6.4&nbsp;%, within
-      the single-seed/thread floor) but did <span class="r-verdict-loss">not enrich</span> the dynamics
+      the single-seed/thread floor) but did <span class="r-verdict-loss" style="color:#b91c1c;font-weight:600">not enrich</span> the dynamics
       (discovery gap 0.78&nbsp;% vs the ungrounded 1.28&nbsp;% — not widened) and, decisively, the current
       inferred <em>from the latent</em> did not vanish in near-vacuum (ratio 0.98 vs the per-slice solver's
       0.03). This is the project's <strong>central insight</strong>, and an expected physics result rather
@@ -207,17 +196,17 @@
 
     <h2 id="s5">§5 — Honesty ledger</h2>
     <p>For the record, the corrections and qualifications that this documentation makes explicit:</p>
-    <table class="r-ledger">
-      <thead><tr><th>Claim</th><th>Honest status</th><th>Evidence</th></tr></thead>
+    <table class="r-ledger" style="border-collapse:collapse;width:100%;font-size:0.92rem">
+      <thead><tr><th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">Claim</th><th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">Honest status</th><th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">Evidence</th></tr></thead>
       <tbody>
-        <tr><td>Engine beats baseline on forecast CRPS</td><td class="r-verdict-loss">FALSE — loses at every horizon</td><td>engine_metrics_v2.json · forecast_crps_by_horizon (96.8 %-stationary target favours persistence)</td></tr>
-        <tr><td>Engine wins long-horizon transient NLL</td><td class="r-verdict-win">TRUE at h≥5 only</td><td>engine_metrics_v2.json · forecast_nll_transient_by_horizon (loses at h=1,2)</td></tr>
-        <tr><td>Engine OOD-AUROC 0.81</td><td class="r-verdict-honest">MISLABEL — 0.81 was the static ensemble; engine innovation = 0.748</td><td>engine_metrics_v2.json · ood_honesty</td></tr>
-        <tr><td>Filtering calibrated</td><td class="r-verdict-win">TRUE — coverage 0.913 ∈ [0.88, 0.92]</td><td>engine_metrics_v2.json · filtering.coverage_90_conf</td></tr>
-        <tr><td>GS residual beats trivial transient detector (Q1)</td><td class="r-verdict-loss">FALSE — beaten by |dB/dt| on both labels</td><td>gs_q1_detection.json · verdict.q1_pass=false</td></tr>
-        <tr><td>GS grounding recovers internal current</td><td class="r-verdict-loss">FALSE — near-vacuum ratio 0.98; magnetics under-determine the interior</td><td>grounding_metrics_v0.json · grounding_verdict</td></tr>
-        <tr><td>MSE available from level-1 for dense input</td><td class="r-verdict-loss">FALSE — ~99 % NaN (beam-on only); usable only as eval truth</td><td>level-1 ams re-extraction; gs_integrated_feasibility.json</td></tr>
-        <tr><td>GS forward operator is a reusable asset</td><td class="r-verdict-win">TRUE — validated, EFIT-free, differentiable</td><td>gs/operator.py; gs_operator_summary.json</td></tr>
+        <tr><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">Engine beats baseline on forecast CRPS</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top;color:#b91c1c;font-weight:600">FALSE — loses at every horizon</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">engine_metrics_v2.json · forecast_crps_by_horizon (96.8 %-stationary target favours persistence)</td></tr>
+        <tr><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">Engine wins long-horizon transient NLL</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top;color:#15803d;font-weight:600">TRUE at h≥5 only</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">engine_metrics_v2.json · forecast_nll_transient_by_horizon (loses at h=1,2)</td></tr>
+        <tr><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">Engine OOD-AUROC 0.81</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top;color:#b45309;font-weight:600">MISLABEL — 0.81 was the static ensemble; engine innovation = 0.748</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">engine_metrics_v2.json · ood_honesty</td></tr>
+        <tr><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">Filtering calibrated</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top;color:#15803d;font-weight:600">TRUE — coverage 0.913 ∈ [0.88, 0.92]</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">engine_metrics_v2.json · filtering.coverage_90_conf</td></tr>
+        <tr><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">GS residual beats trivial transient detector (Q1)</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top;color:#b91c1c;font-weight:600">FALSE — beaten by |dB/dt| on both labels</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">gs_q1_detection.json · verdict.q1_pass=false</td></tr>
+        <tr><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">GS grounding recovers internal current</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top;color:#b91c1c;font-weight:600">FALSE — near-vacuum ratio 0.98; magnetics under-determine the interior</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">grounding_metrics_v0.json · grounding_verdict</td></tr>
+        <tr><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">MSE available from level-1 for dense input</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top;color:#b91c1c;font-weight:600">FALSE — ~99 % NaN (beam-on only); usable only as eval truth</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">level-1 ams re-extraction; gs_integrated_feasibility.json</td></tr>
+        <tr><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">GS forward operator is a reusable asset</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top;color:#15803d;font-weight:600">TRUE — validated, EFIT-free, differentiable</td><td style="border:1px solid #d0d4da;padding:6px;text-align:left;vertical-align:top">gs/operator.py; gs_operator_summary.json</td></tr>
       </tbody>
     </table>
 
