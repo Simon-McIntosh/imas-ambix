@@ -17,7 +17,8 @@
   "gs_passive_rank": 4,
   "static_members": 2,
   "static_epochs": 10,
-  "max_train_shots": 4000,
-  "max_cal_shots": 600,
-  "max_ood_shots": 200
+  "max_train_shots": 500,
+  "max_cal_shots": 300,
+  "max_ood_shots": 200,
+  "_shot_caps_comment": "Same shot budgets as the T6 grounding run (500/300/200) so the train-window count + runtime are comparable to T6 (~24 min CPU) and the integrated-vs-T6 comparison is clean (only the input set changes, not the corpus scale). The persisted split is the full locked core_internal (train=3757 cal=512 ood=128); the run subsamples within it exactly as T6 subsampled within the v0 split. The full 4397-shot load is ~64 min single-threaded I/O — out of the focused-run budget; a full-corpus rerun is a queued lift."
 }
