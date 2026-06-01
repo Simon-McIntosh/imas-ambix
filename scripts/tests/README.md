@@ -3,6 +3,15 @@
 Minimal test suite that validates drain mechanisms and confirms fixes for
 the `98dci4-gpu-0003` H200 betelgeuse node drain events (2026-05-26 through 2026-05-28).
 
+## Validation Results (as of 2026-06-01)
+
+| Test | Job | Result | Key measurement |
+|------|-----|--------|----------------|
+| T1 — STOP-FILE | 1209722 | ✅ PASS | All 4 ranks exited cleanly in 35.2s, exit 0 |
+| T2 — SIGTERM delay | 1209723 | ✅ PASS | SIGTERM delay = **1.2ms**; avg collective = **2.5ms** |
+| T3 — Network hang | — | Not yet run | Needs admin |
+| T4 — NCCL scancel | — | Not yet run | See note below |
+
 ## Test Summary
 
 | Test | Safe? | What it validates | Recovery needed |
@@ -10,9 +19,27 @@ the `98dci4-gpu-0003` H200 betelgeuse node drain events (2026-05-26 through 2026
 | T1 — STOP-FILE | ✅ YES | Fix works: clean exit via stop-file | None |
 | T2 — SIGTERM delay | ✅ YES | Mechanism: SIGTERM delayed during NCCL | None |
 | T3 — Network hang | ⚠️ DRAINS | Mechanism: non-CUDA D-state → drain | `scontrol resume` |
-| T4 — NCCL scancel | ⚠️ DRAINS | Mechanism: NCCL D-state → drain | GPU reset + `scontrol resume` |
+| T4 — NCCL scancel | ⚠️ MAY NOT DRAIN | See note | GPU reset + `scontrol resume` if drains |
 
 **Run T1 and T2 first.** T3 and T4 need an SDCC admin standing by.
+
+### Note on T4 and the R-state vs D-state distinction
+
+T2 demonstrated that on H200 NVLink with default NCCL settings, simple
+`dist.all_reduce` operations keep the CPU in **spin-wait (R-state)**. When
+T2's collective mismatch hung both ranks, SLURM's wall-time (SIGKILL) cleaned
+them up without draining (job 1209723: TIMEOUT, exit 0:0, no drain).
+
+The actual drains required **D-state** (uninterruptible kernel sleep) from:
+- `cudaStreamSynchronize` during `loss.backward()` (Events 1, 3)
+- TCP `connect()` on a silently-dropping firewall (Event 2)
+
+**T4 as written (synthetic `all_reduce` loop) may not drain** because the
+processes stay in R-state. For a more reliable drain reproducer, T4 would
+need a real model forward + backward pass to trigger `cudaStreamSynchronize`
+D-state. T3 (network I/O) is the recommended first drain validation because
+`socket.connect()` → TCP SYN → DROP is reliably D-state regardless of
+hardware configuration.
 
 ---
 
