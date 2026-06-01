@@ -4,20 +4,20 @@
 #SBATCH --reservation=gpu_0003_grpA
 #SBATCH --account=grpa
 #SBATCH --gres=gpu:4
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=256G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
 #SBATCH --time=00:30:00
 #SBATCH --output=/work/projects/imas_gpu/logs/mwe05-%j.out
 #SBATCH --error=/work/projects/imas_gpu/logs/mwe05-%j.err
 
-# MWE-05 v3: DDP loss.backward() + torch.cuda.synchronize() + Auto-Scancel
+# MWE-05 v4: NCCL Collective Hang — Confirmed D-State Drain Reproducer
 # Risk: ⚠️⚠️ DESIGNED TO DRAIN THE NODE — GPU reset + admin resume required.
 #
-# v2 finding: async GPU dispatch → backward returns in 2ms → CPU in Python
-# when scancel arrives → clean cancel, no drain.
-# v3 fix: torch.cuda.synchronize(device) after backward forces CPU to block
-# in cudaDeviceSynchronize() for ~400ms while GPU+NCCL complete. This is
-# D-state via NVLink driver ioctl. Auto-scancel fires mid-step-3 sync → drain.
+# v3 finding: torch.cuda.synchronize() is S-state (interruptible). Even
+#   with 112ms blocking wait, SIGTERM delivers cleanly → no drain.
+# v4 fix: Use the CONFIRMED mechanism — rank 0 alone calls dist.all_reduce().
+#   Other ranks sleep. Rank 0 blocks forever in NCCL NVLink P2P ioctl →
+#   D-state → SIGTERM undeliverable → drain. Exactly replicates Event #4.
 #
 # RECOVERY (admin commands after drain confirmed):
 #   nvidia-smi -i 0,1,2,3 --gpu-reset
@@ -33,25 +33,22 @@ mkdir -p "${TMPDIR}" || export TMPDIR=/tmp
 mkdir -p /work/projects/imas_gpu/logs
 
 export DRAIN_TEST_LOG_DIR=/work/projects/imas_gpu/logs
-export MODEL_DEPTH="${MODEL_DEPTH:-16}"
-export HIDDEN_DIM="${HIDDEN_DIM:-8192}"
-export BATCH_SIZE="${BATCH_SIZE:-256}"
-export AUTO_SCANCEL_DELAY="${AUTO_SCANCEL_DELAY:-0.5}"
+export AUTO_SCANCEL_DELAY="${AUTO_SCANCEL_DELAY:-2.0}"
 
-PYTHON="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/python"
 TORCHRUN="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/torchrun"
 
-echo "=== MWE-05 v3 DDP Backward + Sync Drain Reproducer ==="
+echo "=== MWE-05 v4 NCCL Collective Hang — Confirmed D-State Drain ==="
 echo "Job: ${SLURM_JOB_ID}  Node: ${SLURMD_NODENAME}"
 echo "*** DESIGNED TO DRAIN THE NODE ***"
-echo "Model: depth=${MODEL_DEPTH}, dim=${HIDDEN_DIM}, batch=${BATCH_SIZE}, dtype=bfloat16"
-echo "Auto-scancel: ${AUTO_SCANCEL_DELAY}s after READY (no manual action required)"
+echo "Auto-scancel: ${AUTO_SCANCEL_DELAY}s after READY"
 echo ""
 echo "Expected sequence:"
-echo "  1. NCCL init (~5s)"
-echo "  2. First backward (~500ms) → READY"
-echo "  3. Auto-scancel fires ${AUTO_SCANCEL_DELAY}s later (mid step-2 backward)"
-echo "  4. D-state processes survive SIGKILL → UnkillableStepTimeout → DRAIN"
+echo "  1. NCCL init + barrier (all 4 ranks) → ~5s"
+echo "  2. READY printed (rank 0 entering lone all_reduce)"
+echo "  3. Rank 0 blocks in NCCL NVLink ioctl → D-state"
+echo "  4. Auto-scancel fires ${AUTO_SCANCEL_DELAY}s after READY"
+echo "  5. SIGTERM → rank 0 D-state → SIGKILL → D-state survives"
+echo "  6. UnkillableStepTimeout → Kill task failed → DRAIN"
 echo ""
 echo "After drain, notify admin:"
 echo "  nvidia-smi -i 0,1,2,3 --gpu-reset"
