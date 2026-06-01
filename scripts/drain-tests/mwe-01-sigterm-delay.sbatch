@@ -48,6 +48,6 @@ ${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29500 \
-    "$(dirname "$0")/mwe-01-sigterm-delay.py"
+    "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/mwe-01-sigterm-delay.py"
 
 echo "=== MWE-01 COMPLETE ==="

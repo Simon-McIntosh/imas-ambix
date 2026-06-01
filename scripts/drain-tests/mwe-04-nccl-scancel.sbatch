@@ -44,6 +44,6 @@ ${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29502 \
-    "$(dirname "$0")/mwe-04-nccl-scancel.py"
+    "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/mwe-04-nccl-scancel.py"
 
 echo "=== MWE-04 COMPLETE ==="

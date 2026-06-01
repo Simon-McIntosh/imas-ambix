@@ -39,6 +39,6 @@ echo "Target: ${TARGET_HOST}:${TARGET_PORT}"
 echo "AFTER 'ATTEMPTING TCP CONNECT' appears → scancel ${SLURM_JOB_ID}"
 echo "Then check: sinfo -N -n ${SLURMD_NODENAME} --noheader -o '%T'"
 
-"${PYTHON}" "$(dirname "$0")/mwe-03-network-hang.py"
+"${PYTHON}" "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/mwe-03-network-hang.py"
 
 echo "=== MWE-03 COMPLETE (process was killable — no drain) ==="

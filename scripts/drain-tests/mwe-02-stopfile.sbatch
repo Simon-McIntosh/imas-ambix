@@ -39,6 +39,6 @@ ${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29501 \
-    "$(dirname "$0")/mwe-02-stopfile.py"
+    "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/mwe-02-stopfile.py"
 
 echo "=== MWE-02 COMPLETE ==="

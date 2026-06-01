@@ -63,6 +63,6 @@ ${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29503 \
-    "$(dirname "$0")/mwe-05-ddp-backward.py"
+    "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/mwe-05-ddp-backward.py"
 
 echo "=== MWE-05 COMPLETE (process exited cleanly — no drain triggered) ==="
