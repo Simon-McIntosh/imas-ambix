@@ -70,46 +70,50 @@ def auto_scancel(delay: float) -> None:
 def run_seq_mismatch(rank: int, world_size: int, device: torch.device) -> None:
     """Faithful reproduction of the original Event #4 (MWE-01 v1 bug).
 
-    Mechanism:
-      - All 4 ranks call collective A (warm-up, sequence 1). All complete.
-      - Ranks 1-3 call collective B (sequence 2 for them). Rank 0 sleeps.
-      - After B completes for ranks 1-3 (rank 0 still at seq 1):
-          Rank 0 calls C → this is rank 0's sequence 2.
-          Ranks 1-3 call C → this is their sequence 3.
-      - PERMANENT MUTUAL DEADLOCK:
-          Rank 0 at seq 2: waits for all 4 peers to join seq 2.
-          Ranks 1-3 at seq 3: wait for rank 0 to join seq 3.
-          Neither group can advance. All 4 blocked simultaneously.
+    The original bug was: the per-round loop in MWE-01 v1 ran two all_reduce
+    calls for rank 0 (timing + blind-window measurement) but only one for
+    ranks 1-3, then a coordination all_reduce for all 4. This created:
 
-    Note: NCCL heartbeat disabled in the sbatch via env vars so the watchdog
-    does not abort before we can observe whether this is D-state or S-state.
+      All 4 call all_reduce(buf_large)   → NCCL seq 1, completes.
+      Rank 0: all_reduce(buf_large)      → enters NCCL seq 2, count=N, blocks
+      Ranks 1-3: all_reduce(buf_small)   → enters NCCL seq 2, count=1, blocks
+
+    All 4 are simultaneously stuck at NCCL sequence 2 on the SAME communicator
+    with MISMATCHED element counts (N vs 1). The NCCL data-transfer protocol
+    deadlocks because neither side can satisfy the other's size expectation.
+    If this wait is in D-state (TASK_UNINTERRUPTIBLE), SIGTERM cannot wake it
+    → SIGKILL also fails → UnkillableStepTimeout → node drain.
+
+    Key difference from prior (failed) design: ranks 1-3 enter IMMEDIATELY
+    without waiting — they are stuck at seq 2 BEFORE rank 0 joins. The
+    auto_scancel fires as a background thread; rank 0 then enters the
+    all_reduce and both sides are deadlocked simultaneously when SIGTERM arrives.
     """
-    t = torch.ones(TENSOR_NUMEL, dtype=torch.float32, device=device)
+    # buf_large and buf_small must have DIFFERENT element counts — that is the
+    # count mismatch that corrupts the NCCL collective handshake.
+    buf_large = torch.randn(TENSOR_NUMEL, dtype=torch.float32, device=device)
+    buf_small = torch.zeros(1, dtype=torch.float32, device=device)
 
-    # Collective A: all 4 ranks participate (warm-up, advances all to seq 1)
-    dist.all_reduce(t)
+    # Warm-up: all 4 participate, NCCL seq advances to 1 for all ranks
+    dist.all_reduce(buf_large)
 
     if rank == 0:
-        # Rank 0 sleeps while ranks 1-3 call collective B
-        time.sleep(1.0)
-    else:
-        # Collective B: ranks 1-3 advance to seq 2; rank 0 stays at seq 1
-        dist.all_reduce(t)
-
-    # All 4 now call collective C simultaneously:
-    #   Rank 0: this is its seq 2 → waits for ranks 1-3 at seq 2
-    #   Ranks 1-3: this is their seq 3 → wait for rank 0 at seq 3
-    # → PERMANENT DEADLOCK on the same communicator with mismatched sequences
-    if rank == 0:
-        print("[MWE-05] READY seq_mismatch — rank 0 at seq 2, ranks 1-3 at seq 3", flush=True)
-        print("[MWE-05]   rank 0: calling collective C at seq 2 (waits for peers at 2)", flush=True)
-        print("[MWE-05]   ranks 1-3: calling collective C at seq 3 (wait for rank 0 at 3)", flush=True)
-        print("[MWE-05]   MUTUAL DEADLOCK — all 4 blocked on same communicator", flush=True)
+        # Schedule scancel in background BEFORE entering the deadlock
+        print("[MWE-05] READY seq_mismatch (count mismatch) — entering deadlock", flush=True)
+        print("[MWE-05]   rank 0: all_reduce(buf_large) count=N  at NCCL seq 2", flush=True)
+        print("[MWE-05]   ranks 1-3: all_reduce(buf_small) count=1 at NCCL seq 2", flush=True)
+        print("[MWE-05]   NCCL count mismatch → mutual D-state deadlock", flush=True)
         print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
-        auto_scancel(AUTO_SCANCEL_DELAY)
+        auto_scancel(AUTO_SCANCEL_DELAY)  # Background thread — returns immediately
+        # Rank 0 now enters seq 2 with large buffer (count=N)
+        # Ranks 1-3 are already blocked at seq 2 with small buffer (count=1)
+        dist.all_reduce(buf_large)
+    else:
+        # Ranks 1-3 skip rank-0's block and immediately enter seq 2 with count=1
+        # They will be stuck here BEFORE rank 0 arrives
+        dist.all_reduce(buf_small)
 
-    dist.all_reduce(t)  # All 4 call this — but with mismatched sequence numbers
-    print(f"[MWE-05 rank {rank}] UNEXPECTED: seq_mismatch all_reduce returned", flush=True)
+    print(f"[MWE-05 rank {rank}] UNEXPECTED: seq_mismatch returned (no drain?)", flush=True)
 
 
 def run_gpu_sleep(rank: int, world_size: int, device: torch.device) -> None:
