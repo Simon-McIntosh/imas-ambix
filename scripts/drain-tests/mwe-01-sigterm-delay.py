@@ -28,6 +28,16 @@ EXPECTED RESULT
   meaning a SLURM scancel mid-collective leaves the process unkillable
   until the collective finishes (or forever if NVLink hangs).
 
+  IMPORTANT — v1 BUG (caused accidental drain on 2026-06-01, job 1209813):
+  The original implementation placed a rank-0-only dist.all_reduce inside
+  the ``if rank == 0`` block. Ranks 1-3 skipped this collective, causing
+  a collective mismatch. NCCL blocked in D-state waiting for the missing
+  peers. SLURM could not kill the D-state processes → node drained.
+  Lesson: collective mismatches are themselves a drain trigger, independent
+  of loss.backward() or network hangs.
+  This version fixes the bug: all ranks participate in the measurement
+  collective. Only rank 0 arms the signal handler and measures blind time.
+
 ENVIRONMENT VARIABLES
   NROUNDS          Number of measurement rounds (default: 20)
   BUFFER_MB        Size of all-reduce buffer in MB (default: 256)
@@ -82,12 +92,33 @@ def main() -> None:
 
     results: list[dict] = []
 
+    import threading
+
+    handler_fired_at: list[float] = []
+    t_sent_store: list[float] = []
+
+    def _handler(signum: int, frame: object) -> None:
+        handler_fired_at.append(time.perf_counter())
+
+    def _fire() -> None:
+        time.sleep(0.001)  # 1 ms — fire mid-collective
+        t_sent_store.append(time.perf_counter())
+        os.kill(os.getpid(), signal.SIGTERM)
+
     for rnd in range(NROUNDS):
         # --- Coordinate stop ---
         if stop[0].item() > 0.5:
             break
 
-        # --- Measure collective duration ---
+        # --- Rank 0 arms signal handler and starts timer thread ---
+        if rank == 0:
+            handler_fired_at.clear()
+            t_sent_store.clear()
+            old_handler = signal.signal(signal.SIGTERM, _handler)
+            fire_thread = threading.Thread(target=_fire, daemon=True)
+            fire_thread.start()
+
+        # --- ALL ranks participate in the measurement collective ---
         torch.cuda.synchronize(device)
         t_collective_start = time.perf_counter()
         dist.all_reduce(buf, op=dist.ReduceOp.SUM)
@@ -95,49 +126,25 @@ def main() -> None:
         t_collective_end = time.perf_counter()
         collective_ms = (t_collective_end - t_collective_start) * 1000.0
 
-        # --- SIGTERM blind-window measurement (rank 0 only) ---
-        blind_ms = float("nan")
+        # --- Rank 0 collects results ---
         if rank == 0:
-            handler_fired_at: list[float] = []
-
-            def _handler(signum: int, frame: object) -> None:
-                handler_fired_at.append(time.perf_counter())
-
-            old_handler = signal.signal(signal.SIGTERM, _handler)
-
-            # Send SIGTERM to self from a thread so it arrives mid-collective
-            import threading
-
-            def _fire() -> None:
-                time.sleep(0.001)  # 1 ms delay — land mid-collective
-                t_sent = time.perf_counter()
-                os.kill(os.getpid(), signal.SIGTERM)
-                # Store t_sent in closure
-                _fire._t_sent = t_sent  # type: ignore[attr-defined]
-
-            _fire._t_sent = float("nan")  # type: ignore[attr-defined]
-            t = threading.Thread(target=_fire, daemon=True)
-            t.start()
-
-            # Run collective while SIGTERM may be in-flight
-            torch.cuda.synchronize(device)
-            dist.all_reduce(buf, op=dist.ReduceOp.SUM)
-            torch.cuda.synchronize(device)
-
-            t.join()
+            fire_thread.join()
             signal.signal(signal.SIGTERM, old_handler)
 
-            if handler_fired_at:
-                blind_ms = (handler_fired_at[0] - _fire._t_sent) * 1000.0  # type: ignore[attr-defined]
+            blind_ms: float
+            if handler_fired_at and t_sent_store:
+                blind_ms = (handler_fired_at[0] - t_sent_store[0]) * 1000.0
+            elif t_sent_store:
+                blind_ms = (t_collective_end - t_sent_store[0]) * 1000.0
             else:
-                # Handler not yet fired — measure from collective end
-                t_end = time.perf_counter()
-                blind_ms = (t_end - _fire._t_sent) * 1000.0  # type: ignore[attr-defined]
+                blind_ms = float("nan")
 
             print(f"[MWE-01] {rnd},{blind_ms:.3f},{collective_ms:.3f}", flush=True)
             results.append({"round": rnd, "blind_window_ms": blind_ms, "collective_ms": collective_ms})
 
-        # --- Coordinate stop after all rounds (rank 0 signals others) ---
+        # --- Coordinate stop: rank 0 signals last round ---
+        if rank == 0 and rnd >= NROUNDS - 1:
+            stop[0] = 1.0
         dist.all_reduce(stop, op=dist.ReduceOp.MAX)
 
     if rank == 0 and results:
