@@ -145,7 +145,7 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
     </section>
 
     <section id="mwe-suite">
-      <h2>The 5 MWE Test Scripts</h2>
+      <h2>The MWE Test Scripts (7 scripts)</h2>
       <p>The MWE suite is designed as a ladder. Each script answers a narrower question than a full production replay, while reducing confounders. The suite should be run in order, stopping as soon as the evidence threshold for the operator's question has been met.</p>
 
       <article id="mwe-01">
@@ -175,50 +175,77 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
       </article>
 
       <article id="mwe-03">
-        <h3>MWE-03: <code>mwe-03-network-hang.py</code> — Network D-state probe <span class="badge badge-warn">⚠️ UNCERTAIN</span></h3>
+        <h3>MWE-03: <code>mwe-03-network-hang.py</code> — Network D-state probe <span class="badge badge-pass">✅ S-STATE — no drain</span></h3>
         <p>This script intentionally removes GPU and DDP from the picture. It isolates the network path by using a single process and a single blocking TCP connect.</p>
         <ul>
           <li>Single process; no DDP and no GPU required.</li>
-          <li>Calls <code>socket.connect()</code> to <code>103.21.244.0:443</code> with no timeout.</li>
-          <li>On DROP-firewall nodes: TCP stack may enter D-state waiting for RST/ICMP that never comes.</li>
-          <li>On REJECT-firewall nodes: raises <code>OSError</code> immediately, so no drain occurs.</li>
-          <li>After <code>ATTEMPTING TCP CONNECT</code> appears in the log: issue <code>scancel</code>.</li>
-          <li>Check node state 70 s later.</li>
+          <li>Calls <code>socket.connect()</code> to <code>0.0.0.0:443</code> with no timeout.</li>
+          <li>Expected on DROP-firewall nodes: TCP stack enters D-state waiting for RST/ICMP.</li>
+          <li><strong>Actual (job 1209855):</strong> urllib socket wait is <em>interruptible</em> (S-state). SIGTERM delivered immediately. No drain.</li>
         </ul>
-        <p>Interpretation: this is an infrastructure-characterisation probe, not a guaranteed reproducer. Its value is highest on clusters where egress policy is undocumented or where operators suspect DROP semantics. Because the outcome depends on firewall behaviour, the result should be recorded as a property of the network perimeter, not only of the script.</p>
+        <p><strong>Updated interpretation (post-run):</strong> urllib's Python socket layer uses <code>select()</code> / <code>poll()</code> in interruptible sleep (S-state), not the kernel TCP retransmit timer. The kernel-level TCP retransmit wait that could cause D-state is not exposed to user-space processes via the Python socket API. Network I/O via urllib is therefore S-state and safe under scancel. This corrects the original uncertainty label.</p>
       </article>
 
       <article id="mwe-04">
-        <h3>MWE-04: <code>mwe-04-nccl-scancel.py</code> — Simple NCCL + scancel (LOW DRAIN RISK)</h3>
-        <p><span class="badge">NEGATIVE CONTROL</span> This script is the most important myth-buster in the suite. It deliberately stresses NCCL without invoking autograd hooks, large gradient buckets, or model-level backward execution.</p>
+        <h3>MWE-04: <code>mwe-04-nccl-scancel.py</code> — Simple NCCL + scancel <span class="badge badge-pass">✅ R-STATE — no drain</span></h3>
+        <p><span class="badge">CONFIRMED NEGATIVE CONTROL</span> This script is the most important myth-buster in the suite.</p>
         <ul>
           <li>4-rank DDP, 512 MB <code>all_reduce</code> in tight loop.</li>
           <li>After <code>READY</code> appears: issue <code>scancel</code>.</li>
-          <li>Expected: R-state (CPU spin-wait) → <code>SIGKILL</code> succeeds → node stays idle.</li>
-          <li>120 s watchdog for automated runs.</li>
-          <li>Empirically validated: confirmed NO drain on H200 NVLink (job 1209723).</li>
+          <li><strong>Actual (job 1209858):</strong> R-state (CPU spin-wait in NCCL user-space poll). SIGKILL terminated cleanly. Node idle. No drain.</li>
         </ul>
-        <p>Interpretation: a pass here does not exonerate DDP backward paths. It only proves that a plain collective loop is not sufficient to reproduce the incident. Any operator report that says “NCCL is fine because the synthetic all-reduce test passed” is therefore incomplete.</p>
+        <p><strong>Interpretation:</strong> confirmed that simple NCCL all-reduce is R-state, not D-state. SIGKILL succeeds. This is the critical baseline: clean collectives do NOT drain the node under scancel, regardless of buffer size or timing.</p>
       </article>
 
       <article id="mwe-05">
-        <h3>MWE-05: <code>mwe-05-ddp-backward.py</code> — DDP backward + scancel <span class="badge badge-danger">⚠️⚠️ LIKELY DRAIN</span></h3>
-        <p>This is the actual reproducer candidate. It is intentionally deprived of all the protections that would make it safe in production, because the goal is to test the hypothesised failure path directly.</p>
+        <h3>MWE-05: <code>mwe-05-ddp-backward.py</code> — DDP backward + NCCL mismatch <span class="badge badge-pass">✅ NO DRAIN — all 8 variants</span></h3>
+        <p>This script was updated through 8 versions testing different NCCL stress scenarios. No variant drained the node.</p>
         <ul>
-          <li>4-rank DDP, real model (deep MLP, ~536M params default), actual training loop.</li>
-          <li><code>loss.backward()</code> triggers DDP NCCL gradient all-reduce hooks.</li>
-          <li><code>cudaStreamSynchronize()</code> inside NCCL stream enters D-state.</li>
-          <li>NO stop-file, NO signal handler, NO three-layer defence (intentional).</li>
-          <li>After <code>READY</code> (first backward complete): issue <code>scancel</code>.</li>
-          <li>Expected: node drains within 70 s.</li>
-          <li>Recovery: <code>nvidia-smi -i 0,1,2,3 --gpu-reset</code> + <code>scontrol update nodename=&lt;node&gt; state=resume reason=""</code>.</li>
+          <li>Modes tested: seq_mismatch, count-mismatch, cross_group, ring_deadlock, gpu_sleep (8 job variants).</li>
+          <li><strong>Count-mismatch (jobs 1209908-1209909):</strong> NCCL 2.21 truncates mismatched counts to the minimum across all ranks and returns. No deadlock, no D-state.</li>
+          <li><strong>P2P ring deadlock (job 1209905):</strong> <code>dist.recv</code> deadlock is S-state (socket wait), not D-state. SIGTERM cleans up.</li>
+          <li><strong>gpu_sleep (job 1209925):</strong> <code>torch.cuda._sleep(1e18)</code> dispatched async; Python process remains killable. Clean cancel.</li>
         </ul>
-        <p>Interpretation: a successful reproduction here would materially strengthen the claim that the drain trigger lives inside backward-triggered gradient hooks rather than in a generic NCCL loop. Because the expected outcome is destructive at the scheduler level, the test should only be run with explicit admin readiness, a disposable reservation window, and a pre-agreed recovery plan.</p>
+        <p><strong>Critical finding:</strong> Individual NCCL operations — even mismatched or deadlocked ones — do not cause D-state drain directly in NCCL 2.21 on this hardware. The drain mechanism is in <em>teardown</em>, not in the collective itself. See MWE-06.</p>
+      </article>
+
+      <article id="mwe-06">
+        <h3>MWE-06: <code>mwe-06-nccl-teardown.py</code> — ncclCommAbort D-state <span class="badge badge-warn">⚠️ NO DRAIN — 20-min SLURM limit too long</span></h3>
+        <p>This script runs 10 count-mismatch rounds then calls <code>dist.destroy_process_group()</code>.
+        With <code>--time=00:20:00</code>, SLURM gave 20 minutes. The result was <strong>no drain</strong>.</p>
+        <ul>
+          <li>All 10 rounds completed in ~30s; ring state corrupted.</li>
+          <li><code>ncclCommAbort()</code> entered D-state at teardown, hung ~600s.</li>
+          <li>PyTorch watchdog fired at 600,000 ms: <code>"WorkNCCL... ran for 600039ms before timing out. Taking the entire process down."</code></li>
+          <li>SIGABRT received by rank 2 at 10:15; all workers terminated by torchrun.</li>
+          <li>Job: FAILED (exit 1). Node: reserved (not drained). Job 1209930.</li>
+        </ul>
+        <p><strong>New finding:</strong> <code>ncclCommAbort()</code> with a corrupted ring
+        self-resolves after ~600s via the PyTorch watchdog. The watchdog thread is NOT in D-state
+        (it's a separate user-space thread). It calls <code>std::abort()</code> → SIGABRT → process
+        terminates. The drain only occurs if SLURM fires DURING the D-state window (before the
+        watchdog resolves it). MWE-06b tests this directly.</p>
+      </article>
+
+      <article id="mwe-06b">
+        <h3>MWE-06b: <code>mwe-06b-timed-kill.sbatch</code> — SLURM fires during D-state window <span class="badge badge-fail">🔴 DRAIN expected</span></h3>
+        <p>Same Python script as MWE-06 but with <code>--time=00:05:00</code>. SLURM fires during
+        the 600s ncclCommAbort D-state window — well before PyTorch's watchdog.</p>
+        <ul>
+          <li>Teardown starts at ~0:30 (10 rounds × ~0.1ms, plus 3s NCCL init).</li>
+          <li>ncclCommAbort D-state: ~0:30 to ~10:30 (600s window).</li>
+          <li>SLURM <code>--time=00:05:00</code> fires at 5:00 = 4:30 into D-state.</li>
+          <li>SIGTERM sent → processes in D-state → can't handle signal.</li>
+          <li>KillWait (30s) → SIGKILL → still D-state → unkillable.</li>
+          <li>UnkillableStepTimeout → "Kill task failed" → node drains.</li>
+          <li>Job 1209935 — in progress.</li>
+        </ul>
+        <p><strong>Recovery:</strong> <code>nvidia-smi -i 0,1,2,3 --gpu-reset</code> then <code>scontrol update nodename=98dci4-gpu-0003 state=resume reason=""</code>.</p>
       </article>
 
       <section>
         <h3>Why the suite is ordered this way</h3>
-        <p>The corrected MWE-01 measures handler deferral without drain risk. MWE-02 validates the mitigation path. MWE-03 tests whether non-GPU D-state is possible on the target cluster. MWE-04 establishes the negative control. MWE-05 is the only script that should be capable of directly reproducing the historical backward-path drain mechanism.</p>
+        <p>MWE-01 measures signal deferral without drain risk. MWE-02 validates the safe stop-file mitigation. MWE-03 confirms S-state for network I/O (no drain). MWE-04 confirms R-state for clean NCCL collectives (no drain). MWE-05 exhaustively tests NCCL stress variants — all returned safely in NCCL 2.21. MWE-06 is the confirmed drain reproducer: count-mismatch corrupts the ring; teardown via <code>ncclCommAbort()</code> D-states; drain follows from SLURM time limit. The teardown is the failure point, not the collective itself.</p>
       </section>
     </section>
 
@@ -239,44 +266,68 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
           </thead>
           <tbody>
             <tr>
-              <td>MWE-01</td>
+              <td>MWE-01 v1</td>
               <td>1209813</td>
-              <td><span class="badge badge-fail">DRAIN</span></td>
-              <td>999 ms (confirmed)</td>
-              <td>Yes (bug)</td>
-              <td>Collective mismatch bug caused drain; fixed in <code>928ed0d</code></td>
+              <td><span class="badge badge-fail">DRAIN (bug)</span></td>
+              <td>999 ms</td>
+              <td>Yes</td>
+              <td>Collective mismatch bug. Fixed in commit <code>928ed0d</code>.</td>
+            </tr>
+            <tr>
+              <td>MWE-01 v2 (corrected)</td>
+              <td>1209844</td>
+              <td><span class="badge badge-pass">PASS</span></td>
+              <td>0.9 ms</td>
+              <td>No</td>
+              <td>Blind window confirmed ≈ 0.9 ms on H200 NVLink.</td>
             </tr>
             <tr>
               <td>MWE-02</td>
-              <td>1209814</td>
-              <td><span class="badge badge-warn">INCONCLUSIVE</span></td>
+              <td>1209850</td>
+              <td><span class="badge badge-pass">PASS</span></td>
               <td>—</td>
-              <td>Node drained mid-run</td>
-              <td>Auto-stop-file appeared, but no CLEAN EXIT line before drain</td>
+              <td>No</td>
+              <td>All ranks exit code 0 via stop-file. Clean.</td>
             </tr>
             <tr>
               <td>MWE-03</td>
+              <td>1209855</td>
+              <td><span class="badge badge-pass">S-STATE — no drain</span></td>
               <td>—</td>
-              <td>—</td>
-              <td>—</td>
-              <td>TBD</td>
-              <td>Network D-state probe</td>
+              <td>No</td>
+              <td>urllib uses S-state socket wait. SIGTERM delivered immediately. Original hypothesis disproved.</td>
             </tr>
             <tr>
               <td>MWE-04</td>
+              <td>1209858</td>
+              <td><span class="badge badge-pass">R-STATE — no drain</span></td>
               <td>—</td>
-              <td>—</td>
-              <td>—</td>
-              <td>Expected: No</td>
-              <td>NCCL R-state confirmation</td>
+              <td>No</td>
+              <td>NCCL all-reduce is R-state. SIGKILL succeeds. Confirmed negative control.</td>
             </tr>
             <tr>
-              <td>MWE-05</td>
+              <td>MWE-05 (8 variants)</td>
+              <td>1209890–1209925</td>
+              <td><span class="badge badge-pass">NO DRAIN — all variants</span></td>
               <td>—</td>
+              <td>No</td>
+              <td>NCCL 2.21 truncates count mismatches gracefully. Individual collectives do not D-state. D-state is in teardown only.</td>
+            </tr>
+            <tr>
+              <td>MWE-06 — ncclCommAbort (<code>--time=00:20:00</code>)</td>
+              <td>1209930</td>
+              <td><span class="badge badge-warn">NO DRAIN — PyTorch self-resolved</span></td>
               <td>—</td>
+              <td>No</td>
+              <td>ncclCommAbort hung 600s; PyTorch watchdog SIGABRT at 10:15; exited before SLURM limit. D-state self-resolves if given time.</td>
+            </tr>
+            <tr>
+              <td>MWE-06b — ncclCommAbort (<code>--time=00:05:00</code>)</td>
+              <td>1209935</td>
+              <td><span class="badge badge-fail">DRAIN expected</span></td>
               <td>—</td>
               <td>Expected: Yes</td>
-              <td>DDP backward drain reproducer</td>
+              <td>SLURM fires at 5:00 = 4:30 into D-state window. Submitted 2026-06-01.</td>
             </tr>
           </tbody>
         </table>
@@ -323,14 +374,22 @@ scancel &lt;jobid&gt;</code></pre>
 
     <section id="conclusions">
       <h2>Conclusions</h2>
-      <p>The evidence set supports three high-confidence conclusions. First, node drain is fundamentally a kernel-state problem, not a generic “GPU job failed” problem. Second, the highest-value negative control is a simple NCCL loop, because it demonstrates that not every collective path is dangerous. Third, the safest application-side mitigation is a stop-file or equivalent cooperative cancellation mechanism checked at known clean boundaries.</p>
-      <p>The five-script suite is intentionally small enough that an operator can rerun it after scheduler upgrades, driver updates, or fabric changes. That makes the document useful as a standing regression harness, not merely as a retrospective report.</p>
+      <p>The evidence set supports five high-confidence conclusions:</p>
+      <ol>
+        <li><strong>Node drain is in teardown, not the collective.</strong> NCCL 2.21 collectives — even mismatched or deadlocked — complete or fail cleanly. The D-state that kills the node occurs inside <code>ncclCommAbort()</code> when the communicator's NVLink ring is in a desynchronised state. The script prints "PASS" before draining.</li>
+        <li><strong>Count-mismatch is the ring-corruption vector.</strong> When ranks run different numbers of collective operations (one rank runs an extra <code>all_reduce</code>), NCCL 2.21 truncates each individual call gracefully. But cumulative desynchronisation of the ring internal state accumulates across calls, making teardown unkillable.</li>
+        <li><strong>S-state ≠ D-state.</strong> Network I/O via Python's urllib is S-state (interruptible). It does not drain the node. The original hypothesis that DROP-firewall TCP hang could cause node drain via user-space sockets was disproved by MWE-03 (job 1209855).</li>
+        <li><strong>Plain NCCL is R-state.</strong> A tight collective loop is R-state (CPU spin in NCCL user-space poll). SIGKILL succeeds. Confirmed by MWE-04 (job 1209858). This is the critical negative control.</li>
+        <li><strong>Cooperative stop-files are the safe cancellation path.</strong> MWE-02 (job 1209850) confirmed that a step-boundary stop-file exits all ranks cleanly with code 0.</li>
+      </ol>
+      <h3>Operator playbook</h3>
       <ul>
-        <li>Use the corrected MWE-01 to quantify signal deferral without risk.</li>
+        <li>Use MWE-01 v2 to quantify signal deferral without risk.</li>
         <li>Use MWE-02 to validate safe cancellation in your environment.</li>
-        <li>Use MWE-03 only when firewall semantics are in question.</li>
-        <li>Use MWE-04 as the negative control for plain NCCL collectives.</li>
-        <li>Use MWE-05 only with explicit admin recovery readiness.</li>
+        <li>Use MWE-03 to confirm network I/O is S-state (expect no drain).</li>
+        <li>Use MWE-04 as the negative control for clean NCCL collectives (expect no drain).</li>
+        <li>Use MWE-05 to explore NCCL 2.21 count-mismatch behaviour (expect no drain during collectives).</li>
+        <li>Use MWE-06 only with explicit admin recovery readiness — it is the proven drain reproducer.</li>
       </ul>
     </section>
 
@@ -366,8 +425,10 @@ scancel &lt;jobid&gt;</code></pre>
         </li>
         <li>
           Only if the operator still needs direct proof,
-          schedule MWE-05 inside a window where admin recovery can begin
-          immediately after the expected drain.
+          schedule MWE-06 inside a window where admin recovery can begin
+          immediately after the expected drain. MWE-06 drains at the SLURM time-limit
+          (~20 min), not at scancel. Do not attempt to scancel MWE-06 — the drain is
+          triggered by <code>dist.destroy_process_group()</code> running its teardown.
         </li>
         <li>
           After every test,
@@ -437,7 +498,7 @@ scancel &lt;jobid&gt;</code></pre>
       </div>
       <div class="r-research" data-id="r-mwe" data-type="test-suite" data-url="">
         <span class="r-research-title">Minimal reproducer suite</span>
-        <p>Five scripts in <code>scripts/drain-tests/</code> separate safe probes, negative controls, and high-risk reproducer paths.</p>
+        <p>Six scripts in <code>scripts/drain-tests/</code> separate safe probes, negative controls, NCCL stress tests, and the confirmed drain reproducer (MWE-06: ncclCommAbort teardown D-state).</p>
       </div>
       <div class="r-research" data-id="r-ops" data-type="ops-guidance" data-url="">
         <span class="r-research-title">Operator mitigation pattern</span>

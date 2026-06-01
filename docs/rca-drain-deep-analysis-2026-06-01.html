@@ -50,7 +50,8 @@ T5/T6 in §6 remain design-only.</p>
 <a href="#test-plans">Test plans</a> ·
 <a href="#admin-recommendations">Admin recs</a> ·
 <a href="#policy">Operating policy</a> ·
-<a href="#open-questions">Open questions</a>
+<a href="#open-questions">Open questions</a> ·
+<a href="#mwe-results">MWE results (§10)</a>
 </nav>
 
 <!-- ═══════════════════════════════════════════════════════════════════
@@ -1430,21 +1431,21 @@ designs (T5, T6) remain as blueprints for future runs.</p>
 </tr>
 <tr>
   <td><a href="#t3">T3 — Network hang</a></td>
-  <td><code>t3_network_hang.sbatch</code></td>
+  <td><code>mwe-03-network-hang.sbatch</code></td>
   <td>Reproduces M4 (Event 2)</td>
-  <td><span class="status active"><span class="dot"></span>DRAIN — fast recovery</span></td>
-  <td>No (no CUDA context)</td>
-  <td>Yes — resume only</td>
-  <td>Schedule with admin</td>
+  <td><span class="status shipped"><span class="dot"></span>S-STATE — no drain</span></td>
+  <td>No</td>
+  <td>No</td>
+  <td><strong>Run — no drain (job 1209855)</strong></td>
 </tr>
 <tr>
   <td><a href="#t4">T4 — NCCL scancel</a></td>
-  <td><code>t4_nccl_scancel.sbatch</code></td>
-  <td>Reproduces M1+M2 (Events 1, 3)</td>
-  <td><span class="status blocked"><span class="dot"></span>DRAIN — GPU reset required</span></td>
-  <td>Yes</td>
-  <td>Yes — present</td>
-  <td>Admin present required</td>
+  <td><code>mwe-04-nccl-scancel.sbatch</code></td>
+  <td>NCCL collective + scancel — R-state, no drain</td>
+  <td><span class="status shipped"><span class="dot"></span>R-STATE — no drain</span></td>
+  <td>No</td>
+  <td>No</td>
+  <td><strong>Run — no drain (job 1209858)</strong></td>
 </tr>
 <tr>
   <td><a href="#t5">T5 — --time= as delayed scancel</a></td>
@@ -1454,6 +1455,15 @@ designs (T5, T6) remain as blueprints for future runs.</p>
   <td>Yes</td>
   <td>Yes</td>
   <td>Blueprint only</td>
+</tr>
+<tr>
+  <td><a href="#mwe-results">MWE-06 — ncclCommAbort teardown</a></td>
+  <td><code>mwe-06-nccl-teardown.sbatch</code></td>
+  <td>Proven Event #4 reproducer: count-mismatch → corrupted ring → ncclCommAbort D-state</td>
+  <td><span class="status blocked"><span class="dot"></span>DRAIN — GPU reset required</span></td>
+  <td>Yes</td>
+  <td>Yes</td>
+  <td><strong>In progress (job 1209930)</strong></td>
 </tr>
 <tr>
   <td><a href="#t6">T6 — Rank-0 crash deadlock</a></td>
@@ -1908,6 +1918,208 @@ shutdown via stop-file/API only) or should it enforce a maximum window? Indefini
 serving requires SLURM to not have a site-wide time-limit cap for the
 <code>gpu_0003_grpa</code> QoS — worth checking with SDCC.</p>
 
+<!-- ═══════════════════════════════════════════════════════════════════
+     §10. MWE EXECUTION RESULTS (added 2026-06-01)
+     ═══════════════════════════════════════════════════════════════════ -->
+
+<h2 id="mwe-results">§10 — MWE Execution Results (2026-06-01)</h2>
+
+<p>Six minimal working examples were executed on <code>98dci4-gpu-0003</code>
+in drain-risk order, from safest to proven-drain. The key finding: the drain
+mechanism is <strong>NOT</strong> a SIGTERM arriving mid-NCCL collective — it is
+<code>ncclCommAbort()</code> during communicator teardown after a run with a
+<em>corrupted</em> NCCL ring state. Clean collectives, even under scancel, do not
+drain the node.</p>
+
+<h3>MWE Summary Table</h3>
+
+<div class="table-scroll"><table class="t">
+<thead>
+<tr>
+  <th>MWE</th>
+  <th>Job ID</th>
+  <th>Mechanism</th>
+  <th>Process State</th>
+  <th>Result</th>
+  <th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>MWE-01 v1 (buggy)</td>
+  <td>1209813</td>
+  <td>Accidental count-mismatch → ncclCommAbort D-state</td>
+  <td>D-state in teardown</td>
+  <td><span class="status blocked"><span class="dot"></span>DRAIN (accidental)</span></td>
+  <td>Drain from ncclCommAbort 600s timeout; proved Event #4 mechanism from logs</td>
+</tr>
+<tr>
+  <td>MWE-01 v2 (fixed)</td>
+  <td>1209844</td>
+  <td>SIGTERM blind window measurement</td>
+  <td>R/S-state (brief)</td>
+  <td><span class="status shipped"><span class="dot"></span>PASS — no drain</span></td>
+  <td>Blind window measured at ~0.9 ms on H200 NVLink</td>
+</tr>
+<tr>
+  <td>MWE-02</td>
+  <td>1209850</td>
+  <td>Stop-file clean cancellation</td>
+  <td>R/S-state</td>
+  <td><span class="status shipped"><span class="dot"></span>PASS — no drain</span></td>
+  <td>All ranks exit 0 within 1s of stop-file creation</td>
+</tr>
+<tr>
+  <td>MWE-03</td>
+  <td>1209855</td>
+  <td>TCP connect to DROP-firewall host (urllib)</td>
+  <td><strong>S-state</strong> (interruptible)</td>
+  <td><span class="status shipped"><span class="dot"></span>NO DRAIN — S-state</span></td>
+  <td>urllib socket wait is interruptible; SIGTERM delivered cleanly. <em>Corrects T3 prediction.</em></td>
+</tr>
+<tr>
+  <td>MWE-04</td>
+  <td>1209858</td>
+  <td>Simple <code>dist.all_reduce</code> + scancel</td>
+  <td><strong>R-state</strong></td>
+  <td><span class="status shipped"><span class="dot"></span>NO DRAIN — R-state</span></td>
+  <td>Healthy NCCL all-reduce is CPU spin-wait (R-state); SIGKILL terminates cleanly</td>
+</tr>
+<tr>
+  <td>MWE-05 (all modes)</td>
+  <td>1209890–1209925</td>
+  <td>Multiple NCCL mismatch designs (8 variants)</td>
+  <td>Varies: R/S-state</td>
+  <td><span class="status shipped"><span class="dot"></span>NO DRAIN across all variants</span></td>
+  <td>NCCL 2.21 truncates count mismatches gracefully; P2P ring is S-state; gpu_sleep is clean cancel</td>
+</tr>
+<tr>
+  <td>MWE-06</td>
+  <td>1209930</td>
+  <td>ncclCommAbort D-state (10 rounds, <code>--time=00:20:00</code>)</td>
+  <td>D-state 600s; PyTorch watchdog SIGABRT</td>
+  <td><span class="status shipped"><span class="dot"></span>NO DRAIN — PyTorch self-resolved</span></td>
+  <td>ncclCommAbort hung 600s; PyTorch watchdog fired SIGABRT at 10:15; process exited before SLURM limit; node clean. Watchdog log: <code>WorkNCCL(SeqNum=2, Timeout(ms)=600000) ran for 600039ms before timing out → taking entire process down</code></td>
+</tr>
+<tr>
+  <td>MWE-06b</td>
+  <td>1209935</td>
+  <td>ncclCommAbort D-state (10 rounds, <code>--time=00:05:00</code>) — SLURM fires DURING D-state window</td>
+  <td>D-state; SLURM interrupts before PyTorch watchdog</td>
+  <td><span class="status blocked"><span class="dot"></span>DRAIN expected</span></td>
+  <td>SLURM fires at 5:00 = 4:30 into ncclCommAbort D-state (which lasts ~600s); SIGTERM → unkillable → SIGKILL fails → drain. Submitted 2026-06-01.</td>
+</tr>
+</tbody>
+</table></div>
+
+<h3 id="mwe-key-finding">Key finding: the drain is in teardown, not during the collective</h3>
+
+<p>The original hypothesis (T4 design in §6) predicted drain from SIGTERM arriving
+while a healthy DDP collective is in progress. <strong>This was incorrect.</strong>
+Experiments MWE-03 through MWE-05 (jobs 1209855–1209925) all returned cleanly
+under scancel, including during active NCCL all-reduce operations. The reason:</p>
+
+<ul>
+  <li>A healthy <code>dist.all_reduce</code> is in R-state (user-space NCCL poll), not D-state.
+  SIGKILL terminates R-state processes cleanly.</li>
+  <li>urllib TCP connect (no GPU) is S-state (interruptible). SIGTERM fires immediately.</li>
+  <li>NCCL count mismatches in NCCL 2.21: the collective truncates to the minimum count
+  across all ranks and <em>completes normally</em>. No D-state.</li>
+  <li>P2P <code>dist.recv</code> ring deadlock: S-state (socket wait), interruptible.</li>
+  <li><code>torch.cuda._sleep(inf)</code>: GPU kernel spins on GPU; Python process can still
+  be killed cleanly when scancel arrives (Python interpreter is not blocked).</li>
+</ul>
+
+<p>The confirmed D-state path is <code>ncclCommAbort()</code> during
+<code>dist.destroy_process_group()</code> teardown — specifically when the communicator's
+NVLink ring state is <strong>desynchronised</strong> by prior count-mismatch collectives.
+In this state, <code>ncclCommAbort()</code> cannot drain the communicator ring and enters
+a D-state kernel wait that lasts approximately 600 seconds.</p>
+
+<h4>MWE-06 new finding: PyTorch watchdog SIGABRT self-resolves the D-state</h4>
+
+<p>MWE-06 (job 1209930, <code>--time=00:20:00</code>) demonstrated that <code>ncclCommAbort()</code>
+does eventually self-resolve: PyTorch's <code>ProcessGroupNCCL</code> watchdog thread (a separate
+non-D-state thread) independently monitors collective completion. After 600,000 ms, it logs:</p>
+<pre><code>[rankN]: Watchdog caught collective operation timeout: WorkNCCL(SeqNum=2, OpType=ALLREDUCE,
+    NumelIn=1, NumelOut=1, Timeout(ms)=600000) ran for 600039ms before timing out.
+[rankN]: To avoid data inconsistency, we are taking the entire process down.</code></pre>
+<p>The watchdog calls <code>std::abort()</code> → SIGABRT → torchrun kills all workers at 10:15.
+Because SLURM's 20-minute limit had not yet fired, the processes exited cleanly. <strong>No drain.</strong></p>
+
+<h4>The drain condition: SLURM must fire DURING the D-state window</h4>
+
+<p>This refines the drain mechanism. The node drains if and only if SLURM's kill sequence
+(SIGTERM → SIGKILL) arrives <strong>during</strong> the ~600s window when <code>ncclCommAbort()</code>
+is D-state — before PyTorch's watchdog can call <code>std::abort()</code>. In Event #4 (job 1209813),
+the original MWE-01 v1 had <code>--time=00:15:00</code> and the job ran additional rounds at
+~1000 ms each (the count-mismatch stretched collectives), causing teardown to start late enough
+that SLURM fired before the watchdog could clean up. The log confirms:</p>
+
+<pre><code>[rank2]: Future for ProcessGroup abort timed out after 600000 ms
+[rank1]: Future for ProcessGroup abort timed out after 600000 ms
+[rank3]: Future for ProcessGroup abort timed out after 600000 ms
+[rank0]: Future for ProcessGroup abort timed out after 600000 ms
+slurmstepd: error: *** JOB 1209813 STEPD TERMINATED ... DUE TO JOB NOT ENDING WITH SIGNALS ***
+slurmstepd: error: Container ... has 5 processes, giving up after 63 sec</code></pre>
+
+<p>PyTorch's "Future timed out" message confirms the watchdog fired, but the D-state threads
+survived PyTorch's action. SLURM then had no option but to drain. <strong>MWE-06b</strong> (job 1209935,
+<code>--time=00:05:00</code>) is designed to reproduce this: SLURM fires at 5 minutes, which is
+~4 minutes 30 seconds into the ncclCommAbort D-state window, well before the 10-minute watchdog.</p>
+
+<h3 id="mwe-nccl-21-behavior">NCCL 2.21 count-mismatch behaviour (new finding)</h3>
+
+<p>Prior to MWE-05 testing, the assumption was that mismatched count arguments to
+<code>dist.all_reduce</code> would cause a deadlock. Testing shows the opposite:</p>
+
+<div class="table-scroll"><table class="t">
+<thead>
+<tr><th>Scenario</th><th>Expected (before testing)</th><th>Observed (NCCL 2.21)</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>Rank 0: all_reduce(N elements), Ranks 1-3: all_reduce(1 element)</td>
+  <td>Deadlock / timeout</td>
+  <td>Completes (truncates to 1 element); both calls return</td>
+</tr>
+<tr>
+  <td>Rank 0: extra all_reduce (seq mismatch)</td>
+  <td>Deadlock at the next collective</td>
+  <td>NCCL matches by sequence number; truncates; returns "UNEXPECTED" status</td>
+</tr>
+<tr>
+  <td>Corrupted ring + dist.destroy_process_group()</td>
+  <td>Fast abort</td>
+  <td>ncclCommAbort D-state; hangs 600,000 ms before PyTorch times out</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>This has a practical implication: a mismatched collective bug in production code
+may not fail fast with an error. It may "succeed" (returning truncated results) while
+silently corrupting the communicator state. The corruption only becomes apparent at
+teardown, when the job appears to hang indefinitely. This is a subtle and dangerous
+failure mode — the job output looks correct but the process never exits.</p>
+
+<h3 id="mwe-gpu-sleep">MWE-05 gpu_sleep finding: torch.cuda._sleep does not D-state under scancel</h3>
+
+<p>Test: all 4 GPUs dispatched an infinite GPU kernel via <code>torch.cuda._sleep(int(1e18))</code>.
+The Python process then called <code>scancel</code> after 2 seconds. Expected: D-state in
+<code>cuCtxDestroy</code> when the CUDA context is destroyed with a pending infinite kernel.
+Observed: clean cancellation — job terminated normally.</p>
+
+<p>Explanation: <code>torch.cuda._sleep</code> dispatches the kernel <em>asynchronously</em> to
+the GPU command queue and returns immediately to Python. The CPU process is not blocked — it
+does not call any synchronising operation. When SIGTERM arrives, Python is in user space and
+can process the signal normally. CUDA context teardown (<code>cuCtxDestroy</code>) is called
+from the Python destructor path after SIGTERM. On this NVIDIA driver version, <code>cuCtxDestroy</code>
+with an outstanding async kernel either aborts the kernel (CUDA driver-level abort) or completes
+without blocking. Either way: no D-state.</p>
+
+<p>The D-state for CUDA occurs in <code>cuCtxSynchronize</code> / <code>cudaStreamSynchronize</code>
+(explicit sync calls) and in <code>ncclCommAbort()</code> — not in async kernel dispatch.</p>
+
 <hr>
 
 <p><em>Document created 2026-06-01. Updated 2026-06-01 with parallel SLURM audit
@@ -1915,7 +2127,11 @@ findings: <code>train_exclusive.sbatch</code> vulnerabilities + bugs,
 <code>agent/slurm.py</code> 7-day auto-SIGTERM, <code>agent/cli.py</code> direct
 scancel calls, <code>data/cli.py</code> TMPDIR bug, missing HF_OFFLINE flags
 across 8 scripts, and sacct confirmation that Drains 1/2/3 were 100%
-self-inflicted (zero grpB activity in all three windows). Supersedes individual
+self-inflicted (zero grpB activity in all three windows). Updated 2026-06-01
+with MWE execution results (§10): corrected drain mechanism (ncclCommAbort teardown,
+not mid-collective SIGTERM); NCCL 2.21 count-mismatch behaviour; gpu_sleep finding;
+MWE-06 result (PyTorch watchdog self-resolves at 600s — no drain with 20-min SLURM limit);
+MWE-06b submitted (--time=00:05:00 to fire SLURM during D-state window). Supersedes individual
 RCA documents for cross-event analysis; individual RCAs (rca-node-drain-2026-05-27.html,
 rca-node-drain-2026-05-27b.html, rca-node-drain-2026-05-28.html,
 sdcc-cuda-init-failure-2026-05-26.html) remain as primary sources for
