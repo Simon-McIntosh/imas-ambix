@@ -20,10 +20,10 @@
 #
 # After submitting: wait for "ATTEMPTING TCP CONNECT", then scancel <jobid>.
 
-set -euo pipefail
+set -uo pipefail
 
 export TMPDIR=/scratch_local/${SLURM_JOB_ID}
-mkdir -p "${TMPDIR}"
+mkdir -p "${TMPDIR}" || export TMPDIR=/tmp
 mkdir -p /work/projects/imas_gpu/logs
 
 export DRAIN_TEST_LOG_DIR=/work/projects/imas_gpu/logs

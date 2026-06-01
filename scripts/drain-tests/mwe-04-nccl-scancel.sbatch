@@ -21,10 +21,10 @@
 # After submitting: wait for "READY", then scancel <jobid>.
 # Check node state 70 s later.
 
-set -euo pipefail
+set -uo pipefail
 
 export TMPDIR=/scratch_local/${SLURM_JOB_ID}
-mkdir -p "${TMPDIR}"
+mkdir -p "${TMPDIR}" || export TMPDIR=/tmp
 mkdir -p /work/projects/imas_gpu/logs
 
 export DRAIN_TEST_LOG_DIR=/work/projects/imas_gpu/logs
@@ -32,6 +32,7 @@ export BUFFER_MB="${BUFFER_MB:-512}"
 export WATCHDOG_SECONDS="${WATCHDOG_SECONDS:-120}"
 
 PYTHON="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/python"
+TORCHRUN="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/torchrun"
 
 echo "=== MWE-04 NCCL All-Reduce + Scancel ==="
 echo "Job: ${SLURM_JOB_ID}  Node: ${SLURMD_NODENAME}"
@@ -39,7 +40,7 @@ echo "Buffer: ${BUFFER_MB} MB, Watchdog: ${WATCHDOG_SECONDS} s"
 echo "AFTER 'READY' appears → scancel ${SLURM_JOB_ID}"
 echo "Then check: sinfo -N -n ${SLURMD_NODENAME} --noheader -o '%T'"
 
-torchrun \
+${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29502 \

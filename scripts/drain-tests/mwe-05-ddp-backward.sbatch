@@ -32,10 +32,10 @@
 #   4. Wait 70 s, check: sinfo -N -n 98dci4-gpu-0003 --noheader -o '%T'
 #   5. If "drain": mechanism confirmed. Notify admin for recovery.
 
-set -euo pipefail
+set -uo pipefail
 
 export TMPDIR=/scratch_local/${SLURM_JOB_ID}
-mkdir -p "${TMPDIR}"
+mkdir -p "${TMPDIR}" || export TMPDIR=/tmp
 mkdir -p /work/projects/imas_gpu/logs
 
 export DRAIN_TEST_LOG_DIR=/work/projects/imas_gpu/logs
@@ -44,6 +44,7 @@ export HIDDEN_DIM="${HIDDEN_DIM:-4096}"
 export BATCH_SIZE="${BATCH_SIZE:-32}"
 
 PYTHON="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/python"
+TORCHRUN="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/torchrun"
 
 echo "=== MWE-05 DDP Backward Drain Reproducer ==="
 echo "Job: ${SLURM_JOB_ID}  Node: ${SLURMD_NODENAME}"
@@ -58,7 +59,7 @@ echo "  4. If 'drain': nvidia-smi -i 0,1,2,3 --gpu-reset"
 echo "     Then: scontrol update nodename=${SLURMD_NODENAME} state=resume reason=''"
 echo ""
 
-torchrun \
+${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29503 \

@@ -15,10 +15,10 @@
 # Risk: NONE — self-terminating via stop-file after 30 s.
 # Expected: PASS — all ranks exit 0, node stays idle.
 
-set -euo pipefail
+set -uo pipefail
 
 export TMPDIR=/scratch_local/${SLURM_JOB_ID}
-mkdir -p "${TMPDIR}"
+mkdir -p "${TMPDIR}" || export TMPDIR=/tmp
 mkdir -p /work/projects/imas_gpu/logs
 mkdir -p /work/projects/imas_gpu/stops
 
@@ -28,13 +28,14 @@ export STOP_AFTER_SECONDS=30
 export BUFFER_MB=256
 
 PYTHON="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/python"
+TORCHRUN="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/torchrun"
 
 echo "=== MWE-02 Stop-File Clean Exit ==="
 echo "Job: ${SLURM_JOB_ID}  Node: ${SLURMD_NODENAME}"
 echo "Stop-file: ${DRAIN_TEST_STOP_DIR}/${SLURM_JOB_ID}.stop"
 echo "Auto-stop in: ${STOP_AFTER_SECONDS} s"
 
-torchrun \
+${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29501 \
