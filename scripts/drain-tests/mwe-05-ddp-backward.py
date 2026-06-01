@@ -133,7 +133,7 @@ def run_gpu_sleep(rank: int, world_size: int, device: torch.device) -> None:
     dist.barrier()
 
     # Non-blocking GPU kernel launch: CPU returns immediately, GPU spins
-    torch.cuda.sleep(int(1e18))  # ~30 years at 10 GHz GPU clock
+    torch.cuda._sleep(int(1e18))  # ~30 years at ~1.8 GHz GPU clock (private API)
 
     if rank == 0:
         print("[MWE-05] READY gpu_sleep — all 4 GPUs have infinite sleep kernels running", flush=True)
