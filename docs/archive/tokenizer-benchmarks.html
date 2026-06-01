@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-archived" content="1">
 <meta name="plan-slug" content="tokenizer-benchmarks">
 <title>Tokenizer benchmark harness | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
@@ -18,11 +19,11 @@
 <meta name="plan-sprint" content="S2">
 <meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-28">
+<meta name="plan-modified" content="2026-05-29">
 <meta name="plan-depends-on" content="tokenizers">
 <meta name="plan-blocks" content="">
-<meta name="plan-impl" content="1">
-<meta name="plan-version" content="6">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="7">
 </head>
 <body>
 <main class="plan-doc">
@@ -597,6 +598,11 @@ Done-when
 <h2><span class="sec">§</span> Research</h2>
 <div class="r-research" data-id="r-bench-inprocess-2026-05-28" data-type="" data-source="" data-added-by="" data-when="2026-05-28">
     <span class="r-research-title">In-process bench architecture in flight (Agent A)</span></div>
+</section>
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-20260529T085203805957" data-who="agent/sonnet (housekeeping)" data-when="2026-05-29T08:52:03+00:00">
+    <div class="r-comment-body">rfid_frames_per_shot default 8→32 (commit 3ff5585). Option D (jobs 1209100/1209130 at 8-frame vs 1209132/1209133 at 32-frame) showed the 8-frame pool systematically OVERESTIMATED rFID by ~4pt (small-N Frechet bias); 32 frames = all loaded frames per shot, no sub-sampling. PSNR/LPIPS unaffected (deterministic). Cost: ~4× CPU post-processing (~5→~22 min on the 100-shot config).</div>
+</div>
 </section>
 </main>
 </body>

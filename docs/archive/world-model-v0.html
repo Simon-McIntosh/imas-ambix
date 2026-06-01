@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-archived" content="1">
 <meta name="plan-slug" content="world-model-v0">
 <title>World-model v0 (WHAM-style) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
@@ -18,11 +19,11 @@
 <meta name="plan-sprint" content="S2">
 <meta name="plan-tier" content="opus">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-26 14:30">
+<meta name="plan-modified" content="2026-05-29">
 <meta name="plan-depends-on" content="tokenizers,compute,data-quality">
 <meta name="plan-blocks" content="demo">
 <meta name="plan-impl" content="0.18">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 </head>
 <body>
 <main class="plan-doc">
@@ -306,7 +307,7 @@ Tokenizing 2-D fields is a v1 task.</li>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-wm-2026-05-21" data-status="open" data-tier="" data-written-by="Simon McIntosh" data-written-at="2026-05-21 09:00" data-recommends-skill="/reckon-edit world-model-v0 --decision model-size-curriculum" data-resolved-at="2026-05-26T14:13:42+00:00" data-resolved-by="Simon McIntosh">
+<article class="r-fu" data-id="f-wm-2026-05-21" data-status="resolved" data-tier="" data-written-by="Simon McIntosh" data-written-at="2026-05-21 09:00" data-recommends-skill="/reckon-edit world-model-v0 --decision model-size-curriculum" data-resolved-at="2026-05-26T14:13:42+00:00" data-resolved-by="Simon McIntosh">
     <h4 class="r-fu-title">Lock model-size-curriculum decision</h4>
     <div class="r-fu-body">tokenizers §12 expansion is closing this week. Before the smoke run can start, we need to commit to either 125M-smoke-first or 500M-direct. Read the decision context and lock it (rationale required).</div>
     <pre class="r-fu-prompt">Lock decision model-size-curriculum on plan world-model-v0. Read §1, §4, and compute reservation status; choose curriculum vs direct.</pre>
@@ -355,6 +356,11 @@ Done-when
 <div class="r-q" data-id="q1" data-section="4 training recipe" data-status="open" data-opened-by="agent/opus" data-opened-at="2026-05-20" data-resolved-at="" data-resolved-by="">
     <p class="r-q-body">Should we use HuggingFace&#x27;s accelerate FSDP wrapper or roll our own with torch.distributed.fsdp? The wrapper is simpler but pins us to the HF training loop semantics.</p>
     </div>
+</section>
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-20260529T084840971275" data-who="agent/opus (coordinator)" data-when="2026-05-29T08:48:40+00:00">
+    <div class="r-comment-body">**2026-05-29 — tokenizer/decoder decision RESOLVED for v0: use the baseline imagenet Open-MAGVIT2 decoder (no fine-tune).** [plasma-decoder-finetune](/imas-ambix/plasma-decoder-finetune.html) is now shipped (negative): decoder fine-tuning was confirmed ~7 pt worse on rFID, robust to rFID pool size (Option D) and decoder precision (job 1209184 ruled out the bf16-artifact hypothesis). The 4.02B-token corpus already encoded with the baseline tokenizer is the v0 input. The tokenizer axis no longer blocks the 125M smoke run (f-wm-smoke-run). **Dynamics for v0 live in THIS stage-2 sequence model** — the per-frame tokenizer is a compressor, not the dynamics learner. A separate forward track, [tokenizer-spatiotemporal-pivot](/imas-ambix/tokenizer-spatiotemporal-pivot.html), evaluates 3D/video tokenization + a temporal metric for v1 and does NOT block v0.</div>
+</div>
 </section>
 </main>
 </body>

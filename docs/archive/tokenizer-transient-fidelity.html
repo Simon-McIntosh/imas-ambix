@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-archived" content="1">
 <meta name="reckon-type" content="plan">
 <meta name="plan-slug" content="tokenizer-transient-fidelity">
 <meta name="plan-roi" content="high">
@@ -18,8 +19,9 @@
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-title" content="Tokenizer transient-frame fidelity">
-<meta name="plan-modified" content="2026-05-28">
-<meta name="plan-version" content="3">
+<meta name="plan-modified" content="2026-05-29">
+<meta name="plan-version" content="5">
+<meta name="plan-status" content="archived">
 </head>
 <body>
 <main class="plan-doc">
@@ -342,6 +344,13 @@ Cannot yet apply the §5 scenario matrix.  The bench numbers we have are not tru
 C2 (per-shot normalization) **NOT** the issue — empirically verified 200-sample (lo, hi) is byte-identical to ALL-frames (lo, hi) on 5 test shots spanning 76 → 12380 frames.
 
 **§5 scenario classification will fire on 1209092&#x27;s stratified re-bench result.**  Until then, the f-rebench-1209004-stratified followup is on hold (would need to be re-pointed at 1209092&#x27;s merged ckpt before resolution).</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260529T084853245293" data-who="agent/opus (coordinator)" data-when="2026-05-29T08:48:53+00:00">
+    <div class="r-comment-body">**2026-05-29 — REDIRECTED to the spatiotemporal track (NOT superseded by a negative finding). Archiving this plan; its goal moves to the pivot plan.** plasma-decoder-finetune is shipped-negative (job 1209184 confirmed the fine-tune genuinely regresses rFID; bf16 ruled out). This plan&#x27;s original *mechanism* — reweighting a frozen-encoder 2D decoder&#x27;s loss toward transient frames — is therefore not the route. **Transient fidelity remains a first-class v1 goal**; it is redirected to [tokenizer-spatiotemporal-pivot](/imas-ambix/tokenizer-spatiotemporal-pivot.html):
+- 3D/video tokenizers (Cosmos-DV) natively encode temporal structure — the natural home for transient capture (pivot §2, followup `f-cosmos-dv-video-zeroshot`).
+- A transient-specific **temporal/rollout metric** (pivot §3, followup `f-rollout-temporal-metric`) replaces stratified-rFID-on-a-2D-decoder — because rFID is per-frame and temporally blind.
+
+The stratified-rFID classifier built here (`frame_activity_class` / `rfid_stratified` in `imas_ambix/eval/metrics.py`) carries forward and is reused by the pivot&#x27;s temporal metric. The §Decisions here (transient-loss-weight, importance-sampling-alpha, …) are specific to the closed 2D-decoder route and are moot.</div>
 </div>
 </section>
 </main>

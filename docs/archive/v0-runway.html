@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-archived" content="1">
 <meta name="plan-slug" content="v0-runway">
 <title>v0 runway plan | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
@@ -18,11 +19,11 @@
 <meta name="plan-sprint" content="S2">
 <meta name="plan-tier" content="opus">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-26">
+<meta name="plan-modified" content="2026-05-29">
 <meta name="plan-depends-on" content="STRATEGY,tokenizers,compute">
 <meta name="plan-blocks" content="world-model-v0">
 <meta name="plan-impl" content="0.78">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="6">
 </head>
 <body>
 <main class="plan-doc">
@@ -479,18 +480,18 @@ records the failure mode in a new feedback memory.</p>
 <hr/>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="smoke-training-timing" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="smoke-training-timing" data-choice="wait-gpu" data-by="agent/sonnet (housekeeping)" data-when="2026-05-29T08:52:32+00:00">
     <p class="r-dec-q">125M smoke training run — run now or wait for bulk encode?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="run-now">Run now with the ~10 CPU-encoded shots (validate loop immediately)</button>
-      <button class="r-opt" data-value="wait-gpu">Wait for GPU bulk-encode to complete (~3,000 shots)</button>
+      <button class="r-opt chosen" data-value="wait-gpu">Wait for GPU bulk-encode to complete (~3,000 shots)</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">GPU encode completed 2026-05-28 (9,528 shots, 4.02B tokens); the gate the smoke run waited on is satisfied.</p>
     </div>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-v0-2026-05-21" data-status="open" data-tier="" data-written-by="Simon McIntosh" data-written-at="2026-05-20 18:02" data-recommends-skill="/plan-edit v0-runway --section 5" data-resolved-at="2026-05-26T14:35:59+00:00" data-resolved-by="Agent C (Opus coordinator)">
+<article class="r-fu" data-id="f-v0-2026-05-21" data-status="resolved" data-tier="" data-written-by="Simon McIntosh" data-written-at="2026-05-20 18:02" data-recommends-skill="/plan-edit v0-runway --section 5" data-resolved-at="2026-05-26T14:35:59+00:00" data-resolved-by="Agent C (Opus coordinator)">
     <h4 class="r-fu-title">Coordinator review of the 4-agent parallel batch outputs</h4>
     <div class="r-fu-body">All 4 Sonnet agents have committed their work. Review each output against the §5 rubric and either accept the commits or flag for rework. Update §2 ROI ranking with the new items the batch produced.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -544,6 +545,11 @@ Done-when
   6. Resolve this followup with outcome + write next followup for 500M curriculum
   7. Followup chain: this followup marked resolved</pre>
     </article>
+</section>
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-20260529T085244220433" data-who="agent/sonnet (housekeeping)" data-when="2026-05-29T08:52:44+00:00">
+    <div class="r-comment-body">Decoder choice resolved — world-model-v0 uses the baseline imagenet OMAG2 decoder (plasma-decoder-finetune shipped negative).</div>
+</div>
 </section>
 </main>
 </body>

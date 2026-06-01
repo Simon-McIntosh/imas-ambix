@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-archived" content="1">
 <meta name="reckon-type" content="plan">
 <meta name="plan-slug" content="tokenizer-cosmos-evaluation">
 <meta name="plan-roi" content="mid">
@@ -17,8 +18,9 @@
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-title" content="Cosmos-Tokenizer evaluation (FSQ alternative)">
-<meta name="plan-modified" content="2026-05-28">
-<meta name="plan-version" content="3">
+<meta name="plan-modified" content="2026-05-29">
+<meta name="plan-version" content="5">
+<meta name="plan-status" content="archived">
 </head>
 <body>
 <main class="plan-doc">
@@ -566,6 +568,11 @@ Cosmos is **catastrophically worse than even untrained Open-MAGVIT2** on plasma.
 **Followups resolved**:
 - `f-jit-load-test-2026-05-28` — JIT loaded cleanly in torch 2.5.1+cu124 on both CPU and CUDA. Will resolve formally.
 - `f-phase0-trigger-check-2026-05-28` — partial: trigger check was for OMAG2-side baseline (1209092→1209099 verdict, also still bad), but Cosmos has now been tested zero-shot and ruled out.</div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-20260529T084847212914" data-who="agent/opus (coordinator)" data-when="2026-05-29T08:48:47+00:00">
+    <div class="r-comment-body">**2026-05-29 — CLOSED for the IMAGE path; the VIDEO path lives on in the pivot plan. Archiving this plan (folded into a successor, NOT abandoned).** The decode-precision diagnostic (job 1209184) confirmed the Open-MAGVIT2 decoder fine-tune genuinely regresses rFID (bf16 ruled out), so plasma-decoder-finetune is shipped-negative. Combined with the zero-shot Cosmos **DI16x16 (image)** result here (rFID 47.52, catastrophic), the *image*-tokenizer-swap hypothesis is conclusively closed — image-phase decisions (evaluate-trigger, variant-choice, encoder-fine-tune-budget, comparison-scope) are moot.
+
+**BUT we only ever tested Cosmos&#x27;s IMAGE variant.** The **VIDEO** variants (CV/DV — 4–8× temporal compression, open weights, commercial-OK) were never run and are the single highest-value untested option. That work is now tracked in [tokenizer-spatiotemporal-pivot](/imas-ambix/tokenizer-spatiotemporal-pivot.html) §5 (followup `f-cosmos-dv-video-zeroshot`). This plan is archived as superseded-by-successor; the goal (a better plasma tokenizer) is alive in the pivot plan, not abandoned.</div>
 </div>
 </section>
 </main>

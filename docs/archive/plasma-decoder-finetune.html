@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-archived" content="1">
 <meta name="plan-slug" content="plasma-decoder-finetune">
 <meta name="reckon-type" content="plan">
 <meta name="plan-title" content="Plasma-domain decoder fine-tune (Open-MAGVIT2)">
 <meta name="plan-summary" content="Fine-tune the Open-MAGVIT2 decoder on plasma camera frames. Freeze encoder + LFQ codebook; train ONLY the decoder with pixel L1 + perceptual loss. Targets the rFID 16.25 baseline (100-shot in-process bench, job 1208918) down to &lt; 5 so the world-model-v0 decoder is plasma-faithful. Scaffold lives at imas_ambix/tokenizer/finetune_decoder.py; output weights at /work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors.">
-<meta name="plan-status" content="active">
+<meta name="plan-status" content="shipped">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="M">
 <meta name="plan-milestone" content="M1">
@@ -22,7 +23,7 @@
 <title>Plasma-domain decoder fine-tune (Open-MAGVIT2) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="15">
 </head>
 <body>
 <main class="plan-doc">
@@ -123,7 +124,7 @@ daemon or subprocess-based IPC — use in-process DataLoader only (mirrors
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-finetune-decoder-kickoff-2026-05-28" data-status="open" data-tier="opus" data-written-by="agent/sonnet" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship plasma-decoder-finetune --section 3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-finetune-decoder-kickoff-2026-05-28" data-status="resolved" data-tier="opus" data-written-by="agent/sonnet" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship plasma-decoder-finetune --section 3" data-resolved-at="2026-05-29T08:46:15+00:00" data-resolved-by="agent/opus (coordinator)">
     <h4 class="r-fu-title">Submit the SLURM decoder fine-tune training job</h4>
     <div class="r-fu-body">Scaffold exists. Decisions to lock first: train-val-split (recommend random-7500-2000) and lpips-weight (scaffold default 0.1). Then submit sbatch, monitor exit, save weights, and re-bench rFID. Unblocks world-model-v0.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -157,8 +158,9 @@ Steps
 
 Done-when
   plasma-decoder-v1.safetensors exists AND re-bench rFID &lt; 5 (or plateau documented).</pre>
+    <p class="r-fu-outcome">NEGATIVE — fine-tune implemented end-to-end and run across two loss configs (0.1·LPIPS v0, 1.0·LPIPS optb); both regress rFID vs the untrained baseline. Confirmed robust to rFID pool size (Option D: 8 &amp; 32 frame) and decoder precision (job 1209184: bf16 &amp; fp32, Δ~0.3). world-model-v0 uses the baseline imagenet OMAG2 decoder. Forward tokenizer work moves to tokenizer-spatiotemporal-pivot.</p>
     </article>
-<article class="r-fu" data-id="f-rebench-after-finetune-2026-05-29" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship plasma-decoder-finetune --section 4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-rebench-after-finetune-2026-05-29" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-28" data-recommends-skill="/reckon-ship plasma-decoder-finetune --section 4" data-resolved-at="2026-05-29T08:46:23+00:00" data-resolved-by="agent/opus (coordinator)">
     <h4 class="r-fu-title">Re-bench rFID after training job 1208968 completes</h4>
     <div class="r-fu-body">Job 1208968 submitted 2026-05-28, expected ~24h. When complete: verify weights, run re-bench with v0-rbb-100shot-finetune.yaml (routes to plasma-decoder-v1-merged.ckpt), record rFID in tokenizers §13.1 followup, resolve kickoff followup, gate world-model-v0.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -188,6 +190,7 @@ Steps
 
 Done-when
   rFID &lt; 5 (gate met) OR plateau documented and next step decided.</pre>
+    <p class="r-fu-outcome">DONE — re-bench run many times across 4 ckpts, 2 pool sizes (8/32 frame) and 2 decoder precisions (bf16/fp32). Every configuration shows the fine-tuned decoder ~7 pt worse than baseline on rFID. rFID gate (&lt;5) not met by any path; gate itself is now in question (see tokenizer-spatiotemporal-pivot §3 — rFID is per-frame/OOD/temporally-blind). No further re-bench of this 2D-decoder path warranted.</p>
     </article>
 </section>
 
@@ -286,6 +289,111 @@ Three paths evaluated head-to-head on the 100-shot rbb config (C8 frame selectio
 - Encoder fine-tune on plasma (re-tokenise 4.02 B-token corpus, ~7 h GPU).  Most principled fix but largest scope.
 - Direct rFID-as-loss (train against InceptionV3 features explicitly).  Training-on-the-test-metric concern.
 - v1 plans ([transient-fidelity](/imas-ambix/tokenizer-transient-fidelity.html), [cosmos-evaluation](/imas-ambix/tokenizer-cosmos-evaluation.html)) **superseded** by this negative finding.  Both should be moved to `shipped`/`superseded` status.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260529T034408093169" data-who="agent/opus (coordinator)" data-when="2026-05-29T03:44:08+00:00">
+    <div class="r-comment-body">**2026-05-29 (early morning) — Option D in flight: diagnostic re-bench with 4× larger rFID pool.**
+
+Before locking the &quot;skip the fine-tune&quot; recommendation, running Option D to verify the baseline-vs-Option-B gap isn&#x27;t an artifact of the bench&#x27;s 8-frame-per-shot random sub-sample (only 800 of 3200 loaded frames used in the rFID pool).
+
+Specifically: refactored `BenchConfig` to make `rfid_frames_per_shot` configurable (commit `c98896e`).  Default stays at 8 for back-compat with prior bench results.  Two new configs at `rfid_frames_per_shot = 32` (= ALL loaded frames, no sub-sampling) — 4× larger rFID pool, tighter Frechet estimate.
+
+Submitted as paired benches:
+- **1209132** — baseline OMAG2 (untrained imagenet decoder), `rfid_frames_per_shot=32`
+- **1209133** — Option B fine-tuned ckpt, `rfid_frames_per_shot=32`
+
+Reference (8-frame pool):
+- Baseline 1209100 = 17.04
+- Option B  1209130 = 24.49
+- Gap = 7.45 pt
+
+Expected (32-frame pool):
+- Numbers may shift modestly (4× more frames in the Frechet estimate)
+- Rankings should be preserved if the 7.45 pt gap is real signal
+- If gap collapses to &lt; 2 pt, the prior conclusion was bench noise
+
+Watcher fires ~06:09 with the verdict.  Will update this comment + final summary depending on outcome.
+
+**Plan status retained as `active`** pending Option D — not locking the negative-result recommendation until we have the higher-confidence measurement.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260529T051556463358" data-who="agent/opus (coordinator)" data-when="2026-05-29T05:15:56+00:00">
+    <div class="r-comment-body">**2026-05-29 — Option D VERDICT: rankings hold, recommendation locked = skip fine-tune.**
+
+Paired benches with `rfid_frames_per_shot=32` (4× the prior 8-frame pool, = ALL loaded frames per shot, no random sub-sample). Same 100 shots, same C8 frame selection, same model code paths. 3142 frames in the rFID Frechet estimate (vs 798 previously).
+
+**4-way comparison table:**
+
+| Path | Pool | rFID overall | blank | quiescent | transient | PSNR | LPIPS | n_frames |
+|---|---|---|---|---|---|---|---|---|
+| Baseline 1209100 | 8 | 17.04 | 0.00 | 26.36 | 23.57 | 35.54 | 0.131 | 798 |
+| **Baseline 1209132** | **32** | **13.29** | 0.76 | 20.88 | 14.66 | 35.54 | 0.131 | 3142 |
+| Option B 1209130 | 8 | 24.49 | 1.85 | 37.13 | 29.88 | 35.83 | 0.147 | 798 |
+| **Option B 1209133** | **32** | **21.40** | 1.54 | 31.34 | 22.59 | 35.83 | 0.147 | 3142 |
+
+**Classification: SHIFTED-BUT-RANKED.**
+- Both rFIDs shifted DOWN with the larger pool (baseline 17.04 → 13.29, ΔrFID = −3.75; Option B 24.49 → 21.40, ΔrFID = −3.09).
+- Gap held: 7.45 pt (8-frame) → 8.11 pt (32-frame). Gap actually widened.
+- Per-class: Option B worse than baseline on EVERY class at both pool sizes — blank +0.78, quiescent +10.46, transient +7.93 (32-frame).
+
+**What the shift means:**
+- The 8-frame pool was systematically overestimating rFID for BOTH models by ~3-4 pt — small-N Frechet bias. With 4× more frames the estimate tightens and both numbers fall.
+- The RELATIVE comparison (baseline vs fine-tune) was statistically meaningful even at 8 frames; the ranking is robust to pool size.
+- PSNR and LPIPS unchanged (deterministic per-frame metrics; only the rFID Frechet estimate is N-sensitive).
+
+**Decision lock — final, no further verification needed:**
+- Plan status → **shipped with negative result** (will set on next edit).
+- `f-finetune-decoder-kickoff-2026-05-28` followup: resolve with negative outcome — fine-tune attempted across two loss configs (0.1·LPIPS, 1.0·LPIPS), validated regressing vs baseline on the tighter 32-frame measurement.
+- `f-rebench-after-finetune-2026-05-29` followup: resolve — re-bench done now 6 times across 4 ckpts and 2 pool sizes; baseline OMAG2 imagenet decoder is the best choice for world-model-v0.
+- World-model-v0 unblocked with baseline OMAG2 (no fine-tune).
+- v1 plans ([transient-fidelity](/imas-ambix/tokenizer-transient-fidelity.html), [cosmos-evaluation](/imas-ambix/tokenizer-cosmos-evaluation.html)) confirmed superseded.
+
+**Followup deferred to a separate plan** (not opened today):
+- Permanent bench config change: bump `rfid_frames_per_shot` default 8 → 32 in `BenchConfig`. Cost is 4× the CPU post-processing time (~5 min → ~22 min on this 100-shot config) but eliminates a ~4 pt systematic bias that would otherwise contaminate every future comparison. Worth the cost for the world-model evaluation phase.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260529T072750685148" data-who="agent/opus (coordinator)" data-when="2026-05-29T07:27:50+00:00">
+    <div class="r-comment-body">**2026-05-29 — VERDICT REOPENED: the two comments above (&quot;FINAL VERDICT: skip&quot; 23:12, &quot;Decision lock — final&quot; 05:15) are now PROVISIONAL. A decode-precision diagnostic (job 1209184) is testing whether the &quot;regression&quot; is a bf16 measurement artifact in the bench, not a real failure.**
+
+A deeper review of the train-eval-vs-bench numbers surfaced a ~12-point gap that was never reconciled and is the likely root cause:
+
+| Run | Loss | Trainer&#x27;s OWN eval rFID (fp32 + autocast, ~5k val frames) | Bench rFID |
+|---|---|---|---|
+| 1209004 | 0.1·LPIPS | **12.49** | — |
+| 1209073 (C5) | 0.1·LPIPS | 14.04 | 28.87 |
+| 1209092 (C5+C6+C7) | 0.1·LPIPS | **14.04** (byte-identical to C5 → C6/C7 were no-ops) | 26.22 |
+| 1209110 (optb) | 1.0·LPIPS | 14.27 | 24.49 / 21.40 |
+| baseline (untrained) | — | — | **13.29** (32-frame) |
+
+The fine-tuned decoder&#x27;s **own eval (~14) ≈ the untrained baseline&#x27;s true bench (13.29)**. The bench *specifically* inflates the fine-tuned decoder to ~24–26 while the trainer&#x27;s path says ~14, using the **identical Frechet formula**. The encoder is frozen and the LFQ tokens are provably byte-identical (C6/C7 were no-ops), so the entire divergence is in the DECODE path. The decode paths differ in exactly one asymmetric way:
+
+- **Trainer eval**: decoder weights **fp32** (autocast bf16 forward only), decodes the *live* trained decoder.
+- **Bench** (`stream_worker.load_model`): casts the whole model to **bf16** (`model.to(dtype=torch.bfloat16)`), decodes via `ema_scope()`.
+
+**Hypothesis (H-bf16):** the original ImageNet decoder is bf16-robust (baseline bench 13.29 ≈ its true rFID), but a *fine-tuned* decoder whose weights moved into a sharper regime is bf16-fragile, so the bench&#x27;s bf16 cast penalises it ~14→~24. If true, the fine-tune is **not broken** — the bench is mis-measuring it — and the fix is a cheap fp32 decode at rollout (the decoder is NOT in the world-model training hot loop; WM trains on tokens). **H-real** is the alternative: bf16 isn&#x27;t the cause and the verdict stands.
+
+**Diagnostic (job 1209184, commit c92efc3 + e7c0025):** added env-gated `AMBIX_DECODER_FP32` (reloads decoder as true fp32 from the ckpt; encoder/quantize stay bf16 → tokens byte-identical) + `AMBIX_DECODE_NO_EMA` (decode via live weights so `ema_scope` can&#x27;t copy the bf16 shadow back). Runs a uniform 8-frame {baseline,optb}×{bf16,fp32} grid. If `optb_fp32` drops to ~13–16 while baseline stays put → H-bf16, REOPEN; if `optb_fp32` stays ~21–24 → H-real, verdict holds. (An earlier run 1209180 was STOP-FILE&#x27;d — the 8→32 default change `3ff5585` propagated via the editable install and risked a mixed pool; 1209184 pins the pool.)
+
+**Until 1209184 reports:** plan stays `active`; no followups resolved; the dependent v1 plans (transient-fidelity, cosmos-evaluation) and world-model-v0 decoder choice remain on HOLD. Verdict pending.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260529T084555073503" data-who="agent/opus (coordinator)" data-when="2026-05-29T08:45:55+00:00">
+    <div class="r-comment-body">**2026-05-29 — DECODE-PRECISION DIAGNOSTIC VERDICT: H-real. bf16 is NOT the cause. The &quot;skip fine-tune&quot; conclusion STANDS — now on solid, precision-robust footing. The v11 &quot;verdict reopened&quot; note above is hereby RE-CLOSED.**
+
+Controlled 2×2 grid (job 1209184, COMPLETED clean, no drain) — uniform 8-frame pool (n=798 each), identical no-ema live-decode path, only {ckpt, decoder precision} vary:
+
+| decoder | bf16 | fp32 | Δ (bf16−fp32) |
+|---|---|---|---|
+| baseline (imagenet) | 17.13 | 16.97 | 0.16 |
+| optb (fine-tuned) | 24.49 | 24.20 | 0.30 |
+
+- **fp32 does NOT rescue the fine-tune.** `optb_fp32` = 24.20 is still ~7 pt worse than `baseline_fp32` = 16.97, on every class (transient 30.0 vs 23.5; quiescent 36.4 vs 26.3). The bf16→fp32 delta is ~0.2–0.3 pt for BOTH ckpts — negligible and symmetric. **My bf16 hypothesis is refuted.**
+- The toggle genuinely fired: plumbing log shows `180 decoder tensors upcast, missing=0`, and the *nonzero* fp32 delta proves it was not a silent no-op. `optb-bf16` = 24.49 reproduces established 1209130 (24.49) exactly, anchoring the grid.
+- The regression is now **robust on two independent axes**: pool size (Option D: 8 &amp; 32 frame) and decoder precision (this run: bf16 &amp; fp32).
+
+**Resolution of the trainer-eval(~14)-vs-bench(~24) gap** that motivated this diagnostic: it is a **measurement-configuration** difference, NOT weight/precision corruption. Option D already showed pool size alone moves rFID several points (optb 24.5→21.4 going 8→32 frame); the trainer&#x27;s ~5,000-frame random val-split eval vs the bench&#x27;s 100-shot frame population accounts for the rest. bf16 is ruled out. The *relative* result (fine-tune worse than baseline) survives every configuration tested. **Why** fine-tuning a frozen-encoder decoder on L1+LPIPS worsens InceptionV3-rFID is **mechanistically undetermined** — the earlier &quot;decoder loses generality / feature drift&quot; note (23:12 comment) was a hand-wave and is NOT confirmed.
+
+**Decision (re-confirmed, now well-grounded):**
+- world-model-v0 uses the **baseline imagenet OMAG2 decoder** (no fine-tune). Decode precision is irrelevant (~0.3 rFID), so bf16 at rollout is fine — no fp32-rollout change needed.
+- This plan (= the 2D-decoder-fine-tune-on-rFID path) → **shipped, negative result**. Implemented end-to-end; 4 ckpts benched; pipeline bugs fixed (C5/C8 real, C6/C7 no-ops); pool-size + precision controlled.
+
+**This STRENGTHENS the pivot — it does not close the tokenizer question.** A confirmed dead-end (tuning a 2D decoder against rFID) is the cleanest motivation for [tokenizer-spatiotemporal-pivot](/imas-ambix/tokenizer-spatiotemporal-pivot.html): (1) rFID is a per-frame, OOD, temporally-blind gate — likely the wrong north-star (the fine-tune even nudged PSNR up ~0.3 dB while worsening rFID — a directional pointer, not proof); (2) the untested Cosmos **VIDEO** (CV/DV) variants + a rollout/temporal metric are the forward path. The dependent v1 plans transient-fidelity and cosmos-evaluation are **REDIRECTED** to that track, NOT superseded — cosmos-evaluation&#x27;s *image*-mode (DI16x16) is rejected, but *video* mode is the live next experiment.</div>
 </div>
 </section>
 </main>

@@ -17,7 +17,7 @@
 <title>Deep-dive RCA — 98dci4-gpu-0003 drain events | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -25,7 +25,7 @@
 <p><span class="status active"><span class="dot"></span>Research / Reference</span> —
 <strong>Definitive drain-event analysis</strong> for node <code>98dci4-gpu-0003</code>
 covering all events from 2026-05-26 through 2026-05-28. Four drain events (one
-ambiguous, three self-inflicted) plus one near-miss. Total cost: ≥&nbsp;2&nbsp;h
+ambiguous, three confirmed 100% self-inflicted) plus one near-miss. Total cost: ≥&nbsp;2&nbsp;h
 of unplanned downtime across three consecutive days on the project's <em>only</em>
 H200 node. This document synthesises findings across five individual RCAs, maps
 each event to a root kernel mechanism, assesses current code hardening status, and
@@ -41,6 +41,8 @@ design-only until approved and scheduled.</p>
 <a href="#kernel">Kernel deep-dive</a> ·
 <a href="#code-state">Code state</a> ·
 <a href="#slurm-compliance">SLURM compliance</a> ·
+<a href="#audit-addendum">Audit addendum</a> ·
+<a href="#open-vulnerabilities">Open vulnerabilities</a> ·
 <a href="#test-plans">Test plans</a> ·
 <a href="#admin-recommendations">Admin recs</a> ·
 <a href="#policy">Operating policy</a> ·
@@ -86,7 +88,7 @@ individual RCA document and mapped to a root mechanism (§2).</p>
   <td><strong>Prefetch Deadlock</strong></td>
   <td>1208195 (rbb bulk encode, prefetch ON)</td>
   <td>M3 — producer/consumer thread deadlock → D-state → scancel</td>
-  <td><span class="status shipped"><span class="dot"></span>Self-inflicted</span></td>
+  <td><span class="status shipped"><span class="dot"></span>Self-inflicted</span> — sacct confirmed: grpa only, zero grpB jobs in window</td>
   <td>Admin resume; legacy frame-daemon retired</td>
   <td><a href="rca-node-drain-2026-05-27.html">rca-node-drain-2026-05-27</a></td>
 </tr>
@@ -96,7 +98,7 @@ individual RCA document and mapped to a root mechanism (§2).</p>
   <td><strong>Network I/O Hang</strong></td>
   <td>1208591 (ambix-bsprobe, wrong CWD)</td>
   <td>M4 — unresolved TCP to firewalled host → D-state → scancel</td>
-  <td><span class="status shipped"><span class="dot"></span>Self-inflicted</span></td>
+  <td><span class="status shipped"><span class="dot"></span>Self-inflicted</span> — sacct confirmed: grpa only, zero grpB jobs in window</td>
   <td>Admin resume; HF_HUB_OFFLINE + preflight added</td>
   <td><a href="rca-node-drain-2026-05-27b.html">rca-node-drain-2026-05-27b</a></td>
 </tr>
@@ -106,7 +108,7 @@ individual RCA document and mapped to a root mechanism (§2).</p>
   <td><strong>Agent scancel on Healthy DDP</strong></td>
   <td>1208975 (single-GPU) → 1208980 (4-GPU DDP)</td>
   <td>M1+M2 — SIGTERM during NCCL collective → D-state → timeout</td>
-  <td><span class="status shipped"><span class="dot"></span>Self-inflicted</span></td>
+  <td><span class="status shipped"><span class="dot"></span>Self-inflicted</span> — sacct confirmed: grpa only, zero grpB jobs in window</td>
   <td>Admin resume; STOP-FILE mechanism introduced</td>
   <td><a href="rca-node-drain-2026-05-28.html">rca-node-drain-2026-05-28</a></td>
 </tr>
@@ -648,6 +650,108 @@ the server's graceful-shutdown API endpoint (SGLang provides
 for in-flight requests to complete, then use a stop-file or shutdown API, and
 only fall back to <code>scancel</code> as a last resort.</p>
 
+<p><strong>Caller audit (parallel SLURM audit finding):</strong>
+<code>preempt_v4flash.sh</code> is called from <em>four</em> training sbatch
+scripts, not one: <code>finetune_decoder.sbatch</code>,
+<code>finetune_decoder_optb.sbatch</code>,
+<code>finetune_decoder_smoke.sbatch</code>, and
+<code>train_exclusive.sbatch</code>. Any of these can trigger the preempt script's
+<code>scancel</code>.</p>
+
+<h3 id="agent-slurm-py">imas_ambix/agent/slurm.py — Generated serve scripts: 7-day auto-SIGTERM</h3>
+
+<p><span class="status blocked"><span class="dot"></span>Structural gap</span> —
+<code>generate_serve_script()</code> → <code>_sbatch_headers()</code> emits a
+generated sbatch template with <code>--time=7-00:00:00</code> (7 days) and no
+<code>--signal=B:USR1</code>, no STOP-FILE setup, and no SOFT_TIME_LIMIT. This
+means every served model (kimi-k2-6, deepseek-v4-flash, minimax-m2-7) has a
+7-day scheduled SIGTERM built in to every job submission.</p>
+
+<p><strong>Risk assessment:</strong> Inference servers are not DDP training jobs
+— they do not run NCCL all-reduce collectives between all ranks. The drain risk
+from SIGTERM is therefore lower than for training. However, mid-prefill CUDA
+kernel execution (especially for long-context requests like kimi-k2-6's 262K
+context) can still enter D-state under the right timing. The 7-day time limit
+makes the probability low-per-day but non-zero over typical deployment lifetimes.</p>
+
+<p><strong>Required fix:</strong> Add the three-layer header pattern to the
+generated template in <code>_sbatch_headers()</code>:</p>
+<pre><code># In _sbatch_headers() generated output:
+#SBATCH --time=14-00:00:00           # Ceiling: 2× realistic deployment duration
+#SBATCH --signal=B:USR1@3600         # Warn 1h before limit (long-running serve job)
+
+# In the bash preamble of the generated script:
+mkdir -p /work/projects/imas_gpu/stops
+export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
+rm -f "${AMBIX_STOP_FILE}"
+_on_sigusr1() {
+    echo "[serve] SIGUSR1: time limit in 1h — initiating graceful shutdown" &gt;&amp;2
+    # Call SGLang shutdown endpoint, then touch stop file
+    curl -s -X POST http://localhost:8000/shutdown 2&gt;/dev/null || true
+    touch "${AMBIX_STOP_FILE}"
+}
+trap _on_sigusr1 USR1</code></pre>
+
+<p>SGLang does not have a stop-file polling loop (it is not our code), so the
+trap-based approach of calling the shutdown API is the correct pattern here.
+The STOP-FILE touch is a backstop in case the API call is not available.</p>
+
+<h3 id="agent-cli-py">imas_ambix/agent/cli.py — Three direct scancel calls</h3>
+
+<p><span class="status active"><span class="dot"></span>Policy gap</span> —
+<code>cli.py</code> contains three direct <code>scancel</code> calls at lines
+373, 560, and 647 targeting <code>ambix-serve-*</code> inference server jobs.
+All three violate AGENTS.md §2a rule 5's letter ("agents must not issue scancel
+on any CUDA/GPU job … under any circumstances").</p>
+
+<p><strong>Risk ranking by call site:</strong></p>
+<ul>
+  <li><strong>Line 560 — <code>rotate-key</code></strong>: cancels the running
+  serve job and <em>immediately</em> resubmits with new credentials. This is the
+  highest-risk call because the cancellation is not preceded by any graceful
+  shutdown. If the server is mid-prefill during a long request (e.g. kimi-k2-6
+  262K context, which can take 10–20&nbsp;s for the prefill phase), SIGTERM
+  arrives in a CUDA ioctl and the process enters D-state. Probability is low per
+  rotation but rotate-key is designed to be called repeatedly.</li>
+  <li><strong>Lines 373 and 647 — job teardown paths</strong>: similar risk,
+  lower frequency.</li>
+</ul>
+
+<p><strong>Required fix:</strong> Before any <code>scancel</code> call, call the
+SGLang graceful-shutdown API endpoint and wait for the server to drain
+in-flight requests:</p>
+<pre><code># Replacement pattern for all scancel calls on serve jobs:
+async def _graceful_stop_serve_job(job_id: str, port: int = 8000, timeout: int = 30):
+    """Attempt graceful shutdown via API before scancel."""
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(f"http://localhost:{port}/shutdown", timeout=5.0)
+        # Wait for job to exit cleanly
+        for _ in range(timeout):
+            result = subprocess.run(["squeue", "-j", job_id, "-h"], capture_output=True)
+            if not result.stdout.strip():
+                return  # Job exited cleanly
+            await asyncio.sleep(1.0)
+    except Exception:
+        pass
+    # Fallback: scancel with warning
+    logger.warning(f"Graceful shutdown failed for {job_id}; issuing scancel (drain risk)")
+    subprocess.run(["scancel", job_id])</code></pre>
+
+<h3 id="data-cli-py">imas_ambix/data/cli.py — TMPDIR=/scratch_local on wrong partition</h3>
+
+<p><span class="status active"><span class="dot"></span>Minor bug</span> —
+<code>_render_slurm_script()</code> sets <code>TMPDIR=/scratch_local/$SLURM_JOB_ID</code>
+for jobs targeting the <code>sun</code> partition. <code>/scratch_local</code>
+is betelgeuse-specific local NVMe — it does not exist on <code>sun</code>,
+<code>rigel</code>, or <code>sirius</code> nodes. Jobs landing on
+<code>sun</code> will fail immediately with "No such file or directory" when
+anything tries to write to TMPDIR.</p>
+
+<p><strong>Fix:</strong> Use <code>TMPDIR=/tmp</code> for non-betelgeuse
+partition scripts. Only use <code>TMPDIR=/scratch_local/$SLURM_JOB_ID</code>
+for scripts with <code>#SBATCH --partition=betelgeuse</code>.</p>
+
 
 <!-- ═══════════════════════════════════════════════════════════════════
      §5. SLURM COMPLIANCE TABLE
@@ -658,7 +762,10 @@ only fall back to <code>scancel</code> as a last resort.</p>
 <p>Compliance assessed against the three-layer defence defined in AGENTS.md
 §2a-cancel-time. All scripts must have: (1) <code>--signal=B:USR1@N</code>
 on the sbatch line, (2) STOP-FILE setup + SIGUSR1 bash trap, (3) AMBIX_SOFT_TIME_LIMIT
-export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).</p>
+export, (4) <code>--time</code> set as ceiling only. A parallel SLURM audit
+(2026-06-01) identified two additional vulnerable scripts not in the original
+brief: <code>train_exclusive.sbatch</code> and the generated serve scripts from
+<code>imas_ambix/agent/slurm.py</code>.</p>
 
 <div class="table-scroll"><table class="t">
 <thead>
@@ -668,6 +775,7 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <th>STOP-FILE setup</th>
   <th>SOFT_TIME_LIMIT</th>
   <th>--time value</th>
+  <th>HF_OFFLINE</th>
   <th>Python support</th>
   <th>Overall</th>
   <th>Action required</th>
@@ -680,9 +788,10 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>✅</td>
   <td>✅ 12240s</td>
   <td>04:00:00</td>
+  <td>❌</td>
   <td>✅ Full</td>
   <td><span class="status shipped"><span class="dot"></span>COMPLIANT</span></td>
-  <td>None</td>
+  <td>Add HF_OFFLINE block (P2)</td>
 </tr>
 <tr>
   <td><code>finetune_decoder_smoke.sbatch</code></td>
@@ -690,9 +799,10 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>✅</td>
   <td>✅ 1530s</td>
   <td>00:30:00</td>
+  <td>❌</td>
   <td>✅ Full</td>
   <td><span class="status shipped"><span class="dot"></span>COMPLIANT</span></td>
-  <td>None</td>
+  <td>Add HF_OFFLINE block (P2)</td>
 </tr>
 <tr>
   <td><code>finetune_decoder_optb.sbatch</code></td>
@@ -700,9 +810,10 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>✅</td>
   <td>✅ 12240s</td>
   <td>04:00:00</td>
+  <td>❌</td>
   <td>✅ Full</td>
   <td><span class="status shipped"><span class="dot"></span>COMPLIANT</span></td>
-  <td>None</td>
+  <td>Add HF_OFFLINE block (P2)</td>
 </tr>
 <tr>
   <td><code>bench_cosmos.sbatch</code></td>
@@ -710,9 +821,10 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>✅</td>
   <td>❓ unknown</td>
   <td>04:00:00</td>
+  <td>❌</td>
   <td>❌ No STOP-FILE in stream_worker</td>
   <td><span class="status active"><span class="dot"></span>PARTIAL</span></td>
-  <td>Verify SOFT_TIME_LIMIT; add STOP-FILE to bench stream_worker</td>
+  <td>Add SOFT_TIME_LIMIT + HF_OFFLINE; add STOP-FILE to stream_worker (P1)</td>
 </tr>
 <tr>
   <td><code>bench_decode_precision.sbatch</code></td>
@@ -720,9 +832,10 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>✅</td>
   <td>❓ unknown</td>
   <td>unknown</td>
+  <td>❌</td>
   <td>❌ No STOP-FILE in stream_worker</td>
   <td><span class="status active"><span class="dot"></span>PARTIAL</span></td>
-  <td>Add SOFT_TIME_LIMIT; add STOP-FILE to stream_worker</td>
+  <td>Add SOFT_TIME_LIMIT + HF_OFFLINE; increase @300→@600; add STOP-FILE to stream_worker (P1)</td>
 </tr>
 <tr>
   <td><code>stream_encode_rbb.sbatch</code></td>
@@ -730,9 +843,10 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>❌</td>
   <td>❌</td>
   <td><strong>24:00:00</strong></td>
+  <td>✅</td>
   <td>❌ No STOP-FILE in stream_encode</td>
   <td><span class="status blocked"><span class="dot"></span>VULNERABLE</span></td>
-  <td><strong>CRITICAL: Add all three layers; reduce --time to 12:00:00</strong></td>
+  <td><strong>P0 CRITICAL: Add all three layers; reduce --time to 12:00:00; set -euo pipefail</strong></td>
 </tr>
 <tr>
   <td><code>bench_rbb.sbatch</code></td>
@@ -740,9 +854,21 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>❌</td>
   <td>❌</td>
   <td>04:00:00</td>
+  <td>❌</td>
   <td>❌ No STOP-FILE in stream_worker</td>
-  <td><span class="status blocked"><span class="dot"></span>PARTIAL-VULNERABLE</span></td>
-  <td>Add three-layer defence; add STOP-FILE to stream_worker</td>
+  <td><span class="status blocked"><span class="dot"></span>VULNERABLE</span></td>
+  <td>P1: Add three-layer defence + HF_OFFLINE; add STOP-FILE to stream_worker</td>
+</tr>
+<tr>
+  <td><code>train_exclusive.sbatch</code></td>
+  <td>❌</td>
+  <td>❌</td>
+  <td>❌</td>
+  <td>04:00:00 (sole safety net)</td>
+  <td>❌</td>
+  <td>❌ No STOP-FILE</td>
+  <td><span class="status blocked"><span class="dot"></span>VULNERABLE + BUGS</span></td>
+  <td><strong>P0: Add three-layer defence; fix BASH_SOURCE→SLURM_SUBMIT_DIR; fix log to GPFS; add HF_OFFLINE</strong></td>
 </tr>
 <tr>
   <td><code>bulk_encode_frames.sbatch</code></td>
@@ -750,9 +876,10 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>❌</td>
   <td>❌</td>
   <td>04:00:00</td>
-  <td>N/A — legacy code DEPRECATED</td>
+  <td>❌</td>
+  <td>N/A — DEPRECATED</td>
   <td><span class="status blocked"><span class="dot"></span>DEPRECATED / DO NOT RUN</span></td>
-  <td>Delete when stream_encode passes GPU validation</td>
+  <td>P0: Delete (drain-causing legacy path)</td>
 </tr>
 <tr>
   <td><code>bulk_encode_signals.sbatch</code></td>
@@ -760,9 +887,10 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>❌</td>
   <td>❌</td>
   <td>unknown</td>
+  <td>❌</td>
   <td>N/A — no CUDA DDP</td>
   <td><span class="status active"><span class="dot"></span>LOW RISK</span></td>
-  <td>Add three-layer defence for hygiene; lower priority</td>
+  <td>P0: Add three-layer defence + HF_OFFLINE</td>
 </tr>
 <tr>
   <td><code>preempt_v4flash.sh</code></td>
@@ -770,27 +898,292 @@ export, (4) <code>--time</code> set as ceiling only (not actual runtime budget).
   <td>N/A</td>
   <td>N/A</td>
   <td>N/A</td>
-  <td>Uses scancel on inference server</td>
+  <td>N/A</td>
+  <td>Uses scancel on inference server (called from 4 training scripts)</td>
   <td><span class="status active"><span class="dot"></span>MEDIUM RISK</span></td>
-  <td>Add graceful shutdown API call before scancel</td>
+  <td>P1: Replace scancel with graceful SGLang shutdown API + user-gate</td>
+</tr>
+<tr>
+  <td><code>agent/slurm.py</code> (generated)</td>
+  <td>❌</td>
+  <td>❌</td>
+  <td>❌</td>
+  <td><strong>7-00:00:00</strong></td>
+  <td>N/A</td>
+  <td>SGLang inference server (not DDP)</td>
+  <td><span class="status active"><span class="dot"></span>MEDIUM RISK</span></td>
+  <td>P2: Add --signal=B:USR1@3600 + shutdown-API trap to generated template</td>
 </tr>
 </tbody>
 </table></div>
 
-<h3>Priority order for remediation</h3>
+<p><strong>HF_OFFLINE note:</strong> All betelgeuse GPU scripts (except
+<code>stream_encode_rbb.sbatch</code> which already has it) are missing the three
+HuggingFace offline-mode environment variables. Any code path that imports
+<code>transformers</code>, <code>datasets</code>, or <code>huggingface_hub</code>
+will attempt outbound connections if these are not set — the M4 drain trigger
+(Event 2). The required block to add to every betelgeuse sbatch preamble:</p>
+<pre><code># Betelgeuse has no outbound network — block all HF download attempts
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export HF_DATASETS_OFFLINE=1</code></pre>
+
+<h3>Summary: what the compliance table added post-initial-brief</h3>
+<ul>
+  <li><code>train_exclusive.sbatch</code> — newly discovered, VULNERABLE + BUGS (see §5a)</li>
+  <li><code>agent/slurm.py</code> generated scripts — 7-day auto-SIGTERM, no three-layer defence</li>
+  <li>HF_OFFLINE flags — missing from 8 of 9 betelgeuse GPU scripts</li>
+  <li><code>preempt_v4flash.sh</code> — called from 4 scripts, not 1</li>
+</ul>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     §5a. AUDIT ADDENDUM
+     ═══════════════════════════════════════════════════════════════════ -->
+
+<h2 id="audit-addendum">§5a — Audit addendum: newly identified vulnerabilities</h2>
+
+<p>Findings from a parallel SLURM audit agent (2026-06-01) that were not in the
+original brief. Each item has a bug description and required fix.</p>
+
+<h3 id="train-exclusive">train_exclusive.sbatch — VULNERABLE + BUGS</h3>
+
+<p><span class="status blocked"><span class="dot"></span>P0 — Fix before next submit</span></p>
+
+<p>Four distinct issues found:</p>
+
 <ol>
-  <li><strong>stream_encode.py + stream_encode_rbb.sbatch</strong> — CRITICAL.
-  24h time limit with no three-layer defence is a scheduled drain. Fix immediately
-  before next corpus encode run.</li>
-  <li><strong>stream_worker.py + bench_rbb.sbatch + bench_cosmos.sbatch</strong>
-  — HIGH. Bench jobs are shorter but the pattern is the same drain vector.</li>
-  <li><strong>preempt_v4flash.sh</strong> — MEDIUM. Add graceful shutdown before
-  scancel.</li>
-  <li><strong>bulk_encode_signals.sbatch</strong> — LOW. No CUDA DDP; add
-  three-layer defence for hygiene at next edit opportunity.</li>
-  <li><strong>bulk_encode_frames.sbatch</strong> — DELETE. Don't harden
-  deprecated code.</li>
+  <li><strong>Zero three-layer defence.</strong> No <code>--signal=B:USR1</code>,
+  no STOP-FILE setup, no AMBIX_SOFT_TIME_LIMIT. The only safety mechanism is
+  <code>--time=04:00:00</code>, which — as established in §3 — is a scheduled
+  SIGTERM with the same drain risk as manual <code>scancel</code>.</li>
+
+  <li><strong>Bug: <code>BASH_SOURCE[0]</code> gives wrong path in sbatch
+  context.</strong> When SLURM runs an sbatch script, it copies the script to
+  a spool directory (<code>/var/spool/slurm/job&lt;JOBID&gt;/slurm_script</code>)
+  and executes it from there. <code>BASH_SOURCE[0]</code> resolves to the spool
+  copy, not the original submission path. Code that uses
+  <code>dirname ${BASH_SOURCE[0]}</code> to derive relative paths (e.g. to find
+  sibling scripts or model configs) will silently navigate to the wrong directory.
+  The correct pattern — used in <code>finetune_decoder.sbatch</code> line&nbsp;70
+  — is <code>SLURM_SUBMIT_DIR</code>:
+  <pre><code># Wrong (BASH_SOURCE[0] = /var/spool/slurm/...):
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &amp;&amp; pwd)"
+
+# Correct (SLURM_SUBMIT_DIR = original submit location):
+SCRIPT_DIR="${SLURM_SUBMIT_DIR}"</code></pre>
+  </li>
+
+  <li><strong>Bug: log to <code>/tmp/ambix-train-${SLURM_JOB_ID}.log</code>.</strong>
+  <code>/tmp</code> on betelgeuse is local, ephemeral, and inaccessible from the
+  login node without SSH to the compute node. All other betelgeuse scripts log to
+  GPFS (<code>/work/projects/imas_gpu/logs/</code>) so the log is immediately
+  readable from any login node. Logs in <code>/tmp</code> are also cleared on
+  reboot — which is exactly what happens after a drain-and-recover cycle, meaning
+  the log for the draining job may be lost when it's most needed.</li>
+
+  <li><strong>Calls <code>preempt_v4flash.sh</code></strong> — which issues a
+  direct <code>scancel</code> on the inference server (see §4 preempt_v4flash
+  analysis above).</li>
 </ol>
+
+<p><strong>Required fixes:</strong></p>
+<pre><code>#SBATCH --time=08:00:00              # ceiling: 2× expected; NOT the run budget
+#SBATCH --signal=B:USR1@600          # SIGUSR1 → batch script 10 min before limit
+
+mkdir -p /work/projects/imas_gpu/stops /work/projects/imas_gpu/logs
+export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
+rm -f "${AMBIX_STOP_FILE}"
+
+_on_sigusr1() {
+    echo "[train_exclusive] SIGUSR1 → touching STOP-FILE" &gt;&amp;2
+    touch "${AMBIX_STOP_FILE}"
+}
+trap _on_sigusr1 USR1
+
+export AMBIX_SOFT_TIME_LIMIT=24480   # 6h48m = 0.85 × 8h ceiling
+
+# Fix BASH_SOURCE bug:
+SCRIPT_DIR="${SLURM_SUBMIT_DIR}"
+
+# Fix log path:
+LOG=/work/projects/imas_gpu/logs/ambix-train-${SLURM_JOB_ID}.log
+
+# Fix HF offline:
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1</code></pre>
+
+<h3 id="generated-serve-scripts">agent/slurm.py — Generated serve scripts: 7-day auto-SIGTERM (deep-dive)</h3>
+
+<p><span class="status active"><span class="dot"></span>P2 — Structural gap in code generator</span></p>
+
+<p>The <code>_sbatch_headers()</code> function in <code>imas_ambix/agent/slurm.py</code>
+is the single source of truth for all generated SLURM serve scripts (kimi-k2-6,
+deepseek-v4-flash, minimax-m2-7). It currently emits:</p>
+<pre><code>#SBATCH --time=7-00:00:00    # 7 days — the only time mechanism
+# (no --signal, no STOP-FILE, no SOFT_TIME_LIMIT)</code></pre>
+
+<p><strong>The 7-day auto-SIGTERM probability analysis:</strong></p>
+<ul>
+  <li>kimi-k2-6 prefill for a 256K-token context: estimated 30–60&nbsp;s. Window
+  where SIGTERM finds the process mid-CUDA-kernel: 30–60&nbsp;s out of
+  604,800&nbsp;s (7 days) = <strong>~0.005–0.01% per job-end</strong>. Over 50
+  serve rotations per year (rotate-key pattern), expected drain events from this
+  source alone: 0.25–0.5 per year. Not catastrophic individually, but
+  eliminable.</li>
+  <li>deepseek-v4-flash prefill for a 32K context at ~500&nbsp;tok/s: ~64&nbsp;s.
+  Similar risk profile.</li>
+  <li>The risk compounds: every scheduled <code>rotate-key</code> call at line
+  560 also issues <code>scancel</code> on the running serve job without the
+  graceful-stop sequence.</li>
+</ul>
+
+<p><strong>Fix in <code>_sbatch_headers()</code>:</strong> add the three-layer
+header to the template. Since inference servers do not poll a Python training
+loop, the STOP-FILE mechanism is replaced by the SGLang shutdown API call in the
+SIGUSR1 trap. The soft wall-clock limit is not applicable (no training loop), but
+the pre-warning signal gives a 1-hour window for a graceful drain.</p>
+
+<p>This is a code-generator fix — one change in <code>_sbatch_headers()</code>
+propagates to all future <code>ambix agent serve</code> invocations automatically.
+Existing already-submitted serve jobs retain the old --time; they must be
+resubmitted after the fix lands.</p>
+
+<h3 id="hf-offline">Universal HF_OFFLINE flags — missing from 8 of 9 betelgeuse scripts</h3>
+
+<p><span class="status active"><span class="dot"></span>P2 — Systematic gap</span></p>
+
+<p>Event 2 (Network I/O Hang) was caused by code that tried to download a file
+from the internet while on betelgeuse. The immediate fix at the time was
+job-specific. The systematic fix — exporting HF_OFFLINE flags in every betelgeuse
+script — was not applied to existing scripts.</p>
+
+<p><strong>Affected scripts (missing HF_OFFLINE):</strong>
+<code>finetune_decoder.sbatch</code>,
+<code>finetune_decoder_optb.sbatch</code>,
+<code>finetune_decoder_smoke.sbatch</code>,
+<code>bench_decode_precision.sbatch</code>,
+<code>bench_cosmos.sbatch</code>,
+<code>bench_rbb.sbatch</code>,
+<code>bulk_encode_signals.sbatch</code>,
+<code>train_exclusive.sbatch</code>.</p>
+
+<p><strong>Three lines to add to every betelgeuse script preamble:</strong></p>
+<pre><code>export HF_HUB_OFFLINE=1          # Disable huggingface_hub auto-downloads
+export TRANSFORMERS_OFFLINE=1    # Disable transformers checkpoint auto-downloads
+export HF_DATASETS_OFFLINE=1     # Disable datasets auto-downloads</code></pre>
+
+<p>These variables cause immediate exceptions (not hangs) if code tries to
+download from HuggingFace Hub — which is the correct behaviour on a no-network
+node. The exception is catchable; the D-state is not.</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     §5b. OPEN VULNERABILITIES — PRIORITY RANKING
+     ═══════════════════════════════════════════════════════════════════ -->
+
+<h2 id="open-vulnerabilities">§5b — Remaining open vulnerabilities: P0/P1/P2</h2>
+
+<p>Complete ranked list of all open remediation items as of 2026-06-01. Includes
+both initial brief items and audit addendum items. <strong>Do not submit any
+betelgeuse GPU job until P0 items for that job's script are resolved.</strong></p>
+
+<h3>P0 — Fix before next submit (blocks GPU job submission)</h3>
+<ol>
+  <li>
+    <strong><code>stream_encode_rbb.sbatch</code> + <code>stream_encode.py</code></strong> —
+    24h auto-SIGTERM with no defence whatsoever. Also fix <code>set -e</code>
+    → <code>set -euo pipefail</code>. Required changes:
+    <ul>
+      <li>sbatch: add <code>--signal=B:USR1@600</code>, STOP-FILE setup, SIGUSR1
+      trap, AMBIX_SOFT_TIME_LIMIT export, reduce <code>--time</code> from
+      <code>24:00:00</code> to <code>12:00:00</code></li>
+      <li>Python: add <code>AMBIX_STOP_FILE</code> check between shots (mirror
+      finetune_decoder pattern); add AMBIX_SOFT_TIME_LIMIT check at same boundary</li>
+    </ul>
+  </li>
+  <li>
+    <strong><code>bulk_encode_frames.sbatch</code> + <code>encode_one_shard.py</code></strong>
+    — deprecated drain-causing path. Delete or hard-gate with exit 1 and an
+    error message pointing to stream_encode. No hardening — just remove.
+  </li>
+  <li>
+    <strong><code>train_exclusive.sbatch</code></strong> — zero three-layer
+    defence, two bugs (BASH_SOURCE[0], /tmp log path). Fix all four issues before
+    any submission (see §5a for exact patch).
+  </li>
+  <li>
+    <strong><code>bulk_encode_signals.sbatch</code></strong> — no three-layer
+    defence. No CUDA DDP so drain risk is low, but the script may do GPFS or
+    network I/O that could enter D-state. Add all three layers + HF_OFFLINE.
+  </li>
+</ol>
+
+<h3>P1 — Before any new run (blocks running the specific script)</h3>
+<ol start="5">
+  <li>
+    <strong><code>bench_rbb.sbatch</code></strong> — no three-layer defence.
+    Add <code>--signal=B:USR1@600</code>, STOP-FILE, SOFT_TIME_LIMIT, HF_OFFLINE.
+    Blocked on P0 item 1 (stream_worker.py needs STOP-FILE support).
+  </li>
+  <li>
+    <strong><code>bench_decode_precision.sbatch</code></strong> — missing
+    SOFT_TIME_LIMIT; <code>--signal=B:USR1@300</code> too short (increase to
+    600). Add SOFT_TIME_LIMIT + HF_OFFLINE. Blocked on stream_worker STOP-FILE.
+  </li>
+  <li>
+    <strong><code>bench_cosmos.sbatch</code></strong> — missing SOFT_TIME_LIMIT.
+    Verify --time ceiling is correct; add SOFT_TIME_LIMIT + HF_OFFLINE. Blocked
+    on stream_worker STOP-FILE.
+  </li>
+  <li>
+    <strong><code>preempt_v4flash.sh</code> (and all 4 callers)</strong> —
+    replace <code>scancel</code> call with graceful SGLang shutdown API + 30&nbsp;s
+    poll, with <code>scancel</code> fallback only if the API call fails. This
+    affects finetune_decoder.sbatch, finetune_decoder_optb.sbatch,
+    finetune_decoder_smoke.sbatch, train_exclusive.sbatch.
+  </li>
+  <li>
+    <strong><code>stream_worker.py</code></strong> — add STOP-FILE polling
+    (AMBIX_STOP_FILE) between-shot + AMBIX_SOFT_TIME_LIMIT check. This unblocks
+    P1 items 5–7 above.
+  </li>
+</ol>
+
+<h3>P2 — Hardening (no immediate run blocker; schedule for next sprint)</h3>
+<ol start="10">
+  <li>
+    <strong>All 8 betelgeuse GPU scripts: add HF_OFFLINE block.</strong>
+    Three-line change per script. Can be done as a single commit across all
+    scripts.
+  </li>
+  <li>
+    <strong><code>imas_ambix/agent/slurm.py</code> <code>_sbatch_headers()</code></strong>
+    — add <code>--signal=B:USR1@3600</code> + shutdown-API SIGUSR1 trap to
+    generated template. One-file change; propagates to all future serve jobs.
+  </li>
+  <li>
+    <strong><code>imas_ambix/agent/cli.py</code> lines 373, 560, 647</strong>
+    — replace bare <code>scancel</code> calls with graceful-stop wrapper
+    (shutdown API + poll + scancel fallback). Line 560 (rotate-key) is highest
+    priority within P2.
+  </li>
+  <li>
+    <strong><code>imas_ambix/data/cli.py</code> <code>_render_slurm_script()</code></strong>
+    — change <code>TMPDIR=/scratch_local/$SLURM_JOB_ID</code> to
+    <code>TMPDIR=/tmp</code> for non-betelgeuse partition scripts.
+  </li>
+</ol>
+
+<div class="table-scroll"><table class="t">
+<thead>
+<tr><th>Priority</th><th>Item count</th><th>Blocks</th><th>Estimated effort</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>P0</strong></td><td>4</td><td>Any corpus encode, bulk encode, train_exclusive, or signal encode submission</td><td>~4h combined</td></tr>
+<tr><td><strong>P1</strong></td><td>5</td><td>Bench runs (bench_rbb, bench_cosmos, bench_decode_precision), preempt_v4flash callers</td><td>~6h combined</td></tr>
+<tr><td><strong>P2</strong></td><td>4</td><td>Not a hard blocker; hygiene + risk reduction</td><td>~4h combined</td></tr>
+</tbody>
+</table></div>
 
 
 <!-- ═══════════════════════════════════════════════════════════════════
@@ -1471,10 +1864,35 @@ any change to stream_encode requires a validation run on a small subset of the
 corpus (e.g. 10 shots) before re-running the full 7h corpus encode. Coordinate
 with the GPU job schedule before submitting.</p>
 
+<h3>Q7 — Does rotate-key in cli.py need a full async rewrite or can it be patched?</h3>
+<p>The <code>rotate-key</code> call at cli.py line 560 issues <code>scancel</code>
+and immediately resubmits. The graceful-stop replacement requires: (a) call
+SGLang shutdown API, (b) poll squeue for job exit (up to 30&nbsp;s), (c) only then
+resubmit. This is a different control flow from the current synchronous one-liner.
+The question is whether the surrounding CLI code is async-capable (likely yes,
+since the agent CLI already uses async elsewhere) or whether a synchronous
+blocking poll is acceptable. If the rotate-key is called rarely, a 30&nbsp;s
+blocking wait is fine. If called frequently (automated rotation), an async pattern
+is better. Assess before implementing.</p>
+
+<h3>Q8 — Should agent/slurm.py serve scripts have a maximum deployment window?</h3>
+<p>A 7-day time limit on serve jobs means an admin or user must manually resubmit
+every week if continuous serving is needed. The fix to double the ceiling
+(<code>--time=14-00:00:00</code>) helps, but the real question is: should the
+ambix deployment model support indefinite serving (no time limit, graceful
+shutdown via stop-file/API only) or should it enforce a maximum window? Indefinite
+serving requires SLURM to not have a site-wide time-limit cap for the
+<code>gpu_0003_grpa</code> QoS — worth checking with SDCC.</p>
+
 <hr>
 
-<p><em>Document created 2026-06-01. Supersedes individual RCA documents for
-cross-event analysis; individual RCAs (rca-node-drain-2026-05-27.html,
+<p><em>Document created 2026-06-01. Updated 2026-06-01 with parallel SLURM audit
+findings: <code>train_exclusive.sbatch</code> vulnerabilities + bugs,
+<code>agent/slurm.py</code> 7-day auto-SIGTERM, <code>agent/cli.py</code> direct
+scancel calls, <code>data/cli.py</code> TMPDIR bug, missing HF_OFFLINE flags
+across 8 scripts, and sacct confirmation that Drains 1/2/3 were 100%
+self-inflicted (zero grpB activity in all three windows). Supersedes individual
+RCA documents for cross-event analysis; individual RCAs (rca-node-drain-2026-05-27.html,
 rca-node-drain-2026-05-27b.html, rca-node-drain-2026-05-28.html,
 sdcc-cuda-init-failure-2026-05-26.html) remain as primary sources for
 event-specific forensic data.</em></p>
