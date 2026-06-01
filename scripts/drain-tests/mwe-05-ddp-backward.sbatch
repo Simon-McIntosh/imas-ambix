@@ -32,16 +32,28 @@ mkdir -p "${TMPDIR}" || export TMPDIR=/tmp
 mkdir -p /work/projects/imas_gpu/logs
 
 export DRAIN_TEST_LOG_DIR=/work/projects/imas_gpu/logs
-export DRAIN_MODE="${DRAIN_MODE:-cross_group}"
+export DRAIN_MODE="${DRAIN_MODE:-seq_mismatch}"
 export AUTO_SCANCEL_DELAY="${AUTO_SCANCEL_DELAY:-2.0}"
+
+# For seq_mismatch: suppress NCCL watchdog so it cannot abort before we observe
+# whether the deadlock is truly D-state. Without this, the heartbeat kills it
+# within seconds (as observed in cross_group mode, jobs 1209902/1209905).
+if [[ "${DRAIN_MODE}" == "seq_mismatch" ]] || [[ "${DRAIN_MODE}" == "cross_group" ]]; then
+    export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=3600
+    export NCCL_TIMEOUT=3600
+    export TORCH_NCCL_ASYNC_ERROR_HANDLING=0
+    echo "NCCL heartbeat suppressed (timeout=3600s) for mode=${DRAIN_MODE}"
+fi
 
 TORCHRUN="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/torchrun"
 
-echo "=== MWE-05 v7 NCCL Deadlock: mode=${DRAIN_MODE} ==="
+echo "=== MWE-05 v8 NCCL Deadlock: mode=${DRAIN_MODE} ==="
 echo "Job: ${SLURM_JOB_ID}  Node: ${SLURMD_NODENAME}"
 echo "Auto-scancel: ${AUTO_SCANCEL_DELAY}s after READY"
 echo ""
-echo "cross_group: rank 0 on comm_a, ranks 1-3 on comm_b -> no cross-group match -> deadlock"
+echo "seq_mismatch: rank 0 at seq N, ranks 1-3 at seq N+1 -> mutual deadlock (same communicator)"
+echo "gpu_sleep:    all 4 GPUs have torch.cuda.sleep(inf) -> tests cuCtxDestroy D-state"
+echo "cross_group:  rank 0 on comm_a, ranks 1-3 on comm_b -> cross-communicator deadlock"
 echo "ring_deadlock: all ranks recv-before-send -> P2P NVLink ring deadlock"
 echo ""
 echo "After drain (if triggered), notify admin:"

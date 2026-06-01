@@ -1,92 +1,46 @@
 """
-MWE-05: DDP/NCCL Mutual Communicator Deadlock — Drain Reproducer (v6)
-=======================================================================
+MWE-05: NCCL D-State Drain Reproducer (v8)
+==========================================
 PURPOSE
-  Reproduces the exact drain mechanism of Event #4 (job 1209813, 2026-06-01):
-  a mutual deadlock across two NCCL communicators that keeps ALL 4 ranks
-  permanently blocked, prevents SIGTERM delivery, and triggers
-  UnkillableStepTimeout -> node drain.
-
-  MECHANISM (why ALL 4 ranks become D-state):
-    DDP creates a private NCCL communicator (comm_DDP) for gradient
-    averaging, separate from the default process-group communicator
-    (comm_PG).
-
-    After a clean DDP backward step (all 4 ranks synced on comm_DDP):
-      - Rank 0 calls dist.all_reduce(t) on comm_PG. This waits for all 4
-        ranks to join the collective. Ranks 1-3 never make this call, so
-        rank 0 blocks indefinitely.
-      - Ranks 1-3 proceed to the next training step and call loss.backward().
-        DDP fires the gradient all-reduce hook on comm_DDP, which waits for
-        rank 0. Rank 0 is stuck in comm_PG and never joins comm_DDP.
-
-    TWO-WAY DEADLOCK:
-      comm_PG: rank 0 waiting for ranks 1-3  (ranks 1-3 are in comm_DDP)
-      comm_DDP: ranks 1-3 waiting for rank 0  (rank 0 is in comm_PG)
-
-    All 4 processes are ALIVE. No peer disconnect event fires. NCCL waits via
-    NVLink P2P DMA ioctl for data that never arrives -> TASK_UNINTERRUPTIBLE
-    (D-state) on all 4 ranks. SIGTERM and SIGKILL both fail. Drain follows.
+  Empirically determines which NCCL operations enter D-state (TASK_UNINTERRUPTIBLE)
+  on this H200 NVLink cluster, reproducing the drain mechanism of Event #4
+  (job 1209813, 2026-06-01).
 
 REVISION HISTORY
-  v1 Finding
-    dim=4096, depth=8, batch=32. ~130 steps/sec → 7ms/step. Backward+NCCL
-    window ~1ms. Scancel arrived between steps → clean cancel, no drain.
-
-  v2 Finding
-    dim=8192, depth=16, batch=256, bfloat16. loss.backward() returns in 2ms
-    — PyTorch DDP dispatches NCCL all-reduce asynchronously. CPU returns
-    immediately; actual GPU+NCCL work runs in background on CUDA stream.
-    Scancel arrived while CPU was in Python R/S state → clean cancel, no drain.
-
-  v3 Finding
-    Added torch.cuda.synchronize(device) after backward (backward=112ms with
-    sync). Despite the 112ms CPU-blocking wait, the process was killed cleanly.
-    Conclusion: cudaDeviceSynchronize() uses interruptible wait (S-state futex /
-    CPU polling), NOT the D-state NVLink ioctl.
-
-  v4 Finding
-    Rank 0 alone in dist.all_reduce(), ranks 1-3 in time.sleep() (S-state).
-    When SIGTERM fired: ranks 1-3 exited cleanly → NCCL on rank 0 detected
-    peer disconnect → rank 0's all_reduce returned with error → no drain.
-    Conclusion: a single D-state rank is insufficient if the other ranks can
-    close NCCL channels by exiting cleanly.
-
-  v5 No-run
-    Collective type mismatch (AllReduce vs AllGather) designed; never ran.
-    Port 29503 was still held by looping job 1209890 (torchrun retry storm
-    from v4). EADDRINUSE on startup. Job failed before NCCL initialised.
-
-  v6 No-drain (job 1209900)
-    Theory: DDP uses separate comm_DDP, so rank 0 extra all_reduce (comm_PG)
-    and ranks 1-3 DDP backward (comm_DDP) would deadlock. WRONG: in PyTorch
-    2.x, DDP gradient all_reduce uses the DEFAULT process group (comm_PG).
-    Rank 0 extra all_reduce and ranks 1-3 DDP backward hit the SAME NCCL
-    sequence number on the SAME communicator -> accidentally completed as a
-    valid all_reduce. All ranks printed "UNEXPECTED: returned". No drain.
-    Lesson: DDP and dist.all_reduce share comm_PG. Must use EXPLICIT new_group
-    to create truly separate communicators.
-
-  v7 Fix (this version)
-    Approach A — cross-group deadlock:
-      All 4 ranks create comm_a and comm_b via new_group.
-      Rank 0: dist.all_reduce on comm_a (waits for ALL ranks on comm_a).
-      Ranks 1-3: dist.all_reduce on comm_b (waits for ALL ranks on comm_b).
-      No rank ever calls on the other's communicator -> true deadlock.
-    Approach B — ring send/recv deadlock:
-      Rank N: dist.recv(src=(N+1)%W) before dist.send(dst=(N-1)%W).
-      All 4 ranks blocked in recv. Nobody sends. Ring deadlock via P2P NVLink.
+  v1 Finding: 7ms/step backward window too short → scancel between steps → clean cancel.
+  v2 Finding: DDP backward async (2ms CPU return) → CPU never blocks → clean cancel.
+  v3 Finding: cudaDeviceSynchronize() after backward → S-state (interruptible futex).
+              112ms wait, clean kill. cudaStreamSync is NOT the D-state path.
+  v4 Finding: rank 0 alone in all_reduce, ranks 1-3 sleeping → NCCL detects peer
+              disconnect → rank 0 returns, no drain. Single-rank blocking insufficient.
+  v5 No-run:  AllReduce/AllGather mismatch designed; EADDRINUSE from prior looping job.
+  v6 No-drain (job 1209900): DDP uses comm_PG (not a separate comm_DDP). Rank 0 extra
+              all_reduce + ranks 1-3 DDP backward → same NCCL sequence → accidental
+              match. All ranks returned "UNEXPECTED". Lesson: must use new_group.
+  v7 No-drain (jobs 1209902, 1209905):
+     cross_group mode: new_group(all_ranks) × 2. Rank 0 on comm_a, ranks 1-3 on
+       comm_b. Returned immediately — NCCL heartbeat/watchdog aborted within 2s.
+     ring_deadlock mode: all ranks recv(src=(N+1)%4) before send(dst=(N-1)%4).
+       SIGTERM interrupted the blocking recv cleanly (S-state).
+  v8 (this version):
+     seq_mismatch mode: genuine NCCL sequence mismatch on the SAME communicator.
+       All 4 ranks stuck simultaneously: rank 0 calling seq N, ranks 1-3 at seq N+1.
+       Reproduces the EXACT original MWE-01 bug pattern that caused Event #4.
+       NCCL heartbeat disabled via env vars so watchdog does not abort early.
+     gpu_sleep mode: all 4 ranks launch torch.cuda.sleep(infinite) then exit the
+       Python main thread. Tests whether cuCtxDestroy with pending GPU kernel is
+       D-state. Exercises the GPU context destruction cleanup path.
 
 RISK LEVEL
-  DESIGNED TO DRAIN THE NODE (if NCCL cross-group or P2P recv is D-state).
-  If all operations prove S-state, job exits cleanly and reports no drain.
+  seq_mismatch and gpu_sleep are DESIGNED TO DRAIN THE NODE.
   Recovery after drain:
     nvidia-smi -i 0,1,2,3 --gpu-reset
     scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
 
 ENVIRONMENT VARIABLES
-  DRAIN_MODE         "cross_group" (default) or "ring_deadlock"
-  TENSOR_NUMEL       Elements per rank (default: 64*1024*1024 = 256MB fp32)
+  DRAIN_MODE         "seq_mismatch" (default) | "cross_group" | "ring_deadlock" |
+                     "gpu_sleep"
+  TENSOR_NUMEL       Elements per rank (default: 64*1024*1024 = 256 MB fp32)
   AUTO_SCANCEL_DELAY Seconds after READY before auto-cancel (default: 2.0)
 """
 
@@ -98,7 +52,7 @@ import time
 import torch
 import torch.distributed as dist
 
-DRAIN_MODE = os.environ.get("DRAIN_MODE", "cross_group")
+DRAIN_MODE = os.environ.get("DRAIN_MODE", "seq_mismatch")
 TENSOR_NUMEL = int(os.environ.get("TENSOR_NUMEL", str(64 * 1024 * 1024)))
 AUTO_SCANCEL_DELAY = float(os.environ.get("AUTO_SCANCEL_DELAY", "2.0"))
 JOB_ID = os.environ.get("SLURM_JOB_ID", "local")
@@ -111,6 +65,84 @@ def auto_scancel(delay: float) -> None:
         subprocess.run(["scancel", JOB_ID], timeout=10)
 
     threading.Thread(target=_run, daemon=True).start()
+
+
+def run_seq_mismatch(rank: int, world_size: int, device: torch.device) -> None:
+    """Faithful reproduction of the original Event #4 (MWE-01 v1 bug).
+
+    Mechanism:
+      - All 4 ranks call collective A (warm-up, sequence 1). All complete.
+      - Ranks 1-3 call collective B (sequence 2 for them). Rank 0 sleeps.
+      - After B completes for ranks 1-3 (rank 0 still at seq 1):
+          Rank 0 calls C → this is rank 0's sequence 2.
+          Ranks 1-3 call C → this is their sequence 3.
+      - PERMANENT MUTUAL DEADLOCK:
+          Rank 0 at seq 2: waits for all 4 peers to join seq 2.
+          Ranks 1-3 at seq 3: wait for rank 0 to join seq 3.
+          Neither group can advance. All 4 blocked simultaneously.
+
+    Note: NCCL heartbeat disabled in the sbatch via env vars so the watchdog
+    does not abort before we can observe whether this is D-state or S-state.
+    """
+    t = torch.ones(TENSOR_NUMEL, dtype=torch.float32, device=device)
+
+    # Collective A: all 4 ranks participate (warm-up, advances all to seq 1)
+    dist.all_reduce(t)
+
+    if rank == 0:
+        # Rank 0 sleeps while ranks 1-3 call collective B
+        time.sleep(1.0)
+    else:
+        # Collective B: ranks 1-3 advance to seq 2; rank 0 stays at seq 1
+        dist.all_reduce(t)
+
+    # All 4 now call collective C simultaneously:
+    #   Rank 0: this is its seq 2 → waits for ranks 1-3 at seq 2
+    #   Ranks 1-3: this is their seq 3 → wait for rank 0 at seq 3
+    # → PERMANENT DEADLOCK on the same communicator with mismatched sequences
+    if rank == 0:
+        print("[MWE-05] READY seq_mismatch — rank 0 at seq 2, ranks 1-3 at seq 3", flush=True)
+        print("[MWE-05]   rank 0: calling collective C at seq 2 (waits for peers at 2)", flush=True)
+        print("[MWE-05]   ranks 1-3: calling collective C at seq 3 (wait for rank 0 at 3)", flush=True)
+        print("[MWE-05]   MUTUAL DEADLOCK — all 4 blocked on same communicator", flush=True)
+        print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
+        auto_scancel(AUTO_SCANCEL_DELAY)
+
+    dist.all_reduce(t)  # All 4 call this — but with mismatched sequence numbers
+    print(f"[MWE-05 rank {rank}] UNEXPECTED: seq_mismatch all_reduce returned", flush=True)
+
+
+def run_gpu_sleep(rank: int, world_size: int, device: torch.device) -> None:
+    """Test whether cuCtxDestroy is D-state when GPU has a pending kernel.
+
+    Mechanism:
+      - All 4 ranks launch torch.cuda.sleep(~infinite) — an async CUDA kernel
+        that spins for ~30 years (10^18 GPU clock cycles at ~10 GHz).
+      - CPU returns immediately from the non-blocking dispatch.
+      - All 4 ranks print READY and the auto-scancel fires.
+      - SIGTERM arrives → Python tries to exit → cuCtxDestroy called.
+      - If cuCtxDestroy blocks on the spinning GPU kernel: D-state → drain.
+      - If cuCtxDestroy aborts the kernel: clean exit.
+
+    This isolates the GPU context destruction cleanup path from NCCL/NVLink.
+    """
+    dist.barrier()
+
+    # Non-blocking GPU kernel launch: CPU returns immediately, GPU spins
+    torch.cuda.sleep(int(1e18))  # ~30 years at 10 GHz GPU clock
+
+    if rank == 0:
+        print("[MWE-05] READY gpu_sleep — all 4 GPUs have infinite sleep kernels running", flush=True)
+        print("[MWE-05]   torch.cuda.sleep(1e18) dispatched async on all 4 GPUs", flush=True)
+        print("[MWE-05]   CPU returned immediately — GPU kernels still spinning", flush=True)
+        print("[MWE-05]   Testing: is cuCtxDestroy D-state with pending GPU kernel?", flush=True)
+        print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
+        auto_scancel(AUTO_SCANCEL_DELAY)
+
+    # Sleep long enough for auto-scancel to fire; do NOT sync
+    # (we deliberately do NOT call torch.cuda.synchronize here)
+    time.sleep(3600)  # Wait for scancel
+    print(f"[MWE-05 rank {rank}] UNEXPECTED: time.sleep returned (job not cancelled?)", flush=True)
 
 
 def run_cross_group(rank: int, world_size: int, device: torch.device) -> None:
@@ -167,13 +199,17 @@ def main() -> None:
     device = torch.device(f"cuda:{local_rank}")
 
     if rank == 0:
-        print(f"[MWE-05] *** v7: mode={DRAIN_MODE} tensor={TENSOR_NUMEL//1024//1024}M floats ***", flush=True)
+        print(f"[MWE-05] *** v8: mode={DRAIN_MODE} tensor={TENSOR_NUMEL//1024//1024}M floats ***", flush=True)
         print(f"[MWE-05] job={JOB_ID}  ranks={world_size}", flush=True)
         print(f"[MWE-05] Recovery after drain:", flush=True)
         print(f"[MWE-05]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
         print(f'[MWE-05]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""', flush=True)
 
-    if DRAIN_MODE == "ring_deadlock":
+    if DRAIN_MODE == "seq_mismatch":
+        run_seq_mismatch(rank, world_size, device)
+    elif DRAIN_MODE == "gpu_sleep":
+        run_gpu_sleep(rank, world_size, device)
+    elif DRAIN_MODE == "ring_deadlock":
         run_ring_deadlock(rank, world_size, device)
     else:
         run_cross_group(rank, world_size, device)
