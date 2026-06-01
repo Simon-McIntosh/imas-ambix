@@ -1,14 +1,12 @@
 """
-MWE-05: NCCL Collective Hang — Confirmed D-State Drain Reproducer (v4)
-=======================================================================
+MWE-05: NCCL Collective Type Mismatch — All-Rank D-State Drain Reproducer (v5)
+================================================================================
 PURPOSE
-  Reproduces the confirmed drain mechanism from the accidental MWE-01 run
-  (Event #4, job 1209813, 2026-06-01): rank 0 calls a collective that no
-  other rank joins, causing rank 0 to block indefinitely inside the NCCL
-  kernel. The blocking wait is via NVLink driver ioctl → D-state
-  (TASK_UNINTERRUPTIBLE). SIGTERM and SIGKILL cannot reach a D-state
-  process. SLURM's UnkillableStepTimeout (60 s) fires → "Kill task failed"
-  → node drain.
+  Reproduces the drain mechanism from Event #4 (job 1209813, 2026-06-01)
+  by creating a NCCL collective type mismatch that blocks ALL 4 ranks
+  simultaneously in incompatible NCCL operations. None can signal peer
+  disconnection to the others, so all 4 stay stuck indefinitely → all in
+  D-state → SIGTERM undeliverable → drain.
 
 REVISION HISTORY
   v1 Finding
@@ -23,37 +21,43 @@ REVISION HISTORY
 
   v3 Finding
     Added torch.cuda.synchronize(device) after backward (backward=112ms with
-    sync). Despite the 112ms CPU-blocking wait, the process was still killed
-    cleanly. Conclusion: cudaDeviceSynchronize() uses an interruptible wait
-    mechanism (S-state futex / CPU polling), NOT the D-state NVLink ioctl.
+    sync). Despite the 112ms CPU-blocking wait, the process was killed cleanly.
+    Conclusion: cudaDeviceSynchronize() uses interruptible wait (S-state futex /
+    CPU polling), NOT the D-state NVLink ioctl.
 
-  v4 Fix (this version)
-    The ONLY confirmed D-state mechanism in this cluster is the NCCL kernel
-    blocking on a MISSING PEER: when rank 0 enters a collective and other
-    ranks do NOT, rank 0 waits forever in ncclAllReduce via NVLink P2P ioctl
-    → D-state. This is exactly what caused the accidental Event #4 drain
-    (collective mismatch bug in MWE-01). This version reproduces it
-    deliberately: rank 0 calls dist.all_reduce(); ranks 1-3 sleep.
-    Auto-scancel fires 2s after READY → SIGTERM to rank 0 in D-state →
-    torchrun SIGKILLed → rank 0 orphaned D-state process → drain.
+  v4 Finding
+    Rank 0 alone in dist.all_reduce(), ranks 1-3 in time.sleep() (S-state).
+    When SIGTERM fired: ranks 1-3 exited cleanly → NCCL on rank 0 detected
+    peer disconnect → rank 0's all_reduce returned with error → no drain.
+    Conclusion: a single D-state rank is insufficient if the other ranks can
+    close NCCL channels by exiting cleanly.
+
+  v5 Fix (this version)
+    Collective TYPE MISMATCH: rank 0 calls dist.all_reduce() while ranks 1-3
+    call dist.all_gather_into_tensor(). These map to different NCCL operations
+    (ncclAllReduce vs ncclAllGather). NCCL matches collectives by call sequence
+    number — a type mismatch causes all 4 ranks to hang indefinitely, each
+    waiting for a matching operation that never arrives. ALL 4 are in D-state
+    simultaneously; none can exit to signal the others. SIGTERM is
+    undeliverable to all 4 → SIGKILL fails → UnkillableStepTimeout → drain.
 
 RISK LEVEL
-  ⚠️⚠️  DESIGNED TO DRAIN THE NODE (this is the confirmed mechanism).
+  ⚠️⚠️  DESIGNED TO DRAIN THE NODE.
   Recovery after drain:
     nvidia-smi -i 0,1,2,3 --gpu-reset
     scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
 
 MECHANISM
-  dist.all_reduce() (rank 0 only) → NCCL kernel waits for peers via
-  NVLink P2P ioctl → D-state (TASK_UNINTERRUPTIBLE).
-
-  torchrun receives SIGTERM → forwards to rank 0 → rank 0 in D-state
-  → torchrun blocks in waitpid() → SLURM sends SIGKILL to torchrun →
-  torchrun dies → rank 0 becomes orphan D-state process →
-  UnkillableStepTimeout (60 s) → "Kill task failed" → node drains.
+  1. All 4 ranks init DDP + NCCL, then dist.barrier() to sync.
+  2. Rank 0:      dist.all_reduce(t)                → ncclAllReduce
+     Ranks 1-3:  dist.all_gather_into_tensor(...)   → ncclAllGather
+  3. NCCL operation type mismatch → all 4 hang in NCCL kernel (D-state via
+     NVLink driver ioctl).
+  4. Auto-scancel fires → SIGTERM → all 4 D-state → SIGKILL → still D-state
+     → UnkillableStepTimeout (60s) → "Kill task failed" → node drains.
 
 ENVIRONMENT VARIABLES
-  TENSOR_NUMEL        Elements in the all_reduce tensor (default: 256*1024*1024)
+  TENSOR_NUMEL        Elements per rank (default: 64*1024*1024 = 256MB fp32)
   AUTO_SCANCEL_DELAY  Seconds after READY before auto-cancel (default: 2.0)
   DRAIN_TEST_LOG_DIR  Log directory (default: /tmp)
 """
@@ -66,7 +70,7 @@ import time
 import torch
 import torch.distributed as dist
 
-TENSOR_NUMEL = int(os.environ.get("TENSOR_NUMEL", str(256 * 1024 * 1024)))
+TENSOR_NUMEL = int(os.environ.get("TENSOR_NUMEL", str(64 * 1024 * 1024)))
 AUTO_SCANCEL_DELAY = float(os.environ.get("AUTO_SCANCEL_DELAY", "2.0"))
 LOG_DIR = os.environ.get("DRAIN_TEST_LOG_DIR", "/tmp")
 JOB_ID = os.environ.get("SLURM_JOB_ID", "local")
@@ -75,27 +79,29 @@ JOB_ID = os.environ.get("SLURM_JOB_ID", "local")
 def main() -> None:
     dist.init_process_group(backend="nccl")
     rank = dist.get_rank()
+    world_size = dist.get_world_size()
     local_rank = int(os.environ.get("LOCAL_RANK", rank))
     torch.cuda.set_device(local_rank)
+    device = torch.device(f"cuda:{local_rank}")
 
     if rank == 0:
-        print(f"[MWE-05] *** v4: NCCL collective hang — confirmed D-state mechanism ***", flush=True)
-        print(f"[MWE-05] job={JOB_ID}  ranks={dist.get_world_size()}  DESIGNED TO DRAIN", flush=True)
-        print(f"[MWE-05] Mechanism: rank 0 alone in all_reduce → NCCL waits for", flush=True)
-        print(f"[MWE-05]   missing peers via NVLink ioctl → D-state → drain", flush=True)
+        print(f"[MWE-05] *** v5: NCCL type mismatch — all-rank simultaneous D-state ***", flush=True)
+        print(f"[MWE-05] job={JOB_ID}  ranks={world_size}  DESIGNED TO DRAIN", flush=True)
+        print(f"[MWE-05] Mechanism: rank 0 → AllReduce, ranks 1-3 → AllGather", flush=True)
+        print(f"[MWE-05]   type mismatch → all 4 D-state simultaneously → drain", flush=True)
+        print(f"[MWE-05] Tensor: {TENSOR_NUMEL/1e6:.0f}M floats "
+              f"({TENSOR_NUMEL*4/1e9:.2f} GB fp32 per rank)", flush=True)
 
-    # Synchronise all ranks at startup (ensures NCCL init is complete)
+    # Sync all ranks — NCCL init complete, all ranks coordinated.
     dist.barrier()
 
     if rank == 0:
-        t = torch.ones(TENSOR_NUMEL, dtype=torch.float32, device=f"cuda:{local_rank}")
-        print(f"[MWE-05] All ranks initialised. Tensor: {TENSOR_NUMEL/1e6:.0f}M floats "
-              f"({TENSOR_NUMEL*4/1e9:.1f} GB)", flush=True)
-        print(f"[MWE-05] READY — rank 0 entering lone all_reduce (peers absent → D-state)", flush=True)
+        print(f"[MWE-05] All ranks synced. Entering mismatched collectives...", flush=True)
+        print(f"[MWE-05] READY — rank 0 → AllReduce; ranks 1-3 → AllGather (mismatch)", flush=True)
         print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
         print(f"[MWE-05] Recovery after drain:", flush=True)
         print(f"[MWE-05]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
-        print(f"[MWE-05]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=\"\"", flush=True)
+        print(f'[MWE-05]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""', flush=True)
 
         def _scancel():
             time.sleep(AUTO_SCANCEL_DELAY)
@@ -104,17 +110,21 @@ def main() -> None:
 
         threading.Thread(target=_scancel, daemon=True).start()
 
-        # Rank 0 calls all_reduce; ranks 1-3 do NOT.
-        # Rank 0 blocks indefinitely in NCCL NVLink P2P ioctl → D-state.
-        # SIGTERM cannot be delivered. drain follows.
-        dist.all_reduce(t)
+        # Rank 0: AllReduce — expects ncclAllReduce from all peers.
+        # Peers are calling AllGather → type mismatch → rank 0 hangs in D-state.
+        t = torch.ones(TENSOR_NUMEL, dtype=torch.float32, device=device)
+        dist.all_reduce(t, op=dist.ReduceOp.SUM)
 
-        print(f"[MWE-05] UNEXPECTED: all_reduce returned (peers joined?) — no drain", flush=True)
+        print(f"[MWE-05] UNEXPECTED: all_reduce returned (NCCL detected mismatch?) — no drain", flush=True)
 
     else:
-        # Ranks 1-3: sleep indefinitely. They are NOT in the collective.
-        # This ensures rank 0 waits forever and is in D-state when SIGTERM arrives.
-        time.sleep(3600)
+        # Ranks 1-3: AllGather (ncclAllGather) — incompatible with rank 0's AllReduce.
+        # All 3 are stuck waiting for NCCL to match their AllGather, which never happens.
+        output = torch.zeros(world_size * TENSOR_NUMEL, dtype=torch.float32, device=device)
+        local_t = torch.ones(TENSOR_NUMEL, dtype=torch.float32, device=device)
+        dist.all_gather_into_tensor(output, local_t)
+
+        print(f"[MWE-05 rank {rank}] UNEXPECTED: all_gather returned — no drain", flush=True)
 
 
 if __name__ == "__main__":

@@ -10,14 +10,14 @@
 #SBATCH --output=/work/projects/imas_gpu/logs/mwe05-%j.out
 #SBATCH --error=/work/projects/imas_gpu/logs/mwe05-%j.err
 
-# MWE-05 v4: NCCL Collective Hang — Confirmed D-State Drain Reproducer
+# MWE-05 v5: NCCL Collective Type Mismatch — All-Rank D-State Drain Reproducer
 # Risk: ⚠️⚠️ DESIGNED TO DRAIN THE NODE — GPU reset + admin resume required.
 #
-# v3 finding: torch.cuda.synchronize() is S-state (interruptible). Even
-#   with 112ms blocking wait, SIGTERM delivers cleanly → no drain.
-# v4 fix: Use the CONFIRMED mechanism — rank 0 alone calls dist.all_reduce().
-#   Other ranks sleep. Rank 0 blocks forever in NCCL NVLink P2P ioctl →
-#   D-state → SIGTERM undeliverable → drain. Exactly replicates Event #4.
+# v4 finding: single D-state rank insufficient — ranks 1-3 in sleep() exit
+#   cleanly on SIGTERM, NCCL detects peer disconnect, rank 0 exits → no drain.
+# v5 fix: ALL ranks enter mismatched NCCL ops simultaneously:
+#   rank 0 → AllReduce; ranks 1-3 → AllGather. All 4 stuck in incompatible
+#   NCCL ops → all 4 D-state → none can signal peer disconnect → drain.
 #
 # RECOVERY (admin commands after drain confirmed):
 #   nvidia-smi -i 0,1,2,3 --gpu-reset
@@ -37,17 +37,17 @@ export AUTO_SCANCEL_DELAY="${AUTO_SCANCEL_DELAY:-2.0}"
 
 TORCHRUN="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/torchrun"
 
-echo "=== MWE-05 v4 NCCL Collective Hang — Confirmed D-State Drain ==="
+echo "=== MWE-05 v5 NCCL Type Mismatch — All-Rank D-State Drain ==="
 echo "Job: ${SLURM_JOB_ID}  Node: ${SLURMD_NODENAME}"
 echo "*** DESIGNED TO DRAIN THE NODE ***"
 echo "Auto-scancel: ${AUTO_SCANCEL_DELAY}s after READY"
 echo ""
 echo "Expected sequence:"
 echo "  1. NCCL init + barrier (all 4 ranks) → ~5s"
-echo "  2. READY printed (rank 0 entering lone all_reduce)"
-echo "  3. Rank 0 blocks in NCCL NVLink ioctl → D-state"
+echo "  2. READY (rank 0 entering AllReduce; ranks 1-3 entering AllGather)"
+echo "  3. ALL 4 ranks blocked in mismatched NCCL ops → D-state"
 echo "  4. Auto-scancel fires ${AUTO_SCANCEL_DELAY}s after READY"
-echo "  5. SIGTERM → rank 0 D-state → SIGKILL → D-state survives"
+echo "  5. SIGTERM → all 4 D-state → SIGKILL → all still D-state"
 echo "  6. UnkillableStepTimeout → Kill task failed → DRAIN"
 echo ""
 echo "After drain, notify admin:"
