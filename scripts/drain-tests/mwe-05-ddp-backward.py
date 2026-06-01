@@ -1,6 +1,6 @@
 """
-MWE-05: DDP loss.backward() + Scancel — Drain Reproducer
-==========================================================
+MWE-05: DDP loss.backward() + Scancel — Drain Reproducer (v2)
+==============================================================
 PURPOSE
   Reproduces the confirmed drain mechanism from Event 3 (2026-05-28,
   job 1208975): issuing SLURM scancel on a DDP job mid-``loss.backward()``
@@ -8,64 +8,43 @@ PURPOSE
   all-reduce), making them immune to SIGKILL, triggering
   UnkillableStepTimeout, and draining the node.
 
-RISK LEVEL
-  ⚠️⚠️  LIKELY DRAIN — GPU reset + admin scontrol resume expected.
-  Do NOT run without admin contact ready and explicit user authorisation.
+v1 FINDING
+  First run (dim=4096, depth=8, batch=32) ran at ~130 steps/sec → 7ms/step.
+  The backward+NCCL window was only ~1ms. Manual scancel arrived between
+  steps, not mid-backward → clean cancel, no drain.
 
-  Required recovery after drain:
+v2 FIX
+  Model scaled to dim=8192, depth=16, batch=256, bfloat16. Target:
+  ~500ms backward, giving a reliable D-state window.
+  AUTO-SCANCEL: rank 0 spawns a daemon thread that issues scancel
+  0.5 s after READY (while the next backward is running). No manual
+  timing needed.
+
+RISK LEVEL
+  ⚠️⚠️  DESIGNED TO DRAIN THE NODE.
+  Recovery after drain:
     nvidia-smi -i 0,1,2,3 --gpu-reset
     scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
 
 MECHANISM
   loss.backward() with DDP triggers NCCL gradient all-reduce hooks. These
   hooks call cudaStreamSynchronize() on the NCCL P2P stream, which enters
-  D-state (TASK_UNINTERRUPTIBLE) in the kernel NVLink driver. SIGTERM
-  cannot be queued; SIGKILL cannot kill the D-state process. SLURM's
-  UnkillableStepTimeout (~60 s) fires → "Kill task failed" → node drain.
-
-  This is distinct from a simple all_reduce (MWE-04), which uses CPU
-  spin-wait (R-state) and can be killed cleanly.
-
-WHAT IT DOES
-  1. Initialises 4-rank DDP (NCCL backend) across 4 GPUs.
-  2. Creates a real model (ResNet-50 equivalent depth) so that backward()
-     creates substantial gradient tensors needing all-reduce.
-  3. Runs a training loop: forward → loss → backward → optimizer.step().
-  4. Prints "READY" after the first successful backward pass.
-  5. Runs indefinitely (no watchdog, no stop-file, no SIGUSR1 handler)
-     so that scancel mid-backward can create D-state.
-  6. The accompanying sbatch has NO --signal or three-layer defence
-     (intentionally omitted to expose the drain mechanism).
-
-HOW TO TEST
-  1. Submit:
-       sbatch mwe-05-ddp-backward.sbatch
-       # note the job ID
-
-  2. Wait for "READY" in the log (first backward pass complete, ~30 s):
-       tail -f <log-file>
-
-  3. Immediately issue scancel:
-       scancel <jobid>
-
-  4. Wait 70 s and check node state:
-       sinfo -N -n 98dci4-gpu-0003 --noheader -o "%T"
-       # "drain" → mechanism confirmed (expected result)
-       # "idle"  → D-state did not form (try again or check NCCL version)
-
-  5. If drained, notify admin for recovery:
-       nvidia-smi -i 0,1,2,3 --gpu-reset
-       scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
+  D-state (TASK_UNINTERRUPTIBLE) in the NVLink kernel driver. SIGTERM and
+  SIGKILL cannot reach D-state processes. SLURM UnkillableStepTimeout (60s)
+  fires → "Kill task failed" → node drain.
 
 ENVIRONMENT VARIABLES
-  MODEL_DEPTH        Number of hidden layers (default: 8; more = slower backward)
-  HIDDEN_DIM         Feature size (default: 4096)
-  BATCH_SIZE         Per-rank batch size (default: 32)
+  MODEL_DEPTH        Hidden layers (default: 16)
+  HIDDEN_DIM         Feature size (default: 8192)
+  BATCH_SIZE         Per-rank batch size (default: 256)
+  AUTO_SCANCEL_DELAY Seconds after READY before auto-cancel (default: 0.5)
   DRAIN_TEST_LOG_DIR Log directory (default: /tmp)
 """
 
 import os
+import subprocess
 import sys
+import threading
 import time
 
 import torch
@@ -73,17 +52,17 @@ import torch.nn as nn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-MODEL_DEPTH = int(os.environ.get("MODEL_DEPTH", "8"))
-HIDDEN_DIM = int(os.environ.get("HIDDEN_DIM", "4096"))
-BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "32"))
+MODEL_DEPTH = int(os.environ.get("MODEL_DEPTH", "16"))
+HIDDEN_DIM = int(os.environ.get("HIDDEN_DIM", "8192"))
+BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "256"))
+AUTO_SCANCEL_DELAY = float(os.environ.get("AUTO_SCANCEL_DELAY", "0.5"))
 LOG_DIR = os.environ.get("DRAIN_TEST_LOG_DIR", "/tmp")
 JOB_ID = os.environ.get("SLURM_JOB_ID", "local")
 
 
 def build_model(depth: int, dim: int) -> nn.Module:
-    """Simple deep MLP with enough parameters to make backward() slow."""
-    layers: list[nn.Module] = []
-    layers.append(nn.Linear(dim, dim))
+    """Deep MLP sized to produce ~500ms backward on H200 (target D-state window)."""
+    layers: list[nn.Module] = [nn.Linear(dim, dim)]
     for _ in range(depth - 1):
         layers.extend([nn.ReLU(), nn.Linear(dim, dim)])
     return nn.Sequential(*layers)
@@ -101,63 +80,80 @@ def main() -> None:
     rank, local_rank = setup()
     device = torch.device(f"cuda:{local_rank}")
     world_size = dist.get_world_size()
+    dtype = torch.bfloat16
 
     if rank == 0:
-        print(f"[MWE-05] ranks={world_size}, depth={MODEL_DEPTH}, dim={HIDDEN_DIM}, batch={BATCH_SIZE}", flush=True)
-        print(f"[MWE-05] job={JOB_ID}  WARNING: this test is designed to DRAIN THE NODE", flush=True)
-        print(f"[MWE-05] Mechanism: DDP loss.backward() → NCCL grad all-reduce → cudaStreamSynchronize → D-state", flush=True)
+        print(f"[MWE-05] ranks={world_size}, depth={MODEL_DEPTH}, dim={HIDDEN_DIM}, "
+              f"batch={BATCH_SIZE}, dtype=bfloat16", flush=True)
+        print(f"[MWE-05] job={JOB_ID}  *** DESIGNED TO DRAIN THE NODE ***", flush=True)
+        print(f"[MWE-05] Auto-scancel fires {AUTO_SCANCEL_DELAY}s after READY", flush=True)
+        print(f"[MWE-05] Mechanism: loss.backward() → NCCL all-reduce → "
+              f"cudaStreamSynchronize → D-state → UnkillableStepTimeout → drain", flush=True)
 
-    # Build and wrap model
-    model = build_model(MODEL_DEPTH, HIDDEN_DIM).to(device)
+    model = build_model(MODEL_DEPTH, HIDDEN_DIM).to(device=device, dtype=dtype)
     ddp_model = DDP(model, device_ids=[local_rank])
     optimizer = torch.optim.AdamW(ddp_model.parameters(), lr=1e-4)
     criterion = nn.MSELoss()
 
     n_params = sum(p.numel() for p in model.parameters())
     if rank == 0:
-        print(f"[MWE-05] Model parameters: {n_params:,} ({n_params*4/1e6:.1f} MB)", flush=True)
+        print(f"[MWE-05] Parameters: {n_params:,} ({n_params*2/1e9:.2f} GB bf16 weights)", flush=True)
 
-    # Warm-up forward pass
-    x = torch.randn(BATCH_SIZE, HIDDEN_DIM, device=device)
-    y = torch.randn(BATCH_SIZE, HIDDEN_DIM, device=device)
-    with torch.no_grad():
-        _ = ddp_model(x)
+    # Warm-up: trigger NCCL init before READY so the training loop D-state
+    # window is purely the synchronous cudaStreamSynchronize, not NCCL init.
+    x = torch.randn(BATCH_SIZE, HIDDEN_DIM, device=device, dtype=dtype)
+    y = torch.randn(BATCH_SIZE, HIDDEN_DIM, device=device, dtype=dtype)
+    warmup_loss = criterion(ddp_model(x), y)
+    warmup_loss.backward()
     torch.cuda.synchronize(device)
-
+    optimizer.zero_grad()
     if rank == 0:
-        print(f"[MWE-05] Warm-up done. Starting training loop...", flush=True)
+        print(f"[MWE-05] Warm-up complete (NCCL initialised). Starting timed loop...", flush=True)
 
     step = 0
     t_start = time.monotonic()
 
-    # Training loop — no stop-file, no SIGTERM handler, no watchdog.
-    # This is intentional: we want scancel to find the process mid-backward.
+    # Training loop: no stop-file, no SIGTERM handler, no watchdog.
+    # The auto-scancel daemon (rank 0 only) will issue scancel mid-backward.
     while True:
-        x = torch.randn(BATCH_SIZE, HIDDEN_DIM, device=device)
-        y = torch.randn(BATCH_SIZE, HIDDEN_DIM, device=device)
+        x = torch.randn(BATCH_SIZE, HIDDEN_DIM, device=device, dtype=dtype)
+        y = torch.randn(BATCH_SIZE, HIDDEN_DIM, device=device, dtype=dtype)
 
         optimizer.zero_grad()
         out = ddp_model(x)
         loss = criterion(out, y)
 
-        # This is where D-state occurs under scancel.
-        # DDP backward hooks fire NCCL gradient all-reduce at this point.
-        # cudaStreamSynchronize() inside the NCCL kernel enters D-state.
+        t_bwd = time.monotonic()
+        # D-state occurs here: DDP hooks fire NCCL all-reduce, then
+        # cudaStreamSynchronize() blocks in NVLink kernel (D-state).
         loss.backward()
+        bwd_ms = (time.monotonic() - t_bwd) * 1000
 
         optimizer.step()
         step += 1
 
         if rank == 0:
+            elapsed = time.monotonic() - t_start
             if step == 1:
-                elapsed = time.monotonic() - t_start
-                print(f"[MWE-05] First backward complete in {elapsed:.2f} s", flush=True)
-                print(f"[MWE-05] READY — issue 'scancel {JOB_ID}' NOW for drain test", flush=True)
-                print(f"[MWE-05] Expected: node drains within 70 s of scancel", flush=True)
-                print(f"[MWE-05] Recovery: nvidia-smi -i 0,1,2,3 --gpu-reset && scontrol update nodename=98dci4-gpu-0003 state=resume reason=\"\"", flush=True)
-            elif step % 10 == 0:
-                elapsed = time.monotonic() - t_start
-                print(f"[MWE-05] step={step}, elapsed={elapsed:.1f}s, loss={loss.item():.4f}", flush=True)
+                print(f"[MWE-05] Step 1: backward={bwd_ms:.0f} ms, elapsed={elapsed:.2f}s", flush=True)
+                print(f"[MWE-05] READY — auto-scancel fires in {AUTO_SCANCEL_DELAY}s", flush=True)
+                print(f"[MWE-05] Recovery after drain:", flush=True)
+                print(f"[MWE-05]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
+                print(f"[MWE-05]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=\"\"", flush=True)
+
+                # Daemon thread issues scancel after AUTO_SCANCEL_DELAY seconds,
+                # which will be mid-backward of step 2.
+                def _scancel():
+                    time.sleep(AUTO_SCANCEL_DELAY)
+                    print(f"[MWE-05] AUTO-SCANCEL: issuing scancel {JOB_ID} at "
+                          f"{time.monotonic()-t_start:.2f}s", flush=True)
+                    subprocess.run(["scancel", JOB_ID], timeout=10)
+
+                threading.Thread(target=_scancel, daemon=True).start()
+
+            elif step % 5 == 0:
+                print(f"[MWE-05] step={step}, bwd={bwd_ms:.0f}ms, "
+                      f"elapsed={elapsed:.1f}s, loss={loss.item():.4f}", flush=True)
 
 
 if __name__ == "__main__":
