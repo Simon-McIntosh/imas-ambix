@@ -10,17 +10,14 @@
 #SBATCH --output=/work/projects/imas_gpu/logs/mwe05-%j.out
 #SBATCH --error=/work/projects/imas_gpu/logs/mwe05-%j.err
 
-# MWE-05 v2: DDP loss.backward() + Auto-Scancel — DRAIN REPRODUCER
+# MWE-05 v3: DDP loss.backward() + torch.cuda.synchronize() + Auto-Scancel
 # Risk: ⚠️⚠️ DESIGNED TO DRAIN THE NODE — GPU reset + admin resume required.
 #
-# MECHANISM: DDP backward() triggers NCCL gradient all-reduce hooks that call
-# cudaStreamSynchronize() inside the NVLink driver. This enters D-state
-# (TASK_UNINTERRUPTIBLE). SIGKILL cannot kill D-state processes. SLURM's
-# UnkillableStepTimeout (~60 s) fires → "Kill task failed" → node drains.
-#
-# v2 CHANGES vs v1:
-#   - Model: dim=8192, depth=16, batch=256, bfloat16 → ~500ms backward
-#   - AUTO-SCANCEL: rank 0 issues scancel 0.5s after READY (no manual timing)
+# v2 finding: async GPU dispatch → backward returns in 2ms → CPU in Python
+# when scancel arrives → clean cancel, no drain.
+# v3 fix: torch.cuda.synchronize(device) after backward forces CPU to block
+# in cudaDeviceSynchronize() for ~400ms while GPU+NCCL complete. This is
+# D-state via NVLink driver ioctl. Auto-scancel fires mid-step-3 sync → drain.
 #
 # RECOVERY (admin commands after drain confirmed):
 #   nvidia-smi -i 0,1,2,3 --gpu-reset
@@ -44,7 +41,7 @@ export AUTO_SCANCEL_DELAY="${AUTO_SCANCEL_DELAY:-0.5}"
 PYTHON="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/python"
 TORCHRUN="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/torchrun"
 
-echo "=== MWE-05 v2 DDP Backward Drain Reproducer ==="
+echo "=== MWE-05 v3 DDP Backward + Sync Drain Reproducer ==="
 echo "Job: ${SLURM_JOB_ID}  Node: ${SLURMD_NODENAME}"
 echo "*** DESIGNED TO DRAIN THE NODE ***"
 echo "Model: depth=${MODEL_DEPTH}, dim=${HIDDEN_DIM}, batch=${BATCH_SIZE}, dtype=bfloat16"

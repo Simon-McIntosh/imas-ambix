@@ -1,5 +1,5 @@
 """
-MWE-05: DDP loss.backward() + Scancel — Drain Reproducer (v2)
+MWE-05: DDP loss.backward() + Scancel — Drain Reproducer (v3)
 ==============================================================
 PURPOSE
   Reproduces the confirmed drain mechanism from Event 3 (2026-05-28,
@@ -10,15 +10,23 @@ PURPOSE
 
 v1 FINDING
   First run (dim=4096, depth=8, batch=32) ran at ~130 steps/sec → 7ms/step.
-  The backward+NCCL window was only ~1ms. Manual scancel arrived between
-  steps, not mid-backward → clean cancel, no drain.
+  Scancel arrived between steps, not mid-backward → clean cancel, no drain.
 
-v2 FIX
-  Model scaled to dim=8192, depth=16, batch=256, bfloat16. Target:
-  ~500ms backward, giving a reliable D-state window.
-  AUTO-SCANCEL: rank 0 spawns a daemon thread that issues scancel
-  0.5 s after READY (while the next backward is running). No manual
-  timing needed.
+v2 FINDING
+  Model scaled to dim=8192, depth=16, batch=256, bfloat16. backward()
+  returned in 2 ms — PyTorch DDP dispatches to the CUDA stream asynchronously.
+  CPU returns immediately; actual GPU work runs in background. Scancel
+  arrived between async dispatches (CPU in Python R/S state) → clean cancel,
+  no drain. The D-state window was never exposed to SIGTERM.
+
+v3 FIX
+  Added torch.cuda.synchronize(device) after loss.backward(). This forces
+  the CPU to block inside cudaDeviceSynchronize() until the entire GPU stream
+  drains — including the NCCL gradient all-reduce over NVLink. This blocking
+  call enters D-state (TASK_UNINTERRUPTIBLE) via the NVLink kernel driver
+  ioctl. Step time is now ~400 ms of solid D-state per step. Auto-scancel
+  fires 0.5 s after READY → mid-step-3 synchronize() → SIGTERM in D-state
+  → drain.
 
 RISK LEVEL
   ⚠️⚠️  DESIGNED TO DRAIN THE NODE.
@@ -124,9 +132,13 @@ def main() -> None:
         loss = criterion(out, y)
 
         t_bwd = time.monotonic()
-        # D-state occurs here: DDP hooks fire NCCL all-reduce, then
-        # cudaStreamSynchronize() blocks in NVLink kernel (D-state).
+        # DDP hooks fire NCCL all-reduce; dispatched asynchronously to CUDA stream.
         loss.backward()
+
+        # v3: Force CPU to block until GPU stream (including NCCL all-reduce)
+        # completes. cudaDeviceSynchronize() enters D-state via NVLink kernel
+        # driver ioctl. This creates a ~400ms D-state window per step.
+        torch.cuda.synchronize(device)
         bwd_ms = (time.monotonic() - t_bwd) * 1000
 
         optimizer.step()
