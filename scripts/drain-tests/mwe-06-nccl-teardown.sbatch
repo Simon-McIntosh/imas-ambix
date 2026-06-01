@@ -38,7 +38,7 @@ export BUFFER_MB="${BUFFER_MB:-256}"
 
 VENV="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}"
 TORCHRUN="${VENV}/bin/torchrun"
-SCRIPT="$(realpath "$(dirname "${BASH_SOURCE[0]}")/mwe-06-nccl-teardown.py")"
+SCRIPT="/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/mwe-06-nccl-teardown.py"
 
 echo "=== MWE-06 NCCL Teardown D-State Reproducer ==="
 echo "Job: ${SLURM_JOB_ID}  Node: ${SLURMD_NODENAME}"
