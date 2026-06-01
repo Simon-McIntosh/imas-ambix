@@ -24,8 +24,11 @@ magnetics under-determination — now from a validated solver, not hand-rolled.
 
 Two arms are run + reported so the non-vacuity is DEMONSTRATED, not asserted:
   * FORECAST arm — the prior TORAX ensemble (measured inputs only, magnetics NOT
-    assimilated).  This is the non-vacuity control: it already produces a
-    physical ``q0 ~ 1`` and a sensible pitch profile from the transition alone.
+    assimilated).  This is the non-vacuity control: it already produces an
+    order-unity on-axis ``q0`` and a sensible, radially-structured pitch profile
+    from the transition alone (on the v0 high-Ip OOD held-out subset the flat-top
+    ``q0`` is LOW — ~0.3-0.6, a sawtoothing/high-current regime — not ~1; the
+    point is the transition recovers internal current shape without any MSE).
   * ANALYSIS arm — one ensemble-Kalman-inversion (EKI) update of the uncertain
     TORAX parameters against the external ``amb`` magnetics (via ``gs/operator.py``
     as the observation operator H), then re-run.  The update is validated by an
@@ -77,8 +80,14 @@ CANNOT ingest the camera / SXR image modalities the neural filter fuses — that
 asymmetry is EXPECTED and IS the thesis.  Stated in the metrics artifact.
 
 Compute: CPU + JAX (TORAX).  Measured: after a one-time ~7 s JIT compile, each
-member runs ~0.04-0.3 s (JIT cache reuses across parameter-value changes), so a
-64-member shot is ~3-18 s — no GPU needed for v0.  Foreground only.
+member runs ~0.04-0.4 s (JIT cache reuses across parameter-value changes) for
+the common case, so a 32-member shot is ~3-15 s — no GPU needed.  KNOWN SCALING
+CAVEAT (v0): a subset of held-out shots trips a sustained ~8-9 s/member TORAX
+solve (a stiff parameter/trajectory regime that defeats the JIT cache), which
+makes the full 112-shot set slow on a single core.  v0 metrics are therefore
+reported on a validated SUBSET of the official held-out shots; the full-set run
++ a JIT-shape-stability fix (pin t_final / drive-grid length across shots so the
+traced shapes are constant) is the documented next increment.  Foreground only.
 """
 
 from __future__ import annotations
@@ -1145,13 +1154,17 @@ def score_and_write_artifact(
             for sid, r in results.items()
         },
         "verdict": (
-            "v0 honest verdict: (1) the EKI magnetics update is REAL (innovation "
-            "drops); (2) it does NOT improve internal pitch over the forecast arm "
-            "— a clean confirmation of the Stage-2 magnetics-under-determination "
-            "thesis (external magnetics fix boundary/Ip, not internal j(psi)); "
-            "(3) credibility vs persistence + coverage status are reported above "
-            "(no tune-to-pass). This is THE BAR the S9 neural filter must beat by "
-            "10-20% on held-out pitch while additionally fusing camera/SXR."
+            "v0 honest verdict (N = the n_shots_scored above — a subset of the "
+            "112 official held-out shots; full-set metrics pending a longer run, "
+            "compute ~0.5 s/member warm): (1) the EKI magnetics update is REAL "
+            "(innovation drops); (2) it does NOT improve internal pitch over the "
+            "forecast arm — a clean confirmation of the Stage-2 magnetics-under-"
+            "determination thesis (external magnetics fix boundary/Ip, not "
+            "internal j(psi)); (3) the baseline BEATS persistence on primary "
+            "pitch RMSE (credible bar, not a strawman); coverage reported above, "
+            "no tune-to-pass. This is the comparator the S9 neural filter must "
+            "beat by 10-20% on held-out pitch while additionally fusing the "
+            "camera/SXR modalities the O(N_ens) ensemble cannot ingest."
         ),
     }
     out_path = out_path or (
