@@ -36,7 +36,7 @@ PYTHON="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv
 echo "=== MWE-03 Network Hang Test ==="
 echo "Job: ${SLURM_JOB_ID}  Node: ${SLURMD_NODENAME}"
 echo "Target: ${TARGET_HOST}:${TARGET_PORT}"
-echo "AFTER 'ATTEMPTING TCP CONNECT' appears → scancel ${SLURM_JOB_ID}"
+echo "AFTER 'ATTEMPTING URLLIB DOWNLOAD' appears → scancel ${SLURM_JOB_ID}"
 echo "Then check: sinfo -N -n ${SLURMD_NODENAME} --noheader -o '%T'"
 
 "${PYTHON}" "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/mwe-03-network-hang.py"
