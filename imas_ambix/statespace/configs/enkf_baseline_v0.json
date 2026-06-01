@@ -1,0 +1,44 @@
+{
+  "schema": "enkf-baseline-config-v0",
+  "description": "D2 classical RAPTOR-equivalent baseline: parameter-space ensemble smoother over the TORAX current-diffusion solver, with a single EKI magnetics update via gs/operator.py and the SHARED mse_eval readout. The bar the S9 neural filter must beat.",
+  "forward_model": "TORAX 1.1.1 (current-diffusion; circular geometry; sigma(Te) neoclassical closure; psi/current equation only)",
+  "inputs_measured_non_mse": [
+    "amc.plasma_current (Ip BC)",
+    "ayc.te (Te(rho) -> sigma)",
+    "ayc.ne / interferometer (density)",
+    "amb (external magnetics, EKI update only)",
+    "amc PF coil currents (known H term)"
+  ],
+  "no_mse_on_input": true,
+  "observation_operator": "gs/operator.py EFIT-free GS Greens-function forward map (j -> c_plasma[A] via cell-area weight -> predicted amb)",
+  "readout_shared": "statespace/mse_eval.pitch_from_current_profile (current->pitch) + invert_pitch_to_q0rax (pitch->q0/rax) \u2014 IDENTICAL to the neural filter so the comparison isolates state inference",
+  "ensemble_parameters_theta": [
+    "zeff",
+    "resist_mult (folded into effective Zeff)",
+    "current_peaking (initial j)",
+    "ip_frac (Ip BC scale)"
+  ],
+  "config": {
+    "n_ensemble": 64,
+    "seed": 1234,
+    "r_major": 0.85,
+    "a_minor": 0.5,
+    "b0": 0.5,
+    "fixed_dt": 0.01,
+    "n_te_nodes": 6,
+    "zeff_prior": 2.0,
+    "zeff_spread": 0.6,
+    "resist_mult_prior": 1.0,
+    "resist_mult_logspread": 0.3,
+    "current_peaking_prior": 2.0,
+    "current_peaking_spread": 0.6,
+    "ip_frac_spread": 0.03,
+    "assimilate": true,
+    "n_assim_slices": 6,
+    "eki_inflation": 1.0,
+    "eki_step": 1.0,
+    "kappa": 1.85,
+    "bt0_for_readout": 0.5,
+    "max_slices_per_shot": 80
+  }
+}
