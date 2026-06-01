@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="drain-mwe-evidence-2026-06-01">
+  <meta name="plan-summary" content="Generic operator-facing evidence pack for reproducing and diagnosing GPU node drain events on SLURM and NVIDIA GPU clusters.">
+  <meta name="plan-title" content="GPU Node Drain: Minimal Reproducers &amp; Evidence">
+  <meta name="plan-status" content="active">
+  <meta name="plan-phase" content="testing">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="2d">
+  <meta name="plan-type" content="doc">
+  <title>GPU Node Drain: Minimal Reproducers &amp; Evidence</title>
+  <link rel="stylesheet" href="/_shared/css/foundation.css">
+  <link rel="stylesheet" href="/_shared/css/dashboard.css">
+  <link rel="stylesheet" href="/_shared/css/project.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p><span class="badge">ACTIVE</span> Generic operator-facing research document for diagnosing, reproducing, and mitigating GPU node drain events on SLURM + NVIDIA clusters.</p>
+      <h1>GPU Node Drain: Minimal Reproducers &amp; Evidence</h1>
+      <p>This document consolidates a four-event incident corpus, a five-script minimal reproducer suite, and an operator-safe cancellation pattern. It is deliberately project-neutral: the mechanisms described here apply to any cluster where SLURM escalates from <code>SIGTERM</code> to <code>SIGKILL</code> against processes blocked in uninterruptible kernel sleep.</p>
+      <nav><strong>Sections:</strong> <a href="#summary">Summary</a> · <a href="#mechanism">Background / Mechanism</a> · <a href="#history">Historical evidence</a> · <a href="#mwe-suite">MWE suite</a> · <a href="#results">Results</a> · <a href="#admin-recommendations">Admin recommendations</a> · <a href="#safe-cancellation">Safe cancellation</a> · <a href="#conclusions">Conclusions</a></nav>
+    </header>
+
+    <section id="summary">
+      <h2>Executive summary</h2>
+      <p>The central operational fact is simple: a SLURM node drains only when the job step cannot be reaped. That requires more than a normal crash or a hot CPU loop. It requires a task trapped in an uninterruptible kernel path, so that both <code>SIGTERM</code> and <code>SIGKILL</code> remain pending until the syscall returns.</p>
+      <p>The incident set that motivated this document established three independent unkillable surfaces: GPU communication during distributed backward passes, filesystem waits in data-loading paths, and TCP <code>connect()</code> against a DROP-firewalled host. Those three surfaces are sufficient to explain why apparently unrelated workloads can all end in the same SLURM-side outcome: <code>Kill task failed</code> followed by an automatic node drain.</p>
+      <p>The five MWEs in <code>scripts/drain-tests/</code> are intentionally staggered by risk. Two are safe validation probes, one is an uncertain network-hang probe, one is a low-risk negative control, and one is the intended high-risk reproducer. Together they separate myth from mechanism: a plain NCCL all-reduce loop is not enough to drain a node, but a real DDP <code>loss.backward()</code> can be.</p>
+      <ul>
+        <li><strong>Primary operator lesson:</strong> do not cancel long-running GPU training by signal if a cooperative step-boundary stop mechanism is available.</li>
+        <li><strong>Primary admin lesson:</strong> distinguish D-state from ordinary busy or sleeping tasks when triaging drain events.</li>
+        <li><strong>Primary diagnostic lesson:</strong> a simple collective benchmark is not a faithful reproducer for backward-triggered NCCL gradient hooks.</li>
+      </ul>
+    </section>
+
+    <section id="mechanism">
+      <h2>Background / Mechanism</h2>
+      <p>The working model for these incidents is a scheduler-layer drain chain driven by task state, not by high GPU utilisation alone. A process that is merely running or sleeping is killable. A process parked in <code>TASK_UNINTERRUPTIBLE</code> is not.</p>
+      <pre><code>DRAIN MECHANISM:
+
+D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
+  ├── cudaStreamSynchronize() blocks in NVLink P2P driver (during loss.backward NCCL grad all-reduce)
+  ├── GPFS filesystem I/O in DataLoader workers (uninterruptible read wait)
+  └── TCP connect() to DROP-firewalled host (no RST/ICMP — kernel waits indefinitely)
+
+→ SLURM issues SIGTERM (on scancel or --time limit)
+   → signal is QUEUED (cannot be delivered to D-state thread)
+     → UnkillableStepTimeout expires (~60 s on SDCC)
+       → SLURM issues SIGKILL
+         → D-state process SURVIVES SIGKILL (kernel guarantee)
+           → slurmd reports "Kill task failed"
+             → NODE IS DRAINED (requires admin intervention)</code></pre>
+      <p>The distinction between task states matters more than the distinction between CPU and GPU code. Operators should treat the following as separate classes of behaviour:</p>
+      <ul>
+        <li><strong>D-state</strong> (<code>TASK_UNINTERRUPTIBLE</code>): immune to <code>SIGKILL</code> and therefore capable of draining the node.</li>
+        <li><strong>R-state</strong> (running / CPU spin-wait): <code>SIGKILL</code> works immediately, so the node does not drain.</li>
+        <li><strong>S-state</strong> (interruptible sleep / futex wait): <code>SIGKILL</code> also works, so the node does not drain.</li>
+      </ul>
+      <p>The most important negative result in the corpus is that a simple <code>dist.all_reduce</code> loop on H200 NVLink hardware presents as CPU spin-wait, not D-state. Real H200 NVLink observation: simple <code>dist.all_reduce</code> uses <strong>CPU spin-wait (R-state)</strong>, NOT D-state. The drain-triggering D-state occurs specifically during <code>loss.backward()</code> with DDP gradient hooks calling <code>cudaStreamSynchronize()</code> on the NCCL communication stream.</p>
+      <p>That difference is why negative controls are essential. An operator can easily convince themselves that “NCCL cannot be the problem” after observing a harmless all-reduce benchmark. The correct interpretation is narrower: the all-reduce benchmark does not traverse the same call path as a large-model backward pass.</p>
+    </section>
+
+    <section id="history">
+      <h2>Evidence: 4 Historical Drain Events</h2>
+      <p>The table below captures the four motivating drain events that informed the MWE suite. They are presented as a compact evidence matrix, not as a cluster-specific incident log. Mechanistic ambiguity in Event 0 does not change the operational result: the account-level attribution stayed within one SLURM tenancy, and no second tenant was implicated.</p>
+      <div class="table-scroll">
+        <table class="t">
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Date</th>
+              <th>Root Cause</th>
+              <th>Recovery</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>0</td>
+              <td>2026-05-26</td>
+              <td>CUDA cgroup init collision (ambiguous; second job on freshly-reset GPU)</td>
+              <td>GPU reset + reboot</td>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td>2026-05-27</td>
+              <td>DataLoader prefetch producer died → consumer blocked forever in <code>queue.get()</code> → GPFS D-state</td>
+              <td>GPU reset</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>2026-05-27</td>
+              <td>Wrong working directory → PyTorch attempted internet download (LPIPS VGG weights) from DROP-firewall node → TCP <code>connect()</code> D-state</td>
+              <td><code>scontrol resume</code> (no GPU reset needed)</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td>2026-05-28</td>
+              <td>Agent issued <code>scancel</code> on a healthy DDP training job mid-<code>loss.backward()</code> → NCCL grad all-reduce <code>cudaStreamSynchronize</code> → D-state</td>
+              <td>GPU reset + 30 min</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Account attribution note: the source incident set ultimately traced all four events to the same SLURM account, with zero evidence of cross-tenant involvement. The phrase “Zero Group B involvement” from the original forensic notes is best read generically as “no second account or reservation was implicated.”</p>
+      <section>
+        <h3>What these four events prove</h3>
+        <ul>
+          <li>Drain is not unique to distributed training; it can also arise from filesystem and network waits.</li>
+          <li>Drain is not unique to wedged jobs; a healthy job can be turned into a drain event if the kill lands in the wrong kernel path.</li>
+          <li>GPU reset is sometimes necessary but not always; it depends on whether orphaned CUDA contexts survive the failed kill.</li>
+          <li>Ambiguous low-level cause does not prevent actionable mitigation; operators can still design safer cancellation and recovery policy.</li>
+        </ul>
+      </section>
+    </section>
+
+    <section id="mwe-suite">
+      <h2>The 5 MWE Test Scripts</h2>
+      <p>The MWE suite is designed as a ladder. Each script answers a narrower question than a full production replay, while reducing confounders. The suite should be run in order, stopping as soon as the evidence threshold for the operator's question has been met.</p>
+
+      <article id="mwe-01">
+        <h3>MWE-01: <code>mwe-01-sigterm-delay.py</code> — SIGTERM blind window measurement (SAFE)</h3>
+        <p><span class="badge badge-pass">SAFE</span> This script measures how long a signal can remain pending while ranks sit inside a collective. It uses four DDP ranks, the NCCL backend, and four GPUs.</p>
+        <ul>
+          <li>Runs 20 rounds of <code>dist.all_reduce</code> on a 256 MB buffer.</li>
+          <li>Rank 0 sends <code>SIGTERM</code> to itself mid-collective via a 1 ms delayed thread.</li>
+          <li>Measures time from signal send to handler execution.</li>
+          <li>Expected result: blind window ≈ 1–3 ms per collective on H200 NVLink.</li>
+          <li>Self-terminating; no <code>scancel</code> is required.</li>
+        </ul>
+        <p>Interpretation: a short blind window does not imply a node-drain risk by itself. It only shows that handlers are deferred until the process returns to Python-managed execution. The measurement is useful because it establishes a lower bound on signal latency without invoking admin recovery.</p>
+      </article>
+
+      <article id="mwe-02">
+        <h3>MWE-02: <code>mwe-02-stopfile.py</code> — Stop-file clean exit validation (SAFE)</h3>
+        <p><span class="badge badge-pass">SAFE</span> This script validates the cooperative cancellation pattern that should replace ad hoc signal-based termination for long-running GPU work.</p>
+        <ul>
+          <li>4-rank DDP infinite <code>all_reduce</code> loop.</li>
+          <li>Auto-creates stop-file after 30 s; all ranks detect and exit cleanly.</li>
+          <li>Expected result: all ranks exit 0, node stays idle.</li>
+          <li>Demonstrates the safe alternative to <code>scancel</code>.</li>
+        </ul>
+        <p>Interpretation: if this script fails to exit cleanly, the cluster has a more basic teardown problem than the incident set described here. If it succeeds, operators gain a concrete reference implementation for step-boundary cancellation.</p>
+      </article>
+
+      <article id="mwe-03">
+        <h3>MWE-03: <code>mwe-03-network-hang.py</code> — Network D-state probe <span class="badge badge-warn">⚠️ UNCERTAIN</span></h3>
+        <p>This script intentionally removes GPU and DDP from the picture. It isolates the network path by using a single process and a single blocking TCP connect.</p>
+        <ul>
+          <li>Single process; no DDP and no GPU required.</li>
+          <li>Calls <code>socket.connect()</code> to <code>103.21.244.0:443</code> with no timeout.</li>
+          <li>On DROP-firewall nodes: TCP stack may enter D-state waiting for RST/ICMP that never comes.</li>
+          <li>On REJECT-firewall nodes: raises <code>OSError</code> immediately, so no drain occurs.</li>
+          <li>After <code>ATTEMPTING TCP CONNECT</code> appears in the log: issue <code>scancel</code>.</li>
+          <li>Check node state 70 s later.</li>
+        </ul>
+        <p>Interpretation: this is an infrastructure-characterisation probe, not a guaranteed reproducer. Its value is highest on clusters where egress policy is undocumented or where operators suspect DROP semantics. Because the outcome depends on firewall behaviour, the result should be recorded as a property of the network perimeter, not only of the script.</p>
+      </article>
+
+      <article id="mwe-04">
+        <h3>MWE-04: <code>mwe-04-nccl-scancel.py</code> — Simple NCCL + scancel (LOW DRAIN RISK)</h3>
+        <p><span class="badge">NEGATIVE CONTROL</span> This script is the most important myth-buster in the suite. It deliberately stresses NCCL without invoking autograd hooks, large gradient buckets, or model-level backward execution.</p>
+        <ul>
+          <li>4-rank DDP, 512 MB <code>all_reduce</code> in tight loop.</li>
+          <li>After <code>READY</code> appears: issue <code>scancel</code>.</li>
+          <li>Expected: R-state (CPU spin-wait) → <code>SIGKILL</code> succeeds → node stays idle.</li>
+          <li>120 s watchdog for automated runs.</li>
+          <li>Empirically validated: confirmed NO drain on H200 NVLink (job 1209723).</li>
+        </ul>
+        <p>Interpretation: a pass here does not exonerate DDP backward paths. It only proves that a plain collective loop is not sufficient to reproduce the incident. Any operator report that says “NCCL is fine because the synthetic all-reduce test passed” is therefore incomplete.</p>
+      </article>
+
+      <article id="mwe-05">
+        <h3>MWE-05: <code>mwe-05-ddp-backward.py</code> — DDP backward + scancel <span class="badge badge-danger">⚠️⚠️ LIKELY DRAIN</span></h3>
+        <p>This is the actual reproducer candidate. It is intentionally deprived of all the protections that would make it safe in production, because the goal is to test the hypothesised failure path directly.</p>
+        <ul>
+          <li>4-rank DDP, real model (deep MLP, ~536M params default), actual training loop.</li>
+          <li><code>loss.backward()</code> triggers DDP NCCL gradient all-reduce hooks.</li>
+          <li><code>cudaStreamSynchronize()</code> inside NCCL stream enters D-state.</li>
+          <li>NO stop-file, NO signal handler, NO three-layer defence (intentional).</li>
+          <li>After <code>READY</code> (first backward complete): issue <code>scancel</code>.</li>
+          <li>Expected: node drains within 70 s.</li>
+          <li>Recovery: <code>nvidia-smi -i 0,1,2,3 --gpu-reset</code> + <code>scontrol update nodename=&lt;node&gt; state=resume reason=""</code>.</li>
+        </ul>
+        <p>Interpretation: a successful reproduction here would materially strengthen the claim that the drain trigger lives inside backward-triggered gradient hooks rather than in a generic NCCL loop. Because the expected outcome is destructive at the scheduler level, the test should only be run with explicit admin readiness, a disposable reservation window, and a pre-agreed recovery plan.</p>
+      </article>
+
+      <section>
+        <h3>Why the suite is ordered this way</h3>
+        <p>MWE-01 measures handler deferral without drain risk. MWE-02 validates the mitigation path. MWE-03 tests whether non-GPU D-state is possible on the target cluster. MWE-04 establishes the negative control. MWE-05 is the only script that should be capable of directly reproducing the historical backward-path drain mechanism.</p>
+      </section>
+    </section>
+
+    <section id="results">
+      <h2>Results Table</h2>
+      <p>The table intentionally retains placeholder rows for tests that have not yet been executed in the current evidence pack. That makes the document suitable both as a research note and as an execution ledger.</p>
+      <div class="table-scroll">
+        <table class="t">
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th>Job ID</th>
+              <th>Result</th>
+              <th>blind_ms</th>
+              <th>Drain?</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>MWE-01</td>
+              <td>1209804</td>
+              <td><span class="badge">PENDING</span></td>
+              <td>—</td>
+              <td>No</td>
+              <td>SIGTERM blind window measurement</td>
+            </tr>
+            <tr>
+              <td>MWE-02</td>
+              <td>1209805</td>
+              <td><span class="badge">PENDING</span></td>
+              <td>—</td>
+              <td>No</td>
+              <td>Stop-file clean exit</td>
+            </tr>
+            <tr>
+              <td>MWE-03</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>TBD</td>
+              <td>Network D-state probe</td>
+            </tr>
+            <tr>
+              <td>MWE-04</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>Expected: No</td>
+              <td>NCCL R-state confirmation</td>
+            </tr>
+            <tr>
+              <td>MWE-05</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+              <td>Expected: Yes</td>
+              <td>DDP backward drain reproducer</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Recommended badge semantics for future updates are: <span class="badge">PENDING</span>, <span class="badge badge-pass">PASS</span>, and <span class="badge badge-fail">DRAIN</span>. In practice, the important metadata to preserve are the job identifier, whether a drain occurred, and what recovery was required.</p>
+    </section>
+
+    <section id="admin-recommendations">
+      <h2>SDCC Admin Recommendations</h2>
+      <p>The following recommendations arise from the incident corpus and are intentionally written so that a generic SLURM + NVIDIA operator can adapt them to local policy.</p>
+      <ol>
+        <li><strong>Increase <code>UnkillableStepTimeout</code></strong> — raising from 60 s to 120 s gives more time for SIGTERM handlers to fire, but does not fix D-state.</li>
+        <li><strong>Network egress ACL audit</strong> — confirm GPU nodes cannot reach public internet; use REJECT not DROP for better debuggability (RST immediately surfaces the error rather than causing D-state).</li>
+        <li><strong>NVLink driver version</strong> — coordinate with NVIDIA on whether <code>cudaStreamSynchronize</code> D-state during NVLink P2P is a known issue in CUDA 13.2.1 + driver 595.58.03.</li>
+        <li><strong>SLURM prolog/epilog GPU reset</strong> — add GPU reset to job epilog to prevent stale CUDA context from one job leaking to the next.</li>
+        <li><strong><code>cgroup_freeze</code> on SIGTERM</strong> — freeze cgroup before SIGTERM delivery so all threads are paused, then resume after drain completes; prevents D-state races.</li>
+        <li><strong>Monitor for D-state on <code>scancel</code></strong> — add a SLURM plugin that checks for D-state processes before declaring kill failure, enabling targeted recovery.</li>
+      </ol>
+      <section>
+        <h3>Operator interpretation of the recommendations</h3>
+        <p>Items 1 and 5 are scheduler-policy mitigations, Items 2 and 3 are infrastructure-characterisation tasks, and Items 4 and 6 are recovery-hardening measures. None of them remove the need for application-level cooperative cancellation, but together they can reduce the blast radius when a bad workload is launched anyway.</p>
+      </section>
+    </section>
+
+    <section id="safe-cancellation">
+      <h2>Safe Cancellation Pattern</h2>
+      <p>The key operational change recommended by the evidence set is to move cancellation decisions to explicit step boundaries inside the workload, rather than forcing termination from the outside.</p>
+      <pre><code># Safe cancellation (instead of scancel):
+STOP_FILE=/path/to/stops/${SLURM_JOB_ID}.stop
+
+# In the training script, at each step boundary:
+if Path(os.environ["DRAIN_TEST_STOP_FILE"]).exists():
+    break  # Exit cleanly between collectives
+
+# To cancel from outside:
+touch "${STOP_FILE}"
+# Job exits at next step boundary — no D-state, no drain</code></pre>
+      <p>This pattern works because the workload checks for cancellation only when it has control again. It never asks the scheduler to tear down a process in the middle of a collective, a blocking I/O wait, or an uninterruptible driver call.</p>
+      <p>The unsafe contrast is concise and should remain memorable:</p>
+      <pre><code># UNSAFE — may create D-state if mid-backward:
+scancel &lt;jobid&gt;</code></pre>
+      <p>Cooperative stop-files are not a universal cure. They cannot save a job that never returns to a step boundary. But they do eliminate the most common avoidable drain scenario: a healthy training job being interrupted at the worst possible moment.</p>
+    </section>
+
+    <section id="conclusions">
+      <h2>Conclusions</h2>
+      <p>The evidence set supports three high-confidence conclusions. First, node drain is fundamentally a kernel-state problem, not a generic “GPU job failed” problem. Second, the highest-value negative control is a simple NCCL loop, because it demonstrates that not every collective path is dangerous. Third, the safest application-side mitigation is a stop-file or equivalent cooperative cancellation mechanism checked at known clean boundaries.</p>
+      <p>The five-script suite is intentionally small enough that an operator can rerun it after scheduler upgrades, driver updates, or fabric changes. That makes the document useful as a standing regression harness, not merely as a retrospective report.</p>
+      <ul>
+        <li>Use MWE-01 to quantify signal deferral without risk.</li>
+        <li>Use MWE-02 to validate safe cancellation in your environment.</li>
+        <li>Use MWE-03 only when firewall semantics are in question.</li>
+        <li>Use MWE-04 as the negative control for plain NCCL collectives.</li>
+        <li>Use MWE-05 only with explicit admin recovery readiness.</li>
+      </ul>
+    </section>
+
+    <section id="run-protocol">
+      <h2>Suggested operator run protocol</h2>
+      <p>
+        A disciplined execution order matters because each MWE answers a different
+        question and carries a different recovery cost.
+        The following protocol keeps the early evidence gathering non-destructive.
+      </p>
+      <ol>
+        <li>
+          Record the node state, active jobs, driver version, and SLURM timeout
+          settings before any test begins.
+        </li>
+        <li>
+          Run MWE-01 first and preserve the per-round blind-window measurements.
+          This establishes a signal-latency baseline for the fabric and driver.
+        </li>
+        <li>
+          Run MWE-02 next and confirm that all ranks exit with code 0 after the
+          stop-file appears.
+        </li>
+        <li>
+          Decide whether MWE-03 is needed.
+          If firewall semantics are already known to be REJECT,
+          skip it and record the reason.
+        </li>
+        <li>
+          Run MWE-04 as the negative control before any destructive test.
+          A clean non-draining cancellation here strengthens the case that the
+          backward path is special.
+        </li>
+        <li>
+          Only if the operator still needs direct proof,
+          schedule MWE-05 inside a window where admin recovery can begin
+          immediately after the expected drain.
+        </li>
+        <li>
+          After every test,
+          record whether recovery required only <code>scontrol resume</code>
+          or also a GPU reset.
+        </li>
+      </ol>
+    </section>
+
+    <section id="recovery-matrix">
+      <h2>Recovery decision matrix</h2>
+      <p>
+        Recovery cost is a key part of deciding whether a reproducer is worth
+        running.
+        The matrix below turns the incident evidence into a small operator aid.
+      </p>
+      <div class="table-scroll">
+        <table class="t">
+          <thead>
+            <tr>
+              <th>Observed symptom</th>
+              <th>Likely state</th>
+              <th>Expected recovery</th>
+              <th>Escalation threshold</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Job cancels immediately, node remains idle</td>
+              <td>R-state or interruptible sleep</td>
+              <td>No node action needed</td>
+              <td>None</td>
+            </tr>
+            <tr>
+              <td>Node drains, GPUs show no residual process state</td>
+              <td>Non-CUDA D-state, often network-related</td>
+              <td><code>scontrol update ... state=resume</code></td>
+              <td>Escalate if repeatable after REJECT-based firewall change</td>
+            </tr>
+            <tr>
+              <td>Node drains, stale GPU allocations remain visible</td>
+              <td>CUDA/NVLink path with orphaned context</td>
+              <td><code>nvidia-smi --gpu-reset</code> then resume</td>
+              <td>Escalate to driver/vendor investigation if recurrent</td>
+            </tr>
+            <tr>
+              <td>Reset fails or GPU remains unusable</td>
+              <td>Driver or firmware state corruption</td>
+              <td>Node reboot</td>
+              <td>Immediate admin intervention</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Operators should log the shortest successful recovery path.
+        That makes future MWE approvals easier,
+        because the likely blast radius is known in advance rather than guessed.
+      </p>
+    </section>
+
+    <section data-reckon="research" id="research" class="r-research-list">
+      <h2><span class="sec">§</span> Evidence inventory</h2>
+      <div class="r-research" data-id="r-history" data-type="incident-set" data-url="">
+        <span class="r-research-title">Historical drain-event corpus</span>
+        <p>Four drain events establish three independent unkillable surfaces: distributed backward communication, filesystem I/O, and DROP-firewalled network connect.</p>
+      </div>
+      <div class="r-research" data-id="r-mwe" data-type="test-suite" data-url="">
+        <span class="r-research-title">Minimal reproducer suite</span>
+        <p>Five scripts in <code>scripts/drain-tests/</code> separate safe probes, negative controls, and high-risk reproducer paths.</p>
+      </div>
+      <div class="r-research" data-id="r-ops" data-type="ops-guidance" data-url="">
+        <span class="r-research-title">Operator mitigation pattern</span>
+        <p>Cooperative stop-files shift cancellation from signal timing to explicit step boundaries, materially reducing avoidable drain risk.</p>
+      </div>
+    </section>
+
+    <section data-reckon="comments" id="comments" class="r-comments">
+      <h2><span class="sec">§</span> Review notes</h2>
+      <p>No reviewer comments have been recorded yet. This section is present so the document renders cleanly in reckon-style readers that surface annotation affordances.</p>
+    </section>
+  </main>
+</body>
+</html>
