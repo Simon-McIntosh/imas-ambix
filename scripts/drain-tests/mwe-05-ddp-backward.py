@@ -57,26 +57,37 @@ REVISION HISTORY
     Port 29503 was still held by looping job 1209890 (torchrun retry storm
     from v4). EADDRINUSE on startup. Job failed before NCCL initialised.
 
-  v6 Fix (this version)
-    Exact replication of Event #4 mutual communicator deadlock:
-      - Rank 0 calls dist.all_reduce(t) on comm_PG after its DDP backward.
-        comm_PG waits for all 4 ranks to join -> rank 0 blocks indefinitely.
-      - Ranks 1-3 proceed to step N+1 -> loss.backward() fires the DDP
-        gradient all-reduce hook on comm_DDP -> waits for rank 0 (stuck).
-      TWO-WAY DEADLOCK: comm_PG blocks on ranks 1-3; comm_DDP blocks on
-      rank 0. Both sides alive, no disconnect event, NCCL waits via NVLink
-      P2P DMA ioctl -> D-state all 4 ranks -> drain.
+  v6 No-drain (job 1209900)
+    Theory: DDP uses separate comm_DDP, so rank 0 extra all_reduce (comm_PG)
+    and ranks 1-3 DDP backward (comm_DDP) would deadlock. WRONG: in PyTorch
+    2.x, DDP gradient all_reduce uses the DEFAULT process group (comm_PG).
+    Rank 0 extra all_reduce and ranks 1-3 DDP backward hit the SAME NCCL
+    sequence number on the SAME communicator -> accidentally completed as a
+    valid all_reduce. All ranks printed "UNEXPECTED: returned". No drain.
+    Lesson: DDP and dist.all_reduce share comm_PG. Must use EXPLICIT new_group
+    to create truly separate communicators.
+
+  v7 Fix (this version)
+    Approach A — cross-group deadlock:
+      All 4 ranks create comm_a and comm_b via new_group.
+      Rank 0: dist.all_reduce on comm_a (waits for ALL ranks on comm_a).
+      Ranks 1-3: dist.all_reduce on comm_b (waits for ALL ranks on comm_b).
+      No rank ever calls on the other's communicator -> true deadlock.
+    Approach B — ring send/recv deadlock:
+      Rank N: dist.recv(src=(N+1)%W) before dist.send(dst=(N-1)%W).
+      All 4 ranks blocked in recv. Nobody sends. Ring deadlock via P2P NVLink.
 
 RISK LEVEL
-  DESIGNED TO DRAIN THE NODE.
+  DESIGNED TO DRAIN THE NODE (if NCCL cross-group or P2P recv is D-state).
+  If all operations prove S-state, job exits cleanly and reports no drain.
   Recovery after drain:
     nvidia-smi -i 0,1,2,3 --gpu-reset
     scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
 
 ENVIRONMENT VARIABLES
-  MODEL_DIM           Linear layer width (default: 4096)
-  BATCH_SIZE          Per-rank batch size (default: 64)
-  AUTO_SCANCEL_DELAY  Seconds after READY before auto-cancel (default: 2.0)
+  DRAIN_MODE         "cross_group" (default) or "ring_deadlock"
+  TENSOR_NUMEL       Elements per rank (default: 64*1024*1024 = 256MB fp32)
+  AUTO_SCANCEL_DELAY Seconds after READY before auto-cancel (default: 2.0)
 """
 
 import os
@@ -85,21 +96,66 @@ import threading
 import time
 
 import torch
-import torch.nn as nn
 import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
 
-MODEL_DIM = int(os.environ.get("MODEL_DIM", "4096"))
-BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "64"))
+DRAIN_MODE = os.environ.get("DRAIN_MODE", "cross_group")
+TENSOR_NUMEL = int(os.environ.get("TENSOR_NUMEL", str(64 * 1024 * 1024)))
 AUTO_SCANCEL_DELAY = float(os.environ.get("AUTO_SCANCEL_DELAY", "2.0"))
 JOB_ID = os.environ.get("SLURM_JOB_ID", "local")
 
 
-def build_model(dim: int) -> nn.Module:
-    layers: list[nn.Module] = []
-    for _ in range(8):
-        layers.extend([nn.Linear(dim, dim), nn.ReLU()])
-    return nn.Sequential(*layers)
+def auto_scancel(delay: float) -> None:
+    def _run() -> None:
+        time.sleep(delay)
+        print(f"[MWE-05] AUTO-SCANCEL: scancel {JOB_ID}", flush=True)
+        subprocess.run(["scancel", JOB_ID], timeout=10)
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def run_cross_group(rank: int, world_size: int, device: torch.device) -> None:
+    """Rank 0 on comm_a, ranks 1-3 on comm_b. Both alive, neither ever
+    participates in the other's collective. True cross-communicator deadlock."""
+    all_ranks = list(range(world_size))
+
+    comm_a = dist.new_group(ranks=all_ranks)
+    comm_b = dist.new_group(ranks=all_ranks)
+
+    dist.barrier()  # Ensure both groups are fully initialised
+
+    t = torch.ones(TENSOR_NUMEL, dtype=torch.float32, device=device)
+
+    if rank == 0:
+        print(f"[MWE-05] READY cross_group — rank 0 all_reduce on comm_a", flush=True)
+        print(f"[MWE-05]   ranks 1-3 are on comm_b — no cross-group match", flush=True)
+        print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
+        auto_scancel(AUTO_SCANCEL_DELAY)
+        dist.all_reduce(t, group=comm_a)
+        print(f"[MWE-05] UNEXPECTED (rank 0): comm_a all_reduce returned", flush=True)
+    else:
+        dist.all_reduce(t, group=comm_b)
+        print(f"[MWE-05 rank {rank}] UNEXPECTED: comm_b all_reduce returned", flush=True)
+
+
+def run_ring_deadlock(rank: int, world_size: int, device: torch.device) -> None:
+    """All ranks simultaneously wait to recv from next rank before sending.
+    Nobody ever sends first -> circular deadlock on P2P NVLink path."""
+    dist.barrier()
+
+    t = torch.zeros(TENSOR_NUMEL, dtype=torch.float32, device=device)
+    src = (rank + 1) % world_size
+    dst = (rank - 1) % world_size
+
+    if rank == 0:
+        print(f"[MWE-05] READY ring_deadlock — all 4 ranks entering recv", flush=True)
+        print(f"[MWE-05]   rank N: recv(src=(N+1)%4) before send(dst=(N-1)%4)", flush=True)
+        print(f"[MWE-05]   nobody sends first -> ring deadlock via P2P NVLink", flush=True)
+        print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
+        auto_scancel(AUTO_SCANCEL_DELAY)
+
+    dist.recv(t, src=src)   # All 4 blocked here simultaneously
+    dist.send(t, dst=dst)   # Never reached
+    print(f"[MWE-05 rank {rank}] UNEXPECTED: recv returned", flush=True)
 
 
 def main() -> None:
@@ -109,73 +165,18 @@ def main() -> None:
     local_rank = int(os.environ.get("LOCAL_RANK", rank))
     torch.cuda.set_device(local_rank)
     device = torch.device(f"cuda:{local_rank}")
-    dtype = torch.bfloat16
 
     if rank == 0:
-        print(f"[MWE-05] *** v6: DDP/NCCL mutual communicator deadlock — Event #4 exact replica ***", flush=True)
-        print(f"[MWE-05] job={JOB_ID}  ranks={world_size}  DESIGNED TO DRAIN", flush=True)
-        print(f"[MWE-05] Mechanism:", flush=True)
-        print(f"[MWE-05]   rank 0: extra dist.all_reduce (comm_PG) after backward", flush=True)
-        print(f"[MWE-05]   ranks 1-3: step-N+1 backward -> DDP gradient all_reduce (comm_DDP)", flush=True)
-        print(f"[MWE-05]   mutual deadlock -> all 4 D-state -> SIGTERM fails -> drain", flush=True)
-
-    model = build_model(MODEL_DIM).to(device=device, dtype=dtype)
-    ddp_model = DDP(model, device_ids=[local_rank])
-    optimizer = torch.optim.AdamW(ddp_model.parameters(), lr=1e-4)
-
-    n_params = sum(p.numel() for p in model.parameters())
-    if rank == 0:
-        print(f"[MWE-05] Parameters: {n_params:,}  dim: {MODEL_DIM}  batch: {BATCH_SIZE}", flush=True)
-
-    # Warm up: NCCL init + DDP communicator established (comm_DDP created here).
-    for _ in range(2):
-        x = torch.randn(BATCH_SIZE, MODEL_DIM, device=device, dtype=dtype)
-        ddp_model(x).sum().backward()
-        optimizer.step()
-        optimizer.zero_grad()
-
-    if rank == 0:
-        print(f"[MWE-05] Warm-up done. DDP+NCCL communicators established.", flush=True)
-
-    # Step N: all 4 ranks do a clean DDP backward together (comm_DDP all-reduce).
-    x = torch.randn(BATCH_SIZE, MODEL_DIM, device=device, dtype=dtype)
-    ddp_model(x).sum().backward()
-    optimizer.step()
-    optimizer.zero_grad()
-
-    # --- INJECT EVENT #4 BUG ---
-    # Rank 0: extra all_reduce on comm_PG (waits for all 4 ranks to join).
-    # Ranks 1-3: proceed to step N+1 backward (DDP fires gradient all_reduce on
-    #            comm_DDP, waits for rank 0 that is stuck in comm_PG).
-    # Result: TWO-WAY DEADLOCK — all 4 ranks blocked in NCCL D-state.
-
-    if rank == 0:
-        t = torch.ones(64 * 1024 * 1024, dtype=torch.float32, device=device)  # 256 MB
-        print(f"[MWE-05] READY — rank 0 entering extra all_reduce (comm_PG)", flush=True)
-        print(f"[MWE-05] Deadlock: ranks 1-3 step-N+1 backward (comm_DDP) will block", flush=True)
-        print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
+        print(f"[MWE-05] *** v7: mode={DRAIN_MODE} tensor={TENSOR_NUMEL//1024//1024}M floats ***", flush=True)
+        print(f"[MWE-05] job={JOB_ID}  ranks={world_size}", flush=True)
         print(f"[MWE-05] Recovery after drain:", flush=True)
         print(f"[MWE-05]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
         print(f'[MWE-05]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""', flush=True)
 
-        def _scancel() -> None:
-            time.sleep(AUTO_SCANCEL_DELAY)
-            print(f"[MWE-05] AUTO-SCANCEL: scancel {JOB_ID}", flush=True)
-            subprocess.run(["scancel", JOB_ID], timeout=10)
-
-        threading.Thread(target=_scancel, daemon=True).start()
-
-        # HANGS: ranks 1-3 never join this call (they are in comm_DDP).
-        dist.all_reduce(t)
-        print(f"[MWE-05] UNEXPECTED: all_reduce returned — check deadlock timing", flush=True)
-
+    if DRAIN_MODE == "ring_deadlock":
+        run_ring_deadlock(rank, world_size, device)
     else:
-        # Ranks 1-3: start step N+1. DDP backward fires gradient all_reduce on
-        # comm_DDP, which waits for rank 0 (stuck in comm_PG). HANGS.
-        x = torch.randn(BATCH_SIZE, MODEL_DIM, device=device, dtype=dtype)
-        ddp_model(x).sum().backward()
-        optimizer.step()
-        print(f"[MWE-05 rank {rank}] UNEXPECTED: backward returned — check deadlock timing", flush=True)
+        run_cross_group(rank, world_size, device)
 
 
 if __name__ == "__main__":
