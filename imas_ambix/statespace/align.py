@@ -42,6 +42,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import numpy as np
     import xarray as xr
 
 from imas_ambix.tokenizer.alignment import (  # re-export
@@ -178,6 +179,108 @@ def alignment_plan(
     return plans
 
 
+def align_chord2d_to_grid(
+    arr: np.ndarray,
+    t_native: np.ndarray,
+    grid_times: np.ndarray,
+    method: str = "linear",
+) -> np.ndarray:
+    """Align a (T_native, C) chord array to the model grid.
+
+    Interpolates each of the C chord channels independently onto
+    ``grid_times`` using SciPy linear interpolation (fill_value=NaN outside
+    the native time range).
+
+    Parameters
+    ----------
+    arr:
+        (T_native, C) float array — one row per native time step.
+    t_native:
+        (T_native,) native time axis (seconds).
+    grid_times:
+        (T_grid,) target model grid (seconds).
+    method:
+        Interpolation method — ``"linear"`` (default) or ``"nearest"``.
+
+    Returns
+    -------
+    np.ndarray of shape (T_grid, C).
+    """
+    import numpy as np  # noqa: PLC0415
+    from scipy.interpolate import interp1d  # noqa: PLC0415
+
+    C = arr.shape[1]  # noqa: N806
+    T_grid = len(grid_times)  # noqa: N806
+    out = np.full((T_grid, C), np.nan, dtype=np.float64)
+
+    t_nat = np.asarray(t_native, dtype=np.float64)
+    t_grid = np.asarray(grid_times, dtype=np.float64)
+
+    if t_nat.size < 2:
+        return out.astype(np.float32)
+
+    mask_in_range = (t_grid >= t_nat[0]) & (t_grid <= t_nat[-1])
+    if not mask_in_range.any():
+        return out.astype(np.float32)
+
+    f = interp1d(
+        t_nat,
+        arr.astype(np.float64),
+        axis=0,
+        kind=method,
+        bounds_error=False,
+        fill_value=np.nan,
+    )
+    out = f(t_grid)
+    return out.astype(np.float32)
+
+
+def align_camera_to_grid(
+    frames: np.ndarray,
+    t_cam: np.ndarray,
+    grid_times: np.ndarray,
+) -> np.ndarray:
+    """Assign camera frames to model-grid time points via nearest-frame lookup.
+
+    For each model-grid time point the closest camera frame is selected.
+    If a grid point lies before the first frame or after the last frame,
+    the boundary frame is returned (clamp — no extrapolation with zeros).
+
+    Parameters
+    ----------
+    frames:
+        (T_cam, H, W) float32 downsampled frames.
+    t_cam:
+        (T_cam,) camera time axis (seconds).
+    grid_times:
+        (T_grid,) target model grid (seconds).
+
+    Returns
+    -------
+    np.ndarray of shape (T_grid, H, W) float32.
+    """
+    import numpy as np  # noqa: PLC0415
+
+    T_grid = len(grid_times)  # noqa: N806
+    H, W = frames.shape[1], frames.shape[2]  # noqa: N806
+    t_c = np.asarray(t_cam, dtype=np.float64)
+    t_g = np.asarray(grid_times, dtype=np.float64)
+
+    if t_c.size == 0:
+        return np.zeros((T_grid, H, W), dtype=np.float32)
+
+    # searchsorted gives the insertion point; nearest = argmin distance
+    idx = np.searchsorted(t_c, t_g)
+    idx_clipped = np.clip(idx, 0, t_c.size - 1)
+    # Compare with left neighbour for true nearest
+    idx_left = np.clip(idx - 1, 0, t_c.size - 1)
+    dist_right = np.abs(t_g - t_c[idx_clipped])
+    dist_left = np.abs(t_g - t_c[idx_left])
+    nearest = np.where(dist_left < dist_right, idx_left, idx_clipped)
+
+    return frames[nearest]  # (T_grid, H, W)
+
+
 def align_family_dataset(
     ds: xr.Dataset,
     family: str,
@@ -245,4 +348,6 @@ __all__ = [
     "FamilyAlignmentPlan",
     "alignment_plan",
     "align_family_dataset",
+    "align_chord2d_to_grid",
+    "align_camera_to_grid",
 ]
