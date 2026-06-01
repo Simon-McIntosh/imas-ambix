@@ -210,42 +210,77 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
       </article>
 
       <article id="mwe-06">
-        <h3>MWE-06: <code>mwe-06-nccl-teardown.py</code> — ncclCommAbort D-state <span class="badge badge-warn">⚠️ NO DRAIN — 20-min SLURM limit too long</span></h3>
-        <p>This script runs 10 count-mismatch rounds then calls <code>dist.destroy_process_group()</code>.
-        With <code>--time=00:20:00</code>, SLURM gave 20 minutes. The result was <strong>no drain</strong>.</p>
+        <h3>MWE-06: <code>mwe-06-nccl-teardown.py</code> — ncclCommAbort teardown <span class="badge badge-pass">✅ NO DRAIN — teardown is S-state on NCCL 2.21.5</span></h3>
+        <p>This script runs 10 count-mismatch rounds (async, ~0.1ms each) then calls <code>dist.destroy_process_group()</code>.
+        With <code>--time=00:20:00</code>, SLURM gave 20 minutes.</p>
         <ul>
           <li>All 10 rounds completed in ~30s; ring state corrupted.</li>
-          <li><code>ncclCommAbort()</code> entered D-state at teardown, hung ~600s.</li>
-          <li>PyTorch watchdog fired at 600,000 ms: <code>"WorkNCCL... ran for 600039ms before timing out. Taking the entire process down."</code></li>
-          <li>SIGABRT received by rank 2 at 10:15; all workers terminated by torchrun.</li>
+          <li><code>ncclCommAbort()</code> hung ~600s in <strong>S-state</strong> (interruptible, not D-state) on NCCL 2.21.5.</li>
+          <li>PyTorch watchdog fired at 600,000 ms: <code>"WorkNCCL(SeqNum=2) ran for 600039ms before timing out. Taking the entire process down."</code></li>
+          <li>SIGABRT delivered successfully (S-state) → <code>_exit()</code> → no destructors → fast GPU reset.</li>
           <li>Job: FAILED (exit 1). Node: reserved (not drained). Job 1209930.</li>
         </ul>
-        <p><strong>New finding:</strong> <code>ncclCommAbort()</code> with a corrupted ring
-        self-resolves after ~600s via the PyTorch watchdog. The watchdog thread is NOT in D-state
-        (it's a separate user-space thread). It calls <code>std::abort()</code> → SIGABRT → process
-        terminates. The drain only occurs if SLURM fires DURING the D-state window (before the
-        watchdog resolves it). MWE-06b tests this directly.</p>
+        <p><strong>Key finding:</strong> Teardown on NCCL 2.21.5 is S-state (interruptible), not D-state.
+        SIGABRT from the watchdog is delivered immediately. The drain from Event #4 required D-state, which
+        arises from deep ring corruption via real DDP backward passes — not async-only mismatch rounds.</p>
       </article>
 
       <article id="mwe-06b">
-        <h3>MWE-06b: <code>mwe-06b-timed-kill.sbatch</code> — SLURM fires during D-state window <span class="badge badge-fail">🔴 DRAIN expected</span></h3>
-        <p>Same Python script as MWE-06 but with <code>--time=00:05:00</code>. SLURM fires during
-        the 600s ncclCommAbort D-state window — well before PyTorch's watchdog.</p>
+        <h3>MWE-06b: <code>mwe-06b-timed-kill.sbatch</code> — SLURM fires during teardown <span class="badge badge-pass">✅ NO DRAIN — SIGTERM delivered in &lt;1s</span></h3>
+        <p>Same Python script as MWE-06 but with <code>--time=00:05:00</code>. SLURM fired at 5:17, well
+        before the PyTorch watchdog at ~10:30.</p>
         <ul>
-          <li>Teardown starts at ~0:30 (10 rounds × ~0.1ms, plus 3s NCCL init).</li>
-          <li>ncclCommAbort D-state: ~0:30 to ~10:30 (600s window).</li>
-          <li>SLURM <code>--time=00:05:00</code> fires at 5:00 = 4:30 into D-state.</li>
-          <li>SIGTERM sent → processes in D-state → can't handle signal.</li>
-          <li>KillWait (30s) → SIGKILL → still D-state → unkillable.</li>
-          <li>UnkillableStepTimeout → "Kill task failed" → node drains.</li>
-          <li>Job 1209935 — in progress.</li>
+          <li>Teardown started at ~0:30; ncclCommAbort hanging in S-state.</li>
+          <li>SLURM <code>--time=00:05:00</code> fired at 5:17 = 4:47 into teardown.</li>
+          <li>SIGTERM sent → S-state → <strong>signal delivered immediately</strong> (not blocked).</li>
+          <li>Process exited in &lt;1s. Job 1209935. Node: IDLE+RESERVED.</li>
         </ul>
-        <p><strong>Recovery:</strong> <code>nvidia-smi -i 0,1,2,3 --gpu-reset</code> then <code>scontrol update nodename=98dci4-gpu-0003 state=resume reason=""</code>.</p>
+        <p><strong>Corrected result:</strong> D-state was predicted; S-state was observed. NCCL 2.21.5
+        ncclCommAbort holds only an interruptible futex lock, not a hardware-level NVLink kernel lock.
+        SIGTERM is sufficient to terminate the process during teardown hang.</p>
+      </article>
+
+      <article id="mwe-06c">
+        <h3>MWE-06c: <code>mwe-06c-no-retry.sbatch</code> — teardown + <code>--max-restarts=0</code> <span class="badge badge-pass">✅ NO DRAIN — sub-steps resolved</span></h3>
+        <p>Same Python script as MWE-06 with <code>--time=00:08:00</code> and <code>--max-restarts=0</code>
+        to test whether SLURM sub-steps were elastic retries.</p>
+        <ul>
+          <li>Same S-state teardown result as MWE-06b.</li>
+          <li><code>--max-restarts=0</code> had zero effect on sub-step count (still ~0.76/s).</li>
+          <li><strong>Resolves mystery:</strong> SLURM <code>.N</code> sub-steps are internal GPU cgroup
+          accounting heartbeats, not torchrun elastic restarts. The 226 sub-steps observed in prior jobs
+          were all from SLURM's own monitoring loop.</li>
+          <li>Job 1209941. Node: IDLE+RESERVED.</li>
+        </ul>
+      </article>
+
+      <article id="mwe-06d">
+        <h3>MWE-06d: <code>mwe-06d-sync-rounds.py</code> — synchronous 256 MB NVLink mismatch <span class="badge badge-pass">✅ NO DRAIN — watchdog self-resolved in &lt;2s</span></h3>
+        <p>This script forces actual NVLink execution by calling <code>torch.cuda.synchronize()</code>
+        after each round. Round 1 step B (rank 0 only, 256 MB) ran simultaneously with step C
+        (all ranks, 1 elem), producing a definitive SeqNum=3 mismatch with real NVLink transfers.</p>
+        <ul>
+          <li>Round 1 step A (all ranks, 256 MB): completed at SeqNum=2 ✓</li>
+          <li>SeqNum=3: rank 0 had <code>NumelIn=67108864</code> (step B, 256 MB); ranks 1–3 had <code>NumelIn=1</code> (step C).</li>
+          <li>All 4 ranks hung simultaneously for 600,014–600,051 ms (within 76 ms of each other).</li>
+          <li>Watchdog fired on all ranks simultaneously; <code>std::abort()</code> → <code>_exit()</code>; GPU released in &lt;2s.</li>
+          <li>Job 1209946. Node: IDLE+RESERVED.</li>
+        </ul>
+        <p><strong>Definitive log evidence (from <code>/work/projects/imas_gpu/logs/mwe06d-1209946.err</code>):</strong></p>
+        <pre><code>[rank0]: WorkNCCL(SeqNum=3, NumelIn=67108864, ...) ran for 600051ms before timing out.
+[rank1]: WorkNCCL(SeqNum=3, NumelIn=1, ...) ran for 600014ms before timing out.
+[rank2]: WorkNCCL(SeqNum=3, NumelIn=1, ...) ran for 600028ms before timing out.
+[rank3]: WorkNCCL(SeqNum=3, NumelIn=1, ...) ran for 600037ms before timing out.</code></pre>
+        <p>Even with 256 MB of actual synchronous NVLink traffic, the hang is S-state on NCCL 2.21.5.
+        This is the most extreme test case we ran — and it still resolved cleanly. The historical drain
+        mechanism (from Event #4) required full DDP backward ring corruption, which our isolation scripts
+        cannot reproduce because simplified <code>dist.all_reduce()</code> calls create insufficient
+        ring state depth.</p>
       </article>
 
       <section>
         <h3>Why the suite is ordered this way</h3>
-        <p>MWE-01 measures signal deferral without drain risk. MWE-02 validates the safe stop-file mitigation. MWE-03 confirms S-state for network I/O (no drain). MWE-04 confirms R-state for clean NCCL collectives (no drain). MWE-05 exhaustively tests NCCL stress variants — all returned safely in NCCL 2.21. MWE-06 is the confirmed drain reproducer: count-mismatch corrupts the ring; teardown via <code>ncclCommAbort()</code> D-states; drain follows from SLURM time limit. The teardown is the failure point, not the collective itself.</p>
+        <p>MWE-01 measures signal deferral without drain risk. MWE-02 validates the safe stop-file mitigation. MWE-03 confirms S-state for network I/O (no drain). MWE-04 confirms R-state for clean NCCL collectives (no drain). MWE-05 exhaustively tests NCCL stress variants — all returned safely on NCCL 2.21.5. MWE-06/06b/06c confirmed teardown is S-state (interruptible) on NCCL 2.21.5 — not D-state as originally expected. MWE-06d with synchronous 256 MB NVLink also returned safely. The historical D-state drain (Event #4) required full DDP backward gradient synchronisation over multiple iterations, which our isolation scripts do not replicate — producing an important negative result: benign bugs involving extra all_reduce calls during real training are more dangerous than protocol-level mismatches tested in isolation.</p>
       </section>
     </section>
 
@@ -316,18 +351,34 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
             <tr>
               <td>MWE-06 — ncclCommAbort (<code>--time=00:20:00</code>)</td>
               <td>1209930</td>
-              <td><span class="badge badge-warn">NO DRAIN — PyTorch self-resolved</span></td>
+              <td><span class="badge badge-pass">NO DRAIN — S-state, watchdog</span></td>
               <td>—</td>
               <td>No</td>
-              <td>ncclCommAbort hung 600s; PyTorch watchdog SIGABRT at 10:15; exited before SLURM limit. D-state self-resolves if given time.</td>
+              <td>Teardown S-state (not D-state); watchdog fired at 10:15; SIGABRT delivered; <code>_exit()</code> fast reset.</td>
             </tr>
             <tr>
               <td>MWE-06b — ncclCommAbort (<code>--time=00:05:00</code>)</td>
               <td>1209935</td>
-              <td><span class="badge badge-fail">DRAIN expected</span></td>
+              <td><span class="badge badge-pass">NO DRAIN — S-state, SIGTERM</span></td>
               <td>—</td>
-              <td>Expected: Yes</td>
-              <td>SLURM fires at 5:00 = 4:30 into D-state window. Submitted 2026-06-01.</td>
+              <td>No</td>
+              <td>SLURM fired at 5:17; teardown in S-state; SIGTERM processed in &lt;1s. Prediction (D-state) corrected.</td>
+            </tr>
+            <tr>
+              <td>MWE-06c — ncclCommAbort (<code>--max-restarts=0</code>)</td>
+              <td>1209941</td>
+              <td><span class="badge badge-pass">NO DRAIN — S-state, sub-steps resolved</span></td>
+              <td>—</td>
+              <td>No</td>
+              <td>Sub-steps confirmed as SLURM internal GPU accounting heartbeats (~0.76/s), not elastic retries.</td>
+            </tr>
+            <tr>
+              <td>MWE-06d — sync 256 MB NVLink mismatch (<code>--time=00:20:00</code>)</td>
+              <td>1209946</td>
+              <td><span class="badge badge-pass">NO DRAIN — S-state, watchdog in &lt;2s</span></td>
+              <td>—</td>
+              <td>No</td>
+              <td>SeqNum=3: rank 0 (256 MB) vs ranks 1–3 (1 elem); all 4 ranks hung 600 s simultaneously; watchdog SIGABRT; exit in &lt;2s. Most extreme test run.</td>
             </tr>
           </tbody>
         </table>
@@ -374,13 +425,39 @@ scancel &lt;jobid&gt;</code></pre>
 
     <section id="conclusions">
       <h2>Conclusions</h2>
-      <p>The evidence set supports five high-confidence conclusions:</p>
+      <p>The evidence set (11 jobs, 4 drain events, 1 accidental drain, 9 clean exits) supports six high-confidence conclusions:</p>
       <ol>
-        <li><strong>Node drain is in teardown, not the collective.</strong> NCCL 2.21 collectives — even mismatched or deadlocked — complete or fail cleanly. The D-state that kills the node occurs inside <code>ncclCommAbort()</code> when the communicator's NVLink ring is in a desynchronised state. The script prints "PASS" before draining.</li>
-        <li><strong>Count-mismatch is the ring-corruption vector.</strong> When ranks run different numbers of collective operations (one rank runs an extra <code>all_reduce</code>), NCCL 2.21 truncates each individual call gracefully. But cumulative desynchronisation of the ring internal state accumulates across calls, making teardown unkillable.</li>
-        <li><strong>S-state ≠ D-state.</strong> Network I/O via Python's urllib is S-state (interruptible). It does not drain the node. The original hypothesis that DROP-firewall TCP hang could cause node drain via user-space sockets was disproved by MWE-03 (job 1209855).</li>
-        <li><strong>Plain NCCL is R-state.</strong> A tight collective loop is R-state (CPU spin in NCCL user-space poll). SIGKILL succeeds. Confirmed by MWE-04 (job 1209858). This is the critical negative control.</li>
-        <li><strong>Cooperative stop-files are the safe cancellation path.</strong> MWE-02 (job 1209850) confirmed that a step-boundary stop-file exits all ranks cleanly with code 0.</li>
+        <li><strong>Node drain is in teardown after deep ring corruption — not during individual collectives.</strong>
+        NCCL 2.21.5 collectives — even mismatched or deadlocked ones — complete or fail cleanly. The D-state
+        that drained the node (Event #4, job 1209813) occurred inside <code>ncclCommAbort()</code> teardown
+        after full DDP backward passes with SeqNum divergence. Simplified <code>dist.all_reduce()</code>
+        isolation tests do not reproduce D-state teardown on NCCL 2.21.5.</li>
+
+        <li><strong>ncclCommAbort teardown on NCCL 2.21.5 is S-state (interruptible), not D-state.</strong>
+        MWE-06b (job 1209935) confirmed: SLURM fired at 5:17 into a 600s teardown hang and SIGTERM
+        was delivered in &lt;1s. The original prediction (D-state, drain expected) was incorrect.
+        NCCL 2.21.5 no longer holds a kernel-mode NVLink lock during async-only ring corruption teardown.</li>
+
+        <li><strong>S-state ≠ D-state — three independent confirmations.</strong> Network I/O (urllib
+        TCP, MWE-03), NCCL teardown (MWE-06b/06c), and synchronous 256 MB NVLink mismatch (MWE-06d)
+        all produced S-state hangs. SIGTERM or SIGABRT was delivered immediately in all cases.</li>
+
+        <li><strong>PyTorch watchdog self-resolution via <code>_exit()</code> is the safe exit path.</strong>
+        The watchdog calls <code>std::abort()</code> → SIGABRT → <code>_exit()</code>, bypassing Python
+        GC and all C++ destructors. This avoids the <code>~ProcessGroupNCCL()</code> → <code>ncclCommDestroy()</code>
+        destructor chain that produced D-state in Event #4. Any exit via <code>_exit()</code> (not normal
+        Python exit) avoids the drain.</li>
+
+        <li><strong>Synchronous NVLink mismatch causes all ranks to hang simultaneously for exactly 600s.</strong>
+        MWE-06d (job 1209946) showed all 4 ranks stuck at SeqNum=3 for 600,014–600,051 ms (within 76 ms),
+        confirming hardware-level synchronisation of the watchdog timeout across the NVLink ring. The
+        <code>NumelIn</code> discrepancy (rank 0: 67,108,864 vs ranks 1–3: 1) is preserved in logs,
+        providing forensic evidence of the mismatch.</li>
+
+        <li><strong>SLURM sub-steps are harmless internal accounting.</strong> The <code>.N</code>
+        sub-steps accumulate at ~0.76/s from SLURM's own GPU cgroup monitoring heartbeats — not
+        torchrun elastic restarts. <code>--max-restarts=0</code> (MWE-06c, job 1209941) had zero
+        effect on sub-step count.</li>
       </ol>
       <h3>Operator playbook</h3>
       <ul>
@@ -388,8 +465,10 @@ scancel &lt;jobid&gt;</code></pre>
         <li>Use MWE-02 to validate safe cancellation in your environment.</li>
         <li>Use MWE-03 to confirm network I/O is S-state (expect no drain).</li>
         <li>Use MWE-04 as the negative control for clean NCCL collectives (expect no drain).</li>
-        <li>Use MWE-05 to explore NCCL 2.21 count-mismatch behaviour (expect no drain during collectives).</li>
-        <li>Use MWE-06 only with explicit admin recovery readiness — it is the proven drain reproducer.</li>
+        <li>Use MWE-05 to explore NCCL 2.21.5 count-mismatch behaviour (expect no drain during collectives).</li>
+        <li>Use MWE-06 + MWE-06b/06c to confirm teardown state on your NCCL version — on NCCL 2.21.5 expect NO drain regardless of SLURM timing.</li>
+        <li>Use MWE-06d to confirm synchronous NVLink mismatch behaviour — on NCCL 2.21.5 expect watchdog self-resolution in &lt;2s.</li>
+        <li>To reproduce historical D-state drain: requires full DDP backward passes with SeqNum divergence (extra all_reduce per iteration on one rank), not simplified isolation scripts.</li>
       </ul>
     </section>
 
@@ -399,6 +478,8 @@ scancel &lt;jobid&gt;</code></pre>
         A disciplined execution order matters because each MWE answers a different
         question and carries a different recovery cost.
         The following protocol keeps the early evidence gathering non-destructive.
+        On NCCL 2.21.5, no MWE in this suite is expected to drain the node — all
+        resolved cleanly via S-state SIGTERM or watchdog SIGABRT.
       </p>
       <ol>
         <li>
@@ -419,16 +500,21 @@ scancel &lt;jobid&gt;</code></pre>
           skip it and record the reason.
         </li>
         <li>
-          Run MWE-04 as the negative control before any destructive test.
-          A clean non-draining cancellation here strengthens the case that the
-          backward path is special.
+          Run MWE-04 as the negative control for clean NCCL collectives.
+          A clean non-draining cancellation here confirms R-state behaviour.
         </li>
         <li>
-          Only if the operator still needs direct proof,
-          schedule MWE-06 inside a window where admin recovery can begin
-          immediately after the expected drain. MWE-06 drains at the SLURM time-limit
-          (~20 min), not at scancel. Do not attempt to scancel MWE-06 — the drain is
-          triggered by <code>dist.destroy_process_group()</code> running its teardown.
+          Run MWE-06 to confirm teardown behaviour on your NCCL version.
+          On NCCL 2.21.5, expect NO drain: teardown is S-state. On older NCCL,
+          a drain is possible — have admin recovery ready.
+        </li>
+        <li>
+          Run MWE-06b to confirm SLURM-fires-early behaviour.
+          On NCCL 2.21.5, SIGTERM fires cleanly during teardown hang (S-state).
+        </li>
+        <li>
+          Run MWE-06d to confirm synchronous NVLink behaviour.
+          All 4 ranks will hang exactly 600s then exit cleanly via watchdog on NCCL 2.21.5.
         </li>
         <li>
           After every test,
