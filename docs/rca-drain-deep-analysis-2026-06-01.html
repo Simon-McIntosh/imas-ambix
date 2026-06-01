@@ -7,7 +7,7 @@
 <meta name="plan-slug" content="rca-drain-deep-analysis-2026-06-01">
 <meta name="reckon-type" content="doc">
 <meta name="plan-title" content="Deep-dive RCA — 98dci4-gpu-0003 drain events (4× drains, 1 near-miss, 2026-05-26 to 2026-05-28)">
-<meta name="plan-summary" content="Definitive cross-event analysis covering all four node drains and one near-miss on the sole H200 node. Identifies five distinct failure mechanisms, assesses current hardening coverage per code module and SLURM script, proposes six minimal reproducers for vendor/SDCC discussion, and specifies seven SLURM-admin recommendations. Reference document for policy and future audit.">
+<meta name="plan-summary" content="Definitive cross-event analysis: 4 drains (3 confirmed 100% self-inflicted by sacct), 1 near-miss. Five failure mechanisms. Full codebase drain-risk matrix (7 files). 17 open vulnerabilities ranked P0/P1/P2 — including train/loop.py zero hardening (CRITICAL) and cosmos_worker.py dead watchdog. 4 test scripts (T1/T2 safe, T3/T4 drain-trigger). 7 SDCC admin recommendations. Reference for policy and vendor discussion.">
 <meta name="plan-status" content="active">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="M">
@@ -31,8 +31,12 @@ H200 node. This document synthesises findings across five individual RCAs, maps
 each event to a root kernel mechanism, assesses current code hardening status, and
 defines a test and admin-change programme to eliminate residual risk.</p>
 
-<p><strong>DO NOT submit SLURM jobs based on this document.</strong> Test plans are
-design-only until approved and scheduled.</p>
+<p><strong>Test scripts:</strong> T1 and T2 in <code>scripts/tests/</code> are
+safe to run immediately — they validate fixes without drain risk. T3 triggers a
+drain (fastest recovery, no GPU reset needed) and requires admin on standby.
+T4 triggers a drain with GPU context corruption and requires admin present.
+Do not submit T3/T4 without explicit user authorisation and admin coordination.
+T5/T6 in §6 remain design-only.</p>
 
 <nav>
 <strong>Sections:</strong>
@@ -658,6 +662,182 @@ scripts, not one: <code>finetune_decoder.sbatch</code>,
 <code>train_exclusive.sbatch</code>. Any of these can trigger the preempt script's
 <code>scancel</code>.</p>
 
+<h3 id="train-loop-py">train/loop.py — ZERO HARDENING (CRITICAL — highest drain risk in codebase)</h3>
+
+<p><span class="status blocked"><span class="dot"></span>P0 — Do not submit any job running this module until hardened</span></p>
+
+<p><code>imas_ambix/train/loop.py</code> (479 lines, WHAM/FSDP training loop) has
+<strong>no drain-safety hardening whatsoever</strong>:</p>
+<ul>
+  <li>No <code>signal.signal(SIGTERM, ...)</code> handler</li>
+  <li>No STOP-FILE check anywhere in the training loop</li>
+  <li>No watchdog thread</li>
+  <li>No <code>try/finally</code> with <code>dist.destroy_process_group()</code>
+  or <code>torch.cuda.empty_cache()</code></li>
+  <li>Uses FSDP full-shard — FSDP internally uses NCCL collectives for parameter
+  sharding and gradient reduction, identical drain mechanism to
+  <code>finetune_decoder.py</code></li>
+</ul>
+
+<p>Any <code>scancel</code> or time-limit expiry during an FSDP training step in
+<code>loop.py</code> will deliver SIGTERM to a process in D-state inside an NCCL
+collective. Without a signal handler or watchdog, there is no recovery path:
+<code>UnkillableStepTimeout</code> expires → drain. This is the highest-risk
+Python file in the codebase because it combines full NCCL exposure with zero
+mitigation.</p>
+
+<p><strong>What to do:</strong> Port the hardening pattern from
+<code>finetune_decoder.py</code> verbatim. Minimum viable patch:</p>
+<pre><code># At module top — import additions:
+import os, signal, threading, time, pathlib
+
+# After dist.init_process_group():
+_STOP = threading.Event()
+_STOP_FILE = pathlib.Path(os.environ.get("AMBIX_STOP_FILE", "/dev/null"))
+
+def _on_sigterm(signum, frame):
+    _STOP.set()  # advisory only; may not fire mid-NCCL
+
+signal.signal(signal.SIGTERM, _on_sigterm)
+signal.signal(signal.SIGINT,  _on_sigterm)
+
+# Watchdog (auto-calibrated from step times):
+_step_times = []
+def _watchdog():
+    while not _STOP.is_set():
+        time.sleep(5)
+        if len(_step_times) >= 5:
+            median = sorted(_step_times[-20:])[ len(_step_times[-20:])//2 ]
+            if time.monotonic() - _t_step_start > 5 * median:
+                _STOP.set()
+_wd = threading.Thread(target=_watchdog, daemon=True)
+_wd.start()
+
+# Training loop — replace bare `for step in range(...)`:
+_t_step_start = time.monotonic()
+for step in range(start_step, total_steps):
+    # STOP checks BEFORE any FSDP/NCCL call:
+    if _STOP.is_set() or _STOP_FILE.exists():
+        print(f"[loop] Stop signal at step {step} — clean exit", flush=True)
+        break
+    soft = int(os.environ.get("AMBIX_SOFT_TIME_LIMIT", 0))
+    if soft and (time.monotonic() - _t0) > soft:
+        print(f"[loop] Soft time limit — clean exit", flush=True)
+        break
+    _t_step_start = time.monotonic()
+    # ... existing forward/backward/optimizer code ...
+    _step_times.append(time.monotonic() - _t_step_start)
+
+# Wrap entire training call in try/finally:
+try:
+    train_loop(...)
+finally:
+    if dist.is_initialized():
+        dist.destroy_process_group()
+    torch.cuda.empty_cache()</code></pre>
+
+<h3 id="cosmos-worker-py">cosmos_worker.py — Dead-Code Watchdog</h3>
+
+<p><span class="status active"><span class="dot"></span>P1 — Fix before next Cosmos bench run</span></p>
+
+<p><code>imas_ambix/bench/cosmos_worker.py</code> defines <code>_shot_timeout()</code>
+and a <code>timing_samples</code> list — the scaffolding for a per-shot watchdog —
+but <strong>never spawns the watchdog thread</strong>. The watchdog is dead code.
+A wedged Cosmos encode will run indefinitely until it hits the SLURM
+<code>--time=</code> ceiling and drains via auto-SIGTERM.</p>
+
+<p>Compare <code>stream_worker.py</code> (correct):</p>
+<pre><code># stream_worker.py — watchdog properly spawned:
+_wd_thread = threading.Thread(target=_watchdog, daemon=True)
+_wd_thread.start()    # ← THIS LINE IS MISSING FROM cosmos_worker.py</code></pre>
+
+<p><strong>What to do:</strong> Add the thread spawn after the model load, before
+the shot loop. No other changes required — the watchdog function itself is
+correctly implemented, it just never runs.</p>
+<pre><code># cosmos_worker.py — add after model load:
+_wd_thread = threading.Thread(target=_shot_timeout, daemon=True)
+_wd_thread.start()</code></pre>
+
+<h3 id="drain-risk-matrix">Python drain risk matrix — full codebase</h3>
+
+<div class="table-scroll"><table class="t">
+<thead>
+<tr>
+  <th>File</th>
+  <th>SIGTERM handler</th>
+  <th>STOP-FILE</th>
+  <th>Watchdog</th>
+  <th>Uses NCCL/DDP</th>
+  <th>Drain risk</th>
+  <th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>tokenizer/finetune_decoder.py</code></td>
+  <td>✅ advisory</td>
+  <td>✅</td>
+  <td>✅</td>
+  <td>✅ DDP+NCCL</td>
+  <td><span class="status shipped"><span class="dot"></span>MEDIUM — hardened</span></td>
+  <td>None</td>
+</tr>
+<tr>
+  <td><code>data/stream_encode.py</code></td>
+  <td>✅</td>
+  <td>❌</td>
+  <td>✅</td>
+  <td>❌</td>
+  <td><span class="status active"><span class="dot"></span>LOW — no NCCL</span></td>
+  <td>P0: add STOP-FILE + SOFT_TIME_LIMIT</td>
+</tr>
+<tr>
+  <td><code>bench/stream_worker.py</code></td>
+  <td>✅</td>
+  <td>❌</td>
+  <td>✅</td>
+  <td>❌</td>
+  <td><span class="status active"><span class="dot"></span>LOW — no NCCL</span></td>
+  <td>P1: add STOP-FILE</td>
+</tr>
+<tr>
+  <td><code>bench/cosmos_worker.py</code></td>
+  <td>✅</td>
+  <td>❌</td>
+  <td>⚠️ dead code</td>
+  <td>❌</td>
+  <td><span class="status active"><span class="dot"></span>MEDIUM — no watchdog</span></td>
+  <td>P1: spawn watchdog thread; add STOP-FILE</td>
+</tr>
+<tr style="background: #fff0f0;">
+  <td><strong><code>train/loop.py</code></strong></td>
+  <td>❌</td>
+  <td>❌</td>
+  <td>❌</td>
+  <td>✅ FSDP+NCCL</td>
+  <td><span class="status blocked"><span class="dot"></span>CRITICAL — zero hardening + NCCL</span></td>
+  <td><strong>P0: full hardening required before any submission</strong></td>
+</tr>
+<tr>
+  <td><code>statespace/engine.py</code></td>
+  <td>❌</td>
+  <td>⚠️ partial</td>
+  <td>❌</td>
+  <td>❌</td>
+  <td><span class="status active"><span class="dot"></span>MEDIUM</span></td>
+  <td>P2: add full stop contract</td>
+</tr>
+<tr>
+  <td><code>bench/tokenizer.py</code></td>
+  <td>❌</td>
+  <td>❌</td>
+  <td>N/A</td>
+  <td>❌</td>
+  <td><span class="status active"><span class="dot"></span>LOW-MEDIUM</span></td>
+  <td>P2: add SIGTERM handler</td>
+</tr>
+</tbody>
+</table></div>
 <h3 id="agent-slurm-py">imas_ambix/agent/slurm.py — Generated serve scripts: 7-day auto-SIGTERM</h3>
 
 <p><span class="status blocked"><span class="dot"></span>Structural gap</span> —
@@ -1090,6 +1270,13 @@ betelgeuse GPU job until P0 items for that job's script are resolved.</strong></
 <h3>P0 — Fix before next submit (blocks GPU job submission)</h3>
 <ol>
   <li>
+    <strong><code>train/loop.py</code></strong> — HIGHEST RISK. Zero hardening
+    on an FSDP+NCCL training loop. Do not submit any job using this module until
+    the SIGTERM handler, STOP-FILE polling, watchdog thread, and try/finally
+    teardown are added. See §4 for the exact patch. Also requires a compliant
+    sbatch script (one does not currently exist for this module).
+  </li>
+  <li>
     <strong><code>stream_encode_rbb.sbatch</code> + <code>stream_encode.py</code></strong> —
     24h auto-SIGTERM with no defence whatsoever. Also fix <code>set -e</code>
     → <code>set -euo pipefail</code>. Required changes:
@@ -1119,11 +1306,16 @@ betelgeuse GPU job until P0 items for that job's script are resolved.</strong></
 </ol>
 
 <h3>P1 — Before any new run (blocks running the specific script)</h3>
-<ol start="5">
+<ol start="6">
+  <li>
+    <strong><code>cosmos_worker.py</code></strong> — watchdog thread never
+    spawned (dead code). One-line fix: add thread spawn after model load. Also
+    add STOP-FILE polling.
+  </li>
   <li>
     <strong><code>bench_rbb.sbatch</code></strong> — no three-layer defence.
     Add <code>--signal=B:USR1@600</code>, STOP-FILE, SOFT_TIME_LIMIT, HF_OFFLINE.
-    Blocked on P0 item 1 (stream_worker.py needs STOP-FILE support).
+    Blocked on P0 item 2 (stream_worker.py needs STOP-FILE support).
   </li>
   <li>
     <strong><code>bench_decode_precision.sbatch</code></strong> — missing
@@ -1133,7 +1325,7 @@ betelgeuse GPU job until P0 items for that job's script are resolved.</strong></
   <li>
     <strong><code>bench_cosmos.sbatch</code></strong> — missing SOFT_TIME_LIMIT.
     Verify --time ceiling is correct; add SOFT_TIME_LIMIT + HF_OFFLINE. Blocked
-    on stream_worker STOP-FILE.
+    on cosmos_worker.py fix.
   </li>
   <li>
     <strong><code>preempt_v4flash.sh</code> (and all 4 callers)</strong> —
@@ -1145,12 +1337,12 @@ betelgeuse GPU job until P0 items for that job's script are resolved.</strong></
   <li>
     <strong><code>stream_worker.py</code></strong> — add STOP-FILE polling
     (AMBIX_STOP_FILE) between-shot + AMBIX_SOFT_TIME_LIMIT check. This unblocks
-    P1 items 5–7 above.
+    P1 items 7–9 above.
   </li>
 </ol>
 
 <h3>P2 — Hardening (no immediate run blocker; schedule for next sprint)</h3>
-<ol start="10">
+<ol start="12">
   <li>
     <strong>All 8 betelgeuse GPU scripts: add HF_OFFLINE block.</strong>
     Three-line change per script. Can be done as a single commit across all
@@ -1168,6 +1360,15 @@ betelgeuse GPU job until P0 items for that job's script are resolved.</strong></
     priority within P2.
   </li>
   <li>
+    <strong><code>statespace/engine.py</code></strong> — partial STOP-FILE, no
+    SIGTERM handler, no watchdog. Add full stop contract (SIGTERM handler +
+    STOP-FILE + watchdog).
+  </li>
+  <li>
+    <strong><code>bench/tokenizer.py</code></strong> — add SIGTERM handler.
+    Low risk (no NCCL) but systematic hygiene.
+  </li>
+  <li>
     <strong><code>imas_ambix/data/cli.py</code> <code>_render_slurm_script()</code></strong>
     — change <code>TMPDIR=/scratch_local/$SLURM_JOB_ID</code> to
     <code>TMPDIR=/tmp</code> for non-betelgeuse partition scripts.
@@ -1179,9 +1380,9 @@ betelgeuse GPU job until P0 items for that job's script are resolved.</strong></
 <tr><th>Priority</th><th>Item count</th><th>Blocks</th><th>Estimated effort</th></tr>
 </thead>
 <tbody>
-<tr><td><strong>P0</strong></td><td>4</td><td>Any corpus encode, bulk encode, train_exclusive, or signal encode submission</td><td>~4h combined</td></tr>
-<tr><td><strong>P1</strong></td><td>5</td><td>Bench runs (bench_rbb, bench_cosmos, bench_decode_precision), preempt_v4flash callers</td><td>~6h combined</td></tr>
-<tr><td><strong>P2</strong></td><td>4</td><td>Not a hard blocker; hygiene + risk reduction</td><td>~4h combined</td></tr>
+<tr><td><strong>P0</strong></td><td>5</td><td>train/loop.py (any WHAM/FSDP run), corpus encode, bulk encode, train_exclusive, bulk encode signals</td><td>~6h combined</td></tr>
+<tr><td><strong>P1</strong></td><td>6</td><td>Cosmos bench, bench_rbb, bench_cosmos, bench_decode_precision, preempt_v4flash callers</td><td>~6h combined</td></tr>
+<tr><td><strong>P2</strong></td><td>6</td><td>Not a hard blocker; hygiene + risk reduction</td><td>~5h combined</td></tr>
 </tbody>
 </table></div>
 
@@ -1190,381 +1391,204 @@ betelgeuse GPU job until P0 items for that job's script are resolved.</strong></
      §6. TEST PLANS
      ═══════════════════════════════════════════════════════════════════ -->
 
-<h2 id="test-plans">§6 — Test plans (design only — DO NOT SUBMIT JOBS)</h2>
-
-<p>Six minimal reproducers. Each is designed to isolate one mechanism and confirm
-or deny the hypothesised behaviour. All require scheduling and user approval
-before running. The goal is: (a) vendor bug reports with minimal reproducers,
-(b) confirmation of SLURM config values (UnkillableStepTimeout), and (c)
-validation that fixes work as intended.</p>
-
-<h3 id="t1">T1 — Minimal Unkillable D-State (CUDA)</h3>
-
-<p><strong>Purpose:</strong> Confirm the exact <code>UnkillableStepTimeout</code>
-value on betelgeuse and establish a baseline D-state repro with no training
-or NCCL complexity.</p>
-
-<p><strong>Mechanism tested:</strong> M2</p>
-
-<p><strong>Expected outcome:</strong> Process enters D-state, SLURM escalates
-to SIGKILL after ~60&nbsp;s, then marks "Kill task failed" and drains node.</p>
-
-<p><strong>Script design (do not run — design only):</strong></p>
-<pre><code>#!/usr/bin/env python3
-# t1_minimal_d_state.py — DESIGN ONLY, DO NOT SUBMIT
-# Purpose: Enter CUDA D-state via a blocking synchronize loop
-# Requires: --gres=gpu:1, submitted to betelgeuse with --time=00:05:00
-import torch, time, signal, sys
-
-def handler(signum, frame):
-    print(f"[t1] Received signal {signum} at {time.time():.2f}", flush=True)
-    # Intentionally do nothing — we are testing D-state unkillability
-    pass
-
-signal.signal(signal.SIGTERM, handler)
-signal.signal(signal.SIGINT, handler)
-
-device = torch.device("cuda:0")
-torch.cuda.init()
-print(f"[t1] CUDA initialised. PID={os.getpid()}", flush=True)
-
-# Fill GPU with a large tensor to ensure CUDA context is fully initialised
-x = torch.ones(1024, 1024, 1024, dtype=torch.float16, device=device)
-torch.cuda.synchronize()
-
-print("[t1] Entering infinite synchronize loop — will enter D-state", flush=True)
-t_start = time.time()
-while True:
-    # Launch a kernel that runs forever
-    # torch.cuda.synchronize() after it will block in D-state
-    torch.matmul(x[:1024, :1024], x[:1024, :1024])  # fast, completes
-    time.sleep(1)
-    print(f"[t1] Alive at t={time.time()-t_start:.0f}s", flush=True)
-    # After scancel: expect SIGTERM to be "received" (handler prints) but
-    # process to NOT exit — handler fires between bytecodes in the sleep()
-    # After 60s: expect SIGKILL → no effect → drain</code></pre>
-
-<p><strong>Measurement protocol:</strong></p>
-<ol>
-  <li>Submit job; wait for "Entering infinite synchronize loop" in log</li>
-  <li>Issue <code>scancel &lt;jobid&gt;</code> from login node</li>
-  <li>Record: (a) time from scancel to "Kill task failed" in slurmd log,
-  (b) whether handler printed "Received signal 15", (c) whether process
-  appeared in D-state in <code>ps -eo pid,stat,cmd</code></li>
-  <li>Observe whether node drains; if so, record drain timestamp vs scancel</li>
-</ol>
-
-<p><strong>Alternative (non-draining) version:</strong> Modify the loop to check
-a stop-file before each <code>torch.matmul</code>. Touch the stop-file from login
-node. Confirm: process exits cleanly within 1 loop iteration (~1&nbsp;s). Node
-not drained. This validates the STOP-FILE bypass.</p>
-
-<p><strong>Node drain risk: HIGH.</strong> This test is designed to drain the
-node. Only run when an admin is standing by to resume immediately. Coordinate
-with SDCC before submitting.</p>
-
-<h3 id="t2">T2 — NCCL Collective Signal Test (2-rank)</h3>
-
-<p><strong>Purpose:</strong> Confirm that (a) <code>scancel</code> on a 2-rank
-DDP job in the middle of <code>dist.all_reduce</code> drains the node, and
-(b) the STOP-FILE mechanism exits cleanly from the same code path.</p>
-
-<p><strong>Mechanism tested:</strong> M1 + M2</p>
-
-<p><strong>Script design (do not run — design only):</strong></p>
-<pre><code>#!/usr/bin/env python3
-# t2_nccl_signal_test.py — DESIGN ONLY, DO NOT SUBMIT
-# Run as: torchrun --nproc_per_node=2 t2_nccl_signal_test.py
-import torch, torch.distributed as dist, os, time, signal, pathlib
-
-STOP_FILE = pathlib.Path(os.environ.get("AMBIX_STOP_FILE", "/tmp/t2.stop"))
-
-def handler(signum, frame):
-    print(f"[t2 rank{rank}] SIGTERM received at t={time.time():.2f}", flush=True)
-
-dist.init_process_group("nccl")
-rank = dist.get_rank()
-device = torch.device(f"cuda:{rank}")
-
-signal.signal(signal.SIGTERM, handler)
-print(f"[t2 rank{rank}] init complete. STOP_FILE={STOP_FILE}", flush=True)
-
-x = torch.ones(256, 256, 256, device=device)
-step = 0
-
-while True:
-    step += 1
-    # Check stop-file FIRST — before any CUDA
-    if STOP_FILE.exists():
-        print(f"[t2 rank{rank}] STOP-FILE detected at step {step} — clean exit", flush=True)
-        break
-    
-    # Simulate forward+backward: large NCCL collective
-    loss = x.mean()
-    loss.backward()
-    dist.all_reduce(x.grad, op=dist.ReduceOp.SUM)  # This is the dangerous moment
-    x.grad = None
-    torch.cuda.synchronize()
-    
-    print(f"[t2 rank{rank}] step {step} complete", flush=True)
-    time.sleep(2)  # Slow loop so we can issue scancel during all_reduce
-
-dist.destroy_process_group()
-print(f"[t2 rank{rank}] EXIT 0", flush=True)</code></pre>
-
-<p><strong>Measurement protocol (two sub-tests):</strong></p>
-
-<p><em>Sub-test A (drain trigger):</em></p>
-<ol>
-  <li>Submit with no STOP_FILE in env. Watch for "step N complete" in log.</li>
-  <li>Wait ~5 steps, then <code>scancel &lt;jobid&gt;</code></li>
-  <li>Expected: handler prints "SIGTERM received" but process does NOT exit.
-  After 60&nbsp;s: node drains.</li>
-</ol>
-
-<p><em>Sub-test B (STOP-FILE safe exit):</em></p>
-<ol>
-  <li>Submit with STOP-FILE path configured. Watch for "step N complete".</li>
-  <li>After ~5 steps: <code>touch $STOP_FILE</code></li>
-  <li>Expected: within 1 step, all ranks print "STOP-FILE detected" and EXIT 0.
-  No drain.</li>
-</ol>
-
-<p><strong>Node drain risk for sub-test A: HIGH.</strong> Sub-test B: LOW. Run B first; only run A with admin coordination.</p>
-
-<h3 id="t3">T3 — Network I/O D-State (Event 2 repro)</h3>
-
-<p><strong>Purpose:</strong> Quantify the impact of DROP-vs-REJECT egress policy
-on drain risk for accidental outbound connections. No CUDA required.</p>
-
-<p><strong>Mechanism tested:</strong> M4</p>
-
-<p><strong>Script design (do not run — design only):</strong></p>
-<pre><code>#!/usr/bin/env python3
-# t3_net_hang.py — DESIGN ONLY, DO NOT SUBMIT
-# Run on betelgeuse partition (no outbound network)
-# Purpose: measure TCP connect() timeout under DROP-not-REJECT firewall
-import socket, time, signal, sys
-
-TARGET_HOST = "8.8.8.8"   # Known-blocked on betelgeuse
-TARGET_PORT = 443
-
-def handler(signum, frame):
-    print(f"[t3] Signal {signum} at t={time.time()-t0:.1f}s", flush=True)
-    # Signal received — but are we in D-state?
-
-signal.signal(signal.SIGTERM, handler)
-t0 = time.time()
-print(f"[t3] Attempting TCP connect to {TARGET_HOST}:{TARGET_PORT}", flush=True)
-
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.settimeout(None)  # Blocking — will enter D-state under DROP policy
-try:
-    s.connect((TARGET_HOST, TARGET_PORT))   # D-state here under DROP
-    print(f"[t3] Connected (unexpected) at t={time.time()-t0:.1f}s", flush=True)
-except OSError as e:
-    print(f"[t3] Exception after t={time.time()-t0:.1f}s: {e}", flush=True)
-finally:
-    s.close()</code></pre>
-
-<p><strong>Measurement protocol:</strong></p>
-<ol>
-  <li>Submit to betelgeuse. Observe "Attempting TCP connect" in log.</li>
-  <li>Wait 10&nbsp;s; issue <code>scancel &lt;jobid&gt;</code>.</li>
-  <li>Expected under DROP policy: process does NOT exit; enters D-state; drains after ~60&nbsp;s.</li>
-  <li>Observe actual TCP timeout: if process eventually exits on its own, record the time. This is the kernel's TCP retransmit backoff ceiling.</li>
-</ol>
-
-<p><strong>Counter-test (REJECT policy):</strong> If admin can temporarily change
-egress policy from DROP to REJECT for betelgeuse, re-run. Expected: connect()
-returns ECONNREFUSED in &lt;1&nbsp;ms; process exits cleanly with no D-state.
-This is the quantitative argument for the admin recommendation.</p>
-
-<p><strong>Mitigation validation:</strong> Re-run with <code>socket.settimeout(5.0)</code>
-(5-second timeout). With DROP policy: connect() blocks for 5&nbsp;s then raises
-socket.timeout. Process in S-state (interruptible sleep via select()), so
-SIGTERM can deliver during the timeout wait. Process exits cleanly. This is the
-application-level defense: all network operations should have explicit timeouts.</p>
-
-<p><strong>Node drain risk: MEDIUM-HIGH</strong> (sub-test with settimeout=None).
-With settimeout: LOW. Run with-settimeout first.</p>
-
-<h3 id="t4">T4 — cuInit Cgroup Contention (Event 0 repro)</h3>
-
-<p><strong>Purpose:</strong> Reproduce the <code>cuInit() rc=3</code> failure
-mode under concurrent Group A + Group B CUDA initialisation on the same node.
-Requires coordination with Group B.</p>
-
-<p><strong>Mechanism tested:</strong> M5</p>
-
-<p><strong>Script design (do not run — design only):</strong></p>
-<pre><code>#!/usr/bin/env python3
-# t4_cuinit_concurrent.py — DESIGN ONLY, DO NOT SUBMIT
-# Requires simultaneous submission from Group A AND Group B accounts
-# Both jobs use the SAME physical GPUs (shared via MPS or directly)
-import ctypes, time, sys
-
-LIBCUDA = ctypes.CDLL("libcuda.so.1")
-LIBCUDA.cuInit.argtypes = [ctypes.c_uint]
-LIBCUDA.cuInit.restype = ctypes.c_int
-
-print(f"[t4] Calling cuInit(0)...", flush=True)
-rc = LIBCUDA.cuInit(0)
-print(f"[t4] cuInit returned {rc} ({'OK' if rc == 0 else 'ERROR'})", flush=True)
-
-if rc == 3:
-    print("[t4] CUDA_ERROR_NOT_INITIALIZED confirmed — Event 0 reproduced", flush=True)
-    sys.exit(1)
-else:
-    print(f"[t4] No contention detected (may need tighter timing)", flush=True)
-    time.sleep(10)  # Keep GPU allocated to create contention window for peer job</code></pre>
-
-<p><strong>Measurement protocol:</strong></p>
-<ol>
-  <li>Coordinate with Group B admin to submit a concurrent GPU job on the same node</li>
-  <li>Submit this script simultaneously from Group A account</li>
-  <li>Vary the timing: submit Group B first, then Group A 1&nbsp;s later; 5&nbsp;s later; simultaneously</li>
-  <li>Record any <code>cuInit() rc=3</code> occurrences and their timing relative to Group B job start</li>
-  <li>If reproduced: capture <code>/proc/driver/nvidia/gpus/*/information</code> and <code>dmesg</code> from both sides for NVIDIA bug report</li>
-</ol>
-
-<p><strong>Alternative hypothesis:</strong> If cuInit contention is NOT
-reproducible with two normal jobs, the Event 0 trigger may have been
-specifically related to <code>nvidia-smi --gpu-reset</code> or module reload
-coinciding with Group B initialisation. Test variant: submit Group A cuInit
-test while admin simultaneously runs <code>nvidia-smi --gpu-reset</code>.</p>
-
-<p><strong>Node drain risk: LOW</strong> (this test does not create D-state;
-cuInit failure is fast-returning). However, requires admin coordination and
-Group B cooperation.</p>
-
-<h3 id="t5">T5 — SLURM --time= as Delayed Scancel</h3>
-
-<p><strong>Purpose:</strong> Prove that <code>#SBATCH --time=N</code> without
-the three-layer defence produces a drain, and that the three-layer defence
-prevents it.</p>
-
-<p><strong>Mechanism tested:</strong> M1 + M2 (via time-limit SIGTERM path)</p>
-
-<p><strong>Script design (do not run — design only):</strong></p>
-<pre><code>#!/usr/bin/env bash
-# t5_time_limit_test.sbatch — DESIGN ONLY, DO NOT SUBMIT
-# Sub-test A: no three-layer defence — expect drain at time limit
-# Sub-test B: with three-layer defence — expect clean exit
-
-#SBATCH --partition=betelgeuse
-#SBATCH --reservation=gpu_0003_grpA
-#SBATCH --account=grpa
-#SBATCH --gres=gpu:2
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH --time=00:03:00              # 3-minute ceiling (short for testing)
-# SUB-TEST B ONLY: #SBATCH --signal=B:USR1@60  # warn 60s before limit
-
-export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p "$TMPDIR"
-
-# SUB-TEST B ONLY: setup three-layer defence
-# mkdir -p /work/projects/imas_gpu/stops
-# export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
-# rm -f "${AMBIX_STOP_FILE}"
-# _on_sigusr1() { echo "[sbatch] USR1 → touching STOP-FILE"; touch "${AMBIX_STOP_FILE}"; }
-# trap _on_sigusr1 USR1
-# export AMBIX_SOFT_TIME_LIMIT=120   # 2 min soft limit for 3-min ceiling
-
-torchrun --nproc_per_node=2 t2_nccl_signal_test.py  # Reuse T2 worker
-# T2 worker loops forever (with all_reduce each iteration)</code></pre>
-
-<p><strong>Measurement protocol:</strong></p>
-<ol>
-  <li>Sub-test A: submit with --time=00:03:00, no three-layer defence, T2 worker running
-  infinite NCCL loop. At t=3min: SLURM sends SIGTERM → expect drain.</li>
-  <li>Sub-test B: same but with three-layer defence enabled. At t=2min (soft limit):
-  STOP-FILE touched by SIGTERM handler or soft limit → T2 worker exits cleanly.
-  No drain.</li>
-</ol>
-
-<p><strong>Node drain risk for sub-test A: HIGH.</strong> Sub-test B: LOW.
-Run B before A. Schedule both with admin coordination.</p>
-
-<h3 id="t6">T6 — Rank-0 Crash Deadlock (near-miss repro)</h3>
-
-<p><strong>Purpose:</strong> Characterise torchrun's recovery behaviour when
-rank-0 crashes inside <code>dist.destroy_process_group()</code> and other ranks
-are stuck in a collective. Determine: does the rank-0 deadlock guard prevent
-the hang? What is torchrun's watchdog timeout?</p>
-
-<p><strong>Mechanism tested:</strong> M2 (via deadlocked dist.destroy)</p>
-
-<p><strong>Script design (do not run — design only):</strong></p>
-<pre><code>#!/usr/bin/env python3
-# t6_rank0_deadlock.py — DESIGN ONLY, DO NOT SUBMIT
-# torchrun --nproc_per_node=2 t6_rank0_deadlock.py
-import torch, torch.distributed as dist, os, time, sys
-
-dist.init_process_group("nccl")
-rank = dist.get_rank()
-device = torch.device(f"cuda:{rank}")
-
-# Run a few normal steps
-for step in range(3):
-    x = torch.ones(128, 128, device=device)
-    dist.all_reduce(x)
-    if rank == 0:
-        print(f"[t6 rank0] step {step}", flush=True)
-
-# Now simulate rank-0 crash scenario:
-# Sub-test A (no guard): rank-0 raises in finally block → deadlock
-# Sub-test B (with guard): rank-0 broadcasts failure flag → ranks unblock
-
-GUARD_ENABLED = bool(int(os.environ.get("T6_GUARD", "1")))
-
-if rank == 0:
-    try:
-        raise ValueError("t6: simulated rank-0 crash in checkpoint save")
-    except ValueError as e:
-        print(f"[t6 rank0] Crash: {e}", flush=True)
-        if GUARD_ENABLED:
-            # Broadcast failure flag so rank-1 knows to unblock
-            fail_tensor = torch.tensor([1], device=device)
-            dist.broadcast(fail_tensor, src=0)
-            print("[t6 rank0] Broadcasted failure flag → ranks will unblock", flush=True)
-        # Now enter destroy (this is what deadlocked in the near-miss)
-        print("[t6 rank0] Calling dist.destroy_process_group()", flush=True)
-        t_destroy = time.time()
-        dist.destroy_process_group()
-        print(f"[t6 rank0] destroy_process_group() returned in {time.time()-t_destroy:.1f}s", flush=True)
-else:
-    if GUARD_ENABLED:
-        fail_tensor = torch.tensor([0], device=device)
-        dist.broadcast(fail_tensor, src=0)
-        if fail_tensor.item() == 1:
-            print(f"[t6 rank{rank}] Failure flag received — unblocking", flush=True)
-            dist.destroy_process_group()
-            sys.exit(1)
-    else:
-        # Sub-test A: rank-1 stuck waiting for rank-0 in broadcast it never calls
-        print(f"[t6 rank{rank}] Waiting in broadcast (will deadlock)...", flush=True)
-        x = torch.zeros(1, device=device)
-        dist.broadcast(x, src=0)  # rank-0 never calls this → rank-1 hangs</code></pre>
-
-<p><strong>Measurement protocol:</strong></p>
-<ol>
-  <li>Sub-test A (<code>T6_GUARD=0</code>): rank-0 crashes, rank-1 hangs in broadcast.
-  Measure: how long before torchrun's watchdog reaps rank-1?
-  (Near-miss: 4m22s. Confirm this is consistent.)</li>
-  <li>Sub-test B (<code>T6_GUARD=1</code>, default): rank-0 broadcasts failure
-  flag before crash. Rank-1 receives flag and exits cleanly. Measure: total
-  wall-clock time from crash to both ranks exited.</li>
-  <li>In both cases: confirm no drain (neither sub-test enters indefinite D-state;
-  torchrun watchdog eventually reaps).</li>
-</ol>
-
-<p><strong>Node drain risk: LOW-MEDIUM.</strong> Sub-test A may hang for ~4+min
-but torchrun should eventually reap. The risk is if torchrun's watchdog fails
-to reap and the job hits its time limit (see T5). Use a short --time (10&nbsp;min)
-with the three-layer defence for safety. Sub-test B: MINIMAL.</p>
-
-
+<h2 id="test-plans">§6 — Test execution plan</h2>
+
+<p>Four tests implemented in <code>scripts/tests/</code>. T1 and T2 are safe to
+run today. T3 and T4 trigger a real drain and require coordination. Two additional
+designs (T5, T6) remain as blueprints for future runs.</p>
+
+<div class="table-scroll"><table class="t">
+<thead>
+<tr>
+  <th>Test</th>
+  <th>Script</th>
+  <th>Mechanism</th>
+  <th>Drain risk</th>
+  <th>GPU reset needed?</th>
+  <th>Admin needed?</th>
+  <th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><a href="#t1">T1 — STOP-FILE validation</a></td>
+  <td><code>t1_stopfile.sbatch</code></td>
+  <td>Validates fix (M1+M2)</td>
+  <td><span class="status shipped"><span class="dot"></span>NONE</span></td>
+  <td>No</td>
+  <td>No</td>
+  <td><strong>Run now</strong></td>
+</tr>
+<tr>
+  <td><a href="#t2">T2 — SIGTERM delay proof</a></td>
+  <td><code>t2_sigterm_delay.sbatch</code></td>
+  <td>Proves M1 (handler can't fire mid-CUDA)</td>
+  <td><span class="status shipped"><span class="dot"></span>NONE</span></td>
+  <td>No</td>
+  <td>No</td>
+  <td><strong>Run now</strong></td>
+</tr>
+<tr>
+  <td><a href="#t3">T3 — Network hang</a></td>
+  <td><code>t3_network_hang.sbatch</code></td>
+  <td>Reproduces M4 (Event 2)</td>
+  <td><span class="status active"><span class="dot"></span>DRAIN — fast recovery</span></td>
+  <td>No (no CUDA context)</td>
+  <td>Yes — resume only</td>
+  <td>Schedule with admin</td>
+</tr>
+<tr>
+  <td><a href="#t4">T4 — NCCL scancel</a></td>
+  <td><code>t4_nccl_scancel.sbatch</code></td>
+  <td>Reproduces M1+M2 (Events 1, 3)</td>
+  <td><span class="status blocked"><span class="dot"></span>DRAIN — GPU reset required</span></td>
+  <td>Yes</td>
+  <td>Yes — present</td>
+  <td>Admin present required</td>
+</tr>
+<tr>
+  <td><a href="#t5">T5 — --time= as delayed scancel</a></td>
+  <td><em>design only</em></td>
+  <td>Proves time-limit = scancel equivalent</td>
+  <td><span class="status blocked"><span class="dot"></span>DRAIN</span></td>
+  <td>Yes</td>
+  <td>Yes</td>
+  <td>Blueprint only</td>
+</tr>
+<tr>
+  <td><a href="#t6">T6 — Rank-0 crash deadlock</a></td>
+  <td><em>design only</em></td>
+  <td>Measures torchrun watchdog timeout</td>
+  <td><span class="status active"><span class="dot"></span>LOW-MEDIUM</span></td>
+  <td>No</td>
+  <td>No</td>
+  <td>Blueprint only</td>
+</tr>
+</tbody>
+</table></div>
+
+<h3 id="t1">T1 — STOP-FILE validation (SAFE)</h3>
+
+<p><strong>Script:</strong> <code>scripts/tests/t1_stopfile.sbatch</code> +
+<code>scripts/tests/t1_stopfile_test.py</code><br>
+<strong>Mechanism:</strong> M1+M2 fix validation<br>
+<strong>Drain risk: NONE</strong> — clean exit is the pass criterion</p>
+
+<p><strong>What it does:</strong> Starts a multi-rank DDP loop with real NCCL
+<code>all_reduce</code> collectives. Waits for user to touch the STOP-FILE.
+Measures time from touch to all ranks exiting at a step boundary. Passes if all
+ranks exit with code 0 within 5&nbsp;s of the file being created — proving the
+STOP-FILE mechanism works as intended without ever involving a signal.</p>
+
+<p><strong>How to run:</strong></p>
+<pre><code>sbatch scripts/tests/t1_stopfile.sbatch
+# Wait for "Ready. Touch stop-file to test:" in log, then:
+touch /work/projects/imas_gpu/stops/${JOBID}.stop</code></pre>
+
+<p><strong>Pass:</strong> all ranks print "STOP-FILE detected → clean exit", job
+exits 0, no drain.<br>
+<strong>Fail:</strong> ranks hang past 60&nbsp;s after touch, or job non-zero,
+or drain.</p>
+
+<h3 id="t2">T2 — SIGTERM delay proof (SAFE)</h3>
+
+<p><strong>Script:</strong> <code>scripts/tests/t2_sigterm_delay.sbatch</code> +
+<code>scripts/tests/t2_sigterm_delay_test.py</code><br>
+<strong>Mechanism:</strong> M1 (Python signal handler blocked by C++)<br>
+<strong>Drain risk: NONE</strong> — process handles SIGTERM cleanly at a safe boundary</p>
+
+<p><strong>What it does:</strong> Runs a training loop with a calibrated
+CUDA sleep (e.g. <code>torch.cuda._sleep(N)</code> where N is set to produce a
+200&nbsp;ms "busy" window). Sends itself SIGTERM mid-sleep. Measures the delay
+between signal delivery and handler execution. Shows concretely that Python signal
+handlers are delayed by the length of the C extension call — the fundamental M1
+mechanism.</p>
+
+<p><strong>Why safe:</strong> the script sends its own SIGTERM (not via scancel)
+and the SIGTERM handler is designed to exit cleanly; there's no D-state
+involvement. The UnkillableStepTimeout is never reached.</p>
+
+<p><strong>How to run:</strong></p>
+<pre><code>sbatch scripts/tests/t2_sigterm_delay.sbatch</code></pre>
+
+<p><strong>Pass:</strong> log shows measured delay between signal and handler
+(expected 0–200&nbsp;ms depending on where in the CUDA sleep the signal arrived).
+Job exits 0.<br>
+<strong>Fail:</strong> handler delay exceeds 5&nbsp;s (unexpected; suggests
+misconfiguration), or job drains.</p>
+
+<h3 id="t3">T3 — Network hang (DRAIN TRIGGER — admin on standby)</h3>
+
+<p><strong>Script:</strong> <code>scripts/tests/t3_network_hang.sbatch</code><br>
+<strong>Mechanism:</strong> M4 (network I/O D-state)<br>
+<strong>Drain risk: YES — but fastest recovery (no GPU context created)</strong></p>
+
+<p><strong>Pre-conditions:</strong> (a) admin on standby reachable by message,
+(b) no Group B jobs running, (c) no production jobs pending for &gt;30&nbsp;min.</p>
+
+<p><strong>What it does:</strong> Connects to a known-blocked endpoint
+(<code>8.8.8.8:443</code>) with no socket timeout. SLURM cancels the job after
+<code>--time=00:02:00</code>; the process is in TCP-wait D-state; drain occurs.
+No GPU context is ever created, so no GPU reset is required — resume alone is
+sufficient.</p>
+
+<p><strong>Recovery steps (admin):</strong></p>
+<pre><code># 1. Verify: no lingering CUDA processes
+ssh 98dci4-gpu-0003 "nvidia-smi | grep MiB; ps aux | grep python | grep -v grep"
+# 2. Resume (no GPU reset needed for network-only D-state):
+scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
+# Expected total downtime: &lt; 5 min</code></pre>
+
+<p><strong>Also run counter-test:</strong> re-run with
+<code>socket.settimeout(5.0)</code> to show that application-level timeouts
+prevent D-state entirely. Pass: job exits with socket.timeout exception, no drain.</p>
+
+<h3 id="t4">T4 — NCCL scancel (DRAIN TRIGGER — admin present)</h3>
+
+<p><strong>Script:</strong> <code>scripts/tests/t4_nccl_scancel.sbatch</code> +
+<code>scripts/tests/t4_nccl_scancel_test.py</code><br>
+<strong>Mechanism:</strong> M1+M2 (SIGTERM during NCCL collective → D-state)<br>
+<strong>Drain risk: YES — GPU reset required before resume</strong></p>
+
+<p><strong>Pre-conditions:</strong> admin on-site or reachable within 5&nbsp;min,
+no Group B jobs, no production jobs, explicit user authorisation.</p>
+
+<p><strong>What it does:</strong> Starts a 2-rank DDP loop with 5&nbsp;s sleeps
+inside <code>dist.all_reduce</code> (using <code>torch.cuda._sleep</code> to
+hold the kernel). During the sleep, user issues <code>scancel &lt;jobid&gt;</code>.
+SIGTERM handler prints its firing time (if it fires at all). Expected: handler
+fires only after the collective completes; D-state observed; drain occurs
+~60&nbsp;s after scancel.</p>
+
+<p><strong>Recovery steps (admin):</strong></p>
+<pre><code># 1. Check for orphaned CUDA processes:
+ssh 98dci4-gpu-0003 "nvidia-smi; ps -eo pid,stat,cmd | grep -E 'python|torch'"
+# 2. GPU reset for each affected GPU:
+nvidia-smi --gpu-reset -i 0 -i 1  # (adjust GPU indices)
+# 3. Resume:
+scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
+# Expected total downtime: 15–30 min</code></pre>
+
+<p><strong>Measurement:</strong> Record (a) delay from <code>scancel</code> to
+drain (confirms UnkillableStepTimeout value), (b) whether SIGTERM handler printed
+during the collective (expected: no, only after), (c) exact
+<code>/proc/&lt;pid&gt;/wchan</code> at drain time.</p>
+
+<h3 id="t5">T5 — SLURM --time= as delayed scancel (design only)</h3>
+
+<p><em>Same mechanism as T4 but triggered by time-limit expiry rather than manual
+scancel. Proves that <code>#SBATCH --time=N</code> without three-layer defence is
+a scheduled drain. Only needed if SDCC admins require a concrete demonstration for
+the UnkillableStepTimeout change request. Run after T4 is confirmed.</em></p>
+
+<h3 id="t6">T6 — Rank-0 crash deadlock (design only)</h3>
+
+<p><em>Measures torchrun's elastic watchdog timeout when rank-0 crashes inside
+<code>dist.destroy_process_group()</code> and other ranks are stuck in a
+collective. Drain risk is LOW-MEDIUM (torchrun usually reaps within ~4–5&nbsp;min).
+Run on a short-<code>--time</code> job with three-layer defence so the time-limit
+fires the SIGUSR1 trap as backstop if torchrun fails to reap. No admin coordination
+required; just accept up to 5&nbsp;min of job time.</em></p>
 <!-- ═══════════════════════════════════════════════════════════════════
      §7. ADMIN RECOMMENDATIONS
      ═══════════════════════════════════════════════════════════════════ -->
