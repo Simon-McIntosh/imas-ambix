@@ -12,23 +12,38 @@ needs and magnetics lack:
     * MSE (ams)      → internal current / q  (the FF′ term)
     * Thomson (TS)   → kinetic pressure p(ψ) (the p′ term)
 
-A LOAD-BEARING CORPUS FINDING (T10, verified across 25/25 co-available shots)
+A CORPUS FINDING — CORRECTED IN S9 (2026-06-01); the T10 claim held only for
+beam-OFF shots
 -----------------------------------------------------------------------------
-The level-1 ``ams`` group does NOT carry a time-resolved MSE pitch-angle /
-internal-current signal.  Its only payload, ``acoeff``, has the array attr
-``shape = [1, 6, N]`` with ``time_index = 0`` — i.e. a SIZE-1 time dimension:
-it is the static per-shot **a-coefficient geometry table** (6 MSE viewing
-channels × N a-coefficients linking polarisation angle γ to B), NOT γ(t).  No
-γ/pitch/polarisation time series exists in ``ams`` or any sibling group (grep
-across all shot groups returns only this static table + an unrelated Thomson
-geometry ``angle`` + the saddle-coil ``asm`` mode detector).  The actual
-internal-current constraint MSE would provide is therefore **unrealizable from
-this corpus** — T9's co-availability scoping counted ``ams`` *present* (true)
-but the content is geometry, not a current measurement.
+T10 (Stage-2) reported that the level-1 ``ams`` group carries ONLY a static
+a-coefficient geometry table (``acoeff`` with declared attr ``shape=[1,6,N]``,
+``time_index=0``) and NO time-resolved MSE signal — and concluded the
+MSE→internal-current channel is unrealizable from this corpus.  **That was a
+beam-OFF artefact.**  S9 re-probing (2026-06-01) shows the field set is
+beam-state-dependent:
 
-Consequence (surfaced honestly, not silently absorbed): the locked
-``internal-core`` set is **half-unrealizable** from level-1.  This module wires
-the half that IS realizable — Thomson pressure ``pe(t, R)`` — as a compact,
+  * ``beam_ok == 0`` shots carry only the static geometry/calibration table
+    (acoeff, vx0/vy0 fibre coords, rpos/cosbeam/cwl/offset constants) — what
+    T10 saw.
+  * ``beam_ok == 1`` shots (≈69 % of the 4882 ``ams`` shots) ADDITIONALLY
+    carry the full MSE measurement on a real ~2 kHz ``time`` axis:
+    ``gamma``/``gamma_error`` (polarisation angle γ(t)), ``pitcha``/
+    ``pitcha_error`` (magnetic pitch angle, ∈[-π/2,π/2]), the Stokes vector
+    ``s0..s3``, ``cpf``/``lpf`` polarisation fractions, and the derived
+    on-axis observables ``q0_kappa1.85_{2pt,4pt}`` and ``rax_{2pt,4pt}``
+    (+ errors).  ~60 % of slices per beam-on shot carry ≥1 live channel.
+
+These derived observables are products of the **MSE analysis pipeline** (2-/4-
+point fits, fixed κ=1.85), NOT EFIT — so they are a legitimate held-out raw
+diagnostic, and they are the eval truth of the S9 plan
+(``mse-free-current-recovery-v0``: train MSE-free, validate against held-out
+beam-on MSE).  Note ``q0``/``rax`` are noisy (≈37 % physical-gate survival;
+``pitcha`` is the cleaner primary truth).  The MSE-as-dense-INPUT conclusion
+still stands (too sparse to feed the engine), which is why MSE remains
+eval-only; this module's Thomson-pressure wiring below is unaffected.
+
+Consequence for THIS module (Thomson-pressure input): unchanged.  It wires the
+realizable internal-pressure channel — Thomson ``pe(t, R)`` — as a compact,
 gridding-invariant per-measurement-time feature vector, held at the native
 ~5 ms Thomson cadence (forward-filled onto the 1 kHz engine grid between
 measurements, NEVER interpolated as if dense), weighted per shot by profile
@@ -414,12 +429,14 @@ def build_integrated_split(
         f"{restrict_gs_envelope}; LOCKED v0 OOD box (joint_p84, by-current-density)."
     )
     sp.notes.append(
-        "T10 CORPUS FINDING: ams (MSE) in level-1 is the STATIC a-coefficient "
-        "geometry table (acoeff shape [1,6,N], size-1 time dim) — NOT a "
-        "time-resolved internal-current signal. The MSE→current/q half of "
-        "internal-core is UNREALIZABLE from this corpus; only the Thomson→p′ "
-        "half is wired (pressure-only internal grounding). See "
-        "statespace/integrated_inputs.py docstring + the T10 verdict."
+        "CORPUS FINDING (T10, CORRECTED in S9 2026-06-01): the 'ams is static-"
+        "geometry-only' claim held only for beam-OFF shots. beam_ok==1 shots "
+        "(~69% of ams) carry the full MSE measurement (gamma/pitcha/Stokes + "
+        "derived q0_kappa1.85/rax) on a ~2 kHz time axis. MSE is still too "
+        "sparse to be a dense INPUT (eval-only), so this Thomson-pressure "
+        "wiring is unaffected; but the MSE→current channel IS realizable as "
+        "the S9 held-out eval truth. See statespace/integrated_inputs.py "
+        "docstring + mse-free-current-recovery-v0."
     )
     if output is None:
         output = Path("/work/projects/imas_gpu/mast/manifests") / (
