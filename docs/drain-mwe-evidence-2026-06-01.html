@@ -66,8 +66,8 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
     </section>
 
     <section id="history">
-      <h2>Evidence: 4 Historical Drain Events</h2>
-      <p>The table below captures the four motivating drain events that informed the MWE suite. They are presented as a compact evidence matrix, not as a cluster-specific incident log. Mechanistic ambiguity in Event 0 does not change the operational result: the account-level attribution stayed within one SLURM tenancy, and no second tenant was implicated.</p>
+      <h2>Evidence: 5 Historical Drain Events</h2>
+      <p>The table below captures the five motivating drain events that informed the MWE suite. They are presented as a compact evidence matrix, not as a cluster-specific incident log. Mechanistic ambiguity in Event 0 does not change the operational result: the account-level attribution stayed within one SLURM tenancy, and no second tenant was implicated.</p>
       <div class="table-scroll">
         <table class="t">
           <thead>
@@ -103,18 +103,44 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
               <td>Agent issued <code>scancel</code> on a healthy DDP training job mid-<code>loss.backward()</code> → NCCL grad all-reduce <code>cudaStreamSynchronize</code> → D-state</td>
               <td>GPU reset + 30 min</td>
             </tr>
+            <tr>
+              <td>4</td>
+              <td>2026-06-01</td>
+              <td>MWE-01 collective mismatch — rank-0-only <code>all_reduce</code>, other ranks skipped → NCCL D-state</td>
+              <td>GPU reset + <code>scontrol resume</code></td>
+            </tr>
           </tbody>
         </table>
       </div>
-      <p>Account attribution note: the source incident set ultimately traced all four events to the same SLURM account, with zero evidence of cross-tenant involvement. The phrase “Zero Group B involvement” from the original forensic notes is best read generically as “no second account or reservation was implicated.”</p>
+      <p>Account attribution note: the source incident set ultimately traced all five events to the same SLURM account, with zero evidence of cross-tenant involvement. The phrase “Zero Group B involvement” from the original forensic notes is best read generically as “no second account or reservation was implicated.”</p>
       <section>
-        <h3>What these four events prove</h3>
+        <h3>What these five events prove</h3>
         <ul>
           <li>Drain is not unique to distributed training; it can also arise from filesystem and network waits.</li>
           <li>Drain is not unique to wedged jobs; a healthy job can be turned into a drain event if the kill lands in the wrong kernel path.</li>
           <li>GPU reset is sometimes necessary but not always; it depends on whether orphaned CUDA contexts survive the failed kill.</li>
           <li>Ambiguous low-level cause does not prevent actionable mitigation; operators can still design safer cancellation and recovery policy.</li>
+          <li>A collective mismatch is itself enough to create the same unkillable NCCL wait pattern previously associated with backward passes.</li>
         </ul>
+      </section>
+
+      <section id="key-findings">
+        <h3>Key Findings</h3>
+        <h4>Three confirmed D-state triggers</h4>
+        <ol>
+          <li>DDP <code>loss.backward()</code> → NCCL grad all-reduce → <code>cudaStreamSynchronize</code> (Event 3).</li>
+          <li>GPFS DataLoader I/O → <code>queue.get()</code> on dead producer (Event 1).</li>
+          <li>NCCL collective mismatch → waiting for absent peers (Event 4 — newly discovered).</li>
+        </ol>
+        <p>These three triggers are operationally distinct, but scheduler-identical: once the process is trapped in an uninterruptible NCCL or I/O wait, SLURM escalates from <code>SIGTERM</code> to <code>SIGKILL</code>, fails to reap the task, and drains the node.</p>
+      </section>
+
+      <section id="event-4">
+        <h3>Drain Event 4: Accidental Drain from MWE-01 Collective Mismatch</h3>
+        <p>The newest drain event occurred during job <code>1209813</code> on 2026-06-01, when the original MWE-01 implementation contained a collective mismatch bug. The signal-measurement <code>dist.all_reduce</code> was placed inside <code>if rank == 0:</code>, so only rank 0 entered the collective while ranks 1–3 skipped it. That mismatch created the same NCCL wait pattern as other confirmed drain mechanisms: one rank blocked waiting for peers that never arrived, the blocked task fell into D-state, and SLURM ultimately reported <code>Kill task failed</code> while the node state showed <code>draining Kill task failed</code>.</p>
+        <p>The recorded measurements before the drain are still valuable. Across rounds 0–19, <code>blind_window_ms</code> averaged <strong>999.03 ms</strong> with a maximum of <strong>999.31 ms</strong>, confirming that <code>SIGTERM</code> was not delivered while the rank remained inside the NCCL collective. The <code>collective_ms</code> series also exposed the bug: round 0 took <strong>156,719 ms</strong> for NCCL initialisation, and the mean of <strong>8,786.07 ms</strong> was grossly above the expected NVLink-scale latency because the mismatch stretched subsequent rounds to roughly 1,000 ms each.</p>
+        <p>The recovery matched the established CUDA-side drain path. GPU cleanup required <code>nvidia-smi -i 0,1,2,3 --gpu-reset</code>, followed by <code>scontrol update nodename=98dci4-gpu-0003 state=resume reason=""</code>. The script has since been corrected in commit <code>928ed0d</code>: all ranks now participate in the measurement collective, the timer thread starts before the shared collective, and only rank 0 records the blind-window metric.</p>
+        <p>The new insight is important enough to elevate into the main mechanism summary: a NCCL collective mismatch is an independent drain trigger. It does not require <code>loss.backward()</code>, filesystem stalls, or network hangs. If one or more ranks skip a collective that their peers enter, the remaining ranks can block in an unkillable wait and produce the exact same scheduler-visible failure chain.</p>
       </section>
     </section>
 
@@ -123,8 +149,8 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
       <p>The MWE suite is designed as a ladder. Each script answers a narrower question than a full production replay, while reducing confounders. The suite should be run in order, stopping as soon as the evidence threshold for the operator's question has been met.</p>
 
       <article id="mwe-01">
-        <h3>MWE-01: <code>mwe-01-sigterm-delay.py</code> — SIGTERM blind window measurement (SAFE)</h3>
-        <p><span class="badge badge-pass">SAFE</span> This script measures how long a signal can remain pending while ranks sit inside a collective. It uses four DDP ranks, the NCCL backend, and four GPUs.</p>
+        <h3>MWE-01: <code>mwe-01-sigterm-delay.py</code> — SIGTERM blind window measurement (UPDATED AFTER EVENT 4)</h3>
+        <p><span class="badge badge-warn">UPDATED AFTER EVENT 4</span> This script measures how long a signal can remain pending while ranks sit inside a collective. It uses four DDP ranks, the NCCL backend, and four GPUs.</p>
         <ul>
           <li>Runs 20 rounds of <code>dist.all_reduce</code> on a 256 MB buffer.</li>
           <li>Rank 0 sends <code>SIGTERM</code> to itself mid-collective via a 1 ms delayed thread.</li>
@@ -133,6 +159,7 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
           <li>Self-terminating; no <code>scancel</code> is required.</li>
         </ul>
         <p>Interpretation: a short blind window does not imply a node-drain risk by itself. It only shows that handlers are deferred until the process returns to Python-managed execution. The measurement is useful because it establishes a lower bound on signal latency without invoking admin recovery.</p>
+        <p><strong>2026-06-01 correction:</strong> the original implementation accidentally placed the measurement collective inside <code>if rank == 0:</code>, which created Event 4. Commit <code>928ed0d</code> fixes that bug by making the measurement collective shared across all ranks while keeping the blind-window calculation on rank 0 only.</p>
       </article>
 
       <article id="mwe-02">
@@ -191,7 +218,7 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
 
       <section>
         <h3>Why the suite is ordered this way</h3>
-        <p>MWE-01 measures handler deferral without drain risk. MWE-02 validates the mitigation path. MWE-03 tests whether non-GPU D-state is possible on the target cluster. MWE-04 establishes the negative control. MWE-05 is the only script that should be capable of directly reproducing the historical backward-path drain mechanism.</p>
+        <p>The corrected MWE-01 measures handler deferral without drain risk. MWE-02 validates the mitigation path. MWE-03 tests whether non-GPU D-state is possible on the target cluster. MWE-04 establishes the negative control. MWE-05 is the only script that should be capable of directly reproducing the historical backward-path drain mechanism.</p>
       </section>
     </section>
 
@@ -213,19 +240,19 @@ D-state (TASK_UNINTERRUPTIBLE) enters kernel when:
           <tbody>
             <tr>
               <td>MWE-01</td>
-              <td>1209804</td>
-              <td><span class="badge">PENDING</span></td>
-              <td>—</td>
-              <td>No</td>
-              <td>SIGTERM blind window measurement</td>
+              <td>1209813</td>
+              <td><span class="badge badge-fail">DRAIN</span></td>
+              <td>999 ms (confirmed)</td>
+              <td>Yes (bug)</td>
+              <td>Collective mismatch bug caused drain; fixed in <code>928ed0d</code></td>
             </tr>
             <tr>
               <td>MWE-02</td>
-              <td>1209805</td>
-              <td><span class="badge">PENDING</span></td>
+              <td>1209814</td>
+              <td><span class="badge badge-warn">INCONCLUSIVE</span></td>
               <td>—</td>
-              <td>No</td>
-              <td>Stop-file clean exit</td>
+              <td>Node drained mid-run</td>
+              <td>Auto-stop-file appeared, but no CLEAN EXIT line before drain</td>
             </tr>
             <tr>
               <td>MWE-03</td>
@@ -299,7 +326,7 @@ scancel &lt;jobid&gt;</code></pre>
       <p>The evidence set supports three high-confidence conclusions. First, node drain is fundamentally a kernel-state problem, not a generic “GPU job failed” problem. Second, the highest-value negative control is a simple NCCL loop, because it demonstrates that not every collective path is dangerous. Third, the safest application-side mitigation is a stop-file or equivalent cooperative cancellation mechanism checked at known clean boundaries.</p>
       <p>The five-script suite is intentionally small enough that an operator can rerun it after scheduler upgrades, driver updates, or fabric changes. That makes the document useful as a standing regression harness, not merely as a retrospective report.</p>
       <ul>
-        <li>Use MWE-01 to quantify signal deferral without risk.</li>
+        <li>Use the corrected MWE-01 to quantify signal deferral without risk.</li>
         <li>Use MWE-02 to validate safe cancellation in your environment.</li>
         <li>Use MWE-03 only when firewall semantics are in question.</li>
         <li>Use MWE-04 as the negative control for plain NCCL collectives.</li>
