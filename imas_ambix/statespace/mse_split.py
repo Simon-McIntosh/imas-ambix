@@ -81,8 +81,17 @@ RAX_MIN, RAX_MAX = 0.7, 1.1
 ERR_FRAC = 0.5
 # pitch is physical in [-pi/2, pi/2]; require >= this many finite channels
 PITCH_MIN_FINITE_CH = 4
-# a slice counts as "pitch valid" if at least this many active channels finite
+# a slice counts as "pitch valid" if at least this many active channels pass the
+# physical pitch gate (finite, non-railed, error below threshold)
 PITCH_VALID_MIN_CH = 6
+# PRIMARY pitch physical gate (measured on the 112 held-out shots):
+#   * ~2% of finite pitcha values are pinned at the ±π/2 rails (failed /
+#     saturated MSE fits) — non-physical; a real tokamak pitch never reaches
+#     ±π/2.  Drop |pitch| >= PITCH_RAIL_THRESH.
+#   * raw |pitcha_error| median ~0.13 rad; the reliable subset is ~0.01-0.05
+#     rad.  Drop points whose |pitcha_error| > PITCH_ERR_THRESH.
+PITCH_RAIL_THRESH = 1.5  # rad — drop rail-pinned saturated fits
+PITCH_ERR_THRESH = 0.3  # rad — drop high-uncertainty pitch points
 
 # The LOCKED v0 OOD box (joint_p84, by-current-density) — IDENTICAL across the
 # dalpha and integrated_core v0 split artifacts.  Reused verbatim so the
@@ -310,14 +319,45 @@ def read_ams_shot(shot_zarr_path: Path, grid_hz: int = MODEL_GRID_HZ) -> AmsShot
 # ---------------------------------------------------------------------------
 
 
-def pitch_valid_mask(shot: AmsShot) -> np.ndarray:
-    """(K_t,) bool — slices with enough finite, physical pitch channels.
+def pitch_point_gate(
+    pitch: np.ndarray,
+    pitch_error: np.ndarray | None = None,
+    *,
+    rail_thresh: float = PITCH_RAIL_THRESH,
+    err_thresh: float = PITCH_ERR_THRESH,
+) -> np.ndarray:
+    """(K_t, C) bool — per-point physical validity of the PRIMARY pitch truth.
 
-    A slice is pitch-valid if it has >= ``PITCH_VALID_MIN_CH`` finite channels
-    whose pitch lies in the physical range [-pi/2, pi/2].
+    A pitch point (slice × channel) is valid iff it is:
+      * finite,
+      * NOT rail-pinned: ``|pitch| < rail_thresh`` (default 1.5 rad — failed /
+        saturated ±π/2 MSE fits are non-physical), and
+      * reliable: ``|pitch_error| <= err_thresh`` (default 0.3 rad) when an
+        error array is supplied.  Points with missing/non-finite error pass the
+        error gate (the rail gate still applies).
+
+    This is the SHARED gate used by both the manifest's per-slice
+    :func:`pitch_valid_mask` and the eval harness's PRIMARY pitch scoring, so
+    the truth, the mask, and the metric all see the same cleaned point set.
     """
-    phys = np.isfinite(shot.pitch) & (np.abs(shot.pitch) <= np.pi / 2.0)
-    return phys.sum(axis=1) >= PITCH_VALID_MIN_CH
+    pitch = np.asarray(pitch)
+    gate = np.isfinite(pitch) & (np.abs(pitch) < rail_thresh)
+    if pitch_error is not None:
+        pe = np.asarray(pitch_error)
+        with np.errstate(invalid="ignore"):
+            err_ok = ~np.isfinite(pe) | (np.abs(pe) <= err_thresh)
+        gate = gate & err_ok
+    return gate
+
+
+def pitch_valid_mask(shot: AmsShot) -> np.ndarray:
+    """(K_t,) bool — slices with enough physically-gated pitch channels.
+
+    A slice is pitch-valid if it has >= ``PITCH_VALID_MIN_CH`` channels that
+    pass :func:`pitch_point_gate` (finite, non-railed, error below threshold).
+    """
+    gate = pitch_point_gate(shot.pitch, shot.pitch_error)
+    return gate.sum(axis=1) >= PITCH_VALID_MIN_CH
 
 
 def q0_gated_mask(shot: AmsShot) -> np.ndarray:
@@ -431,6 +471,8 @@ class MseSplit:
                 "rax_max": RAX_MAX,
                 "err_frac": ERR_FRAC,
                 "pitch_valid_min_ch": PITCH_VALID_MIN_CH,
+                "pitch_rail_thresh": PITCH_RAIL_THRESH,
+                "pitch_err_thresh": PITCH_ERR_THRESH,
             },
             "notes": self.notes,
         }
@@ -548,6 +590,7 @@ def build_shot_manifest(shot: AmsShot, partition: str) -> dict:
     pv = pitch_valid_mask(shot)
     q0g = q0_gated_mask(shot)
     raxg = rax_gated_mask(shot)
+    point_gate = pitch_point_gate(shot.pitch, shot.pitch_error)
     return {
         "shot_id": int(shot.shot_id),
         "partition": partition,
@@ -559,6 +602,7 @@ def build_shot_manifest(shot: AmsShot, partition: str) -> dict:
         "q0_gated_mask": [bool(x) for x in q0g],
         "rax_gated_mask": [bool(x) for x in raxg],
         "n_pitch_valid": int(pv.sum()),
+        "n_pitch_points_valid": int(point_gate.sum()),
         "n_q0_gated": int(q0g.sum()),
         "n_rax_gated": int(raxg.sum()),
         "n_secondary_cofinite": int((pv & q0g).sum()),

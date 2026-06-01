@@ -472,8 +472,47 @@ def _flatten_finite(*arrays):
     return [a[mask] for a in arrs], mask
 
 
-def _metric_block(y_true, y_mean, y_std, samples=None) -> dict:
-    (yt, ym, ys), _ = _flatten_finite(y_true, y_mean, y_std)
+def _wmean(values: np.ndarray, weights: np.ndarray | None) -> float:
+    """Weighted mean (plain mean when ``weights`` is None)."""
+    v = np.asarray(values, dtype=np.float64)
+    if v.size == 0:
+        return float("nan")
+    if weights is None:
+        return float(np.mean(v))
+    w = np.asarray(weights, dtype=np.float64)
+    sw = float(np.sum(w))
+    if sw <= 0:
+        return float(np.mean(v))
+    return float(np.sum(w * v) / sw)
+
+
+def _metric_block(y_true, y_mean, y_std, samples=None, weights=None) -> dict:
+    """Per-point metrics, optionally error-WEIGHTED.
+
+    When ``weights`` is supplied (per-point, same shape as the inputs before
+    flattening), RMSE / CRPS / NLL are computed as weighted means so noisy
+    (high-pitcha_error) points count less.  ``weights`` are typically
+    inverse-variance (1 / pitcha_error²), normalised internally.
+
+    COVERAGE (``cov90``) is intentionally left UNWEIGHTED — it is the
+    pre-registered gate metric (acceptance band [0.88, 0.92]) and is registered
+    against the plain empirical fraction-in-interval, not a low-error-biased
+    weighted fraction.  Weighting it would change which calibration property the
+    gate tests.
+    """
+    yt_full = np.asarray(y_true).reshape(-1)
+    ym_full = np.asarray(y_mean).reshape(-1)
+    ys_full = np.asarray(y_std).reshape(-1)
+    finite = np.isfinite(yt_full) & np.isfinite(ym_full) & np.isfinite(ys_full)
+    if weights is not None:
+        wf = np.asarray(weights, dtype=np.float64).reshape(-1)
+        finite &= np.isfinite(wf)
+    yt, ym, ys = yt_full[finite], ym_full[finite], ys_full[finite]
+    w = (
+        np.asarray(weights, dtype=np.float64).reshape(-1)[finite]
+        if weights is not None
+        else None
+    )
     if yt.size == 0:
         return {
             "rmse": float("nan"),
@@ -482,22 +521,56 @@ def _metric_block(y_true, y_mean, y_std, samples=None) -> dict:
             "cov90": float("nan"),
             "n": 0,
         }
-    smp = None
-    if samples is not None:
-        smp = np.asarray(samples).reshape(-1, np.asarray(samples).shape[-1])
-        # align with finite mask is non-trivial for samples; only used for pitch
+    # per-point quantities, then (weighted) mean
+    sq_err = (ym - yt) ** 2
+    crps_pp = _crps_per_point(yt, ym, ys, samples=samples, finite=finite)
+    nll_pp = _nll_per_point(yt, ym, ys)
+    inside = _inside90_per_point(yt, ym, ys)
     return {
-        "rmse": _rmse(yt, ym),
-        "crps": _crps(
-            yt,
-            ym,
-            ys,
-            samples=smp if smp is not None and smp.shape[0] == yt.size else None,
-        ),
-        "nll": cal.nll_gaussian(yt, ym, ys),
-        "cov90": _coverage90(yt, ym, ys),
+        "rmse": float(np.sqrt(_wmean(sq_err, w))),
+        "crps": _wmean(crps_pp, w),
+        "nll": _wmean(nll_pp, w),
+        # cov90 UNWEIGHTED — pre-registered gate metric (see docstring)
+        "cov90": float(np.mean(inside.astype(np.float64))),
         "n": int(yt.size),
     }
+
+
+def _pitch_block(
+    pt_gated: np.ndarray,
+    pm: np.ndarray,
+    ps: np.ndarray,
+    weights: np.ndarray,
+    slice_mask: np.ndarray,
+) -> dict:
+    """Error-weighted pitch metric block restricted to ``slice_mask`` slices."""
+    sm = slice_mask[:, None]
+    return _metric_block(np.where(sm, pt_gated, np.nan), pm, ps, weights=weights)
+
+
+def _crps_per_point(yt, ym, ys, samples=None, finite=None) -> np.ndarray:
+    """Per-point Gaussian CRPS (closed form), shape (n_finite,)."""
+    from scipy.stats import norm  # noqa: PLC0415
+
+    sigma = np.abs(ys)
+    sigma = np.where(sigma > 0, sigma, 1e-12)
+    z = (yt - ym) / sigma
+    return sigma * (
+        z * (2.0 * norm.cdf(z) - 1.0) + 2.0 * norm.pdf(z) - 1.0 / np.sqrt(np.pi)
+    )
+
+
+def _nll_per_point(yt, ym, ys) -> np.ndarray:
+    sigma = np.abs(ys)
+    sigma = np.where(sigma > 0, sigma, 1e-12)
+    return 0.5 * (np.log(2.0 * np.pi * sigma**2) + ((yt - ym) / sigma) ** 2)
+
+
+def _inside90_per_point(yt, ym, ys) -> np.ndarray:
+    from scipy.stats import norm  # noqa: PLC0415
+
+    zc = float(norm.ppf(1.0 - 0.10 / 2.0))
+    return (yt >= ym - zc * ys) & (yt <= ym + zc * ys)
 
 
 # ---------------------------------------------------------------------------
@@ -522,6 +595,8 @@ def score(
          meta:{n_shots, coverage_gate, secondary_cross_check}}
     computed per-shot then aggregated as the MEAN over shots (N reported).
     """
+    from imas_ambix.statespace import mse_split as M  # noqa: PLC0415
+
     if truth is None:
         from imas_ambix.data.paths import LEVEL1_DIR  # noqa: PLC0415
 
@@ -551,24 +626,34 @@ def score(
         q0g = np.asarray(entry["q0_gated_mask"], dtype=bool)
         raxg = np.asarray(entry["rax_gated_mask"], dtype=bool)
 
-        # --- PRIMARY: pitch on pitch-valid slices (per-channel finite) -------
-        pt_truth = tr.pitch  # (K, C)
+        # --- PRIMARY: pitch on the PHYSICALLY-GATED point set ----------------
+        # Apply the SHARED per-point pitch gate (rail + error) so railed /
+        # high-uncertainty truth points are dropped, and error-WEIGHT the
+        # metrics by inverse pitcha_error² so noisy points count less.
+        pt_truth = np.array(tr.pitch, dtype=np.float64)  # (K, C)
         pm = pred.pitch_mean
         ps = pred.pitch_std
-        # restrict to valid slices
-        block_all = _metric_block(pt_truth[pv], pm[pv], ps[pv])
-        # by-window
-        trans = _transient_mask(pt_truth, t) & pv
+        point_gate = M.pitch_point_gate(tr.pitch, tr.pitch_error)  # (K, C) bool
+        # mask gated-out truth points to NaN → dropped by _metric_block
+        pt_gated = np.where(point_gate, pt_truth, np.nan)
+        # inverse-variance weights from per-point pitcha_error (clip tiny errs)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            pe = np.abs(np.asarray(tr.pitch_error, dtype=np.float64))
+            pe = np.where(np.isfinite(pe) & (pe > 1e-3), pe, np.nan)
+            weights = 1.0 / pe**2
+        # points with no usable error get the median weight (count, not drop)
+        med_w = np.nanmedian(weights) if np.isfinite(weights).any() else 1.0
+        weights = np.where(np.isfinite(weights), weights, med_w)
+
+        block_all = _pitch_block(pt_gated, pm, ps, weights, pv)
+        # by-window (transient computed on the gated truth)
+        trans = _transient_mask(pt_gated, t) & pv
         quies = pv & ~trans
         block_q = (
-            _metric_block(pt_truth[quies], pm[quies], ps[quies])
-            if quies.any()
-            else None
+            _pitch_block(pt_gated, pm, ps, weights, quies) if quies.any() else None
         )
         block_tr = (
-            _metric_block(pt_truth[trans], pm[trans], ps[trans])
-            if trans.any()
-            else None
+            _pitch_block(pt_gated, pm, ps, weights, trans) if trans.any() else None
         )
         per_shot_primary.append(block_all)
         per_shot_primary_q.append(block_q)

@@ -128,6 +128,64 @@ def test_inversion_all_nan_when_no_crossing():
 
 
 # ---------------------------------------------------------------------------
+# PRIMARY pitch physical gate (rail + error)
+# ---------------------------------------------------------------------------
+
+
+def test_pitch_point_gate_drops_rails_and_high_error():
+    pitch = np.array([[0.1, 1.6, 0.2, np.nan, 0.3]])  # idx1 railed, idx3 NaN
+    perr = np.array([[0.02, 0.02, 0.5, 0.02, 0.1]])  # idx2 high-error
+    gate = M.pitch_point_gate(pitch, perr)
+    np.testing.assert_array_equal(gate, np.array([[True, False, False, False, True]]))
+
+
+def test_pitch_point_gate_missing_error_passes_error_gate():
+    pitch = np.array([[0.1, 0.2, 1.7]])  # idx2 railed
+    perr = np.array([[np.nan, np.nan, np.nan]])  # no error → error gate passes
+    gate = M.pitch_point_gate(pitch, perr)
+    # rail gate still drops idx2; finite non-railed pass even w/o error
+    np.testing.assert_array_equal(gate, np.array([[True, True, False]]))
+
+
+def test_pitch_point_gate_custom_thresholds():
+    pitch = np.array([[0.9, 1.2]])
+    perr = np.array([[0.4, 0.1]])
+    # default err_thresh=0.3 drops idx0; rail_thresh=1.5 keeps both
+    np.testing.assert_array_equal(
+        M.pitch_point_gate(pitch, perr), np.array([[False, True]])
+    )
+    # relax error, tighten rail → idx0 passes (err ok), idx1 dropped (railed)
+    np.testing.assert_array_equal(
+        M.pitch_point_gate(pitch, perr, err_thresh=0.5, rail_thresh=1.1),
+        np.array([[True, False]]),
+    )
+
+
+def test_score_gate_drops_railed_truth_points():
+    """A railed truth channel must not influence the primary pitch RMSE."""
+    shots = {300: _make_synthetic_shot(300, seed=3)}
+    # inject a rail-pinned, low-error truth point that the predictor gets wrong
+    tr = shots[300]
+    tr.pitch[0, 0] = 1.6  # rail
+    tr.pitch_error[0, 0] = 0.01  # low error → would dominate if not gated
+    manifest = _make_manifest(shots)
+    truth = _SyntheticTruth(shots)
+    entry = manifest["shots"]["300"]
+    t = np.asarray(entry["beam_on_slice_times"])
+    # predictor returns truth EXCEPT it is wrong at the railed point
+    pm = tr.pitch.copy()
+    pm[0, 0] = 0.0  # large error at the railed (gated-out) point
+    pred = {
+        300: E.ShotPrediction(
+            t=t, pitch_mean=pm, pitch_std=np.full_like(tr.pitch, 0.05)
+        )
+    }
+    result = E.score(pred, manifest, truth)
+    # railed point is gated out → RMSE stays ~0 despite the injected error
+    assert result["primary"]["pitch"]["rmse"] < 1e-3
+
+
+# ---------------------------------------------------------------------------
 # Contract validation
 # ---------------------------------------------------------------------------
 
