@@ -1,0 +1,243 @@
+{
+  "schema": "enkf-baseline-metrics-v0",
+  "method": "parameter-space ensemble smoother over TORAX current-diffusion",
+  "forward_model": "TORAX (current-diffusion; sigma(Te) neoclassical closure)",
+  "observation_operator": "gs/operator.py (EFIT-free GS Green's functions)",
+  "readout": "SHARED mse_eval.pitch_from_current_profile (kind='j', j_phi(rho)) + invert_pitch_to_q0rax \u2014 LOCKED kind='j' representation per the S9 head-to-head coordination lock",
+  "readout_representation_lock": "kind='j': TORAX j_total(rho) [A/m^2] on rho_norm*a_minor grid fed directly to pitch_from_current_profile (no q/psi->j conversion \u2014 TORAX outputs j_total natively). The neural filter (D4) maps its GroundingHead currents to the SAME j_phi(rho); a cross-path unit test asserts identical pitch for one analytic profile.",
+  "per_shot_R0_Bt0": "real per-shot R0 (machine constant 0.85 m) + Bt0 from amc.tf_current (N_TF_EFF=25 calibrated to flat-top Bt0~0.5 T), NOT the mse_eval DEFAULT_R0/DEFAULT_BT0 fallbacks (which the manifest omits).",
+  "manifest_provenance": "official:/work/projects/imas_gpu/mast/manifests/mse_heldout_split_v0.json",
+  "config": {
+    "n_ensemble": 24,
+    "seed": 1234,
+    "r_major": 0.85,
+    "a_minor": 0.5,
+    "b0": 0.5,
+    "fixed_dt": 0.01,
+    "n_te_nodes": 6,
+    "zeff_prior": 2.0,
+    "zeff_spread": 0.6,
+    "resist_mult_prior": 1.0,
+    "resist_mult_logspread": 0.3,
+    "current_peaking_prior": 2.0,
+    "current_peaking_spread": 0.6,
+    "ip_frac_spread": 0.03,
+    "assimilate": true,
+    "n_assim_slices": 5,
+    "eki_inflation": 1.0,
+    "eki_step": 1.0,
+    "kappa": 1.85,
+    "bt0_for_readout": 0.5,
+    "max_slices_per_shot": 80
+  },
+  "n_shots_requested": 3,
+  "n_shots_scored": 3,
+  "metrics_analysis_arm": {
+    "primary": {
+      "pitch": {
+        "rmse": 0.1846177046187886,
+        "crps": 0.1061632106638447,
+        "nll": 0.26970747752335633,
+        "cov90": 0.9519745434347109,
+        "n_shots": 3,
+        "by_window": {
+          "quiescent": {
+            "rmse": 0.1800835588632753,
+            "crps": 0.10374331582242546,
+            "nll": 0.1994677686059617,
+            "cov90": 0.9546984122603653,
+            "n_shots": 3
+          },
+          "transient": {
+            "rmse": 0.24144332592131112,
+            "crps": 0.14129416564096856,
+            "nll": 1.5194698392310173,
+            "cov90": 0.913076038028959,
+            "n_shots": 3
+          }
+        }
+      }
+    },
+    "secondary": {
+      "q0": {
+        "rmse": 0.5207618663191954,
+        "crps": 0.2908547069487013,
+        "nll": 23.50458643322122,
+        "cov90": 0.8247320768662232,
+        "n_shots": 3
+      },
+      "rax": {
+        "rmse": 0.08747563606927379,
+        "crps": 0.05093044471528713,
+        "nll": 1.4879522450641691,
+        "cov90": 0.739832796596764,
+        "n_shots": 3
+      },
+      "caveat": "method-matched (truth-q0 := invert_pitch_to_q0rax(truth_pitch)); raw q0_4pt NOT replicated \u2014 provisional secondary."
+    },
+    "meta": {
+      "n_shots": 3,
+      "scored_shot_ids": [
+        21978,
+        21983,
+        21984
+      ],
+      "coverage_gate": [
+        0.88,
+        0.92
+      ],
+      "primary_cov90_in_gate": false,
+      "secondary_cross_check_median_abs_q0_resid": 0.6286363439516577
+    }
+  },
+  "metrics_forecast_arm_NONVACUITY_CONTROL": {
+    "primary": {
+      "pitch": {
+        "rmse": 0.19405384741669687,
+        "crps": 0.10994644129644705,
+        "nll": 0.20684703678518443,
+        "cov90": 0.95369898271281,
+        "n_shots": 3,
+        "by_window": {
+          "quiescent": {
+            "rmse": 0.18989047540360607,
+            "crps": 0.10775875456681834,
+            "nll": 0.15697307117166193,
+            "cov90": 0.9571483780876068,
+            "n_shots": 3
+          },
+          "transient": {
+            "rmse": 0.24715833452391167,
+            "crps": 0.14200210524284057,
+            "nll": 1.1114763621631507,
+            "cov90": 0.9062390439088382,
+            "n_shots": 3
+          }
+        }
+      }
+    },
+    "secondary": {
+      "q0": {
+        "rmse": 0.5279121214465133,
+        "crps": 0.3048631192867708,
+        "nll": 5.116538159843636,
+        "cov90": 0.7618810051736881,
+        "n_shots": 3
+      },
+      "rax": {
+        "rmse": 0.08829551209273845,
+        "crps": 0.051189225950252916,
+        "nll": 1.510313014315346,
+        "cov90": 0.7158079485312497,
+        "n_shots": 3
+      },
+      "caveat": "method-matched (truth-q0 := invert_pitch_to_q0rax(truth_pitch)); raw q0_4pt NOT replicated \u2014 provisional secondary."
+    },
+    "meta": {
+      "n_shots": 3,
+      "scored_shot_ids": [
+        21978,
+        21983,
+        21984
+      ],
+      "coverage_gate": [
+        0.88,
+        0.92
+      ],
+      "primary_cov90_in_gate": false,
+      "secondary_cross_check_median_abs_q0_resid": 0.6286363439516577
+    }
+  },
+  "metrics_persistence_reference": {
+    "primary": {
+      "pitch": {
+        "rmse": 0.9242284181491742,
+        "crps": 0.5961295194058823,
+        "nll": 6.907866674161281,
+        "cov90": 0.4614065382552733,
+        "n_shots": 3,
+        "by_window": {
+          "quiescent": {
+            "rmse": 0.9212528439519817,
+            "crps": 0.593932466247921,
+            "nll": 6.908370404159545,
+            "cov90": 0.46182135544360187,
+            "n_shots": 3
+          },
+          "transient": {
+            "rmse": 0.9607406534806276,
+            "crps": 0.6216958025792699,
+            "nll": 6.99550133935004,
+            "cov90": 0.4620719258771769,
+            "n_shots": 3
+          }
+        }
+      }
+    },
+    "secondary": {
+      "q0": {
+        "rmse": 0.5920527204542793,
+        "crps": 0.37041060228246186,
+        "nll": 179.15577161420276,
+        "cov90": 0.5096729490022173,
+        "n_shots": 3
+      },
+      "rax": {
+        "rmse": 0.11787462437766726,
+        "crps": 0.07500560832730818,
+        "nll": 0.2841778507866052,
+        "cov90": 0.5425680701512885,
+        "n_shots": 3
+      },
+      "caveat": "method-matched (truth-q0 := invert_pitch_to_q0rax(truth_pitch)); raw q0_4pt NOT replicated \u2014 provisional secondary."
+    },
+    "meta": {
+      "n_shots": 3,
+      "scored_shot_ids": [
+        21978,
+        21983,
+        21984
+      ],
+      "coverage_gate": [
+        0.88,
+        0.92
+      ],
+      "primary_cov90_in_gate": false,
+      "secondary_cross_check_median_abs_q0_resid": 0.6286363439516577
+    }
+  },
+  "beats_persistence_on_primary_pitch_rmse": true,
+  "magnetics_innovation": {
+    "forecast_mean": 2.1016798770560112,
+    "analysis_mean": 1.1281982938142665,
+    "drop_means_analysis_is_real": true,
+    "note": "whitened amb misfit ||W(y-H(x))|| (truth-free). A DROP from forecast->analysis confirms the EKI magnetics update is real; if pitch does NOT improve while innovation drops, that is the Stage-2 magnetics-under-determination THESIS (expected)."
+  },
+  "predictive_uncertainty": "pitch predictive variance = epistemic ensemble var + ALEATORIC (measured MSE pitcha_error, per-channel median) in quadrature \u2014 the same observation-noise the persistence baseline uses as its std. The epistemic-only ensemble spread is far tighter than the pitch error, so omitting the aleatoric term makes the filter spuriously overconfident. NOT tuned to hit the coverage gate.",
+  "matched_compute_caveat": "Equal CPU/wall-clock budget vs the neural filter. The O(N_ens) ensemble CANNOT ingest the camera/SXR image modalities the neural filter fuses natively \u2014 that asymmetry is EXPECTED and IS the thesis.",
+  "q0_provenance": "scored q0/rax are method-matched via mse_eval.invert_pitch_to_q0rax on the predicted pitch (secondary); TORAX on-axis q (gated to flat-top) is the free non-vacuity check.",
+  "per_shot_diagnostics": {
+    "21978": {
+      "n_ok_members": 24,
+      "innovation_forecast": 1.9883432942736354,
+      "innovation_analysis": 1.0465159097929089,
+      "q0_torax_forecast_gated_median": 0.46368843887387245,
+      "q0_torax_analysis_gated_median": 0.3211569253979002
+    },
+    "21983": {
+      "n_ok_members": 24,
+      "innovation_forecast": 1.779276985283101,
+      "innovation_analysis": 1.1896965924935785,
+      "q0_torax_forecast_gated_median": 0.5790652463038666,
+      "q0_torax_analysis_gated_median": 0.2858075367095716
+    },
+    "21984": {
+      "n_ok_members": 24,
+      "innovation_forecast": 2.537419351611297,
+      "innovation_analysis": 1.1483823791563121,
+      "q0_torax_forecast_gated_median": 0.521508804251335,
+      "q0_torax_analysis_gated_median": 0.3433327674117975
+    }
+  },
+  "verdict": "v0 honest verdict: (1) the EKI magnetics update is REAL (innovation drops); (2) it does NOT improve internal pitch over the forecast arm \u2014 a clean confirmation of the Stage-2 magnetics-under-determination thesis (external magnetics fix boundary/Ip, not internal j(psi)); (3) credibility vs persistence + coverage status are reported above (no tune-to-pass). This is THE BAR the S9 neural filter must beat by 10-20% on held-out pitch while additionally fusing camera/SXR."
+}
