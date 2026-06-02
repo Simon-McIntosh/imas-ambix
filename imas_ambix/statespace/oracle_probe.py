@@ -104,7 +104,7 @@ MODALITIES = ["mag", "thomson", "sxr", "bolo", "camera"]
 # Feature-schema version — PART OF THE CACHE KEY.  Bump whenever the feature
 # CONTENT changes (e.g. adding time-history columns) so a stale pickle is never
 # silently reloaded with the wrong features.
-FEATURE_SCHEMA_VERSION = "v2_hist"
+FEATURE_SCHEMA_VERSION = "v3_sxrmode"
 
 # Time-history arm: trailing-window temporal summaries on a uniform model grid.
 HIST_MODEL_HZ = 200.0  # model grid for the history window (5 ms cadence)
@@ -114,6 +114,15 @@ HIST_WINDOW_SLICES = 30  # trailing K-slice window (= 150 ms at 200 Hz)
 # cut (matches mse_eval.DEFAULT_R0).  The radial cut is only corroborative — the
 # decisive localization evidence is the reference-FREE pitcha_error tercile cut.
 _R0_NOMINAL = 0.85
+
+# SXR mode-activity arm (rational-surface localization).  xsx is NATIVE
+# ~100 kHz — sawtooth crashes (q=1) and tearing/NTM modes (q=2, 3/2) live at
+# kHz, so mode features MUST be computed on the native high-rate signal in a
+# trailing TIME window (NOT the 200 Hz history grid, which aliases them away).
+# All 54 chords are kept (no channel-mean) so the GBM can learn which
+# chords/radii carry the activity — that IS the inversion-radius signal.
+SXR_MODE_WINDOW_MS = 3.0  # trailing native-rate window for mode features
+SXR_MIN_NATIVE_HZ = 20_000.0  # below this, the mode-frequency feature is weak
 
 
 # ---------------------------------------------------------------------------
@@ -412,7 +421,83 @@ def _history_block(store, group, grid, slice_t, win):
     return _window_summaries(gridded, grid, slice_t, win)
 
 
-def extract_shot(shot_id, entry, node_r, history=False):
+def _sxr_mode_block(store, slice_t):
+    """Native-rate per-chord SXR mode-activity block -> (S, 54*2 + 1).
+
+    Rational-surface localization features (CONFOUND-2, physics-targeted).  For
+    each pv slice time, over a trailing ``SXR_MODE_WINDOW_MS`` window on the
+    NATIVE ~100 kHz xsx signal, per chord (all 54, NO channel-mean):
+      * detrended-fluctuation RMS (sawtooth-crash / mode amplitude), and
+      * dominant-band power (rfft peak — sawtooth-period / mode-frequency proxy).
+    Plus a per-shot native-rate-OK flag (mode-frequency meaningful only if the
+    native rate clears ``SXR_MIN_NATIVE_HZ``).  NaN block if xsx absent.
+    """
+    n_feat = 54 * 2 + 1
+    nanblock = np.full((slice_t.size, n_feat), np.nan)
+    if "xsx" not in store:
+        return nanblock, False
+    grp = store["xsx"]
+    keys = set(grp.array_keys())
+    if "time" not in keys:
+        return nanblock, False
+    try:
+        t = np.asarray(grp["time"], dtype=np.float64)
+        if t.size < 8:
+            return nanblock, False
+        # per-chord native arrays → (T, 54)
+        cams = []
+        for ck in ("hcam_l", "hcam_u", "tcam"):
+            if ck in keys:
+                cam = np.asarray(grp[ck], dtype=np.float32)
+                if cam.shape[1] == t.size:
+                    cam = cam.T
+                if cam.shape[0] == t.size:
+                    cams.append(cam)
+                else:
+                    cams.append(np.full((t.size, 18), np.nan, dtype=np.float32))
+            else:
+                cams.append(np.full((t.size, 18), np.nan, dtype=np.float32))
+        arr = np.concatenate(cams, axis=1)  # (T, 54)
+    except Exception:
+        return nanblock, False
+
+    dt = float(np.median(np.diff(t)))
+    if dt <= 0:
+        return nanblock, False
+    native_hz = 1.0 / dt
+    rate_ok = native_hz >= SXR_MIN_NATIVE_HZ
+    win_n = max(8, int(round(SXR_MODE_WINDOW_MS * 1e-3 * native_hz)))
+
+    out = np.full((slice_t.size, n_feat), np.nan)
+    out[:, -1] = 1.0 if rate_ok else 0.0
+    # index of each slice time in the native axis
+    idx = np.searchsorted(t, slice_t, side="right") - 1
+    C = arr.shape[1]
+    for s in range(slice_t.size):
+        e = idx[s]
+        if e < 0:
+            continue
+        b = max(0, e - win_n + 1)
+        w = arr[b : e + 1]  # (win, 54)
+        if w.shape[0] < 8:
+            continue
+        xs = np.arange(w.shape[0], dtype=np.float64)
+        for c in range(C):
+            wc = w[:, c]
+            fin = np.isfinite(wc)
+            if fin.sum() < 8:
+                continue
+            wcf = wc[fin]
+            xsf = xs[fin]
+            coef = np.polyfit(xsf, wcf, 1)
+            resid = wcf - np.polyval(coef, xsf)
+            fft = np.abs(np.fft.rfft(resid))
+            out[s, c] = float(np.std(resid))  # fluctuation amplitude
+            out[s, 54 + c] = float(np.max(fft[1:])) if fft.size > 1 else 0.0
+    return out, True
+
+
+def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False):
     """Build a :class:`ShotFeatures` for one CAL shot (None if unusable)."""
     import zarr  # noqa: PLC0415
 
@@ -543,6 +628,14 @@ def extract_shot(shot_id, entry, node_r, history=False):
         blocks["bolo"] = np.concatenate(
             [blocks["bolo"], _history_block(store, "abm", grid, sl_t, win)], axis=1
         )
+
+    # --- physics-targeted SXR mode-activity columns (rational-surface) -------
+    # Native-rate per-chord sawtooth/tearing markers appended to the sxr block.
+    if sxr_mode:
+        mb, mb_ok = _sxr_mode_block(store, sl_t)
+        blocks["sxr"] = np.concatenate([blocks["sxr"], mb], axis=1)
+        # mode features need a present + high-rate xsx to be meaningful
+        present["sxr"] = present["sxr"] and mb_ok
 
     return ShotFeatures(
         shot_id=shot_id,
@@ -1100,6 +1193,9 @@ class ProbeConfig:
     # mag/sxr/bolo feature blocks (the decisive test — instantaneous features
     # are structurally blind to the current-relevant DYNAMICS).
     history: bool = False
+    # physics-targeted: native-rate per-chord SXR sawtooth/tearing mode features
+    # (rational-surface localization — q=1 inversion, q=2/3-2 tearing).
+    sxr_mode: bool = False
 
 
 def run(cfg: ProbeConfig) -> dict:
@@ -1134,7 +1230,8 @@ def run(cfg: ProbeConfig) -> dict:
     key = hashlib.md5(
         (
             f"{FEATURE_SCHEMA_VERSION}_{cfg.n_shots}_{cfg.seed}_{N_NODES}_"
-            f"{CAM_POOL}_{cfg.history}_{HIST_MODEL_HZ}_{HIST_WINDOW_SLICES}"
+            f"{CAM_POOL}_{cfg.history}_{HIST_MODEL_HZ}_{HIST_WINDOW_SLICES}_"
+            f"{cfg.sxr_mode}_{SXR_MODE_WINDOW_MS}"
         ).encode()
     ).hexdigest()[:12]
     cache = Path("/tmp") / f"oracle_probe_feats_{key}.pkl"
@@ -1154,7 +1251,11 @@ def run(cfg: ProbeConfig) -> dict:
         for sid in chosen:
             n_attempt += 1
             sf = extract_shot(
-                sid, manifest["shots"][str(sid)], node_r, history=cfg.history
+                sid,
+                manifest["shots"][str(sid)],
+                node_r,
+                history=cfg.history,
+                sxr_mode=cfg.sxr_mode,
             )
             if sf is None:
                 continue
@@ -1390,7 +1491,9 @@ def run(cfg: ProbeConfig) -> dict:
         if e_sig and e_mat:
             carriers.append(arm_name.replace("E_mag_", ""))
 
-    hist_tag = "history" if cfg.history else "instantaneous"
+    hist_tag = (
+        "sxr_mode" if cfg.sxr_mode else ("history" if cfg.history else "instantaneous")
+    )
     info_exists = bool(D_below_A) or len(carriers) > 0
 
     # If a carrier exists, LOCALIZE its gain — an aggregate win on well-measured
@@ -1598,21 +1701,38 @@ def run(cfg: ProbeConfig) -> dict:
                 if cfg.history
                 else {"enabled": False}
             ),
+            "sxr_mode_activity": (
+                {
+                    "enabled": True,
+                    "native_rate": "computed on NATIVE ~100 kHz xsx (NOT gridded)",
+                    "window_ms": SXR_MODE_WINDOW_MS,
+                    "features": (
+                        "per chord (all 54, NO channel-mean): "
+                        "[detrended-fluctuation RMS (sawtooth/mode amplitude), "
+                        "rfft dominant-band power (q=1 sawtooth / q=2,3-2 tearing "
+                        "frequency proxy)] + native-rate-OK flag; appended to the "
+                        "sxr block.  Tests rational-surface localization."
+                    ),
+                }
+                if cfg.sxr_mode
+                else {"enabled": False}
+            ),
         },
         "runtime_s": round(time.time() - t0, 1),
     }
     return result
 
 
-def _combined_verdict(instant, history):
-    """Top-level verdict over both feature modes.
+def _combined_verdict(*runs_in):
+    """Top-level verdict over all feature modes.
 
     INFO_EXISTS only if a mode finds a carrier that materially+significantly
     beats magnetics-only on the mse_eval metric AND the gain reaches the
     under-determined interior.  A carrier that wins only off-interior yields
     QUALIFIED_NEGATIVE.  Neither winning -> INFEASIBLE_NEGATIVE.
     """
-    runs = [r for r in (instant, history) if r is not None]
+    runs = [r for r in runs_in if r is not None]
+    history = next((r for r in runs if r.get("feature_mode") == "history"), None)
     if any(r["verdict"] == "INFO_EXISTS" for r in runs):
         winners = [
             (r["feature_mode"], r["verdict_detail"]["carriers"])
@@ -1662,12 +1782,12 @@ def _combined_verdict(instant, history):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--n-shots", type=int, default=60)
+    ap.add_argument("--n-shots", type=int, default=80)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument(
         "--mode",
-        choices=["instant", "history", "both"],
-        default="both",
+        choices=["instant", "history", "sxr_mode", "all"],
+        default="all",
         help="feature mode(s) to run",
     )
     ap.add_argument("--out", type=str, default=str(ARTIFACT_PATH))
@@ -1675,13 +1795,16 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    instant = history = None
-    if args.mode in ("instant", "both"):
+    instant = history = sxr = None
+    if args.mode in ("instant", "all"):
         logger.info("=== INSTANTANEOUS feature run ===")
         instant = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, history=False))
-    if args.mode in ("history", "both"):
+    if args.mode in ("history", "all"):
         logger.info("=== TIME-HISTORY feature run ===")
         history = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, history=True))
+    if args.mode in ("sxr_mode", "all"):
+        logger.info("=== SXR MODE-ACTIVITY (native-rate, rational-surface) run ===")
+        sxr = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, sxr_mode=True))
 
     # frontier read (instantaneous vs history mag-only on the mse_eval metric)
     if history is not None:
@@ -1698,14 +1821,18 @@ def main() -> int:
             ),
         }
 
-    top_verdict, top_note = _combined_verdict(instant, history)
+    top_verdict, top_note = _combined_verdict(instant, history, sxr)
     combined = {
         "version": "oracle_probe_v0",
         "verdict": top_verdict,
         "verdict_note": top_note,
         "runs": {
             k: v
-            for k, v in (("instantaneous", instant), ("time_history", history))
+            for k, v in (
+                ("instantaneous", instant),
+                ("time_history", history),
+                ("sxr_mode_activity", sxr),
+            )
             if v is not None
         },
     }
