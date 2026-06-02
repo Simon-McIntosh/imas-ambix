@@ -7,7 +7,7 @@
   <meta name="reckon-type"   content="doc">
   <meta name="plan-slug"     content="rca-node-drain-mechanism-2026-06-02">
   <meta name="plan-title"    content="RCA — 98dci4-gpu-0003 node drains: cause and fix">
-  <meta name="plan-summary"  content="A GPU job's NCCL teardown (ncclCommAbort -> cudaStreamSynchronize) blocks in an uninterruptible (D) wait inside the NVIDIA driver; a D-state task ignores SIGKILL, so SLURM hits UnkillableStepTimeout(60s) and drains the node. Validated by direct /proc wchan capture + two production logs. Surgical fix: UnkillableStepProgram (auto-diagnose+recover) + UnkillableStepTimeout=120 + an epilog GPU-clean gate.">
+  <meta name="plan-summary"  content="A process in uninterruptible (D) kernel sleep survives SIGKILL, so SLURM hits UnkillableStepTimeout(60s) and drains the node. One SLURM-level cause, three observed driver instances: CXI/Slingshot network (cxiWaitEventWait), GPFS (d_alloc_parallel), and NVIDIA GPU driver (ncclCommAbort->cudaStreamSynchronize, os_acquire_*). On a healthy node the D-state is transient (killable) — 14 instrumented attempts incl. the real pipeline never drained; a sustained drain needs an already-wedged node. Surgical fix: UnkillableStepProgram (auto-diagnose+recover) + UnkillableStepTimeout=120 + epilog clean-gate.">
   <meta name="plan-status"   content="active">
   <meta name="plan-roi"      content="high">
   <meta name="plan-effort"   content="S">
@@ -34,15 +34,27 @@ stays there past <code>UnkillableStepTimeout</code> (currently 60&nbsp;s).
 <code>SIGKILL</code></strong> — so <code>slurmstepd</code> cannot reap the step,
 logs <code>Kill task failed</code>, and the node is drained.</p>
 
-<p>On this node that D-state is inside the <strong>NVIDIA GPU kernel driver</strong>.
-When PyTorch tears down a stuck NCCL communicator, <code>ncclCommAbort()</code>
-calls <code>cudaStreamSynchronize()</code> (NCCL upstream
-<a href="https://github.com/NVIDIA/nccl/issues/829">#829</a>), which blocks in the
-driver acquiring an internal lock — observed <code>wchan</code> values:
-<code>os_acquire_rwlock_read/write</code>, <code>os_acquire_semaphore</code>,
-<code>uvm_gpu_retain_by_uuid</code>. SLURM's <code>SIGTERM</code> → 30&nbsp;s
-<code>KillWait</code> → <code>SIGKILL</code> all queue undelivered; after 60&nbsp;s
-the node drains. <code>nvidia-smi --gpu-reset</code> then also hangs (the wedged
+<p>That single SLURM-level cause has <strong>three observed kernel-driver
+instances</strong> on this node — the production workload spends uninterruptible
+time in all three (measured <code>wchan</code>, this study):</p>
+<ul>
+<li><strong>CXI / Slingshot network driver</strong> — <code>cxiWaitEventWait</code>,
+<code>cxiBlockingMutexAcquire</code>. NCCL's transport here is libfabric/CXI, so
+collectives wait in the NIC driver; this is also the surface of the
+"download / network hang" event.</li>
+<li><strong>GPFS filesystem</strong> — <code>d_alloc_parallel</code>,
+<code>folio_wait_bit_common</code>. The DataLoader's GPFS reads; this is the
+surface of the prefetch-deadlock event.</li>
+<li><strong>NVIDIA GPU driver</strong> — <code>os_acquire_rwlock_read/write</code>,
+<code>os_acquire_semaphore</code>, <code>uvm_gpu_retain_by_uuid</code>. Entered
+when PyTorch tears down a stuck NCCL communicator: <code>ncclCommAbort()</code> →
+<code>cudaStreamSynchronize()</code> (NCCL upstream
+<a href="https://github.com/NVIDIA/nccl/issues/829">#829</a>). This is the surface
+of the two drains with surviving logs.</li>
+</ul>
+<p>In every case SLURM's <code>SIGTERM</code> → 30&nbsp;s <code>KillWait</code> →
+<code>SIGKILL</code> queue undelivered; after 60&nbsp;s the node drains. When the
+wedge is GPU-side, <code>nvidia-smi --gpu-reset</code> then also hangs (the
 process still holds the device), so recovery needs a reboot.</p>
 
 <h2 id="evidence">§2 — Evidence (validated)</h2>
@@ -56,11 +68,13 @@ process still holds the device), so recovery needs a reboot.</p>
 <li><strong>Direct kernel-state capture</strong> — a separate-allocation observer
 recorded <code>/proc/&lt;pid&gt;/stat</code> + <code>wchan</code> for every rank
 through the kill window (the measurement never taken before). Across the
-instrumented runs the processes were repeatedly caught in D-state in exactly
-these driver functions — hundreds of samples in
-<code>os_acquire_rwlock_write</code> / <code>os_acquire_rwlock_read</code>, plus
-<code>os_acquire_semaphore</code> and <code>uvm_gpu_retain_by_uuid</code> — the
-precise wait the production drains hung in.</li>
+instrumented runs — including the real production pipeline — the ranks were
+repeatedly caught in D-state in exactly the three driver surfaces in §1:
+<code>cxiWaitEventWait</code> (CXI network), <code>d_alloc_parallel</code> /
+<code>folio_wait_bit_common</code> (GPFS), and
+<code>os_acquire_rwlock_write/read</code> / <code>os_acquire_semaphore</code> /
+<code>uvm_gpu_retain_by_uuid</code> (NVIDIA driver) — the precise waits the
+production events hung in.</li>
 <li><strong>Upstream corroboration</strong> — NCCL #829 (abort →
 <code>cudaStreamSynchronize</code> D-state); NVIDIA open-gpu-kernel-modules #278
 (<code>os_acquire_semaphore</code> deadlock → D-state); SchedMD docs (D-state
@@ -72,11 +86,13 @@ bug #11103).</li>
 
 <p>The drain requires the D-state to be <strong>permanent</strong>. On a healthy
 GPU the driver releases the lock within milliseconds — the wait is transient, the
-task returns to a killable state, and <code>SIGKILL</code> reaps it cleanly (eight
-instrumented attempts on this node — including the exact production watchdog →
-<code>ncclCommAbort</code> teardown path and direct driver-lock contention that
-produced hundreds of transient D-state samples — all exited cleanly; the node
-never drained). A <em>permanent</em> wait needs the
+task returns to a killable state, and <code>SIGKILL</code> reaps it cleanly.
+<strong>Fourteen instrumented attempts</strong> on this node — eight synthetic
+(incl. the exact production watchdog → <code>ncclCommAbort</code> teardown path
+and direct driver-lock contention) plus six rapid kill→relaunch cycles of the
+<em>real production pipeline</em> (the single-user cascade) — produced hundreds
+of transient D-state samples across all three driver surfaces yet <strong>all
+exited cleanly; the node never drained</strong>. A <em>permanent</em> wait needs the
 GPU itself wedged: a kernel that never completes or a context corrupted by an
 earlier unclean event. The production drains were therefore a <strong>cascade</strong>
 — seeded by the 2026-05-26 concurrent cross-cgroup <code>cuInit</code> failure
