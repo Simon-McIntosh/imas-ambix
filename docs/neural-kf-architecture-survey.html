@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"    content="imas-ambix">
+  <meta name="reckon-type"     content="plan">
+  <meta name="plan-slug"       content="neural-kf-architecture-survey">
+  <meta name="plan-title"      content="Neural Kalman-Filter Architecture Survey for Current Recovery (post-baseline)">
+  <meta name="plan-summary"    content="Per-architecture verdict via a two-class split: no neural filter adds interior information (the binding constraint), so Class-1 architectures are uniformly NO; the real wins are Class-2 — calibration + amortised multimodal fusion — gated behind a strong baseline and richer diagnostics. Koopman-linear-latent + learned-gain filters are the principled successors; the recurrent RKN is directionally the wrong one.">
+  <meta name="plan-status"     content="active">
+  <meta name="plan-roi"        content="mid">
+  <meta name="plan-effort"     content="S">
+  <meta name="plan-tier"       content="opus">
+  <meta name="plan-milestone"  content="M3">
+  <meta name="plan-sprint"     content="S10">
+  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="plan-depends-on" content="mse-free-current-recovery-v0,probabilistic-state-space-methods,sequential-current-da-v1,internal-current-diagnostics-v0">
+  <title>Neural Kalman-Filter Architecture Survey for Current Recovery (post-baseline) | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The two-class verdict</h2>
+    <p>
+      This is a <strong>survey now, build later</strong> document. The S9 oracle established the
+      governing fact: for MSE-free internal-current recovery on MAST the binding constraint is
+      <strong>interior information, not ML architecture</strong> (time-history adds nothing,
+      <code>0.190</code> ≈ <code>0.188</code>; near-axis interior model-failure-floored at
+      <code>~0.41 rad</code> for magnetics <em>and</em> all multimodal channels). Every neural
+      Kalman-filter family is therefore judged on two separate questions, which most prior framings
+      conflate:
+    </p>
+    <ul>
+      <li><strong>Class-1 question: does it add interior information?</strong> The answer is
+        <strong>uniformly NO</strong> — no learned filter can manufacture interior current information
+        that the diagnostics do not carry. This is an information bound, not an architecture limitation.</li>
+      <li><strong>Class-2 question: does it fix a <em>named</em> weak-EnKF symptom?</strong> Here some
+        architectures genuinely help — but the two symptoms worth fixing (calibration; amortised
+        multimodal fusion) are both gated behind a strong baseline and richer diagnostics, and the
+        most valuable one (calibration) is already solved by split-conformal in
+        <a href="/imas-ambix/sequential-current-da-v1.html">sequential-current-da-v1</a>.</li>
+    </ul>
+    <table class="r-ledger" style="border-collapse:collapse;width:100%;font-size:0.92rem">
+      <thead><tr>
+        <th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">Architecture</th>
+        <th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">Class-1: adds interior info?</th>
+        <th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">Class-2: fixes a named weak-EnKF symptom?</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Koopman / LAE-EnKF (linear latent + EnKF)</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#b91c1c;font-weight:600">NO</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#15803d">YES — principled linear-latent fusion of multimodal channels; the most defensible Class-2 candidate</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">SINDy-AE (sparse-dynamics autoencoder)</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#b91c1c;font-weight:600">NO</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Partial — interpretable latent dynamics; no calibration or fusion win on its own</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Transformer / S4 / Mamba / KalMamba (sequence models)</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#b91c1c;font-weight:600">NO</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#b91c1c">NO — the oracle's "time-history adds nothing" kills the sequence-modelling value for this target</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">KalmanNet (learned Kalman gain)</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#b91c1c;font-weight:600">NO</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#15803d">YES — learned-gain corrector of the TORAX/reduced-model bias; principled where the forward model is mis-specified</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Recursive KalmanNet</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#b91c1c;font-weight:600">NO</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">LATER — a calibration alternative, but NOT a second cov90 problem (split-conformal already solves it)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">DVBF / KVAE (deep variational state-space)</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#b91c1c;font-weight:600">NO</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Partial — generative latent + uncertainty; heavier, no clear win over LAE-EnKF for this target</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Neural / flow EnKF (learned ensemble transition / flow posterior)</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#b91c1c;font-weight:600">NO</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Partial — non-Gaussian posterior for transient regimes; value only once a transient win exists to capture</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      The table's left column is the whole point: it is <strong>uniformly NO</strong>. No
+      architecture choice on this target buys interior information. That is why this sprint builds a
+      physics baseline and chains diagnostics first, and defers all ML.
+    </p>
+
+    <h2 id="s2">§2 — New primaries (cross-reference, do not duplicate)</h2>
+    <p>
+      The general state-space method catalogue lives in
+      <a href="/imas-ambix/probabilistic-state-space-methods.html">probabilistic-state-space-methods</a>
+      and is not duplicated here. This section records only the primaries that anchor the verdicts
+      above:
+    </p>
+    <ul>
+      <li><strong>KalmanNet</strong> — Revach <em>et al.</em>, learned Kalman gain for partially-known
+        dynamics (arXiv:2107.10043). The learned-gain corrector path.</li>
+      <li><strong>Recursive KalmanNet</strong> — recursive-covariance KalmanNet variant
+        (arXiv:2506.11639). The later calibration alternative.</li>
+      <li><strong>LAE-EnKF</strong> — linear(ised)-autoencoder latent + EnKF: a Koopman-style linear
+        latent in which the EnKF analysis is exact, the most principled Class-2 fusion candidate.</li>
+      <li><strong>KalMamba</strong> — Mamba/SSM-backbone Kalman filtering (arXiv:2406.15131). The
+        sequence-model Class-2 representative — deprioritised by the oracle's time-history-null result.</li>
+      <li><strong>Lusch continuous-spectrum failure</strong> — Lusch <em>et al.</em>, deep learning of
+        Koopman embeddings and the continuous-spectrum obstruction (arXiv:1712.09707). The caveat that
+        bounds naive Koopman embeddings.</li>
+      <li><strong>SINDy-AE</strong> — Champion <em>et al.</em>, data-driven discovery of coordinates and
+        governing equations (arXiv:1904.02107). The interpretable-latent-dynamics representative.</li>
+    </ul>
+
+    <h2 id="s3">§3 — Where ML earns its keep, later</h2>
+    <p>
+      Two Class-2 roles survive scrutiny, both gated:
+    </p>
+    <ul>
+      <li><strong>Recursive KalmanNet as a calibration alternative.</strong> It is a <em>later</em>
+        option, <strong>not a second cov90 problem</strong>: split-conformal in
+        <a href="/imas-ambix/sequential-current-da-v1.html">sequential-current-da-v1</a> §6 already
+        delivers a frozen, distribution-free coverage guarantee. RKN-style learned covariance is only
+        worth considering if there is a regime where the conformal interval is needlessly wide, and
+        only after the strong baseline exists.</li>
+      <li><strong>KalmanNet as a learned-gain TORAX-bias corrector.</strong> The forward model (reduced
+        diffusion / TORAX) is mis-specified relative to the true plasma; a learned Kalman gain can
+        correct the systematic forecast bias the reduced model leaves. This is principled exactly where
+        the dynamics are partially known — the KalmanNet thesis — and is the highest-value learned-gain
+        role on this problem.</li>
+    </ul>
+
+    <h2 id="s4">§4 — Defer the sequence models</h2>
+    <p>
+      Transformer / S4 / Mamba / KalMamba sequence backbones are <strong>deferred</strong>. The oracle's
+      result is dispositive for this target: time-history adds nothing
+      (<code>0.190</code> ≈ <code>0.188</code>), so the sequence-modelling capacity that makes these
+      architectures attractive elsewhere has no signal to capture here. They are not on the build path
+      for current recovery and should not be revisited unless a future target is shown to be genuinely
+      dynamics-limited.
+    </p>
+
+    <h2 id="s5">§5 — Honest framing: RKN is the wrong successor, Koopman + learned-gain are right</h2>
+    <p class="r-callout">
+      <strong>The recurrent RKN is directionally the WRONG successor — and this is true independent of
+      the information ceiling.</strong> Koopman-linear-latent + learned-gain filters are <em>more
+      principled</em> than the RKN on their own merits: a linear latent admits an exact EnKF analysis
+      and a tractable covariance, and a learned gain corrects a known-but-mis-specified forward model
+      where the structure is genuinely partially known. The recurrent RKN bundles dynamics, gain, and
+      uncertainty into one opaque recurrence that is harder to ground in the GS physics and harder to
+      calibrate. Frame doc (c) as <strong>"the right architecture for WHEN richer data exists,"</strong>
+      not "deferred because architecture didn't matter." The oracle showed architecture is not
+      <em>today's</em> binding constraint — it did <strong>not</strong> vindicate the RKN. When richer
+      diagnostics arrive (the pressure lever lands, or a future machine brings polarimetry), the
+      successor to prototype is a Koopman-LAE-EnKF or a learned-gain KalmanNet, not a deeper RKN.
+    </p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="ml-build-this-sprint" data-choice="no-ml-this-sprint" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">Is any neural filter built this sprint?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="no-ml-this-sprint">NO — survey now, build later; physics baseline + diagnostics come first</button>
+          <button class="r-opt" data-value="build-neural-filter-now">Build a neural filter this sprint</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): no ML build this sprint. The oracle proved the binding constraint is interior information, not ML architecture; the Class-1 column is uniformly NO. This sprint shores up the strong physics baseline and chains diagnostics; ML is deferred to build on that stronger baseline + richer info.</p>
+      </div>
+
+      <div class="r-dec" data-key="principled-successor" data-choice="koopman-learned-gain" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">Which architecture is the principled successor when ML is eventually built?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="koopman-learned-gain">Koopman-linear-latent (LAE-EnKF) + learned-gain (KalmanNet) filters</button>
+          <button class="r-opt" data-value="recurrent-rkn">A deeper recurrent RKN</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): Koopman-linear-latent + learned-gain are the principled successors, MORE principled than the recurrent RKN INDEPENDENT of the information ceiling (exact EnKF analysis in a linear latent; learned-gain corrects a partially-known forward model). The recurrent RKN is directionally the WRONG successor — it bundles dynamics/gain/uncertainty opaquely and is harder to ground in GS physics and to calibrate. The oracle did NOT vindicate the RKN.</p>
+      </div>
+
+      <div class="r-dec" data-key="ml-value-conditions" data-choice="calibration-fusion-gated" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">Under what conditions does ML earn its keep on this problem?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="calibration-fusion-gated">Only on calibration + amortised multimodal fusion, once richer diagnostics exist</button>
+          <button class="r-opt" data-value="ml-adds-interior-info">ML can add interior current information</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): ML earns its keep ONLY on Class-2 roles (calibration + amortised multimodal fusion), and ONLY once richer diagnostics exist. It cannot add interior information (Class-1 uniformly NO). Note: cov90 calibration is already solved by split-conformal in sequential-current-da-v1 §6 — RKN-style learned covariance is NOT a re-opening of that problem.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-nkfs-prototype-class2" data-status="open" data-tier="opus" data-written-by="agent/opus (S10 author)" data-written-at="2026-06-02 09:20">
+        <h4 class="r-fu-title">When the baseline + pressure experiment land, prototype the highest-verdict Class-2 architecture</h4>
+        <div class="r-fu-body">Gated on the strong baseline (sequential-current-da-v1) and the pressure experiment (internal-current-diagnostics-v0) landing. Then — and only then — prototype the highest-verdict Class-2 architecture (Koopman-LAE-EnKF for principled multimodal fusion, or a learned-gain KalmanNet as a reduced-model bias corrector) on the strong baseline. No interior-information claim; the win axes are amortised fusion and (if needed beyond conformal) calibration.</div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    neural-kf-architecture-survey (http://localhost:8765/imas-ambix/neural-kf-architecture-survey.html)
+Section: §3 — prototype the highest-verdict Class-2 architecture
+Tier:    opus
+
+Context
+  The S9 oracle proved the binding constraint is INTERIOR INFORMATION, not ML architecture
+  (Class-1 uniformly NO). This sprint built the strong physics baseline and chained diagnostics
+  FIRST; ML was deferred. This followup fires only AFTER the baseline + pressure experiment land,
+  to prototype the one architecture worth its keep on the now-stronger substrate.
+
+State to read
+  GET /plan/imas-ambix/neural-kf-architecture-survey   (decisions, followups, status, version)
+  GET /plan/imas-ambix/sequential-current-da-v1        (the strong baseline + cov90 solution)
+  GET /plan/imas-ambix/internal-current-diagnostics-v0 (the pressure experiment outcome)
+  Do NOT duplicate probabilistic-state-space-methods — cite it for the general catalogue.
+
+Locked decisions to honour
+  ml-build-this-sprint -> no ML this sprint (so this followup is GATED on the baseline + pressure
+                          experiment landing; verify both have outcomes before starting).
+  principled-successor -> Koopman-linear-latent (LAE-EnKF) + learned-gain (KalmanNet) are the
+                          PRINCIPLED successors; the recurrent RKN is directionally WRONG.
+  ml-value-conditions  -> ML earns its keep ONLY on calibration + amortised multimodal fusion,
+                          ONLY once richer diagnostics exist; it CANNOT add interior information.
+
+Open decisions to surface (do not resolve)
+  (decide which Class-2 architecture to prototype FIRST — LAE-EnKF fusion vs learned-gain
+   KalmanNet bias-corrector — based on which weak-EnKF symptom the landed baseline most needs;
+   surface as a new decision, do not pick silently)
+
+Constraints
+  - cov90 is ALREADY SOLVED by split-conformal in sequential-current-da-v1 §6. Do NOT treat
+    calibration as a second open problem to fix with a learned filter unless the conformal
+    interval is demonstrably and needlessly wide in some regime.
+  - DEFER transformer/S4/Mamba/KalMamba — the oracle's time-history-null result (0.190 ~= 0.188)
+    removes their value for this target.
+  - Build ON the strong baseline (do not replace it); the win axes are amortised multimodal
+    fusion and (only if needed) calibration. NO interior-information claim.
+  - Primaries to ground against: KalmanNet (arXiv:2107.10043), Recursive KalmanNet
+    (arXiv:2506.11639), LAE-EnKF, KalMamba (arXiv:2406.15131), Lusch continuous-spectrum
+    (arXiv:1712.09707), SINDy-AE (arXiv:1904.02107).
+  - Score on the locked D1 mse_eval harness vs the strong v1 bar (sightline + near-axis + cov90).
+  - Env: uv run; GPU steps obey AGENTS.md §2a/§2a-cancel (STOP-FILE, never scancel, hardened
+    sbatch with --signal=B:USR1@600 + AMBIX_SOFT_TIME_LIMIT). Run in the foreground.
+
+Done-when
+  1. The chosen Class-2 architecture prototyped on the strong baseline, committed with tests green.
+  2. Scored on the D1 mse_eval harness vs the strong v1 bar; the named symptom it targets (fusion
+     or calibration) reported honestly, including if it does not pay.
+  3. A new decision surfaced recording which architecture was chosen and why + this one resolved.</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
