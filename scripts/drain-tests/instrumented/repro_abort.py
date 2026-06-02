@@ -70,6 +70,30 @@ def main() -> None:
     dist.barrier()
     log(f"rank {rank} warmup complete (hot CUDA context + NCCL ring established)")
 
+    if MODE == "abort_stuck":
+        # NCCL #829 FAITHFUL repro of the production signature
+        # ("Future for ProcessGroup abort timed out after 600000 ms"):
+        # ranks 1..N-1 launch an ASYNC all_reduce (GPU kernel goes in flight and
+        # stalls forever waiting for rank 0, who stays alive but never joins so the
+        # ring is not torn down), then immediately call destroy_process_group().
+        # That invokes ncclCommAbort, which internally calls cudaStreamSynchronize
+        # on the stream holding the stuck kernel -> uninterruptible (D) wait that
+        # never returns. With the torch/NCCL watchdog disabled (see sbatch) nothing
+        # SIGABRTs the process, so the SLURM --time SIGKILL lands inside the
+        # abort-hang window -> unkillable -> drain.
+        if rank == 0:
+            log("rank 0 ALIVE, NOT joining collective (keeps ring up so peer kernels stay stuck)")
+            time.sleep(3600)
+        else:
+            log(f"rank {rank} launching ASYNC all_reduce (NO synchronize) -> kernel stuck in flight")
+            dist.all_reduce(buf)  # async: returns immediately, GPU kernel stalls
+            log(f"rank {rank} >>> destroy_process_group() = ncclCommAbort on in-flight stuck kernel (EXPECT D-STATE HANG) <<<")
+            t0 = time.time()
+            dist.destroy_process_group()
+            log(f"rank {rank} destroy RETURNED after {time.time() - t0:.1f}s (did NOT wedge)")
+        time.sleep(3600)
+        return
+
     if MODE == "stuck_collective":
         # NCCL #829 path: a genuinely STUCK NCCL GPU kernel.
         # Ranks 1..N-1 post a real all_reduce (GPU kernel launched, needs rank 0's

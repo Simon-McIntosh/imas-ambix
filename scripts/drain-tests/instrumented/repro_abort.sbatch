@@ -31,7 +31,7 @@ export NUMEL="${NUMEL:-67108864}"
 
 # stuck_collective mode (NCCL #829): disable the torch/NCCL watchdog so the
 # stuck collective is NOT auto-aborted before the SLURM --time kill lands.
-if [ "${REPRO_MODE}" = "stuck_collective" ]; then
+if [ "${REPRO_MODE}" = "stuck_collective" ] || [ "${REPRO_MODE}" = "abort_stuck" ]; then
     export TORCH_NCCL_ASYNC_ERROR_HANDLING=0
     export TORCH_NCCL_ENABLE_MONITORING=0
     export NCCL_DEBUG=WARN
