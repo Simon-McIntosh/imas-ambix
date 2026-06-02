@@ -32,6 +32,7 @@ MODE (env REPRO_MODE):
 """
 import os
 import time
+from datetime import timedelta
 
 import torch
 import torch.distributed as dist
@@ -46,7 +47,11 @@ def log(m: str) -> None:
 
 
 def main() -> None:
-    dist.init_process_group(backend="nccl")
+    _pg_to = os.environ.get("AMBIX_PG_TIMEOUT")
+    if _pg_to:
+        dist.init_process_group(backend="nccl", timeout=timedelta(seconds=int(_pg_to)))
+    else:
+        dist.init_process_group(backend="nccl")
     rank = dist.get_rank()
     world = dist.get_world_size()
     lr = int(os.environ.get("LOCAL_RANK", rank))
@@ -69,6 +74,24 @@ def main() -> None:
     torch.cuda.synchronize()
     dist.barrier()
     log(f"rank {rank} warmup complete (hot CUDA context + NCCL ring established)")
+
+    if MODE == "abort_watchdog":
+        # PRODUCTION-FAITHFUL (matches 1208980/1209813 timeline): DEFAULT torch
+        # watchdog ON + short PG timeout (AMBIX_PG_TIMEOUT). Ranks 1..N-1 leave a
+        # collective genuinely stuck in flight; rank 0 stays alive and never joins.
+        # At the PG timeout the watchdog fires and drives ncclCommAbort; the SLURM
+        # --time SIGKILL is timed to land WHILE that abort hangs. If the abort
+        # wedges in the driver (D-state) it survives SIGKILL -> drain.
+        if rank == 0:
+            log("rank 0 ALIVE, NOT joining (peer kernels stay stuck; watchdog will fire on peers)")
+            time.sleep(3600)
+        else:
+            log(f"rank {rank} posting all_reduce + synchronize -> stuck in flight; watchdog fires at PG timeout")
+            dist.all_reduce(buf)
+            torch.cuda.synchronize()
+            log(f"rank {rank} synchronize returned (watchdog/abort did not wedge)")
+        time.sleep(3600)
+        return
 
     if MODE == "abort_stuck":
         # NCCL #829 FAITHFUL repro of the production signature
