@@ -76,6 +76,27 @@
           "interior_reliable_err_le_0p1_carrier_unweighted_rmse": 0.14982274291044986,
           "interior_reliable_n": 13622
         },
+        "interior_truth_axis_ablation": {
+          "dR_axis_terciles_m": [
+            0.11293325424194334,
+            0.32108556270599414
+          ],
+          "interior_band_weighted": {
+            "A_wrmse": 0.0770658865185131,
+            "carrier_wrmse": 0.06940449222404511,
+            "rel_gain": 0.09941356209050456,
+            "n": 23049,
+            "caveat": "weighted -> dominated by ultra-reliable points (artifact-prone)"
+          },
+          "interior_band_reliable_unweighted": {
+            "A_rmse": 0.15589920962854645,
+            "carrier_rmse": 0.15381822718453309,
+            "rel_gain": 0.013348255253965813,
+            "n": 15643,
+            "note": "DECISIVE: err<=0.1, no single point dominates"
+          }
+        },
+        "carrier_reaches_interior_reliable": false,
         "high_error_is_near_axis": true,
         "carrier_rel_gain_interior_reliable": 0.012229399926560167,
         "R0_caveat": "|R-R0| uses nominal R0=0.85 m (true MAST axis ~0.9-1.0 m); some points mislabelled \u2014 the reference-FREE error-tercile cut is the decisive one",
@@ -105,7 +126,9 @@
           "E_mag_sxr": 0.18570044173127442,
           "E_mag_bolo": 0.17666221490347941,
           "E_mag_thomson": 0.1844410113111038,
-          "E_mag_camera": 0.1869791880069535
+          "E_mag_camera": 0.1869791880069535,
+          "G_mag_te_bolo": 0.1773450955904623,
+          "H_mag_te_sxr": 0.1855617067579276
         },
         "paired_differences": {
           "D_minus_A": {
@@ -147,8 +170,49 @@
               0.005196484602800938
             ],
             "frac_pos": 0.4345
+          },
+          "G_bolo_minus_B_te": {
+            "mean_diff": -0.007095915720641499,
+            "ci95": [
+              -0.013418338554977743,
+              -0.0002848782560363935
+            ],
+            "frac_pos": 0.0205
+          },
+          "H_sxr_minus_B_te": {
+            "mean_diff": 0.001120695446823805,
+            "ci95": [
+              -0.0012968298728456514,
+              0.003561074711642258
+            ],
+            "frac_pos": 0.801
           }
-        }
+        },
+        "incremental_over_Te": {
+          "note": "G_bolo_minus_B_te / H_sxr_minus_B_te test whether the carrier beats a Te-CONDITIONED baseline (B = mag+Te).  The EnKF physics bar already has Te->conductivity->current-diffusion; a carrier that collapses once Te is in is a conductivity/profile proxy and would NOT beat the EnKF.",
+          "G_bolo_minus_B_te": {
+            "mean_diff": -0.007095915720641499,
+            "ci95": [
+              -0.013418338554977743,
+              -0.0002848782560363935
+            ],
+            "frac_pos": 0.0205
+          },
+          "H_sxr_minus_B_te": {
+            "mean_diff": 0.001120695446823805,
+            "ci95": [
+              -0.0012968298728456514,
+              0.003561074711642258
+            ],
+            "frac_pos": 0.801
+          }
+        },
+        "ama_ntm_already_in_magnetics": "The precomputed NTM mode-product (ama n=2 / n-odd amplitude+frequency+signal) is ALREADY in the magnetics block of EVERY arm including magnetics-only (A).  So the dense mode-presence signal is in the baseline \u2014 and A still does not reach the interior.  amm is NOT used (decimated EFIT wall-model, no MHD-band content)."
+      },
+      "pin_coverage": {
+        "q1_surface_frac": 0.345534115774816,
+        "n_pv_slices_with_finite_q0": 5027,
+        "note": "fraction of scored pv slices with truth q0<1 (q=1 sawtooth surface present).  If small, sawtooth/q=1 features structurally cannot help on most slices \u2014 context for the sub-material SXR-mode result.  q0 is the MSE-pipeline q0_kappa1.85_4pt (provisional)."
       },
       "paired_differences_nodemetric": {
         "A_minus_clim": {
@@ -729,6 +793,124 @@
           ],
           "n_features": 144,
           "mse_eval_rmse_mean": 0.1869791880069535
+        },
+        "G_mag_te_bolo": {
+          "modalities": [
+            "mag",
+            "thomson",
+            "bolo"
+          ],
+          "rmse_pooled": 0.48636083970767785,
+          "rmse_per_shot": 0.48000743499322135,
+          "rmse_per_shot_ci95": [
+            0.4419449029543425,
+            0.5238443044116896
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4853276965308182,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.38144790213633556,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44811628369156864,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5277505129512046,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5530725772798767,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5170949575123917,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5018988590307705,
+              "n": 2778
+            }
+          ],
+          "n_features": 170,
+          "mse_eval_rmse_mean": 0.1773450955904623
+        },
+        "H_mag_te_sxr": {
+          "modalities": [
+            "mag",
+            "thomson",
+            "sxr"
+          ],
+          "rmse_pooled": 0.4872624214965232,
+          "rmse_per_shot": 0.48159203155838953,
+          "rmse_per_shot_ci95": [
+            0.4453598851400934,
+            0.5233036558324549
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4863352203793492,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.3821104783713619,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.4483665831245941,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5299358184170047,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5514896930886793,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5225279444320347,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.50017412389198,
+              "n": 2778
+            }
+          ],
+          "n_features": 192,
+          "mse_eval_rmse_mean": 0.1855617067579276
         }
       },
       "target": {
@@ -861,7 +1043,7 @@
           "enabled": false
         }
       },
-      "runtime_s": 392.7
+      "runtime_s": 106.9
     },
     "time_history": {
       "version": "oracle_probe_v0",
@@ -936,6 +1118,27 @@
           "interior_reliable_err_le_0p1_carrier_unweighted_rmse": 0.14979925349703285,
           "interior_reliable_n": 13622
         },
+        "interior_truth_axis_ablation": {
+          "dR_axis_terciles_m": [
+            0.11293325424194334,
+            0.32108556270599414
+          ],
+          "interior_band_weighted": {
+            "A_wrmse": 0.07529260266334781,
+            "carrier_wrmse": 0.06906237794104021,
+            "rel_gain": 0.0827468370321119,
+            "n": 23049,
+            "caveat": "weighted -> dominated by ultra-reliable points (artifact-prone)"
+          },
+          "interior_band_reliable_unweighted": {
+            "A_rmse": 0.15643679332725757,
+            "carrier_rmse": 0.15381756639281552,
+            "rel_gain": 0.016743036460500495,
+            "n": 15643,
+            "note": "DECISIVE: err<=0.1, no single point dominates"
+          }
+        },
+        "carrier_reaches_interior_reliable": false,
         "high_error_is_near_axis": true,
         "carrier_rel_gain_interior_reliable": 0.01678318013953996,
         "R0_caveat": "|R-R0| uses nominal R0=0.85 m (true MAST axis ~0.9-1.0 m); some points mislabelled \u2014 the reference-FREE error-tercile cut is the decisive one",
@@ -965,7 +1168,9 @@
           "E_mag_sxr": 0.18868872962538533,
           "E_mag_bolo": 0.17924496368240006,
           "E_mag_thomson": 0.18613642704672276,
-          "E_mag_camera": 0.1902923472261729
+          "E_mag_camera": 0.1902923472261729,
+          "G_mag_te_bolo": 0.17838160325288333,
+          "H_mag_te_sxr": 0.18676397691681562
         },
         "paired_differences": {
           "D_minus_A": {
@@ -1007,8 +1212,49 @@
               0.005610378223957516
             ],
             "frac_pos": 0.5875
+          },
+          "G_bolo_minus_B_te": {
+            "mean_diff": -0.007754823793839433,
+            "ci95": [
+              -0.014865815551564776,
+              -0.0006922862408818299
+            ],
+            "frac_pos": 0.013
+          },
+          "H_sxr_minus_B_te": {
+            "mean_diff": 0.0006275498700928639,
+            "ci95": [
+              -0.002202231908300723,
+              0.0033489446684123133
+            ],
+            "frac_pos": 0.672
           }
-        }
+        },
+        "incremental_over_Te": {
+          "note": "G_bolo_minus_B_te / H_sxr_minus_B_te test whether the carrier beats a Te-CONDITIONED baseline (B = mag+Te).  The EnKF physics bar already has Te->conductivity->current-diffusion; a carrier that collapses once Te is in is a conductivity/profile proxy and would NOT beat the EnKF.",
+          "G_bolo_minus_B_te": {
+            "mean_diff": -0.007754823793839433,
+            "ci95": [
+              -0.014865815551564776,
+              -0.0006922862408818299
+            ],
+            "frac_pos": 0.013
+          },
+          "H_sxr_minus_B_te": {
+            "mean_diff": 0.0006275498700928639,
+            "ci95": [
+              -0.002202231908300723,
+              0.0033489446684123133
+            ],
+            "frac_pos": 0.672
+          }
+        },
+        "ama_ntm_already_in_magnetics": "The precomputed NTM mode-product (ama n=2 / n-odd amplitude+frequency+signal) is ALREADY in the magnetics block of EVERY arm including magnetics-only (A).  So the dense mode-presence signal is in the baseline \u2014 and A still does not reach the interior.  amm is NOT used (decimated EFIT wall-model, no MHD-band content)."
+      },
+      "pin_coverage": {
+        "q1_surface_frac": 0.345534115774816,
+        "n_pv_slices_with_finite_q0": 5027,
+        "note": "fraction of scored pv slices with truth q0<1 (q=1 sawtooth surface present).  If small, sawtooth/q=1 features structurally cannot help on most slices \u2014 context for the sub-material SXR-mode result.  q0 is the MSE-pipeline q0_kappa1.85_4pt (provisional)."
       },
       "paired_differences_nodemetric": {
         "A_minus_clim": {
@@ -1589,6 +1835,124 @@
           ],
           "n_features": 149,
           "mse_eval_rmse_mean": 0.1902923472261729
+        },
+        "G_mag_te_bolo": {
+          "modalities": [
+            "mag",
+            "thomson",
+            "bolo"
+          ],
+          "rmse_pooled": 0.48652843214401975,
+          "rmse_per_shot": 0.480286621283799,
+          "rmse_per_shot_ci95": [
+            0.44242210386481046,
+            0.5235134768408894
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4858336175678014,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.38203102079893614,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44791858961284065,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5282858746249935,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5524640085982172,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5157593754100476,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5040592263521965,
+              "n": 2778
+            }
+          ],
+          "n_features": 180,
+          "mse_eval_rmse_mean": 0.17838160325288333
+        },
+        "H_mag_te_sxr": {
+          "modalities": [
+            "mag",
+            "thomson",
+            "sxr"
+          ],
+          "rmse_pooled": 0.48795306703067975,
+          "rmse_per_shot": 0.4823833991139953,
+          "rmse_per_shot_ci95": [
+            0.445999643480084,
+            0.5238095446389595
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.48689136155434964,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.381009624743967,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.4482944790560693,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5293362548357194,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5518220761615693,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5254657146602266,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5048113098403237,
+              "n": 2778
+            }
+          ],
+          "n_features": 202,
+          "mse_eval_rmse_mean": 0.18676397691681562
         }
       },
       "target": {
@@ -1725,7 +2089,7 @@
           "enabled": false
         }
       },
-      "runtime_s": 337.8,
+      "runtime_s": 92.5,
       "frontier": {
         "mag_history_rmse": 0.18978120799329884,
         "mag_instant_rmse": 0.1878642540574317,
@@ -1806,6 +2170,27 @@
           "interior_reliable_err_le_0p1_carrier_unweighted_rmse": 0.14982274291044986,
           "interior_reliable_n": 13622
         },
+        "interior_truth_axis_ablation": {
+          "dR_axis_terciles_m": [
+            0.11293325424194334,
+            0.32108556270599414
+          ],
+          "interior_band_weighted": {
+            "A_wrmse": 0.0770658865185131,
+            "carrier_wrmse": 0.06940449222404511,
+            "rel_gain": 0.09941356209050456,
+            "n": 23049,
+            "caveat": "weighted -> dominated by ultra-reliable points (artifact-prone)"
+          },
+          "interior_band_reliable_unweighted": {
+            "A_rmse": 0.15589920962854645,
+            "carrier_rmse": 0.15381822718453309,
+            "rel_gain": 0.013348255253965813,
+            "n": 15643,
+            "note": "DECISIVE: err<=0.1, no single point dominates"
+          }
+        },
+        "carrier_reaches_interior_reliable": false,
         "high_error_is_near_axis": true,
         "carrier_rel_gain_interior_reliable": 0.012229399926560167,
         "R0_caveat": "|R-R0| uses nominal R0=0.85 m (true MAST axis ~0.9-1.0 m); some points mislabelled \u2014 the reference-FREE error-tercile cut is the decisive one",
@@ -1835,7 +2220,9 @@
           "E_mag_sxr": 0.1814240147311255,
           "E_mag_bolo": 0.17666221490347941,
           "E_mag_thomson": 0.1844410113111038,
-          "E_mag_camera": 0.1869791880069535
+          "E_mag_camera": 0.1869791880069535,
+          "G_mag_te_bolo": 0.1773450955904623,
+          "H_mag_te_sxr": 0.17860945528500297
         },
         "paired_differences": {
           "D_minus_A": {
@@ -1877,8 +2264,49 @@
               0.005196484602800938
             ],
             "frac_pos": 0.4345
+          },
+          "G_bolo_minus_B_te": {
+            "mean_diff": -0.007095915720641499,
+            "ci95": [
+              -0.013418338554977743,
+              -0.0002848782560363935
+            ],
+            "frac_pos": 0.0205
+          },
+          "H_sxr_minus_B_te": {
+            "mean_diff": -0.0058315560261008315,
+            "ci95": [
+              -0.009808997671368318,
+              -0.0019043409024176907
+            ],
+            "frac_pos": 0.0025
           }
-        }
+        },
+        "incremental_over_Te": {
+          "note": "G_bolo_minus_B_te / H_sxr_minus_B_te test whether the carrier beats a Te-CONDITIONED baseline (B = mag+Te).  The EnKF physics bar already has Te->conductivity->current-diffusion; a carrier that collapses once Te is in is a conductivity/profile proxy and would NOT beat the EnKF.",
+          "G_bolo_minus_B_te": {
+            "mean_diff": -0.007095915720641499,
+            "ci95": [
+              -0.013418338554977743,
+              -0.0002848782560363935
+            ],
+            "frac_pos": 0.0205
+          },
+          "H_sxr_minus_B_te": {
+            "mean_diff": -0.0058315560261008315,
+            "ci95": [
+              -0.009808997671368318,
+              -0.0019043409024176907
+            ],
+            "frac_pos": 0.0025
+          }
+        },
+        "ama_ntm_already_in_magnetics": "The precomputed NTM mode-product (ama n=2 / n-odd amplitude+frequency+signal) is ALREADY in the magnetics block of EVERY arm including magnetics-only (A).  So the dense mode-presence signal is in the baseline \u2014 and A still does not reach the interior.  amm is NOT used (decimated EFIT wall-model, no MHD-band content)."
+      },
+      "pin_coverage": {
+        "q1_surface_frac": 0.345534115774816,
+        "n_pv_slices_with_finite_q0": 5027,
+        "note": "fraction of scored pv slices with truth q0<1 (q=1 sawtooth surface present).  If small, sawtooth/q=1 features structurally cannot help on most slices \u2014 context for the sub-material SXR-mode result.  q0 is the MSE-pipeline q0_kappa1.85_4pt (provisional)."
       },
       "paired_differences_nodemetric": {
         "A_minus_clim": {
@@ -2459,6 +2887,124 @@
           ],
           "n_features": 144,
           "mse_eval_rmse_mean": 0.1869791880069535
+        },
+        "G_mag_te_bolo": {
+          "modalities": [
+            "mag",
+            "thomson",
+            "bolo"
+          ],
+          "rmse_pooled": 0.48636083970767785,
+          "rmse_per_shot": 0.48000743499322135,
+          "rmse_per_shot_ci95": [
+            0.4419449029543425,
+            0.5238443044116896
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4853276965308182,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.38144790213633556,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44811628369156864,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5277505129512046,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5530725772798767,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5170949575123917,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5018988590307705,
+              "n": 2778
+            }
+          ],
+          "n_features": 170,
+          "mse_eval_rmse_mean": 0.1773450955904623
+        },
+        "H_mag_te_sxr": {
+          "modalities": [
+            "mag",
+            "thomson",
+            "sxr"
+          ],
+          "rmse_pooled": 0.48498245259522693,
+          "rmse_per_shot": 0.479184205166045,
+          "rmse_per_shot_ci95": [
+            0.4422011764416598,
+            0.5212614185041043
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.48815258599580547,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.38065129880751186,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44709570568981516,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5236762650311892,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5463652161179218,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5209177985463789,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.49908118855956535,
+              "n": 2778
+            }
+          ],
+          "n_features": 301,
+          "mse_eval_rmse_mean": 0.17860945528500297
         }
       },
       "target": {
@@ -2594,7 +3140,7 @@
           "features": "per chord (all 54, NO channel-mean): [detrended-fluctuation RMS (sawtooth/mode amplitude), rfft dominant-band power (q=1 sawtooth / q=2,3-2 tearing frequency proxy)] + native-rate-OK flag; appended to the sxr block.  Tests rational-surface localization."
         }
       },
-      "runtime_s": 399.2
+      "runtime_s": 97.7
     }
   }
 }

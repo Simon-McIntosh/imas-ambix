@@ -674,7 +674,7 @@ def fit_node_radii(manifest, train_ids):
 
 ARMS: dict[str, list[str]] = {
     "A_mag": ["mag"],
-    "B_mag_thomson": ["mag", "thomson"],
+    "B_mag_thomson": ["mag", "thomson"],  # == mag + Te (the EnKF already has Te)
     "C_mag_sxr_bolo": ["mag", "sxr", "bolo"],
     "D_all": ["mag", "thomson", "sxr", "bolo", "camera"],
     # attribution arms
@@ -682,6 +682,10 @@ ARMS: dict[str, list[str]] = {
     "E_mag_bolo": ["mag", "bolo"],
     "E_mag_thomson": ["mag", "thomson"],
     "E_mag_camera": ["mag", "camera"],
+    # incremental-over-Te arms (does the carrier beat a Te-conditioned baseline,
+    # or only re-derive conductivity the EnKF physics bar already has?)
+    "G_mag_te_bolo": ["mag", "thomson", "bolo"],
+    "H_mag_te_sxr": ["mag", "thomson", "sxr"],
 }
 
 
@@ -1053,7 +1057,7 @@ def _carrier_points(test_shots, yhat_A, yhat_C, node_r, manifest, R0=_R0_NOMINAL
     ``yhat_A`` / ``yhat_C`` are the magnetics-only and carrier-arm node
     predictions (joint stacks in ``test_shots`` order).
     """
-    rA, rC, errs, rmin = [], [], [], []
+    rA, rC, errs, rmin, rmin_ax = [], [], [], [], []
     row = 0
     for sf in test_shots:
         S = sf.y.shape[0]
@@ -1067,9 +1071,12 @@ def _carrier_points(test_shots, yhat_A, yhat_C, node_r, manifest, R0=_R0_NOMINAL
         gate = M.pitch_point_gate(tr.pitch, tr.pitch_error)
         pv = np.asarray(entry["pitch_valid_mask"], dtype=bool)
         rpos = np.asarray(entry["active_channel_rpos"], dtype=float)
+        rax_tr = np.asarray(tr.rax, dtype=float)  # per-slice truth magnetic axis R
         for k in range(K):
             if not pv[k]:
                 continue
+            # truth axis radius for this slice (fall back to nominal R0 if absent)
+            rax_k = rax_tr[k] if (k < rax_tr.size and np.isfinite(rax_tr[k])) else R0
             for c in range(C):
                 if not gate[k, c]:
                     continue
@@ -1079,8 +1086,15 @@ def _carrier_points(test_shots, yhat_A, yhat_C, node_r, manifest, R0=_R0_NOMINAL
                 rA.append(pa - tr.pitch[k, c])
                 rC.append(pc - tr.pitch[k, c])
                 errs.append(abs(tr.pitch_error[k, c]))
-                rmin.append(abs(rpos[c] - R0))
-    return (np.array(rA), np.array(rC), np.array(errs), np.array(rmin))
+                rmin.append(abs(rpos[c] - R0))  # nominal-R0 minor radius
+                rmin_ax.append(abs(rpos[c] - rax_k))  # truth-axis minor radius
+    return (
+        np.array(rA),
+        np.array(rC),
+        np.array(errs),
+        np.array(rmin),
+        np.array(rmin_ax),
+    )
 
 
 def localization_analysis(test_shots, arm_pred, node_r, manifest, carrier_arm):
@@ -1101,13 +1115,15 @@ def localization_analysis(test_shots, arm_pred, node_r, manifest, carrier_arm):
     def _u(resid):
         return float(np.sqrt(np.mean(resid**2))) if resid.size else float("nan")
 
-    rA, rC, err, rmin = _carrier_points(
+    rA, rC, err, rmin, rmin_ax = _carrier_points(
         test_shots, arm_pred["A_mag"], arm_pred[carrier_arm], node_r, manifest
     )
     if rA.size == 0:
         return {"carrier_arm": carrier_arm, "error": "no points"}
     et = np.percentile(err, [33, 66])
     rt = np.percentile(rmin, [33, 66])
+    # truth-axis interior tercile (the advisor's preferred cut: |R - rax|, not R0)
+    rt_ax = np.percentile(rmin_ax, [33, 66])
 
     def band(mask_a, mask_c):
         return {
@@ -1148,6 +1164,41 @@ def localization_analysis(test_shots, arm_pred, node_r, manifest, carrier_arm):
         cross_tab["interior_reliable_err_le_0p1_A_unweighted_rmse"]
         - cross_tab["interior_reliable_err_le_0p1_carrier_unweighted_rmse"]
     ) / max(cross_tab["interior_reliable_err_le_0p1_A_unweighted_rmse"], 1e-9)
+
+    # --- truth-axis interior ablation (the decisive, trap-guarded cut) -------
+    # Interior tercile by |R - rax| (truth magnetic axis), with BOTH weighted
+    # (artifact-prone, dominated by ultra-reliable points) and
+    # reliable-unweighted (err<=0.1, no single point dominates) RMSE.  The
+    # VERDICT keys off the reliable-unweighted ablation.
+    int_ax = rmin_ax <= rt_ax[0]
+    int_ax_rel = int_ax & (err <= 0.1)
+    A_int_w, C_int_w = _w(rA[int_ax], err[int_ax]), _w(rC[int_ax], err[int_ax])
+    A_int_u = _u(rA[int_ax_rel])
+    C_int_u = _u(rC[int_ax_rel])
+    interior_ax = {
+        "dR_axis_terciles_m": rt_ax.tolist(),
+        "interior_band_weighted": {
+            "A_wrmse": A_int_w,
+            "carrier_wrmse": C_int_w,
+            "rel_gain": float((A_int_w - C_int_w) / max(A_int_w, 1e-9)),
+            "n": int(int_ax.sum()),
+            "caveat": "weighted -> dominated by ultra-reliable points (artifact-prone)",
+        },
+        "interior_band_reliable_unweighted": {
+            "A_rmse": A_int_u,
+            "carrier_rmse": C_int_u,
+            "rel_gain": float((A_int_u - C_int_u) / max(A_int_u, 1e-9)),
+            "n": int(int_ax_rel.sum()),
+            "note": "DECISIVE: err<=0.1, no single point dominates",
+        },
+    }
+    # carrier reaches the interior iff the reliable-unweighted interior gain is
+    # both material (>=5%) and positive
+    carrier_reaches_interior = bool(
+        np.isfinite(A_int_u)
+        and np.isfinite(C_int_u)
+        and (A_int_u - C_int_u) / max(A_int_u, 1e-9) >= 0.05
+    )
     return {
         "carrier_arm": carrier_arm,
         "pitcha_error_terciles_rad": et.tolist(),
@@ -1155,6 +1206,8 @@ def localization_analysis(test_shots, arm_pred, node_r, manifest, carrier_arm):
         "by_error_tercile_wrmse": err_terciles,
         "by_radial_band_wrmse": radial_bands,
         "cross_tab": cross_tab,
+        "interior_truth_axis_ablation": interior_ax,
+        "carrier_reaches_interior_reliable": carrier_reaches_interior,
         "high_error_is_near_axis": interior_is_high_error,
         "carrier_rel_gain_interior_reliable": float(rel_gain_interior),
         "R0_caveat": (
@@ -1375,6 +1428,38 @@ def run(cfg: ProbeConfig) -> dict:
 
     truth = MseTruth(level1_dir=_L1)
     test_shot_order = [sf.shot_id for sf in test_shots]
+
+    # PIN-COVERAGE: fraction of scored (pv) slices with a rational surface in
+    # TRUTH — q0<1 (q=1 sawtooth surface present).  Contextualises why
+    # sawtooth/q=1 features can or cannot help on most slices.
+    n_pv_slices = 0
+    n_q1_present = 0
+    for sf in test_shots:
+        tr = truth.get(sf.shot_id)
+        if tr is None:
+            continue
+        entry = manifest["shots"][str(sf.shot_id)]
+        pv = np.asarray(entry["pitch_valid_mask"], dtype=bool)
+        q0 = np.asarray(tr.q0, dtype=float)
+        for k in np.where(pv)[0]:
+            if k >= q0.size:
+                continue
+            n_pv_slices += 1
+            if np.isfinite(q0[k]) and q0[k] < 1.0:
+                n_q1_present += 1
+    pin_coverage = {
+        "q1_surface_frac": (
+            n_q1_present / n_pv_slices if n_pv_slices else float("nan")
+        ),
+        "n_pv_slices_with_finite_q0": int(n_pv_slices),
+        "note": (
+            "fraction of scored pv slices with truth q0<1 (q=1 sawtooth surface "
+            "present).  If small, sawtooth/q=1 features structurally cannot help "
+            "on most slices — context for the sub-material SXR-mode result.  "
+            "q0 is the MSE-pipeline q0_kappa1.85_4pt (provisional)."
+        ),
+    }
+
     mse_eval_rmse_arr: dict[str, np.ndarray] = {}
     for arm_name in ARMS:
         by_shot = mse_eval_per_shot_rmse(
@@ -1403,6 +1488,18 @@ def run(cfg: ProbeConfig) -> dict:
         paired_mse_eval[f"{arm_name}_minus_A"] = _paired_diff_from_arrays(
             mse_eval_rmse_arr[arm_name], mse_eval_rmse_arr["A_mag"], seed=bE + 1
         )
+    # INCREMENTAL-OVER-Te: does the carrier beat a Te-conditioned baseline (B =
+    # mag+Te), or only re-derive conductivity the EnKF physics bar already has?
+    paired_mse_eval["G_bolo_minus_B_te"] = _paired_diff_from_arrays(
+        mse_eval_rmse_arr["G_mag_te_bolo"],
+        mse_eval_rmse_arr["B_mag_thomson"],
+        seed=bE + 2,
+    )
+    paired_mse_eval["H_sxr_minus_B_te"] = _paired_diff_from_arrays(
+        mse_eval_rmse_arr["H_mag_te_sxr"],
+        mse_eval_rmse_arr["B_mag_thomson"],
+        seed=bE + 3,
+    )
     paired_mse_eval_out = {
         k: {"mean_diff": v[0], "ci95": [v[1], v[2]], "frac_pos": v[3]}
         for k, v in paired_mse_eval.items()
@@ -1506,7 +1603,11 @@ def run(cfg: ProbeConfig) -> dict:
         localization = localization_analysis(
             test_shots, arm_pred, node_r, manifest, carrier_arm
         )
-        carrier_off_interior = bool(localization.get("high_error_is_near_axis"))
+        # DECISIVE: carrier is off-interior unless it reaches the interior on
+        # the trap-guarded reliable-unweighted truth-axis ablation.
+        carrier_off_interior = not bool(
+            localization.get("carrier_reaches_interior_reliable")
+        )
 
     if info_exists and not carrier_off_interior:
         verdict = "INFO_EXISTS"
@@ -1628,7 +1729,27 @@ def run(cfg: ProbeConfig) -> dict:
             },
             "arm_rmse": {k: arm_results[k]["mse_eval_rmse_mean"] for k in ARMS},
             "paired_differences": paired_mse_eval_out,
+            "incremental_over_Te": {
+                "note": (
+                    "G_bolo_minus_B_te / H_sxr_minus_B_te test whether the "
+                    "carrier beats a Te-CONDITIONED baseline (B = mag+Te).  The "
+                    "EnKF physics bar already has Te->conductivity->current-"
+                    "diffusion; a carrier that collapses once Te is in is a "
+                    "conductivity/profile proxy and would NOT beat the EnKF."
+                ),
+                "G_bolo_minus_B_te": paired_mse_eval_out.get("G_bolo_minus_B_te"),
+                "H_sxr_minus_B_te": paired_mse_eval_out.get("H_sxr_minus_B_te"),
+            },
+            "ama_ntm_already_in_magnetics": (
+                "The precomputed NTM mode-product (ama n=2 / n-odd "
+                "amplitude+frequency+signal) is ALREADY in the magnetics block "
+                "of EVERY arm including magnetics-only (A).  So the dense "
+                "mode-presence signal is in the baseline — and A still does not "
+                "reach the interior.  amm is NOT used (decimated EFIT wall-model, "
+                "no MHD-band content)."
+            ),
         },
+        "pin_coverage": pin_coverage,
         "paired_differences_nodemetric": paired_out,
         "persistence": {
             "rmse_pooled": pers_pooled,
