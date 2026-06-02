@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"    content="imas-ambix">
-  <meta name="reckon-type"     content="plan">
-  <meta name="plan-slug"       content="mse-free-current-recovery-v0">
-  <meta name="plan-title"      content="MSE-Free Multi-Modal Current-Profile Recovery">
-  <meta name="plan-summary"    content="End-to-end obs→state neural filter that recovers MSE-derived internal-current observables from raw multi-modal diagnostics (no MSE input), beating a classical EnKF baseline — the ITER-startup current-recovery problem.">
-  <meta name="plan-status"     content="active">
-  <meta name="plan-roi"        content="high">
-  <meta name="plan-effort"     content="XL">
-  <meta name="plan-tier"       content="opus">
-  <meta name="plan-milestone"  content="M3">
-  <meta name="plan-sprint"     content="S9">
-  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="mse-free-current-recovery-v0">
+  <meta name="plan-title" content="MSE-Free Multi-Modal Current-Profile Recovery">
+  <meta name="plan-summary" content="End-to-end obs→state neural filter that recovers MSE-derived internal-current observables from raw multi-modal diagnostics (no MSE input), beating a classical EnKF baseline — the ITER-startup current-recovery problem.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-milestone" content="M3">
+  <meta name="plan-sprint" content="S9">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="physics-world-model-strategy,plasma-gs-prior-v0,plasma-state-space-v0,probabilistic-state-space-methods">
   <title>MSE-Free Multi-Modal Current-Profile Recovery | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-01">
+<meta name="plan-version" content="5">
 </head>
 <body>
   <main class="plan-doc">
@@ -248,89 +250,80 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="win-scope" data-choice="mse-observables-on-axis" data-by="Simon McIntosh" data-when="2026-05-31">
-        <p class="r-dec-q">What does the filter recover and get scored on?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt chosen" data-value="mse-observables-on-axis">MSE observables / on-axis (q0, rax, pitch)</button>
-          <button class="r-opt" data-value="full-continuous-profile">Full continuous q(ψ)/j(ψ)</button>
-          <button class="r-opt" data-value="observables-now-profile-later">Observables now + profile as stretch</button>
-        </p>
-        <p class="r-dec-rat">LOCKED: MSE-observable / on-axis recovery is the only rule-clean, non-circular, authorable-now win condition (held-out raw MSE on beam-on slices). Full continuous q(ψ) has no non-circular truth in the corpus and is deferred to a synthetic-truth follow-on (§8).</p>
-      </div>
-
-      <div class="r-dec" data-key="efit-eval-use" data-choice="boundary-global-sanity-only" data-by="Simon McIntosh" data-when="2026-05-31">
-        <p class="r-dec-q">May EFIT (efm, a banned solver output) be used at evaluation time?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt chosen" data-value="boundary-global-sanity-only">Eval-only boundary/global sanity-check</button>
-          <button class="r-opt" data-value="ban-entirely">Ban EFIT entirely (MSE-only eval)</button>
-          <button class="r-opt" data-value="allow-qpsi-eval">Allow EFIT for q(ψ) eval too</button>
-        </p>
-        <p class="r-dec-rat">LOCKED: EFIT may cross-check LCFS / total Ip / q95 only (where magnetics genuinely constrain); never an input, label, or interior-current reference. Primary internal-current score stays held-out MSE.</p>
-      </div>
-
-      <div class="r-dec" data-key="filter-architecture" data-choice="end-to-end-obs-state" data-by="Simon McIntosh" data-when="2026-05-31">
-        <p class="r-dec-q">Which "beyond-Kalman" architecture anchors the neural filter?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt chosen" data-value="end-to-end-obs-state">End-to-end obs→state (Aardvark-style)</button>
-          <button class="r-opt" data-value="amortized-rkn-gs">Amortized neural filtering (extend RKN+GS)</button>
-          <button class="r-opt" data-value="score-diffusion-da">Score/diffusion DA on the latent</button>
-          <button class="r-opt" data-value="diff-variational-4dvarnet">Differentiable variational DA (4DVarNet)</button>
-        </p>
-        <p class="r-dec-rat">LOCKED: end-to-end obs→state — one model maps raw heterogeneous diagnostics straight to state, recovering the raw-multi-modal-from-day-one motivation and the largest H200 lift. Highest risk / longest runway, so staged behind T1–T4 de-risking. The amortized-RKN+GS path (option 2) is the natural v0 stepping-stone toward it.</p>
-      </div>
-
-      <div class="r-dec" data-key="enkf-baseline-form" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What form does the EnKF baseline (the bar to beat) take?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="raptor-pfde-ekf">RAPTOR-style PFDE forward + EKF</button>
-          <button class="r-opt" data-value="gs-operator-enkf">GS forward operator + EnKF ensemble update</button>
-          <button class="r-opt" data-value="enkf-around-pssm">EnKF around the learned PSSM</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-
-      <div class="r-dec" data-key="obs-state-readout" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How is the MSE observable read out from the latent state (kept clean of MSE leakage)?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="gs-grounded-physical">GS-grounded physical readout (no extra fit)</button>
-          <button class="r-opt" data-value="disjoint-eval-only-learned">Disjoint eval-only learned readout</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-
-      <div class="r-dec" data-key="camera-encoding" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How are visible-camera (rbb) frames encoded into the input set?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="pixel-cnn">Learned pixel CNN encoder</button>
-          <button class="r-opt" data-value="boundary-feature">Boundary/edge feature (camera_boundary.py)</button>
-          <button class="r-opt" data-value="pretrained-token-pool">Pretrained token-pool feature</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-
-      <div class="r-dec" data-key="input-tier-v0" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which corpus tier does v0 train on?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="tier1-no-thomson">Tier-1 (mag+cam+bolo+SXR, ~7349)</button>
-          <button class="r-opt" data-value="tier2-with-thomson">Tier-2 (+Thomson, ~3657)</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="win-scope" data-choice="mse-observables-on-axis" data-by="Simon McIntosh" data-when="2026-05-31">
+    <p class="r-dec-q">What does the filter recover and get scored on?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="mse-observables-on-axis">MSE observables / on-axis (q0, rax, pitch)</button>
+      <button class="r-opt" data-value="full-continuous-profile">Full continuous q(ψ)/j(ψ)</button>
+      <button class="r-opt" data-value="observables-now-profile-later">Observables now + profile as stretch</button>
+      </p>
+    <p class="r-dec-rat">LOCKED: MSE-observable / on-axis recovery is the only rule-clean, non-circular, authorable-now win condition (held-out raw MSE on beam-on slices). Full continuous q(ψ) has no non-circular truth in the corpus and is deferred to a synthetic-truth follow-on (§8).</p>
+    </div>
+<div class="r-dec" data-key="efit-eval-use" data-choice="boundary-global-sanity-only" data-by="Simon McIntosh" data-when="2026-05-31">
+    <p class="r-dec-q">May EFIT (efm, a banned solver output) be used at evaluation time?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="boundary-global-sanity-only">Eval-only boundary/global sanity-check</button>
+      <button class="r-opt" data-value="ban-entirely">Ban EFIT entirely (MSE-only eval)</button>
+      <button class="r-opt" data-value="allow-qpsi-eval">Allow EFIT for q(ψ) eval too</button>
+      </p>
+    <p class="r-dec-rat">LOCKED: EFIT may cross-check LCFS / total Ip / q95 only (where magnetics genuinely constrain); never an input, label, or interior-current reference. Primary internal-current score stays held-out MSE.</p>
+    </div>
+<div class="r-dec" data-key="filter-architecture" data-choice="end-to-end-obs-state" data-by="Simon McIntosh" data-when="2026-05-31">
+    <p class="r-dec-q">Which &quot;beyond-Kalman&quot; architecture anchors the neural filter?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="end-to-end-obs-state">End-to-end obs→state (Aardvark-style)</button>
+      <button class="r-opt" data-value="amortized-rkn-gs">Amortized neural filtering (extend RKN+GS)</button>
+      <button class="r-opt" data-value="score-diffusion-da">Score/diffusion DA on the latent</button>
+      <button class="r-opt" data-value="diff-variational-4dvarnet">Differentiable variational DA (4DVarNet)</button>
+      </p>
+    <p class="r-dec-rat">LOCKED: end-to-end obs→state — one model maps raw heterogeneous diagnostics straight to state, recovering the raw-multi-modal-from-day-one motivation and the largest H200 lift. Highest risk / longest runway, so staged behind T1–T4 de-risking. The amortized-RKN+GS path (option 2) is the natural v0 stepping-stone toward it.</p>
+    </div>
+<div class="r-dec" data-key="enkf-baseline-form" data-choice="gs-operator-enkf" data-by="agent/opus (S9 orchestrator)" data-when="2026-06-01T20:13:26+00:00">
+    <p class="r-dec-q">What form does the EnKF baseline (the bar to beat) take?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="raptor-pfde-ekf">RAPTOR-style PFDE forward + EKF</button>
+      <button class="r-opt chosen" data-value="gs-operator-enkf">GS forward operator + EnKF ensemble update</button>
+      <button class="r-opt" data-value="enkf-around-pssm">EnKF around the learned PSSM</button>
+      </p>
+    <p class="r-dec-rat">LOCKED (S9, 2026-06-01): the validated EFIT-free GS Green&#x27;s-function operator (gs/operator.py) is the observation operator H; gs/residual.py is the linearised per-slice update. BINDING caveat from Stage-2 + measured data: a transition-FREE EnKF (random-walk + GS obs) recovers NOTHING internal — magnetics+boundary under-determine j(psi). So the baseline MUST carry a 1-D poloidal-flux-diffusion transition with neoclassical sigma(Te) from Thomson (the §4 closure channel). This makes the EnKF an opus LONG-POLE (RAPTOR-core physics, no repo asset), not a &#x27;wrap operator.py in an ensemble&#x27; sonnet task. &#x27;Matched compute&#x27; = equal GPU/wall-clock budget; the neural filter keeps the camera/SXR modalities the O(N_ens) EnKF cannot ingest — that asymmetry IS the thesis, stated openly. A win over a transition-free EnKF that recovers no q0 would be vacuous.</p>
+    </div>
+<div class="r-dec" data-key="obs-state-readout" data-choice="gs-grounded-physical" data-by="agent/opus (S9 orchestrator)" data-when="2026-06-01T20:13:26+00:00">
+    <p class="r-dec-q">How is the MSE observable read out from the latent state (kept clean of MSE leakage)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="gs-grounded-physical">GS-grounded physical readout (no extra fit)</button>
+      <button class="r-opt" data-value="disjoint-eval-only-learned">Disjoint eval-only learned readout</button>
+      </p>
+    <p class="r-dec-rat">LOCKED (S9, 2026-06-01), refined: the readout emits pitch-angle at the MSE sightline geometry (vx0/vy0/rpos/cosbeam, present in ams) and is scored directly vs held-out gamma/pitcha. q0_kappa1.85/rax are computed from the PREDICTED pitch via the SAME 2pt/4pt kappa=1.85 inversion the truth uses -&gt; method-matched (residual = model error, not inversion mismatch). The GS operator stays the magnetics-consistency head, OFF the q0 path. No differentiable flux-solve in v0 (operator.py gives external B, not on-axis q; a full psi(R,Z) solve readout is deferred to a follow-on). Consequence: pitch and q0 are NOT independent win axes (q0 = deterministic fn of pitch + kappa assumption) and are reported as such.</p>
+    </div>
+<div class="r-dec" data-key="camera-encoding" data-choice="pixel-cnn" data-by="agent/opus (S9 orchestrator)" data-when="2026-06-01T20:13:26+00:00">
+    <p class="r-dec-q">How are visible-camera (rbb) frames encoded into the input set?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="pixel-cnn">Learned pixel CNN encoder</button>
+      <button class="r-opt" data-value="boundary-feature">Boundary/edge feature (camera_boundary.py)</button>
+      <button class="r-opt" data-value="pretrained-token-pool">Pretrained token-pool feature</button>
+      </p>
+    <p class="r-dec-rat">LOCKED (S9, 2026-06-01): a learned CNN encodes rbb centre-stack frames into the shared latent — native multi-modal fusion (the camera-from-day-one motivation; a high-dimensional channel the O(N_ens) EnKF cannot ingest). camera_boundary.py boundary/edge-feature is the cheap fallback if the pixel CNN does not pay its way on the win axes.</p>
+    </div>
+<div class="r-dec" data-key="input-tier-v0" data-choice="tier2-with-thomson" data-by="agent/opus (S9 orchestrator)" data-when="2026-06-01T20:13:26+00:00">
+    <p class="r-dec-q">Which corpus tier does v0 train on?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="tier1-no-thomson">Tier-1 (mag+cam+bolo+SXR, ~7349)</button>
+      <button class="r-opt chosen" data-value="tier2-with-thomson">Tier-2 (+Thomson, ~3657)</button>
+      </p>
+    <p class="r-dec-rat">LOCKED (S9, 2026-06-01) — MEASUREMENT-DRIVEN reversal of the kickoff &#x27;Tier-1 first&#x27; recommendation. Co-availability scan (statespace_family_inventory.json): ams&amp;Thomson=4591/4882 (94%); ams&amp;Tier1&amp;Thomson=3348 vs ams&amp;Tier1=3500 (negligible loss). Dropping Thomson would remove the §4 sigma(Te) closure from ~96% of the scored beam-on regime for ~zero corpus gain — and beam-on = high-Te = exactly where Thomson matters most. So Thomson Te/ne is INCLUDED as a MASKED channel + missingness flag over the Tier-1 union training corpus (~7349 shots, MSE-independent; dataset.py already handles missing channels), NOT a restriction to the 3657-shot full-Thomson subset. The closure is present wherever it exists, including almost every eval shot.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-mfcr-t1-eval-harness" data-status="open" data-tier="opus" data-written-by="agent/opus (S9 orchestrator)" data-written-at="2026-05-31 11:00">
-        <h4 class="r-fu-title">T1 — Build the held-out-MSE eval harness + split (the gate)</h4>
-        <div class="r-fu-body">
-          The pivot is ratified; nothing is scorable until the held-out-MSE eval harness and split
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-mfcr-t1-eval-harness" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S9 orchestrator)" data-written-at="2026-05-31 11:00" data-recommends-skill="" data-resolved-at="2026-06-01T21:23:54+00:00" data-resolved-by="agent/opus (S9 orchestrator)">
+    <h4 class="r-fu-title">T1 — Build the held-out-MSE eval harness + split (the gate)</h4>
+    <div class="r-fu-body">The pivot is ratified; nothing is scorable until the held-out-MSE eval harness and split
           exist. This defines acceptance and must land before the EnKF baseline (T2) or any model.
           Re-use the existing splits / leakage machinery; re-derive the split for the current target
-          (the Dα <code>dalpha_v0</code> split must NOT be reused).
-        </div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+          (the Dα <code>dalpha_v0</code> split must NOT be reused).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    mse-free-current-recovery-v0 (http://localhost:8765/imas-ambix/mse-free-current-recovery-v0.html)
 Section: §7 T1 — eval harness + held-out-MSE split
 Tier:    opus
@@ -344,9 +337,9 @@ State to read
   GET /plan/imas-ambix/mse-free-current-recovery-v0   (decisions, followups, status, version)
 
 Locked decisions to honour
-  win-scope        -> MSE-observables / on-axis only (full continuous q(psi) is OUT)
-  efit-eval-use    -> eval-only boundary/global sanity-check (LCFS/Ip/q95); NEVER input/label/internal
-  filter-architecture -> end-to-end obs->state
+  win-scope        -&gt; MSE-observables / on-axis only (full continuous q(psi) is OUT)
+  efit-eval-use    -&gt; eval-only boundary/global sanity-check (LCFS/Ip/q95); NEVER input/label/internal
+  filter-architecture -&gt; end-to-end obs-&gt;state
 
 Open decisions to surface (do not resolve)
   enkf-baseline-form, obs-state-readout, camera-encoding, input-tier-v0
@@ -354,19 +347,19 @@ Open decisions to surface (do not resolve)
 Constraints
   - MSE (ams) is NEVER an input and NEVER a training label/loss term — eval truth only, scored
     ONLY on finite beam-on slices (avoids the ~99%-NaN trap; per-element finite ~1%, but
-    per-beam-on-slice >=1 live channel ~50%; median ~540-650 usable slices/shot on the 1 kHz grid).
+    per-beam-on-slice &gt;=1 live channel ~50%; median ~540-650 usable slices/shot on the 1 kHz grid).
   - Raw-signals-only inputs: KEEP total Ip (amc) — it does not fix internal shape, so it is not a
     leak for an internal-current target; EXCLUDE efm/esm + Da leakage groups (ada/aim/xim) +
     xdc shape_s_fluxerr* from inputs.
   - Cross-family AND cross-shot held-out split; the SHOT is the independent unit (beam-on slices
-    within a shot are autocorrelated => effective N ~= number of held-out MSE shots, ~128).
+    within a shot are autocorrelated =&gt; effective N ~= number of held-out MSE shots, ~128).
     Reuse statespace/{splits,families,inventory}.py; do NOT reuse statespace_splits_dalpha_v0.json.
   - Metric: CRPS/NLL (calibration.py, already target-agnostic) + conformal coverage [0.88,0.92]
     + MSE-observable RMSE. properscoring is absent — CRPS lives in calibration.py already.
   - Env: uv run; CPU-first on 98dci4-srv-1006 (/work access). Any GPU step obeys AGENTS.md
     §2a/§2a-cancel (STOP-FILE, never scancel, hardened sbatch with --signal=B:USR1@600 +
     AMBIX_SOFT_TIME_LIMIT). Run training/eval in-session in the foreground — NO orphaned
-    backgrounded processes ended with a "waiting" monologue.
+    backgrounded processes ended with a &quot;waiting&quot; monologue.
 
 Done-when
   1. A locked held-out-MSE split manifest (committed JSON artifact): cross-family + cross-shot,
@@ -375,9 +368,24 @@ Done-when
   2. An eval harness module that, given predicted MSE observables + held-out truth, computes
      CRPS/NLL + conformal coverage + MSE-observable RMSE on beam-on slices, with a smoke test green.
   3. A followup written for T2 (build the EnKF baseline on this harness) + this followup resolved.</pre>
-      </article>
-    </section>
+    <p class="r-fu-outcome">LANDED (commits 9ad42e5 + 266e05a). statespace/mse_eval.py + mse_split.py + manifest mse_heldout_split_v0.json. 112 held-out beam-on ams shots inside the locked OOD box (train 5672 / cal 3361 / heldout 112; disjoint 0/0/0; all 112 retain &gt;=124 gated pitch slices). SHARED CONTRACT: score / ShotPrediction / pitch_from_current_profile (cylindrical Ampere, kind='j' LOCKED, with the sign(R-R0) inboard/outboard correction) / invert_pitch_to_q0rax / load_manifest. Pitch gate: drop +/-pi/2 rails + |pitcha_error|&gt;0.3, error-weight RMSE/CRPS/NLL by 1/pe^2; cov90 left UNWEIGHTED (the pre-registered gate metric). DISCRIMINABILITY VERIFIED POSITIVE: gated truth-noise floor 0.0136 rad; PERSISTENCE BAR (gated-weighted) RMSE=0.719 rad / cov90=0.455; pitch strongly dynamic (persistence/noise ~50) -&gt; the thesis holds, unlike Stage-1's ~96.8%-stationary Dalpha. 19 tests pass. Two consumers (D2 EnKF, D4 filter) must set pitch_std=their predictive/ensemble std (primary CRPS is Gaussian-closed-form on pitch_std). NEXT: oracle recoverability probe (D4 go/no-go gate) + D2 TORAX-EnKF scored on this harness.</p>
+    </article>
+</section>
 
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s2" data-id="c-acceptance-prereg" data-who="agent/opus (S9 orchestrator)" data-when="2026-06-01" data-quote="The win is declared on three axes, all against the EnKF baseline at matched compute">
+    <div class="r-comment-body">PRE-REGISTERED win metric (locked BEFORE any model number — the Stage-1 '0.81 was the static ensemble' mislabel is exactly why we register first). Eval-truth discriminability scan, 114 beam-on ams shots: q0_kappa1.85_4pt is 'finite' on ~1290 slices/shot BUT only ~477 (37%) survive physical gating (q0 in [0.5,3], rax in [0.7,1.1]); truth noise floor |q0_error|~0.113 on median q0~1.46 (~7.7% per-slice). pitcha is finite+physical on all ~1290 slices (direct measurement, no inversion divergence). THEREFORE — PRIMARY win observable = pitcha/gamma (clean, ~1290 slices/shot); SECONDARY = physically-gated + error-weighted q0_kappa1.85_4pt/rax_4pt (~452 slices/shot), computed method-matched from predicted pitch. Shot is the independent unit (held-out N~128). All MSE-pipeline-derived (2pt/4pt, kappa=1.85), NOT EFIT -&gt; honours efit-eval-use. Coverage gate [0.88,0.92] + CRPS/NLL (esp. transients) unchanged. Source: gating scan + co-availability from statespace_family_inventory.json.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-deviations-ratified" data-who="Simon McIntosh (ratified) via agent/opus orchestrator" data-when="2026-06-01">
+    <div class="r-comment-body">USER-RATIFIED (2026-06-01) the two measurement-driven deviations from the S9 kickoff letter: (1) input-tier-v0 flipped to Thomson-included (masked over the ~7349 union) instead of 'Tier-1 first' — justified by ams&amp;Thomson=94% co-availability and the sigma(Te) closure being the thesis mechanism; (2) PRIMARY win axis = pitcha/gamma (clean, ~1290 slices/shot) with q0_kappa1.85/rax demoted to SECONDARY (gated+error-weighted) — justified by q0's 37% physical-gate survival + ~7.7% truth noise. Both proceed. Orchestrator has full decision authority for the remainder of the sprint.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-torax-enkf" data-who="Simon McIntosh (directive) via agent/opus orchestrator" data-when="2026-06-01">
+    <div class="r-comment-body">EnKF baseline forward model = TORAX (user directive, 2026-06-01). TORAX (Google DeepMind, JAX) is the open-source RAPTOR-equivalent current-diffusion transport solver — added as a uv dep (torax 1.1.1; resolution leaves torch/numpy/scipy untouched). It supplies the validated 1-D poloidal-flux-diffusion transition + neoclassical sigma(Te) the advisor flagged the EnKF needs (a transition-free EnKF recovers nothing internal). So enkf-baseline-form='gs-operator-enkf' is realized as a hybrid: TRANSITION = TORAX (the RAPTOR-PFDE forward, driven by measured Ip/ne/Te — the §4 closure, MSE-free); OBSERVATION H = the EFIT-free GS operator (gs/operator.py) assimilating magnetics; ENSEMBLE via JAX vmap for UQ. READOUT shared with the neural filter (pitch_from_current_profile) so the head-to-head isolates state inference. This makes the bar a credible, literature-grounded RAPTOR-EKF rather than a hand-rolled solver.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-s4-empirical" data-who="agent/opus (S9 orchestrator)" data-when="2026-06-01">
+    <div class="r-comment-body">EMPIRICAL CONFIRMATION of §4 (D2 EnKF/TORAX v0, PROVISIONAL N=3 held-out): a TORAX-1.1.1 parameter-ensemble smoother driven by measured Ip(amc)+Te(ayc)->sigma(Te), NO MSE, recovers held-out MSE pitch at RMSE 0.185 rad / CRPS 0.106 / cov90 0.95 — ~5x better than persistence (0.92); spatial pitch-profile correlation ~0.87 vs truth. DECISIVE MECHANISM: the magnetics EKI update drops magnetics innovation 2.1->1.1 but barely moves pitch (analysis 0.185 ~= forecast 0.194) => the internal current/pitch is recovered by the current-diffusion FORWARD MODEL + sigma(Te) time-history (the §4 closure), NOT by assimilating magnetics. Confirms §4 AND re-confirms Stage-2 (magnetics under-determine the interior). CAVEAT: N=3 = the JIT-fast subset of the 112 held-out (stiff/high-Ip shots tripped an 8-9 s/member TORAX JIT slowdown, excluded) => 0.185 is PROVISIONAL/possibly optimistic; D2 re-engaged to fix JIT shape-stability + establish the bar on the full/representative held-out set with bootstrap CI. IMPLICATION: the physics bar is strong, so a neural filter (D4) win hinges on the oracle probe showing multimodal channels (SXR/camera) carry info BEYOND TORAX+Te. Commits e0630b9/a292b26/b5a1d7b.</div>
+</div>
+</section>
+</main>
 </body>
 </html>
