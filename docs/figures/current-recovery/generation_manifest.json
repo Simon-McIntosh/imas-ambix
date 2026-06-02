@@ -1,0 +1,82 @@
+{
+  "source_artifact": "imas_ambix/statespace/artifacts/enkf_baseline_metrics_v0.json",
+  "manifest": "/work/projects/imas_gpu/mast/manifests/mse_heldout_split_v0.json",
+  "config": {
+    "n_ensemble": 32,
+    "seed": 1234,
+    "r_major": 0.85,
+    "a_minor": 0.5,
+    "b0": 0.5,
+    "fixed_dt": 0.01,
+    "n_te_nodes": 6,
+    "zeff_prior": 2.0,
+    "zeff_spread": 0.6,
+    "resist_mult_prior": 1.0,
+    "resist_mult_logspread": 0.3,
+    "current_peaking_prior": 2.0,
+    "current_peaking_spread": 0.6,
+    "ip_frac_spread": 0.03,
+    "assimilate": true,
+    "n_assim_slices": 5,
+    "eki_inflation": 1.0,
+    "eki_step": 1.0,
+    "kappa": 1.85,
+    "bt0_for_readout": 0.5,
+    "max_slices_per_shot": 80
+  },
+  "arm": "forecast/prior (measured Ip + Te->sigma; NO MSE on input)",
+  "rng_seed_convention": "default_rng(cfg.seed + shot_id)",
+  "shots_requested": [
+    24443,
+    24148,
+    24065,
+    22329
+  ],
+  "shots": {
+    "24443": {
+      "status": "ok",
+      "n_ok_members": 32,
+      "n_total_members": 32,
+      "wall_s": 21.5,
+      "t_span_s": [
+        0.0,
+        0.4970000088214874
+      ],
+      "j_grid_points": 27
+    },
+    "24148": {
+      "status": "ok",
+      "n_ok_members": 32,
+      "n_total_members": 32,
+      "wall_s": 12.6,
+      "t_span_s": [
+        0.0,
+        0.4970000088214874
+      ],
+      "j_grid_points": 27
+    },
+    "24065": {
+      "status": "ok",
+      "n_ok_members": 32,
+      "n_total_members": 32,
+      "wall_s": 12.6,
+      "t_span_s": [
+        0.0,
+        0.4970000088214874
+      ],
+      "j_grid_points": 27
+    },
+    "22329": {
+      "status": "ok",
+      "n_ok_members": 32,
+      "n_total_members": 32,
+      "wall_s": 16.6,
+      "t_span_s": [
+        0.0,
+        0.6470000743865967
+      ],
+      "j_grid_points": 27
+    }
+  },
+  "q0_overlay_has_mse_truth": true
+}
