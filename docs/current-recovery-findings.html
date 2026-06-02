@@ -108,7 +108,9 @@
       <strong>held-out MSE-derived truth</strong> <code>q<sub>0</sub></code> (red) obtained by passing the measured
       MSE pitch through the <em>identical</em> inverter and eval geometry (R<sub>0</sub> = 0.85 m,
       B<sub>t0</sub> = 0.5 T). Because both q<sub>0</sub> use the same inversion, the gap between them is model
-      error, not method mismatch — it is exactly the scored secondary <code>q0_rmse ≈ 0.52</code>. A third, dotted
+      error, not method mismatch — and is consistent with the scored secondary <code>q0_rmse ≈ 0.52</code>
+      (analysis arm, N = 112; the figures show the forecast arm on 4 shots, so a slice-level RMSE will differ).
+      A third, dotted
       line shows the TORAX-free on-axis <code>q(ρ=0)</code> (the free non-vacuity quantity) — a different construct,
       unbounded as Ip → 0 on residual ramp slices, so the view is clipped to a physical window.
       <strong>MSE is held-out eval truth only — it never enters the recovery.</strong>
@@ -117,8 +119,9 @@
       Two honest readings. First, the recovered <code>q<sub>0</sub></code> sits in the low ~0.3–0.5 band — the
       flat-top q<sub>0</sub> on this high-Ip OOD held-out set is genuinely low (a sawtoothing / high-current regime),
       <em>not</em> ~1; non-vacuity is shown by recovering an order-unity, radially-structured internal current with
-      no MSE input, not by hitting q<sub>0</sub> = 1. Second, the recovered line tracks the truth's slow trend but
-      misses its slice-to-slice excursions — the residual gap a richer multi-modal filter is meant to close.
+      no MSE input, not by hitting q<sub>0</sub> = 1. Second, the recovered line sits systematically below the
+      MSE truth and is smoother — it captures the slow trend but not the truth's slice-to-slice excursions. That
+      residual gap is what a richer multi-modal filter is meant to close.
     </p>
     <figure class="r-fig">
       <img src="/imas-ambix/figures/current-recovery/fig-cr-q0-overlay.svg" alt="Recovered on-axis q0(t) vs held-out MSE truth q0(t), method-matched, per shot">
