@@ -59,7 +59,7 @@ import argparse  # noqa: E402
 import json  # noqa: E402
 import logging  # noqa: E402
 import time  # noqa: E402
-from dataclasses import dataclass  # noqa: E402
+from dataclasses import dataclass, field  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 import numpy as np  # noqa: E402
@@ -101,6 +101,15 @@ N_CAM_STATS = 4  # mean, std, p10, p90 over the (cropped) frame
 # Modality column-block names (order defines the concatenated feature matrix).
 MODALITIES = ["mag", "thomson", "sxr", "bolo", "camera"]
 
+# Feature-schema version — PART OF THE CACHE KEY.  Bump whenever the feature
+# CONTENT changes (e.g. adding time-history columns) so a stale pickle is never
+# silently reloaded with the wrong features.
+FEATURE_SCHEMA_VERSION = "v2_hist"
+
+# Time-history arm: trailing-window temporal summaries on a uniform model grid.
+HIST_MODEL_HZ = 200.0  # model grid for the history window (5 ms cadence)
+HIST_WINDOW_SLICES = 30  # trailing K-slice window (= 150 ms at 200 Hz)
+
 
 # ---------------------------------------------------------------------------
 # Feature extraction — one matrix per gated slice, named modality blocks
@@ -117,6 +126,10 @@ class ShotFeatures:
     y: np.ndarray  # (S, N_NODES) gated pitch target (NaN where node masked)
     sightline_r: np.ndarray  # (C,) sightline major radii (for node masking)
     rax_proxy: np.ndarray  # (S,) per-slice axis-crossing R (diagnostic only)
+    # mse_eval re-scoring bookkeeping: indices of the S kept slices into the
+    # shot's FULL beam-on grid (== manifest beam_on_slice_times == tr.time), so
+    # node predictions can be mapped back to a (K, C) sightline ShotPrediction.
+    slice_idx: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=int))
 
 
 def _read_signal_1d(grp, channels, slice_t):
@@ -272,7 +285,129 @@ def _target_on_grid(pitch_gated, sightline_r, node_r):
     return y, rax
 
 
-def extract_shot(shot_id, entry, node_r):
+# ---------------------------------------------------------------------------
+# Time-history features (CONFOUND-2 FIX) — trailing-window temporal summaries
+# ---------------------------------------------------------------------------
+#
+# Instantaneous (per-slice) features are structurally blind to the time-series
+# current signal: SXR sawtooth crashes (q=1) and tearing modes (q=2, 3/2) live
+# in the DYNAMICS, and the EnKF's edge over an instantaneous GBM is its
+# integration of current-diffusion HISTORY.  We add cheap temporal SUMMARIES
+# (NOT a GRU/CNN — MLP/GBM scale, minutes) over a trailing K-slice window on a
+# uniform model grid, sampled at each pv slice time:
+#   * mean, std, end-to-end slope (dX/dt) of each channel over the window;
+#   * recent fluctuation RMS (std of the window after removing its linear trend)
+#     — a sawtooth / tearing-mode amplitude proxy;
+#   * windowed-FFT dominant-band power for the high-rate emission channels
+#     (SXR/bolo) — a sawtooth-period / mode-frequency proxy.
+# The summaries are reduced over channels (mean over channels) to keep the
+# history block compact; the per-channel instantaneous block already carries the
+# spatial detail.
+
+
+def _grid_signal(t_native, arr, grid):
+    """Linear-interp a (T,) or (T,C) native signal onto a uniform grid (G,)."""
+    a = np.asarray(arr, dtype=np.float64)
+    if a.ndim == 1:
+        return np.interp(grid, t_native, a, left=np.nan, right=np.nan)
+    cols = [
+        np.interp(grid, t_native, a[:, c], left=np.nan, right=np.nan)
+        for c in range(a.shape[1])
+    ]
+    return np.stack(cols, axis=1)
+
+
+def _window_summaries(series_grid, grid, slice_t, win):
+    """Trailing-window summaries of a (G,) or (G,C) gridded series at slice_t.
+
+    For each slice time, take the trailing ``win`` grid samples and compute
+    [mean, std, slope, detrended-fluctuation-RMS, dominant-band-power].
+    Multi-channel series are reduced by the mean over channels first.  Returns
+    (S, 5).
+    """
+    sig = series_grid
+    if sig.ndim == 2:
+        # reduce to a single representative channel-mean trace (compact summary)
+        with np.errstate(invalid="ignore"):
+            sig = np.nanmean(sig, axis=1)
+    S = slice_t.size
+    out = np.full((S, 5), np.nan)
+    dt = 1.0 / HIST_MODEL_HZ
+    # index of each slice time in the grid
+    idx = np.searchsorted(grid, slice_t, side="right") - 1
+    for s in range(S):
+        e = idx[s]
+        if e < 0:
+            continue
+        b = max(0, e - win + 1)
+        w = sig[b : e + 1]
+        w = w[np.isfinite(w)]
+        if w.size < 3:
+            continue
+        xs = np.arange(w.size, dtype=np.float64)
+        coef = np.polyfit(xs, w, 1)
+        trend = np.polyval(coef, xs)
+        resid = w - trend
+        # dominant-band power: peak of the detrended power spectrum (rfft)
+        fft = np.abs(np.fft.rfft(resid))
+        band_pow = float(np.max(fft[1:])) if fft.size > 1 else 0.0
+        out[s] = [
+            float(np.mean(w)),
+            float(np.std(w)),
+            float(coef[0] / dt),  # slope per second
+            float(np.std(resid)),  # fluctuation RMS
+            band_pow,
+        ]
+    return out
+
+
+def _history_block(store, group, grid, slice_t, win):
+    """Compute the time-history summary block for one modality group -> (S, 5).
+
+    Reads the group's native arrays, grids them, and summarises the trailing
+    window.  Returns NaN block if the group is absent/unreadable.
+    """
+    nanblock = np.full((slice_t.size, 5), np.nan)
+    if group not in store:
+        return nanblock
+    grp = store[group]
+    keys = set(grp.array_keys())
+    if "time" not in keys:
+        return nanblock
+    t = np.asarray(grp["time"], dtype=np.float64)
+    if t.size < 3:
+        return nanblock
+    try:
+        if group == "xsx":
+            cams = []
+            for ck in ("hcam_l", "hcam_u", "tcam"):
+                if ck in keys:
+                    cam = np.asarray(grp[ck], dtype=np.float32)
+                    if cam.shape[1] == t.size:
+                        cam = cam.T
+                    if cam.shape[0] == t.size:
+                        cams.append(cam)
+            if not cams:
+                return nanblock
+            arr = np.concatenate(cams, axis=1)
+        elif group == "abm":
+            arr = np.asarray(grp["i-bol"], dtype=np.float32)
+            if arr.shape[0] != t.size and arr.shape[1] == t.size:
+                arr = arr.T
+        elif group == "amc":
+            # Ip ramp + dB/dt proxies: plasma_current as the representative trace
+            if "plasma_current" not in keys:
+                return nanblock
+            arr = np.asarray(grp["plasma_current"], dtype=np.float64)
+        else:
+            return nanblock
+    except Exception:
+        return nanblock
+    gridded = _grid_signal(t, arr, grid)
+    return _window_summaries(gridded, grid, slice_t, win)
+
+
+def extract_shot(shot_id, entry, node_r, history=False):
     """Build a :class:`ShotFeatures` for one CAL shot (None if unusable)."""
     import zarr  # noqa: PLC0415
 
@@ -301,6 +436,7 @@ def extract_shot(shot_id, entry, node_r):
     keep = np.isfinite(y).any(axis=1)
     if not keep.any():
         return None
+    slice_idx = sl[keep]  # indices into the FULL beam-on grid (for mse_eval)
     sl_t = slice_t[keep]
     y = y[keep]
     rax = rax[keep]
@@ -379,6 +515,30 @@ def extract_shot(shot_id, entry, node_r):
         present["camera"] = True
     blocks["camera"] = cam
 
+    # --- time-history summary columns (CONFOUND-2) ---------------------------
+    # Append trailing-window summaries to the mag / sxr / bolo blocks so the
+    # existing arm column-slicing transparently picks them up.  A uniform model
+    # grid spans the shot's pv-slice window with a leading margin for the
+    # trailing window of the earliest slice.
+    if history:
+        win = HIST_WINDOW_SLICES
+        margin = win / HIST_MODEL_HZ
+        g0 = float(sl_t.min()) - margin
+        g1 = float(sl_t.max())
+        grid = np.arange(g0, g1 + 1.0 / HIST_MODEL_HZ, 1.0 / HIST_MODEL_HZ)
+        # magnetics history (Ip ramp / dB/dt proxy via plasma_current dynamics)
+        blocks["mag"] = np.concatenate(
+            [blocks["mag"], _history_block(store, "amc", grid, sl_t, win)], axis=1
+        )
+        # SXR history (sawtooth-band power, fluctuation amplitude)
+        blocks["sxr"] = np.concatenate(
+            [blocks["sxr"], _history_block(store, "xsx", grid, sl_t, win)], axis=1
+        )
+        # bolometer history
+        blocks["bolo"] = np.concatenate(
+            [blocks["bolo"], _history_block(store, "abm", grid, sl_t, win)], axis=1
+        )
+
     return ShotFeatures(
         shot_id=shot_id,
         blocks=blocks,
@@ -386,6 +546,7 @@ def extract_shot(shot_id, entry, node_r):
         y=y,
         sightline_r=sightline_r,
         rax_proxy=rax,
+        slice_idx=slice_idx,
     )
 
 
@@ -635,6 +796,147 @@ def per_node_rmse(y_true, y_pred, node_r):
 
 
 # ---------------------------------------------------------------------------
+# mse_eval re-scoring — put the oracle on the EnKF's ruler
+# ---------------------------------------------------------------------------
+#
+# CONFOUND-1 FIX.  The radial-node pooled RMSE above is NOT comparable to the
+# EnKF, which is scored at the actual MSE SIGHTLINES with the D1-locked
+# error-WEIGHTED gated metric (mse_eval.score).  Here we score every arm through
+# that exact metric on the SAME CAL-test shots:
+#   * map each arm's per-node prediction back onto the shot's sightline radii,
+#   * build a ShotPrediction over the FULL beam-on grid (NaN off the kept
+#     slices — score() masks to pitch_valid anyway),
+#   * relabel a TEMPORARY in-memory mini-manifest as held_out and call score().
+# HARD GUARDRAIL: the relabeled manifest is in-memory only, never written to
+# disk, and contains ONLY CAL-test shots — the 112 real held-out shots are
+# never touched.
+
+
+def _node_pred_to_sightlines(yhat_nodes, node_r, sightline_r):
+    """Interpolate per-node pitch prediction (S, N) onto sightline radii (C,).
+
+    The inverse of the node-target construction: linear interp over node radii,
+    clamped to the node range (no extrapolation beyond the fitted nodes).
+    """
+    S = yhat_nodes.shape[0]
+    C = sightline_r.shape[0]
+    out = np.full((S, C), np.nan)
+    for s in range(S):
+        col = yhat_nodes[s]
+        fin = np.isfinite(col)
+        if fin.sum() < 2:
+            continue
+        out[s] = np.interp(
+            sightline_r, node_r[fin], col[fin], left=np.nan, right=np.nan
+        )
+    return out
+
+
+def build_sightline_prediction(sf, yhat_nodes, node_r, entry, resid_std=0.1):
+    """Build an mse_eval.ShotPrediction at the sightlines for one test shot.
+
+    ``yhat_nodes`` is this shot's (S, N) node prediction (S = kept slices).
+    Returns a ShotPrediction over the full beam-on grid (K, C).  pitch_std is a
+    placeholder — the mse_eval RMSE is error-weighted by the TRUTH's
+    pitcha_error, so std does not affect the headline RMSE.
+    """
+    from imas_ambix.statespace.mse_eval import ShotPrediction  # noqa: PLC0415
+
+    K = len(entry["beam_on_slice_times"])
+    C = len(entry["active_channel_ids"])
+    t = np.asarray(entry["beam_on_slice_times"])
+    pitch_mean = np.full((K, C), np.nan)
+    sight_pred = _node_pred_to_sightlines(yhat_nodes, node_r, sf.sightline_r)
+    # place the kept-slice sightline predictions into the full grid
+    pitch_mean[sf.slice_idx] = sight_pred
+    pitch_std = np.full((K, C), float(resid_std))
+    return ShotPrediction(t=t, pitch_mean=pitch_mean, pitch_std=pitch_std)
+
+
+def mse_eval_per_shot_rmse(test_shots, arm_yhat, node_r, manifest, truth):
+    """Per-shot D1 error-weighted gated pitch RMSE via mse_eval.score.
+
+    ``arm_yhat`` is the arm's joint (n_test_pts, N) prediction stack in the same
+    row order as ``test_shots`` are concatenated.  Returns dict[shot_id -> rmse]
+    using ONE relabeled one-shot manifest per shot (so the 112 held-out shots
+    are never involved).
+    """
+    from imas_ambix.statespace.mse_eval import score  # noqa: PLC0415
+
+    out = {}
+    row = 0
+    for sf in test_shots:
+        S = sf.y.shape[0]
+        yhat = arm_yhat[row : row + S]
+        row += S
+        entry = manifest["shots"][str(sf.shot_id)]
+        pred = build_sightline_prediction(sf, yhat, node_r, entry)
+        mini = {
+            "version": "oracle_rescore_tmp",
+            "shots": {
+                str(sf.shot_id): {**entry, "partition": "held_out"},
+            },
+        }
+        res = score({sf.shot_id: pred}, mini, truth)
+        out[sf.shot_id] = res["primary"]["pitch"]["rmse"]
+    return out
+
+
+def mse_eval_persistence_per_shot(test_shots, manifest, truth):
+    """D1 PersistencePredictor RMSE per CAL-test shot (same error-weighted metric).
+
+    Recomputed on MY CAL-test shots (in-distribution) — NOT the cross-population
+    OOD persistence (0.719) that the EnKF was scored against.
+    """
+    from imas_ambix.statespace.mse_eval import (  # noqa: PLC0415
+        PersistencePredictor,
+        score,
+    )
+
+    out = {}
+    for sf in test_shots:
+        entry = manifest["shots"][str(sf.shot_id)]
+        mini = {
+            "version": "oracle_rescore_tmp",
+            "shots": {str(sf.shot_id): {**entry, "partition": "held_out"}},
+        }
+        preds = PersistencePredictor().predict(mini, truth)
+        if sf.shot_id not in preds:
+            continue
+        res = score({sf.shot_id: preds[sf.shot_id]}, mini, truth)
+        out[sf.shot_id] = res["primary"]["pitch"]["rmse"]
+    return out
+
+
+def _agg_per_shot(rmse_by_shot, shot_order):
+    """Mean over shots + the per-shot RMSE array aligned to ``shot_order``."""
+    arr = np.array([rmse_by_shot.get(s, np.nan) for s in shot_order])
+    fin = arr[np.isfinite(arr)]
+    return (float(np.mean(fin)) if fin.size else float("nan")), arr
+
+
+def _paired_diff_from_arrays(a_arr, b_arr, n_boot=2000, seed=0):
+    """Paired bootstrap of mean(a)-mean(b) over shots (per-shot RMSE arrays)."""
+    rng = np.random.default_rng(seed)
+    mask = np.isfinite(a_arr) & np.isfinite(b_arr)
+    a, b = a_arr[mask], b_arr[mask]
+    if a.size == 0:
+        return float("nan"), float("nan"), float("nan"), float("nan")
+    n = a.size
+    diffs = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        diffs.append(float(np.mean(a[idx]) - np.mean(b[idx])))
+    diffs = np.asarray(diffs)
+    return (
+        float(np.mean(a) - np.mean(b)),
+        float(np.percentile(diffs, 2.5)),
+        float(np.percentile(diffs, 97.5)),
+        float(np.mean(diffs > 0)),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main probe
 # ---------------------------------------------------------------------------
 
@@ -650,6 +952,10 @@ class ProbeConfig:
     # "clearly below" margin: a fractional RMSE reduction this large is the
     # threshold for declaring info-exists (vs noise at ~30 test shots).
     clear_margin_frac: float = 0.05
+    # CONFOUND-2: add trailing-window time-history summary columns to the
+    # mag/sxr/bolo feature blocks (the decisive test — instantaneous features
+    # are structurally blind to the current-relevant DYNAMICS).
+    history: bool = False
 
 
 def run(cfg: ProbeConfig) -> dict:
@@ -682,7 +988,10 @@ def run(cfg: ProbeConfig) -> dict:
     import pickle  # noqa: PLC0415
 
     key = hashlib.md5(
-        f"{cfg.n_shots}_{cfg.seed}_{N_NODES}_{CAM_POOL}".encode()
+        (
+            f"{FEATURE_SCHEMA_VERSION}_{cfg.n_shots}_{cfg.seed}_{N_NODES}_"
+            f"{CAM_POOL}_{cfg.history}_{HIST_MODEL_HZ}_{HIST_WINDOW_SLICES}"
+        ).encode()
     ).hexdigest()[:12]
     cache = Path("/tmp") / f"oracle_probe_feats_{key}.pkl"
     if cache.exists():
@@ -700,7 +1009,9 @@ def run(cfg: ProbeConfig) -> dict:
         n_attempt = 0
         for sid in chosen:
             n_attempt += 1
-            sf = extract_shot(sid, manifest["shots"][str(sid)], node_r)
+            sf = extract_shot(
+                sid, manifest["shots"][str(sid)], node_r, history=cfg.history
+            )
             if sf is None:
                 continue
             for m in MODALITIES:
@@ -811,6 +1122,55 @@ def run(cfg: ProbeConfig) -> dict:
             Xtr.shape[1],
         )
 
+    # --- CONFOUND-1: re-score every arm on the D1 mse_eval sightline metric ---
+    # error-weighted gated pitch RMSE at the actual MSE sightlines, the SAME
+    # ruler the EnKF baseline uses.  In-memory relabeled mini-manifests only.
+    from imas_ambix.data.paths import LEVEL1_DIR as _L1  # noqa: PLC0415
+    from imas_ambix.statespace.mse_eval import MseTruth  # noqa: PLC0415
+
+    truth = MseTruth(level1_dir=_L1)
+    test_shot_order = [sf.shot_id for sf in test_shots]
+    mse_eval_rmse_arr: dict[str, np.ndarray] = {}
+    for arm_name in ARMS:
+        by_shot = mse_eval_per_shot_rmse(
+            test_shots, arm_pred[arm_name], node_r, manifest, truth
+        )
+        mean_e, arr_e = _agg_per_shot(by_shot, test_shot_order)
+        mse_eval_rmse_arr[arm_name] = arr_e
+        arm_results[arm_name]["mse_eval_rmse_mean"] = mean_e
+        logger.info("arm %-16s mse_eval(sightline,weighted)=%.4f", arm_name, mean_e)
+    # mse_eval persistence on MY CAL-test shots (in-distribution reference)
+    pers_e_by_shot = mse_eval_persistence_per_shot(test_shots, manifest, truth)
+    pers_e_mean, pers_e_arr = _agg_per_shot(pers_e_by_shot, test_shot_order)
+    logger.info(
+        "mse_eval persistence (CAL-test, in-dist) = %.4f "
+        "[OOD-held-out D1 persistence ref = 0.719; EnKF OOD frontier = 0.225]",
+        pers_e_mean,
+    )
+    # paired diffs on the mse_eval metric (D-vs-A; each E-vs-A)
+    bE = cfg.gbm_seed + 41
+    paired_mse_eval = {
+        "D_minus_A": _paired_diff_from_arrays(
+            mse_eval_rmse_arr["D_all"], mse_eval_rmse_arr["A_mag"], seed=bE
+        ),
+    }
+    for arm_name in ("E_mag_sxr", "E_mag_bolo", "E_mag_thomson", "E_mag_camera"):
+        paired_mse_eval[f"{arm_name}_minus_A"] = _paired_diff_from_arrays(
+            mse_eval_rmse_arr[arm_name], mse_eval_rmse_arr["A_mag"], seed=bE + 1
+        )
+    paired_mse_eval_out = {
+        k: {"mean_diff": v[0], "ci95": [v[1], v[2]], "frac_pos": v[3]}
+        for k, v in paired_mse_eval.items()
+    }
+    for k, v in paired_mse_eval_out.items():
+        logger.info(
+            "mse_eval paired %-22s mean_diff=%+.4f CI=[%+.4f,%+.4f]",
+            k,
+            v["mean_diff"],
+            v["ci95"][0],
+            v["ci95"][1],
+        )
+
     # --- paired bootstrap of the DIFFERENCES on the shared test points --------
     # Marginal CIs overlap because clim/A/D are scored on the SAME 44 shots;
     # the correct test is a paired resample of the per-shot RMSE difference.
@@ -846,46 +1206,55 @@ def run(cfg: ProbeConfig) -> dict:
             v["ci95"][1],
         )
 
-    # --- verdict (paired-difference CIs on the shared test points) ----------
-    # clim/A/D are scored on the SAME test shots, so their per-shot errors are
-    # correlated — the correct test is the paired bootstrap of the RMSE
-    # difference (above), significant iff the difference-CI excludes 0.  The
-    # marginal CIs above only describe absolute spread.
+    # --- verdict ------------------------------------------------------------
+    # The decisive D-vs-A / E-vs-A comparisons run on the mse_eval SIGHTLINE
+    # metric (the EnKF's ruler).  The node-metric climatology paired test still
+    # gates feature-aliveness.  All comparisons are paired bootstraps of the
+    # per-shot RMSE difference (shared test shots), significant iff CI excludes 0.
     margin = 1 - cfg.clear_margin_frac
-    rmse_A = arm_results["A_mag"]["rmse_per_shot"]
-    rmse_D = arm_results["D_all"]["rmse_per_shot"]
+    rmse_A = arm_results["A_mag"]["mse_eval_rmse_mean"]
+    rmse_D = arm_results["D_all"]["mse_eval_rmse_mean"]
 
     def _sig_better(diff_key):
         # (a - b) significantly NEGATIVE  ->  a has lower RMSE than b
         v = paired_out[diff_key]
         return bool(np.isfinite(v["ci95"][1]) and v["ci95"][1] < 0.0)
 
-    # are the FEATURES alive? (magnetics significantly below climatology)
+    def _sig_better_e(diff_key):
+        v = paired_mse_eval_out[diff_key]
+        return bool(np.isfinite(v["ci95"][1]) and v["ci95"][1] < 0.0)
+
+    # are the FEATURES alive? (magnetics significantly below climatology, node
+    # metric — climatology is only defined on the node target)
     mag_beats_clim = _sig_better("A_minus_clim")
 
-    # D-vs-A: require BOTH statistical significance (paired CI < 0) AND a
-    # material 5% improvement — a 0.6% gain is not worth the H200 even if real.
-    D_sig_below_A = _sig_better("D_minus_A")
-    D_material = bool(np.isfinite(rmse_D) and rmse_D < rmse_A * margin)
+    # D-vs-A on the mse_eval metric: require BOTH paired significance AND a
+    # material 5% improvement — a sub-1% gain is not worth the H200 even if real.
+    D_sig_below_A = _sig_better_e("D_minus_A")
+    D_material = bool(
+        np.isfinite(rmse_D) and np.isfinite(rmse_A) and rmse_D < rmse_A * margin
+    )
     D_below_A = D_sig_below_A and D_material
 
     # attribution: which single-modality E arms BOTH significantly + materially
-    # beat magnetics-only?
+    # beat magnetics-only on the mse_eval metric?
     carriers = []
     for arm_name in ("E_mag_sxr", "E_mag_bolo", "E_mag_thomson", "E_mag_camera"):
-        r = arm_results[arm_name]["rmse_per_shot"]
-        e_sig = _sig_better(f"{arm_name}_minus_A")
+        r = arm_results[arm_name]["mse_eval_rmse_mean"]
+        e_sig = _sig_better_e(f"{arm_name}_minus_A")
         e_mat = bool(np.isfinite(r) and r < rmse_A * margin)
         if e_sig and e_mat:
             carriers.append(arm_name.replace("E_mag_", ""))
 
+    hist_tag = "history" if cfg.history else "instantaneous"
     info_exists = bool(D_below_A) or len(carriers) > 0
     if info_exists:
         verdict = "INFO_EXISTS"
         carrier_note = (
-            "non-magnetics modalities carry interior pitch info beyond "
-            f"magnetics-only (paired-CI significant + >5% material): "
-            f"{carriers or ['(D beats A jointly)']} -> D4 earns the H200."
+            f"[{hist_tag} features, mse_eval metric] non-magnetics modalities "
+            "carry interior pitch info beyond magnetics-only (paired-CI "
+            f"significant + >5% material): {carriers or ['(D beats A jointly)']} "
+            "-> D4 earns a scoped H200 run."
         )
     elif not mag_beats_clim:
         # Every arm — magnetics included — ties climatology.  Either a true
@@ -906,12 +1275,13 @@ def run(cfg: ProbeConfig) -> dict:
         # defensible negative.
         verdict = "INFEASIBLE_NEGATIVE"
         carrier_note = (
-            "magnetics SIGNIFICANTLY beats climatology (paired CI < 0 — features "
-            "are alive and track pitch), but NO non-magnetics modality adds "
-            "interior pitch info beyond magnetics-only.  Magnetics already beats "
-            "persistence.  The negative is specifically 'SXR/bolo/Thomson/camera "
-            "add nothing beyond magnetics' — NOT 'nothing beats persistence'.  "
-            "See per-node RMSE for the interior-vs-edge story.  No H200."
+            f"[{hist_tag} features, mse_eval metric] magnetics SIGNIFICANTLY "
+            "beats climatology (paired CI < 0 — features are alive and track "
+            "pitch), but NO non-magnetics modality adds interior pitch info "
+            "beyond magnetics-only.  Magnetics already beats persistence.  The "
+            "negative is specifically 'SXR/bolo/Thomson/camera add nothing "
+            "beyond magnetics' — NOT 'nothing beats persistence'.  See per-node "
+            "RMSE for the interior-vs-edge story.  No H200."
         )
 
     result = {
@@ -921,28 +1291,51 @@ def run(cfg: ProbeConfig) -> dict:
             "(supervised feasibility probe on CALIBRATION shots)"
         ),
         "verdict": verdict,
+        "feature_mode": hist_tag,
         "verdict_detail": {
             "info_exists": info_exists,
+            "metric": "mse_eval sightline error-weighted gated pitch RMSE",
             "D_significantly_and_materially_below_A": bool(D_below_A),
             "D_paired_significant_below_A": bool(D_sig_below_A),
             "D_material_5pct_below_A": bool(D_material),
-            "magnetics_beats_climatology_paired": bool(mag_beats_clim),
+            "magnetics_beats_climatology_paired_nodemetric": bool(mag_beats_clim),
             "carriers": carriers,
             "carrier_note": carrier_note,
             "clear_margin_frac": cfg.clear_margin_frac,
             "rule": (
                 "INFO_EXISTS requires an arm to BOTH (i) be significantly below "
-                "magnetics-only on the PAIRED bootstrap of the per-shot RMSE "
-                "difference (difference-CI upper bound < 0) AND (ii) clear a 5% "
-                "material margin.  Otherwise INFEASIBLE_NEGATIVE.  The paired "
-                "test (shared test shots, one resample) is correct where "
-                "marginal CIs over-conservatively overlap.  The climatology "
-                "paired test (A vs node-mean) tells a true negative (mag beats "
-                "clim) from feature-deadness (mag ties clim)."
+                "magnetics-only on the PAIRED bootstrap of the per-shot "
+                "mse_eval-metric RMSE difference (CI upper bound < 0) AND (ii) "
+                "clear a 5% material margin.  Otherwise INFEASIBLE_NEGATIVE.  "
+                "The decisive D-vs-A / E-vs-A comparisons use the mse_eval "
+                "sightline error-weighted metric (the EnKF's ruler).  The "
+                "node-metric climatology paired test gates feature-aliveness."
             ),
         },
-        "magnetics_only_rmse_per_shot": rmse_A,
-        "paired_differences": paired_out,
+        "magnetics_only_rmse_mse_eval": rmse_A,
+        "magnetics_only_rmse_per_shot_nodemetric": arm_results["A_mag"][
+            "rmse_per_shot"
+        ],
+        "mse_eval_metric": {
+            "note": (
+                "D1-locked sightline error-weighted gated pitch RMSE "
+                "(mse_eval.score) — apples-to-apples with the EnKF baseline"
+            ),
+            "persistence_cal_test_in_dist": pers_e_mean,
+            "cross_population_refs": {
+                "d1_persistence_ood_held_out": 0.719,
+                "enkf_ood_frontier": 0.225,
+                "caveat": (
+                    "EnKF 0.225 and D1 persistence 0.719 are on the 112 OOD "
+                    "HELD-OUT shots; oracle arms here are on IN-DISTRIBUTION "
+                    "CAL-test shots (should be EASIER).  NOT number-matched — "
+                    "cross-population reference only."
+                ),
+            },
+            "arm_rmse": {k: arm_results[k]["mse_eval_rmse_mean"] for k in ARMS},
+            "paired_differences": paired_mse_eval_out,
+        },
+        "paired_differences_nodemetric": paired_out,
         "persistence": {
             "rmse_pooled": pers_pooled,
             "rmse_per_shot": pers_pershot,
@@ -996,29 +1389,123 @@ def run(cfg: ProbeConfig) -> dict:
             "camera_features": (
                 f"{CAM_POOL}x{CAM_POOL} pooled + 4 stats + in-range flag (no CNN)"
             ),
+            "feature_mode": hist_tag,
+            "time_history": (
+                {
+                    "enabled": True,
+                    "model_hz": HIST_MODEL_HZ,
+                    "window_slices": HIST_WINDOW_SLICES,
+                    "window_ms": round(1000 * HIST_WINDOW_SLICES / HIST_MODEL_HZ, 1),
+                    "summaries": (
+                        "per trailing window: [mean, std, slope(dX/dt), "
+                        "detrended-fluctuation-RMS (sawtooth/tearing amplitude "
+                        "proxy), dominant-band power (rfft peak — sawtooth-period "
+                        "/ mode-frequency proxy)]; channel-mean reduced; appended "
+                        "to mag(amc Ip dynamics)/sxr/bolo blocks; NO GRU/CNN"
+                    ),
+                }
+                if cfg.history
+                else {"enabled": False}
+            ),
         },
         "runtime_s": round(time.time() - t0, 1),
     }
     return result
 
 
+def _combined_verdict(instant, history):
+    """Top-level verdict over both feature modes.
+
+    INFO_EXISTS iff EITHER mode finds a modality that materially+significantly
+    beats magnetics-only on the mse_eval metric.  The time-history arm is the
+    decisive one (instantaneous features are structurally blind to the dynamics).
+    """
+    runs = [r for r in (instant, history) if r is not None]
+    if any(r["verdict"] == "INFO_EXISTS" for r in runs):
+        winners = [
+            (r["feature_mode"], r["verdict_detail"]["carriers"])
+            for r in runs
+            if r["verdict"] == "INFO_EXISTS"
+        ]
+        return "INFO_EXISTS", (
+            f"a feature mode found interior-pitch carriers beyond magnetics: "
+            f"{winners} -> D4 earns a SCOPED H200 run; report the modality."
+        )
+    # both negative
+    note = (
+        "ROBUST NEGATIVE: neither instantaneous NOR time-history multimodal "
+        "features add interior pitch info beyond magnetics-only on the D1 "
+        "mse_eval sightline metric (paired-significant + 5% material).  "
+    )
+    if history is not None:
+        mh = history.get("frontier", {})
+        note += (
+            "Time-history WAS tested on the correct metric — so this is no "
+            "longer 'instantaneous probe was bottlenecked'.  "
+            f"mag-history mse_eval RMSE={mh.get('mag_history_rmse', 'NA')} vs "
+            f"instantaneous mag={mh.get('mag_instant_rmse', 'NA')} "
+            "(does time-history close the gap toward the EnKF OOD frontier "
+            "0.225? — cross-population caveat applies).  No H200."
+        )
+    return "INFEASIBLE_NEGATIVE", note
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--n-shots", type=int, default=150)
+    ap.add_argument("--n-shots", type=int, default=60)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument(
+        "--mode",
+        choices=["instant", "history", "both"],
+        default="both",
+        help="feature mode(s) to run",
+    )
     ap.add_argument("--out", type=str, default=str(ARTIFACT_PATH))
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    cfg = ProbeConfig(n_shots=args.n_shots, seed=args.seed)
-    result = run(cfg)
+
+    instant = history = None
+    if args.mode in ("instant", "both"):
+        logger.info("=== INSTANTANEOUS feature run ===")
+        instant = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, history=False))
+    if args.mode in ("history", "both"):
+        logger.info("=== TIME-HISTORY feature run ===")
+        history = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, history=True))
+
+    # frontier read (instantaneous vs history mag-only on the mse_eval metric)
+    if history is not None:
+        history["frontier"] = {
+            "mag_history_rmse": history["magnetics_only_rmse_mse_eval"],
+            "mag_instant_rmse": (
+                instant["magnetics_only_rmse_mse_eval"] if instant is not None else None
+            ),
+            "enkf_ood_frontier": 0.225,
+            "note": (
+                "does mag-HISTORY close most of the gap vs instantaneous mag? "
+                "if so, TIME-HISTORY (not multimodal) is the binding constraint "
+                "— cross-population caveat to the EnKF OOD 0.225"
+            ),
+        }
+
+    top_verdict, top_note = _combined_verdict(instant, history)
+    combined = {
+        "version": "oracle_probe_v0",
+        "verdict": top_verdict,
+        "verdict_note": top_note,
+        "runs": {
+            k: v
+            for k, v in (("instantaneous", instant), ("time_history", history))
+            if v is not None
+        },
+    }
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    print(f"\n[oracle_probe] VERDICT: {result['verdict']}")
+    out.write_text(json.dumps(combined, indent=2), encoding="utf-8")
+    print(f"\n[oracle_probe] TOP VERDICT: {top_verdict}")
+    print(f"[oracle_probe] {top_note}")
     print(f"[oracle_probe] wrote {out}")
-    print(json.dumps(result["verdict_detail"], indent=2))
     return 0
 
 
