@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"    content="imas-ambix">
+  <meta name="reckon-type"     content="plan">
+  <meta name="plan-slug"       content="sequential-current-da-v1">
+  <meta name="plan-title"      content="Strong Sequential Full-State Current-Profile Data Assimilation">
+  <meta name="plan-summary"    content="Replace the v0 parameter batch-smoother with a sequential per-timestep EKF over a full psi(rho) state — fix the v0 symptoms (late-time divergence, q0 bias, uncalibrated UQ) and establish the true achievable physics frontier (~0.19 sightline pitch RMSE) before any ML.">
+  <meta name="plan-status"     content="active">
+  <meta name="plan-roi"        content="high">
+  <meta name="plan-effort"     content="L">
+  <meta name="plan-tier"       content="opus">
+  <meta name="plan-milestone"  content="M3">
+  <meta name="plan-sprint"     content="S10">
+  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="plan-depends-on" content="mse-free-current-recovery-v0,probabilistic-state-space-methods">
+  <title>Strong Sequential Full-State Current-Profile Data Assimilation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Why: the v0 EnKF is weak, and the bar must be strong first</h2>
+    <p>
+      The S9 sprint settled the strategic question: on
+      <a href="/imas-ambix/mse-free-current-recovery-v0.html">mse-free-current-recovery-v0</a>
+      a supervised oracle proved that the binding constraint for MSE-free internal-current
+      recovery on MAST is <strong>interior information, not ML</strong>. Time-history adds
+      nothing (mag-history RMSE <code>0.190</code> ≈ mag-instant <code>0.188</code> on the locked
+      <code>mse_eval</code> sightline metric), and near-axis interior is model-failure-floored at
+      <code>~0.41 rad</code> for magnetics <em>and</em> all multimodal channels — a third
+      independent re-confirmation of classic equilibrium under-determination (external magnetics
+      fix the boundary and total <code>Ip</code>, never the internal <code>j(ψ)</code>). The
+      pivot directive that follows is unambiguous: <strong>shore up a strong physics baseline,
+      then chain more internal-current diagnostics, before building any ML.</strong> This plan is
+      the first half — the strong physics baseline.
+    </p>
+    <p>
+      The v0 EnKF baseline (the D2 TORAX parameter-ensemble smoother) is genuinely <strong>weak</strong>.
+      It is a <em>parameter-space ensemble smoother</em>: it perturbs 3–5 <em>global</em> scalar
+      parameters <code>θ</code>, runs each ensemble member as a free-running TORAX trajectory over
+      the whole shot, and applies <strong>one</strong> Ensemble-Kalman-Inversion batch update to those
+      parameters against the pooled magnetics innovation. That construction produces four diagnosable
+      symptoms, each of which has a known cure in a properly sequential filter:
+    </p>
+    <ul>
+      <li><strong>Noisy late-time <code>j(ρ,t)</code></strong> — an unconstrained ensemble of free
+        parameter trajectories diverges over the shot; some members' on-axis safety factor
+        <code>q0</code> blows up because the batch update never re-anchors the state mid-shot.</li>
+      <li><strong>Poor <code>q0(t)</code> match</strong> — the free-running prior is biased (default
+        TORAX geometry, no per-shot <code>R0</code>/<code>Bt0</code>), and a single batch update over
+        global parameters cannot correct a time-varying state error.</li>
+      <li><strong>Uncalibrated UQ</strong> — measured conformal 90% coverage <code>cov90 = 0.465</code>
+        against the target band <code>[0.88, 0.92]</code>: the ensemble spread is not a calibrated
+        posterior.</li>
+      <li><strong>Fragility &amp; cost</strong> — the JIT/stiffness late-time divergence forced the
+        provisional N=3 subset (the JIT-fast shots); the full held-out bar was only later established
+        at pitch RMSE <code>0.225 [0.199, 0.259]</code> across N=112 (persistence <code>0.719</code>).</li>
+    </ul>
+    <p>
+      <strong>The bankable wins.</strong> A sequential per-timestep EKF over a full <code>ψ(ρ)</code>
+      state cures all four: it re-anchors the state at every measurement, so it cannot diverge
+      late-time; it filters a state (not a handful of global parameters), so it tracks a time-varying
+      error; and its posterior covariance becomes a calibrate-able object. The goal of this plan is
+      explicit and pre-registered: <strong>establish the true achievable frontier</strong> — what the
+      <em>physics</em> alone can recover from MSE-free magnetics + a current-diffusion forward model —
+      <em>not</em> to claim an interior win that the oracle has already shown is impossible from
+      magnetics alone.
+    </p>
+
+    <h2 id="s2">§2 — The reduced 1-D ψ-diffusion EKF (RAPTOR-faithful)</h2>
+    <p>
+      The substrate is a reduced 1-D poloidal-flux-diffusion forward model in the
+      RAPTOR-EKF lineage (Felici <em>et al.</em>, <em>Plasma Phys. Control. Fusion</em> 2012, and the
+      2018 real-time current-profile-control follow-on). The state evolution is the 1-D resistive
+      poloidal-flux-diffusion equation discretised on the <code>ρ</code> grid, with neoclassical
+      parallel resistivity <code>η<sub>∥</sub>(Te, Zeff)</code> from the Sauter formula driven by the
+      <em>measured</em> Thomson <code>Te</code> (the §4 closure channel from
+      <a href="/imas-ambix/mse-free-current-recovery-v0.html">mse-free-current-recovery-v0</a>),
+      bootstrap + auxiliary current sources, and the loop-voltage / <code>Ip</code> boundary drive.
+      The forward map is mildly nonlinear and sparse: the EKF Jacobian
+      <code>∂ψ<sub>k+1</sub>/∂ψ<sub>k</sub></code> is <strong>banded</strong> (nearest-neighbour
+      coupling from the diffusion stencil), so the predict step is cheap and the analytic Jacobian
+      avoids the finite-ensemble noise that plagues a parameter EnKF.
+    </p>
+    <p class="r-callout">
+      <strong>TORAX leaves the inner loop.</strong> The decisive architectural change. In v0,
+      TORAX <em>was</em> the transition, run once per ensemble member with a batch update wrapped
+      around it — the source of the JIT/stiffness late-time divergence and the 8–9 s/member slowdown
+      on stiff/high-<code>Ip</code> shots. Here TORAX runs <strong>once per shot</strong> as a
+      <em>forecast reference</em> (a free-running, physics-grounded trajectory the EKF is anchored to
+      and cross-checked against), <em>outside</em> the sequential recursion. The recursion itself
+      uses the reduced banded-Jacobian forward, which is JIT-stable and fast. Pulling the stiff JAX
+      solver out of the per-step loop is what dissolves the late-time divergence symptom at its root.
+    </p>
+
+    <h2 id="s3">§3 — Sequential recursion with per-step re-anchoring</h2>
+    <p>
+      The filter is a textbook EKF recursion advanced one measurement step at a time over the
+      <code>mse_eval</code> time grid:
+    </p>
+    <ol>
+      <li><strong>Predict</strong> — advance <code>ψ⁻<sub>k</sub></code> through the reduced
+        diffusion forward using the banded analytic Jacobian; propagate the covariance with process
+        inflation (§4).</li>
+      <li><strong>Update</strong> — assimilate the magnetics innovation through the EFIT-free GS
+        observation operator (the linearised <code>H</code> from <code>gs/residual.py</code>),
+        producing the analyzed state <code>ψ⁺<sub>k</sub></code> and posterior covariance.</li>
+      <li><strong>Re-anchor</strong> — the next predict step starts from the <em>analyzed</em>
+        <code>ψ⁺<sub>k</sub></code>, not from a free-running prior. This is exactly the mechanism the
+        v0 batch smoother lacks: per-step re-anchoring is what prevents the unconstrained late-time
+        ensemble divergence and the <code>q0</code> blow-ups.</li>
+    </ol>
+    <p>
+      <strong>The filtered state is <code>ψ(ρ)</code>, not <code>j</code>.</strong> Poloidal flux is
+      the smooth, well-conditioned primitive; the current density <code>j ∝ ∂²ψ/∂ρ²</code> is a
+      second derivative of it. Filtering <code>j</code> directly amplifies high-wavenumber noise into
+      the very interior structure we cannot constrain. Filtering <code>ψ</code> and deriving
+      <code>j</code> (and <code>q</code>, and the pitch readout) post-hoc keeps the state estimate
+      smooth and the covariance interpretable.
+    </p>
+
+    <h2 id="s4">§4 — Per-shot geometry, inflation, and observation noise</h2>
+    <p>
+      The v0 <code>q0(t)</code> bias traces partly to default geometry. This plan derives the
+      machine geometry <strong>per shot</strong>:
+    </p>
+    <ul>
+      <li><strong>Geometry</strong> — <code>R0</code> and <code>Bt0</code> from the measured toroidal-field
+        current <code>amc.tf_current</code> (vacuum <code>Bt = μ₀ N I<sub>TF</sub> / 2πR0</code>), so the
+        free-running prior is no longer biased by a generic default. The minor radius / elongation come
+        from the magnetics boundary fit that the GS operator already consumes.</li>
+      <li><strong>Process inflation</strong> — a multiplicative covariance inflation on the predict step
+        compensates for the reduced-model error (the reduced forward is not the full TORAX physics), so
+        the filter does not become over-confident and ignore the measurements late in the shot.</li>
+      <li><strong>Observation noise <code>R</code></strong> — reuse the existing
+        <code>gs/residual.py</code> <code>robust_sensor_scale</code> machinery (already used for the
+        <code>amb</code> pickup-coil magnetics) to set the per-channel measurement-noise covariance,
+        rather than a hand-tuned scalar.</li>
+    </ul>
+
+    <h2 id="s5">§5 — Mandatory localization onto the leading singular vectors of H</h2>
+    <p class="r-callout">
+      <strong>This is non-negotiable, and is the single most important safeguard in the plan.</strong>
+      A full-state <code>ψ(ρ)</code> filter has far more degrees of freedom than the magnetics actually
+      constrain. The Stage-2 / oracle / GS-rank evidence is consistent: the row-scaled observation
+      operator <code>H</code> has only <strong>~5–6 informative right-singular vectors</strong> — the
+      external magnetics see a low-rank projection of the interior. Without localization, the
+      ensemble's finite-sample null-space correlations let the filter <em>fabricate spurious interior
+      structure</em>: it would manufacture an interior <code>j(ψ)</code> that the data cannot support,
+      exactly the failure mode the under-determination wall predicts. The analysis update is therefore
+      <strong>localized onto the leading ~5–6 right-singular vectors of the row-scaled <code>H</code></strong>;
+      modes below the cutoff are not updated by magnetics and stay on the physics prior. This is what
+      keeps the strong baseline honest — it updates only what the measurements truly inform.
+    </p>
+
+    <h2 id="s6">§6 — Calibrated UQ via split-conformal (solved here, not re-opened)</h2>
+    <p>
+      The v0 <code>cov90 = 0.465</code> is cured by <strong>split-conformal calibration</strong> on the
+      <code>3361</code> calibration shots from the locked <code>mse_heldout_split_v0</code> manifest.
+      Conformity scores are computed per-channel and per-radial-band on the calibration partition, the
+      quantiles are <strong>frozen</strong>, and then applied to the 112-shot held-out test partition.
+      The target is <code>cov90 ∈ [0.88, 0.92]</code> — the same gate Stage-1 met. This is the
+      calibration construct used across the project; it is reused as-is here, the same engine in
+      <code>statespace/calibration.py</code>.
+    </p>
+    <p>
+      <strong>Calibration is solved in this plan and is not re-opened downstream.</strong> In
+      particular, the neural-KF survey
+      (<a href="/imas-ambix/neural-kf-architecture-survey.html">neural-kf-architecture-survey</a>)
+      must <em>not</em> treat <code>cov90</code> as a second open problem to be fixed with a learned
+      filter — split-conformal already delivers a frozen, distribution-free coverage guarantee here.
+    </p>
+
+    <h2 id="s7">§7 — The decisive pressure experiment (handed in from the diagnostics doc)</h2>
+    <p>
+      The strong baseline is also the harness for the one genuinely new interior lever. The companion
+      diagnostics plan, <strong>Internal-Current Diagnostics: EFIT Taxonomy → MAST Availability →
+      Pressure-as-GS-p′</strong>, defines an <code>H<sub>pressure</sub></code> observation operator
+      that maps the filtered state to a predicted kinetic-pressure profile <code>p(ρ)</code> via
+      Grad–Shafranov force-balance — coupling <code>p′</code> into the <code>FF′</code> / current
+      decomposition — and a decisive 45-shot cohort (held-out shots with usable near-axis
+      <code>atm</code> Thomson). That experiment runs <em>inside</em> the EKF substrate built here:
+      with-vs-without GS-<code>p′</code> pressure assimilation, scored by near-axis interior RMSE
+      against held-out MSE. This plan provides the substrate and the localized analysis update;
+      the diagnostics plan provides the <code>H<sub>pressure</sub></code> operator and the cohort.
+    </p>
+
+    <h2 id="s8">§8 — Acceptance &amp; the pre-registered frontier</h2>
+    <p>
+      All scoring is on the locked D1 <code>mse_eval</code> harness (the <code>ShotPrediction</code> /
+      <code>score</code> / <code>pitch_from_current_profile</code> contract, gated + error-weighted on
+      beam-on slices, the shot as the independent unit, N=112 held-out). The v1 bar is reported with
+      bootstrap CIs against the v0 EnKF bar (pitch RMSE <code>0.225 [0.199, 0.259]</code>) and
+      persistence (<code>0.719</code>).
+    </p>
+    <p class="r-callout">
+      <strong>Pre-registered expected frontier (locked before any v1 number):</strong> the sightline
+      pitch RMSE achievable from MSE-free magnetics + current-diffusion physics is
+      <strong>~0.19</strong> (the oracle's mag-instant <code>0.188</code> / mag-history <code>0.190</code>
+      ceiling on the same metric); the near-axis interior remains model-failure-floored at
+      <strong>~0.41 rad</strong>. <strong>No interior win is claimed from magnetics alone.</strong> A
+      v1 that reaches ~0.19 sightline with calibrated <code>cov90</code> and a clean near-axis ~0.41
+      floor is a <em>success</em> — it establishes the true physics frontier the pressure experiment
+      (§7) then tries to break, and against which any future ML (the survey) is measured.
+    </p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="da-substrate" data-choice="reduced-ekf-primary" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">What is the primary data-assimilation substrate for the strong baseline?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="reduced-ekf-primary">Reduced 1-D ψ-diffusion sequential EKF (TORAX as forecast cross-check only)</button>
+          <button class="r-opt" data-value="torax-windowed-reinit">TORAX windowed re-init filter (stiff solver in the loop)</button>
+          <button class="r-opt" data-value="keep-v0-param-smoother">Keep the v0 parameter batch-smoother</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): the reduced banded-Jacobian 1-D ψ-diffusion EKF is PRIMARY. TORAX runs once per shot as a free-running forecast reference and cross-check only — pulling the stiff JAX solver OUT of the per-step loop is what dissolves the v0 JIT/stiffness late-time divergence and the 8–9 s/member slowdown. FIRST validate that the reduced model reproduces TORAX <code>q(ρ,t)</code> on a few representative shots before trusting it as the substrate; only then run the full filter. The v0 parameter batch-smoother is retired as the baseline.</p>
+      </div>
+
+      <div class="r-dec" data-key="filtered-state" data-choice="psi-rho" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">What quantity is the filtered state vector?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="psi-rho">Poloidal flux ψ(ρ)</button>
+          <button class="r-opt" data-value="j-rho">Current density j(ρ)</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): filter ψ(ρ), the smooth well-conditioned primitive; derive <code>j ∝ ∂²ψ/∂ρ²</code>, <code>q</code> and the pitch readout post-hoc. Filtering <code>j</code> directly would amplify high-wavenumber noise into the very interior structure the data cannot constrain.</p>
+      </div>
+
+      <div class="r-dec" data-key="localization-rank" data-choice="localize-5-6-dof" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">Is rank localization of the analysis update mandatory, and to how many DOF?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="localize-5-6-dof">Mandatory — localize onto the leading ~5–6 right-singular vectors of the row-scaled H</button>
+          <button class="r-opt" data-value="full-state-update">Update the full state (no localization)</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): localization is MANDATORY. The row-scaled observation operator H has only ~5–6 informative right-singular vectors (Stage-2 / oracle / GS-rank consistent). Without localization, finite-ensemble null-space correlations let the full-state filter fabricate spurious interior structure the data cannot support. Modes below the cutoff stay on the physics prior. This is the safeguard that keeps the baseline honest.</p>
+      </div>
+
+      <div class="r-dec" data-key="uq-calibration" data-choice="split-conformal-frozen" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">How is the cov90 calibration problem solved, and is it re-opened downstream?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="split-conformal-frozen">Split-conformal on 3361 cal shots (per-channel + per-band, frozen) — solved HERE, not re-opened</button>
+          <button class="r-opt" data-value="ensemble-spread-only">Raw ensemble/posterior spread (the v0 approach, cov90 0.465)</button>
+          <button class="r-opt" data-value="defer-to-learned-filter">Defer calibration to a learned filter downstream</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): split-conformal on the 3361 calibration shots (per-channel + per-band, frozen, applied to the 112 test) → cov90 ∈ [0.88, 0.92], the Stage-1 gate. Calibration is SOLVED in this plan and is NOT re-opened in the neural-KF survey — that doc must not treat cov90 as a second open problem for a learned filter.</p>
+      </div>
+
+      <div class="r-dec" data-key="prereg-frontier" data-choice="prereg-019-sightline-041-nearaxis" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">What frontier is pre-registered as success, before any v1 number is produced?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="prereg-019-sightline-041-nearaxis">~0.19 sightline pitch RMSE / ~0.41 rad near-axis floor — NO interior win from magnetics alone</button>
+          <button class="r-opt" data-value="claim-interior-win">Claim an interior recovery win from magnetics</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02) — pre-registered BEFORE any v1 number: the achievable sightline frontier from MSE-free magnetics + current-diffusion physics is ~0.19 (oracle mag-instant 0.188 / mag-history 0.190); near-axis interior stays model-failure-floored at ~0.41 rad. NO interior win is claimed from magnetics alone. Reaching ~0.19 sightline with calibrated cov90 and a clean ~0.41 near-axis floor IS the success — it establishes the true physics frontier, against which the §7 pressure experiment and any future ML are measured.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-scda-v1-substrate" data-status="open" data-tier="opus" data-written-by="agent/opus (S10 author)" data-written-at="2026-06-02 09:00">
+        <h4 class="r-fu-title">Implement the reduced-EKF substrate + split-conformal calibration; score the v1 bar</h4>
+        <div class="r-fu-body">Build the strong sequential baseline: the reduced 1-D ψ-diffusion EKF, the localized analysis update, per-shot geometry, and the split-conformal calibration. Validate the reduced model against TORAX <code>q(ρ,t)</code> on a few shots first, then run the full filter and report the v1 bar with bootstrap CIs against the v0 EnKF (0.225) and persistence (0.719). This is the substrate the pressure experiment and the neural-KF survey both depend on.</div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    sequential-current-da-v1 (http://localhost:8765/imas-ambix/sequential-current-da-v1.html)
+Section: §2-§6 + §8 — reduced-EKF substrate, calibration, and the v1 bar
+Tier:    opus
+
+Context
+  S9 settled the strategic question: the binding constraint for MSE-free internal-current
+  recovery on MAST is INTERIOR INFORMATION, not ML (oracle: time-history adds nothing,
+  0.190 ~= 0.188; near-axis interior model-failure-floored ~0.41 rad). The pivot directive:
+  shore up a STRONG PHYSICS BASELINE before any ML. The v0 EnKF is a weak parameter batch-
+  smoother (noisy late-time j, biased q0, cov90 0.465). This task builds the strong sequential
+  replacement and establishes the true physics frontier.
+
+State to read
+  GET /plan/imas-ambix/sequential-current-da-v1   (decisions, followups, status, version)
+  Also read the locked D1 harness contract on mse-free-current-recovery-v0 (mse_eval.py /
+  mse_split.py / manifest mse_heldout_split_v0.json).
+
+Locked decisions to honour
+  da-substrate       -> reduced 1-D psi-diffusion sequential EKF PRIMARY; TORAX once/shot as
+                        forecast cross-check ONLY (stiff solver OUT of the per-step loop).
+  filtered-state     -> psi(rho), not j (derive j ~ d2psi/drho2 post-hoc).
+  localization-rank  -> MANDATORY localization onto the leading ~5-6 right-singular vectors of
+                        the row-scaled H; modes below the cutoff stay on the physics prior.
+  uq-calibration     -> split-conformal on the 3361 cal shots (per-channel + per-band, frozen,
+                        applied to the 112 test) -> cov90 in [0.88,0.92]. Solved HERE.
+  prereg-frontier    -> ~0.19 sightline / ~0.41 near-axis. NO interior win claimed from
+                        magnetics alone. Reaching ~0.19 with calibrated cov90 IS success.
+
+Open decisions to surface (do not resolve)
+  (none — all five are locked; surface any new substrate decision rather than deciding silently)
+
+Constraints
+  - RAPTOR-faithful reduced forward (Felici PPCF 2012/2018): 1-D resistive poloidal-flux-
+    diffusion, Sauter eta_par(Te,Zeff) from MEASURED Thomson Te, banded analytic Jacobian.
+  - Observation H = the EFIT-free GS operator (gs/operator.py); linearised per-slice update
+    via gs/residual.py; reuse robust_sensor_scale for the amb measurement-noise R.
+  - Per-shot geometry: R0/Bt0 from amc.tf_current (vacuum Bt). Multiplicative process inflation.
+  - FIRST validate the reduced model reproduces TORAX q(rho,t) on a few representative shots
+    (incl. one stiff/high-Ip shot) before trusting it as the substrate.
+  - MSE (ams) is NEVER an input or label/loss term — eval truth only, scored on the D1
+    mse_eval harness (gated + error-weighted beam-on slices; shot = independent unit; N=112).
+  - Env: uv run; CPU-first on the /work access node. Any GPU step obeys AGENTS.md
+    §2a/§2a-cancel (STOP-FILE, never scancel, hardened sbatch). Run in the foreground — no
+    orphaned backgrounded processes with a "waiting" monologue.
+
+Done-when
+  1. The reduced-EKF substrate committed (predict/update/re-anchor + localized analysis update
+     + per-shot geometry), with a smoke test green and a reduced-vs-TORAX q(rho,t) agreement
+     check on >=3 shots committed as an artifact.
+  2. Split-conformal calibration committed and run on the 3361 cal shots; cov90 on the 112
+     held-out reported (target [0.88,0.92]).
+  3. The v1 bar reported with bootstrap CIs vs the v0 EnKF (0.225 [0.199,0.259]) and
+     persistence (0.719): sightline pitch RMSE, near-axis interior RMSE, cov90, CRPS/NLL.
+  4. A followup written to wire in the H_pressure decisive experiment from
+     internal-current-diagnostics-v0 (§7) + this followup resolved.</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
