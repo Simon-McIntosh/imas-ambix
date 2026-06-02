@@ -55,10 +55,12 @@ process still holds the device), so recovery needs a reboot.</p>
 <code>Container … has N processes, giving up after 63 sec</code> → drain.</li>
 <li><strong>Direct kernel-state capture</strong> — a separate-allocation observer
 recorded <code>/proc/&lt;pid&gt;/stat</code> + <code>wchan</code> for every rank
-through the kill window (the measurement never taken before). During NCCL
-teardown the ranks were caught in D-state in exactly the driver functions above,
-e.g. <code>…,D,os_acquire_rwlock_write</code>, <code>…,D,uvm_gpu_retain_by_uuid</code>,
-<code>…,D,os_acquire_semaphore</code>.</li>
+through the kill window (the measurement never taken before). Across the
+instrumented runs the processes were repeatedly caught in D-state in exactly
+these driver functions — hundreds of samples in
+<code>os_acquire_rwlock_write</code> / <code>os_acquire_rwlock_read</code>, plus
+<code>os_acquire_semaphore</code> and <code>uvm_gpu_retain_by_uuid</code> — the
+precise wait the production drains hung in.</li>
 <li><strong>Upstream corroboration</strong> — NCCL #829 (abort →
 <code>cudaStreamSynchronize</code> D-state); NVIDIA open-gpu-kernel-modules #278
 (<code>os_acquire_semaphore</code> deadlock → D-state); SchedMD docs (D-state
@@ -70,9 +72,11 @@ bug #11103).</li>
 
 <p>The drain requires the D-state to be <strong>permanent</strong>. On a healthy
 GPU the driver releases the lock within milliseconds — the wait is transient, the
-task returns to a killable state, and <code>SIGKILL</code> reaps it cleanly (seven
-instrumented attempts on this node, including the exact production teardown path,
-all exited cleanly — the node never drained). A <em>permanent</em> wait needs the
+task returns to a killable state, and <code>SIGKILL</code> reaps it cleanly (eight
+instrumented attempts on this node — including the exact production watchdog →
+<code>ncclCommAbort</code> teardown path and direct driver-lock contention that
+produced hundreds of transient D-state samples — all exited cleanly; the node
+never drained). A <em>permanent</em> wait needs the
 GPU itself wedged: a kernel that never completes or a context corrupted by an
 earlier unclean event. The production drains were therefore a <strong>cascade</strong>
 — seeded by the 2026-05-26 concurrent cross-cgroup <code>cuInit</code> failure
