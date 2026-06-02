@@ -6,14 +6,13 @@
   <meta name="docs-project"  content="imas-ambix">
   <meta name="reckon-type"   content="doc">
   <meta name="plan-slug"     content="rca-node-drain-mechanism-2026-06-02">
-  <meta name="plan-title"    content="RCA — 98dci4-gpu-0003 node drains: the single root cause (NVIDIA-driver D-state) and why it could not be reproduced">
-  <meta name="plan-summary"  content="Admin-facing RCA. Single root cause for all four drains: a process stuck in uninterruptible (D) sleep inside the NVIDIA kernel driver during NCCL teardown survives SIGKILL; SLURM hits UnkillableStepTimeout(60s) and drains. Directly observed via /proc wchan (os_acquire_rwlock_*, uvm_gpu_retain_by_uuid). Explains the prior fleet's non-reproducibility: on a healthy GPU the D-state is transient (killable); a drain needs a genuinely wedged GPU — a cascade seeded by an initial wedge. Corrects three errors in the prior analysis. Ranked SDCC admin mitigations as followups.">
+  <meta name="plan-title"    content="RCA — 98dci4-gpu-0003 node drains: cause and fix">
+  <meta name="plan-summary"  content="A GPU job's NCCL teardown (ncclCommAbort -> cudaStreamSynchronize) blocks in an uninterruptible (D) wait inside the NVIDIA driver; a D-state task ignores SIGKILL, so SLURM hits UnkillableStepTimeout(60s) and drains the node. Validated by direct /proc wchan capture + two production logs. Surgical fix: UnkillableStepProgram (auto-diagnose+recover) + UnkillableStepTimeout=120 + an epilog GPU-clean gate.">
   <meta name="plan-status"   content="active">
   <meta name="plan-roi"      content="high">
-  <meta name="plan-effort"   content="M">
+  <meta name="plan-effort"   content="S">
   <meta name="plan-owner"    content="Simon McIntosh">
-  <meta name="plan-informs"  content="rca-drain-deep-analysis-2026-06-01,drain-mwe-evidence-2026-06-01">
-  <title>RCA — 98dci4-gpu-0003 node drains: root cause &amp; reproducibility | imas-ambix</title>
+  <title>RCA — 98dci4-gpu-0003 node drains: cause and fix | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 </head>
@@ -21,386 +20,158 @@
 <main class="plan-doc">
 
 <p><span class="status active"><span class="dot"></span>RCA / for SDCC admins</span> —
-Root-cause analysis of the repeated <code>drain</code> events on the shared 4×H200
-node <code>98dci4-gpu-0003</code> (driver 595.58.03, CUDA 13.2.1, NCCL 2.21.5,
-PyTorch 2.5.1, RHEL 10.1 / kernel 6.12). This document <strong>supersedes and
-corrects</strong> the earlier <a href="rca-drain-deep-analysis-2026-06-01.html">deep-analysis</a>
-and <a href="drain-mwe-evidence-2026-06-01.html">MWE-evidence</a> notes, whose
-conclusions were inconclusive and in three specific places wrong (§5). It is
-backed by <strong>direct kernel-state measurement</strong> (process state + <code>wchan</code>
-captured at the moment of the kill) — the measurement that was never taken before.</p>
+node <code>98dci4-gpu-0003</code> (4×H200, driver 595.58.03, CUDA 13.2.1,
+NCCL 2.21.5, PyTorch 2.5.1, RHEL 10.1 / kernel 6.12). Concise statement of the
+validated cause and the surgical fix. Working record and the instrumented
+reproducer suite are linked at the end.</p>
 
-<nav><strong>Sections:</strong>
-<a href="#verdict">Verdict</a> ·
-<a href="#events">Corrected event log</a> ·
-<a href="#mechanism">Mechanism</a> ·
-<a href="#evidence">Direct evidence</a> ·
-<a href="#whyhard">Why it could not be reproduced</a> ·
-<a href="#corrections">Corrections to prior RCA</a> ·
-<a href="#repro">Reproducer suite</a> ·
-<a href="#mitigations">Admin mitigations</a> ·
-<a href="#followups">Followups</a>
-</nav>
+<h2 id="cause">§1 — Cause</h2>
 
-<!-- ════════════════════ VERDICT ════════════════════ -->
-<h2 id="verdict">§1 — Verdict (single root cause)</h2>
+<p>A SLURM node drains when a process in the job's cgroup is in uninterruptible
+kernel sleep (<code>TASK_UNINTERRUPTIBLE</code>, the <code>D</code> state) and
+stays there past <code>UnkillableStepTimeout</code> (currently 60&nbsp;s).
+<strong>A D-state task cannot receive any signal — not <code>SIGTERM</code>, not
+<code>SIGKILL</code></strong> — so <code>slurmstepd</code> cannot reap the step,
+logs <code>Kill task failed</code>, and the node is drained.</p>
 
-<p><strong>A SLURM node drains when, and only when, a process in the job's cgroup
-is in uninterruptible kernel sleep (Linux <code>D</code> state /
-<code>TASK_UNINTERRUPTIBLE</code>) and stays there past
-<code>UnkillableStepTimeout</code> (currently 60&nbsp;s).</strong> A D-state task
-cannot receive <em>any</em> signal — not <code>SIGTERM</code>, not
-<code>SIGKILL</code>. <code>slurmstepd</code> signals it, waits, fails to reap it,
-logs <code>"Kill task failed"</code> / <code>"giving up after 63 sec"</code>, and
-<code>slurmctld</code> marks the node <code>DRAIN</code>.</p>
+<p>On this node that D-state is inside the <strong>NVIDIA GPU kernel driver</strong>.
+When PyTorch tears down a stuck NCCL communicator, <code>ncclCommAbort()</code>
+calls <code>cudaStreamSynchronize()</code> (NCCL upstream
+<a href="https://github.com/NVIDIA/nccl/issues/829">#829</a>), which blocks in the
+driver acquiring an internal lock — observed <code>wchan</code> values:
+<code>os_acquire_rwlock_read/write</code>, <code>os_acquire_semaphore</code>,
+<code>uvm_gpu_retain_by_uuid</code>. SLURM's <code>SIGTERM</code> → 30&nbsp;s
+<code>KillWait</code> → <code>SIGKILL</code> all queue undelivered; after 60&nbsp;s
+the node drains. <code>nvidia-smi --gpu-reset</code> then also hangs (the wedged
+process still holds the device), so recovery needs a reboot.</p>
 
-<p>On this node the D-state lives in the <strong>NVIDIA GPU kernel driver</strong>:
-internal driver lock acquisition (<code>os_acquire_rwlock_read</code>,
-<code>os_acquire_rwlock_write</code>, <code>os_acquire_semaphore</code>) and UVM
-device-handle retention (<code>uvm_gpu_retain_by_uuid</code>). It is entered when
-PyTorch tears down a <em>stuck</em> NCCL communicator — <code>ncclCommAbort()</code>
-internally calls <code>cudaStreamSynchronize()</code>, which blocks in the driver
-ioctl on a GPU operation that never completes (NCCL upstream issue
-<a href="https://github.com/NVIDIA/nccl/issues/829">#829</a>).</p>
+<h2 id="evidence">§2 — Evidence (validated)</h2>
 
-<p><strong>All four drain events reduce to this one mechanism.</strong> The various
-"triggers" enumerated in the prior analysis (NCCL count-mismatch, network download,
-<code>scancel</code> timing, DDP param-mismatch) are not five independent root
-causes — they are just different ways to arrive at a <em>stuck NCCL teardown on a
-GPU that is already wedged</em>. The drain itself is one kernel-level fact:
-<strong>D-state in the NVIDIA driver, surviving SIGKILL, past a 60&nbsp;s timeout.</strong></p>
+<ul>
+<li><strong>Production logs</strong> — the two drains with surviving logs (jobs
+<code>1208980</code>, <code>1209813</code>) carry the identical signature:
+<code>Future for ProcessGroup abort timed out after 600000 ms</code> →
+<code>JOB NOT ENDING WITH SIGNALS</code> →
+<code>Container … has N processes, giving up after 63 sec</code> → drain.</li>
+<li><strong>Direct kernel-state capture</strong> — a separate-allocation observer
+recorded <code>/proc/&lt;pid&gt;/stat</code> + <code>wchan</code> for every rank
+through the kill window (the measurement never taken before). During NCCL
+teardown the ranks were caught in D-state in exactly the driver functions above,
+e.g. <code>…,D,os_acquire_rwlock_write</code>, <code>…,D,uvm_gpu_retain_by_uuid</code>,
+<code>…,D,os_acquire_semaphore</code>.</li>
+<li><strong>Upstream corroboration</strong> — NCCL #829 (abort →
+<code>cudaStreamSynchronize</code> D-state); NVIDIA open-gpu-kernel-modules #278
+(<code>os_acquire_semaphore</code> deadlock → D-state); SchedMD docs (D-state
+cannot be signalled; <code>UnkillableStepProgram</code>; timeout cap 126&nbsp;s,
+bug #11103).</li>
+</ul>
 
-<!-- ════════════════════ EVENTS ════════════════════ -->
-<h2 id="events">§2 — Corrected event log</h2>
+<h2 id="precondition">§3 — Why it only sometimes drains</h2>
 
-<div class="table-scroll"><table class="t">
-<thead><tr><th>#</th><th>Date</th><th>Job(s)</th><th>What actually happened</th><th>Drained?</th></tr></thead>
-<tbody>
-<tr>
-  <td>0</td><td>2026-05-26</td><td>concurrent Group&nbsp;A + Group&nbsp;B</td>
-  <td><code>cuInit() rc=3</code> while two cgroups initialised CUDA on the shared
-  device. NVML healthy, CUDA runtime broken. <strong>This is the seed wedge</strong>
-  — it left the GPU/driver degraded and required reboot.</td>
-  <td><span class="status blocked"><span class="dot"></span>Yes (seed)</span></td>
-</tr>
-<tr>
-  <td>1</td><td>2026-05-27</td><td>1208195 (rbb encode)</td>
-  <td>Legacy prefetch producer died → consumer blocked. Process unkillable at
-  <code>scancel</code> → drain. (Already retired in code; in-process encoder replaced it.)</td>
-  <td><span class="status blocked"><span class="dot"></span>Yes</span></td>
-</tr>
-<tr>
-  <td>2</td><td>2026-05-27</td><td>1208591 (bsprobe)</td>
-  <td>Wrong CWD → LPIPS attempted a model download → blocked network call on a
-  no-egress node. (Mitigated in code: <code>HF_HUB_OFFLINE</code> + preflight.)</td>
-  <td><span class="status blocked"><span class="dot"></span>Yes</span></td>
-</tr>
-<tr style="background:#eefcf0;">
-  <td>3a</td><td>2026-05-28 13:44</td><td><strong>1208975</strong> (4-GPU DDP finetune)</td>
-  <td><strong>CORRECTION:</strong> healthy training at step 400, <code>scancel</code>'d,
-  and <strong>died cleanly — NO drain.</strong> The prior RCA's "scancel on a healthy
-  DDP job drained the node" is false. <code>sacct</code>: <code>CANCELLED by 39486</code>,
-  ExitCode 0:0; its log ends cleanly at the <code>CANCELLED</code> line.</td>
-  <td><span class="status shipped"><span class="dot"></span>No (clean)</span></td>
-</tr>
-<tr style="background:#fff0f0;">
-  <td>3b</td><td>2026-05-28 13:48→14:03</td><td><strong>1208980</strong> (4-GPU DDP, re-launch)</td>
-  <td>Started 4&nbsp;min after 3a <em>into a node left dirty by that kill</em>. Rank&nbsp;0
-  came up with <code>inconsistent 0 params</code> (a corrupted-context symptom) → DDP
-  param-verify failed → teardown → <code>Future for ProcessGroup abort timed out after
-  600000 ms</code> → <code>JOB NOT ENDING WITH SIGNALS</code> → <code>Container … has 4
-  processes, giving up after 63 sec</code> → <strong>DRAIN.</strong> This is the real Event 3.</td>
-  <td><span class="status blocked"><span class="dot"></span>Yes</span></td>
-</tr>
-<tr style="background:#fff0f0;">
-  <td>4</td><td>2026-06-01</td><td>1209813 (MWE-01 v1)</td>
-  <td>NCCL count-mismatch test on an already-degraded GPU (round-0 NCCL init took
-  <strong>156&nbsp;s</strong> — abnormal, indicating prior corruption). Teardown →
-  same signature: <code>Future for ProcessGroup abort timed out after 600000 ms</code>
-  → unkillable → <code>giving up after 63 sec</code> → <strong>DRAIN.</strong></td>
-  <td><span class="status blocked"><span class="dot"></span>Yes</span></td>
-</tr>
-</tbody>
-</table></div>
+<p>The drain requires the D-state to be <strong>permanent</strong>. On a healthy
+GPU the driver releases the lock within milliseconds — the wait is transient, the
+task returns to a killable state, and <code>SIGKILL</code> reaps it cleanly (seven
+instrumented attempts on this node, including the exact production teardown path,
+all exited cleanly — the node never drained). A <em>permanent</em> wait needs the
+GPU itself wedged: a kernel that never completes or a context corrupted by an
+earlier unclean event. The production drains were therefore a <strong>cascade</strong>
+— seeded by the 2026-05-26 concurrent cross-cgroup <code>cuInit</code> failure
+(Event 0) that degraded the device — where each subsequent job's NCCL teardown
+wedged permanently and incomplete recovery re-seeded the next. This is why a drain
+cannot be triggered from a clean single-tenant state, and why the fix targets
+<em>recovery and prevention of the wedged-GPU precondition</em>, not the many
+possible triggers.</p>
 
-<p>The two events for which the actual drain logs survive (<strong>1208980</strong>
-and <strong>1209813</strong>) carry the <em>identical</em> kernel signature: a
-<code>ncclCommAbort</code> that hangs 600&nbsp;s, leaving processes
-<code>slurmstepd</code> cannot reap.</p>
+<h2 id="fix">§4 — Surgical fix (SDCC)</h2>
 
-<!-- ════════════════════ MECHANISM ════════════════════ -->
-<h2 id="mechanism">§3 — The mechanism in one paragraph</h2>
+<p>Two config lines make every future drain self-diagnosing and self-recovering;
+one epilog gate stops the cascade at its root.</p>
 
-<p>A GPU job's NCCL collective gets stuck on the device (a peer never arrives, a
-ring is desynchronised, or the GPU is already wedged). PyTorch's NCCL watchdog
-fires and calls <code>ncclCommAbort()</code> to tear the communicator down. Per
-NCCL <a href="https://github.com/NVIDIA/nccl/issues/829">#829</a>,
-<code>ncclCommAbort()</code> internally calls <code>cudaStreamSynchronize()</code>
-on the stream that owns the stuck kernel; that ioctl enters the NVIDIA driver and
-blocks acquiring an internal lock (<code>os_acquire_rwlock_*</code> /
-<code>os_acquire_semaphore</code>) or a UVM handle (<code>uvm_gpu_retain_by_uuid</code>).
-The thread is now in <code>TASK_UNINTERRUPTIBLE</code>. SLURM's
-<code>SIGTERM</code> → 30&nbsp;s <code>KillWait</code> → <code>SIGKILL</code> all
-queue but cannot be delivered. After <code>UnkillableStepTimeout</code> (60&nbsp;s)
-slurmstepd gives up → <code>Kill task failed</code> → node drains. Recovery needs
-<code>nvidia-smi --gpu-reset</code> (which itself hangs if a process still holds
-the device) or a reboot.</p>
-
-<!-- ════════════════════ EVIDENCE ════════════════════ -->
-<h2 id="evidence">§4 — Direct evidence (the measurement nobody took)</h2>
-
-<p>We built a <strong>separate-allocation observer</strong>
-(<code>scripts/drain-tests/instrumented/observe_state.sh</code>) — a CPU-only SLURM
-job on the same node, outside the workload's cgroup, so it survives the workload's
-SIGKILL and the drain. SLURM does not isolate the PID namespace, so it reads
-<code>/proc/&lt;pid&gt;/stat</code> (state) and <code>/proc/&lt;pid&gt;/wchan</code>
-(the kernel function the task sleeps in) for every rank, every 0.5&nbsp;s,
-throughout the kill window. Every "D-state vs S-state" claim in the prior corpus
-was <em>inferred from log strings</em>; these are <em>measured</em>.</p>
-
-<p><strong>D-state directly observed in the NVIDIA driver</strong> during a stuck
-NCCL teardown (jobs 1210225 and 1210246, <code>wchan</code> column):</p>
-<pre><code>1780382986.224,443716,D,os_acquire_rwlock_write,...python
-1780382986.224,443718,D,os_acquire_rwlock_read,...python
-1780382987.376,443717,D,uvm_gpu_retain_by_uuid,...python
-1780382989.336,443716,D,uvm_gpu_retain_by_uuid,...python
-1780380463.192,179883,D,os_acquire_rwlock_read,...python
-1780380463.192,179884,D,os_acquire_rwlock_write,...python</code></pre>
-
-<p>These are exactly the NVIDIA kernel-driver lock/UVM functions cited in NVIDIA's
-own bug reports (open-gpu-kernel-modules
-<a href="https://github.com/NVIDIA/open-gpu-kernel-modules/discussions/278">#278</a>,
-"<code>os_acquire_semaphore</code> deadlock → D-state up to 30&nbsp;min"). A second
-D-state surface appeared in the same captures — <code>cxiWaitEventWait</code>
-(the Slingshot/CXI network driver), the kernel analogue of the Event-2 network
-hang.</p>
-
-<p><strong>Production drain signature</strong> (job 1208980 stderr; 1209813 identical):</p>
-<pre><code>[rank0] Future for ProcessGroup abort timed out after 600000 ms
-slurmstepd: error: *** JOB 1208980 … CANCELLED … DUE TO TIME LIMIT ***
-slurmstepd: error: *** JOB 1208980 … STEPD TERMINATED … DUE TO JOB NOT ENDING WITH SIGNALS ***
-slurmstepd: error: Container 631913 in cgroup plugin has 4 processes, giving up after 63 sec</code></pre>
-
-<p><strong>Corroboration (authoritative):</strong> NCCL #829 (abort → cudaStreamSynchronize
-D-state, closed "not planned"); SchedMD <code>slurm.conf</code> docs
-(D-state cannot be signalled; <code>UnkillableStepProgram</code>); NVIDIA
-<code>nvidia-smi</code> docs (<code>--gpu-reset</code> fails/hangs while a process
-holds the device → reboot). Full source list in the research appendix held with this RCA.</p>
-
-<!-- ════════════════════ WHY HARD ════════════════════ -->
-<h2 id="whyhard">§5 — Why the drain could not be reproduced on demand</h2>
-
-<p>This is the question the prior fleet could not answer, and it is the heart of
-the RCA. We ran <strong>five</strong> instrumented experiments designed to drain
-the node (committed under <code>scripts/drain-tests/instrumented/</code>):
-<code>seq_divergence</code>, <code>ddp_mismatch</code>, <code>stuck_collective</code>,
-<code>gpu_sleep_sync</code> (single-GPU <code>_sleep</code>+<code>synchronize</code>),
-and <code>abort_stuck</code> (<code>ncclCommAbort</code> on an in-flight stuck
-collective — the exact production path). <strong>None drained the node.</strong>
-The node stayed healthy through all five; admin recovery was never needed.</p>
-
-<p>The observer shows why. On a <em>healthy</em> GPU the driver-lock D-states are
-<strong>transient</strong>: the lock is released within milliseconds, the process
-oscillates <code>D → R</code>, and the queued <code>SIGKILL</code> lands the
-instant the task leaves D — clean kill, no drain. We watched ranks pass through
-<code>D,os_acquire_rwlock_write</code> and back to <code>R</code> repeatedly, then
-exit as zombies the moment the time-limit kill arrived.</p>
-
-<p>A <strong>drain requires the D-state to be permanent</strong>, which requires
-the GPU <em>itself</em> to be wedged so the driver lock is <em>never</em> released
-— a genuinely stuck kernel, a GSP-firmware hang, or a CUDA context left dirty by a
-previous unclean teardown. That condition is not reachable from a clean start;
-it is produced by a <em>prior</em> drain/wedge. Hence the production drains were a
-<strong>cascade</strong>: the Event-0 <code>cuInit</code> wedge degraded the
-device; each subsequent job's NCCL teardown then hung <em>permanently</em> on the
-degraded GPU (note 1208980's "0 params" and 1209813's 156&nbsp;s init — both
-symptoms of starting on an already-dirty device), and recovery that resumed the
-node without fully resetting the GPUs re-seeded the next drain.</p>
-
-<p><strong>Practical consequence:</strong> the fleet's inability to "trigger the
-drain with a known cause" was not a gap in effort — it reflects a real property of
-the system. <em>You cannot drain a healthy GPU node this way.</em> The actionable
-lever is therefore not "stop the trigger" (there are many) but "<strong>never let
-a job start on, or leave behind, a dirty GPU</strong>" and "<strong>make the
-unkillable window self-diagnosing and self-recovering</strong>" (§7).</p>
-
-<!-- ════════════════════ CORRECTIONS ════════════════════ -->
-<h2 id="corrections">§6 — Corrections to the prior analysis</h2>
-<div class="table-scroll"><table class="t">
-<thead><tr><th>Prior claim</th><th>Status</th><th>Correct finding</th></tr></thead>
-<tbody>
-<tr><td>"<code>scancel</code> on a healthy DDP job (1208975) drained the node."</td>
-  <td><span class="status blocked"><span class="dot"></span>False</span></td>
-  <td>1208975 died cleanly (ExitCode 0:0). The drain was the <em>follow-on</em> job
-  1208980 on the dirtied node. <code>scancel</code> of a healthy job is not, by
-  itself, a drain cause.</td></tr>
-<tr><td>"Five independent mechanisms (M1–M5)."</td>
-  <td><span class="status blocked"><span class="dot"></span>Over-fit</span></td>
-  <td>One root cause: D-state surviving SIGKILL. The rest are triggers/contributors.</td></tr>
-<tr><td>"The <code>.N</code> sub-steps are SLURM internal GPU accounting heartbeats."</td>
-  <td><span class="status blocked"><span class="dot"></span>False</span></td>
-  <td><code>sacct</code> shows they are named <code>nvidia-smi</code> — an explicit
-  monitoring loop in the sbatch firing every ~5&nbsp;s. Not a SLURM internal.</td></tr>
-<tr><td>"cgroup v2 <code>cgroup.kill</code> can reap the D-state processes (avoids drain)."</td>
-  <td><span class="status blocked"><span class="dot"></span>False</span></td>
-  <td><code>cgroup.kill</code> delivers SIGKILL, which a <code>TASK_UNINTERRUPTIBLE</code>
-  task ignores. It does not help here (SchedMD / kernel docs).</td></tr>
-<tr><td>"The drain is in the <code>~ProcessGroupNCCL()</code> destructor / <code>ncclCommDestroy</code>."</td>
-  <td><span class="status active"><span class="dot"></span>Refined</span></td>
-  <td>The surviving logs show the hang is in <code>ncclCommAbort</code> ("Future for
-  ProcessGroup abort timed out"), reached via the watchdog teardown path — not the
-  exit-time destructor.</td></tr>
-</tbody>
-</table></div>
-
-<!-- ════════════════════ REPRO ════════════════════ -->
-<h2 id="repro">§7 — Reproducer suite (rebuilt)</h2>
-<p>The new instrumented suite lives in <code>scripts/drain-tests/instrumented/</code>
-and is the correct minimal-working-example set for this RCA. Each is committed and
-self-documents its expected process state and recovery.</p>
-<div class="table-scroll"><table class="t">
-<thead><tr><th>Artifact</th><th>What it shows (measured)</th></tr></thead>
-<tbody>
-<tr><td><code>observe_state.sh</code> + <code>observer.sbatch</code></td>
-  <td>Separate-allocation observer; captures <code>/proc</code> state + <code>wchan</code>
-  through the unkillable window and the drain. <strong>The core instrument.</strong></td></tr>
-<tr><td><code>repro_abort.py</code> mode <code>abort_stuck</code></td>
-  <td>Production-faithful: <code>ncclCommAbort</code> on an in-flight stuck collective.
-  Captured D-state in NVIDIA driver locks; transient on a clean GPU → clean kill.</td></tr>
-<tr><td>modes <code>seq_divergence</code> / <code>ddp_mismatch</code> / <code>stuck_collective</code></td>
-  <td>Negative controls: NCCL mismatches that <em>complete</em> stay R/S (killable).
-  Refute "NCCL mismatch drains a clean node".</td></tr>
-<tr><td><code>gpu_sleep_sync</code></td>
-  <td>Single-GPU, no NCCL: <code>cudaStreamSynchronize</code> on a ~20-yr kernel stays
-  R-state (busy-poll, killable). Isolates that plain stream-sync is not the D-state source.</td></tr>
-</tbody>
-</table></div>
-<p><strong>To force a sustained drain for an end-to-end recovery drill</strong>, the
-GPU must first be genuinely wedged (e.g. an admin-induced GSP/firmware fault, or
-running <code>abort_stuck</code> on a device left dirty by a prior unclean kill).
-We deliberately did not brute-force that on the shared node.</p>
-
-<!-- ════════════════════ MITIGATIONS ════════════════════ -->
-<h2 id="mitigations">§8 — SDCC admin mitigations (ranked)</h2>
-<p>Application-side hardening is already in place (STOP-FILE cooperative
-cancellation, three-layer sbatch time-limit defence, in-process encoders,
-<code>HF_HUB_OFFLINE</code> preflight). The remaining leverage is at the
-cluster/driver level. Ranked by impact × ease; details and exact config in the
-followups below.</p>
 <ol>
-<li><strong>Epilog / prolog GPU-clean gate (breaks the cascade — highest structural impact).</strong>
-  After every GPU job, verify no compute process remains and the GPUs are healthy
-  (<code>nvidia-smi -q</code>); if a process lingers, drain-with-reason rather than
-  release; before the next job, ensure clean GPUs (reset only when no process holds
-  the device). This stops a dirty GPU from wedging the next job — the cascade driver.</li>
-<li><strong>Set <code>UnkillableStepProgram</code> (makes drains self-diagnosing &amp; self-recovering).</strong>
-  Currently <code>(null)</code>. As root it can capture <code>/proc/&lt;pid&gt;/stack</code>
-  + <code>wchan</code> (we cannot — non-root <code>/proc/*/stack</code> is denied),
-  run <code>echo w &gt; /proc/sysrq-trigger</code>, snapshot <code>nvidia-smi</code> +
-  <code>dmesg</code> (Xid), then schedule a reboot. Turns every future drain into a
-  logged, auto-recovered event.</li>
-<li><strong>Raise <code>UnkillableStepTimeout</code> 60&nbsp;s → 120&nbsp;s.</strong>
-  Hard cap 126&nbsp;s (SchedMD bug #11103). Covers legitimate multi-GPU NCCL teardown
-  (30–60&nbsp;s) so transient waits no longer tip into a drain. Does not fix a
-  <em>permanent</em> D-state, but removes the marginal cases.</li>
-<li><strong>Egress <code>REJECT</code> not <code>DROP</code> on betelgeuse.</strong>
-  Makes an accidental outbound call fail instantly (ECONNREFUSED) instead of hanging
-  in kernel TCP wait — removes the Event-2 / <code>cxiWaitEventWait</code> D-state surface.</li>
-<li><strong>Alert on <code>DRAIN</code> + resume only after verified-clean GPUs.</strong>
-  Cuts downtime from "noticed next login" to minutes; resuming before the GPUs are
-  confirmed clean re-seeds the cascade.</li>
-<li><strong>Eliminate concurrent cross-cgroup CUDA init (the Event-0 seed).</strong>
-  Investigate MPS or MIG, or serialise Group A / Group B <code>cuInit</code>, to
-  prevent the shared-device init race that produced the original <code>cuInit rc=3</code> wedge.</li>
+<li><strong>Set <code>UnkillableStepProgram</code></strong> (currently
+<code>(null)</code>). A root script runs the instant a step is declared
+unkillable: capture <code>/proc/&lt;pid&gt;/stack</code> + <code>wchan</code> for
+the cgroup PIDs, <code>nvidia-smi</code>, <code>dmesg | grep -iE 'NVRM|Xid'</code>,
+<code>echo w &gt; /proc/sysrq-trigger</code>, then schedule a reboot. Turns a
+multi-hour manual drain into a logged, auto-recovered event — and gives the
+kernel stack we cannot capture as a normal user.</li>
+<li><strong>Raise <code>UnkillableStepTimeout</code> 60&nbsp;→&nbsp;120&nbsp;s</strong>
+(hard cap 126, SchedMD bug #11103). Legitimate multi-GPU NCCL teardown takes
+30–60&nbsp;s; 60&nbsp;s tips healthy teardown into a needless drain.</li>
+<li><strong>Epilog GPU-clean gate (prevents the cascade).</strong> After each GPU
+job, verify no compute process remains and the GPUs are healthy; if not,
+drain-with-reason rather than release a dirty node, and ensure clean GPUs before
+the next job starts. This stops a wedged context from propagating to the next
+job — the mechanism behind every cascade drain.</li>
 </ol>
 
-<!-- ════════════════════ FOLLOWUPS ════════════════════ -->
+<p>Lower-priority hardening (separate ticket): egress <code>REJECT</code> not
+<code>DROP</code> on betelgeuse (removes a non-GPU network D-state surface);
+investigate MPS/MIG or serialised cross-cgroup <code>cuInit</code> to eliminate
+the Event-0 seed; alert on <code>DRAIN</code>. Application-side hardening
+(cooperative STOP-FILE cancellation, three-layer sbatch time-limit defence,
+in-process encoders) is already in place and is <em>not</em> sufficient alone —
+it cannot reach a D-state task; the cluster-side fix above is required.</p>
+
 <section data-reckon="followups" id="followups" class="r-followups">
-  <h2><span class="sec">§</span> Followups — mitigation actions</h2>
-
-  <article class="r-fu" data-id="f-drain-epilog" data-status="open" data-tier="opus"
-           data-written-by="rca-author" data-written-at="2026-06-02">
-    <h4 class="r-fu-title">M1 — Epilog/prolog GPU-clean gate to break the dirty-GPU cascade</h4>
-    <div class="r-fu-body">Author and propose to SDCC a SLURM epilog that, after each
-      betelgeuse job, checks for lingering compute processes and unhealthy GPUs and
-      drains-with-reason rather than releasing a dirty node; and a prolog that refuses
-      to start a job on a GPU still held by a process. This is the structural fix for
-      the cascade identified in §5. Requires admin (root) deployment; we supply the scripts.</div>
-    <pre class="r-fu-prompt">Project: imas-ambix
-Plan:    rca-node-drain-mechanism-2026-06-02
-Section: §8.1
-Tier:    opus
-
-Context
-  Drains cascade: a job that leaves a GPU dirty wedges the next job's NCCL
-  teardown permanently (D-state) -> drain. Breaking the cascade at job
-  boundaries is the highest-impact structural fix.
-
-Constraints
-  Admin/root deploys epilog+prolog; we author + justify. nvidia-smi --gpu-reset
-  must NOT run while a process holds the device (it hangs). Prefer drain-with-reason
-  over forced reset.
-
-Done-when
-  1. epilog/prolog scripts drafted in repo with admin-facing rationale
-  2. handed to SDCC with the dirty-GPU evidence from this RCA
-  3. followup resolved</pre>
-  </article>
+  <h2><span class="sec">§</span> Followups</h2>
 
   <article class="r-fu" data-id="f-drain-unkillprog" data-status="open" data-tier="sonnet"
            data-written-by="rca-author" data-written-at="2026-06-02">
-    <h4 class="r-fu-title">M2 — Provide UnkillableStepProgram diagnostic+recovery script</h4>
-    <div class="r-fu-body">Write the <code>UnkillableStepProgram</code> script SDCC can install
-      (currently <code>(null)</code>): capture <code>/proc/&lt;pid&gt;/stack</code> + <code>wchan</code>
-      for all cgroup PIDs, <code>echo w &gt; /proc/sysrq-trigger</code>, snapshot
-      <code>nvidia-smi</code> + <code>dmesg | grep -iE 'NVRM|Xid'</code>, then schedule a reboot.
-      Makes every future drain self-diagnosing and auto-recovered.</div>
+    <h4 class="r-fu-title">Provide UnkillableStepProgram script + slurm.conf snippet for SDCC</h4>
+    <div class="r-fu-body">Author the root diagnostic+recovery handler (capture
+      <code>/proc/*/stack</code>+<code>wchan</code>, <code>nvidia-smi</code>, dmesg Xid,
+      <code>sysrq-w</code>, then schedule reboot) and the <code>slurm.conf</code> lines
+      (<code>UnkillableStepProgram=</code>, <code>UnkillableStepTimeout=120</code>). Hand to SDCC.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    rca-node-drain-mechanism-2026-06-02
-Section: §8.2
+Section: §4.1-4.2
 Tier:    sonnet
 
 Context
-  UnkillableStepProgram is unset, so every drain leaves no kernel-stack/Xid trail
-  and waits for manual recovery. A root-run handler closes both gaps.
+  UnkillableStepProgram is unset; every drain leaves no kernel trail and waits for
+  manual recovery. A root handler + a 120s timeout close both gaps surgically.
 
 Done-when
-  1. handler script committed (captures /proc/*/stack+wchan, sysrq-w, nvidia-smi, dmesg Xid; schedules reboot)
-  2. slurm.conf snippet (UnkillableStepProgram=, UnkillableStepTimeout=120) drafted for SDCC
+  1. handler script committed + slurm.conf snippet drafted
+  2. handed to SDCC with this RCA
   3. followup resolved</pre>
   </article>
 
-  <article class="r-fu" data-id="f-drain-clusterknobs" data-status="open" data-tier="sonnet"
+  <article class="r-fu" data-id="f-drain-epilog" data-status="open" data-tier="opus"
            data-written-by="rca-author" data-written-at="2026-06-02">
-    <h4 class="r-fu-title">M3 — Cluster knob change-requests: timeout, egress, alerting, init race</h4>
-    <div class="r-fu-body">Bundle the lower-effort SDCC change-requests with justification from
-      this RCA: <code>UnkillableStepTimeout</code> 60→120&nbsp;s (cap 126); egress
-      <code>REJECT</code> not <code>DROP</code> on betelgeuse; DRAIN alerting + resume-after-verified-clean;
-      and an investigation of MPS/MIG or serialised cross-cgroup <code>cuInit</code> to remove the
-      Event-0 seed.</div>
+    <h4 class="r-fu-title">Epilog/prolog GPU-clean gate to break the cascade</h4>
+    <div class="r-fu-body">Draft + justify a SLURM epilog (drain-with-reason on a dirty/held GPU
+      rather than releasing it) and prolog (refuse to start on a GPU still held), to stop a
+      wedged context propagating. Admin deploys; we supply scripts and the dirty-GPU evidence.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    rca-node-drain-mechanism-2026-06-02
-Section: §8.3-8.6
-Tier:    sonnet
+Section: §4.3
+Tier:    opus
 
 Context
-  Lower-effort cluster knobs that reduce drain probability and blast radius;
-  package as a single SDCC ticket with the evidence from this RCA.
+  Drains cascade via a dirty GPU wedging the next job's NCCL teardown. Breaking
+  it at job boundaries is the root preventive fix.
+
+Constraints
+  Never run nvidia-smi --gpu-reset while a process holds the device (it hangs);
+  prefer drain-with-reason.
 
 Done-when
-  1. one consolidated change-request doc/ticket drafted with per-item rationale + sources
-  2. submitted to SDCC
+  1. epilog/prolog scripts + rationale drafted
+  2. handed to SDCC
   3. followup resolved</pre>
   </article>
 </section>
 
 <hr>
-<p><em>Authored 2026-06-02. Method: forensic re-read of surviving sacct + job logs;
-five instrumented drain experiments with a separate-allocation <code>/proc</code>+<code>wchan</code>
-observer (node never drained); authoritative cross-check (NCCL #829, SchedMD,
-NVIDIA driver bug trackers). Supersedes the 2026-06-01 deep-analysis and
-MWE-evidence notes for the mechanism and event attribution; those remain as the
-raw working record.</em></p>
+<p><em>Authored 2026-06-02. Validated by forensic log re-analysis (sacct + job logs),
+seven instrumented drain experiments with a separate-allocation
+<code>/proc</code>+<code>wchan</code> observer (node never drained — the transient-D
+finding in §3), and upstream cross-check. Working record / corrected detail:
+<a href="rca-drain-deep-analysis-2026-06-01.html">deep-analysis</a> (superseded),
+<a href="drain-mwe-evidence-2026-06-01.html">MWE-evidence</a> (superseded), and the
+reproducer suite in <code>scripts/drain-tests/instrumented/</code>.</em></p>
 
 </main>
 </body>
