@@ -29,6 +29,14 @@ export REPRO_MODE="${REPRO_MODE:-seq_divergence}"
 export ROUNDS="${ROUNDS:-20}"
 export NUMEL="${NUMEL:-67108864}"
 
+# stuck_collective mode (NCCL #829): disable the torch/NCCL watchdog so the
+# stuck collective is NOT auto-aborted before the SLURM --time kill lands.
+if [ "${REPRO_MODE}" = "stuck_collective" ]; then
+    export TORCH_NCCL_ASYNC_ERROR_HANDLING=0
+    export TORCH_NCCL_ENABLE_MONITORING=0
+    export NCCL_DEBUG=WARN
+fi
+
 VENV="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}"
 TORCHRUN="${VENV}/bin/torchrun"
 SCRIPT="/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/instrumented/repro_abort.py"

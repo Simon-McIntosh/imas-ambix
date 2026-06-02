@@ -70,6 +70,26 @@ def main() -> None:
     dist.barrier()
     log(f"rank {rank} warmup complete (hot CUDA context + NCCL ring established)")
 
+    if MODE == "stuck_collective":
+        # NCCL #829 path: a genuinely STUCK NCCL GPU kernel.
+        # Ranks 1..N-1 post a real all_reduce (GPU kernel launched, needs rank 0's
+        # contribution) then cudaStreamSynchronize. Rank 0 stays ALIVE (so NCCL
+        # sees no peer disconnect and does not auto-abort) but NEVER joins the
+        # collective. The synchronize on ranks 1..N-1 blocks in the NVIDIA ioctl
+        # that can never return -> uninterruptible (D) state -> survives SIGKILL.
+        # The NCCL/torch watchdog is disabled via env (see sbatch) so nothing
+        # aborts the stuck kernel before the SLURM --time kill arrives.
+        if rank == 0:
+            log("rank 0 ALIVE but NOT joining the collective (keeps ring connected)")
+            time.sleep(3600)
+        else:
+            log(f"rank {rank} >>> posting all_reduce that will STALL (rank 0 absent) + synchronize <<<")
+            dist.all_reduce(buf)
+            torch.cuda.synchronize()  # blocks in cudaStreamSynchronize ioctl -> EXPECT D-state
+            log(f"rank {rank} synchronize RETURNED (did NOT wedge)")
+        time.sleep(3600)
+        return
+
     if MODE == "ddp_mismatch":
         import torch.nn as nn
         from torch.nn.parallel import DistributedDataParallel as DDP
