@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"    content="imas-ambix">
+  <meta name="reckon-type"     content="plan">
+  <meta name="plan-slug"       content="internal-current-diagnostics-v0">
+  <meta name="plan-title"      content="Internal-Current Diagnostics: EFIT Taxonomy → MAST Availability → Pressure-as-GS-p′">
+  <meta name="plan-summary"    content="Map EFIT's internal-constraint families to MAST availability, retire the Faraday premise (absent on MAST — future-machine), and wire kinetic pressure (Thomson atm → p(psi) → GS force-balance p′) as the one real new interior lever; run the decisive with-vs-without-pressure experiment inside the strong sequential baseline.">
+  <meta name="plan-status"     content="active">
+  <meta name="plan-roi"        content="high">
+  <meta name="plan-effort"     content="M">
+  <meta name="plan-tier"       content="opus">
+  <meta name="plan-milestone"  content="M3">
+  <meta name="plan-sprint"     content="S10">
+  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="plan-depends-on" content="mse-free-current-recovery-v0,sequential-current-da-v1">
+  <title>Internal-Current Diagnostics: EFIT Taxonomy → MAST Availability → Pressure-as-GS-p′ | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — EFIT's four internal-constraint families</h2>
+    <p>
+      Equilibrium reconstruction codes (EFIT and the kinetic-EFIT / IDE lineage) break the
+      magnetics-only under-determination of the internal current profile by importing extra
+      <em>interior</em> constraints. There are four established families, each constraining a
+      different facet of the <code>p′</code> / <code>FF′</code> decomposition of
+      <code>j(ψ)</code>:
+    </p>
+    <ul>
+      <li><strong>Kinetic pressure</strong> — a measured pressure profile <code>p(ψ)</code> (from
+        Thomson <code>ne</code>/<code>Te</code> + ion temperature/density) pins the <code>p′</code>
+        term of the Grad–Shafranov source directly. The most broadly available interior constraint
+        on present machines.</li>
+      <li><strong>MSE</strong> — motional-Stark-effect pitch angles measure the local magnetic-field
+        line pitch, constraining the internal <code>q</code>/<code>j</code> directly. The reference
+        interior constraint — and exactly the one absent at ITER startup, which is the founding
+        premise of this whole project (it is our <em>eval truth</em>, never an input).</li>
+      <li><strong>Faraday rotation / polarimetry</strong> — line-integrated rotation of the
+        polarisation plane along chords measures <code>∫ n<sub>e</sub> B<sub>∥</sub> dl</code>,
+        constraining the poloidal field profile interior. The classic ITER-class internal-current
+        diagnostic.</li>
+      <li><strong>Interferometry</strong> — line-integrated density constrains <code>n<sub>e</sub></code>,
+        which feeds the pressure and (with polarimetry) the Faraday inversion; on its own it is a
+        density, not a direct current, constraint.</li>
+    </ul>
+    <p>
+      <strong>Regime ranking for MAST-class, MSE-free recovery.</strong> Ordered by how much
+      genuinely-new interior current information they could add given the diagnostics that actually
+      exist on MAST: <strong>kinetic pressure ≫ Faraday/polarimetry &gt; interferometry</strong>. The
+      next two sections show that for MAST this ranking collapses to a single survivor — pressure —
+      because Faraday/polarimetry and the diamagnetic loop are not usable interior constraints here.
+    </p>
+
+    <h2 id="s2">§2 — MAST availability: Faraday and diamagnetic are out</h2>
+    <p>
+      A verified full-corpus inventory retires two of the four families for MAST:
+    </p>
+    <ul>
+      <li><strong>Faraday rotation / polarimetry — ABSENT.</strong> There is <em>no polarimetry group</em>
+        in the 50-group level-1 vocabulary. This is not a sparsity wall (the MSE presence-vs-content
+        story); the diagnostic simply does not exist in the corpus. Polarimetry is an ITER-class,
+        future-machine internal-current diagnostic — <strong>out of scope for v0</strong>. Documenting
+        this retires the "chain Faraday rotation" premise cleanly: it is the right diagnostic for the
+        right machine, just not this one.</li>
+      <li><strong>Diamagnetic — only as a banned solver output.</strong> The diamagnetic <code>βp</code>
+        signal appears in the corpus only as an <code>efm</code> (EFIT) output, which is a banned solver
+        product under the project's locked <code>efit-eval-use</code> rule (eval-only boundary/global
+        sanity, never an interior reference). There is no raw diamagnetic-loop measurement to assimilate.
+        <strong>Out of scope.</strong></li>
+    </ul>
+    <p>
+      That leaves <strong>kinetic pressure</strong> as the only real new interior lever available on
+      MAST — and, helpfully, the data is present; only the mapping is missing.
+    </p>
+
+    <h2 id="s3">§3 — The lever: kinetic pressure from Thomson (atm)</h2>
+    <p>
+      The pressure path is a <strong>mapping gap, not a data gap</strong>. The ingredients are present:
+    </p>
+    <ul>
+      <li><strong>Source</strong> — Thomson scattering on the <code>atm</code> core system supplies
+        <code>ne(R,t)</code> and <code>Te(R,t)</code> with usable near-axis coverage. (This is the same
+        Thomson channel whose <code>Te</code> drives the §4 <code>σ(Te)</code> closure in the parent
+        plan; here we use the full <code>p = ne·Te</code> profile, not just <code>Te</code>.)</li>
+      <li><strong>Bridge</strong> — map the Thomson profiles into <code>core_profiles</code>
+        <code>pressure_thermal</code> (a thermal pressure profile vs normalised flux), then to
+        <code>p(ψ)</code> on the equilibrium flux grid. This <code>p(ψ)</code> mapping is the one piece
+        that does not yet exist — the data is all there.</li>
+    </ul>
+    <p class="r-callout">
+      <strong>The decisive cohort (corrected).</strong> Held-out-112 ∩ usable-near-axis Thomson =
+      <strong>45 shots</strong>, all via the <code>atm</code> core Thomson system. This corrects an
+      earlier small-sample estimate (13/25) and is large enough to be a <em>decisive</em>
+      pressure-experiment cohort: a 45-shot held-out arm gives real statistical power to the
+      with-vs-without-pressure comparison.
+    </p>
+
+    <h2 id="s4">§4 — The H_pressure operator contract (for the baseline plan)</h2>
+    <p>
+      The diagnostics plan delivers the observation operator that the strong sequential baseline,
+      <strong>Strong Sequential Full-State Current-Profile Data Assimilation</strong>, assimilates in
+      its §7 experiment. The contract:
+    </p>
+    <ul>
+      <li><strong>Input</strong> — the EKF filtered state <code>x = ψ(ρ)</code>.</li>
+      <li><strong>Output</strong> — a predicted thermal-pressure profile <code>p(ρ)</code>, obtained
+        through Grad–Shafranov <em>force-balance</em>: the <code>p′</code> term couples into the
+        <code>FF′</code> / current-density decomposition consistent with the equilibrium the state
+        defines.</li>
+      <li><strong>Noise</strong> — a per-channel measurement-noise covariance for the Thomson-derived
+        pressure observation (the Thomson channels have heterogeneous uncertainty; a per-channel
+        <code>R</code> is required, not a scalar).</li>
+    </ul>
+    <p>
+      Crucially this is the <strong>physics path</strong>: state → predicted <code>p(ρ)</code> via
+      GS force-balance, assimilated as a measurement. It is <em>not</em> the statistical
+      Thomson-features → pitch regression path that the S9 oracle already tested and found negative
+      (multimodal channels, including the Thomson-bearing arms, did not break the ~0.41 near-axis
+      ceiling). The hypothesis is that <code>p</code> enters as a <em>physical constraint on the
+      equilibrium</em>, not as a statistical feature.
+    </p>
+
+    <h2 id="s5">§5 — The decisive experiment</h2>
+    <p>
+      Inside the EKF substrate from the baseline plan, run the 45-shot cohort two ways:
+    </p>
+    <ol>
+      <li><strong>Baseline arm</strong> — magnetics-only assimilation (the strong v1 frontier,
+        ~0.19 sightline / ~0.41 near-axis).</li>
+      <li><strong>Pressure arm</strong> — magnetics + GS-<code>p′</code> pressure assimilation via
+        <code>H<sub>pressure</sub></code>.</li>
+    </ol>
+    <p>
+      The primary metric is <strong>near-axis interior RMSE vs held-out MSE</strong> — the term the
+      ~0.41 ceiling lives on. The question is single and clean: <em>does adding a physical pressure
+      constraint move the near-axis interior below the magnetics-only floor?</em> The sightline metric
+      and <code>cov90</code> are reported as guardrails (pressure must not degrade them).
+    </p>
+
+    <h2 id="s6">§6 — Bonus: CXRS → Zeff + Ti (a secondary constraint)</h2>
+    <p>
+      Charge-exchange recombination spectroscopy lives on the <code>act</code> system
+      (<strong>7991 shots</strong>) and yields two quantities the baseline currently treats as
+      unknowns or free parameters:
+    </p>
+    <ul>
+      <li><strong>Zeff</strong> — currently a <em>free parameter</em> of the EnKF (it enters the
+        Sauter neoclassical resistivity <code>η<sub>∥</sub>(Te, Zeff)</code>). A measured
+        <code>Zeff</code> removes a degree of freedom and tightens the resistivity → current-diffusion
+        coupling that is the §4 closure mechanism.</li>
+      <li><strong>Ti</strong> — ion temperature, which (with <code>ne</code>) completes the total
+        pressure beyond the electron-only Thomson term.</li>
+    </ul>
+    <p>
+      This is a secondary, lower-priority constraint: it tightens the forward model rather than adding
+      a direct interior measurement. It is documented here as the next diagnostic to chain once the
+      pressure experiment lands.
+    </p>
+
+    <h2 id="s7">§7 — Honest framing</h2>
+    <p class="r-callout">
+      <strong>Pressure is the one thing that MIGHT break the ~0.41 near-axis interior ceiling — this
+      is the clean test, not a claim that pressure recovers the interior.</strong> The under-determination
+      wall has been confirmed three independent times: Stage-2 grounding (near-vacuum current ratio
+      0.98), the S9 oracle (~0.41 near-axis for magnetics <em>and</em> all multimodal), and the GS-rank
+      analysis (~5–6 informative singular vectors). A physical pressure constraint fights that <em>same
+      wall</em>. We run the experiment because pressure is the one constraint with a credible physical
+      mechanism to add interior information that magnetics cannot — but the honest prior is that it
+      will be hard, and a clean negative (pressure does not move the near-axis floor) is a publishable,
+      decision-relevant result, not a failure of the plan.
+    </p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="faraday-diamag-scope" data-choice="faraday-diamag-out" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">Are Faraday/polarimetry and diamagnetic in scope as MAST internal-current constraints?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="faraday-diamag-out">OUT — Faraday/polarimetry absent (future-machine); diamagnetic only as banned efm output</button>
+          <button class="r-opt" data-value="chain-faraday">Chain Faraday rotation as planned</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): Faraday/polarimetry is OUT — there is no polarimetry group in the 50-group level-1 vocabulary (full-inventory verified); it is an ITER-class, future-machine diagnostic. Diamagnetic is OUT — it appears only as an <code>efm</code> (EFIT) output, banned under <code>efit-eval-use</code>; no raw diamagnetic-loop measurement exists. The "chain Faraday rotation" premise is retired for MAST.</p>
+      </div>
+
+      <div class="r-dec" data-key="pressure-path" data-choice="gs-pprime-physics" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">By what mechanism does kinetic pressure enter the recovery?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="gs-pprime-physics">Physics path — Thomson → p(ψ) → GS force-balance p′ coupled into FF′/j, assimilated as a measurement</button>
+          <button class="r-opt" data-value="statistical-thomson-pitch">Statistical path — Thomson features → pitch regression</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): pressure enters via the PHYSICS path (GS <code>p′</code> force-balance), NOT the statistical Thomson→pitch path the S9 oracle already found negative. The hypothesis is that <code>p</code> is a physical constraint on the equilibrium, not a statistical feature. <code>H<sub>pressure</sub></code> maps state ψ(ρ) → predicted p(ρ) via force-balance.</p>
+      </div>
+
+      <div class="r-dec" data-key="thomson-system" data-choice="atm-core" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">Which Thomson system supplies the pressure profile, and what observation noise model?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="atm-core">atm core Thomson, per-channel R for the pressure observation</button>
+          <button class="r-opt" data-value="scalar-noise">Any Thomson, scalar observation noise</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): use the <code>atm</code> core Thomson system (usable near-axis coverage — the cohort is the 45 held-out shots with usable near-axis atm Thomson). Per-channel measurement-noise covariance for the pressure observation (the Thomson channels have heterogeneous uncertainty; a scalar R would mis-weight them).</p>
+      </div>
+
+      <div class="r-dec" data-key="experiment-framing" data-choice="clean-test-not-claim" data-by="Simon McIntosh" data-when="2026-06-02">
+        <p class="r-dec-q">How is the pressure experiment framed — as a recovery claim or a clean test?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="clean-test-not-claim">A clean test of whether pressure MIGHT break the ~0.41 ceiling — a clean negative is a result</button>
+          <button class="r-opt" data-value="pressure-recovers-interior">Pressure recovers the interior current</button>
+        </p>
+        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): framed as "pressure is the one thing that MIGHT break the ~0.41 near-axis interior ceiling — here is the clean test," NOT "pressure recovers the interior." It fights the same under-determination wall confirmed 3× (Stage-2, oracle, GS-rank ~5-6). A clean negative is publishable and decision-relevant.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-icd-pressure-experiment" data-status="open" data-tier="opus" data-written-by="agent/opus (S10 author)" data-written-at="2026-06-02 09:10">
+        <h4 class="r-fu-title">Build the Thomson→pressure bridge + H_pressure operator + run the decisive with-vs-without-pressure experiment</h4>
+        <div class="r-fu-body">Wire kinetic pressure as the one real new interior lever: build the Thomson <code>atm</code> → <code>p(ψ)</code> bridge, the <code>H<sub>pressure</sub></code> GS force-balance operator, quantify the 45-shot held-out near-axis-Thomson cohort, and run the decisive experiment (magnetics-only vs magnetics+GS-p′) inside the sequential EKF substrate, scoring near-axis interior RMSE vs held-out MSE. Gated on the strong baseline existing.</div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    internal-current-diagnostics-v0 (http://localhost:8765/imas-ambix/internal-current-diagnostics-v0.html)
+Section: §3-§5 — Thomson→pressure bridge, H_pressure operator, decisive experiment
+Tier:    opus
+
+Context
+  The S9 oracle proved the binding constraint is INTERIOR INFORMATION, not ML; magnetics +
+  all multimodal channels are model-failure-floored at ~0.41 rad near-axis. Faraday/polarimetry
+  is ABSENT on MAST (future-machine) and diamagnetic exists only as a banned efm output, so the
+  ONE real new interior lever is kinetic pressure (Thomson atm -> p(psi) -> GS force-balance p').
+  This task wires that lever and runs the decisive test inside the strong sequential baseline.
+
+State to read
+  GET /plan/imas-ambix/internal-current-diagnostics-v0   (decisions, followups, status, version)
+  GET /plan/imas-ambix/sequential-current-da-v1          (the EKF substrate this runs inside)
+  Also the locked D1 harness on mse-free-current-recovery-v0 (mse_eval / mse_split / manifest).
+
+Locked decisions to honour
+  faraday-diamag-scope -> Faraday/polarimetry OUT (absent, future-machine); diamagnetic OUT
+                          (banned efm output). Do NOT attempt to chain them.
+  pressure-path        -> PHYSICS path: Thomson -> p(psi) -> GS force-balance p' coupled into
+                          FF'/j, assimilated as a measurement. NOT the statistical Thomson->pitch
+                          regression (oracle already found that negative).
+  thomson-system       -> atm core Thomson; per-channel R for the pressure observation.
+  experiment-framing   -> a CLEAN TEST of whether pressure MIGHT break the ~0.41 ceiling. A clean
+                          negative is a result, not a failure. Do NOT overclaim recovery.
+
+Open decisions to surface (do not resolve)
+  (none — all four locked; surface any new operator/cohort decision rather than deciding silently)
+
+Constraints
+  - GATED on sequential-current-da-v1 existing: the H_pressure experiment runs INSIDE that EKF
+    substrate (the localized analysis update + reduced 1-D psi-diffusion forward). Do not build a
+    separate filter.
+  - Cohort = held-out-112 ∩ usable-near-axis atm Thomson = 45 shots. VERIFY this count against the
+    corpus before scoring; report the exact shot list.
+  - H_pressure contract: input x = psi(rho); output predicted p(rho) via GS force-balance (p'
+    into FF'/j); per-channel measurement-noise R.
+  - Map Thomson atm ne/Te -> core_profiles pressure_thermal -> p(psi) on the equilibrium flux
+    grid (the mapping gap; the data is present). Use imas-python for any IMAS data access
+    (never raw h5py); match the data's stored dd_version.
+  - MSE (ams) is NEVER an input/label — eval truth only, on the D1 mse_eval harness. Primary
+    metric = NEAR-AXIS interior RMSE vs held-out MSE; sightline + cov90 reported as guardrails.
+  - Env: uv run; CPU-first. Any GPU step obeys AGENTS.md §2a/§2a-cancel (STOP-FILE, never
+    scancel). Run in the foreground — no orphaned backgrounded processes.
+
+Done-when
+  1. The Thomson atm -> p(psi) bridge committed with a smoke test green; the 45-shot cohort
+     verified and its shot list committed.
+  2. The H_pressure GS force-balance operator committed, wired into the sequential-current-da-v1
+     EKF as an optional observation, with a unit test.
+  3. The decisive experiment run on the 45-shot cohort both ways (magnetics-only vs
+     magnetics+GS-p'); near-axis interior RMSE vs held-out MSE reported with bootstrap CIs, plus
+     sightline + cov90 guardrails. Verdict stated honestly (does pressure move the ~0.41 floor?).
+  4. A followup written for the CXRS act -> Zeff/Ti secondary constraint (§6) + this one resolved.</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
