@@ -1,0 +1,781 @@
+{
+  "version": "oracle_probe_v0",
+  "question": "Is MSE pitch recoverable from NON-MSE diagnostics? (supervised feasibility probe on CALIBRATION shots)",
+  "verdict": "INFEASIBLE_NEGATIVE",
+  "verdict_detail": {
+    "info_exists": false,
+    "D_significantly_and_materially_below_A": false,
+    "D_paired_significant_below_A": false,
+    "D_material_5pct_below_A": false,
+    "magnetics_beats_climatology_paired": true,
+    "carriers": [],
+    "carrier_note": "magnetics SIGNIFICANTLY beats climatology (paired CI < 0 \u2014 features are alive and track pitch), but NO non-magnetics modality adds interior pitch info beyond magnetics-only.  Magnetics already beats persistence.  The negative is specifically 'SXR/bolo/Thomson/camera add nothing beyond magnetics' \u2014 NOT 'nothing beats persistence'.  See per-node RMSE for the interior-vs-edge story.  No H200.",
+    "clear_margin_frac": 0.05,
+    "rule": "INFO_EXISTS requires an arm to BOTH (i) be significantly below magnetics-only on the PAIRED bootstrap of the per-shot RMSE difference (difference-CI upper bound < 0) AND (ii) clear a 5% material margin.  Otherwise INFEASIBLE_NEGATIVE.  The paired test (shared test shots, one resample) is correct where marginal CIs over-conservatively overlap.  The climatology paired test (A vs node-mean) tells a true negative (mag beats clim) from feature-deadness (mag ties clim)."
+  },
+  "magnetics_only_rmse_per_shot": 0.4537755031430306,
+  "paired_differences": {
+    "A_minus_clim": {
+      "mean_diff": -0.02005970317184383,
+      "ci95": [
+        -0.024842272105978815,
+        -0.015440302921873794
+      ],
+      "frac_pos": 0.0
+    },
+    "D_minus_A": {
+      "mean_diff": -0.0025214547144245163,
+      "ci95": [
+        -0.005080488778466866,
+        0.0001441661697507743
+      ],
+      "frac_pos": 0.032
+    },
+    "E_mag_sxr_minus_A": {
+      "mean_diff": 0.0002997996294202102,
+      "ci95": [
+        -0.0009673247298150111,
+        0.0016401534700685523
+      ],
+      "frac_pos": 0.666
+    },
+    "E_mag_bolo_minus_A": {
+      "mean_diff": -0.0025047156724040498,
+      "ci95": [
+        -0.004673196278637171,
+        -0.00022913019626267703
+      ],
+      "frac_pos": 0.012
+    },
+    "E_mag_thomson_minus_A": {
+      "mean_diff": 0.0003078070425181268,
+      "ci95": [
+        -0.0008843224899978908,
+        0.0017300073283324393
+      ],
+      "frac_pos": 0.6505
+    },
+    "E_mag_camera_minus_A": {
+      "mean_diff": -0.00010370223467170827,
+      "ci95": [
+        -0.00100753855966504,
+        0.0007789815032427716
+      ],
+      "frac_pos": 0.4165
+    }
+  },
+  "persistence": {
+    "rmse_pooled": 0.8869628567818862,
+    "rmse_per_shot": 0.867186928722289,
+    "rmse_per_shot_ci95": [
+      0.8189456975745804,
+      0.9164739667881835
+    ],
+    "note": "freeze pitch at first gated slice, hold (D1-style sanity)"
+  },
+  "climatology": {
+    "rmse_pooled": 0.4818876472872921,
+    "rmse_per_shot": 0.47379225713835516,
+    "rmse_per_shot_ci95": [
+      0.448348490624576,
+      0.5009241219860954
+    ],
+    "rmse_per_node": [
+      {
+        "node": 0,
+        "r_m": 0.736,
+        "rmse": 0.42874886747678326,
+        "n": 10102
+      },
+      {
+        "node": 1,
+        "r_m": 0.856,
+        "rmse": 0.38362724687355015,
+        "n": 10544
+      },
+      {
+        "node": 2,
+        "r_m": 0.975,
+        "rmse": 0.45453119826116856,
+        "n": 10377
+      },
+      {
+        "node": 3,
+        "r_m": 1.094,
+        "rmse": 0.5411391896287007,
+        "n": 9902
+      },
+      {
+        "node": 4,
+        "r_m": 1.213,
+        "rmse": 0.5603444293654596,
+        "n": 8755
+      },
+      {
+        "node": 5,
+        "r_m": 1.332,
+        "rmse": 0.5570212866252608,
+        "n": 7604
+      },
+      {
+        "node": 6,
+        "r_m": 1.451,
+        "rmse": 0.4331117459077541,
+        "n": 5787
+      }
+    ],
+    "note": "predict per-node TRAIN mean, ignore features; discriminator between true negative and silent feature-deadness"
+  },
+  "arms": {
+    "A_mag": {
+      "modalities": [
+        "mag"
+      ],
+      "rmse_pooled": 0.46396778693886814,
+      "rmse_per_shot": 0.4537755031430306,
+      "rmse_per_shot_ci95": [
+        0.42262778293261194,
+        0.48384399195292865
+      ],
+      "rmse_per_node": [
+        {
+          "node": 0,
+          "r_m": 0.736,
+          "rmse": 0.42387160130973983,
+          "n": 10102
+        },
+        {
+          "node": 1,
+          "r_m": 0.856,
+          "rmse": 0.3815461690686281,
+          "n": 10544
+        },
+        {
+          "node": 2,
+          "r_m": 0.975,
+          "rmse": 0.45370642480068374,
+          "n": 10377
+        },
+        {
+          "node": 3,
+          "r_m": 1.094,
+          "rmse": 0.5293188976595903,
+          "n": 9902
+        },
+        {
+          "node": 4,
+          "r_m": 1.213,
+          "rmse": 0.5277030073080583,
+          "n": 8755
+        },
+        {
+          "node": 5,
+          "r_m": 1.332,
+          "rmse": 0.5089331048650968,
+          "n": 7604
+        },
+        {
+          "node": 6,
+          "r_m": 1.451,
+          "rmse": 0.3963526797389458,
+          "n": 5787
+        }
+      ],
+      "n_features": 122
+    },
+    "B_mag_thomson": {
+      "modalities": [
+        "mag",
+        "thomson"
+      ],
+      "rmse_pooled": 0.4642731516635118,
+      "rmse_per_shot": 0.45410870625989674,
+      "rmse_per_shot_ci95": [
+        0.423475373289252,
+        0.48429837198598724
+      ],
+      "rmse_per_node": [
+        {
+          "node": 0,
+          "r_m": 0.736,
+          "rmse": 0.42373219428544817,
+          "n": 10102
+        },
+        {
+          "node": 1,
+          "r_m": 0.856,
+          "rmse": 0.3811585570561242,
+          "n": 10544
+        },
+        {
+          "node": 2,
+          "r_m": 0.975,
+          "rmse": 0.4534003558820552,
+          "n": 10377
+        },
+        {
+          "node": 3,
+          "r_m": 1.094,
+          "rmse": 0.5306685898869055,
+          "n": 9902
+        },
+        {
+          "node": 4,
+          "r_m": 1.213,
+          "rmse": 0.528229514468387,
+          "n": 8755
+        },
+        {
+          "node": 5,
+          "r_m": 1.332,
+          "rmse": 0.5089462881520639,
+          "n": 7604
+        },
+        {
+          "node": 6,
+          "r_m": 1.451,
+          "rmse": 0.3976440531155595,
+          "n": 5787
+        }
+      ],
+      "n_features": 137
+    },
+    "C_mag_sxr_bolo": {
+      "modalities": [
+        "mag",
+        "sxr",
+        "bolo"
+      ],
+      "rmse_pooled": 0.4616713821795999,
+      "rmse_per_shot": 0.4505678176284588,
+      "rmse_per_shot_ci95": [
+        0.4195889781519698,
+        0.4799205780928039
+      ],
+      "rmse_per_node": [
+        {
+          "node": 0,
+          "r_m": 0.736,
+          "rmse": 0.42499729786509793,
+          "n": 10102
+        },
+        {
+          "node": 1,
+          "r_m": 0.856,
+          "rmse": 0.38148071992618093,
+          "n": 10544
+        },
+        {
+          "node": 2,
+          "r_m": 0.975,
+          "rmse": 0.4521186354507841,
+          "n": 10377
+        },
+        {
+          "node": 3,
+          "r_m": 1.094,
+          "rmse": 0.5255040961517357,
+          "n": 9902
+        },
+        {
+          "node": 4,
+          "r_m": 1.213,
+          "rmse": 0.5230898900450733,
+          "n": 8755
+        },
+        {
+          "node": 5,
+          "r_m": 1.332,
+          "rmse": 0.5036126198492292,
+          "n": 7604
+        },
+        {
+          "node": 6,
+          "r_m": 1.451,
+          "rmse": 0.39525701036462324,
+          "n": 5787
+        }
+      ],
+      "n_features": 210
+    },
+    "D_all": {
+      "modalities": [
+        "mag",
+        "thomson",
+        "sxr",
+        "bolo",
+        "camera"
+      ],
+      "rmse_pooled": 0.4621801398245286,
+      "rmse_per_shot": 0.4511885842619032,
+      "rmse_per_shot_ci95": [
+        0.4203121832590507,
+        0.48035811321804117
+      ],
+      "rmse_per_node": [
+        {
+          "node": 0,
+          "r_m": 0.736,
+          "rmse": 0.4249820279935882,
+          "n": 10102
+        },
+        {
+          "node": 1,
+          "r_m": 0.856,
+          "rmse": 0.3811580473712507,
+          "n": 10544
+        },
+        {
+          "node": 2,
+          "r_m": 0.975,
+          "rmse": 0.45263871894378116,
+          "n": 10377
+        },
+        {
+          "node": 3,
+          "r_m": 1.094,
+          "rmse": 0.5268681953827241,
+          "n": 9902
+        },
+        {
+          "node": 4,
+          "r_m": 1.213,
+          "rmse": 0.5243978548659568,
+          "n": 8755
+        },
+        {
+          "node": 5,
+          "r_m": 1.332,
+          "rmse": 0.5045328077952099,
+          "n": 7604
+        },
+        {
+          "node": 6,
+          "r_m": 1.451,
+          "rmse": 0.39399227871596176,
+          "n": 5787
+        }
+      ],
+      "n_features": 247
+    },
+    "E_mag_sxr": {
+      "modalities": [
+        "mag",
+        "sxr"
+      ],
+      "rmse_pooled": 0.4642713164216039,
+      "rmse_per_shot": 0.45410162052253805,
+      "rmse_per_shot_ci95": [
+        0.42361975067759877,
+        0.48344634943151826
+      ],
+      "rmse_per_node": [
+        {
+          "node": 0,
+          "r_m": 0.736,
+          "rmse": 0.4255525631631669,
+          "n": 10102
+        },
+        {
+          "node": 1,
+          "r_m": 0.856,
+          "rmse": 0.38170035036561656,
+          "n": 10544
+        },
+        {
+          "node": 2,
+          "r_m": 0.975,
+          "rmse": 0.45340576426169243,
+          "n": 10377
+        },
+        {
+          "node": 3,
+          "r_m": 1.094,
+          "rmse": 0.5289512431508252,
+          "n": 9902
+        },
+        {
+          "node": 4,
+          "r_m": 1.213,
+          "rmse": 0.5277618015101457,
+          "n": 8755
+        },
+        {
+          "node": 5,
+          "r_m": 1.332,
+          "rmse": 0.5089588796254241,
+          "n": 7604
+        },
+        {
+          "node": 6,
+          "r_m": 1.451,
+          "rmse": 0.39810258084685657,
+          "n": 5787
+        }
+      ],
+      "n_features": 177
+    },
+    "E_mag_bolo": {
+      "modalities": [
+        "mag",
+        "bolo"
+      ],
+      "rmse_pooled": 0.4623203994239188,
+      "rmse_per_shot": 0.45129340871468204,
+      "rmse_per_shot_ci95": [
+        0.4201814138628671,
+        0.4808410095433304
+      ],
+      "rmse_per_node": [
+        {
+          "node": 0,
+          "r_m": 0.736,
+          "rmse": 0.42399119830543447,
+          "n": 10102
+        },
+        {
+          "node": 1,
+          "r_m": 0.856,
+          "rmse": 0.3814534862161449,
+          "n": 10544
+        },
+        {
+          "node": 2,
+          "r_m": 0.975,
+          "rmse": 0.4535592614306886,
+          "n": 10377
+        },
+        {
+          "node": 3,
+          "r_m": 1.094,
+          "rmse": 0.5272731232390077,
+          "n": 9902
+        },
+        {
+          "node": 4,
+          "r_m": 1.213,
+          "rmse": 0.5239859955348349,
+          "n": 8755
+        },
+        {
+          "node": 5,
+          "r_m": 1.332,
+          "rmse": 0.5033097869013811,
+          "n": 7604
+        },
+        {
+          "node": 6,
+          "r_m": 1.451,
+          "rmse": 0.39717465456037654,
+          "n": 5787
+        }
+      ],
+      "n_features": 155
+    },
+    "E_mag_thomson": {
+      "modalities": [
+        "mag",
+        "thomson"
+      ],
+      "rmse_pooled": 0.4642731516635118,
+      "rmse_per_shot": 0.45410870625989674,
+      "rmse_per_shot_ci95": [
+        0.423475373289252,
+        0.48429837198598724
+      ],
+      "rmse_per_node": [
+        {
+          "node": 0,
+          "r_m": 0.736,
+          "rmse": 0.42373219428544817,
+          "n": 10102
+        },
+        {
+          "node": 1,
+          "r_m": 0.856,
+          "rmse": 0.3811585570561242,
+          "n": 10544
+        },
+        {
+          "node": 2,
+          "r_m": 0.975,
+          "rmse": 0.4534003558820552,
+          "n": 10377
+        },
+        {
+          "node": 3,
+          "r_m": 1.094,
+          "rmse": 0.5306685898869055,
+          "n": 9902
+        },
+        {
+          "node": 4,
+          "r_m": 1.213,
+          "rmse": 0.528229514468387,
+          "n": 8755
+        },
+        {
+          "node": 5,
+          "r_m": 1.332,
+          "rmse": 0.5089462881520639,
+          "n": 7604
+        },
+        {
+          "node": 6,
+          "r_m": 1.451,
+          "rmse": 0.3976440531155595,
+          "n": 5787
+        }
+      ],
+      "n_features": 137
+    },
+    "E_mag_camera": {
+      "modalities": [
+        "mag",
+        "camera"
+      ],
+      "rmse_pooled": 0.4638448194087287,
+      "rmse_per_shot": 0.4536661390718631,
+      "rmse_per_shot_ci95": [
+        0.42224802438405074,
+        0.4837775100708334
+      ],
+      "rmse_per_node": [
+        {
+          "node": 0,
+          "r_m": 0.736,
+          "rmse": 0.4240206786569739,
+          "n": 10102
+        },
+        {
+          "node": 1,
+          "r_m": 0.856,
+          "rmse": 0.3814059770946676,
+          "n": 10544
+        },
+        {
+          "node": 2,
+          "r_m": 0.975,
+          "rmse": 0.45329617625765417,
+          "n": 10377
+        },
+        {
+          "node": 3,
+          "r_m": 1.094,
+          "rmse": 0.5287285975428123,
+          "n": 9902
+        },
+        {
+          "node": 4,
+          "r_m": 1.213,
+          "rmse": 0.5287967812294397,
+          "n": 8755
+        },
+        {
+          "node": 5,
+          "r_m": 1.332,
+          "rmse": 0.5082518107800637,
+          "n": 7604
+        },
+        {
+          "node": 6,
+          "r_m": 1.451,
+          "rmse": 0.3958844465032266,
+          "n": 5787
+        }
+      ],
+      "n_features": 144
+    }
+  },
+  "target": {
+    "definition": "gated MSE pitch (rad) interpolated onto 7 fixed radial nodes in the [0.1,0.9] quantile band of pooled TRAIN sightline radii; per-shot nodes outside coverage masked (never scored)",
+    "node_radii_m": [
+      0.7363783717155457,
+      0.855541807413102,
+      0.9747052431106584,
+      1.0938686788082148,
+      1.2130321145057712,
+      1.3321955502033276,
+      1.451358985900884
+    ],
+    "gate": "mse_split.pitch_point_gate (rail<1.5 rad, err<=0.3 rad)",
+    "rmse_definition": "per-shot RMSE then mean over test shots (primary)"
+  },
+  "data": {
+    "partition": "calibration",
+    "n_shots_requested": 150,
+    "n_shots_used": 146,
+    "n_train_shots": 102,
+    "n_test_shots": 44,
+    "n_train_slices": 23190,
+    "n_test_slices": 10567,
+    "train_shot_ids": [
+      19525,
+      19903,
+      20071,
+      20152,
+      20317,
+      20417,
+      20419,
+      20476,
+      20511,
+      20626,
+      20629,
+      20661,
+      20771,
+      21607,
+      22038,
+      22044,
+      22397,
+      22443,
+      22535,
+      22583,
+      22621,
+      22805,
+      23386,
+      23503,
+      23600,
+      23822,
+      23825,
+      24143,
+      24166,
+      24174,
+      24221,
+      24323,
+      24352,
+      24432,
+      24474,
+      24476,
+      24497,
+      24619,
+      24646,
+      24656,
+      24762,
+      24854,
+      24908,
+      24929,
+      26352,
+      26377,
+      26460,
+      26504,
+      26579,
+      26790,
+      26807,
+      26905,
+      27051,
+      27121,
+      27174,
+      27199,
+      27202,
+      27273,
+      27315,
+      27384,
+      27421,
+      27468,
+      27474,
+      27548,
+      27588,
+      27636,
+      27751,
+      27823,
+      27843,
+      27846,
+      27847,
+      27855,
+      28101,
+      28133,
+      28179,
+      28201,
+      28282,
+      28316,
+      28322,
+      28326,
+      28337,
+      28784,
+      29181,
+      29198,
+      29208,
+      29239,
+      29428,
+      29557,
+      29790,
+      29791,
+      29853,
+      29854,
+      29905,
+      29918,
+      29927,
+      30018,
+      30073,
+      30077,
+      30108,
+      30136,
+      30145,
+      30463
+    ],
+    "test_shot_ids": [
+      20106,
+      20299,
+      20367,
+      20691,
+      20815,
+      20888,
+      21071,
+      21833,
+      21890,
+      22052,
+      22575,
+      22831,
+      23432,
+      23477,
+      24196,
+      24199,
+      24223,
+      24402,
+      24812,
+      26487,
+      26884,
+      27119,
+      27127,
+      27325,
+      27340,
+      27399,
+      27528,
+      27609,
+      27641,
+      27648,
+      27811,
+      27844,
+      28079,
+      28210,
+      29151,
+      29237,
+      29302,
+      29443,
+      29759,
+      30255,
+      30257,
+      30323,
+      30376,
+      30418
+    ],
+    "modality_presence_frac": {
+      "mag": 1.0,
+      "thomson": 0.959,
+      "sxr": 0.877,
+      "bolo": 0.822,
+      "camera": 0.925
+    },
+    "split": "70/30 by SHOT (seeded); never by slice",
+    "seed": 0,
+    "gbm_seed": 0
+  },
+  "model": {
+    "regressor": "sklearn HistGradientBoostingRegressor (per-node)",
+    "max_iter": 200,
+    "learning_rate": 0.06,
+    "missing": "NaN ingested natively; per-modality present-flag column",
+    "camera_features": "4x4 pooled + 4 stats + in-range flag (no CNN)"
+  },
+  "runtime_s": 589.9
+}
