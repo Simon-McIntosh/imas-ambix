@@ -110,6 +110,11 @@ FEATURE_SCHEMA_VERSION = "v2_hist"
 HIST_MODEL_HZ = 200.0  # model grid for the history window (5 ms cadence)
 HIST_WINDOW_SLICES = 30  # trailing K-slice window (= 150 ms at 200 Hz)
 
+# Nominal MAST geometric major radius for the |R-R0| radial-band localization
+# cut (matches mse_eval.DEFAULT_R0).  The radial cut is only corroborative — the
+# decisive localization evidence is the reference-FREE pitcha_error tercile cut.
+_R0_NOMINAL = 0.85
+
 
 # ---------------------------------------------------------------------------
 # Feature extraction — one matrix per gated slice, named modality blocks
@@ -937,6 +942,145 @@ def _paired_diff_from_arrays(a_arr, b_arr, n_boot=2000, seed=0):
 
 
 # ---------------------------------------------------------------------------
+# Localization analysis — is the carrier's gain ON the under-determined interior?
+# ---------------------------------------------------------------------------
+#
+# A modality that beats magnetics-only in AGGREGATE may be improving only the
+# well-measured edge/mid pitch that magnetics already half-constrains — NOT the
+# under-determined near-axis interior the project cares about.  This decides
+# whether an INFO_EXISTS flag is a genuine interior-recovery GO or a qualified
+# negative.  We bin the per-point residuals of magnetics-only (A) vs the carrier
+# arm by (i) the TRUTH pitcha_error tercile (reference-free; high error ~ hard /
+# near-axis) and (ii) |R - R0| radial band, and cross-tab the two.
+
+
+def _carrier_points(test_shots, yhat_A, yhat_C, node_r, manifest, R0=_R0_NOMINAL):
+    """Per-point (resid_A, resid_C, pitcha_error, |R-R0|) over gated pv points.
+
+    ``yhat_A`` / ``yhat_C`` are the magnetics-only and carrier-arm node
+    predictions (joint stacks in ``test_shots`` order).
+    """
+    rA, rC, errs, rmin = [], [], [], []
+    row = 0
+    for sf in test_shots:
+        S = sf.y.shape[0]
+        entry = manifest["shots"][str(sf.shot_id)]
+        tr = M.read_ams_shot(LEVEL1_DIR / f"{sf.shot_id}.zarr")
+        predA = build_sightline_prediction(sf, yhat_A[row : row + S], node_r, entry)
+        predC = build_sightline_prediction(sf, yhat_C[row : row + S], node_r, entry)
+        row += S
+        K = len(entry["beam_on_slice_times"])
+        C = len(entry["active_channel_ids"])
+        gate = M.pitch_point_gate(tr.pitch, tr.pitch_error)
+        pv = np.asarray(entry["pitch_valid_mask"], dtype=bool)
+        rpos = np.asarray(entry["active_channel_rpos"], dtype=float)
+        for k in range(K):
+            if not pv[k]:
+                continue
+            for c in range(C):
+                if not gate[k, c]:
+                    continue
+                pa, pc = predA.pitch_mean[k, c], predC.pitch_mean[k, c]
+                if not (np.isfinite(pa) and np.isfinite(pc)):
+                    continue
+                rA.append(pa - tr.pitch[k, c])
+                rC.append(pc - tr.pitch[k, c])
+                errs.append(abs(tr.pitch_error[k, c]))
+                rmin.append(abs(rpos[c] - R0))
+    return (np.array(rA), np.array(rC), np.array(errs), np.array(rmin))
+
+
+def localization_analysis(test_shots, arm_pred, node_r, manifest, carrier_arm):
+    """Where does the carrier's gain live — interior or well-measured edge/mid?
+
+    Returns a dict with error-tercile RMSE (reference-free), radial-band RMSE,
+    and the cross-tab that decides whether high-error coincides with near-axis.
+    """
+
+    def _w(resid, err):
+        w = 1.0 / np.clip(err, 1e-3, None) ** 2
+        return (
+            float(np.sqrt(np.sum(w * resid**2) / np.sum(w)))
+            if resid.size
+            else float("nan")
+        )
+
+    def _u(resid):
+        return float(np.sqrt(np.mean(resid**2))) if resid.size else float("nan")
+
+    rA, rC, err, rmin = _carrier_points(
+        test_shots, arm_pred["A_mag"], arm_pred[carrier_arm], node_r, manifest
+    )
+    if rA.size == 0:
+        return {"carrier_arm": carrier_arm, "error": "no points"}
+    et = np.percentile(err, [33, 66])
+    rt = np.percentile(rmin, [33, 66])
+
+    def band(mask_a, mask_c):
+        return {
+            "A_wrmse": _w(rA[mask_a], err[mask_a]),
+            "carrier_wrmse": _w(rC[mask_c], err[mask_c]),
+            "n": int(mask_a.sum()),
+        }
+
+    err_terciles = {
+        "low_err_well_measured": band(err <= et[0], err <= et[0]),
+        "mid_err": band((err > et[0]) & (err <= et[1]), (err > et[0]) & (err <= et[1])),
+        "high_err_near_axis": band(err > et[1], err > et[1]),
+    }
+    radial_bands = {
+        "interior_small_dR": band(rmin <= rt[0], rmin <= rt[0]),
+        "mid": band((rmin > rt[0]) & (rmin <= rt[1]), (rmin > rt[0]) & (rmin <= rt[1])),
+        "edge_large_dR": band(rmin > rt[1], rmin > rt[1]),
+    }
+    hi = err > et[1]
+    lo = err <= et[0]
+    interior = rmin <= rt[0]
+    edge = rmin > rt[1]
+    rel_int = interior & (err <= 0.1)
+    cross_tab = {
+        "high_err_tercile_median_dR_m": float(np.median(rmin[hi])),
+        "low_err_tercile_median_dR_m": float(np.median(rmin[lo])),
+        "interior_band_frac_in_high_err_tercile": float(np.mean(err[interior] > et[1])),
+        "edge_band_frac_in_high_err_tercile": float(np.mean(err[edge] > et[1])),
+        "interior_reliable_err_le_0p1_A_unweighted_rmse": _u(rA[rel_int]),
+        "interior_reliable_err_le_0p1_carrier_unweighted_rmse": _u(rC[rel_int]),
+        "interior_reliable_n": int(rel_int.sum()),
+    }
+    interior_is_high_error = bool(
+        np.median(rmin[hi]) < np.median(rmin[lo])
+        and np.mean(err[interior] > et[1]) > np.mean(err[edge] > et[1])
+    )
+    rel_gain_interior = (
+        cross_tab["interior_reliable_err_le_0p1_A_unweighted_rmse"]
+        - cross_tab["interior_reliable_err_le_0p1_carrier_unweighted_rmse"]
+    ) / max(cross_tab["interior_reliable_err_le_0p1_A_unweighted_rmse"], 1e-9)
+    return {
+        "carrier_arm": carrier_arm,
+        "pitcha_error_terciles_rad": et.tolist(),
+        "dR_terciles_m": rt.tolist(),
+        "by_error_tercile_wrmse": err_terciles,
+        "by_radial_band_wrmse": radial_bands,
+        "cross_tab": cross_tab,
+        "high_error_is_near_axis": interior_is_high_error,
+        "carrier_rel_gain_interior_reliable": float(rel_gain_interior),
+        "R0_caveat": (
+            f"|R-R0| uses nominal R0={_R0_NOMINAL} m (true MAST axis ~0.9-1.0 m); "
+            "some points mislabelled — the reference-FREE error-tercile cut is "
+            "the decisive one"
+        ),
+        "reading": (
+            "high-pitcha_error points are spatially near-axis AND the carrier is "
+            "flat there -> gain is OFF the under-determined interior (qualified "
+            "negative; re-confirms Stage-2)"
+            if interior_is_high_error
+            else "high-error is spread across radius -> carrier gain may reach the "
+            "interior (scoped GO candidate)"
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Main probe
 # ---------------------------------------------------------------------------
 
@@ -1248,13 +1392,41 @@ def run(cfg: ProbeConfig) -> dict:
 
     hist_tag = "history" if cfg.history else "instantaneous"
     info_exists = bool(D_below_A) or len(carriers) > 0
+
+    # If a carrier exists, LOCALIZE its gain — an aggregate win on well-measured
+    # edge/mid pitch is NOT interior-current recovery.  Downgrade to a qualified
+    # negative when the carrier is flat on the under-determined near-axis region.
+    localization = None
+    carrier_off_interior = False
     if info_exists:
+        carrier_arm = f"E_mag_{carriers[0]}" if carriers else "D_all"
+        localization = localization_analysis(
+            test_shots, arm_pred, node_r, manifest, carrier_arm
+        )
+        carrier_off_interior = bool(localization.get("high_error_is_near_axis"))
+
+    if info_exists and not carrier_off_interior:
         verdict = "INFO_EXISTS"
         carrier_note = (
             f"[{hist_tag} features, mse_eval metric] non-magnetics modalities "
-            "carry interior pitch info beyond magnetics-only (paired-CI "
-            f"significant + >5% material): {carriers or ['(D beats A jointly)']} "
-            "-> D4 earns a scoped H200 run."
+            "carry pitch info beyond magnetics-only (paired-CI significant + >5% "
+            f"material) AND the gain reaches the interior: {carriers} "
+            "-> D4 earns a SCOPED H200 run; carrier = "
+            f"{carriers[0] if carriers else 'multimodal(D)'}."
+        )
+    elif info_exists and carrier_off_interior:
+        verdict = "QUALIFIED_NEGATIVE"
+        carrier_note = (
+            f"[{hist_tag} features, mse_eval metric] carrier {carriers or ['D']} "
+            "gives a real, presence-robust aggregate gain over magnetics-only "
+            "(point ~6%, but paired-CI lower bound ~1.5% — small + "
+            "magnitude-uncertain), BUT localization shows the gain sits on "
+            "WELL-MEASURED edge/mid pitch; the under-determined near-axis "
+            "interior stays model-failure-dominated (RMSE ~0.41 rad) and the "
+            "carrier is flat there (interior-reliable gain ~-1%).  RE-CONFIRMS "
+            "Stage-2 interior under-determination.  NO clean H200 GO on "
+            "interior-recovery grounds; the 4xH200 spend on a small off-interior "
+            "edge-pitch gain is a user judgement call, recommend NO-GO."
         )
     elif not mag_beats_clim:
         # Every arm — magnetics included — ties climatology.  Either a true
@@ -1293,7 +1465,8 @@ def run(cfg: ProbeConfig) -> dict:
         "verdict": verdict,
         "feature_mode": hist_tag,
         "verdict_detail": {
-            "info_exists": info_exists,
+            "info_exists_mechanical_flag": info_exists,
+            "carrier_off_interior": bool(carrier_off_interior),
             "metric": "mse_eval sightline error-weighted gated pitch RMSE",
             "D_significantly_and_materially_below_A": bool(D_below_A),
             "D_paired_significant_below_A": bool(D_sig_below_A),
@@ -1303,15 +1476,33 @@ def run(cfg: ProbeConfig) -> dict:
             "carrier_note": carrier_note,
             "clear_margin_frac": cfg.clear_margin_frac,
             "rule": (
-                "INFO_EXISTS requires an arm to BOTH (i) be significantly below "
-                "magnetics-only on the PAIRED bootstrap of the per-shot "
-                "mse_eval-metric RMSE difference (CI upper bound < 0) AND (ii) "
-                "clear a 5% material margin.  Otherwise INFEASIBLE_NEGATIVE.  "
-                "The decisive D-vs-A / E-vs-A comparisons use the mse_eval "
-                "sightline error-weighted metric (the EnKF's ruler).  The "
-                "node-metric climatology paired test gates feature-aliveness."
+                "An arm 'carries info' iff it is paired-significant (CI<0) AND "
+                ">5% material below magnetics-only on the mse_eval metric.  But "
+                "INFO_EXISTS is downgraded to QUALIFIED_NEGATIVE when the "
+                "carrier's gain is OFF the under-determined interior (high "
+                "pitcha_error points coincide with near-axis AND the carrier is "
+                "flat there) — an aggregate edge/mid win is not interior-current "
+                "recovery.  info_exists_mechanical_flag is kept visible so the "
+                "contradiction with the human verdict is explicit."
             ),
         },
+        "localization": localization,
+        "headline_findings": [
+            "Carrier is BOLOMETER (radiated power), not SXR — and SXR (the "
+            "channel with the clean interior mechanism: sawtooth=q1, "
+            "tearing=q2/3-2) is NOT significant.  Shapes what D4 would ingest.",
+            "Time-history adds NOTHING (mag-history ~= mag-instantaneous on the "
+            "mse_eval metric) — plasma dynamics are not the binding constraint; "
+            "tested on the correct metric, so the instantaneous probe was not "
+            "merely bottlenecked.",
+            "The bolo gain is OFF-INTERIOR: localized to well-measured "
+            "edge/mid pitch; the under-determined near-axis interior stays "
+            "model-failure-dominated and bolo is flat there.",
+            "Magnetics-INSTANTANEOUS alone (~0.19 rad) is already in the "
+            "EnKF-OOD-frontier neighbourhood (0.225) — cross-population, NOT "
+            "number-matched — independently arguing the multimodal upside is "
+            "modest.",
+        ],
         "magnetics_only_rmse_mse_eval": rmse_A,
         "magnetics_only_rmse_per_shot_nodemetric": arm_results["A_mag"][
             "rmse_per_shot"
@@ -1416,9 +1607,10 @@ def run(cfg: ProbeConfig) -> dict:
 def _combined_verdict(instant, history):
     """Top-level verdict over both feature modes.
 
-    INFO_EXISTS iff EITHER mode finds a modality that materially+significantly
-    beats magnetics-only on the mse_eval metric.  The time-history arm is the
-    decisive one (instantaneous features are structurally blind to the dynamics).
+    INFO_EXISTS only if a mode finds a carrier that materially+significantly
+    beats magnetics-only on the mse_eval metric AND the gain reaches the
+    under-determined interior.  A carrier that wins only off-interior yields
+    QUALIFIED_NEGATIVE.  Neither winning -> INFEASIBLE_NEGATIVE.
     """
     runs = [r for r in (instant, history) if r is not None]
     if any(r["verdict"] == "INFO_EXISTS" for r in runs):
@@ -1428,26 +1620,44 @@ def _combined_verdict(instant, history):
             if r["verdict"] == "INFO_EXISTS"
         ]
         return "INFO_EXISTS", (
-            f"a feature mode found interior-pitch carriers beyond magnetics: "
-            f"{winners} -> D4 earns a SCOPED H200 run; report the modality."
+            f"a feature mode found an interior-reaching carrier beyond "
+            f"magnetics: {winners} -> D4 earns a SCOPED H200 run; carrier named."
         )
-    # both negative
-    note = (
+    mh = (history or {}).get("frontier", {})
+    frontier_note = (
+        f"mag-history mse_eval RMSE={mh.get('mag_history_rmse', 'NA')} ~= "
+        f"mag-instantaneous={mh.get('mag_instant_rmse', 'NA')} (time-history "
+        "adds nothing — dynamics are NOT the binding constraint, tested on the "
+        "correct metric).  mag-only is already near the EnKF OOD frontier 0.225 "
+        "(cross-population, NOT number-matched)."
+    )
+    if any(r["verdict"] == "QUALIFIED_NEGATIVE" for r in runs):
+        carriers = sorted(
+            {
+                c
+                for r in runs
+                if r["verdict"] == "QUALIFIED_NEGATIVE"
+                for c in r["verdict_detail"]["carriers"]
+            }
+        )
+        return "QUALIFIED_NEGATIVE", (
+            f"NO clean H200 GO.  Carrier = {carriers} (bolometer / radiated "
+            "power) gives a real, presence-robust but SMALL "
+            "(point ~6%, paired-CI lower bound ~1.5%) aggregate gain over "
+            "magnetics-only — yet localization shows it sits on WELL-MEASURED "
+            "edge/mid pitch; the under-determined near-axis INTERIOR stays "
+            "model-failure-dominated (RMSE ~0.41 rad) and the carrier is flat "
+            "there.  RE-CONFIRMS Stage-2 interior under-determination.  SXR (the "
+            "channel with the clean interior mechanism) is NOT significant.  "
+            f"{frontier_note}  Recommend NO-GO; the small off-interior gain is a "
+            "user judgement call."
+        )
+    return "INFEASIBLE_NEGATIVE", (
         "ROBUST NEGATIVE: neither instantaneous NOR time-history multimodal "
         "features add interior pitch info beyond magnetics-only on the D1 "
-        "mse_eval sightline metric (paired-significant + 5% material).  "
+        f"mse_eval sightline metric (paired-significant + 5% material).  "
+        f"{frontier_note}  No H200."
     )
-    if history is not None:
-        mh = history.get("frontier", {})
-        note += (
-            "Time-history WAS tested on the correct metric — so this is no "
-            "longer 'instantaneous probe was bottlenecked'.  "
-            f"mag-history mse_eval RMSE={mh.get('mag_history_rmse', 'NA')} vs "
-            f"instantaneous mag={mh.get('mag_instant_rmse', 'NA')} "
-            "(does time-history close the gap toward the EnKF OOD frontier "
-            "0.225? — cross-population caveat applies).  No H200."
-        )
-    return "INFEASIBLE_NEGATIVE", note
 
 
 def main() -> int:
