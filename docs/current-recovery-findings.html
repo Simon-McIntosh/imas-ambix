@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="doc">
+  <meta name="plan-slug"    content="current-recovery-findings">
+  <meta name="plan-title"   content="Recovered Current-Density Evolution — MSE-Free Current Recovery (S9)">
+  <meta name="plan-summary" content="Illustrated findings from the S9 MSE-free current-recovery sprint: the recovered toroidal current-density profile j(rho, t) from the classical D2 TORAX-EnKF baseline, shown at discrete flux surfaces and as spatial snapshots, plus the recovered on-axis q0(t) compared against held-out MSE truth. The headline: the current profile is genuinely DYNAMIC and is recovered with NO MSE on the input side — by a resistive current-diffusion transition driven by measured Ip + Te-derived conductivity. Every figure is plotted from a re-run of the committed baseline ensemble.">
+  <meta name="plan-informs" content="mse-free-current-recovery-v0">
+  <title>Recovered Current-Density Evolution — MSE-Free Current Recovery | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Recovered Current-Density Evolution — MSE-Free Current Recovery (S9)</h1>
+    <p><em>An illustrated record of what the S9 current-recovery sprint actually recovers: the internal
+      toroidal current-density profile <code>j<sub>φ</sub>(ρ, t)</code> of a tokamak discharge, inferred
+      from raw measured diagnostics with <strong>no MSE on the input side</strong>. The figures are the
+      classical <a href="/imas-ambix/mse-free-current-recovery-v0.html">D2 baseline</a> — a parameter-space
+      ensemble smoother over the validated TORAX current-diffusion solver — which is <strong>THE BAR</strong>
+      the S9 neural filter (D4) must beat. The current evolution shown here is genuinely dynamic, in sharp
+      contrast to Stage-1's near-stationary Dα target where dynamics did not pay
+      (<a href="/imas-ambix/stage1-stage2-results.html">Stage-1/2 results</a>). Every figure is plotted
+      directly from a re-run of the committed baseline ensemble; the source artifact, config, and per-shot
+      member counts are recorded in <code>docs/figures/current-recovery/generation_manifest.json</code>.</em></p>
+
+    <h2 id="s1">§1 — What is plotted, and where the data comes from</h2>
+    <p>
+      The committed metrics artifact (<code>imas_ambix/statespace/artifacts/enkf_baseline_metrics_v0.json</code>)
+      persists only <em>scalar</em> per-shot diagnostics — q0 medians, magnetics innovations, the bootstrap-CI
+      metric blocks. It does <strong>not</strong> store the per-shot current-density trajectories. So the
+      figures below were produced by <strong>re-running the baseline's prior (forecast-arm) TORAX ensemble</strong>
+      for four representative held-out shots, using the exact committed configuration
+      (<code>n_ensemble=32</code>, <code>seed=1234</code>, RNG seeded <code>default_rng(seed + shot_id)</code>),
+      so the plotted ensemble <em>is</em> the one behind the committed bar. The extraction + plotting script is
+      <code>scripts/plot_current_recovery_findings.py</code>; all 4 shots ran to completion with 32/32 members
+      OK in 13–21 s each (no wall-clock-guard trips).
+    </p>
+    <p>
+      <strong>The recovery is MSE-free by physics.</strong> Each ensemble member is one full TORAX trajectory:
+      only the poloidal-flux (current) equation evolves, driven by the <em>measured</em> plasma current
+      <code>Ip(t)</code> and a neoclassical conductivity <code>σ(T<sub>e</sub>)</code> closure built from the
+      measured Thomson <code>T<sub>e</sub>(ρ)</code> — the channel that breaks the Stage-2 magnetics
+      under-determination. No MSE, no pitch-angle, no internal-current diagnostic touches the input side.
+      MSE enters in <strong>§4 only</strong>, as held-out eval truth.
+    </p>
+    <p>
+      <strong>Which arm.</strong> The figures show the <em>prior / forecast</em> ensemble (measured inputs only,
+      external magnetics not assimilated). The artifact's own verdict is that the single EKI magnetics update
+      moves the <em>internal</em> current negligibly (analysis pitch RMSE 0.225 ≈ forecast 0.233) — the Stage-2
+      under-determination thesis: external magnetics fix the boundary and Ip, not the interior
+      <code>j(ψ)</code>. So the prior ensemble <em>is</em> the recovered MSE-free current; the resistive
+      transition does the work, not the magnetics update.
+    </p>
+    <p>
+      <strong>Shots.</strong> 24443, 24148, 24065, 22329 — chosen for finite magnetics innovation, full
+      32/32-member success, and a forecast arm free of q0 pathologies, spanning the dynamic high-Ip OOD
+      flat-top q0 band (~0.25–0.6). (Shots 22086 and 22759 were deliberately excluded — their forecast-arm
+      q0 blows up to ~3.0 / ~2.3 and would mislead.)
+    </p>
+
+    <h2 id="s2">§2 — The headline: <code>j<sub>φ</sub>(ρ, t)</code> is genuinely dynamic</h2>
+    <p>
+      At five discrete flux surfaces (ρ = 0, 0.2, 0.4, 0.6, 0.8) the recovered current density rises through
+      the current ramp, develops radial structure (peaked near the axis), and evolves continuously over the
+      ~0.5 s discharge. The ensemble 1σ band shows the spread across the 32 sampled parameter vectors
+      (Z<sub>eff</sub>, resistivity multiplier, initial-current peaking, Ip-boundary scale). This is the
+      contrast that motivated the whole pivot: <strong>unlike Stage-1's ~96.8 %-quiescent Dα target — where
+      a frozen nowcast beat the dynamics — the current profile here is non-stationary, so a model that
+      captures the transition has something real to recover.</strong>
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/current-recovery/fig-cr-j-rho-t.svg" alt="Recovered current density j(rho,t) at five flux surfaces, one panel per shot, with ensemble 1-sigma bands">
+      <figcaption><b>Recovered MSE-free current density <code>j<sub>φ</sub>(ρ, t)</code>.</b> One panel per shot;
+        each curve is a normalised-minor-radius surface ρ, shaded by the ensemble 1σ over the 32 prior TORAX
+        members. The current rises and restructures through the discharge — genuinely dynamic. Units: <code>j<sub>φ</sub></code>
+        in MA/m², t in s, ρ dimensionless. <em>(re-run of the D2 prior ensemble; config from
+        enkf_baseline_metrics_v0.json · shots 24443, 24148, 24065, 22329)</em></figcaption>
+    </figure>
+
+    <h2 id="s3">§3 — The spatial profile evolving in machine R</h2>
+    <p>
+      The same trajectories, viewed as the radial profile <code>j<sub>φ</sub>(R)</code> at three snapshot times
+      (early ramp / flat-top / late), show the current concentrating toward the magnetic axis as the discharge
+      develops. The major radius here is the <strong>nominal circular-geometry mapping</strong>
+      <code>R = R<sub>0</sub> + ρ·a</code> (R<sub>0</sub> = 0.85 m, a = 0.5 m) — the outboard midplane of the
+      circular TORAX geometry, not a reconstructed flux-surface R; it is plotted to give a sense of where in the
+      machine the current sits, with the magnetic-axis radius marked.
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/current-recovery/fig-cr-j-vs-R.svg" alt="Current density vs major radius R at three snapshot times per shot">
+      <figcaption><b>Spatial current profile <code>j<sub>φ</sub>(R)</code> at three snapshots.</b> Early-ramp,
+        flat-top, and late profiles per shot, with ensemble 1σ bands; the dotted vertical line marks
+        R<sub>0</sub> = 0.85 m. The profile peaks near the axis and intensifies through the discharge. Units:
+        <code>j<sub>φ</sub></code> in MA/m², R in m (nominal circular geometry R = R<sub>0</sub> + ρ·a, not a real
+        flux-surface R). <em>(re-run of the D2 prior ensemble · shots 24443, 24148, 24065, 22329)</em></figcaption>
+    </figure>
+
+    <h2 id="s4">§4 — On-axis <code>q<sub>0</sub>(t)</code>: recovered vs held-out MSE truth (eval-only)</h2>
+    <p>
+      The decisive eval check. The recovered on-axis safety factor <code>q<sub>0</sub>(t)</code> (blue) is obtained
+      by reading the ensemble-mean predicted pitch out of the recovered current through the
+      <strong>shared</strong> <code>invert_pitch_to_q0rax</code> inverter, and is compared against the
+      <strong>held-out MSE-derived truth</strong> <code>q<sub>0</sub></code> (red) obtained by passing the measured
+      MSE pitch through the <em>identical</em> inverter and eval geometry (R<sub>0</sub> = 0.85 m,
+      B<sub>t0</sub> = 0.5 T). Because both q<sub>0</sub> use the same inversion, the gap between them is model
+      error, not method mismatch — it is exactly the scored secondary <code>q0_rmse ≈ 0.52</code>. A third, dotted
+      line shows the TORAX-free on-axis <code>q(ρ=0)</code> (the free non-vacuity quantity) — a different construct,
+      unbounded as Ip → 0 on residual ramp slices, so the view is clipped to a physical window.
+      <strong>MSE is held-out eval truth only — it never enters the recovery.</strong>
+    </p>
+    <p>
+      Two honest readings. First, the recovered <code>q<sub>0</sub></code> sits in the low ~0.3–0.5 band — the
+      flat-top q<sub>0</sub> on this high-Ip OOD held-out set is genuinely low (a sawtoothing / high-current regime),
+      <em>not</em> ~1; non-vacuity is shown by recovering an order-unity, radially-structured internal current with
+      no MSE input, not by hitting q<sub>0</sub> = 1. Second, the recovered line tracks the truth's slow trend but
+      misses its slice-to-slice excursions — the residual gap a richer multi-modal filter is meant to close.
+    </p>
+    <figure class="r-fig">
+      <img src="/imas-ambix/figures/current-recovery/fig-cr-q0-overlay.svg" alt="Recovered on-axis q0(t) vs held-out MSE truth q0(t), method-matched, per shot">
+      <figcaption><b>On-axis <code>q<sub>0</sub>(t)</code>: recovered (MSE-free) vs held-out MSE truth.</b> Recovered
+        q<sub>0</sub> (blue, inversion of predicted pitch) and held-out MSE-truth q<sub>0</sub> (red, inversion of
+        measured MSE pitch) are method-matched through the shared inverter; TORAX-free q(ρ=0) (purple dotted) is a
+        separate non-vacuity construct, clipped at the top where it diverges on ramp slices. Gated to the flat-top
+        <code>pitch_valid ∩ q0_gated</code> slices. <strong>MSE is EVAL-ONLY.</strong> Units: q<sub>0</sub>
+        dimensionless, t in s. <em>(re-run of the D2 prior ensemble; truth from level-1 ams · shots 24443, 24148,
+        24065, 22329)</em></figcaption>
+    </figure>
+
+    <h2 id="s5">§5 — This is the classical bar, scored</h2>
+    <p>
+      The figures above illustrate the recovery; the numbers below are the committed
+      <strong>v0 bar</strong>, scored on N = 112 official held-out shots with bootstrap 95 % CIs over shots
+      (the independent unit). They are the target the neural filter must beat.
+    </p>
+    <table class="r-ledger" style="border-collapse:collapse;width:100%;font-size:0.92rem">
+      <thead><tr>
+        <th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">Metric (held-out, N=112)</th>
+        <th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">D2 analysis arm</th>
+        <th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">Persistence ref</th>
+        <th style="border:1px solid #d0d4da;padding:6px;text-align:left;background:#f4f6f8">Verdict</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Primary pitch RMSE</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">0.225 [0.199, 0.259]</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">0.719 [0.673, 0.767]</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#15803d;font-weight:600">BEATS persistence (no tune-to-pass)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Primary pitch CRPS</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">0.151 [0.132, 0.174]</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">0.451 [0.415, 0.489]</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#15803d;font-weight:600">BEATS persistence</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Secondary q<sub>0</sub> RMSE (method-matched)</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">0.519 [0.469, 0.576]</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">0.583 [0.539, 0.631]</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#b45309;font-weight:600">marginal edge — the §4 gap</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Magnetics innovation (whitened amb misfit)</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">5.38 → 3.78 (forecast → analysis)</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">—</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top;color:#15803d;font-weight:600">EKI update is REAL (drops)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Analysis vs forecast internal pitch</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">0.225 ≈ 0.233</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">—</td>
+          <td style="border:1px solid #d0d4da;padding:6px;vertical-align:top">Stage-2 under-determination thesis confirmed</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin-top:1rem">
+      <strong>How to read this.</strong> The classical TORAX-EnKF bar (1) makes the magnetics update genuinely
+      do something (innovation 5.38 → 3.78), (2) recovers internal current from the resistive transition with no
+      MSE, and (3) beats persistence on the primary pitch axis by ~3× — a credible bar, not a strawman. The
+      neural filter (D4) is expected to beat it by 10–20 % on held-out pitch <em>while also</em> fusing the
+      camera / SXR image modalities the O(N<sub>ens</sub>) ensemble cannot ingest — that modality asymmetry is the
+      thesis, not an accident.
+    </p>
+    <p>
+      <strong>Scope note.</strong> Everything here is the <em>classical</em> baseline. The learned multi-modal
+      filter (D4) is gated on an oracle-probe go/no-go check (does an oracle-fed current head even recover the
+      held-out MSE pitch?) before any training compute is spent. The figures and bar in this doc are what D4 will
+      be measured against; they do not themselves report a neural result.
+    </p>
+
+  </main>
+</body>
+</html>
