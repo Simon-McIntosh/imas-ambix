@@ -22,6 +22,17 @@
 <body>
 <main class="plan-doc">
 
+<p style="border:2px solid #c0392b;background:#fdecea;padding:10px 14px;border-radius:6px;">
+<strong>⚠ SUPERSEDED (2026-06-02).</strong> The mechanism and event attribution in this
+document are partly incorrect — see <a href="rca-node-drain-mechanism-2026-06-02.html">RCA —
+node drains: the single root cause</a>. In particular: the "five mechanisms (M1–M5)" collapse
+to <em>one</em> root cause (a process in NVIDIA-driver <code>D</code>-state surviving SIGKILL
+past <code>UnkillableStepTimeout</code>); "scancel on a healthy DDP job drained the node" is
+<em>false</em> (job 1208975 died cleanly; the drain was the follow-on job 1208980 on a dirtied
+GPU); the "<code>.N</code> sub-steps are SLURM accounting heartbeats" claim is <em>false</em>
+(they are an explicit <code>nvidia-smi</code> monitoring loop); and "cgroup.kill can reap
+D-state" is <em>false</em>. Retained below as the raw working record only.</p>
+
 <p><span class="status active"><span class="dot"></span>Research / Reference</span> —
 <strong>Definitive drain-event analysis</strong> for node <code>98dci4-gpu-0003</code>
 covering all events from 2026-05-26 through 2026-05-28. Four drain events (one

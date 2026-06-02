@@ -1,5 +1,16 @@
 # Drain Test MWEs — Minimal Working Examples
 
+> **⚠ SUPERSEDED (2026-06-02).** This suite and its conclusions were produced
+> *without measuring process state*; several findings here are wrong (e.g.
+> "the `.N` sub-steps are SLURM accounting heartbeats" — they are an explicit
+> `nvidia-smi` monitoring loop; and the "NCCL 2.21.5 immunity" framing). Use the
+> instrumented suite in [`instrumented/`](instrumented/) and the corrected RCA
+> `docs/rca-node-drain-mechanism-2026-06-02.html` instead. The root cause is a
+> process stuck in NVIDIA-driver **D-state** surviving SIGKILL past
+> `UnkillableStepTimeout`; on a healthy GPU that D-state is *transient* (killable),
+> so a clean node cannot be drained this way — a drain needs an already-wedged GPU.
+> Retained below as the raw working record only.
+
 Generic, self-contained scripts that reproduce SLURM node drain conditions
 on NVIDIA GPU clusters. No project-specific dependencies beyond PyTorch + NCCL.
 

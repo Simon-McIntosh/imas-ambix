@@ -20,6 +20,15 @@
 <body>
   <main class="plan-doc">
     <header>
+      <p style="border:2px solid #c0392b;background:#fdecea;padding:10px 14px;border-radius:6px;">
+      <strong>⚠ SUPERSEDED (2026-06-02).</strong> Conclusions here were drawn without
+      directly measuring process state, and several are wrong — see
+      <a href="rca-node-drain-mechanism-2026-06-02.html">RCA — node drains: the single root
+      cause</a>. The drain is <em>not</em> NCCL-version-specific "immunity"; on a healthy GPU
+      the NVIDIA-driver D-state is simply <em>transient</em> (killable), so the node does not
+      drain. A drain needs a <em>permanently</em> wedged GPU (a cascade seeded by a prior
+      unclean event), confirmed by direct <code>/proc</code> + <code>wchan</code> capture.
+      Retained below as the raw working record only.</p>
       <p><span class="badge">ACTIVE</span> Generic operator-facing research document for diagnosing, reproducing, and mitigating GPU node drain events on SLURM + NVIDIA clusters.</p>
       <h1>GPU Node Drain: Minimal Reproducers &amp; Evidence</h1>
       <p>This document consolidates a four-event incident corpus, a five-script minimal reproducer suite, and an operator-safe cancellation pattern. It is deliberately project-neutral: the mechanisms described here apply to any cluster where SLURM escalates from <code>SIGTERM</code> to <code>SIGKILL</code> against processes blocked in uninterruptible kernel sleep.</p>
