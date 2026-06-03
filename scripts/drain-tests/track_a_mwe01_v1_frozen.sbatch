@@ -30,6 +30,11 @@ mkdir -p "${TMPDIR}"
 mkdir -p /work/projects/imas_gpu/logs
 
 export DRAIN_TEST_LOG_DIR=/work/projects/imas_gpu/logs
+# Disable the NCCL heartbeat watchdog so SLURM --time is the killer (not _exit()).
+# Run 1 showed the watchdog fires at 600s and calls _exit() cleanly, preventing drain.
+# Disabling it forces SLURM to fire into a live hung process — matches 1209813 condition.
+export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=99999
+export TORCH_NCCL_ASYNC_ERROR_HANDLING=0
 
 TORCHRUN="${PYTHON_VENV:-/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv}/bin/torchrun"
 
