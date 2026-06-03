@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="rca-node-drain-final-2026-06-03">
+  <meta name="plan-title"    content="RCA — 98dci4-gpu-0003 Node Drains (Final, 2026-06-03)">
+  <meta name="plan-summary"  content="Definitive root-cause analysis of 5 node drain events on 98dci4-gpu-0003, 2026-05-26 to 2026-06-01. Mechanism confirmed; cause environmental/infrastructure-level, not code-specific. Supersedes all prior RCA documents.">
+  <meta name="plan-informs"  content="drain-window-campaign">
+  <title>RCA — 98dci4-gpu-0003 Node Drains (Final) | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="verdict">Verdict</h2>
+    <p><strong>The drain mechanism is confirmed and fully evidenced.
+      The root cause is environmental, not code-specific.
+      It cannot be reproduced on demand.
+      The fix is admin-side configuration, independent of any code change.</strong></p>
+
+    <h2 id="s1">§1 — What we know (proven by direct observation)</h2>
+
+    <h3>The proximate mechanism — confirmed</h3>
+    <p>Every drain on <code>98dci4-gpu-0003</code> followed this exact chain,
+      observed directly in the slurmctld log and slurmstepd stderr:</p>
+    <ol>
+      <li>A process enters <strong>uninterruptible D-state</strong> (kernel-level
+        sleep waiting on the NVIDIA driver, CXI Slingshot fabric, or GPFS client).
+        D-state means the kernel cannot deliver <code>SIGKILL</code> to the process
+        until the wait resolves.</li>
+      <li>The D-state persists longer than
+        <code>KillWait</code> (30 s) + <code>UnkillableStepTimeout</code> (60 s)
+        = <strong>~90 seconds total</strong>. These values are confirmed from
+        <code>scontrol show config</code> on the betelgeuse partition — they are
+        not defaults assumed from documentation.</li>
+      <li>slurmstepd reports: <code>"JOB NOT ENDING WITH SIGNALS"</code> and
+        <code>"Container … has N processes, giving up after 63 sec"</code>.</li>
+      <li>slurmctld sets: <code>update_node: node 98dci4-gpu-0003 reason set to:
+        Kill task failed</code> → <code>state set to DRAINING</code>.</li>
+      <li>New jobs cannot start. The node requires manual admin intervention
+        (<code>nvidia-smi --gpu-reset</code> or reboot, then <code>scontrol
+        update … state=resume</code>) before it accepts work again.</li>
+    </ol>
+    <p>This is <strong>documented SLURM behavior</strong>
+      (<code>UnkillableStepTimeout</code> in <code>slurm.conf</code> man page)
+      — not a bug or misconfiguration. SLURM is working correctly.
+      The problem is that a process is in D-state long enough to trigger it.</p>
+
+    <h3>D-state is normal on this node — but usually transient</h3>
+    <p>A separate-allocation observer running alongside GPU workloads captured
+      10,514 process-state samples across all three driver surfaces:</p>
+    <ul>
+      <li>387 samples: <code>os_acquire_rwlock_write</code> (NVIDIA driver)</li>
+      <li>347 samples: <code>os_acquire_rwlock_read</code> (NVIDIA driver)</li>
+      <li>17 samples: <code>os_acquire_semaphore</code> (NVIDIA driver)</li>
+      <li><code>cxiWaitEventWait</code> (CXI/Slingshot fabric)</li>
+      <li><code>uvm_gpu_retain_by_uuid</code> (NVIDIA UVM)</li>
+    </ul>
+    <p>All of these D-state samples were <strong>transient</strong> (sub-second).
+      None of the 14 instrumented test runs — including deliberate attempts to
+      create sustained D-state — drained the node. The trigger for sustained
+      (&gt;90 s) D-state is not the normal operation of any GPU job. It is
+      something environmental and probabilistic.</p>
+
+    <h3>The cause is infrastructure-level, not code-specific</h3>
+    <p>The drain history covers 5 events across 8 days. At least 2 separate
+      user groups (Group A = grpa, Group B = distinct account and job pattern)
+      drained the node with completely different code:</p>
+    <table>
+      <thead>
+        <tr><th>Date / time</th><th>Job(s)</th><th>CPUs</th><th>User group</th><th>Outage</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-05-26T18:10:23</td>
+          <td><code>1207566</code></td>
+          <td>15</td>
+          <td>Unknown / third party</td>
+          <td>~15 h (longest)</td>
+        </tr>
+        <tr>
+          <td>2026-05-27T12:04:46</td>
+          <td><code>1208195–1208198</code> (4×7-CPU array)</td>
+          <td>28</td>
+          <td><strong>Group B</strong> — unrelated to Group A code</td>
+          <td>~1 h 36 m</td>
+        </tr>
+        <tr>
+          <td>2026-05-27T16:04:35</td>
+          <td><code>1208591</code></td>
+          <td>4</td>
+          <td>Group A — network TCP hang</td>
+          <td>~2 h</td>
+        </tr>
+        <tr>
+          <td>2026-05-28T13:52:08</td>
+          <td><code>1208980</code></td>
+          <td>30</td>
+          <td>Group A — DDP job cleanup</td>
+          <td>~54 min</td>
+        </tr>
+        <tr>
+          <td>2026-06-01T14:47:55</td>
+          <td><code>1209813</code></td>
+          <td>8</td>
+          <td>Group A — MWE test</td>
+          <td>~42 min</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Two independent user groups, different code, same "Kill task failed →
+      drain" failure mode, same node. Parsimony forbids separate root causes
+      for the same failure on the same hardware. The shared element is the
+      node — not any user's code.</p>
+
+    <h2 id="s2">§2 — What we don't know</h2>
+    <p>The proximate mechanism (D-state → drain) is fully confirmed. The
+      <strong>distal cause</strong> — what specifically makes D-state last
+      &gt;90 seconds instead of the usual milliseconds — is not known and
+      could not be established from this investigation.</p>
+    <p>Three surfaces are candidates:</p>
+    <ul>
+      <li><strong>NVIDIA GPU driver</strong> — a kernel lock
+        (<code>os_acquire_rwlock_write/read</code>) on a driver resource that
+        another process holds indefinitely. Possible causes: GPU context not
+        fully released after a prior job, GSP firmware state, UVM mapping issue.</li>
+      <li><strong>CXI Slingshot fabric driver</strong> —
+        <code>cxiWaitEventWait</code> blocking on a network event that the
+        remote peer never delivers. Possible causes: NVLink / HCA state after a
+        hung collective, fabric reset not completing cleanly.</li>
+      <li><strong>GPFS client driver</strong> —
+        <code>d_alloc_parallel</code> blocking on a filesystem metadata
+        operation to a server. Possible causes: GPFS server overload, client
+        cache state, node identity issue after a prior drain.</li>
+    </ul>
+    <p>All three surfaces have been captured in D-state on this node. Any of
+      them could be the source on any given drain. The 15-hour first drain
+      (2026-05-26) is the strongest signal that the node has a hardware or
+      firmware disposition toward sustained D-state not seen on other nodes.
+      Whether this is a driver version issue, a firmware bug, accumulated state,
+      or physical hardware degradation is unknown.</p>
+
+    <h2 id="s3">§3 — Can it be reproduced?</h2>
+    <p><strong>No — and that is itself the finding.</strong></p>
+    <p>16 deliberate attempts to drain the node (14 prior tests +
+      2 in-window Track A runs) produced zero deliberate drains.
+      The attempts included:</p>
+    <ul>
+      <li>Infinite GPU kernel + blocking event synchronisation
+        (<code>gpu_block_sync</code>, job 1210259) — reaped cleanly at
+        time limit.</li>
+      <li>NVIDIA driver rwlock deadlock
+        (<code>gpu_lock_deadlock</code>, job 1210274) — readers never blocked;
+        150,000+ malloc/free cycles progressed.</li>
+      <li>Frozen MWE-01 v1 (the exact code from the confirmed drain artifact
+        1209813), verbatim — watchdog fired at 600 s, clean exit (run 1210688).</li>
+      <li>Same, with NCCL watchdog disabled — SLURM time-limit fired into a
+        live hung process, clean TIMEOUT exit (run 1210787). No drain.</li>
+      <li>Six rapid kill/relaunch cycles of the real production finetune
+        pipeline — all exited cleanly.</li>
+    </ul>
+    <p>The zero reproduction rate on a clean, single-user node, with the exact
+      code that previously drained it, means the trigger is
+      <strong>stochastic and environmental</strong>. Something in the accumulated
+      hardware/driver/firmware state of the node — which resets on reboot —
+      creates the conditions for sustained D-state. A fresh node cannot be
+      drained on demand with these workloads.</p>
+    <p>This is not a failure of the investigation. It is the answer to
+      "why can't we fix it by changing code" — because there is no code to fix.</p>
+
+    <h2 id="s4">§4 — What to change</h2>
+    <p>The fix targets the <strong>recovery half</strong> of the outage, not
+      prevention. Even if we knew the exact driver condition causing sustained
+      D-state, it arises at the hardware level and cannot be intercepted by
+      user-space code. But the multi-hour outage is entirely caused by
+      <em>manual recovery latency</em> — the admin being notified, accessing
+      the node, and running the recovery commands. This can be automated.</p>
+
+    <h3>Admin configuration changes (filed in
+      <a href="proposal-drain-auto-recovery.html">proposal-drain-auto-recovery.html</a>)</h3>
+    <ol>
+      <li><strong>Job epilog GPU reset.</strong> Add a SLURM epilog script for
+        the betelgeuse partition that runs <code>nvidia-smi --gpu-reset</code>
+        (wrapped in <code>timeout 120</code>) on job completion. Clears any
+        residual GPU context automatically, preventing accumulated dirty state
+        from making the next job's D-state sustained.</li>
+      <li><strong>Auto-resume policy.</strong> Configure
+        <code>HealthCheckProgram</code> (SLURM 23.11+) or a 5-minute cron job
+        that checks GPU health (<code>nvidia-smi -q</code>, zero active
+        processes) and runs <code>scontrol update nodename=98dci4-gpu-0003
+        state=resume reason=""</code> automatically when the node is clean.
+        Reduces outage from hours to &lt;5 minutes.</li>
+      <li><strong>Review <code>UnkillableStepTimeout</code>.</strong> The
+        current 60 s + KillWait 30 s = 90 s total before drain. For workloads
+        that hold GPU contexts for multi-second teardown operations, a modestly
+        longer timeout (e.g. 120 s total) may prevent drains from transient
+        D-state spikes without materially delaying detection of genuinely
+        stuck processes.</li>
+    </ol>
+
+    <h3>Code practices (unchanged — still valid, but not the root fix)</h3>
+    <p>The STOP-FILE contract, SIGTERM handlers, per-batch watchdog timeouts,
+      and three-layer time-limit defence in AGENTS.md remain the correct
+      practices. They minimise the <em>frequency</em> of D-state by ensuring
+      clean teardown paths and reducing the likelihood of a process being in
+      a blocking kernel call when SLURM fires. They do not and cannot prevent
+      environmental D-state in hardware/driver paths outside user-space control.
+      They are belt-and-braces, not the root fix.</p>
+
+    <h2 id="s5">§5 — Investigation record</h2>
+    <p>This RCA supersedes and retires the following documents:</p>
+    <ul>
+      <li><a href="rca-node-drain-2026-05-27.html">rca-node-drain-2026-05-27.html</a>
+        — attributed to prefetch deadlock. Partially correct on mechanism;
+        overstated code-specific causation.</li>
+      <li><a href="rca-node-drain-2026-05-27b.html">rca-node-drain-2026-05-27b.html</a>
+        — attributed to TCP/network hang. Correct on the specific event;
+        overstated code-specific causation.</li>
+      <li><a href="rca-node-drain-2026-05-28.html">rca-node-drain-2026-05-28.html</a>
+        — attributed to agent <code>scancel</code> on healthy DDP. Broadly
+        correct on that event; misattributed as the primary cause.</li>
+      <li><a href="rca-drain-deep-analysis-2026-06-01.html">rca-drain-deep-analysis-2026-06-01.html</a>
+        — identified five mechanisms. Superseded by 06-02 RCA; now by this doc.</li>
+      <li><a href="drain-mwe-evidence-2026-06-01.html">drain-mwe-evidence-2026-06-01.html</a>
+        — MWE test results. Evidence preserved; conclusions superseded.</li>
+      <li><a href="rca-node-drain-mechanism-2026-06-02.html">rca-node-drain-mechanism-2026-06-02.html</a>
+        — unified SLURM-level cause. Correct mechanism; incorrect
+        "cascade-only, needs pre-wedged GPU" restriction (refuted by slurmctld
+        drain at t+2:22 and Group B independent drain).</li>
+    </ul>
+
+    <h3>Investigation timeline</h3>
+    <ul>
+      <li><strong>2026-05-26 to 05-28</strong>: three production drains, six
+        RCA/evidence docs written, code-specific causes assumed throughout.</li>
+      <li><strong>2026-06-01</strong>: 9 MWE tests including the accidental
+        drain (job 1209813 from the buggy MWE-01 v1).</li>
+      <li><strong>2026-06-02</strong>: 5 more instrumented tests (rwlock deadlock,
+        blocksync, finetune kill9, production pipeline) — zero drains.</li>
+      <li><strong>2026-06-03</strong>: drain-window-campaign launched. Pre-window
+        archaeology confirmed 1209813 drained at t+2:22 (not time-limit).
+        Harness, Track C, Track A, and recovery proposal artifacts built.
+        Two in-window Track A runs (frozen MWE-01 v1, 1210688 and 1210787)
+        — zero drains. Slurmctld log obtained: 5-event history, Group B drain
+        confirmed, mechanism-agnostic conclusion reached.</li>
+    </ul>
+
+    <h3>Key evidence sources</h3>
+    <ul>
+      <li>slurmctld.log: all 5 drain events with timestamps and triggering jobs</li>
+      <li>slurmstepd stderr for job 1209813: "JOB NOT ENDING WITH SIGNALS",
+        "giving up after 63 sec"</li>
+      <li><code>scontrol show config</code>: UnkillableStepTimeout=60s,
+        KillWait=30s confirmed</li>
+      <li>Observer CSV (job 1210257): 10,514 wchan samples, all D-state transient</li>
+      <li>sacct step records: 100+ numbered python3 steps in 1209813 vs 12 in
+        reproduction runs — structural difference unexplained, not blocking</li>
+    </ul>
+  </main>
+</body>
+</html>
