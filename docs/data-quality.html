@@ -18,11 +18,11 @@
 <meta name="plan-sprint" content="S2">
 <meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-26">
+<meta name="plan-modified" content="2026-06-03">
 <meta name="plan-depends-on" content="data-acquisition">
 <meta name="plan-blocks" content="">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 </head>
 <body>
 <main class="plan-doc">
@@ -575,7 +575,7 @@ genuine bit-pattern errors.</p>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-dq-2026-05-21" data-status="open" data-tier="sonnet" data-written-by="agent/sonnet" data-written-at="2026-05-20 14:00" data-recommends-skill="/reckon-ship data-quality --section 5" data-resolved-at="2026-05-26" data-resolved-by="agent/sonnet">
+<article class="r-fu" data-id="f-dq-2026-05-21" data-status="resolved" data-tier="sonnet" data-written-by="agent/sonnet" data-written-at="2026-05-20 14:00" data-recommends-skill="/reckon-ship data-quality --section 5" data-resolved-at="2026-05-26" data-resolved-by="agent/sonnet">
     <h4 class="r-fu-title">Re-derive training-grade-shots.json excluding CX</h4>
     <div class="r-fu-body">drop-charge-exchange decision is locked. Regenerate the training-grade manifest from the full 11,573-shot L2 audit, update §5 with the new shot count, and confirm world-model-v0 read path picks up the new file. Code path: extend imas_ambix/data/manifest.py (the existing manifest module) — there is no imas_ambix/quality/manifest.py.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -611,7 +611,7 @@ Done-when
 </pre>
     <p class="r-fu-outcome">430/1000 training-grade shots in the 1000-shot random sample (43.0% pass rate; estimated ~4976 from the full 11573-shot corpus). TrainingGradeFilter implemented in imas_ambix/data/training_grade.py, 15 unit tests pass, ambix data training-grade CLI wired. training-grade-shots.json written to repo root. data-quality.json status shipped, impl 1.0. Full 11573-shot audit still running in background — manifest will be re-derived once complete. Locked decision honoured: charge_exchange dropped (drop_categories default). Open question q1 surfaced (not resolved): re-include CX in v1?</p>
     </article>
-<article class="r-fu" data-id="f-dq-2026-05-26-wm" data-status="open" data-tier="sonnet" data-written-by="agent/sonnet" data-written-at="2026-05-26" data-recommends-skill="/plan-implement world-model-v0 §5" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-dq-2026-05-26-wm" data-status="resolved" data-tier="sonnet" data-written-by="agent/sonnet" data-written-at="2026-05-26" data-recommends-skill="/plan-implement world-model-v0 §5" data-resolved-at="2026-06-03T14:14:36+00:00" data-resolved-by="agent/opus">
     <h4 class="r-fu-title">World-model-v0: confirm data loader picks up training-grade-shots.json</h4>
     <div class="r-fu-body">training-grade-shots.json is now at the repo root with 430 shot IDs from the 1000-shot sample (43.0% pass rate). The world-model-v0 data loader needs to be pointed at this file for the 125M smoke-test run. Also: re-run training-grade once the full 11573-shot audit completes to get the canonical corpus manifest.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -644,6 +644,7 @@ Done-when
   1. Data loader reads training-grade-shots.json for shot ID list
   2. world-model-v0.json updated: data.impl advances, last_modified set
   3. This followup resolved with outcome; new followup for next step</pre>
+    <p class="r-fu-outcome">Obsolete — world-model-v0 was archived (docs/archive/world-model-v0.html) when the project pivoted away from the camera world-model at S5/S7. training-grade-shots.json remains a valid corpus manifest, but the loader-wiring task it pointed at no longer exists. No action taken; resolved as overtaken by the pivot.</p>
     </article>
 </section>
 <section data-reckon="questions" id="questions" class="r-questions">

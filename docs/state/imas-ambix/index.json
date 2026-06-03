@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-02T08:45:03",
+  "updated": "2026-06-03T16:16:01",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -62,7 +62,7 @@
           },
           {
             "slug": "plasma-gs-prior-v0",
-            "title": "Stage-2 — GS soft-prior + structure discovery",
+            "title": "Stage-2 \u2014 GS soft-prior + structure discovery",
             "status": "shipped",
             "roi": "high",
             "effort": "L",
@@ -125,7 +125,7 @@
       {
         "id": "S0",
         "status": "shipped",
-        "theme": "M0 · probe & mirror MAST corpus",
+        "theme": "M0 \u00b7 probe & mirror MAST corpus",
         "starts": "2026-04-29",
         "ends": "2026-05-12",
         "items": [
@@ -147,8 +147,8 @@
       },
       {
         "id": "S2",
-        "status": "active",
-        "theme": "M1 ramp · close tokenizer track, unblock world-model",
+        "status": "done",
+        "theme": "M1 ramp \u00b7 close tokenizer track, unblock world-model",
         "starts": "2026-05-13",
         "ends": "2026-05-27",
         "items": [
@@ -159,53 +159,53 @@
           "tokenizer-benchmarks",
           "world-model-v0"
         ],
-        "summary": null
+        "summary": "Closed retroactively 2026-06-03 (status was stale). All items long since landed or archived: tokenizers/tokenizer-benchmarks shipped (S2-S4 era), compute shipped, data-quality shipped (training-grade gate), v0-runway + world-model-v0 archived at the S5/S7 pivot away from the camera world-model."
       },
       {
         "id": "S3",
         "status": "done",
-        "theme": "Plan-system bootstrap — eat our own dog food",
+        "theme": "Plan-system bootstrap \u2014 eat our own dog food",
         "starts": "2026-05-21",
         "ends": "2026-05-25",
         "items": [
           {
             "slug": "plans-migration-ambix",
-            "why_now": "S3 deliverable — the JSON→HTML island migration that S3 set out to ship",
+            "why_now": "S3 deliverable \u2014 the JSON\u2192HTML island migration that S3 set out to ship",
             "tier": "sonnet",
             "done_when": "per-plan state served from HTML islands; sidecar JSON removed",
             "status": "shipped"
           }
         ],
-        "summary": "Shipped 2026-05-27: plan-system migrated from per-plan JSON sidecars to embedded HTML islands (meta tags + data-reckon sections). reckon MCP server reads/writes the islands; index.json retained for project config (sprints/milestones/timeline) only. Eat-the-dog-food validated this session — the migration was tracked in the very system it built."
+        "summary": "Shipped 2026-05-27: plan-system migrated from per-plan JSON sidecars to embedded HTML islands (meta tags + data-reckon sections). reckon MCP server reads/writes the islands; index.json retained for project config (sprints/milestones/timeline) only. Eat-the-dog-food validated this session \u2014 the migration was tracked in the very system it built."
       },
       {
         "id": "S4",
         "status": "shipped",
-        "theme": "Saturate 4×H200 — GPU-bound by killing I/O+CPU tax in the encode path",
+        "theme": "Saturate 4\u00d7H200 \u2014 GPU-bound by killing I/O+CPU tax in the encode path",
         "starts": "2026-05-27",
         "ends": "2026-06-03",
         "items": [
           "zarr-consolidate",
           "frame-precompute"
         ],
-        "summary": "Shipped 2026-05-27 (zarr-consolidate) + 2026-05-28 (frame-precompute). Both perf wins land; corpus encode hit 308 fps/GPU peak via the in-process stream_encode.py path that replaced the optimisation targets. Side-quest: bench harness moved to the same in-process pattern (commit c759282) — ~55× speedup; rFID gate measurement landed at 16.25 on the 100-shot in-process bench (job 1208918)."
+        "summary": "Shipped 2026-05-27 (zarr-consolidate) + 2026-05-28 (frame-precompute). Both perf wins land; corpus encode hit 308 fps/GPU peak via the in-process stream_encode.py path that replaced the optimisation targets. Side-quest: bench harness moved to the same in-process pattern (commit c759282) \u2014 ~55\u00d7 speedup; rFID gate measurement landed at 16.25 on the 100-shot in-process bench (job 1208918)."
       },
       {
         "id": "S5",
         "status": "done",
-        "theme": "Plasma-domain decoder fine-tune → world-model-v0 kickoff",
+        "theme": "Plasma-domain decoder fine-tune \u2192 world-model-v0 kickoff",
         "starts": "2026-05-28",
         "ends": "2026-05-29",
         "items": [
           "plasma-decoder-finetune",
           "world-model-v0"
         ],
-        "summary": "Closed 2026-05-29 with a NEGATIVE-but-decisive result that re-founded the project. The Open-MAGVIT2 decoder fine-tune (v0 0.1·LPIPS, Option B 1.0·LPIPS) was confirmed ~7pt WORSE than the untrained baseline on rFID — robust to rFID pool size (Option D, 8 & 32 frame) and to decoder precision (job 1209184 ruled out a bf16-measurement artifact). Conclusion: tuning a 2D decoder against rFID is a dead-end, and rFID is the wrong north-star for a dynamics model. world-model-v0 retains the baseline imagenet OMAG2 decoder where camera decoding is needed; the camera generative WM is demoted to a byproduct. The project pivots to a probabilistic state-space model (see physics-world-model-strategy); next sprint S7 stands up the Stage-1 engine. Bugs fixed en route: C5 resize, C8 frame-selection, rfid_frames_per_shot 8→32 default, merged-ckpt clobber, /tmp visibility, bench bf16-decode diagnostic toggles."
+        "summary": "Closed 2026-05-29 with a NEGATIVE-but-decisive result that re-founded the project. The Open-MAGVIT2 decoder fine-tune (v0 0.1\u00b7LPIPS, Option B 1.0\u00b7LPIPS) was confirmed ~7pt WORSE than the untrained baseline on rFID \u2014 robust to rFID pool size (Option D, 8 & 32 frame) and to decoder precision (job 1209184 ruled out a bf16-measurement artifact). Conclusion: tuning a 2D decoder against rFID is a dead-end, and rFID is the wrong north-star for a dynamics model. world-model-v0 retains the baseline imagenet OMAG2 decoder where camera decoding is needed; the camera generative WM is demoted to a byproduct. The project pivots to a probabilistic state-space model (see physics-world-model-strategy); next sprint S7 stands up the Stage-1 engine. Bugs fixed en route: C5 resize, C8 frame-selection, rfid_frames_per_shot 8\u219232 default, merged-ckpt clobber, /tmp visibility, bench bf16-decode diagnostic toggles."
       },
       {
         "id": "S7",
         "status": "done",
-        "theme": "Plasma state-space engine — calibrated virtual diagnostics from raw signals",
+        "theme": "Plasma state-space engine \u2014 calibrated virtual diagnostics from raw signals",
         "starts": "2026-05-29",
         "ends": "2026-06-12",
         "items": [
@@ -213,23 +213,23 @@
             "slug": "plasma-state-space-v0",
             "why_now": "Stage-1 of the re-founded physics-world-model strategy: prove the probabilistic state-space engine + its calibration on a cross-family raw-signal hold-out before physical grounding (GS prior) and discovery.",
             "tier": "opus",
-            "done_when": "Stage-1 acceptance: filtering calibrated (88-92% coverage); forecasting a WHOLE held-out diagnostic family (Dα / camera-derived boundary) through transients beats the static deep-ensemble baseline on CRPS at horizon>0; held-out regimes flagged OOD. No EFIT labels.",
+            "done_when": "Stage-1 acceptance: filtering calibrated (88-92% coverage); forecasting a WHOLE held-out diagnostic family (D\u03b1 / camera-derived boundary) through transients beats the static deep-ensemble baseline on CRPS at horizon>0; held-out regimes flagged OOD. No EFIT labels.",
             "status": "active"
           }
         ],
-        "summary": "Closed 2026-05-30: Stage-1 cross-family state-space engine stood up + proven (QUALIFIED). On raw MAST Dα from magnetics+interferometer (EFIT-free, leakage-audited whole-family hold-out): static deep-ensemble+conformal baseline (cov 0.903) -> RKN latent-SSM engine. Headline = metric-sensitive NEGATIVE: forecast CRPS LOSES to a persistence-of-nowcast (96.8%-stationary target). Re-scoped acceptance (user A+B) MET on criteria 1+2 (filtering 0.913; transient-NLL win at h>=5, sharpened by a Student-t emission head) + criterion-3 HONEST PARTIAL (engine OOD-honest via coverage non-collapse 0.94->0.76 + sigma-inflation x3.3, but engine-native OOD-detection 0.748 does NOT beat the static ensemble 0.810). Dynamics earn their keep on calibrated catastrophic-miss-avoidance + honest widening, NOT bulk CRPS. S7.1-S7.5 + scalar-fix + baseline grad-clip landed; package imas_ambix/statespace/ (inventory/families/splits/calibration/align/dataset/baseline/engine/filter; engine_metrics_v0/v1/v2). Stage-2 (GS prior) = GO -> S8."
+        "summary": "Closed 2026-05-30: Stage-1 cross-family state-space engine stood up + proven (QUALIFIED). On raw MAST D\u03b1 from magnetics+interferometer (EFIT-free, leakage-audited whole-family hold-out): static deep-ensemble+conformal baseline (cov 0.903) -> RKN latent-SSM engine. Headline = metric-sensitive NEGATIVE: forecast CRPS LOSES to a persistence-of-nowcast (96.8%-stationary target). Re-scoped acceptance (user A+B) MET on criteria 1+2 (filtering 0.913; transient-NLL win at h>=5, sharpened by a Student-t emission head) + criterion-3 HONEST PARTIAL (engine OOD-honest via coverage non-collapse 0.94->0.76 + sigma-inflation x3.3, but engine-native OOD-detection 0.748 does NOT beat the static ensemble 0.810). Dynamics earn their keep on calibrated catastrophic-miss-avoidance + honest widening, NOT bulk CRPS. S7.1-S7.5 + scalar-fix + baseline grad-clip landed; package imas_ambix/statespace/ (inventory/families/splits/calibration/align/dataset/baseline/engine/filter; engine_metrics_v0/v1/v2). Stage-2 (GS prior) = GO -> S8."
       },
       {
         "id": "S8",
         "status": "done",
-        "theme": "Stage-2 — physical grounding (Grad-Shafranov soft prior) + structure discovery",
+        "theme": "Stage-2 \u2014 physical grounding (Grad-Shafranov soft prior) + structure discovery",
         "items": [
           {
             "slug": "plasma-gs-prior-v0",
-            "title": "Stage-2 — GS soft-prior + structure discovery",
+            "title": "Stage-2 \u2014 GS soft-prior + structure discovery",
             "why_now": "Stage-1 met (qualified) per S7; the GS prior grounds the latent in raw magnetics and is the principled path to a dynamics-native force-balance-departure detector that may close the Stage-1 criterion-3 OOD gap.",
             "tier": "opus",
-            "done_when": "Q1: GS force-balance-departure residual validated on known transients (beats a trivial |dB/dt| baseline + survives the eddy-current ablation); first discovered reduced-structure result (effective latent dim + sparse recurrence preserving Dα skill); grounding help/hurt on Stage-1 metrics reported honestly. Raw signals only.",
+            "done_when": "Q1: GS force-balance-departure residual validated on known transients (beats a trivial |dB/dt| baseline + survives the eddy-current ablation); first discovered reduced-structure result (effective latent dim + sparse recurrence preserving D\u03b1 skill); grounding help/hurt on Stage-1 metrics reported honestly. Raw signals only.",
             "status": "pending"
           }
         ],
@@ -240,11 +240,11 @@
       {
         "id": "S9",
         "status": "done",
-        "theme": "Stage-3 — MSE-free multi-modal current-profile recovery (beat EnKF)",
+        "theme": "Stage-3 \u2014 MSE-free multi-modal current-profile recovery (beat EnKF)",
         "items": [
           {
             "slug": "mse-free-current-recovery-v0",
-            "why_now": "The ratified pivot. Stage-1 + Stage-2 closed with honest results; recover the internal current profile WITHOUT MSE from raw multi-modal data, beating a classical EnKF baseline — the ITER-startup problem (no MSE, must still recover the current profile).",
+            "why_now": "The ratified pivot. Stage-1 + Stage-2 closed with honest results; recover the internal current profile WITHOUT MSE from raw multi-modal data, beating a classical EnKF baseline \u2014 the ITER-startup problem (no MSE, must still recover the current profile).",
             "tier": "opus",
             "done_when": "An MSE-free end-to-end obs->state neural filter beats the EnKF baseline on the three-axis win (MSE-observable RMSE; coverage [0.88,0.92]; CRPS/NLL on transients), validated on held-out raw MSE. The EnKF baseline + held-out-MSE eval harness are built first.",
             "status": "active"
@@ -253,12 +253,12 @@
         "starts": "2026-05-31",
         "ends": "2026-06-27",
         "description": "Build an end-to-end observation->state deep neural filter on raw multi-modal diagnostics (magnetics + ane + bolometer + SXR + visible camera + Thomson) that recovers MSE-derived internal-current observables it never sees as input, beating a classical EnKF baseline. Front-load the EnKF baseline + held-out-MSE eval harness to learn the bar early. Scope locks: observables/on-axis only (full continuous q(psi) OUT); EFIT eval-only boundary/global sanity-check; architecture = end-to-end obs->state. Grounded in the 7-reader deep review (wpy0754zv, 2026-05-31).",
-        "summary": "Closed 2026-06-02. Delivered the eval substrate + a strong characterization of the MSE-free problem, ending in a principled NO-GO that re-shaped the path. Built: D1 held-out-MSE eval harness + 112-shot cross-family/cross-shot split (statespace/mse_eval+mse_split); D3 multi-modal loaders (camera/chord/Thomson); D2 classical EnKF/TORAX bar — full N=112 pitch RMSE 0.225 [0.199,0.259], recovery confirmed PHYSICS-driven (forecast~=analysis; magnetics assimilation barely moves the interior); a findings doc with j(rho,t) evolution plots. KEY RESULT: a supervised oracle (3 arms on the locked metric) returned QUALIFIED_NEGATIVE — time-history adds nothing (0.190~=0.188), the near-axis interior is model-failure-floored ~0.41 rad for magnetics+ALL multimodal (re-confirms equilibrium under-determination), SXR/rational-surface not significant, bolo only a small off-interior carrier. The binding constraint is interior INFORMATION, not ML architecture or dynamics. NO-GO on the multimodal-neural-D4 v0 -> PIVOT to S10 (strong sequential full-state baseline + kinetic-pressure-via-GS-p' before ML). Infra: reckon dangling-link check + stamp-on-serve fix landed. mse-free-current-recovery-v0 stays the M3 north-star (win condition unchanged); S10 builds the foundation under it."
+        "summary": "Closed 2026-06-02. Delivered the eval substrate + a strong characterization of the MSE-free problem, ending in a principled NO-GO that re-shaped the path. Built: D1 held-out-MSE eval harness + 112-shot cross-family/cross-shot split (statespace/mse_eval+mse_split); D3 multi-modal loaders (camera/chord/Thomson); D2 classical EnKF/TORAX bar \u2014 full N=112 pitch RMSE 0.225 [0.199,0.259], recovery confirmed PHYSICS-driven (forecast~=analysis; magnetics assimilation barely moves the interior); a findings doc with j(rho,t) evolution plots. KEY RESULT: a supervised oracle (3 arms on the locked metric) returned QUALIFIED_NEGATIVE \u2014 time-history adds nothing (0.190~=0.188), the near-axis interior is model-failure-floored ~0.41 rad for magnetics+ALL multimodal (re-confirms equilibrium under-determination), SXR/rational-surface not significant, bolo only a small off-interior carrier. The binding constraint is interior INFORMATION, not ML architecture or dynamics. NO-GO on the multimodal-neural-D4 v0 -> PIVOT to S10 (strong sequential full-state baseline + kinetic-pressure-via-GS-p' before ML). Infra: reckon dangling-link check + stamp-on-serve fix landed. mse-free-current-recovery-v0 stays the M3 north-star (win condition unchanged); S10 builds the foundation under it."
       },
       {
         "id": "S10",
         "status": "active",
-        "theme": "Stage-3b — Strong physics baseline + internal-current diagnostics (before ML)",
+        "theme": "Stage-3b \u2014 Strong physics baseline + internal-current diagnostics (before ML)",
         "items": [
           {
             "slug": "sequential-current-da-v1",
@@ -279,7 +279,7 @@
             "why_now": "Survey the principled neural-filter successors to the RKN (Koopman-linear-latent / learned-gain) for when a strong baseline + richer diagnostics exist; no ML build this sprint.",
             "tier": "opus",
             "done_when": "Two-class verdict table + new primaries cited; positions Koopman-LAE-EnKF / Recursive-KalmanNet as the post-baseline architectures; framed as right-for-richer-data, not deferred-because-architecture-didn't-matter.",
-            "status": "pending"
+            "status": "shipped"
           }
         ],
         "starts": "2026-06-02",
@@ -289,11 +289,11 @@
       {
         "id": "S11",
         "status": "active",
-        "theme": "OPS · GPU-drain coordinated-window campaign (backward-bisect + SLURM-side capture)",
+        "theme": "OPS \u00b7 GPU-drain coordinated-window campaign (backward-bisect + SLURM-side capture)",
         "items": [
           {
             "slug": "drain-window-campaign",
-            "why_now": "14 repro attempts failed by bisecting FORWARD from guesses (0/13). Reverse it: resurrect the one confirmed drain artifact (pre-928ed0d MWE-01 v1 = job 1209813) and bisect BACKWARD, while capturing the never-observed SLURM half (slurmd Reason=, UnkillableStepTimeout, cgroup PIDs) — in one admin-coordinated window. Multi-hour outages are unacceptable.",
+            "why_now": "14 repro attempts failed by bisecting FORWARD from guesses (0/13). Reverse it: resurrect the one confirmed drain artifact (pre-928ed0d MWE-01 v1 = job 1209813) and bisect BACKWARD, while capturing the never-observed SLURM half (slurmd Reason=, UnkillableStepTimeout, cgroup PIDs) \u2014 in one admin-coordinated window. Multi-hour outages are unacceptable.",
             "tier": "sonnet",
             "done_when": "Pre-window fact resolved (did 1209813 drain a clean node?); dual-half capture harness built + dry-run green; Track C (non-GPU cgroup wedge) and Track A (frozen MWE-01 v1 + backward-bisection ladder) prepared as PREPARE-ONLY artifacts with run-cards; Recovery-track admin proposal (epilog gpu-reset + auto-resume + UnkillableStepTimeout review) authored. In-window runs (C then A) executed with admin on standby; minimal trigger isolated or non-reproducibility concluded over the budgeted verbatim runs.",
             "status": "active"
@@ -302,6 +302,24 @@
         "starts": "2026-06-03",
         "ends": "2026-06-17",
         "description": "The drain RCAs rest on an UNOBSERVED causal half: every doc inferred 'D-state -> Kill task failed -> drain' from the training process and never read slurmd's own view, and the deliberate reproductions all bisected forward from a clean node (0/13; version stack did NOT drift, so that's not the excuse). New direction: backward-bisect the one confirmed artifact (1209813) and close the SLURM-side gap, inside a single coordinated admin window (Track C deterministic non-GPU warm-up validates harness+SLURM-chain+admin-loop, then Track A on the GPU; Track B reserved). Parallel, no window: an auto-recovery admin proposal so any future drain self-heals in minutes. Workers: Sonnet; reasoning/synthesis: Opus."
+      },
+      {
+        "id": "S12",
+        "status": "pending",
+        "theme": "Latent dynamics discovery \u2014 SINDy/Koopman on the GS-grounded latent at H200 scale",
+        "items": [
+          {
+            "slug": "plasma-gs-prior-v0",
+            "title": "T6a grounding sweep + T12 ungrounded control + T8b definitive SINDy/DMD re-run",
+            "why_now": "User priority 2026-06-03: intensive near-term H200 usage + further SINDy/Koopman development. T6 grounding base landed in S8; the open followups f-s8-t6a-grounding-sweep (latent{16,32,48} x (gs_lambda, gs_data_weight) grid = embarrassingly parallel RKN training that packs the 4xH200 reservation), f-s8-t12-integrated-ungrounded-control, and f-s8-t8b-discovery-sindy-rerun (gated on T6a selecting the grounded latent) are the unblocked SINDy/Koopman increments. Orthogonal to S10: current recovery is interior-information-limited and deliberately CPU-only; this is the Stage-2 dynamics-latent discovery track on the Da engine.",
+            "tier": "opus",
+            "done_when": "T6a sweep grid trained + evaluated on 4xH200 (Da-skill preservation + grounding metrics per cell; best grounded latent selected); T12 same-split integrated-UNGROUNDED control scored for clean attribution; T8b definitive SINDy + DMD/Koopman re-run on the selected grounded latent (skill-preservation via frozen obs head, transient/quiescent stratification, drift-reg confound reported separately); grounding help/hurt on discovered structure reported honestly. Scaffold a dedicated latent-discovery plan via reckon-create at sprint start to host run-cards + results.",
+            "status": "pending"
+          }
+        ],
+        "starts": "2026-06-04",
+        "ends": "2026-06-18",
+        "description": "PROPOSED (pending user ratification \u2014 do not activate unilaterally). Saturate the 4xH200 reservation with the Stage-2 discovery track: grounding sweep -> definitive SINDy/Koopman on the grounded latent. SCOPE LOCKS: (1) the Koopman-LAE-EnKF current-recovery prototype (f-nkfs-prototype-class2) stays GATED on S10 baseline + pressure experiment \u2014 NOT in this sprint; the oracle proved current recovery is information-limited, so no H200 compute is spent pretending otherwise. (2) NODE CONTENTION: 98dci4-gpu-0003 is the only H200 node and S11 runs coordinated drain-window tests on it \u2014 schedule sweep batches outside admin windows, use the stop-file contract + three-layer time defence on every sbatch (AGENTS.md 2a/2a-cancel/2a-cancel-time). Runs parallel to S10 (CPU) and S11 (ops)."
       }
     ],
     "blockers": [
@@ -310,29 +328,29 @@
         "origin": "compute",
         "n": 1,
         "owner": "L. Holzl",
-        "next": "ITER batch-services ticket #4421 — lower urgency now that exclusive-pause wrapper landed"
+        "next": "ITER batch-services ticket #4421 \u2014 lower urgency now that exclusive-pause wrapper landed"
       }
     ],
     "timeline": [
       {
         "when": "2026-05-29 09:00",
         "who": "agent/opus (coordinator)",
-        "what": "S5 closed (decoder fine-tune NEGATIVE; bf16 ruled out by job 1209184). Project re-founded on a probabilistic state-space model — new plans physics-world-model-strategy + plasma-state-space-v0 + probabilistic-state-space-methods. S7 opened: Stage-1 cross-family hold-out engine."
+        "what": "S5 closed (decoder fine-tune NEGATIVE; bf16 ruled out by job 1209184). Project re-founded on a probabilistic state-space model \u2014 new plans physics-world-model-strategy + plasma-state-space-v0 + probabilistic-state-space-methods. S7 opened: Stage-1 cross-family hold-out engine."
       },
       {
         "when": "2026-05-28 00:00",
         "who": "agent/sonnet",
-        "what": "S4 closed (shipped) — zarr-consolidate + frame-precompute done; S5 opened: plasma-decoder-finetune + world-model-v0; new plan plasma-decoder-finetune.html scaffolded"
+        "what": "S4 closed (shipped) \u2014 zarr-consolidate + frame-precompute done; S5 opened: plasma-decoder-finetune + world-model-v0; new plan plasma-decoder-finetune.html scaffolded"
       },
       {
         "when": "2026-05-26 18:30",
         "who": "Simon McIntosh",
-        "what": "S4 sprint opened — zarr-consolidate + frame-precompute drafted for the post-driver-fix push"
+        "what": "S4 sprint opened \u2014 zarr-consolidate + frame-precompute drafted for the post-driver-fix push"
       },
       {
         "when": "2026-05-26 18:18",
         "who": "SDCC (auto)",
-        "what": "98dci4-gpu-0003 DOWN+DRAIN+NOT_RESPONDING after CUDA driver state wedged by Group B contention — reboot pending"
+        "what": "98dci4-gpu-0003 DOWN+DRAIN+NOT_RESPONDING after CUDA driver state wedged by Group B contention \u2014 reboot pending"
       },
       {
         "when": "2026-05-26 17:25",
@@ -342,17 +360,17 @@
       {
         "when": "2026-05-26 16:31",
         "who": "agent/sonnet",
-        "what": "training-grade-shots.json landed — 430/1000 sample = 43% pass (commit 055f299)"
+        "what": "training-grade-shots.json landed \u2014 430/1000 sample = 43% pass (commit 055f299)"
       },
       {
         "when": "2026-05-26 14:15",
         "who": "agent/sonnet (Agent B)",
-        "what": "compute §2 SLURM wrapper set landed (commit a14f1ef); 4-shard array driver added (dce6c26)"
+        "what": "compute \u00a72 SLURM wrapper set landed (commit a14f1ef); 4-shard array driver added (dce6c26)"
       },
       {
         "when": "2026-05-21 09:14",
         "who": "agent/sonnet",
-        "what": "tokenizers §13.3 IR codebook benchmark wired (commit dec0082)"
+        "what": "tokenizers \u00a713.3 IR codebook benchmark wired (commit dec0082)"
       },
       {
         "when": "2026-05-31 11:30",
@@ -360,6 +378,6 @@
         "what": "S8 closed (Stage-2 GS-prior HONEST NEGATIVE: Q1 FAIL; magnetics under-determine the internal current; MSE unusable from level-1). PIVOT ratified -> S9 opened: MSE-free multi-modal current-profile recovery beating an EnKF baseline (plan mse-free-current-recovery-v0). 7-reader deep review wpy0754zv; figures + completed-work doc landed."
       }
     ],
-    "_version": 17
+    "_version": 18
   }
 }

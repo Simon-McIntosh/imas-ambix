@@ -3,19 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
   <meta name="reckon-type" content="doc">
   <meta name="plan-slug" content="drain-mwe-evidence-2026-06-01">
   <meta name="plan-summary" content="Generic operator-facing evidence pack for reproducing and diagnosing GPU node drain events on SLURM and NVIDIA GPU clusters.">
   <meta name="plan-title" content="GPU Node Drain: Minimal Reproducers &amp; Evidence">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="superseded">
   <meta name="plan-phase" content="testing">
   <meta name="plan-roi" content="high">
-  <meta name="plan-effort" content="2d">
+  <meta name="plan-effort" content="S">
   <meta name="plan-type" content="doc">
   <title>GPU Node Drain: Minimal Reproducers &amp; Evidence</title>
   <link rel="stylesheet" href="/_shared/css/foundation.css">
   <link rel="stylesheet" href="/_shared/css/dashboard.css">
   <link rel="stylesheet" href="/_shared/css/project.css">
+<meta name="plan-modified" content="2026-06-03">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -586,25 +589,16 @@ scancel &lt;jobid&gt;</code></pre>
     </section>
 
     <section data-reckon="research" id="research" class="r-research-list">
-      <h2><span class="sec">§</span> Evidence inventory</h2>
-      <div class="r-research" data-id="r-history" data-type="incident-set" data-url="">
-        <span class="r-research-title">Historical drain-event corpus</span>
-        <p>Four drain events establish three independent unkillable surfaces: distributed backward communication, filesystem I/O, and DROP-firewalled network connect.</p>
-      </div>
-      <div class="r-research" data-id="r-mwe" data-type="test-suite" data-url="">
-        <span class="r-research-title">Minimal reproducer suite</span>
-        <p>Six scripts in <code>scripts/drain-tests/</code> separate safe probes, negative controls, NCCL stress tests, and the confirmed drain reproducer (MWE-06: ncclCommAbort teardown D-state).</p>
-      </div>
-      <div class="r-research" data-id="r-ops" data-type="ops-guidance" data-url="">
-        <span class="r-research-title">Operator mitigation pattern</span>
-        <p>Cooperative stop-files shift cancellation from signal timing to explicit step boundaries, materially reducing avoidable drain risk.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Research</h2>
+<div class="r-research" data-id="r-history" data-type="incident-set" data-source="" data-added-by="" data-when="">
+    <span class="r-research-title">Historical drain-event corpus</span></div>
+<div class="r-research" data-id="r-mwe" data-type="test-suite" data-source="" data-added-by="" data-when="">
+    <span class="r-research-title">Minimal reproducer suite</span></div>
+<div class="r-research" data-id="r-ops" data-type="ops-guidance" data-source="" data-added-by="" data-when="">
+    <span class="r-research-title">Operator mitigation pattern</span></div>
+</section>
 
-    <section data-reckon="comments" id="comments" class="r-comments">
-      <h2><span class="sec">§</span> Review notes</h2>
-      <p>No reviewer comments have been recorded yet. This section is present so the document renders cleanly in reckon-style readers that surface annotation affordances.</p>
-    </section>
+    
   </main>
 </body>
 </html>
