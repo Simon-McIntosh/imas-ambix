@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-03">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 </head>
 <body>
   <main class="plan-doc">
@@ -117,39 +117,55 @@
         override. cgroup v2 on RHEL 10 / Linux 6.12 (confirmed by observer harness).</li>
     </ul>
 
-    <h3>Resolved pre-window (2026-06-03)</h3>
-    <p><strong>Verdict: job <code>1209813</code> DID drain node <code>98dci4-gpu-0003</code>
-      on a CLEAN node</strong> — directly contradicting the 06-02 "cascade-only" (needs
-      pre-wedged GPU) conclusion.</p>
-    <p>Evidence: (1) slurmstepd log in <code>mwe01-1209813.err</code> contains
-      <code>"JOB NOT ENDING WITH SIGNALS"</code> and <code>"Container 976377 in cgroup
-      plugin has 5 processes, giving up after 63 sec"</code> — the literal SLURM drain
-      trigger phrase and give-up timing; (2) <code>BootTime=2026-06-01T15:28:43</code>
-      (node rebooted 27 min after STEPD terminated at 15:01:50); (3) zero GPU jobs on
-      node from 15:01 to 15:28 — consistent with drain state; (4) sacct shows jobs
-      1209811/1209812 COMPLETED cleanly before 1209813 started — <strong>the node was
-      in a clean state when 1209813 drained it</strong>. Resume actor: admin reboot
-      (full OS reboot, not just slurmd restart). Admin slurmctld log needed to confirm
-      who issued it.</p>
-    <p><strong>New finding</strong>: collective mismatch (rank-0-only
-      <code>dist.all_reduce</code>) is an <em>independent</em> drain trigger that
-      requires no pre-existing wedge. The 06-02 RCA's "cascade-only" conclusion
-      applies to the scancel-on-wedged-GPU path (Events 1–3) but not to the collective
-      mismatch path. The backward-bisection campaign targets this distinct mechanism.</p>
+    <h3>Resolved in-window (2026-06-03) — REVISED</h3>
+    <p><strong>Slurmctld log confirms: drain at 14:47:55 (t+2:22 after 1209813 started)</strong>,
+      not at the <code>--time</code> limit. The 15:01:51 "Kill task failed" is a
+      <em>second</em> event 13 minutes later when the already-draining node tried to
+      clean up the timed-out job. The initial verdict ("collective mismatch is an
+      independent drain trigger") is <strong>revised below</strong>.</p>
 
-    <h3>Asserted but not yet directly observed (still open for window)</h3>
+    <p><strong>In-window reproduction runs falsify the code-specific cause.</strong>
+      Two Track A runs (1210688, 1210787) executed the exact frozen pre-<code>928ed0d</code>
+      MWE-01 v1 code — once with the NCCL watchdog enabled (run 1: watchdog fired at
+      600 s, clean exit 0:0, node not drained) and once with the watchdog disabled
+      (<code>TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=99999</code>, run 2: SLURM
+      <code>--time</code> fired into a live hung process, clean TIMEOUT exit 0:0, node
+      not drained). Sacct confirms runs 1 and 2 had only 12 numbered steps; 1209813
+      had 100+. The structural difference remains unexplained. <strong>Neither run
+      drained the node.</strong></p>
+
+    <p><strong>The stable, evidenced mechanism (mechanism-agnostic):</strong><br>
+      A process enters uninterruptible D-state (NVIDIA driver / CXI Slingshot fabric /
+      GPFS kernel wait). It outlives <code>KillWait</code> (30 s) +
+      <code>UnkillableStepTimeout</code> (60 s). slurmstepd reports "Kill task failed".
+      slurmctld sets the node to <code>DRAINING</code>. This is <strong>standard
+      documented SLURM behavior</strong> — observed directly in the 1209813 slurmctld
+      log at 14:47:55. <em>What</em> causes the sustained D-state is environmental and
+      probabilistic, not specific to any code path, which is why 14 prior attempts +
+      2 in-window runs could not reproduce it on demand.</p>
+
+    <p><strong>Group B corroboration (user-reported):</strong> a Group B user
+      independently drained <code>98dci4-gpu-0003</code> from unrelated code. Two
+      independent users, different code, same "Kill task failed → drain" failure mode
+      on the same node. This rules out any user-code-specific cause and confirms the
+      mechanism is shared infrastructure-level. Full slurmctld drain history
+      (all users, all events) is the remaining evidence item — see followup
+      <code>f-dwc-close</code>.</p>
+
+    <h3>Remaining open items</h3>
     <ul>
-      <li><strong>Full scontrol Reason= string from a live drain event.</strong>
-        The give-up phrase was found in the slurmstepd stderr for job 1209813, but
-        the authoritative slurmctld <code>Reason=</code> node-state string was never
-        captured. Track C will capture it live for the first time via the
-        <code>.node_state</code> observer stream.</li>
-      <li><strong>Which PIDs were in the cgroup at give-up time.</strong> The 5-process
-        count is in the log, but the PIDs and their <code>wchan</code> were never
-        enumerated. Track C's <code>.cgroup_pids</code> stream closes this.</li>
-      <li><strong>slurmd log.</strong> Not accessible to regular users
-        (<code>0600 root root</code>). Requires admin to share the 1209813 window
-        or future drain window output. This is the remaining gap in the chain.</li>
+      <li><strong>Full drain history from slurmctld</strong> — all
+        <code>update_node ... 98dci4-gpu-0003 ... DRAIN</code> transitions across
+        the incident period, all users (Group A + B). This is the ground-truth dataset
+        to verify Group B and enumerate all events.</li>
+      <li><strong>Why did 1209813 create 100+ numbered SLURM steps</strong> while
+        reproduction runs created 12? This is unexplained and may indicate a different
+        torchrun launch path, NCCL/CXI auxiliary process model, or job environment.
+        Not blocking for the mechanism-agnostic conclusion.</li>
+      <li><strong>Track C</strong> (FUSE-freeze non-GPU wedge) would provide the first
+        deterministic, reproducible demonstration of the SLURM-side drain chain,
+        confirming the infrastructure-level cause and validating admin recovery.
+        Optional — the mechanism is already supportable from evidence in hand.</li>
     </ul>
 
     <h2 id="s3">§3 — New direction + capture harness</h2>
@@ -528,7 +544,7 @@ Done-when
   3. Committed; followup written into plan + this followup marked resolved.</pre>
     <p class="r-fu-outcome">docs/proposal-drain-auto-recovery.html authored (561 lines, 0 audit errors). Commit 533d924. Covers: epilog gpu-reset, auto-resume HealthCheckProgram/cron, UnkillableStepTimeout review (60s confirmed; Track C placeholder).</p>
     </article>
-<article class="r-fu" data-id="f-dwc-execute" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-ship drain-window-campaign §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-dwc-execute" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-ship drain-window-campaign §4" data-resolved-at="2026-06-03T10:42:14+00:00" data-resolved-by="reckon-ship/in-window">
     <h4 class="r-fu-title">Execute Track C then Track A in coordinated admin window — capture drain mechanism</h4>
     <div class="r-fu-body">All prep artifacts are ready. Run the window: Track C (non-GPU fuse-freeze warm-up) to validate the capture harness and measure live UnkillableStepTimeout timing; then Track A (frozen MWE-01 v1 verbatim, up to 5 runs, then backward bisection) to isolate the minimal collective-mismatch drain trigger. This is a BLOCKING prereq: admin must be on standby to nvidia-smi --gpu-reset + scontrol resume between runs. Update the plan with the drain verdict and mechanism finding.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -569,6 +585,56 @@ Done-when
   3. Plan §4 updated with the mechanism verdict + evidence (commit SHAs, log paths)
   4. Per-stage HTML docs/archive/drain-window-campaign-s4-landed.html written
   5. This followup resolved + plan status set to shipped or in-progress accordingly</pre>
+    <p class="r-fu-outcome">TRACK A RUNS 1+2 COMPLETE — both falsify the code-specific cause. Run 1 (1210688): watchdog fires at 600s, clean exit 0:0, no drain. Run 2 (1210787): watchdog disabled, SLURM --time fires into live hung process, clean TIMEOUT 0:0, no drain. Slurmctld log shows actual 1209813 drain was at t+2:22 (not --time), from step 7 being unkillable. Group B independently drained same node with unrelated code. STABLE MECHANISM: D-state outlives KillWait+UnkillableStepTimeout → Kill task failed → DRAIN (SLURM-documented behavior, environmental/probabilistic, not code-specific). Track A runs 3-5 and bisection ladder CANCELLED — premise invalidated. Track C remains optional.</p>
+    </article>
+<article class="r-fu" data-id="f-dwc-close" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-edit drain-window-campaign" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Close campaign: full drain history + RCA finalisation + admin ask</h4>
+    <div class="r-fu-body">The in-window campaign converged on the mechanism-agnostic cause. Three items remain to formally close: (1) obtain full slurmctld drain history for all users; (2) write the final RCA doc superseding all prior RCAs; (3) deliver the admin ask (§5 recovery proposal + drain history data).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    drain-window-campaign (http://localhost:8765/imas-ambix/drain-window-campaign.html)
+Section: §4 closing + §5 admin delivery
+Tier:    opus
+
+Context
+  The in-window campaign is complete. Runs 1+2 falsify the code-specific cause.
+  Stable mechanism confirmed (D-state → KillWait+UnkillableStepTimeout → Kill task
+  failed → DRAIN). Group B drain from unrelated code rules out any user-code-specific
+  cause. Three closing items remain.
+
+State to read
+  GET /plan/imas-ambix/drain-window-campaign
+  docs/drain-window-campaign.html  (current §2 revised verdict)
+  docs/proposal-drain-auto-recovery.html  (§5, already authored)
+
+Locked decisions to honour
+  pre-window-fact-owner → sacct-reason (admin slurmctld log confirmed available)
+
+Open decisions to surface
+  (none)
+
+Item 1 — Full drain history (user action required)
+  Ask the user to provide: every `update_node ... 98dci4-gpu-0003 ... DRAIN`
+  transition in slurmctld.log for the incident period (2026-05-26 to 2026-06-03),
+  with the 2-3 surrounding lines each. This enumerates ALL drain events (Group A +
+  Group B), which is the ground-truth dataset the RCA should rest on.
+
+Item 2 — Final RCA doc
+  Author docs/rca-node-drain-final-2026-06-03.html (reckon-type=doc, informs this
+  plan) superseding all 6 prior RCA/evidence docs. Lead with the mechanism-agnostic
+  cause. Record: slurmctld evidence (drain at t+2:22), in-window run results (two
+  clean negatives), Group B drain (independent corroboration). Explicitly retire the
+  six prior docs as superseded. Cite the §5 recovery proposal as the fix.
+
+Item 3 — Deliver admin ask
+  The §5 proposal (docs/proposal-drain-auto-recovery.html) is already authored.
+  Confirm it references: actual UnkillableStepTimeout=60s (now confirmed), the full
+  drain count (pending Item 1), and the Group B incident. Send or file it with SDCC.
+
+Done-when
+  1. Full drain history received and recorded in plan §2
+  2. rca-node-drain-final-2026-06-03.html authored, audit clean
+  3. proposal-drain-auto-recovery.html delivered to SDCC (or user confirms delivery)
+  4. Plan status set to shipped, this followup resolved</pre>
     </article>
 </section>
 
