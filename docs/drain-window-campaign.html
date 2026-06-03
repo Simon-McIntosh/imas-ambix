@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-03">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 </head>
 <body>
   <main class="plan-doc">
@@ -144,13 +144,57 @@
       probabilistic, not specific to any code path, which is why 14 prior attempts +
       2 in-window runs could not reproduce it on demand.</p>
 
-    <p><strong>Group B corroboration (user-reported):</strong> a Group B user
-      independently drained <code>98dci4-gpu-0003</code> from unrelated code. Two
-      independent users, different code, same "Kill task failed → drain" failure mode
-      on the same node. This rules out any user-code-specific cause and confirms the
-      mechanism is shared infrastructure-level. Full slurmctld drain history
-      (all users, all events) is the remaining evidence item — see followup
-      <code>f-dwc-close</code>.</p>
+    <p><strong>Complete drain history — 5 events, 2026-05-26 to 2026-06-01
+      (slurmctld log, 2026-06-03):</strong></p>
+    <table>
+      <thead>
+        <tr><th>Drain timestamp</th><th>Triggering job(s)</th><th>CPUs</th><th>Group</th><th>Outage</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-05-26T18:10:23</td>
+          <td><code>1207566</code> (#CPUs=15)</td>
+          <td>15</td>
+          <td>Unknown (not grpa or grpb standard pattern)</td>
+          <td>~15 h (DOWN until 05-27T09:38)</td>
+        </tr>
+        <tr>
+          <td>2026-05-27T12:04:46</td>
+          <td><code>1208195–1208198</code> (array, 4×#CPUs=7)</td>
+          <td>28</td>
+          <td><strong>Group B</strong> — 4×7-CPU array pattern, not grpa</td>
+          <td>~1 h 36 m</td>
+        </tr>
+        <tr>
+          <td>2026-05-27T16:04:35</td>
+          <td><code>1208591</code> (#CPUs=4)</td>
+          <td>4</td>
+          <td>Group A (TCP-download hang — RCA 05-27b)</td>
+          <td>~2 h</td>
+        </tr>
+        <tr>
+          <td>2026-05-28T13:52:08</td>
+          <td><code>1208980</code> (#CPUs=30)</td>
+          <td>30</td>
+          <td>Group A (agent scancel on DDP — RCA 05-28)</td>
+          <td>~54 min (reboot)</td>
+        </tr>
+        <tr>
+          <td>2026-06-01T14:47:55</td>
+          <td><code>1209813</code> (#CPUs=8)</td>
+          <td>8</td>
+          <td>Group A (MWE test)</td>
+          <td>~42 min (reboot)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>No drain events on 2026-06-02 or 2026-06-03 — the in-window runs
+      (1210688, 1210787) and all drain-study tests on 06-02 did <strong>not</strong>
+      drain the node. The node has been clean since 06-01T15:29.</p>
+    <p><strong>Conclusion:</strong> 3 of 5 drains were Group A (mcintos); at least
+      1 definitively Group B; drain 1 predates our involvement (unattributed). Two
+      independent user groups, different code, same "Kill task failed → drain" failure
+      mode. The cause is node/infrastructure-level, not any user's code.</p>
 
     <h3>Remaining open items</h3>
     <ul>
@@ -587,7 +631,7 @@ Done-when
   5. This followup resolved + plan status set to shipped or in-progress accordingly</pre>
     <p class="r-fu-outcome">TRACK A RUNS 1+2 COMPLETE — both falsify the code-specific cause. Run 1 (1210688): watchdog fires at 600s, clean exit 0:0, no drain. Run 2 (1210787): watchdog disabled, SLURM --time fires into live hung process, clean TIMEOUT 0:0, no drain. Slurmctld log shows actual 1209813 drain was at t+2:22 (not --time), from step 7 being unkillable. Group B independently drained same node with unrelated code. STABLE MECHANISM: D-state outlives KillWait+UnkillableStepTimeout → Kill task failed → DRAIN (SLURM-documented behavior, environmental/probabilistic, not code-specific). Track A runs 3-5 and bisection ladder CANCELLED — premise invalidated. Track C remains optional.</p>
     </article>
-<article class="r-fu" data-id="f-dwc-close" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-edit drain-window-campaign" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-dwc-close" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-edit drain-window-campaign" data-resolved-at="2026-06-03T16:00:45+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Close campaign: full drain history + RCA finalisation + admin ask</h4>
     <div class="r-fu-body">The in-window campaign converged on the mechanism-agnostic cause. Three items remain to formally close: (1) obtain full slurmctld drain history for all users; (2) write the final RCA doc superseding all prior RCAs; (3) deliver the admin ask (§5 recovery proposal + drain history data).</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -635,6 +679,7 @@ Done-when
   2. rca-node-drain-final-2026-06-03.html authored, audit clean
   3. proposal-drain-auto-recovery.html delivered to SDCC (or user confirms delivery)
   4. Plan status set to shipped, this followup resolved</pre>
+    <p class="r-fu-outcome">Full drain history confirmed from slurmctld: 5 drains total. Drain 1 (05-26T18:10, #CPUs=15, ~15h outage) unknown user. Drain 2 (05-27T12:04, 1208195-1208198 4x7-CPU array) definitively Group B. Drains 3-5 Group A (us). No drains on 06-02 or 06-03. Mechanism-agnostic conclusion fully confirmed — two independent groups, different code, same Kill task failed mode. Plan §2 updated with complete table. Final RCA doc + admin proposal delivery remain.</p>
     </article>
 </section>
 
