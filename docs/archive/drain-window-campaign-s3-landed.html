@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="drain-window-campaign-s3-landed">
+  <meta name="plan-title" content="drain-window-campaign §3 — Capture Harness Landed">
+  <meta name="plan-summary" content="§3 dual-half observer harness landed 2026-06-03: 4 new SLURM-side streams added to observe_state.sh + observer.sbatch">
+  <meta name="plan-informs" content="drain-window-campaign">
+  <title>drain-window-campaign §3 landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§3 — Dual-half capture harness: landed</h2>
+
+    <p><strong>Landed:</strong> 2026-06-03 &nbsp;|&nbsp;
+       <strong>Commit:</strong> <code>867b22c</code> &nbsp;|&nbsp;
+       <strong>Files changed:</strong>
+       <code>scripts/drain-tests/instrumented/observe_state.sh</code>,
+       <code>scripts/drain-tests/instrumented/observer.sbatch</code>
+       (190 lines added, 7 changed)</p>
+
+    <h3>What shipped</h3>
+    <p>The existing separate-allocation observer was extended with four new streams
+      that, for the first time, capture <em>both</em> halves of the drain causal
+      chain in a single event: process-side (existing) and SLURM-side (new).</p>
+
+    <table>
+      <thead>
+        <tr><th>Stream</th><th>Output file</th><th>Cadence</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>SLURM config</strong></td>
+          <td><code>.slurm_config</code></td>
+          <td>Once at startup</td>
+          <td>✓ Captures UnkillableStepTimeout, KillWait, partition overrides</td>
+        </tr>
+        <tr>
+          <td><strong>Node state / Reason=</strong></td>
+          <td><code>.node_state</code></td>
+          <td>Every 2 s</td>
+          <td>✓ Full <code>scontrol show node</code> State + Reason lines</td>
+        </tr>
+        <tr>
+          <td><strong>slurmd log</strong></td>
+          <td><code>.slurmd</code></td>
+          <td>Continuous tail</td>
+          <td>⚠ Not accessible (<code>0600 root root</code>); stream documents this</td>
+        </tr>
+        <tr>
+          <td><strong>Cgroup PID set</strong></td>
+          <td><code>.cgroup_pids</code></td>
+          <td>Every 1 s</td>
+          <td>✓ cgroup v2 (RHEL 10 / Linux 6.12 confirmed); leaf-recursive discovery;
+              per-PID state + wchan + cmdline</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Pre-window SLURM config values (from scontrol)</h3>
+    <ul>
+      <li><strong>UnkillableStepTimeout = 60 sec</strong></li>
+      <li><strong>KillWait = 30 sec</strong></li>
+      <li>ProctrackType = <code>proctrack/cgroup</code></li>
+      <li>CgroupPlugin = <code>autodetect</code> (resolves to v2 on this node)</li>
+      <li>No per-partition betelgeuse overrides found</li>
+    </ul>
+
+    <h3>Limitations</h3>
+    <ul>
+      <li>The <code>.slurmd</code> stream will be empty in all runs — the slurmd
+        log is root-only. The stream documents the permission failure in its output
+        file, so a missing stream is distinguishable from a silent failure.</li>
+      <li>Cgroup path layout on a running compute node (with a real active job) may
+        differ from the login-node view; the runtime <code>find -name "job_${TARGET_JOBID}"</code>
+        discovery handles layout variations without hardcoding.</li>
+    </ul>
+
+    <h3>What's next</h3>
+    <p>Harness is ready for Track C (warm-up) and Track A (GPU bisection).
+      Execute in the coordinated admin window per <code>RUNCARD-TRACK-C.md</code>
+      and <code>RUNCARD-TRACK-A.md</code>.
+      See <a href="../drain-window-campaign.html">drain-window-campaign plan</a>.</p>
+  </main>
+</body>
+</html>

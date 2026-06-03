@@ -4,20 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="drain-window-campaign">
-  <meta name="plan-title"     content="GPU Drain — Coordinated-Window Campaign">
-  <meta name="plan-summary"   content="Backward-bisect the one confirmed drain artifact under a coordinated admin window + close the SLURM-side evidence gap; parallel auto-recovery proposal.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="drain-window-campaign">
+  <meta name="plan-title" content="GPU Drain — Coordinated-Window Campaign">
+  <meta name="plan-summary" content="Backward-bisect the one confirmed drain artifact under a coordinated admin window + close the SLURM-side evidence gap; parallel auto-recovery proposal.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="OPS">
-  <meta name="plan-sprint"    content="S11">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S11">
+  <meta name="plan-owner" content="Simon McIntosh">
   <title>GPU Drain — Coordinated-Window Campaign | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-03">
+<meta name="plan-version" content="4">
 </head>
 <body>
   <main class="plan-doc">
@@ -98,10 +100,10 @@
     <h3>Proven (direct observation)</h3>
     <ul>
       <li><strong>Version stack did NOT drift</strong> between the production drains
-        (05-26 → 05-28) and the failed repros (06-01 → 06-02): both cite NVIDIA
-        driver <code>595.58.03</code>, NCCL <code>2.21.5</code>, Torch
-        <code>2.5.1</code>. So "can't reproduce" is <em>not</em> explained by a
-        silent upgrade mitigating the bug — that hypothesis is killed.</li>
+        (05-26 → 05-28) and the failed repros (06-01 → 06-02): NCCL
+        <code>2.21.5+cuda12.4</code>, Torch <code>2.5.1+cu124</code> confirmed from
+        2026-06-02 job logs; NVIDIA driver <code>595.58.03</code> per AGENTS.md and
+        earlier RCAs. "Can't reproduce" is <em>not</em> explained by a silent upgrade.</li>
       <li><strong>Transient D-state is normal.</strong> Observer CSV
         <code>1210257</code> (10 514 samples): 387 <code>os_acquire_rwlock_write</code>,
         347 <code>os_acquire_rwlock_read</code>, 17 <code>os_acquire_semaphore</code>,
@@ -109,38 +111,54 @@
         D-state across all three driver surfaces, all transient, none drained.</li>
       <li><strong>sacct attribution.</strong> All self-inflicted drains were
         single-user (mcintos/grpa) — Group B ruled out for those events.</li>
+      <li><strong>SLURM config confirmed (2026-06-03, scontrol show config):</strong>
+        <code>UnkillableStepTimeout=60sec</code>, <code>KillWait=30sec</code>,
+        <code>ProctrackType=proctrack/cgroup</code>. No per-partition betelgeuse
+        override. cgroup v2 on RHEL 10 / Linux 6.12 (confirmed by observer harness).</li>
     </ul>
 
-    <h3>Asserted but never observed (the load-bearing gap)</h3>
+    <h3>Resolved pre-window (2026-06-03)</h3>
+    <p><strong>Verdict: job <code>1209813</code> DID drain node <code>98dci4-gpu-0003</code>
+      on a CLEAN node</strong> — directly contradicting the 06-02 "cascade-only" (needs
+      pre-wedged GPU) conclusion.</p>
+    <p>Evidence: (1) slurmstepd log in <code>mwe01-1209813.err</code> contains
+      <code>"JOB NOT ENDING WITH SIGNALS"</code> and <code>"Container 976377 in cgroup
+      plugin has 5 processes, giving up after 63 sec"</code> — the literal SLURM drain
+      trigger phrase and give-up timing; (2) <code>BootTime=2026-06-01T15:28:43</code>
+      (node rebooted 27 min after STEPD terminated at 15:01:50); (3) zero GPU jobs on
+      node from 15:01 to 15:28 — consistent with drain state; (4) sacct shows jobs
+      1209811/1209812 COMPLETED cleanly before 1209813 started — <strong>the node was
+      in a clean state when 1209813 drained it</strong>. Resume actor: admin reboot
+      (full OS reboot, not just slurmd restart). Admin slurmctld log needed to confirm
+      who issued it.</p>
+    <p><strong>New finding</strong>: collective mismatch (rank-0-only
+      <code>dist.all_reduce</code>) is an <em>independent</em> drain trigger that
+      requires no pre-existing wedge. The 06-02 RCA's "cascade-only" conclusion
+      applies to the scancel-on-wedged-GPU path (Events 1–3) but not to the collective
+      mismatch path. The backward-bisection campaign targets this distinct mechanism.</p>
+
+    <h3>Asserted but not yet directly observed (still open for window)</h3>
     <ul>
-      <li><strong>The entire SLURM half of the chain.</strong> "D-state → SIGKILL
-        can't reap → <code>Kill task failed</code> → drain" is inferred from the
-        training process's state in every document. Nobody captured slurmd's own
-        view: the full <code>scontrol Reason=</code> string, the configured
-        <code>UnkillableStepTimeout</code> on betelgeuse, slurmstepd's
-        "<code>giving up after 63 sec</code>" line correlated to the kill attempt,
-        or <em>which</em> PIDs remained in the cgroup at give-up time. The drain
-        Reason is written by slurmd; we have never read slurmd.</li>
-      <li><strong>Whether the wedged thing is even the training process.</strong>
-        Never excluded: an orphaned DataLoader child, the torchrun launcher,
-        slurmd itself, a job epilog, or cgroup-v1-vs-v2 teardown semantics.</li>
+      <li><strong>Full scontrol Reason= string from a live drain event.</strong>
+        The give-up phrase was found in the slurmstepd stderr for job 1209813, but
+        the authoritative slurmctld <code>Reason=</code> node-state string was never
+        captured. Track C will capture it live for the first time via the
+        <code>.node_state</code> observer stream.</li>
+      <li><strong>Which PIDs were in the cgroup at give-up time.</strong> The 5-process
+        count is in the log, but the PIDs and their <code>wchan</code> were never
+        enumerated. Track C's <code>.cgroup_pids</code> stream closes this.</li>
+      <li><strong>slurmd log.</strong> Not accessible to regular users
+        (<code>0600 root root</code>). Requires admin to share the 1209813 window
+        or future drain window output. This is the remaining gap in the chain.</li>
     </ul>
 
-    <h3>Missing — must resolve before/within the window</h3>
-    <ul>
-      <li><strong>Did <code>1209813</code> actually drain the node?</strong> The
-        MWE evidence ledger lists it as "DRAIN (bug)", yet the 06-02 "needs a
-        pre-wedged GPU" conclusion is incompatible with a drain on a freshly
-        allocated clean node. sacct shows <code>1209813</code> TIMEOUT
-        14:45:33→15:00:50, with the next job <code>1209844</code> only 36 min later
-        (15:36). Either it drained a clean node (→ 06-02 cascade conclusion is
-        wrong and the trigger is reproducible) or it did not (→ we have
-        <em>zero</em> confirmed reproductions and the production-only-conditions
-        case strengthens). This single fact reshapes the whole campaign and must be
-        nailed from admin/slurmd logs, not inferred.</li>
-    </ul>
-
-    <h2 id="s3">§3 — New direction</h2>
+    <h2 id="s3">§3 — New direction + capture harness</h2>
+    <p><span class="badge badge-shipped">✓ harness built 2026-06-03 — commit <code>867b22c</code></span></p>
+    <p>Dual-half observer extended: <code>observe_state.sh</code> + <code>observer.sbatch</code>
+      now capture slurm config (UnkillableStepTimeout=60s, KillWait=30s), node
+      state/Reason= every 2 s, cgroup v2 PID enumeration per second, and slurmd log
+      (not accessible to regular users — stream documents this). See
+      <a href="archive/drain-window-campaign-s3-landed.html">§3 harness landed</a>.</p>
     <p>Two principles replace "guess a wedge, build it, hope it drains":</p>
     <ol>
       <li><strong>Bisect backward from the confirmed artifact, not forward from a
@@ -169,6 +187,12 @@
       <code>scontrol update … state=resume</code> after each drain.</p>
 
     <h3>Track C — SLURM-side validation (warm-up, ~20 min, deterministic)</h3>
+    <p><span class="badge badge-shipped">✓ PREPARED 2026-06-03 — commit <code>d988338</code></span>
+      Script: <code>instrumented/track_c_cgroup_wedge.py</code> + sbatch +
+      <code>RUNCARD-TRACK-C.md</code>. Wedge: squashfuse-based FUSE freeze
+      (sshfs absent; squashfuse confirmed available on login node; RHEL 10
+      compute-node availability TBC at window time). Run-card and admin resume
+      steps ready.</p>
     <p>Wedge a job cgroup with <strong>no GPU involved</strong> — a FUSE mount whose
       userspace daemon is frozen guarantees a permanent uninterruptible
       <code>D</code>-state on I/O (or an equivalent guaranteed-D primitive; see
@@ -182,6 +206,14 @@
       cheaply before spending the GPU runs.</p>
 
     <h3>Track A — faithful resurrection + backward bisection</h3>
+    <p><span class="badge badge-shipped">✓ PREPARED 2026-06-03 — commit <code>679ae7d</code></span>
+      Files: <code>track_a_mwe01_v1_frozen.py</code> (verbatim diff vs git blob
+      <code>b3a71b6</code>: header + one print only) + sbatch + 4 bisection
+      variants in <code>track_a_bisect/</code> + <code>RUNCARD-TRACK-A.md</code>.
+      Key bisect insight: bisect_02 is a control (first call already symmetric
+      in v1); bisect_04 holds GPU context without NCCL to test whether blocking
+      collective is required. Window-repeat-count: 5 verbatim runs before
+      concluding non-reproducible.</p>
     <p>Run the frozen pre-<code>928ed0d</code> MWE-01 v1 verbatim
       (<code>--nproc_per_node=4</code>, <code>--time=00:15:00</code> as in the
       original) under the full harness. Then bisect backward. Each run is one
@@ -195,22 +227,21 @@
       drain across the budgeted verbatim attempts. It is still a forward guess, so
       it is the last resort, not the plan.</p>
 
-    <h2 id="s5">§5 — Recovery track (parallel, no window needed)</h2>
-    <p>The multi-hour outage has two independent halves: the drain happening, and
-      recovery requiring manual admin intervention. The second is attackable now,
-      independent of the mechanism. Draft a written SDCC-admin proposal:</p>
-    <ul>
-      <li>A SLURM <strong>epilog</strong> that runs <code>nvidia-smi --gpu-reset</code>
-        (or targeted per-GPU reset) on job end / drain, so a dirty context is
-        cleared automatically.</li>
-      <li>An <strong>auto-resume policy</strong> (e.g. <code>scontrol update
-        state=resume</code> gated on a GPU-clean health check) so a drained node
-        rejoins in minutes, not after a human notices.</li>
-      <li>A reviewed <strong>UnkillableStepTimeout / KillWait</strong> setting for
-        the betelgeuse partition, informed by the Track-C measurement.</li>
-    </ul>
-    <p>This shrinks any future outage to minutes even if the mechanism is never
-      proven — and the Track-C numbers make the proposal evidence-backed.</p>
+    <section id="s5" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-06-03</span>
+        <h2>§5 — Recovery track</h2>
+      </header>
+      <p class="landed-summary">
+        SDCC admin proposal authored:
+        <a href="proposal-drain-auto-recovery.html">proposal-drain-auto-recovery.html</a>
+        (commit <code>533d924</code>). Covers: epilog <code>nvidia-smi --gpu-reset</code>
+        + <code>UnkillableStepProgram</code>; auto-resume via
+        <code>HealthCheckProgram</code> or cron policy; <code>UnkillableStepTimeout</code>
+        review (60 s confirmed pre-window; Track C will validate live timing).
+        Full record: <a href="archive/drain-window-campaign-s5-landed.html">§5 recovery landed</a>.
+      </p>
+    </section>
 
     <h2 id="s6">§6 — Safety guardrails (binding)</h2>
     <ul>
@@ -229,59 +260,46 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="window-repeat-count" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How many verbatim Track-A runs before concluding the trigger is non-reproducible (to rule out a probabilistic race)?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="3">3 runs</button>
-          <button class="r-opt" data-value="5">5 runs</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-
-      <div class="r-dec" data-key="track-c-wedge" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Track-C deterministic non-GPU wedge primitive?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="fuse-freeze">Frozen FUSE-daemon mount (guaranteed D on I/O)</button>
-          <button class="r-opt" data-value="nfs-hang">Hung NFS server / unreachable mount</button>
-          <button class="r-opt" data-value="vfork-d">Other guaranteed-D primitive</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-
-      <div class="r-dec" data-key="pre-window-fact-owner" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">"Did 1209813 actually drain the node?" — resolve from which source of truth?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="slurmctld-log">SDCC admin slurmctld/node-event log (authoritative)</button>
-          <button class="r-opt" data-value="sacct-reason">sacct + sreport + any surviving scontrol Reason= snapshot</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="window-repeat-count" data-choice="5" data-by="Simon McIntosh" data-when="2026-06-03 08:08">
+    <p class="r-dec-q">How many verbatim Track-A runs before concluding the trigger is non-reproducible (to rule out a probabilistic race)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="3">3 runs</button>
+      <button class="r-opt chosen" data-value="5">5 runs</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="track-c-wedge" data-choice="fuse-freeze" data-by="Simon McIntosh" data-when="2026-06-03 08:08">
+    <p class="r-dec-q">Track-C deterministic non-GPU wedge primitive?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="fuse-freeze">Frozen FUSE-daemon mount (guaranteed D on I/O)</button>
+      <button class="r-opt" data-value="nfs-hang">Hung NFS server / unreachable mount</button>
+      <button class="r-opt" data-value="vfork-d">Other guaranteed-D primitive</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="pre-window-fact-owner" data-choice="sacct-reason" data-by="Simon McIntosh" data-when="2026-06-03 08:10">
+    <p class="r-dec-q">&quot;Did 1209813 actually drain the node?&quot; — resolve from which source of truth?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="slurmctld-log">SDCC admin slurmctld/node-event log (authoritative)</button>
+      <button class="r-opt chosen" data-value="sacct-reason">sacct + sreport + any surviving scontrol Reason= snapshot</button>
+      </p>
+    <p class="r-dec-rat">I will also followup with the sys admin to see if the log is recovarable.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-
-      <article class="r-fu" data-id="f-dwc-pre" data-status="open" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03">
-        <h4 class="r-fu-title">§2 — Resolve "did 1209813 actually drain?" + reconfirm version non-drift</h4>
-        <div class="r-fu-body">
-          <p>Settle the single fact that reshapes the campaign, <strong>before</strong>
-            the window. Determine authoritatively whether job <code>1209813</code>
-            (2026-06-01, 14:45:33→15:00:50, TIMEOUT) put node
-            <code>98dci4-gpu-0003</code> into a DRAINED state, and if so who/what
-            resumed it (the next job <code>1209844</code> ran 36 min later at
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-dwc-pre" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-pre">
+    <h4 class="r-fu-title">§2 — Resolve &quot;did 1209813 actually drain?&quot; + reconfirm version non-drift</h4>
+    <div class="r-fu-body">Settle the single fact that reshapes the campaign, before the window. Determine authoritatively whether job 1209813 (2026-06-01, 14:45:33→15:00:50, TIMEOUT) put node 98dci4-gpu-0003 into a DRAINED state, and if so who/what
+            resumed it (the next job 1209844 ran 36 min later at
             15:36 — a clean-node drain would contradict the 06-02 cascade-only
-            conclusion). Use <code>sacct</code>, <code>sreport</code>, any surviving
-            <code>scontrol</code> snapshot, and request the SDCC admin
-            node-event/slurmctld log for that window. Separately, re-confirm from the
-            <code>.smi</code> headers and module records that driver
-            <code>595.58.03</code> / NCCL <code>2.21.5</code> / Torch
-            <code>2.5.1</code> were the stack for <em>both</em> the production drains
+            conclusion). Use sacct , sreport , any surviving scontrol snapshot, and request the SDCC admin
+            node-event/slurmctld log for that window. Separately, re-confirm from the .smi headers and module records that driver 595.58.03 / NCCL 2.21.5 / Torch 2.5.1 were the stack for both the production drains
             and the repros (no silent upgrade). Write the verdict as a short note in
-            §2 of this plan.</p>
-        </div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+            §2 of this plan.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    drain-window-campaign (http://localhost:8765/imas-ambix/drain-window-campaign.html)
 Section: §2 — Evidence audit
 Tier:    sonnet
@@ -294,8 +312,8 @@ Context
 
 State to read
   GET /plan/imas-ambix/drain-window-campaign
-  docs/drain-mwe-evidence-2026-06-01.html  (the "DRAIN (bug)" ledger row)
-  docs/rca-node-drain-mechanism-2026-06-02.html  (the "needs pre-wedged GPU" claim)
+  docs/drain-mwe-evidence-2026-06-01.html  (the &quot;DRAIN (bug)&quot; ledger row)
+  docs/rca-node-drain-mechanism-2026-06-02.html  (the &quot;needs pre-wedged GPU&quot; claim)
 
 Locked decisions to honour
   (none yet — see open decision pre-window-fact-owner for source-of-truth choice)
@@ -309,42 +327,33 @@ Constraints
   require asking the user to fetch it.
 
 Done-when
-  1. A dated verdict appended to §2: "1209813 DID / DID NOT drain the node",
+  1. A dated verdict appended to §2: &quot;1209813 DID / DID NOT drain the node&quot;,
      with the evidence (log lines, timestamps, resume actor) cited.
   2. Version non-drift reconfirmed (595.58.03 / 2.21.5 / 2.5.1 both eras) or the
      discrepancy flagged.
   3. followup written into plan + this followup marked resolved.</pre>
-      </article>
-
-      <article class="r-fu" data-id="f-dwc-cap" data-status="open" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03">
-        <h4 class="r-fu-title">§3 — Build the dual-half capture harness (process + SLURM side)</h4>
-        <div class="r-fu-body">
-          <p>Extend the existing separate-allocation observer
-            (<code>scripts/drain-tests/instrumented/observe_state.sh</code> /
-            <code>observer.sbatch</code>) into a harness that captures
-            <strong>both halves</strong> of the causal chain in one event. Keep the
-            current per-0.5 s <code>/proc/&lt;pid&gt;/stat</code> + <code>wchan</code>
-            + dmesg/Xid + nvidia-smi capture, and <strong>add</strong>: (1) tail of
-            slurmd/slurmstepd log for the target node/job; (2) periodic
-            <code>scontrol show node 98dci4-gpu-0003</code> capturing the full
-            <code>Reason=</code> string and <code>State</code>; (3) one-time capture
-            of <code>UnkillableStepTimeout</code> + <code>KillWait</code>
-            (<code>scontrol show config</code> / partition config); (4) per-second
-            enumeration of <em>every</em> PID in the job's cgroup
-            (<code>cgroup.procs</code>) with each PID's state+wchan, so the
+    <p class="r-fu-outcome">VERDICT: 1209813 DID drain a clean node (slurmstepd: 'JOB NOT ENDING WITH SIGNALS'; 'Container 976377 has 5 processes, giving up after 63 sec'; BootTime=15:28:43 = admin reboot 27 min after drain). Contradicts 06-02 cascade-only hypothesis. Collective mismatch is an independent drain trigger requiring no pre-wedge. UnkillableStepTimeout=60s, KillWait=30s confirmed. Version stack confirmed: NCCL 2.21.5+cuda12.4, Torch 2.5.1+cu124. slurmd log still needs admin access.</p>
+    </article>
+<article class="r-fu" data-id="f-dwc-cap" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-cap">
+    <h4 class="r-fu-title">§3 — Build the dual-half capture harness (process + SLURM side)</h4>
+    <div class="r-fu-body">Extend the existing separate-allocation observer
+            ( scripts/drain-tests/instrumented/observe_state.sh / observer.sbatch ) into a harness that captures both halves of the causal chain in one event. Keep the
+            current per-0.5 s /proc/&lt;pid&gt;/stat + wchan + dmesg/Xid + nvidia-smi capture, and add : (1) tail of
+            slurmd/slurmstepd log for the target node/job; (2) periodic scontrol show node 98dci4-gpu-0003 capturing the full Reason= string and State ; (3) one-time capture
+            of UnkillableStepTimeout + KillWait ( scontrol show config / partition config); (4) per-second
+            enumeration of every PID in the job's cgroup
+            ( cgroup.procs ) with each PID's state+wchan, so the
             "giving up after N sec" give-up window shows exactly which PIDs survive.
             The observer must run in its own CPU-only allocation that survives the
-            workload SIGKILL and the drain. Output to
-            <code>/work/projects/imas_gpu/logs/drain-observer-&lt;jobid&gt;.*</code>.</p>
-        </div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+            workload SIGKILL and the drain. Output to /work/projects/imas_gpu/logs/drain-observer-&lt;jobid&gt;.* .</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    drain-window-campaign (http://localhost:8765/imas-ambix/drain-window-campaign.html)
 Section: §3 — capture harness (shared by Track C and Track A)
 Tier:    sonnet
 
 Context
-  Every prior RCA observed only the training process's D-state and inferred the
-  SLURM side. This harness closes that gap: it records slurmd's own view
+  Every prior RCA observed only the training process&#x27;s D-state and inferred the
+  SLURM side. This harness closes that gap: it records slurmd&#x27;s own view
   (Reason=, give-up line, UnkillableStepTimeout) and the full cgroup PID set
   alongside the existing /proc wchan capture, in the same event. Shared by both
   in-window tracks.
@@ -372,28 +381,23 @@ Done-when
      tail, scontrol Reason=/State, UnkillableStepTimeout+KillWait, and per-second
      cgroup.procs PID set with state+wchan for each PID.
   2. A dry-run on an idle/CPU job shows all four new streams populate to
-     /work/projects/imas_gpu/logs/drain-observer-<jobid>.*  (no GPU job needed).
+     /work/projects/imas_gpu/logs/drain-observer-.*  (no GPU job needed).
   3. Committed; followup written into plan + this followup marked resolved.</pre>
-      </article>
-
-      <article class="r-fu" data-id="f-dwc-c" data-status="open" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03">
-        <h4 class="r-fu-title">§4 Track C — deterministic non-GPU cgroup-wedge reproducer</h4>
-        <div class="r-fu-body">
-          <p>Author the Track-C warm-up: a script + sbatch that wedges its own job
-            cgroup with a guaranteed permanent uninterruptible <code>D</code>-state
-            using <strong>no GPU</strong> (frozen FUSE-daemon mount or the primitive
-            chosen in decision <code>track-c-wedge</code>), then lets SLURM
-            <code>--time</code> expiry drive the kill. Paired with the §3 harness it
+    <p class="r-fu-outcome">observe_state.sh + observer.sbatch extended with 4 new streams: slurm_config (one-time), node_state/Reason= (2s), slurmd log (empty — root-only), cgroup v2 PID enumeration (1s). Commit 867b22c. sbatch --test-only confirmed.</p>
+    </article>
+<article class="r-fu" data-id="f-dwc-c" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-c">
+    <h4 class="r-fu-title">§4 Track C — deterministic non-GPU cgroup-wedge reproducer</h4>
+    <div class="r-fu-body">Author the Track-C warm-up: a script + sbatch that wedges its own job
+            cgroup with a guaranteed permanent uninterruptible D -state
+            using no GPU (frozen FUSE-daemon mount or the primitive
+            chosen in decision track-c-wedge ), then lets SLURM --time expiry drive the kill. Paired with the §3 harness it
             must deterministically produce: SIGTERM → KillWait → SIGKILL → cgroup
-            non-empty → slurmstepd give-up → node DRAINED with captured
-            <code>Reason=</code>. <strong>Do not run it</strong> — this followup only
-            <em>prepares</em> the artifact (script, sbatch, a README run-card with
+            non-empty → slurmstepd give-up → node DRAINED with captured Reason= . Do not run it — this followup only prepares the artifact (script, sbatch, a README run-card with
             the exact in-window command sequence and the admin resume steps). It runs
             inside the coordinated window with an admin on standby. The non-GPU wedge
             is deliberate: it validates the harness + SLURM chain + admin loop
-            without risking GPU state.</p>
-        </div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+            without risking GPU state.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    drain-window-campaign (http://localhost:8765/imas-ambix/drain-window-campaign.html)
 Section: §4 — Track C (warm-up, runs FIRST in window)
 Tier:    sonnet
@@ -409,7 +413,7 @@ State to read
   scripts/drain-tests/instrumented/README.md  (match existing conventions)
 
 Locked decisions to honour
-  track-c-wedge → <resolve before running; default fuse-freeze if unset at run time>
+  track-c-wedge → 
 
 Open decisions to surface (do not resolve)
   track-c-wedge, window-repeat-count
@@ -428,27 +432,21 @@ Done-when
      (gpu-reset not needed for C; scontrol resume only).
   2. Static review confirms it cannot run without explicit submission.
   3. Committed; followup written into plan + this followup marked resolved.</pre>
-      </article>
-
-      <article class="r-fu" data-id="f-dwc-a" data-status="open" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03">
-        <h4 class="r-fu-title">§4 Track A — resurrect pre-928ed0d MWE-01 v1, frozen + bisection-ready</h4>
-        <div class="r-fu-body">
-          <p>Recover the exact MWE-01 code as it existed at commit
-            <code>b3a71b6</code> (the version that ran as drain artifact
-            <code>1209813</code>, before the <code>928ed0d</code> mismatch fix) into
-            a <strong>frozen, version-pinned</strong> file
-            (<code>scripts/drain-tests/track_a_mwe01_v1_frozen.py</code> + matching
-            sbatch with the original <code>--nproc_per_node=4</code>,
-            <code>--time=00:15:00</code>). Do not "improve" it — faithfulness is the
-            point. Then author the <strong>backward-bisection ladder</strong> as a
+    <p class="r-fu-outcome">track_c_cgroup_wedge.py + .sbatch + RUNCARD-TRACK-C.md authored. Commit d988338. squashfuse-based FUSE freeze (sshfs absent, squashfuse confirmed on login node). RHEL 10 compute node availability TBC at window time. sbatch --test-only confirmed. PREPARE-ONLY — runs in admin window only.</p>
+    </article>
+<article class="r-fu" data-id="f-dwc-a" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-a">
+    <h4 class="r-fu-title">§4 Track A — resurrect pre-928ed0d MWE-01 v1, frozen + bisection-ready</h4>
+    <div class="r-fu-body">Recover the exact MWE-01 code as it existed at commit b3a71b6 (the version that ran as drain artifact 1209813 , before the 928ed0d mismatch fix) into
+            a frozen, version-pinned file
+            ( scripts/drain-tests/track_a_mwe01_v1_frozen.py + matching
+            sbatch with the original --nproc_per_node=4 , --time=00:15:00 ). Do not "improve" it — faithfulness is the
+            point. Then author the backward-bisection ladder as a
             documented sequence of one-element-removal variants (full DDP backward →
             raw collectives; kill-timing alignment; rank teardown order), each a
             separate prepared sbatch, with a README run-card giving the exact
-            in-window order and the admin reset+resume step between every run.
-            <strong>Prepare only — do not submit.</strong> Runs in the coordinated
-            window after Track C passes.</p>
-        </div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+            in-window order and the admin reset+resume step between every run. Prepare only — do not submit. Runs in the coordinated
+            window after Track C passes.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    drain-window-campaign (http://localhost:8765/imas-ambix/drain-window-campaign.html)
 Section: §4 — Track A (runs SECOND in window, after C validates the harness)
 Tier:    sonnet
@@ -465,13 +463,13 @@ State to read
   git show 928ed0d   (the fix — shows exactly which mismatch was removed)
 
 Locked decisions to honour
-  window-repeat-count → <N verbatim runs before concluding; default 3 if unset>
+  window-repeat-count → 
 
 Open decisions to surface (do not resolve)
   window-repeat-count
 
 Constraints
-  Faithfulness over cleanliness — resurrect b3a71b6's mwe-01 verbatim; do not
+  Faithfulness over cleanliness — resurrect b3a71b6&#x27;s mwe-01 verbatim; do not
   refactor or fix it. PREPARE the frozen script + bisection-ladder sbatches +
   run-card ONLY. DO NOT submit any of them (window-only; admin on standby). The
   kill is SLURM --time expiry, never scancel. Each ladder run-card step must
@@ -485,24 +483,19 @@ Done-when
      coherent removal, ordered in a README run-card with admin reset+resume steps.
   3. Static review confirms nothing auto-submits.
   4. Committed; followup written into plan + this followup marked resolved.</pre>
-      </article>
-
-      <article class="r-fu" data-id="f-dwc-rec" data-status="open" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03">
-        <h4 class="r-fu-title">§5 — Recovery-track admin proposal (parallel, no window)</h4>
-        <div class="r-fu-body">
-          <p>Draft a written SDCC-admin proposal (a <code>reckon-type=doc</code>
-            under <code>docs/</code>) for automated drain recovery, so any future
-            drain self-heals in minutes: (1) a SLURM epilog running
-            <code>nvidia-smi --gpu-reset</code> (or targeted per-GPU reset) on job
+    <p class="r-fu-outcome">track_a_mwe01_v1_frozen.py (verbatim b3a71b6 + header + 1 print) + sbatch + 4 bisect variants (bisect_01..04) + RUNCARD-TRACK-A.md. Commit 679ae7d. Bisect_02 is structural control (first call already symmetric in v1). Bisect_04 holds GPU but no NCCL to test whether blocking collective is required. PREPARE-ONLY — runs in admin window only.</p>
+    </article>
+<article class="r-fu" data-id="f-dwc-rec" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-rec">
+    <h4 class="r-fu-title">§5 — Recovery-track admin proposal (parallel, no window)</h4>
+    <div class="r-fu-body">Draft a written SDCC-admin proposal (a reckon-type=doc under docs/ ) for automated drain recovery, so any future
+            drain self-heals in minutes: (1) a SLURM epilog running nvidia-smi --gpu-reset (or targeted per-GPU reset) on job
             end/drain; (2) an auto-resume policy gated on a GPU-clean health check;
-            (3) a reviewed <code>UnkillableStepTimeout</code>/<code>KillWait</code>
-            for betelgeuse, with the value left as a placeholder to be filled from
+            (3) a reviewed UnkillableStepTimeout / KillWait for betelgeuse, with the value left as a placeholder to be filled from
             the Track-C measurement. Frame it as a request for admin review, citing
             the drain history (3+ multi-hour outages) and the §2a RCA recovery
             procedure already in AGENTS.md. This needs no drain window and can land
-            immediately.</p>
-        </div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+            immediately.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    drain-window-campaign (http://localhost:8765/imas-ambix/drain-window-campaign.html)
 Section: §5 — Recovery track (independent of the window)
 Tier:    sonnet
@@ -514,7 +507,7 @@ Context
 
 State to read
   GET /plan/imas-ambix/drain-window-campaign
-  AGENTS.md §2a "When a drain happens (RCA procedure)"  (existing recovery steps)
+  AGENTS.md §2a &quot;When a drain happens (RCA procedure)&quot;  (existing recovery steps)
 
 Locked decisions to honour
   (none)
@@ -523,7 +516,7 @@ Open decisions to surface (do not resolve)
   (none)
 
 Constraints
-  Author as docs/<slug>.html via reckon-create (reckon-type=doc) — NEVER markdown
+  Author as docs/.html via reckon-create (reckon-type=doc) — NEVER markdown
   for a structured doc. It is a proposal for admin action, not something we
   execute ourselves. Leave UnkillableStepTimeout/KillWait values as placeholders
   to be filled from Track-C.
@@ -533,8 +526,51 @@ Done-when
      epilog gpu-reset, auto-resume health-gate, and the UnkillableStepTimeout review.
   2. reckon audit-doc passes (no ERRORs).
   3. Committed; followup written into plan + this followup marked resolved.</pre>
-      </article>
-    </section>
+    <p class="r-fu-outcome">docs/proposal-drain-auto-recovery.html authored (561 lines, 0 audit errors). Commit 533d924. Covers: epilog gpu-reset, auto-resume HealthCheckProgram/cron, UnkillableStepTimeout review (60s confirmed; Track C placeholder).</p>
+    </article>
+<article class="r-fu" data-id="f-dwc-execute" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-ship drain-window-campaign §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Execute Track C then Track A in coordinated admin window — capture drain mechanism</h4>
+    <div class="r-fu-body">All prep artifacts are ready. Run the window: Track C (non-GPU fuse-freeze warm-up) to validate the capture harness and measure live UnkillableStepTimeout timing; then Track A (frozen MWE-01 v1 verbatim, up to 5 runs, then backward bisection) to isolate the minimal collective-mismatch drain trigger. This is a BLOCKING prereq: admin must be on standby to nvidia-smi --gpu-reset + scontrol resume between runs. Update the plan with the drain verdict and mechanism finding.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    drain-window-campaign (http://localhost:8765/imas-ambix/drain-window-campaign.html)
+Section: §4 — in-window execution (Track C then Track A)
+Tier:    opus
+
+Context
+  All prep artifacts landed 2026-06-03 (commits 867b22c, d988338, 679ae7d). The
+  pre-window archaeology confirmed 1209813 DID drain a clean node — the trigger
+  is a NCCL collective mismatch, NOT a cascade from a pre-wedged GPU. Admin must
+  be on standby before any drain test is run.
+
+State to read
+  GET /plan/imas-ambix/drain-window-campaign
+  scripts/drain-tests/instrumented/RUNCARD-TRACK-C.md
+  scripts/drain-tests/RUNCARD-TRACK-A.md
+
+Locked decisions to honour
+  window-repeat-count → 5 (verbatim runs before concluding non-reproducible)
+  track-c-wedge → fuse-freeze (squashfuse; verify availability on compute node first)
+
+Open decisions to surface (do not resolve)
+  (none)
+
+Constraints
+  ADMIN MUST BE ON STANDBY before submitting any job in this section.
+  Run Track C FIRST (no GPU; scontrol resume only after drain).
+  Run Track A SECOND (GPU; nvidia-smi --gpu-reset + scontrol resume between each run).
+  Kill mechanism: SLURM --time expiry ONLY — never scancel.
+  Capture observer logs after every drain to /work/projects/imas_gpu/logs/.
+  Document results (drained/not, observer log paths, bisect verdict) in plan §4.
+
+Done-when
+  1. Track C: drain confirmed with Reason= captured + UnkillableStepTimeout measured
+  2. Track A: verbatim runs complete (drained or inconclusive after 5); if drained,
+     bisection ladder run to find minimal trigger
+  3. Plan §4 updated with the mechanism verdict + evidence (commit SHAs, log paths)
+  4. Per-stage HTML docs/archive/drain-window-campaign-s4-landed.html written
+  5. This followup resolved + plan status set to shipped or in-progress accordingly</pre>
+    </article>
+</section>
 
   </main>
 </body>

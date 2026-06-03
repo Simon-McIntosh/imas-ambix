@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="drain-window-campaign-s5-landed">
+  <meta name="plan-title" content="drain-window-campaign §5 — Recovery Track Landed">
+  <meta name="plan-summary" content="§5 SDCC admin proposal for automated GPU drain recovery authored 2026-06-03: epilog gpu-reset, auto-resume, UnkillableStepTimeout review">
+  <meta name="plan-informs" content="drain-window-campaign">
+  <title>drain-window-campaign §5 landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§5 — Recovery track: landed</h2>
+
+    <p><strong>Landed:</strong> 2026-06-03 &nbsp;|&nbsp;
+       <strong>Commit:</strong> <code>533d924</code> &nbsp;|&nbsp;
+       <strong>Doc:</strong>
+       <a href="../proposal-drain-auto-recovery.html">proposal-drain-auto-recovery.html</a>
+       (561 lines, 0 audit errors)</p>
+
+    <h3>What shipped</h3>
+    <p>A written SDCC-admin proposal framing 3+ multi-hour drain outages
+      (2026-05-26 through 05-28) and requesting three independent config changes
+      to reduce recovery time from ~2 hours to &lt;5 minutes:</p>
+
+    <table>
+      <thead>
+        <tr><th>Proposal</th><th>Mechanism</th><th>Impact</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Job epilog GPU reset</strong></td>
+          <td><code>nvidia-smi --gpu-reset</code> via
+            <code>UnkillableStepProgram</code> on job-end/drain</td>
+          <td>Clears dirty GPU contexts automatically;
+            eliminates need for manual <code>gpu-reset</code> or reboot</td>
+        </tr>
+        <tr>
+          <td><strong>Auto-resume policy</strong></td>
+          <td><code>HealthCheckProgram</code> (SLURM 23.11+) or
+            5-min cron gated on <code>nvidia-smi</code> health check</td>
+          <td>Node rejoins reservation automatically after clean GPU;
+            eliminates manual <code>scontrol resume</code></td>
+        </tr>
+        <tr>
+          <td><strong>UnkillableStepTimeout review</strong></td>
+          <td>Current: 60 s (confirmed). Proposal: review whether 60–120 s is
+            optimal for this workload; placeholder for Track C measured value</td>
+          <td>May prevent transient D-state from triggering drain;
+            Track C will provide the first live measurement</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Judgment calls in the proposal</h3>
+    <ul>
+      <li><code>UnkillableStepTimeout</code> placeholder value 60 s — now confirmed
+        from <code>scontrol show config</code> (2026-06-03); proposal marks it for
+        update once Track C provides live timing.</li>
+      <li>nvidia-smi <code>--gpu-reset</code> is wrapped in <code>timeout 120</code>
+        in the epilog — it hangs if a process still holds the device; the timeout
+        bounds the hang and logs the failure.</li>
+    </ul>
+
+    <h3>Next step</h3>
+    <p>Send or file the proposal with SDCC admins. The proposal references
+      <code>AGENTS.md §2a</code> for the existing recovery procedure.
+      <a href="../drain-window-campaign.html">Back to plan.</a></p>
+  </main>
+</body>
+</html>
