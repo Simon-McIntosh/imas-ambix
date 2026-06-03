@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="proposal-drain-auto-recovery">
+  <meta name="plan-title"    content="Proposal — Automated GPU Node Drain Recovery for 98dci4-gpu-0003">
+  <meta name="plan-summary"  content="SDCC admin proposal: epilog gpu-reset + auto-resume + UnkillableStepTimeout review to reduce drain outages from 2h to &lt;5min">
+  <meta name="plan-status"   content="active">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <meta name="plan-informs"  content="drain-window-campaign">
+  <title>Proposal — Automated GPU Node Drain Recovery for 98dci4-gpu-0003 | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><span class="status active"><span class="dot"></span>SDCC Admin Proposal</span> —
+node <code>98dci4-gpu-0003</code>, partition <code>betelgeuse</code>, reservation
+<code>gpu_0003_grpA</code>. Contact: Simon McIntosh,
+<a href="mailto:simon.mcintosh@iter.org">simon.mcintosh@iter.org</a>.</p>
+
+<h2 id="s1">§1 — Executive Summary</h2>
+
+<p>Node <code>98dci4-gpu-0003</code> — the only NVIDIA H200 NVLink node in Group A's
+allocation — has been drained at least four times since 2026-05-26, with each event
+taking 2–4 hours to recover. Recovery has required manual SDCC admin intervention in
+every case: identifying the residual processes, running
+<code>nvidia-smi --gpu-reset</code> or rebooting, and issuing
+<code>scontrol update … state=resume</code>. The delay between the drain and the
+admin response (notification latency + timezone + working hours) accounts for the
+majority of the outage window.</p>
+
+<p>Each drain follows the same SLURM-level mechanism: a process in uninterruptible
+kernel sleep (<code>D</code> state) survives past <code>UnkillableStepTimeout</code>
+(currently 60&nbsp;s), <code>slurmstepd</code> logs <strong>"Kill task failed"</strong>,
+and the node auto-drains. The underlying driver surfaces (CXI/Slingshot network,
+GPFS, NVIDIA GPU driver) are under active investigation — but regardless of whether
+the root cause is eliminated, the outage from any future drain is determined entirely
+by the speed of recovery. Application-side mitigations (STOP-FILE cooperative
+shutdown, three-layer sbatch time-limit defence, in-process encoders) are already
+deployed and reduce the frequency of D-states, but cannot eliminate them: a D-state
+task does not receive signals and cannot be reached by application code.</p>
+
+<p>This proposal addresses the recovery half of the problem with three independent
+mechanisms — an <code>UnkillableStepProgram</code> handler, a SLURM epilog GPU-clean
+gate, and a <code>HealthCheckProgram</code> auto-resume policy — that together shrink
+recovery from 2+ hours to under 5 minutes, without requiring the root cause to be
+fully understood first. Each mechanism is independent; even partial deployment
+provides immediate benefit.</p>
+
+<h2 id="s2">§2 — Drain History</h2>
+
+<div class="table-scroll"><table class="t">
+<thead>
+  <tr>
+    <th>Date</th>
+    <th>Job(s)</th>
+    <th>Outage duration</th>
+    <th>Cause summary</th>
+    <th>Recovery actions taken</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>2026-05-26</td>
+    <td><em>unknown</em> (Event 0)</td>
+    <td>~hours (baseline)</td>
+    <td>Cross-cgroup <code>cuInit</code> collision — concurrent GPU init from two cgroups
+        corrupted device state. Seeded all subsequent cascade drains.</td>
+    <td>Admin notified; GPU reset; <code>scontrol resume</code></td>
+  </tr>
+  <tr>
+    <td>2026-05-27 (~12:04)</td>
+    <td><code>1208195</code></td>
+    <td>~hours</td>
+    <td>Prefetch producer/consumer deadlock in legacy frame-daemon path; CUDA process
+        in <code>D</code> state, unkillable past <code>UnkillableStepTimeout</code>;
+        <strong>"Kill task failed"</strong> → drain.</td>
+    <td>Admin notified; <code>nvidia-smi --gpu-reset</code> (or reboot); <code>scontrol resume</code></td>
+  </tr>
+  <tr>
+    <td>2026-05-27 (~16:04)</td>
+    <td><code>1208591</code></td>
+    <td>~hours</td>
+    <td>Wrong working directory → model init triggered download from
+        <code>heibox.uni-heidelberg.de</code> on a no-network node; TCP I/O hung in
+        <code>D</code> state (no GPU used — demonstrates that the drain mechanism is
+        not GPU-exclusive).</td>
+    <td>Admin notified; <code>nvidia-smi --gpu-reset</code>; <code>scontrol resume</code></td>
+  </tr>
+  <tr>
+    <td>2026-05-28</td>
+    <td><code>1208975</code>, <code>1208980</code></td>
+    <td>~hours</td>
+    <td>Agent-issued <code>scancel</code> on a healthy DDP job; Python signal handler
+        blocked mid-NCCL collective inside <code>loss.backward()</code>;
+        <code>D</code>-state → "Kill task failed" → drain.</td>
+    <td>Admin notified; reboot; <code>scontrol resume</code></td>
+  </tr>
+</tbody>
+</table></div>
+
+<p><strong>Note on cascade.</strong> The 2026-06-02 RCA
+(<a href="rca-node-drain-mechanism-2026-06-02.html">rca-node-drain-mechanism-2026-06-02</a>)
+concluded that the production drains form a cascade: the 2026-05-26 Event 0 degraded
+the device, and each subsequent job's NCCL teardown wedged permanently because it
+inherited a dirty GPU. Without an epilog GPU-clean gate, an incomplete recovery
+(GPU not reset before next job starts) re-seeds the next drain. This cascade mechanism
+means recovery quality directly determines future drain risk.</p>
+
+<h2 id="s3">§3 — Proposed Change 1: <code>UnkillableStepProgram</code> + Timeout Increase</h2>
+
+<p><strong>Request:</strong> Configure <code>UnkillableStepProgram</code> (currently
+<code>(null)</code>) with a root diagnostic and recovery handler, and raise
+<code>UnkillableStepTimeout</code> from 60&nbsp;s to 120&nbsp;s in the betelgeuse
+partition config (or <code>slurm.conf</code>).</p>
+
+<p><strong>Why the timeout matters.</strong> Multi-GPU NCCL teardown — the dominant
+workload on this node — legitimately takes 30–60&nbsp;s in clean conditions.
+<code>UnkillableStepTimeout = 60</code>&nbsp;s means that a clean teardown at the
+slow end of its normal range triggers a drain. The hard cap is 126&nbsp;s
+(SchedMD bug #11103). Raising to 120&nbsp;s gives healthy teardown adequate margin
+without approaching the cap.</p>
+
+<p><strong>Why <code>UnkillableStepProgram</code> matters.</strong> When a step is
+declared unkillable, SLURM runs this program as root before draining. It is the only
+point where kernel-level diagnostics can be captured (e.g.
+<code>/proc/&lt;pid&gt;/stack</code>, <code>/proc/sysrq-trigger</code>) and where an
+automated recovery can be triggered. Without it, every drain requires manual
+intervention. With it, the handler can: diagnose, reset the GPU(s), and schedule a
+node resume — all within the SLURM drain window.</p>
+
+<p><strong>Proposed handler script</strong>
+(<code>/etc/slurm/unkillable_step.sh</code>):</p>
+
+<pre><code>#!/bin/bash
+# /etc/slurm/unkillable_step.sh
+# Run as root when a step is declared unkillable (before node drain).
+# Env provided by SLURM: SLURM_JOB_ID, SLURM_JOB_NODELIST, SLURMD_NODENAME
+
+LOG="/var/log/slurm/unkillable_${SLURM_JOB_ID}_$(date +%Y%m%d_%H%M%S).log"
+exec > "$LOG" 2>&1
+set -x
+
+echo "=== UnkillableStep handler: job $SLURM_JOB_ID on $(hostname) ==="
+date
+
+# 1. Capture kernel state for RCA
+echo "--- /proc/*/stack for cgroup PIDs ---"
+CGPATH=$(systemctl show --property=ControlGroup "slurmstepd.scope" 2>/dev/null | cut -d= -f2)
+if [[ -n "$CGPATH" ]]; then
+    for pid in $(cat "/sys/fs/cgroup${CGPATH}/cgroup.procs" 2>/dev/null); do
+        echo "PID $pid stat=$(cat /proc/$pid/stat 2>/dev/null | awk '{print $3}') wchan=$(cat /proc/$pid/wchan 2>/dev/null)"
+        cat /proc/$pid/stack 2>/dev/null || true
+    done
+fi
+
+echo "--- nvidia-smi ---"
+nvidia-smi 2>&1 || true
+
+echo "--- nvidia-smi accounting ---"
+nvidia-smi --query-accounted-apps=gpu_uuid,pid,gpu_name,mem_used -d RUNNING 2>&1 || true
+
+echo "--- dmesg NVRM/Xid (last 50 lines) ---"
+dmesg 2>/dev/null | grep -iE 'NVRM|Xid|nvidia' | tail -50 || true
+
+echo "--- sysrq-w (kernel task state dump to dmesg) ---"
+echo w > /proc/sysrq-trigger 2>/dev/null || true
+sleep 2
+dmesg 2>/dev/null | tail -30
+
+# 2. Attempt GPU reset for each GPU assigned to the job
+echo "--- GPU reset attempt ---"
+GPUS=$(scontrol show job "$SLURM_JOB_ID" 2>/dev/null \
+       | grep -oP 'GRES=gpu:\d+\(IDX:\K[0-9,]+' || true)
+if [[ -n "$GPUS" ]]; then
+    for gpu in $(echo "$GPUS" | tr ',' ' '); do
+        echo "Attempting nvidia-smi --gpu-reset -i $gpu ..."
+        timeout 120 nvidia-smi --gpu-reset -i "$gpu" 2>&1 || echo "Reset failed or timed out for GPU $gpu"
+    done
+else
+    echo "Could not determine GPU indices from scontrol; skipping per-GPU reset"
+fi
+
+# 3. Verify GPU health before scheduling resume
+echo "--- post-reset nvidia-smi ---"
+nvidia-smi 2>&1 || true
+
+UNHEALTHY=$(nvidia-smi 2>&1 | grep -c "ERR\|Failed\|Xid" || true)
+if [[ "$UNHEALTHY" -eq 0 ]]; then
+    echo "GPUs appear healthy — scheduling node resume in 30s"
+    (sleep 30 && scontrol update nodename="$SLURMD_NODENAME" \
+        state=resume reason="auto-recovered: UnkillableStepProgram GPU reset OK") &
+else
+    echo "GPU health check failed — leaving node drained; manual intervention required"
+    echo "See $LOG for diagnostics"
+fi
+
+echo "=== Handler complete ==="
+</code></pre>
+
+<p><strong>Proposed <code>slurm.conf</code> additions</strong> (betelgeuse partition
+or global, whichever is appropriate):</p>
+
+<pre><code># Raise timeout: 60s tips normal NCCL teardown into a drain; 120s gives healthy jobs margin.
+# Hard cap is 126s (SchedMD bug #11103).
+UnkillableStepTimeout=120
+
+# Root handler: diagnose + attempt recovery before the node is left drained.
+UnkillableStepProgram=/etc/slurm/unkillable_step.sh
+</code></pre>
+
+<p><strong>Risks and caveats:</strong></p>
+<ul>
+  <li>The GPU-reset attempt inside the handler uses <code>timeout 120</code> to
+      prevent the handler itself from hanging if the GPU is in a deeply wedged
+      state. If reset times out, the node is left drained — the same outcome as
+      today, but with a diagnostic log.</li>
+  <li>Per-GPU reset index detection from <code>scontrol</code> may need adjustment
+      depending on GRES format. The script includes a fallback note.</li>
+  <li>The 30-second delay before <code>scontrol resume</code> gives the GPU
+      driver time to re-initialise after reset. This is a conservative estimate;
+      reduce if empirically safe.</li>
+  <li><code>UnkillableStepProgram</code> must be executable by root and located
+      on all nodes where it will run.</li>
+</ul>
+
+<h2 id="s4">§4 — Proposed Change 2: Epilog GPU-Clean Gate</h2>
+
+<p><strong>Request:</strong> Add a SLURM epilog script for the betelgeuse partition
+that verifies no compute processes remain and that the GPUs are clean after each GPU
+job completes. If the check fails, drain-with-reason rather than releasing the node
+to the next job.</p>
+
+<p><strong>Why this is the cascade-breaker.</strong> The 2026-06-02 RCA identified
+that production drains are a cascade: the 2026-05-26 Event 0 left a dirty GPU, and
+each subsequent NCCL teardown wedged permanently on that dirty context. Without a
+clean-gate, an incomplete or abbreviated recovery (admin resumes before GPUs are
+confirmed clean) allows a wedged GPU context to propagate to the next job. The epilog
+gate breaks the cascade at job boundaries: if any GPU process remains after a job
+exits, the node is drained before the next allocation.</p>
+
+<p><strong>Proposed epilog script</strong>
+(<code>/etc/slurm/epilog.d/10_gpu_clean_gate.sh</code>):</p>
+
+<pre><code>#!/bin/bash
+# /etc/slurm/epilog.d/10_gpu_clean_gate.sh
+# Only run for jobs with GPU allocation.
+[[ -z "$CUDA_VISIBLE_DEVICES" ]] && exit 0
+
+LOG="/var/log/slurm/epilog_gpu_${SLURM_JOB_ID}_$(date +%Y%m%d_%H%M%S).log"
+exec > "$LOG" 2>&1
+
+echo "=== GPU epilog gate: job $SLURM_JOB_ID ==="
+date
+
+FAIL=0
+
+# 1. Check for residual compute processes on assigned GPUs
+RESIDUAL=$(nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader \
+    --id="$CUDA_VISIBLE_DEVICES" 2>/dev/null | grep -c . || true)
+if [[ "$RESIDUAL" -gt 0 ]]; then
+    echo "ERROR: $RESIDUAL residual compute process(es) still hold GPU(s) $CUDA_VISIBLE_DEVICES"
+    nvidia-smi --query-compute-apps=pid,used_memory,process_name --format=csv \
+        --id="$CUDA_VISIBLE_DEVICES" 2>&1 || true
+    FAIL=1
+fi
+
+# 2. Check for GPU error / Xid state
+XID_ERR=$(dmesg 2>/dev/null | grep -c "Xid" || true)
+if [[ "$XID_ERR" -gt 0 ]]; then
+    echo "WARNING: $XID_ERR Xid error(s) in dmesg since last boot"
+    dmesg 2>/dev/null | grep "Xid" | tail -10
+    # Xid alone is informational; only fail if combined with residual procs
+fi
+
+# 3. Drain node if GPUs are not clean
+if [[ "$FAIL" -ne 0 ]]; then
+    echo "DRAIN: GPUs not clean after job $SLURM_JOB_ID — draining node to prevent cascade"
+    echo "See $LOG for details"
+    scontrol update nodename="$(hostname -s)" \
+        state=drain reason="epilog: GPU not clean after job $SLURM_JOB_ID — see $LOG"
+    exit 1
+fi
+
+echo "GPU clean gate: PASS"
+exit 0
+</code></pre>
+
+<p><strong>Recommended prolog</strong> (<code>/etc/slurm/prolog.d/10_gpu_clean_check.sh</code>)
+to refuse a new allocation on a node where GPUs are still held:</p>
+
+<pre><code>#!/bin/bash
+# /etc/slurm/prolog.d/10_gpu_clean_check.sh
+[[ -z "$CUDA_VISIBLE_DEVICES" ]] && exit 0
+
+RESIDUAL=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader \
+    --id="$CUDA_VISIBLE_DEVICES" 2>/dev/null | grep -c . || true)
+if [[ "$RESIDUAL" -gt 0 ]]; then
+    echo "PROLOG FAIL: GPUs $CUDA_VISIBLE_DEVICES still have $RESIDUAL process(es) — rejecting allocation"
+    exit 1
+fi
+exit 0
+</code></pre>
+
+<p><strong>Risks and caveats:</strong></p>
+<ul>
+  <li><strong>Never call <code>nvidia-smi --gpu-reset</code> while a process holds
+      the device</strong> — it will hang. The epilog here only drains; reset must
+      happen after the process has been cleared (manually or via
+      <code>UnkillableStepProgram</code>).</li>
+  <li>The <code>CUDA_VISIBLE_DEVICES</code> variable is set by SLURM for GPU jobs.
+      Verify the variable name matches SLURM's GRES plugin configuration on this
+      cluster (it may be <code>SLURM_JOB_GPUS</code> depending on version).</li>
+  <li>False positives are possible if a job's GPU teardown is slower than SLURM's
+      epilog timeout. Adding a short sleep (5–10&nbsp;s) before the residual check
+      reduces this risk.</li>
+  <li>Multi-tenant use: if two groups share GPUs on the same node (not the case
+      for this reservation, but worth noting), the check must be restricted to the
+      GPUs allocated to the completing job.</li>
+</ul>
+
+<h2 id="s5">§5 — Proposed Change 3: <code>HealthCheckProgram</code> Auto-Resume</h2>
+
+<p><strong>Request:</strong> Configure a <code>HealthCheckProgram</code> for the
+betelgeuse partition (or node) that polls GPU health periodically and triggers a
+node resume when the GPUs pass a health check, eliminating the need for a human to
+issue <code>scontrol resume</code> after a successful GPU reset.</p>
+
+<p><strong>Option A — SLURM <code>HealthCheckProgram</code> (preferred).</strong>
+Available in SLURM 23.11+; runs on the node at <code>HealthCheckInterval</code>
+second intervals:</p>
+
+<pre><code># In slurm.conf (global or partition override):
+HealthCheckProgram=/etc/slurm/health_check_gpu.sh
+HealthCheckInterval=60
+HealthCheckNodeState=ANY
+</code></pre>
+
+<pre><code>#!/bin/bash
+# /etc/slurm/health_check_gpu.sh
+# Returns 0 if node is healthy; non-zero to keep drain / trigger re-drain.
+
+# Check all GPUs are accessible and not in error state
+if ! nvidia-smi -q &>/dev/null; then
+    echo "health_check: nvidia-smi failed — node not healthy"
+    exit 1
+fi
+
+# Check no residual compute processes from prior jobs
+RESIDUAL=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null \
+    | grep -c . || true)
+if [[ "$RESIDUAL" -gt 0 ]]; then
+    echo "health_check: $RESIDUAL residual GPU process(es) remain — not resuming"
+    exit 1
+fi
+
+# Check for zombie processes (should not exist after clean job teardown)
+ZOMBIES=$(ps -eo stat | grep -c "^Z" || true)
+if [[ "$ZOMBIES" -gt 5 ]]; then
+    # Threshold 5 to avoid false positives from unrelated system zombies
+    echo "health_check: $ZOMBIES zombie processes — not resuming"
+    exit 1
+fi
+
+echo "health_check: PASS — all GPUs healthy, no residual processes"
+exit 0
+</code></pre>
+
+<p>When <code>HealthCheckProgram</code> returns 0 and the node is in a drained
+state, SLURM 23.11+ will automatically issue an internal resume. Confirm the exact
+behaviour with the installed SLURM version — the auto-resume semantics vary between
+minor versions.</p>
+
+<p><strong>Option B — Cron fallback</strong> (if <code>HealthCheckProgram</code>
+auto-resume is not available or not suitable for this deployment):</p>
+
+<pre><code>#!/bin/bash
+# /etc/cron.d/slurm_gpu_auto_resume — runs every 5 minutes as root
+NODE="98dci4-gpu-0003"
+
+STATE=$(scontrol show node "$NODE" 2>/dev/null | grep -oP 'State=\S+')
+if echo "$STATE" | grep -qi "drain"; then
+    # Node is drained — check if GPUs are now clean
+    RESIDUAL=$(ssh -o BatchMode=yes "$NODE" \
+        "nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | grep -c ." \
+        2>/dev/null || echo 99)
+    if [[ "$RESIDUAL" -eq 0 ]]; then
+        nvidia-smi_status=$(ssh -o BatchMode=yes "$NODE" "nvidia-smi -q" 2>/dev/null; echo "EXIT=$?")
+        if echo "$nvidia_smi_status" | grep -q "EXIT=0"; then
+            scontrol update nodename="$NODE" state=resume \
+                reason="auto-resume: health check passed (cron)"
+            logger -t slurm_auto_resume "Resumed $NODE after health check"
+        fi
+    fi
+fi
+</code></pre>
+
+<p><strong>Risks and caveats:</strong></p>
+<ul>
+  <li>The <code>HealthCheckProgram</code> auto-resume behaviour in SLURM requires
+      verification against the exact installed version. In some versions it only
+      clears the <code>NOT_RESPONDING</code> state, not a manual drain.</li>
+  <li>Option B requires SSH access from the admin host to the GPU node, which
+      may not be available outside of a SLURM allocation context. Adjust to use
+      SLURM's <code>srun --nodelist</code> if needed.</li>
+  <li>Both options should be preceded by a GPU reset step (see §3 handler). Auto-
+      resume without a preceding reset is only safe when the prior drain was not
+      GPU-wedge-related (e.g., the 2026-05-27b TCP I/O event). For GPU-wedge drains,
+      the reset is required first — which is why §3 and §5 are complementary.</li>
+</ul>
+
+<h2 id="s5-timeout">§5a — Supplement: <code>UnkillableStepTimeout</code> Measurement</h2>
+
+<p>The exact current value of <code>UnkillableStepTimeout</code> on this node has not
+been independently confirmed from the SLURM config — the 60&nbsp;s figure is inferred
+from forensic timing analysis of the drain events (the 61&nbsp;s gap between the
+<code>scancel</code> and the "Kill task failed" event for job <code>1208195</code>).
+</p>
+
+<p><strong>PLACEHOLDER:</strong> Track C of the drain-window-campaign will report the
+actual configured value directly from the SLURM side (slurmd log, full
+<code>Reason=</code> string, and live cgroup measurement through the give-up window).
+Once that measurement is available, this section should be updated with the confirmed
+value before the proposal is submitted to SDCC. If the actual timeout differs from
+60&nbsp;s, the recommended new value (§3) should be adjusted accordingly.</p>
+
+<p>To read the current value directly (if admin access to the SLURM config is
+available):</p>
+
+<pre><code># On the slurmctld host:
+scontrol show config | grep -i unkillable
+# or
+grep -i UnkillableStep /etc/slurm/slurm.conf /etc/slurm/*.conf 2>/dev/null
+</code></pre>
+
+<h2 id="s6">§6 — Why This Is Urgent</h2>
+
+<ul>
+  <li><strong>Drain frequency:</strong> 4 drain events in 13 days (2026-05-26 to
+      2026-05-28), plus an accidental drain during controlled drain-window testing
+      (job <code>1209813</code>). The instrumented campaign has produced 14
+      controlled attempts with 0 intentional drains — the drain trigger is understood
+      to require a pre-wedged GPU state — but production conditions can re-create
+      that precondition.</li>
+  <li><strong>Outage duration per event:</strong> 2–4 hours, dominated by
+      notification latency and manual response time. None of the four events
+      self-recovered.</li>
+  <li><strong>Lost GPU-hours (Group A):</strong> Conservatively 4 × 2&nbsp;h × 4
+      GPUs = 32 GPU-hours lost to drain recovery. At H200 spot pricing (~$4–8/GPU-h),
+      this is $128–$256 in equivalent compute time across four events, not counting
+      researcher productivity.</li>
+  <li><strong>Node uniqueness:</strong> <code>98dci4-gpu-0003</code> is the sole
+      H200 NVLink node in Group A's allocation. There is no failover. Every drain
+      is a complete work stoppage for Group A GPU workloads.</li>
+  <li><strong>Group B impact:</strong> Group B shares the same physical node under
+      a separate reservation. All four drain events took the node offline for both
+      groups simultaneously. <code>sacct</code> analysis confirmed no Group B
+      involvement in causing the drains, but Group B bears recovery cost equally.</li>
+  <li><strong>Root cause timeline:</strong> The drain-window-campaign (active) is
+      investigating the root cause under a coordinated admin window. That
+      investigation may take additional weeks. Recovery automation provides
+      immediate blast-radius reduction independent of root cause resolution.</li>
+</ul>
+
+<h2 id="s7">§7 — Summary of Requested Actions</h2>
+
+<div class="table-scroll"><table class="t">
+<thead>
+  <tr>
+    <th>#</th>
+    <th>Change</th>
+    <th>Config target</th>
+    <th>Expected impact</th>
+    <th>Risk level</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>1a</td>
+    <td>Set <code>UnkillableStepProgram=/etc/slurm/unkillable_step.sh</code></td>
+    <td><code>slurm.conf</code> (betelgeuse or global)</td>
+    <td>Auto-diagnose + attempt GPU reset on every future drain; captures kernel
+        stack for RCA</td>
+    <td>Low — handler runs as root after the step is already declared dead</td>
+  </tr>
+  <tr>
+    <td>1b</td>
+    <td>Raise <code>UnkillableStepTimeout</code> 60&nbsp;→&nbsp;120&nbsp;s</td>
+    <td><code>slurm.conf</code></td>
+    <td>Prevents healthy NCCL teardown (30–60&nbsp;s) from tripping the drain</td>
+    <td>Low — increases margin for clean jobs; does not change drain trigger for
+        permanently wedged processes</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>Deploy epilog GPU-clean gate
+        (<code>/etc/slurm/epilog.d/10_gpu_clean_gate.sh</code>)</td>
+    <td>betelgeuse epilog directory</td>
+    <td>Breaks the cascade — prevents a dirty GPU context propagating to the next
+        job</td>
+    <td>Medium — may increase drain rate for jobs with slow GPU teardown; tunable
+        via sleep delay before check</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>Deploy <code>HealthCheckProgram</code> with auto-resume (Option A) or
+        cron fallback (Option B)</td>
+    <td><code>slurm.conf</code> or <code>/etc/cron.d/</code></td>
+    <td>Eliminates manual <code>scontrol resume</code> step; reduces outage from
+        2+ hours to &lt;5 min post-reset</td>
+    <td>Low (Option A) / Medium (Option B — requires SSH from cron host)</td>
+  </tr>
+</tbody>
+</table></div>
+
+<h2 id="s8">§8 — Contact and References</h2>
+
+<ul>
+  <li><strong>Contact:</strong> Simon McIntosh,
+      <a href="mailto:simon.mcintosh@iter.org">simon.mcintosh@iter.org</a>,
+      Group A (<code>grpa</code>), account <code>grpa</code>,
+      reservation <code>gpu_0003_grpA</code></li>
+  <li><strong>Node:</strong> <code>98dci4-gpu-0003</code>,
+      partition <code>betelgeuse</code></li>
+  <li><strong>GPU Server Confluence:</strong>
+      <a href="https://confluence.iter.org/spaces/SDCC/pages/935667046/GPU+Server+-+98dci4-gpu-0003">
+      GPU Server — 98dci4-gpu-0003</a></li>
+  <li><strong>RCA documents (imas-ambix repo, <code>docs/</code>):</strong>
+    <ul>
+      <li><a href="rca-node-drain-mechanism-2026-06-02.html">rca-node-drain-mechanism-2026-06-02</a>
+          — validated root cause; §4 surgical fix</li>
+      <li><a href="rca-node-drain-2026-05-27.html">rca-node-drain-2026-05-27</a>
+          — drain #2 (prefetch deadlock, 12:04)</li>
+      <li><a href="rca-node-drain-2026-05-27b.html">rca-node-drain-2026-05-27b</a>
+          — drain #3 (TCP network I/O, 16:04)</li>
+      <li><a href="rca-node-drain-2026-05-28.html">rca-node-drain-2026-05-28</a>
+          — drain #4 (DDP scancel)</li>
+    </ul>
+  </li>
+  <li><strong>Application-side mitigations already deployed:</strong>
+      STOP-FILE cooperative shutdown, three-layer sbatch time-limit defence
+      (<code>--signal=B:USR1@600</code> + soft wall-clock + ceiling),
+      in-process streaming encoder replacing legacy frame-daemon. See
+      <code>AGENTS.md §2a</code> and <code>§2a-cancel</code> in the
+      <code>imas-ambix</code> repository for full detail.</li>
+</ul>
+
+<hr>
+<p><em>Authored 2026-06-03. <code>UnkillableStepTimeout</code> value pending
+confirmation from Track C of the drain-window-campaign (see
+<a href="drain-window-campaign.html">drain-window-campaign</a>); update §5a
+with measured value before submitting to SDCC.</em></p>
+
+</main>
+</body>
+</html>
