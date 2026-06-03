@@ -42,7 +42,7 @@ ${TORCHRUN} \
     --nproc_per_node=1 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29500 \
-    "$(dirname "$0")/bisect_04_single_rank_only.py"
+    "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/track_a_bisect/bisect_04_single_rank_only.py"
 
 echo "=== BISECT-04 ENDED ==="
 echo "Job ended. ADMIN: confirm node is NOT drained. If drained unexpectedly: gpu-reset + resume."

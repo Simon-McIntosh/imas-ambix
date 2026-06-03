@@ -38,7 +38,7 @@ ${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29500 \
-    "$(dirname "$0")/bisect_03_reduce_buffer.py"
+    "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/track_a_bisect/bisect_03_reduce_buffer.py"
 
 echo "=== BISECT-03 ENDED ==="
 echo "Job ended. ADMIN: run nvidia-smi --gpu-reset, then scontrol resume."

@@ -43,7 +43,7 @@ ${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29500 \
-    "$(dirname "$0")/track_a_mwe01_v1_frozen.py"
+    "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/track_a_mwe01_v1_frozen.py"
 
 echo "=== TRACK A FROZEN ENDED (unexpectedly clean — no drain) ==="
 echo "Job ended. ADMIN: run nvidia-smi --gpu-reset, then scontrol resume."

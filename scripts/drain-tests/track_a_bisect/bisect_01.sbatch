@@ -38,7 +38,7 @@ ${TORCHRUN} \
     --nproc_per_node=4 \
     --master_addr="${SLURMD_NODENAME}" \
     --master_port=29500 \
-    "$(dirname "$0")/bisect_01_sync_second_call.py"
+    "/home/ITER/mcintos/Code/imas-ambix/scripts/drain-tests/track_a_bisect/bisect_01_sync_second_call.py"
 
 echo "=== BISECT-01 ENDED ==="
 echo "Job ended. ADMIN: run nvidia-smi --gpu-reset, then scontrol resume."
