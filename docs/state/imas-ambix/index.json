@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-03T16:16:01",
+  "updated": "2026-06-03T16:19:45",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -311,15 +311,15 @@
           {
             "slug": "plasma-gs-prior-v0",
             "title": "T6a grounding sweep + T12 ungrounded control + T8b definitive SINDy/DMD re-run",
-            "why_now": "User priority 2026-06-03: intensive near-term H200 usage + further SINDy/Koopman development. T6 grounding base landed in S8; the open followups f-s8-t6a-grounding-sweep (latent{16,32,48} x (gs_lambda, gs_data_weight) grid = embarrassingly parallel RKN training that packs the 4xH200 reservation), f-s8-t12-integrated-ungrounded-control, and f-s8-t8b-discovery-sindy-rerun (gated on T6a selecting the grounded latent) are the unblocked SINDy/Koopman increments. Orthogonal to S10: current recovery is interior-information-limited and deliberately CPU-only; this is the Stage-2 dynamics-latent discovery track on the Da engine.",
+            "why_now": "User priority 2026-06-03: further SINDy/Koopman development with near-term H200 usage. T6 grounding base landed in S8; the open followups f-s8-t6a-grounding-sweep (latent{16,32,48} x (gs_lambda, gs_data_weight) grid \u2014 concurrent RKN training runs across the 4xH200 reservation), f-s8-t12-integrated-ungrounded-control, and f-s8-t8b-discovery-sindy-rerun (gated on T6a selecting the grounded latent) are the unblocked SINDy/Koopman increments. Orthogonal to S10: current recovery is interior-information-limited and deliberately CPU-only; this is the Stage-2 dynamics-latent discovery track on the Da engine. HONEST COMPUTE NOTE: these are small latent-SSMs \u2014 the sweep runs many cells concurrently but does NOT by itself saturate four H200s; H200-saturation as a goal in its own right is a separate, unscoped decision.",
             "tier": "opus",
-            "done_when": "T6a sweep grid trained + evaluated on 4xH200 (Da-skill preservation + grounding metrics per cell; best grounded latent selected); T12 same-split integrated-UNGROUNDED control scored for clean attribution; T8b definitive SINDy + DMD/Koopman re-run on the selected grounded latent (skill-preservation via frozen obs head, transient/quiescent stratification, drift-reg confound reported separately); grounding help/hurt on discovered structure reported honestly. Scaffold a dedicated latent-discovery plan via reckon-create at sprint start to host run-cards + results.",
+            "done_when": "T6a sweep grid trained + evaluated on the 4xH200 reservation (Da-skill preservation + grounding metrics per cell; best grounded latent selected); T12 same-split integrated-UNGROUNDED control scored for clean attribution; T8b definitive SINDy + DMD/Koopman re-run on the selected grounded latent (skill-preservation via frozen obs head, transient/quiescent stratification, drift-reg confound reported separately); grounding help/hurt on discovered structure reported honestly. Scaffold a dedicated latent-discovery plan via reckon-create at sprint start to host run-cards + results (this item points at shipped plasma-gs-prior-v0 only as the followup host).",
             "status": "pending"
           }
         ],
         "starts": "2026-06-04",
         "ends": "2026-06-18",
-        "description": "PROPOSED (pending user ratification \u2014 do not activate unilaterally). Saturate the 4xH200 reservation with the Stage-2 discovery track: grounding sweep -> definitive SINDy/Koopman on the grounded latent. SCOPE LOCKS: (1) the Koopman-LAE-EnKF current-recovery prototype (f-nkfs-prototype-class2) stays GATED on S10 baseline + pressure experiment \u2014 NOT in this sprint; the oracle proved current recovery is information-limited, so no H200 compute is spent pretending otherwise. (2) NODE CONTENTION: 98dci4-gpu-0003 is the only H200 node and S11 runs coordinated drain-window tests on it \u2014 schedule sweep batches outside admin windows, use the stop-file contract + three-layer time defence on every sbatch (AGENTS.md 2a/2a-cancel/2a-cancel-time). Runs parallel to S10 (CPU) and S11 (ops)."
+        "description": "PROPOSED (pending user ratification \u2014 do not activate unilaterally). Run the Stage-2 discovery track on the 4xH200 reservation: grounding sweep -> definitive SINDy/Koopman on the grounded latent, many sweep cells in flight concurrently. SCOPE LOCKS: (1) the Koopman-LAE-EnKF current-recovery prototype (f-nkfs-prototype-class2) stays GATED on S10 baseline + pressure experiment \u2014 NOT in this sprint; the oracle proved current recovery is information-limited, so no H200 compute is spent pretending otherwise. (2) COMPUTE HONESTY: these latent-SSMs are small; the sweep uses the H200s but does not saturate them \u2014 if H200 saturation is itself the priority, that is a separate scoping decision to put to the user. (3) NODE CONTENTION: 98dci4-gpu-0003 is the only H200 node and S11 runs coordinated drain-window tests on it \u2014 schedule sweep batches outside admin windows, use the stop-file contract + three-layer time defence on every sbatch (AGENTS.md 2a/2a-cancel/2a-cancel-time). Runs parallel to S10 (CPU) and S11 (ops)."
       }
     ],
     "blockers": [
@@ -378,6 +378,6 @@
         "what": "S8 closed (Stage-2 GS-prior HONEST NEGATIVE: Q1 FAIL; magnetics under-determine the internal current; MSE unusable from level-1). PIVOT ratified -> S9 opened: MSE-free multi-modal current-profile recovery beating an EnKF baseline (plan mse-free-current-recovery-v0). 7-reader deep review wpy0754zv; figures + completed-work doc landed."
       }
     ],
-    "_version": 18
+    "_version": 19
   }
 }
