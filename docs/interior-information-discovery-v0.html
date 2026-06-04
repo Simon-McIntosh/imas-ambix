@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/css/dashboard.css">
   <link rel="stylesheet" href="/_shared/css/project.css">
 <meta name="plan-modified" content="2026-06-04">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -105,57 +105,63 @@
     shrink the headline split.</p>
 
     <h3>Study pipeline</h3>
-    <svg viewBox="0 0 920 300" width="100%" role="img" aria-label="Study pipeline: fast/exotic signals to dual representation arms to shared oracle metric and physics probes" style="background:#fbfbfd;border:1px solid #e3e3ea;border-radius:8px;max-width:920px">
+    <svg viewBox="0 0 940 236" width="100%" role="img" aria-label="Study pipeline: fast/exotic signals feed two representation arms (hand-crafted, learned), both scored on one shared oracle metric, producing the verdict and physics probes" style="background:#ffffff;border:1px solid #e3e3ea;border-radius:8px;max-width:940px">
       <style>
-        .lbl{font:13px/1.3 system-ui,sans-serif;fill:#1c1c22}
-        .sub{font:11px system-ui,sans-serif;fill:#6a6a78}
-        .hd{font:600 13px system-ui,sans-serif;fill:#fff}
-        .bx{rx:7;ry:7}
+        .ti{font:600 13px system-ui,sans-serif;fill:#1c1c22}
+        .de{font:12px system-ui,sans-serif;fill:#44444f}
+        .bx{fill:#ffffff;stroke-width:1.5;rx:7;ry:7}
       </style>
       <!-- sources -->
-      <rect class="bx" x="16" y="36" width="150" height="120" fill="#2c3e50"/>
-      <text class="hd" x="91" y="58" text-anchor="middle">FAST / EXOTIC</text>
-      <text class="sub" x="26" y="80" fill="#cdd6df">xma 660 kHz · 253 ch</text>
-      <text class="sub" x="26" y="98" fill="#cdd6df">xsx 300 kHz · SXR</text>
-      <text class="sub" x="26" y="116" fill="#cdd6df">aoe reflectometry</text>
-      <text class="sub" x="26" y="134" fill="#cdd6df">act CXRS</text>
+      <rect class="bx" x="14" y="40" width="170" height="150" stroke="#2c3e50"/>
+      <rect x="24" y="58" width="9" height="9" fill="#2c3e50"/>
+      <text class="ti" x="40" y="66">FAST / EXOTIC</text>
+      <text class="de" x="24" y="92">xma · 660 kHz · 253 ch</text>
+      <text class="de" x="24" y="112">xsx · 300 kHz · SXR</text>
+      <text class="de" x="24" y="132">aoe · reflectometry</text>
+      <text class="de" x="24" y="152">act · CXRS</text>
       <!-- arm A -->
-      <rect class="bx" x="240" y="20" width="210" height="74" fill="#1f7a5a"/>
-      <text class="hd" x="345" y="42" text-anchor="middle">ARM A — hand-crafted</text>
-      <text class="sub" x="252" y="62" fill="#d4efe4">STFT spectrograms · SVD/Fourier</text>
-      <text class="sub" x="252" y="80" fill="#d4efe4">cross-coil mode (n,m) · wavelet · k-ω</text>
+      <rect class="bx" x="248" y="32" width="228" height="76" stroke="#1f7a5a"/>
+      <rect x="258" y="48" width="9" height="9" fill="#1f7a5a"/>
+      <text class="ti" x="274" y="56">ARM A — hand-crafted</text>
+      <text class="de" x="258" y="80">STFT · cross-coil mode (n,m)</text>
+      <text class="de" x="258" y="98">wavelet · k-ω · line-shape</text>
       <!-- arm B -->
-      <rect class="bx" x="240" y="106" width="210" height="74" fill="#7a4dab"/>
-      <text class="hd" x="345" y="128" text-anchor="middle">ARM B — learned (H200)</text>
-      <text class="sub" x="252" y="148" fill="#e7dcf3">1D-CNN · wavelet-scattering</text>
-      <text class="sub" x="252" y="166" fill="#e7dcf3">raw-waveform transformer</text>
+      <rect class="bx" x="248" y="130" width="228" height="76" stroke="#6d3fa3"/>
+      <rect x="258" y="146" width="9" height="9" fill="#6d3fa3"/>
+      <text class="ti" x="274" y="154">ARM B — learned (H200)</text>
+      <text class="de" x="258" y="178">1D-CNN · wavelet-scattering</text>
+      <text class="de" x="258" y="196">raw-waveform transformer</text>
       <!-- oracle -->
-      <rect class="bx" x="524" y="50" width="170" height="96" fill="#b8842a"/>
-      <text class="hd" x="609" y="74" text-anchor="middle">SHARED ORACLE</text>
-      <text class="sub" x="534" y="96" fill="#f6e9cf">held-out MSE q-truth</text>
-      <text class="sub" x="534" y="114" fill="#f6e9cf">locked mse_eval metric</text>
-      <text class="sub" x="534" y="132" fill="#f6e9cf">bar = ~0.41 rad floor</text>
+      <rect class="bx" x="540" y="62" width="184" height="106" stroke="#b8842a"/>
+      <rect x="550" y="80" width="9" height="9" fill="#b8842a"/>
+      <text class="ti" x="566" y="88">SHARED ORACLE</text>
+      <text class="de" x="550" y="114">held-out MSE q-truth</text>
+      <text class="de" x="550" y="134">locked mse_eval metric</text>
+      <text class="de" x="550" y="154">bar = ~0.41 rad floor</text>
       <!-- verdict -->
-      <rect class="bx" x="752" y="20" width="152" height="74" fill="#c0392b"/>
-      <text class="hd" x="828" y="44" text-anchor="middle">VERDICT</text>
-      <text class="sub" x="762" y="64" fill="#f6d6d1">break floor? (primary)</text>
-      <text class="sub" x="762" y="82" fill="#f6d6d1">learned &gt; crafted?</text>
+      <rect class="bx" x="772" y="32" width="156" height="76" stroke="#c0392b"/>
+      <rect x="782" y="48" width="9" height="9" fill="#c0392b"/>
+      <text class="ti" x="798" y="56">VERDICT</text>
+      <text class="de" x="782" y="80">break floor? (primary)</text>
+      <text class="de" x="782" y="98">learned &gt; crafted?</text>
       <!-- probes -->
-      <rect class="bx" x="752" y="106" width="152" height="74" fill="#34618e"/>
-      <text class="hd" x="828" y="128" text-anchor="middle">PHYSICS PROBES</text>
-      <text class="sub" x="762" y="148" fill="#d5e2ef">n(t), m · r(q=1) sawtooth</text>
-      <text class="sub" x="762" y="166" fill="#d5e2ef">r(q=2) vs EFIT/MSE</text>
+      <rect class="bx" x="772" y="130" width="156" height="76" stroke="#34618e"/>
+      <rect x="782" y="146" width="9" height="9" fill="#34618e"/>
+      <text class="ti" x="798" y="154">PHYSICS PROBES</text>
+      <text class="de" x="782" y="178">n(t), m · sawtooth r(q=1)</text>
+      <text class="de" x="782" y="196">r(q=2) vs EFIT/MSE</text>
       <!-- arrows -->
-      <g stroke="#9aa0ab" stroke-width="2" fill="none" marker-end="url(#ar)">
-        <path d="M166 78 L238 57"/>
-        <path d="M166 116 L238 143"/>
-        <path d="M450 57 L522 88"/>
-        <path d="M450 143 L522 108"/>
-        <path d="M694 84 L750 64"/>
-        <path d="M694 120 L750 140"/>
+      <g stroke="#5a5a66" stroke-width="1.6" fill="none" marker-end="url(#ar)">
+        <path d="M184 98 L246 70"/>
+        <path d="M184 132 L246 168"/>
+        <path d="M476 82 L538 100"/>
+        <path d="M476 156 L538 134"/>
+        <path d="M724 102 L770 78"/>
+        <path d="M724 134 L770 160"/>
       </g>
-      <defs><marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#9aa0ab"/></marker></defs>
+      <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L7 4 L0 8 z" fill="#5a5a66"/></marker></defs>
     </svg>
+    <p class="figcap" style="font-size:13px;color:#55555f;margin-top:6px"><strong>Figure.</strong> Four fast/exotic signal sources feed two representation arms — hand-crafted (STFT + cross-coil mode decomposition) and GPU-learned (raw-waveform encoders). Both are scored on one shared oracle against held-out MSE q-truth (bar = the ~0.41 rad near-axis floor from S9), yielding the primary verdict; physics probes localise the rational surfaces that explain any win.</p>
 
     <h2 id="s3">§3 — Measurement: oracle bar + physics probes (both)</h2>
     <p>The study produces a single comparable verdict <em>and</em> a mechanistic explanation.</p>
@@ -279,11 +285,11 @@
         1D-CNN / wavelet-scattering / transformer on raw waveforms). Directly tests the
         &quot;too-hard-for-least-squares&quot; thesis.</p>
     </div>
-<div class="r-dec" data-key="io-strategy" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="io-strategy" data-choice="onthefly" data-by="Simon McIntosh" data-when="2026-06-04 13:39">
     <p class="r-dec-q">D0 I/O strategy for the 660 kHz / ~660 MB-per-shot fast magnetics?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="precompute">precompute features → Zarr (cheap reuse, fixed representation)</button>
-      <button class="r-opt" data-value="onthefly">on-the-fly GPU STFT (flexible, I/O-heavy)</button>
+      <button class="r-opt chosen" data-value="onthefly">on-the-fly GPU STFT (flexible, I/O-heavy)</button>
       <button class="r-opt" data-value="hybrid">hybrid — precompute Arm A, stream raw for Arm B</button>
       </p>
     <p class="r-dec-rat"></p>
