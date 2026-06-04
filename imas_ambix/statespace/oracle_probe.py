@@ -99,12 +99,22 @@ CAM_POOL = 4  # 4x4 mean-pooled frame -> 16 features
 N_CAM_STATS = 4  # mean, std, p10, p90 over the (cropped) frame
 
 # Modality column-block names (order defines the concatenated feature matrix).
-MODALITIES = ["mag", "thomson", "sxr", "bolo", "camera"]
+MODALITIES = ["mag", "thomson", "sxr", "bolo", "camera", "mirnov"]
 
 # Feature-schema version — PART OF THE CACHE KEY.  Bump whenever the feature
 # CONTENT changes (e.g. adding time-history columns) so a stale pickle is never
 # silently reloaded with the wrong features.
-FEATURE_SCHEMA_VERSION = "v3_sxrmode"
+FEATURE_SCHEMA_VERSION = "v4_mirnov"
+
+# Mirnov (xma ccbv) arm: trailing-window mode features on the 40-coil array.
+# xma stores ccbv at 5 kHz in both modern (ccbv_01, time1) and legacy (ccbv01, sec)
+# schemas.  5 kHz Nyquist (2.5 kHz) resolves low-n MHD modes.  The spatial DFT
+# over 40 toroidally-distributed coils gives n=0,1,2,3 mode amplitudes.
+MIRNOV_WINDOW_MS = (
+    50.0  # trailing window for fluctuation features (covers 2-3 sawteeth)
+)
+N_MIRNOV_COILS = 40  # ccbv_01..40 (modern) / ccbv01..40 (legacy)
+N_NMODES = 4  # n=0,1,2,3 spatial DFT amplitudes from the 40-coil array
 
 # Time-history arm: trailing-window temporal summaries on a uniform model grid.
 HIST_MODEL_HZ = 200.0  # model grid for the history window (5 ms cadence)
@@ -497,6 +507,123 @@ def _sxr_mode_block(store, slice_t):
     return out, True
 
 
+def _xma_mirnov_block(store, slice_t):
+    """Mirnov (xma ccbv) feature block -> (S, N_MIRNOV_COILS*2 + N_NMODES + 1).
+
+    For each pv slice time, over a trailing MIRNOV_WINDOW_MS window on the 5 kHz
+    ccbv time series, per coil (all 40):
+      * detrended-fluctuation RMS (mode amplitude envelope), and
+      * dominant-band power (rfft peak — mode-frequency proxy).
+    Plus toroidal n-mode DFT amplitudes (n=0..N_NMODES-1) from the instantaneous
+    coil array at the slice time.  Physical basis: cross-coil coherence encodes
+    rational-surface structure (q=1 sawtooth, q=2/3-2 tearing) even at 5 kHz.
+    Plus a rate/availability flag (1 = xma present and usable).
+    """
+    n_feat = N_MIRNOV_COILS * 2 + N_NMODES + 1
+    nanblock = np.full((slice_t.size, n_feat), np.nan)
+    if "xma" not in store:
+        return nanblock, False
+
+    grp = store["xma"]
+    keys = set(grp.array_keys())
+
+    # Detect schema (modern vs legacy) and pick time axis
+    if "time1" in keys:
+        time_key = "time1"
+        coil_names = [f"ccbv_{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
+    elif "ccbv01" in keys or "ccbv1" in keys:
+        time_key = "sec"
+        coil_names = [f"ccbv{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
+    else:
+        return nanblock, False
+
+    try:
+        t_raw = np.asarray(grp[time_key], dtype=np.float64)
+    except Exception:
+        return nanblock, False
+
+    # Extract compact finite time series (plasma-on window only)
+    fin_t = np.isfinite(t_raw)
+    if fin_t.sum() < 20:
+        return nanblock, False
+    t_compact = t_raw[fin_t]
+
+    # Load all 40 coils into a compact (T, C) array
+    coil_data = np.full((fin_t.sum(), N_MIRNOV_COILS), np.nan, dtype=np.float32)
+    n_loaded = 0
+    for c_idx, cname in enumerate(coil_names):
+        if cname not in keys:
+            continue
+        try:
+            arr = np.asarray(grp[cname], dtype=np.float32)
+        except Exception:
+            continue
+        if arr.size != t_raw.size:
+            continue
+        # Use each channel's own finite mask (handles time1/time2 clock split)
+        ch_fin = np.isfinite(arr)
+        if ch_fin.sum() == fin_t.sum():
+            coil_data[:, c_idx] = arr[ch_fin]
+        else:
+            # Count mismatch — align to time axis using its own finite indices
+            ch_compact_len = min(ch_fin.sum(), fin_t.sum())
+            coil_data[:ch_compact_len, c_idx] = arr[ch_fin][:ch_compact_len]
+        n_loaded += 1
+
+    if n_loaded == 0:
+        return nanblock, False
+
+    dt = float(np.median(np.diff(t_compact[:100]))) if len(t_compact) > 10 else 2e-4
+    if dt <= 0:
+        return nanblock, False
+    native_hz = 1.0 / dt
+    win_n = max(8, int(round(MIRNOV_WINDOW_MS * 1e-3 * native_hz)))
+
+    out = np.full((slice_t.size, n_feat), np.nan)
+    out[:, -1] = 1.0  # availability flag
+
+    # Index of each slice time in the compact time axis
+    idx = np.searchsorted(t_compact, slice_t, side="right") - 1
+
+    for s in range(slice_t.size):
+        e = idx[s]
+        if e < 0 or e >= len(t_compact):
+            continue
+        b = max(0, e - win_n + 1)
+        w = coil_data[b : e + 1]  # (win, 40)
+        if w.shape[0] < 8:
+            continue
+
+        xs = np.arange(w.shape[0], dtype=np.float64)
+        for c in range(N_MIRNOV_COILS):
+            wc = w[:, c].astype(np.float64)
+            fin = np.isfinite(wc)
+            if fin.sum() < 8:
+                continue
+            wcf = wc[fin]
+            xsf = xs[fin]
+            coef = np.polyfit(xsf, wcf, 1)
+            resid = wcf - np.polyval(coef, xsf)
+            fft_r = np.abs(np.fft.rfft(resid))
+            out[s, c] = float(np.std(resid))  # fluctuation RMS
+            out[s, N_MIRNOV_COILS + c] = (
+                float(np.max(fft_r[1:])) if fft_r.size > 1 else 0.0
+            )
+
+        # Spatial DFT across 40 coils at the nearest compact sample (n-mode spectrum)
+        coil_snap = coil_data[e].astype(np.float64)
+        fin_snap = np.isfinite(coil_snap)
+        if fin_snap.sum() >= 8:
+            # Pad missing coils with median (spatial DFT needs a full array)
+            snap = np.where(fin_snap, coil_snap, np.nanmedian(coil_snap))
+            sp = np.abs(np.fft.rfft(snap - snap.mean()))  # (21,) amplitudes
+            for n in range(N_NMODES):
+                if n < len(sp):
+                    out[s, N_MIRNOV_COILS * 2 + n] = float(sp[n])
+
+    return out, True
+
+
 def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False):
     """Build a :class:`ShotFeatures` for one CAL shot (None if unusable)."""
     import zarr  # noqa: PLC0415
@@ -637,6 +764,14 @@ def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False):
         # mode features need a present + high-rate xsx to be meaningful
         present["sxr"] = present["sxr"] and mb_ok
 
+    # --- raw Mirnov (xma ccbv) block — always extracted ----------------------
+    # Per-coil trailing-window fluctuation features + toroidal n-mode DFT.
+    # Distinct from the ama NTM block (already in mag): raw ccbv vs pre-computed
+    # mode scalars.  Both modern (ccbv_01, time1) and legacy (ccbv01, sec) handled.
+    mirnov_b, mirnov_ok = _xma_mirnov_block(store, sl_t)
+    blocks["mirnov"] = mirnov_b
+    present["mirnov"] = mirnov_ok
+
     return ShotFeatures(
         shot_id=shot_id,
         blocks=blocks,
@@ -686,6 +821,9 @@ ARMS: dict[str, list[str]] = {
     # or only re-derive conductivity the EnKF physics bar already has?)
     "G_mag_te_bolo": ["mag", "thomson", "bolo"],
     "H_mag_te_sxr": ["mag", "thomson", "sxr"],
+    # raw Mirnov (xma ccbv) arms — distinct from ama NTM in the mag block
+    "E_mag_mirnov": ["mag", "mirnov"],  # does raw ccbv add to processed mag?
+    "I_mag_sxr_mirnov": ["mag", "sxr", "mirnov"],  # SXR + Mirnov combined
 }
 
 
@@ -1484,7 +1622,14 @@ def run(cfg: ProbeConfig) -> dict:
             mse_eval_rmse_arr["D_all"], mse_eval_rmse_arr["A_mag"], seed=bE
         ),
     }
-    for arm_name in ("E_mag_sxr", "E_mag_bolo", "E_mag_thomson", "E_mag_camera"):
+    for arm_name in (
+        "E_mag_sxr",
+        "E_mag_bolo",
+        "E_mag_thomson",
+        "E_mag_camera",
+        "E_mag_mirnov",
+        "I_mag_sxr_mirnov",
+    ):
         paired_mse_eval[f"{arm_name}_minus_A"] = _paired_diff_from_arrays(
             mse_eval_rmse_arr[arm_name], mse_eval_rmse_arr["A_mag"], seed=bE + 1
         )
@@ -1525,7 +1670,14 @@ def run(cfg: ProbeConfig) -> dict:
             y_test_ref, arm_pred["D_all"], arm_pred["A_mag"], test_shot_idx, seed=bA + 1
         ),
     }
-    for arm_name in ("E_mag_sxr", "E_mag_bolo", "E_mag_thomson", "E_mag_camera"):
+    for arm_name in (
+        "E_mag_sxr",
+        "E_mag_bolo",
+        "E_mag_thomson",
+        "E_mag_camera",
+        "E_mag_mirnov",
+        "I_mag_sxr_mirnov",
+    ):
         paired[f"{arm_name}_minus_A"] = paired_bootstrap_diff(
             y_test_ref,
             arm_pred[arm_name],
@@ -1581,7 +1733,13 @@ def run(cfg: ProbeConfig) -> dict:
     # attribution: which single-modality E arms BOTH significantly + materially
     # beat magnetics-only on the mse_eval metric?
     carriers = []
-    for arm_name in ("E_mag_sxr", "E_mag_bolo", "E_mag_thomson", "E_mag_camera"):
+    for arm_name in (
+        "E_mag_sxr",
+        "E_mag_bolo",
+        "E_mag_thomson",
+        "E_mag_camera",
+        "E_mag_mirnov",
+    ):
         r = arm_results[arm_name]["mse_eval_rmse_mean"]
         e_sig = _sig_better_e(f"{arm_name}_minus_A")
         e_mat = bool(np.isfinite(r) and r < rmse_A * margin)
