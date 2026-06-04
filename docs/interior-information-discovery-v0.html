@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/css/dashboard.css">
   <link rel="stylesheet" href="/_shared/css/project.css">
 <meta name="plan-modified" content="2026-06-04">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 <meta name="plan-impl" content="0.1">
 </head>
 <body>
@@ -259,7 +259,11 @@
       <button class="r-opt" data-value="xma-xsx">xma + xsx</button>
       <button class="r-opt chosen" data-value="broad-panel">broad panel (xma+xsx+aoe+act)</button>
       </p>
-    <p class="r-dec-rat">Locked to the broad panel (user, 2026-06-04). xma (5 kHz) and xsx (100–500 kHz) are the high-availability fast magnetics+SXR core: xma 91% / xsx hcam 78% of the 112 held-out MSE shots. aoe (reflectometry, 19%) and act (CXRS, 95%) extend the panel on smaller usable-N cohorts and are reported with that caveat. Note: act has the HIGHER availability (95%); aoe is the smaller-N arm (19%). D0 rate correction: xma is 5 kHz not 660 kHz as the original plan text implied; xsx is the genuinely fast sub-ms channel.</p>
+    <p class="r-dec-rat">Locked to the broad panel (user, 2026-06-04). xma (5 kHz) and xsx (100–500 kHz) are the high-availability fast magnetics+SXR core: xma 91% / xsx hcam 78% of the 112 held-out MSE shots. aoe (reflectometry, 19%) and act (CXRS, 95%) extend the panel on smaller usable-N cohorts.
+
+xma Mirnov coils (ccbv_01..40) confirmed included (2026-06-04, advisor + user). These are AC dBθ/dt coils measuring MHD fluctuations — physically distinct from the quasi-static equilibrium B_pol probes + flux loops that set the 0.41 rad floor. Mode-structure information (cross-coil coherence → n/m mode numbers → rational-surface radii) is rate-robust at 5 kHz: the 5 kHz limit costs crash microdynamics, not spatial mode information. xsx at 500 kHz is the primary fast-crash arm; xma ccbv is the spatial-mode arm. The oracle (not an a-priori argument) decides what beats 0.41.
+
+D1 arm design: ccbv decomposed cross-coil (n-spectrum / mode amplitudes / coherence), NOT flat per-channel regression. ama n=2/n=odd at 500 kHz tracked separately so oracle gains are attributable. fl_cc flux loops treated as equilibrium-adjacent (separate from ccbv). Note: act high-availability (95%); aoe is the smaller-N arm (19%).</p>
     </div>
 <div class="r-dec" data-key="measurement" data-choice="oracle-plus-probes" data-by="Simon McIntosh" data-when="2026-06-04">
     <p class="r-dec-q">How is &quot;interior information present?&quot; measured?</p>
