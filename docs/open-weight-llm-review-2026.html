@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="open-weight-llm-review-2026">
+  <meta name="plan-title"    content="Open-Weight LLM Review — 4×H200 Agentic Coding Harness (June 2026)">
+  <meta name="plan-summary"  content="State-of-the-art open-weight LLM survey for a physics-simulation agent harness on the Group A 4×H200 reservation; ranked by agentic coding + tool-use, with memory-fit analysis and deployment recommendations.">
+  <meta name="plan-informs"  content="physics-world-model-strategy,harnesses">
+  <title>Open-Weight LLM Review — 4×H200 Agentic Coding Harness (June 2026) | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Executive Summary</h2>
+
+    <p>This review covers the open-weight LLM landscape as of June 2026, scoped to models capable
+    of serving as an agentic coding and tool-use backend for a physics-simulation harness on our
+    Group A 4×H200 NVL reservation (4 GPUs × 143,771 MiB = <strong>561 GB total VRAM</strong>,
+    650 GB CPU RAM, 30 cores, GPFS-backed model storage). The GPU node
+    <code>98dci4-gpu-0003</code> is currently <strong>IDLE</strong> — all four GPUs report 0 MiB
+    used, 29–30 °C, 0% utilisation as of the June 4 inspection.</p>
+
+    <p>Two models stand out as actionable next steps requiring <em>no additional download</em>:</p>
+    <ul>
+      <li><strong>DeepSeek V4-Flash at <code>reasoning_effort="xhigh"</code></strong> — already
+        installed (149 GB), costs nothing to test, and evidence shows it reaches Claude Sonnet 4.6
+        Max-mode quality (Artificial Analysis Intelligence Index 47) at maximum thinking budget.
+        The underwhelming results seen at default effort are well-explained by this gap; testing
+        high-effort is the immediate priority.</li>
+      <li><strong>MiniMax M2.7</strong> — already installed (215 GB, <code>minimax-m2-7</code>
+        profile). Scores 56.22% on SWE-bench Pro, competitive with the frontier MoE tier.
+        Previously limited by a FP8 GEMM kernel bug on this node; the Triton fallback path
+        (already configured in the profile) delivers ~17 tok/s — usable for agentic harness
+        work.</li>
+    </ul>
+
+    <p><strong>Top new download candidate:</strong> <strong>Qwen3-Coder 480B/35B (FP8)</strong> —
+    approximately 250 GB on disk, ~250 GB live VRAM footprint, leaving ~310 GB for KV cache.
+    Apache 2.0 licence, purpose-built for coding agents, 67% SWE-bench Verified (open-weight
+    state-of-the-art), fully supported by SGLang and vLLM on our H200 hardware.</p>
+
+    <p>Three otherwise compelling models do <em>not</em> fit the 4×H200 budget:
+    GLM-5.1 (754 B/40 B, FP8 weights ≈ 756 GB — needs 8×H200), MiMo-V2.5-Pro
+    (1.02 T/42 B, weights &gt; 1 TB), and Kimi K2.6 (1 T/32 B, already tested —
+    CPU-offload at 5 tok/s is too slow for interactive agent use).</p>
+
+    <h2 id="s2">§2 — GPU Server Inspection</h2>
+
+    <p>Live SLURM inspection performed 2026-06-04 via <code>srun --partition=betelgeuse
+    --reservation=gpu_0003_grpA --account=grpa --gres=gpu:4</code>.</p>
+
+    <table>
+      <thead><tr><th>GPU</th><th>Name</th><th>Total VRAM</th><th>Used</th><th>Free</th><th>Util %</th><th>Temp</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>H200 NVL</td><td>143,771 MiB</td><td>0 MiB</td><td>143,158 MiB</td><td>0%</td><td>29 °C</td></tr>
+        <tr><td>1</td><td>H200 NVL</td><td>143,771 MiB</td><td>0 MiB</td><td>143,158 MiB</td><td>0%</td><td>29 °C</td></tr>
+        <tr><td>2</td><td>H200 NVL</td><td>143,771 MiB</td><td>0 MiB</td><td>143,158 MiB</td><td>0%</td><td>30 °C</td></tr>
+        <tr><td>3</td><td>H200 NVL</td><td>143,771 MiB</td><td>0 MiB</td><td>143,158 MiB</td><td>0%</td><td>29 °C</td></tr>
+      </tbody>
+    </table>
+
+    <p>Node state: <code>IDLE+RESERVED</code>. Last boot: 2026-06-01 (no drain since the
+    final RCA-confirmed infrastructure fix). RAM: 1,516 GB free of 1,536 GB. GPFS at
+    <code>/work/projects/imas_gpu</code>: 574 TB free. Existing model footprints:</p>
+
+    <table>
+      <thead><tr><th>Profile</th><th>Disk (GPFS)</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><code>kimi-k2-6</code></td><td>555 GB</td><td>Installed; CPU-offload only at 5 tok/s — too slow</td></tr>
+        <tr><td><code>minimax-m2-7</code></td><td>215 GB</td><td>Installed; 17 tok/s via Triton fallback</td></tr>
+        <tr><td><code>deepseek-v4-flash</code></td><td>149 GB</td><td>Installed; ~110 tok/s; high-effort untested</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s3">§3 — Candidate Models: Full Review</h2>
+
+    <h3 id="s3a">3a. DeepSeek V4-Flash (installed)</h3>
+    <p><strong>Architecture:</strong> 284 B total / 13 B activated sparse MoE; CSA+HCA hybrid
+    attention; FP4 experts + FP8 attention/dense; 1 M context. Weights 149 GB (already on
+    GPFS). Measured throughput: ~110 tok/s on 4×H200 in the Group A reservation.</p>
+    <p><strong>Reasoning effort:</strong> V4-Flash supports <code>reasoning_effort</code>
+    values of <code>low</code>, <code>medium</code>, <code>high</code>, and <code>xhigh</code>
+    (maps to maximum thinking budget). At default effort the model was previously found
+    underwhelming for agentic tasks. Evidence from Artificial Analysis shows V4-Flash at
+    <em>xhigh</em> reasoning reaches <strong>Intelligence Index 47</strong> — identical to
+    Claude Sonnet 4.6 in Max mode, at roughly 1/90th of the per-token cost. For simple
+    agentic tasks V4-Flash at high effort performs on par with V4-Pro.</p>
+    <p><strong>Recommendation:</strong> Test immediately. No download required. Set
+    <code>"reasoning_effort": "xhigh"</code> (or equivalent <code>thinking.budget_tokens</code>
+    parameter) in the SGLang serve call or client request. If this closes the quality gap the
+    model is already deployed and the fastest option on node (~110 tok/s).</p>
+
+    <h3 id="s3b">3b. MiniMax M2.7 (installed)</h3>
+    <p><strong>Architecture:</strong> 230 B total sparse MoE, ~10 B activated; 200 K context;
+    FP8 native (float8_e4m3fn); GQA with 48 Q / 8 KV heads. 215 GB on disk. Measured
+    throughput: ~17 tok/s via Triton fallback (FP8 blockwise GEMM kernel unsupported on
+    sgl-kernel 0.5.x / H200 NVL — see profile notes).</p>
+    <p><strong>Benchmarks:</strong> SWE-bench Pro 56.22%; Terminal-Bench 2 57.0%. These are
+    frontier-tier MoE scores matching or exceeding GPT-5.3-Codex on the open-source leaderboard
+    at the time of publication (April 2026).</p>
+    <p><strong>Recommendation:</strong> Redeploy with the existing profile. Throughput at 17 tok/s
+    is adequate for agentic harness use (agent turns are not latency-critical at the human
+    oversight timescale). When sgl-kernel ships a working CUTLASS FP8 path the throughput
+    ceiling rises substantially.</p>
+
+    <h3 id="s3c">3c. Qwen3-Coder 480B/35B — top new candidate</h3>
+    <p><strong>Architecture:</strong> 480 B total / 35 B activated sparse MoE; hybrid
+    attention; 7.5 T training tokens with 70% code focus; Apache 2.0 licence. FP8 checkpoint
+    available as <code>Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8</code> on Hugging Face.
+    Disk size ~250 GB (FP8). VRAM footprint at TP=4 on H200: ~250 GB total, leaving
+    approximately 310 GB for KV cache — substantial long-context headroom.</p>
+    <p><strong>Benchmarks:</strong> SWE-bench Verified <strong>66.5–67.0%</strong>
+    (open-weight state-of-the-art as of July 2025, still highly competitive in mid-2026);
+    matches Claude Sonnet 4 on multi-turn agentic coding benchmarks. Purpose-built for coding
+    agents — training was structured around tool-rich, long-horizon software engineering tasks.</p>
+    <p><strong>Inference:</strong> SGLang and vLLM both have first-class support with
+    vLLM Recipes providing an explicit Qwen3-Coder deployment guide. TP=4 is standard; no
+    known kernel compatibility issues on H200 NVL with sgl-kernel 0.5.x.</p>
+    <p><strong>Download:</strong> Must be fetched from a standard compute node (outbound network;
+    <code>betelgeuse</code> GPU nodes have no egress). Submit a download job to
+    <code>sirius</code>/<code>rigel</code> partition pointing the HF cache at
+    <code>/work/projects/imas_gpu/agents/qwen3-coder/</code>. Estimated download
+    ~250 GB from Hugging Face Hub.</p>
+    <p><strong>Recommendation:</strong> Add a TOML profile and submit download job. This is
+    the highest-capability model that fits the 4×H200 budget cleanly without CPU offload.</p>
+
+    <h3 id="s3d">3d. MiMo-V2.5 (310B/15B)</h3>
+    <p><strong>Architecture:</strong> 310 B total / 15 B activated sparse MoE; 256 routed
+    experts; hybrid SWA+global attention (5:1 ratio, ~6× KV reduction); 1 M context;
+    native omnimodal (text, image, video, audio); FP8 weights. Disk/VRAM ~310 GB (FP8).
+    MIT licence. Released 2026-04-22 by Xiaomi as
+    <code>XiaomiMiMo/MiMo-V2.5</code>.</p>
+    <p><strong>Benchmarks:</strong> SWE-bench Pro 56.1%; Terminal-Bench 2 65.8%. The
+    Terminal-Bench 2 score at 65.8% is especially strong — terminal/shell tool use is the
+    primary interface for a physics-simulation harness.</p>
+    <p><strong>Inference:</strong> SGLang recommended (official quickstart uses tp=8 / dp=2);
+    TP=4 is viable given 64 Q-heads / 8 KV-heads both divide evenly. No known compatibility
+    issues. Has an MTP speculative-decoding head (329 M params) that can boost throughput.</p>
+    <p><strong>Note on MiMo-V2.5-Pro:</strong> The Pro variant (1.02 T / 42 B activated)
+    posts stronger scores (SWE-bench Pro 57.2%, SWE-bench Verified 78.9%, Terminal-Bench 2
+    68.4%) but requires &gt;1 TB VRAM — does not fit the 4×H200 budget without CPU offload.</p>
+    <p><strong>Recommendation:</strong> Viable alternative to Qwen3-Coder if omnimodal
+    input (vision, audio) becomes relevant to the harness. Download ~310 GB.</p>
+
+    <h3 id="s3e">3e. Mistral Medium 3.5 (128B dense)</h3>
+    <p><strong>Architecture:</strong> 128 B dense transformer; FP8 pre-quantized
+    (E4M3, vision tower + lm_head in BF16); 256 K context; multimodal (vision). Released
+    2026-04-30 by Mistral AI. Apache 2.0 licence. EAGLE speculative decoding available
+    (+1.41× throughput, 4 GB overhead). Disk ~134 GB (FP8).</p>
+    <p><strong>Benchmarks:</strong> SWE-bench Verified 77.6% — the highest SWE-bench Verified
+    score among models that fit 4×H200, though this is the original (easier) Verified benchmark
+    rather than SWE-bench Pro which better differentiates frontier agentic performance.
+    Supersedes Devstral 2 as Mistral's primary open coding model.</p>
+    <p><strong>Inference:</strong> vLLM and SGLang both officially supported. Fits 4×H200
+    with massive VRAM headroom (~427 GB free for KV cache at FP8). Minimum production
+    recommendation from Mistral is 4×H100 80 GB, which we exceed.</p>
+    <p><strong>Recommendation:</strong> Strong contender if you want a dense model with a simpler
+    deployment profile. Lower complexity than MoE routing. Consider as a comparison point
+    alongside the MoE candidates.</p>
+
+    <h3 id="s3f">3f. Devstral 2 (123B dense)</h3>
+    <p><strong>Architecture:</strong> 123 B dense transformer; 256 K context; Apache 2.0.
+    Built in collaboration with All Hands AI (OpenHands scaffold). Disk ~123 GB (BF16),
+    ~62 GB (FP8 if quantized). SWE-bench Verified 72.2% — SOTA open-weight agent at time of
+    release (December 2025), still competitive in mid-2026. Devstral Small 2 (separate model)
+    scores 68.0% at 5× smaller scale.</p>
+    <p><strong>Recommendation:</strong> Now superseded by Mistral Medium 3.5 (same licence,
+    same family, 5 points higher SWE-bench Verified). Prefer Medium 3.5 unless you have a
+    specific reason to use the purpose-built agent variant.</p>
+
+    <h3 id="s3g">3g. GLM-5.1 (754B/40B) — does not fit</h3>
+    <p><strong>Architecture:</strong> 754 B total / 40 B activated sparse MoE; 200 K context;
+    FP8 weights ≈ 756 GB disk. MIT licence. Released 2026-04-08 by Z.ai (formerly Zhipu AI).
+    The first open-weight model to hold #1 on SWE-bench Pro (58.4%), surpassing Claude Opus
+    4.6, GPT-5.4, and Gemini 3.1 Pro at release.</p>
+    <p><strong>Memory verdict:</strong> FP8 weights alone are 756 GB &gt; 561 GB 4×H200 VRAM.
+    The reference deployment guide specifies 8×H200 or 8×H100 SXM5. <strong>Does not fit
+    the Group A 4×H200 reservation.</strong> Would require Group A + Group B combined
+    (full 8-GPU node) — a scheduling negotiation outside agent scope.</p>
+
+    <h3 id="s3h">3h. Kimi K2.5 / K2.6 (1T/32B) — too slow on CPU offload</h3>
+    <p>Both K2.5 (January 2026) and K2.6 (April 2026) are 1-trillion-parameter sparse MoE
+    models with 32 B active per token. K2.6 scores 58.6% SWE-bench Pro and 76.8% SWE-bench
+    Verified, reaching frontier agentic capability. K2.5 similarly strong at 76.8% Verified.</p>
+    <p>The K2.6 weights (555 GB) fit in GPFS but require KTransformers CPU offload on 4×H200
+    (560 GB VRAM just barely short of full GPU serving). This results in <strong>~5 tok/s</strong>
+    — confirmed in deployment. At 5 tok/s a 2,000-token agent turn takes 6–7 minutes; this is
+    not viable for an interactive harness. K2.5 has the same constraint.</p>
+
+    <h3 id="s3i">3i. MiniMax M3 — not yet available</h3>
+    <p>MiniMax released M3 on June 1, 2026 — three days before this review. Parameter count
+    is not yet disclosed. Architecture: new MiniMax Sparse Attention (MSA) giving ~15.6× faster
+    decode at 1 M context vs M2; SWE-bench Pro 59.0% (best of the publicly available MoE
+    tier); 1 M context; native multimodal. Open weights are due on Hugging Face "within
+    ~10 days" of release (estimated ~June 10–11, 2026). Deployment size and 4×H200 fit cannot
+    be assessed until weights are published. <strong>Watch for the HF release.</strong></p>
+
+    <h3 id="s3j">3j. Qwen3-Coder-Next (80B/3B) and Qwen3.6-27B</h3>
+    <p>Qwen3-Coder-Next is a compact 80 B total / 3 B activated MoE (hybrid attention, from
+    the Qwen3-Next base) purpose-built for coding agents and local development. It achieves
+    performance comparable to models with 10–20× more active parameters on long-horizon tool
+    use and recovery from execution failures. Trivially fits on a single H200. Qwen3.6-27B is a
+    27 B multimodal model scoring 77.2% SWE-bench Verified, within 3.7 points of Claude Opus
+    4.6.</p>
+    <p>Both are useful as lightweight scaffolding agents or sub-agents in a multi-agent harness
+    (e.g. fan-out workers in a physics sweep) while a larger orchestrator model handles complex
+    reasoning. Apache 2.0 licence.</p>
+
+    <h2 id="s4">§4 — Benchmark Comparison and Memory-Fit Table</h2>
+
+    <p>The table below ranks candidates by SWE-bench Pro (harder, real codebases) where
+    available, falling back to SWE-bench Verified. Memory figures are FP8 weights only;
+    add ~20–40 GB for KV cache at typical context lengths.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Params (T/A)</th>
+          <th>SWE Pro</th>
+          <th>SWE Verified</th>
+          <th>TB-2</th>
+          <th>VRAM (FP8)</th>
+          <th>Fits 4×H200?</th>
+          <th>Installed?</th>
+          <th>Licence</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>MiniMax M3</strong></td>
+          <td>TBD</td>
+          <td>59.0%</td>
+          <td>—</td>
+          <td>66.0%</td>
+          <td>TBD</td>
+          <td>Unknown (weights not yet released)</td>
+          <td>No</td>
+          <td>TBD</td>
+        </tr>
+        <tr>
+          <td><strong>Kimi K2.6</strong></td>
+          <td>1T / 32B</td>
+          <td>58.6%</td>
+          <td>76.8%</td>
+          <td>—</td>
+          <td>~555 GB</td>
+          <td>⚠️ CPU offload only → 5 tok/s</td>
+          <td>Yes</td>
+          <td>Custom open</td>
+        </tr>
+        <tr>
+          <td><strong>GLM-5.1</strong></td>
+          <td>754B / 40B</td>
+          <td>58.4%</td>
+          <td>—</td>
+          <td>—</td>
+          <td>~756 GB</td>
+          <td>❌ Needs 8×H200</td>
+          <td>No</td>
+          <td>MIT</td>
+        </tr>
+        <tr>
+          <td><strong>MiMo-V2.5-Pro</strong></td>
+          <td>1.02T / 42B</td>
+          <td>57.2%</td>
+          <td>78.9%</td>
+          <td>68.4%</td>
+          <td>&gt;1 TB</td>
+          <td>❌ Too large</td>
+          <td>No</td>
+          <td>MIT</td>
+        </tr>
+        <tr style="background: #e8f4e8;">
+          <td><strong>Qwen3-Coder 480B</strong></td>
+          <td>480B / 35B</td>
+          <td>—</td>
+          <td>67.0%</td>
+          <td>—</td>
+          <td>~250 GB</td>
+          <td>✅ 310 GB headroom</td>
+          <td>No</td>
+          <td>Apache 2.0</td>
+        </tr>
+        <tr style="background: #e8f4e8;">
+          <td><strong>MiniMax M2.7</strong></td>
+          <td>230B / ~10B</td>
+          <td>56.22%</td>
+          <td>—</td>
+          <td>57.0%</td>
+          <td>215 GB</td>
+          <td>✅ Installed</td>
+          <td>Yes</td>
+          <td>Custom open</td>
+        </tr>
+        <tr style="background: #e8f4e8;">
+          <td><strong>MiMo-V2.5</strong></td>
+          <td>310B / 15B</td>
+          <td>56.1%</td>
+          <td>—</td>
+          <td>65.8%</td>
+          <td>~310 GB</td>
+          <td>✅ 250 GB headroom</td>
+          <td>No</td>
+          <td>MIT</td>
+        </tr>
+        <tr style="background: #fff3cd;">
+          <td><strong>DSv4-Flash (xhigh)</strong></td>
+          <td>284B / 13B</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td>149 GB</td>
+          <td>✅ Installed · 110 tok/s</td>
+          <td>Yes</td>
+          <td>MIT</td>
+        </tr>
+        <tr>
+          <td><strong>Mistral Medium 3.5</strong></td>
+          <td>128B dense</td>
+          <td>—</td>
+          <td>77.6%</td>
+          <td>—</td>
+          <td>~134 GB</td>
+          <td>✅ Massive headroom</td>
+          <td>No</td>
+          <td>Apache 2.0</td>
+        </tr>
+        <tr>
+          <td><strong>Devstral 2</strong></td>
+          <td>123B dense</td>
+          <td>—</td>
+          <td>72.2%</td>
+          <td>—</td>
+          <td>~123 GB</td>
+          <td>✅ Massive headroom</td>
+          <td>No</td>
+          <td>Apache 2.0</td>
+        </tr>
+        <tr>
+          <td><strong>Qwen3-Coder-Next</strong></td>
+          <td>80B / 3B</td>
+          <td>—</td>
+          <td>High (competitive)</td>
+          <td>—</td>
+          <td>~40 GB</td>
+          <td>✅ Single GPU</td>
+          <td>No</td>
+          <td>Apache 2.0</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><em>Green rows: fits 4×H200 cleanly with GPU-only serving.
+    Yellow row: installed, needs config change only.
+    TB-2 = Terminal-Bench 2 (shell tool use).</em></p>
+
+    <h2 id="s5">§5 — OpenRouter Leaderboard Notes</h2>
+
+    <p>The OpenRouter rankings page reports weekly token volume across all models. Direct
+    extraction of the live leaderboard was not possible via automated fetch (page requires
+    JavaScript rendering), but search results and secondary sources confirm the following
+    open-weight models are actively trending on OpenRouter as of June 2026:</p>
+    <ul>
+      <li><strong>DeepSeek V4-Flash</strong> — high volume due to low cost; widely used for
+        coding and agent workflows. The API exposes <code>reasoning_effort</code> with values
+        <code>low / medium / high / xhigh</code>.</li>
+      <li><strong>Qwen3-Coder 480B/35B</strong> — top open-weight coding model by token volume
+        on Together AI and similar hosted platforms.</li>
+      <li><strong>GLM-5.1</strong> — trending strongly after topping SWE-bench Pro in April;
+        primarily cloud-hosted given the 8×H200 hardware requirement.</li>
+      <li><strong>MiMo-V2.5 / MiMo-V2.5-Pro</strong> — both listed on OpenRouter; the Pro
+        variant (1T MoE) is more widely cited but requires large GPU clusters for self-hosting.</li>
+      <li><strong>Kimi K2.6</strong> — on OpenRouter; primarily used via API due to hardware
+        requirements.</li>
+    </ul>
+
+    <h2 id="s6">§6 — MiMo-V2.5 vs MiMo-V2.5-Pro: Which is on OpenRouter?</h2>
+
+    <p>There are two MiMo models released April 22, 2026 by Xiaomi:</p>
+    <ul>
+      <li><strong>MiMo-V2.5</strong> (<code>XiaomiMiMo/MiMo-V2.5</code>) — 310 B total / 15 B
+        activated, MIT licence. <strong>Fits 4×H200.</strong> This is the self-hostable variant
+        reviewed in §3d.</li>
+      <li><strong>MiMo-V2.5-Pro</strong> (<code>XiaomiMiMo/MiMo-V2.5-Pro</code>) — 1.02 T total /
+        42 B activated, MIT licence. Stronger benchmarks (SWE-bench Verified 78.9%) but
+        &gt;1 TB VRAM. <strong>Does not fit 4×H200.</strong></li>
+    </ul>
+    <p>The OpenRouter listing at <code>openrouter.ai/xiaomi/mimo-v2.5</code> points to the
+    310 B variant; <code>openrouter.ai/xiaomi/mimo-v2.5-pro</code> is the 1T Pro served via
+    OpenRouter's cloud infrastructure. For self-hosting, only the 310 B base is viable on our
+    hardware.</p>
+
+    <h2 id="s7">§7 — DSv4-Flash: Higher Reasoning Effort Assessment</h2>
+
+    <p>The "underwhelming results" observed at default reasoning effort are consistent with the
+    documented performance gap between V4-Flash default and V4-Flash-Max modes. Evidence:</p>
+    <ul>
+      <li>V4-Flash-Max (reasoning_effort=xhigh) achieves Artificial Analysis
+        <strong>Intelligence Index 47</strong> — identical to Claude Sonnet 4.6 in Max mode,
+        at ~1/90th of the per-output-token price.</li>
+      <li>For simple agentic tasks, V4-Flash at high effort performs on par with V4-Pro
+        (the 2× larger model).</li>
+      <li>For complex agentic workflows, V4-Pro maintains an advantage due to its larger
+        parameter scale — but V4-Flash-Max is substantially closer than default effort.</li>
+    </ul>
+    <p><strong>How to enable:</strong> In the SGLang serve request or client, set
+    <code>"thinking": {"type": "enabled", "budget_tokens": 32768}</code> (or the equivalent
+    <code>reasoning_effort: "xhigh"</code> if the DeepSeek-compatible API route is used).
+    The existing <code>deepseek-v4-flash</code> profile may already support this — check
+    the serve script for any <code>--disable-thinking</code> flag and remove it if present.
+    No re-download required.</p>
+
+    <h2 id="s8">§8 — Recommended Action Plan</h2>
+
+    <p>Actions in priority order, respecting the constraint that no new downloads are needed
+    for the first two steps:</p>
+
+    <ol>
+      <li>
+        <strong>Immediately (no download):</strong> Re-serve <code>deepseek-v4-flash</code>
+        with thinking/reasoning enabled. Run the existing benchmark suite with
+        <code>reasoning_effort="xhigh"</code>. Compare against the prior default-effort
+        results. Expected: ~20-point Intelligence Index improvement. If this closes the
+        quality gap, stop here.
+      </li>
+      <li>
+        <strong>Short term (already installed):</strong> Serve <code>minimax-m2-7</code>
+        using the existing profile. 56.22% SWE-bench Pro is frontier-competitive. Confirm
+        throughput (~17 tok/s) is adequate for the physics harness turn cadence.
+      </li>
+      <li>
+        <strong>New download — highest priority:</strong> Add a TOML profile for
+        <code>qwen3-coder-480b</code> pointing to
+        <code>Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8</code>. Submit download job to a
+        standard compute node (has outbound network). ~250 GB. This is the highest-capability
+        model fitting the 4×H200 budget with full GPU serving and no CPU offload.
+      </li>
+      <li>
+        <strong>Watch list — MiniMax M3:</strong> Weights expected ~June 10–11, 2026. Review
+        parameter count and memory fit when published. If it fits the 4×H200 budget, it currently
+        posts the best SWE-bench Pro score (59.0%) in the field.
+      </li>
+      <li>
+        <strong>Future (requires full 8-GPU node):</strong> GLM-5.1 (58.4% SWE-bench Pro,
+        MIT licence) is the strongest open-weight agentic model available in full GPU serving,
+        but needs 8×H200. This would require either a Group A + Group B combined allocation
+        (coordination with the other group) or a new reservation.
+      </li>
+    </ol>
+
+    <h2 id="s9">§9 — Sources</h2>
+
+    <ul>
+      <li><a href="https://huggingface.co/XiaomiMiMo/MiMo-V2.5">XiaomiMiMo/MiMo-V2.5 — Hugging Face model card</a></li>
+      <li><a href="https://huggingface.co/XiaomiMiMo/MiMo-V2.5-Pro">XiaomiMiMo/MiMo-V2.5-Pro — Hugging Face model card</a></li>
+      <li><a href="https://www.marktechpost.com/2026/04/22/xiaomi-releases-mimo-v2-5-pro-and-mimo-v2-5-matching-frontier-model-benchmarks-at-significantly-lower-token-cost/">MarkTechPost: Xiaomi MiMo-V2.5-Pro release</a></li>
+      <li><a href="https://huggingface.co/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8">Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8 — Hugging Face</a></li>
+      <li><a href="https://qwenlm.github.io/blog/qwen3-coder/">Qwen3-Coder official blog post</a></li>
+      <li><a href="https://docs.vllm.ai/projects/recipes/en/latest/Qwen/Qwen3-Coder-480B-A35B.html">vLLM Recipes: Qwen3-Coder deployment guide</a></li>
+      <li><a href="https://openrouter.ai/deepseek/deepseek-v4-flash">DeepSeek V4-Flash on OpenRouter</a></li>
+      <li><a href="https://artificialanalysis.ai/models/deepseek-v4-flash">Artificial Analysis: DeepSeek V4-Flash intelligence index</a></li>
+      <li><a href="https://www.marktechpost.com/2026/04/08/z-ai-introduces-glm-5-1-an-open-weight-754b-agentic-model-that-achieves-sota-on-swe-bench-pro-and-sustains-8-hour-autonomous-execution/">MarkTechPost: GLM-5.1 release</a></li>
+      <li><a href="https://lushbinary.com/blog/glm-5-1-self-hosting-guide-vllm-sglang-deployment/">GLM-5.1 self-hosting guide (vLLM/SGLang)</a></li>
+      <li><a href="https://www.marktechpost.com/2026/04/12/minimax-just-open-sourced-minimax-m2-7-a-self-evolving-agent-model-that-scores-56-22-on-swe-pro-and-57-0-on-terminal-bench-2/">MarkTechPost: MiniMax M2.7 release</a></li>
+      <li><a href="https://the-decoder.com/minimax-m3-open-weight-model-with-a-million-token-context-challenges-proprietary-leaders/">The Decoder: MiniMax M3</a></li>
+      <li><a href="https://mistral.ai/news/devstral-2-vibe-cli/">Mistral: Devstral 2</a></li>
+      <li><a href="https://letsdatascience.com/blog/mistral-medium-3-5-128b-open-weight-merged-model">Mistral Medium 3.5 (supersedes Devstral 2)</a></li>
+      <li><a href="https://lushbinary.com/blog/mistral-medium-3-5-self-hosting-vllm-sglang-guide/">Mistral Medium 3.5 self-hosting guide</a></li>
+      <li><a href="https://codersera.com/blog/kimi-k2-6-complete-guide-2026/">Kimi K2.6 complete guide</a></li>
+      <li><a href="https://llm-stats.com/benchmarks/swe-bench-verified-(agentic-coding)">LLM-stats: SWE-bench Verified leaderboard</a></li>
+      <li><a href="https://benchlm.ai/coding">BenchLM: SWE-bench &amp; LiveCodeBench leaderboard (March 2026)</a></li>
+    </ul>
+
+  </main>
+</body>
+</html>
