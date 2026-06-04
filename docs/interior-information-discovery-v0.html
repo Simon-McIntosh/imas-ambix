@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"    content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="interior-information-discovery-v0">
+  <meta name="plan-title" content="Interior-Information Discovery — fast magnetics &amp; exotic sensors via learned time-frequency representations">
+  <meta name="plan-summary" content="Test whether interior-current information is present in fast/exotic MAST channels (xma 660 kHz Mirnov+flux, xsx 300 kHz SXR, aoe reflectometry, act CXRS) when served as time-frequency / mode representations the GPU can learn — breaking the ~0.41 rad near-axis floor that the S9 oracle established for scalar magnetics.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-milestone" content="M3">
+  <meta name="plan-sprint" content="S12">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-depends-on" content="mse-free-current-recovery-v0,plasma-state-space-v0">
+  <title>Interior-Information Discovery | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/css/foundation.css">
+  <link rel="stylesheet" href="/_shared/css/dashboard.css">
+  <link rel="stylesheet" href="/_shared/css/project.css">
+<meta name="plan-modified" content="2026-06-04">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p><span class="badge">ACTIVE · S12 · M3</span> Stage-3c of the MSE-free current-recovery north-star. A systematic, GPU-intensive study to <strong>prise interior-current information out of fast and exotic MAST diagnostics</strong> that traditional least-squares equilibrium reconstruction discards.</p>
+      <h1>Interior-Information Discovery</h1>
+      <p>Fast magnetics &amp; exotic sensors via learned time-frequency representations — <em>does it break the ~0.41 rad near-axis floor?</em></p>
+      <nav><strong>Sections:</strong>
+        <a href="#s1">§1 Thesis</a> ·
+        <a href="#s2">§2 Data foundation</a> ·
+        <a href="#s3">§3 Measurement</a> ·
+        <a href="#s4">§4 Representations</a> ·
+        <a href="#s5">§5 Task decomposition</a> ·
+        <a href="#s6">§6 Compute &amp; safety</a> ·
+        <a href="#decisions">Decisions</a> ·
+        <a href="#followups">Followups</a>
+      </nav>
+    </header>
+
+    <h2 id="s1">§1 — Thesis: is the information absent, or just thrown away?</h2>
+    <p>The S9 oracle established a hard result: a supervised probe that sees raw magnetics
+    <em>plus all multimodal channels</em> cannot recover the near-axis internal current better
+    than <strong>~0.41 rad pitch RMSE</strong>, and time-history adds nothing (0.190 ≈ 0.188 on
+    the locked metric). The verdict was that the binding constraint on MSE-free current recovery
+    is <strong>interior information</strong>, not ML architecture or dynamics. That conclusion
+    re-shaped the project (the S10 baseline track is deliberately CPU-only and physics-first).</p>
+
+    <p>But the oracle fed magnetics the way EFIT does: as <strong>scalar, time-averaged, integral
+    signals</strong>. That is precisely the representation a least-squares equilibrium solver can
+    digest — and precisely the representation that <strong>destroys the high-frequency structure
+    carrying interior information</strong>. The plasma broadcasts its internal current profile
+    through MHD activity: tearing modes localise to rational surfaces (q = 2, 3/2), the sawtooth
+    inversion radius marks q = 1, Alfvén eigenmodes pin q-min, and the toroidal/poloidal
+    <em>mode numbers</em> of these instabilities are written across the fast pickup-coil array.
+    None of that survives the integral, decimated form EFIT consumes.</p>
+
+    <p class="callout"><strong>Hypothesis (falsifiable).</strong> Interior-current information
+    <em>is present</em> in fast/exotic MAST channels but is annihilated by the traditional
+    least-squares representation. Served as time-frequency / cross-coil-mode representations —
+    hand-crafted <em>and</em> GPU-learned — these channels recover internal-current observables
+    the scalar-magnetics oracle cannot, breaking the ~0.41 rad floor. <strong>A clean negative is
+    also a result</strong>: it would upgrade "we lack interior information" from "in the
+    representation we tried" to "in the data at all", which is itself decision-grade for the
+    north-star.</p>
+
+    <p>This is deliberately the class of question historically skipped because it is intractable
+    in a least-squares sense: 660 kHz × 250+ coils × thousands of shots is a time-frequency
+    inverse problem, not a linear fit. It is exactly what the H200 reservation is for.</p>
+
+    <h2 id="s2">§2 — Data foundation (verified on shot 30460)</h2>
+    <p>Direct inspection of the MAST Zarr corpus (<code>/work/projects/imas_gpu/mast/level1/shots/</code>)
+    confirms a large reservoir of fast, never-integrated signal. The headline channel,
+    <code>xma</code>, holds 253 arrays at 660 kHz — the center-column pickup (Mirnov) coils
+    <code>ccbv_01..40</code>, flux loops <code>fl_cc*</code>, and the diamagnetic loop
+    <code>dia_loop</code>/<code>dia_loopdot</code> — at ~2.6 MB per channel (~660 MB/shot
+    uncompressed). These coils are distributed in toroidal and poloidal angle: their
+    <em>cross-spectra</em> yield mode numbers (n, m), and mode numbers localise rational
+    surfaces.</p>
+
+    <div class="table-scroll">
+    <table class="t">
+      <thead>
+        <tr><th>Signal</th><th>Group</th><th>Rate</th><th>Channels</th><th>Avail.</th><th>Physical link to interior current</th><th>Repo status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Fast magnetics</strong> (Mirnov + flux + diamag)</td><td><code>xma</code></td><td>~660 kHz</td><td>253</td><td>~69%</td><td>Cross-coil mode numbers (n, m) → tearing/kink rational surfaces (q = 2, 3/2); global MHD spectrum</td><td><strong>Recognised, never wired</strong></td></tr>
+        <tr><td>Saddle / poloidal-flux array</td><td><code>xmb</code></td><td>~82.5 kHz</td><td>124</td><td>~42%</td><td>Poloidal-flux ρ-map → shear profile</td><td>Recognised, never wired</td></tr>
+        <tr><td>Omaha fast magnetics</td><td><code>amm</code>/<code>xmo</code></td><td>~30 kHz / MHz</td><td>33</td><td>~51–61%</td><td>Fast MHD bursts</td><td>Recognised, never wired</td></tr>
+        <tr><td><strong>Soft X-ray diode array</strong></td><td><code>xsx</code></td><td>~300 kHz</td><td>36</td><td>~80%</td><td>Sawtooth inversion radius → q = 1; internal mode m-structure</td><td>Partial (averaged chords only)</td></tr>
+        <tr><td>Microwave reflectometry</td><td><code>aoe</code></td><td>time-sparse</td><td>13</td><td>~20%</td><td>Density-fluctuation k-spectrum → q-gradient</td><td>Recognised, never wired</td></tr>
+        <tr><td>Charge-exchange (CXRS)</td><td><code>act</code></td><td>6 windows/shot</td><td>52×96 spec</td><td>~47%</td><td>Ti(ρ), V<sub>φ</sub>(ρ) rotation shear → mode rotation ↔ q</td><td>Recognised, never wired (beam-gated)</td></tr>
+        <tr><td>MSE (held-out truth)</td><td><code>ams</code></td><td>~2 kHz (beam-on)</td><td>44</td><td>~69% (beam-on)</td><td>Pitch angle γ(t) → q(ρ) <em>directly</em></td><td>Eval-only target (S9)</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <p><strong>v0 scope (locked, broad panel):</strong> <code>xma</code> + <code>xsx</code> +
+    <code>aoe</code> + <code>act</code>. Honest caveat: <code>aoe</code>/<code>act</code> carry
+    lower availability (20–47%) and need spectral-inversion handling, so their arms run on a
+    smaller usable-N cohort and are reported with that caveat — they are not allowed to silently
+    shrink the headline split.</p>
+
+    <h3>Study pipeline</h3>
+    <svg viewBox="0 0 920 300" width="100%" role="img" aria-label="Study pipeline: fast/exotic signals to dual representation arms to shared oracle metric and physics probes" style="background:#fbfbfd;border:1px solid #e3e3ea;border-radius:8px;max-width:920px">
+      <style>
+        .lbl{font:13px/1.3 system-ui,sans-serif;fill:#1c1c22}
+        .sub{font:11px system-ui,sans-serif;fill:#6a6a78}
+        .hd{font:600 13px system-ui,sans-serif;fill:#fff}
+        .bx{rx:7;ry:7}
+      </style>
+      <!-- sources -->
+      <rect class="bx" x="16" y="36" width="150" height="120" fill="#2c3e50"/>
+      <text class="hd" x="91" y="58" text-anchor="middle">FAST / EXOTIC</text>
+      <text class="sub" x="26" y="80" fill="#cdd6df">xma 660 kHz · 253 ch</text>
+      <text class="sub" x="26" y="98" fill="#cdd6df">xsx 300 kHz · SXR</text>
+      <text class="sub" x="26" y="116" fill="#cdd6df">aoe reflectometry</text>
+      <text class="sub" x="26" y="134" fill="#cdd6df">act CXRS</text>
+      <!-- arm A -->
+      <rect class="bx" x="240" y="20" width="210" height="74" fill="#1f7a5a"/>
+      <text class="hd" x="345" y="42" text-anchor="middle">ARM A — hand-crafted</text>
+      <text class="sub" x="252" y="62" fill="#d4efe4">STFT spectrograms · SVD/Fourier</text>
+      <text class="sub" x="252" y="80" fill="#d4efe4">cross-coil mode (n,m) · wavelet · k-ω</text>
+      <!-- arm B -->
+      <rect class="bx" x="240" y="106" width="210" height="74" fill="#7a4dab"/>
+      <text class="hd" x="345" y="128" text-anchor="middle">ARM B — learned (H200)</text>
+      <text class="sub" x="252" y="148" fill="#e7dcf3">1D-CNN · wavelet-scattering</text>
+      <text class="sub" x="252" y="166" fill="#e7dcf3">raw-waveform transformer</text>
+      <!-- oracle -->
+      <rect class="bx" x="524" y="50" width="170" height="96" fill="#b8842a"/>
+      <text class="hd" x="609" y="74" text-anchor="middle">SHARED ORACLE</text>
+      <text class="sub" x="534" y="96" fill="#f6e9cf">held-out MSE q-truth</text>
+      <text class="sub" x="534" y="114" fill="#f6e9cf">locked mse_eval metric</text>
+      <text class="sub" x="534" y="132" fill="#f6e9cf">bar = ~0.41 rad floor</text>
+      <!-- verdict -->
+      <rect class="bx" x="752" y="20" width="152" height="74" fill="#c0392b"/>
+      <text class="hd" x="828" y="44" text-anchor="middle">VERDICT</text>
+      <text class="sub" x="762" y="64" fill="#f6d6d1">break floor? (primary)</text>
+      <text class="sub" x="762" y="82" fill="#f6d6d1">learned &gt; crafted?</text>
+      <!-- probes -->
+      <rect class="bx" x="752" y="106" width="152" height="74" fill="#34618e"/>
+      <text class="hd" x="828" y="128" text-anchor="middle">PHYSICS PROBES</text>
+      <text class="sub" x="762" y="148" fill="#d5e2ef">n(t), m · r(q=1) sawtooth</text>
+      <text class="sub" x="762" y="166" fill="#d5e2ef">r(q=2) vs EFIT/MSE</text>
+      <!-- arrows -->
+      <g stroke="#9aa0ab" stroke-width="2" fill="none" marker-end="url(#ar)">
+        <path d="M166 78 L238 57"/>
+        <path d="M166 116 L238 143"/>
+        <path d="M450 57 L522 88"/>
+        <path d="M450 143 L522 108"/>
+        <path d="M694 84 L750 64"/>
+        <path d="M694 120 L750 140"/>
+      </g>
+      <defs><marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#9aa0ab"/></marker></defs>
+    </svg>
+
+    <h2 id="s3">§3 — Measurement: oracle bar + physics probes (both)</h2>
+    <p>The study produces a single comparable verdict <em>and</em> a mechanistic explanation.</p>
+    <ol>
+      <li><strong>Primary — extend the S9 oracle.</strong> Reuse the built
+      <code>statespace/mse_eval.py</code> + <code>oracle_probe.py</code> + the frozen 112-shot
+      cross-family / cross-shot split (<code>mse_split.py</code>) and held-out MSE q-truth. Add
+      each representation arm as a new feature set and score on the <em>identical locked metric</em>:
+      near-axis interior pitch RMSE, with split-conformal coverage held in [0.88, 0.92]. The bar
+      is the established ~0.41 rad floor (mag + all multimodal). Because the metric and split are
+      unchanged, the result is directly comparable to S9 by construction.</li>
+      <li><strong>Secondary — physics localisation probes.</strong> Independent of the oracle:
+      derive the toroidal mode number n(t) (and m where the array allows) from <code>xma</code>
+      cross-coil phase; the sawtooth inversion radius from <code>xsx</code>; density-fluctuation
+      structure from <code>aoe</code>. Check the inferred rational-surface radii r(q = 1),
+      r(q = 2) against EFIT/MSE (eval-only boundary). This answers <em>where</em> any recovered
+      information comes from, and guards against the oracle winning for a spurious reason.</li>
+    </ol>
+    <p><strong>Scope locks carried from S9</strong> (do not relitigate): observables / on-axis
+    only — full continuous q(ψ) is OUT; EFIT is an eval-only boundary / sanity check, never an
+    input; raw signals only (no <code>efm</code>/<code>esm</code>/<code>xdc</code>).</p>
+
+    <h2 id="s4">§4 — Representations: hand-crafted vs learned</h2>
+    <p>The core of the "too-hard-for-least-squares" thesis is the head-to-head: feed the same
+    target the same data through two representation families and ask whether the GPU finds more
+    than the physics-motivated transform.</p>
+    <ul>
+      <li><strong>Arm A — hand-crafted, interpretable.</strong> Per-coil STFT spectrograms;
+      SVD/Fourier <em>cross-coil</em> decomposition into toroidal-mode-number spectra (the
+      physically meaningful magnetics representation); Morlet wavelet scalograms for
+      <code>xsx</code>; k-ω spectra for <code>aoe</code>; line-shape moments for <code>act</code>.
+      Fast to debug, physics-anchored, and the honest baseline the learned arm must beat.</li>
+      <li><strong>Arm B — learned, GPU-resident.</strong> 1D-CNN / wavelet-scattering /
+      raw-waveform transformer encoders trained on the H200s directly from the 660 kHz waveforms,
+      with the cross-coil structure exposed as a channel axis. Maximal "let the model find it";
+      this is where the reservation is spent.</li>
+    </ul>
+    <p>Verdict question: <em>does Arm B beat Arm A on the locked metric?</em> If yes, the GPU is
+    extracting structure the physics transform misses. If the two tie at the floor, the
+    information is genuinely absent from these channels (strong negative). If both break the
+    floor, interior information was in the representation all along — the headline win.</p>
+
+    <h2 id="s5">§5 — Task decomposition</h2>
+    <p>Six deliverables, front-loading the data foundation and the measurement harness so the bar
+    is fixed before any representation is scored.</p>
+    <ul>
+      <li><strong>D0 — Fast-signal data foundation.</strong> In-process loaders for
+      <code>xma</code>/<code>xsx</code>/<code>aoe</code>/<code>act</code> with NaN + availability
+      masks, beam-gating for <code>act</code>, per-shot windowing and time-base alignment to the
+      MSE eval slices. Decide and implement the I/O strategy (precompute features to Zarr vs
+      on-the-fly GPU STFT). Hardened per AGENTS.md §2b (model/loader loaded once, SIGTERM handler,
+      per-batch watchdog) and the stop-file + three-layer time defence per §2a-cancel /
+      §2a-cancel-time on every sbatch. <em>This is the first shippable section.</em></li>
+      <li><strong>D1 — Measurement-harness extension.</strong> Extend <code>mse_eval</code> /
+      <code>oracle_probe</code> to accept fast-representation feature arms; read the exact floor
+      number from <code>oracle_probe_v0.json</code> and lock it as the registered bar; confirm the
+      112-shot split reuse and the q-observable target set.</li>
+      <li><strong>D2 — Arm A (hand-crafted) representations.</strong> Implement STFT +
+      cross-coil mode-number decomposition (xma), wavelet (xsx), k-ω (aoe), line-shape (act);
+      score each + the union on the oracle.</li>
+      <li><strong>D3 — Arm B (learned) encoders.</strong> 1D-CNN / wavelet-scattering /
+      transformer on raw waveforms; train on the H200 reservation; score on the same oracle.</li>
+      <li><strong>D4 — Physics probes.</strong> n(t)/m mode-number tracking, sawtooth inversion
+      radius, rational-surface localisation vs EFIT/MSE.</li>
+      <li><strong>D5 — Verdict &amp; synthesis.</strong> Does any representation break the floor?
+      crafted vs learned? which modality carries it? Honest negative is a result; collapse to a
+      landed summary + archive per reckon-ship §5b.</li>
+    </ul>
+
+    <h2 id="s6">§6 — Compute &amp; safety</h2>
+    <p>This is the intended near-term consumer of the 4×H200 reservation
+    (<code>98dci4-gpu-0003</code>, Group A). Two binding constraints:</p>
+    <ul>
+      <li><strong>Node contention with S11.</strong> The drain-window campaign runs
+      admin-coordinated tests on the same — and only — H200 node. Schedule training/sweep batches
+      <em>outside</em> S11 admin windows; coordinate before submitting.</li>
+      <li><strong>Drain safety is non-negotiable.</strong> Every GPU sbatch clones the
+      <code>scripts/slurm/finetune_decoder.sbatch</code> header: stop-file contract
+      (<code>AMBIX_STOP_FILE</code>), <code>--signal=B:USR1@600</code> bash trap,
+      <code>AMBIX_SOFT_TIME_LIMIT</code> ≈ 85% of a <code>--time</code> ceiling set to 2–4× the
+      expected runtime. Never <code>scancel</code> a CUDA job (AGENTS.md §2a). In-process encoder
+      pattern only — no subprocess-per-shot, no prefetch daemon (§2b).</li>
+      <li><strong>I/O reckoning.</strong> <code>xma</code> alone is ~660 MB/shot uncompressed;
+      a full-corpus sweep is I/O-bound unless features are precomputed. The D0 I/O decision is on
+      the critical path for whether D3 saturates the GPUs or starves them.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="signal-scope" data-choice="broad-panel" data-by="Simon McIntosh" data-when="2026-06-04">
+    <p class="r-dec-q">Which exotic/fast sources does v0 include?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="xma-only">xma only</button>
+      <button class="r-opt" data-value="xma-xsx">xma + xsx</button>
+      <button class="r-opt chosen" data-value="broad-panel">broad panel (xma+xsx+aoe+act)</button>
+      </p>
+    <p class="r-dec-rat">Locked to the broad panel (user, 2026-06-04). xma + xsx are the
+        high-availability fast core; aoe + act extend coverage on a smaller usable-N cohort,
+        reported with that caveat.</p>
+    </div>
+<div class="r-dec" data-key="measurement" data-choice="oracle-plus-probes" data-by="Simon McIntosh" data-when="2026-06-04">
+    <p class="r-dec-q">How is &quot;interior information present?&quot; measured?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="oracle">oracle vs held-out MSE only</button>
+      <button class="r-opt" data-value="physics">physics-label localisation only</button>
+      <button class="r-opt chosen" data-value="oracle-plus-probes">both — oracle bar + physics probes</button>
+      </p>
+    <p class="r-dec-rat">Both (user, 2026-06-04). Primary verdict from the locked mse_eval
+        metric vs the ~0.41 floor (directly comparable to S9); physics probes explain where any
+        recovered information comes from and guard against a spurious oracle win.</p>
+    </div>
+<div class="r-dec" data-key="representation-arms" data-choice="crafted-vs-learned" data-by="Simon McIntosh" data-when="2026-06-04">
+    <p class="r-dec-q">How is fast data served to the GPU?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="crafted-first">hand-crafted first</button>
+      <button class="r-opt" data-value="learned-first">learned first</button>
+      <button class="r-opt chosen" data-value="crafted-vs-learned">compare crafted vs learned</button>
+      </p>
+    <p class="r-dec-rat">Compare both on the same target/metric (user, 2026-06-04). Arm A
+        (STFT + cross-coil mode decomposition / wavelet / k-ω / line-shape) vs Arm B (learned
+        1D-CNN / wavelet-scattering / transformer on raw waveforms). Directly tests the
+        &quot;too-hard-for-least-squares&quot; thesis.</p>
+    </div>
+<div class="r-dec" data-key="io-strategy" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">D0 I/O strategy for the 660 kHz / ~660 MB-per-shot fast magnetics?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="precompute">precompute features → Zarr (cheap reuse, fixed representation)</button>
+      <button class="r-opt" data-value="onthefly">on-the-fly GPU STFT (flexible, I/O-heavy)</button>
+      <button class="r-opt" data-value="hybrid">hybrid — precompute Arm A, stream raw for Arm B</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="q-observable-target" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which held-out MSE observables are the regression target?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="s9-locked">the S9-locked on-axis observable set (default)</button>
+      <button class="r-opt" data-value="plus-rational">+ rational-surface radii r(q=1), r(q=2)</button>
+      </p>
+    <p class="r-dec-rat">Resolve at D1 against oracle_probe_v0.json; default to the S9 set so
+        the floor comparison is exact, with rational-surface radii added only as a probe target.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-iid-d0-foundation" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-ship interior-information-discovery-v0 §5 D0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">D0 — fast-signal data foundation (xma/xsx/aoe/act loaders + I/O strategy)</h4>
+    <div class="r-fu-body">First shippable section. Build in-process loaders for the broad fast/exotic panel with NaN+availability masks, beam-gating for act, per-shot windowing aligned to the MSE eval slices, and resolve the D0 I/O strategy decision (precompute vs on-the-fly vs hybrid). Verified on shot 30460: xma = 253 arrays @ 660 kHz (ccbv Mirnov + fl_cc flux + dia_loop), ~660 MB/shot uncompressed; xsx = 36 ch @ 300 kHz; aoe/act lower availability (20-47%). Harden per AGENTS.md §2b + stop-file/three-layer time defence per §2a-cancel-time.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    interior-information-discovery-v0 (http://localhost:8765/imas-ambix/interior-information-discovery-v0.html)
+Section: §5 D0 (fast-signal data foundation)
+Tier:    opus
+
+Context
+  Stage-3c of the MSE-free current-recovery north-star. The S9 oracle found interior current is unrecoverable from SCALAR magnetics (~0.41 rad near-axis floor). This study tests whether the information survives in fast/exotic channels served as time-frequency / mode representations. D0 builds the data substrate everything else rides on. Verified on shot 30460: xma=253 arrays @660 kHz (ccbv_01..40 Mirnov, fl_cc* flux, dia_loop/dia_loopdot), ~2.6 MB/array; xsx=36 ch @300 kHz; aoe/act exotic + lower availability.
+
+State to read
+  GET /plan/imas-ambix/interior-information-discovery-v0   (decisions, scope locks, version)
+  imas_ambix/statespace/families.py, inventory.py, integrated_inputs.py (existing signal handling)
+  imas_ambix/statespace/mse_split.py, mse_eval.py (the 112-shot split + locked metric to align windows to)
+  imas_ambix/data/loaders.py, paths.py, stream_encode.py (in-process loader pattern to copy)
+
+Locked decisions to honour
+  signal-scope -&gt; broad-panel (xma+xsx+aoe+act; aoe/act on smaller usable-N cohort, caveated)
+  measurement -&gt; oracle-plus-probes
+  representation-arms -&gt; crafted-vs-learned
+  scope locks (from S9): observables/on-axis only; full q(psi) OUT; EFIT eval-only; raw signals only (no efm/esm/xdc)
+
+Open decisions to surface (do not resolve unless the work forces it)
+  io-strategy (precompute vs on-the-fly vs hybrid) -- D0 is where this is decided; record the choice + rationale
+  q-observable-target (default S9-locked set; resolve at D1)
+
+Constraints
+  - MAST corpus is Zarr (L1 = Zarr V2 .zmetadata) at /work/projects/imas_gpu/mast/level1/shots/&lt;id&gt;.zarr; read via uv-run zarr
+  - /work/projects/imas_gpu accessible from this node + standard compute nodes
+  - In-process loader ONLY (no subprocess-per-shot, no prefetch daemon) per AGENTS.md §2b
+  - Any GPU sbatch clones scripts/slurm/finetune_decoder.sbatch header (stop-file + B:USR1@600 trap + AMBIX_SOFT_TIME_LIMIT); never scancel a CUDA job
+  - NODE CONTENTION: coordinate with S11 drain-window admin slots before submitting GPU work
+
+Done-when
+  1. Loader module(s) for xma/xsx/aoe/act with availability+NaN masks + beam-gating (act), committed; unit test on &gt;=2 real shots green
+  2. I/O-strategy decision locked in the plan with rationale + a measured per-shot throughput number justifying it
+  3. Windows aligned to the MSE eval slices (reuse mse_split 112-shot split)
+  4. plan impl advances; followup written for D1 (measurement-harness extension) + this followup resolved</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>
