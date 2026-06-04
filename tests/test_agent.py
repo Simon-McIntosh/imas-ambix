@@ -91,6 +91,99 @@ def test_load_profile_not_found():
         load_profile("nonexistent")
 
 
+# -- Profile inheritance (_base) ---------------------------------------------
+
+
+def test_load_deepseek_v4_flash_2x_inherits_base():
+    """2x variant inherits all base settings and overrides only GPU topology."""
+    base = load_profile("deepseek-v4-flash")
+    variant = load_profile("deepseek-v4-flash-2x")
+
+    # Inherited identity
+    assert variant.model.hf_repo == base.model.hf_repo
+    assert variant.model.served_name == base.model.served_name
+    assert variant.model.size_gb == base.model.size_gb
+    assert variant.model.max_context == base.model.max_context
+
+    # Overridden topology
+    assert variant.engine.tensor_parallel == 2
+    assert variant.slurm.gpus == 2
+    assert variant.slurm.cpus == 15
+    assert variant.slurm.memory == "200G"
+
+    # Inherited engine settings
+    assert variant.engine.type == base.engine.type
+    assert variant.engine.kv_cache_dtype == base.engine.kv_cache_dtype
+    assert variant.engine.enable_auto_tool_choice == base.engine.enable_auto_tool_choice
+    assert variant.engine.max_total_tokens == base.engine.max_total_tokens
+    assert variant.engine.parsers.tool_call == base.engine.parsers.tool_call
+    assert variant.engine.parsers.reasoning == base.engine.parsers.reasoning
+
+    # Overridden concurrency cap
+    assert variant.engine.max_num_seqs == 512
+
+    # Slug is the variant, not the base
+    assert variant.slug == "deepseek-v4-flash-2x"
+
+
+def test_variant_weights_slug_redirects_to_base():
+    """weights_slug is auto-injected from the _base chain."""
+    variant = load_profile("deepseek-v4-flash-2x")
+    assert variant.model.weights_slug == "deepseek-v4-flash"
+
+
+def test_base_profile_has_no_weights_slug():
+    """Standalone profiles have weights_slug=None (use own directory)."""
+    base = load_profile("deepseek-v4-flash")
+    assert base.model.weights_slug is None
+
+
+def test_variant_model_dir_uses_base_slug():
+    """SiteConfig.model_dir for a variant resolves to the base's directory."""
+    site = SiteConfig()
+    base = load_profile("deepseek-v4-flash")
+    variant = load_profile("deepseek-v4-flash-2x")
+
+    assert site.model_dir(base) == site.model_dir(variant)
+    assert str(site.model_dir(variant)).endswith("agents/deepseek-v4-flash/model")
+
+
+def test_variant_cache_dir_uses_base_slug():
+    site = SiteConfig()
+    variant = load_profile("deepseek-v4-flash-2x")
+    assert str(site.cache_dir(variant)).endswith("agents/deepseek-v4-flash/.cache")
+
+
+def test_inheritance_cycle_detection():
+    """A circular _base chain raises a clear ValueError."""
+    import pytest
+    from imas_ambix.agent import profile as prof_mod
+
+    with pytest.raises(ValueError, match="Circular profile inheritance"):
+        prof_mod._load_raw("x", _seen=frozenset({"x"}))
+
+
+def test_list_profiles_includes_variant():
+    """The 2x variant appears in list_profiles()."""
+    slugs = list_profiles()
+    assert "deepseek-v4-flash" in slugs
+    assert "deepseek-v4-flash-2x" in slugs
+
+
+def test_generate_vllm_2x_serve_script():
+    """2x serve script requests 2 GPUs and TP=2."""
+    from imas_ambix.agent.slurm import generate_serve_script
+
+    profile = load_profile("deepseek-v4-flash-2x")
+    site = SiteConfig()
+    script = generate_serve_script(profile, site, port=8000)
+
+    assert "#SBATCH --gres=gpu:2" in script
+    assert "--tensor-parallel-size 2" in script
+    assert "vllm.entrypoints.openai.api_server" in script
+    assert "agents/deepseek-v4-flash/model" in script
+
+
 # -- SiteConfig --------------------------------------------------------------
 
 
@@ -273,6 +366,7 @@ def test_generate_vllm_serve_script():
     assert "sglang.launch_server" not in script
     assert "--kt-method" not in script
     assert "engine: vllm" in script
+    assert "--max-model-len 524288" in script
 
 
 def test_generate_minimax_serve_script():

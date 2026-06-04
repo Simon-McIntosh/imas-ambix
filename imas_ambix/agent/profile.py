@@ -29,6 +29,10 @@ class ModelConfig(BaseModel):
     served_name: str
     size_gb: int
     max_context: int
+    # Injected by the profile loader when this profile inherits from a base
+    # via ``_base``.  Points to the root-of-chain slug whose ``agents/<slug>/``
+    # directory holds the downloaded weights.  Never set manually in a TOML file.
+    weights_slug: str | None = None
 
 
 # -- Engine configuration ----------------------------------------------------
@@ -203,13 +207,21 @@ class SiteConfig(BaseModel):
         """Path to the ``hf`` CLI binary for *engine_type*."""
         return self.venv_path(engine_type) / "bin" / "hf"
 
+    def _weights_slug(self, profile: ModelProfile) -> str:
+        """Slug whose ``agents/<slug>/`` directory holds the model weights.
+
+        Variant profiles that inherit from a base via ``_base`` redirect to
+        the base's directory so weights are not downloaded twice.
+        """
+        return profile.model.weights_slug or profile.slug
+
     def model_dir(self, profile: ModelProfile) -> Path:
         """Filesystem path for downloaded model weights."""
-        return Path(self.base_dir) / "agents" / profile.slug / "model"
+        return Path(self.base_dir) / "agents" / self._weights_slug(profile) / "model"
 
     def cache_dir(self, profile: ModelProfile) -> Path:
         """HuggingFace cache directory for a model."""
-        return Path(self.base_dir) / "agents" / profile.slug / ".cache"
+        return Path(self.base_dir) / "agents" / self._weights_slug(profile) / ".cache"
 
     @property
     def api_key_file(self) -> Path:
@@ -232,14 +244,53 @@ def list_profiles() -> list[str]:
     )
 
 
-def load_profile(slug: str) -> ModelProfile:
-    """Load and validate a model profile by slug.
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Return a new dict with *override* merged on top of *base*.
+
+    Nested dicts are merged recursively — a partial ``[engine]`` table in the
+    override only replaces the keys it specifies, leaving the rest of the
+    base's ``[engine]`` intact.  All other values are replaced wholesale.
+    """
+    result = base.copy()
+    for key, val in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(val, dict):
+            result[key] = _deep_merge(result[key], val)
+        else:
+            result[key] = val
+    return result
+
+
+def _load_raw(
+    slug: str,
+    *,
+    _seen: frozenset[str] | None = None,
+) -> tuple[dict, str]:
+    """Load a profile TOML as a raw dict, resolving ``_base`` inheritance.
+
+    Returns
+    -------
+    data : dict
+        Fully merged profile data ready for Pydantic validation.
+    canonical_slug : str
+        Slug of the root-of-chain profile whose ``agents/<slug>/`` directory
+        holds the actual downloaded model weights.  Equals *slug* for
+        standalone profiles (no ``_base``).
 
     Raises
     ------
     FileNotFoundError
-        If no profile TOML exists for *slug*.
+        If *slug* does not exist.
+    ValueError
+        If a circular inheritance chain is detected.
     """
+    if _seen is None:
+        _seen = frozenset()
+    if slug in _seen:
+        chain = " -> ".join([*sorted(_seen), slug])
+        msg = f"Circular profile inheritance detected: {chain}"
+        raise ValueError(msg)
+    _seen = _seen | {slug}
+
     pkg = resources.files(_PROFILES_PACKAGE)
     toml_ref = pkg.joinpath(f"{slug}.toml")
     try:
@@ -248,5 +299,35 @@ def load_profile(slug: str) -> ModelProfile:
         available = list_profiles()
         msg = f"No profile '{slug}'. Available: {', '.join(available) or '(none)'}"
         raise FileNotFoundError(msg) from None
+
     data = tomllib.loads(text)
+
+    if "_base" in data:
+        base_slug = data.pop("_base")
+        base_data, canonical_slug = _load_raw(base_slug, _seen=_seen)
+        data = _deep_merge(base_data, data)
+        return data, canonical_slug
+
+    return data, slug
+
+
+def load_profile(slug: str) -> ModelProfile:
+    """Load and validate a model profile by slug.
+
+    Variant profiles that declare ``_base = "<other-slug>"`` inherit all
+    settings from the named profile and override only the keys they specify.
+    The ``model.weights_slug`` field is automatically set to the root-of-chain
+    slug so that ``SiteConfig.model_dir()`` resolves to the correct weights
+    directory without re-downloading.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no profile TOML exists for *slug*.
+    ValueError
+        If a circular ``_base`` chain is detected.
+    """
+    data, canonical_slug = _load_raw(slug)
+    if canonical_slug != slug:
+        data.setdefault("model", {})["weights_slug"] = canonical_slug
     return ModelProfile(slug=slug, **data)

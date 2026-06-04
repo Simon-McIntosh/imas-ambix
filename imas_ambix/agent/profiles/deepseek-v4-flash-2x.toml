@@ -1,0 +1,27 @@
+# DeepSeek V4-Flash — 2×H200 variant
+#
+# Inherits all settings from deepseek-v4-flash.toml (4×H200 base) and
+# overrides only the GPU topology.  Shares downloaded weights with the
+# base profile — run ``ambix agent download deepseek-v4-flash`` once.
+#
+# Memory budget on 2×H200 (140.4 GB each):
+#   GPU: ~82 GB/card weights → ~58 GB/card free for KV
+#   KV:  2 × 58 GB / 42 KB per token ≈ 2.8M tokens pool capacity
+#   512K max_model_len (inherited) fits comfortably within the pool.
+#
+# Throughput target: ~150–250 tok/s decode (vs 500–800 tok/s at 4×H200)
+# Use this variant when the other 2 GPUs are needed for a concurrent job.
+
+_base = "deepseek-v4-flash"
+
+[engine]
+tensor_parallel = 2
+# Halved from base — at 2×H200 the KV pool can sustain ~275 concurrent
+# sequences at 8K average context before hitting the 2.8M-token ceiling.
+# vLLM will preempt gracefully if the pool fills; 512 avoids OOM bursts.
+max_num_seqs = 512
+
+[slurm]
+gpus = 2
+cpus = 15
+memory = "200G"
