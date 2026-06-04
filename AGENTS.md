@@ -469,22 +469,34 @@ curl http://localhost:8000/v1/models
 
 ### DeepSeek V4-Flash Deployment
 
-**Engine:** SGLang native (full GPU serving, no CPU offloading)
+**Engine:** vLLM native (full GPU serving, no CPU offloading)
 **Architecture:** 284B total, 13B activated, 256+1 experts, 6 selected/token
 **Attention:** CSA+HCA hybrid — 1 KV head, head_dim 512, compression [128, 4]
 **Weights:** FP4 (experts) + FP8 (others) mixed precision
 
 **Model path:** `/work/projects/imas_gpu/agents/deepseek-v4-flash/model`
 
+**Profiles:**
+- `deepseek-v4-flash` — 4×H200, TP=4, target 500–800 tok/s
+- `deepseek-v4-flash-2x` — 2×H200, TP=2, ~100 tok/s single / ~114 tok/s 8-way concurrent
+
 **Memory budget (4×H200):**
 - Weights: ~164 GB total (~41 GB/card)
 - KV cache: ultra-efficient (~42 KB/token) — millions of tokens fit
 - **Free per GPU: ~100 GB** for KV and other workloads
+- KV pool at 2×H200: 1,372,204 tokens (measured 2026-06-04)
+
+**Thinking mode API (vLLM, all client-side per request):**
+- Non-think: no `chat_template_kwargs` (default)
+- Think: `chat_template_kwargs={"thinking": True}`  → `message.reasoning` populated
+- Think Max: `chat_template_kwargs={"thinking": True, "reasoning_effort": "max"}` → REASONING_EFFORT_MAX prefix injected
+- Think High: `chat_template_kwargs={"thinking": True, "reasoning_effort": "high"}`
+- Think + tools: works — `message.reasoning` AND `message.tool_calls` both present
 
 **Deploy:**
 ```bash
-ambix agent download deepseek-v4-flash   # ~164 GB, run from sirius
-ambix agent serve deepseek-v4-flash      # submit to betelgeuse
+ambix agent serve deepseek-v4-flash      # 4× GPUs — 400+ tok/s target
+ambix agent serve deepseek-v4-flash-2x   # 2× GPUs — share node with other work
 ```
 
 ### MiniMax M2.7 Deployment

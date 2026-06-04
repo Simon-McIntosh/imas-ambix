@@ -10,6 +10,22 @@
 #        → millions of tokens capacity at FP8 KV
 #   No CPU offloading needed — entire model fits on GPU
 #
+# Throughput (measured 2026-06-04):
+#   TP=2 (2×H200): ~100 tok/s single-request decode, ~114 tok/s 8-way concurrent
+#   TP=4 (4×H200): target 500–800 tok/s (4× wider NCCL allreduce)
+#   → 400 tok/s target requires TP=4; use deepseek-v4-flash-2x only when
+#     the other 2 GPUs are needed for a concurrent job.
+#
+# Thinking mode API (vLLM chat_template_kwargs — all client-side per request):
+#   Non-think (default):  no chat_template_kwargs required
+#   Think:                {"thinking": true}              — <think>…</think> populated in
+#                                                            response.choices[0].message.reasoning
+#   Think Max:            {"thinking": true,              — REASONING_EFFORT_MAX system prefix
+#                          "reasoning_effort": "max"}        injected; model elaborates deeply
+#   Think High:           {"thinking": true,              — slightly less verbose than max
+#                          "reasoning_effort": "high"}
+#   Think + tools:        {"thinking": true} + tools=[…]  — reasoning AND tool_calls both present
+#
 # License: MIT (fully permissive)
 # Arena rank: #55 (thinking), #61 (standard)
 
