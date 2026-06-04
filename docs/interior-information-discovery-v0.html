@@ -318,21 +318,13 @@ Tier:    opus
 Context
   Stage-3c of the MSE-free current-recovery north-star. The S9 oracle found interior current is unrecoverable from SCALAR magnetics (~0.41 rad near-axis floor). This study tests whether the information survives in fast/exotic channels served as time-frequency / mode representations. D0 builds the data substrate everything else rides on. Verified on shot 30460: xma=253 arrays @660 kHz (ccbv_01..40 Mirnov, fl_cc* flux, dia_loop/dia_loopdot), ~2.6 MB/array; xsx=36 ch @300 kHz; aoe/act exotic + lower availability.
 
-State to read
-  GET /plan/imas-ambix/interior-information-discovery-v0   (decisions, scope locks, version)
+State to read  (code/files — the live plan URL + current Locked/Open decisions are injected above this brief; honour them, don't re-resolve)
   imas_ambix/statespace/families.py, inventory.py, integrated_inputs.py (existing signal handling)
   imas_ambix/statespace/mse_split.py, mse_eval.py (the 112-shot split + locked metric to align windows to)
   imas_ambix/data/loaders.py, paths.py, stream_encode.py (in-process loader pattern to copy)
 
-Locked decisions to honour
-  signal-scope -&gt; broad-panel (xma+xsx+aoe+act; aoe/act on smaller usable-N cohort, caveated)
-  measurement -&gt; oracle-plus-probes
-  representation-arms -&gt; crafted-vs-learned
-  scope locks (from S9): observables/on-axis only; full q(psi) OUT; EFIT eval-only; raw signals only (no efm/esm/xdc)
-
-Open decisions to surface (do not resolve unless the work forces it)
-  io-strategy (precompute vs on-the-fly vs hybrid) -- D0 is where this is decided; record the choice + rationale
-  q-observable-target (default S9-locked set; resolve at D1)
+Scope locks (from S9 — not re-litigable)
+  observables/on-axis only; full q(psi) OUT; EFIT eval-only; raw signals only (no efm/esm/xdc)
 
 Constraints
   - MAST corpus is Zarr (L1 = Zarr V2 .zmetadata) at /work/projects/imas_gpu/mast/level1/shots/&lt;id&gt;.zarr; read via uv-run zarr
