@@ -42,6 +42,10 @@ class KTransformersConfig(BaseModel):
     cpuinfer: int = 28
     threadpool_count: int = 2
     disable_shared_experts_fusion: bool = True
+    # FP8 path — required for models like GLM-5.1 and MiMo-V2.5-Pro
+    gpu_prefill_token_threshold: int | None = None
+    enable_dynamic_expert_update: bool = False
+    expert_placement_strategy: str | None = None
 
 
 class ParsersConfig(BaseModel):

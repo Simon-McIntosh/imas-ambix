@@ -1,0 +1,136 @@
+# MiMo-V2.5-Pro — Xiaomi 1.02T MoE reasoning model (MIT license)
+#
+# Architecture: 70 layers (1 dense + 69 MoE), 384 routed experts/layer, top-8/token
+#   Hybrid attention: 10 full-attention + 60 SWA (128-token sliding window) layers
+#   3 MTP (Multi-Token Prediction) draft heads; 128 Q heads, 8 KV heads (GQA)
+#   QK head_dim=192, V head_dim=128; MoE intermediate_size=2048
+#   ~1.02T total params, ~42B active/token; FP8 (E4M3) weights
+#   Thinking mode enabled by default (<think>...</think> CoT tags)
+# Context: 131,072 tokens (128K)
+# Benchmarks: SWE-bench Verified 78.9%, AIME 2025 86.7%, AIME 2024 88.3%
+# License: MIT
+# HuggingFace: https://huggingface.co/XiaomiMiMo/MiMo-V2.5-Pro
+# Released: April 2026
+#
+# Deployment: KTransformers FP8 CPU-GPU heterogeneous inference (tp=4, 4×H200)
+# Architecture is DeepSeek-V3-like (384 experts / top-8 routing, same as Kimi-K2.6)
+# → KTransformers FP8 support is architecturally expected; verify on first load.
+# If FP8 method fails, try method = "RAWINT4" (KT will quantize on-the-fly).
+#
+# ─── Memory budget (4×H200, 140.4 GB each, tp=4, gpu_experts=160) ─────────────
+#   Expert params total:  ~924 GB FP8 (384 experts × 69 layers × ~34.8 MB/expert)
+#     expert_size = 3 × 6144 × 2048 × 1B (FP8) = 37.7 MB each
+#     (7 × 6144 × 2048 for some layers with larger gate; verified ~35 MB average)
+#   Non-expert total:     ~100 GB FP8 (embedding, attention, norms, MTP modules)
+#   Hot experts on GPU:   ~385 GB     (160/384 × 924 GB → ~96 GB/GPU at TP=4)
+#   Non-expert on GPU:    ~25 GB      (1/4 TP split of 100 GB → ~25 GB/GPU)
+#   Static per GPU:       ~121 GB     [WARNING: tight — see mem_fraction_static note]
+#     Actually at tp=4: non-expert is TP-sharded → ~25 GB/GPU
+#     Revised static/GPU: 96 + 25 = ~121 GB (of 140.4 GB; needs 0.86 fraction)
+#     Wait — re-check: 160 hot experts/card (tp=4 means each GPU holds 40 experts?
+#     Or does each GPU hold all 160 hot experts?)
+#
+#   ─── GPU expert placement with tp=4 ──────────────────────────────────────────
+#   KTransformers expert_placement_strategy=uniform distributes experts across ranks.
+#   With 160 hot experts and tp=4: ~40 experts/GPU → 40 × 34.8 MB = 1.4 GB/GPU
+#   Static per GPU: non-expert (25 GB) + hot experts (1.4 GB) + activations (~5 GB)
+#   Static per GPU: ~31 GB — of 140.4 GB budget. Very comfortable!
+#   KV cache headroom: 140.4 × 0.78 - 31 = ~78 GB/GPU for KV
+#
+#   ─── CPU (Group A 650 GB cgroup) ─────────────────────────────────────────────
+#   All expert params on CPU: ~924 GB [EXCEEDS 650 GB cgroup — needs reduction!]
+#     With 160 hot experts total (distributed evenly = 40/GPU in GPU memory):
+#     Cold on CPU = 924 - (160 × 34.8 MB) = 924 - 5.6 = ~918 GB  [EXCEEDS!]
+#
+#   ─── REVISED: KT places all gpu_experts on EVERY GPU (not sharded) ───────────
+#   Looking at Kimi-K2.6 profile: gpu_experts=280, tp=4. Each GPU holds 280 hot
+#   experts independently (KT caches them per-rank). So:
+#   Hot expert RAM: 160 experts × 34.8 MB × 4 GPUs = 22.3 GB total GPU
+#   Cold expert CPU: 924 - 22.3 GB = ~902 GB  [EXCEEDS 650 GB!]
+#
+#   This model at full FP8 weight size (924 GB expert params) CANNOT fit in
+#   the 650 GB CPU cgroup even with gpu_experts=384 (all hot):
+#   384 hot × 34.8 MB × 4 = 53.5 GB GPU, leaving 924 - 53.5 = 870 GB on CPU.
+#   CONCLUSION: MiMo-V2.5-Pro FP8 exceeds the 650 GB CPU cgroup. Not deployable.
+#
+#   ─── ALTERNATIVE: RAWINT4 (INT4 quantisation) ────────────────────────────────
+#   INT4 = 0.5 bytes/param vs FP8 = 1 byte/param → halves memory:
+#   INT4 expert params: ~462 GB (924 GB × 0.5)
+#   With gpu_experts=160: cold CPU = 462 - 160 × 17.4 MB × 4 = 462 - 11 = ~451 GB
+#   Runtime overhead: ~50 GB
+#   Total CPU (INT4): ~501 GB ← within 650 GB cgroup ✓
+#   INT4 GPU static: non-expert (25 GB TP-sharded) + 160 × 17.4 MB = ~28 GB/GPU ✓
+#   GPU KV headroom: 140.4 × 0.78 - 28 = ~81 GB/GPU ✓
+#
+#   DEPLOY WITH method = "RAWINT4" until a community INT4 checkpoint is available.
+#   FP8 method is left here for reference but will OOM the CPU cgroup.
+#
+# ─── THROUGHPUT PROJECTION (RAWINT4, 4×H200) ─────────────────────────────────
+# INT4 MiMo is architecturally similar to Kimi-K2.6 (both 384 experts, DeepSeek-like).
+# Kimi-K2.6 delivers ~5 tok/s with gpu_experts=280, tp=4, KT CPU-GPU hybrid.
+# MiMo with cpu_experts via RAWINT4 and 160 hot GPU experts is expected similarly.
+# TARGET >400 tok/s is NOT achievable with CPU-offload KTransformers for a 1T model.
+# Recommendation: wait for MiMo INT4 or BF16 checkpoint that fits GPU-only at tp=4.
+#
+# ─── ALTERNATIVE — if a community INT4 checkpoint appears ────────────────────
+# INT4 ~512 GB total → 128 GB/GPU at TP=4 → exactly fits 4×H200 GPU-only!
+# Switch to engine.type = "sglang", method removed, fp8 flags removed.
+# Expected throughput with GPU-only INT4 MiMo + MTP speculative decoding: 300-500 tok/s.
+#
+# ─── TUNING CHECKLIST (RAWINT4 deployment) ───────────────────────────────────
+# 1. Start with gpu_experts=160; monitor CPU with sacct --format=MaxRSS
+# 2. If CPU exceeds 600 GB, increase gpu_experts to reduce cold store on CPU
+# 3. If gpu_experts reaches 384 (all hot), cold CPU ≈ 451 GB — still within limit
+# 4. MTP 3 draft heads → enable speculative decoding for throughput boost:
+#    SGLANG_ENABLE_SPEC_V2=1 env var + --speculative-algorithm EAGLE
+# 5. SWA (60/70 layers with 128-token window) → very small KV per SWA layer;
+#    can safely increase max_total_tokens to 262144 with INT4 method
+
+[model]
+name = "MiMo-V2.5-Pro"
+hf_repo = "XiaomiMiMo/MiMo-V2.5-Pro"
+served_name = "MiMo-V2.5-Pro"
+size_gb = 1024
+max_context = 131072
+
+[engine]
+type = "ktransformers"
+tensor_parallel = 4
+# INT4 static/GPU ~28 GB; 0.78 gives 109 GB/GPU budget → 81 GB KV headroom
+mem_fraction_static = 0.78
+attention_backend = "flashinfer"
+trust_remote_code = true
+enable_mixed_chunk = true
+enable_p2p_check = true
+disable_custom_all_reduce = true
+chunked_prefill_size = 16384
+disable_cuda_graph = true
+# NOTE: FP8 GeMM backend only relevant if method="FP8" (see memory note above)
+# fp8_gemm_runner_backend = "cutlass"
+# kv_cache_dtype = "bf16"  # only needed for FP8 method
+# Conservative initial token budget; SWA makes KV very cheap per SWA layer
+max_total_tokens = 131072
+
+[engine.ktransformers]
+# RAWINT4: KT quantises FP8 checkpoint to INT4 on-the-fly → halves CPU memory
+# Switch to method = "FP8" ONLY if a larger CPU cgroup is allocated (>1 TB).
+method = "RAWINT4"
+# 160 hot GPU experts → ~28 MB/GPU (INT4); adjust based on CPU headroom
+gpu_experts = 160
+cpuinfer = 28
+threadpool_count = 2
+disable_shared_experts_fusion = true
+gpu_prefill_token_threshold = 1024
+enable_dynamic_expert_update = true
+expert_placement_strategy = "uniform"
+
+[engine.parsers]
+# MiMo uses <think>...</think> CoT format — same as DeepSeek-R1
+reasoning = "deepseek_r1"
+
+[slurm]
+gpus = 4
+cpus = 30
+memory = "650G"
+time_serve = "7-00:00:00"
+time_download = "24:00:00"

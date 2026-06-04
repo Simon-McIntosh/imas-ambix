@@ -147,6 +147,7 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         "--weight-loader-disable-mmap",
         engine.weight_loader_disable_mmap,
     )
+    _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)
 
     if engine.parsers.tool_call:
         _append_option(args, "--tool-call-parser", engine.parsers.tool_call)
@@ -240,6 +241,17 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
         "--disable-shared-experts-fusion",
         kt.disable_shared_experts_fusion,
     )
+    _append_option(
+        args,
+        "--kt-gpu-prefill-token-threshold",
+        kt.gpu_prefill_token_threshold,
+    )
+    _append_flag(
+        args,
+        "--kt-enable-dynamic-expert-update",
+        kt.enable_dynamic_expert_update,
+    )
+    _append_option(args, "--kt-expert-placement-strategy", kt.expert_placement_strategy)
     return _render_shell_command(args)
 
 
@@ -291,6 +303,11 @@ def generate_serve_script(
             # Force large allocations (>32KB) through mmap instead of heap;
             # mmap pages are returned to the OS on free, avoiding fragmentation.
             export MALLOC_MMAP_THRESHOLD_=32768
+            # PyTorch allocator: expandable_segments avoids fragmentation by
+            # growing segments on demand rather than pre-allocating the full pool.
+            # Required for FP8 KT models (GLM-5.1, MiMo-V2.5-Pro) under
+            # the 650 GB CPU cgroup limit.
+            export PYTORCH_ALLOC_CONF=expandable_segments:True
 
             # sglang-kernel ships pre-compiled CUDA 13 binaries; expose the
             # nvidia-cu13 runtime libs so they can be loaded alongside the

@@ -50,6 +50,40 @@ def test_load_minimax_m2_7_profile():
     assert profile.engine.parsers.reasoning == "minimax-append-think"
 
 
+def test_load_glm_5_1_profile():
+    profile = load_profile("glm-5-1")
+    assert profile.slug == "glm-5-1"
+    assert profile.model.hf_repo == "zai-org/GLM-5.1-FP8"
+    assert profile.engine.type == "ktransformers"
+    assert profile.engine.tensor_parallel == 4
+    assert profile.engine.kv_cache_dtype == "bf16"
+    assert profile.engine.ktransformers is not None
+    assert profile.engine.ktransformers.method == "FP8"
+    assert profile.engine.ktransformers.gpu_experts == 40
+    assert profile.engine.ktransformers.gpu_prefill_token_threshold == 1024
+    assert profile.engine.ktransformers.enable_dynamic_expert_update is True
+    assert profile.engine.ktransformers.expert_placement_strategy == "uniform"
+    assert profile.engine.parsers.reasoning == "glm45"
+    assert profile.engine.parsers.tool_call == "glm47"
+    assert profile.model.max_context == 202752
+
+
+def test_load_mimo_v2_5_pro_profile():
+    profile = load_profile("mimo-v2-5-pro")
+    assert profile.slug == "mimo-v2-5-pro"
+    assert profile.model.hf_repo == "XiaomiMiMo/MiMo-V2.5-Pro"
+    assert profile.engine.type == "ktransformers"
+    assert profile.engine.tensor_parallel == 4
+    assert profile.engine.ktransformers is not None
+    assert profile.engine.ktransformers.method == "RAWINT4"
+    assert profile.engine.ktransformers.gpu_experts == 160
+    assert profile.engine.ktransformers.gpu_prefill_token_threshold == 1024
+    assert profile.engine.ktransformers.enable_dynamic_expert_update is True
+    assert profile.engine.ktransformers.expert_placement_strategy == "uniform"
+    assert profile.engine.parsers.reasoning == "deepseek_r1"
+    assert profile.model.max_context == 131072
+
+
 def test_load_profile_not_found():
     import pytest
 
@@ -254,6 +288,46 @@ def test_generate_minimax_serve_script():
     assert "--kt-method" not in script
 
 
+def test_generate_glm_5_1_serve_script():
+    from imas_ambix.agent.slurm import generate_serve_script
+
+    profile = load_profile("glm-5-1")
+    site = SiteConfig()
+    script = generate_serve_script(profile, site, port=8000)
+
+    assert "sglang.launch_server" in script
+    assert "--kt-method FP8" in script
+    assert "--kt-num-gpu-experts 40" in script
+    assert "--kt-gpu-prefill-token-threshold 1024" in script
+    assert "--kt-enable-dynamic-expert-update" in script
+    assert "--kt-expert-placement-strategy uniform" in script
+    assert "--reasoning-parser glm45" in script
+    assert "--tool-call-parser glm47" in script
+    assert "--kv-cache-dtype bf16" in script
+    assert "--fp8-gemm-backend cutlass" in script
+    assert "PYTORCH_ALLOC_CONF=expandable_segments:True" in script
+    assert "MALLOC_TRIM_THRESHOLD_" in script
+
+
+def test_generate_mimo_v2_5_pro_serve_script():
+    from imas_ambix.agent.slurm import generate_serve_script
+
+    profile = load_profile("mimo-v2-5-pro")
+    site = SiteConfig()
+    script = generate_serve_script(profile, site, port=8000)
+
+    assert "sglang.launch_server" in script
+    assert "--kt-method RAWINT4" in script
+    assert "--kt-num-gpu-experts 160" in script
+    assert "--kt-gpu-prefill-token-threshold 1024" in script
+    assert "--kt-enable-dynamic-expert-update" in script
+    assert "--kt-expert-placement-strategy uniform" in script
+    assert "--reasoning-parser deepseek_r1" in script
+    assert "--kv-cache-dtype" not in script   # FP8-related flags are commented out
+    assert "PYTORCH_ALLOC_CONF=expandable_segments:True" in script
+
+
+
 def test_generate_download_script_vllm_engine():
     from imas_ambix.agent.slurm import generate_download_script
 
@@ -273,6 +347,8 @@ def test_agent_list_includes_new_profiles():
     assert "kimi-k2-6" in result.output
     assert "deepseek-v4-flash" in result.output
     assert "minimax-m2-7" in result.output
+    assert "glm-5-1" in result.output
+    assert "mimo-v2-5-pro" in result.output
 
 
 def test_agent_serve_dry_run_deepseek():

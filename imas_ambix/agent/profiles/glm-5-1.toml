@@ -1,0 +1,93 @@
+# GLM-5.1 — Z.ai (Zhipu AI) 754B MoE frontier reasoning model
+#
+# Architecture: 78 MoE layers, 257 total experts/layer, 9 active/token
+#   Hybrid attention: Dynamic Sparse Attention (DSA) + Gated DeltaNet linear attention
+#   ~754B total params, ~40B active/token; FP8 (E4M3) weights; native thinking mode
+#   64 Q heads, 8 KV heads (GQA), head_dim=128; context: 202,752 tokens
+# Benchmarks: SWE-Bench Pro 58.4%, HLE 31.0%, AIME 2026 95.3%
+# License: permissive (Zhipu AI GLM licence — commercial use allowed with attribution)
+# HuggingFace: https://huggingface.co/zai-org/GLM-5.1-FP8
+#
+# Deployment: KTransformers FP8 CPU-GPU heterogeneous inference (tp=4, 4×H200)
+# Official KT tutorial uses tp=8 (8×H200); tp=4 is valid — 64 Q heads ÷ 4 = 16/GPU
+# KTransformers ≥0.5.3 officially supports GLM-5.1 (our venv has kt-kernel 0.6.1 ✓)
+#
+# ─── Memory budget (4×H200, 140.4 GB each, tp=4, gpu_experts=40) ─────────────
+#   Expert params total:  ~714 GB FP8 (257 experts × 78 layers × ~35.6 MB/expert)
+#   Non-expert total:     ~40 GB FP8  (attention, embeddings, norms)
+#   Hot experts on GPU:   ~111 GB     (40/257 × 714 GB, split across 4 cards → ~28 GB/GPU)
+#   Non-expert on GPU:    ~10 GB      (1/4 TP split of 40 GB non-expert → ~10 GB/GPU)
+#   Static per GPU:       ~38 GB      (of 105 GB budget at mem_fraction_static=0.75)
+#   KV cache per GPU:     ~67 GB      → capacity ~234K tokens at ~286 KB/token/GPU
+#   ─── CPU (Group A 650 GB cgroup) ─────────────────────────────────────────────
+#   Cold experts on CPU:  ~603 GB     (714 GB - 111 GB hot)
+#   Runtime overhead:     ~30 GB      (KT workers, activation buffers)
+#   Total CPU:            ~633 GB     (within 650 GB limit — 17 GB margin ⚠ tight)
+#
+# ─── CRITICAL: transformers==5.3.0 required ──────────────────────────────────
+# GlmMoeDsaForCausalLM was introduced in transformers 5.3.0. This conflicts with
+# Kimi-K2.6 / DeepSeek-V4-Flash which require transformers<5.0. Until compat is
+# confirmed, use a dedicated venv with transformers==5.3.0. Test before serving:
+#   pip show transformers | grep Version   # must show 5.3.x
+#
+# ─── TUNING CHECKLIST (after first successful run) ───────────────────────────
+# 1. Monitor CPU usage: if ≥640 GB, reduce gpu_experts by 5 to reclaim CPU headroom
+#    Each 10-expert increment: ±28 GB GPU / ∓28 GB CPU
+# 2. max_total_tokens: Increase to 262144 for 2× concurrent 128K requests
+#    (each additional 131K tokens costs ~37 GB KV — fits within ~67 GB/GPU budget)
+# 3. If CPU OOM: increase gpu_experts (move more experts to GPU, reduce CPU load)
+# 4. fp8_gemm_runner_backend: start with "cutlass"; if RuntimeError switch to "triton"
+
+[model]
+name = "GLM-5.1"
+hf_repo = "zai-org/GLM-5.1-FP8"
+served_name = "GLM-5.1"
+size_gb = 760
+max_context = 202752
+
+[engine]
+type = "ktransformers"
+tensor_parallel = 4
+# 38 GB static/GPU; 0.75 gives 105 GB/GPU budget → 67 GB KV headroom
+mem_fraction_static = 0.75
+attention_backend = "flashinfer"
+trust_remote_code = true
+enable_mixed_chunk = true
+enable_p2p_check = true
+# DSA/DeltaNet layers work well with 16384-token chunked prefill
+chunked_prefill_size = 16384
+disable_cuda_graph = true
+# FP8 GEMM via cutlass — avoids the H200 NVL fp8_blockwise_scaled_mm bug
+# that required triton fallback (and ~17 tok/s) for MiniMax M2.7
+fp8_gemm_runner_backend = "cutlass"
+# KT FP8 path needs explicit BF16 KV cache (model weights are FP8)
+kv_cache_dtype = "bf16"
+# 128K initial token budget; increase to 262144 once memory headroom confirmed
+max_total_tokens = 128000
+
+[engine.ktransformers]
+method = "FP8"
+# 40 hot experts → ~28 GB/GPU hot allocation; tutorial uses 30 for tp=8 (same ratio)
+gpu_experts = 40
+cpuinfer = 28
+threadpool_count = 2
+disable_shared_experts_fusion = true
+# GLM-5.1 KT tutorial setting: switch to layerwise KT prefill for tokens >1024
+gpu_prefill_token_threshold = 1024
+# Dynamically rebalances expert placement during inference, reducing cache thrashing
+enable_dynamic_expert_update = true
+# Uniform distribution across TP ranks minimises inter-rank expert load imbalance
+expert_placement_strategy = "uniform"
+
+[engine.parsers]
+# Extracts <think>...</think> CoT tokens — GLM-5.1 specific format
+reasoning = "glm45"
+# GLM-5.1 function-calling output format
+tool_call = "glm47"
+
+[slurm]
+gpus = 4
+cpus = 30
+memory = "650G"
+time_serve = "7-00:00:00"
+time_download = "24:00:00"
