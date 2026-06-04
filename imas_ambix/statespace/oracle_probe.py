@@ -507,71 +507,53 @@ def _sxr_mode_block(store, slice_t):
     return out, True
 
 
-def _xma_mirnov_block(store, slice_t):
+def _xma_mirnov_block(shot_path: Path, slice_t):
     """Mirnov (xma ccbv) feature block -> (S, N_MIRNOV_COILS*2 + N_NMODES + 1).
 
     For each pv slice time, over a trailing MIRNOV_WINDOW_MS window on the 5 kHz
     ccbv time series, per coil (all 40):
-      * detrended-fluctuation RMS (mode amplitude envelope), and
-      * dominant-band power (rfft peak — mode-frequency proxy).
-    Plus toroidal n-mode DFT amplitudes (n=0..N_NMODES-1) from the instantaneous
-    coil array at the slice time.  Physical basis: cross-coil coherence encodes
-    rational-surface structure (q=1 sawtooth, q=2/3-2 tearing) even at 5 kHz.
-    Plus a rate/availability flag (1 = xma present and usable).
+      * detrended-fluctuation RMS (poloidal mode amplitude envelope), and
+      * dominant-band power (rfft peak — poloidal mode-frequency proxy).
+    Plus poloidal m-mode DFT amplitudes (m=0..N_NMODES-1) from the instantaneous
+    coil array at the slice time.
+
+    NOTE: ccbv = close-coupled B_vertical; these are POLOIDAL field probes arranged
+    around the vessel cross-section.  The DFT gives poloidal m-modes, NOT toroidal
+    n-modes.  Cross-coil coherence encodes rational-surface poloidal structure
+    (q=1 sawtooth: m=1, q=2/3-2 tearing: m=2,3) even at 5 kHz.
+
+    Uses read_xma_shot() which handles both modern (ccbv_01, time1) and legacy
+    (ccbv01, sec) schemas correctly, including the time1/time2 clock split on
+    modern shots.
     """
+    from imas_ambix.statespace.fast_loader import read_xma_shot  # noqa: PLC0415
+
     n_feat = N_MIRNOV_COILS * 2 + N_NMODES + 1
     nanblock = np.full((slice_t.size, n_feat), np.nan)
-    if "xma" not in store:
+
+    xma_shot = read_xma_shot(shot_path)
+    if xma_shot is None:
         return nanblock, False
 
-    grp = store["xma"]
-    keys = set(grp.array_keys())
-
-    # Detect schema (modern vs legacy) and pick time axis
-    if "time1" in keys:
-        time_key = "time1"
-        coil_names = [f"ccbv_{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
-    elif "ccbv01" in keys or "ccbv1" in keys:
-        time_key = "sec"
-        coil_names = [f"ccbv{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
-    else:
-        return nanblock, False
-
-    try:
-        t_raw = np.asarray(grp[time_key], dtype=np.float64)
-    except Exception:
-        return nanblock, False
-
-    # Extract compact finite time series (plasma-on window only)
-    fin_t = np.isfinite(t_raw)
-    if fin_t.sum() < 20:
-        return nanblock, False
-    t_compact = t_raw[fin_t]
-
-    # Load all 40 coils into a compact (T, C) array
-    coil_data = np.full((fin_t.sum(), N_MIRNOV_COILS), np.nan, dtype=np.float32)
-    n_loaded = 0
-    for c_idx, cname in enumerate(coil_names):
-        if cname not in keys:
-            continue
-        try:
-            arr = np.asarray(grp[cname], dtype=np.float32)
-        except Exception:
-            continue
-        if arr.size != t_raw.size:
-            continue
-        # Use each channel's own finite mask (handles time1/time2 clock split)
-        ch_fin = np.isfinite(arr)
-        if ch_fin.sum() == fin_t.sum():
-            coil_data[:, c_idx] = arr[ch_fin]
-        else:
-            # Count mismatch — align to time axis using its own finite indices
-            ch_compact_len = min(ch_fin.sum(), fin_t.sum())
-            coil_data[:ch_compact_len, c_idx] = arr[ch_fin][:ch_compact_len]
-        n_loaded += 1
-
+    # Select the ccbv coil columns from the XmaShot data matrix
+    cn = xma_shot.channel_names
+    col_map = {n: i for i, n in enumerate(cn)}
+    # Modern: ccbv_01..40; Legacy: ccbv01..40
+    modern_names = [f"ccbv_{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
+    legacy_names = [f"ccbv{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
+    ccbv_cols = []
+    for name in (modern_names if xma_shot.schema == "modern" else legacy_names):
+        ccbv_cols.append(col_map.get(name, -1))
+    n_loaded = sum(1 for c in ccbv_cols if c >= 0)
     if n_loaded == 0:
         return nanblock, False
+
+    # Build (T, 40) coil matrix from the XmaShot's correctly-aligned data
+    t_compact = xma_shot.time  # already compact finite-sample axis
+    coil_data = np.full((xma_shot.n_slices, N_MIRNOV_COILS), np.nan, dtype=np.float32)
+    for c_idx, col in enumerate(ccbv_cols):
+        if col >= 0:
+            coil_data[:, c_idx] = xma_shot.data[:, col]
 
     dt = float(np.median(np.diff(t_compact[:100]))) if len(t_compact) > 10 else 2e-4
     if dt <= 0:
@@ -765,10 +747,12 @@ def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False):
         present["sxr"] = present["sxr"] and mb_ok
 
     # --- raw Mirnov (xma ccbv) block — always extracted ----------------------
-    # Per-coil trailing-window fluctuation features + toroidal n-mode DFT.
+    # Per-coil trailing-window fluctuation features + poloidal m-mode DFT.
     # Distinct from the ama NTM block (already in mag): raw ccbv vs pre-computed
-    # mode scalars.  Both modern (ccbv_01, time1) and legacy (ccbv01, sec) handled.
-    mirnov_b, mirnov_ok = _xma_mirnov_block(store, sl_t)
+    # mode scalars.  Pass path (not store) — _xma_mirnov_block uses read_xma_shot
+    # which handles both modern (ccbv_01, time1) and legacy (ccbv01, sec) schemas
+    # with correct sparse-sample alignment (fixes D1 legacy-shot deadness bug).
+    mirnov_b, mirnov_ok = _xma_mirnov_block(path, sl_t)
     blocks["mirnov"] = mirnov_b
     present["mirnov"] = mirnov_ok
 
