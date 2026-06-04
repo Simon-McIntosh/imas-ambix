@@ -21,7 +21,8 @@
   <link rel="stylesheet" href="/_shared/css/dashboard.css">
   <link rel="stylesheet" href="/_shared/css/project.css">
 <meta name="plan-modified" content="2026-06-04">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
+<meta name="plan-impl" content="0.1">
 </head>
 <body>
   <main class="plan-doc">
@@ -285,14 +286,14 @@
         1D-CNN / wavelet-scattering / transformer on raw waveforms). Directly tests the
         &quot;too-hard-for-least-squares&quot; thesis.</p>
     </div>
-<div class="r-dec" data-key="io-strategy" data-choice="onthefly" data-by="Simon McIntosh" data-when="2026-06-04 13:39">
+<div class="r-dec" data-key="io-strategy" data-choice="onthefly" data-by="Simon McIntosh" data-when="2026-06-04">
     <p class="r-dec-q">D0 I/O strategy for the 660 kHz / ~660 MB-per-shot fast magnetics?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="precompute">precompute features → Zarr (cheap reuse, fixed representation)</button>
       <button class="r-opt chosen" data-value="onthefly">on-the-fly GPU STFT (flexible, I/O-heavy)</button>
       <button class="r-opt" data-value="hybrid">hybrid — precompute Arm A, stream raw for Arm B</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">On-the-fly chosen over precompute for two reasons: (1) D1 compares crafted (STFT/wavelet/k-ω) vs learned (1D-CNN/wavelet-scattering/transformer) arms on the same raw data — precomputing locks in one representation before the arm comparison; (2) I/O is tractable at the D1 study scale: xma 51 key channels = 274 ms/shot (28 MB compact), xsx 36 ch = 93 ms/shot (43 MB), aoe 5 bands = 25 ms/shot, act = 13 ms/shot; total ~405 ms/shot single-threaded GPFS. For 112 held-out MSE shots ~45 s/epoch is acceptable. Rate correction (measured 2026-06-04): xma actual rate is 5 kHz (200 µs spacing), NOT 660 kHz as the plan title implied — plan text counted array length 660 000 as a rate. The 5 kHz Nyquist (2.5 kHz) still resolves low-n MHD modes; the genuinely fast signal for sub-ms MHD is xsx at 100–500 kHz. Precomputing all STFT scales for the 3473-shot MSE cohort would require ~10 GB; on-the-fly avoids that pipeline before the representation arm decision.</p>
     </div>
 <div class="r-dec" data-key="q-observable-target" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">Which held-out MSE observables are the regression target?</p>
@@ -307,7 +308,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-iid-d0-foundation" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-ship interior-information-discovery-v0 §5 D0" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-iid-d0-foundation" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-ship interior-information-discovery-v0 §5 D0" data-resolved-at="2026-06-04T15:46:06+00:00" data-resolved-by="agent/opus">
     <h4 class="r-fu-title">D0 — fast-signal data foundation (xma/xsx/aoe/act loaders + I/O strategy)</h4>
     <div class="r-fu-body">First shippable section. Build in-process loaders for the broad fast/exotic panel with NaN+availability masks, beam-gating for act, per-shot windowing aligned to the MSE eval slices, and resolve the D0 I/O strategy decision (precompute vs on-the-fly vs hybrid). Verified on shot 30460: xma = 253 arrays @ 660 kHz (ccbv Mirnov + fl_cc flux + dia_loop), ~660 MB/shot uncompressed; xsx = 36 ch @ 300 kHz; aoe/act lower availability (20-47%). Harden per AGENTS.md §2b + stop-file/three-layer time defence per §2a-cancel-time.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -318,7 +319,7 @@ Tier:    opus
 Context
   Stage-3c of the MSE-free current-recovery north-star. The S9 oracle found interior current is unrecoverable from SCALAR magnetics (~0.41 rad near-axis floor). This study tests whether the information survives in fast/exotic channels served as time-frequency / mode representations. D0 builds the data substrate everything else rides on. Verified on shot 30460: xma=253 arrays @660 kHz (ccbv_01..40 Mirnov, fl_cc* flux, dia_loop/dia_loopdot), ~2.6 MB/array; xsx=36 ch @300 kHz; aoe/act exotic + lower availability.
 
-State to read  (code/files — the live plan URL + current Locked/Open decisions are injected above this brief; honour them, don't re-resolve)
+State to read  (code/files — the live plan URL + current Locked/Open decisions are injected above this brief; honour them, don&#x27;t re-resolve)
   imas_ambix/statespace/families.py, inventory.py, integrated_inputs.py (existing signal handling)
   imas_ambix/statespace/mse_split.py, mse_eval.py (the 112-shot split + locked metric to align windows to)
   imas_ambix/data/loaders.py, paths.py, stream_encode.py (in-process loader pattern to copy)
@@ -338,6 +339,49 @@ Done-when
   2. I/O-strategy decision locked in the plan with rationale + a measured per-shot throughput number justifying it
   3. Windows aligned to the MSE eval slices (reuse mse_split 112-shot split)
   4. plan impl advances; followup written for D1 (measurement-harness extension) + this followup resolved</pre>
+    <p class="r-fu-outcome">D0 loaders landed: imas_ambix/statespace/fast_loader.py — XmaShot (both modern/legacy schemas), XsxShot, AoeShot, ActShot; 35 tests green (synthetic CI + GPFS integration on shots 30460 and 20631). Key finding: xma is 5 kHz not 660 kHz. Cohort availability: xma 91%/29% modern+62% legacy, xsx 78% hcam, aoe 19%, act 95%. I/O throughput locked: ~405 ms/shot total panel. MSE window alignment helpers committed (commit 5b0a7dd).</p>
+    </article>
+<article class="r-fu" data-id="f-iid-d1-harness" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-ship interior-information-discovery-v0 D1" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">D1 — measurement harness: oracle + physics probes on fast panel</h4>
+    <div class="r-fu-body">D0 loaders landed (5b0a7dd). D1 builds the oracle scoring harness: load fast-panel windows aligned to MSE eval slices, run Arm A (STFT/wavelet/k-ω crafted features) and Arm B (raw waveform) through the mse_eval forward model, score vs the ~0.41 rad floor. Physics probes identify where recovered information comes from. Key open decision to resolve: q-observable-target (default S9-locked on-axis set vs + rational-surface radii). Rate note: xma = 5 kHz (Nyquist 2.5 kHz resolves low-n MHD), xsx = 100–500 kHz (resolves high-frequency SXR fluctuations) — representation arms should be rate-matched.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    interior-information-discovery-v0
+Section: D1 (measurement harness — oracle + physics probes)
+Tier:    opus
+
+Context
+  D0 loaders landed (commit 5b0a7dd): fast_loader.py with XmaShot/XsxShot/AoeShot/ActShot.
+  Key finding from D0: xma is 5 kHz (NOT 660 kHz), xsx is 100–500 kHz campaign-dependent.
+  Availability in 112 held-out MSE shots: xma 91%, xsx 78%, aoe 19%, act 95%.
+  I/O throughput: ~405 ms/shot for full panel.
+
+  D1 builds the measurement harness that will produce the oracle verdict vs the ~0.41 rad
+  near-axis floor. Two arms: Arm A (STFT + cross-coil mode decomposition / wavelet / k-ω)
+  and Arm B (learned 1D-CNN / wavelet-scattering / transformer on raw waveforms). Both arms
+  evaluated on the same target/metric (mse_eval locked metric).
+
+State to read
+  GET /plan/imas-ambix/interior-information-discovery-v0
+  imas_ambix/statespace/fast_loader.py (D0 loaders)
+  imas_ambix/statespace/mse_eval.py (forward model + scoring)
+  imas_ambix/statespace/mse_split.py (112-shot split + beam_on_slice_times)
+
+Locked decisions to honour
+  signal-scope → broad-panel (xma+xsx+aoe+act)
+  measurement → oracle-plus-probes
+  representation-arms → crafted-vs-learned
+  io-strategy → onthefly
+  observables/on-axis only; full q(psi) OUT; EFIT eval-only
+
+Open decisions to surface (do not resolve unless forced)
+  q-observable-target (default S9-locked set; resolve at D1)
+
+Done-when
+  1. Arm A feature extractor committed: STFT + cross-coil mode decomp on xma; SXR spectral features on xsx
+  2. Arm B raw-waveform loader committed: 1D waveform tensors for xma + xsx on MSE eval windows
+  3. oracle_probe harness: score both arms vs mse_eval ~0.41 floor; report MAE/CRPS per arm per diagnostic
+  4. q-observable-target decision locked in the plan
+  5. plan impl advances; followup written for D2 (arm comparison + verdict)</pre>
     </article>
 </section>
   </main>
