@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/_shared/css/dashboard.css">
   <link rel="stylesheet" href="/_shared/css/project.css">
 <meta name="plan-modified" content="2026-06-04">
-<meta name="plan-version" content="6">
-<meta name="plan-impl" content="0.25">
+<meta name="plan-version" content="7">
+<meta name="plan-impl" content="0.35">
 </head>
 <body>
   <main class="plan-doc">
@@ -343,7 +343,7 @@ Done-when
   4. plan impl advances; followup written for D1 (measurement-harness extension) + this followup resolved</pre>
     <p class="r-fu-outcome">D0 loaders landed: imas_ambix/statespace/fast_loader.py — XmaShot (both modern/legacy schemas), XsxShot, AoeShot, ActShot; 35 tests green (synthetic CI + GPFS integration on shots 30460 and 20631). Key finding: xma is 5 kHz not 660 kHz. Cohort availability: xma 91%/29% modern+62% legacy, xsx 78% hcam, aoe 19%, act 95%. I/O throughput locked: ~405 ms/shot total panel. MSE window alignment helpers committed (commit 5b0a7dd).</p>
     </article>
-<article class="r-fu" data-id="f-iid-d1-harness" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-ship interior-information-discovery-v0 D1" data-resolved-at="2026-06-04T20:00:25+00:00" data-resolved-by="agent/opus">
+<article class="r-fu" data-id="f-iid-d1-harness" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-ship interior-information-discovery-v0 D1" data-resolved-at="2026-06-04T20:56:08+00:00" data-resolved-by="agent/opus">
     <h4 class="r-fu-title">D1 — measurement harness: oracle + physics probes on fast panel</h4>
     <div class="r-fu-body">D0 loaders landed (5b0a7dd). D1 builds the oracle scoring harness: load fast-panel windows aligned to MSE eval slices, run Arm A (STFT/wavelet/k-ω crafted features) and Arm B (raw waveform) through the mse_eval forward model, score vs the ~0.41 rad floor. Physics probes identify where recovered information comes from. Key open decision to resolve: q-observable-target (default S9-locked on-axis set vs + rational-surface radii). Rate note: xma = 5 kHz (Nyquist 2.5 kHz resolves low-n MHD), xsx = 100–500 kHz (resolves high-frequency SXR fluctuations) — representation arms should be rate-matched.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -384,9 +384,9 @@ Done-when
   3. oracle_probe harness: score both arms vs mse_eval ~0.41 floor; report MAE/CRPS per arm per diagnostic
   4. q-observable-target decision locked in the plan
   5. plan impl advances; followup written for D2 (arm comparison + verdict)</pre>
-    <p class="r-fu-outcome">D1 oracle run complete (80 cal shots, instantaneous features, commit a12e363). Key results: mag-only = 0.188 rad (near EnKF OOD frontier 0.225). Mirnov (E_mag_mirnov) = 0.189 rad — NOT significant vs mag-only (mean_diff=+0.001, CI=[-0.006,+0.007]). SXR (E_mag_sxr) = 0.186 rad — NOT significant (CI includes 0). Bolometer QUALIFIED_NEGATIVE (significant but off-interior). Raw Mirnov ccbv adds nothing beyond ama NTM already in baseline: the spatial DFT n-modes and trailing-window fluctuation features are fully captured by ama pre-computed n=2/n-odd decomposition. Verdict: QUALIFIED_NEGATIVE (carrier=bolo, off-interior; Mirnov adds nothing beyond processed magnetics). Artifact: imas_ambix/statespace/artifacts/oracle_probe_mirnov_v0.json</p>
+    <p class="r-fu-outcome">D1 oracle CORRECTED (oracle_probe_mirnov_v1.json, commit 7f80039). Prior D1 outcome (v0) invalidated by legacy-schema alignment bug: 47/74 shots had ~1% finite Mirnov features. Corrected results: mag-only = 0.188 rad. E_mag_mirnov = 0.193 rad (WORSE than mag-only, mean_diff=+0.005, CI=[-0.007,+0.019]) — ama n=2/n-odd already captures ccbv poloidal mode content; raw dB/dt fluctuations add nothing. ccbv coils are POLOIDAL (not toroidal) B_v probes; DFT gives m-modes not n-modes. SXR (E_mag_sxr) = 0.186, CI includes 0. Bolometer QUALIFIED_NEGATIVE (significant, off-interior). Verdict: QUALIFIED_NEGATIVE confirmed with alive features.</p>
     </article>
-<article class="r-fu" data-id="f-iid-d2-xsx-native" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-ship interior-information-discovery-v0 D2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-iid-d2-xsx-native" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-ship interior-information-discovery-v0 D2" data-resolved-at="2026-06-04T20:56:08+00:00" data-resolved-by="agent/opus">
     <h4 class="r-fu-title">D2 — xsx native-rate mode features: sawtooth inversion radius + NTM localization</h4>
     <div class="r-fu-body">D1 instantaneous oracle showed SXR and raw Mirnov not significant beyond processed magnetics. The critical test is whether xsx NATIVE-RATE features (500 kHz, sawtooth crash shape + inversion radius + NTM mode rotation frequency) beat the floor. The sxr_mode arm in oracle_probe already implements trailing-window per-chord fluctuation RMS + dominant-band power on native xsx. D2 runs this arm (--mode sxr_mode) and reports whether the physics-targeted xsx features carry interior information that the instantaneous 54-chord amplitudes don't.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -408,6 +408,12 @@ Done-when
   1. uv run python -m imas_ambix.statespace.oracle_probe --n-shots 80 --mode sxr_mode --out imas_ambix/statespace/artifacts/oracle_probe_sxr_mode_v0.json committed
   2. Verdict reported: does E_mag_sxr (with sxr_mode features) significantly + materially beat A_mag?
   3. Plan impl advances + followup written for D3 or final verdict</pre>
+    <p class="r-fu-outcome">D2 sxr_mode oracle run (oracle_probe_sxrmode_v0.json, commit 5fc3777). E_mag_sxr sxr_mode: 0.1814 rad, seed-0 CI=[-0.0132,-0.0004] (grazing zero across 24 tests, no multiple-comparison correction); seed-1 CI=[-0.0161,+0.0070] — confirms noise. NOT significant. Node-metric CI includes zero for both seeds. Strongest thread: H_mag_te_sxr ~3% over mag+Te, CI=[-0.0098,-0.0019] seed-0, but sub-material (<5%) and single-metric. Verdict QUALIFIED_NEGATIVE stands (bolometer carrier, off-interior; SXR not significant after correction for multiple comparisons and seed sensitivity). Artifact: oracle_probe_sxrmode_v0.json</p>
+    </article>
+<article class="r-fu" data-id="f-iid-d3-verdict" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-edit interior-information-discovery-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">D3 — final verdict: record QUALIFIED_NEGATIVE + surface decision to user</h4>
+    <div class="r-fu-body">D0+D1+D2 complete. Verdict: QUALIFIED_NEGATIVE. No modality (xma Mirnov, xsx SXR instantaneous or native-rate, bolometer, Thomson, camera) carries interior-current information to the near-axis region beyond what processed magnetics already provides. Bolometer gives a real ~5-6% gain (significant) but localization shows it is on well-measured edge/mid pitch, not the under-determined near-axis interior. The 0.41 rad floor stands. The H_mag_te_sxr thread (~3% over mag+Te, single metric, single seed) is the one suggestive result; a larger-N follow-up (200+ shots) on that pre-registered comparison is the only scientifically defensible next step. User decision: accept QUALIFIED_NEGATIVE and move on, OR run the larger-N SXR-over-Te test.</div>
+    <pre class="r-fu-prompt">done — record QUALIFIED_NEGATIVE in plan, surface decision to user</pre>
     </article>
 </section>
   </main>
