@@ -498,6 +498,15 @@ class TestRealShotModernXma:
         assert "dia_loop" in result.channel_names
         assert result.avail_mask.any()
 
+    def test_fl_cc01_not_all_nan(self) -> None:
+        """fl_cc01 clocks on time2 — verify it has finite data (not silently NaN)."""
+        result = read_xma_shot(self.SHOT_PATH)
+        assert result is not None
+        fl01_idx = result.channel_names.index("fl_cc01")
+        assert np.isfinite(result.data[:, fl01_idx]).sum() == result.n_slices, (
+            "fl_cc01 should be 30000 finite (time2-clocked); all-NaN = time1-mask bug"
+        )
+
     def test_read_xsx(self) -> None:
         result = read_xsx_shot(self.SHOT_PATH)
         assert result is not None

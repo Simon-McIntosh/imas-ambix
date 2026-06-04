@@ -7,7 +7,7 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="interior-information-discovery-v0">
   <meta name="plan-title" content="Interior-Information Discovery — fast magnetics &amp; exotic sensors via learned time-frequency representations">
-  <meta name="plan-summary" content="Test whether interior-current information is present in fast/exotic MAST channels (xma 660 kHz Mirnov+flux, xsx 300 kHz SXR, aoe reflectometry, act CXRS) when served as time-frequency / mode representations the GPU can learn — breaking the ~0.41 rad near-axis floor that the S9 oracle established for scalar magnetics.">
+  <meta name="plan-summary" content="Test whether interior-current information is present in fast/exotic MAST channels (xma 5 kHz Mirnov+flux, xsx 100–500 kHz SXR, aoe reflectometry, act CXRS) when served as time-frequency / mode representations the GPU can learn — breaking the ~0.41 rad near-axis floor the S9 oracle established for scalar magnetics. D0 finding: xma actual rate is 5 kHz (plan title said 660 kHz; that was array length, not Hz). xsx is the genuinely fast carrier (100–500 kHz campaign-dependent).">
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/css/dashboard.css">
   <link rel="stylesheet" href="/_shared/css/project.css">
 <meta name="plan-modified" content="2026-06-04">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-impl" content="0.1">
 </head>
 <body>
@@ -259,9 +259,7 @@
       <button class="r-opt" data-value="xma-xsx">xma + xsx</button>
       <button class="r-opt chosen" data-value="broad-panel">broad panel (xma+xsx+aoe+act)</button>
       </p>
-    <p class="r-dec-rat">Locked to the broad panel (user, 2026-06-04). xma + xsx are the
-        high-availability fast core; aoe + act extend coverage on a smaller usable-N cohort,
-        reported with that caveat.</p>
+    <p class="r-dec-rat">Locked to the broad panel (user, 2026-06-04). xma (5 kHz) and xsx (100–500 kHz) are the high-availability fast magnetics+SXR core: xma 91% / xsx hcam 78% of the 112 held-out MSE shots. aoe (reflectometry, 19%) and act (CXRS, 95%) extend the panel on smaller usable-N cohorts and are reported with that caveat. Note: act has the HIGHER availability (95%); aoe is the smaller-N arm (19%). D0 rate correction: xma is 5 kHz not 660 kHz as the original plan text implied; xsx is the genuinely fast sub-ms channel.</p>
     </div>
 <div class="r-dec" data-key="measurement" data-choice="oracle-plus-probes" data-by="Simon McIntosh" data-when="2026-06-04">
     <p class="r-dec-q">How is &quot;interior information present?&quot; measured?</p>

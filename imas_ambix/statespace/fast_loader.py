@@ -150,22 +150,32 @@ class XmaShot:
 
 
 def _xma_extract_modern(grp, shot_id: int) -> XmaShot | None:
-    """Decode the modern xma schema (time1 + ccbv_01 naming)."""
-    # time1 carries the 5 kHz masked time axis; extract finite entries
+    """Decode the modern xma schema (time1 + ccbv_01 naming).
+
+    time1 and time2 are both 5 kHz masked axes from separate acq196 digitiser
+    boards, interleaved in the 110 kHz storage array.  Channels on time2 have
+    finite indices offset by ~11 samples (~100 µs) relative to time1.  Using
+    ``time1[valid1]`` as the reference axis and extracting each channel via its
+    OWN finite mask (rather than the shared time1 mask) avoids silently
+    returning all-NaN for time2-clocked channels.  The ~100 µs timing error is
+    negligible for MHD modes at 5 kHz Nyquist (mode periods ≥ 400 µs).
+    """
+    # Build the reference time axis from time1 (primary digitiser)
     t1 = _read_array(grp, "time1")
     if t1 is None:
         return None
     t1 = np.asarray(t1).reshape(-1)
-    valid = np.isfinite(t1)
-    if valid.sum() < 10:
+    valid1 = np.isfinite(t1)
+    n_ref = int(valid1.sum())
+    if n_ref < 10:
         return None
-    time = t1[valid].astype(np.float64)
+    time = t1[valid1].astype(np.float64)
 
-    # Measure actual rate from consecutive finite samples
     dt_s = np.diff(time)
     rate_hz = float(1.0 / np.median(dt_s)) if dt_s.size > 0 else 5000.0
 
-    # Build channel matrix (T, C) for the core channel set
+    # Build channel matrix — use each channel's OWN finite mask so that
+    # time2-clocked channels (e.g. fl_cc01) are not silently all-NaN.
     cols: list[np.ndarray] = []
     names: list[str] = []
     for ch_name in XMA_MODERN_CORE:
@@ -173,12 +183,25 @@ def _xma_extract_modern(grp, shot_id: int) -> XmaShot | None:
         if raw is None:
             continue
         raw = np.asarray(raw).reshape(-1)
-        if raw.size == valid.size:
-            cols.append(raw[valid].astype(np.float32))
-        elif raw.size == time.size:
-            cols.append(raw.astype(np.float32))
-        else:
+        if raw.size != t1.size:
             continue  # unexpected shape; skip
+        ch_finite = np.isfinite(raw)
+        n_ch = int(ch_finite.sum())
+        if n_ch == n_ref:
+            # Same count — use channel's own mask (handles time2-clocked channels)
+            cols.append(raw[ch_finite].astype(np.float32))
+        elif n_ch == 0:
+            continue  # channel absent for this shot
+        else:
+            # Count mismatch: fall back to time1 mask (may introduce NaNs)
+            logger.debug(
+                "%s xma/%s: finite count %d ≠ ref %d, using time1 mask",
+                shot_id,
+                ch_name,
+                n_ch,
+                n_ref,
+            )
+            cols.append(raw[valid1].astype(np.float32))
         names.append(ch_name)
 
     if not cols:
