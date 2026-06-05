@@ -99,12 +99,13 @@ CAM_POOL = 4  # 4x4 mean-pooled frame -> 16 features
 N_CAM_STATS = 4  # mean, std, p10, p90 over the (cropped) frame
 
 # Modality column-block names (order defines the concatenated feature matrix).
-MODALITIES = ["mag", "thomson", "sxr", "bolo", "camera", "mirnov"]
+BASE_MODALITIES = ["mag", "thomson", "sxr", "bolo", "camera", "mirnov"]
+PHASE_MODALITIES = ["sxr_phase", "mirnov_phase"]
 
 # Feature-schema version — PART OF THE CACHE KEY.  Bump whenever the feature
 # CONTENT changes (e.g. adding time-history columns) so a stale pickle is never
 # silently reloaded with the wrong features.
-FEATURE_SCHEMA_VERSION = "v4_mirnov"
+FEATURE_SCHEMA_VERSION = "v5_phase"
 
 # Mirnov (xma ccbv) arm: trailing-window mode features on the 40-coil array.
 # xma stores ccbv at 5 kHz in both modern (ccbv_01, time1) and legacy (ccbv01, sec)
@@ -133,6 +134,13 @@ _R0_NOMINAL = 0.85
 # chords/radii carry the activity — that IS the inversion-radius signal.
 SXR_MODE_WINDOW_MS = 3.0  # trailing native-rate window for mode features
 SXR_MIN_NATIVE_HZ = 20_000.0  # below this, the mode-frequency feature is weak
+
+# D3-phase: phase-preserving cross-channel features.  The advisor's point is
+# that magnitude-only |rfft| features are structurally blind to the phase wraps
+# that encode m/n mode structure, so we explicitly preserve phase.
+PHASE_BAND_HZ = (10.0, 1_000.0)
+SXR_PHASE_WINDOW_MS = 50.0
+XMA_PHASE_WINDOW_MS = 50.0
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +439,151 @@ def _history_block(store, group, grid, slice_t, win):
     return _window_summaries(gridded, grid, slice_t, win)
 
 
+def _detrended_window_matrix(window: np.ndarray) -> tuple[np.ndarray, list[int]]:
+    """Detrend a (T, C) window column-wise and zero-fill missing samples."""
+
+    arr = np.asarray(window, dtype=np.float64)
+    out = np.full(arr.shape, np.nan, dtype=np.float64)
+    valid_cols: list[int] = []
+    xs = np.arange(arr.shape[0], dtype=np.float64)
+    for c in range(arr.shape[1]):
+        col = arr[:, c]
+        fin = np.isfinite(col)
+        if fin.sum() < 8:
+            continue
+        coef = np.polyfit(xs[fin], col[fin], 1)
+        resid = np.zeros(arr.shape[0], dtype=np.float64)
+        resid[fin] = col[fin] - np.polyval(coef, xs[fin])
+        out[:, c] = resid
+        valid_cols.append(c)
+    return out, valid_cols
+
+
+def _dominant_frequency_bin(
+    window: np.ndarray, dt: float, band: tuple[float, float]
+) -> tuple[np.ndarray, np.ndarray, int | None]:
+    """Return rfft(window), the frequency axis, and the dominant in-band bin."""
+
+    spec = np.fft.rfft(window, axis=0)
+    freqs = np.fft.rfftfreq(window.shape[0], d=dt)
+    band_mask = (freqs >= band[0]) & (freqs <= band[1])
+    if not np.any(band_mask):
+        return spec, freqs, None
+    band_idx = np.where(band_mask)[0]
+    mean_power = np.nanmean(np.abs(spec[band_idx]) ** 2, axis=1)
+    if not np.isfinite(mean_power).any():
+        return spec, freqs, None
+    dom_idx = int(band_idx[int(np.nanargmax(mean_power))])
+    return spec, freqs, dom_idx
+
+
+def _camera_phase_features(
+    window: np.ndarray, dt: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float] | None:
+    """Per-chord coherence/phase/power against a reference chord."""
+
+    n_ch = window.shape[1]
+    detrended, valid_cols = _detrended_window_matrix(window)
+    if len(valid_cols) < 2:
+        return None
+    spec, freqs, dom_idx = _dominant_frequency_bin(
+        detrended[:, valid_cols], dt, PHASE_BAND_HZ
+    )
+    if dom_idx is None or dom_idx >= spec.shape[0]:
+        return None
+    ref = spec[dom_idx, 0]
+    if not np.isfinite(ref) or abs(ref) < 1e-12:
+        return None
+    coherence = np.full(n_ch, np.nan, dtype=np.float64)
+    phase = np.full(n_ch, np.nan, dtype=np.float64)
+    power = np.full(n_ch, np.nan, dtype=np.float64)
+    ref_pow = abs(ref) ** 2 + 1e-12
+    for i, val in enumerate(spec[dom_idx]):
+        if not np.isfinite(val):
+            continue
+        cross = val * np.conj(ref)
+        dst = valid_cols[i]
+        coherence[dst] = float((abs(cross) ** 2) / ((abs(val) ** 2 + 1e-12) * ref_pow))
+        phase[dst] = float(np.angle(cross))
+        power[dst] = float(abs(val))
+    return coherence, phase, power, float(freqs[dom_idx])
+
+
+def _xsx_phase_block(store, slice_t):
+    """Phase-preserving SXR block -> (S, 110).
+
+    Layout:
+      18 coherence(hcam_l), 18 phase(hcam_l),
+      18 coherence(hcam_u), 18 phase(hcam_u),
+      18 power(hcam_l),     18 power(hcam_u),
+      dominant_frequency, availability_flag
+    """
+
+    n_feat = 18 * 6 + 2
+    nanblock = np.full((slice_t.size, n_feat), np.nan, dtype=np.float64)
+    if "xsx" not in store:
+        return nanblock, False
+    grp = store["xsx"]
+    keys = set(grp.array_keys())
+    if "time" not in keys:
+        return nanblock, False
+    try:
+        t = np.asarray(grp["time"], dtype=np.float64)
+    except Exception:
+        return nanblock, False
+    if t.size < 8:
+        return nanblock, False
+    dt = float(np.median(np.diff(t)))
+    if dt <= 0:
+        return nanblock, False
+    native_hz = 1.0 / dt
+    rate_ok = native_hz >= SXR_MIN_NATIVE_HZ
+    win_n = max(64, int(round(SXR_PHASE_WINDOW_MS * 1e-3 * native_hz)))
+    out = np.full((slice_t.size, n_feat), np.nan, dtype=np.float64)
+    idx = np.searchsorted(t, slice_t, side="right") - 1
+    ok_any = False
+
+    def _read_cam(name: str) -> np.ndarray | None:
+        if name not in keys:
+            return None
+        cam = np.asarray(grp[name], dtype=np.float32)
+        if cam.shape[1] == t.size:
+            cam = cam.T
+        if cam.shape[0] != t.size:
+            return None
+        return np.asarray(cam, dtype=np.float64)
+
+    cams = {"hcam_l": _read_cam("hcam_l"), "hcam_u": _read_cam("hcam_u")}
+    for s in range(slice_t.size):
+        e = idx[s]
+        if e < 0:
+            continue
+        dom_freqs = []
+        for block_idx, name in enumerate(("hcam_l", "hcam_u")):
+            cam = cams[name]
+            if cam is None:
+                continue
+            b = max(0, e - win_n + 1)
+            w = cam[b : e + 1]
+            if w.shape[0] < 8:
+                continue
+            features = _camera_phase_features(w, dt)
+            if features is None:
+                continue
+            coh, phase, power, dom_freq = features
+            base = block_idx * 36
+            pow_base = 72 + block_idx * 18
+            out[s, base : base + 18] = coh
+            out[s, base + 18 : base + 36] = phase
+            out[s, pow_base : pow_base + 18] = power
+            dom_freqs.append(dom_freq)
+            ok_any = True
+        if dom_freqs:
+            out[s, -2] = float(np.mean(dom_freqs))
+            out[s, -1] = 1.0 if rate_ok else 0.0
+    return out, bool(ok_any and rate_ok)
+
+
 def _sxr_mode_block(store, slice_t):
     """Native-rate per-chord SXR mode-activity block -> (S, 54*2 + 1).
 
@@ -505,6 +658,88 @@ def _sxr_mode_block(store, slice_t):
             out[s, c] = float(np.std(resid))  # fluctuation amplitude
             out[s, 54 + c] = float(np.max(fft[1:])) if fft.size > 1 else 0.0
     return out, True
+
+
+def _xma_phase_block(shot_path: Path, slice_t):
+    """Phase-preserving xma ccbv block -> (S, 84).
+
+    Layout: 40 real phasors, 40 imag phasors, m=1 amplitude, m=2 amplitude,
+    dominant temporal frequency, availability flag.
+    """
+
+    from imas_ambix.statespace.fast_loader import read_xma_shot  # noqa: PLC0415
+
+    n_feat = N_MIRNOV_COILS * 2 + 4
+    nanblock = np.full((slice_t.size, n_feat), np.nan, dtype=np.float64)
+    xma_shot = read_xma_shot(shot_path)
+    if xma_shot is None:
+        return nanblock, False
+
+    cn = xma_shot.channel_names
+    col_map = {n: i for i, n in enumerate(cn)}
+    names = (
+        [f"ccbv_{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
+        if xma_shot.schema == "modern"
+        else [f"ccbv{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
+    )
+    cols = [col_map.get(name, -1) for name in names]
+    if not any(col >= 0 for col in cols):
+        return nanblock, False
+
+    coil_data = np.full((xma_shot.n_slices, N_MIRNOV_COILS), np.nan, dtype=np.float64)
+    for i, col in enumerate(cols):
+        if col >= 0:
+            coil_data[:, i] = xma_shot.data[:, col]
+
+    t_compact = np.asarray(xma_shot.time, dtype=np.float64)
+    if t_compact.size < 8:
+        return nanblock, False
+    dt = float(np.median(np.diff(t_compact[: min(len(t_compact), 100)])))
+    if dt <= 0:
+        return nanblock, False
+    native_hz = 1.0 / dt
+    win_n = max(64, int(round(XMA_PHASE_WINDOW_MS * 1e-3 * native_hz)))
+    out = np.full((slice_t.size, n_feat), np.nan, dtype=np.float64)
+    idx = np.searchsorted(t_compact, slice_t, side="right") - 1
+    ok_any = False
+
+    for s in range(slice_t.size):
+        e = idx[s]
+        if e < 0 or e >= len(t_compact):
+            continue
+        b = max(0, e - win_n + 1)
+        w = coil_data[b : e + 1]
+        if w.shape[0] < 8:
+            continue
+        detrended, valid_cols = _detrended_window_matrix(w)
+        if len(valid_cols) < 8:
+            continue
+        spec, freqs, dom_idx = _dominant_frequency_bin(
+            detrended[:, valid_cols], dt, PHASE_BAND_HZ
+        )
+        if dom_idx is None or dom_idx >= spec.shape[0]:
+            continue
+        phasors = np.full(N_MIRNOV_COILS, np.nan + 0.0j, dtype=np.complex128)
+        dom = spec[dom_idx]
+        mag = np.abs(dom)
+        valid_mag = np.isfinite(mag) & (mag > 1e-12)
+        if not valid_mag.any():
+            continue
+        phasors_valid = dom[valid_mag] / mag[valid_mag]
+        for src_idx, col in enumerate(np.asarray(valid_cols)[valid_mag]):
+            phasors[col] = phasors_valid[src_idx]
+        finite = np.isfinite(phasors)
+        fill = np.nanmean(phasors[finite]) if finite.any() else 1.0 + 0.0j
+        phasors = np.where(finite, phasors, fill)
+        out[s, :N_MIRNOV_COILS] = np.real(phasors)
+        out[s, N_MIRNOV_COILS : N_MIRNOV_COILS * 2] = np.imag(phasors)
+        spatial = np.abs(np.fft.fft(phasors - np.mean(phasors)))
+        out[s, 80] = float(spatial[1]) if spatial.size > 1 else np.nan
+        out[s, 81] = float(spatial[2]) if spatial.size > 2 else np.nan
+        out[s, 82] = float(freqs[dom_idx])
+        out[s, 83] = 1.0
+        ok_any = True
+    return out, ok_any
 
 
 def _xma_mirnov_block(shot_path: Path, slice_t):
@@ -606,7 +841,7 @@ def _xma_mirnov_block(shot_path: Path, slice_t):
     return out, True
 
 
-def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False):
+def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False, phase_features=False):
     """Build a :class:`ShotFeatures` for one CAL shot (None if unusable)."""
     import zarr  # noqa: PLC0415
 
@@ -756,6 +991,15 @@ def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False):
     blocks["mirnov"] = mirnov_b
     present["mirnov"] = mirnov_ok
 
+    if phase_features:
+        sxr_phase_b, sxr_phase_ok = _xsx_phase_block(store, sl_t)
+        blocks["sxr_phase"] = sxr_phase_b
+        present["sxr_phase"] = sxr_phase_ok
+
+        mirnov_phase_b, mirnov_phase_ok = _xma_phase_block(path, sl_t)
+        blocks["mirnov_phase"] = mirnov_phase_b
+        present["mirnov_phase"] = mirnov_phase_ok
+
     return ShotFeatures(
         shot_id=shot_id,
         blocks=blocks,
@@ -791,7 +1035,7 @@ def fit_node_radii(manifest, train_ids):
 # Arms (column-subset specs over the shared feature matrix)
 # ---------------------------------------------------------------------------
 
-ARMS: dict[str, list[str]] = {
+BASE_ARMS: dict[str, list[str]] = {
     "A_mag": ["mag"],
     "B_mag_thomson": ["mag", "thomson"],  # == mag + Te (the EnKF already has Te)
     "C_mag_sxr_bolo": ["mag", "sxr", "bolo"],
@@ -809,6 +1053,46 @@ ARMS: dict[str, list[str]] = {
     "E_mag_mirnov": ["mag", "mirnov"],  # does raw ccbv add to processed mag?
     "I_mag_sxr_mirnov": ["mag", "sxr", "mirnov"],  # SXR + Mirnov combined
 }
+
+
+def _arms_for_config(cfg: "ProbeConfig") -> dict[str, list[str]]:
+    arms = {name: list(mods) for name, mods in BASE_ARMS.items()}
+    if cfg.phase_features:
+        arms.update(
+            {
+                "E_mag_sxr_phase": ["mag", "sxr_phase"],
+                "E_mag_mirnov_phase": ["mag", "mirnov_phase"],
+                "E_mag_sxr_mirnov_phase": ["mag", "sxr_phase", "mirnov_phase"],
+            }
+        )
+    return arms
+
+
+def _modalities_for_config(cfg: "ProbeConfig") -> list[str]:
+    modalities = list(BASE_MODALITIES)
+    if cfg.phase_features:
+        modalities.extend(PHASE_MODALITIES)
+    return modalities
+
+
+def _carrier_arms_for_config(cfg: "ProbeConfig") -> list[str]:
+    carriers = [
+        "E_mag_sxr",
+        "E_mag_bolo",
+        "E_mag_thomson",
+        "E_mag_camera",
+        "E_mag_mirnov",
+        "I_mag_sxr_mirnov",
+    ]
+    if cfg.phase_features:
+        carriers.extend(
+            [
+                "E_mag_sxr_phase",
+                "E_mag_mirnov_phase",
+                "E_mag_sxr_mirnov_phase",
+            ]
+        )
+    return carriers
 
 
 def assemble_matrix(shots, mods):
@@ -1371,12 +1655,19 @@ class ProbeConfig:
     # physics-targeted: native-rate per-chord SXR sawtooth/tearing mode features
     # (rational-surface localization — q=1 inversion, q=2/3-2 tearing).
     sxr_mode: bool = False
+    # D3-phase: preserve cross-channel phase for SXR / Mirnov instead of collapsing
+    # to magnitude-only features.
+    phase_features: bool = False
 
 
 def run(cfg: ProbeConfig) -> dict:
     from sklearn.ensemble import (  # noqa: PLC0415
         HistGradientBoostingRegressor,
     )
+
+    arms = _arms_for_config(cfg)
+    modalities = _modalities_for_config(cfg)
+    carrier_arms = _carrier_arms_for_config(cfg)
 
     t0 = time.time()
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
@@ -1406,7 +1697,8 @@ def run(cfg: ProbeConfig) -> dict:
         (
             f"{FEATURE_SCHEMA_VERSION}_{cfg.n_shots}_{cfg.seed}_{N_NODES}_"
             f"{CAM_POOL}_{cfg.history}_{HIST_MODEL_HZ}_{HIST_WINDOW_SLICES}_"
-            f"{cfg.sxr_mode}_{SXR_MODE_WINDOW_MS}"
+            f"{cfg.sxr_mode}_{SXR_MODE_WINDOW_MS}_{cfg.phase_features}_"
+            f"{SXR_PHASE_WINDOW_MS}_{XMA_PHASE_WINDOW_MS}"
         ).encode()
     ).hexdigest()[:12]
     cache = Path("/tmp") / f"oracle_probe_feats_{key}.pkl"
@@ -1421,7 +1713,7 @@ def run(cfg: ProbeConfig) -> dict:
         node_r = blob["node_r"]
     else:
         train_shots, test_shots = [], []
-        presence = {m: 0 for m in MODALITIES}
+        presence = {m: 0 for m in modalities}
         n_attempt = 0
         for sid in chosen:
             n_attempt += 1
@@ -1431,10 +1723,11 @@ def run(cfg: ProbeConfig) -> dict:
                 node_r,
                 history=cfg.history,
                 sxr_mode=cfg.sxr_mode,
+                phase_features=cfg.phase_features,
             )
             if sf is None:
                 continue
-            for m in MODALITIES:
+            for m in modalities:
                 presence[m] += int(sf.present[m])
             if sid in test_set:
                 test_shots.append(sf)
@@ -1452,7 +1745,7 @@ def run(cfg: ProbeConfig) -> dict:
                 fh,
             )
     n_used = len(train_shots) + len(test_shots)
-    presence_frac = {m: presence[m] / max(n_used, 1) for m in MODALITIES}
+    presence_frac = {m: presence[m] / max(n_used, 1) for m in modalities}
     logger.info(
         "extracted %d/%d shots (%d train, %d test) in %.1fs; presence=%s",
         n_used,
@@ -1500,7 +1793,7 @@ def run(cfg: ProbeConfig) -> dict:
     # breakdown can run on the SAME test points.
     arm_results: dict[str, dict] = {}
     arm_pred: dict[str, np.ndarray] = {}  # arm -> (n_test_pts, N_NODES) yhat
-    for arm_name, mods in ARMS.items():
+    for arm_name, mods in arms.items():
         Xtr, ytr, _ = assemble_matrix(train_shots, mods)
         Xte, yte, te_idx = assemble_matrix(test_shots, mods)
         yhat = np.full_like(yte, np.nan)
@@ -1583,7 +1876,7 @@ def run(cfg: ProbeConfig) -> dict:
     }
 
     mse_eval_rmse_arr: dict[str, np.ndarray] = {}
-    for arm_name in ARMS:
+    for arm_name in arms:
         by_shot = mse_eval_per_shot_rmse(
             test_shots, arm_pred[arm_name], node_r, manifest, truth
         )
@@ -1606,14 +1899,7 @@ def run(cfg: ProbeConfig) -> dict:
             mse_eval_rmse_arr["D_all"], mse_eval_rmse_arr["A_mag"], seed=bE
         ),
     }
-    for arm_name in (
-        "E_mag_sxr",
-        "E_mag_bolo",
-        "E_mag_thomson",
-        "E_mag_camera",
-        "E_mag_mirnov",
-        "I_mag_sxr_mirnov",
-    ):
+    for arm_name in carrier_arms:
         paired_mse_eval[f"{arm_name}_minus_A"] = _paired_diff_from_arrays(
             mse_eval_rmse_arr[arm_name], mse_eval_rmse_arr["A_mag"], seed=bE + 1
         )
@@ -1654,14 +1940,7 @@ def run(cfg: ProbeConfig) -> dict:
             y_test_ref, arm_pred["D_all"], arm_pred["A_mag"], test_shot_idx, seed=bA + 1
         ),
     }
-    for arm_name in (
-        "E_mag_sxr",
-        "E_mag_bolo",
-        "E_mag_thomson",
-        "E_mag_camera",
-        "E_mag_mirnov",
-        "I_mag_sxr_mirnov",
-    ):
+    for arm_name in carrier_arms:
         paired[f"{arm_name}_minus_A"] = paired_bootstrap_diff(
             y_test_ref,
             arm_pred[arm_name],
@@ -1717,13 +1996,7 @@ def run(cfg: ProbeConfig) -> dict:
     # attribution: which single-modality E arms BOTH significantly + materially
     # beat magnetics-only on the mse_eval metric?
     carriers = []
-    for arm_name in (
-        "E_mag_sxr",
-        "E_mag_bolo",
-        "E_mag_thomson",
-        "E_mag_camera",
-        "E_mag_mirnov",
-    ):
+    for arm_name in carrier_arms:
         r = arm_results[arm_name]["mse_eval_rmse_mean"]
         e_sig = _sig_better_e(f"{arm_name}_minus_A")
         e_mat = bool(np.isfinite(r) and r < rmse_A * margin)
@@ -1731,7 +2004,9 @@ def run(cfg: ProbeConfig) -> dict:
             carriers.append(arm_name.replace("E_mag_", ""))
 
     hist_tag = (
-        "sxr_mode" if cfg.sxr_mode else ("history" if cfg.history else "instantaneous")
+        "phase"
+        if cfg.phase_features
+        else ("sxr_mode" if cfg.sxr_mode else ("history" if cfg.history else "instantaneous"))
     )
     info_exists = bool(D_below_A) or len(carriers) > 0
 
@@ -1869,7 +2144,7 @@ def run(cfg: ProbeConfig) -> dict:
                     "cross-population reference only."
                 ),
             },
-            "arm_rmse": {k: arm_results[k]["mse_eval_rmse_mean"] for k in ARMS},
+            "arm_rmse": {k: arm_results[k]["mse_eval_rmse_mean"] for k in arms},
             "paired_differences": paired_mse_eval_out,
             "incremental_over_Te": {
                 "note": (
@@ -1980,6 +2255,25 @@ def run(cfg: ProbeConfig) -> dict:
                 if cfg.sxr_mode
                 else {"enabled": False}
             ),
+            "phase_features": (
+                {
+                    "enabled": True,
+                    "band_hz": list(PHASE_BAND_HZ),
+                    "sxr_window_ms": SXR_PHASE_WINDOW_MS,
+                    "xma_window_ms": XMA_PHASE_WINDOW_MS,
+                    "sxr_layout": (
+                        "18 coherence + 18 phase (hcam_l), 18 coherence + 18 phase "
+                        "(hcam_u), 18 dominant-band powers per camera, dominant "
+                        "frequency, availability"
+                    ),
+                    "xma_layout": (
+                        "40 complex phasors (real+imag), spatial m=1/m=2 amplitudes, "
+                        "dominant temporal frequency, availability"
+                    ),
+                }
+                if cfg.phase_features
+                else {"enabled": False}
+            ),
         },
         "runtime_s": round(time.time() - t0, 1),
     }
@@ -1996,6 +2290,7 @@ def _combined_verdict(*runs_in):
     """
     runs = [r for r in runs_in if r is not None]
     history = next((r for r in runs if r.get("feature_mode") == "history"), None)
+    mode_list = ", ".join(sorted(r["feature_mode"] for r in runs))
     if any(r["verdict"] == "INFO_EXISTS" for r in runs):
         winners = [
             (r["feature_mode"], r["verdict_detail"]["carriers"])
@@ -2003,7 +2298,7 @@ def _combined_verdict(*runs_in):
             if r["verdict"] == "INFO_EXISTS"
         ]
         return "INFO_EXISTS", (
-            f"a feature mode found an interior-reaching carrier beyond "
+            f"a feature mode ({mode_list}) found an interior-reaching carrier beyond "
             f"magnetics: {winners} -> D4 earns a SCOPED H200 run; carrier named."
         )
     mh = (history or {}).get("frontier", {})
@@ -2024,20 +2319,15 @@ def _combined_verdict(*runs_in):
             }
         )
         return "QUALIFIED_NEGATIVE", (
-            f"NO clean H200 GO.  Carrier = {carriers} (bolometer / radiated "
-            "power) gives a real, presence-robust but SMALL "
-            "(point ~6%, paired-CI lower bound ~1.5%) aggregate gain over "
-            "magnetics-only — yet localization shows it sits on WELL-MEASURED "
-            "edge/mid pitch; the under-determined near-axis INTERIOR stays "
-            "model-failure-dominated (RMSE ~0.41 rad) and the carrier is flat "
-            "there.  RE-CONFIRMS Stage-2 interior under-determination.  SXR (the "
-            "channel with the clean interior mechanism) is NOT significant.  "
+            f"NO clean H200 GO.  Qualified-negative carriers {carriers} appeared in "
+            f"feature modes [{mode_list}], but localization kept the gain OFF the "
+            "under-determined near-axis interior.  "
             f"{frontier_note}  Recommend NO-GO; the small off-interior gain is a "
             "user judgement call."
         )
     return "INFEASIBLE_NEGATIVE", (
-        "ROBUST NEGATIVE: neither instantaneous NOR time-history multimodal "
-        "features add interior pitch info beyond magnetics-only on the D1 "
+        f"ROBUST NEGATIVE across [{mode_list}]: no feature mode adds interior "
+        "pitch info beyond magnetics-only on the D1 "
         f"mse_eval sightline metric (paired-significant + 5% material).  "
         f"{frontier_note}  No H200."
     )
@@ -2049,7 +2339,7 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument(
         "--mode",
-        choices=["instant", "history", "sxr_mode", "all"],
+        choices=["instant", "history", "sxr_mode", "phase", "all"],
         default="all",
         help="feature mode(s) to run",
     )
@@ -2058,7 +2348,7 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    instant = history = sxr = None
+    instant = history = sxr = phase = None
     if args.mode in ("instant", "all"):
         logger.info("=== INSTANTANEOUS feature run ===")
         instant = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, history=False))
@@ -2068,6 +2358,9 @@ def main() -> int:
     if args.mode in ("sxr_mode", "all"):
         logger.info("=== SXR MODE-ACTIVITY (native-rate, rational-surface) run ===")
         sxr = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, sxr_mode=True))
+    if args.mode in ("phase", "all"):
+        logger.info("=== PHASE-PRESERVING feature run ===")
+        phase = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, phase_features=True))
 
     # frontier read (instantaneous vs history mag-only on the mse_eval metric)
     if history is not None:
@@ -2084,7 +2377,7 @@ def main() -> int:
             ),
         }
 
-    top_verdict, top_note = _combined_verdict(instant, history, sxr)
+    top_verdict, top_note = _combined_verdict(instant, history, sxr, phase)
     combined = {
         "version": "oracle_probe_v0",
         "verdict": top_verdict,
@@ -2095,6 +2388,7 @@ def main() -> int:
                 ("instantaneous", instant),
                 ("time_history", history),
                 ("sxr_mode_activity", sxr),
+                ("phase_preserving", phase),
             )
             if v is not None
         },

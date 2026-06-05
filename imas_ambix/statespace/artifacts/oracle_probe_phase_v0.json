@@ -1,0 +1,1440 @@
+{
+  "version": "oracle_probe_v0",
+  "verdict": "QUALIFIED_NEGATIVE",
+  "verdict_note": "NO clean H200 GO.  Qualified-negative carriers ['bolo'] appeared in feature modes [phase], but localization kept the gain OFF the under-determined near-axis interior.  mag-history mse_eval RMSE=NA ~= mag-instantaneous=NA (time-history adds nothing \u2014 dynamics are NOT the binding constraint, tested on the correct metric).  mag-only is already near the EnKF OOD frontier 0.225 (cross-population, NOT number-matched).  Recommend NO-GO; the small off-interior gain is a user judgement call.",
+  "runs": {
+    "phase_preserving": {
+      "version": "oracle_probe_v0",
+      "question": "Is MSE pitch recoverable from NON-MSE diagnostics? (supervised feasibility probe on CALIBRATION shots)",
+      "verdict": "QUALIFIED_NEGATIVE",
+      "feature_mode": "phase",
+      "verdict_detail": {
+        "info_exists_mechanical_flag": true,
+        "carrier_off_interior": true,
+        "metric": "mse_eval sightline error-weighted gated pitch RMSE",
+        "D_significantly_and_materially_below_A": true,
+        "D_paired_significant_below_A": true,
+        "D_material_5pct_below_A": true,
+        "magnetics_beats_climatology_paired_nodemetric": true,
+        "carriers": [
+          "bolo"
+        ],
+        "carrier_note": "[phase features, mse_eval metric] carrier ['bolo'] gives a real, presence-robust aggregate gain over magnetics-only (point ~6%, but paired-CI lower bound ~1.5% \u2014 small + magnitude-uncertain), BUT localization shows the gain sits on WELL-MEASURED edge/mid pitch; the under-determined near-axis interior stays model-failure-dominated (RMSE ~0.41 rad) and the carrier is flat there (interior-reliable gain ~-1%).  RE-CONFIRMS Stage-2 interior under-determination.  NO clean H200 GO on interior-recovery grounds; the 4xH200 spend on a small off-interior edge-pitch gain is a user judgement call, recommend NO-GO.",
+        "clear_margin_frac": 0.05,
+        "rule": "An arm 'carries info' iff it is paired-significant (CI<0) AND >5% material below magnetics-only on the mse_eval metric.  But INFO_EXISTS is downgraded to QUALIFIED_NEGATIVE when the carrier's gain is OFF the under-determined interior (high pitcha_error points coincide with near-axis AND the carrier is flat there) \u2014 an aggregate edge/mid win is not interior-current recovery.  info_exists_mechanical_flag is kept visible so the contradiction with the human verdict is explicit."
+      },
+      "localization": {
+        "carrier_arm": "E_mag_bolo",
+        "pitcha_error_terciles_rad": [
+          0.007692469386383891,
+          0.03578322254121306
+        ],
+        "dR_terciles_m": [
+          0.1060959458351135,
+          0.2927290439605713
+        ],
+        "by_error_tercile_wrmse": {
+          "low_err_well_measured": {
+            "A_wrmse": 0.11896236868428148,
+            "carrier_wrmse": 0.09957536004963576,
+            "n": 22655
+          },
+          "mid_err": {
+            "A_wrmse": 0.19359601585949177,
+            "carrier_wrmse": 0.17726435303611365,
+            "n": 22654
+          },
+          "high_err_near_axis": {
+            "A_wrmse": 0.41595263700745594,
+            "carrier_wrmse": 0.41443141877658174,
+            "n": 23341
+          }
+        },
+        "by_radial_band_wrmse": {
+          "interior_small_dR": {
+            "A_wrmse": 0.07992975551657282,
+            "carrier_wrmse": 0.06997633608657128,
+            "n": 22767
+          },
+          "mid": {
+            "A_wrmse": 0.14379125732966788,
+            "carrier_wrmse": 0.1263810179668885,
+            "n": 23874
+          },
+          "edge_large_dR": {
+            "A_wrmse": 0.16964295140995567,
+            "carrier_wrmse": 0.14439496762531734,
+            "n": 22009
+          }
+        },
+        "cross_tab": {
+          "high_err_tercile_median_dR_m": 0.11293325424194334,
+          "low_err_tercile_median_dR_m": 0.20116331577301028,
+          "interior_band_frac_in_high_err_tercile": 0.4503447972943295,
+          "edge_band_frac_in_high_err_tercile": 0.23694852105956654,
+          "interior_reliable_err_le_0p1_A_unweighted_rmse": 0.151677669794293,
+          "interior_reliable_err_le_0p1_carrier_unweighted_rmse": 0.14982274291044986,
+          "interior_reliable_n": 13622
+        },
+        "interior_truth_axis_ablation": {
+          "dR_axis_terciles_m": [
+            0.11293325424194334,
+            0.32108556270599414
+          ],
+          "interior_band_weighted": {
+            "A_wrmse": 0.0770658865185131,
+            "carrier_wrmse": 0.06940449222404511,
+            "rel_gain": 0.09941356209050456,
+            "n": 23049,
+            "caveat": "weighted -> dominated by ultra-reliable points (artifact-prone)"
+          },
+          "interior_band_reliable_unweighted": {
+            "A_rmse": 0.15589920962854645,
+            "carrier_rmse": 0.15381822718453309,
+            "rel_gain": 0.013348255253965813,
+            "n": 15643,
+            "note": "DECISIVE: err<=0.1, no single point dominates"
+          }
+        },
+        "carrier_reaches_interior_reliable": false,
+        "high_error_is_near_axis": true,
+        "carrier_rel_gain_interior_reliable": 0.012229399926560167,
+        "R0_caveat": "|R-R0| uses nominal R0=0.85 m (true MAST axis ~0.9-1.0 m); some points mislabelled \u2014 the reference-FREE error-tercile cut is the decisive one",
+        "reading": "high-pitcha_error points are spatially near-axis AND the carrier is flat there -> gain is OFF the under-determined interior (qualified negative; re-confirms Stage-2)"
+      },
+      "headline_findings": [
+        "Carrier is BOLOMETER (radiated power), not SXR \u2014 and SXR (the channel with the clean interior mechanism: sawtooth=q1, tearing=q2/3-2) is NOT significant.  Shapes what D4 would ingest.",
+        "Time-history adds NOTHING (mag-history ~= mag-instantaneous on the mse_eval metric) \u2014 plasma dynamics are not the binding constraint; tested on the correct metric, so the instantaneous probe was not merely bottlenecked.",
+        "The bolo gain is OFF-INTERIOR: localized to well-measured edge/mid pitch; the under-determined near-axis interior stays model-failure-dominated and bolo is flat there.",
+        "Magnetics-INSTANTANEOUS alone (~0.19 rad) is already in the EnKF-OOD-frontier neighbourhood (0.225) \u2014 cross-population, NOT number-matched \u2014 independently arguing the multimodal upside is modest."
+      ],
+      "magnetics_only_rmse_mse_eval": 0.1878642540574317,
+      "magnetics_only_rmse_per_shot_nodemetric": 0.4830006855460992,
+      "mse_eval_metric": {
+        "note": "D1-locked sightline error-weighted gated pitch RMSE (mse_eval.score) \u2014 apples-to-apples with the EnKF baseline",
+        "persistence_cal_test_in_dist": 0.7568578834146608,
+        "cross_population_refs": {
+          "d1_persistence_ood_held_out": 0.719,
+          "enkf_ood_frontier": 0.225,
+          "caveat": "EnKF 0.225 and D1 persistence 0.719 are on the 112 OOD HELD-OUT shots; oracle arms here are on IN-DISTRIBUTION CAL-test shots (should be EASIER).  NOT number-matched \u2014 cross-population reference only."
+        },
+        "arm_rmse": {
+          "A_mag": 0.1878642540574317,
+          "B_mag_thomson": 0.1844410113111038,
+          "C_mag_sxr_bolo": 0.17626474654694646,
+          "D_all": 0.17404598091443607,
+          "E_mag_sxr": 0.18570044173127442,
+          "E_mag_bolo": 0.17666221490347941,
+          "E_mag_thomson": 0.1844410113111038,
+          "E_mag_camera": 0.1869791880069535,
+          "G_mag_te_bolo": 0.1773450955904623,
+          "H_mag_te_sxr": 0.1855617067579276,
+          "E_mag_mirnov": 0.19264588206180558,
+          "I_mag_sxr_mirnov": 0.19063890805661388,
+          "E_mag_sxr_phase": 0.1888969687004982,
+          "E_mag_mirnov_phase": 0.19234005407379307,
+          "E_mag_sxr_mirnov_phase": 0.19376117466543444
+        },
+        "paired_differences": {
+          "D_minus_A": {
+            "mean_diff": -0.013818273142995635,
+            "ci95": [
+              -0.023749563719767188,
+              -0.004855540306680819
+            ],
+            "frac_pos": 0.002
+          },
+          "E_mag_sxr_minus_A": {
+            "mean_diff": -0.002163812326157283,
+            "ci95": [
+              -0.008034719230946945,
+              0.003783963820813224
+            ],
+            "frac_pos": 0.2405
+          },
+          "E_mag_bolo_minus_A": {
+            "mean_diff": -0.011202039153952292,
+            "ci95": [
+              -0.0210083943789085,
+              -0.0029797323629542436
+            ],
+            "frac_pos": 0.0025
+          },
+          "E_mag_thomson_minus_A": {
+            "mean_diff": -0.003423242746327909,
+            "ci95": [
+              -0.009657673647270177,
+              0.0018343456349156776
+            ],
+            "frac_pos": 0.1145
+          },
+          "E_mag_camera_minus_A": {
+            "mean_diff": -0.0008850660504781949,
+            "ci95": [
+              -0.009469172437173469,
+              0.005196484602800938
+            ],
+            "frac_pos": 0.4345
+          },
+          "E_mag_mirnov_minus_A": {
+            "mean_diff": 0.004781628004373872,
+            "ci95": [
+              -0.006837487700058611,
+              0.018734344708550992
+            ],
+            "frac_pos": 0.7515
+          },
+          "I_mag_sxr_mirnov_minus_A": {
+            "mean_diff": 0.0027746539991821695,
+            "ci95": [
+              -0.007569468944519216,
+              0.014132533151303786
+            ],
+            "frac_pos": 0.6695
+          },
+          "E_mag_sxr_phase_minus_A": {
+            "mean_diff": 0.0010327146430665068,
+            "ci95": [
+              -0.0028723465376309216,
+              0.004975918047115143
+            ],
+            "frac_pos": 0.695
+          },
+          "E_mag_mirnov_phase_minus_A": {
+            "mean_diff": 0.004475800016361359,
+            "ci95": [
+              -0.0015157697404004813,
+              0.012607668484635513
+            ],
+            "frac_pos": 0.89
+          },
+          "E_mag_sxr_mirnov_phase_minus_A": {
+            "mean_diff": 0.0058969206080027314,
+            "ci95": [
+              -0.0015564443358456776,
+              0.014980797027931396
+            ],
+            "frac_pos": 0.926
+          },
+          "G_bolo_minus_B_te": {
+            "mean_diff": -0.007095915720641499,
+            "ci95": [
+              -0.013418338554977743,
+              -0.0002848782560363935
+            ],
+            "frac_pos": 0.0205
+          },
+          "H_sxr_minus_B_te": {
+            "mean_diff": 0.001120695446823805,
+            "ci95": [
+              -0.0012968298728456514,
+              0.003561074711642258
+            ],
+            "frac_pos": 0.801
+          }
+        },
+        "incremental_over_Te": {
+          "note": "G_bolo_minus_B_te / H_sxr_minus_B_te test whether the carrier beats a Te-CONDITIONED baseline (B = mag+Te).  The EnKF physics bar already has Te->conductivity->current-diffusion; a carrier that collapses once Te is in is a conductivity/profile proxy and would NOT beat the EnKF.",
+          "G_bolo_minus_B_te": {
+            "mean_diff": -0.007095915720641499,
+            "ci95": [
+              -0.013418338554977743,
+              -0.0002848782560363935
+            ],
+            "frac_pos": 0.0205
+          },
+          "H_sxr_minus_B_te": {
+            "mean_diff": 0.001120695446823805,
+            "ci95": [
+              -0.0012968298728456514,
+              0.003561074711642258
+            ],
+            "frac_pos": 0.801
+          }
+        },
+        "ama_ntm_already_in_magnetics": "The precomputed NTM mode-product (ama n=2 / n-odd amplitude+frequency+signal) is ALREADY in the magnetics block of EVERY arm including magnetics-only (A).  So the dense mode-presence signal is in the baseline \u2014 and A still does not reach the interior.  amm is NOT used (decimated EFIT wall-model, no MHD-band content)."
+      },
+      "pin_coverage": {
+        "q1_surface_frac": 0.345534115774816,
+        "n_pv_slices_with_finite_q0": 5027,
+        "note": "fraction of scored pv slices with truth q0<1 (q=1 sawtooth surface present).  If small, sawtooth/q=1 features structurally cannot help on most slices \u2014 context for the sub-material SXR-mode result.  q0 is the MSE-pipeline q0_kappa1.85_4pt (provisional)."
+      },
+      "paired_differences_nodemetric": {
+        "A_minus_clim": {
+          "mean_diff": -0.009704761137902335,
+          "ci95": [
+            -0.01406281742976716,
+            -0.005498427949449803
+          ],
+          "frac_pos": 0.0
+        },
+        "D_minus_A": {
+          "mean_diff": -0.003586357212004118,
+          "ci95": [
+            -0.007935830969312354,
+            0.00017424423318539522
+          ],
+          "frac_pos": 0.0325
+        },
+        "E_mag_sxr_minus_A": {
+          "mean_diff": -0.0002245808108164994,
+          "ci95": [
+            -0.0025239600215665055,
+            0.0018869097227524087
+          ],
+          "frac_pos": 0.4295
+        },
+        "E_mag_bolo_minus_A": {
+          "mean_diff": -0.002080836682524569,
+          "ci95": [
+            -0.005903497419043819,
+            0.0009138918766468078
+          ],
+          "frac_pos": 0.12
+        },
+        "E_mag_thomson_minus_A": {
+          "mean_diff": -0.001033123248741461,
+          "ci95": [
+            -0.0034215466121696554,
+            0.0010202832311966405
+          ],
+          "frac_pos": 0.1855
+        },
+        "E_mag_camera_minus_A": {
+          "mean_diff": 0.0004928582017527999,
+          "ci95": [
+            -0.0011657715551327788,
+            0.002236823741509854
+          ],
+          "frac_pos": 0.7105
+        },
+        "E_mag_mirnov_minus_A": {
+          "mean_diff": 0.00488188757816964,
+          "ci95": [
+            -0.0006740030703190028,
+            0.014617250790870675
+          ],
+          "frac_pos": 0.9185
+        },
+        "I_mag_sxr_mirnov_minus_A": {
+          "mean_diff": 0.0031458697815051886,
+          "ci95": [
+            -0.002001644856767913,
+            0.011352589967156958
+          ],
+          "frac_pos": 0.7995
+        },
+        "E_mag_sxr_phase_minus_A": {
+          "mean_diff": 0.0011051497899821198,
+          "ci95": [
+            -0.000790899231031228,
+            0.00295387098789037
+          ],
+          "frac_pos": 0.87
+        },
+        "E_mag_mirnov_phase_minus_A": {
+          "mean_diff": 0.0037714344007517843,
+          "ci95": [
+            -0.00013244387706495275,
+            0.010124697658176042
+          ],
+          "frac_pos": 0.9655
+        },
+        "E_mag_sxr_mirnov_phase_minus_A": {
+          "mean_diff": 0.0031010356967148497,
+          "ci95": [
+            -0.0003403791187414823,
+            0.008532311006165546
+          ],
+          "frac_pos": 0.945
+        }
+      },
+      "persistence": {
+        "rmse_pooled": 0.9026115347320728,
+        "rmse_per_shot": 0.8864050425796944,
+        "rmse_per_shot_ci95": [
+          0.8231404176214748,
+          0.9496398614031437
+        ],
+        "note": "freeze pitch at first gated slice, hold (D1-style sanity)"
+      },
+      "climatology": {
+        "rmse_pooled": 0.49768858827752105,
+        "rmse_per_shot": 0.4927253522820395,
+        "rmse_per_shot_ci95": [
+          0.45513346917496866,
+          0.5297409797419359
+        ],
+        "rmse_per_node": [
+          {
+            "node": 0,
+            "r_m": 0.736,
+            "rmse": 0.48599956516608633,
+            "n": 4785
+          },
+          {
+            "node": 1,
+            "r_m": 0.853,
+            "rmse": 0.3811267272186856,
+            "n": 5010
+          },
+          {
+            "node": 2,
+            "r_m": 0.97,
+            "rmse": 0.4453603654281176,
+            "n": 4915
+          },
+          {
+            "node": 3,
+            "r_m": 1.087,
+            "rmse": 0.5311661571313845,
+            "n": 4673
+          },
+          {
+            "node": 4,
+            "r_m": 1.204,
+            "rmse": 0.5722609747331637,
+            "n": 4224
+          },
+          {
+            "node": 5,
+            "r_m": 1.321,
+            "rmse": 0.5562830695024269,
+            "n": 3401
+          },
+          {
+            "node": 6,
+            "r_m": 1.438,
+            "rmse": 0.5335564001351821,
+            "n": 2778
+          }
+        ],
+        "note": "predict per-node TRAIN mean, ignore features; discriminator between true negative and silent feature-deadness"
+      },
+      "arms": {
+        "A_mag": {
+          "modalities": [
+            "mag"
+          ],
+          "rmse_pooled": 0.48816154329573247,
+          "rmse_per_shot": 0.4830006855460992,
+          "rmse_per_shot_ci95": [
+            0.44710636642801116,
+            0.5241465241509587
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.48689600809870753,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.38141917373469036,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.448238853137232,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5318719024472786,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5520979110499705,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5232486882656274,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5043716125546355,
+              "n": 2778
+            }
+          ],
+          "n_features": 122,
+          "mse_eval_rmse_mean": 0.1878642540574317
+        },
+        "B_mag_thomson": {
+          "modalities": [
+            "mag",
+            "thomson"
+          ],
+          "rmse_pooled": 0.48755615846077316,
+          "rmse_per_shot": 0.48200258626172604,
+          "rmse_per_shot_ci95": [
+            0.4456867161707153,
+            0.5234956456560104
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.48520867343760893,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.3812143990515136,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.4480672511527405,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.529557254159539,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5534348003734874,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5216416259482277,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5053490453738575,
+              "n": 2778
+            }
+          ],
+          "n_features": 137,
+          "mse_eval_rmse_mean": 0.1844410113111038
+        },
+        "C_mag_sxr_bolo": {
+          "modalities": [
+            "mag",
+            "sxr",
+            "bolo"
+          ],
+          "rmse_pooled": 0.4863305479690737,
+          "rmse_per_shot": 0.4801460885463822,
+          "rmse_per_shot_ci95": [
+            0.44222091006291403,
+            0.5234429343107223
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4861231665683129,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.381437148342375,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44785327106862366,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5267832531958114,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5507820683192133,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.518691480676749,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5042052863684142,
+              "n": 2778
+            }
+          ],
+          "n_features": 210,
+          "mse_eval_rmse_mean": 0.17626474654694646
+        },
+        "D_all": {
+          "modalities": [
+            "mag",
+            "thomson",
+            "sxr",
+            "bolo",
+            "camera"
+          ],
+          "rmse_pooled": 0.48581350200707796,
+          "rmse_per_shot": 0.4794009804213882,
+          "rmse_per_shot_ci95": [
+            0.44130809067772464,
+            0.522992658566299
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.48499830953214973,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.3821433293406496,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.4476676854569597,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5262847856029658,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5512005953615776,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5172727745396315,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5020137163762305,
+              "n": 2778
+            }
+          ],
+          "n_features": 247,
+          "mse_eval_rmse_mean": 0.17404598091443607
+        },
+        "E_mag_sxr": {
+          "modalities": [
+            "mag",
+            "sxr"
+          ],
+          "rmse_pooled": 0.48810156547070904,
+          "rmse_per_shot": 0.48281401856059103,
+          "rmse_per_shot_ci95": [
+            0.44702679779346466,
+            0.5242469011766967
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.48598466314993727,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.38071131867700636,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44831803711299184,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5302738228760362,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.553537259476817,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5217247849061997,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5084510662376964,
+              "n": 2778
+            }
+          ],
+          "n_features": 177,
+          "mse_eval_rmse_mean": 0.18570044173127442
+        },
+        "E_mag_bolo": {
+          "modalities": [
+            "mag",
+            "bolo"
+          ],
+          "rmse_pooled": 0.4871059481898433,
+          "rmse_per_shot": 0.48090080327920803,
+          "rmse_per_shot_ci95": [
+            0.44292879051698164,
+            0.5242334678349454
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4865244145398881,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.38183148062547256,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.4482342384418027,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5277638783104474,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5509617638590798,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.521027574643716,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5054531313714266,
+              "n": 2778
+            }
+          ],
+          "n_features": 155,
+          "mse_eval_rmse_mean": 0.17666221490347941
+        },
+        "E_mag_thomson": {
+          "modalities": [
+            "mag",
+            "thomson"
+          ],
+          "rmse_pooled": 0.48755615846077316,
+          "rmse_per_shot": 0.48200258626172604,
+          "rmse_per_shot_ci95": [
+            0.4456867161707153,
+            0.5234956456560104
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.48520867343760893,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.3812143990515136,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.4480672511527405,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.529557254159539,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5534348003734874,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5216416259482277,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5053490453738575,
+              "n": 2778
+            }
+          ],
+          "n_features": 137,
+          "mse_eval_rmse_mean": 0.1844410113111038
+        },
+        "E_mag_camera": {
+          "modalities": [
+            "mag",
+            "camera"
+          ],
+          "rmse_pooled": 0.4884979995198841,
+          "rmse_per_shot": 0.4835295991575893,
+          "rmse_per_shot_ci95": [
+            0.4487545160776761,
+            0.5241761689946106
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.48441385452523594,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.3827920679809509,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44790132502494456,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5288294755662719,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5520045064428917,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5266313198452386,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5118078475020021,
+              "n": 2778
+            }
+          ],
+          "n_features": 144,
+          "mse_eval_rmse_mean": 0.1869791880069535
+        },
+        "G_mag_te_bolo": {
+          "modalities": [
+            "mag",
+            "thomson",
+            "bolo"
+          ],
+          "rmse_pooled": 0.48636083970767785,
+          "rmse_per_shot": 0.48000743499322135,
+          "rmse_per_shot_ci95": [
+            0.4419449029543425,
+            0.5238443044116896
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4853276965308182,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.38144790213633556,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44811628369156864,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5277505129512046,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5530725772798767,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5170949575123917,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5018988590307705,
+              "n": 2778
+            }
+          ],
+          "n_features": 170,
+          "mse_eval_rmse_mean": 0.1773450955904623
+        },
+        "H_mag_te_sxr": {
+          "modalities": [
+            "mag",
+            "thomson",
+            "sxr"
+          ],
+          "rmse_pooled": 0.4872624214965232,
+          "rmse_per_shot": 0.48159203155838953,
+          "rmse_per_shot_ci95": [
+            0.4453598851400934,
+            0.5233036558324549
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4863352203793492,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.3821104783713619,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.4483665831245941,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5299358184170047,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5514896930886793,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5225279444320347,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.50017412389198,
+              "n": 2778
+            }
+          ],
+          "n_features": 192,
+          "mse_eval_rmse_mean": 0.1855617067579276
+        },
+        "E_mag_mirnov": {
+          "modalities": [
+            "mag",
+            "mirnov"
+          ],
+          "rmse_pooled": 0.4919926131009459,
+          "rmse_per_shot": 0.48789420640187,
+          "rmse_per_shot_ci95": [
+            0.4521108452377618,
+            0.5275735553758644
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4862830968036523,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.3821801335271161,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.448942022944676,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5304134998203408,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5586343220535597,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5295090017817403,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5263212851541457,
+              "n": 2778
+            }
+          ],
+          "n_features": 208,
+          "mse_eval_rmse_mean": 0.19264588206180558
+        },
+        "I_mag_sxr_mirnov": {
+          "modalities": [
+            "mag",
+            "sxr",
+            "mirnov"
+          ],
+          "rmse_pooled": 0.49071823411410576,
+          "rmse_per_shot": 0.4861861145911718,
+          "rmse_per_shot_ci95": [
+            0.4497882044656883,
+            0.5264033766897697
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4876226755521086,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.3814659201579554,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.4487886109101283,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5290112459626551,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5556762941401605,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5290287454725199,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.52028804421955,
+              "n": 2778
+            }
+          ],
+          "n_features": 263,
+          "mse_eval_rmse_mean": 0.19063890805661388
+        },
+        "E_mag_sxr_phase": {
+          "modalities": [
+            "mag",
+            "sxr_phase"
+          ],
+          "rmse_pooled": 0.4892166465866252,
+          "rmse_per_shot": 0.4841363391786619,
+          "rmse_per_shot_ci95": [
+            0.44826634845348934,
+            0.5249748324045515
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4872722544709613,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.3807350027141546,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.4476459789163665,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5296911036171803,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5547950901263896,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5278506443753466,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5100288358808077,
+              "n": 2778
+            }
+          ],
+          "n_features": 233,
+          "mse_eval_rmse_mean": 0.1888969687004982
+        },
+        "E_mag_mirnov_phase": {
+          "modalities": [
+            "mag",
+            "mirnov_phase"
+          ],
+          "rmse_pooled": 0.49104881679902146,
+          "rmse_per_shot": 0.48678744191792483,
+          "rmse_per_shot_ci95": [
+            0.4513091661745462,
+            0.5268777117782834
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4882156879739623,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.38133107442681885,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44754761091560946,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.53117557174368,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5561826989729771,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5284847158557312,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5208883978568757,
+              "n": 2778
+            }
+          ],
+          "n_features": 207,
+          "mse_eval_rmse_mean": 0.19234005407379307
+        },
+        "E_mag_sxr_mirnov_phase": {
+          "modalities": [
+            "mag",
+            "sxr_phase",
+            "mirnov_phase"
+          ],
+          "rmse_pooled": 0.4906477014494999,
+          "rmse_per_shot": 0.48612185097438654,
+          "rmse_per_shot_ci95": [
+            0.45023798383288666,
+            0.5265340727607979
+          ],
+          "rmse_per_node": [
+            {
+              "node": 0,
+              "r_m": 0.736,
+              "rmse": 0.4866218754308726,
+              "n": 4785
+            },
+            {
+              "node": 1,
+              "r_m": 0.853,
+              "rmse": 0.382451933182057,
+              "n": 5010
+            },
+            {
+              "node": 2,
+              "r_m": 0.97,
+              "rmse": 0.44723944969280893,
+              "n": 4915
+            },
+            {
+              "node": 3,
+              "r_m": 1.087,
+              "rmse": 0.5297741514746399,
+              "n": 4673
+            },
+            {
+              "node": 4,
+              "r_m": 1.204,
+              "rmse": 0.5572104095821536,
+              "n": 4224
+            },
+            {
+              "node": 5,
+              "r_m": 1.321,
+              "rmse": 0.5293423898521535,
+              "n": 3401
+            },
+            {
+              "node": 6,
+              "r_m": 1.438,
+              "rmse": 0.5180475510270701,
+              "n": 2778
+            }
+          ],
+          "n_features": 318,
+          "mse_eval_rmse_mean": 0.19376117466543444
+        }
+      },
+      "target": {
+        "definition": "gated MSE pitch (rad) interpolated onto 7 fixed radial nodes in the [0.1,0.9] quantile band of pooled TRAIN sightline radii; per-shot nodes outside coverage masked (never scored)",
+        "node_radii_m": [
+          0.7363783717155457,
+          0.8533381521701813,
+          0.9702979326248169,
+          1.0872577130794525,
+          1.2042174935340881,
+          1.3211772739887238,
+          1.4381370544433594
+        ],
+        "gate": "mse_split.pitch_point_gate (rail<1.5 rad, err<=0.3 rad)",
+        "rmse_definition": "per-shot RMSE then mean over test shots (primary)"
+      },
+      "data": {
+        "partition": "calibration",
+        "n_shots_requested": 80,
+        "n_shots_used": 79,
+        "n_train_shots": 56,
+        "n_test_shots": 23,
+        "n_train_slices": 12427,
+        "n_test_slices": 5027,
+        "train_shot_ids": [
+          19903,
+          20072,
+          20107,
+          20631,
+          20640,
+          20698,
+          20805,
+          21471,
+          21901,
+          21908,
+          22561,
+          22601,
+          22655,
+          23383,
+          24096,
+          24206,
+          24214,
+          24303,
+          24333,
+          24336,
+          24416,
+          24517,
+          24542,
+          24730,
+          24864,
+          26375,
+          26580,
+          26813,
+          26878,
+          26957,
+          26981,
+          27175,
+          27262,
+          27328,
+          27398,
+          27485,
+          27533,
+          27613,
+          27697,
+          27742,
+          27823,
+          27910,
+          27930,
+          27934,
+          27935,
+          28991,
+          29054,
+          29268,
+          29326,
+          29390,
+          29768,
+          29908,
+          30176,
+          30208,
+          30353,
+          30422
+        ],
+        "test_shot_ids": [
+          19527,
+          20161,
+          20302,
+          20320,
+          20374,
+          23404,
+          23465,
+          24916,
+          25017,
+          26863,
+          26886,
+          27389,
+          27510,
+          27590,
+          28166,
+          28187,
+          29037,
+          29349,
+          29399,
+          29431,
+          29879,
+          30041,
+          30114
+        ],
+        "modality_presence_frac": {
+          "mag": 1.0,
+          "thomson": 0.937,
+          "sxr": 0.848,
+          "bolo": 0.797,
+          "camera": 0.937,
+          "mirnov": 0.937,
+          "sxr_phase": 0.823,
+          "mirnov_phase": 0.937
+        },
+        "split": "70/30 by SHOT (seeded); never by slice",
+        "seed": 0,
+        "gbm_seed": 0
+      },
+      "model": {
+        "regressor": "sklearn HistGradientBoostingRegressor (per-node)",
+        "max_iter": 200,
+        "learning_rate": 0.06,
+        "missing": "NaN ingested natively; per-modality present-flag column",
+        "camera_features": "4x4 pooled + 4 stats + in-range flag (no CNN)",
+        "feature_mode": "phase",
+        "time_history": {
+          "enabled": false
+        },
+        "sxr_mode_activity": {
+          "enabled": false
+        },
+        "phase_features": {
+          "enabled": true,
+          "band_hz": [
+            10.0,
+            1000.0
+          ],
+          "sxr_window_ms": 50.0,
+          "xma_window_ms": 50.0,
+          "sxr_layout": "18 coherence + 18 phase (hcam_l), 18 coherence + 18 phase (hcam_u), 18 dominant-band powers per camera, dominant frequency, availability",
+          "xma_layout": "40 complex phasors (real+imag), spatial m=1/m=2 amplitudes, dominant temporal frequency, availability"
+        }
+      },
+      "runtime_s": 902.0
+    }
+  }
+}
