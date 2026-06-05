@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-archived" content="1">
+<meta name="plan-slug" content="interior-information-discovery-v0-d3-phase-landed">
+<meta name="reckon-type" content="plan">
+<meta name="plan-title" content="Interior-Information Discovery — D3 phase-preserving closeout">
+<meta name="plan-summary" content="Archive record for the D3 phase-preserving rung that closed S12. Commit ceb01ed added SXR/Mirnov phase features and the oracle artifact oracle_probe_phase_v0.json. Result: QUALIFIED_NEGATIVE — none of the phase arms beat A_mag, bolometer stayed off-interior, and there is no clean H200 GO.">
+<meta name="plan-status" content="shipped">
+<meta name="plan-sprint" content="S12">
+<meta name="plan-milestone" content="M3">
+<meta name="plan-tier" content="opus">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-06-05">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="1">
+<title>Interior-Information Discovery — D3 phase-preserving closeout | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <p><span class="badge badge-shipped">✓ landed 2026-06-05</span> D3 phase-preserving closeout for <a href="../interior-information-discovery-v0.html">interior-information-discovery-v0</a>. Code + artifact landed in commit <code>ceb01ed</code>.</p>
+  <h1>Interior-Information Discovery — D3 phase-preserving closeout</h1>
+  <p>The decisive crafted-feature rung is complete. Phase-preserving SXR/Mirnov features were added to <code>imas_ambix/statespace/oracle_probe.py</code>, validated by dedicated tests, and scored on the locked D1 oracle metric. The result stayed <strong>QUALIFIED_NEGATIVE</strong>: no phase arm beat <code>A_mag</code>, and the only real carrier remained bolometer off the under-determined interior.</p>
+
+  <h2>Quick status</h2>
+  <div class="table-scroll">
+    <table class="t">
+      <thead>
+        <tr><th>Item</th><th>Status</th><th>Evidence</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Phase-preserving oracle arms</td><td><strong>Shipped</strong></td><td><code>imas_ambix/statespace/oracle_probe.py</code>, commit <code>ceb01ed</code></td></tr>
+        <tr><td>Regression tests</td><td><strong>Shipped</strong></td><td><code>tests/statespace/test_oracle_probe_phase.py</code>; focused phase+loader test suite green</td></tr>
+        <tr><td>D3 artifact</td><td><strong>Shipped</strong></td><td><code>imas_ambix/statespace/artifacts/oracle_probe_phase_v0.json</code></td></tr>
+        <tr><td>Arm B / H200 decision</td><td><strong>No-Go</strong></td><td><code>carrier_reaches_interior_reliable = false</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Outcome table</h2>
+  <div class="table-scroll">
+    <table class="t">
+      <thead>
+        <tr><th>Arm</th><th>mse_eval RMSE</th><th>Paired diff vs A_mag</th><th>95% CI</th><th>Verdict</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>A_mag</code></td><td>0.1879</td><td>baseline</td><td>—</td><td>Best crafted baseline</td></tr>
+        <tr><td><code>E_mag_sxr_phase</code></td><td>0.1889</td><td>+0.0010</td><td>[−0.0029, +0.0050]</td><td>Null</td></tr>
+        <tr><td><code>E_mag_mirnov_phase</code></td><td>0.1923</td><td>+0.0045</td><td>[−0.0015, +0.0126]</td><td>Worse than baseline</td></tr>
+        <tr><td><code>E_mag_sxr_mirnov_phase</code></td><td>0.1938</td><td>+0.0059</td><td>[−0.0016, +0.0150]</td><td>Worse than baseline</td></tr>
+        <tr><td><code>E_mag_bolo</code></td><td>0.1767</td><td>−0.0112</td><td>[−0.0210, −0.0030]</td><td>Real carrier, but off-interior</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Result graphic</h2>
+  <figure class="r-fig">
+    <svg viewBox="0 0 760 240" width="100%" role="img" aria-label="Bar chart comparing A_mag, SXR phase, Mirnov phase, combined phase, and bolometer RMSE values">
+      <style>
+        .lab{font:13px system-ui,sans-serif;fill:#222}
+        .val{font:12px system-ui,sans-serif;fill:#444}
+        .grid{stroke:#d7d7de;stroke-width:1}
+      </style>
+      <rect x="0" y="0" width="760" height="240" fill="#fff"/>
+      <line class="grid" x1="180" y1="30" x2="180" y2="200"/>
+      <line class="grid" x1="600" y1="30" x2="600" y2="200"/>
+      <text class="val" x="180" y="20">0.170</text>
+      <text class="val" x="370" y="20">0.185</text>
+      <text class="val" x="600" y="20">0.200</text>
+      <text class="lab" x="20" y="58">A_mag</text>
+      <rect x="407" y="42" width="113" height="18" fill="#2f6fed"/>
+      <text class="val" x="530" y="56">0.1879</text>
+      <text class="lab" x="20" y="90">SXR phase</text>
+      <rect x="420" y="74" width="120" height="18" fill="#5c8ef5"/>
+      <text class="val" x="550" y="88">0.1889</text>
+      <text class="lab" x="20" y="122">Mirnov phase</text>
+      <rect x="474" y="106" width="147" height="18" fill="#8a63d2"/>
+      <text class="val" x="631" y="120">0.1923</text>
+      <text class="lab" x="20" y="154">SXR + Mirnov phase</text>
+      <rect x="491" y="138" width="155" height="18" fill="#a8558c"/>
+      <text class="val" x="656" y="152">0.1938</text>
+      <text class="lab" x="20" y="186">Bolometer</text>
+      <rect x="268" y="170" width="75" height="18" fill="#1f9d55"/>
+      <text class="val" x="353" y="184">0.1767</text>
+    </svg>
+    <figcaption><strong>Phase-preserving arms vs baseline.</strong> The three new D3 phase-preserving arms all sit at or above <code>A_mag</code>, while bolometer stays the only real carrier — and it is still off the interior. That is why S12 closes as a qualified negative instead of escalating to Arm B / H200.</figcaption>
+  </figure>
+
+  <h2>Interpretation</h2>
+  <p>The result is stronger than the earlier magnitude-only null because it closes the representation objection directly. The SXR phase arm remains statistically null, both Mirnov phase variants are worse than processed magnetics, and the only significant carrier remains <code>E_mag_bolo</code>. The artifact explicitly records <code>carrier_reaches_interior_reliable = false</code>, so the gain does not land on the near-axis interior that motivated the sprint.</p>
+  <p>The practical decision is therefore clear: <strong>no clean H200 GO</strong>. S12 has answered its question honestly and cheaply enough that the reservation should not be spent on a learned Arm B continuation of the same null.</p>
+
+  <h2>What's next</h2>
+  <p>No followup queued — chain closes here. The evergreen plan now carries the shipped qualified-negative verdict, and the sprint is closed.</p>
+</main>
+</body>
+</html>

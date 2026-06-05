@@ -1,9 +1,9 @@
 {
-  "updated": "2026-06-04T16:01:24",
+  "updated": "2026-06-05T15:12:00",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
-    "active_sprint_id": "S12",
+    "active_sprint_id": "S11",
     "projects": [
       {
         "project": "imas-ambix",
@@ -11,11 +11,11 @@
         "published": "simon-mcintosh.github.io/imas-ambix/",
         "owner": "Simon McIntosh",
         "plans_count": 31,
-        "active": 8,
+        "active": 7,
         "blocked": 0,
         "pending": 0,
-        "shipped": 14,
-        "last_modified": "2026-06-04",
+        "shipped": 15,
+        "last_modified": "2026-06-05",
         "milestones": [
           {
             "id": "M0",
@@ -305,20 +305,21 @@
       },
       {
         "id": "S12",
-        "status": "active",
+        "status": "done",
         "theme": "Prise interior information from the dataset \u2014 fast magnetics & exotic sensors at H200 scale",
         "items": [
           {
             "slug": "interior-information-discovery-v0",
-            "why_now": "The S9 oracle proved interior current is unrecoverable from SCALAR magnetics (~0.41 rad near-axis floor) \u2014 but it fed magnetics the EFIT/least-squares way. User priority 2026-06-04: systematically test whether the information survives in fast/exotic channels (xma 660 kHz Mirnov+flux, xsx 300 kHz SXR, aoe, act) served as learned + hand-crafted time-frequency / mode representations. This is the intended near-term consumer of the 4xH200 reservation and directly attacks the project's binding constraint. Verified on disk: xma = 253 arrays @ 660 kHz.",
+            "why_now": "The S9 oracle proved interior current is unrecoverable from SCALAR magnetics (~0.41 rad near-axis floor) \u2014 but it fed magnetics the EFIT/least-squares way. User priority 2026-06-04: systematically test whether the information survives in fast/exotic channels (xma 5 kHz Mirnov+flux, xsx 100\u2013500 kHz SXR, aoe, act) served as learned + hand-crafted time-frequency / mode representations. This was the intended near-term consumer of the 4xH200 reservation and directly attacked the project's binding constraint. Verified on disk: xma = 253 arrays on the 5 kHz compact axis.",
             "tier": "opus",
             "done_when": "D0 fast-signal loaders + I/O strategy; D1 measurement-harness extension locking the ~0.41 floor bar on the reused 112-shot split; D2 hand-crafted (STFT + cross-coil mode decomposition / wavelet / k-omega / line-shape) + D3 learned (1D-CNN / wavelet-scattering / transformer) arms scored on the IDENTICAL oracle metric; D4 physics probes (n(t)/m, sawtooth inversion radius, rational-surface localisation vs EFIT/MSE); D5 verdict \u2014 does any representation break the floor? crafted vs learned? honest negative is a result.",
-            "status": "active"
+            "status": "shipped"
           }
         ],
         "starts": "2026-06-04",
         "ends": "2026-06-18",
-        "description": "PROPOSED (pending user ratification of the sprint window; the host plan interior-information-discovery-v0 is authored + active). Centerpiece of the near-term H200 push: a systematic study testing whether interior-current information is PRESENT in fast/exotic MAST channels but destroyed by the traditional least-squares representation. Broad signal panel (xma+xsx+aoe+act), both measurement modes (oracle vs held-out MSE + physics localisation probes), crafted-vs-learned representation head-to-head \u2014 all user-locked 2026-06-04. SCOPE LOCKS carried from S9: observables/on-axis only (full q(psi) OUT); EFIT eval-only; raw signals only. NODE CONTENTION: 98dci4-gpu-0003 is the only H200 node and S11 runs coordinated drain-window tests on it \u2014 schedule sweep/training batches outside admin windows; every GPU sbatch clones the stop-file + three-layer time defence (AGENTS.md 2a/2a-cancel-time). COMPLEMENTARY FILL: the SINDy/Koopman latent-dynamics discovery sweep (open followups f-s8-t6a / t12 / t8b on the shipped plasma-gs-prior-v0) is a second, orthogonal H200 workload available to pack the reservation \u2014 promote to a second S12 item or S13 on request."
+        "description": "Closed 2026-06-05 with a QUALIFIED_NEGATIVE. D0\u2013D3-phase completed across the fast/exotic panel after correcting the core rate and availability facts: xma is 5 kHz (not 660 kHz), xsx is 100\u2013500 kHz, held-out readability is xma 91%, xsx 78%, aoe 19%, act 95%. The decisive D3 phase-preserving oracle (commit ceb01ed; artifact oracle_probe_phase_v0.json) kept processed magnetics in front: A_mag 0.1879 rad, E_mag_sxr_phase 0.1889 with CI crossing 0, E_mag_mirnov_phase 0.1923, combined phase arm 0.1938. Bolometer remained the only real carrier and stayed off-interior (carrier_reaches_interior_reliable=false), so there is no clean H200 GO and no reason to spend the reservation on Arm B.",
+        "summary": "Closed 2026-06-05 with a QUALIFIED_NEGATIVE. Phase-preserving SXR/Mirnov features did not beat A_mag (0.1879 vs 0.1889/0.1923/0.1938); bolometer stayed off-interior, so S12 ends with no clean H200 GO."
       }
     ],
     "blockers": [
@@ -379,9 +380,14 @@
       {
         "when": "2026-06-04 16:00",
         "who": "Simon McIntosh",
-        "what": "S12 launched \u2014 interior-information-discovery-v0 (Stage-3c): does interior-current info survive in fast/exotic channels (xma 660 kHz, xsx, aoe, act) as time-frequency reps? The near-term H200 push. Reckon fixes landed first: prompt-button open-decision block removed, cockpit live-count overlay, figure-style guidance (Tufte/legibility) in skills."
+        "what": "S12 launched \u2014 interior-information-discovery-v0 (Stage-3c): does interior-current info survive in fast/exotic channels (xma 5 kHz, xsx, aoe, act) as time-frequency reps? The near-term H200 push. Reckon fixes landed first: prompt-button open-decision block removed, cockpit live-count overlay, figure-style guidance (Tufte/legibility) in skills."
+      },
+      {
+        "when": "2026-06-05 15:10",
+        "who": "agent/gpt-5.4 (orchestrator)",
+        "what": "S12 closed (QUALIFIED_NEGATIVE). D3 phase-preserving oracle landed (commit ceb01ed; artifact oracle_probe_phase_v0.json): A_mag 0.1879 rad; E_mag_sxr_phase 0.1889 with CI crossing 0; E_mag_mirnov_phase 0.1923; combined phase arm 0.1938. Bolometer remained the only carrier and stayed off-interior (carrier_reaches_interior_reliable=false), so there is no clean H200 GO."
       }
     ],
-    "_version": 21
+    "_version": 23
   }
 }
