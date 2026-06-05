@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 
 from imas_ambix.statespace.sequential_da import (
+    ConformalScale,
+    apply_conformal_scales,
     MAST_A,
     MAST_B0,
     MAST_R0,
@@ -87,3 +89,47 @@ def test_kalman_update_reduces_whitened_residual():
     assert post_norm < prior_norm
     assert np.all(np.linalg.eigvalsh(cov_post) >= -1e-10)
     assert mean_post.shape == mean.shape
+
+
+def test_apply_conformal_scales_inflates_std_and_samples():
+    from imas_ambix.statespace.mse_eval import ShotPrediction
+
+    pred = ShotPrediction(
+        t=np.array([0.0, 0.1]),
+        pitch_mean=np.array([[1.0, 2.0], [1.5, 2.5]]),
+        pitch_std=np.array([[0.5, 0.25], [0.5, 0.25]]),
+        pitch_samples=np.array(
+            [
+                [[0.8, 1.2], [1.9, 2.1]],
+                [[1.3, 1.7], [2.4, 2.6]],
+            ]
+        ),
+    )
+    manifest = {
+        "shots": {
+            "1": {
+                "active_channel_ids": [3, 7],
+                "active_channel_rpos": [0.82, 1.05],
+                "partition": "held_out",
+            }
+        }
+    }
+    scales = ConformalScale(
+        alpha=0.10,
+        z_alpha=1.0,
+        global_q=1.0,
+        channel_q={0: 2.0, 1: 3.0},
+        band_q={0: 1.0, 1: 4.0, 2: 1.0},
+        band_edges=(0.10, 0.22),
+        min_points=1,
+    )
+    calibrated = apply_conformal_scales({1: pred}, manifest, scales)[1]
+    # channel 0 lives in the inner band -> scale 2; channel 1 lives in the mid band -> scale 4
+    np.testing.assert_allclose(
+        calibrated.pitch_std,
+        np.array([[1.0, 1.0], [1.0, 1.0]]),
+    )
+    centred_raw = pred.pitch_samples - pred.pitch_mean[:, :, None]
+    centred_new = calibrated.pitch_samples - calibrated.pitch_mean[:, :, None]
+    np.testing.assert_allclose(centred_new[:, 0], centred_raw[:, 0] * 2.0)
+    np.testing.assert_allclose(centred_new[:, 1], centred_raw[:, 1] * 4.0)

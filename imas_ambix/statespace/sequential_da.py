@@ -25,12 +25,14 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from imas_ambix.data.paths import LEVEL1_DIR, MANIFEST_DIR
 from imas_ambix.gs.residual import robust_sensor_scale
 from imas_ambix.statespace.enkf_baseline import (
     EnKFConfig,
@@ -98,6 +100,45 @@ class SequentialShotResult:
     localization_rank: int
     singular_values: np.ndarray
     pitch_error: np.ndarray | None = None
+
+
+@dataclass
+class ConformalScale:
+    """Frozen split-conformal scale factors for the sequential pitch predictions."""
+
+    alpha: float
+    z_alpha: float
+    global_q: float
+    channel_q: dict[int, float]
+    band_q: dict[int, float]
+    band_edges: tuple[float, float]
+    min_points: int
+
+    def scale_for(self, active_channel_rpos: np.ndarray) -> np.ndarray:
+        """Per-channel σ scale = max(channel-q̂, band-q̂) / z_α."""
+
+        rminor = np.abs(np.asarray(active_channel_rpos, dtype=np.float64) - MAST_R0)
+        bands = np.digitize(rminor, self.band_edges, right=False)
+        q_channel = np.array(
+            [self.channel_q.get(int(i), self.global_q) for i in range(rminor.size)],
+            dtype=np.float64,
+        )
+        q_band = np.array(
+            [self.band_q.get(int(b), self.global_q) for b in bands],
+            dtype=np.float64,
+        )
+        return np.maximum(q_channel, q_band) / max(self.z_alpha, 1.0e-12)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "alpha": self.alpha,
+            "z_alpha": self.z_alpha,
+            "global_q": self.global_q,
+            "channel_q": {str(k): float(v) for k, v in self.channel_q.items()},
+            "band_q": {str(k): float(v) for k, v in self.band_q.items()},
+            "band_edges": [float(x) for x in self.band_edges],
+            "min_points": self.min_points,
+        }
 
 
 @dataclass
@@ -252,6 +293,17 @@ def q_from_psi_phi(
     dphi = np.diff(phi_rho, axis=-1)
     q = _TORAX_Q_CONVENTION * dphi / np.where(np.abs(dpsi) > floor, dpsi, np.nan)
     return q[0] if squeezed else q
+
+
+def _higher_quantile(scores: Sequence[float], alpha: float) -> float:
+    vals = np.asarray(list(scores), dtype=np.float64)
+    vals = vals[np.isfinite(vals)]
+    if vals.size == 0:
+        return 1.0
+    n = vals.size
+    level = math.ceil((n + 1) * (1.0 - alpha)) / n
+    level = min(level, 1.0)
+    return float(np.quantile(vals, level, method="higher"))
 
 
 def build_h_psi(
@@ -561,6 +613,256 @@ def shot_result_to_prediction(result: SequentialShotResult):
     )
 
 
+def fit_conformal_scales(
+    predictions: dict[int, Any],
+    manifest: dict,
+    *,
+    truth=None,
+    alpha: float = 0.10,
+    min_points: int = 64,
+) -> ConformalScale:
+    """Fit per-channel and per-radial-band split-conformal scales."""
+
+    from scipy.stats import norm  # noqa: PLC0415
+
+    from imas_ambix.statespace import mse_eval as eval_mod  # noqa: PLC0415
+    from imas_ambix.statespace import mse_split as M  # noqa: PLC0415
+
+    if truth is None:
+        truth = eval_mod.MseTruth(level1_dir=LEVEL1_DIR)
+
+    shots_meta = manifest["shots"]
+    rminor_all: list[float] = []
+    for sid, pred in predictions.items():
+        entry = shots_meta.get(str(sid))
+        if entry is None or entry.get("partition") != "calibration":
+            continue
+        try:
+            pred.validate(len(entry["active_channel_ids"]))
+        except ValueError:
+            continue
+        rminor_all.extend(
+            np.abs(np.asarray(entry["active_channel_rpos"], dtype=np.float64) - eval_mod.DEFAULT_R0)
+        )
+    if rminor_all:
+        q33, q66 = np.quantile(np.asarray(rminor_all), [1.0 / 3.0, 2.0 / 3.0])
+        band_edges = (float(q33), float(q66))
+    else:
+        band_edges = (0.12, 0.24)
+
+    global_scores: list[float] = []
+    channel_scores: dict[int, list[float]] = {}
+    band_scores: dict[int, list[float]] = {0: [], 1: [], 2: []}
+
+    for sid, pred in predictions.items():
+        entry = shots_meta.get(str(sid))
+        if entry is None or entry.get("partition") != "calibration":
+            continue
+        tr = truth.get(int(sid))
+        if tr is None:
+            continue
+        c = len(entry["active_channel_ids"])
+        try:
+            pred.validate(c)
+        except ValueError:
+            continue
+
+        pt_truth = np.asarray(tr.pitch, dtype=np.float64)
+        pm = np.asarray(pred.pitch_mean, dtype=np.float64)
+        ps = np.asarray(pred.pitch_std, dtype=np.float64)
+        gate = M.pitch_point_gate(tr.pitch, tr.pitch_error)
+        valid = gate & np.isfinite(pt_truth) & np.isfinite(pm) & np.isfinite(ps) & (ps > 1.0e-12)
+        if not valid.any():
+            continue
+        scores = np.abs(pt_truth - pm) / np.maximum(ps, 1.0e-12)
+        global_scores.extend(scores[valid].tolist())
+        rminor = np.abs(np.asarray(entry["active_channel_rpos"], dtype=np.float64) - eval_mod.DEFAULT_R0)
+        bands = np.digitize(rminor, band_edges, right=False)
+        for idx in range(c):
+            chan_vals = scores[:, idx][valid[:, idx]]
+            if chan_vals.size:
+                channel_scores.setdefault(int(idx), []).extend(chan_vals.tolist())
+                band_scores[int(bands[idx])].extend(chan_vals.tolist())
+
+    global_q = _higher_quantile(global_scores, alpha)
+    per_channel = {
+        idx: _higher_quantile(vals, alpha) if len(vals) >= min_points else global_q
+        for idx, vals in channel_scores.items()
+    }
+    per_band = {
+        idx: _higher_quantile(vals, alpha) if len(vals) >= min_points else global_q
+        for idx, vals in band_scores.items()
+    }
+    return ConformalScale(
+        alpha=float(alpha),
+        z_alpha=float(norm.ppf(1.0 - alpha / 2.0)),
+        global_q=float(global_q),
+        channel_q=per_channel,
+        band_q=per_band,
+        band_edges=band_edges,
+        min_points=int(min_points),
+    )
+
+
+def apply_conformal_scales(
+    predictions: dict[int, Any],
+    manifest: dict,
+    scales: ConformalScale,
+) -> dict[int, Any]:
+    """Apply frozen conformal scales to ``pitch_std`` and centered samples."""
+
+    from imas_ambix.statespace.mse_eval import ShotPrediction  # noqa: PLC0415
+
+    shots_meta = manifest["shots"]
+    calibrated: dict[int, Any] = {}
+    for sid, pred in predictions.items():
+        entry = shots_meta.get(str(sid))
+        if entry is None:
+            calibrated[sid] = pred
+            continue
+        scale = scales.scale_for(np.asarray(entry["active_channel_rpos"], dtype=np.float64))
+        pm = np.asarray(pred.pitch_mean, dtype=np.float64)
+        ps = np.asarray(pred.pitch_std, dtype=np.float64) * scale[np.newaxis, :]
+        samples = None
+        if pred.pitch_samples is not None:
+            raw = np.asarray(pred.pitch_samples, dtype=np.float64)
+            samples = pm[:, :, None] + (raw - pm[:, :, None]) * scale[np.newaxis, :, None]
+        calibrated[sid] = ShotPrediction(
+            t=np.asarray(pred.t, dtype=np.float64),
+            pitch_mean=pm,
+            pitch_std=ps,
+            pitch_samples=samples,
+            q0_mean=pred.q0_mean,
+            q0_std=pred.q0_std,
+            rax_mean=pred.rax_mean,
+            rax_std=pred.rax_std,
+        )
+    return calibrated
+
+
+def score_calibrated_holdout(
+    predictions: dict[int, Any],
+    manifest: dict,
+    *,
+    truth=None,
+    alpha: float = 0.10,
+    min_points: int = 64,
+) -> dict[str, Any]:
+    """Fit on CALIBRATION, apply to HELD-OUT, and score the recalibrated result."""
+
+    from imas_ambix.statespace import mse_eval as eval_mod  # noqa: PLC0415
+
+    scales = fit_conformal_scales(
+        predictions, manifest, truth=truth, alpha=alpha, min_points=min_points
+    )
+    calibrated = apply_conformal_scales(predictions, manifest, scales)
+    return {
+        "conformal": scales.to_dict(),
+        "metrics": eval_mod.score(calibrated, manifest, truth),
+    }
+
+
+def score_manifest_artifact(
+    cfg: SequentialDAConfig | None = None,
+    *,
+    manifest_path: Path | None = None,
+    out_path: Path | None = None,
+    cal_limit: int | None = None,
+    held_limit: int | None = None,
+    alpha: float = 0.10,
+    min_points: int = 64,
+) -> dict[str, Any]:
+    """Run the manifest-backed calibration + held-out scoring pass and persist it."""
+
+    import time
+
+    cfg = cfg or SequentialDAConfig()
+    manifest_path = manifest_path or (MANIFEST_DIR / "mse_heldout_split_v0.json")
+    manifest = json.loads(manifest_path.read_text())
+    cal = [int(k) for k, v in manifest["shots"].items() if v.get("partition") == "calibration"]
+    held = [int(k) for k, v in manifest["shots"].items() if v.get("partition") == "held_out"]
+    if cal_limit is not None:
+        cal = cal[: int(cal_limit)]
+    if held_limit is not None:
+        held = held[: int(held_limit)]
+    shot_ids = cal + held
+    t0 = time.time()
+    preds = predict_manifest_shots(manifest, shot_ids, cfg)
+    elapsed = time.time() - t0
+    scored = score_calibrated_holdout(
+        preds, manifest, alpha=alpha, min_points=min_points
+    )
+    q_validation_path = Path(__file__).parent / "artifacts" / "sequential_da_q_validation_v1.json"
+    payload: dict[str, Any] = {
+        "schema": "sequential-da-metrics-v1",
+        "method": "psi-state sequential baseline with manifest-calibrated split conformal",
+        "config": {
+            **cfg.to_dict(),
+            "localization_rank": cfg.localization_rank,
+            "correction_decay": cfg.correction_decay,
+            "correction_process_var": cfg.correction_process_var,
+            "correction_inflation": cfg.correction_inflation,
+            "obs_inflation": cfg.obs_inflation,
+            "n_samples": cfg.n_samples,
+        },
+        "manifest_path": str(manifest_path),
+        "n_calibration_shots": len(cal),
+        "n_heldout_shots": len(held),
+        "n_predictions": len(preds),
+        "prediction_runtime_sec": float(elapsed),
+        "conformal": scored["conformal"],
+        "metrics": scored["metrics"],
+    }
+    v0_path = Path(__file__).parent / "artifacts" / "enkf_baseline_metrics_v0.json"
+    if v0_path.exists():
+        payload["v0_reference"] = json.loads(v0_path.read_text())
+    if q_validation_path.exists():
+        payload["q_validation"] = json.loads(q_validation_path.read_text())
+    out_path = out_path or (Path(__file__).parent / "artifacts" / "sequential_da_metrics_v1.json")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2, default=float))
+    return payload
+
+
+def _main() -> None:
+    import argparse  # noqa: PLC0415
+
+    logging.basicConfig(level=logging.INFO)
+    ap = argparse.ArgumentParser(description="Run the S10 sequential current-DA baseline")
+    ap.add_argument(
+        "--manifest",
+        type=Path,
+        default=MANIFEST_DIR / "mse_heldout_split_v0.json",
+        help="locked MSE manifest",
+    )
+    ap.add_argument(
+        "--out",
+        type=Path,
+        default=Path(__file__).parent / "artifacts" / "sequential_da_metrics_v1.json",
+        help="output artifact path",
+    )
+    ap.add_argument("--cal-limit", type=int, default=None)
+    ap.add_argument("--held-limit", type=int, default=None)
+    ap.add_argument("--n-samples", type=int, default=8)
+    ap.add_argument("--alpha", type=float, default=0.10)
+    ap.add_argument("--min-points", type=int, default=64)
+    a = ap.parse_args()
+    cfg = SequentialDAConfig(n_samples=a.n_samples)
+    payload = score_manifest_artifact(
+        cfg,
+        manifest_path=a.manifest,
+        out_path=a.out,
+        cal_limit=a.cal_limit,
+        held_limit=a.held_limit,
+        alpha=a.alpha,
+        min_points=a.min_points,
+    )
+    print(
+        f"SEQUENTIAL_DA_DONE held={payload['n_heldout_shots']} cal={payload['n_calibration_shots']} out={a.out}",
+        flush=True,
+    )
+
+
 def predict_shots(
     shot_ids: Sequence[int],
     cfg: SequentialDAConfig | None = None,
@@ -599,6 +901,42 @@ def predict_shots(
     if return_results:
         return preds, results
     return preds
+
+
+def manifest_grid_from_manifest(
+    manifest: dict,
+    shot_ids: Sequence[int],
+) -> dict[int, dict[str, np.ndarray]]:
+    """Exact prediction grid + channel geometry from the locked manifest."""
+
+    grid: dict[int, dict[str, np.ndarray]] = {}
+    shots_meta = manifest["shots"]
+    for sid in shot_ids:
+        entry = shots_meta.get(str(int(sid)))
+        if entry is None:
+            continue
+        grid[int(sid)] = {
+            "t": np.asarray(entry["beam_on_slice_times"], dtype=np.float64),
+            "rpos": np.asarray(entry["active_channel_rpos"], dtype=np.float64),
+        }
+    return grid
+
+
+def predict_manifest_shots(
+    manifest: dict,
+    shot_ids: Sequence[int],
+    cfg: SequentialDAConfig | None = None,
+    *,
+    return_results: bool = False,
+):
+    """Predict a shot set on the manifest's exact beam-on slice grid."""
+
+    return predict_shots(
+        shot_ids,
+        cfg,
+        return_results=return_results,
+        manifest_grid=manifest_grid_from_manifest(manifest, shot_ids),
+    )
 
 
 def validate_q_representation(
@@ -662,16 +1000,28 @@ def validate_q_representation(
 
 
 __all__ = [
+    "ConformalScale",
+    "apply_conformal_scales",
     "SequentialDAConfig",
     "SequentialShotResult",
     "build_h_psi",
+    "fit_conformal_scales",
     "current_from_psi_profile",
     "kalman_update",
     "leading_observable_modes",
+    "manifest_grid_from_manifest",
+    "predict_manifest_shots",
     "predict_shots",
     "psi_from_current_profile",
+    "q_from_psi_phi",
     "q_from_current_profile",
     "run_shot",
+    "score_manifest_artifact",
+    "score_calibrated_holdout",
     "shot_result_to_prediction",
     "validate_q_representation",
 ]
+
+
+if __name__ == "__main__":
+    _main()
