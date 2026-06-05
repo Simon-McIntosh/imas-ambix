@@ -4,21 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"    content="imas-ambix">
-  <meta name="reckon-type"     content="plan">
-  <meta name="plan-slug"       content="sequential-current-da-v1">
-  <meta name="plan-title"      content="Strong Sequential Full-State Current-Profile Data Assimilation">
-  <meta name="plan-summary"    content="Replace the v0 parameter batch-smoother with a sequential per-timestep EKF over a full psi(rho) state — fix the v0 symptoms (late-time divergence, q0 bias, uncalibrated UQ) and establish the true achievable physics frontier (~0.19 sightline pitch RMSE) before any ML.">
-  <meta name="plan-status"     content="active">
-  <meta name="plan-roi"        content="high">
-  <meta name="plan-effort"     content="L">
-  <meta name="plan-tier"       content="opus">
-  <meta name="plan-milestone"  content="M3">
-  <meta name="plan-sprint"     content="S10">
-  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="sequential-current-da-v1">
+  <meta name="plan-title" content="Strong Sequential Full-State Current-Profile Data Assimilation">
+  <meta name="plan-summary" content="Active 2026-06-05: the first usable ψ-state substrate has landed in imas_ambix/statespace/sequential_da.py with explicit H_psi construction, localized observable-mode updates, synthetic tests, and a held-out real-shot smoke path. Full held-out scoring, split-conformal calibration, and the trust-gate tightening on the q-validation artifact remain open before the v1 bar can be reported.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-milestone" content="M3">
+  <meta name="plan-sprint" content="S10">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="mse-free-current-recovery-v0,probabilistic-state-space-methods">
   <title>Strong Sequential Full-State Current-Profile Data Assimilation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-05">
+<meta name="plan-impl" content="0.2">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -209,62 +212,57 @@
     </p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="da-substrate" data-choice="reduced-ekf-primary" data-by="Simon McIntosh" data-when="2026-06-02">
-        <p class="r-dec-q">What is the primary data-assimilation substrate for the strong baseline?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt chosen" data-value="reduced-ekf-primary">Reduced 1-D ψ-diffusion sequential EKF (TORAX as forecast cross-check only)</button>
-          <button class="r-opt" data-value="torax-windowed-reinit">TORAX windowed re-init filter (stiff solver in the loop)</button>
-          <button class="r-opt" data-value="keep-v0-param-smoother">Keep the v0 parameter batch-smoother</button>
-        </p>
-        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): the reduced banded-Jacobian 1-D ψ-diffusion EKF is PRIMARY. TORAX runs once per shot as a free-running forecast reference and cross-check only — pulling the stiff JAX solver OUT of the per-step loop is what dissolves the v0 JIT/stiffness late-time divergence and the 8–9 s/member slowdown. FIRST validate that the reduced model reproduces TORAX <code>q(ρ,t)</code> on a few representative shots before trusting it as the substrate; only then run the full filter. The v0 parameter batch-smoother is retired as the baseline.</p>
-      </div>
-
-      <div class="r-dec" data-key="filtered-state" data-choice="psi-rho" data-by="Simon McIntosh" data-when="2026-06-02">
-        <p class="r-dec-q">What quantity is the filtered state vector?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt chosen" data-value="psi-rho">Poloidal flux ψ(ρ)</button>
-          <button class="r-opt" data-value="j-rho">Current density j(ρ)</button>
-        </p>
-        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): filter ψ(ρ), the smooth well-conditioned primitive; derive <code>j ∝ ∂²ψ/∂ρ²</code>, <code>q</code> and the pitch readout post-hoc. Filtering <code>j</code> directly would amplify high-wavenumber noise into the very interior structure the data cannot constrain.</p>
-      </div>
-
-      <div class="r-dec" data-key="localization-rank" data-choice="localize-5-6-dof" data-by="Simon McIntosh" data-when="2026-06-02">
-        <p class="r-dec-q">Is rank localization of the analysis update mandatory, and to how many DOF?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt chosen" data-value="localize-5-6-dof">Mandatory — localize onto the leading ~5–6 right-singular vectors of the row-scaled H</button>
-          <button class="r-opt" data-value="full-state-update">Update the full state (no localization)</button>
-        </p>
-        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): localization is MANDATORY. The row-scaled observation operator H has only ~5–6 informative right-singular vectors (Stage-2 / oracle / GS-rank consistent). Without localization, finite-ensemble null-space correlations let the full-state filter fabricate spurious interior structure the data cannot support. Modes below the cutoff stay on the physics prior. This is the safeguard that keeps the baseline honest.</p>
-      </div>
-
-      <div class="r-dec" data-key="uq-calibration" data-choice="split-conformal-frozen" data-by="Simon McIntosh" data-when="2026-06-02">
-        <p class="r-dec-q">How is the cov90 calibration problem solved, and is it re-opened downstream?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt chosen" data-value="split-conformal-frozen">Split-conformal on 3361 cal shots (per-channel + per-band, frozen) — solved HERE, not re-opened</button>
-          <button class="r-opt" data-value="ensemble-spread-only">Raw ensemble/posterior spread (the v0 approach, cov90 0.465)</button>
-          <button class="r-opt" data-value="defer-to-learned-filter">Defer calibration to a learned filter downstream</button>
-        </p>
-        <p class="r-dec-rat">LOCKED (S10, 2026-06-02): split-conformal on the 3361 calibration shots (per-channel + per-band, frozen, applied to the 112 test) → cov90 ∈ [0.88, 0.92], the Stage-1 gate. Calibration is SOLVED in this plan and is NOT re-opened in the neural-KF survey — that doc must not treat cov90 as a second open problem for a learned filter.</p>
-      </div>
-
-      <div class="r-dec" data-key="prereg-frontier" data-choice="prereg-019-sightline-041-nearaxis" data-by="Simon McIntosh" data-when="2026-06-02">
-        <p class="r-dec-q">What frontier is pre-registered as success, before any v1 number is produced?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt chosen" data-value="prereg-019-sightline-041-nearaxis">~0.19 sightline pitch RMSE / ~0.41 rad near-axis floor — NO interior win from magnetics alone</button>
-          <button class="r-opt" data-value="claim-interior-win">Claim an interior recovery win from magnetics</button>
-        </p>
-        <p class="r-dec-rat">LOCKED (S10, 2026-06-02) — pre-registered BEFORE any v1 number: the achievable sightline frontier from MSE-free magnetics + current-diffusion physics is ~0.19 (oracle mag-instant 0.188 / mag-history 0.190); near-axis interior stays model-failure-floored at ~0.41 rad. NO interior win is claimed from magnetics alone. Reaching ~0.19 sightline with calibrated cov90 and a clean ~0.41 near-axis floor IS the success — it establishes the true physics frontier, against which the §7 pressure experiment and any future ML are measured.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="da-substrate" data-choice="reduced-ekf-primary" data-by="Simon McIntosh" data-when="2026-06-02">
+    <p class="r-dec-q">What is the primary data-assimilation substrate for the strong baseline?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="reduced-ekf-primary">Reduced 1-D ψ-diffusion sequential EKF (TORAX as forecast cross-check only)</button>
+      <button class="r-opt" data-value="torax-windowed-reinit">TORAX windowed re-init filter (stiff solver in the loop)</button>
+      <button class="r-opt" data-value="keep-v0-param-smoother">Keep the v0 parameter batch-smoother</button>
+      </p>
+    <p class="r-dec-rat">LOCKED (S10, 2026-06-02): the reduced banded-Jacobian 1-D ψ-diffusion EKF is PRIMARY. TORAX runs once per shot as a free-running forecast reference and cross-check only — pulling the stiff JAX solver OUT of the per-step loop is what dissolves the v0 JIT/stiffness late-time divergence and the 8–9 s/member slowdown. FIRST validate that the reduced model reproduces TORAX q(ρ,t) on a few representative shots before trusting it as the substrate; only then run the full filter. The v0 parameter batch-smoother is retired as the baseline.</p>
+    </div>
+<div class="r-dec" data-key="filtered-state" data-choice="psi-rho" data-by="Simon McIntosh" data-when="2026-06-02">
+    <p class="r-dec-q">What quantity is the filtered state vector?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="psi-rho">Poloidal flux ψ(ρ)</button>
+      <button class="r-opt" data-value="j-rho">Current density j(ρ)</button>
+      </p>
+    <p class="r-dec-rat">LOCKED (S10, 2026-06-02): filter ψ(ρ), the smooth well-conditioned primitive; derive j ∝ ∂²ψ/∂ρ² , q and the pitch readout post-hoc. Filtering j directly would amplify high-wavenumber noise into the very interior structure the data cannot constrain.</p>
+    </div>
+<div class="r-dec" data-key="localization-rank" data-choice="localize-5-6-dof" data-by="Simon McIntosh" data-when="2026-06-02">
+    <p class="r-dec-q">Is rank localization of the analysis update mandatory, and to how many DOF?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="localize-5-6-dof">Mandatory — localize onto the leading ~5–6 right-singular vectors of the row-scaled H</button>
+      <button class="r-opt" data-value="full-state-update">Update the full state (no localization)</button>
+      </p>
+    <p class="r-dec-rat">LOCKED (S10, 2026-06-02): localization is MANDATORY. The row-scaled observation operator H has only ~5–6 informative right-singular vectors (Stage-2 / oracle / GS-rank consistent). Without localization, finite-ensemble null-space correlations let the full-state filter fabricate spurious interior structure the data cannot support. Modes below the cutoff stay on the physics prior. This is the safeguard that keeps the baseline honest.</p>
+    </div>
+<div class="r-dec" data-key="uq-calibration" data-choice="split-conformal-frozen" data-by="Simon McIntosh" data-when="2026-06-02">
+    <p class="r-dec-q">How is the cov90 calibration problem solved, and is it re-opened downstream?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="split-conformal-frozen">Split-conformal on 3361 cal shots (per-channel + per-band, frozen) — solved HERE, not re-opened</button>
+      <button class="r-opt" data-value="ensemble-spread-only">Raw ensemble/posterior spread (the v0 approach, cov90 0.465)</button>
+      <button class="r-opt" data-value="defer-to-learned-filter">Defer calibration to a learned filter downstream</button>
+      </p>
+    <p class="r-dec-rat">LOCKED (S10, 2026-06-02): split-conformal on the 3361 calibration shots (per-channel + per-band, frozen, applied to the 112 test) → cov90 ∈ [0.88, 0.92], the Stage-1 gate. Calibration is SOLVED in this plan and is NOT re-opened in the neural-KF survey — that doc must not treat cov90 as a second open problem for a learned filter.</p>
+    </div>
+<div class="r-dec" data-key="prereg-frontier" data-choice="prereg-019-sightline-041-nearaxis" data-by="Simon McIntosh" data-when="2026-06-02">
+    <p class="r-dec-q">What frontier is pre-registered as success, before any v1 number is produced?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="prereg-019-sightline-041-nearaxis">~0.19 sightline pitch RMSE / ~0.41 rad near-axis floor — NO interior win from magnetics alone</button>
+      <button class="r-opt" data-value="claim-interior-win">Claim an interior recovery win from magnetics</button>
+      </p>
+    <p class="r-dec-rat">LOCKED (S10, 2026-06-02) — pre-registered BEFORE any v1 number: the achievable sightline frontier from MSE-free magnetics + current-diffusion physics is ~0.19 (oracle mag-instant 0.188 / mag-history 0.190); near-axis interior stays model-failure-floored at ~0.41 rad. NO interior win is claimed from magnetics alone. Reaching ~0.19 sightline with calibrated cov90 and a clean ~0.41 near-axis floor IS the success — it establishes the true physics frontier, against which the §7 pressure experiment and any future ML are measured.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-scda-v1-substrate" data-status="open" data-tier="opus" data-written-by="agent/opus (S10 author)" data-written-at="2026-06-02 09:00">
-        <h4 class="r-fu-title">Implement the reduced-EKF substrate + split-conformal calibration; score the v1 bar</h4>
-        <div class="r-fu-body">Build the strong sequential baseline: the reduced 1-D ψ-diffusion EKF, the localized analysis update, per-shot geometry, and the split-conformal calibration. Validate the reduced model against TORAX <code>q(ρ,t)</code> on a few shots first, then run the full filter and report the v1 bar with bootstrap CIs against the v0 EnKF (0.225) and persistence (0.719). This is the substrate the pressure experiment and the neural-KF survey both depend on.</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-scda-v1-substrate" data-status="open" data-tier="opus" data-written-by="agent/opus (S10 author)" data-written-at="2026-06-02 09:00" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Implement the reduced-EKF substrate + split-conformal calibration; score the v1 bar</h4>
+    <div class="r-fu-body">Build the strong sequential baseline: the reduced 1-D ψ-diffusion EKF, the localized analysis update, per-shot geometry, and the split-conformal calibration. Validate the reduced model against TORAX <code>q(ρ,t)</code> on a few shots first, then run the full filter and report the v1 bar with bootstrap CIs against the v0 EnKF (0.225) and persistence (0.719). This is the substrate the pressure experiment and the neural-KF survey both depend on.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    sequential-current-da-v1 (http://localhost:8765/imas-ambix/sequential-current-da-v1.html)
 Section: §2-§6 + §8 — reduced-EKF substrate, calibration, and the v1 bar
 Tier:    opus
@@ -283,14 +281,14 @@ State to read
   mse_split.py / manifest mse_heldout_split_v0.json).
 
 Locked decisions to honour
-  da-substrate       -> reduced 1-D psi-diffusion sequential EKF PRIMARY; TORAX once/shot as
+  da-substrate       -&gt; reduced 1-D psi-diffusion sequential EKF PRIMARY; TORAX once/shot as
                         forecast cross-check ONLY (stiff solver OUT of the per-step loop).
-  filtered-state     -> psi(rho), not j (derive j ~ d2psi/drho2 post-hoc).
-  localization-rank  -> MANDATORY localization onto the leading ~5-6 right-singular vectors of
+  filtered-state     -&gt; psi(rho), not j (derive j with the cylindrical Δ* operator post-hoc).
+  localization-rank  -&gt; MANDATORY localization onto the leading ~5-6 right-singular vectors of
                         the row-scaled H; modes below the cutoff stay on the physics prior.
-  uq-calibration     -> split-conformal on the 3361 cal shots (per-channel + per-band, frozen,
-                        applied to the 112 test) -> cov90 in [0.88,0.92]. Solved HERE.
-  prereg-frontier    -> ~0.19 sightline / ~0.41 near-axis. NO interior win claimed from
+  uq-calibration     -&gt; split-conformal on the 3361 cal shots (per-channel + per-band, frozen,
+                        applied to the 112 test) -&gt; cov90 in [0.88,0.92]. Solved HERE.
+  prereg-frontier    -&gt; ~0.19 sightline / ~0.41 near-axis. NO interior win claimed from
                         magnetics alone. Reaching ~0.19 with calibrated cov90 IS success.
 
 Open decisions to surface (do not resolve)
@@ -299,8 +297,8 @@ Open decisions to surface (do not resolve)
 Constraints
   - RAPTOR-faithful reduced forward (Felici PPCF 2012/2018): 1-D resistive poloidal-flux-
     diffusion, Sauter eta_par(Te,Zeff) from MEASURED Thomson Te, banded analytic Jacobian.
-  - Observation H = the EFIT-free GS operator (gs/operator.py); linearised per-slice update
-    via gs/residual.py; reuse robust_sensor_scale for the amb measurement-noise R.
+  - Observation H_psi = the cylindrical psi-&gt;j map composed with the EFIT-free GS forward
+    operator (gs/operator.py); reuse robust_sensor_scale for the amb measurement-noise R.
   - Per-shot geometry: R0/Bt0 from amc.tf_current (vacuum Bt). Multiplicative process inflation.
   - FIRST validate the reduced model reproduces TORAX q(rho,t) on a few representative shots
     (incl. one stiff/high-Ip shot) before trusting it as the substrate.
@@ -308,20 +306,20 @@ Constraints
     mse_eval harness (gated + error-weighted beam-on slices; shot = independent unit; N=112).
   - Env: uv run; CPU-first on the /work access node. Any GPU step obeys AGENTS.md
     §2a/§2a-cancel (STOP-FILE, never scancel, hardened sbatch). Run in the foreground — no
-    orphaned backgrounded processes with a "waiting" monologue.
+    orphaned backgrounded processes with a &quot;waiting&quot; monologue.
 
 Done-when
   1. The reduced-EKF substrate committed (predict/update/re-anchor + localized analysis update
      + per-shot geometry), with a smoke test green and a reduced-vs-TORAX q(rho,t) agreement
-     check on >=3 shots committed as an artifact.
+     check on &gt;=3 shots committed as an artifact.
   2. Split-conformal calibration committed and run on the 3361 cal shots; cov90 on the 112
      held-out reported (target [0.88,0.92]).
   3. The v1 bar reported with bootstrap CIs vs the v0 EnKF (0.225 [0.199,0.259]) and
      persistence (0.719): sightline pitch RMSE, near-axis interior RMSE, cov90, CRPS/NLL.
   4. A followup written to wire in the H_pressure decisive experiment from
      internal-current-diagnostics-v0 (§7) + this followup resolved.</pre>
-      </article>
-    </section>
+    </article>
+</section>
 
   </main>
 </body>
