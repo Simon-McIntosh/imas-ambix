@@ -20,9 +20,9 @@
   <link rel="stylesheet" href="/_shared/css/foundation.css">
   <link rel="stylesheet" href="/_shared/css/dashboard.css">
   <link rel="stylesheet" href="/_shared/css/project.css">
-<meta name="plan-modified" content="2026-06-04">
-<meta name="plan-version" content="7">
-<meta name="plan-impl" content="0.35">
+<meta name="plan-modified" content="2026-06-05">
+<meta name="plan-version" content="8">
+<meta name="plan-impl" content="0.25">
 </head>
 <body>
   <main class="plan-doc">
@@ -283,10 +283,13 @@ D1 arm design: ccbv decomposed cross-coil (n-spectrum / mode amplitudes / cohere
       <button class="r-opt" data-value="learned-first">learned first</button>
       <button class="r-opt chosen" data-value="crafted-vs-learned">compare crafted vs learned</button>
       </p>
-    <p class="r-dec-rat">Compare both on the same target/metric (user, 2026-06-04). Arm A
-        (STFT + cross-coil mode decomposition / wavelet / k-ω / line-shape) vs Arm B (learned
-        1D-CNN / wavelet-scattering / transformer on raw waveforms). Directly tests the
-        &quot;too-hard-for-least-squares&quot; thesis.</p>
+    <p class="r-dec-rat">Compare both on the same target/metric (user, 2026-06-04). Arm A (STFT + cross-coil mode decomposition / wavelet / k-ω / line-shape) vs Arm B (learned 1D-CNN / wavelet-scattering / transformer on raw waveforms). Directly tests the &#x27;too-hard-for-least-squares&#x27; thesis.
+
+CRITICAL FINDING (2026-06-05, advisor): the D1/D2 oracle runs used MAGNITUDE-ONLY features (|rfft|, detrended RMS). Mode-number and rational-surface information lives in CROSS-CHANNEL PHASE (m/n = phase wraps around the sensor array; a rotating NTM is a phase progression across chords at one frequency). Magnitude-only features are structurally blind to this, independent of downstream model capacity. The current oracle is a PARTIAL ARM A test at best. A transformer on these same magnitude features would also fail.
+
+Escalation ladder:
+  1. Phase-preserving crafted features in the same GBM (cross-spectral coherence, complex STFT as real+imag, cross-chord phase differences). CPU-only, hours. If this finds signal, the representation was the bottleneck.
+  2. Learned Arm B on raw waveforms (transformer). H200 spend. Only justified if step 1 also fails.</p>
     </div>
 <div class="r-dec" data-key="io-strategy" data-choice="onthefly" data-by="Simon McIntosh" data-when="2026-06-04">
     <p class="r-dec-q">D0 I/O strategy for the 660 kHz / ~660 MB-per-shot fast magnetics?</p>
@@ -408,12 +411,47 @@ Done-when
   1. uv run python -m imas_ambix.statespace.oracle_probe --n-shots 80 --mode sxr_mode --out imas_ambix/statespace/artifacts/oracle_probe_sxr_mode_v0.json committed
   2. Verdict reported: does E_mag_sxr (with sxr_mode features) significantly + materially beat A_mag?
   3. Plan impl advances + followup written for D3 or final verdict</pre>
-    <p class="r-fu-outcome">D2 sxr_mode oracle run (oracle_probe_sxrmode_v0.json, commit 5fc3777). E_mag_sxr sxr_mode: 0.1814 rad, seed-0 CI=[-0.0132,-0.0004] (grazing zero across 24 tests, no multiple-comparison correction); seed-1 CI=[-0.0161,+0.0070] — confirms noise. NOT significant. Node-metric CI includes zero for both seeds. Strongest thread: H_mag_te_sxr ~3% over mag+Te, CI=[-0.0098,-0.0019] seed-0, but sub-material (<5%) and single-metric. Verdict QUALIFIED_NEGATIVE stands (bolometer carrier, off-interior; SXR not significant after correction for multiple comparisons and seed sensitivity). Artifact: oracle_probe_sxrmode_v0.json</p>
+    <p class="r-fu-outcome">D2 sxr_mode oracle run (oracle_probe_sxrmode_v0.json, commit 5fc3777). E_mag_sxr sxr_mode: 0.1814 rad, seed-0 CI=[-0.0132,-0.0004] (grazing zero across 24 tests, no multiple-comparison correction); seed-1 CI=[-0.0161,+0.0070] — confirms noise. NOT significant. Node-metric CI includes zero for both seeds. Strongest thread: H_mag_te_sxr ~3% over mag+Te, CI=[-0.0098,-0.0019] seed-0, but sub-material (&lt;5%) and single-metric. Verdict QUALIFIED_NEGATIVE stands (bolometer carrier, off-interior; SXR not significant after correction for multiple comparisons and seed sensitivity). Artifact: oracle_probe_sxrmode_v0.json</p>
     </article>
-<article class="r-fu" data-id="f-iid-d3-verdict" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-edit interior-information-discovery-v0" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-iid-d3-verdict" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-04" data-recommends-skill="/reckon-edit interior-information-discovery-v0" data-resolved-at="2026-06-05T04:38:14+00:00" data-resolved-by="agent/opus">
     <h4 class="r-fu-title">D3 — final verdict: record QUALIFIED_NEGATIVE + surface decision to user</h4>
     <div class="r-fu-body">D0+D1+D2 complete. Verdict: QUALIFIED_NEGATIVE. No modality (xma Mirnov, xsx SXR instantaneous or native-rate, bolometer, Thomson, camera) carries interior-current information to the near-axis region beyond what processed magnetics already provides. Bolometer gives a real ~5-6% gain (significant) but localization shows it is on well-measured edge/mid pitch, not the under-determined near-axis interior. The 0.41 rad floor stands. The H_mag_te_sxr thread (~3% over mag+Te, single metric, single seed) is the one suggestive result; a larger-N follow-up (200+ shots) on that pre-registered comparison is the only scientifically defensible next step. User decision: accept QUALIFIED_NEGATIVE and move on, OR run the larger-N SXR-over-Te test.</div>
     <pre class="r-fu-prompt">done — record QUALIFIED_NEGATIVE in plan, surface decision to user</pre>
+    <p class="r-fu-outcome">Superseded: QUALIFIED_NEGATIVE for magnitude-only features ONLY, not for the study. Reopened as D3-phase.</p>
+    </article>
+<article class="r-fu" data-id="f-iid-d3-phase" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-05" data-recommends-skill="/reckon-ship interior-information-discovery-v0 D3-phase" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">D3 — phase-preserving features: cross-spectral coherence + complex STFT in same GBM</h4>
+    <div class="r-fu-body">D1+D2 established a null for MAGNITUDE-ONLY crafted features. This is NOT a study verdict: mode-number / rational-surface information lives in cross-channel phase (m/n = phase wraps around sensor array; rotating NTM is a phase progression). |rfft| features are structurally blind to this. Phase-preserving features are the cheap necessary test before the H200 Arm B spend. Features to add to the oracle GBM: (1) cross-chord SXR coherence matrix at sawtooth/tearing frequencies; (2) complex STFT of ccbv and SXR chord pairs (real+imag, not |abs|); (3) cross-chord phase differences at dominant frequency. If E_mag_sxr + phase features beats A_mag significantly+materially, the hypothesis holds and Arm B is justified. If still null, the negative is defensible for crafted representations.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    interior-information-discovery-v0
+Section: D3 (phase-preserving features — cheap rung before H200)
+Tier:    opus
+
+Context
+  D1+D2 oracle (oracle_probe_mirnov_v1.json, oracle_probe_sxrmode_v0.json) used magnitude-only
+  features (|rfft|, detrended RMS). These are structurally blind to cross-channel phase, which
+  is where mode-number information lives. Advisor confirmed (2026-06-05): this is the correct
+  next step before the transformer Arm B.
+
+  Rate audit (2026-06-05): D2 cohort was 58% at 500 kHz, 27% at 100 kHz, 15% dead xsx.
+  Bolo (carrier) was dead in 16/79 shots (20%). These are data quality constraints to document.
+
+Features to add to oracle_probe.py:
+  1. _xsx_coherence_block: cross-chord SXR coherence at 10-1000 Hz (sawtooth / tearing band).
+     For each pv slice, trailing 50 ms native-rate window; compute cross-spectral matrix;
+     extract coherence at dominant frequency per chord pair and dominant-band phase difference.
+  2. _xma_phase_block: complex STFT of ccbv array; cross-chord phase differences at m=1,2 modes.
+  3. Add arms: E_mag_sxr_phase, E_mag_mirnov_phase, E_mag_sxr_mirnov_phase.
+
+Constraints
+  - CPU login node (no GPU). Features computed on 500 kHz cohort only (46/79 shots).
+  - Pre-check: verify new blocks are alive (&gt;50% finite at pv slices) before trusting any result.
+  - All other oracle methodology constraints carry forward.
+
+Done-when
+  1. Phase-preserving blocks implemented + alive verified
+  2. Arms run, verdict reported: does phase beat magnitude-only significantly+materially?
+  3. Plan impl advances; user decision on Arm B (H200) based on result</pre>
     </article>
 </section>
   </main>
