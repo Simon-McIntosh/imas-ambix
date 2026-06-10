@@ -19,8 +19,8 @@
   <title>Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-10">
-<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-06-11">
+<meta name="plan-version" content="3">
 <meta name="plan-impl" content="0.15">
 </head>
 <body>
@@ -527,6 +527,11 @@ Done-when
     </article>
 </section>
 
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s5" data-id="c-cdw-d1-scaffold" data-who="reckon-ship (orchestrator/opus)" data-when="2026-06-11">
+    <div class="r-comment-body">D1 PARTIAL — scaffold landed, training NOT run. Commit 617b28e committed the shared model + training code: imas_ambix/camdyn/model.py (factorized ST-transformer + LFQ 18-bit head, temporal-attention toggle: D1=OFF per-frame baseline, D2 will flip ON at matched params), imas_ambix/camdyn/train.py, configs/{baseline_w1_v0.yaml,smoke_cpu.yaml}, scripts/slurm/camdyn_baseline.sbatch, and CPU smoke tests tests/camdyn/{test_model,test_train}.py (20 green). The D1 worker was cut off by a session limit BEFORE launching the GPU run, so there is NO trained checkpoint and NO baseline_w1_v0.json (the locked W1 bar). The reservation is idle (DSv4 was already shut down, job 1211299). RESUME (do NOT rebuild): follow f-cdw-d1-baseline against the committed 617b28e scaffold — (1) clear 3 ruff nits (2× N806 conventional V/M matrix naming in model.py/train.py — add them to the pyproject per-file-ignore like metrics.py; 1× F841 unused `t` in tests/camdyn/test_model.py:184); (2) sbatch scripts/slurm/camdyn_baseline.sbatch on betelgeuse (--reservation=gpu_0003_grpA --account=grpa --gres=gpu:1), train to convergence, log held-out + named-geometry W1 bar to imas_ambix/camdyn/artifacts/baseline_w1_v0.json; (3) resolve f-cdw-d1-baseline + queue D2.</div>
+</div>
+</section>
+</main>
 </body>
 </html>
