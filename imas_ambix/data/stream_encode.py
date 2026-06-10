@@ -80,12 +80,11 @@ if TYPE_CHECKING:
 
 # --- Graceful-shutdown stop flag ------------------------------------------
 #
-# The RCA (docs/rca-node-drain-2026-05-27.md) showed that a GPU process which
-# does not exit within SLURM's UnkillableStepTimeout (~60 s) on scancel auto-
-# drains the H200 node. The entire hardening contract here is: on SIGTERM/
-# SIGINT, set this flag; the encode loop checks it between batches and breaks
-# out of the run; main() then tears down workers + writer + model in a
-# try/finally so we exit cleanly well under the timeout.
+# On SIGTERM/SIGINT, set this flag; the encode loop checks it between batches
+# and breaks out of the run; main() then tears down workers + writer + model
+# in a try/finally so cancellation is lossless (writers flushed, no orphaned
+# DataLoader workers). Clean teardown is hang protection, not a drain guard —
+# see docs/rca-node-drain-final-2026-06-03.html for the settled findings.
 #
 # It is a module-level threading.Event so a watchdog thread (per-batch
 # timeout) and the signal handler can both set it, and the main encode loop
@@ -625,11 +624,11 @@ class _DatasetFeed:
     directly (used by the CPU parity test, which has no torch DataLoader need
     and avoids worker fork overhead).
 
-    The DataLoader's worker subprocesses are the RCA's wedge risk: if they are
-    left orphaned in 'D' state the node drains on scancel. :meth:`close`
-    therefore explicitly shuts down the loader's ``_iterator`` (terminating +
-    joining the worker pool) so no worker outlives the run, and is called from
-    the encode loop's ``finally`` even on the graceful-stop path.
+    :meth:`close` explicitly shuts down the loader's ``_iterator``
+    (terminating + joining the worker pool) so no worker outlives the run,
+    and is called from the encode loop's ``finally`` even on the
+    graceful-stop path — orphaned workers waste the allocation and leave
+    stale shared-memory segments behind.
     """
 
     def __init__(self, dataset: ShotFrameDataset, num_workers: int) -> None:

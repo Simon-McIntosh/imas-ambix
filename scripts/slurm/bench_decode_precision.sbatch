@@ -50,20 +50,13 @@ mkdir -p "/work/projects/imas_gpu/logs"
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 
-# ── STOP-FILE + SIGUSR1 trap (AGENTS.md §2a-cancel / §2a-cancel-time) ────────
-mkdir -p /work/projects/imas_gpu/stops
-export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
-rm -f "${AMBIX_STOP_FILE}"
-_on_sigusr1() {
-    echo "[sbatch] SIGUSR1 received (pre-limit) — touching STOP-FILE for clean stop" >&2
-    touch "${AMBIX_STOP_FILE}"
-}
-trap _on_sigusr1 USR1
-
 REPO_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${REPO_ROOT}"
 RESULTS_DIR="${REPO_ROOT}/imas_ambix/bench/results"
 mkdir -p "${RESULTS_DIR}"
+
+# Drain-forensics sidecar (docs/rca-node-drain-final-2026-06-03.html §5).
+bash "${REPO_ROOT}/scripts/slurm/drain_sidecar.sh" &
 
 VENV="${REPO_ROOT}/.venv"
 if [[ -f "${VENV}/bin/activate" ]]; then
@@ -78,7 +71,7 @@ fi
 echo "[$(date)] bench-precdiag starting"
 echo "  job-id:    ${SLURM_JOB_ID}"
 echo "  node:      $(hostname)"
-echo "  stop-file: ${AMBIX_STOP_FILE}  (touch to cancel cleanly — DO NOT scancel)"
+echo "  sidecar:   /work/projects/imas_gpu/logs/drain-sidecar-${SLURM_JOB_ID}.csv"
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 
 # All cells decode via the LIVE decoder (bypass ema_scope) so the fp32 upcast
@@ -104,10 +97,6 @@ run_cell () {
     echo "[$(date)] CELL ${tag}  (AMBIX_DECODER_FP32=${fp32}, AMBIX_DECODE_NO_EMA=1)"
     echo "  config: ${cfg}"
     echo "  output: ${out}"
-    if [[ -f "${AMBIX_STOP_FILE}" ]]; then
-        echo "[precdiag] STOP-FILE present — skipping remaining cells" >&2
-        return 0
-    fi
     $AMBIX tokenize bench --config "${cfg}" --output "${out}" --in-process
     echo "[$(date)] CELL ${tag} done"
 }

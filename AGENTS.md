@@ -115,207 +115,65 @@ sbatch --partition=betelgeuse \
 - `export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p "$TMPDIR"` — default TMPDIR is broken on this node (on non-betelgeuse partitions like `sun` use `TMPDIR=/tmp`; `/scratch_local` only exists on betelgeuse)
 - Use `srun` with the same flags for interactive jobs
 
-## 2a. GPU Job Safety — node-drain prevention (MANDATORY)
+## 2a. GPU node stability — settled findings (2026-06-10)
 
-`98dci4-gpu-0003` is the **only** H200 node, shared with Group B. It has been
-**drained three times** by hung ambix GPU jobs (2026-05-26, 2026-05-27,
-2026-05-28 — see `docs/rca-node-drain-2026-05-{27,27b,28}.html`). A drain
-takes the whole reservation offline until an admin resumes it manually. **Do
-not crash this node.**
+`98dci4-gpu-0003` (the only H200 node, shared with Group B) drained five
+times between 2026-05-26 and 2026-06-01. The S11 drain campaign settled the
+cause — see `docs/rca-node-drain-final-2026-06-03.html` (settled findings)
+and `docs/drain-window-campaign.html` (evidence record):
 
-**Failure mechanism.** A GPU process stuck in uninterruptible kernel sleep
-(`D` state — wedged on a CUDA or GPFS call) cannot be reaped by SIGTERM or
-SIGKILL. When `scancel` can't kill the step within SLURM's
-`UnkillableStepTimeout` (~60 s), slurmd marks **"Kill task failed"** and
-auto-DRAINs the node. Stale GPU memory from the un-reaped process then
-requires `nvidia-smi --gpu-reset` or a reboot to clear.
+- **Mechanism (proven):** a process in uninterruptible D-state (NVIDIA
+  driver / CXI fabric / GPFS kernel wait) outlives `KillWait` (30 s) +
+  `UnkillableStepTimeout` (60 s) → slurmstepd "Kill task failed" → node
+  DRAINED. Standard SLURM behaviour.
+- **Cause (settled):** environmental and node-level. Two independent user
+  groups drained the node with unrelated code; 16 deliberate reproduction
+  attempts — including SIGKILL mid-collective, `--time` expiry into a live
+  hung NCCL process, and the verbatim code of a job that had previously
+  drained the node — produced **zero** drains. Sustained D-state is
+  stochastic driver/firmware state, not a property of any code path.
+- **Exonerated:** `scancel`, `SIGKILL`, and `#SBATCH --time` expiry. All
+  were fired deliberately at live CUDA/NCCL workloads and never drained the
+  node. **Agents may `scancel` GPU jobs and set ordinary `--time` limits.**
+  The former STOP-FILE contract, three-layer time-limit rule, and
+  never-`scancel` rule were removed on 2026-06-10 as superstition.
+- **Fix:** admin-side configuration (epilog GPU reset, auto-resume health
+  check, `UnkillableStepTimeout` review) —
+  `docs/proposal-drain-auto-recovery.html`.
 
-**Binding rules for any long-running GPU job:**
+**Good practice that remains (hang protection, not drain protection):**
 
-1. **Install a SIGTERM/SIGINT handler** that cleanly shuts down workers,
-   flushes writers, releases the model, and exits in < 5 s — well under
-   `UnkillableStepTimeout`. A clean self-exit does NOT drain the node; an
-   unkillable kill DOES.
-2. **Add a per-shot / per-batch watchdog timeout.** Abort a single stuck unit
-   (e.g. > N× the median time) rather than letting it hang the whole job.
-3. **No deadlock-prone IPC.** Prefer the **in-process streaming encoder**
-   (`imas_ambix/data/stream_encode.py`: torch `DataLoader` + cross-shot
-   continuous batching, no subprocess daemon, no prefetch producer/consumer
-   threads) over the legacy file-IPC daemon. Both removed surfaces were drain
-   causes: a prefetch producer dying on a bad shot blocked the consumer
-   forever; a subprocess daemon mid-CUDA was unkillable.
-4. **The legacy frame-daemon / prefetch path is deprecated.** `stream_encode.py`
-   (in-process, hardened: graceful SIGTERM + per-batch watchdog, commit
-   `4f820da`) is the sole frame encoder going forward. The legacy path
-   (`OpenMagvit2Tokenizer` subprocess daemon + the `bulk_encode_frames`
-   prefetch + `encode_one_shard.py`) **deadlocked and drained the node** — do
-   NOT run it. It is slated for deletion once `stream_encode` passes GPU
-   validation; we do not harden or carry it.
-5. **NEVER `scancel` an agent-launched CUDA job.** This rule was previously
-   scoped to *wedged* jobs (§rca-node-drain-2026-05-27); the 2026-05-28 drain
-   proved that `scancel` on a *healthy* DDP job is equally dangerous, because
-   the SIGTERM handler cannot run while Python is inside a multi-second NCCL
-   collective inside `loss.backward()`. The rule is now broadened: agents
-   **must not** issue `scancel` on any CUDA / GPU job, healthy or wedged,
-   under any circumstances. Use the STOP-FILE mechanism (§2a-cancel) instead.
-   If STOP-FILE is unavailable AND the job is genuinely wedged AND the user
-   has explicitly authorised the cancellation AND committed to the admin
-   recovery, only then may a user (not an agent) issue `scancel`.
-6. **`#SBATCH --time` is a delayed `scancel` — same drain risk.** When SLURM
-   hits the time limit it sends SIGTERM to the job step, which has the
-   identical "Python can't process signals mid-NCCL" problem as a manual
-   `scancel`. Setting `--time=24:00:00` is "auto-scancel me in 24 hours"
-   and carries the same drain risk if the job is still running at the limit.
-   **DO NOT set `--time` as the actual run budget.** Use the three-layer
-   pattern in §2a-cancel-time below.
-7. **`#SBATCH --signal=USR1@N` (without `B:`) is also unsafe** — it sends the
-   signal to the worker python processes, same problem. ONLY
-   `--signal=B:USR1@N` (signal the BATCH SCRIPT) is safe, because bash can
-   process signals immediately and touch the STOP-FILE for us.
+1. **SIGTERM/SIGINT handler** that flushes writers, releases the model, and
+   exits cleanly — makes cancellation lossless.
+2. **Per-shot / per-batch watchdog** — a stuck unit self-aborts instead of
+   wasting the allocation until someone notices.
+3. **Offline env vars + preflight asset checks** on betelgeuse (no outbound
+   network) — a blocked download otherwise stalls the job to its limit.
+4. **Symmetric collectives** — every rank participates in every collective;
+   rank-asymmetric calls desynchronise the ring and hang the job.
 
-**When a drain happens (RCA procedure):**
-1. `sacct -a -N 98dci4-gpu-0003 --starttime=<window>` — list ALL users' jobs to
-   determine cause and rule Group B in/out (check for non-`grpa` accounts).
-2. Match the node `Reason=...[root@<ts>]` timestamp against your `scancel` /
-   job-end times (`sacct` End + `.batch` ExitCode) to attribute it.
-3. Write `docs/rca-node-drain-<date>.md` and give ordered admin instructions:
-   **check stuck procs (`nvidia-smi`, `ps -eo pid,stat,cmd`) → `nvidia-smi
-   --gpu-reset` or reboot → `scontrol update nodename=98dci4-gpu-0003
-   state=resume reason=""`** (resume only after the GPUs are confirmed clean,
-   else the next job inherits a dirty GPU).
+**Forensic sidecar (default-on for long GPU jobs):** launch
+`scripts/slurm/drain_sidecar.sh` as a background line in the sbatch. It is
+SIGTERM-immune and samples every PID in the job cgroup (state + wchan),
+`nvidia-smi`, and kernel NVRM/Xid lines once per second to
+`/work/projects/imas_gpu/logs/drain-sidecar-<jobid>.*` on GPFS. If a drain
+ever recurs, this captures the D-state PID and kernel symbol that took a
+whole campaign to assemble. For deep investigation, the separate-allocation
+observer (`scripts/drain-tests/instrumented/observer.sbatch`) additionally
+survives the drain itself.
 
-## 2a-cancel. Safe cancellation — STOP-FILE mechanism (MANDATORY)
-
-**Signals are unsafe for cancelling CUDA-DDP jobs.** Python signal handlers
-run only between bytecodes; multi-second NCCL collectives inside
-`loss.backward()` block the handler indefinitely. SIGTERM that can't be
-acknowledged → `UnkillableStepTimeout` → "Kill task failed" → DRAIN.
-
-**Every long-running agent-launched GPU script MUST implement the stop-file
-contract:**
-
-| Layer | Requirement |
-|---|---|
-| **sbatch** | Export `AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop` before the python launch. Create `/work/projects/imas_gpu/stops/` if missing. |
-| **training script** | At startup, print the resolved stop-file path so it appears in the job's log. |
-| **training loop** | At every step boundary (after `optimiser.step()`, before fetching the next batch), check `Path(os.environ["AMBIX_STOP_FILE"]).exists()`. If true, log `[finetune] STOP-FILE detected → clean exit` and `break` out of the loop. |
-| **eval loop** | Same check inside per-batch eval iteration, so a cancellation during eval also unwinds cleanly. |
-| **teardown** | The existing `try/finally` releases the model, destroys NCCL, and exits with code 0. |
-
-**To cancel a running job (agent or user):**
-
-```bash
-# Find the job's stop-file path from its log (printed at startup), or compute it:
-STOP_FILE=/work/projects/imas_gpu/stops/${JOBID}.stop
-
-# Signal the job to exit cleanly:
-touch "${STOP_FILE}"
-
-# Poll for clean exit (should take ≤ 1 training step, typically < 5 s):
-while squeue -j ${JOBID} -h 2>/dev/null | grep -q .; do sleep 5; done
-echo "Job ${JOBID} exited cleanly."
-
-# Clean up:
-rm -f "${STOP_FILE}"
-```
-
-**Why this works where `scancel` fails:** the stop-file check is a single
-filesystem `stat()` (~µs) at a Python-controlled boundary between collectives.
-The training loop voluntarily breaks; the process unwinds through normal
-try/finally cleanup; CUDA contexts release; NCCL destroys cleanly; exit
-code 0; **no drain risk**.
-
-**Performance cost:** one `Path.exists()` per training step ≈ 0.5 µs on
-local filesystem, ~10 µs on GPFS. Negligible vs a 500 ms training step.
-
-**Hardening rules for stop-file users:**
-
-1. The check **must** be inside the main training loop, not in the watchdog
-   thread — the watchdog thread can call `STOP.set()` but the main loop
-   makes the actual exit decision.
-2. The check **must** happen between collectives, never inside `loss.backward()`
-   or `dist.all_reduce`. The natural place is right after `optimiser.step()`.
-3. **Do not** wrap the stop-file check in a signal handler — that defeats
-   the purpose. The whole point is to avoid signals.
-4. The stop-file path **must** be unique per job (use `$SLURM_JOB_ID`), so a
-   stale stop-file from a previous job does not kill the next one.
-5. The script **must** print the stop-file path to stdout at startup so a
-   future agent / user / admin can find it without reading the sbatch.
-
-**Reference implementation:** `imas_ambix/tokenizer/finetune_decoder.py`
-(commit landing this RCA). Copy this pattern verbatim for any new GPU
-training script.
-
-**When STOP-FILE is not enough:**
-- A job that never reaches a step boundary (deadlocked NCCL init, hung
-  GPFS read) cannot see the stop-file. Surface to the user and escalate —
-  do NOT fall back to SLURM time limit (see §2a-cancel-time).
-- The agent **must not** decide unilaterally that "the stop-file is taking too
-  long" and issue `scancel` — that is exactly the bug this section prevents.
-
-## 2a-cancel-time. Time limits — the three-layer rule (MANDATORY)
-
-**`#SBATCH --time=N` is a scheduled `scancel`** (rule #6 in §2a above). When
-the limit fires, SLURM sends SIGTERM to the job step, which has the same
-Python-can't-handle-signals-mid-NCCL problem as a manual scancel → drain.
-**Setting `--time` as your actual run budget is a self-scheduled drain.**
-
-Every long-running agent-launched GPU sbatch MUST implement the three-layer
-defence — combined with the §2a-cancel STOP-FILE — so the worst case is a
-clean exit, not a drain:
-
-| Layer | Mechanism | What it catches |
-|---|---|---|
-| 1. **SIGUSR1 pre-warning** | `#SBATCH --signal=B:USR1@600` + bash `trap` that `touch`es STOP-FILE | SLURM signals the BATCH SCRIPT (not workers) 600 s before time-limit. Bash has no NCCL involvement; trap fires in ms; STOP-FILE appears; workers exit cleanly at next step boundary. |
-| 2. **Internal soft wall-clock** | `AMBIX_SOFT_TIME_LIMIT` env var. Training loop checks `time.monotonic() - t_start > soft_limit` at every step boundary; if true, behave like STOP-FILE was touched. Set to ~85 % of `--time`. | Layer 1 fails (e.g. bash exited, trap missed). Python-level safety net. |
-| 3. **`--time` as ceiling only** | Set `--time` to 2-4× realistic expected runtime. | Both layers above fail. Final emergency stop. |
-
-**Required sbatch header pattern** for any new agent-launched GPU job:
-
-```bash
-#SBATCH --time=04:00:00              # Safety ceiling — 2-4× expected runtime
-#SBATCH --signal=B:USR1@600          # SIGUSR1 to BATCH SCRIPT, 10 min pre-limit
-
-set -euo pipefail
-
-mkdir -p /work/projects/imas_gpu/stops
-export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
-rm -f "${AMBIX_STOP_FILE}"
-
-# Layer 1: SIGUSR1 trap → touch STOP-FILE for clean shutdown.
-_on_sigusr1() {
-    echo "[sbatch] SIGUSR1 received — SLURM time limit approaches; touching STOP-FILE for clean shutdown" >&2
-    touch "${AMBIX_STOP_FILE}"
-}
-trap _on_sigusr1 USR1
-
-# Layer 2: pass soft wall-clock limit to the training script (~85% of --time)
-export AMBIX_SOFT_TIME_LIMIT=12240   # 3h24m = 0.85 × 4h ceiling
-```
-
-**Critical sub-rules** (these have all caused incidents):
-
-1. The `B:` prefix on `--signal=B:USR1@600` is non-negotiable. Without it,
-   SLURM signals the WORKER python processes — same drain risk as scancel.
-   ONLY the batch script can be safely signal-trapped.
-2. The trap is set BEFORE `torchrun` is invoked. After `torchrun` starts, bash
-   is in `wait` (foreground builtin) and the trap still fires on signal —
-   that's standard bash semantics. Verify with `man bash` § SIGNALS.
-3. The soft wall-clock limit (`AMBIX_SOFT_TIME_LIMIT`) and the SIGUSR1
-   pre-warning are BOTH required. They guard different failure modes — a
-   bash-level crash kills the trap; a Python-level OOM-killer kills the soft
-   limit. Belt and braces.
-4. NEVER set `--time` to your expected runtime. Even with both layers, the
-   ceiling needs margin. A 1.5 h expected run gets `--time=04:00:00`, not
-   `--time=02:00:00`. The gap is your insurance.
-5. The bash trap MUST be set AFTER the `export AMBIX_STOP_FILE=` line and
-   BEFORE the python launch. If the trap fires before `AMBIX_STOP_FILE` is
-   exported it can't touch the file; if it's set after `torchrun` blocks,
-   bash can't accept new traps.
-
-**Reference implementation:** `scripts/slurm/finetune_decoder.sbatch` (commit
-landing this section).  Any new GPU sbatch MUST clone this header pattern
-verbatim; deviations require an RCA written before the run.
+**If a drain happens (recovery procedure):**
+1. Attribute: `sacct -a -N 98dci4-gpu-0003 --starttime=<window>` (all users,
+   rule Group B in/out) + the node `Reason=...[root@<ts>]` timestamp.
+2. Collect forensics: `/work/projects/imas_gpu/logs/drain-sidecar-<jobid>.*`
+   — identify the D-state PID/wchan during the kill window.
+3. Admin recovery: check stuck procs (`nvidia-smi`,
+   `ps -eo pid,stat,cmd`) → `nvidia-smi --gpu-reset` or reboot →
+   `scontrol update nodename=98dci4-gpu-0003 state=resume reason=""`
+   (resume only after GPUs are confirmed clean).
+4. Attach the evidence to `docs/proposal-drain-auto-recovery.html` and
+   notify SDCC. Do not reinstate behavioural guards without a measurement
+   showing they address the observed mechanism.
 
 ## 2b. Performant GPU code (in-process default)
 
@@ -327,8 +185,9 @@ prefetch producer/consumer threads — is **PROHIBITED** for production code.
 
 **Why — three measured regressions from this repo:**
 
-1. **Corpus encode:** legacy frame daemon drained the node 3× (§2a RCAs) and
-   delivered poor throughput. Replacing it with in-process `stream_encode.py`
+1. **Corpus encode:** the legacy frame daemon deadlocked (prefetch
+   producer/consumer hang, 2026-05-27) and delivered poor throughput.
+   Replacing it with in-process `stream_encode.py`
    (torch `DataLoader`, bounded queues) yielded 308 fps/GPU peak and encoded
    4.02B tokens in ~7 h on a single GPU.
 2. **Bench — subprocess-per-shot:** 100-shot rbb bench took **65 min** (job
@@ -366,7 +225,7 @@ prefetch producer/consumer threads — is **PROHIBITED** for production code.
 - `subprocess.run` / `subprocess.Popen` per shot to a worker that reloads the
   model. Model load is the dominant cost; this is never performant.
 - A persistent worker daemon driven by named pipes / FIFOs / file-IPC. These
-  have deadlock failure modes that drained the node 3× (see §2a). They offer
+  have real deadlock failure modes (the 2026-05-27 prefetch hang) and offer
   no advantage over in-process now that `stream_encode.py` exists.
 - Prefetch producer/consumer threads with unbounded queues. A failure in either
   thread wedges the other. Use the torch `DataLoader` worker pool with bounded

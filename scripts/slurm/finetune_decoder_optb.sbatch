@@ -7,7 +7,6 @@
 #SBATCH --cpus-per-task=30
 #SBATCH --mem=640G
 #SBATCH --time=04:00:00
-#SBATCH --signal=B:USR1@600
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
 
 # Option B (2026-05-28): alternate-loss fine-tune.
@@ -30,23 +29,16 @@ export OMP_NUM_THREADS=1
 export TORCHINDUCTOR_CACHE_DIR=$TMPDIR/.torch_inductor
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
 
-# STOP-FILE + AGENTS.md §2a-cancel-time three-layer pattern.
-mkdir -p /work/projects/imas_gpu/stops
-export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
-rm -f "${AMBIX_STOP_FILE}"
-_on_sigusr1() {
-    echo "[sbatch] SIGUSR1 received (pre-limit) — touching STOP-FILE" >&2
-    touch "${AMBIX_STOP_FILE}"
-}
-trap _on_sigusr1 USR1
-export AMBIX_SOFT_TIME_LIMIT=12240   # 0.85 × 4h ceiling
-
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 export NCCL_DEBUG=WARN
 export NCCL_IB_DISABLE=1
 
 REPO_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${REPO_ROOT}"
+
+# Drain-forensics sidecar (docs/rca-node-drain-final-2026-06-03.html §5).
+bash "${REPO_ROOT}/scripts/slurm/drain_sidecar.sh" &
+
 export MAGVIT2_ROOT="/work/projects/imas_gpu/mast-tokens/v1/open-magvit2"
 export FRAMES_ROOT="/work/projects/imas_gpu/mast-tokens/v1/frames"
 MAGVIT2_PYTHON="${MAGVIT2_ROOT}/.venv/bin/python"
@@ -57,7 +49,7 @@ echo "  job-id:      ${SLURM_JOB_ID}"
 echo "  node:        $(hostname)"
 echo "  repo:        ${REPO_ROOT}"
 echo "  log:         ${LOG_FILE}"
-echo "  stop-file:   ${AMBIX_STOP_FILE}  (touch to cancel cleanly — DO NOT scancel)"
+echo "  sidecar:     /work/projects/imas_gpu/logs/drain-sidecar-${SLURM_JOB_ID}.csv"
 echo "  variant:     OPTION B (perceptual_weight=1.0, vs v0 default 0.1)"
 
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader

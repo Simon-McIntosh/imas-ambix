@@ -27,6 +27,10 @@ mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
 
 # ── Preempt V4-Flash ───────────────────────────────────────────────────────
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Drain-forensics sidecar (docs/rca-node-drain-final-2026-06-03.html §5).
+bash "${REPO_ROOT}/scripts/slurm/drain_sidecar.sh" &
+
 bash "${REPO_ROOT}/scripts/slurm/preempt_v4flash.sh"
 
 # ── Activate project venv ──────────────────────────────────────────────────

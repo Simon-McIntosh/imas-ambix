@@ -7,15 +7,11 @@
 #SBATCH --cpus-per-task=30
 #SBATCH --mem=640G
 #SBATCH --time=04:00:00
-#SBATCH --signal=B:USR1@600
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
 # NOTE: --qos is intentionally omitted — auto-applied for this account/reservation.
-#       --time is the SAFETY CEILING — see AGENTS.md §2a-cancel-time.  Expected
-#       runtime is ~1.5 h; the 4 h ceiling is 2-3× margin.  When the SLURM
-#       limit nears, the --signal=B:USR1@600 below sends SIGUSR1 to this batch
-#       script 600 s before the limit; our USR1 trap touches the STOP-FILE so
-#       the workers exit cleanly via the §2a-cancel mechanism — no SIGTERM-mid-
-#       NCCL drain risk.  Belt+braces with AMBIX_SOFT_TIME_LIMIT below.
+#       Expected runtime ~1.5 h; the 4 h limit gives margin. --time expiry and
+#       scancel both terminate cleanly via the SIGTERM handler (settled drain
+#       findings: docs/rca-node-drain-final-2026-06-03.html).
 #       Log written to GPFS so it is readable from the login node after the job.
 
 # ── Environment ────────────────────────────────────────────────────────────
@@ -30,33 +26,6 @@ export OMP_NUM_THREADS=1
 export TORCHINDUCTOR_CACHE_DIR=$TMPDIR/.torch_inductor
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
 
-# STOP-FILE for safe cancellation — see AGENTS.md §2a-cancel.
-# To cancel this job cleanly (no drain risk):
-#     touch /work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
-# NEVER `scancel` a CUDA-DDP job — it can leave processes in D-state and
-# trigger a node drain.  The 2026-05-28 drain (3rd this week) was caused by
-# exactly that mistake.
-mkdir -p /work/projects/imas_gpu/stops
-export AMBIX_STOP_FILE=/work/projects/imas_gpu/stops/${SLURM_JOB_ID}.stop
-# Ensure no stale stop-file lingers from a previous job with the same ID.
-rm -f "${AMBIX_STOP_FILE}"
-
-# Layer 1 of the §2a-cancel-time three-layer defence: SIGUSR1 trap that
-# touches the STOP-FILE.  Fires from --signal=B:USR1@600 above, 600 s before
-# the --time ceiling.  Bash signal handling is reliable (no NCCL involvement)
-# so the trap touches the file in milliseconds, the workers see it at their
-# next step boundary, and the job exits cleanly with code 0 → no drain risk.
-_on_sigusr1() {
-    echo "[sbatch] SIGUSR1 received from SLURM (10 min pre-limit) — touching STOP-FILE for graceful shutdown" >&2
-    touch "${AMBIX_STOP_FILE}"
-}
-trap _on_sigusr1 USR1
-
-# Layer 2: internal soft wall-clock limit consumed by the training script.
-# Set to ~85% of the --time ceiling so it fires BEFORE the SLURM SIGUSR1.
-# 4h ceiling × 0.85 = 3h24m = 12240 s.
-export AMBIX_SOFT_TIME_LIMIT=12240
-
 # Required for torch.use_deterministic_algorithms with CuBLAS on CUDA ≥ 10.2
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 
@@ -69,6 +38,12 @@ export NCCL_IB_DISABLE=1   # no InfiniBand on this node; use NVLink/PCIe
 # invoked from) to locate the repo (same pattern as bench_rbb.sbatch).
 REPO_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${REPO_ROOT}"
+
+# Drain-forensics sidecar: SIGTERM-immune background sampler (cgroup PID
+# states + wchan + nvidia-smi + Xid) → /work/projects/imas_gpu/logs/.
+# See docs/rca-node-drain-final-2026-06-03.html §5.
+bash "${REPO_ROOT}/scripts/slurm/drain_sidecar.sh" &
+
 export MAGVIT2_ROOT="/work/projects/imas_gpu/mast-tokens/v1/open-magvit2"
 export FRAMES_ROOT="/work/projects/imas_gpu/mast-tokens/v1/frames"
 MAGVIT2_PYTHON="${MAGVIT2_ROOT}/.venv/bin/python"
@@ -79,7 +54,7 @@ echo "  job-id:      ${SLURM_JOB_ID}"
 echo "  node:        $(hostname)"
 echo "  repo:        ${REPO_ROOT}"
 echo "  log:         ${LOG_FILE}"
-echo "  stop-file:   ${AMBIX_STOP_FILE}  (touch to cancel cleanly — DO NOT scancel)"
+echo "  sidecar:     /work/projects/imas_gpu/logs/drain-sidecar-${SLURM_JOB_ID}.csv"
 
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 

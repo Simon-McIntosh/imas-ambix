@@ -59,14 +59,13 @@ STOP = threading.Event()
 
 
 def _install_signal_handlers() -> None:
-    """Install best-effort SIGTERM/SIGINT handlers.
+    """Install SIGTERM/SIGINT handlers for graceful shutdown.
 
-    NOTE: Signals cannot reliably stop CUDA-DDP training (Python signal
-    handlers only run between bytecodes; we may be inside multi-second NCCL
-    collectives).  These handlers are a fallback for non-CUDA paths and for
-    forwarding cluster-level termination signals.  The PRIMARY cancellation
-    mechanism is the STOP-FILE (see ``_check_stop_file`` and AGENTS.md
-    §2a-cancel) — agents must use that, NEVER ``scancel``.
+    Handler delivery can lag while inside a long NCCL collective (Python
+    signal handlers run between bytecodes), but lands at the next step
+    boundary — ``scancel`` and ``--time`` expiry both terminate the job
+    cleanly through this path (settled drain findings,
+    docs/rca-node-drain-final-2026-06-03.html).
     """
 
     def _handler(signum, _frame) -> None:  # noqa: ANN001
@@ -84,46 +83,6 @@ def _install_signal_handlers() -> None:
             "[finetune-decoder] could not install signal handlers (not main thread)",
             flush=True,
         )
-
-
-def _stop_file_path() -> Path | None:
-    """Return the STOP-FILE path from ``AMBIX_STOP_FILE`` env, or None.
-
-    See AGENTS.md §2a-cancel for the full contract.  When the file exists,
-    the training loop breaks cleanly at the next step boundary — safe under
-    NCCL/CUDA collectives in a way SIGTERM is not.
-    """
-    p = os.environ.get("AMBIX_STOP_FILE")
-    if not p:
-        return None
-    return Path(p)
-
-
-def _check_stop_file() -> bool:
-    """Return True if the STOP-FILE exists. Single filesystem stat (~µs)."""
-    p = _stop_file_path()
-    return p is not None and p.exists()
-
-
-def _soft_time_limit_s() -> float | None:
-    """Return ``AMBIX_SOFT_TIME_LIMIT`` (seconds) or None if unset.
-
-    Layer 2 of the §2a-cancel-time three-layer defence: when the elapsed
-    wall-clock since training start exceeds this value, the training loop
-    breaks cleanly as if STOP-FILE was touched.  Set the env var to ~85% of
-    the sbatch ``--time`` ceiling.
-    """
-    v = os.environ.get("AMBIX_SOFT_TIME_LIMIT")
-    if not v:
-        return None
-    try:
-        return float(v)
-    except ValueError:
-        warnings.warn(
-            f"AMBIX_SOFT_TIME_LIMIT={v!r} not parseable as float — ignored",
-            stacklevel=2,
-        )
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -885,7 +844,7 @@ class DecoderFinetuneTrainer:
         model.eval()
         try:
             for batch in val_loader_distributed:
-                if STOP.is_set() or _check_stop_file():
+                if STOP.is_set():
                     break
                 frames = batch.float().permute(0, 3, 1, 2).to(dev) / 255.0
                 recon = self._encode_decode(model, frames, training=False)
@@ -993,24 +952,6 @@ class DecoderFinetuneTrainer:
         rank, world_size = _init_distributed()
         is_primary = rank == 0
 
-        # Surface the STOP-FILE path so cancellation is straightforward.
-        # See AGENTS.md §2a-cancel — touch this path to stop the job cleanly.
-        stop_file = _stop_file_path()
-        if is_primary:
-            if stop_file is not None:
-                print(
-                    f"[finetune-decoder] STOP-FILE: touch {stop_file} to "
-                    "request graceful exit (no scancel needed; no drain risk)",
-                    flush=True,
-                )
-            else:
-                print(
-                    "[finetune-decoder] WARNING: AMBIX_STOP_FILE env var not "
-                    "set — graceful cancellation unavailable. The sbatch "
-                    "wrapper should export it (AGENTS.md §2a-cancel).",
-                    flush=True,
-                )
-
         torch.manual_seed(cfg.seed + rank)
 
         # ── Watchdog ───────────────────────────────────────────────────────
@@ -1096,44 +1037,7 @@ class DecoderFinetuneTrainer:
 
             model.train()  # set once; only flipped during eval
 
-            # Wall-clock start for the §2a-cancel-time soft limit (Layer 2).
-            t_train_start = time.monotonic()
-            soft_limit = _soft_time_limit_s()
-            if is_primary and soft_limit is not None:
-                print(
-                    f"[finetune-decoder] AMBIX_SOFT_TIME_LIMIT={soft_limit:.0f}s "
-                    f"— training will self-exit cleanly at this elapsed wall clock",
-                    flush=True,
-                )
-
             while step < cfg.max_steps and not STOP.is_set():
-                # STOP-FILE check: safe-cancel boundary (AGENTS.md §2a-cancel).
-                # Runs between collectives → no NCCL deadlock, no drain risk.
-                if _check_stop_file():
-                    if is_primary:
-                        print(
-                            f"[finetune-decoder] STOP-FILE detected at step "
-                            f"{step} → clean exit",
-                            flush=True,
-                        )
-                    STOP.set()
-                    break
-
-                # Soft wall-clock check (§2a-cancel-time Layer 2): same
-                # clean-exit path as STOP-FILE, fires before SLURM SIGTERM.
-                if soft_limit is not None:
-                    elapsed = time.monotonic() - t_train_start
-                    if elapsed > soft_limit:
-                        if is_primary:
-                            print(
-                                f"[finetune-decoder] AMBIX_SOFT_TIME_LIMIT "
-                                f"({soft_limit:.0f}s) exceeded at elapsed "
-                                f"{elapsed:.0f}s, step {step} → clean exit",
-                                flush=True,
-                            )
-                        STOP.set()
-                        break
-
                 budget = _step_timeout()
                 with _wd_lock:
                     _wd_budget["s"] = budget

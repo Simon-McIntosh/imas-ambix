@@ -33,21 +33,23 @@ MAGVIT2_ROOT=/work/projects/imas_gpu/mast-tokens/v1/open-magvit2
 
 # CWD MUST be the magvit2 root. VQModel.__init__ builds the LPIPS loss, which
 # loads vgg.pth via a CWD-RELATIVE path. betelgeuse has NO outbound network, so
-# a wrong CWD makes the vendored loader try to DOWNLOAD the weights and hang in
-# unkillable I/O — and a scancel of that hang DRAINS the node ("Kill task
-# failed", node-drain 2026-05-27 #3, RCA docs/rca-node-drain-2026-05-27b.html).
+# a wrong CWD makes the vendored loader try to DOWNLOAD the weights and stall
+# the job until its time limit (incident 2026-05-27, job 1208591).
 cd "$MAGVIT2_ROOT"
+
+# Drain-forensics sidecar (docs/rca-node-drain-final-2026-06-03.html §5).
+bash "${REPO}/scripts/slurm/drain_sidecar.sh" &
 
 export TMPDIR=/tmp
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONUNBUFFERED=1
 export PYTHONPATH="$REPO:$PYTHONPATH"
-# Force offline: any stray HF/torch-hub fetch fails fast instead of hanging on
-# a doomed (no-network) download that can wedge and drain the node.
+# Force offline: any stray HF/torch-hub fetch fails fast instead of stalling
+# the job on a doomed (no-network) download.
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 
 # Preflight: the LPIPS weights MUST be on disk at the CWD-relative path the
 # vendored loader uses. Fail FAST (clear error, clean exit) rather than letting
-# a download attempt hang — converting a node-drain risk into a 1-line error.
+# a download attempt hang — converting a wasted allocation into a 1-line error.
 LPIPS_REL="src/Open_MAGVIT2/modules/autoencoder/lpips/vgg.pth"
 if [ ! -f "$MAGVIT2_ROOT/$LPIPS_REL" ]; then
     echo "FATAL: LPIPS weights missing at $MAGVIT2_ROOT/$LPIPS_REL" >&2
@@ -65,7 +67,7 @@ BATCH_FRAMES="${BATCH_FRAMES:-256}"
 NUM_WORKERS="${NUM_WORKERS:-6}"
 # Per-shot watchdog ceiling. 0=auto (max(60, 8x median)) false-fired on a large
 # shot; a fixed 300s never false-fires (no shot is ~37k frames at ~124 fps) yet
-# still bounds a genuine wedge so the job exits cleanly (no node drain).
+# still bounds a genuine wedge so the job exits cleanly instead of stalling.
 BATCH_TIMEOUT_S="${BATCH_TIMEOUT_S:-300}"
 # Frames per model.encode() forward. Defines the tokenization (the VQ forward
 # is not batch-size invariant) AND drives GPU saturation. Tuned via util tests.

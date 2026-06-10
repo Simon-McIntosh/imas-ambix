@@ -27,6 +27,9 @@ export OMP_NUM_THREADS=1
 REPO_ROOT="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${REPO_ROOT}"
 mkdir -p "/work/projects/imas_gpu/logs"
+
+# Drain-forensics sidecar (docs/rca-node-drain-final-2026-06-03.html §5).
+bash "${REPO_ROOT}/scripts/slurm/drain_sidecar.sh" &
 VENV="${REPO_ROOT}/.venv"
 if [[ -f "${VENV}/bin/activate" ]]; then
     # shellcheck source=/dev/null

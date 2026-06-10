@@ -58,7 +58,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -730,7 +729,7 @@ def train_engine(
         contiguous 1 kHz run (the sequence builder guarantees this).
     cfg : EngineConfig.
     stop_flag : optional callable returning True to request a clean early exit
-        (STOP-FILE / soft-time-limit contract, AGENTS.md §2a-cancel).
+        at the next epoch boundary.
     grounding_ctx : optional ``gs.grounding.GroundingContext`` (S8-T6).  When
         supplied AND ``cfg.grounding``, the joint loss adds the per-campaign GS
         grounding terms (L_data raw-magnetics reconstruction NLL through the T2
@@ -817,7 +816,7 @@ def train_engine(
     for epoch in range(cfg.n_epochs):
         if stop_flag is not None and stop_flag():
             logger.info(
-                "[engine] STOP-FILE / soft-limit → clean exit at epoch %d", epoch
+                "[engine] stop requested → clean exit at epoch %d", epoch
             )
             break
         perm = np_rng.permutation(n)
@@ -1725,7 +1724,6 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     x_train_n = [stats.normalise_X(r.X.astype(np.float64)) for r in train_runs]
     y_train_n = [stats.normalise_y(r.y.astype(np.float64)) for r in train_runs]
     model = RKNEngine(eng_cfg)
-    stop = _make_stop_flag()
     # --- S8-T6: build the GS grounding context (per-campaign operators +
     # whitening + per-window signature) when grounding is on. ---------------
     grounding_ctx = None
@@ -1767,7 +1765,6 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         y_train_n,
         eng_cfg,
         device=cfg.device,
-        stop_flag=stop,
         grounding_ctx=grounding_ctx,
     )
     # S8-T6: capture the trained model + grounding context for the grounding
@@ -1977,27 +1974,6 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
             json.dump(metrics, f, indent=2, default=float)
         logger.info("Metrics written to %s", output)
     return metrics
-
-
-def _make_stop_flag():
-    """STOP-FILE + soft-time-limit poll (AGENTS.md §2a-cancel / §2a-cancel-time)."""
-    stop_path = os.environ.get("AMBIX_STOP_FILE")
-    soft_limit = os.environ.get("AMBIX_SOFT_TIME_LIMIT")
-    t0 = time.monotonic()
-    soft = float(soft_limit) if soft_limit else None
-    if stop_path:
-        logger.info("[engine] STOP-FILE = %s", stop_path)
-    if soft:
-        logger.info("[engine] AMBIX_SOFT_TIME_LIMIT = %.0fs", soft)
-
-    def _flag() -> bool:
-        if stop_path and Path(stop_path).exists():
-            return True
-        if soft is not None and (time.monotonic() - t0) > soft:
-            return True
-        return False
-
-    return _flag
 
 
 def _per_horizon_q(
