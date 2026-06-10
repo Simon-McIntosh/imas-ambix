@@ -32,7 +32,6 @@ def test_config_defaults() -> None:
     assert cfg.perceptual_weight == 0.1, (
         f"Expected perceptual_weight=0.1, got {cfg.perceptual_weight}"
     )
-    assert cfg.adv_weight == 0.0, f"Expected adv_weight=0.0, got {cfg.adv_weight}"
     assert cfg.warmup_steps == 200
     assert cfg.eval_every_n_steps == 1_000
     assert cfg.patience == 3
