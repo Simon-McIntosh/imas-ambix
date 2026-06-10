@@ -7,7 +7,7 @@
   <meta name="reckon-type"    content="plan">
   <meta name="plan-slug"      content="camera-dynamics-wm-v0">
   <meta name="plan-title"     content="Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View">
-  <meta name="plan-summary"   content="Train a latent-dynamics world model on the existing 9,527-shot / 4.02B-token rbb camera corpus: observe a spatially clipped sub-view of the full-machine camera, reconstruct the full time-dependent stream. The win is dynamics-backed — the temporal model must beat a per-frame spatial-inpainting baseline, and its latent must read out held-out diagnostics. The fast-return consumer of the idle 4×H200 reservation.">
+  <meta name="plan-summary"   content="Train an action-conditioned latent-dynamics world model on the existing 9,527-shot / 4.02B-token rbb camera corpus: observe a spatially clipped sub-view (randomized in position and size, including panning and full-mask modes) of the full-machine camera plus the actuator vector (coil currents, NBI, gas-puff flows), reconstruct the full time-dependent stream. The win is dynamics-backed — the temporal model must beat a per-frame spatial-inpainting baseline, its latent must read out held-out diagnostics, and the gas-puff emission spot must track the measured puff command. The fast-return consumer of the idle 4×H200 reservation; transferability claims scoped honestly in §8.">
   <meta name="plan-status"    content="active">
   <meta name="plan-roi"       content="high">
   <meta name="plan-effort"    content="L">
@@ -105,10 +105,18 @@
       <li><strong>Raw frames:</strong> <code>/work/projects/imas_gpu/mast/level1/shots/&lt;shot&gt;.zarr/rbb</code>
         — (T, 112, 156) uint8 at 100–400 Hz with per-frame <code>time</code>, for qualitative decodes
         and the figure pipeline. 17,111 level-1 shots total.</li>
-      <li><strong>Conditioning scalars (raw, leakage-clean):</strong> plasma current <code>amc/plasma_current</code>,
-        line-integrated density <code>ane/density</code>; optionally Dα <code>ada</code> (decision
-        <code>conditioning-set</code>). EFIT (<code>efm</code>/<code>esm</code>) stays banned as
-        input everywhere, per standing project rules.</li>
+      <li><strong>Actuator &amp; ancillary conditioning signals (raw, leakage-clean, all verified on
+        shot 24065):</strong> the full coil-current set <code>amc</code> (P2–P6 upper/lower coil +
+        feed + case currents, <code>sol_current</code>, <code>tf_current</code>, <code>efps_current</code>
+        — ~40 channels; supply <em>voltages</em> are not exposed in the level-1 vocabulary, currents
+        are the actuator state we have), NBI heating <code>anb</code> (SS + SW beam powers),
+        gas fuelling <code>aga</code> (inboard upper/lower/total + outboard puff flows at high rate
+        — the inboard puff is what lights the bright emission spot left of the centre column in the
+        §1/§2 figures), plasma current <code>amc/plasma_current</code>, line-integrated density
+        <code>ane/density</code>; optionally Dα <code>ada</code>. Decision
+        <code>conditioning-set</code>. EFIT (<code>efm</code>/<code>esm</code>) stays banned as
+        input everywhere; <code>xdc</code> shape signals are excluded too (they embed the real-time
+        reconstruction — same ban class).</li>
       <li><strong>Probe targets (§2 W3, never inputs):</strong> <code>ada</code>, <code>ane</code>,
         <code>ayc</code> Te_core, <code>ama</code> mode amplitude; <code>ams</code> MSE pitch via the
         locked D1 harness (<code>statespace/mse_eval.py</code>, eval-truth only).</li>
@@ -174,13 +182,49 @@
       the identical network with temporal attention disabled, so W1 isolates exactly the value of
       dynamics. The latent dynamics core is where all §5-D4 probes attach.</figcaption>
     </figure>
+    <h3 id="s4a">§4a — Masking curriculum: the clip moves in position AND size</h3>
     <p>
-      Masking design: training uses random spatial clip windows (position + size jittered per
-      sample) plus a temporal-frontier mode (clip visible up to t, everything masked after t) so a
-      single model serves both W1 and W2. Evaluation uses a frozen clip geometry (the §2 figure
-      window) for comparability. The 2<sup>18</sup> LFQ vocab is predicted with a factorized
-      bit-head (18 binary logits or 2×9-bit factorization) rather than a 262k softmax — decision
-      <code>vocab-head</code>.
+      The clip is randomized per training sample along every axis that changes what the model must
+      infer, so one model learns the whole family of partial-view problems:
+    </p>
+    <ul>
+      <li><strong>Position:</strong> window centre uniform over the frame — the model cannot
+        memorize "the centre column is always visible"; sometimes it sees only a divertor leg,
+        sometimes only outboard midplane.</li>
+      <li><strong>Size:</strong> visible-area fraction sampled over ~[5%, 50%] (log-uniform), with
+        aspect jitter. Small clips force inference; large clips anchor learning early
+        (curriculum anneals from large to the full range).</li>
+      <li><strong>Moving clip (panning):</strong> the window drifts slowly across the frame during
+        the sequence — a panning sub-view. This mode uniquely rewards a temporal latent: the model
+        must fuse regions seen at <em>different times</em> into one coherent machine state. A
+        per-frame inpainter gains nothing from the pan.</li>
+      <li><strong>Temporal frontier:</strong> clip visible only up to time t; everything after t
+        masked (the W2 forecasting mode).</li>
+      <li><strong>Full mask:</strong> no camera input at all — reconstruct the stream from the
+        actuator/scalar conditioning alone (hardest mode; doubles as a generative sanity check and
+        measures how much of the camera is actuator-determined).</li>
+    </ul>
+    <p>
+      Evaluation freezes a small suite of named geometries — the §2 fixed window, a small
+      divertor-only window, a centre-column strip, one standard pan, and the frontier mode — so
+      every arm and ablation is scored on identical tasks.
+    </p>
+    <h3 id="s4b">§4b — Action conditioning: a controlled world model</h3>
+    <p>
+      With the actuator vector (coil currents, NBI power, gas-puff flows, Ip, density) as
+      conditioning, W2 becomes the standard world-model rollout: <em>predict the future camera
+      stream given past observations and the future actuator commands</em>. That is the form that
+      matters for control and for what-if reasoning, and it gives the dynamics arm information a
+      spatial inpainter cannot use even in principle. It also yields a directly falsifiable
+      physics check: the inboard gas-puff flow (<code>aga/inboard_*</code>) is the known cause of
+      the bright emission spot left of the centre column — D3 tests whether the model lights that
+      spot when (and only when) the puff command fires, including on held-out shots where the
+      puffed region is masked. Actuator channels are resampled/held to the camera frame times with
+      their native Δt recorded.
+    </p>
+    <p>
+      The 2<sup>18</sup> LFQ vocab is predicted with a factorized bit-head (18 binary logits or
+      2×9-bit factorization) rather than a 262k softmax — decision <code>vocab-head</code>.
     </p>
 
     <h2 id="s5">§5 — Deliverables</h2>
@@ -199,16 +243,22 @@
       parameters and matched token budget.
       <em>Done when:</em> W1 verdict with bootstrap CI; W2 horizon table (h = 10/50/200 ms);
       training obeys §6 safety contract.</p>
-    <p><strong>D3 — conditioning ablation.</strong> ± scalar conditioning (Ip, ∫ne dl).
-      <em>Done when:</em> same metrics ± conditioning; verdict on whether control-room scalars
-      help the camera dynamics.</p>
+    <p><strong>D3 — actuator-conditioning ablation + gas-puff attribution.</strong> Arms: no
+      conditioning / minimal scalars (Ip, ∫ne dl) / full actuator vector (coil currents, NBI
+      powers, gas-puff flows). Plus the §4b falsification probe: reconstruct held-out shots with
+      the inboard region masked and test whether the predicted emission spot tracks the measured
+      <code>aga/inboard_*</code> puff command (timing correlation + counterfactual zeroed-puff
+      rollout). <em>Done when:</em> metric table across conditioning arms; puff-attribution
+      verdict with figures.</p>
     <p><strong>D4 — physics probes.</strong> Frozen-backbone probes from both arms' latents to
       held-out diagnostics (W3), plus the stretch sightline-pitch probe on the locked D1 MSE
       harness. <em>Done when:</em> W3 table (temporal vs per-frame representation); pitch-probe
       number on the identical S9 oracle metric with honest framing.</p>
     <p><strong>D5 — verdict + demo + collapse.</strong> Full-stream decoded reconstructions for a
-      handful of held-out shots (frozen decoder) as the qualitative byproduct; plan updated with
-      results-on-top summary; followups written.
+      handful of held-out shots (frozen decoder) as the qualitative byproduct; the partial→full
+      inferability curve (W1/W2 vs clip fraction — the §8 exportable result); plan updated with
+      results-on-top summary; followups written, including the gated §8 cross-camera (rbb→rba)
+      transfer stretch and the gated §9 pretrained-arm bench.
       <em>Done when:</em> plan collapsed per reckon-ship §5b with W1–W3 verdicts stated.</p>
 
     <h2 id="s6">§6 — Compute plan and GPU safety (binding)</h2>
@@ -247,6 +297,67 @@
         latent and its probes.</li>
     </ul>
 
+    <h2 id="s8">§8 — Transferability: what carries to other devices, honestly</h2>
+    <p>
+      <strong>What does NOT transfer:</strong> the trained weights' pixel/token mapping. The model
+      learns this camera's pose, this vessel's geometry, MAST's emission patterns — pointing the
+      checkpoint at another machine's camera is not a meaningful operation. Anyone claiming
+      otherwise for a single-machine, single-view training set is overselling.
+    </p>
+    <p><strong>What DOES transfer — and why this is not a toy:</strong></p>
+    <ul>
+      <li><strong>The capability finding.</strong> The decision-relevant question this answers is
+        <em>how much machine-wide plasma state is inferable from a partial view, and how much of
+        the remainder is fixed by the actuator commands</em>. ITER and most reactor-class devices
+        will have viewport-starved, partially-occluded imaging; MAST's full-machine view is the
+        rare dataset where the full-view ground truth exists, so the partial→full inferability
+        curve (W1/W2 vs clip fraction, §4a) can actually be measured. That curve — not the
+        weights — is the exportable result.</li>
+      <li><strong>The recipe.</strong> Tokenize → masked spatio-temporal dynamics training →
+        matched-arm dynamics-vs-statics attribution → action conditioning → frozen-probe physics
+        readout. Machine-agnostic end to end; the tokenizer is already an imagenet-pretrained,
+        non-MAST model.</li>
+      <li><strong>The dynamics core as initialization.</strong> The temporal latent learns plasma
+        phenomenology (ELM bursts, filament motion, puff responses, strike-point evolution) that
+        is physics, not geometry. The cheap test of how much, without leaving our data:
+        <strong>cross-camera transfer inside MAST</strong> — adapt the rbb-trained model to the
+        <code>rba</code> camera (different view, same plasma; present in the corpus) with a small
+        adapter and limited shots, against a from-scratch control at matched budget. Queued as a
+        D5 stretch; a MAST→MAST-U fine-tune is the natural follow-on if MAST-U camera data is
+        mirrored later.</li>
+      <li><strong>Invariant-coordinates hook.</strong> The strategy's open
+        <code>extrapolation-coordinates</code> decision applies here too: actuator conditioning is
+        expressed in normalized/physical units (A, MW, mbar·l/s, not raw DAC counts) so a future
+        cross-device latent has a chance of sharing coordinates. Designed in now, exercised
+        later.</li>
+    </ul>
+
+    <h2 id="s9">§9 — Pretrained models vs from scratch</h2>
+    <p>
+      Considered and decided as <code>model-provenance</code> (open, recommendation below). The
+      honest trade:
+    </p>
+    <ul>
+      <li><strong>For fine-tuning a video foundation model</strong> (NVIDIA Cosmos world models,
+        V-JEPA-2-class video encoders): far more visual prior than 4.02B tokens can teach;
+        plausibly better sample efficiency on W2.</li>
+      <li><strong>Against (for v0):</strong> (1) the matched-arm science of W1 requires full
+        architectural control — a foundation model has no honest "same network, time off"
+        baseline, so the dynamics attribution collapses; (2) our prepared asset is OMAG2 token
+        streams — pixel-space foundation models abandon the corpus and the S4 I/O work, and a
+        Cosmos-tokenizer re-encode was already explored
+        (<code>/work/projects/imas_gpu/mast-tokens/cosmos/</code> exists) without being adopted;
+        (3) S5 is the standing warning about fine-tuning pretrained vision models against
+        objectives they were not built for; (4) a 150–300M scratch transformer trains in hours on
+        the 4×H200 — sample efficiency is not the binding constraint, the idle reservation is.</li>
+      <li><strong>Resolution:</strong> v0 from scratch in token space for the controlled science;
+        a <em>pretrained-arm bench</em> (fine-tune one video foundation model on the identical
+        eval suite) is queued as a D5-gated follow-on if W1/W2 succeed — at that point the
+        question flips from "do dynamics help" to "what is the best dynamics engine", where
+        foundation models legitimately compete. Weights would be staged via a network-connected
+        node (GPU nodes have no outbound network).</li>
+    </ul>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
       <h2><span class="sec">§</span> Decisions</h2>
       <div class="r-dec" data-key="temporal-core" data-choice="" data-by="" data-when="">
@@ -268,11 +379,21 @@
         <p class="r-dec-rat"></p>
       </div>
       <div class="r-dec" data-key="conditioning-set" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which raw scalars condition the model in v0?</p>
+        <p class="r-dec-q">Which raw signals condition the model in v0?</p>
         <p class="r-dec-opts">
-          <button class="r-opt" data-value="ip-ne">Ip + ∫ne dl (recommended v0; ablated in D3)</button>
+          <button class="r-opt" data-value="actuator-vector">Full actuator vector — coil currents (amc) + NBI powers (anb) + gas-puff flows (aga) + Ip + ∫ne dl (recommended — makes it an action-conditioned world model; D3 ablates down)</button>
+          <button class="r-opt" data-value="ip-ne">Minimal scalars: Ip + ∫ne dl only</button>
           <button class="r-opt" data-value="none">None — camera only</button>
-          <button class="r-opt" data-value="ip-ne-dalpha">Ip + ∫ne dl + Dα</button>
+          <button class="r-opt" data-value="actuator-plus-dalpha">Actuator vector + Dα</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="model-provenance" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">From-scratch token model or fine-tune a video foundation model?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="scratch-token-v0">From scratch in token space for v0; pretrained-arm bench gated on W1/W2 success (recommended — §9: matched-arm science needs architectural control, and the corpus asset is token streams)</button>
+          <button class="r-opt" data-value="finetune-foundation">Fine-tune a video foundation model (Cosmos / V-JEPA-2 class) from the start</button>
+          <button class="r-opt" data-value="both-parallel">Run both arms in parallel from day one</button>
         </p>
         <p class="r-dec-rat"></p>
       </div>
@@ -315,8 +436,11 @@ State to read
 Scope locks / constraints
   - Token-space only; decoder untouched; rFID banned as a primary metric (S5 lesson).
   - Shot = independent unit; the 112 MSE held-out shots MUST land in held-out.
-  - EFIT/esm never enter as inputs or conditioning.
-  - Masking spec must support both random spatial clips and the temporal-frontier mode.
+  - EFIT/esm never enter as inputs or conditioning; xdc shape signals excluded (same ban class).
+  - Masking spec must support ALL §4a modes: random position+size clips, moving/panning clip,
+    temporal frontier, full mask. Eval = the frozen named-geometry suite.
+  - Actuator conditioning loaders included: amc coil/feed/sol/tf currents, anb beam powers,
+    aga puff flows — resampled/held to camera frame times, physical units, missingness flags.
   - CPU-only on the /work access node; uv run; no GPU in this task.
 
 Done-when
