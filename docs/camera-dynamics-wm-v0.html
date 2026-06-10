@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="camera-dynamics-wm-v0">
-  <meta name="plan-title"     content="Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View">
-  <meta name="plan-summary"   content="Train an action-conditioned latent-dynamics world model on the existing 9,527-shot / 4.02B-token rbb camera corpus: observe a spatially clipped sub-view (randomized in position and size, including panning and full-mask modes) of the full-machine camera plus the actuator vector (coil currents, NBI, gas-puff flows), reconstruct the full time-dependent stream. The win is dynamics-backed — the temporal model must beat a per-frame spatial-inpainting baseline, its latent must read out held-out diagnostics, and the gas-puff emission spot must track the measured puff command. The fast-return consumer of the idle 4×H200 reservation; transferability claims scoped honestly in §8.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="camera-dynamics-wm-v0">
+  <meta name="plan-title" content="Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View">
+  <meta name="plan-summary" content="Train an action-conditioned latent-dynamics world model on the existing 9,527-shot / 4.02B-token rbb camera corpus: observe a spatially clipped sub-view (randomized in position and size, including panning and full-mask modes) of the full-machine camera plus the actuator vector (coil currents, NBI, gas-puff flows), reconstruct the full time-dependent stream. The win is dynamics-backed — the temporal model must beat a per-frame spatial-inpainting baseline, its latent must read out held-out diagnostics, and the gas-puff emission spot must track the measured puff command. The fast-return consumer of the idle 4×H200 reservation; transferability claims scoped honestly in §8.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S13">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S13">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="physics-world-model-strategy,compute,data-acquisition">
   <title>Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-10">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -359,64 +361,63 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="temporal-core" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What carries the temporal state in the dynamics arm?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="factorized-st-transformer">Factorized space/time causal transformer (recommended v0 — simplest matched-arm comparison)</button>
-          <button class="r-opt" data-value="token-ssm">State-space (SSM/Mamba-style) temporal core</button>
-          <button class="r-opt" data-value="rkn-latent">Explicit probabilistic latent (RKN-style), reusing statespace engine ideas</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="vocab-head" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How are 2^18-vocab LFQ tokens predicted?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="factorized-bit-head">Factorized LFQ bit-head (18 binary logits; recommended — native to LFQ, cheap)</button>
-          <button class="r-opt" data-value="two-by-nine">2×9-bit factorized softmax</button>
-          <button class="r-opt" data-value="full-softmax">Full 262,144-way softmax</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="conditioning-set" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which raw signals condition the model in v0?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="actuator-vector">Full actuator vector — coil currents (amc) + NBI powers (anb) + gas-puff flows (aga) + Ip + ∫ne dl (recommended — makes it an action-conditioned world model; D3 ablates down)</button>
-          <button class="r-opt" data-value="ip-ne">Minimal scalars: Ip + ∫ne dl only</button>
-          <button class="r-opt" data-value="none">None — camera only</button>
-          <button class="r-opt" data-value="actuator-plus-dalpha">Actuator vector + Dα</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="model-provenance" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">From-scratch token model or fine-tune a video foundation model?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="scratch-token-v0">From scratch in token space for v0; pretrained-arm bench gated on W1/W2 success (recommended — §9: matched-arm science needs architectural control, and the corpus asset is token streams)</button>
-          <button class="r-opt" data-value="finetune-foundation">Fine-tune a video foundation model (Cosmos / V-JEPA-2 class) from the start</button>
-          <button class="r-opt" data-value="both-parallel">Run both arms in parallel from day one</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="time-grid" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How is the 100–400 Hz cadence heterogeneity handled?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="dt-conditioning">Native frames + Δt conditioning (recommended — no resampling artefacts)</button>
-          <button class="r-opt" data-value="resample-common">Resample all shots to a common grid</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="temporal-core" data-choice="factorized-st-transformer" data-by="Simon McIntosh" data-when="2026-06-10T19:22:46+00:00">
+    <p class="r-dec-q">What carries the temporal state in the dynamics arm?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="factorized-st-transformer">Factorized space/time causal transformer (recommended v0 — simplest matched-arm comparison)</button>
+      <button class="r-opt" data-value="token-ssm">State-space (SSM/Mamba-style) temporal core</button>
+      <button class="r-opt" data-value="rkn-latent">Explicit probabilistic latent (RKN-style), reusing statespace engine ideas</button>
+      </p>
+    <p class="r-dec-rat">User-locked 2026-06-10 on the v0 recommendation. Factorized space/time causal transformer gives the cleanest matched-arm W1 comparison — the per-frame baseline (D1) is the identical network with temporal attention disabled, isolating exactly the value of dynamics.</p>
+    </div>
+<div class="r-dec" data-key="vocab-head" data-choice="factorized-bit-head" data-by="Simon McIntosh" data-when="2026-06-10T19:22:46+00:00">
+    <p class="r-dec-q">How are 2^18-vocab LFQ tokens predicted?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="factorized-bit-head">Factorized LFQ bit-head (18 binary logits; recommended — native to LFQ, cheap)</button>
+      <button class="r-opt" data-value="two-by-nine">2×9-bit factorized softmax</button>
+      <button class="r-opt" data-value="full-softmax">Full 262,144-way softmax</button>
+      </p>
+    <p class="r-dec-rat">User-locked 2026-06-10 on the recommendation. 18 binary logits, native to the LFQ tokenizer and cheap; avoids the 262k-way softmax at the 16x16xT scale.</p>
+    </div>
+<div class="r-dec" data-key="conditioning-set" data-choice="actuator-vector" data-by="Simon McIntosh" data-when="2026-06-10T19:22:46+00:00">
+    <p class="r-dec-q">Which raw signals condition the model in v0?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="actuator-vector">Full actuator vector — coil currents (amc) + NBI powers (anb) + gas-puff flows (aga) + Ip + ∫ne dl (recommended — makes it an action-conditioned world model; D3 ablates down)</button>
+      <button class="r-opt" data-value="ip-ne">Minimal scalars: Ip + ∫ne dl only</button>
+      <button class="r-opt" data-value="none">None — camera only</button>
+      <button class="r-opt" data-value="actuator-plus-dalpha">Actuator vector + Dα</button>
+      </p>
+    <p class="r-dec-rat">User-locked 2026-06-10 on the recommendation. Full actuator vector (amc coil currents + anb NBI + aga gas-puff + Ip + integral-ne) makes it an action-conditioned world model and enables the D3 gas-puff falsification probe; D3 ablates down from this default arm. D0 builds the full conditioning loader set regardless.</p>
+    </div>
+<div class="r-dec" data-key="model-provenance" data-choice="scratch-token-v0" data-by="Simon McIntosh" data-when="2026-06-10T19:22:46+00:00">
+    <p class="r-dec-q">From-scratch token model or fine-tune a video foundation model?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="scratch-token-v0">From scratch in token space for v0; pretrained-arm bench gated on W1/W2 success (recommended — §9: matched-arm science needs architectural control, and the corpus asset is token streams)</button>
+      <button class="r-opt" data-value="finetune-foundation">Fine-tune a video foundation model (Cosmos / V-JEPA-2 class) from the start</button>
+      <button class="r-opt" data-value="both-parallel">Run both arms in parallel from day one</button>
+      </p>
+    <p class="r-dec-rat">User-locked 2026-06-10 on the recommendation. From-scratch token-space model for v0 preserves the matched-arm science (a foundation model has no honest time-off baseline) and reuses the OMAG2 token asset; the pretrained-arm bench is gated on W1/W2 success (D5 follow-on).</p>
+    </div>
+<div class="r-dec" data-key="time-grid" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How is the 100–400 Hz cadence heterogeneity handled?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="dt-conditioning">Native frames + Δt conditioning (recommended — no resampling artefacts)</button>
+      <button class="r-opt" data-value="resample-common">Resample all shots to a common grid</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-cdw-d0-dataset" data-status="open" data-tier="opus"
-               data-written-by="agent/opus (S13 author)" data-written-at="2026-06-10">
-        <h4 class="r-fu-title">D0 — token-stream dataset, clip-mask sampler, splits, pre-registered metrics</h4>
-        <div class="r-fu-body"><p>The CPU-only gate for everything downstream: the masked
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-cdw-d0-dataset" data-status="open" data-tier="opus" data-written-by="agent/opus (S13 author)" data-written-at="2026-06-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">D0 — token-stream dataset, clip-mask sampler, splits, pre-registered metrics</h4>
+    <div class="r-fu-body"><p>The CPU-only gate for everything downstream: the masked
           token-stream dataset over the 9,527-shot rbb corpus, the clip/frontier masking spec, the
           shot-level split manifest (112 MSE held-out shots forced into held-out), and the metric
           module that locks W1/W2/W3 before any model number exists.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    camera-dynamics-wm-v0 (http://localhost:8765/imas-ambix/camera-dynamics-wm-v0.html)
 Section: §5 D0
 Tier:    opus
@@ -447,8 +448,8 @@ Done-when
   1. Dataset + mask sampler + split manifest (committed JSON) + metric module committed,
      tests green; one batch visualised end-to-end (figure under docs/figures/camera-dynamics-wm/).
   2. A followup written for D1 (baseline arm) with the §05 template + this one resolved.</pre>
-      </article>
-    </section>
+    </article>
+</section>
 
   </main>
 </body>
