@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="camera-dynamics-wm-v0">
+  <meta name="plan-title"     content="Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View">
+  <meta name="plan-summary"   content="Train a latent-dynamics world model on the existing 9,527-shot / 4.02B-token rbb camera corpus: observe a spatially clipped sub-view of the full-machine camera, reconstruct the full time-dependent stream. The win is dynamics-backed — the temporal model must beat a per-frame spatial-inpainting baseline, and its latent must read out held-out diagnostics. The fast-return consumer of the idle 4×H200 reservation.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S13">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="physics-world-model-strategy,compute,data-acquisition">
+  <title>Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Orientation: why this, why now</h2>
+    <p>
+      The 4×H200 Group-A reservation has been idle since S12 closed (2026-06-05) with a qualified
+      negative and "no clean H200 GO". Meanwhile the project's single largest prepared asset sits
+      unused: <strong>9,527 shots of the MAST rbb wide-angle visible camera, encoded to 4.02B
+      Open-MAGVIT2 tokens</strong> (S2–S4 era, in-process <code>stream_encode.py</code> path,
+      308 fps/GPU peak). The camera is unique in this dataset — it views essentially the whole
+      machine: centre column, plasma boundary, both divertors, in one frame.
+    </p>
+    <p>
+      <strong>User directive (2026-06-10):</strong> scope fast-return, physics-backed world-model
+      builds that properly use the reservation. The first is this plan: <em>reconstruct the full
+      time-dependent camera stream from a clipped sub-view, and make the reconstruction
+      dynamics-backed</em> — the infill must flow through a learned temporal latent state, not
+      per-frame spatial pattern completion.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-rbb-sequence.png" alt="rbb full-machine view sequence" style="max-width:100%">
+      <figcaption>Held-out shot 24065: the rbb camera's full-machine view across the discharge
+      (6,886 frames, 112×156 px). Centre column, plasma boundary and divertor legs are all in
+      frame — the spatial coverage that makes the clipped-view reconstruction task meaningful.</figcaption>
+    </figure>
+    <p>
+      Two prior results discipline this plan. (1) <strong>S5's honest negative</strong>: fine-tuning
+      the 2-D decoder against rFID was a dead end, and rFID is the wrong north-star for a dynamics
+      model — so this plan trains and evaluates <em>in token space</em> with the decoder frozen
+      (baseline imagenet OMAG2), and rFID is banned as a primary metric. (2) The strategy lock
+      <code>camera-role = one-modality</code> (2026-05-29): generative video is a byproduct, never
+      the guiding goal. This plan honours that lock — masked full-stream reconstruction is the
+      <em>training objective</em>; the <em>product</em> is the dynamics-bearing latent state and
+      what it knows about the plasma (§5 D4 probes). The decoded full-stream demo is the byproduct
+      that falls out for free.
+    </p>
+
+    <h2 id="s2">§2 — Thesis and pre-registered win condition</h2>
+    <p>
+      <strong>Thesis.</strong> The full-machine camera stream is governed by a low-dimensional
+      latent plasma state evolving in time (boundary shape, emission front positions, filament/ELM
+      activity, divertor attachment). A model that carries an explicit temporal latent state can
+      therefore reconstruct what a clipped view does not see — including <em>forward in time</em>
+      — where a per-frame spatial inpainter cannot. If true, the latent is a learned reduced-order
+      dynamics extracted from raw data, and it should read out other diagnostics it never saw.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-clipped-task.png" alt="clipped-view reconstruction task" style="max-width:100%">
+      <figcaption>The task on shot 24065: the model observes only the clipped token sub-window
+      (top row, solid box) as a time stream and must emit the full-frame token stream (bottom row).
+      In token space the clip is a sub-block of the 16×16 per-frame token grid.</figcaption>
+    </figure>
+    <p><strong>Pre-registered win condition</strong> (locked before any model number, per project practice):</p>
+    <ul>
+      <li><strong>W1 — dynamics beat statics.</strong> At matched parameter count and matched
+        training tokens, the temporal model beats the per-frame spatial-inpainting baseline on
+        masked-token NLL / top-1 accuracy over the held-out shot split, with bootstrap CI clear of zero.</li>
+      <li><strong>W2 — forward-horizon reconstruction.</strong> Conditioned on the clipped stream up
+        to time t only, the temporal model reconstructs full frames at t+h (h = 10, 50, 200 ms)
+        better than (a) persistence of its own t-frame reconstruction and (b) the per-frame baseline
+        given the t-clip. This is the axis where a spatial inpainter has no mechanism at all.</li>
+      <li><strong>W3 — the latent knows physics.</strong> A frozen linear/shallow probe from the
+        temporal model's latent predicts held-out raw diagnostics (Dα <code>ada</code>, line-integrated
+        density <code>ane</code>, Thomson <code>Te_core</code>, n=2 mode amplitude <code>ama</code>)
+        better than the same probe from the per-frame baseline's representation.</li>
+      <li><strong>Stretch (honest-low prior) — interior probe.</strong> The same frozen probe scored on
+        the S9 oracle sightline-pitch metric (D1 harness, 112 held-out MSE shots). Every multimodal
+        arm so far has returned ~0.41 rad near-axis / no win over processed magnetics; expectation
+        is a clean negative, and a clean negative is a result. No win is claimed in advance.</li>
+    </ul>
+    <p>
+      Primary metrics are token-space (NLL, masked-token accuracy) plus probe RMSE/CRPS on raw
+      signals. Pixel-space L1/SSIM via the frozen decoder is reported as a secondary diagnostic
+      only. rFID appears nowhere.
+    </p>
+
+    <h2 id="s3">§3 — Data and assets (all already on disk)</h2>
+    <ul>
+      <li><strong>Token corpus:</strong> <code>/work/projects/imas_gpu/mast-tokens/v1/frames/&lt;shot&gt;/rbb.zarr</code>
+        — 9,527 shots, per-frame 16×16 int32 tokens (Open-MAGVIT2 LFQ, vocab 2<sup>18</sup> = 262,144,
+        <code>imagenet_256_L</code> checkpoint, temporal compression 1). Shot 24065: (6886, 16, 16).
+        Total ≈ 4.02B tokens.</li>
+      <li><strong>Raw frames:</strong> <code>/work/projects/imas_gpu/mast/level1/shots/&lt;shot&gt;.zarr/rbb</code>
+        — (T, 112, 156) uint8 at 100–400 Hz with per-frame <code>time</code>, for qualitative decodes
+        and the figure pipeline. 17,111 level-1 shots total.</li>
+      <li><strong>Conditioning scalars (raw, leakage-clean):</strong> plasma current <code>amc/plasma_current</code>,
+        line-integrated density <code>ane/density</code>; optionally Dα <code>ada</code> (decision
+        <code>conditioning-set</code>). EFIT (<code>efm</code>/<code>esm</code>) stays banned as
+        input everywhere, per standing project rules.</li>
+      <li><strong>Probe targets (§2 W3, never inputs):</strong> <code>ada</code>, <code>ane</code>,
+        <code>ayc</code> Te_core, <code>ama</code> mode amplitude; <code>ams</code> MSE pitch via the
+        locked D1 harness (<code>statespace/mse_eval.py</code>, eval-truth only).</li>
+      <li><strong>Splits:</strong> reuse <code>statespace/splits.py</code> shot-level machinery —
+        cross-shot train/val/held-out with the shot as the independent unit; the 112-shot MSE
+        held-out list is reused verbatim for the stretch probe so numbers are comparable to the
+        S9/S12 oracles.</li>
+      <li><strong>Infra:</strong> <code>compute</code> plan SLURM wrappers (exclusive-pause),
+        in-process patterns from <code>stream_encode.py</code>/<code>stream_worker.py</code>,
+        torch DataLoader loaders in <code>data/loaders.py</code> (<code>ShotTokenDataset</code>).</li>
+    </ul>
+
+    <h2 id="s4">§4 — Architecture</h2>
+    <figure>
+      <svg viewBox="0 0 980 300" style="max-width:100%;background:#ffffff" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          .bx { fill:#ffffff; stroke:#444444; stroke-width:1; }
+          .bxa { fill:#f2f7ff; stroke:#2a6fb3; stroke-width:1.2; }
+          .bxg { fill:#f4faf4; stroke:#3a7d44; stroke-width:1.2; }
+          .t  { font:13px system-ui; fill:#1a1a1a; }
+          .ts { font:11.5px system-ui; fill:#444444; }
+          .th { font:bold 13px system-ui; fill:#1a1a1a; }
+          .ar { stroke:#444444; stroke-width:1.1; fill:none; marker-end:url(#m); }
+        </style>
+        <defs><marker id="m" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#444444"/></marker></defs>
+        <rect class="bx" x="15" y="40" width="170" height="78" rx="4"/>
+        <text class="th" x="28" y="62">clipped token stream</text>
+        <text class="ts" x="28" y="80">sub-block of 16×16 grid,</text>
+        <text class="ts" x="28" y="96">causal in time</text>
+        <rect class="bx" x="15" y="170" width="170" height="62" rx="4"/>
+        <text class="th" x="28" y="192">scalar conditioning</text>
+        <text class="ts" x="28" y="210">Ip, ∫ne dl (raw only)</text>
+        <rect class="bxa" x="250" y="60" width="200" height="150" rx="4"/>
+        <text class="th" x="265" y="86">spatio-temporal encoder</text>
+        <text class="ts" x="265" y="106">factorized space/time</text>
+        <text class="ts" x="265" y="122">attention, causal time mask</text>
+        <text class="ts" x="265" y="146">(baseline arm: same blocks,</text>
+        <text class="ts" x="265" y="162">time attention OFF —</text>
+        <text class="ts" x="265" y="178">per-frame inpainting)</text>
+        <rect class="bxg" x="515" y="60" width="180" height="150" rx="4"/>
+        <text class="th" x="530" y="86">latent dynamics core</text>
+        <text class="ts" x="530" y="106">z_t — the world-model</text>
+        <text class="ts" x="530" y="122">state; rolls forward for</text>
+        <text class="ts" x="530" y="138">horizon-h reconstruction</text>
+        <text class="ts" x="530" y="162">probes read out here →</text>
+        <text class="ts" x="530" y="178">Dα, ne, Te, mode amp, pitch</text>
+        <rect class="bx" x="760" y="40" width="205" height="84" rx="4"/>
+        <text class="th" x="775" y="64">masked-token head</text>
+        <text class="ts" x="775" y="82">full-frame token logits</text>
+        <text class="ts" x="775" y="98">(factorized LFQ bit-head)</text>
+        <rect class="bx" x="760" y="160" width="205" height="74" rx="4"/>
+        <text class="th" x="775" y="184">frozen OMAG2 decoder</text>
+        <text class="ts" x="775" y="202">qualitative full-stream</text>
+        <text class="ts" x="775" y="218">decode only — never tuned</text>
+        <path class="ar" d="M185 79 L250 110"/>
+        <path class="ar" d="M185 201 L250 170"/>
+        <path class="ar" d="M450 135 L515 135"/>
+        <path class="ar" d="M695 110 L760 90"/>
+        <path class="ar" d="M695 165 L760 190"/>
+      </svg>
+      <figcaption>v0 architecture. One model family, two arms: the per-frame inpainting baseline is
+      the identical network with temporal attention disabled, so W1 isolates exactly the value of
+      dynamics. The latent dynamics core is where all §5-D4 probes attach.</figcaption>
+    </figure>
+    <p>
+      Masking design: training uses random spatial clip windows (position + size jittered per
+      sample) plus a temporal-frontier mode (clip visible up to t, everything masked after t) so a
+      single model serves both W1 and W2. Evaluation uses a frozen clip geometry (the §2 figure
+      window) for comparability. The 2<sup>18</sup> LFQ vocab is predicted with a factorized
+      bit-head (18 binary logits or 2×9-bit factorization) rather than a 262k softmax — decision
+      <code>vocab-head</code>.
+    </p>
+
+    <h2 id="s5">§5 — Deliverables</h2>
+    <p><strong>D0 — dataset, masking spec, splits, metrics (CPU, no GPU).</strong>
+      Token-stream dataset over the 9,527-shot corpus reusing <code>ShotTokenDataset</code>;
+      clip-mask sampler (random window + temporal frontier); shot-level train/val/held-out split
+      manifest committed (the 112 MSE shots forced into held-out); pre-registered metric module
+      (masked-token NLL/accuracy, horizon-h reconstruction, probe protocol).
+      <em>Done when:</em> split manifest + metric module committed with tests green; one batch
+      visualised end-to-end.</p>
+    <p><strong>D1 — per-frame inpainting baseline (1 GPU).</strong> The architecture with time
+      attention off, trained on the same masked objective.
+      <em>Done when:</em> baseline trained to convergence on the training split; masked-token
+      NLL/accuracy on val + held-out logged as the W1 bar.</p>
+    <p><strong>D2 — dynamics arm (4×H200, FSDP/DDP).</strong> Full spatio-temporal model at matched
+      parameters and matched token budget.
+      <em>Done when:</em> W1 verdict with bootstrap CI; W2 horizon table (h = 10/50/200 ms);
+      training obeys §6 safety contract.</p>
+    <p><strong>D3 — conditioning ablation.</strong> ± scalar conditioning (Ip, ∫ne dl).
+      <em>Done when:</em> same metrics ± conditioning; verdict on whether control-room scalars
+      help the camera dynamics.</p>
+    <p><strong>D4 — physics probes.</strong> Frozen-backbone probes from both arms' latents to
+      held-out diagnostics (W3), plus the stretch sightline-pitch probe on the locked D1 MSE
+      harness. <em>Done when:</em> W3 table (temporal vs per-frame representation); pitch-probe
+      number on the identical S9 oracle metric with honest framing.</p>
+    <p><strong>D5 — verdict + demo + collapse.</strong> Full-stream decoded reconstructions for a
+      handful of held-out shots (frozen decoder) as the qualitative byproduct; plan updated with
+      results-on-top summary; followups written.
+      <em>Done when:</em> plan collapsed per reckon-ship §5b with W1–W3 verdicts stated.</p>
+
+    <h2 id="s6">§6 — Compute plan and GPU safety (binding)</h2>
+    <p>
+      Sizing: ~150–300M-parameter transformer over 4.02B tokens ≈ 4–8 h/epoch on 4×H200 with bf16 +
+      FSDP — a 2–4 day fast-return project including ablations, not a month-long pretrain. Token
+      shards staged from GPFS to <code>/scratch_local</code> at job start. Model loaded once,
+      in-process torch DataLoader with bounded queues (AGENTS.md §2b); no subprocess-per-item, no
+      file-IPC daemons.
+    </p>
+    <p>
+      Every sbatch clones the hardened header verbatim (AGENTS.md §2a-cancel-time): STOP-FILE
+      (<code>AMBIX_STOP_FILE</code>, checked at every optimiser-step boundary),
+      <code>--signal=B:USR1@600</code> + bash trap touching the STOP-FILE,
+      <code>AMBIX_SOFT_TIME_LIMIT</code> at ~85% of the ceiling, <code>--time</code> set to 2–4×
+      expected runtime as ceiling only. SIGTERM/SIGINT handler exits clean in &lt;5 s. Never
+      <code>scancel</code>. Checkpoint every N steps so any clean stop resumes without loss.
+    </p>
+
+    <h2 id="s7">§7 — Risks and honesty</h2>
+    <ul>
+      <li><strong>Static-scene degeneracy.</strong> Much of each frame is vessel background — a
+        spatial inpainter may do well on bulk masked tokens. This is exactly why W1 is matched-arm
+        and W2 (forward horizon) exists: the dynamics claim must be earned where statics cannot
+        compete. Metrics are additionally reported on a motion-weighted token subset (tokens whose
+        identity changes within ±50 ms).</li>
+      <li><strong>S5 shadow.</strong> No decoder tuning, no rFID. Token-space + probes only.</li>
+      <li><strong>Interior-information wall.</strong> Three sprints (S8/S9/S12) say the interior
+        current is not recoverable from edge-view modalities; the stretch pitch probe is framed as
+        a clean test and its prior is low. The plan's primary value does not depend on it.</li>
+      <li><strong>Cadence heterogeneity.</strong> rbb frame rates vary 100–400 Hz across the corpus;
+        the dataset carries per-frame timestamps and the model conditions on Δt (or resamples to a
+        common grid — D0 decides and documents).</li>
+      <li><strong>Camera-role lock.</strong> Generation stays a byproduct. If the project drifts
+        toward video quality for its own sake, that is scope failure — the deliverable is the
+        latent and its probes.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="temporal-core" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What carries the temporal state in the dynamics arm?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="factorized-st-transformer">Factorized space/time causal transformer (recommended v0 — simplest matched-arm comparison)</button>
+          <button class="r-opt" data-value="token-ssm">State-space (SSM/Mamba-style) temporal core</button>
+          <button class="r-opt" data-value="rkn-latent">Explicit probabilistic latent (RKN-style), reusing statespace engine ideas</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="vocab-head" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How are 2^18-vocab LFQ tokens predicted?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="factorized-bit-head">Factorized LFQ bit-head (18 binary logits; recommended — native to LFQ, cheap)</button>
+          <button class="r-opt" data-value="two-by-nine">2×9-bit factorized softmax</button>
+          <button class="r-opt" data-value="full-softmax">Full 262,144-way softmax</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="conditioning-set" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which raw scalars condition the model in v0?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="ip-ne">Ip + ∫ne dl (recommended v0; ablated in D3)</button>
+          <button class="r-opt" data-value="none">None — camera only</button>
+          <button class="r-opt" data-value="ip-ne-dalpha">Ip + ∫ne dl + Dα</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="time-grid" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How is the 100–400 Hz cadence heterogeneity handled?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="dt-conditioning">Native frames + Δt conditioning (recommended — no resampling artefacts)</button>
+          <button class="r-opt" data-value="resample-common">Resample all shots to a common grid</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-cdw-d0-dataset" data-status="open" data-tier="opus"
+               data-written-by="agent/opus (S13 author)" data-written-at="2026-06-10">
+        <h4 class="r-fu-title">D0 — token-stream dataset, clip-mask sampler, splits, pre-registered metrics</h4>
+        <div class="r-fu-body"><p>The CPU-only gate for everything downstream: the masked
+          token-stream dataset over the 9,527-shot rbb corpus, the clip/frontier masking spec, the
+          shot-level split manifest (112 MSE held-out shots forced into held-out), and the metric
+          module that locks W1/W2/W3 before any model number exists.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    camera-dynamics-wm-v0 (http://localhost:8765/imas-ambix/camera-dynamics-wm-v0.html)
+Section: §5 D0
+Tier:    opus
+
+Context
+  S13 kickoff. The 4.02B-token rbb corpus (9,527 shots) is on disk and unused; this task
+  builds the dataset/masking/split/metric substrate that gates the H200 arms (D1/D2).
+  Honour the Locked decisions and surface the Open decisions shown live above this brief.
+
+State to read
+  imas_ambix/data/loaders.py        (ShotTokenDataset, WindowSamplerConfig)
+  imas_ambix/data/paths.py          (TOKEN_ROOT)
+  imas_ambix/statespace/splits.py   (shot-level split machinery)
+  imas_ambix/statespace/mse_split.py + artifacts/mse_split_v0.json (the 112 held-out shots)
+  /work/projects/imas_gpu/mast-tokens/v1/frames/24065/rbb.zarr (token format reference)
+
+Scope locks / constraints
+  - Token-space only; decoder untouched; rFID banned as a primary metric (S5 lesson).
+  - Shot = independent unit; the 112 MSE held-out shots MUST land in held-out.
+  - EFIT/esm never enter as inputs or conditioning.
+  - Masking spec must support both random spatial clips and the temporal-frontier mode.
+  - CPU-only on the /work access node; uv run; no GPU in this task.
+
+Done-when
+  1. Dataset + mask sampler + split manifest (committed JSON) + metric module committed,
+     tests green; one batch visualised end-to-end (figure under docs/figures/camera-dynamics-wm/).
+  2. A followup written for D1 (baseline arm) with the §05 template + this one resolved.</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>

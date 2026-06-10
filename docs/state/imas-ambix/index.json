@@ -1,9 +1,9 @@
 {
-  "updated": "2026-06-05T15:12:00",
+  "updated": "2026-06-10T16:27:04",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
-    "active_sprint_id": "S11",
+    "active_sprint_id": "S13",
     "projects": [
       {
         "project": "imas-ambix",
@@ -320,6 +320,30 @@
         "ends": "2026-06-18",
         "description": "Closed 2026-06-05 with a QUALIFIED_NEGATIVE. D0\u2013D3-phase completed across the fast/exotic panel after correcting the core rate and availability facts: xma is 5 kHz (not 660 kHz), xsx is 100\u2013500 kHz, held-out readability is xma 91%, xsx 78%, aoe 19%, act 95%. The decisive D3 phase-preserving oracle (commit ceb01ed; artifact oracle_probe_phase_v0.json) kept processed magnetics in front: A_mag 0.1879 rad, E_mag_sxr_phase 0.1889 with CI crossing 0, E_mag_mirnov_phase 0.1923, combined phase arm 0.1938. Bolometer remained the only real carrier and stayed off-interior (carrier_reaches_interior_reliable=false), so there is no clean H200 GO and no reason to spend the reservation on Arm B.",
         "summary": "Closed 2026-06-05 with a QUALIFIED_NEGATIVE. Phase-preserving SXR/Mirnov features did not beat A_mag (0.1879 vs 0.1889/0.1923/0.1938); bolometer stayed off-interior, so S12 ends with no clean H200 GO."
+      },
+      {
+        "id": "S13",
+        "status": "active",
+        "theme": "World-model H200 builds \u2014 camera-dynamics reconstruction + learned physics closures",
+        "items": [
+          {
+            "slug": "camera-dynamics-wm-v0",
+            "why_now": "User directive 2026-06-10: the 4xH200 reservation is idle while the 9,527-shot / 4.02B-token rbb camera corpus sits unused. The clipped-view -> full-stream reconstruction task is the fast-return dynamics-backed world-model build, with matched-arm (temporal vs per-frame) design so the dynamics claim is earned, and physics probes from the latent. Honours the S5 lesson (token-space metrics, frozen decoder, no rFID north-star) and the camera-role lock (generation is a byproduct; the latent is the product).",
+            "tier": "opus",
+            "done_when": "W1 dynamics-beat-statics (matched-arm masked-token NLL, CI clear of zero); W2 forward-horizon reconstruction table (h=10/50/200 ms); W3 frozen-probe lift on held-out raw diagnostics; stretch pitch probe on the locked D1 MSE harness reported honestly; full-stream decoded demo as byproduct.",
+            "status": "active"
+          },
+          {
+            "slug": "learned-closure-current-diffusion-v0",
+            "why_now": "The S9 D2 mechanism finding says internal-current recovery is carried by the psi-diffusion forward + sigma(Te) closure, not by assimilation, and the oracle refuted direct obs->state regression. The remaining principled ML lever is learning the closures (eta>0-constrained Sauter correction, bounded Zeff_eff) INSIDE a differentiable solver, MSE-free, amortized across 5,672 shots on 4xH200 \u2014 the q-without-MSE path that goes through the physics, and the home of the open neural-KF Class-2 prototype followup.",
+            "tier": "opus",
+            "done_when": "Differentiable psi-diffusion core gradcheck-green + TORAX-validated (>=3 shots); constrained closure modules with Sauter-only ablation; MSE-free amortized training converged on 4xH200 (hardened sbatch); scored on the locked D1 harness vs the frozen sequential-EKF v1 bar (W1 RMSE + cov90 [0.88,0.92] + CRPS/NLL, bootstrap CIs); near-axis clean test (no overclaim); W4 closure-extraction maps published win or lose.",
+            "status": "active"
+          }
+        ],
+        "starts": "2026-06-10",
+        "ends": "2026-06-24",
+        "description": "Two physics-backed world-model builds that put the idle 4xH200 reservation to work, scoped per user directive 2026-06-10. Both are extraction-of-structure-from-raw-data projects: (A) camera-dynamics-wm-v0 learns reduced-order dynamics from the full-machine rbb camera via clipped-view full-stream reconstruction over the existing 4.02B-token corpus; (B) learned-closure-current-diffusion-v0 folds hard physics priors (positive resistivity, resistive diffusion timescale, Ip boundary condition) into multi-modal data by learning the closures inside a differentiable current-diffusion filter \u2014 the q-without-MSE path. Sequencing: B's D4 scoring waits on the S10 v1 bar freezing; everything else proceeds now. GPU safety: AGENTS.md 2a/2a-cancel/2a-cancel-time binding on every job."
       }
     ],
     "blockers": [
@@ -386,8 +410,21 @@
         "when": "2026-06-05 15:10",
         "who": "agent/gpt-5.4 (orchestrator)",
         "what": "S12 closed (QUALIFIED_NEGATIVE). D3 phase-preserving oracle landed (commit ceb01ed; artifact oracle_probe_phase_v0.json): A_mag 0.1879 rad; E_mag_sxr_phase 0.1889 with CI crossing 0; E_mag_mirnov_phase 0.1923; combined phase arm 0.1938. Bolometer remained the only carrier and stayed off-interior (carrier_reaches_interior_reliable=false), so there is no clean H200 GO."
+      },
+      {
+        "when": "2026-06-10 12:00",
+        "who": "agent/opus (S13 author)",
+        "what": "S13 opened \u2014 two physics-backed world-model H200 builds scoped per user directive: camera-dynamics-wm-v0 (clipped-view full-stream reconstruction on the 4.02B-token rbb corpus, dynamics-backed via matched-arm design) + learned-closure-current-diffusion-v0 (positivity-constrained neural closures inside a differentiable psi-diffusion filter, MSE-free, scored vs the frozen v1 bar). New milestone M4; plans authored with figure annotations from held-out shot 24065."
       }
     ],
-    "_version": 23
+    "milestones": [
+      {
+        "id": "M4",
+        "name": "World-model engines at H200 scale",
+        "status": "active",
+        "pct": 0
+      }
+    ],
+    "_version": 24
   }
 }

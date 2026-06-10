@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="learned-closure-current-diffusion-v0">
+  <meta name="plan-title"     content="Learned Closures in the Differentiable Current-Diffusion Filter — q Without MSE">
+  <meta name="plan-summary"   content="Put the ML inside the physics: parameterize the uncertain closures of the 1-D poloidal-flux-diffusion model (parallel resistivity correction, effective Zeff, bootstrap multiplier) as small positivity-constrained networks, train them MSE-free end-to-end through a differentiable solver against observable losses (magnetics via the GS operator, Ip), amortized across thousands of shots on 4×H200, and validate on held-out MSE via the locked D1 harness against the frozen sequential-EKF v1 bar.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M3">
+  <meta name="plan-sprint"    content="S13">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="sequential-current-da-v1,internal-current-diagnostics-v0,mse-free-current-recovery-v0,neural-kf-architecture-survey">
+  <title>Learned Closures in the Differentiable Current-Diffusion Filter | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Orientation: go through the physics, not around it</h2>
+    <p>
+      S9 settled how MSE-free internal-current information actually flows on MAST. The D2
+      TORAX-EnKF mechanism finding: held-out MSE pitch is recovered by the <strong>current-diffusion
+      forward model + σ(Te) closure time-history</strong> — assimilating magnetics barely moves the
+      interior (analysis ≈ forecast). The supervised oracle then closed the other door: direct
+      obs→pitch regression gains nothing from time-history (0.190 ≈ 0.188) and no multimodal
+      feature set breaks the ~0.41 rad near-axis floor. S12's fast-channel sweep confirmed it
+      again. <strong>The information enters through the physics model; therefore the highest-leverage
+      ML is to improve the physics model's weakest parts — its closures — not to replace it.</strong>
+    </p>
+    <p>
+      This is the second of the two user-directed (2026-06-10) world-model builds for the idle
+      4×H200 reservation, and it is the project's core principle made concrete: <em>extract
+      reduced-order nonlinear dynamics, boundary conditions, closures and assumptions from raw
+      data; fold hard physics priors — resistivity cannot be negative, current diffuses on a slow
+      resistive timescale, force balance holds — into high-resolution multi-modal data.</em>
+      It is also the natural home for the open survey followup
+      (<code>neural-kf-architecture-survey</code> / f-nkfs-prototype-class2): the "learned components
+      inside a principled filter" class, built on the strong baseline as that survey prescribed.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/learned-closure/fig-lc-multimodal-panel.png" alt="multi-modal diagnostic stack" style="max-width:100%">
+      <figcaption>Held-out shot 24065: the raw multi-modal stack this plan consumes — Ip ramp
+      (amc), Dα (ada), line-integrated density (ane), Thomson Te(R,t) (ayc), 5 kHz Mirnov (xma) —
+      and, bottom, the MSE pitch channels (ams) that are <strong>held-out validation truth only,
+      never an input</strong>. Beam-on window ≈ 0.07–0.27 s.</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Thesis and pre-registered win condition</h2>
+    <p>
+      <strong>Thesis.</strong> The reduced 1-D poloidal-flux-diffusion model is structurally right
+      (parabolic PDE, Ip boundary drive) but its closures are assumptions: Sauter neoclassical
+      η<sub>∥</sub>(Te, ne, Zeff) with an assumed flat Zeff, an assumed bootstrap fraction, assumed
+      sources. Parameterize exactly those pieces as small neural corrections with the physics
+      hard-wired — η<sub>∥</sub> = Sauter(Te, ne) · softplus-positive learned factor g<sub>θ</sub>(ρ, features);
+      an effective Zeff(ρ, t) bounded to [1, 6]; an optional bootstrap multiplier — and train them
+      <strong>end-to-end through a differentiable solver, MSE-free</strong>, on losses the data
+      actually observes: magnetics innovation through the EFIT-free GS forward operator, total-Ip
+      consistency, and (when S10 lands it) the Thomson GS-p′ pressure observation. Amortize
+      g<sub>θ</sub> across the 5,672-shot training split — the generalization the per-shot EKF
+      cannot have, and a workload that batches perfectly onto 4×H200. Validate on held-out MSE via
+      the locked D1 harness.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/learned-closure/fig-lc-mse-truth.png" alt="MSE pitch profile and q0" style="max-width:100%">
+      <figcaption>What validation truth looks like (shot 24065): the 36-sightline MSE pitch-angle
+      profile at t = 80 ms and the gated on-axis safety factor q0(t) falling 2.5 → 1.3 over the
+      current ramp. The plan's goal is exactly this information — <strong>with the MSE system
+      switched off</strong> (the ITER-startup problem).</figcaption>
+    </figure>
+    <p><strong>Pre-registered win condition</strong> (all on the locked D1 harness, 112 held-out MSE
+      shots, shot = independent unit, bootstrap CIs; the frozen sequential-EKF v1 bar from
+      <code>sequential-current-da-v1</code> is the comparator):</p>
+    <ul>
+      <li><strong>W1 — beat the frozen v1 bar on sightline pitch RMSE</strong> with CI clear of zero,
+        at the same conformal calibration (cov90 ∈ [0.88, 0.92] via the v1 split-conformal layer,
+        which stays frozen — calibration was solved in S10 and is not re-opened here).</li>
+      <li><strong>W2 — proper scores:</strong> CRPS/NLL on beam-on slices no worse than the v1 bar;
+        transient windows reported separately.</li>
+      <li><strong>W3 — closure attribution:</strong> the learned-closure filter beats its own
+        Sauter-only ablation (identical solver, g<sub>θ</sub> ≡ 1) — otherwise the networks earned
+        nothing and the verdict says so.</li>
+      <li><strong>Near-axis (clean test, no claim).</strong> Near-axis interior RMSE is reported
+        against the ~0.41 rad wall. The oracle says that wall is information-limited from these
+        channels, so no interior win is promised; the one real interior lever remains the S10
+        GS-p′ pressure observation, which this framework composes with (D4). A clean negative is
+        a result.</li>
+      <li><strong>W4 — the extracted closure is itself a deliverable.</strong> Maps of the learned
+        η-correction and effective Zeff(ρ, t) across the corpus, compared against the Sauter
+        assumption, with a sparse (SINDy-style) summary of what the data says the closure depends
+        on. This is the "extraction of closures and assumptions from raw data" output, win or lose
+        on W1.</li>
+    </ul>
+    <figure>
+      <img src="/imas-ambix/figures/current-recovery/fig-cr-q0-overlay.png" alt="recovered q0 vs MSE truth" style="max-width:100%">
+      <figcaption>Where the classical chain already got to (S9 findings doc): q0(t) recovered by the
+      TORAX-EnKF physics baseline, overlaid on held-out MSE truth. The v0 EnKF bar was 0.225 rad
+      pitch RMSE; the S10 sequential EKF pilot reached 0.124 on a 5-shot pilot (full-manifest v1
+      bar pending). This plan's W1 is measured against that frozen v1 bar.</figcaption>
+    </figure>
+
+    <h2 id="s3">§3 — Why this is not the thing the oracle refuted</h2>
+    <p>
+      The oracle refuted <em>direct readout</em>: regressing pitch from (any) instantaneous or
+      windowed observation features. It did not — and could not — test <em>closure learning</em>,
+      because closure learning changes the forward model that the oracle's arms all lacked. Three
+      concrete differences:
+    </p>
+    <ul>
+      <li><strong>The carrier is the PDE, not the features.</strong> D2 proved the recovery skill
+        lives in the ψ-diffusion forward + σ(Te) history. The learned closure refines that exact
+        carrier; observations enter the same way they did in the winning mechanism (drive + weak
+        correction), not as a regression input.</li>
+      <li><strong>Hard priors bound the hypothesis class.</strong> Positivity of η, the parabolic
+        diffusion structure, Ip boundary condition, [1,6] Zeff bounds — the network cannot invent
+        interior structure the physics forbids; it can only re-shade assumptions the physics left
+        free. The 5–6 DOF localization lesson (S10 lock) is inherited: data corrects only what it
+        can see.</li>
+      <li><strong>Amortization is new information use.</strong> The per-shot EKF fits each shot
+        alone; g<sub>θ</sub> shares statistical strength across 5,672 shots — systematic closure
+        errors (e.g. Zeff trends with density/heating) are learnable across the corpus even where a
+        single shot under-determines them.</li>
+    </ul>
+    <p>
+      The honest ceiling: the oracle's ~0.19 rad sightline frontier was measured <em>with MSE
+      supervision</em>; an MSE-free method has no licence to beat it, and the realistic W1 target
+      is closing the gap between the v1 EKF bar and that frontier with honest calibration. That is
+      a publishable, decision-relevant result for ITER startup either way.
+    </p>
+
+    <h2 id="s4">§4 — Formulation</h2>
+    <figure>
+      <svg viewBox="0 0 980 330" style="max-width:100%;background:#ffffff" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          .bx { fill:#ffffff; stroke:#444444; stroke-width:1; }
+          .bxp { fill:#fdf6f0; stroke:#b3582a; stroke-width:1.2; }
+          .bxn { fill:#f2f7ff; stroke:#2a6fb3; stroke-width:1.2; }
+          .bxv { fill:#f4faf4; stroke:#3a7d44; stroke-width:1.2; }
+          .t  { font:13px system-ui; fill:#1a1a1a; }
+          .ts { font:11.5px system-ui; fill:#444444; }
+          .th { font:bold 13px system-ui; fill:#1a1a1a; }
+          .ar { stroke:#444444; stroke-width:1.1; fill:none; marker-end:url(#m2); }
+        </style>
+        <defs><marker id="m2" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill="#444444"/></marker></defs>
+        <rect class="bx" x="15" y="30" width="190" height="92" rx="4"/>
+        <text class="th" x="28" y="52">raw observables</text>
+        <text class="ts" x="28" y="70">Thomson Te, ne (ayc/atm)</text>
+        <text class="ts" x="28" y="86">Ip, loop drive (amc)</text>
+        <text class="ts" x="28" y="102">magnetics (amb)</text>
+        <rect class="bxn" x="15" y="180" width="190" height="100" rx="4"/>
+        <text class="th" x="28" y="202">closure networks g_θ</text>
+        <text class="ts" x="28" y="220">η∥ = Sauter · softplus(g)</text>
+        <text class="ts" x="28" y="236">Zeff_eff(ρ,t) ∈ [1,6]</text>
+        <text class="ts" x="28" y="252">bootstrap multiplier</text>
+        <text class="ts" x="28" y="268">amortized across shots</text>
+        <rect class="bxp" x="290" y="100" width="250" height="120" rx="4"/>
+        <text class="th" x="305" y="126">differentiable ψ-diffusion</text>
+        <text class="ts" x="305" y="146">∂ψ/∂t = η∥/μ0 · Δ*ψ + sources</text>
+        <text class="ts" x="305" y="162">implicit banded scheme, adjoint</text>
+        <text class="ts" x="305" y="178">grad; Ip boundary condition;</text>
+        <text class="ts" x="305" y="194">monotone-ψ guard; validated</text>
+        <text class="ts" x="305" y="210">vs TORAX q(ρ,t) + sequential_da</text>
+        <rect class="bx" x="620" y="30" width="180" height="92" rx="4"/>
+        <text class="th" x="635" y="52">MSE-free losses</text>
+        <text class="ts" x="635" y="70">GS-operator magnetics</text>
+        <text class="ts" x="635" y="86">innovation; Ip consistency;</text>
+        <text class="ts" x="635" y="102">+ GS-p′ pressure (S10)</text>
+        <rect class="bxv" x="620" y="180" width="345" height="100" rx="4"/>
+        <text class="th" x="635" y="202">validation — held-out MSE (D1 harness)</text>
+        <text class="ts" x="635" y="220">112 shots; sightline pitch RMSE + cov90 + CRPS/NLL</text>
+        <text class="ts" x="635" y="236">vs frozen sequential-EKF v1 bar; near-axis reported</text>
+        <text class="ts" x="635" y="252">as clean test vs the ~0.41 rad wall; W4 closure-</text>
+        <text class="ts" x="635" y="268">extraction maps published win or lose</text>
+        <path class="ar" d="M205 76 L290 130"/>
+        <path class="ar" d="M205 230 L290 185"/>
+        <path class="ar" d="M110 122 L110 180"/>
+        <path class="ar" d="M540 130 L620 80"/>
+        <path class="ar" d="M540 180 L620 215"/>
+        <path class="ar" d="M710 122 L710 180" stroke-dasharray="4 3"/>
+        <text class="ts" x="720" y="150">backprop / adjoint</text>
+      </svg>
+      <figcaption>The learned-closure loop. Networks live only where the physics is uncertain;
+      everything they touch passes through hard constraints (positivity, bounds, the PDE itself).
+      Training never sees MSE; MSE scores the result once, on the locked harness.</figcaption>
+    </figure>
+    <p>
+      The state and solver follow the locked S10 substrate decisions verbatim: ψ(ρ) is the filtered
+      primitive (<code>filtered-state</code> lock), the reduced banded-Jacobian implicit scheme is
+      primary with TORAX as per-shot cross-check only (<code>da-substrate</code> lock), and j, q and
+      the pitch readout derive post-hoc through the shared
+      <code>pitch_from_current_profile</code> contract so numbers are method-matched with every
+      prior bar. The training-time observation losses reuse <code>gs/operator.py</code> (the
+      validated EFIT-free Green's-function operator) and <code>robust_sensor_scale</code> for the
+      magnetics noise model.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/current-recovery/fig-cr-j-rho-t.png" alt="recovered j(rho,t)" style="max-width:100%">
+      <figcaption>The dynamic target: recovered toroidal current-density evolution j(ρ, t) from the
+      S9 classical baseline — genuinely dynamic through the ramp. The learned closure re-shades the
+      resistivity that drives exactly this diffusion.</figcaption>
+    </figure>
+
+    <h2 id="s5">§5 — Deliverables</h2>
+    <p><strong>D0 — differentiable ψ-diffusion core (CPU first).</strong> torch implementation of
+      the reduced solver (implicit banded step, adjoint/autograd gradients), numerically matched to
+      the <code>sequential_da.py</code> reduced model and validated against TORAX q(ρ, t) on ≥3
+      representative shots (incl. one stiff/high-Ip).
+      <em>Done when:</em> gradcheck green; q(ρ,t) agreement artifact committed; step cost benchmarked.</p>
+    <p><strong>D1 — closure modules + hard constraints.</strong> Sauter η<sub>∥</sub> with the
+      softplus-positive learned factor, bounded Zeff_eff(ρ,t), optional bootstrap multiplier; unit
+      tests that positivity/bounds/timescale guards cannot be violated by construction.
+      <em>Done when:</em> modules + tests committed; Sauter-only ablation path (g≡1) wired.</p>
+    <p><strong>D2 — MSE-free amortized training (4×H200).</strong> Per-shot encoder feeding
+      g<sub>θ</sub>; loss = GS-operator magnetics innovation (whitened) + Ip consistency +
+      smoothness/sparsity priors on the corrections; vmapped/batched shots, bf16, on the 5,672-shot
+      train split.
+      <em>Done when:</em> training converged with loss curves committed; checkpoint + config frozen
+      (pinned per the in-flight-jobs rule); §6 safety contract obeyed.</p>
+    <p><strong>D3 — UQ.</strong> Closure-ensemble (deep ensemble over g<sub>θ</sub>) propagated
+      through the solver; the frozen v1 split-conformal layer applied unchanged.
+      <em>Done when:</em> cov90 on held-out in [0.88, 0.92]; ensemble spread vs conformal widths reported.</p>
+    <p><strong>D4 — score + compose.</strong> W1–W3 on the D1 harness vs the frozen v1 bar with
+      bootstrap CIs; near-axis clean test; when <code>internal-current-diagnostics-v0</code> lands
+      H_pressure, re-run with the GS-p′ observation in the loss (the composition experiment).
+      <em>Done when:</em> verdict table committed; with/without-pressure delta reported if H_pressure exists.</p>
+    <p><strong>D5 — closure extraction (W4) + collapse.</strong> Corpus-level maps of learned
+      η-correction and Zeff_eff vs (ρ, t, regime), Sauter comparison, sparse-dependency summary;
+      plan collapsed with results-on-top.
+      <em>Done when:</em> figures + a short findings section in this plan; followups written.</p>
+
+    <h2 id="s6">§6 — Compute plan and GPU safety (binding)</h2>
+    <p>
+      The workload is thousands of independent 1-D PDE rollouts (state dim ~50–100, ~10³–10⁴ steps)
+      plus tiny networks — embarrassingly batchable. A vmapped implicit solver at batch 512–2048
+      shots/GPU keeps 4×H200 busy; a full training run is hours, not days, so the iteration loop
+      (D2→D4) is genuinely fast-return. CPU smoke tests precede any GPU submission.
+    </p>
+    <p>
+      Every sbatch clones the hardened header verbatim (AGENTS.md §2a, §2a-cancel,
+      §2a-cancel-time): STOP-FILE checked at every optimiser-step boundary,
+      <code>--signal=B:USR1@600</code> trap, <code>AMBIX_SOFT_TIME_LIMIT</code>, <code>--time</code>
+      as 2–4× ceiling only, SIGTERM handler with &lt;5 s clean exit, model/solver state checkpointed
+      for lossless resume. Never <code>scancel</code>. In-process single long-lived process per
+      GPU (§2b); no subprocess-per-shot.
+    </p>
+
+    <h2 id="s7">§7 — Risks and honesty</h2>
+    <ul>
+      <li><strong>Identifiability.</strong> η-correction, Zeff and sources can trade against each
+        other. Mitigations: minimal closure set first (decision <code>closure-set</code>), strong
+        smoothness/sparsity priors, the Sauter-only ablation as the attribution control (W3), and
+        the S10 localization philosophy — corrections regularized toward 1 where data is silent.</li>
+      <li><strong>Gradients through a stiff solver.</strong> Implicit scheme + adjoint, gradient
+        clipping, curriculum from short windows to full shots. D0's gradcheck is the gate.</li>
+      <li><strong>Fitting magnetics noise.</strong> Innovation whitening with the measured
+        <code>robust_sensor_scale</code> noise model; eddy-current systematics flagged from Stage-2
+        carried as a known confounder.</li>
+      <li><strong>Sequencing on S10.</strong> W1 needs the frozen v1 bar from
+        <code>sequential-current-da-v1</code> (pilot 0.124 / cov90 0.962 on 5 shots; full manifest
+        pending). D0–D2 proceed in parallel; D4 scoring waits for the bar to freeze. The near-axis
+        lever stays with the S10 pressure experiment; this plan composes with it, it does not
+        replace it.</li>
+      <li><strong>No interior overclaim.</strong> Three sprints of negatives say the ~0.41 rad
+        near-axis wall is information, not model capacity. This plan's claims live on the
+        sightline metric, calibration, and the extracted closures.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="closure-set" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which closures are learnable in v0?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="eta-zeff">η-correction + bounded Zeff_eff (recommended — minimal, attributable)</button>
+          <button class="r-opt" data-value="eta-only">η-correction only</button>
+          <button class="r-opt" data-value="eta-zeff-bootstrap">η-correction + Zeff_eff + bootstrap multiplier</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="solver-framework" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which autodiff framework hosts the differentiable solver?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="torch">torch (recommended — repo GPU stack, bf16/H200 path, torch.func.vmap; TORAX stays cross-check only per the da-substrate lock)</button>
+          <button class="r-opt" data-value="jax">JAX (TORAX-adjacent vmap/scan ergonomics; second stack to maintain)</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="amortization" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How are closure parameters fit?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="amortized-encoder">Amortized encoder across the train split (recommended — the generalization + H200 thesis)</button>
+          <button class="r-opt" data-value="per-shot-variational">Per-shot variational fit (no cross-shot sharing)</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="loss-set-v0" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which MSE-free observables form the v0 training loss?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="mag-ip">Whitened GS-operator magnetics innovation + Ip consistency (recommended v0)</button>
+          <button class="r-opt" data-value="mag-ip-pprime">+ GS-p′ Thomson pressure from the start (couples to S10 delivery risk)</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-lcc-d0-diff-solver" data-status="open" data-tier="opus"
+               data-written-by="agent/opus (S13 author)" data-written-at="2026-06-10">
+        <h4 class="r-fu-title">D0+D1 — differentiable ψ-diffusion core + constrained closure modules</h4>
+        <div class="r-fu-body"><p>The gate for the H200 phase: a torch implementation of the
+          reduced ψ-diffusion solver with adjoint gradients, numerically matched to the
+          <code>sequential_da.py</code> reduced model and TORAX-validated, plus the
+          positivity/bound-constrained closure modules with their Sauter-only ablation path.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    learned-closure-current-diffusion-v0 (http://localhost:8765/imas-ambix/learned-closure-current-diffusion-v0.html)
+Section: §5 D0 + D1
+Tier:    opus
+
+Context
+  S13 kickoff. D2 (S9) proved internal-current recovery is carried by the psi-diffusion
+  forward + sigma(Te) closure; this plan learns those closures inside a differentiable
+  solver, MSE-free. This task builds the solver core + constrained closure modules that
+  gate the 4xH200 training phase. Honour the Locked decisions and surface the Open
+  decisions shown live above this brief — and honour the S10 substrate locks on
+  sequential-current-da-v1 (psi-state, reduced-EKF-primary, localization philosophy).
+
+State to read
+  imas_ambix/statespace/sequential_da.py     (the reduced model + manifest plumbing)
+  imas_ambix/gs/operator.py + gs/residual.py (EFIT-free GS forward operator, noise scale)
+  imas_ambix/statespace/mse_eval.py          (shared pitch readout contract)
+  imas_ambix/statespace/artifacts/sequential_da_q_validation_v1.json (TORAX agreement format)
+  TORAX docs (uv dep torax) for the cross-check runs
+
+Scope locks / constraints
+  - psi(rho) is the state; j/q/pitch derive post-hoc via pitch_from_current_profile.
+  - Hard constraints by construction: eta_par = Sauter * softplus(g) > 0; Zeff_eff in [1,6];
+    monotone-psi guard. Unit tests must prove the constraints cannot be violated.
+  - Implicit banded step + adjoint (or autograd through the implicit solve); torch.autograd
+    gradcheck green on a small case is the acceptance gate.
+  - MSE (ams) never enters; EFIT never enters. CPU-first (uv run, /work access node);
+    no GPU in this task.
+  - Validate vs TORAX q(rho,t) on >=3 representative shots incl. one stiff/high-Ip shot;
+    commit the agreement artifact.
+
+Done-when
+  1. Differentiable solver + closure modules committed with gradcheck + constraint tests green.
+  2. TORAX q(rho,t) agreement artifact committed (>=3 shots).
+  3. A followup written for D2 (amortized MSE-free training on 4xH200, hardened sbatch per
+     AGENTS.md 2a/2a-cancel/2a-cancel-time) using the §05 template + this one resolved.</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
