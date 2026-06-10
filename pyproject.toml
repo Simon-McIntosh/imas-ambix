@@ -128,6 +128,10 @@ select = ["E", "F", "W", "I", "UP", "N", "B", "A", "SIM", "TCH"]
 [tool.ruff.lint.per-file-ignores]
 # Tests use uppercase N/M/D for matrix dimensions and Path is fine in test files
 "tests/**/*.py" = ["N806", "TC003"]
+# The metric module uses conventional linear-algebra naming (X, Y, R, Xb, logZ,
+# Phi) for the frozen-probe regression and the closed-form CRPS — uppercase
+# matches the math, same rationale as the test ignore above.
+"imas_ambix/camdyn/metrics.py" = ["N806", "N802"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
