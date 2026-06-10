@@ -74,6 +74,21 @@ def test_bootstrap_ci_clear_of_zero_for_positive_signal():
     assert ci["mean"] == pytest.approx(0.5, abs=0.02)
     assert ci["lo"] > 0
     assert ci["clear_of_zero"]
+    assert ci["favours_dynamics"]  # directional W1 win
+
+
+def test_bootstrap_ci_significant_regression_is_not_a_w1_win():
+    # paired diff oriented so positive favours dynamics; a strongly
+    # NEGATIVE diff means dynamics is significantly WORSE.  The CI is
+    # clear of zero (two-sided) but this is NOT a W1 win — the directional
+    # gate favours_dynamics must be False so a regression cannot be
+    # miscounted as a win.
+    rng = np.random.default_rng(7)
+    diff = rng.normal(-0.5, 0.1, size=2000)  # strongly negative
+    ci = bootstrap_ci(diff, seed=0)
+    assert ci["hi"] < 0
+    assert ci["clear_of_zero"]  # significant in some direction
+    assert not ci["favours_dynamics"]  # but dynamics did NOT win
 
 
 def test_bootstrap_ci_not_clear_for_zero_mean():
@@ -81,12 +96,14 @@ def test_bootstrap_ci_not_clear_for_zero_mean():
     diff = rng.normal(0.0, 1.0, size=2000)
     ci = bootstrap_ci(diff, seed=0)
     assert not ci["clear_of_zero"]
+    assert not ci["favours_dynamics"]
     assert ci["lo"] < 0 < ci["hi"]
 
 
 def test_bootstrap_ci_empty_input():
     ci = bootstrap_ci(np.array([]))
     assert not ci["clear_of_zero"]
+    assert not ci["favours_dynamics"]
 
 
 # --------------------------------------------------------------------------

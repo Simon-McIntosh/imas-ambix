@@ -174,10 +174,17 @@ def bootstrap_ci(
     the caller aggregates per-shot first), ``paired_diff`` is
     ``metric_baseline - metric_dynamics`` (for NLL, positive = dynamics
     better) or ``acc_dynamics - acc_baseline`` (positive = dynamics
-    better).  The win requires the ``(1-alpha)`` CI to be **clear of
-    zero** (lower bound > 0).
+    better) — i.e. the diff is ALWAYS oriented so positive favours the
+    dynamics arm.
 
-    Returns ``{mean, lo, hi, alpha, clear_of_zero}``.
+    **The W1 win gate is** ``favours_dynamics`` (the ``(1-alpha)`` CI
+    lower bound > 0): the dynamics arm is significantly better.
+    ``clear_of_zero`` is the weaker two-sided flag (CI excludes 0 in
+    *either* direction) — a significant REGRESSION (dynamics worse) is
+    ``clear_of_zero=True`` but ``favours_dynamics=False``.  Do not use
+    ``clear_of_zero`` as the win verdict.
+
+    Returns ``{mean, lo, hi, alpha, favours_dynamics, clear_of_zero}``.
     """
     x = np.asarray(paired_diff, dtype=np.float64).reshape(-1)
     if x.size == 0:
@@ -186,6 +193,7 @@ def bootstrap_ci(
             "lo": 0.0,
             "hi": 0.0,
             "alpha": alpha,
+            "favours_dynamics": False,
             "clear_of_zero": False,
         }
     rng = np.random.default_rng(seed)
@@ -200,6 +208,7 @@ def bootstrap_ci(
         "lo": lo,
         "hi": hi,
         "alpha": alpha,
+        "favours_dynamics": bool(lo > 0.0),
         "clear_of_zero": bool(lo > 0.0 or hi < 0.0),
     }
 
