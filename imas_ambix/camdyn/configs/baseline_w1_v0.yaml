@@ -1,0 +1,53 @@
+# D1 — per-frame spatial-inpainting BASELINE (temporal attention OFF).
+# This is the LOCKED W1 bar config. D2 (dynamics) flips
+# model.temporal_attention to true with EVERY other field unchanged so the
+# two arms are matched on params + capacity + training tokens.
+model:
+  temporal_attention: false   # <-- THE toggle. D2 sets this true.
+  dim: 384
+  n_layers: 8
+  n_heads: 8
+  mlp_ratio: 4.0
+  dropout: 0.0
+  n_frames: 16
+  # cond_channels defaults to len(CONDITIONING_CHANNELS) (full actuator vector)
+  grid: [16, 16]
+  bits: 18
+
+# windowing over the frame-grid token corpus
+n_frames: 16
+stride: 8
+# whole train/val/held-out splits (None = all shots in the split)
+max_train_shots: null
+max_val_shots: 300
+max_heldout_shots: 400
+
+# optimisation
+batch_size: 24
+max_steps: 12000
+peak_lr: 3.0e-4
+warmup_frac: 0.03
+min_lr_frac: 0.1
+weight_decay: 0.05
+betas: [0.9, 0.95]
+grad_clip: 1.0
+
+# masking curriculum (anneal large->full visibility over training)
+curriculum: true
+
+# loader (bounded workers — repo §2b). Main process holds the model.
+num_workers: 4
+seed: 0
+
+# cadence
+log_every: 50
+val_every: 1000
+ckpt_every: 1000
+val_windows: 256
+eval_windows: 768
+watchdog_grace_s: 180.0
+
+# paths
+ckpt_root: /work/projects/imas_gpu/mast-checkpoints/camdyn
+run_name: baseline_w1_v0
+device: cuda

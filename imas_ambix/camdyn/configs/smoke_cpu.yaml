@@ -1,0 +1,42 @@
+# Tiny CPU smoke config — a handful of steps on a tiny synthetic-scale model.
+# Used by tests/camdyn/test_train.py to catch shape/wiring bugs before any GPU
+# time is burned. Not a real run.
+model:
+  temporal_attention: false
+  dim: 32
+  n_layers: 2
+  n_heads: 4
+  mlp_ratio: 2.0
+  dropout: 0.0
+  n_frames: 6
+  grid: [16, 16]
+  bits: 18
+
+n_frames: 6
+stride: 4
+max_train_shots: 3
+max_val_shots: 2
+max_heldout_shots: 2
+
+batch_size: 2
+max_steps: 3
+peak_lr: 1.0e-3
+warmup_frac: 0.0
+min_lr_frac: 0.1
+weight_decay: 0.0
+betas: [0.9, 0.95]
+grad_clip: 1.0
+
+curriculum: false
+num_workers: 0
+seed: 0
+
+log_every: 1
+val_every: 1000
+ckpt_every: 1000
+val_windows: 8
+eval_windows: 8
+watchdog_grace_s: 120.0
+
+run_name: smoke_cpu
+device: cpu
