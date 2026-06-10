@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-archived" content="1">
+<meta name="plan-slug" content="camera-dynamics-wm-v0-d0-landed">
+<meta name="reckon-type" content="plan">
+<meta name="plan-title" content="Camera-Dynamics World Model — D0 substrate landed">
+<meta name="plan-summary" content="Archive record for D0 of camera-dynamics-wm-v0: the CPU-only token-stream dataset, clip-mask sampler, split manifest and pre-registered W1/W2/W3 metric module that gate the GPU arms. Commits 67a6b7c (substrate), c1e1324 (figure), d7b7953 (W1-gate hardening). 70 tests green; leakage ban, split invariants and metric numerics independently verified.">
+<meta name="plan-status" content="shipped">
+<meta name="plan-sprint" content="S13">
+<meta name="plan-milestone" content="M4">
+<meta name="plan-tier" content="opus">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-06-10">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="1">
+<title>Camera-Dynamics World Model — D0 substrate landed | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <p><span class="badge badge-shipped">✓ landed 2026-06-10</span> D0 substrate for
+  <a href="../camera-dynamics-wm-v0.html">camera-dynamics-wm-v0</a>. The CPU-only gate for every
+  GPU arm is complete: commits <code>67a6b7c</code> (package + tests + manifest),
+  <code>c1e1324</code> (end-to-end figure), <code>d7b7953</code> (W1-gate hardening).</p>
+  <h1>Camera-Dynamics World Model — D0 substrate landed</h1>
+  <p>D0 builds the masked token-stream dataset, the clip-mask sampler, the shot-level split
+  manifest and the <strong>pre-registered metric module</strong> that locks the win conditions
+  W1/W2/W3 <em>before any model number exists</em>. Everything is token-space, decoder-free, and
+  CPU-only; no model has been trained yet. The deliverable is the substrate that makes the GPU
+  arms (D1 baseline, D2 dynamics) a matched-arm science experiment rather than an ad-hoc run.</p>
+
+  <h2>Quick status</h2>
+  <div class="table-scroll">
+    <table class="t">
+      <thead>
+        <tr><th>Item</th><th>Status</th><th>Evidence</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Frame-grid token dataset</td><td><strong>Shipped</strong></td><td><code>imas_ambix/camdyn/dataset.py</code> — <code>FrameTokenDataset</code>, (n_frames,16,16) windows + frame_time + Δt</td></tr>
+        <tr><td>Clip-mask sampler (5 modes) + frozen eval suite</td><td><strong>Shipped</strong></td><td><code>imas_ambix/camdyn/masking.py</code> — random/panning/frontier/full + <code>NAMED_GEOMETRIES</code></td></tr>
+        <tr><td>Physical actuator conditioning + leakage ban</td><td><strong>Shipped</strong></td><td><code>imas_ambix/camdyn/conditioning.py</code> — <code>efm</code>/<code>esm</code>/<code>xdc</code> banned in-loader</td></tr>
+        <tr><td>Shot-level split manifest</td><td><strong>Shipped</strong></td><td><code>imas_ambix/camdyn/artifacts/camdyn_split_v0.json</code></td></tr>
+        <tr><td>Pre-registered W1/W2/W3 metric module</td><td><strong>Shipped</strong></td><td><code>imas_ambix/camdyn/metrics.py</code> — rFID banned as primary</td></tr>
+        <tr><td>Tests</td><td><strong>70 green</strong></td><td><code>tests/camdyn/</code></td></tr>
+        <tr><td>D1 baseline arm</td><td><strong>Queued</strong></td><td>followup <code>f-cdw-d1-baseline</code> (GPU; reservation held by DSv4 serve)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Split manifest</h2>
+  <div class="table-scroll">
+    <table class="t">
+      <thead>
+        <tr><th>Partition</th><th>Shots</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>train</td><td>7,535</td><td>seed 42, shot = independent unit</td></tr>
+        <tr><td>val</td><td>942</td><td>—</td></tr>
+        <tr><td>held-out</td><td>1,050</td><td>disjoint from train/val; covers all 9,527 token shots</td></tr>
+        <tr><td>MSE shots forced to held-out</td><td>108 / 112</td><td>comparable to the S9/S12 oracle on the 108-shot intersection</td></tr>
+        <tr><td>MSE shots without rbb tokens</td><td>4</td><td><code>22426, 24404, 24666, 25016</code> — surfaced in <code>mse_heldout_without_tokens</code>, not silently dropped; no token-space eval possible for these</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Pre-registered win-condition metrics (locked)</h2>
+  <ul>
+    <li><strong>W1 — dynamics beat statics.</strong> <code>masked_token_nll</code> + <code>masked_top1_accuracy</code>
+      over the masked set (vocab-agnostic — the LFQ bit-head decision is free), with
+      <code>bootstrap_ci</code> (10k-resample percentile) on the paired diff. The directional win
+      gate is <code>favours_dynamics</code> (CI lower bound &gt; 0); <code>clear_of_zero</code> is the
+      weaker two-sided significance flag. A motion-weighted token subset (identity changes within
+      ±50 ms) is reported alongside so static background tokens do not flatter the headline.</li>
+    <li><strong>W2 — forward horizon.</strong> <code>horizon_frame_offsets</code> maps the locked
+      physical horizons {10, 50, 200 ms} to frame offsets via the per-frame Δt (physical, not
+      index-based); <code>horizon_reconstruction_accuracy</code> scores the predicted future frame at
+      the frontier + offset, and <code>persistence_baseline_accuracy</code> is the copy-last-frame bar
+      the arm must beat (alongside the per-frame baseline).</li>
+    <li><strong>W3 — the latent knows physics.</strong> <code>ProbeProtocol</code> fits a frozen
+      ridge / shallow-random-feature probe on train latents → diagnostics, then predicts held-out
+      without refit; scored by per-target <code>probe_rmse</code> and closed-form
+      <code>crps_gaussian</code>. Targets: Dα <code>ada</code>, line-integrated density <code>ane</code>,
+      Thomson Te_core <code>ayc</code>, n=2 mode amplitude <code>ama</code>. The same protocol scores
+      the dynamics latent and the baseline representation.</li>
+    <li><strong>Banned:</strong> rFID as a primary metric (S5 lesson); pixel L1/SSIM via the frozen
+      decoder is secondary-only and not implemented in D0.</li>
+  </ul>
+
+  <h2>Orchestrator evaluation</h2>
+  <p>Independently verified after landing (the user directive was to evaluate all work as it lands):
+  commit scope was clean (only <code>imas_ambix/camdyn/</code>, <code>tests/camdyn/</code>, the new
+  figure, and a 4-line per-file ruff ignore in <code>pyproject.toml</code> for conventional
+  linear-algebra naming — the dirty peer file <code>sequential_da.py</code> was left untouched); the
+  leakage ban is enforced <em>inside</em> <code>load_conditioning</code>; the split invariants
+  (disjoint partitions, 108 ⊂ held-out, 108 + 4 = 112) hold; the metric numerics pass on synthetic
+  inputs; the 70-test suite reproduced green on an independent re-run. One latent footgun was fixed:
+  <code>bootstrap_ci</code>'s two-sided <code>clear_of_zero</code> would have read <code>True</code>
+  for a <em>significant regression</em>, so a directional <code>favours_dynamics</code> field (+ a
+  regression test) was added so the pre-registered W1 verdict cannot miscount a loss as a win
+  (commit <code>d7b7953</code>).</p>
+
+  <h2>End-to-end pipeline figure</h2>
+  <figure>
+    <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-d0-batch.png"
+         alt="D0 end-to-end batch on real shot 24065" style="max-width:100%">
+    <figcaption>Real shot 24065: spread frames of the full token grid, the random clip mask applied
+    (~12% visible), all five named eval geometries + per-cell motion frequency, and the Ip / NBI /
+    inboard-puff / line-integrated-density conditioning traces aligned to the camera frame times with
+    missing-flag markers — proving the D0 pipeline runs end-to-end on real corpus data.</figcaption>
+  </figure>
+
+  <h2>Decisions locked (gate the GPU arms)</h2>
+  <div class="table-scroll">
+    <table class="t">
+      <thead><tr><th>Decision</th><th>Choice</th></tr></thead>
+      <tbody>
+        <tr><td><code>temporal-core</code></td><td>factorized space/time causal transformer</td></tr>
+        <tr><td><code>vocab-head</code></td><td>factorized LFQ bit-head (18 binary logits)</td></tr>
+        <tr><td><code>conditioning-set</code></td><td>full actuator vector (D3 ablates down)</td></tr>
+        <tr><td><code>model-provenance</code></td><td>from scratch in token space (pretrained-arm bench D5-gated)</td></tr>
+        <tr><td><code>time-grid</code></td><td>D0's call — native frames + Δt (camera stream not resampled); resample-common kept reachable</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>What's next</h2>
+  <div class="card">
+    <p><strong>D1 — per-frame inpainting baseline (1 GPU).</strong> Followup
+    <code>f-cdw-d1-baseline</code> is queued with a ready §05 prompt. D1 builds the shared model
+    family — the factorized ST transformer with the LFQ bit-head, temporal attention <em>disabled</em>
+    — consumes the D0 dataset / masking / conditioning, trains to convergence, and logs held-out
+    masked-token NLL/accuracy as the locked W1 bar. It is a GPU job on the betelgeuse 4×H200 Group-A
+    reservation, currently held by the DeepSeek-V4-Flash serve job (job 1211299); the reservation must
+    be freed first (pre-authorised: <code>ambix agent stop deepseek-v4-flash</code>).</p>
+  </div>
+</main>
+</body>
+</html>

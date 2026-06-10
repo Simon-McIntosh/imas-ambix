@@ -20,7 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-10">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.15">
 </head>
 <body>
   <main class="plan-doc">
@@ -230,13 +231,19 @@
     </p>
 
     <h2 id="s5">§5 — Deliverables</h2>
-    <p><strong>D0 — dataset, masking spec, splits, metrics (CPU, no GPU).</strong>
-      Token-stream dataset over the 9,527-shot corpus reusing <code>ShotTokenDataset</code>;
-      clip-mask sampler (random window + temporal frontier); shot-level train/val/held-out split
-      manifest committed (the 112 MSE shots forced into held-out); pre-registered metric module
-      (masked-token NLL/accuracy, horizon-h reconstruction, probe protocol).
-      <em>Done when:</em> split manifest + metric module committed with tests green; one batch
-      visualised end-to-end.</p>
+    <p><strong>✓ D0 — dataset, masking spec, splits, metrics (CPU) — landed 2026-06-10.</strong>
+      <code>imas_ambix/camdyn/</code> ships the frame-grid <code>FrameTokenDataset</code> (V3 token
+      store joined to the V2 level-1 <code>rbb/time</code>; native frames + per-frame Δt), the
+      five-mode clip-mask sampler (random / panning / frontier / full + curriculum hook) plus a
+      frozen named-geometry eval suite, the full <em>physical-unit</em> actuator conditioning with
+      <code>efm</code>/<code>esm</code>/<code>xdc</code> leakage-banned inside the loader, the
+      committed split manifest (train 7,535 / val 942 / held-out 1,050; 108 of 112 MSE shots forced
+      to held-out, the 4 token-less shots surfaced not dropped), and the
+      <strong>pre-registered W1/W2/W3 metric module</strong> (rFID banned). 70 tests green;
+      the W1 bootstrap gate was hardened with a directional <code>favours_dynamics</code> verdict so
+      a significant regression cannot be miscounted as a win. Commits <code>67a6b7c</code>,
+      <code>c1e1324</code>, <code>d7b7953</code>. Full record:
+      <a href="archive/camera-dynamics-wm-v0-d0-landed.html">D0 landed</a>.</p>
     <p><strong>D1 — per-frame inpainting baseline (1 GPU).</strong> The architecture with time
       attention off, trained on the same masked objective.
       <em>Done when:</em> baseline trained to convergence on the training split; masked-token
@@ -411,7 +418,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-cdw-d0-dataset" data-status="open" data-tier="opus" data-written-by="agent/opus (S13 author)" data-written-at="2026-06-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-cdw-d0-dataset" data-status="resolved" data-tier="opus" data-written-by="agent/opus (S13 author)" data-written-at="2026-06-10" data-recommends-skill="" data-resolved-at="2026-06-10T19:37:06+00:00" data-resolved-by="reckon-ship (orchestrator/opus)">
     <h4 class="r-fu-title">D0 — token-stream dataset, clip-mask sampler, splits, pre-registered metrics</h4>
     <div class="r-fu-body"><p>The CPU-only gate for everything downstream: the masked
           token-stream dataset over the 9,527-shot rbb corpus, the clip/frontier masking spec, the
@@ -448,6 +455,75 @@ Done-when
   1. Dataset + mask sampler + split manifest (committed JSON) + metric module committed,
      tests green; one batch visualised end-to-end (figure under docs/figures/camera-dynamics-wm/).
   2. A followup written for D1 (baseline arm) with the §05 template + this one resolved.</pre>
+    <p class="r-fu-outcome">D0 LANDED + evaluated. Commits 67a6b7c (substrate), c1e1324 (figure), d7b7953 (W1-gate hardening). imas_ambix/camdyn/ delivers: frame-grid FrameTokenDataset (joins V3 token store ↔ V2 level-1 rbb/time, native frames + per-frame Δt; time-grid = D0's call, documented recommendation = native+Δt); 5-mode clip-mask sampler (random/panning/frontier/full + curriculum hook) + frozen deterministic named-geometry eval suite (fixed_section2, divertor_only, centre_column_strip, standard_pan, frontier_half); full PHYSICAL actuator conditioning (amc coils+sol+tf+Ip, anb beam powers, aga inboard/outboard puff, ane density; Dα separable, default-off as a W3 target) with causal zero-order hold + per-channel missing flags; efm/esm/xdc leakage-BANNED inside load_conditioning; split manifest camdyn_split_v0.json = train 7535 / val 942 / held-out 1050 (disjoint, covers all 9527), 108/112 MSE shots forced to held-out (4 token-less surfaced, not dropped); PRE-REGISTERED metric module locking W1 (masked NLL + top-1 + bootstrap CI), W2 (physical horizon-h reconstruction + persistence baseline), W3 (frozen-probe RMSE/CRPS), + motion-weighted subset; rFID banned. Orchestrator evaluation: scope clean (sequential_da.py untouched), leakage ban + split invariants + metric numerics independently verified; hardened bootstrap_ci with an unambiguous directional favours_dynamics W1 gate (a significant regression can no longer be miscounted as a win) + regression test. 70 tests green. Figure: /imas-ambix/figures/camera-dynamics-wm/fig-cdw-d0-batch.png. Per-stage record: docs/archive/camera-dynamics-wm-v0-d0-landed.html.</p>
+    </article>
+<article class="r-fu" data-id="f-cdw-d1-baseline" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator/opus)" data-written-at="2026-06-10" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0 D1" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">D1 — per-frame inpainting baseline (1 GPU): build the model family, log the W1 bar</h4>
+    <div class="r-fu-body"><p>D0 substrate landed. D1 builds the per-frame spatial-inpainting BASELINE — the factorized ST transformer with temporal attention DISABLED — and logs its held-out masked-token NLL/accuracy as the locked W1 bar that the D2 dynamics arm must beat. D1 IS the model family (D2 = the same network with time attention ON), so the shared architecture is built cleanly here. GPU job on the betelgeuse 4×H200 reservation (D1 uses 1 GPU); the reservation is currently held by the DeepSeek-V4-Flash serve job — free it first (pre-authorised: <code>ambix agent stop deepseek-v4-flash</code>).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    camera-dynamics-wm-v0 (http://localhost:8765/imas-ambix/camera-dynamics-wm-v0.html)
+Section: §5 D1 — per-frame inpainting baseline (1 GPU)
+Tier:    opus
+
+Context
+  D0 landed (commits 67a6b7c, c1e1324, d7b7953). imas_ambix/camdyn/ has the frame-grid
+  FrameTokenDataset, the 5-mode clip-mask sampler + frozen named-geometry suite, the full physical
+  conditioning loaders, the committed split manifest, and the PRE-REGISTERED W1/W2/W3 metric module.
+  D1 builds the per-frame spatial-inpainting BASELINE (the architecture with temporal attention OFF)
+  and logs its held-out masked-token NLL/accuracy as the locked W1 bar. D1 IS the model family
+  (D2 = same net, time attention ON) — build the shared architecture cleanly.
+
+Locked decisions to honour
+  temporal-core    → factorized space/time causal transformer (D1: TIME attention DISABLED — per-frame only)
+  vocab-head       → factorized LFQ bit-head (18 binary logits over the 2^18 vocab; metrics are vocab-agnostic)
+  conditioning-set → full actuator vector (amc coils+sol+tf+Ip, anb beam powers, aga puff flows, ane density);
+                     native frames + Δt (time-grid was D0&#x27;s call; do NOT resample the camera stream)
+  model-provenance → from scratch in token space (no pretrained video model in v0)
+
+State to read
+  imas_ambix/camdyn/dataset.py      (FrameTokenDataset — (n_frames,16,16) windows + frame_time + dt)
+  imas_ambix/camdyn/masking.py      (sample_clip_mask, ClipMaskConfig, NAMED_GEOMETRIES)
+  imas_ambix/camdyn/conditioning.py (load_conditioning, CONDITIONING_CHANNELS — physical units + missing flags)
+  imas_ambix/camdyn/metrics.py      (masked_token_nll, masked_top1_accuracy; bootstrap_ci — use the
+                                     favours_dynamics field as the directional W1 verdict; motion_weighted_subset)
+  imas_ambix/camdyn/artifacts/camdyn_split_v0.json (train/val/held_out shot ids; mse_heldout_without_tokens)
+  AGENTS.md §2b (in-process GPU rules), plan §6 (GPU safety contract)
+
+Constraints
+  File scope (EXCLUSIVE — stage ONLY these): imas_ambix/camdyn/model.py (the shared ST-transformer +
+    LFQ bit-head, time-attention toggle), imas_ambix/camdyn/train.py, imas_ambix/camdyn/configs/,
+    scripts/slurm/camdyn_baseline.sbatch, tests/camdyn/test_model.py, tests/camdyn/test_train.py.
+    Do NOT modify dataset/masking/conditioning/metrics/splits (the LOCKED substrate) — if a missing
+    hook is genuinely needed, add it additively and flag it; never change a metric definition.
+  GPU: betelgeuse 4×H200 Group-A reservation; D1 uses 1 GPU. Free the reservation first — the
+    DeepSeek serve job holds it (pre-authorised: `ambix agent stop deepseek-v4-flash`).
+  In-process model-load-once + torch DataLoader with bounded queues (AGENTS.md §2b) — NO
+    subprocess-per-item, NO file-IPC daemon, NO prefetch producer/consumer threads.
+  §6 safety contract: SIGTERM/SIGINT handler exits clean &lt;5s; per-batch watchdog sets STOP on
+    timeout; checkpoint every N steps; bf16 + torch.set_float32_matmul_precision(&#x27;high&#x27;);
+    cudnn.deterministic=True, cudnn.benchmark=False. Launch scripts/slurm/drain_sidecar.sh as a
+    background line for forensics. Ordinary --time limit + scancel are fine (drain settled 2026-06-10).
+  Token-space only; frozen decoder; rFID banned. EFIT/esm/xdc never enter as inputs. The 4 token-less
+    MSE shots (manifest mse_heldout_without_tokens) are excluded from token-space eval.
+
+Build/Test on SDCC betelgeuse (MANDATORY — async shell, file-redirect + exit sentinel, poll with tail):
+  bash(mode=async, shellId=d1): bash -l
+  write_bash(shellId=d1, delay=15):
+    sbatch --partition=betelgeuse --reservation=gpu_0003_grpA --account=grpa --gres=gpu:1 \
+           --cpus-per-task=8 --mem=160G --time=08:00:00 scripts/slurm/camdyn_baseline.sbatch
+  # inside the sbatch: export TMPDIR=/scratch_local/$SLURM_JOB_ID &amp;&amp; mkdir -p &quot;$TMPDIR&quot;;
+  # stage token shards GPFS→/scratch_local at job start; redirect train log to GPFS; echo EXIT sentinel.
+  Poll: write_bash(shellId=d1, delay=10): tail -20 &lt;logfile&gt;   # never delay&gt;30; never sync mode for the run
+
+Done-when
+  1. Baseline (time-attention OFF) trained to convergence on the train split; checkpoint saved to GPFS.
+  2. Masked-token NLL + top-1 accuracy on val + held-out logged to imas_ambix/camdyn/artifacts/
+     (e.g. baseline_w1_v0.json), scored via the D0 metrics on the held-out split AND the frozen
+     named-geometry suite — this is the locked W1 bar.
+  3. tests green (model forward/shape + time-attention-off behaviour; a tiny CPU train-step smoke).
+  4. A followup for D2 (dynamics arm, 4×H200, time attention ON — W1 verdict + W2 horizon table) written
+     with the §05 template, and THIS followup resolved.
+  5. NO AI co-author trailers; commit specific paths only; push to origin/main.</pre>
     </article>
 </section>
 
