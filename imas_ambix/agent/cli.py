@@ -130,6 +130,32 @@ def _load_profile(slug: str | None):
         raise click.ClickException(str(exc)) from exc
 
 
+def _scale_profile(profile, gpus: int):
+    """Return a copy of *profile* with GPU count and dependent resources scaled.
+
+    Adjusts ``engine.tensor_parallel``, ``slurm.gpus``, ``slurm.cpus``, and
+    ``slurm.memory`` proportionally.  The caller's profile is not mutated.
+    """
+    base_gpus = profile.slurm.gpus
+    if gpus == base_gpus:
+        return profile
+    ratio = gpus / base_gpus
+    mem_str = profile.slurm.memory
+    mem_val = int(mem_str[:-1])
+    mem_unit = mem_str[-1]
+    new_memory = f"{max(1, round(mem_val * ratio))}{mem_unit}"
+    new_cpus = max(1, round(profile.slurm.cpus * ratio))
+    return profile.model_copy(
+        deep=True,
+        update={
+            "slurm": profile.slurm.model_copy(
+                update={"gpus": gpus, "cpus": new_cpus, "memory": new_memory}
+            ),
+            "engine": profile.engine.model_copy(update={"tensor_parallel": gpus}),
+        },
+    )
+
+
 @click.group()
 def agent() -> None:
     """Manage LLM agent deployments on SLURM GPU clusters."""
@@ -247,13 +273,26 @@ def download(slug: str | None, dry_run: bool) -> None:
     default=None,
     help="API key for authenticating client requests (also AMBIX_AGENT_API_KEY).",
 )
+@click.option(
+    "--gpus",
+    type=int,
+    default=None,
+    help="Override number of GPUs (and tensor-parallel size). "
+    "Scales cpus and memory proportionally from the profile default.",
+)
 def serve(
-    slug: str | None, dry_run: bool, port: int | None, api_key: str | None
+    slug: str | None,
+    dry_run: bool,
+    port: int | None,
+    api_key: str | None,
+    gpus: int | None,
 ) -> None:
     """Generate and submit a model serving job."""
     from imas_ambix.agent.slurm import generate_serve_script, submit_script
 
     profile = _load_profile(slug)
+    if gpus is not None:
+        profile = _scale_profile(profile, gpus)
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
     resolved_key = _resolve_api_key(api_key)
@@ -272,8 +311,9 @@ def serve(
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
     key_note = " (API key enabled)" if resolved_key else ""
+    gpu_note = f" ({profile.slurm.gpus}×GPU)" if gpus is not None else ""
     console.print(
-        f"Submitted serve job {job_id} for {profile.slug} on port {resolved_port}{key_note}."
+        f"Submitted serve job {job_id} for {profile.slug}{gpu_note} on port {resolved_port}{key_note}."
     )
 
 
@@ -609,8 +649,19 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     default=None,
     help="API key for authenticating client requests (also AMBIX_AGENT_API_KEY).",
 )
+@click.option(
+    "--gpus",
+    type=int,
+    default=None,
+    help="Override number of GPUs (and tensor-parallel size). "
+    "Scales cpus and memory proportionally from the profile default.",
+)
 def restart(
-    slug: str | None, dry_run: bool, port: int | None, api_key: str | None
+    slug: str | None,
+    dry_run: bool,
+    port: int | None,
+    api_key: str | None,
+    gpus: int | None,
 ) -> None:
     """Restart a model serving job (shutdown + serve).
 
@@ -623,6 +674,8 @@ def restart(
     from imas_ambix.agent.slurm import generate_serve_script, submit_script
 
     profile = _load_profile(slug)
+    if gpus is not None:
+        profile = _scale_profile(profile, gpus)
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
     resolved_key = _resolve_api_key(api_key)
@@ -689,8 +742,9 @@ def restart(
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
     key_note = " (API key enabled)" if resolved_key else ""
+    gpu_note = f" ({profile.slurm.gpus}×GPU)" if gpus is not None else ""
     console.print(
-        f"Submitted serve job {job_id} for {profile.slug} on port {resolved_port}{key_note}."
+        f"Submitted serve job {job_id} for {profile.slug}{gpu_note} on port {resolved_port}{key_note}."
     )
 
 
