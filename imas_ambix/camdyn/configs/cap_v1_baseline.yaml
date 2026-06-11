@@ -44,8 +44,11 @@ curriculum: true
 
 # loader (bounded torch DataLoader worker pool — repo §2b). Main process
 # holds the model ONCE; workers do CPU data prep (tokens + conditioning +
-# mask) with bounded prefetch and persistent workers.
-num_workers: 8
+# mask) with bounded prefetch and persistent workers.  6 workers fits the
+# Group-A core budget when two arms share the node concurrently (30-core
+# reservation, DeepSeek serve holds 15 → 15 free; 2×6 cpus-per-task = 12);
+# I/O-bound Zarr reads saturate the H200 at this width (smoke: GPU 100%).
+num_workers: 6
 seed: 0
 
 # cadence
