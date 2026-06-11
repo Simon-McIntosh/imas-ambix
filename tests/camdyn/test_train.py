@@ -324,17 +324,18 @@ def test_cpu_smoke_train_and_w1_artifact(synthetic_corpus, tmp_path, monkeypatch
     assert 0.0 <= w1["held_out"]["masked_top1"]["mean"] <= 1.0
 
 
-def test_w1_compare_paired_verdict(synthetic_corpus, tmp_path, monkeypatch):
-    """W1 cross-arm paired comparison runs end-to-end on tiny ckpts (CPU).
+def test_arm_compare_paired_verdict(synthetic_corpus, tmp_path, monkeypatch):
+    """Cross-arm paired comparison runs end-to-end on tiny ckpts (CPU).
 
     Builds matched baseline (temporal OFF) + dynamics (temporal ON) ckpts in
-    the on-disk format ``w1_compare._load_arm`` expects, scores BOTH on the
-    SAME synthetic held-out windows, and asserts the paired W1 verdict
-    structure: ``favours_dynamics`` booleans, paired CIs with aligned pair
-    counts, and every frozen named geometry compared.
+    the on-disk format ``arm_compare._load_arm`` expects, scores BOTH (and the
+    carry-forward reference) on the SAME synthetic held-out windows, and asserts
+    the paired verdict structure: dynamics-vs-baseline and dynamics-vs-ZOH CIs
+    with aligned pair counts, a boolean ``dynamics_wins``, and every frozen
+    named geometry compared.
     """
     torch = pytest.importorskip("torch")
-    from imas_ambix.camdyn import w1_compare as wc
+    from imas_ambix.camdyn import arm_compare as ac
     from imas_ambix.camdyn.masking import NAMED_GEOMETRIES
     from imas_ambix.camdyn.model import CamdynModel
 
@@ -393,18 +394,26 @@ def test_w1_compare_paired_verdict(synthetic_corpus, tmp_path, monkeypatch):
         )
         ckpts[arm] = p
 
-    verdict = wc.compare_w1(
+    verdict = ac.compare_arms(
         ckpts["baseline"], ckpts["dynamics"], split_path=str(split_path), device="cpu"
     )
 
-    # --- paired W1 verdict structure ---
-    assert isinstance(verdict["W1_verdict"]["favours_dynamics_nll"], bool)
-    assert isinstance(verdict["W1_verdict"]["favours_dynamics_top1"], bool)
+    # --- paired verdict structure (dynamics vs baseline AND vs carry-forward) ---
+    v = verdict["verdict"]
+    assert isinstance(v["dynamics_wins"], bool)
+    assert isinstance(v["dynamics_beats_baseline_nll"], bool)
+    assert isinstance(v["dynamics_beats_carry_forward_top1"], bool)
     ho = verdict["held_out"]
-    assert ho["paired_nll_ci"]["n_pairs"] > 0
-    assert ho["paired_top1_ci"]["n_pairs"] == ho["paired_nll_ci"]["n_pairs"]
-    assert "favours_dynamics" in ho["paired_nll_ci"]
-    assert "baseline" in ho and "dynamics" in ho
-    # every frozen named geometry was compared
+    vb = ho["dynamics_vs_baseline_nll"]
+    vz = ho["dynamics_vs_carry_forward_top1"]
+    assert vb["n_pairs"] > 0
+    # paired arrays are aligned element-wise across baseline / dynamics / ZOH
+    assert vz["n_pairs"] == vb["n_pairs"]
+    assert ho["dynamics_vs_baseline_top1"]["n_pairs"] == vb["n_pairs"]
+    assert "favours_dynamics" in vb and "favours_dynamics" in vz
+    assert "baseline" in ho and "dynamics" in ho and "carry_forward" in ho
+    # every frozen named geometry was compared (incl. the carry-forward ref)
     assert set(verdict["named_geometry"]) == set(NAMED_GEOMETRIES)
+    for g in verdict["named_geometry"].values():
+        assert "dynamics_vs_carry_forward_top1" in g
     assert verdict["baseline_params"] == verdict["dynamics_params"]  # matched-arm
