@@ -4,7 +4,11 @@
 #SBATCH --reservation=gpu_0003_grpA
 #SBATCH --account=grpa
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=6
+# 6 matches num_workers in the cap_v1 configs.  With two arms sharing the
+# 30-core Group-A reservation while a DeepSeek-2x serve holds 15, 2x6=12 <= 15
+# free cores; cpus-per-task=8 pended the 2nd arm (2x8=16 > 15).  Override with
+# `sbatch --cpus-per-task=N` if running a single arm with more loader workers.
 #SBATCH --mem=160G
 #SBATCH --time=08:00:00
 #SBATCH --output=/work/projects/imas_gpu/logs/camdyn-%x-%j.out
