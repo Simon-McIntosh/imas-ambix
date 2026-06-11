@@ -27,7 +27,16 @@
 #          scripts/slurm/camdyn_baseline.sbatch
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# SLURM copies this script to a spool dir, so ${BASH_SOURCE[0]} points at
+# /var/spool/slurm/... not the repo — derive the repo root from
+# SLURM_SUBMIT_DIR (the dir `sbatch` was launched from = the repo root),
+# falling back to BASH_SOURCE for a direct `bash scripts/slurm/...` run.
+REPO_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+if [[ ! -d "${REPO_ROOT}/imas_ambix/camdyn" ]]; then
+    echo "[camdyn] ERROR: REPO_ROOT=${REPO_ROOT} is not the imas-ambix repo root." >&2
+    echo "[camdyn] Submit from the repo root: cd <repo> && sbatch scripts/slurm/camdyn_baseline.sbatch" >&2
+    exit 2
+fi
 
 # ── SLURM-node workarounds (repo §2) ─────────────────────────────────────────
 export TMPDIR=/scratch_local/${SLURM_JOB_ID}
@@ -54,10 +63,10 @@ VENV="${REPO_ROOT}/.venv"
 if [[ -f "${VENV}/bin/activate" ]]; then
     # shellcheck source=/dev/null
     source "${VENV}/bin/activate"
-    PYTHON="${VENV}/bin/python"
+    PYTHON=("${VENV}/bin/python")
 else
-    echo "[camdyn] .venv not found at ${VENV} — falling back to uv run" >&2
-    PYTHON="uv run python"
+    echo "[camdyn] .venv not found at ${VENV} — falling back to 'uv run'" >&2
+    PYTHON=(uv run python)
 fi
 export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
 
@@ -82,7 +91,7 @@ EXTRA=()
 
 cd "${REPO_ROOT}"
 set +e
-"${PYTHON}" -m imas_ambix.camdyn.train \
+"${PYTHON[@]}" -m imas_ambix.camdyn.train \
     --config "${CONFIG}" \
     --device cuda \
     --artifact-out "${ARTIFACT_OUT}" \
