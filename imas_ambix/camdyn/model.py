@@ -532,17 +532,16 @@ def score_window_bits(
     """Score one window's masked cells via the bit-head → metric adapter.
 
     NLL is the EXACT full-vocab bitwise-factorised NLL (no restriction):
-    :func:`bitwise_nll` over masked cells.  Top-1 accuracy is computed
-    under the restricted-candidate adapter (argmax over the ids that
-    occur in the masked target set), the well-defined fair accuracy
-    documented in :func:`restricted_vocab_logits`.  Returns per-token
-    arrays for the masked positions — the paired inputs to
+    :func:`bitwise_nll` over masked cells.  Top-1 accuracy is the bit
+    head's MAP prediction — the per-bit argmax (threshold each logit at 0),
+    ``pred_id = Σ_b (z_b > 0) << b`` — i.e. the model's exact unconstrained
+    most-likely token id, compared to the target.  This is O(cells·bits);
+    the earlier restricted-candidate adapter built an O(M²) (masked-cells ×
+    unique-ids) score matrix per window and dominated eval wall-clock
+    (minutes per 32-window split).  Returns per-token arrays for the masked
+    positions — the paired inputs to
     :func:`imas_ambix.camdyn.metrics.bootstrap_ci`.
     """
-    from imas_ambix.camdyn.metrics import (  # noqa: PLC0415
-        masked_top1_accuracy,
-    )
-
     mask = np.asarray(loss_mask, dtype=bool)
     if not mask.any():
         return WindowScore()
@@ -551,11 +550,11 @@ def score_window_bits(
     nll_grid = bitwise_nll(bit_logits, target_tokens)  # (F,H,W)
     nll_sel = nll_grid[mask]
 
-    # --- restricted-vocab top-1 accuracy over masked cells ---
-    tgt_masked = np.asarray(target_tokens)[mask]
-    bl_masked = np.asarray(bit_logits)[mask]  # (M, bits)
-    dense, remapped = restricted_vocab_logits(bl_masked, tgt_masked)
-    full = np.ones(remapped.shape, dtype=bool)
-    acc_sel = masked_top1_accuracy(dense, remapped, full, reduce="none")
+    # --- top-1 accuracy = the bit head's per-bit MAP id (O(cells·bits)) ---
+    bl = np.asarray(bit_logits)
+    nbits = bl.shape[-1]
+    shifts = np.arange(nbits, dtype=np.int64)
+    pred_id = ((bl > 0.0).astype(np.int64) << shifts).sum(axis=-1)  # (F,H,W)
+    acc_sel = (pred_id[mask] == np.asarray(target_tokens)[mask]).astype(np.float64)
 
     return WindowScore(nll_per_token=nll_sel, acc_per_token=acc_sel)
