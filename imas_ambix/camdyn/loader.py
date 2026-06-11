@@ -58,6 +58,7 @@ stats (kept in the main process) exactly as before.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -428,6 +429,7 @@ def make_loader(
     prefetch_factor: int = 4,
     cache_size: int = 8,
     channels=CONDITIONING_CHANNELS,
+    persistent_workers: bool = True,
 ):
     """Build a bounded torch ``DataLoader`` over the window stream.
 
@@ -443,6 +445,19 @@ def make_loader(
         prefetch_factor).  Ignored when ``num_workers == 0``.
     max_windows:
         Cap the epoch length (eval reads a bounded number of windows).
+    persistent_workers:
+        Keep worker processes alive between epochs.  ``True`` (default) is
+        right for the long training loop where the loader is iterated to
+        exhaustion every epoch.  **Eval/val paths MUST pass ``False``** —
+        they break out of the iterator early (after ``max_windows``) and
+        build a NEW loader per call (val + once per named geometry).  An
+        early-broken ``IterableDataset`` loader with ``persistent_workers=
+        True`` leaves its worker processes alive; constructing many such
+        loaders leaks/deadlocks the worker pool (the 2-hour eval hang at
+        step=val_every, jobs 1216061/1216062).  With ``False`` the workers
+        join when the iterator is exhausted or GC'd — see
+        :func:`close_loader` for explicit teardown after an early break.
+        Has no effect when ``num_workers == 0``.
 
     Returns the ``DataLoader``; iterate it for batch dicts (see
     :func:`collate_windows`).
@@ -475,5 +490,28 @@ def make_loader(
     )
     if num_workers > 0:
         kwargs["prefetch_factor"] = prefetch_factor
-        kwargs["persistent_workers"] = True
+        kwargs["persistent_workers"] = bool(persistent_workers)
     return DataLoader(ds, **kwargs)
+
+
+def close_loader(loader) -> None:
+    """Tear down a ``DataLoader``'s worker processes / pin-memory thread.
+
+    The eval/val path iterates a loader then breaks early (after
+    ``eval_windows`` / ``val_windows``), so the underlying
+    ``_MultiProcessingDataLoaderIter`` is not exhausted and its workers do
+    not auto-join.  Calling this drains the held iterator (best-effort) so
+    the worker processes and pin-memory thread are reaped before the next
+    eval loader is built — preventing the worker-pool leak that hung
+    ``evaluate_w1``.  Safe to call on a ``num_workers == 0`` loader (no-op)
+    and idempotent.
+    """
+    it = getattr(loader, "_iterator", None)
+    if it is None:
+        return
+    shutdown = getattr(it, "_shutdown_workers", None)
+    if callable(shutdown):
+        with contextlib.suppress(Exception):  # pragma: no cover - defensive
+            shutdown()
+    with contextlib.suppress(Exception):  # pragma: no cover - defensive
+        loader._iterator = None

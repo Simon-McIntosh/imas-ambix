@@ -88,6 +88,11 @@ nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader || true
 
 EXTRA=()
 [ -n "${MAX_STEPS:-}" ] && EXTRA+=(--max-steps "$MAX_STEPS")
+# Smoke knobs — exercise the full VAL + final-eval + artifact path quickly
+# without editing the matched-arm cap_v1 configs.
+[ -n "${VAL_EVERY:-}" ] && EXTRA+=(--val-every "$VAL_EVERY")
+[ -n "${EVAL_WINDOWS:-}" ] && EXTRA+=(--eval-windows "$EVAL_WINDOWS")
+[ -n "${VAL_WINDOWS:-}" ] && EXTRA+=(--val-windows "$VAL_WINDOWS")
 
 cd "${REPO_ROOT}"
 set +e

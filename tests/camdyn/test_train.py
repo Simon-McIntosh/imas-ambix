@@ -67,6 +67,34 @@ def test_baseline_config_is_matched_to_a_d2_arm():
     assert diff == {"temporal_attention"}
 
 
+def test_cap_v1_arms_matched_except_toggle_and_run_name():
+    """The cap_v1 W1 arms must be byte-identical except the model toggle and
+    run_name — parsed-dict diff over the FULL TrainConfig (model + run knobs).
+
+    This is the matched-arm contract: the W1 comparison isolates exactly the
+    value of temporal attention.  watchdog_grace_s / val_every / eval_windows
+    may be tuned but MUST be tuned IDENTICALLY in both arms.
+    """
+    yaml = pytest.importorskip("yaml")  # noqa: F841
+    cfgdir = Path(__file__).resolve().parents[2] / "imas_ambix" / "camdyn" / "configs"
+    base = TrainConfig.load(cfgdir / "cap_v1_baseline.yaml").to_dict()
+    dyn = TrainConfig.load(cfgdir / "cap_v1_dynamics.yaml").to_dict()
+
+    # top-level run knobs (everything except the nested model block + run_name)
+    top_diff = {
+        k for k in base if k != "model" and k != "run_name" and base[k] != dyn[k]
+    }
+    assert top_diff == set(), f"unexpected top-level config diff: {top_diff}"
+    assert base["run_name"] == "cap_v1_baseline"
+    assert dyn["run_name"] == "cap_v1_dynamics"
+
+    # nested model block differs ONLY in temporal_attention
+    model_diff = {k for k in base["model"] if base["model"][k] != dyn["model"][k]}
+    assert model_diff == {"temporal_attention"}, model_diff
+    assert base["model"]["temporal_attention"] is False
+    assert dyn["model"]["temporal_attention"] is True
+
+
 # ---------------------------------------------------------------------------
 # Batch assembly
 # ---------------------------------------------------------------------------
@@ -97,6 +125,75 @@ def test_assemble_batch_shapes_and_mask_complement(synthetic_corpus):
     assert arr["cond_missing"].shape == (b, 6, N_COND_CHANNELS)
     # loss_mask must be the exact complement of visible
     np.testing.assert_array_equal(arr["loss_mask"], ~arr["visible"])
+
+
+# ---------------------------------------------------------------------------
+# Watchdog: paused during eval/val/ckpt, still fires on a wedged TRAIN step
+# ---------------------------------------------------------------------------
+
+
+def _watchdog_trainer():
+    """A Trainer with a tiny watchdog grace for fast tests (no GPU/data)."""
+    cfg = TrainConfig(
+        model=CamdynConfig(temporal_attention=False, dim=16, n_layers=1, n_heads=2),
+        watchdog_grace_s=0.2,
+        val_windows=4,
+        eval_windows=4,
+    )
+    return Trainer(cfg)
+
+
+def test_watchdog_does_not_fire_during_paused_phase():
+    """A slow phase wrapped in _pause_watchdog must NOT trip the watchdog.
+
+    Regression guard for jobs 1216061/1216062: the first periodic VAL (>180 s)
+    tripped the watchdog because last_step_t was only bumped after a TRAIN
+    step.  With the pause context manager the watchdog ignores VAL / final-eval
+    / checkpoint wall-clock.
+    """
+    import time
+
+    from imas_ambix.camdyn.train import STOP
+
+    STOP.clear()
+    tr = _watchdog_trainer()
+    median_step = [0.01]  # warm median so deadline = max(grace, 8*med) = grace
+    tr._last_step_t[0] = time.time()
+    tr._arm_watchdog(median_step, poll_s=0.05)
+    try:
+        # Simulate a slow non-training phase (much longer than the grace).
+        with tr._pause_watchdog("val"):
+            time.sleep(0.6)  # 3x the 0.2s grace
+        # The watchdog must NOT have fired during the paused phase.
+        assert not STOP.is_set(), "watchdog fired during a paused (eval) phase"
+    finally:
+        tr._watchdog_stop.set()  # kill THIS trainer's thread (no zombie leak)
+        time.sleep(0.1)
+        STOP.clear()
+
+
+def test_watchdog_fires_on_wedged_training_step():
+    """A genuinely stalled TRAIN step (no pause, clock not refreshed) must
+    still trip the watchdog — the fix must not disarm the real guard."""
+    import time
+
+    from imas_ambix.camdyn.train import STOP
+
+    STOP.clear()
+    tr = _watchdog_trainer()
+    median_step = [0.01]
+    tr._last_step_t[0] = time.time()
+    tr._arm_watchdog(median_step, poll_s=0.05)
+    try:
+        # Do NOT refresh last_step_t and do NOT pause — simulate a hung step.
+        deadline = time.time() + 1.5
+        while time.time() < deadline and not STOP.is_set():
+            time.sleep(0.05)
+        assert STOP.is_set(), "watchdog failed to fire on a wedged training step"
+    finally:
+        tr._watchdog_stop.set()  # kill the watchdog thread (it fired by design)
+        STOP.clear()
+        time.sleep(0.1)
 
 
 # ---------------------------------------------------------------------------
@@ -177,15 +274,18 @@ def test_cpu_smoke_train_and_w1_artifact(synthetic_corpus, tmp_path, monkeypatch
         n_frames=6,
         stride=4,
         batch_size=2,
-        max_steps=3,
+        max_steps=4,
         warmup_frac=0.0,
         curriculum=False,
         num_workers=0,
         val_windows=4,
         eval_windows=4,
         log_every=1,
-        val_every=1000,
-        ckpt_every=1000,
+        # val_every < max_steps so a periodic VAL fires — the FULL path that
+        # broke in production (jobs 1216061/1216062) where val_every>max_steps
+        # meant the smoke never hit a VAL or the final eval/exit path.
+        val_every=2,
+        ckpt_every=2,
         device="cpu",
         split_path=str(split_path),
         ckpt_root=str(tmp_path / "ckpt"),
@@ -194,7 +294,14 @@ def test_cpu_smoke_train_and_w1_artifact(synthetic_corpus, tmp_path, monkeypatch
     )
 
     trainer = Trainer(cfg)
+    from imas_ambix.camdyn.train import STOP
+
+    STOP.clear()
     w1 = trainer.train()
+
+    # the watchdog must NOT have fired during the run (VAL + final eval ran
+    # inside _pause_watchdog; training steps were fast)
+    assert not STOP.is_set(), "watchdog fired during the CPU smoke (false positive)"
 
     # --- artifact written + structurally complete ---
     art = json.loads((tmp_path / "w1.json").read_text())

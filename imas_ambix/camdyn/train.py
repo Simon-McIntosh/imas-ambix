@@ -30,6 +30,7 @@ import logging
 import signal
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -41,7 +42,7 @@ from imas_ambix.camdyn.dataset import (
     FrameWindowConfig,
     discover_token_shots,
 )
-from imas_ambix.camdyn.loader import make_loader
+from imas_ambix.camdyn.loader import close_loader, make_loader
 from imas_ambix.camdyn.masking import (
     NAMED_GEOMETRIES,
     ClipMaskConfig,
@@ -116,7 +117,13 @@ class TrainConfig:
     ckpt_every: int = 500
     val_windows: int = 256
     eval_windows: int = 512
-    watchdog_grace_s: float = 120.0
+    # The watchdog only guards a wedged TRAINING step (it is paused during
+    # VAL / final-eval / checkpoint phases — see ``_arm_watchdog`` and the
+    # ``_watchdog_paused`` context manager).  600 s lets a genuine transient
+    # GPFS step-stall recover instead of murdering a multi-hour run, while
+    # still catching a truly hung step (8x median is the tighter bound once
+    # the running median is warm).
+    watchdog_grace_s: float = 600.0
     # paths
     split_path: str | None = None
     ckpt_root: str = "/work/projects/imas_gpu/mast-checkpoints/camdyn"
@@ -301,6 +308,22 @@ class Trainer:
         self.mask_cfg = ClipMaskConfig()
         self._step = 0
         self._cond_stats = None
+        # Watchdog state.  ``_last_step_t`` is refreshed after every training
+        # step (and on entry/exit of every paused phase).  ``_watchdog_paused``
+        # is set while VAL / final-eval / checkpoint runs so the watchdog does
+        # NOT count those (legitimately slow, GPU-bound or I/O-bound) phases as
+        # a wedged training step.  The first periodic VAL took >180 s and the
+        # final evaluate_w1 ran for minutes — both previously tripped the
+        # watchdog because ``last_step_t`` was only bumped after a TRAIN step
+        # (jobs 1216061/1216062 died at step=val_every).
+        self._last_step_t = [time.time()]
+        self._watchdog_paused = threading.Event()
+        # Per-instance watchdog lifecycle: the daemon thread exits when EITHER
+        # the global STOP fires OR this instance's run ends.  Without the
+        # per-instance event a watchdog armed by one run keeps polling the
+        # shared global STOP and can fire against a *later* run (cross-run
+        # contamination — seen in the test suite).
+        self._watchdog_stop = threading.Event()
 
     # -- torch setup -------------------------------------------------------
 
@@ -332,12 +355,22 @@ class Trainer:
 
     # -- iteration over windows -------------------------------------------
 
-    def _make_loader(self, specs, frame_cfg, *, seed, mode, progress, max_windows):
+    def _make_loader(
+        self, specs, frame_cfg, *, seed, mode, progress, max_windows, one_shot=False
+    ):
         """Build a bounded torch DataLoader over the locked D0 window stream.
 
         The model stays loaded ONCE in this (main) process; the workers do
         only CPU prep — read tokens, hold conditioning to frame times, and
         sample the clip mask — overlapping with GPU compute (repo §2b).
+
+        ``one_shot=True`` builds an eval loader (``persistent_workers=False``):
+        the eval/val loops break out early after ``max_windows`` and a NEW
+        loader is constructed per call (val + once per named geometry).  A
+        persistent-worker loader broken early leaves its workers alive, and
+        building many of them leaks/deadlocks the worker pool — the 2-hour
+        ``evaluate_w1`` hang.  One-shot workers join on iterator exhaustion;
+        :func:`close_loader` reaps them after the early break.
         """
         return make_loader(
             specs,
@@ -349,6 +382,7 @@ class Trainer:
             mode=mode,
             progress=progress,
             max_windows=max_windows,
+            persistent_workers=not one_shot,
         )
 
     def _batch_to_tensors(self, arr, torch, device):
@@ -416,9 +450,9 @@ class Trainer:
         ckpt_dir.mkdir(parents=True, exist_ok=True)
 
         history: list[dict] = []
-        last_step_t = [time.time()]
+        self._last_step_t[0] = time.time()
         median_step = [None]
-        self._arm_watchdog(median_step, last_step_t)
+        self._arm_watchdog(median_step)
 
         try:
             model.module.train()
@@ -477,7 +511,7 @@ class Trainer:
                     opt.step()
 
                     dt_step = time.time() - t0
-                    last_step_t[0] = time.time()
+                    self._last_step_t[0] = time.time()
                     median_step[0] = (
                         dt_step
                         if median_step[0] is None
@@ -505,41 +539,69 @@ class Trainer:
                         and self._step % self.cfg.val_every == 0
                         and len(val_specs) > 0
                     ):
-                        vnll, vacc = self._quick_val(
-                            model, val_specs, frame_cfg, torch, device
-                        )
-                        logger.info(
-                            "[camdyn-train] step=%d VAL nll=%.4f top1=%.4f",
-                            self._step,
-                            vnll,
-                            vacc,
-                        )
-                        history.append(
-                            {"step": self._step, "val_nll": vnll, "val_top1": vacc}
-                        )
-                        model.module.train()
+                        # Watchdog paused: VAL is GPU-bound + cold eval-loader
+                        # spin-up, not a wedged training step.
+                        with self._pause_watchdog("val"):
+                            t_val = time.time()
+                            logger.info(
+                                "[camdyn-train] step=%d VAL start "
+                                "(windows<=%d, watchdog paused)",
+                                self._step,
+                                self.cfg.val_windows,
+                            )
+                            vnll, vacc = self._quick_val(
+                                model, val_specs, frame_cfg, torch, device
+                            )
+                            logger.info(
+                                "[camdyn-train] step=%d VAL nll=%.4f top1=%.4f (%.1fs)",
+                                self._step,
+                                vnll,
+                                vacc,
+                                time.time() - t_val,
+                            )
+                            history.append(
+                                {"step": self._step, "val_nll": vnll, "val_top1": vacc}
+                            )
+                            model.module.train()
 
                     if self._step > 0 and self._step % self.cfg.ckpt_every == 0:
-                        self._save_ckpt(model, opt, ckpt_dir, torch)
+                        with self._pause_watchdog("ckpt"):
+                            self._save_ckpt(model, opt, ckpt_dir, torch)
 
                     self._step += 1
 
-            # final checkpoint
-            final_ckpt = self._save_ckpt(model, opt, ckpt_dir, torch, final=True)
-            logger.info("[camdyn-train] training complete; ckpt=%s", final_ckpt)
+            # final checkpoint + held-out W1 evaluation (the locked bar) — D1
+            # only by default, but works for either arm.  The whole tail runs
+            # with the training-step watchdog PAUSED: the final evaluate_w1
+            # scores held_out + 5 named geometries × eval_windows and is
+            # minutes long by design, not a wedged step.
+            with self._pause_watchdog("final-eval"):
+                final_ckpt = self._save_ckpt(model, opt, ckpt_dir, torch, final=True)
+                logger.info("[camdyn-train] training complete; ckpt=%s", final_ckpt)
 
-            # held-out W1 evaluation (the locked bar) — D1 only by default,
-            # but works for either arm.
-            ho_specs = _specs_for_shots(
-                split.held_out, max_shots=self.cfg.max_heldout_shots
-            )
-            w1 = self.evaluate_w1(
-                model, ho_specs, val_specs, frame_cfg, torch, device, history
-            )
-            w1["checkpoint"] = str(final_ckpt)
-            self._write_artifact(w1)
+                ho_specs = _specs_for_shots(
+                    split.held_out, max_shots=self.cfg.max_heldout_shots
+                )
+                logger.info(
+                    "[camdyn-train] final W1 eval start: held_out_shots=%d "
+                    "eval_windows=%d named_geometries=%d",
+                    len(ho_specs),
+                    self.cfg.eval_windows,
+                    len(NAMED_GEOMETRIES),
+                )
+                t_eval = time.time()
+                w1 = self.evaluate_w1(
+                    model, ho_specs, val_specs, frame_cfg, torch, device, history
+                )
+                w1["checkpoint"] = str(final_ckpt)
+                self._write_artifact(w1)
+                logger.info(
+                    "[camdyn-train] final W1 eval complete (%.1fs)",
+                    time.time() - t_eval,
+                )
             return w1
         finally:
+            self._watchdog_stop.set()  # terminate the watchdog daemon thread
             try:
                 del model
                 if torch.cuda.is_available():
@@ -549,18 +611,45 @@ class Trainer:
 
     # -- watchdog ----------------------------------------------------------
 
-    def _arm_watchdog(self, median_step, last_step_t):
+    @contextmanager
+    def _pause_watchdog(self, phase: str):
+        """Suspend the training-step watchdog around a non-training phase.
+
+        VAL, the final ``evaluate_w1``, and checkpointing are legitimately
+        slow (GPU-bound eval, GPFS torch.save) and must NOT be counted as a
+        wedged training step.  Entering pauses the watchdog and refreshes the
+        last-step clock; exiting refreshes it again so the NEXT training step
+        starts the deadline clean (a long eval never carries over into the
+        training-step deadline).
+        """
+        self._last_step_t[0] = time.time()
+        self._watchdog_paused.set()
+        try:
+            yield
+        finally:
+            self._watchdog_paused.clear()
+            self._last_step_t[0] = time.time()
+
+    def _arm_watchdog(self, median_step, poll_s: float = 5.0):
+        self._watchdog_stop.clear()
+
         def _watchdog():
-            while not STOP.is_set():
-                time.sleep(5.0)
+            while not STOP.is_set() and not self._watchdog_stop.is_set():
+                time.sleep(poll_s)
+                if STOP.is_set() or self._watchdog_stop.is_set():
+                    return
+                if self._watchdog_paused.is_set():
+                    # Non-training phase (VAL / final-eval / checkpoint) in
+                    # progress — do not arm the deadline against it.
+                    continue
                 med = median_step[0]
                 if med is None:
                     continue
                 deadline = max(self.cfg.watchdog_grace_s, 8.0 * med)
-                if time.time() - last_step_t[0] > deadline:
+                if time.time() - self._last_step_t[0] > deadline:
                     logger.error(
-                        "[camdyn-train] watchdog FIRED (step exceeded %.0fs) "
-                        "-> graceful stop",
+                        "[camdyn-train] watchdog FIRED (TRAIN step exceeded "
+                        "%.0fs) -> graceful stop",
                         deadline,
                     )
                     STOP.set()
@@ -606,6 +695,8 @@ class Trainer:
         if not specs:
             return 0.0, 0.0
         nll_all, acc_all = [], []
+        # One-shot loader (persistent_workers=False) torn down in finally so
+        # the worker pool never leaks across repeated eval calls.
         loader = self._make_loader(
             specs,
             frame_cfg,
@@ -613,30 +704,38 @@ class Trainer:
             mode=MaskMode.RANDOM,
             progress=None,
             max_windows=self.cfg.val_windows,
+            one_shot=True,
         )
-        with torch.no_grad():
-            for arr in loader:
-                t = self._batch_to_tensors(arr, torch, device)
-                with torch.autocast(
-                    device_type=device.type,
-                    dtype=torch.bfloat16,
-                    enabled=(device.type == "cuda"),
-                ):
-                    logits = model.module(
-                        t["tokens"],
-                        t["visible"],
-                        t["cond_values"],
-                        t["cond_missing"],
-                        t["dt"],
-                    )
-                bl = logits.float().cpu().numpy()
-                for b in range(bl.shape[0]):
-                    vf = arr["valid"][b]
-                    lm = arr["loss_mask"][b] & vf[:, None, None]
-                    sc = score_window_bits(bl[b], arr["tokens"][b], lm)
-                    if sc.n:
-                        nll_all.append(sc.nll_per_token)
-                        acc_all.append(sc.acc_per_token)
+        seen = 0
+        try:
+            with torch.no_grad():
+                for arr in loader:
+                    t = self._batch_to_tensors(arr, torch, device)
+                    with torch.autocast(
+                        device_type=device.type,
+                        dtype=torch.bfloat16,
+                        enabled=(device.type == "cuda"),
+                    ):
+                        logits = model.module(
+                            t["tokens"],
+                            t["visible"],
+                            t["cond_values"],
+                            t["cond_missing"],
+                            t["dt"],
+                        )
+                    bl = logits.float().cpu().numpy()
+                    for b in range(bl.shape[0]):
+                        vf = arr["valid"][b]
+                        lm = arr["loss_mask"][b] & vf[:, None, None]
+                        sc = score_window_bits(bl[b], arr["tokens"][b], lm)
+                        if sc.n:
+                            nll_all.append(sc.nll_per_token)
+                            acc_all.append(sc.acc_per_token)
+                    seen += bl.shape[0]
+                    if seen >= self.cfg.val_windows:
+                        break
+        finally:
+            close_loader(loader)
         if not nll_all:
             return 0.0, 0.0
         return (
@@ -669,6 +768,7 @@ class Trainer:
         }
 
         # --- held-out: mixture mask (the headline reconstruction task) ---
+        logger.info("[camdyn-train] evaluate_w1: scoring held_out (mixture mask)")
         nll, acc, mnll, macc = self._score_split(
             model, ho_specs, frame_cfg, torch, device, mode=None
         )
@@ -684,6 +784,10 @@ class Trainer:
         }
 
         # --- per named-geometry (frozen eval suite) ---
+        logger.info(
+            "[camdyn-train] evaluate_w1: scoring %d named geometries",
+            len(NAMED_GEOMETRIES),
+        )
         geo_out = {}
         for name in NAMED_GEOMETRIES:
             gnll, gacc, _, _ = self._score_split(
@@ -703,6 +807,7 @@ class Trainer:
         out["named_geometry"] = geo_out
 
         # --- val (reference) ---
+        logger.info("[camdyn-train] evaluate_w1: scoring val reference")
         vnll, vacc = self._quick_val(model, val_specs, frame_cfg, torch, device)
         out["val"] = {"masked_nll": vnll, "masked_top1": vacc}
 
@@ -730,6 +835,10 @@ class Trainer:
         # OVERRIDDEN below by the deterministic frozen geometry; pass None so
         # the worker sampler does not error on the NAMED (eval-only) enum.
         loader_mode = None if mode is MaskMode.NAMED else mode
+        label = named if named is not None else (mode.name if mode else "mixture")
+        t_split = time.time()
+        # One-shot loader (persistent_workers=False) torn down in finally so
+        # repeated eval calls (val + per-named-geometry) cannot leak workers.
         loader = self._make_loader(
             specs,
             frame_cfg,
@@ -737,52 +846,66 @@ class Trainer:
             mode=loader_mode,
             progress=None,
             max_windows=self.cfg.eval_windows,
+            one_shot=True,
         )
-        with torch.no_grad():
-            for arr in loader:
-                # For NAMED mode, override the per-window mask with the frozen
-                # geometry (deterministic, identical across arms).
-                t = self._batch_to_tensors(arr, torch, device)
-                if mode is MaskMode.NAMED and named is not None:
-                    nf = arr["tokens"].shape[1]
-                    gmask = named_geometry_mask(named, nf)  # (F,H,W) True=visible
-                    vis = np.broadcast_to(gmask[None], arr["visible"].shape).copy()
-                    lm = ~vis
-                    arr["visible"] = vis
-                    arr["loss_mask"] = lm
-                    t["visible"] = torch.from_numpy(vis).to(device)
-                    t["loss_mask"] = torch.from_numpy(lm).to(device)
-                with torch.autocast(
-                    device_type=device.type,
-                    dtype=torch.bfloat16,
-                    enabled=(device.type == "cuda"),
-                ):
-                    logits = model.module(
-                        t["tokens"],
-                        t["visible"],
-                        t["cond_values"],
-                        t["cond_missing"],
-                        t["dt"],
-                    )
-                bl = logits.float().cpu().numpy()
-                for b in range(bl.shape[0]):
-                    vf = arr["valid"][b]
-                    lm = arr["loss_mask"][b] & vf[:, None, None]
-                    sc = score_window_bits(bl[b], arr["tokens"][b], lm)
-                    if not sc.n:
-                        continue
-                    nll_all.append(sc.nll_per_token)
-                    acc_all.append(sc.acc_per_token)
-                    # motion-weighted subset (D0 metric) on the masked set
-                    moving = motion_weighted_subset(
-                        arr["tokens"][b], arr["frame_time"][b]
-                    )
-                    mm = lm & moving
-                    if mm.any():
-                        msc = score_window_bits(bl[b], arr["tokens"][b], mm)
-                        if msc.n:
-                            mnll_all.append(msc.nll_per_token)
-                            macc_all.append(msc.acc_per_token)
+        seen = 0
+        try:
+            with torch.no_grad():
+                for arr in loader:
+                    # For NAMED mode, override the per-window mask with the
+                    # frozen geometry (deterministic, identical across arms).
+                    t = self._batch_to_tensors(arr, torch, device)
+                    if mode is MaskMode.NAMED and named is not None:
+                        nf = arr["tokens"].shape[1]
+                        gmask = named_geometry_mask(named, nf)  # (F,H,W) True=vis
+                        vis = np.broadcast_to(gmask[None], arr["visible"].shape).copy()
+                        lm = ~vis
+                        arr["visible"] = vis
+                        arr["loss_mask"] = lm
+                        t["visible"] = torch.from_numpy(vis).to(device)
+                        t["loss_mask"] = torch.from_numpy(lm).to(device)
+                    with torch.autocast(
+                        device_type=device.type,
+                        dtype=torch.bfloat16,
+                        enabled=(device.type == "cuda"),
+                    ):
+                        logits = model.module(
+                            t["tokens"],
+                            t["visible"],
+                            t["cond_values"],
+                            t["cond_missing"],
+                            t["dt"],
+                        )
+                    bl = logits.float().cpu().numpy()
+                    for b in range(bl.shape[0]):
+                        vf = arr["valid"][b]
+                        lm = arr["loss_mask"][b] & vf[:, None, None]
+                        sc = score_window_bits(bl[b], arr["tokens"][b], lm)
+                        if not sc.n:
+                            continue
+                        nll_all.append(sc.nll_per_token)
+                        acc_all.append(sc.acc_per_token)
+                        # motion-weighted subset (D0 metric) on the masked set
+                        moving = motion_weighted_subset(
+                            arr["tokens"][b], arr["frame_time"][b]
+                        )
+                        mm = lm & moving
+                        if mm.any():
+                            msc = score_window_bits(bl[b], arr["tokens"][b], mm)
+                            if msc.n:
+                                mnll_all.append(msc.nll_per_token)
+                                macc_all.append(msc.acc_per_token)
+                    seen += bl.shape[0]
+                    if seen >= self.cfg.eval_windows:
+                        break
+        finally:
+            close_loader(loader)
+        logger.info(
+            "[camdyn-train]   scored split=%s windows=%d (%.1fs)",
+            label,
+            seen,
+            time.time() - t_split,
+        )
 
         def _cat(xs):
             return np.concatenate(xs) if xs else np.array([])
@@ -851,6 +974,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--device", default=None, help="override device")
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument(
+        "--val-every",
+        type=int,
+        default=None,
+        help="override periodic-VAL cadence (smoke: exercise a VAL quickly)",
+    )
+    parser.add_argument(
+        "--eval-windows",
+        type=int,
+        default=None,
+        help="override final-eval window cap (smoke: keep the W1 eval short)",
+    )
+    parser.add_argument(
+        "--val-windows",
+        type=int,
+        default=None,
+        help="override periodic-VAL window cap",
+    )
+    parser.add_argument(
         "--artifact-out", default=None, help="override W1 artifact path"
     )
     parser.add_argument(
@@ -869,6 +1010,12 @@ def main(argv: list[str] | None = None) -> int:
         cfg.device = args.device
     if args.max_steps is not None:
         cfg.max_steps = args.max_steps
+    if args.val_every is not None:
+        cfg.val_every = args.val_every
+    if args.eval_windows is not None:
+        cfg.eval_windows = args.eval_windows
+    if args.val_windows is not None:
+        cfg.val_windows = args.val_windows
     if args.artifact_out is not None:
         cfg.artifact_out = args.artifact_out
     if args.ckpt_root is not None:

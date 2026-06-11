@@ -206,3 +206,48 @@ def test_make_loader_num_workers_yields_full_epoch(synthetic_corpus):
             seen += batch["tokens"].shape[0]
         # union over workers covers exactly the epoch (no dup, no drop)
         assert seen == n_windows
+
+
+def test_make_loader_eval_path_one_shot_workers_terminate(synthetic_corpus):
+    """Eval path: persistent_workers=False + early break + close_loader must
+    leave NO live worker processes.
+
+    This is the regression guard for the 2-hour evaluate_w1 hang (jobs
+    1216061/1216062): an early-broken persistent-worker IterableDataset
+    loader leaks its workers; building many such loaders deadlocks the pool.
+    """
+    import multiprocessing as mp
+
+    pytest.importorskip("torch")
+    from imas_ambix.camdyn.loader import close_loader, make_loader
+
+    sc = synthetic_corpus
+    specs = _specs(sc)
+    cfg = FrameWindowConfig(n_frames=6, stride=4)
+
+    before = {p.pid for p in mp.active_children()}
+    # Build several one-shot eval loaders, iterate each only one batch, then
+    # tear it down — mirrors evaluate_w1 (val + per-named-geometry).
+    for _ in range(4):
+        loader = make_loader(
+            specs,
+            cfg,
+            ClipMaskConfig(),
+            batch_size=2,
+            num_workers=2,
+            seed=0,
+            mode=MaskMode.RANDOM,
+            max_windows=4,
+            persistent_workers=False,
+        )
+        for _batch in loader:
+            break  # early break — the bug trigger
+        close_loader(loader)
+        del loader
+
+    # Give any straggler workers a moment to reap, then assert none leaked.
+    for child in mp.active_children():
+        if child.pid not in before:
+            child.join(timeout=10.0)
+    leaked = {p.pid for p in mp.active_children()} - before
+    assert not leaked, f"eval loader leaked worker processes: {leaked}"
