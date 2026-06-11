@@ -1,0 +1,62 @@
+# cap_v1 — scaled (~200M) DYNAMICS arm.
+# Temporal attention ON (D2).  This is the LOCKED W1 bar at the scaled
+# capacity.  cap_v1_baseline.yaml is byte-identical EXCEPT
+# model.temporal_attention (false) and run_name — matched on params,
+# capacity, batch, steps, lr, seed, n_frames, stride → matched token budget,
+# so the W1 comparison isolates exactly the value of dynamics.
+#
+# Sizing: param count ≈ 16·dim²·n_layers = 16·1024²·12 ≈ 2.01e8 (~200M).
+# n_heads must divide dim (1024 / 16 = 64-dim heads).
+model:
+  temporal_attention: true    # <-- THE toggle. cap_v1_baseline sets this false.
+  dim: 1024
+  n_layers: 12
+  n_heads: 16
+  mlp_ratio: 4.0
+  dropout: 0.0
+  n_frames: 16
+  # cond_channels defaults to len(CONDITIONING_CHANNELS) (full actuator vector)
+  grid: [16, 16]
+  bits: 18
+
+# windowing over the frame-grid token corpus
+n_frames: 16
+stride: 8
+# whole train/val/held-out splits (None = all shots in the split)
+max_train_shots: null
+max_val_shots: 300
+max_heldout_shots: 400
+
+# optimisation — matched token budget across both arms.
+# token budget = max_steps · batch_size · n_frames · 256 cells
+#              = 20000 · 32 · 16 · 256 ≈ 2.62e9 scored-grid tokens.
+batch_size: 32
+max_steps: 20000
+peak_lr: 3.0e-4
+warmup_frac: 0.03
+min_lr_frac: 0.1
+weight_decay: 0.05
+betas: [0.9, 0.95]
+grad_clip: 1.0
+
+# masking curriculum (anneal large->full visibility over training)
+curriculum: true
+
+# loader (bounded torch DataLoader worker pool — repo §2b). Main process
+# holds the model ONCE; workers do CPU data prep (tokens + conditioning +
+# mask) with bounded prefetch and persistent workers.
+num_workers: 8
+seed: 0
+
+# cadence
+log_every: 50
+val_every: 2000
+ckpt_every: 1000
+val_windows: 256
+eval_windows: 768
+watchdog_grace_s: 180.0
+
+# paths
+ckpt_root: /work/projects/imas_gpu/mast-checkpoints/camdyn
+run_name: cap_v1_dynamics
+device: cuda

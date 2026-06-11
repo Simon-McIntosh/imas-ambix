@@ -41,6 +41,7 @@ from imas_ambix.camdyn.dataset import (
     FrameWindowConfig,
     discover_token_shots,
 )
+from imas_ambix.camdyn.loader import make_loader
 from imas_ambix.camdyn.masking import (
     NAMED_GEOMETRIES,
     ClipMaskConfig,
@@ -331,46 +332,50 @@ class Trainer:
 
     # -- iteration over windows -------------------------------------------
 
-    def _window_iter(self, specs, frame_cfg, batch_size, rng_seed):
-        """Yield assembled batches by drawing windows from the dataset.
+    def _make_loader(self, specs, frame_cfg, *, seed, mode, progress, max_windows):
+        """Build a bounded torch DataLoader over the locked D0 window stream.
 
-        Map-style dataset → sample window indices with a seeded RNG so the
-        stream is reproducible and bounded.  CPU-side mask + conditioning
-        assembly is light; the dataset's Zarr reads are the only I/O.
+        The model stays loaded ONCE in this (main) process; the workers do
+        only CPU prep — read tokens, hold conditioning to frame times, and
+        sample the clip mask — overlapping with GPU compute (repo §2b).
         """
-        ds = FrameTokenDataset(specs, frame_cfg, as_dict=True)
-        n = len(ds)
-        if n == 0:
-            return
-        rng = np.random.default_rng(rng_seed)
-        order = rng.permutation(n)
-        buf = []
-        for idx in order:
-            win = ds[int(idx)]
-            win["level1_path"] = _level1_for(specs, int(win["shot_id"]))
-            buf.append(win)
-            if len(buf) == batch_size:
-                yield buf
-                buf = []
-        if buf:
-            yield buf
+        return make_loader(
+            specs,
+            frame_cfg,
+            self.mask_cfg,
+            batch_size=self.cfg.batch_size,
+            num_workers=self.cfg.num_workers,
+            seed=seed,
+            mode=mode,
+            progress=progress,
+            max_windows=max_windows,
+        )
 
-    def _batch_to_tensors(self, windows, torch, device, *, progress, mode=None):
-        rng = np.random.default_rng(self._step + 1)
-        arr = _assemble_batch(windows, self.mask_cfg, rng, progress=progress, mode=mode)
+    def _batch_to_tensors(self, arr, torch, device):
+        """Z-score conditioning + move a collated batch dict to ``device``.
+
+        ``arr`` is the numpy batch dict from the loader's collate fn (tokens,
+        visible, loss_mask, cond_values (RAW), cond_missing, dt, valid,
+        frame_time, shot_id).  Conditioning is z-scored here with the
+        precomputed per-channel stats held in the main process.
+        """
         cv = _normalise_conditioning(arr["cond_values"], self._cond_stats)
         t = {
-            "tokens": torch.from_numpy(arr["tokens"]).to(device),
-            "visible": torch.from_numpy(arr["visible"]).to(device),
-            "loss_mask": torch.from_numpy(arr["loss_mask"]).to(device),
+            "tokens": torch.from_numpy(np.ascontiguousarray(arr["tokens"])).to(device),
+            "visible": torch.from_numpy(np.ascontiguousarray(arr["visible"])).to(
+                device
+            ),
+            "loss_mask": torch.from_numpy(np.ascontiguousarray(arr["loss_mask"])).to(
+                device
+            ),
             "cond_values": torch.from_numpy(cv.astype(np.float32)).to(device),
             "cond_missing": torch.from_numpy(arr["cond_missing"].astype(np.float32)).to(
                 device
             ),
             "dt": torch.from_numpy(arr["dt"].astype(np.float32)).to(device),
-            "valid": torch.from_numpy(arr["valid"]).to(device),
+            "valid": torch.from_numpy(np.ascontiguousarray(arr["valid"])).to(device),
         }
-        return t, arr
+        return t
 
     # -- public: train -----------------------------------------------------
 
@@ -418,29 +423,37 @@ class Trainer:
         try:
             model.module.train()
             done = False
+            epoch = 0
             while not done and not STOP.is_set():
-                for windows in self._window_iter(
+                # Rebuild the loader each epoch so the masking-curriculum
+                # area anneal advances (masks are sampled in the workers) and
+                # the window order reshuffles.  Workers persist within an
+                # epoch (bounded prefetch); a fresh loader is cheap relative
+                # to one epoch of training.
+                progress = (
+                    self._step / max(1, self.cfg.max_steps)
+                    if self.cfg.curriculum
+                    else None
+                )
+                loader = self._make_loader(
                     train_specs,
                     frame_cfg,
-                    self.cfg.batch_size,
-                    rng_seed=self.cfg.seed + self._step,
-                ):
+                    seed=self.cfg.seed + epoch,
+                    mode=None,
+                    progress=progress,
+                    max_windows=None,
+                )
+                epoch += 1
+                for arr in loader:
                     if STOP.is_set() or self._step >= self.cfg.max_steps:
                         done = True
                         break
                     t0 = time.time()
-                    progress = (
-                        self._step / max(1, self.cfg.max_steps)
-                        if self.cfg.curriculum
-                        else None
-                    )
                     lr = self._lr_at(self._step)
                     for g in opt.param_groups:
                         g["lr"] = lr
 
-                    t, _arr = self._batch_to_tensors(
-                        windows, torch, device, progress=progress
-                    )
+                    t = self._batch_to_tensors(arr, torch, device)
                     with torch.autocast(
                         device_type=device.type,
                         dtype=amp_dtype,
@@ -590,15 +603,20 @@ class Trainer:
 
     def _quick_val(self, model, specs, frame_cfg, torch, device):
         model.module.eval()
+        if not specs:
+            return 0.0, 0.0
         nll_all, acc_all = [], []
-        seen = 0
+        loader = self._make_loader(
+            specs,
+            frame_cfg,
+            seed=12345,
+            mode=MaskMode.RANDOM,
+            progress=None,
+            max_windows=self.cfg.val_windows,
+        )
         with torch.no_grad():
-            for windows in self._window_iter(
-                specs, frame_cfg, self.cfg.batch_size, rng_seed=12345
-            ):
-                t, arr = self._batch_to_tensors(
-                    windows, torch, device, progress=None, mode=MaskMode.RANDOM
-                )
+            for arr in loader:
+                t = self._batch_to_tensors(arr, torch, device)
                 with torch.autocast(
                     device_type=device.type,
                     dtype=torch.bfloat16,
@@ -619,9 +637,6 @@ class Trainer:
                     if sc.n:
                         nll_all.append(sc.nll_per_token)
                         acc_all.append(sc.acc_per_token)
-                seen += bl.shape[0]
-                if seen >= self.cfg.val_windows:
-                    break
         if not nll_all:
             return 0.0, 0.0
         return (
@@ -709,16 +724,25 @@ class Trainer:
         from imas_ambix.camdyn.masking import named_geometry_mask  # noqa: PLC0415
 
         nll_all, acc_all, mnll_all, macc_all = [], [], [], []
-        seen = 0
+        if not specs:
+            return np.array([]), np.array([]), np.array([]), np.array([])
+        # NAMED mode samples a mixture mask in the workers but it is
+        # OVERRIDDEN below by the deterministic frozen geometry; pass None so
+        # the worker sampler does not error on the NAMED (eval-only) enum.
+        loader_mode = None if mode is MaskMode.NAMED else mode
+        loader = self._make_loader(
+            specs,
+            frame_cfg,
+            seed=999,
+            mode=loader_mode,
+            progress=None,
+            max_windows=self.cfg.eval_windows,
+        )
         with torch.no_grad():
-            for windows in self._window_iter(
-                specs, frame_cfg, self.cfg.batch_size, rng_seed=999
-            ):
+            for arr in loader:
                 # For NAMED mode, override the per-window mask with the frozen
                 # geometry (deterministic, identical across arms).
-                t, arr = self._batch_to_tensors(
-                    windows, torch, device, progress=None, mode=mode
-                )
+                t = self._batch_to_tensors(arr, torch, device)
                 if mode is MaskMode.NAMED and named is not None:
                     nf = arr["tokens"].shape[1]
                     gmask = named_geometry_mask(named, nf)  # (F,H,W) True=visible
@@ -759,9 +783,6 @@ class Trainer:
                         if msc.n:
                             mnll_all.append(msc.nll_per_token)
                             macc_all.append(msc.acc_per_token)
-                seen += bl.shape[0]
-                if seen >= self.cfg.eval_windows:
-                    break
 
         def _cat(xs):
             return np.concatenate(xs) if xs else np.array([])
