@@ -25,7 +25,7 @@ stride: 8
 # whole train/val/held-out splits (None = all shots in the split)
 max_train_shots: null
 max_val_shots: 300
-max_heldout_shots: 400
+max_heldout_shots: 150
 
 # optimisation — matched token budget across both arms.
 # token budget = max_steps · batch_size · n_frames · 256 cells
@@ -53,10 +53,10 @@ seed: 0
 
 # cadence
 log_every: 50
-val_every: 2000
+val_every: 6000
 ckpt_every: 1000
-val_windows: 256
-eval_windows: 768
+val_windows: 48
+eval_windows: 256
 watchdog_grace_s: 600.0
 
 # paths

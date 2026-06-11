@@ -743,6 +743,102 @@ class Trainer:
             float(np.concatenate(acc_all).mean()),
         )
 
+    # -- eval window cache (read once, score many) ------------------------
+
+    def _materialize_eval(self, specs, frame_cfg, *, max_windows, seed):
+        """Read up to ``max_windows`` eval windows ONCE into memory.
+
+        The held-out W1 task and all 5 named geometries score the SAME
+        windows (a geometry changes only the visibility mask, not the data),
+        so we pay the per-shot Zarr read cost ONCE here instead of rebuilding
+        a loader (6-worker spawn + cold conditioning reads) per split — the
+        root of the slow ``evaluate_w1``.  Returns a list of numpy batch
+        dicts; the mixture mask sampled by the loader is kept and used as-is
+        for the held-out task.
+        """
+        if not specs:
+            return []
+        loader = self._make_loader(
+            specs,
+            frame_cfg,
+            seed=seed,
+            mode=None,
+            progress=None,
+            max_windows=max_windows,
+            one_shot=True,
+        )
+        batches: list[dict] = []
+        seen = 0
+        try:
+            for arr in loader:
+                batches.append(arr)
+                seen += int(arr["tokens"].shape[0])
+                if seen >= max_windows:
+                    break
+        finally:
+            close_loader(loader)
+        return batches
+
+    def _score_cached(self, model, batches, torch, device, *, named=None):
+        """Score cached eval batches in-memory (no loader, no Zarr reads).
+
+        ``named=None`` scores each batch's own (mixture) mask — the held-out
+        W1 task.  ``named=<geometry>`` overrides every window's mask with the
+        deterministic frozen geometry.  Returns ``(nll, acc, motion_nll,
+        motion_acc)`` flattened per-token (pure GPU forward + numpy score over
+        data already in memory).
+        """
+        from imas_ambix.camdyn.masking import named_geometry_mask  # noqa: PLC0415
+
+        nll_all, acc_all, mnll_all, macc_all = [], [], [], []
+        with torch.no_grad():
+            for arr in batches:
+                t = self._batch_to_tensors(arr, torch, device)
+                if named is not None:
+                    nf = arr["tokens"].shape[1]
+                    gmask = named_geometry_mask(named, nf)  # (F,H,W) True=visible
+                    vis = np.broadcast_to(gmask[None], arr["visible"].shape).copy()
+                    loss_mask_np = ~vis
+                    t["visible"] = torch.from_numpy(vis).to(device)
+                    t["loss_mask"] = torch.from_numpy(loss_mask_np).to(device)
+                else:
+                    loss_mask_np = arr["loss_mask"]
+                with torch.autocast(
+                    device_type=device.type,
+                    dtype=torch.bfloat16,
+                    enabled=(device.type == "cuda"),
+                ):
+                    logits = model.module(
+                        t["tokens"],
+                        t["visible"],
+                        t["cond_values"],
+                        t["cond_missing"],
+                        t["dt"],
+                    )
+                bl = logits.float().cpu().numpy()
+                for b in range(bl.shape[0]):
+                    vf = arr["valid"][b]
+                    lm_b = loss_mask_np[b] & vf[:, None, None]
+                    sc = score_window_bits(bl[b], arr["tokens"][b], lm_b)
+                    if not sc.n:
+                        continue
+                    nll_all.append(sc.nll_per_token)
+                    acc_all.append(sc.acc_per_token)
+                    moving = motion_weighted_subset(
+                        arr["tokens"][b], arr["frame_time"][b]
+                    )
+                    mm = lm_b & moving
+                    if mm.any():
+                        msc = score_window_bits(bl[b], arr["tokens"][b], mm)
+                        if msc.n:
+                            mnll_all.append(msc.nll_per_token)
+                            macc_all.append(msc.acc_per_token)
+
+        def _cat(xs):
+            return np.concatenate(xs) if xs else np.array([])
+
+        return _cat(nll_all), _cat(acc_all), _cat(mnll_all), _cat(macc_all)
+
     # -- W1 evaluation (the locked bar) -----------------------------------
 
     def evaluate_w1(
@@ -767,11 +863,25 @@ class Trainer:
             "metrics_provenance": "imas_ambix.camdyn.metrics (pre-registered D0)",
         }
 
-        # --- held-out: mixture mask (the headline reconstruction task) ---
-        logger.info("[camdyn-train] evaluate_w1: scoring held_out (mixture mask)")
-        nll, acc, mnll, macc = self._score_split(
-            model, ho_specs, frame_cfg, torch, device, mode=None
+        # Read the held-out windows ONCE; the held-out (mixture) task and all
+        # 5 named geometries score the SAME windows in-memory (a geometry
+        # changes only the visibility mask, not the data), so the per-shot
+        # Zarr reads happen once instead of 6x — the evaluate_w1 slowness.
+        logger.info(
+            "[camdyn-train] evaluate_w1: materialising <=%d held-out windows",
+            self.cfg.eval_windows,
         )
+        t_mat = time.time()
+        batches = self._materialize_eval(
+            ho_specs, frame_cfg, max_windows=self.cfg.eval_windows, seed=999
+        )
+        logger.info(
+            "[camdyn-train]   materialised %d batches (%.1fs)",
+            len(batches),
+            time.time() - t_mat,
+        )
+        # --- held-out: mixture mask (the headline reconstruction task) ---
+        nll, acc, mnll, macc = self._score_cached(model, batches, torch, device)
         out["held_out"] = {
             "masked_nll": _agg(nll),
             "masked_top1": _agg(acc),
@@ -790,14 +900,8 @@ class Trainer:
         )
         geo_out = {}
         for name in NAMED_GEOMETRIES:
-            gnll, gacc, _, _ = self._score_split(
-                model,
-                ho_specs,
-                frame_cfg,
-                torch,
-                device,
-                mode=MaskMode.NAMED,
-                named=name,
+            gnll, gacc, _, _ = self._score_cached(
+                model, batches, torch, device, named=name
             )
             geo_out[name] = {
                 "masked_nll": _agg(gnll),
