@@ -181,7 +181,7 @@ def test_model_forward_shape():
 
 def test_temporal_toggle_is_matched_arm_identical_params():
     """D1 (OFF) and D2 (ON) have the SAME parameter shapes + count."""
-    t = _torch_or_skip()
+    _torch_or_skip()
     from imas_ambix.camdyn.model import CamdynModel
 
     m_off = CamdynModel.from_config(_tiny_cfg(False))

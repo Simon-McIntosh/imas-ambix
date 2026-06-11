@@ -255,13 +255,13 @@ def _conditioning_stats(specs, frame_cfg, n_sample=64, seed=0):
         )
         vals.append(sample.values)
         miss.append(sample.missing)
-    V = np.concatenate(vals, axis=0)  # (N,C)
-    M = np.concatenate(miss, axis=0)  # (N,C)
-    present = M < 0.5
+    vals_all = np.concatenate(vals, axis=0)  # (N,C)
+    miss_all = np.concatenate(miss, axis=0)  # (N,C)
+    present = miss_all < 0.5
     mu = np.zeros(n_chan, np.float32)
     sd = np.ones(n_chan, np.float32)
     for c in range(n_chan):
-        col = V[present[:, c], c]
+        col = vals_all[present[:, c], c]
         if col.size > 1:
             mu[c] = float(col.mean())
             s = float(col.std())

@@ -28,7 +28,6 @@ from imas_ambix.camdyn.dataset import (  # noqa: E402
     discover_token_shots,
 )
 from imas_ambix.camdyn.masking import (  # noqa: E402
-    NAMED_GEOMETRIES,
     ClipMaskConfig,
     MaskMode,
     named_geometry_mask,
@@ -113,7 +112,9 @@ def main(shot: int = REF_SHOT, out: Path | None = None) -> Path:
     ]
     for k, (title, m) in enumerate(panels):
         ax = fig.add_subplot(gs[2, k])
-        ax.imshow(m.astype(float), cmap="Greens", vmin=0, vmax=1, interpolation="nearest")
+        ax.imshow(
+            m.astype(float), cmap="Greens", vmin=0, vmax=1, interpolation="nearest"
+        )
         ax.set_title(title, fontsize=8)
         ax.set_xticks([])
         ax.set_yticks([])
