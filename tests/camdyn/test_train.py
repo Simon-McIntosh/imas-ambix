@@ -322,3 +322,89 @@ def test_cpu_smoke_train_and_w1_artifact(synthetic_corpus, tmp_path, monkeypatch
     # finite scores
     assert np.isfinite(w1["held_out"]["masked_nll"]["mean"])
     assert 0.0 <= w1["held_out"]["masked_top1"]["mean"] <= 1.0
+
+
+def test_w1_compare_paired_verdict(synthetic_corpus, tmp_path, monkeypatch):
+    """W1 cross-arm paired comparison runs end-to-end on tiny ckpts (CPU).
+
+    Builds matched baseline (temporal OFF) + dynamics (temporal ON) ckpts in
+    the on-disk format ``w1_compare._load_arm`` expects, scores BOTH on the
+    SAME synthetic held-out windows, and asserts the paired W1 verdict
+    structure: ``favours_dynamics`` booleans, paired CIs with aligned pair
+    counts, and every frozen named geometry compared.
+    """
+    torch = pytest.importorskip("torch")
+    from imas_ambix.camdyn import w1_compare as wc
+    from imas_ambix.camdyn.masking import NAMED_GEOMETRIES
+    from imas_ambix.camdyn.model import CamdynModel
+
+    sc = synthetic_corpus
+    split_path = _write_split(tmp_path, sc)
+
+    import imas_ambix.camdyn.train as trainmod
+
+    real_discover = discover_token_shots
+
+    def _patched_discover(*, shot_ids=None, read_n_frames=False, **_kw):
+        return real_discover(
+            token_root=sc["token_root"],
+            level1_dir=sc["level1_dir"],
+            shot_ids=shot_ids,
+            read_n_frames=read_n_frames,
+        )
+
+    monkeypatch.setattr(trainmod, "discover_token_shots", _patched_discover)
+
+    def _cfg(temporal):
+        return TrainConfig(
+            model=CamdynConfig(
+                temporal_attention=temporal,
+                dim=32,
+                n_layers=2,
+                n_heads=4,
+                mlp_ratio=2.0,
+                n_frames=6,
+                cond_channels=N_COND_CHANNELS,
+            ),
+            n_frames=6,
+            stride=4,
+            batch_size=2,
+            num_workers=0,
+            eval_windows=4,
+            max_heldout_shots=None,
+            seed=0,
+            split_path=str(split_path),
+            device="cpu",
+        )
+
+    cond_stats = [[0.0] * N_COND_CHANNELS, [1.0] * N_COND_CHANNELS]
+    ckpts = {}
+    for arm, temporal in (("baseline", False), ("dynamics", True)):
+        cfg = _cfg(temporal)
+        model = CamdynModel.from_config(cfg.model)
+        p = tmp_path / f"{arm}.pt"
+        torch.save(
+            {
+                "config": cfg.to_dict(),
+                "model_state": model.module.state_dict(),
+                "cond_stats": cond_stats,
+            },
+            p,
+        )
+        ckpts[arm] = p
+
+    verdict = wc.compare_w1(
+        ckpts["baseline"], ckpts["dynamics"], split_path=str(split_path), device="cpu"
+    )
+
+    # --- paired W1 verdict structure ---
+    assert isinstance(verdict["W1_verdict"]["favours_dynamics_nll"], bool)
+    assert isinstance(verdict["W1_verdict"]["favours_dynamics_top1"], bool)
+    ho = verdict["held_out"]
+    assert ho["paired_nll_ci"]["n_pairs"] > 0
+    assert ho["paired_top1_ci"]["n_pairs"] == ho["paired_nll_ci"]["n_pairs"]
+    assert "favours_dynamics" in ho["paired_nll_ci"]
+    assert "baseline" in ho and "dynamics" in ho
+    # every frozen named geometry was compared
+    assert set(verdict["named_geometry"]) == set(NAMED_GEOMETRIES)
+    assert verdict["baseline_params"] == verdict["dynamics_params"]  # matched-arm
