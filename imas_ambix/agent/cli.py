@@ -247,7 +247,9 @@ def download(slug: str | None, dry_run: bool) -> None:
     default=None,
     help="API key for authenticating client requests (also AMBIX_AGENT_API_KEY).",
 )
-def serve(slug: str | None, dry_run: bool, port: int | None, api_key: str | None) -> None:
+def serve(
+    slug: str | None, dry_run: bool, port: int | None, api_key: str | None
+) -> None:
     """Generate and submit a model serving job."""
     from imas_ambix.agent.slurm import generate_serve_script, submit_script
 
@@ -278,11 +280,15 @@ def serve(slug: str | None, dry_run: bool, port: int | None, api_key: str | None
 @agent.command()
 def status() -> None:
     """Show active Ambix agent SLURM jobs."""
+    from imas_ambix.agent.profile import SiteConfig
+
     user = os.environ.get("USER") or getpass.getuser()
+    site = SiteConfig.from_env()
     command = (
         "squeue -u "
         f"{shlex.quote(user)} "
-        '-o "%.10i %.20j %.8T %.10M %.6D %R" | grep ambix- || true'
+        f"-A {shlex.quote(site.account)} "
+        '-o "%.10i %.20j %.8T %.10M %.6D %R" || true'
     )
     result = subprocess.run(
         ["bash", "-lc", command],
@@ -314,8 +320,11 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
     With --all, cancels all ambix jobs (serve, download, setup).
     """
     user = os.environ.get("USER") or getpass.getuser()
+    from imas_ambix.agent.profile import SiteConfig
+
+    site = SiteConfig.from_env()
     result = subprocess.run(
-        ["squeue", "-h", "-u", user, "-o", "%i|%j"],
+        ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j"],
         capture_output=True,
         text=True,
         check=False,
@@ -333,8 +342,6 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
         job_id, job_name = line.split("|", 1)
         job_id = job_id.strip()
         job_name = job_name.strip()
-        if not job_name.startswith("ambix-"):
-            continue
         jobs.append((job_id, job_name))
 
     if not jobs:
@@ -347,11 +354,11 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
     else:
         resolved = _resolve_slug(slug) if slug else _default_profile()
         if resolved:
-            prefix = f"ambix-serve-{resolved}"
-            targets = [(jid, jn) for jid, jn in jobs if jn.startswith(prefix)]
+            targets = [(jid, jn) for jid, jn in jobs if jn == resolved]
         else:
-            # No slug and no default — cancel all serve jobs
-            targets = [(jid, jn) for jid, jn in jobs if jn.startswith("ambix-serve-")]
+            # No slug and no default — cancel serve jobs (match known profile slugs only)
+            known = set(list_profiles())
+            targets = [(jid, jn) for jid, jn in jobs if jn in known]
 
     if not targets:
         console.print("No matching jobs to cancel.")
@@ -376,9 +383,7 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
         check=False,
     )
     if cancel_result.returncode != 0:
-        raise click.ClickException(
-            cancel_result.stderr.strip() or "scancel failed"
-        )
+        raise click.ClickException(cancel_result.stderr.strip() or "scancel failed")
     console.print(f"[green]Cancelled {len(job_ids)} job(s).[/]")
 
 
@@ -432,7 +437,9 @@ def _update_dotenv_key(
 
 @agent.command(name="key")
 @click.option("--reveal", is_flag=True, help="Show the full key in plaintext.")
-@click.option("--rotate", is_flag=True, help="Generate a new key, update configs, and restart.")
+@click.option(
+    "--rotate", is_flag=True, help="Generate a new key, update configs, and restart."
+)
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt.")
 def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     """Show or rotate the API key for model serving.
@@ -459,8 +466,7 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
             token = _read_key_file(key_path)
         except PermissionError:
             raise click.ClickException(
-                f"Permission denied: {key_path}\n"
-                "Only the key owner can read this file."
+                f"Permission denied: {key_path}\nOnly the key owner can read this file."
             ) from None
 
         if not token:
@@ -507,7 +513,10 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     hermes_env = Path.home() / ".hermes" / ".env"
     if hermes_env.parent.is_dir():
         _update_dotenv_key(
-            hermes_env, "OPENAI_API_KEY", token, mode=0o600,
+            hermes_env,
+            "OPENAI_API_KEY",
+            token,
+            mode=0o600,
         )
         console.print(f"  Updated: {hermes_env} (mode 600)")
     else:
@@ -536,26 +545,22 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
 
     # Cancel active serve jobs
     result = subprocess.run(
-        ["squeue", "-h", "-u", user, "-o", "%i|%j", "-t", "R,PD"],
+        ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j", "-t", "R,PD"],
         capture_output=True,
         text=True,
         check=False,
     )
-    prefix = f"ambix-serve-{profile.slug}"
     targets: list[str] = []
     for line in result.stdout.strip().splitlines():
         line = line.strip()
         if "|" not in line:
             continue
         job_id, job_name = line.split("|", 1)
-        if job_name.strip().startswith(prefix):
+        if job_name.strip() == profile.slug:
             targets.append(job_id.strip())
 
     if targets:
-        console.print(
-            f"Cancelling {len(targets)} active job(s): "
-            + ", ".join(targets)
-        )
+        console.print(f"Cancelling {len(targets)} active job(s): " + ", ".join(targets))
         subprocess.run(
             ["scancel"] + targets,
             capture_output=True,
@@ -604,7 +609,9 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     default=None,
     help="API key for authenticating client requests (also AMBIX_AGENT_API_KEY).",
 )
-def restart(slug: str | None, dry_run: bool, port: int | None, api_key: str | None) -> None:
+def restart(
+    slug: str | None, dry_run: bool, port: int | None, api_key: str | None
+) -> None:
     """Restart a model serving job (shutdown + serve).
 
     Cancels any active serve job for the profile, waits for it to
@@ -623,26 +630,22 @@ def restart(slug: str | None, dry_run: bool, port: int | None, api_key: str | No
     # Find active serve jobs for this profile
     user = os.environ.get("USER") or getpass.getuser()
     result = subprocess.run(
-        ["squeue", "-h", "-u", user, "-o", "%i|%j", "-t", "R,PD"],
+        ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j", "-t", "R,PD"],
         capture_output=True,
         text=True,
         check=False,
     )
-    prefix = f"ambix-serve-{profile.slug}"
     targets: list[str] = []
     for line in result.stdout.strip().splitlines():
         line = line.strip()
         if "|" not in line:
             continue
         job_id, job_name = line.split("|", 1)
-        if job_name.strip().startswith(prefix):
+        if job_name.strip() == profile.slug:
             targets.append(job_id.strip())
 
     if targets:
-        console.print(
-            f"Cancelling {len(targets)} active job(s): "
-            + ", ".join(targets)
-        )
+        console.print(f"Cancelling {len(targets)} active job(s): " + ", ".join(targets))
         cancel = subprocess.run(
             ["scancel"] + targets,
             capture_output=True,
@@ -650,9 +653,7 @@ def restart(slug: str | None, dry_run: bool, port: int | None, api_key: str | No
             check=False,
         )
         if cancel.returncode != 0:
-            raise click.ClickException(
-                cancel.stderr.strip() or "scancel failed"
-            )
+            raise click.ClickException(cancel.stderr.strip() or "scancel failed")
 
         # Wait for jobs to drain
         for _attempt in range(30):
@@ -667,8 +668,7 @@ def restart(slug: str | None, dry_run: bool, port: int | None, api_key: str | No
                 break
         else:
             raise click.ClickException(
-                "Timed out waiting for old job(s) to stop (60s). "
-                "Check squeue manually."
+                "Timed out waiting for old job(s) to stop (60s). Check squeue manually."
             )
         console.print("[green]Old job(s) cancelled.[/]")
     else:
@@ -694,10 +694,11 @@ def restart(slug: str | None, dry_run: bool, port: int | None, api_key: str | No
     )
 
 
-
 @agent.command()
 @click.argument("slug", required=False)
-@click.option("--url", default=None, help="Server base URL (default: from site config).")
+@click.option(
+    "--url", default=None, help="Server base URL (default: from site config)."
+)
 @click.option(
     "--model",
     "model_name",
@@ -723,7 +724,10 @@ def restart(slug: str | None, dry_run: bool, port: int | None, api_key: str | No
 )
 @click.option("--json", "json_output", is_flag=True, help="Output raw JSON only.")
 @click.option(
-    "--output", "output_path", type=click.Path(), default=None,
+    "--output",
+    "output_path",
+    type=click.Path(),
+    default=None,
     help="Write JSON results to file (default: ~/.local/share/ambix/bench/).",
 )
 @click.option("--no-save", is_flag=True, help="Disable auto-saving results.")
@@ -791,9 +795,7 @@ def bench(
                 model = available[0]
                 console.print(f"Using '{model}' instead.")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise click.ClickException(
-            f"Cannot reach server at {base_url}: {exc}"
-        ) from exc
+        raise click.ClickException(f"Cannot reach server at {base_url}: {exc}") from exc
 
     cats = list(category) if category else None
 
@@ -842,9 +844,7 @@ def bench(
         console.print(f"\n[dim]Results saved to {save_path}[/]")
 
 
-def _render_report(
-    report: BenchReport, model: str, repeat: int = 1
-) -> None:
+def _render_report(report: BenchReport, model: str, repeat: int = 1) -> None:
     """Render benchmark results as rich tables to the console."""
     from rich.table import Table as RichTable
 
@@ -948,9 +948,7 @@ def _render_concurrency(results: list, repeat: int) -> None:
         avg_tps = sum(tps_vals) / len(tps_vals) if tps_vals else 0
         agg_tps = level_results[0].metadata.get("aggregate_tps", 0)
         wall = level_results[0].metadata.get("wall_time", 0)
-        ttft_vals = [
-            r.time_to_first_token_s for r in ok if r.time_to_first_token_s > 0
-        ]
+        ttft_vals = [r.time_to_first_token_s for r in ok if r.time_to_first_token_s > 0]
         avg_ttft = sum(ttft_vals) / len(ttft_vals) * 1000 if ttft_vals else 0
         all_ok = all(r.ok for r in level_results)
         table.add_row(
@@ -1039,8 +1037,8 @@ def setup(engine: str, dry_run: bool) -> None:
         lines += [
             "# SDCC glibc 2.34 < manylinux_2_35 required by the vLLM PyPI wheel.",
             "# Download the wheel and rename its platform tag so uv accepts it.",
-            'mkdir -p wheelhouse',
-            'if ! ls wheelhouse/vllm-*manylinux_2_17* &>/dev/null; then',
+            "mkdir -p wheelhouse",
+            "if ! ls wheelhouse/vllm-*manylinux_2_17* &>/dev/null; then",
             '    echo "Downloading vLLM wheel to wheelhouse..."',
             "    # Resolve download URL via PyPI JSON API",
             '    VLLM_URL=$(python3 -c "',
@@ -1053,7 +1051,7 @@ def setup(engine: str, dry_run: bool) -> None:
             '")',
             '    WHEEL_NAME=$(basename "$VLLM_URL")',
             '    curl -fSL "$VLLM_URL" -o "wheelhouse/$WHEEL_NAME"',
-            '    # Rename manylinux_2_35 → manylinux_2_17 to bypass glibc check',
+            "    # Rename manylinux_2_35 → manylinux_2_17 to bypass glibc check",
             '    WHEEL_FIXED="${WHEEL_NAME/manylinux_2_35/manylinux_2_17}"',
             '    mv "wheelhouse/$WHEEL_NAME" "wheelhouse/$WHEEL_FIXED"',
             '    echo "Renamed → $WHEEL_FIXED"',
@@ -1071,8 +1069,8 @@ def setup(engine: str, dry_run: bool) -> None:
         lines += [
             "",
             'echo "Installing vLLM from local wheelhouse..."',
-            '# --no-deps: all dependencies already installed by uv sync above',
-            'uv pip install --no-deps --python .venv/bin/python wheelhouse/vllm-*manylinux_2_17*.whl',
+            "# --no-deps: all dependencies already installed by uv sync above",
+            "uv pip install --no-deps --python .venv/bin/python wheelhouse/vllm-*manylinux_2_17*.whl",
         ]
 
     lines += [
@@ -1086,14 +1084,14 @@ def setup(engine: str, dry_run: bool) -> None:
     # Engine-specific smoke tests (version check via metadata — no CUDA needed)
     if engine == "vllm":
         lines += [
-            "\"$PYTHON\" -c \"import importlib.metadata as m; print(f'vLLM {m.version(\\\"vllm\\\")} OK')\"",
-            "\"$PYTHON\" -c \"import importlib.metadata as m; print(f'PyTorch {m.version(\\\"torch\\\")}')\"",
-            "\"$PYTHON\" -c \"import importlib.metadata as m; print(f'transformers {m.version(\\\"transformers\\\")}')\"",
+            '"$PYTHON" -c "import importlib.metadata as m; print(f\'vLLM {m.version(\\"vllm\\")} OK\')"',
+            '"$PYTHON" -c "import importlib.metadata as m; print(f\'PyTorch {m.version(\\"torch\\")}\')"',
+            '"$PYTHON" -c "import importlib.metadata as m; print(f\'transformers {m.version(\\"transformers\\")}\')"',
         ]
     elif engine == "sglang":
         lines += [
-            "\"$PYTHON\" -c \"import importlib.metadata as m; print(f'SGLang {m.version(\\\"sglang\\\")} OK')\"",
-            "\"$PYTHON\" -c \"import importlib.metadata as m; print(f'PyTorch {m.version(\\\"torch\\\")}')\"",
+            '"$PYTHON" -c "import importlib.metadata as m; print(f\'SGLang {m.version(\\"sglang\\")} OK\')"',
+            '"$PYTHON" -c "import importlib.metadata as m; print(f\'PyTorch {m.version(\\"torch\\")}\')"',
         ]
 
     lines.append("")

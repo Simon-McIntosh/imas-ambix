@@ -81,10 +81,8 @@ def _append_flag(args: list[str], flag: str, enabled: bool) -> None:
 
 def _render_shell_command(args: list[str]) -> str:
     command = shlex.join(args)
-    return (
-        command.replace(_MODEL_DIR_TOKEN, '"$MODEL_DIR"').replace(
-            _PORT_TOKEN, '"$PORT"'
-        )
+    return command.replace(_MODEL_DIR_TOKEN, '"$MODEL_DIR"').replace(
+        _PORT_TOKEN, '"$PORT"'
     )
 
 
@@ -193,21 +191,13 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             engine.enable_auto_tool_choice,
         )
         if engine.parsers.tool_call:
-            _append_option(
-                args, "--tool-call-parser", engine.parsers.tool_call
-            )
+            _append_option(args, "--tool-call-parser", engine.parsers.tool_call)
         if engine.parsers.reasoning:
-            _append_option(
-                args, "--reasoning-parser", engine.parsers.reasoning
-            )
+            _append_option(args, "--reasoning-parser", engine.parsers.reasoning)
         _append_option(args, "--max-num-seqs", engine.max_num_seqs)
-        _append_option(
-            args, "--max-num-batched-tokens", engine.max_num_batched_tokens
-        )
+        _append_option(args, "--max-num-batched-tokens", engine.max_num_batched_tokens)
         if engine.kv_cache_dtype:
-            _append_option(
-                args, "--kv-cache-dtype", engine.kv_cache_dtype
-            )
+            _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)
         return _render_shell_command(args)
 
     if engine.type != "ktransformers":
@@ -273,7 +263,7 @@ def generate_serve_script(
     """
     model_dir = site.model_dir(profile)
     headers = _sbatch_headers(
-        job_name=f"ambix-serve-{profile.slug}",
+        job_name=profile.slug,
         partition=site.partition,
         account=site.account,
         reservation=site.reservation,
@@ -281,7 +271,7 @@ def generate_serve_script(
         cpus=profile.slurm.cpus,
         memory=profile.slurm.memory,
         time_limit=profile.slurm.time_serve,
-        output_name="ambix-serve-%j.log",
+        output_name=f"{profile.slug}-%j.log",
     )
     launch_command = _build_serve_command(profile, site)
     venv_bin = str(site.python_path(profile.engine.type).parent)
@@ -292,8 +282,7 @@ def generate_serve_script(
     if is_kt:
         evictor_python = shlex.quote(str(site.python_path(profile.engine.type)))
         fadvise_cmd = (
-            f"{evictor_python} -c {shlex.quote(_FADVISE_DROP_CODE)}"
-            ' "$MODEL_DIR"'
+            f'{evictor_python} -c {shlex.quote(_FADVISE_DROP_CODE)} "$MODEL_DIR"'
         )
         kt_env_block = dedent(
             f"""
@@ -380,9 +369,7 @@ def generate_serve_script(
             'chmod 600 "$TMPDIR/.api-key"',
         ]
         if profile.engine.type == "vllm":
-            key_lines.append(
-                'export VLLM_API_KEY="$(cat "$TMPDIR/.api-key")"'
-            )
+            key_lines.append('export VLLM_API_KEY="$(cat "$TMPDIR/.api-key")"')
         else:
             # sglang.launch_server is a script-style module — its
             # server start-up runs in its `if __name__ == '__main__':`
@@ -476,7 +463,7 @@ def generate_serve_script(
         echo "    visible=${{CUDA_VISIBLE_DEVICES:-unknown}}"
         echo "  model dir: $MODEL_DIR"
         echo "  port: $PORT"
-        echo "  api_key: {('enabled' if api_key else 'disabled')}"
+        echo "  api_key: {("enabled" if api_key else "disabled")}"
 
         echo "[$(date)] GPU inventory"
         nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
@@ -519,7 +506,7 @@ def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
     cache_dir = site.cache_dir(profile)
     hf_bin = str(site.hf_path(profile.engine.type))
     headers = _sbatch_headers(
-        job_name=f"ambix-download-{profile.slug}",
+        job_name=f"download-{profile.slug}",
         partition=site.download_partition,
         account=site.account,
         reservation=None,
@@ -527,7 +514,7 @@ def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
         cpus=4,
         memory="16G",
         time_limit=profile.slurm.time_download,
-        output_name="ambix-download-%j.log",
+        output_name=f"download-{profile.slug}-%j.log",
     )
     download_command = shlex.join(
         [
