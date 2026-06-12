@@ -1,0 +1,245 @@
+{
+  "task": "forward-horizon reconstruction (W2): dynamics vs persistence vs baseline",
+  "metrics_provenance": "camdyn.metrics.horizon_frame_offsets + bootstrap_ci (pre-registered)",
+  "horizons_ms": [
+    10.0,
+    50.0,
+    200.0
+  ],
+  "frontier_frame": 8,
+  "n_frames": 16,
+  "n_heldout_shots": 150,
+  "n_batches": 8,
+  "n_wide_batches": 8,
+  "wide_window_frames": 256,
+  "baseline_ckpt": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_baseline/final.pt",
+  "dynamics_ckpt": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt",
+  "cadence_note": "rbb cadence is heterogeneous (~13us..1ms/frame); a native 16-frame window spans ~0.2..15 ms so most physical horizons fall OUTSIDE the window at native cadence (valid=0). The matched regime reads WIDE 256-frame native windows and decimates each to 16 frames spanning the horizon range; the model is Dt-conditioned so the wider spacing is reflected in the cond vector. Shots faster than ~0.78 ms/frame still cannot reach 200 ms within the wide window and report valid=0 for the unreachable horizons (honest).",
+  "native": {
+    "table": {
+      "10.0": {
+        "valid_windows": 15,
+        "n_cells": 3840,
+        "dynamics": {
+          "top1": 0.024479166666666666,
+          "nll": 8.585290595446347
+        },
+        "persistence": {
+          "top1": 0.0203125
+        },
+        "baseline": {
+          "top1": 0.0010416666666666667,
+          "nll": 12.389972366062947
+        },
+        "dynamics_vs_persistence_top1": {
+          "mean": 0.004166666666666667,
+          "lo": -0.0013020833333333333,
+          "hi": 0.009375,
+          "alpha": 0.05,
+          "favours_dynamics": false,
+          "clear_of_zero": false
+        },
+        "dynamics_vs_baseline_top1": {
+          "mean": 0.0234375,
+          "lo": 0.018489583333333334,
+          "hi": 0.028385416666666666,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true
+        },
+        "dynamics_vs_baseline_nll": {
+          "mean": 3.8046817706166016,
+          "lo": 3.6742812586236564,
+          "hi": 3.9340097882611254,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true
+        }
+      },
+      "50.0": {
+        "valid_windows": 1,
+        "n_cells": 256,
+        "dynamics": {
+          "top1": 0.01171875,
+          "nll": 9.0662076868722
+        },
+        "persistence": {
+          "top1": 0.01171875
+        },
+        "baseline": {
+          "top1": 0.0078125,
+          "nll": 10.817782662436727
+        },
+        "dynamics_vs_persistence_top1": {
+          "mean": 0.0,
+          "lo": -0.01953125,
+          "hi": 0.01953125,
+          "alpha": 0.05,
+          "favours_dynamics": false,
+          "clear_of_zero": false
+        },
+        "dynamics_vs_baseline_top1": {
+          "mean": 0.00390625,
+          "lo": -0.01171875,
+          "hi": 0.01953125,
+          "alpha": 0.05,
+          "favours_dynamics": false,
+          "clear_of_zero": false
+        },
+        "dynamics_vs_baseline_nll": {
+          "mean": 1.7515749755645253,
+          "lo": 1.4861924334414243,
+          "hi": 2.009305582735343,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true
+        }
+      },
+      "200.0": {
+        "valid_windows": 0,
+        "note": "no in-window valid windows"
+      }
+    },
+    "n_windows_scored": 256
+  },
+  "matched": {
+    "table": {
+      "10.0": {
+        "valid_windows": 59,
+        "n_cells": 15104,
+        "dynamics": {
+          "top1": 0.018273305084745763,
+          "nll": 9.311540102630838
+        },
+        "persistence": {
+          "top1": 0.014036016949152543
+        },
+        "baseline": {
+          "top1": 0.0003310381355932203,
+          "nll": 11.979066918192583
+        },
+        "dynamics_vs_persistence_top1": {
+          "mean": 0.00423728813559322,
+          "lo": 0.0018521583686440693,
+          "hi": 0.006686970338983051,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true
+        },
+        "dynamics_vs_baseline_top1": {
+          "mean": 0.017942266949152543,
+          "lo": 0.01582362288135593,
+          "hi": 0.020127118644067795,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true
+        },
+        "dynamics_vs_baseline_nll": {
+          "mean": 2.667526815561742,
+          "lo": 2.6153645342167375,
+          "hi": 2.7206425606666964,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true
+        }
+      },
+      "50.0": {
+        "valid_windows": 19,
+        "n_cells": 4864,
+        "dynamics": {
+          "top1": 0.004111842105263158,
+          "nll": 10.650672483699365
+        },
+        "persistence": {
+          "top1": 0.0028782894736842104
+        },
+        "baseline": {
+          "top1": 0.00020559210526315788,
+          "nll": 11.77623505776742
+        },
+        "dynamics_vs_persistence_top1": {
+          "mean": 0.0012335526315789473,
+          "lo": -0.0010279605263157894,
+          "hi": 0.0034950657894736842,
+          "alpha": 0.05,
+          "favours_dynamics": false,
+          "clear_of_zero": false
+        },
+        "dynamics_vs_baseline_top1": {
+          "mean": 0.00390625,
+          "lo": 0.002055921052631579,
+          "hi": 0.005756578947368421,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true
+        },
+        "dynamics_vs_baseline_nll": {
+          "mean": 1.1255625740680568,
+          "lo": 1.048946574727419,
+          "hi": 1.2051833938713763,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true
+        }
+      },
+      "200.0": {
+        "valid_windows": 1,
+        "n_cells": 256,
+        "dynamics": {
+          "top1": 0.00390625,
+          "nll": 10.295100448588354
+        },
+        "persistence": {
+          "top1": 0.0
+        },
+        "baseline": {
+          "top1": 0.0,
+          "nll": 11.175700142257364
+        },
+        "dynamics_vs_persistence_top1": {
+          "mean": 0.00390625,
+          "lo": 0.0,
+          "hi": 0.01171875,
+          "alpha": 0.05,
+          "favours_dynamics": false,
+          "clear_of_zero": false
+        },
+        "dynamics_vs_baseline_top1": {
+          "mean": 0.00390625,
+          "lo": 0.0,
+          "hi": 0.01171875,
+          "alpha": 0.05,
+          "favours_dynamics": false,
+          "clear_of_zero": false
+        },
+        "dynamics_vs_baseline_nll": {
+          "mean": 0.8805996936690079,
+          "lo": 0.7540610624380878,
+          "hi": 1.0047554346233905,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true
+        }
+      }
+    },
+    "n_windows_scored": 256,
+    "n_reachable_horizons": 3
+  },
+  "verdict_matched": {
+    "10.0": {
+      "reachable": true,
+      "beats_persistence": true,
+      "beats_baseline": true
+    },
+    "50.0": {
+      "reachable": true,
+      "beats_persistence": false,
+      "beats_baseline": true
+    },
+    "200.0": {
+      "reachable": true,
+      "beats_persistence": false,
+      "beats_baseline": false
+    }
+  }
+}
