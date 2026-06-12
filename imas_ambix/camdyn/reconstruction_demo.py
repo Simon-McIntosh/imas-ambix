@@ -801,8 +801,15 @@ def build_demo(
     work_dir: Path | None = None,
 ) -> list[Path]:
     """Predict → decode → assemble all scenario figures.  Returns figure paths."""
+    import os
+    import tempfile
+
     out_dir = Path(out_dir)
-    work_dir = work_dir or (out_dir / "_demo_work")
+    # Scratch (predict↔decode token/image bundles) lives in TMPDIR, NOT under
+    # the committed figures dir — only the PNGs land in out_dir.
+    work_dir = work_dir or Path(
+        tempfile.mkdtemp(prefix="camdyn-demo-", dir=os.environ.get("TMPDIR", "/tmp"))
+    )
     work_dir.mkdir(parents=True, exist_ok=True)
     token_bundle = work_dir / "tokens.npz"
     image_bundle = work_dir / "images.npz"
