@@ -20,6 +20,7 @@ from imas_ambix.camdyn.horizon_eval import (
     _agg_horizon,
     _bit_map_pred,
     _forward_dt_1d,
+    decimate_to_n,
     decimate_window,
     matched_stride_for,
     score_window_horizons,
@@ -89,6 +90,32 @@ def test_decimate_window_subsamples_frame_axis_and_recomputes_dt():
     np.testing.assert_allclose(out["dt"][0], [3e-3, 3e-3, 3e-3, 3e-3], atol=1e-9)
     # stride <= 1 is a passthrough
     assert decimate_window(arr, stride=1) is arr
+
+
+def test_decimate_to_n_picks_frames_spanning_the_horizon():
+    # WIDE 100-frame native window at 1 ms cadence (spans ~99 ms); decimate to
+    # 16 frames spanning a 50 ms horizon → stride picks frames ~3-4 ms apart.
+    nwide, n_target = 100, 16
+    arr = {
+        "tokens": np.arange(2 * nwide * 4 * 4).reshape(2, nwide, 4, 4),
+        "frame_time": np.tile(1e-3 * np.arange(nwide), (2, 1)),
+        "shot_id": np.array([1, 2]),
+    }
+    out = decimate_to_n(arr, n_target, max_horizon_ms=50.0)
+    assert out["tokens"].shape[1] <= n_target
+    assert out["tokens"].shape[1] >= 2
+    # kept frames span at least ~the horizon (within the wide window's reach)
+    ft = out["frame_time"][0]
+    span_ms = (ft[-1] - ft[0]) * 1000.0
+    assert span_ms >= 40.0  # close to the 50 ms target
+    # dt recomputed on the kept frames
+    assert "dt" in out and out["dt"].shape == out["frame_time"].shape
+    # a window already <= n_target is returned unchanged
+    small = {
+        "tokens": np.zeros((1, 8, 4, 4)),
+        "frame_time": np.tile(1e-3 * np.arange(8), (1, 1)),
+    }
+    assert decimate_to_n(small, 16, 50.0) is small
 
 
 def test_bit_map_pred_round_trips_token_ids():
@@ -286,10 +313,12 @@ def test_horizon_table_end_to_end_cpu(synthetic_corpus, tmp_path, monkeypatch):
     art = json.loads(out_path.read_text())
     assert art["horizons_ms"] == list(HORIZON_MS)
     assert art["frontier_frame"] == 3
+    assert "wide_window_frames" in art and "n_wide_batches" in art
     # both cadence regimes scored, each with the full horizon table
     for regime in ("native", "matched"):
         assert regime in art
         assert set(art[regime]["table"]) == {str(h) for h in HORIZON_MS}
+    assert "n_reachable_horizons" in art["matched"]
     # the matched verdict has an entry per horizon (reachable flag honest)
     assert set(art["verdict_matched"]) == {str(h) for h in HORIZON_MS}
     for h in HORIZON_MS:

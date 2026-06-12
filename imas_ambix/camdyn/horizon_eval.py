@@ -133,6 +133,52 @@ def matched_stride_for(frame_time: np.ndarray, n_frames: int, max_horizon_ms: fl
     return stride, bool(reach_ms >= max_horizon_ms)
 
 
+def decimate_to_n(arr: dict, n_target: int, max_horizon_ms: float) -> dict:
+    """Down-sample a WIDE native window to ``n_target`` frames spanning a horizon.
+
+    The matched regime needs the ``n_target``-frame window the model expects
+    (e.g. 16) to physically span the longest horizon.  A *contiguous* native
+    16-frame window only spans ~15 ms at MAST cadence, so instead we read a
+    WIDE native window (many more native frames) and pick ``n_target`` of them
+    with a per-shot stride so the kept frames span ``max_horizon_ms``.  ``dt``
+    is recomputed on the kept frames so the model's Δt conditioning reflects
+    the wider spacing (the model is Δt-conditioned — package docstring).
+
+    Returns a NEW batch dict with exactly ``min(n_target, available)`` frames
+    on the frame axis.  When the wide window's own span is shorter than the
+    horizon (very high cadence, or padded short shots) the kept window simply
+    spans as far as the available real frames reach — :func:`score_window_horizons`
+    then reports the unreachable horizons as ``valid=0``.
+    """
+    ft0 = np.asarray(arr["frame_time"][0], dtype=np.float64).reshape(-1)
+    nwide = ft0.size
+    if nwide <= n_target:
+        return arr
+    dt = float(np.median(np.diff(ft0)))
+    if not np.isfinite(dt) or dt <= 0:
+        idx = np.linspace(0, nwide - 1, n_target).round().astype(int)
+    else:
+        # stride so n_target frames span the horizon; clip so the picked
+        # indices stay inside the wide window (don't run past real frames)
+        frames_needed = (max_horizon_ms / 1000.0) / dt
+        stride = max(1, int(np.ceil(frames_needed / max(1, n_target - 1))))
+        stride = min(stride, max(1, (nwide - 1) // max(1, n_target - 1)))
+        idx = np.arange(n_target, dtype=int) * stride
+        idx = idx[idx < nwide]
+    out: dict = {}
+    tok_axis_n = arr["tokens"].shape[1]
+    for k, v in arr.items():
+        v = np.asarray(v)
+        if v.ndim >= 2 and v.shape[1] == tok_axis_n:
+            out[k] = v[:, idx].copy()
+        else:
+            out[k] = v
+    ft = out["frame_time"]
+    dt_arr = np.stack([_forward_dt_1d(ft[b]) for b in range(ft.shape[0])])
+    out["dt"] = dt_arr.astype(np.float32)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Per-window horizon scoring (bit-head, matches the rest of camdyn)
 # ---------------------------------------------------------------------------
@@ -359,11 +405,13 @@ def horizon_table(
 
     split = tr._load_split()
     ho_specs = _specs_for_shots(split.held_out, max_shots=tcfg.max_heldout_shots)
-    frame_cfg = FrameWindowConfig(
-        n_frames=tcfg.n_frames, stride=tcfg.stride, seed=tcfg.seed
-    )
+    nf = tcfg.n_frames
+    max_h = float(max(horizons_ms))
+
+    # NATIVE regime: contiguous nf-frame windows exactly as the arms trained.
+    frame_cfg = FrameWindowConfig(n_frames=nf, stride=tcfg.stride, seed=tcfg.seed)
     logger.info(
-        "[horizon] materialising <=%d held-out windows (%d shots)",
+        "[horizon] materialising <=%d native held-out windows (%d shots)",
         tcfg.eval_windows,
         len(ho_specs),
     )
@@ -371,8 +419,26 @@ def horizon_table(
         ho_specs, frame_cfg, max_windows=tcfg.eval_windows, seed=eval_seed
     )
 
-    max_h = float(max(horizons_ms))
-    nf = tcfg.n_frames
+    # MATCHED regime: a contiguous nf-frame window only spans ~15 ms at MAST
+    # cadence, so it can never reach the 50/200 ms horizons.  Read WIDE native
+    # windows (nf * WIDE_FACTOR frames) and decimate each down to nf frames
+    # spanning the horizon range — the Δt-conditioned model then sees the wider
+    # spacing through its dt input.  WIDE_FACTOR=16 → a 256-frame native window
+    # spans the full 200 ms horizon at >=0.78 ms/frame; faster shots reach only
+    # the shorter horizons (reported valid=0 for the rest).
+    wide_factor = 16
+    wide_n = nf * wide_factor
+    wide_cfg = FrameWindowConfig(n_frames=wide_n, stride=wide_n, seed=tcfg.seed)
+    logger.info(
+        "[horizon] materialising <=%d wide (%d-frame) held-out windows for the "
+        "matched regime (%d shots)",
+        tcfg.eval_windows,
+        wide_n,
+        len(ho_specs),
+    )
+    wide_batches = tr._materialize_eval(
+        ho_specs, wide_cfg, max_windows=tcfg.eval_windows, seed=eval_seed
+    )
 
     out: dict = {
         "task": (
@@ -386,33 +452,29 @@ def horizon_table(
         "n_frames": int(nf),
         "n_heldout_shots": len(ho_specs),
         "n_batches": len(batches),
+        "n_wide_batches": len(wide_batches),
+        "wide_window_frames": int(wide_n),
         "baseline_ckpt": str(baseline_ckpt),
         "dynamics_ckpt": str(dynamics_ckpt),
         "cadence_note": (
             "rbb cadence is heterogeneous (~13us..1ms/frame); a native 16-frame "
             "window spans ~0.2..15 ms so most physical horizons fall OUTSIDE the "
-            "window at native cadence (valid=0). The matched regime decimates "
-            "frames per-shot so the window spans the horizon range; the model is "
-            "Dt-conditioned so the wider spacing is reflected in the cond vector."
+            "window at native cadence (valid=0). The matched regime reads WIDE "
+            f"{wide_n}-frame native windows and decimates each to {nf} frames "
+            "spanning the horizon range; the model is Dt-conditioned so the wider "
+            "spacing is reflected in the cond vector. Shots faster than "
+            "~0.78 ms/frame still cannot reach 200 ms within the wide window and "
+            "report valid=0 for the unreachable horizons (honest)."
         ),
     }
 
     for regime in ("native", "matched"):
         records = []
-        skipped_unreachable = 0
-        for arr in batches:
-            if regime == "matched":
-                # per-batch decimation stride from the window's median dt
-                # (windows in a batch share cadence within a shot; use the
-                # first window's frame_time for the stride decision)
-                stride, ok = matched_stride_for(arr["frame_time"][0], nf, max_h)
-                if not ok:
-                    skipped_unreachable += int(arr["tokens"].shape[0])
-                    barr = decimate_window(arr, stride)
-                else:
-                    barr = decimate_window(arr, stride)
-            else:
-                barr = arr
+        source_batches = batches if regime == "native" else wide_batches
+        for arr in source_batches:
+            # matched: decimate the wide native window down to nf frames spanning
+            # the horizon range (per-shot stride from the window's dt)
+            barr = decimate_to_n(arr, nf, max_h) if regime == "matched" else arr
             dyn_bl = _forward_batch(dyn_model, barr, torch, dev, frontier, _dyn_stats)
             base_bl = _forward_batch(base_model, barr, torch, dev, frontier, base_stats)
             for b in range(barr["tokens"].shape[0]):
@@ -439,8 +501,8 @@ def horizon_table(
             "n_windows_scored": len(records),
         }
         if regime == "matched":
-            out[regime]["n_windows_horizon_unreachable_even_decimated"] = (
-                skipped_unreachable
+            out[regime]["n_reachable_horizons"] = int(
+                sum(1 for h in horizons_ms if table[h].get("valid_windows"))
             )
 
     # verdict: in the matched regime (the populated table), does dynamics beat
