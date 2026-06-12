@@ -162,6 +162,13 @@ def compare_arms(
     if split_path is not None:
         tcfg.split_path = str(split_path)
     tcfg.device = str(dev)
+    # Single-process materialisation: the training config's worker count is
+    # tuned for a multi-hour run, but here it spawns N processes each holding
+    # a torch runtime + a per-shot LRU of full raw conditioning traces, on top
+    # of TWO loaded models — OOM-killing the compare (job 1216726 died here at
+    # 120G).  Reading the few hundred eval windows once in the main process is
+    # minutes of I/O and keeps a single trace cache.
+    tcfg.num_workers = 0
     tr = Trainer(tcfg)
     tr._cond_stats = base_stats
 
