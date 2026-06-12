@@ -19,9 +19,9 @@
   <title>Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-11">
-<meta name="plan-version" content="6">
-<meta name="plan-impl" content="0.3">
+<meta name="plan-modified" content="2026-06-12">
+<meta name="plan-version" content="8">
+<meta name="plan-impl" content="0.45">
 </head>
 <body>
   <main class="plan-doc">
@@ -244,14 +244,20 @@
       a significant regression cannot be miscounted as a win. Commits <code>67a6b7c</code>,
       <code>c1e1324</code>, <code>d7b7953</code>. Full record:
       <a href="archive/camera-dynamics-wm-v0-d0-landed.html">D0 landed</a>.</p>
-    <p><strong>D1 — per-frame inpainting baseline (1 GPU).</strong> The architecture with time
-      attention off, trained on the same masked objective.
-      <em>Done when:</em> baseline trained to convergence on the training split; masked-token
-      NLL/accuracy on val + held-out logged as the W1 bar.</p>
-    <p><strong>D2 — dynamics arm (4×H200, FSDP/DDP).</strong> Full spatio-temporal model at matched
-      parameters and matched token budget.
-      <em>Done when:</em> W1 verdict with bootstrap CI; W2 horizon table (h = 10/50/200 ms);
-      training obeys §6 safety contract.</p>
+    <p><strong>✓ D1 + D2 — matched arms trained, W1 verdict in — landed 2026-06-12.</strong>
+      Two byte-identical 202M factorized ST-transformers (temporal toggle the only difference),
+      20,000 steps each in 7h17m/arm concurrently on 1 H200 apiece. <strong>W1: dynamics wins
+      decisively</strong> — paired bootstrap over 764,707 held-out tokens gives NLL
+      +0.4587 [+0.4550, +0.4624] over the baseline, AND beats the zero-order-hold carry-forward
+      reference (top-1 +0.0066 [+0.0064, +0.0068]; beats persistence in the forecasting mode
+      0.0242 vs 0.0178). Gains concentrate exactly on the temporal modes: pan +0.51, frontier
+      +2.55 nats (top-1 ×40). Full illustrated record:
+      <a href="camera-dynamics-arm-comparison.html">camera-dynamics-arm-comparison</a>
+      (commit <code>03f99de</code>, artifacts <code>cap_v1_*.json</code> +
+      <code>arm_compare.json</code>; checkpoints under
+      <code>/work/projects/imas_gpu/mast-checkpoints/camdyn/</code>).
+      <em>Note:</em> D1/D2 ran on 1 GPU each (not 4×/FSDP — unnecessary at 202M) and the explicit
+      W2 horizon table (h = 10/50/200 ms) carries into the open D3 followup.</p>
     <p><strong>D3 — actuator-conditioning ablation + gas-puff attribution.</strong> Arms: no
       conditioning / minimal scalars (Ip, ∫ne dl) / full actuator vector (coil currents, NBI
       powers, gas-puff flows). Plus the §4b falsification probe: reconstruct held-out shots with
@@ -457,7 +463,7 @@ Done-when
   2. A followup written for D1 (baseline arm) with the §05 template + this one resolved.</pre>
     <p class="r-fu-outcome">D0 LANDED + evaluated. Commits 67a6b7c (substrate), c1e1324 (figure), d7b7953 (W1-gate hardening). imas_ambix/camdyn/ delivers: frame-grid FrameTokenDataset (joins V3 token store ↔ V2 level-1 rbb/time, native frames + per-frame Δt; time-grid = D0's call, documented recommendation = native+Δt); 5-mode clip-mask sampler (random/panning/frontier/full + curriculum hook) + frozen deterministic named-geometry eval suite (fixed_section2, divertor_only, centre_column_strip, standard_pan, frontier_half); full PHYSICAL actuator conditioning (amc coils+sol+tf+Ip, anb beam powers, aga inboard/outboard puff, ane density; Dα separable, default-off as a W3 target) with causal zero-order hold + per-channel missing flags; efm/esm/xdc leakage-BANNED inside load_conditioning; split manifest camdyn_split_v0.json = train 7535 / val 942 / held-out 1050 (disjoint, covers all 9527), 108/112 MSE shots forced to held-out (4 token-less surfaced, not dropped); PRE-REGISTERED metric module locking W1 (masked NLL + top-1 + bootstrap CI), W2 (physical horizon-h reconstruction + persistence baseline), W3 (frozen-probe RMSE/CRPS), + motion-weighted subset; rFID banned. Orchestrator evaluation: scope clean (sequential_da.py untouched), leakage ban + split invariants + metric numerics independently verified; hardened bootstrap_ci with an unambiguous directional favours_dynamics W1 gate (a significant regression can no longer be miscounted as a win) + regression test. 70 tests green. Figure: /imas-ambix/figures/camera-dynamics-wm/fig-cdw-d0-batch.png. Per-stage record: docs/archive/camera-dynamics-wm-v0-d0-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-cdw-d1-baseline" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator/opus)" data-written-at="2026-06-10" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0 D1" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-cdw-d1-baseline" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator/opus)" data-written-at="2026-06-10" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0 D1" data-resolved-at="2026-06-12T06:34:24+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">D1 — per-frame inpainting baseline (1 GPU): build the model family, log the W1 bar</h4>
     <div class="r-fu-body"><p>D0 substrate landed. D1 builds the per-frame spatial-inpainting BASELINE — the factorized ST transformer with temporal attention DISABLED — and logs its held-out masked-token NLL/accuracy as the locked W1 bar that the D2 dynamics arm must beat. D1 IS the model family (D2 = the same network with time attention ON), so the shared architecture is built cleanly here. GPU job on the betelgeuse 4×H200 reservation (D1 uses 1 GPU); the reservation is currently held by the DeepSeek-V4-Flash serve job — free it first (pre-authorised: <code>ambix agent stop deepseek-v4-flash</code>).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -524,6 +530,48 @@ Done-when
   4. A followup for D2 (dynamics arm, 4×H200, time attention ON — W1 verdict + W2 horizon table) written
      with the §05 template, and THIS followup resolved.
   5. NO AI co-author trailers; commit specific paths only; push to origin/main.</pre>
+    <p class="r-fu-outcome">D1 AND D2 LANDED with the verdict. Matched 202M pair (dim 1024 x 12 layers x 16 heads; toggle-only difference) trained 20000 steps each, 7h17m/arm concurrent on 1 H200 apiece (jobs 1216236/1216237, exit 0). Paired verdict (arm_compare.json, n=764,707 held-out tokens): dynamics beats baseline NLL +0.4587 [0.4550, 0.4624] AND beats the zero-order-hold carry-forward top-1 +0.0066 [0.0064, 0.0068], including persistence in the forecasting mode (0.0242 vs 0.0178) -&gt; dynamics_wins=True. Per-geometry: every geometry favours dynamics on both bars; gains concentrate on the temporal modes (standard_pan +0.514, frontier_half +2.548 nats, top-1 x40). Checkpoints /work/projects/imas_gpu/mast-checkpoints/camdyn/{cap_v1_baseline,cap_v1_dynamics}/final.pt; artifacts cap_v1_baseline.json / cap_v1_dynamics.json / arm_compare.json (commit 03f99de). Illustrated report: docs/camera-dynamics-arm-comparison.html. NOTE: the explicit physical-horizon table (10/50/200 ms vs persistence) is NOT yet run - carried into the next followup.</p>
+    </article>
+<article class="r-fu" data-id="f-cdw-ablation-horizons" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-12" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0 D3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Horizon table + conditioning ablation + gas-puff attribution on the trained dynamics arm</h4>
+    <div class="r-fu-body"><p>The matched-arm verdict is in (dynamics beats baseline AND zero-order-hold; see <a href="camera-dynamics-arm-comparison.html">the findings report</a>). Three pieces now ride the trained checkpoints: (1) the explicit physical-horizon forecasting table (10/50/200 ms via <code>horizon_reconstruction_accuracy</code> + persistence bar) that the second win condition specifies; (2) the conditioning ablation arms (no conditioning / Ip+ne / full actuator vector); (3) the gas-puff attribution probe (does the predicted inboard emission spot track the measured <code>aga</code> puff command, with a counterfactual zeroed-puff rollout).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    camera-dynamics-wm-v0 (http://localhost:8765/imas-ambix/camera-dynamics-wm-v0.html)
+Section: §5 D3 (+ the D2 horizon table)
+Tier:    opus
+
+Context
+  The matched-arm verdict landed: dynamics_wins=True (paired NLL +0.459 vs baseline; beats
+  carry-forward/persistence incl. the forecasting mode). Trained checkpoints exist for both arms.
+  This task completes the forward-horizon table and runs the conditioning ablation + puff probe.
+
+State to read
+  imas_ambix/camdyn/arm_compare.py        (paired-comparison harness to extend)
+  imas_ambix/camdyn/metrics.py            (horizon_frame_offsets, horizon_reconstruction_accuracy,
+                                           persistence_baseline_accuracy - pre-registered, do not change)
+  imas_ambix/camdyn/train.py              (Trainer eval substrate; _materialize_eval/_score_cached)
+  imas_ambix/camdyn/conditioning.py       (CONDITIONING_CHANNELS; aga inboard channels)
+  imas_ambix/camdyn/artifacts/arm_compare.json (the landed verdict format)
+  /work/projects/imas_gpu/mast-checkpoints/camdyn/{cap_v1_baseline,cap_v1_dynamics}/final.pt
+
+Scope locks / constraints
+  - Token-space only; frozen decoder; rFID banned. EFIT/esm/xdc never enter as inputs.
+  - Horizon table: frontier conditioning, full-frame reconstruction at t+h for h=10/50/200 ms
+    (physical, via per-frame dt), scored vs persistence AND vs the per-frame baseline given the
+    t-clip. Use the pre-registered metric functions verbatim.
+  - Ablation arms train at REDUCED budget if needed for turnaround, but matched across arms;
+    conditioning subsets are pure channel selections of the full set.
+  - Puff probe: held-out shots, inboard region masked; correlate predicted emission-spot
+    activity with measured aga inboard flow; counterfactual zeroed-puff rollout; figures.
+  - GPU: betelgeuse reservation; share with the DeepSeek serve (check free cards/cores first);
+    sbatch with cpus-per-task matching loader workers; single-process for one-shot evals.
+  - Naming hygiene (binding, hardened 2026-06-11): no plan/stage labels (W1/D0/cap_v1-style) in
+    NEW filenames, symbols, or comments - name by mechanism. Existing cap_v1 paths may be read.
+
+Done-when
+  1. Horizon table artifact committed (dynamics vs persistence vs baseline at 10/50/200 ms).
+  2. Ablation metric table + puff-attribution verdict with figures committed.
+  3. tests green; followup written + this one resolved; plan updated same-session.</pre>
     </article>
 </section>
 
@@ -538,7 +586,7 @@ Done-when
     <div class="r-comment-body">CORRECTION to c-cdw-capv1-launch: the cap_v1 runs (jobs 1216061/1216062) did NOT complete. Both died identically at step 2000/20000 when the per-step watchdog FALSE-FIRED on the first periodic VAL (val_every=2000; the watchdog's last_step_t is not refreshed during VAL/eval/ckpt, and the cold eval-loader spin-up took &gt;180s = watchdog_grace_s), then HUNG ~2h in a non-terminating final evaluate_w1 (GPU 0%, 85GB held) — almost certainly a persistent_workers + early-break + per-call-reconstruction DataLoader worker leak/deadlock. NO W1 artifact was written; the model was only ~10% trained (top1 0.003). Both jobs cancelled 2026-06-11 to free the reservation. IMPORTANT: training itself was healthy and FAST (0.41 s/step at 202M, GPU 100% — the loader throughput fix works); the bug is purely the VAL/eval/watchdog integration in train.py, NOT the data path or the model. Fix IN PROGRESS (worker d2-evalfix): (1) exempt VAL/eval/ckpt from the watchdog + raise grace to ~600s; (2) eval loaders persistent_workers=False + explicit teardown so evaluate_w1 terminates and the process exits; (3) eval-phase progress logging; (4) a MANDATORY smoke that exercises VAL+final-eval+artifact+clean-exit (the path the 100-step smoke missed) before relaunch; (5) relaunch the full 20000-step matched pair. This supersedes the 'training in-flight — do not relaunch' note in c-cdw-capv1-launch.</div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-cdw-capv1-relaunch" data-who="reckon-ship (orchestrator/opus)" data-when="2026-06-11">
-    <div class="r-comment-body">cap_v1 matched pair RELAUNCHED + RUNNING after THREE eval fixes (training was always fast at 0.41 s/step; all bugs were in the VAL/eval path). Fixes, each GPU-smoke-verified: (1) watchdog paused during VAL/eval/ckpt + grace 180->600s (commit da1bea2) — the false-fire at step 2000; (2) evaluate_w1 reads held-out windows ONCE + scores held-out mixture + all 5 named geometries in-memory (8d2714b) — was 6x cold-read passes; (3) top-1 accuracy via the bit-head per-bit MAP argmax pred_id=Σ_b(z_b>0)<<b, O(cells·bits) (ee86c6e) — was an O(masked²) restricted_vocab matrix, the REAL bottleneck (~3.7 s/window, GPU idle). Plus sbatch cpus-per-task 8->6 (a778c56) so two arms fit the shared 30-core reservation (DeepSeek-2x holds 15; 2x6=12<=15). GPU smoke (job 1216231): COMPLETED clean (D1_DONE=0, 5:44), VAL 20.8s (was 134s), final W1 eval 41.3s (was >10min/never), artifact written+parses. FULL RUN: baseline (attn OFF)=job 1216236 -> artifacts/cap_v1_baseline.json; dynamics (attn ON)=job 1216237 -> artifacts/cap_v1_dynamics.json; 201.93M each, 20000 steps, ~2.3h train + ~5min eval; matched-arm (parsed diff = {temporal_attention, run_name}); 101 camdyn tests green. DSv4-2x serving on 2 cards (job 1216215). NEXT when both finish: the per-arm artifacts hold AGGREGATE held-out nll/top1 only (mean/std/n), so the W1 verdict needs a CROSS-ARM PAIRED comparison — build a small step that loads both final.pt checkpoints, scores the SAME frozen held-out windows + named geometries with each, and runs bootstrap_ci on the per-token paired diff (baseline-dynamics nll; dynamics-baseline acc) -> favours_dynamics. Then collapse D1/D2, resolve f-cdw-d1-baseline, queue D3.</div>
+    <div class="r-comment-body">cap_v1 matched pair RELAUNCHED + RUNNING after THREE eval fixes (training was always fast at 0.41 s/step; all bugs were in the VAL/eval path). Fixes, each GPU-smoke-verified: (1) watchdog paused during VAL/eval/ckpt + grace 180-&gt;600s (commit da1bea2) — the false-fire at step 2000; (2) evaluate_w1 reads held-out windows ONCE + scores held-out mixture + all 5 named geometries in-memory (8d2714b) — was 6x cold-read passes; (3) top-1 accuracy via the bit-head per-bit MAP argmax pred_id=Σ_b(z_b&gt;0)&lt;<b, (ee86c6e)="" (~3.7="" 8-="" an="" bottleneck="" cpus-per-task="" gpu="" idle).="" matrix,="" o(cells·bits)="" o(masked²)="" plus="" real="" restricted_vocab="" s="" sbatch="" the="" was="" window,="" —="">6 (a778c56) so two arms fit the shared 30-core reservation (DeepSeek-2x holds 15; 2x6=12&lt;=15). GPU smoke (job 1216231): COMPLETED clean (D1_DONE=0, 5:44), VAL 20.8s (was 134s), final W1 eval 41.3s (was &gt;10min/never), artifact written+parses. FULL RUN: baseline (attn OFF)=job 1216236 -&gt; artifacts/cap_v1_baseline.json; dynamics (attn ON)=job 1216237 -&gt; artifacts/cap_v1_dynamics.json; 201.93M each, 20000 steps, ~2.3h train + ~5min eval; matched-arm (parsed diff = {temporal_attention, run_name}); 101 camdyn tests green. DSv4-2x serving on 2 cards (job 1216215). NEXT when both finish: the per-arm artifacts hold AGGREGATE held-out nll/top1 only (mean/std/n), so the W1 verdict needs a CROSS-ARM PAIRED comparison — build a small step that loads both final.pt checkpoints, scores the SAME frozen held-out windows + named geometries with each, and runs bootstrap_ci on the per-token paired diff (baseline-dynamics nll; dynamics-baseline acc) -&gt; favours_dynamics. Then collapse D1/D2, resolve f-cdw-d1-baseline, queue D3.</b,></div>
 </div>
 </section>
 </main>
