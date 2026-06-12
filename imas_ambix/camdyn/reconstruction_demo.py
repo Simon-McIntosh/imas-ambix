@@ -102,8 +102,10 @@ ACCENT = "#d62728"
 # ---------------------------------------------------------------------------
 
 #: Reference shot (the report's headline shot) + two more high-activity
-#: held-out shots, all present in ``camdyn_split_v0.json`` held_out.
-DEMO_SHOTS = (24065, 22787, 29225)
+#: held-out shots, all present in ``camdyn_split_v0.json`` held_out.  All
+#: three have an established flat-top with a bright, structured plasma
+#: image (mean raw intensity > 180 in the selected window).
+DEMO_SHOTS = (24065, 24446, 23937)
 
 
 @dataclass
@@ -133,6 +135,40 @@ def _motion_fraction(tokens: np.ndarray, frame_time: np.ndarray) -> float:
     return float(moving.mean())
 
 
+def _window_brightness(shot_id: int, starts, n_frames: int) -> np.ndarray | None:
+    """Mean raw-frame intensity per candidate window (the activity proxy).
+
+    Token-id "motion" saturates at ~1.0 on the fast rbb cadence (every cell
+    changes within the ±window), so it does NOT discriminate quiescent
+    early/dark windows from the structured flat-top.  Raw-frame brightness
+    does: a window over an established plasma has a bright, structured image
+    (mean intensity ≫ the near-dark ramp-up / aborted-shot frames).  Returns
+    ``(len(starts),)`` mean intensities, or None if the raw frames are
+    unavailable (the caller then falls back to enumeration order).
+    """
+    from imas_ambix.camdyn.dataset import level1_shot_path
+
+    path = level1_shot_path(shot_id)
+    if path is None or not Path(path).exists():
+        return None
+    try:
+        import xarray as xr
+
+        ds = xr.open_zarr(str(path / "rbb"), consolidated=False)
+        data_vars = list(ds.data_vars)
+        if not data_vars:
+            return None
+        raw = np.asarray(ds[data_vars[0]].values)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[demo] raw frames for shot %d unavailable: %s", shot_id, exc)
+        return None
+    out = np.zeros(len(starts), dtype=np.float64)
+    for k, s in enumerate(starts):
+        end = min(int(s) + n_frames, raw.shape[0])
+        out[k] = float(raw[int(s) : end].mean()) if end > s else 0.0
+    return out
+
+
 def select_windows(
     shot_ids,
     *,
@@ -141,12 +177,15 @@ def select_windows(
     windows_per_shot: int = 1,
     seed: int = 0,
 ) -> list[DemoWindow]:
-    """Pick the highest-motion held-out window(s) for each shot.
+    """Pick the brightest (most plasma-active) held-out window(s) per shot.
 
     Enumerates every ``stride``-spaced window of ``n_frames`` frames in each
-    shot, scores its motion fraction, and keeps the top ``windows_per_shot``
-    — the windows with real plasma activity (strike-point movement / ELMy
-    phases) rather than quiescent flat-top where ZOH would trivially win.
+    shot and ranks them by mean raw-frame intensity — the honest activity
+    proxy (token "motion" saturates and cannot tell a dark ramp-up window
+    from a structured flat-top one).  The brightest windows sit on the
+    established plasma where the camera sees real structure (strike points,
+    filaments) rather than near-dark sensor noise; the motion fraction is
+    still recorded for the caption.
     """
     from imas_ambix.camdyn.dataset import (
         FrameTokenDataset,
@@ -165,11 +204,17 @@ def select_windows(
         if len(ds) == 0:
             logger.warning("[demo] shot %d: no full windows — skipping", sid)
             continue
-        scored: list[DemoWindow] = []
-        for i in range(len(ds)):
-            win = ds[i]
+        # rank candidate windows by raw-frame brightness without
+        # materialising every window's tokens (only the chosen few are read).
+        starts = [ds._windows[i][1] for i in range(len(ds))]
+        bright = _window_brightness(int(sid), starts, n_frames)
+        order = (
+            list(np.argsort(-bright)) if bright is not None else list(range(len(ds)))
+        )
+        for idx in order[:windows_per_shot]:
+            win = ds[int(idx)]
             mf = _motion_fraction(win.tokens, win.frame_time)
-            scored.append(
+            out.append(
                 DemoWindow(
                     shot_id=int(win.shot_id),
                     start=int(win.start),
@@ -180,8 +225,6 @@ def select_windows(
                     motion_fraction=mf,
                 )
             )
-        scored.sort(key=lambda w: w.motion_fraction, reverse=True)
-        out.extend(scored[:windows_per_shot])
     return out
 
 
