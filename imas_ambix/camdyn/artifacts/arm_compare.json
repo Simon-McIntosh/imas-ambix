@@ -1,0 +1,446 @@
+{
+  "comparison": "paired bootstrap: dynamics vs baseline + carry-forward(ZOH)",
+  "metrics_provenance": "camdyn.metrics.bootstrap_ci (pre-registered)",
+  "n_heldout_shots": 150,
+  "n_batches": 8,
+  "baseline_ckpt": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_baseline/final.pt",
+  "dynamics_ckpt": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt",
+  "baseline_params": 201929746,
+  "dynamics_params": 201929746,
+  "held_out": {
+    "baseline": {
+      "masked_nll": {
+        "mean": 10.56125533445035,
+        "std": 2.348338662815324,
+        "n": 764707
+      },
+      "masked_top1": {
+        "mean": 0.005675376320603839,
+        "std": 0.07512101186900617,
+        "n": 764707
+      }
+    },
+    "dynamics": {
+      "masked_nll": {
+        "mean": 10.102527816157478,
+        "std": 2.506656808065412,
+        "n": 764707
+      },
+      "masked_top1": {
+        "mean": 0.008601987427864529,
+        "std": 0.09234713444474273,
+        "n": 764707
+      }
+    },
+    "carry_forward": {
+      "masked_top1": {
+        "mean": 0.0020203816625191085,
+        "std": 0.04490322616980728,
+        "n": 764707
+      }
+    },
+    "dynamics_vs_baseline_nll": {
+      "mean": 0.4587275182928723,
+      "lo": 0.45504706072623297,
+      "hi": 0.4624141606245503,
+      "alpha": 0.05,
+      "favours_dynamics": true,
+      "clear_of_zero": true,
+      "n_pairs": 764707,
+      "ref_mean": 10.56125533445035,
+      "dynamics_mean": 10.102527816157478
+    },
+    "dynamics_vs_baseline_top1": {
+      "mean": 0.0029266111072606894,
+      "lo": 0.0027356883093786247,
+      "hi": 0.003120149285935659,
+      "alpha": 0.05,
+      "favours_dynamics": true,
+      "clear_of_zero": true,
+      "n_pairs": 764707,
+      "ref_mean": 0.005675376320603839,
+      "dynamics_mean": 0.008601987427864529
+    },
+    "dynamics_vs_carry_forward_top1": {
+      "mean": 0.00658160576534542,
+      "lo": 0.0063684522307236625,
+      "hi": 0.0067960669903636296,
+      "alpha": 0.05,
+      "favours_dynamics": true,
+      "clear_of_zero": true,
+      "n_pairs": 764707,
+      "ref_mean": 0.0020203816625191085,
+      "dynamics_mean": 0.008601987427864529
+    },
+    "motion_weighted": {
+      "dynamics_vs_baseline_nll": {
+        "mean": 0.4600007555783322,
+        "lo": 0.4563079487769028,
+        "hi": 0.46381382096854346,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 762764,
+        "ref_mean": 10.581317992615059,
+        "dynamics_mean": 10.121317237036727
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.0028960464835781448,
+        "lo": 0.0027072593882249293,
+        "hi": 0.0030848335789313602,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 762764,
+        "ref_mean": 0.004112674431409977,
+        "dynamics_mean": 0.007008720914988122
+      }
+    }
+  },
+  "verdict": {
+    "dynamics_beats_baseline_nll": true,
+    "dynamics_beats_baseline_top1": true,
+    "dynamics_beats_carry_forward_top1": true,
+    "dynamics_wins": true,
+    "baseline_nll_ci": [
+      0.45504706072623297,
+      0.4624141606245503
+    ],
+    "carry_forward_top1_ci": [
+      0.0063684522307236625,
+      0.0067960669903636296
+    ]
+  },
+  "named_geometry": {
+    "fixed_section2": {
+      "baseline": {
+        "masked_nll": {
+          "mean": 10.154181847858105,
+          "std": 2.3412911426159493,
+          "n": 847872
+        },
+        "masked_top1": {
+          "mean": 0.00682650211352657,
+          "std": 0.08234015413163001,
+          "n": 847872
+        }
+      },
+      "dynamics": {
+        "masked_nll": {
+          "mean": 10.020560380032618,
+          "std": 2.4105528082377736,
+          "n": 847872
+        },
+        "masked_top1": {
+          "mean": 0.008062537741545894,
+          "std": 0.0894289283549347,
+          "n": 847872
+        }
+      },
+      "carry_forward": {
+        "masked_top1": {
+          "mean": 0.0,
+          "std": 0.0,
+          "n": 847872
+        }
+      },
+      "dynamics_vs_baseline_nll": {
+        "mean": 0.13362146782548426,
+        "lo": 0.13129580098643337,
+        "hi": 0.13601237657336285,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 847872,
+        "ref_mean": 10.154181847858105,
+        "dynamics_mean": 10.020560380032618
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.0012360356280193237,
+        "lo": 0.0010496867451690822,
+        "hi": 0.0014259227807971015,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 847872,
+        "ref_mean": 0.00682650211352657,
+        "dynamics_mean": 0.008062537741545894
+      },
+      "dynamics_vs_carry_forward_top1": {
+        "mean": 0.008062537741545894,
+        "lo": 0.007876188858695652,
+        "hi": 0.008254783740942028,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 847872,
+        "ref_mean": 0.0,
+        "dynamics_mean": 0.008062537741545894
+      }
+    },
+    "divertor_only": {
+      "baseline": {
+        "masked_nll": {
+          "mean": 10.469367038370253,
+          "std": 2.3123518300741375,
+          "n": 933888
+        },
+        "masked_top1": {
+          "mean": 0.006392629523026316,
+          "std": 0.07969795361744017,
+          "n": 933888
+        }
+      },
+      "dynamics": {
+        "masked_nll": {
+          "mean": 10.402945186288566,
+          "std": 2.254770786323184,
+          "n": 933888
+        },
+        "masked_top1": {
+          "mean": 0.005748012609649123,
+          "std": 0.07559744017285533,
+          "n": 933888
+        }
+      },
+      "carry_forward": {
+        "masked_top1": {
+          "mean": 0.0,
+          "std": 0.0,
+          "n": 933888
+        }
+      },
+      "dynamics_vs_baseline_nll": {
+        "mean": 0.06642185208168944,
+        "lo": 0.06408760161753901,
+        "hi": 0.06876359895027787,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 933888,
+        "ref_mean": 10.469367038370253,
+        "dynamics_mean": 10.402945186288566
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": -0.000644616913377193,
+        "lo": -0.0007966694078947368,
+        "hi": -0.0004893252724095399,
+        "alpha": 0.05,
+        "favours_dynamics": false,
+        "clear_of_zero": true,
+        "n_pairs": 933888,
+        "ref_mean": 0.006392629523026316,
+        "dynamics_mean": 0.005748012609649123
+      },
+      "dynamics_vs_carry_forward_top1": {
+        "mean": 0.005748012609649123,
+        "lo": 0.005592747738486842,
+        "hi": 0.00590648985745614,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 933888,
+        "ref_mean": 0.0,
+        "dynamics_mean": 0.005748012609649123
+      }
+    },
+    "centre_column_strip": {
+      "baseline": {
+        "masked_nll": {
+          "mean": 10.229910814676515,
+          "std": 2.4321109276331225,
+          "n": 786432
+        },
+        "masked_top1": {
+          "mean": 0.008555094401041666,
+          "std": 0.09209725707550108,
+          "n": 786432
+        }
+      },
+      "dynamics": {
+        "masked_nll": {
+          "mean": 10.186934048501586,
+          "std": 2.4331130987720306,
+          "n": 786432
+        },
+        "masked_top1": {
+          "mean": 0.008028666178385416,
+          "std": 0.0892424041461315,
+          "n": 786432
+        }
+      },
+      "carry_forward": {
+        "masked_top1": {
+          "mean": 0.0,
+          "std": 0.0,
+          "n": 786432
+        }
+      },
+      "dynamics_vs_baseline_nll": {
+        "mean": 0.042976766174928856,
+        "lo": 0.04045314437971893,
+        "hi": 0.045495241082043586,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 786432,
+        "ref_mean": 10.229910814676515,
+        "dynamics_mean": 10.186934048501586
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": -0.00052642822265625,
+        "lo": -0.0007146199544270834,
+        "hi": -0.00034332275390625,
+        "alpha": 0.05,
+        "favours_dynamics": false,
+        "clear_of_zero": true,
+        "n_pairs": 786432,
+        "ref_mean": 0.008555094401041666,
+        "dynamics_mean": 0.008028666178385416
+      },
+      "dynamics_vs_carry_forward_top1": {
+        "mean": 0.008028666178385416,
+        "lo": 0.007831541697184245,
+        "hi": 0.008225758870442709,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 786432,
+        "ref_mean": 0.0,
+        "dynamics_mean": 0.008028666178385416
+      }
+    },
+    "standard_pan": {
+      "baseline": {
+        "masked_nll": {
+          "mean": 10.582975577203179,
+          "std": 2.2079141992160856,
+          "n": 955136
+        },
+        "masked_top1": {
+          "mean": 0.003696855735727687,
+          "std": 0.06068928236020678,
+          "n": 955136
+        }
+      },
+      "dynamics": {
+        "masked_nll": {
+          "mean": 10.06925454883795,
+          "std": 2.3688961314078143,
+          "n": 955136
+        },
+        "masked_top1": {
+          "mean": 0.00736439627445725,
+          "std": 0.0854994850392095,
+          "n": 955136
+        }
+      },
+      "carry_forward": {
+        "masked_top1": {
+          "mean": 0.0019609772849102118,
+          "std": 0.044239482964861576,
+          "n": 955136
+        }
+      },
+      "dynamics_vs_baseline_nll": {
+        "mean": 0.5137210283652281,
+        "lo": 0.5106752870298886,
+        "hi": 0.5168959031705689,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 955136,
+        "ref_mean": 10.582975577203179,
+        "dynamics_mean": 10.06925454883795
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.003667540538729563,
+        "lo": 0.003489529239815063,
+        "hi": 0.003842410923679978,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 955136,
+        "ref_mean": 0.003696855735727687,
+        "dynamics_mean": 0.00736439627445725
+      },
+      "dynamics_vs_carry_forward_top1": {
+        "mean": 0.005403418989547038,
+        "lo": 0.005232762664165103,
+        "hi": 0.0055709344009648885,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 955136,
+        "ref_mean": 0.0019609772849102118,
+        "dynamics_mean": 0.00736439627445725
+      }
+    },
+    "frontier_half": {
+      "baseline": {
+        "masked_nll": {
+          "mean": 11.47916295935023,
+          "std": 1.746962756771295,
+          "n": 524288
+        },
+        "masked_top1": {
+          "mean": 0.0006389617919921875,
+          "std": 0.025269616534893475,
+          "n": 524288
+        }
+      },
+      "dynamics": {
+        "masked_nll": {
+          "mean": 8.93128883932857,
+          "std": 2.685544003273484,
+          "n": 524288
+        },
+        "masked_top1": {
+          "mean": 0.02416229248046875,
+          "std": 0.15355284465797772,
+          "n": 524288
+        }
+      },
+      "carry_forward": {
+        "masked_top1": {
+          "mean": 0.017770767211914062,
+          "std": 0.1321172473396794,
+          "n": 524288
+        }
+      },
+      "dynamics_vs_baseline_nll": {
+        "mean": 2.547874120021661,
+        "lo": 2.5403840076199904,
+        "hi": 2.555381004084222,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 524288,
+        "ref_mean": 11.47916295935023,
+        "dynamics_mean": 8.93128883932857
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.023523330688476562,
+        "lo": 0.023107528686523438,
+        "hi": 0.02394866943359375,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 524288,
+        "ref_mean": 0.0006389617919921875,
+        "dynamics_mean": 0.02416229248046875
+      },
+      "dynamics_vs_carry_forward_top1": {
+        "mean": 0.0063915252685546875,
+        "lo": 0.0060214996337890625,
+        "hi": 0.006769227981567382,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true,
+        "n_pairs": 524288,
+        "ref_mean": 0.017770767211914062,
+        "dynamics_mean": 0.02416229248046875
+      }
+    }
+  }
+}

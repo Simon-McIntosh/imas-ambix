@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="camera-dynamics-arm-comparison">
+  <meta name="plan-title"    content="Camera-Dynamics Matched-Arm Results — Dynamics vs Statics vs Carry-Forward">
+  <meta name="plan-summary"  content="Findings report for the first full matched-arm run of the camera-dynamics world model: two byte-identical 202M factorized ST-transformers (temporal attention ON vs OFF) trained on the 9,527-shot rbb token corpus. The dynamics arm wins held-out masked-token NLL by 0.46 nats overall, with the gains concentrated exactly where statics has no mechanism — panning (+0.51) and the temporal frontier (+2.55 nats, ~40x top-1). Includes the paired bootstrap verdict vs the baseline AND a zero-order-hold carry-forward reference, plus the engineering findings (loader throughput, watchdog, eval-scoring complexity) that made the run possible.">
+  <meta name="plan-informs"  content="camera-dynamics-wm-v0">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <title>Camera-Dynamics Matched-Arm Results | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Headline</h2>
+    <p>
+      Two <strong>byte-identical 202M-parameter</strong> factorized space/time transformers were
+      trained on the 9,527-shot / 4.02B-token MAST rbb camera token corpus under identical data,
+      seed, masking curriculum, conditioning, batch and step schedules. The <em>only</em>
+      difference is one boolean: the <strong>baseline</strong> arm's temporal attention is forced
+      to a diagonal mask (each frame sees only itself — a pure per-frame spatial inpainter), while
+      the <strong>dynamics</strong> arm's temporal attention is causal across frames. Any
+      performance gap is therefore attributable to <em>dynamics</em> — the ability to carry a
+      temporal latent state — and to nothing else.
+    </p>
+    <p>
+      <strong>Result: the dynamics arm wins, and it wins where it should.</strong> On 764,707
+      held-out masked tokens the dynamics arm improves reconstruction NLL by
+      <strong>0.46 nats</strong> overall, but the per-geometry decomposition is the real finding:
+      the gain is small on pure-spatial masks (+0.04…+0.13 nats) and large exactly on the two
+      modes where a per-frame inpainter has no mechanism — the <strong>panning clip
+      (+0.51 nats)</strong> and the <strong>temporal frontier (+2.55 nats, top-1 accuracy
+      ×40)</strong>. The model earns its keep by remembering what it saw and propagating it
+      forward in time, not by interpolating better within a frame.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-clipped-task.png"
+           alt="clipped-view reconstruction task" style="max-width:100%">
+      <figcaption>The task (held-out shot 24065): observe only a clipped token sub-window as a
+      time stream (top, solid box) and emit the full-frame token stream (bottom). In token space
+      the clip is a sub-block of the per-frame 16×16 Open-MAGVIT2 grid; the masking curriculum
+      randomizes the clip's position, size and motion, including panning and a temporal
+      frontier.</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — The experiment</h2>
+    <ul>
+      <li><strong>Corpus:</strong> 9,527 shots of the rbb full-machine visible camera, encoded to
+        (T,16,16) int32 Open-MAGVIT2 LFQ tokens (vocab 2<sup>18</sup>), ≈4.02B tokens. Shot-level
+        splits: train 7,535 / val 942 / held-out 1,050 (the 108 token-carrying MSE shots are
+        forced into held-out).</li>
+      <li><strong>Model family:</strong> factorized space/time causal transformer, dim 1024 ×
+        12 layers × 16 heads = <strong>201.93M parameters</strong> (verified identical across
+        arms), LFQ 18-bit factorized head, full physical actuator conditioning (coil currents,
+        NBI power, gas-puff flows, Ip, line-integrated density; EFIT/Solov'ev/pulse-schedule
+        banned as leakage) plus per-frame Δt.</li>
+      <li><strong>Objective:</strong> bitwise BCE on the masked (clipped-away) cells; masking
+        mixture of random window / panning / temporal frontier / full mask with a
+        large→full-range curriculum; evaluation on a frozen, deterministic named-geometry
+        suite so every arm scores identical tasks.</li>
+      <li><strong>Budget:</strong> 20,000 steps × batch 32 × 16 frames × 256 cells ≈ 2.6B scored
+        grid-cells per arm; 0.73 s/step; <strong>7 h 17 m per arm</strong>, both arms concurrent
+        on one H200 each, sharing the 4×H200 node with the DeepSeek-V4-Flash-2x serve on the
+        other two cards.</li>
+    </ul>
+
+    <h2 id="s3">§3 — Training behaviour</h2>
+    <p>
+      The dynamics arm's training loss separates from the baseline's early and stays below it for
+      the entire run — visible already at step ~2,000 and persistent through the cosine decay.
+      Final validation NLL is nearly identical between arms (10.65 vs 10.65) because the val
+      protocol draws fresh <em>random-window</em> masks only, the mode where dynamics helps
+      least; the held-out suite (§4) is where the difference shows.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-arm-loss-curves.png"
+           alt="training loss curves, baseline vs dynamics" style="max-width:100%">
+      <figcaption>Masked-token training loss for the two matched arms (thin lines raw, thick
+      9-point smoothed). Identical data order, seed and schedule — the gap is the value of
+      temporal attention alone.</figcaption>
+    </figure>
+
+    <h2 id="s4">§4 — Held-out results by eval geometry</h2>
+    <p>
+      Each arm scored the same seeded held-out windows (150 shots, 764,707 masked tokens) under
+      the mixture mask and under each frozen named geometry. NLL is the exact bit-factorised
+      negative log-likelihood over the full 2<sup>18</sup> vocabulary (nats, lower better); top-1
+      is the exact-id match of the head's MAP prediction — a deliberately stringent metric on a
+      262,144-way code, so its absolute values are small and its <em>ratios</em> are the signal.
+    </p>
+    <div class="table-scroll">
+      <table class="t">
+        <thead>
+          <tr><th>Eval geometry</th><th>NLL base</th><th>NLL dyn</th><th>Δ (dyn better &gt;0)</th>
+              <th>top-1 base</th><th>top-1 dyn</th><th>character</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>held-out (mixture)</td><td>10.561</td><td><strong>10.103</strong></td><td>+0.459</td>
+              <td>0.0057</td><td>0.0086</td><td>headline</td></tr>
+          <tr><td>motion-weighted subset</td><td>10.581</td><td><strong>10.121</strong></td><td>+0.460</td>
+              <td>0.0041</td><td>0.0070</td><td>moving tokens only</td></tr>
+          <tr><td>fixed window (§2 task)</td><td>10.154</td><td><strong>10.021</strong></td><td>+0.134</td>
+              <td>0.0068</td><td>0.0081</td><td>spatial</td></tr>
+          <tr><td>divertor-only window</td><td>10.469</td><td><strong>10.403</strong></td><td>+0.066</td>
+              <td>0.0064</td><td>0.0057</td><td>spatial</td></tr>
+          <tr><td>centre-column strip</td><td>10.230</td><td><strong>10.187</strong></td><td>+0.043</td>
+              <td>0.0086</td><td>0.0080</td><td>spatial</td></tr>
+          <tr><td>standard pan</td><td>10.583</td><td><strong>10.069</strong></td><td><strong>+0.514</strong></td>
+              <td>0.0037</td><td>0.0074</td><td><strong>temporal</strong></td></tr>
+          <tr><td>temporal frontier (½)</td><td>11.479</td><td><strong>8.931</strong></td><td><strong>+2.548</strong></td>
+              <td>0.0006</td><td><strong>0.0242</strong></td><td><strong>forecasting</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      The ordering is the experiment's pre-registered prediction: spatial-only masks give the
+      inpainter a fair fight (small gaps), the pan rewards fusing regions seen at different times
+      (moderate gap), and the frontier — reconstruct the <em>future</em> half of the window from
+      the past half — is impossible for a per-frame model and large for the dynamics arm. On the
+      frontier the baseline is <em>worse than its own mixture-mask average</em> (11.48 vs 10.56:
+      it has literally nothing to condition on) while the dynamics arm is at its <em>best</em>
+      (8.93, its lowest NLL of any geometry).
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-arm-geometry-compare.png"
+           alt="per-geometry NLL and top-1 comparison" style="max-width:100%">
+      <figcaption>Held-out reconstruction by eval geometry. Left: masked-token NLL (annotations
+      give the baseline−dynamics gap). Right: top-1 exact-id accuracy. The dynamics advantage
+      concentrates in the panning and frontier modes — the temporal axes.</figcaption>
+    </figure>
+
+    <h2 id="s5">§5 — The paired verdict: beating the baseline AND the trivial predictor</h2>
+    <p>
+      Aggregate gaps are not the pre-registered test. The locked win condition is a
+      <strong>paired bootstrap</strong>: both checkpoints score the <em>same</em> windows under
+      the <em>same</em> masks, so each masked token yields a paired difference, and the verdict
+      requires the 95% CI on the mean paired diff to be clear of zero in the dynamics-favouring
+      direction. A second, independent bar was added on user direction: the dynamics arm must
+      also beat a <strong>zero-order-hold (carry-forward) reference</strong> — for every masked
+      cell, predict the most recent <em>observed</em> token at that grid location (causal; equal
+      to last-frame persistence in the frontier mode). Carry-forward is the "the scene does not
+      change" null hypothesis: a temporal model that only exploited static-scene redundancy would
+      not clear it.
+    </p>
+    <p>
+      <strong>Verdict: <code>dynamics_wins = True</code> — every bar cleared, decisively.</strong>
+      Over <strong>n = 764,707 paired held-out tokens</strong> (the same windows, masks and token
+      order for all three predictors):
+    </p>
+    <div class="table-scroll">
+      <table class="t">
+        <thead>
+          <tr><th>Paired comparison (held-out mixture)</th><th>mean Δ</th><th>95% CI</th><th>favours dynamics</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>dynamics vs baseline — NLL (nats)</td><td><strong>+0.4587</strong></td>
+              <td>[+0.4550, +0.4624]</td><td><strong>yes</strong></td></tr>
+          <tr><td>dynamics vs baseline — top-1</td><td>+0.00293</td>
+              <td>[+0.00274, +0.00312]</td><td><strong>yes</strong></td></tr>
+          <tr><td>dynamics vs carry-forward — top-1</td><td>+0.00658</td>
+              <td>[+0.00637, +0.00680]</td><td><strong>yes</strong></td></tr>
+          <tr><td>motion-weighted subset — NLL</td><td>+0.4600</td>
+              <td>[+0.4563, +0.4638]</td><td><strong>yes</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Every named geometry individually favours the dynamics arm on <em>both</em> bars (paired
+      NLL vs baseline and paired top-1 vs carry-forward), from the smallest spatial gap
+      (centre-column strip, +0.043 [+0.041, +0.046]) to the frontier (+2.548 [+2.540, +2.555]).
+      Three readings of the carry-forward comparison are worth spelling out:
+    </p>
+    <ul>
+      <li><strong>Static-geometry masks defeat carry-forward entirely</strong> (ZOH top-1 = 0.000
+        on the fixed window, divertor window and centre strip): when the same cells are always
+        hidden, there is no past observation to carry — every reconstruction there is genuine
+        spatial+temporal inference, not replay.</li>
+      <li><strong>In the panning mode</strong> carry-forward gets a foothold (0.0020) because the
+        moving window re-exposes cells; the dynamics arm still scores 3.7× higher (0.0074).</li>
+      <li><strong>In the forecasting (frontier) mode</strong> carry-forward becomes last-frame
+        persistence — the strongest trivial forecaster — and reaches 0.0178. The dynamics arm
+        beats it at <strong>0.0242 (+0.0064 [+0.0060, +0.0068])</strong>: the model predicts
+        <em>how the scene changes</em>, not merely that it stays the same. This is the check that
+        the temporal win is dynamics, not exploited redundancy.</li>
+    </ul>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-arm-paired-verdict.png"
+           alt="paired verdict: NLL forest plot and ZOH comparison" style="max-width:100%">
+      <figcaption>Left: paired NLL improvement of dynamics over baseline per eval geometry, 95%
+      bootstrap CIs (all clear of zero; the frontier dominates). Right: top-1 accuracy of the
+      carry-forward null, the baseline arm and the dynamics arm on the three temporal-character
+      tasks — dynamics clears the zero-order-hold bar everywhere, including against persistence
+      in the forecasting mode.</figcaption>
+    </figure>
+
+    <h2 id="s6">§6 — Engineering findings (what it took to get a clean run)</h2>
+    <p>
+      Four defects stood between the substrate and a trustworthy result; each was measured,
+      root-caused and fixed with a GPU smoke proving the fix before relaunch. They are recorded
+      here because each is a reusable lesson for GPU pipelines in this repo.
+    </p>
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Symptom</th><th>Root cause</th><th>Fix</th><th>Measured effect</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>19M model trained at ~6 s/step, GPU idle</td>
+            <td>Windows read one-at-a-time on the main thread: ~48 Zarr opens per step on GPFS;
+                the configured worker count was never wired to a real DataLoader</td>
+            <td>Bounded torch DataLoader with per-worker per-shot LRU (token store opened once
+                per shot; raw conditioning traces read once and held in numpy)</td>
+            <td><strong>0.71 s/step at 202M</strong>, GPU 100% — ~8× faster per-step on a 10.6×
+                larger model</td>
+          </tr>
+          <tr>
+            <td>Both arms died at step 2,000, then hung 2 h holding idle GPUs</td>
+            <td>The per-step watchdog only refreshed its clock after a <em>training</em> step, so
+                the first slow validation pass tripped it; the final evaluation then deadlocked on
+                leaked persistent DataLoader workers</td>
+            <td>Watchdog paused (and clock refreshed) around validation / final-eval /
+                checkpoint phases; eval loaders one-shot with explicit teardown</td>
+            <td>Validation passes complete without a false stop; runs exit cleanly with the exit
+                sentinel</td>
+          </tr>
+          <tr>
+            <td>Eval still unusably slow (134 s per 32-window validation, GPU idle)</td>
+            <td>Top-1 scoring built an O(masked²) candidate-score matrix per window
+                (~2000×2000×18) — the per-window CPU cost dominated everything</td>
+            <td>Top-1 = the bit head's per-bit MAP id (threshold each of 18 logits), exact and
+                O(cells·bits); plus the eval set is materialised once and every geometry is
+                scored in-memory against the cached windows</td>
+            <td>Validation 134 s → <strong>21 s</strong>; final eval &gt;10 min (never finished)
+                → <strong>41 s</strong></td>
+          </tr>
+          <tr>
+            <td>The cross-arm comparison OOM-killed at 120 GB</td>
+            <td>It inherited the training config's six loader workers — six torch runtimes each
+                caching full conditioning traces, on top of <em>two</em> loaded 202M models</td>
+            <td>Single-process window materialisation for the one-shot compare</td>
+            <td>Completes within memory; slower I/O accepted for a once-per-run step</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      A fifth, procedural lesson: the first GPU smoke validated only the training loop — the
+      defects all lived in the validation/eval/exit path it never exercised. The smoke contract
+      was widened to require a periodic validation, the final evaluation, the artifact write and
+      a clean process exit before any full run launches.
+    </p>
+
+    <h2 id="s7">§7 — Honest caveats</h2>
+    <ul>
+      <li><strong>Single seed, single capacity.</strong> One matched pair at 202M, seed 0. The
+        paired CIs quantify token-level noise, not run-to-run variance.</li>
+      <li><strong>Top-1 is stringent by construction</strong> (exact 2<sup>18</sup>-id match);
+        absolute values are small everywhere and the NLL is the primary metric. rFID is banned;
+        no pixel-space numbers are claimed.</li>
+      <li><strong>Under one epoch of the corpus.</strong> 2.6B scored cells against a 4.02B-token
+        corpus; neither arm is trained to convergence on the full data. The comparison is fair
+        (matched budgets) but the absolute numbers will move with longer training.</li>
+      <li><strong>The forward-horizon table (10/50/200 ms) is not yet run</strong> — the frontier
+        geometry is the qualitative forecasting signal; the explicit physical-horizon metric and
+        its persistence bar remain queued work in the parent plan, as do the conditioning
+        ablation, the gas-puff attribution probe, and the frozen-probe diagnostics readout.</li>
+      <li><strong>Validation used random-window masks only</strong>, which is why arm validation
+        NLLs are nearly equal (10.65 vs 10.65) — by design it is the weakest axis for dynamics;
+        the frozen suite is the discriminating instrument.</li>
+    </ul>
+
+    <h2 id="s8">§8 — What this buys the parent plan</h2>
+    <p>
+      The matched-arm result establishes the core thesis of
+      <a href="/imas-ambix/camera-dynamics-wm-v0.html">camera-dynamics-wm-v0</a>: the
+      full-machine camera stream is governed by a learnable temporal latent, and an
+      action-conditioned model that carries one reconstructs and forecasts what a spatial
+      inpainter cannot. The trained dynamics checkpoint
+      (<code>/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt</code>) is
+      the substrate for the remaining deliverables: the conditioning ablation and gas-puff
+      falsification probe, the physical-horizon forecasting table, and the frozen-probe readout
+      of held-out diagnostics from the latent. The per-geometry decomposition also gives the
+      partial→full inferability framing its first data point: information the clip never shows
+      is recoverable in proportion to how much the temporal stream — not the frame — constrains
+      it.
+    </p>
+
+  </main>
+</body>
+</html>
