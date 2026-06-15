@@ -104,8 +104,24 @@ def _meta_for(win: rd.DemoWindow, scenarios) -> dict:
     }
 
 
-def run(out_dir: Path, artifact_path: Path, *, device: str = "cuda"):
-    """Full predict→decode→render pipeline for every deliverable."""
+def run(
+    out_dir: Path,
+    artifact_path: Path,
+    *,
+    device: str = "cuda",
+    decode: str = "map",
+    temp: float = 1.0,
+    seed: int = 0,
+):
+    """Full predict→decode→render pipeline for every deliverable.
+
+    ``decode`` selects the model-prediction-row decode: ``map`` (default, the
+    scoring mode) or a truth-free sampled decoder (``bernoulli`` / ``beam``) at
+    temperature ``temp`` that restores hedged edge filaments the mode averages
+    away.  The GT, persistence, and baseline-vs-dynamics structure of every
+    deliverable is unchanged — only how the per-bit logits are turned into the
+    rendered token grid.
+    """
     import torch
 
     from imas_ambix.camdyn.arm_compare import _load_arm
@@ -115,7 +131,12 @@ def run(out_dir: Path, artifact_path: Path, *, device: str = "cuda"):
         tempfile.mkdtemp(prefix="camdyn-movie-", dir=os.environ.get("TMPDIR", "/tmp"))
     )
     dev = torch.device(device if torch.cuda.is_available() else "cpu")
-    logger.info("[movie] loading dynamics + baseline arms on %s", dev)
+    logger.info(
+        "[movie] loading dynamics + baseline arms on %s (decode=%s temp=%.2f)",
+        dev,
+        decode,
+        temp,
+    )
     dyn_model, _dc, dyn_stats = _load_arm(rd.DYNAMICS_CKPT, torch, dev)
     base_model, _bc, base_stats = _load_arm(rd.BASELINE_CKPT, torch, dev)
 
@@ -130,6 +151,9 @@ def run(out_dir: Path, artifact_path: Path, *, device: str = "cuda"):
             dyn_stats,
             base_model,
             base_stats,
+            decode=decode,
+            temp=temp,
+            seed=seed,
         )
     finally:
         import contextlib
@@ -141,9 +165,30 @@ def run(out_dir: Path, artifact_path: Path, *, device: str = "cuda"):
             torch.cuda.empty_cache()
 
 
-def _arm_pred(model, stats, torch, dev, win, scenario, frontier):
+def _arm_pred(
+    model,
+    stats,
+    torch,
+    dev,
+    win,
+    scenario,
+    frontier,
+    *,
+    decode="map",
+    temp=1.0,
+    rng=None,
+):
     _vis, pred = rd.predict_window_arm(
-        model, torch, dev, win, stats, scenario, frontier
+        model,
+        torch,
+        dev,
+        win,
+        stats,
+        scenario,
+        frontier,
+        decode=decode,
+        temp=temp,
+        rng=rng,
     )
     return pred
 
@@ -158,9 +203,14 @@ def _run_inner(
     dyn_stats,
     base_model,
     base_stats,
+    *,
+    decode="map",
+    temp=1.0,
+    seed=0,
 ):
     bb = BundleBuilder()
     plan: list[dict] = []
+    rng = np.random.default_rng(seed) if decode != "map" else None
 
     def _register(win, scenario, tag, *, roles, frontier=DEFAULT_FRONTIER, extra=None):
         """Add a window + its requested role grids to the decode bundle.
@@ -176,14 +226,36 @@ def _run_inner(
         bb.add_grid(win.true_tokens, wi, scenario, "true")
         if "baseline" in roles:
             bb.add_grid(
-                _arm_pred(base_model, base_stats, torch, dev, win, scenario, frontier),
+                _arm_pred(
+                    base_model,
+                    base_stats,
+                    torch,
+                    dev,
+                    win,
+                    scenario,
+                    frontier,
+                    decode=decode,
+                    temp=temp,
+                    rng=rng,
+                ),
                 wi,
                 scenario,
                 "baseline",
             )
         if "dynamics" in roles:
             bb.add_grid(
-                _arm_pred(dyn_model, dyn_stats, torch, dev, win, scenario, frontier),
+                _arm_pred(
+                    dyn_model,
+                    dyn_stats,
+                    torch,
+                    dev,
+                    win,
+                    scenario,
+                    frontier,
+                    decode=decode,
+                    temp=temp,
+                    rng=rng,
+                ),
                 wi,
                 scenario,
                 "dynamics",
@@ -1237,6 +1309,23 @@ def main(argv=None) -> int:
     )
     p.add_argument("--device", default="cuda")
     p.add_argument(
+        "--decode",
+        default="map",
+        choices=("map", "bernoulli", "beam"),
+        help=(
+            "model-prediction-row decode: map (default, scoring mode) or a "
+            "truth-free sampled decoder (bernoulli / beam) that restores hedged "
+            "edge filaments the mode averages away"
+        ),
+    )
+    p.add_argument(
+        "--temp",
+        type=float,
+        default=0.8,
+        help="sampling temperature for --decode bernoulli/beam (ignored for map)",
+    )
+    p.add_argument("--seed", type=int, default=0, help="RNG seed for sampled decoders")
+    p.add_argument(
         "--elm-window",
         action="append",
         default=None,
@@ -1257,7 +1346,14 @@ def main(argv=None) -> int:
             (int(s.split(":")[0]), int(s.split(":")[1])) for s in args.elm_window
         )
         logger.info("[movie] targeting verified ELM windows: %s", ELM_CANDIDATES)
-    run(Path(args.out), Path(args.artifact), device=args.device)
+    run(
+        Path(args.out),
+        Path(args.artifact),
+        device=args.device,
+        decode=args.decode,
+        temp=args.temp,
+        seed=args.seed,
+    )
     return 0
 
 

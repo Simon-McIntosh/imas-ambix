@@ -289,12 +289,18 @@ def predict_window(
     cond_stats,
     scenario: str,
     frontier: int,
+    *,
+    decode: str = "map",
+    temp: float = 1.0,
+    rng: np.random.Generator | None = None,
 ):
     """Run the model + ZOH for one window/scenario.
 
     Returns ``(visible, pred_tokens, zoh_tokens)`` — all ``(F,H,W)``.
     ``pred_tokens`` / ``zoh_tokens`` are GLOBAL ids; a ``-1`` cell in
-    ``zoh_tokens`` marks a never-observed location (rendered black).
+    ``zoh_tokens`` marks a never-observed location (rendered black).  The
+    ``decode`` mode selects MAP (default, scoring) vs the truth-free sampled
+    decoders (``bernoulli`` / ``beam``) that restore hedged filament structure.
     """
     from imas_ambix.camdyn.arm_compare import _carry_forward_pred
     from imas_ambix.camdyn.conditioning import CONDITIONING_CHANNELS, load_conditioning
@@ -329,9 +335,7 @@ def predict_window(
             logits = model.module(tokens_t, vis_t, cv_t, cm_t, dt_t)
         bl = logits.float().cpu().numpy()[0]  # (F,H,W,bits)
 
-    # Bit-head MAP token id (the model's exact most-likely id per cell).
-    shifts = np.arange(bl.shape[-1], dtype=np.int64)
-    pred_tokens = ((bl > 0.0).astype(np.int64) << shifts).sum(axis=-1)  # (F,H,W)
+    pred_tokens = decode_bit_logits(bl, decode=decode, temp=temp, rng=rng)  # (F,H,W)
 
     # ZOH: causal carry-forward of the last observed token (−1 = never seen).
     zoh_tokens = _carry_forward_pred(win.true_tokens, visible)
@@ -346,6 +350,31 @@ def _bit_map_tokens(bit_logits: np.ndarray) -> np.ndarray:
     return ((bl > 0.0).astype(np.int64) << shifts).sum(axis=-1)
 
 
+def decode_bit_logits(
+    bit_logits: np.ndarray,
+    *,
+    decode: str = "map",
+    temp: float = 1.0,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Token grid from per-bit logits under a decode mode.
+
+    Mode is one of ``map`` / ``bernoulli`` / ``beam``.
+
+    ``map`` is the deterministic per-bit mode (the scoring default).  ``bernoulli``
+    and ``beam`` are the truth-free SAMPLED decoders from
+    :mod:`imas_ambix.camdyn.token_sampling` — they recover the hedged
+    edge-filament structure the mode averages away (see
+    :mod:`imas_ambix.camdyn.structure_fidelity`).  Kept thin so the renderers
+    share one decode entry point.
+    """
+    if decode == "map":
+        return _bit_map_tokens(bit_logits)
+    from imas_ambix.camdyn import token_sampling as ts
+
+    return ts.decode_tokens(bit_logits, decode, temperature=temp, rng=rng)
+
+
 def predict_window_arm(
     model,
     torch,
@@ -354,12 +383,19 @@ def predict_window_arm(
     cond_stats,
     scenario: str,
     frontier: int,
+    *,
+    decode: str = "map",
+    temp: float = 1.0,
+    rng: np.random.Generator | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Forward ONE arm over one window/scenario → ``(visible, pred_tokens)``.
 
-    ``pred_tokens`` ``(F,H,W)`` are the arm's bit-head MAP global token ids
-    (the model's exact most-likely token per cell).  Both the trained
-    dynamics and per-frame baseline arms have the identical forward
+    ``pred_tokens`` ``(F,H,W)`` are the arm's decoded global token ids.  The
+    default ``decode="map"`` is the bit-head per-bit MAP (the model's exact
+    most-likely token per cell) — the scoring default.  ``decode="bernoulli"``
+    or ``decode="beam"`` instead SAMPLE the head's per-bit distribution
+    (truth-free) at temperature ``temp``, restoring the persistent edge/SOL
+    filaments the MAP averages away.  Both arms share the identical forward
     signature, so this scores either with the arm's own conditioning stats.
     """
     from imas_ambix.camdyn.conditioning import CONDITIONING_CHANNELS, load_conditioning
@@ -392,11 +428,20 @@ def predict_window_arm(
             logits = model.module(tokens_t, vis_t, cv_t, cm_t, dt_t)
         bl = logits.float().cpu().numpy()[0]  # (F,H,W,bits)
 
-    return visible, _bit_map_tokens(bl)
+    return visible, decode_bit_logits(bl, decode=decode, temp=temp, rng=rng)
 
 
 def run_predict_phase(
-    shots, *, n_frames, frontier, stride, windows_per_shot, scenarios
+    shots,
+    *,
+    n_frames,
+    frontier,
+    stride,
+    windows_per_shot,
+    scenarios,
+    decode: str = "map",
+    temp: float = 1.0,
+    seed: int = 0,
 ):
     """Load the dynamics arm, materialise windows, build all token bundles."""
     import torch
@@ -404,8 +449,11 @@ def run_predict_phase(
     from imas_ambix.camdyn.arm_compare import _load_arm
 
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info("[demo] loading dynamics arm on %s", dev)
+    logger.info(
+        "[demo] loading dynamics arm on %s (decode=%s temp=%.2f)", dev, decode, temp
+    )
     model, _full_cfg, cond_stats = _load_arm(DYNAMICS_CKPT, torch, dev)
+    rng = np.random.default_rng(seed) if decode != "map" else None
 
     windows = select_windows(
         shots,
@@ -439,7 +487,16 @@ def run_predict_phase(
         }
         for scenario in scenarios:
             visible, pred, zoh = predict_window(
-                model, torch, dev, w, cond_stats, scenario, frontier
+                model,
+                torch,
+                dev,
+                w,
+                cond_stats,
+                scenario,
+                frontier,
+                decode=decode,
+                temp=temp,
+                rng=rng,
             )
             entry["scenarios"][scenario] = {
                 "visible": visible,
@@ -892,8 +949,16 @@ def build_demo(
     windows_per_shot: int = 1,
     scenarios=("frontier", "clipped", "signals_only"),
     work_dir: Path | None = None,
+    decode: str = "map",
+    temp: float = 1.0,
+    seed: int = 0,
 ) -> list[Path]:
-    """Predict → decode → assemble all scenario figures.  Returns figure paths."""
+    """Predict → decode → assemble all scenario figures.  Returns figure paths.
+
+    ``decode`` selects the prediction-row decode: ``map`` (default, the scoring
+    mode) or a truth-free sampled decoder (``bernoulli`` / ``beam``) at
+    temperature ``temp`` that restores hedged edge-filament structure.
+    """
     import os
     import tempfile
 
@@ -914,6 +979,9 @@ def build_demo(
         stride=stride,
         windows_per_shot=windows_per_shot,
         scenarios=scenarios,
+        decode=decode,
+        temp=temp,
+        seed=seed,
     )
     save_token_bundle(bundle, token_bundle)
     run_decode_subprocess(
@@ -974,6 +1042,24 @@ def main(argv=None) -> int:
         default="frontier,clipped,signals_only",
         help="comma-separated scenarios",
     )
+    p.add_argument(
+        "--decode",
+        default="map",
+        choices=("map", "bernoulli", "beam"),
+        help=(
+            "prediction-row decode: map (default, scoring mode) or a truth-free "
+            "sampled decoder (bernoulli / beam) that restores hedged edge filaments"
+        ),
+    )
+    p.add_argument(
+        "--temp",
+        type=float,
+        default=0.8,
+        help="sampling temperature for --decode bernoulli/beam (ignored for map)",
+    )
+    p.add_argument(
+        "--seed", type=int, default=0, help="RNG seed for the sampled decoders"
+    )
     # decode-phase entry point (invoked under the magvit2 venv)
     p.add_argument("--decode-phase", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--token-bundle", default=None, help=argparse.SUPPRESS)
@@ -1001,6 +1087,9 @@ def main(argv=None) -> int:
         stride=args.stride,
         windows_per_shot=args.windows_per_shot,
         scenarios=scenarios,
+        decode=args.decode,
+        temp=args.temp,
+        seed=args.seed,
     )
     for w in written:
         logger.info("[demo] figure: %s", w)
