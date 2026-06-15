@@ -251,10 +251,12 @@
     <p>
       ELMs (edge-localized modes) are fast, bright divertor/edge bursts — the sharpest visual test
       of whether the dynamics latent carries real plasma evolution. ELMy windows were located from
-      the fast Dα signal (<code>ada/dalpha_raw_full</code> — used <em>only</em> to select windows,
-      never as a model input, so no leakage) cross-checked against camera divertor-band brightness,
-      and the window is decimated to span a real ~1–2 ms ELM timescale (a native 16-frame window
-      spans only ~0.1 ms, far shorter than an ELM rise/fall).
+      the Dα signal (<code>ada/dalpha_raw_full</code>, a ~1.43 kHz radial-profile trace — adequate
+      to <em>locate</em> ELM activity, though not the genuine sub-ms fast carrier
+      <code>xim/da_hm10_t</code> at ~67–250 kHz; used <em>only</em> to select windows, never as a
+      model input, so no leakage) cross-checked against camera divertor-band brightness, and the
+      window is decimated to span a real ~1–2 ms ELM timescale (a native 16-frame window spans only
+      ~0.1 ms, far shorter than an ELM rise/fall).
     </p>
     <figure>
       <img src="/imas-ambix/figures/camera-dynamics-wm/elm-reconstruction.gif"
@@ -272,11 +274,19 @@
       forward — tracking the brightening — while persistence holds the frozen pre-burst frame.</figcaption>
     </figure>
     <p>
-      <strong>Honest resolution caveat.</strong> At 16×16 tokens decoded to 256², the model
-      reproduces <em>bulk-plasma and divertor-band morphology</em>, not individual ELM filaments —
-      the token grid does not resolve filamentary structure. What these figures show is a clean
+      <strong>Honest caveat — corrected by measurement.</strong> Earlier text here attributed the
+      missing filament detail to the 16×16 token grid; a tokenizer round-trip <em>refutes</em> that.
+      Decoding the ground-truth tokens of a real ELM retains 95% of the fine edge (high-frequency)
+      energy — SSIM 0.996, 99% filament contrast — so the tokenizer preserves the macroscopic ELM
+      structure. The real limit is the <em>camera</em> (the prediction target): it samples at a
+      median 0.2 ms (24% of ELM shots ≥ 1 ms) and integrates the sub-ms ELM onset into 1–2 frames,
+      clipping to white at the peak. Sub-ms onset and timing are gone <em>at acquisition</em> —
+      irrecoverable by any model, tokenizer, or conditioning. What these figures show is a clean
       morphology reproduction and a forward-evolving forecast, <em>not</em> deterministic
-      filament-timing prediction. A higher-resolution tokenizer would be needed for the latter.
+      onset/filament-timing prediction: a target-sampling ceiling, not a tokenizer or model limit.
+      Full analysis, evidence, and the prioritized near-term plan:
+      <a href="camera-dynamics-elm-fidelity.html">ELM Fidelity — Sampling Ceiling vs Fixable
+      Morphology Response</a>.
     </p>
 
     <h2 id="s5b">§5b — Forward horizons: 10 / 50 / 200 ms vs persistence</h2>

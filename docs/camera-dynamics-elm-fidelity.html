@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="camera-dynamics-elm-fidelity">
+  <meta name="plan-title"    content="ELM Fidelity — Sampling Ceiling vs Fixable Morphology Response">
+  <meta name="plan-summary"  content="Why the camera-dynamics world model does not reproduce ELM structure: a measured decomposition into a target-sampling cap (sub-ms onset, irrecoverable) and a fixable conditioning gap (ELM brightness/morphology response), plus the prioritized near-term plan.">
+  <meta name="plan-informs"  content="camera-dynamics-wm-v0">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <title>ELM Fidelity — Sampling Ceiling vs Fixable Morphology Response | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Question and answer</h2>
+    <p>The dynamics arm beats the per-frame baseline and persistence (the matched-arm verdict
+      holds), yet the ELM demonstrations remain visually poor — bulk/divertor brightening is
+      reproduced, but the model does not capture crisp ELM structure or timing. The question:
+      <strong>is this a capability ceiling or nascent v0 work?</strong> And specifically — is it a
+      diagnostic-resolution problem, should we fold in higher-fidelity diagnostic streams, and can
+      we exploit FFT/short-window spectral decompositions of the fast signals?</p>
+
+    <p><strong>Answer: it is both, and the dividing line is the camera's own frame rate — not the
+      tokenizer and not the model architecture.</strong> "Reproduce ELM structure" was never one
+      problem; it is three, with three different, now-measured answers:</p>
+
+    <figure>
+      <svg viewBox="0 0 760 220" width="100%" role="img" aria-label="Three-way decomposition of ELM fidelity"
+           style="max-width:760px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+        <!-- column 1: spatial detail -->
+        <rect x="8" y="36" width="236" height="150" fill="#ffffff" stroke="#cfcfd4" stroke-width="1"/>
+        <rect x="8" y="36" width="6" height="150" fill="#2e7d32"/>
+        <text x="24" y="24" font-size="13" font-weight="700" fill="#1a1a1a">1 · Filament spatial detail</text>
+        <text x="28" y="64" font-size="13" font-weight="700" fill="#2e7d32">NOT CAPPED</text>
+        <text x="28" y="88" font-size="12.5" fill="#1a1a1a">Tokenizer round-trip retains</text>
+        <text x="28" y="106" font-size="12.5" fill="#1a1a1a">95% of edge (HF) energy,</text>
+        <text x="28" y="124" font-size="12.5" fill="#1a1a1a">99% filament contrast,</text>
+        <text x="28" y="142" font-size="12.5" fill="#1a1a1a">SSIM 0.996. The 18-bit LFQ</text>
+        <text x="28" y="160" font-size="12.5" fill="#1a1a1a">tokenizer is exonerated.</text>
+        <!-- column 2: onset timing -->
+        <rect x="262" y="36" width="236" height="150" fill="#ffffff" stroke="#cfcfd4" stroke-width="1"/>
+        <rect x="262" y="36" width="6" height="150" fill="#c62828"/>
+        <text x="278" y="24" font-size="13" font-weight="700" fill="#1a1a1a">2 · Sub-ms onset / timing</text>
+        <text x="282" y="64" font-size="13" font-weight="700" fill="#c62828">CAPPED (on the target)</text>
+        <text x="282" y="88" font-size="12.5" fill="#1a1a1a">Camera Δt median 0.2 ms</text>
+        <text x="282" y="106" font-size="12.5" fill="#1a1a1a">(24% of ELM shots ≥1 ms);</text>
+        <text x="282" y="124" font-size="12.5" fill="#1a1a1a">ELM rises/falls in 0.1–1 ms.</text>
+        <text x="282" y="142" font-size="12.5" fill="#1a1a1a">Camera catches 1–2 frames,</text>
+        <text x="282" y="160" font-size="12.5" fill="#1a1a1a">integrates the onset. Gone.</text>
+        <!-- column 3: morphology response -->
+        <rect x="516" y="36" width="236" height="150" fill="#ffffff" stroke="#cfcfd4" stroke-width="1"/>
+        <rect x="516" y="36" width="6" height="150" fill="#1565c0"/>
+        <text x="532" y="24" font-size="13" font-weight="700" fill="#1a1a1a">3 · Morphology response</text>
+        <text x="536" y="64" font-size="13" font-weight="700" fill="#1565c0">FIXABLE (nascent v0)</text>
+        <text x="536" y="88" font-size="12.5" fill="#1a1a1a">Model is blind to the fast</text>
+        <text x="536" y="106" font-size="12.5" fill="#1a1a1a">ELM trigger (slow-actuator</text>
+        <text x="536" y="124" font-size="12.5" fill="#1a1a1a">conditioning only). Cue it</text>
+        <text x="536" y="142" font-size="12.5" fill="#1a1a1a">with fast Dα and it can learn</text>
+        <text x="536" y="160" font-size="12.5" fill="#1a1a1a">the brightening response.</text>
+      </svg>
+      <figcaption>The ELM-fidelity question decomposes into three sub-problems with three distinct,
+        measured verdicts. The visually disappointing demos are dominated by the capped middle
+        column (a property of the camera, the prediction target), while the tractable win is the
+        right column (the model has simply never been shown the trigger).</figcaption>
+    </figure>
+
+    <p><strong>The world-model thesis is not capped.</strong> What the GIFs make you wince at —
+      filament detail plus crisp ELM timing — is largely the capped half (the camera never recorded
+      the sub-ms onset, and clips to white at the peak), while the genuinely tractable win is the
+      ELM brightness/morphology <em>response</em> on the frame that contains the integrated burst,
+      which the v0 fails only because it is structurally blind to the fast trigger.</p>
+
+    <h2 id="s2">§2 — How this was established</h2>
+    <p>A four-lens read-only investigation (architecture / fast-diagnostic fusion / spectral
+      features) with an adversarial synthesis-and-critique pass, plus two empirical probes run on
+      SLURM against the real corpus:</p>
+    <ul>
+      <li><strong>Tokenizer round-trip</strong> (<code>imas_ambix/camdyn/tokenizer_fidelity.py</code>)
+        — decode the stored ground-truth tokens of a real ELM window and compare to the raw frames,
+        with no model in the loop. Isolates the tokenizer's contribution to filament loss.</li>
+      <li><strong>Camera-sampling audit</strong> (<code>imas_ambix/camdyn/elm_sampling_audit.py</code>)
+        — measure the rbb frame-interval distribution on ELM-bearing shots, test whether the camera
+        resolves or integrates the burst, settle the contested fast-channel rates, and confirm the
+        forecast statistical power at each horizon.</li>
+    </ul>
+    <p>The adversarial critic was decisive: it rejected the initial synthesis (which had carried a
+      resolution-cap premise) and re-scoped the problem onto the camera's sampling rate — the
+      reframing this document records.</p>
+
+    <h2 id="s3">§3 — Measured finding: the tokenizer is exonerated</h2>
+    <p>The original report claimed "the token grid does not resolve filamentary structure — a
+      higher-resolution tokenizer would be needed." <strong>That is refuted by measurement.</strong>
+      On shot 24446 (a dramatic ×41-baseline fast-Dα ELM, native 4 kHz camera), decoding the stored
+      ground-truth tokens reproduces every macroscopic ELM structure: SSIM 0.996, <strong>95% of the
+      fine edge (high-frequency) energy retained</strong>, filament-transect contrast 99% preserved.
+      MAST ELMs image as many-pixel coherent bright striations, exactly the structure an 18-bit LFQ
+      patch tokenizer keeps. The decode is only marginally softened.</p>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-tokenizer-elm-fidelity.png"
+           alt="Raw rbb frames (top) vs Open-MAGVIT2 token round-trip (bottom) across an ELM burst"
+           style="width:100%;max-width:900px;border:1px solid #e0e0e0">
+      <figcaption>Raw rbb frames (top) vs the Open-MAGVIT2 ground-truth-token round-trip (bottom)
+        across an ELM on shot 24446, 374.06–377.81 ms. The macroscopic ELM edge/divertor structure
+        survives the tokenizer intact. <strong>One genuine target-side limit is visible:</strong> the
+        ELM-peak frame (red box, +0.00 ms) saturates to ~99% white — a sensor dynamic-range clip that
+        no tokenizer, model, or normalization can recover.</figcaption>
+    </figure>
+
+    <h2 id="s4">§4 — Measured finding: the camera undersamples the ELM</h2>
+    <p>The prediction target is rbb camera tokens. If the camera integrates over the sub-ms ELM
+      crash, the onset structure is gone <em>at acquisition</em> and no conditioning, context length,
+      or spectral feature can recover it. The audit settled the contested rates (our own artifacts
+      had spanned three orders of magnitude):</p>
+    <ul>
+      <li><strong>Camera frame interval is bimodal and shot-dependent</strong> — median 0.20 ms,
+        range 0.01–16.67 ms. The sub-0.1 ms (≥10 kHz) shots are mostly tiny high-speed ROI readouts
+        (e.g. 80×128 px), not full frames; full-frame shots run ~0.2–0.33 ms. <strong>24% of
+        ELM-bearing shots integrate outright (Δt ≥ 1 ms);</strong> even the "fast" full-frame mode is
+        comparable to, not below, the 0.1–1 ms ELM width.</li>
+      <li><strong>The camera captures the burst in 1–2 frames at best</strong> — it does not trace a
+        multi-frame rise-and-fall. The genuine fast carrier steps ~16–25× finer than the camera.</li>
+      <li><strong>Fast-channel identities settled:</strong> <code>ada/dalpha_raw_full</code> is a
+        slow (696×1024) <em>radial profile</em> on a ~1.43 kHz axis — <em>not</em> a fast trace (the
+        prior "fast ada Dα" label was wrong); the genuine sub-ms ELM carrier is
+        <code>xim/da_hm10_t</code> (~67–250 kHz); <code>xma/ccbv</code> fast Mirnov is effectively
+        ~5 kHz (confirming the earlier interior-information finding, refuting a 100 kHz reading).</li>
+      <li><strong>Forecast power:</strong> valid ELM-window forecast samples are n=59 at 10 ms
+        (powered, beats persistence, CI&gt;0), n=19 at 50 ms (CI crosses 0), n=1 at 200 ms
+        (powerless). Any lever aimed at 50/200 ms is underpowered by construction.</li>
+    </ul>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-elm-sampling-audit.png"
+           alt="Camera frame-interval distribution, resolve-vs-integrate trajectories, and settled rate/power table"
+           style="width:100%;max-width:900px;border:1px solid #e0e0e0">
+      <figcaption>Left: the bimodal rbb frame-interval distribution with the ELM-width band shaded.
+        Centre: camera ELM-brightening trajectory vs native fast-Dα for three shots — the camera
+        catches 1–2 frames while Dα is sampled ~20× finer. Right: the settled channel rates and the
+        forecast sample counts at each horizon.</figcaption>
+    </figure>
+
+    <h2 id="s5">§5 — Verdict: the capped half and the fixable half</h2>
+    <p><strong>Capped (do not chase):</strong> sub-ms ELM onset, timing, and filament-resolved
+      dynamics. These live below the camera's frame interval and are lost to integration (and, at the
+      peak, to sensor saturation) — a property of the <em>target</em>, not of the tokenizer (§3),
+      the model architecture (the only true architectural cap, the learned <code>temporal_pos</code>
+      table, is narrow and RoPE-removable), or training. No amount of fast-diagnostic conditioning or
+      spectral feature can predict information the camera never recorded.</p>
+    <p><strong>Fixable (build this):</strong> the ELM brightness/morphology <em>response</em> on the
+      frame that contains the integrated burst — "an ELM fired here; the divertor/edge brightens by
+      this much, with this shape." The v0 fails this only because conditioning is slow-actuators-only
+      and the model never sees the fast ELM trigger (<code>xim</code> Dα). This is legitimate to add
+      — the fast diagnostics are <em>not</em> in the leakage ban (which protects only
+      EFIT/<code>esm</code>/<code>xdc</code>; the camera tokens are the target here, not Dα). It is
+      statistically testable only at the ~10 ms horizon (n=59).</p>
+    <p>So: the poor ELM demos are <strong>predominantly a target-sampling ceiling on the timing/onset
+      half, with a real but bounded fixable win on the morphology-response half.</strong> Nascent —
+      not a model-class wall.</p>
+
+    <h2 id="s6">§6 — Near-term plan and implementation</h2>
+    <p>Ordered by leverage-per-effort, each gated by a cheap decisive test. The metric throughout is
+      <strong>ELM-frame morphology/brightness fidelity at the 10 ms horizon</strong> (the only
+      powered one) — <em>not</em> multi-ms forward forecast at 50/200 ms (dead and underpowered).
+      Every conditioning test carries a <strong>shuffled-Dα control and a slow-only control</strong>
+      to defeat two confounds the critic surfaced: (a) fast-Dα burst energy autocorrelates with the
+      gas/density the model already sees, and (b) a causal interval-max of Dα over [t₋₁, tᵢ] is
+      nearly a copy of the camera brightening at frame i — a within-interval near-label of the
+      target, not a forecast.</p>
+
+    <table>
+      <thead><tr><th>#</th><th>Step</th><th>Implementation</th><th>Effort</th><th>Decisive test</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>0 ✓</td>
+          <td><strong>Tokenizer + sampling audit</strong> (done)</td>
+          <td><code>tokenizer_fidelity.py</code>, <code>elm_sampling_audit.py</code> — landed.</td>
+          <td>S</td>
+          <td><strong>Done.</strong> Tokenizer exonerated; sampling cap quantified; rates + power settled.</td>
+        </tr>
+        <tr>
+          <td>1</td>
+          <td><strong>Reframe the ELM goal + metric</strong></td>
+          <td>An ELM-frame morphology/brightness metric at the 10 ms horizon (token-NLL +
+            edge/divertor-region brightness fidelity on Dα-selected windows). Pre-register; add to
+            <code>metrics.py</code> additively (do not change locked definitions). Document the
+            capped-vs-fixable split in the plan §8 caveats.</td>
+          <td>S</td>
+          <td>Metric reproduces the existing arm gap on ELM frames at 10 ms; no GPU.</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><strong>Wire fast Dα as a causal burst-summary scalar</strong></td>
+          <td>Add <code>xim/da_hm10_t</code> to <code>conditioning.py</code> via a causal inter-frame
+            <em>reduction</em> over [t₋₁, tᵢ] (interval max/mean/max-derivative/RMS/recent-max,
+            strictly ≤ tᵢ) — never a single decimated sample. Start with one additive scalar through
+            the existing <code>cond_proj</code>. Assert a channel can never be both a fast input and
+            <code>is_probe_target</code> (the Dα-target leak guard).</td>
+          <td>S–M</td>
+          <td>Paired held-out NLL on ELM frames at 10 ms: +HF-Dα vs slow-only <strong>vs
+            shuffled-Dα</strong>. A null is "this scalar," not "the data."</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><strong>Full burst-summary block + FiLM gating</strong> (gated on step 2)</td>
+          <td>Promote to the ~5-stat causal summary; if step 2 was positive, fuse via FiLM (small MLP
+            → γ,β modulating per-frame tokens) since ELM onset is a gating event. Mirror to both
+            matched arms; <code>temporal_attention</code> stays the sole arm difference.</td>
+          <td>M</td>
+          <td>ELM-frame morphology gain over the step-2 scalar, paired CI, controls retained.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><strong>Saturation-aware loss/mask</strong></td>
+          <td>Mask or down-weight clipped (~white-out) peak-frame tokens so the model is not penalized
+            for failing to predict information lost to sensor saturation (§3 figure).</td>
+          <td>S</td>
+          <td>ELM-peak-frame loss no longer dominated by unpredictable clipped pixels.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><strong>Fast-Mirnov precursor block</strong> (gated on step 2/3)</td>
+          <td>Per-frame MHD-precursor features from <code>xma/ccbv</code>, <em>preserving cross-coil
+            phase</em> (the interior-information lesson), not magnitude alone. Effective ~5 kHz limits
+            the fast content; second-arm priority only after Dα pays.</td>
+          <td>L</td>
+          <td>Ablation vs the Dα arm on ELM-frame morphology; demand a measured positive before the spend.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="s6-defer">Deprioritized / not pursued</h3>
+    <ul>
+      <li><strong>Multi-rate / longer-context windows for 50/200 ms forecast</strong> — the dynamics
+        edge over persistence has already converged by ~10 ms and those horizons are underpowered
+        (n=19 / n=1). Building reach into a dead, fatally-undersampled regime buys nothing. Revisit
+        only if a power audit finds surviving signal.</li>
+      <li><strong>RoPE / Δt-keyed relative position</strong> — the only real architectural cap
+        (<code>temporal_pos[:f]</code> cannot extrapolate), parameter-free to fix, but it costs a
+        both-arm from-scratch retrain. Do it only if a cheap context probe shows more context helps
+        ELMs — which the sampling cap makes unlikely.</li>
+      <li><strong>Higher-resolution / Cosmos re-tokenizer for filaments</strong> — unnecessary: the
+        current tokenizer already preserves the structure (§3). The filament-detail limit is the
+        camera, not the token grid.</li>
+    </ul>
+
+    <h2 id="s7">§7 — What would change the verdict</h2>
+    <ul>
+      <li>A usable population of <em>full-frame</em> ELM shots at tens-of-µs cadence (the audit found
+        the fast band is dominated by tiny ROIs) would partially reopen the onset-timing half.</li>
+      <li>A different camera/diagnostic with genuine sub-ms full-frame imaging (the target sets the
+        ceiling, so a better target — not a better model — is the only escape for onset fidelity).</li>
+      <li>A measured positive at step 2 with controls intact confirms the fixable half is real; a
+        null with a genuinely fast, well-aligned, present Dα channel would push even the
+        morphology-response half toward "capped."</li>
+    </ul>
+
+  </main>
+</body>
+</html>
