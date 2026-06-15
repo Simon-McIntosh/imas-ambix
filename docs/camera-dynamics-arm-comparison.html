@@ -200,42 +200,84 @@
 
     <h2 id="s5a">§5a — Seeing it: decoded reconstruction demonstrations</h2>
     <p>
-      The token-space numbers above become tangible when the predictions are decoded back to
-      camera images through the frozen Open-MAGVIT2 decoder (never fine-tuned). Each grid below
-      stacks three held-out shots (24065, 24446, 23937) with four rows — <strong>raw ground
-      truth</strong>, <em>decoded</em> ground truth (separating the frozen tokenizer's
-      reconstruction loss from the model's prediction loss), <strong>zero-order hold</strong>, and
-      the <strong>dynamics prediction</strong> — and five columns of increasing time (offsets
-      labelled in ms; the visible region is outlined in red; never-observed cells in the ZOH row
-      render black).
+      The token-space numbers become tangible when the predictions are decoded back to camera
+      images through the frozen Open-MAGVIT2 decoder (never fine-tuned). Every panel and animation
+      below is a <strong>three-way comparison — ground truth | trained per-frame baseline |
+      dynamics</strong> — with time increasing left→right (offsets in ms). Two display choices
+      follow directly from the data:
+    </p>
+    <ul>
+      <li><strong>The visual baseline is the <em>trained per-frame inpainting arm</em>, not the
+        zero-order hold.</strong> ZOH carries no information outside the observed cells (it renders
+        as corruption), so it stays a quantitative sanity floor (§5); a real trained model is the
+        honest visual comparator.</li>
+      <li><strong>Per-column brightness normalisation.</strong> The pipeline normalises each shot by
+        a single global min/max, so genuine intra-pulse brightening would otherwise swamp the
+        structure. Each time column is contrast-stretched to its ground-truth frame's 1st/99th
+        percentile, and that scale is shared across all three rows — structure is legible while any
+        reconstruction over/under-shoot stays honestly visible.</li>
+    </ul>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/recon-from-window.gif"
+           alt="clipped-view reconstruction animation: GT | baseline | dynamics" style="max-width:100%">
+      <figcaption><strong>Reconstruction from a clipped window</strong> (shot 24065 flat-top; the
+      observed sub-window is outlined in red). The model sees only the clipped token stream and must
+      emit the full frame — both arms rebuild a coherent full-machine view; the quantitative paired
+      win is +0.46 nats (§5). Static panel:
+      <a href="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-recon-window.png">fig-cdw-recon-window</a>.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/recon-from-signals.gif"
+           alt="signals-only reconstruction animation" style="max-width:100%">
+      <figcaption><strong>Reconstruction from diagnostic signals alone</strong> (full mask — no
+      camera input whatsoever). The dynamics arm recovers the gross plasma geometry — centre column,
+      lobes, emission envelope — from the actuator vector; fine detail does not match truth.
+      Reconstructing the feed from diagnostics alone fixes coarse shape, not filaments (consistent
+      with the conditioning ablation, §5d). Static panel:
+      <a href="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-recon-signals.png">fig-cdw-recon-signals</a>.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-recon-rampup.png"
+           alt="ramp-up inference: clipped + signals-only" style="max-width:100%">
+      <figcaption><strong>Inference during ramp-up</strong> (shot 24446, 0–7.5 ms, rising plasma
+      current — clipped view in the top three rows, signals-only in the bottom three). The
+      clipped-view arms track the plasma <em>forming</em> out of the first frame's pre-breakdown
+      noise; signals-only correctly stays dark (the actuators do not yet determine the camera), and
+      the per-frame baseline transiently over-saturates at +2 ms where the dynamics arm stays
+      controlled.</figcaption>
+    </figure>
+
+    <h2 id="s5a-elm">§5a.1 — ELMs: does the dynamics latent carry edge bursts?</h2>
+    <p>
+      ELMs (edge-localized modes) are fast, bright divertor/edge bursts — the sharpest visual test
+      of whether the dynamics latent carries real plasma evolution. ELMy windows were located from
+      the fast Dα signal (<code>ada/dalpha_raw_full</code> — used <em>only</em> to select windows,
+      never as a model input, so no leakage) cross-checked against camera divertor-band brightness,
+      and the window is decimated to span a real ~1–2 ms ELM timescale (a native 16-frame window
+      spans only ~0.1 ms, far shorter than an ELM rise/fall).
     </p>
     <figure>
-      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-demo-clipped.png"
-           alt="clipped-view infill: GT vs ZOH vs dynamics" style="max-width:100%">
-      <figcaption><strong>Clipped-view infill — the standout.</strong> The model observes only the
-      small red box as a time stream. Carry-forward can only echo that box (black everywhere
-      else); the dynamics arm reconstructs the full machine view — centre column, both lobes,
-      brightness distribution — from the clip plus the actuator signals. Blurrier than truth but
-      structurally right across the whole frame.</figcaption>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/elm-reconstruction.gif"
+           alt="ELM reconstruction animation: GT | baseline | dynamics" style="max-width:100%">
+      <figcaption><strong>ELM reconstruction</strong> (shot 24773, ~281 ms, ~1.5 ms span, burst at
+      +0.5 ms). The divertor/edge brightening is legible in ground truth and reproduced by the
+      dynamics arm. Static panel:
+      <a href="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-elm-recon.png">fig-cdw-elm-recon</a>.</figcaption>
     </figure>
     <figure>
-      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-demo-signals-only.png"
-           alt="signals-only reconstruction: GT vs ZOH vs dynamics" style="max-width:100%">
-      <figcaption><strong>Signals-only reconstruction (full mask).</strong> No camera input at
-      all: the ZOH row is fully black, and the dynamics arm recovers the gross plasma geometry —
-      central column, lobes, overall emission pattern — from the actuator vector alone. The
-      signals fix coarse shape and brightness, not filamentary detail.</figcaption>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/elm-forecast.gif"
+           alt="ELM forecast animation: GT | persistence | dynamics" style="max-width:100%">
+      <figcaption><strong>ELM forecast</strong> (ground truth | persistence | dynamics; the burst
+      lands in the predict-forward half of the window). The dynamics prediction evolves the scene
+      forward — tracking the brightening — while persistence holds the frozen pre-burst frame.</figcaption>
     </figure>
-    <figure>
-      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-demo-frontier.png"
-           alt="frontier forecasting: GT vs ZOH vs dynamics" style="max-width:100%">
-      <figcaption><strong>Frontier forecasting — honest weak spot of the demo.</strong> At the
-      native rbb cadence a 16-frame window spans only ~1.3 ms, so the post-frontier scene is
-      quasi-static and persistence is already close to truth; the dynamics prediction matches
-      ground truth but so, largely, does ZOH. The forecast headroom at native in-window offsets is
-      sub-millisecond — which is exactly why the physical-horizon protocol below evaluates on
-      decimated wide windows.</figcaption>
-    </figure>
+    <p>
+      <strong>Honest resolution caveat.</strong> At 16×16 tokens decoded to 256², the model
+      reproduces <em>bulk-plasma and divertor-band morphology</em>, not individual ELM filaments —
+      the token grid does not resolve filamentary structure. What these figures show is a clean
+      morphology reproduction and a forward-evolving forecast, <em>not</em> deterministic
+      filament-timing prediction. A higher-resolution tokenizer would be needed for the latter.
+    </p>
 
     <h2 id="s5b">§5b — Forward horizons: 10 / 50 / 200 ms vs persistence</h2>
     <p>
@@ -279,6 +321,31 @@
       <figcaption>Forward-horizon top-1 (matched-cadence regime) for the three predictors, with
       95% paired CIs on the dynamics advantage. Valid-window counts annotated — the honest
       denominator shrinks with horizon.</figcaption>
+    </figure>
+    <p>
+      A finer sweep (5→500 ms over the held-out fleet) sharpens the "how far forward" answer: the
+      dynamics arm's top-1 advantage over persistence is <strong>significant at 5 and 10 ms</strong>
+      and the mean still favours dynamics at 20–100 ms (the paired CI there includes zero as the
+      valid-window count falls), while on NLL the dynamics arm <strong>dominates the per-frame
+      baseline at every horizon</strong> (≈9.0–10.8 vs ≈11.8–12.0 nats — the baseline has no
+      forecasting mechanism under the frontier mask). In short: <strong>dynamics genuinely buys
+      ~10 ms of forward forecast over persistence, then gracefully converges to it</strong> as the
+      scene decorrelates.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-forecast-sweep.png"
+           alt="forecast sweep 5-500 ms: dynamics vs persistence vs baseline" style="max-width:100%">
+      <figcaption>Forward-forecast sweep, 5→500 ms (log axis). Left: top-1 vs horizon for dynamics /
+      persistence / per-frame baseline, persistence crossover near 10 ms. Right: forecast NLL vs
+      horizon — dynamics (≈9–11 nats) well below the baseline (≈12) throughout. Valid-window counts
+      decay with horizon (5 ms n=59 → 200 ms n=1; 500 ms unreachable).</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/forecast-rollout.gif"
+           alt="forecast rollout animation: GT | persistence | dynamics" style="max-width:100%">
+      <figcaption>Forecast rollout (ground truth | persistence | dynamics): observe the past, then
+      predict forward — the dynamics prediction keeps evolving while persistence holds the last
+      observed frame.</figcaption>
     </figure>
 
     <h2 id="s5c">§5c — Gas-puff attribution: an honest null</h2>
