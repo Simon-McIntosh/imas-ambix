@@ -287,12 +287,33 @@ def test_draw_clip_box_marks_only_clipped():
 
     img = np.zeros(rd.ORIGINAL_HW, dtype=np.uint8)
     box = rd.clip_box("clipped")
-    mv._draw_clip_box(img, box, value=255)
+    img = mv._draw_clip_box(img, box, value=255)
     assert (img == 255).any(), "clip box must draw an outline"
 
     img2 = np.zeros(rd.ORIGINAL_HW, dtype=np.uint8)
-    mv._draw_clip_box(img2, rd.clip_box("signals_only"), value=255)
+    img2 = mv._draw_clip_box(img2, rd.clip_box("signals_only"), value=255)
     assert not (img2 == 255).any(), "no box for signals-only"
+
+
+def test_draw_clip_box_read_only_input():
+    """A read-only (PIL-backed) array must not crash _draw_clip_box."""
+    from imas_ambix.camdyn import recon_movie as mv
+
+    ro = np.zeros(rd.ORIGINAL_HW, dtype=np.uint8)
+    ro.setflags(write=False)
+    out = mv._draw_clip_box(ro, rd.clip_box("clipped"), value=255)
+    assert (out == 255).any()  # drawn on the internal writable copy
+
+
+def test_to_native_gray_returns_writable():
+    """to_native_gray output must be writable (callers draw on it in place)."""
+    from imas_ambix.camdyn import recon_movie as mv
+
+    big = np.random.default_rng(23).integers(0, 256, size=(462, 640), dtype=np.uint8)
+    out = mv.to_native_gray(big)
+    assert out.flags.writeable
+    native = mv.to_native_gray(np.zeros(rd.ORIGINAL_HW, dtype=np.uint8))
+    assert native.flags.writeable
 
 
 # ---------------------------------------------------------------------------

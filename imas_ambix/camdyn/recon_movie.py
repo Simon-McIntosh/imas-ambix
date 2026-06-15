@@ -114,15 +114,17 @@ def to_native_gray(img: np.ndarray) -> np.ndarray:
 
     a = np.asarray(img, dtype=np.uint8)
     if a.shape[:2] == ORIGINAL_HW:
-        return a
+        return np.array(a)  # writable copy (callers draw the clip box in place)
     im = Image.fromarray(a).resize((ORIGINAL_HW[1], ORIGINAL_HW[0]), Image.BILINEAR)
-    return np.asarray(im)
+    return np.array(im)  # np.array (not asarray) → writable
 
 
 def _draw_clip_box(img: np.ndarray, box, *, value: int = 255) -> np.ndarray:
     """Outline a token-grid clip box on a native-aspect uint8 image (in place)."""
     if box is None:
         return img
+    if not img.flags.writeable:  # PIL-backed arrays are read-only
+        img = np.array(img)
     r0, r1, c0, c1 = box
     h, w = img.shape[:2]
     rr0 = int(round(r0 / GRID_H * h))

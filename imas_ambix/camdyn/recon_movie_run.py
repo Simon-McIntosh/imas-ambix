@@ -427,7 +427,7 @@ def _render_recon_gif(
         # raw rbb frames are not all ORIGINAL_HW across shots — bring the GT
         # pane to the canonical aspect so the 3 panes concatenate cleanly.
         gt_u = mv.to_native_gray(mv.normalise_for_display(gt_src, vmin, vmax))
-        mv._draw_clip_box(gt_u, box, value=255)
+        gt_u = mv._draw_clip_box(gt_u, box, value=255)
         mid_u = mv.normalise_for_display(rd._to_aspect(mid[fi]), vmin, vmax)
         dyn_u = mv.normalise_for_display(rd._to_aspect(dyn[fi]), vmin, vmax)
         dt_ms = (ft[fi] - ft[0]) * 1e3
