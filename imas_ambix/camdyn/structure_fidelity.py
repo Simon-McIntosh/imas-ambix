@@ -128,6 +128,11 @@ SPAN_MS = 6.0
 #: Sampling temperatures swept for the correctness-maximising decode.
 TEMPERATURES = (0.6, 0.7, 0.8, 0.9, 1.0)
 
+#: MaskGIT iterative-decode config (the cross-cell coherence lever).
+MASKGIT_ROUNDS = 8
+MASKGIT_TOP_K = 6  # least-confident bits resampled per committed cell
+MASKGIT_CONF_NOISE = 1.0  # annealed Gumbel noise on the commit ordering
+
 #: Seeds the stochastic decodes are averaged over (≥ 8 per critique).
 N_SEEDS = 8
 SEED0 = 12345
@@ -304,19 +309,16 @@ def _decimate(
 # ---------------------------------------------------------------------------
 
 
-def forward_bit_logits(
-    model, torch, device, win: rd.DemoWindow, cond_stats, scenario: str, frontier: int
-) -> tuple[np.ndarray, np.ndarray]:
-    """Run one arm forward → ``(visible, bit_logits)`` ``(F,H,W,bits)``.
+def _conditioning_tensors(torch, device, win: rd.DemoWindow, cond_stats):
+    """Frozen per-window conditioning tensors ``(cv_t, cm_t, dt_t)`` (batch 1).
 
-    The RAW per-bit logits before the ``>0`` threshold, so MAP / bernoulli /
-    beam / oracle decodes all derive from the SAME forward pass.
+    The conditioning (z-scored actuator values, missing-flags, Δt) does NOT
+    depend on the token grid or visibility, so it is built ONCE and reused
+    across the MaskGIT forward rounds (re-running ``load_conditioning`` every
+    round would dominate the wall-clock and is pure waste).
     """
     from imas_ambix.camdyn.conditioning import CONDITIONING_CHANNELS, load_conditioning
     from imas_ambix.camdyn.dataset import discover_token_shots
-
-    n_frames = win.true_tokens.shape[0]
-    visible = rd.scenario_mask(scenario, n_frames, frontier)
 
     specs = discover_token_shots(shot_ids=[win.shot_id], read_n_frames=False)
     level1_path = specs[0].level1_path if specs else None
@@ -326,13 +328,22 @@ def forward_bit_logits(
     cv = rd._zscore(cond.values, cond_stats)[None]
     cm = cond.missing[None].astype(np.float32)
     dt = win.dt[None].astype(np.float32)
-
-    tokens_t = torch.from_numpy(win.true_tokens[None]).to(device)
-    vis_t = torch.from_numpy(visible[None]).to(device)
     cv_t = torch.from_numpy(cv).to(device)
     cm_t = torch.from_numpy(cm).to(device)
     dt_t = torch.from_numpy(dt).to(device)
+    return cv_t, cm_t, dt_t
 
+
+def _run_forward(model, torch, device, tokens, visible, cv_t, cm_t, dt_t) -> np.ndarray:
+    """Single model forward on the given token/visibility state → bit-logits.
+
+    ``tokens`` / ``visible`` are ``(F,H,W)`` numpy arrays (one window); returns
+    ``(F,H,W,bits)`` float numpy logits.  Shared by the single-shot probe and
+    the iterative MaskGIT closure so every role decodes through the IDENTICAL
+    forward.
+    """
+    tokens_t = torch.from_numpy(np.asarray(tokens, dtype=np.int64)[None]).to(device)
+    vis_t = torch.from_numpy(np.asarray(visible, dtype=bool)[None]).to(device)
     with torch.no_grad():
         with torch.autocast(
             device_type=device.type,
@@ -340,7 +351,39 @@ def forward_bit_logits(
             enabled=(device.type == "cuda"),
         ):
             logits = model.module(tokens_t, vis_t, cv_t, cm_t, dt_t)
-        bl = logits.float().cpu().numpy()[0]  # (F,H,W,bits)
+        return logits.float().cpu().numpy()[0]  # (F,H,W,bits)
+
+
+def make_forward_fn(model, torch, device, win: rd.DemoWindow, cond_stats):
+    """Build the ``(tokens, visible) -> bit_logits`` closure MaskGIT re-runs.
+
+    Closes over the frozen conditioning so each MaskGIT round only pays the
+    transformer forward, not the conditioning load.  This is the EXACT
+    conditioning mechanism the head was trained with — committed cells fold
+    into the visible context via the model's own ``[MASK]``-embedding path.
+    """
+    cv_t, cm_t, dt_t = _conditioning_tensors(torch, device, win, cond_stats)
+
+    def forward_fn(tokens: np.ndarray, visible: np.ndarray) -> np.ndarray:
+        return _run_forward(model, torch, device, tokens, visible, cv_t, cm_t, dt_t)
+
+    return forward_fn
+
+
+def forward_bit_logits(
+    model, torch, device, win: rd.DemoWindow, cond_stats, scenario: str, frontier: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Run one arm forward → ``(visible, bit_logits)`` ``(F,H,W,bits)``.
+
+    The RAW per-bit logits before the ``>0`` threshold, so MAP / bernoulli /
+    beam / oracle decodes all derive from the SAME forward pass.
+    """
+    n_frames = win.true_tokens.shape[0]
+    visible = rd.scenario_mask(scenario, n_frames, frontier)
+    cv_t, cm_t, dt_t = _conditioning_tensors(torch, device, win, cond_stats)
+    bl = _run_forward(
+        model, torch, device, win.true_tokens, visible, cv_t, cm_t, dt_t
+    )
     return visible, bl
 
 
@@ -803,12 +846,21 @@ def evaluate_window(
     seed0: int,
     work_dir: Path,
     device: str,
+    *,
+    visible: np.ndarray | None = None,
+    forward_fn=None,
+    maskgit_rounds: int = MASKGIT_ROUNDS,
 ) -> dict:
-    """Score MAP / bernoulli(T) / beam / persistence / oracle / coloured-noise.
+    """Score MAP / bernoulli / beam / maskgit / persistence / oracle / control.
 
     All stochastic roles are seed-averaged (``n_seeds``) with a bootstrap CI over
     the per-seed × per-frame correctness scores.  Returns a dict with the
     correctness terms (mean ± CI), HF secondary, and the accuracy Pareto numbers.
+
+    ``forward_fn`` / ``visible`` enable the iterative MaskGIT role: ``forward_fn``
+    is the ``(tokens, visible) -> bit_logits`` closure and ``visible`` is the
+    scenario visibility mask (True = observed context MaskGIT never re-decodes).
+    When either is None the MaskGIT role is skipped.
     """
     from imas_ambix.camdyn.model import LFQ_BITS
 
@@ -817,6 +869,8 @@ def evaluate_window(
     gt256 = _raw_gt_256(win)
     if gt256 is None:
         return {"arm": arm_name, "error": "no raw GT frames"}
+
+    do_maskgit = forward_fn is not None and visible is not None
 
     # --- deterministic token grids (MAP, persistence) ----------------------
     map_tok = decode_map(bit_logits)
@@ -832,18 +886,31 @@ def evaluate_window(
     )
     # per (decoder, T, seed) grids — seed s uses a deterministic per-seed RNG so
     # the sweep (seed 0) and the seed-average (seeds 0..n-1) are reproducible.
+    sample_kinds = ["bernoulli", "beam"]
+    if do_maskgit:
+        sample_kinds.append("maskgit")
     seed_grid_tok: dict[tuple[str, float, int], np.ndarray] = {}
-    for kind, decoder in (
-        ("bernoulli", ts.bernoulli_sample),
-        ("beam", ts.bit_beam_sample),
-    ):
+    for kind in sample_kinds:
         for T in temperatures:
             for s in range(n_seeds):
                 rng = np.random.default_rng(seed0 + 1000 * s + int(round(T * 100)))
                 if kind == "bernoulli":
-                    tok = decoder(bit_logits, temperature=T, rng=rng)
-                else:
-                    tok = decoder(bit_logits, temperature=T, n_expand_bits=8, rng=rng)
+                    tok = ts.bernoulli_sample(bit_logits, temperature=T, rng=rng)
+                elif kind == "beam":
+                    tok = ts.bit_beam_sample(
+                        bit_logits, temperature=T, n_expand_bits=8, rng=rng
+                    )
+                else:  # maskgit — iterative, re-runs the model forward per round
+                    tok = ts.maskgit_decode(
+                        forward_fn,
+                        true_tokens,
+                        visible,
+                        n_rounds=maskgit_rounds,
+                        temperature=T,
+                        top_k=MASKGIT_TOP_K,
+                        confidence_noise=MASKGIT_CONF_NOISE,
+                        rng=rng,
+                    )
                 key = (kind, float(T), s)
                 seed_grid_tok[key] = tok
                 grids[f"{kind}_T{T}_s{s}"] = tok
@@ -885,9 +952,9 @@ def evaluate_window(
             r["hf_ratio_vs_gt"] = float(r["hf_power"] / gt_hf)
 
     # --- temperature sweep: seed-0 correctness per T, pick the best T -------
-    best = {"bernoulli": (None, -np.inf), "beam": (None, -np.inf)}
-    sweep = {"bernoulli": {}, "beam": {}}
-    for kind in ("bernoulli", "beam"):
+    best = {k: (None, -np.inf) for k in sample_kinds}
+    sweep = {k: {} for k in sample_kinds}
+    for kind in sample_kinds:
         for T in temperatures:
             grid_key = f"{kind}_T{T}_s0"
             sc, _ = _score_role(decoded[grid_key], seed_grid_tok[(kind, float(T), 0)])
@@ -896,9 +963,9 @@ def evaluate_window(
             if c > best[kind][1]:
                 best[kind] = (T, c)
 
-    # --- seed-average the winning T for bernoulli + beam (already decoded) --
+    # --- seed-average the winning T for each sampled decoder (decoded above) --
     seed_avg = {}
-    for kind in ("bernoulli", "beam"):
+    for kind in sample_kinds:
         T = best[kind][0]
         loc_samples, temp_samples = [], []
         hf_samples, top1_samples, nll_samples = [], [], []
@@ -957,6 +1024,13 @@ def evaluate_window(
                 f"bernoulli_T{best['bernoulli'][0]}_s0"
             ],
             f"beam_T{best['beam'][0]}": decoded[f"beam_T{best['beam'][0]}_s0"],
+            **(
+                {f"maskgit_T{best['maskgit'][0]}": decoded[
+                    f"maskgit_T{best['maskgit'][0]}_s0"
+                ]}
+                if do_maskgit
+                else {}
+            ),
             "oracle_joint": decoded["oracle_joint"],
             "coloured_noise": cn,
         },
@@ -1007,10 +1081,17 @@ def render_figure(results: list[dict], out_path: Path) -> None:
 
     bern_key = next(k for k in dec if k.startswith("bern_T"))
     beam_key = next(k for k in dec if k.startswith("beam_T"))
+    maskgit_key = next((k for k in dec if k.startswith("maskgit_T")), None)
     rows = [
         ("gt", "ground truth (raw)"),
-        ("map", "MAP decode (current)"),
-        (beam_key, f"beam {beam_key.split('T')[1]} (ship)"),
+        ("map", "MAP decode (bar)"),
+    ]
+    if maskgit_key is not None:
+        rows.append(
+            (maskgit_key, f"MaskGIT {maskgit_key.split('T')[1]} (coherent)")
+        )
+    rows += [
+        (beam_key, f"beam {beam_key.split('T')[1]}"),
         (bern_key, f"bernoulli {bern_key.split('T')[1]}"),
         ("oracle_joint", "oracle joint (upper bound)"),
         ("coloured_noise", "coloured noise (control)"),
@@ -1055,14 +1136,17 @@ def render_figure(results: list[dict], out_path: Path) -> None:
         r = sa.get(role_key, {})
         return f"loc={r.get('location_mean', float('nan')):.3f} tmp={r.get('temporal_mean', float('nan')):.3f}"
 
+    mg_txt = (
+        f" | MaskGIT {_fmt('maskgit', 'seed')}" if maskgit_key is not None else ""
+    )
     caption = (
-        f"Sampled decode restores edge filaments — dynamics arm, shot {res['shot_id']} "
-        f"forecast.  Correctness = edge-band SSIM vs RAW GT (location) + Δframe SSIM "
-        f"(temporal).\n"
-        f"MAP {_fmt('map', 'roles')} | beam {_fmt('beam', 'seed')} | "
+        f"Coherent vs per-bit decode — dynamics arm, shot {res['shot_id']} forecast.  "
+        f"Correctness = edge-band SSIM vs RAW GT (location) + Δframe SSIM (temporal).\n"
+        f"MAP {_fmt('map', 'roles')} (bar){mg_txt} | beam {_fmt('beam', 'seed')} | "
         f"bern {_fmt('bernoulli', 'seed')} | oracle {_fmt('oracle_joint', 'roles')} | "
         f"coloured-noise {_fmt('coloured_noise', 'roles')} (control — must FAIL location+temporal).  "
-        f"All rows decode the SAME per-bit logits through the frozen Open-MAGVIT2 tokenizer."
+        f"MaskGIT re-forwards the model, conditioning each committed cell on its decided "
+        f"neighbours; the others decode one frozen forward."
     )
     fig.suptitle(caption, fontsize=9)
     out_path = Path(out_path)
@@ -1089,6 +1173,7 @@ def render_pareto(results: list[dict], out_path: Path) -> None:
     colours = {"dynamics": "#2ca02c", "baseline": "#1f77b4"}
     markers = {
         "map": "o",
+        "maskgit": "P",
         "beam": "^",
         "bernoulli": "s",
         "persistence": "x",
@@ -1110,8 +1195,10 @@ def render_pareto(results: list[dict], out_path: Path) -> None:
             top1 = r.get("top1_vs_true", np.nan)
             nll = r.get("nll_decoded_id", np.nan)
             pts.append((rk, corr, top1, nll))
-        # seed-averaged sampled decodes
-        for rk in ("beam", "bernoulli"):
+        # seed-averaged sampled decodes (maskgit only present if it was run)
+        for rk in ("maskgit", "beam", "bernoulli"):
+            if rk not in sa:
+                continue
             r = sa.get(rk, {})
             corr = _corr_objective(
                 {"location": r.get("location_mean"), "temporal": r.get("temporal_mean")}
@@ -1219,17 +1306,18 @@ def build_verdict(results: list[dict]) -> dict:
             "hf_ratio_vs_gt": float(np.nanmean(hf)) if hf else float("nan"),
         }
 
+    # MaskGIT is present iff any result seed-averaged it.
+    has_maskgit = any(
+        "maskgit" in r.get("seed_averaged", {}) for r in results if "roles" in r
+    )
+    sample_roles = ["beam", "bernoulli"] + (["maskgit"] if has_maskgit else [])
+
     summary = {}
     for arm in ("dynamics", "baseline"):
         summary[arm] = {
             role: _agg(arm, role)
             for role in (
-                "map",
-                "beam",
-                "bernoulli",
-                "persistence",
-                "oracle_joint",
-                "coloured_noise",
+                ["map", *sample_roles, "persistence", "oracle_joint", "coloured_noise"]
             )
         }
 
@@ -1243,10 +1331,12 @@ def build_verdict(results: list[dict]) -> dict:
     cn_hf_ok = np.isfinite(cn["hf_ratio_vs_gt"]) and cn["hf_ratio_vs_gt"] > 0.5
     control_rejected = bool(cn_loc_fails and cn_temp_fails)
 
-    beam = summary["dynamics"]["beam"]
-    bern = summary["dynamics"]["bernoulli"]
     persist = summary["dynamics"]["persistence"]
-    best_sample = max((beam, bern), key=lambda r: _corr_objective(r))
+    # MaskGIT is the coherent-decode lever under primary test; track it both
+    # within the best-of-all-samplers verdict AND on its own vs MAP.
+    maskgit = summary["dynamics"].get("maskgit")
+    sample_candidates = [summary["dynamics"][r] for r in sample_roles]
+    best_sample = max(sample_candidates, key=lambda r: _corr_objective(r))
 
     sample_beats_map = _corr_objective(best_sample) > _corr_objective(mapd)
     sample_beats_persist = _corr_objective(best_sample) > _corr_objective(persist)
@@ -1254,6 +1344,21 @@ def build_verdict(results: list[dict]) -> dict:
         np.isfinite(best_sample["hf_ratio_vs_gt"])
         and np.isfinite(mapd["hf_ratio_vs_gt"])
         and best_sample["hf_ratio_vs_gt"] > mapd["hf_ratio_vs_gt"] * 1.25
+    )
+    # MaskGIT-specific flags (the coherence lever, location + temporal vs MAP)
+    maskgit_beats_map_located = bool(
+        maskgit is not None
+        and np.isfinite(maskgit["location"])
+        and maskgit["location"] > mapd["location"]
+    )
+    maskgit_beats_map_temporal = bool(
+        maskgit is not None
+        and np.isfinite(maskgit["temporal"])
+        and maskgit["temporal"] > mapd["temporal"]
+    )
+    maskgit_beats_map = bool(
+        maskgit is not None
+        and _corr_objective(maskgit) > _corr_objective(mapd)
     )
 
     if sample_beats_map and sample_beats_persist:
@@ -1281,6 +1386,37 @@ def build_verdict(results: list[dict]) -> dict:
             "may still be partly gameable; see control numbers]"
         )
 
+    # MaskGIT-specific verdict (the coherence lever this run was built to test):
+    # the question is whether iterative COHERENT decode — conditioning each
+    # committed cell on its decided neighbours — beats the per-bit MAP on
+    # LOCATED and/or TEMPORAL correctness where the single-pass samplers did not.
+    if maskgit is not None:
+        if maskgit_beats_map_located and maskgit_beats_map_temporal:
+            maskgit_verdict = (
+                "MASKGIT BEATS MAP — iterative coherent decode beats the per-bit MAP "
+                "on BOTH located and temporal correctness; coherence (not just "
+                "sampling) restores filaments in the right place"
+            )
+        elif maskgit_beats_map_located:
+            maskgit_verdict = (
+                "MASKGIT BEATS MAP ON LOCATION ONLY — coherent decode improves where "
+                "the structure is, but not how it evolves"
+            )
+        elif maskgit_beats_map_temporal:
+            maskgit_verdict = (
+                "MASKGIT BEATS MAP ON TEMPORAL ONLY — coherent decode improves the "
+                "Δframe coherence, but not the per-frame location"
+            )
+        else:
+            maskgit_verdict = (
+                "MASKGIT DOES NOT BEAT MAP — iterative coherent decode does not improve "
+                "located/temporal correctness over the per-bit MAP; the lever is "
+                "uncertainty-reduction (conditioning/temporal), not decode — MaskGIT "
+                "is at best a visualisation option"
+            )
+    else:
+        maskgit_verdict = "MASKGIT NOT RUN (no forward closure supplied)"
+
     return {
         "summary_by_arm": summary,
         "control": {
@@ -1299,6 +1435,10 @@ def build_verdict(results: list[dict]) -> dict:
         "dynamics_hf_restored_but_not_correct": bool(
             hf_restored and not sample_beats_map
         ),
+        "dynamics_maskgit_beats_map": maskgit_beats_map,
+        "dynamics_maskgit_beats_map_located": maskgit_beats_map_located,
+        "dynamics_maskgit_beats_map_temporal": maskgit_beats_map_temporal,
+        "maskgit_verdict": maskgit_verdict,
         "verdict": verdict,
     }
 
@@ -1342,11 +1482,15 @@ def run(
         logger.info("[structfid] loading %s arm on %s", arm_name, dev)
         model, _cfg, cond_stats = _load_arm(ckpt, torch, dev)
         try:
+            forward_fn = None
             for sw in windows:
                 win = sw.window
-                _vis, bit_logits = forward_bit_logits(
+                visible, bit_logits = forward_bit_logits(
                     model, torch, dev, win, cond_stats, SCENARIO, FRONTIER
                 )
+                # closure MaskGIT re-runs each round (frozen conditioning); the
+                # same model/window the single-shot bit_logits came from.
+                forward_fn = make_forward_fn(model, torch, dev, win, cond_stats)
                 logger.info("[structfid] scoring %s arm shot %d", arm_name, win.shot_id)
                 res = evaluate_window(
                     arm_name,
@@ -1357,6 +1501,8 @@ def run(
                     SEED0,
                     work_dir,
                     dev_str,
+                    visible=visible,
+                    forward_fn=forward_fn,
                 )
                 results.append(res)
         finally:
@@ -1387,6 +1533,22 @@ def run(
         "frontier_frame": FRONTIER,
         "n_seeds": n_seeds,
         "temperatures_swept": list(TEMPERATURES),
+        "maskgit_config": {
+            "rounds": MASKGIT_ROUNDS,
+            "schedule": "cosine masking ratio",
+            "confidence_rule": (
+                "joint bit-factorised log-likelihood of the chosen id; commit "
+                "highest-confidence still-masked cells per round"
+            ),
+            "top_k_resampled_bits": MASKGIT_TOP_K,
+            "confidence_noise": MASKGIT_CONF_NOISE,
+            "temperatures_swept": list(TEMPERATURES),
+            "note": (
+                "iterative coherent decode — re-forwards the model each round so a "
+                "committed cell conditions its still-masked neighbours via the "
+                "model's own [MASK]-embedding path (no retrain, no model.py edit)"
+            ),
+        },
         "shots": [int(sw.window.shot_id) for sw in windows],
         "arms": list(ARMS),
         "oracle_note": (
@@ -1395,8 +1557,9 @@ def run(
         ),
         "shippable_decoders": [
             "map (default)",
-            "bernoulli (truth-free)",
-            "beam (truth-free coherent)",
+            "bernoulli (truth-free, single-pass)",
+            "beam (truth-free coherent, single-pass)",
+            "maskgit (truth-free coherent, iterative — re-forwards the model)",
         ],
         "results": json_results,
         "verdict": verdict,
@@ -1414,6 +1577,42 @@ def run(
     return summary
 
 
+def _accuracy_table(summary: dict) -> list[tuple[str, float, float]]:
+    """Per-role mean top-1 / decoded-id NLL on the DYNAMICS arm's windows.
+
+    MAP / oracle come from the single-decode ``roles`` block; the sampled
+    decoders (maskgit / beam / bernoulli) from the seed-averaged block.  Skipped
+    if no dynamics result carries the role.  Returns ``[(role, top1, nll), ...]``
+    — the accuracy-vs-sharpness axis the critique requires be explicit.
+    """
+    res = [r for r in summary["results"] if r.get("arm") == "dynamics"]
+    out: list[tuple[str, float, float]] = []
+    for role in ("map", "maskgit", "beam", "bernoulli", "oracle_joint"):
+        top1, nll = [], []
+        for r in res:
+            if role in ("map", "oracle_joint"):
+                rr = r.get("roles", {}).get(role, {})
+                t = rr.get("top1_vs_true", np.nan)
+                n = rr.get("nll_decoded_id", np.nan)
+            else:
+                rr = r.get("seed_averaged", {}).get(role, {})
+                t = rr.get("top1_vs_true_mean", np.nan)
+                n = rr.get("nll_decoded_id_mean", np.nan)
+            if np.isfinite(t):
+                top1.append(t)
+            if np.isfinite(n):
+                nll.append(n)
+        if top1 or nll:
+            out.append(
+                (
+                    role,
+                    float(np.mean(top1)) if top1 else float("nan"),
+                    float(np.mean(nll)) if nll else float("nan"),
+                )
+            )
+    return out
+
+
 def _print_report(summary: dict) -> None:
     v = summary["verdict"]
     print("\n" + "=" * 80)
@@ -1424,23 +1623,37 @@ def _print_report(summary: dict) -> None:
         f"arms    : {summary['arms']}   seeds: {summary['n_seeds']}   T swept: {summary['temperatures_swept']}"
     )
     print("-" * 80)
-    for arm in summary["arms"]:
-        s = v["summary_by_arm"][arm]
-        print(f"[{arm}]  (mean over {len(summary['shots'])} windows)")
-        print(f"  {'role':<16}{'location':>10}{'temporal':>10}{'HF/GT':>9}")
-        for role in (
+    role_order = [
+        r
+        for r in (
             "map",
+            "maskgit",
             "beam",
             "bernoulli",
             "persistence",
             "oracle_joint",
             "coloured_noise",
-        ):
+        )
+        if r in v["summary_by_arm"]["dynamics"]
+    ]
+    for arm in summary["arms"]:
+        s = v["summary_by_arm"][arm]
+        print(f"[{arm}]  (mean over {len(summary['shots'])} windows)")
+        print(f"  {'role':<16}{'location':>10}{'temporal':>10}{'HF/GT':>9}")
+        for role in role_order:
             r = s[role]
             print(
                 f"  {role:<16}{r['location']:>10.3f}{r['temporal']:>10.3f}"
                 f"{r['hf_ratio_vs_gt']:>9.2f}"
             )
+    # accuracy-vs-sharpness: top-1 / NLL of the decoded ids (dynamics arm, mean)
+    print("-" * 80)
+    print("[dynamics] decoded-token accuracy (mean over windows)")
+    print(f"  {'role':<16}{'top1':>10}{'NLL_dec':>10}")
+    for role, top1, nll in _accuracy_table(summary):
+        t = f"{top1:.4f}" if np.isfinite(top1) else "   --"
+        n = f"{nll:.3f}" if np.isfinite(nll) else "   --"
+        print(f"  {role:<16}{t:>10}{n:>10}")
     print("-" * 80)
     c = v["control"]
     print(
@@ -1453,7 +1666,15 @@ def _print_report(summary: dict) -> None:
         f"sample_beats_PERSISTENCE={v['dynamics_sample_beats_persistence']} "
         f"hf_restored_but_not_correct={v['dynamics_hf_restored_but_not_correct']}"
     )
+    if "maskgit_verdict" in v:
+        print(
+            f"dynamics MaskGIT: beats_MAP={v.get('dynamics_maskgit_beats_map')} "
+            f"located={v.get('dynamics_maskgit_beats_map_located')} "
+            f"temporal={v.get('dynamics_maskgit_beats_map_temporal')}"
+        )
     print("-" * 80)
+    if "maskgit_verdict" in v:
+        print(f"MASKGIT : {v['maskgit_verdict']}")
     print(f"VERDICT : {v['verdict']}")
     print(f"figures : {summary['figures']['demo']}")
     print(f"          {summary['figures']['pareto']}")

@@ -32,30 +32,55 @@ therefore an upper-bound probe only):
   ids ranked by the head's factorised likelihood — a coherent joint sample that
   never sees the truth.
 
-All decoders return ``(F, H, W)`` int64 global-id grids (the model's native
-space, which the OMAG2 decode subprocess offsets), matching
+All single-shot decoders return ``(F, H, W)`` int64 global-id grids (the
+model's native space, which the OMAG2 decode subprocess offsets), matching
 :func:`reconstruction_demo._bit_map_tokens` so they drop straight into the
 renderers behind the ``--decode`` flag.
+
+The :func:`maskgit_decode` decoder is the one exception that needs more than a
+static logit tensor: it is the **cross-cell-coherence** lever the per-bit and
+bit-beam samplers structurally lack.  The bernoulli and beam decoders draw each
+cell INDEPENDENTLY from one frozen forward pass, so a sampled bright filament
+lands in a statistically-plausible-but-displaced place.  MaskGIT decode instead
+runs the model's forward MANY times: it commits the most-confident still-masked
+cells, writes their chosen ids back into the token tensor + flips them visible
+(the model's own ``[MASK]``-embedding conditioning path), and re-forwards so the
+remaining cells re-predict conditioned on their already-decided neighbours.  The
+joint sample is therefore COHERENT, not a product of per-cell marginals.
+
+Because it re-runs the model, :func:`maskgit_decode` takes a ``forward_fn``
+closure ``(tokens, visible) -> bit_logits`` rather than a static logit array —
+the caller (structure_fidelity / the renderers) builds that closure around the
+torch model + frozen conditioning, so this module never imports model.py beyond
+the pure-numpy bit utilities and never touches the model definition itself.
 """
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from imas_ambix.camdyn.model import LFQ_BITS, bit_logits_to_token_logits
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 __all__ = [
     "DECODE_MODES",
     "bernoulli_sample",
     "bit_beam_sample",
+    "cosine_mask_schedule",
     "decode_tokens",
     "map_decode",
+    "maskgit_decode",
 ]
 
 #: The decode modes the renderers expose via ``--decode``.  ``map`` is the
-#: scoring default (the per-bit mode); the two stochastic modes are the
-#: sampled-decode fix.
-DECODE_MODES = ("map", "bernoulli", "beam")
+#: scoring default (the per-bit mode); ``bernoulli`` / ``beam`` are the
+#: single-pass stochastic decoders; ``maskgit`` is the iterative coherent
+#: decoder (it needs a model-forward closure, wired by the renderers).
+DECODE_MODES = ("map", "bernoulli", "beam", "maskgit")
 
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
@@ -245,6 +270,198 @@ def bit_beam_sample(
     return out.astype(np.int64)
 
 
+def cosine_mask_schedule(n_masked: int, n_rounds: int) -> np.ndarray:
+    """Cells to commit per round under a cosine masking-ratio schedule.
+
+    MaskGIT decodes over ``n_rounds`` parallel rounds; the fraction of cells
+    that REMAIN masked after round ``t`` (0-based) follows the cosine schedule
+    ``γ(r) = cos(π/2 · r)`` with ``r = (t+1)/n_rounds`` — slow at first (commit
+    few high-confidence cells), accelerating later.  Returns an integer array of
+    length ``n_rounds`` whose entries sum to exactly ``n_masked`` (the last
+    round mops up any rounding remainder), each ≥ 0.
+    """
+    n_masked = int(n_masked)
+    n_rounds = max(1, int(n_rounds))
+    if n_masked <= 0:
+        return np.zeros(n_rounds, dtype=np.int64)
+    # number still masked AFTER round t (t = 0..n_rounds-1)
+    r = (np.arange(1, n_rounds + 1)) / n_rounds
+    remaining = np.round(np.cos(np.pi / 2.0 * r) * n_masked).astype(np.int64)
+    remaining = np.clip(remaining, 0, n_masked)
+    remaining[-1] = 0  # everything committed by the final round
+    # commits in round t = (masked before t) - (masked after t)
+    before = np.concatenate([[n_masked], remaining[:-1]])
+    commits = before - remaining
+    commits = np.clip(commits, 0, n_masked)
+    # fix any rounding drift so the schedule commits exactly n_masked cells
+    drift = n_masked - int(commits.sum())
+    commits[-1] += drift
+    commits = np.clip(commits, 0, None)
+    return commits.astype(np.int64)
+
+
+def _chosen_id_and_confidence(
+    bit_logits: np.ndarray,
+    *,
+    temperature: float,
+    top_k: int | None,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-cell chosen id + its joint log-confidence under the head.
+
+    The chosen id is a per-bit Bernoulli SAMPLE at ``temperature`` (so the
+    round is a coherent sample, not greedy) optionally restricted to the
+    ``top_k`` most-confident bits flipped (``top_k=None`` samples every bit).
+    The confidence returned is the EXACT bit-factorised joint log-likelihood of
+    the chosen id, ``Σ_b log σ(s_b·z_b)`` — the same score the bit-beam ranks
+    by — so the MaskGIT commit step keeps the cells the head is most certain
+    about, exactly as MaskGIT keeps the highest-softmax tokens.
+
+    ``temperature <= 0`` returns the deterministic per-bit MAP id (greedy).
+    Returns ``(chosen_id (F,H,W) int64, log_conf (F,H,W) float64)``.
+    """
+    z = np.asarray(bit_logits, dtype=np.float64)
+    nbits = z.shape[-1]
+    if temperature <= 1e-6:
+        bits = (z > 0.0).astype(np.int64)
+    else:
+        p = _sigmoid(z / temperature)
+        if top_k is not None and 0 < top_k < nbits:
+            # only RESAMPLE the head's least-confident bits; keep the MAP bit on
+            # the (nbits - top_k) most-confident slots (analogue of top-k: the
+            # confident bits are locked, the uncertain ones are sampled).
+            conf = np.abs(z)
+            order = np.argsort(conf, axis=-1)  # ascending → uncertain first
+            resample = np.zeros(z.shape, dtype=bool)
+            np.put_along_axis(resample, order[..., :top_k], True, axis=-1)
+            sampled = (rng.random(p.shape) < p).astype(np.int64)
+            mapbit = (z > 0.0).astype(np.int64)
+            bits = np.where(resample, sampled, mapbit)
+        else:
+            bits = (rng.random(p.shape) < p).astype(np.int64)
+    shifts = np.arange(nbits, dtype=np.int64)
+    chosen = (bits << shifts).sum(axis=-1)
+    # joint log-confidence of the chosen id = Σ_b log σ(s_b · z_b)
+    signs = 2.0 * bits.astype(np.float64) - 1.0
+    log_conf = (-np.logaddexp(0.0, -(signs * z))).sum(axis=-1)
+    return chosen.astype(np.int64), log_conf
+
+
+def maskgit_decode(
+    forward_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    tokens: np.ndarray,
+    visible: np.ndarray,
+    *,
+    n_rounds: int = 8,
+    temperature: float = 1.0,
+    top_k: int | None = 6,
+    confidence_noise: float = 1.0,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Iterative confidence-based COHERENT parallel decode (MaskGIT-style).
+
+    Decodes the ORIGINALLY-MASKED cells (``visible == False``) of a token grid
+    over ``n_rounds`` parallel rounds while NEVER altering the visible context
+    (observed / pre-frontier cells).  Each round:
+
+    1. ``bit_logits = forward_fn(cur_tokens, cur_visible)`` — re-run the model
+       with the cells committed so far folded into the visible context (their
+       ids written into ``cur_tokens``, their flags flipped True), so the
+       still-masked cells re-predict conditioned on their decided neighbours.
+       This conditioning is the model's own ``[MASK]``-embedding path — exactly
+       the MaskGIT mechanism — and is what makes the joint sample COHERENT
+       rather than a product of independent per-cell marginals.
+    2. For every still-masked cell pick a chosen id by per-bit sampling at
+       ``temperature`` (optionally locking the ``nbits - top_k`` most-confident
+       bits to their MAP value; ``top_k`` then bounds the per-cell entropy) and
+       score its joint log-confidence under the head.
+    3. Commit the highest-confidence still-masked cells per the cosine schedule
+       (:func:`cosine_mask_schedule`): write their chosen ids into
+       ``cur_tokens`` and flip them visible.  MaskGIT's annealed-noise trick
+       adds Gumbel noise scaled by ``confidence_noise · (1 - round_frac)`` to
+       the confidence before selecting, so early rounds explore and late rounds
+       are near-greedy (a SAMPLE over commit ORDER, not just over ids).
+
+    After the final round every originally-masked cell carries a sampled id and
+    the grid is returned (``(F,H,W)`` int64 global ids).  Visible cells keep
+    their input ids untouched.
+
+    Parameters
+    ----------
+    forward_fn:
+        ``(tokens (F,H,W) int, visible (F,H,W) bool) -> bit_logits
+        (F,H,W,bits)``.  Pure function of the current token/visibility state;
+        the caller closes over the torch model + frozen conditioning.
+    tokens:
+        ``(F,H,W)`` int global ids.  Visible cells hold the true observed id;
+        masked cells' input ids are irrelevant (the model replaces them with the
+        ``[MASK]`` embedding) — they are overwritten as they commit.
+    visible:
+        ``(F,H,W)`` bool — True = observed context (never re-decoded).
+    n_rounds:
+        Number of parallel commit rounds (~8 is the MaskGIT default).
+    temperature:
+        Per-bit sampling temperature for the chosen id (``<=0`` = greedy MAP).
+    top_k:
+        Lock all but the ``top_k`` least-confident bits per cell to their MAP
+        value (``None`` = sample every bit).  Bounds per-cell deviation from the
+        MAP id so a committed cell stays a plausible neighbour.
+    confidence_noise:
+        Scale of the annealed Gumbel noise added to the commit confidence
+        (``0`` = deterministic confidence ordering).
+    rng:
+        Numpy Generator (default fresh) — seed it for reproducibility.
+    """
+    rng = np.random.default_rng() if rng is None else rng
+    cur_tokens = np.asarray(tokens, dtype=np.int64).copy()
+    cur_visible = np.asarray(visible, dtype=bool).copy()
+    masked = ~cur_visible  # the cells this decode owns (never touch visible)
+    n_masked = int(masked.sum())
+    if n_masked == 0:
+        return cur_tokens
+
+    schedule = cosine_mask_schedule(n_masked, n_rounds)
+    masked_idx = np.argwhere(masked)  # (n_masked, 3) coordinates
+    committed = np.zeros(n_masked, dtype=bool)  # over masked_idx rows
+
+    for t, n_commit in enumerate(schedule):
+        still = ~committed
+        if not still.any():
+            break
+        bit_logits = forward_fn(cur_tokens, cur_visible)
+        chosen, log_conf = _chosen_id_and_confidence(
+            bit_logits, temperature=temperature, top_k=top_k, rng=rng
+        )
+        rows = masked_idx[still]  # coordinates of still-masked cells
+        fi, hi, wi = rows[:, 0], rows[:, 1], rows[:, 2]
+        conf = log_conf[fi, hi, wi]
+        ids = chosen[fi, hi, wi]
+        if confidence_noise > 0.0:
+            # annealed Gumbel noise on the SELECTION score (MaskGIT): explore
+            # the commit order early, near-greedy late.
+            anneal = confidence_noise * (1.0 - (t + 1) / max(1, len(schedule)))
+            u = np.clip(rng.random(conf.shape), 1e-12, 1.0 - 1e-12)
+            gumbel = -np.log(-np.log(u))
+            select_score = conf + anneal * gumbel
+        else:
+            select_score = conf
+        n_commit = int(min(n_commit, rows.shape[0]))
+        if t == len(schedule) - 1:
+            n_commit = rows.shape[0]  # final round commits everything left
+        if n_commit <= 0:
+            continue
+        # indices (into the still-masked subset) of the highest-score cells
+        take = np.argpartition(-select_score, n_commit - 1)[:n_commit]
+        gfi, ghi, gwi = fi[take], hi[take], wi[take]
+        cur_tokens[gfi, ghi, gwi] = ids[take]
+        cur_visible[gfi, ghi, gwi] = True
+        # mark those rows committed (map subset index → masked_idx row index)
+        still_rows = np.flatnonzero(still)
+        committed[still_rows[take]] = True
+
+    return cur_tokens
+
+
 def decode_tokens(
     bit_logits: np.ndarray,
     mode: str = "map",
@@ -258,8 +475,11 @@ def decode_tokens(
     """Dispatch ``mode`` ∈ :data:`DECODE_MODES` → a ``(F,H,W)`` global-id grid.
 
     ``map`` ignores ``temperature`` (it is the deterministic mode); ``bernoulli``
-    and ``beam`` are the truth-free sampled decoders.  This is the single entry
-    point the renderers call behind their ``--decode`` / ``--temp`` flags.
+    and ``beam`` are the truth-free single-pass sampled decoders.  This is the
+    single entry point the renderers call behind their ``--decode`` / ``--temp``
+    flags for the SINGLE-PASS modes.  ``maskgit`` is iterative and needs a
+    model-forward closure, so it is NOT dispatched here — the renderers call
+    :func:`maskgit_decode` directly with the forward closure they hold.
     """
     if mode == "map":
         return map_decode(bit_logits)
@@ -273,6 +493,12 @@ def decode_tokens(
             top_p=top_p,
             top_k=top_k,
             rng=rng,
+        )
+    if mode == "maskgit":
+        raise ValueError(
+            "maskgit decode is iterative and requires a model-forward closure; "
+            "call token_sampling.maskgit_decode(forward_fn, tokens, visible, ...) "
+            "directly — it cannot be produced from a single static bit_logits array"
         )
     raise ValueError(f"unknown decode mode {mode!r}; expected one of {DECODE_MODES}")
 

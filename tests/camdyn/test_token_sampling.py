@@ -201,10 +201,15 @@ def test_beam_deterministic_under_seed():
 def test_decode_tokens_dispatch_all_modes():
     rng = np.random.default_rng(14)
     z = _grid_logits(rng)
-    for mode in DECODE_MODES:
+    single_pass = [m for m in DECODE_MODES if m != "maskgit"]
+    for mode in single_pass:
         out = decode_tokens(z, mode, temperature=0.8, rng=np.random.default_rng(1))
         assert out.shape == z.shape[:-1]
         assert out.dtype == np.int64
+    # maskgit is iterative — it cannot be produced from a static logits array and
+    # must raise when routed through the single-pass dispatcher.
+    with pytest.raises(ValueError, match="iterative"):
+        decode_tokens(z, "maskgit", temperature=0.8)
 
 
 def test_decode_tokens_map_is_deterministic_ignores_temp():
