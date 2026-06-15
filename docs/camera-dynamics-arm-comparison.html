@@ -308,11 +308,41 @@
       <figcaption>Measured inboard puff command vs predicted inboard activity (example shots) and
       the counterfactual zeroed-puff comparison — no detectable attribution.</figcaption>
     </figure>
+    <h2 id="s5d">§5d — Conditioning ablation: how much do the signals add?</h2>
     <p>
-      <em>The conditioning ablation (camera-only vs Ip+n<sub>e</sub> vs full actuator vector at a
-      matched 8,000-step budget) is training as this revision lands and will be appended when its
-      compare completes.</em>
+      Three dynamics arms differing only in their conditioning channels were trained at a matched
+      8,000-step budget — camera-only (no conditioning), Ip + n<sub>e</sub> only, and the full
+      actuator vector — and scored on the held-out suite (the full-conditioning arm uses its own
+      8,000-step checkpoint so all three share an identical token budget; the headline 20,000-step
+      result above is a separate, fuller-trained arm). The honest finding: <strong>on the
+      partial-view mixture the conditioning is essentially a wash</strong> — held-out NLL is
+      10.326 (full) / 10.315 (Ip+n<sub>e</sub>) / 10.321 (camera-only), all within 0.01 nats over
+      764,707 tokens; full edges camera-only on top-1 (+0.00025, significant) but is marginally
+      <em>behind</em> on NLL. The camera tokens themselves carry almost all the information a
+      partial view needs.
     </p>
+    <p>
+      Conditioning earns its keep <strong>only where the visible region is sparse or peripheral</strong>:
+      on the divertor-only window it improves NLL by <strong>+0.115 nats</strong> (and the
+      centre-column strip by +0.027), exactly the cases where the camera shows little of the bulk
+      plasma so the actuator state has something to contribute. On the fixed window, pan and
+      frontier modes the difference is within ±0.03 nats. This is consistent with the rest of the
+      report: the signals-only reconstruction recovers gross geometry from actuators alone (§5a),
+      and the marginal effect of any single actuator channel is below detection (the gas-puff null,
+      §5c). For v0 the "action-conditioned world model" framing should therefore be stated
+      precisely — the conditioning's measurable payoff is concentrated in the sparse-view / no-camera
+      regime, not in general partial-view infill, at least at this training budget (8,000 steps is
+      heavily undertrained relative to the 20,000-step headline; the conditioning gap may widen with
+      more training).
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-cond-ablation.png"
+           alt="conditioning ablation: NLL by regime and per-geometry full-vs-none delta" style="max-width:100%">
+      <figcaption>Left: held-out masked-token NLL for the three conditioning regimes at matched
+      budget — within 0.01 nats. Right: the per-geometry NLL gain from full conditioning over
+      camera-only (positive = conditioning helps); only the divertor-only (sparse-view) window
+      shows a clear benefit.</figcaption>
+    </figure>
 
     <h2 id="s6">§6 — Engineering findings (what it took to get a clean run)</h2>
     <p>
