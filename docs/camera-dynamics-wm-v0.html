@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-15">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 <meta name="plan-impl" content="0.7">
 </head>
 <body>
@@ -608,6 +608,38 @@ Done-when
   1. ELM-frame 10 ms morphology metric added additively + pre-registered; reproduces the existing arm gap on ELM frames (CPU).
   2. xim/da_hm10_t causal burst-summary wired into conditioning; one matched pair (or eval) trained; paired held-out ELM-frame NLL: +HF-Da vs slow-only vs shuffled-Da, bootstrap CI.
   3. tests green; followup written (FiLM promotion + Mirnov gated on a positive) + this one resolved; plan updated same-session.</pre>
+    </article>
+<article class="r-fu" data-id="f-cdw-filament-fix" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-15" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Restore persistent edge filaments — ship sampled decode (A) + structure-aware retrain (C) in parallel</h4>
+    <div class="r-fu-body"><p>Fork in <code>c-cdw-filament-decode</code> RESOLVED by the lead: <strong>go with A (sampled realism) and follow up with C (deeper structure-aware retrain) in parallel</strong> on the idle H200s. Two in-flight workstreams, cleanly separable (A = decode-time on existing checkpoints, no model.py/train.py edits; C = retrain owning model.py/train.py/configs): <strong>(A) ship sampled decode</strong> — harden the structure probe so its verdict measures CORRECTNESS not gameable texture (raw-GT reference, a location-sensitive masked-edge-SSIM/structure-function term, a frame-to-frame temporal term, a spectrum-matched-coloured-noise negative control + persistence baseline, recalibrated hedging threshold, seed-averaged on BOTH arms/multiple windows); implement a TRUTH-FREE coherent decoder (bit-beam over the head's own most-uncertain bits — the oracle joint decode is unshippable); wire <code>--decode {map,bernoulli,beam}</code>+<code>--temp</code> into the renderers with MAP as the scoring default; produce sampled-decode demo figures/GIFs. <strong>(C) structure-aware auxiliary loss</strong> — total = masked_bit_bce + λ·spectral-shape loss (unit-power-normalised, on a differentiable expected-embedding FFT proxy; NO adversarial term — hallucination hazard), behind a config flag (default 0.0, backward-compatible), both arms, λ-swept, NLL gate retained, matched-arm diff = {temporal_attention, run_name}; smoke (VAL+eval+exit) then launch the matched both-arm retrain on 2 idle H200s (authorised to free DeepSeek). <strong>C-v2 (escalation, supervised):</strong> the MaskGIT / discrete-diffusion iterative-masked objective — the principled deeper fix, deferred from the autonomous parallel launch because it is a large bug-prone training-loop rewrite; pursue with supervision if the auxiliary loss underdelivers. Honest caveat retained: sampled decode is provably less token-accurate than MAP (sharp-but-possibly-displaced) and exact filament placement is partly aleatoric — MAP stays the physical-mean/scoring path; the W1 favours_dynamics verdict is unchanged by A (decode-only).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    camera-dynamics-wm-v0 (http://localhost:8765/imas-ambix/camera-dynamics-wm-v0.html)
+Section: §5 — persistent-filament fidelity (A ship + C retrain)
+Tier:    opus
+
+Context
+  Lead chose A (sampled realism) + C (structure-aware retrain) in parallel. Two agents are in flight
+  (ship-sampled-decode; deeper-retrain). This followup tracks landing BOTH + recording outcomes.
+
+State to read  (CODE/FILES)
+  imas_ambix/camdyn/structure_fidelity.py + token_sampling.py(new)  (A: hardened probe + truth-free decoder)
+  imas_ambix/camdyn/{reconstruction_demo,recon_movie,recon_movie_run}.py  (A: --decode/--temp flag, MAP default)
+  imas_ambix/camdyn/{model,train}.py + configs/spectral_aux_*.yaml  (C: aux loss behind config flag, matched arms)
+  docs/camera-dynamics-elm-fidelity.html  (the verdict doc this extends with the filament-decode finding)
+
+Scope locks / constraints
+  - A is decode-only: MAP stays the SCORING default; the W1 favours_dynamics verdict must be unchanged.
+  - The shippable coherent decoder is the TRUTH-FREE bit-beam; the oracle joint (true XOR offsets) is probe-only.
+  - The correctness gate must be LOCATION + TEMPORAL, scored vs RAW GT; reject spectrum-matched coloured noise.
+  - C: λ·spectral-shape loss behind a config flag (default 0.0, backward-compatible); NO adversarial term;
+    matched-arm diff = {temporal_attention, run_name}; NLL gate retained; mandatory VAL+eval+exit smoke before the run.
+  - Naming hygiene: no plan/stage labels in new symbols/files/comments. Do NOT touch sequential_da.py.
+
+Done-when
+  1. A landed: sampled decode shipped + correctness verdict (located + temporally coherent, or honest texture-only) + demo figures; report updated.
+  2. C landed: aux-loss matched pair trained; paired held-out structure-score + NLL/top-1 vs the cap_v1 bar; λ-sweep trade reported; verdict on whether the retrain beats sampled-MAP on correctness.
+  3. Branched record written into camera-dynamics-elm-fidelity.html (or a companion) + this followup resolved; C-v2 (MaskGIT) queued only if the aux loss underdelivers.
+</pre>
     </article>
 </section>
 
