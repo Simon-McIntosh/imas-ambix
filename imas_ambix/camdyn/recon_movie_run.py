@@ -72,9 +72,21 @@ class BundleBuilder:
 
     def save(self, path: Path):
         path.parent.mkdir(parents=True, exist_ok=True)
+        # Windows may differ in frame count (different decimation strides), but
+        # the decode bundle stacks all grids on one (N,F,H,W) array — pad the
+        # short ones by repeating their last frame so np.stack succeeds.  The
+        # padding frames are never indexed (each window's meta frame_time keeps
+        # its true length, and the figures iterate only over that).
+        max_f = max(g.shape[0] for g in self._grids)
+        padded = []
+        for g in self._grids:
+            if g.shape[0] < max_f:
+                pad = np.repeat(g[-1:], max_f - g.shape[0], axis=0)
+                g = np.concatenate([g, pad], axis=0)
+            padded.append(g)
         np.savez_compressed(
             path,
-            grids=np.stack(self._grids).astype(np.int64),
+            grids=np.stack(padded).astype(np.int64),
             index=json.dumps(self._index),
             meta=json.dumps(self._meta),
         )
@@ -777,10 +789,14 @@ def decimate_demo_window(
     if wide is None:
         return win, anchor_frame
     ftw = np.asarray(wide.frame_time, dtype=np.float64)
+    nwide = ftw.shape[0]
     idx = (np.arange(n_frames) * stride).astype(int)
-    idx = idx[idx < ftw.shape[0]]
-    if idx.size < 2:
-        return win, anchor_frame
+    if int(idx.max()) >= nwide:
+        # the wide window is shorter than the requested span (fast cadence /
+        # near end-of-shot): clamp out-of-range picks to the last real frame so
+        # the result ALWAYS has exactly n_frames (every bundle grid must share
+        # the same frame axis for np.stack in the decode bundle).
+        idx = np.clip(idx, 0, nwide - 1)
     tok = np.asarray(wide.true_tokens, dtype=np.int64)[idx]
     ftd = ftw[idx]
     dt = (
