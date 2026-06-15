@@ -812,6 +812,20 @@ def _select_elm_window(
     # candidate (shot, start, native-window) tuples
     if ELM_CANDIDATES:
         cand = [(sid, st) for sid, st in ELM_CANDIDATES]
+        if decimate_ms:
+            # forecast variant: a verified burst sits at `start`, but we want it
+            # to land in the post-frontier (forecast) half of the decimated
+            # window — so the wide window must BEGIN well before the burst.
+            # Try several backward shifts; the post-frontier scoring below picks
+            # the start where the burst lands after the frontier.
+            seen_c: set[tuple[int, int]] = set()
+            cand = []
+            for sid, st in ELM_CANDIDATES:
+                for back in (0, read_n // 4, read_n // 2, 3 * read_n // 4):
+                    c = (sid, max(0, st - back))
+                    if c not in seen_c:
+                        seen_c.add(c)
+                        cand.append(c)
     else:
         # auto-scan: enumerate read_n-windows of the candidate shots
         from imas_ambix.camdyn.dataset import (
