@@ -55,6 +55,7 @@ from imas_ambix.camdyn.model import (
     CamdynModel,
     masked_bit_bce,
     score_window_bits,
+    structure_spectral_loss,
 )
 from imas_ambix.camdyn.splits import CamdynSplit
 
@@ -500,9 +501,21 @@ class Trainer:
                             t["cond_missing"],
                             t["dt"],
                         )
-                        loss = masked_bit_bce(
+                        bce = masked_bit_bce(
                             logits, t["tokens"], t["loss_mask"], t["valid"]
                         )
+                        # Structure-aware auxiliary loss (off when λ=0 — the
+                        # primary likelihood gate is masked_bit_bce; the
+                        # spectral-shape term only nudges spatial structure).
+                        lam = self.cfg.model.structure_loss_weight
+                        if lam > 0.0:
+                            struct = structure_spectral_loss(
+                                logits, t["tokens"], t["valid"]
+                            )
+                            loss = bce + lam * struct
+                        else:
+                            struct = None
+                            loss = bce
                     opt.zero_grad(set_to_none=True)
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(
@@ -519,10 +532,15 @@ class Trainer:
                     )
 
                     if self._step % self.cfg.log_every == 0:
+                        bce_v = float(bce.item())
+                        struct_v = float(struct.item()) if struct is not None else 0.0
                         logger.info(
-                            "[camdyn-train] step=%d loss=%.4f lr=%.2e %.2fs/step",
+                            "[camdyn-train] step=%d loss=%.4f bce=%.4f "
+                            "struct=%.4f lr=%.2e %.2fs/step",
                             self._step,
                             float(loss.item()),
+                            bce_v,
+                            struct_v,
                             lr,
                             dt_step,
                         )
@@ -530,6 +548,8 @@ class Trainer:
                             {
                                 "step": self._step,
                                 "train_loss": float(loss.item()),
+                                "train_bce": bce_v,
+                                "train_struct": struct_v,
                                 "lr": lr,
                             }
                         )

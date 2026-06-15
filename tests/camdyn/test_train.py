@@ -95,6 +95,40 @@ def test_cap_v1_arms_matched_except_toggle_and_run_name():
     assert dyn["model"]["temporal_attention"] is True
 
 
+def test_spectral_aux_arms_matched_except_toggle_and_run_name():
+    """The structure-loss W1 arms must be byte-identical except the model
+    toggle and run_name — parsed-dict diff over the FULL TrainConfig.
+
+    Matched-arm contract: both arms get the SAME structure loss + λ, so the
+    comparison isolates exactly the value of temporal attention.  The new
+    spectral_aux configs add structure_loss_weight (shared, > 0) but it MUST
+    be identical in both arms.
+    """
+    yaml = pytest.importorskip("yaml")  # noqa: F841
+    cfgdir = Path(__file__).resolve().parents[2] / "imas_ambix" / "camdyn" / "configs"
+    base = TrainConfig.load(cfgdir / "spectral_aux_baseline.yaml").to_dict()
+    dyn = TrainConfig.load(cfgdir / "spectral_aux_dynamics.yaml").to_dict()
+
+    # top-level run knobs (everything except the nested model block + run_name)
+    top_diff = {
+        k for k in base if k != "model" and k != "run_name" and base[k] != dyn[k]
+    }
+    assert top_diff == set(), f"unexpected top-level config diff: {top_diff}"
+    assert base["run_name"] == "spectral_aux_baseline"
+    assert dyn["run_name"] == "spectral_aux_dynamics"
+
+    # nested model block differs ONLY in temporal_attention
+    model_diff = {k for k in base["model"] if base["model"][k] != dyn["model"][k]}
+    assert model_diff == {"temporal_attention"}, model_diff
+    assert base["model"]["temporal_attention"] is False
+    assert dyn["model"]["temporal_attention"] is True
+    # both arms carry the SAME positive structure-loss weight (the new objective)
+    assert base["model"]["structure_loss_weight"] > 0.0
+    assert (
+        base["model"]["structure_loss_weight"] == dyn["model"]["structure_loss_weight"]
+    )
+
+
 # ---------------------------------------------------------------------------
 # Batch assembly
 # ---------------------------------------------------------------------------
@@ -322,6 +356,85 @@ def test_cpu_smoke_train_and_w1_artifact(synthetic_corpus, tmp_path, monkeypatch
     # finite scores
     assert np.isfinite(w1["held_out"]["masked_nll"]["mean"])
     assert 0.0 <= w1["held_out"]["masked_top1"]["mean"] <= 1.0
+
+
+def test_cpu_smoke_train_with_structure_loss(synthetic_corpus, tmp_path, monkeypatch):
+    """Full CPU train + VAL + final-eval + artifact + clean-exit with λ>0.
+
+    Exercises the structure-aware loss in the SAME end-to-end path that broke
+    repeatedly on eval-path bugs (jobs 1216061/1216062): a periodic VAL fires
+    (val_every < max_steps), the final W1 eval + artifact write runs, and the
+    watchdog must NOT fire.  Confirms the loss history records the BCE and
+    structure components and the artifact is structurally complete.
+    """
+    pytest.importorskip("torch")
+    sc = synthetic_corpus
+    split_path = _write_split(tmp_path, sc)
+
+    import imas_ambix.camdyn.train as trainmod
+
+    real_discover = discover_token_shots
+
+    def _patched_discover(*, shot_ids=None, read_n_frames=False, **_kw):
+        return real_discover(
+            token_root=sc["token_root"],
+            level1_dir=sc["level1_dir"],
+            shot_ids=shot_ids,
+            read_n_frames=read_n_frames,
+        )
+
+    monkeypatch.setattr(trainmod, "discover_token_shots", _patched_discover)
+
+    cfg = TrainConfig(
+        model=CamdynConfig(
+            temporal_attention=False,
+            dim=32,
+            n_layers=2,
+            n_heads=4,
+            mlp_ratio=2.0,
+            n_frames=6,
+            cond_channels=N_COND_CHANNELS,
+            structure_loss_weight=0.05,  # λ>0 — the new objective active
+        ),
+        n_frames=6,
+        stride=4,
+        batch_size=2,
+        max_steps=4,
+        warmup_frac=0.0,
+        curriculum=False,
+        num_workers=0,
+        val_windows=4,
+        eval_windows=4,
+        log_every=1,
+        val_every=2,
+        ckpt_every=2,
+        device="cpu",
+        split_path=str(split_path),
+        ckpt_root=str(tmp_path / "ckpt"),
+        run_name="smoke_structure",
+        artifact_out=str(tmp_path / "w1_struct.json"),
+    )
+
+    trainer = Trainer(cfg)
+    from imas_ambix.camdyn.train import STOP
+
+    STOP.clear()
+    w1 = trainer.train()
+
+    assert not STOP.is_set(), "watchdog fired during the structure-loss smoke"
+
+    art = json.loads((tmp_path / "w1_struct.json").read_text())
+    assert art["arm"] == "D1-baseline"
+    assert art["model_config"]["structure_loss_weight"] == pytest.approx(0.05)
+    assert "held_out" in art and "masked_nll" in art["held_out"]
+    # the loss history logged both the BCE and structure components
+    train_rows = [h for h in art["loss_history"] if "train_loss" in h]
+    assert train_rows, "no training-loss rows recorded"
+    row = train_rows[0]
+    assert "train_bce" in row and "train_struct" in row
+    assert np.isfinite(row["train_struct"]) and row["train_struct"] >= 0.0
+    assert Path(art["checkpoint"]).exists()
+    assert np.isfinite(w1["held_out"]["masked_nll"]["mean"])
 
 
 def test_arm_compare_paired_verdict(synthetic_corpus, tmp_path, monkeypatch):

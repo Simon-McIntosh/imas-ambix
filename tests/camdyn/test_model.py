@@ -23,6 +23,7 @@ from imas_ambix.camdyn.model import (
     bitwise_nll,
     restricted_vocab_logits,
     score_window_bits,
+    structure_spectral_loss,
     token_ids_to_bits,
 )
 
@@ -136,6 +137,18 @@ def test_config_roundtrip_and_cond_default():
     assert cfg2.grid == (16, 16)
     # default conditioning channels == full actuator vector
     assert CamdynConfig().cond_channels == N_COND_CHANNELS
+
+
+def test_structure_loss_weight_defaults_off_and_roundtrips():
+    """Default λ is 0.0 (backward-compatible) and survives (de)serialisation."""
+    assert CamdynConfig().structure_loss_weight == 0.0
+    cfg = CamdynConfig(structure_loss_weight=0.05)
+    cfg2 = CamdynConfig.from_dict(cfg.to_dict())
+    assert cfg2.structure_loss_weight == pytest.approx(0.05)
+    # an OLD config dict (no structure_loss_weight key) still loads → default
+    d = cfg.to_dict()
+    del d["structure_loss_weight"]
+    assert CamdynConfig.from_dict(d).structure_loss_weight == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -258,3 +271,131 @@ def test_masked_bit_bce_runs_and_backprops():
     loss.backward()
     grads = [p.grad for p in model.module.parameters() if p.grad is not None]
     assert len(grads) > 0
+
+
+# ---------------------------------------------------------------------------
+# Structure-aware spectral-shape auxiliary loss
+# ---------------------------------------------------------------------------
+
+
+def test_structure_loss_is_finite_scalar_and_nonnegative():
+    t = _torch_or_skip()
+    t.manual_seed(0)
+    b, f = 2, 5
+    bit_logits = t.randn(b, f, 16, 16, LFQ_BITS, requires_grad=True)
+    tokens = t.randint(0, 1 << 18, (b, f, 16, 16))
+    valid = t.ones(b, f, dtype=t.bool)
+    sloss = structure_spectral_loss(bit_logits, tokens, valid)
+    assert sloss.ndim == 0
+    assert t.isfinite(sloss)
+    assert float(sloss) >= 0.0
+
+
+def test_structure_loss_gradients_flow_to_logits():
+    """The spectral-shape term must produce a gradient on the bit logits."""
+    t = _torch_or_skip()
+    t.manual_seed(1)
+    b, f = 2, 4
+    bit_logits = t.randn(b, f, 16, 16, LFQ_BITS, requires_grad=True)
+    tokens = t.randint(0, 1 << 18, (b, f, 16, 16))
+    valid = t.ones(b, f, dtype=t.bool)
+    sloss = structure_spectral_loss(bit_logits, tokens, valid)
+    sloss.backward()
+    assert bit_logits.grad is not None
+    assert t.isfinite(bit_logits.grad).all()
+    # the loss actually depends on the logits (non-degenerate gradient)
+    assert float(bit_logits.grad.abs().sum()) > 0.0
+
+
+def test_structure_loss_zero_when_predicted_shape_matches_gt():
+    """Confident-correct logits → predicted intensity field equals GT field →
+    identical radial power SHAPE → structure loss ~ 0."""
+    t = _torch_or_skip()
+    t.manual_seed(2)
+    b, f = 1, 3
+    tokens = t.randint(0, 1 << 18, (b, f, 16, 16))
+    bb = ((tokens[..., None].long() >> t.arange(LFQ_BITS)) & 1).float()
+    # large-magnitude logits with the GT sign → σ(z) ≈ GT bits → fields match
+    bit_logits = (2.0 * bb - 1.0) * 30.0
+    valid = t.ones(b, f, dtype=t.bool)
+    sloss = structure_spectral_loss(bit_logits, tokens, valid)
+    assert float(sloss) == pytest.approx(0.0, abs=1e-5)
+
+
+def test_structure_loss_handles_bfloat16_logits():
+    """The FFT proxy must work on bf16 logits (the H200 autocast dtype).
+
+    Regression guard: torch.fft.rfft2 does not support BFloat16, so the
+    structure loss casts the field to float32 at the FFT boundary.  This
+    mirrors the autocast(bf16) training path that the float32 CPU smoke
+    cannot reach.
+    """
+    t = _torch_or_skip()
+    if not hasattr(t, "bfloat16"):
+        pytest.skip("bfloat16 unavailable")
+    t.manual_seed(6)
+    b, f = 2, 4
+    bit_logits = t.randn(b, f, 16, 16, LFQ_BITS).to(t.bfloat16)
+    tokens = t.randint(0, 1 << 18, (b, f, 16, 16))
+    valid = t.ones(b, f, dtype=t.bool)
+    sloss = structure_spectral_loss(bit_logits, tokens, valid)
+    assert t.isfinite(sloss)
+    assert float(sloss) >= 0.0
+
+
+def test_structure_loss_respects_valid_frame_mask():
+    """A padded (invalid) frame must not contribute to the structure loss."""
+    t = _torch_or_skip()
+    t.manual_seed(3)
+    b, f = 1, 4
+    bit_logits = t.randn(b, f, 16, 16, LFQ_BITS)
+    tokens = t.randint(0, 1 << 18, (b, f, 16, 16))
+    valid_all = t.ones(b, f, dtype=t.bool)
+    valid_some = valid_all.clone()
+    valid_some[:, -1] = False
+    s_all = float(structure_spectral_loss(bit_logits, tokens, valid_all))
+    s_some = float(structure_spectral_loss(bit_logits, tokens, valid_some))
+    # masking out a frame changes the (valid-frame) mean — the mask is wired
+    assert s_all != pytest.approx(s_some, abs=1e-9)
+
+
+def test_lambda_zero_reproduces_pure_bce_loss():
+    """The training-step loss assembly with λ=0 must equal masked_bit_bce
+    exactly (backward-compatible: adding the flag changes nothing when off)."""
+    t = _torch_or_skip()
+    from imas_ambix.camdyn.model import CamdynModel, masked_bit_bce
+
+    t.manual_seed(4)
+    cfg = _tiny_cfg(temporal=False)  # structure_loss_weight defaults to 0.0
+    assert cfg.structure_loss_weight == 0.0
+    model = CamdynModel.from_config(cfg)
+    tokens, visible, cv, cm, dt = _fake_batch(t, cfg)
+    loss_mask = ~visible
+    valid = t.ones(2, 5, dtype=t.bool)
+    with t.no_grad():
+        logits = model.module(tokens, visible, cv, cm, dt)
+        bce = masked_bit_bce(logits, tokens, loss_mask, valid)
+        lam = cfg.structure_loss_weight
+        loss = bce + lam * structure_spectral_loss(logits, tokens, valid)
+    # λ=0 → the auxiliary term is multiplied out; total == BCE exactly
+    assert float(loss) == pytest.approx(float(bce), abs=0.0)
+
+
+def test_lambda_positive_changes_the_combined_loss():
+    """A positive λ must move the combined loss away from the pure BCE."""
+    t = _torch_or_skip()
+    from imas_ambix.camdyn.model import CamdynModel, masked_bit_bce
+
+    t.manual_seed(5)
+    cfg = _tiny_cfg(temporal=False)
+    model = CamdynModel.from_config(cfg)
+    tokens, visible, cv, cm, dt = _fake_batch(t, cfg)
+    loss_mask = ~visible
+    valid = t.ones(2, 5, dtype=t.bool)
+    with t.no_grad():
+        logits = model.module(tokens, visible, cv, cm, dt)
+        bce = masked_bit_bce(logits, tokens, loss_mask, valid)
+        struct = structure_spectral_loss(logits, tokens, valid)
+        combined = bce + 0.05 * struct
+    assert float(struct) > 0.0
+    assert float(combined) != pytest.approx(float(bce), abs=1e-9)

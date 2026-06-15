@@ -126,6 +126,16 @@ class CamdynConfig:
         Spatial token-grid shape.
     bits:
         LFQ bit count (head width).
+    structure_loss_weight:
+        Weight ``λ`` of the additive spectral-shape structure loss (see
+        :func:`structure_spectral_loss`).  ``0.0`` (the default) reproduces
+        the pure masked-bit-BCE behaviour exactly — backward-compatible.
+        A small positive value (e.g. 0.05) adds a term that pushes the
+        predictive bit-probability field toward the GT field's radial
+        power-spectrum SHAPE, discouraging the mode-seeking blur that
+        averages persistent edge/SOL filaments away.  The primary loss stays
+        the masked-bit BCE (the likelihood gate); ``λ`` only nudges spatial
+        structure, so it must be SWEPT and kept small.
     """
 
     temporal_attention: bool = False
@@ -138,6 +148,7 @@ class CamdynConfig:
     cond_channels: int = N_COND_CHANNELS
     grid: tuple[int, int] = (GRID_H, GRID_W)
     bits: int = LFQ_BITS
+    structure_loss_weight: float = 0.0
 
     @property
     def n_cells(self) -> int:
@@ -156,6 +167,7 @@ class CamdynConfig:
             "cond_channels": self.cond_channels,
             "grid": list(self.grid),
             "bits": self.bits,
+            "structure_loss_weight": self.structure_loss_weight,
         }
 
     @classmethod
@@ -505,6 +517,131 @@ def masked_bit_bce(
         m = m * vf
     denom = m.sum().clamp(min=1.0)
     return (per_cell * m).sum() / denom
+
+
+# ---------------------------------------------------------------------------
+# Structure loss — radial spectral-SHAPE distance on a differentiable proxy
+# ---------------------------------------------------------------------------
+
+
+def _radial_power_shape(field, eps: float = 1e-8):
+    """Unit-power-normalised radial power spectrum of a per-frame field.
+
+    ``field`` is ``(N, H, W)`` (N = flattened batch·frame).  Returns
+    ``(N, R)`` where R is the number of radial frequency bins: the angularly
+    averaged 2-D power spectrum of each frame, renormalised so each frame's
+    radial profile SUMS TO ONE.  Normalising to unit total power makes this a
+    distance over the *distribution* of spatial frequencies (the SHAPE), not
+    the raw high-frequency magnitude — which a noisy field would game.  The
+    DC bin (mean intensity) is dropped before normalisation so the shape
+    distance is invariant to per-frame brightness and is driven purely by how
+    power is spread across non-zero spatial frequencies.
+    """
+    import torch  # noqa: PLC0415
+
+    n, h, w = field.shape
+    # torch.fft.rfft2 does NOT support BFloat16 (the H200 autocast dtype):
+    # cast to float32 at the FFT boundary.  Gradients flow back through the
+    # cast into the bf16 logits, so the structure loss still shapes them; the
+    # FFT + power + radial bins run in the precision they support.
+    field = field.float()
+    # zero-mean per frame so the FFT DC bin carries no brightness offset
+    field = field - field.mean(dim=(-2, -1), keepdim=True)
+    # 2-D real FFT → power; rfft2 keeps the non-redundant half-plane.
+    spec = torch.fft.rfft2(field, dim=(-2, -1))  # (N, H, W//2+1) complex
+    power = spec.real**2 + spec.imag**2  # (N, H, Wf)
+    hf, wf = power.shape[-2], power.shape[-1]
+    # radial frequency index of each (ky, kx) bin (use fftfreq for ky which
+    # wraps; rfftfreq for kx which is one-sided).  Build once on the device.
+    ky = torch.fft.fftfreq(h, device=field.device)  # (H,)
+    kx = torch.fft.rfftfreq(w, device=field.device)  # (Wf,)
+    rad = torch.sqrt(ky[:, None] ** 2 + kx[None, :] ** 2)  # (H, Wf)
+    n_bins = max(hf, wf)
+    # bin radius in [0, 0.5] into n_bins integer shells
+    bin_idx = torch.clamp(
+        (rad / (rad.max() + eps) * (n_bins - 1)).round().long(), 0, n_bins - 1
+    )  # (H, Wf)
+    flat_idx = bin_idx.reshape(-1)  # (H*Wf,)
+    power_flat = power.reshape(n, -1)  # (N, H*Wf)
+    # accumulate power into radial shells (differentiable scatter-add)
+    radial = torch.zeros(n, n_bins, device=field.device, dtype=power.dtype)
+    radial = radial.index_add(
+        1, flat_idx, power_flat
+    )  # (N, n_bins): summed power per shell
+    # drop the DC shell (shell 0 = zero frequency; already ~0 after centring)
+    radial = radial[:, 1:]
+    radial = radial / (radial.sum(dim=-1, keepdim=True) + eps)  # unit power
+    return radial
+
+
+def _expected_intensity_field(bit_logits, target_tokens, bits: int):
+    """Differentiable predicted + GT single-channel intensity fields.
+
+    The bit head emits independent per-bit logits; under bit-independence the
+    expected bit-pattern is the per-bit probability ``p_b = σ(z_b)``.  The
+    expected soft-embedding field is ``Σ_v p(v)·emb(v) = p @ bit_embed`` for
+    the additive bit embedding — but the structure loss only needs a scalar
+    intensity per cell, so we collapse the per-bit probabilities to a single
+    channel by their mean.  This proxy is fully differentiable in the logits
+    (it is ``σ`` of the head output), so gradients shape the predictive
+    distribution; the GT field (true bits, mean over bits) is detached so the
+    loss is a one-sided pull toward GT structure, never a target the GT moves.
+
+    Returns ``(pred_field, gt_field)`` each ``(B, F, H, W)``.
+    """
+    import torch  # noqa: PLC0415
+
+    device = bit_logits.device
+    bit_idx = torch.arange(bits, device=device)
+    p = torch.sigmoid(bit_logits)  # (B,F,H,W,bits)
+    pred_field = p.mean(dim=-1)  # (B,F,H,W) — expected per-cell intensity
+    tgt_bits = ((target_tokens[..., None].long() >> bit_idx) & 1).float()
+    gt_field = tgt_bits.mean(dim=-1).detach()  # (B,F,H,W) — GT structure
+    return pred_field, gt_field
+
+
+def structure_spectral_loss(
+    bit_logits,
+    target_tokens,
+    valid_frames=None,
+    bits: int = LFQ_BITS,
+):
+    """Spectral-SHAPE distance between predicted and GT spatial structure.
+
+    Rewards the predictive bit-probability field for having a GT-LIKE
+    *distribution* of spatial frequencies — so the model is penalised for the
+    mode-seeking blur that averages persistent edge/SOL filaments toward a
+    smooth (low-frequency-dominated) mean even when the MAP/mean is the BCE
+    optimum.  Mechanism:
+
+    1. Build a differentiable single-channel intensity field from the per-bit
+       probabilities (:func:`_expected_intensity_field`); the GT field uses
+       the true bits and is detached.
+    2. Take each frame's 2-D FFT, the angularly-averaged radial power
+       spectrum, and renormalise to UNIT total power
+       (:func:`_radial_power_shape`) — a spectral SHAPE, not raw HF
+       magnitude (raw magnitude is gamed by noise; unit-power is not).
+    3. Return the mean squared distance between the predicted and GT radial
+       power SHAPES over valid frames.
+
+    Computed over the WHOLE frame (not just masked cells): structure is a
+    global spatial property and the GT field is fully known, so the loss
+    shapes the predictive distribution everywhere the model emits logits.
+    Returns a scalar torch tensor (≥ 0); zero when the predicted shape
+    matches GT exactly.
+    """
+    b, f, h, w, _ = bit_logits.shape
+    pred_field, gt_field = _expected_intensity_field(bit_logits, target_tokens, bits)
+    pred_flat = pred_field.reshape(b * f, h, w)
+    gt_flat = gt_field.reshape(b * f, h, w)
+    pred_shape = _radial_power_shape(pred_flat)  # (B*F, R)
+    gt_shape = _radial_power_shape(gt_flat)  # (B*F, R)
+    per_frame = ((pred_shape - gt_shape) ** 2).mean(dim=-1)  # (B*F,)
+    if valid_frames is not None:
+        vf = valid_frames.to(bit_logits.device).float().reshape(b * f)
+        denom = vf.sum().clamp(min=1.0)
+        return (per_frame * vf).sum() / denom
+    return per_frame.mean()
 
 
 # ---------------------------------------------------------------------------
