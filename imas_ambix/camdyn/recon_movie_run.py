@@ -1123,3 +1123,7 @@ def main(argv=None) -> int:
         logger.info("[movie] targeting verified ELM windows: %s", ELM_CANDIDATES)
     run(Path(args.out), Path(args.artifact), device=args.device)
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
