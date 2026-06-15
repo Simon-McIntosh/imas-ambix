@@ -11,6 +11,21 @@
     0.9,
     1.0
   ],
+  "maskgit_config": {
+    "rounds": 8,
+    "schedule": "cosine masking ratio",
+    "confidence_rule": "joint bit-factorised log-likelihood of the chosen id; commit highest-confidence still-masked cells per round",
+    "top_k_resampled_bits": 6,
+    "confidence_noise": 1.0,
+    "temperatures_swept": [
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "note": "iterative coherent decode \u2014 re-forwards the model each round so a committed cell conditions its still-masked neighbours via the model's own [MASK]-embedding path (no retrain, no model.py edit)"
+  },
   "shots": [
     24446,
     24065
@@ -22,8 +37,9 @@
   "oracle_note": "oracle_joint is an UPPER BOUND (candidates = true_tokens XOR offsets); labelled oracle_biased; NOT a shippable decoder",
   "shippable_decoders": [
     "map (default)",
-    "bernoulli (truth-free)",
-    "beam (truth-free coherent)"
+    "bernoulli (truth-free, single-pass)",
+    "beam (truth-free coherent, single-pass)",
+    "maskgit (truth-free coherent, iterative \u2014 re-forwards the model)"
   ],
   "results": [
     {
@@ -165,11 +181,59 @@
             "nll_true_id": 6.841883117428549,
             "correctness": 0.46301061485586686
           }
+        },
+        "maskgit": {
+          "0.6": {
+            "location": 0.8548702489859188,
+            "temporal": 0.1236353313879213,
+            "hf_power": 214.427009573477,
+            "top1_vs_true": 0.048828125,
+            "nll_decoded_id": 4.398253531290718,
+            "nll_true_id": 6.841883117428549,
+            "correctness": 0.48925279018692003
+          },
+          "0.7": {
+            "location": 0.8535871910353984,
+            "temporal": 0.13601974501014116,
+            "hf_power": 180.56939476208777,
+            "top1_vs_true": 0.04248046875,
+            "nll_decoded_id": 4.455784957020112,
+            "nll_true_id": 6.841883117428549,
+            "correctness": 0.49480346802276975
+          },
+          "0.8": {
+            "location": 0.8477259516547586,
+            "temporal": 0.12178481414451094,
+            "hf_power": 211.62384900493595,
+            "top1_vs_true": 0.0419921875,
+            "nll_decoded_id": 4.508704885004588,
+            "nll_true_id": 6.841883117428549,
+            "correctness": 0.48475538289963477
+          },
+          "0.9": {
+            "location": 0.8605890911134855,
+            "temporal": 0.13015534865386488,
+            "hf_power": 219.57226166124644,
+            "top1_vs_true": 0.04345703125,
+            "nll_decoded_id": 4.539897798190393,
+            "nll_true_id": 6.841883117428549,
+            "correctness": 0.4953722198836752
+          },
+          "1.0": {
+            "location": 0.8512600918323081,
+            "temporal": 0.13452811023152392,
+            "hf_power": 181.04787170211853,
+            "top1_vs_true": 0.03857421875,
+            "nll_decoded_id": 4.59280903786657,
+            "nll_true_id": 6.841883117428549,
+            "correctness": 0.492894101031916
+          }
         }
       },
       "best_temperature": {
         "bernoulli": 0.6,
-        "beam": 0.6
+        "beam": 0.6,
+        "maskgit": 0.9
       },
       "seed_averaged": {
         "bernoulli": {
@@ -207,6 +271,24 @@
           "top1_vs_true_mean": 0.03289794921875,
           "nll_decoded_id_mean": 4.79948987652551,
           "hf_ratio_vs_gt": 0.6672466869775039
+        },
+        "maskgit": {
+          "temperature": 0.9,
+          "n_seeds": 8,
+          "location_mean": 0.8510224849004043,
+          "location_ci": [
+            0.8481810956264966,
+            0.8538704988513441
+          ],
+          "temporal_mean": 0.12673194839614674,
+          "temporal_ci": [
+            0.1198944139497521,
+            0.13307655868347562
+          ],
+          "hf_power_mean": 190.5060830807005,
+          "top1_vs_true_mean": 0.0399169921875,
+          "nll_decoded_id_mean": 4.544663119923823,
+          "hf_ratio_vs_gt": 0.7149972648189787
         }
       },
       "hedging": {
@@ -361,11 +443,59 @@
             "nll_true_id": 8.587507319705752,
             "correctness": 0.31146774229187346
           }
+        },
+        "maskgit": {
+          "0.6": {
+            "location": 0.5873410269506076,
+            "temporal": 0.05639141126077639,
+            "hf_power": 806.2418444204981,
+            "top1_vs_true": 0.0068359375,
+            "nll_decoded_id": 5.345661812647437,
+            "nll_true_id": 8.587507319705752,
+            "correctness": 0.321866219105692
+          },
+          "0.7": {
+            "location": 0.5735280797157114,
+            "temporal": 0.06390268004880459,
+            "hf_power": 681.2476143454342,
+            "top1_vs_true": 0.01123046875,
+            "nll_decoded_id": 5.386428404784953,
+            "nll_true_id": 8.587507319705752,
+            "correctness": 0.318715379882258
+          },
+          "0.8": {
+            "location": 0.6180266333270785,
+            "temporal": 0.05347177953797914,
+            "hf_power": 754.3396590179688,
+            "top1_vs_true": 0.00830078125,
+            "nll_decoded_id": 5.45649432875142,
+            "nll_true_id": 8.587507319705752,
+            "correctness": 0.3357492064325288
+          },
+          "0.9": {
+            "location": 0.5940119597788666,
+            "temporal": 0.05748809567395902,
+            "hf_power": 806.4015233439602,
+            "top1_vs_true": 0.0087890625,
+            "nll_decoded_id": 5.502292698434745,
+            "nll_true_id": 8.587507319705752,
+            "correctness": 0.3257500277264128
+          },
+          "1.0": {
+            "location": 0.6026379157223103,
+            "temporal": 0.05688811747577729,
+            "hf_power": 763.7556645338069,
+            "top1_vs_true": 0.0048828125,
+            "nll_decoded_id": 5.531956886185059,
+            "nll_true_id": 8.587507319705752,
+            "correctness": 0.3297630165990438
+          }
         }
       },
       "best_temperature": {
         "bernoulli": 0.6,
-        "beam": 0.6
+        "beam": 0.6,
+        "maskgit": 0.8
       },
       "seed_averaged": {
         "bernoulli": {
@@ -403,6 +533,24 @@
           "top1_vs_true_mean": 0.00494384765625,
           "nll_decoded_id_mean": 5.734296437713043,
           "hf_ratio_vs_gt": 2.1415154624577326
+        },
+        "maskgit": {
+          "temperature": 0.8,
+          "n_seeds": 8,
+          "location_mean": 0.6054504258954566,
+          "location_ci": [
+            0.5957899412136963,
+            0.6138795449168009
+          ],
+          "temporal_mean": 0.05484331766050088,
+          "temporal_ci": [
+            0.05077276311016167,
+            0.059089145064824
+          ],
+          "hf_power_mean": 861.7390626026074,
+          "top1_vs_true_mean": 0.00689697265625,
+          "nll_decoded_id_mean": 5.444073036469478,
+          "hf_ratio_vs_gt": 2.3874662974607106
         }
       },
       "hedging": {
@@ -557,11 +705,59 @@
             "nll_true_id": 13.368927763527244,
             "correctness": 0.15757418090238062
           }
+        },
+        "maskgit": {
+          "0.6": {
+            "location": 0.1392840576984411,
+            "temporal": 0.1059505871252371,
+            "hf_power": 132.92460550503316,
+            "top1_vs_true": 0.0,
+            "nll_decoded_id": 7.859328493228168,
+            "nll_true_id": 13.368927763527244,
+            "correctness": 0.12261732241183909
+          },
+          "0.7": {
+            "location": 0.18623394437755647,
+            "temporal": 0.10442044238284229,
+            "hf_power": 234.00056448010344,
+            "top1_vs_true": 0.0,
+            "nll_decoded_id": 8.493625524206074,
+            "nll_true_id": 13.368927763527244,
+            "correctness": 0.1453271933801994
+          },
+          "0.8": {
+            "location": 0.14575558783070314,
+            "temporal": 0.1128541753799481,
+            "hf_power": 131.82862125020085,
+            "top1_vs_true": 0.0,
+            "nll_decoded_id": 7.911644079707549,
+            "nll_true_id": 13.368927763527244,
+            "correctness": 0.1293048816053256
+          },
+          "0.9": {
+            "location": 0.14259584916497503,
+            "temporal": 0.10219885010383563,
+            "hf_power": 148.0267680568693,
+            "top1_vs_true": 0.00048828125,
+            "nll_decoded_id": 7.954808030961067,
+            "nll_true_id": 13.368927763527244,
+            "correctness": 0.12239734963440532
+          },
+          "1.0": {
+            "location": 0.14948714849831923,
+            "temporal": 0.10669916084237795,
+            "hf_power": 143.68916395560893,
+            "top1_vs_true": 0.0,
+            "nll_decoded_id": 7.932079851379604,
+            "nll_true_id": 13.368927763527244,
+            "correctness": 0.1280931546703486
+          }
         }
       },
       "best_temperature": {
         "bernoulli": 0.6,
-        "beam": 1.0
+        "beam": 1.0,
+        "maskgit": 0.7
       },
       "seed_averaged": {
         "bernoulli": {
@@ -599,6 +795,24 @@
           "top1_vs_true_mean": 0.0,
           "nll_decoded_id_mean": 8.022351003586301,
           "hf_ratio_vs_gt": 0.6381636187195293
+        },
+        "maskgit": {
+          "temperature": 0.7,
+          "n_seeds": 8,
+          "location_mean": 0.16542132619074323,
+          "location_ci": [
+            0.14839247043052192,
+            0.18720728163904504
+          ],
+          "temporal_mean": 0.11175703282292317,
+          "temporal_ci": [
+            0.10592491798630653,
+            0.11782950610007908
+          ],
+          "hf_power_mean": 158.66017670643453,
+          "top1_vs_true_mean": 6.103515625e-05,
+          "nll_decoded_id_mean": 8.133729651904652,
+          "hf_ratio_vs_gt": 0.5954749084455293
         }
       },
       "hedging": {
@@ -753,11 +967,59 @@
             "nll_true_id": 10.249870657242145,
             "correctness": 0.24517735104424107
           }
+        },
+        "maskgit": {
+          "0.6": {
+            "location": 0.49742368922461155,
+            "temporal": 0.06733300080257,
+            "hf_power": 868.6578351391029,
+            "top1_vs_true": 0.0029296875,
+            "nll_decoded_id": 8.894709282341655,
+            "nll_true_id": 10.249870657242145,
+            "correctness": 0.28237834501359077
+          },
+          "0.7": {
+            "location": 0.4928892442979467,
+            "temporal": 0.053575489713394334,
+            "hf_power": 895.1920950272713,
+            "top1_vs_true": 0.001953125,
+            "nll_decoded_id": 8.552903758614566,
+            "nll_true_id": 10.249870657242145,
+            "correctness": 0.27323236700567055
+          },
+          "0.8": {
+            "location": 0.4960696177242353,
+            "temporal": 0.05777322502306772,
+            "hf_power": 926.4097343057085,
+            "top1_vs_true": 0.00439453125,
+            "nll_decoded_id": 8.35191355484655,
+            "nll_true_id": 10.249870657242145,
+            "correctness": 0.2769214213736515
+          },
+          "0.9": {
+            "location": 0.42359942977598897,
+            "temporal": 0.05196374615878739,
+            "hf_power": 818.3114446963436,
+            "top1_vs_true": 0.00146484375,
+            "nll_decoded_id": 9.14953589790618,
+            "nll_true_id": 10.249870657242145,
+            "correctness": 0.23778158796738819
+          },
+          "1.0": {
+            "location": 0.5159823971799884,
+            "temporal": 0.051164775292321794,
+            "hf_power": 738.3864183490864,
+            "top1_vs_true": 0.00341796875,
+            "nll_decoded_id": 8.32496710286593,
+            "nll_true_id": 10.249870657242145,
+            "correctness": 0.2835735862361551
+          }
         }
       },
       "best_temperature": {
         "bernoulli": 0.6,
-        "beam": 0.9
+        "beam": 0.9,
+        "maskgit": 1.0
       },
       "seed_averaged": {
         "bernoulli": {
@@ -795,6 +1057,24 @@
           "top1_vs_true_mean": 0.00030517578125,
           "nll_decoded_id_mean": 7.917273858523705,
           "hf_ratio_vs_gt": 2.488572664239288
+        },
+        "maskgit": {
+          "temperature": 1.0,
+          "n_seeds": 8,
+          "location_mean": 0.4955696389783345,
+          "location_ci": [
+            0.47679824672862176,
+            0.5135910641802574
+          ],
+          "temporal_mean": 0.05807399750649099,
+          "temporal_ci": [
+            0.053629179524828235,
+            0.06276528388772834
+          ],
+          "hf_power_mean": 873.7840421504483,
+          "top1_vs_true_mean": 0.00347900390625,
+          "nll_decoded_id_mean": 8.56589270821657,
+          "hf_ratio_vs_gt": 2.420837168031696
         }
       },
       "hedging": {
@@ -829,6 +1109,11 @@
           "temporal": 0.09089786183510627,
           "hf_ratio_vs_gt": 1.3349850167402704
         },
+        "maskgit": {
+          "location": 0.7282364553979305,
+          "temporal": 0.09078763302832381,
+          "hf_ratio_vs_gt": 1.5512317811398446
+        },
         "persistence": {
           "location": 0.6813439669883224,
           "temporal": 0.005507011126021193,
@@ -860,6 +1145,11 @@
           "location": 0.3000597321859401,
           "temporal": 0.0812879701775579,
           "hf_ratio_vs_gt": 1.6010927886670858
+        },
+        "maskgit": {
+          "location": 0.33049548258453887,
+          "temporal": 0.08491551516470708,
+          "hf_ratio_vs_gt": 1.5081560382386126
         },
         "persistence": {
           "location": 0.6813439669883224,
@@ -893,6 +1183,10 @@
     "dynamics_sample_beats_map": false,
     "dynamics_sample_beats_persistence": true,
     "dynamics_hf_restored_but_not_correct": false,
+    "dynamics_maskgit_beats_map": false,
+    "dynamics_maskgit_beats_map_located": false,
+    "dynamics_maskgit_beats_map_temporal": true,
+    "maskgit_verdict": "MASKGIT BEATS MAP ON TEMPORAL ONLY \u2014 coherent decode improves the \u0394frame coherence, but not the per-frame location",
     "verdict": "NO RESTORATION \u2014 sampling does not improve located/temporal correctness over MAP"
   },
   "figures": {
