@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import shlex
 import subprocess
+from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from imas_ambix.agent.profile import ModelProfile, SiteConfig
+
+# Drain-forensics sidecar (scripts/slurm/drain_sidecar.sh): a SIGTERM-immune
+# per-second sampler injected into every long-running GPU job. Resolved at
+# generation time to an absolute GPFS path so it is valid on the compute node.
+_DRAIN_SIDECAR = (
+    Path(__file__).resolve().parents[2] / "scripts" / "slurm" / "drain_sidecar.sh"
+)
 
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"
@@ -277,6 +283,27 @@ def generate_serve_script(
     venv_bin = str(site.python_path(profile.engine.type).parent)
     is_kt = profile.engine.type == "ktransformers"
 
+    # Launch the drain-forensics sidecar first thing, so it samples the whole
+    # job life including the teardown/kill window. The serving job is the
+    # longest-lived job on the node and the most teardown-prone (it holds the
+    # GPUs for days), so it is precisely the job that must be instrumented.
+    # Guarded so a missing script (e.g. a wheel install without scripts/) is a
+    # no-op rather than a serve failure under `set -e`.
+    sidecar_block = dedent(
+        f"""
+        # Drain forensics: per-second cgroup PID state + wchan, nvidia-smi, and
+        # node State/Reason → /work/projects/imas_gpu/logs/drain-sidecar-$SLURM_JOB_ID.*
+        # SIGTERM-immune, so it samples through the kill window where an
+        # unkillable (D-state) process shows itself; SIGKILL reaps it at the end.
+        _AMBIX_SIDECAR={shlex.quote(str(_DRAIN_SIDECAR))}
+        if [[ -f "$_AMBIX_SIDECAR" ]]; then
+            bash "$_AMBIX_SIDECAR" &
+        else
+            echo "[$(date)] WARNING: drain sidecar not found at $_AMBIX_SIDECAR" >&2
+        fi
+        """
+    ).strip()
+
     # KTransformers needs extra env vars and fadvise evictor
     kt_env_block = ""
     if is_kt:
@@ -413,6 +440,8 @@ def generate_serve_script(
 
         export TMPDIR=/scratch_local/$SLURM_JOB_ID
         mkdir -p "$TMPDIR"
+
+        {sidecar_block}
 
         {api_key_block}
 

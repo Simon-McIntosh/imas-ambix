@@ -157,6 +157,7 @@ def test_variant_cache_dir_uses_base_slug():
 def test_inheritance_cycle_detection():
     """A circular _base chain raises a clear ValueError."""
     import pytest
+
     from imas_ambix.agent import profile as prof_mod
 
     with pytest.raises(ValueError, match="Circular profile inheritance"):
@@ -256,6 +257,24 @@ def test_generate_serve_script():
     assert "--max-total-tokens 49152" in script
     assert "--moe-runner-backend triton" in script
     assert "--port" in script
+
+
+def test_serve_script_launches_drain_sidecar():
+    """Every serving job must launch the drain-forensics sidecar so a
+    teardown-time node drain is diagnosable (the serving job is the longest-
+    lived, most teardown-prone job on the node)."""
+    from imas_ambix.agent.slurm import generate_serve_script
+
+    profile = load_profile("kimi-k2-6")
+    site = SiteConfig()
+    script = generate_serve_script(profile, site, port=8000)
+
+    assert "drain_sidecar.sh" in script
+    # Backgrounded so it samples through the kill window, guarded so a missing
+    # script is a no-op rather than a `set -e` serve failure.
+    assert 'bash "$_AMBIX_SIDECAR" &' in script
+    # Launched before the server so the whole job life is sampled.
+    assert script.index("_AMBIX_SIDECAR") < script.index("server")
 
 
 def test_generate_download_script():
@@ -417,9 +436,8 @@ def test_generate_mimo_v2_5_pro_serve_script():
     assert "--kt-enable-dynamic-expert-update" in script
     assert "--kt-expert-placement-strategy uniform" in script
     assert "--reasoning-parser deepseek_r1" in script
-    assert "--kv-cache-dtype" not in script   # FP8-related flags are commented out
+    assert "--kv-cache-dtype" not in script  # FP8-related flags are commented out
     assert "PYTORCH_ALLOC_CONF=expandable_segments:True" in script
-
 
 
 def test_generate_download_script_vllm_engine():
@@ -447,9 +465,7 @@ def test_agent_list_includes_new_profiles():
 
 def test_agent_serve_dry_run_deepseek():
     runner = CliRunner()
-    result = runner.invoke(
-        main, ["agent", "serve", "deepseek-v4-flash", "--dry-run"]
-    )
+    result = runner.invoke(main, ["agent", "serve", "deepseek-v4-flash", "--dry-run"])
     assert result.exit_code == 0
     assert "vllm.entrypoints.openai.api_server" in result.output
     assert "--kt-method" not in result.output
@@ -457,9 +473,7 @@ def test_agent_serve_dry_run_deepseek():
 
 def test_agent_serve_dry_run_minimax():
     runner = CliRunner()
-    result = runner.invoke(
-        main, ["agent", "serve", "minimax-m2-7", "--dry-run"]
-    )
+    result = runner.invoke(main, ["agent", "serve", "minimax-m2-7", "--dry-run"])
     assert result.exit_code == 0
     assert "--tool-call-parser minimax-m2" in result.output
 
@@ -520,8 +534,14 @@ def test_bench_report_to_json():
 
     report = BenchReport(
         results=[
-            BenchResult(category="throughput", test_name="decode_128", status="passed",
-                        decode_tps=50.0, completion_tokens=128, total_time_s=2.5),
+            BenchResult(
+                category="throughput",
+                test_name="decode_128",
+                status="passed",
+                decode_tps=50.0,
+                completion_tokens=128,
+                total_time_s=2.5,
+            ),
         ],
         server_info={"object": "list"},
         timestamp="2025-01-01T00:00:00Z",
@@ -540,12 +560,26 @@ def test_bench_report_summary():
 
     report = BenchReport(
         results=[
-            BenchResult(category="throughput", test_name="decode_128", status="passed",
-                        decode_tps=50.0, time_to_first_token_s=0.1),
-            BenchResult(category="throughput", test_name="decode_512", status="passed",
-                        decode_tps=40.0, time_to_first_token_s=0.2),
-            BenchResult(category="throughput", test_name="decode_1024", status="failed",
-                        error="timeout"),
+            BenchResult(
+                category="throughput",
+                test_name="decode_128",
+                status="passed",
+                decode_tps=50.0,
+                time_to_first_token_s=0.1,
+            ),
+            BenchResult(
+                category="throughput",
+                test_name="decode_512",
+                status="passed",
+                decode_tps=40.0,
+                time_to_first_token_s=0.2,
+            ),
+            BenchResult(
+                category="throughput",
+                test_name="decode_1024",
+                status="failed",
+                error="timeout",
+            ),
             BenchResult(category="tools", test_name="tool_single", status="skipped"),
         ],
         timestamp="2025-01-01T00:00:00Z",
@@ -564,12 +598,17 @@ def test_bench_report_percentiles():
     from imas_ambix.agent.bench import BenchReport, BenchResult
 
     results = [
-        BenchResult(category="throughput", test_name=f"t{i}", status="passed",
-                    decode_tps=float(i + 1))
+        BenchResult(
+            category="throughput",
+            test_name=f"t{i}",
+            status="passed",
+            decode_tps=float(i + 1),
+        )
         for i in range(100)
     ]
-    report = BenchReport(results=results, timestamp="2025-01-01T00:00:00Z",
-                         categories_run=["throughput"])
+    report = BenchReport(
+        results=results, timestamp="2025-01-01T00:00:00Z", categories_run=["throughput"]
+    )
     p = report.percentiles("throughput", "decode_tps")
     assert p["p50"] > 0
     assert p["p95"] > p["p50"]
@@ -694,7 +733,11 @@ def test_bench_cli_requires_slug_or_url(monkeypatch, tmp_path):
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "bench"])
     assert result.exit_code != 0
-    assert "slug" in result.output.lower() or "url" in result.output.lower() or "default_profile" in result.output.lower()
+    assert (
+        "slug" in result.output.lower()
+        or "url" in result.output.lower()
+        or "default_profile" in result.output.lower()
+    )
 
 
 def test_bench_cli_no_server_graceful_error():
