@@ -962,6 +962,11 @@ def _select_elm_window(
         raw = rd.load_raw_frames(sid, start, read_n)
         if raw is None or raw.shape[0] < 3:
             continue
+        # Skip binned/cropped sensor readouts (few rows): they cannot show the
+        # full-frame plasma boundary an ELM brightens, so they decode to a
+        # featureless strip.  A full rbb frame is ~80-112 rows.
+        if raw.shape[1] < 72:
+            continue
         ft = np.asarray(win.frame_time, dtype=np.float64)
         tok = np.asarray(win.true_tokens, dtype=np.int64)
         valid = np.asarray(win.valid, dtype=bool)
