@@ -87,6 +87,12 @@ MAGVIT2_ROOT = Path("/work/projects/imas_gpu/mast-tokens/v1/open-magvit2")
 DYNAMICS_CKPT = Path(
     "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt"
 )
+#: The TRAINED per-frame baseline arm (temporal attention OFF).  This is the
+#: STRONG visual baseline — a real 202M model that emits coherent full frames
+#: — not the trivial zero-order-hold floor.
+BASELINE_CKPT = Path(
+    "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_baseline/final.pt"
+)
 
 #: Registry shift between the stored (global) token ids and the local LFQ
 #: codebook ids the VQModel decoder expects (``len(CONTROL_TOKENS) == 4``;
@@ -331,6 +337,62 @@ def predict_window(
     zoh_tokens = _carry_forward_pred(win.true_tokens, visible)
 
     return visible, pred_tokens, zoh_tokens
+
+
+def _bit_map_tokens(bit_logits: np.ndarray) -> np.ndarray:
+    """Bit-head MAP token id per cell — ``id = Σ_b (logit_b > 0) << b``."""
+    bl = np.asarray(bit_logits)
+    shifts = np.arange(bl.shape[-1], dtype=np.int64)
+    return ((bl > 0.0).astype(np.int64) << shifts).sum(axis=-1)
+
+
+def predict_window_arm(
+    model,
+    torch,
+    device,
+    win: DemoWindow,
+    cond_stats,
+    scenario: str,
+    frontier: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Forward ONE arm over one window/scenario → ``(visible, pred_tokens)``.
+
+    ``pred_tokens`` ``(F,H,W)`` are the arm's bit-head MAP global token ids
+    (the model's exact most-likely token per cell).  Both the trained
+    dynamics and per-frame baseline arms have the identical forward
+    signature, so this scores either with the arm's own conditioning stats.
+    """
+    from imas_ambix.camdyn.conditioning import CONDITIONING_CHANNELS, load_conditioning
+    from imas_ambix.camdyn.dataset import discover_token_shots
+
+    n_frames = win.true_tokens.shape[0]
+    visible = scenario_mask(scenario, n_frames, frontier)
+
+    specs = discover_token_shots(shot_ids=[win.shot_id], read_n_frames=False)
+    level1_path = specs[0].level1_path if specs else None
+    cond = load_conditioning(
+        level1_path, win.frame_time, win.shot_id, channels=CONDITIONING_CHANNELS
+    )
+    cv = _zscore(cond.values, cond_stats)[None]
+    cm = cond.missing[None].astype(np.float32)
+    dt = win.dt[None].astype(np.float32)
+
+    tokens_t = torch.from_numpy(win.true_tokens[None]).to(device)
+    vis_t = torch.from_numpy(visible[None]).to(device)
+    cv_t = torch.from_numpy(cv).to(device)
+    cm_t = torch.from_numpy(cm).to(device)
+    dt_t = torch.from_numpy(dt).to(device)
+
+    with torch.no_grad():
+        with torch.autocast(
+            device_type=device.type,
+            dtype=torch.bfloat16,
+            enabled=(device.type == "cuda"),
+        ):
+            logits = model.module(tokens_t, vis_t, cv_t, cm_t, dt_t)
+        bl = logits.float().cpu().numpy()[0]  # (F,H,W,bits)
+
+    return visible, _bit_map_tokens(bl)
 
 
 def run_predict_phase(
@@ -617,8 +679,39 @@ def _column_frames(n_frames: int, frontier: int, scenario: str) -> list[int]:
     return list(np.linspace(0, n_frames - 1, 5).round().astype(int))
 
 
-def _imshow_cam(ax, img, *, vmax=255):
-    ax.imshow(img, cmap="gray", vmin=0, vmax=vmax, interpolation="nearest")
+def display_limits(
+    gt_frame: np.ndarray, *, lo_pct: float = 1.0, hi_pct: float = 99.0
+) -> tuple[float, float]:
+    """Robust per-frame display limits ``(vmin, vmax)`` from a GROUND-TRUTH frame.
+
+    The token/decode pipeline normalises per-SHOT (one global min/max over the
+    whole shot), so the dim ramp-up frames vanish and intra-pulse brightness
+    evolution swamps the structure.  For display we instead take the
+    ``lo_pct``/``hi_pct`` percentiles of the *ground-truth* frame at each time
+    column and apply the SAME vmin/vmax to all three rows (GT / baseline /
+    dynamics) in that column: structure becomes legible while genuine
+    over/under-shoot in the reconstructions stays honestly visible (a
+    reconstruction brighter than the GT 99th pct clips to white, as it should).
+
+    Degenerate frames (flat or empty) fall back to a unit span so imshow does
+    not divide by zero.
+    """
+    f = np.asarray(gt_frame, dtype=np.float64)
+    finite = f[np.isfinite(f)]
+    if finite.size == 0:
+        return 0.0, 1.0
+    vmin = float(np.percentile(finite, lo_pct))
+    vmax = float(np.percentile(finite, hi_pct))
+    if not np.isfinite(vmin) or not np.isfinite(vmax) or vmax <= vmin:
+        vmin = float(finite.min())
+        vmax = float(finite.max())
+        if vmax <= vmin:
+            vmax = vmin + 1.0
+    return vmin, vmax
+
+
+def _imshow_cam(ax, img, *, vmin=0, vmax=255):
+    ax.imshow(img, cmap="gray", vmin=vmin, vmax=vmax, interpolation="nearest")
     ax.set_xticks([])
     ax.set_yticks([])
 
