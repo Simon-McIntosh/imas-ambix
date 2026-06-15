@@ -33,6 +33,7 @@
 #
 # Output (survives the job):
 #   $OUT_DIR/drain-sidecar-<jobid>.csv     per-second cgroup PID states
+#                                          (size-rotated → .csv.1/.csv.2)
 #   $OUT_DIR/drain-sidecar-<jobid>.smi     periodic nvidia-smi snapshots
 #   $OUT_DIR/drain-sidecar-<jobid>.node    periodic node State/Reason
 #   $OUT_DIR/drain-sidecar-<jobid>.dmesg   filtered kernel ring buffer
@@ -46,6 +47,17 @@ JOB="${SLURM_JOB_ID:-local}"
 INTERVAL="${SIDECAR_INTERVAL:-1}"
 SMI_EVERY="${SIDECAR_SMI_EVERY:-10}"    # nvidia-smi cadence, in samples
 NODE_EVERY="${SIDECAR_NODE_EVERY:-30}"  # scontrol node-state cadence, in samples
+
+# The per-second CSV is append-only and grows ~80 MB/day, so a multi-day
+# serving job would fill GPFS without a cap. Rotate by size: when the CSV
+# passes MAX_BYTES it is rolled to .1/.2 (BACKUPS kept) and a fresh file
+# started. A drain wedges processes in D-state in the FINAL minutes before
+# the kill, so the newest file always holds the forensic window — rotation
+# discards only stale steady-state history. (Rotation is CSV-only: the .dmesg
+# stream is held open by a background pipe and cannot be rolled with mv; it is
+# filtered and stays small.)
+MAX_BYTES="${SIDECAR_MAX_BYTES:-52428800}"   # 50 MB per CSV before rotation
+BACKUPS="${SIDECAR_BACKUPS:-2}"              # rolled CSV copies to retain
 
 mkdir -p "$OUT_DIR"
 CSV="${OUT_DIR}/drain-sidecar-${JOB}.csv"
@@ -73,6 +85,25 @@ list_pids() {
   else
     pgrep -f 'python|torchrun|pt_main_thread' 2>/dev/null
   fi
+}
+
+# Roll $CSV when it exceeds MAX_BYTES: shift .1→.2…→.BACKUPS, move the live
+# file to .1, and re-seed a fresh header. Safe because each sample writes with
+# a fresh `>>` (the file is reopened per append), so a new CSV is created on
+# the next iteration. A no-op while under the cap.
+maybe_rotate_csv() {
+  local sz n
+  [ -f "$CSV" ] || return 0
+  sz=$(stat -c %s "$CSV" 2>/dev/null || echo 0)
+  [ "$sz" -gt "$MAX_BYTES" ] || return 0
+  n="$BACKUPS"
+  while [ "$n" -gt 1 ]; do
+    [ -f "${CSV}.$((n - 1))" ] && mv -f "${CSV}.$((n - 1))" "${CSV}.${n}"
+    n=$((n - 1))
+  done
+  mv -f "$CSV" "${CSV}.1"
+  echo "ts,pid,state,wchan,cmd" > "$CSV"
+  echo "[sidecar] rotated CSV at ${sz} bytes (keeping ${BACKUPS} backups)" >&2
 }
 
 # ── Kernel ring buffer (best-effort; needs dmesg read permission) ────────────
@@ -110,6 +141,7 @@ while :; do
     node_out=$(scontrol show node "$(hostname)" 2>/dev/null \
       | grep -iE 'State=|Reason=' | tr '\n' ' ')
     echo "${now} | ${node_out:-(scontrol unavailable)}" >> "$NODE"
+    maybe_rotate_csv
   fi
 
   i=$(( i + 1 ))
