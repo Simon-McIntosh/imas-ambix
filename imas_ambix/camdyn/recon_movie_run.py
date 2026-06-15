@@ -192,11 +192,17 @@ def _run_inner(
     recon_roles = ("baseline", "dynamics")
 
     # ---- window selection ---------------------------------------------------
+    # Native rbb windows span <1 ms (cadence ~tens of µs/frame) so the plasma
+    # barely evolves across them; DECIMATE the demo windows (Δt-conditioned
+    # model) so the 16 frames span a few ms and real evolution is visible.
     flattop = rd.select_windows(
         list(FLATTOP_SHOTS), n_frames=16, stride=8, windows_per_shot=1
     )
     gif_win = next((w for w in flattop if w.shot_id == GIF_SHOT), flattop[0])
+    gif_win, _ = decimate_demo_window(gif_win, span_ms=5.0)
     rampup = _select_rampup_window(n_frames=16)
+    if rampup is not None:
+        rampup, _ = decimate_demo_window(rampup, span_ms=5.0)
     elm = _select_elm_window(n_frames=16)
     forecast = _select_forecast_window()
     elm_forecast = _select_elm_window(n_frames=16, decimate_ms=50.0)
@@ -204,6 +210,13 @@ def _run_inner(
     # ---- ELM (TOP PRIORITY) -------------------------------------------------
     if elm is not None:
         ew, e_peak, e_dt = elm
+        # spread the ELM-recon window over a real ELM timescale (~1.5 ms) with
+        # the burst ~35% in, so the edge/divertor brightening rises and falls
+        # visibly across columns (a native 16-frame window spans <0.1 ms — far
+        # shorter than an ELM, so the burst would not evolve on screen).
+        ew, e_peak = decimate_demo_window(
+            ew, span_ms=1.5, anchor_frame=e_peak, anchor_frac=0.35
+        )
         _register(
             ew,
             "clipped",
@@ -718,6 +731,85 @@ def _select_forecast_window(
     return dwin, span_ms
 
 
+def decimate_demo_window(
+    win: rd.DemoWindow,
+    *,
+    span_ms: float = 5.0,
+    n_frames: int = 16,
+    wide_factor: int = 16,
+    anchor_frame: int = 0,
+    anchor_frac: float = 0.0,
+) -> tuple[rd.DemoWindow, int]:
+    """Decimate a native demo window so its 16 frames span ``span_ms``.
+
+    A native rbb window spans a fraction of a ms at MAST cadence, so the
+    plasma barely evolves across it — the GT row of a reconstruction panel
+    looks static and the dynamics-vs-baseline temporal difference is invisible.
+    Reading a WIDE native window and decimating it (the model is Δt-conditioned)
+    spreads the 16 frames over ``span_ms`` so real evolution is visible.
+
+    ``anchor_frame`` is a frame of interest in the ORIGINAL window (e.g. an ELM
+    burst); the wide window is started so that frame lands at ``anchor_frac``
+    into the decimated window.  Returns ``(decimated_window, new_anchor_frame)``
+    where ``new_anchor_frame`` is where the anchor lands in the decimated
+    window (or -1 if it falls outside).
+    """
+    sid = int(win.shot_id)
+    # native frame of the anchor in the source stream
+    anchor_native = int(win.start) + int(anchor_frame)
+    wide_n = n_frames * wide_factor
+    # read frame times of a generous native window around the anchor to get
+    # the cadence, then choose a wide-window start so the anchor lands at
+    # anchor_frac into the decimated span.
+    probe = _window_at(sid, int(win.start), wide_n)
+    if probe is None:
+        return win, anchor_frame
+    ft0 = np.asarray(probe.frame_time, dtype=np.float64)
+    dt_med = float(np.median(np.diff(ft0))) if ft0.size > 1 else 0.0
+    if not np.isfinite(dt_med) or dt_med <= 0:
+        return win, anchor_frame
+    # decimation stride so n_frames span span_ms
+    stride, _ = mv.forecast_stride_for(dt_med, n_frames, span_ms)
+    # start the wide window so the anchor sits at anchor_frac of the span
+    lead_frames = int(round(anchor_frac * (n_frames - 1) * stride))
+    wide_start = max(0, anchor_native - lead_frames)
+    wide = _window_at(sid, wide_start, wide_n)
+    if wide is None:
+        return win, anchor_frame
+    ftw = np.asarray(wide.frame_time, dtype=np.float64)
+    idx = (np.arange(n_frames) * stride).astype(int)
+    idx = idx[idx < ftw.shape[0]]
+    if idx.size < 2:
+        return win, anchor_frame
+    tok = np.asarray(wide.true_tokens, dtype=np.int64)[idx]
+    ftd = ftw[idx]
+    dt = (
+        np.concatenate([np.diff(ftd), np.diff(ftd)[-1:]])
+        if ftd.size > 1
+        else np.zeros_like(ftd)
+    )
+    valid = np.asarray(wide.valid, dtype=bool)[idx]
+    # where did the anchor land?
+    new_anchor = int(np.argmin(np.abs((wide_start + idx) - anchor_native)))
+    dwin = rd.DemoWindow(
+        shot_id=sid,
+        start=int(wide_start),
+        frame_time=ftd,
+        dt=dt.astype(np.float64),
+        valid=valid,
+        true_tokens=tok,
+        motion_fraction=0.0,
+    )
+    logger.info(
+        "[movie] decimated demo window shot %d span %.1f ms (stride %d, anchor@f%d)",
+        sid,
+        (ftd[-1] - ftd[0]) * 1e3,
+        stride,
+        new_anchor,
+    )
+    return dwin, new_anchor
+
+
 # ---------------------------------------------------------------------------
 # ELM window finder (transient Dα spike — edge-localized-mode signature)
 # ---------------------------------------------------------------------------
@@ -864,6 +956,13 @@ def _select_elm_window(
             idx = idx[idx < rawf.shape[0]]
             tok, ft, valid, rawf = tok[idx], ft[idx], valid[idx], rawf[idx]
         score, peak = mv.camera_elm_score(rawf)
+        # The high-pass score is level-independent, so a DIM window with a small
+        # transient can out-score a bright one whose burst is actually visible
+        # in the decoded image.  Weight by absolute peak-frame brightness so a
+        # bright, legible burst wins (the token grid only resolves bright
+        # structure; a dim transient decodes to noise).
+        bright = float(np.mean(rawf[peak])) if rawf.shape[0] > peak else 0.0
+        score *= max(0.0, bright)
         # forecast variant: require the burst to land AFTER the frontier
         if decimate_ms and peak < frontier:
             score *= 0.1
