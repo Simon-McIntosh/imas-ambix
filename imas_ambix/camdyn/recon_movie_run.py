@@ -424,7 +424,9 @@ def _render_recon_gif(
             else rd._to_aspect(dyn[fi]).astype(np.float64)
         )
         vmin, vmax = rd.display_limits(gt_src)
-        gt_u = mv.normalise_for_display(gt_src, vmin, vmax)
+        # raw rbb frames are not all ORIGINAL_HW across shots — bring the GT
+        # pane to the canonical aspect so the 3 panes concatenate cleanly.
+        gt_u = mv.to_native_gray(mv.normalise_for_display(gt_src, vmin, vmax))
         mv._draw_clip_box(gt_u, box, value=255)
         mid_u = mv.normalise_for_display(rd._to_aspect(mid[fi]), vmin, vmax)
         dyn_u = mv.normalise_for_display(rd._to_aspect(dyn[fi]), vmin, vmax)
@@ -474,7 +476,7 @@ def _render_forecast_gif(
             else rd._to_aspect(dyn[fi]).astype(np.float64)
         )
         vmin, vmax = rd.display_limits(gt_src)
-        gt_u = mv.normalise_for_display(gt_src, vmin, vmax)
+        gt_u = mv.to_native_gray(mv.normalise_for_display(gt_src, vmin, vmax))
         per_u = mv.normalise_for_display(rd._to_aspect(per[fi]), vmin, vmax)
         dyn_u = mv.normalise_for_display(rd._to_aspect(dyn[fi]), vmin, vmax)
         phase = "observed" if fi < frontier else "FORECAST"

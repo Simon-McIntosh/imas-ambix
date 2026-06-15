@@ -101,6 +101,24 @@ def normalise_for_display(img: np.ndarray, vmin: float, vmax: float) -> np.ndarr
     return np.clip(out * 255.0, 0, 255).astype(np.uint8)
 
 
+def to_native_gray(img: np.ndarray) -> np.ndarray:
+    """Resize a uint8 gray image to the canonical rbb aspect ``ORIGINAL_HW``.
+
+    The raw level-1 rbb frames are NOT all the same native resolution across
+    shots (older shots carry larger sensor frames), while the decoded model
+    panes are always ``ORIGINAL_HW`` (256² → 112×156 via ``_to_aspect``).  The
+    side-by-side GIF panes are concatenated as raw arrays, so the GT pane must
+    be brought to the SAME aspect first — otherwise the heights mismatch.
+    """
+    from PIL import Image
+
+    a = np.asarray(img, dtype=np.uint8)
+    if a.shape[:2] == ORIGINAL_HW:
+        return a
+    im = Image.fromarray(a).resize((ORIGINAL_HW[1], ORIGINAL_HW[0]), Image.BILINEAR)
+    return np.asarray(im)
+
+
 def _draw_clip_box(img: np.ndarray, box, *, value: int = 255) -> np.ndarray:
     """Outline a token-grid clip box on a native-aspect uint8 image (in place)."""
     if box is None:
@@ -199,10 +217,18 @@ def panel_strip(
     """
     from PIL import Image
 
+    # Bring every pane to a common (H, W) BEFORE scaling so panes from
+    # different native resolutions (e.g. a larger raw rbb sensor frame vs a
+    # decoded 112×156 model frame) concatenate cleanly.
+    h0 = max(np.asarray(p).shape[0] for p in panes_gray)
+    w0 = max(np.asarray(p).shape[1] for p in panes_gray)
+
     def _up(gray):
-        im = Image.fromarray(np.asarray(gray, dtype=np.uint8)).resize(
-            (gray.shape[1] * scale, gray.shape[0] * scale), Image.NEAREST
-        )
+        a = np.asarray(gray, dtype=np.uint8)
+        im = Image.fromarray(a)
+        if a.shape[:2] != (h0, w0):
+            im = im.resize((w0, h0), Image.BILINEAR)
+        im = im.resize((w0 * scale, h0 * scale), Image.NEAREST)
         return np.asarray(im.convert("RGB"))
 
     rgb = [_up(p) for p in panes_gray]
@@ -210,7 +236,7 @@ def panel_strip(
         rgb[i] = _label(rgb[i], lab)
     rgb[0] = _label_second_line(rgb[0], counter)  # counter on the GT pane
 
-    h = max(p.shape[0] for p in rgb)
+    h = rgb[0].shape[0]
     sep = np.zeros((h, gap, 3), dtype=np.uint8)
     out: list[np.ndarray] = []
     for i, p in enumerate(rgb):

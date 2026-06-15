@@ -391,6 +391,35 @@ def test_panel_strip_three_panes_layout():
     assert frame.shape[1] == 3 * (12 * scale) + 2 * gap
 
 
+def test_panel_strip_mixed_resolution_panes():
+    """Panes of different native resolution must still concatenate (no crash)."""
+    from imas_ambix.camdyn import recon_movie as mv
+
+    # a large GT pane (raw sensor frame) + two small decoded panes
+    gt = np.random.default_rng(20).integers(0, 256, size=(462, 640), dtype=np.uint8)
+    small = np.random.default_rng(21).integers(0, 256, size=(112, 156), dtype=np.uint8)
+    frame = mv.panel_strip(
+        [gt, small, small],
+        ["ground truth", "baseline", "dynamics"],
+        scale=2,
+        counter="f0 t+0.0ms",
+    )
+    assert frame.ndim == 3 and frame.shape[2] == 3
+    # all panes share the common (max) height, so concatenation succeeds
+    assert frame.shape[0] == 462 * 2
+
+
+def test_to_native_gray_resizes():
+    from imas_ambix.camdyn import recon_movie as mv
+
+    big = np.random.default_rng(22).integers(0, 256, size=(462, 640), dtype=np.uint8)
+    out = mv.to_native_gray(big)
+    assert out.shape == rd.ORIGINAL_HW
+    # an already-native frame is returned unchanged in shape
+    native = np.zeros(rd.ORIGINAL_HW, dtype=np.uint8)
+    assert mv.to_native_gray(native).shape == rd.ORIGINAL_HW
+
+
 # ---------------------------------------------------------------------------
 # Forecast persistence comparator (freeze the last observed frame)
 # ---------------------------------------------------------------------------
