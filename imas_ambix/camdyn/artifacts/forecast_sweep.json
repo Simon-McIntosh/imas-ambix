@@ -1,0 +1,188 @@
+{
+  "task": "forward-forecast horizon sweep: dynamics vs persistence vs baseline",
+  "metric": "token-space top-1 (bit-head MAP) + bitwise NLL, paired bootstrap",
+  "regime": "matched (wide native window decimated to n_frames, Dt-conditioned)",
+  "frontier_frame": 8,
+  "n_frames": 16,
+  "wide_window_frames": 256,
+  "horizons_ms": [
+    5.0,
+    10.0,
+    20.0,
+    50.0,
+    100.0,
+    200.0,
+    500.0
+  ],
+  "crossover_ms": 10.0,
+  "crossover_note": "largest horizon where dynamics top-1 still significantly beats persistence (paired bootstrap lower bound > 0); beyond it the dynamics forecast no longer improves on copy-the-last-frame",
+  "table": {
+    "5.0": {
+      "valid_windows": 59,
+      "n_cells": 15104,
+      "dynamics_top1": 0.018935381355932205,
+      "persistence_top1": 0.015691207627118644,
+      "baseline_top1": 0.00039724576271186443,
+      "dynamics_nll": 9.036090878242895,
+      "baseline_nll": 11.94753262264853,
+      "dynamics_vs_persistence_top1": {
+        "mean": 0.0032441737288135594,
+        "lo": 0.0008606991525423729,
+        "hi": 0.0056276483050847455,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.018538135593220338,
+        "lo": 0.01635162870762712,
+        "hi": 0.020722987288135594,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true
+      },
+      "beats_persistence": true,
+      "beats_baseline": true
+    },
+    "10.0": {
+      "valid_windows": 59,
+      "n_cells": 15104,
+      "dynamics_top1": 0.018273305084745763,
+      "persistence_top1": 0.014036016949152543,
+      "baseline_top1": 0.0003310381355932203,
+      "dynamics_nll": 9.311540102630838,
+      "baseline_nll": 11.979066918192583,
+      "dynamics_vs_persistence_top1": {
+        "mean": 0.00423728813559322,
+        "lo": 0.0018521583686440693,
+        "hi": 0.006686970338983051,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.017942266949152543,
+        "lo": 0.01582362288135593,
+        "hi": 0.020127118644067795,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true
+      },
+      "beats_persistence": true,
+      "beats_baseline": true
+    },
+    "20.0": {
+      "valid_windows": 41,
+      "n_cells": 10496,
+      "dynamics_top1": 0.009908536585365854,
+      "persistence_top1": 0.008669969512195123,
+      "baseline_top1": 9.527439024390244e-05,
+      "dynamics_nll": 9.784455441682265,
+      "baseline_nll": 11.819707675753406,
+      "dynamics_vs_persistence_top1": {
+        "mean": 0.0012385670731707317,
+        "lo": -0.0009527439024390244,
+        "hi": 0.003429878048780488,
+        "alpha": 0.05,
+        "favours_dynamics": false,
+        "clear_of_zero": false
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.009813262195121951,
+        "lo": 0.008003048780487805,
+        "hi": 0.01171875,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true
+      },
+      "beats_persistence": false,
+      "beats_baseline": true
+    },
+    "50.0": {
+      "valid_windows": 19,
+      "n_cells": 4864,
+      "dynamics_top1": 0.004111842105263158,
+      "persistence_top1": 0.0028782894736842104,
+      "baseline_top1": 0.00020559210526315788,
+      "dynamics_nll": 10.650672483699365,
+      "baseline_nll": 11.77623505776742,
+      "dynamics_vs_persistence_top1": {
+        "mean": 0.0012335526315789473,
+        "lo": -0.0010279605263157894,
+        "hi": 0.0034950657894736842,
+        "alpha": 0.05,
+        "favours_dynamics": false,
+        "clear_of_zero": false
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.00390625,
+        "lo": 0.002055921052631579,
+        "hi": 0.005756578947368421,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true
+      },
+      "beats_persistence": false,
+      "beats_baseline": true
+    },
+    "100.0": {
+      "valid_windows": 10,
+      "n_cells": 2560,
+      "dynamics_top1": 0.00625,
+      "persistence_top1": 0.003515625,
+      "baseline_top1": 0.001171875,
+      "dynamics_nll": 10.81158228097966,
+      "baseline_nll": 11.849512317984239,
+      "dynamics_vs_persistence_top1": {
+        "mean": 0.002734375,
+        "lo": -0.00078125,
+        "hi": 0.00625,
+        "alpha": 0.05,
+        "favours_dynamics": false,
+        "clear_of_zero": false
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.005078125,
+        "lo": 0.001953125,
+        "hi": 0.008203125,
+        "alpha": 0.05,
+        "favours_dynamics": true,
+        "clear_of_zero": true
+      },
+      "beats_persistence": false,
+      "beats_baseline": true
+    },
+    "200.0": {
+      "valid_windows": 1,
+      "n_cells": 256,
+      "dynamics_top1": 0.00390625,
+      "persistence_top1": 0.0,
+      "baseline_top1": 0.0,
+      "dynamics_nll": 10.295100448588354,
+      "baseline_nll": 11.175700142257364,
+      "dynamics_vs_persistence_top1": {
+        "mean": 0.00390625,
+        "lo": 0.0,
+        "hi": 0.01171875,
+        "alpha": 0.05,
+        "favours_dynamics": false,
+        "clear_of_zero": false
+      },
+      "dynamics_vs_baseline_top1": {
+        "mean": 0.00390625,
+        "lo": 0.0,
+        "hi": 0.01171875,
+        "alpha": 0.05,
+        "favours_dynamics": false,
+        "clear_of_zero": false
+      },
+      "beats_persistence": false,
+      "beats_baseline": false
+    },
+    "500.0": {
+      "valid_windows": 0
+    }
+  },
+  "baseline_ckpt": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_baseline/final.pt",
+  "dynamics_ckpt": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt"
+}
