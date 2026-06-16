@@ -1,0 +1,226 @@
+{
+  "task": "in-view reveal-k oracle + second-crop proxy gate \u2014 upper-bounds the second-view payoff on the decontaminated filament-placement floor",
+  "preregistered_threshold": "PRE-REGISTERED THRESHOLD: INPUT-LIMITED iff revealing k=4 in-view filament cells raises the (MAP - persistence) filament-residual by > +0.02 SSIM AND drops the remaining still-masked filament-cell entropy by > 10% relative. Otherwise -> ALEATORIC/model floor (input enrichment will not help).",
+  "residual_gain_threshold": 0.02,
+  "entropy_drop_threshold": 0.1,
+  "decision_k": 4,
+  "checkpoint": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt",
+  "scenario": "frontier",
+  "frontier_frame": 8,
+  "shots": [
+    24446,
+    24065
+  ],
+  "reveal_ks": [
+    2,
+    4,
+    8
+  ],
+  "kill_license_asymmetry": "A NULL here KILLS the second-camera idea (a perfect in-view reveal is a strict upper bound on a real, degraded second view). A POSITIVE only LICENSES scoping it \u2014 a real rba loses cadence and adds occlusion / misalignment this in-view reveal does not.",
+  "per_window": [
+    {
+      "shot_id": 24446,
+      "window_ms": [
+        256.056,
+        263.55600000000004
+      ],
+      "n_filament_cells": 22,
+      "baseline_full_filament": {
+        "map_filament_ssim": 0.9122950218671421,
+        "persistence_filament_ssim": 0.9054531827573072,
+        "oracle_filament_ssim": 0.8669426224974203,
+        "residual_map_vs_persistence": 0.006841839109834824,
+        "residual_oracle_vs_persistence": -0.03851056025988697,
+        "filament_cell_entropy": 6.134239452665626
+      },
+      "reveal_k": {
+        "2": {
+          "k_requested": 2,
+          "k_revealed": 2,
+          "n_still_masked_cells": 20,
+          "reveal": {
+            "residual_map_vs_persistence": 0.004857588060152795,
+            "map_filament_ssim": 0.9101274394834825,
+            "persistence_filament_ssim": 0.9052698514233297,
+            "filament_cell_entropy": 6.165203689274054,
+            "n_scored_cells": 20
+          },
+          "baseline_on_same_cells": {
+            "residual_map_vs_persistence": 0.005449857662470414,
+            "map_filament_ssim": 0.9107197090858001,
+            "persistence_filament_ssim": 0.9052698514233297,
+            "filament_cell_entropy": 6.213496588343844,
+            "n_scored_cells": 20
+          },
+          "residual_gain_vs_baseline": -0.0005922696023176188,
+          "entropy_relative_drop": 0.007772258080962791
+        },
+        "4": {
+          "k_requested": 4,
+          "k_revealed": 4,
+          "n_still_masked_cells": 18,
+          "reveal": {
+            "residual_map_vs_persistence": -0.0007494043940698969,
+            "map_filament_ssim": 0.9066816302221268,
+            "persistence_filament_ssim": 0.9074310346161967,
+            "filament_cell_entropy": 6.058627625771667,
+            "n_scored_cells": 18
+          },
+          "baseline_on_same_cells": {
+            "residual_map_vs_persistence": 0.0048790299175889285,
+            "map_filament_ssim": 0.9123100645337856,
+            "persistence_filament_ssim": 0.9074310346161967,
+            "filament_cell_entropy": 6.05142351556061,
+            "n_scored_cells": 18
+          },
+          "residual_gain_vs_baseline": -0.005628434311658825,
+          "entropy_relative_drop": -0.0011904819076920183
+        },
+        "8": {
+          "k_requested": 8,
+          "k_revealed": 8,
+          "n_still_masked_cells": 14,
+          "reveal": {
+            "residual_map_vs_persistence": -0.006085796830042733,
+            "map_filament_ssim": 0.9041742631639864,
+            "persistence_filament_ssim": 0.9102600599940291,
+            "filament_cell_entropy": 5.743330261202048,
+            "n_scored_cells": 14
+          },
+          "baseline_on_same_cells": {
+            "residual_map_vs_persistence": 0.00228427154082822,
+            "map_filament_ssim": 0.9125443315348574,
+            "persistence_filament_ssim": 0.9102600599940291,
+            "filament_cell_entropy": 5.816051214602908,
+            "n_scored_cells": 14
+          },
+          "residual_gain_vs_baseline": -0.008370068370870953,
+          "entropy_relative_drop": 0.012503492613385622
+        }
+      },
+      "second_crop": {
+        "n_crop_cells": 63,
+        "read": {
+          "residual_map_vs_persistence": 0.0072980261846739,
+          "map_filament_ssim": 0.9127512089419811,
+          "persistence_filament_ssim": 0.9054531827573072,
+          "filament_cell_entropy": 5.897260011566723,
+          "n_scored_cells": 22
+        },
+        "baseline_full_filament": {
+          "residual_map_vs_persistence": 0.006841839109834824,
+          "filament_cell_entropy": 6.134239452665626
+        },
+        "residual_gain_vs_baseline": 0.00045618707483907617,
+        "entropy_relative_drop": 0.03863224494699565
+      }
+    },
+    {
+      "shot_id": 24065,
+      "window_ms": [
+        260.48299999999995,
+        264.733
+      ],
+      "n_filament_cells": 22,
+      "baseline_full_filament": {
+        "map_filament_ssim": 0.5323220869270182,
+        "persistence_filament_ssim": 0.3506179108877995,
+        "oracle_filament_ssim": 0.3977019908630744,
+        "residual_map_vs_persistence": 0.18170417603921873,
+        "residual_oracle_vs_persistence": 0.04708407997527492,
+        "filament_cell_entropy": 7.467679092250242
+      },
+      "reveal_k": {
+        "2": {
+          "k_requested": 2,
+          "k_revealed": 2,
+          "n_still_masked_cells": 20,
+          "reveal": {
+            "residual_map_vs_persistence": 0.16481317239192927,
+            "map_filament_ssim": 0.5198173800453477,
+            "persistence_filament_ssim": 0.35500420765341845,
+            "filament_cell_entropy": 7.605355870404433,
+            "n_scored_cells": 20
+          },
+          "baseline_on_same_cells": {
+            "residual_map_vs_persistence": 0.18201862230537358,
+            "map_filament_ssim": 0.537022829958792,
+            "persistence_filament_ssim": 0.35500420765341845,
+            "filament_cell_entropy": 7.495179059541296,
+            "n_scored_cells": 20
+          },
+          "residual_gain_vs_baseline": -0.017205449913444304,
+          "entropy_relative_drop": -0.014699690292639971
+        },
+        "4": {
+          "k_requested": 4,
+          "k_revealed": 4,
+          "n_still_masked_cells": 18,
+          "reveal": {
+            "residual_map_vs_persistence": 0.17804802026971672,
+            "map_filament_ssim": 0.5445643254605659,
+            "persistence_filament_ssim": 0.36651630519084916,
+            "filament_cell_entropy": 7.475375713225001,
+            "n_scored_cells": 18
+          },
+          "baseline_on_same_cells": {
+            "residual_map_vs_persistence": 0.1751207210546319,
+            "map_filament_ssim": 0.541637026245481,
+            "persistence_filament_ssim": 0.36651630519084916,
+            "filament_cell_entropy": 7.363401452168203,
+            "n_scored_cells": 18
+          },
+          "residual_gain_vs_baseline": 0.002927299215084833,
+          "entropy_relative_drop": -0.015206866253886897
+        },
+        "8": {
+          "k_requested": 8,
+          "k_revealed": 8,
+          "n_still_masked_cells": 14,
+          "reveal": {
+            "residual_map_vs_persistence": 0.18449764940429364,
+            "map_filament_ssim": 0.5470545076306661,
+            "persistence_filament_ssim": 0.36255685822637246,
+            "filament_cell_entropy": 7.640217659805075,
+            "n_scored_cells": 14
+          },
+          "baseline_on_same_cells": {
+            "residual_map_vs_persistence": 0.17378189381747683,
+            "map_filament_ssim": 0.5363387520438493,
+            "persistence_filament_ssim": 0.36255685822637246,
+            "filament_cell_entropy": 7.462044363597253,
+            "n_scored_cells": 14
+          },
+          "residual_gain_vs_baseline": 0.01071575558681681,
+          "entropy_relative_drop": -0.023877276457510813
+        }
+      },
+      "second_crop": {
+        "n_crop_cells": 63,
+        "read": {
+          "residual_map_vs_persistence": 0.1635607193505222,
+          "map_filament_ssim": 0.5141786302383217,
+          "persistence_filament_ssim": 0.3506179108877995,
+          "filament_cell_entropy": 7.278515667128085,
+          "n_scored_cells": 22
+        },
+        "baseline_full_filament": {
+          "residual_map_vs_persistence": 0.18170417603921873,
+          "filament_cell_entropy": 7.467679092250242
+        },
+        "residual_gain_vs_baseline": -0.018143456688696546,
+        "entropy_relative_drop": 0.025330952600583163
+      }
+    }
+  ],
+  "verdict": {
+    "verdict": "ALEATORIC-FLOOR",
+    "detail": "revealing k=4 in-view filament cells moved the (MAP-persistence) residual by only -0.0014 SSIM (NOT > +0.020) and the still-masked filament entropy by -0.8% (NOT > 10%). A PERFECT in-view reveal \u2014 the strict upper bound on any real second view \u2014 does not move the placement floor: it is ALEATORIC / model-limited within this view. This KILLS the second-camera idea; the lever is the temporal-evolution objective.",
+    "decision_k": 4,
+    "mean_residual_gain_at_k": -0.001350567548286996,
+    "mean_entropy_relative_drop_at_k": -0.008198674080789458,
+    "residual_threshold_passed": false,
+    "entropy_threshold_passed": false,
+    "n_windows": 2
+  }
+}
