@@ -33,6 +33,16 @@ SHOT_INDEX_LOCAL = MIRROR_ROOT / "shots-index.parquet"
 TOKEN_ROOT = Path("/work/projects/imas_gpu/mast-tokens")
 CHECKPOINT_ROOT = Path("/work/projects/imas_gpu/mast-checkpoints")
 
+# --- Targets (separate root — eval-only, never an input) --------------
+#
+# The world-model PREDICTION targets (the L2 equilibrium reconstruction +
+# the reconstruction-derived globals) live under their own root, NOT under
+# ``TOKEN_ROOT``.  Because ``mast-targets`` is not a child of ``mast-tokens``,
+# no glob the input loader runs over ``TOKEN_ROOT/v2/...`` can ever reach a
+# target — the physical separation is the first leakage wall.  See
+# :mod:`imas_ambix.tokenizer.store_targets`.
+TARGET_ROOT = Path("/work/projects/imas_gpu/mast-targets")
+
 # --- Level-1 source → IMAS group mapping ------------------------------
 #
 # Verbatim from
