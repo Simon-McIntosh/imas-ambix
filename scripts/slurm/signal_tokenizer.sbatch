@@ -34,9 +34,9 @@
 #
 # Usage:
 #   sbatch scripts/slurm/signal_tokenizer.sbatch                  # full corpus, all groups
-#   GROUPS=xsx sbatch scripts/slurm/signal_tokenizer.sbatch        # one group
+#   SIG_GROUPS=xsx sbatch scripts/slurm/signal_tokenizer.sbatch    # one group
 #   ENCODE_IDS=/path/all.txt sbatch ...                            # explicit shotlist
-#   MODE=decide_only GROUPS=xsx sbatch ...                         # just the codebook decision
+#   MODE=decide_only SIG_GROUPS=xsx sbatch ...                     # just the codebook decision
 set -euo pipefail
 
 REPO_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
@@ -56,7 +56,10 @@ export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 bash "${REPO_ROOT}/scripts/slurm/drain_sidecar.sh" &
 
 PY="${REPO_ROOT}/.venv/bin/python"
-GROUPS="${GROUPS:-xma xim xsx}"
+# NOTE: do NOT name this 'GROUPS' — bash sets GROUPS to the caller's numeric
+# group IDs, which would silently override the default and feed an invalid
+# group to the encoder.  Use a namespaced var.
+SIG_GROUPS="${SIG_GROUPS:-xma xim xsx}"
 EPOCHS="${EPOCHS:-40}"
 PATCH_SIZE="${PATCH_SIZE:-64}"
 MODE="${MODE:-full}"                 # full | decide_only | encode_only
@@ -78,9 +81,9 @@ HOLDOUT_IDS="${HOLDOUT_IDS:-30463,28003,27002}"
 ENCODE_IDS="${ENCODE_IDS:-all}"
 
 LOG="${TMPDIR}/run.log"
-echo "[signal-tok] groups='$GROUPS' mode=$MODE epochs=$EPOCHS patch=$PATCH_SIZE encode=$ENCODE_IDS" | tee -a "$LOG"
+echo "[signal-tok] groups='$SIG_GROUPS' mode=$MODE epochs=$EPOCHS patch=$PATCH_SIZE encode=$ENCODE_IDS" | tee -a "$LOG"
 
-for GROUP in $GROUPS; do
+for GROUP in $SIG_GROUPS; do
     DECIDE_OUT="${OUT_DIR}/decide_${GROUP}.json"
     CKPT="${OUT_DIR}/tokenizer_${GROUP}.pt"
     MANIFEST="${MANIFEST_DIR}/encode_${GROUP}.json"
