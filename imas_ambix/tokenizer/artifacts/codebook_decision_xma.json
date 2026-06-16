@@ -1,0 +1,82 @@
+{
+  "group": "xma",
+  "n_channels": 40,
+  "channels": [
+    "ccbv_01",
+    "ccbv_02",
+    "ccbv_03",
+    "ccbv_04",
+    "ccbv_05",
+    "ccbv_06",
+    "ccbv_07",
+    "ccbv_08",
+    "ccbv_09",
+    "ccbv_10",
+    "ccbv_11",
+    "ccbv_12",
+    "ccbv_13",
+    "ccbv_14",
+    "ccbv_15",
+    "ccbv_16",
+    "ccbv_17",
+    "ccbv_18",
+    "ccbv_19",
+    "ccbv_20",
+    "ccbv_21",
+    "ccbv_22",
+    "ccbv_23",
+    "ccbv_24",
+    "ccbv_25",
+    "ccbv_26",
+    "ccbv_27",
+    "ccbv_28",
+    "ccbv_29",
+    "ccbv_30",
+    "ccbv_31",
+    "ccbv_32",
+    "ccbv_33",
+    "ccbv_34",
+    "ccbv_35",
+    "ccbv_36",
+    "ccbv_37",
+    "ccbv_38",
+    "ccbv_39",
+    "ccbv_40"
+  ],
+  "native_rate_hz": 5000.00000000055,
+  "n_train": 8,
+  "n_holdout": 3,
+  "variants": {
+    "continuous": {
+      "train_seconds": 9.4,
+      "final_recon_loss": 0.02421090265529023,
+      "recon_crps": 0.012198512059610353,
+      "phase_err_rad": 0.01477962495986517,
+      "n_active_codes": 1,
+      "mode_complex_corr": 0.9920358657836914,
+      "mode_phase_err_rad": 0.14601916819810867
+    },
+    "fsq": {
+      "train_seconds": 5.2,
+      "final_recon_loss": 1.5226440495914884,
+      "recon_crps": 0.051802326506152185,
+      "phase_err_rad": 0.21915416303918409,
+      "n_active_codes": 31,
+      "mode_complex_corr": 0.8145190278689066,
+      "mode_phase_err_rad": 0.5676787561840481
+    },
+    "vq": {
+      "train_seconds": 5.3,
+      "final_recon_loss": 13.741818534003365,
+      "recon_crps": 0.07947333244764089,
+      "phase_err_rad": 0.8163687713924244,
+      "n_active_codes": 6,
+      "mode_complex_corr": 0.32397162914276123,
+      "mode_phase_err_rad": 1.0520187020301819
+    }
+  },
+  "decision": {
+    "winner": "continuous",
+    "rationale": "no quantised variant came within 0.2 rad of the continuous phase-error ceiling (0.015) \u2014 quantisation destroys phase; prefer continuous+mask"
+  }
+}

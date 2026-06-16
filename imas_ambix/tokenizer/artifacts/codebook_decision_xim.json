@@ -1,0 +1,52 @@
+{
+  "group": "xim",
+  "n_channels": 10,
+  "channels": [
+    "cii_hu10_u",
+    "da_bo10",
+    "da_hl11_l1",
+    "da_hm10_r",
+    "da_hm10_r1",
+    "da_hm10_t",
+    "da_hu10_r1",
+    "da_hu10_t",
+    "da_hu10_u1",
+    "da_to10"
+  ],
+  "native_rate_hz": 49999.6192782305,
+  "n_train": 8,
+  "n_holdout": 3,
+  "variants": {
+    "continuous": {
+      "train_seconds": 5.6,
+      "final_recon_loss": 2.843735784292221,
+      "recon_crps": 0.011436600460460897,
+      "phase_err_rad": 0.008271315452110822,
+      "n_active_codes": 1,
+      "mode_complex_corr": null,
+      "mode_phase_err_rad": null
+    },
+    "fsq": {
+      "train_seconds": 2.3,
+      "final_recon_loss": 6.360964298248291,
+      "recon_crps": 0.046862972669086324,
+      "phase_err_rad": 0.18159298466550666,
+      "n_active_codes": 96,
+      "mode_complex_corr": null,
+      "mode_phase_err_rad": null
+    },
+    "vq": {
+      "train_seconds": 2.3,
+      "final_recon_loss": 22.3893301486969,
+      "recon_crps": 0.05254299989858884,
+      "phase_err_rad": 0.5898567645040239,
+      "n_active_codes": 3,
+      "mode_complex_corr": null,
+      "mode_phase_err_rad": null
+    }
+  },
+  "decision": {
+    "winner": "fsq",
+    "rationale": "fsq phase error within 0.2 rad of the continuous ceiling (0.008); best reconstruction CRPS among in-tolerance quantised variants"
+  }
+}
