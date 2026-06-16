@@ -31,7 +31,16 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 
-VOCAB_VERSION = "v1"
+VOCAB_VERSION = "v2"
+"""Token-id allocation generation.
+
+``v1`` — frame + low-frequency signal tokenizers on the 100 Hz model grid.
+``v2`` — adds the native-cadence, phase-preserving high-frequency signal
+tokenizers (xma fast magnetics, xim Dα/CII) and their cross-channel
+mode-number tokens.  Bumped because the new tokenizers allocate fresh id
+ranges; v1 cached tokens are unaffected but live in a separate store
+generation (see :mod:`imas_ambix.tokenizer.store_v2`).
+"""
 
 
 # Control tokens — fixed-position reserved range.
@@ -42,6 +51,24 @@ CONTROL_TOKENS = {
     "sep": 3,
 }
 CONTROL_RANGE = (0, len(CONTROL_TOKENS))
+
+
+# --- v2 high-frequency signal tokenizer block names -----------------------
+#
+# Stable allocation names for the native-cadence, phase-preserving
+# tokenizers introduced in vocab generation v2.  Each name is the key a
+# tokenizer passes to :meth:`TokenRegistry.allocate`; encoders reuse the
+# constant rather than hard-coding the string so the store and the registry
+# stay in lock-step.  Naming is by what the block represents (modality +
+# representation), never by any plan/stage label.
+
+# Phase-aware patch-transformer codebook for the xma fast-magnetics
+# Mirnov array (per-coil channel codes).
+BLOCK_XMA_PATCH = "signal_hf_xma_patch_v2"
+# Cross-channel poloidal mode-number tokens derived from the xma coil array.
+BLOCK_XMA_MODE = "signal_hf_xma_mode_v2"
+# Phase-aware patch-transformer codebook for the xim Dα/CII channels.
+BLOCK_XIM_PATCH = "signal_hf_xim_patch_v2"
 
 
 @dataclass

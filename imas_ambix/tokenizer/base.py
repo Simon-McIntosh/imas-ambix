@@ -46,15 +46,22 @@ class BlockKind:
     FRAME = 1
         Frame tokens emitted by the frame tokenizer (e.g. Open-MAGVIT2).
     SIGNAL = 2
-        Signal tokens emitted by the signal tokenizer (e.g. Chronos).
+        Low-frequency signal tokens on the model time grid (e.g. Chronos).
     ACTION = 3
         Action / control-vector tokens.  Reserved for v1; not yet emitted.
+    SIGNAL_HF = 4
+        High-frequency, native-cadence, phase-preserving signal tokens
+        emitted by the patch-transformer tokenizer (xma fast magnetics,
+        xim Dα/CII) and their cross-channel mode-number tokens.  These
+        live in the v2 store (:mod:`imas_ambix.tokenizer.store_v2`) and
+        are NOT resampled to the 100 Hz model grid.
     """
 
     CONTROL: int = 0
     FRAME: int = 1
     SIGNAL: int = 2
     ACTION: int = 3
+    SIGNAL_HF: int = 4
 
 
 @dataclass(frozen=True)
