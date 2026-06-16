@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="multimodal-tokenisation-substrate">
-  <meta name="plan-title"     content="Multi-Modal Token Store &amp; Phase-Aware Patch Tokenisers">
-  <meta name="plan-summary"   content="A robust, multi-rate, phase-preserving token store of ALL MAST high-dynamic-range inputs (cameras + high-frequency signals) and the phase-aware, transformer-capable (patch-transformer) tokenisers that fill it. A first-class reusable asset for every downstream world-model, diagnostic-readout and discovery task — developed independently and now, on the idle H200s. Replaces the 100 Hz/50 Hz-Nyquist alignment crush that silently destroys the fast signals.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="multimodal-tokenisation-substrate">
+  <meta name="plan-title" content="Multi-Modal Token Store &amp; Phase-Aware Patch Tokenisers">
+  <meta name="plan-summary" content="A robust, multi-rate, phase-preserving token store of ALL MAST high-dynamic-range inputs (cameras + high-frequency signals) and the phase-aware, transformer-capable (patch-transformer) tokenisers that fill it. A first-class reusable asset for every downstream world-model, diagnostic-readout and discovery task — developed independently and now, on the idle H200s. Replaces the 100 Hz/50 Hz-Nyquist alignment crush that silently destroys the fast signals.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S14">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-informs"   content="physics-world-model-strategy">
+  <meta name="plan-sprint" content="S14">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-informs" content="physics-world-model-strategy">
   <title>Multi-Modal Token Store &amp; Phase-Aware Patch Tokenisers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-16">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -38,7 +40,7 @@
         every high-frequency signal are absent from any token substrate.</li>
       <li><strong>The signal path silently destroys the fast information.</strong>
         <code>tokenizer/alignment.py</code> resamples every signal onto a <strong>100 Hz grid (50 Hz Nyquist)</strong>
-        (<code>MODEL_HZ_DEFAULT=100.0</code>, verified) — so the 100 kHz Mirnov mode structure, 500 kHz SXR,
+        (<code>MODEL_HZ_DEFAULT=100.0</code>, verified) — so the ~5 kHz Mirnov mode structure, 500 kHz SXR,
         50 kHz Dα/ELM carriers are annihilated before any model sees them. Fixing this is the load-bearing design
         decision of the whole pivot.</li>
       <li><strong>The tokenisers need real development, not a convenience layer.</strong> They must be
@@ -74,7 +76,7 @@
         patchify the windowed signal, a transformer encoder, a learned codebook (VQ/FSQ) over
         <strong>phase-preserving</strong> features (complex STFT bins / raw patches), a decoder; trained to
         reconstruct preserving phase + mode structure. First targets the highest-information families: <code>xma</code>
-        100 kHz Mirnov (+ cross-channel poloidal/toroidal mode-number tokens) and <code>xim</code> 50 kHz Dα/ELM;
+        ~5 kHz Mirnov (+ cross-channel poloidal/toroidal mode-number tokens) and <code>xim</code> 50 kHz Dα/ELM;
         then <code>xsx</code> 500 kHz SXR.</li>
       <li><strong>Cosmos DV4×8×8 video tokens</strong> — wire the staged-but-unused temporal tokeniser into a corpus
         encode (the motion substrate the camera arc named as the open lever), kept alongside the per-frame OMAG2 tokens.</li>
@@ -83,29 +85,26 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="signal-token-codebook" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What codebook does the phase-aware patch-transformer 1D tokeniser use?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="fsq">FSQ (finite scalar quantisation — no codebook-collapse, simple)</button>
-          <button class="r-opt" data-value="vq">VQ-VAE (learned codebook, EMA)</button>
-          <button class="r-opt" data-value="continuous-vs-token-ablation">Decide by ablation vs a continuous-embedding+mask baseline first</button>
-        </p>
-        <p class="r-dec-rat">Architecture is locked (patch-transformer, phase-aware); the codebook is open. The
-          interior-information QUALIFIED-NEGATIVE warns quantisation can destroy the phase/mode information we are
-          chasing — so the first build measures round-trip phase fidelity of the chosen codebook against a
-          continuous-embedding baseline before any full-corpus encode.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="signal-token-codebook" data-choice="per-modality (measured): continuous+mask for xma/mode-structure, FSQ for xim" data-by="signal-tokeniser-dev (measured on GPU holdout)" data-when="2026-06-16T10:03:48+00:00">
+    <p class="r-dec-q">What codebook does the phase-aware patch-transformer 1D tokeniser use?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="fsq">FSQ (finite scalar quantisation — no codebook-collapse, simple)</button>
+      <button class="r-opt" data-value="vq">VQ-VAE (learned codebook, EMA)</button>
+      <button class="r-opt" data-value="continuous-vs-token-ablation">Decide by ablation vs a continuous-embedding+mask baseline first</button>
+      </p>
+    <p class="r-dec-rat">Resolved by direct phase-fidelity measurement (commit 6777d80), not by prior. PER-MODALITY: (xma 40-coil Mirnov) CONTINUOUS+mask wins — quantisation destroys the cross-coil phase that carries mode structure (FSQ phase-err 0.219 rad vs continuous ceiling 0.015; mode complex-corr continuous 0.992 vs FSQ 0.815; VQ collapses to ~0.816). (xim Dα/CII carriers) FSQ wins — tolerates quantisation (96 active codes, no collapse, phase-err 0.182 within tolerance). VQ-VAE collapses in BOTH (3-6 active codes). This empirically confirms the interior-information study thesis that phase/mode structure is quantisation-fragile — so the store carries an optional continuous embedding array (commit 90746cc) for the continuous case.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-mmt-store-schema" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16">
-        <h4 class="r-fu-title">Multi-rate phase-preserving token-store schema + registry v2 (the dependency root)</h4>
-        <div class="r-fu-body"><p>Replace the 100 Hz alignment crush with a multi-rate, phase-preserving
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-mmt-store-schema" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="" data-resolved-at="2026-06-16T10:03:48+00:00" data-resolved-by="signal-tokeniser-dev">
+    <h4 class="r-fu-title">Multi-rate phase-preserving token-store schema + registry v2 (the dependency root)</h4>
+    <div class="r-fu-body"><p>Replace the 100 Hz alignment crush with a multi-rate, phase-preserving
           <code>tokens/v2</code> store schema + registry v2 blocks + a SIGNAL_HF block-kind. Freeze it before any
           HF encode (pin-configs-for-inflight-jobs). 5-shot smoke on one camera + one signal family.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    multimodal-tokenisation-substrate
 Section: §3
 Tier:    opus
@@ -123,14 +122,15 @@ Done-when
   1. tokens/v2 schema + registry v2 + SIGNAL_HF block-kind committed; alignment bypass for HF (no 100 Hz crush).
   2. 5-shot smoke writing one camera + one signal family into tokens/v2 with native rate + validity masks; tests green.
   3. Followup for the patch-transformer tokeniser + this one resolved.</pre>
-      </article>
-      <article class="r-fu" data-id="f-mmt-camera-encode" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16">
-        <h4 class="r-fu-title">Encode the remaining visible cameras (rba, rco, rgb, rgc) on the idle H200s</h4>
-        <div class="r-fu-body"><p>Run the proven <code>stream_encode.py</code> OMAG2 path once per camera into
+    <p class="r-fu-outcome">LANDED (commit dde5203). imas_ambix/tokenizer/store_v2.py: tokens/v2/signals_hf/{shot}/{group}.zarr keeping each modality's NATIVE token cadence — tokens(n_tok,n_ch) int32 + token_time(n_tok) + valid(n_tok,n_ch) per-channel masks (no silent zero-fill) + validated StoreV2Attrs {tokenizer_name, vocab_version, native_rate_hz, token_rate_hz, n_channels, channel_names, phase_preserving, original_window}. Registry bumped to VOCAB_VERSION=v2 with BLOCK_XMA_PATCH/XMA_MODE/XIM_PATCH + a SIGNAL_HF block-kind. The HF path BYPASSES the 100 Hz/50 Hz-Nyquist aligner entirely — the load-bearing fix. Schema frozen before any encode; 72 tokenizer + 62 adjacent tests green.</p>
+    </article>
+<article class="r-fu" data-id="f-mmt-camera-encode" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Encode the remaining visible cameras (rba, rco, rgb, rgc) on the idle H200s</h4>
+    <div class="r-fu-body"><p>Run the proven <code>stream_encode.py</code> OMAG2 path once per camera into
           <code>tokens/v2/frames/&lt;shot&gt;/&lt;cam&gt;.zarr</code>. Uses the idle reservation now; standalone asset
           value (richer camera substrate). Care: rco is real 3-channel colour (no grey-collapse); check normalise on
           bremsstrahlung cameras.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    multimodal-tokenisation-substrate
 Section: §4
 Tier:    sonnet (escalate to opus if the colour/normalise branch needs real work)
@@ -145,15 +145,15 @@ Done-when
   1. rba/rco/rgb/rgc encoded into tokens/v2/frames (per-camera SLURM jobs); decode-fidelity smoke per camera.
   2. rco colour handling verified (no grey-collapse); normalise checked for bremsstrahlung.
   3. This followup resolved with per-camera token counts.</pre>
-      </article>
-      <article class="r-fu" data-id="f-mmt-patch-tokeniser" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16">
-        <h4 class="r-fu-title">Develop the phase-aware patch-transformer 1D HF tokeniser (xma + xim first)</h4>
-        <div class="r-fu-body"><p>The genuinely-new modelling: a phase-aware, transformer-capable patch tokeniser
+    </article>
+<article class="r-fu" data-id="f-mmt-patch-tokeniser" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="" data-resolved-at="2026-06-16T10:03:48+00:00" data-resolved-by="signal-tokeniser-dev">
+    <h4 class="r-fu-title">Develop the phase-aware patch-transformer 1D HF tokeniser (xma + xim first)</h4>
+    <div class="r-fu-body"><p>The genuinely-new modelling: a phase-aware, transformer-capable patch tokeniser
           (PatchTST/ViT-style patchify → transformer → learned codebook → decoder) for 1D high-frequency signals,
           preserving phase + mode structure. Train + validate round-trip phase fidelity (vs a continuous-embedding
-          baseline) before any full-corpus encode; then encode xma (100 kHz Mirnov + mode-number) and xim (50 kHz
+          baseline) before any full-corpus encode; then encode xma (~5 kHz Mirnov + mode-number) and xim (50 kHz
           Dα/ELM) into tokens/v2/signals_hf. Uses the idle H200s.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    multimodal-tokenisation-substrate
 Section: §4
 Tier:    opus
@@ -171,8 +171,28 @@ Done-when
   1. Patch-transformer tokeniser (patchify+transformer+codebook+decoder), phase-preserving, committed + tests.
   2. Round-trip phase/mode-number fidelity on a holdout (incl. vs continuous baseline) — codebook decision locked.
   3. xma + xim encoded into tokens/v2/signals_hf; new read_xim loader if absent; followup + this one resolved.</pre>
-      </article>
-    </section>
+    <p class="r-fu-outcome">LANDED (commits 233371f patch-transformer; 6777d80 codebook decision + encodes; 90746cc continuous-latent persistence). imas_ambix/tokenizer/patch_transformer.py: PatchTST/ViT-style autoencoder — patchify → complex-STFT lift (real+imag, phase-preserving) → transformer encoder → swappable bottleneck (FSQ/VQ/continuous) → decoder; Mirnov cross-channel mode-number tokens via the oracle-probe spatial-DFT (complex, phase kept). Phase-fidelity metrics (reconstruction_crps, banded phase_error, mode_number_recovery). Schema-tolerant read_xim_shot added to fast_loader.py. Codebook decision LOCKED per-modality (see decisions). DEV ENCODE into tokens/v2/signals_hf: xma 11 shots = 206,360 token positions (469 tok x 40 coils, continuous 8-d embedding + mode-number tokens, all finite); xim 11 shots = 97,750 positions (782 tok x 11 ch, FSQ). Native cadence preserved (xma 78 Hz / xim 781 Hz token rate, spectral content from the native signal per token — NOT the destroyed 100 Hz pointwise grid). SLURM 1218603/1218604/1218605 (~35-65 s each), gpu:1. CAVEAT corrected: xma effective rate is ~5 kHz (read_xma_shot returns the time1-clocked masked axis; the 100 kHz/660 kHz figures count raw storage-array size, not rate) — matches the S12 interior-information finding.</p>
+    </article>
+<article class="r-fu" data-id="f-mmt-corpus-encode" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Scale the HF tokeniser dev-encode (11 shots) to the full corpus + add xsx</h4>
+    <div class="r-fu-body"><p>The phase-aware patch-transformer tokeniser + the codebook decision landed on an 11-shot calibration set. Scale to the full corpus: pass <code>ENCODE_IDS</code> to <code>signal_hf_encode.py</code> for xma (continuous+mode) and xim (FSQ) across all available shots (xma ~70%, xim ~82%), and add the xsx (500 kHz SXR) family via the same patch-transformer. The store + driver scale unchanged (schema frozen). For xma, revisit whether a higher-capacity FSQ retrained with more epochs/data closes the phase gap vs the continuous embedding (the harness reports the numbers). On the idle H200s.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    multimodal-tokenisation-substrate
+Section: §4
+Tier:    sonnet (opus if the xsx loader or a higher-capacity FSQ retrain needs real modelling)
+
+Context
+  Store v2 + the phase-aware patch-transformer tokeniser + the per-modality codebook decision landed (dev-encoded 11 shots). Scale to the full corpus and add xsx.
+
+State to read
+  imas_ambix/tokenizer/{store_v2.py,patch_transformer.py,signal_hf_encode.py}; scripts/slurm/signal_tokenizer.sbatch; imas_ambix/statespace/fast_loader.py (read_xma/read_xsx/read_xim)
+
+Done-when
+  1. Full-corpus xma (continuous+mode) + xim (FSQ) encodes into tokens/v2/signals_hf (pass ENCODE_IDS); per-modality phase-QC holdout reported.
+  2. xsx (500 kHz SXR) tokenised via the patch-transformer (per-chord STFT + emission-profile), phase-QC; codebook chosen by measurement.
+  3. Optional: higher-capacity FSQ retrain for xma vs the continuous baseline. Followup + this one resolved; plan updated.</pre>
+    </article>
+</section>
 
   </main>
 </body>
