@@ -68,13 +68,77 @@ pulse-schedule shape targets.  Same ban class throughout the project
 
 
 def assert_no_leakage_sources(sources) -> None:
-    """Raise ``ValueError`` if any banned (leaking) source is present."""
+    """Raise ``ValueError`` if any banned (leaking) source is present.
+
+    This is the *source-group* guard used by the camera-frame conditioning
+    loader, whose channels are pulled from raw L1 source groups (``amc``,
+    ``anb``, ``aga``, ``ane``, ``ada``).  At that layer the whole ``efm`` /
+    ``esm`` / ``xdc`` source groups are banned: the loader never planned to
+    pull a planned XDC waveform, so banning the group is correct *here*.
+
+    The corrected reconstruction-vs-plan principle (planned XDC demands are
+    authorised, only reconstructed state and reconstruction residuals are
+    banned) is enforced at the **field level** by
+    :func:`assert_no_leakage_fields`, which the L2 loader uses.  The two
+    guards are complementary: this one keeps existing camera-frame callers
+    unchanged; the field-level one admits planned actuators by inspecting
+    the per-field ``uda_name``.
+    """
     bad = sorted(set(sources) & BANNED_CONDITIONING_SOURCES)
     if bad:
         raise ValueError(
             f"leakage: conditioning requested banned source(s) {bad}; "
             f"EFIT/Solov'ev/pulse-schedule embed the reconstruction and are "
             f"banned everywhere ({sorted(BANNED_CONDITIONING_SOURCES)})."
+        )
+
+
+def assert_no_leakage_fields(fields) -> None:
+    """Field-level leakage guard on the reconstruction-vs-plan principle.
+
+    Unlike :func:`assert_no_leakage_sources` (which bans whole source
+    groups), this inspects each L2 field's ``uda_name`` and rejects only
+    those that carry **code-reconstructed state** or a **reconstruction
+    residual** — while *authorising* planned/demanded pulse-schedule
+    waveforms (demanded Ip/density, the feed-forward coil voltage, the gas
+    valve demands).  This is the corrected layer the L2 loader must use so
+    a forward world model can see the control plan without leaking the
+    reconstruction it is meant to produce.
+
+    Parameters
+    ----------
+    fields:
+        Iterable of ``(group, var, uda_name)`` triples.
+
+    Raises
+    ------
+    ValueError
+        If any field classifies as ``banned`` (reconstructed equilibrium,
+        a reconstruction-derived scalar, a reconstruction-residual XDC
+        field, or an ambiguous field defaulted to banned for review).
+
+    Notes
+    -----
+    Probe-target (Dα) and infra (geometry) fields are *not* leakage and do
+    not raise here — but they are also not admissible default inputs; use
+    :func:`imas_ambix.data.provenance.is_admissible_input` to select the
+    input set.
+    """
+    from imas_ambix.data.provenance import (  # noqa: PLC0415
+        BANNED,
+        classify_l2_field,
+    )
+
+    bad = []
+    for group, var, uda_name in fields:
+        fc = classify_l2_field(group, var, uda_name)
+        if fc.classification == BANNED:
+            bad.append((group, var, uda_name, fc.reason))
+    if bad:
+        listing = "; ".join(f"{g}.{v} (uda={u!r}): {r}" for g, v, u, r in sorted(bad))
+        raise ValueError(
+            f"leakage: {len(bad)} field(s) carry reconstructed state / "
+            f"reconstruction residuals and are banned as inputs — {listing}"
         )
 
 
