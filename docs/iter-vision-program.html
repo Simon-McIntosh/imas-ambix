@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="doc">
+  <meta name="plan-slug"      content="iter-vision-program">
+  <meta name="plan-title"     content="ITER World-Model &amp; Knowledge-Graph Program Map">
+  <meta name="plan-summary"   content="Program overlay mapping ITER's AI vision (frontier LLMs as shovels prospecting Petabyte/day data, paired with a World Model treasure and a Knowledge Graph treasure tied by a day/night cycle) onto the imas-ambix constellation. Current phase = day-state forward-model identification on MAST. A robust multi-modal token store (phase-aware, transformer-capable tokenisers for all high-dynamic-range inputs) is a first-class independent asset built now on the idle H200s; the forward World Model consumes it; TORAX grounds the current-diffusion channel inside existing M3 work; the Knowledge Graph is seeded and deferred.">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-informs"   content="physics-world-model-strategy,multimodal-tokenisation-substrate,camera-dynamics-wm-v0,learned-closure-current-diffusion-v0,sequential-current-da-v1">
+  <title>ITER World-Model &amp; Knowledge-Graph Program Map | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — ITER's AI vision, mapped to MAST</h2>
+    <p>ITER operates beyond the knowledge frontier and will produce <strong>petabytes per day</strong> — a
+      torrent no LLM can be synchronised with directly. The strategy: use frontier LLMs as <strong>"shovels"</strong>
+      to prospect that information gold-mine, paired with two durable, shareable products — a <strong>World
+      Model</strong> (an understanding of how the plasma evolves) and a <strong>Knowledge Graph</strong>
+      (surprise-weighted findings, persisted and shared independently of the agent teams that mine them). During the
+      operational <strong>day</strong>, agents compare World-Model predictions against experimental reality and
+      commit findings to memory; at <strong>night</strong> they "dream" — an action-replay compacts and links
+      memories, emphasising the surprising and filing the known, gamifying tomorrow's experiments and having
+      nightmares about what to avoid. <strong>The treasures are the deliverable; the agents are the miners.</strong></p>
+    <p>This is the thin spine mapping that vision onto the existing imas-ambix constellation — it extends
+      <a href="physics-world-model-strategy.html">physics-world-model-strategy</a>, it does not restate it. The
+      <strong>current phase</strong> is <strong>day-state forward-model identification</strong>: build the World
+      Model that predicts the plasma state during a discharge, wringing the maximum information out of MAST's
+      high-dynamic-range diagnostics, and persist its prediction-vs-reality residuals (the day-state "surprise"
+      signal) toward the Knowledge Graph.</p>
+
+    <h2 id="s2">§2 — The substrate is the foundation, and it is built now</h2>
+    <p>Everything downstream consumes a <strong>robust, multi-modal token store of all MAST high-dynamic-range
+      inputs</strong>. Curating that store is a <strong>first-class asset with value beyond any single downstream
+      proposal</strong> — it is the reusable substrate for the forward model, for diagnostic readout, for
+      structure discovery, and for transfer to ITER. It is therefore developed <strong>independently and now</strong>,
+      not gated behind one experiment. Two facts make it both necessary and tractable:</p>
+    <ul>
+      <li><strong>Today only one camera and low-rate magnetics are tokenised, and the fast signals are silently
+        destroyed.</strong> The 4.02B-token corpus is <code>rbb</code>-only; eight other cameras + every
+        high-frequency signal (100 kHz Mirnov mode structure, 500 kHz SXR, 50 kHz Dα/ELM, reflectometry) are not in
+        a token substrate — and the signal path resamples everything onto a <strong>100 Hz grid (50 Hz Nyquist)</strong>,
+        annihilating exactly the dynamic range the physics lives in.</li>
+      <li><strong>The tokenisers need real, independent development — they are not a convenience layer.</strong>
+        They must be <strong>phase-aware</strong> (the interior-information study proved magnitude-only
+        representations are blind to mode structure) and <strong>transformer-capable</strong> — patch transformers
+        for 1D→3D signals (PatchTST/ViT-style patchification + a learned codebook) so a downstream attention model
+        can consume any modality on a common footing. This is a genuine modelling effort, run on the idle H200s.</li>
+    </ul>
+    <p><strong>The idle 2×H200 are not a cost to conserve — they are capacity to use.</strong> Camera encodes,
+      tokeniser training, and reconstruction-fidelity validation run on them now.</p>
+
+    <h2 id="s3">§3 — The thrust set</h2>
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Thrust</th><th>Status</th><th>What / why</th></tr></thead>
+        <tbody>
+          <tr><td><a href="multimodal-tokenisation-substrate.html">multimodal-tokenisation-substrate</a></td>
+              <td><strong>ACTIVE now — independent, ungated</strong></td>
+              <td>The robust multi-modal token store for all inputs + the phase-aware, transformer-capable
+                (patch-transformer) tokenisers. Independent development with standalone asset value: a multi-rate,
+                phase-preserving store schema that replaces the 100 Hz crush; the remaining-camera encodes; learned
+                patch-transformer tokenisers for the 1D high-frequency signals; per-modality reconstruction-fidelity
+                (incl. phase) validation. Runs on the idle H200s today.</td></tr>
+          <tr><td>multimodal-forward-world-model</td>
+              <td><strong>Deferred — consumes the substrate</strong></td>
+              <td>Generalises the proven camdyn ST-transformer to many modalities sharing one temporal latent;
+                MSE-free masked next-state prediction; the day-state surprise loop. Extends
+                <a href="physics-world-model-strategy.html">physics-world-model-strategy</a> Stage-3. When pursued, a
+                cheap cross-modal reveal + a validated filament-<em>motion</em> readout scope it honestly (a fusion
+                claim is scored on motion-weighted / whole-family-held-out subsets vs a matched static baseline,
+                never bulk NLL). This is scientific discipline on the <em>claim</em>, not a gate on the substrate.</td></tr>
+          <tr><td>TORAX grounding</td>
+              <td><strong>Folded — no new plan</strong></td>
+              <td>Duplicates active <a href="learned-closure-current-diffusion-v0.html">learned-closure-current-diffusion-v0</a>.
+                The one new piece — the failing reduced-solver-vs-TORAX q-agreement (<code>q_rmse 28–111</code> vs
+                q∼O(1–3)) — becomes that plan's D0 gate; a read-only TORAX-vs-model-vs-reality comparator is a
+                <a href="sequential-current-da-v1.html">sequential-current-da-v1</a> followup. TORAX grounds
+                current-diffusion only — never the camera/edge/fast dynamics of the day-state phase.</td></tr>
+          <tr><td>Knowledge Graph + day/night cycle</td>
+              <td><strong>Seeded stub — deferred (future M6)</strong></td>
+              <td>A JSON surprise-event record schema (§5) emitted by the eval harnesses, seeded from our four
+                honest negatives. The queryable store, ontology, and the LLM-dreamer day/night layer are named and
+                built once the forward model produces calibrated surprise at multi-modal scale.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="s4">§4 — Dependency map</h2>
+    <figure>
+      <svg viewBox="0 0 860 270" width="100%" role="img" aria-label="Program dependency map"
+           style="max-width:860px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+        <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#5a5a5a"/></marker></defs>
+        <rect x="20" y="112" width="150" height="44" rx="4" fill="#fff" stroke="#1565c0" stroke-width="1.5"/>
+        <text x="95" y="132" font-size="11.5" font-weight="700" text-anchor="middle" fill="#1a1a1a">physics-world-</text>
+        <text x="95" y="147" font-size="11.5" font-weight="700" text-anchor="middle" fill="#1a1a1a">model-strategy</text>
+        <rect x="208" y="112" width="138" height="44" rx="4" fill="#eef4fb" stroke="#1565c0" stroke-width="1.5"/>
+        <text x="277" y="132" font-size="11.5" font-weight="700" text-anchor="middle" fill="#1a1a1a">iter-vision-</text>
+        <text x="277" y="147" font-size="11.5" font-weight="700" text-anchor="middle" fill="#1a1a1a">program (this)</text>
+        <rect x="386" y="96" width="172" height="56" rx="4" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+        <text x="472" y="116" font-size="11.5" font-weight="700" text-anchor="middle" fill="#2e7d32">token-store substrate</text>
+        <text x="472" y="131" font-size="10.5" text-anchor="middle" fill="#1a1a1a">phase-aware patch tokenisers</text>
+        <text x="472" y="145" font-size="10" text-anchor="middle" fill="#2e7d32" font-weight="700">ACTIVE · on the H200s now</text>
+        <rect x="600" y="60" width="160" height="46" rx="4" fill="#fff" stroke="#9e9e9e" stroke-width="1.4" stroke-dasharray="5,3"/>
+        <text x="680" y="80" font-size="11.5" font-weight="700" text-anchor="middle" fill="#616161">forward world model</text>
+        <text x="680" y="95" font-size="10.5" text-anchor="middle" fill="#616161">deferred · consumes store</text>
+        <rect x="600" y="166" width="160" height="40" rx="4" fill="#fff" stroke="#bdbdbd" stroke-width="1.2" stroke-dasharray="3,3"/>
+        <text x="680" y="190" font-size="10.5" text-anchor="middle" fill="#9e9e9e">knowledge-graph (stub)</text>
+        <line x1="170" y1="134" x2="206" y2="134" stroke="#5a5a5a" stroke-width="1.3" marker-end="url(#ar)"/>
+        <line x1="346" y1="130" x2="384" y2="124" stroke="#5a5a5a" stroke-width="1.3" marker-end="url(#ar)"/>
+        <line x1="558" y1="116" x2="598" y2="92"  stroke="#5a5a5a" stroke-width="1.3" marker-end="url(#ar)"/>
+        <line x1="680" y1="106" x2="680" y2="164" stroke="#5a5a5a" stroke-width="1.2" marker-end="url(#ar)"/>
+        <text x="566" y="150" font-size="10" fill="#616161">feeds (when pursued)</text>
+      </svg>
+      <figcaption>The token-store substrate (green, active on the H200s now) is the independent foundation. The
+        forward World Model (dashed) consumes it when pursued, and seeds the Knowledge Graph (dotted). The substrate
+        has standalone asset value and is not gated on any single downstream experiment.</figcaption>
+    </figure>
+
+    <h2 id="s5">§5 — Locked decisions, the Knowledge-Graph stub, and the scientific discipline</h2>
+    <p><strong>Locked decisions:</strong></p>
+    <ul>
+      <li>The token store is a <strong>first-class, reusable asset</strong>; tokenisers are <strong>phase-aware and
+        transformer-capable (patch transformers, 1D→3D)</strong>; the substrate is developed independently and now.</li>
+      <li>Idle GPUs are <strong>used, not conserved</strong>.</li>
+      <li>Camera <em>placement</em> input-enrichment is <strong>killed</strong> (aleatoric within-view floor,
+        measured) — a richer camera substrate is still built for the other modalities and for the forward model's
+        other readouts, but we do not claim a second camera fixes placement.</li>
+      <li>The live camera lever is the <strong>temporal-evolution objective</strong> (frame-to-frame motion).</li>
+      <li>TORAX grounds the <strong>current-diffusion channel only</strong>, inside the M3 cluster; never the
+        camera/edge/fast dynamics; never trained on as a fidelity target.</li>
+    </ul>
+    <p><strong>Knowledge-Graph stub (v0):</strong> a JSON surprise-event record — {shot/regime, modality,
+      time-window, prediction, measured reality, residual, surprise-weight <em>normalised by calibrated
+      uncertainty</em>, aleatoric-vs-epistemic split, links: predicts/contradicts/explains/supersedes} — emitted by
+      the existing eval harnesses, seeded from our four honest negatives (interior-information QUALIFIED-NEGATIVE; GS
+      Q1 fail; persistence-beats-engine on stationary Dα; the aleatoric placement floor). The KG persists
+      <strong>physics findings</strong>; reckon persists <strong>plan state</strong> — no duplication. The queryable
+      store + the day/night dream-loop are deferred until calibrated multi-modal surprise exists.</p>
+    <p><strong>Scientific discipline (on claims, not on building):</strong> the <em>substrate</em> is built
+      unconditionally. The <em>forward-model fusion claim</em> — "modality X improves the forward model" — is held
+      to a clean test: scored on the motion-weighted / whole-family-held-out subset against a matched static baseline,
+      paired bootstrap CI clear of zero, with a negative reported as a result. That is how we wring maximum
+      information honestly: build the best inputs we can, then let the measurement, not the hope, decide what they buy.</p>
+
+  </main>
+</body>
+</html>
