@@ -70,6 +70,16 @@ BLOCK_XMA_MODE = "signal_hf_xma_mode_v2"
 # Phase-aware patch-transformer codebook for the xim Dα/CII channels.
 BLOCK_XIM_PATCH = "signal_hf_xim_patch_v2"
 
+# Phase-aware patch-transformer codebook for the xsx soft-X-ray (SXR)
+# horizontal-camera chord array (per-chord channel codes).  Appended after
+# the xma/xim blocks — the id namespace is append-only, so this allocates a
+# fresh contiguous range above the existing blocks and never re-bumps
+# VOCAB_VERSION (already-written xma/xim/v1 tokens keep their ids).
+BLOCK_XSX_PATCH = "signal_hf_xsx_patch_v2"
+# Cross-chord soft-X-ray emission-profile latent derived from the xsx chord
+# array (the radial emission-profile analog of the xma poloidal mode block).
+BLOCK_XSX_PROFILE = "signal_hf_xsx_profile_v2"
+
 
 @dataclass
 class _Block:

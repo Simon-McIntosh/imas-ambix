@@ -23,3 +23,20 @@ def _reset_registry():
     yield
     singleton._blocks.clear()
     singleton._cursor = CONTROL_RANGE[1]
+
+
+@pytest.fixture(autouse=True)
+def _permissive_corpus_guards(monkeypatch):
+    """Default the disk-presence / resume guards to permissive in unit tests.
+
+    ``encode_shots`` now consults ``group_present`` (cheap on-disk group probe)
+    and ``already_encoded`` (resume skip) before decoding.  Tests that
+    monkeypatch ``load_shot_window`` with synthetic data have no real shot on
+    disk, so default these to (present, not-yet-encoded); a test exercising the
+    guards themselves overrides them explicitly.
+    """
+    from imas_ambix.tokenizer import signal_hf_encode as enc
+
+    monkeypatch.setattr(enc, "group_present", lambda s, g: True)
+    monkeypatch.setattr(enc, "already_encoded", lambda s, g: False)
+    yield

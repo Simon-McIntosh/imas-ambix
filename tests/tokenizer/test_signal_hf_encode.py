@@ -34,6 +34,34 @@ def test_specs_have_distinct_blocks():
     assert enc.XIM_SPEC.is_coil_array is False
     assert enc.XIM_SPEC.mode_block is None
     assert enc.XMA_SPEC.patch_block != enc.XIM_SPEC.patch_block
+    # xsx is a chord array → cross-channel profile latent, distinct blocks.
+    assert enc.XSX_SPEC.is_coil_array is True
+    assert enc.XSX_SPEC.mode_block is not None
+    assert enc.XSX_SPEC.patch_block not in (
+        enc.XMA_SPEC.patch_block,
+        enc.XIM_SPEC.patch_block,
+    )
+    assert enc.XSX_SPEC.mode_block != enc.XMA_SPEC.mode_block
+
+
+def test_xsx_blocks_append_after_existing_no_vocab_bump():
+    """The xsx blocks must sit ABOVE the xma/xim blocks (append-only) and the
+    vocab generation must NOT have been re-bumped."""
+    from imas_ambix.tokenizer.registry import (
+        VOCAB_VERSION,
+        TokenRegistry,
+    )
+
+    assert VOCAB_VERSION == "v2"  # append-only — never re-bumped for xsx
+    r = TokenRegistry()
+    xma_s, xma_e = r.allocate(enc.BLOCK_XMA_PATCH, 12800)
+    r.allocate(enc.BLOCK_XMA_MODE, 1)
+    xim_s, xim_e = r.allocate(enc.BLOCK_XIM_PATCH, 12800)
+    xsx_s, xsx_e = r.allocate(enc.BLOCK_XSX_PATCH, 12800)
+    # xsx allocated last → its range starts at or above every prior block end.
+    assert xsx_s >= xim_e
+    assert xsx_s >= xma_e
+    assert xsx_e > xsx_s
 
 
 def _train_tiny_tokenizer(n_channels: int, bottleneck: str = "fsq"):
@@ -154,3 +182,86 @@ def test_coil_array_emits_mode_block(tmp_path, monkeypatch):
     assert mode.attrs.metadata["kind"] == "spatial_dft_mode_amplitudes"
     assert mode.attrs.n_channels == 2 * enc.N_MODES
     assert mode.attrs.phase_preserving is True
+
+
+def test_xsx_chord_array_emits_profile_block(tmp_path, monkeypatch):
+    """xsx encodes per-chord patch tokens AND a cross-chord profile latent."""
+    import imas_ambix.tokenizer.store_v2 as store_mod
+
+    monkeypatch.setattr(store_mod, "TOKEN_ROOT", tmp_path)
+
+    rng = np.random.default_rng(7)
+    T, C = 64 * 30, 18  # 18 hcam_l chords
+    data = rng.standard_normal((C, T)).astype(np.float32)
+    chan = [f"hcam_l_{i:02d}" for i in range(C)]
+    valid = np.ones(C, dtype=bool)
+    monkeypatch.setattr(
+        enc,
+        "load_shot_window",
+        lambda s, g: (data, chan, valid, 500_000.0, (0.0, T / 500_000.0)),
+    )
+
+    tok = _train_tiny_tokenizer(C, bottleneck="continuous")
+    tok.name = enc.XSX_SPEC.patch_block
+    summary = enc.encode_shots("xsx", [4242], tok)
+    assert len(summary["encoded"]) == 1
+
+    g = load_signal_hf_tokens(4242, "xsx")
+    assert g.tokens.shape[1] == C
+    assert g.attrs.native_rate_hz == 500_000.0
+    assert g.attrs.token_rate_hz == pytest.approx(500_000.0 / 64)
+
+    prof = load_signal_hf_tokens(4242, "xsx_mode")
+    assert prof.attrs.metadata["kind"] == "spatial_dft_mode_amplitudes"
+    assert prof.attrs.n_channels == 2 * enc.N_MODES
+    assert prof.attrs.phase_preserving is True
+
+
+def test_xsx_loader_marks_stuck_chord_invalid(tmp_path, monkeypatch):
+    """The known stuck hcam_l chord is masked invalid by load_shot_window."""
+    from imas_ambix.statespace.fast_features import XSX_STUCK_CHANNEL
+
+    class _Fake:
+        rate_hz = 500_000.0
+        time = np.linspace(0.0, 0.6, 64 * 10)
+        hcam_l = (
+            np.random.default_rng(0).standard_normal((18, 64 * 10)).astype(np.float32)
+        )
+        hcam_u = None
+        hcam_l_r1 = np.full(18, np.nan)
+        hcam_u_r1 = None
+        avail_mask = np.array([True, False])
+
+    # Point LEVEL1_DIR at tmp and create the shot dir so the existence guard
+    # passes; stub the reader so no real Zarr is needed.
+    monkeypatch.setattr(enc, "LEVEL1_DIR", tmp_path)
+    (tmp_path / "123.zarr").mkdir()
+    monkeypatch.setattr(enc, "read_xsx_shot", lambda p: _Fake())
+
+    out = enc.load_shot_window(123, "xsx")
+    assert out is not None
+    _data, chan, valid, rate, _win = out
+    assert rate == 500_000.0
+    assert len(chan) == 18
+    assert not valid[XSX_STUCK_CHANNEL]
+    assert valid.sum() == 17  # all chords valid except the stuck one
+
+
+def test_skip_existing_and_group_absent(tmp_path, monkeypatch):
+    import imas_ambix.tokenizer.store_v2 as store_mod
+
+    monkeypatch.setattr(store_mod, "TOKEN_ROOT", tmp_path)
+    # group_present False → group_absent; load_shot_window never called.
+    monkeypatch.setattr(enc, "group_present", lambda s, g: False)
+    monkeypatch.setattr(
+        enc,
+        "load_shot_window",
+        lambda s, g: (_ for _ in ()).throw(
+            AssertionError("loader must not be called when group absent")
+        ),
+    )
+    tok = _train_tiny_tokenizer(4)
+    tok.name = enc.XIM_SPEC.patch_block
+    summary = enc.encode_shots("xim", [888], tok)
+    assert summary["encoded"] == []
+    assert summary["skipped"][0]["reason"] == "group_absent"

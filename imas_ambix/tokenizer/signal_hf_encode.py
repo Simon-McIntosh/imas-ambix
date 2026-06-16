@@ -37,7 +37,12 @@ from pathlib import Path
 import numpy as np
 
 from imas_ambix.data.paths import LEVEL1_DIR
-from imas_ambix.statespace.fast_loader import read_xim_shot, read_xma_shot
+from imas_ambix.statespace.fast_features import XSX_STUCK_CHANNEL
+from imas_ambix.statespace.fast_loader import (
+    read_xim_shot,
+    read_xma_shot,
+    read_xsx_shot,
+)
 from imas_ambix.tokenizer.patch_transformer import (
     PatchTokenizerConfig,
     PatchTransformerTokenizer,
@@ -47,12 +52,15 @@ from imas_ambix.tokenizer.registry import (
     BLOCK_XIM_PATCH,
     BLOCK_XMA_MODE,
     BLOCK_XMA_PATCH,
+    BLOCK_XSX_PATCH,
+    BLOCK_XSX_PROFILE,
     VOCAB_VERSION,
     registry,
 )
 from imas_ambix.tokenizer.store_v2 import (
     StoreV2Attrs,
     save_signal_hf_tokens,
+    signal_hf_token_path,
 )
 
 logger = logging.getLogger("signal_hf_encode")
@@ -102,7 +110,19 @@ XIM_SPEC = ModalitySpec(
     is_coil_array=False,
     mode_block=None,
 )
-SPECS = {"xma": XMA_SPEC, "xim": XIM_SPEC}
+# xsx soft-X-ray chord array.  Like xma it is a spatially-distributed array
+# (the horizontal-camera chords sample a line-integral across the plasma), so
+# the cross-channel decomposition fires — but the relevant cross-chord
+# structure is the radial *emission profile*, not a periodic poloidal mode.
+# The same spatial-DFT block (mode_decomposition) gives a compact, phase-
+# preserving radial-profile latent; the block name records it as a profile.
+XSX_SPEC = ModalitySpec(
+    group="xsx",
+    patch_block=BLOCK_XSX_PATCH,
+    is_coil_array=True,
+    mode_block=BLOCK_XSX_PROFILE,
+)
+SPECS = {"xma": XMA_SPEC, "xim": XIM_SPEC, "xsx": XSX_SPEC}
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +179,34 @@ def load_shot_window(shot_id: int, group: str):
             return None
         data = shot.data.T  # (C, T)
         chan = list(shot.channel_names)
+    elif group == "xsx":
+        shot = read_xsx_shot(path)
+        if shot is None:
+            return None
+        # Stack the lower horizontal camera (always present — read_xsx_shot
+        # returns None otherwise) and the upper camera when operational.  Each
+        # chord becomes one channel of the per-chord patch tokenizer; the
+        # cross-chord profile latent then captures the radial emission shape.
+        blocks: list[np.ndarray] = [shot.hcam_l]  # (18, T)
+        chan = [f"hcam_l_{i:02d}" for i in range(shot.hcam_l.shape[0])]
+        if shot.hcam_u is not None:
+            blocks.append(shot.hcam_u)
+            chan += [f"hcam_u_{i:02d}" for i in range(shot.hcam_u.shape[0])]
+        data = np.concatenate(blocks, axis=0)  # (C, T)
+        valid = np.isfinite(data).any(axis=1)  # (C,)
+        # Mark the known stuck chord (constant value, no fluctuation content)
+        # invalid so a consumer honours the mask rather than learning a flat
+        # signal as real structure.  The channel stays in the set to keep the
+        # per-chord channel layout stable across shots.
+        stuck = []
+        if shot.hcam_l.shape[0] > XSX_STUCK_CHANNEL:
+            stuck.append(XSX_STUCK_CHANNEL)  # in hcam_l
+        if shot.hcam_u is not None and shot.hcam_u.shape[0] > XSX_STUCK_CHANNEL:
+            stuck.append(shot.hcam_l.shape[0] + XSX_STUCK_CHANNEL)  # in hcam_u
+        for s in stuck:
+            valid[s] = False
+        window = (float(shot.time[0]), float(shot.time[-1]))
+        return data.astype(np.float32), chan, valid, float(shot.rate_hz), window
     else:
         raise ValueError(f"unknown group {group!r}")
 
@@ -308,12 +356,17 @@ def encode_shots(
     tokenizer: PatchTransformerTokenizer,
     *,
     watchdog_s: float = 120.0,
+    skip_existing: bool = True,
 ) -> dict:
     """Encode shots into the v2 signals_hf store with ``tokenizer``.
 
     Emits per-coil patch codes, per-token time, and per-channel validity.
-    For a coil array, additionally emits cross-channel mode-number tokens as
-    a sibling group ``{group}_mode``.  Returns a summary dict.
+    For a coil/chord array, additionally emits cross-channel mode/profile
+    tokens as a sibling group ``{group}_mode``.  Returns a summary dict.
+
+    ``skip_existing`` (default True) makes a long corpus encode resumable: a
+    shot whose v2 store already exists is skipped, so re-running with the same
+    ENCODE_IDS picks up where a cancelled/expired job left off.
     """
     spec = SPECS[group]
     summary = {"group": group, "encoded": [], "skipped": [], "n_tokens_total": 0}
@@ -331,6 +384,12 @@ def encode_shots(
     for sid in shot_ids:
         if _STOP["flag"]:
             summary["skipped"].append({"shot": sid, "reason": "stop_requested"})
+            continue
+        if skip_existing and already_encoded(sid, group):
+            summary["skipped"].append({"shot": sid, "reason": "already_encoded"})
+            continue
+        if not group_present(sid, group):
+            summary["skipped"].append({"shot": sid, "reason": "group_absent"})
             continue
         t0 = time.time()
         w = load_shot_window(sid, group)
@@ -461,6 +520,41 @@ def _parse_ids(text: str) -> list[int]:
     return [int(x) for x in text.replace(",", " ").split()]
 
 
+def corpus_shot_ids() -> list[int]:
+    """Every shot id present in the level-1 corpus, ascending.
+
+    Built from presence on disk (``LEVEL1_DIR/{id}.zarr``); per-group presence
+    is resolved later by ``load_shot_window`` returning None, so the shotlist
+    is the union and a group-absent shot is skipped (not an error).
+    """
+    ids: list[int] = []
+    for p in LEVEL1_DIR.glob("*.zarr"):
+        stem = p.stem
+        if stem.isdigit():
+            ids.append(int(stem))
+    return sorted(ids)
+
+
+def group_present(shot_id: int, group: str) -> bool:
+    """Cheap on-disk presence check for ``group`` in shot ``shot_id``.
+
+    Avoids decoding the whole shot just to discover the group is absent — the
+    encode loop's authoritative guard is still ``load_shot_window`` returning
+    None (which catches present-but-empty groups), but this filters the bulk of
+    group-absent shots before any decode work.
+    """
+    return (LEVEL1_DIR / f"{shot_id}.zarr" / group).exists()
+
+
+def already_encoded(shot_id: int, group: str) -> bool:
+    """True if this shot/group already has a v2 signals_hf token store.
+
+    Lets a long corpus encode checkpoint/resume: re-running with the same
+    ENCODE_IDS skips shots that are already on disk.
+    """
+    return signal_hf_token_path(shot_id, group).exists()
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
@@ -469,7 +563,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--group", choices=["xma", "xim"], required=True)
+    common.add_argument("--group", choices=["xma", "xim", "xsx"], required=True)
     common.add_argument("--device", default="cuda")
     common.add_argument("--patch-size", type=int, default=64)
 
@@ -486,8 +580,23 @@ def main(argv: list[str] | None = None) -> int:
     pt.add_argument("--out", type=Path, required=True, help="checkpoint path")
 
     pe = sub.add_parser("encode", parents=[common])
-    pe.add_argument("--shots", required=True)
+    pe.add_argument(
+        "--shots",
+        required=True,
+        help="shot ids, a file, or the literal 'all' for the full corpus",
+    )
     pe.add_argument("--ckpt", type=Path, required=True)
+    pe.add_argument(
+        "--no-skip-existing",
+        action="store_true",
+        help="re-encode shots that already have a v2 store (default: skip them)",
+    )
+    pe.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help="write the encode summary (counts, skips, totals) here as JSON",
+    )
 
     args = p.parse_args(argv)
     _install_signal_handler()
@@ -519,14 +628,48 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "encode":
         tok = PatchTransformerTokenizer(device=args.device)
         tok.load(args.ckpt)
-        summary = encode_shots(args.group, _parse_ids(args.shots), tok)
+        if args.shots.strip().lower() == "all":
+            shot_ids = corpus_shot_ids()
+            logger.info("corpus shotlist: %d shots on disk", len(shot_ids))
+        else:
+            shot_ids = _parse_ids(args.shots)
+        summary = encode_shots(
+            args.group,
+            shot_ids,
+            tok,
+            skip_existing=not args.no_skip_existing,
+        )
         logger.info(
             "encode summary: %d encoded, %d skipped, %d tokens",
             len(summary["encoded"]),
             len(summary["skipped"]),
             summary["n_tokens_total"],
         )
+        if args.manifest is not None:
+            args.manifest.parent.mkdir(parents=True, exist_ok=True)
+            args.manifest.write_text(json.dumps(_manifest_payload(summary), indent=2))
+            logger.info("wrote manifest → %s", args.manifest)
     return 0
+
+
+def _manifest_payload(summary: dict) -> dict:
+    """Condense an encode summary into a JSON manifest.
+
+    Keeps the per-shot encoded list (shot, n_patches, n_channels) and the
+    aggregate counts; collapses the skip list to per-reason counts so the
+    manifest stays small for a full-corpus run.
+    """
+    skip_reasons: dict[str, int] = {}
+    for s in summary["skipped"]:
+        skip_reasons[s["reason"]] = skip_reasons.get(s["reason"], 0) + 1
+    return {
+        "group": summary["group"],
+        "n_encoded": len(summary["encoded"]),
+        "n_skipped": len(summary["skipped"]),
+        "skip_reasons": skip_reasons,
+        "n_tokens_total": summary["n_tokens_total"],
+        "encoded": summary["encoded"],
+    }
 
 
 def _torch_perf_setup(device: str) -> None:
