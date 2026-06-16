@@ -247,6 +247,19 @@ def test_xsx_loader_marks_stuck_chord_invalid(tmp_path, monkeypatch):
     assert valid.sum() == 17  # all chords valid except the stuck one
 
 
+def test_shot_window_dataset_reports_skip_reasons(monkeypatch):
+    """ShotWindowDataset yields (sid, None, reason) for absent / unreadable shots."""
+    monkeypatch.setattr(enc, "group_present", lambda s, g: s != 2)
+    monkeypatch.setattr(
+        enc, "load_shot_window", lambda s, g: None if s == 3 else ("w",)
+    )
+    ds = enc.ShotWindowDataset([1, 2, 3], "xim")
+    assert len(ds) == 3
+    assert ds[0] == (1, ("w",), None)
+    assert ds[1] == (2, None, "group_absent")
+    assert ds[2] == (3, None, "no_data")
+
+
 def test_skip_existing_and_group_absent(tmp_path, monkeypatch):
     import imas_ambix.tokenizer.store_v2 as store_mod
 

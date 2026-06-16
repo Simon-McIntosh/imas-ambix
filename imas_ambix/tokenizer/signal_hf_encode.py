@@ -350,6 +350,52 @@ def decide_codebook(
 # ---------------------------------------------------------------------------
 
 
+class ShotWindowDataset:
+    """torch ``Dataset`` that reads one shot's signal window per item.
+
+    The corpus encode is overwhelmingly IO-bound — the patch-transformer
+    inference is < 1 % GPU utilisation, while the cost is the GPFS read of the
+    MHz-rate raw signals (measured: xsx 500 kHz × 300k × 36 chords).  Reading
+    each shot in a torch ``DataLoader`` worker subprocess overlaps the next
+    shot's GPFS read with the current shot's inference + store write, the
+    canonical in-process IO-overlap pattern (repo §2b: a bounded DataLoader
+    worker pool, NOT a prefetch producer/consumer thread or a file-IPC daemon).
+
+    Each item is ``(shot_id, window_or_None, reason)`` where ``window`` is the
+    ``load_shot_window`` tuple or ``None`` (with a skip ``reason``) so a
+    group-absent / unreadable shot is reported rather than crashing a worker.
+    """
+
+    def __init__(self, shot_ids: list[int], group: str) -> None:
+        self.shot_ids = list(shot_ids)
+        self.group = group
+
+    def __len__(self) -> int:
+        return len(self.shot_ids)
+
+    def __getitem__(self, i: int):
+        sid = self.shot_ids[i]
+        if not group_present(sid, self.group):
+            return sid, None, "group_absent"
+        try:
+            w = load_shot_window(sid, self.group)
+        except Exception as exc:  # noqa: BLE001 — corpus robustness
+            return sid, None, f"load_error:{exc}"
+        if w is None:
+            return sid, None, "no_data"
+        return sid, w, None
+
+
+def _passthrough_collate(batch):
+    """Identity collate — keep variable-length windows as a python list.
+
+    Shots have different ``T`` and channel inventories, so they cannot stack
+    into a tensor batch; ``batch_size=1`` + this collate yields the single
+    item unchanged.
+    """
+    return batch[0]
+
+
 def encode_shots(
     group: str,
     shot_ids: list[int],
@@ -357,6 +403,7 @@ def encode_shots(
     *,
     watchdog_s: float = 120.0,
     skip_existing: bool = True,
+    num_workers: int = 0,
 ) -> dict:
     """Encode shots into the v2 signals_hf store with ``tokenizer``.
 
@@ -367,6 +414,12 @@ def encode_shots(
     ``skip_existing`` (default True) makes a long corpus encode resumable: a
     shot whose v2 store already exists is skipped, so re-running with the same
     ENCODE_IDS picks up where a cancelled/expired job left off.
+
+    ``num_workers > 0`` reads shot windows in a torch ``DataLoader`` worker
+    pool so the GPFS read of shot ``N+1`` overlaps the inference + store write
+    of shot ``N`` — the IO-overlap that matters for this IO-bound encode (repo
+    §2b).  ``num_workers == 0`` reads inline (used by unit tests, which
+    monkeypatch ``load_shot_window``).
     """
     spec = SPECS[group]
     summary = {"group": group, "encoded": [], "skipped": [], "n_tokens_total": 0}
@@ -381,21 +434,105 @@ def encode_shots(
         # (the real values are the complex mode amplitudes carried in metadata).
         registry.allocate(spec.mode_block, 1)
 
+    # Resume + presence filter up front so DataLoader workers never read a shot
+    # that is already done (cheap path-exists check, not a decode).
+    todo: list[int] = []
     for sid in shot_ids:
+        if skip_existing and already_encoded(sid, group):
+            summary["skipped"].append({"shot": sid, "reason": "already_encoded"})
+        else:
+            todo.append(sid)
+
+    feed = _shot_window_feed(todo, group, num_workers)
+    try:
+        _drain_feed(feed, group, tokenizer, spec, cfg, patch_vocab, summary, watchdog_s)
+    finally:
+        _close_feed(feed)
+    return summary
+
+
+def _inline_feed(shot_ids: list[int], group: str):
+    """Read shot windows inline (no worker subprocesses)."""
+    for sid in shot_ids:
+        if not group_present(sid, group):
+            yield sid, None, "group_absent"
+            continue
+        w = load_shot_window(sid, group)
+        yield sid, w, (None if w is not None else "no_data")
+
+
+def _shot_window_feed(shot_ids: list[int], group: str, num_workers: int):
+    """Yield ``(shot_id, window_or_None, reason)`` — DataLoader-fed if workers.
+
+    Worker subprocesses read each shot's signal off GPFS in parallel with the
+    main-process inference + store write (the IO-overlap that matters for this
+    IO-bound encode).  Uses an explicit ``fork`` context: the workers do pure
+    CPU numpy / Zarr reads (no CUDA in the child), and fork avoids the
+    forkserver handshake that is restricted on some shared nodes.  If worker
+    startup fails for any environmental reason, fall back to inline reads so a
+    long corpus encode never dies on a multiprocessing hiccup.
+    """
+    if num_workers <= 0 or not shot_ids:
+        yield from _inline_feed(shot_ids, group)
+        return
+
+    import multiprocessing as mp
+
+    from torch.utils.data import DataLoader
+
+    ds = ShotWindowDataset(shot_ids, group)
+    try:
+        ctx = mp.get_context("fork")
+        loader = DataLoader(
+            ds,
+            batch_size=1,
+            num_workers=num_workers,
+            prefetch_factor=2,
+            collate_fn=_passthrough_collate,
+            shuffle=False,
+            persistent_workers=False,
+            multiprocessing_context=ctx,
+        )
+        it = iter(loader)
+        # Pull the FIRST item inside the try so a worker-startup failure (the
+        # forkserver/fork handshake can fail before any batch arrives) is caught
+        # here, before anything is yielded — then a clean inline fallback runs
+        # over the WHOLE list with no double-encoding.
+        first = next(it)
+    except StopIteration:
+        return
+    except Exception as exc:  # noqa: BLE001 — environmental worker-start failure
+        logger.warning(
+            "DataLoader workers unavailable (%s); falling back to inline reads",
+            exc,
+        )
+        yield from _inline_feed(shot_ids, group)
+        return
+    yield first
+    yield from it
+
+
+def _close_feed(feed) -> None:
+    """Best-effort generator close so DataLoader workers tear down cleanly."""
+    import contextlib
+
+    # Teardown is hang protection, not a drain guard — never raise from here.
+    with contextlib.suppress(Exception):
+        feed.close()
+
+
+def _drain_feed(
+    feed, group, tokenizer, spec, cfg, patch_vocab, summary, watchdog_s
+) -> None:
+    for sid, w, reason in feed:
+        sid = int(sid)
         if _STOP["flag"]:
             summary["skipped"].append({"shot": sid, "reason": "stop_requested"})
             continue
-        if skip_existing and already_encoded(sid, group):
-            summary["skipped"].append({"shot": sid, "reason": "already_encoded"})
-            continue
-        if not group_present(sid, group):
-            summary["skipped"].append({"shot": sid, "reason": "group_absent"})
+        if w is None:
+            summary["skipped"].append({"shot": sid, "reason": reason or "no_data"})
             continue
         t0 = time.time()
-        w = load_shot_window(sid, group)
-        if w is None:
-            summary["skipped"].append({"shot": sid, "reason": "no_data"})
-            continue
         data, chan, valid_ch, native_rate, window = w
         try:
             ids, latent, _recon = tokenizer.encode_window(data)  # (C,P),(C,P,d),(C,T)
@@ -506,7 +643,6 @@ def encode_shots(
             len(chan),
             time.time() - t0,
         )
-    return summary
 
 
 # ---------------------------------------------------------------------------
@@ -597,6 +733,13 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="write the encode summary (counts, skips, totals) here as JSON",
     )
+    pe.add_argument(
+        "--num-workers",
+        type=int,
+        default=8,
+        help="DataLoader worker subprocesses reading shot windows off GPFS in "
+        "parallel with inference (this encode is IO-bound; 0 = inline reads)",
+    )
 
     args = p.parse_args(argv)
     _install_signal_handler()
@@ -638,6 +781,7 @@ def main(argv: list[str] | None = None) -> int:
             shot_ids,
             tok,
             skip_existing=not args.no_skip_existing,
+            num_workers=args.num_workers,
         )
         logger.info(
             "encode summary: %d encoded, %d skipped, %d tokens",
