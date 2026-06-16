@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-16">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-impl" content="0.7">
 </head>
 <body>
@@ -640,7 +640,7 @@ Done-when
   2. C landed: aux-loss matched pair trained; paired held-out structure-score + NLL/top-1 vs the cap_v1 bar; λ-sweep trade reported; verdict on whether the retrain beats sampled-MAP on correctness.
   3. Branched record written into camera-dynamics-elm-fidelity.html (or a companion) + this followup resolved; C-v2 (MaskGIT) queued only if the aux loss underdelivers.
 </pre>
-    <p class="r-fu-outcome">FILAMENT-FIDELITY ARC CLOSED with a sound verdict. (A) Sampled/beam/MaskGIT decode all SHIPPED (token_sampling.py, --decode flag) but are VISUALISATION-only: the hardened, background-decontaminated, coloured-noise-controlled metric proved NO decoder beats MAP on located correctness (residual over persistence: MAP +0.071 band / +0.094 filament-cell > MaskGIT +0.047 > beam +0.040 > bernoulli +0.013); MaskGIT's temporal 'win' is a saturated-metric artifact (coloured noise also beats MAP on Δframe-SSIM). Decode is EXHAUSTED as a correctness lever. (C-v1) the spectral structure-aux loss was KILLED (λ=0.05 no-op + GPU-starved). (GATE, commit 61fb85e) the decisive within-arm decontaminated placement trajectory over 20 checkpoints = VERDICT FLOOR: dynamics MAP forecasts persistent-filament PLACEMENT +0.094 over persistence (real, dynamic-range-verified) but the residual PLATEAUED by mid-training (tail slope +3.5e-5/1k) and filament entropy stopped falling — convergence will NOT sharpen placement. HONEST ENDPOINT for placement: MAP-for-estimate + coherent-sample (MaskGIT) for visualisation; NO placement retrain. Conditioning re-read at convergence was CONFOUNDED (compared full@20k vs none/ip_ne@8k; cond_ablation_final.json left uncommitted); the clean matched-8k ablation stays a wash. The one remaining real, unaddressed lever is TEMPORAL evolution (the model captures ~no correct frame-to-frame filament motion) — but the temporal metric is saturated, so a motion readout must be built+validated BEFORE any temporal retrain. Queued as f-cdw-temporal-readout. Caveat: gate is n=2 windows (trajectory flatness is a strong within-arm trend regardless).</p>
+    <p class="r-fu-outcome">FILAMENT-FIDELITY ARC CLOSED with a sound verdict. (A) Sampled/beam/MaskGIT decode all SHIPPED (token_sampling.py, --decode flag) but are VISUALISATION-only: the hardened, background-decontaminated, coloured-noise-controlled metric proved NO decoder beats MAP on located correctness (residual over persistence: MAP +0.071 band / +0.094 filament-cell &gt; MaskGIT +0.047 &gt; beam +0.040 &gt; bernoulli +0.013); MaskGIT's temporal 'win' is a saturated-metric artifact (coloured noise also beats MAP on Δframe-SSIM). Decode is EXHAUSTED as a correctness lever. (C-v1) the spectral structure-aux loss was KILLED (λ=0.05 no-op + GPU-starved). (GATE, commit 61fb85e) the decisive within-arm decontaminated placement trajectory over 20 checkpoints = VERDICT FLOOR: dynamics MAP forecasts persistent-filament PLACEMENT +0.094 over persistence (real, dynamic-range-verified) but the residual PLATEAUED by mid-training (tail slope +3.5e-5/1k) and filament entropy stopped falling — convergence will NOT sharpen placement. HONEST ENDPOINT for placement: MAP-for-estimate + coherent-sample (MaskGIT) for visualisation; NO placement retrain. Conditioning re-read at convergence was CONFOUNDED (compared full@20k vs none/ip_ne@8k; cond_ablation_final.json left uncommitted); the clean matched-8k ablation stays a wash. The one remaining real, unaddressed lever is TEMPORAL evolution (the model captures ~no correct frame-to-frame filament motion) — but the temporal metric is saturated, so a motion readout must be built+validated BEFORE any temporal retrain. Queued as f-cdw-temporal-readout. Caveat: gate is n=2 windows (trajectory flatness is a strong within-arm trend regardless).</p>
     </article>
 <article class="r-fu" data-id="f-cdw-temporal-readout" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Build + validate a filament-MOTION readout BEFORE any temporal-evolution retrain</h4>
@@ -676,6 +676,39 @@ Done-when
   1. Motion readout implemented + dynamic-range validated (persistence~0 / oracle-high / noise~0 / MAP-separable) on existing checkpoints; figure + numbers committed.
   2. Verdict: does MAP already capture filament motion (readout high) or not (readout low → a temporal retrain has headroom)?
   3. IF headroom: the temporal-consistency loss design + a matched both-arm retrain plan; ELSE: record that temporal is also at floor and the honest endpoint stands (MAP+sample). Followup written + this one resolved; plan updated same-session.</pre>
+    </article>
+<article class="r-fu" data-id="f-cdw-input-gate" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Input enrichment (second camera / fast mode-structure) — gated by a cheap reveal-k oracle</h4>
+    <div class="r-fu-body"><p>Lead asked: we use ONLY a single camera (rbb) + slow actuators — why not richer inputs to resolve the persistent filaments? Grounded design (adversarially checked, verdict_holds=true): the placement FLOOR (dynamics MAP +0.094 over persistence on filament cells, plateaued) is only <strong>WEAKLY input-conditional</strong>. Cheap evidence leans toward aleatoric-WITHIN-this-view: the in-view oracle CANNOT relocate a filament (candidates = true_token XOR per-bit offsets → same cell; oracle_joint 0.709 &lt; MAP 0.753), hedging is calibrated, the residual trajectory is flat, and the slow-conditioning result is regime-dependent but net-harms in the frontier regime the floor lives in (frontier_half full_vs_none_nll −0.031, clear of zero). BUT two untested levers are exactly the inputs this regime never had: a genuine second optical axis, and fast mode-STRUCTURE conditioning. So it is decided by a minutes-long gate, NOT by paying for a 7h encode + multi-view retrain blind.</p><p><strong>Prioritized plan:</strong> (1, IN FLIGHT) in-view <strong>reveal-k oracle</strong> + rbb second-crop proxy on cap_v1_dynamics/final.pt — reveal k in-view filament cells, re-measure the placement residual; this UPPER-BOUNDS any second view (perfect in-view pixels; a real rba is occluded/coarser/mistimed), decisive-to-KILL, pre-registered threshold. (2) <strong>ama toroidal mode-number conditioning</strong> (MAST centre-column toroidal-mode analysis ~400 kHz, leakage-free) folded INTO f-cdw-elm-response — the ONLY conditioning candidate supplying genuinely-NEW info (mode structure → filament count/spacing) and escaping the 5 kHz Mirnov cap; baseline vs the ip_ne-CORE arm (ip_ne beats none even at matched budget; full-23 dilutes it), with shuffled + slow-only controls. (3) rba alignability + <strong>visual view-difference overlay</strong> (no encode/retrain) — only if rank 1 says input-limited; resolves the OPEN physics question (camera_lower vs camera_center — useful stereo baseline or redundant/occluded?). (4) rba second-camera corpus + multi-view model (XL, gated by 1 AND 3, likely shelved): rba is raw-only (encode ~1.5h/~0.79B tokens — the CHEAP part), but only 58% shot coverage (41% data loss), 5–100× cadence mismatch (no co-temporal frame for sub-ms ELM → ZOH staleness), and the matched-arm W1 attribution must be RE-DERIVED (a second stream breaks the byte-identical single-boolean toggle). <strong>Honest fifth option (critic's biggest point):</strong> the evidence most predicts input enrichment is worth ~ZERO and the real open lever is the TEMPORAL-evolution objective (the model captures ~no correct frame-to-frame filament MOTION — noise-floor temporal correctness), which neither a second STILL view nor mode conditioning fixes — see f-cdw-temporal-readout. Housekeeping: cond_ablation_final.json was DELETED (confounded 20k-vs-8k landmine).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    camera-dynamics-wm-v0
+Section: §5 — input enrichment (gated)
+Tier:    opus
+
+Context
+  Reveal-k oracle gate is IN FLIGHT (eval-only, cap_v1_dynamics/final.pt). It decides whether the
+  placement floor is input-limited (escalate to rba/ama) or aleatoric-within-view (redirect to the
+  temporal-evolution lever, f-cdw-temporal-readout). Do NOT launch any encode/retrain until the gate verdict.
+
+State to read (CODE/FILES)
+  imas_ambix/camdyn/{structure_fidelity.py, placement_trajectory.py, reveal_oracle.py(new)}  (the gate)
+  imas_ambix/camdyn/conditioning.py  (cond_proj; ama/Da blocks for rank 2)
+  imas_ambix/data/stream_encode.py  (--camera flag; rba encode for rank 4)
+  imas_ambix/camdyn/dataset.py  (DEFAULT_CAMERA=rbb; multi-view + timestamp join for rank 4)
+  docs/camera-dynamics-elm-fidelity.html ; the f-cdw-elm-response + f-cdw-temporal-readout followups
+
+Scope locks / constraints
+  - Gate FIRST (rank 1), pre-registered threshold; INPUT-LIMITED only if revealing k=4 in-view filament cells raises the (MAP−persistence) residual &gt;+0.02 AND drops remaining-cell entropy &gt;10%.
+  - rank 2 (ama) folds into f-cdw-elm-response (do NOT duplicate); slow-only control = ip_ne-CORE arm; shuffled control mandatory; is_probe_target leak guard.
+  - rank 3 = visual rba/rbb overlay (decode actual frames), not geometry-name inference.
+  - rank 4 only if 1 AND 3 clear: matched-arm W1 re-derived inside multi-view; 58%-subset control; never cite the deleted cond_ablation_final.json.
+  - All placement claims = PAIRED located-SSIM-residual deltas with bootstrap CI on filament cells, never absolute (n=2 windows is thin; add windows/frontier-frames for power).
+  - Do NOT touch sequential_da.py.
+
+Done-when
+  1. Reveal-k gate verdict committed (INPUT-LIMITED or ALEATORIC-FLOOR) vs the pre-registered threshold.
+  2. If input-limited: rank 2/3 executed per gate; if aleatoric: record that inputs are not the lever and redirect to f-cdw-temporal-readout.
+  3. Plan updated same-session; this followup resolved or re-scoped to the chosen branch.</pre>
     </article>
 </section>
 
