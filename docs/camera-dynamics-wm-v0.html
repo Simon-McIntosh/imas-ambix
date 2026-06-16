@@ -19,8 +19,8 @@
   <title>Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-15">
-<meta name="plan-version" content="12">
+<meta name="plan-modified" content="2026-06-16">
+<meta name="plan-version" content="13">
 <meta name="plan-impl" content="0.7">
 </head>
 <body>
@@ -609,7 +609,7 @@ Done-when
   2. xim/da_hm10_t causal burst-summary wired into conditioning; one matched pair (or eval) trained; paired held-out ELM-frame NLL: +HF-Da vs slow-only vs shuffled-Da, bootstrap CI.
   3. tests green; followup written (FiLM promotion + Mirnov gated on a positive) + this one resolved; plan updated same-session.</pre>
     </article>
-<article class="r-fu" data-id="f-cdw-filament-fix" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-15" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-cdw-filament-fix" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-15" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0" data-resolved-at="2026-06-16T03:57:22+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Restore persistent edge filaments — ship sampled decode (A) + structure-aware retrain (C) in parallel</h4>
     <div class="r-fu-body"><p>Fork in <code>c-cdw-filament-decode</code> RESOLVED by the lead: <strong>go with A (sampled realism) and follow up with C (deeper structure-aware retrain) in parallel</strong> on the idle H200s. Two in-flight workstreams, cleanly separable (A = decode-time on existing checkpoints, no model.py/train.py edits; C = retrain owning model.py/train.py/configs): <strong>(A) ship sampled decode</strong> — harden the structure probe so its verdict measures CORRECTNESS not gameable texture (raw-GT reference, a location-sensitive masked-edge-SSIM/structure-function term, a frame-to-frame temporal term, a spectrum-matched-coloured-noise negative control + persistence baseline, recalibrated hedging threshold, seed-averaged on BOTH arms/multiple windows); implement a TRUTH-FREE coherent decoder (bit-beam over the head's own most-uncertain bits — the oracle joint decode is unshippable); wire <code>--decode {map,bernoulli,beam}</code>+<code>--temp</code> into the renderers with MAP as the scoring default; produce sampled-decode demo figures/GIFs. <strong>(C) structure-aware auxiliary loss</strong> — total = masked_bit_bce + λ·spectral-shape loss (unit-power-normalised, on a differentiable expected-embedding FFT proxy; NO adversarial term — hallucination hazard), behind a config flag (default 0.0, backward-compatible), both arms, λ-swept, NLL gate retained, matched-arm diff = {temporal_attention, run_name}; smoke (VAL+eval+exit) then launch the matched both-arm retrain on 2 idle H200s (authorised to free DeepSeek). <strong>C-v2 (escalation, supervised):</strong> the MaskGIT / discrete-diffusion iterative-masked objective — the principled deeper fix, deferred from the autonomous parallel launch because it is a large bug-prone training-loop rewrite; pursue with supervision if the auxiliary loss underdelivers. Honest caveat retained: sampled decode is provably less token-accurate than MAP (sharp-but-possibly-displaced) and exact filament placement is partly aleatoric — MAP stays the physical-mean/scoring path; the W1 favours_dynamics verdict is unchanged by A (decode-only).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -640,6 +640,42 @@ Done-when
   2. C landed: aux-loss matched pair trained; paired held-out structure-score + NLL/top-1 vs the cap_v1 bar; λ-sweep trade reported; verdict on whether the retrain beats sampled-MAP on correctness.
   3. Branched record written into camera-dynamics-elm-fidelity.html (or a companion) + this followup resolved; C-v2 (MaskGIT) queued only if the aux loss underdelivers.
 </pre>
+    <p class="r-fu-outcome">FILAMENT-FIDELITY ARC CLOSED with a sound verdict. (A) Sampled/beam/MaskGIT decode all SHIPPED (token_sampling.py, --decode flag) but are VISUALISATION-only: the hardened, background-decontaminated, coloured-noise-controlled metric proved NO decoder beats MAP on located correctness (residual over persistence: MAP +0.071 band / +0.094 filament-cell > MaskGIT +0.047 > beam +0.040 > bernoulli +0.013); MaskGIT's temporal 'win' is a saturated-metric artifact (coloured noise also beats MAP on Δframe-SSIM). Decode is EXHAUSTED as a correctness lever. (C-v1) the spectral structure-aux loss was KILLED (λ=0.05 no-op + GPU-starved). (GATE, commit 61fb85e) the decisive within-arm decontaminated placement trajectory over 20 checkpoints = VERDICT FLOOR: dynamics MAP forecasts persistent-filament PLACEMENT +0.094 over persistence (real, dynamic-range-verified) but the residual PLATEAUED by mid-training (tail slope +3.5e-5/1k) and filament entropy stopped falling — convergence will NOT sharpen placement. HONEST ENDPOINT for placement: MAP-for-estimate + coherent-sample (MaskGIT) for visualisation; NO placement retrain. Conditioning re-read at convergence was CONFOUNDED (compared full@20k vs none/ip_ne@8k; cond_ablation_final.json left uncommitted); the clean matched-8k ablation stays a wash. The one remaining real, unaddressed lever is TEMPORAL evolution (the model captures ~no correct frame-to-frame filament motion) — but the temporal metric is saturated, so a motion readout must be built+validated BEFORE any temporal retrain. Queued as f-cdw-temporal-readout. Caveat: gate is n=2 windows (trajectory flatness is a strong within-arm trend regardless).</p>
+    </article>
+<article class="r-fu" data-id="f-cdw-temporal-readout" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship camera-dynamics-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build + validate a filament-MOTION readout BEFORE any temporal-evolution retrain</h4>
+    <div class="r-fu-body"><p>The filament-fidelity arc closed (see f-cdw-filament-fix): decode is exhausted, placement is at a FLOOR (convergence won't sharpen it), and the honest endpoint for placement is MAP-for-estimate + coherent-sample (MaskGIT) for viz. The ONE remaining real lever is TEMPORAL evolution — the model captures essentially no correct frame-to-frame filament MOTION (temporal edge-Δframe-SSIM ≈ noise floor for every decode, including MAP). BUT that temporal metric is SATURATED/gameable (coloured noise beats MAP on it), so no temporal-evolution retrain can be judged until a real motion readout exists. This followup builds and VALIDATES that readout FIRST; the retrain is gated on it.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    camera-dynamics-wm-v0 (http://localhost:8765/imas-ambix/camera-dynamics-wm-v0.html)
+Section: §5 — temporal-evolution readout (gate for any temporal retrain)
+Tier:    opus
+
+Context
+  Filament PLACEMENT is at a floor (f-cdw-filament-fix; gate commit 61fb85e). The remaining lever is
+  TEMPORAL evolution, but the current Δframe edge-SSIM metric is saturated (coloured noise beats MAP).
+  Build a motion readout that actually discriminates correct filament motion, BEFORE any retrain.
+
+State to read (CODE/FILES)
+  imas_ambix/camdyn/structure_fidelity.py + placement_trajectory.py  (the decontaminated-metric machinery to reuse)
+  imas_ambix/camdyn/token_sampling.py  (MAP / maskgit / oracle / persistence decoders)
+  imas_ambix/camdyn/artifacts/{structure_fidelity.json, placement_trajectory.json}  (the saturated-temporal evidence)
+  /work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt (+ baseline)
+
+Scope locks / constraints
+  - Build a MOTION readout (e.g. optical-flow / cross-correlation displacement of the predicted-vs-GT
+    DIFFERENCE field, or a phase/location-sensitive Δframe structure score) on the FILAMENT cells.
+  - VALIDATE dynamic range BEFORE trusting it: it MUST score persistence ~0 (frozen), oracle HIGH,
+    coloured-noise ~0, and separate MAP from persistence. If it cannot, report that and do NOT proceed to a retrain.
+  - Eval-only on existing checkpoints first. NO retrain until the readout is validated.
+  - Only if the readout discriminates: design a Δframe temporal-consistency auxiliary loss on the
+    differentiable expected-intensity field (model.py:577), both arms byte-identical, temporal_attention
+    the sole diff, NLL gate retained, pinned in a dedicated config. ONE change per arm-pair.
+  - Naming hygiene; do NOT touch sequential_da.py; matched-arm contract.
+
+Done-when
+  1. Motion readout implemented + dynamic-range validated (persistence~0 / oracle-high / noise~0 / MAP-separable) on existing checkpoints; figure + numbers committed.
+  2. Verdict: does MAP already capture filament motion (readout high) or not (readout low → a temporal retrain has headroom)?
+  3. IF headroom: the temporal-consistency loss design + a matched both-arm retrain plan; ELSE: record that temporal is also at floor and the honest endpoint stands (MAP+sample). Followup written + this one resolved; plan updated same-session.</pre>
     </article>
 </section>
 
