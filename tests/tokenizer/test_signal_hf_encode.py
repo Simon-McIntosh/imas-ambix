@@ -91,6 +91,32 @@ def test_encode_synthetic_window_to_store(tmp_path, monkeypatch):
     assert g.token_time[0] >= g.attrs.original_window[0]
 
 
+def test_continuous_encode_persists_embedding(tmp_path, monkeypatch):
+    """A continuous bottleneck stores the latent (the discrete ids are vestigial)."""
+    import imas_ambix.tokenizer.store_v2 as store_mod
+
+    monkeypatch.setattr(store_mod, "TOKEN_ROOT", tmp_path)
+
+    rng = np.random.default_rng(3)
+    T, C = 64 * 30, 4
+    data = rng.standard_normal((C, T)).astype(np.float32)
+    chan = [f"da_ch{i}" for i in range(C)]
+    monkeypatch.setattr(
+        enc,
+        "load_shot_window",
+        lambda s, g: (data, chan, np.ones(C, bool), 50_000.0, (0.0, T / 50_000.0)),
+    )
+
+    tok = _train_tiny_tokenizer(C, bottleneck="continuous")
+    tok.name = enc.XIM_SPEC.patch_block
+    enc.encode_shots("xim", [555], tok)
+
+    g = load_signal_hf_tokens(555, "xim")
+    assert g.attrs.metadata["bottleneck"] == "continuous"
+    assert g.embedding is not None  # phase-preserving payload stored
+    assert g.embedding.shape[:2] == g.tokens.shape  # (P, C, d)
+
+
 def test_encode_skips_missing_shot(tmp_path, monkeypatch):
     import imas_ambix.tokenizer.store_v2 as store_mod
 

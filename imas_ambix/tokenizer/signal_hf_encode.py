@@ -339,7 +339,7 @@ def encode_shots(
             continue
         data, chan, valid_ch, native_rate, window = w
         try:
-            ids, _recon = tokenizer.encode_window(data)  # (C, P), (C, T)
+            ids, latent, _recon = tokenizer.encode_window(data)  # (C,P),(C,P,d),(C,T)
         except Exception as exc:  # pragma: no cover - corpus robustness
             summary["skipped"].append({"shot": sid, "reason": f"encode_error:{exc}"})
             continue
@@ -372,10 +372,26 @@ def encode_shots(
                 "patch_size": cfg.patch_size,
                 "use_stft": cfg.use_stft,
                 "codebook_size": patch_vocab,
+                "embed_dim": int(latent.shape[-1]),
             },
         )
+        # For a continuous bottleneck the discrete ids are vestigial — persist
+        # the per-token-per-channel latent (P, C, d) as the phase-preserving
+        # payload.  For a quantised bottleneck the ids carry the information,
+        # so the embedding is omitted to keep the store compact.
+        embedding = (
+            np.transpose(latent, (1, 0, 2))  # (C,P,d) → (P,C,d)
+            if cfg.bottleneck == "continuous"
+            else None
+        )
         save_signal_hf_tokens(
-            sid, group, global_ids, token_time, token_valid.copy(), attrs
+            sid,
+            group,
+            global_ids,
+            token_time,
+            token_valid.copy(),
+            attrs,
+            embedding=embedding,
         )
 
         # Cross-channel mode-number tokens for a coil array.

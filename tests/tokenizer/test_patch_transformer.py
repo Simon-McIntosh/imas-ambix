@@ -96,8 +96,10 @@ def test_tokenizer_fit_encode_shapes(bottleneck):
     hist = tok.fit(windows, epochs=2, batch_channels=16, seed=0)
     assert len(hist["recon"]) == 2
 
-    ids, recon = tok.encode_window(windows[0])
+    ids, latent, recon = tok.encode_window(windows[0])
     assert ids.shape == (C, T // 64)
+    assert latent.shape[:2] == (C, T // 64)
+    assert latent.ndim == 3  # (C, P, embed_dim)
     assert recon.shape == (C, T)
 
     m = tok.roundtrip_metrics(windows[0], dt=1 / 5e4, is_coil_array=True)
@@ -123,13 +125,13 @@ def test_tokenizer_save_load(tmp_path):
     )
     tok = PatchTransformerTokenizer(cfg=cfg, device="cpu")
     tok.fit(windows, epochs=1, seed=0)
-    ids0, recon0 = tok.encode_window(windows[0])
+    ids0, _lat0, recon0 = tok.encode_window(windows[0])
 
     path = tmp_path / "tok.pt"
     tok.save(path)
 
     tok2 = PatchTransformerTokenizer(device="cpu")
     tok2.load(path)
-    ids1, recon1 = tok2.encode_window(windows[0])
+    ids1, _lat1, recon1 = tok2.encode_window(windows[0])
     np.testing.assert_array_equal(ids0, ids1)
     np.testing.assert_allclose(recon0, recon1, atol=1e-5)

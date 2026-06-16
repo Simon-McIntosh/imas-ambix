@@ -597,20 +597,26 @@ class PatchTransformerTokenizer:
 
     # -- inference ----------------------------------------------------------
 
-    def _reconstruct_feats(self, feats: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _reconstruct_feats(
+        self, feats: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         import torch
 
         self._model.eval()
         with torch.no_grad():
             fb = torch.tensor(feats, device=self.device)
-            recon, ids, _ = self._model(fb)
-        return recon.cpu().numpy(), ids.cpu().numpy()
+            zq, ids, _ = self._model.encode(fb)
+            recon = self._model.decode(zq)
+        return recon.cpu().numpy(), ids.cpu().numpy(), zq.cpu().numpy()
 
-    def encode_window(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Encode a ``(C, T)`` window → ``(codes (C,P), recon (C,T))``.
+    def encode_window(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Encode a ``(C, T)`` window → ``(codes (C,P), latent (C,P,d), recon)``.
 
         ``codes`` are local per-patch ids (0 for the continuous bottleneck);
-        ``recon`` is the reconstructed signal in native units (de-normalised).
+        ``latent`` is the per-patch bottleneck embedding — for the continuous
+        bottleneck this carries the phase-preserving payload (the discrete ids
+        are vestigial), so the store persists it alongside the ids.  ``recon``
+        is the reconstructed signal in native units (de-normalised).
         """
         if self._model is None:
             raise RuntimeError("call fit() or load() before encode_window()")
@@ -619,14 +625,18 @@ class PatchTransformerTokenizer:
             x = x[None, :]
         z, means, stds = self._normalise(x, fit=False)
         feats, n_pad = self._features(z)  # (C, P, feat)
-        recon_feats, ids = self._reconstruct_feats(feats)  # (C, P, feat), (C, P)
+        recon_feats, ids, latent = self._reconstruct_feats(feats)
         if self.cfg.use_stft:
             recon_patches = stft_unlift(recon_feats, self.cfg.patch_size)
         else:
             recon_patches = recon_feats
         recon_z = unpatchify(recon_patches, n_pad)  # (C, T) normalised
         recon = recon_z * stds + means  # de-normalise with the SAME per-window stats
-        return ids.astype(np.int64), recon.astype(np.float32)
+        return (
+            ids.astype(np.int64),
+            latent.astype(np.float32),
+            recon.astype(np.float32),
+        )
 
     def roundtrip_metrics(
         self, x: np.ndarray, *, dt: float, is_coil_array: bool = False
@@ -639,7 +649,7 @@ class PatchTransformerTokenizer:
         x = np.asarray(x, dtype=np.float32)
         if x.ndim == 1:
             x = x[None, :]
-        ids, recon = self.encode_window(x)
+        ids, _latent, recon = self.encode_window(x)
         out: dict[str, float] = {
             "recon_crps": reconstruction_crps(x, recon),
             "phase_err": phase_error(x, recon, dt=dt),

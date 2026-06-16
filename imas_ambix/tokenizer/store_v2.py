@@ -172,6 +172,12 @@ class SignalHFTokens:
     token_time: np.ndarray  # (n_tokens,) float64 — per-token time (s)
     valid: np.ndarray  # (n_tokens, n_channels) bool — per-channel validity
     attrs: StoreV2Attrs
+    # Optional per-token-per-channel continuous embedding.  When the chosen
+    # tokenizer is a continuous-embedding+mask bottleneck (no quantisation),
+    # the discrete ``tokens`` are vestigial and the phase-preserving payload
+    # lives here, shape ``(n_tokens, n_channels, embed_dim)`` float32.  ``None``
+    # for a quantised tokenizer whose ``tokens`` carry the full information.
+    embedding: np.ndarray | None = None
 
     @property
     def n_tokens(self) -> int:
@@ -229,6 +235,7 @@ def save_signal_hf_tokens(
     valid: np.ndarray,
     attrs: StoreV2Attrs,
     *,
+    embedding: np.ndarray | None = None,
     store_generation: str = STORE_GENERATION,
 ) -> Path:
     """Write one native-cadence, phase-preserving token group to Zarr.
@@ -250,6 +257,11 @@ def save_signal_hf_tokens(
         honour the mask rather than treat zeros as real readings.
     attrs:
         The required attribute block.
+    embedding:
+        Optional ``(n_tokens, n_channels, embed_dim)`` float32 continuous
+        latent.  Written when the chosen tokenizer is a continuous-embedding
+        bottleneck whose discrete ``tokens`` are vestigial — the
+        phase-preserving payload then lives here.
 
     Returns
     -------
@@ -275,6 +287,13 @@ def save_signal_hf_tokens(
         raise ValueError(
             f"attrs.n_channels {attrs.n_channels} != tokens n_channels {n_ch}"
         )
+    if embedding is not None:
+        embedding = np.asarray(embedding, dtype=np.float32)
+        if embedding.ndim != 3 or embedding.shape[:2] != (n_tok, n_ch):
+            raise ValueError(
+                f"embedding shape {embedding.shape} must be "
+                f"(n_tokens={n_tok}, n_channels={n_ch}, embed_dim)"
+            )
 
     path = signal_hf_token_path(shot_id, group, store_generation)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -283,8 +302,16 @@ def save_signal_hf_tokens(
     store.create_array("tokens", data=tokens)
     store.create_array("token_time", data=token_time)
     store.create_array("valid", data=valid)
+    if embedding is not None:
+        store.create_array("embedding", data=embedding)
     out_attrs = attrs.to_attrs()
-    out_attrs.update({"shot_id": int(shot_id), "group": str(group)})
+    out_attrs.update(
+        {
+            "shot_id": int(shot_id),
+            "group": str(group),
+            "has_embedding": embedding is not None,
+        }
+    )
     store.attrs.update(out_attrs)
     return path
 
@@ -302,9 +329,16 @@ def load_signal_hf_tokens(
     path = signal_hf_token_path(shot_id, group, store_generation)
     store = zarr.open_group(str(path), mode="r")
     attrs = StoreV2Attrs.from_attrs(dict(store.attrs))
+    arrays = set(store.array_keys())
+    embedding = (
+        np.asarray(store["embedding"], dtype=np.float32)
+        if "embedding" in arrays
+        else None
+    )
     return SignalHFTokens(
         tokens=np.asarray(store["tokens"], dtype=np.int32),
         token_time=np.asarray(store["token_time"], dtype=np.float64),
         valid=np.asarray(store["valid"], dtype=bool),
         attrs=attrs,
+        embedding=embedding,
     )

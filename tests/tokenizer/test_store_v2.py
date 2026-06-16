@@ -115,6 +115,60 @@ def test_save_load_roundtrip(tmp_path, monkeypatch):
     assert loaded.n_channels == n_ch
 
 
+def test_save_load_with_embedding(tmp_path, monkeypatch):
+    """The optional continuous-latent embedding round-trips through the store."""
+    import imas_ambix.tokenizer.store_v2 as mod
+
+    monkeypatch.setattr(mod, "TOKEN_ROOT", tmp_path)
+
+    n_tok, n_ch, d = 12, 3, 8
+    rng = np.random.default_rng(2)
+    tokens = np.zeros((n_tok, n_ch), dtype=np.int32)  # vestigial for continuous
+    token_time = np.linspace(0.0, 0.32, n_tok)
+    valid = np.ones((n_tok, n_ch), dtype=bool)
+    embedding = rng.standard_normal((n_tok, n_ch, d)).astype(np.float32)
+    attrs = _make_attrs()
+
+    save_signal_hf_tokens(
+        42, "xma", tokens, token_time, valid, attrs, embedding=embedding
+    )
+    loaded = load_signal_hf_tokens(42, "xma")
+    assert loaded.embedding is not None
+    assert loaded.embedding.shape == (n_tok, n_ch, d)
+    np.testing.assert_allclose(loaded.embedding, embedding, atol=1e-6)
+
+
+def test_embedding_omitted_loads_none(tmp_path, monkeypatch):
+    import imas_ambix.tokenizer.store_v2 as mod
+
+    monkeypatch.setattr(mod, "TOKEN_ROOT", tmp_path)
+    save_signal_hf_tokens(
+        43,
+        "xma",
+        np.zeros((4, 3), np.int32),
+        np.arange(4.0),
+        np.ones((4, 3), bool),
+        _make_attrs(),
+    )
+    assert load_signal_hf_tokens(43, "xma").embedding is None
+
+
+def test_save_rejects_bad_embedding_shape(tmp_path, monkeypatch):
+    import imas_ambix.tokenizer.store_v2 as mod
+
+    monkeypatch.setattr(mod, "TOKEN_ROOT", tmp_path)
+    with pytest.raises(ValueError, match="embedding shape"):
+        save_signal_hf_tokens(
+            44,
+            "xma",
+            np.zeros((4, 3), np.int32),
+            np.arange(4.0),
+            np.ones((4, 3), bool),
+            _make_attrs(),
+            embedding=np.zeros((4, 2, 8), np.float32),  # n_channels mismatch
+        )
+
+
 def test_save_rejects_shape_mismatch(tmp_path, monkeypatch):
     import imas_ambix.tokenizer.store_v2 as mod
 
