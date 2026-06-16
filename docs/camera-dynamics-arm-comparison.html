@@ -289,6 +289,49 @@
       Morphology Response</a>.
     </p>
 
+    <h2 id="s5a-filament">§5a.2 — Filament-preserving decode: MAP estimate vs coherent sample</h2>
+    <p>
+      The head emits 18 independent per-bit logits per cell, and over the genuinely-forecast
+      post-frontier edge the persistent SOL/edge filaments carry real aleatoric uncertainty about
+      their exact placement — the per-bit entropy there sits near <strong>0.5 bit/bit</strong> (the
+      model hedges over where each striation lands). The default <em>MAP</em> decode
+      (<code>id = Σ_b (z_b &gt; 0) ≪ b</code>) collapses that hedge to its per-cell mode, producing
+      the smooth, located-optimal blur seen in row 2: the bright column and gross morphology are
+      right, but the fine filament texture is averaged away. A <em>MaskGIT</em> coherent sample of the
+      <strong>same</strong> forward pass instead commits cells iteratively — re-forwarding the model so
+      each committed cell conditions its still-masked neighbours via the model's own
+      <code>[MASK]</code>-embedding path — and restores the GT-like striated edge texture in row 3.
+      The two rows decode the identical dynamics model; only the decode rule differs.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/filament-preserving-recon.gif"
+           alt="Filament-preserving recon animation: ground truth | dynamics MAP | dynamics MaskGIT"
+           style="max-width:100%">
+      <figcaption><strong>Filament-preserving decode</strong> (shot 24065, 260–265 ms, frontier@f8 so
+      the right-hand columns are genuinely forecast): <em>row 1</em> raw rbb ground truth (the
+      strongest-persistent-edge window the structure-fidelity probe selected); <em>row 2</em> the
+      dynamics <strong>MAP</strong> estimate — visibly blurred over filament placement; <em>row 3</em>
+      a dynamics <strong>MaskGIT</strong> coherent sample (T=0.8) — sharp, statistically GT-like
+      filament texture. The MaskGIT row is the filament-preserving <em>visualisation</em>; it is
+      <strong>not</strong> more located-correct than MAP — on the hardened located edge-SSIM metric no
+      decoder beats MAP (MAP +0.094 over persistence on the filament cells vs MaskGIT +0.047). MAP is
+      the located-optimal estimate; MaskGIT is the realistic-texture sample. Static panel:
+      <a href="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-filament-preserving.png">fig-cdw-filament-preserving</a>.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-filament-preserving.png"
+           alt="Static three-row panel: ground truth | dynamics MAP | dynamics MaskGIT over the forecast half"
+           style="max-width:100%">
+      <figcaption><strong>Static panel</strong> over the post-frontier (forecast) columns. The MAP row
+      smooths the edge into soft gradients; the MaskGIT row reinstates the high-frequency striations and
+      speckle the ground truth shows, in the same locations. This is a faithful-texture rendering, not a
+      located-accuracy gain: the genuine located-placement skill is real but at a floor (+0.094 top-1
+      over persistence on filament cells, and plateaued under temperature and seed) — see
+      <a href="camera-dynamics-elm-fidelity.html">camera-dynamics-elm-fidelity</a> and the placement gate
+      for why pushing exact filament placement further is target-sampling-bound, not a decode choice.
+    </figcaption>
+    </figure>
+
     <h2 id="s5b">§5b — Forward horizons: 10 / 50 / 200 ms vs persistence</h2>
     <p>
       The explicit forecasting win condition asks for full-frame reconstruction at physical

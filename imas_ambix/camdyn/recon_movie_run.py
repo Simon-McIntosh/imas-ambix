@@ -165,6 +165,262 @@ def run(
             torch.cuda.empty_cache()
 
 
+# ---------------------------------------------------------------------------
+# Filament-preserving decode: GT | MAP estimate | MaskGIT coherent sample
+# ---------------------------------------------------------------------------
+
+
+def run_filament_recon(
+    out_dir: Path,
+    *,
+    device: str = "cuda",
+    shot: int | None = None,
+    maskgit_temp: float = 0.9,
+    maskgit_rounds: int = 8,
+    seed: int = 0,
+):
+    """Render the GT | MAP | MaskGIT filament-preserving deliverable.
+
+    Reuses the structure-fidelity probe's window selection (the strongest
+    persistent post-frontier edge window of a held-out flat-top shot) and
+    decodes the dynamics arm's SAME forward pass two ways:
+
+    * row 2 — the per-bit MAP token grid (the located-optimal estimate that
+      blurs over exact filament placement);
+    * row 3 — a MaskGIT coherent sample (the filament-preserving visualisation
+      that restores GT-like striated texture).
+
+    Both rows decode the identical model; only the decode rule differs.  The
+    MaskGIT row is NOT more located-correct than MAP (see the hardened
+    structure-fidelity metric) — it is the realistic-texture sample, MAP is the
+    located-optimal estimate.
+    """
+    import torch
+
+    from imas_ambix.camdyn import structure_fidelity as sf
+    from imas_ambix.camdyn.arm_compare import _load_arm
+
+    out_dir = Path(out_dir)
+    work_dir = Path(
+        tempfile.mkdtemp(prefix="camdyn-filgif-", dir=os.environ.get("TMPDIR", "/tmp"))
+    )
+    dev = torch.device(device if torch.cuda.is_available() else "cpu")
+    rng = np.random.default_rng(seed)
+
+    # Reuse the EXACT window the structure-fidelity probe selected (the
+    # strongest persistent post-frontier edge structure on a flat-top shot).
+    shots = (int(shot),) if shot is not None else sf.FLATTOP_SHOTS
+    structure = sf.select_structure_windows(shots=shots)
+    if not structure:
+        raise RuntimeError(
+            "no persistent-edge flat-top window found for filament recon"
+        )
+    # When a single shot is requested only its window is returned; otherwise the
+    # caller picks via --shot, so take the first (highest-edge-power) entry.
+    win = structure[0].window
+    ft = np.asarray(win.frame_time, dtype=float)
+    logger.info(
+        "[filament] window shot %d start %d %.1f-%.1f ms frontier@f%d t=%.1f ms "
+        "edge-power=%.3e (maskgit T=%.2f rounds=%d)",
+        win.shot_id,
+        win.start,
+        ft[0] * 1e3,
+        ft[-1] * 1e3,
+        sf.FRONTIER,
+        ft[sf.FRONTIER] * 1e3,
+        structure[0].edge_power,
+        maskgit_temp,
+        maskgit_rounds,
+    )
+
+    logger.info("[filament] loading dynamics arm on %s", dev)
+    dyn_model, _dc, dyn_stats = _load_arm(rd.DYNAMICS_CKPT, torch, dev)
+
+    try:
+        # ONE forward pass for the whole window → both decode rows derive from
+        # the identical model output (only the decode rule differs).
+        visible, bit_logits = sf.forward_bit_logits(
+            dyn_model, torch, dev, win, dyn_stats, sf.SCENARIO, sf.FRONTIER
+        )
+        map_tokens = sf.decode_map(bit_logits)
+        from imas_ambix.camdyn import token_sampling as ts
+
+        forward_fn = sf.make_forward_fn(dyn_model, torch, dev, win, dyn_stats)
+        maskgit_tokens = ts.maskgit_decode(
+            forward_fn,
+            win.true_tokens,
+            visible,
+            n_rounds=maskgit_rounds,
+            temperature=maskgit_temp,
+            top_k=sf.MASKGIT_TOP_K,
+            confidence_noise=sf.MASKGIT_CONF_NOISE,
+            rng=rng,
+        )
+    finally:
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            del dyn_model
+        if dev.type == "cuda":
+            torch.cuda.empty_cache()
+
+    # decode the three token grids (true / MAP / MaskGIT) through the frozen
+    # VQModel in one batched pass.
+    bb = BundleBuilder()
+    wi = bb.add_window(_meta_for(win, [sf.SCENARIO]))
+    bb.add_grid(win.true_tokens, wi, sf.SCENARIO, "true")
+    bb.add_grid(map_tokens, wi, sf.SCENARIO, "map")
+    bb.add_grid(maskgit_tokens, wi, sf.SCENARIO, "maskgit")
+    token_bundle = work_dir / "tokens.npz"
+    image_bundle = work_dir / "images.npz"
+    bb.save(token_bundle)
+    rd.run_decode_subprocess(token_bundle, image_bundle, "cuda")
+
+    data = np.load(str(image_bundle), allow_pickle=True)
+    images = np.asarray(data["images"], dtype=np.uint8)
+    index = json.loads(str(data["index"]))
+    meta = json.loads(str(data["meta"]))
+    slot = {(e["window"], e["scenario"], e["role"]): e["slot"] for e in index}
+    raw = rd.load_raw_frames(win.shot_id, win.start, win.true_tokens.shape[0])
+
+    _render_filament_gif(
+        sf.SCENARIO,
+        meta[wi],
+        images,
+        slot,
+        wi,
+        raw,
+        frontier=sf.FRONTIER,
+        out_path=out_dir / "filament-preserving-recon.gif",
+    )
+    _render_filament_panel(
+        sf.SCENARIO,
+        meta[wi],
+        images,
+        slot,
+        wi,
+        raw,
+        frontier=sf.FRONTIER,
+        out_path=out_dir / "fig-cdw-filament-preserving.png",
+        maskgit_temp=maskgit_temp,
+    )
+
+
+def _render_filament_gif(
+    scenario,
+    meta_entry,
+    images,
+    slot,
+    window_index,
+    raw,
+    *,
+    frontier,
+    out_path,
+):
+    """3-row GIF: GT | dynamics MAP | dynamics MaskGIT, marching forward."""
+    ft = np.asarray(meta_entry["frame_time"], dtype=float)
+    map_img = images[slot[(window_index, scenario, "map")]]
+    mg_img = images[slot[(window_index, scenario, "maskgit")]]
+    cols = _gif_columns(ft.shape[0])
+    frames = []
+    for fi in cols:
+        gt_src = (
+            raw[fi].astype(np.float64)
+            if (raw is not None and fi < raw.shape[0])
+            else rd._to_aspect(map_img[fi]).astype(np.float64)
+        )
+        vmin, vmax = rd.display_limits(gt_src)
+        gt_u = mv.to_native_gray(mv.normalise_for_display(gt_src, vmin, vmax))
+        map_u = mv.normalise_for_display(rd._to_aspect(map_img[fi]), vmin, vmax)
+        mg_u = mv.normalise_for_display(rd._to_aspect(mg_img[fi]), vmin, vmax)
+        phase = "observed" if fi < frontier else "FORECAST"
+        dt_ms = (ft[fi] - ft[frontier]) * 1e3
+        frame = mv.panel_strip(
+            [gt_u, map_u, mg_u],
+            ["ground truth", "dynamics MAP", "dynamics MaskGIT"],
+            scale=3,
+            counter=f"f{fi} t{dt_ms:+.1f}ms {phase}",
+        )
+        frames.append(frame)
+    mv.write_gif(frames, out_path, duration_ms=200)
+    logger.info(
+        "[filament] %s: shot %d %s %.0f-%.0f ms, %d frames",
+        out_path.name,
+        meta_entry["shot_id"],
+        scenario,
+        ft[0] * 1e3,
+        ft[-1] * 1e3,
+        len(frames),
+    )
+
+
+def _render_filament_panel(
+    scenario,
+    meta_entry,
+    images,
+    slot,
+    window_index,
+    raw,
+    *,
+    frontier,
+    out_path,
+    maskgit_temp,
+):
+    """Static 3-row panel: GT | MAP | MaskGIT over post-frontier columns."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    ft = np.asarray(meta_entry["frame_time"], dtype=float)
+    n_frames = ft.shape[0]
+    # show the post-frontier (genuinely forecast) frames where the persistent
+    # edge filaments live, plus the frontier itself for context.
+    cols = list(np.linspace(frontier, n_frames - 1, 5).round().astype(int))
+    map_img = images[slot[(window_index, scenario, "map")]]
+    mg_img = images[slot[(window_index, scenario, "maskgit")]]
+    row_names = [
+        "truth (raw)",
+        "dynamics MAP\n(located-optimal)",
+        "dynamics MaskGIT\n(coherent sample)",
+    ]
+    fig, axes = plt.subplots(
+        3,
+        len(cols),
+        figsize=(1.7 * len(cols) + 1.6, 1.55 * 3 + 0.7),
+        squeeze=False,
+        constrained_layout=True,
+    )
+    for ci, fi in enumerate(cols):
+        gt = (
+            raw[fi].astype(np.float64)
+            if (raw is not None and fi < raw.shape[0])
+            else rd._to_aspect(map_img[fi]).astype(np.float64)
+        )
+        vmin, vmax = rd.display_limits(gt)
+        triples = [gt, rd._to_aspect(map_img[fi]), rd._to_aspect(mg_img[fi])]
+        dt_ms = (ft[fi] - ft[frontier]) * 1e3
+        for ri in range(3):
+            ax = axes[ri][ci]
+            rd._imshow_cam(ax, triples[ri], vmin=vmin, vmax=vmax)
+            if ri == 0:
+                ax.set_title(f"{dt_ms:+.1f} ms", fontsize=8)
+            if ci == 0:
+                ax.set_ylabel(row_names[ri], fontsize=7)
+    fig.suptitle(
+        "camera-dynamics-wm — filament-preserving decode | "
+        f"shot {meta_entry['shot_id']} | {ft[0] * 1e3:.0f}-{ft[-1] * 1e3:.0f} ms | "
+        f"frontier@f{frontier} (forecast half) | "
+        f"MAP estimate vs MaskGIT T={maskgit_temp:.1f} coherent sample | "
+        "per-column GT 1/99-pct norm | frozen decoder",
+        fontsize=9,
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    logger.info("[filament] wrote %s", out_path)
+
+
 def _arm_pred(
     model,
     stats,
@@ -1326,6 +1582,36 @@ def main(argv=None) -> int:
     )
     p.add_argument("--seed", type=int, default=0, help="RNG seed for sampled decoders")
     p.add_argument(
+        "--filament-only",
+        action="store_true",
+        help=(
+            "render ONLY the filament-preserving deliverable (GT | dynamics MAP | "
+            "dynamics MaskGIT coherent sample) on the structure-fidelity window — "
+            "skips the full predict/decode/sweep pipeline (single GPU, short job)"
+        ),
+    )
+    p.add_argument(
+        "--shot",
+        type=int,
+        default=None,
+        help=(
+            "held-out flat-top shot for --filament-only (default: scan the "
+            "structure-fidelity flat-top shots and take the strongest edge window)"
+        ),
+    )
+    p.add_argument(
+        "--maskgit-temp",
+        type=float,
+        default=0.9,
+        help="MaskGIT temperature for the coherent-sample row (--filament-only)",
+    )
+    p.add_argument(
+        "--maskgit-rounds",
+        type=int,
+        default=8,
+        help="MaskGIT parallel commit rounds (--filament-only)",
+    )
+    p.add_argument(
         "--elm-window",
         action="append",
         default=None,
@@ -1346,6 +1632,16 @@ def main(argv=None) -> int:
             (int(s.split(":")[0]), int(s.split(":")[1])) for s in args.elm_window
         )
         logger.info("[movie] targeting verified ELM windows: %s", ELM_CANDIDATES)
+    if args.filament_only:
+        run_filament_recon(
+            Path(args.out),
+            device=args.device,
+            shot=args.shot,
+            maskgit_temp=args.maskgit_temp,
+            maskgit_rounds=args.maskgit_rounds,
+            seed=args.seed,
+        )
+        return 0
     run(
         Path(args.out),
         Path(args.artifact),
