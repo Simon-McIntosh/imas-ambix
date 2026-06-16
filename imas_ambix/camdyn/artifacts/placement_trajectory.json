@@ -1,0 +1,2613 @@
+{
+  "task": "decontaminated filament-placement metric + checkpoint-trajectory reducibility gate",
+  "metric": "filament_located_ssim = per-pixel SSIM(pred, RAW GT 256) averaged over the FILAMENT pixel region only (top-HF lower-edge token cells, 16px blocks); residual = role_ssim - persistence_ssim on those px. Persistence residual = 0 (reference); coloured-noise residual must be <= 0 (dynamic-range check).",
+  "scenario": "frontier",
+  "frontier_frame": 8,
+  "shots": [
+    24446,
+    24065
+  ],
+  "step_points": [
+    1000,
+    2000,
+    3000,
+    4000,
+    5000,
+    6000,
+    7000,
+    8000,
+    9000,
+    10000,
+    11000,
+    12000,
+    13000,
+    14000,
+    15000,
+    16000,
+    17000,
+    18000,
+    19000
+  ],
+  "deterministic": "MAP + persistence are deterministic; oracle joint drawn once (seed 12345); no seed loop",
+  "trajectory": {
+    "dynamics": [
+      {
+        "label": "step1000",
+        "step": 1000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.904541513487666,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8611895756295692,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.0009116692696412576,
+              "oracle_joint": -0.044263607127738025,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.982581255175802,
+            "static_bg_cell_entropy": 7.538704269887048
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5123297914455063,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.41365105417755144,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.1617118805577068,
+              "oracle_joint": 0.06303314328975196,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 8.425978464807066,
+            "static_bg_cell_entropy": 8.919307684648743
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7084356524665861,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6374203149035603,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.08040010564403277,
+          "residual_oracle_vs_persistence": 0.009384768081006967,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 7.704279859991434,
+          "static_bg_cell_entropy": 8.229005977267896
+        }
+      },
+      {
+        "label": "step2000",
+        "step": 2000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9010555392226604,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8549802268397271,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.004397643534646889,
+              "oracle_joint": -0.050472955917580165,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 7.190524453859854,
+            "static_bg_cell_entropy": 8.060481795877251
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5595582893844384,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.41322662427722456,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.20894037849663893,
+              "oracle_joint": 0.06260871338942509,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 8.522060486095468,
+            "static_bg_cell_entropy": 9.11903262308457
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7303069143035494,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6341034255584759,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.10227136748099602,
+          "residual_oracle_vs_persistence": 0.006067878735922461,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 7.85629246997766,
+          "static_bg_cell_entropy": 8.589757209480911
+        }
+      },
+      {
+        "label": "step3000",
+        "step": 3000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.8980672492034882,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8676073769063061,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.007385933553819002,
+              "oracle_joint": -0.03784580585100117,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 5.947636870961748,
+            "static_bg_cell_entropy": 6.665732595931182
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5611126289554111,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.417998261032949,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.21049471806761166,
+              "oracle_joint": 0.06738035014514954,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.527090858521407,
+            "static_bg_cell_entropy": 8.353233519501662
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7295899390794497,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6428028189696275,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.10155439225689633,
+          "residual_oracle_vs_persistence": 0.014767272147074184,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.737363864741578,
+          "static_bg_cell_entropy": 7.509483057716422
+        }
+      },
+      {
+        "label": "step4000",
+        "step": 4000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.886667666337462,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8645010007836529,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.018785516419845272,
+              "oracle_joint": -0.040952181973654356,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.718381987115748,
+            "static_bg_cell_entropy": 7.331192553712273
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5221953929981975,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.42499860170317094,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.17157748211039803,
+              "oracle_joint": 0.07438069081537146,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.664290318028424,
+            "static_bg_cell_entropy": 8.17725545228213
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7044315296678297,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6447498012434119,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.07639598284527638,
+          "residual_oracle_vs_persistence": 0.016714254420858554,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 7.191336152572086,
+          "static_bg_cell_entropy": 7.754224002997201
+        }
+      },
+      {
+        "label": "step5000",
+        "step": 5000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.891104512222149,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8667724174143422,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.014348670535158203,
+              "oracle_joint": -0.03868076534296505,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.755668594565123,
+            "static_bg_cell_entropy": 7.27832168660067
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.48403274463212864,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.4035521621139805,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.13341483374432916,
+              "oracle_joint": 0.052934251226181006,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.914995910329591,
+            "static_bg_cell_entropy": 8.424171782094735
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.6875686284271388,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6351622897641613,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.05953308160458548,
+          "residual_oracle_vs_persistence": 0.0071267429416079775,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 7.3353322524473565,
+          "static_bg_cell_entropy": 7.851246734347702
+        }
+      },
+      {
+        "label": "step6000",
+        "step": 6000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9037189085477804,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8699580175530259,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.001734274209526876,
+              "oracle_joint": -0.03549516520428131,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.419280309273696,
+            "static_bg_cell_entropy": 7.26523305098081
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5160833094432904,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.40206419711436914,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.16546539855549092,
+              "oracle_joint": 0.05144628622656966,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.365753559935354,
+            "static_bg_cell_entropy": 7.983848168831646
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7099011089955354,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6360111073336976,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.08186556217298202,
+          "residual_oracle_vs_persistence": 0.007975560511144175,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.892516934604525,
+          "static_bg_cell_entropy": 7.624540609906228
+        }
+      },
+      {
+        "label": "step7000",
+        "step": 7000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9121360544610755,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8663899129812695,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": 0.006682871703768245,
+              "oracle_joint": -0.03906326977603769,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.498357234304751,
+            "static_bg_cell_entropy": 7.18793610895442
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5157775958060705,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.4225627924382993,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.16515968491827104,
+              "oracle_joint": 0.07194488155049983,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 8.04365018354976,
+            "static_bg_cell_entropy": 8.608987135626712
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7139568251335731,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6444763527097844,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.08592127831101964,
+          "residual_oracle_vs_persistence": 0.01644080588723107,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 7.271003708927255,
+          "static_bg_cell_entropy": 7.898461622290567
+        }
+      },
+      {
+        "label": "step8000",
+        "step": 8000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9015438850088333,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8643444853512733,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.003909297748473928,
+              "oracle_joint": -0.041108697406033956,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.054124717866668,
+            "static_bg_cell_entropy": 6.707921607494427
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5093339854462264,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.4121038594104419,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.15871607455842696,
+              "oracle_joint": 0.06148594852264244,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.425000603623531,
+            "static_bg_cell_entropy": 8.162524487793506
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7054389352275299,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6382241723808576,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.07740338840497651,
+          "residual_oracle_vs_persistence": 0.010188625558304243,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.7395626607451,
+          "static_bg_cell_entropy": 7.435223047643967
+        }
+      },
+      {
+        "label": "step9000",
+        "step": 9000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9032043913411691,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8648143244735802,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.002248791416138096,
+              "oracle_joint": -0.04063885828372704,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.457284055213058,
+            "static_bg_cell_entropy": 6.928525874844393
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5662165142630305,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.4206766292536983,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.21559860337523107,
+              "oracle_joint": 0.07005871836589883,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.548548455969996,
+            "static_bg_cell_entropy": 8.277025085795715
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7347104528020998,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6427454768636393,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.10667490597954649,
+          "residual_oracle_vs_persistence": 0.014709930041085895,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 7.002916255591527,
+          "static_bg_cell_entropy": 7.602775480320054
+        }
+      },
+      {
+        "label": "step10000",
+        "step": 10000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9024392330463054,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8687356733712372,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.0030139497110018842,
+              "oracle_joint": -0.03671750938606999,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.1220207615209326,
+            "static_bg_cell_entropy": 6.571548277335179
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5561217411089721,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.43332217154403596,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.20550383022117258,
+              "oracle_joint": 0.08270426065623648,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.6465097889265765,
+            "static_bg_cell_entropy": 8.366061871298484
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7292804870776387,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6510289224576367,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.10124494025508535,
+          "residual_oracle_vs_persistence": 0.022993375635083246,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.884265275223754,
+          "static_bg_cell_entropy": 7.4688050743168315
+        }
+      },
+      {
+        "label": "step11000",
+        "step": 11000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.8999159176625786,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8668738988826457,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.005537265094728627,
+              "oracle_joint": -0.038579283874661585,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.115137257647061,
+            "static_bg_cell_entropy": 6.645315697408461
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5344647096183471,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.42262150991685865,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.18384679873054766,
+              "oracle_joint": 0.07200359902905917,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.499402192681748,
+            "static_bg_cell_entropy": 8.103330385460472
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7171903136404629,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6447477043997522,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.08915476681790951,
+          "residual_oracle_vs_persistence": 0.016712157577198794,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.807269725164405,
+          "static_bg_cell_entropy": 7.374323041434467
+        }
+      },
+      {
+        "label": "step12000",
+        "step": 12000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.8965990162470735,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8605432256175946,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.00885416651023374,
+              "oracle_joint": -0.044909957139712686,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.294369754895217,
+            "static_bg_cell_entropy": 6.715854050232771
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5308908090496585,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.4059761307627895,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.18027289816185899,
+              "oracle_joint": 0.05535821987499001,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.596357320393334,
+            "static_bg_cell_entropy": 8.10437648892344
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7137449126483659,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.633259678190192,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.08570936582581262,
+          "residual_oracle_vs_persistence": 0.0052241313676386625,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.945363537644276,
+          "static_bg_cell_entropy": 7.410115269578106
+        }
+      },
+      {
+        "label": "step13000",
+        "step": 13000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9004864564607558,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8681799113202213,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.0049667262965514825,
+              "oracle_joint": -0.03727327143708592,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.31464513908463,
+            "static_bg_cell_entropy": 6.8094534540019795
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.569394633752603,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.40433737328629443,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.21877672286480354,
+              "oracle_joint": 0.053719462398494955,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.560378798634605,
+            "static_bg_cell_entropy": 8.169588758651832
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7349405451066794,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6362586423032579,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.10690499828412603,
+          "residual_oracle_vs_persistence": 0.008223095480704518,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.937511968859617,
+          "static_bg_cell_entropy": 7.489521106326906
+        }
+      },
+      {
+        "label": "step14000",
+        "step": 14000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9025616471416176,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8573063816317009,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.0028915356156896665,
+              "oracle_joint": -0.04814680112560632,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.1249396771871805,
+            "static_bg_cell_entropy": 6.823468892914467
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5513896502406606,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.408174388808772,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.20077173935286108,
+              "oracle_joint": 0.057556477920972515,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.370193000307734,
+            "static_bg_cell_entropy": 8.14122428731109
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7269756486911391,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6327403852202365,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.0989401018685857,
+          "residual_oracle_vs_persistence": 0.004704838397683098,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.747566338747458,
+          "static_bg_cell_entropy": 7.482346590112778
+        }
+      },
+      {
+        "label": "step15000",
+        "step": 15000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.896570552752811,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8692474941717241,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.008882630004496295,
+              "oracle_joint": -0.03620568858558315,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.274558071146717,
+            "static_bg_cell_entropy": 6.7996545994721025
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5499560240038175,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.4008601054921183,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.199338113116018,
+              "oracle_joint": 0.050242194604318835,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.46861113773521,
+            "static_bg_cell_entropy": 8.23091157113344
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7232632883783142,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6350537998319212,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.09522774155576086,
+          "residual_oracle_vs_persistence": 0.007018253009367842,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.871584604440963,
+          "static_bg_cell_entropy": 7.515283085302771
+        }
+      },
+      {
+        "label": "step16000",
+        "step": 16000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.8968578570205736,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8600743552696408,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.008595325736733606,
+              "oracle_joint": -0.04537882748766642,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.207397573088094,
+            "static_bg_cell_entropy": 6.800725402516623
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5304554266678987,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.4137587750997882,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.1798375157800992,
+              "oracle_joint": 0.06314086421198872,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.602285415188621,
+            "static_bg_cell_entropy": 8.232103031916495
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7136566418442362,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6369165651847145,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.0856210950216828,
+          "residual_oracle_vs_persistence": 0.008881018362161153,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.904841494138358,
+          "static_bg_cell_entropy": 7.516414217216559
+        }
+      },
+      {
+        "label": "step17000",
+        "step": 17000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.896704913345733,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8679650026688216,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.00874826941157425,
+              "oracle_joint": -0.037488180088485645,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.135181169797928,
+            "static_bg_cell_entropy": 6.749350535633208
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5592985179796897,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.40773633238658014,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.20868060709189018,
+              "oracle_joint": 0.05711842149878066,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.255162484653178,
+            "static_bg_cell_entropy": 8.07070488503301
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7280017156627113,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6378506675277009,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.09996616884015797,
+          "residual_oracle_vs_persistence": 0.009815120705147506,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.695171827225553,
+          "static_bg_cell_entropy": 7.410027710333109
+        }
+      },
+      {
+        "label": "step18000",
+        "step": 18000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9069558113713193,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8649410839681432,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": 0.0015026286140120693,
+              "oracle_joint": -0.040512098789164064,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.050716142701904,
+            "static_bg_cell_entropy": 6.681556254842818
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5442800540868791,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.3951886269000176,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.1936621431990796,
+              "oracle_joint": 0.044570716012218126,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.404285534293918,
+            "static_bg_cell_entropy": 8.150920752728286
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7256179327290992,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6300648554340804,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.09758238590654583,
+          "residual_oracle_vs_persistence": 0.002029308611527031,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.727500838497911,
+          "static_bg_cell_entropy": 7.416238503785552
+        }
+      },
+      {
+        "label": "step19000",
+        "step": 19000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9034613355454306,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8649144653727522,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.0019918472118766184,
+              "oracle_joint": -0.040538717384555056,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.004497539419711,
+            "static_bg_cell_entropy": 6.639621592574815
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5294328209883938,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.420823985030626,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.17881491010059436,
+              "oracle_joint": 0.07020607414282654,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.228657456675607,
+            "static_bg_cell_entropy": 8.053479527349761
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7164470782669122,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6428692252016891,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.08841153144435887,
+          "residual_oracle_vs_persistence": 0.01483367837913574,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.6165774980476595,
+          "static_bg_cell_entropy": 7.346550559962289
+        }
+      },
+      {
+        "label": "final",
+        "step": 20000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.9122950218671421,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.8669426224974203,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": 0.006841839109834824,
+              "oracle_joint": -0.03851056025988697,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 6.134239452665626,
+            "static_bg_cell_entropy": 6.755298823084661
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.5323220869270182,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.3977019908630744,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.18170417603921873,
+              "oracle_joint": 0.04708407997527492,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.467679092250242,
+            "static_bg_cell_entropy": 8.19891127749858
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.7223085543970802,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.6323223066802474,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": 0.09427300757452678,
+          "residual_oracle_vs_persistence": 0.0042867598576939725,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 6.800959272457934,
+          "static_bg_cell_entropy": 7.47710505029162
+        }
+      }
+    ],
+    "baseline": [
+      {
+        "label": "step1000",
+        "step": 1000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.22223339570109424,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6656291397402656,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.683219787056213,
+              "oracle_joint": -0.23982404301704163,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 12.000822880656285,
+            "static_bg_cell_entropy": 11.661516464163773
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.17545636366575373,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.3450894798052033,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": -0.17516154722204574,
+              "oracle_joint": -0.0055284310825961525,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 11.915781947703824,
+            "static_bg_cell_entropy": 11.733012634070263
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.198844879683424,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5053593097727345,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.42919066713912934,
+          "residual_oracle_vs_persistence": -0.12267623704981889,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 11.958302414180054,
+          "static_bg_cell_entropy": 11.697264549117019
+        }
+      },
+      {
+        "label": "step2000",
+        "step": 2000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.09982640797767887,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6281199215585108,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.8056267747796284,
+              "oracle_joint": -0.2773332611987964,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 11.05860103780997,
+            "static_bg_cell_entropy": 10.742445804425467
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.29467460084464026,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.36042690397999005,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": -0.05594331004315922,
+              "oracle_joint": 0.009808993092190577,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 11.21443411165423,
+            "static_bg_cell_entropy": 11.392671387324402
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.19725050441115957,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.4942734127692504,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.4307850424113938,
+          "residual_oracle_vs_persistence": -0.13376213405330292,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 11.1365175747321,
+          "static_bg_cell_entropy": 11.067558595874935
+        }
+      },
+      {
+        "label": "step3000",
+        "step": 3000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.14563864593853199,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6816747327479984,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.7598145368187752,
+              "oracle_joint": -0.22377845000930885,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 11.718415034725183,
+            "static_bg_cell_entropy": 11.396445130269491
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.15806897333778025,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.35041105477715445,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": -0.19254893755001923,
+              "oracle_joint": -0.00020685611064502618,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 11.637902002571396,
+            "static_bg_cell_entropy": 11.592143074447524
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.15185380963815612,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5160428937625764,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.4761817371843972,
+          "residual_oracle_vs_persistence": -0.11199265305997694,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 11.678158518648289,
+          "static_bg_cell_entropy": 11.494294102358507
+        }
+      },
+      {
+        "label": "step4000",
+        "step": 4000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.1301551651118352,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6965534828995397,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.775298017645472,
+              "oracle_joint": -0.20889969985776757,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.821198403940743,
+            "static_bg_cell_entropy": 10.55821526162237
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.312590302624584,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.37091558190958945,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": -0.038027608263215495,
+              "oracle_joint": 0.020297671021789976,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 11.321203609358687,
+            "static_bg_cell_entropy": 11.389033619399417
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.2213727338682096,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5337345324045646,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.40666281295434376,
+          "residual_oracle_vs_persistence": -0.0943010144179888,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 11.071201006649716,
+          "static_bg_cell_entropy": 10.973624440510893
+        }
+      },
+      {
+        "label": "step5000",
+        "step": 5000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.07740050300805999,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6711937359651481,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.8280526797492472,
+              "oracle_joint": -0.23425944679215915,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.34686572435127,
+            "static_bg_cell_entropy": 10.27528178315594
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.33418397934321853,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.3561511979866295,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": -0.01643393154458095,
+              "oracle_joint": 0.005533287098829998,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 10.653401957039943,
+            "static_bg_cell_entropy": 10.945657514607516
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.20579224117563927,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5136724669758888,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.4222433056469141,
+          "residual_oracle_vs_persistence": -0.11436307984666458,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 10.500133840695607,
+          "static_bg_cell_entropy": 10.610469648881729
+        }
+      },
+      {
+        "label": "step6000",
+        "step": 6000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.1352355505945265,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.7089505370913741,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.7702176321627807,
+              "oracle_joint": -0.19650264566593312,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.30006369963329,
+            "static_bg_cell_entropy": 10.161853181484616
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.42686277013000884,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.38990611864440683,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.07624485924220936,
+              "oracle_joint": 0.03928820775660735,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 8.750786918239983,
+            "static_bg_cell_entropy": 9.688039209463865
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.2810491603622677,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5494283278678904,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.3469863864602857,
+          "residual_oracle_vs_persistence": -0.07860721895466288,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 9.525425308936637,
+          "static_bg_cell_entropy": 9.924946195474242
+        }
+      },
+      {
+        "label": "step7000",
+        "step": 7000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.10844565699868788,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6065102325965449,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.7970075257586193,
+              "oracle_joint": -0.29894295016076233,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 9.493451302780509,
+            "static_bg_cell_entropy": 9.609355891550578
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.45395524239856333,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.38305484858325617,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.10333733151076385,
+              "oracle_joint": 0.03243693769545669,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 9.709047680094704,
+            "static_bg_cell_entropy": 10.224761874140864
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.2812004496986256,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.49478254058990057,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.34683509712392774,
+          "residual_oracle_vs_persistence": -0.13325300623265282,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 9.601249491437606,
+          "static_bg_cell_entropy": 9.917058882845721
+        }
+      },
+      {
+        "label": "step8000",
+        "step": 8000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.08194177591581955,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6633227518109229,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.8235114068414877,
+              "oracle_joint": -0.2421304309463843,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.14872475690679,
+            "static_bg_cell_entropy": 10.240051266313312
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.161251026396105,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.34885625668595643,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": -0.18936688449169448,
+              "oracle_joint": -0.0017616542018430437,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 11.760031918792153,
+            "static_bg_cell_entropy": 11.58071614870446
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.12159640115596228,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5060895042484397,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.5064391456665911,
+          "residual_oracle_vs_persistence": -0.12194604257411368,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 10.954378337849471,
+          "static_bg_cell_entropy": 10.910383707508885
+        }
+      },
+      {
+        "label": "step9000",
+        "step": 9000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.11823339735197927,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6697190112819957,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.787219785405328,
+              "oracle_joint": -0.2357341714753115,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.854842662181138,
+            "static_bg_cell_entropy": 10.70361381589457
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.454038586799404,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.39064964883254377,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.10342067591160453,
+              "oracle_joint": 0.040031737944744294,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 9.96377615199741,
+            "static_bg_cell_entropy": 10.555995018557134
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.2861359920756916,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5301843300572697,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.34189955474686173,
+          "residual_oracle_vs_persistence": -0.0978512167652836,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 10.409309407089275,
+          "static_bg_cell_entropy": 10.629804417225852
+        }
+      },
+      {
+        "label": "step10000",
+        "step": 10000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.06621835975988055,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6225001163259283,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.8392348229974267,
+              "oracle_joint": -0.28295306643137896,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 9.164057300720025,
+            "static_bg_cell_entropy": 9.287321043344962
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.40626321967850054,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.39811264547461434,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.055645308790701065,
+              "oracle_joint": 0.04749473458681486,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 9.383840479409598,
+            "static_bg_cell_entropy": 10.223695506395986
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.23624078971919055,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5103063809002713,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.3917947571033628,
+          "residual_oracle_vs_persistence": -0.11772916592228205,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 9.273948890064812,
+          "static_bg_cell_entropy": 9.755508274870474
+        }
+      },
+      {
+        "label": "step11000",
+        "step": 11000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.052865025152132414,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6292300029608038,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.8525881576051748,
+              "oracle_joint": -0.27622317979650346,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 9.337234993383438,
+            "static_bg_cell_entropy": 9.430487362612515
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.239126121682794,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.3532561980527354,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": -0.11149178920500546,
+              "oracle_joint": 0.002638287164935915,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 7.760731912217261,
+            "static_bg_cell_entropy": 9.683794149315077
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.14599557341746322,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.49124310050676956,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.48203997340509014,
+          "residual_oracle_vs_persistence": -0.13679244631578377,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 8.54898345280035,
+          "static_bg_cell_entropy": 9.557140755963797
+        }
+      },
+      {
+        "label": "step12000",
+        "step": 12000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.08406752141720189,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6147676712681416,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.8213856613401054,
+              "oracle_joint": -0.29068551148916566,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 9.317037338337432,
+            "static_bg_cell_entropy": 9.371741798252605
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.3646279163536333,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.36442559528255214,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.014010005465833808,
+              "oracle_joint": 0.013807684394752662,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 10.29328036788314,
+            "static_bg_cell_entropy": 10.656509350148427
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.2243477188854176,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.48959663327534686,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.40368782793713576,
+          "residual_oracle_vs_persistence": -0.1384389135472065,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 9.805158853110285,
+          "static_bg_cell_entropy": 10.014125574200516
+        }
+      },
+      {
+        "label": "step13000",
+        "step": 13000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.10669148899204005,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6803509435151635,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.7987616937652672,
+              "oracle_joint": -0.2251022392421438,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.328706090774173,
+            "static_bg_cell_entropy": 10.290905517740223
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.428280676873231,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.38295757321922563,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.07766276598543154,
+              "oracle_joint": 0.032339662331426156,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 9.767584940294785,
+            "static_bg_cell_entropy": 10.28671664270475
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.26748608293263554,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5316542583671946,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.3605494638899178,
+          "residual_oracle_vs_persistence": -0.09638128845535882,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 10.048145515534479,
+          "static_bg_cell_entropy": 10.288811080222487
+        }
+      },
+      {
+        "label": "step14000",
+        "step": 14000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.09801701688081743,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.7211735017976098,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.8074361658764898,
+              "oracle_joint": -0.1842796809596975,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.626377704171425,
+            "static_bg_cell_entropy": 10.511745605432107
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.4303949739330568,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.37823820138449193,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.07977706304525733,
+              "oracle_joint": 0.027620290496692457,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 10.360761957481813,
+            "static_bg_cell_entropy": 10.501191489672808
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.2642059954069371,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5497058515910509,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.36382955141561624,
+          "residual_oracle_vs_persistence": -0.07832969523150252,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 10.493569830826619,
+          "static_bg_cell_entropy": 10.506468547552458
+        }
+      },
+      {
+        "label": "step15000",
+        "step": 15000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.08189868464795189,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6406963602081335,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.8235544981093553,
+              "oracle_joint": -0.26475682254917376,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 9.874627357791887,
+            "static_bg_cell_entropy": 9.7159929421222
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.38725282201231237,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.36929922531428494,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.03663491112451289,
+              "oracle_joint": 0.018681314426485462,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 10.884848801797096,
+            "static_bg_cell_entropy": 10.960262253229468
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.23457575333013214,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5049977927612093,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.3934597934924212,
+          "residual_oracle_vs_persistence": -0.12303775406134415,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 10.379738079794492,
+          "static_bg_cell_entropy": 10.338127597675834
+        }
+      },
+      {
+        "label": "step16000",
+        "step": 16000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.10179760561583917,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6704578118720521,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.8036555771414681,
+              "oracle_joint": -0.23499537088525513,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.448102697816152,
+            "static_bg_cell_entropy": 10.372033185424835
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.3967621714223365,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.3466882697898774,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.04614426053453702,
+              "oracle_joint": -0.003929641097922099,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 9.8935903018789,
+            "static_bg_cell_entropy": 10.532536661860252
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.24927988851908783,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5085730408309648,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.3787556583034655,
+          "residual_oracle_vs_persistence": -0.11946250599158861,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 10.170846499847526,
+          "static_bg_cell_entropy": 10.452284923642544
+        }
+      },
+      {
+        "label": "step17000",
+        "step": 17000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.11763790826944645,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6653110643112323,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.7878152744878608,
+              "oracle_joint": -0.24014211844607491,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.262080021098688,
+            "static_bg_cell_entropy": 10.154833172577604
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.38474235629478315,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.35705666040403944,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.03412444540698367,
+              "oracle_joint": 0.006438749516239961,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 8.63583995716442,
+            "static_bg_cell_entropy": 9.671607584320881
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.2511901322821148,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5111838623576359,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.3768454145404386,
+          "residual_oracle_vs_persistence": -0.11685168446491748,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 9.448959989131554,
+          "static_bg_cell_entropy": 9.913220378449243
+        }
+      },
+      {
+        "label": "step18000",
+        "step": 18000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.12854584023728666,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6972506323866486,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.7769073425200206,
+              "oracle_joint": -0.2082025503706586,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.495793930141641,
+            "static_bg_cell_entropy": 10.462569304299963
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.37137211335925935,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.3597433541625419,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.02075420247145987,
+              "oracle_joint": 0.009125443274742406,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 10.335151851300813,
+            "static_bg_cell_entropy": 10.70578107881607
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.249958976798273,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5284969932745953,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.37807657002428036,
+          "residual_oracle_vs_persistence": -0.0995385535479581,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 10.415472890721226,
+          "static_bg_cell_entropy": 10.584175191558018
+        }
+      },
+      {
+        "label": "step19000",
+        "step": 19000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.12107109218202079,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6392055960738504,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.7843820905752864,
+              "oracle_joint": -0.2662475866834568,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.04924566355589,
+            "static_bg_cell_entropy": 10.141331601916692
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.4624703136149635,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.3635994411662784,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.11185240272716401,
+              "oracle_joint": 0.012981530278478925,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 8.827426646072574,
+            "static_bg_cell_entropy": 9.538756974425866
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.29177070289849216,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5014025186200644,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.3362648439240612,
+          "residual_oracle_vs_persistence": -0.12663302820248895,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 9.438336154814232,
+          "static_bg_cell_entropy": 9.840044288171278
+        }
+      },
+      {
+        "label": "final",
+        "step": 20000,
+        "per_window": [
+          {
+            "shot_id": 24446,
+            "window_ms": [
+              256.056,
+              263.55600000000004
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 48,
+            "filament_located_ssim": {
+              "map": 0.12543503240683673,
+              "persistence": 0.9054531827573072,
+              "oracle_joint": 0.6865769701997542,
+              "coloured_noise": 0.15716799668771575
+            },
+            "residual_vs_persistence": {
+              "map": -0.7800181503504705,
+              "oracle_joint": -0.21887621255755307,
+              "persistence": 0.0,
+              "coloured_noise": -0.7482851860695915
+            },
+            "filament_cell_entropy": 10.421652145733137,
+            "static_bg_cell_entropy": 10.45953321057898
+          },
+          {
+            "shot_id": 24065,
+            "window_ms": [
+              260.48299999999995,
+              264.733
+            ],
+            "n_filament_cells": 22,
+            "n_static_bg_cells": 70,
+            "filament_located_ssim": {
+              "map": 0.39475719711261936,
+              "persistence": 0.3506179108877995,
+              "oracle_joint": 0.36287058044067555,
+              "coloured_noise": 0.11755854870897756
+            },
+            "residual_vs_persistence": {
+              "map": 0.044139286224819885,
+              "oracle_joint": 0.012252669552876072,
+              "persistence": 0.0,
+              "coloured_noise": -0.23305936217882192
+            },
+            "filament_cell_entropy": 10.090055160753867,
+            "static_bg_cell_entropy": 10.492943469733047
+          }
+        ],
+        "aggregate": {
+          "n_windows": 2,
+          "map_filament_ssim": 0.26009611475972805,
+          "persistence_filament_ssim": 0.6280355468225534,
+          "oracle_filament_ssim": 0.5247237753202149,
+          "coloured_noise_filament_ssim": 0.13736327269834664,
+          "residual_map_vs_persistence": -0.3679394320628253,
+          "residual_oracle_vs_persistence": -0.1033117715023385,
+          "residual_coloured_noise_vs_persistence": -0.4906722741242067,
+          "filament_cell_entropy": 10.255853653243502,
+          "static_bg_cell_entropy": 10.476238340156014
+        }
+      }
+    ]
+  },
+  "reducibility_verdict": {
+    "verdict": "FLOOR",
+    "detail": "dynamics filament-placement residual and filament-cell entropy have PLATEAUED by mid-training \u2014 placement is at a floor; ship MAP-for-estimate + coherent-sample-for-viz and spend retrain budget on a temporal-evolution objective (needs a validated motion readout first)",
+    "dynamics_residual_map_vs_persistence_tail_slope_per1k": 3.46816122355903e-05,
+    "dynamics_residual_map_vs_persistence_full_slope_per1k": 0.0006358503978708045,
+    "dynamics_filament_entropy_tail_slope_per1k": -0.03387398962613932,
+    "dynamics_filament_entropy_full_slope_per1k": -0.039612094268093846,
+    "residual_still_climbing": false,
+    "entropy_still_falling": false,
+    "residual_climb_floor_per1k": 0.005,
+    "entropy_fall_floor_per1k": 0.1,
+    "final_residual_map_vs_persistence": 0.09427300757452678,
+    "final_filament_cell_entropy": 6.800959272457934
+  },
+  "figure": "docs/figures/camera-dynamics-wm/fig-cdw-placement-trajectory.png"
+}
