@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-16">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -83,6 +83,66 @@
       <li><strong>Medium-rate bundle</strong> — interferometer <code>ane</code>, bolometer <code>abm</code>,
         reflectometry <code>aoe</code> (lowest priority; some may stay low-rate channels).</li>
     </ul>
+
+    <h2 id="s5">§5 — Level-2 input extension: provenance-based leakage taxonomy</h2>
+    <p>MAST <strong>Level-2</strong> (<code>/work/projects/imas_gpu/mast/level2/shots/&lt;shot&gt;.zarr</code>,
+      FAIR-MAST Zarr V3, IMAS-mapped, <strong>11,573 shots</strong>) is the processed/calibrated tier: physical-unit
+      diagnostics, the EFIT/Solov'ev <strong>equilibrium</strong> reconstruction, derived <strong>summary</strong>
+      globals, and <strong>pf/gas</strong> actuator streams. It is read with the repo's FAIR-MAST pattern
+      (<code>xr.open_zarr(group, consolidated=False)</code> per group — NOT the IMAS AL, NOT h5py).</p>
+    <p><strong>Classification is by <code>uda_name</code> PROVENANCE prefix — the authoritative source field — not by
+      IMAS group name.</strong> An adversarial leakage audit caught <strong>three field-level leaks</strong> that a
+      group-name guard misses because they hide inside <em>allowed</em> groups while being individually
+      <code>esm</code>/<code>xdc</code>-sourced:</p>
+    <ul>
+      <li><code>summary.line_average_n_e</code> = <code>ESM_NE_BAR</code> (Solov'ev 1/m³ volume-average — embeds the
+        EFIT boundary) → <strong>BANNED</strong> (same class as <code>greenwald_density</code>). Use
+        <code>interferometer.n_e_line</code> (<code>ANE_</code>, 1/m²) as the only density input.</li>
+      <li><code>pf_active.coil_voltage</code> = <code>XDC_PF_F_P1</code> (pulse-schedule command) → <strong>BANNED</strong>.
+        Only <code>coil_current</code>/<code>solenoid_current</code> (<code>AMC_</code>) are realised/measured.</li>
+      <li><code>gas_injection.valve_voltage</code> + <code>valve_target_voltage</code> = <code>XDC_GAS_*</code> →
+        <strong>BANNED</strong>. Only <code>inboard/outboard/total_injected</code> (<code>AGA_</code>) are measured.</li>
+    </ul>
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Class</th><th>L2 content (by provenance)</th></tr></thead>
+        <tbody>
+          <tr><td><strong>INPUT</strong> (measured, leakage-free)</td>
+              <td>magnetics B-field/flux/Ip (<code>AMB_</code>/<code>AMC_</code>, multi-rate incl. 500 kHz Mirnov);
+                interferometer <code>n_e_line</code> (<code>ANE_</code>); summary <code>ip</code>(<code>AMC_</code>),
+                <code>power_radiated</code>(<code>ABM_</code>), <code>power_nbi</code>/<code>neutron_rates</code> where
+                present; pf_active <code>coil_current</code>+<code>solenoid_current</code>(<code>AMC_</code>);
+                gas <code>inboard/outboard/total_injected</code>(<code>AGA_</code>); soft_x_rays
+                <code>HCAML/HCAMU</code> emission (<code>XSX_</code>, present-when-present); spectrometer
+                <code>density_gradient</code>(<code>ADG_</code>).</td></tr>
+          <tr><td><strong>BANNED</strong> as input</td>
+              <td><code>equilibrium</code> (<code>EFM_</code>/<code>ESM_</code>), <code>pulse_schedule</code>
+                (<code>XDC_</code>), <code>greenwald_density</code> + <code>line_average_n_e</code> (<code>ESM_</code>),
+                <code>coil_voltage</code> + <code>valve_voltage</code>/<code>valve_target_voltage</code>
+                (<code>XDC_</code>).</td></tr>
+          <tr><td><strong>TARGET</strong> (eval-only, separate store)</td>
+              <td>equilibrium reconstruction (ψ, j_φ, q, LCFS/X-point, globals q0/q95/l_i/β/κ/δ/W_mhd/axis) + the
+                EFIT-derived banned scalars → kept physically outside the input stream.</td></tr>
+          <tr><td><strong>PROBE-TARGET</strong> (default-off)</td>
+              <td>Dα <code>filter_spectrometer_dalpha_voltage</code> (<code>XIM_</code>) — the Dα-leakage trap; opt-in only.</td></tr>
+          <tr><td><strong>CONDITION-only</strong> / <strong>INFRA</strong></td>
+              <td>xdc-sourced commands (coil/valve demands) → action/condition stream, never observed input;
+                pf_passive + wall + sensor-position geometry → static GS infra, never tokenised.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Targets boundary (airtight, 3 walls):</strong> a separate <code>TARGET_ROOT=/work/projects/imas_gpu/mast-targets</code>
+      (NOT under <code>TOKEN_ROOT/v2</code>) holds the equilibrium/derived targets as raw physical values on their own
+      time grids — (1) different filesystem root (no <code>tokens/v2/**</code> glob reaches it), (2) <em>no</em>
+      registry allocation (a target has no decodable token id), (3) a guard test that the input loader only opens
+      <code>TOKEN_ROOT/v2/{signals_hf,frames}</code>. <strong>De-scope:</strong> the genuinely-new, leakage-free L2
+      increment is the <strong>measured actuator + scalar light-path</strong> (+ present-when-present L2 SXR emission),
+      NOT a second full HF magnetics/Dα patch-transformer corpus (that duplicates the L1 raw and creates an
+      L1/L2 double-count hazard). <strong>Maintain current tasks:</strong> append-only registry blocks (NEVER re-bump
+      <code>VOCAB_VERSION</code> — that would invalidate the in-flight L1 encode); the running L1 camera chain + HF
+      full-corpus encode are untouched. <strong>Field-level guard:</strong> extend
+      <code>assert_no_leakage_sources</code> to reject any field whose <code>uda_name</code> prefix resolves (via
+      <code>LEVEL1_SOURCES</code>) to <code>{efm, esm, xdc}</code>, regardless of its group.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -191,6 +251,67 @@ Done-when
   1. Full-corpus xma (continuous+mode) + xim (FSQ) encodes into tokens/v2/signals_hf (pass ENCODE_IDS); per-modality phase-QC holdout reported.
   2. xsx (500 kHz SXR) tokenised via the patch-transformer (per-chord STFT + emission-profile), phase-QC; codebook chosen by measurement.
   3. Optional: higher-capacity FSQ retrain for xma vs the continuous baseline. Followup + this one resolved; plan updated.</pre>
+    </article>
+<article class="r-fu" data-id="f-l2-leakage-audit" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">L2 uda_name-provenance leakage guard + inventory manifest (the first step, CPU, alongside the GPU encodes)</h4>
+    <div class="r-fu-body"><p>Build the field-level provenance guard that makes the L2 input set airtight, and the inventory manifest the L2 tracks read. The adversarial audit proved classification must key on the on-disk <code>uda_name</code> prefix, NOT the IMAS group name (3 esm/xdc leaks hid inside allowed groups summary/pf_active/gas_injection). CPU-only; runs alongside the L1 GPU encodes (current tasks untouched).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    multimodal-tokenisation-substrate
+Section: §5
+Tier:    opus
+
+Context
+  Extend the input study to L2. The leakage surface concentrates here (equilibrium=efm/esm, pulse_schedule=xdc), AND three fields inside ALLOWED groups are esm/xdc-sourced (summary.line_average_n_e=ESM_NE_BAR; pf_active.coil_voltage=XDC_PF_F_P1; gas_injection.valve_voltage/valve_target_voltage=XDC_GAS_*). Classify by uda_name provenance.
+
+State to read
+  imas_ambix/data/paths.py (LEVEL1_SOURCES, LEVEL2_DIR, local_shot_path); imas_ambix/camdyn/conditioning.py (assert_no_leakage_sources, BANNED_CONDITIONING_SOURCES); imas_ambix/statespace/{inventory.py,families.py}; a few L2 shots (11766, 15199) via xr.open_zarr(group, consolidated=False).
+
+Done-when
+  1. A uda_name-&gt;level1-source resolver (AMC/AMB/AMA-&gt;magnetics, ANE-&gt;interferometer, ABM-&gt;bolometer, AGA-&gt;gas_injection, XSX-&gt;soft_x_rays, XIM-&gt;spectrometer_visible, ANB-&gt;nbi, ANU-&gt;neutron, ESM-&gt;equilibrium_solovev[BANNED], EFM-&gt;equilibrium_efit[BANNED], XDC-&gt;pulse_schedule[BANNED]) + assert_no_leakage_sources EXTENDED to reject any field whose uda prefix resolves to {efm,esm,xdc} regardless of group; unit test on the 3 known leaks.
+  2. A machine-readable L2 manifest over ~20-30 shots (low/mid/high duration): group-&gt;var-&gt;(dims, units, uda_name, native dt/rate, finite-fraction, per-shot coverage, classification input|banned|target|probe|condition|infra); flag the de-dup/name-collision pairs (magnetics.ip vs summary.ip vs pulse_schedule.i_plasma; interferometer.n_e_line vs summary.line_average_n_e). Committed artifact.
+  3. Tests green; followups for the actuator-scalar track + targets store + this one resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-l2-actuator-scalar-track" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">L2 measured actuator + scalar light-path into tokens/v2 (the de-scoped tight increment)</h4>
+    <div class="r-fu-body"><p>The genuinely-new, leakage-free L2 input increment (per the audit): the MEASURED actuator + scalar light-path — pf_active coil_current+solenoid_current (AMC_), gas inboard/outboard/total_injected (AGA_), summary ip(AMC_)/power_radiated(ABM_)/power_nbi/neutron (provenance-checked), interferometer n_e_line (ANE_) — plus present-when-present L2 SXR emission (XSX_ HCAML/HCAMU). Low-rate light path (signals.py UniformQuantizer), NOT a second full HF patch-transformer corpus (that duplicates L1). Gated on the f-l2-leakage-audit guard passing. Append-only registry blocks; tier-tagged _l2; VOCAB_VERSION NOT re-bumped.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    multimodal-tokenisation-substrate
+Section: §5
+Tier:    sonnet (opus if the L2 SXR patch path or a multi-rate magnetics decision needs modelling)
+
+Context
+  Tokenise ONLY the provenance-verified measured L2 inputs into tokens/v2/signals_hf/{shot}/&lt;group&gt;_l2.zarr via the low-rate light path. Do NOT duplicate the L1 raw with a second HF patch corpus. The f-l2-leakage-audit uda-guard must pass each field first.
+
+State to read
+  imas_ambix/tokenizer/{store_v2.py,signals.py,registry.py}; the f-l2-leakage-audit resolver+manifest; imas_ambix/data/paths.py; new read loaders following read_xim_shot pattern.
+
+Scope locks
+  - Inputs ONLY (every field uda-provenance-checked not in {efm,esm,xdc}); banned set per §5. De-dup group-qualified channel names (summary.ip != magnetics.ip != demand). Append-only registry blocks (BLOCK_*_L2_LOW), tier=&#x27;level2&#x27; attr, _l2 suffix; NEVER re-bump VOCAB_VERSION (protects the in-flight L1 encode).
+  - Separate jobs alongside the L1 chain; do not touch the camera/HF encodes.
+
+Done-when
+  1. Measured L2 actuator+scalar channels encoded into tokens/v2/signals_hf (+ present-when-present L2 SXR emission); presence guards for low-coverage groups.
+  2. Per-channel round-trip QC; uda-guard assertion green on every encoded field.
+  3. Followup + this one resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-l2-targets-store" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Separate TARGET_ROOT targets store for the L2 equilibrium reconstruction (airtight boundary)</h4>
+    <div class="r-fu-body"><p>Store the L2 equilibrium reconstruction + derived globals (the world-model TARGETS) in a PHYSICALLY separate TARGET_ROOT=/work/projects/imas_gpu/mast-targets (NOT under TOKEN_ROOT/v2), as raw physical values on their own time grids with finite/validity masks. Three walls: separate root (no tokens/v2 glob reaches it), NO registry allocation (no decodable token id), and a guard test that the input loader only opens TOKEN_ROOT/v2/{signals_hf,frames}. This is what lets L2 supply eval/grounding truth without ever leaking into inputs.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    multimodal-tokenisation-substrate
+Section: §5
+Tier:    opus
+
+Context
+  The equilibrium/derived L2 content is the eval-only TARGET tier. Keep it physically outside the input token stream.
+
+State to read
+  imas_ambix/tokenizer/store_v2.py (mirror its writer/reader/attrs discipline); imas_ambix/data/paths.py (add TARGET_ROOT); the equilibrium group structure (psi 65x65xT, j_phi, q, lcfs, x_point, globals; ~200 Hz, NaN outside window).
+
+Done-when
+  1. store_targets.py + TargetV2Attrs {quantity_names, units, grid_r, grid_z, time, original_window} — DELIBERATELY omits tokenizer_name/vocab_version/registry-shift so a target cannot be concatenated into the input vocabulary.
+  2. L2 equilibrium + derived globals (+ greenwald_density, line_average_n_e, programmed waveforms) written to TARGET_ROOT with finite masks; NaN-outside-window handled.
+  3. Guard TEST: the input data-loader&#x27;s group enumerator opens only TOKEN_ROOT/v2/{signals_hf,frames}, refuses TARGET_ROOT. Followup + this one resolved.</pre>
     </article>
 </section>
 
