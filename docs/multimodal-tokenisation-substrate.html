@@ -90,19 +90,32 @@
       diagnostics, the EFIT/Solov'ev <strong>equilibrium</strong> reconstruction, derived <strong>summary</strong>
       globals, and <strong>pf/gas</strong> actuator streams. It is read with the repo's FAIR-MAST pattern
       (<code>xr.open_zarr(group, consolidated=False)</code> per group — NOT the IMAS AL, NOT h5py).</p>
-    <p><strong>Classification is by <code>uda_name</code> PROVENANCE prefix — the authoritative source field — not by
-      IMAS group name.</strong> An adversarial leakage audit caught <strong>three field-level leaks</strong> that a
-      group-name guard misses because they hide inside <em>allowed</em> groups while being individually
-      <code>esm</code>/<code>xdc</code>-sourced:</p>
+    <p><strong>The discriminator is CODE-RECONSTRUCTED state vs PLANNED waveform — not the bare source label.</strong>
+      A code-<em>reconstructed</em> output (the EFIT/Solov'ev equilibrium and anything derived from it) is the recovered
+      state the model must <em>predict</em> → <strong>BANNED</strong> as input. A <em>planned</em> waveform (the
+      pulse-schedule control program — the intended trajectory and actuator demands) is known a priori → <strong>
+      AUTHORISED</strong>, and essential: a forward model needs to know the plan to predict the response. Classification
+      reads the on-disk <code>uda_name</code> provenance (the authoritative source field), then applies this principle.
+      Under it the three fields a group-name guard misses — all hidden inside <em>allowed</em> groups — split:</p>
     <ul>
       <li><code>summary.line_average_n_e</code> = <code>ESM_NE_BAR</code> (Solov'ev 1/m³ volume-average — embeds the
-        EFIT boundary) → <strong>BANNED</strong> (same class as <code>greenwald_density</code>). Use
-        <code>interferometer.n_e_line</code> (<code>ANE_</code>, 1/m²) as the only density input.</li>
-      <li><code>pf_active.coil_voltage</code> = <code>XDC_PF_F_P1</code> (pulse-schedule command) → <strong>BANNED</strong>.
-        Only <code>coil_current</code>/<code>solenoid_current</code> (<code>AMC_</code>) are realised/measured.</li>
+        EFIT boundary) → <strong>BANNED</strong>: a reconstruction-<em>derived</em> quantity (same class as
+        <code>greenwald_density</code>). Use <code>interferometer.n_e_line</code> (<code>ANE_</code>, 1/m²) as the
+        measured density input.</li>
+      <li><code>pf_active.coil_voltage</code> = <code>XDC_PF_F_P1</code> (pulse-schedule feedforward command) →
+        <strong>AUTHORISED (planned/action input)</strong>: the demanded coil drive — the plan, not a reconstruction.
+        (<code>coil_current</code>/<code>solenoid_current</code>, <code>AMC_</code>, are the <em>realised/measured</em>
+        complement; plan and realised drive are both legitimate, distinct channels.)</li>
       <li><code>gas_injection.valve_voltage</code> + <code>valve_target_voltage</code> = <code>XDC_GAS_*</code> →
-        <strong>BANNED</strong>. Only <code>inboard/outboard/total_injected</code> (<code>AGA_</code>) are measured.</li>
+        <strong>AUTHORISED (planned/action input)</strong>: the fuelling demand/setpoint.
+        (<code>inboard/outboard/total_injected</code>, <code>AGA_</code>, are the realised/measured complement.)</li>
     </ul>
+    <p>So <code>pulse_schedule</code> itself (demanded Ip, demanded density, programmed setpoints — <code>XDC_</code>) is
+      an <strong>authorised action/condition input</strong> — the control intent the forward world model conditions on.
+      The only <code>xdc</code> fields that stay banned are those incorporating the <em>achieved/reconstructed</em>
+      state (e.g. a shape/flux <em>error</em> residual referencing EFIT — the audit flags these per-field). This
+      revisits the existing camdyn <code>BANNED_CONDITIONING_SOURCES</code> (which lists <code>xdc</code>): the
+      pulse-schedule plan should become an authorised conditioning stream for the forward model.</p>
     <div class="table-scroll">
       <table class="t">
         <thead><tr><th>Class</th><th>L2 content (by provenance)</th></tr></thead>
@@ -115,19 +128,23 @@
                 gas <code>inboard/outboard/total_injected</code>(<code>AGA_</code>); soft_x_rays
                 <code>HCAML/HCAMU</code> emission (<code>XSX_</code>, present-when-present); spectrometer
                 <code>density_gradient</code>(<code>ADG_</code>).</td></tr>
-          <tr><td><strong>BANNED</strong> as input</td>
-              <td><code>equilibrium</code> (<code>EFM_</code>/<code>ESM_</code>), <code>pulse_schedule</code>
-                (<code>XDC_</code>), <code>greenwald_density</code> + <code>line_average_n_e</code> (<code>ESM_</code>),
-                <code>coil_voltage</code> + <code>valve_voltage</code>/<code>valve_target_voltage</code>
-                (<code>XDC_</code>).</td></tr>
+          <tr><td><strong>PLANNED / ACTION</strong> input (authorised — the control intent)</td>
+              <td><code>pulse_schedule</code> demanded Ip + density (<code>XDC_IP/DENSITY</code>),
+                <code>pf_active.coil_voltage</code> feedforward (<code>XDC_PF_F</code>),
+                <code>gas_injection</code> valve demands (<code>XDC_GAS_*</code>) — the plan the forward model
+                conditions on to predict the response. A planned waveform is known a priori, not a reconstruction.</td></tr>
+          <tr><td><strong>BANNED</strong> (code-reconstructed state + derivatives)</td>
+              <td><code>equilibrium</code> (<code>EFM_</code>/<code>ESM_</code>: ψ, j_φ, q, boundary, globals);
+                reconstruction-derived scalars <code>greenwald_density</code> + <code>line_average_n_e</code>
+                (<code>ESM_</code>); any <code>xdc</code> field referencing the achieved/reconstructed state (e.g.
+                shape/flux-error residuals).</td></tr>
           <tr><td><strong>TARGET</strong> (eval-only, separate store)</td>
               <td>equilibrium reconstruction (ψ, j_φ, q, LCFS/X-point, globals q0/q95/l_i/β/κ/δ/W_mhd/axis) + the
                 EFIT-derived banned scalars → kept physically outside the input stream.</td></tr>
           <tr><td><strong>PROBE-TARGET</strong> (default-off)</td>
               <td>Dα <code>filter_spectrometer_dalpha_voltage</code> (<code>XIM_</code>) — the Dα-leakage trap; opt-in only.</td></tr>
-          <tr><td><strong>CONDITION-only</strong> / <strong>INFRA</strong></td>
-              <td>xdc-sourced commands (coil/valve demands) → action/condition stream, never observed input;
-                pf_passive + wall + sensor-position geometry → static GS infra, never tokenised.</td></tr>
+          <tr><td><strong>INFRA</strong> (static, never tokenised)</td>
+              <td>pf_passive + wall + sensor-position geometry → static GS infra; per-group time coords (causal ZOH alignment).</td></tr>
         </tbody>
       </table>
     </div>
@@ -140,9 +157,12 @@
       NOT a second full HF magnetics/Dα patch-transformer corpus (that duplicates the L1 raw and creates an
       L1/L2 double-count hazard). <strong>Maintain current tasks:</strong> append-only registry blocks (NEVER re-bump
       <code>VOCAB_VERSION</code> — that would invalidate the in-flight L1 encode); the running L1 camera chain + HF
-      full-corpus encode are untouched. <strong>Field-level guard:</strong> extend
-      <code>assert_no_leakage_sources</code> to reject any field whose <code>uda_name</code> prefix resolves (via
-      <code>LEVEL1_SOURCES</code>) to <code>{efm, esm, xdc}</code>, regardless of its group.</p>
+      full-corpus encode are untouched. <strong>Field-level guard (reconstruction-vs-plan):</strong> extend
+      <code>assert_no_leakage_sources</code> to reject any field that is code-reconstructed state or derived from it —
+      <code>efm</code>/<code>esm</code>-sourced fields and reconstruction-derived scalars (the <code>ESM_</code>-derived
+      <code>line_average_n_e</code>/<code>greenwald_density</code>) — while <strong>AUTHORISING <code>xdc</code> planned/
+      demand waveforms</strong> (banning only <code>xdc</code> fields that reference the achieved/reconstructed state).
+      The test is reconstruction-vs-plan by <code>uda_name</code> provenance, not the bare source label.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -267,7 +287,7 @@ State to read
   imas_ambix/data/paths.py (LEVEL1_SOURCES, LEVEL2_DIR, local_shot_path); imas_ambix/camdyn/conditioning.py (assert_no_leakage_sources, BANNED_CONDITIONING_SOURCES); imas_ambix/statespace/{inventory.py,families.py}; a few L2 shots (11766, 15199) via xr.open_zarr(group, consolidated=False).
 
 Done-when
-  1. A uda_name-&gt;level1-source resolver (AMC/AMB/AMA-&gt;magnetics, ANE-&gt;interferometer, ABM-&gt;bolometer, AGA-&gt;gas_injection, XSX-&gt;soft_x_rays, XIM-&gt;spectrometer_visible, ANB-&gt;nbi, ANU-&gt;neutron, ESM-&gt;equilibrium_solovev[BANNED], EFM-&gt;equilibrium_efit[BANNED], XDC-&gt;pulse_schedule[BANNED]) + assert_no_leakage_sources EXTENDED to reject any field whose uda prefix resolves to {efm,esm,xdc} regardless of group; unit test on the 3 known leaks.
+  1. A uda_name-&gt;level1-source resolver (AMC/AMB/AMA-&gt;magnetics, ANE-&gt;interferometer, ABM-&gt;bolometer, AGA-&gt;gas_injection, XSX-&gt;soft_x_rays, XIM-&gt;spectrometer_visible, ANB-&gt;nbi, ANU-&gt;neutron, ESM-&gt;equilibrium_solovev[BANNED], EFM-&gt;equilibrium_efit[BANNED], XDC-&gt;pulse_schedule[PLANNED-AUTHORISED except reconstruction-residual fields]) + assert_no_leakage_sources EXTENDED on the RECONSTRUCTION-VS-PLAN principle: reject efm/esm-sourced + reconstruction-derived scalars (ESM_-derived line_average_n_e/greenwald_density), AUTHORISE xdc planned/demand waveforms (ban only xdc fields referencing the achieved/reconstructed state, e.g. shape/flux-error residuals); unit test that pulse_schedule demands + coil_voltage/valve demands PASS while equilibrium + line_average_n_e are rejected.
   2. A machine-readable L2 manifest over ~20-30 shots (low/mid/high duration): group-&gt;var-&gt;(dims, units, uda_name, native dt/rate, finite-fraction, per-shot coverage, classification input|banned|target|probe|condition|infra); flag the de-dup/name-collision pairs (magnetics.ip vs summary.ip vs pulse_schedule.i_plasma; interferometer.n_e_line vs summary.line_average_n_e). Committed artifact.
   3. Tests green; followups for the actuator-scalar track + targets store + this one resolved.</pre>
     </article>
@@ -286,7 +306,7 @@ State to read
   imas_ambix/tokenizer/{store_v2.py,signals.py,registry.py}; the f-l2-leakage-audit resolver+manifest; imas_ambix/data/paths.py; new read loaders following read_xim_shot pattern.
 
 Scope locks
-  - Inputs ONLY (every field uda-provenance-checked not in {efm,esm,xdc}); banned set per §5. De-dup group-qualified channel names (summary.ip != magnetics.ip != demand). Append-only registry blocks (BLOCK_*_L2_LOW), tier=&#x27;level2&#x27; attr, _l2 suffix; NEVER re-bump VOCAB_VERSION (protects the in-flight L1 encode).
+  - Inputs include measured observables AND authorised PLANNED waveforms (pulse_schedule demands + coil_voltage/valve setpoints); reject ONLY code-reconstructed state (efm/esm + reconstruction-derived) per the reconstruction-vs-plan guard; banned set per §5. De-dup group-qualified channel names (summary.ip != magnetics.ip != demand). Append-only registry blocks (BLOCK_*_L2_LOW), tier=&#x27;level2&#x27; attr, _l2 suffix; NEVER re-bump VOCAB_VERSION (protects the in-flight L1 encode).
   - Separate jobs alongside the L1 chain; do not touch the camera/HF encodes.
 
 Done-when
