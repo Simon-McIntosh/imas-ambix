@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-16">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 </head>
 <body>
   <main class="plan-doc">
@@ -273,7 +273,7 @@ Done-when
   3. Optional: higher-capacity FSQ retrain for xma vs the continuous baseline. Followup + this one resolved; plan updated.</pre>
     <p class="r-fu-outcome">LANDED (code + decision + launch); full-corpus encode RUNNING. xsx SXR family added through the patch-transformer (hcam_l+hcam_u, 36 chords, 500 kHz, stuck ch10 masked, cross-chord spatial-DFT emission-profile latent; commit 7d8ee34). Per-modality codebook decisions now COMPLETE, each chosen by MEASURED phase fidelity (continuous ceiling 0.010 rad, 0.20 tol): xma→continuous+mask, xim→FSQ, xsx→VQ (VQ phase_err 0.159, recon_crps 0.00108, mode_corr 0.910 — beat FSQ's 0.619 on cross-chord profile structure). KEY MEASURED FINDING (confirms the lead's instinct): the signal-tokeniser ENCODE is IO-BOUND, not GPU-bound — a probe (job 1218723) measured GPU sm-util mean 0.8% / median 0% / p90 3% / max 9%; the patch-transformer inference is trivial vs the GPFS read of MHz-rate raw signals. Per the lead's directive (H200 priority reservation, no queue) it STAYS on the H200; an IO-overlap DataLoader fork-worker pool was added (commit 17641e2) to overlap shot N+1's read with shot N's inference+write so it goes fast. Full-corpus encode RUNNING: job 1218732, gpu:1 (free card), --shots all = 17,111, presence-guarded (xma ~70% / xim ~82% / xsx later campaigns) + skip-existing resume, per-group manifests under tokens/v2/_manifests/; ~1500 shots in the first ~3 min. Bug fixed in-flight: bash GROUPS env collision fed a GID as the group name → renamed SIG_GROUPS (c763218). 12 tokenizer tests pass; registry append-only (VOCAB_VERSION stays v2: xsx_patch[25605,38405)/xsx_profile[38405,38406)); camera chain + DeepSeek untouched; scope clean (no sequential_da.py/provenance.py/store_targets.py/docs). Commits 7d8ee34, ad7fe66, 17641e2, c763218. Final per-modality token counts pending the encode completion (background monitor). Caveats: xsx VQ from a 4-shot dev calibration (same scale as xma/xim); some early-campaign xma shots report a degenerate native_rate_hz=1 (data-quality, store accepts + token_time still derived from the window).</p>
     </article>
-<article class="r-fu" data-id="f-l2-leakage-audit" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-l2-leakage-audit" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="2026-06-16T15:30:33+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">L2 uda_name-provenance leakage guard + inventory manifest (the first step, CPU, alongside the GPU encodes)</h4>
     <div class="r-fu-body"><p>Build the field-level provenance guard that makes the L2 input set airtight, and the inventory manifest the L2 tracks read. The adversarial audit proved classification must key on the on-disk <code>uda_name</code> prefix, NOT the IMAS group name (3 esm/xdc leaks hid inside allowed groups summary/pf_active/gas_injection). CPU-only; runs alongside the L1 GPU encodes (current tasks untouched).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -291,6 +291,7 @@ Done-when
   1. A uda_name-&gt;level1-source resolver (AMC/AMB/AMA-&gt;magnetics, ANE-&gt;interferometer, ABM-&gt;bolometer, AGA-&gt;gas_injection, XSX-&gt;soft_x_rays, XIM-&gt;spectrometer_visible, ANB-&gt;nbi, ANU-&gt;neutron, ESM-&gt;equilibrium_solovev[BANNED], EFM-&gt;equilibrium_efit[BANNED], XDC-&gt;pulse_schedule[PLANNED-AUTHORISED except reconstruction-residual fields]) + assert_no_leakage_sources EXTENDED on the RECONSTRUCTION-VS-PLAN principle: reject efm/esm-sourced + reconstruction-derived scalars (ESM_-derived line_average_n_e/greenwald_density), AUTHORISE xdc planned/demand waveforms (ban only xdc fields referencing the achieved/reconstructed state, e.g. shape/flux-error residuals); unit test that pulse_schedule demands + coil_voltage/valve demands PASS while equilibrium + line_average_n_e are rejected.
   2. A machine-readable L2 manifest over ~20-30 shots (low/mid/high duration): group-&gt;var-&gt;(dims, units, uda_name, native dt/rate, finite-fraction, per-shot coverage, classification input|banned|target|probe|condition|infra); flag the de-dup/name-collision pairs (magnetics.ip vs summary.ip vs pulse_schedule.i_plasma; interferometer.n_e_line vs summary.line_average_n_e). Committed artifact.
   3. Tests green; followups for the actuator-scalar track + targets store + this one resolved.</pre>
+    <p class="r-fu-outcome">LANDED (commits c4ba65a guard + 421d71c manifest). imas_ambix/data/provenance.py: uda_name->level1-source resolver + assert_no_leakage_sources/assert_no_leakage_fields extended on the reconstruction-vs-plan principle — rejects efm/esm + reconstruction-derived scalars (ESM_NE_BAR line_average_n_e, ESM_N_GREENWALD greenwald_density), AUTHORISES XDC planned/demand waveforms. imas_ambix/data/l2_inventory.py + artifacts/l2_inventory.json: machine-readable manifest over 26 low/mid/high-duration shots, 290 fields (33 input / 5 planned-action / 37 banned / 1 probe / 214 infra) with per-field uda_name, dims/units/rate, coverage, classification + de-dup flags. 76 tests pass (test_provenance.py + test_l2_inventory.py) proving pulse_schedule demands + coil_voltage/valve setpoints PASS while equilibrium + line_average_n_e + greenwald are REJECTED. The airtight field-level gate every L2 track is built on.</p>
     </article>
 <article class="r-fu" data-id="f-l2-actuator-scalar-track" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">L2 measured actuator + scalar light-path into tokens/v2 (the de-scoped tight increment)</h4>
@@ -315,7 +316,7 @@ Done-when
   2. Per-channel round-trip QC; uda-guard assertion green on every encoded field.
   3. Followup + this one resolved.</pre>
     </article>
-<article class="r-fu" data-id="f-l2-targets-store" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-l2-targets-store" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="2026-06-16T15:30:33+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Separate TARGET_ROOT targets store for the L2 equilibrium reconstruction (airtight boundary)</h4>
     <div class="r-fu-body"><p>Store the L2 equilibrium reconstruction + derived globals (the world-model TARGETS) in a PHYSICALLY separate TARGET_ROOT=/work/projects/imas_gpu/mast-targets (NOT under TOKEN_ROOT/v2), as raw physical values on their own time grids with finite/validity masks. Three walls: separate root (no tokens/v2 glob reaches it), NO registry allocation (no decodable token id), and a guard test that the input loader only opens TOKEN_ROOT/v2/{signals_hf,frames}. This is what lets L2 supply eval/grounding truth without ever leaking into inputs.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -333,6 +334,29 @@ Done-when
   1. store_targets.py + TargetV2Attrs {quantity_names, units, grid_r, grid_z, time, original_window} — DELIBERATELY omits tokenizer_name/vocab_version/registry-shift so a target cannot be concatenated into the input vocabulary.
   2. L2 equilibrium + derived globals (+ greenwald_density, line_average_n_e, programmed waveforms) written to TARGET_ROOT with finite masks; NaN-outside-window handled.
   3. Guard TEST: the input data-loader&#x27;s group enumerator opens only TOKEN_ROOT/v2/{signals_hf,frames}, refuses TARGET_ROOT. Followup + this one resolved.</pre>
+    <p class="r-fu-outcome">LANDED + adversarially verified PASS (commit 6d341f6). imas_ambix/tokenizer/store_targets.py + TargetV2Attrs (deliberately omits tokenizer_name/vocab_version; rejects them if smuggled via metadata) + a boundary enumerator (input_group_roots / enumerate_input_group_paths / assert_not_target_path). THREE WALLS: (1) TARGET_ROOT=/work/projects/imas_gpu/mast-targets, NOT under TOKEN_ROOT; (2) no registry import/allocation — a target has NO decodable token id; (3) guard test that the input enumerator opens only TOKEN_ROOT/v2/{signals_hf,frames} and hard-raises on TARGET_ROOT. l2_targets_build.py writes the L2 equilibrium reconstruction (psi 65x65xT, j_phi/q/lcfs/x_point/magnetic_axis + ~21 globals) + the BANNED reconstruction-derived globals (greenwald_density, line_average_n_e) + programmed waveforms (i_plasma, n_e_line) on native grids with finite masks (NaN-outside-window preserved, never zero-filled). 28 tests pass; ruff clean. Adversarial verifier: leak_found=false, boundary_holds=true, PASS (boundary rests on Wall 1 separation + Wall 2 no-token-handle). FULL-CORPUS build launched over all 11,573 L2 shots (job 1218812, resume-safe, --shots via explicit corpus list since inventory_shot_ids()=26-shot classification sample only).</p>
+    </article>
+<article class="r-fu" data-id="f-l2-boundary-wiring" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="/reckon-ship multimodal-tokenisation-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Make the target-boundary guard LIVE in the real input loaders + corpus-default shot scope</h4>
+    <div class="r-fu-body"><p>The adversarial verifier passed the targets boundary on structural walls 1+2 but flagged that Wall 3 (the <code>enumerate_input_group_paths</code>/<code>assert_not_target_path</code> guard in <code>store_targets.py</code>) has ZERO live consumers — the real world-model input loaders (<code>camdyn.dataset.discover_token_shots</code>, <code>signal_hf_encode</code>, <code>l2_input_build</code>) build roots directly from <code>TOKEN_ROOT</code>/<code>LEVEL*_DIR</code> and never call the guard. Route them through the canonical enumerator so the boundary becomes live defense-in-depth, and reconcile the on-disk frames generation (v1/frames) with the v2/frames the enumerator names. Also make the corpus the default shot scope (today <code>--shots all</code>=26-shot inventory sample; corpus build needs an explicit 11,573-shot list).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    multimodal-tokenisation-substrate
+Section: §5
+Tier:    opus
+
+Context
+  The L2 targets store + boundary enumerator landed (6d341f6) but Wall 3 is dead code. Wire the real input loaders through store_targets.enumerate_input_group_paths/assert_not_target_path so any path the world-model input loader opens is guard-checked, and reconcile the frames store generation (on-disk v1/frames vs v2/frames in input_group_roots).
+
+State to read
+  imas_ambix/tokenizer/store_targets.py (input_group_roots/enumerate_input_group_paths/assert_not_target_path); imas_ambix/camdyn/dataset.py (discover_token_shots/list_token_shot_ids, DEFAULT_VOCAB_VERSION); imas_ambix/tokenizer/signal_hf_encode.py read paths; imas_ambix/data/l2_input_build.py loader; imas_ambix/data/paths.py.
+
+Scope locks
+  - Do NOT touch a path an in-flight encode/serve job depends on without confirming it is idle. Keep the boundary generation-independent (refuse-anything-under-TARGET_ROOT holds regardless of v1/v2).
+
+Done-when
+  1. The world-model input loaders source their roots from the canonical enumerator and assert_not_target_path on every opened path; a test proves a TARGET_ROOT path is refused at load time (Wall 3 live).
+  2. Frames generation reconciled (the enumerator matches the real on-disk frames store); corpus-default shot scope (a --shots corpus mode enumerating LEVEL2_DIR, distinct from the 26-shot inventory sample).
+  3. Tests green; followup + this one resolved.</pre>
     </article>
 </section>
 
