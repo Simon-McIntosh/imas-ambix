@@ -1,0 +1,6147 @@
+{
+  "schema": "imas-ambix.l2-inventory.v1",
+  "principle": "reconstruction-vs-plan: banned = code-reconstructed state (EFM_/ESM_) + reconstruction-derived scalars + XDC reconstruction residuals; authorised = measured diagnostics (input) + planned pulse-schedule waveforms (planned-action); Da is a default-off probe target; geometry is infra.",
+  "level2_dir": "/work/projects/imas_gpu/mast/level2/shots",
+  "n_shots_requested": 26,
+  "n_shots_inventoried": 26,
+  "shots": [
+    13277,
+    13692,
+    13890,
+    14202,
+    14412,
+    15325,
+    15585,
+    16122,
+    16217,
+    16572,
+    18846,
+    19352,
+    20329,
+    20982,
+    21624,
+    22189,
+    22280,
+    24377,
+    24630,
+    25476,
+    26066,
+    27139,
+    27762,
+    27864,
+    28051,
+    28313
+  ],
+  "shot_durations_s": {
+    "13277": 0.5812,
+    "13692": 0.4672,
+    "13890": 0.5028,
+    "14202": 0.377,
+    "14412": 0.5396,
+    "15325": 0.6108,
+    "15585": 0.5744,
+    "16122": 0.6816,
+    "16217": 0.5954,
+    "16572": 0.3418,
+    "18846": 0.5652,
+    "19352": 0.4152,
+    "20329": 0.5152,
+    "20982": 0.6166,
+    "21624": 0.4544,
+    "22189": 0.261,
+    "22280": 0.6396,
+    "24377": 0.7208,
+    "24630": 0.435,
+    "25476": 3.3066,
+    "26066": 1.146,
+    "27139": 0.9118,
+    "27762": 0.4028,
+    "27864": 0.5424,
+    "28051": 0.5514,
+    "28313": 0.4788
+  },
+  "n_fields": 290,
+  "classification_tally": {
+    "input": 33,
+    "planned-action": 5,
+    "banned": 37,
+    "probe-target": 1,
+    "infra": 214
+  },
+  "by_group": {
+    "charge_exchange": {
+      "input": 2,
+      "planned-action": 0,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 0
+    },
+    "equilibrium": {
+      "input": 0,
+      "planned-action": 0,
+      "banned": 35,
+      "probe-target": 0,
+      "infra": 0
+    },
+    "gas_injection": {
+      "input": 4,
+      "planned-action": 2,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 0
+    },
+    "interferometer": {
+      "input": 1,
+      "planned-action": 0,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 0
+    },
+    "magnetics": {
+      "input": 10,
+      "planned-action": 0,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 36
+    },
+    "pf_active": {
+      "input": 2,
+      "planned-action": 1,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 52
+    },
+    "pf_passive": {
+      "input": 0,
+      "planned-action": 0,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 94
+    },
+    "pulse_schedule": {
+      "input": 0,
+      "planned-action": 2,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 0
+    },
+    "soft_x_rays": {
+      "input": 3,
+      "planned-action": 0,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 30
+    },
+    "spectrometer_visible": {
+      "input": 2,
+      "planned-action": 0,
+      "banned": 0,
+      "probe-target": 1,
+      "infra": 0
+    },
+    "summary": {
+      "input": 4,
+      "planned-action": 0,
+      "banned": 2,
+      "probe-target": 0,
+      "infra": 0
+    },
+    "thomson_scattering": {
+      "input": 5,
+      "planned-action": 0,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 0
+    },
+    "wall": {
+      "input": 0,
+      "planned-action": 0,
+      "banned": 0,
+      "probe-target": 0,
+      "infra": 2
+    }
+  },
+  "name_collisions": {
+    "plasma_current": {
+      "keep_distinct": true,
+      "members": [
+        {
+          "group": "magnetics",
+          "var": "ip",
+          "present": true,
+          "uda_name": "AMC_PLASMA CURRENT",
+          "source": "AMC",
+          "classification": "input"
+        },
+        {
+          "group": "summary",
+          "var": "ip",
+          "present": true,
+          "uda_name": "AMC_PLASMA CURRENT",
+          "source": "AMC",
+          "classification": "input"
+        },
+        {
+          "group": "pulse_schedule",
+          "var": "i_plasma",
+          "present": true,
+          "uda_name": "XDC_IP_T_IPREF",
+          "source": "XDC",
+          "classification": "planned-action"
+        }
+      ]
+    },
+    "line_density": {
+      "keep_distinct": true,
+      "members": [
+        {
+          "group": "interferometer",
+          "var": "n_e_line",
+          "present": true,
+          "uda_name": "ANE_DENSITY",
+          "source": "ANE",
+          "classification": "input"
+        },
+        {
+          "group": "pulse_schedule",
+          "var": "n_e_line",
+          "present": true,
+          "uda_name": "XDC_DENSITY_T_NELREF",
+          "source": "XDC",
+          "classification": "planned-action"
+        },
+        {
+          "group": "summary",
+          "var": "line_average_n_e",
+          "present": true,
+          "uda_name": "ESM_NE_BAR",
+          "source": "ESM",
+          "classification": "banned"
+        }
+      ]
+    }
+  },
+  "actuator_pairs": [
+    {
+      "actuator": "pf_coils",
+      "realised": {
+        "group": "pf_active",
+        "var": "coil_current",
+        "present": true,
+        "uda_name": "AMC_P2IL FEED CURRENT",
+        "source": "AMC",
+        "classification": "input"
+      },
+      "planned": {
+        "group": "pf_active",
+        "var": "coil_voltage",
+        "present": true,
+        "uda_name": "XDC_PF_F_P1",
+        "source": "XDC",
+        "classification": "planned-action"
+      }
+    },
+    {
+      "actuator": "gas_valves",
+      "realised": {
+        "group": "gas_injection",
+        "var": "inboard_total",
+        "present": true,
+        "uda_name": "AGA_INBOARD_TOTAL",
+        "source": "AGA",
+        "classification": "input"
+      },
+      "planned": {
+        "group": "gas_injection",
+        "var": "valve_voltage",
+        "present": true,
+        "uda_name": "XDC_GAS_F_G1",
+        "source": "XDC",
+        "classification": "planned-action"
+      }
+    },
+    {
+      "actuator": "plasma_current",
+      "realised": {
+        "group": "magnetics",
+        "var": "ip",
+        "present": true,
+        "uda_name": "AMC_PLASMA CURRENT",
+        "source": "AMC",
+        "classification": "input"
+      },
+      "planned": {
+        "group": "pulse_schedule",
+        "var": "i_plasma",
+        "present": true,
+        "uda_name": "XDC_IP_T_IPREF",
+        "source": "XDC",
+        "classification": "planned-action"
+      }
+    },
+    {
+      "actuator": "line_density",
+      "realised": {
+        "group": "interferometer",
+        "var": "n_e_line",
+        "present": true,
+        "uda_name": "ANE_DENSITY",
+        "source": "ANE",
+        "classification": "input"
+      },
+      "planned": {
+        "group": "pulse_schedule",
+        "var": "n_e_line",
+        "present": true,
+        "uda_name": "XDC_DENSITY_T_NELREF",
+        "source": "XDC",
+        "classification": "planned-action"
+      }
+    }
+  ],
+  "review_fields": [],
+  "fields": [
+    {
+      "group": "charge_exchange",
+      "var": "t_i",
+      "uda_name": "ACT_SS_TEMPERATURE",
+      "source": "ACT",
+      "level1_system": "charge_exchange",
+      "classification": "input",
+      "reason": "measured diagnostic (charge_exchange)",
+      "review": false,
+      "dims": [
+        "major_radius",
+        "time"
+      ],
+      "units": "eV",
+      "time_dim": "time",
+      "coverage": 0.2692,
+      "n_shots_present": 7,
+      "finite_fraction_mean": 0.3318,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "charge_exchange",
+      "var": "v_i",
+      "uda_name": "ACT_SS_VELOCITY",
+      "source": "ACT",
+      "level1_system": "charge_exchange",
+      "classification": "input",
+      "reason": "measured diagnostic (charge_exchange)",
+      "review": false,
+      "dims": [
+        "major_radius",
+        "time"
+      ],
+      "units": "m / s",
+      "time_dim": "time",
+      "coverage": 0.2692,
+      "n_shots_present": 7,
+      "finite_fraction_mean": 0.3321,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "beta_pol",
+      "uda_name": "EFM_BETAP",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "beta_tor",
+      "uda_name": "EFM_BETAT",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "beta_tor_normal",
+      "uda_name": "EFM_BETAN",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "T",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "bphi_rmag",
+      "uda_name": "EFM_BPHI_RMAG",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "T",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "bvac_rmag",
+      "uda_name": "EFM_BVAC_RMAG",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "T",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "da_rating",
+      "uda_name": "ESM_EFM_RATING_DA",
+      "source": "ESM",
+      "level1_system": "equilibrium_solovev",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.8077,
+      "n_shots_present": 21,
+      "finite_fraction_mean": 0.6471,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "elongation",
+      "uda_name": "EFM_ELONGATION",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "elongation_axis",
+      "uda_name": "EFM_ELONGATION_AXIS",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "ip_rating",
+      "uda_name": "ESM_EFM_RATING_IP",
+      "source": "ESM",
+      "level1_system": "equilibrium_solovev",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.8077,
+      "n_shots_present": 21,
+      "finite_fraction_mean": 0.6471,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "j_phi",
+      "uda_name": "EFM_PLASMA_CURR(R,Z)",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "z",
+        "major_radius",
+        "time"
+      ],
+      "units": "A / m ** 2",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "lcfs_r",
+      "uda_name": "EFM_LCFS(R)_(C)",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "n_boundary_coords",
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5213,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "lcfs_z",
+      "uda_name": "EFM_LCFS(Z)_(C)",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "n_boundary_coords",
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5213,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "li",
+      "uda_name": "EFM_LI",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "magnetic_axis_r",
+      "uda_name": "EFM_MAGNETIC_AXIS_R",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "magnetic_axis_z",
+      "uda_name": "EFM_MAGNETIC_AXIS_Z",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "minor_radius",
+      "uda_name": "EFM_MINOR_RADIUS",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "psi",
+      "uda_name": "EFM_PSI(R,Z)",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "z",
+        "major_radius",
+        "time"
+      ],
+      "units": "Wb / rad",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.6684,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "q",
+      "uda_name": "EFM_Q(R)",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "profile_r",
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "q100",
+      "uda_name": "EFM_Q_100",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "q90",
+      "uda_name": "EFM_Q_100",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "q95",
+      "uda_name": "EFM_Q_95",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "q_axis",
+      "uda_name": "EFM_Q_AXIS",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "rpsi100_in",
+      "uda_name": "EFM_R(PSI100)_IN",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "rpsi100_out",
+      "uda_name": "EFM_R(PSI100)_OUT",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "rpsi90_in",
+      "uda_name": "EFM_R(PSI90)_IN",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "rpsi90_out",
+      "uda_name": "EFM_R(PSI90)_OUT",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "rpsi95_in",
+      "uda_name": "EFM_R(PSI95)_IN",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "rpsi95_out",
+      "uda_name": "EFM_R(PSI95)_OUT",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "m",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "triangularity_lower",
+      "uda_name": "EFM_TRIANG_LOWER",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "triangularity_upper",
+      "uda_name": "EFM_TRIANG_UPPER",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "vloop_dynamic",
+      "uda_name": "ESM_V_LOOP_DYNAMIC",
+      "source": "ESM",
+      "level1_system": "equilibrium_solovev",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "V",
+      "time_dim": "time",
+      "coverage": 0.7692,
+      "n_shots_present": 20,
+      "finite_fraction_mean": 0.6449,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "vloop_static",
+      "uda_name": "ESM_V_LOOP_STATIC",
+      "source": "ESM",
+      "level1_system": "equilibrium_solovev",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "V",
+      "time_dim": "time",
+      "coverage": 0.8077,
+      "n_shots_present": 21,
+      "finite_fraction_mean": 0.6451,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "wmhd",
+      "uda_name": "EFM_WPLASMD",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "J",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.5918,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "x_point_r",
+      "uda_name": "EFM_XPOINT1_R(C)",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "n_x_points_r",
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.4071,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "equilibrium",
+      "var": "x_point_z",
+      "uda_name": "EFM_XPOINT1_Z(C)",
+      "source": "EFM",
+      "level1_system": "equilibrium_efit",
+      "classification": "banned",
+      "reason": "code-reconstructed equilibrium state (the world model must produce this, not consume it)",
+      "review": false,
+      "dims": [
+        "n_x_points_z",
+        "time"
+      ],
+      "units": "",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.4071,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "gas_injection",
+      "var": "inboard_total",
+      "uda_name": "AGA_INBOARD_TOTAL",
+      "source": "AGA",
+      "level1_system": "gas_injection",
+      "classification": "input",
+      "reason": "measured diagnostic (gas_injection)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "cps",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.9537,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "gas_injection",
+      "var": "outboard_total",
+      "uda_name": "AGA_OUTBOARD_TOTAL",
+      "source": "AGA",
+      "level1_system": "gas_injection",
+      "classification": "input",
+      "reason": "measured diagnostic (gas_injection)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "cps",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.9537,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "gas_injection",
+      "var": "pressure",
+      "uda_name": "AGA_FIG",
+      "source": "AGA",
+      "level1_system": "gas_injection",
+      "classification": "input",
+      "reason": "measured diagnostic (gas_injection)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "D2/m3",
+      "time_dim": "time",
+      "coverage": 0.7692,
+      "n_shots_present": 20,
+      "finite_fraction_mean": 1.0,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "gas_injection",
+      "var": "total_injected",
+      "uda_name": "AGA_INTEG_GAS",
+      "source": "AGA",
+      "level1_system": "gas_injection",
+      "classification": "input",
+      "reason": "measured diagnostic (gas_injection)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "count",
+      "time_dim": "time",
+      "coverage": 0.8846,
+      "n_shots_present": 23,
+      "finite_fraction_mean": 0.9476,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "gas_injection",
+      "var": "valve_target_voltage",
+      "uda_name": "XDC_GAS_T_G1",
+      "source": "XDC",
+      "level1_system": "pulse_schedule",
+      "classification": "planned-action",
+      "reason": "planned/demanded control waveform (known a priori \u2014 feed-forward command / setpoint)",
+      "review": false,
+      "dims": [
+        "target_valve_channel",
+        "time"
+      ],
+      "units": "V",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.3715,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "gas_injection",
+      "var": "valve_voltage",
+      "uda_name": "XDC_GAS_F_G1",
+      "source": "XDC",
+      "level1_system": "pulse_schedule",
+      "classification": "planned-action",
+      "reason": "planned/demanded control waveform (known a priori \u2014 feed-forward command / setpoint)",
+      "review": false,
+      "dims": [
+        "valve_channel",
+        "time"
+      ],
+      "units": "V",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.9956,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "interferometer",
+      "var": "n_e_line",
+      "uda_name": "ANE_DENSITY",
+      "source": "ANE",
+      "level1_system": "interferometer",
+      "classification": "input",
+      "reason": "measured diagnostic (interferometer)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "1 / m ** 2",
+      "time_dim": "time",
+      "coverage": 0.8462,
+      "n_shots_present": 22,
+      "finite_fraction_mean": 0.8413,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_cc_field",
+      "uda_name": "XMC_CC/MV/201",
+      "source": "XMC",
+      "level1_system": "magnetics_raw",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics_raw)",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_cc_channel",
+        "time_mirnov"
+      ],
+      "units": "T",
+      "time_dim": "time_mirnov",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.6013,
+      "native_dt": 2e-06,
+      "native_rate_hz": 500000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_cc_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_cc_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_cc_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_cc_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_cc_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_cc_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_ccbv_field",
+      "uda_name": "AMB_CCBV01",
+      "source": "AMB",
+      "level1_system": "magnetics",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics)",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_ccbv_channel",
+        "time"
+      ],
+      "units": "T",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.9519,
+      "native_dt": 0.0002,
+      "native_rate_hz": 5000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_ccbv_length",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_ccbv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_ccbv_phi_1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_ccbv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_ccbv_phi_2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_ccbv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_ccbv_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_ccbv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_ccbv_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_ccbv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obr_field",
+      "uda_name": "AMB_OBR01",
+      "source": "AMB",
+      "level1_system": "magnetics",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics)",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obr_channel",
+        "time"
+      ],
+      "units": "T",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.9474,
+      "native_dt": 0.0002,
+      "native_rate_hz": 5000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obr_length",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obr_phi_1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obr_phi_2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obr_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obr_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obv_field",
+      "uda_name": "AMB_OBV01",
+      "source": "AMB",
+      "level1_system": "magnetics",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics)",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obv_channel",
+        "time"
+      ],
+      "units": "T",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.8947,
+      "native_dt": 0.0002,
+      "native_rate_hz": 5000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obv_length",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obv_phi_1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obv_phi_2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obv_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_obv_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_obv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_omv_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_omv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_omv_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_omv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_omv_voltage",
+      "uda_name": "XMC_OMV/110",
+      "source": "XMC",
+      "level1_system": "magnetics_raw",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics_raw)",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_omv_channel",
+        "time_mirnov"
+      ],
+      "units": "V",
+      "time_dim": "time_mirnov",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.8246,
+      "native_dt": 2e-06,
+      "native_rate_hz": 500000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_pol_probe_omv_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_pol_probe_omv_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_cc_field",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_cc_channel",
+        "time_mirnov"
+      ],
+      "units": "T",
+      "time_dim": "time_mirnov",
+      "coverage": 0.6154,
+      "n_shots_present": 16,
+      "finite_fraction_mean": 0.6761,
+      "native_dt": 2e-06,
+      "native_rate_hz": 500000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_cc_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_cc_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_cc_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_cc_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_cc_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_cc_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_omaha_voltage",
+      "uda_name": "/xmo/OMAHA/1LZ",
+      "source": "XMO",
+      "level1_system": "magnetics_raw",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics_raw)",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_omaha_channel",
+        "time_omaha"
+      ],
+      "units": "V",
+      "time_dim": "time_omaha",
+      "coverage": 0.1923,
+      "n_shots_present": 5,
+      "finite_fraction_mean": 0.9634,
+      "native_dt": 1e-07,
+      "native_rate_hz": 10000000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_field",
+      "uda_name": "ASM_SAD/M01",
+      "source": "ASM",
+      "level1_system": "magnetics",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics)",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_field_channel",
+        "time_saddle"
+      ],
+      "units": "T",
+      "time_dim": "time_saddle",
+      "coverage": 0.8462,
+      "n_shots_present": 22,
+      "finite_fraction_mean": 0.4474,
+      "native_dt": 2e-05,
+      "native_rate_hz": 50000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_l_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_l_geometry_channel",
+        "coordinate"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_l_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_l_geometry_channel",
+        "coordinate"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_l_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_l_geometry_channel",
+        "coordinate"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_m_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_m_geometry_channel",
+        "coordinate"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_m_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_m_geometry_channel",
+        "coordinate"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_m_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_m_geometry_channel",
+        "coordinate"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_u_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_u_geometry_channel",
+        "coordinate"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_u_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_u_geometry_channel",
+        "coordinate"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_u_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_u_geometry_channel",
+        "coordinate"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "b_field_tor_probe_saddle_voltage",
+      "uda_name": "XMB_SAD/OUT/M01",
+      "source": "XMB",
+      "level1_system": "magnetics_raw",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics_raw)",
+      "review": false,
+      "dims": [
+        "b_field_tor_probe_saddle_voltage_channel",
+        "time_saddle"
+      ],
+      "units": "V",
+      "time_dim": "time_saddle",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.7764,
+      "native_dt": 2e-05,
+      "native_rate_hz": 50000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "flux_loop_flux",
+      "uda_name": "AMB_FL/CC03",
+      "source": "AMB",
+      "level1_system": "magnetics",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics)",
+      "review": false,
+      "dims": [
+        "flux_loop_channel",
+        "time"
+      ],
+      "units": "Wb",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.9744,
+      "native_dt": 0.0002,
+      "native_rate_hz": 5000.0
+    },
+    {
+      "group": "magnetics",
+      "var": "flux_loop_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "flux_loop_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "flux_loop_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "flux_loop_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "magnetics",
+      "var": "ip",
+      "uda_name": "AMC_PLASMA CURRENT",
+      "source": "AMC",
+      "level1_system": "magnetics",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "A",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": 0.0002,
+      "native_rate_hz": 5000.0
+    },
+    {
+      "group": "pf_active",
+      "var": "coil_current",
+      "uda_name": "AMC_P2IL FEED CURRENT",
+      "source": "AMC",
+      "level1_system": "magnetics",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics)",
+      "review": false,
+      "dims": [
+        "current_channel",
+        "time"
+      ],
+      "units": "A",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "pf_active",
+      "var": "coil_voltage",
+      "uda_name": "XDC_PF_F_P1",
+      "source": "XDC",
+      "level1_system": "pulse_schedule",
+      "classification": "planned-action",
+      "reason": "planned/demanded control waveform (known a priori \u2014 feed-forward command / setpoint)",
+      "review": false,
+      "dims": [
+        "voltage_channel",
+        "time"
+      ],
+      "units": "V",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.9956,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_inner_lower_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_inner_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_inner_lower_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_inner_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_inner_lower_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_inner_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_inner_lower_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_inner_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_inner_upper_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_inner_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_inner_upper_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_inner_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_inner_upper_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_inner_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_inner_upper_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_inner_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_outer_lower_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_outer_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_outer_lower_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_outer_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_outer_lower_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_outer_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_outer_lower_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_outer_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_outer_upper_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_outer_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_outer_upper_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_outer_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_outer_upper_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_outer_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p2_outer_upper_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2_outer_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p3_lower_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p3_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p3_lower_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p3_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p3_lower_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p3_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p3_lower_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p3_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p3_upper_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p3_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p3_upper_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p3_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p3_upper_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p3_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p3_upper_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p3_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p4_lower_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p4_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p4_lower_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p4_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p4_lower_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p4_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p4_lower_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p4_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p4_upper_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p4_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p4_upper_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p4_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p4_upper_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p4_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p4_upper_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p4_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p5_lower_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p5_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p5_lower_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p5_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p5_lower_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p5_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p5_lower_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p5_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p5_upper_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p5_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p5_upper_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p5_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p5_upper_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p5_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p5_upper_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p5_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p6_lower_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p6_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p6_lower_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p6_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p6_lower_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p6_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p6_lower_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p6_lower_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p6_upper_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p6_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p6_upper_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p6_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p6_upper_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p6_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "p6_upper_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p6_upper_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "sol_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "sol_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "sol_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "sol_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "sol_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "sol_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "sol_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "sol_coordinate_element"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_active",
+      "var": "solenoid_current",
+      "uda_name": "AMC_SOL CURRENT",
+      "source": "AMC",
+      "level1_system": "magnetics",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "A",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "pf_passive",
+      "var": "botcol_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "botcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "botcol_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "botcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "botcol_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "botcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "botcol_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "botcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "botcol_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "botcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "botcol_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "botcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "coil_cases_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "coil_cases_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "coil_cases_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "coil_cases_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "coil_cases_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "coil_cases_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "coil_cases_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "coil_cases_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_l_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_l_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_l_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_l_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_l_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_l_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_l_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_l_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_l_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_l_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_l_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_l_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_u_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_u_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_u_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_u_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_u_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_u_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_u_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_u_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_u_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_u_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "endcrown_u_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "endcrown_u_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "incon_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "incon_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "incon_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "incon_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "incon_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "incon_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "incon_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "incon_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "incon_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "incon_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "incon_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "incon_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "lhorw_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "lhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "lhorw_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "lhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "lhorw_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "lhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "lhorw_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "lhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "lhorw_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "lhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "lhorw_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "lhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "mid_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "mid_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "mid_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "mid_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "mid_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "mid_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "mid_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "mid_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "mid_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "mid_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "mid_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "mid_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2larm_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2larm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2larm_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2larm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2larm_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2larm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2larm_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2larm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2larm_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2larm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2larm_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2larm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2ldivpl_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2ldivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2ldivpl_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2ldivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2ldivpl_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2ldivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2ldivpl_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2ldivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2ldivpl_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2ldivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2ldivpl_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2ldivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2uarm_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2uarm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2uarm_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2uarm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2uarm_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2uarm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2uarm_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2uarm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2uarm_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2uarm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2uarm_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2uarm_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2udivpl_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2udivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2udivpl_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2udivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2udivpl_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2udivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2udivpl_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2udivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2udivpl_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2udivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "p2udivpl_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "p2udivpl_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "ring_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "ring_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "ring_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "ring_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "ring_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "ring_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "ring_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "ring_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "ring_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "ring_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "ring_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "ring_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "rodgr_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "rodgr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "rodgr_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "rodgr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "rodgr_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "rodgr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "rodgr_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "rodgr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "rodgr_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "rodgr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "rodgr_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "rodgr_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "topcol_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "topcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "topcol_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "topcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "topcol_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "topcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "topcol_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "topcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "topcol_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "topcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "topcol_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "topcol_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "uhorw_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "uhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "uhorw_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "uhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "uhorw_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "uhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "uhorw_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "uhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "uhorw_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "uhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "uhorw_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "uhorw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "vertw_height",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "vertw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "vertw_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "vertw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "vertw_shapeAngle1",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "vertw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "vertw_shapeAngle2",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "vertw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "vertw_width",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "vertw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pf_passive",
+      "var": "vertw_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "vertw_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "pulse_schedule",
+      "var": "i_plasma",
+      "uda_name": "XDC_IP_T_IPREF",
+      "source": "XDC",
+      "level1_system": "pulse_schedule",
+      "classification": "planned-action",
+      "reason": "planned/demanded control waveform (known a priori \u2014 feed-forward command / setpoint)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "A",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 1.0,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "pulse_schedule",
+      "var": "n_e_line",
+      "uda_name": "XDC_DENSITY_T_NELREF",
+      "source": "XDC",
+      "level1_system": "pulse_schedule",
+      "classification": "planned-action",
+      "reason": "planned/demanded control waveform (known a priori \u2014 feed-forward command / setpoint)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "1 / m ** 2",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 0.9956,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_lower",
+      "uda_name": "XSX_HCAML#1",
+      "source": "XSX",
+      "level1_system": "soft_x_rays",
+      "classification": "input",
+      "reason": "measured diagnostic (soft_x_rays)",
+      "review": false,
+      "dims": [
+        "horizontal_cam_lower_channel",
+        "time"
+      ],
+      "units": "V",
+      "time_dim": "time",
+      "coverage": 0.9231,
+      "n_shots_present": 24,
+      "finite_fraction_mean": 0.8345,
+      "native_dt": 2e-05,
+      "native_rate_hz": 50000.0
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_lower_endpoint_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_lower_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_lower_endpoint_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_lower_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_lower_origin_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_lower_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_lower_origin_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_lower_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_lower_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_lower_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_upper",
+      "uda_name": "XSX_HCAMU#1",
+      "source": "XSX",
+      "level1_system": "soft_x_rays",
+      "classification": "input",
+      "reason": "measured diagnostic (soft_x_rays)",
+      "review": false,
+      "dims": [
+        "horizontal_cam_upper_channel",
+        "time"
+      ],
+      "units": "V",
+      "time_dim": "time",
+      "coverage": 0.9231,
+      "n_shots_present": 24,
+      "finite_fraction_mean": 0.8366,
+      "native_dt": 2e-05,
+      "native_rate_hz": 50000.0
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_upper_endpoint_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_upper_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_upper_endpoint_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_upper_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_upper_origin_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_upper_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_upper_origin_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_upper_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "horizontal_cam_upper_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "horizontal_cam_upper_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "inner_vertical_cam_endpoint_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "inner_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "inner_vertical_cam_endpoint_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "inner_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "inner_vertical_cam_origin_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "inner_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "inner_vertical_cam_origin_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "inner_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "inner_vertical_cam_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "inner_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "outer_vertical_cam_endpoint_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "outer_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "outer_vertical_cam_endpoint_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "outer_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "outer_vertical_cam_origin_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "outer_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "outer_vertical_cam_origin_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "outer_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "outer_vertical_cam_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "outer_vertical_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "tangential_cam",
+      "uda_name": "XSX_TCAM#1",
+      "source": "XSX",
+      "level1_system": "soft_x_rays",
+      "classification": "input",
+      "reason": "measured diagnostic (soft_x_rays)",
+      "review": false,
+      "dims": [
+        "tangential_cam_channel",
+        "time"
+      ],
+      "units": "V",
+      "time_dim": "time",
+      "coverage": 0.6923,
+      "n_shots_present": 18,
+      "finite_fraction_mean": 0.817,
+      "native_dt": 2e-05,
+      "native_rate_hz": 50000.0
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "tangential_cam_endpoint_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "tangential_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "tangential_cam_endpoint_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "tangential_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "tangential_cam_origin_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "tangential_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "tangential_cam_origin_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "tangential_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "tangential_cam_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "tangential_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "third_horizontal_cam_endpoint_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "third_horizontal_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "third_horizontal_cam_endpoint_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "third_horizontal_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "third_horizontal_cam_origin_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "third_horizontal_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "third_horizontal_cam_origin_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "third_horizontal_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "soft_x_rays",
+      "var": "third_horizontal_cam_phi",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "third_horizontal_cam_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "spectrometer_visible",
+      "var": "density_gradient",
+      "uda_name": "ADG_DENSITY_GRADIENT",
+      "source": "ADG",
+      "level1_system": "spectrometer_visible",
+      "classification": "input",
+      "reason": "measured diagnostic (spectrometer_visible)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "1 / m ** 4",
+      "time_dim": "time",
+      "coverage": 0.9231,
+      "n_shots_present": 24,
+      "finite_fraction_mean": 0.8104,
+      "native_dt": 2e-05,
+      "native_rate_hz": 50000.0
+    },
+    {
+      "group": "spectrometer_visible",
+      "var": "filter_spectrometer_bes_voltage",
+      "uda_name": "xbt/channel01",
+      "source": "XBT",
+      "level1_system": "spectrometer_visible",
+      "classification": "input",
+      "reason": "measured diagnostic (spectrometer_visible)",
+      "review": false,
+      "dims": [
+        "bes_channel",
+        "time_bes"
+      ],
+      "units": "V",
+      "time_dim": "time_bes",
+      "coverage": 0.1538,
+      "n_shots_present": 4,
+      "finite_fraction_mean": 0.778,
+      "native_dt": 5e-07,
+      "native_rate_hz": 2000000.0
+    },
+    {
+      "group": "spectrometer_visible",
+      "var": "filter_spectrometer_dalpha_voltage",
+      "uda_name": "XIM_DA/HM10/R",
+      "source": "XIM",
+      "level1_system": "spectrometer_visible",
+      "classification": "probe-target",
+      "reason": "downstream probe target \u2014 default-off, kept separable",
+      "review": false,
+      "dims": [
+        "dalpha_channel",
+        "time"
+      ],
+      "units": "V",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.847,
+      "native_dt": 2e-05,
+      "native_rate_hz": 50000.0
+    },
+    {
+      "group": "summary",
+      "var": "greenwald_density",
+      "uda_name": "ESM_N_GREENWALD",
+      "source": "ESM",
+      "level1_system": "equilibrium_solovev",
+      "classification": "banned",
+      "reason": "reconstruction-derived scalar \u2014 embeds the EFIT/Solov'ev boundary",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "1 / m ** 3",
+      "time_dim": "time",
+      "coverage": 0.8462,
+      "n_shots_present": 22,
+      "finite_fraction_mean": 0.6464,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "summary",
+      "var": "ip",
+      "uda_name": "AMC_PLASMA CURRENT",
+      "source": "AMC",
+      "level1_system": "magnetics",
+      "classification": "input",
+      "reason": "measured diagnostic (magnetics)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "A",
+      "time_dim": "time",
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "summary",
+      "var": "line_average_n_e",
+      "uda_name": "ESM_NE_BAR",
+      "source": "ESM",
+      "level1_system": "equilibrium_solovev",
+      "classification": "banned",
+      "reason": "reconstruction-derived scalar \u2014 embeds the EFIT/Solov'ev boundary",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "1 / m ** 3",
+      "time_dim": "time",
+      "coverage": 0.8462,
+      "n_shots_present": 22,
+      "finite_fraction_mean": 0.819,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "summary",
+      "var": "neutron_rates_total",
+      "uda_name": "ANU_NEUTRONS",
+      "source": "ANU",
+      "level1_system": "neutron_diagnostic",
+      "classification": "input",
+      "reason": "measured diagnostic (neutron_diagnostic)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "Hz",
+      "time_dim": "time",
+      "coverage": 0.9615,
+      "n_shots_present": 25,
+      "finite_fraction_mean": 0.9712,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "summary",
+      "var": "power_nbi",
+      "uda_name": "ANB_TOT_SUM_POWER",
+      "source": "ANB",
+      "level1_system": "nbi",
+      "classification": "input",
+      "reason": "measured diagnostic (nbi)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "W",
+      "time_dim": "time",
+      "coverage": 0.9231,
+      "n_shots_present": 24,
+      "finite_fraction_mean": 0.9451,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "summary",
+      "var": "power_radiated",
+      "uda_name": "ABM_PRAD_POL",
+      "source": "ABM",
+      "level1_system": "bolometer",
+      "classification": "input",
+      "reason": "measured diagnostic (bolometer)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "W",
+      "time_dim": "time",
+      "coverage": 0.6923,
+      "n_shots_present": 18,
+      "finite_fraction_mean": 0.975,
+      "native_dt": 0.00025,
+      "native_rate_hz": 4000.0
+    },
+    {
+      "group": "thomson_scattering",
+      "var": "n_e",
+      "uda_name": "ATM_NE",
+      "source": "ATM",
+      "level1_system": "thomson_scattering",
+      "classification": "input",
+      "reason": "measured diagnostic (thomson_scattering)",
+      "review": false,
+      "dims": [
+        "major_radius",
+        "time"
+      ],
+      "units": "u * a",
+      "time_dim": "time",
+      "coverage": 0.8462,
+      "n_shots_present": 22,
+      "finite_fraction_mean": 0.4533,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "thomson_scattering",
+      "var": "n_e_core",
+      "uda_name": "ATM_NE_CORE",
+      "source": "ATM",
+      "level1_system": "thomson_scattering",
+      "classification": "input",
+      "reason": "measured diagnostic (thomson_scattering)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "1 / m ** 3",
+      "time_dim": "time",
+      "coverage": 0.8462,
+      "n_shots_present": 22,
+      "finite_fraction_mean": 0.5322,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "thomson_scattering",
+      "var": "p_e",
+      "uda_name": "ATM_PE",
+      "source": "ATM",
+      "level1_system": "thomson_scattering",
+      "classification": "input",
+      "reason": "measured diagnostic (thomson_scattering)",
+      "review": false,
+      "dims": [
+        "major_radius",
+        "time"
+      ],
+      "units": "u * a",
+      "time_dim": "time",
+      "coverage": 0.8462,
+      "n_shots_present": 22,
+      "finite_fraction_mean": 0.4533,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "thomson_scattering",
+      "var": "t_e",
+      "uda_name": "ATM_TE",
+      "source": "ATM",
+      "level1_system": "thomson_scattering",
+      "classification": "input",
+      "reason": "measured diagnostic (thomson_scattering)",
+      "review": false,
+      "dims": [
+        "major_radius",
+        "time"
+      ],
+      "units": "eV",
+      "time_dim": "time",
+      "coverage": 0.8462,
+      "n_shots_present": 22,
+      "finite_fraction_mean": 0.4533,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "thomson_scattering",
+      "var": "t_e_core",
+      "uda_name": "ATM_TE_CORE",
+      "source": "ATM",
+      "level1_system": "thomson_scattering",
+      "classification": "input",
+      "reason": "measured diagnostic (thomson_scattering)",
+      "review": false,
+      "dims": [
+        "time"
+      ],
+      "units": "eV",
+      "time_dim": "time",
+      "coverage": 0.8462,
+      "n_shots_present": 22,
+      "finite_fraction_mean": 0.5367,
+      "native_dt": 0.005,
+      "native_rate_hz": 200.0
+    },
+    {
+      "group": "wall",
+      "var": "limiter_r",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "limiter_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    },
+    {
+      "group": "wall",
+      "var": "limiter_z",
+      "uda_name": null,
+      "source": null,
+      "level1_system": null,
+      "classification": "infra",
+      "reason": "no uda_name \u2014 static geometry / machine description",
+      "review": false,
+      "dims": [
+        "limiter_geometry_channel"
+      ],
+      "units": "SI, degrees, m",
+      "time_dim": null,
+      "coverage": 1.0,
+      "n_shots_present": 26,
+      "finite_fraction_mean": 1.0,
+      "native_dt": null,
+      "native_rate_hz": null
+    }
+  ]
+}
