@@ -14,6 +14,7 @@ import pytest
 from imas_ambix.statespace.fast_loader import (
     ActShot,
     AoeShot,
+    XimShot,
     XmaShot,
     XsxShot,
     align_to_mse_window,
@@ -21,6 +22,7 @@ from imas_ambix.statespace.fast_loader import (
     probe_fast_panel,
     read_act_shot,
     read_aoe_shot,
+    read_xim_shot,
     read_xma_shot,
     read_xsx_shot,
 )
@@ -212,6 +214,79 @@ def _make_act_fixture(
         _make_zarr_array(act_path, name, arr)
 
     return shot_path
+
+
+def _make_xim_fixture(
+    root: Path, shot_id: int = 99006, n_time: int = 500, schema: str = "modern"
+) -> Path:
+    """Synthetic xim group with da_*/cii_* channels and bookkeeping arrays."""
+    shot_path = root / f"{shot_id}.zarr"
+    xim_path = shot_path / "xim"
+    _make_zarr_group(xim_path)
+
+    time = np.linspace(-0.01, 0.99, n_time, dtype=np.float32)
+    _make_zarr_array(xim_path, "time", time)
+    rng = np.random.default_rng(7)
+    # Emission channels (modern carry the numeric-suffix sightline variants).
+    if schema == "modern":
+        sig_names = ["da_hm10_r1", "da_hu10_u1", "da_bo10", "cii_hu10_u"]
+    else:
+        sig_names = ["da_hm10_r", "da_hu10_u", "da_bo10", "cii_hu10_u"]
+    for name in sig_names:
+        _make_zarr_array(xim_path, name, rng.standard_normal(n_time).astype(np.float32))
+    # Bookkeeping arrays that share the time axis but must be excluded.
+    for name in ["trigger", "target", "ts_yag", "light_start"]:
+        _make_zarr_array(xim_path, name, rng.standard_normal(n_time).astype(np.float32))
+    return shot_path
+
+
+# ---------------------------------------------------------------------------
+# xim tests
+# ---------------------------------------------------------------------------
+
+
+class TestReadXimShot:
+    def test_modern_schema_basic(self, tmp_path: Path) -> None:
+        shot = _make_xim_fixture(tmp_path, shot_id=99006, schema="modern")
+        result = read_xim_shot(shot)
+        assert result is not None
+        assert isinstance(result, XimShot)
+        assert result.schema == "modern"
+        # Only da_*/cii_* channels kept; bookkeeping arrays excluded.
+        assert set(result.channel_names) == {
+            "da_hm10_r1",
+            "da_hu10_u1",
+            "da_bo10",
+            "cii_hu10_u",
+        }
+        assert result.data.shape == (result.n_slices, result.n_channels)
+        assert result.avail_mask.all()
+
+    def test_legacy_schema_detected(self, tmp_path: Path) -> None:
+        shot = _make_xim_fixture(tmp_path, shot_id=99007, schema="legacy")
+        result = read_xim_shot(shot)
+        assert result is not None
+        assert result.schema == "legacy"
+        assert "da_hm10_r" in result.channel_names
+
+    def test_rate_is_native(self, tmp_path: Path) -> None:
+        shot = _make_xim_fixture(tmp_path, shot_id=99008, n_time=1001)
+        result = read_xim_shot(shot)
+        assert result is not None
+        # 1.0 s span over 1000 intervals → 1 kHz on the synthetic grid.
+        assert result.rate_hz == pytest.approx(1000.0, rel=0.05)
+
+    def test_bookkeeping_arrays_excluded(self, tmp_path: Path) -> None:
+        shot = _make_xim_fixture(tmp_path)
+        result = read_xim_shot(shot)
+        assert result is not None
+        for bk in ("trigger", "target", "ts_yag", "light_start", "time"):
+            assert bk not in result.channel_names
+
+    def test_missing_group_returns_none(self, tmp_path: Path) -> None:
+        shot_path = tmp_path / "99999.zarr"
+        shot_path.mkdir(parents=True)
+        assert read_xim_shot(shot_path) is None
 
 
 # ---------------------------------------------------------------------------

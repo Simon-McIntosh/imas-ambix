@@ -300,6 +300,163 @@ def read_xma_shot(shot_zarr_path: Path) -> XmaShot | None:
 
 
 # ---------------------------------------------------------------------------
+# xim — fast visible spectroscopy (Dα / CII), ELM carriers
+# ---------------------------------------------------------------------------
+#
+# xim ("spectrometer_visible") holds the fast Dα (da_*) and CII (cii_*) photo-
+# multiplier channels at ~50 kHz on a dense, fully-finite time axis.  These
+# carry the ELM / fluctuation carriers in the divertor and midplane sightlines.
+#
+# Schema heterogeneity (MAST campaigns):
+#   modern (shot >= ~27000): da_hl11_l1, da_hu10_u1, da_hm10_r1, ... ; time
+#   legacy (shot <  ~27000): da_hl11_l,  da_hu10_u,  da_hm10_r,  ... ; time
+# The numeric-suffix variants (`_l1` vs `_l`) and the exact channel inventory
+# vary per campaign, so the loader is schema-tolerant: it discovers da_*/cii_*
+# channels present in the group rather than assuming a fixed inventory.
+
+# Non-signal bookkeeping arrays that share the time axis but are NOT emission
+# channels — excluded from the Dα/CII signal set.
+_XIM_NON_SIGNAL = frozenset(
+    {
+        "time",
+        "sec",
+        "trigger",
+        "target",
+        "light_start",
+        "light_end",
+        "mass_start",
+        "mass_end",
+        "pellet_time",
+        "pellet_halpha_2",
+        "preion_trig",
+        "ts_yag",
+        "xsa_logic_out",
+        "test_jd0",
+    }
+)
+
+
+@dataclass
+class XimShot:
+    """Decoded fast visible-spectroscopy (xim) measurement for one shot.
+
+    The time axis is dense and fully finite (no plasma-on masking needed at
+    this digitiser); channels are kept on that native axis.
+
+    Attributes
+    ----------
+    shot_id:
+        Integer shot identifier.
+    schema:
+        ``'modern'`` (numeric-suffix channels, e.g. da_hl11_l1) or
+        ``'legacy'`` (bare-suffix channels, e.g. da_hl11_l).
+    rate_hz:
+        Measured sample rate in Hz (typically ~50 000).
+    time:
+        ``(T,)`` float64 — native time axis (s).
+    channel_names:
+        ``(C,)`` list — da_*/cii_* channel names in data column order.
+    data:
+        ``(T, C)`` float32 — emission measurements.
+    avail_mask:
+        ``(C,)`` bool — True if the channel has any finite data in this shot.
+    """
+
+    shot_id: int
+    schema: str
+    rate_hz: float
+    time: np.ndarray
+    channel_names: list[str]
+    data: np.ndarray
+    avail_mask: np.ndarray
+
+    @property
+    def n_slices(self) -> int:
+        return int(self.time.shape[0])
+
+    @property
+    def n_channels(self) -> int:
+        return len(self.channel_names)
+
+
+def read_xim_shot(shot_zarr_path: Path) -> XimShot | None:
+    """Decode the fast visible-spectroscopy (xim) group for one shot.
+
+    Schema-tolerant (copy of the read_xsx_shot pattern): discovers the
+    da_*/cii_* emission channels actually present rather than assuming a fixed
+    inventory, so it works across MAST campaigns whose channel suffixes differ
+    (``da_hl11_l1`` modern vs ``da_hl11_l`` legacy).  Returns None if the group
+    is missing, has no time axis, or carries no usable da_*/cii_* channel.
+    """
+    grp = _open_group(shot_zarr_path, "xim")
+    if grp is None:
+        return None
+    shot_id = int(shot_zarr_path.stem)
+
+    keys = set(grp.array_keys())
+    t = _read_array(grp, "time")
+    if t is None:
+        return None
+    t = np.asarray(t).reshape(-1).astype(np.float64)
+    fin_t = np.isfinite(t)
+    if fin_t.sum() < 10:
+        return None
+    time = t[fin_t]
+
+    dt_s = np.diff(time[: min(time.size, 1000)])
+    rate_hz = float(1.0 / np.median(dt_s)) if dt_s.size > 0 else 50_000.0
+
+    # Discover da_*/cii_* emission channels present in this shot, in a stable
+    # (sorted) order.  Schema is inferred from whether any modern numeric-suffix
+    # channel name is present.
+    signal_keys = sorted(
+        k
+        for k in keys
+        if (k.startswith("da_") or k.startswith("cii_") or k.startswith("heii_"))
+        and k not in _XIM_NON_SIGNAL
+    )
+    if not signal_keys:
+        return None
+    # Modern campaigns carry the numeric-suffix sightline variants
+    # (da_hm10_r1, da_hl11_l1, …); legacy campaigns carry only the bare-suffix
+    # names (da_hm10_r, da_hl11_l).  The bare names contain digits in the
+    # detector label itself (da_bo10), so detect on the trailing "_<letter><n>"
+    # variant marker rather than on a trailing digit.
+    schema = (
+        "modern"
+        if any(len(k) > 2 and k[-1].isdigit() and k[-2].isalpha() for k in signal_keys)
+        else "legacy"
+    )
+
+    cols: list[np.ndarray] = []
+    names: list[str] = []
+    for ch in signal_keys:
+        raw = _read_array(grp, ch)
+        if raw is None:
+            continue
+        raw = np.asarray(raw).reshape(-1)
+        if raw.size != t.size:
+            continue  # unexpected shape; skip
+        cols.append(raw[fin_t].astype(np.float32))
+        names.append(ch)
+
+    if not cols:
+        return None
+
+    data = np.stack(cols, axis=1)  # (T, C)
+    avail = np.isfinite(data).any(axis=0)  # (C,) bool
+    return XimShot(
+        shot_id=shot_id,
+        schema=schema,
+        rate_hz=rate_hz,
+        time=time,
+        channel_names=names,
+        data=data,
+        avail_mask=avail,
+    )
+
+
+# ---------------------------------------------------------------------------
 # xsx — soft X-ray cameras
 # ---------------------------------------------------------------------------
 
