@@ -599,12 +599,29 @@ def _resolve_channels(
     level1_dir: Path | None,
     probe: int = 8,
 ) -> tuple[list[ModalitySpec], dict[str, int]]:
-    """Probe a few shots to fix the per-modality channel counts + common set.
+    """Fix the per-modality channel widths for ALL declared modalities.
 
-    The model's tables/heads must be sized once.  We assemble up to ``probe``
-    shots, keep only modalities present in EVERY probed shot, and take the MAX
-    channel count seen for each (the pad collate pads narrower shots up).
-    Returns ``(kept_modalities, {name: n_channels})``.
+    The model's tables/heads must be sized ONCE, and they are built for EVERY
+    declared modality unconditionally (cameras/HF/L2 heads always exist) — NOT
+    for the subset a tiny probe happened to intersect.  Cameras live in high
+    shot-ids, so a probe over the first few shots may carry none of them; a
+    probe-intersection sizing would silently drop the camera/HF heads and
+    collapse the all-streams model.  Here every declared modality is KEPT and
+    its fixed channel width resolved robustly:
+
+    * the MAX channel count seen across the probed shots that actually carried
+      the modality (so a present modality is sized to real data), else
+    * the spec's :meth:`ModalitySpec.fixed_channel_width` — a structural
+      constant for cameras (the 16×16 frame grid at the camera stride) and for
+      any modality pinning ``n_channels`` — so a modality ABSENT from every
+      probe shot (a camera not in the low-id probe band) is STILL sized
+      correctly, never zero/absent, else
+    * ``1`` as a last-resort non-zero floor (a degenerate signal_hf group with
+      neither a probe sample nor a declared width).
+
+    A shot carrying more/fewer channels than the fixed width is pad/truncated by
+    :func:`pad_collate_batch`; a shot lacking the modality entirely is the
+    all-PAD masked block.  Returns ``(declared_modalities, {name: width})``.
     """
     samples: list[WorldModelSample] = []
     for sid in shot_ids[:probe]:
@@ -623,11 +640,27 @@ def _resolve_channels(
             continue
     if not samples:
         raise ValueError("channel probe: no shot assembled — cannot size the model")
-    common = set.intersection(*(set(s.tokens) for s in samples))
-    kept = [m for m in modalities if m.name in common]
-    channels = {
-        m.name: max(int(s.tokens[m.name].shape[1]) for s in samples) for m in kept
-    }
+
+    # KEEP every declared modality (unconditional heads) — the probe only fixes
+    # widths, it does NOT decide which modalities exist.
+    kept = list(modalities)
+    channels: dict[str, int] = {}
+    for m in kept:
+        probed = [
+            int(s.tokens[m.name].shape[1]) for s in samples if m.name in s.tokens
+        ]
+        if probed:
+            channels[m.name] = max(probed)
+            continue
+        fixed = m.fixed_channel_width()
+        channels[m.name] = int(fixed) if fixed and fixed >= 1 else 1
+        logger.info(
+            "channel probe: modality %s absent from all %d probed shots — "
+            "sizing from spec fixed width = %d",
+            m.name,
+            len(samples),
+            channels[m.name],
+        )
     return kept, channels
 
 
@@ -715,6 +748,25 @@ def train_corpus(
 
     model = _build_corpus_model(kept, channels, config.window, **config.model_kwargs)
     model.to(dev)
+    # Log the resolved backbone size + parameter budget at STARTUP (before the
+    # loop) so a scaled run is auditable from the first line — the documented
+    # contract is that the param count and context length are the LIVE numbers,
+    # never guessed (model.num_parameters / model.context_length).
+    logger.info(
+        "model built on %s: d_model=%d n_layers=%d n_heads=%d d_ff=%d dropout=%.3g | "
+        "params=%d (%.2fM) ctx_len=%d | modalities=%s channels=%s",
+        dev,
+        model.config.d_model,
+        model.config.n_layers,
+        model.config.n_heads,
+        model.config.d_ff,
+        model.config.dropout,
+        model.num_parameters(),
+        model.num_parameters() / 1e6,
+        model.context_length(),
+        [m.name for m in kept],
+        {k: int(v) for k, v in channels.items()},
+    )
     opt = torch.optim.AdamW(
         model.parameters(), lr=config.lr, weight_decay=config.weight_decay
     )
@@ -901,7 +953,8 @@ def _run_periodic_eval(
     cpu_model = WorldModel(model.config)
     cpu_model.load_state_dict(model.state_dict())
     cpu_model.eval()
-    for sid in list(eval_shot_ids)[:n]:
+    eval_list = list(eval_shot_ids)[:n]
+    for sid in eval_list:
         try:
             report = evaluate_shot(
                 int(sid),
@@ -913,11 +966,24 @@ def _run_periodic_eval(
             )
             skills.append(report.mean_skill)
         except (ValueError, FileNotFoundError, KeyError) as exc:
-            logger.info("periodic eval: shot %s skipped: %r", sid, exc)
+            # Log a WARNING (not info) so a skip is VISIBLE — a skip now means a
+            # genuine read failure or an eval shot that shares no scorable
+            # modality with the model, not the old silently-padded crash.
+            logger.warning("periodic eval: shot %s NOT scored: %r", sid, exc)
             continue
     del cpu_model
     if not skills:
-        return 0.0
+        # No eval shot was scorable — surface loudly.  This usually means the
+        # held-out eval shots were drawn from a band that does not carry the
+        # model's streams (see the camera-bearing eval-shot selection in
+        # ``_cmd_corpus``); the run continues but the metric is absent, not 0.
+        logger.warning(
+            "periodic eval: NONE of %d eval shots %s could be scored — "
+            "the skill metric is ABSENT this round (check eval-shot selection)",
+            len(eval_list),
+            eval_list,
+        )
+        return float("nan")
     return float(sum(skills) / len(skills))
 
 
@@ -968,6 +1034,86 @@ def _resolve_corpus_shots(args, modalities, token_root) -> list[int]:  # noqa: A
     )
 
 
+def _select_eval_shots(
+    shots: Sequence[int],
+    modalities: Sequence[ModalitySpec],
+    *,
+    n_eval: int,
+    token_root: Path | None,
+) -> tuple[list[int], list[int]]:
+    """Split the corpus into (train, eval), biasing eval toward camera-bearing.
+
+    A predict-vs-reality demo must SCORE the camera modalities, so the held-out
+    eval shots are chosen to actually CARRY cameras (with a spread across the id
+    range), not tail-sliced from a band that happens to be camera-free.  Returns
+    ``(train_shots, eval_shots)`` with the eval shots removed from training.
+
+    Falls back to a spread of plain shots when the corpus carries no cameras
+    (or none of the declared modalities is a camera).
+    """
+    from imas_ambix.worldmodel.dataset import _modality_store_present  # noqa: PLC0415
+
+    ids = [int(s) for s in shots]
+    if len(ids) <= 1:
+        return ids, ids
+    n_eval = max(1, min(n_eval, len(ids) // 5 or 1))
+    root = Path(token_root) if token_root is not None else None
+
+    camera_mods = [m for m in modalities if m.kind == "camera"]
+    cam_bearing: list[int] = []
+    if camera_mods:
+        cam_bearing = [
+            sid
+            for sid in ids
+            if any(_modality_store_present(sid, m, root) for m in camera_mods)
+        ]
+
+    pool = cam_bearing if cam_bearing else ids
+    # spread the eval picks across the id range of the pool (evenly-spaced
+    # indices over the SORTED pool) so eval is not clustered at one end.
+    ordered = sorted(set(pool))
+    if n_eval >= len(ordered):
+        eval_shots = list(ordered)
+    else:
+        idx = [round(i * (len(ordered) - 1) / (n_eval - 1)) for i in range(n_eval)] \
+            if n_eval > 1 else [len(ordered) // 2]
+        eval_shots = [ordered[i] for i in sorted(set(idx))]
+    eval_set = set(eval_shots)
+    train_shots = [sid for sid in ids if sid not in eval_set]
+    if not train_shots:  # tiny corpus — fall back to overlapping eval
+        train_shots = ids
+    return train_shots, eval_shots
+
+
+def _corpus_model_kwargs(args) -> dict:  # noqa: ANN001
+    """Collect the backbone-size overrides from the corpus CLI args.
+
+    Only knobs the user explicitly set (non-None) are returned, so an unset
+    knob falls through to the :class:`WorldModelConfig` field default — i.e.
+    omitting every ``--d-model/--n-layers/--n-heads/--dropout`` reproduces the
+    prior tiny-default model exactly (back-compat).
+
+    When ``--d-model`` IS given we also derive ``d_ff = 4 * d_model`` (the
+    standard transformer feed-forward ratio) unless the caller pins ``--d-ff``,
+    so scaling the width up scales the MLP up too rather than leaving it at the
+    256 default and starving the bigger model.
+    """
+    kw: dict[str, object] = {}
+    if getattr(args, "d_model", None) is not None:
+        kw["d_model"] = int(args.d_model)
+    if getattr(args, "n_layers", None) is not None:
+        kw["n_layers"] = int(args.n_layers)
+    if getattr(args, "n_heads", None) is not None:
+        kw["n_heads"] = int(args.n_heads)
+    if getattr(args, "dropout", None) is not None:
+        kw["dropout"] = float(args.dropout)
+    if getattr(args, "d_ff", None) is not None:
+        kw["d_ff"] = int(args.d_ff)
+    elif "d_model" in kw:
+        kw["d_ff"] = 4 * int(kw["d_model"])
+    return kw
+
+
 def _cmd_corpus(args) -> int:  # noqa: ANN001
     """Train the plan-conditioned world model on the corpus (the real loop)."""
     modalities = default_modalities()
@@ -990,17 +1136,26 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         logger.error("no shots discovered/given for corpus training")
         return 1
 
-    # Held-out eval shots: a tail slice not used for training, unless given.
+    # Held-out eval shots.  Unless given explicitly, pick shots that actually
+    # CARRY cameras (spread across the id range) so the predict-vs-reality demo
+    # scores the camera modalities — NOT a tail slice of the (camera-first
+    # reordered) corpus, whose tail is the camera-free core-only band.
     if args.eval_shots.strip():
         eval_shots = [int(s) for s in args.eval_shots.split(",") if s.strip()]
         train_shots = shots
-    elif len(shots) > 1:
-        n_eval = max(1, min(args.n_eval_shots, len(shots) // 5))
-        eval_shots = shots[-n_eval:]
-        train_shots = shots[:-n_eval]
     else:
-        eval_shots = shots
-        train_shots = shots
+        train_shots, eval_shots = _select_eval_shots(
+            shots, modalities, n_eval=args.n_eval_shots, token_root=token_root
+        )
+
+    # Backbone-size overrides.  Unset (None) => the WorldModelConfig field
+    # default is used, so omitting all four reproduces the prior behaviour
+    # (back-compat).  ``d_ff`` is not a separate CLI knob: when the width is
+    # scaled up we follow the standard transformer 4x feed-forward ratio so a
+    # bigger ``d_model`` actually grows the MLP (otherwise d_ff stays 256 and
+    # the model is width-starved); the WorldModelConfig default (256) stands
+    # when ``--d-model`` is unset.
+    model_kwargs = _corpus_model_kwargs(args)
 
     cfg = CorpusTrainConfig(
         steps=args.steps,
@@ -1015,6 +1170,7 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         window=WorldModelWindowConfig(
             n_steps=args.n_steps, context_steps=args.context_steps
         ),
+        model_kwargs=model_kwargs,
     )
     logger.info(
         "corpus train: %d train shots, %d eval shots, out_dir=%s",
@@ -1083,11 +1239,45 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--out-dir", default=None, help="checkpoint dir (default GPFS)")
     pc.add_argument("--token-root", default=None)
     pc.add_argument("--no-resume", action="store_true", help="ignore latest.pt")
+    # Backbone-size knobs.  Default None => the WorldModelConfig field default
+    # (the tiny prototype) — omit all four for the prior behaviour; set them to
+    # size the transformer UP so the H200s are actually used.
+    pc.add_argument(
+        "--d-model",
+        type=int,
+        default=None,
+        help="transformer width (default: WorldModelConfig default, tiny)",
+    )
+    pc.add_argument(
+        "--n-layers",
+        type=int,
+        default=None,
+        help="transformer depth (default: WorldModelConfig default)",
+    )
+    pc.add_argument(
+        "--n-heads",
+        type=int,
+        default=None,
+        help="attention heads (must divide d-model; default WorldModelConfig)",
+    )
+    pc.add_argument(
+        "--d-ff",
+        type=int,
+        default=None,
+        help="feed-forward width (default: 4*d-model when --d-model set, else 256)",
+    )
+    pc.add_argument(
+        "--dropout",
+        type=float,
+        default=None,
+        help="dropout probability (default: WorldModelConfig default, 0.0)",
+    )
     pc.add_argument(
         "--modalities",
         default="",
         help="comma-separated subset of default_modalities by name "
-        "(e.g. pulse_schedule,summary,pf_active,interferometer); empty = all",
+        "(e.g. pulse_schedule,summary,pf_active,interferometer,gas_injection,"
+        "soft_x_rays,xma,xim,xsx,rbb,rba,rco,rgb,rgc); empty = ALL streams",
     )
     pc.set_defaults(func=_cmd_corpus)
 

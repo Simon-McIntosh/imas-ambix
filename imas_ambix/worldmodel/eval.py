@@ -47,7 +47,7 @@ from imas_ambix.worldmodel.dataset import (
     build_shot_sample,
     default_modalities,
 )
-from imas_ambix.worldmodel.train import collate_samples
+from imas_ambix.worldmodel.train import pad_collate_batch
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -55,6 +55,30 @@ if TYPE_CHECKING:
     from imas_ambix.worldmodel.model import WorldModel
 
 logger = logging.getLogger(__name__)
+
+
+def _model_channel_widths(model: WorldModel) -> dict[str, int]:
+    """The model's FIXED per-modality channel widths (head/embedding sizing).
+
+    These are the widths the model's heads + ``channel_query`` were built to,
+    so an assembled eval sample MUST be pad/truncated to exactly these before a
+    forward pass — a held-out shot whose per-modality channel count differs
+    (common: pf_active coil counts vary per shot) would otherwise crash the
+    forward at the channel dimension.
+    """
+    return {m.name: int(m.n_channels) for m in model.config.modalities}
+
+
+def _model_obs_plan_names(model: WorldModel) -> tuple[list[str], list[str]]:
+    """The model's own observation + conditioning(plan) modality names.
+
+    Eval scores exactly the modalities the model has heads for (the declared
+    set), regardless of which the assembled sample carried — an absent modality
+    is the all-PAD masked block, never a crash or a silent skip.
+    """
+    obs = [m.name for m in model.config.modalities if not m.is_conditioning]
+    plan = [m.name for m in model.config.modalities if m.is_conditioning]
+    return obs, plan
 
 
 # ---------------------------------------------------------------------------
@@ -75,9 +99,16 @@ def rollout(
     tokens are fed back (argmax / MAP decode) until the grid is filled.  Returns
     ``{modality: (n_steps, n_channels) int64}`` predicted tokens — the context
     steps copied from the truth, the target steps generated.
+
+    The assembled sample is pad/truncated to the MODEL's fixed per-modality
+    channel widths via :func:`pad_collate_batch` (NOT a plain stack), so a
+    held-out shot whose channel counts differ from the training-probe widths
+    never crashes the forward — the extra channels are dropped, the missing ones
+    are all-PAD + masked.
     """
     model.eval()
-    batch = collate_samples([sample], obs_names, plan_names)
+    channels = _model_channel_widths(model)
+    batch = pad_collate_batch([sample], obs_names, plan_names, channels)
     ctx = int(sample.context_steps)
     n_steps = sample.n_steps
 
@@ -94,7 +125,24 @@ def rollout(
                 lg = out.logits[name]  # (1, T, C, V)
                 pred = lg[:, t - 1].argmax(dim=-1)  # (1, C)
                 work[name][:, t] = pred
-    return {name: work[name][0].cpu().numpy().astype(np.int64) for name in obs_names}
+
+    # Return predictions over the OVERLAP channel width
+    # ``min(model_width, sample_native_width)`` (only modalities the sample
+    # actually carried), so the caller scores model-vs-truth like-for-like:
+    # * a sample WIDER than the model: extra channels were truncated at collate
+    #   and are simply not scored;
+    # * a sample NARROWER than the model: the model's extra channels are padded
+    #   and have no truth.
+    # A model modality the sample lacks entirely is skipped here (all-PAD block).
+    out_pred: dict[str, np.ndarray] = {}
+    for name in obs_names:
+        if name not in sample.tokens:
+            continue
+        native_c = int(sample.tokens[name].shape[1])
+        pred_np = work[name][0].cpu().numpy().astype(np.int64)  # (T, model_C)
+        overlap = min(native_c, pred_np.shape[1])
+        out_pred[name] = pred_np[:, :overlap]
+    return out_pred
 
 
 # ---------------------------------------------------------------------------
@@ -141,10 +189,18 @@ def score_skill(
     ctx = int(sample.context_steps)
     out: dict[str, ModalitySkill] = {}
     for name in obs_names:
-        truth = sample.tokens[name][ctx:]  # (Th, C)
-        valid = sample.valid[name][ctx:]  # (Th, C)
+        # only modalities the sample carries AND the rollout predicted are
+        # scorable; a model modality absent from this shot has no truth.
+        if name not in sample.tokens or name not in predicted:
+            continue
+        # the rollout returns predictions over the OVERLAP channel width
+        # (min of model + sample widths); score truth/valid on the SAME columns
+        # so a per-shot channel-count mismatch never broadcasts/errors here.
+        c = int(predicted[name].shape[1])
+        truth = sample.tokens[name][ctx:, :c]  # (Th, c)
+        valid = sample.valid[name][ctx:, :c]  # (Th, c)
         model_pred = predicted[name][ctx:]
-        persist = _persistence_prediction(sample, name)[ctx:]
+        persist = _persistence_prediction(sample, name)[ctx:, :c]
         n = int(valid.sum())
         if n == 0:
             out[name] = ModalitySkill(name, 0.0, 0.0, 0)
@@ -276,6 +332,13 @@ def evaluate_shot(
     model forward from the context window, scores token-skill vs persistence,
     and attaches the eval-only L2 target reference.  Runs even when the model is
     under-trained (the skeleton requirement).
+
+    The rollout uses the MODEL's own declared modality set (and pad/truncates
+    the assembled sample to the model's fixed channel widths) so a held-out shot
+    whose channel counts differ never crashes the forward.  The skill is scored
+    over the modalities the shot ACTUALLY carries — and if the shot shares NO
+    scorable observation modality with the model, this RAISES loudly rather than
+    silently reporting zero skill (a silent skip used to hide the eval crash).
     """
     modalities = list(modalities or default_modalities())
     window = window or WorldModelWindowConfig()
@@ -283,13 +346,24 @@ def evaluate_shot(
     sample = build_shot_sample(
         shot_id, modalities, window, token_root=token_root, level1_dir=level1_dir
     )
-    present = set(sample.tokens)
-    modalities = [m for m in modalities if m.name in present]
-    plan_names = [m.name for m in modalities if m.is_conditioning]
-    obs_names = [m.name for m in modalities if not m.is_conditioning]
+    # Roll out using the MODEL's declared modality set (the heads/channel_query
+    # are sized to these); the sample is pad/truncated to the model widths in
+    # ``rollout`` so a per-shot channel-count mismatch can never crash forward.
+    obs_names, plan_names = _model_obs_plan_names(model)
+    if not any(n in sample.tokens for n in plan_names):
+        raise ValueError(
+            f"shot {shot_id}: carries none of the model's conditioning "
+            f"modalities {plan_names} — cannot roll out (would be all-PAD plan)"
+        )
 
     predicted = rollout(model, sample, obs_names, plan_names)
     skill = score_skill(sample, predicted, obs_names)
+    if not any(s.n_scored > 0 for s in skill.values()):
+        raise ValueError(
+            f"shot {shot_id}: no observation modality scored (no valid target "
+            f"tokens overlapping the model's modalities) — eval cannot score "
+            f"this shot; pick a held-out shot that carries the model's streams"
+        )
     ref = load_target_reference(shot_id, target_root=target_root)
 
     return EvalReport(

@@ -51,12 +51,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from imas_ambix.camdyn.dataset import (
-    DEFAULT_CAMERA,
-    frames_token_path,
-    level1_shot_path,
+    DEFAULT_VOCAB_VERSION as FRAMES_VOCAB_VERSION,
 )
 from imas_ambix.camdyn.dataset import (
-    DEFAULT_VOCAB_VERSION as FRAMES_VOCAB_VERSION,
+    frames_token_path,
+    level1_shot_path,
 )
 from imas_ambix.data.paths import TOKEN_ROOT
 from imas_ambix.tokenizer.store_targets import (
@@ -74,6 +73,15 @@ logger = logging.getLogger(__name__)
 # "pad": 0).  A grid step with no native token for a modality is filled with
 # this id and masked invalid — never a silent real-reading zero.
 PAD_LOCAL_ID = 0
+
+# The five MAST frame-token cameras (camera id -> on-disk frame-token store
+# count).  They do NOT all co-occur on every shot — most shots carry only a
+# subset — so every camera is an OPTIONAL modality: consumed where present,
+# all-PAD + masked where absent.  Requiring all five would collapse the corpus
+# to the rare all-camera intersection; requiring none of them (cameras optional
+# vs the required core) keeps the corpus large (≈ the rbb store count, the
+# largest single camera, when rbb is in the core — see ``default_modalities``).
+CAMERA_IDS: tuple[str, ...] = ("rbb", "rba", "rco", "rgb", "rgc")
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +135,21 @@ class ModalitySpec:
         token grid (keep every ``stride``-th token in each axis).  A stride of
         4 turns the 256-token frame into a 16-token frame — keeps the camera
         modality tractable for the prototype without changing the wiring.
+    required:
+        When True the modality's on-disk store MUST be present for a shot to
+        qualify in :func:`discover_worldmodel_shots`.  The REQUIRED core is
+        DELIBERATELY MINIMAL — just the conditioning plan (``pulse_schedule``,
+        essential because the model is plan-conditioned) and ``summary`` (the
+        universal base observation) — so the corpus stays LARGE (every shot
+        carrying the plan + base observation qualifies).  When False the
+        modality is OPTIONAL: consumed when its store is present for a shot and
+        emitted as an all-PAD, masked block when absent (via
+        :func:`~imas_ambix.worldmodel.train.pad_collate_batch`) — so an OPTIONAL
+        modality never excludes a shot from the corpus.  EVERYTHING beyond the
+        core is optional: the other L2 groups, every HF stream (xma/xim/xsx),
+        and every camera.  Stream presence varies per shot, so requiring more
+        than the core would shrink the corpus to a rare all-streams
+        intersection.
     """
 
     name: str
@@ -137,6 +160,7 @@ class ModalitySpec:
     anchors_grid: bool = True
     n_channels: int = 0
     camera_grid_stride: int = 4
+    required: bool = True
 
     def __post_init__(self) -> None:
         if self.kind not in ("signal_hf", "camera"):
@@ -144,54 +168,180 @@ class ModalitySpec:
         if self.vocab_size < 2:
             raise ValueError(f"{self.name}: vocab_size must be >= 2 (pad + data)")
 
+    def fixed_channel_width(self) -> int | None:
+        """The modality's channel width, when it can be fixed WITHOUT a shot.
 
-def default_modalities(camera: str = DEFAULT_CAMERA) -> list[ModalitySpec]:
-    """Return the prototype modality subset (§7: tractable, spans the kinds).
+        Returns the per-step channel count this modality contributes to the
+        fused step embedding, when that width is a structural constant rather
+        than a per-shot property:
 
-    The conditioning plan (``pulse_schedule``) plus a tractable measured-input
-    subset (``summary``, ``pf_active``, ``interferometer``), the ``xma`` fast
-    magnetics, and one camera.  Structured so adding a modality is a one-line
-    append — e.g. ``ModalitySpec("xim", "signal_hf", "xim", 12806)`` to add the
-    Dalpha/CII high-frequency stream.
+        * an explicitly declared ``n_channels`` (>0) on the spec wins — the
+          caller pinned the width;
+        * a ``camera`` modality's width is fully determined by the 16×16 LFQ
+          frame grid sub-sampled at ``camera_grid_stride`` (e.g. stride 4 → a
+          4×4 = 16-token frame), so it never needs a probe shot.
 
-    The L2 light-path groups share the 256-bin uniform-quantiser vocabulary
-    (``L2_BLOCK_VOCAB``); ``xma``'s discrete codebook is degenerate (size 1 on
-    disk — its payload lives in a continuous embedding, not the tokens), so it
-    is included for structural completeness but contributes no discrete signal.
+        Returns ``None`` for a ``signal_hf`` group with no declared width — its
+        channel count (coil counts, chord counts, …) genuinely varies per shot
+        and must be probed (see :func:`camera_channel_width`).
+        """
+        if self.n_channels > 0:
+            return int(self.n_channels)
+        if self.kind == "camera":
+            return camera_channel_width(self.camera_grid_stride)
+        return None
+
+
+def camera_channel_width(stride: int) -> int:
+    """Channel count a camera modality contributes at a given grid stride.
+
+    The camera token grid is the fixed ``FRAME_GRID`` (16×16) sub-sampled by
+    keeping every ``stride``-th token on each axis, then flattened — exactly
+    what :func:`_read_camera` produces.  This is a structural constant (no shot
+    needed), so the model's camera embedding/head channel width is always
+    correct even when no probed shot carries the camera.
+    """
+    from imas_ambix.camdyn.dataset import FRAME_GRID  # noqa: PLC0415
+
+    h, w = FRAME_GRID
+    return int(len(range(0, h, stride)) * len(range(0, w, stride)))
+
+
+def default_modalities(
+    cameras: Sequence[str] = CAMERA_IDS,
+) -> list[ModalitySpec]:
+    """Return the FULL tokenised input substrate as world-model modalities.
+
+    Every tokenised input stream confirmed on disk is emitted as a modality so
+    the trainer uses the whole multi-modal substrate:
+
+    * **conditioning plan** — ``pulse_schedule`` (the programmed pulse-schedule
+      demand waveforms);
+    * **measured L2 light path** — ``summary``, ``pf_active``,
+      ``interferometer``, ``gas_injection``, ``soft_x_rays`` (the
+      provenance-verified Level-2 *input* observables, 256-bin uniform-quantiser
+      vocab);
+    * **L1 high-frequency patch-transformer streams** — ``xma`` (fast magnetics
+      Mirnov array, degenerate size-1 discrete codebook on disk — kept for
+      structural completeness), ``xim`` (Dα/CII, codebook 12800), ``xsx``
+      (soft-X-ray chord array, codebook 1024);
+    * **cameras** — all five MAST frame-token cameras (``rbb``, ``rba``,
+      ``rco``, ``rgb``, ``rgc``), each its own LFQ ``1 << 18`` codebook.
+
+    REQUIRED core vs OPTIONAL substrate
+    -----------------------------------
+    Stream presence VARIES per shot, so only a tiny REQUIRED core gates the
+    corpus: the conditioning ``pulse_schedule`` (the plan is essential — the
+    model is plan-conditioned) and ``summary`` (a near-universal base
+    observation).  EVERYTHING ELSE — the other L2 groups, every HF stream, and
+    every camera — is ``required=False``: consumed where present, emitted as an
+    all-PAD, masked block (no loss) where absent (via
+    :func:`~imas_ambix.worldmodel.train.pad_collate_batch`).  This keeps the
+    corpus LARGE — :func:`discover_worldmodel_shots` admits every shot carrying
+    the plan + base observation, NOT the rare all-streams intersection.
+
+    Grid anchoring
+    --------------
+    Only the reliable common-grid L2 light-path groups (the L2 ``signal_hf``
+    modalities) anchor the model time grid.  The HF streams (xma/xim/xsx) and
+    the cameras ride their own native time axes and are ``anchors_grid=False``,
+    so a single flaky/disjoint auxiliary store can never sink a whole shot.
+
+    The two degenerate cross-channel SIBLING tokens (``xma_mode`` /
+    ``xsx_profile``) are size-1 placeholder blocks on disk — their payload lives
+    in a continuous metadata embedding, not the discrete tokens — so they carry
+    NO discrete signal and are intentionally NOT emitted as predictive
+    modalities.
+
+    Each camera gets its OWN :class:`ModalitySpec` (distinct ``name`` == camera
+    id), so the model builds one embedding + one next-token head per camera and
+    per-camera identity is preserved.  Five separate ``1 << 18`` camera tables +
+    heads are ~1.0 B params at ``d_model=384`` (≈16 GB worst-case fp32 AdamW),
+    well within ONE H200's 140 GB — so the cameras stay per-camera (no shared
+    codebook needed); a shot missing a camera simply leaves that camera's block
+    all-PAD + masked.
     """
     from imas_ambix.tokenizer.registry import L2_BLOCK_VOCAB
 
     # +1 so the PAD local id (0) and every quantiser bin id fit in the table.
     l2_vocab = L2_BLOCK_VOCAB + 1
-    return [
-        # The PLAN — programmed pulse-schedule demands (conditioning).
+    mods: list[ModalitySpec] = [
+        # ── Conditioning plan (REQUIRED core) ───────────────────────────────
+        # The PLAN — programmed pulse-schedule demands (conditioning).  The
+        # model is plan-conditioned, so the plan is essential: it gates the
+        # corpus.
         ModalitySpec(
             "pulse_schedule",
             "signal_hf",
             "pulse_schedule_l2",
             l2_vocab,
             is_conditioning=True,
+            required=True,
         ),
-        # Measured L2 inputs (the observed scalars the model predicts forward).
-        ModalitySpec("summary", "signal_hf", "summary_l2", l2_vocab),
-        ModalitySpec("pf_active", "signal_hf", "pf_active_l2", l2_vocab),
-        ModalitySpec("interferometer", "signal_hf", "interferometer_l2", l2_vocab),
-        # High-frequency fast magnetics (xma).  Degenerate discrete codebook on
-        # disk; kept so the wiring carries an HF modality end-to-end.  Does NOT
-        # anchor the grid — some shots' xma stores carry a non-physical time
-        # axis, which must not be allowed to sink the whole shot.
-        ModalitySpec("xma", "signal_hf", "xma", 8, anchors_grid=False),
-        # One camera (spatially subsampled to stay prototype-small).  Rides its
-        # own frame-time axis, so it does not anchor the L2 grid either.
+        # ── Measured L2 inputs ──────────────────────────────────────────────
+        # ``summary`` is the universal base observation and the only measured
+        # modality in the REQUIRED core; the remaining L2 groups are OPTIONAL so
+        # a shot lacking one of them is still admitted (used where present,
+        # all-PAD + masked where absent).  All L2 groups anchor the grid.
+        ModalitySpec("summary", "signal_hf", "summary_l2", l2_vocab, required=True),
         ModalitySpec(
-            "camera",
-            "camera",
-            camera,
-            1 << 18,
-            anchors_grid=False,
-            camera_grid_stride=4,
+            "pf_active", "signal_hf", "pf_active_l2", l2_vocab, required=False
+        ),
+        ModalitySpec(
+            "interferometer",
+            "signal_hf",
+            "interferometer_l2",
+            l2_vocab,
+            required=False,
+        ),
+        ModalitySpec(
+            "gas_injection",
+            "signal_hf",
+            "gas_injection_l2",
+            l2_vocab,
+            required=False,
+        ),
+        ModalitySpec(
+            "soft_x_rays",
+            "signal_hf",
+            "soft_x_rays_l2",
+            l2_vocab,
+            required=False,
+        ),
+        # ── L1 high-frequency patch-transformer streams (OPTIONAL) ──────────
+        # Native-cadence phase-aware patch codes.  Coverage varies per shot
+        # (xim ~14183, xsx ~13002, xma ~12045 shots), so each is OPTIONAL and
+        # off-grid (its own native time axis).  ``xma``'s discrete patch
+        # codebook is degenerate (size 1 on disk — payload in a continuous
+        # embedding); the small vocab=8 leaves room for PAD + control ids.
+        # ``xim`` codebook 12800, ``xsx`` codebook 1024 (+ slack for PAD/control
+        # so every rebased local id and PAD=0 fit the table).
+        ModalitySpec("xma", "signal_hf", "xma", 8, anchors_grid=False, required=False),
+        ModalitySpec(
+            "xim", "signal_hf", "xim", 12806, anchors_grid=False, required=False
+        ),
+        ModalitySpec(
+            "xsx", "signal_hf", "xsx", 1030, anchors_grid=False, required=False
         ),
     ]
+    # ── Cameras (OPTIONAL) ──────────────────────────────────────────────────
+    # All five cameras, each OPTIONAL (used when present, all-PAD + masked when
+    # absent).  Each rides its own frame-time axis, so none anchors the L2 grid.
+    # The modality name IS the camera id so the model keeps per-camera tables /
+    # heads and the loader reads each camera's own frames (``m.group``).
+    for cam in cameras:
+        mods.append(
+            ModalitySpec(
+                cam,
+                "camera",
+                cam,
+                1 << 18,
+                anchors_grid=False,
+                camera_grid_stride=4,
+                required=False,
+            )
+        )
+    return mods
 
 
 # ---------------------------------------------------------------------------
@@ -577,6 +727,21 @@ def build_shot_sample(
 # ---------------------------------------------------------------------------
 
 
+def _modality_store_present(
+    sid: int, m: ModalitySpec, root: Path | None
+) -> bool:
+    """True when modality ``m``'s on-disk store exists for shot ``sid``.
+
+    Routed through the per-modality path builders so the boundary guard fires
+    (a path under ``TARGET_ROOT`` is hard-refused before any existence probe).
+    """
+    if m.kind == "signal_hf":
+        p = _signal_hf_store_path(sid, m.group, token_root=root)
+        return p.exists()
+    p = frames_token_path(sid, m.group, FRAMES_VOCAB_VERSION, token_root=root)
+    return (p / "zarr.json").exists() or p.exists()
+
+
 def discover_worldmodel_shots(
     modalities: Sequence[ModalitySpec],
     *,
@@ -584,12 +749,50 @@ def discover_worldmodel_shots(
     shot_ids: Sequence[int] | None = None,
     limit: int | None = None,
     require_all: bool = True,
+    sample: str = "camera_first",
+    seed: int = 0,
 ) -> list[int]:
-    """Enumerate shots that carry the requested modalities on disk.
+    """Enumerate shots that carry the REQUIRED core modalities on disk.
 
-    A cheap directory scan: a shot qualifies when every ``require_all``
-    modality's store exists (or, when ``require_all`` is False, at least one
-    does).  ``shot_ids`` restricts the scan; ``limit`` caps the result.
+    A cheap directory scan keyed on the REQUIRED-vs-OPTIONAL split:
+
+    * When ``require_all`` is True (the default), a shot qualifies when every
+      modality with ``ModalitySpec.required`` True has its store present.
+      Modalities with ``required=False`` (the non-core L2 groups, every HF
+      stream, and the five cameras) are IGNORED by discovery — a shot is
+      admitted whether or not its optional stores exist, and the optional
+      modality is consumed where present / emitted all-PAD + masked where
+      absent at collate time.  This is what keeps the corpus LARGE: requiring
+      the whole substrate would shrink it to the rare all-streams intersection,
+      but requiring only the minimal core (the conditioning plan + the universal
+      ``summary`` base observation) admits every shot that carries them, with
+      every other stream used opportunistically.
+    * When ``require_all`` is False a shot qualifies when AT LEAST ONE of the
+      passed modalities' stores exists (the permissive any-of scan — unchanged).
+
+    Sampling (``sample`` + ``seed``) — why this matters
+    ---------------------------------------------------
+    Cameras live in HIGH shot-ids (rbb ≥ 15085, rco ≥ 19156, …).  A naive
+    ascending scan with a small ``limit`` returns ONLY the lowest-id band,
+    which carries ZERO cameras — the camera (and the partly-covered xma) heads
+    then never see a single token.  To stop that, ALL qualifying shots are
+    enumerated first and only THEN truncated to ``limit``, after a deterministic
+    (seeded) resample so the kept corpus and the channel-sizing probe both SEE
+    camera-bearing shots:
+
+    * ``"camera_first"`` (default): qualifying shots that carry AT LEAST ONE of
+      the passed cameras are moved to the FRONT (each band internally shuffled
+      with ``seed``), so a small ``limit`` is camera-dense; the remaining
+      core-only shots follow.  Camera presence is probed per shot (boundary-
+      guarded) only over the camera specs, so the scan stays cheap.
+    * ``"shuffle"``: a single seeded shuffle of all qualifying shots (no camera
+      bias) — still removes the ascending-low-id pathology.
+    * ``"ascending"``: the legacy strict ascending order (no resample) — kept
+      for explicit callers that want determinism by id; NOT the default because
+      it is the camera-free-band bug.
+
+    ``shot_ids`` restricts the scan; ``limit`` caps the result (applied AFTER
+    the resample so the truncation keeps camera-bearing shots).
 
     Every candidate path is routed through the target-boundary guard via the
     per-modality path builders, so the enumeration set can never include a
@@ -607,24 +810,74 @@ def discover_worldmodel_shots(
             int(p.name) for p in sig_root.iterdir() if p.is_dir() and p.name.isdigit()
         )
 
-    out: list[int] = []
+    # In the default (require_all) mode the gate is the REQUIRED core only;
+    # optional modalities (cameras) never gate discovery.  When no modality is
+    # marked required (a caller passing only optional specs), fall back to
+    # requiring every passed modality so the call still means "shots with these".
+    required_mods = [m for m in modalities if m.required]
+    gate_mods = required_mods if (require_all and required_mods) else list(modalities)
+
+    # Enumerate EVERY qualifying shot first (do NOT break early at ``limit`` —
+    # that is the ascending-low-id pathology).  ``limit`` is applied only after
+    # the resample below.
+    qualified: list[int] = []
     for sid in candidates:
-        present = []
-        for m in modalities:
-            if m.kind == "signal_hf":
-                p = _signal_hf_store_path(sid, m.group, token_root=root)
-                present.append(p.exists())
-            else:
-                p = frames_token_path(
-                    sid, m.group, FRAMES_VOCAB_VERSION, token_root=root
-                )
-                present.append((p / "zarr.json").exists() or p.exists())
+        present = [_modality_store_present(sid, m, root) for m in gate_mods]
         ok = all(present) if require_all else any(present)
         if ok:
-            out.append(sid)
-        if limit is not None and len(out) >= limit:
-            break
+            qualified.append(sid)
+
+    out = _sample_discovered_shots(
+        qualified, modalities, root, sample=sample, seed=seed
+    )
+    if limit is not None:
+        out = out[:limit]
     return out
+
+
+def _sample_discovered_shots(
+    qualified: Sequence[int],
+    modalities: Sequence[ModalitySpec],
+    root: Path | None,
+    *,
+    sample: str,
+    seed: int,
+) -> list[int]:
+    """Resample qualifying shots so a small ``limit`` sees camera-bearing ones.
+
+    See :func:`discover_worldmodel_shots` for the ``sample`` modes.  Returns the
+    full reordered list; the caller applies ``limit`` afterwards.
+    """
+    import random  # noqa: PLC0415
+
+    shots = list(qualified)
+    if sample == "ascending":
+        return shots
+    rng = random.Random(seed)
+    if sample == "shuffle":
+        rng.shuffle(shots)
+        return shots
+    if sample != "camera_first":
+        raise ValueError(
+            f"unknown sample mode {sample!r} "
+            "(want 'camera_first', 'shuffle', or 'ascending')"
+        )
+    # camera_first: split into camera-bearing vs core-only, shuffle each band
+    # (seeded), and put the camera-bearing band first so a small limit is dense
+    # in cameras.  If no camera modalities are declared, this degenerates to a
+    # plain seeded shuffle.
+    camera_mods = [m for m in modalities if m.kind == "camera"]
+    if not camera_mods:
+        rng.shuffle(shots)
+        return shots
+    with_cam: list[int] = []
+    without_cam: list[int] = []
+    for sid in shots:
+        has_cam = any(_modality_store_present(sid, m, root) for m in camera_mods)
+        (with_cam if has_cam else without_cam).append(sid)
+    rng.shuffle(with_cam)
+    rng.shuffle(without_cam)
+    return with_cam + without_cam
 
 
 # ---------------------------------------------------------------------------

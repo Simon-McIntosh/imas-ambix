@@ -44,12 +44,36 @@ the prefix + ``obs_{<t}`` (causal); the prefix is never a prediction target.
 
 Prototype size + context length (documented contract)
 -----------------------------------------------------
-The default :class:`WorldModelConfig` is intentionally small.  With
-``d_model=128``, ``n_layers=4``, ``n_heads=4`` and the default modality set the
-backbone is on the order of ~1M parameters (the embedding tables dominate when
-the camera modality with its 2^18 vocab is included — that table alone is
-~33.5M params, so the camera vocab is the param driver and a real run uses a
-factored / hashed camera codebook).  Context length is
+The default :class:`WorldModelConfig` is intentionally small, but the modality
+set is the FULL tokenised substrate (see
+:func:`~imas_ambix.worldmodel.dataset.default_modalities`): the conditioning
+plan, the five measured L2 light-path groups (``summary``, ``pf_active``,
+``interferometer``, ``gas_injection``, ``soft_x_rays``), the three L1
+high-frequency streams (``xma``, ``xim``, ``xsx``), and ALL FIVE MAST cameras
+(``rbb``, ``rba``, ``rco``, ``rgb``, ``rgc``).
+
+The per-modality embedding tables dominate the param count once the cameras are
+included.  Each camera gets its OWN ``nn.Embedding`` + next-token ``nn.Linear``
+head over the 2^18 LFQ vocabulary, so EACH camera contributes ``2^18 * d_model``
+embedding params + ``d_model * 2^18`` head params — the five cameras together
+are the overwhelming driver.  The xim head (vocab 12806) and xsx head (vocab
+1030) add a further, much smaller, vocab-sized contribution; the L2 groups
+(vocab 257) and xma (vocab 8) are negligible.  Concretely the five cameras are
+~1.0B params at ``d_model=384`` (~0.2B per camera) and ~0.34B at ``d_model=128``
+— and the whole model (all modalities, the five SEPARATE camera tables/heads,
+bf16 weights + AdamW state) fits on ONE H200 (140 GB) with very large headroom:
+the five-camera tables are ~16 GB even in the worst-case full-fp32 AdamW
+accounting (~2 GB bf16 weights + ~12-14 GB AdamW state at d_model=384), so NO
+shared-codebook compression is needed and the cameras stay per-camera to keep
+per-camera identity exact.  Per shot only the cameras actually present receive a
+gradient (an absent camera's block is all-PAD + masked), and the single-device
+trainer (:func:`~imas_ambix.worldmodel.train.train_corpus`) loads the whole
+model once on its one GPU.  If a much wider future run ever needed it, the five
+cameras COULD share one embedding (they share the LFQ codebook) — the wiring is
+unchanged; only ``WorldModel`` would route the camera names to a common
+embedding key while keeping per-camera heads + ``modality_embed`` identity — but
+at the documented scales this is unnecessary.
+Context length is
 ``plan_steps + n_steps`` fused steps (default ``64 + 64 = 128`` positions).
 :meth:`WorldModel.num_parameters` returns the live count and
 :meth:`WorldModel.context_length` the live position budget so the actual
@@ -132,19 +156,42 @@ class WorldModelConfig:
     ) -> WorldModelConfig:
         """Build a config from dataset :class:`ModalitySpec`s + channel counts.
 
-        ``channels`` maps modality name -> number of channels (read off an
-        assembled sample, so the head/embedding shapes match the data exactly).
+        A head + embedding table is built for EVERY declared modality —
+        UNCONDITIONALLY, never filtered by which modalities a probe happened to
+        see.  Cameras/HF streams live in high shot-ids, so a probe over the
+        first few (low-id) shots would otherwise drop them and collapse the
+        intended ~1B-param all-streams model to a tiny one; building from the
+        DECLARED set keeps every camera/HF/L2 head present.
+
+        Each modality's FIXED per-step channel width is resolved robustly, in
+        priority order:
+
+        1. the probed count ``channels[name]`` (the MAX seen across probe shots
+           that actually carried it) — preferred when the modality was probed;
+        2. otherwise the spec's :meth:`ModalitySpec.fixed_channel_width` — a
+           structural constant for cameras (16×16 frame grid sub-sampled at the
+           camera's stride) and for any modality that pins ``n_channels``;
+        3. otherwise ``1`` — a degenerate but non-zero block so the table
+           exists; a shot carrying the modality is pad/truncated to this width
+           (collate) and a shot lacking it is the all-PAD masked block.
+
+        ``channels`` maps modality name -> probed channel count.
         """
-        heads = [
-            ModalityHeadSpec(
-                name=m.name,
-                vocab_size=m.vocab_size,
-                n_channels=int(channels.get(m.name, m.n_channels)),
-                is_conditioning=m.is_conditioning,
+        heads: list[ModalityHeadSpec] = []
+        for m in modalities:
+            width = channels.get(m.name)
+            if width is None:
+                width = m.fixed_channel_width()
+            if width is None or int(width) < 1:
+                width = 1
+            heads.append(
+                ModalityHeadSpec(
+                    name=m.name,
+                    vocab_size=m.vocab_size,
+                    n_channels=int(width),
+                    is_conditioning=m.is_conditioning,
+                )
             )
-            for m in modalities
-            if m.name in channels
-        ]
         return cls(
             modalities=heads,
             plan_steps=plan_steps,
@@ -427,7 +474,17 @@ class WorldModel(nn.Module):
 
         logits: dict[str, torch.Tensor] = {}
         for name in self._obs_names:
-            n_ch = tokens[name].shape[2]
+            # Emit logits at the modality's FIXED head/channel_query width — the
+            # width the head + channel_query were built to — NOT the incoming
+            # token width.  Callers (collate) pad/truncate tokens to this fixed
+            # width (``pad_collate_batch``); clamping here makes the model
+            # self-consistent so a wider-than-model input can never produce
+            # logits of a width that mismatches its targets downstream (the
+            # blocker-2 crash, which surfaced not in forward but in the loss /
+            # skill score when logits width != target width).
+            fixed_ch = self.channel_query[name].shape[0]
+            in_ch = tokens[name].shape[2]
+            n_ch = min(in_ch, fixed_ch)
             query = self.channel_query[name][:n_ch]  # (n_ch, d)
             # add the per-channel query to the shared step state, then head:
             # (B, obs_len, 1, d) + (n_ch, d) -> (B, obs_len, n_ch, d)

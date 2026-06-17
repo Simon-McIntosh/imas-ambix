@@ -3,9 +3,9 @@
 #SBATCH --partition=betelgeuse
 #SBATCH --reservation=gpu_0003_grpA
 #SBATCH --account=grpa
-#SBATCH --gres=gpu:2
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=320G
+#SBATCH --gres=gpu:4
+#SBATCH --cpus-per-task=30
+#SBATCH --mem=640G
 #SBATCH --time=10:00:00
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
 # NOTE: --qos intentionally omitted — the gpu_0003_grpa QoS is auto-applied;
@@ -18,14 +18,19 @@
 #  distinct shots with the target-window forecasting objective, AdamW,
 #  checkpoint+resume, and periodic held-out skill-vs-persistence eval.
 #
-#  GPUs: --gres=gpu:2.  DeepSeek-V4-Flash (2x variant) holds the other 2 of
-#  the Group-A 4-H200 reservation, so this job takes the 2 free cards.  The
-#  prototype model is small (a single H200 is ample); the 2-card request just
-#  matches what is FREE.  If DSv4 is shut down (pre-authorised — see the
-#  user memory `feedback_authorised_to_stop_dsv4`: `ambix agent shutdown
-#  deepseek-v4-flash -y`) and the demo needs more throughput, bump --gres to
-#  gpu:4, --cpus-per-task to 30, --mem to 640G — the trainer uses one device
-#  but more cores accelerate the DataLoader.
+#  GPUs: --gres=gpu:4 (the FULL Group-A 4-H200 reservation).  This is the
+#  SCALED demo run: a sizeable transformer (WM_D_MODEL/WM_N_LAYERS/WM_N_HEADS
+#  below) over the FULL tokenised substrate — the conditioning plan, the five
+#  measured L2 groups (summary/pf_active/interferometer/gas_injection/
+#  soft_x_rays), the three L1 HF streams (xma/xim/xsx), and all five cameras
+#  (the richest streams, ~16 tokens/frame each at camera_grid_stride=4) — makes
+#  the GPU work, unlike the first tiny data-bound run.  The whole model (incl
+#  five separate 2^18 camera tables) fits on ONE H200; the trainer is
+#  single-device.  DeepSeek-V4-Flash must be shut down first to free all 4 cards —
+#  pre-authorised, see user memory `feedback_authorised_to_stop_dsv4`:
+#  `ambix agent shutdown deepseek-v4-flash -y`.  The trainer itself runs on a
+#  single device today; the 4-card request reserves the node so the DataLoader
+#  gets all 30 cores + 640G and no peer job contends for the GPU.
 #
 #  RESUME-SAFE (the H200 node has a drain history, AGENTS.md §2a): checkpoints
 #  land on GPFS under WM_OUT_DIR (default /work/.../worldmodel/ckpt/<jobid>);
@@ -89,7 +94,7 @@ fi
 : "${WM_N_SHOTS:=512}"         # discovered-shot cap when WM_TRAIN_SHOTS empty
 : "${WM_EVAL_SHOTS:=}"         # comma-separated held-out shots; empty -> tail
 : "${WM_N_EVAL_SHOTS:=4}"      # held-out shots scored at each eval
-: "${WM_STEPS:=20000}"         # optimiser steps (a step is one batch)
+: "${WM_STEPS:=40000}"         # optimiser steps (a step is one batch) — scaled
 : "${WM_BATCH_SIZE:=8}"        # shots per batch
 : "${WM_N_STEPS:=128}"         # common-grid steps
 : "${WM_CONTEXT_STEPS:=32}"    # context window (rest is the target window)
@@ -98,8 +103,19 @@ fi
 : "${WM_LOG_EVERY:=50}"
 : "${WM_CKPT_EVERY:=500}"      # checkpoint cadence (drain-safe)
 : "${WM_EVAL_EVERY:=2000}"     # held-out eval cadence
-: "${WM_NUM_WORKERS:=8}"       # DataLoader workers
-: "${WM_MODALITIES:=}"         # comma-separated modality subset; empty -> all (incl heavy camera)
+: "${WM_NUM_WORKERS:=24}"      # DataLoader workers (full reservation has 30 cores)
+: "${WM_MODALITIES:=}"         # comma-separated modality subset; empty -> ALL streams (plan + 5 L2 + xma/xim/xsx + 5 cameras)
+
+# ── Backbone-size knobs (the SCALED demo) ───────────────────────────────────
+# Demo-scaled defaults: a sizeable transformer so the H200 is actually used,
+# not data-bound like the first tiny auto-sized run.  d_ff is derived as
+# 4*d_model by the trainer when --d-model is set (standard transformer ratio),
+# so it is not a separate knob here.  Leave a knob EMPTY to fall back to the
+# WorldModelConfig field default (the tiny prototype) — set them to scale up.
+: "${WM_D_MODEL:=384}"         # transformer width
+: "${WM_N_LAYERS:=8}"          # transformer depth
+: "${WM_N_HEADS:=8}"           # attention heads (must divide d_model)
+: "${WM_DROPOUT:=0.1}"         # dropout probability
 # Checkpoints persist on GPFS keyed by job id; override WM_OUT_DIR to resume a
 # drained job's ckpt dir into a fresh allocation.
 : "${WM_OUT_DIR:=/work/projects/imas_gpu/worldmodel/ckpt/${SLURM_JOB_ID}}"
@@ -141,12 +157,23 @@ MOD_ARG=""
 if [[ -n "${WM_MODALITIES}" ]]; then
     MOD_ARG="--modalities ${WM_MODALITIES}"
 fi
+# Backbone-size args: only pass a knob when it is set, so an empty knob falls
+# through to the WorldModelConfig field default (back-compat with the tiny run).
+SIZE_ARG=""
+if [[ -n "${WM_D_MODEL}" ]];  then SIZE_ARG="${SIZE_ARG} --d-model ${WM_D_MODEL}"; fi
+if [[ -n "${WM_N_LAYERS}" ]]; then SIZE_ARG="${SIZE_ARG} --n-layers ${WM_N_LAYERS}"; fi
+if [[ -n "${WM_N_HEADS}" ]];  then SIZE_ARG="${SIZE_ARG} --n-heads ${WM_N_HEADS}"; fi
+if [[ -n "${WM_DROPOUT}" ]];  then SIZE_ARG="${SIZE_ARG} --dropout ${WM_DROPOUT}"; fi
+
+echo "  model-size:    d_model=${WM_D_MODEL:-<default>} n_layers=${WM_N_LAYERS:-<default>} n_heads=${WM_N_HEADS:-<default>} dropout=${WM_DROPOUT:-<default>}"
+echo "  modalities:    ${WM_MODALITIES:-<ALL: plan + 5 L2 + xma/xim/xsx + 5 cameras>}"
 
 # shellcheck disable=SC2086
 ${PY} -m imas_ambix.worldmodel.train corpus \
     ${SHOT_ARG} \
     ${EVAL_ARG} \
     ${MOD_ARG} \
+    ${SIZE_ARG} \
     --n-shots "${WM_N_SHOTS}" \
     --n-eval-shots "${WM_N_EVAL_SHOTS}" \
     --steps "${WM_STEPS}" \
