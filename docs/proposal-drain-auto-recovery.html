@@ -101,6 +101,19 @@ provides immediate benefit.</p>
         <code>D</code>-state → "Kill task failed" → drain.</td>
     <td>Admin notified; reboot; <code>scontrol resume</code></td>
   </tr>
+  <tr>
+    <td>2026-06-17 (04:31)</td>
+    <td><code>1218732</code></td>
+    <td>ongoing (pending resume)</td>
+    <td>Full-corpus signal encode hit its 12&nbsp;h time limit; SIGTERM teardown of the
+        DataLoader fork-workers + GPFS-over-fabric reads left the encode python in
+        <code>D</code> state on <code>cxiWaitEventWait</code> (CXI/Slingshot fabric)
+        past <code>UnkillableStepTimeout</code> (61&nbsp;s TIMEOUT→drain gap) →
+        <strong>"Kill task failed"</strong> → drain. <strong>First event captured live
+        by the drain sidecar</strong> — see §2b.</td>
+    <td>Pending: GPU-clean check → <code>scontrol resume</code> (DeepSeek + a camera
+        job still running on the node — drain blocks new scheduling only)</td>
+  </tr>
 </tbody>
 </table></div>
 
@@ -111,6 +124,59 @@ the device, and each subsequent job's NCCL teardown wedged permanently because i
 inherited a dirty GPU. Without an epilog GPU-clean gate, an incomplete recovery
 (GPU not reset before next job starts) re-seeds the next drain. This cascade mechanism
 means recovery quality directly determines future drain risk.</p>
+
+<h2 id="s2b">§2b — 2026-06-17: first live forensic capture (drain sidecar)</h2>
+
+<p>The §2a forensic sidecar (<code>scripts/slurm/drain_sidecar.sh</code>, default-on for
+long GPU jobs) captured the drain of job <code>1218732</code> in a single run — the live
+<code>D</code>-state PID + kernel wait symbol that the reproduction campaign spent weeks
+failing to assemble forward. The sidecar logged 510,337 per-PID samples (state + wchan,
+~1&nbsp;Hz across the 12&nbsp;h job) to
+<code>/work/projects/imas_gpu/logs/drain-sidecar-1218732.csv</code>. Of these, 840 were
+<code>D</code>-state samples (0.16% — consistent with the settled "transient,
+oscillating D→R" finding); the dominant wait was unambiguous:</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Kernel wait (<code>wchan</code>)</th><th><code>D</code>-state samples</th><th>Surface</th></tr></thead>
+<tbody>
+  <tr><td><code>cxiWaitEventWait</code></td><td>408</td><td><strong>CXI / Slingshot fabric</strong> — the GPFS-over-fabric read wedge</td></tr>
+  <tr><td><code>os_acquire_rwlock_read</code></td><td>159</td><td>NVIDIA RM lock (collateral)</td></tr>
+  <tr><td><code>os_acquire_rwlock_write</code></td><td>101</td><td>NVIDIA RM lock (collateral)</td></tr>
+  <tr><td><code>futex_wait_queue</code></td><td>62</td><td>userspace lock</td></tr>
+  <tr><td><code>os_acquire_semaphore</code></td><td>22</td><td>NVIDIA RM (collateral)</td></tr>
+</tbody>
+</table></div>
+
+<p><strong>Holder.</strong> The D-state was held by the encode venv python (487 of the
+840 D-state samples) on <code>cxiWaitEventWait</code> — an uninterruptible
+Slingshot-fabric read, not a CUDA/NCCL call. <code>nvidia-smi</code> accounted for 315
+D-state samples, all on the NVIDIA RM rwlock — <strong>this is the collateral that makes
+<code>nvidia-smi</code> itself hang during recovery</strong> (it blocks on the same RM
+lock the wedged context holds), which is exactly why manual recovery has been slow.</p>
+
+<p><strong>What this settles.</strong> Of the three §2a-named candidate surfaces (NVIDIA
+driver / CXI fabric / GPFS kernel wait), the specific wedge here is the <strong>CXI
+fabric</strong> serving the GPFS read; the NVIDIA-RM contention is downstream collateral,
+not the primary wait. The cause remains environmental/node-level — the encode code is the
+D-state holder via an ordinary fabric read, not a misbehaving code path (consistent with
+the settled findings in
+<a href="rca-node-drain-final-2026-06-03.html">rca-node-drain-final-2026-06-03</a>); no
+behavioural guard would have prevented it, since a D-state task receives no signals.</p>
+
+<p><strong>Timing.</strong> <code>sacct</code> shows the step <code>TIMEOUT</code> at
+04:31:07 and the drain <code>Reason=Kill task failed [root@2026-06-17T04:32:08]</code> —
+a <strong>61&nbsp;s</strong> gap, consistent with the inferred
+<code>UnkillableStepTimeout</code>&nbsp;≈&nbsp;60&nbsp;s (§5a) and reinforcing the §3
+recommendation to raise it to 120&nbsp;s.</p>
+
+<p><strong>Why this validates the proposal.</strong> This is precisely the capture the §3
+<code>UnkillableStepProgram</code> would produce automatically and then act on: the
+handler's <code>/proc/&lt;pid&gt;/stack</code> + <code>nvidia-smi</code> dump would have
+recorded this same <code>cxiWaitEventWait</code> wedge and attempted the GPU reset +
+auto-resume — turning a multi-hour manual outage into a sub-5-minute self-recovery. The
+sidecar proves the diagnostic half works today; §3/§5 automate the recovery half.
+Forensics:
+<code>/work/projects/imas_gpu/logs/drain-sidecar-1218732.{csv,smi,node}</code>.</p>
 
 <h2 id="s3">§3 — Proposed Change 1: <code>UnkillableStepProgram</code> + Timeout Increase</h2>
 
