@@ -43,7 +43,11 @@ on demand so the dataset object is cheap to pickle and share across workers.
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
+import json
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -727,9 +731,7 @@ def build_shot_sample(
 # ---------------------------------------------------------------------------
 
 
-def _modality_store_present(
-    sid: int, m: ModalitySpec, root: Path | None
-) -> bool:
+def _modality_store_present(sid: int, m: ModalitySpec, root: Path | None) -> bool:
     """True when modality ``m``'s on-disk store exists for shot ``sid``.
 
     Routed through the per-modality path builders so the boundary guard fires
@@ -881,6 +883,192 @@ def _sample_discovered_shots(
 
 
 # ---------------------------------------------------------------------------
+# Disk-backed assembled-sample cache (node-local NVMe)
+# ---------------------------------------------------------------------------
+#
+# Re-reading + re-assembling every shot's per-modality token tensors from GPFS
+# on EVERY DataLoader access (5 cameras' frame-token stores, the HF streams, the
+# L2 groups, the plan) is the throughput bottleneck — the camera frame reads in
+# particular are many small GPFS reads + a grid-alignment pass per shot, so the
+# single H200 starves (bursty 0<->99% util) waiting on the CPU loaders.  The
+# ASSEMBLED sample (every modality's token tensor + valid mask already resampled
+# onto the common grid) is tiny — int arrays, ~tens of KB/shot — so caching it
+# on node-local NVMe (the betelgeuse ``/scratch_local``, ~5.9 TB) lets later
+# epochs ``torch.load`` a local file instead of re-touching GPFS + re-assembling.
+#
+# The cache is:
+#   * CONFIG-CORRECT — keyed by a hash of (window config + the ORDERED modality
+#     set with each modality's identity-defining fields).  A different window
+#     (n_steps/context/grid_window) or modality set yields a DIFFERENT key, so a
+#     stale sample is never served for a config it was not built under.
+#   * SHARED across DataLoader worker processes — all workers read/write the same
+#     ``<cache_dir>/<config_hash>/<shot_id>.pt`` files, so a sample assembled by
+#     one worker is a HIT for every other worker (and for a resume on the same
+#     node).
+#   * ATOMIC — a miss assembles (the normal path), writes to a per-PID tmpfile,
+#     and ``os.replace``-s it into place; a racing writer simply overwrites with
+#     a byte-identical file, never a torn read.
+#   * OPT-IN — only active when a cache dir is configured (``--cache-dir`` /
+#     ``WM_CACHE_DIR``).  Unset => behaviour is exactly the legacy assemble-every-
+#     access path (back-compat).
+#
+# A cache HIT deserialises the SAME :class:`WorldModelSample` that a fresh
+# :func:`build_shot_sample` produces (it is the pickled object), so a hit is
+# byte-identical to a fresh assembly.
+
+# Environment-variable fallback for the cache dir, so the corpus trainer + the
+# sbatch can turn caching on without a code change (``--export=ALL,WM_CACHE_DIR=
+# /scratch_local/wm_token_cache``).  An explicit ``cache_dir`` argument wins over
+# the env var; both unset => caching off.
+WM_CACHE_DIR_ENV = "WM_CACHE_DIR"
+
+
+def resolve_cache_dir(cache_dir: str | os.PathLike | None) -> Path | None:
+    """Resolve the assembled-sample cache directory (opt-in).
+
+    Precedence: an explicit ``cache_dir`` argument, else the ``WM_CACHE_DIR``
+    environment variable, else ``None`` (caching disabled — the legacy
+    assemble-every-access behaviour).  Returns the resolved :class:`Path` or
+    ``None``.
+    """
+    if cache_dir is not None and str(cache_dir).strip():
+        return Path(cache_dir)
+    env = os.environ.get(WM_CACHE_DIR_ENV, "").strip()
+    if env:
+        return Path(env)
+    return None
+
+
+def _modality_cache_key(m: ModalitySpec) -> dict:
+    """The identity-defining fields of a modality for the cache key.
+
+    Two modality specs that assemble the SAME tokens must hash the same, and any
+    spec change that would alter the assembled sample (group, kind, vocab,
+    camera stride, grid anchoring, conditioning role, a pinned channel width)
+    must change the key.  ``required`` is excluded: it only gates corpus
+    discovery, never the per-shot assembly.
+    """
+    return {
+        "name": m.name,
+        "kind": m.kind,
+        "group": m.group,
+        "vocab_size": int(m.vocab_size),
+        "is_conditioning": bool(m.is_conditioning),
+        "anchors_grid": bool(m.anchors_grid),
+        "n_channels": int(m.n_channels),
+        "camera_grid_stride": int(m.camera_grid_stride),
+    }
+
+
+def cache_config_hash(
+    modalities: Sequence[ModalitySpec],
+    config: WorldModelWindowConfig,
+    *,
+    level1_dir: Path | None = None,
+) -> str:
+    """Stable hash of (ORDERED modality set + window config) for cache keying.
+
+    The hash captures everything that changes the assembled sample for a shot:
+    the window (``n_steps`` / ``context_steps`` / ``grid_window``), the ORDERED
+    modality set, and each modality's identity-defining fields
+    (:func:`_modality_cache_key`).  The camera time axis can come from a
+    ``level1_dir`` override, so that path is folded in too.  A change to ANY of
+    these yields a different hash — the cache can never serve a sample built
+    under a different config.
+
+    The ``token_root`` is NOT part of the hash: a cache dir is node-local and a
+    single training run reads one corpus root, so the shot id + config uniquely
+    identify the assembled sample.  (A caller mixing token roots into one cache
+    dir must use distinct cache dirs — the documented contract.)
+    """
+    payload = {
+        "version": 1,
+        "window": {
+            "n_steps": int(config.n_steps),
+            "context_steps": int(config.context_steps),
+            "grid_window": (
+                list(config.grid_window) if config.grid_window is not None else None
+            ),
+        },
+        "modalities": [_modality_cache_key(m) for m in modalities],
+        "level1_dir": str(level1_dir) if level1_dir is not None else None,
+    }
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
+def _cached_sample_path(cache_root: Path, config_hash: str, shot_id: int) -> Path:
+    """Resolve ``<cache_root>/<config_hash>/<shot_id>.pt`` for a shot."""
+    return Path(cache_root) / config_hash / f"{int(shot_id)}.pt"
+
+
+def load_or_assemble_sample(
+    shot_id: int,
+    modalities: Sequence[ModalitySpec],
+    config: WorldModelWindowConfig,
+    *,
+    token_root: Path | None = None,
+    level1_dir: Path | None = None,
+    cache_dir: Path | None = None,
+    config_hash: str | None = None,
+    assemble_fn=None,
+) -> WorldModelSample:
+    """Return a shot's assembled sample, using the node-local cache when set.
+
+    When ``cache_dir`` is ``None`` this is exactly ``assemble_fn(shot_id, ...)``
+    (the legacy assemble-every-access path).  When a cache dir is given:
+
+    * a HIT (the ``<cache_dir>/<config_hash>/<shot_id>.pt`` file exists) is
+      ``torch.load``-ed — a fast node-local read, no GPFS, no re-assembly — and
+      ``assemble_fn`` is NOT called;
+    * a MISS calls ``assemble_fn`` (the normal GPFS read + grid alignment), then
+      writes the sample to a per-PID tmpfile and ``os.replace``-s it into place
+      (atomic same-filesystem rename — a concurrent worker writing the same shot
+      simply overwrites with a byte-identical file, never a torn read).
+
+    A corrupt / unreadable cache file (a partial write from a killed process, a
+    torch-version mismatch) is treated as a MISS and re-assembled, so a bad cache
+    entry can never wedge the loader.  ``config_hash`` may be precomputed and
+    passed in to avoid re-hashing per access (the dataset does this).
+    ``assemble_fn`` defaults to the module-level :func:`build_shot_sample`,
+    resolved at CALL time (not bound at def time) so a test spy / monkeypatch
+    takes effect.
+    """
+    if assemble_fn is None:
+        assemble_fn = build_shot_sample
+    if cache_dir is None:
+        return assemble_fn(
+            shot_id, modalities, config, token_root=token_root, level1_dir=level1_dir
+        )
+
+    import torch  # noqa: PLC0415 — keep torch out of the import-time graph
+
+    if config_hash is None:
+        config_hash = cache_config_hash(modalities, config, level1_dir=level1_dir)
+    path = _cached_sample_path(cache_dir, config_hash, shot_id)
+
+    if path.exists():
+        try:
+            return torch.load(str(path), weights_only=False)
+        except Exception as exc:  # noqa: BLE001 — a bad entry is just a miss
+            logger.warning("cache entry %s unreadable (%r) — re-assembling", path, exc)
+
+    sample = assemble_fn(
+        shot_id, modalities, config, token_root=token_root, level1_dir=level1_dir
+    )
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.parent / f".{path.name}.{os.getpid()}.tmp"
+        torch.save(sample, str(tmp))
+        os.replace(tmp, path)  # atomic on POSIX same-filesystem
+    except OSError as exc:  # noqa: BLE001 — cache is a nicety, never load-bearing
+        logger.warning("could not write cache entry %s: %r", path, exc)
+        with contextlib.suppress(OSError, NameError):
+            tmp.unlink(missing_ok=True)  # type: ignore[possibly-undefined]
+    return sample
+
+
+# ---------------------------------------------------------------------------
 # Torch Dataset
 # ---------------------------------------------------------------------------
 
@@ -892,6 +1080,20 @@ class WorldModelDataset:
     collatable mapping).  Assembly is lazy in ``__getitem__`` so the dataset
     object is cheap to pickle across DataLoader workers.
 
+    Disk-backed assembled-sample cache (opt-in)
+    -------------------------------------------
+    Re-reading + re-assembling each shot's per-modality token tensors from GPFS
+    on EVERY access (5 camera frame-token stores + HF + L2 + plan, plus the
+    grid-alignment pass) is the throughput bottleneck — the single H200 starves
+    waiting on the CPU loaders.  When ``cache_dir`` (or the ``WM_CACHE_DIR``
+    environment variable) is set, the FULLY-ASSEMBLED sample is cached on
+    node-local NVMe keyed by a hash of the window config + the ordered modality
+    set (see :func:`cache_config_hash`): the first access assembles + writes it
+    atomically, every later access (this epoch's other workers, and later
+    epochs) ``torch.load``-s the local file — no GPFS, no re-assembly.  Unset =>
+    the legacy assemble-every-access path (back-compat).  The cache is correctly
+    keyed, so a different window or modality set MISSES (never a stale serve).
+
     Parameters
     ----------
     shot_ids:
@@ -900,6 +1102,9 @@ class WorldModelDataset:
         The modality channel-groups to assemble.
     config:
         Common-grid + context/target split configuration.
+    cache_dir:
+        Node-local NVMe directory for the assembled-sample cache (opt-in).
+        ``None`` falls back to ``WM_CACHE_DIR``; both unset => no cache.
     """
 
     def __init__(
@@ -911,6 +1116,7 @@ class WorldModelDataset:
         token_root: Path | None = None,
         level1_dir: Path | None = None,
         as_dict: bool = False,
+        cache_dir: str | os.PathLike | None = None,
     ) -> None:
         self._shot_ids = [int(s) for s in shot_ids]
         self._modalities = list(modalities)
@@ -918,20 +1124,40 @@ class WorldModelDataset:
         self._token_root = token_root
         self._level1_dir = level1_dir
         self._as_dict = as_dict
+        self._cache_dir = resolve_cache_dir(cache_dir)
+        # Precompute the config hash once (it is identical for every shot in this
+        # dataset) so a per-access hit pays only a local stat + load.
+        self._cache_hash = (
+            cache_config_hash(self._modalities, self._config, level1_dir=level1_dir)
+            if self._cache_dir is not None
+            else None
+        )
+        if self._cache_dir is not None:
+            logger.info(
+                "WorldModelDataset cache ON: dir=%s config_hash=%s",
+                self._cache_dir,
+                self._cache_hash,
+            )
 
     def __len__(self) -> int:
         return len(self._shot_ids)
 
     def __getitem__(self, index: int):
         sid = self._shot_ids[index]
-        sample = build_shot_sample(
+        sample = load_or_assemble_sample(
             sid,
             self._modalities,
             self._config,
             token_root=self._token_root,
             level1_dir=self._level1_dir,
+            cache_dir=self._cache_dir,
+            config_hash=self._cache_hash,
         )
         return sample.as_dict() if self._as_dict else sample
+
+    @property
+    def cache_dir(self) -> Path | None:
+        return self._cache_dir
 
     @property
     def modalities(self) -> list[ModalitySpec]:

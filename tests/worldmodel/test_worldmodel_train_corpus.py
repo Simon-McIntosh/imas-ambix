@@ -28,20 +28,26 @@ import numpy as np
 import pytest
 import torch
 
+import imas_ambix.worldmodel.dataset as wm_dataset
 from imas_ambix.tokenizer.registry import L2_BLOCK_VOCAB
 from imas_ambix.worldmodel.dataset import (
     CAMERA_IDS,
     ModalitySpec,
+    WorldModelDataset,
     WorldModelWindowConfig,
     build_shot_sample,
+    cache_config_hash,
     camera_channel_width,
     default_modalities,
     discover_worldmodel_shots,
+    load_or_assemble_sample,
+    resolve_cache_dir,
 )
 from imas_ambix.worldmodel.eval import evaluate_shot
 from imas_ambix.worldmodel.model import WorldModel, WorldModelConfig
 from imas_ambix.worldmodel.train import (
     CorpusTrainConfig,
+    CudaPrefetcher,
     _build_corpus_model,
     _corpus_model_kwargs,
     _resolve_channels,
@@ -463,31 +469,62 @@ def _make_full_substrate_corpus(
     for sid, present in shot_present.items():
         # required core — always present.
         _write_signal_hf_store(
-            root, sid, "pulse_schedule_l2", n_time=2000, n_channels=2,
-            rate_hz=4000.0, t0=-0.05, seed=sid, local_base=12804,
+            root,
+            sid,
+            "pulse_schedule_l2",
+            n_time=2000,
+            n_channels=2,
+            rate_hz=4000.0,
+            t0=-0.05,
+            seed=sid,
+            local_base=12804,
         )
         _write_signal_hf_store(
-            root, sid, "summary_l2", n_time=2000, n_channels=3,
-            rate_hz=4000.0, t0=-0.05, seed=sid + 1, local_base=12804,
+            root,
+            sid,
+            "summary_l2",
+            n_time=2000,
+            n_channels=3,
+            rate_hz=4000.0,
+            t0=-0.05,
+            seed=sid + 1,
+            local_base=12804,
         )
         for name in present:
             if name in l2_groups:
                 _write_signal_hf_store(
-                    root, sid, l2_groups[name], n_time=2000, n_channels=2,
-                    rate_hz=4000.0, t0=-0.05, seed=sid + hash(name) % 7,
+                    root,
+                    sid,
+                    l2_groups[name],
+                    n_time=2000,
+                    n_channels=2,
+                    rate_hz=4000.0,
+                    t0=-0.05,
+                    seed=sid + hash(name) % 7,
                     local_base=12804,
                 )
             elif name in hf_vocab:
                 # HF patch stores begin at the control range (base 4); a modest
                 # vocab keeps the synthetic table small.
                 _write_signal_hf_store(
-                    root, sid, name, n_time=400, n_channels=4,
-                    rate_hz=800.0, t0=-0.05, seed=sid + hash(name) % 7,
+                    root,
+                    sid,
+                    name,
+                    n_time=400,
+                    n_channels=4,
+                    rate_hz=800.0,
+                    t0=-0.05,
+                    seed=sid + hash(name) % 7,
                     local_base=4,
                 )
             elif name in cameras:
                 _write_camera_store(
-                    root, sid, name, n_frames=300, rate_hz=600.0, t0=-0.05,
+                    root,
+                    sid,
+                    name,
+                    n_frames=300,
+                    rate_hz=600.0,
+                    t0=-0.05,
                     vocab=_CAMERA_VOCAB,
                 )
     return _full_substrate_specs()
@@ -991,8 +1028,14 @@ def test_default_modalities_emits_full_substrate():
         assert by_name[n].group == f"{n}_l2"
 
     # ── grid anchoring: only the L2 light path anchors; HF + cameras do not ─
-    for n in ("pulse_schedule", "summary", "pf_active", "interferometer",
-              "gas_injection", "soft_x_rays"):
+    for n in (
+        "pulse_schedule",
+        "summary",
+        "pf_active",
+        "interferometer",
+        "gas_injection",
+        "soft_x_rays",
+    ):
         assert by_name[n].anchors_grid is True, f"{n} (L2) must anchor the grid"
     for n in ("xma", "xim", "xsx"):
         assert by_name[n].anchors_grid is False, f"{n} (HF) must not anchor"
@@ -1264,8 +1307,15 @@ def test_full_substrate_discovery_gates_on_core_only(tmp_path):
     )
     # a shot missing the core: write only an optional HF stream, no plan/summary.
     _write_signal_hf_store(
-        tmp_path, 24099, "xim", n_time=400, n_channels=4,
-        rate_hz=800.0, t0=-0.05, seed=1, local_base=4,
+        tmp_path,
+        24099,
+        "xim",
+        n_time=400,
+        n_channels=4,
+        rate_hz=800.0,
+        t0=-0.05,
+        seed=1,
+        local_base=4,
     )
 
     # explicit ascending sampling pins the gate-membership order for this set.
@@ -1323,8 +1373,16 @@ def test_full_substrate_missing_streams_still_trains(tmp_path):
     # even though no single shot carries all of them — the optional-modality
     # rule keeps the full substrate wired.
     kept_names = {m.name for m in kept}
-    for name in ("pulse_schedule", "summary", "pf_active", "gas_injection",
-                 "xim", "xsx", "rbb", "rco"):
+    for name in (
+        "pulse_schedule",
+        "summary",
+        "pf_active",
+        "gas_injection",
+        "xim",
+        "xsx",
+        "rbb",
+        "rco",
+    ):
         assert name in kept_names, f"optional stream {name} dropped during sizing"
 
     out_dir = tmp_path / "ckpt"
@@ -1366,8 +1424,16 @@ def test_full_substrate_missing_streams_still_trains(tmp_path):
     assert model.heads["xim"].out_features == _XIM_VOCAB
     assert model.heads["xsx"].out_features == _XSX_VOCAB
     ckpt_names = {m["name"] for m in payload["model_config"]["modalities"]}
-    assert {"pulse_schedule", "summary", "pf_active", "gas_injection",
-            "xim", "xsx", "rbb", "rco"} <= ckpt_names
+    assert {
+        "pulse_schedule",
+        "summary",
+        "pf_active",
+        "gas_injection",
+        "xim",
+        "xsx",
+        "rbb",
+        "rco",
+    } <= ckpt_names
 
     # the masking proof: for shot 24066 (no pf_active/xim/rbb), those streams'
     # collated blocks are all-PAD + all-invalid (no loss, no embedding signal).
@@ -1421,8 +1487,14 @@ def test_param_count_grows_with_full_substrate(tmp_path):
     full_names = {m.name for m in model_full.config.modalities}
     core_names = {m.name for m in model_core.config.modalities}
     assert full_names == {
-        "pulse_schedule", "summary", "pf_active", "gas_injection",
-        "xim", "xsx", "rbb", "rco",
+        "pulse_schedule",
+        "summary",
+        "pf_active",
+        "gas_injection",
+        "xim",
+        "xsx",
+        "rbb",
+        "rco",
     }
     assert core_names == {"pulse_schedule", "summary"}
     assert model_full.num_parameters() > model_core.num_parameters(), (
@@ -1478,8 +1550,12 @@ def test_forward_emits_fixed_width_logits_regardless_of_input_width():
     """
     specs = [
         ModalitySpec(
-            "pulse_schedule", "signal_hf", "pulse_schedule_l2", L2_VOCAB,
-            is_conditioning=True, n_channels=2,
+            "pulse_schedule",
+            "signal_hf",
+            "pulse_schedule_l2",
+            L2_VOCAB,
+            is_conditioning=True,
+            n_channels=2,
         ),
         ModalitySpec("summary", "signal_hf", "summary_l2", L2_VOCAB, n_channels=2),
     ]
@@ -1545,12 +1621,26 @@ def test_pad_collate_then_loss_is_crash_free_for_wider_shot(tmp_path):
 
     wider = model_w + 2
     _write_signal_hf_store(
-        tmp_path, 24082, "pulse_schedule_l2", n_time=2000, n_channels=2,
-        rate_hz=4000.0, t0=-0.05, seed=24082, local_base=12804,
+        tmp_path,
+        24082,
+        "pulse_schedule_l2",
+        n_time=2000,
+        n_channels=2,
+        rate_hz=4000.0,
+        t0=-0.05,
+        seed=24082,
+        local_base=12804,
     )
     _write_signal_hf_store(
-        tmp_path, 24082, "summary_l2", n_time=2000, n_channels=wider,
-        rate_hz=4000.0, t0=-0.05, seed=24083, local_base=12804,
+        tmp_path,
+        24082,
+        "summary_l2",
+        n_time=2000,
+        n_channels=wider,
+        rate_hz=4000.0,
+        t0=-0.05,
+        seed=24083,
+        local_base=12804,
     )
     s = build_shot_sample(24082, mods, window, token_root=tmp_path)
     assert s.tokens["summary"].shape[1] == wider != model_w
@@ -1588,8 +1678,14 @@ def test_heads_built_for_all_declared_modalities_when_probe_lacks_them(tmp_path)
     # every probed shot (the cameras + HF streams).
     kept_names = {m.name for m in kept}
     for name in (
-        "pulse_schedule", "summary", "pf_active", "gas_injection",
-        "xim", "xsx", "rbb", "rco",
+        "pulse_schedule",
+        "summary",
+        "pf_active",
+        "gas_injection",
+        "xim",
+        "xsx",
+        "rbb",
+        "rco",
     ):
         assert name in kept_names, f"{name} dropped despite being declared"
         assert channels[name] >= 1, f"{name} sized to a non-positive width"
@@ -1618,17 +1714,31 @@ def test_from_modalities_does_not_filter_by_probe_intersection():
     """
     specs = [
         ModalitySpec(
-            "pulse_schedule", "signal_hf", "pulse_schedule_l2", L2_VOCAB,
-            is_conditioning=True, n_channels=2,
+            "pulse_schedule",
+            "signal_hf",
+            "pulse_schedule_l2",
+            L2_VOCAB,
+            is_conditioning=True,
+            n_channels=2,
         ),
         ModalitySpec("summary", "signal_hf", "summary_l2", L2_VOCAB, n_channels=3),
         ModalitySpec(
-            "rbb", "camera", "rbb", _CAMERA_VOCAB,
-            anchors_grid=False, camera_grid_stride=4, required=False,
+            "rbb",
+            "camera",
+            "rbb",
+            _CAMERA_VOCAB,
+            anchors_grid=False,
+            camera_grid_stride=4,
+            required=False,
         ),
         ModalitySpec(
-            "xim", "signal_hf", "xim", _XIM_VOCAB,
-            anchors_grid=False, n_channels=4, required=False,
+            "xim",
+            "signal_hf",
+            "xim",
+            _XIM_VOCAB,
+            anchors_grid=False,
+            n_channels=4,
+            required=False,
         ),
     ]
     cfg = WorldModelConfig.from_modalities(specs, {}, plan_steps=8, obs_steps=8)
@@ -1667,12 +1777,25 @@ def test_eval_pads_held_out_shot_with_mismatched_channels(tmp_path):
     window = WorldModelWindowConfig(n_steps=20, context_steps=5)
     out_dir = tmp_path / "ckpt"
     cfg = CorpusTrainConfig(
-        steps=8, batch_size=2, lr=5e-3, log_every=4, ckpt_every=8, eval_every=0,
-        num_workers=0, window=window, model_kwargs=_TINY_MODEL,
+        steps=8,
+        batch_size=2,
+        lr=5e-3,
+        log_every=4,
+        ckpt_every=8,
+        eval_every=0,
+        num_workers=0,
+        window=window,
+        model_kwargs=_TINY_MODEL,
     )
     train_corpus(
-        [24065, 24066], modalities=mods, config=cfg, out_dir=out_dir,
-        token_root=tmp_path, eval_shot_ids=None, device="cpu", resume=False,
+        [24065, 24066],
+        modalities=mods,
+        config=cfg,
+        out_dir=out_dir,
+        token_root=tmp_path,
+        eval_shot_ids=None,
+        device="cpu",
+        resume=False,
     )
     model, _ = load_model_from_checkpoint(find_latest_checkpoint(out_dir))
     model_w = {m.name: m.n_channels for m in model.config.modalities}
@@ -1682,12 +1805,26 @@ def test_eval_pads_held_out_shot_with_mismatched_channels(tmp_path):
     # the model was sized to — the case that used to crash the forward.
     eval_summary_w = model_summary_w + 2
     _write_signal_hf_store(
-        tmp_path, 24080, "pulse_schedule_l2", n_time=2000, n_channels=2,
-        rate_hz=4000.0, t0=-0.05, seed=24080, local_base=12804,
+        tmp_path,
+        24080,
+        "pulse_schedule_l2",
+        n_time=2000,
+        n_channels=2,
+        rate_hz=4000.0,
+        t0=-0.05,
+        seed=24080,
+        local_base=12804,
     )
     _write_signal_hf_store(
-        tmp_path, 24080, "summary_l2", n_time=2000, n_channels=eval_summary_w,
-        rate_hz=4000.0, t0=-0.05, seed=24081, local_base=12804,
+        tmp_path,
+        24080,
+        "summary_l2",
+        n_time=2000,
+        n_channels=eval_summary_w,
+        rate_hz=4000.0,
+        t0=-0.05,
+        seed=24081,
+        local_base=12804,
     )
     s_eval = build_shot_sample(24080, mods, window, token_root=tmp_path)
     assert s_eval.tokens["summary"].shape[1] == eval_summary_w
@@ -1708,12 +1845,26 @@ def test_eval_pads_held_out_shot_with_mismatched_channels(tmp_path):
     narrow_w = max(1, model_summary_w - 1)
     if narrow_w != model_summary_w:
         _write_signal_hf_store(
-            tmp_path, 24081, "pulse_schedule_l2", n_time=2000, n_channels=2,
-            rate_hz=4000.0, t0=-0.05, seed=24081, local_base=12804,
+            tmp_path,
+            24081,
+            "pulse_schedule_l2",
+            n_time=2000,
+            n_channels=2,
+            rate_hz=4000.0,
+            t0=-0.05,
+            seed=24081,
+            local_base=12804,
         )
         _write_signal_hf_store(
-            tmp_path, 24081, "summary_l2", n_time=2000, n_channels=narrow_w,
-            rate_hz=4000.0, t0=-0.05, seed=24082, local_base=12804,
+            tmp_path,
+            24081,
+            "summary_l2",
+            n_time=2000,
+            n_channels=narrow_w,
+            rate_hz=4000.0,
+            t0=-0.05,
+            seed=24082,
+            local_base=12804,
         )
         s_narrow = build_shot_sample(24081, mods, window, token_root=tmp_path)
         assert s_narrow.tokens["summary"].shape[1] == narrow_w
@@ -1735,16 +1886,27 @@ def test_eval_errors_loudly_when_no_modality_scorable(tmp_path):
     # a model whose ONLY observation modality is a camera.
     cam_specs = [
         ModalitySpec(
-            "pulse_schedule", "signal_hf", "pulse_schedule_l2", L2_VOCAB,
+            "pulse_schedule",
+            "signal_hf",
+            "pulse_schedule_l2",
+            L2_VOCAB,
             is_conditioning=True,
         ),
         ModalitySpec(
-            "rbb", "camera", "rbb", _CAMERA_VOCAB,
-            anchors_grid=False, camera_grid_stride=4, required=False,
+            "rbb",
+            "camera",
+            "rbb",
+            _CAMERA_VOCAB,
+            anchors_grid=False,
+            camera_grid_stride=4,
+            required=False,
         ),
     ]
     cfg = WorldModelConfig.from_modalities(
-        cam_specs, {"pulse_schedule": 2, "rbb": 16}, plan_steps=20, obs_steps=20,
+        cam_specs,
+        {"pulse_schedule": 2, "rbb": 16},
+        plan_steps=20,
+        obs_steps=20,
         **_TINY_MODEL,
     )
     model = WorldModel(cfg)
@@ -1780,13 +1942,26 @@ def test_periodic_eval_scores_camera_when_present(tmp_path):
     out_dir = tmp_path / "ckpt"
     window = WorldModelWindowConfig(n_steps=24, context_steps=6)
     cfg = CorpusTrainConfig(
-        steps=20, batch_size=2, lr=5e-3, log_every=10, ckpt_every=20,
-        eval_every=20, num_workers=0, n_eval_shots=1, window=window,
+        steps=20,
+        batch_size=2,
+        lr=5e-3,
+        log_every=10,
+        ckpt_every=20,
+        eval_every=20,
+        num_workers=0,
+        n_eval_shots=1,
+        window=window,
         model_kwargs=_BIG_MODEL,
     )
     result = train_corpus(
-        [24065, 24066], modalities=specs, config=cfg, out_dir=out_dir,
-        token_root=tmp_path, eval_shot_ids=[24070], device="cpu", resume=False,
+        [24065, 24066],
+        modalities=specs,
+        config=cfg,
+        out_dir=out_dir,
+        token_root=tmp_path,
+        eval_shot_ids=[24070],
+        device="cpu",
+        resume=False,
     )
     assert result.eval_skills, "periodic eval recorded no skill"
     for _step, sk in result.eval_skills:
@@ -1827,12 +2002,18 @@ def test_discovery_camera_first_fronts_camera_band(tmp_path):
     )
     # a seeded shuffle is deterministic across calls.
     a = discover_worldmodel_shots(
-        specs, token_root=tmp_path,
-        shot_ids=[24065, 24066, 24067, 24068], sample="shuffle", seed=7,
+        specs,
+        token_root=tmp_path,
+        shot_ids=[24065, 24066, 24067, 24068],
+        sample="shuffle",
+        seed=7,
     )
     b = discover_worldmodel_shots(
-        specs, token_root=tmp_path,
-        shot_ids=[24065, 24066, 24067, 24068], sample="shuffle", seed=7,
+        specs,
+        token_root=tmp_path,
+        shot_ids=[24065, 24066, 24067, 24068],
+        sample="shuffle",
+        seed=7,
     )
     assert a == b, "seeded shuffle must be deterministic"
     assert set(a) == {24065, 24066, 24067, 24068}
@@ -1870,3 +2051,401 @@ def test_select_eval_shots_picks_camera_bearing(tmp_path):
     # the eval shots are held out of training.
     assert not (set(eval_shots) & set(train_shots)), "eval shot leaked into training"
     assert set(train_shots) | set(eval_shots) == set(shots)
+
+
+# ---------------------------------------------------------------------------
+# 13. ASSEMBLED-SAMPLE CACHE — caching the fully-assembled per-shot sample on
+#     node-local NVMe so the DataLoader stops re-reading + re-assembling the
+#     per-modality token tensors from GPFS every epoch.  These are HERMETIC
+#     (tiny fake corpus in tmp_path, no /work) and FAST:  cache OFF == cache ON
+#     (byte-identical hit), a 2nd access HITS without re-assembling, and the
+#     config hash changes when the window OR the modality set changes (no stale
+#     serve).
+# ---------------------------------------------------------------------------
+
+
+def _assert_samples_equal(a, b) -> None:
+    """A cache HIT must be byte-identical to a fresh assembly."""
+    assert int(a.shot_id) == int(b.shot_id)
+    assert int(a.context_steps) == int(b.context_steps)
+    np.testing.assert_array_equal(a.grid_time, b.grid_time)
+    assert set(a.tokens) == set(b.tokens)
+    for name in a.tokens:
+        np.testing.assert_array_equal(a.tokens[name], b.tokens[name])
+        assert a.tokens[name].dtype == b.tokens[name].dtype
+        np.testing.assert_array_equal(a.valid[name], b.valid[name])
+        assert a.valid[name].dtype == b.valid[name].dtype
+        assert a.channel_names[name] == b.channel_names[name]
+
+
+def test_cache_off_equals_on_byte_identical(tmp_path):
+    """A cache HIT deserialises a sample byte-identical to a fresh assembly.
+
+    Assemble a shot with the cache OFF (the legacy path) and with the cache ON
+    (first access populates, second access is the deserialised HIT).  All three
+    must be identical — same grid, same tokens (dtype incl.), same valid masks,
+    same channel names.  This is the correctness contract: caching never changes
+    what the model sees.
+    """
+    root = tmp_path / "corpus"
+    cache = tmp_path / "cache"
+    mods = _make_camera_corpus(root, [24065, 24066])
+    window = WorldModelWindowConfig(n_steps=24, context_steps=6)
+
+    # OFF: the legacy assemble-every-access path.
+    fresh = build_shot_sample(24065, mods, window, token_root=root)
+
+    # ON: first access populates the cache (a MISS), second access is the HIT.
+    miss = load_or_assemble_sample(
+        24065, mods, window, token_root=root, cache_dir=cache
+    )
+    cfg_hash = cache_config_hash(mods, window)
+    cached_file = cache / cfg_hash / "24065.pt"
+    assert cached_file.exists(), "first access did not write a cache entry"
+
+    hit = load_or_assemble_sample(24065, mods, window, token_root=root, cache_dir=cache)
+    _assert_samples_equal(fresh, miss)
+    _assert_samples_equal(fresh, hit)
+
+
+def test_cache_second_access_does_not_reassemble(tmp_path):
+    """The 2nd access HITS the cache — the assembly fn is NOT called again.
+
+    Spy on the assembly fn: the first access (MISS) calls it once; the second
+    access (HIT) must NOT call it at all — proving the GPFS re-read + grid
+    re-assembly is eliminated on the cached path.
+    """
+    root = tmp_path / "corpus"
+    cache = tmp_path / "cache"
+    mods = _make_camera_corpus(root, [24065])
+    window = WorldModelWindowConfig(n_steps=24, context_steps=6)
+
+    calls = {"n": 0}
+
+    def _spy(shot_id, modalities, config, *, token_root=None, level1_dir=None):
+        calls["n"] += 1
+        return build_shot_sample(
+            shot_id, modalities, config, token_root=token_root, level1_dir=level1_dir
+        )
+
+    # MISS: assembles once.
+    s1 = load_or_assemble_sample(
+        24065, mods, window, token_root=root, cache_dir=cache, assemble_fn=_spy
+    )
+    assert calls["n"] == 1, "first access must assemble exactly once"
+
+    # HIT: must NOT assemble again.
+    s2 = load_or_assemble_sample(
+        24065, mods, window, token_root=root, cache_dir=cache, assemble_fn=_spy
+    )
+    assert calls["n"] == 1, "second access re-assembled — cache did not hit"
+    _assert_samples_equal(s1, s2)
+
+
+def test_cache_key_changes_with_window_and_modalities(tmp_path):
+    """The config hash changes when the window OR the modality set changes.
+
+    A different window (n_steps/context/grid_window) or a different ordered
+    modality set must yield a DIFFERENT key — so a sample assembled under one
+    config can never be served for another (no stale serve).  Conversely the
+    SAME config must hash identically (a deterministic, stable key).
+    """
+    mods = _make_camera_corpus(tmp_path, [24065])
+    base_win = WorldModelWindowConfig(n_steps=24, context_steps=6)
+    base = cache_config_hash(mods, base_win)
+
+    # deterministic / stable: same inputs -> same hash.
+    assert cache_config_hash(mods, base_win) == base
+
+    # window changes -> different key.
+    win_n = WorldModelWindowConfig(n_steps=32, context_steps=6)
+    win_ctx = WorldModelWindowConfig(n_steps=24, context_steps=8)
+    win_grid = WorldModelWindowConfig(
+        n_steps=24, context_steps=6, grid_window=(0.0, 1.0)
+    )
+    assert cache_config_hash(mods, win_n) != base
+    assert cache_config_hash(mods, win_ctx) != base
+    assert cache_config_hash(mods, win_grid) != base
+
+    # modality SET changes -> different key (drop the camera).
+    fewer = [m for m in mods if m.kind != "camera"]
+    assert cache_config_hash(fewer, base_win) != base
+
+    # modality ORDER changes -> different key (the ordered set is part of identity).
+    reordered = list(reversed(mods))
+    assert cache_config_hash(reordered, base_win) != base
+
+    # a vocab / stride change on a modality -> different key (identity-defining).
+    bumped_vocab = [
+        ModalitySpec(
+            m.name,
+            m.kind,
+            m.group,
+            m.vocab_size + 1,
+            is_conditioning=m.is_conditioning,
+            anchors_grid=m.anchors_grid,
+            n_channels=m.n_channels,
+            camera_grid_stride=m.camera_grid_stride,
+            required=m.required,
+        )
+        if m.name == "summary"
+        else m
+        for m in mods
+    ]
+    assert cache_config_hash(bumped_vocab, base_win) != base
+
+
+def test_cache_key_ignores_required_flag(tmp_path):
+    """``required`` is NOT identity-defining — it only gates discovery.
+
+    Flipping ``required`` does not change the assembled sample, so it must NOT
+    change the cache key (else two configs that produce identical samples would
+    miss each other's cache).
+    """
+    mods = _make_camera_corpus(tmp_path, [24065])
+    window = WorldModelWindowConfig(n_steps=24, context_steps=6)
+    base = cache_config_hash(mods, window)
+    flipped = [
+        ModalitySpec(
+            m.name,
+            m.kind,
+            m.group,
+            m.vocab_size,
+            is_conditioning=m.is_conditioning,
+            anchors_grid=m.anchors_grid,
+            n_channels=m.n_channels,
+            camera_grid_stride=m.camera_grid_stride,
+            required=not m.required,
+        )
+        for m in mods
+    ]
+    assert cache_config_hash(flipped, window) == base
+
+
+def test_resolve_cache_dir_precedence(tmp_path, monkeypatch):
+    """cache_dir arg wins over WM_CACHE_DIR; both unset => None (caching off)."""
+    monkeypatch.delenv("WM_CACHE_DIR", raising=False)
+    assert resolve_cache_dir(None) is None
+    assert resolve_cache_dir("") is None
+
+    # explicit arg wins.
+    assert resolve_cache_dir(tmp_path / "explicit") == tmp_path / "explicit"
+
+    # env var used when arg unset.
+    monkeypatch.setenv("WM_CACHE_DIR", str(tmp_path / "fromenv"))
+    assert resolve_cache_dir(None) == tmp_path / "fromenv"
+    # arg still wins over the env var.
+    assert resolve_cache_dir(tmp_path / "explicit") == tmp_path / "explicit"
+
+
+def test_dataset_cache_off_when_unset(tmp_path, monkeypatch):
+    """Unset cache => the dataset behaves exactly as before (back-compat).
+
+    No cache dir resolved, no config hash, and __getitem__ still assembles a
+    correct sample — the legacy assemble-every-access path is untouched.
+    """
+    monkeypatch.delenv("WM_CACHE_DIR", raising=False)
+    mods = _make_corpus(tmp_path, [24065, 24066])
+    window = WorldModelWindowConfig(n_steps=20, context_steps=5)
+    ds = WorldModelDataset([24065, 24066], mods, window, token_root=tmp_path)
+    assert ds.cache_dir is None
+    s = ds[0]
+    fresh = build_shot_sample(24065, mods, window, token_root=tmp_path)
+    _assert_samples_equal(s, fresh)
+
+
+def test_dataset_caches_and_hits_across_accesses(tmp_path, monkeypatch):
+    """WorldModelDataset writes the cache on first access and HITS thereafter.
+
+    Drives the cache through the actual Dataset.__getitem__ surface (what the
+    DataLoader calls).  Spy on dataset.build_shot_sample: indexing the same shot
+    twice must assemble exactly ONCE (the second index is a HIT), and the served
+    samples are equal — the per-epoch GPFS re-read + re-assembly is gone.  Also
+    proves WM_CACHE_DIR turns it on without an explicit cache_dir arg.
+    """
+    root = tmp_path / "corpus"
+    cache = tmp_path / "cache"
+    mods = _make_camera_corpus(root, [24065, 24066])
+    window = WorldModelWindowConfig(n_steps=24, context_steps=6)
+
+    n_calls = {"n": 0}
+    real = wm_dataset.build_shot_sample
+
+    def _counting(shot_id, modalities, config, *, token_root=None, level1_dir=None):
+        n_calls["n"] += 1
+        return real(
+            shot_id, modalities, config, token_root=token_root, level1_dir=level1_dir
+        )
+
+    monkeypatch.setattr(wm_dataset, "build_shot_sample", _counting)
+    # WM_CACHE_DIR turns the cache ON without an explicit cache_dir arg.
+    monkeypatch.setenv("WM_CACHE_DIR", str(cache))
+
+    ds = WorldModelDataset([24065, 24066], mods, window, token_root=root)
+    assert ds.cache_dir == cache, "WM_CACHE_DIR did not enable the cache"
+
+    first = ds[0]  # MISS -> assembles
+    assert n_calls["n"] == 1
+    second = ds[0]  # HIT -> no assembly
+    assert n_calls["n"] == 1, "Dataset re-assembled on the 2nd access — no cache hit"
+    _assert_samples_equal(first, second)
+
+    # a DIFFERENT window is a DIFFERENT key — it MISSES (re-assembles), never
+    # serving the stale 24-step sample for a 32-step request.
+    ds2 = WorldModelDataset(
+        [24065],
+        mods,
+        WorldModelWindowConfig(n_steps=32, context_steps=6),
+        token_root=root,
+    )
+    assert ds2.cache_dir == cache
+    s32 = ds2[0]
+    assert n_calls["n"] == 2, (
+        "different window must MISS (re-assemble), not serve stale"
+    )
+    assert s32.grid_time.shape[0] == 32
+
+
+def test_cache_corrupt_entry_falls_back_to_assembly(tmp_path):
+    """A corrupt cache file is treated as a MISS and re-assembled (never wedges).
+
+    A partial write from a killed process (or a torch-version skew) must not
+    wedge the loader: an unreadable entry falls back to a fresh assembly and is
+    overwritten with a good one.
+    """
+    root = tmp_path / "corpus"
+    cache = tmp_path / "cache"
+    mods = _make_corpus(root, [24065])
+    window = WorldModelWindowConfig(n_steps=20, context_steps=5)
+    cfg_hash = cache_config_hash(mods, window)
+
+    # plant a corrupt cache entry where the loader will look.
+    bad = cache / cfg_hash / "24065.pt"
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_bytes(b"not a torch checkpoint")
+
+    s = load_or_assemble_sample(24065, mods, window, token_root=root, cache_dir=cache)
+    fresh = build_shot_sample(24065, mods, window, token_root=root)
+    _assert_samples_equal(s, fresh)
+    # the corrupt entry was overwritten with a good one (next access is a HIT).
+    again = load_or_assemble_sample(
+        24065, mods, window, token_root=root, cache_dir=cache
+    )
+    _assert_samples_equal(fresh, again)
+
+
+# ---------------------------------------------------------------------------
+# 14. CUDA PREFETCHER — a double-buffered side-stream host->device prefetcher
+#     overlaps the next batch's copy with the current batch's compute so the GPU
+#     is fed continuously.  On CPU (no CUDA streams) it MUST degrade to a plain
+#     pass-through so the hermetic tests + any CPU run see the identical batches.
+#     These are CPU-safe: same batches out as in, and a CPU train_corpus run
+#     (which now wraps the loader in the prefetcher) still descends.
+# ---------------------------------------------------------------------------
+
+
+def test_prefetcher_cpu_is_passthrough_identical_batches(tmp_path):
+    """On CPU the prefetcher yields the SAME batches (object-identical) as input.
+
+    No CUDA streams exist on CPU, so the prefetcher must be a transparent
+    pass-through — the batches a consumer sees are exactly the loader's, in
+    order, unmodified.
+    """
+    mods = _make_corpus(tmp_path, [24065, 24066])
+    window = WorldModelWindowConfig(n_steps=20, context_steps=5)
+    s0 = build_shot_sample(24065, mods, window, token_root=tmp_path)
+    s1 = build_shot_sample(24066, mods, window, token_root=tmp_path)
+    obs = [m.name for m in mods if not m.is_conditioning]
+    plan = [m.name for m in mods if m.is_conditioning]
+    channels = {m.name: s0.tokens[m.name].shape[1] for m in mods}
+
+    batches = [
+        pad_collate_batch([s0], obs, plan, channels),
+        pad_collate_batch([s1], obs, plan, channels),
+    ]
+    pf = CudaPrefetcher(batches, torch.device("cpu"))
+    out = list(pf)
+    assert len(out) == len(batches)
+    for got, want in zip(out, batches, strict=True):
+        # identical objects on CPU (pure pass-through — no copy, no stream).
+        assert got is want
+        for name in plan + obs:
+            assert torch.equal(got["tokens"][name], want["tokens"][name])
+            assert torch.equal(got["valid"][name], want["valid"][name])
+
+
+def test_prefetched_loop_matches_non_prefetched_loss(tmp_path):
+    """A CPU train_corpus run (loader wrapped in the prefetcher) descends.
+
+    The training loop now drives the DataLoader through the CudaPrefetcher.  On
+    CPU the prefetcher is a pass-through, so the loop must be UNCHANGED — it
+    iterates the multi-shot loader and the loss drops, identical to the
+    pre-prefetcher behaviour (correctness: the prefetcher only changes WHEN the
+    H2D copy happens on CUDA, never WHAT the model is fed).
+    """
+    shots = [24065, 24066, 24067, 24068]
+    mods = _make_corpus(tmp_path, shots)
+    out_dir = tmp_path / "ckpt"
+    cfg = CorpusTrainConfig(
+        steps=40,
+        batch_size=2,
+        lr=5e-3,
+        log_every=10,
+        ckpt_every=40,
+        eval_every=0,
+        num_workers=0,  # main-process load; prefetcher pass-through on CPU
+        window=WorldModelWindowConfig(n_steps=24, context_steps=6),
+        model_kwargs=_TINY_MODEL,
+    )
+    result = train_corpus(
+        shots[:3],
+        modalities=mods,
+        config=cfg,
+        out_dir=out_dir,
+        token_root=tmp_path,
+        eval_shot_ids=None,
+        device="cpu",
+        resume=False,
+    )
+    assert result.steps_run == 40
+    early = float(np.mean(result.losses[:10]))
+    late = float(np.mean(result.losses[-10:]))
+    assert late < early, f"prefetched CPU loop did not descend: {early} -> {late}"
+
+
+def test_prefetched_loop_deterministic_loss_matches_seed(tmp_path):
+    """Two seeded prefetched CPU runs produce the IDENTICAL loss trajectory.
+
+    The prefetcher introduces no nondeterminism on CPU (pass-through), so two
+    runs at the same seed must give bit-identical losses — a tight correctness
+    check that the prefetch wrapping did not perturb batch order or content.
+    """
+    shots = [24065, 24066, 24067]
+    common = dict(
+        token_root=tmp_path,
+        eval_shot_ids=None,
+        device="cpu",
+        resume=False,
+    )
+    mods = _make_corpus(tmp_path, shots)
+
+    def _run(out_dir):
+        cfg = CorpusTrainConfig(
+            steps=20,
+            batch_size=2,
+            lr=5e-3,
+            log_every=20,
+            ckpt_every=20,
+            eval_every=0,
+            num_workers=0,
+            seed=123,
+            window=WorldModelWindowConfig(n_steps=20, context_steps=5),
+            model_kwargs=_TINY_MODEL,
+        )
+        return train_corpus(
+            shots, modalities=mods, config=cfg, out_dir=out_dir, **common
+        )
+
+    r1 = _run(tmp_path / "a")
+    r2 = _run(tmp_path / "b")
+    assert r1.losses == r2.losses, "seeded prefetched CPU runs diverged"

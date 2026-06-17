@@ -557,6 +557,9 @@ class CorpusTrainConfig:
         Max global grad-norm (0 disables).
     n_eval_shots:
         Held-out shots scored at each eval.
+    prefetch_factor:
+        DataLoader batches each worker stages ahead (>=4 floor when workers > 0)
+        so the loader runs ahead of the GPU; ignored when ``num_workers == 0``.
     """
 
     steps: int = 2000
@@ -572,6 +575,7 @@ class CorpusTrainConfig:
     model_kwargs: dict = field(default_factory=dict)
     grad_clip: float = 1.0
     n_eval_shots: int = 1
+    prefetch_factor: int = 4
 
 
 @dataclass
@@ -646,9 +650,7 @@ def _resolve_channels(
     kept = list(modalities)
     channels: dict[str, int] = {}
     for m in kept:
-        probed = [
-            int(s.tokens[m.name].shape[1]) for s in samples if m.name in s.tokens
-        ]
+        probed = [int(s.tokens[m.name].shape[1]) for s in samples if m.name in s.tokens]
         if probed:
             channels[m.name] = max(probed)
             continue
@@ -692,6 +694,7 @@ def train_corpus(
     eval_shot_ids: Sequence[int] | None = None,
     device: str | None = None,
     resume: bool = True,
+    cache_dir: str | os.PathLike | None = None,
 ) -> CorpusTrainResult:
     """Train the plan-conditioned world model on a CORPUS of shots.
 
@@ -792,28 +795,54 @@ def train_corpus(
                 start_step = 0
 
     # ── DataLoader over MANY distinct shots ─────────────────────────────────
+    # The assembled-sample cache (opt-in via cache_dir / WM_CACHE_DIR) lets the
+    # DataLoader workers torch.load a node-local NVMe file after the first epoch
+    # instead of re-reading + re-assembling per-shot tokens from GPFS every epoch
+    # (the camera frame reads dominate) — keeps the single H200 continuously fed.
     dataset = WorldModelDataset(
-        shot_ids, kept, config.window, token_root=token_root, level1_dir=level1_dir
+        shot_ids,
+        kept,
+        config.window,
+        token_root=token_root,
+        level1_dir=level1_dir,
+        cache_dir=cache_dir,
     )
     chan = dict(channels)
 
     def _collate(batch):  # noqa: ANN001, ANN202
         return _wm_collate_fn(batch, obs_names, plan_names, chan)
 
-    loader = torch.utils.data.DataLoader(
-        dataset,
+    # Keep the worker pool + the node-local NVMe cache WARM across epochs and
+    # let the loader run ahead of the GPU: persistent_workers avoids re-forking
+    # (and re-warming the cache) every epoch, prefetch_factor builds a backlog of
+    # ready batches per worker, and pin_memory stages them in page-locked host
+    # memory so the prefetcher's async H2D copy (below) actually overlaps compute.
+    # pin_memory only helps on CUDA; skip it on CPU.
+    use_workers = config.num_workers > 0
+    loader_kwargs: dict = dict(
+        dataset=dataset,
         batch_size=config.batch_size,
         shuffle=True,
         num_workers=config.num_workers,
         collate_fn=_collate,
         drop_last=False,
         generator=torch.Generator().manual_seed(config.seed),
+        pin_memory=(dev.type == "cuda"),
         # Use 'fork' (not the py3.14 forkserver/spawn default) so the local
         # collate closure + the dataset need no pickling; the workers do CPU
         # zarr reads only (never CUDA), so forking after the model is on the GPU
         # is safe — the established AGENTS.md §2b data-worker pattern.
-        multiprocessing_context="fork" if config.num_workers > 0 else None,
+        multiprocessing_context="fork" if use_workers else None,
     )
+    if use_workers:
+        loader_kwargs["persistent_workers"] = True
+        loader_kwargs["prefetch_factor"] = max(4, config.prefetch_factor)
+    loader = torch.utils.data.DataLoader(**loader_kwargs)
+
+    # Overlap the next batch's host->device copy with the current batch's
+    # compute via a double-buffered side CUDA stream (no-op pass-through on CPU),
+    # so the GPU is fed continuously rather than stalling on each H2D transfer.
+    prefetcher = CudaPrefetcher(loader, dev)
 
     model.train()
     losses: list[float] = []
@@ -823,11 +852,10 @@ def train_corpus(
     try:
         done = False
         while not done:
-            for batch in loader:
+            for batch in prefetcher:
                 if stop.stop or step >= config.steps:
                     done = True
                     break
-                batch = _batch_to_device(batch, dev)
                 opt.zero_grad(set_to_none=True)
                 out = model(batch)
                 loss = next_token_nll(out.logits, batch, obs_names, target_only=True)
@@ -918,14 +946,70 @@ def _default_out_dir() -> Path:
     return DEFAULT_CKPT_ROOT / str(run_id)
 
 
-def _batch_to_device(batch: dict, dev: torch.device) -> dict:
-    """Move a collated batch's token / valid tensors to ``dev`` (in place dict)."""
-    if dev.type == "cpu":
-        return batch
-    batch = dict(batch)
-    batch["tokens"] = {k: v.to(dev) for k, v in batch["tokens"].items()}
-    batch["valid"] = {k: v.to(dev) for k, v in batch["valid"].items()}
-    return batch
+class CudaPrefetcher:
+    """Double-buffered async host->device prefetcher overlapping copy + compute.
+
+    Wraps a batch iterator: while the model computes on the CURRENT batch (on the
+    default stream), the NEXT batch's per-modality tensors (tokens + valid masks)
+    are copied to the GPU with ``.to(device, non_blocking=True)`` on a SIDE CUDA
+    stream — so the H2D transfer overlaps compute instead of serialising before
+    it.  Before a batch is handed out, the default stream
+    ``wait_stream(side)``-s so the copy is guaranteed complete, and the consumed
+    tensors are ``record_stream``-d so their pinned-memory buffers are not freed
+    while the side-stream copy is still in flight.
+
+    The non-tensor batch fields (``context_steps``, ``shot_ids``) are carried
+    through unchanged.
+
+    On a CPU device there are no CUDA streams, so this DEGRADES to a plain
+    pass-through iterator (``device.type != "cuda"``) — the synthetic CPU tests
+    and any CPU run get the identical batches with no CUDA dependency.
+    """
+
+    def __init__(self, loader, device: torch.device) -> None:
+        self._loader = loader
+        self._device = device
+        self._enabled = device.type == "cuda" and torch.cuda.is_available()
+        self._stream = torch.cuda.Stream() if self._enabled else None
+
+    def __iter__(self):
+        if not self._enabled:
+            # CPU (or no CUDA): plain pass-through — identical batches, no streams.
+            yield from self._loader
+            return
+
+        it = iter(self._loader)
+        next_batch = self._preload(it)
+        while next_batch is not None:
+            # ensure the side-stream copy of THIS batch is done before use, then
+            # tie the copied tensors to the default stream so their pinned source
+            # buffers stay alive until the compute that consumes them is queued.
+            torch.cuda.current_stream().wait_stream(self._stream)
+            batch = next_batch
+            for d in (batch["tokens"], batch["valid"]):
+                for t in d.values():
+                    t.record_stream(torch.cuda.current_stream())
+            # kick off the copy of the FOLLOWING batch while this one computes.
+            next_batch = self._preload(it)
+            yield batch
+
+    def _preload(self, it) -> dict | None:
+        """Copy the next batch to the GPU on the side stream (or None at end)."""
+        try:
+            batch = next(it)
+        except StopIteration:
+            return None
+        out = dict(batch)
+        with torch.cuda.stream(self._stream):
+            out["tokens"] = {
+                k: v.to(self._device, non_blocking=True)
+                for k, v in batch["tokens"].items()
+            }
+            out["valid"] = {
+                k: v.to(self._device, non_blocking=True)
+                for k, v in batch["valid"].items()
+            }
+        return out
 
 
 def _run_periodic_eval(
@@ -1075,8 +1159,11 @@ def _select_eval_shots(
     if n_eval >= len(ordered):
         eval_shots = list(ordered)
     else:
-        idx = [round(i * (len(ordered) - 1) / (n_eval - 1)) for i in range(n_eval)] \
-            if n_eval > 1 else [len(ordered) // 2]
+        idx = (
+            [round(i * (len(ordered) - 1) / (n_eval - 1)) for i in range(n_eval)]
+            if n_eval > 1
+            else [len(ordered) // 2]
+        )
         eval_shots = [ordered[i] for i in sorted(set(idx))]
     eval_set = set(eval_shots)
     train_shots = [sid for sid in ids if sid not in eval_set]
@@ -1167,6 +1254,7 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         eval_every=args.eval_every,
         num_workers=args.num_workers,
         n_eval_shots=args.n_eval_shots,
+        prefetch_factor=args.prefetch_factor,
         window=WorldModelWindowConfig(
             n_steps=args.n_steps, context_steps=args.context_steps
         ),
@@ -1186,6 +1274,7 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         token_root=token_root,
         eval_shot_ids=eval_shots,
         resume=not args.no_resume,
+        cache_dir=getattr(args, "cache_dir", None),
     )
     logger.info(
         "CORPUS TRAIN done: steps_run=%d params=%d ctx_len=%d "
@@ -1236,9 +1325,24 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--ckpt-every", type=int, default=200)
     pc.add_argument("--eval-every", type=int, default=500)
     pc.add_argument("--num-workers", type=int, default=4)
+    pc.add_argument(
+        "--prefetch-factor",
+        type=int,
+        default=4,
+        help="DataLoader batches each worker stages ahead (>=4 floor; "
+        "ignored when --num-workers 0)",
+    )
     pc.add_argument("--out-dir", default=None, help="checkpoint dir (default GPFS)")
     pc.add_argument("--token-root", default=None)
     pc.add_argument("--no-resume", action="store_true", help="ignore latest.pt")
+    pc.add_argument(
+        "--cache-dir",
+        default=None,
+        help="node-local NVMe dir for the assembled-sample cache (opt-in; "
+        "e.g. /scratch_local/wm_token_cache). Default: WM_CACHE_DIR env, "
+        "else OFF (assemble every access). Caches the fully-assembled per-shot "
+        "sample so later epochs skip the GPFS re-read + re-assembly.",
+    )
     # Backbone-size knobs.  Default None => the WorldModelConfig field default
     # (the tiny prototype) — omit all four for the prior behaviour; set them to
     # size the transformer UP so the H200s are actually used.
