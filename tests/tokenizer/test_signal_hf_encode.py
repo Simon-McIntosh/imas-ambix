@@ -278,3 +278,36 @@ def test_skip_existing_and_group_absent(tmp_path, monkeypatch):
     summary = enc.encode_shots("xim", [888], tok)
     assert summary["encoded"] == []
     assert summary["skipped"][0]["reason"] == "group_absent"
+
+
+def test_already_encoded_rejects_truncated_store(tmp_path, monkeypatch):
+    """A store with arrays but no attrs (mid-write kill) is NOT 'already encoded'.
+
+    Guarantees a corpus resume re-encodes a shot whose write was interrupted at
+    the SLURM time limit, rather than skipping the truncated output forever.
+    """
+    import zarr
+
+    import imas_ambix.tokenizer.store_v2 as store_mod
+
+    monkeypatch.setattr(store_mod, "TOKEN_ROOT", tmp_path)
+    # A complete store reads back as already-encoded.
+    rng = np.random.default_rng(11)
+    data = rng.standard_normal((4, 64 * 20)).astype(np.float32)
+    chan = [f"da_ch{i}" for i in range(4)]
+    monkeypatch.setattr(
+        enc,
+        "load_shot_window",
+        lambda s, g: (data, chan, np.ones(4, bool), 50_000.0, (0.0, 0.4)),
+    )
+    tok = _train_tiny_tokenizer(4)
+    tok.name = enc.XIM_SPEC.patch_block
+    enc.encode_shots("xim", [4321], tok, skip_existing=False)
+    assert enc.already_encoded(4321, "xim") is True
+
+    # Now truncate it: arrays present, attrs stripped → must read as NOT done.
+    path = store_mod.signal_hf_token_path(4321, "xim")
+    g = zarr.open_group(str(path), mode="a")
+    for k in list(g.attrs.keys()):
+        del g.attrs[k]
+    assert enc.already_encoded(4321, "xim") is False

@@ -683,12 +683,29 @@ def group_present(shot_id: int, group: str) -> bool:
 
 
 def already_encoded(shot_id: int, group: str) -> bool:
-    """True if this shot/group already has a v2 signals_hf token store.
+    """True if this shot/group has a **complete** v2 signals_hf token store.
 
     Lets a long corpus encode checkpoint/resume: re-running with the same
-    ENCODE_IDS skips shots that are already on disk.
+    ENCODE_IDS skips shots that are already done.  Completeness is validated,
+    not just path-existence — the store writer creates the arrays first and
+    flushes the required ``.attrs`` last, so a shot whose encode was killed
+    mid-write (e.g. SIGTERM at the SLURM time limit) leaves arrays with no
+    attrs.  A path-only check would skip that truncated shot forever; reading
+    the attrs back means a partial shot is re-encoded on resume instead.
     """
-    return signal_hf_token_path(shot_id, group).exists()
+    path = signal_hf_token_path(shot_id, group)
+    if not path.exists():
+        return False
+    try:
+        import zarr
+
+        from imas_ambix.tokenizer.store_v2 import REQUIRED_ATTRS
+
+        store = zarr.open_group(str(path), mode="r")
+        attrs = dict(store.attrs)
+        return all(k in attrs for k in REQUIRED_ATTRS)
+    except Exception:  # noqa: BLE001 — unreadable/partial store ⇒ re-encode
+        return False
 
 
 def main(argv: list[str] | None = None) -> int:
