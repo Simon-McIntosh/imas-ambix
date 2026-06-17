@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="world-model-prototype">
-  <meta name="plan-title"     content="World-Model Prototype — Plan-Conditioned Multi-Modal Forward Prediction">
-  <meta name="plan-summary"   content="Stand up the first prototype world model on the multi-modal token substrate: a plan-conditioned autoregressive transformer that, given a shot's programmed actuator waveforms (the 'pulse schedule') plus a short initial-condition window, rolls the tokenised diagnostic streams (cameras + high-frequency signals + Level-2 measured inputs) forward in time, decodes them, and is scored predict-vs-reality against the eval-only Level-2 reconstructed-equilibrium targets. Authored as a dual-purpose educational document: every acronym, technique and framework is qualified.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="world-model-prototype">
+  <meta name="plan-title" content="World-Model Prototype — Plan-Conditioned Multi-Modal Forward Prediction">
+  <meta name="plan-summary" content="Stand up the first prototype world model on the multi-modal token substrate: a plan-conditioned autoregressive transformer that, given a shot&#x27;s programmed actuator waveforms (the &#x27;pulse schedule&#x27;) plus a short initial-condition window, rolls the tokenised diagnostic streams (cameras + high-frequency signals + Level-2 measured inputs) forward in time, decodes them, and is scored predict-vs-reality against the eval-only Level-2 reconstructed-equilibrium targets. Authored as a dual-purpose educational document: every acronym, technique and framework is qualified.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S15">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S15">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="multimodal-tokenisation-substrate,physics-world-model-strategy,camera-dynamics-wm-v0,compute">
   <title>World-Model Prototype — Plan-Conditioned Multi-Modal Forward Prediction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-17">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
@@ -360,29 +362,29 @@ GPU-drain safety per AGENTS.md §2a (sidecar on, clean SIGTERM teardown).</p>
 </ul>
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
-  <h2><span class="sec">§</span> Decisions</h2>
-  <div class="r-dec" data-key="prototype-modalities" data-choice="" data-by="" data-when="">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="prototype-modalities" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">Which modality subset does the first runnable skeleton use?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="l2-plus-xma-plus-one-cam">L2 measured + xma + one camera (recommended — tractable, spans scalar+HF+image)</button>
       <button class="r-opt" data-value="l2-only">L2 measured only (fastest to wire, no image decode)</button>
       <button class="r-opt" data-value="all">All modalities (most complete, heaviest)</button>
-    </p>
+      </p>
     <p class="r-dec-rat"></p>
-  </div>
-  <div class="r-dec" data-key="conditioning-mechanism" data-choice="" data-by="" data-when="">
+    </div>
+<div class="r-dec" data-key="conditioning-mechanism" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">How is the pulse-schedule plan injected into the Transformer?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="prepend-tokens">Prepended conditioning tokens (simplest; GPT-style prefix)</button>
       <button class="r-opt" data-value="cross-attention">Cross-attention to a plan encoder (more expressive)</button>
-    </p>
+      </p>
     <p class="r-dec-rat"></p>
-  </div>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
-  <h2><span class="sec">§</span> Followups</h2>
-  <article class="r-fu" data-id="f-wmp-skeleton" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-17">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-wmp-skeleton" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-17" data-recommends-skill="" data-resolved-at="2026-06-17T13:32:20+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Implement the runnable world-model skeleton (data → model → overfit smoke → eval)</h4>
     <div class="r-fu-body">Build the four §6 pieces end-to-end on the idle H200s: data assembly (boundary-guarded multi-modal token sequences + pulse-schedule conditioning on a common time grid), the plan-conditioned decoder-only Transformer, a next-token-NLL training loop with an overfit-a-few-shots smoke, and the predict-vs-reality eval against the eval-only L2 targets. Honour the per-group-local vocabulary and the target boundary guard; do not touch in-flight encoders (signal_hf_encode.py / stream_encode.py).</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -405,7 +407,31 @@ Done-when
   2. Overfit-a-few-shots smoke runs end-to-end on the H200s (loss drops; decoded rollout recognizable).
   3. A predict-vs-reality figure/metric for one held-out shot vs a persistence baseline; followup +
      this one resolved.</pre>
-  </article>
+    <p class="r-fu-outcome">LANDED + verified on the sun CPU partition (commit 00c1589). imas_ambix/worldmodel/{dataset,model,train,eval}.py: the plan-conditioned forward-prediction skeleton runs end-to-end. dataset.py assembles per-shot multi-modal token sequences (L2 measured + xma + one camera) on a common time grid + pulse-schedule (XDC) conditioning, context/target split, routing EVERY input path through store_targets.assert_not_target_path (boundary wired at dataset.py:311/393/603). model.py = plan-conditioned decoder-only Transformer (per-group-local embeddings; plan as prepended conditioning tokens). train.py = next-token NLL + overfit entrypoint; eval.py = autoregressive rollout + skill-vs-persistence. VERIFIED on sun (job 1219283, node 98dci4-clu-3024 — NOT the shared login node, per the lead's directive that CPU-heavy compute goes to a SLURM partition): ruff clean + 9 pytest pass in 5min, including test_input_loader_refuses_target_root_path + test_camera_loader_refuses_target_root (boundary hard-refuses TARGET_ROOT via pytest.raises ValueError), test_overfit_loss_drops_substantially, test_real_shot_overfit_smoke (real on-disk token stores), test_eval_rollout_reports_skill, test_eval_target_reference_is_eval_only. CONTEXT: the original CPU build ran on the login node and was killed by a peer agent; recovered + re-verified on sun. MINOR GAP (the stopped workflow's adversarial-verify phase would have added it): a conditioning-load-bearing mutation test (zero/remove the plan -> output must change) is not yet present — fold into the training run. worldmodel_train.sbatch prepared; full GPU training now UNBLOCKED (node /work restored; 2 H200 free after DSv4 moved to the 2-card variant).</p>
+    </article>
+<article class="r-fu" data-id="f-wmp-train" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-17" data-recommends-skill="/reckon-ship world-model-prototype" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Train the plan-conditioned world model on the corpus + report predict-vs-reality skill</h4>
+    <div class="r-fu-body"><p>The skeleton is verified. Run the first real training on the corpus (betelgeuse, the 2 H200 freed by the 2-card DSv4; node /work restored), widen the modality set beyond the L2+xma+one-camera starter, and produce the §5 predict-vs-reality evaluation: forward-predict a held-out shot from its pulse schedule, decode, score per modality at fixed horizons vs persistence, and report the §4 controlled-vs-stochastic decomposition honestly. Add the conditioning-load-bearing mutation test (zero-plan -> output changes) skipped at skeleton stage.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    world-model-prototype
+Section: §6/§5
+Tier:    opus
+
+Context
+  The runnable skeleton (commit 00c1589) is verified on sun. Now train it for real on the corpus and produce the predict-vs-reality demo.
+
+State to read
+  imas_ambix/worldmodel/{dataset,model,train,eval}.py; scripts/slurm/worldmodel_train.sbatch; this plan (§4 capability, §5 eval).
+
+Scope locks / constraints
+  - GPU training on betelgeuse (2 free H200 with DSv4 on 2 cards); GPU-drain safety per AGENTS.md §2a (sidecar on, clean SIGTERM). CPU-heavy pre/post processing goes to the sun partition, NOT the login node.
+  - Honour the target boundary (eval-only) + per-group-local vocab.
+
+Done-when
+  1. A trained checkpoint on the corpus (widened modalities); training curve + the conditioning mutation test (plan is load-bearing).
+  2. Predict-vs-reality eval on held-out shots: per-modality skill at 10/50/200 ms vs persistence, with the controlled-vs-stochastic split reported (no over-claim of ELM timing).
+  3. A decoded predict-vs-reality figure for the plan; followup + this one resolved; plan collapsed to a landed summary.</pre>
+    </article>
 </section>
 
 </main>
