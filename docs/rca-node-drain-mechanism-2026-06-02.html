@@ -4,17 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"  content="imas-ambix">
-  <meta name="reckon-type"   content="doc">
-  <meta name="plan-slug"     content="rca-node-drain-mechanism-2026-06-02">
-  <meta name="plan-title"    content="RCA — 98dci4-gpu-0003 node drains: cause and fix">
-  <meta name="plan-summary"  content="A process in uninterruptible (D) kernel sleep survives SIGKILL, so SLURM hits UnkillableStepTimeout(60s) and drains the node. One SLURM-level cause, three observed driver instances: CXI/Slingshot network (cxiWaitEventWait), GPFS (d_alloc_parallel), and NVIDIA GPU driver (ncclCommAbort->cudaStreamSynchronize, os_acquire_*). On a healthy node the D-state is transient (killable) — 14 instrumented attempts incl. the real pipeline never drained; a sustained drain needs an already-wedged node. Surgical fix: UnkillableStepProgram (auto-diagnose+recover) + UnkillableStepTimeout=120 + epilog clean-gate.">
-  <meta name="plan-status"   content="active">
-  <meta name="plan-roi"      content="high">
-  <meta name="plan-effort"   content="S">
-  <meta name="plan-owner"    content="Simon McIntosh">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="rca-node-drain-mechanism-2026-06-02">
+  <meta name="plan-title" content="RCA — 98dci4-gpu-0003 node drains: cause and fix">
+  <meta name="plan-summary" content="A process in uninterruptible (D) kernel sleep survives SIGKILL, so SLURM hits UnkillableStepTimeout(60s) and drains the node. One SLURM-level cause, three observed driver instances: CXI/Slingshot network (cxiWaitEventWait), GPFS (d_alloc_parallel), and NVIDIA GPU driver (ncclCommAbort-&gt;cudaStreamSynchronize, os_acquire_*). On a healthy node the D-state is transient (killable) — 14 instrumented attempts incl. the real pipeline never drained; a sustained drain needs an already-wedged node. Surgical fix: UnkillableStepProgram (auto-diagnose+recover) + UnkillableStepTimeout=120 + epilog clean-gate.">cudaStreamSynchronize, os_acquire_*). On a healthy node the D-state is transient (killable) — 14 instrumented attempts incl. the real pipeline never drained; a sustained drain needs an already-wedged node. Surgical fix: UnkillableStepProgram (auto-diagnose+recover) + UnkillableStepTimeout=120 + epilog clean-gate.">
+  <meta name="plan-status" content="superseded">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="S">
+  <meta name="plan-owner" content="Simon McIntosh">
   <title>RCA — 98dci4-gpu-0003 node drains: cause and fix | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-17">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
@@ -134,10 +136,8 @@ in-process encoders) is already in place and is <em>not</em> sufficient alone �
 it cannot reach a D-state task; the cluster-side fix above is required.</p>
 
 <section data-reckon="followups" id="followups" class="r-followups">
-  <h2><span class="sec">§</span> Followups</h2>
-
-  <article class="r-fu" data-id="f-drain-unkillprog" data-status="open" data-tier="sonnet"
-           data-written-by="rca-author" data-written-at="2026-06-02">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-drain-unkillprog" data-status="open" data-tier="sonnet" data-written-by="rca-author" data-written-at="2026-06-02" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Provide UnkillableStepProgram script + slurm.conf snippet for SDCC</h4>
     <div class="r-fu-body">Author the root diagnostic+recovery handler (capture
       <code>/proc/*/stack</code>+<code>wchan</code>, <code>nvidia-smi</code>, dmesg Xid,
@@ -156,10 +156,8 @@ Done-when
   1. handler script committed + slurm.conf snippet drafted
   2. handed to SDCC with this RCA
   3. followup resolved</pre>
-  </article>
-
-  <article class="r-fu" data-id="f-drain-epilog" data-status="open" data-tier="opus"
-           data-written-by="rca-author" data-written-at="2026-06-02">
+    </article>
+<article class="r-fu" data-id="f-drain-epilog" data-status="open" data-tier="opus" data-written-by="rca-author" data-written-at="2026-06-02" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Epilog/prolog GPU-clean gate to break the cascade</h4>
     <div class="r-fu-body">Draft + justify a SLURM epilog (drain-with-reason on a dirty/held GPU
       rather than releasing it) and prolog (refuse to start on a GPU still held), to stop a
@@ -170,7 +168,7 @@ Section: §4.3
 Tier:    opus
 
 Context
-  Drains cascade via a dirty GPU wedging the next job's NCCL teardown. Breaking
+  Drains cascade via a dirty GPU wedging the next job&#x27;s NCCL teardown. Breaking
   it at job boundaries is the root preventive fix.
 
 Constraints
@@ -181,7 +179,7 @@ Done-when
   1. epilog/prolog scripts + rationale drafted
   2. handed to SDCC
   3. followup resolved</pre>
-  </article>
+    </article>
 </section>
 
 <hr>
