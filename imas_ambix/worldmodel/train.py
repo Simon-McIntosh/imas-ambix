@@ -966,6 +966,17 @@ def _resolve_corpus_shots(args, modalities, token_root) -> list[int]:  # noqa: A
 def _cmd_corpus(args) -> int:  # noqa: ANN001
     """Train the plan-conditioned world model on the corpus (the real loop)."""
     modalities = default_modalities()
+    if getattr(args, "modalities", ""):
+        want = [s.strip() for s in args.modalities.split(",") if s.strip()]
+        by_name = {m.name: m for m in modalities}
+        unknown = [w for w in want if w not in by_name]
+        if unknown:
+            logger.error(
+                "unknown --modalities %s; available: %s", unknown, sorted(by_name)
+            )
+            return 1
+        modalities = [by_name[w] for w in want]
+        logger.info("modality subset: %s", [m.name for m in modalities])
     token_root = Path(args.token_root) if args.token_root else None
     out_dir = Path(args.out_dir) if args.out_dir else _default_out_dir()
 
@@ -1067,6 +1078,12 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--out-dir", default=None, help="checkpoint dir (default GPFS)")
     pc.add_argument("--token-root", default=None)
     pc.add_argument("--no-resume", action="store_true", help="ignore latest.pt")
+    pc.add_argument(
+        "--modalities",
+        default="",
+        help="comma-separated subset of default_modalities by name "
+        "(e.g. pulse_schedule,summary,pf_active,interferometer); empty = all",
+    )
     pc.set_defaults(func=_cmd_corpus)
 
     # --- overfit (the wiring proof) ---

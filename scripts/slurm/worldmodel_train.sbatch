@@ -99,6 +99,7 @@ fi
 : "${WM_CKPT_EVERY:=500}"      # checkpoint cadence (drain-safe)
 : "${WM_EVAL_EVERY:=2000}"     # held-out eval cadence
 : "${WM_NUM_WORKERS:=8}"       # DataLoader workers
+: "${WM_MODALITIES:=}"         # comma-separated modality subset; empty -> all (incl heavy camera)
 # Checkpoints persist on GPFS keyed by job id; override WM_OUT_DIR to resume a
 # drained job's ckpt dir into a fresh allocation.
 : "${WM_OUT_DIR:=/work/projects/imas_gpu/worldmodel/ckpt/${SLURM_JOB_ID}}"
@@ -136,11 +137,16 @@ EVAL_ARG=""
 if [[ -n "${WM_EVAL_SHOTS}" ]]; then
     EVAL_ARG="--eval-shots ${WM_EVAL_SHOTS}"
 fi
+MOD_ARG=""
+if [[ -n "${WM_MODALITIES}" ]]; then
+    MOD_ARG="--modalities ${WM_MODALITIES}"
+fi
 
 # shellcheck disable=SC2086
 ${PY} -m imas_ambix.worldmodel.train corpus \
     ${SHOT_ARG} \
     ${EVAL_ARG} \
+    ${MOD_ARG} \
     --n-shots "${WM_N_SHOTS}" \
     --n-eval-shots "${WM_N_EVAL_SHOTS}" \
     --steps "${WM_STEPS}" \
