@@ -756,6 +756,11 @@ def train_corpus(
         collate_fn=_collate,
         drop_last=False,
         generator=torch.Generator().manual_seed(config.seed),
+        # Use 'fork' (not the py3.14 forkserver/spawn default) so the local
+        # collate closure + the dataset need no pickling; the workers do CPU
+        # zarr reads only (never CUDA), so forking after the model is on the GPU
+        # is safe — the established AGENTS.md §2b data-worker pattern.
+        multiprocessing_context="fork" if config.num_workers > 0 else None,
     )
 
     model.train()
