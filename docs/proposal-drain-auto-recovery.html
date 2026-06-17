@@ -38,9 +38,9 @@ majority of the outage window.</p>
 kernel sleep (<code>D</code> state) survives past <code>UnkillableStepTimeout</code>
 (currently 60&nbsp;s), <code>slurmstepd</code> logs <strong>"Kill task failed"</strong>,
 and the node auto-drains. The underlying driver surfaces (CXI/Slingshot network,
-GPFS, NVIDIA GPU driver) are under active investigation — but regardless of whether
-the root cause is eliminated, the outage from any future drain is determined entirely
-by the speed of recovery. Application-side mitigations (STOP-FILE cooperative
+GPFS, NVIDIA GPU driver) are now pinned to the <strong>CXI/Slingshot fabric</strong> by the 2026-06-17 forensic
+capture (§1a, §2b) — but regardless of whether the root cause is eliminated, the outage
+from any future drain is determined entirely by the speed of recovery. Application-side mitigations (STOP-FILE cooperative
 shutdown, three-layer sbatch time-limit defence, in-process encoders) are already
 deployed and reduce the frequency of D-states, but cannot eliminate them: a D-state
 task does not receive signals and cannot be reached by application code.</p>
@@ -51,6 +51,42 @@ gate, and a <code>HealthCheckProgram</code> auto-resume policy — that together
 recovery from 2+ hours to under 5 minutes, without requiring the root cause to be
 fully understood first. Each mechanism is independent; even partial deployment
 provides immediate benefit.</p>
+
+<h2 id="s1a">§1a — Root cause &amp; attribution: environmental, not application</h2>
+
+<p><strong>Was this drain caused by anything we did?</strong> No — not by a code defect,
+a misconfiguration, or misuse. It is an <strong>environmental, node-level</strong>
+failure: a process entered uninterruptible kernel sleep (<code>D</code> state) on the
+<strong>CXI / Slingshot fabric</strong> while servicing an ordinary GPFS read, and that
+wait outlived <code>UnkillableStepTimeout</code>. This attribution is settled and now
+directly observed:</p>
+
+<ul>
+  <li><strong>The settled finding holds.</strong> The drain campaign ran 16 deliberate
+      reproduction attempts — SIGKILL mid-collective, <code>scancel</code> on live
+      CUDA/NCCL, <code>#SBATCH --time</code> expiry into a hung process, and the verbatim
+      code of a job that had previously drained the node — and produced
+      <strong>zero</strong> drains. Sustained D-state is stochastic driver/fabric/GPFS
+      state, not a property of any code path
+      (<a href="rca-node-drain-final-2026-06-03.html">rca-node-drain-final-2026-06-03</a>).</li>
+  <li><strong>The 2026-06-17 capture confirms it.</strong> The D-state holder was the
+      encode process blocked on <code>cxiWaitEventWait</code> — an ordinary
+      Slingshot-fabric read, <em>not</em> a CUDA/NCCL call or a buggy code path (§2b). The
+      NVIDIA-RM contention in <code>nvidia-smi</code> is downstream collateral.</li>
+  <li><strong>What "we" contributed is an occasion, not a cause.</strong> The wedge landed
+      in the kill window of our job's 12&nbsp;h time-limit teardown — but because
+      <code>--time</code> expiry was tested 16× without draining, the teardown is not
+      reliably causal; it merely provided one of many moments at which the environmental
+      D-state could coincide with the kill window. A <code>D</code>-state task receives no
+      signals, so <strong>no application-side change (signal handler, time-limit tuning,
+      in-process encoder) can prevent it</strong>; our mitigations reduce D-state
+      <em>frequency</em>, not the underlying fabric wedge.</li>
+</ul>
+
+<p><strong>Implication.</strong> Because the cause is environmental, the two levers that
+matter are (1) <strong>recovery automation</strong> to bound the outage (this proposal,
+§3–§5) and (2) <strong>a fabric/driver-level fix</strong> by SDCC/HPE to remove the wedge
+itself (§6a). Application code cannot close this on its own.</p>
 
 <h2 id="s2">§2 — Drain History</h2>
 
@@ -533,6 +569,33 @@ grep -i UnkillableStep /etc/slurm/slurm.conf /etc/slurm/*.conf 2>/dev/null
       immediate blast-radius reduction independent of root cause resolution.</li>
 </ul>
 
+<h2 id="s6a">§6a — Prevention vs recovery: what eliminates the drain vs what bounds it</h2>
+
+<p>This is, by design, a <strong>recovery</strong> proposal — it shrinks the outage from
+2+ hours to under 5 minutes without requiring the root cause to be eliminated first. That
+is the right immediate lever because the root cause is environmental and outside
+application control (§1a). For completeness, the full prevention picture:</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Lever</th><th>Type</th><th>Owner</th><th>Effect</th></tr></thead>
+<tbody>
+  <tr><td><code>UnkillableStepTimeout</code> 60→120&nbsp;s (§3)</td><td>Partial prevention</td><td>SDCC</td>
+      <td>Most D-states are transient (the 2026-06-17 capture: 0.16% of samples, oscillating D→R). A 60&nbsp;s window tips a transient wait into a drain; 120&nbsp;s lets it clear before "Kill task failed". This <em>prevents</em> the subset of drains caused by transient waits — the single highest-value change.</td></tr>
+  <tr><td>Epilog GPU-clean gate + prolog (§4)</td><td>Cascade prevention</td><td>SDCC</td>
+      <td>Stops a dirty GPU context propagating to the next job — prevents the <em>cascade</em>, not the seed event.</td></tr>
+  <tr><td>CXI/Slingshot fabric + GPFS driver/firmware investigation</td><td>Root elimination</td><td>SDCC + HPE/vendor</td>
+      <td>The only lever that removes the <code>cxiWaitEventWait</code> wedge itself: examine the fabric/GPFS stack (driver/firmware, congestion, lnet/CXI event-wait timeouts). The forensic CSV (§2b) is the evidence to open this with the vendor.</td></tr>
+  <tr><td>Shorter / checkpointed GPU jobs; avoid hard teardowns during active fabric IO</td><td>Exposure reduction</td><td>us (application)</td>
+      <td>Fewer teardown windows and shorter single fabric reads lower the probability of coincidence — but cannot eliminate a mid-run D-state. A palliative, not a fix.</td></tr>
+</tbody>
+</table></div>
+
+<p><strong>Bottom line.</strong> There is <em>no</em> application-side change that prevents
+this drain. The actionable prevention is SDCC-side: deploy §3 (timeout — prevents
+transient-wait drains today) and open a fabric/GPFS driver investigation with HPE using
+the §2b capture (removes the wedge). Until then, §3–§5 recovery automation bounds every
+recurrence to minutes.</p>
+
 <h2 id="s7">§7 — Summary of Requested Actions</h2>
 
 <div class="table-scroll"><table class="t">
@@ -616,11 +679,35 @@ grep -i UnkillableStep /etc/slurm/slurm.conf /etc/slurm/*.conf 2>/dev/null
       <code>imas-ambix</code> repository for full detail.</li>
 </ul>
 
+<h2 id="s9">§9 — Immediate next actions (post-2026-06-17 drain)</h2>
+
+<ol>
+  <li><strong>Submit this proposal to SDCC now.</strong> A fifth production drain plus the
+      first live forensic capture (§2b) remove any remaining ambiguity — the recovery
+      automation (§3–§5) should be deployed. The proposal no longer waits on the
+      drain-window campaign.</li>
+  <li><strong>Prioritise §3 (timeout 60→120&nbsp;s).</strong> It is the one change that
+      <em>prevents</em> the transient-wait subset of drains, is the lowest-risk, and is
+      independently deployable.</li>
+  <li><strong>Open a fabric/GPFS investigation with HPE/SDCC</strong> using
+      <code>drain-sidecar-1218732.csv</code> — the <code>cxiWaitEventWait</code> evidence
+      (§2b) localises the wedge to the CXI/Slingshot event-wait path serving GPFS reads.
+      This is the only route to eliminating (not just surviving) the drain.</li>
+  <li><strong>Recovery for the 2026-06-17 event:</strong> GPU confirmed clean by the
+      reporter; SLURM node resume (<code>scontrol update nodename=98dci4-gpu-0003
+      state=resume</code>) requires operator rights and is pending. Running jobs (DeepSeek,
+      camera encode) survived the drain; only new scheduling was blocked.</li>
+  <li><strong><code>UnkillableStepTimeout</code> value (§5a):</strong> the 61&nbsp;s
+      TIMEOUT→drain gap on job <code>1218732</code> (§2b) corroborates the inferred
+      ≈60&nbsp;s. Confirm directly from <code>scontrol show config</code> when admin access
+      is available, but this no longer blocks submission.</li>
+</ol>
+
 <hr>
-<p><em>Authored 2026-06-03. <code>UnkillableStepTimeout</code> value pending
-confirmation from Track C of the drain-window-campaign (see
-<a href="drain-window-campaign.html">drain-window-campaign</a>); update §5a
-with measured value before submitting to SDCC.</em></p>
+<p><em>Authored 2026-06-03; revised 2026-06-17 with the first live drain-sidecar forensic
+capture (§2b), the root-cause attribution (§1a), the prevention-vs-recovery analysis
+(§6a), and next actions (§9). Root cause settled as environmental (CXI/Slingshot fabric);
+proposal is ready to submit to SDCC.</em></p>
 
 </main>
 </body>
