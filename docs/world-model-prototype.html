@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="world-model-prototype">
+  <meta name="plan-title"     content="World-Model Prototype — Plan-Conditioned Multi-Modal Forward Prediction">
+  <meta name="plan-summary"   content="Stand up the first prototype world model on the multi-modal token substrate: a plan-conditioned autoregressive transformer that, given a shot's programmed actuator waveforms (the 'pulse schedule') plus a short initial-condition window, rolls the tokenised diagnostic streams (cameras + high-frequency signals + Level-2 measured inputs) forward in time, decodes them, and is scored predict-vs-reality against the eval-only Level-2 reconstructed-equilibrium targets. Authored as a dual-purpose educational document: every acronym, technique and framework is qualified.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S15">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="multimodal-tokenisation-substrate,physics-world-model-strategy,camera-dynamics-wm-v0,compute">
+  <title>World-Model Prototype — Plan-Conditioned Multi-Modal Forward Prediction | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Reading note (educational dual-purpose).</strong> This plan doubles as a teaching
+document for the prototype. Acronyms are expanded on first use, the modelling techniques are
+explained in plain terms, and every external framework we lean on is named in §8. If a term is
+unfamiliar, the glossary (§8) defines it.</p>
+
+<h2 id="s1">§1 — Objective</h2>
+<p>Build the first <strong>world model</strong> on top of the multi-modal token substrate. A
+<em>world model</em> is a learned model that predicts how a system's observations evolve over
+time <em>in response to actions</em>. Our actions are the <strong>pulse schedule</strong> — the
+pre-programmed actuator waveforms an operator sets before a MAST (Mega-Amp Spherical Tokamak)
+shot: the demanded plasma current, density, heating and coil currents. The "set target waveform"
+in everyday language.</p>
+<p>The prototype answers one concrete question: <strong>given a shot's pulse schedule (and a
+short slice of how the shot started), can we predict what every diagnostic will show for the rest
+of the shot?</strong> We then score that prediction against what actually happened — the
+<strong>predict-vs-reality</strong> loop that is the "day-state" half of the ITER World-Model
+vision (<a href="iter-vision-program.html">iter-vision-program</a>).</p>
+<p>This is <strong>forward model identification</strong>: learning the plasma's
+action→response behaviour from data, rather than solving it from first-principles equations.</p>
+
+<h2 id="s2">§2 — What we build on: the token substrate (done)</h2>
+<p>The hard, foundational data engineering is complete
+(<a href="multimodal-tokenisation-substrate.html">multimodal-tokenisation-substrate</a>, all
+followups landed). <em>Tokenisation</em> means converting continuous signals and images into
+sequences of integer codes drawn from a learned <em>codebook</em>, so that a single sequence model
+can consume every modality on a common footing — exactly as a language model consumes word-pieces.
+We have, across the ~11,573-shot corpus:</p>
+<ul>
+  <li><strong>Camera frame tokens</strong> — five cameras (rbb/rba/rco/rgb/rgc) encoded by
+      <strong>Open-MAGVIT2</strong> (an open-source image tokeniser using <strong>LFQ</strong>,
+      Lookup-Free Quantization — a vector-quantiser variant that maps each 256×256 frame to a
+      16×16 grid of discrete tokens). 6,155–9,527 shots per camera.</li>
+  <li><strong>High-frequency (HF) signal tokens</strong> from our phase-aware
+      <strong>patch-transformer</strong> tokeniser (a PatchTST/ViT-style model: it cuts the
+      waveform into patches, lifts them through a complex Short-Time Fourier Transform so
+      <em>phase</em> is preserved, runs a Transformer encoder, then a quantiser). Codebook chosen
+      per modality by measured phase fidelity: <strong>xma</strong> (≈5 kHz Mirnov magnetic-pickup
+      coils → MHD mode activity) → continuous embedding; <strong>xim</strong> (50 kHz Dα/CII line
+      emission → edge/ELM activity) → <strong>FSQ</strong> (Finite Scalar Quantization);
+      <strong>xsx</strong> (500 kHz soft-X-ray chord arrays → core emission/sawteeth) →
+      <strong>VQ</strong> (Vector Quantization). 12k–14k shots each, ~750M tokens total.</li>
+  <li><strong>Level-2 (L2) measured + authorised-planned inputs</strong> — the processed,
+      physical-unit diagnostics (plasma current, line-averaged density, radiated power, neutral-beam
+      power, neutron rate, interferometer density) <em>and</em> the authorised planned waveforms
+      (pulse-schedule demands, coil-voltage / gas-valve setpoints). 67,858 channel-stores, every
+      field passed through a provenance leakage guard.</li>
+  <li><strong>L2 targets store (eval-only)</strong> — the code-<em>reconstructed</em> equilibrium
+      (poloidal flux ψ on a 65×65 grid, the safety-factor profile q, the plasma boundary, global
+      scalars) plus reconstruction-derived globals. These are what the model must <em>predict</em>,
+      held physically separate behind a load-bearing boundary guard so they can never leak into the
+      inputs.</li>
+</ul>
+
+<h2 id="s3">§3 — Architecture: the plan-conditioned multi-modal transformer</h2>
+<p>The prototype is a <strong>decoder-only Transformer</strong> (the "GPT" architecture: a stack of
+self-attention layers that predicts the next token from all previous tokens), operating over the
+interleaved multi-modal token streams and <strong>conditioned</strong> on the pulse schedule.
+"Conditioned" means the planned waveforms are supplied as side-information the model can attend to
+at every step — so the same initial plasma state under two different plans yields two different
+predicted futures. Built in <strong>PyTorch</strong>.</p>
+
+<figure>
+<svg viewBox="0 0 920 430" width="100%" role="img" aria-label="World-model pipeline: tokenised inputs plus pulse-schedule conditioning feed a transformer that rolls forward and is decoded and scored against eval-only targets" style="font-family:system-ui,sans-serif">
+  <style>
+    .box{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1}
+    .tok{fill:#eef4ff;stroke:#5b7fb0;stroke-width:1}
+    .plan{fill:#fff4e6;stroke:#c98a3a;stroke-width:1.2}
+    .model{fill:#eef6ee;stroke:#4f8a52;stroke-width:1.4}
+    .target{fill:#fdeef0;stroke:#b05a66;stroke-width:1.2;stroke-dasharray:5 3}
+    .lbl{font-size:13px;fill:#1a1a1a}
+    .sub{font-size:11.5px;fill:#444}
+    .hd{font-size:13.5px;fill:#1a1a1a;font-weight:700}
+    .ar{stroke:#5b6b80;stroke-width:1.4;fill:none;marker-end:url(#a)}
+    .arT{stroke:#b05a66;stroke-width:1.4;fill:none;marker-end:url(#aT);stroke-dasharray:5 3}
+  </style>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker>
+    <marker id="aT" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b05a66"/></marker>
+  </defs>
+
+  <!-- inputs column -->
+  <text x="20" y="22" class="hd">Inputs (observations)</text>
+  <rect class="box" x="20" y="34" width="180" height="40" rx="4"/><text x="30" y="52" class="lbl">Cameras ×5</text><text x="30" y="68" class="sub">Open-MAGVIT2 LFQ · 16×16 tok</text>
+  <rect class="box" x="20" y="84" width="180" height="40" rx="4"/><text x="30" y="102" class="lbl">HF signals xma/xim/xsx</text><text x="30" y="118" class="sub">patch-transformer · phase-aware</text>
+  <rect class="box" x="20" y="134" width="180" height="40" rx="4"/><text x="30" y="152" class="lbl">L2 measured inputs</text><text x="30" y="168" class="sub">Ip, n_e, P_rad, NBI, neutron…</text>
+
+  <!-- tokenise -->
+  <rect class="tok" x="250" y="60" width="150" height="88" rx="4"/>
+  <text x="262" y="92" class="lbl">Per-group-local</text><text x="262" y="110" class="lbl">token channels</text>
+  <text x="262" y="130" class="sub">(disjoint embeddings;</text><text x="262" y="144" class="sub">common time grid)</text>
+
+  <!-- plan conditioning -->
+  <rect class="plan" x="20" y="210" width="380" height="46" rx="4"/>
+  <text x="30" y="231" class="hd">Pulse schedule = the PLAN (action / "target waveform")</text>
+  <text x="30" y="248" class="sub">XDC demands: Ip(t), n_e(t), shape, coil-voltage / gas setpoints — known a-priori</text>
+
+  <!-- context/target split -->
+  <rect class="box" x="250" y="160" width="150" height="40" rx="4"/>
+  <text x="262" y="178" class="lbl">context window</text><text x="262" y="193" class="sub">first N steps (given)</text>
+
+  <!-- model -->
+  <rect class="model" x="460" y="120" width="190" height="120" rx="6"/>
+  <text x="555" y="150" class="hd" text-anchor="middle">Decoder-only</text>
+  <text x="555" y="170" class="hd" text-anchor="middle">Transformer</text>
+  <text x="555" y="192" class="sub" text-anchor="middle">self-attention over tokens;</text>
+  <text x="555" y="208" class="sub" text-anchor="middle">plan injected as</text>
+  <text x="555" y="224" class="sub" text-anchor="middle">conditioning tokens (PyTorch)</text>
+
+  <!-- rollout -->
+  <rect class="box" x="700" y="60" width="200" height="80" rx="4"/>
+  <text x="710" y="84" class="hd">Autoregressive rollout</text>
+  <text x="710" y="104" class="sub">predict next token →</text>
+  <text x="710" y="120" class="sub">feed back → future stream</text>
+
+  <!-- decode -->
+  <rect class="box" x="700" y="156" width="200" height="78" rx="4"/>
+  <text x="710" y="180" class="hd">Decode per modality</text>
+  <text x="710" y="200" class="sub">frozen decoders → images,</text>
+  <text x="710" y="216" class="sub">signal envelopes, state proxy</text>
+
+  <!-- targets / eval -->
+  <rect class="target" x="700" y="300" width="200" height="86" rx="6"/>
+  <text x="710" y="324" class="hd">L2 targets (EVAL-ONLY)</text>
+  <text x="710" y="344" class="sub">reconstructed ψ(R,Z), q, boundary</text>
+  <text x="710" y="362" class="sub">— never an input (Wall guard)</text>
+  <text x="710" y="380" class="sub">predict-vs-reality score</text>
+
+  <!-- arrows -->
+  <path class="ar" d="M200,54 L248,80"/>
+  <path class="ar" d="M200,104 L248,104"/>
+  <path class="ar" d="M200,154 L248,128"/>
+  <path class="ar" d="M400,104 L458,150"/>
+  <path class="ar" d="M400,180 L458,190"/>
+  <path class="ar" d="M300,210 L520,242"/>
+  <path class="ar" d="M650,150 L698,110"/>
+  <path class="ar" d="M650,200 L698,190"/>
+  <path class="arT" d="M800,234 L800,298"/>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 1 — The prototype pipeline. Tokenised observations + the pulse-schedule plan feed a
+decoder-only Transformer; from a short context window it autoregressively rolls the multi-modal
+token stream forward, which is decoded and scored predict-vs-reality against the eval-only L2
+reconstructed-equilibrium targets. The dashed red boundary is the load-bearing guard that keeps the
+targets out of the inputs.</figcaption>
+</figure>
+
+<p><strong>How it trains.</strong> Standard next-token prediction with <em>teacher forcing</em>
+(the model sees the true previous tokens during training) under a cross-entropy / negative-log-
+likelihood (<strong>NLL</strong>) loss per token. At inference we switch to <em>autoregressive
+rollout</em> (the model consumes its own predictions). Per-group-local vocabularies (locked
+decision in the substrate plan) mean each modality is its own channel with its own embedding,
+disambiguated by tokeniser name; a unified-flat rebasing utility exists if a single shared
+vocabulary is ever wanted.</p>
+
+<h2 id="s4">§4 — Predictive capability: what a plan-conditioned model can and cannot forecast</h2>
+<p>This is the honest, physics-grounded core. Predictability splits cleanly by whether the plan
+<em>determines</em> the quantity.</p>
+
+<figure>
+<svg viewBox="0 0 900 300" width="100%" role="img" aria-label="Predictability decomposition: controlled response is sharply predictable; stochastic events are aleatoric and only their statistics are predictable" style="font-family:system-ui,sans-serif">
+  <style>
+    .axis{stroke:#888;stroke-width:1}
+    .ctrl{stroke:#2f6f9f;stroke-width:2.5;fill:none}
+    .band{fill:#f0d9b0;opacity:0.55}
+    .ev{stroke:#b05a66;stroke-width:1.6;fill:none}
+    .tx{font-size:13px;fill:#1a1a1a}
+    .ts{font-size:11.5px;fill:#444}
+    .tk{font-size:12.5px;fill:#1a1a1a;font-weight:700}
+  </style>
+  <!-- panel A: controlled -->
+  <text x="40" y="24" class="tk">Controlled / forced response — SHARP, quantitative</text>
+  <line class="axis" x1="40" y1="130" x2="420" y2="130"/>
+  <line class="axis" x1="40" y1="40" x2="40" y2="130"/>
+  <path class="ctrl" d="M40,120 C120,118 150,60 230,58 C320,56 360,70 420,72"/>
+  <text x="250" y="110" class="ts">Ip, n_e, shape/position, stored energy,</text>
+  <text x="250" y="124" class="ts">radiated-power &amp; heating envelope, ψ/q evolution</text>
+  <text x="40" y="150" class="ts">→ learned actuator→response map; beats persistence &amp; an Ensemble-Kalman-Filter baseline</text>
+  <text x="40" y="166" class="ts">   because it forecasts the response to a NEW plan, not just filters the past.</text>
+
+  <!-- panel B: stochastic -->
+  <text x="480" y="24" class="tk">Stochastic fine structure — STATISTICS only (aleatoric)</text>
+  <line class="axis" x1="480" y1="130" x2="860" y2="130"/>
+  <line class="axis" x1="480" y1="40" x2="480" y2="130"/>
+  <rect class="band" x="480" y="55" width="380" height="60"/>
+  <path class="ev" d="M510,115 L516,60 L522,115 M560,115 L566,72 L572,115 M620,115 L626,55 L632,115 M690,115 L696,70 L702,115 M760,115 L766,62 L772,115 M820,115 L826,75 L832,115"/>
+  <text x="498" y="50" class="ts">predictable envelope (frequency, amplitude distribution)</text>
+  <text x="480" y="150" class="ts">ELM bursts, filaments, MHD / sawtooth onset, turbulence: timing is irreducibly random</text>
+  <text x="480" y="166" class="ts">given the plan (the camera-dynamics study measured this aleatoric floor). Sampled rollouts</text>
+  <text x="480" y="182" class="ts">give plausible realisations; the exact burst times are not forecastable.</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 2 — Predictability decomposition. <em>Aleatoric</em> = irreducible, intrinsic randomness
+(no amount of data removes it); <em>epistemic</em> = model/data uncertainty (reducible). The
+controlled macroscopic response is epistemic-limited and sharply predictable; the bursty
+micro-events are aleatoric-floored and only their statistics are predictable.</figcaption>
+</figure>
+
+<p>So the demo's honest claim is a <strong>plasma-response forecaster</strong>: sharp and
+quantitative on the controlled macroscopics and the equilibrium evolution; calibrated-statistical
+on the bursty micro-events. We frame outputs as a <strong>MAP estimate</strong> (Maximum A
+Posteriori — the single most-probable trajectory) for the controlled part plus <strong>sampled
+rollouts</strong> for the variability, and we score probabilistically with the <strong>CRPS</strong>
+(Continuous Ranked Probability Score — a proper scoring rule that rewards sharp <em>and</em>
+calibrated probabilistic forecasts). Over-claiming exact Edge-Localized-Mode (ELM) timing is the
+trap to avoid.</p>
+
+<h2 id="s5">§5 — Evaluation: the predict-vs-reality "day" loop</h2>
+<p>The evaluation <em>is</em> the demo. Take a <strong>held-out</strong> shot (never seen in
+training), give the model only its pulse schedule + a short initial window, roll forward, decode,
+and compare to reality.</p>
+
+<figure>
+<svg viewBox="0 0 880 200" width="100%" role="img" aria-label="Day loop: plan plus initial window, roll forward, decode, compare to reality, accumulate skill" style="font-family:system-ui,sans-serif">
+  <style>
+    .n{fill:#eef6ee;stroke:#4f8a52;stroke-width:1.2}
+    .n2{fill:#eef4ff;stroke:#5b7fb0;stroke-width:1.2}
+    .n3{fill:#fdeef0;stroke:#b05a66;stroke-width:1.2}
+    .t{font-size:12.5px;fill:#1a1a1a}
+    .ar2{stroke:#5b6b80;stroke-width:1.4;fill:none;marker-end:url(#b)}
+  </style>
+  <defs><marker id="b" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker></defs>
+  <rect class="n2" x="20" y="70" width="150" height="56" rx="4"/><text x="34" y="94" class="t">Held-out plan +</text><text x="34" y="112" class="t">initial window</text>
+  <rect class="n" x="210" y="70" width="150" height="56" rx="4"/><text x="232" y="94" class="t">Roll forward</text><text x="232" y="112" class="t">(autoregressive)</text>
+  <rect class="n" x="400" y="70" width="150" height="56" rx="4"/><text x="430" y="94" class="t">Decode all</text><text x="430" y="112" class="t">modalities</text>
+  <rect class="n3" x="590" y="70" width="150" height="56" rx="4"/><text x="604" y="90" class="t">Compare to</text><text x="604" y="108" class="t">reality (L2</text><text x="604" y="122" class="t">targets)</text>
+  <rect class="n2" x="770" y="70" width="90" height="56" rx="4"/><text x="784" y="94" class="t">Skill vs</text><text x="784" y="112" class="t">baseline</text>
+  <path class="ar2" d="M170,98 L208,98"/>
+  <path class="ar2" d="M360,98 L398,98"/>
+  <path class="ar2" d="M550,98 L588,98"/>
+  <path class="ar2" d="M740,98 L768,98"/>
+  <text x="20" y="40" style="font-size:12.5px;fill:#444">This is the "day-state" half of the ITER World-Model vision: predict, observe, score, remember.</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 3 — The predict-vs-reality loop. Headline metric: forward-prediction skill per modality at
+fixed horizons (e.g. 10 / 50 / 200 ms) versus a persistence baseline and the existing
+Ensemble-Kalman-Filter (EnKF) current-recovery bar — with the aleatoric floor reported explicitly so
+nothing is over-claimed.</figcaption>
+</figure>
+
+<h2 id="s6">§6 — Implementation plan (the runnable skeleton)</h2>
+<p>The first deliverable is a <em>skeleton that runs end-to-end</em> — tokens in, recognizable
+prediction out — overfit on a handful of shots to prove the wiring, then trained. Four scoped
+pieces:</p>
+<ol>
+  <li><strong>Data assembly</strong> (<code>imas_ambix/worldmodel/dataset.py</code>): assemble per-shot
+      multi-modal token sequences on a common time grid, attach the pulse-schedule conditioning, and
+      split into a context window + a target window. Reuses the substrate's <code>store_v2</code>
+      readers, the <strong>boundary-guarded</strong> input loaders (so targets can never be ingested),
+      and the L2 input stores. Done-when: a fixture test assembles a shot and a tiny real-shot smoke
+      runs; the target store is provably never opened by the input path.</li>
+  <li><strong>Model</strong> (<code>imas_ambix/worldmodel/model.py</code>): the plan-conditioned
+      decoder-only Transformer (per-group-local token embeddings; pulse-schedule injected as
+      conditioning tokens). Done-when: forward/backward pass gradchecks; parameter count + context
+      length documented.</li>
+  <li><strong>Train + overfit smoke</strong> (<code>train.py</code> + a hardened SLURM batch script):
+      next-token NLL training loop with the repo's GPU-safety hardening (SIGTERM handler, watchdog,
+      drain sidecar). Done-when: it <em>overfits</em> a handful of shots (loss → near-zero, decoded
+      rollout is recognizable) on the idle H200s — the end-to-end proof.</li>
+  <li><strong>Eval</strong> (<code>eval.py</code>): forward-predict a held-out shot from its plan,
+      decode, and score against the L2 targets + a persistence baseline at fixed horizons; report the
+      controlled-vs-stochastic split per §4. Done-when: a predict-vs-reality figure for one held-out
+      shot.</li>
+</ol>
+<p><strong>Compute &amp; frameworks for the build:</strong> PyTorch on the 4×H200 Group-A reservation
+via SLURM (<a href="compute.html">compute</a>); two GPUs left free for the DeepSeek-V4-Flash serve.
+GPU-drain safety per AGENTS.md §2a (sidecar on, clean SIGTERM teardown).</p>
+
+<h2 id="s7">§7 — Scope &amp; sequencing</h2>
+<ul>
+  <li><strong>Prototype scope:</strong> start with a tractable modality subset (L2 measured inputs +
+      one camera + xma), short horizon, small model — prove the loop, then widen. The substrate
+      supports all modalities; the prototype need not use them all on day one.</li>
+  <li><strong>Honest framing first:</strong> the skeleton's job is to make predict-vs-reality
+      <em>run</em>; quantitative skill claims come only after a trained run with the §4 decomposition
+      reported.</li>
+  <li><strong>Augmentation (later):</strong> <strong>TORAX</strong> (Google DeepMind's JAX-based
+      differentiable tokamak core-transport simulator) can supply a physics teacher / synthetic
+      rollouts to regularise the learned dynamics — deferred past the first prototype.</li>
+</ul>
+
+<h2 id="s8">§8 — Glossary: acronyms, techniques &amp; frameworks (educational)</h2>
+<p><strong>Domain / physics</strong></p>
+<ul>
+  <li><strong>MAST</strong> — Mega-Amp Spherical Tokamak (the UK fusion device our data comes from).</li>
+  <li><strong>Pulse schedule</strong> — the operator's pre-programmed actuator waveforms (the "plan"):
+      demanded plasma current, density, plasma shape, heating, coil voltages, gas valves.</li>
+  <li><strong>Ip / n_e / ψ (psi) / q</strong> — plasma current / electron density / poloidal magnetic
+      flux / safety factor (the ratio of toroidal to poloidal field-line turns; the key stability
+      profile).</li>
+  <li><strong>ELM</strong> — Edge-Localized Mode: a quasi-periodic burst at the plasma edge.
+      <strong>MHD</strong> — magnetohydrodynamic (the fluid+magnetic-field instability physics).
+      <strong>Sawtooth</strong> — a core relaxation oscillation.</li>
+  <li><strong>Mirnov coils</strong> — magnetic pickup coils sensing MHD modes (our <code>xma</code>).
+      <strong>Dα</strong> — deuterium-alpha line emission, an edge/ELM/recycling indicator
+      (<code>xim</code>). <strong>SXR</strong> — soft X-ray, a core-emission diagnostic
+      (<code>xsx</code>). <strong>NBI</strong> — Neutral Beam Injection (heating).</li>
+  <li><strong>EFIT / Grad-Shafranov (GS)</strong> — the equilibrium-reconstruction code / the MHD
+      force-balance equation it solves; produces the ψ(R,Z) and q we use as eval-only targets.</li>
+  <li><strong>EnKF</strong> — Ensemble Kalman Filter: the classical data-assimilation baseline our
+      forecaster must beat.</li>
+</ul>
+<p><strong>Modelling techniques</strong></p>
+<ul>
+  <li><strong>World model</strong> — a learned action→observation forward predictor.</li>
+  <li><strong>Tokenisation / codebook</strong> — discretising signals/images into integer codes from a
+      learned dictionary, so one sequence model handles every modality.</li>
+  <li><strong>VQ / FSQ / LFQ</strong> — Vector Quantization / Finite Scalar Quantization /
+      Lookup-Free Quantization: three ways to map continuous features to discrete tokens (we use each
+      where it measured best).</li>
+  <li><strong>Decoder-only Transformer ("GPT")</strong> — a self-attention stack that predicts the
+      next token from the past. <strong>Self-attention</strong> lets every token weigh every earlier
+      token.</li>
+  <li><strong>Conditioning</strong> — feeding side-information (the plan) the model attends to.
+      <strong>Teacher forcing</strong> (train on true history) vs <strong>autoregressive rollout</strong>
+      (infer on own outputs).</li>
+  <li><strong>NLL / CRPS</strong> — Negative Log-Likelihood (token training loss) / Continuous Ranked
+      Probability Score (proper probabilistic-forecast metric). <strong>MAP</strong> — Maximum A
+      Posteriori (most-probable point estimate).</li>
+  <li><strong>Aleatoric vs epistemic uncertainty</strong> — irreducible randomness (e.g. ELM timing)
+      vs reducible model/data uncertainty.</li>
+  <li><strong>STFT</strong> — Short-Time Fourier Transform (gives the phase-preserving signal features
+      the patch-transformer tokeniser uses).</li>
+</ul>
+<p><strong>Frameworks &amp; tools</strong></p>
+<ul>
+  <li><strong>PyTorch</strong> — the deep-learning framework (tensors, autograd, <code>nn.Module</code>,
+      <code>DataLoader</code>) the model + training loop are built in.</li>
+  <li><strong>Open-MAGVIT2</strong> — the open-source LFQ image tokeniser for the camera frames.</li>
+  <li><strong>Zarr / xarray</strong> — chunked-array storage / labelled-array access for the token
+      store and the FAIR-MAST data.</li>
+  <li><strong>TORAX</strong> — DeepMind's differentiable (JAX) tokamak transport simulator, for later
+      physics augmentation.</li>
+  <li><strong>imas-python</strong> — the IMAS (Integrated Modelling &amp; Analysis Suite) Access Layer
+      for reading IMAS-formatted data correctly (transpose/COCOS/DD-version handling).</li>
+  <li><strong>SLURM</strong> — the cluster job scheduler; we run on the 4×H200 (NVIDIA Hopper)
+      Group-A reservation. <strong>reckon</strong> — the HTML-first plan/docs system this document
+      lives in.</li>
+</ul>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+  <h2><span class="sec">§</span> Decisions</h2>
+  <div class="r-dec" data-key="prototype-modalities" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which modality subset does the first runnable skeleton use?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="l2-plus-xma-plus-one-cam">L2 measured + xma + one camera (recommended — tractable, spans scalar+HF+image)</button>
+      <button class="r-opt" data-value="l2-only">L2 measured only (fastest to wire, no image decode)</button>
+      <button class="r-opt" data-value="all">All modalities (most complete, heaviest)</button>
+    </p>
+    <p class="r-dec-rat"></p>
+  </div>
+  <div class="r-dec" data-key="conditioning-mechanism" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How is the pulse-schedule plan injected into the Transformer?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="prepend-tokens">Prepended conditioning tokens (simplest; GPT-style prefix)</button>
+      <button class="r-opt" data-value="cross-attention">Cross-attention to a plan encoder (more expressive)</button>
+    </p>
+    <p class="r-dec-rat"></p>
+  </div>
+</section>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+  <h2><span class="sec">§</span> Followups</h2>
+  <article class="r-fu" data-id="f-wmp-skeleton" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-17">
+    <h4 class="r-fu-title">Implement the runnable world-model skeleton (data → model → overfit smoke → eval)</h4>
+    <div class="r-fu-body">Build the four §6 pieces end-to-end on the idle H200s: data assembly (boundary-guarded multi-modal token sequences + pulse-schedule conditioning on a common time grid), the plan-conditioned decoder-only Transformer, a next-token-NLL training loop with an overfit-a-few-shots smoke, and the predict-vs-reality eval against the eval-only L2 targets. Honour the per-group-local vocabulary and the target boundary guard; do not touch in-flight encoders (signal_hf_encode.py / stream_encode.py).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    world-model-prototype
+Section: §6
+Tier:    opus
+
+Context
+  The multi-modal token substrate is complete. Build the first runnable, plan-conditioned
+  forward-prediction skeleton that makes the predict-vs-reality loop run end-to-end.
+
+State to read
+  imas_ambix/tokenizer/{store_v2.py,registry.py,store_targets.py};
+  imas_ambix/data/l2_input_build.py; imas_ambix/camdyn/dataset.py (boundary-guarded loaders);
+  /work/projects/imas_gpu/mast-tokens/v2/registry.json; this plan (§3, §6).
+
+Done-when
+  1. imas_ambix/worldmodel/{dataset,model,train,eval}.py committed; the target store is provably
+     never opened by the input path (boundary guard honoured).
+  2. Overfit-a-few-shots smoke runs end-to-end on the H200s (loss drops; decoded rollout recognizable).
+  3. A predict-vs-reality figure/metric for one held-out shot vs a persistence baseline; followup +
+     this one resolved.</pre>
+  </article>
+</section>
+
+</main>
+</body>
+</html>
