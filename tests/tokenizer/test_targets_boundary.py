@@ -19,10 +19,19 @@ import dataclasses
 import numpy as np
 import pytest
 
+from imas_ambix.camdyn.dataset import (
+    DEFAULT_CAMERA,
+    DEFAULT_VOCAB_VERSION,
+    discover_token_shots,
+    frames_token_path,
+    list_token_shot_ids,
+)
 from imas_ambix.data.paths import TARGET_ROOT, TOKEN_ROOT
 from imas_ambix.tokenizer.store_targets import (
     FORBIDDEN_TARGET_ATTRS,
+    FRAMES_GENERATION,
     REQUIRED_TARGET_ATTRS,
+    SIGNALS_HF_GENERATION,
     TargetV2Attrs,
     assert_not_target_path,
     enumerate_input_group_paths,
@@ -117,17 +126,34 @@ def test_from_attrs_requires_full_contract():
 # ---------------------------------------------------------------------------
 
 
-def test_input_group_roots_are_exactly_signals_hf_and_frames():
-    """The enumerator lists only TOKEN_ROOT/v2/{signals_hf,frames}."""
+def test_input_group_roots_match_real_on_disk_generations():
+    """The enumerator lists the REAL on-disk generations per sub-root.
+
+    signals_hf was encoded under generation ``v2``; camera frames under
+    generation ``v1`` (``camdyn.dataset.DEFAULT_VOCAB_VERSION``).  A single
+    hardcoded generation would point the frames enumerator at a non-existent
+    ``v2/frames`` root, so the two sub-roots carry distinct generations.
+    """
     roots = input_group_roots()
     assert roots == [
         TOKEN_ROOT / "v2" / "signals_hf",
-        TOKEN_ROOT / "v2" / "frames",
+        TOKEN_ROOT / "v1" / "frames",
     ]
+    # the frames generation matches the real camdyn loader default
+    assert roots[1] == TOKEN_ROOT / DEFAULT_VOCAB_VERSION / "frames"
     # and none of them is the target root
     for r in roots:
         assert TARGET_ROOT.resolve() not in r.resolve().parents
         assert r.resolve() != TARGET_ROOT.resolve()
+
+
+def test_input_group_roots_are_generation_aware():
+    """A caller can override the per-sub-root generation (not hardcoded)."""
+    roots = input_group_roots(frames_generation="v3", signals_hf_generation="v4")
+    assert roots == [
+        TOKEN_ROOT / "v4" / "signals_hf",
+        TOKEN_ROOT / "v3" / "frames",
+    ]
 
 
 def test_input_roots_all_under_token_root():
@@ -161,9 +187,9 @@ def test_enumerator_refuses_target_root_even_if_symlinked(tmp_path):
     token_root = tmp_path / "mast-tokens"
     target_root = tmp_path / "mast-targets"
 
-    # two legitimate input stores
-    sig = token_root / "v2" / "signals_hf" / "13277" / "xma.zarr"
-    frm = token_root / "v2" / "frames" / "13277" / "rbb.zarr"
+    # two legitimate input stores, each at its REAL on-disk generation
+    sig = token_root / SIGNALS_HF_GENERATION / "signals_hf" / "13277" / "xma.zarr"
+    frm = token_root / FRAMES_GENERATION / "frames" / "13277" / "rbb.zarr"
     for d in (sig, frm):
         d.mkdir(parents=True)
         (d / ".marker").write_text("x")
@@ -198,6 +224,89 @@ def test_enumerator_hard_refuses_a_target_symlinked_under_input_root(tmp_path):
 
     with pytest.raises(ValueError, match="TARGET_ROOT"):
         enumerate_input_group_paths(token_root=token_root, target_root=target_root)
+
+
+# ---------------------------------------------------------------------------
+# Wall 3 LIVE — the REAL camdyn input loader refuses TARGET_ROOT at load time
+# ---------------------------------------------------------------------------
+#
+# These exercise the guard through the actual world-model camera input
+# loaders (not the enumerator in isolation): the boundary is now wired into
+# the code path that opens token stores, so it is a live refusal, not dead
+# code.  A ``token_root`` that resolves under TARGET_ROOT — the eval-only L2
+# reconstruction-target store — is hard-refused before any store is opened.
+
+
+def test_frames_token_path_refuses_target_root():
+    """The path chokepoint refuses a token_root under TARGET_ROOT."""
+    with pytest.raises(ValueError, match="TARGET_ROOT"):
+        frames_token_path(13277, token_root=TARGET_ROOT)
+
+
+def test_frames_token_path_passes_real_token_root():
+    """A legitimate token root passes the guard and builds the real path."""
+    path = frames_token_path(13277, token_root=TOKEN_ROOT)
+    expected = (
+        TOKEN_ROOT
+        / DEFAULT_VOCAB_VERSION
+        / "frames"
+        / "13277"
+        / f"{DEFAULT_CAMERA}.zarr"
+    )
+    assert path == expected
+
+
+def test_discover_token_shots_refuses_target_root():
+    """The live shot-discovery loader refuses a TARGET_ROOT token root."""
+    with pytest.raises(ValueError, match="TARGET_ROOT"):
+        discover_token_shots(token_root=TARGET_ROOT)
+
+
+def test_discover_token_shots_refuses_target_root_with_explicit_shots():
+    """Refusal fires even when shot_ids bypasses the directory scan."""
+    with pytest.raises(ValueError, match="TARGET_ROOT"):
+        discover_token_shots(token_root=TARGET_ROOT, shot_ids=[13277])
+
+
+def test_list_token_shot_ids_refuses_target_root():
+    """The cheap shot-id listing loader refuses a TARGET_ROOT token root."""
+    with pytest.raises(ValueError, match="TARGET_ROOT"):
+        list_token_shot_ids(token_root=TARGET_ROOT)
+
+
+def test_discover_token_shots_refuses_target_subdir_token_root(tmp_path):
+    """A token root nested anywhere under TARGET_ROOT is refused.
+
+    Point the real loader at a child of the canonical TARGET_ROOT; even with
+    a populated ``frames`` layout the guard fires before enumeration, so an
+    eval-only target tree can never be admitted as a world-model input.
+    """
+    leaked_root = TARGET_ROOT / "smuggled-as-tokens"
+    with pytest.raises(ValueError, match="TARGET_ROOT"):
+        list_token_shot_ids(token_root=leaked_root)
+    with pytest.raises(ValueError, match="TARGET_ROOT"):
+        discover_token_shots(token_root=leaked_root)
+
+
+def test_discover_token_shots_accepts_clean_token_root(tmp_path):
+    """A clean (non-target) token root is enumerated normally — guard is
+    a refusal-only gate, it does not change which shots are legitimately
+    found.  Build a real v1/frames store and confirm the loader lists it.
+    """
+    token_root = tmp_path / "mast-tokens"
+    frames = token_root / DEFAULT_VOCAB_VERSION / "frames" / "13277"
+    store = frames / f"{DEFAULT_CAMERA}.zarr"
+    store.mkdir(parents=True)
+    # mark as a V3 zarr store so the cheap existence check passes
+    (store / "zarr.json").write_text("{}")
+
+    ids = list_token_shot_ids(token_root=token_root)
+    assert ids == [13277]
+
+    specs = discover_token_shots(token_root=token_root)
+    assert [s.shot_id for s in specs] == [13277]
+    # and the path it would open is itself guard-clean (under the token root)
+    assert TARGET_ROOT.resolve() not in specs[0].token_path.resolve().parents
 
 
 # ---------------------------------------------------------------------------

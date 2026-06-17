@@ -48,6 +48,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from imas_ambix.data.paths import LEVEL1_DIR, TOKEN_ROOT
+from imas_ambix.tokenizer.store_targets import assert_not_target_path
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -74,9 +75,20 @@ def frames_token_path(
     vocab_version: str = DEFAULT_VOCAB_VERSION,
     token_root: Path | None = None,
 ) -> Path:
-    """Return the V3 token Zarr path for one shot's camera frames."""
+    """Return the V3 token Zarr path for one shot's camera frames.
+
+    Every world-model INPUT path the camera loader opens is built here, so
+    this is the chokepoint where the eval-only boundary guard fires: the
+    resolved path is run through
+    :func:`imas_ambix.tokenizer.store_targets.assert_not_target_path` before
+    it is returned.  A ``token_root`` that resolves under ``TARGET_ROOT``
+    (the eval-only L2 reconstruction-target store) is hard-refused at load
+    time — the camera input stream can never admit a prediction target
+    (Wall 3, now live in the real loader).
+    """
     root = token_root or TOKEN_ROOT
-    return root / vocab_version / "frames" / str(shot_id) / f"{camera}.zarr"
+    path = root / vocab_version / "frames" / str(shot_id) / f"{camera}.zarr"
+    return assert_not_target_path(path)
 
 
 def level1_shot_path(shot_id: int, level1_dir: Path | None = None) -> Path:
@@ -423,7 +435,10 @@ def discover_token_shots(
     """
     root = token_root or TOKEN_ROOT
     l1 = level1_dir or LEVEL1_DIR
-    frames_dir = root / vocab_version / "frames"
+    # Wall 3 (live): refuse a token root that resolves under TARGET_ROOT
+    # before any directory scan — the eval-only reconstruction-target store
+    # must never be enumerated as a world-model input.
+    frames_dir = assert_not_target_path(root / vocab_version / "frames")
 
     if shot_ids is None:
         if not frames_dir.exists():
@@ -469,7 +484,8 @@ def list_token_shot_ids(
     the full 9,527-shot corpus.
     """
     root = token_root or TOKEN_ROOT
-    frames_dir = root / vocab_version / "frames"
+    # Wall 3 (live): a token root under TARGET_ROOT is refused at load time.
+    frames_dir = assert_not_target_path(root / vocab_version / "frames")
     if not frames_dir.exists():
         return []
     out: list[int] = []

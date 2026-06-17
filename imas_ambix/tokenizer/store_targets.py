@@ -69,17 +69,25 @@ if TYPE_CHECKING:
 # A target never gets a decodable token id, so there is no allocation step
 # and no registry shift that could fold it into the input vocabulary.
 
-# Store schema generation for the target store.  Distinct from the v2 token
-# store generation — this tracks the on-disk *target* array/attribute layout.
+# Store schema generation for the target store.  Distinct from the token
+# store generations — this tracks the on-disk *target* array/attribute layout.
 TARGET_STORE_GENERATION = "v2"
 
-# The world-model INPUT token store sub-roots, relative to ``TOKEN_ROOT``.
-# The input data-loader enumerates ONLY these.  ``signals_hf`` is the
-# native-cadence phase-preserving v2 signal store; ``frames`` is the camera
-# token store.  TARGET_ROOT appears in NEITHER — that is Wall 1.
+# The world-model INPUT token store sub-roots, relative to ``TOKEN_ROOT``,
+# as ``(generation, sub_root)`` pairs.  The input data-loader enumerates ONLY
+# these.  ``signals_hf`` is the native-cadence phase-preserving signal store
+# (generation ``v2``); ``frames`` is the camera token store, which on disk
+# lives under generation ``v1`` (``camdyn.dataset.DEFAULT_VOCAB_VERSION``).
+# Each sub-root carries its OWN generation because the two stores were
+# encoded under different vocab generations — a single hardcoded generation
+# would point the frames enumerator at a non-existent ``v2/frames`` root and
+# miss the real ``v1/frames`` camera tokens.  TARGET_ROOT appears in NEITHER
+# pair — that is Wall 1.
+SIGNALS_HF_GENERATION = "v2"
+FRAMES_GENERATION = "v1"
 INPUT_GROUP_SUBPATHS: tuple[tuple[str, str], ...] = (
-    (TARGET_STORE_GENERATION, "signals_hf"),
-    (TARGET_STORE_GENERATION, "frames"),
+    (SIGNALS_HF_GENERATION, "signals_hf"),
+    (FRAMES_GENERATION, "frames"),
 )
 
 # The required attribute keys for a target group.  A reader validates against
@@ -259,19 +267,39 @@ def target_group_path(
 # ---------------------------------------------------------------------------
 
 
-def input_group_roots(*, token_root: Path | None = None) -> list[Path]:
+def input_group_roots(
+    *,
+    token_root: Path | None = None,
+    frames_generation: str | None = None,
+    signals_hf_generation: str | None = None,
+) -> list[Path]:
     """Return the group roots the world-model INPUT loader may enumerate.
 
-    Exactly ``TOKEN_ROOT/v2/signals_hf`` and ``TOKEN_ROOT/v2/frames`` — the
-    native-cadence signal token store and the camera frame token store.
+    By default ``TOKEN_ROOT/v2/signals_hf`` and ``TOKEN_ROOT/v1/frames`` —
+    the native-cadence signal token store (generation ``v2``) and the camera
+    frame token store (generation ``v1``, matching
+    :data:`imas_ambix.camdyn.dataset.DEFAULT_VOCAB_VERSION`).  The two stores
+    were encoded under different vocab generations, so each sub-root carries
+    its own generation rather than a single hardcoded one — a hardcoded ``v2``
+    would point the frames enumerator at a non-existent ``v2/frames`` root.
     :data:`TARGET_ROOT` is NOT among them (Wall 1): it is not a child of
     ``TOKEN_ROOT`` so no glob over these roots can reach a target.
 
     The world-model dataset builder must obtain its input group roots from
-    here so the enumeration set is defined in exactly one place.
+    here so the enumeration set is defined in exactly one place.  A caller
+    that opens a different frames / signals generation than the defaults
+    passes ``frames_generation`` / ``signals_hf_generation`` so the guard
+    still enumerates the real input stores (and still refuses TARGET_ROOT).
     """
     root = token_root or TOKEN_ROOT
-    return [root / gen / name for gen, name in INPUT_GROUP_SUBPATHS]
+    overrides = {
+        "frames": frames_generation,
+        "signals_hf": signals_hf_generation,
+    }
+    return [
+        root / (overrides.get(name) or gen) / name
+        for gen, name in INPUT_GROUP_SUBPATHS
+    ]
 
 
 def assert_not_target_path(path: Path, *, target_root: Path | None = None) -> Path:
@@ -297,7 +325,11 @@ def assert_not_target_path(path: Path, *, target_root: Path | None = None) -> Pa
 
 
 def enumerate_input_group_paths(
-    *, token_root: Path | None = None, target_root: Path | None = None
+    *,
+    token_root: Path | None = None,
+    target_root: Path | None = None,
+    frames_generation: str | None = None,
+    signals_hf_generation: str | None = None,
 ) -> list[Path]:
     """Enumerate every per-shot input group ``.zarr`` under the input roots.
 
@@ -305,9 +337,15 @@ def enumerate_input_group_paths(
     roots returned by :func:`input_group_roots`, and every path it would
     yield is run through :func:`assert_not_target_path` so the target store
     can never leak in even if it were somehow symlinked under an input root.
+    ``frames_generation`` / ``signals_hf_generation`` override the default
+    on-disk generation per sub-root (see :func:`input_group_roots`).
     """
     paths: list[Path] = []
-    for root in input_group_roots(token_root=token_root):
+    for root in input_group_roots(
+        token_root=token_root,
+        frames_generation=frames_generation,
+        signals_hf_generation=signals_hf_generation,
+    ):
         if not root.exists():
             continue
         for shot_dir in sorted(p for p in root.iterdir() if p.is_dir()):
