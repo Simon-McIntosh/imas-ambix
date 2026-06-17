@@ -1,51 +1,76 @@
-"""Global token id namespace registry.
+"""Token id namespace registry.
 
+The on-disk contract is PER-GROUP-LOCAL
+----------------------------------------
 Every concrete tokenizer (Open-MAGVIT2, Chronos, PatchTST, …) emits
-**local** ids in ``[0, vocab_size)``. The registry packs them into a
-contiguous **global** range so the world-model transformer sees a flat
-1-D vocabulary.
-
-Layout:
-
-```
-[0, 4)                  control tokens          (pad, bos, eos, sep)
-[4, 4+N1)               Open-MAGVIT2 frame      (visible + IR share)
-[4+N1, 4+N1+N2)         Chronos low-freq signal
-[4+N1+N2, ...)          PatchTST patch tokens
-[final position, end)   scalar / metadata embeddings (own table)
-```
-
-The registry is a singleton (:data:`registry`). Modules that emit
-tokens call :meth:`TokenRegistry.allocate` once during construction and
-get back a ``(start, end)`` range. Encoded ids are produced via
-``local_id + start``; decoding uses :meth:`TokenRegistry.split`.
-
-Vocab generations are versioned through :data:`VOCAB_VERSION`. Bumping
-the version means existing cached tokens are invalidated. Persisted
-token arrays under ``/work/projects/imas_gpu/mast-tokens/v{N}/`` store
-the version they were produced under.
-
-On-disk truth is authoritative
--------------------------------
-The high-frequency v2 signal corpus (xma / xim / xsx) is encoded by
-:mod:`imas_ambix.tokenizer.signal_hf_encode`, which sizes each block's
-codebook **at runtime** from the trained model
+**local** ids in ``[0, vocab_size)``.  The high-frequency v2 signal corpus
+(xma / xim / xsx) is encoded by :mod:`imas_ambix.tokenizer.signal_hf_encode`,
+which sizes each block's codebook **at runtime** from the trained model
 (``patch_vocab = bottleneck.codebook_size``) — NOT from any compile-time
-constant.  Crucially the encode runs **one process per group**, so every
-group's id allocation restarts at the control range: the on-disk
-``xma_patch``, ``xim_patch`` and ``xsx_patch`` blocks all begin at id 4
-and therefore *overlap*.  The single ground truth for what ids the corpus
-actually occupies is the on-disk store metadata
-(``metadata.codebook_size``) cross-checked against the real global ids in
-the token arrays — never a hand-maintained size table.
+constant.
 
-The Level-2 input light path (:mod:`imas_ambix.data.l2_input_build`) runs
-in a single process and must place its block **strictly above** every id
-the corpus uses, so a decoded L2 id can never alias a corpus block.  The
-helpers below reconstruct the real corpus namespace from the on-disk
-stores, persist it to ``TOKEN_ROOT/v2/registry.json`` as the
-self-describing manifest, and allocate the L2 block above the real
-maximum.
+Crucially the encode runs **one process per group** (see the
+``for GROUP in xma xim xsx`` loop in
+``scripts/slurm/signal_tokenizer.sbatch`` — each group is a separate
+``encode`` invocation with its own fresh :data:`registry`).  Each process
+restarts its allocation at the control range, so on disk **every group's
+patch block begins at id 4 and the groups OVERLAP in global id space**::
+
+    on disk:   xma_patch  ∈ [4, 5)        (codebook_size 1)
+               xim_patch  ∈ [4, 12804)    (codebook_size 12800)
+               xsx_patch  ∈ [4, 1028)     (codebook_size 1024)
+
+The registry packs a flat contiguous range only **within a single
+process** — it never produces one global stream across groups, because no
+single process ever encodes more than one group.  The flat-vocabulary
+picture from earlier versions of this docstring is therefore NOT what is
+realised on disk.
+
+What this means for a consumer (the CONTRACT)
+---------------------------------------------
+Because group ids overlap, an id is meaningless without the **group it came
+from**.  A consumer disambiguates one of two ways:
+
+(a) **per-group-local channels** — keep each group as its own token channel
+    and resolve an id with the store's ``tokenizer_name`` / group (recorded
+    in every ``signals_hf/{shot}/{group}.zarr`` ``.attrs``).  This matches
+    the on-disk reality and needs no data rewrite.  It is the default.
+
+(b) **unified-flat stream** — when a downstream model wants a single 1-D
+    vocabulary, REBASE the per-group-local ids to a disjoint unified
+    namespace at *consume* time via :func:`unified_global_ids` /
+    :func:`build_unified_namespace` below.  Each known block is assigned a
+    DISJOINT contiguous range in canonical order, sized from the REAL
+    on-disk ``metadata.codebook_size`` — no re-encode, no data rewrite.
+
+The single ground truth for what ids the corpus actually occupies is the
+on-disk store metadata (``metadata.codebook_size``) cross-checked against
+the real global ids in the token arrays — never a hand-maintained size
+table.
+
+Vocab generations are versioned through :data:`VOCAB_VERSION` (held at
+``"v2"`` — the rebasing utility is append-only and does NOT re-bump it).
+Persisted token arrays under ``/work/projects/imas_gpu/mast-tokens/v{N}/``
+store the version they were produced under.
+
+Two persisted manifests, one file
+----------------------------------
+``TOKEN_ROOT/v2/registry.json`` is self-describing and records BOTH views:
+
+* ``blocks`` — the PER-GROUP-LOCAL on-disk reality (overlapping; every
+  patch block starts at the control range).  This is what
+  :func:`reconstruct_v2_namespace_from_stores`, :meth:`from_json` and
+  :func:`load_v2_registry` round-trip, and the floor the Level-2 input
+  light path (:mod:`imas_ambix.data.l2_input_build`) places its block
+  strictly above (:func:`allocate_l2_input_block`) so a decoded L2 id can
+  never alias a corpus block.
+* ``unified_blocks`` — the authoritative DISJOINT unified-flat map for
+  consume-time rebasing (option (b)).  Written by
+  :func:`persist_unified_namespace`.
+
+Keeping both in one file means a consumer can pick its view without
+re-deriving anything, and the per-group-local L2 floor is unaffected by the
+unified map's existence.
 """
 
 from __future__ import annotations
@@ -481,6 +506,177 @@ def build_or_load_v2_registry(
         except OSError as exc:  # read-only / unwritable store root — still usable
             logger.warning("could not persist v2 registry manifest: %r", exc)
     return reg
+
+
+# ---------------------------------------------------------------------------
+# Consume-time rebasing to a DISJOINT unified-flat namespace (option (b))
+# ---------------------------------------------------------------------------
+#
+# The on-disk corpus is per-group-local: every group's patch block starts at
+# the control range, so the groups overlap.  A downstream model that wants a
+# single 1-D vocabulary rebases the per-group-local ids into a disjoint
+# unified stream at consume time — no re-encode.  Each known block (in the
+# canonical :data:`_HF_GROUP_LAYOUT` order) is given a fresh CONTIGUOUS range
+# above the control tokens; because :meth:`TokenRegistry.allocate` is strictly
+# append-only, the resulting ranges are disjoint by construction.
+
+# Canonical block order for the unified namespace — exactly the per-group,
+# per-process encode order, flattened across groups.  Holding this as the
+# single ordering source keeps the unified map deterministic.
+UNIFIED_BLOCK_ORDER: tuple[str, ...] = tuple(
+    name for _grp, blocks in _HF_GROUP_LAYOUT for (name, _src) in blocks
+)
+
+# Which store group reports each block's real size, and whether that size is
+# read from ``metadata.codebook_size`` or is a fixed placeholder literal.
+_BLOCK_SIZE_SOURCE: dict[str, tuple[str, str | int]] = {
+    name: (grp, src) for grp, blocks in _HF_GROUP_LAYOUT for (name, src) in blocks
+}
+
+
+def build_unified_namespace(
+    signals_hf_root=None,
+    *,
+    block_codebook_sizes: dict[str, int] | None = None,
+) -> TokenRegistry:
+    """Build the DISJOINT unified-flat namespace for consume-time rebasing.
+
+    Lays every block in :data:`UNIFIED_BLOCK_ORDER` into a fresh contiguous
+    range starting at the control range, in canonical order.  Unlike the
+    per-group-local on-disk layout (where every group restarts at id 4 and the
+    groups overlap), each block here gets its OWN disjoint span, so an id in
+    the unified stream is unambiguous on its own.
+
+    Sizes are the REAL model-derived sizes — read from each store group's
+    ``metadata.codebook_size`` on disk (never a hardcoded table) for the
+    codebook-sized blocks, and the encoder's fixed placeholder literal for the
+    size-1 mode/profile blocks.  ``block_codebook_sizes`` (``{store_group:
+    size}``) lets a caller inject the on-disk sizes (tests); when ``None`` the
+    sizes are scanned off disk via :func:`_scan_block_codebook_sizes`.
+
+    Because :meth:`TokenRegistry.allocate` is strictly append-only, the
+    returned registry's blocks are pairwise DISJOINT.
+    """
+    if block_codebook_sizes is None:
+        from imas_ambix.data.paths import TOKEN_ROOT
+
+        if signals_hf_root is None:
+            signals_hf_root = TOKEN_ROOT / VOCAB_VERSION / "signals_hf"
+        block_codebook_sizes = _scan_block_codebook_sizes(signals_hf_root)
+
+    reg = TokenRegistry()
+    for name in UNIFIED_BLOCK_ORDER:
+        grp, src = _BLOCK_SIZE_SOURCE[name]
+        size = block_codebook_sizes[grp] if src == "codebook" else int(src)
+        if size < 1:
+            raise ValueError(f"{name!r}: non-positive size {size}")
+        reg.allocate(name, size)  # contiguous append → disjoint by construction
+    return reg
+
+
+def unified_global_ids(
+    group_block_name: str,
+    local_ids: object,
+    *,
+    unified: TokenRegistry | None = None,
+    signals_hf_root=None,
+    block_codebook_sizes: dict[str, int] | None = None,
+) -> object:
+    """Rebase a group's PER-GROUP-LOCAL ids into the disjoint unified stream.
+
+    ``group_block_name`` is the block constant the group was encoded under
+    (e.g. :data:`BLOCK_XIM_PATCH` — also the store's ``tokenizer_name``); this
+    is the only disambiguator the on-disk per-group-local ids carry.
+    ``local_ids`` are the group's ids RELATIVE to its own block start (the
+    per-group-local id ``= on-disk global id − group_block_start``; on disk
+    every group's block starts at the control range, so for the on-disk
+    arrays the local id is ``on_disk_id − CONTROL_RANGE[1]``).
+
+    Returns ``local_ids`` offset by the block's DISJOINT start in the unified
+    namespace, as int32.  Two different groups can carry the same local id and
+    will map to two DIFFERENT unified ids — that is the whole point.
+
+    ``unified`` reuses an already-built unified namespace (cheap path: build it
+    once, rebase many groups); otherwise it is built from
+    ``block_codebook_sizes`` / on-disk truth.
+    """
+    if unified is None:
+        unified = build_unified_namespace(
+            signals_hf_root, block_codebook_sizes=block_codebook_sizes
+        )
+    return unified.shift(group_block_name, local_ids)
+
+
+def persist_unified_namespace(
+    unified: TokenRegistry | None = None,
+    *,
+    manifest_path=None,
+    signals_hf_root=None,
+    block_codebook_sizes: dict[str, int] | None = None,
+):  # -> Path
+    """Write the disjoint unified map into ``TOKEN_ROOT/v2/registry.json``.
+
+    The manifest carries BOTH views: the existing per-group-local ``blocks``
+    array (the on-disk reality, untouched — preserved if a manifest already
+    exists) PLUS a ``unified_blocks`` array recording the authoritative
+    disjoint unified-flat layout.  Writing the unified map therefore never
+    disturbs the per-group-local floor the L2 light path depends on.
+
+    Returns the written path.
+    """
+    from pathlib import Path
+
+    from imas_ambix.tokenizer.store_v2 import registry_v2_path
+
+    if unified is None:
+        unified = build_unified_namespace(
+            signals_hf_root, block_codebook_sizes=block_codebook_sizes
+        )
+
+    path = Path(manifest_path) if manifest_path is not None else registry_v2_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Preserve the existing per-group-local ``blocks`` manifest if present;
+    # only ADD/refresh the ``unified_blocks`` section.
+    payload: dict = {}
+    if path.exists():
+        try:
+            payload = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+    payload.setdefault("version", VOCAB_VERSION)
+    payload.setdefault("control_tokens", dict(CONTROL_TOKENS))
+    payload["unified_blocks"] = [
+        {"name": b.name, "start": b.start, "end": b.end}
+        for b in unified._blocks.values()
+    ]
+    payload["unified_total_vocab_size"] = unified.total_vocab_size()
+    path.write_text(json.dumps(payload, indent=2))
+    return path
+
+
+def load_unified_namespace(manifest_path=None) -> TokenRegistry | None:
+    """Load the persisted disjoint unified map, or ``None`` if not yet written.
+
+    Reads the ``unified_blocks`` section of ``TOKEN_ROOT/v2/registry.json``
+    (NOT the per-group-local ``blocks`` array).
+    """
+    from pathlib import Path
+
+    from imas_ambix.tokenizer.store_v2 import registry_v2_path
+
+    path = Path(manifest_path) if manifest_path is not None else registry_v2_path()
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text())
+    unified = payload.get("unified_blocks")
+    if not unified:
+        return None
+    out = TokenRegistry(version=payload.get("version", VOCAB_VERSION))
+    out._cursor = CONTROL_RANGE[1]
+    for block in unified:
+        out.register_block(block["name"], block["start"], block["end"])
+    return out
 
 
 # ---------------------------------------------------------------------------
