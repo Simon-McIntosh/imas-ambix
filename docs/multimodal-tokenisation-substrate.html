@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-17">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 </head>
 <body>
   <main class="plan-doc">
@@ -204,7 +204,7 @@ Done-when
   3. Followup for the patch-transformer tokeniser + this one resolved.</pre>
     <p class="r-fu-outcome">LANDED (commit dde5203). imas_ambix/tokenizer/store_v2.py: tokens/v2/signals_hf/{shot}/{group}.zarr keeping each modality's NATIVE token cadence — tokens(n_tok,n_ch) int32 + token_time(n_tok) + valid(n_tok,n_ch) per-channel masks (no silent zero-fill) + validated StoreV2Attrs {tokenizer_name, vocab_version, native_rate_hz, token_rate_hz, n_channels, channel_names, phase_preserving, original_window}. Registry bumped to VOCAB_VERSION=v2 with BLOCK_XMA_PATCH/XMA_MODE/XIM_PATCH + a SIGNAL_HF block-kind. The HF path BYPASSES the 100 Hz/50 Hz-Nyquist aligner entirely — the load-bearing fix. Schema frozen before any encode; 72 tokenizer + 62 adjacent tests green.</p>
     </article>
-<article class="r-fu" data-id="f-mmt-camera-encode" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mmt-camera-encode" data-status="resolved" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="" data-resolved-at="2026-06-17T06:16:30+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Encode the remaining visible cameras (rba, rco, rgb, rgc) on the idle H200s</h4>
     <div class="r-fu-body"><p>Run the proven <code>stream_encode.py</code> OMAG2 path once per camera into
           <code>tokens/v2/frames/&lt;shot&gt;/&lt;cam&gt;.zarr</code>. Uses the idle reservation now; standalone asset
@@ -225,6 +225,7 @@ Done-when
   1. rba/rco/rgb/rgc encoded into tokens/v2/frames (per-camera SLURM jobs); decode-fidelity smoke per camera.
   2. rco colour handling verified (no grey-collapse); normalise checked for bremsstrahlung.
   3. This followup resolved with per-camera token counts.</pre>
+    <p class="r-fu-outcome">LANDED. The full visible-camera substrate is encoded via stream_encode.py (OMAG2 any-res->256^2->16x16 LFQ), one SLURM job per camera on the betelgeuse reservation; all per-camera jobs COMPLETED (none queued). Per-camera frame-token store counts (mast-tokens/.../frames/<shot>/<cam>.zarr): rbb 9,527, rba 6,155, rco 7,921, rgb 7,506, rgc 7,433 — presence-varying across the corpus, all substantial. rco handled as real 3-channel colour (no grey-collapse) and bremsstrahlung-camera normalise per the camera-encode agents' decode-fidelity work. NOTE: camera frames currently live under the v1 store generation on disk (camdyn DEFAULT_VOCAB_VERSION), while signals_hf is v2 — the v1/v2 frames-generation reconciliation for the world-model input loader is tracked in f-l2-boundary-wiring.</p>
     </article>
 <article class="r-fu" data-id="f-mmt-patch-tokeniser" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-16" data-recommends-skill="" data-resolved-at="2026-06-16T10:03:48+00:00" data-resolved-by="signal-tokeniser-dev">
     <h4 class="r-fu-title">Develop the phase-aware patch-transformer 1D HF tokeniser (xma + xim first)</h4>
