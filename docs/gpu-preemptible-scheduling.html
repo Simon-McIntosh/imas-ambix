@@ -50,7 +50,9 @@
   <li><code>gpu_0003_grpA</code> — CoreIDs 15–29,47–61 (30 cores), unix group <code>sdcc-slurm-gpu_group-a</code>.</li>
   <li><code>gpu_0003_grpB</code> — CoreIDs 0–14,32–46 (30 cores), unix group <code>sdcc-slurm-gpu_group-b</code>.</li>
 </ul>
-<p>The reservation comment states "<em>QoS enforces GPU/mem; use NUMA binding in srun</em>" — i.e. the 4-cards-per-group cap is a QOS limit, and cards follow NUMA core affinity. <strong>My account (<code>grpa</code>) is denied the Group B reservation</strong> — a <code>--test-only</code> submission to <code>gpu_0003_grpB</code> returns <em>"Access denied to requested reservation"</em> because it is gated to the <code>sdcc-slurm-gpu_group-b</code> unix group. My associations give me only <code>account=grpa</code> with QOS <code>normal</code> (prio 1) and <code>gpu_0003_grpa</code> (prio 0). <strong>I have no path to submit onto Group B's cards.</strong></p>
+<p>The reservation comment states "<em>QoS enforces GPU/mem; use NUMA binding in srun</em>" — i.e. the 4-cards-per-group cap is a QOS limit, and cards follow NUMA core affinity. <strong>My account (<code>grpa</code>) is denied the Group B reservation</strong> — a <code>--test-only</code> submission to <code>gpu_0003_grpB</code> returns <em>"Access denied to requested reservation"</em> because it is gated to the <code>sdcc-slurm-gpu_group-b</code> unix group. My associations give me only <code>account=grpa</code> with QOS <code>normal</code> (prio 1) and <code>gpu_0003_grpa</code> (prio 0). <strong>I have no path to submit via Group B's <em>reservation</em>.</strong></p>
+
+<p><strong>Finding 4 — but Group A jobs BURST onto Group B's physical cards anyway (confirmed empirically).</strong> The reservation reserves only cores; our jobs run under <code>QOS=normal</code> (not <code>gpu_0003_grpa</code>), so the <code>gres/gpu=4</code> group cap is <strong>never applied</strong>; and SLURM's GRES selection hands out <em>any</em> free GPUs from the node-wide pool of 8. A 4-GPU Group A job submitted <em>while Group A already held 4 GPUs</em> (the live DSv4 server + the world-model retrain) started <strong>immediately</strong> and was assigned physical GPUs <code>SLURM_JOB_GPUS=2,3,6,7</code> — spanning the A/B boundary onto cards <strong>6–7</strong> (Group B's nominal range), taking the account to 8/8 cards. The job's <code>CUDA_VISIBLE_DEVICES</code> is remapped to <code>0,1,2,3</code>, so it never knows it is on B's silicon. <strong>The 4-cards-per-group split is therefore a convention, not an enforced limit:</strong> a Group A submit can use up to all 8 cards, and reaching cards 4–7 needs neither admin nor Group-B access — only a normal submit when those cards are free.</p>
 
 <h2 id="s3">§3 — Feasibility verdict</h2>
 <p>There are exactly two ways to get "pause-on-arrival", and they differ in who must act:</p>
@@ -102,12 +104,13 @@
 <ul>
   <li><strong>True auto-preemption is bespoke admin work.</strong> <code>PreemptType</code>/<code>PreemptMode</code>/QOS-preempt-lists live in <code>slurm.conf</code> and the accounting DB; a user cannot set them. Today they are OFF, so option (A) requires an SDCC ticket (§7).</li>
   <li><strong>The cooperative scheme we can build ourselves</strong> — it is just a watcher plus <code>scontrol requeue</code> plus our existing checkpoint/resume (§5, demonstrated in §4). It needs no admin.</li>
-  <li><strong>But Group B specifically is blocked either way</strong> — we have no SLURM access to its reservation. The cooperative scheme is therefore immediately useful only <em>within our own Group-A allocation</em> (a low-pri exploratory job that yields to our own priority run). Putting low-pri jobs on Group B's cards needs admin to grant access <em>or</em> to enable native preemption there.</li>
+  <li><strong>Reaching Group B's cards needs no admin — we burst onto them (Finding 4).</strong> A normal Group A submit already lands on idle 4–7 cards. The cooperative scheme is therefore useful immediately and broadly: any fill job we run on idle cards can yield when priority work arrives.</li>
 </ul>
+<p><strong>Finding 4 flips the problem.</strong> Because a normal Group A submit already bursts onto the free cards (including Group B's 4–7), we can <em>reach</em> idle capacity ourselves today — no admin, no Group-B access. The real question inverts from "how do we get <em>onto</em> 4–7" to "how do we get <em>off</em> them gracefully when Group B wants them." With preemption OFF, a burst job holds those cards until it finishes, blocking Group B. The cooperative-yield watcher (§5a) is precisely that give-back, fully in user space: <strong>burst to use idle cards, and wrap the job in the watcher so it checkpoints + requeues the instant Group B — or any higher-priority job — appears.</strong> The flip side is etiquette: bursting onto 4–7 <em>without</em> a yield makes us a bad neighbour, since Group B cannot evict us (preemption is OFF).</p>
 <p><strong>GPU-specific caveat (important):</strong> for a GPU job the pause mode must be <strong>REQUEUE</strong> (or CANCEL), never SUSPEND/GANG. SUSPEND only sends SIGSTOP — the process stays resident and <em>keeps its VRAM</em>, so the higher-priority job still cannot get the card. Only killing the process (requeue/cancel) frees the GPU, which is exactly why our checkpoint-and-resume design is the right partner.</p>
 
 <h2 id="s4">§4 — Trial</h2>
-<p><strong>The proposed 4×-card Group-B trial is blocked by access</strong> (§2, Finding 3): I cannot submit to <code>gpu_0003_grpB</code>, and Group A is full with the live DSv4 server + the world-model retrain (which must not be disturbed). So the native-preemption trial cannot be run by us at all today — it would also be a no-op, since preemption is OFF.</p>
+<p><strong>The Group-B <em>reservation</em> is access-denied (§2, Finding 3), but a Group A submit bursts onto Group B's physical cards anyway (§2, Finding 4):</strong> a 4-GPU probe ran <em>immediately</em> on cards <code>2,3,6,7</code> while the account already held 4 GPUs. So we <em>can</em> place GPU jobs on 4–7 — just not through Group B's reservation. What we <em>cannot</em> demonstrate is <em>native</em> preemption: it is OFF, so submitting a "high-priority" job evicts nothing (a no-op). What we can and do trial is the half we own — the cooperative watch→checkpoint→requeue→resume give-back cycle — below.</p>
 <p>Instead we trial the part we <em>can</em> own: the <strong>cooperative watch→checkpoint→requeue→resume cycle</strong>, on a CPU debug partition we have access to, with two jobs forced to contend for one node (<code>--exclusive</code>). A low-priority job (<code>--nice=10000 --requeue</code>) runs a counter + checkpoint loop with a queue-watcher; a default-priority job is then submitted for the same node; we observe the low-pri job yield, the high-pri job run, and the low-pri job resume from its checkpoint.</p>
 <p class="landed-summary"><em>Proof-of-concept running on a CPU debug partition — timeline and the four verification facts (can a user <code>scontrol requeue</code> its own job? does <code>--nice</code> reorder the queue? did it resume from checkpoint? what is the end-to-end latency?) will be filled in here when it completes.</em></p>
 
@@ -132,9 +135,9 @@
 
 <h2 id="s6">§6 — Recommendation</h2>
 <ol>
-  <li><strong>File the SDCC ticket for native QOS preemption (§7).</strong> It is the robust, low-maintenance answer, it works against all users' jobs, and it is a natural fit for our checkpointing. This is the right long-term solution and unblocks the exact behaviour requested.</li>
-  <li><strong>Meanwhile, build the cooperative watcher now</strong> for use <em>inside our own Group-A allocation</em> — e.g. a low-priority exploratory/sweep job that automatically yields to a priority training run. Zero admin, immediately useful, demonstrated in §4.</li>
-  <li><strong>Ask SDCC, in the same ticket, whether our account can be added to a Group-B low-priority lane</strong> — without that, neither scheme can place fill jobs on Group B's idle cards.</li>
+  <li><strong>Do it ourselves now — burst + cooperative yield (no admin).</strong> Run opportunistic fill jobs as ordinary Group A submits; they already land on idle cards including 4–7 (§2, Finding 4). Wrap each in the §5a watcher so it checkpoints + requeues the moment Group B or a higher-priority job needs those cards. This delivers the requested "low-priority fill that pauses for priority work" today, in user space, on our existing checkpointing.</li>
+  <li><strong>File the SDCC ticket for native QOS preemption (§7) for the robust version.</strong> Cooperative yield is best-effort and can only make <em>our own</em> jobs step aside; admin-configured <code>preempt/qos</code> + <code>REQUEUE</code> + <code>GraceTime</code> lets Group B (and any priority job) reclaim cards automatically and guaranteed — the right long-term answer, and a natural fit for our checkpointing.</li>
+  <li><strong>Flag the unenforced group cap to SDCC.</strong> The <code>gpu=4</code> per-group limit lives in the <code>gpu_0003_grpa/_grpb</code> QOS, but our jobs run under <code>QOS=normal</code> so it is never applied — exactly why bursting works. If the A/B split is meant to be hard, the group QOS must be enforced (or GPUs put in the reservations); if shared use is fine, native preemption (rec. 2) makes it safe.</li>
 </ol>
 
 <h2 id="s7">§7 — Ready-to-file SDCC request</h2>
@@ -154,9 +157,12 @@ Requested configuration:
         Preempt=gpu_0003_low
 Our jobs will submit with --requeue and handle SIGTERM (we checkpoint in <5 s).
 
-Also: please advise whether account 'grpa' can be granted access to a
-low-priority lane on Group B's cards (currently the gpu_0003_grpB reservation
-is restricted to unix group sdcc-slurm-gpu_group-b).
+Note on current state: the gpu=4 per-group cap (gpu_0003_grpa/_grpb QOS) is
+not enforced in practice -- our jobs run under QOS=normal, so a Group A submit
+already BURSTS onto Group B's physical cards (observed: a 4-GPU job landed on
+cards 2,3,6,7 immediately). If the A/B split is meant to be hard, the group QOS
+needs enforcing (or GPUs added to the reservations). Preemption (above) is what
+makes shared/cotenant use safe regardless.
 
 Rationale: keeps the shared H200 node fully utilised (idle cards run fill work)
 without ever delaying priority jobs, since the fill jobs requeue + resume.</pre>
