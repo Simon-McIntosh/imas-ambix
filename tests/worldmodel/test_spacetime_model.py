@@ -258,3 +258,36 @@ def test_planless_zero_touch_does_not_change_prediction():
         "plan-less forward changed when plan params changed — the touch is not "
         "zero-magnitude"
     )
+
+
+def test_multi_rank_init_fails_loud_when_cuda_unavailable(monkeypatch):
+    """A torchrun (multi-rank) launch with no working CUDA must FAIL, not degrade.
+
+    A ``--gres=gpu:N`` job that lands on a node whose GPUs cannot initialise
+    (driver/runtime defect) used to take the ``else`` branch and silently train
+    on CPU/gloo — unusably slow, and it masked the broken node for ~12 minutes
+    before anyone noticed.  When ``env.enabled`` (GPUs were requested) and CUDA
+    is unavailable, init must raise a clear error in seconds instead.
+    """
+    from imas_ambix.worldmodel.spacetime_train import DistEnv, _init_distributed
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    env = DistEnv(rank=0, local_rank=0, world_size=2)  # enabled (multi-rank)
+    with pytest.raises(RuntimeError, match="(?i)cuda"):
+        _init_distributed(env)
+
+
+def test_single_proc_cpu_init_is_allowed_when_cuda_unavailable(monkeypatch):
+    """A single-process (WORLD_SIZE==1) CPU run is still allowed with no CUDA.
+
+    The guard must only fire under a multi-rank launch (env.enabled); a CPU
+    smoke test or single-process run must remain a no-op, never raising.
+    """
+    import torch.distributed as dist
+
+    from imas_ambix.worldmodel.spacetime_train import DistEnv, _init_distributed
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    env = DistEnv(rank=0, local_rank=0, world_size=1)  # NOT enabled
+    _init_distributed(env)  # must NOT raise and must NOT create a process group
+    assert not dist.is_initialized()
