@@ -29,15 +29,18 @@ def test_warmup_rises_linearly_then_cosine_decays():
             step, total_steps=total, warmup_steps=warmup, min_lr_ratio=floor
         )
 
-    # warmup: strictly increasing, ends at ~1 at the warmup boundary
+    # warmup: strictly increasing, ends at ~1 at the warmup boundary.
+    # The slice is deliberately one shorter (pairwise) -> strict=False.
     warm = [f(s) for s in range(warmup)]
-    assert all(b > a for a, b in zip(warm, warm[1:])), "warmup not monotonic up"
+    assert all(b > a for a, b in zip(warm, warm[1:], strict=False)), "warmup not up"
     assert warm[0] < warm[-1]
     assert f(warmup) == 1.0  # peak at the end of warmup
 
     # cosine decay: strictly decreasing after the peak, ending near the floor
     decay = [f(s) for s in range(warmup, total + 1)]
-    assert all(b <= a + 1e-9 for a, b in zip(decay, decay[1:])), "decay not monotone"
+    assert all(b <= a + 1e-9 for a, b in zip(decay, decay[1:], strict=False)), (
+        "decay not monotone"
+    )
     assert decay[0] == 1.0
     assert abs(f(total) - floor) < 1e-6, f"end factor {f(total)} != floor {floor}"
 
@@ -58,7 +61,7 @@ def test_factor_pins_at_floor_past_total():
 
 
 def test_scheduler_drives_optimizer_lr():
-    """LambdaLR scales the optimizer LR: tiny at step 0, peak after warmup, low at end."""
+    """LambdaLR scales the lr: tiny at step 0, peak after warmup, low at end."""
     peak, total, warmup, floor = 3e-4, 200, 40, 0.01
     p = torch.nn.Parameter(torch.zeros(1))
     opt = torch.optim.AdamW([p], lr=peak)
@@ -112,6 +115,7 @@ def test_scheduler_resume_continues_phase():
         last_step=499,
         peak_lr=1.0,
     )
+    assert isinstance(sched, torch.optim.lr_scheduler.LambdaLR)
     # the optimizer LR should now reflect the factor at step 500, not step 0
     expected = lr_schedule_factor(
         500, total_steps=total, warmup_steps=warmup, min_lr_ratio=floor
