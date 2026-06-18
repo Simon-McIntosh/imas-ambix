@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="gpu-preemptible-scheduling">
+  <meta name="plan-title"    content="Preemptible Low-Priority GPU Jobs on the H200 Node — Feasibility &amp; Implementation">
+  <meta name="plan-summary"  content="Can we run low-priority 'fill' jobs on the shared H200 node that pause when higher-priority work arrives and resume from checkpoint? Research findings on the cluster's SLURM config (native preemption is OFF; Group B is access-restricted), the two viable paths (admin-enabled QOS preemption vs a user-space cooperative watch-and-requeue scheme on our checkpointing), a proof-of-concept, a ready-to-file SDCC ticket, and a recommendation.">
+  <meta name="plan-informs"  content="compute,world-model-prototype">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <title>Preemptible Low-Priority GPU Jobs — Feasibility &amp; Implementation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Reading note.</strong> This is a research/advice document. The question: the H200 node caps a job at 4 GPUs, but nothing stops several 4-GPU jobs queueing — so can we run <em>low-priority</em> jobs that get <strong>paused when higher-priority work arrives</strong> and then resume (we already have robust checkpointing)? And is that a bespoke admin job or something we can do ourselves? Acronyms are expanded on first use; the SLURM mechanics are in §8.</p>
+
+<h2 id="s1">§1 — The question</h2>
+<p>The shared node <code>98dci4-gpu-0003</code> (8× H200, split into Group A = 4 cards and Group B = 4 cards) limits any single job to 4 GPUs. Multiple 4-GPU jobs simply queue. We want <strong>backfill-style low-priority jobs</strong> that opportunistically use idle cards but <strong>step aside (checkpoint + pause) the moment a higher-priority job needs those cards</strong>, then resume where they left off. Our world-model trainer already checkpoints every 500 steps and resumes from <code>latest.pt</code>, so the "resume" half is solved. The open question is the "pause when something better arrives" half — and whether it needs SDCC admin work or can be done from our own submit scripts.</p>
+
+<h2 id="s2">§2 — Research findings (the cluster's SLURM configuration)</h2>
+<p><strong>Finding 1 — native preemption is OFF cluster-wide.</strong> <code>scontrol show config</code> reports:</p>
+<ul>
+  <li><code>PreemptType = (null)</code></li>
+  <li><code>PreemptMode = OFF</code></li>
+  <li><code>PreemptExemptTime = 00:00:00</code>, <code>PriorityType = priority/multifactor</code></li>
+</ul>
+<p>and the <code>betelgeuse</code> partition itself is <code>PreemptMode=OFF</code>, <code>PriorityTier=1</code>. <strong>Consequence:</strong> SLURM will <em>never</em> evict a running job for a higher-priority one. Priority (QOS, <code>--nice</code>, age, fairshare) only changes the <em>order pending jobs are scheduled</em> when resources free — a higher-priority job waits behind a running one. So the behaviour we want does not exist out of the box.</p>
+
+<p><strong>Finding 2 — QOS priorities exist, but none preempts.</strong> The QOS table:</p>
+<table>
+<thead><tr><th>QOS</th><th>Priority</th><th>Preempt list</th><th>PreemptMode</th></tr></thead>
+<tbody>
+  <tr><td>god</td><td>10,000,000</td><td>—</td><td>cluster</td></tr>
+  <tr><td>high / debug_high</td><td>100</td><td>—</td><td>cluster</td></tr>
+  <tr><td>mid</td><td>10</td><td>—</td><td>cluster</td></tr>
+  <tr><td>normal</td><td>1</td><td>—</td><td>cluster</td></tr>
+  <tr><td>low</td><td>0</td><td>—</td><td>cluster</td></tr>
+  <tr><td>gpu_0003_grpa / gpu_0003_grpb</td><td>0</td><td>—</td><td>cluster (DenyOnLimit)</td></tr>
+</tbody>
+</table>
+<p>No QOS carries a <code>Preempt=</code> list, and every QOS inherits the cluster <code>PreemptMode=OFF</code>. So even the large priority gaps (god ≫ high ≫ normal) only affect queue ordering, never eviction.</p>
+
+<p><strong>Finding 3 — the A/B split is reservation + NUMA + QOS, and Group B is access-restricted.</strong> Both groups are persistent reservations on the one node (the partition is <code>ReqResv=YES</code> — you must name a reservation):</p>
+<ul>
+  <li><code>gpu_0003_grpA</code> — CoreIDs 15–29,47–61 (30 cores), unix group <code>sdcc-slurm-gpu_group-a</code>.</li>
+  <li><code>gpu_0003_grpB</code> — CoreIDs 0–14,32–46 (30 cores), unix group <code>sdcc-slurm-gpu_group-b</code>.</li>
+</ul>
+<p>The reservation comment states "<em>QoS enforces GPU/mem; use NUMA binding in srun</em>" — i.e. the 4-cards-per-group cap is a QOS limit, and cards follow NUMA core affinity. <strong>My account (<code>grpa</code>) is denied the Group B reservation</strong> — a <code>--test-only</code> submission to <code>gpu_0003_grpB</code> returns <em>"Access denied to requested reservation"</em> because it is gated to the <code>sdcc-slurm-gpu_group-b</code> unix group. My associations give me only <code>account=grpa</code> with QOS <code>normal</code> (prio 1) and <code>gpu_0003_grpa</code> (prio 0). <strong>I have no path to submit onto Group B's cards.</strong></p>
+
+<h2 id="s3">§3 — Feasibility verdict</h2>
+<p>There are exactly two ways to get "pause-on-arrival", and they differ in who must act:</p>
+
+<figure>
+<svg viewBox="0 0 900 250" width="100%" role="img" aria-label="Cooperative preemption cycle" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="900" height="250" fill="#ffffff"/>
+  <rect x="20" y="40" width="150" height="56" fill="#ffffff" stroke="#1f6feb" stroke-width="1.2"/>
+  <text x="95" y="62" font-size="13" text-anchor="middle" fill="#111">Low-pri job RUNS</text>
+  <text x="95" y="80" font-size="12" text-anchor="middle" fill="#555">checkpoints every N s</text>
+  <rect x="210" y="40" width="170" height="56" fill="#ffffff" stroke="#333" stroke-width="1"/>
+  <text x="295" y="60" font-size="13" text-anchor="middle" fill="#111">Watcher sees a</text>
+  <text x="295" y="78" font-size="12" text-anchor="middle" fill="#555">higher-pri PENDING job</text>
+  <rect x="420" y="40" width="170" height="56" fill="#ffffff" stroke="#333" stroke-width="1"/>
+  <text x="505" y="60" font-size="13" text-anchor="middle" fill="#111">Checkpoint +</text>
+  <text x="505" y="78" font-size="12" text-anchor="middle" fill="#555">scontrol requeue self</text>
+  <rect x="630" y="40" width="150" height="56" fill="#ffffff" stroke="#0a7d33" stroke-width="1.2"/>
+  <text x="705" y="60" font-size="13" text-anchor="middle" fill="#111">High-pri RUNS</text>
+  <text x="705" y="78" font-size="12" text-anchor="middle" fill="#555">on freed cards</text>
+  <rect x="420" y="160" width="170" height="56" fill="#ffffff" stroke="#1f6feb" stroke-width="1.2"/>
+  <text x="505" y="182" font-size="13" text-anchor="middle" fill="#111">Low-pri RESUMES</text>
+  <text x="505" y="200" font-size="12" text-anchor="middle" fill="#555">from checkpoint</text>
+  <g stroke="#333" stroke-width="1" fill="none" marker-end="url(#a)">
+    <path d="M170 68 L208 68"/>
+    <path d="M380 68 L418 68"/>
+    <path d="M590 68 L628 68"/>
+    <path d="M705 96 C 705 188, 592 188, 592 188"/>
+    <path d="M420 188 C 250 188, 95 130, 95 98"/>
+  </g>
+  <text x="640" y="150" font-size="12" fill="#0a7d33">high-pri finishes →</text>
+  <text x="250" y="150" font-size="12" fill="#1f6feb">← cards free, low-pri rescheduled</text>
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#333"/></marker></defs>
+</svg>
+<figcaption><strong>Figure 1.</strong> The cooperative (user-space) preemption cycle. The low-priority job watches the queue and voluntarily checkpoints + requeues itself when a higher-priority job is waiting; SLURM then schedules the high-priority job on the freed cards; the requeued low-priority job resumes from its checkpoint once cards free again.</figcaption>
+</figure>
+
+<table>
+<thead><tr><th></th><th>(A) Native SLURM preemption</th><th>(B) Cooperative (user-space)</th></tr></thead>
+<tbody>
+  <tr><td>Who enables it</td><td><strong>SDCC admin</strong> (slurm.conf + QOS)</td><td><strong>Us</strong> (submit scripts + a watcher)</td></tr>
+  <tr><td>How it pauses</td><td>SLURM sends SIGTERM (GraceTime) then requeues the job automatically</td><td>The job polls the queue and requeues <em>itself</em></td></tr>
+  <tr><td>Latency</td><td>Immediate (GraceTime window, e.g. 120 s)</td><td>Poll interval + requeue + reschedule (seconds–minutes)</td></tr>
+  <tr><td>Robustness</td><td>Guaranteed; works against <em>any</em> higher-pri job, any user</td><td>Best-effort; only yields jobs <em>we</em> control</td></tr>
+  <tr><td>Needs admin?</td><td>Yes</td><td>No (but Group-B <em>access</em> still needs admin)</td></tr>
+</tbody>
+</table>
+
+<p><strong>Verdict.</strong></p>
+<ul>
+  <li><strong>True auto-preemption is bespoke admin work.</strong> <code>PreemptType</code>/<code>PreemptMode</code>/QOS-preempt-lists live in <code>slurm.conf</code> and the accounting DB; a user cannot set them. Today they are OFF, so option (A) requires an SDCC ticket (§7).</li>
+  <li><strong>The cooperative scheme we can build ourselves</strong> — it is just a watcher plus <code>scontrol requeue</code> plus our existing checkpoint/resume (§5, demonstrated in §4). It needs no admin.</li>
+  <li><strong>But Group B specifically is blocked either way</strong> — we have no SLURM access to its reservation. The cooperative scheme is therefore immediately useful only <em>within our own Group-A allocation</em> (a low-pri exploratory job that yields to our own priority run). Putting low-pri jobs on Group B's cards needs admin to grant access <em>or</em> to enable native preemption there.</li>
+</ul>
+<p><strong>GPU-specific caveat (important):</strong> for a GPU job the pause mode must be <strong>REQUEUE</strong> (or CANCEL), never SUSPEND/GANG. SUSPEND only sends SIGSTOP — the process stays resident and <em>keeps its VRAM</em>, so the higher-priority job still cannot get the card. Only killing the process (requeue/cancel) frees the GPU, which is exactly why our checkpoint-and-resume design is the right partner.</p>
+
+<h2 id="s4">§4 — Trial</h2>
+<p><strong>The proposed 4×-card Group-B trial is blocked by access</strong> (§2, Finding 3): I cannot submit to <code>gpu_0003_grpB</code>, and Group A is full with the live DSv4 server + the world-model retrain (which must not be disturbed). So the native-preemption trial cannot be run by us at all today — it would also be a no-op, since preemption is OFF.</p>
+<p>Instead we trial the part we <em>can</em> own: the <strong>cooperative watch→checkpoint→requeue→resume cycle</strong>, on a CPU debug partition we have access to, with two jobs forced to contend for one node (<code>--exclusive</code>). A low-priority job (<code>--nice=10000 --requeue</code>) runs a counter + checkpoint loop with a queue-watcher; a default-priority job is then submitted for the same node; we observe the low-pri job yield, the high-pri job run, and the low-pri job resume from its checkpoint.</p>
+<p class="landed-summary"><em>Proof-of-concept running on a CPU debug partition — timeline and the four verification facts (can a user <code>scontrol requeue</code> its own job? does <code>--nice</code> reorder the queue? did it resume from checkpoint? what is the end-to-end latency?) will be filled in here when it completes.</em></p>
+
+<h2 id="s5">§5 — Implementation plan</h2>
+<h3 id="s5a">(B) Cooperative scheme — what we build (no admin)</h3>
+<ol>
+  <li><strong>Submit wrapper.</strong> Low-priority jobs go in with <code>--nice=&lt;large&gt;</code> (so they sort below normal work) and <code>--requeue</code> (so a requeue re-runs the batch script). Our existing <code>WM_OUT_DIR</code>/<code>latest.pt</code> resume handles continuity unchanged.</li>
+  <li><strong>Yield watcher</strong> (a small Python/bash helper launched in the background by the job): every <em>P</em> seconds run <code>squeue</code> for PENDING jobs that (a) target the same reservation/cards and (b) outrank this job (higher QOS priority or lower nice). On a hit: set the trainer's <code>STOP</code> flag (reuse the SIGTERM path so <code>latest.pt</code> is flushed), then <code>scontrol requeue $SLURM_JOB_ID</code> and exit so the cards free.</li>
+  <li><strong>Resume.</strong> The requeued job re-enters PENDING; when the cards free it re-runs and resumes from <code>latest.pt</code> — identical to our drain-recovery path.</li>
+  <li><strong>Tuning.</strong> Poll interval <em>P</em> trades latency vs <code>squeue</code> load (≈10–30 s is fine); add a minimum-runtime guard so a job that just started does not immediately yield and thrash.</li>
+</ol>
+<p>This is small, self-contained, and reuses the SIGTERM/checkpoint machinery already hardened for the GPU-node drain history. Its limits are honest: best-effort latency, and it can only make <em>our</em> jobs step aside — it cannot force another user's job to yield.</p>
+
+<h3 id="s5b">(A) Native preemption — what we ask SDCC to enable (robust)</h3>
+<p>The clean, automatic version. SDCC sets, in <code>slurm.conf</code> + the accounting DB:</p>
+<ul>
+  <li><code>PreemptType = preempt/qos</code> and <code>PreemptMode = REQUEUE</code> (REQUEUE, not SUSPEND — frees the GPU; pairs with our checkpointing).</li>
+  <li>A grace window, e.g. <code>PreemptParameters = "..."</code> with a per-QOS <code>GraceTime = 120</code> s, so the preempted job gets SIGTERM + 120 s to checkpoint before SIGKILL (our handler flushes in &lt; 5 s).</li>
+  <li>A new preemptable low-priority QOS (e.g. <code>gpu_0003_low</code>, priority 0) and the group QOS (or <code>normal</code>) carrying <code>Preempt=gpu_0003_low</code> so normal work evicts the low lane.</li>
+</ul>
+<p>We then submit fill jobs to the low QOS with <code>--requeue</code>; everything else is automatic.</p>
+
+<h2 id="s6">§6 — Recommendation</h2>
+<ol>
+  <li><strong>File the SDCC ticket for native QOS preemption (§7).</strong> It is the robust, low-maintenance answer, it works against all users' jobs, and it is a natural fit for our checkpointing. This is the right long-term solution and unblocks the exact behaviour requested.</li>
+  <li><strong>Meanwhile, build the cooperative watcher now</strong> for use <em>inside our own Group-A allocation</em> — e.g. a low-priority exploratory/sweep job that automatically yields to a priority training run. Zero admin, immediately useful, demonstrated in §4.</li>
+  <li><strong>Ask SDCC, in the same ticket, whether our account can be added to a Group-B low-priority lane</strong> — without that, neither scheme can place fill jobs on Group B's idle cards.</li>
+</ol>
+
+<h2 id="s7">§7 — Ready-to-file SDCC request</h2>
+<p>Suggested ticket text:</p>
+<pre class="r-fu-prompt">Subject: Enable QOS preemption (REQUEUE) for a low-priority lane on 98dci4-gpu-0003
+
+We have checkpoint/resume-safe GPU jobs and would like to run low-priority
+"fill" jobs that are automatically preempted when higher-priority work needs
+the cards. Today PreemptType=null / PreemptMode=OFF, so this is impossible
+from user space.
+
+Requested configuration:
+  PreemptType  = preempt/qos
+  PreemptMode  = REQUEUE          # NOT SUSPEND — must free GPU VRAM
+  + a preemptable QOS  gpu_0003_low  (Priority=0, Flags adjusted, GraceTime=120)
+  + the group QOS (gpu_0003_grpa / _grpb) and/or 'normal' set with
+        Preempt=gpu_0003_low
+Our jobs will submit with --requeue and handle SIGTERM (we checkpoint in <5 s).
+
+Also: please advise whether account 'grpa' can be granted access to a
+low-priority lane on Group B's cards (currently the gpu_0003_grpB reservation
+is restricted to unix group sdcc-slurm-gpu_group-b).
+
+Rationale: keeps the shared H200 node fully utilised (idle cards run fill work)
+without ever delaying priority jobs, since the fill jobs requeue + resume.</pre>
+
+<h2 id="s8">§8 — Glossary</h2>
+<ul>
+  <li><strong>Preemption</strong> — SLURM stopping a running job so a higher-priority one can use its resources.</li>
+  <li><strong>PreemptType</strong> — <em>how</em> preemption is decided: <code>preempt/qos</code> (by QOS), <code>preempt/partition_prio</code> (by partition tier), or <code>(null)</code>/none (disabled — our case).</li>
+  <li><strong>PreemptMode</strong> — <em>what happens</em> to the preempted job: <code>REQUEUE</code> (killed + re-queued — frees the GPU), <code>SUSPEND</code> (SIGSTOP, stays resident — does NOT free GPU VRAM), <code>CANCEL</code> (killed), <code>GANG</code> (time-slice), <code>OFF</code>.</li>
+  <li><strong>QOS</strong> — Quality of Service: a named policy carrying a priority, limits, and (optionally) a preempt list.</li>
+  <li><strong>PriorityTier</strong> — a partition-level rank; higher-tier partitions' jobs can preempt lower under <code>preempt/partition_prio</code>.</li>
+  <li><strong>GraceTime</strong> — seconds a preempted job is given (SIGTERM → wait → SIGKILL) to checkpoint before it is killed.</li>
+  <li><strong>--nice</strong> — a user-settable priority <em>penalty</em> (larger = lower priority); the one priority knob a normal user controls.</li>
+  <li><strong>--requeue / scontrol requeue</strong> — return a job to the pending queue so it re-runs (from our checkpoint).</li>
+  <li><strong>Reservation</strong> — a named, access-gated carve-out of nodes/cores; <code>betelgeuse</code> requires one (<code>ReqResv=YES</code>).</li>
+</ul>
+
+<p style="font-size:0.9em;color:#555"><strong>Provenance.</strong> Config read live from <code>scontrol show config</code>, <code>sacctmgr show qos</code>, <code>scontrol show partition betelgeuse</code>, <code>scontrol show reservation gpu_0003_grp{A,B}</code>, and <code>sacctmgr show assoc user=mcintos</code> on 2026-06-18. The Group-B access denial was confirmed with <code>srun --test-only --reservation=gpu_0003_grpB</code>.</p>
+
+</main>
+</body>
+</html>
