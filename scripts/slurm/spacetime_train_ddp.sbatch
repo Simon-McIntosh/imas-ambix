@@ -72,9 +72,10 @@ VENV="${REPO_ROOT}/.venv"
 # shellcheck source=/dev/null
 source "${VENV}/bin/activate"
 
-: "${WM_N_SHOTS:=2000}"
+: "${WM_N_SHOTS:=9000}"        # rbb-bearing train shots (~11k exist; eval held out)
 : "${WM_N_EVAL_SHOTS:=4}"
-: "${WM_STEPS:=12000}"
+: "${WM_EVAL_SHOTS:=18502,18503,18504,18505}"  # fixed held-out set (disjoint from train)
+: "${WM_STEPS:=36000}"          # ~3.3 h at the measured 3.05 st/s (world=4)
 # PER-RANK batch + CE chunk.  The chunk-logit tensor is
 # chunk * 2^18 * 4 bytes (plus backward) — modest; the activations of the
 # factorized attention dominate.  B=4 per rank fills a 140 GB card well with the
@@ -85,8 +86,11 @@ source "${VENV}/bin/activate"
 : "${WM_N_PLAN:=8}"             # pulse-schedule conditioning prefix steps
 : "${WM_CONTEXT_FRAMES:=8}"     # context frames given at eval/dream time
 : "${WM_FRAME_STRIDE:=1}"       # 1 = native cadence
-: "${WM_LR:=3e-4}"
-: "${WM_WEIGHT_DECAY:=0.05}"
+: "${WM_LR:=3e-4}"              # PEAK lr (warmup→peak, then cosine decay)
+: "${WM_WARMUP_STEPS:=800}"     # linear warmup before cosine decay (divergence fix)
+: "${WM_MIN_LR_RATIO:=0.01}"    # cosine decays to 1% of peak by the last step
+: "${WM_GRAD_CLIP:=1.0}"        # max grad-norm (divergence fix)
+: "${WM_WEIGHT_DECAY:=0.1}"     # raised for generalization (was 0.05)
 : "${WM_LOG_EVERY:=25}"
 : "${WM_CKPT_EVERY:=500}"
 : "${WM_EVAL_EVERY:=1000}"
@@ -95,7 +99,7 @@ source "${VENV}/bin/activate"
 : "${WM_N_LAYERS:=16}"
 : "${WM_N_HEADS:=16}"
 : "${WM_D_FF:=4096}"
-: "${WM_DROPOUT:=0.1}"
+: "${WM_DROPOUT:=0.15}"         # raised for generalization (0.1-0.2 band)
 : "${WM_NPROC:=4}"              # processes (== GPUs) per node
 
 : "${WM_OUT_DIR:=/work/projects/imas_gpu/worldmodel/ckpt/spacetime-${SLURM_JOB_ID}}"
@@ -106,8 +110,10 @@ echo "  GPUs:        ${WM_NPROC} (DeepSeek-V4-Flash keeps its 2 — node stays s
 echo "  out-dir:     ${WM_OUT_DIR}"
 echo "  per-rank bs: ${WM_BATCH_SIZE} (global ${WM_BATCH_SIZE}*${WM_NPROC})  chunk=${WM_CHUNK}"
 echo "  window:      n_frames=${WM_N_FRAMES} n_plan=${WM_N_PLAN} context=${WM_CONTEXT_FRAMES} stride=${WM_FRAME_STRIDE}"
-echo "  steps:       ${WM_STEPS} lr=${WM_LR}"
-echo "  model:       d_model=${WM_D_MODEL} n_layers=${WM_N_LAYERS} n_heads=${WM_N_HEADS} d_ff=${WM_D_FF} dropout=${WM_DROPOUT}"
+echo "  steps:       ${WM_STEPS} peak-lr=${WM_LR} warmup=${WM_WARMUP_STEPS} min-lr-ratio=${WM_MIN_LR_RATIO} grad-clip=${WM_GRAD_CLIP}"
+echo "  shots:       ${WM_N_SHOTS} train  held-out=${WM_EVAL_SHOTS}"
+echo "  regularize:  weight_decay=${WM_WEIGHT_DECAY} dropout=${WM_DROPOUT}"
+echo "  model:       d_model=${WM_D_MODEL} n_layers=${WM_N_LAYERS} n_heads=${WM_N_HEADS} d_ff=${WM_D_FF}"
 nvidia-smi --query-gpu=index,name,memory.total,memory.free --format=csv,noheader || true
 
 # torchrun spawns WM_NPROC ranks; each sets RANK/LOCAL_RANK/WORLD_SIZE which the
@@ -123,6 +129,7 @@ torchrun \
     --dropout "${WM_DROPOUT}" \
     --n-shots "${WM_N_SHOTS}" \
     --n-eval-shots "${WM_N_EVAL_SHOTS}" \
+    --eval-shots "${WM_EVAL_SHOTS}" \
     --steps "${WM_STEPS}" \
     --batch-size "${WM_BATCH_SIZE}" \
     --chunk "${WM_CHUNK}" \
@@ -131,6 +138,9 @@ torchrun \
     --context-frames "${WM_CONTEXT_FRAMES}" \
     --frame-stride "${WM_FRAME_STRIDE}" \
     --lr "${WM_LR}" \
+    --warmup-steps "${WM_WARMUP_STEPS}" \
+    --min-lr-ratio "${WM_MIN_LR_RATIO}" \
+    --grad-clip "${WM_GRAD_CLIP}" \
     --weight-decay "${WM_WEIGHT_DECAY}" \
     --log-every "${WM_LOG_EVERY}" \
     --ckpt-every "${WM_CKPT_EVERY}" \

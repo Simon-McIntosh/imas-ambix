@@ -23,6 +23,7 @@ GPU-safety (repo AGENTS.md §2b)
 from __future__ import annotations
 
 import logging
+import math
 import os
 import signal
 import time
@@ -113,11 +114,23 @@ def _init_distributed(env: DistEnv) -> None:
         return
     import torch.distributed as dist
 
-    if torch.cuda.is_available():
-        torch.cuda.set_device(env.local_rank)
-        backend = "nccl"
-    else:
-        backend = "gloo"
+    # A multi-rank launch means GPUs were requested (torchrun + --gres=gpu:N).
+    # If CUDA cannot initialise here, the node's GPUs are broken (driver/runtime
+    # defect) — fall back to gloo/CPU would silently train a 500M model on CPU,
+    # unusably slow, and mask the broken node for many minutes.  Fail fast and
+    # loud instead so the allocation is not wasted and the defect is visible.
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            f"rank {env.rank}/{env.world_size}: a distributed (gpu) launch was "
+            "requested but CUDA is unavailable — the node's GPUs cannot "
+            "initialise (driver/runtime defect).  Refusing to silently fall "
+            "back to a CPU/gloo run.  Verify the node "
+            "(cudaGetDeviceCount vs torch.cuda.device_count) and relaunch on "
+            "healthy GPUs.  A CPU smoke test must run single-process "
+            "(WORLD_SIZE unset)."
+        )
+    torch.cuda.set_device(env.local_rank)
+    backend = "nccl"
     if not dist.is_initialized():
         dist.init_process_group(backend=backend)
     logger.info(
@@ -261,6 +274,90 @@ def _plan_channels_for(samples: Sequence[SpacetimeSample]) -> int:
     """Per-step plan channel count seen across samples (0 = unconditioned)."""
     widths = [int(s.plan.shape[1]) for s in samples if s.plan.ndim == 2 and s.plan.size]
     return max(widths) if widths else 0
+
+
+# ---------------------------------------------------------------------------
+# Learning-rate schedule (the divergence fix)
+# ---------------------------------------------------------------------------
+
+
+def lr_schedule_factor(
+    step: int,
+    *,
+    total_steps: int,
+    warmup_steps: int,
+    min_lr_ratio: float,
+) -> float:
+    """Multiplicative LR factor in ``[min_lr_ratio, 1]`` for ``step``.
+
+    Linear WARMUP from ~0 → 1 over the first ``warmup_steps`` steps, then COSINE
+    DECAY from 1 → ``min_lr_ratio`` over the remaining budget.  The flat-LR run
+    that trained to loss 0.07 then blew up to ~random had no warmup and no decay;
+    warmup tames the early large-gradient regime and the cosine tail anneals the
+    LR so the model settles instead of diverging.
+
+    ``step`` is 0-based.  After ``total_steps`` the factor pins at
+    ``min_lr_ratio`` (a resumed/over-run job keeps a small, stable LR rather than
+    a negative-cosine bounce-back).
+    """
+    warmup = max(0, int(warmup_steps))
+    total = max(int(total_steps), warmup + 1)
+    if warmup > 0 and step < warmup:
+        # +1 so step 0 has a tiny non-zero LR (avoids a dead first step).
+        return float(step + 1) / float(warmup)
+    progress = (step - warmup) / max(1, total - warmup)
+    progress = min(max(progress, 0.0), 1.0)
+    cosine = 0.5 * (1.0 + math.cos(math.pi * progress))  # 1 → 0
+    return float(min_lr_ratio + (1.0 - min_lr_ratio) * cosine)
+
+
+def build_lr_scheduler(
+    optimizer: torch.optim.Optimizer,
+    *,
+    total_steps: int,
+    warmup_steps: int,
+    min_lr_ratio: float,
+    scheduled: bool,
+    last_step: int = -1,
+    peak_lr: float | None = None,
+) -> torch.optim.lr_scheduler.LambdaLR:
+    """``LambdaLR`` over :func:`lr_schedule_factor` (or flat when ``scheduled`` off).
+
+    ``last_step`` resumes the schedule phase after a checkpoint restart (pass the
+    restored ``step - 1`` so the next ``.step()`` lands on the right factor).
+    ``peak_lr`` is the base LR the factor multiplies; on a resume it MUST be the
+    peak (not the decayed lr a loaded optimizer state carries), otherwise the
+    schedule re-anchors to the wrong base.
+    """
+    if scheduled:
+
+        def _fn(step: int) -> float:
+            return lr_schedule_factor(
+                step,
+                total_steps=total_steps,
+                warmup_steps=warmup_steps,
+                min_lr_ratio=min_lr_ratio,
+            )
+
+    else:
+
+        def _fn(step: int) -> float:  # flat-LR fallback (the old behaviour)
+            return 1.0
+
+    # LambdaLR with last_epoch >= 0 (a checkpoint RESUME) requires each param
+    # group to already carry an ``initial_lr`` — torch only injects it on a fresh
+    # (last_epoch == -1) construction.  Seed it with the PEAK lr (the base the
+    # factor multiplies); falling back to the group's current lr would re-anchor
+    # the schedule to a loaded optimizer state's decayed value.  A resumed run
+    # otherwise crashes with "initial_lr is not specified".
+    if last_step >= 0:
+        for group in optimizer.param_groups:
+            base = peak_lr if peak_lr is not None else group["lr"]
+            group["initial_lr"] = float(base)
+
+    return torch.optim.lr_scheduler.LambdaLR(
+        optimizer, lr_lambda=_fn, last_epoch=last_step
+    )
 
 
 @dataclass
@@ -487,8 +584,16 @@ def save_checkpoint(
     step: int,
     window: SpacetimeWindowConfig,
     extra: dict | None = None,
+    name: str = "latest.pt",
+    snapshot: bool = True,
 ) -> Path:
-    """Atomic self-describing checkpoint to ``out_dir/latest.pt`` (+ snapshot)."""
+    """Atomic self-describing checkpoint to ``out_dir/<name>``.
+
+    ``name`` selects the target file (``latest.pt`` for the resume point,
+    ``best.pt`` for the best-held-out-eval weights).  ``snapshot`` additionally
+    writes an immutable ``ckpt-<step>.pt`` for the latest point (off for best.pt,
+    which is overwritten each time a better eval lands).
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -504,14 +609,15 @@ def save_checkpoint(
         },
         "extra": dict(extra or {}),
     }
-    final = out_dir / "latest.pt"
-    tmp = out_dir / f".latest.pt.{os.getpid()}.tmp"
+    final = out_dir / name
+    tmp = out_dir / f".{name}.{os.getpid()}.tmp"
     torch.save(payload, tmp)
     os.replace(tmp, final)
-    try:
-        torch.save(payload, out_dir / f"ckpt-{int(step):08d}.pt")
-    except OSError as exc:  # noqa: BLE001
-        logger.warning("could not write step snapshot: %r", exc)
+    if snapshot:
+        try:
+            torch.save(payload, out_dir / f"ckpt-{int(step):08d}.pt")
+        except OSError as exc:  # noqa: BLE001
+            logger.warning("could not write step snapshot: %r", exc)
     return final
 
 
@@ -539,10 +645,10 @@ def find_latest_checkpoint(out_dir: Path) -> Path | None:
 
 @dataclass
 class CorpusConfig:
-    steps: int = 8000
+    steps: int = 30000
     batch_size: int = 4
     lr: float = 3e-4
-    weight_decay: float = 0.05
+    weight_decay: float = 0.1
     seed: int = 0
     log_every: int = 25
     ckpt_every: int = 500
@@ -552,6 +658,10 @@ class CorpusConfig:
     grad_clip: float = 1.0
     chunk: int = 4096
     n_eval_shots: int = 2
+    # LR schedule (the divergence fix): warmup → cosine decay to min_lr_ratio·lr.
+    lr_schedule: bool = True
+    warmup_steps: int = 800
+    min_lr_ratio: float = 0.01
     window: SpacetimeWindowConfig = field(default_factory=SpacetimeWindowConfig)
     model_kwargs: dict = field(default_factory=dict)
     random_window: bool = True
@@ -567,6 +677,7 @@ class CorpusResult:
     n_train_shots: int
     eval_errors: list[tuple[int, float]]
     checkpoint_path: str | None
+    best_eval: float | None = None
 
 
 def _default_out_dir() -> Path:
@@ -690,6 +801,7 @@ def train_corpus(
     )
     start_step = 0
     eval_errors: list[tuple[int, float]] = []
+    best_eval: float = float("inf")
     if resume:
         latest = find_latest_checkpoint(out_dir)
         if latest is not None:
@@ -699,7 +811,9 @@ def train_corpus(
                 if payload.get("optimizer_state_dict"):
                     opt.load_state_dict(payload["optimizer_state_dict"])
                 start_step = int(payload.get("step", 0))
-                eval_errors = list(payload.get("extra", {}).get("eval_errors", []))
+                extra = payload.get("extra", {})
+                eval_errors = list(extra.get("eval_errors", []))
+                best_eval = float(extra.get("best_eval", float("inf")))
                 if env.is_main:
                     logger.info("RESUMED from %s at step %d", latest, start_step)
             except (KeyError, RuntimeError, ValueError) as exc:
@@ -707,6 +821,31 @@ def train_corpus(
                     logger.warning(
                         "checkpoint %s incompatible (%r) — fresh", latest, exc
                     )
+
+    # LR scheduler (warmup → cosine decay).  Resume past start_step so the phase
+    # is continuous across a checkpoint restart.
+    scheduler = build_lr_scheduler(
+        opt,
+        total_steps=config.steps,
+        warmup_steps=config.warmup_steps,
+        min_lr_ratio=config.min_lr_ratio,
+        scheduled=config.lr_schedule,
+        last_step=start_step - 1,
+        peak_lr=config.lr,
+    )
+    if env.is_main:
+        logger.info(
+            "LR schedule: %s peak=%.2e warmup=%d cosine→%.2e over %d steps "
+            "(grad_clip=%.2f weight_decay=%.3f dropout=%s)",
+            "warmup+cosine" if config.lr_schedule else "FLAT (fallback)",
+            config.lr,
+            config.warmup_steps,
+            config.lr * config.min_lr_ratio,
+            config.steps,
+            config.grad_clip,
+            config.weight_decay,
+            base_model.config.dropout,
+        )
 
     if env.enabled:
         from torch.nn.parallel import DistributedDataParallel
@@ -792,6 +931,7 @@ def train_corpus(
                 if config.grad_clip > 0:
                     nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)
                 opt.step()
+                scheduler.step()
                 losses.append(float(loss.detach()))
                 step += 1
 
@@ -800,11 +940,13 @@ def train_corpus(
                 ):
                     rate = config.log_every / max(time.time() - t_last, 1e-6)
                     t_last = time.time()
+                    cur_lr = opt.param_groups[0]["lr"]
                     logger.info(
-                        "corpus step %d/%d loss=%.4f (%.2f st/s world=%d)",
+                        "corpus step %d/%d loss=%.4f lr=%.3e (%.2f st/s world=%d)",
                         step,
                         config.steps,
                         losses[-1],
+                        cur_lr,
                         rate,
                         env.world_size,
                     )
@@ -818,7 +960,10 @@ def train_corpus(
                             optimizer=opt,
                             step=step,
                             window=config.window,
-                            extra={"eval_errors": eval_errors},
+                            extra={
+                                "eval_errors": eval_errors,
+                                "best_eval": best_eval,
+                            },
                         )
                         logger.info("checkpoint @ step %d -> %s", step, ckpt_path)
                     _barrier(env)
@@ -846,6 +991,32 @@ def train_corpus(
                             step,
                             err,
                         )
+                        # Checkpoint-best on the HELD-OUT metric: the flat-LR run's
+                        # train loss kept falling while eval climbed (memorisation),
+                        # so the lowest-train-loss weights are NOT the best
+                        # generaliser.  Persist best-so-far separately as best.pt.
+                        if np.isfinite(err) and err < best_eval:
+                            best_eval = float(err)
+                            best_path = save_checkpoint(
+                                out_dir,
+                                model=core,
+                                optimizer=opt,
+                                step=step,
+                                window=config.window,
+                                extra={
+                                    "eval_errors": eval_errors,
+                                    "best_eval": best_eval,
+                                    "is_best": True,
+                                },
+                                name="best.pt",
+                                snapshot=False,
+                            )
+                            logger.info(
+                                "BEST eval %.4f @ step %d -> %s",
+                                best_eval,
+                                step,
+                                best_path,
+                            )
                     model.train()
                     _barrier(env)
 
@@ -857,9 +1028,15 @@ def train_corpus(
                 optimizer=opt,
                 step=step,
                 window=config.window,
-                extra={"eval_errors": eval_errors},
+                extra={"eval_errors": eval_errors, "best_eval": best_eval},
             )
             logger.info("final checkpoint @ step %d -> %s", step, ckpt_path)
+            if np.isfinite(best_eval):
+                logger.info(
+                    "best held-out eval = %.4f (best.pt under %s)",
+                    best_eval,
+                    out_dir,
+                )
         _barrier(env)
 
         result = CorpusResult(
@@ -871,6 +1048,7 @@ def train_corpus(
             n_train_shots=len(dataset),
             eval_errors=eval_errors,
             checkpoint_path=str(ckpt_path) if ckpt_path else None,
+            best_eval=best_eval if np.isfinite(best_eval) else None,
         )
     finally:
         del model
@@ -894,22 +1072,53 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         frame_stride=args.frame_stride,
     )
     span = (window.n_frames - 1) * window.frame_stride + 1
+
+    # Held-out set: explicit reserve list (preferred — the decode agent fixes
+    # the eval shots) OR the deterministic last-n of the discovered pool.  Either
+    # way the eval shots are SUBTRACTED from the train pool so the split is
+    # provably disjoint regardless of discovery order / n_shots limit.
+    explicit_eval = [int(s) for s in args.eval_shots.split(",") if s.strip()]
+
     if args.shots.strip():
-        shots = [int(s) for s in args.shots.split(",") if s.strip()]
+        pool = [int(s) for s in args.shots.split(",") if s.strip()]
     else:
-        shots = discover_camera_shots(
+        # When an explicit eval set is reserved, widen the discovery limit so the
+        # train pool still reaches n_shots AFTER removing the held-out shots.
+        limit = args.n_shots + len(explicit_eval) if explicit_eval else args.n_shots
+        pool = discover_camera_shots(
             camera=args.camera,
             token_root=token_root,
             min_frames=span,
-            limit=args.n_shots,
+            limit=limit,
         )
-    if len(shots) < 2:
-        logger.error("need >= 2 shots; discovered %d", len(shots))
+    if len(pool) < 2:
+        logger.error("need >= 2 shots; discovered %d", len(pool))
         return 1
-    # hold out the LAST n_eval shots (deterministic, ascending order) for demo.
-    n_eval = max(1, min(args.n_eval_shots, len(shots) // 5 or 1))
-    eval_shots = shots[-n_eval:]
-    train_shots = shots[:-n_eval] or shots
+
+    if explicit_eval:
+        eval_shots = explicit_eval
+        train_shots = [s for s in pool if s not in set(explicit_eval)]
+        # cap the train pool back to n_shots after removing any reserved shots
+        # that happened to fall inside the discovered window.
+        if not args.shots.strip():
+            train_shots = train_shots[: args.n_shots]
+    else:
+        # hold out the LAST n_eval shots (deterministic, ascending order).
+        n_eval = max(1, min(args.n_eval_shots, len(pool) // 5 or 1))
+        eval_shots = pool[-n_eval:]
+        train_shots = pool[:-n_eval] or pool
+
+    n_eval = len(eval_shots)
+    # disjointness invariant: the held-out set MUST NOT appear in train.
+    overlap = set(train_shots) & set(eval_shots)
+    if overlap:
+        logger.error("train/eval overlap (NOT disjoint): %s", sorted(overlap))
+        return 1
+    logger.info(
+        "held-out eval shots %s are DISJOINT from %d train shots (verified)",
+        eval_shots,
+        len(train_shots),
+    )
 
     model_kwargs: dict = {}
     for k in ("d_model", "n_layers", "n_heads", "d_ff", "dropout"):
@@ -922,6 +1131,10 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         batch_size=args.batch_size,
         lr=args.lr,
         weight_decay=args.weight_decay,
+        lr_schedule=not args.flat_lr,
+        warmup_steps=args.warmup_steps,
+        min_lr_ratio=args.min_lr_ratio,
+        grad_clip=args.grad_clip,
         log_every=args.log_every,
         ckpt_every=args.ckpt_every,
         eval_every=args.eval_every,
@@ -949,11 +1162,12 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         resume=not args.no_resume,
     )
     logger.info(
-        "CORPUS DONE: steps=%d params=%d initial=%.4f final=%.4f ckpt=%s",
+        "CORPUS DONE: steps=%d params=%d initial=%.4f final=%.4f best_eval=%s ckpt=%s",
         result.steps_run,
         result.n_parameters,
         result.initial_loss,
         result.final_loss,
+        result.best_eval,
         result.checkpoint_path,
     )
     if result.eval_errors:
@@ -968,13 +1182,45 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="command")
     pc = sub.add_parser("corpus", help="train the spatiotemporal camera transformer")
     pc.add_argument("--shots", default="")
-    pc.add_argument("--n-shots", type=int, default=2000)
+    pc.add_argument("--n-shots", type=int, default=9000)
     pc.add_argument("--camera", default=REFERENCE_CAMERA)
     pc.add_argument("--n-eval-shots", type=int, default=4)
-    pc.add_argument("--steps", type=int, default=8000)
+    pc.add_argument(
+        "--eval-shots",
+        default="",
+        help=(
+            "comma-separated held-out shot ids (reserved + removed from train so "
+            "the split is provably disjoint); empty = hold out the discovered "
+            "pool's last n-eval-shots"
+        ),
+    )
+    pc.add_argument("--steps", type=int, default=30000)
     pc.add_argument("--batch-size", type=int, default=4)
     pc.add_argument("--lr", type=float, default=3e-4)
-    pc.add_argument("--weight-decay", type=float, default=0.05)
+    pc.add_argument("--weight-decay", type=float, default=0.1)
+    pc.add_argument(
+        "--warmup-steps",
+        type=int,
+        default=800,
+        help="linear LR warmup steps before the cosine decay",
+    )
+    pc.add_argument(
+        "--min-lr-ratio",
+        type=float,
+        default=0.01,
+        help="cosine decays the LR to this fraction of peak by the last step",
+    )
+    pc.add_argument(
+        "--grad-clip",
+        type=float,
+        default=1.0,
+        help="max grad-norm (<=0 disables clipping)",
+    )
+    pc.add_argument(
+        "--flat-lr",
+        action="store_true",
+        help="fallback: hold LR flat (the old, divergence-prone behaviour)",
+    )
     pc.add_argument("--n-frames", type=int, default=24)
     pc.add_argument("--n-plan", type=int, default=8)
     pc.add_argument("--context-frames", type=int, default=8)
