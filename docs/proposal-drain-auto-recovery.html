@@ -83,10 +83,22 @@ directly observed:</p>
       <em>frequency</em>, not the underlying fabric wedge.</li>
 </ul>
 
+<p><strong>Refinement (2026-06-18, §2c).</strong> A second live capture sharpens this. The
+uninterruptible wait surface is unchanged (CXI fabric serving GPFS — <code>cxiWaitEventWait</code>
+seen a third time), so the environmental attribution stands. But this drain — unlike all
+prior ones — had a <strong>clear application <em>trigger</em></strong>: a 4-rank DDP job that
+crashed mid-collective during a cold-start I/O storm, with <code>d_alloc_parallel</code> (GPFS
+metadata) joining the wedge. The distinction matters: the fabric wedge is still the
+environmental <em>cause</em> (no signal can clear a D-state), but launch <em>concurrency</em>
+and a dying-rank-mid-collective are an occasion we can make rarer from our side — a clean DDP
+init (no rank dies mid-NCCL) plus staggered/warmed GPFS reads and lower cold-start concurrency
+(2-rank has never drained). These reduce <em>frequency</em>, not the underlying wedge.</p>
+
 <p><strong>Implication.</strong> Because the cause is environmental, the two levers that
 matter are (1) <strong>recovery automation</strong> to bound the outage (this proposal,
 §3–§5) and (2) <strong>a fabric/driver-level fix</strong> by SDCC/HPE to remove the wedge
-itself (§6a). Application code cannot close this on its own.</p>
+itself (§6a). Application code cannot close this on its own — but §2c shows we can lower how
+often it is triggered.</p>
 
 <h2 id="s2">§2 — Drain History</h2>
 
@@ -213,6 +225,70 @@ auto-resume — turning a multi-hour manual outage into a sub-5-minute self-reco
 sidecar proves the diagnostic half works today; §3/§5 automate the recovery half.
 Forensics:
 <code>/work/projects/imas_gpu/logs/drain-sidecar-1218732.{csv,smi,node}</code>.</p>
+
+<h2 id="s2c">§2c — 2026-06-18: second live capture — same fabric wedge, but with a clear application TRIGGER</h2>
+
+<p>A second drain was captured live by the sidecar. Unlike every prior drain (which had no
+identifiable application cause and was ruled environmental/stochastic), this one has a
+<strong>clear, reproducible trigger</strong>: the teardown of a <em>crashed</em> 4-rank DDP
+job. This is a new and actionable data point — it does not overturn the "environmental wedge
+surface" finding, but it identifies a code-level event that reliably <em>provokes</em> it.</p>
+
+<p><strong>Sequence (clean attribution).</strong> Job <code>1219733</code> (a 4×H200 DDP
+world-model training) crashed at DDP construction — rank 0 raised, leaving ranks 1–3 mid
+<code>init_process_group</code>/NCCL. The job was <code>scancel</code>led at
+<code>17:09:01</code>; the surviving ranks could not be reaped and the node DRAINED at
+<code>Reason=Kill task failed [root@2026-06-18T17:10:02]</code> — a
+<strong>~61&nbsp;s</strong> gap, again matching <code>UnkillableStepTimeout</code>&nbsp;≈&nbsp;60&nbsp;s
+(§5a). DeepSeek-V4-Flash, co-tenant on 2 cards, was unaffected throughout (a drain blocks new
+jobs, it does not kill running ones).</p>
+
+<p><strong>D-state wedge (sidecar of <code>1219733</code>, kill window).</strong> The same
+fabric surface as §2b dominates, confirming <code>cxiWaitEventWait</code> a third time
+(2026-06-17 live, and now twice more):</p>
+
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Kernel wait (<code>wchan</code>)</th><th><code>D</code>-state samples</th><th>Surface</th></tr></thead>
+<tbody>
+  <tr><td><code>d_alloc_parallel</code></td><td>32</td><td><strong>GPFS</strong> parallel dentry allocation — the cold-start metadata storm</td></tr>
+  <tr><td><code>cxiWaitEventWait</code></td><td>18</td><td><strong>CXI / Slingshot fabric</strong> — the GPFS-over-fabric read wedge (same as §2b)</td></tr>
+  <tr><td><code>os_acquire_semaphore</code> / <code>os_acquire_rwlock_*</code></td><td>24</td><td>NVIDIA RM locks (collateral)</td></tr>
+  <tr><td><code>futex_wait_queue</code></td><td>11</td><td>userspace lock</td></tr>
+  <tr><td><code>folio_wait_bit_common</code></td><td>3</td><td>page-cache writeback wait</td></tr>
+  <tr><td><code>uvm_gpu_retain_by_uuid</code></td><td>2</td><td>NVIDIA UVM</td></tr>
+</tbody>
+</table></div>
+
+<p><strong>What this adds to the root cause.</strong> The §2b finding stands — the
+uninterruptible wait is the CXI fabric serving GPFS, environmental and signal-immune. What is
+<em>new</em> is the trigger: a <strong>4-rank cold-start I/O storm</strong>. When four ranks
+simultaneously cold-read the GPFS plan/token stores at job start, <code>d_alloc_parallel</code>
+(GPFS dentry allocation) joins <code>cxiWaitEventWait</code> as a dominant wedge — i.e. the
+<em>concurrency</em> of the launch is what pushes the fabric/GPFS path into the uninterruptible
+state. A rank that then dies mid-collective leaves its peers blocked on that wedged path, and
+they cannot be killed → drain. This is consistent with the observation that the 2-rank
+configuration never drained: fewer concurrent cold readers, less metadata contention.</p>
+
+<p><strong>Application-side mitigations (do not need admin; complement §3/§5).</strong> Because
+this drain has a code-level trigger, we can <em>reduce its probability</em> from our side:</p>
+<ul>
+  <li><strong>Avoid the dying-rank-mid-collective pattern.</strong> The companion fix
+  (rank-0 broadcasts the model shape so ranks build identically; commit on <code>main</code>)
+  removes the DDP-init crash that wedged the peers here — a clean init means no rank dies mid
+  NCCL, so the peers never enter the unkillable fabric wait. <em>Fix the crash, remove the
+  drain trigger.</em></li>
+  <li><strong>Tame the cold-start I/O storm.</strong> Stagger per-rank GPFS reads at startup
+  (rank-0-first then broadcast where possible), warm the token/plan cache before the parallel
+  open, and prefer the node-local NVMe assembled-sample cache over repeated GPFS metadata
+  hits — directly attacking the <code>d_alloc_parallel</code> contention.</li>
+  <li><strong>Lower concurrency when feasible.</strong> Fewer simultaneous cold readers (2-rank
+  has never drained); 4-rank is acceptable but should pair with the staggered/warmed reads
+  above.</li>
+</ul>
+<p>None of these is a guarantee — a D-state task still receives no signals, so the §3
+<code>UnkillableStepProgram</code> + 120&nbsp;s timeout and the §5 auto-resume remain the only
+robust recovery. But they lower how often we light the fuse. Forensics:
+<code>/work/projects/imas_gpu/logs/drain-sidecar-1219733.{csv,smi,node}</code>.</p>
 
 <h2 id="s3">§3 — Proposed Change 1: <code>UnkillableStepProgram</code> + Timeout Increase</h2>
 
