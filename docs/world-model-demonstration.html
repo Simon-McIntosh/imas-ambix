@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="world-model-demonstration">
+  <meta name="plan-title"    content="World-Model First Demonstration — Predict-vs-Reality on Held-Out MAST Shots">
+  <meta name="plan-summary"  content="The first end-to-end demonstration of the plan-conditioned multi-modal world model: a converged 1.034B-parameter checkpoint evaluated predict-vs-reality on 8 genuinely held-out MAST shots, with decoded ground-truth camera frames. An honest, figure-rich account of what the prototype can and cannot do — including the headline negative result (it loses to persistence on average) — and what 'dreaming a shot' really means at this scale. Authored as a dual-purpose educational document: every acronym, technique and framework is qualified.">
+  <meta name="plan-informs"  content="world-model-prototype,camera-dynamics-wm-v0,physics-world-model-strategy">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <title>World-Model First Demonstration — Predict-vs-Reality on Held-Out MAST Shots | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Reading note (educational dual-purpose).</strong> This is a <em>research</em> document, not a
+plan: it reports what we found when we first ran the world-model prototype end-to-end. It accompanies
+the <a href="world-model-prototype.html">world-model-prototype</a> plan and the
+<a href="camera-dynamics-wm-v0.html">camera-dynamics-wm-v0</a> work. Acronyms are expanded on first use;
+the techniques and every external framework are named in §8 (glossary). The findings are reported
+<strong>warts-and-all</strong> — the headline result is a measured loss to a trivial baseline, and that
+is the honest, useful thing to know before scaling up.</p>
+
+<h2 id="s1">§1 — What this document demonstrates</h2>
+<p>We trained the first <strong>world model</strong> on the multi-modal token substrate and evaluated it
+<strong>predict-vs-reality</strong> on shots it had never seen. A <em>world model</em> here is a learned
+model that, given a MAST (Mega-Amp Spherical Tokamak) shot's <strong>pulse schedule</strong> (the
+pre-programmed actuator waveforms — demanded plasma current, density, heating, coil currents) plus a
+short <strong>initial-condition context</strong> (the first 16 grid-steps of the shot), tries to predict
+how every tokenised diagnostic evolves for the rest of the shot. It does this <strong>autoregressively</strong>:
+it predicts the next step, feeds that prediction back in, and repeats — generating the whole rollout itself.</p>
+<p>Three questions motivated this write-up, all asked directly by the lead:</p>
+<ul>
+  <li><strong>The training was very short — is this demo territory, or do models like this really train in minutes?</strong> (§3)</li>
+  <li><strong>Are we properly using all our data and signals?</strong> (§4)</li>
+  <li><strong>Do we now have a generative model that can "dream" new MAST shots?</strong> (§6)</li>
+</ul>
+<p>The short answers: <strong>demo territory</strong> (the model is small and the corpus subset modest);
+<strong>all signal <em>types</em> but only ~a quarter of the shots</strong> and a coarse camera view; and
+<strong>yes architecturally it is a generative "dreamer", but the dreams are not yet faithful</strong> —
+on average they lose to persistence. The rest of this document shows the evidence.</p>
+
+<h2 id="s2">§2 — The model and how it was trained</h2>
+<p>The model is a <strong>decoder-only Transformer</strong> (the same family as a GPT language model) that
+consumes interleaved token streams from every modality on one common time grid, conditioned on the plan.
+It was built from the <a href="multimodal-tokenisation-substrate.html">multimodal-tokenisation-substrate</a>:
+continuous signals and camera images are converted to integer <em>tokens</em> drawn from learned
+<em>codebooks</em>, so a single sequence model can read them all.</p>
+
+<figure>
+<svg viewBox="0 0 920 250" width="100%" role="img" aria-label="World-model pipeline" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="920" height="250" fill="#ffffff"/>
+  <!-- inputs -->
+  <rect x="12" y="40" width="150" height="44" fill="#ffffff" stroke="#333" stroke-width="1"/>
+  <text x="87" y="58" font-size="13" text-anchor="middle" fill="#111">Pulse schedule</text>
+  <text x="87" y="74" font-size="12" text-anchor="middle" fill="#555">(the plan / actions)</text>
+  <rect x="12" y="100" width="150" height="44" fill="#ffffff" stroke="#333" stroke-width="1"/>
+  <text x="87" y="118" font-size="13" text-anchor="middle" fill="#111">Initial context</text>
+  <text x="87" y="134" font-size="12" text-anchor="middle" fill="#555">first 16 grid-steps</text>
+  <!-- tokenise -->
+  <rect x="200" y="70" width="150" height="44" fill="#ffffff" stroke="#333" stroke-width="1"/>
+  <text x="275" y="88" font-size="13" text-anchor="middle" fill="#111">Per-modality</text>
+  <text x="275" y="104" font-size="12" text-anchor="middle" fill="#555">codebook tokens</text>
+  <!-- transformer -->
+  <rect x="388" y="60" width="180" height="64" fill="#ffffff" stroke="#1f6feb" stroke-width="1.5"/>
+  <text x="478" y="82" font-size="13" text-anchor="middle" fill="#111" font-weight="600">Decoder-only Transformer</text>
+  <text x="478" y="100" font-size="12" text-anchor="middle" fill="#555">~14 M params · d=384 · 8 layers</text>
+  <text x="478" y="115" font-size="12" text-anchor="middle" fill="#555">predicts next token</text>
+  <!-- rollout loop -->
+  <rect x="606" y="70" width="150" height="44" fill="#ffffff" stroke="#333" stroke-width="1"/>
+  <text x="681" y="88" font-size="13" text-anchor="middle" fill="#111">Predicted stream</text>
+  <text x="681" y="104" font-size="12" text-anchor="middle" fill="#555">48 steps, generated</text>
+  <!-- decode/score -->
+  <rect x="792" y="70" width="116" height="44" fill="#ffffff" stroke="#333" stroke-width="1"/>
+  <text x="850" y="88" font-size="13" text-anchor="middle" fill="#111">Decode &amp;</text>
+  <text x="850" y="104" font-size="12" text-anchor="middle" fill="#555">score vs reality</text>
+  <!-- arrows -->
+  <g stroke="#333" stroke-width="1" fill="none" marker-end="url(#ah)">
+    <path d="M162 62 L198 88"/>
+    <path d="M162 122 L198 96"/>
+    <path d="M350 92 L386 92"/>
+    <path d="M568 92 L604 92"/>
+    <path d="M756 92 L790 92"/>
+  </g>
+  <!-- AR feedback -->
+  <path d="M681 114 C 681 170, 478 170, 478 126" stroke="#1f6feb" stroke-width="1.2" fill="none" stroke-dasharray="4 3" marker-end="url(#ahb)"/>
+  <text x="560" y="186" font-size="12" text-anchor="middle" fill="#1f6feb">autoregressive feedback — the model consumes its own prediction</text>
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#333"/></marker>
+    <marker id="ahb" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#1f6feb"/></marker>
+  </defs>
+</svg>
+<figcaption><strong>Figure 1.</strong> The prototype. The plan + a short context window are tokenised and
+fed to a small decoder-only Transformer that predicts the next token for every stream; its own predictions
+are fed back (the blue dashed loop) to roll the shot forward. Predicted tokens are then decoded and scored
+against what actually happened.</figcaption>
+</figure>
+
+<p><strong>Training run (the converged checkpoint).</strong> A single run on one NVIDIA H200 GPU:</p>
+<ul>
+  <li><strong>Parameters:</strong> 1,034,027,033 (≈1.034 billion) — but see §3 for where they actually live.</li>
+  <li><strong>Backbone:</strong> width <code>d_model=384</code>, 8 Transformer layers, 8 attention heads.</li>
+  <li><strong>Streams (all 14 types):</strong> the plan (<code>pulse_schedule</code>); five Level-2 measured
+      light-path groups (<code>summary, pf_active, interferometer, gas_injection, soft_x_rays</code>); three
+      high-frequency signal streams (<code>xma, xim, xsx</code>); and all five cameras
+      (<code>rbb, rba, rco, rgb, rgc</code>).</li>
+  <li><strong>Optimiser:</strong> AdamW, learning rate 1e-3, batch 6, 40,000 steps over 64-step windows
+      (≈240,000 windows seen).</li>
+  <li><strong>Loss:</strong> next-token negative log-likelihood, <strong>6.3 → 1.69</strong>, plateaued
+      (1.75 → 1.69 over the final 15,500 steps — i.e. converged <em>for this capacity</em>).</li>
+  <li><strong>Wall-clock:</strong> ≈75 minutes.</li>
+</ul>
+
+<h2 id="s3">§3 — "Why so fast?" Where the billion parameters actually live</h2>
+<p>The 1.034-billion-parameter headline is misleading in an important and honest way. <strong>97.5% of the
+parameters are pure lookup tables</strong> — the input embeddings and output heads for the five cameras,
+each of which has a <strong>2<sup>18</sup> = 262,144-entry codebook</strong>. A lookup table contributes a
+parameter row per vocabulary entry, but for any given token only one row is read (and updated) per
+occurrence; it does <em>not</em> add per-step compute the way a Transformer layer does, and most rows
+receive only sparse gradient updates. The part of the model that actually learns dynamics — the Transformer
+backbone — is just <strong>≈14.2 M parameters</strong> (a "tiny" model by modern standards; GPT-2 small is
+124 M).</p>
+
+<figure>
+<img src="/imas-ambix/figures/world-model-demonstration/params-breakdown.png" alt="Parameter breakdown: 97.5% camera lookup tables, ~14M transformer" width="100%">
+<figcaption><strong>Figure 2.</strong> Where the 1.034 B parameters live (exact, from
+<code>named_parameters</code>). The five cameras' codebook tables dominate; the sequence-modelling
+Transformer is a small fraction.</figcaption>
+</figure>
+
+<table>
+<thead><tr><th>Component</th><th>Parameters</th><th>Share</th></tr></thead>
+<tbody>
+  <tr><td>Camera codebook embed + heads (5 cameras × 2<sup>18</sup>)</td><td>1,007,976,320</td><td>97.5%</td></tr>
+  <tr><td>Transformer backbone (attention + FFN + norms)</td><td>14,196,480</td><td>1.4%</td></tr>
+  <tr><td>Other-modality embed/heads (plan + L2 + xma/xim/xsx)</td><td>11,804,313</td><td>1.1%</td></tr>
+  <tr><td>Positional + segment embeddings</td><td>49,920</td><td>&lt;0.1%</td></tr>
+  <tr><td><strong>Total</strong></td><td><strong>1,034,027,033</strong></td><td>100%</td></tr>
+</tbody>
+</table>
+
+<p><strong>So is it demo territory?</strong> Yes. A ≈14 M-parameter sequence model, trained on a modest
+window budget, converges in ~75 minutes <em>exactly as expected</em>. This is not evidence that large,
+physically faithful world models train in minutes — it is evidence that a small model on modest data trains
+fast, which has always been true. The short time is a property of the prototype's <em>size</em>, not a
+breakthrough.</p>
+
+<h2 id="s4">§4 — "Are we using all the data and signals?"</h2>
+<p><strong>Signal types: yes</strong> — all 14 stream types are wired in (the plan, five Level-2 measured
+groups, three high-frequency streams, and all five cameras). <strong>Data volume: no</strong> — we used a
+subset, and the cameras are spatially sub-sampled:</p>
+
+<figure>
+<img src="/imas-ambix/figures/world-model-demonstration/data-coverage.png" alt="Coverage: 26% of shots, 1/16 of camera spatial tokens" width="100%">
+<figcaption><strong>Figure 3.</strong> Coverage. We trained on 3,996 of the 15,361 shots that have token
+stores (26%), and each camera frame is reduced to a 4×4 = 16-token subsample of its native 16×16 = 256-token
+grid (1/16 of the spatial tokens).</figcaption>
+</figure>
+
+<ul>
+  <li><strong>Shots:</strong> 3,996 trained of <strong>15,361 available</strong> (≈26%).</li>
+  <li><strong>Camera resolution:</strong> each frame is encoded as 256 tokens (a 16×16 grid) by the
+      Open-MAGVIT2 image tokeniser, but the world model consumes only a <strong>4×4 = 16-token</strong>
+      subsample (<code>camera_grid_stride=4</code>) — a coarse spatial summary, 1/16 of the tokens.</li>
+  <li><strong>Cameras are sparse per shot:</strong> <code>rbb</code> is the most common; the other four are
+      missing on many shots, so the camera streams in particular are under-fed.</li>
+</ul>
+<p>There is therefore large headroom on data: more shots, full-resolution camera tokens, and a bigger
+backbone to use them (§7).</p>
+
+<h2 id="s5">§5 — Predict-vs-reality: the held-out evaluation</h2>
+<p><strong>Method.</strong> We took 8 shots at discovery indices 4000–4007 — beyond the 4000-shot training
+cap, so <strong>never trained on</strong> (verified). For each, the model was given only the plan and the
+first 16 grid-steps, then rolled forward 48 steps autoregressively. We score the predicted tokens against
+the truth with a <strong>skill score relative to persistence</strong>:</p>
+<p style="margin-left:1.5em"><code>skill = 1 − (model token-mismatch rate) / (persistence token-mismatch rate)</code></p>
+<p>where <strong>persistence</strong> is the trivial baseline "repeat the last observed token forever".
+Skill &gt; 0 means the model beats persistence; &lt; 0 means it loses; 0 means a tie.</p>
+
+<figure>
+<img src="/imas-ambix/figures/world-model-demonstration/skill-by-modality.png" alt="Skill vs persistence by modality; model loses on average (-0.043)" width="100%">
+<figcaption><strong>Figure 4.</strong> Forward-prediction skill vs persistence, per modality, averaged over
+the 8 held-out shots (n-weighted). The dashed line is the overall skill, <strong>−0.043</strong>: the model
+loses to persistence on average.</figcaption>
+</figure>
+
+<table>
+<thead><tr><th>Modality</th><th>Skill</th><th>Model err</th><th>Persist err</th><th>n scored</th></tr></thead>
+<tbody>
+  <tr><td>xim</td><td>+0.014</td><td>0.837</td><td>0.848</td><td>4,077</td></tr>
+  <tr><td>xsx</td><td>+0.005</td><td>0.831</td><td>0.835</td><td>10,880</td></tr>
+  <tr><td>rco (camera)</td><td>+0.001</td><td>0.979</td><td>0.980</td><td>3,680</td></tr>
+  <tr><td>interferometer</td><td>0.000</td><td>0.994</td><td>0.994</td><td>322</td></tr>
+  <tr><td>xma</td><td>0.000 †</td><td>0.000</td><td>0.000</td><td>9,200</td></tr>
+  <tr><td>rba (camera)</td><td>−0.003</td><td>0.999</td><td>0.996</td><td>3,152</td></tr>
+  <tr><td>rbb (camera)</td><td>−0.003</td><td>0.998</td><td>0.995</td><td>4,880</td></tr>
+  <tr><td>soft_x_rays</td><td>−0.016</td><td>0.977</td><td>0.962</td><td>13,164</td></tr>
+  <tr><td>rgc (camera)</td><td>−0.016</td><td>0.988</td><td>0.972</td><td>4,480</td></tr>
+  <tr><td>rgb (camera)</td><td>−0.022</td><td>0.986</td><td>0.965</td><td>3,600</td></tr>
+  <tr><td>pf_active</td><td>−0.079</td><td>0.919</td><td>0.852</td><td>5,760</td></tr>
+  <tr><td>summary</td><td>−0.216</td><td>0.956</td><td>0.786</td><td>1,430</td></tr>
+  <tr><td>gas_injection</td><td>−0.389</td><td>0.739</td><td>0.532</td><td>6,777</td></tr>
+  <tr><td><strong>overall</strong></td><td><strong>−0.043</strong></td><td>0.797</td><td>0.765</td><td>71,402</td></tr>
+</tbody>
+</table>
+<p style="font-size:0.9em;color:#555"><strong>†</strong> <code>xma</code> as tokenised here is a degenerate size-1 codebook
+(every token identical), so both errors are 0 and it carries no information — a tokeniser issue to fix, not
+a model result.</p>
+
+<figure>
+<img src="/imas-ambix/figures/world-model-demonstration/signal-traces.png" alt="Predicted vs actual token trajectories for a held-out shot" width="100%">
+<figcaption><strong>Figure 5.</strong> Predicted (dashed) vs actual (solid) vs persistence (dotted) token
+trajectories for held-out shot 23735. Steps 0–15 are the given context; 16–63 are generated
+autoregressively. The model captures the rough level but misses the real excursions — it ignores the
+gas-puff transient entirely (top) — and on some channels drifts away from both truth and persistence (bottom).</figcaption>
+</figure>
+
+<p><strong>Honest reading.</strong> The model loses to persistence overall. Two things are simultaneously
+true, and both matter:</p>
+<ul>
+  <li><strong>The result is real:</strong> a small model on 26% of the corpus does not yet beat the trivial
+      baseline. The worst losses are on <code>gas_injection</code> and <code>summary</code> — streams where
+      persistence is already strong because they change slowly.</li>
+  <li><strong>The metric is unforgiving:</strong> token-exact mismatch vs persistence is a harsh lens for
+      slowly-varying signals — a prediction one codebook bin away from truth counts as fully wrong even if
+      the decoded physical value is almost right, and persistence is near-unbeatable when the signal barely
+      moves over 48 steps. This matches the project's earlier S7/S9 finding that persistence dominates
+      short-horizon forecasts of quasi-stationary tokamak signals. Decoded-value metrics and longer horizons
+      (where persistence finally degrades) are the fairer next lens (§7) — but they will not rescue this
+      checkpoint; they will measure the next, larger one.</li>
+</ul>
+
+<h2 id="s6">§6 — "Can it dream new MAST shots?"</h2>
+<p><strong>Architecturally, yes — and it already does.</strong> The autoregressive rollout in §1 <em>is</em>
+dreaming: from a plan and a short context, the model samples a complete multi-modal token stream forward in
+time. Feed it a different plan and it would generate a different, never-observed shot. The generative
+machinery is real and working.</p>
+<p><strong>But the dreams are not yet faithful.</strong> §5 is exactly the measurement of dream quality:
+on average the generated rollout is <em>less</em> accurate than freezing the last observed frame. So we have
+a generative model that can dream, but at this scale its dreams are demo-grade — coherent token streams that
+do not yet track the real plasma's excursions.</p>
+<p>The camera makes this concrete. Below left is a <strong>decoded full-resolution ground-truth</strong>
+<code>rbb</code> camera sequence for a held-out shot (decoded through the same frozen Open-MAGVIT2 VQModel
+the corpus was tokenised with). On the right is what the model actually predicts for the camera — the
+<strong>coarse 4×4 = 16-token subsample</strong>, shown at the token-grid level it operates on (truth |
+model | match). We deliberately do <em>not</em> decode the model's 16-token prediction into a photoreal
+frame: it only sees 1/16 of the spatial tokens, so a "predicted image" would be a fabrication.</p>
+
+<figure>
+<img src="/imas-ambix/figures/world-model-demonstration/camera-gt.gif" alt="Decoded ground-truth rbb camera video" width="48%" style="vertical-align:top">
+<img src="/imas-ambix/figures/world-model-demonstration/camera-pred-vs-truth.gif" alt="Model's coarse camera token prediction vs truth" width="48%" style="vertical-align:top">
+<figcaption><strong>Figure 6.</strong> <em>Left:</em> ground truth — the actual <code>rbb</code> camera,
+decoded at full resolution (256 tokens/frame). <em>Right:</em> the model's prediction at the resolution it
+truly works on — a 4×4 token grid (truth | model | match map). The model's camera skill is ≈0 (it ties
+persistence): it reproduces the slowly-changing background but does not predict the fast structure.</figcaption>
+</figure>
+
+<h2 id="s7">§7 — Verdict and the path from demo to fidelity</h2>
+<p><strong>Verdict.</strong> This is a genuine, end-to-end, leakage-free <em>prototype</em>: the plumbing
+works (plan-conditioned multi-modal tokens in, autoregressive multi-stream rollout out, scored on held-out
+shots with decoded ground-truth). It is a generative "dreamer" by construction. It is <em>not</em> yet a
+useful predictor — it loses to persistence. That is the right place to be after a first demo, and it tells
+us precisely what to change.</p>
+<p><strong>What to change, in rough priority order:</strong></p>
+<ol>
+  <li><strong>Grow the actual sequence model.</strong> 14 M Transformer parameters is tiny. The headroom is
+      in the backbone (depth/width), not in more codebook tables.</li>
+  <li><strong>Use the full corpus.</strong> 3,996 → 15,361 shots; and make the cameras less sparse.</li>
+  <li><strong>Full camera resolution.</strong> 16 → 256 tokens/frame (or a smarter spatial scheme) so the
+      camera carries real structure.</li>
+  <li><strong>Train longer with a schedule.</strong> The loss plateaued for this capacity; a larger model
+      needs a proper LR schedule and many more steps.</li>
+  <li><strong>Fairer evaluation.</strong> Add decoded-value (physical-unit) metrics, longer horizons where
+      persistence degrades, and value-targeted scoring against the eval-only Level-2 reconstructed-equilibrium
+      targets — not only token-exact match.</li>
+  <li><strong>Fix degenerate tokenisers.</strong> <code>xma</code>'s size-1 codebook must be repaired so the
+      stream carries information.</li>
+  <li><strong>Reconsider discrete heads for slow signals.</strong> Continuous/latent heads may suit
+      slowly-varying streams better than discrete-token cross-entropy.</li>
+</ol>
+
+<h2 id="s8">§8 — Glossary &amp; frameworks</h2>
+<p><strong>Terms.</strong></p>
+<ul>
+  <li><strong>MAST</strong> — Mega-Amp Spherical Tokamak (the UK fusion device this data comes from).</li>
+  <li><strong>World model</strong> — a learned model of how observations evolve <em>in response to actions</em>.</li>
+  <li><strong>Pulse schedule / plan</strong> — the pre-programmed actuator waveforms set before a shot (the actions).</li>
+  <li><strong>Token / codebook</strong> — a signal or image is converted into a sequence of integer codes drawn
+      from a learned dictionary (the codebook), so one sequence model can read every modality.</li>
+  <li><strong>Decoder-only Transformer</strong> — the GPT-style architecture: predicts the next token from all
+      previous tokens via masked self-attention.</li>
+  <li><strong>Autoregressive (AR) rollout</strong> — generating a sequence by repeatedly predicting the next
+      token and feeding it back in. This is what "dreaming a shot" means here.</li>
+  <li><strong>NLL</strong> — negative log-likelihood, the next-token training loss.</li>
+  <li><strong>Persistence baseline</strong> — predict "the last observed value, unchanged". A strong baseline
+      for slowly-varying signals.</li>
+  <li><strong>Skill score</strong> — <code>1 − model_error/baseline_error</code>; positive beats the baseline.</li>
+  <li><strong>Held-out</strong> — shots excluded from training, used only for evaluation (here, discovery
+      indices ≥ 4000).</li>
+  <li><strong>LFQ / VQ / FSQ</strong> — Lookup-Free / Vector / Finite-Scalar Quantisation: families of methods
+      for turning continuous data into discrete tokens (the camera codebooks are LFQ at 2<sup>18</sup> entries).</li>
+  <li><strong>Level-2 (L2)</strong> — the leakage-controlled measured + authorised-planned input light-path;
+      reconstructed-equilibrium targets live in a physically separate eval-only store.</li>
+</ul>
+<p><strong>Frameworks used.</strong></p>
+<ul>
+  <li><strong>PyTorch</strong> (2.11, CUDA 13.0) — the model, training loop, and rollout.</li>
+  <li><strong>Open-MAGVIT2</strong> — the frozen image tokeniser/decoder (<code>VQModel</code>, LFQ) that turns
+      camera frames into 2<sup>18</sup>-vocabulary tokens and back to 256×256 images.</li>
+  <li><strong>Zarr</strong> — chunked array storage for the token corpus.</li>
+  <li><strong>NumPy / Matplotlib</strong> — the artifact bundle and the figures in this document.</li>
+  <li><strong>SLURM</strong> — the H200 GPU compute scheduler (training and decode ran on one card).</li>
+</ul>
+
+<p style="font-size:0.9em;color:#555"><strong>Provenance.</strong> Converged checkpoint
+<code>worldmodel/ckpt/1219352/latest.pt</code> (step 40,000). Eval on held-out shots 23735, 24144, 17957,
+15309, 27791, 29809, 26563, 22480 (discovery indices 4000–4007). Artifact bundle under
+<code>worldmodel/demo/</code>; reproduced by <code>imas_ambix/worldmodel/demo_artifacts.py</code> and
+<code>scripts/figures/wm_demonstration_figs.py</code>.</p>
+
+</main>
+</body>
+</html>
