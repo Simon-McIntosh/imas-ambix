@@ -275,35 +275,62 @@ window — this validates the architecture (per-token spatial+temporal identity 
 attention). The honest result — coherence on <em>unseen</em> shots — is in <a href="#s6-heldout">§6.1</a>.</figcaption>
 </figure>
 
-<h3 id="s6-heldout">§6.1 — The held-out result: it dreams <em>unseen</em> MAST shots</h3>
-<p><strong>The pivot works.</strong> We trained the spatiotemporal transformer on a corpus of MAST <code>rbb</code>
-camera shots (4×H200, distributed data-parallel) and then ran the decisive test: predict and dream
-<strong>shots the model never saw in training</strong> — held-out shots 18502 and 18503. The figures below are
-that held-out decode. On both unseen shots, <em>both</em> the teacher-forced reconstruction <em>and</em> the
-autoregressive dream are <strong>clearly coherent</strong>: the correct plasma boundary, the dark central column,
-the bright divertor strike-point, all structurally on-track across the full 24-frame window. Crucially, the
-<strong>dream stays coherent rolling forward on its own predictions</strong> — it does not collapse or drift to
-noise as it consumes its own output. This is night-and-day versus the retired bag-of-channels model, which
-produced incoherent mush even when overfit. <strong>The honest blemish:</strong> occasional single-frame
-hallucination (e.g. shot 18502, frame 7, momentarily fans out) before the rollout recovers.</p>
+<h3 id="s6-heldout">§6.1 — The held-out generation, for the record — and why it is <em>not</em> yet forecasting</h3>
+<p><strong>This is the actual generated output on unseen shots — shown in full, with the honest verdict it
+earned.</strong> We trained the spatiotemporal transformer on a corpus of MAST <code>rbb</code> camera shots
+(4×H200, distributed data-parallel) and ran the decisive test: predict and dream <strong>shots the model never
+saw in training</strong> — held-out shots 18502–18505. The GIFs below are that real held-out decode (step-3000
+checkpoint, the held-out-best snapshot). They are on the record because they are genuine artifacts <em>and</em>
+because they carry an important cautionary lesson.</p>
+<p><strong>At first glance the frames look coherent</strong> — a plausible plasma boundary, dark central column,
+bright lower glow — which initially read as success. <strong>It is not.</strong> A quantitative check in
+<em>both</em> token space and decoded-pixel space shows the model <strong>loses decisively to persistence</strong>
+(the trivial "freeze the last observed frame" baseline) on every held-out shot:</p>
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Held-out shot</th><th>Model pixel-error vs GT</th><th>Persistence pixel-error</th><th>Verdict</th></tr></thead>
+<tbody>
+  <tr><td>18502</td><td>5.70</td><td>1.62</td><td>model 3.5× worse</td></tr>
+  <tr><td>18503</td><td>5.72</td><td>1.49</td><td>model 3.8× worse</td></tr>
+  <tr><td>18504</td><td>4.02</td><td>1.77</td><td>model 2.3× worse</td></tr>
+  <tr><td>18505</td><td>7.94</td><td>2.29</td><td>model 3.5× worse</td></tr>
+</tbody>
+</table></div>
+<p>The apparent coherence is <strong>Open-MAGVIT2 codebook redundancy</strong>: on these mostly-dark, low-information
+<code>rbb</code> frames almost any in-distribution token sequence decodes to a plausible-looking plasma image.
+The prediction moves (~0.7× the GT frame-to-frame motion) but moves <em>wrongly</em> — it drifts away from the
+real evolution rather than tracking it. <strong>Verdict: at 1996 training shots the model memorised the training
+set and does not forecast unseen shots.</strong> What the held-out decode proves is narrower but still real — the
+spatiotemporal architecture <em>can</em> emit coherent, full-resolution, plan-conditioned camera video that stays
+stable under autoregressive rollout (night-and-day versus the retired bag-of-channels model). It is a working
+<em>generator</em>; it is not yet a working <em>forecaster</em>. <strong>A pretty GIF is not evidence of
+generalisation — the persistence comparison is.</strong></p>
 
 <figure>
 <img src="/imas-ambix/figures/world-model-demonstration/spacetime-heldout-18502-reconstruction.gif" alt="Held-out shot 18502: GT vs teacher-forced reconstruction, step-3000 checkpoint" width="100%">
 <img src="/imas-ambix/figures/world-model-demonstration/spacetime-heldout-18502-dream.gif" alt="Held-out shot 18502: GT vs autoregressive dream, step-3000 checkpoint" width="100%">
 <figcaption><strong>Figure 6.1 — held-out shot 18502, step-3000 checkpoint (UNSEEN in training).</strong>
 <em>Top:</em> ground truth ∥ teacher-forced reconstruction. <em>Bottom:</em> ground truth ∥ autoregressive
-"dream" (rolling forward from the plan, consuming its own predictions). Coherent plasma structure on a shot the
-model never trained on — boundary, central column, divertor strike-point all on-track across 24 frames; the
-dream stays coherent end-to-end (one transient single-frame hallucination near frame 7). This is the
-generalisation result: a plan-conditioned dreamed camera video on a <em>held-out</em> shot.</figcaption>
+"dream" (rolling forward from the plan, consuming its own predictions). The output <em>looks</em> like coherent
+plasma — but it is <strong>3.5× worse than persistence</strong> (table above): the generator emits stable,
+in-distribution frames, yet the prediction drifts rather than tracking the real evolution. Coherent generation,
+not forecasting.</figcaption>
 </figure>
 
 <figure>
 <img src="/imas-ambix/figures/world-model-demonstration/spacetime-heldout-18503-reconstruction.gif" alt="Held-out shot 18503: GT vs teacher-forced reconstruction, step-3000 checkpoint" width="100%">
 <img src="/imas-ambix/figures/world-model-demonstration/spacetime-heldout-18503-dream.gif" alt="Held-out shot 18503: GT vs autoregressive dream, step-3000 checkpoint" width="100%">
 <figcaption><strong>Figure 6.2 — held-out shot 18503, step-3000 checkpoint (UNSEEN in training).</strong>
-A second held-out example, same layout. Reconstruction and dream are both coherent and structurally faithful
-across the window, confirming the result is not a single lucky shot.</figcaption>
+A second held-out example, same layout and same verdict — coherent-looking, but <strong>3.8× worse than
+persistence</strong>. The negative is consistent across all four held-out shots (18502–18505: 3.5×, 3.8×, 2.3×,
+3.5× worse), so it is the model's behaviour, not a single unlucky shot.</figcaption>
+</figure>
+
+<figure>
+<img src="/imas-ambix/figures/world-model-demonstration/spacetime-heldout-18504-dream.gif" alt="Held-out shot 18504: GT vs autoregressive dream, step-3000 checkpoint" width="100%">
+<img src="/imas-ambix/figures/world-model-demonstration/spacetime-heldout-18505-dream.gif" alt="Held-out shot 18505: GT vs autoregressive dream, step-3000 checkpoint" width="100%">
+<figcaption><strong>Figures 6.3–6.4 — held-out shots 18504 (top) and 18505 (bottom), dream rollout, step-3000.</strong>
+The remaining two held-out shots, on the record for completeness. Same pattern: plausible-looking generated video
+that loses to persistence (2.3× and 3.5× worse). All four unseen shots agree.</figcaption>
 </figure>
 
 <p><strong>Why the step-3000 checkpoint, and the metric-vs-vision caveat.</strong> The training curve tells an
