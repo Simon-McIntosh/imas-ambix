@@ -358,6 +358,21 @@ class SpacetimeTransformer(nn.Module):
         else:
             p = 0
             x = cam
+            if self.has_plan:
+                # No plan in THIS batch, but the model is plan-capable.  Touch the
+                # plan parameters with a zero-magnitude contribution so they stay
+                # in the autograd graph every step.  Under DDP this is essential:
+                # the reducer requires every rank to use the SAME parameter set on
+                # each step — a rank whose shard happens to be all-plan-less would
+                # otherwise leave the plan params grad-less and desynchronise the
+                # ring (hang).  Zero contribution => no change to the prediction.
+                zero = (
+                    self.plan_embed.weight.sum()
+                    + self.plan_channel_embed.sum()
+                    + self.plan_marker.sum()
+                    + self.cam_marker.sum()
+                ) * 0.0
+                x = x + zero
         total_t = x.shape[1]
         if total_t > cfg.max_frames:
             raise ValueError(

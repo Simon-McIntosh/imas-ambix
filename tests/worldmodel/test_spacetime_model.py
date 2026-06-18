@@ -213,3 +213,48 @@ def test_num_parameters_positive():
     assert model.num_parameters() > 0
     # weight tying: head shares the token embedding weight (same storage).
     assert model.head.weight.data_ptr() == model.token_embed.weight.data_ptr()
+
+
+def test_plan_params_get_grad_on_planless_batch():
+    """A plan-capable model must touch ALL plan params even with no plan.
+
+    Under DDP the reducer requires every rank to use the same parameter set on
+    each step.  If a rank's shard is all-plan-less and the plan params get no
+    gradient, the ring desynchronises and hangs.  The model adds a zero-magnitude
+    plan touch so the plan params are always in the graph: the prediction is
+    unchanged (contribution is *0.0) but every plan param receives a (zero)
+    gradient.  Assert the gradients EXIST (are not None) for a plan-less batch.
+    """
+    cfg = _tiny_cfg(plan_channels=2)  # plan-capable
+    model = SpacetimeTransformer(cfg).train()
+    frames = torch.randint(0, cfg.vocab_size, (2, 4, cfg.n_spatial))
+    # empty plan -> _embed_plan returns None -> the zero-touch path must fire.
+    batch = {"frames": frames, "plan": torch.zeros((2, 0, 0), dtype=torch.long)}
+    loss = model(batch, loss_spec={"chunk": 4096, "context_frames": None})
+    loss.backward()
+    for name in ("plan_embed", "plan_channel_embed", "plan_marker", "cam_marker"):
+        param = getattr(model, name)
+        weight = param.weight if hasattr(param, "weight") else param
+        assert weight.grad is not None, (
+            f"{name} got no gradient on a plan-less batch — DDP would hang when a "
+            "rank's shard happens to contain no plan"
+        )
+
+
+def test_planless_zero_touch_does_not_change_prediction():
+    """The zero-magnitude plan touch must not alter the plan-less forward."""
+    cfg = _tiny_cfg(plan_channels=2)
+    model = SpacetimeTransformer(cfg).eval()
+    frames = torch.randint(0, cfg.vocab_size, (2, 4, cfg.n_spatial), generator=None)
+    empty = {"frames": frames, "plan": torch.zeros((2, 0, 0), dtype=torch.long)}
+    with torch.no_grad():
+        h = model._forward_tokens(empty["frames"], empty["plan"])
+    # mutate the plan params; a *0.0 touch means the output is unaffected.
+    with torch.no_grad():
+        model.plan_marker.add_(3.14)
+        model.plan_channel_embed.add_(2.71)
+        h2 = model._forward_tokens(empty["frames"], empty["plan"])
+    assert torch.allclose(h, h2, atol=1e-6), (
+        "plan-less forward changed when plan params changed — the touch is not "
+        "zero-magnitude"
+    )

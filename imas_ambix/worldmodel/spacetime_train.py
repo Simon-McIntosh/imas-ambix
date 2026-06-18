@@ -151,6 +151,29 @@ def _barrier(env: DistEnv) -> None:
         dist.barrier()
 
 
+def _broadcast_int(env: DistEnv, value: int, *, src: int = 0) -> int:
+    """Broadcast an int from ``src`` to all ranks (rank-0 decides, all agree).
+
+    Used so model-shaping quantities computed from a per-rank GPFS probe (e.g.
+    the plan-channel count) are identical on every rank — otherwise a transient
+    per-rank read failure desynchronises the model structure and DDP aborts.
+    Single-proc is a no-op.  The broadcast rides the NCCL group on CUDA but
+    moves through CPU so it works regardless of device placement.
+    """
+    if not env.enabled:
+        return value
+    import torch.distributed as dist
+
+    if not dist.is_initialized():
+        return value
+    t = torch.tensor([int(value)], dtype=torch.long)
+    on_cuda = dist.get_backend() == "nccl" and torch.cuda.is_available()
+    if on_cuda:
+        t = t.cuda(env.local_rank)
+    dist.broadcast(t, src=src)
+    return int(t.item())
+
+
 def _unwrap(model: nn.Module) -> SpacetimeTransformer:
     return getattr(model, "module", model)  # type: ignore[return-value]
 
@@ -636,6 +659,14 @@ def train_corpus(
         raise ValueError("no shot assembled in the probe — cannot size the model")
     plan_ch = _plan_channels_for(probe)
 
+    # The probe is per-rank and reads from shared GPFS; a transient plan-store
+    # read failure on one rank during the cold-start I/O storm would otherwise
+    # give that rank a smaller plan_ch -> a model with a different parameter set
+    # -> DDP's _verify_params_across_processes aborts ("inconsistent params").
+    # Decide plan_ch on rank 0 and broadcast it so EVERY rank builds the exact
+    # same architecture, independent of per-rank probe luck.
+    plan_ch = _broadcast_int(env, plan_ch)
+
     base_model = build_model(
         config.window, plan_channels=plan_ch, **config.model_kwargs
     ).to(dev)
@@ -684,6 +715,12 @@ def train_corpus(
         if dev.type == "cuda":
             ddp_kwargs["device_ids"] = [env.local_rank]
             ddp_kwargs["output_device"] = env.local_rank
+        # The model now touches every plan parameter on every step (see
+        # _forward_tokens' zero-magnitude plan touch), so param usage is uniform
+        # across ranks.  find_unused_parameters stays True as a guard: it makes a
+        # genuinely-unused param a no-op instead of a hang, which is the safe
+        # default while 4-rank DDP is still being shaken out.
+        ddp_kwargs["find_unused_parameters"] = True
         model: nn.Module = DistributedDataParallel(base_model, **ddp_kwargs)
     else:
         model = base_model
