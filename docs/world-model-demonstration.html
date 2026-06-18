@@ -243,20 +243,31 @@ machinery is real and working.</p>
 on average the generated rollout is <em>less</em> accurate than freezing the last observed frame. So we have
 a generative model that can dream, but at this scale its dreams are demo-grade — coherent token streams that
 do not yet track the real plasma's excursions.</p>
-<p>The camera makes this concrete. Below left is a <strong>decoded full-resolution ground-truth</strong>
-<code>rbb</code> camera sequence for a held-out shot (decoded through the same frozen Open-MAGVIT2 VQModel
-the corpus was tokenised with). On the right is what the model actually predicts for the camera — the
-<strong>coarse 4×4 = 16-token subsample</strong>, shown at the token-grid level it operates on (truth |
-model | match). We deliberately do <em>not</em> decode the model's 16-token prediction into a photoreal
-frame: it only sees 1/16 of the spatial tokens, so a "predicted image" would be a fabrication.</p>
+<p><strong>Update — full-resolution camera prediction.</strong> The first pass predicted only a coarse
+4×4 = 16-token subsample of each frame (1/16 of the spatial tokens) — useless as a visual, since 16 tokens
+cannot be decoded into an image. We removed that limitation: the model now predicts the <strong>full
+16×16 = 256 tokens per frame</strong>, made tractable by a <em>chunked cross-entropy</em> head (the
+full-resolution logits, <code>batch × 256 channels × 2<sup>18</sup> vocab</code> ≈ 50 GB, are computed in
+channel-chunks rather than all at once). So the model's own camera prediction now <strong>decodes into a
+real 256² image</strong> through the same frozen Open-MAGVIT2 VQModel — predict-vs-reality, in pixels.</p>
+<p><strong>Honest fidelity (interim, mid-training).</strong> Figure 6 is the live model at <em>step 12,500 of
+20,000</em> — a frozen snapshot of the still-running retrain — on a held-out shot. The pipeline works
+end-to-end: ground truth decodes faithfully, and the model's prediction decodes to a real frame. But the
+camera head is still <strong>under-trained</strong> — the teacher-forced forecast captures gross luminance
+yet washes out the sharp field-line/divertor structure, while the autoregressive <em>dream</em> is actually
+the more structured of the two (a recognisable dark D-shaped boundary and bright interior, still blurry).
+That is exactly consistent with §5 (the model does not yet beat persistence): a genuine generative dreamer
+whose dreams are, today, demo-grade-rough — and we can now <em>watch</em> them sharpen as training proceeds.</p>
 
 <figure>
-<img src="/imas-ambix/figures/world-model-demonstration/camera-gt.gif" alt="Decoded ground-truth rbb camera video" width="48%" style="vertical-align:top">
-<img src="/imas-ambix/figures/world-model-demonstration/camera-pred-vs-truth.gif" alt="Model's coarse camera token prediction vs truth" width="48%" style="vertical-align:top">
-<figcaption><strong>Figure 6.</strong> <em>Left:</em> ground truth — the actual <code>rbb</code> camera,
-decoded at full resolution (256 tokens/frame). <em>Right:</em> the model's prediction at the resolution it
-truly works on — a 4×4 token grid (truth | model | match map). The model's camera skill is ≈0 (it ties
-persistence): it reproduces the slowly-changing background but does not predict the fast structure.</figcaption>
+<img src="/imas-ambix/figures/world-model-demonstration/fullres-reconstruction-interim.gif" alt="GT vs full-res teacher-forced prediction, decoded" width="100%">
+<img src="/imas-ambix/figures/world-model-demonstration/fullres-dream-interim.gif" alt="GT vs full-res autoregressive dream, decoded" width="100%">
+<figcaption><strong>Figure 6 (interim — step 12,500 / 20,000, not final).</strong> Full-resolution
+predict-vs-reality on held-out shot 23735, every frame decoded through the frozen VQModel. <em>Top:</em>
+ground truth ∥ teacher-forced forecast. <em>Bottom:</em> ground truth ∥ autoregressive "dream" (the model
+rolling forward from the pulse-schedule plan, consuming its own predictions). The decode path is faithful;
+the camera head is under-trained at this checkpoint — the dream is plasma-shaped but blurry. The final
+held-out version replaces this when training completes.</figcaption>
 </figure>
 
 <h2 id="s7">§7 — Verdict and the path from demo to fidelity</h2>
