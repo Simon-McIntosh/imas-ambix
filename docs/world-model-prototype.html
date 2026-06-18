@@ -19,8 +19,8 @@
   <title>World-Model Prototype — Plan-Conditioned Multi-Modal Forward Prediction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-17">
-<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-06-18">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -407,11 +407,11 @@ Done-when
   2. Overfit-a-few-shots smoke runs end-to-end on the H200s (loss drops; decoded rollout recognizable).
   3. A predict-vs-reality figure/metric for one held-out shot vs a persistence baseline; followup +
      this one resolved.</pre>
-    <p class="r-fu-outcome">LANDED + verified on the sun CPU partition (commit 00c1589). imas_ambix/worldmodel/{dataset,model,train,eval}.py: the plan-conditioned forward-prediction skeleton runs end-to-end. dataset.py assembles per-shot multi-modal token sequences (L2 measured + xma + one camera) on a common time grid + pulse-schedule (XDC) conditioning, context/target split, routing EVERY input path through store_targets.assert_not_target_path (boundary wired at dataset.py:311/393/603). model.py = plan-conditioned decoder-only Transformer (per-group-local embeddings; plan as prepended conditioning tokens). train.py = next-token NLL + overfit entrypoint; eval.py = autoregressive rollout + skill-vs-persistence. VERIFIED on sun (job 1219283, node 98dci4-clu-3024 — NOT the shared login node, per the lead's directive that CPU-heavy compute goes to a SLURM partition): ruff clean + 9 pytest pass in 5min, including test_input_loader_refuses_target_root_path + test_camera_loader_refuses_target_root (boundary hard-refuses TARGET_ROOT via pytest.raises ValueError), test_overfit_loss_drops_substantially, test_real_shot_overfit_smoke (real on-disk token stores), test_eval_rollout_reports_skill, test_eval_target_reference_is_eval_only. CONTEXT: the original CPU build ran on the login node and was killed by a peer agent; recovered + re-verified on sun. MINOR GAP (the stopped workflow's adversarial-verify phase would have added it): a conditioning-load-bearing mutation test (zero/remove the plan -> output must change) is not yet present — fold into the training run. worldmodel_train.sbatch prepared; full GPU training now UNBLOCKED (node /work restored; 2 H200 free after DSv4 moved to the 2-card variant).</p>
+    <p class="r-fu-outcome">LANDED + verified on the sun CPU partition (commit 00c1589). imas_ambix/worldmodel/{dataset,model,train,eval}.py: the plan-conditioned forward-prediction skeleton runs end-to-end. dataset.py assembles per-shot multi-modal token sequences (L2 measured + xma + one camera) on a common time grid + pulse-schedule (XDC) conditioning, context/target split, routing EVERY input path through store_targets.assert_not_target_path (boundary wired at dataset.py:311/393/603). model.py = plan-conditioned decoder-only Transformer (per-group-local embeddings; plan as prepended conditioning tokens). train.py = next-token NLL + overfit entrypoint; eval.py = autoregressive rollout + skill-vs-persistence. VERIFIED on sun (job 1219283, node 98dci4-clu-3024 — NOT the shared login node, per the lead's directive that CPU-heavy compute goes to a SLURM partition): ruff clean + 9 pytest pass in 5min, including test_input_loader_refuses_target_root_path + test_camera_loader_refuses_target_root (boundary hard-refuses TARGET_ROOT via pytest.raises ValueError), test_overfit_loss_drops_substantially, test_real_shot_overfit_smoke (real on-disk token stores), test_eval_rollout_reports_skill, test_eval_target_reference_is_eval_only. CONTEXT: the original CPU build ran on the login node and was killed by a peer agent; recovered + re-verified on sun. MINOR GAP (the stopped workflow's adversarial-verify phase would have added it): a conditioning-load-bearing mutation test (zero/remove the plan -&gt; output must change) is not yet present — fold into the training run. worldmodel_train.sbatch prepared; full GPU training now UNBLOCKED (node /work restored; 2 H200 free after DSv4 moved to the 2-card variant).</p>
     </article>
-<article class="r-fu" data-id="f-wmp-train" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-17" data-recommends-skill="/reckon-ship world-model-prototype" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-wmp-train" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-17" data-recommends-skill="/reckon-ship world-model-prototype" data-resolved-at="2026-06-18T06:46:45+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Train the plan-conditioned world model on the corpus + report predict-vs-reality skill</h4>
-    <div class="r-fu-body"><p>The skeleton is verified. Run the first real training on the corpus (betelgeuse, the 2 H200 freed by the 2-card DSv4; node /work restored), widen the modality set beyond the L2+xma+one-camera starter, and produce the §5 predict-vs-reality evaluation: forward-predict a held-out shot from its pulse schedule, decode, score per modality at fixed horizons vs persistence, and report the §4 controlled-vs-stochastic decomposition honestly. Add the conditioning-load-bearing mutation test (zero-plan -> output changes) skipped at skeleton stage.</p></div>
+    <div class="r-fu-body"><p>The skeleton is verified. Run the first real training on the corpus (betelgeuse, the 2 H200 freed by the 2-card DSv4; node /work restored), widen the modality set beyond the L2+xma+one-camera starter, and produce the §5 predict-vs-reality evaluation: forward-predict a held-out shot from its pulse schedule, decode, score per modality at fixed horizons vs persistence, and report the §4 controlled-vs-stochastic decomposition honestly. Add the conditioning-load-bearing mutation test (zero-plan -&gt; output changes) skipped at skeleton stage.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    world-model-prototype
 Section: §6/§5
@@ -431,6 +431,56 @@ Done-when
   1. A trained checkpoint on the corpus (widened modalities); training curve + the conditioning mutation test (plan is load-bearing).
   2. Predict-vs-reality eval on held-out shots: per-modality skill at 10/50/200 ms vs persistence, with the controlled-vs-stochastic split reported (no over-claim of ELM timing).
   3. A decoded predict-vs-reality figure for the plan; followup + this one resolved; plan collapsed to a landed summary.</pre>
+    <p class="r-fu-outcome">DEMO LANDED — full account in research doc world-model-demonstration.html (6 figures/GIFs, educational). Trained the plan-conditioned multi-modal world model on the corpus: converged checkpoint worldmodel/ckpt/1219352/latest.pt (step 40000, 1.034B params, loss 6.3-&gt;1.69 plateaued, ~75min on ONE H200 with DSv4 kept up on 2 cards), widened to ALL 14 streams (plan + 5 L2 + xma/xim/xsx + 5 cameras). Predict-vs-reality eval on 8 GENUINELY held-out shots (discovery idx 4000-4007, never trained): overall skill -0.0425 vs persistence — the model LOSES to persistence on average. Honest negative: persistence is near-unbeatable on quasi-stationary signals at the 48-step horizon (consistent with S7/S9). Worst gas_injection -0.39 / summary -0.22 / pf_active -0.08; marginal wins xim +0.014 / xsx +0.005; cameras ~tie (rbb -0.003). PARAM REALITY: 97.5% of params are the 5 cameras' 2^18 lookup tables; the actual transformer is ~14.2M (small). DATA: 3996/15361 shots (26%), camera at 16/256 spatial tokens (1/16). Decoded GT rbb camera via the frozen Open-MAGVIT2 VQModel + coarse token-grid pred-vs-truth + signal traces. Code: imas_ambix/worldmodel/demo_artifacts.py, scripts/figures/wm_demonstration_figs.py (commits e48236e, 69ce8e2, d9a6817). DEFERRED to f-wmp-scale: conditioning mutation test (zero-plan-&gt;output changes), per-horizon 10/50/200ms breakdown, controlled-vs-stochastic split, decoded-value metrics, and the scaling path (bigger backbone, full corpus, full camera resolution).</p>
+    </article>
+<article class="r-fu" data-id="f-wmp-scale" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-18" data-recommends-skill="/reckon-ship world-model-prototype" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Scale the world model from demo to fidelity + add the fairer eval lenses</h4>
+    <div class="r-fu-body"><p>The first demonstration (<a href="world-model-demonstration.html">world-model-demonstration</a>) is a genuine but small-scale prototype that loses to persistence on average (overall -0.043). The diagnosis is clear and actionable: the sequence model is only ~14.2 M parameters (97.5% of the 1.034 B are camera lookup tables), trained on 26% of shots at 1/16 camera spatial resolution, and evaluated with a harsh token-exact metric against a very strong baseline. Scale it and measure it fairly.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    world-model-prototype
+Section: §6/§5 (scale-up)
+Tier:    opus
+
+Context
+  The first end-to-end demo landed (world-model-demonstration.html): converged 1.034B checkpoint, honest predict-vs-reality on held-out shots, overall skill -0.043 (loses to persistence). The 14.2M transformer backbone, 26% corpus, and 16/256 camera tokens are the levers; the token-exact-vs-persistence metric is the harsh lens.
+
+State to read
+  imas_ambix/worldmodel/{dataset,model,train,eval}.py; imas_ambix/worldmodel/demo_artifacts.py; scripts/slurm/worldmodel_train.sbatch; docs/world-model-demonstration.html (§7 scaling path); this plan (§4 capability, §5 eval).
+
+Scope locks / constraints
+  - GPU training on betelgeuse; keep DeepSeek-V4-Flash up unless a genuine ~4-card run is required (it was not for the demo: 1 card saturated via NVMe token cache + prefetch). Drain-safety per AGENTS.md §2a (sidecar on, clean SIGTERM).
+  - In-process GPU pattern (AGENTS.md §2b): model loaded once, cache + prefetch.
+  - Honour the eval-only target boundary + per-group-local vocab.
+
+Done-when
+  1. Larger run: grow the TRANSFORMER backbone (depth/width — not more codebook tables); full 15,361-shot corpus; full-resolution camera tokens (256, not 16); LR schedule + many more steps.
+  2. Conditioning is load-bearing: a mutation test where zeroing/removing the plan provably changes the rollout (deferred from the skeleton).
+  3. Fairer eval lenses: per-modality skill at 10/50/200 ms horizons; controlled-vs-stochastic decomposition; decoded-value (physical-unit) metrics; value-targeted scoring against the eval-only L2 reconstructed-equilibrium targets.
+  4. Fix the degenerate xma size-1 codebook so the stream carries information.
+  5. Re-run predict-vs-reality and report honestly whether the larger model beats persistence; update world-model-demonstration.html with the new numbers; followup + this one resolved; collapse to a landed summary.</pre>
+    </article>
+<article class="r-fu" data-id="f-wmp-spacetime" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-18" data-recommends-skill="/reckon-ship world-model-prototype" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Spatiotemporal camera-video transformer (pivot from the summed model) — corpus run + held-out demo</h4>
+    <div class="r-fu-body"><p><strong>PIVOT (2026-06-18).</strong> The first architecture (imas_ambix/worldmodel/model.py) SUMMED all 256 camera tokens of a frame into one vector before the transformer (bag-of-channels, <code>emb.sum(dim=2)</code>) — it attended over TIME only, never SPACE. You cannot reconstruct an image from an orderless sum of its tokens, so decoded camera predictions were incoherent mush even when overfit (full-res run 1219524 cancelled — more training could not fix an architectural flaw). A second bug fed token-0 PADDING frames (camera records only part of the shot) as data. The signal-level predict-vs-reality eval (old Figs 4-5, overall skill -0.043) was judged not a useful centerpiece.</p><p><strong>New foundation (built + gate-PASSED):</strong> a decoder-only SPATIOTEMPORAL transformer over the frozen Open-MAGVIT2 rbb tokens — every token keeps its identity (value + factorized row/col spatial pos + temporal frame pos), FACTORIZED space-time attention (spatial full within frame ~256², temporal causal across frames ~T²), chunked CE over the 2^18 vocab, pulse-schedule prepended as a conditioning prefix, REAL recorded frames only (no padding fed). ~269M real transformer backbone (d_model=1024, 16 layers). Overfit gate (job 1219723): loss 12.56->0.0045, teacher-forced + dream token mismatch 0.0000 (pixel-exact), dream change 0.99 (evolving). Decoded PNGs viewed by the orchestrator: clearly coherent MAST plasma (central column, divertor lobes, X-points, field-lines) — what the summed model could never do. Commits d9ac327 (architecture+tests, 10/10 pass), d446987 (gate driver + 4-GPU DDP sbatch). 4xH200 DDP corpus run launching (bursts 2 cards into 4-7; DeepSeek keeps its 2 -> 6 of 8).</p><p><strong>The real test ahead:</strong> HELD-OUT generalization — overfit coherence was only the foundation gate. Decode a held-out shot's reconstruction + dream at an intermediate checkpoint (~step 4-6k) to confirm coherence holds on UNSEEN shots before declaring the demo. Camera-focused + plan-conditioned for now; full multi-modal signal fusion deferred (1-2 days, where the subtle bugs live).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    world-model-prototype
+Section: §6 (spatiotemporal pivot)
+Tier:    opus
+
+Context
+  The bag-of-channels summed model produced incoherent camera predictions (architectural, not under-training). Pivoted to a factorized spatiotemporal transformer (per-token spatial+temporal identity); overfit gate PASSED with pixel-exact coherent decoded plasma video. The 4xH200 DDP corpus run is launching.
+
+State to read
+  imas_ambix/worldmodel/spacetime_model.py + spacetime_train.py + spacetime_dream.py; tests/worldmodel/ (spacetime tests); scripts/slurm/spacetime_train_ddp.sbatch; /work/projects/imas_gpu/worldmodel/spacetime_smoke/ (gate PNGs); docs/world-model-demonstration.html.
+
+Scope locks / constraints
+  - 4xH200 DDP on betelgeuse/gpu_0003_grpA; bursts 2 cards into 4-7; keep DeepSeek-V4-Flash (1219365) UP. Drain-safety + SIGTERM-clean + resume-safe per AGENTS.md §2a/§2b.
+  - Frozen Open-MAGVIT2 decode via reconstruction_demo.run_decode_subprocess; real recorded frames only (no token-0 padding).
+
+Done-when
+  1. Corpus run reaches a credible checkpoint; loss descends healthily on the corpus (not just overfit).
+  2. HELD-OUT shot reconstruction + dream decoded and CONFIRMED coherent on UNSEEN shots (the real result) — orchestrator reviews the frames.
+  3. world-model-demonstration.html reframed around the spatiotemporal camera dream (GT vs prediction + dream-from-plan GIFs on held-out shots); old summed-model framing retired; this followup resolved; plan collapsed to a landed summary.</pre>
     </article>
 </section>
 

@@ -234,40 +234,45 @@ true, and both matter:</p>
       checkpoint; they will measure the next, larger one.</li>
 </ul>
 
-<h2 id="s6">§6 — "Can it dream new MAST shots?"</h2>
-<p><strong>Architecturally, yes — and it already does.</strong> The autoregressive rollout in §1 <em>is</em>
-dreaming: from a plan and a short context, the model samples a complete multi-modal token stream forward in
-time. Feed it a different plan and it would generate a different, never-observed shot. The generative
-machinery is real and working.</p>
-<p><strong>But the dreams are not yet faithful.</strong> §5 is exactly the measurement of dream quality:
-on average the generated rollout is <em>less</em> accurate than freezing the last observed frame. So we have
-a generative model that can dream, but at this scale its dreams are demo-grade — coherent token streams that
-do not yet track the real plasma's excursions.</p>
-<p><strong>Update — full-resolution camera prediction.</strong> The first pass predicted only a coarse
-4×4 = 16-token subsample of each frame (1/16 of the spatial tokens) — useless as a visual, since 16 tokens
-cannot be decoded into an image. We removed that limitation: the model now predicts the <strong>full
-16×16 = 256 tokens per frame</strong>, made tractable by a <em>chunked cross-entropy</em> head (the
-full-resolution logits, <code>batch × 256 channels × 2<sup>18</sup> vocab</code> ≈ 50 GB, are computed in
-channel-chunks rather than all at once). So the model's own camera prediction now <strong>decodes into a
-real 256² image</strong> through the same frozen Open-MAGVIT2 VQModel — predict-vs-reality, in pixels.</p>
-<p><strong>Honest fidelity (interim, mid-training).</strong> Figure 6 is the live model at <em>step 12,500 of
-20,000</em> — a frozen snapshot of the still-running retrain — on a held-out shot. The pipeline works
-end-to-end: ground truth decodes faithfully, and the model's prediction decodes to a real frame. But the
-camera head is still <strong>under-trained</strong> — the teacher-forced forecast captures gross luminance
-yet washes out the sharp field-line/divertor structure, while the autoregressive <em>dream</em> is actually
-the more structured of the two (a recognisable dark D-shaped boundary and bright interior, still blurry).
-That is exactly consistent with §5 (the model does not yet beat persistence): a genuine generative dreamer
-whose dreams are, today, demo-grade-rough — and we can now <em>watch</em> them sharpen as training proceeds.</p>
+<h2 id="s6">§6 — "Can it dream new MAST shots?" — the architecture pivot</h2>
+<p><strong>The first design could not, and we found out why.</strong> The original model fused each camera
+frame by <em>summing</em> all 256 of its tokens into one vector before the transformer (a "bag-of-channels"),
+so the network attended over <em>time only, never space</em>. You cannot rebuild an image from an orderless
+sum of its pieces, so the decoded camera predictions were incoherent mush even when the model was overfit —
+an <strong>architectural</strong> flaw, not under-training. (A second bug fed token-0 <em>padding</em> frames,
+from the parts of a shot where the camera is off, as if they were data.) That run was retired.</p>
+<p><strong>The pivot: a spatiotemporal transformer.</strong> The camera tokens are now modelled as what they
+are — a video. A decoder-only transformer runs over the sequence of <em>frames × 256 raster tokens</em>;
+<strong>every token keeps its own identity</strong> (a value embedding + a factorized row/column
+<em>spatial</em> position + a <em>temporal</em> frame position), and attention is <strong>factorized into
+space and time</strong>: full spatial attention <em>within</em> a frame (≈256²) and causal temporal attention
+<em>across</em> frames at each position (≈T²), so cost is ≈ <code>T·256² + 256·T²</code> rather than the
+intractable <code>(256·T)²</code>. The pulse-schedule plan is prepended as conditioning frames; a chunked
+cross-entropy head handles the 2<sup>18</sup>-entry vocabulary without ever materialising the full logits.
+This is the modern, transformer-native pairing for a discrete-token video substrate — no CNN, no spatial
+summing. The backbone is now a real ≈269 M-parameter transformer (not lookup tables).</p>
+<p><strong>Foundation gate — PRE-TRAIN scoping/overfit data (NOT held-out).</strong> Before committing GPU
+hours we ran the decisive test: a correct spatial architecture <em>must</em> reproduce a handful of
+memorised frames near-exactly. We overfit 2 shots; loss fell <strong>12.56 → 0.0045</strong>, and both the
+teacher-forced reconstruction and the autoregressive dream hit <strong>0.0000 token mismatch</strong> (pixel
+exact) with a dream change-fraction of <strong>0.99</strong> (genuinely evolving, not frozen). The decoded
+video below is <strong>coherent</strong> — sharp central column, up/down divertor lobes, bright X-points,
+field-line arcs — exactly what the summed model could never produce.</p>
+<p style="border-left:3px solid #d62728;padding-left:0.8em;color:#444"><strong>Read these honestly:</strong>
+the GIFs below are an <strong>overfit on memorised shots</strong> — they prove the <em>architecture is sound</em>
+(spatial structure survives; the predict→decode→dream pipeline works end-to-end), <strong>not</strong> that the
+model generalises. Generalisation — coherence on <em>unseen</em> shots — is measured by the 4×H200 corpus run
+now training, and that held-out result will replace these figures when it lands.</p>
 
 <figure>
-<img src="/imas-ambix/figures/world-model-demonstration/fullres-reconstruction-interim.gif" alt="GT vs full-res teacher-forced prediction, decoded" width="100%">
-<img src="/imas-ambix/figures/world-model-demonstration/fullres-dream-interim.gif" alt="GT vs full-res autoregressive dream, decoded" width="100%">
-<figcaption><strong>Figure 6 (interim — step 12,500 / 20,000, not final).</strong> Full-resolution
-predict-vs-reality on held-out shot 23735, every frame decoded through the frozen VQModel. <em>Top:</em>
-ground truth ∥ teacher-forced forecast. <em>Bottom:</em> ground truth ∥ autoregressive "dream" (the model
-rolling forward from the pulse-schedule plan, consuming its own predictions). The decode path is faithful;
-the camera head is under-trained at this checkpoint — the dream is plasma-shaped but blurry. The final
-held-out version replaces this when training completes.</figcaption>
+<img src="/imas-ambix/figures/world-model-demonstration/spacetime-overfit-reconstruction.gif" alt="Overfit: GT vs teacher-forced reconstruction, spatiotemporal model" width="100%">
+<img src="/imas-ambix/figures/world-model-demonstration/spacetime-overfit-dream.gif" alt="Overfit: GT vs autoregressive dream, spatiotemporal model" width="100%">
+<figcaption><strong>Figure 6 — foundation gate (PRE-TRAIN overfit, shot 24065, memorised — not held-out).</strong>
+Spatiotemporal camera transformer, every frame decoded through the frozen Open-MAGVIT2 VQModel.
+<em>Top:</em> ground truth ∥ teacher-forced reconstruction. <em>Bottom:</em> ground truth ∥ autoregressive
+"dream" (rolling forward from the plan, consuming its own predictions). Pixel-exact and coherent across the
+window — this validates the architecture (per-token spatial+temporal identity + factorized space-time
+attention). The honest result — coherence on <em>unseen</em> shots — comes from the corpus run in training.</figcaption>
 </figure>
 
 <h2 id="s7">§7 — Verdict and the path from demo to fidelity</h2>
