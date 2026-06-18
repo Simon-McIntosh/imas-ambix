@@ -517,27 +517,118 @@ class WorldModel(nn.Module):
         per_ch = obs_hidden.unsqueeze(2) + query
         return self.heads[name](per_ch)  # (B, obs_len, n_ch_slice, vocab)
 
-    def forward(self, batch: dict, *, return_logits: bool = True) -> WorldModelOutput:
+    def chunked_nll(
+        self,
+        obs_hidden: torch.Tensor,
+        batch: dict,
+        obs_names: Sequence[str],
+        *,
+        target_only: bool = False,
+        chunk_channels: int = 16,
+    ) -> torch.Tensor:
+        """Masked teacher-forced next-token NLL, computed channel-chunk at a time.
+
+        Numerically EQUAL to building the full per-channel logits and taking the
+        per-modality ``cross_entropy(reduction="mean")`` over the valid
+        (position, channel) pairs, then the mean over modalities — but the
+        per-channel logits are built one channel-chunk at a time (via
+        :meth:`channel_logits`) and freed before the next chunk, so peak head
+        memory is ``~chunk_channels × vocab`` not ``n_channels × vocab`` (the
+        ~50 GB wall at the full-resolution camera's 256 channels × 2^18 vocab).
+
+        ``obs_hidden`` is ``(B, obs_len, d)`` from :meth:`encode`.  The
+        mean-over-valid identity is preserved exactly: per modality the
+        per-element NLL is accumulated with ``reduction="sum"`` over chunks plus
+        the total valid count, then divided once.  This lives ON the model so
+        the loss is produced INSIDE :meth:`forward` (``loss_spec``), which is
+        what lets a ``DistributedDataParallel`` wrapper see the full
+        backbone+head autograd graph and all-reduce every gradient.
+        """
+        ce = nn.functional.cross_entropy
+        ctx = int(batch["context_steps"])
+        total = torch.zeros((), dtype=torch.float32, device=obs_hidden.device)
+        n_terms = 0
+        obs_len = obs_hidden.shape[1]
+        for name in obs_names:
+            tgt = batch["tokens"][name]  # (B, T, C)
+            val = batch["valid"][name]  # (B, T, C)
+            fixed_ch = int(self.channel_query[name].shape[0])
+            in_ch = int(tgt.shape[2])
+            n_ch = min(in_ch, fixed_ch)
+            if n_ch < 1:
+                continue
+            t = min(obs_len, int(tgt.shape[1]))
+            if t < 2:
+                continue
+            target_all = tgt[:, 1:t, :n_ch]  # (B, T-1, n_ch)
+            tvalid_all = val[:, 1:t, :n_ch]  # (B, T-1, n_ch)
+            if target_only:
+                step_idx = torch.arange(1, t, device=obs_hidden.device)
+                in_target = (step_idx >= ctx).view(1, -1, 1)
+                tvalid_all = tvalid_all & in_target
+            n_valid = int(tvalid_all.sum())
+            if n_valid == 0:
+                continue
+            hidden_pred = obs_hidden[:, : t - 1]  # (B, T-1, d)
+            mod_sum = torch.zeros((), dtype=torch.float32, device=obs_hidden.device)
+            chunk = max(1, int(chunk_channels))
+            for cs in range(0, n_ch, chunk):
+                ce_stop = min(cs + chunk, n_ch)
+                lg = self.channel_logits(
+                    hidden_pred, name, ch_start=cs, ch_stop=ce_stop
+                )
+                v = lg.shape[-1]
+                tgt_c = target_all[:, :, cs:ce_stop]
+                val_c = tvalid_all[:, :, cs:ce_stop]
+                flat_pred = lg.reshape(-1, v)
+                flat_tgt = tgt_c.reshape(-1)
+                flat_mask = val_c.reshape(-1)
+                if flat_mask.any():
+                    mod_sum = mod_sum + ce(
+                        flat_pred[flat_mask], flat_tgt[flat_mask], reduction="sum"
+                    )
+                del lg
+            total = total + mod_sum / n_valid
+            n_terms += 1
+        if n_terms == 0:
+            raise ValueError("no valid target positions in batch — cannot compute NLL")
+        return total / n_terms
+
+    def forward(
+        self,
+        batch: dict,
+        *,
+        return_logits: bool = True,
+        loss_spec: dict | None = None,
+    ) -> WorldModelOutput | torch.Tensor:
         """Teacher-forced forward pass.
 
-        Runs the backbone (:meth:`encode`) and, when ``return_logits`` is True
-        (the default — small modalities, tests, and the eval skill path),
-        materialises the full per-channel next-token logits for every
-        observation modality.  Position ``t`` predicts the observation token at
-        grid step ``t`` from the plan prefix + observation steps ``< t``.
+        Three modes, all running the backbone (:meth:`encode`) once:
 
-        When ``return_logits`` is False the all-channel logits are NOT built —
-        only ``obs_hidden`` is returned in the :class:`WorldModelOutput`, so a
-        caller (the chunked cross-entropy / chunked argmax) can apply the head
-        one channel-chunk at a time and never materialise the
-        ``(B, T, n_channels, vocab)`` tensor that is the full-resolution memory
-        wall.
-
-        Returns a :class:`WorldModelOutput` carrying ``obs_hidden`` always and
-        ``logits`` only when ``return_logits`` is True.
+        * ``loss_spec`` given — return the scalar CHUNKED next-token NLL
+          (:meth:`chunked_nll`) computed INSIDE this forward.  This is the DDP
+          path: a ``DistributedDataParallel`` wrapper drives ``forward``, so
+          producing the loss here lets DDP's reducer see the full
+          backbone+head graph and all-reduce every gradient.  ``loss_spec`` is
+          ``{"obs_names": [...], "target_only": bool, "chunk_channels": int}``.
+        * ``return_logits`` True (default — small modalities, tests, the eval
+          skill path) — materialise the full per-channel next-token logits for
+          every observation modality and return them in a
+          :class:`WorldModelOutput`.
+        * ``return_logits`` False — return only ``obs_hidden`` (no all-channel
+          logits), so a caller can apply the head channel-chunk at a time.
         """
         tokens = batch["tokens"]
         obs_hidden = self.encode(batch)
+
+        if loss_spec is not None:
+            return self.chunked_nll(
+                obs_hidden,
+                batch,
+                loss_spec["obs_names"],
+                target_only=bool(loss_spec.get("target_only", False)),
+                chunk_channels=int(loss_spec.get("chunk_channels", 16)),
+            )
 
         if not return_logits:
             return WorldModelOutput(logits={}, obs_hidden=obs_hidden)

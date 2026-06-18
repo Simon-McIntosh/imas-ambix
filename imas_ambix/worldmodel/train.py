@@ -63,6 +63,134 @@ DEFAULT_CKPT_ROOT = Path("/work/projects/imas_gpu/worldmodel/ckpt")
 
 
 # ---------------------------------------------------------------------------
+# Distributed data-parallel (DDP) — opt-in via the launcher, never a rewrite
+# ---------------------------------------------------------------------------
+#
+# The single-device path is the DEFAULT and is UNCHANGED: when the run is not
+# launched under torchrun / SLURM-distributed (``WORLD_SIZE`` unset or == 1),
+# ``DistEnv.from_environment`` reports ``world_size == 1`` and every DDP branch
+# in ``train_corpus`` is a no-op (no process group, no wrapper, no sampler).
+# Multi-GPU is opted into ONLY by the launch (``torchrun --nproc_per_node=2``),
+# which sets RANK / LOCAL_RANK / WORLD_SIZE; each rank then pins its own card,
+# trains a DISJOINT shard (DistributedSampler), and only RANK 0 logs /
+# checkpoints / evals.  Every rank hits every collective symmetrically — a
+# rank-asymmetric collective desynchronises the NCCL ring and hangs the job
+# (AGENTS.md §2a), so the barriers below are placed on ALL ranks.
+
+
+@dataclass
+class DistEnv:
+    """Resolved distributed-launch environment (single-proc when not launched).
+
+    Attributes
+    ----------
+    rank:
+        Global process rank (0 when single-proc).
+    local_rank:
+        Node-local rank == the GPU index this process pins (0 when single-proc).
+    world_size:
+        Total process count (1 when single-proc — the default single-device
+        path).
+    """
+
+    rank: int = 0
+    local_rank: int = 0
+    world_size: int = 1
+
+    @property
+    def enabled(self) -> bool:
+        """True only under a real multi-process launch (world_size > 1)."""
+        return self.world_size > 1
+
+    @property
+    def is_main(self) -> bool:
+        """RANK 0 — the only rank that logs / checkpoints / evals."""
+        return self.rank == 0
+
+    @classmethod
+    def from_environment(cls) -> DistEnv:
+        """Read RANK / LOCAL_RANK / WORLD_SIZE from the launcher env.
+
+        torchrun and SLURM set these; absent (or WORLD_SIZE == 1) means the
+        ordinary single-device run — the back-compat default.
+        """
+        ws = int(os.environ.get("WORLD_SIZE", "1"))
+        if ws <= 1:
+            return cls(rank=0, local_rank=0, world_size=1)
+        return cls(
+            rank=int(os.environ.get("RANK", "0")),
+            local_rank=int(os.environ.get("LOCAL_RANK", "0")),
+            world_size=ws,
+        )
+
+
+def init_distributed(dist_env: DistEnv) -> None:
+    """Init the NCCL process group + pin this rank's GPU (no-op single-proc).
+
+    Called once per process before the model is built.  On CUDA each rank pins
+    ``cuda:local_rank`` so DDP's allreduce and the per-rank DataLoader land on
+    the right card.  A no-op when ``not dist_env.enabled``.
+    """
+    if not dist_env.enabled:
+        return
+    import torch.distributed as dist
+
+    if torch.cuda.is_available():
+        torch.cuda.set_device(dist_env.local_rank)
+        backend = "nccl"
+    else:  # CPU integration/smoke fallback (gloo) — keeps the path testable
+        backend = "gloo"
+    if not dist.is_initialized():
+        dist.init_process_group(backend=backend)
+    logger.info(
+        "DDP init: rank %d/%d local_rank %d backend %s",
+        dist_env.rank,
+        dist_env.world_size,
+        dist_env.local_rank,
+        backend,
+    )
+
+
+def shutdown_distributed(dist_env: DistEnv) -> None:
+    """Destroy the process group (no-op single-proc).  Always safe to call."""
+    if not dist_env.enabled:
+        return
+    import torch.distributed as dist
+
+    if dist.is_initialized():
+        try:
+            dist.barrier()
+        except Exception as exc:  # noqa: BLE001 — teardown must not raise
+            logger.warning("DDP final barrier note: %r", exc)
+        dist.destroy_process_group()
+
+
+def _barrier(dist_env: DistEnv) -> None:
+    """Symmetric barrier across ALL ranks (no-op single-proc).
+
+    MUST be reached by every rank — an asymmetric call hangs the NCCL ring
+    (AGENTS.md §2a).  Callers place it identically on every rank.
+    """
+    if not dist_env.enabled:
+        return
+    import torch.distributed as dist
+
+    if dist.is_initialized():
+        dist.barrier()
+
+
+def _unwrap(model: nn.Module) -> WorldModel:
+    """Return the underlying :class:`WorldModel`, through a DDP wrapper if any.
+
+    ``encode`` / ``channel_logits`` / ``channel_query`` live on the
+    ``WorldModel`` itself; DDP wraps only ``forward``, so the chunked loss path
+    (which calls ``encode`` directly) must reach the inner module.  Works
+    whether ``model`` is a bare ``WorldModel`` or a ``DistributedDataParallel``.
+    """
+    return getattr(model, "module", model)  # type: ignore[return-value]
+
+
+# ---------------------------------------------------------------------------
 # Stop-flag (clean cancellation — repo GPU-safety pattern)
 # ---------------------------------------------------------------------------
 
@@ -250,78 +378,24 @@ def chunked_next_token_nll(
 ) -> torch.Tensor:
     """Masked teacher-forced next-token NLL computed CHANNEL-CHUNK at a time.
 
-    Numerically EQUAL to :func:`next_token_nll` (same per-modality
-    ``cross_entropy(reduction="mean")`` over the valid (position, channel)
-    pairs, then the mean over modalities), but the per-channel logits are
-    built one channel-chunk at a time via :meth:`WorldModel.channel_logits`
-    and freed before the next chunk.  Peak head memory is therefore
-    ``~chunk_channels × vocab`` instead of ``n_channels × vocab`` — the only
-    way the full-resolution rbb head (256 channels × 2^18 vocab) fits on one
-    GPU.
-
-    The mean-over-valid-elements identity is preserved exactly: per modality we
-    accumulate the SUM of the per-element NLL over chunks (``reduction="sum"``)
-    plus the total valid count, then divide once at the end — algebraically
-    identical to ``reduction="mean"`` over the whole modality.
-
-    ``obs_hidden`` is ``(B, obs_len, d)`` from :meth:`WorldModel.encode`.  The
-    head is applied to the shared step state, so a chunk's logits at step ``t``
-    predict step ``t+1`` exactly as the full forward does.
+    Thin wrapper around :meth:`WorldModel.chunked_nll` (the single source of
+    truth for the numerics) — kept as a module-level function so the overfit
+    smoke + the equivalence tests call it directly.  Numerically EQUAL to
+    :func:`next_token_nll` (the per-modality ``cross_entropy(reduction="mean")``
+    over the valid (position, channel) pairs, then the mean over modalities),
+    but the per-channel logits are built one channel-chunk at a time and freed,
+    so peak head memory is ``~chunk_channels × vocab`` not
+    ``n_channels × vocab`` — the only way the full-resolution rbb head (256
+    channels × 2^18 vocab) fits.  ``model`` is the unwrapped :class:`WorldModel`
+    (see :func:`_unwrap` under DDP).
     """
-    ce = nn.functional.cross_entropy
-    ctx = int(batch["context_steps"])
-    total = torch.zeros((), dtype=torch.float32, device=obs_hidden.device)
-    n_terms = 0
-    obs_len = obs_hidden.shape[1]
-    for name in obs_names:
-        tgt = batch["tokens"][name]  # (B, T, C)
-        val = batch["valid"][name]  # (B, T, C)
-        fixed_ch = int(model.channel_query[name].shape[0])
-        in_ch = int(tgt.shape[2])
-        n_ch = min(in_ch, fixed_ch)
-        if n_ch < 1:
-            continue
-        # next-token alignment: logits at obs step t predict the token at t+1.
-        # obs_hidden spans the obs steps; logits at [0, obs_len-1) predict the
-        # targets at [1, obs_len).  Cap to the available target steps too.
-        t = min(obs_len, int(tgt.shape[1]))
-        if t < 2:
-            continue
-        target_all = tgt[:, 1:t, :n_ch]  # (B, T-1, n_ch)
-        tvalid_all = val[:, 1:t, :n_ch]  # (B, T-1, n_ch)
-        if target_only:
-            step_idx = torch.arange(1, t, device=obs_hidden.device)
-            in_target = (step_idx >= ctx).view(1, -1, 1)
-            tvalid_all = tvalid_all & in_target
-        # total valid count for this modality (drives the divisor — the SAME
-        # denominator a single reduction="mean" over all channels would use).
-        n_valid = int(tvalid_all.sum())
-        if n_valid == 0:
-            continue
-        # the hidden states that produce the next-token logits: step t predicts
-        # t+1, so the predicting positions are obs steps [0, t-1).
-        hidden_pred = obs_hidden[:, : t - 1]  # (B, T-1, d)
-        mod_sum = torch.zeros((), dtype=torch.float32, device=obs_hidden.device)
-        for cs in range(0, n_ch, max(1, int(chunk_channels))):
-            ce_stop = min(cs + max(1, int(chunk_channels)), n_ch)
-            # (B, T-1, chunk, V) — only this chunk's logits ever exist
-            lg = model.channel_logits(hidden_pred, name, ch_start=cs, ch_stop=ce_stop)
-            v = lg.shape[-1]
-            tgt_c = target_all[:, :, cs:ce_stop]  # (B, T-1, chunk)
-            val_c = tvalid_all[:, :, cs:ce_stop]  # (B, T-1, chunk)
-            flat_pred = lg.reshape(-1, v)
-            flat_tgt = tgt_c.reshape(-1)
-            flat_mask = val_c.reshape(-1)
-            if flat_mask.any():
-                mod_sum = mod_sum + ce(
-                    flat_pred[flat_mask], flat_tgt[flat_mask], reduction="sum"
-                )
-            del lg
-        total = total + mod_sum / n_valid
-        n_terms += 1
-    if n_terms == 0:
-        raise ValueError("no valid target positions in batch — cannot compute NLL")
-    return total / n_terms
+    return _unwrap(model).chunked_nll(
+        obs_hidden,
+        batch,
+        obs_names,
+        target_only=target_only,
+        chunk_channels=chunk_channels,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -832,8 +906,15 @@ def train_corpus(
     out_dir = Path(out_dir) if out_dir is not None else _default_out_dir()
     _set_determinism(config.seed)
 
+    # ── Distributed-launch detection (opt-in; single-proc default unchanged) ──
+    dist_env = DistEnv.from_environment()
+    init_distributed(dist_env)
+
     if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # each rank pins its OWN card (cuda:local_rank); single-proc -> cuda:0
+        device = (
+            f"cuda:{dist_env.local_rank}" if torch.cuda.is_available() else "cpu"
+        )
     dev = torch.device(device)
 
     stop = _StopFlag()
@@ -859,50 +940,88 @@ def train_corpus(
     if not plan_names or not obs_names:
         raise ValueError("probe found no common plan+obs modalities across the corpus")
 
-    model = _build_corpus_model(kept, channels, config.window, **config.model_kwargs)
-    model.to(dev)
+    base_model = _build_corpus_model(
+        kept, channels, config.window, **config.model_kwargs
+    )
+    base_model.to(dev)
     # Log the resolved backbone size + parameter budget at STARTUP (before the
     # loop) so a scaled run is auditable from the first line — the documented
     # contract is that the param count and context length are the LIVE numbers,
-    # never guessed (model.num_parameters / model.context_length).
-    logger.info(
-        "model built on %s: d_model=%d n_layers=%d n_heads=%d d_ff=%d dropout=%.3g | "
-        "params=%d (%.2fM) ctx_len=%d | modalities=%s channels=%s",
-        dev,
-        model.config.d_model,
-        model.config.n_layers,
-        model.config.n_heads,
-        model.config.d_ff,
-        model.config.dropout,
-        model.num_parameters(),
-        model.num_parameters() / 1e6,
-        model.context_length(),
-        [m.name for m in kept],
-        {k: int(v) for k, v in channels.items()},
-    )
-    opt = torch.optim.AdamW(
-        model.parameters(), lr=config.lr, weight_decay=config.weight_decay
-    )
+    # never guessed (model.num_parameters / model.context_length).  Rank-0 only.
+    if dist_env.is_main:
+        logger.info(
+            "model built on %s: d_model=%d n_layers=%d n_heads=%d d_ff=%d "
+            "dropout=%.3g | params=%d (%.2fM) ctx_len=%d | world_size=%d "
+            "modalities=%s channels=%s",
+            dev,
+            base_model.config.d_model,
+            base_model.config.n_layers,
+            base_model.config.n_heads,
+            base_model.config.d_ff,
+            base_model.config.dropout,
+            base_model.num_parameters(),
+            base_model.num_parameters() / 1e6,
+            base_model.context_length(),
+            dist_env.world_size,
+            [m.name for m in kept],
+            {k: int(v) for k, v in channels.items()},
+        )
 
     # ── Resume from the latest checkpoint, if present ───────────────────────
+    # Load into the BASE model BEFORE the DDP wrap so every rank starts from the
+    # same weights (DDP broadcasts rank-0's state at construction anyway, but
+    # loading on all ranks keeps the optimiser-state load symmetric).
     start_step = 0
     eval_skills: list[tuple[int, float]] = []
+    opt = torch.optim.AdamW(
+        base_model.parameters(), lr=config.lr, weight_decay=config.weight_decay
+    )
     if resume:
         latest = find_latest_checkpoint(out_dir)
         if latest is not None:
             payload = load_checkpoint(latest)
             try:
-                model.load_state_dict(payload["model_state_dict"])
+                base_model.load_state_dict(payload["model_state_dict"])
                 if payload.get("optimizer_state_dict") is not None:
                     opt.load_state_dict(payload["optimizer_state_dict"])
                 start_step = int(payload.get("step", 0))
                 eval_skills = list(payload.get("extra", {}).get("eval_skills", []))
-                logger.info("RESUMED from %s at step %d", latest, start_step)
+                if dist_env.is_main:
+                    logger.info("RESUMED from %s at step %d", latest, start_step)
             except (KeyError, RuntimeError, ValueError) as exc:
-                logger.warning(
-                    "checkpoint %s incompatible (%r) — starting fresh", latest, exc
-                )
+                if dist_env.is_main:
+                    logger.warning(
+                        "checkpoint %s incompatible (%r) — starting fresh",
+                        latest,
+                        exc,
+                    )
                 start_step = 0
+
+    # ── Wrap in DDP (data-parallel) when launched multi-process ─────────────
+    # DDP wraps forward + all-reduces grads; the chunked loss path calls
+    # ``encode`` on the UNWRAPPED model (``_unwrap``), so the backbone forward
+    # still runs through DDP's autograd hooks via the loss .backward().  The
+    # single-proc path leaves ``model`` as the bare WorldModel (no wrapper).
+    if dist_env.enabled:
+        from torch.nn.parallel import DistributedDataParallel
+
+        # find_unused_parameters=True is REQUIRED here: per shot only the
+        # modalities actually present receive a gradient (an absent camera /
+        # HF stream is an all-PAD, masked block → its head + channel_query get
+        # NO grad that step), and the DistributedSampler gives each rank a
+        # DIFFERENT shot shard, so DIFFERENT params are unused on each rank.
+        # Without this flag DDP's reducer raises "Expected to have finished
+        # reduction in the prior iteration" because it expects every param to
+        # participate every iteration.  The flag makes the reducer mark the
+        # unused params ready so the all-reduce completes symmetrically.
+        ddp_kwargs: dict = {"find_unused_parameters": True}
+        if dev.type == "cuda":
+            ddp_kwargs["device_ids"] = [dist_env.local_rank]
+            ddp_kwargs["output_device"] = dist_env.local_rank
+        model: nn.Module = DistributedDataParallel(base_model, **ddp_kwargs)
+    else:
+        model = base_model
+    core = _unwrap(model)  # the WorldModel, for encode / channel_query / config
 
     # ── DataLoader over MANY distinct shots ─────────────────────────────────
     # The assembled-sample cache (opt-in via cache_dir / WM_CACHE_DIR) lets the
@@ -922,6 +1041,26 @@ def train_corpus(
     def _collate(batch):  # noqa: ANN001, ANN202
         return _wm_collate_fn(batch, obs_names, plan_names, chan)
 
+    # ── Per-rank sharding (DDP) — each rank trains a DISJOINT shot shard ──────
+    # The DistributedSampler partitions the shot list across ranks so no shot is
+    # trained twice per epoch; set_epoch (below) reshuffles each cycle.  The
+    # per-rank DataLoader + the node-local NVMe cache + the CUDA prefetcher are
+    # UNCHANGED — each rank has its own loader; the cache on /scratch_local is
+    # shared and atomic (os.replace), and the disjoint shards mean ranks mostly
+    # populate DISJOINT cache entries (a concurrent same-shot write across ranks
+    # just overwrites byte-identically — no torn read).  Single-proc keeps the
+    # legacy shuffle=True loader.
+    sampler = None
+    if dist_env.enabled:
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset,
+            num_replicas=dist_env.world_size,
+            rank=dist_env.rank,
+            shuffle=True,
+            seed=config.seed,
+            drop_last=False,
+        )
+
     # Keep the worker pool + the node-local NVMe cache WARM across epochs and
     # let the loader run ahead of the GPU: persistent_workers avoids re-forking
     # (and re-warming the cache) every epoch, prefetch_factor builds a backlog of
@@ -932,7 +1071,10 @@ def train_corpus(
     loader_kwargs: dict = dict(
         dataset=dataset,
         batch_size=config.batch_size,
-        shuffle=True,
+        # a sampler is mutually exclusive with shuffle — the DistributedSampler
+        # owns shuffling under DDP; the single-proc loader keeps shuffle=True.
+        shuffle=(sampler is None),
+        sampler=sampler,
         num_workers=config.num_workers,
         collate_fn=_collate,
         drop_last=False,
@@ -959,27 +1101,33 @@ def train_corpus(
     step = start_step
     ckpt_path: Path | None = find_latest_checkpoint(out_dir) if resume else None
     t_last = time.time()
+    epoch = 0
     try:
         done = False
         while not done:
+            # reshuffle the per-rank shard each pass (DDP requirement) so a long
+            # run does not see the same shard order every cycle; no-op single-proc.
+            if sampler is not None:
+                sampler.set_epoch(epoch)
+            epoch += 1
             for batch in prefetcher:
                 if stop.stop or step >= config.steps:
                     done = True
                     break
                 opt.zero_grad(set_to_none=True)
-                # Memory-safe path: run the backbone once (cheap obs_hidden),
-                # then accumulate the loss CHANNEL-CHUNK at a time so the
-                # full-resolution camera head (256 ch × 2^18 vocab) never
-                # materialises all-channel logits.  Numerically identical to
-                # next_token_nll on the full logits.
-                obs_hidden = model.encode(batch)
-                loss = chunked_next_token_nll(
-                    model,
-                    obs_hidden,
+                # Memory-safe path: the CHUNKED next-token NLL is computed
+                # INSIDE forward (loss_spec) so the full-resolution camera head
+                # (256 ch × 2^18 vocab) never materialises all-channel logits
+                # AND a DDP wrapper drives forward — letting its reducer see the
+                # full backbone+head autograd graph and all-reduce every grad.
+                # Single-proc: ``model`` is the bare WorldModel; identical loss.
+                loss = model(
                     batch,
-                    obs_names,
-                    target_only=True,
-                    chunk_channels=config.loss_chunk_channels,
+                    loss_spec={
+                        "obs_names": obs_names,
+                        "target_only": True,
+                        "chunk_channels": config.loss_chunk_channels,
+                    },
                 )
                 loss.backward()
                 if config.grad_clip > 0:
@@ -988,68 +1136,87 @@ def train_corpus(
                 losses.append(float(loss.detach()))
                 step += 1
 
-                if step % config.log_every == 0 or step == config.steps:
+                if dist_env.is_main and (
+                    step % config.log_every == 0 or step == config.steps
+                ):
                     rate = config.log_every / max(time.time() - t_last, 1e-6)
                     t_last = time.time()
                     logger.info(
-                        "corpus step %d/%d loss=%.4f (%.2f steps/s)",
+                        "corpus step %d/%d loss=%.4f (%.2f steps/s, world=%d)",
                         step,
                         config.steps,
                         losses[-1],
                         rate,
+                        dist_env.world_size,
                     )
 
                 if config.ckpt_every > 0 and step % config.ckpt_every == 0:
-                    ckpt_path = save_checkpoint(
-                        out_dir,
-                        model=model,
-                        optimizer=opt,
-                        step=step,
-                        window=config.window,
-                        extra={"eval_skills": eval_skills},
-                    )
-                    logger.info("checkpoint saved at step %d -> %s", step, ckpt_path)
+                    # Symmetric barrier so no rank races ahead while rank-0
+                    # writes; rank-0 ONLY writes (the unwrapped model's weights).
+                    _barrier(dist_env)
+                    if dist_env.is_main:
+                        ckpt_path = save_checkpoint(
+                            out_dir,
+                            model=core,
+                            optimizer=opt,
+                            step=step,
+                            window=config.window,
+                            extra={"eval_skills": eval_skills},
+                        )
+                        logger.info(
+                            "checkpoint saved at step %d -> %s", step, ckpt_path
+                        )
+                    _barrier(dist_env)
 
                 if (
                     config.eval_every > 0
                     and step % config.eval_every == 0
                     and eval_shot_ids
                 ):
-                    mean_skill = _run_periodic_eval(
-                        model,
-                        eval_shot_ids,
-                        kept,
-                        config.window,
-                        token_root=token_root,
-                        level1_dir=level1_dir,
-                        n=config.n_eval_shots,
-                    )
-                    eval_skills.append((step, mean_skill))
-                    logger.info(
-                        "EVAL @ step %d: mean token-skill vs persistence = %+.4f",
-                        step,
-                        mean_skill,
-                    )
+                    # rank-0 ONLY evals (a clone on CPU); other ranks wait at the
+                    # barrier so the collective ring stays symmetric.
+                    _barrier(dist_env)
+                    if dist_env.is_main:
+                        mean_skill = _run_periodic_eval(
+                            core,
+                            eval_shot_ids,
+                            kept,
+                            config.window,
+                            token_root=token_root,
+                            level1_dir=level1_dir,
+                            n=config.n_eval_shots,
+                        )
+                        eval_skills.append((step, mean_skill))
+                        logger.info(
+                            "EVAL @ step %d: mean token-skill vs persistence = %+.4f",
+                            step,
+                            mean_skill,
+                        )
                     model.train()
+                    _barrier(dist_env)
 
         # ── Final checkpoint (always — including on STOP) ───────────────────
-        ckpt_path = save_checkpoint(
-            out_dir,
-            model=model,
-            optimizer=opt,
-            step=step,
-            window=config.window,
-            extra={"eval_skills": eval_skills},
-        )
-        logger.info("final checkpoint at step %d -> %s", step, ckpt_path)
+        # rank-0 ONLY; barrier so every rank reaches the same point before/after.
+        _barrier(dist_env)
+        if dist_env.is_main:
+            ckpt_path = save_checkpoint(
+                out_dir,
+                model=core,
+                optimizer=opt,
+                step=step,
+                window=config.window,
+                extra={"eval_skills": eval_skills},
+            )
+            logger.info("final checkpoint at step %d -> %s", step, ckpt_path)
+        _barrier(dist_env)
 
         result = CorpusTrainResult(
             steps_run=step - start_step,
             initial_loss=losses[0] if losses else float("nan"),
             final_loss=losses[-1] if losses else float("nan"),
             losses=losses,
-            n_parameters=model.num_parameters(),
-            context_length=model.context_length(),
+            n_parameters=core.num_parameters(),
+            context_length=core.context_length(),
             n_train_shots=len(dataset),
             n_eval_shots=len(eval_shot_ids or []),
             eval_skills=eval_skills,
@@ -1059,6 +1226,7 @@ def train_corpus(
         del model
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        shutdown_distributed(dist_env)
     return result
 
 
@@ -1377,6 +1545,7 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         num_workers=args.num_workers,
         n_eval_shots=args.n_eval_shots,
         prefetch_factor=args.prefetch_factor,
+        loss_chunk_channels=args.loss_chunk_channels,
         window=WorldModelWindowConfig(
             n_steps=args.n_steps, context_steps=args.context_steps
         ),
@@ -1453,6 +1622,14 @@ def main(argv: list[str] | None = None) -> int:
         default=4,
         help="DataLoader batches each worker stages ahead (>=4 floor; "
         "ignored when --num-workers 0)",
+    )
+    pc.add_argument(
+        "--loss-chunk-channels",
+        type=int,
+        default=16,
+        help="channel-chunk size for the chunked next-token NLL (peak head "
+        "memory ~chunk*vocab). Larger = faster when memory allows (e.g. the "
+        "full-res rbb head on a half-empty card); smaller = leaner.",
     )
     pc.add_argument("--out-dir", default=None, help="checkpoint dir (default GPFS)")
     pc.add_argument("--token-root", default=None)
