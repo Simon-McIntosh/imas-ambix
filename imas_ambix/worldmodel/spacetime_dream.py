@@ -166,6 +166,47 @@ def run_phase_a(
 
 
 # ---------------------------------------------------------------------------
+# Pixel-space honesty metric — model vs persistence on the forecast window
+# ---------------------------------------------------------------------------
+
+
+def forecast_pixel_errors(
+    gt: np.ndarray, pred: np.ndarray, ctx: int
+) -> dict[str, float | bool]:
+    """Mean decoded-pixel error of a prediction vs a persistence baseline.
+
+    A held-out token-mismatch near the huge-vocab saturation point can coexist
+    with coherent-LOOKING but non-forecasting video; the honest signal is the
+    decoded image error against the trivial *persistence* baseline — freeze the
+    last context frame ``gt[ctx-1]`` across the forecast window.  Only forecast
+    frames (``fi >= ctx``) are scored; context frames are excluded.
+
+    Both inputs are ``(F, H, W[, C])`` decoded image stacks on the same scale
+    (typically uint8 256x256x3).  Returns the mean absolute pixel error for the
+    model and for persistence, their ratio (model / persistence), and whether
+    the model beats persistence (lower error is better).
+    """
+    g = np.asarray(gt, dtype=np.float64)
+    p = np.asarray(pred, dtype=np.float64)
+    if g.shape[0] != p.shape[0]:
+        raise ValueError(f"frame-count mismatch: gt {g.shape[0]} vs pred {p.shape[0]}")
+    if not 1 <= ctx < g.shape[0]:
+        raise ValueError(f"ctx {ctx} out of range for {g.shape[0]} frames")
+
+    fc = slice(ctx, g.shape[0])
+    persistence = g[ctx - 1]  # last observed frame, frozen across the forecast
+    model_err = float(np.abs(p[fc] - g[fc]).mean())
+    pers_err = float(np.abs(persistence[None] - g[fc]).mean())
+    ratio = float("inf") if pers_err == 0.0 else model_err / pers_err
+    return {
+        "model_pixel_error": model_err,
+        "persistence_pixel_error": pers_err,
+        "ratio": ratio,
+        "model_beats_persistence": bool(model_err < pers_err),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Phase C — assemble the figures
 # ---------------------------------------------------------------------------
 
@@ -288,6 +329,12 @@ def assemble_figures(*, image_bundle: Path, summary: dict, out_dir: Path) -> dic
     ftime = np.asarray(summary["frame_time"], dtype=np.float64)
     n = min(gt.shape[0], n_frames)
 
+    # Honest verdict: decoded-pixel error vs persistence on the forecast window.
+    # The token-mismatch can saturate while the video still looks coherent; this
+    # is the metric that distinguishes a forecaster from a coherent generator.
+    summary["dream_pixel"] = forecast_pixel_errors(gt[:n], dream[:n], ctx)
+    summary["teacher_forced_pixel"] = forecast_pixel_errors(gt[:n], tf[:n], ctx)
+
     out_paths: dict[str, str] = {}
     for role, pred_stack, fname, right in (
         (
@@ -302,9 +349,7 @@ def assemble_figures(*, image_bundle: Path, summary: dict, out_dir: Path) -> dic
         for fi in range(n):
             in_target = fi >= ctx
             t_ms = float(ftime[fi] - ftime[ctx]) * 1e3 if ftime.size > ctx else 0.0
-            banner = (
-                f"spacetime {role} | shot {shot_id} | rbb full-res | step {step:,}"
-            )
+            banner = f"spacetime {role} | shot {shot_id} | rbb full-res | step {step:,}"
             frames.append(
                 _panel_frame(
                     _to_aspect(gt[fi]),
@@ -428,6 +473,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"dream token mismatch (forecast): {summary['dream_token_mismatch']:.4f}")
     print(f"dream change-from-last-context: {summary['dream_change_fraction']:.4f}")
+    dp = summary.get("dream_pixel")
+    if dp is not None:
+        verdict = (
+            "BEATS persistence"
+            if dp["model_beats_persistence"]
+            else "LOSES to persistence"
+        )
+        print(
+            "dream pixel-error vs persistence (forecast): "
+            f"model={dp['model_pixel_error']:.3f}  "
+            f"persistence={dp['persistence_pixel_error']:.3f}  "
+            f"ratio={dp['ratio']:.2f}x  -> {verdict}"
+        )
     print(f"figures: {summary['figure_paths']}")
     return 0
 
