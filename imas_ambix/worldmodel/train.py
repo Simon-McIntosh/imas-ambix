@@ -235,6 +235,96 @@ def next_token_nll(
 
 
 # ---------------------------------------------------------------------------
+# Chunked NLL — the same loss, never materialising all-channel logits
+# ---------------------------------------------------------------------------
+
+
+def chunked_next_token_nll(
+    model: WorldModel,
+    obs_hidden: torch.Tensor,
+    batch: dict,
+    obs_names: Sequence[str],
+    *,
+    target_only: bool = False,
+    chunk_channels: int = 16,
+) -> torch.Tensor:
+    """Masked teacher-forced next-token NLL computed CHANNEL-CHUNK at a time.
+
+    Numerically EQUAL to :func:`next_token_nll` (same per-modality
+    ``cross_entropy(reduction="mean")`` over the valid (position, channel)
+    pairs, then the mean over modalities), but the per-channel logits are
+    built one channel-chunk at a time via :meth:`WorldModel.channel_logits`
+    and freed before the next chunk.  Peak head memory is therefore
+    ``~chunk_channels × vocab`` instead of ``n_channels × vocab`` — the only
+    way the full-resolution rbb head (256 channels × 2^18 vocab) fits on one
+    GPU.
+
+    The mean-over-valid-elements identity is preserved exactly: per modality we
+    accumulate the SUM of the per-element NLL over chunks (``reduction="sum"``)
+    plus the total valid count, then divide once at the end — algebraically
+    identical to ``reduction="mean"`` over the whole modality.
+
+    ``obs_hidden`` is ``(B, obs_len, d)`` from :meth:`WorldModel.encode`.  The
+    head is applied to the shared step state, so a chunk's logits at step ``t``
+    predict step ``t+1`` exactly as the full forward does.
+    """
+    ce = nn.functional.cross_entropy
+    ctx = int(batch["context_steps"])
+    total = torch.zeros((), dtype=torch.float32, device=obs_hidden.device)
+    n_terms = 0
+    obs_len = obs_hidden.shape[1]
+    for name in obs_names:
+        tgt = batch["tokens"][name]  # (B, T, C)
+        val = batch["valid"][name]  # (B, T, C)
+        fixed_ch = int(model.channel_query[name].shape[0])
+        in_ch = int(tgt.shape[2])
+        n_ch = min(in_ch, fixed_ch)
+        if n_ch < 1:
+            continue
+        # next-token alignment: logits at obs step t predict the token at t+1.
+        # obs_hidden spans the obs steps; logits at [0, obs_len-1) predict the
+        # targets at [1, obs_len).  Cap to the available target steps too.
+        t = min(obs_len, int(tgt.shape[1]))
+        if t < 2:
+            continue
+        target_all = tgt[:, 1:t, :n_ch]  # (B, T-1, n_ch)
+        tvalid_all = val[:, 1:t, :n_ch]  # (B, T-1, n_ch)
+        if target_only:
+            step_idx = torch.arange(1, t, device=obs_hidden.device)
+            in_target = (step_idx >= ctx).view(1, -1, 1)
+            tvalid_all = tvalid_all & in_target
+        # total valid count for this modality (drives the divisor — the SAME
+        # denominator a single reduction="mean" over all channels would use).
+        n_valid = int(tvalid_all.sum())
+        if n_valid == 0:
+            continue
+        # the hidden states that produce the next-token logits: step t predicts
+        # t+1, so the predicting positions are obs steps [0, t-1).
+        hidden_pred = obs_hidden[:, : t - 1]  # (B, T-1, d)
+        mod_sum = torch.zeros((), dtype=torch.float32, device=obs_hidden.device)
+        for cs in range(0, n_ch, max(1, int(chunk_channels))):
+            ce_stop = min(cs + max(1, int(chunk_channels)), n_ch)
+            # (B, T-1, chunk, V) — only this chunk's logits ever exist
+            lg = model.channel_logits(hidden_pred, name, ch_start=cs, ch_stop=ce_stop)
+            v = lg.shape[-1]
+            tgt_c = target_all[:, :, cs:ce_stop]  # (B, T-1, chunk)
+            val_c = tvalid_all[:, :, cs:ce_stop]  # (B, T-1, chunk)
+            flat_pred = lg.reshape(-1, v)
+            flat_tgt = tgt_c.reshape(-1)
+            flat_mask = val_c.reshape(-1)
+            if flat_mask.any():
+                mod_sum = mod_sum + ce(
+                    flat_pred[flat_mask], flat_tgt[flat_mask], reduction="sum"
+                )
+            del lg
+        total = total + mod_sum / n_valid
+        n_terms += 1
+    if n_terms == 0:
+        raise ValueError("no valid target positions in batch — cannot compute NLL")
+    return total / n_terms
+
+
+# ---------------------------------------------------------------------------
 # Training config + the overfit entrypoint
 # ---------------------------------------------------------------------------
 
@@ -261,6 +351,7 @@ class TrainConfig:
     log_every: int = 50
     window: WorldModelWindowConfig = field(default_factory=WorldModelWindowConfig)
     model_kwargs: dict = field(default_factory=dict)
+    loss_chunk_channels: int = 16
 
 
 @dataclass
@@ -369,8 +460,21 @@ def overfit(
                 logger.warning("STOP flag set — ending overfit at step %d", step)
                 break
             opt.zero_grad(set_to_none=True)
-            out = model(batch)
-            loss = next_token_nll(out.logits, batch, obs_names)
+            # Chunked loss path (memory-safe for a full-resolution camera head):
+            # encode once, then accumulate NLL channel-chunk at a time.  For the
+            # small synthetic shots this is identical to next_token_nll on the
+            # full logits; for a full-res rbb overfit it is the only path that
+            # fits.  ``target_only=False`` keeps the standard teacher-forced LM
+            # loss the overfit proof descends.
+            obs_hidden = model.encode(batch)
+            loss = chunked_next_token_nll(
+                model,
+                obs_hidden,
+                batch,
+                obs_names,
+                target_only=False,
+                chunk_channels=config.loss_chunk_channels,
+            )
             loss.backward()
             opt.step()
             losses.append(float(loss.detach()))
@@ -560,6 +664,11 @@ class CorpusTrainConfig:
     prefetch_factor:
         DataLoader batches each worker stages ahead (>=4 floor when workers > 0)
         so the loader runs ahead of the GPU; ignored when ``num_workers == 0``.
+    loss_chunk_channels:
+        Channel-chunk size for the chunked next-token NLL (see
+        :func:`chunked_next_token_nll`).  Peak head memory is
+        ``~chunk × vocab``, so this caps the full-resolution camera head's
+        logit footprint without changing the loss value.
     """
 
     steps: int = 2000
@@ -576,6 +685,7 @@ class CorpusTrainConfig:
     grad_clip: float = 1.0
     n_eval_shots: int = 1
     prefetch_factor: int = 4
+    loss_chunk_channels: int = 16
 
 
 @dataclass
@@ -857,8 +967,20 @@ def train_corpus(
                     done = True
                     break
                 opt.zero_grad(set_to_none=True)
-                out = model(batch)
-                loss = next_token_nll(out.logits, batch, obs_names, target_only=True)
+                # Memory-safe path: run the backbone once (cheap obs_hidden),
+                # then accumulate the loss CHANNEL-CHUNK at a time so the
+                # full-resolution camera head (256 ch × 2^18 vocab) never
+                # materialises all-channel logits.  Numerically identical to
+                # next_token_nll on the full logits.
+                obs_hidden = model.encode(batch)
+                loss = chunked_next_token_nll(
+                    model,
+                    obs_hidden,
+                    batch,
+                    obs_names,
+                    target_only=True,
+                    chunk_channels=config.loss_chunk_channels,
+                )
                 loss.backward()
                 if config.grad_clip > 0:
                     nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)

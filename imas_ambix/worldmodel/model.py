@@ -281,10 +281,20 @@ class WorldModelOutput:
         ``{modality_name: (B, obs_steps, n_channels, vocab_size)}`` next-token
         logits for every NON-conditioning modality.  Position ``t`` predicts
         the observation token at grid step ``t`` from the plan prefix +
-        observation steps ``< t``.
+        observation steps ``< t``.  EMPTY when the forward was run with
+        ``return_logits=False`` (the memory-safe full-resolution path, which
+        keeps only ``obs_hidden`` and never materialises the all-channel logit
+        tensor — see :meth:`WorldModel.encode`).
+    obs_hidden:
+        ``(B, obs_steps, d_model)`` per-step observation hidden states (the
+        shared step state BEFORE the per-channel query + head).  This is the
+        cheap, channel-count-independent quantity the chunked cross-entropy /
+        chunked argmax consume so the full-resolution camera head never
+        materialises ``(B, T, n_channels, vocab)`` at once.
     """
 
     logits: dict[str, torch.Tensor] = field(default_factory=dict)
+    obs_hidden: torch.Tensor | None = None
 
 
 class WorldModel(nn.Module):
@@ -419,24 +429,29 @@ class WorldModel(nn.Module):
 
     # -- forward -----------------------------------------------------------
 
-    def forward(self, batch: dict) -> WorldModelOutput:
-        """Teacher-forced forward pass.
+    def encode(self, batch: dict) -> torch.Tensor:
+        """Run the backbone and return the per-step observation hidden states.
 
         ``batch["tokens"][name]`` is ``(B, n_steps, n_channels)`` LONG local
         ids for every modality.  The first :attr:`config.plan_steps` rows of
-        each modality are taken as the plan prefix slice context (the plan is
-        defined over the same grid; we use the leading ``plan_steps`` of the
-        conditioning modality as the prefix), and the full ``obs_steps`` rows
-        of the non-conditioning modalities are the observation sequence.
+        the conditioning modality are the plan prefix; the leading
+        ``obs_steps`` rows of the non-conditioning modalities are the
+        observation sequence.
 
-        Returns next-token logits for every observation position.
+        Returns ``obs_hidden`` ``(B, obs_len, d_model)`` — the shared step
+        state at every observation position, BEFORE the per-channel query +
+        head.  This is the cheap, channel-count-INDEPENDENT quantity from which
+        both the full per-channel logits (small modalities / tests) and the
+        chunked cross-entropy / chunked argmax (the full-resolution camera) are
+        derived, so the all-channel ``(B, T, n_channels, vocab)`` tensor never
+        has to exist for a wide head.
         """
         tokens = batch["tokens"]
         device = next(self.parameters()).device
 
         # ground the lengths in the actual data, capped by the position budget
         any_obs = tokens[self._obs_names[0]]
-        b, n_steps, _ = any_obs.shape
+        _b, n_steps, _ = any_obs.shape
         obs_len = min(n_steps, self.config.obs_steps)
         plan_len = min(self.config.plan_steps, tokens[self._plan_names[0]].shape[1])
 
@@ -470,7 +485,62 @@ class WorldModel(nn.Module):
             x = block(x, attn_mask)
         x = self.ln_f(x)
 
-        obs_hidden = x[:, plan_len:]  # (B, obs_len, d) — observation hidden states
+        return x[:, plan_len:]  # (B, obs_len, d) — observation hidden states
+
+    def channel_logits(
+        self,
+        obs_hidden: torch.Tensor,
+        name: str,
+        *,
+        ch_start: int = 0,
+        ch_stop: int | None = None,
+    ) -> torch.Tensor:
+        """Per-channel next-token logits for a slice of one modality's channels.
+
+        ``obs_hidden`` is ``(B, obs_len, d)`` from :meth:`encode`.  Returns
+        ``(B, obs_len, n_ch_slice, vocab)`` logits for channels
+        ``[ch_start, ch_stop)`` of modality ``name`` — the per-channel query
+        added to the shared step state then the modality head.  Slicing the
+        channel range is what makes the full-resolution head fit memory: a
+        caller materialises at most ``chunk × vocab`` logits at a time instead
+        of ``n_channels × vocab`` (the ~50 GB wall at 256 channels × 2^18
+        vocab).  Numerically identical to the full computation per channel.
+        """
+        query_all = self.channel_query[name]  # (fixed_ch, d)
+        fixed_ch = query_all.shape[0]
+        if ch_stop is None:
+            ch_stop = fixed_ch
+        ch_stop = min(int(ch_stop), fixed_ch)
+        ch_start = max(int(ch_start), 0)
+        query = query_all[ch_start:ch_stop]  # (n_ch_slice, d)
+        # (B, obs_len, 1, d) + (n_ch_slice, d) -> (B, obs_len, n_ch_slice, d)
+        per_ch = obs_hidden.unsqueeze(2) + query
+        return self.heads[name](per_ch)  # (B, obs_len, n_ch_slice, vocab)
+
+    def forward(self, batch: dict, *, return_logits: bool = True) -> WorldModelOutput:
+        """Teacher-forced forward pass.
+
+        Runs the backbone (:meth:`encode`) and, when ``return_logits`` is True
+        (the default — small modalities, tests, and the eval skill path),
+        materialises the full per-channel next-token logits for every
+        observation modality.  Position ``t`` predicts the observation token at
+        grid step ``t`` from the plan prefix + observation steps ``< t``.
+
+        When ``return_logits`` is False the all-channel logits are NOT built —
+        only ``obs_hidden`` is returned in the :class:`WorldModelOutput`, so a
+        caller (the chunked cross-entropy / chunked argmax) can apply the head
+        one channel-chunk at a time and never materialise the
+        ``(B, T, n_channels, vocab)`` tensor that is the full-resolution memory
+        wall.
+
+        Returns a :class:`WorldModelOutput` carrying ``obs_hidden`` always and
+        ``logits`` only when ``return_logits`` is True.
+        """
+        tokens = batch["tokens"]
+        obs_hidden = self.encode(batch)
+
+        if not return_logits:
+            return WorldModelOutput(logits={}, obs_hidden=obs_hidden)
 
         logits: dict[str, torch.Tensor] = {}
         for name in self._obs_names:
@@ -485,9 +555,7 @@ class WorldModel(nn.Module):
             fixed_ch = self.channel_query[name].shape[0]
             in_ch = tokens[name].shape[2]
             n_ch = min(in_ch, fixed_ch)
-            query = self.channel_query[name][:n_ch]  # (n_ch, d)
-            # add the per-channel query to the shared step state, then head:
-            # (B, obs_len, 1, d) + (n_ch, d) -> (B, obs_len, n_ch, d)
-            per_ch = obs_hidden.unsqueeze(2) + query
-            logits[name] = self.heads[name](per_ch)  # (B, obs_len, n_ch, vocab)
-        return WorldModelOutput(logits=logits)
+            logits[name] = self.channel_logits(
+                obs_hidden, name, ch_start=0, ch_stop=n_ch
+            )
+        return WorldModelOutput(logits=logits, obs_hidden=obs_hidden)

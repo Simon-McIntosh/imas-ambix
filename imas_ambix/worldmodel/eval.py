@@ -86,11 +86,42 @@ def _model_obs_plan_names(model: WorldModel) -> tuple[list[str], list[str]]:
 # ---------------------------------------------------------------------------
 
 
+def _chunked_argmax_step(
+    model: WorldModel,
+    obs_hidden: torch.Tensor,
+    name: str,
+    step: int,
+    *,
+    chunk_channels: int = 32,
+) -> torch.Tensor:
+    """Per-channel argmax of one modality's next-token logits at one step.
+
+    ``obs_hidden`` is ``(1, obs_len, d)`` from :meth:`WorldModel.encode`.
+    Returns ``(1, n_ch)`` predicted token ids — the argmax of the head logits
+    at observation step ``step`` — computed CHANNEL-CHUNK at a time so a
+    full-resolution camera head (256 channels × 2^18 vocab) never builds the
+    all-channel logit tensor while generating a frame.  Identical result to
+    ``model.channel_logits(...)[:, step].argmax(-1)`` over all channels.
+    """
+    fixed_ch = int(model.channel_query[name].shape[0])
+    hidden_step = obs_hidden[:, step : step + 1]  # (1, 1, d)
+    preds: list[torch.Tensor] = []
+    for cs in range(0, fixed_ch, max(1, int(chunk_channels))):
+        ce_stop = min(cs + max(1, int(chunk_channels)), fixed_ch)
+        lg = model.channel_logits(hidden_step, name, ch_start=cs, ch_stop=ce_stop)
+        # (1, 1, chunk, V) -> argmax over vocab -> (1, chunk)
+        preds.append(lg[:, 0].argmax(dim=-1))
+        del lg
+    return torch.cat(preds, dim=1)  # (1, fixed_ch)
+
+
 def rollout(
     model: WorldModel,
     sample: WorldModelSample,
     obs_names: Sequence[str],
     plan_names: Sequence[str],
+    *,
+    chunk_channels: int = 32,
 ) -> dict[str, np.ndarray]:
     """Autoregressively roll the observation token stream forward.
 
@@ -105,6 +136,11 @@ def rollout(
     held-out shot whose channel counts differ from the training-probe widths
     never crashes the forward — the extra channels are dropped, the missing ones
     are all-PAD + masked.
+
+    Each step runs the backbone once (:meth:`WorldModel.encode`) and takes the
+    per-channel argmax CHANNEL-CHUNK at a time (:func:`_chunked_argmax_step`),
+    so generating a full-resolution (256-channel) camera frame never
+    materialises the ``(C, vocab)`` logit tensor that would OOM at 2^18 vocab.
     """
     model.eval()
     channels = _model_channel_widths(model)
@@ -119,12 +155,13 @@ def rollout(
         for t in range(ctx, n_steps):
             cur = dict(batch)
             cur["tokens"] = work
-            out = model(cur)
+            obs_hidden = model.encode(cur)  # (1, obs_len, d) — cheap, no logits
             # logits at step t-1 predict step t
             for name in obs_names:
-                lg = out.logits[name]  # (1, T, C, V)
-                pred = lg[:, t - 1].argmax(dim=-1)  # (1, C)
-                work[name][:, t] = pred
+                pred = _chunked_argmax_step(
+                    model, obs_hidden, name, t - 1, chunk_channels=chunk_channels
+                )  # (1, fixed_ch)
+                work[name][:, t] = pred[:, : work[name].shape[2]]
 
     # Return predictions over the OVERLAP channel width
     # ``min(model_width, sample_native_width)`` (only modalities the sample

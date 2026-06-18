@@ -333,6 +333,18 @@ def default_modalities(
     # absent).  Each rides its own frame-time axis, so none anchors the L2 grid.
     # The modality name IS the camera id so the model keeps per-camera tables /
     # heads and the loader reads each camera's own frames (``m.group``).
+    #
+    # rbb is the DEMO camera and runs at FULL resolution (stride 1 → the whole
+    # 16×16 = 256-token frame grid) so the model's rbb prediction is a complete
+    # frame that DECODES back to a real image (the whole point of the demo).
+    # The other four cameras stay at stride 4 (16-token coarse subsample) as
+    # cheap auxiliary context — making them full-res too would multiply the
+    # head cost (each is its OWN 2^18-vocab head, the memory driver) for no
+    # demo benefit.  The full-res rbb head is what the chunked cross-entropy /
+    # chunked argmax exist to make fit (256 ch × 2^18 vocab would otherwise be
+    # the ~50 GB all-channel-logits wall — see
+    # :func:`imas_ambix.worldmodel.train.chunked_next_token_nll`).
+    full_res_cameras = {"rbb"}
     for cam in cameras:
         mods.append(
             ModalitySpec(
@@ -341,7 +353,7 @@ def default_modalities(
                 cam,
                 1 << 18,
                 anchors_grid=False,
-                camera_grid_stride=4,
+                camera_grid_stride=1 if cam in full_res_cameras else 4,
                 required=False,
             )
         )
