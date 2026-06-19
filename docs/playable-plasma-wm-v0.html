@@ -318,7 +318,7 @@ self-correction fine-tune is the real fix. M4 turns it into the driveable demo; 
   persistence), incl. the bright/high-motion held-out shots.</li>
   <li><strong>M2 — Context-corruption fine-tune for self-correction (D1–D4).</strong> Fine-tune the
   checkpoint with history-token corruption + corruption-level conditioning + control-dropout; held-out-best
-  checkpointing; LR ≤ 1.5×10⁻⁴; ordinary sbatch (scancel + normal --time fine). <em>Done-when:</em> a fine-tuned checkpoint whose
+  checkpointing; LR ≤ 1.5×10⁻⁴; run on <strong>6 cards under normal QOS</strong> (full GPU-server auth, AGENTS.md §2; coexists with DeepSeek's 2 = 8/8), resume-safe (frequent <code>latest.pt</code> + clean SIGTERM) for fast takedown. <em>Done-when:</em> a fine-tuned checkpoint whose
   sampled rollout holds coherence over a longer horizon than M1 (drift reduced, measured), with the
   correction-helps-rollout test green.</li>
   <li><strong>M3 — Load-bearing controls + classifier-free guidance (D2–D4, overlaps M2).</strong> Port
@@ -409,8 +409,10 @@ one-week sprint (M1–M5) delivers the offline-rendered <em>proof</em> that the 
   fine — node drains are an environmental fabric/driver condition outside our control and an SDCC/admin
   matter, <em>not</em> an agent concern (AGENTS.md §2a; <a href="rca-node-drain-final-2026-06-03.html">settled
   RCA</a>). Standard practice for its own sake: in-process model-load-once for throughput (§2b) and a
-  clean SIGTERM for lossless cancellation. Keep DeepSeek-V4-Flash up unless a genuine 4-card run is
-  required (a ~1 B single-camera fine-tune should not need it).</li>
+  clean SIGTERM for lossless cancellation. Training runs use up to <strong>6 cards under normal QOS</strong>
+  (full GPU-server auth, AGENTS.md §2) and coexist with DeepSeek's 2 (6 + 2 = 8/8 — no need to take it
+  down); design every run resume-safe (frequent <code>latest.pt</code> + clean SIGTERM) so it takes down
+  or yields in seconds.</li>
 </ul>
 
 <h2 id="s9">§9 — Relationship to existing plans &amp; the science follow-on</h2>

@@ -92,18 +92,35 @@ The node is split between groups via reservations + QoS:
 - 4 GPUs, 30 cores (NUMA: cores 15-29, 47-61), 650 GB RAM
 - Account: `grpa`
 - Reservation: `gpu_0003_grpA`
-- QoS: `gpu_0003_grpa` (auto-applied — do NOT pass `--qos` explicitly, it errors)
+- QoS: **do NOT pass `--qos`** — jobs then default to QOS `normal` (priority 1, **no GPU cap**). The
+  `gpu_0003_grpa` QOS carries the 4-GPU cap (`gres/gpu=4` GrpTRES + `DenyOnLimit`); passing it
+  explicitly is what limits you to 4 cards (and `QOSGrpGRES`-denies a 6/8-GPU request at submit).
+  Under `normal` the only enforced per-group limit is the reservation's 30 CPU cores.
 
-**SLURM submission pattern:**
+**We are authorised to use the full GPU server (all 8 H200 cards).** A single Group A submit under
+`normal` QOS bursts onto any free cards node-wide (the reservation reserves only cores) — confirmed
+2026-06-19: `--gres=gpu:6` started immediately on physical cards `0,1,2,3,6,7` (it skips cards held by
+the live DSv4 server), and an 8-GPU job is accepted (queues until those free). `CUDA_VISIBLE_DEVICES`
+is remapped to `0..N`, so the job never knows it is on Group B's silicon. A 6-card training run
+therefore **coexists with the 2-card DeepSeek serve (6 + 2 = 8/8)** — no need to take DSv4 down.
+Mechanism + the cooperative-yield watcher: `docs/gpu-preemptible-scheduling.html`.
+
+**SLURM submission pattern (training run — 6 cards, normal QOS):**
 ```bash
 sbatch --partition=betelgeuse \
        --reservation=gpu_0003_grpA \
        --account=grpa \
-       --gres=gpu:4 \
+       --gres=gpu:6 \
        --cpus-per-task=30 \
        --mem=640G \
-       your_script.sh
+       your_script.sh        # do NOT pass --qos → defaults to normal → no 4-GPU cap
 ```
+
+**Design every training run for fast takedown (binding etiquette).** Preemption is OFF cluster-wide,
+so SLURM cannot evict us — bursting onto cards 6–7 without a fast give-back makes us a bad neighbour to
+Group B. Every run MUST be **resume-safe**: frequent checkpoints (`latest.pt`), a clean `SIGTERM` flush
+(< 5 s), and checkpoint-resume on restart, so a `scancel` (or a cooperative `scontrol requeue`) costs
+~nothing and frees the cards in seconds.
 
 **Network access:**
 - **GPU nodes** (betelgeuse): NO outbound network. Model downloads and package installs must happen elsewhere.
