@@ -114,6 +114,18 @@
 <p>Instead we trial the part we <em>can</em> own: the <strong>cooperative watch→checkpoint→requeue→resume cycle</strong>, on a CPU debug partition we have access to, with two jobs forced to contend for one node (<code>--exclusive</code>). A low-priority job (<code>--nice=10000 --requeue</code>) runs a counter + checkpoint loop with a queue-watcher; a default-priority job is then submitted for the same node; we observe the low-pri job yield, the high-pri job run, and the low-pri job resume from its checkpoint.</p>
 <p class="landed-summary"><strong>PoC result (vega_debug, jobs 1219666/1219667) — the cooperative cycle works end-to-end, all four facts confirmed.</strong> Timeline: low-pri RUNNING (counter→3) → high-pri submitted (PENDING/Resources) → low-pri detected it within one 3 s poll, checkpointed (counter 4) and <code>scontrol requeue</code>d itself (RUNNING→COMPLETING→PENDING) → high-pri RAN on the freed node → high-pri done → low-pri RESUMED from checkpoint (logged <code>RESUMED counter=4</code>, then 5→9, never reset to 0). Verified: <strong>(1)</strong> a user CAN <code>scontrol requeue</code> their own running job (rc=0); <strong>(2)</strong> <code>--nice=10000</code> sorts the low-pri job below default-nice (multifactor priority 0.0000255 vs 0.0000278) so the high-pri schedules first; <strong>(3)</strong> checkpoint continuity held (resumed at 4, not 0); <strong>(4)</strong> end-to-end latency (high-pri submit → high-pri RUNNING) was <strong>~41 s</strong>, dominated by SLURM's post-requeue <code>BeginTime</code> anti-thrash hold (~60 s) + the scheduler cycle — the detect+requeue itself is ~5 s. Caveats: poll-interval detection lag; add hysteresis (yield only if the competitor has waited &gt; N s) to avoid thrashing; drop the <code>--nodelist</code> pin in production; and for GPUs the mode MUST be requeue, never SUSPEND (SIGSTOP keeps VRAM mapped, so it would not free the card). <strong>Net: the user-space give-back is proven; the only cost vs native preemption is ~tens of seconds of latency.</strong></p>
 
+<p class="landed-summary"><strong>GPU trial update (2026-06-19, jobs 1220050/1220051) — the burst is confirmed at 6-card scale, and the group cap is proven real-but-bypassed.</strong> A single Group A submit under the default <code>normal</code> QOS requesting <code>--gres=gpu:6</code> started <em>immediately</em> and was assigned physical cards <code>SLURM_JOB_GPUS=0,1,2,3,6,7</code> — Group A's nominal 0–3 <em>plus Group B's 6–7</em> (it skipped 4–5, held by the live DSv4 server), remapped to <code>CUDA_VISIBLE_DEVICES=0..5</code> so the job never knows it is on B's silicon. With DSv4 holding 2 cards, this drove the node to <strong>8/8 cards in use by the Group A account alone</strong>. A <code>--test-only</code> matrix nails the mechanism:</p>
+<table>
+<thead><tr><th>Request</th><th>QOS</th><th>Result</th></tr></thead>
+<tbody>
+  <tr><td>6 GPU</td><td><code>normal</code> (default)</td><td>✅ accepted — starts immediately</td></tr>
+  <tr><td>8 GPU (one job)</td><td><code>normal</code> (default)</td><td>✅ <strong>accepted</strong> — queues until DSv4's 2 cards free</td></tr>
+  <tr><td>6 GPU</td><td><code>gpu_0003_grpa</code></td><td>❌ <code>QOSGrpGRES</code> — denied at submit</td></tr>
+  <tr><td>8 GPU</td><td><code>gpu_0003_grpa</code></td><td>❌ <code>QOSGrpGRES</code> — denied at submit</td></tr>
+</tbody>
+</table>
+<p><strong>So the 4-card cap is a genuine QOS limit</strong> (<code>gpu_0003_grpa</code> GrpTRES <code>gres/gpu=4</code> + <code>DenyOnLimit</code>) <strong>that simply never applies to our jobs</strong>, because they default to <code>normal</code> (no GPU cap). Confirmed answers: (1) a single Group A submit captures 6 cards now; (2) all 8 are reachable — as co-tenant jobs today (2 + 6 = 8/8), or as a single 8-GPU job once the other 2 free; (3) under <code>normal</code> the only enforced per-group constraint is the reservation's 30 CPU cores — GPU and the 650 G memory cap live only in the unused group QOS. Probe script: <code>scripts/slurm/gpu_capacity_probe.sbatch</code>. Caveat observed: the batch shell's <code>cpuset.cpus.effective</code> showed all 64 cores, not the reservation's 30 — the reservation guarantees the cores are not handed to the other group but does not hard-pin our process unless we NUMA-bind in <code>srun</code> (as the reservation comment instructs).</p>
+
 <h2 id="s5">§5 — Implementation plan</h2>
 <h3 id="s5a">(B) Cooperative scheme — what we build (no admin)</h3>
 <ol>
@@ -132,6 +144,76 @@
   <li>A new preemptable low-priority QOS (e.g. <code>gpu_0003_low</code>, priority 0) and the group QOS (or <code>normal</code>) carrying <code>Preempt=gpu_0003_low</code> so normal work evicts the low lane.</li>
 </ul>
 <p>We then submit fill jobs to the low QOS with <code>--requeue</code>; everything else is automatic.</p>
+
+<h3 id="s5c">(C) 4×4 guaranteed + preemptible burst — the robust shared-node design</h3>
+<p>This is the concrete shape that delivers the requested behaviour: <strong>each group is guaranteed its 4 cards, and either group may burst into the other's idle 4 with low-priority jobs that are automatically checkpointed + requeued the instant the owner reclaims them.</strong> It is option (A) specialised to this two-group node. The key realisation from Finding 4 is that the GPUs need <em>not</em> be moved into the reservations: capping <em>guaranteed</em> work at 4 per group (the existing group QOS) already guarantees each group can always reclaim its four — the other four are only ever idle or held by <em>preemptible</em> burst jobs.</p>
+
+<figure>
+<svg viewBox="0 0 900 350" width="100%" role="img" aria-label="4x4 guaranteed plus preemptible burst lane design" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="900" height="350" fill="#ffffff"/>
+  <text x="450" y="24" font-size="15" text-anchor="middle" fill="#111" font-weight="bold">98dci4-gpu-0003 — 8× H200 (one shared node)</text>
+  <g fill="#eaf2fd" stroke="#1f6feb" stroke-width="1.2">
+    <rect x="50"  y="40" width="88" height="44"/>
+    <rect x="150" y="40" width="88" height="44"/>
+    <rect x="250" y="40" width="88" height="44"/>
+    <rect x="350" y="40" width="88" height="44"/>
+  </g>
+  <g fill="#e9f7ee" stroke="#0a7d33" stroke-width="1.2">
+    <rect x="450" y="40" width="88" height="44"/>
+    <rect x="550" y="40" width="88" height="44"/>
+    <rect x="650" y="40" width="88" height="44"/>
+    <rect x="750" y="40" width="88" height="44"/>
+  </g>
+  <g font-size="13" text-anchor="middle" fill="#111">
+    <text x="94"  y="67">GPU 0</text>
+    <text x="194" y="67">GPU 1</text>
+    <text x="294" y="67">GPU 2</text>
+    <text x="394" y="67">GPU 3</text>
+    <text x="494" y="67">GPU 4</text>
+    <text x="594" y="67">GPU 5</text>
+    <text x="694" y="67">GPU 6</text>
+    <text x="794" y="67">GPU 7</text>
+  </g>
+  <g stroke="#333" stroke-width="1" fill="none">
+    <path d="M50 94 L50 102 L438 102 L438 94"/>
+    <path d="M450 94 L450 102 L838 102 L838 94"/>
+  </g>
+  <text x="244" y="120" font-size="12" text-anchor="middle" fill="#1f6feb" font-weight="bold">Group A reservation (cores 15–29,47–61)</text>
+  <text x="644" y="120" font-size="12" text-anchor="middle" fill="#0a7d33" font-weight="bold">Group B reservation (cores 0–14,32–46)</text>
+  <rect x="50" y="146" width="388" height="56" fill="#ffffff" stroke="#1f6feb" stroke-width="1.4"/>
+  <text x="244" y="170" font-size="12.5" text-anchor="middle" fill="#111"><tspan font-weight="bold" fill="#1f6feb">Guaranteed A</tspan> · QOS gpu_0003_grpa</text>
+  <text x="244" y="190" font-size="11.5" text-anchor="middle" fill="#111">cap 4 GPU · never preempted</text>
+  <rect x="450" y="146" width="388" height="56" fill="#ffffff" stroke="#0a7d33" stroke-width="1.4"/>
+  <text x="644" y="170" font-size="12.5" text-anchor="middle" fill="#111"><tspan font-weight="bold" fill="#0a7d33">Guaranteed B</tspan> · QOS gpu_0003_grpb</text>
+  <text x="644" y="190" font-size="11.5" text-anchor="middle" fill="#111">cap 4 GPU · never preempted</text>
+  <rect x="50" y="258" width="788" height="60" fill="#fdf3e0" stroke="#b9770a" stroke-width="1.4"/>
+  <text x="444" y="282" font-size="12.5" text-anchor="middle" fill="#111"><tspan font-weight="bold" fill="#b9770a">Burst lane</tspan> · QOS gpu_0003_burst · Priority 0 · no cap (≤8 GPU)</text>
+  <text x="444" y="302" font-size="11.5" text-anchor="middle" fill="#111">fills idle cards across the node · submit --requeue + checkpoint · REQUEUE on reclaim (GraceTime 120 s)</text>
+  <g stroke="#b9770a" stroke-width="1.3" fill="none" marker-end="url(#pa)">
+    <path d="M244 202 L244 256"/>
+    <path d="M644 202 L644 256"/>
+  </g>
+  <text x="252" y="234" font-size="11" fill="#b9770a">preempts</text>
+  <text x="652" y="234" font-size="11" fill="#b9770a">preempts</text>
+  <defs><marker id="pa" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#b9770a"/></marker></defs>
+</svg>
+<figcaption><strong>Figure 2.</strong> The 4×4 design. Each group's <em>guaranteed</em> lane (its own QOS, capped at 4 GPU) is never preempted, so each group can always reclaim its four cards. A single shared <em>burst</em> lane (a new low-priority QOS, no cap) opportunistically fills idle cards across the whole node; when either guaranteed lane needs cards the burst lane holds, SLURM REQUEUEs the burst job (SIGTERM → 120 s checkpoint window → freed VRAM) and it resumes from <code>latest.pt</code> when cards free again. REQUEUE — never SUSPEND, which would keep VRAM mapped and not free the card.</figcaption>
+</figure>
+
+<p><strong>What must change (all SDCC-admin — <code>slurm.conf</code> + the accounting DB):</strong></p>
+<ol>
+  <li><strong>Turn preemption on:</strong> <code>PreemptType = preempt/qos</code> and <code>PreemptMode = REQUEUE</code> (today both are <code>(null)</code>/<code>OFF</code>). REQUEUE — never SUSPEND: SIGSTOP leaves the process resident with its VRAM mapped, so the card is not freed; REQUEUE kills + re-queues, freeing the GPU and pairing with our checkpointing. <code>PreemptType</code> is cluster-global, but only QOS pairs carrying a <code>Preempt=</code> list actually evict, so other partitions are unaffected.</li>
+  <li><strong>Add a preemptible burst lane:</strong> a new QOS <code>gpu_0003_burst</code> — <code>Priority=0</code>, <em>no</em> per-group GPU cap (may request up to 8), <code>GraceTime=120</code> (SIGTERM → 120 s to checkpoint → SIGKILL; our handler flushes in &lt; 5 s).</li>
+  <li><strong>Let guaranteed work evict burst work:</strong> add <code>Preempt=gpu_0003_burst</code> to <em>both</em> <code>gpu_0003_grpa</code> and <code>gpu_0003_grpb</code>.</li>
+  <li><strong>Close the <code>normal</code> loophole:</strong> restrict each group's association to <code>{ group-QOS (guaranteed, capped 4), gpu_0003_burst (preemptible, ≤8) }</code> and drop <code>normal</code>. Otherwise a <code>normal</code> submit still squats un-preemptibly — this is also the fix for the unenforced 4-cap flagged in §6 rec. 3.</li>
+</ol>
+<p><strong>Submit model (us — already mostly built):</strong></p>
+<ul>
+  <li><strong>Guaranteed work</strong> → <code>--qos=gpu_0003_grpX</code> — capped at your 4, never preempted, runs on your own cards.</li>
+  <li><strong>Burst / fill work</strong> → <code>--qos=gpu_0003_burst --requeue</code> + our SIGTERM checkpoint handler — opportunistically grabs idle cards (up to 8). The moment a <em>guaranteed</em> job from either group cannot otherwise schedule, SLURM REQUEUEs the burst job (it checkpoints in the grace window, frees the cards) and the burst job resumes from <code>latest.pt</code> when cards free again.</li>
+</ul>
+<p><strong>Why no GPUs-in-reservation are needed:</strong> the guarantee comes from the group QOS capping <em>guaranteed</em> GPU use at 4; <code>preempt/qos</code> evicts the lower-priority burst lane whenever a higher-priority guaranteed job is blocked. The reservation keeps its existing role — CPU-core split + unix-group access gating. <strong>Tuning point:</strong> run burst jobs at small GPU granularity (1–2 cards) so a preemption frees only what the owner actually needs rather than dumping a whole 8-card burst job; add a minimum-runtime guard to avoid thrash.</p>
+<p><strong>Relation to (B):</strong> the cooperative watcher (§5a) is the no-admin stand-in for this design and works today, but it can only yield <em>our own</em> jobs and cannot be triggered automatically by Group B. (C) is the admin-backed version that makes the give-back guaranteed in both directions — exactly what the §7 ticket requests, extended here to explicit per-group lanes.</p>
 
 <h2 id="s6">§6 — Recommendation</h2>
 <ol>
@@ -180,7 +262,7 @@ without ever delaying priority jobs, since the fill jobs requeue + resume.</pre>
   <li><strong>Reservation</strong> — a named, access-gated carve-out of nodes/cores; <code>betelgeuse</code> requires one (<code>ReqResv=YES</code>).</li>
 </ul>
 
-<p style="font-size:0.9em;color:#555"><strong>Provenance.</strong> Config read live from <code>scontrol show config</code>, <code>sacctmgr show qos</code>, <code>scontrol show partition betelgeuse</code>, <code>scontrol show reservation gpu_0003_grp{A,B}</code>, and <code>sacctmgr show assoc user=mcintos</code> on 2026-06-18. The Group-B access denial was confirmed with <code>srun --test-only --reservation=gpu_0003_grpB</code>.</p>
+<p style="font-size:0.9em;color:#555"><strong>Provenance.</strong> Config read live from <code>scontrol show config</code>, <code>sacctmgr show qos</code>, <code>scontrol show partition betelgeuse</code>, <code>scontrol show reservation gpu_0003_grp{A,B}</code>, and <code>sacctmgr show assoc user=mcintos</code> on 2026-06-18. The Group-B access denial was confirmed with <code>srun --test-only --reservation=gpu_0003_grpB</code>. The 6-card burst, the 8-GPU acceptance under <code>normal</code>, and the <code>QOSGrpGRES</code> denials under the capped group QOS were confirmed live on 2026-06-19 (jobs 1220050/1220051 + <code>sbatch --test-only</code> matrix; probe <code>scripts/slurm/gpu_capacity_probe.sbatch</code>).</p>
 
 </main>
 </body>
