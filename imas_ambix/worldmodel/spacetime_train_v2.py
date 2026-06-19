@@ -454,6 +454,140 @@ def save_checkpoint_v2(
     return final
 
 
+def _config_from_dict_v2(d: dict) -> SignalSpacetimeConfig:
+    """Rebuild a :class:`SignalSpacetimeConfig` from a saved checkpoint config.
+
+    Reconstructs the per-stream :class:`SignalStreamSpec` list (each stream's own
+    local vocab + channel width) so the rebuilt model has the IDENTICAL parameter
+    set as the trained one — the signal embedding tables can then be loaded by
+    name without an unexpected/missing-key error (the failure the v1 loader hit).
+    """
+    streams = tuple(
+        SignalStreamSpec(
+            name=str(s["name"]), vocab=int(s["vocab"]), channels=int(s["channels"])
+        )
+        for s in d.get("signal_streams", [])
+    )
+    scalar_fields = {
+        k: d[k]
+        for k in d
+        if k in SignalSpacetimeConfig.__dataclass_fields__
+        and k not in ("signal_streams",)
+    }
+    return SignalSpacetimeConfig(signal_streams=streams, **scalar_fields)
+
+
+def load_signal_model_from_checkpoint(
+    path: Path, *, map_location: str = "cpu"
+) -> tuple[SignalSpacetimeTransformer, dict]:
+    """Rebuild a v2 model from a checkpoint + load its weights (eval entry).
+
+    The v2 counterpart of
+    :func:`imas_ambix.worldmodel.spacetime_train.load_model_from_checkpoint`,
+    which CANNOT load a v2 checkpoint (it builds a plain
+    :class:`~imas_ambix.worldmodel.spacetime_model.SpacetimeTransformer` and so
+    rejects the ``signal_*`` state-dict keys).  This rebuilds the
+    :class:`SignalSpacetimeTransformer` from the recorded signal-stream set first,
+    so every signal embedding loads by name.
+    """
+    payload = torch.load(str(path), map_location=map_location, weights_only=False)
+    cfg = _config_from_dict_v2(payload["model_config"])
+    model = SignalSpacetimeTransformer(cfg)
+    model.load_state_dict(payload["model_state_dict"])
+    model.to(map_location)
+    return model, payload
+
+
+# ---------------------------------------------------------------------------
+# Signal-aware prediction (teacher-forced + autoregressive) — for the decode gate
+# ---------------------------------------------------------------------------
+
+
+def _sample_stream_names(sample: SignalSpacetimeSample) -> list[str]:
+    return list(sample.signals.keys())
+
+
+@torch.no_grad()
+def teacher_forced_signal_frames(
+    model: SignalSpacetimeTransformer,
+    sample: SignalSpacetimeSample,
+    *,
+    stream_names: Sequence[str] | None = None,
+    chunk: int = 4096,
+    device: torch.device | None = None,
+) -> np.ndarray:
+    """Teacher-forced next-frame prediction WITH measured-signal conditioning.
+
+    The signal counterpart of
+    :func:`imas_ambix.worldmodel.spacetime_train.teacher_forced_frames`: it feeds
+    the TRUE frames plus the plan AND the measured signals, then reads the
+    per-token argmax (frame ``t`` predicted from the hidden at ``t-1``).  Returns
+    ``(T, S)`` LOCAL token ids; frame 0 is truth (no predecessor).
+
+    ``stream_names`` pins the stream set/order to the model's (so an all-PAD block
+    is presented for any stream this sample lacks, keeping the embedding tables in
+    the graph); defaults to the streams the sample carries.
+    """
+    model.eval()
+    dev = device or next(model.parameters()).device
+    names = (
+        list(stream_names) if stream_names is not None else _sample_stream_names(sample)
+    )
+    batch = _batch_to(collate_signal_windows([sample], stream_names=names), dev)
+    hidden = model._forward_tokens(
+        batch["frames"], batch.get("plan"), batch.get("signals")
+    )  # (1, T, S, d)
+    t = hidden.shape[1]
+    s = hidden.shape[2]
+    out = np.zeros((t, s), dtype=np.int64)
+    out[0] = np.asarray(sample.frames[0], dtype=np.int64)
+    for ti in range(1, t):
+        pred = model.chunked_argmax_frame(hidden[:, ti - 1], chunk=chunk)  # (1, S)
+        out[ti] = pred[0].cpu().numpy().astype(np.int64)
+    return out
+
+
+@torch.no_grad()
+def autoregressive_signal_dream(
+    model: SignalSpacetimeTransformer,
+    sample: SignalSpacetimeSample,
+    *,
+    stream_names: Sequence[str] | None = None,
+    chunk: int = 4096,
+    device: torch.device | None = None,
+) -> np.ndarray:
+    """Autoregressive rollout FEEDING THE SIGNALS — the v2 forecast.
+
+    The signal counterpart of
+    :func:`imas_ambix.worldmodel.spacetime_train.autoregressive_dream`: the model
+    keeps the leading ``context_frames`` TRUE frames, then rolls forward consuming
+    its OWN predicted frames while conditioning on the plan AND the measured
+    signals at every step.  The signals are FIXED context for the whole window
+    (sub-sampled across the window span at assembly), so they are collated once and
+    re-fed each step — the rollout always sees the measured plasma state, which is
+    the whole point of v2.  Returns ``(T, S)`` LOCAL token ids (context = truth).
+    """
+    model.eval()
+    dev = device or next(model.parameters()).device
+    ctx = int(sample.context_frames)
+    t_total = int(sample.frames.shape[0])
+
+    names = (
+        list(stream_names) if stream_names is not None else _sample_stream_names(sample)
+    )
+    batch = _batch_to(collate_signal_windows([sample], stream_names=names), dev)
+    plan = batch.get("plan")
+    signals = batch.get("signals")
+
+    gen = np.asarray(sample.frames, dtype=np.int64).copy()  # seed with truth
+    for ti in range(ctx, t_total):
+        cur = torch.as_tensor(gen[:ti][None], dtype=torch.long, device=dev)  # (1,ti,S)
+        hidden = model._forward_tokens(cur, plan, signals)  # (1, ti, S, d)
+        pred = model.chunked_argmax_frame(hidden[:, ti - 1], chunk=chunk)  # (1, S)
+        gen[ti] = pred[0].cpu().numpy().astype(np.int64)
+    return gen
+
+
 @torch.no_grad()
 def _eval_reconstruction(
     model: SignalSpacetimeTransformer,
