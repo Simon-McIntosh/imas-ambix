@@ -119,7 +119,10 @@ def _roll_local(
 
     gen = None
     if temperature and temperature > 0.0:
-        gen = torch.Generator(device="cpu").manual_seed(int(seed))
+        # the generator MUST live on the same device as the sampled probabilities
+        # (torch.multinomial rejects a cpu generator for cuda probs); build it on
+        # the rollout device so the draw is reproducible AND device-correct.
+        gen = torch.Generator(device=torch.device(device)).manual_seed(int(seed))
     return autoregressive_signal_dream(
         model,
         sample,

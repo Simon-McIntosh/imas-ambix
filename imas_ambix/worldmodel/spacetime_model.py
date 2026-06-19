@@ -580,6 +580,11 @@ class SpacetimeTransformer(nn.Module):
             raise ValueError(f"top_p must be in (0, 1]; got {top_p}")
         flat = hidden_at_prev.reshape(-1, d)
         out = flat.new_zeros(flat.shape[0], dtype=torch.long)
+        # torch.multinomial requires the generator and the probs to share a
+        # device.  When a generator is supplied on a different device (e.g. a CPU
+        # generator and CUDA probs), sample on the GENERATOR's device so the draw
+        # stays reproducible — the per-chunk probs are small to move.
+        gen_dev = generator.device if generator is not None else None
         for start in range(0, flat.shape[0], chunk):
             stop = min(start + chunk, flat.shape[0])
             logits = self.head(flat[start:stop]).float()  # (rows, vocab)
@@ -587,7 +592,12 @@ class SpacetimeTransformer(nn.Module):
             if top_p < 1.0:
                 logits = _nucleus_mask_logits(logits, top_p)
             probs = torch.softmax(logits, dim=-1)
-            idx = torch.multinomial(probs, num_samples=1, generator=generator)
+            if gen_dev is not None and gen_dev != probs.device:
+                idx = torch.multinomial(
+                    probs.to(gen_dev), num_samples=1, generator=generator
+                ).to(out.device)
+            else:
+                idx = torch.multinomial(probs, num_samples=1, generator=generator)
             out[start:stop] = idx.squeeze(-1)
             del logits, probs, idx
         return out.reshape(b, s)
