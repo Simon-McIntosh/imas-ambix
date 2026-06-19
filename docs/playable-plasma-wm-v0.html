@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"    content="imas-ambix">
-  <meta name="reckon-type"     content="plan">
-  <meta name="plan-slug"       content="playable-plasma-wm-v0">
-  <meta name="plan-title"      content="Playable Plasma World Model — Drive the Shot from a Pulse Schedule">
-  <meta name="plan-summary"    content="A one-week sprint to turn the existing camera world model from a model that collapses to persistence into a DEMONSTRABLE, driveable one: set or edit a pulse schedule and watch the MAST rbb camera evolve in response, coherently and without collapsing. The fix is cheap and well-precedented (sample instead of argmax + context-corruption fine-tune + load-bearing control conditioning + classifier-free guidance), reusing the trained spatiotemporal checkpoint, the action-conditioning + gas-puff controllability probe, and the frozen Open-MAGVIT2 decoder. Demonstrable capability first; the science (virtual diagnostics, reduced dynamics) follows as the same model with observation guidance added.">
-  <meta name="plan-status"     content="active">
-  <meta name="plan-roi"        content="high">
-  <meta name="plan-effort"     content="L">
-  <meta name="plan-tier"       content="opus">
-  <meta name="plan-milestone"  content="M4">
-  <meta name="plan-sprint"     content="S14">
-  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="playable-plasma-wm-v0">
+  <meta name="plan-title" content="Playable Plasma World Model — Drive the Shot from a Pulse Schedule">
+  <meta name="plan-summary" content="A one-week sprint to turn the existing camera world model from a model that collapses to persistence into a DEMONSTRABLE, driveable one: set or edit a pulse schedule and watch the MAST rbb camera evolve in response, coherently and without collapsing. The fix is cheap and well-precedented (sample instead of argmax + context-corruption fine-tune + load-bearing control conditioning + classifier-free guidance), reusing the trained spatiotemporal checkpoint, the action-conditioning + gas-puff controllability probe, and the frozen Open-MAGVIT2 decoder. Demonstrable capability first; the science (virtual diagnostics, reduced dynamics) follows as the same model with observation guidance added.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint" content="S14">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="world-model-prototype,camera-dynamics-wm-v0,compute">
   <title>Playable Plasma World Model — Drive the Shot from a Pulse Schedule | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-19">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
@@ -438,48 +440,48 @@ simulator — physics stays a soft, falsifiable prior, never a hard law in the l
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="play-substrate" data-choice="spacetime-v2-plus-port" data-by="Simon McIntosh" data-when="2026-06-19">
-  <p class="r-dec-q">Which model do we make playable in v0?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt chosen" data-value="spacetime-v2-plus-port">Build on spacetime_v2 checkpoint + port actuator conditioning &amp; gas-puff probe from camera-dynamics-wm-v0 (recommended — fastest to a demo; mature decode pipeline + a trained checkpoint to fine-tune)</button>
-    <button class="r-opt" data-value="camera-dynamics">Build on camera-dynamics-wm-v0 (natively action-conditioned, lighter 202M, W1 already won; but trained for clipped-view reconstruction, not forward dreaming)</button>
-    <button class="r-opt" data-value="fresh-control-only">Fresh control-only training run with the spacetime architecture</button>
-  </p>
-  <p class="r-dec-rat">LOCKED 2026-06-19: reuse the spacetime_v2 checkpoint + decode pipeline (fastest path to a demo) and port in camera-dynamics-wm-v0's actuator-vector conditioning + gas-puff controllability probe. Refactor conditioning so controls are the always-present drive surface and measured diagnostics are optional (enables the PLAY/TRACK split, Fig 1).</p>
-</div>
+    <p class="r-dec-q">Which model do we make playable in v0?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="spacetime-v2-plus-port">Build on spacetime_v2 checkpoint + port actuator conditioning &amp; gas-puff probe from camera-dynamics-wm-v0 (recommended — fastest to a demo; mature decode pipeline + a trained checkpoint to fine-tune)</button>
+      <button class="r-opt" data-value="camera-dynamics">Build on camera-dynamics-wm-v0 (natively action-conditioned, lighter 202M, W1 already won; but trained for clipped-view reconstruction, not forward dreaming)</button>
+      <button class="r-opt" data-value="fresh-control-only">Fresh control-only training run with the spacetime architecture</button>
+      </p>
+    <p class="r-dec-rat">LOCKED 2026-06-19: reuse the spacetime_v2 checkpoint + decode pipeline (fastest path to a demo) and port in camera-dynamics-wm-v0&#x27;s actuator-vector conditioning + gas-puff controllability probe. Refactor conditioning so controls are the always-present drive surface and measured diagnostics are optional (enables the PLAY/TRACK split, Fig 1).</p>
+    </div>
 <div class="r-dec" data-key="control-surface" data-choice="actuator-vector" data-by="Simon McIntosh" data-when="2026-06-19">
-  <p class="r-dec-q">What is the drive surface the operator "plays"?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt chosen" data-value="actuator-vector">Actuator vector — coil currents + NBI + gas-puff + Ip + ∫ne dl (recommended — tangible "fire the puff" demo, leakage-clean, loader+probe already exist)</button>
-    <button class="r-opt" data-value="pulse-schedule-demands">Pulse-schedule XDC demands only (purer operator-plan semantics; less visually tangible; XDC leakage caveat)</button>
-    <button class="r-opt" data-value="both">Both — actuator vector as drive surface + pulse-schedule demands as conditioning</button>
-  </p>
-  <p class="r-dec-rat">LOCKED 2026-06-19: actuator vector for v0 (tangible, leakage-clean, reuses camera-dynamics-wm-v0); add the pulse-schedule-demand surface as a fast-follow.</p>
-</div>
+    <p class="r-dec-q">What is the drive surface the operator &quot;plays&quot;?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="actuator-vector">Actuator vector — coil currents + NBI + gas-puff + Ip + ∫ne dl (recommended — tangible &quot;fire the puff&quot; demo, leakage-clean, loader+probe already exist)</button>
+      <button class="r-opt" data-value="pulse-schedule-demands">Pulse-schedule XDC demands only (purer operator-plan semantics; less visually tangible; XDC leakage caveat)</button>
+      <button class="r-opt" data-value="both">Both — actuator vector as drive surface + pulse-schedule demands as conditioning</button>
+      </p>
+    <p class="r-dec-rat">LOCKED 2026-06-19: actuator vector for v0 (tangible, leakage-clean, reuses camera-dynamics-wm-v0); add the pulse-schedule-demand surface as a fast-follow.</p>
+    </div>
 <div class="r-dec" data-key="playable-scope" data-choice="realtime-interactive" data-by="Simon McIntosh" data-when="2026-06-19">
-  <p class="r-dec-q">What is the committed output — offline-rendered or real-time interactive?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="offline-rendered">Offline-rendered counterfactual play — drive a schedule, roll forward, decode to video (the in-sprint proof, M1–M5)</button>
-    <button class="r-opt chosen" data-value="realtime-interactive">Genuinely interactive real-time loop — live knobs at interactive fps (the committed end-output, M6)</button>
-  </p>
-  <p class="r-dec-rat">LOCKED 2026-06-19 (lead): the committed end-output is a <strong>real-time playable plasma</strong>. Offline-rendered video is the in-sprint stepping stone (M1–M5) that proves the capability; the real-time interactive loop (M6, §6b — MaskGIT-style parallel decode and/or few-step distillation for interactive fps + a live-knob UI) is the headline deliverable this plan commits to.</p>
-</div>
+    <p class="r-dec-q">What is the committed output — offline-rendered or real-time interactive?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="offline-rendered">Offline-rendered counterfactual play — drive a schedule, roll forward, decode to video (the in-sprint proof, M1–M5)</button>
+      <button class="r-opt chosen" data-value="realtime-interactive">Genuinely interactive real-time loop — live knobs at interactive fps (the committed end-output, M6)</button>
+      </p>
+    <p class="r-dec-rat">LOCKED 2026-06-19 (lead): the committed end-output is a real-time playable plasma . Offline-rendered video is the in-sprint stepping stone (M1–M5) that proves the capability; the real-time interactive loop (M6, §6b — MaskGIT-style parallel decode and/or few-step distillation for interactive fps + a live-knob UI) is the headline deliverable this plan commits to.</p>
+    </div>
 <div class="r-dec" data-key="anti-collapse-depth" data-choice="sample-plus-corruption" data-by="Simon McIntosh" data-when="2026-06-19">
-  <p class="r-dec-q">How far do we push the anti-collapse machinery this week?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt chosen" data-value="sample-plus-corruption">Sampling + context-corruption fine-tune + control-CFG (recommended — the data-frugal recipe; reuses the checkpoint)</button>
-    <button class="r-opt" data-value="add-maskgit">Also add MaskGIT-style parallel masked decoding on the VQ codebook (diffusion-flavoured)</button>
-    <button class="r-opt" data-value="sampling-only">Sampling only, defer the fine-tune (cheapest; risk: drift unfixed)</button>
-  </p>
-  <p class="r-dec-rat">LOCKED 2026-06-19: sampling + context-corruption + control-CFG for the in-sprint anti-collapse. MaskGIT-style parallel decode is NOT a mere stretch — it is the route to the committed real-time output (M6, §6b), so it is sequenced there. A conditional diffusion decoder for sharp frames is deferred by the lead but kept on the roadmap as an explicit later step (§6c); Self-Forcing / a full continuous-diffusion backbone stay deferred (§3).</p>
-</div>
+    <p class="r-dec-q">How far do we push the anti-collapse machinery this week?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="sample-plus-corruption">Sampling + context-corruption fine-tune + control-CFG (recommended — the data-frugal recipe; reuses the checkpoint)</button>
+      <button class="r-opt" data-value="add-maskgit">Also add MaskGIT-style parallel masked decoding on the VQ codebook (diffusion-flavoured)</button>
+      <button class="r-opt" data-value="sampling-only">Sampling only, defer the fine-tune (cheapest; risk: drift unfixed)</button>
+      </p>
+    <p class="r-dec-rat">LOCKED 2026-06-19: sampling + context-corruption + control-CFG for the in-sprint anti-collapse. MaskGIT-style parallel decode is NOT a mere stretch — it is the route to the committed real-time output (M6, §6b), so it is sequenced there. A conditional diffusion decoder for sharp frames is deferred by the lead but kept on the roadmap as an explicit later step (§6c); Self-Forcing / a full continuous-diffusion backbone stay deferred (§3).</p>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-ppwm-sample-metrics" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-06-19" data-recommends-skill="/reckon-ship playable-plasma-wm-v0 §6" data-resolved-at="" data-resolved-by="">
-  <h4 class="r-fu-title">M1 — sampling rollout + the playability metric harness; re-score sampling vs argmax</h4>
-  <div class="r-fu-body">The cheapest, most diagnostic experiment first: replace argmax with temperature/nucleus sampling in the dream rollout, build the distributional + controllability metric harness (the right scorecard, since pixel-MSE-vs-persistence cannot credit a generative model), and re-score the existing best.pt under sampling vs argmax on the held-out shots — including the bright, high-motion ones. The result decides how much of M2/M3 is needed.</div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-ppwm-sample-metrics" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-06-19" data-recommends-skill="/reckon-ship playable-plasma-wm-v0 §6" data-resolved-at="2026-06-19T17:32:00+00:00" data-resolved-by="agent/opus (orchestrator)">
+    <h4 class="r-fu-title">M1 — sampling rollout + the playability metric harness; re-score sampling vs argmax</h4>
+    <div class="r-fu-body">The cheapest, most diagnostic experiment first: replace argmax with temperature/nucleus sampling in the dream rollout, build the distributional + controllability metric harness (the right scorecard, since pixel-MSE-vs-persistence cannot credit a generative model), and re-score the existing best.pt under sampling vs argmax on the held-out shots — including the bright, high-motion ones. The result decides how much of M2/M3 is needed.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
 Section: §6 (M1)
 Tier:    opus
@@ -513,7 +515,47 @@ Done-when
      alone reduce the collapse (motion/change-fraction up; distributional score vs persistence)?
   4. Followup written for M2 (context-corruption fine-tune) with the M1 verdict folded in; this
      followup resolved.</pre>
-</article>
+    <p class="r-fu-outcome">M1 LANDED + VERIFIED (2026-06-19) — sampling alone breaks the persistence collapse. <strong>Code</strong> (commits <code>451335f</code> + <code>6695e60</code>; scope = imas_ambix/worldmodel + tests + scripts/slurm only, both trailer-clean): nucleus/temperature sampling in the camera rollout (<code>spacetime_model.py</code>, <code>sampling_rescore.py</code>), the playability metric harness (<code>playability_metrics.py</code> — ensemble-CRPS-vs-persistence + motion/change-fraction + luminance-fair pixel sanity; an ensemble-CRPS proxy, no offline I3D for FVD on betelgeuse), the re-score driver + sbatch, and 2 test files (<strong>17 tests pass in 18.5s</strong>). <strong>Re-score</strong> (job 1220135, 4m37s, 1 GPU, frozen Open-MAGVIT2 decode) on best.pt step 7000, held-out 18502/03/04/05, grid T in {0.7,0.9,1.0} x top_p in {0.9,0.95}, ensemble=4. <strong>Verdict</strong> (best grid point per shot; CRPS-ratio vs persistence where below 1 = beats; motion ~1 = GT-like): <em>argmax</em> — 18502 (bright) 1.320 LOSES, motion 0.113 (collapsed); 18505 (bright) 1.212 LOSES, motion 0.102 (collapsed); 18503 0.886; 18504 0.480. <em>sampling</em> — 18502 0.847; 18503 0.692; 18504 0.313; 18505 0.838 — <strong>beats persistence 4/4 INCLUDING the bright/high-motion shots</strong>, motion restored to 1.05–1.35. argmax→sampling flips the bright shots from losing (1.3x) to winning (0.85x) and undoes the collapse: the cause-1 (mode-seeking) fix is confirmed and a bigger lever than expected. Verdict JSON: <code>/work/projects/imas_gpu/worldmodel/ckpt/spacetime-v2-1219852/sampling_rescore/verdict.json</code>. <strong>Caveats:</strong> (a) numbers are best-of-grid per shot — a fixed (T,p) headline is fairer (folded into M2); (b) CRPS is an ensemble proxy, not FVD; (c) the full all-shots sweep wrapper (job 1220140) hit its time limit at 64% — only the unit tests are confirmed green; (d) the worker added +65 lines to <code>spacetime_train_v2.py</code> — verify it did not alter the training path before M2. Net: sampling is necessary and already strong; M2 now targets DRIFT / long-horizon, not the per-frame collapse.</p>
+    </article>
+<article class="r-fu" data-id="f-ppwm-m2-context-corruption" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-19" data-recommends-skill="/reckon-ship playable-plasma-wm-v0 §6" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">M2 — context-corruption fine-tune for self-correction (drift) + control-dropout for CFG</h4>
+    <div class="r-fu-body">M1 proved sampling alone flips all 4 held-out shots (incl. the bright 18502/18505) to BEAT persistence and restores motion — the per-frame mode-collapse is solved. M2 attacks the remaining cause (open-loop DRIFT over longer horizons) via a context-corruption fine-tune (GameNGen-discrete) + control-dropout (to enable classifier-free guidance), reusing the M1 metric harness, and reports a FIXED-setting headline (not best-of-grid).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
+Section: §6 (M2)
+Tier:    opus
+
+Context
+  M1 landed (commits 451335f/6695e60): nucleus sampling on the existing best.pt flips all 4 held-out
+  shots (incl. bright 18502/18505) to BEAT persistence and restores motion — the per-frame mode-collapse
+  is solved. M2 attacks the remaining cause: open-loop DRIFT over longer horizons, and makes controls steerable.
+
+State to read  (code/files/data — not the plan itself)
+  imas_ambix/worldmodel/spacetime_model.py + spacetime_train_v2.py + spacetime_dataset_v2.py (v2 model +
+  training path; M1 added sampling + ~65 lines to train_v2 — VERIFY that change is sound before extending);
+  imas_ambix/worldmodel/sampling_rescore.py + playability_metrics.py (reuse the M1 CRPS/motion scorer);
+  M1 verdict JSON /work/projects/imas_gpu/worldmodel/ckpt/spacetime-v2-1219852/sampling_rescore/verdict.json;
+  camera-dynamics-wm-v0 actuator-vector loader + gas-puff probe (control-surface = actuator vector, locked).
+
+Scope locks / constraints  (non-decision)
+  - Fine-tune the EXISTING checkpoint (do not retrain from scratch). Add history-token corruption +
+    corruption-level conditioning (the anti-drift fix) and control-dropout (~10-20%) for classifier-free
+    guidance. Held-out-best checkpointing. Peak LR &lt;= 1.5e-4 (3e-4 diverged the ~1B model).
+  - TRAINING RUN = 6 cards under normal QOS: sbatch --gres=gpu:6 and DO NOT pass --qos (defaults to
+    normal -&gt; no 4-card cap; full GPU-server auth; coexists with DeepSeek 6+2=8/8). See AGENTS.md §2.
+    Resume-safe: frequent latest.pt + clean SIGTERM (&lt;5s) + checkpoint-resume so a scancel/scontrol-requeue
+    frees the cards in seconds. scancel + ordinary --time are fine (drains are an SDCC matter, not an agent
+    concern — §2a). In-process model-load-once (§2b).
+  - Score with the M1 harness (ensemble-CRPS-vs-persistence + motion + luminance-fair sanity) and report a
+    FIXED (T,p) headline, not best-of-grid. Report the bright shots explicitly.
+
+Done-when
+  1. Fine-tuned checkpoint (context-corruption + control-dropout) + training curve + the resume-safe sbatch.
+  2. correction-helps-rollout test green; conditioning load-bearing (zeroing the controls changes the rollout).
+  3. Re-score vs the M1 sampling baseline at a FIXED (T,p): does the fine-tune reduce drift (hold coherence
+     over a longer horizon) and beat BOTH persistence AND M1&#x27;s sampling result, incl. the bright shots?
+  4. Followup written for M3 (load-bearing controls + CFG + gas-puff falsification); this one resolved.</pre>
+    </article>
 </section>
 
 </main>
