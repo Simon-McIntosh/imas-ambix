@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-19">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -555,6 +555,40 @@ Done-when
   3. Re-score vs the M1 sampling baseline at a FIXED (T,p): does the fine-tune reduce drift (hold coherence
      over a longer horizon) and beat BOTH persistence AND M1&#x27;s sampling result, incl. the bright shots?
   4. Followup written for M3 (load-bearing controls + CFG + gas-puff falsification); this one resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-ppwm-rename-signal-family" data-status="open" data-tier="sonnet" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-19" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Cleanup: rename the spacetime_*_v2 source family to descriptive names (post-M2, not mid-flight)</h4>
+    <div class="r-fu-body">The <code>spacetime_{model,train,dataset,dream}_v2.py</code> family violates the (now hardened) naming rule — no version suffixes in source. They are the SIGNAL-CONDITIONED variants layered on the camera-only base (classes already <code>SignalSpacetime*</code>), so this is the COEXIST case: rename to a capability name, do NOT delete the base. Timing per the rule: do this ONLY once no training/eval job depends on the names — i.e. AFTER M2's run has landed and been scored — never mid-flight. The checkpoint/output dir <code>spacetime-v2-1219852</code> is a data artifact: leave it.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
+Section: cleanup (naming hygiene)
+Tier:    sonnet
+
+Context
+  The spacetime_{model,train,dataset,dream}_v2.py family violates the hardened naming rule (no
+  version suffixes in source; see ~/.agents/AGENTS.md &#x27;Naming &amp; Comment Hygiene&#x27;). They are the
+  signal-conditioned variants that LAYER ON the camera-only base (classes are SignalSpacetime*), so
+  both coexist -&gt; rename by capability, do not delete the base. Do this ONLY after M2&#x27;s run has landed
+  + been scored (no job depending on the names) — NEVER mid-flight (the rule&#x27;s timing clause).
+
+State to read  (code/files/data)
+  imas_ambix/worldmodel/spacetime_{model,train,dataset,dream}_v2.py + the spacetime_{...}.py base;
+  importers: sampling_rescore.py, scripts/slurm/spacetime_train_v2_ddp.sbatch (+ any new M2 sbatch),
+  scripts/slurm/_smoke_spacetime_v2.py, tests/worldmodel/test_spacetime_v2.py, test_spacetime_sampling.py.
+
+Scope locks / constraints  (non-decision)
+  - Rename SOURCE only, in ONE focused commit, via git mv: spacetime_&lt;x&gt;_v2.py -&gt; signal_spacetime_&lt;x&gt;.py
+    (matches the SignalSpacetime* class prefix); update EVERY import + sbatch + test + smoke reference.
+  - Keep the camera-only base files (spacetime_&lt;x&gt;.py) — _v2 extends them; coexist case, capability name,
+    NOT deletion.
+  - DO NOT rename the checkpoint/output dir spacetime-v2-1219852 or any /work artifact path (data artifacts).
+  - Green gate: uv run ruff check --fix + uv run ruff format + uv run pytest tests/worldmodel/ -q + a tiny
+    import smoke. grep confirms no _v2 suffix remains on any source file.
+
+Done-when
+  1. The _v2 source family renamed to signal_spacetime_*.py; all references updated; ONE commit; tests green.
+  2. No `_v2` suffix on any source file (grep clean); checkpoint dir untouched.
+  3. This followup resolved.</pre>
     </article>
 </section>
 
