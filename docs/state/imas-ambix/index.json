@@ -1,9 +1,9 @@
 {
-  "updated": "2026-06-10T16:27:04",
+  "updated": "2026-06-19T15:42:38",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
-    "active_sprint_id": "S13",
+    "active_sprint_id": "S14",
     "projects": [
       {
         "project": "imas-ambix",
@@ -344,6 +344,23 @@
         "starts": "2026-06-10",
         "ends": "2026-06-24",
         "description": "Two physics-backed world-model builds that put the idle 4xH200 reservation to work, scoped per user directive 2026-06-10. Both are extraction-of-structure-from-raw-data projects: (A) camera-dynamics-wm-v0 learns reduced-order dynamics from the full-machine rbb camera via clipped-view full-stream reconstruction over the existing 4.02B-token corpus; (B) learned-closure-current-diffusion-v0 folds hard physics priors (positive resistivity, resistive diffusion timescale, Ip boundary condition) into multi-modal data by learning the closures inside a differentiable current-diffusion filter \u2014 the q-without-MSE path. Sequencing: B's D4 scoring waits on the S10 v1 bar freezing; everything else proceeds now. GPU safety: AGENTS.md 2a/2a-cancel/2a-cancel-time binding on every job."
+      },
+      {
+        "id": "S14",
+        "status": "active",
+        "theme": "Play the plasma \u2014 demonstrable driveable camera world model",
+        "items": [
+          {
+            "slug": "playable-plasma-wm-v0",
+            "why_now": "The lead resolved the world-model fork to a demonstrable 'play the plasma' capability first (science follows). The persistence collapse is fixable cheaply (sample + context-corruption + control-CFG) by reusing the already-trained spatiotemporal checkpoint \u2014 no from-scratch rebuild.",
+            "tier": "opus",
+            "done_when": "W1 responds-to-controls (control-divergence > same-schedule spread + gas-puff falsification passes); W2 non-collapse earned on a distributional metric (FVD/CRPS vs persistence) incl. the bright/high-motion held-out shots; W3 a driveable demo (3 rendered videos: faithful replay, counterfactual same-seed-two-plans, knob demo); honest verdict + plan collapsed; the TRACK/science follow-on queued.",
+            "status": "active"
+          }
+        ],
+        "starts": "2026-06-19",
+        "ends": "2026-06-26",
+        "description": "One-week sprint (user-directed 2026-06-19): turn the camera world model from persistence-collapse into a DEMONSTRABLE, driveable demo. Fix the two collapse causes cheaply \u2014 sampling (not argmax) + context-corruption fine-tune + load-bearing control conditioning with classifier-free guidance \u2014 reusing the trained spatiotemporal checkpoint (spacetime-v2-1219852), the actuator conditioning + gas-puff controllability probe from camera-dynamics-wm-v0, and the frozen Open-MAGVIT2 decoder. Demonstrable capability is the primary goal; the science (virtual diagnostics, reduced dynamics, discovery) follows as the SAME generative model with observation guidance switched on (PLAY vs TRACK). SOTA-grounded: WHAM/Genie/GameNGen/EMERALD + SDA/Appa play-vs-track duality + FusionMAE/TCV NSSM scarce-data fusion precedents."
       }
     ],
     "blockers": [
@@ -415,6 +432,11 @@
         "when": "2026-06-10 12:00",
         "who": "agent/opus (S13 author)",
         "what": "S13 opened \u2014 two physics-backed world-model H200 builds scoped per user directive: camera-dynamics-wm-v0 (clipped-view full-stream reconstruction on the 4.02B-token rbb corpus, dynamics-backed via matched-arm design) + learned-closure-current-diffusion-v0 (positivity-constrained neural closures inside a differentiable psi-diffusion filter, MSE-free, scored vs the frozen v1 bar). New milestone M4; plans authored with figure annotations from held-out shot 24065."
+      },
+      {
+        "when": "2026-06-19",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "S14 opened \u2014 playable-plasma-wm-v0. The lead resolved the world-model fork to a DEMONSTRABLE 'play the plasma' capability first (science follows). One-week sprint: fix the persistence collapse cheaply (sampling + context-corruption fine-tune + load-bearing control-CFG) on the trained spatiotemporal checkpoint; deliver a driveable camera demo. SOTA-grounded (WHAM/Genie/GameNGen/EMERALD + SDA/Appa play-vs-track + FusionMAE/TCV NSSM). Set active over S13; S13's camera-dynamics + learned-closure builds remain open (overlap flagged to the lead)."
       }
     ],
     "milestones": [
@@ -425,6 +447,6 @@
         "pct": 0
       }
     ],
-    "_version": 24
+    "_version": 25
   }
 }

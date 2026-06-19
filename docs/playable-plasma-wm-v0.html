@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"    content="imas-ambix">
+  <meta name="reckon-type"     content="plan">
+  <meta name="plan-slug"       content="playable-plasma-wm-v0">
+  <meta name="plan-title"      content="Playable Plasma World Model — Drive the Shot from a Pulse Schedule">
+  <meta name="plan-summary"    content="A one-week sprint to turn the existing camera world model from a model that collapses to persistence into a DEMONSTRABLE, driveable one: set or edit a pulse schedule and watch the MAST rbb camera evolve in response, coherently and without collapsing. The fix is cheap and well-precedented (sample instead of argmax + context-corruption fine-tune + load-bearing control conditioning + classifier-free guidance), reusing the trained spatiotemporal checkpoint, the action-conditioning + gas-puff controllability probe, and the frozen Open-MAGVIT2 decoder. Demonstrable capability first; the science (virtual diagnostics, reduced dynamics) follows as the same model with observation guidance added.">
+  <meta name="plan-status"     content="active">
+  <meta name="plan-roi"        content="high">
+  <meta name="plan-effort"     content="L">
+  <meta name="plan-tier"       content="opus">
+  <meta name="plan-milestone"  content="M4">
+  <meta name="plan-sprint"     content="S14">
+  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="plan-depends-on" content="world-model-prototype,camera-dynamics-wm-v0,compute">
+  <title>Playable Plasma World Model — Drive the Shot from a Pulse Schedule | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p style="border-left:4px solid #0a7d33;padding-left:0.9em;background:#f3fbf5">
+<strong>What this sprint delivers (one week, 2026-06-19 → 2026-06-26).</strong> A
+<em>demonstrable, driveable</em> plasma camera world model: give it a short seed context and a
+<strong>pulse schedule / actuator plan</strong>, and it generates the MAST <code>rbb</code> camera
+forward — the plasma <em>responds to the controls</em> (ramp the current, fire the gas puff) and
+stays coherent for a useful horizon <em>without collapsing to a frozen frame</em>. The deliverable
+is the demo (rendered videos: faithful replay, a counterfactual "same start, two plans", and a
+"knob" demo), backed by honest distributional + controllability metrics. <strong>Demonstrable
+capability is the primary goal; the science — virtual diagnostics, reduced dynamics, discovery —
+follows</strong>, and it follows cheaply because (per the data-assimilation literature) it is the
+<em>same</em> generative model with observation guidance switched on (§9).</p>
+
+<h2 id="s1">§1 — Objective and the resolved strategy</h2>
+<p>The world-model line has, across three generations, produced a camera generator that
+<strong>collapses to persistence</strong> (predicts ≈ the last frame) under open-loop argmax rollout
+— the honest record is in <a href="world-model-demonstration.html">world-model-demonstration</a>.
+The lead has resolved the strategic fork: <strong>build a demonstrable "play the plasma" capability
+first; the science follows.</strong> This plan is that sprint.</p>
+<p><strong>The reframe that unifies the two long-term goals (and makes the science cheap later).</strong>
+"Drive the plasma from controls" (a <a href="https://www.nature.com/articles/s41586-025-08600-3">WHAM/Muse</a>-style
+playable model) and "recreate hidden diagnostic feeds from a subset" (the over-diagnosis / virtual-diagnostics
+thesis) are <em>not</em> two products — they are <strong>one generative model run with different amounts
+of observation withheld</strong>. The controls (the pulse schedule) are always present; the diagnostic
+feeds are <em>optional observation channels</em>. Withhold all feeds → free-run a plausible
+counterfactual (<strong>PLAY</strong>, this sprint). Provide a subset and correct against it → track the
+real shot and fill in the rest (<strong>TRACK</strong> / virtual diagnostics, the science follow-on). This
+is exactly the pattern proven in generative weather data-assimilation
+(<a href="https://proceedings.neurips.cc/paper_files/paper/2023/hash/7f7fa581cc8a1970a4332920cdf87395-Abstract-Conference.html">Score-based Data Assimilation</a>,
+Rozet &amp; Louppe, NeurIPS 2023; <a href="https://montefiore-sail.github.io/appa/">Appa</a>, 2025): one
+score/diffusion model does forecasting <em>and</em> assimilation, differing only by inference-time
+guidance. So building the PLAY core now is not a detour from the state-space north-star
+(<a href="physics-world-model-strategy.html">physics-world-model-strategy</a>) — it builds its front-end.</p>
+
+<figure>
+<svg viewBox="0 0 920 360" width="100%" role="img" aria-label="One generative model, two inference modes: play and track" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="920" height="360" fill="#ffffff"/>
+  <!-- controls: always present -->
+  <rect x="24" y="60" width="210" height="66" fill="#ffffff" stroke="#0a7d33" stroke-width="1.6"/>
+  <text x="129" y="84" font-size="13.5" text-anchor="middle" font-weight="700" fill="#111">controls — ALWAYS present</text>
+  <text x="129" y="103" font-size="12" text-anchor="middle" fill="#333">pulse schedule / actuator plan</text>
+  <text x="129" y="118" font-size="12" text-anchor="middle" fill="#333">(Ip, coils, NBI, gas-puff)</text>
+  <!-- diagnostics: optional -->
+  <rect x="24" y="158" width="210" height="74" fill="#ffffff" stroke="#5b7fb0" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="129" y="182" font-size="13.5" text-anchor="middle" font-weight="700" fill="#111">diagnostic feeds — OPTIONAL</text>
+  <text x="129" y="201" font-size="12" text-anchor="middle" fill="#333">magnetics · density · soft-x-ray</text>
+  <text x="129" y="216" font-size="12" text-anchor="middle" fill="#333">+ the observed camera</text>
+  <!-- model -->
+  <rect x="300" y="96" width="244" height="110" fill="#ffffff" stroke="#1f6feb" stroke-width="1.6"/>
+  <text x="422" y="124" font-size="13.5" text-anchor="middle" font-weight="700" fill="#111">generative world model</text>
+  <text x="422" y="146" font-size="12" text-anchor="middle" fill="#333">latent state + SAMPLING decoder</text>
+  <text x="422" y="164" font-size="12" text-anchor="middle" fill="#333">Open-MAGVIT2 tokeniser +</text>
+  <text x="422" y="180" font-size="12" text-anchor="middle" fill="#333">spatiotemporal transformer</text>
+  <text x="422" y="197" font-size="11.5" text-anchor="middle" fill="#666">(the checkpoint we already trained)</text>
+  <!-- play branch -->
+  <rect x="630" y="48" width="266" height="74" fill="#ffffff" stroke="#0a7d33" stroke-width="1.8"/>
+  <text x="763" y="72" font-size="13.5" text-anchor="middle" font-weight="700" fill="#0a7d33">PLAY — feeds withheld</text>
+  <text x="763" y="91" font-size="12" text-anchor="middle" fill="#333">free-run a counterfactual shot</text>
+  <text x="763" y="107" font-size="12.5" text-anchor="middle" font-weight="600" fill="#111">◀ THIS SPRINT</text>
+  <!-- track branch -->
+  <rect x="630" y="180" width="266" height="74" fill="#ffffff" stroke="#5b7fb0" stroke-width="1.3" stroke-dasharray="5 3"/>
+  <text x="763" y="204" font-size="13.5" text-anchor="middle" font-weight="700" fill="#3a5a86">TRACK — feeds assimilated</text>
+  <text x="763" y="223" font-size="12" text-anchor="middle" fill="#333">match the real shot, fill the rest</text>
+  <text x="763" y="239" font-size="12" text-anchor="middle" fill="#555">science follow-on (virtual diagnostics)</text>
+  <!-- arrows -->
+  <g stroke="#444" stroke-width="1.2" fill="none" marker-end="url(#p1)">
+    <path d="M234 93 L298 130"/>
+    <path d="M234 195 L298 168"/>
+    <path d="M544 130 L628 96"/>
+  </g>
+  <path d="M544 172 L628 214" stroke="#9aa7b8" stroke-width="1.2" fill="none" stroke-dasharray="5 3" marker-end="url(#p2)"/>
+  <text x="460" y="312" font-size="12.5" text-anchor="middle" fill="#444">Same model, same weights — PLAY and TRACK differ only by whether the optional feeds are withheld or assimilated.</text>
+  <defs>
+    <marker id="p1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#444"/></marker>
+    <marker id="p2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#9aa7b8"/></marker>
+  </defs>
+</svg>
+<figcaption><strong>Figure 1 — one generative model, two inference modes.</strong> The controls are
+always supplied; the diagnostic feeds are optional observation channels. PLAY (this sprint) withholds
+the feeds and free-runs a counterfactual from the pulse schedule; TRACK (the science follow-on)
+assimilates the feeds to match a real shot and recover withheld diagnostics. Building PLAY builds the
+shared front-end for both.</figcaption>
+</figure>
+
+<h2 id="s2">§2 — Diagnosis: why it collapses, and why the fix is cheap</h2>
+<p>The persistence collapse has <strong>two distinct causes</strong>, and conflating them is why
+"train more / scale up" never worked. Naming them tells us exactly what to fix this week.</p>
+<ul>
+  <li><strong>Cause 1 — argmax is mode-seeking (regression to the most-likely token).</strong> Trained
+  with cross-entropy and rolled out with <strong>argmax</strong>, the model emits the single
+  most-probable next token at every position. On a quasi-stationary, mostly-dark plasma frame the
+  most-probable next token is "the same token" — so argmax <em>provably</em> drifts toward "copy the
+  last frame." This is the canonical token-world-model failure and it is fixed by <strong>sampling</strong>
+  (temperature + nucleus), not by more training. The masked-latent world model
+  <a href="https://arxiv.org/pdf/2507.04075">EMERALD</a> (2025) reports that stochastic sampling alone
+  removes the mode-collapse-to-persistence; this is a zero-training change for us.</li>
+  <li><strong>Cause 2 — open-loop rollout has no self-correction (exposure bias / drift).</strong> The
+  model is trained teacher-forced (always sees true history) but at inference consumes its own
+  imperfect outputs; errors compound and the safest place to drift is, again, "stop moving." The
+  proven, low-engineering fix is <strong>context-corruption / noise augmentation</strong>: during
+  fine-tuning, corrupt a fraction of the history tokens and let the model learn to <em>correct</em> its
+  own errors — the trick that stabilised <a href="https://gamengen.github.io/">GameNGen</a>'s playable
+  DOOM (Valevski et al., 2024) and, in continuous form, <a href="https://arxiv.org/abs/2407.01392">Diffusion
+  Forcing</a> (Chen et al., NeurIPS 2024) and <a href="https://arxiv.org/abs/2506.08009">Self-Forcing</a>
+  (Huang et al., NeurIPS 2025).</li>
+</ul>
+<p>A third ingredient makes it a <em>game</em> rather than a passive video: the controls must be
+<strong>load-bearing</strong> — the world must visibly respond to them. The mechanism is
+<strong>classifier-free guidance on the controls</strong> (train with control-dropout, then amplify
+the control signal at inference), the same lever <a href="https://deepmind.google/blog/genie-2-a-large-scale-foundation-world-model/">Genie&nbsp;2</a>
+uses "to improve action controllability." We already have a falsifiable physical instance of this in
+hand: the inboard gas-puff command lights a bright emission spot left of the centre column
+(<a href="camera-dynamics-wm-v0.html">camera-dynamics-wm-v0</a> §4b) — the demo's "fire the puff and
+watch it light up" is also its controllability test.</p>
+
+<figure>
+<svg viewBox="0 0 920 300" width="100%" role="img" aria-label="Why it collapses, and the fix" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="920" height="300" fill="#ffffff"/>
+  <!-- left panel: collapse -->
+  <rect x="20" y="40" width="420" height="232" fill="#ffffff" stroke="#b00020" stroke-width="1.5"/>
+  <text x="230" y="66" font-size="13.5" text-anchor="middle" font-weight="700" fill="#b00020">NOW — argmax, open-loop → persistence</text>
+  <rect x="44" y="86" width="372" height="50" fill="#ffffff" stroke="#888"/>
+  <text x="230" y="106" font-size="12.5" text-anchor="middle" fill="#111">argmax = pick the most-likely token</text>
+  <text x="230" y="123" font-size="12" text-anchor="middle" fill="#555">on a quasi-stationary frame → "copy last frame"</text>
+  <rect x="44" y="146" width="372" height="50" fill="#ffffff" stroke="#888"/>
+  <text x="230" y="166" font-size="12.5" text-anchor="middle" fill="#111">no correction step in the rollout</text>
+  <text x="230" y="183" font-size="12" text-anchor="middle" fill="#555">errors compound → safest drift is "don't move"</text>
+  <text x="230" y="226" font-size="13" text-anchor="middle" font-weight="700" fill="#b00020">⇒ collapses to the frozen frame</text>
+  <text x="230" y="248" font-size="11.5" text-anchor="middle" fill="#666">(more training / bigger model does not fix this)</text>
+  <!-- right panel: fix -->
+  <rect x="480" y="40" width="420" height="232" fill="#ffffff" stroke="#0a7d33" stroke-width="1.6"/>
+  <text x="690" y="66" font-size="13.5" text-anchor="middle" font-weight="700" fill="#0a7d33">THIS SPRINT — sample, correct, condition</text>
+  <rect x="504" y="86" width="372" height="44" fill="#ffffff" stroke="#0a7d33"/>
+  <text x="690" y="104" font-size="12.5" text-anchor="middle" fill="#111">1 · SAMPLE (temperature + nucleus)</text>
+  <text x="690" y="120" font-size="12" text-anchor="middle" fill="#555">draws plausible futures — kills mode-collapse</text>
+  <rect x="504" y="138" width="372" height="44" fill="#ffffff" stroke="#0a7d33"/>
+  <text x="690" y="156" font-size="12.5" text-anchor="middle" fill="#111">2 · CONTEXT-CORRUPTION fine-tune</text>
+  <text x="690" y="172" font-size="12" text-anchor="middle" fill="#555">learns self-correction — stops the drift</text>
+  <rect x="504" y="190" width="372" height="44" fill="#ffffff" stroke="#0a7d33"/>
+  <text x="690" y="208" font-size="12.5" text-anchor="middle" fill="#111">3 · LOAD-BEARING controls (CFG)</text>
+  <text x="690" y="224" font-size="12" text-anchor="middle" fill="#555">the world responds to the schedule</text>
+  <text x="690" y="258" font-size="13" text-anchor="middle" font-weight="700" fill="#0a7d33">⇒ a driveable, non-collapsing demo</text>
+  <defs></defs>
+</svg>
+<figcaption><strong>Figure 2 — the two causes and the three fixes.</strong> Sampling fixes the
+mode-collapse (cause 1); context-corruption fine-tuning fixes the open-loop drift (cause 2);
+classifier-free guidance on the controls makes the plasma respond to the schedule. All three reuse the
+existing checkpoint — none is a from-scratch rebuild.</figcaption>
+</figure>
+
+<h2 id="s3">§3 — State of the art we build on (June 2026)</h2>
+<p>Three research sweeps (interactive world models; diffusion-rollout techniques; physical/scientific
+generative + assimilation) converge on the same recipe. The load-bearing precedents:</p>
+<div class="table-scroll"><table class="t">
+<thead><tr><th>System / method</th><th>What it is</th><th>What we take</th></tr></thead>
+<tbody>
+  <tr><td><strong>WHAM / Muse</strong> (Microsoft, <em>Nature</em> 2025)</td><td>VQ-tokeniser + decoder-only transformer, interleaved image+action tokens — <em>our exact stack</em></td><td>Token-AR <em>can</em> be playable; it samples (not argmax). Validates our architecture; the gap was data scale + sampling, not the design.</td></tr>
+  <tr><td><strong>Genie 1–3</strong> (DeepMind, 2024–25)</td><td>spatiotemporal transformer + latent actions; CFG for controllability</td><td>Classifier-free guidance on controls to make actions load-bearing.</td></tr>
+  <tr><td><strong>GameNGen</strong> (Google, 2024)</td><td>diffusion DOOM, 20 fps; noise-augmented context</td><td>Context-corruption / noise augmentation as the anti-drift fix.</td></tr>
+  <tr><td><strong>EMERALD</strong> (2025); <strong>DIAMOND</strong> (NeurIPS 2024)</td><td>masked-latent / diffusion world models; stochastic sampling</td><td>Sampling removes persistence collapse; MaskGIT-style parallel decode on a VQ codebook is the fast diffusion-flavoured path if we want it (stretch).</td></tr>
+  <tr><td><strong>SDA</strong> (NeurIPS 2023); <strong>Appa</strong> (2025); <strong>GenCast</strong> (<em>Nature</em> 2025)</td><td>generative data assimilation / ensemble forecasting in weather</td><td>The PLAY/TRACK duality (§1); forcing as input channels; CRPS as the proper score.</td></tr>
+  <tr><td><strong>FusionMAE</strong> (2025)</td><td>masked autoencoder over 88 tokamak diagnostics; "virtual backup diagnosis" 96.7%</td><td>Direct precedent for the science follow-on: masked modelling predicts withheld diagnostics and <em>measures redundancy</em>.</td></tr>
+  <tr><td><strong>TCV NSSM</strong> (<em>Nature Comms</em> 2025)</td><td>neural state-space model from 311 pulses, actuator-conditioned, ensemble UQ, predict-first validated</td><td>The fusion existence-proof that scarce-data, controls-conditioned plasma world models work + validate honestly.</td></tr>
+</tbody>
+</table></div>
+<p><strong>What we deliberately defer:</strong> Self-Forcing-style own-rollout training with distribution-matching
+(the SOTA stability recipe, but a training-loop rewrite and data-hungry); a full continuous diffusion
+backbone (DIAMOND/DFoT — abandons our VQ investment); and few-step distillation for real-time interactive
+fps (only worth it once quality is proven). The first-pass recipe — <strong>sample + context-corruption +
+control-CFG on the existing checkpoint</strong> — is the most data-frugal path, which is why it goes first.</p>
+<p><strong>One methodological non-negotiable (the project's recurring lesson, now backed by theory).</strong>
+Per-pixel MSE-vs-persistence <em>cannot</em> credit a generative model: the perception–distortion tradeoff
+(<a href="https://arxiv.org/pdf/1711.06077">Blau &amp; Michaeli, CVPR 2018</a>) proves the MSE-optimal
+prediction is the blurry conditional mean — i.e. persistence wins MSE <em>by construction</em> against any
+sharp, plausible sample. We therefore score with <strong>distributional and controllability</strong> metrics
+(§7), keeping pixel-error only as a luminance-fair sanity check with that caveat stated.</p>
+
+<h2 id="s4">§4 — Assets already on disk (we are fine-tuning, not starting over)</h2>
+<ul>
+  <li><strong>The trained camera-dream checkpoint.</strong> The signal-conditioned spatiotemporal
+  transformer (<code>imas_ambix/worldmodel/spacetime_model_v2.py</code> + <code>spacetime_train_v2.py</code>
+  + <code>spacetime_dream_v2.py</code>; ~1.0 B params, d_model 1536, 16 layers, factorised space-time
+  attention over frozen Open-MAGVIT2 <code>rbb</code> tokens). Best held-out checkpoint at
+  <code>/work/projects/imas_gpu/.../spacetime-v2-1219852/</code> (step 7000). It already produced the
+  project's <em>first</em> measured beat of persistence on held-out shots (2/4, one by 2×) — the
+  starting point we improve.</li>
+  <li><strong>Action conditioning + the controllability probe.</strong>
+  <a href="camera-dynamics-wm-v0.html">camera-dynamics-wm-v0</a> ships the full actuator-vector loader
+  (coil currents <code>amc</code>, NBI <code>anb</code>, gas-puff <code>aga</code>, Ip, ∫n<sub>e</sub>dl),
+  a factorised LFQ bit-head, and the <strong>gas-puff attribution probe</strong> (D3) — a ready-made
+  controllability test. Its W1 result already proved <em>dynamics beat statics</em> (masked-token NLL
+  +0.4587, CI clear of zero), so the temporal model demonstrably uses time.</li>
+  <li><strong>The frozen decoder + decode pipeline.</strong> Open-MAGVIT2 <code>VQModel</code> via
+  <code>reconstruction_demo.run_decode_subprocess</code> turns token rollouts into 256×256 frames for
+  the demo. Frozen — never tuned (the S5 lesson).</li>
+  <li><strong>Corpus + harness.</strong> 9,527 <code>rbb</code> shots / 4.02 B Open-MAGVIT2 tokens;
+  shot-level splits (<code>statespace/splits.py</code>) with the held-out reserve (18502–18505 +
+  the discovery-index hold-out); GPU-safety sbatch headers (AGENTS.md §2a/§2b).</li>
+  <li><strong>The working filter (for the TRACK follow-on, not this sprint).</strong>
+  <code>imas_ambix/statespace/sequential_da.py</code> — the reduced ψ-diffusion EKF (RMSE 0.124,
+  cov90 0.962) from <a href="sequential-current-da-v1.html">sequential-current-da-v1</a>, the substrate
+  for adding observation guidance later.</li>
+</ul>
+
+<h2 id="s5">§5 — Architecture: the playable model + the drive surface</h2>
+<p>We keep the encoder/decoder and the trained transformer; we change <em>inference and fine-tuning</em>,
+add a <em>control surface</em>, and wrap it in a <em>play harness</em>. Three components:</p>
+<ol>
+  <li><strong>Sampling rollout</strong> — replace argmax in <code>spacetime_dream_v2.py</code> with
+  temperature + nucleus (top-p) sampling over the factorised token head; expose temperature/top-p as
+  knobs. (Cause-1 fix; zero training.)</li>
+  <li><strong>Context-corruption fine-tune</strong> — short fine-tune of the existing checkpoint where a
+  random fraction of history tokens is corrupted/masked each step and the corruption level is fed as a
+  conditioning signal, plus <strong>control-dropout</strong> so classifier-free guidance is available.
+  (Cause-2 fix + makes controls steerable.) Peak LR ≤ 1.5×10⁻⁴ (3×10⁻⁴ diverged the ~1 B model);
+  warmup→cosine; held-out-best checkpointing; GPU-drain-safe sbatch.</li>
+  <li><strong>The play harness</strong> — <code>imas_ambix/worldmodel/play.py</code>: take a seed
+  context + a (possibly user-edited / counterfactual) control schedule, roll forward with
+  sampling + CFG, decode through the frozen VQ, and render a video. Supports schedule editing
+  (ramp Ip, fire/zero the gas puff) to produce the counterfactual and "knob" demos.</li>
+</ol>
+<p><strong>The control surface (decision <code>control-surface</code>).</strong> The most tangible,
+leakage-clean drive surface is the <strong>actuator vector</strong> (coil currents, NBI power, gas-puff
+flow) — it is what makes "fire the puff and watch the spot light" work, and the loader + probe already
+exist in <a href="camera-dynamics-wm-v0.html">camera-dynamics-wm-v0</a>. The pulse-schedule
+<em>demands</em> (XDC setpoints: Ip(t), n<sub>e</sub>(t), shape) are the purer "operator plan" surface
+but less visually tangible and carry a leakage caveat (XDC also embeds real-time reconstruction).
+Recommendation: <strong>actuator vector for the v0 demo</strong>, pulse-schedule demands as a fast-follow.</p>
+<p><strong>Substrate (decision <code>play-substrate</code>).</strong> Recommendation: build on
+<code>spacetime_v2</code> (mature camera-dream code + decode pipeline + a trained checkpoint to
+fine-tune from = fastest to a demo), and <em>port in</em> the actuator-vector conditioning + gas-puff
+probe from <code>camera-dynamics-wm-v0</code>. Refactor its conditioning so the <em>controls</em> are the
+always-present drive surface and any <em>measured</em> diagnostics are clearly optional (so PLAY can
+withhold them and TRACK can later assimilate them — Fig 1).</p>
+
+<h2 id="s6">§6 — The sprint: daily milestones</h2>
+<p>One week, sequenced so the cheapest, most diagnostic experiment runs first and each milestone
+de-risks the next. Each is independently shippable.</p>
+
+<figure>
+<svg viewBox="0 0 920 280" width="100%" role="img" aria-label="One-week sprint timeline" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="920" height="280" fill="#ffffff"/>
+  <!-- axis -->
+  <line x1="150" y1="46" x2="884" y2="46" stroke="#999"/>
+  <g font-size="11.5" fill="#555" text-anchor="middle">
+    <text x="150" y="38">Fri 19</text><text x="255" y="38">Sat 20</text><text x="360" y="38">Sun 21</text>
+    <text x="465" y="38">Mon 22</text><text x="570" y="38">Tue 23</text><text x="675" y="38">Wed 24</text>
+    <text x="780" y="38">Thu 25</text><text x="884" y="38">Fri 26</text>
+  </g>
+  <g stroke="#e2e6ec" stroke-width="1">
+    <line x1="150" y1="46" x2="150" y2="250"/><line x1="255" y1="46" x2="255" y2="250"/>
+    <line x1="360" y1="46" x2="360" y2="250"/><line x1="465" y1="46" x2="465" y2="250"/>
+    <line x1="570" y1="46" x2="570" y2="250"/><line x1="675" y1="46" x2="675" y2="250"/>
+    <line x1="780" y1="46" x2="780" y2="250"/><line x1="884" y1="46" x2="884" y2="250"/>
+  </g>
+  <!-- bars: x maps day -> px (150 + day*104.8) -->
+  <!-- M1 D0-1 -->
+  <rect x="150" y="62" width="105" height="26" fill="#ffffff" stroke="#0a7d33" stroke-width="1.5"/>
+  <text x="12" y="79" font-size="12.5" fill="#111" font-weight="600">M1 sample + metrics</text>
+  <text x="160" y="79" font-size="11.5" fill="#0a7d33">argmax→sampling · FVD/control harness</text>
+  <!-- M2 D1-4 -->
+  <rect x="255" y="98" width="315" height="26" fill="#ffffff" stroke="#1f6feb" stroke-width="1.5"/>
+  <text x="12" y="115" font-size="12.5" fill="#111" font-weight="600">M2 context-corruption</text>
+  <text x="265" y="115" font-size="11.5" fill="#1f6feb">fine-tune for self-correction (anti-drift)</text>
+  <!-- M3 D2-4 -->
+  <rect x="360" y="134" width="210" height="26" fill="#ffffff" stroke="#1f6feb" stroke-width="1.5"/>
+  <text x="12" y="151" font-size="12.5" fill="#111" font-weight="600">M3 control + CFG</text>
+  <text x="370" y="151" font-size="11.5" fill="#1f6feb">controls load-bearing · gas-puff probe</text>
+  <!-- M4 D4-6 -->
+  <rect x="570" y="170" width="210" height="26" fill="#ffffff" stroke="#0a7d33" stroke-width="1.5"/>
+  <text x="12" y="187" font-size="12.5" fill="#111" font-weight="600">M4 play harness + demo</text>
+  <text x="580" y="187" font-size="11.5" fill="#0a7d33">drive schedule → decode → video</text>
+  <!-- M5 D6-7 -->
+  <rect x="780" y="206" width="104" height="26" fill="#ffffff" stroke="#b08000" stroke-width="1.5"/>
+  <text x="12" y="223" font-size="12.5" fill="#111" font-weight="600">M5 verdict + doc</text>
+  <text x="640" y="223" font-size="11.5" fill="#b08000">eval · honest demo writeup · collapse</text>
+  <defs></defs>
+</svg>
+<figcaption><strong>Figure 3 — the one-week plan.</strong> M1 (cheap, same-day) is also the decisive
+diagnostic: if sampling alone substantially reduces the collapse, M2/M3 sharpen it; if not, M2's
+self-correction fine-tune is the real fix. M4 turns it into the driveable demo; M5 scores it honestly.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>M1 — Sampling rollout + the right metric harness (D0–D1).</strong> Replace argmax with
+  temperature/nucleus sampling; build the distributional + controllability metric harness (FVD-style
+  distance + control-divergence + luminance-fair pixel sanity). Re-score the existing best.pt under
+  sampling vs argmax on held-out shots. <em>Done-when:</em> harness committed; a table showing whether
+  sampling alone reduces the persistence collapse (motion/change-fraction up, distributional score vs
+  persistence), incl. the bright/high-motion held-out shots.</li>
+  <li><strong>M2 — Context-corruption fine-tune for self-correction (D1–D4).</strong> Fine-tune the
+  checkpoint with history-token corruption + corruption-level conditioning + control-dropout; held-out-best
+  checkpointing; LR ≤ 1.5×10⁻⁴; drain-safe sbatch. <em>Done-when:</em> a fine-tuned checkpoint whose
+  sampled rollout holds coherence over a longer horizon than M1 (drift reduced, measured), with the
+  correction-helps-rollout test green.</li>
+  <li><strong>M3 — Load-bearing controls + classifier-free guidance (D2–D4, overlaps M2).</strong> Port
+  the actuator-vector conditioning; apply CFG at inference. <em>Done-when:</em> the gas-puff falsification
+  passes — the predicted emission spot tracks the puff command and a counterfactual zeroed-puff rollout
+  does <em>not</em> light it; control-divergence (different schedules from one seed) exceeds
+  same-schedule sample spread.</li>
+  <li><strong>M4 — The "play the plasma" harness + demo artifacts (D4–D6).</strong> <code>play.py</code>:
+  seed + editable schedule → sampled+CFG rollout → frozen-VQ decode → video. <em>Done-when:</em> three
+  rendered artifacts — (a) faithful replay of a held-out shot, (b) counterfactual "same seed, two plans →
+  two plasmas", (c) a "knob" demo (ramp Ip / fire the gas puff).</li>
+  <li><strong>M5 — Verdict, honest demo writeup, collapse (D6–D7).</strong> Score against the §7
+  pre-registered bar; write the demo into <a href="world-model-demonstration.html">world-model-demonstration</a>
+  (or a focused demo doc); state what plays well and what is aleatoric/uncontrollable. <em>Done-when:</em>
+  W1–W3 verdicts stated with figures/videos; plan collapsed to a landed summary; the TRACK / science
+  follow-on queued.</li>
+</ul>
+
+<h2 id="s7">§7 — Pre-registered demo bar &amp; evaluation (locked before any number)</h2>
+<p>Following project practice, the win condition is registered before results, and it is a
+<em>playability</em> bar, not a point-accuracy bar.</p>
+<ul>
+  <li><strong>W1 — it responds to the controls.</strong> From one fixed seed, two materially different
+  schedules produce materially different, physically-sensible rollouts (control-divergence &gt;
+  same-schedule sample spread, CI clear of zero); the gas-puff command lights the emission spot and a
+  zeroed-puff counterfactual does not. This is the falsifiable "it's a game, not a video" test.</li>
+  <li><strong>W2 — it does not collapse, and earns it on a fair metric.</strong> The sampled rollout's
+  frame-to-frame motion matches GT (change-fraction, not ≈0), and it beats persistence on a
+  <em>distributional</em> score (FVD-vs-persistence / ensemble CRPS) on held-out shots <em>including the
+  bright, high-motion ones</em>. Pixel-MSE and luminance-fair SSIM are reported only as sanity, with the
+  perception–distortion caveat (persistence wins MSE by construction).</li>
+  <li><strong>W3 — it plays as a demo.</strong> A driveable artifact exists: set/edit a schedule, watch
+  the plasma evolve coherently for a useful horizon (target: seconds / tens-of-frames) without
+  degenerating — delivered as the three M4 videos.</li>
+  <li><strong>Honest framing (no over-claim).</strong> Bursty events (ELM/sawtooth timing) are aleatoric
+  — only their statistics are reproducible, not exact timing. Counterfactual plays have <em>no ground
+  truth</em>; they are judged by plausibility + control-response, never pixel-match. Scarce data
+  (thousands of shots, not billions of frames) means short-horizon, single-machine — not a Genie-3-grade
+  open world.</li>
+</ul>
+
+<h2 id="s8">§8 — Risks &amp; honesty</h2>
+<ul>
+  <li><strong>Sampling may add noise, not meaningful diversity.</strong> On near-stationary plasma the
+  "diversity" sampling unlocks could be incoherent jitter. M1 measures this directly before we invest in
+  M2; if so, the context-corruption fine-tune (which teaches <em>structured</em> correction) is the real
+  lever, and MaskGIT-style parallel decoding becomes the stretch.</li>
+  <li><strong>Codebook redundancy on dark frames</strong> inflates token accuracy while pixel error stays
+  poor — so we score decoded space and treat token-mismatch as the honest independent-information signal
+  (the project's confirmed finding).</li>
+  <li><strong>Drift beyond a few seconds is unsolved across the field.</strong> We target a useful
+  short horizon and do not over-claim free-run coherence; longer rollout is the Self-Forcing follow-on.</li>
+  <li><strong>Controls partly entangle with state.</strong> Actuator currents are achieved (measured)
+  state, not pure demands; the cleanest "operator plays" semantics is the XDC demand surface, queued as
+  the fast-follow once the tangible demo lands.</li>
+  <li><strong>GPU-drain safety</strong> per AGENTS.md §2a/§2b on every job: STOP-FILE, clean SIGTERM,
+  drain sidecar, resume-safe checkpointing, model-loaded-once in-process. Keep DeepSeek-V4-Flash up
+  unless a genuine 4-card run is required (the fine-tune of a ~1 B model on one camera should not need it).</li>
+</ul>
+
+<h2 id="s9">§9 — Relationship to existing plans &amp; the science follow-on</h2>
+<p>This sprint is the demonstrable-capability front half of the world-model line; it sits under milestone
+<strong>M4</strong> alongside <a href="camera-dynamics-wm-v0.html">camera-dynamics-wm-v0</a> (whose
+action-conditioning + controllability probe we reuse) and <a href="world-model-prototype.html">world-model-prototype</a>
+(whose <code>f-wmp-closed-loop-camera</code> followup it refocuses: closed-loop <em>correction</em> is the
+TRACK mode, sequenced after the PLAY demo). It honours the <code>camera-role = one-modality</code> lock in
+<a href="physics-world-model-strategy.html">physics-world-model-strategy</a> in the precise sense that the
+<em>playable object is the latent plasma state with the camera as its renderer</em> — generation is the
+demo surface, the latent is the asset the science uses.</p>
+<p><strong>The science follows cheaply, by switching feeds on (Fig 1).</strong> Per
+<a href="https://montefiore-sail.github.io/appa/">Appa</a> / <a href="https://proceedings.neurips.cc/paper_files/paper/2023/hash/7f7fa581cc8a1970a4332920cdf87395-Abstract-Conference.html">SDA</a>,
+adding observation guidance to the same generative model gives: (1) <strong>virtual diagnostics</strong> —
+withhold a feed, condition on the rest, predict it; the per-channel error <em>is</em> the over-diagnosis
+information-redundancy map (cf. <a href="https://arxiv.org/pdf/2509.12945">FusionMAE</a>), which honestly
+tests "tokamaks are over-diagnosed" per-target rather than assuming it; (2) <strong>reduced dynamics /
+discovery</strong> on the learned transition (Koopman/SINDy toward dimensionless coordinates); (3)
+<strong>physics-grounded correction</strong> via the working EKF substrate
+(<a href="sequential-current-da-v1.html">sequential-current-da-v1</a>) without hardcoding a forward
+simulator — physics stays a soft, falsifiable prior, never a hard law in the loop.</p>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="play-substrate" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">Which model do we make playable in v0?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="spacetime-v2-plus-port">Build on spacetime_v2 checkpoint + port actuator conditioning &amp; gas-puff probe from camera-dynamics-wm-v0 (recommended — fastest to a demo; mature decode pipeline + a trained checkpoint to fine-tune)</button>
+    <button class="r-opt" data-value="camera-dynamics">Build on camera-dynamics-wm-v0 (natively action-conditioned, lighter 202M, W1 already won; but trained for clipped-view reconstruction, not forward dreaming)</button>
+    <button class="r-opt" data-value="fresh-control-only">Fresh control-only training run with the spacetime architecture</button>
+  </p>
+  <p class="r-dec-rat">Recommend reusing the spacetime_v2 checkpoint + decode pipeline (fastest path to a demo) and porting in camera-dynamics-wm-v0's actuator-vector conditioning + gas-puff controllability probe. Refactor conditioning so controls are the always-present drive surface and measured diagnostics are optional (enables the PLAY/TRACK split, Fig 1).</p>
+</div>
+<div class="r-dec" data-key="control-surface" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">What is the drive surface the operator "plays"?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="actuator-vector">Actuator vector — coil currents + NBI + gas-puff + Ip + ∫ne dl (recommended — tangible "fire the puff" demo, leakage-clean, loader+probe already exist)</button>
+    <button class="r-opt" data-value="pulse-schedule-demands">Pulse-schedule XDC demands only (purer operator-plan semantics; less visually tangible; XDC leakage caveat)</button>
+    <button class="r-opt" data-value="both">Both — actuator vector as drive surface + pulse-schedule demands as conditioning</button>
+  </p>
+  <p class="r-dec-rat">Recommend the actuator vector for v0 (tangible, leakage-clean, reuses camera-dynamics-wm-v0); add the pulse-schedule-demand surface as a fast-follow.</p>
+</div>
+<div class="r-dec" data-key="playable-scope" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">How "interactive" is the v0 demo?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="offline-rendered">Offline-rendered counterfactual play — drive a schedule, roll forward, decode to video (recommended for the 1-week demo)</button>
+    <button class="r-opt" data-value="realtime-interactive">Genuinely interactive real-time loop (live knobs at interactive fps — needs few-step distillation; heavier)</button>
+  </p>
+  <p class="r-dec-rat">Recommend offline-rendered videos for v0 (the "drive the plasma" film); real-time interactivity (distillation for fps) is the next-sprint stretch once quality is proven.</p>
+</div>
+<div class="r-dec" data-key="anti-collapse-depth" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">How far do we push the anti-collapse machinery this week?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="sample-plus-corruption">Sampling + context-corruption fine-tune + control-CFG (recommended — the data-frugal recipe; reuses the checkpoint)</button>
+    <button class="r-opt" data-value="add-maskgit">Also add MaskGIT-style parallel masked decoding on the VQ codebook (diffusion-flavoured; stretch)</button>
+    <button class="r-opt" data-value="sampling-only">Sampling only, defer the fine-tune (cheapest; risk: drift unfixed)</button>
+  </p>
+  <p class="r-dec-rat">Recommend sampling + context-corruption + control-CFG. MaskGIT parallel decode is the natural stretch if drift persists; Self-Forcing / continuous diffusion are explicitly deferred (§3).</p>
+</div>
+</section>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-ppwm-sample-metrics" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-06-19" data-recommends-skill="/reckon-ship playable-plasma-wm-v0 §6" data-resolved-at="" data-resolved-by="">
+  <h4 class="r-fu-title">M1 — sampling rollout + the playability metric harness; re-score sampling vs argmax</h4>
+  <div class="r-fu-body">The cheapest, most diagnostic experiment first: replace argmax with temperature/nucleus sampling in the dream rollout, build the distributional + controllability metric harness (the right scorecard, since pixel-MSE-vs-persistence cannot credit a generative model), and re-score the existing best.pt under sampling vs argmax on the held-out shots — including the bright, high-motion ones. The result decides how much of M2/M3 is needed.</div>
+  <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
+Section: §6 (M1)
+Tier:    opus
+
+Context
+  The camera world model collapses to persistence under argmax open-loop rollout
+  (world-model-demonstration §9). Diagnosis (this plan §2): two causes — argmax mode-seeking
+  and open-loop drift. M1 attacks cause 1 with sampling (zero training) and stands up the
+  fair metric harness so M2/M3 can be judged. Build on the existing trained checkpoint.
+
+State to read  (code/files/data — not the plan itself)
+  imas_ambix/worldmodel/spacetime_dream_v2.py (rollout path; argmax → sampling),
+  spacetime_model_v2.py (factorised token head), spacetime_dataset_v2.py;
+  /work/projects/imas_gpu/.../spacetime-v2-1219852/ (best.pt, step 7000) + its heldout_decode/verdict.json;
+  imas_ambix/worldmodel/reconstruction_demo.py (run_decode_subprocess, frozen VQ);
+  imas_ambix/statespace/splits.py (held-out reserve, incl. bright 18502/18505 + dim 18503/18504).
+
+Scope locks / constraints  (non-decision)
+  - Score DECODED space, distributional + controllability — not pixel-MSE-vs-persistence alone
+    (perception-distortion: persistence wins MSE by construction). Report a luminance-fair pixel
+    sanity (SSIM/normalised) WITH that caveat; report bright/high-motion shots explicitly.
+  - Frozen Open-MAGVIT2 decoder (never tuned). In-process GPU pattern (AGENTS.md §2b); model
+    loaded once. GPU-drain safety §2a (clean SIGTERM, drain sidecar, resume-safe). Keep DeepSeek up.
+
+Done-when
+  1. Sampling rollout (temperature + top-p as knobs) committed in the dream path.
+  2. Playability metric harness committed: distributional score (FVD-style / ensemble CRPS) vs
+     persistence + control-divergence stub + luminance-fair pixel sanity; tests green.
+  3. A scored table (argmax vs sampling on best.pt, held-out incl. bright shots): does sampling
+     alone reduce the collapse (motion/change-fraction up; distributional score vs persistence)?
+  4. Followup written for M2 (context-corruption fine-tune) with the M1 verdict folded in; this
+     followup resolved.</pre>
+</article>
+</section>
+
+</main>
+</body>
+</html>
