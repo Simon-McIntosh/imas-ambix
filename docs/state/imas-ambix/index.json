@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-19T15:42:38",
+  "updated": "2026-06-19T16:05:56",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -323,27 +323,13 @@
       },
       {
         "id": "S13",
-        "status": "active",
+        "status": "done",
         "theme": "World-model H200 builds \u2014 camera-dynamics reconstruction + learned physics closures",
-        "items": [
-          {
-            "slug": "camera-dynamics-wm-v0",
-            "why_now": "User directive 2026-06-10: the 4xH200 reservation is idle while the 9,527-shot / 4.02B-token rbb camera corpus sits unused. The clipped-view -> full-stream reconstruction task is the fast-return dynamics-backed world-model build, with matched-arm (temporal vs per-frame) design so the dynamics claim is earned, and physics probes from the latent. Honours the S5 lesson (token-space metrics, frozen decoder, no rFID north-star) and the camera-role lock (generation is a byproduct; the latent is the product).",
-            "tier": "opus",
-            "done_when": "W1 dynamics-beat-statics (matched-arm masked-token NLL, CI clear of zero); W2 forward-horizon reconstruction table (h=10/50/200 ms); W3 frozen-probe lift on held-out raw diagnostics; stretch pitch probe on the locked D1 MSE harness reported honestly; full-stream decoded demo as byproduct.",
-            "status": "active"
-          },
-          {
-            "slug": "learned-closure-current-diffusion-v0",
-            "why_now": "The S9 D2 mechanism finding says internal-current recovery is carried by the psi-diffusion forward + sigma(Te) closure, not by assimilation, and the oracle refuted direct obs->state regression. The remaining principled ML lever is learning the closures (eta>0-constrained Sauter correction, bounded Zeff_eff) INSIDE a differentiable solver, MSE-free, amortized across 5,672 shots on 4xH200 \u2014 the q-without-MSE path that goes through the physics, and the home of the open neural-KF Class-2 prototype followup.",
-            "tier": "opus",
-            "done_when": "Differentiable psi-diffusion core gradcheck-green + TORAX-validated (>=3 shots); constrained closure modules with Sauter-only ablation; MSE-free amortized training converged on 4xH200 (hardened sbatch); scored on the locked D1 harness vs the frozen sequential-EKF v1 bar (W1 RMSE + cov90 [0.88,0.92] + CRPS/NLL, bootstrap CIs); near-axis clean test (no overclaim); W4 closure-extraction maps published win or lose.",
-            "status": "active"
-          }
-        ],
+        "items": [],
         "starts": "2026-06-10",
         "ends": "2026-06-24",
-        "description": "Two physics-backed world-model builds that put the idle 4xH200 reservation to work, scoped per user directive 2026-06-10. Both are extraction-of-structure-from-raw-data projects: (A) camera-dynamics-wm-v0 learns reduced-order dynamics from the full-machine rbb camera via clipped-view full-stream reconstruction over the existing 4.02B-token corpus; (B) learned-closure-current-diffusion-v0 folds hard physics priors (positive resistivity, resistive diffusion timescale, Ip boundary condition) into multi-modal data by learning the closures inside a differentiable current-diffusion filter \u2014 the q-without-MSE path. Sequencing: B's D4 scoring waits on the S10 v1 bar freezing; everything else proceeds now. GPU safety: AGENTS.md 2a/2a-cancel/2a-cancel-time binding on every job."
+        "description": "Two physics-backed world-model builds that put the idle 4xH200 reservation to work, scoped per user directive 2026-06-10. Both are extraction-of-structure-from-raw-data projects: (A) camera-dynamics-wm-v0 learns reduced-order dynamics from the full-machine rbb camera via clipped-view full-stream reconstruction over the existing 4.02B-token corpus; (B) learned-closure-current-diffusion-v0 folds hard physics priors (positive resistivity, resistive diffusion timescale, Ip boundary condition) into multi-modal data by learning the closures inside a differentiable current-diffusion filter \u2014 the q-without-MSE path. Sequencing: B's D4 scoring waits on the S10 v1 bar freezing; everything else proceeds now. GPU safety: AGENTS.md 2a/2a-cancel/2a-cancel-time binding on every job.",
+        "summary": "Closed 2026-06-19 when the world-model focus pivoted to a demonstrable 'play the plasma' capability (S14). Headline landed: camera-dynamics-wm-v0 W1 \u2014 dynamics beat statics (matched-arm masked-token NLL +0.4587, CI clear of zero; pan +0.51, frontier +2.55 nats). Remaining camera probes (D3-D5) + the learned-closure current-diffusion thread roll forward to S15 (science follows)."
       },
       {
         "id": "S14",
@@ -361,6 +347,30 @@
         "starts": "2026-06-19",
         "ends": "2026-06-26",
         "description": "One-week sprint (user-directed 2026-06-19): turn the camera world model from persistence-collapse into a DEMONSTRABLE, driveable demo. Fix the two collapse causes cheaply \u2014 sampling (not argmax) + context-corruption fine-tune + load-bearing control conditioning with classifier-free guidance \u2014 reusing the trained spatiotemporal checkpoint (spacetime-v2-1219852), the actuator conditioning + gas-puff controllability probe from camera-dynamics-wm-v0, and the frozen Open-MAGVIT2 decoder. Demonstrable capability is the primary goal; the science (virtual diagnostics, reduced dynamics, discovery) follows as the SAME generative model with observation guidance switched on (PLAY vs TRACK). SOTA-grounded: WHAM/Genie/GameNGen/EMERALD + SDA/Appa play-vs-track duality + FusionMAE/TCV NSSM scarce-data fusion precedents."
+      },
+      {
+        "id": "S15",
+        "status": "planned",
+        "theme": "Science follows \u2014 virtual diagnostics, reduced dynamics, learned closures",
+        "items": [
+          {
+            "slug": "camera-dynamics-wm-v0",
+            "why_now": "User directive 2026-06-10: the 4xH200 reservation is idle while the 9,527-shot / 4.02B-token rbb camera corpus sits unused. The clipped-view -> full-stream reconstruction task is the fast-return dynamics-backed world-model build, with matched-arm (temporal vs per-frame) design so the dynamics claim is earned, and physics probes from the latent. Honours the S5 lesson (token-space metrics, frozen decoder, no rFID north-star) and the camera-role lock (generation is a byproduct; the latent is the product).",
+            "tier": "opus",
+            "done_when": "W1 dynamics-beat-statics (matched-arm masked-token NLL, CI clear of zero); W2 forward-horizon reconstruction table (h=10/50/200 ms); W3 frozen-probe lift on held-out raw diagnostics; stretch pitch probe on the locked D1 MSE harness reported honestly; full-stream decoded demo as byproduct.",
+            "status": "active"
+          },
+          {
+            "slug": "learned-closure-current-diffusion-v0",
+            "why_now": "The S9 D2 mechanism finding says internal-current recovery is carried by the psi-diffusion forward + sigma(Te) closure, not by assimilation, and the oracle refuted direct obs->state regression. The remaining principled ML lever is learning the closures (eta>0-constrained Sauter correction, bounded Zeff_eff) INSIDE a differentiable solver, MSE-free, amortized across 5,672 shots on 4xH200 \u2014 the q-without-MSE path that goes through the physics, and the home of the open neural-KF Class-2 prototype followup.",
+            "tier": "opus",
+            "done_when": "Differentiable psi-diffusion core gradcheck-green + TORAX-validated (>=3 shots); constrained closure modules with Sauter-only ablation; MSE-free amortized training converged on 4xH200 (hardened sbatch); scored on the locked D1 harness vs the frozen sequential-EKF v1 bar (W1 RMSE + cov90 [0.88,0.92] + CRPS/NLL, bootstrap CIs); near-axis clean test (no overclaim); W4 closure-extraction maps published win or lose.",
+            "status": "active"
+          }
+        ],
+        "starts": "2026-06-26",
+        "ends": "2026-07-17",
+        "description": "The science track that follows the playable-plasma demo (S14). Same generative substrate with observation guidance switched on (TRACK mode): predict withheld diagnostics from a subset (the over-diagnosis information-redundancy map), extract reduced nonlinear dynamics/closures (Koopman/SINDy), and ground correction in the working EKF \u2014 without hardcoding a forward simulator. Holds the camera-dynamics reconstruction/probe work + the learned-closure current-diffusion thread rolled forward from S13."
       }
     ],
     "blockers": [
@@ -437,6 +447,11 @@
         "when": "2026-06-19",
         "who": "Simon McIntosh (via orchestrator)",
         "what": "S14 opened \u2014 playable-plasma-wm-v0. The lead resolved the world-model fork to a DEMONSTRABLE 'play the plasma' capability first (science follows). One-week sprint: fix the persistence collapse cheaply (sampling + context-corruption fine-tune + load-bearing control-CFG) on the trained spatiotemporal checkpoint; deliver a driveable camera demo. SOTA-grounded (WHAM/Genie/GameNGen/EMERALD + SDA/Appa play-vs-track + FusionMAE/TCV NSSM). Set active over S13; S13's camera-dynamics + learned-closure builds remain open (overlap flagged to the lead)."
+      },
+      {
+        "when": "2026-06-19",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "Sprint reorg: S13 closed (camera-dynamics W1 landed); S14 'Play the plasma' is the single active sprint; S15 'Science follows' created (planned) holding camera-dynamics-wm-v0 + learned-closure-current-diffusion-v0. Also removed the GPU-drain/scancel defence apparatus from AGENTS.md \u00a72a + the playable-plasma plan per the settled RCA (drains are an environmental fabric condition, not an agent concern)."
       }
     ],
     "milestones": [
@@ -447,6 +462,6 @@
         "pct": 0
       }
     ],
-    "_version": 25
+    "_version": 26
   }
 }

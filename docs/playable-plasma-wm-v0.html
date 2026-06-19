@@ -28,9 +28,12 @@
 <em>demonstrable, driveable</em> plasma camera world model: give it a short seed context and a
 <strong>pulse schedule / actuator plan</strong>, and it generates the MAST <code>rbb</code> camera
 forward — the plasma <em>responds to the controls</em> (ramp the current, fire the gas puff) and
-stays coherent for a useful horizon <em>without collapsing to a frozen frame</em>. The deliverable
-is the demo (rendered videos: faithful replay, a counterfactual "same start, two plans", and a
-"knob" demo), backed by honest distributional + controllability metrics. <strong>Demonstrable
+stays coherent for a useful horizon <em>without collapsing to a frozen frame</em>. The committed
+output is a <strong>real-time playable plasma</strong> — drive it live (ramp the current, fire the
+puff) and watch it respond at interactive frame-rates. This sprint delivers the driveable
+<em>proof</em> (rendered demos: faithful replay, a counterfactual "same start, two plans", a "knob"
+demo, backed by honest distributional + controllability metrics); the real-time interactive loop is
+the headline deliverable (<a href="#s6b">§6b, M6</a>). <strong>Demonstrable
 capability is the primary goal; the science — virtual diagnostics, reduced dynamics, discovery —
 follows</strong>, and it follows cheaply because (per the data-assimilation literature) it is the
 <em>same</em> generative model with observation guidance switched on (§9).</p>
@@ -181,17 +184,18 @@ generative + assimilation) converge on the same recipe. The load-bearing precede
   <tr><td><strong>WHAM / Muse</strong> (Microsoft, <em>Nature</em> 2025)</td><td>VQ-tokeniser + decoder-only transformer, interleaved image+action tokens — <em>our exact stack</em></td><td>Token-AR <em>can</em> be playable; it samples (not argmax). Validates our architecture; the gap was data scale + sampling, not the design.</td></tr>
   <tr><td><strong>Genie 1–3</strong> (DeepMind, 2024–25)</td><td>spatiotemporal transformer + latent actions; CFG for controllability</td><td>Classifier-free guidance on controls to make actions load-bearing.</td></tr>
   <tr><td><strong>GameNGen</strong> (Google, 2024)</td><td>diffusion DOOM, 20 fps; noise-augmented context</td><td>Context-corruption / noise augmentation as the anti-drift fix.</td></tr>
-  <tr><td><strong>EMERALD</strong> (2025); <strong>DIAMOND</strong> (NeurIPS 2024)</td><td>masked-latent / diffusion world models; stochastic sampling</td><td>Sampling removes persistence collapse; MaskGIT-style parallel decode on a VQ codebook is the fast diffusion-flavoured path if we want it (stretch).</td></tr>
+  <tr><td><strong>EMERALD</strong> (2025); <strong>DIAMOND</strong> (NeurIPS 2024)</td><td>masked-latent / diffusion world models; stochastic sampling</td><td>Sampling removes persistence collapse; MaskGIT-style parallel decode on a VQ codebook is the fast diffusion-flavoured path — the route to real-time decode (§6b/M6).</td></tr>
   <tr><td><strong>SDA</strong> (NeurIPS 2023); <strong>Appa</strong> (2025); <strong>GenCast</strong> (<em>Nature</em> 2025)</td><td>generative data assimilation / ensemble forecasting in weather</td><td>The PLAY/TRACK duality (§1); forcing as input channels; CRPS as the proper score.</td></tr>
   <tr><td><strong>FusionMAE</strong> (2025)</td><td>masked autoencoder over 88 tokamak diagnostics; "virtual backup diagnosis" 96.7%</td><td>Direct precedent for the science follow-on: masked modelling predicts withheld diagnostics and <em>measures redundancy</em>.</td></tr>
   <tr><td><strong>TCV NSSM</strong> (<em>Nature Comms</em> 2025)</td><td>neural state-space model from 311 pulses, actuator-conditioned, ensemble UQ, predict-first validated</td><td>The fusion existence-proof that scarce-data, controls-conditioned plasma world models work + validate honestly.</td></tr>
 </tbody>
 </table></div>
 <p><strong>What we deliberately defer:</strong> Self-Forcing-style own-rollout training with distribution-matching
-(the SOTA stability recipe, but a training-loop rewrite and data-hungry); a full continuous diffusion
-backbone (DIAMOND/DFoT — abandons our VQ investment); and few-step distillation for real-time interactive
-fps (only worth it once quality is proven). The first-pass recipe — <strong>sample + context-corruption +
-control-CFG on the existing checkpoint</strong> — is the most data-frugal path, which is why it goes first.</p>
+(the SOTA stability recipe, but a training-loop rewrite and data-hungry) and a full continuous-diffusion
+backbone (DIAMOND/DFoT — abandons our VQ investment). The first-pass recipe — <strong>sample + context-corruption +
+control-CFG on the existing checkpoint</strong> — is the most data-frugal path, which is why it goes first;
+real-time decoding (MaskGIT parallel decode / few-step distillation) is sequenced into M6 (§6b), and a sharp
+conditional-diffusion decoder is the deferred quality step (§6c).</p>
 <p><strong>One methodological non-negotiable (the project's recurring lesson, now backed by theory).</strong>
 Per-pixel MSE-vs-persistence <em>cannot</em> credit a generative model: the perception–distortion tradeoff
 (<a href="https://arxiv.org/pdf/1711.06077">Blau &amp; Michaeli, CVPR 2018</a>) proves the MSE-optimal
@@ -237,7 +241,7 @@ add a <em>control surface</em>, and wrap it in a <em>play harness</em>. Three co
   random fraction of history tokens is corrupted/masked each step and the corruption level is fed as a
   conditioning signal, plus <strong>control-dropout</strong> so classifier-free guidance is available.
   (Cause-2 fix + makes controls steerable.) Peak LR ≤ 1.5×10⁻⁴ (3×10⁻⁴ diverged the ~1 B model);
-  warmup→cosine; held-out-best checkpointing; GPU-drain-safe sbatch.</li>
+  warmup→cosine; held-out-best checkpointing; ordinary sbatch (<code>scancel</code> and normal <code>--time</code> are fine; node drains are an environmental SDCC matter, not an agent concern — AGENTS.md §2a).</li>
   <li><strong>The play harness</strong> — <code>imas_ambix/worldmodel/play.py</code>: take a seed
   context + a (possibly user-edited / counterfactual) control schedule, roll forward with
   sampling + CFG, decode through the frozen VQ, and render a video. Supports schedule editing
@@ -314,7 +318,7 @@ self-correction fine-tune is the real fix. M4 turns it into the driveable demo; 
   persistence), incl. the bright/high-motion held-out shots.</li>
   <li><strong>M2 — Context-corruption fine-tune for self-correction (D1–D4).</strong> Fine-tune the
   checkpoint with history-token corruption + corruption-level conditioning + control-dropout; held-out-best
-  checkpointing; LR ≤ 1.5×10⁻⁴; drain-safe sbatch. <em>Done-when:</em> a fine-tuned checkpoint whose
+  checkpointing; LR ≤ 1.5×10⁻⁴; ordinary sbatch (scancel + normal --time fine). <em>Done-when:</em> a fine-tuned checkpoint whose
   sampled rollout holds coherence over a longer horizon than M1 (drift reduced, measured), with the
   correction-helps-rollout test green.</li>
   <li><strong>M3 — Load-bearing controls + classifier-free guidance (D2–D4, overlaps M2).</strong> Port
@@ -333,6 +337,35 @@ self-correction fine-tune is the real fix. M4 turns it into the driveable demo; 
   follow-on queued.</li>
 </ul>
 
+<h2 id="s6b">§6b — The committed output: a real-time playable plasma (M6)</h2>
+<p>The lead's required end-output is a <strong>real-time playable plasma</strong> — drive it live
+(ramp Ip, fire the puff) and watch it respond at interactive frame-rates, not a pre-rendered film. The
+one-week sprint (M1–M5) delivers the offline-rendered <em>proof</em> that the capability exists;
+<strong>M6 makes it real-time</strong> and is the headline deliverable this plan commits to.</p>
+<ul>
+  <li><strong>M6 — real-time interactive loop.</strong> The ~1 B model decoding 256 tokens/frame
+  sequentially is not interactive as-is; the route to real-time is faster <em>decoding</em>, not a new
+  model. Two composable levers: <strong>MaskGIT-style parallel masked decoding</strong> over the existing
+  VQ codebook (≈4 confidence-ordered iterations/frame instead of 256 sequential steps — the EMERALD
+  recipe) and, if needed, <strong>few-step distillation</strong> (LCM/DMD). Wrap it in a live UI
+  (sliders/keys drive the schedule; frames stream). <em>Done-when:</em> a person drives the schedule
+  live and the decoded plasma responds at interactive fps (target ≥ 10 fps) on held-out seeds, still
+  passing the W1 control-response and W2 non-collapse bars.</li>
+</ul>
+
+<h2 id="s6c">§6c — Later steps (on the roadmap, deferred by decision)</h2>
+<ul>
+  <li><strong>Conditional diffusion decoder for sharp frames — diffusion decision deferred.</strong> The
+  biggest single <em>quality</em> upgrade: replace the argmax/sampled-token decode with a conditional
+  diffusion / score-based decoder for sharp, non-blurry frames (DIAMOND/GameNGen lineage). Deferred by
+  the lead — kept here as an explicit later step, not decided now. It composes with M6 (real-time) and
+  with the closed-loop science below.</li>
+  <li><strong>TRACK mode — virtual diagnostics + reduced dynamics (the science follows).</strong> The
+  same model with observation guidance switched on (Fig 1): withhold a feed and predict it (the
+  over-diagnosis information-redundancy map), discover the reduced transition (Koopman/SINDy), and
+  ground the correction in the working EKF — without hardcoding a forward simulator. Detailed in §9.</li>
+</ul>
+
 <h2 id="s7">§7 — Pre-registered demo bar &amp; evaluation (locked before any number)</h2>
 <p>Following project practice, the win condition is registered before results, and it is a
 <em>playability</em> bar, not a point-accuracy bar.</p>
@@ -348,7 +381,9 @@ self-correction fine-tune is the real fix. M4 turns it into the driveable demo; 
   perception–distortion caveat (persistence wins MSE by construction).</li>
   <li><strong>W3 — it plays as a demo.</strong> A driveable artifact exists: set/edit a schedule, watch
   the plasma evolve coherently for a useful horizon (target: seconds / tens-of-frames) without
-  degenerating — delivered as the three M4 videos.</li>
+  degenerating — delivered as the three M4 videos. The in-sprint bar is this offline-rendered proof; the
+  <strong>committed end-output is the real-time interactive loop (M6, §6b)</strong> at ≥ 10 fps, still
+  passing W1/W2.</li>
   <li><strong>Honest framing (no over-claim).</strong> Bursty events (ELM/sawtooth timing) are aleatoric
   — only their statistics are reproducible, not exact timing. Counterfactual plays have <em>no ground
   truth</em>; they are judged by plausibility + control-response, never pixel-match. Scarce data
@@ -370,9 +405,12 @@ self-correction fine-tune is the real fix. M4 turns it into the driveable demo; 
   <li><strong>Controls partly entangle with state.</strong> Actuator currents are achieved (measured)
   state, not pure demands; the cleanest "operator plays" semantics is the XDC demand surface, queued as
   the fast-follow once the tangible demo lands.</li>
-  <li><strong>GPU-drain safety</strong> per AGENTS.md §2a/§2b on every job: STOP-FILE, clean SIGTERM,
-  drain sidecar, resume-safe checkpointing, model-loaded-once in-process. Keep DeepSeek-V4-Flash up
-  unless a genuine 4-card run is required (the fine-tune of a ~1 B model on one camera should not need it).</li>
+  <li><strong>GPU ops.</strong> Ordinary SLURM: <code>scancel</code> and normal <code>--time</code> are
+  fine — node drains are an environmental fabric/driver condition outside our control and an SDCC/admin
+  matter, <em>not</em> an agent concern (AGENTS.md §2a; <a href="rca-node-drain-final-2026-06-03.html">settled
+  RCA</a>). Standard practice for its own sake: in-process model-load-once for throughput (§2b) and a
+  clean SIGTERM for lossless cancellation. Keep DeepSeek-V4-Flash up unless a genuine 4-card run is
+  required (a ~1 B single-camera fine-tune should not need it).</li>
 </ul>
 
 <h2 id="s9">§9 — Relationship to existing plans &amp; the science follow-on</h2>
@@ -397,40 +435,40 @@ simulator — physics stays a soft, falsifiable prior, never a hard law in the l
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="play-substrate" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="play-substrate" data-choice="spacetime-v2-plus-port" data-by="Simon McIntosh" data-when="2026-06-19">
   <p class="r-dec-q">Which model do we make playable in v0?</p>
   <p class="r-dec-opts">
-    <button class="r-opt" data-value="spacetime-v2-plus-port">Build on spacetime_v2 checkpoint + port actuator conditioning &amp; gas-puff probe from camera-dynamics-wm-v0 (recommended — fastest to a demo; mature decode pipeline + a trained checkpoint to fine-tune)</button>
+    <button class="r-opt chosen" data-value="spacetime-v2-plus-port">Build on spacetime_v2 checkpoint + port actuator conditioning &amp; gas-puff probe from camera-dynamics-wm-v0 (recommended — fastest to a demo; mature decode pipeline + a trained checkpoint to fine-tune)</button>
     <button class="r-opt" data-value="camera-dynamics">Build on camera-dynamics-wm-v0 (natively action-conditioned, lighter 202M, W1 already won; but trained for clipped-view reconstruction, not forward dreaming)</button>
     <button class="r-opt" data-value="fresh-control-only">Fresh control-only training run with the spacetime architecture</button>
   </p>
-  <p class="r-dec-rat">Recommend reusing the spacetime_v2 checkpoint + decode pipeline (fastest path to a demo) and porting in camera-dynamics-wm-v0's actuator-vector conditioning + gas-puff controllability probe. Refactor conditioning so controls are the always-present drive surface and measured diagnostics are optional (enables the PLAY/TRACK split, Fig 1).</p>
+  <p class="r-dec-rat">LOCKED 2026-06-19: reuse the spacetime_v2 checkpoint + decode pipeline (fastest path to a demo) and port in camera-dynamics-wm-v0's actuator-vector conditioning + gas-puff controllability probe. Refactor conditioning so controls are the always-present drive surface and measured diagnostics are optional (enables the PLAY/TRACK split, Fig 1).</p>
 </div>
-<div class="r-dec" data-key="control-surface" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="control-surface" data-choice="actuator-vector" data-by="Simon McIntosh" data-when="2026-06-19">
   <p class="r-dec-q">What is the drive surface the operator "plays"?</p>
   <p class="r-dec-opts">
-    <button class="r-opt" data-value="actuator-vector">Actuator vector — coil currents + NBI + gas-puff + Ip + ∫ne dl (recommended — tangible "fire the puff" demo, leakage-clean, loader+probe already exist)</button>
+    <button class="r-opt chosen" data-value="actuator-vector">Actuator vector — coil currents + NBI + gas-puff + Ip + ∫ne dl (recommended — tangible "fire the puff" demo, leakage-clean, loader+probe already exist)</button>
     <button class="r-opt" data-value="pulse-schedule-demands">Pulse-schedule XDC demands only (purer operator-plan semantics; less visually tangible; XDC leakage caveat)</button>
     <button class="r-opt" data-value="both">Both — actuator vector as drive surface + pulse-schedule demands as conditioning</button>
   </p>
-  <p class="r-dec-rat">Recommend the actuator vector for v0 (tangible, leakage-clean, reuses camera-dynamics-wm-v0); add the pulse-schedule-demand surface as a fast-follow.</p>
+  <p class="r-dec-rat">LOCKED 2026-06-19: actuator vector for v0 (tangible, leakage-clean, reuses camera-dynamics-wm-v0); add the pulse-schedule-demand surface as a fast-follow.</p>
 </div>
-<div class="r-dec" data-key="playable-scope" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">How "interactive" is the v0 demo?</p>
+<div class="r-dec" data-key="playable-scope" data-choice="realtime-interactive" data-by="Simon McIntosh" data-when="2026-06-19">
+  <p class="r-dec-q">What is the committed output — offline-rendered or real-time interactive?</p>
   <p class="r-dec-opts">
-    <button class="r-opt" data-value="offline-rendered">Offline-rendered counterfactual play — drive a schedule, roll forward, decode to video (recommended for the 1-week demo)</button>
-    <button class="r-opt" data-value="realtime-interactive">Genuinely interactive real-time loop (live knobs at interactive fps — needs few-step distillation; heavier)</button>
+    <button class="r-opt" data-value="offline-rendered">Offline-rendered counterfactual play — drive a schedule, roll forward, decode to video (the in-sprint proof, M1–M5)</button>
+    <button class="r-opt chosen" data-value="realtime-interactive">Genuinely interactive real-time loop — live knobs at interactive fps (the committed end-output, M6)</button>
   </p>
-  <p class="r-dec-rat">Recommend offline-rendered videos for v0 (the "drive the plasma" film); real-time interactivity (distillation for fps) is the next-sprint stretch once quality is proven.</p>
+  <p class="r-dec-rat">LOCKED 2026-06-19 (lead): the committed end-output is a <strong>real-time playable plasma</strong>. Offline-rendered video is the in-sprint stepping stone (M1–M5) that proves the capability; the real-time interactive loop (M6, §6b — MaskGIT-style parallel decode and/or few-step distillation for interactive fps + a live-knob UI) is the headline deliverable this plan commits to.</p>
 </div>
-<div class="r-dec" data-key="anti-collapse-depth" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="anti-collapse-depth" data-choice="sample-plus-corruption" data-by="Simon McIntosh" data-when="2026-06-19">
   <p class="r-dec-q">How far do we push the anti-collapse machinery this week?</p>
   <p class="r-dec-opts">
-    <button class="r-opt" data-value="sample-plus-corruption">Sampling + context-corruption fine-tune + control-CFG (recommended — the data-frugal recipe; reuses the checkpoint)</button>
-    <button class="r-opt" data-value="add-maskgit">Also add MaskGIT-style parallel masked decoding on the VQ codebook (diffusion-flavoured; stretch)</button>
+    <button class="r-opt chosen" data-value="sample-plus-corruption">Sampling + context-corruption fine-tune + control-CFG (recommended — the data-frugal recipe; reuses the checkpoint)</button>
+    <button class="r-opt" data-value="add-maskgit">Also add MaskGIT-style parallel masked decoding on the VQ codebook (diffusion-flavoured)</button>
     <button class="r-opt" data-value="sampling-only">Sampling only, defer the fine-tune (cheapest; risk: drift unfixed)</button>
   </p>
-  <p class="r-dec-rat">Recommend sampling + context-corruption + control-CFG. MaskGIT parallel decode is the natural stretch if drift persists; Self-Forcing / continuous diffusion are explicitly deferred (§3).</p>
+  <p class="r-dec-rat">LOCKED 2026-06-19: sampling + context-corruption + control-CFG for the in-sprint anti-collapse. MaskGIT-style parallel decode is NOT a mere stretch — it is the route to the committed real-time output (M6, §6b), so it is sequenced there. A conditional diffusion decoder for sharp frames is deferred by the lead but kept on the roadmap as an explicit later step (§6c); Self-Forcing / a full continuous-diffusion backbone stay deferred (§3).</p>
 </div>
 </section>
 
@@ -462,7 +500,8 @@ Scope locks / constraints  (non-decision)
     (perception-distortion: persistence wins MSE by construction). Report a luminance-fair pixel
     sanity (SSIM/normalised) WITH that caveat; report bright/high-motion shots explicitly.
   - Frozen Open-MAGVIT2 decoder (never tuned). In-process GPU pattern (AGENTS.md §2b); model
-    loaded once. GPU-drain safety §2a (clean SIGTERM, drain sidecar, resume-safe). Keep DeepSeek up.
+    loaded once. Ordinary SLURM (scancel + normal --time are fine; drains are an SDCC matter,
+    not an agent concern, §2a). Clean SIGTERM for lossless cancellation. Keep DeepSeek up.
 
 Done-when
   1. Sampling rollout (temperature + top-p as knobs) committed in the dream path.

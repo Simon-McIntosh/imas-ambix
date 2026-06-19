@@ -115,65 +115,32 @@ sbatch --partition=betelgeuse \
 - `export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p "$TMPDIR"` — default TMPDIR is broken on this node (on non-betelgeuse partitions like `sun` use `TMPDIR=/tmp`; `/scratch_local` only exists on betelgeuse)
 - Use `srun` with the same flags for interactive jobs
 
-## 2a. GPU node stability — settled findings (2026-06-10)
+## 2a. GPU node stability — not an agent concern (settled 2026-06-10)
 
-`98dci4-gpu-0003` (the only H200 node, shared with Group B) drained five
-times between 2026-05-26 and 2026-06-01. The S11 drain campaign settled the
-cause — see `docs/rca-node-drain-final-2026-06-03.html` (settled findings)
-and `docs/drain-window-campaign.html` (evidence record):
+`98dci4-gpu-0003` occasionally drains because of an **environmental,
+node-level condition** — a kernel-driver / CXI-Slingshot-fabric / GPFS D-state
+that occasionally fails to resolve within SLURM's `UnkillableStepTimeout`. It is
+**outside user-space control and is not an agent concern.** Settled root cause +
+the full test record: `docs/rca-node-drain-final-2026-06-03.html`; the actual
+fix is admin-side (`docs/proposal-drain-auto-recovery.html`).
 
-- **Mechanism (proven):** a process in uninterruptible D-state (NVIDIA
-  driver / CXI fabric / GPFS kernel wait) outlives `KillWait` (30 s) +
-  `UnkillableStepTimeout` (60 s) → slurmstepd "Kill task failed" → node
-  DRAINED. Standard SLURM behaviour.
-- **Cause (settled):** environmental and node-level. Two independent user
-  groups drained the node with unrelated code; 16 deliberate reproduction
-  attempts — including SIGKILL mid-collective, `--time` expiry into a live
-  hung NCCL process, and the verbatim code of a job that had previously
-  drained the node — produced **zero** drains. Sustained D-state is
-  stochastic driver/firmware state, not a property of any code path.
-- **Exonerated:** `scancel`, `SIGKILL`, and `#SBATCH --time` expiry. All
-  were fired deliberately at live CUDA/NCCL workloads and never drained the
-  node. **Agents may `scancel` GPU jobs and set ordinary `--time` limits.**
-  The former STOP-FILE contract, three-layer time-limit rule, and
-  never-`scancel` rule were removed on 2026-06-10 as superstition.
-- **Fix:** admin-side configuration (epilog GPU reset, auto-resume health
-  check, `UnkillableStepTimeout` review) —
-  `docs/proposal-drain-auto-recovery.html`.
+- **`scancel`, `SIGKILL`, and `#SBATCH --time` expiry are exonerated.** All were
+  fired deliberately at live CUDA/NCCL workloads, repeatedly, and never drained
+  the node. Use `scancel` and ordinary `--time` limits freely — they are the
+  supported ways to stop a job.
+- **Do NOT build drain-defence scaffolding.** The former STOP-FILE contract,
+  never-`scancel` rule, three-layer time-limit rule, and "hardened sbatch
+  header" defended against a mechanism that does not exist on this stack
+  (16 deliberate, zero-drain reproduction attempts). They were removed
+  2026-06-10; do not reintroduce them — in code, sbatch headers, or plans.
+- **A drain is an SDCC/admin recovery** (GPU reset + `scontrol … state=resume`),
+  not something to engineer around or treat as a code defect. If one recurs, log
+  it to SDCC against the admin proposal.
 
-**Good practice that remains (hang protection, not drain protection):**
-
-1. **SIGTERM/SIGINT handler** that flushes writers, releases the model, and
-   exits cleanly — makes cancellation lossless.
-2. **Per-shot / per-batch watchdog** — a stuck unit self-aborts instead of
-   wasting the allocation until someone notices.
-3. **Offline env vars + preflight asset checks** on betelgeuse (no outbound
-   network) — a blocked download otherwise stalls the job to its limit.
-4. **Symmetric collectives** — every rank participates in every collective;
-   rank-asymmetric calls desynchronise the ring and hang the job.
-
-**Forensic sidecar (default-on for long GPU jobs):** launch
-`scripts/slurm/drain_sidecar.sh` as a background line in the sbatch. It is
-SIGTERM-immune and samples every PID in the job cgroup (state + wchan),
-`nvidia-smi`, and kernel NVRM/Xid lines once per second to
-`/work/projects/imas_gpu/logs/drain-sidecar-<jobid>.*` on GPFS. If a drain
-ever recurs, this captures the D-state PID and kernel symbol that took a
-whole campaign to assemble. For deep investigation, the separate-allocation
-observer (`scripts/drain-tests/instrumented/observer.sbatch`) additionally
-survives the drain itself.
-
-**If a drain happens (recovery procedure):**
-1. Attribute: `sacct -a -N 98dci4-gpu-0003 --starttime=<window>` (all users,
-   rule Group B in/out) + the node `Reason=...[root@<ts>]` timestamp.
-2. Collect forensics: `/work/projects/imas_gpu/logs/drain-sidecar-<jobid>.*`
-   — identify the D-state PID/wchan during the kill window.
-3. Admin recovery: check stuck procs (`nvidia-smi`,
-   `ps -eo pid,stat,cmd`) → `nvidia-smi --gpu-reset` or reboot →
-   `scontrol update nodename=98dci4-gpu-0003 state=resume reason=""`
-   (resume only after GPUs are confirmed clean).
-4. Attach the evidence to `docs/proposal-drain-auto-recovery.html` and
-   notify SDCC. Do not reinstate behavioural guards without a measurement
-   showing they address the observed mechanism.
+Normal good practice that stands on its own merits — a clean `SIGTERM` for
+lossless cancellation, in-process model-load-once for throughput, fail-fast on
+missing offline assets, symmetric collectives — is covered in §2b. Keep it
+because it is good code, **not** because of drains.
 
 ## 2b. Performant GPU code (in-process default)
 
@@ -203,8 +170,7 @@ prefetch producer/consumer threads — is **PROHIBITED** for production code.
 
 - `imas_ambix/data/stream_encode.py` — corpus encoder. Holds VQModel across
   all shots. torch `DataLoader` for shot loading. SIGTERM handler flushes async
-  Zarr writers and tears down DataLoader workers cleanly within
-  `UnkillableStepTimeout`.
+  Zarr writers and tears down DataLoader workers cleanly on shutdown.
 - `imas_ambix/bench/stream_worker.py` — bench encoder + decoder. Same
   hardening: SIGTERM handler sets a `STOP` flag, per-shot watchdog
   auto-tunes its timeout from the running median, `try/finally` releases
