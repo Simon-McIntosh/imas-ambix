@@ -193,6 +193,33 @@ class _SpaceTimeBlock(nn.Module):
 
 
 # ---------------------------------------------------------------------------
+# Nucleus (top-p) logit masking — shared by the sampling decode
+# ---------------------------------------------------------------------------
+
+
+def _nucleus_mask_logits(logits: torch.Tensor, top_p: float) -> torch.Tensor:
+    """Mask all but the smallest top-``p`` probability nucleus to ``-inf``.
+
+    ``logits`` is ``(rows, vocab)``.  For each row the tokens are sorted by
+    descending probability and the smallest prefix whose cumulative probability
+    first reaches ``top_p`` is kept; every other token's logit is set to
+    ``-inf`` so it has zero probability after the subsequent softmax.  The single
+    most-likely token is always kept (the ``> top_p`` test is shifted by one
+    position), so a tiny ``top_p`` degrades to argmax rather than an empty set.
+    """
+    sorted_logits, sorted_idx = torch.sort(logits, descending=True, dim=-1)
+    cum = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+    # remove tokens once the cumulative mass has PASSED top_p; shift right by one
+    # so the first token that crosses the threshold (and the top-1) are kept.
+    remove_sorted = cum > top_p
+    remove_sorted[..., 1:] = remove_sorted[..., :-1].clone()
+    remove_sorted[..., 0] = False
+    remove = torch.zeros_like(remove_sorted)
+    remove.scatter_(dim=-1, index=sorted_idx, src=remove_sorted)
+    return logits.masked_fill(remove, float("-inf"))
+
+
+# ---------------------------------------------------------------------------
 # The model
 # ---------------------------------------------------------------------------
 
@@ -492,4 +519,75 @@ class SpacetimeTransformer(nn.Module):
             logits = self.head(flat[start:stop])  # (chunk, vocab)
             out[start:stop] = logits.argmax(dim=-1)
             del logits
+        return out.reshape(b, s)
+
+    @torch.no_grad()
+    def chunked_sample_frame(
+        self,
+        hidden_at_prev: torch.Tensor,
+        *,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        chunk: int = 4096,
+        generator: torch.Generator | None = None,
+    ) -> torch.Tensor:
+        """Temperature + nucleus (top-p) sample one frame's tokens per position.
+
+        The stochastic counterpart of :meth:`chunked_argmax_frame`.  Argmax is
+        mode-seeking — under an autoregressive rollout it collapses the camera
+        forecast onto the single most-likely token at every position, which is
+        empirically the persistence (frozen-last-frame) solution.  Sampling from
+        the (temperature-scaled, nucleus-truncated) per-token categorical instead
+        draws a *coherent realisation* from the predictive distribution rather
+        than its mode, which is the right object to score against persistence with
+        a distributional metric.
+
+        The output head is a single softmax over the full LFQ codebook (the LFQ
+        bits were fused into one ``vocab_size`` id at tokenisation), so the
+        per-token distribution is the softmax of the ``vocab_size`` logits at that
+        position; there is no per-bit factorisation to sample independently.
+
+        Parameters
+        ----------
+        hidden_at_prev:
+            ``(B, S, d)`` backbone hidden at the frame BEFORE the one generated.
+        temperature:
+            Softmax temperature.  ``> 0`` divides the logits before the softmax
+            (``< 1`` sharpens toward the mode, ``> 1`` flattens).  ``<= 0`` falls
+            back to a deterministic argmax (so a caller can pass ``temperature=0``
+            for the greedy baseline through the same entry point).
+        top_p:
+            Nucleus mass in ``(0, 1]``.  Only the smallest set of tokens whose
+            cumulative probability first reaches ``top_p`` is kept; the rest are
+            masked to zero probability before renormalising and sampling.  The
+            single most-likely token is ALWAYS kept, so ``top_p`` near 0 degrades
+            gracefully to argmax rather than emptying the support.
+        chunk:
+            Rows of the flattened ``(B·S)`` axis processed per head call so the
+            head logits never exceed ``chunk · vocab`` (same budget as argmax).
+        generator:
+            Optional ``torch.Generator`` for a reproducible draw.
+
+        Returns
+        -------
+        ``(B, S)`` long sampled LOCAL token ids.
+        """
+        b, s, d = hidden_at_prev.shape
+        if temperature is None or temperature <= 0.0:
+            return self.chunked_argmax_frame(hidden_at_prev, chunk=chunk)
+        top_p = float(top_p)
+        if not 0.0 < top_p <= 1.0:
+            raise ValueError(f"top_p must be in (0, 1]; got {top_p}")
+        flat = hidden_at_prev.reshape(-1, d)
+        out = flat.new_zeros(flat.shape[0], dtype=torch.long)
+        for start in range(0, flat.shape[0], chunk):
+            stop = min(start + chunk, flat.shape[0])
+            logits = self.head(flat[start:stop]).float()  # (rows, vocab)
+            logits = logits / float(temperature)
+            if top_p < 1.0:
+                logits = _nucleus_mask_logits(logits, top_p)
+            probs = torch.softmax(logits, dim=-1)
+            idx = torch.multinomial(probs, num_samples=1, generator=generator)
+            out[start:stop] = idx.squeeze(-1)
+            del logits, probs, idx
         return out.reshape(b, s)

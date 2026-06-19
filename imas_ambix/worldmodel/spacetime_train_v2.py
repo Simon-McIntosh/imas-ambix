@@ -507,6 +507,33 @@ def _sample_stream_names(sample: SignalSpacetimeSample) -> list[str]:
     return list(sample.signals.keys())
 
 
+def _decode_frame(
+    model: SignalSpacetimeTransformer,
+    hidden_prev: torch.Tensor,
+    *,
+    chunk: int,
+    temperature: float,
+    top_p: float,
+    generator: torch.Generator | None,
+) -> torch.Tensor:
+    """Pick one frame's tokens — argmax when ``temperature<=0`` else top-p sample.
+
+    A single entry point so the teacher-forced and autoregressive paths share the
+    SAME token-selection rule: ``temperature <= 0`` (the default) reproduces the
+    deterministic mode-seeking argmax baseline; a positive temperature draws a
+    nucleus-truncated sample (the mode-escape that M1 tests).
+    """
+    if temperature is None or temperature <= 0.0:
+        return model.chunked_argmax_frame(hidden_prev, chunk=chunk)
+    return model.chunked_sample_frame(
+        hidden_prev,
+        temperature=temperature,
+        top_p=top_p,
+        chunk=chunk,
+        generator=generator,
+    )
+
+
 @torch.no_grad()
 def teacher_forced_signal_frames(
     model: SignalSpacetimeTransformer,
@@ -515,18 +542,23 @@ def teacher_forced_signal_frames(
     stream_names: Sequence[str] | None = None,
     chunk: int = 4096,
     device: torch.device | None = None,
+    temperature: float = 0.0,
+    top_p: float = 1.0,
+    generator: torch.Generator | None = None,
 ) -> np.ndarray:
     """Teacher-forced next-frame prediction WITH measured-signal conditioning.
 
     The signal counterpart of
     :func:`imas_ambix.worldmodel.spacetime_train.teacher_forced_frames`: it feeds
     the TRUE frames plus the plan AND the measured signals, then reads the
-    per-token argmax (frame ``t`` predicted from the hidden at ``t-1``).  Returns
-    ``(T, S)`` LOCAL token ids; frame 0 is truth (no predecessor).
+    per-token prediction (frame ``t`` predicted from the hidden at ``t-1``).
+    Returns ``(T, S)`` LOCAL token ids; frame 0 is truth (no predecessor).
 
     ``stream_names`` pins the stream set/order to the model's (so an all-PAD block
     is presented for any stream this sample lacks, keeping the embedding tables in
-    the graph); defaults to the streams the sample carries.
+    the graph); defaults to the streams the sample carries.  ``temperature`` /
+    ``top_p`` select the token rule: ``temperature <= 0`` (default) is the greedy
+    argmax baseline, a positive temperature is a nucleus sample.
     """
     model.eval()
     dev = device or next(model.parameters()).device
@@ -542,7 +574,14 @@ def teacher_forced_signal_frames(
     out = np.zeros((t, s), dtype=np.int64)
     out[0] = np.asarray(sample.frames[0], dtype=np.int64)
     for ti in range(1, t):
-        pred = model.chunked_argmax_frame(hidden[:, ti - 1], chunk=chunk)  # (1, S)
+        pred = _decode_frame(
+            model,
+            hidden[:, ti - 1],
+            chunk=chunk,
+            temperature=temperature,
+            top_p=top_p,
+            generator=generator,
+        )  # (1, S)
         out[ti] = pred[0].cpu().numpy().astype(np.int64)
     return out
 
@@ -555,6 +594,9 @@ def autoregressive_signal_dream(
     stream_names: Sequence[str] | None = None,
     chunk: int = 4096,
     device: torch.device | None = None,
+    temperature: float = 0.0,
+    top_p: float = 1.0,
+    generator: torch.Generator | None = None,
 ) -> np.ndarray:
     """Autoregressive rollout FEEDING THE SIGNALS — the v2 forecast.
 
@@ -566,6 +608,12 @@ def autoregressive_signal_dream(
     (sub-sampled across the window span at assembly), so they are collated once and
     re-fed each step — the rollout always sees the measured plasma state, which is
     the whole point of v2.  Returns ``(T, S)`` LOCAL token ids (context = truth).
+
+    ``temperature`` / ``top_p`` select the token rule per generated frame:
+    ``temperature <= 0`` (default) reproduces the deterministic argmax baseline;
+    a positive temperature draws a nucleus-truncated sample, so that repeated
+    calls (different ``generator`` state) yield an ENSEMBLE of distinct coherent
+    rollouts — the object a distributional metric scores against persistence.
     """
     model.eval()
     dev = device or next(model.parameters()).device
@@ -583,7 +631,14 @@ def autoregressive_signal_dream(
     for ti in range(ctx, t_total):
         cur = torch.as_tensor(gen[:ti][None], dtype=torch.long, device=dev)  # (1,ti,S)
         hidden = model._forward_tokens(cur, plan, signals)  # (1, ti, S, d)
-        pred = model.chunked_argmax_frame(hidden[:, ti - 1], chunk=chunk)  # (1, S)
+        pred = _decode_frame(
+            model,
+            hidden[:, ti - 1],
+            chunk=chunk,
+            temperature=temperature,
+            top_p=top_p,
+            generator=generator,
+        )  # (1, S)
         gen[ti] = pred[0].cpu().numpy().astype(np.int64)
     return gen
 
