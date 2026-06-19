@@ -521,8 +521,53 @@ of what the model actually knows.</p>
 own:</strong> a coherent, plan-conditioned, autoregressive dream of <em>held-out</em> MAST camera shots at the
 step-3000 checkpoint. An overnight run (linear warmup → cosine decay with gradient clipping, added
 regularisation, ~8–10 k shots, and held-out-best checkpointing) is now training to remove the overfit and the
-late divergence and should sharpen this further — but it is an improvement on a result that already works, not a
-prerequisite for it.</p>
+late divergence and should sharpen this further. <strong>(Superseded — see §6.2 for the overnight outcome, which
+corrects this: the camera-only run did not generalize, and the real positive came from adding measured-signal
+conditioning.)</strong></p>
+
+<h3 id="s6-signal">§6.2 — Overnight outcome: measured-signal conditioning gives the first beat of persistence (partial)</h3>
+<p>The camera-only spatiotemporal model was trained to convergence overnight on 9,000 shots with a proper
+warmup→cosine learning-rate schedule, gradient clipping, and regularisation. The honest result, scored by the
+decoded-pixel-vs-persistence metric (§5's lesson: the pixel error against a frozen-last-frame baseline is the
+verdict, not the GIF's apparent coherence): <strong>it lost to persistence on all four held-out shots</strong>
+(2.3–3.8× worse) — held-out generalisation peaked early (~step 3,000) then degraded as it memorised. Camera
+pixels + the plan alone do not let it forecast unseen plasma.</p>
+<p><strong>The pivot that worked: condition on the measured physics.</strong> We added the diagnostic signal
+streams — magnetics (<code>xma</code>), density (<code>interferometer</code>), <code>soft_x_rays</code>, and the
+Level-2 measured groups (<code>summary</code>, <code>pf_active</code>, <code>gas_injection</code>) — as
+additional conditioning frames alongside the plan. (An ablation confirms they are <em>load-bearing</em>: zeroing
+the signals measurably changes the forecast, so they genuinely feed the prediction rather than being silently
+dropped.) Scored the same way on the held-out-best checkpoint:</p>
+<div class="table-scroll"><table class="t">
+<thead><tr><th>Held-out shot</th><th>Dream pixel-err</th><th>Persistence</th><th>Ratio</th><th>Verdict</th></tr></thead>
+<tbody>
+  <tr><td>18503 (dim)</td><td>2.905</td><td>3.277</td><td><strong>0.886×</strong></td><td><strong>BEATS frozen-frame</strong></td></tr>
+  <tr><td>18504 (dim)</td><td>1.356</td><td>2.809</td><td><strong>0.483×</strong></td><td><strong>BEATS (2.1× better)</strong></td></tr>
+  <tr><td>18502 (bright)</td><td>3.659</td><td>2.774</td><td>1.319×</td><td>loses</td></tr>
+  <tr><td>18505 (bright)</td><td>4.404</td><td>3.633</td><td>1.212×</td><td>loses</td></tr>
+</tbody>
+</table></div>
+<p><strong>This is the first time any variant beat the frozen-frame baseline on held-out data</strong> — and it
+happened precisely when the measured-signal conditioning was added (the teacher-forced score agrees: same two
+shots win). Signal conditioning converts "loses on every shot" into "beats on half, one by 2×". That is a real,
+causal, <em>measured</em> step forward.</p>
+<p><strong>The honest limit (do not over-read it):</strong> the two wins are on the <em>low-emission, dim</em>
+shots, where the frame is mostly dark and low pixel-error is intrinsically easier to achieve; the model still
+<em>loses</em> on the <em>bright, high-motion</em> shots, which are the genuinely hard forecasting. The
+token-mismatch is still ~0.92 (saturated, uninformative at this vocabulary). So this is a <strong>partial,
+qualified positive</strong> — evidence that conditioning on physics lets the model forecast, not a clean win.
+The next step (planned) is to widen the corpus and re-score on the bright shots with a luminance-fair metric, to
+see whether the beat extends beyond the easy cases.</p>
+
+<figure>
+<img src="/imas-ambix/figures/world-model-demonstration/v2-signal-heldout-18504-dream.gif" alt="Held-out shot 18504: GT vs signal-conditioned dream, beats persistence 2.1x" width="100%">
+<img src="/imas-ambix/figures/world-model-demonstration/v2-signal-heldout-18503-dream.gif" alt="Held-out shot 18503: GT vs signal-conditioned dream, beats persistence" width="100%">
+<figcaption><strong>Figure 6.2 — signal-conditioned dream on held-out shots 18504 (top, 0.48× = 2.1× better than
+persistence) and 18503 (bottom, 0.89×).</strong> Ground truth ∥ autoregressive dream, decoded full-resolution.
+These are the two held-out shots where the measured-signal model beats the frozen-frame baseline — both are
+low-emission shots; the bright, high-motion held-out shots still lose. First measured beat of persistence in the
+project, achieved by conditioning the camera forecast on the measured physics signals.</figcaption>
+</figure>
 
 <h2 id="s7">§7 — Verdict and the path from demo to fidelity</h2>
 <p><strong>Verdict.</strong> This is a genuine, end-to-end, leakage-free <em>prototype</em>: the plumbing
