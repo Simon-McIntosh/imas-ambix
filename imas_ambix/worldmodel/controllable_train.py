@@ -650,6 +650,496 @@ def overfit_controllable(
 
 
 # ---------------------------------------------------------------------------
+# Corpus DDP trainer (the 6-GPU re-train on the excited corpus)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ControllableCorpusConfig:
+    """Knobs for the multi-shot DDP re-train of the controllable model.
+
+    Mirrors the v2 ``CorpusV2Config`` (steps / batch / LR schedule / checkpoint /
+    eval cadence / DDP workers) and adds the M4 controllability machinery: the
+    camera-history embedding bottleneck, the inverse-dynamics auxiliary weight,
+    scheduled sampling, and the high observation-dropout + control-dropout that
+    force the model to drive from the actuator PLAN.
+    """
+
+    steps: int = 12000
+    batch_size: int = 4
+    grad_accum: int = 1
+    lr: float = 1e-4
+    weight_decay: float = 0.1
+    seed: int = 0
+    log_every: int = 25
+    ckpt_every: int = 250
+    eval_every: int = 1000
+    num_workers: int = 4
+    prefetch_factor: int = 4
+    grad_clip: float = 1.0
+    chunk: int = 4096
+    n_signal_steps: int = 4
+    n_act_steps: int = 8
+    lr_schedule: bool = True
+    warmup_steps: int = 400
+    min_lr_ratio: float = 0.02
+    random_window: bool = True
+    # M4 controllability machinery (the same levers the overfit gate validated).
+    observation_dropout: float = 0.8
+    control_dropout: float = 0.15
+    history_bottleneck: HistoryBottleneckConfig = field(
+        default_factory=HistoryBottleneckConfig
+    )
+    inverse_dynamics_weight: float = 1.0
+    scheduled_sampling_max: float = 0.25
+    scheduled_sampling_ramp: float = 0.5
+    window: SpacetimeWindowConfig = field(default_factory=SpacetimeWindowConfig)
+    model_kwargs: dict = field(default_factory=dict)
+    modalities: list[SignalModalitySpec] = field(
+        default_factory=default_signal_modalities
+    )
+    # warm-start the backbone from the M2 forecaster ONCE (when no resume
+    # checkpoint of THIS run exists yet) — the AdaLN MLP + inverse-dynamics head
+    # start at init (zero-init gate => the warm start is the forecaster).
+    init_checkpoint: Path | None = None
+
+
+@dataclass
+class ControllableCorpusResult:
+    steps_run: int
+    initial_loss: float
+    final_loss: float
+    losses: list[float]
+    n_parameters: int
+    n_train_shots: int
+    checkpoint_path: str | None
+    stream_names: list[str] = field(default_factory=list)
+
+
+def train_controllable_corpus(
+    shot_ids: Sequence[int],
+    *,
+    camera: str = REFERENCE_CAMERA,
+    config: ControllableCorpusConfig | None = None,
+    out_dir: Path | None = None,
+    token_root: Path | None = None,
+    device: str | None = None,
+    resume: bool = True,
+) -> ControllableCorpusResult:
+    """DDP re-train of the controllable model on a CORPUS of EXCITED shots.
+
+    The 6-GPU re-train the de-risk gate cleared the way for: warm-start the M2
+    forecaster, fine-tune on the curated excited corpus with the camera-history
+    bottleneck + inverse-dynamics + scheduled-sampling + the actuator-PLAN drive,
+    so the plan becomes load-bearing for a FREE-RUNNING rollout (not just the
+    one-step prediction).  Reuses the v2 DDP primitives (``DistEnv``, the LR
+    scheduler, checkpoint/resume, the distributed sampler) verbatim; the model,
+    dataset, and per-step controllability machinery are the controllable ones.
+
+    DDP-aware: each rank pins its card and trains a disjoint shot shard; the
+    plan-channel count + signal-stream widths are decided on rank 0 and broadcast
+    so every rank builds the IDENTICAL model.  Resume-safe: ``latest.pt`` every
+    ``ckpt_every`` steps, a SIGTERM STOP flag flushes within the step, and a
+    restart resumes from ``latest.pt``.
+    """
+    import contextlib  # noqa: PLC0415
+    import time  # noqa: PLC0415
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    from torch import nn  # noqa: PLC0415
+
+    from imas_ambix.worldmodel.controllable_dataset import (  # noqa: PLC0415
+        ControllableSpacetimeDataset,
+    )
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import (  # noqa: PLC0415
+        probe_signal_channels,
+    )
+    from imas_ambix.worldmodel.spacetime_train import (  # noqa: PLC0415
+        DEFAULT_CKPT_ROOT,
+        DistEnv,
+        _barrier,
+        _broadcast_int,
+        _init_distributed,
+        _unwrap,
+        build_lr_scheduler,
+        find_latest_checkpoint,
+    )
+    from imas_ambix.worldmodel.spacetime_train_v2 import (  # noqa: PLC0415
+        save_checkpoint_v2,
+    )
+
+    config = config or ControllableCorpusConfig()
+    if out_dir is None:
+        import os  # noqa: PLC0415
+
+        run_id = (
+            os.environ.get("SLURM_JOB_ID")
+            or os.environ.get("WM_RUN_ID")
+            or "local"
+        )
+        out_dir = DEFAULT_CKPT_ROOT / f"controllable-{run_id}"
+    out_dir = _Path(out_dir)
+    _set_determinism(config.seed)
+
+    env = DistEnv.from_environment()
+    _init_distributed(env)
+    if device is None:
+        device = f"cuda:{env.local_rank}" if torch.cuda.is_available() else "cpu"
+    dev = torch.device(device)
+
+    stop = _StopFlag()
+    stop.install()
+
+    # Probe plan-channels + signal-stream widths + actuator-channel count.
+    probe: list[ControllableSpacetimeSample] = []
+    for sid in list(shot_ids)[:8]:
+        try:
+            probe.append(
+                assemble_controllable_window(
+                    int(sid),
+                    config.window,
+                    config.modalities,
+                    config.n_signal_steps,
+                    config.n_act_steps,
+                    camera=camera,
+                    token_root=token_root,
+                )
+            )
+        except (ValueError, FileNotFoundError, KeyError):
+            continue
+    if not probe:
+        raise ValueError("no shot assembled in the probe — cannot size the model")
+    plan_ch = _plan_channels_for([p.signal for p in probe])
+    channels = probe_signal_channels(
+        list(shot_ids)[:16],
+        config.window,
+        config.modalities,
+        config.n_signal_steps,
+        camera=camera,
+        token_root=token_root,
+    )
+    act_channels = int(probe[0].actuator.n_channels)
+
+    # Broadcast every shaping quantity from rank 0 so all ranks build the SAME
+    # model (a per-rank GPFS read miss must not desync the param set).
+    plan_ch = _broadcast_int(env, plan_ch)
+    act_channels = _broadcast_int(env, act_channels)
+    for m in config.modalities:
+        channels[m.name] = _broadcast_int(env, int(channels.get(m.name, 0)))
+    streams = stream_specs_from_modalities(config.modalities, channels)
+    stream_names = [st.name for st in streams]
+
+    hb = config.history_bottleneck
+    corruption_levels = int(hb.levels) if hb.enabled else 0
+    base_model = build_controllable_model(
+        config.window,
+        plan_channels=plan_ch,
+        signal_streams=streams,
+        n_signal_steps=config.n_signal_steps,
+        actuator_channels=act_channels,
+        n_act_steps=config.n_act_steps,
+        corruption_levels=corruption_levels,
+        inverse_dynamics=config.inverse_dynamics_weight > 0.0,
+        **config.model_kwargs,
+    ).to(dev)
+    if env.is_main:
+        logger.info(
+            "controllable-corpus on %s: params=%d (%.1fM) d_model=%d n_layers=%d "
+            "plan_ch=%d actuator_ch=%d hb=%s inv_dyn_w=%.2f ss_max=%.2f "
+            "obs_dropout=%.2f streams=%s world=%d",
+            dev,
+            base_model.num_parameters(),
+            base_model.num_parameters() / 1e6,
+            base_model.config.d_model,
+            base_model.config.n_layers,
+            plan_ch,
+            act_channels,
+            f"std={hb.noise_std}/mask={hb.mask_prob}/max={hb.max_strength}"
+            if hb.enabled
+            else "off",
+            config.inverse_dynamics_weight,
+            config.scheduled_sampling_max,
+            config.observation_dropout,
+            [(st.name, st.channels) for st in streams],
+            env.world_size,
+        )
+
+    opt = torch.optim.AdamW(
+        base_model.parameters(), lr=config.lr, weight_decay=config.weight_decay
+    )
+    start_step = 0
+
+    # Resume THIS run's latest.pt first; else warm-start the forecaster ONCE.
+    latest = find_latest_checkpoint(out_dir) if resume else None
+    if latest is not None:
+        try:
+            payload = torch.load(str(latest), map_location="cpu", weights_only=False)
+            _unwrap(base_model).load_state_dict(payload["model_state_dict"])
+            if "optimizer_state_dict" in payload:
+                opt.load_state_dict(payload["optimizer_state_dict"])
+            start_step = int(payload.get("step", 0))
+            if env.is_main:
+                logger.info("RESUMED from %s at step %d", latest, start_step)
+        except (KeyError, RuntimeError, ValueError) as exc:
+            if env.is_main:
+                logger.warning("checkpoint %s incompatible (%r) — fresh", latest, exc)
+    elif config.init_checkpoint is not None:
+        n_loaded, n_new = _warm_start_from_forecaster(
+            _unwrap(base_model), _Path(config.init_checkpoint), dev
+        )
+        if env.is_main:
+            logger.info(
+                "warm-started backbone from %s: %d tensors loaded, %d new "
+                "(AdaLN MLP + inverse-dynamics head) left at init",
+                config.init_checkpoint,
+                n_loaded,
+                n_new,
+            )
+
+    scheduler = build_lr_scheduler(
+        opt,
+        total_steps=config.steps,
+        warmup_steps=config.warmup_steps,
+        min_lr_ratio=config.min_lr_ratio,
+        scheduled=config.lr_schedule,
+        last_step=start_step - 1,
+        peak_lr=config.lr,
+    )
+
+    if env.enabled:
+        from torch.nn.parallel import DistributedDataParallel  # noqa: PLC0415
+
+        ddp_kwargs: dict = {"find_unused_parameters": True}
+        if dev.type == "cuda":
+            ddp_kwargs["device_ids"] = [env.local_rank]
+            ddp_kwargs["output_device"] = env.local_rank
+        model: nn.Module = DistributedDataParallel(base_model, **ddp_kwargs)
+    else:
+        model = base_model
+    core = _unwrap(model)
+
+    dataset = ControllableSpacetimeDataset(
+        shot_ids,
+        config.window,
+        config.modalities,
+        config.n_signal_steps,
+        config.n_act_steps,
+        camera=camera,
+        token_root=token_root,
+        random_window=config.random_window,
+        seed=config.seed,
+    )
+    sampler = None
+    if env.enabled:
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset,
+            num_replicas=env.world_size,
+            rank=env.rank,
+            shuffle=True,
+            seed=config.seed,
+            drop_last=True,
+        )
+    use_workers = config.num_workers > 0
+
+    def _collate(samples):  # noqa: ANN001
+        return collate_controllable_windows(samples, stream_names=stream_names)
+
+    loader_kwargs: dict = dict(
+        dataset=dataset,
+        batch_size=config.batch_size,
+        shuffle=(sampler is None),
+        sampler=sampler,
+        num_workers=config.num_workers,
+        collate_fn=_collate,
+        drop_last=True,
+        generator=torch.Generator().manual_seed(config.seed),
+        pin_memory=(dev.type == "cuda"),
+        multiprocessing_context="fork" if use_workers else None,
+    )
+    if use_workers:
+        loader_kwargs["persistent_workers"] = True
+        loader_kwargs["prefetch_factor"] = max(4, config.prefetch_factor)
+    loader = torch.utils.data.DataLoader(**loader_kwargs)
+
+    drop_cfg = ContextCorruptionConfig(control_dropout=config.control_dropout)
+    ctx_frames = int(config.window.context_frames)
+    accum = max(1, int(config.grad_accum))
+
+    def _prepare_step_batch(batch: dict, *, gen_seed: int) -> dict:
+        """History-bottleneck + obs-dropout + control-dropout + scheduled-sampling.
+
+        Returns a batch carrying the (possibly mixed) ``frames`` for the forward,
+        a CLEAN ``target_frames`` for the loss, the per-frame bottleneck strengths
+        + level bin, and the dropped conditioning.  Mirrors ``overfit_controllable``
+        per-step prep but for the corpus loop.
+        """
+        out = dict(batch)
+        clean = batch["frames"]
+        b = int(clean.shape[0])
+        # camera-history embedding bottleneck.
+        if hb.enabled:
+            hb_gen = torch.Generator(device=dev).manual_seed(gen_seed ^ 0x48424F)
+            strengths, bins = sample_frame_strengths(
+                b, ctx_frames, hb, generator=hb_gen, device=dev
+            )
+            out["history_bottleneck"] = hb
+            out["history_strengths"] = strengths
+            out["history_generator"] = torch.Generator(device=dev).manual_seed(
+                gen_seed ^ 0x484247
+            )
+            out["target_frames"] = clean
+            out["corruption_level"] = bins.max(dim=1).values
+        # observation dropout — drive from the PLAN, not the redundant signals.
+        d_gen = torch.Generator(device=dev).manual_seed(gen_seed ^ 0x4F4253)
+        obs_drop = (
+            torch.rand(b, generator=d_gen, device=dev) < config.observation_dropout
+        )
+        out["signals"] = _drop_observations(batch.get("signals"), obs_drop)
+        # control dropout (CFG): zero the WHOLE conditioning on a fraction.
+        ctrl_drop = sample_control_dropout(b, drop_cfg, generator=d_gen, device=dev)
+        if bool(ctrl_drop.any()):
+            plan2, signals2 = apply_control_dropout(
+                batch.get("plan"), out["signals"], ctrl_drop
+            )
+            if plan2 is not None:
+                out["plan"] = plan2
+            if signals2 is not None:
+                out["signals"] = signals2
+            act = batch.get("actuator")
+            if act is not None:
+                av = act["values"].clone()
+                av[ctrl_drop] = 0.0
+                out["actuator"] = {"values": av, "missing": act["missing"]}
+        return out
+
+    model.train()
+    losses: list[float] = []
+    step = start_step
+    ckpt_path: Path | None = latest
+    t_last = time.time()
+    epoch = 0
+    micro = 0
+    try:
+        done = False
+        while not done:
+            if sampler is not None:
+                sampler.set_epoch(epoch)
+            epoch += 1
+            for batch in loader:
+                if stop.stop or step >= config.steps:
+                    done = True
+                    break
+                batch = _batch_to(batch, dev)
+                seed = (config.seed * 7919) ^ (env.rank * 104729) ^ step
+                batch = _prepare_step_batch(batch, gen_seed=seed)
+                # scheduled sampling — splice the model's own predictions into the
+                # forecast context (rollout-in-the-loop).
+                ss_prob = _scheduled_sampling_prob(step, config.steps, config)
+                if ss_prob > 0.0:
+                    ss_gen = torch.Generator(device=dev).manual_seed(seed ^ 0x53534D)
+                    batch["frames"] = _scheduled_sampling_mix(
+                        core,
+                        batch,
+                        batch.get("target_frames", batch["frames"]),
+                        context_frames=ctx_frames,
+                        prob=ss_prob,
+                        chunk=config.chunk,
+                        generator=ss_gen,
+                    )
+                    batch["target_frames"] = batch.get(
+                        "target_frames", batch["frames"]
+                    )
+                is_boundary = (micro + 1) % accum == 0
+                sync_ctx = (
+                    model.no_sync()
+                    if (env.enabled and not is_boundary)
+                    else contextlib.nullcontext()
+                )
+                with sync_ctx, _AutocastCtx(dev):
+                    loss = model(
+                        batch,
+                        loss_spec={
+                            "chunk": config.chunk,
+                            "context_frames": ctx_frames,
+                            "inverse_dynamics_weight": config.inverse_dynamics_weight,
+                        },
+                    )
+                    scaled = loss / accum
+                scaled.backward()
+                micro += 1
+                if not is_boundary:
+                    continue
+                micro = 0
+                if config.grad_clip > 0:
+                    nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)
+                opt.step()
+                opt.zero_grad(set_to_none=True)
+                scheduler.step()
+                losses.append(float(loss.detach()))
+                step += 1
+
+                if env.is_main and (
+                    step % config.log_every == 0 or step == config.steps
+                ):
+                    rate = config.log_every / max(time.time() - t_last, 1e-6)
+                    t_last = time.time()
+                    logger.info(
+                        "controllable-corpus step %d/%d loss=%.4f lr=%.3e "
+                        "ss=%.2f (%.2f st/s world=%d)",
+                        step,
+                        config.steps,
+                        losses[-1],
+                        opt.param_groups[0]["lr"],
+                        ss_prob,
+                        rate,
+                        env.world_size,
+                    )
+
+                if config.ckpt_every > 0 and step % config.ckpt_every == 0:
+                    _barrier(env)
+                    if env.is_main:
+                        ckpt_path = save_checkpoint_v2(
+                            out_dir,
+                            model=core,
+                            optimizer=opt,
+                            step=step,
+                            window=config.window,
+                            extra={"stream_names": stream_names},
+                        )
+                        logger.info("checkpoint @ step %d -> %s", step, ckpt_path)
+                    _barrier(env)
+    except Exception:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        raise
+
+    # final checkpoint flush (covers a clean SIGTERM stop mid-run).
+    _barrier(env)
+    if env.is_main:
+        ckpt_path = save_checkpoint_v2(
+            out_dir,
+            model=core,
+            optimizer=opt,
+            step=step,
+            window=config.window,
+            extra={"stream_names": stream_names},
+        )
+        logger.info("final checkpoint @ step %d -> %s", step, ckpt_path)
+    _barrier(env)
+
+    return ControllableCorpusResult(
+        steps_run=step - start_step,
+        initial_loss=losses[0] if losses else float("nan"),
+        final_loss=losses[-1] if losses else float("nan"),
+        losses=losses,
+        n_parameters=base_model.num_parameters(),
+        n_train_shots=len(list(shot_ids)),
+        checkpoint_path=str(ckpt_path) if ckpt_path else None,
+        stream_names=stream_names,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Controllability gate (decoder-free token-space causal margin)
 # ---------------------------------------------------------------------------
 #
