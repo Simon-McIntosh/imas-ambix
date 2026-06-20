@@ -270,7 +270,7 @@ def generate_rollouts(
         "present_streams": present,
         "has_gas": bool(has_gas),
         "gas_command_per_frame": gas_cmd,
-        "start_frame": int(sample.start_frame),
+        "start_frame": int(sample.base.start_frame),
         "puff_window_found": bool(puff_found),
         "puff_window_command_std": float(puff_std),
         "guidance_weights": [float(w) for w in guidance_weights],

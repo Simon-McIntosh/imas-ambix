@@ -142,6 +142,14 @@ class SignalSpacetimeSample:
         return self.base.shot_id
 
     @property
+    def camera(self) -> str:
+        return self.base.camera
+
+    @property
+    def start_frame(self) -> int:
+        return self.base.start_frame
+
+    @property
     def frames(self) -> np.ndarray:
         return self.base.frames
 

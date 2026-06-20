@@ -408,3 +408,12 @@ def test_find_puff_window_none_when_unreadable(monkeypatch):
     start, std = cg.find_puff_window(1, span=20)
     assert start is None
     assert std == 0.0
+
+
+def test_signal_sample_exposes_start_frame_and_camera():
+    # the driver reads sample.start_frame for the verdict meta; a v2 sample must
+    # pass it through (it wraps a v1 SpacetimeSample) — regression guard.
+    cfg = _tiny_cfg()
+    sample = _tiny_sample(cfg, t=6, ctx=3, seed=0)
+    assert sample.start_frame == sample.base.start_frame
+    assert sample.camera == sample.base.camera
