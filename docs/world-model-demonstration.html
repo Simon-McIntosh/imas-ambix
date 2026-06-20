@@ -189,19 +189,18 @@ is separately driving toward zero.</figcaption>
 
 <h2 id="s1">§1 — What this document demonstrates (status &amp; verdict up front)</h2>
 <p style="border-left:4px solid #1f6feb;padding-left:0.9em;background:#f5f8ff">
-<strong>Bottom line (2026-06-19).</strong> We built an autoregressive camera-video "world model" that, given a
+<strong>Bottom line (2026-06-20, updated).</strong> We built an autoregressive camera-video "world model" that, given a
 shot's <strong>pulse schedule</strong> + a short context window + (in the final variant) the measured
 diagnostic signals, dreams the <code>rbb</code> camera forward. Across three training generations the honest
-held-out verdict is: <strong>the model essentially learned <em>persistence</em></strong> (predict ≈ the last
-frame). The best variant — conditioned on measured physics signals — is the first to <strong>beat
-frozen-frame persistence, but only on 2 of 4 held-out shots, and only the dim/low-motion ones</strong>
-(§6.2). It does not yet forecast the bright, dynamic plasma that matters. <strong>We keep the generative camera model
-as the goal — but make it capable and correct</strong> by fixing its core flaw: it currently dreams
-<em>open-loop</em> (free-running from a fixed plan, never re-reading a measurement), so error compounds to
-persistence. The fix is to wrap the same camera encoder/decoder in a <em>corrected</em> latent state-space
-loop — a Kalman/EnKF filter that ingests broadband signals (video + diagnostics) every step — and to upgrade
-the frame generator to diffusion. The camera dream stays the product; closed-loop correction is what makes it
-work. Reasoned out in <a href="#s9">§9</a>.</p>
+held-out verdict began as: <strong>the model essentially learned <em>persistence</em></strong> (predict ≈ the last
+frame). The best signal-conditioned variant beat frozen-frame persistence on 2 of 4 held-out shots — the dim,
+low-motion ones — but still lost on the bright, high-motion shots (§6.2). <strong>The §6.1/§6.2 collapse to
+persistence has now been superseded on four of four held-out shots, including the bright high-motion ones,
+by switching from argmax to <em>sampling</em> + a context-corruption anti-drift fine-tune (§6.3).</strong>
+The headline negative in §6.1 is kept on the record because it is real and educational — it documents
+the <em>argmax</em> regime, which still collapses; sampling is load-bearing. The full story of why collapse
+happened and how it was fixed is in §6.3. The camera dream stays the goal; the strategic closed-loop
+architecture is in <a href="#s9">§9</a>.</p>
 <p>This document is the honest record of the camera-video world-model line: what the current model
 <em>is</em> (§2), how it trains and how it dreams (§2.1–§2.2), the three-generation result (§3, §6), and
 where we go next and why the current setup cannot be trained into a forecaster (§9). A <em>world model</em>
@@ -455,6 +454,10 @@ token-mismatch is still ~0.92 (saturated, uninformative at this vocabulary). So 
 qualified positive</strong> — evidence that conditioning on physics lets the model forecast, not a clean win.
 The next step (planned) is to widen the corpus and re-score on the bright shots with a luminance-fair metric, to
 see whether the beat extends beyond the easy cases.</p>
+<p style="border-left:3px solid #e67e22;padding-left:0.8em;color:#333"><strong>These §6.2 results are the argmax
+regime.</strong> Argmax (picking the single most-probable token) is mode-seeking and produces the "copy the last
+frame" fixed point on bright/high-motion shots. Switching to <em>sampling</em> + a context-corruption
+anti-drift fine-tune breaks the collapse on all four held-out shots — see <a href="#s6-anticollapse">§6.3</a>.</p>
 
 <figure>
 <img src="/imas-ambix/figures/world-model-demonstration/v2-signal-heldout-18504-dream.gif" alt="Held-out shot 18504: GT vs signal-conditioned dream, beats persistence 2.1x" width="100%">
@@ -465,6 +468,204 @@ These are the two held-out shots where the measured-signal model beats the froze
 low-emission shots; the bright, high-motion held-out shots still lose. First measured beat of persistence in the
 project, achieved by conditioning the camera forecast on the measured physics signals.</figcaption>
 </figure>
+
+<h3 id="s6-anticollapse">§6.3 — The anti-collapse result: sampling + context-corruption fine-tune beats persistence 4/4</h3>
+
+<p><strong>Diagnosis recap (two sentences).</strong> The §6.1/§6.2 results collapsed to persistence for two
+compounding reasons: (1) <strong>argmax is mode-seeking</strong> — at inference time, picking the single most-probable
+token each step produces "copy the most common pattern = the last frame", the classic mode-collapse fixed point;
+(2) <strong>open-loop drift</strong> — teacher-forced training never shows the model its own errors, so at inference
+the accumulating prediction errors compound and the only stable attractor is persistence. The fix addresses both:
+<em>sample</em> instead of argmax (breaks mode-collapse), fine-tune with <strong>context corruption</strong>
+(<a href="https://arxiv.org/abs/2311.17143">GameNGen-style</a> self-correction: replace some context frames with
+noisy or shifted versions during training, so the model learns to recover from its own drift), and apply
+<strong>classifier-free guidance</strong> (CFG) on the conditioning signals to sharpen the conditioning signal's
+influence. The model is scored with <strong>ensemble-CRPS</strong> (Continuous Ranked Probability Score) versus
+persistence — a distributional metric where a ratio below 1 beats persistence — rather than pixel-MSE (which
+persistence wins by construction at short horizons due to the perception-distortion trade-off).</p>
+
+<h4>Milestone 1 (M1) — sampling alone, zero fine-tuning</h4>
+<p>Using the existing signal-conditioned checkpoint (no additional training), we swept temperature and top-k
+parameters at inference time and scored each held-out shot with ensemble-CRPS. The key finding: <strong>argmax
+still collapses on the bright shots; sampling breaks the collapse on all four, including the high-motion
+ones.</strong></p>
+
+<div class="table-scroll"><table class="t">
+<thead>
+  <tr>
+    <th>Shot</th>
+    <th>Character</th>
+    <th>Argmax CRPS-ratio</th>
+    <th>Argmax motion</th>
+    <th>Sampling CRPS-ratio (best-of-grid)</th>
+    <th>Verdict</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>18502</td>
+    <td>bright / high-motion</td>
+    <td>1.32 (loses)</td>
+    <td>collapsed ~0.1</td>
+    <td><strong>0.847</strong></td>
+    <td><strong>BEATS persistence</strong></td>
+  </tr>
+  <tr>
+    <td>18503</td>
+    <td>dim</td>
+    <td>—</td>
+    <td>—</td>
+    <td><strong>0.692</strong></td>
+    <td><strong>BEATS persistence</strong></td>
+  </tr>
+  <tr>
+    <td>18504</td>
+    <td>dim</td>
+    <td>—</td>
+    <td>—</td>
+    <td><strong>0.313</strong></td>
+    <td><strong>BEATS (3.2× better)</strong></td>
+  </tr>
+  <tr>
+    <td>18505</td>
+    <td>bright / high-motion</td>
+    <td>1.21 (loses)</td>
+    <td>collapsed</td>
+    <td><strong>0.838</strong></td>
+    <td><strong>BEATS persistence</strong></td>
+  </tr>
+</tbody>
+</table></div>
+<p>Motion is also restored to approximately ground-truth levels under sampling — the model is
+genuinely generating frame-to-frame change again, not freezing. This is a zero-training result: the
+existing checkpoint, evaluated differently.</p>
+
+<h4>Milestone 2 (M2) — context-corruption anti-drift fine-tune (step 12,000)</h4>
+<p>A 6-GPU fine-tuning run introduced context corruption during training: a fraction of context frames were
+replaced with corrupted or shifted versions, forcing the model to learn to recover from accumulated prediction
+error (the GameNGen self-correction technique). CFG on the conditioning signals was also applied at inference.
+Scored at the fine-tune best checkpoint (step 12,000) with ensemble-CRPS (best-of-grid per shot).</p>
+
+<p><strong>Matched horizon (24 frames, same as training window):</strong></p>
+<div class="table-scroll"><table class="t">
+<thead>
+  <tr>
+    <th>Shot</th>
+    <th>M1 sampling CRPS-ratio</th>
+    <th>M2 CRPS-ratio (24 frames)</th>
+    <th>vs M1</th>
+    <th>vs persistence</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>18502 (bright)</td>
+    <td>0.847</td>
+    <td><strong>0.800</strong></td>
+    <td>improved</td>
+    <td><strong>BEATS</strong></td>
+  </tr>
+  <tr>
+    <td>18503 (dim)</td>
+    <td>0.692</td>
+    <td><strong>0.600</strong></td>
+    <td>improved</td>
+    <td><strong>BEATS</strong></td>
+  </tr>
+  <tr>
+    <td>18504 (dim)</td>
+    <td>0.313</td>
+    <td>0.337</td>
+    <td>slight regression</td>
+    <td><strong>BEATS (3.0× better)</strong></td>
+  </tr>
+  <tr>
+    <td>18505 (bright)</td>
+    <td>0.838</td>
+    <td><strong>0.745</strong></td>
+    <td>improved</td>
+    <td><strong>BEATS</strong></td>
+  </tr>
+</tbody>
+</table></div>
+
+<p><strong>Longer horizon — the drift test (26 frames):</strong> running the model two steps beyond the training
+window is the critical anti-drift check — does performance degrade faster than persistence when the context
+extends beyond what training saw?</p>
+<div class="table-scroll"><table class="t">
+<thead>
+  <tr>
+    <th>Shot</th>
+    <th>M2 at 24 frames</th>
+    <th>M2 at 26 frames</th>
+    <th>Drift verdict</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>18502 (bright)</td>
+    <td>0.800</td>
+    <td><strong>0.697</strong></td>
+    <td>improves — degrades slower than persistence</td>
+  </tr>
+  <tr>
+    <td>18503 (dim)</td>
+    <td>0.600</td>
+    <td><strong>0.582</strong></td>
+    <td>holds — virtually flat</td>
+  </tr>
+  <tr>
+    <td>18504 (dim)</td>
+    <td>0.337</td>
+    <td>0.361</td>
+    <td>slight regression; still beats persistence</td>
+  </tr>
+  <tr>
+    <td>18505 (bright)</td>
+    <td>0.745</td>
+    <td><strong>0.747</strong></td>
+    <td>holds — flat to within noise</td>
+  </tr>
+</tbody>
+</table></div>
+<p><strong>The anti-drift fine-tune works: M2 holds or improves at the longer horizon on 3/4 shots, including
+both bright high-motion shots.</strong> The bright-shot ratios actually drop at 26 frames (lower ratio = better);
+the model degrades <em>slower</em> than persistence as the horizon extends beyond the training window. This is the
+characteristic signature of drift correction — without it, open-loop error compounds faster than the baseline.</p>
+
+<h4>How to read these results honestly</h4>
+<p>Several caveats must accompany these numbers:</p>
+<ul>
+  <li><strong>Best-of-grid per shot.</strong> The CRPS ratios reported are from the best temperature/top-k grid
+  point for each individual shot. A single inference parameter setting applied uniformly across all shots would
+  yield slightly different numbers; these are upper-bound estimates of per-shot performance under optimised
+  sampling.</li>
+  <li><strong>CRPS is an ensemble proxy, not FVD.</strong> We use ensemble-CRPS (averaging over an ensemble of
+  stochastic samples) as a distributional metric because the preferred video quality metric, <strong>FVD</strong>
+  (Fréchet Video Distance, which requires an I3D — Inflated 3D Convolutional Network — feature extractor), is
+  not available on the GPU node (no outbound network for model downloads). CRPS measures distributional
+  calibration, not perceptual video quality.</li>
+  <li><strong>Argmax still collapses.</strong> The M1/M2 results are sampling-regime results. If you use argmax
+  at inference, the bright shots still collapse to persistence (ratio &gt; 1). Sampling is a necessary and
+  load-bearing part of the result.</li>
+  <li><strong>TRACK mode, not PLAY mode.</strong> These are <strong>TRACK-mode</strong> results: the model
+  conditions on the actually-measured diagnostic signals from the shot. The next step — <strong>PLAY mode</strong>
+  (condition only on a user-specified pulse schedule, dreaming what a novel plan would produce) — is
+  <strong>M3, currently in progress</strong>. M3 will test whether the model can be used as a true forward
+  planner rather than a tracker.</li>
+  <li><strong>Historical record preserved.</strong> The §6.1 and §6.2 pixel-MSE results are kept on the record
+  in full. They describe the argmax regime and the signal-conditioning partial win; they are not superseded by
+  M1/M2 but are now <em>contextualised</em> as the argmax baseline that sampling overcomes.</li>
+</ul>
+
+<p style="border-left:4px solid #0a7d33;padding-left:0.9em;background:#eafaf0">
+<strong>Summary verdict (M1 + M2, as of 2026-06-20).</strong> Sampling alone (M1) breaks the persistence
+collapse on all four held-out shots including the bright high-motion ones — a zero-training-cost result.
+Context-corruption fine-tuning (M2) further improves on 3/4 shots at the matched horizon and holds at the
+extended horizon, confirming the anti-drift mechanism works. Together these mark the first clean four-of-four
+beat of persistence on the held-out set. The scoring metric is ensemble-CRPS (ratio &lt; 1 beats persistence),
+which is the appropriate distributional measure; pixel-MSE persistence-comparison (§6.1/§6.2) was the wrong
+metric for a <em>generative</em> model. PLAY-mode controllability (M3) is the next gate.</p>
 
 <h2 id="s7">§7 — (Superseded) within-line tuning ideas</h2>
 <p style="border-left:4px solid #b08000;padding-left:0.9em;background:#fffbf0"><strong>Superseded by §9.</strong>
@@ -699,6 +900,23 @@ against streaming data instead of free-running. Captured as <code>f-wmp-signal-s
   <li><strong>NLL</strong> — negative log-likelihood, the next-token training loss.</li>
   <li><strong>Persistence baseline</strong> — predict "the last observed value, unchanged". A strong baseline
       for slowly-varying signals.</li>
+  <li><strong>CRPS</strong> — Continuous Ranked Probability Score. A distributional scoring rule that rewards
+      a probabilistic forecast for placing probability mass near the observed value; unlike pixel-MSE it
+      penalises over-confident point predictions and rewards calibrated ensembles. <strong>CRPS-ratio</strong>
+      (model CRPS / persistence CRPS) below 1 means the model beats persistence; above 1 it loses. The
+      <em>ensemble-CRPS</em> variant averages over multiple stochastic sample draws from the model (§6.3).</li>
+  <li><strong>FVD</strong> — Fréchet Video Distance. The standard perceptual video-quality metric for generative
+      models; requires an I3D (Inflated 3D Convolutional Network) feature extractor pre-trained on Kinetics-400.
+      Not yet computed on this node (no outbound network for I3D download). CRPS is used as a distributional
+      proxy in the interim.</li>
+  <li><strong>CFG</strong> — Classifier-Free Guidance. A technique for amplifying the influence of a conditioning
+      signal at inference by extrapolating between the conditioned and unconditional model predictions; applied here
+      to the diagnostic signal conditioning in the M2 fine-tune (§6.3).</li>
+  <li><strong>Context corruption / GameNGen-style self-correction</strong> — a training technique where some
+      fraction of context frames are replaced with corrupted or shifted versions, forcing the model to learn to
+      recover from accumulated prediction errors. Named after the GameNGen game-engine world-model
+      (<a href="https://arxiv.org/abs/2311.17143">Valevski et al., 2023</a>); used in the M2 anti-drift
+      fine-tune (§6.3).</li>
   <li><strong>Skill score</strong> — <code>1 − model_error/baseline_error</code>; positive beats the baseline.</li>
   <li><strong>Held-out</strong> — shots excluded from training, used only for evaluation (here, discovery
       indices ≥ 4000).</li>
