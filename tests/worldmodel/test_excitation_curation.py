@@ -374,3 +374,113 @@ def test_balance_exposure_unknown_strategy_raises():
 
     with pytest.raises(ValueError, match="unknown exposure strategy"):
         balance_exposure(np.zeros((2, 4, 4), dtype=np.uint16), strategy="nope")
+
+
+# ---------------------------------------------------------------------------
+# excitation_corpus: the curation orchestrator (held-out exclusion + ordering)
+# ---------------------------------------------------------------------------
+
+
+def _curated(shot_id, score, **kw):
+    from imas_ambix.worldmodel.excitation_corpus import CuratedWindow
+
+    return CuratedWindow(
+        shot_id=int(shot_id),
+        start_frame=kw.get("start_frame", 0),
+        fps=kw.get("fps", 600.0),
+        n_frames=kw.get("n_frames", 39),
+        frame_stride=kw.get("frame_stride", 4),
+        excitation_score=float(score),
+        max_abs_ip=kw.get("max_abs_ip", 7.0e5),
+        present_fraction=kw.get("present_fraction", 0.9),
+    )
+
+
+def test_select_curated_windows_excludes_held_out(monkeypatch):
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # every shot "selects" with a score equal to its id (deterministic).
+    monkeypatch.setattr(
+        ec,
+        "select_curated_window_for_shot",
+        lambda sid, **k: _curated(sid, score=float(sid)),
+    )
+    shots = [10, 18502, 11, 18504, 12]
+    out = ec.select_curated_windows(shots, held_out=(18502, 18504))
+    sids = {c.shot_id for c in out}
+    # held-out shots are gone; the others present.
+    assert 18502 not in sids and 18504 not in sids
+    assert sids == {10, 11, 12}
+
+
+def test_select_curated_windows_orders_by_excitation(monkeypatch):
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    scores = {10: 5.0, 11: 99.0, 12: 50.0}
+    monkeypatch.setattr(
+        ec,
+        "select_curated_window_for_shot",
+        lambda sid, **k: _curated(sid, score=scores[sid]),
+    )
+    out = ec.select_curated_windows([10, 11, 12], held_out=())
+    # most-excited first (the dynamic weighting).
+    assert [c.shot_id for c in out] == [11, 12, 10]
+    # a limit keeps the most-excited shots.
+    top = ec.select_curated_windows([10, 11, 12], held_out=(), limit=2)
+    assert [c.shot_id for c in top] == [11, 12]
+
+
+def test_select_curated_windows_drops_rejected_shots(monkeypatch):
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # shot 11 rejects (None); the rest select.
+    def _sel(sid, **k):
+        return None if sid == 11 else _curated(sid, score=float(sid))
+
+    monkeypatch.setattr(ec, "select_curated_window_for_shot", _sel)
+    out = ec.select_curated_windows([10, 11, 12], held_out=())
+    assert {c.shot_id for c in out} == {10, 12}
+
+
+def test_select_curated_window_for_shot_uses_horizon_and_excitation(monkeypatch):
+    """Integration: the per-shot selector wires fps -> window -> excitation."""
+    import imas_ambix.worldmodel.actuator_plan as ap
+    import imas_ambix.worldmodel.excitation_corpus as ec
+    from imas_ambix.worldmodel.actuator_plan import ExcitationWindow
+
+    # fps fixed via a synthetic frame-time axis (600 Hz, 400 frames).
+    ftime = np.arange(400) / 600.0
+    monkeypatch.setattr(ec, "_frame_times", lambda *a, **k: ftime)
+    captured = {}
+
+    def _fake_excite(shot_id, span, **k):
+        captured["span"] = span
+        return ExcitationWindow(
+            start_frame=42,
+            score=1234.0,
+            max_abs_ip=7.0e5,
+            present_fraction=0.95,
+            reason="",
+        )
+
+    monkeypatch.setattr(ec, "find_excitation_window", _fake_excite)
+    # quiet the unused import warning by referencing ap once.
+    assert ap.N_ACTUATOR_CHANNELS > 0
+
+    cw = ec.select_curated_window_for_shot(123, target_horizon_s=0.25, max_n_frames=48)
+    assert cw is not None
+    assert cw.shot_id == 123
+    assert cw.start_frame == 42
+    assert cw.fps == pytest.approx(600.0, rel=0.01)
+    # span handed to the selector matches the window shape derived from fps.
+    assert captured["span"] == (cw.n_frames - 1) * cw.frame_stride + 1
+    # 0.25 s at 600 Hz is ~151 native frames -> capped n_frames + stride > 1.
+    assert cw.frame_stride >= 2
+    assert cw.excitation_score == pytest.approx(1234.0)
+
+
+def test_select_curated_window_for_shot_none_on_unreadable_fps(monkeypatch):
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    monkeypatch.setattr(ec, "_frame_times", lambda *a, **k: None)
+    assert ec.select_curated_window_for_shot(5) is None
