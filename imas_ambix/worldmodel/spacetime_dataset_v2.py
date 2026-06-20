@@ -388,3 +388,142 @@ class SignalSpacetimeDataset:
     @property
     def modalities(self) -> list[SignalModalitySpec]:
         return self._modalities
+
+
+# ---------------------------------------------------------------------------
+# Overlapping-window enumeration (maximise signal from the fixed corpus)
+# ---------------------------------------------------------------------------
+#
+# The map-style dataset above draws ONE window per shot per epoch (centred, or a
+# random valid start when random_window).  A ~6000-frame recording therefore
+# contributes a SINGLE 24-frame example per epoch — most of every shot is never
+# seen.  Enumerating MULTIPLE OVERLAPPING windows (a sliding window, stride <
+# n_frames-span) turns each long recording into many examples, a large increase
+# in training signal from the SAME fixed corpus with no new data.
+#
+# LEAKAGE GUARD (binding): the window list is built ONLY from the shot ids handed
+# in.  The train/val/held-out split stays at the SHOT level — whole pulses are
+# held out — so as long as the caller passes ONLY train shots here, no window
+# from a held-out shot can ever enter the list.  enumerate_windows takes a plain
+# shot-id list and never reaches outside it; the trainer subtracts the held-out
+# shots BEFORE calling it, and a test asserts the emitted set carries zero
+# held-out ids.
+
+
+def enumerate_windows(
+    shot_ids: Sequence[int],
+    config: SpacetimeWindowConfig,
+    *,
+    window_stride: int | None = None,
+    camera: str = REFERENCE_CAMERA,
+    token_root: Path | None = None,
+    max_windows_per_shot: int | None = None,
+) -> list[tuple[int, int]]:
+    """Enumerate sliding ``(shot_id, start_frame)`` windows over each recording.
+
+    For each shot the camera recording is tiled with windows of the configured
+    frame span, advancing the start by ``window_stride`` frames (default
+    ``max(1, span // 2)`` — 50 % overlap).  A shot too short for even one window
+    is skipped; a shot long enough for one window contributes at least that one.
+
+    The returned list is DETERMINISTIC (ascending shot id, then ascending start)
+    so the train window set is reproducible across ranks and sessions.  Every
+    emitted ``shot_id`` is one of the input ``shot_ids`` — the function never
+    reaches outside the list, which is the structural shot-level leakage guard.
+
+    Parameters
+    ----------
+    window_stride:
+        Frames to advance the window start between consecutive windows.  Smaller
+        => more overlap => more windows.  Defaults to half the window span.
+    max_windows_per_shot:
+        Optional cap on windows emitted per shot (the starts are then spread
+        evenly across the recording), to bound a very long recording's share.
+    """
+    span = (config.n_frames - 1) * config.frame_stride + 1
+    stride = int(window_stride) if window_stride else max(1, span // 2)
+    if stride < 1:
+        raise ValueError("window_stride must be >= 1")
+    windows: list[tuple[int, int]] = []
+    for sid in sorted(int(s) for s in shot_ids):
+        try:
+            n_total = camera_frame_count(sid, camera, token_root=token_root)
+        except (FileNotFoundError, KeyError, ValueError):
+            continue
+        if n_total < span:
+            continue
+        last_start = n_total - span
+        starts = list(range(0, last_start + 1, stride))
+        if starts and starts[-1] != last_start:
+            starts.append(last_start)  # always include the tail window
+        if max_windows_per_shot is not None and len(starts) > int(max_windows_per_shot):
+            # spread the cap evenly across the recording (keep first..last).
+            sel = np.linspace(0, len(starts) - 1, int(max_windows_per_shot))
+            starts = sorted({starts[int(round(i))] for i in sel})
+        for st in starts:
+            windows.append((sid, int(st)))
+    return windows
+
+
+class OverlappingSignalWindowDataset:
+    """Map-style dataset over an explicit ``(shot_id, start_frame)`` window list.
+
+    Unlike :class:`SignalSpacetimeDataset` (one window per shot per epoch), this
+    is indexed by a PRECOMPUTED window list so a long recording contributes many
+    overlapping windows — the signal-maximising pipeline.  The window list is the
+    single source of truth for which (shot, frame-span) pairs train; because it
+    is built only from the train-shot ids (see :func:`enumerate_windows`), the
+    shot-level held-out guarantee is structural.
+
+    Each ``__getitem__`` assembles the EXACT window at its list entry (no random
+    jitter — the overlap already provides the augmentation).
+    """
+
+    def __init__(
+        self,
+        windows: Sequence[tuple[int, int]],
+        config: SpacetimeWindowConfig,
+        modalities: Sequence[SignalModalitySpec],
+        n_signal_steps: int,
+        *,
+        camera: str = REFERENCE_CAMERA,
+        token_root: Path | None = None,
+    ) -> None:
+        self._windows = [(int(s), int(f)) for s, f in windows]
+        self._config = config
+        self._modalities = list(modalities)
+        self._n_signal_steps = int(n_signal_steps)
+        self._camera = camera
+        self._token_root = token_root
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def __getitem__(self, index: int) -> SignalSpacetimeSample:
+        sid, start = self._windows[index]
+        return assemble_signal_window(
+            sid,
+            self._config,
+            self._modalities,
+            self._n_signal_steps,
+            camera=self._camera,
+            token_root=self._token_root,
+            start_frame=start,
+        )
+
+    @property
+    def windows(self) -> list[tuple[int, int]]:
+        return list(self._windows)
+
+    @property
+    def shot_ids(self) -> list[int]:
+        """The distinct shot ids represented in the window list (sorted)."""
+        return sorted({s for s, _ in self._windows})
+
+    @property
+    def config(self) -> SpacetimeWindowConfig:
+        return self._config
+
+    @property
+    def modalities(self) -> list[SignalModalitySpec]:
+        return self._modalities

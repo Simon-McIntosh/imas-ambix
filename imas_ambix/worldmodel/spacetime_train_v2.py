@@ -21,6 +21,7 @@ STOP flag, try/finally release + empty_cache, cudnn deterministic, bf16 autocast
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import time
@@ -32,6 +33,13 @@ import numpy as np
 import torch
 from torch import nn
 
+from imas_ambix.worldmodel.context_corruption import (
+    ContextCorruptionConfig,
+    apply_control_dropout,
+    corrupt_context_tokens,
+    sample_control_dropout,
+    sample_corruption_rates,
+)
 from imas_ambix.worldmodel.spacetime_dataset import (
     REFERENCE_CAMERA,
     SpacetimeWindowConfig,
@@ -39,11 +47,13 @@ from imas_ambix.worldmodel.spacetime_dataset import (
     plan_vocab,
 )
 from imas_ambix.worldmodel.spacetime_dataset_v2 import (
+    OverlappingSignalWindowDataset,
     SignalModalitySpec,
     SignalSpacetimeDataset,
     SignalSpacetimeSample,
     assemble_signal_window,
     default_signal_modalities,
+    enumerate_windows,
     probe_signal_channels,
     stream_specs_from_modalities,
 )
@@ -89,13 +99,15 @@ def build_signal_model(
     signal_streams: Sequence[SignalStreamSpec],
     n_signal_steps: int,
     max_frames: int | None = None,
+    corruption_levels: int = 0,
     **model_kwargs: object,
 ) -> SignalSpacetimeTransformer:
     """Build a :class:`SignalSpacetimeTransformer` sized to the window + streams.
 
     ``max_frames`` must cover plan steps + every present stream's signal steps +
     the camera frames; it defaults to ``n_plan + len(streams)*n_signal_steps +
-    n_frames`` with a little slack.
+    n_frames`` with a little slack.  ``corruption_levels`` (> 1) enables the
+    anti-drift history-corruption conditioning embedding.
     """
     n_streams = len(signal_streams)
     if max_frames is None:
@@ -108,6 +120,7 @@ def build_signal_model(
         plan_channels=int(plan_channels),
         signal_streams=tuple(signal_streams),
         n_signal_steps=int(n_signal_steps),
+        corruption_levels=int(corruption_levels),
         **model_kwargs,  # type: ignore[arg-type]
     )
     return SignalSpacetimeTransformer(cfg)
@@ -352,6 +365,7 @@ def signal_ablation_delta(
 class CorpusV2Config:
     steps: int = 30000
     batch_size: int = 4
+    grad_accum: int = 1  # optimiser steps every grad_accum micro-batches
     lr: float = 3e-4
     weight_decay: float = 0.1
     seed: int = 0
@@ -370,6 +384,20 @@ class CorpusV2Config:
     window: SpacetimeWindowConfig = field(default_factory=SpacetimeWindowConfig)
     model_kwargs: dict = field(default_factory=dict)
     random_window: bool = True
+    # Overlapping-window pipeline: when > 0, enumerate sliding windows (this many
+    # frames between window starts) so each shot yields many examples.  0 keeps
+    # the legacy one-window-per-shot dataset.
+    window_stride: int = 0
+    max_windows_per_shot: int | None = None
+    # Anti-drift + classifier-free-guidance fine-tune (off by default — the
+    # corpus pre-train run leaves it disabled, the fine-tune turns it on).
+    corruption: ContextCorruptionConfig = field(default_factory=ContextCorruptionConfig)
+    use_corruption: bool = False
+    # Fine-tune init: load these weights ONCE at start (when no resume checkpoint
+    # exists yet) so the fine-tune continues an existing pre-train.  Distinct from
+    # ``resume`` (which reloads this run's own latest.pt to continue after a
+    # preemption / requeue).
+    init_checkpoint: Path | None = None
     modalities: list[SignalModalitySpec] = field(
         default_factory=default_signal_modalities
     )
@@ -408,6 +436,7 @@ def _config_to_dict(cfg: SignalSpacetimeConfig) -> dict:
         "d_ff": int(cfg.d_ff),
         "dropout": float(cfg.dropout),
         "n_signal_steps": int(cfg.n_signal_steps),
+        "corruption_levels": int(cfg.corruption_levels),
         "signal_streams": [
             {"name": st.name, "vocab": int(st.vocab), "channels": int(st.channels)}
             for st in cfg.signal_streams
@@ -765,17 +794,20 @@ def train_corpus(
     streams = stream_specs_from_modalities(config.modalities, channels)
     stream_names = [st.name for st in streams]
 
+    corruption_levels = config.corruption.levels if config.use_corruption else 0
     base_model = build_signal_model(
         config.window,
         plan_channels=plan_ch,
         signal_streams=streams,
         n_signal_steps=config.n_signal_steps,
+        corruption_levels=corruption_levels,
         **config.model_kwargs,
     ).to(dev)
     if env.is_main:
         logger.info(
             "model-v2 on %s: params=%d (%.1fM) d_model=%d n_layers=%d n_heads=%d "
-            "n_frames=%d plan_ch=%d n_signal_steps=%d streams=%s world=%d",
+            "n_frames=%d plan_ch=%d n_signal_steps=%d corruption_levels=%d "
+            "streams=%s world=%d",
             dev,
             base_model.num_parameters(),
             base_model.num_parameters() / 1e6,
@@ -785,6 +817,7 @@ def train_corpus(
             config.window.n_frames,
             plan_ch,
             config.n_signal_steps,
+            corruption_levels,
             [(st.name, st.channels) for st in streams],
             env.world_size,
         )
@@ -795,25 +828,64 @@ def train_corpus(
     start_step = 0
     eval_errors: list[tuple[int, float]] = []
     best_eval = float("inf")
-    if resume:
-        latest = find_latest_checkpoint(out_dir)
-        if latest is not None:
-            payload = torch.load(str(latest), map_location="cpu", weights_only=False)
-            try:
-                base_model.load_state_dict(payload["model_state_dict"])
-                if payload.get("optimizer_state_dict"):
-                    opt.load_state_dict(payload["optimizer_state_dict"])
-                start_step = int(payload.get("step", 0))
-                extra = payload.get("extra", {})
-                eval_errors = list(extra.get("eval_errors", []))
-                best_eval = float(extra.get("best_eval", float("inf")))
-                if env.is_main:
-                    logger.info("RESUMED from %s at step %d", latest, start_step)
-            except (KeyError, RuntimeError, ValueError) as exc:
-                if env.is_main:
-                    logger.warning(
-                        "checkpoint %s incompatible (%r) — fresh", latest, exc
-                    )
+
+    # Fine-tune INIT (distinct from resume): when no resume checkpoint of THIS run
+    # exists yet and an init checkpoint is given, load the pre-trained weights once
+    # as the starting point.  strict=False so the newly-added corruption_embed
+    # (absent from a pre-train trained without corruption) is left at its zero
+    # init — the fine-tune learns it from scratch on top of the pre-trained
+    # backbone.  Optimizer + step are NOT loaded (the fine-tune restarts the LR
+    # schedule), so the run begins at step 0 with a fresh warmup→cosine.
+    resume_latest = find_latest_checkpoint(out_dir) if resume else None
+    if resume_latest is None and config.init_checkpoint is not None:
+        init_path = Path(config.init_checkpoint)
+        if init_path.exists():
+            ipayload = torch.load(
+                str(init_path), map_location="cpu", weights_only=False
+            )
+            missing, unexpected = base_model.load_state_dict(
+                ipayload["model_state_dict"], strict=False
+            )
+            new_keys = [k for k in missing if "corruption_embed" in k]
+            other_missing = [k for k in missing if "corruption_embed" not in k]
+            if env.is_main:
+                logger.info(
+                    "FINE-TUNE init from %s (step %s): loaded pre-train weights "
+                    "(strict=False); new keys left at init=%s; unexpected=%s; "
+                    "OTHER missing=%s",
+                    init_path,
+                    ipayload.get("step", "?"),
+                    new_keys,
+                    list(unexpected),
+                    other_missing,
+                )
+            if other_missing or unexpected:
+                # only the corruption_embed may be new; anything else is a real
+                # shape/stream mismatch and must fail loudly (not silently start
+                # from a half-loaded model).
+                raise RuntimeError(
+                    f"fine-tune init {init_path}: unexpected key mismatch "
+                    f"missing={other_missing} unexpected={list(unexpected)}"
+                )
+        elif env.is_main:
+            logger.warning("init_checkpoint %s not found — fresh init", init_path)
+
+    if resume_latest is not None:
+        latest = resume_latest
+        payload = torch.load(str(latest), map_location="cpu", weights_only=False)
+        try:
+            base_model.load_state_dict(payload["model_state_dict"])
+            if payload.get("optimizer_state_dict"):
+                opt.load_state_dict(payload["optimizer_state_dict"])
+            start_step = int(payload.get("step", 0))
+            extra = payload.get("extra", {})
+            eval_errors = list(extra.get("eval_errors", []))
+            best_eval = float(extra.get("best_eval", float("inf")))
+            if env.is_main:
+                logger.info("RESUMED from %s at step %d", latest, start_step)
+        except (KeyError, RuntimeError, ValueError) as exc:
+            if env.is_main:
+                logger.warning("checkpoint %s incompatible (%r) — fresh", latest, exc)
 
     scheduler = build_lr_scheduler(
         opt,
@@ -854,16 +926,54 @@ def train_corpus(
         model = base_model
     core = _unwrap(model)
 
-    dataset = SignalSpacetimeDataset(
-        shot_ids,
-        config.window,
-        config.modalities,
-        config.n_signal_steps,
-        camera=camera,
-        token_root=token_root,
-        random_window=config.random_window,
-        seed=config.seed,
-    )
+    # Overlapping-window pipeline (signal-maximising): when window_stride > 0,
+    # enumerate sliding windows over EACH train recording so a long shot yields
+    # many examples.  The window list is built ONLY from ``shot_ids`` (the train
+    # shots — the held-out shots were subtracted upstream), so the shot-level
+    # held-out guarantee is structural: no held-out window can enter the list.
+    if config.window_stride > 0:
+        windows = enumerate_windows(
+            shot_ids,
+            config.window,
+            window_stride=config.window_stride,
+            camera=camera,
+            token_root=token_root,
+            max_windows_per_shot=config.max_windows_per_shot,
+        )
+        if not windows:
+            raise ValueError("overlapping-window enumeration produced 0 windows")
+        dataset: object = OverlappingSignalWindowDataset(
+            windows,
+            config.window,
+            config.modalities,
+            config.n_signal_steps,
+            camera=camera,
+            token_root=token_root,
+        )
+        if env.is_main:
+            n_shots_w = len({s for s, _ in windows})
+            logger.info(
+                "overlapping-window pipeline: %d windows over %d train shots "
+                "(stride=%d span=%d, ~%.1f windows/shot) — vs %d windows for the "
+                "one-per-shot dataset",
+                len(windows),
+                n_shots_w,
+                config.window_stride,
+                (config.window.n_frames - 1) * config.window.frame_stride + 1,
+                len(windows) / max(n_shots_w, 1),
+                n_shots_w,
+            )
+    else:
+        dataset = SignalSpacetimeDataset(
+            shot_ids,
+            config.window,
+            config.modalities,
+            config.n_signal_steps,
+            camera=camera,
+            token_root=token_root,
+            random_window=config.random_window,
+            seed=config.seed,
+        )
     sampler = None
     if env.enabled:
         sampler = torch.utils.data.distributed.DistributedSampler(
@@ -896,12 +1006,62 @@ def train_corpus(
         loader_kwargs["prefetch_factor"] = max(4, config.prefetch_factor)
     loader = torch.utils.data.DataLoader(**loader_kwargs)
 
+    # Per-(rank) RNG for the corruption + control-dropout draws.  Seeded with the
+    # rank so two DDP ranks corrupt independently; re-seeded by step inside the
+    # loop so the draw is reproducible on a resume.  Kept on the train device so
+    # the random tensors are generated where the frames live.
+    corr_cfg = config.corruption if config.use_corruption else None
+    corr_active = bool(corr_cfg and core.has_corruption)
+    corr_gen = torch.Generator(device=dev) if corr_active else torch.Generator()
+    vocab_size = int(core.config.vocab_size)
+    ctx_frames = int(config.window.context_frames)
+    accum = max(1, int(config.grad_accum))
+
     model.train()
     losses: list[float] = []
     step = start_step
     ckpt_path: Path | None = find_latest_checkpoint(out_dir) if resume else None
     t_last = time.time()
     epoch = 0
+    micro = 0  # micro-batches accumulated toward the current optimiser step
+
+    def _prepare_step_batch(batch: dict, *, gen_seed: int) -> dict:
+        """Apply history-corruption + control-dropout to a device batch.
+
+        Returns a batch carrying the (possibly corrupted) ``frames`` for the
+        forward pass, a CLEAN ``target_frames`` for the loss, and the per-sample
+        ``corruption_level`` bins.  A no-op (returns the batch unchanged bar an
+        identity target) when corruption is disabled.
+        """
+        if not corr_active:
+            return batch
+        corr_gen.manual_seed(gen_seed)
+        clean = batch["frames"]
+        b = int(clean.shape[0])
+        rates, bins = sample_corruption_rates(
+            b, corr_cfg, generator=corr_gen, device=dev
+        )
+        corrupted = corrupt_context_tokens(
+            clean,
+            rates,
+            context_frames=ctx_frames,
+            vocab_size=vocab_size,
+            generator=corr_gen,
+        )
+        drop = sample_control_dropout(b, corr_cfg, generator=corr_gen, device=dev)
+        plan2, signals2 = apply_control_dropout(
+            batch.get("plan"), batch.get("signals"), drop
+        )
+        out = dict(batch)
+        out["frames"] = corrupted
+        out["target_frames"] = clean
+        out["corruption_level"] = bins
+        if plan2 is not None:
+            out["plan"] = plan2
+        if signals2 is not None:
+            out["signals"] = signals2
+        return out
+
     try:
         done = False
         while not done:
@@ -913,8 +1073,18 @@ def train_corpus(
                     done = True
                     break
                 batch = _batch_to(batch, dev)
-                opt.zero_grad(set_to_none=True)
-                with _AutocastCtx(dev):
+                batch = _prepare_step_batch(
+                    batch, gen_seed=(config.seed * 7919) ^ (env.rank * 104729) ^ step
+                )
+                is_accum_boundary = (micro + 1) % accum == 0
+                # DDP: skip the grad all-reduce on non-boundary micro-batches so a
+                # gradient-accumulated step syncs ONCE (the standard no_sync trick).
+                sync_ctx = (
+                    model.no_sync()
+                    if (env.enabled and not is_accum_boundary)
+                    else contextlib.nullcontext()
+                )
+                with sync_ctx, _AutocastCtx(dev):
                     loss = model(
                         batch,
                         loss_spec={
@@ -922,10 +1092,16 @@ def train_corpus(
                             "context_frames": config.window.context_frames,
                         },
                     )
-                loss.backward()
+                    scaled = loss / accum
+                scaled.backward()
+                micro += 1
+                if not is_accum_boundary:
+                    continue  # keep accumulating; no optimiser step yet
+                micro = 0
                 if config.grad_clip > 0:
                     nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)
                 opt.step()
+                opt.zero_grad(set_to_none=True)
                 scheduler.step()
                 losses.append(float(loss.detach()))
                 step += 1
@@ -1107,9 +1283,16 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         if v is not None:
             model_kwargs[k] = v
 
+    corruption = ContextCorruptionConfig(
+        max_rate=args.corruption_max_rate,
+        levels=args.corruption_levels,
+        clean_fraction=args.corruption_clean_fraction,
+        control_dropout=args.control_dropout,
+    )
     cfg = CorpusV2Config(
         steps=args.steps,
         batch_size=args.batch_size,
+        grad_accum=args.grad_accum,
         lr=args.lr,
         weight_decay=args.weight_decay,
         lr_schedule=not args.flat_lr,
@@ -1125,15 +1308,25 @@ def _cmd_corpus(args) -> int:  # noqa: ANN001
         n_signal_steps=args.n_signal_steps,
         window=window,
         model_kwargs=model_kwargs,
+        window_stride=args.window_stride,
+        max_windows_per_shot=args.max_windows_per_shot,
+        corruption=corruption,
+        use_corruption=args.use_corruption,
+        init_checkpoint=Path(args.init_checkpoint) if args.init_checkpoint else None,
     )
     out_dir = Path(args.out_dir) if args.out_dir else _default_out_dir()
     logger.info(
         "spacetime-v2 corpus: %d train / %d eval shots (held out %s) "
-        "n_signal_steps=%d out=%s",
+        "n_signal_steps=%d window_stride=%d corruption=%s control_dropout=%.2f "
+        "grad_accum=%d out=%s",
         len(train_shots),
         len(eval_shots),
         eval_shots,
         args.n_signal_steps,
+        args.window_stride,
+        (args.use_corruption, args.corruption_levels, args.corruption_max_rate),
+        args.control_dropout,
+        args.grad_accum,
         out_dir,
     )
     result = train_corpus(
@@ -1174,6 +1367,13 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--eval-shots", default="")
     pc.add_argument("--steps", type=int, default=30000)
     pc.add_argument("--batch-size", type=int, default=4)
+    pc.add_argument(
+        "--grad-accum",
+        type=int,
+        default=1,
+        help="micro-batches accumulated per optimiser step (effective batch = "
+        "batch-size * grad-accum * world-size)",
+    )
     pc.add_argument("--lr", type=float, default=3e-4)
     pc.add_argument("--weight-decay", type=float, default=0.1)
     pc.add_argument("--warmup-steps", type=int, default=800)
@@ -1203,6 +1403,42 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--out-dir", default=None)
     pc.add_argument("--token-root", default=None)
     pc.add_argument("--no-resume", action="store_true")
+    # Overlapping-window pipeline (signal-maximising).
+    pc.add_argument(
+        "--window-stride",
+        type=int,
+        default=0,
+        help="frames between sliding-window starts per shot (0 = legacy one "
+        "window per shot; e.g. n_frames/2 for 50%% overlap)",
+    )
+    pc.add_argument(
+        "--max-windows-per-shot",
+        type=int,
+        default=None,
+        help="optional cap on windows emitted per shot (spread evenly)",
+    )
+    # Anti-drift context-corruption + classifier-free-guidance control-dropout.
+    pc.add_argument(
+        "--use-corruption",
+        action="store_true",
+        help="enable history-token corruption + control-dropout fine-tune",
+    )
+    pc.add_argument("--corruption-levels", type=int, default=8)
+    pc.add_argument("--corruption-max-rate", type=float, default=0.30)
+    pc.add_argument("--corruption-clean-fraction", type=float, default=0.25)
+    pc.add_argument(
+        "--control-dropout",
+        type=float,
+        default=0.15,
+        help="probability per sample of zeroing plan+signal conditioning (CFG)",
+    )
+    pc.add_argument(
+        "--init-checkpoint",
+        default=None,
+        help="pre-trained checkpoint to fine-tune FROM (loaded once at start when "
+        "no resume checkpoint of this run exists yet; strict=False so a new "
+        "corruption embedding is allowed)",
+    )
     pc.set_defaults(func=_cmd_corpus)
 
     args = p.parse_args(argv)

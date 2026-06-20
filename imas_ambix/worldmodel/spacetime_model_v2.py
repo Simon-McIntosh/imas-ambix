@@ -101,16 +101,27 @@ class SignalSpacetimeConfig(SpacetimeConfig):
     each present stream is sub-sampled to (mirrors the plan's ``n_plan``).  When
     ``signal_streams`` is empty the model is byte-equivalent to v1 (plan-only).
 
+    ``corruption_levels`` adds the anti-drift history-corruption conditioning: a
+    learned per-level embedding (this many rows) is added to the CONTEXT camera
+    frames so the model knows how corrupt its history is and can correct it.  0
+    or 1 disables it (the model is then byte-equivalent to the un-corrupted v2),
+    so a checkpoint trained without it loads cleanly.
+
     ``max_frames`` must cover plan steps + every present stream's signal steps +
     the camera frames; the builder sizes it.
     """
 
     signal_streams: tuple[SignalStreamSpec, ...] = field(default_factory=tuple)
     n_signal_steps: int = 4
+    corruption_levels: int = 0
 
     @property
     def has_signals(self) -> bool:
         return len(self.signal_streams) > 0
+
+    @property
+    def has_corruption(self) -> bool:
+        return int(self.corruption_levels) > 1
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +179,16 @@ class SignalSpacetimeTransformer(SpacetimeTransformer):
             # init the new value-embedding tables to match the v1 std.
             for emb in self.signal_embed.values():
                 nn.init.normal_(emb.weight, std=0.02)
+
+        # Anti-drift history-corruption conditioning: a learned per-level
+        # embedding added to the CONTEXT camera frames so the model conditions on
+        # how corrupt its fed-back history is.  Row 0 = clean (rate 0) is
+        # zero-initialised so a model that has never seen corruption (or runs at
+        # inference with level 0) is unchanged from the un-corrupted v2.
+        self.has_corruption = cfg.has_corruption
+        if self.has_corruption:
+            self.corruption_embed = nn.Embedding(int(cfg.corruption_levels), d)
+            nn.init.zeros_(self.corruption_embed.weight)
 
     # -- embedding ---------------------------------------------------------
 
@@ -234,6 +255,9 @@ class SignalSpacetimeTransformer(SpacetimeTransformer):
         frames: torch.Tensor,
         plan: torch.Tensor | None,
         signals: dict[str, torch.Tensor] | None = None,
+        corruption_level: torch.Tensor | None = None,
+        *,
+        context_frames: int | None = None,
     ) -> torch.Tensor:
         """Run the backbone with plan + signal conditioning; return camera hidden.
 
@@ -248,10 +272,41 @@ class SignalSpacetimeTransformer(SpacetimeTransformer):
         stream absent for the batch is omitted.  When no signals are present the
         model still touches every signal param with a zero contribution so DDP's
         reducer sees a uniform parameter set on each rank.
+
+        ``corruption_level`` is an optional ``(B,)`` long per-sample bin index
+        into the corruption-level embedding; when the model is corruption-capable
+        the level embedding is added to the CONTEXT camera frames (frames
+        ``< context_frames``) so the model conditions on how corrupt its fed-back
+        history is.  ``None`` defaults to bin 0 (the CLEAN rate-0 case the model
+        saw on its clean-fraction training samples) — so an inference forward with
+        no level supplied adds the level-0 embedding, matching how clean inputs
+        were trained, rather than silently skipping the conditioning.
         """
         cfg = self.config
         cam = self._embed_camera(frames)  # (B, T, S, d)
         b, t, s, d = cam.shape
+
+        # Anti-drift history-corruption conditioning: add the per-sample level
+        # embedding to the CONTEXT frames (the ones the rollout re-feeds itself).
+        if self.has_corruption:
+            ctx = int(context_frames if context_frames is not None else t)
+            ctx = max(0, min(ctx, t))
+            if ctx > 0:
+                if corruption_level is None:
+                    # inference / clean default: bin 0 (the rate-0 row).
+                    lvl = torch.zeros(b, dtype=torch.long, device=frames.device)
+                else:
+                    lvl = (
+                        corruption_level.to(frames.device)
+                        .long()
+                        .clamp(0, int(cfg.corruption_levels) - 1)
+                    )
+                lvl_emb = self.corruption_embed(lvl).view(b, 1, 1, d)  # (B,1,1,d)
+                cam[:, :ctx] = cam[:, :ctx] + lvl_emb
+            else:
+                # no context frames to condition — keep the embedding in the
+                # autograd graph (DDP-uniform) with a zero-magnitude touch.
+                cam = cam + self.corruption_embed.weight.sum() * 0.0
 
         prefix: list[torch.Tensor] = []
         # signals first (closest to the temporal front), then the plan.
@@ -325,18 +380,36 @@ class SignalSpacetimeTransformer(SpacetimeTransformer):
         ``batch`` is ``{"frames": (B, T, S) long, "plan": (B, P, C) long,
         "signals": {name: (B, P_s, C_s) long}}``.  ``signals`` may be absent or
         empty (the model then conditions on the plan only, with the signal
-        zero-touch keeping DDP uniform).  ``loss_spec`` / ``return_logits`` behave
-        exactly as in v1.
+        zero-touch keeping DDP uniform).  An optional ``corruption_level`` ``(B,)``
+        long in the batch conditions the anti-drift history-corruption embedding;
+        the loss context-frame count (``loss_spec["context_frames"]``) bounds which
+        frames the level embedding is added to.  An optional ``target_frames``
+        ``(B, T, S)`` long supplies the CLEAN frames the loss is scored against
+        when ``frames`` carries a corrupted history — keeping the prediction
+        target uncorrupted independently of the loss mask.  ``loss_spec`` /
+        ``return_logits`` behave exactly as in v1.
         """
         frames = batch["frames"]
         plan = batch.get("plan")
         signals = batch.get("signals")
-        hidden = self._forward_tokens(frames, plan, signals)  # (B, T, S, d)
+        corruption_level = batch.get("corruption_level")
+        # the loss target is the CLEAN frames when a corrupted history is fed.
+        target = batch.get("target_frames")
+        if target is None:
+            target = frames
+        context_frames = (loss_spec or {}).get("context_frames")
+        hidden = self._forward_tokens(
+            frames,
+            plan,
+            signals,
+            corruption_level,
+            context_frames=context_frames,
+        )  # (B, T, S, d)
 
         if loss_spec is not None:
             return self.chunked_nll(
                 hidden,
-                frames,
+                target,
                 chunk=int(loss_spec.get("chunk", 4096)),
                 context_frames=loss_spec.get("context_frames"),
             )
