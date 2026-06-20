@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="control-conditioning-survey">
+  <meta name="plan-title"    content="Making the Controls Load-Bearing — Why the World Model Ignores Its Actions, and the Fix">
+  <meta name="plan-summary"  content="Synthesis of the M4 gate failure (the playable-plasma camera model ignores its actuator plan) against the action-conditioned world-model literature. Three converging causes — weak (prepended-token) conditioning, the predictable-history shortcut (latent-action collapse), and causal under-identification from confounded flat-top observational data — and the ranked fix: bottleneck the camera history, AdaLN per-layer plan conditioning, an inverse-dynamics auxiliary, transient/diverse/perturbative excitation, and a true-vs-random-plan (delta) gate. CFG is only an amplifier.">
+  <meta name="plan-informs"  content="playable-plasma-wm-v0">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <title>Making the Controls Load-Bearing — Why the World Model Ignores Its Actions | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Reading note (research).</strong> This synthesises three literature sweeps (conditioning
+architectures; the "world model ignores its actions" failure mode; causal/identifiability from
+observational data) against a concrete result: the <a href="playable-plasma-wm-v0.html">playable-plasma-wm-v0</a>
+M4 gate, where the camera world model <strong>ignored its actuator plan</strong> — zeroing the entire
+plan changed the dream by ~0 even on an overfit of transient windows with 80% observation-dropout. It
+ends with a ranked, concrete re-design + a data strategy. Acronyms expanded on first use.</p>
+
+<h2 id="s1">§1 — The finding</h2>
+<p>M1+M2 produced a genuinely good camera <em>forecaster</em> (beats persistence 4/4, drift-resistant).
+But M3 + the M4 gate showed it is <strong>not controllable</strong>: the actuator plan is not
+load-bearing. The M4 gate is decisive because it stacked everything toward controllability — actuator-PLAN
+conditioning (not measured signals), <em>transient</em> windows where the plan genuinely varies, 80%
+observation-dropout, and a full overfit — and still measured a true-vs-zeroed-plan margin of
+<strong>0.0008</strong> (vs a 0.02 bar) with a literal pixel counterfactual of <strong>0.0000</strong>.
+Classifier-free guidance (CFG) could not help. The literature explains exactly why, and the explanation
+has three layers.</p>
+
+<figure>
+<svg viewBox="0 0 920 320" width="100%" role="img" aria-label="Three causes of action-ignoring and the matched fixes" font-family="system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+  <rect x="0" y="0" width="920" height="320" fill="#ffffff"/>
+  <text x="460" y="26" font-size="14" text-anchor="middle" font-weight="700" fill="#111">Why the controls are ignored, and the matched fix</text>
+  <!-- cause boxes -->
+  <rect x="24" y="48" width="280" height="80" fill="#ffffff" stroke="#b00020" stroke-width="1.4"/>
+  <text x="36" y="68" font-size="12.5" font-weight="700" fill="#b00020">1 · weak conditioning</text>
+  <text x="36" y="86" font-size="11.5" fill="#333">plan PREPENDED as tokens — the</text>
+  <text x="36" y="101" font-size="11.5" fill="#333">weakest inject (DiT ablation); must</text>
+  <text x="36" y="116" font-size="11.5" fill="#333">win an attention contest vs history</text>
+  <rect x="24" y="140" width="280" height="80" fill="#ffffff" stroke="#b00020" stroke-width="1.4"/>
+  <text x="36" y="160" font-size="12.5" font-weight="700" fill="#b00020">2 · history shortcut</text>
+  <text x="36" y="178" font-size="11.5" fill="#333">predictable camera history dominates</text>
+  <text x="36" y="193" font-size="11.5" fill="#333">the controllable part -> action</text>
+  <text x="36" y="208" font-size="11.5" fill="#333">collapses (latent-action theorem)</text>
+  <rect x="24" y="232" width="280" height="74" fill="#ffffff" stroke="#b00020" stroke-width="1.4"/>
+  <text x="36" y="252" font-size="12.5" font-weight="700" fill="#b00020">3 · causal under-identification</text>
+  <text x="36" y="270" font-size="11.5" fill="#333">plan confounded with state + flat-top</text>
+  <text x="36" y="285" font-size="11.5" fill="#333">is not persistently exciting -> map</text>
+  <text x="36" y="300" font-size="11.5" fill="#333">unidentifiable from observation</text>
+  <!-- arrows -->
+  <g stroke="#444" stroke-width="1.2" fill="none" marker-end="url(#fx)">
+    <path d="M306 88 L356 88"/><path d="M306 180 L356 180"/><path d="M306 269 L356 269"/>
+  </g>
+  <!-- fix boxes -->
+  <rect x="360" y="48" width="300" height="80" fill="#ffffff" stroke="#0a7d33" stroke-width="1.6"/>
+  <text x="372" y="68" font-size="12.5" font-weight="700" fill="#0a7d33">AdaLN-Zero per-layer plan conditioning</text>
+  <text x="372" y="86" font-size="11.5" fill="#333">modulate every block by the plan</text>
+  <text x="372" y="101" font-size="11.5" fill="#333">(gamma/beta/alpha, zero-init gate) —</text>
+  <text x="372" y="116" font-size="11.5" fill="#333">bypasses the attention bottleneck</text>
+  <rect x="360" y="140" width="300" height="80" fill="#ffffff" stroke="#0a7d33" stroke-width="1.8"/>
+  <text x="372" y="160" font-size="12.5" font-weight="700" fill="#0a7d33">BOTTLENECK the camera history (strongest)</text>
+  <text x="372" y="178" font-size="11.5" fill="#333">noise/mask the PAST FRAME tokens</text>
+  <text x="372" y="193" font-size="11.5" fill="#333">(Diffusion Forcing) so the plan must</text>
+  <text x="372" y="208" font-size="11.5" fill="#333">carry what history cannot</text>
+  <rect x="360" y="232" width="300" height="74" fill="#ffffff" stroke="#0a7d33" stroke-width="1.6"/>
+  <text x="372" y="252" font-size="12.5" font-weight="700" fill="#0a7d33">EXCITATION: transient + diverse + perturbative</text>
+  <text x="372" y="270" font-size="11.5" fill="#333">ramp-up/down, varied ramp rates,</text>
+  <text x="372" y="285" font-size="11.5" fill="#333">cheap NBI/gas step-responses; or</text>
+  <text x="372" y="300" font-size="11.5" fill="#333">simulator-swept interventional data</text>
+  <!-- cross-cutting -->
+  <rect x="688" y="120" width="208" height="120" fill="#ffffff" stroke="#1f6feb" stroke-width="1.4"/>
+  <text x="792" y="142" font-size="12.5" text-anchor="middle" font-weight="700" fill="#111">+ inverse-dynamics aux</text>
+  <text x="792" y="160" font-size="11" text-anchor="middle" fill="#555">predict plan from (z_t,z_t+1)</text>
+  <text x="792" y="178" font-size="12.5" text-anchor="middle" font-weight="700" fill="#111">+ delta-N gate</text>
+  <text x="792" y="196" font-size="11" text-anchor="middle" fill="#555">true vs random plan rollout</text>
+  <text x="792" y="214" font-size="11" text-anchor="middle" fill="#555">divergence (our reading ~0)</text>
+  <text x="792" y="232" font-size="11" text-anchor="middle" fill="#777">CFG = amplifier, last</text>
+  <g stroke="#9aa7b8" stroke-width="1.1" fill="none" marker-end="url(#fx2)"><path d="M660 180 L686 180"/></g>
+  <defs>
+    <marker id="fx" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#444"/></marker>
+    <marker id="fx2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#9aa7b8"/></marker>
+  </defs>
+</svg>
+<figcaption><strong>Figure 1 — three converging causes, three matched fixes.</strong> The controls are
+ignored for an architectural, an information-theoretic, and a causal reason at once; the robust response
+addresses all three (plus an inverse-dynamics auxiliary and a true-vs-random-plan gate). CFG is an
+amplifier, not a cause-fixer.</figcaption>
+</figure>
+
+<h2 id="s2">§2 — Why it happens (three converging causes)</h2>
+<p><strong>(a) The conditioning architecture is the weakest one.</strong> The canonical DiT ablation
+(<a href="https://arxiv.org/abs/2212.09748">Peebles &amp; Xie, 2023</a>) ranks conditioning mechanisms
+<strong>AdaLN-Zero &gt; cross-attention &gt; in-context (prepended/concatenated) tokens</strong> — and
+prepended tokens, which is what our model uses, is <em>last</em>. The mechanism
+(<a href="https://openreview.net/pdf?id=E4roJSM9RM">AdaLN-Zero analysis</a>): a prepended condition
+"must win a competition for self-attention against the content tokens and reach the network at a single
+injection point", so a model with a rich camera history simply down-weights it. AdaLN instead
+multiplicatively scales/shifts <em>every</em> block via per-layer affine parameters predicted from the
+condition, with a zero-initialised gate that earns influence — structurally load-bearing. Current world
+models inject actions this way: DIAMOND via AdaGN per residual block
+(<a href="https://arxiv.org/abs/2405.12399">Alonso et al., NeurIPS 2024</a>), Cosmos by adding an
+action embedding to every block's timestep embedding.</p>
+<p><strong>(b) The predictable-history shortcut — a named theorem.</strong>
+<a href="https://arxiv.org/abs/2506.15691">Schmidt &amp; Jiang (2026)</a> prove that when the
+<em>exogenous/predictable</em> component of the dynamics dominates the <em>controllable</em> component,
+the action signal <strong>collapses and is ignored regardless of bottleneck size</strong> — driven by
+(i) predictable variance exceeding action-driven variance, (ii) near-deterministic data-collection, and
+(iii) observation leakage. Our quasi-stationary camera history is near-deterministic, so the plan carries
+little marginal information. This is also why CFG fails: CFG scales
+<code>(&epsilon;_cond &minus; &epsilon;_uncond)</code>, which is ≈0 when the action is ignored — it
+amplifies nothing. The History-Guided Diffusion work is explicit that
+"<a href="https://arxiv.org/abs/2502.06764">CFG-style history dropout performs poorly</a>"; the fix is to
+corrupt the history itself.</p>
+<p><strong>(c) Causal under-identification from confounded, unexciting data.</strong> Operators set the
+plan <em>in response to</em> the plasma state, so the plan is <strong>confounded</strong> with the state;
+a model fit to logs learns the confounded correlation, and can route all predictive signal through the
+state/camera tokens while treating the plan as redundant — and be <em>right on the training
+distribution</em> (<a href="https://arxiv.org/pdf/2504.20172">causal identification in time series</a>).
+Worse, our windows are mostly <strong>flat-top</strong>, which is <em>not persistently exciting</em>: by
+classical system-identification theory the action→response map is identifiable only where the input
+actually varies (positive-definite input correlation). Offline-RL coverage/concentrability says the same:
+near-zero action variance ⇒ the action gradient is statistically unrecoverable ⇒ the model collapses to a
+persistence/autonomous predictor. <strong>This is the deepest cause, and the lead's instinct to add
+transients is exactly the theoretical remedy.</strong></p>
+
+<h2 id="s3">§3 — The fix (ranked by evidence × leverage)</h2>
+<ol>
+  <li><strong>Bottleneck the camera history — strongest lever, and our key miss.</strong> The plan is
+  ignored because the past frames alone suffice. Noise/mask the <em>camera-history tokens</em>
+  (Diffusion-Forcing-style independent per-frame noise; <a href="https://arxiv.org/abs/2407.01392">Chen et
+  al., NeurIPS 2024</a>) so the model cannot coast on the predictive past and the plan must carry what
+  history cannot. <strong>Critical correction:</strong> the M4 gate's 80% dropout was on the
+  <em>observation signals</em>, leaving the <em>camera history fully available</em> — so the bottleneck
+  was on the wrong channel. It must sit on the information content of the past <em>frame</em> tokens
+  reaching the dynamics head. Caveat: too much history corruption aggravates drift/forgetting
+  (<a href="https://arxiv.org/html/2504.12626v3">FramePack</a>) — sweep the strength against the gate.</li>
+  <li><strong>AdaLN-Zero per-layer plan conditioning</strong> (replace prepended tokens). Add a small MLP
+  <code>plan → (&gamma;_ℓ, &beta;_ℓ, &alpha;_ℓ)</code> per transformer block, with <code>&alpha;</code>
+  zero-init so it starts as identity and earns influence. A bolt-on to the existing token transformer;
+  the one change the architecture literature unanimously endorses.</li>
+  <li><strong>Inverse-dynamics auxiliary head</strong> — predict the plan from consecutive latents
+  <code>(z_t, z_{t+1})</code>. Schmidt &amp; Jiang's Prop 4.4 shows this forces the action into the latent
+  with as little as 1% labels; we have <em>100%</em> (the plan is fully known), so it is cheap and
+  directly attacks the root cause. Pairs naturally with (1).</li>
+  <li><strong>CFG last.</strong> Keep Vid2World-style per-frame action-dropout + guidance as a test-time
+  controllability knob (<a href="https://arxiv.org/abs/2505.14357">Vid2World, 2025</a>) — but only after
+  (1)–(3) make the conditional score genuinely action-dependent. It is an amplifier, never the mechanism.</li>
+  <li><strong>(Optional) predict the residual / shorten context</strong> so the static, history-predictable
+  background stops dominating the loss; and a counterfactual/contrastive control term only if (1)–(3)
+  underperform.</li>
+</ol>
+
+<h2 id="s4">§4 — The data strategy (the possibly-binding constraint)</h2>
+<p>Architecture and objective fixes cannot manufacture information that is not in the data. Because the
+plan is confounded and flat-top is unexciting, <strong>observational data may structurally
+under-identify the control map</strong>. The data levers, in order:</p>
+<ul>
+  <li><strong>Transients are not optional.</strong> Ramp-up/down phases supply the input variation that
+  makes the plan→camera map identifiable (persistent-excitation theory). The decisive precedent: the TCV
+  neural state-space model (<a href="https://www.nature.com/articles/s41467-025-63917-x">Nature Comms
+  2025</a>) learned an actuator-conditioned plasma world model <em>specifically by training on 442
+  rampdown/transient shots</em>, and made actuators load-bearing by <em>structuring</em> them in (physics
+  confinement scalings), not hoping a free network discovers them.</li>
+  <li><strong>Action diversity, not just presence.</strong> What is load-bearing is coverage/variance of
+  the plan across shots (different ramp rates, NBI/gas levels, timings). Dreamer 4
+  (<a href="https://arxiv.org/abs/2509.24527">2025</a>) grounds actions from a <em>small</em>
+  action-labeled subset (100h/2500h) — but only if that subset is <em>diverse</em>; diversity, not
+  quantity, is the open requirement.</li>
+  <li><strong>Cheap perturbative / interventional shots break the confounder.</strong> A handful of
+  deliberate perturbations (modulate NBI/gas at a fixed operating point; small step responses) turn causal
+  learning into supervised learning and are worth far more per shot than logged flat-top. If real shots
+  are infeasible, simulator-swept inputs (RAPTOR/transport, the SOLPS-NN strategy) supply interventional
+  coverage. A physics prior lowers the data bar (TCV extrapolated +20% Ip from 5 pulses on its scalings).</li>
+</ul>
+
+<h2 id="s5">§5 — Recommended M4 re-design + the gate</h2>
+<p><strong>Gate metric (adopt first).</strong> The normalised action-sensitivity delta
+(<a href="https://arxiv.org/abs/2505.14357">Vid2World ΔN-M</a>): decoded-rollout divergence between the
+<em>true plan</em> and a <em>random/shuffled plan</em>, normalised — computed on <em>transient</em>
+windows with a known plan-induced response (per §2c, a near-zero reading on a window where the plan
+genuinely doesn't move the near-future plasma would be correct, not a bug). Our current reading is ≈0;
+this scalar is what every fix must move, and the go/no-go for the re-train.</p>
+<p><strong>Recommended re-design (apply together, they are complementary):</strong> (1) camera-history
+noising/bottleneck + (2) AdaLN-Zero plan conditioning + (3) inverse-dynamics auxiliary, trained on
+(4) transient + diverse windows, scored by the ΔN-M gate; CFG added last. Re-run the overfit gate with
+the <em>corrected</em> history-bottleneck and the ΔN-M metric on transient windows; only on a clear PASS
+commit the 6-GPU re-train. <strong>Honest expectation:</strong> the architecture+objective legs (1–3)
+are high-confidence and cheap; but if the data are genuinely unexciting/confounded, no model tweak will
+suffice and the binding next step becomes the <em>data strategy</em> (§4) — a small set of perturbative
+shots or simulator-swept interventional data. That is the most important strategic finding: making the
+plasma <em>driveable</em> is a data/excitation problem as much as a modelling one.</p>
+
+<h2 id="s6">§6 — Key references</h2>
+<ul>
+  <li>Peebles &amp; Xie, <em>Scalable Diffusion Models with Transformers</em> (DiT), 2023 — conditioning ablation (AdaLN-Zero &gt; cross-attn &gt; tokens). <a href="https://arxiv.org/abs/2212.09748">arXiv:2212.09748</a></li>
+  <li>Schmidt &amp; Jiang, <em>What Do Latent Action Models Actually Learn?</em>, 2026 — action-collapse theorem + inverse-dynamics auxiliary (Prop 4.4). <a href="https://arxiv.org/abs/2506.15691">arXiv:2506.15691</a></li>
+  <li>Chen et al., <em>Diffusion Forcing</em>, NeurIPS 2024 — per-frame noise / corruptible history. <a href="https://arxiv.org/abs/2407.01392">arXiv:2407.01392</a></li>
+  <li>Song et al., <em>History-Guided Video Diffusion (DFoT)</em>, 2026 — "CFG-style history dropout performs poorly"; noise history to reduce over-reliance. <a href="https://arxiv.org/abs/2502.06764">arXiv:2502.06764</a></li>
+  <li>Alonso et al., <em>DIAMOND</em>, NeurIPS 2024 — actions via per-block AdaGN. <a href="https://arxiv.org/abs/2405.12399">arXiv:2405.12399</a></li>
+  <li>Vid2World, 2025 — per-frame action-dropout CFG + the ΔN-M action-sensitivity metric. <a href="https://arxiv.org/abs/2505.14357">arXiv:2505.14357</a></li>
+  <li>TCV neural state-space model, <em>Nature Communications</em> 2025 — actuator-conditioned plasma WM from transient (rampdown) shots. <a href="https://www.nature.com/articles/s41467-025-63917-x">nature.com</a></li>
+  <li>Dreamer 4, 2025 — cheap action-grounding from a small <em>diverse</em> action-labeled subset. <a href="https://arxiv.org/abs/2509.24527">arXiv:2509.24527</a></li>
+  <li>Causal identification in time series, 2025 — confounded actions ⇒ observational ≠ interventional. <a href="https://arxiv.org/pdf/2504.20172">arXiv:2504.20172</a></li>
+</ul>
+
+</main>
+</body>
+</html>
