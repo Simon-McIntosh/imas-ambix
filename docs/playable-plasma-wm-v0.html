@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-20">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="8">
 </head>
 <body>
 <main class="plan-doc">
@@ -762,9 +762,9 @@ Done-when (GATE phase)
   2. Overfit GATE result reported: does varying the actuator plan CAUSALLY move the decoded camera (with a
      clear zeroed-plan counterfactual margin)? This is the go/no-go for the re-train.
   3. Report (git show --stat). Do NOT edit docs/plan (orchestrator records). Do NOT launch the 6-GPU re-train.</pre>
-    <p class="r-fu-outcome">M4 GATE — FAIL (2026-06-20), and informative. The worker implemented the full actuator-PLAN conditioning re-design (commits 02e8a8a + 93dd793 on main, trailer-clean: actuator_plan.py, controllable_model.py, controllable_dataset.py, controllable_train.py, controllable_gate_run.py + sbatch + a 517-line test) INCLUDING the transient-window + memorization-robust refinements, then ran the overfit gate (/work/.../m4_controllability_gate/gate_verdict.json). SETUP (valid per the lead's directive): overfit 4 shots on TRANSIENT windows (plan_variation 102-172, camera change-fraction 0.95-1.0 — the plan genuinely varies), observation-dropout 0.8, control-dropout 0.15; overfit converged (loss 12.52 -> 0.0099). VERDICT: <strong>0/4 pass</strong>. Mean true-vs-zeroed-PLAN margin 0.0008 (threshold 0.02 — 25x below); gas-scale 0.0001, NBI-scale 0.0002; the pixel counterfactual is stark — zeroing the ENTIRE plan changes shot 18502's inboard emission by 0.0000 (pixel L1 0.0). The memorization-robust (context-corrupted) metric is higher (cc margins 0.016-0.035) but still ~threshold. <strong>KEY FINDING:</strong> even with PLAN conditioning (not measured signals) + transient windows (controls vary) + heavy observation-dropout + an OVERFIT, the controls are IGNORED — because the camera HISTORY alone predicts the next frames, so the model has no incentive to use the controls (the classic 'world model ignores actions' failure mode, deeper than the conditioning SOURCE). NUANCE: a 4-shot overfit maximises the memorization shortcut, so this is strongly suggestive, not absolute proof a full re-train fails — but it is a clear signal the current mechanism (prepended conditioning + dropout + CFG) is insufficient. PER THE LEAD'S DIRECTIVE (gate FAIL -> research, not re-train): the 6-GPU re-train is NOT justified by this evidence; deep research on the robust control-conditioning mechanism is launched (f-ppwm-control-conditioning-research). The conditioning re-design code is committed + reusable once the research picks the mechanism.</p>
+    <p class="r-fu-outcome">M4 GATE — FAIL (2026-06-20), and informative. The worker implemented the full actuator-PLAN conditioning re-design (commits 02e8a8a + 93dd793 on main, trailer-clean: actuator_plan.py, controllable_model.py, controllable_dataset.py, controllable_train.py, controllable_gate_run.py + sbatch + a 517-line test) INCLUDING the transient-window + memorization-robust refinements, then ran the overfit gate (/work/.../m4_controllability_gate/gate_verdict.json). SETUP (valid per the lead's directive): overfit 4 shots on TRANSIENT windows (plan_variation 102-172, camera change-fraction 0.95-1.0 — the plan genuinely varies), observation-dropout 0.8, control-dropout 0.15; overfit converged (loss 12.52 -&gt; 0.0099). VERDICT: <strong>0/4 pass</strong>. Mean true-vs-zeroed-PLAN margin 0.0008 (threshold 0.02 — 25x below); gas-scale 0.0001, NBI-scale 0.0002; the pixel counterfactual is stark — zeroing the ENTIRE plan changes shot 18502's inboard emission by 0.0000 (pixel L1 0.0). The memorization-robust (context-corrupted) metric is higher (cc margins 0.016-0.035) but still ~threshold. <strong>KEY FINDING:</strong> even with PLAN conditioning (not measured signals) + transient windows (controls vary) + heavy observation-dropout + an OVERFIT, the controls are IGNORED — because the camera HISTORY alone predicts the next frames, so the model has no incentive to use the controls (the classic 'world model ignores actions' failure mode, deeper than the conditioning SOURCE). NUANCE: a 4-shot overfit maximises the memorization shortcut, so this is strongly suggestive, not absolute proof a full re-train fails — but it is a clear signal the current mechanism (prepended conditioning + dropout + CFG) is insufficient. PER THE LEAD'S DIRECTIVE (gate FAIL -&gt; research, not re-train): the 6-GPU re-train is NOT justified by this evidence; deep research on the robust control-conditioning mechanism is launched (f-ppwm-control-conditioning-research). The conditioning re-design code is committed + reusable once the research picks the mechanism.</p>
     </article>
-<article class="r-fu" data-id="f-ppwm-control-conditioning-research" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ppwm-control-conditioning-research" data-status="resolved" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="2026-06-20T16:03:04+00:00" data-resolved-by="agent/opus (orchestrator)">
     <h4 class="r-fu-title">Deep research — the robust mechanism to make controls causally load-bearing (M4 gate failed)</h4>
     <div class="r-fu-body">The M4 gate FAIL showed the camera model ignores the controls even with actuator-PLAN conditioning + transient windows + 0.8 observation-dropout + an overfit — the camera HISTORY alone predicts the next frames, so the model never learns to use the controls (the 'world model ignores actions' failure mode). Per the lead: deep-research the best/robust mechanism BEFORE re-attempting M4. Output a cited research doc + a concrete recommended re-design for a controllable plasma world model.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -797,6 +797,48 @@ Done-when
      ranked recommendation for the M4 control-conditioning re-design.
   2. A concrete next-step (the recommended mechanism + how to gate it) folded back into a new M4 followup.
   3. This followup resolved.</pre>
+    <p class="r-fu-outcome">Deep research COMPLETE (3 agents synthesised) -> <a href="control-conditioning-survey.html">docs/control-conditioning-survey.html</a>. The controls are ignored for THREE converging reasons: (a) ARCHITECTURE — prepended-token conditioning (ours) is the WEAKEST inject (DiT ablation: AdaLN-Zero &gt; cross-attn &gt; tokens); (b) the HISTORY SHORTCUT — a named latent-action-collapse theorem (Schmidt &amp; Jiang 2026): when the predictable/exogenous dynamics dominate the controllable part, the action is ignored REGARDLESS of bottleneck, and CFG can't help (it scales eps_cond-eps_uncond ~ 0); (c) CAUSAL under-identification — the plan is CONFOUNDED with the state (operators set it in response) and flat-top is NOT persistently exciting, so the map is statistically unidentifiable from observational data. <strong>KEY CORRECTION:</strong> the M4 gate's 80% dropout was on the OBSERVATION signals, not the CAMERA HISTORY — the past frames were fully available, so the model coasted on them; the bottleneck must sit on the camera-history tokens. RANKED FIX: (1) bottleneck/noise the camera HISTORY (Diffusion-Forcing) — strongest + our miss; (2) AdaLN-Zero per-layer plan conditioning (replace prepend); (3) inverse-dynamics auxiliary (predict the plan from consecutive latents — we have 100% labels); (4) CFG last (amplifier). DATA STRATEGY (possibly the BINDING constraint): transients + action DIVERSITY + cheap PERTURBATIVE/interventional shots (precedent: TCV NSSM, Nature Comms 2025, 442 rampdown shots; Dreamer 4: cheap grounding if the action subset is diverse). GATE: the Vid2World ΔN-M (true-vs-random-plan rollout divergence) on transient windows. <strong>Strategic headline: making the plasma DRIVEABLE is a data/excitation problem as much as a modelling one.</strong> M4-redesign queued (f-ppwm-m4-redesign); the data-strategy fork is surfaced to the lead.</p>
+    </article>
+<article class="r-fu" data-id="f-ppwm-m4-redesign" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">M4 (redesign) — controllable model: camera-HISTORY bottleneck + AdaLN plan conditioning + inverse-dynamics aux; ΔN-M gate</h4>
+    <div class="r-fu-body">Per the research (control-conditioning-survey), apply the matched fixes TOGETHER: (1) bottleneck/noise the camera-HISTORY tokens (Diffusion-Forcing-style; the M4-gate's miss — it dropped observations, not history); (2) AdaLN-Zero per-layer plan conditioning (replace prepended plan tokens); (3) inverse-dynamics auxiliary (predict the plan from consecutive latents, 100% labels); CFG last. Train on transient+diverse windows; gate with the ΔN-M (true-vs-random-plan) metric on transient windows. Overfit gate first; 6-GPU re-train only on a clear PASS. If it still fails, the binding next step is the DATA strategy (perturbative/interventional shots or simulator-swept data), not a model tweak.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
+Section: M4 redesign
+Tier:    opus
+
+Context
+  The M4 gate FAILED: the camera WM ignores its actuator plan. Research (docs/control-conditioning-survey.html)
+  found 3 converging causes — weak prepended-token conditioning, the predictable camera-HISTORY shortcut
+  (latent-action collapse), causal under-identification (confounded plan + non-exciting flat-top). KEY
+  correction: the gate&#x27;s 80% dropout was on the OBSERVATION signals, NOT the camera history — the model coasted
+  on the fully-available past frames.
+
+State to read
+  docs/control-conditioning-survey.html (the ranked fix + citations); imas_ambix/worldmodel/controllable_model.py
+  + controllable_train.py + controllable_dataset.py + controllable_gate_run.py + actuator_plan.py (the M4 code,
+  commits 02e8a8a/93dd793); control_guidance.py (CFG) + control_falsification.py (the test); the M2 checkpoint
+  /work/projects/imas_gpu/worldmodel/ckpt/spacetime-corruption-1220391/best.pt.
+
+Scope locks / constraints (apply the fixes TOGETHER — they are complementary)
+  - (1) Bottleneck/noise the camera-HISTORY tokens (Diffusion-Forcing per-frame noise / stochastic mask of PAST
+    FRAME tokens) — sweep strength vs the gate; watch drift/forgetting. THIS is the corrected lever (history, not
+    observations). (2) AdaLN-Zero per-layer plan conditioning: MLP plan-&gt;(gamma,beta,alpha) per block, alpha
+    zero-init, replacing prepended plan tokens. (3) Inverse-dynamics auxiliary: predict the plan from (z_t,z_{t+1}).
+    (4) CFG kept but LAST (amplifier only).
+  - Data: transient + diverse windows (over-sample ramp-up/down + varied actuator trajectories; shot-level
+    held-out split intact).
+  - GATE metric = Vid2World ΔN-M: decoded-rollout divergence between the TRUE plan and a RANDOM/shuffled plan, on
+    TRANSIENT windows with a known plan response (a near-0 reading where the plan genuinely doesn&#x27;t move the
+    near-future plasma is correct, not a bug). Current reading ~0; the redesign must move it clear of the noise floor.
+  - GATE FIRST (overfit, 1 GPU) with the corrected history-bottleneck + ΔN-M. scancel/--time fine (§2a); in-process
+    (§2b); keep DeepSeek up. STOP + report PASS/FAIL; do NOT launch the 6-GPU re-train (orchestrator dispatches on PASS).
+
+Done-when
+  1. Redesign (history-bottleneck + AdaLN + inverse-dynamics) implemented + tests green + committed.
+  2. Overfit gate verdict on ΔN-M (true-vs-random-plan) over transient windows: PASS/FAIL with numbers.
+  3. Report (git show --stat). On FAIL, diagnose whether the binding constraint is now DATA (excitation), not the model.
+     Do NOT launch the 6-GPU re-train; do NOT edit docs/plan.</pre>
     </article>
 </section>
 
