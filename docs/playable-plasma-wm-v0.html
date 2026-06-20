@@ -368,6 +368,64 @@ one-week sprint (M1–M5) delivers the offline-rendered <em>proof</em> that the 
   ground the correction in the working EKF — without hardcoding a forward simulator. Detailed in §9.</li>
 </ul>
 
+<h2 id="s6d">§6d — M2 in pictures: ground truth vs prediction vs dream</h2>
+<p>The M2 result (recorded in the milestone followup), shown on the four genuinely held-out shots.
+Every frame is decoded full-resolution through the frozen Open-MAGVIT2 VQ. The <em>dream</em> is the
+autoregressive rollout (the model consuming its own predictions) at each shot's best sampling setting,
+scored by ensemble-CRPS against the frozen-frame persistence baseline (ratio <strong>below 1 beats
+persistence</strong>). 18502/18505 are the bright, high-motion shots; 18503/18504 the dim ones.</p>
+
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/crps-ratio-vs-persistence.png" alt="CRPS ratio vs persistence, M1 vs M2, per held-out shot" width="100%">
+  <figcaption><strong>The headline.</strong> Ensemble-CRPS ratio vs persistence (lower = better; 1.0 = persistence). M2 beats persistence on all four held-out shots (0.80 / 0.60 / 0.34 / 0.74) and improves on the M1 baseline on both bright shots (18502, 18505) — the cases earlier generations lost.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/horizon-drift.png" alt="M2 CRPS ratio at the matched vs extended forecast horizon" width="100%">
+  <figcaption><strong>No drift.</strong> Extending the forecast horizon keeps every shot below persistence — the CRPS ratio holds or improves (18502 drops 0.80→0.70). The context-corruption fine-tune resists the open-loop drift that collapsed earlier generations.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/motion-collapse.png" alt="Frame-to-frame motion vs GT: argmax vs sampling" width="100%">
+  <figcaption><strong>Sampling cures the collapse.</strong> Frame-to-frame motion relative to GT: greedy argmax freezes (~0.1 of GT — the persistence collapse) while sampling restores GT-like motion (~1.0). This is the mechanism behind the win.</figcaption>
+</figure>
+
+<h3 id="s6d-dreams">Dreams — ground truth ∥ autoregressive dream</h3>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/m2-heldout-18502-dream.gif" alt="Shot 18502 (bright): GT vs autoregressive dream" width="100%">
+  <figcaption>Held-out 18502 (bright) — GT ∥ dream (T=0.7, p=0.95). Forecast frames are pure prediction; CRPS ratio 0.80 vs persistence (M1 was 0.85).</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/m2-heldout-18505-dream.gif" alt="Shot 18505 (bright): GT vs autoregressive dream" width="100%">
+  <figcaption>Held-out 18505 (bright) — GT ∥ dream (T=0.9, p=0.9). CRPS ratio 0.74 (M1 was 0.84).</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/m2-heldout-18503-dream.gif" alt="Shot 18503 (dim): GT vs autoregressive dream" width="100%">
+  <figcaption>Held-out 18503 (dim) — GT ∥ dream (T=0.7, p=0.95). CRPS ratio 0.60.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/m2-heldout-18504-dream.gif" alt="Shot 18504 (dim): GT vs autoregressive dream" width="100%">
+  <figcaption>Held-out 18504 (dim) — GT ∥ dream (T=1.0, p=0.9). The strongest shot, CRPS ratio 0.34, motion within ~0.2% of GT.</figcaption>
+</figure>
+
+<h3 id="s6d-recon">Teacher-forced reconstructions — ground truth ∥ prediction</h3>
+<p>Each frame predicted from the <em>true</em> prior frames + measured signals — the per-frame fidelity
+upper bound, before autoregressive rollout.</p>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/m2-heldout-18502-recon.gif" alt="Shot 18502: GT vs teacher-forced reconstruction" width="100%">
+  <figcaption>Held-out 18502 (bright) — GT ∥ teacher-forced reconstruction.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/m2-heldout-18505-recon.gif" alt="Shot 18505: GT vs teacher-forced reconstruction" width="100%">
+  <figcaption>Held-out 18505 (bright) — GT ∥ teacher-forced reconstruction.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/m2-heldout-18503-recon.gif" alt="Shot 18503: GT vs teacher-forced reconstruction" width="100%">
+  <figcaption>Held-out 18503 (dim) — GT ∥ teacher-forced reconstruction.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/m2-heldout-18504-recon.gif" alt="Shot 18504: GT vs teacher-forced reconstruction" width="100%">
+  <figcaption>Held-out 18504 (dim) — GT ∥ teacher-forced reconstruction.</figcaption>
+</figure>
+
 <h2 id="s7">§7 — Pre-registered demo bar &amp; evaluation (locked before any number)</h2>
 <p>Following project practice, the win condition is registered before results, and it is a
 <em>playability</em> bar, not a point-accuracy bar.</p>
