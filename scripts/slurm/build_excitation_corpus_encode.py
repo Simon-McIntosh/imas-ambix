@@ -87,6 +87,28 @@ def _percentile_balance(frames_thw: np.ndarray) -> np.ndarray:
         return np.clip((f - lo) * 255.0 / (hi - lo), 0, 255).astype(np.uint8)
 
 
+def _output_exists(shot_id: int, camera: str, curated_root: Path) -> bool:
+    """True if a readable, non-empty token zarr already exists for this shot.
+
+    Mirrors stream_encode._output_complete: validates the zarr opens and its
+    ``tokens`` array is non-empty, so a torn write is re-encoded rather than
+    silently skipped.  Used by --skip-existing to make the encode resumable and
+    let shards co-exist idempotently (all shards write the same root).
+    """
+    import zarr
+
+    from imas_ambix.data.stream_encode import stream_frames_token_path
+
+    path = stream_frames_token_path(int(shot_id), camera, curated_root)
+    if not path.exists():
+        return False
+    try:
+        store = zarr.open_group(str(path), mode="r")
+        return int(np.asarray(store["tokens"]).shape[0]) > 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
@@ -101,6 +123,24 @@ def main(argv: list[str] | None = None) -> int:
         "--max-shots", type=int, default=None, help="cap shots (PoC dry-run)"
     )
     ap.add_argument("--exposure", default="percentile", help="percentile|global (A/B)")
+    ap.add_argument(
+        "--shard",
+        type=int,
+        default=0,
+        help="this worker's shard index (0..n_shards-1); stride-shards the window list",
+    )
+    ap.add_argument(
+        "--n-shards",
+        type=int,
+        default=1,
+        help="number of parallel encode workers (GPUs) over the manifest",
+    )
+    ap.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="skip shots whose token zarr already exists in the curated root "
+        "(makes the encode RESUMABLE + lets shards co-exist idempotently)",
+    )
     args = ap.parse_args(argv)
 
     # stream_encode lives in the magvit2 venv; import its byte-identical helpers.
@@ -121,8 +161,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.max_shots:
         windows = windows[: args.max_shots]
     curated_root = Path(args.curated_root)
+
+    # Stride-shard the window list across parallel workers (one GPU each): worker
+    # `shard` takes windows[shard::n_shards].  Deterministic + disjoint, so N
+    # shards partition the manifest with no overlap and no coordination.
+    n_shards = max(1, int(args.n_shards))
+    shard = int(args.shard) % n_shards
+    if n_shards > 1:
+        windows = windows[shard::n_shards]
+
+    # Skip-existing: drop shots already encoded in the curated root, so the
+    # encode is resumable and shards never redo the PoC/earlier output.
+    n_before = len(windows)
+    if args.skip_existing:
+        windows = [
+            w
+            for w in windows
+            if not _output_exists(int(w["shot_id"]), args.camera, curated_root)
+        ]
     print(
-        f"[encode] {len(windows)} curated windows -> {curated_root} "
+        f"[encode shard {shard}/{n_shards}] {len(windows)} windows to encode "
+        f"({n_before - len(windows)} skipped existing) -> {curated_root} "
         f"(exposure={args.exposure}, device={args.device})",
         flush=True,
     )
