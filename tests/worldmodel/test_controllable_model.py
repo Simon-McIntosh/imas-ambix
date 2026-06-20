@@ -643,3 +643,152 @@ def test_delta_nm_gate_returns_structured_verdict_and_noise_floor():
     # on a ZERO-INIT model every plan gives the identical rollout -> true-vs-random
     # and the noise floor are both 0 (correct FAIL — the plan is identity at init).
     assert summary["mean_true_vs_random"] >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# Gate-eval fixes (M4 re-train): trustworthy ΔN-M baseline + physical levers
+# ---------------------------------------------------------------------------
+
+
+def _full_plan(n_steps=8, seed=0):
+    """A realistic full-width ActuatorPlan: big coil/Ip drive + small gas/nbi."""
+    from imas_ambix.worldmodel.actuator_plan import (
+        coil_current_channel_indices,
+        gas_puff_channel_indices,
+        nbi_channel_indices,
+        plasma_current_channel_index,
+    )
+
+    _ = seed  # deterministic plan; seed kept for call-site API stability
+    raw = np.zeros((n_steps, N_ACTUATOR_CHANNELS), dtype=np.float64)
+    # coils ~1e5 A with a ramp; Ip ~5e5; gas ~1e21 small; nbi ~1e6.
+    for i in coil_current_channel_indices():
+        raw[:, i] = 1e5 + np.linspace(0, 3e4, n_steps)
+    ip = plasma_current_channel_index()
+    if ip is not None:
+        raw[:, ip] = 5e5 + np.linspace(0, 1e5, n_steps)
+    for i in gas_puff_channel_indices():
+        raw[:, i] = np.linspace(1e20, 5e20, n_steps)
+    for i in nbi_channel_indices():
+        raw[:, i] = np.linspace(0, 1e6, n_steps)
+    miss = np.zeros_like(raw, dtype=np.float32)
+    return ActuatorPlan(
+        values=normalise_actuator_values(raw),
+        missing=miss,
+        channel_keys=list(ACTUATOR_CHANNEL_KEYS),
+        raw_values=raw.astype(np.float32),
+    )
+
+
+def test_random_plan_holds_machine_state_perturbs_controllable():
+    """Gate-fix 2a: the random plan must hold Ip/coils ≈ true, vary gas/nbi/density."""
+    from imas_ambix.worldmodel.actuator_plan import (
+        coil_current_channel_indices,
+        plasma_current_channel_index,
+    )
+    from imas_ambix.worldmodel.controllable_train import (
+        _controllable_actuator_indices,
+        _random_actuator_like,
+    )
+
+    plan = _full_plan(seed=1)
+    rng = np.random.default_rng(0)
+    rp = _random_actuator_like(plan, rng=rng)  # controllable_only=True default
+    machine = coil_current_channel_indices()
+    ip = plasma_current_channel_index()
+    if ip is not None:
+        machine = machine + [ip]
+    ctrl = _controllable_actuator_indices()
+    # machine-state channels held byte-identical to the true plan.
+    assert np.array_equal(rp.raw_values[:, machine], plan.raw_values[:, machine]), (
+        "random-plan baseline changed the machine state (Ip/coils) — it must hold "
+        "them at the true plan ('wrong actuation, right machine')"
+    )
+    # at least one controllable channel actually changed.
+    assert not np.allclose(rp.raw_values[:, ctrl], plan.raw_values[:, ctrl])
+    # the normalised perturbation is now a SMALL fraction of the full drive (the
+    # gate-bug was a ~100% re-randomisation inflating the noise floor).
+    full_norm = float(np.abs(plan.values).sum())
+    delta = float(np.abs(rp.values - plan.values).sum())
+    assert delta / full_norm < 0.25, (
+        f"random-plan perturbation is {100 * delta / full_norm:.0f}% of the drive — "
+        "still too aggressive; it should perturb only the controllable actuators"
+    )
+
+
+def test_legacy_random_plan_perturbs_more_than_controllable_only():
+    """controllable_only=False (legacy) perturbs FAR more than the fixed baseline.
+
+    The fix's whole point: the legacy all-channel randomisation re-randomises the
+    dominant coil/Ip machine-state channels, so its perturbation dwarfs the
+    controllable-only one (which holds them) — that excess is exactly the inflated
+    noise floor the gate-fix removes.
+    """
+    from imas_ambix.worldmodel.actuator_plan import (
+        coil_current_channel_indices,
+        plasma_current_channel_index,
+    )
+    from imas_ambix.worldmodel.controllable_train import _random_actuator_like
+
+    plan = _full_plan(seed=2)
+    legacy = _random_actuator_like(
+        plan, rng=np.random.default_rng(0), controllable_only=False
+    )
+    fixed = _random_actuator_like(
+        plan, rng=np.random.default_rng(0), controllable_only=True
+    )
+    machine = coil_current_channel_indices()
+    ip = plasma_current_channel_index()
+    if ip is not None:
+        machine = machine + [ip]
+    # the crisp behavioural difference: legacy CHANGES the machine-state channels,
+    # controllable-only HOLDS them.
+    assert not np.allclose(legacy.raw_values[:, machine], plan.raw_values[:, machine])
+    assert np.array_equal(fixed.raw_values[:, machine], plan.raw_values[:, machine])
+    # and legacy's total perturbation exceeds the controllable-only one (it adds
+    # the machine-state scatter on top).
+    d_legacy = float(np.abs(legacy.values - plan.values).sum())
+    d_fixed = float(np.abs(fixed.values - plan.values).sum())
+    assert d_legacy > d_fixed
+
+
+def test_physical_command_lever_is_a_real_intervention():
+    """Gate-fix 2b: the gas lever SET to window-max is a non-trivial perturbation."""
+    from imas_ambix.worldmodel.actuator_plan import gas_puff_channel_indices
+    from imas_ambix.worldmodel.controllable_train import (
+        _physical_command_levels,
+        _set_plan_channels_physical,
+    )
+
+    plan = _full_plan(seed=3)
+    gas = gas_puff_channel_indices()
+    levels = _physical_command_levels(plan, gas)
+    # window-max equals the largest |value| over the window (the ramp top).
+    for k, ch in enumerate(gas):
+        assert np.isclose(abs(levels[k]), np.abs(plan.raw_values[:, ch]).max())
+    gas_set = _set_plan_channels_physical(plan, gas, levels)
+    # the gas channels are now CONSTANT at the window-max (every step).
+    for k, ch in enumerate(gas):
+        assert np.allclose(gas_set.raw_values[:, ch], levels[k])
+    # and the normalised perturbation on the gas channels is non-trivial vs the
+    # old ×3-of-near-zero nudge.
+    gas_delta = float(np.abs(gas_set.values[:, gas] - plan.values[:, gas]).sum())
+    assert gas_delta > 0.0
+    # non-gas channels are untouched.
+    other = [i for i in range(N_ACTUATOR_CHANNELS) if i not in gas]
+    assert np.array_equal(gas_set.raw_values[:, other], plan.raw_values[:, other])
+
+
+def test_physical_command_floor_when_channel_flat_zero():
+    """A flat-at-zero channel gets a positive floor so the lever still fires."""
+    from imas_ambix.worldmodel.controllable_train import _physical_command_levels
+
+    raw = np.zeros((6, N_ACTUATOR_CHANNELS), dtype=np.float32)
+    plan = ActuatorPlan(
+        values=normalise_actuator_values(raw),
+        missing=np.zeros_like(raw),
+        channel_keys=list(ACTUATOR_CHANNEL_KEYS),
+        raw_values=raw,
+    )
+    levels = _physical_command_levels(plan, [0, 1])
+    assert all(abs(lv) > 0.0 for lv in levels)

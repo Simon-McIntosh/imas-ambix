@@ -615,6 +615,63 @@ def _actuator_batch_from_plan(plan, device: torch.device) -> dict:
     return {"values": v, "missing": m}
 
 
+def _set_plan_channels_physical(plan, channel_indices, level: float):
+    """A copy of the plan with the given channels SET to a fixed physical command.
+
+    Gate-fix (2b): the earlier gas/NBI lever was ``scale_plan_channels(idx, 3.0)``
+    — a ×3 of a near-zero baseline, which on a flat-top window is a <1% input
+    perturbation (gate_verdict_1220668 measured gas×3 = 0.72% of the drive
+    L1-norm).  That is far too small to test whether the model RESPONDS to the
+    gas/NBI command.  This SETS the selected channels to an absolute physical
+    command instead — a real, in-distribution intervention ("fire the gas hard")
+    — by writing the RAW value and re-normalising.  ``level`` is the absolute raw
+    physical command (same units as ``raw_values``); a per-channel ``level`` of
+    the window-MAX (see :func:`_physical_command_levels`) gives "the strongest
+    level this actuator reached on this shot", a meaningful swing vs the silenced
+    counterfactual.  ``missing`` is preserved.
+    """
+    from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
+        ActuatorPlan,
+        normalise_actuator_values,
+    )
+
+    raw = np.asarray(plan.raw_values, dtype=np.float64).copy()
+    idx = [int(i) for i in channel_indices if 0 <= int(i) < raw.shape[1]]
+    levels = np.atleast_1d(np.asarray(level, dtype=np.float64))
+    for k, ch in enumerate(idx):
+        raw[:, ch] = float(levels[k]) if levels.size == len(idx) else float(levels[0])
+    return ActuatorPlan(
+        values=normalise_actuator_values(raw),
+        missing=plan.missing.copy(),
+        channel_keys=list(plan.channel_keys),
+        raw_values=raw.astype(np.float32),
+    )
+
+
+def _physical_command_levels(plan, channel_indices) -> list[float]:
+    """Per-channel window-MAX raw physical command (the "fire it hard" level).
+
+    For each selected channel, the maximum absolute raw command it reaches across
+    the window (sign preserved).  Setting a channel to this level is a strong,
+    in-distribution intervention; if the channel is flat at zero across the window
+    the level is a small positive floor so the lever is still a real (if modest)
+    command rather than a no-op.
+    """
+    raw = np.asarray(plan.raw_values, dtype=np.float64)
+    levels: list[float] = []
+    for ch in channel_indices:
+        if not (0 <= int(ch) < raw.shape[1]):
+            levels.append(0.0)
+            continue
+        col = raw[:, int(ch)]
+        amax = float(col[np.argmax(np.abs(col))]) if col.size else 0.0
+        if abs(amax) < 1e-9:
+            # flat-at-zero channel: a modest positive floor so the lever fires.
+            amax = 1.0
+        levels.append(amax)
+    return levels
+
+
 def _corrupt_all_context(
     frames: torch.Tensor,
     *,
@@ -711,8 +768,8 @@ def controllability_gate(
     *,
     device: str | None = None,
     chunk: int = 4096,
-    gas_scale: float = 3.0,
-    nbi_scale: float = 3.0,
+    gas_scale: float = 1.0,
+    nbi_scale: float = 1.0,
     margin_threshold: float = 0.02,
     transient_threshold: float = 1e-3,
 ) -> tuple[list[ControllabilityVerdict], dict]:
@@ -723,8 +780,10 @@ def controllability_gate(
 
     * the plan with the WHOLE drive silenced (:func:`zero_plan`) — the headline
       true-vs-zeroed causal margin;
-    * the plan with the gas-puff command SCALED UP and SILENCED;
-    * the plan with the NBI command SCALED UP;
+    * the plan with the gas-puff command SET to a fixed physical level
+      (``gas_scale`` × the window-max, default 1.0 = the window max) and SILENCED;
+    * the plan with the NBI command SET to a fixed physical level
+      (``nbi_scale`` × the window-max);
     * the measured observations ablated (signals zeroed) — the redundancy
       baseline the plan margin must beat (M3's failure mode).
 
@@ -768,14 +827,27 @@ def controllability_gate(
         is_transient = bool(plan_var >= transient_threshold)
 
         zero_act = _actuator_batch_from_plan(zero_plan(s.actuator), dev)
+        # gas/NBI levers SET a fixed physical command (gate-fix 2b) — the window-
+        # MAX level ("fire it hard"), a real in-distribution intervention, rather
+        # than ×3 of a near-zero baseline (a <1% input nudge).  ``gas_scale`` /
+        # ``nbi_scale`` now multiply that window-max level so a caller can push it
+        # harder/softer while staying physical (default 1.0 = the window max).
+        gas_levels = [
+            lv * float(gas_scale)
+            for lv in _physical_command_levels(s.actuator, gas_idx)
+        ]
+        nbi_levels = [
+            lv * float(nbi_scale)
+            for lv in _physical_command_levels(s.actuator, nbi_idx)
+        ]
         gas_up_act = _actuator_batch_from_plan(
-            scale_plan_channels(s.actuator, gas_idx, gas_scale), dev
+            _set_plan_channels_physical(s.actuator, gas_idx, gas_levels), dev
         )
         gas_zero_act = _actuator_batch_from_plan(
             scale_plan_channels(s.actuator, gas_idx, 0.0), dev
         )
         nbi_up_act = _actuator_batch_from_plan(
-            scale_plan_channels(s.actuator, nbi_idx, nbi_scale), dev
+            _set_plan_channels_physical(s.actuator, nbi_idx, nbi_levels), dev
         )
 
         # CLEAN-context teacher-forced margins (transparency only — see below).
@@ -991,21 +1063,54 @@ def _signal_token_mismatch(
 # PASS requires true-vs-random to clear that floor by a clear margin.
 
 
+def _controllable_actuator_indices() -> list[int]:
+    """Columns of the CONTROLLABLE actuators — gas + NBI + density.
+
+    These are the commands an operator dials in for a fixed machine geometry
+    (gas-puff valves, NBI beam powers, the density target).  The complement —
+    the PF/CS/TF coil currents + the plasma current (the ``amc`` source: the
+    machine state / the response) — defines WHICH plasma this is and is held at
+    the true plan when forming a "wrong actuation, right machine" counterfactual.
+    Density (``ane``) is included as a controllable command alongside gas/NBI.
+    """
+    from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
+        ACTUATOR_CHANNELS,
+        gas_puff_channel_indices,
+        nbi_channel_indices,
+    )
+
+    idx = set(gas_puff_channel_indices()) | set(nbi_channel_indices())
+    idx |= {i for i, c in enumerate(ACTUATOR_CHANNELS) if c.source == "ane"}
+    return sorted(idx)
+
+
 def _random_actuator_like(
     plan,
     *,
     rng: np.random.Generator,
+    controllable_only: bool = True,
 ):
-    """A RANDOM actuator plan matching ``plan``'s per-channel statistics.
+    """A "wrong actuation, right machine" counterfactual plan.
 
-    Not a zeroed or constant plan (that would be a degenerate counterfactual) but
-    a genuinely DIFFERENT drive with the SAME marginal scale: each present
-    channel's normalised values are drawn i.i.d. from a Normal matched to that
-    channel's empirical mean/std across the window (a flat channel stays ~flat at
-    a different level; a ramping channel becomes a random walk of the same
-    spread).  ``missing`` is preserved so an absent actuator stays absent.  This
-    is the "wrong plan" the ΔN-M gate contrasts the true plan against — the model
-    must drive the camera DIFFERENTLY under it iff the plan is load-bearing.
+    The ΔN-M gate contrasts the TRUE plan against a DIFFERENT plan; the
+    difference must be in the CONTROLLABLE actuation (what the operator could
+    have dialled differently), NOT in the machine state.  The earlier version
+    re-randomised EVERY channel including the PF/CS/TF coil currents + the plasma
+    current — a ~100% re-randomisation of the dominant drive (the coils are ~15
+    of 23 channels), producing a non-physical "different machine" whose rollout
+    scatters wildly and INFLATES the random-vs-random noise floor so the true
+    plan can never clear it (the gate-bug noted in gate_verdict_1220668).
+
+    With ``controllable_only`` (default), the machine-state channels (the ``amc``
+    coil currents + plasma current) are held at the TRUE plan and ONLY the
+    controllable actuators (gas / NBI / density) are resampled — each present
+    controllable channel drawn from a Normal matched to its own window
+    mean/std (a flat channel stays ~flat at a different level; a ramping one
+    becomes a random walk of the same spread).  So "wrong plan" = "the operator
+    dialled the gas/NBI/density differently on the SAME shot", which is exactly
+    the controllability the gate should measure.  ``controllable_only=False``
+    restores the legacy all-channel randomisation (kept for comparison only).
+    ``missing`` is preserved so an absent actuator stays absent.
     """
     from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
         ActuatorPlan,
@@ -1017,9 +1122,11 @@ def _random_actuator_like(
     present = miss.mean(axis=0) < 1.0  # (C,)
     out = raw.copy()
     p, c = raw.shape
-    for ch in range(c):
-        if not present[ch]:
-            continue
+    if controllable_only:
+        targets = [i for i in _controllable_actuator_indices() if i < c and present[i]]
+    else:
+        targets = [i for i in range(c) if present[i]]
+    for ch in targets:
         col = raw[:, ch]
         mu = float(np.mean(col))
         sd = float(np.std(col))

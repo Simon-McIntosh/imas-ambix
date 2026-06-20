@@ -345,8 +345,11 @@ def main(argv: list[str] | None = None) -> int:
         help="ΔN-M PASS also requires true-vs-random > floor_ratio * the "
         "random-vs-random noise floor",
     )
-    p.add_argument("--gas-scale", type=float, default=3.0)
-    p.add_argument("--nbi-scale", type=float, default=3.0)
+    # gas/nbi levers SET the command to (scale × the window-max physical level),
+    # a real in-distribution intervention; default 1.0 = the window max (NOT ×3 of
+    # a near-zero baseline, the prior <1%-perturbation gate-bug).
+    p.add_argument("--gas-scale", type=float, default=1.0)
+    p.add_argument("--nbi-scale", type=float, default=1.0)
     p.add_argument("--margin-threshold", type=float, default=0.02)
     p.add_argument("--chunk", type=int, default=4096)
     p.add_argument("--d-model", type=int, default=256)
