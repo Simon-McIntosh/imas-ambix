@@ -417,3 +417,112 @@ def test_signal_sample_exposes_start_frame_and_camera():
     sample = _tiny_sample(cfg, t=6, ctx=3, seed=0)
     assert sample.start_frame == sample.base.start_frame
     assert sample.camera == sample.base.camera
+
+
+# ---------------------------------------------------------------------------
+# Aggregate verdict (the honest causal gate)
+# ---------------------------------------------------------------------------
+
+
+def _scored_shot(sid, *, cmd_std, t_true, t_nopuff, cf_delta, div_ratio, exceeds):
+    """A minimal score_shot-shaped dict for the summarise gate test."""
+    return {
+        "shot_id": sid,
+        "has_gas": True,
+        "context_frames": 8,
+        "n_frames": 24,
+        "puff_window_found": True,
+        "gas_command_forecast_std": cmd_std,
+        "cfg_sweep": {"1.0": {"pearson_emission_vs_command": t_true}},
+        "counterfactual": {
+            "w1.0": {"counterfactual_delta": cf_delta},
+            "nopuff_timing": {"pearson_emission_vs_command": t_nopuff},
+            "amplified_by_w": {
+                "1.0": {"counterfactual_delta": cf_delta},
+                "2.0": {"counterfactual_delta": cf_delta},
+            },
+        },
+        "control_divergence": {
+            "control_divergence_l1": div_ratio,
+            "same_conditioning_spread_l1": 1.0,
+            "divergence_over_spread_ratio": div_ratio,
+            "control_exceeds_spread": exceeds,
+        },
+    }
+
+
+def test_summarise_clean_pass_needs_causal_response():
+    from imas_ambix.worldmodel.control_falsification import summarise
+
+    # a shot with a strong CAUSAL margin (true tracks command, no-puff does not)
+    # + positive counterfactual: a clean causal response.
+    shots = [
+        _scored_shot(
+            1,
+            cmd_std=2.0,
+            t_true=0.6,
+            t_nopuff=0.1,
+            cf_delta=0.2,
+            div_ratio=1.5,
+            exceeds=True,
+        ),
+    ]
+    summ = summarise(shots)
+    assert summ["n_causal_puff_response"] == 1
+    assert summ["w1_met"] is True
+    assert summ["w1_verdict"] == "MET"
+
+
+def test_summarise_not_met_when_nopuff_matches():
+    from imas_ambix.worldmodel.control_falsification import summarise
+
+    # the OBSERVED pattern: positive timing but the no-puff rollout tracks the
+    # command almost as well (tiny causal margin) -> NOT a causal puff response.
+    # margins 0.03 / 0.02 are clearly below the 0.05 causal threshold — the
+    # observed 18503/18505 margins (0.049/0.047) sit just under it for the same
+    # reason: the no-puff rollout tracks the command almost as well.
+    shots = [
+        _scored_shot(
+            1,
+            cmd_std=1.4,
+            t_true=0.55,
+            t_nopuff=0.52,
+            cf_delta=0.10,
+            div_ratio=0.3,
+            exceeds=False,
+        ),
+        _scored_shot(
+            2,
+            cmd_std=1.0,
+            t_true=0.32,
+            t_nopuff=0.30,
+            cf_delta=0.10,
+            div_ratio=0.2,
+            exceeds=False,
+        ),
+    ]
+    summ = summarise(shots)
+    assert summ["n_timing_positive"] == 2  # timing IS positive
+    assert summ["n_causal_puff_response"] == 0  # but not causal
+    assert summ["w1_met"] is False
+    assert summ["w1_verdict"] == "NOT MET"
+
+
+def test_summarise_not_testable_when_puff_never_fires():
+    from imas_ambix.worldmodel.control_falsification import summarise
+
+    # flat command in every window -> puff never fires -> W1 not testable.
+    shots = [
+        _scored_shot(
+            1,
+            cmd_std=0.0,
+            t_true=float("nan"),
+            t_nopuff=float("nan"),
+            cf_delta=0.0,
+            div_ratio=0.1,
+            exceeds=False,
+        ),
+    ]
+    summ = summarise(shots)
+    assert summ["w1_testable"] is False
+    assert summ["w1_met"] is False
