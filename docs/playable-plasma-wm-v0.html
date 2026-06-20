@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-20">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 </head>
 <body>
 <main class="plan-doc">
@@ -723,7 +723,7 @@ Done-when
      signal conditioning — the M4 bridge. git show --stat. Do NOT edit docs/plan (orchestrator records).</pre>
     <p class="r-fu-outcome">M3 VERDICT — HONEST NEGATIVE: W1 (control-response) NOT MET on the measured gas-puff channel. This is the empirically-confirmed reason the playable demo needs PLAN-conditioning (-&gt; M4). Built (commits 055b043/ecefc2e/b946ec1/b77f325, all on main, trailer-clean; 22 tests green; 2 GPU runs on the M2 ckpt step 12000): <code>control_guidance.py</code> (CFG — backbone run twice/frame, cond vs all-conditioning-zeroed, guided = uncond + w*(cond-uncond); w=1 reproduces the plain rollout, unit-tested) + <code>control_falsification.py</code> (gas-puff: decode TRUE vs ZEROED vs CFG-amplified gas_injection on the puff-TRANSITION window, measuring inboard emission + timing-correlation + the counterfactual delta). VERDICT (puff-window; 3/4 shots fire in-window): weak positive timing on the bright shots, BUT the gas-ZEROED rollout tracks the puff command almost as well (causal margin ~0.05) — so the correlation is the model's general inboard dynamics, NOT a causal puff response; CFG does NOT strengthen it (inboard emission flat across w: 18505 -&gt; 14.1/13.7/13.7); control-divergence beats the sampling-noise floor on only 1/4 (a dim-frame artifact). So <strong>gas_injection conditioning is at best weakly load-bearing on this checkpoint</strong> (consistent with the earlier camdyn token-space null). ROOT CAUSE (the key finding): the model conditions on MEASURED realised signals (gas_injection flow, interferometer, soft_x_rays, xma, ...) that are mutually redundant — zeroing one barely moves the dream because the others carry the same info, and CFG has nothing causal to amplify. <strong>M4 BRIDGE (done-when #3 = YES): the playable demo needs the model re-conditioned on the DEMANDED actuator PLAN (control-surface=actuator-vector, LOCKED), not measured observations.</strong> Reframe: M1+M2 proved a non-collapsing FORECASTER (TRACK mode — beats persistence, anti-drift); M3 proves it is NOT yet CONTROLLABLE (PLAY mode) — exactly the PLAY-vs-TRACK split from the strategy (plan Fig 1). Artifacts: control_falsification/verdict_puffwin.json + figures_puffwin/shot-*-control.png. M4 queued.</p>
     </article>
-<article class="r-fu" data-id="f-ppwm-m4-actuator-conditioning" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ppwm-m4-actuator-conditioning" data-status="resolved" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="2026-06-20T15:53:46+00:00" data-resolved-by="agent/opus (orchestrator)">
     <h4 class="r-fu-title">M4 — make it controllable: re-condition on the demanded actuator PLAN (overfit GATE first, then 6-GPU re-train)</h4>
     <div class="r-fu-body">M3 (honest negative) proved the measured-signal conditioning is not a causal control lever — the model FORECASTS (TRACK) but is not DRIVEABLE (PLAY). M4 implements the locked control-surface=actuator-vector: re-condition the camera model on the DEMANDED actuator PLAN (coil/NBI/gas commands) as the ALWAYS-ON drive surface, with the measured diagnostic observations made OPTIONAL (high dropout = the PLAY/TRACK split, plan Fig 1) so the model must learn the control-&gt;camera map and CFG on the controls becomes load-bearing. GATE FIRST (cheap, 1 GPU): overfit a few shots conditioned on the actuator plan and confirm that VARYING the plan causally moves the decoded camera (and a zeroed-plan counterfactual does NOT) BEFORE committing the 6-GPU re-train. STOP + report at the gate — the re-train is a separate go.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -762,12 +762,47 @@ Done-when (GATE phase)
   2. Overfit GATE result reported: does varying the actuator plan CAUSALLY move the decoded camera (with a
      clear zeroed-plan counterfactual margin)? This is the go/no-go for the re-train.
   3. Report (git show --stat). Do NOT edit docs/plan (orchestrator records). Do NOT launch the 6-GPU re-train.</pre>
+    <p class="r-fu-outcome">M4 GATE — FAIL (2026-06-20), and informative. The worker implemented the full actuator-PLAN conditioning re-design (commits 02e8a8a + 93dd793 on main, trailer-clean: actuator_plan.py, controllable_model.py, controllable_dataset.py, controllable_train.py, controllable_gate_run.py + sbatch + a 517-line test) INCLUDING the transient-window + memorization-robust refinements, then ran the overfit gate (/work/.../m4_controllability_gate/gate_verdict.json). SETUP (valid per the lead's directive): overfit 4 shots on TRANSIENT windows (plan_variation 102-172, camera change-fraction 0.95-1.0 — the plan genuinely varies), observation-dropout 0.8, control-dropout 0.15; overfit converged (loss 12.52 -> 0.0099). VERDICT: <strong>0/4 pass</strong>. Mean true-vs-zeroed-PLAN margin 0.0008 (threshold 0.02 — 25x below); gas-scale 0.0001, NBI-scale 0.0002; the pixel counterfactual is stark — zeroing the ENTIRE plan changes shot 18502's inboard emission by 0.0000 (pixel L1 0.0). The memorization-robust (context-corrupted) metric is higher (cc margins 0.016-0.035) but still ~threshold. <strong>KEY FINDING:</strong> even with PLAN conditioning (not measured signals) + transient windows (controls vary) + heavy observation-dropout + an OVERFIT, the controls are IGNORED — because the camera HISTORY alone predicts the next frames, so the model has no incentive to use the controls (the classic 'world model ignores actions' failure mode, deeper than the conditioning SOURCE). NUANCE: a 4-shot overfit maximises the memorization shortcut, so this is strongly suggestive, not absolute proof a full re-train fails — but it is a clear signal the current mechanism (prepended conditioning + dropout + CFG) is insufficient. PER THE LEAD'S DIRECTIVE (gate FAIL -> research, not re-train): the 6-GPU re-train is NOT justified by this evidence; deep research on the robust control-conditioning mechanism is launched (f-ppwm-control-conditioning-research). The conditioning re-design code is committed + reusable once the research picks the mechanism.</p>
+    </article>
+<article class="r-fu" data-id="f-ppwm-control-conditioning-research" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Deep research — the robust mechanism to make controls causally load-bearing (M4 gate failed)</h4>
+    <div class="r-fu-body">The M4 gate FAIL showed the camera model ignores the controls even with actuator-PLAN conditioning + transient windows + 0.8 observation-dropout + an overfit — the camera HISTORY alone predicts the next frames, so the model never learns to use the controls (the 'world model ignores actions' failure mode). Per the lead: deep-research the best/robust mechanism BEFORE re-attempting M4. Output a cited research doc + a concrete recommended re-design for a controllable plasma world model.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
+Section: M4 redesign (control-conditioning mechanism)
+Tier:    opus
+
+Context
+  M4 gate FAIL (gate_verdict.json): zeroing the whole actuator plan changes the dream by ~0 even on an
+  overfit of transient windows with 0.8 observation-dropout. The model reconstructs the next frames from
+  the camera HISTORY alone, so the controls are not load-bearing — prepended-conditioning + dropout + CFG
+  is insufficient. The lead&#x27;s question: &#x27;how do we ensure each control properly supports the dream — is it
+  via dropouts, what is the best/robust mechanism?&#x27;
+
+Research scope (synthesise a cited reckon research doc, then a recommendation)
+  1. Conditioning ARCHITECTURE: prepended-token vs FiLM/AdaLN(-Zero) vs cross-attention vs channel-concat —
+     which prevents action-ignoring; how Genie/GameNGen/DIAMOND/iVideoGPT/Cosmos inject actions.
+  2. Forcing ACTION-DEPENDENCE when history is predictive: classifier-free guidance + action-dropout (done,
+     insufficient); counterfactual/contrastive control-response losses; auxiliary action-prediction from the
+     latent; prediction TARGET = delta/residual; information bottleneck or masking/noising of the camera
+     history so the controls MUST be used.
+  3. Causal control-&gt;effect from OBSERVATIONAL (non-interventional, confounded) trajectories — feasibility,
+     data-diversity requirements, and precedents (offline RL world models Dreamer/IRIS/DIAMOND; weather
+     forcing-conditioned GenCast/NeuralGCM; actuator-conditioned plasma surrogates TCV-NSSM / SOLPS-ITER).
+  4. The role of TRANSIENT vs flat-top training data (the lead&#x27;s observation) in making controls learnable.
+  5. Is the overfit-4-shots gate even the right diagnostic, or does controllability only emerge at corpus scale?
+
+Done-when
+  1. A reckon research doc (reckon-type=research, informs playable-plasma-wm-v0) with cited findings + a
+     ranked recommendation for the M4 control-conditioning re-design.
+  2. A concrete next-step (the recommended mechanism + how to gate it) folded back into a new M4 followup.
+  3. This followup resolved.</pre>
     </article>
 </section>
 
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="_top" data-id="c-lead-m4-directives" data-who="Simon McIntosh (via orchestrator)" data-when="2026-06-20T13:00:00+00:00">
-    <div class="r-comment-body"><strong>Lead directives (2026-06-20) for M4 + the controllability path:</strong> (1) <strong>Re-train AUTHORISED on M4 gate PASS</strong> — proceed to the 6-GPU actuator-PLAN re-train without re-asking. (2) <strong>Transient-aware windowing</strong> — we have been training/evaluating mostly on FLAT-TOP windows (the actuator plan is ~constant there), which under-samples the control->response signal and is a likely contributor to M3's negative. Over-sample TRANSIENTS — ramp-up especially, also ramp-down / command toggles — in BOTH the gate (overfit transient windows where the plan actually varies) and the re-train (importance-sample high-variation windows by actuator-waveform variance or camera change-fraction; keep the SHOT-level held-out split intact). (3) On gate FAIL -> <strong>deep research</strong> on the best/robust mechanism for causally-load-bearing control-conditioning: is dropout + classifier-free guidance the right lever, vs FiLM/AdaLN conditioning, cross-attention to the controls, action-token conditioning, a counterfactual/contrastive control-response loss, or an information bottleneck on the observation channels — plus the role of transient training data. The deep-research is conditional (only if the gate fails); on a PASS the re-train proceeds.</div>
+    <div class="r-comment-body"><strong>Lead directives (2026-06-20) for M4 + the controllability path:</strong> (1) <strong>Re-train AUTHORISED on M4 gate PASS</strong> — proceed to the 6-GPU actuator-PLAN re-train without re-asking. (2) <strong>Transient-aware windowing</strong> — we have been training/evaluating mostly on FLAT-TOP windows (the actuator plan is ~constant there), which under-samples the control-&gt;response signal and is a likely contributor to M3's negative. Over-sample TRANSIENTS — ramp-up especially, also ramp-down / command toggles — in BOTH the gate (overfit transient windows where the plan actually varies) and the re-train (importance-sample high-variation windows by actuator-waveform variance or camera change-fraction; keep the SHOT-level held-out split intact). (3) On gate FAIL -&gt; <strong>deep research</strong> on the best/robust mechanism for causally-load-bearing control-conditioning: is dropout + classifier-free guidance the right lever, vs FiLM/AdaLN conditioning, cross-attention to the controls, action-token conditioning, a counterfactual/contrastive control-response loss, or an information bottleneck on the observation channels — plus the role of transient training data. The deep-research is conditional (only if the gate fails); on a PASS the re-train proceeds.</div>
 </div>
 </section>
 </main>
