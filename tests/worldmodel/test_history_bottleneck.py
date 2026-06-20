@@ -31,7 +31,11 @@ def test_forecast_frames_are_never_touched():
         cam.shape[0], ctx, cfg, generator=torch.Generator().manual_seed(1)
     )
     out = bottleneck_history_embeddings(
-        cam, strengths, cfg, context_frames=ctx, generator=torch.Generator().manual_seed(2)
+        cam,
+        strengths,
+        cfg,
+        context_frames=ctx,
+        generator=torch.Generator().manual_seed(2),
     )
     # forecast frames (>= ctx) are returned byte-identical.
     assert torch.equal(out[:, ctx:], cam[:, ctx:]), (
@@ -56,7 +60,11 @@ def test_zero_strength_is_clean_history():
     ctx = 3
     strengths = torch.zeros(cam.shape[0], ctx)  # all-clean
     out = bottleneck_history_embeddings(
-        cam, strengths, cfg, context_frames=ctx, generator=torch.Generator().manual_seed(3)
+        cam,
+        strengths,
+        cfg,
+        context_frames=ctx,
+        generator=torch.Generator().manual_seed(3),
     )
     # strength 0 => no noise, no mask => identity even though the config is hot.
     assert torch.allclose(out, cam, atol=1e-6), (
@@ -66,7 +74,10 @@ def test_zero_strength_is_clean_history():
 
 def test_independent_per_frame_strengths_differ_across_frames():
     cfg = HistoryBottleneckConfig(
-        independent_per_frame=True, clean_fraction=0.0, min_strength=0.1, max_strength=1.0
+        independent_per_frame=True,
+        clean_fraction=0.0,
+        min_strength=0.1,
+        max_strength=1.0,
     )
     strengths, bins = sample_frame_strengths(
         64, 5, cfg, generator=torch.Generator().manual_seed(4)
@@ -81,7 +92,10 @@ def test_independent_per_frame_strengths_differ_across_frames():
 
 def test_shared_strength_is_constant_across_frames():
     cfg = HistoryBottleneckConfig(
-        independent_per_frame=False, clean_fraction=0.0, min_strength=0.1, max_strength=1.0
+        independent_per_frame=False,
+        clean_fraction=0.0,
+        min_strength=0.1,
+        max_strength=1.0,
     )
     strengths, _ = sample_frame_strengths(
         16, 5, cfg, generator=torch.Generator().manual_seed(5)
@@ -91,7 +105,9 @@ def test_shared_strength_is_constant_across_frames():
 
 
 def test_clean_fraction_forces_some_clean_samples():
-    cfg = HistoryBottleneckConfig(clean_fraction=1.0, min_strength=0.5, max_strength=1.0)
+    cfg = HistoryBottleneckConfig(
+        clean_fraction=1.0, min_strength=0.5, max_strength=1.0
+    )
     strengths, bins = sample_frame_strengths(
         32, 4, cfg, generator=torch.Generator().manual_seed(6)
     )
@@ -104,7 +120,6 @@ def test_higher_strength_moves_embedding_more_on_average():
     cfg = HistoryBottleneckConfig(noise_std=1.0, mask_prob=0.0, max_strength=1.0)
     cam = _emb(b=128, t=4, s=8, d=16, seed=7)
     ctx = 2
-    gen = torch.Generator().manual_seed(8)
     low = torch.full((128, ctx), 0.1)
     high = torch.full((128, ctx), 1.0)
     out_low = bottleneck_history_embeddings(
@@ -130,7 +145,11 @@ def test_mask_leg_zeroes_value_content_at_full_strength():
     ctx = 2
     strengths = torch.ones(64, ctx)  # full strength => mask prob 1.0
     out = bottleneck_history_embeddings(
-        cam, strengths, cfg, context_frames=ctx, generator=torch.Generator().manual_seed(11)
+        cam,
+        strengths,
+        cfg,
+        context_frames=ctx,
+        generator=torch.Generator().manual_seed(11),
     )
     # every context frame masked to zero.
     assert torch.allclose(out[:, :ctx], torch.zeros_like(out[:, :ctx]), atol=1e-6)

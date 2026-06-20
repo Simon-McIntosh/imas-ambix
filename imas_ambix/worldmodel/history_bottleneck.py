@@ -224,9 +224,15 @@ def bottleneck_history_embeddings(
     # additive Gaussian noise scaled by per-frame strength and per-frame RMS.
     if cfg.noise_std > 0.0:
         # per-(sample, frame) RMS over (S, d), kept as (B, ctx, 1, 1).
-        rms = ctx_emb.detach().float().pow(2).mean(dim=(2, 3), keepdim=True).clamp_min(
-            1e-12
-        ).sqrt().to(cam.dtype)
+        rms = (
+            ctx_emb.detach()
+            .float()
+            .pow(2)
+            .mean(dim=(2, 3), keepdim=True)
+            .clamp_min(1e-12)
+            .sqrt()
+            .to(cam.dtype)
+        )
         noise = torch.randn(
             (b, ctx, s, d), generator=generator, device=cam.device, dtype=cam.dtype
         )

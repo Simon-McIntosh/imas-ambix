@@ -19,16 +19,23 @@
 #  camera model on the demanded actuator PLAN (control-surface=actuator-vector,
 #  LOCKED) make the controls causally LOAD-BEARING?
 #
+#  The re-design (control-conditioning-survey) applies three fixes TOGETHER:
+#    (1) camera-history BOTTLENECK — independent per-frame noise/mask of the past
+#        FRAME EMBEDDINGS (the corrected lever; the prior gate left the history
+#        near-clean and the model ignored the plan);
+#    (2) AdaLN-Zero per-layer plan conditioning (the plan modulates every block,
+#        gate zero-init) REPLACING the prepended plan tokens;
+#    (3) inverse-dynamics auxiliary (predict the plan from consecutive latents).
+#
 #  Pipeline (1 GPU, minutes — NOT the 6-GPU re-train):
-#    1. Overfit a handful of shots conditioned on the actuator plan, with HIGH
-#       observation-dropout (model must drive from the PLAN, not the redundant
-#       observations) + control-dropout (so classifier-free guidance works).
-#    2. Token-space controllability test: silence the whole drive / scale +
-#       silence the gas-puff command / scale the NBI command, and measure
-#       whether the predicted next-frame tokens change (the true-vs-zeroed
-#       causal margin vs the redundant-observation baseline).
-#    3. (optional, --confirm-pixels) DECODE a true-plan vs silenced-plan rollout
-#       and re-use M3's pixel-space metrics to confirm the token response.
+#    1. Overfit a handful of shots with the three fixes + HIGH observation-dropout
+#       + control-dropout (CFG).
+#    2. PRIMARY gate — ΔN-M action-sensitivity: autoregressive token-rollout
+#       divergence between the TRUE plan and a RANDOM plan, scored against a
+#       RANDOM-vs-RANDOM noise floor (PASS = true-vs-random clears the floor).
+#    3. SECONDARY gate — teacher-forced corrupted-context token mismatch (fast).
+#    4. (optional, --ablate) per-leg ablation: which fix moves the needle.
+#    5. (optional, --confirm-pixels) DECODE true-plan vs random-plan + M3 metrics.
 #
 #  Single GPU — bursts onto a free card; leaves the DeepSeek-V4-Flash neighbour
 #  untouched.  scancel + normal --time are fine (AGENTS.md §2a).  Window flags
@@ -39,7 +46,11 @@
 #    WM_OUT_JSON — verdict JSON path
 #    WM_STEPS    — overfit steps (default 600)
 #    WM_OBS_DROPOUT — measured-observation dropout (default 0.8)
+#    WM_HB_NOISE_STD / WM_HB_MASK_PROB / WM_HB_MAX_STRENGTH — history bottleneck
+#    WM_INV_DYN_WEIGHT — inverse-dynamics auxiliary weight (default 1.0)
+#    WM_N_RANDOM — random plans for the ΔN-M noise floor (default 4)
 #    WM_GAS_SCALE / WM_NBI_SCALE — command amplification factor (default 3.0)
+#    WM_ABLATE — set non-empty to run the per-leg ablation
 #    WM_CONFIRM_PIXELS — set non-empty to also decode + score pixel space
 # ============================================================================
 
@@ -68,7 +79,15 @@ source "${VENV}/bin/activate"
 : "${WM_LR:=3e-4}"
 : "${WM_OBS_DROPOUT:=0.8}"
 : "${WM_CONTROL_DROPOUT:=0.15}"
-: "${WM_CONTEXT_CORRUPTION:=0.5}"
+# camera-history bottleneck (the corrected lever) — set WM_HB_MAX_STRENGTH=0 to
+# disable it (reproduces the prior failed near-clean-history recipe).
+: "${WM_HB_NOISE_STD:=1.0}"
+: "${WM_HB_MASK_PROB:=0.5}"
+: "${WM_HB_MAX_STRENGTH:=1.0}"
+: "${WM_HB_CLEAN_FRACTION:=0.2}"
+: "${WM_INV_DYN_WEIGHT:=1.0}"
+: "${WM_N_RANDOM:=4}"
+: "${WM_FLOOR_RATIO:=1.5}"
 : "${WM_GAS_SCALE:=3.0}"
 : "${WM_NBI_SCALE:=3.0}"
 : "${WM_MARGIN:=0.02}"
@@ -85,6 +104,11 @@ source "${VENV}/bin/activate"
 : "${WM_N_HEADS:=8}"
 : "${WM_D_FF:=1024}"
 : "${WM_CONFIRM_PIXELS:=}"
+: "${WM_ABLATE:=}"
+# warm-start the backbone from the M2 forecaster (strict=False; AdaLN MLP +
+# inverse-dynamics head start at init).  Set WM_INIT_CHECKPOINT= (empty) to
+# overfit from scratch instead.
+: "${WM_INIT_CHECKPOINT:=/work/projects/imas_gpu/worldmodel/ckpt/spacetime-corruption-1220391/best.pt}"
 # TRANSIENT-window selection is ON by default (the gate is only fair where the
 # actuator plan actually varies).  Set WM_NO_TRANSIENT non-empty to overfit the
 # centred flat-top window instead (debug).
@@ -96,7 +120,8 @@ echo "[$(date)] M4 controllability gate (job ${SLURM_JOB_ID} on $(hostname))"
 echo "  shots:        ${WM_SHOTS}"
 echo "  out-json:     ${WM_OUT_JSON}"
 echo "  steps:        ${WM_STEPS}  obs_dropout=${WM_OBS_DROPOUT}  control_dropout=${WM_CONTROL_DROPOUT}"
-echo "  gas_scale=${WM_GAS_SCALE} nbi_scale=${WM_NBI_SCALE} margin=${WM_MARGIN}"
+echo "  history-bottleneck: noise_std=${WM_HB_NOISE_STD} mask_prob=${WM_HB_MASK_PROB} max=${WM_HB_MAX_STRENGTH}"
+echo "  inv_dyn_weight=${WM_INV_DYN_WEIGHT}  n_random=${WM_N_RANDOM}  margin=${WM_MARGIN}"
 echo "  window:       n_frames=${WM_N_FRAMES} n_plan=${WM_N_PLAN} context=${WM_CONTEXT_FRAMES} n_act_steps=${WM_N_ACT_STEPS}"
 nvidia-smi --query-gpu=index,name,memory.total,memory.free --format=csv,noheader || true
 
@@ -104,8 +129,14 @@ EXTRA_FLAGS=()
 if [[ -n "${WM_CONFIRM_PIXELS}" ]]; then
     EXTRA_FLAGS+=(--confirm-pixels)
 fi
+if [[ -n "${WM_ABLATE}" ]]; then
+    EXTRA_FLAGS+=(--ablate)
+fi
 if [[ -n "${WM_NO_TRANSIENT}" ]]; then
     EXTRA_FLAGS+=(--no-transient-windows)
+fi
+if [[ -n "${WM_INIT_CHECKPOINT}" ]]; then
+    EXTRA_FLAGS+=(--init-checkpoint "${WM_INIT_CHECKPOINT}")
 fi
 
 python -m imas_ambix.worldmodel.controllable_gate_run \
@@ -115,7 +146,13 @@ python -m imas_ambix.worldmodel.controllable_gate_run \
     --lr "${WM_LR}" \
     --observation-dropout "${WM_OBS_DROPOUT}" \
     --control-dropout "${WM_CONTROL_DROPOUT}" \
-    --context-corruption-rate "${WM_CONTEXT_CORRUPTION}" \
+    --hb-noise-std "${WM_HB_NOISE_STD}" \
+    --hb-mask-prob "${WM_HB_MASK_PROB}" \
+    --hb-max-strength "${WM_HB_MAX_STRENGTH}" \
+    --hb-clean-fraction "${WM_HB_CLEAN_FRACTION}" \
+    --inverse-dynamics-weight "${WM_INV_DYN_WEIGHT}" \
+    --n-random "${WM_N_RANDOM}" \
+    --floor-ratio "${WM_FLOOR_RATIO}" \
     --gas-scale "${WM_GAS_SCALE}" \
     --nbi-scale "${WM_NBI_SCALE}" \
     --margin-threshold "${WM_MARGIN}" \

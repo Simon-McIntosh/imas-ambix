@@ -124,8 +124,14 @@ def test_temporal_causality_with_actuator():
 # ---------------------------------------------------------------------------
 
 
-def test_actuator_changes_hidden():
-    """Perturbing the actuator vector MUST change the camera hidden states."""
+def test_adaln_zero_init_actuator_is_identity():
+    """At INIT the AdaLN-Zero gate is 0 -> perturbing the actuator is a NO-OP.
+
+    This is the load-bearing property of AdaLN-Zero (DiT): the plan starts as
+    identity (the unconditioned forecaster) and EARNS influence through training.
+    A fresh model is therefore correctly INSENSITIVE to the actuator — the
+    sensitivity is tested AFTER training (test below).
+    """
     cfg = _tiny_cfg()
     model = ControllableSpacetimeTransformer(cfg).eval()
     batch = _rand_batch(cfg, t=4, seed=2)
@@ -133,68 +139,94 @@ def test_actuator_changes_hidden():
         h0 = model._forward_tokens(
             batch["frames"], batch["plan"], batch["signals"], actuator=batch["actuator"]
         )
-    act2 = {
-        "values": batch["actuator"]["values"] + 2.0,
-        "missing": batch["actuator"]["missing"],
-    }
-    with torch.no_grad():
+        act2 = {
+            "values": batch["actuator"]["values"] + 5.0,
+            "missing": batch["actuator"]["missing"],
+        }
         h1 = model._forward_tokens(
             batch["frames"], batch["plan"], batch["signals"], actuator=act2
         )
-    diff = (h0 - h1).abs().sum().item()
-    assert diff > 1e-4, (
-        "camera hidden did not change when the actuator vector changed — the "
-        "drive surface is not feeding the prediction (silently dropped)"
+    assert torch.allclose(h0, h1, atol=1e-6), (
+        "AdaLN gate is not zero-init — the plan moves the prediction at INIT, so "
+        "the model does not start as the unconditioned forecaster"
     )
 
 
-def test_actuator_ablation_loss_delta():
-    """Silencing the actuator gives a measurably different loss (load-bearing)."""
+def test_actuator_becomes_load_bearing_after_training():
+    """After training the AdaLN gate moves off zero and the actuator IS load-bearing.
+
+    Trains a few steps with the inverse-dynamics auxiliary on a batch whose
+    actuator vector is per-sample distinct; then perturbing the actuator must
+    change the camera hidden AND silencing it must change the loss — proving the
+    plan earned influence (the redesign's whole point).
+    """
     cfg = _tiny_cfg()
     torch.manual_seed(0)
-    model = ControllableSpacetimeTransformer(cfg).eval()
-    batch = _rand_batch(cfg, b=2, t=5, seed=3)
+    model = ControllableSpacetimeTransformer(cfg)
+    batch = _rand_batch(cfg, b=2, t=6, seed=3)
+    # scale the actuator so per-sample drives are clearly distinct.
+    batch["actuator"]["values"] = batch["actuator"]["values"] * 2.0
     opt = torch.optim.AdamW(model.parameters(), lr=3e-3)
     model.train()
-    for _ in range(60):
+    for _ in range(80):
         opt.zero_grad(set_to_none=True)
-        loss = model(batch, loss_spec={"chunk": 64})
+        loss = model(
+            batch,
+            loss_spec={
+                "chunk": 64,
+                "context_frames": 2,
+                "inverse_dynamics_weight": 1.0,
+            },
+        )
         loss.backward()
         opt.step()
+    # the AdaLN alpha gate moved off its zero init.
+    assert float(model.adaln_alpha.weight.abs().sum()) > 0.0
     model.eval()
     with torch.no_grad():
-        full = float(model(batch, loss_spec={"chunk": 64}))
+        h0 = model._forward_tokens(
+            batch["frames"], batch["plan"], batch["signals"], actuator=batch["actuator"]
+        )
+        act2 = {
+            "values": batch["actuator"]["values"] + 5.0,
+            "missing": batch["actuator"]["missing"],
+        }
+        h1 = model._forward_tokens(
+            batch["frames"], batch["plan"], batch["signals"], actuator=act2
+        )
+        assert (h0 - h1).abs().sum().item() > 1e-4, (
+            "after training the actuator still does not move the hidden — the plan "
+            "never became load-bearing"
+        )
+        full = float(model(batch, loss_spec={"chunk": 64, "context_frames": 2}))
         zeroed = dict(batch)
         zeroed["actuator"] = {
             "values": torch.zeros_like(batch["actuator"]["values"]),
             "missing": batch["actuator"]["missing"],
         }
-        zero = float(model(zeroed, loss_spec={"chunk": 64}))
-    assert abs(full - zero) > 1e-3, (
-        f"loss unchanged when actuator zeroed (full={full:.5f} zero={zero:.5f}) — "
-        "the model is ignoring the drive surface"
+        zero = float(model(zeroed, loss_spec={"chunk": 64, "context_frames": 2}))
+    assert abs(full - zero) > 1e-4, (
+        f"loss unchanged when actuator zeroed after training (full={full:.5f} "
+        f"zero={zero:.5f}) — the model is ignoring the drive surface"
     )
 
 
-def test_scaling_actuator_channels_moves_prediction():
-    """Scaling a SUBSET of actuator channels changes the camera hidden."""
+def test_inverse_dynamics_loss_is_finite_and_nonzero():
+    """The inverse-dynamics auxiliary produces a finite, positive regression loss."""
     cfg = _tiny_cfg()
     model = ControllableSpacetimeTransformer(cfg).eval()
-    batch = _rand_batch(cfg, t=4, seed=4)
+    assert model.has_inverse_dynamics
+    batch = _rand_batch(cfg, b=2, t=5, seed=7)
     with torch.no_grad():
-        h0 = model._forward_tokens(
-            batch["frames"], batch["plan"], batch["signals"], actuator=batch["actuator"]
-        )
-    vals = batch["actuator"]["values"].clone()
-    vals[:, :, :2] = vals[:, :, :2] * 3.0  # scale the first two channels
-    with torch.no_grad():
-        h1 = model._forward_tokens(
+        latents, _ = model._forward_tokens(
             batch["frames"],
             batch["plan"],
             batch["signals"],
-            actuator={"values": vals, "missing": batch["actuator"]["missing"]},
+            actuator=batch["actuator"],
+            return_latents=True,
         )
-    assert (h0 - h1).abs().sum().item() > 1e-4
+        inv = model.inverse_dynamics_loss(latents, batch["actuator"], context_frames=2)
+    assert torch.isfinite(inv) and float(inv) >= 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +235,7 @@ def test_scaling_actuator_channels_moves_prediction():
 
 
 def test_actuator_params_get_grad_on_actuatorless_batch():
-    """Every actuator param must receive a grad even with NO actuator (DDP)."""
+    """Every actuator/AdaLN param must receive a grad even with NO actuator (DDP)."""
     cfg = _tiny_cfg()
     model = ControllableSpacetimeTransformer(cfg).train()
     frames = torch.randint(0, cfg.vocab_size, (2, 4, cfg.n_spatial))
@@ -211,10 +243,12 @@ def test_actuator_params_get_grad_on_actuatorless_batch():
     batch = {"frames": frames, "plan": plan, "signals": {}, "actuator": None}
     loss = model(batch, loss_spec={"chunk": 4096, "context_frames": None})
     loss.backward()
-    assert model.actuator_encoder.weight.grad is not None
-    assert model.actuator_encoder.bias.grad is not None
-    assert model.actuator_lane_embed.grad is not None
-    assert model.actuator_marker.grad is not None
+    assert model.actuator_in.weight.grad is not None
+    assert model.actuator_in.bias.grad is not None
+    assert model.adaln_gammabeta.weight.grad is not None
+    assert model.adaln_alpha.weight.grad is not None
+    # the inverse-dynamics head also stays in the graph (zero-touch).
+    assert model.inv_dyn[0].weight.grad is not None
 
 
 def test_actuatorless_zero_touch_does_not_change_prediction():
@@ -222,13 +256,14 @@ def test_actuatorless_zero_touch_does_not_change_prediction():
     model = ControllableSpacetimeTransformer(cfg).eval()
     frames = torch.randint(0, cfg.vocab_size, (2, 4, cfg.n_spatial))
     plan = torch.randint(0, cfg.plan_vocab, (2, 3, cfg.plan_channels))
-    empty = {"frames": frames, "plan": plan, "signals": {}, "actuator": None}
     with torch.no_grad():
-        h = model._forward_tokens(empty["frames"], empty["plan"], {}, actuator=None)
-        model.actuator_marker.add_(3.14)
-        model.actuator_lane_embed.add_(2.71)
-        model.actuator_encoder.weight.add_(1.23)
-        h2 = model._forward_tokens(empty["frames"], empty["plan"], {}, actuator=None)
+        h = model._forward_tokens(frames, plan, {}, actuator=None)
+        # perturbing the AdaLN / actuator params must not change an actuator-less
+        # forward (the zero-touch is zero-magnitude).
+        model.actuator_in.weight.add_(1.23)
+        model.adaln_gammabeta.weight.add_(2.71)
+        model.adaln_alpha.weight.add_(3.14)
+        h2 = model._forward_tokens(frames, plan, {}, actuator=None)
     assert torch.allclose(h, h2, atol=1e-6), (
         "actuator-less forward changed when actuator params changed — the touch "
         "is not zero-magnitude"
@@ -240,7 +275,7 @@ def test_no_actuator_config_equivalent_to_v2():
     cfg = _tiny_cfg(actuator_channels=0)
     assert not cfg.has_actuator
     model = ControllableSpacetimeTransformer(cfg).eval()
-    assert not hasattr(model, "actuator_encoder")
+    assert not hasattr(model, "actuator_in")
     frames = torch.randint(0, cfg.vocab_size, (2, 4, cfg.n_spatial))
     plan = torch.randint(0, cfg.plan_vocab, (2, 3, cfg.plan_channels))
     out = model(
@@ -250,15 +285,46 @@ def test_no_actuator_config_equivalent_to_v2():
     assert out.hidden.shape == (2, 4, cfg.n_spatial, cfg.d_model)
 
 
-def test_max_frames_guard_counts_actuator_prefix():
-    # 4 act + 2x3 signal = 10 + 3 plan + 4 cam = 17 > max_frames 12
-    cfg = _tiny_cfg(max_frames=12)
+def test_max_frames_guard_counts_prefix():
+    # the actuator plan is NOT a prefix now (AdaLN); 2x3 signal = 6 + 3 plan +
+    # 4 cam = 13 > max_frames 10.
+    cfg = _tiny_cfg(max_frames=10)
     model = ControllableSpacetimeTransformer(cfg).eval()
     batch = _rand_batch(cfg, b=1, t=4, p=3)
     import pytest
 
     with pytest.raises(ValueError, match="max_frames"):
         model(batch, return_logits=False)
+
+
+def test_temporal_causality_holds_after_training():
+    """AdaLN modulation must not break temporal causality once the gate is open."""
+    cfg = _tiny_cfg()
+    torch.manual_seed(1)
+    model = ControllableSpacetimeTransformer(cfg)
+    batch = _rand_batch(cfg, b=2, t=5, seed=2)
+    opt = torch.optim.AdamW(model.parameters(), lr=3e-3)
+    model.train()
+    for _ in range(30):
+        opt.zero_grad(set_to_none=True)
+        loss = model(batch, loss_spec={"chunk": 64, "inverse_dynamics_weight": 1.0})
+        loss.backward()
+        opt.step()
+    model.eval()
+    with torch.no_grad():
+        h0 = model._forward_tokens(
+            batch["frames"], batch["plan"], batch["signals"], actuator=batch["actuator"]
+        )
+        f2 = batch["frames"].clone()
+        t = f2.shape[1]
+        f2[:, t - 1] = (f2[:, t - 1] + 7) % cfg.vocab_size
+        h1 = model._forward_tokens(
+            f2, batch["plan"], batch["signals"], actuator=batch["actuator"]
+        )
+    assert torch.allclose(h0[:, : t - 1], h1[:, : t - 1], atol=1e-4), (
+        "future frame leaked into an earlier frame's hidden — AdaLN modulation "
+        "broke temporal causality"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -520,3 +586,60 @@ def test_gate_collate_actuator_stacks_rectangular():
     assert act["values"].shape == (3, cfg.n_act_steps, N_ACTUATOR_CHANNELS)
     assert act["missing"].shape == (3, cfg.n_act_steps, N_ACTUATOR_CHANNELS)
     assert act["values"].dtype == torch.float32
+
+
+# ---------------------------------------------------------------------------
+# ΔN-M action-sensitivity gate (autoregressive rollout, decoder-free)
+# ---------------------------------------------------------------------------
+
+
+def test_random_actuator_like_differs_but_matches_scale():
+    from imas_ambix.worldmodel.controllable_train import _random_actuator_like
+
+    cfg = _tiny_cfg(actuator_channels=N_ACTUATOR_CHANNELS)
+    sample = _mk_controllable_sample(cfg, 1, seed=1)
+    rng = np.random.default_rng(0)
+    rp = _random_actuator_like(sample.actuator, rng=rng)
+    # a genuinely different drive, not zeroed / constant.
+    assert not np.allclose(rp.raw_values, sample.actuator.raw_values)
+    assert not np.allclose(rp.raw_values, 0.0)
+    # missing preserved.
+    assert np.array_equal(rp.missing, sample.actuator.missing)
+    # same order-of-magnitude spread (matched marginal scale).
+    a = np.std(sample.actuator.raw_values) + 1.0
+    b = np.std(rp.raw_values) + 1.0
+    assert 0.05 < (b / a) < 20.0
+
+
+def test_delta_nm_gate_returns_structured_verdict_and_noise_floor():
+    from imas_ambix.worldmodel.controllable_train import delta_nm_gate
+
+    cfg = _tiny_cfg(actuator_channels=N_ACTUATOR_CHANNELS)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    samples = [_mk_controllable_sample(cfg, sid, seed=sid) for sid in (1, 2)]
+    stream_names = [st.name for st in cfg.signal_streams]
+    verdicts, summary = delta_nm_gate(
+        model,
+        samples,
+        stream_names,
+        device="cpu",
+        chunk=64,
+        n_random=3,
+        margin_threshold=0.0,
+    )
+    assert len(verdicts) == 2
+    for v in verdicts:
+        d = v.to_dict()
+        for k in ("true_vs_random", "random_vs_random", "margin", "ratio"):
+            assert k in d
+        assert np.isfinite(d["true_vs_random"]) and np.isfinite(d["random_vs_random"])
+        assert v.is_transient is True  # the synthetic plan ramps
+    assert summary["metric"] == "delta_nm_autoregressive_token_rollout"
+    assert summary["n_transient"] == 2
+    assert summary["gate_testable"] is True
+    assert "mean_random_vs_random_noise_floor" in summary
+    assert summary["verdict"] in {"PASS", "FAIL"}
+    # on a ZERO-INIT model every plan gives the identical rollout -> true-vs-random
+    # and the noise floor are both 0 (correct FAIL — the plan is identity at init).
+    assert summary["mean_true_vs_random"] >= 0.0

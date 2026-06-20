@@ -2,20 +2,29 @@
 
 This is the cheap de-risking gate for the M4 PLAY bridge (plan
 ``playable-plasma-wm-v0``): does conditioning the camera model on the demanded
-actuator PLAN make the controls causally LOAD-BEARING?  M3 proved the
-measured-signal conditioning is NOT controllable (the realised observations are
-mutually redundant); the fix is to condition on the actuator vector PLAN with the
-measured observations made OPTIONAL.  This module:
+actuator PLAN make the controls causally LOAD-BEARING?  The first attempt
+(prepended plan tokens) FAILED the gate — the model ignored the plan
+(true-vs-zeroed margin ~0).  The control-conditioning survey
+(``docs/control-conditioning-survey.html``) prescribes three matched fixes,
+applied here TOGETHER:
 
-* builds a :class:`ControllableSpacetimeTransformer` (actuator-plan drive surface
-  + the v2 measured-signal streams as optional context);
-* overfits a handful of shots conditioned on the actuator plan, applying HIGH
-  observation-dropout so the model cannot shortcut the control->camera map
-  through the redundant observations (it must learn to drive the camera from the
-  PLAN), plus control-dropout so classifier-free guidance works at inference;
-* runs the controllability gate: vary the actuator plan (scale / silence the
-  gas-puff or NBI command) and measure whether the DECODED camera responds — the
-  true-vs-zeroed causal margin in decoded pixel space, and the CFG response.
+* **camera-history bottleneck** (the corrected lever, highest priority) —
+  independent per-frame corruption of the PAST FRAME EMBEDDINGS reaching the
+  dynamics head (:mod:`imas_ambix.worldmodel.history_bottleneck`), so the
+  predictable history no longer suffices and the plan must carry what it cannot.
+  This REPLACES the prior gate's token-id ``context_corruption`` (which left the
+  camera history near-clean — the wrong channel);
+* **AdaLN-Zero per-layer plan conditioning** (in the model — the plan modulates
+  every block, alpha zero-init) REPLACING the prepended plan tokens;
+* **inverse-dynamics auxiliary** — predict the plan from consecutive latents
+  (``inverse_dynamics_weight`` in the loss); we have 100% plan labels.
+
+The gate metric is the Vid2World ΔN-M action-sensitivity: the decoded-rollout
+(here token-rollout, a strict lower bound on the decoded response) divergence
+between the TRUE plan and a RANDOM/shuffled plan on transient windows, scored
+against a RANDOM-vs-RANDOM noise floor — PASS when true-vs-random clears the
+floor by a clear margin.  (The legacy teacher-forced token-mismatch gate is kept
+as a fast secondary check.)  CFG is kept as a test-time amplifier, used last.
 
 GPU-safety (repo AGENTS.md §2b): model loaded once outside the per-item loop, a
 SIGTERM/SIGINT STOP flag, ``try/finally`` releasing the model + empty_cache,
@@ -54,6 +63,10 @@ from imas_ambix.worldmodel.controllable_model import (
     ControllableSpacetimeConfig,
     ControllableSpacetimeTransformer,
 )
+from imas_ambix.worldmodel.history_bottleneck import (
+    HistoryBottleneckConfig,
+    sample_frame_strengths,
+)
 from imas_ambix.worldmodel.spacetime_dataset import (
     REFERENCE_CAMERA,
     SpacetimeWindowConfig,
@@ -89,6 +102,32 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def _warm_start_from_forecaster(
+    model: ControllableSpacetimeTransformer,
+    checkpoint: Path,
+    device: torch.device,
+) -> tuple[int, int]:
+    """Load the M2 forecaster weights into the controllable backbone (strict=False).
+
+    The checkpoint is a v2 :class:`SignalSpacetimeTransformer` (corruption-capable)
+    state dict.  Its ``blocks.N.{attn_s,attn_t,mlp}`` + the token / spatial /
+    temporal / plan / signal / corruption embeddings + the tied head all load by
+    NAME into the controllable model; the AdaLN blocks' affine-free norms have no
+    ``ln_*.weight``/``bias`` so those checkpoint keys are dropped, and the new
+    AdaLN MLP + inverse-dynamics head are not in the checkpoint (left at init — the
+    zero-init gate makes the plan a no-op so the warm start IS the forecaster).
+    Returns ``(n_tensors_loaded, n_new_tensors)``.
+    """
+    payload = torch.load(str(checkpoint), map_location="cpu", weights_only=False)
+    state = payload.get("model_state_dict", payload)
+    own = model.state_dict()
+    loadable = {k: v for k, v in state.items() if k in own and own[k].shape == v.shape}
+    missing, _unexpected = model.load_state_dict(loadable, strict=False)
+    model.to(device)
+    n_new = sum(1 for k in own if k not in loadable)
+    return len(loadable), n_new
+
+
 def build_controllable_model(
     window: SpacetimeWindowConfig,
     *,
@@ -99,22 +138,20 @@ def build_controllable_model(
     n_act_steps: int = 8,
     max_frames: int | None = None,
     corruption_levels: int = 0,
+    inverse_dynamics: bool = True,
     **model_kwargs: object,
 ) -> ControllableSpacetimeTransformer:
     """Build a :class:`ControllableSpacetimeTransformer` sized to window + streams.
 
-    ``max_frames`` must cover the actuator steps + every present signal stream's
-    steps + the tokenised plan steps + the camera frames; it defaults to
-    ``n_act_steps + len(streams)*n_signal_steps + n_plan + n_frames`` with slack.
+    The actuator plan is injected via per-block AdaLN (NOT prepended as temporal
+    frames), so ``max_frames`` only needs to cover the tokenised plan steps +
+    every present signal stream's steps + the camera frames; it defaults to
+    ``len(streams)*n_signal_steps + n_plan + n_frames`` with slack.
     """
     n_streams = len(signal_streams)
     if max_frames is None:
         max_frames = (
-            int(n_act_steps)
-            + n_streams * int(n_signal_steps)
-            + window.n_plan
-            + window.n_frames
-            + 2
+            n_streams * int(n_signal_steps) + window.n_plan + window.n_frames + 2
         )
     cfg = ControllableSpacetimeConfig(
         max_frames=int(max_frames),
@@ -125,6 +162,7 @@ def build_controllable_model(
         corruption_levels=int(corruption_levels),
         actuator_channels=int(actuator_channels),
         n_act_steps=int(n_act_steps),
+        inverse_dynamics=bool(inverse_dynamics),
         **model_kwargs,  # type: ignore[arg-type]
     )
     return ControllableSpacetimeTransformer(cfg)
@@ -234,16 +272,24 @@ class OverfitControllableConfig:
     # flat-top window has no control variation to learn from or respond to, so
     # the gate would FALSELY fail.  Off => the centred window (debug).
     transient_windows: bool = True
-    # CONTEXT-corruption during overfit (the M2 recipe).  Teacher-forcing on a
-    # clean camera history lets the model MEMORISE the next frame from the camera
-    # context alone, so it never needs the conditioning — and the controllability
-    # gate then reads ~0 for EVERY conditioning (actuator and observation) on a
-    # fully-overfit model.  Corrupting a fraction of the context-frame tokens
-    # forces the model to LEAN on the conditioning prefix (plan + actuator +
-    # signals) to predict the forecast frames, so the actuator plan can actually
-    # become load-bearing — the precondition for a meaningful gate.  The loss is
-    # always scored against the CLEAN frames.  0 disables it.
-    context_corruption_rate: float = 0.5
+    # CAMERA-HISTORY BOTTLENECK during overfit — the corrected controllability
+    # lever (the prior gate's key miss).  The earlier recipe corrupted token IDS
+    # of the context frames, which left the camera history near-clean (a replaced
+    # id on a 2**18 codebook still embeds to a vector; at low rates most of the
+    # frame survives) so the model coasted on the predictable history and ignored
+    # the actuator plan (latent-action collapse).  This noises/masks the past
+    # FRAME EMBEDDINGS — the channel the temporal attention actually reads —
+    # independently PER FRAME (Diffusion Forcing), so the predictable history no
+    # longer suffices and the plan must carry what it cannot.  The loss is always
+    # scored against the CLEAN frames.  ``history_bottleneck.enabled == False``
+    # (e.g. max_strength 0) disables it.
+    history_bottleneck: HistoryBottleneckConfig = field(
+        default_factory=HistoryBottleneckConfig
+    )
+    # INVERSE-DYNAMICS auxiliary weight — predict the plan from consecutive camera
+    # latents (Schmidt & Jiang Prop 4.4 forces the action into the latent).  We
+    # have 100% plan labels so it is cheap; 0 disables it.
+    inverse_dynamics_weight: float = 1.0
     window: SpacetimeWindowConfig = field(default_factory=SpacetimeWindowConfig)
     model_kwargs: dict = field(default_factory=dict)
     modalities: list[SignalModalitySpec] = field(
@@ -258,6 +304,7 @@ def overfit_controllable(
     config: OverfitControllableConfig | None = None,
     token_root: Path | None = None,
     device: str | None = None,
+    init_checkpoint: Path | None = None,
 ) -> tuple[
     OverfitResult,
     ControllableSpacetimeTransformer,
@@ -266,11 +313,17 @@ def overfit_controllable(
 ]:
     """Overfit a handful of shots conditioned on the actuator PLAN — the GATE.
 
-    Applies HIGH observation-dropout (so the model must learn the control->camera
-    map from the PLAN, not the redundant observations) + control-dropout (so CFG
-    works).  Returns ``(result, model, samples, stream_names)``; the caller then
-    runs :func:`controllability_gate` to PROVE the actuator plan is causally
-    load-bearing.
+    Applies the camera-history bottleneck (so the model cannot coast on the
+    predictable past) + the inverse-dynamics auxiliary + AdaLN-Zero plan
+    conditioning + control-dropout (CFG).  Returns ``(result, model, samples,
+    stream_names)``; the caller then runs :func:`delta_nm_gate` to PROVE the
+    actuator plan is causally load-bearing.
+
+    ``init_checkpoint`` (optional) warm-starts the backbone from the M2 FORECASTER
+    checkpoint — the AdaLN space-time blocks reuse the v2 block's attention + MLP
+    weights by name, and the new AdaLN MLP + inverse-dynamics head start at init
+    (the zero-init gate makes that a no-op for the forecaster), so the redesign is
+    tested as an ADD-ON to the trained forecaster rather than from scratch.
     """
     config = config or OverfitControllableConfig()
     _set_determinism(config.seed)
@@ -329,6 +382,11 @@ def overfit_controllable(
         collate_controllable_windows(samples, stream_names=stream_names), dev
     )
 
+    # The history bottleneck quantises its per-frame strength to bins that feed
+    # the model's history-corruption LEVEL embedding, so size the model's levels
+    # to the bottleneck's (when the bottleneck is enabled).
+    hb = config.history_bottleneck
+    corruption_levels = int(hb.levels) if hb.enabled else 0
     model = build_controllable_model(
         config.window,
         plan_channels=plan_ch,
@@ -336,12 +394,24 @@ def overfit_controllable(
         n_signal_steps=config.n_signal_steps,
         actuator_channels=act_channels,
         n_act_steps=config.n_act_steps,
+        corruption_levels=corruption_levels,
+        inverse_dynamics=config.inverse_dynamics_weight > 0.0,
         **config.model_kwargs,
     ).to(dev)
+    if init_checkpoint is not None:
+        n_loaded, n_new = _warm_start_from_forecaster(model, init_checkpoint, dev)
+        logger.info(
+            "warm-started backbone from %s: %d tensors loaded, %d new (AdaLN MLP "
+            "+ inverse-dynamics head + affine-free-norm drop) left at init",
+            init_checkpoint,
+            n_loaded,
+            n_new,
+        )
     model.train()
     logger.info(
         "overfit-controllable on %s: params=%d (%.1fM) n_frames=%d plan_ch=%d "
-        "actuator_ch=%d n_act_steps=%d obs_dropout=%.2f streams=%s shots=%s",
+        "actuator_ch=%d n_act_steps=%d obs_dropout=%.2f history_bottleneck=%s "
+        "inv_dyn_w=%.2f streams=%s shots=%s",
         dev,
         model.num_parameters(),
         model.num_parameters() / 1e6,
@@ -350,6 +420,10 @@ def overfit_controllable(
         act_channels,
         config.n_act_steps,
         config.observation_dropout,
+        f"std={hb.noise_std} mask={hb.mask_prob} max={hb.max_strength}"
+        if hb.enabled
+        else "off",
+        config.inverse_dynamics_weight,
         [(st.name, st.channels) for st in streams],
         list(shot_ids),
     )
@@ -359,8 +433,6 @@ def overfit_controllable(
     drop_cfg = ContextCorruptionConfig(control_dropout=config.control_dropout)
     clean_frames = batch["frames"]
     ctx_frames = int(config.window.context_frames)
-    vocab_size = int(model.config.vocab_size)
-    cc_rate = float(config.context_corruption_rate)
 
     opt = torch.optim.AdamW(model.parameters(), lr=config.lr)
     losses: list[float] = []
@@ -372,20 +444,30 @@ def overfit_controllable(
                 break
             gen.manual_seed((config.seed * 7919) ^ step)
             step_batch = dict(batch)
-            # CONTEXT-corruption (M2 recipe): noise a fraction of the context-frame
-            # tokens so the model cannot memorise the next frame from a clean
-            # camera history and MUST lean on the conditioning prefix.  The loss
-            # is scored against the CLEAN frames (target_frames).
-            if cc_rate > 0.0:
-                rates = torch.full((b,), cc_rate, device=dev)
-                step_batch["frames"] = corrupt_context_tokens(
-                    clean_frames,
-                    rates,
-                    context_frames=ctx_frames,
-                    vocab_size=vocab_size,
-                    generator=gen,
+            # CAMERA-HISTORY BOTTLENECK (the corrected lever): noise/mask the
+            # context-frame EMBEDDINGS (independent per frame) so the model cannot
+            # coast on a predictable camera history and MUST lean on the actuator
+            # plan (which now modulates every block via AdaLN).  The model embeds
+            # the CLEAN frames then corrupts the embeddings internally; the loss is
+            # scored against the CLEAN frames.  We pass the per-frame strengths +
+            # their bins (the bins drive the model's history-corruption level
+            # embedding so it can condition on how corrupt its history is).
+            if hb.enabled:
+                hb_gen = torch.Generator(device=dev).manual_seed(
+                    (config.seed * 104729) ^ step
                 )
+                strengths, bins = sample_frame_strengths(
+                    b, ctx_frames, hb, generator=hb_gen, device=dev
+                )
+                step_batch["history_bottleneck"] = hb
+                step_batch["history_strengths"] = strengths
+                step_batch["history_generator"] = torch.Generator(
+                    device=dev
+                ).manual_seed((config.seed * 1299709) ^ step)
                 step_batch["target_frames"] = clean_frames
+                # the per-sample level bin = the MAX per-frame strength bin (a
+                # scalar summary the corruption-level embedding conditions on).
+                step_batch["corruption_level"] = bins.max(dim=1).values
             # OPTIONAL-observation dropout: zero the measured signals on a high
             # fraction of samples so the model drives from the PLAN.
             obs_drop = (
@@ -413,7 +495,14 @@ def overfit_controllable(
 
             opt.zero_grad(set_to_none=True)
             with _AutocastCtx(dev):
-                loss = model(step_batch, loss_spec={"chunk": config.chunk})
+                loss = model(
+                    step_batch,
+                    loss_spec={
+                        "chunk": config.chunk,
+                        "context_frames": ctx_frames,
+                        "inverse_dynamics_weight": config.inverse_dynamics_weight,
+                    },
+                )
             loss.backward()
             opt.step()
             losses.append(float(loss.detach()))
@@ -869,13 +958,270 @@ def _signal_token_mismatch(
     return float(np.mean(diffs)) if diffs else float("nan")
 
 
+# ---------------------------------------------------------------------------
+# ΔN-M action-sensitivity gate (autoregressive rollout, decoder-free)
+# ---------------------------------------------------------------------------
+#
+# This is the gate metric the M4 re-design adopts (Vid2World ΔN-M): the
+# divergence of an AUTOREGRESSIVE rollout between the TRUE plan and a RANDOM
+# plan, scored against a RANDOM-vs-RANDOM noise floor.  The teacher-forced
+# token-mismatch gate above probes one-step sensitivity on a frozen history; the
+# ΔN-M gate is closer to the PLAY use case — it lets the model consume its OWN
+# predicted frames so a plan effect can COMPOUND over the rollout, which is how a
+# load-bearing plan would actually steer the dream.  It is computed in TOKEN
+# space (a strict lower bound on the decoded-pixel divergence — if the predicted
+# tokens do not diverge, the decoded pixels cannot), so it needs no decoder; the
+# driver optionally decodes a pair to confirm the token divergence shows in
+# pixels.  Crucially it defines the NOISE FLOOR from random-vs-random rollouts:
+# PASS requires true-vs-random to clear that floor by a clear margin.
+
+
+def _random_actuator_like(
+    plan,
+    *,
+    rng: np.random.Generator,
+):
+    """A RANDOM actuator plan matching ``plan``'s per-channel statistics.
+
+    Not a zeroed or constant plan (that would be a degenerate counterfactual) but
+    a genuinely DIFFERENT drive with the SAME marginal scale: each present
+    channel's normalised values are drawn i.i.d. from a Normal matched to that
+    channel's empirical mean/std across the window (a flat channel stays ~flat at
+    a different level; a ramping channel becomes a random walk of the same
+    spread).  ``missing`` is preserved so an absent actuator stays absent.  This
+    is the "wrong plan" the ΔN-M gate contrasts the true plan against — the model
+    must drive the camera DIFFERENTLY under it iff the plan is load-bearing.
+    """
+    from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
+        ActuatorPlan,
+        normalise_actuator_values,
+    )
+
+    raw = np.asarray(plan.raw_values, dtype=np.float64)
+    miss = np.asarray(plan.missing, dtype=np.float32)
+    present = miss.mean(axis=0) < 1.0  # (C,)
+    out = raw.copy()
+    p, c = raw.shape
+    for ch in range(c):
+        if not present[ch]:
+            continue
+        col = raw[:, ch]
+        mu = float(np.mean(col))
+        sd = float(np.std(col))
+        # a non-degenerate spread even for a near-flat channel so the random plan
+        # genuinely differs; scale the floor by the channel magnitude.
+        sd = max(sd, 0.1 * (abs(mu) + 1.0))
+        out[:, ch] = rng.normal(mu, sd, size=p)
+    return ActuatorPlan(
+        values=normalise_actuator_values(out),
+        missing=plan.missing.copy(),
+        channel_keys=list(plan.channel_keys),
+        raw_values=out.astype(np.float32),
+    )
+
+
+@torch.no_grad()
+def _argmax_token_rollout(
+    model: ControllableSpacetimeTransformer,
+    sample: ControllableSpacetimeSample,
+    stream_names: Sequence[str],
+    actuator_batch: dict[str, torch.Tensor],
+    device: torch.device,
+    *,
+    chunk: int = 4096,
+) -> np.ndarray:
+    """Autoregressive argmax token rollout under a FIXED actuator plan.
+
+    Keeps the leading ``context_frames`` frames as truth, then rolls forward
+    consuming its OWN predicted frames while conditioning on the plan + signals +
+    the supplied actuator drive (via AdaLN) at every step.  Returns ``(T, S)``
+    LOCAL token ids.  Decoder-free — the divergence between two such rollouts is a
+    strict lower bound on the decoded-pixel divergence.
+    """
+    model.eval()
+    ctx = int(sample.context_frames)
+    t_total = int(np.asarray(sample.frames).shape[0])
+    batch = _batch_to(
+        collate_controllable_windows([sample], stream_names=list(stream_names)), device
+    )
+    plan = batch.get("plan")
+    signals = batch.get("signals")
+    gen = np.asarray(sample.frames, dtype=np.int64).copy()
+    for ti in range(ctx, t_total):
+        cur = torch.as_tensor(gen[:ti][None], dtype=torch.long, device=device)
+        with _AutocastCtx(device):
+            hidden = model._forward_tokens(cur, plan, signals, actuator=actuator_batch)
+        pred = model.chunked_argmax_frame(hidden[:, ti - 1], chunk=chunk)
+        gen[ti] = pred[0].cpu().numpy().astype(np.int64)
+    return gen
+
+
+@dataclass
+class DeltaNMVerdict:
+    """Per-sample ΔN-M action-sensitivity verdict (autoregressive token rollout)."""
+
+    shot_id: int
+    is_transient: bool
+    plan_variation: float
+    # mean over random draws of the forecast-window token-divergence between the
+    # TRUE-plan rollout and a RANDOM-plan rollout (the action signal).
+    true_vs_random: float
+    # mean pairwise forecast-window token-divergence among RANDOM-plan rollouts
+    # (the noise floor — how much the rollout moves under DIFFERENT wrong plans,
+    # which bounds what a true-vs-random reading must beat to be real).
+    random_vs_random: float
+    # the margin (true_vs_random - random_vs_random) and the ratio.
+    margin: float
+    ratio: float
+    n_random: int
+    passed: bool
+
+    def to_dict(self) -> dict:
+        return {
+            "shot_id": self.shot_id,
+            "is_transient": self.is_transient,
+            "plan_variation": self.plan_variation,
+            "true_vs_random": self.true_vs_random,
+            "random_vs_random": self.random_vs_random,
+            "margin": self.margin,
+            "ratio": self.ratio,
+            "n_random": self.n_random,
+            "passed": self.passed,
+        }
+
+
+def delta_nm_gate(
+    model: ControllableSpacetimeTransformer,
+    samples: Sequence[ControllableSpacetimeSample],
+    stream_names: Sequence[str],
+    *,
+    device: str | None = None,
+    chunk: int = 4096,
+    n_random: int = 4,
+    margin_threshold: float = 0.02,
+    floor_ratio: float = 1.5,
+    transient_threshold: float = 1e-3,
+    seed: int = 0,
+) -> tuple[list[DeltaNMVerdict], dict]:
+    """Vid2World ΔN-M action-sensitivity gate over autoregressive token rollouts.
+
+    For each TRANSIENT sample, roll out the model autoregressively under the TRUE
+    actuator plan and under ``n_random`` RANDOM plans (:func:`_random_actuator_like`,
+    matched marginal scale).  The forecast-window token-divergence between the
+    true rollout and each random rollout is the ACTION signal (``true_vs_random``,
+    averaged over draws); the mean PAIRWISE divergence among the random rollouts
+    is the NOISE FLOOR (``random_vs_random`` — how much the rollout moves under
+    DIFFERENT wrong plans).
+
+    A sample PASSES when the action signal clears the floor by a clear margin:
+    ``true_vs_random - random_vs_random > margin_threshold`` AND
+    ``true_vs_random > floor_ratio * random_vs_random``.  The gate is scored ONLY
+    over transient windows (a flat-top has no plan variation to respond to).
+    Returns ``(per_sample_verdicts, summary)``.
+    """
+    dev = torch.device(device or next(model.parameters()).device)
+
+    def _fc_divergence(a: np.ndarray, b: np.ndarray, ctx: int) -> float:
+        # fraction of forecast-window tokens that differ between two rollouts.
+        if a.shape[0] <= ctx:
+            return 0.0
+        return float((a[ctx:] != b[ctx:]).mean())
+
+    verdicts: list[DeltaNMVerdict] = []
+    for si, s in enumerate(samples):
+        present = np.asarray(s.actuator.missing, dtype=np.float32).mean(axis=0) < 1.0
+        plan_vals = np.asarray(s.actuator.values, dtype=np.float64)
+        plan_var = (
+            float(np.std(plan_vals[:, present], axis=0).sum())
+            if bool(present.any()) and plan_vals.shape[0] > 1
+            else 0.0
+        )
+        is_transient = bool(plan_var >= transient_threshold)
+        ctx = int(s.context_frames)
+
+        full_act = _actuator_batch_from_plan(s.actuator, dev)
+        true_roll = _argmax_token_rollout(
+            model, s, stream_names, full_act, dev, chunk=chunk
+        )
+        rng = np.random.default_rng((int(s.shot_id) * 1_000_003) ^ (seed * 31) ^ si)
+        rand_rolls: list[np.ndarray] = []
+        for _ in range(int(n_random)):
+            rplan = _random_actuator_like(s.actuator, rng=rng)
+            ract = _actuator_batch_from_plan(rplan, dev)
+            rand_rolls.append(
+                _argmax_token_rollout(model, s, stream_names, ract, dev, chunk=chunk)
+            )
+        tvr = float(np.mean([_fc_divergence(true_roll, r, ctx) for r in rand_rolls]))
+        pair: list[float] = []
+        for i in range(len(rand_rolls)):
+            for j in range(i + 1, len(rand_rolls)):
+                pair.append(_fc_divergence(rand_rolls[i], rand_rolls[j], ctx))
+        rvr = float(np.mean(pair)) if pair else 0.0
+        margin = tvr - rvr
+        ratio = float("inf") if rvr == 0.0 else tvr / rvr
+        passed = bool(
+            is_transient
+            and margin > margin_threshold
+            and (rvr == 0.0 and tvr > margin_threshold or ratio > floor_ratio)
+        )
+        verdicts.append(
+            DeltaNMVerdict(
+                shot_id=int(s.shot_id),
+                is_transient=is_transient,
+                plan_variation=plan_var,
+                true_vs_random=tvr,
+                random_vs_random=rvr,
+                margin=margin,
+                ratio=ratio,
+                n_random=int(n_random),
+                passed=passed,
+            )
+        )
+
+    transient = [v for v in verdicts if v.is_transient]
+    score_set = transient or verdicts
+    n_transient = len(transient)
+    n_pass = sum(1 for v in score_set if v.passed)
+    mean_tvr = float(np.mean([v.true_vs_random for v in score_set]))
+    mean_rvr = float(np.mean([v.random_vs_random for v in score_set]))
+    mean_margin = float(np.mean([v.margin for v in score_set]))
+    finite_ratios = [v.ratio for v in score_set if np.isfinite(v.ratio)]
+    mean_ratio = float(np.mean(finite_ratios)) if finite_ratios else float("inf")
+    gate_pass = bool(
+        n_transient > 0
+        and n_pass >= max(1, len(score_set) // 2 + 1)
+        and mean_margin > margin_threshold
+    )
+    summary = {
+        "metric": "delta_nm_autoregressive_token_rollout",
+        "n_samples": len(verdicts),
+        "n_transient": n_transient,
+        "n_pass": n_pass,
+        "mean_true_vs_random": mean_tvr,
+        "mean_random_vs_random_noise_floor": mean_rvr,
+        "mean_margin": mean_margin,
+        "mean_ratio": mean_ratio,
+        "n_random": int(n_random),
+        "margin_threshold": margin_threshold,
+        "floor_ratio": floor_ratio,
+        "transient_threshold": transient_threshold,
+        "scored_on_transient_only": bool(transient),
+        "gate_testable": bool(n_transient > 0),
+        "gate_pass": gate_pass,
+        "verdict": "PASS" if gate_pass else "FAIL",
+    }
+    return verdicts, summary
+
+
 __all__ = [
     "ControllabilityVerdict",
+    "DeltaNMVerdict",
     "OverfitControllableConfig",
     "build_controllable_model",
     "collate_actuator",
     "collate_controllable_windows",
     "controllability_gate",
+    "delta_nm_gate",
     "overfit_controllable",
     "teacher_forced_token_mismatch",
 ]

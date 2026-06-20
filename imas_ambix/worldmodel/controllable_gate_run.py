@@ -104,33 +104,42 @@ def confirm_in_pixels(
     chunk: int = 8192,
     work_dir: Path | None = None,
 ) -> dict | None:
-    """Decode a true-plan vs silenced-plan rollout and score with M3 metrics.
+    """Decode a true-plan vs RANDOM-plan rollout and score with M3 metrics.
 
-    Reuses the frozen Open-MAGVIT2 decode + the M3 pixel-space metrics
-    (counterfactual delta + control divergence on the inboard band).  Returns the
+    The pixel-space confirmation of the ΔN-M gate: reuses the frozen Open-MAGVIT2
+    decode + the M3 pixel-space metrics (counterfactual delta + inboard-band L1)
+    on a TRUE-plan vs RANDOM-plan rollout pair (the random plan matches the true
+    plan's marginal scale — :func:`_random_actuator_like`), so a positive decoded
+    delta confirms the token-space ΔN-M divergence shows up in pixels.  Returns the
     scored dict, or ``None`` if the decode stack is unavailable.
     """
+    import numpy as np  # noqa: PLC0415
     import torch  # noqa: PLC0415
 
-    from imas_ambix.worldmodel.actuator_plan import zero_plan
     from imas_ambix.worldmodel.control_falsification import decode_roles
     from imas_ambix.worldmodel.control_guidance import (
         counterfactual_delta,
         frame_l1,
         inboard_emission_series,
     )
-    from imas_ambix.worldmodel.controllable_train import _actuator_batch_from_plan
+    from imas_ambix.worldmodel.controllable_train import (
+        _actuator_batch_from_plan,
+        _random_actuator_like,
+    )
     from imas_ambix.worldmodel.spacetime_dataset import GRID_H, GRID_W, local_to_store
 
     dev = torch.device(device)
+    rng = np.random.default_rng(int(sample.shot_id) * 1_000_003)
     full_act = _actuator_batch_from_plan(sample.actuator, dev)
-    zero_act = _actuator_batch_from_plan(zero_plan(sample.actuator), dev)
+    rand_act = _actuator_batch_from_plan(
+        _random_actuator_like(sample.actuator, rng=rng), dev
+    )
 
     true_tok = _argmax_actuator_rollout(
         model, sample, stream_names, full_act, dev, chunk=chunk
     ).reshape(-1, GRID_H, GRID_W)
-    zero_tok = _argmax_actuator_rollout(
-        model, sample, stream_names, zero_act, dev, chunk=chunk
+    rand_tok = _argmax_actuator_rollout(
+        model, sample, stream_names, rand_act, dev, chunk=chunk
     ).reshape(-1, GRID_H, GRID_W)
 
     ctx = int(sample.context_frames)
@@ -139,9 +148,9 @@ def confirm_in_pixels(
         decoded = decode_roles(
             {
                 "true_plan": local_to_store(true_tok),
-                "zero_plan": local_to_store(zero_tok),
+                "rand_plan": local_to_store(rand_tok),
             },
-            [{"role": "true_plan"}, {"role": "zero_plan"}],
+            [{"role": "true_plan"}, {"role": "rand_plan"}],
             work_dir=wd,
             device=device,
         )
@@ -149,8 +158,8 @@ def confirm_in_pixels(
         logger.warning("pixel-space confirmation decode unavailable: %r", exc)
         return None
 
-    cf = counterfactual_delta(decoded["true_plan"], decoded["zero_plan"], ctx)
-    pixel_l1 = frame_l1(decoded["true_plan"], decoded["zero_plan"], ctx)
+    cf = counterfactual_delta(decoded["true_plan"], decoded["rand_plan"], ctx)
+    pixel_l1 = frame_l1(decoded["true_plan"], decoded["rand_plan"], ctx)
     return {
         "shot_id": int(sample.shot_id),
         "context_frames": ctx,
@@ -158,17 +167,103 @@ def confirm_in_pixels(
             inboard_emission_series(decoded["true_plan"])[ctx:].mean()
         ),
         "zero_plan_inboard_mean": float(
-            inboard_emission_series(decoded["zero_plan"])[ctx:].mean()
+            inboard_emission_series(decoded["rand_plan"])[ctx:].mean()
         ),
         "counterfactual_delta": cf["counterfactual_delta"],
         "true_vs_zero_pixel_l1": pixel_l1,
-        "token_mismatch_true_vs_zero": float((true_tok[ctx:] != zero_tok[ctx:]).mean()),
+        "token_mismatch_true_vs_random": float(
+            (true_tok[ctx:] != rand_tok[ctx:]).mean()
+        ),
     }
 
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
+
+def _run_ablation(shot_ids, make_config, args, *, device, token_root, init_checkpoint):
+    """Re-overfit + ΔN-M-gate with each fixable leg turned off, to attribute it.
+
+    Toggles the two cheaply-disableable legs in turn (the history bottleneck and
+    the inverse-dynamics auxiliary) plus an all-legs-off baseline, and reports the
+    ΔN-M margin under each.  The AdaLN-vs-prepended-tokens leg cannot be toggled by
+    a flag (it is the architecture), so it is not in the ablation — the comparison
+    point for AdaLN is the PRIOR gate result (prepended tokens, margin ~0).  A leg
+    whose removal collapses the ΔN-M margin toward the prior ~0 is the binding
+    contributor.
+    """
+    from imas_ambix.worldmodel.controllable_train import (
+        delta_nm_gate,
+        overfit_controllable,
+    )
+
+    legs = {
+        "full": dict(
+            hb_noise_std=args.hb_noise_std,
+            hb_mask_prob=args.hb_mask_prob,
+            hb_max_strength=args.hb_max_strength,
+            inv_dyn_weight=args.inverse_dynamics_weight,
+        ),
+        "no_history_bottleneck": dict(
+            hb_noise_std=0.0,
+            hb_mask_prob=0.0,
+            hb_max_strength=0.0,
+            inv_dyn_weight=args.inverse_dynamics_weight,
+        ),
+        "no_inverse_dynamics": dict(
+            hb_noise_std=args.hb_noise_std,
+            hb_mask_prob=args.hb_mask_prob,
+            hb_max_strength=args.hb_max_strength,
+            inv_dyn_weight=0.0,
+        ),
+        "neither": dict(
+            hb_noise_std=0.0,
+            hb_mask_prob=0.0,
+            hb_max_strength=0.0,
+            inv_dyn_weight=0.0,
+        ),
+    }
+    out: dict[str, dict] = {}
+    for name, kw in legs.items():
+        if _STOP["flag"]:
+            break
+        logger.info("==== M4 GATE ablation leg: %s ====", name)
+        cfg = make_config(**kw)
+        res, model, samples, stream_names = overfit_controllable(
+            shot_ids,
+            camera=args.camera,
+            config=cfg,
+            token_root=token_root,
+            device=device,
+            init_checkpoint=init_checkpoint,
+        )
+        _verdicts, summary = delta_nm_gate(
+            model,
+            samples,
+            stream_names,
+            device=device,
+            chunk=args.chunk,
+            n_random=args.n_random,
+            margin_threshold=args.margin_threshold,
+            floor_ratio=args.floor_ratio,
+            transient_threshold=args.transient_threshold,
+        )
+        out[name] = {
+            "final_loss": res.final_loss,
+            "mean_true_vs_random": summary["mean_true_vs_random"],
+            "mean_random_vs_random_noise_floor": summary[
+                "mean_random_vs_random_noise_floor"
+            ],
+            "mean_margin": summary["mean_margin"],
+            "verdict": summary["verdict"],
+        }
+        import torch  # noqa: PLC0415
+
+        del model
+        if device == "cuda" and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -190,12 +285,65 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--n-act-steps", type=int, default=8)
     p.add_argument("--observation-dropout", type=float, default=0.8)
     p.add_argument("--control-dropout", type=float, default=0.15)
+    # ── camera-history bottleneck (the corrected lever) ──
     p.add_argument(
-        "--context-corruption-rate",
+        "--hb-noise-std",
+        type=float,
+        default=1.0,
+        help="full-strength additive-Gaussian std (in embedding-RMS units) of the "
+        "camera-history bottleneck; 0 disables the noise leg",
+    )
+    p.add_argument(
+        "--hb-mask-prob",
         type=float,
         default=0.5,
-        help="fraction of context-frame tokens noised during overfit so the "
-        "model must lean on the conditioning (M2 recipe); 0 disables it",
+        help="full-strength probability of masking a whole context-frame's "
+        "embedding (the strongest bottleneck); 0 disables the mask leg",
+    )
+    p.add_argument(
+        "--hb-max-strength",
+        type=float,
+        default=1.0,
+        help="max per-frame bottleneck strength (0 disables the whole bottleneck "
+        "— the prior failed recipe)",
+    )
+    p.add_argument(
+        "--hb-clean-fraction",
+        type=float,
+        default=0.2,
+        help="fraction of samples whose history is left fully clean (keeps the "
+        "clean/inference regime well-trained)",
+    )
+    p.add_argument(
+        "--hb-independent-per-frame",
+        type=int,
+        default=1,
+        help="1 = Diffusion-Forcing independent per-frame strength; 0 = one "
+        "shared strength per sample (M2 single-level recipe)",
+    )
+    # ── inverse-dynamics auxiliary + AdaLN width ──
+    p.add_argument(
+        "--inverse-dynamics-weight",
+        type=float,
+        default=1.0,
+        help="weight of the inverse-dynamics auxiliary loss (predict the plan "
+        "from consecutive latents); 0 disables it",
+    )
+    p.add_argument("--adaln-hidden", type=int, default=256)
+    # ── ΔN-M gate ──
+    p.add_argument(
+        "--n-random",
+        type=int,
+        default=4,
+        help="number of random plans for the ΔN-M action-sensitivity gate (the "
+        "random-vs-random noise floor needs >= 2)",
+    )
+    p.add_argument(
+        "--floor-ratio",
+        type=float,
+        default=1.5,
+        help="ΔN-M PASS also requires true-vs-random > floor_ratio * the "
+        "random-vs-random noise floor",
     )
     p.add_argument("--gas-scale", type=float, default=3.0)
     p.add_argument("--nbi-scale", type=float, default=3.0)
@@ -208,10 +356,24 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--device", default="cuda")
     p.add_argument("--token-root", default=None)
     p.add_argument(
+        "--init-checkpoint",
+        default=None,
+        help="warm-start the backbone from the M2 forecaster checkpoint "
+        "(strict=False; AdaLN MLP + inverse-dynamics head start at init). Omit to "
+        "overfit from scratch.",
+    )
+    p.add_argument(
         "--confirm-pixels",
         action="store_true",
-        help="also DECODE a true-plan vs silenced-plan rollout and score with "
+        help="also DECODE a true-plan vs random-plan rollout and score with "
         "M3 pixel-space metrics (slower — loads the frozen VQ)",
+    )
+    p.add_argument(
+        "--ablate",
+        action="store_true",
+        help="run a per-leg ablation: re-overfit + ΔN-M-gate with each of the "
+        "three legs (history-bottleneck / AdaLN-via-actuator / inverse-dynamics) "
+        "turned off in turn, to attribute which moves the needle (slower)",
     )
     p.add_argument(
         "--no-transient-windows",
@@ -241,8 +403,10 @@ def main(argv: list[str] | None = None) -> int:
     from imas_ambix.worldmodel.controllable_train import (
         OverfitControllableConfig,
         controllability_gate,
+        delta_nm_gate,
         overfit_controllable,
     )
+    from imas_ambix.worldmodel.history_bottleneck import HistoryBottleneckConfig
     from imas_ambix.worldmodel.spacetime_dataset import SpacetimeWindowConfig
 
     device = args.device
@@ -267,18 +431,41 @@ def main(argv: list[str] | None = None) -> int:
         "n_layers": args.n_layers,
         "n_heads": args.n_heads,
         "d_ff": args.d_ff,
+        "adaln_hidden": args.adaln_hidden,
     }
-    cfg = OverfitControllableConfig(
-        steps=args.steps,
-        lr=args.lr,
-        n_signal_steps=args.n_signal_steps,
-        n_act_steps=args.n_act_steps,
-        observation_dropout=args.observation_dropout,
-        control_dropout=args.control_dropout,
-        context_corruption_rate=args.context_corruption_rate,
-        transient_windows=not args.no_transient_windows,
-        window=window,
-        model_kwargs=model_kwargs,
+
+    def _make_config(
+        *,
+        hb_noise_std: float,
+        hb_mask_prob: float,
+        hb_max_strength: float,
+        inv_dyn_weight: float,
+    ) -> OverfitControllableConfig:
+        return OverfitControllableConfig(
+            steps=args.steps,
+            lr=args.lr,
+            n_signal_steps=args.n_signal_steps,
+            n_act_steps=args.n_act_steps,
+            observation_dropout=args.observation_dropout,
+            control_dropout=args.control_dropout,
+            history_bottleneck=HistoryBottleneckConfig(
+                noise_std=hb_noise_std,
+                mask_prob=hb_mask_prob,
+                max_strength=hb_max_strength,
+                clean_fraction=args.hb_clean_fraction,
+                independent_per_frame=bool(args.hb_independent_per_frame),
+            ),
+            inverse_dynamics_weight=inv_dyn_weight,
+            transient_windows=not args.no_transient_windows,
+            window=window,
+            model_kwargs=model_kwargs,
+        )
+
+    cfg = _make_config(
+        hb_noise_std=args.hb_noise_std,
+        hb_mask_prob=args.hb_mask_prob,
+        hb_max_strength=args.hb_max_strength,
+        inv_dyn_weight=args.inverse_dynamics_weight,
     )
 
     out_json = Path(args.out_json)
@@ -291,12 +478,14 @@ def main(argv: list[str] | None = None) -> int:
             "==== M4 GATE: overfit on the actuator PLAN (%d shots) ====",
             len(shot_ids),
         )
+        init_ckpt = Path(args.init_checkpoint) if args.init_checkpoint else None
         result, model, samples, stream_names = overfit_controllable(
             shot_ids,
             camera=args.camera,
             config=cfg,
             token_root=Path(args.token_root) if args.token_root else None,
             device=device,
+            init_checkpoint=init_ckpt,
         )
         logger.info(
             "overfit done: initial=%.4f final=%.4f (drop %.1f%%) params=%d",
@@ -306,7 +495,23 @@ def main(argv: list[str] | None = None) -> int:
             result.n_parameters,
         )
 
-        logger.info("==== M4 GATE: token-space controllability test ====")
+        # ── PRIMARY gate: ΔN-M action-sensitivity (autoregressive token rollout,
+        # true-vs-random plan vs a random-vs-random noise floor) ──
+        logger.info("==== M4 GATE: ΔN-M action-sensitivity (true vs random plan) ====")
+        dnm_verdicts, dnm_summary = delta_nm_gate(
+            model,
+            samples,
+            stream_names,
+            device=device,
+            chunk=args.chunk,
+            n_random=args.n_random,
+            margin_threshold=args.margin_threshold,
+            floor_ratio=args.floor_ratio,
+            transient_threshold=args.transient_threshold,
+        )
+
+        # ── SECONDARY gate: teacher-forced token mismatch (fast lower bound) ──
+        logger.info("==== M4 GATE: teacher-forced token-mismatch (secondary) ====")
         verdicts, summary = controllability_gate(
             model,
             samples,
@@ -327,6 +532,18 @@ def main(argv: list[str] | None = None) -> int:
                     model, samples[0], stream_names, device=device, chunk=8192
                 )
 
+        # ── optional per-leg ablation (which fix moves the needle) ──
+        ablation = None
+        if args.ablate and not _STOP["flag"]:
+            ablation = _run_ablation(
+                shot_ids,
+                _make_config,
+                args,
+                device=device,
+                token_root=Path(args.token_root) if args.token_root else None,
+                init_checkpoint=init_ckpt,
+            )
+
         payload = {
             "overfit": {
                 "initial_loss": result.initial_loss,
@@ -336,10 +553,20 @@ def main(argv: list[str] | None = None) -> int:
                 "steps": args.steps,
                 "observation_dropout": args.observation_dropout,
                 "control_dropout": args.control_dropout,
-                "context_corruption_rate": args.context_corruption_rate,
+                "hb_noise_std": args.hb_noise_std,
+                "hb_mask_prob": args.hb_mask_prob,
+                "hb_max_strength": args.hb_max_strength,
+                "inverse_dynamics_weight": args.inverse_dynamics_weight,
             },
-            "per_shot": [v.to_dict() for v in verdicts],
-            "summary": summary,
+            "delta_nm_gate": {
+                "per_shot": [v.to_dict() for v in dnm_verdicts],
+                "summary": dnm_summary,
+            },
+            "secondary_teacher_forced_gate": {
+                "per_shot": [v.to_dict() for v in verdicts],
+                "summary": summary,
+            },
+            "ablation": ablation,
             "pixel_confirmation": pixel_confirm,
             "config": {
                 "n_frames": args.n_frames,
@@ -347,11 +574,15 @@ def main(argv: list[str] | None = None) -> int:
                 "context_frames": args.context_frames,
                 "n_signal_steps": args.n_signal_steps,
                 "n_act_steps": args.n_act_steps,
+                "n_random": args.n_random,
+                "floor_ratio": args.floor_ratio,
                 "gas_scale": args.gas_scale,
                 "nbi_scale": args.nbi_scale,
                 "margin_threshold": args.margin_threshold,
                 "model_kwargs": model_kwargs,
             },
+            # the headline verdict is the ΔN-M gate.
+            "summary": dnm_summary,
         }
         out_json.write_text(json.dumps(payload, indent=2, default=str))
         _print_verdict(payload)
@@ -366,84 +597,97 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _print_verdict(payload: dict) -> None:
-    summary = payload["summary"]
-    print("\n=== M4 actuator-PLAN controllability GATE VERDICT ===")
     of = payload["overfit"]
+    dnm = payload["delta_nm_gate"]["summary"]
+    print("\n=== M4 actuator-PLAN controllability GATE VERDICT ===")
     print(
         f"overfit: initial={of['initial_loss']:.4f} -> final={of['final_loss']:.4f} "
-        f"(params={of['n_parameters']}, obs_dropout={of['observation_dropout']})"
+        f"(params={of['n_parameters']})"
     )
     print(
-        "Decision metric = CORRUPTED-context true-vs-zeroed margin (cc_*). The "
-        "clean-context margins read ~0 on a memorised overfit regardless of "
-        "controllability, so the gate decides on the corrupted-context reading "
-        "where the camera lookup is removed and only the conditioning can move "
-        "the prediction."
+        f"fixes: history-bottleneck(std={of['hb_noise_std']}, "
+        f"mask={of['hb_mask_prob']}, "
+        f"max={of['hb_max_strength']}) + AdaLN-Zero plan conditioning + "
+        f"inverse-dynamics(w={of['inverse_dynamics_weight']})"
+    )
+    print(
+        "\nPRIMARY METRIC = ΔN-M action-sensitivity: forecast-window token "
+        "divergence of an AUTOREGRESSIVE rollout under the TRUE plan vs a RANDOM "
+        "plan, scored against a RANDOM-vs-RANDOM noise floor. PASS = true-vs-random "
+        "clears the floor by a clear margin (the plan steers the dream)."
     )
     hdr = (
-        f"{'shot':>6} {'plan_var':>8} {'cam_chg':>7} {'tr':>3} | "
-        f"{'cc_true_v0':>10} {'cc_gas':>7} {'cc_nbi':>7} {'cc_obs':>7} | "
-        f"{'clean_t0':>8} {'pass':>5}"
+        f"{'shot':>6} {'plan_var':>8} {'tr':>3} | "
+        f"{'true_v_rnd':>10} {'rnd_v_rnd':>10} {'margin':>8} {'ratio':>7} {'pass':>5}"
     )
     print(hdr)
     print("-" * len(hdr))
-    for row in payload["per_shot"]:
+    for row in payload["delta_nm_gate"]["per_shot"]:
+        ratio = row.get("ratio", float("nan"))
+        ratio_s = "inf" if ratio == float("inf") else f"{ratio:.2f}"
         print(
             f"{row['shot_id']:>6} "
             f"{row.get('plan_variation', float('nan')):>8.3f} "
-            f"{row.get('camera_change_fraction', float('nan')):>7.3f} "
             f"{str(row.get('is_transient'))[0]:>3} | "
-            f"{row.get('cc_true_vs_zeroed_mismatch', float('nan')):>10.4f} "
-            f"{row.get('cc_gas_scale_mismatch', float('nan')):>7.4f} "
-            f"{row.get('cc_nbi_scale_mismatch', float('nan')):>7.4f} "
-            f"{row.get('cc_observation_mismatch', float('nan')):>7.4f} | "
-            f"{row['true_vs_zeroed_mismatch']:>8.4f} "
-            f"{str(row['passed'])[0]:>5}"
+            f"{row.get('true_vs_random', float('nan')):>10.4f} "
+            f"{row.get('random_vs_random', float('nan')):>10.4f} "
+            f"{row.get('margin', float('nan')):>8.4f} "
+            f"{ratio_s:>7} "
+            f"{str(row.get('passed'))[0]:>5}"
         )
     print(
         f"\ntransient windows (plan actually varies): "
-        f"{summary.get('n_transient')}/{summary['n_samples']} "
-        f"(mean plan_variation {summary.get('mean_plan_variation', float('nan')):.3f})"
+        f"{dnm.get('n_transient')}/{dnm['n_samples']}"
     )
     print(
-        f"DECISION: mean cc true-vs-zeroed margin: "
-        f"{summary.get('mean_cc_true_vs_zeroed_mismatch', float('nan')):.4f} "
-        f"(threshold {summary['margin_threshold']})"
+        f"DECISION: mean true-vs-random margin: {dnm['mean_margin']:.4f} "
+        f"(threshold {dnm['margin_threshold']}); "
+        f"mean true-vs-random {dnm['mean_true_vs_random']:.4f} vs "
+        f"noise floor {dnm['mean_random_vs_random_noise_floor']:.4f}"
     )
-    print(
-        f"mean cc gas-scale margin: "
-        f"{summary.get('mean_cc_gas_scale_mismatch', float('nan')):.4f}; "
-        f"mean cc NBI-scale margin: "
-        f"{summary.get('mean_cc_nbi_scale_mismatch', float('nan')):.4f}; "
-        f"mean cc observation margin (redundancy baseline): "
-        f"{summary.get('mean_cc_observation_mismatch', float('nan')):.4f}"
-    )
-    print(
-        f"(clean-context mean true-vs-zeroed margin "
-        f"{summary['mean_true_vs_zeroed_mismatch']:.4f} — expected ~0 on a "
-        f"memorised overfit, NOT the decision metric)"
-    )
+
+    # secondary gate (teacher-forced, fast lower bound)
+    sec = payload.get("secondary_teacher_forced_gate", {}).get("summary")
+    if sec:
+        cc = sec.get("mean_cc_true_vs_zeroed_mismatch", float("nan"))
+        print(
+            f"\nSECONDARY (teacher-forced, corrupted-context true-vs-zeroed): "
+            f"mean cc margin {cc:.4f} -> {sec.get('verdict')}"
+        )
+
+    abl = payload.get("ablation")
+    if abl:
+        print("\n--- per-leg ablation (ΔN-M mean margin) ---")
+        for name, d in abl.items():
+            print(
+                f"  {name:>22}: margin={d['mean_margin']:>8.4f} "
+                f"(true_v_rnd={d['mean_true_vs_random']:.4f}, "
+                f"floor={d['mean_random_vs_random_noise_floor']:.4f}, "
+                f"loss={d['final_loss']:.4f}) -> {d['verdict']}"
+            )
+
     pc = payload.get("pixel_confirmation")
     if pc:
         print(
             f"\npixel confirmation (shot {pc['shot_id']}): "
             f"true-plan inboard={pc['true_plan_inboard_mean']:.2f} "
-            f"zero-plan inboard={pc['zero_plan_inboard_mean']:.2f} "
+            f"alt-plan inboard={pc.get('zero_plan_inboard_mean', float('nan')):.2f} "
             f"counterfactual delta={pc['counterfactual_delta']:.4f} "
             f"pixel L1={pc['true_vs_zero_pixel_l1']:.4f}"
         )
-    n_score = summary.get("n_transient") or summary["n_samples"]
-    print(f"\nGATE: {summary['n_pass']}/{n_score} transient shots pass")
-    if not summary.get("gate_testable", True):
+
+    n_score = dnm.get("n_transient") or dnm["n_samples"]
+    print(f"\nGATE: {dnm['n_pass']}/{n_score} transient shots pass")
+    if not dnm.get("gate_testable", True):
         print(
             "WARNING: NO transient window found on any shot — the gate could not "
             "fairly test controllability (flat-top windows only)."
         )
-    print(f"M4 GATE VERDICT: {summary['verdict']}")
+    print(f"M4 GATE VERDICT: {dnm['verdict']}")
     print(
         "(PASS => the actuator PLAN is causally load-bearing => the 6-GPU "
         "re-train is justified)"
-        if summary["gate_pass"]
+        if dnm["gate_pass"]
         else "(FAIL => plan conditioning did NOT make controls load-bearing on "
         "the overfit gate => re-train NOT justified by this evidence)"
     )
