@@ -133,6 +133,7 @@ def generate_rollouts(
     device: str = "cuda",
     token_root: Path | None = None,
     chunk: int = 8192,
+    puff_window: bool = True,
 ) -> tuple[dict, list, dict]:
     """Build GT + per-w CFG rollouts + the zeroed-puff counterfactual + spread.
 
@@ -142,11 +143,35 @@ def generate_rollouts(
       * ``cfg_w{w}`` for each guidance weight (true conditioning, seed 0)
       * ``nopuff_w1`` — gas_injection zeroed, w=1, seed 0 (the counterfactual (b))
       * ``spread_m{m}`` — true conditioning, w=1, DIFFERENT seeds (the noise floor)
+
+    ``puff_window`` (default True): select the camera window where the inboard puff
+    TRANSITIONS most (:func:`...control_guidance.find_puff_window`) rather than the
+    centred default — the falsification can only fire where the puff actually fires.
+    Falls back to the centred window (and records ``puff_window_found=False``) when
+    the command is flat everywhere for the shot.
     """
+    from imas_ambix.worldmodel.control_guidance import find_puff_window
 
     modalities = modalities or default_signal_modalities()
     step = int((payload or {}).get("step", -1))
     model_streams = [st.name for st in model.config.signal_streams]
+
+    span = (window.n_frames - 1) * window.frame_stride + 1
+    start_frame = None
+    puff_std = 0.0
+    puff_found = False
+    if puff_window:
+        start_frame, puff_std = find_puff_window(
+            int(shot_id), span, camera=camera, token_root=token_root
+        )
+        puff_found = start_frame is not None
+        logger.info(
+            "shot %s puff-window: start_frame=%s command_std=%.3f (found=%s)",
+            shot_id,
+            start_frame,
+            puff_std,
+            puff_found,
+        )
 
     sample = assemble_signal_window(
         int(shot_id),
@@ -155,6 +180,7 @@ def generate_rollouts(
         int(n_signal_steps),
         camera=camera,
         token_root=token_root,
+        start_frame=start_frame,
     )
     present = sorted(sample.signals.keys())
     ctx = int(sample.context_frames)
@@ -244,6 +270,9 @@ def generate_rollouts(
         "present_streams": present,
         "has_gas": bool(has_gas),
         "gas_command_per_frame": gas_cmd,
+        "start_frame": int(sample.start_frame),
+        "puff_window_found": bool(puff_found),
+        "puff_window_command_std": float(puff_std),
         "guidance_weights": [float(w) for w in guidance_weights],
         "spread_members": int(spread_members),
         "temperature": float(temperature),
@@ -309,6 +338,10 @@ def score_shot(decoded: dict[str, np.ndarray], meta: dict) -> dict:
         "temperature": meta["temperature"],
         "top_p": meta["top_p"],
         "inboard_token_cols": meta["inboard_token_cols"],
+        "start_frame": meta.get("start_frame"),
+        "puff_window_found": meta.get("puff_window_found"),
+        "puff_window_command_std": meta.get("puff_window_command_std"),
+        "gas_command_forecast_std": float(np.std(cmd[ctx:]) if cmd.size > ctx else 0.0),
     }
 
     # CFG sweep — inboard emission + timing correlation per weight.
@@ -423,6 +456,7 @@ def summarise(per_shot: list[dict]) -> dict:
     rows = []
     n_timing_pos = n_cf_pos = n_div_exceeds = 0
     n_gas = 0
+    n_puff_fired = 0
     for s in per_shot:
         sid = s["shot_id"]
         cfg = s.get("cfg_sweep", {})
@@ -431,10 +465,16 @@ def summarise(per_shot: list[dict]) -> dict:
         cf = s.get("counterfactual", {}).get("w1.0", {})
         cf_delta = cf.get("counterfactual_delta", float("nan"))
         div = s.get("control_divergence", {})
+        cmd_std = s.get("gas_command_forecast_std", 0.0) or 0.0
+        # the puff "fired" in-window if the conditioning command actually moved.
+        puff_fired = bool(s.get("has_gas") and cmd_std > 0.5)
         row = {
             "shot_id": sid,
             "is_bright": sid in bright,
             "has_gas": s.get("has_gas"),
+            "puff_window_found": s.get("puff_window_found"),
+            "gas_command_forecast_std": cmd_std,
+            "puff_fired_in_window": puff_fired,
             "timing_corr_w1": timing_w1,
             "counterfactual_delta_w1": cf_delta,
             "control_divergence_l1": div.get("control_divergence_l1"),
@@ -454,6 +494,8 @@ def summarise(per_shot: list[dict]) -> dict:
             )
         if s.get("has_gas"):
             n_gas += 1
+            if puff_fired:
+                n_puff_fired += 1
             if np.isfinite(timing_w1) and timing_w1 > 0.1:
                 n_timing_pos += 1
             if np.isfinite(cf_delta) and cf_delta > 0.0:
@@ -461,16 +503,23 @@ def summarise(per_shot: list[dict]) -> dict:
             if div.get("control_exceeds_spread"):
                 n_div_exceeds += 1
         rows.append(row)
+    # W1 is only fairly TESTABLE on shots whose puff actually fires in-window; the
+    # verdict requires the controllable signal to appear AND beat the noise floor.
     return {
         "per_shot": rows,
         "n_shots": len(per_shot),
         "n_gas_shots": n_gas,
+        "n_puff_fired_in_window": n_puff_fired,
         "n_timing_positive": n_timing_pos,
         "n_counterfactual_positive": n_cf_pos,
         "n_control_exceeds_spread": n_div_exceeds,
         "bright_shots": sorted(bright),
+        "w1_testable": bool(n_puff_fired > 0),
         "w1_met": bool(
-            n_gas > 0 and n_timing_pos >= 1 and n_cf_pos >= 1 and n_div_exceeds >= 1
+            n_puff_fired > 0
+            and n_timing_pos >= 1
+            and n_cf_pos >= 1
+            and n_div_exceeds >= 1
         ),
     }
 
@@ -509,6 +558,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--device", default="cuda")
     p.add_argument("--token-root", default=None)
     p.add_argument("--work-dir", default=None)
+    p.add_argument(
+        "--no-puff-window",
+        action="store_true",
+        help="score the CENTRED window instead of the puff-transition window "
+        "(debug — the centred window is often quasi-static so the puff cannot fire)",
+    )
     args = p.parse_args(argv)
 
     logging.basicConfig(
@@ -582,6 +637,7 @@ def main(argv: list[str] | None = None) -> int:
                 device=device,
                 token_root=Path(args.token_root) if args.token_root else None,
                 chunk=args.chunk,
+                puff_window=not args.no_puff_window,
             )
             decoded = decode_roles(
                 grids_by_role,
@@ -619,8 +675,8 @@ def _print_verdict(per_shot: list[dict], summary: dict) -> None:
             f"(step {per_shot[0]['checkpoint_step']})"
         )
     hdr = (
-        f"{'shot':>6} {'bright':>6} {'gas':>4} | {'timing_w1':>10} "
-        f"{'cf_delta_w1':>12} {'div_l1':>9} {'spread_l1':>10} "
+        f"{'shot':>6} {'bright':>6} {'fired':>6} {'cmd_std':>8} | "
+        f"{'timing_w1':>10} {'cf_delta_w1':>12} {'div_l1':>9} {'spread_l1':>10} "
         f"{'div/spread':>10} {'exceeds':>8}"
     )
     print(hdr)
@@ -636,7 +692,8 @@ def _print_verdict(per_shot: list[dict], summary: dict) -> None:
 
         print(
             f"{row['shot_id']:>6} {str(row['is_bright']):>6} "
-            f"{str(row['has_gas']):>4} | "
+            f"{str(row.get('puff_fired_in_window')):>6} "
+            f"{_f(row.get('gas_command_forecast_std'), '{:>8.3f}'):>8} | "
             f"{_f(row['timing_corr_w1']):>10} "
             f"{_f(row['counterfactual_delta_w1'], '{:>12.4f}'):>12} "
             f"{_f(row['control_divergence_l1'], '{:>9.3f}'):>9} "
@@ -646,11 +703,13 @@ def _print_verdict(per_shot: list[dict], summary: dict) -> None:
         )
     print(
         f"\ngas shots: {summary['n_gas_shots']}; "
+        f"puff-fired-in-window: {summary.get('n_puff_fired_in_window')}; "
         f"timing-positive (>0.1): {summary['n_timing_positive']}; "
         f"counterfactual-positive: {summary['n_counterfactual_positive']}; "
         f"control>spread: {summary['n_control_exceeds_spread']}"
     )
-    print(f"\nW1 (responds-to-controls) MET: {summary['w1_met']}")
+    print(f"\nW1 testable (puff fired in a window): {summary.get('w1_testable')}")
+    print(f"W1 (responds-to-controls) MET: {summary['w1_met']}")
 
 
 if __name__ == "__main__":

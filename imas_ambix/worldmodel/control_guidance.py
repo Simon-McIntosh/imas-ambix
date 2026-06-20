@@ -62,7 +62,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from imas_ambix.worldmodel.context_corruption import apply_control_dropout
-from imas_ambix.worldmodel.spacetime_dataset import GRID_W
+from imas_ambix.worldmodel.spacetime_dataset import GRID_W, REFERENCE_CAMERA
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -321,6 +321,87 @@ def gas_command_per_frame(
     return np.interp(frame_pos, step_pos, per_step).astype(np.float64)
 
 
+def _inboard_gas_on_camera_frames(
+    shot_id: int,
+    camera: str,
+    *,
+    token_root=None,
+) -> np.ndarray | None:
+    """The inboard gas-puff command interpolated onto EVERY camera frame.
+
+    Reads the raw ``gas_injection_l2`` ``inboard_total`` token waveform on its
+    native time axis and the camera's per-frame timestamps, then interpolates the
+    command onto each camera frame.  This is the FULL-shot command (not the 24-
+    frame conditioning sub-sample) — used to LOCATE a window where the puff
+    actually transitions.  Returns ``(n_camera_frames,)`` float, or ``None`` when
+    either the gas stream or the camera time axis is unreadable.
+    """
+    from imas_ambix.worldmodel.dataset import _read_signal_hf
+    from imas_ambix.worldmodel.spacetime_dataset import _frame_times
+
+    ftime = _frame_times(shot_id, camera, token_root=token_root)
+    if ftime is None or np.asarray(ftime).size < 2:
+        return None
+    try:
+        tok, ttime, _valid, names, _base = _read_signal_hf(
+            shot_id, f"{GAS_STREAM}_l2", token_root=token_root
+        )
+    except (FileNotFoundError, KeyError):
+        return None
+    names = list(names)
+    idx = [i for i, n in enumerate(names) if "inboard" in n.lower()]
+    if not idx or tok.size == 0 or ttime.size == 0:
+        return None
+    ch = idx[0]
+    v = np.asarray(tok[:, ch], dtype=np.float64)
+    order = np.argsort(ttime)
+    return np.interp(
+        np.asarray(ftime, dtype=np.float64), ttime[order], v[order]
+    ).astype(np.float64)
+
+
+def find_puff_window(
+    shot_id: int,
+    span: int,
+    *,
+    camera: str = REFERENCE_CAMERA,
+    token_root=None,
+    min_std: float = 1.0,
+) -> tuple[int | None, float]:
+    """Find the camera-frame window where the inboard puff TRANSITIONS most.
+
+    The default centred window often lands in a quasi-static segment where the
+    valve is steady — a window in which the puff falsification cannot fire (a flat
+    command has no timing signal and a steady-state level barely moves the dream).
+    This slides a ``span``-frame window over the FULL shot and returns the start
+    frame whose interpolated inboard command has the largest standard deviation
+    (the strongest ramp), so the falsification is scored where the puff actually
+    fires.
+
+    Returns ``(start_frame, command_std)``.  ``start_frame`` is ``None`` when the
+    command is flat everywhere (max windowed std ``< min_std``) or unreadable — the
+    caller then falls back to the centred window and the result is honestly a
+    "no in-window puff transition" null.  ``command_std`` is the best window's std
+    (0.0 when unreadable) so the caller can record how hard the puff was firing.
+    """
+    cmd = _inboard_gas_on_camera_frames(shot_id, camera, token_root=token_root)
+    if cmd is None or cmd.shape[0] < span:
+        return None, 0.0
+    n = cmd.shape[0]
+    # windowed std via a sliding view; n is small (~1e3-1e4 frames) so direct.
+    best_start, best_std = 0, -1.0
+    last_start = n - span
+    # stride to keep the scan cheap on very long shots while still finding ramps.
+    stride = max(1, span // 2)
+    for start in range(0, last_start + 1, stride):
+        std = float(np.std(cmd[start : start + span]))
+        if std > best_std:
+            best_std, best_start = std, start
+    if best_std < float(min_std):
+        return None, best_std
+    return int(best_start), best_std
+
+
 # ---------------------------------------------------------------------------
 # Inboard emission series + the falsification metrics (decoded pixel space)
 # ---------------------------------------------------------------------------
@@ -500,6 +581,7 @@ __all__ = [
     "cfg_guided_dream",
     "control_divergence",
     "counterfactual_delta",
+    "find_puff_window",
     "frame_l1",
     "gas_command_per_frame",
     "inboard_emission_series",

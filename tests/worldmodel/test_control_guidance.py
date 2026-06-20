@@ -369,3 +369,42 @@ def test_gas_command_zero_when_absent():
     cmd = gas_command_per_frame(sample)
     assert cmd.shape == (5,)
     assert np.all(cmd == 0.0)
+
+
+# ---------------------------------------------------------------------------
+# Puff-window selection (find the window where the puff transitions most)
+# ---------------------------------------------------------------------------
+
+
+def test_find_puff_window_picks_the_ramp(monkeypatch):
+    import imas_ambix.worldmodel.control_guidance as cg
+
+    # 100-frame command flat at 100, with a ramp 50->150 over frames 40..60.
+    cmd = np.full(100, 100.0)
+    cmd[40:60] = np.linspace(50, 150, 20)
+    monkeypatch.setattr(cg, "_inboard_gas_on_camera_frames", lambda *a, **k: cmd)
+    start, std = cg.find_puff_window(1, span=20, min_std=1.0)
+    assert start is not None
+    # the chosen window must overlap the ramp region (high variance there).
+    assert 30 <= start <= 60
+    assert std > 1.0
+
+
+def test_find_puff_window_none_when_flat(monkeypatch):
+    import imas_ambix.worldmodel.control_guidance as cg
+
+    monkeypatch.setattr(
+        cg, "_inboard_gas_on_camera_frames", lambda *a, **k: np.full(100, 130.0)
+    )
+    start, std = cg.find_puff_window(1, span=20, min_std=1.0)
+    assert start is None  # flat everywhere -> no puff-transition window
+    assert std < 1.0
+
+
+def test_find_puff_window_none_when_unreadable(monkeypatch):
+    import imas_ambix.worldmodel.control_guidance as cg
+
+    monkeypatch.setattr(cg, "_inboard_gas_on_camera_frames", lambda *a, **k: None)
+    start, std = cg.find_puff_window(1, span=20)
+    assert start is None
+    assert std == 0.0
