@@ -1931,8 +1931,198 @@ def delta_nm_gate(
     return verdicts, summary
 
 
+# ---------------------------------------------------------------------------
+# CLI (the corpus re-train entrypoint — torchrun -m ... corpus)
+# ---------------------------------------------------------------------------
+
+
+def _train_shots_from_manifest(manifest_path: Path, held_out: set[int]) -> list[int]:
+    """Unique train shot ids from a curated-window manifest, minus held-out.
+
+    The curated manifest (built by the excitation-corpus selector) lists the
+    excited windows; its distinct ``shot_id`` set is the train pool.  Held-out
+    shots are excluded at SELECT time already, but we subtract them again here so
+    the disjointness is enforced at BOTH ends (defence in depth).
+    """
+    import json  # noqa: PLC0415
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    data = json.loads(_Path(manifest_path).read_text())
+    windows = data.get("windows", [])
+    seen: list[int] = []
+    s: set[int] = set()
+    for w in windows:
+        sid = int(w["shot_id"])
+        if sid in held_out or sid in s:
+            continue
+        s.add(sid)
+        seen.append(sid)
+    return seen
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse  # noqa: PLC0415
+    import logging as _logging  # noqa: PLC0415
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    p = argparse.ArgumentParser(description="Controllable camera-model trainer.")
+    sub = p.add_subparsers(dest="command")
+    pc = sub.add_parser("corpus", help="DDP re-train on the curated excited corpus")
+    pc.add_argument(
+        "--manifest",
+        default="/work/projects/imas_gpu/agents/excitation-corpus/curated_windows_full.json",
+        help="curated-window manifest; its distinct shot ids are the train pool",
+    )
+    pc.add_argument(
+        "--shots",
+        default="",
+        help="explicit comma-separated train shots (overrides --manifest)",
+    )
+    pc.add_argument("--n-shots", type=int, default=0, help="cap train shots (0 = all)")
+    pc.add_argument("--eval-shots", default="18502,18503,18504,18505")
+    pc.add_argument("--camera", default="rbb")
+    pc.add_argument("--token-root", default=None)
+    pc.add_argument("--out-dir", default=None)
+    pc.add_argument(
+        "--init-checkpoint",
+        default="/work/projects/imas_gpu/worldmodel/ckpt/spacetime-corruption-1220391/best.pt",
+        help="warm-start the backbone from the M2 forecaster (strict=False)",
+    )
+    # window
+    pc.add_argument("--n-frames", type=int, default=24)
+    pc.add_argument("--n-plan", type=int, default=8)
+    pc.add_argument("--context-frames", type=int, default=8)
+    pc.add_argument("--frame-stride", type=int, default=1)
+    pc.add_argument("--n-signal-steps", type=int, default=4)
+    pc.add_argument("--n-act-steps", type=int, default=8)
+    # training
+    pc.add_argument("--steps", type=int, default=12000)
+    pc.add_argument("--batch-size", type=int, default=4)
+    pc.add_argument("--grad-accum", type=int, default=1)
+    pc.add_argument("--lr", type=float, default=1e-4)
+    pc.add_argument("--warmup-steps", type=int, default=400)
+    pc.add_argument("--min-lr-ratio", type=float, default=0.02)
+    pc.add_argument("--weight-decay", type=float, default=0.1)
+    pc.add_argument("--grad-clip", type=float, default=1.0)
+    pc.add_argument("--chunk", type=int, default=4096)
+    pc.add_argument("--log-every", type=int, default=25)
+    pc.add_argument("--ckpt-every", type=int, default=250)
+    pc.add_argument("--num-workers", type=int, default=4)
+    # model
+    pc.add_argument("--d-model", type=int, default=None)
+    pc.add_argument("--n-layers", type=int, default=None)
+    pc.add_argument("--n-heads", type=int, default=None)
+    pc.add_argument("--d-ff", type=int, default=None)
+    pc.add_argument("--dropout", type=float, default=None)
+    pc.add_argument("--adaln-hidden", type=int, default=256)
+    # M4 controllability machinery
+    pc.add_argument("--observation-dropout", type=float, default=0.8)
+    pc.add_argument("--control-dropout", type=float, default=0.15)
+    pc.add_argument("--hb-noise-std", type=float, default=1.0)
+    pc.add_argument("--hb-mask-prob", type=float, default=0.5)
+    pc.add_argument("--hb-max-strength", type=float, default=1.0)
+    pc.add_argument("--hb-clean-fraction", type=float, default=0.2)
+    pc.add_argument("--inverse-dynamics-weight", type=float, default=1.0)
+    pc.add_argument("--scheduled-sampling-max", type=float, default=0.25)
+    pc.add_argument("--scheduled-sampling-ramp", type=float, default=0.5)
+    args = p.parse_args(argv)
+
+    _logging.basicConfig(
+        level=_logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    if args.command != "corpus":
+        p.print_help()
+        return 2
+
+    held_out = {int(s) for s in args.eval_shots.split(",") if s.strip()}
+    if args.shots.strip():
+        train_shots = [
+            int(s)
+            for s in args.shots.split(",")
+            if s.strip() and int(s) not in held_out
+        ]
+    else:
+        train_shots = _train_shots_from_manifest(_Path(args.manifest), held_out)
+    if args.n_shots and args.n_shots > 0:
+        train_shots = train_shots[: args.n_shots]
+    if len(train_shots) < 2:
+        logger.error("need >= 2 train shots; got %d", len(train_shots))
+        return 1
+    overlap = set(train_shots) & held_out
+    if overlap:
+        logger.error("train/held-out overlap (NOT disjoint): %s", sorted(overlap))
+        return 1
+    logger.info(
+        "controllable re-train: %d train shots (held-out %s DISJOINT) from %s",
+        len(train_shots),
+        sorted(held_out),
+        args.manifest if not args.shots.strip() else "--shots",
+    )
+
+    model_kwargs: dict = {"adaln_hidden": args.adaln_hidden}
+    for k in ("d_model", "n_layers", "n_heads", "d_ff", "dropout"):
+        v = getattr(args, k, None)
+        if v is not None:
+            model_kwargs[k] = v
+
+    cfg = ControllableCorpusConfig(
+        steps=args.steps,
+        batch_size=args.batch_size,
+        grad_accum=args.grad_accum,
+        lr=args.lr,
+        warmup_steps=args.warmup_steps,
+        min_lr_ratio=args.min_lr_ratio,
+        weight_decay=args.weight_decay,
+        grad_clip=args.grad_clip,
+        chunk=args.chunk,
+        log_every=args.log_every,
+        ckpt_every=args.ckpt_every,
+        num_workers=args.num_workers,
+        n_signal_steps=args.n_signal_steps,
+        n_act_steps=args.n_act_steps,
+        observation_dropout=args.observation_dropout,
+        control_dropout=args.control_dropout,
+        history_bottleneck=HistoryBottleneckConfig(
+            noise_std=args.hb_noise_std,
+            mask_prob=args.hb_mask_prob,
+            max_strength=args.hb_max_strength,
+            clean_fraction=args.hb_clean_fraction,
+        ),
+        inverse_dynamics_weight=args.inverse_dynamics_weight,
+        scheduled_sampling_max=args.scheduled_sampling_max,
+        scheduled_sampling_ramp=args.scheduled_sampling_ramp,
+        window=SpacetimeWindowConfig(
+            n_frames=args.n_frames,
+            n_plan=args.n_plan,
+            context_frames=args.context_frames,
+            frame_stride=args.frame_stride,
+        ),
+        model_kwargs=model_kwargs,
+        init_checkpoint=_Path(args.init_checkpoint) if args.init_checkpoint else None,
+    )
+    result = train_controllable_corpus(
+        train_shots,
+        camera=args.camera,
+        config=cfg,
+        out_dir=_Path(args.out_dir) if args.out_dir else None,
+        token_root=_Path(args.token_root) if args.token_root else None,
+    )
+    logger.info(
+        "controllable re-train done: %d steps, init=%.4f final=%.4f, ckpt=%s",
+        result.steps_run,
+        result.initial_loss,
+        result.final_loss,
+        result.checkpoint_path,
+    )
+    return 0
+
+
 __all__ = [
     "ControllabilityVerdict",
+    "ControllableCorpusConfig",
+    "ControllableCorpusResult",
     "DeltaNMVerdict",
     "OverfitControllableConfig",
     "build_controllable_model",
@@ -1940,6 +2130,12 @@ __all__ = [
     "collate_controllable_windows",
     "controllability_gate",
     "delta_nm_gate",
+    "main",
     "overfit_controllable",
     "teacher_forced_token_mismatch",
+    "train_controllable_corpus",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
