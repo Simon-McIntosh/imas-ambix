@@ -92,6 +92,17 @@ class ControllableSpacetimeConfig(SignalSpacetimeConfig):
     adaln_hidden: int = 256
     inverse_dynamics: bool = True
     inv_dyn_hidden: int = 256
+    #: Column indices into the actuator vector to ZERO before conditioning — the
+    #: measured STATES (plasma_current, ne_line_integrated) + the quasi-static
+    #: tf_current.  These are NOT commands: an always-on Ip context is nearly a
+    #: readout of the plasma state, which lets the model reproduce the camera by
+    #: reading the state instead of deriving it from the commands (the
+    #: persistence / ignore-the-actuators failure mode).  Masking them at the
+    #: single conditioning entry point (:meth:`_plan_summary`) forces drive-from-
+    #: commands and keeps train / gate / inference consistent.  Empty = condition
+    #: on the full vector (states are kept — the v2-equivalent / debug path).  Ip
+    #: + density remain available as the v2 OBSERVATION streams regardless.
+    masked_command_indices: tuple[int, ...] = ()
 
     @property
     def has_actuator(self) -> bool:
@@ -287,6 +298,14 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         Concatenates ``[values | missing]`` per step, projects, and mean-pools
         over the plan steps into one summary vector per sample.  Returns ``None``
         when the plan contributes no steps (the model then runs unconditioned).
+
+        The measured STATE columns (``masked_command_indices`` — Ip, density, tf)
+        are ZEROED in BOTH ``values`` and ``missing`` here, the single conditioning
+        entry point, so the model conditions ONLY on the commands (drive-from-
+        commands; it cannot read the plasma state off an always-on Ip context).
+        Zeroing ``missing`` too (to PRESENT-but-zero rather than absent) keeps the
+        per-column contribution a constant the encoder can absorb, so the masked
+        columns add no information regardless of the raw plan.
         """
         if not self.has_actuator or values is None or values.numel() == 0:
             return None
@@ -296,6 +315,14 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         miss = missing
         if miss is None or miss.shape != values.shape:
             miss = torch.zeros_like(values)
+        mask_idx = getattr(self.config, "masked_command_indices", ()) or ()
+        if mask_idx:
+            cols = [int(i) for i in mask_idx if 0 <= int(i) < c]
+            if cols:
+                values = values.clone()
+                miss = miss.clone()
+                values[:, :, cols] = 0.0
+                miss[:, :, cols] = 0.0
         feat = torch.cat([values, miss], dim=-1).to(self.actuator_in.weight.dtype)
         proj = self.actuator_in(feat)  # (B, P, adaln_hidden)
         return proj.mean(dim=1)  # (B, adaln_hidden) — pool over plan steps
@@ -551,6 +578,15 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
             if miss is not None
             else torch.ones_like(tgt_vec)
         )
+        # also drop the MASKED (non-command) columns from the target: the inverse
+        # map should force the COMMANDS into the latent, not the masked states
+        # (Ip/density/tf) which the model never conditions on.
+        mask_idx = getattr(self.config, "masked_command_indices", ()) or ()
+        if mask_idx:
+            cols = [int(i) for i in mask_idx if 0 <= int(i) < present.shape[-1]]
+            if cols:
+                present = present.clone()
+                present[:, cols] = 0.0
         tgt = tgt_vec[:, None, :].expand_as(pred)
         wmask = present[:, None, :].expand_as(pred)
         sq = (pred - tgt) ** 2 * wmask

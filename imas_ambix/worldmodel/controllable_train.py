@@ -154,6 +154,7 @@ def build_controllable_model(
     max_frames: int | None = None,
     corruption_levels: int = 0,
     inverse_dynamics: bool = True,
+    masked_command_indices: tuple[int, ...] = (),
     **model_kwargs: object,
 ) -> ControllableSpacetimeTransformer:
     """Build a :class:`ControllableSpacetimeTransformer` sized to window + streams.
@@ -162,6 +163,10 @@ def build_controllable_model(
     frames), so ``max_frames`` only needs to cover the tokenised plan steps +
     every present signal stream's steps + the camera frames; it defaults to
     ``len(streams)*n_signal_steps + n_plan + n_frames`` with slack.
+
+    ``masked_command_indices`` are the actuator-vector columns the model ZEROES
+    before conditioning (the measured states Ip/density + tf) — see
+    :func:`masked_command_columns`; empty conditions on the full vector.
     """
     n_streams = len(signal_streams)
     if max_frames is None:
@@ -178,9 +183,124 @@ def build_controllable_model(
         actuator_channels=int(actuator_channels),
         n_act_steps=int(n_act_steps),
         inverse_dynamics=bool(inverse_dynamics),
+        masked_command_indices=tuple(int(i) for i in masked_command_indices),
         **model_kwargs,  # type: ignore[arg-type]
     )
     return ControllableSpacetimeTransformer(cfg)
+
+
+def _controllable_config_to_dict(cfg: ControllableSpacetimeConfig) -> dict:
+    """Serialise the FULL controllable config (v2 fields + the actuator/AdaLN ones).
+
+    The v2 ``save_checkpoint_v2`` only records the v2 fields, so a controllable
+    model reloaded from a v2-style ``model_config`` would lose ``actuator_channels``
+    / ``n_act_steps`` / ``adaln_hidden`` / ``inverse_dynamics`` /
+    ``masked_command_indices`` and could not be rebuilt.  This records them all so
+    :func:`load_controllable_model_from_checkpoint` reconstructs the IDENTICAL
+    model (the masked-command set included, so the eval conditions exactly as the
+    trained model did).
+    """
+    from imas_ambix.worldmodel.spacetime_train_v2 import (  # noqa: PLC0415
+        _config_to_dict,
+    )
+
+    d = _config_to_dict(cfg)
+    d.update(
+        {
+            "actuator_channels": int(cfg.actuator_channels),
+            "n_act_steps": int(cfg.n_act_steps),
+            "adaln_hidden": int(cfg.adaln_hidden),
+            "inverse_dynamics": bool(cfg.inverse_dynamics),
+            "inv_dyn_hidden": int(cfg.inv_dyn_hidden),
+            "masked_command_indices": list(cfg.masked_command_indices),
+        }
+    )
+    return d
+
+
+def save_controllable_checkpoint(
+    out_dir,
+    *,
+    model: ControllableSpacetimeTransformer,
+    optimizer,
+    step: int,
+    window: SpacetimeWindowConfig,
+    extra: dict | None = None,
+    name: str = "latest.pt",
+    snapshot: bool = True,
+):
+    """Atomic self-describing controllable checkpoint (full config + state).
+
+    Like ``save_checkpoint_v2`` but writes the FULL controllable ``model_config``
+    (see :func:`_controllable_config_to_dict`) so the model round-trips exactly.
+    """
+    import os  # noqa: PLC0415
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    out_dir = _Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "step": int(step),
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict() if optimizer else None,
+        "model_config": _controllable_config_to_dict(model.config),
+        "window": {
+            "n_frames": int(window.n_frames),
+            "n_plan": int(window.n_plan),
+            "context_frames": int(window.context_frames),
+            "frame_stride": int(window.frame_stride),
+        },
+        "extra": dict(extra or {}),
+    }
+    final = out_dir / name
+    tmp = out_dir / f".{name}.{os.getpid()}.tmp"
+    torch.save(payload, tmp)
+    os.replace(tmp, final)
+    if snapshot:
+        try:
+            torch.save(payload, out_dir / f"ckpt-{int(step):08d}.pt")
+        except OSError as exc:  # noqa: BLE001
+            logger.warning("could not write step snapshot: %r", exc)
+    return final
+
+
+def load_controllable_model_from_checkpoint(
+    path, *, map_location: str = "cpu"
+) -> tuple[ControllableSpacetimeTransformer, dict]:
+    """Rebuild a controllable model from a checkpoint + load its weights (eval).
+
+    Reconstructs the FULL :class:`ControllableSpacetimeConfig` (signal streams +
+    the actuator/AdaLN fields + the masked-command set) so the eval model
+    conditions EXACTLY as the trained one.  The eval harness uses this to load the
+    re-train checkpoint for the held-out ΔN-M + dream GIFs.
+    """
+    from imas_ambix.worldmodel.spacetime_model_v2 import (  # noqa: PLC0415
+        SignalStreamSpec,
+    )
+
+    payload = torch.load(str(path), map_location=map_location, weights_only=False)
+    d = dict(payload["model_config"])
+    streams = tuple(
+        SignalStreamSpec(
+            name=str(s["name"]), vocab=int(s["vocab"]), channels=int(s["channels"])
+        )
+        for s in d.get("signal_streams", [])
+    )
+    scalar = {
+        k: d[k]
+        for k in d
+        if k in ControllableSpacetimeConfig.__dataclass_fields__
+        and k not in ("signal_streams", "masked_command_indices")
+    }
+    cfg = ControllableSpacetimeConfig(
+        signal_streams=streams,
+        masked_command_indices=tuple(d.get("masked_command_indices", ())),
+        **scalar,
+    )
+    model = ControllableSpacetimeTransformer(cfg)
+    model.load_state_dict(payload["model_state_dict"])
+    model.to(map_location)
+    return model, payload
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +511,11 @@ class OverfitControllableConfig:
     # fires (Bengio et al. 2015 scheduled sampling, batched two-pass form).
     scheduled_sampling_max: float = 0.0
     scheduled_sampling_ramp: float = 0.5
+    # MASK the measured states (Ip + density + tf) out of the model's conditioning
+    # (the single _plan_summary entry point) so it drives from the COMMANDS and
+    # cannot read the plasma state off an always-on Ip context.  True is the
+    # controllability-correct default.
+    drop_state_channels: bool = True
     window: SpacetimeWindowConfig = field(default_factory=SpacetimeWindowConfig)
     model_kwargs: dict = field(default_factory=dict)
     modalities: list[SignalModalitySpec] = field(
@@ -488,6 +613,11 @@ def overfit_controllable(
     # to the bottleneck's (when the bottleneck is enabled).
     hb = config.history_bottleneck
     corruption_levels = int(hb.levels) if hb.enabled else 0
+    masked_idx = (
+        masked_command_columns(list(samples[0].actuator.channel_keys))
+        if config.drop_state_channels
+        else ()
+    )
     model = build_controllable_model(
         config.window,
         plan_channels=plan_ch,
@@ -497,6 +627,7 @@ def overfit_controllable(
         n_act_steps=config.n_act_steps,
         corruption_levels=corruption_levels,
         inverse_dynamics=config.inverse_dynamics_weight > 0.0,
+        masked_command_indices=masked_idx,
         **config.model_kwargs,
     ).to(dev)
     if init_checkpoint is not None:
@@ -770,9 +901,6 @@ def train_controllable_corpus(
         build_lr_scheduler,
         find_latest_checkpoint,
     )
-    from imas_ambix.worldmodel.spacetime_train_v2 import (  # noqa: PLC0415
-        save_checkpoint_v2,
-    )
 
     config = config or ControllableCorpusConfig()
     if out_dir is None:
@@ -796,15 +924,16 @@ def train_controllable_corpus(
     stop = _StopFlag()
     stop.install()
 
-    # The actuator COMMAND vector: drop the measured states (Ip + density) so the
-    # model conditions ONLY on the commands; the AdaLN MLP input dim follows.
+    # The actuator vector keeps the FULL channel set; the measured STATES (Ip +
+    # density + tf) are MASKED OUT inside the model's _plan_summary (the single
+    # conditioning entry point — train/gate/inference stay consistent), so the
+    # model conditions ONLY on the commands without an always-on Ip readout it
+    # could cheat through.  Ip/density remain available as the v2 observations.
     from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
         ACTUATOR_CHANNELS,
     )
 
-    act_chan_list = (
-        command_channels() if config.drop_state_channels else list(ACTUATOR_CHANNELS)
-    )
+    act_chan_list = list(ACTUATOR_CHANNELS)
 
     # Probe plan-channels + signal-stream widths + actuator-channel count.
     probe: list[ControllableSpacetimeSample] = []
@@ -836,6 +965,14 @@ def train_controllable_corpus(
         token_root=token_root,
     )
     act_channels = int(probe[0].actuator.n_channels)
+    # Columns to MASK from conditioning (Ip + density + tf) — deterministic from
+    # the actuator channel keys, so every rank computes the same set.  Empty when
+    # drop_state_channels is off (debug: condition on the full vector).
+    masked_idx = (
+        masked_command_columns(list(probe[0].actuator.channel_keys))
+        if config.drop_state_channels
+        else ()
+    )
 
     # Broadcast every shaping quantity from rank 0 so all ranks build the SAME
     # model (a per-rank GPFS read miss must not desync the param set).
@@ -857,6 +994,7 @@ def train_controllable_corpus(
         n_act_steps=config.n_act_steps,
         corruption_levels=corruption_levels,
         inverse_dynamics=config.inverse_dynamics_weight > 0.0,
+        masked_command_indices=masked_idx,
         **config.model_kwargs,
     ).to(dev)
     if env.is_main:
@@ -1116,7 +1254,7 @@ def train_controllable_corpus(
                 if config.ckpt_every > 0 and step % config.ckpt_every == 0:
                     _barrier(env)
                     if env.is_main:
-                        ckpt_path = save_checkpoint_v2(
+                        ckpt_path = save_controllable_checkpoint(
                             out_dir,
                             model=core,
                             optimizer=opt,
@@ -1134,7 +1272,7 @@ def train_controllable_corpus(
     # final checkpoint flush (covers a clean SIGTERM stop mid-run).
     _barrier(env)
     if env.is_main:
-        ckpt_path = save_checkpoint_v2(
+        ckpt_path = save_controllable_checkpoint(
             out_dir,
             model=core,
             optimizer=opt,
@@ -1694,13 +1832,13 @@ QUASI_STATIC_COMMAND_KEYS: frozenset[str] = frozenset({"tf_current"})
 def command_channels(channels=None):
     """The actuator COMMAND channels — the full set minus the measured STATES.
 
-    Drops ``plasma_current`` + ``ne_line_integrated`` (responses, not commands —
-    they stay as v2 observation feeds, withheld in PLAY) and keeps the PF/CS coil
-    currents + ``sol_current`` (PRIMARY actuators), the NBI powers, the gas flows,
-    and ``tf_current``.  This is the list passed to
-    :class:`ControllableSpacetimeDataset` so the actuator vector — and the AdaLN
-    MLP input dim — follow the data (no edit to ``actuator_plan.py``).  ``channels``
-    defaults to the full ``ACTUATOR_CHANNELS``.
+    Drops ``plasma_current`` + ``ne_line_integrated`` (responses, not commands)
+    and keeps the PF/CS coil currents + ``sol_current`` (PRIMARY actuators), the
+    NBI powers, the gas flows, and ``tf_current``.  Retained for reference / a
+    callers who want the filtered list; the corpus trainer instead keeps the FULL
+    actuator vector and MASKS the states (+ tf) inside the model's
+    :meth:`_plan_summary` — the single conditioning entry point — so train / gate
+    / inference stay consistent (see :func:`masked_command_columns`).
     """
     from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
         ACTUATOR_CHANNELS,
@@ -1708,6 +1846,21 @@ def command_channels(channels=None):
 
     chans = list(ACTUATOR_CHANNELS if channels is None else channels)
     return [c for c in chans if c.key not in STATE_CHANNEL_KEYS]
+
+
+def masked_command_columns(channel_keys: Sequence[str]) -> tuple[int, ...]:
+    """Columns to ZERO from the model's conditioning — the NON-command channels.
+
+    The measured STATES (``plasma_current``, ``ne_line_integrated``) PLUS the
+    quasi-static ``tf_current`` — i.e. everything that is not a control command.
+    Masking these at :meth:`ControllableSpacetimeTransformer._plan_summary` makes
+    the model condition ONLY on the commands, so it cannot read the plasma state
+    off an always-on Ip context (the cheat/persistence failure mode).  KEY-based
+    against the plan's OWN ``channel_keys`` so it is correct for any channel order
+    /subset.  Returned as a tuple for the model config (``masked_command_indices``).
+    """
+    masked = STATE_CHANNEL_KEYS | QUASI_STATIC_COMMAND_KEYS
+    return tuple(i for i, key in enumerate(channel_keys) if key in masked)
 
 
 def _perturbable_command_columns(channel_keys: Sequence[str]) -> list[int]:
@@ -2100,9 +2253,9 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument(
         "--keep-state-channels",
         action="store_true",
-        help="keep plasma_current + ne_line_integrated IN the actuator command "
-        "vector (default DROPS them — they are measured states/responses, fed as "
-        "observations instead)",
+        help="condition on the FULL actuator vector incl plasma_current + density "
+        "+ tf (default MASKS those out of the model's conditioning — they are "
+        "measured states/constant, not commands; they remain v2 observations)",
     )
     args = p.parse_args(argv)
 
@@ -2208,10 +2361,14 @@ __all__ = [
     "build_controllable_model",
     "collate_actuator",
     "collate_controllable_windows",
+    "command_channels",
     "controllability_gate",
     "delta_nm_gate",
+    "load_controllable_model_from_checkpoint",
     "main",
+    "masked_command_columns",
     "overfit_controllable",
+    "save_controllable_checkpoint",
     "teacher_forced_token_mismatch",
     "train_controllable_corpus",
 ]

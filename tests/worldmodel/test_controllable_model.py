@@ -982,3 +982,94 @@ def test_random_plan_perturbation_is_bounded_and_shape_preserving():
             assert np.all(np.sign(new_d) == np.sign(true_d)) or np.allclose(new_d, 0), (
                 "the bounded edit broke the coil trajectory's monotone shape"
             )
+
+
+# ---------------------------------------------------------------------------
+# Masked-command conditioning (lead decision B: condition only on commands)
+# ---------------------------------------------------------------------------
+
+
+def test_masked_command_columns_selects_states_plus_tf():
+    from imas_ambix.worldmodel.actuator_plan import (
+        ACTUATOR_CHANNEL_KEYS,
+        actuator_channel_index,
+    )
+    from imas_ambix.worldmodel.controllable_train import masked_command_columns
+
+    masked = masked_command_columns(list(ACTUATOR_CHANNEL_KEYS))
+    # exactly Ip + density + tf.
+    expect = {
+        actuator_channel_index("plasma_current"),
+        actuator_channel_index("ne_line_integrated"),
+        actuator_channel_index("tf_current"),
+    }
+    assert set(masked) == expect
+
+
+def test_plan_summary_is_invariant_to_masked_columns():
+    """Changing a MASKED column (Ip/density/tf) must NOT change the plan summary."""
+    from imas_ambix.worldmodel.controllable_train import masked_command_columns
+
+    # full-width actuator vector so the real channel indices line up.
+    masked = masked_command_columns(list(ACTUATOR_CHANNEL_KEYS[:N_ACTUATOR_CHANNELS]))
+    cfg = _tiny_cfg(
+        actuator_channels=N_ACTUATOR_CHANNELS, masked_command_indices=masked
+    )
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    g = torch.Generator().manual_seed(0)
+    vals = torch.randn(2, cfg.n_act_steps, N_ACTUATOR_CHANNELS, generator=g)
+    miss = torch.zeros_like(vals)
+    with torch.no_grad():
+        s0 = model._plan_summary(vals, miss)
+        # perturb ONLY the masked columns hugely.
+        v2 = vals.clone()
+        for c in masked:
+            v2[:, :, c] += 100.0
+        s1 = model._plan_summary(v2, miss)
+        # perturb a COMMAND column.
+        cmd_col = next(i for i in range(N_ACTUATOR_CHANNELS) if i not in set(masked))
+        v3 = vals.clone()
+        v3[:, :, cmd_col] += 100.0
+        s2 = model._plan_summary(v3, miss)
+    assert torch.allclose(s0, s1, atol=1e-5), (
+        "the plan summary changed when a MASKED (Ip/density/tf) column changed — "
+        "the model can still read the masked states"
+    )
+    assert not torch.allclose(s0, s2, atol=1e-5), (
+        "the plan summary did NOT change when a COMMAND column changed — masking "
+        "wiped the commands too"
+    )
+
+
+def test_inverse_dynamics_ignores_masked_columns():
+    """The inv-dyn loss must not regress the masked (state) columns."""
+    from imas_ambix.worldmodel.controllable_train import masked_command_columns
+
+    masked = masked_command_columns(list(ACTUATOR_CHANNEL_KEYS[:N_ACTUATOR_CHANNELS]))
+    cfg = _tiny_cfg(
+        actuator_channels=N_ACTUATOR_CHANNELS, masked_command_indices=masked
+    )
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, b=2, t=5, seed=9)
+    with torch.no_grad():
+        _h, latents = model._forward_tokens(
+            batch["frames"],
+            batch["plan"],
+            batch["signals"],
+            actuator=batch["actuator"],
+            return_latents=True,
+        )
+        base = float(model.inverse_dynamics_loss(latents, batch["actuator"]))
+        # blow up ONLY the masked target columns: the loss must be unchanged
+        # (those columns carry weight 0).
+        act2 = {
+            "values": batch["actuator"]["values"].clone(),
+            "missing": batch["actuator"]["missing"],
+        }
+        for c in masked:
+            act2["values"][:, :, c] += 50.0
+        bumped = float(model.inverse_dynamics_loss(latents, act2))
+    assert abs(base - bumped) < 1e-4, (
+        "inv-dyn loss moved when a MASKED target column changed — it must ignore "
+        "the masked (state) columns"
+    )
