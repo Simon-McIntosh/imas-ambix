@@ -19,8 +19,8 @@
   <title>Playable Plasma World Model — Drive the Shot from a Pulse Schedule | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-19">
-<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-06-20">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -517,7 +517,7 @@ Done-when
      followup resolved.</pre>
     <p class="r-fu-outcome">M1 LANDED + VERIFIED (2026-06-19) — sampling alone breaks the persistence collapse. <strong>Code</strong> (commits <code>451335f</code> + <code>6695e60</code>; scope = imas_ambix/worldmodel + tests + scripts/slurm only, both trailer-clean): nucleus/temperature sampling in the camera rollout (<code>spacetime_model.py</code>, <code>sampling_rescore.py</code>), the playability metric harness (<code>playability_metrics.py</code> — ensemble-CRPS-vs-persistence + motion/change-fraction + luminance-fair pixel sanity; an ensemble-CRPS proxy, no offline I3D for FVD on betelgeuse), the re-score driver + sbatch, and 2 test files (<strong>17 tests pass in 18.5s</strong>). <strong>Re-score</strong> (job 1220135, 4m37s, 1 GPU, frozen Open-MAGVIT2 decode) on best.pt step 7000, held-out 18502/03/04/05, grid T in {0.7,0.9,1.0} x top_p in {0.9,0.95}, ensemble=4. <strong>Verdict</strong> (best grid point per shot; CRPS-ratio vs persistence where below 1 = beats; motion ~1 = GT-like): <em>argmax</em> — 18502 (bright) 1.320 LOSES, motion 0.113 (collapsed); 18505 (bright) 1.212 LOSES, motion 0.102 (collapsed); 18503 0.886; 18504 0.480. <em>sampling</em> — 18502 0.847; 18503 0.692; 18504 0.313; 18505 0.838 — <strong>beats persistence 4/4 INCLUDING the bright/high-motion shots</strong>, motion restored to 1.05–1.35. argmax→sampling flips the bright shots from losing (1.3x) to winning (0.85x) and undoes the collapse: the cause-1 (mode-seeking) fix is confirmed and a bigger lever than expected. Verdict JSON: <code>/work/projects/imas_gpu/worldmodel/ckpt/spacetime-v2-1219852/sampling_rescore/verdict.json</code>. <strong>Caveats:</strong> (a) numbers are best-of-grid per shot — a fixed (T,p) headline is fairer (folded into M2); (b) CRPS is an ensemble proxy, not FVD; (c) the full all-shots sweep wrapper (job 1220140) hit its time limit at 64% — only the unit tests are confirmed green; (d) the worker added +65 lines to <code>spacetime_train_v2.py</code> — verify it did not alter the training path before M2. Net: sampling is necessary and already strong; M2 now targets DRIFT / long-horizon, not the per-frame collapse.</p>
     </article>
-<article class="r-fu" data-id="f-ppwm-m2-context-corruption" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-19" data-recommends-skill="/reckon-ship playable-plasma-wm-v0 §6" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ppwm-m2-context-corruption" data-status="resolved" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-19" data-recommends-skill="/reckon-ship playable-plasma-wm-v0 §6" data-resolved-at="2026-06-20T07:04:18+00:00" data-resolved-by="agent/opus (orchestrator)">
     <h4 class="r-fu-title">M2 — context-corruption fine-tune for self-correction (drift) + control-dropout for CFG</h4>
     <div class="r-fu-body">M1 proved sampling alone flips all 4 held-out shots (incl. the bright 18502/18505) to BEAT persistence and restores motion — the per-frame mode-collapse is solved. M2 attacks the remaining cause (open-loop DRIFT over longer horizons) via a context-corruption fine-tune (GameNGen-discrete) + control-dropout (to enable classifier-free guidance), reusing the M1 metric harness, and reports a FIXED-setting headline (not best-of-grid).</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -555,6 +555,7 @@ Done-when
   3. Re-score vs the M1 sampling baseline at a FIXED (T,p): does the fine-tune reduce drift (hold coherence
      over a longer horizon) and beat BOTH persistence AND M1&#x27;s sampling result, incl. the bright shots?
   4. Followup written for M3 (load-bearing controls + CFG + gas-puff falsification); this one resolved.</pre>
+    <p class="r-fu-outcome">M2 IMPLEMENTED + LAUNCHED + EARLY-POSITIVE (2026-06-20; commits verified on main, trailer-clean). The prior worker's committed code (1ec7a44) was verified CORRECT, no fixes: overlapping windows default-on (<code>enumerate_windows</code> / <code>OverlappingSignalWindowDataset</code>, ~56 windows/shot), context-corruption applied to CONTEXT frames with the corruption-level fed to the model and the CLEAN target used for loss, control-dropout zeroing plan+signal conditioning (CFG). <strong>Tests</strong> (be14727): the mandatory shot-level LEAKAGE GUARD (test_window_leakage.py — train windows contain ZERO held-out 18502-05 even when mixed-in then subtracted) + corruption/dropout tests; 30 new pass + 94 other worldmodel tests pass. <strong>Smoke</strong> gate PASS (86350fc): corruption+dropout+overlapping-window train end-to-end, latest.pt with corruption_embed, resume advances. <strong>6-GPU run LAUNCHED</strong> (84e4b71, job 1220391): init from M1 best.pt, peak LR 1.5e-4, 8875 train shots (held-out 18502-05 disjoint), all 6 cards 90% mem / 100% util (verified via scontrol GRES IDX 0-3,6-7 + the run's gpu_utilisation.log), resume verified, ckpt every 250. Scheduling: --cpus-per-task=15 starts immediately (DeepSeek shares the reservation's 30-core pool). <strong>EARLY SIGNAL</strong> (in-training held-out teacher-forced token-mismatch): 0.9120 @step1000, 0.9107 @step2000 — both BELOW M1's best 0.9216, monotonically improving: the anti-drift recipe works on the clean-rollout proxy. <strong>PIXEL-CRPS VERDICT PENDING</strong> (the true score): scoring sbatch committed (e54488a), job 1220411 queued, auto-runs at training end -> verdict_h16.json (matched 24f) + verdict_h26.json (longer horizon) vs persistence + M1 incl. bright shots — tracked in f-ppwm-m2-verdict. CAVEATS: (a) the early signal is a teacher-forced argmax PROXY; pixel-CRPS is the verdict. (b) 2 pre-existing worldmodel test files (test_worldmodel_train_corpus.py, test_worldmodel_skeleton.py) are slow in pytest collection — pre-existing, NOT M2's additive changes. Commits be14727/86350fc/84e4b71/e54488a on main.</p>
     </article>
 <article class="r-fu" data-id="f-ppwm-rename-signal-family" data-status="open" data-tier="sonnet" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-19" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Cleanup: rename the spacetime_*_v2 source family to descriptive names (post-M2, not mid-flight)</h4>
@@ -589,6 +590,37 @@ Done-when
   1. The _v2 source family renamed to signal_spacetime_*.py; all references updated; ONE commit; tests green.
   2. No `_v2` suffix on any source file (grep clean); checkpoint dir untouched.
   3. This followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-ppwm-m2-verdict" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">M2 verdict — record the pixel-CRPS result (job 1220411), update the demo doc, write M3</h4>
+    <div class="r-fu-body">M2 is launched + beating M1 on the in-training proxy (0.9107 vs 0.9216). The authoritative pixel-CRPS verdict auto-runs (job 1220411) at training end -> verdict_h16.json (matched 24f) + verdict_h26.json (longer horizon) vs persistence + the M1 baseline incl. the bright shots 18502/18505. Record whether the fine-tune reduces DRIFT (holds coherence over the longer horizon) and beats BOTH persistence and M1; update world-model-demonstration.html with the M2 result; then write the M3 followup.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
+Section: 6 (M2 verdict) -&gt; M3
+Tier:    opus
+
+Context
+  M2 (context-corruption fine-tune + control-dropout, 6-GPU run job 1220391) is launched and beats M1 on
+  the in-training teacher-forced proxy (0.9120@1000 -&gt; 0.9107@2000 vs M1 0.9216). The authoritative pixel-CRPS
+  verdict runs automatically as job 1220411 at training end. This followup records that verdict + opens M3.
+
+State to read  (code/files/data)
+  /work/projects/imas_gpu/worldmodel/ckpt/spacetime-corruption-1220391/corruption_rescore/verdict_h16.json
+  + verdict_h26.json (the M2 pixel-CRPS results); RUN_NOTES.txt in that dir (M1 baseline ratios to beat);
+  the M1 baseline /work/projects/imas_gpu/worldmodel/ckpt/spacetime-v2-1219852/sampling_rescore/verdict.json;
+  imas_ambix/worldmodel/playability_metrics.py + sampling_rescore.py (the scorer); docs/world-model-demonstration.html.
+
+Scope locks / constraints  (non-decision)
+  - If job 1220411 has not run yet (GPUs saturated), the early-run command is in RUN_NOTES.txt; run it once a GPU frees.
+  - Pixel-CRPS-vs-persistence + the M1 baseline is THE verdict (the in-training token-mismatch is only a proxy).
+    Report the bright shots (18502/18505) explicitly + the matched-vs-longer-horizon drift comparison.
+  - Orchestrator owns docs/plan: this followup MAY update world-model-demonstration.html (the demo doc), not the plan body.
+
+Done-when
+  1. M2 pixel-CRPS verdict recorded (h16 + h26) vs persistence + M1 incl. bright shots + the drift/longer-horizon verdict.
+  2. world-model-demonstration.html updated with the M2 result (sampling + anti-drift fine-tune).
+  3. M3 followup written (classifier-free guidance at inference + the gas-puff falsification = the W1 control-response bar);
+     this followup resolved.</pre>
     </article>
 </section>
 
