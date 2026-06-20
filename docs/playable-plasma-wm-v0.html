@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-20">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 </head>
 <body>
 <main class="plan-doc">
@@ -900,6 +900,31 @@ Done-when
   1. Gate-baseline fixes + scheduled-sampling implemented + tests green + committed.
   2. Re-train on the excited corpus complete (resume-safe); MULTI-SHOT held-out ΔN-M verdict with numbers (true-vs-random vs the corrected controllable-actuator noise floor) + the teacher-forced ratio.
   3. Held-out controllability EVIDENCE: dream GIFs under the true plan vs a counterfactual plan (visible steering) + the metric deltas. Report git show --stat. Do NOT proceed past the verdict without check-in.</pre>
+    </article>
+<article class="r-fu" data-id="f-ppwm-coil-voltage-actuators" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Actuator control surface = COILS (currents now, power-supply VOLTAGES as the fundamental upgrade); Ip + density are STATES, not commands</h4>
+    <div class="r-fu-body"><strong>Lead correction (2026-06-20):</strong> a proper in-silico tokamak is driven by its REAL actuators — the PF coil currents + central solenoid (sol_current) set plasma position/shape and drive Ip via transformer loop voltage; gas + NBI are secondary. The conditioning vector wrongly lumped plasma_current (Ip) AND ne_line_integrated (density) in as commands — those are measured STATES (responses): Ip responds to the solenoid, density responds to gas fueling. APPLIED to the re-train (f-ppwm-m4-retrain): actuator/command vector = PF coils + sol_current + NBI + gas; Ip + density move to OBSERVATION feeds (optional, withheld in PLAY mode); tf_current = quasi-static machine constant; the ΔN-M counterfactual PERTURBS THE COILS realistically (another real shot's commands / a physically-bounded perturbation), it does NOT hold them fixed (the gate-author's first fix had this backwards). The model already responded strongly to the coil channels (the overfit's 0.169 aggregate was largely them) — that response IS the controllability we want, previously mislabeled as 'trivial machine state.' <strong>UPGRADE (this followup):</strong> power-supply VOLTAGE is the truest actuator (coil current is the L/R response to the supply voltage). conditioning.py's docstring already references the XDC feed-forward coil voltage as an AUTHORISED demanded waveform → investigate wiring coil-voltage demands as the actuator surface for the fullest in-silico tokamak (the model then learns the coil-circuit chain voltage→current→field→plasma). Coil CURRENTS are the pragmatic surface for the current re-train; voltages are the follow-up upgrade.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
+Section: Actuator control surface — coil voltages
+Tier:    opus
+
+Context
+  The lead clarified the control surface: a proper in-silico tokamak is driven by its REAL actuators — the PF/CS COILS, and most fundamentally the power-supply VOLTAGES (coil current is the L/R response to voltage). The current re-train (f-ppwm-m4-retrain) uses coil CURRENTS (amc). This followup investigates wiring the coil-VOLTAGE demands as the actuator surface.
+
+State to read
+  imas_ambix/camdyn/conditioning.py (the docstring references &#x27;the feed-forward coil voltage&#x27; as an authorised XDC demand — find the actual signal group + keys; note the corrected reconstruction-vs-plan / leakage principle); the MAST signal catalog for XDC / power-supply voltage signals (coil-voltage demands and/or measured coil voltages); imas_ambix/worldmodel/actuator_plan.py (the actuator vector to extend, backward-compatibly).
+
+Scope locks / constraints
+  - Coil-voltage DEMANDS are the XDC feed-forward (authorised, NOT leakage — per the conditioning docstring). Confirm availability + per-shot coverage across the corpus before recommending.
+  - Decide currents-vs-voltages-vs-both: if voltages, the model must learn the coil-circuit dynamics (voltage→current→field→plasma) — weigh the added learning burden against the fuller physical fidelity (the truest in-silico tokamak).
+  - Keep Ip + line-integrated density as STATES (observation feeds), never commands. tf_current = machine constant.
+  - Figures per the user mandate (Tufte, legible, project-absolute src) if one aids the decision.
+
+Done-when
+  1. A short finding: which XDC coil-voltage signals exist, their per-shot coverage, and a recommendation (currents / voltages / both) for the actuator surface — with a figure if it aids the decision.
+  2. If recommended + low-risk: wire coil-voltage demands into the actuator vector (backward-compatible, peer API intact) + unit tests.
+  3. Followup written + this one resolved. Report git show --stat.</pre>
     </article>
 </section>
 
