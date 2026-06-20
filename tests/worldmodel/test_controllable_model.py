@@ -391,6 +391,10 @@ def test_controllability_gate_returns_structured_verdict():
             "nbi_scale_mismatch",
             "observation_mismatch",
             "plan_over_observation_ratio",
+            "cc_true_vs_zeroed_mismatch",
+            "cc_gas_scale_mismatch",
+            "cc_nbi_scale_mismatch",
+            "cc_observation_mismatch",
             "plan_variation",
             "camera_change_fraction",
         ):
@@ -400,11 +404,12 @@ def test_controllability_gate_returns_structured_verdict():
         assert v.is_transient is True
         assert v.plan_variation > 0.0
     assert "verdict" in summary and summary["verdict"] in {"PASS", "FAIL"}
+    assert summary["decision_metric"] == "corrupted_context_true_vs_zeroed"
     assert summary["n_samples"] == 2
     assert summary["n_transient"] == 2
     assert summary["gate_testable"] is True
-    # with margin_threshold 0 and a trained model that DOES depend on the
-    # actuator (asserted above), silencing the whole drive moves some tokens.
+    # the corrupted-context margin is the decision metric and is finite.
+    assert np.isfinite(summary["mean_cc_true_vs_zeroed_mismatch"])
     assert summary["mean_true_vs_zeroed_mismatch"] >= 0.0
 
 

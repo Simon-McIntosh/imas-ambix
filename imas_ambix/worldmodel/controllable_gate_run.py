@@ -190,6 +190,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--n-act-steps", type=int, default=8)
     p.add_argument("--observation-dropout", type=float, default=0.8)
     p.add_argument("--control-dropout", type=float, default=0.15)
+    p.add_argument(
+        "--context-corruption-rate",
+        type=float,
+        default=0.5,
+        help="fraction of context-frame tokens noised during overfit so the "
+        "model must lean on the conditioning (M2 recipe); 0 disables it",
+    )
     p.add_argument("--gas-scale", type=float, default=3.0)
     p.add_argument("--nbi-scale", type=float, default=3.0)
     p.add_argument("--margin-threshold", type=float, default=0.02)
@@ -268,6 +275,7 @@ def main(argv: list[str] | None = None) -> int:
         n_act_steps=args.n_act_steps,
         observation_dropout=args.observation_dropout,
         control_dropout=args.control_dropout,
+        context_corruption_rate=args.context_corruption_rate,
         transient_windows=not args.no_transient_windows,
         window=window,
         model_kwargs=model_kwargs,
@@ -328,6 +336,7 @@ def main(argv: list[str] | None = None) -> int:
                 "steps": args.steps,
                 "observation_dropout": args.observation_dropout,
                 "control_dropout": args.control_dropout,
+                "context_corruption_rate": args.context_corruption_rate,
             },
             "per_shot": [v.to_dict() for v in verdicts],
             "summary": summary,
@@ -364,10 +373,17 @@ def _print_verdict(payload: dict) -> None:
         f"overfit: initial={of['initial_loss']:.4f} -> final={of['final_loss']:.4f} "
         f"(params={of['n_parameters']}, obs_dropout={of['observation_dropout']})"
     )
+    print(
+        "Decision metric = CORRUPTED-context true-vs-zeroed margin (cc_*). The "
+        "clean-context margins read ~0 on a memorised overfit regardless of "
+        "controllability, so the gate decides on the corrupted-context reading "
+        "where the camera lookup is removed and only the conditioning can move "
+        "the prediction."
+    )
     hdr = (
         f"{'shot':>6} {'plan_var':>8} {'cam_chg':>7} {'tr':>3} | "
-        f"{'true_v_zero':>11} {'gas_scale':>9} {'gas_zero':>8} "
-        f"{'nbi_scale':>9} | {'obs':>7} {'plan/obs':>8} {'pass':>5}"
+        f"{'cc_true_v0':>10} {'cc_gas':>7} {'cc_nbi':>7} {'cc_obs':>7} | "
+        f"{'clean_t0':>8} {'pass':>5}"
     )
     print(hdr)
     print("-" * len(hdr))
@@ -377,12 +393,11 @@ def _print_verdict(payload: dict) -> None:
             f"{row.get('plan_variation', float('nan')):>8.3f} "
             f"{row.get('camera_change_fraction', float('nan')):>7.3f} "
             f"{str(row.get('is_transient'))[0]:>3} | "
-            f"{row['true_vs_zeroed_mismatch']:>11.4f} "
-            f"{row['gas_scale_mismatch']:>9.4f} "
-            f"{row['gas_zero_mismatch']:>8.4f} "
-            f"{row['nbi_scale_mismatch']:>9.4f} | "
-            f"{row['observation_mismatch']:>7.4f} "
-            f"{row['plan_over_observation_ratio']:>8.2f} "
+            f"{row.get('cc_true_vs_zeroed_mismatch', float('nan')):>10.4f} "
+            f"{row.get('cc_gas_scale_mismatch', float('nan')):>7.4f} "
+            f"{row.get('cc_nbi_scale_mismatch', float('nan')):>7.4f} "
+            f"{row.get('cc_observation_mismatch', float('nan')):>7.4f} | "
+            f"{row['true_vs_zeroed_mismatch']:>8.4f} "
             f"{str(row['passed'])[0]:>5}"
         )
     print(
@@ -391,17 +406,22 @@ def _print_verdict(payload: dict) -> None:
         f"(mean plan_variation {summary.get('mean_plan_variation', float('nan')):.3f})"
     )
     print(
-        f"mean true-vs-zeroed margin: {summary['mean_true_vs_zeroed_mismatch']:.4f} "
+        f"DECISION: mean cc true-vs-zeroed margin: "
+        f"{summary.get('mean_cc_true_vs_zeroed_mismatch', float('nan')):.4f} "
         f"(threshold {summary['margin_threshold']})"
     )
     print(
-        f"mean gas-scale margin: {summary['mean_gas_scale_mismatch']:.4f}; "
-        f"mean NBI-scale margin: {summary['mean_nbi_scale_mismatch']:.4f}"
+        f"mean cc gas-scale margin: "
+        f"{summary.get('mean_cc_gas_scale_mismatch', float('nan')):.4f}; "
+        f"mean cc NBI-scale margin: "
+        f"{summary.get('mean_cc_nbi_scale_mismatch', float('nan')):.4f}; "
+        f"mean cc observation margin (redundancy baseline): "
+        f"{summary.get('mean_cc_observation_mismatch', float('nan')):.4f}"
     )
     print(
-        f"mean observation margin (redundancy baseline): "
-        f"{summary['mean_observation_mismatch']:.4f}; "
-        f"plan/observation ratio: {summary['mean_plan_over_observation_ratio']:.2f}"
+        f"(clean-context mean true-vs-zeroed margin "
+        f"{summary['mean_true_vs_zeroed_mismatch']:.4f} — expected ~0 on a "
+        f"memorised overfit, NOT the decision metric)"
     )
     pc = payload.get("pixel_confirmation")
     if pc:

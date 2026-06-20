@@ -43,6 +43,7 @@ from imas_ambix.worldmodel.actuator_plan import (
 from imas_ambix.worldmodel.context_corruption import (
     ContextCorruptionConfig,
     apply_control_dropout,
+    corrupt_context_tokens,
     sample_control_dropout,
 )
 from imas_ambix.worldmodel.controllable_dataset import (
@@ -233,6 +234,16 @@ class OverfitControllableConfig:
     # flat-top window has no control variation to learn from or respond to, so
     # the gate would FALSELY fail.  Off => the centred window (debug).
     transient_windows: bool = True
+    # CONTEXT-corruption during overfit (the M2 recipe).  Teacher-forcing on a
+    # clean camera history lets the model MEMORISE the next frame from the camera
+    # context alone, so it never needs the conditioning — and the controllability
+    # gate then reads ~0 for EVERY conditioning (actuator and observation) on a
+    # fully-overfit model.  Corrupting a fraction of the context-frame tokens
+    # forces the model to LEAN on the conditioning prefix (plan + actuator +
+    # signals) to predict the forecast frames, so the actuator plan can actually
+    # become load-bearing — the precondition for a meaningful gate.  The loss is
+    # always scored against the CLEAN frames.  0 disables it.
+    context_corruption_rate: float = 0.5
     window: SpacetimeWindowConfig = field(default_factory=SpacetimeWindowConfig)
     model_kwargs: dict = field(default_factory=dict)
     modalities: list[SignalModalitySpec] = field(
@@ -346,6 +357,10 @@ def overfit_controllable(
     # per-step RNG for the dropout draws (reproducible).
     gen = torch.Generator(device=dev)
     drop_cfg = ContextCorruptionConfig(control_dropout=config.control_dropout)
+    clean_frames = batch["frames"]
+    ctx_frames = int(config.window.context_frames)
+    vocab_size = int(model.config.vocab_size)
+    cc_rate = float(config.context_corruption_rate)
 
     opt = torch.optim.AdamW(model.parameters(), lr=config.lr)
     losses: list[float] = []
@@ -357,6 +372,20 @@ def overfit_controllable(
                 break
             gen.manual_seed((config.seed * 7919) ^ step)
             step_batch = dict(batch)
+            # CONTEXT-corruption (M2 recipe): noise a fraction of the context-frame
+            # tokens so the model cannot memorise the next frame from a clean
+            # camera history and MUST lean on the conditioning prefix.  The loss
+            # is scored against the CLEAN frames (target_frames).
+            if cc_rate > 0.0:
+                rates = torch.full((b,), cc_rate, device=dev)
+                step_batch["frames"] = corrupt_context_tokens(
+                    clean_frames,
+                    rates,
+                    context_frames=ctx_frames,
+                    vocab_size=vocab_size,
+                    generator=gen,
+                )
+                step_batch["target_frames"] = clean_frames
             # OPTIONAL-observation dropout: zero the measured signals on a high
             # fraction of samples so the model drives from the PLAN.
             obs_drop = (
@@ -443,6 +472,7 @@ def teacher_forced_token_mismatch(
     actuator_a: dict[str, torch.Tensor] | None,
     actuator_b: dict[str, torch.Tensor] | None,
     chunk: int = 4096,
+    frames_override: torch.Tensor | None = None,
 ) -> float:
     """Fraction of next-frame argmax tokens that DIFFER between two actuator plans.
 
@@ -450,9 +480,15 @@ def teacher_forced_token_mismatch(
     differ ONLY in the actuator plan.  A POSITIVE mismatch means the actuator
     plan causally moves the predicted camera tokens — the controllability signal
     in token space (a strict lower bound on the decoded-pixel response).
+
+    ``frames_override`` swaps the teacher-forced camera history (e.g. a
+    context-corrupted copy) so the test can probe how much the actuator plan
+    moves the prediction WHEN the camera context cannot fully determine it — the
+    fair controllability reading on an overfit model that has memorised the
+    exact camera continuation (see :func:`controllability_gate`).
     """
     model.eval()
-    frames = batch["frames"]
+    frames = frames_override if frames_override is not None else batch["frames"]
     plan = batch.get("plan")
     signals = batch.get("signals")
     with _AutocastCtx(frames.device):
@@ -475,12 +511,44 @@ def _actuator_batch_from_plan(plan, device: torch.device) -> dict:
     return {"values": v, "missing": m}
 
 
+def _corrupt_all_context(
+    frames: torch.Tensor,
+    *,
+    context_frames: int,
+    vocab_size: int,
+    seed: int,
+) -> torch.Tensor:
+    """Replace EVERY context-frame token with a random in-vocab id.
+
+    On a model overfit to ~zero loss the camera CONTEXT alone reconstructs the
+    memorised continuation, so no conditioning (actuator OR observation) is
+    load-bearing on the clean-context teacher-forced test — every margin reads
+    ~0 regardless of whether the controls work.  Destroying the context (rate
+    1.0) removes that lookup shortcut: the only information left distinguishing
+    the prediction is the conditioning prefix (plan + actuator + signals), so the
+    actuator margin measured on a corrupted context is the FAIR controllability
+    reading.  Uses the M2 history-corruption noiser at full rate.
+    """
+    rates = torch.ones(frames.shape[0], device=frames.device)
+    gen = torch.Generator(device=frames.device).manual_seed(int(seed))
+    return corrupt_context_tokens(
+        frames,
+        rates,
+        context_frames=int(context_frames),
+        vocab_size=int(vocab_size),
+        generator=gen,
+    )
+
+
 @dataclass
 class ControllabilityVerdict:
     """The gate's PASS/FAIL with numbers."""
 
     shot_id: int
-    # token-space causal margins (fraction of next-frame tokens that change)
+    # CLEAN-context teacher-forced margins (fraction of next-frame tokens that
+    # change).  On a fully-overfit model the camera context alone reconstructs
+    # the memorised continuation, so these read ~0 even if the controls work —
+    # they are reported for transparency but are NOT the gate's decision metric.
     true_vs_zeroed_mismatch: float  # full plan vs silenced plan (whole drive)
     gas_scale_mismatch: float  # full plan vs gas-puff command scaled up
     gas_zero_mismatch: float  # full plan vs gas-puff command silenced
@@ -490,6 +558,15 @@ class ControllabilityVerdict:
     # if the plan is the load-bearing surface).
     observation_mismatch: float
     plan_over_observation_ratio: float
+    # CORRUPTED-context margins — the FAIR controllability reading.  With the
+    # memorised camera context destroyed, the only information distinguishing the
+    # prediction is the conditioning prefix, so a non-trivial true-vs-zeroed
+    # margin here means the actuator plan is genuinely load-bearing.  This is the
+    # gate's decision metric.
+    cc_true_vs_zeroed_mismatch: float
+    cc_gas_scale_mismatch: float
+    cc_nbi_scale_mismatch: float
+    cc_observation_mismatch: float
     n_gas_channels: int
     n_nbi_channels: int
     # how much the actuator PLAN itself varies across the window (summed
@@ -510,6 +587,10 @@ class ControllabilityVerdict:
             "nbi_scale_mismatch": self.nbi_scale_mismatch,
             "observation_mismatch": self.observation_mismatch,
             "plan_over_observation_ratio": self.plan_over_observation_ratio,
+            "cc_true_vs_zeroed_mismatch": self.cc_true_vs_zeroed_mismatch,
+            "cc_gas_scale_mismatch": self.cc_gas_scale_mismatch,
+            "cc_nbi_scale_mismatch": self.cc_nbi_scale_mismatch,
+            "cc_observation_mismatch": self.cc_observation_mismatch,
             "n_gas_channels": self.n_gas_channels,
             "n_nbi_channels": self.n_nbi_channels,
             "plan_variation": self.plan_variation,
@@ -593,6 +674,7 @@ def controllability_gate(
             scale_plan_channels(s.actuator, nbi_idx, nbi_scale), dev
         )
 
+        # CLEAN-context teacher-forced margins (transparency only — see below).
         m_true_zero = teacher_forced_token_mismatch(
             model, batch, actuator_a=full_act, actuator_b=zero_act, chunk=chunk
         )
@@ -618,14 +700,59 @@ def controllability_gate(
             model, batch, obs_zero_batch, full_act, chunk=chunk
         )
 
-        denom = max(m_obs, 1e-6)
-        ratio = float(m_true_zero / denom)
-        # only a TRANSIENT sample can pass — a flat-top window cannot fairly test
-        # controllability (no control variation to respond to).
+        # CORRUPTED-context margins — the FAIR controllability reading.  The
+        # memorised camera context is destroyed so the prediction can only differ
+        # via the conditioning prefix; the actuator margin here is genuine.
+        cc_frames = _corrupt_all_context(
+            batch["frames"],
+            context_frames=int(s.context_frames),
+            vocab_size=int(model.config.vocab_size),
+            seed=(int(s.shot_id) * 100003) ^ 0xC0,
+        )
+        cc_true_zero = teacher_forced_token_mismatch(
+            model,
+            batch,
+            actuator_a=full_act,
+            actuator_b=zero_act,
+            chunk=chunk,
+            frames_override=cc_frames,
+        )
+        cc_gas_scale = teacher_forced_token_mismatch(
+            model,
+            batch,
+            actuator_a=full_act,
+            actuator_b=gas_up_act,
+            chunk=chunk,
+            frames_override=cc_frames,
+        )
+        cc_nbi_scale = teacher_forced_token_mismatch(
+            model,
+            batch,
+            actuator_a=full_act,
+            actuator_b=nbi_up_act,
+            chunk=chunk,
+            frames_override=cc_frames,
+        )
+        cc_obs = _signal_token_mismatch(
+            model,
+            batch,
+            obs_zero_batch,
+            full_act,
+            chunk=chunk,
+            frames_override=cc_frames,
+        )
+
+        denom = max(cc_obs, 1e-6)
+        ratio = float(cc_true_zero / denom)
+        # The gate decides on the CORRUPTED-context margins (the clean-context
+        # ones are ~0 on a memorised overfit regardless of controllability).  A
+        # TRANSIENT sample PASSES when, with the camera lookup removed, the
+        # actuator plan moves the prediction (cc true-vs-zeroed > threshold) AND a
+        # per-actuator edit (gas or NBI) also moves it.
         passed = bool(
             is_transient
-            and m_true_zero > margin_threshold
-            and (m_gas_scale > margin_threshold or m_nbi_scale > margin_threshold)
+            and cc_true_zero > margin_threshold
+            and (cc_gas_scale > margin_threshold or cc_nbi_scale > margin_threshold)
         )
         verdicts.append(
             ControllabilityVerdict(
@@ -636,6 +763,10 @@ def controllability_gate(
                 nbi_scale_mismatch=m_nbi_scale,
                 observation_mismatch=m_obs,
                 plan_over_observation_ratio=ratio,
+                cc_true_vs_zeroed_mismatch=cc_true_zero,
+                cc_gas_scale_mismatch=cc_gas_scale,
+                cc_nbi_scale_mismatch=cc_nbi_scale,
+                cc_observation_mismatch=cc_obs,
                 n_gas_channels=len(gas_idx),
                 n_nbi_channels=len(nbi_idx),
                 plan_variation=plan_var,
@@ -657,23 +788,37 @@ def controllability_gate(
     mean_obs = float(np.mean([v.observation_mismatch for v in score_set]))
     mean_ratio = float(np.mean([v.plan_over_observation_ratio for v in score_set]))
     mean_plan_var = float(np.mean([v.plan_variation for v in score_set]))
-    # GATE PASS: on a MAJORITY of the TRANSIENT samples the actuator plan moves
-    # the camera AND the plan's mean causal margin beats the threshold.  Requires
-    # at least one transient window (else the gate was not fairly testable).
+    # corrupted-context means — the decision metrics.
+    mean_cc_true_zero = float(
+        np.mean([v.cc_true_vs_zeroed_mismatch for v in score_set])
+    )
+    mean_cc_gas = float(np.mean([v.cc_gas_scale_mismatch for v in score_set]))
+    mean_cc_nbi = float(np.mean([v.cc_nbi_scale_mismatch for v in score_set]))
+    mean_cc_obs = float(np.mean([v.cc_observation_mismatch for v in score_set]))
+    # GATE PASS: on a MAJORITY of the TRANSIENT samples, with the memorised
+    # camera context removed, the actuator plan moves the camera (cc margin) AND
+    # the mean cc margin beats the threshold.  Requires at least one transient
+    # window (else the gate was not fairly testable).  The clean-context margin
+    # is NOT used — it reads ~0 on a memorised overfit regardless.
     gate_pass = bool(
         n_transient > 0
         and n_pass >= max(1, len(score_set) // 2 + 1)
-        and mean_true_zero > margin_threshold
+        and mean_cc_true_zero > margin_threshold
     )
     summary = {
         "n_samples": len(verdicts),
         "n_transient": n_transient,
         "n_pass": n_pass,
+        "decision_metric": "corrupted_context_true_vs_zeroed",
         "mean_true_vs_zeroed_mismatch": mean_true_zero,
         "mean_gas_scale_mismatch": mean_gas,
         "mean_nbi_scale_mismatch": mean_nbi,
         "mean_observation_mismatch": mean_obs,
         "mean_plan_over_observation_ratio": mean_ratio,
+        "mean_cc_true_vs_zeroed_mismatch": mean_cc_true_zero,
+        "mean_cc_gas_scale_mismatch": mean_cc_gas,
+        "mean_cc_nbi_scale_mismatch": mean_cc_nbi,
+        "mean_cc_observation_mismatch": mean_cc_obs,
         "mean_plan_variation": mean_plan_var,
         "margin_threshold": margin_threshold,
         "transient_threshold": transient_threshold,
@@ -695,14 +840,17 @@ def _signal_token_mismatch(
     actuator: dict[str, torch.Tensor] | None,
     *,
     chunk: int = 4096,
+    frames_override: torch.Tensor | None = None,
 ) -> float:
     """Next-frame token mismatch between full-signals and zeroed-signals forwards.
 
     Same actuator + plan + frames; only the measured-signal blocks differ.  This
     is the redundant-observation effect the actuator-plan margin must beat.
+    ``frames_override`` swaps the teacher-forced camera history (e.g. a
+    corrupted-context copy) for the fair reading on a memorised overfit.
     """
     model.eval()
-    frames = batch_full["frames"]
+    frames = frames_override if frames_override is not None else batch_full["frames"]
     plan = batch_full.get("plan")
     with _AutocastCtx(frames.device):
         ha = _forward_with_actuator(

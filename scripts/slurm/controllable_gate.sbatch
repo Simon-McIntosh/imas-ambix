@@ -68,6 +68,7 @@ source "${VENV}/bin/activate"
 : "${WM_LR:=3e-4}"
 : "${WM_OBS_DROPOUT:=0.8}"
 : "${WM_CONTROL_DROPOUT:=0.15}"
+: "${WM_CONTEXT_CORRUPTION:=0.5}"
 : "${WM_GAS_SCALE:=3.0}"
 : "${WM_NBI_SCALE:=3.0}"
 : "${WM_MARGIN:=0.02}"
@@ -114,6 +115,7 @@ python -m imas_ambix.worldmodel.controllable_gate_run \
     --lr "${WM_LR}" \
     --observation-dropout "${WM_OBS_DROPOUT}" \
     --control-dropout "${WM_CONTROL_DROPOUT}" \
+    --context-corruption-rate "${WM_CONTEXT_CORRUPTION}" \
     --gas-scale "${WM_GAS_SCALE}" \
     --nbi-scale "${WM_NBI_SCALE}" \
     --margin-threshold "${WM_MARGIN}" \
