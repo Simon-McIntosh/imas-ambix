@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="excitation-corpus-characterization">
+  <meta name="plan-title"    content="Characterising a Dynamic-Excitation Corpus — Coil Ramp-Rate, Plasma Presence, Long-Horizon Windows, and Exposure Balance">
+  <meta name="plan-summary"  content="Characterisation of the rbb camera corpus to build the dynamically-weighted, plasma-present, long-horizon, exposure-balanced training corpus that supplies the action-excitation the camera world model is missing. Panel of 331 rbb-bearing shots. Findings: (1) the rbb cadence spans ~250x (50 Hz-143 kHz), so window length must be a per-shot conversion from a target PHYSICAL horizon (~0.25 s) via fps, not a fixed frame count; (2) ~16% of recordings are near-vacuum (max|Ip| < 20 kA), with a clean bimodal valley that justifies a 20 kA plasma-presence cut; (3) coil |dI/dt| excitation is bursty, concentrated at breakdown and discrete events, so a ramp-rate selector that FINDS the excited window is load-bearing; (4) per-shot brightness spans ~2900x across mixed 8/10-bit sensors, and the v0 global min/max stretch is crushed by single saturated pixels — a robust per-shot percentile transform is the recommended exposure balance for a SUBSET re-encode of the curated segments. Ships the curation pipeline (selector, presence filter, window recommendation, exposure transform) + a gated compute estimate for the full re-encode.">
+  <meta name="plan-informs"  content="playable-plasma-wm-v0">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <title>Characterising a Dynamic-Excitation Corpus | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Reading note (research).</strong> The
+<a href="control-conditioning-survey.html">control-conditioning survey</a> §4 concluded that the
+camera world model ignores its actuator plan partly for a <em>causal</em> reason: observational
+flat-top data is confounded (operators set the plan in response to state) and <strong>not persistently
+exciting</strong> (flat-top action variance ≈ 0), so the control→camera map is statistically
+under-identified — "making the plasma driveable is a data/excitation problem as much as a modelling
+one." This doc characterises the rbb camera corpus to build the missing excitation: a
+<strong>dynamically-weighted, plasma-present, long-horizon, exposure-balanced</strong> curated corpus.
+It runs in PARALLEL with the M4 model re-design and feeds the eventual re-train (not the overfit gate).
+Acronyms expanded on first use. All numbers from a panel of <strong>331 rbb-bearing shots</strong>
+(of 400 sampled, evenly spread across the 11,012-shot corpus id range; 69 had no readable rbb/Ip
+record).</p>
+
+<h2 id="s1">§1 — What the corpus actually looks like (the four binding facts)</h2>
+<p>Four measured properties shape every curation decision. Each is a lever the lead named; the data
+either confirms the instinct or sharpens the threshold.</p>
+<ul>
+  <li><strong>The camera cadence is wildly heterogeneous (the binding constraint).</strong> The rbb
+  frame rate spans <strong>50 Hz → 143 kHz</strong> (median ~3 kHz; 18 % ≤ 700 Hz, 29 % at 0.7–2 kHz,
+  30 % at 2–20 kHz, 22 % &gt; 20 kHz). Only <strong>5 %</strong> of shots sit near the nominal 600 Hz.
+  A recording lasts only ~0.1–0.5 s (median 0.36 s). <em>Consequence:</em> a fixed frame count means a
+  different physical horizon on every shot — the long-horizon window must be specified in
+  <strong>seconds</strong> and converted to frames per-shot (§4).</li>
+  <li><strong>~1 in 6 recordings is near-vacuum.</strong> ``max|Ip|`` over the camera window is
+  bimodal — a vacuum cluster (10th percentile 4.9 kA) and a real-plasma cluster (median 707 kA) with a
+  clean valley between. <strong>16 %</strong> of recordings never clear 20 kA (Fig 1b). <em>Consequence:</em>
+  a plasma-presence filter is mandatory, and the bimodality hands us the threshold (§3).</li>
+  <li><strong>Coil excitation is bursty, not flat.</strong> The summed coil ramp rate ``|dI/dt|`` is
+  concentrated at breakdown (median breakdown offset 2.5 ms into the recording) and at discrete events,
+  near-zero in between (Fig 2a). <em>Consequence:</em> a selector that FINDS the excited window inside
+  each recording is load-bearing — most of every shot is unexciting (§2).</li>
+  <li><strong>Brightness spans ~2900× across mixed bit-depth sensors.</strong> Per-shot median frame
+  brightness ranges from ~0 to 873 raw counts; 305 shots are 8-bit (max ≤ 255), 26 are 10-bit
+  (max ≤ 1023). The v0 global min/max stretch is fragile to exactly this (Fig 4). <em>Consequence:</em>
+  a robust per-shot exposure transform for the curated subset re-encode (§5).</li>
+</ul>
+
+<h2 id="s2">§2 — Coil ramp-rate |dI/dt| is the excitation signal</h2>
+<p>The survey's persistent-excitation argument says the action→response map is identifiable only where
+the input <em>varies</em>. The operator's input is the <strong>poloidal-field + central-solenoid coil
+currents</strong> (the ``amc`` source — already in the conditioning vector). Their <strong>ramp rate</strong>
+``|dI/dt|`` is the variation that matters; the plasma current ``Ip`` is the <em>response</em>, not a
+command, so it is kept out of the drive columns and used only for plasma-presence. (PF/CS coil currents
+and Ip are both already available via the ``amc`` source — no new data source is needed.)</p>
+<p>Figure 2a is the decisive picture: the summed coil ``|dI/dt|`` spikes at breakdown and at a few
+discrete events, and is otherwise flat. A window scored on the <em>level</em> standard deviation of the
+actuator vector (the existing controllability-gate selector,
+<code>find_transient_window</code>) would not distinguish a high-but-flat coil current from a ramping
+one. The curation selector therefore scores the <strong>time-mean of the summed per-coil ``|dI/dt|``</strong>
+over a sliding window — a level-invariant measure, so a flat current scores ~0 and a ramp scores high —
+and additionally <strong>de-prioritises disruption tails</strong> (a window dominated by a sharp ``|Ip|``
+collapse is down-weighted by ½; disruption tails are abundant but, per the lead, "perhaps not that
+useful" for learning the driven dynamics). Per-shot available excitation (the peak windowed score) has
+a median of ~<strong>86 MA/s</strong> with a long tail to ~2.8 GA/s (Fig 2b).</p>
+
+<figure>
+  <img src="/imas-ambix/figures/excitation-corpus/fig2-coil-excitation.png"
+       alt="Coil dI/dt excitation traces and the per-shot peak-excitation distribution" style="width:100%;max-width:1000px">
+  <figcaption><strong>Figure 2 — coil excitation is bursty, and a selector must find it.</strong>
+  (a) Summed coil ``|dI/dt|`` (MA/s) over three example camera windows: large spikes at breakdown
+  (≈0 ms) and at discrete events (≈190 ms, ≈310 ms), flat in between. (b) Per-shot peak windowed coil
+  excitation (log axis): most shots carry real excitation somewhere in the recording (median 86 MA/s),
+  but it is concentrated — the curation selector scores the time-mean coil ``|dI/dt|`` of a sliding
+  window so it lands on the excited segment, not the flat-top.</figcaption>
+</figure>
+
+<h2 id="s3">§3 — Plasma presence: the 20 kA cut is in the bimodal valley</h2>
+<p>A "play the plasma" model must train on plasma, not vacuum. The criterion (justified directly from
+Fig 1b): a window is plasma-present when its ``max|Ip|`` clears <strong>20 kA</strong> AND at least
+<strong>half</strong> its frames individually carry ``|Ip| ≥ 20 kA``. The threshold is not arbitrary —
+the ``max|Ip|`` distribution is bimodal with a clean valley between the vacuum cluster (≈5–15 kA) and
+the real-plasma cluster (≈400–1000 kA); 20 kA sits in that valley, rejecting the 16 % near-vacuum
+recordings without clipping genuine plasma.</p>
+<p>Crucially, a window is <strong>allowed to start at ``Ip ≈ 0``</strong> — breakdown/initiation is
+exactly the dynamic phase we want, and the median recording <em>starts</em> 2.5 ms after breakdown
+(Fig 1c). The half-fraction gate admits a window whose first frames are sub-threshold (the plasma is
+forming) while rejecting one that only briefly flickers into plasma. The fraction gate is deliberately
+permissive (0.5, keeping 79 % of shots) because the hard ``max|Ip|`` gate already removes vacuum; a
+stricter 0.8 would keep only 42 % and would discard genuine breakdown windows.</p>
+
+<figure>
+  <img src="/imas-ambix/figures/excitation-corpus/fig1-ip-presence.png"
+       alt="Ip traces, max|Ip| distribution with the 20 kA cut, and breakdown-offset distribution" style="width:100%;max-width:1000px">
+  <figcaption><strong>Figure 1 — plasma current over the camera window.</strong> (a) Example Ip(t)
+  traces (near-vacuum, mid, high-current). (b) ``max|Ip|`` is <em>bimodal</em>: a vacuum cluster and a
+  real-plasma cluster with a clean valley; the 20 kA cut (red) rejects 53/331 = 16 % near-vacuum
+  recordings. (c) Breakdown offset into the camera window — most recordings start essentially at
+  breakdown (median 2.5 ms), so a window beginning at ``Ip ≈ 0`` is the norm, not an edge case.</figcaption>
+</figure>
+
+<h2 id="s4">§4 — Long-horizon windows: a physical horizon, converted per-shot</h2>
+<p>The current spatiotemporal window is 24 frames at stride 1 — at 600 Hz that is ~40 ms, far shorter
+than a MAST ramp-up (Ip 10–90 % rise: median <strong>125 ms</strong>, 90th percentile 340 ms). To
+predict over "much longer times than the current window" (lead requirement iii) the window must span at
+least a full ramp-up. The complication is the ~250× cadence spread (Fig 3a): a fixed frame count cannot
+span a fixed physical time.</p>
+<p>The recommendation is therefore a <strong>target physical horizon</strong>, converted to a frame span
+per shot via that shot's measured fps: the native (stride-1) span is
+<code>round(horizon · fps) + 1</code>; when that exceeds a temporal-budget cap on ``n_frames`` (default
+48, twice the current 24), a <code>frame_stride</code> sub-samples so the modelled span still reaches
+the horizon while ``n_frames`` stays within the attention budget. We recommend a
+<strong>0.25 s horizon</strong>: it contains the full ramp-up for <strong>74 %</strong> of shots
+(Fig 3b) plus a lead-in and a little early flat-top, and fits within the median 0.36 s recording. Across
+the entire 50 Hz–143 kHz range the recommendation delivers a near-constant ~0.25 s covered horizon
+(Fig 3c) — exactly what a fixed frame count cannot do.</p>
+
+<figure>
+  <img src="/imas-ambix/figures/excitation-corpus/fig3-window-horizon.png"
+       alt="fps distribution, ramp-up duration distribution, and recommended n_frames/stride vs fps" style="width:100%;max-width:1000px">
+  <figcaption><strong>Figure 3 — deriving the window length from fps + ramp-up.</strong> (a) The rbb
+  cadence is multi-modal and spans ~250× (clusters near 600 Hz, 1 kHz, 10 kHz, 100 kHz; the 600 Hz
+  reference is red). (b) Ip ramp-up duration; a 0.25 s window (black) covers 74 % of ramps. (c) The
+  per-shot recommendation: ``n_frames`` (blue, capped at 48) and ``frame_stride`` (dashed, log) as a
+  function of fps for a fixed 0.25 s horizon — stride absorbs the cadence so every shot spans the same
+  physical time.</figcaption>
+</figure>
+
+<h2 id="s5">§5 — Exposure balance: robust per-shot percentile clip, on a SUBSET re-encode</h2>
+<p>Brightness lives in PIXELS, before tokenisation. The corpus tokeniser
+(<code>_normalise_frames_to_uint8</code>, mirrored in the stream encoder) currently does a per-shot
+<strong>global min/max</strong> stretch — and its own docstring flags it as a v0 ("more careful
+normalisation can come later"). The characterisation shows why "later" is now: per-shot brightness
+spans ~<strong>2900×</strong> across the corpus (Fig 4a) and the sensors are mixed 8/10-bit (Fig 4b).
+Global min/max is fragile to exactly this — a single saturated reflection or a dark-dropout frame pins
+``min``/``max`` and compresses the whole shot's usable range, so the same plasma feature lands at a
+different token after stretch on different shots. That inconsistency is brightness leaking into the
+tokens — the opposite of bringing shots to a common <em>relative</em> brightness.</p>
+<p>Figure 4c is the demonstration: a synthetic plasma blob with one saturated reflection pixel. Under
+the v0 global stretch the blob is nearly invisible (crushed into the bottom of the range by the one hot
+pixel); under a per-shot <strong>percentile clip</strong> (discard the brightest 0.5 % and darkest 1 %,
+then stretch) the blob fills the range. <strong>Recommended strategy:</strong> per-shot percentile-clip
+normalisation as the corpus default (cheap, deterministic, pure-numpy, no per-frame flicker); per-frame
+CLAHE (Contrast-Limited Adaptive Histogram Equalisation) only as a targeted option for the minority of
+low-contrast shots, profiled automatically. <strong>Where it applies:</strong> a re-encode of the
+<em>curated dynamic segments only</em> — NOT the full 4 B-token corpus (§7). CLAHE needs OpenCV, which
+the ambix env does not ship; the pipeline degrades a CLAHE recommendation to the percentile transform
+when OpenCV is absent, so the default path is always available.</p>
+
+<figure>
+  <img src="/imas-ambix/figures/excitation-corpus/fig4-brightness-exposure.png"
+       alt="Per-shot brightness spread, sensor bit-depth, and global-vs-percentile stretch demo" style="width:100%;max-width:1000px">
+  <figcaption><strong>Figure 4 — the exposure problem and the robust fix.</strong> (a) Per-shot median
+  frame brightness spans ~2900× (bimodal: a dim cluster and a bright cluster). (b) Mixed sensor
+  bit-depth: 305 shots 8-bit, 26 shots 10-bit. (c) The same plasma blob with one saturated reflection
+  pixel: the v0 global min/max stretch (left) crushes the blob; a per-shot percentile clip (right)
+  keeps it visible. The robust transform brings shots to a common relative brightness.</figcaption>
+</figure>
+
+<h2 id="s6">§6 — The curation pipeline (shipped + unit-tested)</h2>
+<p>All additions are backward-compatible — the existing <code>find_transient_window</code> and
+<code>assemble_controllable_window</code> APIs (used by the parallel M4 gate) are untouched; the new
+behaviour is new functions / new modules / optional kwargs.</p>
+<table>
+  <thead><tr><th>Component</th><th>Where</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Coil-ramp excitation selector</td>
+      <td><code>actuator_plan.find_excitation_window</code><br>(+ <code>coil_current_channel_indices</code>,
+      <code>plasma_current_channel_index</code>)</td>
+      <td>Slides a window over the recording, scores time-mean summed coil ``|dI/dt|``, enforces
+      plasma-presence, de-prioritises disruption tails. Returns the excited window's start frame +
+      score + ``max|Ip|`` + present-fraction, or a rejection reason
+      (<code>no_plasma</code>/<code>flat_drive</code>/<code>too_short</code>/<code>unreadable</code>).</td>
+    </tr>
+    <tr>
+      <td>Plasma-presence filter</td>
+      <td><code>plasma_presence</code> (new)</td>
+      <td>Per-frame ``|Ip|`` presence mask + the window criterion (``max|Ip| ≥ 20 kA`` AND
+      present-fraction ≥ 0.5). A window may start at ``Ip ≈ 0`` (breakdown) provided plasma forms within
+      it.</td>
+    </tr>
+    <tr>
+      <td>Long-horizon window recommendation</td>
+      <td><code>window_horizon</code> (new)</td>
+      <td>Converts a target physical horizon (s) + per-shot fps into ``n_frames`` / ``frame_stride``,
+      capped at a temporal budget; builds a ready <code>SpacetimeWindowConfig</code>.</td>
+    </tr>
+    <tr>
+      <td>Exposure-balancing transform</td>
+      <td><code>exposure_balance</code> (new)</td>
+      <td>Per-shot percentile-clip stretch (robust drop-in for the v0 global min/max) + optional
+      per-frame CLAHE; <code>profile_exposure</code> recommends which; <code>balance_exposure("auto")</code>
+      degrades to percentile when OpenCV is absent.</td>
+    </tr>
+  </tbody>
+</table>
+<p>Unit tests (<code>tests/worldmodel/test_excitation_curation.py</code>, 23 cases on synthetic
+in-memory stores) cover: coil columns exclude Ip and are disjoint from gas/NBI; the selector picks the
+coil ramp, rejects vacuum, rejects flat drive, and admits a breakdown-start window; the presence filter
+accepts a present window, rejects vacuum, admits a breakdown start, and rejects a brief flicker; the
+window recommendation holds the physical horizon constant across a 250× fps range and falls back to the
+reference fps when fps is non-finite; the percentile transform is robust to a saturated outlier,
+preserves RGB layout, and matches the v0 all-zeros contract on a flat frame; and an assertion that
+``find_transient_window``'s signature is unchanged (the parallel gate's contract).</p>
+
+<h2 id="s7">§7 — Proof-of-concept corpus + the gated full re-encode</h2>
+<p>A small proof-of-concept curated corpus (a handful of dynamic, plasma-present shots; long windows;
+exposure-balanced) is built end-to-end to validate the pipeline. The
+<strong>full re-encode is GATED</strong> behind a lead check-in — it is the only multi-hour GPU step and
+must not run unannounced.</p>
+<p><strong>Compute estimate for the full curated re-encode.</strong> The production encoder
+(<code>stream_encode.py</code>) measured ~308 fps/GPU peak and encoded 4.02 B tokens in ~7 h on a single
+GPU. The curated corpus is a SUBSET — only the dynamic, plasma-present segments of the dynamic shots,
+each one long window — so it is far smaller than the full corpus. With a 0.25 s window and the
+per-shot stride, a curated window is at most ``n_frames`` ≤ 48 frames = 48 × 256 = ~12.3 k tokens; even
+at, say, 3,000 curated shots that is ~37 M tokens — under 1 % of the full corpus, well under
+<strong>1 GPU-hour</strong> of encode at the measured throughput (the dominant cost is per-frame model
+forward, and a curated subset has orders of magnitude fewer frames than the full ~600 Hz–143 kHz
+recordings). The re-encode therefore fits comfortably on a single betelgeuse GPU coexisting with the
+DeepSeek serve, in-process and SIGTERM-clean per AGENTS.md §2b. <strong>Recommendation:</strong> run the
+PoC (handful of shots) now to validate; hold the full curated re-encode for the lead's go, then run it
+as a single ≤1 GPU-hour in-process job.</p>
+
+<h2 id="s8">§8 — What this changes for the re-train</h2>
+<p>The curated corpus addresses the survey's deepest cause (causal under-identification) on the data
+side, complementing the M4 model re-design (history-bottleneck + AdaLN + inverse-dynamics) on the
+architecture side. Concretely the re-train should: enumerate <strong>excited</strong> windows (selector
+score above a floor) from <strong>plasma-present</strong> dynamic shots, at a <strong>per-shot
+long-horizon</strong> window (~0.25 s), on <strong>exposure-balanced</strong> tokens — with whole
+held-out shots (18502–18505 and the discovery-index reserve) kept out of the curated training set, the
+shot-level leakage guard unchanged. The honest expectation from the survey stands: if the logged data is
+genuinely unexciting even after this curation, the binding next step is a handful of <em>perturbative /
+interventional</em> shots or simulator-swept inputs — but this corpus extracts the maximum excitation the
+existing logs contain, which is the right first move.</p>
+
+</main>
+</body>
+</html>
