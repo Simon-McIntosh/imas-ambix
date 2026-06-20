@@ -330,6 +330,22 @@ def main(argv: list[str] | None = None) -> int:
         "from consecutive latents); 0 disables it",
     )
     p.add_argument("--adaln-hidden", type=int, default=256)
+    # ── scheduled sampling / rollout-in-the-loop ──
+    p.add_argument(
+        "--scheduled-sampling-max",
+        type=float,
+        default=0.0,
+        help="max scheduled-sampling probability (forecast-window frames replaced "
+        "by the model's own predictions during training, ramped from 0). Closes "
+        "the 1-step->rollout gap. 0 = pure teacher forcing.",
+    )
+    p.add_argument(
+        "--scheduled-sampling-ramp",
+        type=float,
+        default=0.5,
+        help="fraction of training over which the scheduled-sampling probability "
+        "ramps from 0 to the max, then held",
+    )
     # ── ΔN-M gate ──
     p.add_argument(
         "--n-random",
@@ -483,6 +499,8 @@ def main(argv: list[str] | None = None) -> int:
                 levels=int(getattr(args, "hb_levels_for_ckpt", 8)),
             ),
             inverse_dynamics_weight=inv_dyn_weight,
+            scheduled_sampling_max=args.scheduled_sampling_max,
+            scheduled_sampling_ramp=args.scheduled_sampling_ramp,
             transient_windows=not args.no_transient_windows,
             window=window,
             model_kwargs=model_kwargs,

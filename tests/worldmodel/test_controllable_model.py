@@ -792,3 +792,125 @@ def test_physical_command_floor_when_channel_flat_zero():
     )
     levels = _physical_command_levels(plan, [0, 1])
     assert all(abs(lv) > 0.0 for lv in levels)
+
+
+# ---------------------------------------------------------------------------
+# Scheduled sampling / rollout-in-the-loop (M4 re-train)
+# ---------------------------------------------------------------------------
+
+
+def test_scheduled_sampling_prob_ramps():
+    from imas_ambix.worldmodel.controllable_train import (
+        OverfitControllableConfig,
+        _scheduled_sampling_prob,
+    )
+
+    cfg = OverfitControllableConfig(
+        steps=100, scheduled_sampling_max=0.5, scheduled_sampling_ramp=0.5
+    )
+    assert _scheduled_sampling_prob(0, 100, cfg) == 0.0
+    # at the ramp midpoint (step ~25 of 100, ramp 0.5 -> full at step 50) it's ~half.
+    mid = _scheduled_sampling_prob(25, 100, cfg)
+    assert 0.2 < mid < 0.3
+    # held at the max past the ramp end.
+    assert abs(_scheduled_sampling_prob(50, 100, cfg) - 0.5) < 1e-6
+    assert abs(_scheduled_sampling_prob(99, 100, cfg) - 0.5) < 1e-6
+    # disabled when max is 0.
+    off = OverfitControllableConfig(steps=100, scheduled_sampling_max=0.0)
+    assert _scheduled_sampling_prob(50, 100, off) == 0.0
+
+
+def test_scheduled_sampling_mix_prob_zero_is_identity():
+    from imas_ambix.worldmodel.controllable_train import _scheduled_sampling_mix
+
+    cfg = _tiny_cfg()
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, b=2, t=6, seed=4)
+    clean = batch["frames"].clone()
+    out = _scheduled_sampling_mix(
+        model,
+        batch,
+        clean,
+        context_frames=3,
+        prob=0.0,
+        chunk=64,
+        generator=torch.Generator().manual_seed(0),
+    )
+    assert torch.equal(out, batch["frames"])
+
+
+def test_scheduled_sampling_mix_replaces_forecast_holds_context():
+    """At prob=1 the forecast frames become the model's predictions; context held."""
+    from imas_ambix.worldmodel.controllable_train import _scheduled_sampling_mix
+
+    cfg = _tiny_cfg()
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, b=2, t=6, seed=5)
+    clean = batch["frames"].clone()
+    ctx = 3
+    out = _scheduled_sampling_mix(
+        model,
+        batch,
+        clean,
+        context_frames=ctx,
+        prob=1.0,
+        chunk=64,
+        generator=torch.Generator().manual_seed(1),
+    )
+    # context frames (< ctx) are held at the truth.
+    assert torch.equal(out[:, :ctx], clean[:, :ctx])
+    # at least one forecast frame changed (replaced by a model prediction that
+    # differs from the random clean token on an untrained model).
+    assert not torch.equal(out[:, ctx:], clean[:, ctx:])
+    # the helper is non-mutating: the input batch frames are untouched (it returns
+    # a NEW tensor), so the caller still holds the clean frames for the loss target.
+    assert torch.equal(batch["frames"], clean)
+
+
+def test_scheduled_sampling_in_overfit_smoke():
+    """A few overfit steps WITH scheduled sampling run without error + loss drops."""
+    cfg = _tiny_cfg(actuator_channels=N_ACTUATOR_CHANNELS)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg)
+    batch = _rand_batch(cfg, b=2, t=6, seed=6)
+    batch["actuator"]["values"] = batch["actuator"]["values"] * 2.0
+    opt = torch.optim.AdamW(model.parameters(), lr=3e-3)
+    from imas_ambix.worldmodel.controllable_train import (
+        OverfitControllableConfig,
+        _scheduled_sampling_mix,
+        _scheduled_sampling_prob,
+    )
+
+    cfg_o = OverfitControllableConfig(
+        steps=20, scheduled_sampling_max=0.5, scheduled_sampling_ramp=0.3
+    )
+    losses = []
+    model.train()
+    for step in range(20):
+        sb = dict(batch)
+        sb["target_frames"] = batch["frames"]
+        p = _scheduled_sampling_prob(step, cfg_o.steps, cfg_o)
+        if p > 0.0:
+            sb["frames"] = _scheduled_sampling_mix(
+                model,
+                sb,
+                batch["frames"],
+                context_frames=2,
+                prob=p,
+                chunk=64,
+                generator=torch.Generator().manual_seed(step),
+            )
+        opt.zero_grad(set_to_none=True)
+        loss = model(
+            sb,
+            loss_spec={
+                "chunk": 64,
+                "context_frames": 2,
+                "inverse_dynamics_weight": 1.0,
+            },
+        )
+        loss.backward()
+        opt.step()
+        losses.append(float(loss))
+    assert losses[-1] < losses[0]  # it still learns with scheduled sampling on

@@ -260,6 +260,80 @@ def _drop_observations(
     return out
 
 
+def _scheduled_sampling_prob(step: int, total_steps: int, cfg) -> float:
+    """Linear ramp of the scheduled-sampling probability from 0 to the max.
+
+    0 for the first instant, rising linearly to ``scheduled_sampling_max`` at
+    ``scheduled_sampling_ramp`` of training, then held at the max — the standard
+    scheduled-sampling schedule (Bengio et al. 2015): start fully teacher-forced
+    (the model can't predict its own frames yet), hand it more of its own
+    predictions as it learns.
+    """
+    pmax = float(getattr(cfg, "scheduled_sampling_max", 0.0))
+    if pmax <= 0.0 or total_steps <= 1:
+        return 0.0
+    ramp = max(1e-6, float(getattr(cfg, "scheduled_sampling_ramp", 0.5)))
+    frac = (step / float(total_steps - 1)) / ramp
+    return float(min(max(frac, 0.0), 1.0) * pmax)
+
+
+@torch.no_grad()
+def _scheduled_sampling_mix(
+    model: ControllableSpacetimeTransformer,
+    step_batch: dict,
+    clean_frames: torch.Tensor,
+    *,
+    context_frames: int,
+    prob: float,
+    chunk: int,
+    generator: torch.Generator,
+) -> torch.Tensor:
+    """Replace FORECAST-window context frames with the model's own predictions.
+
+    Runs ONE no-grad teacher-forced forward over the current ``step_batch`` (the
+    history bottleneck / dropouts already applied), argmax-decodes every frame,
+    and for each forecast-window frame ``t >= context_frames`` replaces its tokens
+    with the model's prediction-of-``t`` (the argmax of ``hidden[:, t-1]``) with
+    per-(sample, frame) probability ``prob``.  Returns the mixed ``frames`` tensor
+    to feed the grad forward; the loss TARGET stays ``clean_frames``.  At
+    ``prob == 0`` returns the input frames unchanged.
+
+    This makes the next-frame loss + inverse-dynamics depend on the model's OWN
+    generated dynamics over the forecast window (rollout-in-the-loop), so a
+    load-bearing plan has to steer the GENERATED trajectory, not just the one-step
+    teacher-forced prediction — the gap the de-risk gate exposed.
+    """
+    frames = step_batch["frames"]
+    if prob <= 0.0 or frames.ndim != 3:
+        return frames
+    b, t, s = frames.shape
+    ctx = int(max(0, min(context_frames, t)))
+    if ctx >= t:
+        return frames
+    model.eval()
+    with _AutocastCtx(frames.device):
+        hidden = model._forward_tokens(
+            frames,
+            step_batch.get("plan"),
+            step_batch.get("signals"),
+            step_batch.get("corruption_level"),
+            actuator=step_batch.get("actuator"),
+            context_frames=ctx,
+        )
+    model.train()
+    mixed = frames.clone()
+    # predict each forecast frame t (>= ctx) from hidden[:, t-1] and splice it in
+    # with per-(sample, frame) Bernoulli(prob).
+    for ti in range(ctx, t):
+        pred = model.chunked_argmax_frame(hidden[:, ti - 1], chunk=chunk)  # (b, s)
+        take = (
+            torch.rand(b, generator=generator, device=frames.device) < prob
+        )  # (b,)
+        if bool(take.any()):
+            mixed[take, ti] = pred[take]
+    return mixed
+
+
 # ---------------------------------------------------------------------------
 # Overfit (the GATE training phase)
 # ---------------------------------------------------------------------------
@@ -305,6 +379,18 @@ class OverfitControllableConfig:
     # latents (Schmidt & Jiang Prop 4.4 forces the action into the latent).  We
     # have 100% plan labels so it is cheap; 0 disables it.
     inverse_dynamics_weight: float = 1.0
+    # SCHEDULED SAMPLING / rollout-in-the-loop — closes the 1-step->rollout gap (the
+    # de-risk's visible failure mode: the plan moved the teacher-forced one-step
+    # prediction but NOT a free-running rollout).  With probability ramping from 0
+    # to ``scheduled_sampling_max`` over ``scheduled_sampling_ramp`` fraction of
+    # training, each FORECAST-window frame is replaced (for CONTEXT purposes) by
+    # the model's OWN argmax prediction before the grad forward, so the next-frame
+    # loss + inverse-dynamics are enforced on GENERATED dynamics — where the plan
+    # must actually steer.  The loss TARGET stays the clean frames.  0 disables it
+    # (pure teacher forcing).  Costs one extra no-grad forward on the steps it
+    # fires (Bengio et al. 2015 scheduled sampling, batched two-pass form).
+    scheduled_sampling_max: float = 0.0
+    scheduled_sampling_ramp: float = 0.5
     window: SpacetimeWindowConfig = field(default_factory=SpacetimeWindowConfig)
     model_kwargs: dict = field(default_factory=dict)
     modalities: list[SignalModalitySpec] = field(
@@ -507,6 +593,26 @@ def overfit_controllable(
                     am = act["missing"].clone()
                     av[ctrl_drop] = 0.0
                     step_batch["actuator"] = {"values": av, "missing": am}
+
+            # SCHEDULED SAMPLING: splice the model's OWN predictions into the
+            # forecast-window context (rollout-in-the-loop) so the loss +
+            # inverse-dynamics are enforced on GENERATED dynamics.  The TARGET stays
+            # the clean frames; only the model-input frames are mixed.
+            ss_prob = _scheduled_sampling_prob(step, config.steps, config)
+            if ss_prob > 0.0:
+                ss_gen = torch.Generator(device=dev).manual_seed(
+                    (config.seed * 2_750_159) ^ step
+                )
+                step_batch["frames"] = _scheduled_sampling_mix(
+                    model,
+                    step_batch,
+                    clean_frames,
+                    context_frames=ctx_frames,
+                    prob=ss_prob,
+                    chunk=config.chunk,
+                    generator=ss_gen,
+                )
+                step_batch["target_frames"] = clean_frames
 
             opt.zero_grad(set_to_none=True)
             with _AutocastCtx(dev):
