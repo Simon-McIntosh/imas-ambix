@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-20">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 </head>
 <body>
 <main class="plan-doc">
@@ -681,7 +681,7 @@ Done-when
      this followup resolved.</pre>
     <p class="r-fu-outcome">M2 VERDICT — CLEAN WIN (2026-06-20). Training (job 1220391) COMPLETED 5h37m exit 0 (step 12000); scoring (job 1220411) COMPLETED — pixel-CRPS via the M1 harness on best.pt. Best-sampling CRPS-ratio vs persistence (below 1 = beats), MATCHED 24f horizon: 18502(bright) 0.800, 18503(dim) 0.600, 18504(dim) 0.337, 18505(bright) 0.745 — <strong>BEATS PERSISTENCE 4/4</strong>. vs the M1 baseline (0.847/0.692/0.313/0.838): <strong>M2 BEATS M1 on 3/4 INCLUDING BOTH BRIGHT/high-motion shots</strong> (18502 0.800 vs 0.847; 18505 0.745 vs 0.838 — the hardest cases); ~tie on the easy dim 18504 (0.337 vs 0.313). <strong>DRIFT TEST</strong> (longer 26f horizon): 18502 0.697, 18503 0.582, 18504 0.361, 18505 0.747 — M2 HOLDS / IMPROVES at the longer horizon (the bright-shot ratios DROP: the model degrades slower than persistence) =&gt; the context-corruption ANTI-DRIFT fine-tune works. Motion (collapse_ratio, ~1=GT): sampling 1.0-1.47 (no collapse); argmax still ~0.08 (argmax alone collapses -&gt; sampling is load-bearing). In-training proxy agreed (token-mismatch 0.9120-&gt;0.9089 &lt; M1 0.9216). NET: sampling + context-corruption on the existing checkpoint = a non-collapsing, persistence-beating, drift-resistant camera dream that beats M1 on the hard shots — the sprint's core anti-collapse thesis is VALIDATED. Verdicts: /work/projects/imas_gpu/worldmodel/ckpt/spacetime-corruption-1220391/corruption_rescore_s1000/verdict_h16.json + verdict_h26.json. NEXT: M3 (control-response / W1) queued; demo doc world-model-demonstration.html being updated with the M1+M2 arc.</p>
     </article>
-<article class="r-fu" data-id="f-ppwm-m3-controllability" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ppwm-m3-controllability" data-status="resolved" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="2026-06-20T13:02:36+00:00" data-resolved-by="agent/opus (orchestrator)">
     <h4 class="r-fu-title">M3 — control-response (W1): CFG at inference + gas-puff falsification on the M2 checkpoint</h4>
     <div class="r-fu-body">M2 (sampling + context-corruption, ckpt step 12000) beats persistence 4/4 + beats M1 on both bright shots + holds at the longer horizon — the dream is non-collapsing. M3 is the W1 bar: does the plasma RESPOND to controls? The M2 model conditions on gas_injection (the puff command) and was trained with control-dropout (~0.15, CFG-ready), so this is unblocked + INFERENCE-ONLY (GPUs free; 1 GPU; keep DeepSeek up). Implement classifier-free guidance at inference + the gas-puff falsification (emission lights when the puff fires; a zeroed-puff counterfactual does not). Flag whether the full 'play from the operator's pulse-schedule plan' needs the model re-conditioned on the actuator-vector PLAN (the locked control-surface) rather than measured signals — the M4 bridge.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -721,6 +721,47 @@ Done-when
   3. Report whether W1 (responds-to-controls) is MET + flag whether the full play-from-operator-plan needs
      re-conditioning on the actuator-vector PLAN (control-surface=actuator-vector) vs the current measured-
      signal conditioning — the M4 bridge. git show --stat. Do NOT edit docs/plan (orchestrator records).</pre>
+    <p class="r-fu-outcome">M3 VERDICT — HONEST NEGATIVE: W1 (control-response) NOT MET on the measured gas-puff channel. This is the empirically-confirmed reason the playable demo needs PLAN-conditioning (-> M4). Built (commits 055b043/ecefc2e/b946ec1/b77f325, all on main, trailer-clean; 22 tests green; 2 GPU runs on the M2 ckpt step 12000): <code>control_guidance.py</code> (CFG — backbone run twice/frame, cond vs all-conditioning-zeroed, guided = uncond + w*(cond-uncond); w=1 reproduces the plain rollout, unit-tested) + <code>control_falsification.py</code> (gas-puff: decode TRUE vs ZEROED vs CFG-amplified gas_injection on the puff-TRANSITION window, measuring inboard emission + timing-correlation + the counterfactual delta). VERDICT (puff-window; 3/4 shots fire in-window): weak positive timing on the bright shots, BUT the gas-ZEROED rollout tracks the puff command almost as well (causal margin ~0.05) — so the correlation is the model's general inboard dynamics, NOT a causal puff response; CFG does NOT strengthen it (inboard emission flat across w: 18505 -> 14.1/13.7/13.7); control-divergence beats the sampling-noise floor on only 1/4 (a dim-frame artifact). So <strong>gas_injection conditioning is at best weakly load-bearing on this checkpoint</strong> (consistent with the earlier camdyn token-space null). ROOT CAUSE (the key finding): the model conditions on MEASURED realised signals (gas_injection flow, interferometer, soft_x_rays, xma, ...) that are mutually redundant — zeroing one barely moves the dream because the others carry the same info, and CFG has nothing causal to amplify. <strong>M4 BRIDGE (done-when #3 = YES): the playable demo needs the model re-conditioned on the DEMANDED actuator PLAN (control-surface=actuator-vector, LOCKED), not measured observations.</strong> Reframe: M1+M2 proved a non-collapsing FORECASTER (TRACK mode — beats persistence, anti-drift); M3 proves it is NOT yet CONTROLLABLE (PLAY mode) — exactly the PLAY-vs-TRACK split from the strategy (plan Fig 1). Artifacts: control_falsification/verdict_puffwin.json + figures_puffwin/shot-*-control.png. M4 queued.</p>
+    </article>
+<article class="r-fu" data-id="f-ppwm-m4-actuator-conditioning" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-20" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">M4 — make it controllable: re-condition on the demanded actuator PLAN (overfit GATE first, then 6-GPU re-train)</h4>
+    <div class="r-fu-body">M3 (honest negative) proved the measured-signal conditioning is not a causal control lever — the model FORECASTS (TRACK) but is not DRIVEABLE (PLAY). M4 implements the locked control-surface=actuator-vector: re-condition the camera model on the DEMANDED actuator PLAN (coil/NBI/gas commands) as the ALWAYS-ON drive surface, with the measured diagnostic observations made OPTIONAL (high dropout = the PLAY/TRACK split, plan Fig 1) so the model must learn the control->camera map and CFG on the controls becomes load-bearing. GATE FIRST (cheap, 1 GPU): overfit a few shots conditioned on the actuator plan and confirm that VARYING the plan causally moves the decoded camera (and a zeroed-plan counterfactual does NOT) BEFORE committing the 6-GPU re-train. STOP + report at the gate — the re-train is a separate go.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
+Section: 6/7 (M4 — controllability via actuator-PLAN conditioning)
+Tier:    opus
+
+Context
+  M1+M2 = a non-collapsing camera FORECASTER (beats persistence 4/4, anti-drift). M3 (honest negative)
+  proved it is NOT controllable: it conditions on MEASURED realised signals (gas_injection flow,
+  interferometer, soft_x_rays, xma, ...) which are mutually redundant — zeroing gas_injection barely
+  moves the dream, CFG can&#x27;t amplify, W1 NOT MET. The playable demo needs the model conditioned on the
+  DEMANDED actuator PLAN (control-surface=actuator-vector, LOCKED), observations OPTIONAL (PLAY/TRACK, Fig 1).
+
+State to read  (code/files/data)
+  imas_ambix/worldmodel/spacetime_model_v2.py + spacetime_train_v2.py + spacetime_dataset_v2.py (current
+  measured-signal conditioning); imas_ambix/worldmodel/control_guidance.py + control_falsification.py (M3&#x27;s CFG +
+  the control-response test to re-run); camera-dynamics-wm-v0&#x27;s actuator-vector loader (amc coil currents + anb
+  NBI + aga gas-puff + Ip + ne = the actuator commands) + its gas-puff probe; plan Fig 1 (PLAY/TRACK), §5, §7 (W1).
+
+Scope locks / constraints  (non-decision)
+  - Conditioning re-design: the ACTUATOR PLAN (amc/anb/aga + Ip/ne) is the ALWAYS-ON drive surface; the
+    measured diagnostic observations (interferometer/soft_x_rays/xma/...) become OPTIONAL channels with HIGH
+    dropout so the model cannot shortcut via redundant observations and must learn the control-&gt;camera map.
+    Keep control-dropout for CFG. EFIT/xdc-reconstruction stays leakage-banned.
+  - GATE FIRST (de-risk before GPU hours): overfit a few shots conditioned on the actuator plan; confirm the
+    decoded camera RESPONDS when the plan is varied (toggle the gas-puff / NBI command) and a zeroed-plan
+    counterfactual does NOT — i.e. controls are causally load-bearing. **STOP and report the gate verdict; do
+    NOT launch the full 6-GPU re-train (that is a separate orchestrator/lead go).** 1 GPU for the gate.
+  - When the re-train is later approved: 6 cards normal QOS (--gres=gpu:6, no --qos; coexists with DeepSeek),
+    resume-safe (latest.pt + clean SIGTERM), LR &lt;= 1.5e-4, in-process (§2b); scancel/--time fine (§2a).
+
+Done-when (GATE phase)
+  1. Actuator-PLAN conditioning + optional-observation (PLAY/TRACK) implemented behind the existing model;
+     tests green; committed.
+  2. Overfit GATE result reported: does varying the actuator plan CAUSALLY move the decoded camera (with a
+     clear zeroed-plan counterfactual margin)? This is the go/no-go for the re-train.
+  3. Report (git show --stat). Do NOT edit docs/plan (orchestrator records). Do NOT launch the 6-GPU re-train.</pre>
     </article>
 </section>
 
