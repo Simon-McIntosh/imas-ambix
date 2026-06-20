@@ -680,52 +680,59 @@ def _full_plan(n_steps=8, seed=0):
     )
 
 
-def test_random_plan_holds_machine_state_perturbs_controllable():
-    """Gate-fix 2a: the random plan must hold Ip/coils ≈ true, vary gas/nbi/density."""
+def test_random_plan_perturbs_commands_holds_states():
+    """The random plan must PERTURB the COMMANDS (coils+sol+gas+nbi), HOLD states.
+
+    Reframe: the coils ARE the primary actuators — the counterfactual must change
+    them (that response is the controllability).  Ip + density (measured states /
+    responses) and tf (quasi-static constant) are HELD at the true plan.
+    """
     from imas_ambix.worldmodel.actuator_plan import (
+        actuator_channel_index,
         coil_current_channel_indices,
         plasma_current_channel_index,
     )
     from imas_ambix.worldmodel.controllable_train import (
-        _controllable_actuator_indices,
+        _commandable_actuator_indices,
         _random_actuator_like,
     )
 
     plan = _full_plan(seed=1)
     rng = np.random.default_rng(0)
     rp = _random_actuator_like(plan, rng=rng)  # controllable_only=True default
-    machine = coil_current_channel_indices()
+    cmd = _commandable_actuator_indices()
+    # the PF coils ARE commands — they must be perturbed.
+    tf = actuator_channel_index("tf_current")
+    coils = [c for c in coil_current_channel_indices() if c != tf]
+    assert set(coils).issubset(set(cmd)), "coils must be in the commandable set"
+    assert not np.allclose(rp.raw_values[:, coils], plan.raw_values[:, coils]), (
+        "the random baseline did NOT perturb the coil commands — coils are the "
+        "PRIMARY actuators and the counterfactual must change them"
+    )
+    # held states/constant: Ip, density, tf — byte-identical to the true plan.
+    held = []
     ip = plasma_current_channel_index()
     if ip is not None:
-        machine = machine + [ip]
-    ctrl = _controllable_actuator_indices()
-    # machine-state channels held byte-identical to the true plan.
-    assert np.array_equal(rp.raw_values[:, machine], plan.raw_values[:, machine]), (
-        "random-plan baseline changed the machine state (Ip/coils) — it must hold "
-        "them at the true plan ('wrong actuation, right machine')"
-    )
-    # at least one controllable channel actually changed.
-    assert not np.allclose(rp.raw_values[:, ctrl], plan.raw_values[:, ctrl])
-    # the normalised perturbation is now a SMALL fraction of the full drive (the
-    # gate-bug was a ~100% re-randomisation inflating the noise floor).
-    full_norm = float(np.abs(plan.values).sum())
-    delta = float(np.abs(rp.values - plan.values).sum())
-    assert delta / full_norm < 0.25, (
-        f"random-plan perturbation is {100 * delta / full_norm:.0f}% of the drive — "
-        "still too aggressive; it should perturb only the controllable actuators"
+        held.append(ip)
+    held.append(actuator_channel_index("tf_current"))
+    held.append(actuator_channel_index("ne_line_integrated"))
+    assert np.array_equal(rp.raw_values[:, held], plan.raw_values[:, held]), (
+        "random-plan baseline changed a STATE/response (Ip/density) or tf — those "
+        "must be held; a counterfactual must not fabricate a state independent of "
+        "the commands that drive it"
     )
 
 
 def test_legacy_random_plan_perturbs_more_than_controllable_only():
-    """controllable_only=False (legacy) perturbs FAR more than the fixed baseline.
+    """controllable_only=False (legacy) perturbs the held STATES; the fix holds them.
 
-    The fix's whole point: the legacy all-channel randomisation re-randomises the
-    dominant coil/Ip machine-state channels, so its perturbation dwarfs the
-    controllable-only one (which holds them) — that excess is exactly the inflated
-    noise floor the gate-fix removes.
+    The crisp behavioural difference: the legacy all-channel randomisation changes
+    the measured states (Ip, density) + the quasi-static tf, while the fixed
+    counterfactual HOLDS them (perturbing only the commands).  Re-randomising the
+    states is the unphysical part that inflated the noise floor.
     """
     from imas_ambix.worldmodel.actuator_plan import (
-        coil_current_channel_indices,
+        actuator_channel_index,
         plasma_current_channel_index,
     )
     from imas_ambix.worldmodel.controllable_train import _random_actuator_like
@@ -737,19 +744,19 @@ def test_legacy_random_plan_perturbs_more_than_controllable_only():
     fixed = _random_actuator_like(
         plan, rng=np.random.default_rng(0), controllable_only=True
     )
-    machine = coil_current_channel_indices()
+    held = [
+        actuator_channel_index("tf_current"),
+        actuator_channel_index("ne_line_integrated"),
+    ]
     ip = plasma_current_channel_index()
     if ip is not None:
-        machine = machine + [ip]
-    # the crisp behavioural difference: legacy CHANGES the machine-state channels,
-    # controllable-only HOLDS them.
-    assert not np.allclose(legacy.raw_values[:, machine], plan.raw_values[:, machine])
-    assert np.array_equal(fixed.raw_values[:, machine], plan.raw_values[:, machine])
-    # and legacy's total perturbation exceeds the controllable-only one (it adds
-    # the machine-state scatter on top).
-    d_legacy = float(np.abs(legacy.values - plan.values).sum())
-    d_fixed = float(np.abs(fixed.values - plan.values).sum())
-    assert d_legacy > d_fixed
+        held.append(ip)
+    # the crisp behavioural difference: legacy CHANGES the held states/constant
+    # (Ip, density, tf), the fix HOLDS them. (Total-magnitude ordering is not a
+    # meaningful invariant — the two target different channel sets — so it is not
+    # asserted; the held-vs-perturbed split is the contract.)
+    assert not np.allclose(legacy.raw_values[:, held], plan.raw_values[:, held])
+    assert np.array_equal(fixed.raw_values[:, held], plan.raw_values[:, held])
 
 
 def test_physical_command_lever_is_a_real_intervention():

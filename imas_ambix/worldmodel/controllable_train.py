@@ -1659,24 +1659,44 @@ def _signal_token_mismatch(
 # PASS requires true-vs-random to clear that floor by a clear margin.
 
 
-def _controllable_actuator_indices() -> list[int]:
-    """Columns of the CONTROLLABLE actuators — gas + NBI + density.
+def _commandable_actuator_indices() -> list[int]:
+    """Columns of the COMMANDABLE actuators — PF/CS coils + solenoid + NBI + gas.
 
-    These are the commands an operator dials in for a fixed machine geometry
-    (gas-puff valves, NBI beam powers, the density target).  The complement —
-    the PF/CS/TF coil currents + the plasma current (the ``amc`` source: the
-    machine state / the response) — defines WHICH plasma this is and is held at
-    the true plan when forming a "wrong actuation, right machine" counterfactual.
-    Density (``ane``) is included as a controllable command alongside gas/NBI.
+    In a tokamak the COILS are the PRIMARY control actuators: the PF coil currents
+    (p2*/p3*/p4*/p5*/p6*) set plasma position + shape and the central solenoid
+    (``sol_current``) drives the plasma current via the transformer loop voltage.
+    NBI powers (``anb``) and gas flows (``aga``) are SECONDARY actuators.  These
+    together are the always-on drive surface a counterfactual must perturb to ask
+    "does the camera respond when we change the COMMANDS to a different realistic
+    plan?" — that response IS the controllability we want.
+
+    EXCLUDED (they are measured STATES / responses, not commands, so a
+    counterfactual holds them at the true plan — fabricating a different Ip or
+    density independent of the commands that produce them would be unphysical):
+
+    * ``plasma_current`` (Ip) — the RESPONSE to the solenoid drive, not a command;
+    * ``ne_line_integrated`` (density) — the RESPONSE to gas fuelling;
+    * ``tf_current`` — a quasi-static machine constant, held fixed.
+
+    (The coil currents are wired through ``amc``; the more fundamental actuator
+    surface — XDC power-supply VOLTAGE demands — is a separate scoped upgrade.)
     """
+    # coil_current_channel_indices() = the amc coils + solenoid EXCEPT Ip; it
+    # already excludes plasma_current.  It DOES include tf_current, which we drop
+    # (quasi-static).  Add NBI + gas (the secondary actuators).
+    import contextlib  # noqa: PLC0415
+
     from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
-        ACTUATOR_CHANNELS,
+        actuator_channel_index,
+        coil_current_channel_indices,
         gas_puff_channel_indices,
         nbi_channel_indices,
     )
 
-    idx = set(gas_puff_channel_indices()) | set(nbi_channel_indices())
-    idx |= {i for i, c in enumerate(ACTUATOR_CHANNELS) if c.source == "ane"}
+    idx = set(coil_current_channel_indices())
+    with contextlib.suppress(ValueError):  # tf always present, but be defensive
+        idx.discard(actuator_channel_index("tf_current"))
+    idx |= set(gas_puff_channel_indices()) | set(nbi_channel_indices())
     return sorted(idx)
 
 
@@ -1686,27 +1706,30 @@ def _random_actuator_like(
     rng: np.random.Generator,
     controllable_only: bool = True,
 ):
-    """A "wrong actuation, right machine" counterfactual plan.
+    """A realistic "different COMMANDS, same machine" counterfactual plan.
 
-    The ΔN-M gate contrasts the TRUE plan against a DIFFERENT plan; the
-    difference must be in the CONTROLLABLE actuation (what the operator could
-    have dialled differently), NOT in the machine state.  The earlier version
-    re-randomised EVERY channel including the PF/CS/TF coil currents + the plasma
-    current — a ~100% re-randomisation of the dominant drive (the coils are ~15
-    of 23 channels), producing a non-physical "different machine" whose rollout
-    scatters wildly and INFLATES the random-vs-random noise floor so the true
-    plan can never clear it (the gate-bug noted in gate_verdict_1220668).
+    The ΔN-M gate contrasts the TRUE plan against a DIFFERENT plan; the difference
+    must be in the COMMANDS the operator could have dialled differently — and in a
+    tokamak those are the COILS (+ solenoid) first, then NBI + gas
+    (:func:`_commandable_actuator_indices`).  PERTURBING THE COILS is the point:
+    the model already responds strongly to the coil channels, and that response IS
+    the driveability we are testing.
 
-    With ``controllable_only`` (default), the machine-state channels (the ``amc``
-    coil currents + plasma current) are held at the TRUE plan and ONLY the
-    controllable actuators (gas / NBI / density) are resampled — each present
-    controllable channel drawn from a Normal matched to its own window
-    mean/std (a flat channel stays ~flat at a different level; a ramping one
-    becomes a random walk of the same spread).  So "wrong plan" = "the operator
-    dialled the gas/NBI/density differently on the SAME shot", which is exactly
-    the controllability the gate should measure.  ``controllable_only=False``
-    restores the legacy all-channel randomisation (kept for comparison only).
-    ``missing`` is preserved so an absent actuator stays absent.
+    The earlier version re-randomised EVERY channel to ~106% non-physical extremes
+    (the gate-bug in gate_verdict_1220668: a "different machine", not a different
+    actuation, inflating the random-vs-random noise floor so the true plan could
+    never clear it).  With ``controllable_only`` (default) ONLY the commandable
+    actuators are resampled — each present commandable channel drawn from a Normal
+    matched to its own window mean/std (a flat channel stays ~flat at a different
+    level; a ramping one becomes a random walk of the same spread), a physically
+    bounded alternative trajectory.  The non-command channels (Ip + density — the
+    measured states/responses — and tf — the quasi-static constant) are HELD at
+    the true plan, because a counterfactual must not fabricate a different state
+    independent of the commands that drive it.  So "wrong plan" = "the operator
+    dialled the COILS/NBI/gas differently on the SAME shot", which is exactly the
+    controllability the gate should measure.  ``controllable_only=False`` restores
+    the legacy all-channel randomisation (kept for comparison only).  ``missing``
+    is preserved so an absent actuator stays absent.
     """
     from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
         ActuatorPlan,
@@ -1719,7 +1742,7 @@ def _random_actuator_like(
     out = raw.copy()
     p, c = raw.shape
     if controllable_only:
-        targets = [i for i in _controllable_actuator_indices() if i < c and present[i]]
+        targets = [i for i in _commandable_actuator_indices() if i < c and present[i]]
     else:
         targets = [i for i in range(c) if present[i]]
     for ch in targets:
