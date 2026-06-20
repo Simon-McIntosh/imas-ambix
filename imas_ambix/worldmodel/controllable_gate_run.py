@@ -556,18 +556,6 @@ def main(argv: list[str] | None = None) -> int:
                     model, samples[0], stream_names, device=device, chunk=8192
                 )
 
-        # ── optional per-leg ablation (which fix moves the needle) ──
-        ablation = None
-        if args.ablate and not _STOP["flag"]:
-            ablation = _run_ablation(
-                shot_ids,
-                _make_config,
-                args,
-                device=device,
-                token_root=Path(args.token_root) if args.token_root else None,
-                init_checkpoint=init_ckpt,
-            )
-
         payload = {
             "overfit": {
                 "initial_loss": result.initial_loss,
@@ -590,7 +578,7 @@ def main(argv: list[str] | None = None) -> int:
                 "per_shot": [v.to_dict() for v in verdicts],
                 "summary": summary,
             },
-            "ablation": ablation,
+            "ablation": None,
             "pixel_confirmation": pixel_confirm,
             "config": {
                 "n_frames": args.n_frames,
@@ -608,7 +596,33 @@ def main(argv: list[str] | None = None) -> int:
             # the headline verdict is the ΔN-M gate.
             "summary": dnm_summary,
         }
+        # Write the verdict NOW — before the (optional, heavier) ablation, which
+        # builds extra full-size models and can OOM on a shared card.  The main
+        # ΔN-M verdict must survive an ablation crash.
         out_json.write_text(json.dumps(payload, indent=2, default=str))
+
+        # ── optional per-leg ablation (which fix moves the needle) ──
+        # Free the main model + cache FIRST so the ablation's fresh model has room
+        # (a full backbone + AdamW is ~13 GB; two at once OOM'd on a shared card).
+        if args.ablate and not _STOP["flag"]:
+            import torch  # noqa: PLC0415
+
+            del model
+            model = None
+            if device == "cuda" and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            with contextlib.suppress(Exception):
+                ablation = _run_ablation(
+                    shot_ids,
+                    _make_config,
+                    args,
+                    device=device,
+                    token_root=Path(args.token_root) if args.token_root else None,
+                    init_checkpoint=init_ckpt,
+                )
+                payload["ablation"] = ablation
+                out_json.write_text(json.dumps(payload, indent=2, default=str))
+
         _print_verdict(payload)
     finally:
         try:
