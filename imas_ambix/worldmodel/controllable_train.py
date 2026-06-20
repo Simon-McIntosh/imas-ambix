@@ -102,6 +102,21 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def architecture_from_checkpoint(checkpoint: Path) -> dict:
+    """Read the backbone architecture dims from a v2 forecaster checkpoint.
+
+    Returns ``{"d_model", "n_layers", "n_heads", "d_ff", "dropout",
+    "corruption_levels"}`` from the checkpoint's ``model_config`` so the
+    controllable model can be built to MATCH the forecaster (the warm start only
+    loads tensors whose shapes match — a size mismatch loads nothing).  The gate
+    driver applies these over its CLI model defaults when a checkpoint is given.
+    """
+    payload = torch.load(str(checkpoint), map_location="cpu", weights_only=False)
+    mc = payload.get("model_config", {})
+    keys = ("d_model", "n_layers", "n_heads", "d_ff", "dropout", "corruption_levels")
+    return {k: mc[k] for k in keys if k in mc}
+
+
 def _warm_start_from_forecaster(
     model: ControllableSpacetimeTransformer,
     checkpoint: Path,

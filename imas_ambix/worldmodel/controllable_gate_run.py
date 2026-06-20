@@ -433,6 +433,29 @@ def main(argv: list[str] | None = None) -> int:
         "d_ff": args.d_ff,
         "adaln_hidden": args.adaln_hidden,
     }
+    # When warm-starting from the forecaster, the backbone dims MUST match the
+    # checkpoint or the load matches nothing (size-mismatch tensors are dropped).
+    # Adopt the checkpoint's architecture over the CLI model defaults.
+    if args.init_checkpoint:
+        from imas_ambix.worldmodel.controllable_train import (
+            architecture_from_checkpoint,
+        )
+
+        ck_arch = architecture_from_checkpoint(Path(args.init_checkpoint))
+        ck_levels = ck_arch.pop("corruption_levels", None)
+        model_kwargs.update(
+            {k: v for k, v in ck_arch.items() if k in model_kwargs or k == "dropout"}
+        )
+        logger.info(
+            "adopting forecaster architecture from checkpoint: %s "
+            "(corruption_levels=%s)",
+            ck_arch,
+            ck_levels,
+        )
+        # the history-bottleneck strength bins feed the corruption_embed; size its
+        # levels to the checkpoint's so that embedding loads by name on warm start.
+        if ck_levels is not None:
+            args.hb_levels_for_ckpt = int(ck_levels)
 
     def _make_config(
         *,
@@ -454,6 +477,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_strength=hb_max_strength,
                 clean_fraction=args.hb_clean_fraction,
                 independent_per_frame=bool(args.hb_independent_per_frame),
+                levels=int(getattr(args, "hb_levels_for_ckpt", 8)),
             ),
             inverse_dynamics_weight=inv_dyn_weight,
             transient_windows=not args.no_transient_windows,
