@@ -693,6 +693,12 @@ class ControllableCorpusConfig:
     inverse_dynamics_weight: float = 1.0
     scheduled_sampling_max: float = 0.25
     scheduled_sampling_ramp: float = 0.5
+    # DROP the measured STATES (plasma_current + ne_line_integrated) from the
+    # actuator COMMAND vector — they are RESPONSES, not commands (they remain
+    # available as v2 observation streams).  The dataset is then built on the
+    # filtered :func:`command_channels` list so the actuator vector + the AdaLN MLP
+    # input dim follow the data.  True is the controllability-correct default.
+    drop_state_channels: bool = True
     window: SpacetimeWindowConfig = field(default_factory=SpacetimeWindowConfig)
     model_kwargs: dict = field(default_factory=dict)
     modalities: list[SignalModalitySpec] = field(
@@ -790,6 +796,16 @@ def train_controllable_corpus(
     stop = _StopFlag()
     stop.install()
 
+    # The actuator COMMAND vector: drop the measured states (Ip + density) so the
+    # model conditions ONLY on the commands; the AdaLN MLP input dim follows.
+    from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
+        ACTUATOR_CHANNELS,
+    )
+
+    act_chan_list = (
+        command_channels() if config.drop_state_channels else list(ACTUATOR_CHANNELS)
+    )
+
     # Probe plan-channels + signal-stream widths + actuator-channel count.
     probe: list[ControllableSpacetimeSample] = []
     for sid in list(shot_ids)[:8]:
@@ -803,6 +819,7 @@ def train_controllable_corpus(
                     config.n_act_steps,
                     camera=camera,
                     token_root=token_root,
+                    actuator_channels=act_chan_list,
                 )
             )
         except (ValueError, FileNotFoundError, KeyError):
@@ -928,6 +945,7 @@ def train_controllable_corpus(
         token_root=token_root,
         random_window=config.random_window,
         seed=config.seed,
+        actuator_channels=act_chan_list,
     )
     sampler = None
     if env.enabled:
@@ -1659,45 +1677,64 @@ def _signal_token_mismatch(
 # PASS requires true-vs-random to clear that floor by a clear margin.
 
 
-def _commandable_actuator_indices() -> list[int]:
-    """Columns of the COMMANDABLE actuators — PF/CS coils + solenoid + NBI + gas.
+#: Channel keys that are measured STATES / responses, NOT commands — DROPPED from
+#: the actuator COMMAND vector (they remain available as v2 observation streams):
+#: Ip is the response to the solenoid drive; density is the response to gas
+#: fuelling.  You command the coils/solenoid/gas/NBI, not the state.
+STATE_CHANNEL_KEYS: frozenset[str] = frozenset(
+    {"plasma_current", "ne_line_integrated"}
+)
 
-    In a tokamak the COILS are the PRIMARY control actuators: the PF coil currents
-    (p2*/p3*/p4*/p5*/p6*) set plasma position + shape and the central solenoid
-    (``sol_current``) drives the plasma current via the transformer loop voltage.
-    NBI powers (``anb``) and gas flows (``aga``) are SECONDARY actuators.  These
-    together are the always-on drive surface a counterfactual must perturb to ask
-    "does the camera respond when we change the COMMANDS to a different realistic
-    plan?" — that response IS the controllability we want.
+#: Quasi-static machine constant — kept IN the command vector (it is a real
+#: actuator setting) but HELD at the true value in a counterfactual (you don't
+#: dial the TF field shot-to-shot for control).
+QUASI_STATIC_COMMAND_KEYS: frozenset[str] = frozenset({"tf_current"})
 
-    EXCLUDED (they are measured STATES / responses, not commands, so a
-    counterfactual holds them at the true plan — fabricating a different Ip or
-    density independent of the commands that produce them would be unphysical):
 
-    * ``plasma_current`` (Ip) — the RESPONSE to the solenoid drive, not a command;
-    * ``ne_line_integrated`` (density) — the RESPONSE to gas fuelling;
-    * ``tf_current`` — a quasi-static machine constant, held fixed.
+def command_channels(channels=None):
+    """The actuator COMMAND channels — the full set minus the measured STATES.
 
-    (The coil currents are wired through ``amc``; the more fundamental actuator
-    surface — XDC power-supply VOLTAGE demands — is a separate scoped upgrade.)
+    Drops ``plasma_current`` + ``ne_line_integrated`` (responses, not commands —
+    they stay as v2 observation feeds, withheld in PLAY) and keeps the PF/CS coil
+    currents + ``sol_current`` (PRIMARY actuators), the NBI powers, the gas flows,
+    and ``tf_current``.  This is the list passed to
+    :class:`ControllableSpacetimeDataset` so the actuator vector — and the AdaLN
+    MLP input dim — follow the data (no edit to ``actuator_plan.py``).  ``channels``
+    defaults to the full ``ACTUATOR_CHANNELS``.
     """
-    # coil_current_channel_indices() = the amc coils + solenoid EXCEPT Ip; it
-    # already excludes plasma_current.  It DOES include tf_current, which we drop
-    # (quasi-static).  Add NBI + gas (the secondary actuators).
-    import contextlib  # noqa: PLC0415
-
     from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
-        actuator_channel_index,
-        coil_current_channel_indices,
-        gas_puff_channel_indices,
-        nbi_channel_indices,
+        ACTUATOR_CHANNELS,
     )
 
-    idx = set(coil_current_channel_indices())
-    with contextlib.suppress(ValueError):  # tf always present, but be defensive
-        idx.discard(actuator_channel_index("tf_current"))
-    idx |= set(gas_puff_channel_indices()) | set(nbi_channel_indices())
-    return sorted(idx)
+    chans = list(ACTUATOR_CHANNELS if channels is None else channels)
+    return [c for c in chans if c.key not in STATE_CHANNEL_KEYS]
+
+
+def _perturbable_command_columns(channel_keys: Sequence[str]) -> list[int]:
+    """Columns (into ``channel_keys``) of the actuators a counterfactual PERTURBS.
+
+    KEY-based (robust to any channel subset — the command vector is filtered to 21
+    channels, so positional indices into the full 23-channel set are WRONG): the
+    perturbable commands are the COILS (PF + solenoid, ``amc`` minus Ip+tf), the
+    NBI powers (``anb``), and the gas flows (``aga``).  ``tf_current`` (quasi-
+    static) and any state key (Ip/density) are NOT perturbed.  Resolves against the
+    plan's OWN ``channel_keys`` so it is correct whether the plan carries the full
+    or the filtered command vector.
+    """
+    from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
+        ACTUATOR_CHANNELS,
+    )
+
+    source_by_key = {c.key: c.source for c in ACTUATOR_CHANNELS}
+    cols: list[int] = []
+    for i, key in enumerate(channel_keys):
+        if key in STATE_CHANNEL_KEYS or key in QUASI_STATIC_COMMAND_KEYS:
+            continue
+        src = source_by_key.get(key)
+        # amc (coils+sol, Ip/tf already excluded above), anb (NBI), aga (gas).
+        if src in ("amc", "anb", "aga"):
+            cols.append(i)
+    return cols
 
 
 def _random_actuator_like(
@@ -1705,30 +1742,33 @@ def _random_actuator_like(
     *,
     rng: np.random.Generator,
     controllable_only: bool = True,
+    perturb_scale: float = 0.3,
 ):
     """A realistic "different COMMANDS, same machine" counterfactual plan.
 
     The ΔN-M gate contrasts the TRUE plan against a DIFFERENT plan; the difference
     must be in the COMMANDS the operator could have dialled differently — and in a
     tokamak those are the COILS (+ solenoid) first, then NBI + gas
-    (:func:`_commandable_actuator_indices`).  PERTURBING THE COILS is the point:
-    the model already responds strongly to the coil channels, and that response IS
-    the driveability we are testing.
+    (:func:`_perturbable_command_columns`, resolved by channel KEY so it is correct
+    for the filtered 21-channel command vector too).  PERTURBING THE COILS is the
+    point: the model already responds strongly to the coil channels, and that
+    response IS the driveability we are testing.
 
-    The earlier version re-randomised EVERY channel to ~106% non-physical extremes
-    (the gate-bug in gate_verdict_1220668: a "different machine", not a different
-    actuation, inflating the random-vs-random noise floor so the true plan could
-    never clear it).  With ``controllable_only`` (default) ONLY the commandable
-    actuators are resampled — each present commandable channel drawn from a Normal
-    matched to its own window mean/std (a flat channel stays ~flat at a different
-    level; a ramping one becomes a random walk of the same spread), a physically
-    bounded alternative trajectory.  The non-command channels (Ip + density — the
-    measured states/responses — and tf — the quasi-static constant) are HELD at
-    the true plan, because a counterfactual must not fabricate a different state
-    independent of the commands that drive it.  So "wrong plan" = "the operator
-    dialled the COILS/NBI/gas differently on the SAME shot", which is exactly the
-    controllability the gate should measure.  ``controllable_only=False`` restores
-    the legacy all-channel randomisation (kept for comparison only).  ``missing``
+    The perturbation is a BOUNDED, IN-DISTRIBUTION edit of the TRUE trajectory —
+    NOT the earlier ~106% OOD re-randomisation (the gate-bug in
+    gate_verdict_1220668: a "different machine", not a different actuation,
+    inflating the random-vs-random noise floor so the true plan could never clear
+    it).  Each perturbable command channel is transformed
+    ``new = true*(1 + a) + b*range`` with per-channel ``a ~ U[-perturb_scale,
+    +perturb_scale]`` (a bounded gain change) and ``b ~ U[-perturb_scale/2,
+    +perturb_scale/2]`` of the channel's own window peak-to-peak range (a bounded
+    level shift).  This PRESERVES the temporal SHAPE (a ramp stays a ramp at a
+    different slope/offset) — a physically plausible alternative the operator could
+    have programmed — rather than i.i.d. step noise.  The non-perturbed channels
+    (the measured states Ip/density — if present — and tf, the quasi-static
+    constant) are HELD at the true plan: a counterfactual must not fabricate a
+    state independent of the commands that drive it.  ``controllable_only=False``
+    restores a legacy all-channel re-randomisation (comparison only).  ``missing``
     is preserved so an absent actuator stays absent.
     """
     from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
@@ -1739,20 +1779,29 @@ def _random_actuator_like(
     raw = np.asarray(plan.raw_values, dtype=np.float64)
     miss = np.asarray(plan.missing, dtype=np.float32)
     present = miss.mean(axis=0) < 1.0  # (C,)
+    keys = list(plan.channel_keys)
     out = raw.copy()
     p, c = raw.shape
+    s = float(perturb_scale)
     if controllable_only:
-        targets = [i for i in _commandable_actuator_indices() if i < c and present[i]]
+        targets = [
+            i for i in _perturbable_command_columns(keys) if i < c and present[i]
+        ]
+        for ch in targets:
+            col = raw[:, ch]
+            rng_pp = float(col.max() - col.min())  # window peak-to-peak
+            if rng_pp <= 0.0:
+                rng_pp = abs(float(col.mean())) + 1.0  # flat channel: a floor band
+            a = float(rng.uniform(-s, s))  # bounded gain change
+            b = float(rng.uniform(-s / 2.0, s / 2.0))  # bounded level shift
+            out[:, ch] = col * (1.0 + a) + b * rng_pp
     else:
-        targets = [i for i in range(c) if present[i]]
-    for ch in targets:
-        col = raw[:, ch]
-        mu = float(np.mean(col))
-        sd = float(np.std(col))
-        # a non-degenerate spread even for a near-flat channel so the random plan
-        # genuinely differs; scale the floor by the channel magnitude.
-        sd = max(sd, 0.1 * (abs(mu) + 1.0))
-        out[:, ch] = rng.normal(mu, sd, size=p)
+        # legacy comparison path: i.i.d. Normal over every present channel.
+        for ch in [i for i in range(c) if present[i]]:
+            col = raw[:, ch]
+            mu, sd = float(np.mean(col)), float(np.std(col))
+            sd = max(sd, 0.1 * (abs(mu) + 1.0))
+            out[:, ch] = rng.normal(mu, sd, size=p)
     return ActuatorPlan(
         values=normalise_actuator_values(out),
         missing=plan.missing.copy(),
@@ -2048,6 +2097,13 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--inverse-dynamics-weight", type=float, default=1.0)
     pc.add_argument("--scheduled-sampling-max", type=float, default=0.25)
     pc.add_argument("--scheduled-sampling-ramp", type=float, default=0.5)
+    pc.add_argument(
+        "--keep-state-channels",
+        action="store_true",
+        help="keep plasma_current + ne_line_integrated IN the actuator command "
+        "vector (default DROPS them — they are measured states/responses, fed as "
+        "observations instead)",
+    )
     args = p.parse_args(argv)
 
     _logging.basicConfig(
@@ -2116,6 +2172,7 @@ def main(argv: list[str] | None = None) -> int:
         inverse_dynamics_weight=args.inverse_dynamics_weight,
         scheduled_sampling_max=args.scheduled_sampling_max,
         scheduled_sampling_ramp=args.scheduled_sampling_ramp,
+        drop_state_channels=not args.keep_state_channels,
         window=SpacetimeWindowConfig(
             n_frames=args.n_frames,
             n_plan=args.n_plan,

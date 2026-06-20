@@ -411,10 +411,14 @@ def _mk_controllable_sample(cfg, shot, *, t=6, ctx=3, seed=0):
     # command must actually change a non-constant drive.
     ramp = np.linspace(1e3, 1e5, cfg.n_act_steps, dtype=np.float32)[:, None]
     raw = ramp * np.ones((1, cfg.actuator_channels), dtype=np.float32)
+    # use the REAL channel keys (the command/state resolution is KEY-based, so a
+    # synthetic "c0,c1,..." key set would match no commands).
+    real_keys = list(ACTUATOR_CHANNEL_KEYS[: cfg.actuator_channels])
+    keys = real_keys + [f"c{i}" for i in range(cfg.actuator_channels - len(real_keys))]
     plan_act = ActuatorPlan(
         values=normalise_actuator_values(raw),
         missing=np.zeros_like(raw),
-        channel_keys=[f"c{i}" for i in range(cfg.actuator_channels)],
+        channel_keys=keys,
         raw_values=raw,
     )
     return ControllableSpacetimeSample(signal=signal, actuator=plan_act)
@@ -693,18 +697,19 @@ def test_random_plan_perturbs_commands_holds_states():
         plasma_current_channel_index,
     )
     from imas_ambix.worldmodel.controllable_train import (
-        _commandable_actuator_indices,
+        _perturbable_command_columns,
         _random_actuator_like,
     )
 
     plan = _full_plan(seed=1)
     rng = np.random.default_rng(0)
     rp = _random_actuator_like(plan, rng=rng)  # controllable_only=True default
-    cmd = _commandable_actuator_indices()
+    # _perturbable_command_columns resolves by KEY against the plan's channel_keys.
+    cmd = _perturbable_command_columns(plan.channel_keys)
     # the PF coils ARE commands — they must be perturbed.
     tf = actuator_channel_index("tf_current")
     coils = [c for c in coil_current_channel_indices() if c != tf]
-    assert set(coils).issubset(set(cmd)), "coils must be in the commandable set"
+    assert set(coils).issubset(set(cmd)), "coils must be in the perturbable command set"
     assert not np.allclose(rp.raw_values[:, coils], plan.raw_values[:, coils]), (
         "the random baseline did NOT perturb the coil commands — coils are the "
         "PRIMARY actuators and the counterfactual must change them"
@@ -921,3 +926,59 @@ def test_scheduled_sampling_in_overfit_smoke():
         opt.step()
         losses.append(float(loss))
     assert losses[-1] < losses[0]  # it still learns with scheduled sampling on
+
+
+def test_command_channels_drops_states():
+    """command_channels() drops Ip + density, keeps coils+sol+tf+nbi+gas."""
+    from imas_ambix.worldmodel.actuator_plan import ACTUATOR_CHANNELS
+    from imas_ambix.worldmodel.controllable_train import command_channels
+
+    cmd = command_channels()
+    keys = {c.key for c in cmd}
+    assert "plasma_current" not in keys, "Ip (a state) must be dropped from commands"
+    assert "ne_line_integrated" not in keys, "density (a state) must be dropped"
+    # the primary + secondary actuators stay.
+    assert "sol_current" in keys and "tf_current" in keys
+    assert any(k.endswith("_coil_current") for k in keys)
+    assert any("nbi" in k for k in keys) and any("gas" in k for k in keys)
+    # exactly the full set minus the two states.
+    assert len(cmd) == len(ACTUATOR_CHANNELS) - 2
+
+
+def test_random_plan_perturbation_is_bounded_and_shape_preserving():
+    """The coil counterfactual is a BOUNDED edit of the true trajectory, not OOD."""
+    from imas_ambix.worldmodel.actuator_plan import coil_current_channel_indices
+    from imas_ambix.worldmodel.controllable_train import (
+        _perturbable_command_columns,
+        _random_actuator_like,
+    )
+
+    plan = _full_plan(seed=3)
+    rp = _random_actuator_like(plan, rng=np.random.default_rng(0), perturb_scale=0.3)
+    cols = _perturbable_command_columns(plan.channel_keys)
+    # bounded: each perturbed channel's RAW change is within a sane multiple of its
+    # own window range (not the ~106% OOD blow-up the old version produced).
+    for ch in cols:
+        true_col = plan.raw_values[:, ch]
+        new_col = rp.raw_values[:, ch]
+        rng_pp = float(true_col.max() - true_col.min()) or (
+            abs(float(true_col.mean())) + 1.0
+        )
+        max_dev = float(np.abs(new_col - true_col).max())
+        # gain |a|<=0.3 on values up to ~|true|, plus a level shift |b|<=0.15*range;
+        # the deviation stays bounded by ~0.3*|true|max + 0.15*range.
+        bound = 0.3 * float(np.abs(true_col).max()) + 0.15 * rng_pp + 1.0
+        assert max_dev <= bound + 1e-6, (
+            f"channel {ch} deviated {max_dev:.3g} > bound {bound:.3g} — not bounded"
+        )
+    # a ramping coil keeps its monotone SHAPE (the edit is gain+offset, not noise).
+    coils = [c for c in coil_current_channel_indices() if c in cols]
+    if coils:
+        ch = coils[0]
+        true_d = np.diff(plan.raw_values[:, ch])
+        new_d = np.diff(rp.raw_values[:, ch])
+        # same sign of the trend (a*true+b preserves monotonicity for a>-1).
+        if np.all(true_d >= 0) or np.all(true_d <= 0):
+            assert np.all(np.sign(new_d) == np.sign(true_d)) or np.allclose(new_d, 0), (
+                "the bounded edit broke the coil trajectory's monotone shape"
+            )
