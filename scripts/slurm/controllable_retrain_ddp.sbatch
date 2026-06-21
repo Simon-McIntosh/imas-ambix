@@ -107,8 +107,12 @@ source "${VENV}/bin/activate"
 : "${WM_OUT_DIR:=/work/projects/imas_gpu/worldmodel/ckpt/controllable-${SLURM_JOB_ID}}"
 mkdir -p "${WM_OUT_DIR}"
 
-if [[ ! -d "${WM_TOKEN_ROOT}/frames" ]]; then
-    echo "[controllable-retrain] FATAL: curated token-root ${WM_TOKEN_ROOT}/frames not reachable — has B's re-encode landed?" >&2
+# The loader resolves camera frames at <token_root>/v1/frames/<shot>/<cam>.zarr
+# (camdyn DEFAULT_VOCAB_VERSION=v1).  Accept EITHER the canonical v1/frames layout
+# (the curated-token-view) OR a bare frames/ dir (B's raw curated root), so the
+# guard catches a genuinely-missing corpus without rejecting the view.
+if [[ ! -d "${WM_TOKEN_ROOT}/v1/frames" && ! -d "${WM_TOKEN_ROOT}/frames" ]]; then
+    echo "[controllable-retrain] FATAL: no frames under ${WM_TOKEN_ROOT}/v1/frames or ${WM_TOKEN_ROOT}/frames — has the curated encode landed + the v1/frames view been set up?" >&2
     kill "${SIDECAR_PID}" 2>/dev/null || true
     exit 2
 fi
