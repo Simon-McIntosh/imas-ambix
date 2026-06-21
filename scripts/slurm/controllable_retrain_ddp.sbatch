@@ -95,6 +95,10 @@ source "${VENV}/bin/activate"
 : "${WM_N_ACT_STEPS:=8}"
 : "${WM_CONTEXT_FRAMES:=8}"
 : "${WM_FRAME_STRIDE:=1}"
+# the n_frames window spans this many PHYSICAL seconds (per-shot stride derived
+# from each shot's fps), so 24 frames cover the ~0.25s ramp horizon instead of
+# ~12-24ms of consecutive native frames (the persistence-trap bug).
+: "${WM_TARGET_HORIZON_S:=0.25}"
 : "${WM_LR:=1e-4}"
 : "${WM_WARMUP_STEPS:=400}"
 : "${WM_MIN_LR_RATIO:=0.02}"
@@ -158,6 +162,7 @@ torchrun \
     --n-plan "${WM_N_PLAN}" \
     --context-frames "${WM_CONTEXT_FRAMES}" \
     --frame-stride "${WM_FRAME_STRIDE}" \
+    --target-horizon-s "${WM_TARGET_HORIZON_S}" \
     --n-signal-steps "${WM_N_SIGNAL_STEPS}" \
     --n-act-steps "${WM_N_ACT_STEPS}" \
     --steps "${WM_STEPS}" \

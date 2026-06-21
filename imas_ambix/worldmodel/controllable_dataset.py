@@ -171,6 +171,7 @@ class ControllableSpacetimeDataset:
     def __getitem__(self, index: int) -> ControllableSpacetimeSample:
         from imas_ambix.worldmodel.spacetime_dataset import (  # noqa: PLC0415
             camera_frame_count,
+            window_span_for_shot,
         )
 
         sid = self._shot_ids[index]
@@ -178,7 +179,12 @@ class ControllableSpacetimeDataset:
         if self._random:
             import random  # noqa: PLC0415
 
-            span = (self._config.n_frames - 1) * self._config.frame_stride + 1
+            # the horizon-spanning span is PER-SHOT (cadence-dependent), so the
+            # random start must leave room for the STRIDED window, not n_frames
+            # consecutive native frames.
+            span = window_span_for_shot(
+                sid, self._config, camera=self._camera, token_root=self._token_root
+            )
             try:
                 n_total = camera_frame_count(
                     sid, self._camera, token_root=self._token_root

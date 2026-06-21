@@ -716,6 +716,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--n-plan", type=int, default=8)
     p.add_argument("--context-frames", type=int, default=8)
     p.add_argument("--frame-stride", type=int, default=1)
+    p.add_argument(
+        "--target-horizon-s",
+        type=float,
+        default=0.25,
+        help="physical seconds the window spans — MUST match the training run so "
+        "the eval conditions on the same horizon",
+    )
     p.add_argument("--n-signal-steps", type=int, default=4)
     p.add_argument("--n-act-steps", type=int, default=8)
     p.add_argument("--chunk", type=int, default=8192)
@@ -771,6 +778,7 @@ def main(argv: list[str] | None = None) -> int:
                 n_plan=args.n_plan,
                 context_frames=args.context_frames,
                 frame_stride=args.frame_stride,
+                target_horizon_s=args.target_horizon_s,
             ),
         )
         token_root = Path(args.token_root) if args.token_root else None

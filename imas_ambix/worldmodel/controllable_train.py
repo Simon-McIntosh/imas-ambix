@@ -558,13 +558,21 @@ def overfit_controllable(
     stop = _StopFlag()
     stop.install()
 
-    span = (config.window.n_frames - 1) * config.window.frame_stride + 1
+    from imas_ambix.worldmodel.spacetime_dataset import (  # noqa: PLC0415
+        window_span_for_shot,
+    )
+
     samples: list[ControllableSpacetimeSample] = []
     window_info: list[tuple[int, int | None, float]] = []
     for sid in shot_ids:
         start_frame = None
         var_score = 0.0
         if config.transient_windows:
+            # span the ~target_horizon_s window (per-shot stride) so the transient
+            # scan finds the excited region over the horizon, not a ~15ms slice.
+            span = window_span_for_shot(
+                int(sid), config.window, camera=camera, token_root=token_root
+            )
             start_frame, var_score = find_transient_window(
                 int(sid), span, camera=camera, token_root=token_root
             )
@@ -941,31 +949,69 @@ def train_controllable_corpus(
     # every rank computes the SAME train set (DDP-safe — no shard divergence).
     from imas_ambix.worldmodel.spacetime_dataset import (  # noqa: PLC0415
         camera_frame_count,
+        window_span_for_shot,
     )
 
-    span = (config.window.n_frames - 1) * config.window.frame_stride + 1
+    # The horizon-spanning span is PER-SHOT (a 1kHz shot needs ~10*n_frames native
+    # frames; a 2kHz shot ~21*n_frames), so check each shot against its own span.
     kept: list[int] = []
     for sid in shot_ids:
         try:
-            if int(camera_frame_count(int(sid), camera, token_root=token_root)) >= span:
+            shot_span = window_span_for_shot(
+                int(sid), config.window, camera=camera, token_root=token_root
+            )
+            if int(camera_frame_count(int(sid), camera, token_root=token_root)) >= (
+                shot_span
+            ):
                 kept.append(int(sid))
         except (FileNotFoundError, KeyError, ValueError):
             continue
     n_dropped = len(list(shot_ids)) - len(kept)
     if env.is_main:
         logger.info(
-            "frame-count filter: kept %d/%d train shots with >= %d frames (dropped "
-            "%d short/unreadable)",
+            "frame-count filter: kept %d/%d train shots long enough for the "
+            "~%.2fs horizon window (dropped %d short/unreadable)",
             len(kept),
             len(list(shot_ids)),
-            span,
+            config.window.target_horizon_s,
             n_dropped,
         )
     if len(kept) < 2:
         raise ValueError(
-            f"only {len(kept)} train shots have >= {span} frames — cannot train"
+            f"only {len(kept)} train shots are long enough for the "
+            f"~{config.window.target_horizon_s}s horizon window — cannot train"
         )
     shot_ids = kept
+
+    # Sanity-log the derived per-shot stride + the resulting physical span for a
+    # few shots, so the window is confirmed to cover the ramp-up (not a ~15ms
+    # slice).  e.g. 1000fps -> stride~10 -> ~0.23s; 2000fps -> stride~21 -> ~0.25s.
+    if env.is_main and config.window.target_horizon_s > 0:
+        from imas_ambix.worldmodel.spacetime_dataset import (  # noqa: PLC0415
+            _fps_from_times,
+            _frame_times,
+            effective_frame_stride,
+        )
+
+        for sid in shot_ids[:3]:
+            ft = _frame_times(int(sid), camera, token_root=token_root)
+            fps = _fps_from_times(ft)
+            st = effective_frame_stride(config.window, fps)
+            span_s = (
+                config.window.n_frames * st / fps
+                if (fps and fps > 0)
+                else float("nan")
+            )
+            logger.info(
+                "horizon check shot %s: fps=%.0f -> stride=%d -> %d frames span "
+                "%.3fs (target %.2fs)",
+                sid,
+                fps or -1.0,
+                st,
+                config.window.n_frames,
+                span_s,
+                config.window.target_horizon_s,
+            )
 
     # Probe plan-channels + signal-stream widths + actuator-channel count.
     probe: list[ControllableSpacetimeSample] = []
@@ -2250,6 +2296,13 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--n-plan", type=int, default=8)
     pc.add_argument("--context-frames", type=int, default=8)
     pc.add_argument("--frame-stride", type=int, default=1)
+    pc.add_argument(
+        "--target-horizon-s",
+        type=float,
+        default=0.25,
+        help="physical seconds the n_frames window spans (per-shot stride derived "
+        "from each shot's fps); 0 = use the literal --frame-stride",
+    )
     pc.add_argument("--n-signal-steps", type=int, default=4)
     pc.add_argument("--n-act-steps", type=int, default=8)
     # training
@@ -2373,6 +2426,7 @@ def main(argv: list[str] | None = None) -> int:
             n_plan=args.n_plan,
             context_frames=args.context_frames,
             frame_stride=args.frame_stride,
+            target_horizon_s=args.target_horizon_s,
         ),
         model_kwargs=model_kwargs,
         init_checkpoint=_Path(args.init_checkpoint) if args.init_checkpoint else None,

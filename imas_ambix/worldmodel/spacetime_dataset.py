@@ -129,13 +129,26 @@ class SpacetimeWindowConfig:
     frame_stride:
         Take every ``frame_stride``-th frame from the contiguous run (1 = native
         cadence).  >1 widens the modelled time horizon at the cost of temporal
-        resolution.
+        resolution.  Used LITERALLY only when ``target_horizon_s <= 0``; otherwise
+        a PER-SHOT stride is derived from the shot's cadence (see below).
+    target_horizon_s:
+        The PHYSICAL time span the ``n_frames`` should cover, in seconds.  When
+        ``> 0`` (the default), :func:`assemble_window` IGNORES ``frame_stride`` and
+        instead derives a per-shot stride
+        ``max(1, round(target_horizon_s * fps / n_frames))`` from that shot's frame
+        cadence, so every window spans ~``target_horizon_s`` regardless of the
+        ~250x cadence spread across MAST shots.  This is essential for control
+        learning: at MAST's 1-2 kHz native cadence, 24 CONSECUTIVE frames are only
+        ~12-24 ms — far shorter than a ~125 ms ramp-up — so the model would see
+        near-static clips and learn frame persistence, not actuator cause-effect.
+        Set to 0 to use the literal ``frame_stride`` (legacy / debug).
     """
 
     n_frames: int = 24
     n_plan: int = 8
     context_frames: int = 8
     frame_stride: int = 1
+    target_horizon_s: float = 0.25
 
     def __post_init__(self) -> None:
         if self.n_frames < 2:
@@ -256,6 +269,70 @@ def _read_plan(
 # ---------------------------------------------------------------------------
 
 
+def _fps_from_times(times: np.ndarray | None) -> float | None:
+    """Native frame rate (Hz) from per-frame timestamps, or None.
+
+    Uses the MEDIAN inter-frame dt (robust to dropped frames / non-uniform tails),
+    so a 1-2 kHz MAST camera gives ~1000-2000.  Returns None when the timestamps
+    are missing or degenerate (a constant / single-frame axis).
+    """
+    if times is None:
+        return None
+    t = np.asarray(times, dtype=np.float64)
+    if t.size < 2:
+        return None
+    dt = np.diff(t)
+    dt = dt[dt > 0]
+    if dt.size == 0:
+        return None
+    med = float(np.median(dt))
+    return (1.0 / med) if med > 0 else None
+
+
+def effective_frame_stride(
+    config: SpacetimeWindowConfig, fps: float | None
+) -> int:
+    """The per-shot frame stride so ``n_frames`` span ~``target_horizon_s``.
+
+    ``max(1, round(target_horizon_s * fps / n_frames))`` when
+    ``target_horizon_s > 0`` and ``fps`` is known; otherwise the literal
+    ``config.frame_stride`` (legacy / when the cadence is unknown — a degenerate
+    fallback, NOT the control-correct path).
+    """
+    if config.target_horizon_s and config.target_horizon_s > 0 and fps and fps > 0:
+        stride = round(config.target_horizon_s * fps / config.n_frames)
+        return max(1, int(stride))
+    return int(config.frame_stride)
+
+
+def effective_window_span(config: SpacetimeWindowConfig, fps: float | None) -> int:
+    """Native-frame span the window occupies at the per-shot stride.
+
+    ``(n_frames - 1) * effective_frame_stride(config, fps) + 1`` — the number of
+    consecutive native frames a horizon-spanning window needs, so callers that
+    pre-check recording length / pick a random start use the SAME geometry
+    :func:`assemble_window` does.
+    """
+    return (config.n_frames - 1) * effective_frame_stride(config, fps) + 1
+
+
+def window_span_for_shot(
+    shot_id: int,
+    config: SpacetimeWindowConfig,
+    *,
+    camera: str = REFERENCE_CAMERA,
+    token_root: Path | None = None,
+) -> int:
+    """The per-shot native-frame window span (reads the shot's cadence).
+
+    Convenience for callers (length filter, random-start, transient scan) that
+    need the horizon-spanning span for a specific shot without assembling it.
+    Falls back to the literal-stride span when the cadence is unreadable.
+    """
+    fps = _fps_from_times(_frame_times(shot_id, camera, token_root=token_root))
+    return effective_window_span(config, fps)
+
+
 def assemble_window(
     shot_id: int,
     config: SpacetimeWindowConfig,
@@ -264,42 +341,48 @@ def assemble_window(
     token_root: Path | None = None,
     start_frame: int | None = None,
 ) -> SpacetimeSample:
-    """Assemble one contiguous native-cadence frame window + plan prefix.
+    """Assemble one frame window (spanning ~``target_horizon_s``) + plan prefix.
 
-    The window is ``config.n_frames`` frames taken at ``config.frame_stride``
-    from the camera's on-disk store; ``start_frame`` defaults to centring the
-    run on the middle of the recording (the established plasma).  Token ids are
-    rebased to LOCAL space (store-id − 4).  Raises ``ValueError`` when the
-    recording is too short to yield a full window.
+    The window is ``config.n_frames`` frames taken at a PER-SHOT stride derived
+    from the shot's cadence so they span ~``config.target_horizon_s`` seconds
+    (see :func:`effective_frame_stride`) — NOT ``config.n_frames`` consecutive
+    native frames (which at MAST's 1-2 kHz is only ~12-24 ms, far shorter than a
+    ramp-up, and trains frame persistence).  When ``target_horizon_s <= 0`` the
+    literal ``config.frame_stride`` is used.  ``start_frame`` defaults to centring
+    the run on the middle of the recording.  Token ids are rebased to LOCAL space
+    (store-id − 4).  Raises ``ValueError`` when the recording is too short.
     """
     grp = _camera_store(shot_id, camera, token_root=token_root)
     grid = grp["tokens"]  # (T, 16, 16) store-ids
     n_total = int(grid.shape[0])
-    span = (config.n_frames - 1) * config.frame_stride + 1
+
+    # derive the per-shot stride from the cadence (read times once, up front).
+    times = _frame_times(shot_id, camera, token_root=token_root)
+    fps = _fps_from_times(times)
+    stride = effective_frame_stride(config, fps)
+    span = (config.n_frames - 1) * stride + 1
     if n_total < span:
         raise ValueError(
             f"shot {shot_id} camera {camera}: only {n_total} frames, need {span} "
-            f"for n_frames={config.n_frames} stride={config.frame_stride}"
+            f"for n_frames={config.n_frames} stride={stride} "
+            f"(fps={fps!r}, horizon={config.target_horizon_s}s)"
         )
     if start_frame is None:
         start_frame = max(0, (n_total - span) // 2)
     start_frame = int(min(start_frame, n_total - span))
     stop = start_frame + span
     run = np.asarray(grid[start_frame:stop], dtype=np.int64)  # (span,16,16)
-    run = run[:: config.frame_stride]  # (n_frames,16,16)
+    run = run[::stride]  # (n_frames,16,16)
     # store-id -> local id; every frame here is a real recording (no padding).
     local = run - REGISTRY_OFFSET
     local = np.clip(local, 0, CAMERA_VOCAB - 1)
     frames = local.reshape(run.shape[0], N_SPATIAL).astype(np.int64)
 
     # per-frame timestamps (best-effort; synthetic uniform fallback)
-    times = _frame_times(shot_id, camera, token_root=token_root)
     if times is not None and times.shape[0] >= stop:
-        ftime = times[start_frame:stop][:: config.frame_stride].astype(np.float64)
+        ftime = times[start_frame:stop][::stride].astype(np.float64)
     else:
-        ftime = (
-            np.arange(frames.shape[0], dtype=np.float64) * config.frame_stride
-        ) / 600.0
+        ftime = (np.arange(frames.shape[0], dtype=np.float64) * stride) / 600.0
 
     plan, _n_plan_ch = _read_plan(shot_id, config.n_plan, token_root=token_root)
 
