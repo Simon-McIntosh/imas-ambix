@@ -89,8 +89,19 @@ class CuratedWindow:
     phase:
         Plasma phase the window covers — ``"ramp"`` (Ip rising), ``"flat_top"``
         (Ip roughly constant and high), ``"termination"`` (Ip falling / quench),
-        or ``""`` (unclassified, single-window selector).  Used for the
-        multi-window corpus phase-coverage report; A's dataset ignores it.
+        ``"full"`` (the whole plasma phase — full-shot mode), or ``""``
+        (unclassified, single-window selector).
+    end_frame:
+        Last camera frame of the window (exclusive of trailing dark).  For the
+        fixed-horizon modes this is ``start_frame + (n_frames-1)*frame_stride+1``;
+        for FULL-SHOT mode it is the end of the plasma phase (the quench), so
+        ``[start_frame, end_frame)`` spans the WHOLE breakdown->termination
+        evolution and the trainer time-subsamples that span to its own n_frames.
+        ``0`` for the legacy fixed-horizon rows (derive from n_frames/stride).
+    plasma_duration_s:
+        Wall-clock duration (s) of ``[start_frame, end_frame)`` — the per-shot
+        plasma-phase length the trainer uses as ``target_horizon_s`` in full-shot
+        mode.  ``0.0`` for the legacy fixed-horizon rows.
     """
 
     shot_id: int
@@ -102,6 +113,8 @@ class CuratedWindow:
     max_abs_ip: float
     present_fraction: float
     phase: str = ""
+    end_frame: int = 0
+    plasma_duration_s: float = 0.0
 
 
 def _shot_fps(shot_id: int, camera: str, *, token_root: Path | None) -> float | None:
@@ -426,12 +439,309 @@ def enumerate_curated_windows(
     return out
 
 
+# ---------------------------------------------------------------------------
+# FULL-SHOT windows (one window = the whole plasma phase)
+# ---------------------------------------------------------------------------
+#
+# The fixed-0.25 s windows above (single or tiled) cut the pulse into slices.
+# The tiled multi-window corpus REGRESSED controllability because the many
+# flat-top slices, as SEPARATE training samples, diluted the action signal.  The
+# fix: ONE window per shot spanning the WHOLE plasma phase (breakdown -> ramp ->
+# flat-top -> termination), so flat-top is CONTEXT inside a dynamic sequence, not
+# a standalone sample.  The trainer time-subsamples this full span to its own
+# n_frames (target_horizon_s = the per-shot plasma duration), so here we report
+# the SPAN (start_frame, end_frame, duration), not a fixed frame count.
+
+#: Default tightened present-fraction for a full-shot plasma phase.  The window
+#: may START dark (breakdown) but must not be MOSTLY dark — >= 70 % of the span's
+#: frames carry plasma.  (The lead: "a section without plasma is OK, not the
+#: whole lot.")
+FULLSHOT_MIN_PRESENT_FRACTION: float = 0.7
+
+#: Minimum plasma-phase length (frames) to keep a shot — below this the span is
+#: too short to time-subsample to a useful sequence.
+FULLSHOT_MIN_SPAN_FRAMES: int = 16
+
+
+@dataclass(frozen=True)
+class PlasmaPhaseSpan:
+    """The plasma-phase span of one shot's camera recording.
+
+    Attributes
+    ----------
+    start_frame, end_frame:
+        ``[start_frame, end_frame)`` — first plasma-present frame (breakdown) to
+        one past the last plasma-present frame (the quench).  ``end_frame`` is
+        exclusive of trailing post-quench dark.
+    present_fraction:
+        Fraction of frames WITHIN the span that are plasma-present (a span with
+        long dark gaps mid-pulse scores low — the mostly-dark reject).
+    max_abs_ip:
+        ``max|Ip|`` over the span (A).
+    duration_s:
+        Wall-clock duration of the span (s).
+    valid:
+        True when the span clears the min-span + present-fraction + max|Ip| bars.
+    reason:
+        Why rejected (``""`` when valid): ``unreadable`` / ``no_plasma`` /
+        ``too_short`` / ``mostly_dark``.
+    """
+
+    start_frame: int
+    end_frame: int
+    present_fraction: float
+    max_abs_ip: float
+    duration_s: float
+    valid: bool
+    reason: str = ""
+
+
+def _shot_abs_ip(shot_id, camera, token_root):
+    """Per-frame (ftime, |Ip| in A) for a shot, or (None, None)."""
+    from imas_ambix.camdyn.conditioning import load_conditioning  # noqa: PLC0415
+    from imas_ambix.camdyn.dataset import level1_shot_path  # noqa: PLC0415
+
+    ftime = _frame_times(int(shot_id), camera, token_root=token_root)
+    if ftime is None:
+        return None, None
+    ftime = np.asarray(ftime, dtype=np.float64)
+    if ftime.size < 2:
+        return None, None
+    ip_col = plasma_current_channel_index()
+    if ip_col is None:
+        return None, None
+    try:
+        lpath = level1_shot_path(int(shot_id))
+    except Exception:  # noqa: BLE001
+        return None, None
+    cond = load_conditioning(
+        lpath, ftime, int(shot_id), channels=ACTUATOR_CHANNELS, include_dalpha=False
+    )
+    raw = np.asarray(cond.values, dtype=np.float64)
+    miss = np.asarray(cond.missing, dtype=np.float64)
+    absip = np.abs(raw[:, ip_col])
+    absip = np.where(miss[:, ip_col] < 1.0, absip, np.nan)
+    return ftime, absip
+
+
+def find_plasma_phase_span(
+    shot_id: int,
+    *,
+    camera: str = REFERENCE_CAMERA,
+    token_root: Path | None = None,
+    ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
+    min_present_fraction: float = FULLSHOT_MIN_PRESENT_FRACTION,
+    min_span_frames: int = FULLSHOT_MIN_SPAN_FRAMES,
+) -> PlasmaPhaseSpan:
+    """Find one shot's plasma-phase span ``[breakdown, quench)``.
+
+    The span runs from the FIRST plasma-present frame (breakdown — or the
+    recording start if it already begins in plasma) to one past the LAST
+    plasma-present frame (the quench), trimming trailing post-quench dark.  A
+    span is ``valid`` when it is long enough (``>= min_span_frames``), its
+    ``max|Ip|`` clears the threshold, and it is NOT mostly-dark (its internal
+    present-fraction ``>= min_present_fraction`` — a pulse that only flickers into
+    plasma fails).  The window may START dark (the breakdown frames are
+    sub-threshold) — that is the point.
+    """
+    ftime, absip = _shot_abs_ip(shot_id, camera, token_root)
+    if ftime is None or absip is None:
+        return PlasmaPhaseSpan(0, 0, 0.0, 0.0, 0.0, False, "unreadable")
+    present = np.isfinite(absip) & (absip >= float(ip_present_threshold))
+    if not present.any():
+        max_overall = float(np.nanmax(absip)) if np.isfinite(absip).any() else 0.0
+        return PlasmaPhaseSpan(0, 0, 0.0, max_overall, 0.0, False, "no_plasma")
+    idx = np.flatnonzero(present)
+    start = int(idx[0])
+    end = int(idx[-1]) + 1  # exclusive of trailing dark
+    span = present[start:end]
+    n_span = end - start
+    present_fraction = float(span.mean()) if n_span > 0 else 0.0
+    max_abs = float(np.nanmax(absip[start:end]))
+    duration_s = float(ftime[end - 1] - ftime[start]) if n_span >= 2 else 0.0
+    if n_span < int(min_span_frames):
+        return PlasmaPhaseSpan(
+            start, end, present_fraction, max_abs, duration_s, False, "too_short"
+        )
+    if present_fraction < float(min_present_fraction):
+        return PlasmaPhaseSpan(
+            start, end, present_fraction, max_abs, duration_s, False, "mostly_dark"
+        )
+    return PlasmaPhaseSpan(start, end, present_fraction, max_abs, duration_s, True, "")
+
+
+def select_fullshot_window(
+    shot_id: int,
+    *,
+    camera: str = REFERENCE_CAMERA,
+    token_root: Path | None = None,
+    ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
+    min_present_fraction: float = FULLSHOT_MIN_PRESENT_FRACTION,
+    min_span_frames: int = FULLSHOT_MIN_SPAN_FRAMES,
+) -> CuratedWindow | None:
+    """One full-shot window = the whole plasma phase, or None if rejected.
+
+    Emits a :class:`CuratedWindow` spanning ``[start_frame, end_frame)`` (the
+    whole breakdown->termination evolution) with ``phase="full"``,
+    ``plasma_duration_s`` set, and ``n_frames``/``frame_stride`` carrying the
+    NATIVE span (n_frames = span length, frame_stride = 1) as a record of the
+    full extent — the trainer ignores these and time-subsamples
+    ``[start_frame, end_frame)`` to its own n_frames using
+    ``target_horizon_s = plasma_duration_s``.  ``excitation_score`` is the
+    time-mean summed coil ``|dI/dt|`` over the span (for ordering / reporting).
+    """
+    span = find_plasma_phase_span(
+        shot_id,
+        camera=camera,
+        token_root=token_root,
+        ip_present_threshold=ip_present_threshold,
+        min_present_fraction=min_present_fraction,
+        min_span_frames=min_span_frames,
+    )
+    if not span.valid:
+        logger.debug("shot %s full-shot rejected: %s", shot_id, span.reason)
+        return None
+    fps = _shot_fps(shot_id, camera, token_root=token_root)
+    if fps is None:
+        return None
+    # excitation score over the span (coil |dI/dt|, for ordering/reporting only).
+    score = _span_excitation_score(
+        shot_id, camera, token_root, span.start_frame, span.end_frame
+    )
+    n_span = span.end_frame - span.start_frame
+    return CuratedWindow(
+        shot_id=int(shot_id),
+        start_frame=int(span.start_frame),
+        fps=float(fps),
+        n_frames=int(n_span),  # native span length (record; trainer subsamples)
+        frame_stride=1,
+        excitation_score=float(score),
+        max_abs_ip=float(span.max_abs_ip),
+        present_fraction=float(span.present_fraction),
+        phase="full",
+        end_frame=int(span.end_frame),
+        plasma_duration_s=float(span.duration_s),
+    )
+
+
+def _span_excitation_score(shot_id, camera, token_root, start, end) -> float:
+    """Time-mean summed coil |dI/dt| over [start, end) (reporting/ordering)."""
+    from imas_ambix.camdyn.conditioning import load_conditioning  # noqa: PLC0415
+    from imas_ambix.camdyn.dataset import level1_shot_path  # noqa: PLC0415
+
+    ftime = _frame_times(int(shot_id), camera, token_root=token_root)
+    if ftime is None:
+        return 0.0
+    ftime = np.asarray(ftime, dtype=np.float64)
+    try:
+        lpath = level1_shot_path(int(shot_id))
+    except Exception:  # noqa: BLE001
+        return 0.0
+    cond = load_conditioning(
+        lpath, ftime, int(shot_id), channels=ACTUATOR_CHANNELS, include_dalpha=False
+    )
+    raw = np.asarray(cond.values, dtype=np.float64)
+    miss = np.asarray(cond.missing, dtype=np.float64)
+    coil_cols = coil_current_channel_indices()
+    coil_present = miss[:, coil_cols].mean(axis=0) < 1.0
+    cols = [c for c, ok in zip(coil_cols, coil_present, strict=True) if ok]
+    if not cols:
+        return 0.0
+    coil = raw[:, cols]
+    dt = np.diff(ftime)
+    dt = np.where(dt > 0, dt, np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rate = np.diff(coil, axis=0) / dt[:, None]
+    ramp = np.abs(np.where(np.isfinite(rate), rate, 0.0)).sum(axis=1)
+    sl = slice(int(start), max(int(start) + 1, int(end) - 1))
+    seg = ramp[sl]
+    return float(np.nanmean(seg)) if seg.size else 0.0
+
+
+def select_fullshot_windows(
+    shot_ids: Sequence[int],
+    *,
+    camera: str = REFERENCE_CAMERA,
+    token_root: Path | None = None,
+    held_out: Sequence[int] = DEFAULT_HELD_OUT,
+    ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
+    min_present_fraction: float = FULLSHOT_MIN_PRESENT_FRACTION,
+    min_span_frames: int = FULLSHOT_MIN_SPAN_FRAMES,
+) -> list[CuratedWindow]:
+    """One full-shot plasma-phase window per shot (held-out fully excluded).
+
+    For each candidate shot (input list MINUS ``held_out``) emits one window
+    spanning its whole plasma phase via :func:`select_fullshot_window`, dropping
+    shots whose plasma phase is unreadable / absent / too short / mostly-dark.
+    Returns a DETERMINISTIC list (ascending shot id).  Every emitted shot_id is
+    an input shot not in ``held_out`` — the shot-level leakage guard.
+    """
+    held = {int(s) for s in held_out}
+    candidates = sorted(int(s) for s in shot_ids if int(s) not in held)
+    out: list[CuratedWindow] = []
+    for sid in candidates:
+        cw = select_fullshot_window(
+            sid,
+            camera=camera,
+            token_root=token_root,
+            ip_present_threshold=ip_present_threshold,
+            min_present_fraction=min_present_fraction,
+            min_span_frames=min_span_frames,
+        )
+        if cw is not None:
+            out.append(cw)
+    return out
+
+
+def probe_plasma_activity(
+    shot_ids: Sequence[int],
+    *,
+    camera: str = REFERENCE_CAMERA,
+    token_root: Path | None = None,
+    ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
+) -> dict[int, dict]:
+    """Diagnostic: is each shot plasma-ACTIVE through its plasma phase?
+
+    For each shot returns ``{max_abs_ip, present_fraction, duration_s, valid,
+    reason}`` for its plasma-phase span — so a held-out shot that FAILED a
+    controllability metric can be checked for being low-activity / mostly-dark
+    (a dark-frame artifact) vs genuinely plasma-active.  Does NOT exclude
+    held-out shots (this is the diagnostic that inspects them).
+    """
+    out: dict[int, dict] = {}
+    for sid in shot_ids:
+        span = find_plasma_phase_span(
+            int(sid),
+            camera=camera,
+            token_root=token_root,
+            ip_present_threshold=ip_present_threshold,
+            min_present_fraction=0.0,  # report raw; don't pre-reject the probe
+            min_span_frames=1,
+        )
+        out[int(sid)] = {
+            "max_abs_ip": span.max_abs_ip,
+            "present_fraction": span.present_fraction,
+            "duration_s": span.duration_s,
+            "start_frame": span.start_frame,
+            "end_frame": span.end_frame,
+            "reason": span.reason,
+        }
+    return out
+
+
 __all__ = [
     "DEFAULT_HELD_OUT",
     "DEFAULT_WINDOW_TIME_STRIDE_S",
+    "FULLSHOT_MIN_PRESENT_FRACTION",
+    "FULLSHOT_MIN_SPAN_FRAMES",
     "CuratedWindow",
+    "PlasmaPhaseSpan",
     "enumerate_curated_windows",
     "enumerate_shot_windows",
+    "find_plasma_phase_span",
+    "probe_plasma_activity",
     "select_curated_window_for_shot",
     "select_curated_windows",
+    "select_fullshot_window",
+    "select_fullshot_windows",
 ]

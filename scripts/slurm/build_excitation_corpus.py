@@ -93,6 +93,8 @@ def _window_row(w) -> dict:
         "max_abs_ip": w.max_abs_ip,
         "present_fraction": w.present_fraction,
         "phase": getattr(w, "phase", ""),
+        "end_frame": getattr(w, "end_frame", 0),
+        "plasma_duration_s": getattr(w, "plasma_duration_s", 0.0),
     }
 
 
@@ -101,16 +103,30 @@ def phase_select(args: argparse.Namespace) -> int:
         DEFAULT_HELD_OUT,
         enumerate_curated_windows,
         select_curated_windows,
+        select_fullshot_windows,
     )
 
     token_root = Path(args.token_root)
     shots = _rbb_shots(token_root, args.scan_limit)
     tr = token_root if args.token_root != str(TOKEN_ROOT) else None
-    mode = "multi-window" if args.multi_window else "single-best"
+    if args.full_shot:
+        mode = "full-shot"
+    elif args.multi_window:
+        mode = "multi-window"
+    else:
+        mode = "single-best"
     print(f"[select] scanning {len(shots)} rbb-bearing shots ({mode})", flush=True)
 
     t0 = time.monotonic()
-    if args.multi_window:
+    if args.full_shot:
+        windows = select_fullshot_windows(
+            shots,
+            camera=args.camera,
+            token_root=tr,
+            held_out=DEFAULT_HELD_OUT,
+            min_present_fraction=args.min_present_fraction,
+        )
+    elif args.multi_window:
         windows = enumerate_curated_windows(
             shots,
             camera=args.camera,
@@ -135,6 +151,23 @@ def phase_select(args: argparse.Namespace) -> int:
         )
     el = time.monotonic() - t0
     rows = [_window_row(w) for w in windows]
+
+    # full-shot: plasma-phase DURATION distribution (for trainer n_frames sizing).
+    duration_stats = None
+    if args.full_shot and rows:
+        dur = np.array([r["plasma_duration_s"] for r in rows], dtype=float)
+        dur_ms = dur * 1e3
+        # n_frames for ~5-8 ms resolution at the median duration.
+        med_ms = float(np.median(dur_ms))
+        duration_stats = {
+            "median_ms": round(med_ms, 1),
+            "p10_ms": round(float(np.percentile(dur_ms, 10)), 1),
+            "p90_ms": round(float(np.percentile(dur_ms, 90)), 1),
+            "min_ms": round(float(dur_ms.min()), 1),
+            "max_ms": round(float(dur_ms.max()), 1),
+            "n_frames_for_5ms_at_median": int(round(med_ms / 5.0)),
+            "n_frames_for_8ms_at_median": int(round(med_ms / 8.0)),
+        }
 
     # phase coverage + windows-per-pulse distribution (multi-window report).
     pulses = sorted({r["shot_id"] for r in rows})
@@ -162,13 +195,24 @@ def phase_select(args: argparse.Namespace) -> int:
         flush=True,
     )
     est = _compute_estimate(rows)
-    if args.multi_window:
+    if args.multi_window or args.full_shot:
         est["note"] = (
-            "MULTI-WINDOW manifest — NO re-encode needed (whole-shot tokens "
-            "already on disk; the dataset slices each window at train time). "
-            "total_tokens here = sum of per-window n_frames x 256 (what the model "
-            "sees per epoch across all windows)."
+            "NO re-encode needed (whole-shot tokens already on disk; the dataset "
+            "slices each window at train time). For full-shot, the trainer "
+            "time-subsamples [start_frame, end_frame) to its own n_frames using "
+            "target_horizon_s = plasma_duration_s; total_tokens here is the native "
+            "span, NOT what the model sees per epoch."
         )
+
+    # Held-out plasma-activity diagnostic (is a ΔN-M fail a dark-frame artifact?).
+    heldout_activity = None
+    if args.probe_heldout:
+        from imas_ambix.worldmodel.excitation_corpus import probe_plasma_activity
+
+        heldout_activity = probe_plasma_activity(
+            list(DEFAULT_HELD_OUT), camera=args.camera, token_root=tr
+        )
+
     manifest = {
         "camera": args.camera,
         "mode": mode,
@@ -179,9 +223,12 @@ def phase_select(args: argparse.Namespace) -> int:
         else None,
         "max_windows_per_shot": args.max_windows_per_shot,
         "min_excitation": args.min_excitation,
+        "min_present_fraction": args.min_present_fraction if args.full_shot else None,
         "held_out": list(DEFAULT_HELD_OUT),
         "n_scanned": len(shots),
         "coverage": coverage,
+        "duration_stats": duration_stats,
+        "heldout_activity": heldout_activity,
         "windows": rows,
         "compute_estimate": est,
     }
@@ -190,6 +237,18 @@ def phase_select(args: argparse.Namespace) -> int:
     out.write_text(json.dumps(manifest, indent=2))
     print(f"[select] wrote manifest {out}", flush=True)
     print("[select] coverage:", json.dumps(coverage, indent=2), flush=True)
+    if duration_stats is not None:
+        print(
+            "[select] plasma-phase duration:",
+            json.dumps(duration_stats, indent=2),
+            flush=True,
+        )
+    if heldout_activity is not None:
+        print(
+            "[select] held-out plasma activity:",
+            json.dumps(heldout_activity, indent=2),
+            flush=True,
+        )
     print("[select] compute estimate:", json.dumps(est, indent=2), flush=True)
     if rows:
         sc = np.array([r["excitation_score"] for r in rows])
@@ -321,6 +380,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     s.add_argument(
         "--limit", type=int, default=None, help="keep the top-N most-excited windows"
+    )
+    s.add_argument(
+        "--full-shot",
+        action="store_true",
+        help="ONE window per shot = the whole plasma phase (breakdown->termination); "
+        "the trainer time-subsamples the span. Overrides --multi-window.",
+    )
+    s.add_argument(
+        "--min-present-fraction",
+        type=float,
+        default=0.7,
+        help="full-shot: min fraction of the plasma-phase span that must be "
+        "plasma-present (may start dark, must not be mostly-dark)",
+    )
+    s.add_argument(
+        "--probe-heldout",
+        action="store_true",
+        help="also probe held-out 18502-05 plasma activity (dark-frame-artifact "
+        "diagnostic) and record it in the manifest",
     )
     s.add_argument(
         "--multi-window",

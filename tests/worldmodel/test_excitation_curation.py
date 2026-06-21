@@ -613,3 +613,136 @@ def test_enumerate_curated_windows_caps_windows_per_shot(monkeypatch):
     # cap keeps first and last (span the whole recording incl. termination)
     starts = [w.start_frame for w in out]
     assert starts[0] == 0 and starts[-1] == 90
+
+
+# ---------------------------------------------------------------------------
+# excitation_corpus: full-shot windows (one window = whole plasma phase)
+# ---------------------------------------------------------------------------
+
+
+def test_plasma_phase_span_spans_breakdown_to_quench(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # 600 Hz; dark 0..50, plasma 50..550 (ramp+flat+quench), dark 550..600.
+    n = 600
+    ftime = np.arange(n) / 600.0
+    absip = np.zeros(n)
+    absip[50:250] = np.linspace(0, 7.0e5, 200)  # ramp
+    absip[250:500] = 7.0e5  # flat-top
+    absip[500:550] = np.linspace(7.0e5, 0, 50)  # quench
+    monkeypatch.setattr(ec, "_shot_abs_ip", lambda *a, **k: (ftime, absip))
+
+    span = ec.find_plasma_phase_span(1, ip_present_threshold=2.0e4)
+    assert span.valid
+    # starts at first present frame (breakdown, ~frame 56 where ramp crosses 20kA)
+    assert 50 <= span.start_frame <= 70
+    # ends just past the last present frame (the quench), trimming trailing dark
+    assert 540 <= span.end_frame <= 552
+    assert span.end_frame <= 552  # trailing dark (550..600) trimmed
+    assert span.present_fraction >= 0.9  # the span itself is mostly plasma
+    assert span.max_abs_ip == pytest.approx(7.0e5)
+    assert span.duration_s > 0.7  # ~0.8 s plasma phase
+
+
+def test_plasma_phase_span_rejects_mostly_dark(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # plasma only flickers: present at the ends, long dark gap between -> the
+    # SPAN (first..last present) is mostly dark -> rejected.
+    n = 600
+    ftime = np.arange(n) / 600.0
+    absip = np.zeros(n)
+    absip[10:30] = 5.0e5  # early blip
+    absip[560:580] = 5.0e5  # late blip
+    monkeypatch.setattr(ec, "_shot_abs_ip", lambda *a, **k: (ftime, absip))
+
+    span = ec.find_plasma_phase_span(
+        1, ip_present_threshold=2.0e4, min_present_fraction=0.7
+    )
+    assert not span.valid
+    assert span.reason == "mostly_dark"
+
+
+def test_plasma_phase_span_rejects_vacuum(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    n = 200
+    ftime = np.arange(n) / 600.0
+    absip = np.full(n, 1.0e3)  # 1 kA everywhere, below 20 kA
+    monkeypatch.setattr(ec, "_shot_abs_ip", lambda *a, **k: (ftime, absip))
+    span = ec.find_plasma_phase_span(1, ip_present_threshold=2.0e4)
+    assert not span.valid
+    assert span.reason == "no_plasma"
+
+
+def test_plasma_phase_span_allows_start_in_plasma(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # recording BEGINS already in plasma (no dark breakdown lead-in) -> span
+    # starts at frame 0.
+    n = 300
+    ftime = np.arange(n) / 600.0
+    absip = np.concatenate([np.full(250, 7.0e5), np.linspace(7.0e5, 0, 50)])
+    monkeypatch.setattr(ec, "_shot_abs_ip", lambda *a, **k: (ftime, absip))
+    span = ec.find_plasma_phase_span(1, ip_present_threshold=2.0e4)
+    assert span.valid
+    assert span.start_frame == 0
+
+
+def test_select_fullshot_windows_excludes_held_out(monkeypatch):
+    import imas_ambix.worldmodel.excitation_corpus as ec
+    from imas_ambix.worldmodel.excitation_corpus import CuratedWindow
+
+    def _sel(sid, **k):
+        return CuratedWindow(
+            sid, 0, 600.0, 200, 1, 1000.0, 7.0e5, 0.9, "full", 200, 0.33
+        )
+
+    monkeypatch.setattr(ec, "select_fullshot_window", _sel)
+    out = ec.select_fullshot_windows(
+        [10, 18502, 11, 18504, 18505, 12], held_out=(18502, 18504, 18505)
+    )
+    sids = {w.shot_id for w in out}
+    assert sids == {10, 11, 12}  # all held-out gone
+    assert all(w.phase == "full" for w in out)
+    assert all(w.end_frame > w.start_frame for w in out)
+    assert all(w.plasma_duration_s > 0 for w in out)
+
+
+def test_probe_plasma_activity_reports_without_excluding(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # an "active" held-out shot vs a "dark" one
+    n = 300
+    ftime = np.arange(n) / 600.0
+
+    def _absip(shot_id, *a, **k):
+        if shot_id == 18504:  # low-activity / brief — the dark-frame-artifact case
+            v = np.zeros(n)
+            v[10:20] = 3.0e4  # only a brief, weak blip
+            return ftime, v
+        v = np.full(n, 6.0e5)  # plasma-active throughout
+        return ftime, v
+
+    monkeypatch.setattr(ec, "_shot_abs_ip", _absip)
+    act = ec.probe_plasma_activity([18502, 18504])
+    # probe inspects held-out shots (does NOT exclude them)
+    assert set(act) == {18502, 18504}
+    # the ACTIVE shot: strong current, long plasma phase.
+    assert act[18502]["max_abs_ip"] == pytest.approx(6.0e5)
+    assert act[18502]["duration_s"] > 0.3
+    # the BRIEF/weak shot: the artifact signals are SHORT duration + LOW max|Ip|
+    # (the within-span present_fraction is ~1.0 by construction — the span IS the
+    # plasma region — so duration + peak current are what flag a dark artifact).
+    assert act[18504]["max_abs_ip"] < 1.0e5
+    assert act[18504]["duration_s"] < 0.05  # ~10 frames @ 600 Hz
