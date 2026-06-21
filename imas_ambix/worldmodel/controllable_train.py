@@ -1106,9 +1106,32 @@ def train_controllable_corpus(
         # least the horizon in TIME (assemble_window subsamples n_frames spanning
         # ~horizon from B's start_frame, robust to a variable cadence — so the
         # requirement is a time-span, not a fixed native-frame count).
+        #
+        # The multi-window manifest has ~3 windows per pulse, so the (span, count)
+        # of a shot is read repeatedly — memoise per shot_id (the recording is the
+        # same for every window of a shot) so the scan does ~unique-shots GPFS
+        # reads, not ~windows (8.7k windows over 3k shots was a ~7.5min startup).
+        span_count_cache: dict[int, tuple[float | None, int] | None] = {}
+
+        def _span_count(sid: int) -> tuple[float | None, int] | None:
+            if sid in span_count_cache:
+                return span_count_cache[sid]
+            try:
+                sp = recording_time_span_s(sid, camera=camera, token_root=token_root)
+                nt = int(camera_frame_count(sid, camera, token_root=token_root))
+                res: tuple[float | None, int] | None = (sp, nt)
+            except (FileNotFoundError, KeyError, ValueError):
+                res = None
+            span_count_cache[sid] = res
+            return res
+
         kept_windows: list[_ManifestWindow] = []
         for w in manifest_windows:
-            try:
+            sc = _span_count(w.shot_id)
+            if sc is None:
+                ok = False
+            else:
+                span_s, n_total = sc
                 if horizon > 0:
                     # TIME-BASED subsample requires BOTH: (1) the recording spans
                     # >= horizon in TIME, and (2) it has at least n_frames total
@@ -1118,24 +1141,13 @@ def train_controllable_corpus(
                     # indices raise "only N frames, need n_frames" inside a worker
                     # and kills the rank.  Enforce both here so the filter matches
                     # what assemble_window can actually deliver.
-                    span_s = recording_time_span_s(
-                        w.shot_id, camera=camera, token_root=token_root
-                    )
-                    n_total = int(
-                        camera_frame_count(w.shot_id, camera, token_root=token_root)
-                    )
                     ok = (
                         span_s is not None
                         and span_s >= horizon
                         and n_total >= config.window.n_frames
                     )
                 else:
-                    n_total = int(
-                        camera_frame_count(w.shot_id, camera, token_root=token_root)
-                    )
                     ok = n_total >= (config.window.n_frames - 1) * w.frame_stride + 1
-            except (FileNotFoundError, KeyError, ValueError):
-                ok = False
             if ok:
                 kept_windows.append(w)
         n_dropped = len(list(manifest_windows)) - len(kept_windows)
