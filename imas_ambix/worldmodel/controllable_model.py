@@ -654,6 +654,7 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
                 target,
                 chunk=int(loss_spec.get("chunk", 4096)),
                 context_frames=loss_spec.get("context_frames"),
+                frame_weights=loss_spec.get("frame_weights"),
             )
             w_inv = float(loss_spec.get("inverse_dynamics_weight", 0.0))
             if self.has_inverse_dynamics and w_inv > 0.0 and actuator is not None:

@@ -42,7 +42,9 @@ import numpy as np
 import torch
 
 from imas_ambix.worldmodel.actuator_plan import (
+    ACTUATOR_CHANNEL_KEYS,
     N_ACTUATOR_CHANNELS,
+    coil_current_channel_indices,
     find_transient_window,
     gas_puff_channel_indices,
     nbi_channel_indices,
@@ -137,6 +139,34 @@ def _warm_start_from_forecaster(
     state = payload.get("model_state_dict", payload)
     own = model.state_dict()
     loadable = {k: v for k, v in state.items() if k in own and own[k].shape == v.shape}
+    # Positional tables (``frame_embed.weight``) may be LARGER in the target than
+    # in the checkpoint when the horizon is extended (more camera frames → bigger
+    # max_frames).  A strict shape match would DROP the table entirely and the
+    # learned temporal positions would restart at random.  Instead PARTIAL-COPY:
+    # the checkpoint's rows fill the low (absolute-position) indices — prefix +
+    # the frames the checkpoint already saw — and the new high indices (the
+    # later frames the extended horizon adds) keep their fresh init.  Rows are
+    # absolute sequence positions, so this preserves the learned early-frame
+    # positions and only the genuinely-new later positions start fresh.
+    n_extended = 0
+    for k in ("frame_embed.weight",):
+        if k in own and k in state and k not in loadable:
+            src, dst = state[k], own[k]
+            if src.dim() == dst.dim() == 2 and src.shape[1] == dst.shape[1]:
+                rows = min(src.shape[0], dst.shape[0])
+                merged = dst.clone()
+                merged[:rows] = src[:rows].to(merged.dtype)
+                loadable[k] = merged
+                n_extended += 1
+                logger.info(
+                    "warm-start %s: partial-copy %d/%d rows (checkpoint %d -> "
+                    "target %d), high positions kept at init",
+                    k,
+                    rows,
+                    dst.shape[0],
+                    src.shape[0],
+                    dst.shape[0],
+                )
     missing, _unexpected = model.load_state_dict(loadable, strict=False)
     model.to(device)
     n_new = sum(1 for k in own if k not in loadable)
@@ -452,6 +482,64 @@ def _scheduled_sampling_mix(
         if bool(take.any()):
             mixed[take, ti] = pred[take]
     return mixed
+
+
+@torch.no_grad()
+def _excitation_frame_weights(
+    actuator: dict | None,
+    *,
+    n_frames: int,
+    coil_cols: Sequence[int],
+    device: torch.device,
+    floor: float,
+    power: float,
+) -> torch.Tensor | None:
+    """Per-target-frame excitation weight from coil |dI/dt| — ``(B, T-1)``.
+
+    ``actuator["values"]`` is the NORMALISED actuator vector ``(B, P_a, C)`` at the
+    plan resolution (``P_a = n_act_steps``), coarser than the ``T = n_frames``
+    camera frames.  We linearly resample the COIL columns from ``P_a`` to ``T``
+    over the shared window-time grid, take the frame-to-frame absolute change
+    summed over coil channels, and map it to a per-frame weight aligned to TARGET
+    frames ``1..T-1`` (``weight[t]`` scores the transition INTO frame ``t``):
+
+        raw[t]   = sum_c |coil_resampled[t] - coil_resampled[t-1]|     # (B, T-1)
+        norm     = raw / per-sample max(raw)            # 0..1, robust to scale
+        weight   = floor + (1 - floor) * norm**power    # floor..1
+
+    A flat-top frame (coils still) keeps the ``floor`` baseline (it still teaches
+    persistence); a frame where the coils swing gets weight → 1.  Returns ``None``
+    when there is no actuator / no coil column / a degenerate (single-step) plan,
+    so the caller falls back to the uniform loss.  All-quiet windows (max ≈ 0)
+    return the uniform ``floor + (1-floor)*0`` — i.e. a constant, which the
+    weighted mean treats identically to uniform.
+    """
+    if actuator is None:
+        return None
+    vals = actuator.get("values")
+    if vals is None or vals.ndim != 3 or vals.shape[1] < 2:
+        return None
+    cols = [int(c) for c in coil_cols if 0 <= int(c) < vals.shape[2]]
+    if not cols:
+        return None
+    t = int(n_frames)
+    if t < 2:
+        return None
+    coil = vals[:, :, cols].to(torch.float32)  # (B, P_a, n_coil)
+    b, p_a, _ = coil.shape
+    # resample P_a -> T along the time axis (linear), via 1d interpolation.  Move
+    # the time axis last for F.interpolate, then back.
+    coil_bt = coil.permute(0, 2, 1)  # (B, n_coil, P_a)
+    coil_rt = torch.nn.functional.interpolate(
+        coil_bt, size=t, mode="linear", align_corners=True
+    )  # (B, n_coil, T)
+    coil_rt = coil_rt.permute(0, 2, 1)  # (B, T, n_coil)
+    dcoil = (coil_rt[:, 1:t] - coil_rt[:, : t - 1]).abs().sum(dim=-1)  # (B, T-1)
+    peak = dcoil.amax(dim=1, keepdim=True).clamp_min(1e-8)
+    norm = (dcoil / peak).clamp(0.0, 1.0)
+    f = float(max(0.0, min(1.0, floor)))
+    w = f + (1.0 - f) * norm.pow(float(max(1e-3, power)))
+    return w.to(device)
 
 
 # ---------------------------------------------------------------------------
@@ -971,6 +1059,20 @@ class ControllableCorpusConfig:
     inverse_dynamics_weight: float = 1.0
     scheduled_sampling_max: float = 0.25
     scheduled_sampling_ramp: float = 0.5
+    # EXCITATION-WEIGHT the next-frame CE by per-frame coil |dI/dt| (the operator's
+    # drive).  A full-shot window is ~half flat-top frames by COUNT; without this
+    # the persistence-easy flat-top frames drown the coil→plasma gradient and the
+    # model re-dilutes to the 0/3 multi-window failure.  The weight up-scales
+    # forecast frames where the coils move.  ``excitation_weight_floor`` is the
+    # baseline weight a NON-moving frame still carries (so quiet frames are not
+    # zeroed — they still teach persistence); the moving frames are scaled up to
+    # 1.0.  ``excitation_weight_power`` sharpens (>1) or softens (<1) the contrast.
+    # False = uniform per-frame loss (the ablation baseline).  The inverse-dynamics
+    # aux already self-weights toward coil motion; this reinforces it at frame
+    # resolution in the PRIMARY next-frame objective.
+    excitation_weighting: bool = True
+    excitation_weight_floor: float = 0.1
+    excitation_weight_power: float = 1.0
     # DROP the measured STATES (plasma_current + ne_line_integrated) from the
     # actuator COMMAND vector — they are RESPONSES, not commands (they remain
     # available as v2 observation streams).  The dataset is then built on the
@@ -1275,6 +1377,29 @@ def train_controllable_corpus(
         if config.drop_state_channels
         else ()
     )
+    # Coil-current columns IN THE ACTUATOR VECTOR's coordinate system (which is the
+    # filtered command-channel list when drop_state_channels is on, not the full
+    # ACTUATOR_CHANNELS).  Resolve by KEY: the canonical coil keys mapped to their
+    # positions in the probe's channel_keys.  Used for excitation weighting; empty
+    # disables it (falls back to uniform loss).
+    _coil_keys = {
+        ACTUATOR_CHANNEL_KEYS[i]
+        for i in coil_current_channel_indices()
+        if i < len(ACTUATOR_CHANNEL_KEYS)
+    }
+    coil_cols = [
+        i
+        for i, k in enumerate(probe[0].actuator.channel_keys)
+        if k in _coil_keys
+    ]
+    if env.is_main and config.excitation_weighting:
+        logger.info(
+            "excitation weighting ON: %d coil columns %s (floor=%.2f power=%.2f)",
+            len(coil_cols),
+            coil_cols,
+            config.excitation_weight_floor,
+            config.excitation_weight_power,
+        )
 
     # Broadcast every shaping quantity from rank 0 so all ranks build the SAME
     # model (a per-rank GPFS read miss must not desync the param set).
@@ -1527,6 +1652,16 @@ def train_controllable_corpus(
                     if (env.enabled and not is_boundary)
                     else contextlib.nullcontext()
                 )
+                frame_w = None
+                if config.excitation_weighting and coil_cols:
+                    frame_w = _excitation_frame_weights(
+                        batch.get("actuator"),
+                        n_frames=int(batch["frames"].shape[1]),
+                        coil_cols=coil_cols,
+                        device=dev,
+                        floor=config.excitation_weight_floor,
+                        power=config.excitation_weight_power,
+                    )
                 with sync_ctx, _AutocastCtx(dev):
                     loss = model(
                         batch,
@@ -1534,6 +1669,7 @@ def train_controllable_corpus(
                             "chunk": config.chunk,
                             "context_frames": ctx_frames,
                             "inverse_dynamics_weight": config.inverse_dynamics_weight,
+                            "frame_weights": frame_w,
                         },
                     )
                     scaled = loss / accum
@@ -2574,6 +2710,27 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--scheduled-sampling-max", type=float, default=0.25)
     pc.add_argument("--scheduled-sampling-ramp", type=float, default=0.5)
     pc.add_argument(
+        "--no-excitation-weighting",
+        action="store_true",
+        help="DISABLE excitation weighting of the next-frame CE (the ablation "
+        "baseline: uniform per-frame loss).  Default ON — up-weights forecast "
+        "frames where the coils move so flat-top frames cannot drown the "
+        "coil->plasma gradient on a full-shot window.",
+    )
+    pc.add_argument(
+        "--excitation-weight-floor",
+        type=float,
+        default=0.1,
+        help="baseline per-frame weight a NON-moving (flat-top) frame keeps "
+        "(0..1); moving frames scale up to 1.0.  0 zeroes quiet frames entirely.",
+    )
+    pc.add_argument(
+        "--excitation-weight-power",
+        type=float,
+        default=1.0,
+        help="sharpen (>1) or soften (<1) the excitation-weight contrast.",
+    )
+    pc.add_argument(
         "--keep-state-channels",
         action="store_true",
         help="condition on the FULL actuator vector incl plasma_current + density "
@@ -2671,6 +2828,9 @@ def main(argv: list[str] | None = None) -> int:
         inverse_dynamics_weight=args.inverse_dynamics_weight,
         scheduled_sampling_max=args.scheduled_sampling_max,
         scheduled_sampling_ramp=args.scheduled_sampling_ramp,
+        excitation_weighting=not args.no_excitation_weighting,
+        excitation_weight_floor=args.excitation_weight_floor,
+        excitation_weight_power=args.excitation_weight_power,
         drop_state_channels=not args.keep_state_channels,
         window=SpacetimeWindowConfig(
             n_frames=args.n_frames,

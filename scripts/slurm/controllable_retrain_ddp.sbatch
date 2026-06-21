@@ -117,6 +117,13 @@ source "${VENV}/bin/activate"
 : "${WM_INV_DYN_WEIGHT:=1.0}"
 : "${WM_SS_MAX:=0.25}"
 : "${WM_SS_RAMP:=0.5}"
+# EXCITATION WEIGHTING of the next-frame CE by per-frame coil |dI/dt| — up-weights
+# forecast frames where the coils move so the persistence-easy flat-top frames of a
+# FULL-SHOT window cannot drown the coil->plasma gradient (the multi-window 0/3
+# dilution). WM_EXCITATION_WEIGHTING=0 turns it OFF (the ablation baseline).
+: "${WM_EXCITATION_WEIGHTING:=1}"   # 1=on (default), 0=off (uniform per-frame loss)
+: "${WM_EXCITATION_WEIGHT_FLOOR:=0.1}"   # baseline weight a still (flat-top) frame keeps
+: "${WM_EXCITATION_WEIGHT_POWER:=1.0}"   # >1 sharpens / <1 softens the contrast
 # model — adopted from the forecaster checkpoint when --init-checkpoint is given,
 # so these are usually unset (the trainer reads the ckpt dims). Override only to
 # train from scratch at a chosen size.
@@ -149,10 +156,19 @@ echo "  M4 machinery: obs_dropout=${WM_OBS_DROPOUT} hb(std=${WM_HB_NOISE_STD},ma
 echo "  held-out:    ${WM_EVAL_SHOTS}"
 nvidia-smi --query-gpu=index,name,memory.total,memory.free --format=csv,noheader || true
 
+# excitation weighting is ON by default; pass the disable flag only when explicitly off
+EXC_FLAG=()
+if [[ "${WM_EXCITATION_WEIGHTING}" == "0" ]]; then
+    EXC_FLAG=(--no-excitation-weighting)
+fi
+
 torchrun \
     --standalone \
     --nproc_per_node="${WM_NPROC}" \
     -m imas_ambix.worldmodel.controllable_train corpus \
+    "${EXC_FLAG[@]}" \
+    --excitation-weight-floor "${WM_EXCITATION_WEIGHT_FLOOR}" \
+    --excitation-weight-power "${WM_EXCITATION_WEIGHT_POWER}" \
     --manifest "${WM_MANIFEST}" \
     --token-root "${WM_TOKEN_ROOT}" \
     --eval-shots "${WM_EVAL_SHOTS}" \
@@ -192,4 +208,32 @@ EXIT_CODE=$?
 
 echo "[$(date)] controllable-retrain finished (exit=${EXIT_CODE})"
 echo "  checkpoints: ${WM_OUT_DIR}/latest.pt (+ ckpt-<step>.pt snapshots)"
+
+# ── Baked-in end-of-run held-out eval (produces the verdict even if the driving
+#    session limits out — the recurring gap). Runs on ONE of the GPUs the job
+#    already holds (the training DDP has exited, so all cards are free), in the
+#    SAME process env. Skipped only if training failed or latest.pt is missing.
+#    WM_RUN_EVAL=0 disables. The eval matches the training window (horizon /
+#    n_frames / context) so it conditions on the same physical span.
+: "${WM_RUN_EVAL:=1}"
+if [[ "${WM_RUN_EVAL}" == "1" && "${EXIT_CODE}" == "0" && -f "${WM_OUT_DIR}/latest.pt" ]]; then
+    echo "[$(date)] baked-in held-out eval on ${WM_OUT_DIR}/latest.pt"
+    CUDA_VISIBLE_DEVICES=0 python3 -m imas_ambix.worldmodel.controllable_eval \
+        --checkpoint "${WM_OUT_DIR}/latest.pt" \
+        --out-dir "${WM_OUT_DIR}/eval" \
+        --token-root "${WM_TOKEN_ROOT}" \
+        --held-out "${WM_EVAL_SHOTS}" \
+        --target-horizon-s "${WM_TARGET_HORIZON_S}" \
+        --n-frames "${WM_N_FRAMES}" \
+        --n-plan "${WM_N_PLAN}" \
+        --context-frames "${WM_CONTEXT_FRAMES}" \
+        --n-signal-steps "${WM_N_SIGNAL_STEPS}" \
+        --n-act-steps "${WM_N_ACT_STEPS}" \
+        --chunk "${WM_CHUNK}" \
+        && echo "[$(date)] baked-in eval verdict: ${WM_OUT_DIR}/eval/heldout_delta_nm.json" \
+        || echo "[$(date)] baked-in eval FAILED (training checkpoint is still valid)"
+else
+    echo "[$(date)] baked-in eval skipped (WM_RUN_EVAL=${WM_RUN_EVAL} exit=${EXIT_CODE} ckpt=$( [[ -f ${WM_OUT_DIR}/latest.pt ]] && echo present || echo missing ))"
+fi
+
 exit "${EXIT_CODE}"

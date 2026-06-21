@@ -460,6 +460,7 @@ class SpacetimeTransformer(nn.Module):
         *,
         chunk: int = 4096,
         context_frames: int | None = None,
+        frame_weights: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Next-frame cross-entropy, flattened over (frame, position), chunked.
 
@@ -473,12 +474,24 @@ class SpacetimeTransformer(nn.Module):
         the forecast window (target frame index ``>= context_frames``) are
         scored — the forecasting objective.  ``None`` scores every next-frame
         prediction (the standard teacher-forced LM loss the overfit gate uses).
+
+        ``frame_weights`` (optional): ``(B, T-1)`` non-negative per-target-frame
+        weights aligned to target frames ``1..T-1`` (BEFORE the forecast mask).
+        When given, the loss becomes a WEIGHTED mean — each row's CE is scaled by
+        its frame's weight and the sum is normalised by the total weight (not the
+        row count).  Used to up-weight forecast frames where the actuator is
+        moving (excitation weighting) so persistence-easy flat-top frames cannot
+        drown the coil→plasma gradient.  ``None`` is the uniform mean.
         """
         b, t, s, d = hidden.shape
         if t < 2:
             raise ValueError("need >= 2 frames to form a next-frame target")
         pred_h = hidden[:, : t - 1]  # (B, T-1, S, d) predicts frames 1..T-1
         target = frames[:, 1:t]  # (B, T-1, S)
+        w = None
+        if frame_weights is not None:
+            # (B, T-1) -> broadcast over the S spatial positions of each frame.
+            w = frame_weights.to(hidden.dtype)
         # forecasting mask over the TARGET frame index (1..T-1)
         if context_frames is not None:
             tgt_frame_idx = torch.arange(1, t, device=hidden.device)
@@ -487,17 +500,33 @@ class SpacetimeTransformer(nn.Module):
                 keep = torch.ones_like(keep)  # window too short — score all
             pred_h = pred_h[:, keep]
             target = target[:, keep]
+            if w is not None:
+                w = w[:, keep]
         flat_h = pred_h.reshape(-1, d)  # (N, d)
         flat_tgt = target.reshape(-1)  # (N,)
         n = flat_h.shape[0]
+        flat_w = None
+        if w is not None:
+            # expand the per-frame weight over the S positions, then flatten to
+            # match the (B, T_keep, S) row order of flat_h / flat_tgt.
+            flat_w = w[:, :, None].expand(-1, -1, s).reshape(-1).contiguous()
         total = hidden.new_zeros(())
+        wsum = hidden.new_zeros(())
         for start in range(0, n, chunk):
             stop = min(start + chunk, n)
             logits = self.head(flat_h[start:stop])  # (chunk, vocab)
-            total = total + F.cross_entropy(
-                logits, flat_tgt[start:stop], reduction="sum"
-            )
+            ce = F.cross_entropy(
+                logits, flat_tgt[start:stop], reduction="none"
+            )  # (chunk,)
+            if flat_w is not None:
+                cw = flat_w[start:stop]
+                total = total + (ce * cw).sum()
+                wsum = wsum + cw.sum()
+            else:
+                total = total + ce.sum()
             del logits
+        if flat_w is not None:
+            return total / wsum.clamp_min(1e-6)
         return total / max(n, 1)
 
     @torch.no_grad()
