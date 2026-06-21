@@ -2294,10 +2294,20 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     model_kwargs: dict = {"adaln_hidden": args.adaln_hidden}
+    # When warm-starting from the forecaster, ADOPT its architecture dims so the
+    # warm start actually loads (a size mismatch loads 0 tensors and trains a fresh
+    # small model — the bug that wasted job 1220852).  An explicit --d-model/etc.
+    # overrides the checkpoint (train-from-scratch at a chosen size).
+    if args.init_checkpoint:
+        ck_arch = architecture_from_checkpoint(_Path(args.init_checkpoint))
+        ck_arch.pop("corruption_levels", None)  # the history-bottleneck sets levels
+        for k, v in ck_arch.items():
+            model_kwargs.setdefault(k, v)
+        logger.info("adopting forecaster architecture from checkpoint: %s", ck_arch)
     for k in ("d_model", "n_layers", "n_heads", "d_ff", "dropout"):
         v = getattr(args, k, None)
         if v is not None:
-            model_kwargs[k] = v
+            model_kwargs[k] = v  # explicit CLI override wins
 
     cfg = ControllableCorpusConfig(
         steps=args.steps,
