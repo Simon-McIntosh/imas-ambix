@@ -35,7 +35,7 @@ cudnn deterministic, bf16 autocast.  This is a 1-GPU gate (minutes), not the
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -889,6 +889,13 @@ class _ManifestWindow:
     start_frame: int
     frame_stride: int  # derived from the manifest fps to span ~target_horizon_s
     fps: float  # the shot's native cadence (from B's selector) — for logging
+    # The PHYSICAL horizon (s) THIS window should span.  For full-shot windows it
+    # is the shot's own ``plasma_duration_s`` (breakdown→termination), so each
+    # window spans its OWN plasma phase; for the fixed-horizon manifests it is the
+    # global ``target_horizon_s``.  ``assemble`` uses the TIME-BASED subsample with
+    # this value (cadence-robust), NOT a literal stride.  0 -> fall back to the
+    # global config horizon.
+    horizon_s: float = 0.0
 
 
 def manifest_train_windows(
@@ -901,26 +908,47 @@ def manifest_train_windows(
     """Read the curated manifest into per-shot excited windows for training.
 
     For each manifest window (B's excitation selector already found the excited
-    region + recorded its ``start_frame`` and native ``fps``), derive the
-    per-shot ``frame_stride = max(1, round(target_horizon_s * fps / n_frames))``
-    so the FIXED ``n_frames`` span ~``target_horizon_s`` — NOT B's variable
-    per-window ``n_frames``/stride (we keep rectangular batches + the forecaster's
-    window shape).  Uses B's ``start_frame`` directly (no re-running the transient
-    scan).  Held-out shots are excluded (defence in depth — already excluded at
-    select time).  Skips a window whose shot is too short for the strided window.
+    region + recorded its ``start_frame`` and native ``fps``), derive the per-shot
+    ``frame_stride`` so the FIXED ``n_frames`` span the intended PHYSICAL horizon —
+    NOT B's variable per-window ``n_frames`` (we keep rectangular batches + the
+    forecaster's window shape).  Uses B's ``start_frame`` directly (no re-running
+    the transient scan).
+
+    Per-window horizon precedence (the value the TIME-BASED subsample spans):
+      1. FULL-SHOT mode — when the window carries a positive ``plasma_duration_s``
+         (B's full-shot selector records each shot's whole breakdown→termination
+         length), the window spans THAT shot's own duration, so every window covers
+         its OWN full plasma phase regardless of how long the shot is.  This is the
+         genuine per-shot horizon full-shot training needs.
+      2. else a single global ``target_horizon_s`` (the fixed-horizon modes).
+    The per-window ``frame_stride`` is also recorded (for the corpus length filter);
+    assembly itself uses the per-window ``horizon_s`` via the time-based subsample
+    (cadence-robust), not the literal stride.
+
+    Held-out shots are excluded (defence in depth — already excluded at select
+    time).  Skips a window whose shot is too short for the strided window.
     """
     import json  # noqa: PLC0415
     from pathlib import Path as _Path  # noqa: PLC0415
 
     data = json.loads(_Path(manifest_path).read_text())
     out: list[_ManifestWindow] = []
+    n_fullshot = 0
     for w in data.get("windows", []):
         sid = int(w["shot_id"])
         if sid in held_out:
             continue
         fps = float(w.get("fps") or 0.0)
-        if target_horizon_s and target_horizon_s > 0 and fps > 0:
-            stride = max(1, int(round(target_horizon_s * fps / n_frames)))
+        per_window_horizon = float(w.get("plasma_duration_s") or 0.0)
+        if per_window_horizon > 0.0:
+            horizon_s = per_window_horizon  # full-shot: this shot's own duration
+            n_fullshot += 1
+        else:
+            horizon_s = float(target_horizon_s or 0.0)  # global fixed horizon
+        # frame_stride is for the corpus length filter only (assembly uses the
+        # time-based subsample over horizon_s); derive it from the chosen horizon.
+        if horizon_s > 0 and fps > 0:
+            stride = max(1, int(round(horizon_s * fps / n_frames)))
         else:
             stride = int(w.get("frame_stride") or 1)
         out.append(
@@ -929,7 +957,17 @@ def manifest_train_windows(
                 start_frame=int(w.get("start_frame") or 0),
                 frame_stride=stride,
                 fps=fps,
+                horizon_s=horizon_s,
             )
+        )
+    if n_fullshot:
+        logger.info(
+            "manifest: %d/%d windows use PER-SHOT full-shot horizon "
+            "(plasma_duration_s); fixed n_frames=%d time-subsamples each shot's "
+            "own plasma phase",
+            n_fullshot,
+            len(out),
+            n_frames,
         )
     return out
 
@@ -980,9 +1018,12 @@ class ManifestWindowDataset:
         else:
             kw["actuator_channels"] = list(ACTUATOR_CHANNELS)
         # assemble at B's excited start_frame; assemble_window's TIME-BASED path
-        # (config.target_horizon_s > 0) picks n_frames spanning ~the horizon from
-        # there, robust to mid-shot cadence changes (a fixed per-shot stride
-        # undershoots ~22% of windows).  The manifest stride is not used.
+        # (target_horizon_s > 0) picks n_frames spanning ~the horizon from there,
+        # robust to mid-shot cadence changes (a fixed per-shot literal stride
+        # undershoots ~22% of windows — so we span by TIME, not by stride).  When a
+        # window carries its OWN horizon (full-shot mode: each shot's
+        # plasma_duration_s), span THAT — so every window covers its own whole
+        # plasma phase — by overriding target_horizon_s on a per-window config copy.
         #
         # Defence-in-depth: if a window slips past the corpus-level filter and
         # still fails to assemble (a data edge case — e.g. a low-cadence
@@ -994,10 +1035,15 @@ class ManifestWindowDataset:
         last_err: Exception | None = None
         for off in range(min(8, n)):
             w = self._windows[(index + off) % n]
+            cfg_w = self._config
+            if w.horizon_s > 0 and abs(
+                w.horizon_s - self._config.target_horizon_s
+            ) > 1e-9:
+                cfg_w = replace(self._config, target_horizon_s=float(w.horizon_s))
             try:
                 return assemble_controllable_window(
                     w.shot_id,
-                    self._config,
+                    cfg_w,
                     self._modalities,
                     self._n_signal_steps,
                     self._n_act_steps,
@@ -1234,18 +1280,19 @@ def train_controllable_corpus(
                 ok = False
             else:
                 span_s, n_total = sc
-                if horizon > 0:
+                # the horizon THIS window must span — its own (full-shot) or global.
+                w_horizon = w.horizon_s if w.horizon_s > 0 else horizon
+                if w_horizon > 0:
                     # TIME-BASED subsample requires BOTH: (1) the recording spans
-                    # >= horizon in TIME, and (2) it has at least n_frames total
-                    # frames to subsample from — a low-cadence recording can span
-                    # 0.25s+ with FEWER than n_frames (e.g. 18 frames @ 50fps =
-                    # 0.34s), which passes the time check but makes _time_spanned_
-                    # indices raise "only N frames, need n_frames" inside a worker
-                    # and kills the rank.  Enforce both here so the filter matches
-                    # what assemble_window can actually deliver.
+                    # >= this window's horizon in TIME, and (2) it has at least
+                    # n_frames total frames to subsample from — a low-cadence
+                    # recording can span the horizon with FEWER than n_frames (e.g.
+                    # 18 frames @ 50fps = 0.34s), which passes the time check but
+                    # makes _time_spanned_indices raise "only N frames, need
+                    # n_frames" inside a worker and kills the rank.  Enforce both.
                     ok = (
                         span_s is not None
-                        and span_s >= horizon
+                        and span_s >= w_horizon
                         and n_total >= config.window.n_frames
                     )
                 else:
