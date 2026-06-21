@@ -4,10 +4,18 @@
 #SBATCH --reservation=gpu_0003_grpA
 #SBATCH --account=grpa
 #SBATCH --gres=gpu:6
-#SBATCH --cpus-per-task=30
-#SBATCH --mem=640G
+#SBATCH --cpus-per-task=14
+#SBATCH --mem=440G
 #SBATCH --time=08:00:00
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
+# CPU/MEM sized to COEXIST with the DeepSeek serve INSIDE the 30-core / 650G
+# Group-A reservation: DeepSeek uses ~15 cores + 200G, so 14 cores (15+14=29<=30)
+# + 440G (200+440=640<=650) leaves room and schedules immediately.  Requesting the
+# full reservation (--cpus-per-task=30 --mem=640G) pends on Resources for days
+# while DeepSeek is up (45 cores / 840G > the reservation).  14 cores is plenty for
+# 6-rank token DataLoaders (tokens are tiny vs raw frames); keep WM_NUM_WORKERS so
+# 6*workers <= 14.  Override on the CLI only to take the whole reservation when
+# DeepSeek is down.
 # NOTE: --qos intentionally omitted — defaults to normal (no 4-GPU cap), so a
 # 6-card job bursts onto the free cards and COEXISTS with the 2-card DeepSeek
 # serve (6 + 2 = 8/8). Do NOT pass --qos. (repo AGENTS.md §2)
@@ -65,14 +73,20 @@ VENV="${REPO_ROOT}/.venv"
 # shellcheck source=/dev/null
 source "${VENV}/bin/activate"
 
-# curated EXCITED token-root (percentile exposure) — B's full re-encode output.
-: "${WM_TOKEN_ROOT:=/work/projects/imas_gpu/mast-tokens/v1/frames-excitation-curated}"
+# curated EXCITED token-root — the curated-token-view (v1/frames -> curated
+# percentile frames + v2/signals_hf -> the old signals_hf; the loader needs both
+# version dirs, and B's raw curated dir lacks the v1/ level + signals).
+: "${WM_TOKEN_ROOT:=/work/projects/imas_gpu/worldmodel/curated-token-view}"
 : "${WM_MANIFEST:=/work/projects/imas_gpu/agents/excitation-corpus/curated_windows_full.json}"
 : "${WM_EVAL_SHOTS:=18502,18503,18504,18505}"
 : "${WM_N_SHOTS:=0}"            # 0 = all curated train shots
 : "${WM_STEPS:=12000}"
-: "${WM_BATCH_SIZE:=4}"
-: "${WM_CHUNK:=8192}"
+# batch=1 + chunk=2048 keep the 1.07B model + AdamW + the 2**18-vocab head under
+# the 140G/card budget (chunk=8192 head alone is ~8.6G and batch=4 OOMs).  Raise
+# WM_GRAD_ACCUM for a larger effective batch without more peak memory.
+: "${WM_BATCH_SIZE:=1}"
+: "${WM_GRAD_ACCUM:=1}"
+: "${WM_CHUNK:=2048}"
 : "${WM_N_FRAMES:=24}"
 : "${WM_N_PLAN:=8}"
 : "${WM_N_SIGNAL_STEPS:=4}"
@@ -86,7 +100,7 @@ source "${VENV}/bin/activate"
 : "${WM_WEIGHT_DECAY:=0.1}"
 : "${WM_LOG_EVERY:=25}"
 : "${WM_CKPT_EVERY:=250}"
-: "${WM_NUM_WORKERS:=5}"        # per-rank DataLoader workers (30 cores / 6 ranks)
+: "${WM_NUM_WORKERS:=2}"        # per-rank DataLoader workers (6 ranks * 2 = 12 <= 14 cores)
 # M4 controllability machinery
 : "${WM_OBS_DROPOUT:=0.8}"
 : "${WM_CONTROL_DROPOUT:=0.15}"
@@ -146,6 +160,7 @@ torchrun \
     --n-act-steps "${WM_N_ACT_STEPS}" \
     --steps "${WM_STEPS}" \
     --batch-size "${WM_BATCH_SIZE}" \
+    --grad-accum "${WM_GRAD_ACCUM}" \
     --chunk "${WM_CHUNK}" \
     --lr "${WM_LR}" \
     --warmup-steps "${WM_WARMUP_STEPS}" \
