@@ -111,10 +111,21 @@ sbatch --partition=betelgeuse \
        --reservation=gpu_0003_grpA \
        --account=grpa \
        --gres=gpu:6 \
-       --cpus-per-task=30 \
+       --cpus-per-task=12 \   # NOT 30 — see CPU sizing note; PROBE with srun --test-only first
        --mem=640G \
        your_script.sh        # do NOT pass --qos → defaults to normal → no 4-GPU cap
 ```
+
+**CPU sizing — the "30 cores" is nominal, not schedulable when a serve co-runs (confirmed 2026-06-21).**
+The node carries TWO overlapping 30-core reservations (grpA + grpB) and the DeepSeek serve runs on general
+cores, so the cores actually schedulable for a NEW grpA job while DeepSeek is up are **~12, not 30**. A
+`--cpus-per-task=30` request then pends forever on `Reason=Resources` even though all 6 GPUs are free — it is
+CPU, not GPU, that is short (incident: re-train job pended + cancelled, 2026-06-21). **Probe before sizing:**
+`srun --test-only --reservation=gpu_0003_grpA --account=grpa --gres=gpu:6 --cpus-per-task=N --mem=… true`.
+Size `--cpus-per-task` (and the DataLoader `num_workers`) to leave room for the co-running serve — ~12 cores
+is ample for a token-DataLoader DDP run (tokens are tiny). The 6-GPU burst itself is unaffected (node-wide
+under normal QOS). If you genuinely need the full core count, drop `--reservation` and run on the node's
+general free pool (~49 cores idle) instead.
 
 **Design every training run for fast takedown (binding etiquette).** Preemption is OFF cluster-wide,
 so SLURM cannot evict us — bursting onto cards 6–7 without a fast give-back makes us a bad neighbour to
