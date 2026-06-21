@@ -147,15 +147,42 @@ class EvalConfig:
 
 
 def _assemble_heldout(shot_id, cfg, *, camera, token_root):
-    """Assemble one held-out controllable window (default full actuator vector)."""
+    """Assemble one held-out controllable window at its EXCITED, horizon-spanning span.
+
+    Held-out shots have no curated manifest window, so the eval FINDS the excited
+    region itself (find_transient_window) over the per-shot HORIZON span (so the
+    scan covers ~target_horizon_s, not a ~15ms slice), then assembles the
+    ~target_horizon_s window there.  The per-shot stride comes from the same
+    cfg.window.target_horizon_s path assemble_window uses for training, so the eval
+    horizon matches training.  Full actuator vector — the model masks Ip/density/tf.
+    """
+    from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
+        find_transient_window,
+    )
     from imas_ambix.worldmodel.controllable_dataset import (  # noqa: PLC0415
         assemble_controllable_window,
+    )
+    from imas_ambix.worldmodel.spacetime_dataset import (  # noqa: PLC0415
+        window_span_for_shot,
     )
     from imas_ambix.worldmodel.spacetime_dataset_v2 import (  # noqa: PLC0415
         default_signal_modalities,
     )
 
     modalities = cfg.modalities or default_signal_modalities()
+    # find the excited window over the HORIZON span (per-shot stride), so the eval
+    # scores where the plan actually moves.
+    span = window_span_for_shot(
+        int(shot_id), cfg.window, camera=camera, token_root=token_root
+    )
+    start_frame = None
+    try:
+        sf, _score = find_transient_window(
+            int(shot_id), span, camera=camera, token_root=token_root
+        )
+        start_frame = sf
+    except (ValueError, FileNotFoundError, KeyError):
+        start_frame = None
     return assemble_controllable_window(
         int(shot_id),
         cfg.window,
@@ -164,6 +191,7 @@ def _assemble_heldout(shot_id, cfg, *, camera, token_root):
         cfg.n_act_steps,
         camera=camera,
         token_root=token_root,
+        start_frame=start_frame,
     )
 
 

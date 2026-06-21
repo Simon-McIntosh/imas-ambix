@@ -76,3 +76,151 @@ def test_horizon_default_is_quarter_second():
     assert effective_frame_stride(cfg, 2000.0) > 1, (
         "default config still produces stride 1 — the persistence-trap bug"
     )
+
+
+# ---------------------------------------------------------------------------
+# manifest-window corpus path (option i): per-window start_frame + per-shot stride
+# ---------------------------------------------------------------------------
+
+
+def test_manifest_train_windows_derives_per_shot_stride(tmp_path):
+    import json
+
+    from imas_ambix.worldmodel.controllable_train import manifest_train_windows
+
+    manifest = tmp_path / "m.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "horizon_s": 0.25,
+                "windows": [
+                    {"shot_id": 100, "start_frame": 506, "fps": 2000.0, "frame_stride": 11},  # noqa: E501
+                    {"shot_id": 200, "start_frame": 126, "fps": 500.0, "frame_stride": 3},  # noqa: E501
+                    {"shot_id": 18502, "start_frame": 9, "fps": 2000.0},  # held-out
+                ],
+            }
+        )
+    )
+    ws = manifest_train_windows(
+        manifest, held_out={18502}, target_horizon_s=0.25, n_frames=24
+    )
+    # held-out excluded; 2 train windows.
+    assert {w.shot_id for w in ws} == {100, 200}
+    by = {w.shot_id: w for w in ws}
+    # 2000 fps -> round(0.25*2000/24)=21; 500 fps -> round(0.25*500/24)=5.
+    assert by[100].frame_stride == 21 and by[100].start_frame == 506
+    assert by[200].frame_stride == 5 and by[200].start_frame == 126
+    # the recorded fps is carried for logging.
+    assert by[100].fps == 2000.0
+
+
+def test_manifest_train_windows_horizon_off_uses_manifest_stride(tmp_path):
+    import json
+
+    from imas_ambix.worldmodel.controllable_train import manifest_train_windows
+
+    manifest = tmp_path / "m.json"
+    win = {"shot_id": 1, "start_frame": 0, "fps": 2000.0, "frame_stride": 11}
+    manifest.write_text(json.dumps({"windows": [win]}))
+    # target_horizon_s=0 -> fall back to the manifest's own frame_stride.
+    ws = manifest_train_windows(
+        manifest, held_out=set(), target_horizon_s=0.0, n_frames=24
+    )
+    assert ws[0].frame_stride == 11
+
+
+def test_manifest_window_dataset_assembles_at_start(monkeypatch):
+    """ManifestWindowDataset assembles at B's start_frame; horizon config passed."""
+    import imas_ambix.worldmodel.controllable_train as ct
+    from imas_ambix.worldmodel.controllable_train import (
+        ManifestWindowDataset,
+        _ManifestWindow,
+    )
+    from imas_ambix.worldmodel.spacetime_dataset import SpacetimeWindowConfig
+
+    captured = {}
+
+    def _fake_assemble(shot_id, config, modalities, n_sig, n_act, **kw):
+        captured["shot_id"] = shot_id
+        captured["target_horizon_s"] = config.target_horizon_s
+        captured["start_frame"] = kw.get("start_frame")
+        return "SAMPLE"
+
+    monkeypatch.setattr(ct, "assemble_controllable_window", _fake_assemble)
+    ds = ManifestWindowDataset(
+        [_ManifestWindow(shot_id=42, start_frame=506, frame_stride=21, fps=2000.0)],
+        SpacetimeWindowConfig(n_frames=24, target_horizon_s=0.25),
+        [],
+        4,
+        8,
+    )
+    assert len(ds) == 1
+    assert ds[0] == "SAMPLE"
+    # B's start_frame is passed through; the TIME-BASED path stays enabled
+    # (target_horizon_s=0.25, NOT zeroed — assemble_window subsamples by time, so
+    # the manifest's fixed stride is intentionally not used).
+    assert captured["shot_id"] == 42
+    assert captured["target_horizon_s"] == 0.25
+    assert captured["start_frame"] == 506
+
+
+# ---------------------------------------------------------------------------
+# time-based subsample (cadence-robust): spans the horizon even when fps changes
+# ---------------------------------------------------------------------------
+
+
+def test_time_spanned_indices_uniform_cadence():
+    from imas_ambix.worldmodel.spacetime_dataset import _time_spanned_indices
+
+    t = np.arange(2000, dtype=np.float64) * 5e-4  # 2 kHz, 1.0s recording
+    idx, span = _time_spanned_indices(
+        t, t.size, n_frames=24, horizon_s=0.25, start_frame=0
+    )
+    assert idx.shape == (24,)
+    assert idx[0] == 0
+    # span is ~0.25s (within one frame dt).
+    assert abs(span - 0.25) < 6e-4
+    # strictly increasing.
+    assert np.all(np.diff(idx) > 0)
+
+
+def test_time_spanned_indices_variable_cadence_still_spans_horizon():
+    """The killer case: cadence ACCELERATES mid-window — span must stay ~0.25s."""
+    from imas_ambix.worldmodel.spacetime_dataset import _time_spanned_indices
+
+    # first 0.20s at 2kHz (dt 0.5ms), then 0.30s at 8kHz (dt 0.125ms).
+    t1 = np.arange(400) * 5e-4  # 0..0.1995
+    t2 = t1[-1] + 1.25e-4 * (1 + np.arange(2400))  # accelerated tail
+    t = np.concatenate([t1, t2])
+    idx, span = _time_spanned_indices(
+        t, t.size, n_frames=24, horizon_s=0.25, start_frame=0
+    )
+    # the fixed-stride bug undershot here; the time-based pick spans ~0.25s.
+    assert abs(span - 0.25) < 1e-3, span
+    assert np.all(np.diff(idx) > 0)
+    # the index stride is NON-uniform (smaller in the fast region) — proof it's
+    # time-driven, not a constant frame step.
+    steps = np.diff(idx)
+    assert steps.max() > steps.min(), "stride should vary with the cadence"
+
+
+def test_time_spanned_indices_backs_off_start_past_end():
+    from imas_ambix.worldmodel.spacetime_dataset import _time_spanned_indices
+
+    t = np.arange(600, dtype=np.float64) * 5e-4  # 0.3s recording
+    # start near the end: not enough room for 0.25s forward -> backs off.
+    idx, span = _time_spanned_indices(
+        t, t.size, n_frames=24, horizon_s=0.25, start_frame=550
+    )
+    assert idx[-1] <= t.size - 1
+    assert abs(span - 0.25) < 6e-4
+
+
+def test_time_spanned_indices_raises_when_recording_too_short():
+    import pytest
+
+    from imas_ambix.worldmodel.spacetime_dataset import _time_spanned_indices
+
+    t = np.arange(100, dtype=np.float64) * 5e-4  # 0.05s — shorter than 0.25s
+    with pytest.raises(ValueError, match="horizon"):
+        _time_spanned_indices(t, t.size, n_frames=24, horizon_s=0.25, start_frame=0)

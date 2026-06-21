@@ -789,6 +789,127 @@ def overfit_controllable(
 
 
 # ---------------------------------------------------------------------------
+# Manifest-window corpus dataset (honours B's per-shot excited-window geometry)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _ManifestWindow:
+    """One curated excited window: B's selected start + the per-shot stride."""
+
+    shot_id: int
+    start_frame: int
+    frame_stride: int  # derived from the manifest fps to span ~target_horizon_s
+    fps: float  # the shot's native cadence (from B's selector) — for logging
+
+
+def manifest_train_windows(
+    manifest_path,
+    held_out: set[int],
+    *,
+    target_horizon_s: float,
+    n_frames: int,
+) -> list[_ManifestWindow]:
+    """Read the curated manifest into per-shot excited windows for training.
+
+    For each manifest window (B's excitation selector already found the excited
+    region + recorded its ``start_frame`` and native ``fps``), derive the
+    per-shot ``frame_stride = max(1, round(target_horizon_s * fps / n_frames))``
+    so the FIXED ``n_frames`` span ~``target_horizon_s`` — NOT B's variable
+    per-window ``n_frames``/stride (we keep rectangular batches + the forecaster's
+    window shape).  Uses B's ``start_frame`` directly (no re-running the transient
+    scan).  Held-out shots are excluded (defence in depth — already excluded at
+    select time).  Skips a window whose shot is too short for the strided window.
+    """
+    import json  # noqa: PLC0415
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    data = json.loads(_Path(manifest_path).read_text())
+    out: list[_ManifestWindow] = []
+    for w in data.get("windows", []):
+        sid = int(w["shot_id"])
+        if sid in held_out:
+            continue
+        fps = float(w.get("fps") or 0.0)
+        if target_horizon_s and target_horizon_s > 0 and fps > 0:
+            stride = max(1, int(round(target_horizon_s * fps / n_frames)))
+        else:
+            stride = int(w.get("frame_stride") or 1)
+        out.append(
+            _ManifestWindow(
+                shot_id=sid,
+                start_frame=int(w.get("start_frame") or 0),
+                frame_stride=stride,
+                fps=fps,
+            )
+        )
+    return out
+
+
+class ManifestWindowDataset:
+    """Map-style dataset over the curated EXCITED windows (B's geometry honoured).
+
+    Each item is assembled at the window's recorded ``start_frame`` with a
+    PER-SHOT ``frame_stride`` so the fixed ``n_frames`` span ~``target_horizon_s``
+    (the persistence-trap fix).  Builds a per-shot :class:`SpacetimeWindowConfig`
+    (literal stride, ``target_horizon_s=0`` so :func:`assemble_window` uses that
+    exact stride) and calls B's :func:`assemble_controllable_window` — B's dataset
+    class + the actuator-plan reader stay untouched (the consumption-side fix).
+    """
+
+    def __init__(
+        self,
+        windows: Sequence[_ManifestWindow],
+        config: SpacetimeWindowConfig,
+        modalities: Sequence[SignalModalitySpec],
+        n_signal_steps: int,
+        n_act_steps: int,
+        *,
+        camera: str = REFERENCE_CAMERA,
+        token_root=None,
+        actuator_channels=None,
+    ) -> None:
+        self._windows = list(windows)
+        self._config = config
+        self._modalities = list(modalities)
+        self._n_signal_steps = int(n_signal_steps)
+        self._n_act_steps = int(n_act_steps)
+        self._camera = camera
+        self._token_root = token_root
+        self._actuator_channels = actuator_channels
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def __getitem__(self, index: int) -> ControllableSpacetimeSample:
+        from imas_ambix.worldmodel.actuator_plan import (  # noqa: PLC0415
+            ACTUATOR_CHANNELS,
+        )
+
+        w = self._windows[index]
+        kw = {}
+        if self._actuator_channels is not None:
+            kw["actuator_channels"] = self._actuator_channels
+        else:
+            kw["actuator_channels"] = list(ACTUATOR_CHANNELS)
+        # assemble at B's excited start_frame; assemble_window's TIME-BASED path
+        # (config.target_horizon_s > 0) picks n_frames spanning ~the horizon from
+        # there, robust to mid-shot cadence changes (a fixed per-shot stride
+        # undershoots ~22% of windows).  The manifest stride is not used.
+        return assemble_controllable_window(
+            w.shot_id,
+            self._config,
+            self._modalities,
+            self._n_signal_steps,
+            self._n_act_steps,
+            camera=self._camera,
+            token_root=self._token_root,
+            start_frame=w.start_frame,
+            **kw,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Corpus DDP trainer (the 6-GPU re-train on the excited corpus)
 # ---------------------------------------------------------------------------
 
@@ -870,6 +991,7 @@ def train_controllable_corpus(
     token_root: Path | None = None,
     device: str | None = None,
     resume: bool = True,
+    manifest_windows: Sequence[_ManifestWindow] | None = None,
 ) -> ControllableCorpusResult:
     """DDP re-train of the controllable model on a CORPUS of EXCITED shots.
 
@@ -881,7 +1003,13 @@ def train_controllable_corpus(
     scheduler, checkpoint/resume, the distributed sampler) verbatim; the model,
     dataset, and per-step controllability machinery are the controllable ones.
 
-    DDP-aware: each rank pins its card and trains a disjoint shot shard; the
+    ``manifest_windows`` (the corpus path): the curated EXCITED windows (B's
+    per-shot ``start_frame`` + the derived per-shot stride) — each window is
+    assembled at its excited start spanning ~``target_horizon_s``
+    (:class:`ManifestWindowDataset`), the horizon fix.  When ``None`` the legacy
+    ``shot_ids`` + random-window path is used (centred/random windows).
+
+    DDP-aware: each rank pins its card and trains a disjoint shard; the
     plan-channel count + signal-stream widths are decided on rank 0 and broadcast
     so every rank builds the IDENTICAL model.  Resume-safe: ``latest.pt`` every
     ``ckpt_every`` steps, a SIGTERM STOP flag flushes within the step, and a
@@ -943,96 +1071,148 @@ def train_controllable_corpus(
 
     act_chan_list = list(ACTUATOR_CHANNELS)
 
-    # Filter to shots with ENOUGH camera frames for the window (the curated spans
-    # are short — ~3% of curated shots have < n_frames frames; an under-length shot
-    # raises mid-epoch and kills a DDP rank).  Deterministic from the token-root so
-    # every rank computes the SAME train set (DDP-safe — no shard divergence).
+    # Filter to windows/shots whose recording is long enough for the STRIDED
+    # window (an under-length shot raises mid-epoch and kills a DDP rank).
+    # Deterministic from the token-root so every rank computes the SAME set
+    # (DDP-safe — no shard divergence).
     from imas_ambix.worldmodel.spacetime_dataset import (  # noqa: PLC0415
         camera_frame_count,
+        recording_time_span_s,
         window_span_for_shot,
     )
 
-    # The horizon-spanning span is PER-SHOT (a 1kHz shot needs ~10*n_frames native
-    # frames; a 2kHz shot ~21*n_frames), so check each shot against its own span.
-    kept: list[int] = []
-    for sid in shot_ids:
-        try:
-            shot_span = window_span_for_shot(
-                int(sid), config.window, camera=camera, token_root=token_root
-            )
-            if int(camera_frame_count(int(sid), camera, token_root=token_root)) >= (
-                shot_span
-            ):
-                kept.append(int(sid))
-        except (FileNotFoundError, KeyError, ValueError):
-            continue
-    n_dropped = len(list(shot_ids)) - len(kept)
-    if env.is_main:
-        logger.info(
-            "frame-count filter: kept %d/%d train shots long enough for the "
-            "~%.2fs horizon window (dropped %d short/unreadable)",
-            len(kept),
-            len(list(shot_ids)),
-            config.window.target_horizon_s,
-            n_dropped,
-        )
-    if len(kept) < 2:
-        raise ValueError(
-            f"only {len(kept)} train shots are long enough for the "
-            f"~{config.window.target_horizon_s}s horizon window — cannot train"
-        )
-    shot_ids = kept
-
-    # Sanity-log the derived per-shot stride + the resulting physical span for a
-    # few shots, so the window is confirmed to cover the ramp-up (not a ~15ms
-    # slice).  e.g. 1000fps -> stride~10 -> ~0.23s; 2000fps -> stride~21 -> ~0.25s.
-    if env.is_main and config.window.target_horizon_s > 0:
-        from imas_ambix.worldmodel.spacetime_dataset import (  # noqa: PLC0415
-            _fps_from_times,
-            _frame_times,
-            effective_frame_stride,
-        )
-
-        for sid in shot_ids[:3]:
-            ft = _frame_times(int(sid), camera, token_root=token_root)
-            fps = _fps_from_times(ft)
-            st = effective_frame_stride(config.window, fps)
-            span_s = (
-                config.window.n_frames * st / fps
-                if (fps and fps > 0)
-                else float("nan")
-            )
+    use_manifest = manifest_windows is not None
+    horizon = float(config.window.target_horizon_s)
+    if use_manifest:
+        # MANIFEST-WINDOW path (option i): keep windows whose RECORDING spans at
+        # least the horizon in TIME (assemble_window subsamples n_frames spanning
+        # ~horizon from B's start_frame, robust to a variable cadence — so the
+        # requirement is a time-span, not a fixed native-frame count).
+        kept_windows: list[_ManifestWindow] = []
+        for w in manifest_windows:
+            try:
+                if horizon > 0:
+                    span_s = recording_time_span_s(
+                        w.shot_id, camera=camera, token_root=token_root
+                    )
+                    ok = span_s is not None and span_s >= horizon
+                else:
+                    n_total = int(
+                        camera_frame_count(w.shot_id, camera, token_root=token_root)
+                    )
+                    ok = n_total >= (config.window.n_frames - 1) * w.frame_stride + 1
+            except (FileNotFoundError, KeyError, ValueError):
+                ok = False
+            if ok:
+                kept_windows.append(w)
+        n_dropped = len(list(manifest_windows)) - len(kept_windows)
+        shot_ids = [w.shot_id for w in kept_windows]
+        if env.is_main:
             logger.info(
-                "horizon check shot %s: fps=%.0f -> stride=%d -> %d frames span "
-                "%.3fs (target %.2fs)",
-                sid,
-                fps or -1.0,
-                st,
-                config.window.n_frames,
-                span_s,
-                config.window.target_horizon_s,
+                "manifest-window filter: kept %d/%d excited windows whose recording "
+                "spans >= %.2fs (dropped %d short/unreadable)",
+                len(kept_windows),
+                len(list(manifest_windows)),
+                horizon,
+                n_dropped,
             )
-
-    # Probe plan-channels + signal-stream widths + actuator-channel count.
-    probe: list[ControllableSpacetimeSample] = []
-    for sid in list(shot_ids)[:8]:
-        try:
-            probe.append(
-                assemble_controllable_window(
-                    int(sid),
-                    config.window,
-                    config.modalities,
-                    config.n_signal_steps,
-                    config.n_act_steps,
-                    camera=camera,
-                    token_root=token_root,
-                    actuator_channels=act_chan_list,
+        if len(kept_windows) < 2:
+            raise ValueError(
+                f"only {len(kept_windows)} excited windows are long enough for the "
+                f"~{config.window.target_horizon_s}s horizon — cannot train"
+            )
+        manifest_windows = kept_windows
+    else:
+        # LEGACY path: per-shot horizon span derived from the shot's own cadence.
+        kept: list[int] = []
+        for sid in shot_ids:
+            try:
+                shot_span = window_span_for_shot(
+                    int(sid), config.window, camera=camera, token_root=token_root
                 )
+                if int(
+                    camera_frame_count(int(sid), camera, token_root=token_root)
+                ) >= shot_span:
+                    kept.append(int(sid))
+            except (FileNotFoundError, KeyError, ValueError):
+                continue
+        n_dropped = len(list(shot_ids)) - len(kept)
+        if env.is_main:
+            logger.info(
+                "frame-count filter: kept %d/%d train shots long enough for the "
+                "~%.2fs horizon window (dropped %d short/unreadable)",
+                len(kept),
+                len(list(shot_ids)),
+                config.window.target_horizon_s,
+                n_dropped,
             )
-        except (ValueError, FileNotFoundError, KeyError):
-            continue
+        if len(kept) < 2:
+            raise ValueError(
+                f"only {len(kept)} train shots are long enough for the "
+                f"~{config.window.target_horizon_s}s horizon window — cannot train"
+            )
+        shot_ids = kept
+
+    # Probe plan-channels + signal-stream widths + actuator-channel count.  On the
+    # manifest path the probe assembles at each window's start_frame + per-shot
+    # stride (a per-shot config); on the legacy path it uses the global config.
+    probe: list[ControllableSpacetimeSample] = []
+    if use_manifest:
+        from dataclasses import replace as _replace  # noqa: PLC0415
+
+        for w in manifest_windows[:8]:
+            try:
+                probe.append(
+                    assemble_controllable_window(
+                        w.shot_id,
+                        _replace(
+                            config.window,
+                            frame_stride=int(w.frame_stride),
+                            target_horizon_s=0.0,
+                        ),
+                        config.modalities,
+                        config.n_signal_steps,
+                        config.n_act_steps,
+                        camera=camera,
+                        token_root=token_root,
+                        start_frame=w.start_frame,
+                        actuator_channels=act_chan_list,
+                    )
+                )
+            except (ValueError, FileNotFoundError, KeyError):
+                continue
+    else:
+        for sid in list(shot_ids)[:8]:
+            try:
+                probe.append(
+                    assemble_controllable_window(
+                        int(sid),
+                        config.window,
+                        config.modalities,
+                        config.n_signal_steps,
+                        config.n_act_steps,
+                        camera=camera,
+                        token_root=token_root,
+                        actuator_channels=act_chan_list,
+                    )
+                )
+            except (ValueError, FileNotFoundError, KeyError):
+                continue
     if not probe:
         raise ValueError("no shot assembled in the probe — cannot size the model")
+    # Sanity-log the ACHIEVED physical span of the probe windows (the real check
+    # that the time-based subsample covers the ramp horizon, not a ~15ms slice).
+    if env.is_main and config.window.target_horizon_s > 0:
+        for p in probe[:4]:
+            ft = np.asarray(p.frame_time, dtype=np.float64)
+            span_ms = (ft[-1] - ft[0]) * 1000.0 if ft.size > 1 else float("nan")
+            logger.info(
+                "horizon check shot %s: %d frames span %.0f ms (target %.0f ms)",
+                p.shot_id,
+                ft.size,
+                span_ms,
+                config.window.target_horizon_s * 1000.0,
+            )
     plan_ch = _plan_channels_for([p.signal for p in probe])
     channels = probe_signal_channels(
         list(shot_ids)[:16],
@@ -1151,18 +1331,32 @@ def train_controllable_corpus(
         model = base_model
     core = _unwrap(model)
 
-    dataset = ControllableSpacetimeDataset(
-        shot_ids,
-        config.window,
-        config.modalities,
-        config.n_signal_steps,
-        config.n_act_steps,
-        camera=camera,
-        token_root=token_root,
-        random_window=config.random_window,
-        seed=config.seed,
-        actuator_channels=act_chan_list,
-    )
+    if use_manifest:
+        # the excited-window dataset: each item at B's start_frame + per-shot
+        # stride spanning ~target_horizon_s (the horizon fix).
+        dataset: object = ManifestWindowDataset(
+            manifest_windows,
+            config.window,
+            config.modalities,
+            config.n_signal_steps,
+            config.n_act_steps,
+            camera=camera,
+            token_root=token_root,
+            actuator_channels=act_chan_list,
+        )
+    else:
+        dataset = ControllableSpacetimeDataset(
+            shot_ids,
+            config.window,
+            config.modalities,
+            config.n_signal_steps,
+            config.n_act_steps,
+            camera=camera,
+            token_root=token_root,
+            random_window=config.random_window,
+            seed=config.seed,
+            actuator_channels=act_chan_list,
+        )
     sampler = None
     if env.enabled:
         sampler = torch.utils.data.distributed.DistributedSampler(
@@ -2360,9 +2554,21 @@ def main(argv: list[str] | None = None) -> int:
             for s in args.shots.split(",")
             if s.strip() and int(s) not in held_out
         ]
+        win_list = None  # explicit shots -> legacy centred/random-window path
     else:
-        train_shots = _train_shots_from_manifest(_Path(args.manifest), held_out)
-    if args.n_shots and args.n_shots > 0:
+        # MANIFEST path (option i): read the curated EXCITED windows (B's
+        # start_frame + per-shot stride spanning ~target_horizon_s) — the horizon
+        # fix.  train_shots is derived from the windows (for the result count).
+        win_list = manifest_train_windows(
+            _Path(args.manifest),
+            held_out,
+            target_horizon_s=args.target_horizon_s,
+            n_frames=args.n_frames,
+        )
+        if args.n_shots and args.n_shots > 0:
+            win_list = win_list[: args.n_shots]
+        train_shots = [w.shot_id for w in win_list]
+    if args.shots.strip() and args.n_shots and args.n_shots > 0:
         train_shots = train_shots[: args.n_shots]
     if len(train_shots) < 2:
         logger.error("need >= 2 train shots; got %d", len(train_shots))
@@ -2372,8 +2578,9 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("train/held-out overlap (NOT disjoint): %s", sorted(overlap))
         return 1
     logger.info(
-        "controllable re-train: %d train shots (held-out %s DISJOINT) from %s",
+        "controllable re-train: %d %s (held-out %s DISJOINT) from %s",
         len(train_shots),
+        "excited windows" if win_list is not None else "train shots",
         sorted(held_out),
         args.manifest if not args.shots.strip() else "--shots",
     )
@@ -2437,6 +2644,7 @@ def main(argv: list[str] | None = None) -> int:
         config=cfg,
         out_dir=_Path(args.out_dir) if args.out_dir else None,
         token_root=_Path(args.token_root) if args.token_root else None,
+        manifest_windows=win_list,
     )
     logger.info(
         "controllable re-train done: %d steps, init=%.4f final=%.4f, ckpt=%s",

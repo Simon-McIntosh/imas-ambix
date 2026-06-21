@@ -333,6 +333,77 @@ def window_span_for_shot(
     return effective_window_span(config, fps)
 
 
+def recording_time_span_s(
+    shot_id: int,
+    *,
+    camera: str = REFERENCE_CAMERA,
+    token_root: Path | None = None,
+) -> float | None:
+    """Total physical duration (s) of the camera recording, or None if unreadable.
+
+    For the TIME-BASED window (the cadence-robust path), the only requirement on a
+    shot is that its recording spans at least ``target_horizon_s`` — checked with
+    this rather than a fixed native-frame count (which mis-estimates under a
+    variable cadence).
+    """
+    t = _frame_times(shot_id, camera, token_root=token_root)
+    if t is None or t.shape[0] < 2:
+        return None
+    return float(np.asarray(t, dtype=np.float64)[-1] - np.asarray(t)[0])
+
+
+def _time_spanned_indices(
+    times: np.ndarray,
+    n_total: int,
+    *,
+    n_frames: int,
+    horizon_s: float,
+    start_frame: int | None,
+) -> tuple[np.ndarray, float]:
+    """``n_frames`` frame indices whose timestamps span ~``horizon_s`` from a start.
+
+    Picks the frame nearest each target time ``t0 + k*(horizon_s/(n_frames-1))``
+    for ``k=0..n_frames-1`` — robust to a NON-UNIFORM cadence (the index stride
+    between picks shrinks where the camera is fast, grows where it is slow), so
+    the window always covers ~``horizon_s`` of physical time.  ``start_frame``
+    (the excited region's start) anchors ``t0``; if it would push the window's end
+    past the last frame, the start is backed off so the full horizon still fits.
+    Returns ``(indices (n_frames,) int, achieved_span_s)``.  Raises ``ValueError``
+    when even the whole recording is shorter than ``horizon_s``.
+    """
+    t = np.asarray(times, dtype=np.float64)[:n_total]
+    if t.size < n_frames:
+        raise ValueError(f"only {t.size} frames, need {n_frames}")
+    total_span = float(t[-1] - t[0])
+    if total_span < horizon_s:
+        raise ValueError(
+            f"recording spans {total_span:.3f}s < horizon {horizon_s:.3f}s "
+            f"({t.size} frames) — cannot form a horizon window"
+        )
+    s0 = 0 if start_frame is None else int(max(0, min(start_frame, n_total - 1)))
+    t0 = float(t[s0])
+    # back off the start so [t0, t0+horizon] fits within the recording.
+    if t0 + horizon_s > float(t[-1]):
+        t0 = float(t[-1]) - horizon_s
+        s0 = int(np.searchsorted(t, t0, side="left"))
+        s0 = max(0, min(s0, n_total - 1))
+        t0 = float(t[s0])
+    targets = t0 + np.linspace(0.0, horizon_s, n_frames)
+    idx = np.searchsorted(t, targets, side="left")
+    idx = np.clip(idx, 0, n_total - 1)
+    # pick the closer neighbour (searchsorted gives the right side).
+    left = np.clip(idx - 1, 0, n_total - 1)
+    pick_left = np.abs(t[left] - targets) <= np.abs(t[idx] - targets)
+    idx = np.where(pick_left, left, idx)
+    # ensure strictly increasing (a tie / dense region can repeat an index).
+    for i in range(1, idx.size):
+        if idx[i] <= idx[i - 1]:
+            idx[i] = min(idx[i - 1] + 1, n_total - 1)
+    idx = np.clip(idx, 0, n_total - 1).astype(np.int64)
+    achieved = float(t[idx[-1]] - t[idx[0]])
+    return idx, achieved
+
+
 def assemble_window(
     shot_id: int,
     config: SpacetimeWindowConfig,
@@ -355,34 +426,56 @@ def assemble_window(
     grp = _camera_store(shot_id, camera, token_root=token_root)
     grid = grp["tokens"]  # (T, 16, 16) store-ids
     n_total = int(grid.shape[0])
-
-    # derive the per-shot stride from the cadence (read times once, up front).
     times = _frame_times(shot_id, camera, token_root=token_root)
-    fps = _fps_from_times(times)
-    stride = effective_frame_stride(config, fps)
-    span = (config.n_frames - 1) * stride + 1
-    if n_total < span:
-        raise ValueError(
-            f"shot {shot_id} camera {camera}: only {n_total} frames, need {span} "
-            f"for n_frames={config.n_frames} stride={stride} "
-            f"(fps={fps!r}, horizon={config.target_horizon_s}s)"
+
+    use_time = (
+        config.target_horizon_s
+        and config.target_horizon_s > 0
+        and times is not None
+        and times.shape[0] >= n_total
+    )
+    if use_time:
+        # TIME-BASED subsample: pick n_frames indices whose timestamps are nearest
+        # to start_time + k*(horizon/(n_frames-1)).  This GUARANTEES the window
+        # spans ~target_horizon_s even when the camera cadence CHANGES mid-shot
+        # (MAST cameras accelerate/decelerate within a shot — a fixed per-shot
+        # stride then under/over-spans; ~22% of curated windows undershot badly).
+        idx, span = _time_spanned_indices(
+            np.asarray(times, dtype=np.float64),
+            n_total,
+            n_frames=config.n_frames,
+            horizon_s=float(config.target_horizon_s),
+            start_frame=start_frame,
         )
-    if start_frame is None:
-        start_frame = max(0, (n_total - span) // 2)
-    start_frame = int(min(start_frame, n_total - span))
-    stop = start_frame + span
-    run = np.asarray(grid[start_frame:stop], dtype=np.int64)  # (span,16,16)
-    run = run[::stride]  # (n_frames,16,16)
+        run = np.asarray(grid[: idx[-1] + 1], dtype=np.int64)[idx]  # (n_frames,16,16)
+        start_frame = int(idx[0])
+        ftime = np.asarray(times, dtype=np.float64)[idx]
+    else:
+        # fixed-stride fallback (target_horizon_s<=0, or no timestamps): the
+        # literal/derived per-shot stride over a contiguous run.
+        fps = _fps_from_times(times)
+        stride = effective_frame_stride(config, fps)
+        span = (config.n_frames - 1) * stride + 1
+        if n_total < span:
+            raise ValueError(
+                f"shot {shot_id} camera {camera}: only {n_total} frames, need "
+                f"{span} for n_frames={config.n_frames} stride={stride} "
+                f"(fps={fps!r}, horizon={config.target_horizon_s}s)"
+            )
+        if start_frame is None:
+            start_frame = max(0, (n_total - span) // 2)
+        start_frame = int(min(start_frame, n_total - span))
+        stop = start_frame + span
+        run = np.asarray(grid[start_frame:stop], dtype=np.int64)[::stride]
+        if times is not None and times.shape[0] >= stop:
+            ftime = times[start_frame:stop][::stride].astype(np.float64)
+        else:
+            ftime = (np.arange(config.n_frames, dtype=np.float64) * stride) / 600.0
+
     # store-id -> local id; every frame here is a real recording (no padding).
     local = run - REGISTRY_OFFSET
     local = np.clip(local, 0, CAMERA_VOCAB - 1)
     frames = local.reshape(run.shape[0], N_SPATIAL).astype(np.int64)
-
-    # per-frame timestamps (best-effort; synthetic uniform fallback)
-    if times is not None and times.shape[0] >= stop:
-        ftime = times[start_frame:stop][::stride].astype(np.float64)
-    else:
-        ftime = (np.arange(frames.shape[0], dtype=np.float64) * stride) / 600.0
 
     plan, _n_plan_ch = _read_plan(shot_id, config.n_plan, token_root=token_root)
 
