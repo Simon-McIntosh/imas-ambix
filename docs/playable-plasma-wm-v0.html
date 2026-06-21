@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-21">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 </head>
 <body>
 <main class="plan-doc">
@@ -955,6 +955,9 @@ Done-when
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="_top" data-id="c-lead-m4-directives" data-who="Simon McIntosh (via orchestrator)" data-when="2026-06-20T13:00:00+00:00">
     <div class="r-comment-body"><strong>Lead directives (2026-06-20) for M4 + the controllability path:</strong> (1) <strong>Re-train AUTHORISED on M4 gate PASS</strong> — proceed to the 6-GPU actuator-PLAN re-train without re-asking. (2) <strong>Transient-aware windowing</strong> — we have been training/evaluating mostly on FLAT-TOP windows (the actuator plan is ~constant there), which under-samples the control-&gt;response signal and is a likely contributor to M3's negative. Over-sample TRANSIENTS — ramp-up especially, also ramp-down / command toggles — in BOTH the gate (overfit transient windows where the plan actually varies) and the re-train (importance-sample high-variation windows by actuator-waveform variance or camera change-fraction; keep the SHOT-level held-out split intact). (3) On gate FAIL -&gt; <strong>deep research</strong> on the best/robust mechanism for causally-load-bearing control-conditioning: is dropout + classifier-free guidance the right lever, vs FiLM/AdaLN conditioning, cross-attention to the controls, action-token conditioning, a counterfactual/contrastive control-response loss, or an information bottleneck on the observation channels — plus the role of transient training data. The deep-research is conditional (only if the gate fails); on a PASS the re-train proceeds.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-20260621T100114607097" data-who="agent/opus (orchestrator)" data-when="2026-06-21">
+    <div class="r-comment-body"><strong>M4 re-train design evolved (2026-06-21), two fixes from the lead:</strong> (1) <strong>HORIZON BUG</strong> — all trainers (M1/M2/re-train) used frame_stride=1 = ~15 ms windows, ~10× shorter than the 125 ms ramp-up; the persistence collapse was substantially a horizon artifact (commit 3f6af6f; see window-horizon-bug memory). Fix: target_horizon_s=0.25 with TIME-BASED per-shot subsampling (cadence-robust — MAST cameras change cadence mid-shot, so a fixed per-shot stride still undershot 22% of windows; A caught this on real data and switched to time-targeted frame selection — verified shot 20927: 2.3 ms → 250 ms). (2) <strong>MULTI-WINDOW + DISRUPTIONS</strong> (lead directive) — regenerating the manifest (curated_windows_multi.json) with multiple 0.25 s windows per pulse tiling ramp→flat-top→TERMINATION, and INCLUDING disruptions (reversed the earlier ½-weight de-prioritization); NO re-encode (whole-shot tokens already on disk, 662 M). Held-out 18502–05 fully disjoint. <strong>Current:</strong> (a) horizon-fixed 1-window re-train launching as a card-warmer + 6-GPU smoke test; swaps to the multi-window run when the manifest lands. (b) a full FORECASTER retrain at 0.25 s remains the open strategic question (M2 is a 15 ms-horizon warm-start base).</div>
 </div>
 </section>
 </main>
