@@ -1154,22 +1154,21 @@ def train_controllable_corpus(
         shot_ids = kept
 
     # Probe plan-channels + signal-stream widths + actuator-channel count.  On the
-    # manifest path the probe assembles at each window's start_frame + per-shot
-    # stride (a per-shot config); on the legacy path it uses the global config.
+    # manifest path the probe assembles EXACTLY as ManifestWindowDataset does — at
+    # B's excited start_frame with the global config.window (target_horizon_s > 0 →
+    # assemble_window's TIME-BASED subsample picks n_frames spanning ~the horizon),
+    # so the sanity-log below reports the SAME spans training actually sees.  (A
+    # per-shot literal stride here ran off the recording end for late start_frames
+    # and clamped to ~consecutive frames — a misleading ~78ms sanity-log even
+    # though training used the correct time-based windows.)
     probe: list[ControllableSpacetimeSample] = []
     if use_manifest:
-        from dataclasses import replace as _replace  # noqa: PLC0415
-
         for w in manifest_windows[:8]:
             try:
                 probe.append(
                     assemble_controllable_window(
                         w.shot_id,
-                        _replace(
-                            config.window,
-                            frame_stride=int(w.frame_stride),
-                            target_horizon_s=0.0,
-                        ),
+                        config.window,
                         config.modalities,
                         config.n_signal_steps,
                         config.n_act_steps,
