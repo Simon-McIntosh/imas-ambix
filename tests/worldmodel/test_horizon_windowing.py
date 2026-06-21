@@ -224,3 +224,21 @@ def test_time_spanned_indices_raises_when_recording_too_short():
     t = np.arange(100, dtype=np.float64) * 5e-4  # 0.05s — shorter than 0.25s
     with pytest.raises(ValueError, match="horizon"):
         _time_spanned_indices(t, t.size, n_frames=24, horizon_s=0.25, start_frame=0)
+
+
+def test_time_spanned_indices_raises_when_too_few_frames():
+    """A low-cadence recording can SPAN >= horizon yet have < n_frames frames.
+
+    18 frames at 50 fps span 0.34s (>= 0.25s) but cannot yield 24 subsampled
+    frames — this raised inside a DataLoader worker and killed a DDP rank at
+    step 50.  The corpus-level filter now also requires n_total >= n_frames; this
+    pins the underlying guard.
+    """
+    import pytest
+
+    from imas_ambix.worldmodel.spacetime_dataset import _time_spanned_indices
+
+    t = np.arange(18, dtype=np.float64) / 50.0  # 18 frames @ 50fps -> spans 0.34s
+    assert t[-1] - t[0] >= 0.25  # passes a pure time-span check
+    with pytest.raises(ValueError, match="need 24"):
+        _time_spanned_indices(t, t.size, n_frames=24, horizon_s=0.25, start_frame=0)

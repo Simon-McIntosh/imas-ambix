@@ -886,7 +886,6 @@ class ManifestWindowDataset:
             ACTUATOR_CHANNELS,
         )
 
-        w = self._windows[index]
         kw = {}
         if self._actuator_channels is not None:
             kw["actuator_channels"] = self._actuator_channels
@@ -896,16 +895,35 @@ class ManifestWindowDataset:
         # (config.target_horizon_s > 0) picks n_frames spanning ~the horizon from
         # there, robust to mid-shot cadence changes (a fixed per-shot stride
         # undershoots ~22% of windows).  The manifest stride is not used.
-        return assemble_controllable_window(
-            w.shot_id,
-            self._config,
-            self._modalities,
-            self._n_signal_steps,
-            self._n_act_steps,
-            camera=self._camera,
-            token_root=self._token_root,
-            start_frame=w.start_frame,
-            **kw,
+        #
+        # Defence-in-depth: if a window slips past the corpus-level filter and
+        # still fails to assemble (a data edge case — e.g. a low-cadence
+        # recording with < n_frames usable frames), fall back to the next few
+        # windows rather than raising inside a DataLoader worker, which kills the
+        # whole DDP rank (a single bad shot at step 50 took down a 6-GPU run).
+        # Bounded so a systematically-broken corpus still fails loudly.
+        n = len(self._windows)
+        last_err: Exception | None = None
+        for off in range(min(8, n)):
+            w = self._windows[(index + off) % n]
+            try:
+                return assemble_controllable_window(
+                    w.shot_id,
+                    self._config,
+                    self._modalities,
+                    self._n_signal_steps,
+                    self._n_act_steps,
+                    camera=self._camera,
+                    token_root=self._token_root,
+                    start_frame=w.start_frame,
+                    **kw,
+                )
+            except (ValueError, FileNotFoundError, KeyError) as exc:
+                last_err = exc
+                continue
+        raise RuntimeError(
+            f"ManifestWindowDataset: {min(8, n)} consecutive windows from index "
+            f"{index} all failed to assemble; last error: {last_err!r}"
         )
 
 
@@ -1092,10 +1110,25 @@ def train_controllable_corpus(
         for w in manifest_windows:
             try:
                 if horizon > 0:
+                    # TIME-BASED subsample requires BOTH: (1) the recording spans
+                    # >= horizon in TIME, and (2) it has at least n_frames total
+                    # frames to subsample from — a low-cadence recording can span
+                    # 0.25s+ with FEWER than n_frames (e.g. 18 frames @ 50fps =
+                    # 0.34s), which passes the time check but makes _time_spanned_
+                    # indices raise "only N frames, need n_frames" inside a worker
+                    # and kills the rank.  Enforce both here so the filter matches
+                    # what assemble_window can actually deliver.
                     span_s = recording_time_span_s(
                         w.shot_id, camera=camera, token_root=token_root
                     )
-                    ok = span_s is not None and span_s >= horizon
+                    n_total = int(
+                        camera_frame_count(w.shot_id, camera, token_root=token_root)
+                    )
+                    ok = (
+                        span_s is not None
+                        and span_s >= horizon
+                        and n_total >= config.window.n_frames
+                    )
                 else:
                     n_total = int(
                         camera_frame_count(w.shot_id, camera, token_root=token_root)
