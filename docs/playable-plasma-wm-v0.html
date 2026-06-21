@@ -19,8 +19,8 @@
   <title>Playable Plasma World Model — Drive the Shot from a Pulse Schedule | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-20">
-<meta name="plan-version" content="12">
+<meta name="plan-modified" content="2026-06-21">
+<meta name="plan-version" content="13">
 </head>
 <body>
 <main class="plan-doc">
@@ -925,6 +925,30 @@ Done-when
   1. A short finding: which XDC coil-voltage signals exist, their per-shot coverage, and a recommendation (currents / voltages / both) for the actuator surface — with a figure if it aids the decision.
   2. If recommended + low-risk: wire coil-voltage demands into the actuator vector (backward-compatible, peer API intact) + unit tests.
   3. Followup written + this one resolved. Report git show --stat.</pre>
+    </article>
+<article class="r-fu" data-id="f-ppwm-encode-dataloader-fix" data-status="open" data-tier="sonnet" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-21" data-recommends-skill="/reckon-ship playable-plasma-wm-v0" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Curated encode regressed to a serial loop (GPU ~98% idle, ~11s/shot) — restore the stream_encode DataLoader-prefetch pattern before the next re-encode</h4>
+    <div class="r-fu-body">The curated re-encode (scripts/slurm/build_excitation_corpus_encode.py) is a SERIAL single-process loop (`for w in windows: load_shot_frames → _percentile_balance → encode_batch_indices → save`) with NO DataLoader/prefetch (grep DataLoader = 0). So the GPU idles ~98% during each ~11s GPFS frame-read + per-shot percentile pass and bursts ~0.16s to tokenize. This is a regression from the canonical stream_encode.py (ShotFrameDataset + _DatasetFeed + torch DataLoader, 12 prefetch workers → GPU-saturated at 308 fps) and a violation of AGENTS.md §2b (DataLoader-prefetch is mandatory; serial-per-item is the forbidden anti-pattern). The full 3007-window encode only 'filled' 6 cards by brute-force sharding (6 idle serial loops) — ~85 min wall-clock vs ~7 min a single saturated card would take. NOT blocking (the corpus landed + the re-train launched), but fix BEFORE the next re-encode (the coil-voltage actuator surface, f-ppwm-coil-voltage-actuators): wire the per-shot frame-load + percentile_normalise into a Dataset.__getitem__ so worker processes do it in parallel and the GPU saturates.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    playable-plasma-wm-v0 (http://localhost:8765/imas-ambix/playable-plasma-wm-v0.html)
+Section: Encode pipeline perf fix
+Tier:    sonnet
+
+Context
+  The curated re-encode ran at ~11s/shot with the GPU ~98% idle — it&#x27;s a serial single-process loop with no DataLoader prefetch, a regression from stream_encode.py (the canonical 308-fps GPU-saturated encoder) and an AGENTS.md §2b violation. The corpus already landed (no rush), but the next re-encode (coil-voltage surface) must not repeat this.
+
+State to read
+  scripts/slurm/build_excitation_corpus_encode.py (the serial loop: for w in windows → load_shot_frames → _percentile_balance → encode_batch_indices → save_stream_frame_tokens); imas_ambix/data/stream_encode.py (the canonical pattern: ShotFrameDataset + _DatasetFeed + DataLoader num_workers=12 prefetch_factor=2 persistent_workers, clean teardown); imas_ambix/worldmodel/exposure_balance.py (percentile_normalise).
+
+Scope locks / constraints
+  - Feed the GPU via the stream_encode DataLoader pattern: move the per-shot frame-load + percentile_normalise into a Dataset.__getitem__ so worker processes prepare shots in parallel; the GPU tokenizes prefetched batches. Bounded queues + clean SIGTERM teardown per §2b (reuse _DatasetFeed if it fits).
+  - Keep the percentile [1,99.5] semantics IDENTICAL — verify token parity vs the current serial output on a few sample shots (bit-identical global ids).
+  - One GPU should saturate (~7 min for the full curated corpus) — no sharding needed.
+
+Done-when
+  1. The curated encode uses the DataLoader-prefetch pattern; token output is bit-identical to the serial path on a parity sample; committed.
+  2. A short throughput note (fps/GPU achieved) confirming GPU saturation.
+  3. Followup written + this one resolved.</pre>
     </article>
 </section>
 
