@@ -4,18 +4,20 @@
 #SBATCH --reservation=gpu_0003_grpA
 #SBATCH --account=grpa
 #SBATCH --gres=gpu:6
-#SBATCH --cpus-per-task=14
+#SBATCH --cpus-per-task=12
 #SBATCH --mem=440G
 #SBATCH --time=08:00:00
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
-# CPU/MEM sized to COEXIST with the DeepSeek serve INSIDE the 30-core / 650G
-# Group-A reservation: DeepSeek uses ~15 cores + 200G, so 14 cores (15+14=29<=30)
-# + 440G (200+440=640<=650) leaves room and schedules immediately.  Requesting the
-# full reservation (--cpus-per-task=30 --mem=640G) pends on Resources for days
-# while DeepSeek is up (45 cores / 840G > the reservation).  14 cores is plenty for
+# CPU/MEM sized to COEXIST with the DeepSeek serve.  The grpA + grpB reservations
+# OVERLAP on the same cores, so it is NOT a clean 30-15=15 with DeepSeek up — a
+# live `srun --test-only` confirmed only ~12 cores schedule NOW (16 defers), and
+# the live run 1220860 runs on 12.  So 12 is the RESUME-SAFE default: a bare
+# `sbatch` requeue reschedules immediately even if grpB is active; 14 risks pending
+# on Resources.  --mem=440G (200 DeepSeek + 440 <= 650G).  12 cores is plenty for
 # 6-rank token DataLoaders (tokens are tiny vs raw frames); keep WM_NUM_WORKERS so
-# 6*workers <= 14.  Override on the CLI only to take the whole reservation when
-# DeepSeek is down.
+# 6*workers <= 12.  Probe with `srun --test-only ... --cpus-per-task=N true` if the
+# reservation occupancy changes.  Override on the CLI to take the whole reservation
+# (--cpus-per-task=30) when DeepSeek is down.
 # NOTE: --qos intentionally omitted — defaults to normal (no 4-GPU cap), so a
 # 6-card job bursts onto the free cards and COEXISTS with the 2-card DeepSeek
 # serve (6 + 2 = 8/8). Do NOT pass --qos. (repo AGENTS.md §2)
@@ -100,7 +102,7 @@ source "${VENV}/bin/activate"
 : "${WM_WEIGHT_DECAY:=0.1}"
 : "${WM_LOG_EVERY:=25}"
 : "${WM_CKPT_EVERY:=250}"
-: "${WM_NUM_WORKERS:=2}"        # per-rank DataLoader workers (6 ranks * 2 = 12 <= 14 cores)
+: "${WM_NUM_WORKERS:=2}"        # per-rank DataLoader workers (6 ranks * 2 = 12 <= 12 cores)
 # M4 controllability machinery
 : "${WM_OBS_DROPOUT:=0.8}"
 : "${WM_CONTROL_DROPOUT:=0.15}"
