@@ -82,55 +82,106 @@ def _compute_estimate(windows: list[dict]) -> dict:
     }
 
 
+def _window_row(w) -> dict:
+    return {
+        "shot_id": w.shot_id,
+        "start_frame": w.start_frame,
+        "fps": w.fps,
+        "n_frames": w.n_frames,
+        "frame_stride": w.frame_stride,
+        "excitation_score": w.excitation_score,
+        "max_abs_ip": w.max_abs_ip,
+        "present_fraction": w.present_fraction,
+        "phase": getattr(w, "phase", ""),
+    }
+
+
 def phase_select(args: argparse.Namespace) -> int:
     from imas_ambix.worldmodel.excitation_corpus import (
         DEFAULT_HELD_OUT,
+        enumerate_curated_windows,
         select_curated_windows,
     )
 
     token_root = Path(args.token_root)
     shots = _rbb_shots(token_root, args.scan_limit)
-    print(f"[select] scanning {len(shots)} rbb-bearing shots", flush=True)
+    tr = token_root if args.token_root != str(TOKEN_ROOT) else None
+    mode = "multi-window" if args.multi_window else "single-best"
+    print(f"[select] scanning {len(shots)} rbb-bearing shots ({mode})", flush=True)
 
     t0 = time.monotonic()
-    windows = select_curated_windows(
-        shots,
-        camera=args.camera,
-        token_root=token_root if args.token_root != str(TOKEN_ROOT) else None,
-        held_out=DEFAULT_HELD_OUT,
-        target_horizon_s=args.horizon_s,
-        max_n_frames=args.max_n_frames,
-        min_excitation=args.min_excitation,
-        limit=args.limit,
-    )
+    if args.multi_window:
+        windows = enumerate_curated_windows(
+            shots,
+            camera=args.camera,
+            token_root=tr,
+            held_out=DEFAULT_HELD_OUT,
+            target_horizon_s=args.horizon_s,
+            max_n_frames=args.max_n_frames,
+            window_time_stride_s=args.window_time_stride_s,
+            min_excitation=args.min_excitation,
+            max_windows_per_shot=args.max_windows_per_shot,
+        )
+    else:
+        windows = select_curated_windows(
+            shots,
+            camera=args.camera,
+            token_root=tr,
+            held_out=DEFAULT_HELD_OUT,
+            target_horizon_s=args.horizon_s,
+            max_n_frames=args.max_n_frames,
+            min_excitation=args.min_excitation,
+            limit=args.limit,
+        )
     el = time.monotonic() - t0
+    rows = [_window_row(w) for w in windows]
+
+    # phase coverage + windows-per-pulse distribution (multi-window report).
+    pulses = sorted({r["shot_id"] for r in rows})
+    per_pulse = {}
+    for r in rows:
+        per_pulse[r["shot_id"]] = per_pulse.get(r["shot_id"], 0) + 1
+    counts = np.array(sorted(per_pulse.values())) if per_pulse else np.array([0])
+    phase_counts: dict[str, int] = {}
+    for r in rows:
+        ph = r.get("phase") or "unclassified"
+        phase_counts[ph] = phase_counts.get(ph, 0) + 1
+    coverage = {
+        "n_windows": len(rows),
+        "n_pulses": len(pulses),
+        "windows_per_pulse_min": int(counts.min()),
+        "windows_per_pulse_median": float(np.median(counts)),
+        "windows_per_pulse_max": int(counts.max()),
+        "windows_per_pulse_mean": round(float(counts.mean()), 2),
+        "phase_counts": phase_counts,
+    }
+
     print(
-        f"[select] {len(windows)} curated windows selected in {el:.0f}s "
+        f"[select] {len(rows)} windows over {len(pulses)} pulses in {el:.0f}s "
         f"(from {len(shots)} scanned)",
         flush=True,
     )
-
-    rows = [
-        {
-            "shot_id": w.shot_id,
-            "start_frame": w.start_frame,
-            "fps": w.fps,
-            "n_frames": w.n_frames,
-            "frame_stride": w.frame_stride,
-            "excitation_score": w.excitation_score,
-            "max_abs_ip": w.max_abs_ip,
-            "present_fraction": w.present_fraction,
-        }
-        for w in windows
-    ]
     est = _compute_estimate(rows)
+    if args.multi_window:
+        est["note"] = (
+            "MULTI-WINDOW manifest — NO re-encode needed (whole-shot tokens "
+            "already on disk; the dataset slices each window at train time). "
+            "total_tokens here = sum of per-window n_frames x 256 (what the model "
+            "sees per epoch across all windows)."
+        )
     manifest = {
         "camera": args.camera,
+        "mode": mode,
         "horizon_s": args.horizon_s,
         "max_n_frames": args.max_n_frames,
+        "window_time_stride_s": args.window_time_stride_s
+        if args.multi_window
+        else None,
+        "max_windows_per_shot": args.max_windows_per_shot,
         "min_excitation": args.min_excitation,
         "held_out": list(DEFAULT_HELD_OUT),
         "n_scanned": len(shots),
+        "coverage": coverage,
         "windows": rows,
         "compute_estimate": est,
     }
@@ -138,6 +189,7 @@ def phase_select(args: argparse.Namespace) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest, indent=2))
     print(f"[select] wrote manifest {out}", flush=True)
+    print("[select] coverage:", json.dumps(coverage, indent=2), flush=True)
     print("[select] compute estimate:", json.dumps(est, indent=2), flush=True)
     if rows:
         sc = np.array([r["excitation_score"] for r in rows])
@@ -269,6 +321,26 @@ def main(argv: list[str] | None = None) -> int:
     )
     s.add_argument(
         "--limit", type=int, default=None, help="keep the top-N most-excited windows"
+    )
+    s.add_argument(
+        "--multi-window",
+        action="store_true",
+        help="tile EVERY pulse with overlapping windows (ramp/flat-top/termination) "
+        "instead of one best window per shot; disruptions INCLUDED",
+    )
+    s.add_argument(
+        "--window-time-stride-s",
+        type=float,
+        default=0.075,
+        help="time-stride (s) between tiled windows in --multi-window mode "
+        "(~0.075 = ~70%% overlap on a 0.25 s window)",
+    )
+    s.add_argument(
+        "--max-windows-per-shot",
+        type=int,
+        default=None,
+        help="cap windows per pulse in --multi-window mode (spread evenly across "
+        "the recording so all phases survive the cap)",
     )
     s.set_defaults(func=phase_select)
 

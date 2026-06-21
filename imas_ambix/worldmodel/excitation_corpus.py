@@ -33,10 +33,16 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from imas_ambix.worldmodel.actuator_plan import find_excitation_window
+from imas_ambix.worldmodel.actuator_plan import (
+    ACTUATOR_CHANNELS,
+    coil_current_channel_indices,
+    find_excitation_window,
+    plasma_current_channel_index,
+)
 from imas_ambix.worldmodel.plasma_presence import (
     IP_PRESENT_THRESHOLD_A,
     MIN_PRESENT_FRACTION,
+    evaluate_presence,
 )
 from imas_ambix.worldmodel.spacetime_dataset import REFERENCE_CAMERA, _frame_times
 from imas_ambix.worldmodel.window_horizon import (
@@ -80,6 +86,11 @@ class CuratedWindow:
         ``max|Ip|`` over the window (A) — the plasma-presence measure.
     present_fraction:
         Fraction of the window's frames that are plasma-present.
+    phase:
+        Plasma phase the window covers — ``"ramp"`` (Ip rising), ``"flat_top"``
+        (Ip roughly constant and high), ``"termination"`` (Ip falling / quench),
+        or ``""`` (unclassified, single-window selector).  Used for the
+        multi-window corpus phase-coverage report; A's dataset ignores it.
     """
 
     shot_id: int
@@ -90,6 +101,7 @@ class CuratedWindow:
     excitation_score: float
     max_abs_ip: float
     present_fraction: float
+    phase: str = ""
 
 
 def _shot_fps(shot_id: int, camera: str, *, token_root: Path | None) -> float | None:
@@ -203,9 +215,223 @@ def select_curated_windows(
     return out
 
 
+# ---------------------------------------------------------------------------
+# Multi-window tiling (every pulse, every phase, disruptions INCLUDED)
+# ---------------------------------------------------------------------------
+#
+# select_curated_windows above picks the SINGLE most-excited window per shot.
+# For the re-train the lead wants MULTIPLE 0.25 s windows per pulse covering the
+# WHOLE recording — ramp-up, flat-top, AND the termination/quench — so the model
+# sees every phase, not just the one most-excited segment.  The disruption-tail
+# de-prioritisation used by find_excitation_window is dropped here (a fast
+# current quench is a strong dynamic training signal, not noise), so a
+# terminating window is scored on its true dynamics and kept if it is
+# plasma-present (it has plasma then quench; pure post-quench vacuum fails the
+# presence gate, correctly).
+
+#: Default time-stride (s) between consecutive tiled windows.  ~0.075 s gives
+#: ~70 % overlap on a 0.25 s window — dense coverage of every pulse phase
+#: without exploding the window count.
+DEFAULT_WINDOW_TIME_STRIDE_S: float = 0.075
+
+
+def _classify_phase(absip_window: np.ndarray, *, present_threshold: float) -> str:
+    """Classify a window's plasma phase from its per-frame ``|Ip|`` (A).
+
+    Compares the mean ``|Ip|`` of the first vs last third of the window against
+    the window peak: a strong RISE (last third ≫ first third, relative to peak)
+    is ``"ramp"``; a strong FALL (first third ≫ last third — a quench/rampdown)
+    is ``"termination"``; otherwise ``"flat_top"``.  The thresholds are relative
+    to the in-window peak so the classification is brightness/scale invariant.
+    """
+    a = np.asarray(absip_window, dtype=np.float64)
+    a = np.where(np.isfinite(a), a, 0.0)
+    n = a.shape[0]
+    if n < 3 or float(a.max()) <= 0:
+        return "flat_top"
+    k = max(1, n // 3)
+    first = float(a[:k].mean())
+    last = float(a[-k:].mean())
+    peak = float(a.max())
+    rise = (last - first) / peak  # +ve: rising, -ve: falling
+    if rise > 0.25:
+        return "ramp"
+    if rise < -0.25:
+        return "termination"
+    return "flat_top"
+
+
+def enumerate_shot_windows(
+    shot_id: int,
+    *,
+    camera: str = REFERENCE_CAMERA,
+    token_root: Path | None = None,
+    target_horizon_s: float = DEFAULT_TARGET_HORIZON_S,
+    max_n_frames: int = DEFAULT_MAX_N_FRAMES,
+    window_time_stride_s: float = DEFAULT_WINDOW_TIME_STRIDE_S,
+    ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
+    min_present_fraction: float = MIN_PRESENT_FRACTION,
+    min_excitation: float = 1.0e3,
+) -> list[CuratedWindow]:
+    """Tile one pulse with overlapping plasma-present windows (every phase).
+
+    Derives the per-shot 0.25 s window shape from the shot's fps, then slides a
+    window of that span across the WHOLE recording at ``window_time_stride_s``
+    (converted to a frame step via fps).  Each candidate window is scored on the
+    time-mean summed coil ``|dI/dt|`` (NO disruption de-weight — quenches count),
+    checked for plasma-presence (``max|Ip| >= ip_present_threshold`` AND
+    present-fraction gate), classified ramp/flat_top/termination, and kept if it
+    passes presence and clears ``min_excitation``.  Returns the kept windows in
+    ascending start-frame order (empty if the shot is unreadable / too short /
+    has no plasma anywhere).  The whole shot's conditioning is loaded ONCE.
+    """
+    from imas_ambix.camdyn.conditioning import load_conditioning  # noqa: PLC0415
+    from imas_ambix.camdyn.dataset import level1_shot_path  # noqa: PLC0415
+
+    fps = _shot_fps(shot_id, camera, token_root=token_root)
+    if fps is None:
+        return []
+    rec = recommend_window(
+        fps, target_horizon_s=target_horizon_s, max_n_frames=max_n_frames
+    )
+    span = (rec.n_frames - 1) * rec.frame_stride + 1
+
+    ftime = _frame_times(int(shot_id), camera, token_root=token_root)
+    if ftime is None:
+        return []
+    ftime = np.asarray(ftime, dtype=np.float64)
+    n = ftime.shape[0]
+    if n < span or span < 2:
+        return []
+
+    try:
+        lpath = level1_shot_path(int(shot_id))
+    except Exception:  # noqa: BLE001
+        return []
+
+    # Load the FULL actuator vector (coils + Ip) onto every camera frame once.
+    cond = load_conditioning(
+        lpath, ftime, int(shot_id), channels=ACTUATOR_CHANNELS, include_dalpha=False
+    )
+    raw = np.asarray(cond.values, dtype=np.float64)
+    miss = np.asarray(cond.missing, dtype=np.float64)
+
+    coil_cols = coil_current_channel_indices()
+    ip_col = plasma_current_channel_index()
+    if not coil_cols or ip_col is None:
+        return []
+    coil_present = miss[:, coil_cols].mean(axis=0) < 1.0
+    cols = [c for c, ok in zip(coil_cols, coil_present, strict=True) if ok]
+    if not cols:
+        return []
+
+    # Per-frame summed coil |dI/dt| (kA/s-ish), NO disruption de-weight.
+    coil = raw[:, cols]
+    dt = np.diff(ftime)
+    dt = np.where(dt > 0, dt, np.nan)
+    didt = np.full_like(coil, np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rate = np.diff(coil, axis=0) / dt[:, None]
+    didt[:-1] = rate
+    didt[-1] = rate[-1] if rate.shape[0] else 0.0
+    ramp = np.abs(np.where(np.isfinite(didt), didt, 0.0)).sum(axis=1)
+
+    # Per-frame |Ip| (A), NaN where the Ip record is missing.
+    absip = np.abs(raw[:, ip_col])
+    ip_ok = miss[:, ip_col] < 1.0
+    absip = np.where(ip_ok, absip, np.nan)
+
+    # Frame step between consecutive tiled windows (>= 1 frame).
+    frame_step = max(1, int(round(float(window_time_stride_s) * fps)))
+    last_start = n - span
+    out: list[CuratedWindow] = []
+    for start in range(0, last_start + 1, frame_step):
+        sl = slice(start, start + span)
+        w_absip = absip[sl]
+        pres = evaluate_presence(
+            w_absip,
+            threshold_a=ip_present_threshold,
+            min_present_fraction=min_present_fraction,
+        )
+        if not pres.present:
+            continue
+        score = float(np.nanmean(ramp[sl]))
+        if not np.isfinite(score) or score < float(min_excitation):
+            continue
+        phase = _classify_phase(w_absip, present_threshold=ip_present_threshold)
+        out.append(
+            CuratedWindow(
+                shot_id=int(shot_id),
+                start_frame=int(start),
+                fps=float(fps),
+                n_frames=int(rec.n_frames),
+                frame_stride=int(rec.frame_stride),
+                excitation_score=score,
+                max_abs_ip=float(pres.max_abs_ip),
+                present_fraction=float(pres.present_fraction),
+                phase=phase,
+            )
+        )
+    return out
+
+
+def enumerate_curated_windows(
+    shot_ids: Sequence[int],
+    *,
+    camera: str = REFERENCE_CAMERA,
+    token_root: Path | None = None,
+    held_out: Sequence[int] = DEFAULT_HELD_OUT,
+    target_horizon_s: float = DEFAULT_TARGET_HORIZON_S,
+    max_n_frames: int = DEFAULT_MAX_N_FRAMES,
+    window_time_stride_s: float = DEFAULT_WINDOW_TIME_STRIDE_S,
+    ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
+    min_present_fraction: float = MIN_PRESENT_FRACTION,
+    min_excitation: float = 1.0e3,
+    max_windows_per_shot: int | None = None,
+) -> list[CuratedWindow]:
+    """Enumerate MULTIPLE tiled windows over every pulse (held-out fully excluded).
+
+    For each candidate shot (input list MINUS ``held_out``) tiles the whole
+    recording with overlapping plasma-present windows
+    (:func:`enumerate_shot_windows`), covering ramp-up / flat-top / termination.
+    ``max_windows_per_shot`` optionally caps a very long recording's share
+    (the kept windows are then spread evenly across the recording so all phases
+    survive the cap).  Returns a DETERMINISTIC list (ascending shot id, then
+    ascending start frame).  EVERY emitted shot_id is an input shot not in
+    ``held_out`` — and because ALL of a held-out shot's windows are skipped, the
+    held-out reserve is fully disjoint (shot-level leakage guard).
+    """
+    held = {int(s) for s in held_out}
+    candidates = sorted(int(s) for s in shot_ids if int(s) not in held)
+    out: list[CuratedWindow] = []
+    for sid in candidates:
+        ws = enumerate_shot_windows(
+            sid,
+            camera=camera,
+            token_root=token_root,
+            target_horizon_s=target_horizon_s,
+            max_n_frames=max_n_frames,
+            window_time_stride_s=window_time_stride_s,
+            ip_present_threshold=ip_present_threshold,
+            min_present_fraction=min_present_fraction,
+            min_excitation=min_excitation,
+        )
+        if max_windows_per_shot is not None and len(ws) > int(max_windows_per_shot):
+            # spread the cap evenly across the recording (keep first..last) so a
+            # capped shot still spans ramp -> flat-top -> termination.
+            idx = np.linspace(0, len(ws) - 1, int(max_windows_per_shot))
+            keep = sorted({int(round(i)) for i in idx})
+            ws = [ws[i] for i in keep]
+        out.extend(ws)
+    return out
+
+
 __all__ = [
     "DEFAULT_HELD_OUT",
+    "DEFAULT_WINDOW_TIME_STRIDE_S",
     "CuratedWindow",
+    "enumerate_curated_windows",
+    "enumerate_shot_windows",
     "select_curated_window_for_shot",
     "select_curated_windows",
 ]

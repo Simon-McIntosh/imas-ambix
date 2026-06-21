@@ -484,3 +484,132 @@ def test_select_curated_window_for_shot_none_on_unreadable_fps(monkeypatch):
 
     monkeypatch.setattr(ec, "_frame_times", lambda *a, **k: None)
     assert ec.select_curated_window_for_shot(5) is None
+
+
+# ---------------------------------------------------------------------------
+# excitation_corpus: multi-window tiling (every phase, disruptions included)
+# ---------------------------------------------------------------------------
+
+
+def test_classify_phase_ramp_flat_termination():
+    import numpy as np
+
+    from imas_ambix.worldmodel.excitation_corpus import _classify_phase
+
+    thr = 2.0e4
+    ramp = np.linspace(0.0, 7.0e5, 60)  # rising
+    flat = np.full(60, 7.0e5)  # constant high
+    term = np.linspace(7.0e5, 0.0, 60)  # falling / quench
+    assert _classify_phase(ramp, present_threshold=thr) == "ramp"
+    assert _classify_phase(flat, present_threshold=thr) == "flat_top"
+    assert _classify_phase(term, present_threshold=thr) == "termination"
+
+
+def _patch_enumerate(monkeypatch, ftime, values, missing):
+    """Wire enumerate_shot_windows' reads to synthetic in-memory data."""
+    import imas_ambix.camdyn.conditioning as cc
+    import imas_ambix.camdyn.dataset as cd
+    import imas_ambix.worldmodel.actuator_plan as ap
+    import imas_ambix.worldmodel.excitation_corpus as ec
+    from imas_ambix.camdyn.conditioning import ConditioningSample
+
+    monkeypatch.setattr(ec, "_frame_times", lambda *a, **k: ftime)
+    monkeypatch.setattr(cd, "level1_shot_path", lambda *a, **k: "x")
+    sample = ConditioningSample(
+        shot_id=1,
+        frame_time=ftime,
+        channel_keys=[c.key for c in ap.ACTUATOR_CHANNELS],
+        units=[c.unit for c in ap.ACTUATOR_CHANNELS],
+        values=values,
+        missing=missing,
+    )
+    # enumerate_shot_windows imports load_conditioning from camdyn.conditioning
+    # lazily; patch it there.
+    monkeypatch.setattr(cc, "load_conditioning", lambda *a, **k: sample)
+
+
+def test_enumerate_shot_windows_tiles_whole_pulse_with_phases(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # A full pulse: breakdown -> ramp -> flat-top -> quench, at 600 Hz over ~1.3s.
+    n = 800
+    ftime = np.arange(n) / 600.0
+    ip = np.concatenate(
+        [
+            np.linspace(0, 7.0e5, 200),  # ramp
+            np.full(400, 7.0e5),  # flat-top
+            np.linspace(7.0e5, 0, 200),  # termination/quench
+        ]
+    )
+    C = ec.ACTUATOR_CHANNELS
+    nC = len(C)
+    values = np.zeros((n, nC), dtype=np.float64)
+    missing = np.ones((n, nC), dtype=np.float64)
+    ip_col = ec.plasma_current_channel_index()
+    values[:, ip_col] = ip
+    missing[:, ip_col] = 0.0
+    # one coil ramps continuously so every window has coil excitation.
+    ck = ec.coil_current_channel_indices()[0]
+    values[:, ck] = np.linspace(1.0e5, 3.0e5, n)
+    missing[:, ck] = 0.0
+
+    _patch_enumerate(monkeypatch, ftime, values, missing)
+    ws = ec.enumerate_shot_windows(
+        1,
+        target_horizon_s=0.25,
+        max_n_frames=48,
+        window_time_stride_s=0.05,
+        min_excitation=1.0,
+    )
+    # multiple windows over the pulse
+    assert len(ws) > 3
+    # ascending start frames
+    assert [w.start_frame for w in ws] == sorted(w.start_frame for w in ws)
+    # covers more than one phase, including a termination (disruption INCLUDED)
+    phases = {w.phase for w in ws}
+    assert "termination" in phases
+    assert len(phases) >= 2
+    # every kept window is plasma-present
+    assert all(w.max_abs_ip >= 2.0e4 for w in ws)
+
+
+def test_enumerate_curated_windows_excludes_all_held_out_windows(monkeypatch):
+    import imas_ambix.worldmodel.excitation_corpus as ec
+    from imas_ambix.worldmodel.excitation_corpus import CuratedWindow
+
+    # each shot yields 3 windows; held-out shots must contribute ZERO.
+    def _enum(sid, **k):
+        return [
+            CuratedWindow(sid, st, 600.0, 39, 4, 1000.0, 7.0e5, 0.9, "flat_top")
+            for st in (0, 10, 20)
+        ]
+
+    monkeypatch.setattr(ec, "enumerate_shot_windows", _enum)
+    out = ec.enumerate_curated_windows(
+        [10, 18502, 11, 18504, 18505, 12], held_out=(18502, 18504, 18505)
+    )
+    sids = {w.shot_id for w in out}
+    assert sids == {10, 11, 12}  # all held-out shots fully gone
+    assert len(out) == 9  # 3 shots x 3 windows
+    # deterministic: ascending shot then start
+    assert out == sorted(out, key=lambda w: (w.shot_id, w.start_frame))
+
+
+def test_enumerate_curated_windows_caps_windows_per_shot(monkeypatch):
+    import imas_ambix.worldmodel.excitation_corpus as ec
+    from imas_ambix.worldmodel.excitation_corpus import CuratedWindow
+
+    def _enum(sid, **k):
+        return [
+            CuratedWindow(sid, st, 600.0, 39, 4, 1000.0, 7.0e5, 0.9, "flat_top")
+            for st in range(0, 100, 10)  # 10 windows
+        ]
+
+    monkeypatch.setattr(ec, "enumerate_shot_windows", _enum)
+    out = ec.enumerate_curated_windows([7], held_out=(), max_windows_per_shot=4)
+    assert len(out) == 4
+    # cap keeps first and last (span the whole recording incl. termination)
+    starts = [w.start_frame for w in out]
+    assert starts[0] == 0 and starts[-1] == 90
