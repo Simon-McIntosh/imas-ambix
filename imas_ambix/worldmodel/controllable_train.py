@@ -935,6 +935,38 @@ def train_controllable_corpus(
 
     act_chan_list = list(ACTUATOR_CHANNELS)
 
+    # Filter to shots with ENOUGH camera frames for the window (the curated spans
+    # are short — ~3% of curated shots have < n_frames frames; an under-length shot
+    # raises mid-epoch and kills a DDP rank).  Deterministic from the token-root so
+    # every rank computes the SAME train set (DDP-safe — no shard divergence).
+    from imas_ambix.worldmodel.spacetime_dataset import (  # noqa: PLC0415
+        camera_frame_count,
+    )
+
+    span = (config.window.n_frames - 1) * config.window.frame_stride + 1
+    kept: list[int] = []
+    for sid in shot_ids:
+        try:
+            if int(camera_frame_count(int(sid), camera, token_root=token_root)) >= span:
+                kept.append(int(sid))
+        except (FileNotFoundError, KeyError, ValueError):
+            continue
+    n_dropped = len(list(shot_ids)) - len(kept)
+    if env.is_main:
+        logger.info(
+            "frame-count filter: kept %d/%d train shots with >= %d frames (dropped "
+            "%d short/unreadable)",
+            len(kept),
+            len(list(shot_ids)),
+            span,
+            n_dropped,
+        )
+    if len(kept) < 2:
+        raise ValueError(
+            f"only {len(kept)} train shots have >= {span} frames — cannot train"
+        )
+    shot_ids = kept
+
     # Probe plan-channels + signal-stream widths + actuator-channel count.
     probe: list[ControllableSpacetimeSample] = []
     for sid in list(shot_ids)[:8]:
