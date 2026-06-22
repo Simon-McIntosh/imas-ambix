@@ -266,6 +266,67 @@ def phase_select(args: argparse.Namespace) -> int:
     return 0
 
 
+def phase_merge(args: argparse.Namespace) -> int:
+    """Concatenate sharded unified partial manifests into one (CPU)."""
+    import glob as _glob
+
+    parts = sorted(_glob.glob(args.inputs))
+    if not parts:
+        print(f"[merge] no shard files match {args.inputs!r}", flush=True)
+        return 1
+    print(f"[merge] merging {len(parts)} shard manifests", flush=True)
+    rows: list[dict] = []
+    base: dict | None = None
+    for p in parts:
+        d = json.loads(Path(p).read_text())
+        if base is None:
+            base = {k: v for k, v in d.items() if k not in ("windows", "coverage")}
+        rows.extend(d.get("windows", []))
+        print(f"[merge]   {p}: {len(d.get('windows', []))} windows", flush=True)
+    # deterministic order: ascending shot id then camera.
+    rows.sort(key=lambda r: (int(r["shot_id"]), str(r["camera_id"])))
+
+    # recompute coverage across the merged rows.
+    per_cam: dict[str, int] = {}
+    per_campaign: dict[str, int] = {}
+    per_timescale: dict[str, int] = {}
+    for r in rows:
+        per_cam[r["camera_id"]] = per_cam.get(r["camera_id"], 0) + 1
+        per_campaign[r["campaign"]] = per_campaign.get(r["campaign"], 0) + 1
+        per_timescale[r["timescale"]] = per_timescale.get(r["timescale"], 0) + 1
+    dur = np.array([r["plasma_duration_s"] for r in rows], dtype=float)
+    dur_ms = dur * 1e3 if dur.size else np.array([0.0])
+    coverage = {
+        "n_windows": len(rows),
+        "n_distinct_shots": len({r["shot_id"] for r in rows}),
+        "windows_per_camera": dict(sorted(per_cam.items())),
+        "windows_per_campaign": dict(sorted(per_campaign.items())),
+        "windows_per_timescale": dict(sorted(per_timescale.items())),
+        "duration_median_ms": round(float(np.median(dur_ms)), 1),
+        "duration_p10_ms": round(float(np.percentile(dur_ms, 10)), 1),
+        "duration_p90_ms": round(float(np.percentile(dur_ms, 90)), 1),
+        "fps_min": round(float(min(r["fps"] for r in rows)), 1) if rows else 0.0,
+        "fps_max": round(float(max(r["fps"] for r in rows)), 1) if rows else 0.0,
+    }
+    # held-out leakage guard: assert NONE present (across every camera).
+    held = set(base.get("held_out", [])) if base else set()
+    leak = sorted(held & {int(r["shot_id"]) for r in rows})
+
+    merged = dict(base or {})
+    merged["mode"] = "unified"
+    merged["coverage"] = coverage
+    merged["windows"] = rows
+    merged["n_shards_merged"] = len(parts)
+    merged["heldout_leak"] = leak
+    out = Path(args.manifest)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(merged))
+    print(f"[merge] wrote {out}", flush=True)
+    print("[merge] coverage:", json.dumps(coverage, indent=2), flush=True)
+    print(f"[merge] held-out leak: {leak if leak else 'NONE'}", flush=True)
+    return 0 if not leak else 1
+
+
 def phase_unified(args: argparse.Namespace) -> int:
     """Build the UNIFIED multi-camera, multi-timescale manifest (CPU)."""
     from imas_ambix.worldmodel.excitation_corpus import (
@@ -279,13 +340,22 @@ def phase_unified(args: argparse.Namespace) -> int:
     token_root = Path(args.token_root)
     shots = _rbb_shots(token_root, args.scan_limit)
     tr = token_root if args.token_root != str(TOKEN_ROOT) else None
+    # Stride-shard the shot list across parallel CPU workers (the unified scan is
+    # IO-bound — one amc/Ip read per shot per camera — so N shards over the `sun`
+    # nodes cut wall-clock ~N x). Each shard writes its own partial manifest; the
+    # `merge` phase concatenates them. Deterministic + disjoint.
+    n_shards = max(1, int(args.n_shards))
+    shard = int(args.shard) % n_shards
+    if n_shards > 1:
+        shots = shots[shard::n_shards]
     cameras = (
         [c.strip() for c in args.cameras.split(",") if c.strip()]
         if args.cameras
         else list(UNIFIED_CAMERAS)
     )
     print(
-        f"[unified] scanning {len(shots)} shots x {len(cameras)} cameras "
+        f"[unified shard {shard}/{n_shards}] scanning {len(shots)} shots x "
+        f"{len(cameras)} cameras "
         f"({','.join(cameras)})",
         flush=True,
     )
@@ -364,6 +434,9 @@ def phase_unified(args: argparse.Namespace) -> int:
         "windows": rows,
     }
     out = Path(args.manifest)
+    if n_shards > 1:
+        # shard partial — the merge phase concatenates these.
+        out = out.with_suffix(f".shard{shard}of{n_shards}.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest))  # no indent: frame_times make it large
     print(
@@ -593,7 +666,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     u.add_argument("--probe-heldout", action="store_true")
     u.add_argument("--scan-limit", type=int, default=None)
+    u.add_argument("--shard", type=int, default=0, help="this worker's shard index")
+    u.add_argument(
+        "--n-shards", type=int, default=1, help="number of parallel CPU shards"
+    )
     u.set_defaults(func=phase_unified)
+
+    m = sub.add_parser(
+        "merge",
+        help="concatenate sharded unified partial manifests into one (CPU)",
+    )
+    m.add_argument(
+        "--inputs",
+        required=True,
+        help="glob for the shard partial manifests (quote it)",
+    )
+    m.add_argument("--manifest", required=True, help="merged output path")
+    m.set_defaults(func=phase_merge)
 
     args = ap.parse_args(argv)
     return int(args.func(args))
