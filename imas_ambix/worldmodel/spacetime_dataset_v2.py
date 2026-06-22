@@ -455,6 +455,7 @@ def probe_signal_channels(
     n_signal_steps: int,
     *,
     camera: str = REFERENCE_CAMERA,
+    cameras: Sequence[str] | None = None,
     token_root: Path | None = None,
     max_probe: int = 8,
 ) -> dict[str, int]:
@@ -462,15 +463,23 @@ def probe_signal_channels(
 
     Returns ``{stream_name: max channel count seen (capped at max_channels)}``.
     A stream never seen keeps 0 and is dropped from the model's stream list.
+
+    ``cameras`` (optional, parallel to ``shot_ids``) gives a PER-SHOT camera — the
+    multi-camera corpus mixes views, so a shot may have no recording in the single
+    ``camera``; the per-shot camera is the one the dataset will actually read.  The
+    measured-signal channel counts are camera-INDEPENDENT, but the camera frame
+    window sets the time span the signals are resampled onto, so assembling with
+    the right camera avoids skipping shots that lack the default view.
     """
     seen: dict[str, int] = {m.name: 0 for m in modalities}
     n = 0
-    for sid in shot_ids:
+    for i, sid in enumerate(shot_ids):
         if n >= max_probe:
             break
+        cam = cameras[i] if cameras is not None and i < len(cameras) else camera
         try:
             sample = assemble_window(
-                int(sid), config, camera=camera, token_root=token_root
+                int(sid), config, camera=cam, token_root=token_root
             )
         except (ValueError, FileNotFoundError, KeyError):
             continue

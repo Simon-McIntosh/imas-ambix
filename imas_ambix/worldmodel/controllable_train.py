@@ -77,6 +77,7 @@ from imas_ambix.worldmodel.spacetime_dataset import (
 from imas_ambix.worldmodel.spacetime_dataset_v2 import (
     SignalModalitySpec,
     default_signal_modalities,
+    extended_signal_modalities,
     stream_specs_from_modalities,
 )
 from imas_ambix.worldmodel.spacetime_train import (
@@ -521,9 +522,7 @@ def _scheduled_sampling_mix(
     # with per-(sample, frame) Bernoulli(prob).
     for ti in range(ctx, t):
         pred = model.chunked_argmax_frame(hidden[:, ti - 1], chunk=chunk)  # (b, s)
-        take = (
-            torch.rand(b, generator=generator, device=frames.device) < prob
-        )  # (b,)
+        take = torch.rand(b, generator=generator, device=frames.device) < prob  # (b,)
         if bool(take.any()):
             mixed[take, ti] = pred[take]
     return mixed
@@ -941,6 +940,12 @@ class _ManifestWindow:
     # this value (cadence-robust), NOT a literal stride.  0 -> fall back to the
     # global config horizon.
     horizon_s: float = 0.0
+    # The camera this window's frames come from.  The unified multi-camera manifest
+    # records a per-window ``camera_id`` (rbb / rco / rgb / rgc / rba …); the single
+    # camera manifests omit it, so the field defaults to the reference camera for
+    # full back-compat.  The dataset, the corpus length-filter, and the rank-0
+    # sizing probe all assemble each window from THIS camera's tokens.
+    camera: str = REFERENCE_CAMERA
 
 
 def manifest_train_windows(
@@ -1003,6 +1008,9 @@ def manifest_train_windows(
                 frame_stride=stride,
                 fps=fps,
                 horizon_s=horizon_s,
+                # per-window camera (multi-camera manifest); single-camera
+                # manifests omit camera_id -> fall back to the reference camera.
+                camera=str(w.get("camera_id") or REFERENCE_CAMERA),
             )
         )
     if n_fullshot:
@@ -1013,6 +1021,17 @@ def manifest_train_windows(
             n_fullshot,
             len(out),
             n_frames,
+        )
+    cameras = sorted({w.camera for w in out})
+    if len(cameras) > 1:
+        from collections import Counter  # noqa: PLC0415
+
+        hist = Counter(w.camera for w in out)
+        logger.info(
+            "manifest: %d windows span %d cameras %s",
+            len(out),
+            len(cameras),
+            dict(sorted(hist.items())),
         )
     return out
 
@@ -1045,6 +1064,10 @@ class ManifestWindowDataset:
         self._modalities = list(modalities)
         self._n_signal_steps = int(n_signal_steps)
         self._n_act_steps = int(n_act_steps)
+        # dataset-wide DEFAULT camera; each item assembles from its OWN
+        # ``window.camera`` (the multi-camera manifest), so this is only the
+        # reference used to construct single-camera windows where camera_id was
+        # absent — those windows already carry the reference camera here.
         self._camera = camera
         self._token_root = token_root
         self._actuator_channels = actuator_channels
@@ -1081,9 +1104,10 @@ class ManifestWindowDataset:
         for off in range(min(8, n)):
             w = self._windows[(index + off) % n]
             cfg_w = self._config
-            if w.horizon_s > 0 and abs(
-                w.horizon_s - self._config.target_horizon_s
-            ) > 1e-9:
+            if (
+                w.horizon_s > 0
+                and abs(w.horizon_s - self._config.target_horizon_s) > 1e-9
+            ):
                 cfg_w = replace(self._config, target_horizon_s=float(w.horizon_s))
             try:
                 return assemble_controllable_window(
@@ -1092,7 +1116,10 @@ class ManifestWindowDataset:
                     self._modalities,
                     self._n_signal_steps,
                     self._n_act_steps,
-                    camera=self._camera,
+                    # per-window camera (the unified multi-camera manifest); falls
+                    # back to the dataset's reference camera for single-camera
+                    # manifests where every window carries the reference camera.
+                    camera=w.camera,
                     token_root=self._token_root,
                     start_frame=w.start_frame,
                     **kw,
@@ -1254,9 +1281,7 @@ def train_controllable_corpus(
         import os  # noqa: PLC0415
 
         run_id = (
-            os.environ.get("SLURM_JOB_ID")
-            or os.environ.get("WM_RUN_ID")
-            or "local"
+            os.environ.get("SLURM_JOB_ID") or os.environ.get("WM_RUN_ID") or "local"
         )
         out_dir = DEFAULT_CKPT_ROOT / f"controllable-{run_id}"
     out_dir = _Path(out_dir)
@@ -1301,26 +1326,30 @@ def train_controllable_corpus(
         # requirement is a time-span, not a fixed native-frame count).
         #
         # The multi-window manifest has ~3 windows per pulse, so the (span, count)
-        # of a shot is read repeatedly — memoise per shot_id (the recording is the
-        # same for every window of a shot) so the scan does ~unique-shots GPFS
-        # reads, not ~windows (8.7k windows over 3k shots was a ~7.5min startup).
-        span_count_cache: dict[int, tuple[float | None, int] | None] = {}
+        # of a (shot, camera) recording is read repeatedly — memoise per
+        # (shot_id, camera) (the recording is the same for every window of a shot
+        # from the same camera) so the scan does ~unique-recordings GPFS reads, not
+        # ~windows (8.7k windows over 3k shots was a ~7.5min startup).  The unified
+        # manifest mixes cameras, so the key MUST include the camera — two windows
+        # of the same shot from different cameras are different recordings.
+        span_count_cache: dict[tuple[int, str], tuple[float | None, int] | None] = {}
 
-        def _span_count(sid: int) -> tuple[float | None, int] | None:
-            if sid in span_count_cache:
-                return span_count_cache[sid]
+        def _span_count(sid: int, cam: str) -> tuple[float | None, int] | None:
+            key = (sid, cam)
+            if key in span_count_cache:
+                return span_count_cache[key]
             try:
-                sp = recording_time_span_s(sid, camera=camera, token_root=token_root)
-                nt = int(camera_frame_count(sid, camera, token_root=token_root))
+                sp = recording_time_span_s(sid, camera=cam, token_root=token_root)
+                nt = int(camera_frame_count(sid, cam, token_root=token_root))
                 res: tuple[float | None, int] | None = (sp, nt)
             except (FileNotFoundError, KeyError, ValueError):
                 res = None
-            span_count_cache[sid] = res
+            span_count_cache[key] = res
             return res
 
         kept_windows: list[_ManifestWindow] = []
         for w in manifest_windows:
-            sc = _span_count(w.shot_id)
+            sc = _span_count(w.shot_id, w.camera)
             if sc is None:
                 ok = False
             else:
@@ -1369,9 +1398,10 @@ def train_controllable_corpus(
                 shot_span = window_span_for_shot(
                     int(sid), config.window, camera=camera, token_root=token_root
                 )
-                if int(
-                    camera_frame_count(int(sid), camera, token_root=token_root)
-                ) >= shot_span:
+                if (
+                    int(camera_frame_count(int(sid), camera, token_root=token_root))
+                    >= shot_span
+                ):
                     kept.append(int(sid))
             except (FileNotFoundError, KeyError, ValueError):
                 continue
@@ -1411,7 +1441,11 @@ def train_controllable_corpus(
                         config.modalities,
                         config.n_signal_steps,
                         config.n_act_steps,
-                        camera=camera,
+                        # use the WINDOW's camera (not the single CLI camera) so the
+                        # probe assembles EXACTLY as ManifestWindowDataset will — the
+                        # broadcast model dims must match what every rank's dataset
+                        # actually produces across all cameras.
+                        camera=w.camera,
                         token_root=token_root,
                         start_frame=w.start_frame,
                         actuator_channels=act_chan_list,
@@ -1452,12 +1486,17 @@ def train_controllable_corpus(
                 config.window.target_horizon_s * 1000.0,
             )
     plan_ch = _plan_channels_for([p.signal for p in probe])
+    # On the manifest path, probe each shot with the camera the dataset will read
+    # (the unified manifest mixes cameras — a shot may lack the default view); the
+    # legacy path uses the single CLI camera for every shot.
+    probe_cameras = [w.camera for w in manifest_windows[:16]] if use_manifest else None
     channels = probe_signal_channels(
         list(shot_ids)[:16],
         config.window,
         config.modalities,
         config.n_signal_steps,
         camera=camera,
+        cameras=probe_cameras,
         token_root=token_root,
     )
     act_channels = int(probe[0].actuator.n_channels)
@@ -1480,9 +1519,7 @@ def train_controllable_corpus(
         if i < len(ACTUATOR_CHANNEL_KEYS)
     }
     coil_cols = [
-        i
-        for i, k in enumerate(probe[0].actuator.channel_keys)
-        if k in _coil_keys
+        i for i, k in enumerate(probe[0].actuator.channel_keys) if k in _coil_keys
     ]
     if env.is_main and config.excitation_weighting:
         logger.info(
@@ -1735,9 +1772,7 @@ def train_controllable_corpus(
                         chunk=config.chunk,
                         generator=ss_gen,
                     )
-                    batch["target_frames"] = batch.get(
-                        "target_frames", batch["frames"]
-                    )
+                    batch["target_frames"] = batch.get("target_frames", batch["frames"])
                 is_boundary = (micro + 1) % accum == 0
                 sync_ctx = (
                     model.no_sync()
@@ -2363,9 +2398,7 @@ def _signal_token_mismatch(
 #: the actuator COMMAND vector (they remain available as v2 observation streams):
 #: Ip is the response to the solenoid drive; density is the response to gas
 #: fuelling.  You command the coils/solenoid/gas/NBI, not the state.
-STATE_CHANNEL_KEYS: frozenset[str] = frozenset(
-    {"plasma_current", "ne_line_integrated"}
-)
+STATE_CHANNEL_KEYS: frozenset[str] = frozenset({"plasma_current", "ne_line_integrated"})
 
 #: Quasi-static machine constant — kept IN the command vector (it is a real
 #: actuator setting) but HELD at the true value in a counterfactual (you don't
@@ -2829,6 +2862,31 @@ def main(argv: list[str] | None = None) -> int:
         "+ tf (default MASKS those out of the model's conditioning — they are "
         "measured states/constant, not commands; they remain v2 observations)",
     )
+    # multi-timescale / multi-camera / extended-signal conditioning (all OFF by
+    # default so an unflagged run is byte-identical to the single-camera model).
+    pc.add_argument(
+        "--timescale-conditioning",
+        action="store_true",
+        help="condition on each window's per-frame log-Δt (cadence) — lets ONE "
+        "model span the ~250x cadence range of the unified corpus (slow full-shot "
+        "+ fast bursts).  Zero-init head, so a warm-started model starts as the "
+        "forecaster.  Default OFF (cadence-blind, byte-identical to the prior model).",
+    )
+    pc.add_argument(
+        "--camera-conditioning",
+        action="store_true",
+        help="add a per-camera embedding to the frame tokens so ONE model can "
+        "ingest all 5 cameras (rbb/rco/rgb/rgc/rba).  Zero-init table, so a "
+        "warm-started model starts view-blind.  Default OFF.",
+    )
+    pc.add_argument(
+        "--signal-modalities",
+        choices=("default", "extended"),
+        default="default",
+        help="'default' = the current measured-signal set; 'extended' adds the "
+        "already-tokenised HF streams (xsx / xim / ait) the camera world model "
+        "does not yet fuse.  Default 'default'.",
+    )
     args = p.parse_args(argv)
 
     _logging.basicConfig(
@@ -2871,11 +2929,15 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("train/held-out overlap (NOT disjoint): %s", sorted(overlap))
         return 1
     logger.info(
-        "controllable re-train: %d %s (held-out %s DISJOINT) from %s",
+        "controllable re-train: %d %s (held-out %s DISJOINT) from %s "
+        "[timescale_cond=%s camera_cond=%s signals=%s]",
         len(train_shots),
         "excited windows" if win_list is not None else "train shots",
         sorted(held_out),
         args.manifest if not args.shots.strip() else "--shots",
+        args.timescale_conditioning,
+        args.camera_conditioning,
+        args.signal_modalities,
     )
 
     model_kwargs: dict = {"adaln_hidden": args.adaln_hidden}
@@ -2893,6 +2955,19 @@ def main(argv: list[str] | None = None) -> int:
         v = getattr(args, k, None)
         if v is not None:
             model_kwargs[k] = v  # explicit CLI override wins
+
+    # Δt / camera conditioning reach the model through ControllableSpacetimeConfig
+    # (built from model_kwargs); both default OFF so an unflagged run is unchanged.
+    model_kwargs["timescale_conditioning"] = bool(args.timescale_conditioning)
+    model_kwargs["camera_conditioning"] = bool(args.camera_conditioning)
+
+    # extended signal modalities add the already-tokenised HF streams (xsx/xim/ait)
+    # — the dataset reads them and the model embeds them; 'default' keeps today's set.
+    modalities = (
+        extended_signal_modalities()
+        if args.signal_modalities == "extended"
+        else default_signal_modalities()
+    )
 
     cfg = ControllableCorpusConfig(
         steps=args.steps,
@@ -2931,6 +3006,7 @@ def main(argv: list[str] | None = None) -> int:
             frame_stride=args.frame_stride,
             target_horizon_s=args.target_horizon_s,
         ),
+        modalities=modalities,
         model_kwargs=model_kwargs,
         init_checkpoint=_Path(args.init_checkpoint) if args.init_checkpoint else None,
     )
