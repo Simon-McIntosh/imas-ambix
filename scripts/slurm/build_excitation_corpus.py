@@ -650,7 +650,7 @@ def main(argv: list[str] | None = None) -> int:
         "--cameras",
         default=None,
         help="comma-separated camera ids (default: all tokenised — "
-        "rbb,rco,rgb,rgc,rba)",
+        "rbb,rco,rgb,rgc,rba,rbc)",
     )
     u.add_argument("--min-present-fraction", type=float, default=0.7)
     u.add_argument(

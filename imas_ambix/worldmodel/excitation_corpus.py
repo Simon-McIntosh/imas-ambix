@@ -68,7 +68,9 @@ DEFAULT_HELD_OUT: tuple[int, ...] = (18502, 18503, 18504, 18505)
 #: ``mast-tokens/v1/frames/<shot>/<cam>.zarr``).  rbb is the reference; rco is
 #: RGB (the VQ encoder already collapsed it to tokens, so the manifest — which
 #: only reads Ip + frame times, never pixels — treats every camera identically).
-UNIFIED_CAMERAS: tuple[str, ...] = ("rbb", "rco", "rgb", "rgc", "rba")
+#: rbc is the sixth visible camera (encoded after the first five), so it joins
+#: the set; a camera with no tokens for a given shot is simply skipped at scan.
+UNIFIED_CAMERAS: tuple[str, ...] = ("rbb", "rco", "rgb", "rgc", "rba", "rbc")
 
 #: Shot-id bands labelling the corpus by 5000-wide blocks across the tokenised
 #: range (15085-30473).  MAST campaigns ARE delimited by shot id, but the exact

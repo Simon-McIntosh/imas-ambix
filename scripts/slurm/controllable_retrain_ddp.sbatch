@@ -162,11 +162,20 @@ if [[ "${WM_EXCITATION_WEIGHTING}" == "0" ]]; then
     EXC_FLAG=(--no-excitation-weighting)
 fi
 
+# Multi-timescale / multi-camera conditioning (OFF by default → byte-identical to
+# the single-camera run).  Enable on the unified-corpus broad run.
+COND_FLAGS=()
+[[ "${WM_TIMESCALE_CONDITIONING:-0}" == "1" ]] && COND_FLAGS+=(--timescale-conditioning)
+[[ "${WM_CAMERA_CONDITIONING:-0}" == "1" ]] && COND_FLAGS+=(--camera-conditioning)
+: "${WM_SIGNAL_MODALITIES:=default}"   # default | extended (adds xsx/xim/ait)
+COND_FLAGS+=(--signal-modalities "${WM_SIGNAL_MODALITIES}")
+
 torchrun \
     --standalone \
     --nproc_per_node="${WM_NPROC}" \
     -m imas_ambix.worldmodel.controllable_train corpus \
     "${EXC_FLAG[@]}" \
+    "${COND_FLAGS[@]}" \
     --excitation-weight-floor "${WM_EXCITATION_WEIGHT_FLOOR}" \
     --excitation-weight-power "${WM_EXCITATION_WEIGHT_POWER}" \
     --manifest "${WM_MANIFEST}" \
