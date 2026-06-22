@@ -98,6 +98,11 @@ class SignalModalitySpec:
     vocab: int
     max_channels: int = 64
     kind: str = "signal_hf"
+    #: For a "staged"/"ait" raw-float store, sub-sample any 2-D array along its
+    #: 2nd axis by this stride before quantising.  16 suits a CONTINUOUS profile
+    #: (ait's (T,186) heat-flux profile -> ~12 chords); set 1 for DISCRETE channel
+    #: arrays (e.g. magnetics' (T, n_probe) field channels) so no sensor is lost.
+    profile_r_stride: int = 16
 
 
 def _l2_vocab() -> int:
@@ -157,6 +162,18 @@ def extended_signal_modalities() -> list[SignalModalitySpec]:
         # profiles dominate the channel count, so the R axis is sub-sampled
         # (profile_r_stride) — cap the kept channels to the lane budget.
         SignalModalitySpec("ait", "ait", l2, max_channels=48, kind="ait"),
+        # Dα / plasma-BOUNDARY diagnostics (raw-L1, staged + quantised on read).
+        # These give the plasma-boundary LOCATION — a strong control signal: ada
+        # carries the Dα-peak radius, adg the edge density-gradient position, aim
+        # the Dα emission.  Discrete low-channel traces -> stride 1 (keep all).
+        SignalModalitySpec("ada", "ada", l2, max_channels=8, kind="staged", profile_r_stride=1),
+        SignalModalitySpec("adg", "adg", l2, max_channels=8, kind="staged", profile_r_stride=1),
+        SignalModalitySpec("aim", "aim", l2, max_channels=8, kind="staged", profile_r_stride=1),
+        # Calibrated L2 MAGNETICS — flux loops + poloidal B-field probes (ccbv
+        # vertical-field array, obr/obv outboard) = the DIRECT plasma position /
+        # shape sensor.  Discrete sensor channels -> stride 1; wider cap so the
+        # flux loops + the full ccbv vertical-position array are all kept.
+        SignalModalitySpec("magnetics", "magnetics", l2, max_channels=96, kind="staged", profile_r_stride=1),
     ]
     return mods
 
@@ -278,12 +295,13 @@ _AIT_N_BINS = 256
 _AIT_CLIP_SIGMA = 4.0
 
 
-def _ait_store_path(shot_id: int, *, token_root: Path | None = None):
-    """Resolve the raw-float ait heat-flux store + route it through the guard.
+def _staged_store_path(group: str, shot_id: int, *, token_root: Path | None = None):
+    """Resolve a staged raw-float signal store + route it through the guard.
 
-    Layout: ``<token_root>/v1/signals-ait/ait/<shot>/ait.zarr``.  The path is run
-    through :func:`imas_ambix.tokenizer.store_targets.assert_not_target_path` so
-    a ``token_root`` resolving under the eval-only target root is hard-refused
+    Layout: ``<token_root>/v1/signals-<group>/<group>/<shot>/<group>.zarr`` — the
+    convention both the ait stager and the generic L1/L2 stagers write to.  The
+    path is run through :func:`imas_ambix.tokenizer.store_targets.assert_not_target_path`
+    so a ``token_root`` resolving under the eval-only target root is hard-refused
     before any open (the same boundary guard the other signal reads honour).
     """
     from pathlib import Path as _Path  # noqa: PLC0415
@@ -294,7 +312,9 @@ def _ait_store_path(shot_id: int, *, token_root: Path | None = None):
     )
 
     root = _Path(token_root) if token_root is not None else _Path(TOKEN_ROOT)
-    path = root / "v1" / "signals-ait" / "ait" / str(int(shot_id)) / "ait.zarr"
+    path = (
+        root / "v1" / f"signals-{group}" / group / str(int(shot_id)) / f"{group}.zarr"
+    )
     return assert_not_target_path(path)
 
 
@@ -330,26 +350,31 @@ def _quantise_l2(values: np.ndarray) -> np.ndarray:
     return out
 
 
-def _read_ait_signal(
+def _read_staged_signal(
+    group: str,
     shot_id: int,
     *,
     token_root: Path | None = None,
     profile_r_stride: int = 16,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Read + quantise the raw-float ait heat-flux store for a shot.
+    """Read + quantise a staged raw-float signal store for a shot.
 
-    Returns ``(tokens (T, C) int64 local ids, time (T,) float64)`` where the
-    columns are the 1-D traces (in stored order) followed by the 2-D profiles
-    sub-sampled along R by ``profile_r_stride`` (the rich heat-flux structure;
-    sub-sampled like the xsx chords to bound the lane budget) and flattened.  A
-    static R-axis array (``rcoord_*``) is NOT a channel (it is not time-resolved)
-    and is skipped.  Raises ``FileNotFoundError`` / ``KeyError`` when the store is
-    absent (a shot with no ait) so the caller omits the stream exactly like the
-    other optional streams.
+    Generic over the staged group (``ait`` divertor heat-flux, the Dα/boundary
+    diagnostics, the L2 magnetics field probes, …): every store shares the layout
+    ``<root>/v1/signals-<group>/<group>/<shot>/<group>.zarr`` = a ``time`` axis +
+    named 1-D traces + optional 2-D (T, channel) arrays.
+
+    Returns ``(tokens (T, C) int64 local ids, time (T,) float64)`` — the 1-D
+    traces (sorted key order) first, then the 2-D arrays sub-sampled along their
+    2nd axis by ``profile_r_stride`` and flattened.  Use stride 1 for DISCRETE
+    channel arrays (magnetics probes) so no sensor is dropped; >1 for a CONTINUOUS
+    profile (ait heat-flux).  A non-time-aligned array (e.g. a static R axis) is
+    skipped.  Raises ``FileNotFoundError`` / ``KeyError`` when the store is absent
+    so the caller omits the stream exactly like the other optional streams.
     """
     import zarr  # noqa: PLC0415
 
-    path = _ait_store_path(shot_id, token_root=token_root)
+    path = _staged_store_path(group, shot_id, token_root=token_root)
     store = zarr.open_group(str(path), mode="r")  # raises if absent
     if "time" not in store:
         raise KeyError(f"ait store {path} has no 'time' axis")
@@ -374,9 +399,21 @@ def _read_ait_signal(
         # channel and is skipped.
     cols = traces + profiles
     if not cols:
-        raise KeyError(f"ait store {path} has no time-resolved channels")
+        raise KeyError(f"staged store {path} has no time-resolved channels")
     tokens = np.concatenate(cols, axis=1)  # (T, C) — traces then profiles
     return tokens, time
+
+
+def _read_ait_signal(
+    shot_id: int,
+    *,
+    token_root: Path | None = None,
+    profile_r_stride: int = 16,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Back-compat alias: the ait divertor-heat-flux store via the generic reader."""
+    return _read_staged_signal(
+        "ait", shot_id, token_root=token_root, profile_r_stride=profile_r_stride
+    )
 
 
 def read_window_signals(
@@ -406,11 +443,19 @@ def read_window_signals(
     out: dict[str, np.ndarray] = {}
     for m in modalities:
         try:
-            if m.kind == "ait":
-                # RAW-float divertor heat-flux store, quantised on read to L2
-                # local ids — resampled to the grid by the same nearest-step
-                # rule as the pre-tokenised streams.
-                tok, ttime = _read_ait_signal(shot_id, token_root=token_root)
+            if m.kind in ("ait", "staged"):
+                # RAW-float staged store (ait heat-flux, Dα/boundary, L2
+                # magnetics, …), quantised on read to L2 local ids — resampled to
+                # the grid by the same nearest-step rule as the pre-tokenised
+                # streams.  The store group is m.group; profile_r_stride is per
+                # modality (1 for discrete channel arrays, >1 for continuous
+                # profiles).
+                tok, ttime = _read_staged_signal(
+                    m.group,
+                    shot_id,
+                    token_root=token_root,
+                    profile_r_stride=m.profile_r_stride,
+                )
             else:
                 tok, ttime, _valid, _names, _base = _read_signal_hf(
                     shot_id, m.group, token_root=token_root
