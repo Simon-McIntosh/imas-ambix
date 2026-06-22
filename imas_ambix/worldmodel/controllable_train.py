@@ -946,6 +946,14 @@ class _ManifestWindow:
     # full back-compat.  The dataset, the corpus length-filter, and the rank-0
     # sizing probe all assemble each window from THIS camera's tokens.
     camera: str = REFERENCE_CAMERA
+    # Span (s) and frame count of THIS window's recording slice, derived from the
+    # manifest's per-window ``frame_times`` at parse time.  When present (>0), the
+    # corpus length-filter reads these directly instead of re-opening every Zarr to
+    # call ``recording_time_span_s`` / ``camera_frame_count`` — eliminating a
+    # ~20-min, every-launch GPFS scan (the build already measured this).  0 -> the
+    # manifest omitted frame_times, so the filter falls back to the on-disk scan.
+    avail_span_s: float = 0.0
+    avail_frames: int = 0
 
 
 def manifest_train_windows(
@@ -1001,6 +1009,15 @@ def manifest_train_windows(
             stride = max(1, int(round(horizon_s * fps / n_frames)))
         else:
             stride = int(w.get("frame_stride") or 1)
+        # The build already recorded this window's frame times; derive its span +
+        # frame count so the length-filter need not re-read the recording from GPFS.
+        ft = w.get("frame_times")
+        if ft and len(ft) >= 2:
+            avail_span_s = float(ft[-1]) - float(ft[0])
+            avail_frames = len(ft)
+        else:
+            avail_span_s = 0.0
+            avail_frames = 0
         out.append(
             _ManifestWindow(
                 shot_id=sid,
@@ -1011,6 +1028,8 @@ def manifest_train_windows(
                 # per-window camera (multi-camera manifest); single-camera
                 # manifests omit camera_id -> fall back to the reference camera.
                 camera=str(w.get("camera_id") or REFERENCE_CAMERA),
+                avail_span_s=avail_span_s,
+                avail_frames=avail_frames,
             )
         )
     if n_fullshot:
@@ -1348,41 +1367,59 @@ def train_controllable_corpus(
             return res
 
         kept_windows: list[_ManifestWindow] = []
+        scanned = 0
         for w in manifest_windows:
-            sc = _span_count(w.shot_id, w.camera)
-            if sc is None:
-                ok = False
+            # the horizon THIS window must span — its own (full-shot) or global.
+            w_horizon = w.horizon_s if w.horizon_s > 0 else horizon
+            if w.avail_frames > 0:
+                # Manifest path (no GPFS read): the build recorded this window's
+                # frame_times, so its frame count is known.  The binding constraint
+                # for the time-based subsample is having >= n_frames frames in the
+                # window to pick from — a too-short recording makes
+                # _time_spanned_indices raise inside a worker and kills the rank.
+                # The window span is NOT re-checked against w_horizon: the build
+                # already selected the window to span its horizon, and the camera
+                # frame-slice span reads slightly under the Ip-based
+                # plasma_duration_s, so that comparison would over-drop valid
+                # windows (assemble clamps the last targets to the final frame).
+                ok = w.avail_frames >= config.window.n_frames
             else:
-                span_s, n_total = sc
-                # the horizon THIS window must span — its own (full-shot) or global.
-                w_horizon = w.horizon_s if w.horizon_s > 0 else horizon
-                if w_horizon > 0:
-                    # TIME-BASED subsample requires BOTH: (1) the recording spans
-                    # >= this window's horizon in TIME, and (2) it has at least
-                    # n_frames total frames to subsample from — a low-cadence
-                    # recording can span the horizon with FEWER than n_frames (e.g.
-                    # 18 frames @ 50fps = 0.34s), which passes the time check but
-                    # makes _time_spanned_indices raise "only N frames, need
-                    # n_frames" inside a worker and kills the rank.  Enforce both.
-                    ok = (
-                        span_s is not None
-                        and span_s >= w_horizon
-                        and n_total >= config.window.n_frames
-                    )
+                # Back-compat: manifest omitted frame_times -> scan the recording.
+                sc = _span_count(w.shot_id, w.camera)
+                scanned += 1
+                if sc is None:
+                    ok = False
                 else:
-                    ok = n_total >= (config.window.n_frames - 1) * w.frame_stride + 1
+                    span_s, n_total = sc
+                    if w_horizon > 0:
+                        # need BOTH: recording spans >= horizon in TIME, and >=
+                        # n_frames frames to subsample (a low-cadence recording can
+                        # span the horizon with fewer than n_frames).
+                        ok = (
+                            span_s is not None
+                            and span_s >= w_horizon
+                            and n_total >= config.window.n_frames
+                        )
+                    else:
+                        ok = (
+                            n_total
+                            >= (config.window.n_frames - 1) * w.frame_stride + 1
+                        )
             if ok:
                 kept_windows.append(w)
         n_dropped = len(list(manifest_windows)) - len(kept_windows)
         shot_ids = [w.shot_id for w in kept_windows]
         if env.is_main:
             logger.info(
-                "manifest-window filter: kept %d/%d excited windows whose recording "
-                "spans >= %.2fs (dropped %d short/unreadable)",
+                "manifest-window filter: kept %d/%d excited windows with >= %d "
+                "frames (dropped %d too-short; %d needed a GPFS scan, %d sized from "
+                "the manifest's frame_times — no scan)",
                 len(kept_windows),
                 len(list(manifest_windows)),
-                horizon,
+                config.window.n_frames,
                 n_dropped,
+                scanned,
+                len(list(manifest_windows)) - scanned,
             )
         if len(kept_windows) < 2:
             raise ValueError(
