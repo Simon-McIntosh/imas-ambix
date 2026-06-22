@@ -462,6 +462,14 @@ FULLSHOT_MIN_PRESENT_FRACTION: float = 0.7
 #: too short to time-subsample to a useful sequence.
 FULLSHOT_MIN_SPAN_FRAMES: int = 16
 
+#: Minimum plasma-phase WALL-CLOCK duration (s) to keep a shot.  Some rbb
+#: recordings fire a high-speed burst (e.g. 10 kHz for ~20 ms) over the plasma
+#: inside an otherwise-slow recording — a physically-real but very short capture
+#: that does NOT match the ~0.3-0.4 s full-shot regime and would give the trainer
+#: a ~20 ms per-shot horizon.  0.1 s drops those short-burst / failed-breakdown
+#: captures so the manifest's plasma_duration_s is mostly ~0.3-0.4 s.
+FULLSHOT_MIN_DURATION_S: float = 0.1
+
 
 @dataclass(frozen=True)
 class PlasmaPhaseSpan:
@@ -524,6 +532,49 @@ def _shot_abs_ip(shot_id, camera, token_root):
     return ftime, absip
 
 
+def _sustained_present_mask(
+    present: np.ndarray, *, gap_fill: int, min_run: int
+) -> np.ndarray:
+    """Robustify a raw present mask: fill short dips, drop short blips.
+
+    Two morphological passes make the plasma-phase boundary robust to Ip ripple
+    crossing the threshold (the 8-on/2-off oscillation that pinned the naive
+    first/last-present span to a noisy sub-window):
+
+    1. CLOSE — fill any below-threshold gap shorter than ``gap_fill`` frames (a
+       brief dip back under threshold mid-plasma is still plasma).
+    2. OPEN — then drop any above-threshold run shorter than ``min_run`` frames
+       (an isolated blip / pickup transient is NOT the plasma phase), so the
+       boundaries land on SUSTAINED plasma, not the first stray crossing.
+
+    Returns the cleaned boolean mask (same length).
+    """
+    m = np.asarray(present, dtype=bool).copy()
+    n = m.shape[0]
+    if n == 0:
+        return m
+
+    def _runs(mask, value):
+        d = np.diff(np.concatenate([[0], (mask == value).astype(np.int8), [0]]))
+        starts = np.flatnonzero(d == 1)
+        ends = np.flatnonzero(d == -1)
+        return list(zip(starts.tolist(), ends.tolist(), strict=True))
+
+    # 1. close short below-threshold gaps (fill dips < gap_fill)
+    if gap_fill > 0:
+        for s, e in _runs(m, False):
+            # don't fill the leading dark (breakdown lead-in) or trailing dark —
+            # only interior gaps between plasma.
+            if s > 0 and e < n and (e - s) <= int(gap_fill):
+                m[s:e] = True
+    # 2. open: drop above-threshold runs shorter than min_run (blips)
+    if min_run > 1:
+        for s, e in _runs(m, True):
+            if (e - s) < int(min_run):
+                m[s:e] = False
+    return m
+
+
 def find_plasma_phase_span(
     shot_id: int,
     *,
@@ -532,22 +583,37 @@ def find_plasma_phase_span(
     ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
     min_present_fraction: float = FULLSHOT_MIN_PRESENT_FRACTION,
     min_span_frames: int = FULLSHOT_MIN_SPAN_FRAMES,
+    min_duration_s: float = 0.0,
+    gap_fill_frames: int = 8,
+    min_sustained_frames: int = 4,
 ) -> PlasmaPhaseSpan:
-    """Find one shot's plasma-phase span ``[breakdown, quench)``.
+    """Find one shot's SUSTAINED plasma-phase span ``[breakdown, quench)``.
 
-    The span runs from the FIRST plasma-present frame (breakdown — or the
-    recording start if it already begins in plasma) to one past the LAST
-    plasma-present frame (the quench), trimming trailing post-quench dark.  A
-    span is ``valid`` when it is long enough (``>= min_span_frames``), its
-    ``max|Ip|`` clears the threshold, and it is NOT mostly-dark (its internal
-    present-fraction ``>= min_present_fraction`` — a pulse that only flickers into
-    plasma fails).  The window may START dark (the breakdown frames are
-    sub-threshold) — that is the point.
+    The plasma phase runs from the first SUSTAINED plasma frame (breakdown — or
+    the recording start if it already begins in plasma) to one past the last
+    sustained plasma frame (the quench), with trailing post-quench dark trimmed.
+    "Sustained" is the robustness the naive first/last-present span lacked: the
+    raw ``|Ip| >= threshold`` mask is morphologically CLEANED
+    (:func:`_sustained_present_mask`) — interior dips shorter than
+    ``gap_fill_frames`` are filled, and above-threshold runs shorter than
+    ``min_sustained_frames`` are dropped — so a brief Ip blip or ripple crossing
+    the threshold cannot pin the boundary to a noisy sub-window (the ~20 ms
+    artifact).  The window may START dark (the breakdown lead-in is sub-threshold)
+    — that is the point.
+
+    A span is ``valid`` when it is long enough (``>= min_span_frames`` AND, if
+    ``min_duration_s > 0``, ``>= min_duration_s`` wall-clock — drops genuinely
+    brief failed-breakdown / short-burst captures), its ``max|Ip|`` clears the
+    threshold, and it is not mostly-dark (cleaned present-fraction within the span
+    ``>= min_present_fraction``).
     """
     ftime, absip = _shot_abs_ip(shot_id, camera, token_root)
     if ftime is None or absip is None:
         return PlasmaPhaseSpan(0, 0, 0.0, 0.0, 0.0, False, "unreadable")
-    present = np.isfinite(absip) & (absip >= float(ip_present_threshold))
+    raw_present = np.isfinite(absip) & (absip >= float(ip_present_threshold))
+    present = _sustained_present_mask(
+        raw_present, gap_fill=int(gap_fill_frames), min_run=int(min_sustained_frames)
+    )
     if not present.any():
         max_overall = float(np.nanmax(absip)) if np.isfinite(absip).any() else 0.0
         return PlasmaPhaseSpan(0, 0, 0.0, max_overall, 0.0, False, "no_plasma")
@@ -559,7 +625,9 @@ def find_plasma_phase_span(
     present_fraction = float(span.mean()) if n_span > 0 else 0.0
     max_abs = float(np.nanmax(absip[start:end]))
     duration_s = float(ftime[end - 1] - ftime[start]) if n_span >= 2 else 0.0
-    if n_span < int(min_span_frames):
+    if n_span < int(min_span_frames) or (
+        min_duration_s > 0 and duration_s < float(min_duration_s)
+    ):
         return PlasmaPhaseSpan(
             start, end, present_fraction, max_abs, duration_s, False, "too_short"
         )
@@ -578,6 +646,9 @@ def select_fullshot_window(
     ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
     min_present_fraction: float = FULLSHOT_MIN_PRESENT_FRACTION,
     min_span_frames: int = FULLSHOT_MIN_SPAN_FRAMES,
+    min_duration_s: float = FULLSHOT_MIN_DURATION_S,
+    gap_fill_frames: int = 8,
+    min_sustained_frames: int = 4,
 ) -> CuratedWindow | None:
     """One full-shot window = the whole plasma phase, or None if rejected.
 
@@ -589,6 +660,9 @@ def select_fullshot_window(
     ``[start_frame, end_frame)`` to its own n_frames using
     ``target_horizon_s = plasma_duration_s``.  ``excitation_score`` is the
     time-mean summed coil ``|dI/dt|`` over the span (for ordering / reporting).
+    Uses SUSTAINED-presence detection + a ``min_duration_s`` floor so short
+    high-speed-burst / failed-breakdown captures are dropped (see
+    :func:`find_plasma_phase_span`).
     """
     span = find_plasma_phase_span(
         shot_id,
@@ -597,6 +671,9 @@ def select_fullshot_window(
         ip_present_threshold=ip_present_threshold,
         min_present_fraction=min_present_fraction,
         min_span_frames=min_span_frames,
+        min_duration_s=min_duration_s,
+        gap_fill_frames=gap_fill_frames,
+        min_sustained_frames=min_sustained_frames,
     )
     if not span.valid:
         logger.debug("shot %s full-shot rejected: %s", shot_id, span.reason)
@@ -667,14 +744,18 @@ def select_fullshot_windows(
     ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
     min_present_fraction: float = FULLSHOT_MIN_PRESENT_FRACTION,
     min_span_frames: int = FULLSHOT_MIN_SPAN_FRAMES,
+    min_duration_s: float = FULLSHOT_MIN_DURATION_S,
+    gap_fill_frames: int = 8,
+    min_sustained_frames: int = 4,
 ) -> list[CuratedWindow]:
     """One full-shot plasma-phase window per shot (held-out fully excluded).
 
     For each candidate shot (input list MINUS ``held_out``) emits one window
-    spanning its whole plasma phase via :func:`select_fullshot_window`, dropping
-    shots whose plasma phase is unreadable / absent / too short / mostly-dark.
-    Returns a DETERMINISTIC list (ascending shot id).  Every emitted shot_id is
-    an input shot not in ``held_out`` — the shot-level leakage guard.
+    spanning its whole SUSTAINED plasma phase via :func:`select_fullshot_window`,
+    dropping shots whose plasma phase is unreadable / absent / too short
+    (``< min_span_frames`` or ``< min_duration_s``) / mostly-dark.  Returns a
+    DETERMINISTIC list (ascending shot id).  Every emitted shot_id is an input
+    shot not in ``held_out`` — the shot-level leakage guard.
     """
     held = {int(s) for s in held_out}
     candidates = sorted(int(s) for s in shot_ids if int(s) not in held)
@@ -687,6 +768,9 @@ def select_fullshot_windows(
             ip_present_threshold=ip_present_threshold,
             min_present_fraction=min_present_fraction,
             min_span_frames=min_span_frames,
+            min_duration_s=min_duration_s,
+            gap_fill_frames=gap_fill_frames,
+            min_sustained_frames=min_sustained_frames,
         )
         if cw is not None:
             out.append(cw)

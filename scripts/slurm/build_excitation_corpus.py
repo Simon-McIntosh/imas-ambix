@@ -125,6 +125,7 @@ def phase_select(args: argparse.Namespace) -> int:
             token_root=tr,
             held_out=DEFAULT_HELD_OUT,
             min_present_fraction=args.min_present_fraction,
+            min_duration_s=args.min_duration_s,
         )
     elif args.multi_window:
         windows = enumerate_curated_windows(
@@ -165,6 +166,10 @@ def phase_select(args: argparse.Namespace) -> int:
             "p90_ms": round(float(np.percentile(dur_ms, 90)), 1),
             "min_ms": round(float(dur_ms.min()), 1),
             "max_ms": round(float(dur_ms.max()), 1),
+            # sanity: after the min-duration floor + sustained detection, very few
+            # windows should be short (the ~20 ms burst-artifact cluster is gone).
+            "frac_under_100ms": round(float((dur_ms < 100).mean()), 3),
+            "frac_under_250ms": round(float((dur_ms < 250).mean()), 3),
             "n_frames_for_5ms_at_median": int(round(med_ms / 5.0)),
             "n_frames_for_8ms_at_median": int(round(med_ms / 8.0)),
         }
@@ -224,6 +229,7 @@ def phase_select(args: argparse.Namespace) -> int:
         "max_windows_per_shot": args.max_windows_per_shot,
         "min_excitation": args.min_excitation,
         "min_present_fraction": args.min_present_fraction if args.full_shot else None,
+        "min_duration_s": args.min_duration_s if args.full_shot else None,
         "held_out": list(DEFAULT_HELD_OUT),
         "n_scanned": len(shots),
         "coverage": coverage,
@@ -393,6 +399,14 @@ def main(argv: list[str] | None = None) -> int:
         default=0.7,
         help="full-shot: min fraction of the plasma-phase span that must be "
         "plasma-present (may start dark, must not be mostly-dark)",
+    )
+    s.add_argument(
+        "--min-duration-s",
+        type=float,
+        default=0.1,
+        help="full-shot: drop shots whose SUSTAINED plasma phase is shorter than "
+        "this wall-clock duration (s) — removes high-speed-burst / "
+        "failed-breakdown captures so durations are mostly ~0.3-0.4 s",
     )
     s.add_argument(
         "--probe-heldout",

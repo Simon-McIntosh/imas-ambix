@@ -746,3 +746,82 @@ def test_probe_plasma_activity_reports_without_excluding(monkeypatch):
     # plasma region — so duration + peak current are what flag a dark artifact).
     assert act[18504]["max_abs_ip"] < 1.0e5
     assert act[18504]["duration_s"] < 0.05  # ~10 frames @ 600 Hz
+
+
+# --- robust sustained-presence detection (the ~20 ms ripple-artifact fix) ---
+
+
+def test_sustained_mask_fills_dips_and_drops_blips():
+    import numpy as np
+
+    from imas_ambix.worldmodel.excitation_corpus import _sustained_present_mask
+
+    # an isolated 2-frame blip at the start, then a sustained block with 2-frame
+    # interior dips (the 8-on/2-off Ip ripple) -> close should fill the dips,
+    # open should drop the leading blip.
+    raw = np.zeros(60, dtype=bool)
+    raw[2:4] = True  # isolated blip
+    # sustained block 20..56 with 2-frame dips every 10 frames
+    raw[20:56] = True
+    raw[30:32] = False
+    raw[42:44] = False
+    clean = _sustained_present_mask(raw, gap_fill=8, min_run=4)
+    # the leading 2-frame blip is dropped
+    assert not clean[2:4].any()
+    # the interior dips are filled -> one contiguous block 20..56
+    assert clean[20:56].all()
+    idx = np.flatnonzero(clean)
+    assert idx[0] == 20 and idx[-1] == 55
+
+
+def test_plasma_phase_span_robust_to_threshold_ripple(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # reproduce the artifact shape: Ip oscillates across the threshold (8 on /
+    # 2 off) over a 200-frame sustained plasma, embedded in a longer recording.
+    n = 412
+    ftime = np.arange(n) / 600.0
+    absip = np.zeros(n)
+    # 100..300: ripple around the threshold (mean well above, dips just under)
+    for s in range(100, 300, 10):
+        absip[s : s + 8] = 7.0e5  # above
+        absip[s + 8 : s + 10] = 1.0e4  # brief dip under 20 kA
+    monkeypatch.setattr(ec, "_shot_abs_ip", lambda *a, **k: (ftime, absip))
+
+    span = ec.find_plasma_phase_span(
+        1, ip_present_threshold=2.0e4, gap_fill_frames=8, min_sustained_frames=4
+    )
+    assert span.valid
+    # the dips are FILLED -> present_fraction ~1.0 (not ~0.8 from the raw ripple)
+    assert span.present_fraction > 0.95
+    # span covers the WHOLE sustained region (~100..300), not a noisy sub-window
+    assert span.start_frame <= 105
+    assert span.end_frame >= 295
+
+
+def test_plasma_phase_span_min_duration_drops_short_burst(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # a high-speed burst: 200 plasma frames packed into 20 ms (10 kHz) inside a
+    # slow recording — physically real but too short for the full-shot regime.
+    n = 412
+    ftime = np.empty(n)
+    ftime[:100] = np.arange(100) * 2e-3  # 500 Hz slow lead-in
+    ftime[100:300] = 0.2 + np.arange(200) * 1e-4  # 10 kHz burst (20 ms)
+    ftime[300:] = ftime[299] + np.arange(1, n - 299) * 2e-3  # slow tail
+    absip = np.zeros(n)
+    absip[100:300] = 7.0e5  # plasma only during the burst
+    monkeypatch.setattr(ec, "_shot_abs_ip", lambda *a, **k: (ftime, absip))
+
+    # no floor: the span is valid but only ~20 ms
+    s0 = ec.find_plasma_phase_span(1, ip_present_threshold=2.0e4, min_duration_s=0.0)
+    assert s0.valid
+    assert s0.duration_s < 0.03
+    # with a 0.1 s floor: dropped as too_short (the lead's fix)
+    s1 = ec.find_plasma_phase_span(1, ip_present_threshold=2.0e4, min_duration_s=0.1)
+    assert not s1.valid
+    assert s1.reason == "too_short"
