@@ -82,12 +82,22 @@ class SignalModalitySpec:
         Cap on the channels fed to the model (the first ``max_channels`` channels
         are kept).  Keeps a wide stream within the spatial-lane budget and bounds
         the conditioning cost.
+    kind:
+        Which on-disk store layout the stream is read from.  ``"signal_hf"``
+        (default) is a PRE-tokenised ``signals_hf`` store read by
+        :func:`imas_ambix.worldmodel.dataset._read_signal_hf` (the L2 light-path
+        groups + the HF patch streams).  ``"ait"`` is the RAW-float divertor
+        heat-flux store (``.../signals-ait/ait/<shot>/ait.zarr`` — a ``time`` axis
+        + named 1-D traces + 2-D profiles) read + quantised on the fly by
+        :func:`_read_ait_signal` to L2-style local ids (256 bins + PAD), so it
+        joins the same per-stream embedding contract without a pre-tokenise step.
     """
 
     name: str
     group: str
     vocab: int
     max_channels: int = 64
+    kind: str = "signal_hf"
 
 
 def _l2_vocab() -> int:
@@ -141,9 +151,12 @@ def extended_signal_modalities() -> list[SignalModalitySpec]:
     mods += [
         SignalModalitySpec("xsx", "xsx", _XSX_VOCAB, max_channels=48),
         SignalModalitySpec("xim", "xim", _XIM_VOCAB, max_channels=24),
-        # ait divertor heat flux — L2-quantised by the corpus encoder; store name
-        # mirrors the L2 light-path groups.  Vocab = L2 (256 bins + PAD).
-        SignalModalitySpec("ait", "ait_l2", l2, max_channels=48),
+        # ait divertor heat flux — a RAW-float store (20 1-D traces + 4 (T,186)
+        # heat-flux/temperature profiles) quantised ON READ to L2 local ids
+        # (256 bins + PAD = 257 vocab); see :func:`_read_ait_signal`.  The
+        # profiles dominate the channel count, so the R axis is sub-sampled
+        # (profile_r_stride) — cap the kept channels to the lane budget.
+        SignalModalitySpec("ait", "ait", l2, max_channels=48, kind="ait"),
     ]
     return mods
 
@@ -242,6 +255,130 @@ def _nearest_steps(
     return out
 
 
+# ---------------------------------------------------------------------------
+# ait divertor-heat-flux RAW-float signal store -> L2-style tokens
+# ---------------------------------------------------------------------------
+#
+# The ait store is NOT pre-tokenised (unlike the L2 / HF signal_hf groups): it
+# holds a per-shot ``time`` axis plus named 1-D traces and 2-D (time, R) profiles
+# of raw float divertor heat-flux quantities.  We quantise it ON READ with the
+# SAME per-channel mean/std uniform-quantiser the L2 encoder uses
+# (:class:`imas_ambix.tokenizer.signals.UniformQuantizer`) — z-score, clip to
+# +-clip_sigma, map linearly into the bins — so an ait channel joins the
+# per-stream embedding contract on the same 257-id vocab (256 bins + PAD) as the
+# L2 groups.  There is no fitted corpus mean/std at read time, so we use the
+# shot's OWN finite mean/std (the encoder's per-encode fallback), which is the
+# honest scale for a single shot's window.
+
+#: ait raw-float store quantiser params — match the L2 UniformQuantizer default
+#: (256 magnitude bins, 4-sigma clip).  Bins are mapped to local ids 1..256 with
+#: PAD reserved at 0 (so a real reading is never confused with PAD / an absent
+#: step), giving the L2 257-id local vocab.
+_AIT_N_BINS = 256
+_AIT_CLIP_SIGMA = 4.0
+
+
+def _ait_store_path(shot_id: int, *, token_root: Path | None = None):
+    """Resolve the raw-float ait heat-flux store + route it through the guard.
+
+    Layout: ``<token_root>/v1/signals-ait/ait/<shot>/ait.zarr``.  The path is run
+    through :func:`imas_ambix.tokenizer.store_targets.assert_not_target_path` so
+    a ``token_root`` resolving under the eval-only target root is hard-refused
+    before any open (the same boundary guard the other signal reads honour).
+    """
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    from imas_ambix.data.paths import TOKEN_ROOT  # noqa: PLC0415
+    from imas_ambix.tokenizer.store_targets import (  # noqa: PLC0415
+        assert_not_target_path,
+    )
+
+    root = _Path(token_root) if token_root is not None else _Path(TOKEN_ROOT)
+    path = root / "v1" / "signals-ait" / "ait" / str(int(shot_id)) / "ait.zarr"
+    return assert_not_target_path(path)
+
+
+def _quantise_l2(values: np.ndarray) -> np.ndarray:
+    """``(T, C) float -> (T, C) int64`` local ids 1..256 (L2 uniform-quantiser).
+
+    Per-channel z-score against the channel's OWN finite mean/std (no fitted
+    corpus stats at read time), clip to +-clip_sigma, map linearly into
+    ``[0, n_bins-1]``, then shift by +1 so bin 0 becomes local id 1 and PAD (0)
+    stays reserved.  NaNs map to the channel mean (z=0 -> the centre bin), never
+    to PAD, so a finite-but-central reading and a missing step are distinct.
+    """
+    arr = np.asarray(values, dtype=np.float64)
+    if arr.ndim == 1:
+        arr = arr[:, None]
+    out = np.zeros(arr.shape, dtype=np.int64)
+    for c in range(arr.shape[1]):
+        col = arr[:, c]
+        finite = col[np.isfinite(col)]
+        if finite.size == 0:
+            out[:, c] = 1  # all-NaN channel -> centre-ish; valid mask handles it
+            continue
+        mean = float(finite.mean())
+        std = float(finite.std())
+        std = std if std > 1e-12 else 1.0
+        z = np.nan_to_num((col - mean) / std, nan=0.0)
+        z = np.clip(z, -_AIT_CLIP_SIGMA, _AIT_CLIP_SIGMA)
+        local = np.round(
+            ((z + _AIT_CLIP_SIGMA) / (2 * _AIT_CLIP_SIGMA)) * (_AIT_N_BINS - 1)
+        ).astype(np.int64)
+        local = np.clip(local, 0, _AIT_N_BINS - 1) + 1  # shift PAD off 0
+        out[:, c] = local
+    return out
+
+
+def _read_ait_signal(
+    shot_id: int,
+    *,
+    token_root: Path | None = None,
+    profile_r_stride: int = 16,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Read + quantise the raw-float ait heat-flux store for a shot.
+
+    Returns ``(tokens (T, C) int64 local ids, time (T,) float64)`` where the
+    columns are the 1-D traces (in stored order) followed by the 2-D profiles
+    sub-sampled along R by ``profile_r_stride`` (the rich heat-flux structure;
+    sub-sampled like the xsx chords to bound the lane budget) and flattened.  A
+    static R-axis array (``rcoord_*``) is NOT a channel (it is not time-resolved)
+    and is skipped.  Raises ``FileNotFoundError`` / ``KeyError`` when the store is
+    absent (a shot with no ait) so the caller omits the stream exactly like the
+    other optional streams.
+    """
+    import zarr  # noqa: PLC0415
+
+    path = _ait_store_path(shot_id, token_root=token_root)
+    store = zarr.open_group(str(path), mode="r")  # raises if absent
+    if "time" not in store:
+        raise KeyError(f"ait store {path} has no 'time' axis")
+    time = np.asarray(store["time"], dtype=np.float64).reshape(-1)
+    n_t = time.shape[0]
+    # Collect the 1-D TRACES first (the cheap, high-value channels) then the 2-D
+    # PROFILES (the rich heat-flux structure, R-subsampled), each in sorted key
+    # order — a DETERMINISTIC, traces-first column layout so a max_channels cap
+    # keeps the traces preferentially and the order is stable across shots.
+    traces: list[np.ndarray] = []
+    profiles: list[np.ndarray] = []
+    r_stride = max(1, int(profile_r_stride))
+    for key in sorted(store.array_keys()):
+        if key == "time":
+            continue
+        arr = np.asarray(store[key])
+        if arr.ndim == 1 and arr.shape[0] == n_t:
+            traces.append(_quantise_l2(arr.astype(np.float64)))  # (T, 1)
+        elif arr.ndim == 2 and arr.shape[0] == n_t:
+            profiles.append(_quantise_l2(arr[:, ::r_stride].astype(np.float64)))
+        # any other shape (e.g. the static (R,) rcoord axis) is not a per-time
+        # channel and is skipped.
+    cols = traces + profiles
+    if not cols:
+        raise KeyError(f"ait store {path} has no time-resolved channels")
+    tokens = np.concatenate(cols, axis=1)  # (T, C) — traces then profiles
+    return tokens, time
+
+
 def read_window_signals(
     shot_id: int,
     sample: SpacetimeSample,
@@ -269,9 +406,15 @@ def read_window_signals(
     out: dict[str, np.ndarray] = {}
     for m in modalities:
         try:
-            tok, ttime, _valid, _names, _base = _read_signal_hf(
-                shot_id, m.group, token_root=token_root
-            )
+            if m.kind == "ait":
+                # RAW-float divertor heat-flux store, quantised on read to L2
+                # local ids — resampled to the grid by the same nearest-step
+                # rule as the pre-tokenised streams.
+                tok, ttime = _read_ait_signal(shot_id, token_root=token_root)
+            else:
+                tok, ttime, _valid, _names, _base = _read_signal_hf(
+                    shot_id, m.group, token_root=token_root
+                )
         except (FileNotFoundError, KeyError) as exc:
             logger.debug("shot %s signal %s unreadable: %r", shot_id, m.name, exc)
             continue

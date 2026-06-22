@@ -449,6 +449,130 @@ def test_extended_modalities_include_xsx_xim_ait():
     by = {m.name: m for m in ext}
     assert by["xsx"].vocab == 1030
     assert by["xim"].vocab == 12806
+    # ait is a RAW-float store read by a dedicated quantiser (kind="ait"), on the
+    # L2 257-id vocab; xsx/xim stay the default pre-tokenised signal_hf path.
+    assert by["ait"].kind == "ait" and by["ait"].vocab == 257
+    assert by["xsx"].kind == "signal_hf" and by["xim"].kind == "signal_hf"
+
+
+# ---------------------------------------------------------------------------
+# ait raw-float divertor-heat-flux signal read + quantise
+# ---------------------------------------------------------------------------
+
+
+def _write_ait_store(token_root, shot, n_t):
+    """Stage a synthetic ait.zarr matching the exact staging schema."""
+    import zarr
+
+    path = token_root / "v1" / "signals-ait" / "ait" / str(shot) / "ait.zarr"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    g = zarr.open_group(str(path), mode="w")
+    rng = np.random.default_rng(shot)
+    g["time"] = np.linspace(0.0, 0.3, n_t).astype(np.float32)
+    traces = [
+        "etot_isp", "etot_osp", "etot_isp_elm", "etot_osp_elm",
+        "etotsum_isp", "etotsum_osp", "lampowpp_isp", "lampowpp_osp",
+        "lampowsol_isp", "lampowsol_osp", "ptot_isp", "ptot_osp",
+        "pkpower_density_isp", "pkpower_density_osp", "peakpower_pos_isp",
+        "peakpower_pos_osp", "temperature_isp", "temperature_osp",
+        "satpixels_isp", "satpixels_osp",
+    ]
+    for tr in traces:
+        g[tr] = (rng.standard_normal(n_t) * 1e5).astype(np.float32)
+    for prof in ("qprofile_isp", "qprofile_osp", "tprofile_isp", "tprofile_osp"):
+        g[prof] = (rng.standard_normal((n_t, 186)) * 1e6).astype(np.float32)
+    for rc in ("rcoord_isp", "rcoord_osp"):
+        g[rc] = np.linspace(0.6, 1.5, 186).astype(np.float32)  # static R axis
+    return path
+
+
+def test_read_ait_signal_quantises_traces_and_profiles(tmp_path):
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import _read_ait_signal
+
+    _write_ait_store(tmp_path, 12345, n_t=40)
+    tok, time = _read_ait_signal(12345, token_root=tmp_path, profile_r_stride=16)
+    assert time.shape == (40,)
+    # 20 traces + 4 profiles each (186 // 16 = 12 chords) = 20 + 48 = 68 channels;
+    # the static rcoord axes are NOT channels.
+    assert tok.shape == (40, 20 + 4 * len(range(0, 186, 16)))
+    # local ids are in the L2 range 1..256 (PAD 0 reserved, never emitted here).
+    assert tok.min() >= 1 and tok.max() <= 256
+    assert tok.dtype == np.int64
+
+
+def test_read_ait_signal_skips_when_absent(tmp_path):
+    """A shot with no ait store raises (caller omits the stream)."""
+    import pytest
+
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import _read_ait_signal
+
+    with pytest.raises((FileNotFoundError, KeyError)):
+        _read_ait_signal(20316, token_root=tmp_path)  # 20316 has no ait
+
+
+def test_read_window_signals_omits_absent_ait(tmp_path):
+    """read_window_signals includes ait when present, omits it when absent."""
+    from imas_ambix.worldmodel.spacetime_dataset import SpacetimeSample
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import (
+        SignalModalitySpec,
+        read_window_signals,
+    )
+
+    ait_mod = [SignalModalitySpec("ait", "ait", 257, max_channels=48, kind="ait")]
+    sample = SpacetimeSample(
+        shot_id=12345,
+        camera="rbb",
+        start_frame=0,
+        frames=np.zeros((6, 256), dtype=np.int64),
+        plan=np.zeros((4, 2), dtype=np.int64),
+        frame_time=np.linspace(0.05, 0.15, 6),  # inside the ait time span
+        context_frames=3,
+    )
+    # present shot -> ait appears, resampled to n_signal_steps.
+    _write_ait_store(tmp_path, 12345, n_t=40)
+    sigs = read_window_signals(12345, sample, ait_mod, 4, token_root=tmp_path)
+    assert "ait" in sigs
+    assert sigs["ait"].shape[0] == 4  # n_signal_steps
+    assert sigs["ait"].shape[1] <= 48  # capped at max_channels
+    assert sigs["ait"].min() >= 1 and sigs["ait"].max() <= 256
+    # absent shot -> ait silently omitted (no store written for 20316).
+    sample_absent = SpacetimeSample(
+        shot_id=20316,
+        camera="rbb",
+        start_frame=0,
+        frames=np.zeros((6, 256), dtype=np.int64),
+        plan=np.zeros((4, 2), dtype=np.int64),
+        frame_time=np.linspace(0.05, 0.15, 6),
+        context_frames=3,
+    )
+    sigs_absent = read_window_signals(
+        20316, sample_absent, ait_mod, 4, token_root=tmp_path
+    )
+    assert "ait" not in sigs_absent
+
+
+def test_quantise_l2_matches_encoder_math():
+    """The on-read ait quantiser reproduces the L2 UniformQuantizer mapping."""
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import _quantise_l2
+
+    # monotone increasing input -> monotone non-decreasing bins; sign-preserving
+    # about the mean; all ids in 1..256 (PAD 0 reserved, never emitted).
+    x = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float64)
+    tok = _quantise_l2(x)[:, 0]
+    assert tok.shape == (6,)
+    assert np.all(np.diff(tok) >= 0)  # monotone in the reading
+    assert tok.min() >= 1 and tok.max() <= 256
+    # below-mean readings land below the centre bin, above-mean above it.
+    assert tok[0] < 128 < tok[-1]
+    # a value beyond +clip_sigma saturates to the top bin (255) + 1 = 256. Build
+    # it explicitly: a wide cluster so std is well-defined, then a point far past
+    # 4 std above the mean (mean 0, std 1 -> put a 10 in).
+    sat = np.concatenate([np.linspace(-1, 1, 99), np.array([10.0])])
+    sat_tok = _quantise_l2(sat)[:, 0]
+    assert int(sat_tok[-1]) == 256
+    # a constant channel -> z=0 everywhere -> centre bin (round(127.5)=128) + 1.
+    const = _quantise_l2(np.full(5, 7.0))
+    assert np.all(const == const[0, 0]) and const[0, 0] >= 1
 
 
 # ---------------------------------------------------------------------------
