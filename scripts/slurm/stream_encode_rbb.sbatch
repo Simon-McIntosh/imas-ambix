@@ -79,6 +79,10 @@ EXTRA=()
 [ -n "${MAX_SHOTS:-}" ] && EXTRA+=(--max-shots "$MAX_SHOTS")
 [ -n "${MAX_FRAMES:-}" ] && EXTRA+=(--max-frames "$MAX_FRAMES")
 [ -n "${EXPLICIT_SHOTS:-}" ] && EXTRA+=(--explicit-shots "$EXPLICIT_SHOTS")
+# MANIFEST: a {"shot_ids":[...]} file the encoder scans + stride-shards itself
+# (the robust path for a large shotlist — avoids handing thousands of ids through
+# a comma-delimited --export env, which sbatch's own comma parser truncates).
+[ -n "${MANIFEST:-}" ] && EXTRA+=(--manifest "$MANIFEST")
 # Resumable re-run after a walltime timeout: skip shots already encoded with
 # the CURRENT tokenizer. Set SKIP_EXISTING=1 for the resume, not the first run.
 [ "${SKIP_EXISTING:-0}" = "1" ] && EXTRA+=(--skip-existing)
