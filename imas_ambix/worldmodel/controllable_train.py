@@ -1486,18 +1486,33 @@ def train_controllable_corpus(
                 config.window.target_horizon_s * 1000.0,
             )
     plan_ch = _plan_channels_for([p.signal for p in probe])
-    # On the manifest path, probe each shot with the camera the dataset will read
-    # (the unified manifest mixes cameras — a shot may lack the default view); the
-    # legacy path uses the single CLI camera for every shot.
-    probe_cameras = [w.camera for w in manifest_windows[:16]] if use_manifest else None
+    # Probe shots SPREAD across the corpus, not the first N.  The manifest is
+    # sorted by shot id, so the first-N shots all sit in the earliest era and MISS
+    # era-sparse streams — e.g. ait (divertor heat-flux) only exists for later shot
+    # ids, so a first-N probe sizes it to 0 channels and silently drops it from the
+    # model.  A deterministic evenly-spaced sample spans every shot-id era (and
+    # every camera era), so each present stream is sized; identical on every rank.
+    # The unified manifest mixes cameras, so probe each shot with the camera the
+    # dataset will actually read; the legacy path uses the single CLI camera.
+    if use_manifest:
+        mw = list(manifest_windows)
+        n_probe = min(48, len(mw))
+        step = max(1, len(mw) // n_probe)
+        probe_sel = mw[::step][:n_probe]
+        probe_shot_ids = [w.shot_id for w in probe_sel]
+        probe_cameras = [w.camera for w in probe_sel]
+    else:
+        probe_shot_ids = list(shot_ids)[:16]
+        probe_cameras = None
     channels = probe_signal_channels(
-        list(shot_ids)[:16],
+        probe_shot_ids,
         config.window,
         config.modalities,
         config.n_signal_steps,
         camera=camera,
         cameras=probe_cameras,
         token_root=token_root,
+        max_probe=32,
     )
     act_channels = int(probe[0].actuator.n_channels)
     # Columns to MASK from conditioning (Ip + density + tf) — deterministic from
