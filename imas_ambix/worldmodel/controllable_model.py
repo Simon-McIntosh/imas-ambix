@@ -65,6 +65,11 @@ from imas_ambix.worldmodel.spacetime_model_v2 import (
     SignalSpacetimeTransformer,
     SignalStreamSpec,
 )
+from imas_ambix.worldmodel.timescale_conditioning import (
+    CAMERA_IDS,
+    REFERENCE_CAMERA_INDEX,
+    TimescaleEncoder,
+)
 
 
 @dataclass
@@ -92,6 +97,24 @@ class ControllableSpacetimeConfig(SignalSpacetimeConfig):
     adaln_hidden: int = 256
     inverse_dynamics: bool = True
     inv_dyn_hidden: int = 256
+    #: Per-frame timescale (Δt) conditioning.  When True the model is told each
+    #: camera frame's inter-frame interval (log-Δt) so the SAME token sequence at
+    #: a slow (~6 ms, coil/position regime) vs fast (~50 µs, MHD regime) cadence
+    #: is interpreted differently — a log-Δt scalar → MLP → added to the per-frame
+    #: temporal embedding (:class:`imas_ambix.worldmodel.timescale_conditioning.
+    #: TimescaleEncoder`, zero-init output → identity at init).  False (default)
+    #: is byte-identical to the cadence-blind model; a checkpoint without the Δt
+    #: head loads cleanly (the head stays at its fresh zero init).
+    timescale_conditioning: bool = False
+    timescale_hidden: int = 64
+    #: Per-camera (view) conditioning.  When True a learned per-camera embedding
+    #: (rbb/rco/rgb/rgc/rba/rbc — :data:`imas_ambix.worldmodel.
+    #: timescale_conditioning.CAMERA_IDS`) is ADDED to the camera-frame token
+    #: embeddings so the model knows WHICH view (FOV / optics / colour) it is
+    #: predicting; the table is zero-init (identity at init) and an unknown /
+    #: missing camera falls back to the reference camera (``rbb``).  False
+    #: (default) is byte-identical; a prior checkpoint loads cleanly.
+    camera_conditioning: bool = False
     #: Column indices into the actuator vector to ZERO before conditioning — the
     #: measured STATES (plasma_current, ne_line_integrated) + the quasi-static
     #: tf_current.  These are NOT commands: an always-on Ip context is nearly a
@@ -107,6 +130,14 @@ class ControllableSpacetimeConfig(SignalSpacetimeConfig):
     @property
     def has_actuator(self) -> bool:
         return int(self.actuator_channels) > 0
+
+    @property
+    def has_timescale(self) -> bool:
+        return bool(self.timescale_conditioning)
+
+    @property
+    def has_camera(self) -> bool:
+        return bool(self.camera_conditioning)
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +319,21 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
                     nn.init.normal_(m.weight, std=0.02)
                     nn.init.zeros_(m.bias)
 
+        # Per-frame timescale (Δt) head — log-Δt scalar → d_model offset added to
+        # the camera frames' temporal embedding.  Zero-init output (inside
+        # TimescaleEncoder) → identity at init, so an OFF / fresh head is a no-op
+        # and a prior checkpoint loads cleanly (the head is simply new).
+        self.has_timescale = cfg.has_timescale
+        if self.has_timescale:
+            self.timescale_encoder = TimescaleEncoder(d, hidden=cfg.timescale_hidden)
+
+        # Per-camera (view) embedding — added to the camera-frame token embeddings
+        # so the model knows which view it predicts.  Zero-init → identity at init.
+        self.has_camera = cfg.has_camera
+        if self.has_camera:
+            self.camera_embed = nn.Embedding(len(CAMERA_IDS), d)
+            nn.init.zeros_(self.camera_embed.weight)
+
     # -- actuator-plan AdaLN conditioning ----------------------------------
 
     def _plan_summary(
@@ -387,6 +433,8 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         history_bottleneck: HistoryBottleneckConfig | None = None,
         history_strengths: torch.Tensor | None = None,
         history_generator: torch.Generator | None = None,
+        frame_log_dt: torch.Tensor | None = None,
+        camera_id: torch.Tensor | None = None,
         return_latents: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Run the backbone with AdaLN actuator conditioning + a history bottleneck.
@@ -408,10 +456,35 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
 
         With ``return_latents`` the camera latents are also returned (for the
         inverse-dynamics auxiliary).
+
+        ``frame_log_dt`` is an optional ``(B, T)`` per-camera-frame log-Δt offset
+        (centred on the reference cadence) — when the model is timescale-capable
+        it is encoded and ADDED to the camera frames' temporal embedding so the
+        same token sequence at a different cadence is interpreted differently;
+        ``None`` falls back to the reference cadence (offset 0).  ``camera_id`` is
+        an optional ``(B,)`` long per-sample camera index — when the model is
+        camera-capable the matching learned view embedding is added to the camera
+        token embeddings; ``None`` falls back to the reference camera (``rbb``).
         """
         cfg = self.config
         cam = self._embed_camera(frames)  # (B, T, S, d)
         b, t, s, d = cam.shape
+
+        # Per-camera (view) conditioning: add the learned per-camera embedding to
+        # the camera token embeddings so the model knows which view it predicts.
+        # Zero-init table → identity at init; None / unknown → reference camera.
+        if self.has_camera:
+            if camera_id is None:
+                cam_idx = torch.full(
+                    (b,), REFERENCE_CAMERA_INDEX, dtype=torch.long, device=frames.device
+                )
+            else:
+                cam_idx = (
+                    camera_id.to(frames.device)
+                    .long()
+                    .clamp(0, len(CAMERA_IDS) - 1)
+                )
+            cam = cam + self.camera_embed(cam_idx).view(b, 1, 1, d)
 
         # Camera-HISTORY bottleneck — the corrected controllability lever.  Corrupt
         # the context-frame EMBEDDINGS (independent per frame) BEFORE the level
@@ -511,6 +584,32 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
             )
         fpos = torch.arange(total_t, device=frames.device)
         x = x + self.frame_embed(fpos).view(1, total_t, 1, d)
+
+        # Per-frame timescale (Δt) conditioning: encode each CAMERA frame's
+        # log-Δt offset and ADD it to that frame's temporal embedding, so the same
+        # token sequence at a different cadence is interpreted differently.  Only
+        # the camera frames (the trailing t) carry a cadence — the conditioning
+        # prefix frames get the reference (zero) offset.  Always run when the model
+        # is timescale-capable (reference offset when none supplied) so the encoder
+        # stays in the autograd graph every step (DDP-uniform), zero-init → no-op.
+        if self.has_timescale:
+            if frame_log_dt is None:
+                dt = frames.new_zeros((b, t), dtype=torch.float32)
+            else:
+                dt = frame_log_dt.to(frames.device, torch.float32)
+                if dt.ndim == 1:
+                    dt = dt.unsqueeze(0).expand(b, -1)
+                # align to the camera-frame count: pad/truncate to t.
+                if dt.shape[1] != t:
+                    fixed = frames.new_zeros((b, t), dtype=torch.float32)
+                    k = min(dt.shape[1], t)
+                    fixed[:, :k] = dt[:, :k]
+                    dt = fixed
+            dt_off = self.timescale_encoder(dt)  # (B, t, d)
+            x = torch.cat(
+                [x[:, :n_prefix], x[:, n_prefix:] + dt_off.unsqueeze(2)], dim=1
+            )
+
         x = self.drop(x)
         for li, block in enumerate(self.blocks):
             mod = block_mods[:, li] if block_mods is not None else None
@@ -610,9 +709,12 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         ``corruption_level`` ``(B,)`` long, ``target_frames`` ``(B, T, S)`` long,
         ``history_bottleneck`` (:class:`HistoryBottleneckConfig`),
         ``history_strengths`` ``(B, ctx)`` float, and ``history_generator`` drive
-        the camera-history bottleneck.  ``loss_spec`` may carry
-        ``inverse_dynamics_weight`` to add the inverse-dynamics auxiliary loss to
-        the returned scalar (training).  ``return_logits`` behaves as in v1.
+        the camera-history bottleneck.  An optional ``frame_log_dt`` ``(B, T)``
+        float (per-camera-frame log-Δt offset) and ``camera_id`` ``(B,)`` long
+        drive the timescale + camera conditioning when the model is capable of
+        them.  ``loss_spec`` may carry ``inverse_dynamics_weight`` to add the
+        inverse-dynamics auxiliary loss to the returned scalar (training).
+        ``return_logits`` behaves as in v1.
         """
         frames = batch["frames"]
         plan = batch.get("plan")
@@ -626,6 +728,8 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         hb = batch.get("history_bottleneck")
         hs = batch.get("history_strengths")
         hg = batch.get("history_generator")
+        frame_log_dt = batch.get("frame_log_dt")
+        camera_id = batch.get("camera_id")
         need_latents = bool(
             loss_spec is not None
             and self.has_inverse_dynamics
@@ -641,6 +745,8 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
             history_bottleneck=hb,
             history_strengths=hs,
             history_generator=hg,
+            frame_log_dt=frame_log_dt,
+            camera_id=camera_id,
             return_latents=need_latents,
         )
         if need_latents:

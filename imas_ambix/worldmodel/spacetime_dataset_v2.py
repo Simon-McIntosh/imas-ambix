@@ -96,6 +96,12 @@ def _l2_vocab() -> int:
     return int(L2_BLOCK_VOCAB) + 1
 
 
+#: HF soft-x-ray + Dα/CII codebook sizes (the native-cadence ``signal_hf``
+#: groups, matching the encoder — see :mod:`imas_ambix.worldmodel.dataset`).
+_XSX_VOCAB = 1030
+_XIM_VOCAB = 12806
+
+
 def default_signal_modalities() -> list[SignalModalitySpec]:
     """The measured streams conditioned on by default.
 
@@ -112,6 +118,34 @@ def default_signal_modalities() -> list[SignalModalitySpec]:
         SignalModalitySpec("soft_x_rays", "soft_x_rays_l2", l2, max_channels=48),
         SignalModalitySpec("xma", "xma", 8, max_channels=48),
     ]
+
+
+def extended_signal_modalities() -> list[SignalModalitySpec]:
+    """:func:`default_signal_modalities` + the tokenised-but-unfused HF streams.
+
+    Adds the native-cadence HF soft-x-ray (``xsx``) and Dα/CII (``xim``)
+    ``signal_hf`` groups — already on disk but not yet fused into the camera world
+    model — plus a hook for an ``ait`` divertor-heat-flux stream (encoded through
+    the L2 uniform quantiser, so it shares the L2 vocab).  A stream whose store is
+    absent for a shot is silently OMITTED by the dataset read (the per-stream
+    ``FileNotFoundError`` / ``KeyError`` guard in :func:`read_window_signals`), so
+    listing ``ait`` here before its corpus-wide encode lands is safe — present
+    shots condition on it, absent shots simply don't.
+
+    Kept SEPARATE from :func:`default_signal_modalities` so the existing trained
+    streams + their order are unchanged (a prior checkpoint's per-stream tables
+    still load by name); the broad multi-camera run opts INTO the wider set.
+    """
+    l2 = _l2_vocab()
+    mods = default_signal_modalities()
+    mods += [
+        SignalModalitySpec("xsx", "xsx", _XSX_VOCAB, max_channels=48),
+        SignalModalitySpec("xim", "xim", _XIM_VOCAB, max_channels=24),
+        # ait divertor heat flux — L2-quantised by the corpus encoder; store name
+        # mirrors the L2 light-path groups.  Vocab = L2 (256 bins + PAD).
+        SignalModalitySpec("ait", "ait_l2", l2, max_channels=48),
+    ]
+    return mods
 
 
 # ---------------------------------------------------------------------------
