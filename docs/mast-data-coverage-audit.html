@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="mast-data-coverage-audit">
+  <meta name="plan-title"    content="MAST L1/L2 Data-Coverage Audit — What the World Model Leaves on the Table">
+  <meta name="plan-summary"  content="Read-only inventory of the FAIR-MAST L1/L2 mirror against what the camera world model actually consumes. Findings: (1) CAMPAIGNS — all of MAST/MAST-U is present in L1 (17,111 shots, 11,695-30,473, ~7 campaigns); the rbb token corpus (9,527 shots) misses campaign M5 ENTIRELY (0 of ~1,850 early shots, shot id < 15,085) and is thin on M6 (476/2,289). The current run TRAINS on 2,857 shots = 17% of L1. (2) CAMERAS — five VISIBLE cameras are already tokenised on disk (rbb 9,527, rco 7,921, rgb 7,506, rgc 7,433, rba 6,155) but only rbb is fed to the model; rbc (2,982) is untokenised. Raw INFRARED imaging is almost absent: rir (MWIR) has 25 shots, rit (LWIR) 14, and most are degenerate 8-32-row strip reads; the substantial IR signal is ait (2,846) — divertor heat-flux PRODUCTS, not frames. rir IS tokenisable through Open-MAGVIT2 but the sample is tiny. (3) SIGNALS — the WM conditions on 4 of ~30 L1 diagnostic sources; the v2 substrate has already tokenised 9-11 streams (xma fast magnetics, xim, xsx SXR, interferometer, pf_active, gas, summary, pulse_schedule) that the camera WM fuses NONE of; Mirnov fluctuation coils (amb 15,149), bolometry (abm 12,166), Thomson (atm/ayc/aye), CXRS (act 7,991), MSE (ams 4,882) are raw and unused. (4) LOW-FPS — the 0.25s-span training filter does NOT drop low-fps feeds; it drops HIGH-fps short bursts (91% of >3.5kHz windows, 77% of 1.6-3.5kHz), keeping nearly all <500 Hz feeds. Highest-value expansion: backfill M5/M6 + fuse the already-tokenised v2 signal streams; IR imaging is not worth pursuing on 25 shots.">
+  <meta name="plan-informs"  content="playable-plasma-wm-v0">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <title>MAST L1/L2 Data-Coverage Audit | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Reading note (research, read-only).</strong> This audit inventories the FAIR-MAST level-1
+and level-2 mirror on GPFS (<code>/work/projects/imas_gpu/mast/</code>) and compares it against what the
+camera world model actually trains on, to answer one question the lead posed directly: <em>are we
+massively under-using the available data?</em> The short answer is <strong>yes, but not where the
+instinct pointed</strong> — the biggest unused assets are <strong>earlier campaigns</strong> and the
+<strong>nine signal streams already tokenised in the v2 substrate that the camera model fuses none
+of</strong>; raw infrared <em>imaging</em>, by contrast, barely exists (25 shots). All counts are from a
+full directory scan of 17,111 L1 and 11,573 L2 shot Zarr stores plus the curated training manifest; no
+frames were decoded and nothing was modified. Acronyms expanded on first use. The current full-shot
+re-train (job 1221297) continues on the high-bandwidth subset in parallel; this audit informs the
+<a href="playable-plasma-wm-v0.html">playable-plasma</a> sprint's <em>next</em> corpus.</p>
+
+<h2 id="tldr">The four answers, up front</h2>
+<table>
+  <thead><tr><th>Question</th><th>Finding</th><th>Headline number</th></tr></thead>
+  <tbody>
+  <tr>
+    <td><strong>1. Campaigns</strong></td>
+    <td>All ~7 MAST + MAST-U campaigns are in L1 (continuous 11,695-30,473). The rbb token corpus
+    starts at shot 15,085, so it <strong>misses campaign M5 entirely</strong> and most of M6.</td>
+    <td>17,111 L1 → 9,527 rbb → <strong>2,857 trained</strong> (17% of L1)</td>
+  </tr>
+  <tr>
+    <td><strong>2. Cameras</strong></td>
+    <td><strong>Five visible cameras are tokenised on disk, only rbb is trained on.</strong> Raw IR
+    imaging is essentially absent (rir 25 shots); ait (2,846) is heat-flux products, not frames.</td>
+    <td>5 tokenised, 1 used; IR imaging = 25 shots</td>
+  </tr>
+  <tr>
+    <td><strong>3. Signals</strong></td>
+    <td>The WM conditions on 4 of ~30 L1 sources. The <strong>v2 substrate has already tokenised
+    9 signal streams</strong> the camera model fuses none of; ~20 more diagnostics are raw and untouched.</td>
+    <td>4 used · 9 tokenised-unused · ~30 available</td>
+  </tr>
+  <tr>
+    <td><strong>4. Low-fps</strong></td>
+    <td>The 0.25 s-span filter is <strong>not</strong> a low-fps filter — it drops HIGH-fps short bursts.
+    Low-fps feeds are almost all kept. A small per-shot <code>n_frames</code> floor would re-admit the rest.</td>
+    <td>drops 91% of &gt;3.5 kHz, &lt;1% of &lt;200 Hz</td>
+  </tr>
+  </tbody>
+</table>
+
+<p><strong>Bottom line.</strong> We use a <strong>thin slice</strong> of the corpus: one camera of five
+already-encoded, the late campaigns only, and a single conditioning family while nine signal streams sit
+tokenised-but-unfused. The highest-value, lowest-cost expansion is <strong>(a) fuse the v2 signal
+streams</strong> into the camera model (no new encode — they are on disk) and <strong>(b) backfill the
+missing M5/M6 rbb shots</strong> (~3,400 shots, a cheap re-encode). Raw IR imaging is <em>not</em> worth
+pursuing at 25 shots. The cadence "problem" is the opposite of what was feared.</p>
+
+<h2 id="s1">§1 — Campaign coverage: all of MAST is on disk; we tokenise the late half</h2>
+
+<figure>
+  <img src="/imas-ambix/figures/mast-data-coverage/fig1-campaigns.png"
+       alt="Bar chart of shots per campaign for L1 source, L2 ingested, and camera-tokenised tiers, plus a funnel from 17,111 L1 shots down to 2,857 trained shots."
+       style="width:100%;max-width:1100px;height:auto">
+  <figcaption><strong>Fig 1.</strong> (a) Shots per campaign across the three tiers. The
+  camera-token corpus (red) has <strong>zero M5</strong> and only 476 of 2,289 M6 shots — it begins at
+  shot id 15,085. (b) The usage funnel: of 17,111 L1 source shots, 9,527 carry the rbb camera, 11,012
+  have a camera token store, and the current run trains on <strong>2,857</strong> after the
+  0.25 s-span filter — <strong>17% of L1</strong>. Campaign bins use the standard MAST/MAST-U
+  shot-number ranges; the underlying shot stream is continuous (one real gap, 25,018→25,403, the
+  MAST→MAST-U transition), so bin edges are approximate but the M5/M6 token deficit is exact (it is a
+  hard id cut at 15,085).</figcaption>
+</figure>
+
+<p><strong>What exists.</strong> The L1 mirror holds <strong>17,111 shots</strong> spanning shot numbers
+<strong>11,695–30,473</strong> — the full run of the last MAST campaigns plus MAST-U. L2 (the IMAS-ingested
+tier) holds <strong>11,573</strong> shots (11,766–30,471); this is the "last five campaigns" figure quoted
+in the FAIR-MAST literature. So L1 is the superset and the right source for camera work — and indeed every
+camera lives only at L1 (the cameras were never ingested into L2, confirmed by the source mapping).</p>
+
+<p><strong>What we tokenise.</strong> The camera token corpus has <strong>11,012 shot directories</strong>
+but only <strong>9,527</strong> carry an rbb store (id range 15,085–30,473). The gap at the bottom is the
+binding fact: <strong>all 3,378 L1 shots below 15,085 are untokenised</strong>, which is the whole of
+campaign M5 (~1,850 shots) and the early part of M6. A further 2,721 shots <em>inside</em> the token id
+range have an L1 store but no token store (no rbb, or unreadable). The current full-shot run then keeps
+<strong>2,857</strong> of the 6,499 plasma-present excited windows (the 0.25 s-span filter, §4), so the model
+sees ~17% of the L1 population and ~30% of the rbb population.</p>
+
+<p><strong>Is this a real gap?</strong> Partly. M5/M6 are genuinely missing and recoverable. But the loss
+is not uniform — the late campaigns (M9, MU01, MU02+) are well covered (2,200–2,400 tokenised each), and
+those carry the richest auxiliary diagnostics (Thomson, CXRS, MSE all ramp up in the later campaigns,
+§3). The early-campaign backfill buys <strong>more shots</strong> but not necessarily more
+<strong>diagnostic diversity</strong>. The cheaper, higher-diversity win is fusing the signals we have
+already encoded for the shots we already tokenise (§3).</p>
+
+<h2 id="s2">§2 — Cameras: five visible feeds tokenised, one used; IR imaging barely exists</h2>
+
+<figure>
+  <img src="/imas-ambix/figures/mast-data-coverage/fig2-cameras.png"
+       alt="Left: heatmap of shots per camera by campaign. Right: horizontal bar chart of total shots per camera, colour-coded by tokenisation/training status."
+       style="width:100%;max-width:1150px;height:auto">
+  <figcaption><strong>Fig 2.</strong> (a) Camera availability by campaign. rbb (red box) spans all
+  campaigns; the bremsstrahlung/colour cameras (rco, rgb, rgc) only appear from M8 onward. The IR rows
+  (blue dashed) are near-empty. (b) Total shots per camera: rbb (red) is tokenised AND trained; rco/rgb/
+  rgc/rba (gold) are <strong>tokenised on disk but no training path reads them</strong>; rbc (grey) is
+  untokenised; rir/rit (blue) are infrared <em>images</em> but exist for only 25/14 shots. Descriptions
+  are read verbatim from each camera's Zarr <code>.zattrs</code>.</figcaption>
+</figure>
+
+<p><strong>The corpus is not rbb-only on disk.</strong> This corrects a common framing. A full scan of the
+camera token corpus finds <strong>five visible cameras already tokenised</strong> through Open-MAGVIT2:</p>
+<ul>
+  <li><strong>rbb</strong> — Photron bullet camera B — <strong>9,527 shots</strong> (tokenised + trained)</li>
+  <li><strong>rco</strong> — Phantom colour camera (3-channel RGB) — 7,921 shots (tokenised, <em>unused</em>)</li>
+  <li><strong>rgb</strong> — visible bremsstrahlung camera — 7,506 shots (tokenised, <em>unused</em>)</li>
+  <li><strong>rgc</strong> — visible bremsstrahlung camera — 7,433 shots (tokenised, <em>unused</em>)</li>
+  <li><strong>rba</strong> — Photron bullet camera A — 6,155 shots (tokenised, <em>unused</em>)</li>
+</ul>
+<p>Every training, encode, and bench path hard-defaults to <code>camera="rbb"</code>
+(<code>camdyn/dataset.py:DEFAULT_CAMERA</code>, the curated manifest, all sbatch headers), so the other
+four are dead weight on disk. <strong>rbc</strong> (Photron bullet C, 2,982 shots) is not even tokenised.
+Adding rba/rco as extra views is the cheapest camera expansion — the tokens already exist for ~6,000–8,000
+shots each; only a multi-camera dataset/loader change is needed, not a re-encode. The catch: rco/rgb/rgc
+only exist from M8 on (Fig 2a), so they widen <em>views</em>, not <em>campaign coverage</em>.</p>
+
+<p><strong>Infrared imaging is essentially absent.</strong> The lead asked specifically about divertor/edge
+IR. The picture is sobering:</p>
+<ul>
+  <li><strong>rir</strong> — "Medium wavelength infrared camera" (an SBF125 InSb 320×256 focal-plane array)
+  — is a <em>genuine</em> raw IR image stream (<code>CLASS=IMAGE</code>, <code>data: (T, 256, 320)</code>),
+  and it <strong>would tokenise through the same Open-MAGVIT2 path</strong> with only a grayscale-replicate
+  + resize. But it exists for <strong>25 shots</strong>, and many of those are read out in degenerate
+  strip modes (<code>(T, 8, 320)</code>, <code>(T, 32, 320)</code>) — only a handful are full 256-row
+  frames.</li>
+  <li><strong>rit</strong> — "Long wavelength infrared camera" — 14 shots, almost all strip-mode
+  (<code>(T, 24, 256)</code>).</li>
+  <li><strong>ait</strong> — labelled "IR Camera" but stored as <em>analysed divertor heat-flux
+  products</em> (<code>etot_isp/osp</code>, <code>lampow*</code> at the inner/outer strike points; 1-D
+  time series + a 331-point profile), <strong>not image frames</strong>. 2,846 shots. This is valuable
+  divertor physics but it is a <em>signal</em>, not something the camera tokenizer can ingest.</li>
+</ul>
+<p><strong>Verdict on IR:</strong> raw IR <em>imaging</em> is not worth pursuing — 25 shots cannot train or
+even meaningfully condition a world model, and the codebook-decision gate that was scaffolded for it
+(the <code>v0-rbb-25shot</code> bench config references a "§12.5 IR codebook decision, MAE ≤ 2× rbb") is
+moot at this sample size. If divertor thermography matters for the physics, the route is to ingest
+<strong>ait heat-flux as a conditioning signal</strong> (2,846 shots), not as camera frames. (Note: a
+distinct <code>air</code> source, 2,607 shots, also appears in the L1 inventory and is likely further IR
+divertor data — worth a look only if IR physics becomes a target.)</p>
+
+<h2 id="s3">§3 — Signals: 4 of ~30 used; nine streams already tokenised and unfused</h2>
+
+<figure>
+  <img src="/imas-ambix/figures/mast-data-coverage/fig4-signals.png"
+       alt="Left: bar chart of signal streams already tokenised in the v2 substrate. Right: full L1 diagnostic-source inventory colour-coded by whether the world model uses, has tokenised, or has never touched each source."
+       style="width:100%;max-width:1150px;height:auto">
+  <figcaption><strong>Fig 3.</strong> (a) The nine signal streams already encoded in the
+  <code>mast-tokens/v2</code> substrate (xma fast magnetics, xim visible spectrometer, xsx soft X-ray,
+  plus the L2-derived interferometer/pf_active/gas/summary/pulse_schedule), each covering 10k–14k shots.
+  The camera world model fuses <strong>none</strong> of them. (b) The full L1 diagnostic-source inventory
+  (decision-relevant subset). <span style="color:#386641;font-weight:bold">Green</span> = read by the WM
+  conditioning vector today (amc, anb, ane, aga); <span style="color:#bc6c25;font-weight:bold">gold</span>
+  = tokenised in v2 but unused by the camera model; <span style="color:#adb5bd;font-weight:bold">grey</span>
+  = raw, never tokenised. Descriptions from the source mapping + Zarr attributes.</figcaption>
+</figure>
+
+<p><strong>What the camera WM uses.</strong> The conditioning vector reads four L1 sources:
+<code>amc</code> (PF/CS coil currents + Ip), <code>anb</code> (NBI), <code>aga</code> (gas injection),
+<code>ane</code> (interferometer density). That is <strong>4 of ~30</strong> diagnostic sources present at
+L1, and 4 of 13 IMAS groups at L2.</p>
+
+<p><strong>What is already tokenised but unfused.</strong> The most actionable finding of the whole audit:
+the <strong>v2 multimodal substrate</strong> (<code>mast-tokens/v2/signals_hf/</code>, 15,361 shot
+directories) has <em>already encoded</em> nine signal streams, with 7,257 shots carrying the full
+11-stream set:</p>
+<ul>
+  <li><strong>xma</strong> — fast (MHz) magnetics — 12,045 shots — Mirnov/MHD activity</li>
+  <li><strong>xim</strong> — visible spectrometer — 14,184 shots</li>
+  <li><strong>xsx</strong> — soft X-ray (fast, multi-chord) — 13,002 shots — emission-profile / MHD</li>
+  <li><strong>interferometer, pf_active, gas_injection, summary, pulse_schedule, soft_x_rays</strong>
+  (L2-derived) — 10k–11.5k shots each</li>
+</ul>
+<p>These were built for the multimodal-tokenisation substrate and the signal world-model track, but the
+<em>camera</em> world model conditions on none of them. <strong>Fusing even xma + xsx + pf_active into the
+camera model is a zero-encode change</strong> — the tokens are on disk for the same shots we already train
+on. This is almost certainly higher-value than any new camera or campaign: MHD/SXR structure is exactly the
+fast, spatially-structured information a "playable plasma" needs to respond to actuator changes, and it is
+sitting unused.</p>
+
+<p><strong>What is raw and untouched.</strong> Beyond the tokenised set, the L1 mirror carries roughly
+twenty more diagnostic sources the model has never seen, several of them high-value for plasma state:</p>
+<ul>
+  <li><strong>amb</strong> — Mirnov / fluctuation coils — <strong>15,149 shots</strong> (fast magnetics
+  detail beyond amc)</li>
+  <li><strong>abm</strong> — bolometer (radiated power) — 12,166 shots</li>
+  <li><strong>atm / ayc / aye</strong> — Thomson scattering (core / combined / edge: Te, ne profiles) —
+  6,122 / 4,665 / 3,792 shots</li>
+  <li><strong>act</strong> — charge-exchange recombination spectroscopy (ion temperature, rotation) —
+  7,991 shots</li>
+  <li><strong>ams</strong> — motional Stark effect (current-profile constraint) — 4,882 shots</li>
+  <li><strong>anu / ant</strong> — neutron camera / yield — 13,342 / 5,068 shots</li>
+  <li><strong>ahx</strong> — hard X-ray — 10,048 shots; <strong>alp</strong> — Langmuir probes — 323 shots</li>
+</ul>
+<p>Thomson (Te/ne), CXRS (Ti), and MSE (j-profile) are the canonical interior-state diagnostics; they are
+all present for thousands of shots and entirely outside the world model. They are the natural second wave
+after the already-tokenised v2 streams are fused.</p>
+
+<h2 id="s4">§4 — Low-frame-rate: the filter drops the opposite of what was feared</h2>
+
+<figure>
+  <img src="/imas-ambix/figures/mast-data-coverage/fig3-fps.png"
+       alt="Left: histogram of rbb camera frame rate on a log axis, split into kept and dropped windows. Right: bar chart of the percentage of each frame-rate band dropped by the 0.25-second span filter."
+       style="width:100%;max-width:1100px;height:auto">
+  <figcaption><strong>Fig 4.</strong> (a) The rbb cadence across the 6,499 plasma-present windows spans
+  <strong>30 Hz → 167 kHz</strong> (median ~3 kHz). Green = kept by the current run's filter, red =
+  dropped. (b) The fraction of each frame-rate band dropped by the "recorded span ≥ 0.25 s" filter the
+  trainer applies. It removes <strong>91% of &gt;3.5 kHz windows and 77% of 1.6–3.5 kHz</strong> — the
+  fast cameras record very short bursts (median ~105 ms of footage) — while keeping essentially all
+  feeds below ~500 Hz. The filter is a <em>short-recording</em> filter, not a low-fps filter. (The
+  recomputed kept/dropped split here, 2,828 / 3,671, matches the trainer's logged 2,857 / 3,642 to ~1%;
+  the small delta is the trainer measuring span over <em>readable</em> frames.)</figcaption>
+</figure>
+
+<p><strong>The premise needs correcting.</strong> The lead asked to <em>include</em> low-fps feeds, on the
+worry that the <code>n_frames=64</code> full-shot filter drops them. The data says the opposite. The
+current run does not gate on <code>n_frames=64</code> directly; it gates on <strong>recorded span ≥
+0.25 s</strong> (<code>n_frames / fps</code>), keeping 2,857 of 6,499 windows. Because frame rate and
+recording duration are inversely correlated on MAST (the fast Photron triggers fire in short bursts around
+events; the slow feeds roll for the whole shot), <strong>the span filter throws away the HIGH-fps shots</strong>:
+91% of the &gt;3.5 kHz band and 77% of the 1.6–3.5 kHz band are dropped, versus 0% below 50 Hz and ~0.4%
+below 200 Hz. The pure <code>n_frames&lt;64</code> cut, by contrast, would drop only 128 windows (2%).</p>
+
+<p><strong>So what is actually being lost, and how to include it.</strong> Two distinct populations are
+under-served:</p>
+<ul>
+  <li><strong>High-fps short bursts (the 3,642 dropped).</strong> These are not junk — they are the
+  fast-camera recordings of fast events, just with &lt;0.25 s of footage. The full-shot trainer
+  time-subsamples each window to a fixed 64 frames over the plasma duration, so a short high-fps clip
+  simply yields fewer usable frames. To include them, <strong>lower the span floor</strong> (e.g. accept
+  ≥0.05 s) or add a <strong>burst track</strong> that keeps the native high-fps frames as a short window
+  rather than forcing the 0.25 s horizon. The risk to watch is the dilution the
+  <a href="excitation-corpus-characterization.html">excitation-corpus characterisation</a> warned about —
+  so gate these on the existing excitation score, not on raw inclusion.</li>
+  <li><strong>Genuinely low-fps feeds (already mostly kept).</strong> Almost all &lt;500 Hz feeds already
+  pass. If the goal is to capture <em>more</em> of them — including the M5/M6 shots, which skew toward the
+  older, slower cameras — the lever is a <strong>per-shot <code>n_frames</code> floor</strong> (e.g.
+  min(16, available)) with the time base carried natively (the dataset already attaches per-frame
+  <code>dt</code> and a <code>valid_frames</code> mask, <code>camdyn/dataset.py</code>), so a 12-frame
+  50 Hz shot trains as a 12-frame window rather than being padded or dropped. The native-Δt conditioning
+  the loader already supports is exactly the mechanism that lets one model span 30 Hz–167 kHz without a
+  separate low-fps track.</li>
+</ul>
+<p><strong>Recommendation:</strong> keep one model, drop the span floor to admit short high-fps bursts
+(excitation-gated), and add a per-shot frame floor so slow feeds train at their native length. A separate
+low-fps track is unnecessary given the native-Δt machinery.</p>
+
+<h2 id="s5">§5 — Highest-value expansions, ranked</h2>
+<ol>
+  <li><strong>Fuse the v2 signal streams into the camera model (no new encode).</strong> xma + xsx +
+  pf_active + interferometer are tokenised for the shots we already train on. This adds fast magnetics,
+  MHD/SXR structure, and density to the conditioning the model currently lacks — the information a
+  driveable plasma must react to. Cost: a multimodal dataset/loader change. <em>Likely the single biggest
+  win per unit effort.</em></li>
+  <li><strong>Add rba / rco as extra camera views (no new encode).</strong> ~6,000–8,000 shots each are
+  already tokenised; widens viewpoint diversity. Cost: a multi-camera loader. Caveat: late-campaign only.</li>
+  <li><strong>Backfill M5/M6 rbb (cheap re-encode).</strong> ~3,400 L1 shots below id 15,085 are
+  untokenised. Encoding them is a single ≤1 GPU-hour in-process job (the encoder exists and is
+  resume-safe). Buys shot count, not diagnostic diversity.</li>
+  <li><strong>Admit short high-fps bursts + low-fps floor (corpus-filter change).</strong> Re-admits the
+  3,642 currently-dropped windows under an excitation gate; see §4.</li>
+  <li><strong>Tokenise interior diagnostics (Thomson/CXRS/MSE, larger effort).</strong> Thousands of shots
+  carry Te/ne/Ti/j-profile data, all raw. The natural second wave after (1).</li>
+  <li><strong>Raw IR imaging — do not pursue.</strong> 25 shots. If divertor physics matters, ingest the
+  ait heat-flux <em>signal</em> (2,846 shots) instead.</li>
+</ol>
+
+<p><strong>How much more data is available?</strong> By shot count, the model trains on ~2,857 of 17,111
+L1 shots — a <strong>~6× headroom</strong> in raw shots before any new diagnostics. By information content
+the gap is larger still: of the camera feeds, four of five tokenised cameras are unused; of the signal
+diagnostics, the conditioning vector reads 4 of ~30 sources while 9 fully-tokenised streams sit unfused.
+The corpus is not the bottleneck — <strong>consumption is</strong>. The cheapest large step is to consume
+what is already encoded.</p>
+
+<hr>
+<p style="color:#666;font-size:0.9em"><em>Method &amp; provenance.</em> Full directory scan of
+<code>/work/projects/imas_gpu/mast/level1/shots</code> (17,111 stores) and
+<code>level2/shots</code> (11,573 stores) on the <code>sun</code> CPU partition — top-level group
+presence by directory stat, native array shapes from the consolidated Zarr metadata
+(<code>.zmetadata</code> V2 / <code>zarr.json</code> V3) for a per-camera sample. Frame-rate / duration
+distributions from the live training manifest
+<code>agents/excitation-corpus/curated_windows_fullshot.json</code> (6,499 windows). Tokenised-stream
+counts from <code>mast-tokens/v1/frames</code> (cameras) and <code>mast-tokens/v2/signals_hf</code>
+(signals). Camera/diagnostic identities from each source's Zarr <code>.zattrs</code> description and the
+<code>LEVEL1_SOURCES</code> mapping in <code>imas_ambix/data/paths.py</code>. Read-only; no frames
+decoded, no corpus or manifest modified.</p>
+
+</main>
+</body>
+</html>
