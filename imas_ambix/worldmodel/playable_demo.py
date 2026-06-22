@@ -46,7 +46,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import signal
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -181,6 +183,19 @@ def _rel_time_ms(sample, ctx: int) -> np.ndarray:
     return (ft[:n] - ft[ctx]) * 1e3
 
 
+def _decode_work_dir(name: str) -> Path:
+    """A scratch dir for the VQ decode bundle — under TMPDIR, never the figures dir.
+
+    The decode round-trips multi-MB token/image ``.npz`` bundles; keeping them out
+    of ``out_dir`` means a re-run leaves only the final GIFs/PNGs/JSON there (no
+    scratch to clean up before committing).
+    """
+    base = os.environ.get("TMPDIR") or tempfile.gettempdir()
+    wd = Path(base) / "playable-demo-decode" / name
+    wd.mkdir(parents=True, exist_ok=True)
+    return wd
+
+
 # ---------------------------------------------------------------------------
 # Demo 1 — faithful replay (GT | TRUE-plan dream)
 # ---------------------------------------------------------------------------
@@ -244,7 +259,7 @@ def faithful_replay(
     }
     roles = [{"role": "gt"}, {"role": "dream"}]
     decoded = decode_roles(
-        grids, roles, work_dir=out_dir / "_decode_replay", device=device
+        grids, roles, work_dir=_decode_work_dir("replay"), device=device
     )
     gt_px, dream_px = decoded["gt"], decoded["dream"]
 
@@ -373,7 +388,7 @@ def counterfactual_two_plans(
         "other": local_to_store(other_tok.reshape(-1, GRID_H, GRID_W)),
     }
     roles = [{"role": "true"}, {"role": "other"}]
-    decoded = decode_roles(grids, roles, work_dir=out_dir / "_decode_cf", device=device)
+    decoded = decode_roles(grids, roles, work_dir=_decode_work_dir("cf"), device=device)
     true_px, other_px = decoded["true"], decoded["other"]
 
     true_cen = decoded_centroid(true_px)
@@ -530,7 +545,7 @@ def coil_knob_sweep(
         roles.append({"role": role})
 
     decoded = decode_roles(
-        grids, roles, work_dir=out_dir / "_decode_sweep", device=device
+        grids, roles, work_dir=_decode_work_dir("sweep"), device=device
     )
 
     # forecast-mean centroid (row, col) per knob value — the turn-the-knob curve.

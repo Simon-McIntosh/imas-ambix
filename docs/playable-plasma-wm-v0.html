@@ -80,6 +80,94 @@ flight) is the lever for cross-shot robustness. <strong>M4 closes when the ΔN-M
 this is the first evidence the approach (ramp-up horizon + coil-as-actuator conditioning) produces a
 genuinely driveable plasma.</p>
 
+<h2 id="s-playable-demo">Playable demo (drive shot 18502) — rendered "play the plasma with a coil"</h2>
+<p style="border-left:4px solid #0a7d33;padding-left:0.9em;background:#f4fbf5"><strong>The sprint's headline
+demonstrable capability:</strong> three offline-rendered demos showing the controllable camera world model
+being <em>driven by its coils</em> on the held-out exemplar shot 18502. Every frame is decoded
+full-resolution through the frozen Open-MAGVIT2 VQ. <strong>Honest scope:</strong> 18502 is the one held-out
+shot that passes the &Delta;N-M gate (3.14&times;); the model is <em>not yet cross-shot robust</em>
+(18503/18504 fail), so these are exemplar demos, not a cross-shot claim. Rendered on the best controllable
+checkpoint (<code>controllable-1220940</code>, step 12000: 1-window / 250&nbsp;ms horizon, warm-started M2,
+AdaLN-Zero command-only conditioning, history-bottleneck + inverse-dynamics).</p>
+
+<p>The two coherence numbers frame the story: under the <strong>true</strong> coil plan the dream tracks the
+ground truth to a forecast-window pixel-L1 of <strong>11.9</strong> (faithful), while changing the coil plan
+moves the dream <strong>10&times;</strong> further. The single-coil knob sweep (demo 2) is the cleanest result
+&mdash; it stays in-distribution and the plasma visibly responds; the large multi-channel counterfactual
+(demo 3) shows the model is strongly <em>sensitive</em> to the plan but degrades when pushed hard, an
+honest limit recorded below.</p>
+
+<h3 id="s-playable-demo-replay">1 &mdash; Faithful replay: dream under the true plan vs ground truth</h3>
+<figure style="margin:1em 0">
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/replay_shot18502.gif" alt="Faithful replay: ground truth | WM dream under the true coil plan, shot 18502" style="max-width:100%;border:1px solid #ccc">
+  <figcaption style="font-size:0.9em"><strong>Coherence check &mdash; the dream is faithful to the true
+  plan.</strong> Ground truth (left) &parallel; the model's autoregressive dream under shot 18502's
+  <em>true</em> coil(+gas+NBI) plan (right). The first 8 frames are the given seed context; from the dashed
+  forecast frontier the dream is pure prediction. By late forecast (shown: t&nbsp;=&nbsp;+163&nbsp;ms) the
+  dream reproduces the real plasma shape &mdash; central column, crescent emission, the bright divertor-leg
+  hotspots &mdash; at a forecast pixel-L1 of just <strong>11.9</strong>. The dream is plasma-like and follows
+  the true plan, not frozen persistence.</figcaption>
+</figure>
+<figure style="margin:1em 0">
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/replay_shot18502_centroid.png" alt="Centroid trace: ground truth vs true-plan dream, shot 18502" style="max-width:100%;border:1px solid #ccc">
+  <figcaption style="font-size:0.9em">Decoded plasma-centroid (row&nbsp;=&nbsp;vertical, col&nbsp;=&nbsp;radial)
+  of GT vs the true-plan dream. The dream tracks the GT's upward vertical trend and ~180&nbsp;px radial band
+  through the forecast; it is smoother than the GT (an argmax rollout under-shoots the GT's frame-to-frame
+  excursions), which is the honest signature of greedy decoding.</figcaption>
+</figure>
+
+<h3 id="s-playable-demo-knob">2 &mdash; Coil "knob" sweep: turn P6-upper, watch the plasma move (the cleanest demo)</h3>
+<figure style="margin:1em 0">
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/knob_sweep_shot18502_p6u_current.gif" alt="Knob sweep: P6-upper current at -30%, 0 (true), +30%, shot 18502" style="max-width:100%;border:1px solid #ccc">
+  <figcaption style="font-size:0.9em"><strong>The literal "turn the knob" artifact.</strong> The same dream
+  with one position coil &mdash; <strong>P6-upper current</strong>, the strongest from the per-coil eval
+  &mdash; swept across &minus;30% / 0 (true plan) / +30% of its trajectory. All three share the seed context
+  and, crucially, <em>all three stay coherent plasma</em> (a single-coil edit is in-distribution): the
+  crescent emission, the divertor-leg hotspots, and the column edges shift visibly between the panels as the
+  knob turns. This is the demo that holds up &mdash; the coil moves the plasma without breaking it.</figcaption>
+</figure>
+<figure style="margin:1em 0">
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/knob_sweep_shot18502_p6u_current_curve.png" alt="Decoded plasma centroid vs P6-upper knob value, shot 18502" style="max-width:100%;border:1px solid #ccc">
+  <figcaption style="font-size:0.9em">Forecast-mean decoded plasma-centroid vs the P6-upper knob. The
+  centroid responds measurably (~12&nbsp;px vertical swing across the sweep), but <strong>not
+  monotonically</strong>: the true plan (0) sits at the vertical <em>minimum</em> and both &plusmn;30% push the
+  plasma higher (a V-shape; radial barely moves, 182&ndash;185&nbsp;px). So the knob demonstrably steers the
+  plasma, but the model has not learned a clean linear coil&rarr;position law &mdash; expected at this
+  1-window checkpoint, and a target for the multi-window corpus.</figcaption>
+</figure>
+
+<h3 id="s-playable-demo-cf">3 &mdash; Counterfactual: same start, two coil plans (sensitive, but degrades under a large edit)</h3>
+<figure style="margin:1em 0">
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/counterfactual_shot18502.gif" alt="Counterfactual: true coil plan | a different realistic coil plan from a shared start, shot 18502" style="max-width:100%;border:1px solid #ccc">
+  <figcaption style="font-size:0.9em"><strong>The plan changes the outcome strongly &mdash; with a caveat.</strong>
+  Identical 8-frame seed context, then the <em>true</em> coil plan (left) vs a <em>different</em>,
+  in-distribution re-actuation of <em>all</em> commands (right, the same &plusmn;30% counterfactual the
+  &Delta;N-M gate scores). The two dreams are identical through the context, then diverge to a forecast
+  pixel-L1 of <strong>125.9</strong> &mdash; the plan, not noise, drives the difference, and that 10&times;
+  separation from the faithful-replay 11.9 is the &Delta;N-M signal made visual. <strong>Honest limit:</strong>
+  under this <em>large multi-channel</em> edit the alternative dream loses coherence and washes out to a
+  near-uniform frame (right) rather than rendering a plausible <em>different</em> plasma. So this proves the
+  model is strongly <em>sensitive</em> to the full command vector, but not yet robustly generative when the
+  whole plan is perturbed at once &mdash; the single-coil knob (demo 2) is where it stays plausible.</figcaption>
+</figure>
+<figure style="margin:1em 0">
+  <img src="/imas-ambix/figures/playable-plasma-wm-v0/counterfactual_shot18502_centroid.png" alt="Centroid trace: true vs different coil plan, shot 18502" style="max-width:100%;border:1px solid #ccc">
+  <figcaption style="font-size:0.9em">Decoded plasma-centroid: the two plans overlap exactly through the
+  shared context, then split sharply at forecast-start &mdash; the true plan's centroid keeps evolving
+  (vertical 130&rarr;168&nbsp;px) while the perturbed plan's centroid pins flat (the washed-out collapse seen
+  in the GIF). Clean evidence the commands drive the divergence; the flat line is the honest collapse
+  signature, not a second coherent trajectory.</figcaption>
+</figure>
+
+<p style="font-size:0.9em;color:#444"><strong>Read + reproduce:</strong> on the exemplar the controllable
+model is genuinely driveable &mdash; faithful to the true plan (pixel-L1 11.9), the plasma visibly tracks a
+single coil knob, and the full command vector strongly changes the outcome. The open edges &mdash; a clean
+monotone coil&rarr;position law and coherence under large multi-channel edits &mdash; are exactly what the
+multi-window + disruption corpus (run 1221038) targets. Driver:
+<code>scripts/slurm/playable_demo.sbatch</code> (1 GPU, bursts beside the DeepSeek serve) &rarr;
+<code>imas_ambix.worldmodel.playable_demo</code>, reusing the held-out eval's rollout + VQ-decode helpers.
+Raw metrics: <code>docs/figures/playable-plasma-wm-v0/playable_demo_shot18502.json</code>.</p>
+
 <h2 id="s1">§1 — Objective and the resolved strategy</h2>
 <p>The world-model line has, across three generations, produced a camera generator that
 <strong>collapses to persistence</strong> (predicts ≈ the last frame) under open-loop argmax rollout
