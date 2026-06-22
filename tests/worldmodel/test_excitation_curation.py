@@ -825,3 +825,142 @@ def test_plasma_phase_span_min_duration_drops_short_burst(monkeypatch):
     s1 = ec.find_plasma_phase_span(1, ip_present_threshold=2.0e4, min_duration_s=0.1)
     assert not s1.valid
     assert s1.reason == "too_short"
+
+
+# ---------------------------------------------------------------------------
+# excitation_corpus: UNIFIED multi-camera, multi-timescale corpus
+# ---------------------------------------------------------------------------
+
+
+def test_campaign_for_shot_bands():
+    from imas_ambix.worldmodel.excitation_corpus import campaign_for_shot
+
+    # factual 5000-wide shot-id bands (exact MAST M-campaign boundaries are not
+    # authoritatively published, so we label by id band, never a guessed name).
+    assert campaign_for_shot(14000) == "lt_15k"
+    assert campaign_for_shot(15085) == "15k-20k"  # tokenised corpus start
+    assert campaign_for_shot(20316) == "20k-25k"
+    assert campaign_for_shot(25000) == "25k-30k"
+    assert campaign_for_shot(30473) == "30k-35k"  # corpus max
+    assert campaign_for_shot(37000) == "ge_35k"
+
+
+def test_select_unified_window_schema_and_timescale(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # SLOW shot: 0.4 s plasma phase at 600 Hz.
+    n = 300
+    ftime = np.arange(n) / 600.0
+    absip = np.concatenate([np.full(250, 7.0e5), np.linspace(7.0e5, 0, 50)])
+    monkeypatch.setattr(ec, "_shot_abs_ip", lambda *a, **k: (ftime, absip))
+    monkeypatch.setattr(ec, "_frame_times", lambda *a, **k: ftime)
+    monkeypatch.setattr(ec, "_span_excitation_score", lambda *a, **k: 1234.0)
+
+    row = ec.select_unified_window(20316, "rco", fast_max_duration_s=0.15)
+    assert row is not None
+    # exact corpus->model schema keys
+    assert set(row) == {
+        "shot_id",
+        "camera_id",
+        "campaign",
+        "start_frame",
+        "end_frame",
+        "fps",
+        "n_frames",
+        "plasma_duration_s",
+        "timescale",
+        "excitation_score",
+        "present_fraction",
+        "frame_times",
+    }
+    assert row["camera_id"] == "rco"
+    assert row["campaign"] == "20k-25k"  # shot 20316 id-band
+    assert row["timescale"] == "slow"  # ~0.42 s > 0.15 s
+    assert len(row["frame_times"]) == row["n_frames"]
+    assert row["fps"] == pytest.approx(600.0, rel=0.01)
+
+
+def test_select_unified_window_tags_fast_burst(monkeypatch):
+    import numpy as np
+
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # FAST burst: 200 plasma frames in 20 ms (10 kHz) — admitted, tagged fast.
+    n = 412
+    ftime = np.empty(n)
+    ftime[:100] = np.arange(100) * 2e-3
+    ftime[100:300] = 0.2 + np.arange(200) * 1e-4
+    ftime[300:] = ftime[299] + np.arange(1, n - 299) * 2e-3
+    absip = np.zeros(n)
+    absip[100:300] = 7.0e5
+    monkeypatch.setattr(ec, "_shot_abs_ip", lambda *a, **k: (ftime, absip))
+    monkeypatch.setattr(ec, "_frame_times", lambda *a, **k: ftime)
+    monkeypatch.setattr(ec, "_span_excitation_score", lambda *a, **k: 50.0)
+
+    row = ec.select_unified_window(20316, "rbb", fast_max_duration_s=0.15)
+    assert row is not None
+    assert row["timescale"] == "fast"  # ~20 ms < 150 ms — admitted, not dropped
+    assert row["plasma_duration_s"] < 0.03
+
+
+def test_select_unified_windows_multicamera_and_heldout(monkeypatch):
+    import imas_ambix.worldmodel.excitation_corpus as ec
+
+    # every (shot,camera) yields a window; camera_frame_count says all present.
+    monkeypatch.setattr(
+        ec,
+        "select_unified_window",
+        lambda sid, cam, **k: {
+            "shot_id": sid,
+            "camera_id": cam,
+            "campaign": "M8",
+            "start_frame": 0,
+            "end_frame": 100,
+            "fps": 600.0,
+            "n_frames": 100,
+            "plasma_duration_s": 0.33,
+            "timescale": "slow",
+            "excitation_score": 1.0,
+            "present_fraction": 0.9,
+        },
+    )
+    import imas_ambix.worldmodel.spacetime_dataset as sd
+
+    monkeypatch.setattr(sd, "camera_frame_count", lambda *a, **k: 500)
+    out = ec.select_unified_windows(
+        [20316, 18502, 20317],
+        cameras=["rbb", "rco"],
+        held_out=(18502,),
+    )
+    sids = {r["shot_id"] for r in out}
+    assert sids == {20316, 20317}  # held-out 18502 fully excluded (BOTH cameras)
+    # 2 shots x 2 cameras = 4 windows
+    assert len(out) == 4
+    assert {(r["shot_id"], r["camera_id"]) for r in out} == {
+        (20316, "rbb"),
+        (20316, "rco"),
+        (20317, "rbb"),
+        (20317, "rco"),
+    }
+
+
+def test_select_unified_windows_skips_absent_camera(monkeypatch):
+    import imas_ambix.worldmodel.excitation_corpus as ec
+    import imas_ambix.worldmodel.spacetime_dataset as sd
+
+    # rgc absent (raises) for shot 20316; rbb present.
+    def _count(sid, cam, **k):
+        if cam == "rgc":
+            raise FileNotFoundError("no rgc")
+        return 500
+
+    monkeypatch.setattr(sd, "camera_frame_count", _count)
+    monkeypatch.setattr(
+        ec,
+        "select_unified_window",
+        lambda sid, cam, **k: {"shot_id": sid, "camera_id": cam, "n_frames": 100},
+    )
+    out = ec.select_unified_windows([20316], cameras=["rbb", "rgc"], held_out=())
+    assert {r["camera_id"] for r in out} == {"rbb"}  # rgc skipped, no crash

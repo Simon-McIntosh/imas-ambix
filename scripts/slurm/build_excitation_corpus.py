@@ -266,6 +266,126 @@ def phase_select(args: argparse.Namespace) -> int:
     return 0
 
 
+def phase_unified(args: argparse.Namespace) -> int:
+    """Build the UNIFIED multi-camera, multi-timescale manifest (CPU)."""
+    from imas_ambix.worldmodel.excitation_corpus import (
+        CAMPAIGN_BANDS,
+        DEFAULT_HELD_OUT,
+        UNIFIED_CAMERAS,
+        probe_plasma_activity,
+        select_unified_windows,
+    )
+
+    token_root = Path(args.token_root)
+    shots = _rbb_shots(token_root, args.scan_limit)
+    tr = token_root if args.token_root != str(TOKEN_ROOT) else None
+    cameras = (
+        [c.strip() for c in args.cameras.split(",") if c.strip()]
+        if args.cameras
+        else list(UNIFIED_CAMERAS)
+    )
+    print(
+        f"[unified] scanning {len(shots)} shots x {len(cameras)} cameras "
+        f"({','.join(cameras)})",
+        flush=True,
+    )
+
+    t0 = time.monotonic()
+    rows = select_unified_windows(
+        shots,
+        cameras=cameras,
+        token_root=tr,
+        held_out=DEFAULT_HELD_OUT,
+        min_present_fraction=args.min_present_fraction,
+        fast_max_duration_s=args.fast_max_duration_s,
+        include_frame_times=not args.no_frame_times,
+    )
+    el = time.monotonic() - t0
+
+    # report: windows per camera / per campaign / slow-vs-fast.
+    per_cam: dict[str, int] = {}
+    per_campaign: dict[str, int] = {}
+    per_timescale: dict[str, int] = {}
+    for r in rows:
+        per_cam[r["camera_id"]] = per_cam.get(r["camera_id"], 0) + 1
+        per_campaign[r["campaign"]] = per_campaign.get(r["campaign"], 0) + 1
+        per_timescale[r["timescale"]] = per_timescale.get(r["timescale"], 0) + 1
+    dur = np.array([r["plasma_duration_s"] for r in rows], dtype=float)
+    dur_ms = dur * 1e3 if dur.size else np.array([0.0])
+    coverage = {
+        "n_windows": len(rows),
+        "n_distinct_shots": len({r["shot_id"] for r in rows}),
+        "windows_per_camera": dict(sorted(per_cam.items())),
+        "windows_per_campaign": dict(sorted(per_campaign.items())),
+        "windows_per_timescale": dict(sorted(per_timescale.items())),
+        "duration_median_ms": round(float(np.median(dur_ms)), 1),
+        "duration_p10_ms": round(float(np.percentile(dur_ms, 10)), 1),
+        "duration_p90_ms": round(float(np.percentile(dur_ms, 90)), 1),
+        "fps_min": round(float(min(r["fps"] for r in rows)), 1) if rows else 0.0,
+        "fps_max": round(float(max(r["fps"] for r in rows)), 1) if rows else 0.0,
+    }
+
+    heldout_activity = None
+    if args.probe_heldout:
+        heldout_activity = {
+            cam: probe_plasma_activity(
+                list(DEFAULT_HELD_OUT), camera=cam, token_root=tr
+            )
+            for cam in cameras
+        }
+
+    manifest = {
+        "mode": "unified",
+        "schema": [
+            "shot_id",
+            "camera_id",
+            "campaign",
+            "start_frame",
+            "end_frame",
+            "fps",
+            "n_frames",
+            "frame_times",
+            "plasma_duration_s",
+            "timescale",
+            "excitation_score",
+            "present_fraction",
+        ],
+        "cameras": cameras,
+        "campaign_bands": [
+            {"name": n, "lo": lo, "hi": hi} for n, lo, hi in CAMPAIGN_BANDS
+        ],
+        "fast_max_duration_s": args.fast_max_duration_s,
+        "min_present_fraction": args.min_present_fraction,
+        "held_out": list(DEFAULT_HELD_OUT),
+        "n_scanned": len(shots),
+        "include_frame_times": not args.no_frame_times,
+        "coverage": coverage,
+        "heldout_activity": heldout_activity,
+        "windows": rows,
+    }
+    out = Path(args.manifest)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(manifest))  # no indent: frame_times make it large
+    print(
+        f"[unified] {len(rows)} windows over {coverage['n_distinct_shots']} shots "
+        f"in {el:.0f}s -> {out}",
+        flush=True,
+    )
+    print("[unified] coverage:", json.dumps(coverage, indent=2), flush=True)
+    if heldout_activity is not None:
+        # compact held-out summary: per-camera (max|Ip|, duration) for each shot.
+        for cam, act in heldout_activity.items():
+            for sid, a in act.items():
+                if a["max_abs_ip"] > 0:
+                    ip_ka = a["max_abs_ip"] / 1e3
+                    print(
+                        f"[unified] heldout {sid}/{cam}: max|Ip|={ip_ka:.0f}kA "
+                        f"dur={a['duration_s']:.3f}s pf={a['present_fraction']:.2f}",
+                        flush=True,
+                    )
+    return 0
+
+
 def phase_poc(args: argparse.Namespace) -> int:
     from imas_ambix.worldmodel.controllable_dataset import (
         assemble_controllable_window,
@@ -442,6 +562,38 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--camera", default=REFERENCE_CAMERA)
     p.add_argument("--n-poc", type=int, default=6)
     p.set_defaults(func=phase_poc)
+
+    u = sub.add_parser(
+        "unified",
+        help="build the UNIFIED multi-camera, multi-timescale manifest (CPU)",
+    )
+    u.add_argument(
+        "--manifest",
+        default="/work/projects/imas_gpu/agents/excitation-corpus/"
+        "curated_windows_unified.json",
+    )
+    u.add_argument("--token-root", default=str(TOKEN_ROOT))
+    u.add_argument(
+        "--cameras",
+        default=None,
+        help="comma-separated camera ids (default: all tokenised — "
+        "rbb,rco,rgb,rgc,rba)",
+    )
+    u.add_argument("--min-present-fraction", type=float, default=0.7)
+    u.add_argument(
+        "--fast-max-duration-s",
+        type=float,
+        default=0.15,
+        help="plasma phase shorter than this is tagged timescale=fast (else slow)",
+    )
+    u.add_argument(
+        "--no-frame-times",
+        action="store_true",
+        help="omit the per-window frame_times list (lighter manifest)",
+    )
+    u.add_argument("--probe-heldout", action="store_true")
+    u.add_argument("--scan-limit", type=int, default=None)
+    u.set_defaults(func=phase_unified)
 
     args = ap.parse_args(argv)
     return int(args.func(args))

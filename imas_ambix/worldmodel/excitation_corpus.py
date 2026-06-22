@@ -64,6 +64,43 @@ logger = logging.getLogger(__name__)
 #: runs hold the same set out).  Excluded by :func:`select_curated_windows`.
 DEFAULT_HELD_OUT: tuple[int, ...] = (18502, 18503, 18504, 18505)
 
+#: The already-tokenised camera set for the unified corpus (on disk at
+#: ``mast-tokens/v1/frames/<shot>/<cam>.zarr``).  rbb is the reference; rco is
+#: RGB (the VQ encoder already collapsed it to tokens, so the manifest — which
+#: only reads Ip + frame times, never pixels — treats every camera identically).
+UNIFIED_CAMERAS: tuple[str, ...] = ("rbb", "rco", "rgb", "rgc", "rba")
+
+#: Shot-id bands labelling the corpus by 5000-wide blocks across the tokenised
+#: range (15085-30473).  MAST campaigns ARE delimited by shot id, but the exact
+#: M7/M8/M9 shot-id boundaries are not authoritatively published, so we label by
+#: the FACTUAL id band (``"15k-20k"`` …) rather than assert a campaign name that
+#: might be wrong — the bands give the per-campaign coverage report a reproducible
+#: stratification without churning on a guessed boundary.  (MAST-U campaigns
+#: begin ~40000+ and are not in this corpus.)  ``frac`` of the corpus per band is
+#: reported by the build script.
+CAMPAIGN_BANDS: tuple[tuple[str, int, int], ...] = (
+    ("lt_15k", 0, 15000),
+    ("15k-20k", 15000, 20000),
+    ("20k-25k", 20000, 25000),
+    ("25k-30k", 25000, 30000),
+    ("30k-35k", 30000, 35000),
+    ("ge_35k", 35000, 10_000_000),
+)
+
+
+def campaign_for_shot(shot_id: int) -> str:
+    """Map a shot id to its 5000-wide shot-id band label.
+
+    Labels by the factual id band (the exact MAST M-campaign shot boundaries are
+    not authoritatively published, so a band label cannot be mislabelled); used
+    for the unified corpus's per-band ("campaign") coverage report.
+    """
+    sid = int(shot_id)
+    for name, lo, hi in CAMPAIGN_BANDS:
+        if lo <= sid < hi:
+            return name
+    return "unknown"
+
 
 @dataclass(frozen=True)
 class CuratedWindow:
@@ -813,13 +850,178 @@ def probe_plasma_activity(
     return out
 
 
+# ---------------------------------------------------------------------------
+# UNIFIED corpus: all cameras x both timescales (the model-side interface)
+# ---------------------------------------------------------------------------
+#
+# The unified manifest is the data side of the full in-silico tokamak: one
+# full-shot plasma-phase window PER (shot, camera) over ALL already-tokenised
+# cameras (5x coverage, zero new encode), spanning BOTH timescales — the slow
+# coil-law full-shot windows AND the fast Photron bursts (~105 ms at high fps).
+# Each window carries its per-frame times so its Δt is explicit (the model
+# consumes time-aware windows), is tagged camera_id + campaign + timescale, and
+# uses the SUSTAINED plasma-phase detection (so the ~20 ms ripple artifact is
+# gone) WITHOUT the slow-only min-duration floor (fast bursts are admitted, just
+# tagged).  Held-out shots are fully excluded across every camera.
+
+#: Duration boundary (s) between the FAST (Photron burst) and SLOW (coil-law
+#: full-shot) regimes.  A plasma phase shorter than this is a fast burst (high
+#: fps, ~tens of ms); longer is the slow full-shot regime (~0.3-0.4 s).  Both
+#: are kept — the tag lets the model condition on / batch by timescale.
+UNIFIED_FAST_MAX_DURATION_S: float = 0.15
+
+#: Minimum plasma-phase length (frames) for a unified window — a camera with a
+#: handful of frames over the plasma (rgb/rgc are often < 16) cannot form a
+#: useful sequence and is dropped.
+UNIFIED_MIN_SPAN_FRAMES: int = 12
+
+
+def _span_frame_times(shot_id, camera, token_root, start, end) -> list[float]:
+    """Per-frame timestamps (s) of ``[start, end)`` for a camera window."""
+    ft = _frame_times(int(shot_id), camera, token_root=token_root)
+    if ft is None:
+        return []
+    ft = np.asarray(ft, dtype=np.float64)
+    s = max(0, int(start))
+    e = min(ft.shape[0], int(end))
+    return [round(float(x), 6) for x in ft[s:e]]
+
+
+def select_unified_window(
+    shot_id: int,
+    camera: str,
+    *,
+    token_root: Path | None = None,
+    ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
+    min_present_fraction: float = FULLSHOT_MIN_PRESENT_FRACTION,
+    min_span_frames: int = UNIFIED_MIN_SPAN_FRAMES,
+    fast_max_duration_s: float = UNIFIED_FAST_MAX_DURATION_S,
+    include_frame_times: bool = True,
+) -> dict | None:
+    """One unified full-shot window for a (shot, camera), or None if rejected.
+
+    Reuses the SUSTAINED plasma-phase detection (:func:`find_plasma_phase_span`)
+    with NO slow-only min-duration floor, so BOTH fast bursts and slow full-shot
+    phases are admitted; the ``timescale`` tag (``"fast"`` < ``fast_max_duration_s``
+    else ``"slow"``) records which regime.  Returns the corpus->model schema dict
+    (the m4-finish interface):
+
+        {shot_id, camera_id, campaign, start_frame, end_frame, fps, n_frames,
+         frame_times, plasma_duration_s, timescale, excitation_score,
+         present_fraction}
+
+    ``frame_times`` is the per-frame timestamp list of the plasma-phase span (so
+    the model has each window's explicit Δt); set ``include_frame_times=False`` to
+    omit it (a lighter manifest).  ``None`` when the camera's plasma phase is
+    unreadable / absent / too short / mostly-dark for the shot.
+    """
+    span = find_plasma_phase_span(
+        shot_id,
+        camera=camera,
+        token_root=token_root,
+        ip_present_threshold=ip_present_threshold,
+        min_present_fraction=min_present_fraction,
+        min_span_frames=min_span_frames,
+        min_duration_s=0.0,  # admit fast bursts; classify by timescale instead
+    )
+    if not span.valid:
+        return None
+    fps = _shot_fps(shot_id, camera, token_root=token_root)
+    if fps is None:
+        return None
+    n_span = span.end_frame - span.start_frame
+    score = _span_excitation_score(
+        shot_id, camera, token_root, span.start_frame, span.end_frame
+    )
+    timescale = "fast" if span.duration_s < float(fast_max_duration_s) else "slow"
+    row = {
+        "shot_id": int(shot_id),
+        "camera_id": str(camera),
+        "campaign": campaign_for_shot(shot_id),
+        "start_frame": int(span.start_frame),
+        "end_frame": int(span.end_frame),
+        "fps": round(float(fps), 2),
+        "n_frames": int(n_span),
+        "plasma_duration_s": round(float(span.duration_s), 6),
+        "timescale": timescale,
+        "excitation_score": round(float(score), 1),
+        "present_fraction": round(float(span.present_fraction), 4),
+    }
+    if include_frame_times:
+        row["frame_times"] = _span_frame_times(
+            shot_id, camera, token_root, span.start_frame, span.end_frame
+        )
+    return row
+
+
+def select_unified_windows(
+    shot_ids: Sequence[int],
+    *,
+    cameras: Sequence[str] = UNIFIED_CAMERAS,
+    token_root: Path | None = None,
+    held_out: Sequence[int] = DEFAULT_HELD_OUT,
+    ip_present_threshold: float = IP_PRESENT_THRESHOLD_A,
+    min_present_fraction: float = FULLSHOT_MIN_PRESENT_FRACTION,
+    min_span_frames: int = UNIFIED_MIN_SPAN_FRAMES,
+    fast_max_duration_s: float = UNIFIED_FAST_MAX_DURATION_S,
+    include_frame_times: bool = True,
+) -> list[dict]:
+    """Unified multi-camera, multi-timescale window list (held-out fully excluded).
+
+    For each candidate shot (input list MINUS ``held_out``) and each camera in
+    ``cameras`` that the shot carries, emits one full-shot plasma-phase window via
+    :func:`select_unified_window` (both fast + slow, tagged).  A shot/camera with
+    no readable token store or no valid plasma phase is skipped.  Returns a
+    DETERMINISTIC list (ascending shot id, then camera order).  Every emitted
+    shot_id is an input shot not in ``held_out`` — across EVERY camera — so the
+    held-out reserve is fully disjoint.
+    """
+    from imas_ambix.worldmodel.spacetime_dataset import (  # noqa: PLC0415
+        camera_frame_count,
+    )
+
+    held = {int(s) for s in held_out}
+    candidates = sorted(int(s) for s in shot_ids if int(s) not in held)
+    cam_order = list(cameras)
+    out: list[dict] = []
+    for sid in candidates:
+        for cam in cam_order:
+            # only attempt cameras the shot actually carries (cheap existence check)
+            try:
+                if (
+                    camera_frame_count(sid, cam, token_root=token_root)
+                    < min_span_frames
+                ):
+                    continue
+            except (FileNotFoundError, KeyError, ValueError):
+                continue
+            row = select_unified_window(
+                sid,
+                cam,
+                token_root=token_root,
+                ip_present_threshold=ip_present_threshold,
+                min_present_fraction=min_present_fraction,
+                min_span_frames=min_span_frames,
+                fast_max_duration_s=fast_max_duration_s,
+                include_frame_times=include_frame_times,
+            )
+            if row is not None:
+                out.append(row)
+    return out
+
+
 __all__ = [
+    "CAMPAIGN_BANDS",
     "DEFAULT_HELD_OUT",
     "DEFAULT_WINDOW_TIME_STRIDE_S",
     "FULLSHOT_MIN_PRESENT_FRACTION",
     "FULLSHOT_MIN_SPAN_FRAMES",
+    "UNIFIED_CAMERAS",
+    "UNIFIED_FAST_MAX_DURATION_S",
+    "UNIFIED_MIN_SPAN_FRAMES",
     "CuratedWindow",
     "PlasmaPhaseSpan",
+    "campaign_for_shot",
     "enumerate_curated_windows",
     "enumerate_shot_windows",
     "find_plasma_phase_span",
@@ -828,4 +1030,6 @@ __all__ = [
     "select_curated_windows",
     "select_fullshot_window",
     "select_fullshot_windows",
+    "select_unified_window",
+    "select_unified_windows",
 ]
