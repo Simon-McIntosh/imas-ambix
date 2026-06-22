@@ -243,6 +243,9 @@ def _controllable_config_to_dict(cfg: ControllableSpacetimeConfig) -> dict:
             "inverse_dynamics": bool(cfg.inverse_dynamics),
             "inv_dyn_hidden": int(cfg.inv_dyn_hidden),
             "masked_command_indices": list(cfg.masked_command_indices),
+            "timescale_conditioning": bool(cfg.timescale_conditioning),
+            "timescale_hidden": int(cfg.timescale_hidden),
+            "camera_conditioning": bool(cfg.camera_conditioning),
         }
     )
     return d
@@ -359,15 +362,52 @@ def collate_actuator(samples: Sequence[ControllableSpacetimeSample]) -> dict:
     }
 
 
+def collate_timescale_camera(samples: Sequence[ControllableSpacetimeSample]) -> dict:
+    """Per-window log-Δt + camera index for the timescale / camera conditioning.
+
+    ``frame_log_dt`` is ``(B, T)`` per-camera-frame log-Δt offset (centred on the
+    reference cadence) derived from each sample's ``frame_time``; ``camera_id`` is
+    ``(B,)`` long, the stable embedding index of each sample's camera (unknown →
+    the reference camera).  Both are always built (cheap metadata) — the model
+    consumes them only when timescale / camera conditioning is enabled, so an
+    OFF model ignores them and is byte-identical.  Frames stack rectangularly, so
+    the per-window Δt rows are padded/truncated to the batch frame count.
+    """
+    from imas_ambix.worldmodel.timescale_conditioning import (  # noqa: PLC0415
+        camera_index,
+        frame_dt_seconds,
+        log_dt_offset,
+    )
+
+    t = int(samples[0].frames.shape[0]) if samples else 0
+    log_dt = np.zeros((len(samples), t), dtype=np.float32)
+    for i, s in enumerate(samples):
+        off = log_dt_offset(frame_dt_seconds(s.frame_time))
+        off = np.asarray(off, dtype=np.float32)
+        k = min(off.shape[0], t)
+        log_dt[i, :k] = off[:k]
+    cam_idx = np.asarray([camera_index(s.camera) for s in samples], dtype=np.int64)
+    return {
+        "frame_log_dt": torch.as_tensor(log_dt, dtype=torch.float32),
+        "camera_id": torch.as_tensor(cam_idx, dtype=torch.long),
+    }
+
+
 def collate_controllable_windows(
     samples: Sequence[ControllableSpacetimeSample],
     *,
     stream_names: Sequence[str] | None = None,
 ) -> dict:
-    """Stack frames + plan + measured signals + the actuator plan into a batch."""
+    """Stack frames + plan + measured signals + the actuator plan into a batch.
+
+    Also carries ``frame_log_dt`` (per-frame log-Δt) + ``camera_id`` (the view
+    index) so a timescale / camera-conditioned model can read each window's
+    cadence + camera; an OFF model ignores them (byte-identical).
+    """
     signal_samples = [s.signal for s in samples]
     batch = collate_signal_windows(signal_samples, stream_names=stream_names)
     batch["actuator"] = collate_actuator(samples)
+    batch.update(collate_timescale_camera(samples))
     return batch
 
 
@@ -384,6 +424,9 @@ def _batch_to(batch: dict, device: torch.device) -> dict:
             "values": act["values"].to(device, non_blocking=True),
             "missing": act["missing"].to(device, non_blocking=True),
         }
+    for k in ("frame_log_dt", "camera_id"):
+        if batch.get(k) is not None:
+            out[k] = batch[k].to(device, non_blocking=True)
     return out
 
 
@@ -469,6 +512,8 @@ def _scheduled_sampling_mix(
             step_batch.get("corruption_level"),
             actuator=step_batch.get("actuator"),
             context_frames=ctx,
+            frame_log_dt=step_batch.get("frame_log_dt"),
+            camera_id=step_batch.get("camera_id"),
         )
     model.train()
     mixed = frames.clone()

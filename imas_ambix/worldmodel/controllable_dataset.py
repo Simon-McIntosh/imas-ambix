@@ -33,6 +33,7 @@ from imas_ambix.worldmodel.spacetime_dataset_v2 import (
     SignalSpacetimeSample,
     assemble_signal_window,
     default_signal_modalities,
+    extended_signal_modalities,
 )
 
 if TYPE_CHECKING:
@@ -216,4 +217,5 @@ __all__ = [
     "ControllableSpacetimeSample",
     "assemble_controllable_window",
     "default_signal_modalities",
+    "extended_signal_modalities",
 ]
