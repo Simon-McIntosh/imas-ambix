@@ -186,6 +186,9 @@ def build_controllable_model(
     corruption_levels: int = 0,
     inverse_dynamics: bool = True,
     generate_diagnostics: bool = True,
+    cross_modal: bool = False,
+    self_predictive: bool = False,
+    action_contrastive: bool = False,
     masked_command_indices: tuple[int, ...] = (),
     **model_kwargs: object,
 ) -> ControllableSpacetimeTransformer:
@@ -216,6 +219,9 @@ def build_controllable_model(
         n_act_steps=int(n_act_steps),
         inverse_dynamics=bool(inverse_dynamics),
         generate_diagnostics=bool(generate_diagnostics),
+        cross_modal=bool(cross_modal),
+        self_predictive=bool(self_predictive),
+        action_contrastive=bool(action_contrastive),
         masked_command_indices=tuple(int(i) for i in masked_command_indices),
         **model_kwargs,  # type: ignore[arg-type]
     )
@@ -250,6 +256,10 @@ def _controllable_config_to_dict(cfg: ControllableSpacetimeConfig) -> dict:
             "timescale_hidden": int(cfg.timescale_hidden),
             "camera_conditioning": bool(cfg.camera_conditioning),
             "generate_diagnostics": bool(cfg.generate_diagnostics),
+            "cross_modal": bool(cfg.cross_modal),
+            "self_predictive": bool(cfg.self_predictive),
+            "action_contrastive": bool(cfg.action_contrastive),
+            "contrastive_dim": int(cfg.contrastive_dim),
         }
     )
     return d
@@ -737,6 +747,20 @@ class OverfitControllableConfig:
     generate_diagnostics: bool = True
     diagnostic_weight: float = 0.5
     diagnostic_weight_warmup_frac: float = 0.1
+    # AUXILIARY contrastive objectives (default OFF — the §6 ablation turns each on).
+    # Each builds its own head and adds ``<name>_weight * term`` to the loss; the
+    # bool is the ablation off-switch (no head built, no objective) and the weight
+    # scales the term.  cross_modal = camera<->diagnostic InfoNCE (needs signals);
+    # self_predictive = BYOL/SPR latent self-prediction (no negatives);
+    # action_contrastive = true-vs-random next-state margin (needs the actuator
+    # drive + a second forward under a random plan — built via
+    # ``_random_actuator_like`` and passed as ``actuator_random``).
+    cross_modal: bool = False
+    cross_modal_weight: float = 0.1
+    self_predictive: bool = False
+    self_predictive_weight: float = 0.1
+    action_contrastive: bool = False
+    action_contrastive_weight: float = 0.1
     # SCHEDULED SAMPLING / rollout-in-the-loop — closes the 1-step->rollout gap (the
     # de-risk's visible failure mode: the plan moved the teacher-forced one-step
     # prediction but NOT a free-running rollout).  With probability ramping from 0
@@ -874,6 +898,9 @@ def overfit_controllable(
         corruption_levels=corruption_levels,
         inverse_dynamics=config.inverse_dynamics_weight > 0.0,
         generate_diagnostics=config.generate_diagnostics,
+        cross_modal=config.cross_modal,
+        self_predictive=config.self_predictive,
+        action_contrastive=config.action_contrastive,
         masked_command_indices=masked_idx,
         **config.model_kwargs,
     ).to(dev)
@@ -910,6 +937,14 @@ def overfit_controllable(
     # per-step RNG for the dropout draws (reproducible).
     gen = torch.Generator(device=dev)
     drop_cfg = ContextCorruptionConfig(control_dropout=config.control_dropout)
+    # action-contrastive needs the perturbable COMMAND columns (coils+sol+nbi+gas)
+    # to build the WRONG-plan negative batch; resolve them by KEY (correct for the
+    # filtered command vector too).
+    perturbable_cols = (
+        _perturbable_command_columns(list(samples[0].actuator.channel_keys))
+        if config.action_contrastive
+        else []
+    )
     clean_frames = batch["frames"]
     ctx_frames = int(config.window.context_frames)
 
@@ -1008,6 +1043,19 @@ def overfit_controllable(
                 )
                 step_batch["target_frames"] = clean_frames
 
+            # ACTION-CONTRASTIVE: build the WRONG-plan negative batch from the
+            # (post-control-dropout) actuator drive so the second forward contrasts
+            # the realised next state against a counterfactual plan.
+            if config.action_contrastive and perturbable_cols:
+                ac_gen = torch.Generator(device=dev).manual_seed(
+                    (config.seed * 3_021_377) ^ step
+                )
+                step_batch["actuator_random"] = _random_actuator_batch(
+                    step_batch.get("actuator"),
+                    perturbable_cols=perturbable_cols,
+                    generator=ac_gen,
+                )
+
             opt.zero_grad(set_to_none=True)
             with _AutocastCtx(dev):
                 out = model(
@@ -1019,6 +1067,9 @@ def overfit_controllable(
                         "diagnostic_weight": _diagnostic_weight(
                             step, config.steps, config
                         ),
+                        "cross_modal_weight": config.cross_modal_weight,
+                        "self_predictive_weight": config.self_predictive_weight,
+                        "action_contrastive_weight": config.action_contrastive_weight,
                         "return_components": True,
                     },
                 )
@@ -1342,6 +1393,16 @@ class ControllableCorpusConfig:
     generate_diagnostics: bool = True
     diagnostic_weight: float = 0.5
     diagnostic_weight_warmup_frac: float = 0.1
+    # AUXILIARY contrastive objectives (default OFF — the §6 ablation turns each on).
+    # See OverfitControllableConfig for the per-term descriptions.  cross_modal +
+    # self_predictive read the camera/signal latents; action_contrastive needs the
+    # actuator drive + a second forward under a random plan (``actuator_random``).
+    cross_modal: bool = False
+    cross_modal_weight: float = 0.1
+    self_predictive: bool = False
+    self_predictive_weight: float = 0.1
+    action_contrastive: bool = False
+    action_contrastive_weight: float = 0.1
     scheduled_sampling_max: float = 0.25
     scheduled_sampling_ramp: float = 0.5
     # EXCITATION-WEIGHT the next-frame CE by per-frame coil |dI/dt| (the operator's
@@ -1720,6 +1781,13 @@ def train_controllable_corpus(
     coil_cols = [
         i for i, k in enumerate(probe[0].actuator.channel_keys) if k in _coil_keys
     ]
+    # Perturbable command columns (coils+sol+nbi+gas) for the action-contrastive
+    # WRONG-plan negative — KEY-resolved, so every rank computes the same set.
+    perturbable_cols = (
+        _perturbable_command_columns(list(probe[0].actuator.channel_keys))
+        if config.action_contrastive
+        else []
+    )
     if env.is_main and config.excitation_weighting:
         logger.info(
             "excitation weighting ON: %d coil columns %s (floor=%.2f power=%.2f)",
@@ -1750,6 +1818,9 @@ def train_controllable_corpus(
         corruption_levels=corruption_levels,
         inverse_dynamics=config.inverse_dynamics_weight > 0.0,
         generate_diagnostics=config.generate_diagnostics,
+        cross_modal=config.cross_modal,
+        self_predictive=config.self_predictive,
+        action_contrastive=config.action_contrastive,
         masked_command_indices=masked_idx,
         **config.model_kwargs,
     ).to(dev)
@@ -2005,6 +2076,15 @@ def train_controllable_corpus(
                         floor=config.excitation_weight_floor,
                         power=config.excitation_weight_power,
                     )
+                # action-contrastive WRONG-plan negative (built from the prepared,
+                # post-control-dropout actuator drive).
+                if config.action_contrastive and perturbable_cols:
+                    ac_gen = torch.Generator(device=dev).manual_seed(seed ^ 0x4143)
+                    batch["actuator_random"] = _random_actuator_batch(
+                        batch.get("actuator"),
+                        perturbable_cols=perturbable_cols,
+                        generator=ac_gen,
+                    )
                 with sync_ctx, _AutocastCtx(dev):
                     out = model(
                         batch,
@@ -2014,6 +2094,11 @@ def train_controllable_corpus(
                             "inverse_dynamics_weight": config.inverse_dynamics_weight,
                             "diagnostic_weight": _diagnostic_weight(
                                 step, config.steps, config
+                            ),
+                            "cross_modal_weight": config.cross_modal_weight,
+                            "self_predictive_weight": config.self_predictive_weight,
+                            "action_contrastive_weight": (
+                                config.action_contrastive_weight
                             ),
                             "frame_weights": frame_w,
                             "return_components": True,
@@ -2766,6 +2851,52 @@ def _random_actuator_like(
 
 
 @torch.no_grad()
+def _random_actuator_batch(
+    actuator: dict[str, torch.Tensor] | None,
+    *,
+    perturbable_cols: Sequence[int],
+    generator: torch.Generator,
+    perturb_scale: float = 0.3,
+) -> dict[str, torch.Tensor] | None:
+    """A WRONG-plan actuator batch for the action-contrastive negative (tensor-level).
+
+    Mirrors :func:`_random_actuator_like` on the COLLATED, already-NORMALISED batch
+    tensors: each PERTURBABLE command column (coils + solenoid + NBI + gas; states
+    Ip/density + the quasi-static tf are HELD) is transformed
+    ``new = true*(1 + a) + b*range`` with per-(sample, channel) ``a ~
+    U[-s, s]`` (a bounded gain change) and ``b ~ U[-s/2, s/2]`` of the channel's own
+    per-sample window peak-to-peak range (a bounded level shift) — an
+    IN-DISTRIBUTION counterfactual that preserves the temporal shape, NOT i.i.d.
+    noise.  ``missing`` is preserved.  Returns ``None`` when there is no actuator /
+    no perturbable column (the caller then skips the action-contrastive term).
+    """
+    if actuator is None:
+        return None
+    vals = actuator.get("values")
+    miss = actuator.get("missing")
+    if vals is None or vals.ndim != 3:
+        return None
+    b, p, c = vals.shape
+    cols = [int(i) for i in perturbable_cols if 0 <= int(i) < c]
+    if not cols:
+        return None
+    out = vals.clone()
+    s = float(perturb_scale)
+    col_idx = torch.as_tensor(cols, dtype=torch.long, device=vals.device)
+    sub = vals[:, :, col_idx]  # (B, P, n_cols)
+    rng_pp = (sub.amax(dim=1) - sub.amin(dim=1)).clamp_min(1e-6)  # (B, n_cols)
+    a = (
+        torch.rand(b, len(cols), generator=generator, device=vals.device) * 2.0 - 1.0
+    ) * s  # (B, n_cols) in [-s, s]
+    bsh = (
+        torch.rand(b, len(cols), generator=generator, device=vals.device) - 0.5
+    ) * s  # (B, n_cols) in [-s/2, s/2]
+    new_sub = sub * (1.0 + a[:, None, :]) + (bsh * rng_pp)[:, None, :]
+    out[:, :, col_idx] = new_sub
+    return {"values": out, "missing": miss.clone() if miss is not None else None}
+
+
+@torch.no_grad()
 def _argmax_token_rollout(
     model: ControllableSpacetimeTransformer,
     sample: ControllableSpacetimeSample,
@@ -3091,6 +3222,31 @@ def main(argv: list[str] | None = None) -> int:
         "no diagnostic objective (the ablation off-switch — byte-identical camera-"
         "only forecaster).  Default ON.",
     )
+    # AUXILIARY contrastive objectives (all OFF by default — the §6 ablation grid
+    # enables each independently to isolate its marginal contribution).
+    pc.add_argument(
+        "--cross-modal",
+        action="store_true",
+        help="ENABLE the cross-modal alignment auxiliary: a camera<->diagnostic "
+        "InfoNCE over the batch (needs measured signals).  Default OFF.",
+    )
+    pc.add_argument("--cross-modal-weight", type=float, default=0.1)
+    pc.add_argument(
+        "--self-predictive",
+        action="store_true",
+        help="ENABLE the self-predictive (BYOL/SPR) latent auxiliary: an online "
+        "predictor maps the current camera latent to a stop-grad projection of the "
+        "future latent (no negatives).  Default OFF.",
+    )
+    pc.add_argument("--self-predictive-weight", type=float, default=0.1)
+    pc.add_argument(
+        "--action-contrastive",
+        action="store_true",
+        help="ENABLE the action-contrastive auxiliary: the true-plan next-state "
+        "latent must sit CLOSER to the realised next state than a random-plan one "
+        "(a second forward under a random plan; directly trains ΔN-M).  Default OFF.",
+    )
+    pc.add_argument("--action-contrastive-weight", type=float, default=0.1)
     pc.add_argument("--scheduled-sampling-max", type=float, default=0.25)
     pc.add_argument("--scheduled-sampling-ramp", type=float, default=0.5)
     pc.add_argument(
@@ -3256,6 +3412,12 @@ def main(argv: list[str] | None = None) -> int:
         generate_diagnostics=not args.no_generate_diagnostics,
         diagnostic_weight=args.diagnostic_weight,
         diagnostic_weight_warmup_frac=args.diagnostic_weight_warmup_frac,
+        cross_modal=args.cross_modal,
+        cross_modal_weight=args.cross_modal_weight,
+        self_predictive=args.self_predictive,
+        self_predictive_weight=args.self_predictive_weight,
+        action_contrastive=args.action_contrastive,
+        action_contrastive_weight=args.action_contrastive_weight,
         scheduled_sampling_max=args.scheduled_sampling_max,
         scheduled_sampling_ramp=args.scheduled_sampling_ramp,
         excitation_weighting=not args.no_excitation_weighting,

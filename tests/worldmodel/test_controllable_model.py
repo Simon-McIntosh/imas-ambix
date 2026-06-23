@@ -1349,3 +1349,247 @@ def test_inverse_dynamics_ignores_masked_columns():
         "inv-dyn loss moved when a MASKED target column changed — it must ignore "
         "the masked (state) columns"
     )
+
+
+# ---------------------------------------------------------------------------
+# Auxiliary contrastive objectives (cross-modal / self-predictive / action)
+# ---------------------------------------------------------------------------
+
+
+def _all_contrastive_off_cfg(**kw):
+    return _tiny_cfg(
+        cross_modal=False,
+        self_predictive=False,
+        action_contrastive=False,
+        **kw,
+    )
+
+
+def test_contrastive_off_is_byte_identical_to_a_model_without_them():
+    """All three flags OFF: _forward_tokens + the loss are byte-identical.
+
+    The contrastive heads init LAST (after diagnostic_heads), so a model with the
+    flags OFF and a model built without them at all (same seed) share an identical
+    backbone — proving warm-start safety: a prior checkpoint loads byte-for-byte and
+    the heads are simply absent.
+    """
+    torch.manual_seed(0)
+    m_plain = ControllableSpacetimeTransformer(_tiny_cfg()).eval()
+    torch.manual_seed(0)
+    m_off = ControllableSpacetimeTransformer(_all_contrastive_off_cfg()).eval()
+    assert not getattr(m_off, "has_cross_modal", False)
+    assert not getattr(m_off, "has_self_predictive", False)
+    assert not getattr(m_off, "has_action_contrastive", False)
+    assert not hasattr(m_off, "cross_modal_cam_proj")
+    assert not hasattr(m_off, "self_pred_proj")
+    assert not hasattr(m_off, "action_contrastive_proj")
+    batch = _rand_batch(_tiny_cfg(), b=2, t=5, seed=1)
+    with torch.no_grad():
+        h_plain = m_plain._forward_tokens(
+            batch["frames"], batch["plan"], batch["signals"], actuator=batch["actuator"]
+        )
+        h_off = m_off._forward_tokens(
+            batch["frames"], batch["plan"], batch["signals"], actuator=batch["actuator"]
+        )
+        l_plain = float(m_plain(batch, loss_spec={"chunk": 64, "context_frames": 2}))
+        l_off = float(m_off(batch, loss_spec={"chunk": 64, "context_frames": 2}))
+    assert torch.allclose(h_plain, h_off, atol=1e-6), (
+        "the contrastive heads perturbed the backbone — they must init LAST so the "
+        "forecaster is unchanged when they are off"
+    )
+    assert abs(l_plain - l_off) < 1e-6
+
+
+def test_cross_modal_loss_finite_positive_and_grads_reach_both_projectors():
+    cfg = _tiny_cfg(cross_modal=True)
+    assert cfg.has_cross_modal
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).train()
+    assert hasattr(model, "cross_modal_cam_proj")
+    batch = _rand_batch(cfg, b=4, t=5, seed=3)
+    cam, sig = model._forward_tokens(
+        batch["frames"],
+        batch["plan"],
+        batch["signals"],
+        actuator=batch["actuator"],
+        return_signal_latents=True,
+    )
+    loss = model.cross_modal_loss(cam, sig, context_frames=2)
+    assert torch.isfinite(loss) and float(loss) > 0.0
+    loss.backward()
+    for head in (model.cross_modal_cam_proj, model.cross_modal_sig_proj):
+        g = head[0].weight.grad
+        assert g is not None and float(g.abs().sum()) > 0.0, (
+            "no gradient reached a cross-modal projector"
+        )
+
+
+def test_self_predictive_loss_finite_and_grads_reach_the_predictor():
+    cfg = _tiny_cfg(self_predictive=True)
+    assert cfg.has_self_predictive
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).train()
+    assert hasattr(model, "self_pred_predictor")
+    batch = _rand_batch(cfg, b=2, t=6, seed=4)
+    cam = model._forward_tokens(
+        batch["frames"], batch["plan"], batch["signals"], actuator=batch["actuator"]
+    )
+    loss = model.self_predictive_loss(cam, context_frames=2)
+    assert torch.isfinite(loss) and float(loss) >= 0.0
+    loss.backward()
+    for head in (model.self_pred_proj, model.self_pred_predictor):
+        g = head[0].weight.grad
+        assert g is not None and float(g.abs().sum()) > 0.0, (
+            "no gradient reached a self-predictive head"
+        )
+
+
+def test_action_contrastive_loss_finite_and_grads_reach_the_projector():
+    cfg = _tiny_cfg(action_contrastive=True)
+    assert cfg.has_action_contrastive
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).train()
+    assert hasattr(model, "action_contrastive_proj")
+    b, t, s, d = 2, 6, cfg.n_spatial, cfg.d_model
+    # SIMILAR-but-distinct true vs random next-state latents — within the repulsion
+    # margin so the relu is active (a small perturbation of the true latent, as the
+    # plan would induce once load-bearing).  At AdaLN zero-init the two plans give
+    # IDENTICAL latents -> no action signal -> correctly zero gradient, so the test
+    # must supply genuinely (slightly) different latents to exercise the grad path.
+    g = torch.Generator().manual_seed(5)
+    cam_true = torch.randn(b, t, s, d, generator=g, requires_grad=True)
+    cam_random = cam_true.detach() + 0.05 * torch.randn(b, t, s, d, generator=g)
+    loss = model.action_contrastive_loss(cam_true, cam_random, context_frames=2)
+    assert torch.isfinite(loss) and float(loss) > 0.0
+    loss.backward()
+    g_proj = model.action_contrastive_proj[0].weight.grad
+    assert g_proj is not None and float(g_proj.abs().sum()) > 0.0, (
+        "no gradient reached the action-contrastive projector"
+    )
+
+
+def test_forward_adds_each_contrastive_term_to_the_loss():
+    """Each contrastive weight (with its flag on) changes the scalar loss."""
+    base_kw = dict(b=2, t=5, seed=6)
+    # cross-modal
+    cfg = _tiny_cfg(cross_modal=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, **base_kw)
+    with torch.no_grad():
+        off = float(model(batch, loss_spec={"chunk": 64, "context_frames": 2}))
+        on = float(
+            model(
+                batch,
+                loss_spec={
+                    "chunk": 64,
+                    "context_frames": 2,
+                    "cross_modal_weight": 1.0,
+                },
+            )
+        )
+    assert off != on, "cross_modal_weight had no effect on the loss"
+    # self-predictive
+    cfg = _tiny_cfg(self_predictive=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, **base_kw)
+    with torch.no_grad():
+        off = float(model(batch, loss_spec={"chunk": 64, "context_frames": 2}))
+        on = float(
+            model(
+                batch,
+                loss_spec={
+                    "chunk": 64,
+                    "context_frames": 2,
+                    "self_predictive_weight": 1.0,
+                },
+            )
+        )
+    assert off != on, "self_predictive_weight had no effect on the loss"
+    # action-contrastive (needs an actuator_random in the batch)
+    cfg = _tiny_cfg(action_contrastive=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, **base_kw)
+    batch_ac = dict(batch)
+    batch_ac["actuator_random"] = {
+        "values": batch["actuator"]["values"] + 2.0,
+        "missing": batch["actuator"]["missing"],
+    }
+    with torch.no_grad():
+        off = float(model(batch, loss_spec={"chunk": 64, "context_frames": 2}))
+        on = float(
+            model(
+                batch_ac,
+                loss_spec={
+                    "chunk": 64,
+                    "context_frames": 2,
+                    "action_contrastive_weight": 1.0,
+                },
+            )
+        )
+    assert off != on, "action_contrastive_weight had no effect on the loss"
+
+
+def test_return_components_breaks_out_every_contrastive_term():
+    cfg = _tiny_cfg(cross_modal=True, self_predictive=True, action_contrastive=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, b=2, t=5, seed=7)
+    batch["actuator_random"] = {
+        "values": batch["actuator"]["values"] + 2.0,
+        "missing": batch["actuator"]["missing"],
+    }
+    out = model(
+        batch,
+        loss_spec={
+            "chunk": 64,
+            "context_frames": 2,
+            "cross_modal_weight": 1.0,
+            "self_predictive_weight": 1.0,
+            "action_contrastive_weight": 1.0,
+            "return_components": True,
+        },
+    )
+    assert isinstance(out, dict)
+    for k in ("loss", "cross_modal", "self_predictive", "action_contrastive"):
+        assert k in out and torch.isfinite(out[k])
+
+
+def test_contrastive_heads_get_grad_when_weight_zero_but_built():
+    """A built-but-unscored contrastive head still gets a (zero-touch) grad (DDP)."""
+    cfg = _tiny_cfg(cross_modal=True, self_predictive=True, action_contrastive=True)
+    model = ControllableSpacetimeTransformer(cfg).train()
+    batch = _rand_batch(cfg, b=2, t=5, seed=8)
+    # NO contrastive weights in the loss_spec (all default 0) -> the heads must
+    # still receive a grad via the zero-touch so a DDP rank never desyncs.
+    loss = model(batch, loss_spec={"chunk": 64, "context_frames": 2})
+    loss.backward()
+    for head in (
+        model.cross_modal_cam_proj,
+        model.cross_modal_sig_proj,
+        model.self_pred_proj,
+        model.self_pred_predictor,
+        model.action_contrastive_proj,
+    ):
+        g = head[0].weight.grad
+        assert g is not None, "a built contrastive head got no grad on a term-off batch"
+
+
+def test_cross_modal_requires_signals():
+    """cross_modal needs measured signals — a stream-less config disables it."""
+    cfg = _tiny_cfg(cross_modal=True, signal_streams=())
+    assert not cfg.has_signals
+    assert not cfg.has_cross_modal
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    assert not hasattr(model, "cross_modal_cam_proj")
+
+
+def test_action_contrastive_requires_actuator():
+    """action_contrastive needs the actuator drive — 0 channels disables it."""
+    cfg = _tiny_cfg(action_contrastive=True, actuator_channels=0)
+    assert not cfg.has_actuator
+    assert not cfg.has_action_contrastive
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    assert not hasattr(model, "action_contrastive_proj")
