@@ -155,6 +155,54 @@ class EvalConfig:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_eval_modalities(mode, payload):
+    """Pick the measured-signal stream set the eval conditions + scores on.
+
+    'auto' reads the TRAINED stream set from the checkpoint's
+    ``extra.stream_names`` and selects the matching :class:`SignalModalitySpec`
+    list from ``extended_signal_modalities`` (a superset of ``default``), so the
+    eval conditions on EXACTLY the streams the model trained with — the model was
+    starved of magnetics/Dα when this silently defaulted to the 6-stream set.
+    'default'/'extended' force the 6- or 13-stream list.  Falls back to the
+    checkpoint's model_config ``signal_streams`` names, then to ``extended`` when
+    no stream record is present.
+    """
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import (  # noqa: PLC0415
+        default_signal_modalities,
+        extended_signal_modalities,
+    )
+
+    if mode == "default":
+        return default_signal_modalities()
+    if mode == "extended":
+        return extended_signal_modalities()
+    # auto: match the trained stream set recorded in the checkpoint.
+    names: list[str] = []
+    extra = (payload or {}).get("extra") or {}
+    if isinstance(extra.get("stream_names"), (list, tuple)):
+        names = [str(n) for n in extra["stream_names"]]
+    if not names:
+        streams = (payload or {}).get("model_config", {}).get("signal_streams") or []
+        names = [str(s.get("name")) for s in streams if isinstance(s, dict)]
+    if not names:
+        logger.warning(
+            "checkpoint records no trained stream set — eval falls back to the "
+            "EXTENDED modality list (may mismatch a default-trained model)"
+        )
+        return extended_signal_modalities()
+    want = set(names)
+    selected = [m for m in extended_signal_modalities() if m.name in want]
+    missing = want - {m.name for m in selected}
+    if missing:
+        logger.warning("trained streams not in the modality registry: %s", sorted(missing))
+    logger.info(
+        "eval modalities (auto from checkpoint): %d streams %s",
+        len(selected),
+        [m.name for m in selected],
+    )
+    return selected
+
+
 def _assemble_heldout(shot_id, cfg, *, camera, token_root):
     """Assemble one held-out controllable window at its EXCITED, horizon-spanning span.
 
@@ -995,6 +1043,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="skip the dreamt-vs-real next-step diagnostic-match metric",
     )
+    p.add_argument(
+        "--signal-modalities",
+        choices=("auto", "default", "extended"),
+        default="auto",
+        help="which measured-signal streams to CONDITION + score on. 'auto' "
+        "(default) reads the trained stream set from the checkpoint's "
+        "extra.stream_names so the eval matches training EXACTLY (the model "
+        "was starved of magnetics/Dα when this defaulted to the 6-stream set); "
+        "'default'/'extended' force the 6- or 13-stream list.",
+    )
     args = p.parse_args(argv)
 
     _logging.basicConfig(
@@ -1019,6 +1077,7 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.checkpoint), map_location=device
         )
         model.eval()
+        modalities = _resolve_eval_modalities(args.signal_modalities, _payload)
         cfg = EvalConfig(
             held_out=tuple(int(s) for s in args.held_out.split(",") if s.strip()),
             n_random=args.n_random,
@@ -1028,6 +1087,7 @@ def main(argv: list[str] | None = None) -> int:
             chunk=args.chunk,
             n_signal_steps=args.n_signal_steps,
             n_act_steps=args.n_act_steps,
+            modalities=modalities,
             window=SpacetimeWindowConfig(
                 n_frames=args.n_frames,
                 n_plan=args.n_plan,
