@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-23">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -83,6 +83,28 @@
     </ul>
 
     <h2 id="s3">§3 — Phase 1: joint generation + masking + contrastive (on the current backbone)</h2>
+
+    <div style="border:1px solid #cfe3cf;background:#f3faf3;border-radius:6px;padding:10px 14px;margin:8px 0">
+      <p style="margin:0 0 4px"><strong>§3a — joint generation (diagnostic heads + matching loss): LANDED 2026-06-23.</strong>
+      The measured-signal streams are now generation TARGETS, not only conditioning inputs: per-stream
+      output heads decode each stream's post-transformer signal-frame hiddens to its own vocabulary and a
+      next-step cross-entropy is added to the loss (default on, ablatable off), so the model dreams the
+      cameras <em>and</em> the diagnostics. Commits <code>af016cb</code> (model heads + loss + forward
+      wiring), <code>3034a7b</code> (trainer: <code>diagnostic_weight</code> + warmup, per-component
+      logging, <code>strict=False</code> warm-load), <code>3b27551</code> (eval: dreamt-vs-real
+      <code>diagnostic_match</code> → <code>eval/heldout_diagnostic_match.json</code>), <code>9cec508</code>
+      (launcher wiring + <code>diagnostic_logits</code> fix). 64 unit tests green (model 42 + train 9 +
+      eval 13); real-window CPU smoke: joint loss 18.45 (camera 12.48, diagnostic CE 5.97), grads to every
+      content-stream head, all heads DDP-in-graph.</p>
+      <p style="margin:0"><strong>Phase-1 broad generative run LIVE — job <code>1221834</code></strong>
+      (8×H200): warm-started from <code>1221741</code> (the +18.1 entry baseline), identical corpus
+      (<code>mast-tokens</code> / <code>curated_windows_unified_6cam</code> / extended 13-stream signals /
+      timescale+camera conditioning), gentler LR 5e-5 to protect the controllability gains,
+      <code>diagnostic_weight</code> 0.5 with 10 % warmup, 8000 steps. The baked-in end-of-run held-out
+      eval emits both the ΔN-M controllability gate AND the new diagnostic-match verdict.
+      Next: §3b per-modality masking (<code>f-jmwm-002</code>), §3c contrastive (<code>f-jmwm-003</code>).</p>
+    </div>
+
     <p>Land the three lever families that <em>don't</em> require the latent redesign, on the proven token backbone,
     so each is measurable against the <code>1221741</code> baseline. Deliverables:</p>
     <ul>
@@ -187,7 +209,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-jmwm-001" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23 00:00" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jmwm-001" data-status="resolved" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23 00:00" data-recommends-skill="" data-resolved-at="2026-06-23T05:43:58+00:00" data-resolved-by="smc">
     <h4 class="r-fu-title">Phase 1 §3 — diagnostic-prediction heads + matching loss (the joint-generation core)</h4>
     <div class="r-fu-body">First Phase-1 deliverable: make the diagnostics generation TARGETS, not just inputs.
         Add per-stream prediction heads + next-step cross-entropy on the diagnostic tokens, weighted alongside the camera
@@ -223,6 +245,81 @@ Done-when
   2. Eval extended with a dreamt-vs-real diagnostic-match metric.
   3. tests still green
   4. followup written (Phase 1 §3b — per-modality masking) + this followup marked resolved</pre>
+    <p class="r-fu-outcome">LANDED. Per-stream diagnostic-prediction heads + next-step CE on the measured-signal tokens make the diagnostics generation TARGETS — the model now dreams the cameras AND the diagnostics (joint state model). Commits: af016cb (model: generate_diagnostics flag + has_diagnostics; per-stream diagnostic_heads built last so the backbone warm-starts byte-identical; _forward_tokens(return_signal_latents) → per-stream (B,P,C,d); diagnostic_logits/diagnostic_loss next-step CE with PAD ignore_index + DDP zero-touch; forward adds loss_spec['diagnostic_weight']*diag with opt-in return_components), 3034a7b (train: generate_diagnostics + diagnostic_weight + warmup_frac in both configs/CLI; _diagnostic_weight linear warmup; build wiring; loss-spec + per-component logging; generate_diagnostics serialised in model_config; load_controllable_model_from_checkpoint strict=False so the camera-only baseline + new generative checkpoints both load), 3b27551 (eval: dreamt-vs-real diagnostic_match metric — teacher-forced per-stream top-1 accuracy + next-step CE, PAD-masked → eval/heldout_diagnostic_match.json, behind --no-diagnostic-match, default on), 9cec508 (fix diagnostic_logits ModuleDict access + wire the joint-gen flags into controllable_retrain_ddp.sbatch). Verification: 64 unit tests green on a clean sun_debug allocation (model 42 + train 9 + eval 13); CPU smoke on REAL assembled windows (18502/18503, extended 13-stream set) shows finite joint loss=18.45 (camera_nll=12.48, diagnostic_ce=5.97), 11/12 content-stream heads receive learning grads, all 12 heads in-graph (DDP-uniform); xma is all-PAD for those shots → correctly zero-but-in-graph. Phase-1 broad generative run LIVE: job 1221834, 8×H200, warm-started from 1221741 (the +18.1 entry baseline), identical corpus (mast-tokens / curated_windows_unified_6cam / extended / timescale+camera), gentler LR 5e-5 to protect the controllability gains, diag_weight 0.5 with 10% warmup, 8000 steps; baked-in end-of-run held-out eval emits both the ΔN-M gate and the new diagnostic-match verdict.</p>
+    </article>
+<article class="r-fu" data-id="f-jmwm-002" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Phase 1 §3b — per-modality independent masking (replace all-or-nothing observation dropout)</h4>
+    <div class="r-fu-body">Second Phase-1 deliverable. Today's observation_dropout (controllable_train _drop_observations) is all-or-nothing: every measured-signal stream is on, or all off, per sample. Replace it with INDEPENDENT per-stream Bernoulli masking so the model trains on arbitrary subsets and can dream the full state from any combination — including commands-only. Commands are NEVER masked (they stay the control surface, under control_dropout/CFG). Keep the camera-history bottleneck. This is the prerequisite for a model that dreams from a reduced observation set and pairs naturally with the now-landed diagnostic generation.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    joint-multimodal-plasma-wm (http://localhost:8765/imas-ambix/joint-multimodal-plasma-wm.html)
+Section: §3 (Phase 1) — §3b masking
+Tier:    opus
+
+Context
+  §3a landed: per-stream diagnostic-prediction heads + next-step CE (joint generation) are on by default
+  (commits af016cb/3034a7b/3b27551/9cec508; broad run 1221834). Now make the OBSERVATION masking
+  per-modality so the model trains on arbitrary signal subsets and can dream from any combination,
+  including commands-only.
+
+State to read
+  imas_ambix/worldmodel/controllable_train.py — _drop_observations (all-or-nothing today), the obs_drop
+    construction in BOTH the overfit and corpus step-prep, observation_dropout config field + CLI.
+  imas_ambix/worldmodel/controllable_model.py — how signals enter _forward_tokens (a missing stream is
+    simply omitted; the signal zero-touch keeps DDP uniform), so masking is a DATASET/BATCH-prep change.
+
+Scope locks / constraints
+  - INDEPENDENT per-stream Bernoulli masking: each present stream dropped (zeroed to PAD) with its own
+    draw, rate a config knob (keep observation_dropout as the per-stream rate or add per_modality flag +
+    rate). Default ON.
+  - Commands are NEVER masked (control surface; they stay under control_dropout / CFG). Diagnostics are
+    both droppable AND dreamt.
+  - Keep the camera-history bottleneck untouched. Keep the all-or-nothing path available as an ablation.
+  - Edit in a worktree if a training job is live; merge when the node frees. No co-author trailer.
+
+Done-when
+  1. Per-stream independent masking implemented behind a config knob (default on); a test asserts the
+     mask is per-stream independent (different streams dropped on the same sample) and commands are never
+     masked.
+  2. tests green (clean sun_debug allocation — login wedges training-loop tests).
+  3. followup written (Phase 1 §3c — contrastive auxiliaries) + this followup marked resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-jmwm-003" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Phase 1 §3c — contrastive auxiliaries (cross-modal + self-predictive + action), each ablatable</h4>
+    <div class="r-fu-body">Third Phase-1 deliverable. Add the three contrastive levers as auxiliary objectives, each behind its own flag so the §6 ablation grid can isolate each lever's marginal contribution: (1) cross-modal alignment (camera ↔ diagnostics share one plasma-state latent); (2) self-predictive latent (BYOL/SPR future-latent — compact, anti-memorisation, no negative sampling); (3) action-contrastive (true-plan vs wrong-plan next state — directly trains the ΔN-M gate the baseline failed). Auxiliary to the generative loss; prefer the BYOL self-predictive variant to avoid negative-sampling fragility.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    joint-multimodal-plasma-wm (http://localhost:8765/imas-ambix/joint-multimodal-plasma-wm.html)
+Section: §3 (Phase 1) — §3c contrastive
+Tier:    opus
+
+Context
+  §3a (diagnostic heads + CE) and §3b (per-modality masking) landed. Add the three contrastive
+  auxiliaries the lead locked (decision &#x27;contrastive&#x27; = cross-modal+self-predictive+action), each behind
+  a flag, so the §6 ablation can attribute the controllability-gate movement to each lever rather than
+  shipping a confounded stack.
+
+State to read
+  imas_ambix/worldmodel/controllable_model.py — _forward_tokens returns camera latents + per-stream
+    signal latents (return_signal_latents); diagnostic_logits/diagnostic_loss; inverse_dynamics_loss (the
+    pattern for an auxiliary head + a loss_spec weight + DDP zero-touch).
+  imas_ambix/worldmodel/controllable_train.py — loss assembly (loss_spec weights + return_components
+    logging), the _random_actuator_like / wrong-plan helpers for the action-contrastive negatives.
+
+Scope locks / constraints
+  - Three SEPARATE loss terms, each with its own loss_spec weight + on/off flag (mirror
+    inverse_dynamics_weight + diagnostic_weight). Default: pick a sane on/off per the §6 grid plan.
+  - Cross-modal align: pool camera latents + per-stream signal latents to a shared space, align
+    (e.g. InfoNCE or cosine). Self-predictive: BYOL/SPR future-latent (stop-grad target, predictor) — no
+    negative sampling. Action-contrastive: true-plan next-state latent should be closer than a
+    wrong/random-plan next-state latent (margin/InfoNCE) — reuse the gate&#x27;s random-plan machinery.
+  - DDP-uniform zero-touch for every new projector/predictor on a term-off batch.
+  - Edit in a worktree if a job is live; merge when free. No co-author trailer.
+
+Done-when
+  1. Three contrastive terms behind flags; a CPU smoke shows each finite + grads to its projector; OFF =
+     byte-identical to the §3a+§3b model.
+  2. tests green (clean sun_debug allocation).
+  3. The §6 ablation grid documented (which arms to run) + a followup written for the Phase-1 broad run +
+     verdict vs 1221741; this followup marked resolved.</pre>
     </article>
 </section>
 
