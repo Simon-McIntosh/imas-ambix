@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-23">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 </head>
 <body>
   <main class="plan-doc">
@@ -334,7 +334,7 @@ Done-when
   3. The §6 ablation grid documented (which arms to run) + a followup written for the Phase-1 broad run +
      verdict vs 1221741; this followup marked resolved.</pre>
     </article>
-<article class="r-fu" data-id="f-jmwm-004" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jmwm-004" data-status="resolved" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="2026-06-23T07:46:34+00:00" data-resolved-by="smc">
     <h4 class="r-fu-title">Eval/train modality mismatch — add --signal-modalities to controllable_eval + matched re-eval (BLOCKS the gate verdict)</h4>
     <div class="r-fu-body">Job 1221834 (joint-gen, warm-start 1221741) returned ΔN-M FAIL (mean margin -0.90, 1/3) vs the +18.1 baseline, AND diagnostic-match gas_injection=86% next-step accuracy (joint generation demonstrably works). BUT controllable_eval defaults to the 6-stream default_signal_modalities() with NO --signal-modalities flag, while the model trained on the 13-stream extended set. So the eval STARVES the model of magnetics (direct plasma position) + Da-boundary (ada/adg/aim) + xsx/xim at CONDITIONING time, and the diagnostic-match only scored 5/13 streams (missing the physically decisive ones). Withholding the position/boundary streams plausibly drives the gate FAIL (position-observability is what makes the plan load-bearing). Fix the eval to use the SAME modality set as training, then re-eval BOTH 1221834 and the 1221741 baseline with matched extended modalities for an apples-to-apples gate + a faithful diagnostic-match incl. magnetics/Da. This is a measurement fix (eval-only, ~2 min/ckpt on 1 GPU), not a retrain, and it BLOCKS any firm conclusion about whether joint generation helps/hurts the gate.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -368,6 +368,7 @@ Done-when
      full 13-stream diagnostic-match (incl. magnetics + Da) for both; conclude whether the gate regression
      is real or an eval-starvation artifact.
   3. Plan updated with the matched verdict; this followup resolved.</pre>
+    <p class="r-fu-outcome">RESOLVED. Eval fix landed (4d4d6aa): controllable_eval --signal-modalities {auto|default|extended}, default auto reads the trained stream set from the checkpoint's extra.stream_names so the eval can never silently mismatch training; the sbatch baked-in eval now auto-resolves to 13 streams via that default (no sbatch change needed). Matched 13-stream re-eval of BOTH checkpoints (job 1221878, 4.5 min, both COMPLETED): the gate regression is REAL, not an eval-starvation artifact. Matched ΔN-M (held-out 18502-04; 18505 still dropped, 0.238s<0.25s horizon): baseline 1221741 mean margin +20.66 (1/3 pass; per-shot 18502 +91.6/2.33x, 18503 -13.6, 18504 -16.0) vs joint-gen 1221834 +0.74 (1/3; 18502 +38.9/2.33x, 18503 -9.2, 18504 -27.5). Fixing the confound RAISED 1221834 from -0.90 to +0.74 but did NOT rescue it — the joint-gen run sits far below baseline. NEITHER robustly passes (both 1/3; only 18502 ever driveable — the gate was never robustly passed). Joint generation itself WORKS decisively: matched diagnostic-match mean next-step token accuracy 0.240 (1221834) vs 0.002 (1221741, untrained heads) — gas_injection 0.86, xim/Dα 0.76, xsx 0.25, ada 0.33, magnetics 0.11. CONCLUSION: §3a delivered the generative capability + a quantitative diagnostic-match eval, but as a standalone the diagnostic objective (or the extra 8000 fine-tune steps) COST controllability — it pulled the one driveable shot's margin down (91.6→38.9). Remaining confound (diagnostic-objective vs continued-training) isolated by ablation job 1221883 (diagnostics OFF, otherwise identical) — in flight. The gate-moving levers are §3b masking (keep CLEAN diagnostic targets while masking inputs — dream from a reduced set) + §3c action-contrastive (trains the ΔN-M objective directly), per the locked plan.</p>
     </article>
 </section>
 
