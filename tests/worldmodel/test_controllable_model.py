@@ -1041,6 +1041,188 @@ def test_plan_summary_is_invariant_to_masked_columns():
     )
 
 
+# ---------------------------------------------------------------------------
+# Joint generation: per-stream diagnostic-prediction heads + next-step CE
+# ---------------------------------------------------------------------------
+
+
+def test_diagnostic_heads_exist_and_are_sized_per_stream():
+    """generate_diagnostics builds one head per signal stream, sized to its vocab."""
+    cfg = _tiny_cfg(generate_diagnostics=True)
+    assert cfg.has_diagnostics
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    assert hasattr(model, "diagnostic_heads")
+    names = {st.name for st in cfg.signal_streams}
+    assert set(model.diagnostic_heads.keys()) == names
+    for st in cfg.signal_streams:
+        head = model.diagnostic_heads[st.name]
+        assert head.out_features == st.vocab
+        assert head.in_features == cfg.d_model
+
+
+def test_diagnostics_off_does_not_perturb_the_backbone():
+    """generate_diagnostics=False builds no heads and is byte-identical to before.
+
+    The heads are initialised LAST in __init__, so a model WITH heads and a model
+    WITHOUT them (same seed) share an identical backbone — the camera forward is
+    unchanged.  This is the ablation off-switch: heads add no influence on the
+    forecaster.
+    """
+    torch.manual_seed(0)
+    m_off = ControllableSpacetimeTransformer(_tiny_cfg(generate_diagnostics=False)).eval()
+    torch.manual_seed(0)
+    m_on = ControllableSpacetimeTransformer(_tiny_cfg(generate_diagnostics=True)).eval()
+    assert not getattr(m_off, "has_diagnostics", False)
+    assert not hasattr(m_off, "diagnostic_heads")
+    assert m_on.has_diagnostics
+    batch = _rand_batch(_tiny_cfg(), b=2, t=5, seed=1)
+    with torch.no_grad():
+        h_off = m_off._forward_tokens(
+            batch["frames"], batch["plan"], batch["signals"], actuator=batch["actuator"]
+        )
+        h_on = m_on._forward_tokens(
+            batch["frames"], batch["plan"], batch["signals"], actuator=batch["actuator"]
+        )
+    assert torch.allclose(h_off, h_on, atol=1e-6), (
+        "the diagnostic heads perturbed the backbone — they must init LAST so the "
+        "forecaster is unchanged when diagnostics are off"
+    )
+
+
+def test_forward_tokens_returns_per_stream_signal_latents():
+    """return_signal_latents yields a (B, P, C, d) latent per present stream."""
+    cfg = _tiny_cfg(generate_diagnostics=True)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, b=2, t=5, seed=2)
+    with torch.no_grad():
+        cam, sig = model._forward_tokens(
+            batch["frames"],
+            batch["plan"],
+            batch["signals"],
+            actuator=batch["actuator"],
+            return_signal_latents=True,
+        )
+    b, t, s = batch["frames"].shape
+    assert cam.shape == (b, t, s, cfg.d_model)
+    assert set(sig.keys()) == {st.name for st in cfg.signal_streams}
+    for st in cfg.signal_streams:
+        assert sig[st.name].shape == (b, cfg.n_signal_steps, st.channels, cfg.d_model)
+
+
+def test_diagnostic_loss_is_finite_and_grads_reach_the_heads():
+    """The diagnostic CE is finite/positive and back-props to every present head."""
+    cfg = _tiny_cfg(generate_diagnostics=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).train()
+    batch = _rand_batch(cfg, b=2, t=5, seed=3)
+    with torch.no_grad():
+        _cam, sig = model._forward_tokens(
+            batch["frames"],
+            batch["plan"],
+            batch["signals"],
+            actuator=batch["actuator"],
+            return_signal_latents=True,
+        )
+    # re-run with grad for the backward.
+    cam, sig = model._forward_tokens(
+        batch["frames"],
+        batch["plan"],
+        batch["signals"],
+        actuator=batch["actuator"],
+        return_signal_latents=True,
+    )
+    diag = model.diagnostic_loss(sig, batch["signals"])
+    assert torch.isfinite(diag) and float(diag) > 0.0
+    diag.backward()
+    for st in cfg.signal_streams:
+        g = model.diagnostic_heads[st.name].weight.grad
+        assert g is not None and float(g.abs().sum()) > 0.0, (
+            f"no gradient reached the {st.name} diagnostic head"
+        )
+
+
+def test_forward_adds_weighted_diagnostic_ce_to_the_loss():
+    """A nonzero diagnostic_weight changes the scalar loss vs camera-only."""
+    cfg = _tiny_cfg(generate_diagnostics=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, b=2, t=5, seed=4)
+    with torch.no_grad():
+        cam_only = float(model(batch, loss_spec={"chunk": 64, "context_frames": 2}))
+        joint = float(
+            model(
+                batch,
+                loss_spec={
+                    "chunk": 64,
+                    "context_frames": 2,
+                    "diagnostic_weight": 1.0,
+                },
+            )
+        )
+    assert joint != cam_only, (
+        "diagnostic_weight had no effect on the loss — joint generation is not wired"
+    )
+
+
+def test_forward_return_components_breaks_out_the_diagnostic_ce():
+    """return_components yields a dict with the camera + diagnostic terms separated."""
+    cfg = _tiny_cfg(generate_diagnostics=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, b=2, t=5, seed=5)
+    out = model(
+        batch,
+        loss_spec={
+            "chunk": 64,
+            "context_frames": 2,
+            "diagnostic_weight": 1.0,
+            "return_components": True,
+        },
+    )
+    assert isinstance(out, dict)
+    for k in ("loss", "camera_nll", "diagnostic_ce"):
+        assert k in out and torch.isfinite(out[k])
+    assert float(out["diagnostic_ce"]) > 0.0
+    # loss == camera + w*diag (inv-dyn weight defaulted off here).
+    assert abs(float(out["loss"]) - float(out["camera_nll"] + out["diagnostic_ce"])) < 1e-4
+
+
+def test_diagnostic_heads_get_grad_on_signalless_batch():
+    """Every diagnostic head must receive a grad even with NO signals (DDP zero-touch)."""
+    cfg = _tiny_cfg(generate_diagnostics=True)
+    model = ControllableSpacetimeTransformer(cfg).train()
+    frames = torch.randint(0, cfg.vocab_size, (2, 4, cfg.n_spatial))
+    plan = torch.randint(0, cfg.plan_vocab, (2, 3, cfg.plan_channels))
+    batch = {"frames": frames, "plan": plan, "signals": {}, "actuator": None}
+    loss = model(
+        batch, loss_spec={"chunk": 4096, "context_frames": None, "diagnostic_weight": 1.0}
+    )
+    loss.backward()
+    for st in cfg.signal_streams:
+        g = model.diagnostic_heads[st.name].weight.grad
+        assert g is not None, f"{st.name} head got no grad on a signal-less batch"
+
+
+def test_diagnostic_loss_handles_all_pad_stream():
+    """An all-PAD stream contributes no CE but never NaNs (ignore_index)."""
+    cfg = _tiny_cfg(generate_diagnostics=True)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, b=2, t=5, seed=6)
+    # force one stream to all-PAD (id 0).
+    pad_name = cfg.signal_streams[0].name
+    batch["signals"][pad_name] = torch.zeros_like(batch["signals"][pad_name])
+    with torch.no_grad():
+        _cam, sig = model._forward_tokens(
+            batch["frames"],
+            batch["plan"],
+            batch["signals"],
+            actuator=batch["actuator"],
+            return_signal_latents=True,
+        )
+        diag = model.diagnostic_loss(sig, batch["signals"])
+    assert torch.isfinite(diag)
+
+
 def test_inverse_dynamics_ignores_masked_columns():
     """The inv-dyn loss must not regress the masked (state) columns."""
     from imas_ambix.worldmodel.controllable_train import masked_command_columns

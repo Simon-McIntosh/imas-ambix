@@ -126,6 +126,19 @@ class ControllableSpacetimeConfig(SignalSpacetimeConfig):
     #: on the full vector (states are kept — the v2-equivalent / debug path).  Ip
     #: + density remain available as the v2 OBSERVATION streams regardless.
     masked_command_indices: tuple[int, ...] = ()
+    #: Joint generation: when True (and the model has measured-signal streams) the
+    #: model grows a per-stream PREDICTION head over each stream's vocab and learns
+    #: to forecast the NEXT-step diagnostic tokens (a cross-entropy on the same
+    #: tokens it conditions on), so it dreams the cameras AND the diagnostics — a
+    #: joint state model, not a camera predictor that merely reads the diagnostics.
+    #: The heads are built LAST in ``__init__`` so the backbone RNG stream is
+    #: unperturbed: with diagnostics OFF, or warm-started from a camera-only
+    #: checkpoint, the forecaster is byte-identical (the heads are simply new /
+    #: absent).  The diagnostic loss weight is a TRAINING hyperparameter (passed
+    #: via ``loss_spec["diagnostic_weight"]``, mirroring ``inverse_dynamics_weight``)
+    #: — this flag only decides whether the heads + objective EXIST.  OFF is the
+    #: ablation switch (no heads built, no objective).
+    generate_diagnostics: bool = True
 
     @property
     def has_actuator(self) -> bool:
@@ -138,6 +151,11 @@ class ControllableSpacetimeConfig(SignalSpacetimeConfig):
     @property
     def has_camera(self) -> bool:
         return bool(self.camera_conditioning)
+
+    @property
+    def has_diagnostics(self) -> bool:
+        """The model generates diagnostics (heads + objective) iff ON and signalled."""
+        return bool(self.generate_diagnostics) and self.has_signals
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +352,23 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
             self.camera_embed = nn.Embedding(len(CAMERA_IDS), d)
             nn.init.zeros_(self.camera_embed.weight)
 
+        # Joint generation: per-stream diagnostic-prediction heads.  Built LAST so
+        # every backbone parameter above was drawn from the SAME RNG stream a
+        # diagnostics-OFF model uses — a model warm-started from a camera-only
+        # checkpoint loads the backbone byte-for-byte and only these heads start
+        # fresh.  Each head maps a signal-frame hidden (d) to that stream's own
+        # local vocabulary, decoding the stream's NEXT-step tokens (the heads are
+        # NOT weight-tied across streams — the per-group-local ids are meaningless
+        # across streams, exactly as the per-stream value-embeddings are separate).
+        self.has_diagnostics = cfg.has_diagnostics
+        if self.has_diagnostics:
+            self.diagnostic_heads = nn.ModuleDict()
+            for stream in cfg.signal_streams:
+                head = nn.Linear(d, int(stream.vocab))
+                nn.init.normal_(head.weight, std=0.02)
+                nn.init.zeros_(head.bias)
+                self.diagnostic_heads[stream.name] = head
+
     # -- actuator-plan AdaLN conditioning ----------------------------------
 
     def _plan_summary(
@@ -436,7 +471,13 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         frame_log_dt: torch.Tensor | None = None,
         camera_id: torch.Tensor | None = None,
         return_latents: bool = False,
-    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        return_signal_latents: bool = False,
+    ) -> (
+        torch.Tensor
+        | tuple[torch.Tensor, torch.Tensor]
+        | tuple[torch.Tensor, dict[str, torch.Tensor]]
+        | tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]
+    ):
         """Run the backbone with AdaLN actuator conditioning + a history bottleneck.
 
         Builds ``[signals | plan | camera]`` on the temporal axis (the v2 prefix —
@@ -529,8 +570,15 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         # (the actuator plan is NOT prefixed — it modulates the blocks).
         prefix: list[torch.Tensor] = []
         signal_frame_count = 0
+        # Track each present stream's slice in the (signals-first) prefix so the
+        # diagnostic heads can read back its post-transformer hiddens: (name,
+        # offset, n_steps, n_channels).  Signals are prepended BEFORE the plan, so
+        # a stream's offset is its running signal-frame count (independent of the
+        # plan that follows).
+        sig_layout: list[tuple[str, int, int, int]] = []
         if self.has_signals and signals:
             vocab_by_name = {st.name: st.vocab for st in cfg.signal_streams}
+            chan_by_name = {st.name: st.channels for st in cfg.signal_streams}
             for stream in cfg.signal_streams:  # deterministic order
                 tok = signals.get(stream.name)
                 if tok is None:
@@ -539,6 +587,10 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
                     stream.name, tok, vocab_by_name[stream.name]
                 )
                 if emb is not None:
+                    c_used = min(int(tok.shape[2]), int(chan_by_name[stream.name]))
+                    sig_layout.append(
+                        (stream.name, signal_frame_count, int(emb.shape[1]), c_used)
+                    )
                     prefix.append(emb)
                     signal_frame_count += emb.shape[1]
 
@@ -616,6 +668,16 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
             x = block(x, mod)
         x = self.ln_f(x)
         latents = x[:, n_prefix:]  # (B, T, S, d) — camera frames only
+        if return_signal_latents:
+            # Per-stream signal-frame hiddens for the diagnostic heads.  A stream's
+            # C channels occupy spatial lanes [0:C]; the signal frames sit at the
+            # FRONT of the sequence (offset within [0, signal_frame_count)).
+            signal_latents = {
+                name: x[:, off : off + p, :c, :] for (name, off, p, c) in sig_layout
+            }
+            if return_latents:
+                return latents, latents, signal_latents
+            return latents, signal_latents
         if return_latents:
             return latents, latents
         return latents
@@ -692,6 +754,92 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         denom = wmask.sum().clamp_min(1.0)
         return sq.sum() / denom
 
+    # -- joint generation: diagnostic-prediction heads ---------------------
+
+    def _diagnostic_zero_touch(self) -> torch.Tensor:
+        """A zero-magnitude sum over every diagnostic-head param (DDP-uniform graph).
+
+        A batch where a stream is absent (or where the diagnostic weight is 0)
+        would leave that head grad-less and desync a DDP rank.  Touching every
+        head with a ``*0.0`` contribution keeps them all in the autograd graph with
+        zero effect on the output — mirrors :meth:`_actuator_zero_touch`.
+        """
+        acc: torch.Tensor | None = None
+        for head in self.diagnostic_heads.values():
+            s = head.weight.sum() + head.bias.sum()
+            acc = s if acc is None else acc + s
+        if acc is None:
+            return next(self.parameters()).new_zeros(())
+        return acc * 0.0
+
+    def diagnostic_logits(
+        self, signal_latents: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
+        """``{name: (B, P, C, d)} -> {name: (B, P, C, vocab)}`` per-stream logits.
+
+        Decodes the post-transformer signal-frame hiddens to next-step token
+        logits with each stream's own head.  A stream with no head (not generated)
+        is skipped.  Used by the eval's dreamt-vs-real diagnostic-match metric.
+        """
+        out: dict[str, torch.Tensor] = {}
+        for name, lat in signal_latents.items():
+            head = self.diagnostic_heads.get(name) if self.has_diagnostics else None
+            if head is None:
+                continue
+            out[name] = head(lat)
+        return out
+
+    def diagnostic_loss(
+        self,
+        signal_latents: dict[str, torch.Tensor],
+        signals: dict[str, torch.Tensor] | None,
+    ) -> torch.Tensor:
+        """Next-step cross-entropy on the measured-signal tokens (joint generation).
+
+        ``signal_latents`` is ``{name: (B, P, C, d)}`` (post-transformer signal-frame
+        hiddens, from :meth:`_forward_tokens` with ``return_signal_latents``);
+        ``signals`` is ``{name: (B, P, C) long}`` the REAL local token ids — which
+        are ALSO the target: signal frame ``j`` predicts frame ``j+1``.  For each
+        stream the head maps ``d -> vocab`` and the loss is the CE over present
+        (non-PAD) next-step targets, summed across streams and averaged over the
+        scored positions.  PAD (id 0 = an absent/sub-sampled-empty step) is the
+        ``ignore_index`` so an absent reading is never a target.
+
+        Returns a scalar.  When NO stream contributes a scored position (all PAD /
+        signal-less batch) it returns a zero-magnitude touch over every head param
+        (DDP-uniform) so a rank never desyncs.
+        """
+        from torch.nn import functional as F  # noqa: PLC0415
+
+        from imas_ambix.worldmodel.dataset import PAD_LOCAL_ID  # noqa: PLC0415
+
+        if not self.has_diagnostics:
+            return next(self.parameters()).new_zeros(())
+        pad = int(PAD_LOCAL_ID)
+        total_ce: torch.Tensor | None = None
+        total_count = 0
+        for name in self.diagnostic_heads:
+            lat = signal_latents.get(name) if signal_latents else None
+            tok = signals.get(name) if signals else None
+            if lat is None or tok is None:
+                continue
+            p = min(int(lat.shape[1]), int(tok.shape[1]))
+            c = min(int(lat.shape[2]), int(tok.shape[2]))
+            if p < 2 or c < 1:
+                continue
+            logits = self.diagnostic_heads[name](lat[:, :p, :c, :])  # (B, p, c, V)
+            pred = logits[:, : p - 1].reshape(-1, logits.shape[-1])  # frames 0..p-2
+            target = tok[:, 1:p, :c].reshape(-1).to(pred.device).long()  # next step
+            ce = F.cross_entropy(pred, target, ignore_index=pad, reduction="sum")
+            cnt = int((target != pad).sum())
+            if cnt > 0:
+                total_ce = ce if total_ce is None else total_ce + ce
+                total_count += cnt
+        zt = self._diagnostic_zero_touch()
+        if total_ce is None or total_count == 0:
+            return zt
+        return total_ce / float(total_count) + zt
+
     # -- forward / loss ----------------------------------------------------
 
     def forward(
@@ -713,8 +861,13 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         float (per-camera-frame log-Δt offset) and ``camera_id`` ``(B,)`` long
         drive the timescale + camera conditioning when the model is capable of
         them.  ``loss_spec`` may carry ``inverse_dynamics_weight`` to add the
-        inverse-dynamics auxiliary loss to the returned scalar (training).
-        ``return_logits`` behaves as in v1.
+        inverse-dynamics auxiliary loss, and ``diagnostic_weight`` to add the
+        per-stream next-step diagnostic cross-entropy (joint generation) — both to
+        the returned scalar (training).  With ``loss_spec["return_components"]`` a
+        dict ``{loss, camera_nll, diagnostic_ce, inv_dyn}`` is returned instead of
+        the bare scalar (for per-component logging); the camera/diagnostic/inv-dyn
+        terms are detached, only ``loss`` carries grad.  ``return_logits`` behaves
+        as in v1.
         """
         frames = batch["frames"]
         plan = batch.get("plan")
@@ -735,6 +888,11 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
             and self.has_inverse_dynamics
             and float((loss_spec or {}).get("inverse_dynamics_weight", 0.0)) > 0.0
         )
+        need_diag = bool(
+            loss_spec is not None
+            and self.has_diagnostics
+            and float((loss_spec or {}).get("diagnostic_weight", 0.0)) > 0.0
+        )
         out = self._forward_tokens(
             frames,
             plan,
@@ -748,11 +906,18 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
             frame_log_dt=frame_log_dt,
             camera_id=camera_id,
             return_latents=need_latents,
+            return_signal_latents=need_diag,
         )
-        if need_latents:
+        signal_latents: dict[str, torch.Tensor] | None = None
+        if need_latents and need_diag:
+            hidden, latents, signal_latents = out
+        elif need_diag:
+            hidden, signal_latents = out
+            latents = hidden
+        elif need_latents:
             hidden, latents = out
         else:
-            hidden, latents = out, out
+            hidden = latents = out
 
         if loss_spec is not None:
             nll = self.chunked_nll(
@@ -762,13 +927,32 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
                 context_frames=loss_spec.get("context_frames"),
                 frame_weights=loss_spec.get("frame_weights"),
             )
+            total = nll
+            inv = None
             w_inv = float(loss_spec.get("inverse_dynamics_weight", 0.0))
             if self.has_inverse_dynamics and w_inv > 0.0 and actuator is not None:
                 inv = self.inverse_dynamics_loss(
                     latents, actuator, context_frames=context_frames
                 )
-                return nll + w_inv * inv
-            return nll
+                total = total + w_inv * inv
+            diag = None
+            w_diag = float(loss_spec.get("diagnostic_weight", 0.0))
+            if need_diag:
+                diag = self.diagnostic_loss(signal_latents, signals)
+                total = total + w_diag * diag
+            elif self.has_diagnostics:
+                # DDP-uniform: keep the heads in the graph even when the diagnostic
+                # weight is 0 (a weight-ablation with the heads still built).
+                total = total + self._diagnostic_zero_touch()
+            if loss_spec.get("return_components"):
+                zero = nll.new_zeros(())
+                return {
+                    "loss": total,
+                    "camera_nll": nll.detach(),
+                    "diagnostic_ce": diag.detach() if diag is not None else zero,
+                    "inv_dyn": inv.detach() if inv is not None else zero,
+                }
+            return total
         from imas_ambix.worldmodel.spacetime_model import (
             SpacetimeOutput,  # noqa: PLC0415
         )
