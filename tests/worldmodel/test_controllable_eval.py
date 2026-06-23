@@ -13,8 +13,11 @@ import numpy as np
 from imas_ambix.worldmodel.controllable_eval import (
     EvalConfig,
     HeldoutDeltaNMVerdict,
+    _bootstrap_mean_ratio_ci,
     _bounded_coil_edit,
+    _decoded_divergences,
     _forecast_pixel_l1,
+    _is_collapsed_rollout,
     _position_coil_columns,
     _summarise,
     _token_divergences,
@@ -123,7 +126,8 @@ def test_token_divergences_true_and_floor():
 
 
 def test_summarise_pass_when_margin_clears_floor():
-    cfg = EvalConfig(margin_threshold=1.0, floor_ratio=1.5)
+    # legacy absolute-margin gate (robust_gate=False).
+    cfg = EvalConfig(margin_threshold=1.0, floor_ratio=1.5, robust_gate=False)
     # two transient shots, true-vs-random comfortably above the floor.
     vs = [
         HeldoutDeltaNMVerdict(
@@ -146,7 +150,7 @@ def test_summarise_pass_when_margin_clears_floor():
 
 
 def test_summarise_fail_when_below_floor():
-    cfg = EvalConfig(margin_threshold=1.0, floor_ratio=1.5)
+    cfg = EvalConfig(margin_threshold=1.0, floor_ratio=1.5, robust_gate=False)
     vs = [
         HeldoutDeltaNMVerdict(
             shot_id=1,
@@ -166,7 +170,7 @@ def test_summarise_fail_when_below_floor():
 
 
 def test_summarise_not_testable_when_no_transient():
-    cfg = EvalConfig()
+    cfg = EvalConfig(robust_gate=False)
     vs = [
         HeldoutDeltaNMVerdict(
             shot_id=1,
@@ -184,6 +188,170 @@ def test_summarise_not_testable_when_no_transient():
     assert summ["gate_testable"] is False
     assert summ["gate_pass"] is False
     assert summ["metric"] == "delta_nm_token_lowerbound"
+
+
+# ---------------------------------------------------------------------------
+# robust gate: collapse rejection + normalised ratio + bootstrap CI
+# ---------------------------------------------------------------------------
+
+
+def _blob_stack(n, h, w, *, brightness, row, col, size=4):
+    """A frame stack with a bright blob — high spatial std, NOT collapsed."""
+    s = np.zeros((n, h, w), dtype=np.float64)
+    s[:, row : row + size, col : col + size] = brightness
+    return s
+
+
+def test_is_collapsed_detects_near_uniform():
+    ctx = 2
+    flat = np.full((6, 16, 16), 3.0, dtype=np.float64)  # near-uniform low std
+    assert _is_collapsed_rollout(flat, ctx) is True
+    structured = _blob_stack(6, 16, 16, brightness=200.0, row=4, col=4)
+    assert _is_collapsed_rollout(structured, ctx) is False
+
+
+def test_is_collapsed_detects_near_black_vs_gt_scale():
+    ctx = 2
+    # a STRUCTURED dream (high spatial std -> not std-collapsed) but DIM on average
+    # (a small bright patch on black): mean brightness is low against a bright GT.
+    dim = _blob_stack(6, 16, 16, brightness=60.0, row=4, col=4, size=3)
+    # not collapsed by the spatial-std test (the patch gives real structure).
+    assert _is_collapsed_rollout(dim, ctx, gt_brightness=None) is False
+    # vs a BRIGHT GT scale the dim dream is near-black -> collapse fires.
+    assert _is_collapsed_rollout(dim, ctx, gt_brightness=200.0) is True
+    # the same dream vs a comparably dim GT scale is NOT collapsed.
+    assert _is_collapsed_rollout(dim, ctx, gt_brightness=10.0) is False
+
+
+def test_decoded_divergences_excludes_collapsed_random_from_floor():
+    """A collapsed (near-black) random must be dropped from the noise floor."""
+    ctx = 2
+    gh, gw = 16, 16
+
+    # the decode is mocked: each role's pixels are a chosen pattern.  true + two
+    # SIMILAR structured randoms (low pairwise floor) + one COLLAPSED near-black
+    # random that diverges far from both (the 18503 degeneracy: a washed-out dream
+    # that inflates the random-vs-random floor if KEPT).
+    pix = {
+        "true": _blob_stack(6, 16, 16, brightness=200.0, row=2, col=2),
+        "rand0": _blob_stack(6, 16, 16, brightness=180.0, row=10, col=10),
+        "rand1": _blob_stack(6, 16, 16, brightness=180.0, row=10, col=11),
+        "rand2": np.full((6, 16, 16, 3), 1.0, dtype=np.float64),  # collapsed
+    }
+
+    def fake_decode(grids, roles, *, work_dir, device):
+        return {e["role"]: pix[e["role"]] for e in roles}
+
+    true_tok = np.zeros(6 * gh * gw, dtype=np.int64)
+    rand_toks = [np.zeros(6 * gh * gw, dtype=np.int64) for _ in range(3)]
+
+    tvr, rvr, n_collapsed, n_kept = _decoded_divergences(
+        true_tok,
+        rand_toks,
+        ctx,
+        device="cpu",
+        work_dir=None,
+        shot_id=1,
+        grid_hw=(gh, gw),
+        local_to_store=lambda a: a,
+        decode_roles=fake_decode,
+        reject_collapsed=True,
+    )
+    assert n_collapsed == 1 and n_kept == 2
+    # the floor is the pairwise L1 among the TWO structured randoms only.
+    assert rvr > 0.0 and np.isfinite(rvr)
+    # with the collapsed near-black random KEPT the floor would be inflated.
+    _, rvr_keep, n_c2, n_k2 = _decoded_divergences(
+        true_tok,
+        rand_toks,
+        ctx,
+        device="cpu",
+        work_dir=None,
+        shot_id=1,
+        grid_hw=(gh, gw),
+        local_to_store=lambda a: a,
+        decode_roles=fake_decode,
+        reject_collapsed=False,
+    )
+    assert n_c2 == 0 and n_k2 == 3
+    assert rvr_keep > rvr  # the collapsed random inflates the kept-everything floor
+
+
+def test_bootstrap_mean_ratio_ci_brackets_the_mean():
+    ratios = [2.0, 2.5, 3.0, 2.2, 2.8, 3.1, 2.6]
+    mean, lo, hi = _bootstrap_mean_ratio_ci(
+        ratios, n_boot=2000, ci_pct=(2.5, 97.5), seed=0
+    )
+    assert lo < mean < hi
+    assert lo > 1.0  # a clearly-controllable cohort: CI clear of the noise floor
+
+
+def test_bootstrap_ci_single_finite_is_degenerate():
+    mean, lo, hi = _bootstrap_mean_ratio_ci([4.0], n_boot=500, ci_pct=(2.5, 97.5))
+    assert mean == lo == hi == 4.0
+
+
+def test_robust_summarise_pass_needs_ci_clear_of_floor():
+    cfg = EvalConfig(robust_gate=True, ratio_threshold=1.5)
+    vs = [
+        HeldoutDeltaNMVerdict(
+            shot_id=s,
+            is_transient=True,
+            plan_variation=10.0,
+            true_vs_random=6.0,
+            random_vs_random=2.0,
+            margin=4.0,
+            ratio=3.0,
+            n_random=3,
+            n_random_collapsed=0,
+            n_random_kept=3,
+            passed=True,
+        )
+        for s in range(8)
+    ]
+    summ = _summarise(vs, cfg, decode=True)
+    assert summ["robust_gate"] is True
+    assert summ["metric"] == "delta_nm_decoded_pixel_robust"
+    assert summ["verdict"] == "PASS"
+    assert summ["pass_fraction"] == 1.0
+    assert summ["ratio_ci_lo"] > 1.0
+    assert summ["mean_normalised_ratio"] == 3.0
+
+
+def test_robust_summarise_fail_when_one_shot_carries_cohort():
+    """One strong shot among many weak ones must NOT pass the robust gate."""
+    cfg = EvalConfig(robust_gate=True, ratio_threshold=1.5)
+    strong = HeldoutDeltaNMVerdict(
+        shot_id=0,
+        is_transient=True,
+        plan_variation=10.0,
+        true_vs_random=10.0,
+        random_vs_random=1.0,
+        margin=9.0,
+        ratio=10.0,
+        n_random=3,
+        n_random_kept=3,
+        passed=True,
+    )
+    weak = [
+        HeldoutDeltaNMVerdict(
+            shot_id=s,
+            is_transient=True,
+            plan_variation=10.0,
+            true_vs_random=0.6,
+            random_vs_random=1.0,
+            margin=-0.4,
+            ratio=0.6,
+            n_random=3,
+            n_random_kept=3,
+            passed=False,
+        )
+        for s in range(1, 6)
+    ]
+    summ = _summarise([strong, *weak], cfg, decode=True)
+    # 1/6 pass-fraction -> below the 0.5 majority -> FAIL, not carried by one shot.
+    assert summ["verdict"] == "FAIL"
+    assert summ["pass_fraction"] < 0.5
 
 
 # ---------------------------------------------------------------------------

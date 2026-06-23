@@ -103,6 +103,52 @@ def _forecast_pixel_l1(a: np.ndarray, b: np.ndarray, ctx: int) -> float:
     return float(np.abs(ga[ctx:] - gb[ctx:]).mean())
 
 
+#: A decoded rollout is COLLAPSED when its forecast frames carry almost no
+#: spatial structure (a near-uniform / washed-out dream) — its variation then
+#: reflects degenerate dream noise, not plan-driven plasma motion, so it is
+#: excluded from the random-vs-random NOISE FLOOR.
+COLLAPSE_MIN_STD = 1.5  # 0-255 luminance: forecast-frame spatial std floor
+COLLAPSE_MIN_BRIGHTNESS_FRAC = 0.15  # fraction of the GT-scale brightness floor
+
+
+def _is_collapsed_rollout(
+    rollout_px: np.ndarray,
+    ctx: int,
+    *,
+    gt_brightness: float | None = None,
+    min_std: float = COLLAPSE_MIN_STD,
+    min_brightness_frac: float = COLLAPSE_MIN_BRIGHTNESS_FRAC,
+) -> bool:
+    """Is this decoded rollout a COLLAPSED dream (near-uniform / near-black)?
+
+    A counterfactual rollout whose decoded forecast frames are near-uniform (low
+    spatial std) or far dimmer than the GT scale is a degenerate dream — the model
+    gave up and emitted a washed-out / black frame regardless of plan.  Such a
+    rollout inflates the random-vs-random floor with dream noise rather than real
+    plan-driven variation, so it is dropped from the floor estimate (the collapse
+    test).  Returns ``True`` when the rollout collapsed.
+
+    The test is: mean per-forecast-frame SPATIAL std below ``min_std`` (the dream
+    has no structure), OR — when a GT brightness scale is supplied — forecast mean
+    brightness below ``min_brightness_frac`` of it (the dream is near-black on a
+    bright shot).
+    """
+    from imas_ambix.worldmodel.control_guidance import _to_gray_f64  # noqa: PLC0415
+
+    g = _to_gray_f64(rollout_px)
+    if g.shape[0] <= ctx:
+        return False
+    fwin = g[ctx:]
+    spatial_std = float(fwin.reshape(fwin.shape[0], -1).std(axis=1).mean())
+    if spatial_std < float(min_std):
+        return True
+    if gt_brightness is not None and gt_brightness > 0.0:
+        mean_bri = float(fwin.mean())
+        if mean_bri < float(min_brightness_frac) * float(gt_brightness):
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Verdict containers
 # ---------------------------------------------------------------------------
@@ -114,11 +160,13 @@ class HeldoutDeltaNMVerdict:
     is_transient: bool
     plan_variation: float
     true_vs_random: float  # mean decoded-pixel L1, true plan vs random plans
-    random_vs_random: float  # mean pairwise decoded-pixel L1 among random plans
+    random_vs_random: float  # mean pairwise pixel L1 among NON-collapsed randoms
     margin: float
     ratio: float
     n_random: int
     passed: bool
+    n_random_collapsed: int = 0  # randoms dropped from the floor (collapse test)
+    n_random_kept: int = 0  # randoms kept in the floor estimate
 
     def to_dict(self) -> dict:
         return {
@@ -130,6 +178,8 @@ class HeldoutDeltaNMVerdict:
             "margin": self.margin,
             "ratio": self.ratio,
             "n_random": self.n_random,
+            "n_random_collapsed": self.n_random_collapsed,
+            "n_random_kept": self.n_random_kept,
             "passed": self.passed,
         }
 
@@ -148,6 +198,20 @@ class EvalConfig:
     seed: int = 0
     window: object = None  # SpacetimeWindowConfig; set by the driver
     modalities: list = field(default_factory=list)
+    # --- robust-gate knobs (default = robust cohort + normalised metric) ---
+    #: When True (default) the gate normalises by the noise floor (ratio-based,
+    #: collapse-rejecting, bootstrap-CI'd) instead of the absolute margin>1.0
+    #: pass.  The legacy fixed-shot absolute-margin path is kept behind
+    #: ``robust_gate=False`` for back-comparison.
+    robust_gate: bool = True
+    #: Per-shot ratio (true_vs_random / random_vs_random) a shot must clear.
+    ratio_threshold: float = 1.5
+    #: Bootstrap resamples for the cohort mean-ratio CI.
+    n_bootstrap: int = 2000
+    #: Cohort-level CI percentiles (lower, upper).
+    ci_pct: tuple[float, float] = (2.5, 97.5)
+    #: Reject collapsed random rollouts from the noise floor (the collapse test).
+    reject_collapsed: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +258,9 @@ def _resolve_eval_modalities(mode, payload):
     selected = [m for m in extended_signal_modalities() if m.name in want]
     missing = want - {m.name for m in selected}
     if missing:
-        logger.warning("trained streams not in the modality registry: %s", sorted(missing))
+        logger.warning(
+            "trained streams not in the modality registry: %s", sorted(missing)
+        )
     logger.info(
         "eval modalities (auto from checkpoint): %d streams %s",
         len(selected),
@@ -277,14 +343,21 @@ def multi_shot_delta_nm(
     work_dir: Path | None = None,
     decode: bool = True,
 ) -> dict:
-    """Decoded-pixel ΔN-M over the held-out shots — the real controllability verdict.
+    """Decoded-pixel ΔN-M over the held-out cohort — the real controllability verdict.
 
-    For each held-out shot: roll the model under the TRUE plan + ``n_random``
+    For each cohort shot: roll the model under the TRUE plan + ``n_random``
     BOUNDED coil counterfactuals, decode all rollouts, and score the
     forecast-window decoded-pixel L1 of true-vs-each-random (the action signal)
-    against the mean pairwise random-vs-random L1 (the noise floor).  A shot PASSES
-    when ``true_vs_random - random_vs_random > margin_threshold`` AND
-    ``true_vs_random > floor_ratio * random_vs_random``.
+    against the mean pairwise random-vs-random L1 (the noise floor).
+
+    Under the ROBUST gate (``config.robust_gate=True``, the default) the floor
+    EXCLUDES collapsed random dreams (see :func:`_is_collapsed_rollout`) so it
+    reflects real plan-driven variation, a shot passes on the noise-floor
+    NORMALISED ratio (``ratio > ratio_threshold``), and the cohort gate passes
+    when a majority of shots clear the ratio AND the bootstrap CI of the cohort
+    mean ratio is clear of 1.0 — so a single GOOD shot can no longer carry the
+    gate.  Under ``robust_gate=False`` the legacy absolute-margin pass is used
+    (margin>threshold AND ratio>floor_ratio).
 
     ``decode=False`` scores in TOKEN space instead (a decoder-free lower bound) —
     used by the CPU smoke / when the VQ stack is unavailable.  Writes the verdict
@@ -353,8 +426,10 @@ def multi_shot_delta_nm(
                 )
             )
 
+        n_collapsed = 0
+        n_kept = int(config.n_random)
         if decode:
-            tvr, rvr = _decoded_divergences(
+            tvr, rvr, n_collapsed, n_kept = _decoded_divergences(
                 true_tok,
                 rand_toks,
                 ctx,
@@ -364,20 +439,34 @@ def multi_shot_delta_nm(
                 grid_hw=(GRID_H, GRID_W),
                 local_to_store=local_to_store,
                 decode_roles=decode_roles,
+                reject_collapsed=config.reject_collapsed,
             )
         else:
             tvr, rvr = _token_divergences(true_tok, rand_toks, ctx)
 
         margin = tvr - rvr
         ratio = float("inf") if rvr == 0.0 else tvr / rvr
-        passed = bool(
-            is_transient
-            and margin > config.margin_threshold
-            and (
-                (rvr == 0.0 and tvr > config.margin_threshold)
-                or ratio > config.floor_ratio
+        if config.robust_gate:
+            # noise-floor-NORMALISED pass: true-vs-random must clear the
+            # (collapse-rejected) floor by the ratio threshold.  rvr==0 is only a
+            # pass when the true plan actually moved the dream (tvr>0); a flat
+            # 0/0 shot is not a controllability win.
+            passed = bool(
+                is_transient
+                and (
+                    (rvr == 0.0 and tvr > config.margin_threshold)
+                    or ratio > config.ratio_threshold
+                )
             )
-        )
+        else:
+            passed = bool(
+                is_transient
+                and margin > config.margin_threshold
+                and (
+                    (rvr == 0.0 and tvr > config.margin_threshold)
+                    or ratio > config.floor_ratio
+                )
+            )
         verdicts.append(
             HeldoutDeltaNMVerdict(
                 shot_id=int(s.shot_id),
@@ -388,6 +477,8 @@ def multi_shot_delta_nm(
                 margin=margin,
                 ratio=ratio,
                 n_random=int(config.n_random),
+                n_random_collapsed=int(n_collapsed),
+                n_random_kept=int(n_kept),
                 passed=passed,
             )
         )
@@ -435,8 +526,19 @@ def _decoded_divergences(
     grid_hw,
     local_to_store,
     decode_roles,
+    reject_collapsed: bool = True,
 ):
-    """Decode the true + random rollouts in ONE VQ pass and score pixel-L1."""
+    """Decode the true + random rollouts in ONE VQ pass and score pixel-L1.
+
+    Also decodes the GROUND-TRUTH camera tokens (role ``gt``) so the collapse
+    test can compare each random dream's brightness to the real GT scale.  Returns
+    ``(tvr, rvr, n_collapsed, n_kept)``: ``tvr`` is the mean forecast-window
+    pixel-L1 of the TRUE plan vs the NON-collapsed randoms; ``rvr`` is the mean
+    pairwise pixel-L1 among the NON-collapsed randoms (the noise floor).  A random
+    rollout whose decoded forecast collapses (near-uniform / near-black, see
+    :func:`_is_collapsed_rollout`) is excluded from BOTH so the floor reflects
+    real plan-driven variation, not degenerate-dream variation.
+    """
     import tempfile  # noqa: PLC0415
 
     gh, gw = grid_hw
@@ -449,18 +551,59 @@ def _decoded_divergences(
     decoded = decode_roles(grids, roles, work_dir=wd, device=device)
     true_px = decoded["true"]
     rand_px = [decoded[f"rand{k}"] for k in range(len(rand_toks))]
+
+    # the TRUE-plan dream's brightness is the GT scale proxy here (the true plan
+    # tracks the recorded shot); near-black randoms on a bright true dream collapse.
+    from imas_ambix.worldmodel.control_guidance import _to_gray_f64  # noqa: PLC0415
+
+    tg = _to_gray_f64(true_px)
+    gt_brightness = float(tg[ctx:].mean()) if tg.shape[0] > ctx else None
+
+    kept_idx = list(range(len(rand_px)))
+    if reject_collapsed and rand_px:
+        kept_idx = [
+            i
+            for i, r in enumerate(rand_px)
+            if not _is_collapsed_rollout(r, ctx, gt_brightness=gt_brightness)
+        ]
+    n_collapsed = len(rand_px) - len(kept_idx)
+    n_kept = len(kept_idx)
+    kept = [rand_px[i] for i in kept_idx]
+
     tvr = (
-        float(np.mean([_forecast_pixel_l1(true_px, r, ctx) for r in rand_px]))
-        if rand_px
+        float(np.mean([_forecast_pixel_l1(true_px, r, ctx) for r in kept]))
+        if kept
         else 0.0
     )
     pair = [
-        _forecast_pixel_l1(rand_px[i], rand_px[j], ctx)
-        for i in range(len(rand_px))
-        for j in range(i + 1, len(rand_px))
+        _forecast_pixel_l1(kept[i], kept[j], ctx)
+        for i in range(len(kept))
+        for j in range(i + 1, len(kept))
     ]
     rvr = float(np.mean(pair)) if pair else 0.0
-    return tvr, rvr
+    return tvr, rvr, n_collapsed, n_kept
+
+
+def _bootstrap_mean_ratio_ci(ratios, *, n_boot, ci_pct, seed=0):
+    """Bootstrap CI for the cohort MEAN ratio (true_vs_random / floor).
+
+    Resamples the per-shot finite ratios with replacement ``n_boot`` times,
+    returns ``(mean, lo, hi)`` of the resampled means at ``ci_pct``.  Infinite
+    ratios (a 0.0 floor with a positive true signal) are excluded from the CI math
+    but counted separately by the caller — they are unambiguous passes, not a
+    finite statistic to bootstrap.
+    """
+    finite = np.asarray([r for r in ratios if np.isfinite(r)], dtype=np.float64)
+    if finite.size == 0:
+        return 0.0, 0.0, 0.0
+    if finite.size == 1:
+        m = float(finite[0])
+        return m, m, m
+    rng = np.random.default_rng(int(seed))
+    idx = rng.integers(0, finite.size, size=(int(n_boot), finite.size))
+    boot_means = finite[idx].mean(axis=1)
+    lo, hi = np.percentile(boot_means, list(ci_pct))
+    return float(finite.mean()), float(lo), float(hi)
 
 
 def _summarise(verdicts, config, *, decode):
@@ -475,20 +618,50 @@ def _summarise(verdicts, config, *, decode):
     mean_rvr = (
         float(np.mean([v.random_vs_random for v in score_set])) if score_set else 0.0
     )
-    gate_pass = bool(
-        n_transient > 0
-        and n_pass >= max(1, len(score_set) // 2 + 1)
-        and mean_margin > config.margin_threshold
+    pass_fraction = float(n_pass / len(score_set)) if score_set else 0.0
+    n_collapsed = sum(int(v.n_random_collapsed) for v in score_set)
+
+    # cohort mean normalised ratio + bootstrap CI (the robust statistic).
+    ratios = [v.ratio for v in score_set]
+    n_inf = sum(1 for r in ratios if not np.isfinite(r))
+    mean_ratio, ci_lo, ci_hi = _bootstrap_mean_ratio_ci(
+        ratios, n_boot=config.n_bootstrap, ci_pct=config.ci_pct, seed=config.seed
     )
+
+    if config.robust_gate:
+        # ROBUST gate: a majority of cohort shots clear the ratio AND the cohort
+        # mean-ratio bootstrap CI lower bound is clear of the noise floor (1.0),
+        # so the controllability win is not a 1-shot artifact.
+        gate_pass = bool(n_transient > 0 and pass_fraction >= 0.5 and ci_lo > 1.0)
+    else:
+        gate_pass = bool(
+            n_transient > 0
+            and n_pass >= max(1, len(score_set) // 2 + 1)
+            and mean_margin > config.margin_threshold
+        )
+    metric = "delta_nm_decoded_pixel" if decode else "delta_nm_token_lowerbound"
+    if config.robust_gate:
+        metric += "_robust"
     return {
-        "metric": "delta_nm_decoded_pixel" if decode else "delta_nm_token_lowerbound",
+        "metric": metric,
+        "robust_gate": bool(config.robust_gate),
         "n_samples": len(verdicts),
         "n_transient": n_transient,
         "n_pass": n_pass,
+        "pass_fraction": pass_fraction,
         "mean_true_vs_random": mean_tvr,
         "mean_random_vs_random_noise_floor": mean_rvr,
         "mean_margin": mean_margin,
+        "mean_normalised_ratio": mean_ratio,
+        "ratio_ci_lo": ci_lo,
+        "ratio_ci_hi": ci_hi,
+        "ci_pct": list(config.ci_pct),
+        "n_bootstrap": int(config.n_bootstrap),
+        "n_ratio_infinite": n_inf,
+        "n_random_collapsed_total": n_collapsed,
+        "reject_collapsed": bool(config.reject_collapsed),
         "margin_threshold": config.margin_threshold,
+        "ratio_threshold": config.ratio_threshold,
         "floor_ratio": config.floor_ratio,
         "n_random": int(config.n_random),
         "perturb_scale": config.perturb_scale,
@@ -1053,6 +1226,59 @@ def main(argv: list[str] | None = None) -> int:
         "was starved of magnetics/Dα when this defaulted to the 6-stream set); "
         "'default'/'extended' force the 6- or 13-stream list.",
     )
+    # --- robust-gate / screened-cohort flags (default = robust gate) ---
+    g = p.add_mutually_exclusive_group()
+    g.add_argument(
+        "--robust-gate",
+        dest="robust_gate",
+        action="store_true",
+        default=True,
+        help="(default) noise-floor-NORMALISED, collapse-rejecting gate over a "
+        "screened cohort: per-shot ratio>ratio-threshold, cohort gate needs a "
+        "majority pass AND a bootstrap-CI lower bound clear of 1.0.",
+    )
+    g.add_argument(
+        "--no-robust-gate",
+        dest="robust_gate",
+        action="store_false",
+        help="legacy fixed-shot ABSOLUTE-margin gate (margin>threshold AND "
+        "ratio>floor-ratio) for back-comparison.",
+    )
+    p.add_argument("--ratio-threshold", type=float, default=1.5)
+    p.add_argument("--n-bootstrap", type=int, default=2000)
+    p.add_argument(
+        "--no-reject-collapsed",
+        dest="reject_collapsed",
+        action="store_false",
+        default=True,
+        help="keep collapsed random dreams in the noise floor (debug; the floor "
+        "then reflects degenerate-dream noise, not plan-driven variation).",
+    )
+    p.add_argument(
+        "--held-out-cohort",
+        default=None,
+        help="path to a screened-cohort JSON (built by gate_cohort.build_screened_"
+        "cohort); its shot ids REPLACE --held-out for the robust gate.",
+    )
+    p.add_argument(
+        "--build-cohort",
+        action="store_true",
+        help="screen + write a fresh train-disjoint eval-only cohort (needs "
+        "--manifest) before the eval, then run the gate on it.",
+    )
+    p.add_argument(
+        "--manifest",
+        default="/work/projects/imas_gpu/agents/excitation-corpus/"
+        "curated_windows_unified_6cam.json",
+        help="training manifest the cohort must be DISJOINT from (--build-cohort).",
+    )
+    p.add_argument("--cohort-cap", type=int, default=60)
+    p.add_argument("--cohort-target", type=int, default=30)
+    p.add_argument(
+        "--cohort-out",
+        default="/work/projects/imas_gpu/worldmodel/gate_cohort.json",
+        help="where --build-cohort writes the screened cohort JSON.",
+    )
     args = p.parse_args(argv)
 
     _logging.basicConfig(
@@ -1078,8 +1304,57 @@ def main(argv: list[str] | None = None) -> int:
         )
         model.eval()
         modalities = _resolve_eval_modalities(args.signal_modalities, _payload)
+        window = SpacetimeWindowConfig(
+            n_frames=args.n_frames,
+            n_plan=args.n_plan,
+            context_frames=args.context_frames,
+            frame_stride=args.frame_stride,
+            target_horizon_s=args.target_horizon_s,
+        )
+        token_root = Path(args.token_root) if args.token_root else None
+
+        # resolve the cohort: build a fresh screened cohort, load one, or fall
+        # back to the legacy fixed --held-out list.
+        held_out = tuple(int(s) for s in args.held_out.split(",") if s.strip())
+        if args.build_cohort:
+            from imas_ambix.worldmodel.gate_cohort import (  # noqa: PLC0415
+                build_screened_cohort,
+                load_cohort,
+            )
+
+            screen_cfg = EvalConfig(
+                n_signal_steps=args.n_signal_steps,
+                n_act_steps=args.n_act_steps,
+                modalities=modalities,
+                window=window,
+            )
+            build_screened_cohort(
+                screen_cfg,
+                camera=args.camera,
+                token_root=token_root or Path("/work/projects/imas_gpu/mast-tokens"),
+                manifest_path=args.manifest,
+                device=device,
+                out_json=args.cohort_out,
+                candidate_cap=args.cohort_cap,
+                target_size=args.cohort_target,
+                work_dir=out_dir / "_cohort_screen",
+            )
+            held_out = tuple(load_cohort(args.cohort_out))
+            logger.info("cohort built: %d shots %s", len(held_out), list(held_out))
+        elif args.held_out_cohort:
+            from imas_ambix.worldmodel.gate_cohort import (  # noqa: PLC0415
+                load_cohort,
+            )
+
+            held_out = tuple(load_cohort(args.held_out_cohort))
+            logger.info(
+                "cohort loaded from %s: %d shots", args.held_out_cohort, len(held_out)
+            )
+        if not held_out:
+            raise ValueError("empty held-out cohort — nothing to evaluate")
+
         cfg = EvalConfig(
-            held_out=tuple(int(s) for s in args.held_out.split(",") if s.strip()),
+            held_out=held_out,
             n_random=args.n_random,
             perturb_scale=args.perturb_scale,
             margin_threshold=args.margin_threshold,
@@ -1088,15 +1363,12 @@ def main(argv: list[str] | None = None) -> int:
             n_signal_steps=args.n_signal_steps,
             n_act_steps=args.n_act_steps,
             modalities=modalities,
-            window=SpacetimeWindowConfig(
-                n_frames=args.n_frames,
-                n_plan=args.n_plan,
-                context_frames=args.context_frames,
-                frame_stride=args.frame_stride,
-                target_horizon_s=args.target_horizon_s,
-            ),
+            robust_gate=args.robust_gate,
+            ratio_threshold=args.ratio_threshold,
+            n_bootstrap=args.n_bootstrap,
+            reject_collapsed=args.reject_collapsed,
+            window=window,
         )
-        token_root = Path(args.token_root) if args.token_root else None
         summary = multi_shot_delta_nm(
             model,
             config=cfg,
@@ -1143,6 +1415,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 __all__ = [
+    "COLLAPSE_MIN_BRIGHTNESS_FRAC",
+    "COLLAPSE_MIN_STD",
     "DEFAULT_HELD_OUT",
     "EvalConfig",
     "HeldoutDeltaNMVerdict",
