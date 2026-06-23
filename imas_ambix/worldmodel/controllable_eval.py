@@ -20,6 +20,15 @@ headline artifact for that, runnable the instant the re-train writes ``best.pt``
    then render the TRUE-plan dream beside the EDITED-plan dream (the plasma
    visibly shifting) + the decoded-centroid trace.
 
+3. :func:`diagnostic_match` / :func:`multi_shot_diagnostic_match` — the dreamt-vs-
+   real diagnostic-match: the joint world-model grows per-stream heads that predict
+   the NEXT-step measured-signal tokens, so this scores how well those dreamt tokens
+   match the REAL next-step tokens on the held-out shots (per-stream top-1 token
+   accuracy + a continuous next-step CE), the new quantitative eval axis beside the
+   ΔN-M controllability gate.  A camera-only baseline (no / untrained heads) reports
+   ``diagnostics_generated=False`` and zeros — an honest read, not a near-chance
+   score.
+
 The model conditions ONLY on the commands (it masks Ip/density/tf internally), so
 the held-out windows are assembled with the DEFAULT full actuator vector — no
 special channel list needed; the model masks consistently with training.
@@ -269,9 +278,7 @@ def multi_shot_delta_nm(
         ctx = int(s.context_frames)
         plan_var = _plan_variation(s)
         is_transient = bool(plan_var >= config.transient_threshold)
-        rng = np.random.default_rng(
-            (int(s.shot_id) * 1_000_003) ^ (config.seed * 31)
-        )
+        rng = np.random.default_rng((int(s.shot_id) * 1_000_003) ^ (config.seed * 31))
         # TRUE-plan rollout (token ids).
         true_tok = _argmax_token_rollout(
             model,
@@ -442,6 +449,225 @@ def _summarise(verdicts, config, *, decode):
         "gate_pass": gate_pass,
         "verdict": "PASS" if gate_pass else "FAIL",
     }
+
+
+# ---------------------------------------------------------------------------
+# Dreamt-vs-real diagnostic-match (the joint-generation quantitative axis)
+# ---------------------------------------------------------------------------
+
+
+def _stream_diagnostic_logits(model, signal_latents: dict) -> dict:
+    """``{name: (B, P, C, d)} -> {name: (B, P, C, vocab)}`` per-stream logits.
+
+    Prefers the model's :meth:`diagnostic_logits`; falls back to applying each
+    stream's head directly when the model's helper is unavailable / raises (so the
+    eval does not depend on a particular ``nn.ModuleDict`` API — e.g. ``.get`` is
+    absent on some torch builds).  Streams with no head are skipped.
+    """
+    heads = getattr(model, "diagnostic_heads", None)
+    if heads is None or not bool(getattr(model, "has_diagnostics", False)):
+        return {}
+    try:
+        return model.diagnostic_logits(signal_latents)
+    except (AttributeError, TypeError):
+        out: dict = {}
+        for name, lat in signal_latents.items():
+            if name in heads:
+                out[name] = heads[name](lat)
+        return out
+
+
+def diagnostic_match(
+    model,
+    sample,
+    stream_names,
+    *,
+    device,
+    chunk: int = 4096,
+) -> dict:
+    """How well the model's NEXT-step dreamt diagnostic tokens match the REAL ones.
+
+    The joint world-model grows a per-stream head that predicts the next-step
+    measured-signal tokens (it dreams the diagnostics, not just the cameras).  This
+    is the quantitative held-out axis for that: a SINGLE teacher-forced forward on
+    the real frames + real signals, decoded through the per-stream diagnostic heads,
+    scored next-step against the REAL next-step tokens.
+
+    For signal frame ``j`` (0..P-2) the head's logits predict ``signals[name][:,
+    j+1]``; PAD (id 0 = an absent / sub-sampled-empty step) targets are masked.  Per
+    stream we report the top-1 token accuracy over masked positions and a continuous
+    next-step cross-entropy (``ignore_index=0``).  A stream with no scored (non-PAD)
+    position is skipped.
+
+    Returns ``{"per_stream": {name: {"accuracy", "ce", "n"}}, "mean_accuracy"
+    (macro mean over streams with n>0), "mean_ce", "diagnostics_generated"
+    (``model.has_diagnostics``)}``.  When the model generates no diagnostics (a
+    camera-only baseline — no / untrained heads) the per-stream map is empty and the
+    means are 0.0, with ``diagnostics_generated=False`` so the eval reads the result
+    honestly rather than scoring a near-chance head.
+    """
+    import torch  # noqa: PLC0415
+    from torch.nn import functional as F  # noqa: PLC0415, N812
+
+    from imas_ambix.worldmodel.controllable_train import (  # noqa: PLC0415
+        _actuator_batch_from_plan,
+        _batch_to,
+        collate_controllable_windows,
+    )
+    from imas_ambix.worldmodel.spacetime_train import _AutocastCtx  # noqa: PLC0415
+
+    empty = {
+        "per_stream": {},
+        "mean_accuracy": 0.0,
+        "mean_ce": 0.0,
+        "diagnostics_generated": bool(getattr(model, "has_diagnostics", False)),
+    }
+    if not bool(getattr(model, "has_diagnostics", False)):
+        return empty
+
+    dev = torch.device(device)
+    model.eval()
+    names = list(stream_names)
+    batch = _batch_to(collate_controllable_windows([sample], stream_names=names), dev)
+    frames = batch["frames"]
+    plan = batch.get("plan")
+    signals = batch.get("signals") or {}
+    actuator = _actuator_batch_from_plan(sample.actuator, dev)
+    ctx = int(sample.context_frames)
+
+    with torch.no_grad(), _AutocastCtx(dev):
+        out = model._forward_tokens(
+            frames,
+            plan,
+            signals,
+            actuator=actuator,
+            context_frames=ctx,
+            return_signal_latents=True,
+        )
+        # (cam, sig) — return_latents is off, so the second element is the
+        # per-stream signal latents dict.
+        _cam, sig_latents = out
+        logits = _stream_diagnostic_logits(model, sig_latents)
+
+    per_stream: dict[str, dict] = {}
+    accs: list[float] = []
+    ces: list[float] = []
+    for name, lg in logits.items():
+        tok = signals.get(name)
+        if tok is None:
+            continue
+        # lg: (B, P, C, V); tok: (B, P, C) long local ids.
+        p = min(int(lg.shape[1]), int(tok.shape[1]))
+        c = min(int(lg.shape[2]), int(tok.shape[2]))
+        if p < 2 or c < 1:
+            continue
+        # frame j (0..P-2) predicts frame j+1.
+        pred_logits = lg[:, : p - 1, :c, :].float()  # (B, P-1, C, V)
+        pred = pred_logits.argmax(dim=-1)  # (B, P-1, C)
+        target = tok[:, 1:p, :c].to(dev).long()  # (B, P-1, C)
+        mask = target != 0  # PAD id 0 = absent step
+        n = int(mask.sum())
+        if n == 0:
+            continue
+        acc = float((pred[mask] == target[mask]).float().mean())
+        ce = float(
+            F.cross_entropy(
+                pred_logits.reshape(-1, pred_logits.shape[-1]),
+                target.reshape(-1),
+                ignore_index=0,
+            )
+        )
+        per_stream[name] = {"accuracy": acc, "ce": ce, "n": n}
+        accs.append(acc)
+        ces.append(ce)
+
+    return {
+        "per_stream": per_stream,
+        "mean_accuracy": float(np.mean(accs)) if accs else 0.0,
+        "mean_ce": float(np.mean(ces)) if ces else 0.0,
+        "diagnostics_generated": True,
+    }
+
+
+def multi_shot_diagnostic_match(
+    model,
+    *,
+    config: EvalConfig,
+    camera: str,
+    token_root: Path | None,
+    device: str,
+    out_json: Path,
+) -> dict:
+    """Dreamt-vs-real diagnostic-match over the held-out shots + a JSON summary.
+
+    Mirrors :func:`multi_shot_delta_nm`: assembles each held-out window, scores its
+    next-step diagnostic-match (:func:`diagnostic_match`), and aggregates a summary
+    (mean accuracy + mean CE across shots, and a per-stream macro breakdown over the
+    shots that scored each stream).  Writes ``out_json`` and returns the summary.
+    """
+    import torch  # noqa: PLC0415
+
+    dev = torch.device(device)
+    samples = []
+    for sid in config.held_out:
+        try:
+            samples.append(
+                _assemble_heldout(sid, config, camera=camera, token_root=token_root)
+            )
+        except (ValueError, FileNotFoundError, KeyError) as exc:
+            logger.warning("held-out shot %s unavailable (%r) — skipped", sid, exc)
+    if not samples:
+        raise ValueError("no held-out shot could be assembled")
+
+    stream_names = list(samples[0].signals.keys())
+    per_shot: list[dict] = []
+    # accumulate per-stream accuracy/CE across shots for a macro breakdown.
+    stream_acc: dict[str, list[float]] = {}
+    stream_ce: dict[str, list[float]] = {}
+    for s in samples:
+        res = diagnostic_match(
+            model, s, stream_names, device=str(dev), chunk=config.chunk
+        )
+        res["shot_id"] = int(s.shot_id)
+        per_shot.append(res)
+        for name, d in res["per_stream"].items():
+            stream_acc.setdefault(name, []).append(float(d["accuracy"]))
+            stream_ce.setdefault(name, []).append(float(d["ce"]))
+
+    scored = [r for r in per_shot if r["per_stream"]]
+    mean_acc = float(np.mean([r["mean_accuracy"] for r in scored])) if scored else 0.0
+    mean_ce = float(np.mean([r["mean_ce"] for r in scored])) if scored else 0.0
+    per_stream_macro = {
+        name: {
+            "accuracy": float(np.mean(stream_acc[name])),
+            "ce": float(np.mean(stream_ce[name])),
+            "n_shots": len(stream_acc[name]),
+        }
+        for name in stream_acc
+    }
+    diagnostics_generated = bool(getattr(model, "has_diagnostics", False))
+    summary = {
+        "metric": "diagnostic_match_next_step",
+        "diagnostics_generated": diagnostics_generated,
+        "n_samples": len(per_shot),
+        "n_scored": len(scored),
+        "mean_accuracy": mean_acc,
+        "mean_ce": mean_ce,
+        "per_stream": per_stream_macro,
+    }
+    out_json = Path(out_json)
+    out_json.parent.mkdir(parents=True, exist_ok=True)
+    out_json.write_text(
+        json.dumps({"per_shot": per_shot, "summary": summary}, indent=2, default=str)
+    )
+    logger.info(
+        "held-out diagnostic-match -> %s : mean_acc=%.4f mean_ce=%.4f (generated=%s)",
+        out_json,
+        mean_acc,
+        mean_ce,
+        diagnostics_generated,
+    )
+    return summary
 
 
 # ---------------------------------------------------------------------------
@@ -627,9 +853,7 @@ def coil_edit_dream(
         "best_coil_col": int(best),
         "best_centroid_shift_px": shifts[best],
         "per_coil_centroid_shift_px": {
-            ACTUATOR_CHANNEL_KEYS[c]
-            if c < len(ACTUATOR_CHANNEL_KEYS)
-            else f"col{c}": v
+            ACTUATOR_CHANNEL_KEYS[c] if c < len(ACTUATOR_CHANNEL_KEYS) else f"col{c}": v
             for c, v in shifts.items()
         },
         "edit_frac": edit_frac,
@@ -766,6 +990,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="skip the coil-edit dream GIF (run only the ΔN-M verdict)",
     )
+    p.add_argument(
+        "--no-diagnostic-match",
+        action="store_true",
+        help="skip the dreamt-vs-real next-step diagnostic-match metric",
+    )
     args = p.parse_args(argv)
 
     _logging.basicConfig(
@@ -791,9 +1020,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         model.eval()
         cfg = EvalConfig(
-            held_out=tuple(
-                int(s) for s in args.held_out.split(",") if s.strip()
-            ),
+            held_out=tuple(int(s) for s in args.held_out.split(",") if s.strip()),
             n_random=args.n_random,
             perturb_scale=args.perturb_scale,
             margin_threshold=args.margin_threshold,
@@ -821,6 +1048,19 @@ def main(argv: list[str] | None = None) -> int:
             decode=not args.no_decode,
         )
         logger.info("HELD-OUT ΔN-M: %s", summary)
+        if not args.no_diagnostic_match:
+            try:
+                dmatch = multi_shot_diagnostic_match(
+                    model,
+                    config=cfg,
+                    camera=args.camera,
+                    token_root=token_root,
+                    device=device,
+                    out_json=out_dir / "heldout_diagnostic_match.json",
+                )
+                logger.info("HELD-OUT diagnostic-match: %s", dmatch)
+            except ValueError as exc:
+                logger.warning("diagnostic-match skipped (%r)", exc)
         if not args.no_dream and not args.no_decode:
             dream = coil_edit_dream(
                 model,
@@ -848,8 +1088,10 @@ __all__ = [
     "HeldoutDeltaNMVerdict",
     "coil_edit_dream",
     "decoded_centroid",
+    "diagnostic_match",
     "main",
     "multi_shot_delta_nm",
+    "multi_shot_diagnostic_match",
 ]
 
 

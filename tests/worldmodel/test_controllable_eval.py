@@ -19,6 +19,7 @@ from imas_ambix.worldmodel.controllable_eval import (
     _summarise,
     _token_divergences,
     decoded_centroid,
+    diagnostic_match,
 )
 
 # ---------------------------------------------------------------------------
@@ -183,3 +184,163 @@ def test_summarise_not_testable_when_no_transient():
     assert summ["gate_testable"] is False
     assert summ["gate_pass"] is False
     assert summ["metric"] == "delta_nm_token_lowerbound"
+
+
+# ---------------------------------------------------------------------------
+# dreamt-vs-real diagnostic-match (joint-generation quantitative axis)
+# ---------------------------------------------------------------------------
+
+
+def _tiny_diag_cfg(*, generate_diagnostics=True, **kw):
+    """A tiny ControllableSpacetimeConfig with per-stream diagnostic heads on."""
+    from imas_ambix.worldmodel.controllable_model import ControllableSpacetimeConfig
+    from imas_ambix.worldmodel.spacetime_model_v2 import SignalStreamSpec
+
+    base = dict(
+        vocab_size=64,
+        grid_h=4,
+        grid_w=4,
+        max_frames=40,
+        plan_vocab=16,
+        plan_channels=2,
+        d_model=32,
+        n_layers=2,
+        n_heads=4,
+        d_ff=64,
+        dropout=0.0,
+        n_signal_steps=4,
+        signal_streams=(
+            SignalStreamSpec("gas_injection", vocab=8, channels=2),
+            SignalStreamSpec("xma", vocab=8, channels=3),
+        ),
+        actuator_channels=6,
+        n_act_steps=4,
+        generate_diagnostics=generate_diagnostics,
+    )
+    base.update(kw)
+    return ControllableSpacetimeConfig(**base)
+
+
+def _mk_diag_sample(cfg, shot, *, t=6, ctx=3, seed=0):
+    """A synthetic ControllableSpacetimeSample with NON-PAD measured signals.
+
+    Signal ids are drawn in ``[1, vocab)`` so every next-step target is non-PAD
+    (id 0) and the diagnostic-match has scored positions on every stream.
+    """
+    import torch
+
+    from imas_ambix.worldmodel.actuator_plan import (
+        ACTUATOR_CHANNEL_KEYS,
+        ActuatorPlan,
+        normalise_actuator_values,
+    )
+    from imas_ambix.worldmodel.controllable_dataset import ControllableSpacetimeSample
+    from imas_ambix.worldmodel.spacetime_dataset import SpacetimeSample
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import SignalSpacetimeSample
+
+    g = torch.Generator().manual_seed(seed)
+    frames = torch.randint(0, cfg.vocab_size, (t, cfg.n_spatial), generator=g).numpy()
+    plan = torch.randint(0, cfg.plan_vocab, (4, cfg.plan_channels), generator=g).numpy()
+    base = SpacetimeSample(
+        shot_id=shot,
+        camera="rbb",
+        start_frame=0,
+        frames=frames,
+        plan=plan,
+        frame_time=np.linspace(0.0, 0.1, t),
+        context_frames=ctx,
+    )
+    sigs = {}
+    for st in cfg.signal_streams:
+        # ids in [1, vocab) -> no PAD targets, so every stream scores.
+        sigs[st.name] = torch.randint(
+            1, st.vocab, (cfg.n_signal_steps, st.channels), generator=g
+        ).numpy()
+    signal = SignalSpacetimeSample(base=base, signals=sigs)
+    raw = np.linspace(1e3, 1e5, cfg.n_act_steps, dtype=np.float32)[:, None] * np.ones(
+        (1, cfg.actuator_channels), dtype=np.float32
+    )
+    keys = list(ACTUATOR_CHANNEL_KEYS[: cfg.actuator_channels]) + [
+        f"c{i}"
+        for i in range(
+            cfg.actuator_channels - len(ACTUATOR_CHANNEL_KEYS[: cfg.actuator_channels])
+        )
+    ]
+    plan_act = ActuatorPlan(
+        values=normalise_actuator_values(raw),
+        missing=np.zeros_like(raw),
+        channel_keys=keys,
+        raw_values=raw,
+    )
+    return ControllableSpacetimeSample(signal=signal, actuator=plan_act)
+
+
+def test_diagnostic_match_scores_per_stream():
+    """diagnostic_match returns finite per-stream accuracy in [0,1] + CE >= 0."""
+    import torch
+
+    from imas_ambix.worldmodel.controllable_model import (
+        ControllableSpacetimeTransformer,
+    )
+
+    cfg = _tiny_diag_cfg(generate_diagnostics=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    assert model.has_diagnostics
+    sample = _mk_diag_sample(cfg, 18502, seed=1)
+    stream_names = [st.name for st in cfg.signal_streams]
+
+    res = diagnostic_match(model, sample, stream_names, device="cpu", chunk=64)
+    assert res["diagnostics_generated"] is True
+    assert set(res["per_stream"].keys()) == set(stream_names)
+    for d in res["per_stream"].values():
+        assert 0.0 <= d["accuracy"] <= 1.0 and np.isfinite(d["accuracy"])
+        assert np.isfinite(d["ce"]) and d["ce"] >= 0.0
+        assert d["n"] > 0
+    assert 0.0 <= res["mean_accuracy"] <= 1.0 and np.isfinite(res["mean_accuracy"])
+    assert np.isfinite(res["mean_ce"]) and res["mean_ce"] >= 0.0
+
+
+def test_diagnostic_match_camera_only_baseline_returns_flag():
+    """A model built generate_diagnostics=False reports diagnostics_generated=False."""
+    import torch
+
+    from imas_ambix.worldmodel.controllable_model import (
+        ControllableSpacetimeTransformer,
+    )
+
+    cfg = _tiny_diag_cfg(generate_diagnostics=False)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    assert not getattr(model, "has_diagnostics", False)
+    sample = _mk_diag_sample(cfg, 18503, seed=2)
+    stream_names = [st.name for st in cfg.signal_streams]
+
+    res = diagnostic_match(model, sample, stream_names, device="cpu", chunk=64)
+    assert res["diagnostics_generated"] is False
+    assert res["per_stream"] == {}
+    assert res["mean_accuracy"] == 0.0
+    assert res["mean_ce"] == 0.0
+
+
+def test_diagnostic_match_skips_all_pad_stream():
+    """An all-PAD stream contributes no scored position but never errors/NaNs."""
+    import torch
+
+    from imas_ambix.worldmodel.controllable_model import (
+        ControllableSpacetimeTransformer,
+    )
+
+    cfg = _tiny_diag_cfg(generate_diagnostics=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    sample = _mk_diag_sample(cfg, 18504, seed=3)
+    # force one stream to all-PAD (id 0) — it must drop out, the other scores.
+    pad_name = cfg.signal_streams[0].name
+    sample.signal.signals[pad_name] = np.zeros_like(sample.signal.signals[pad_name])
+    stream_names = [st.name for st in cfg.signal_streams]
+
+    res = diagnostic_match(model, sample, stream_names, device="cpu", chunk=64)
+    assert pad_name not in res["per_stream"]
+    assert res["per_stream"], "the non-PAD stream should still score"
+    assert np.isfinite(res["mean_accuracy"]) and np.isfinite(res["mean_ce"])
