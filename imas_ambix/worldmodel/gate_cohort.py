@@ -185,18 +185,16 @@ def _shot_sort_key(name: str):
 # ---------------------------------------------------------------------------
 
 
-def screen_candidate(shot_id, cfg, *, camera, token_root, thresholds, device, work_dir):
-    """Assemble + GT-decode one candidate and screen it against ``thresholds``.
+def _assemble_for_screen(shot_id, cfg, *, camera, token_root):
+    """Assemble one candidate window (CPU only — no decode).
 
-    Returns a :class:`CohortShotScreen`.  Unassemblable shots (recording shorter
-    than the horizon, unreadable cadence) are returned with ``assemblable=False``
-    so the caller records WHY each candidate was dropped.  The GT decode reuses
-    the same one-VQ-pass :func:`decode_roles` path the eval uses.
+    Returns ``(record, store_frames, ctx)`` where ``record`` is a partly-filled
+    :class:`CohortShotScreen` carrying the cheap stats (span, plan variation,
+    stream count); ``store_frames`` is the ``(F,16,16)`` GT store-id grid to decode
+    later (``None`` when unassemblable).  Splitting assembly from decode lets the
+    builder BATCH all GT decodes in a few VQ passes (model loaded once) instead of
+    a subprocess per shot.
     """
-    from imas_ambix.worldmodel.control_falsification import (
-        decode_roles,  # noqa: PLC0415
-    )
-    from imas_ambix.worldmodel.control_guidance import _to_gray_f64  # noqa: PLC0415
     from imas_ambix.worldmodel.controllable_eval import (  # noqa: PLC0415
         _assemble_heldout,
         _plan_variation,
@@ -211,33 +209,22 @@ def screen_candidate(shot_id, cfg, *, camera, token_root, thresholds, device, wo
             int(shot_id), cfg, camera=camera, token_root=token_root
         )
     except (ValueError, FileNotFoundError, KeyError) as exc:
-        return CohortShotScreen(
-            shot_id=int(shot_id),
-            assemblable=False,
-            passed=False,
-            reason=f"unassemblable: {exc!r}",
-            recording_span_s=float(span_s or 0.0),
+        return (
+            CohortShotScreen(
+                shot_id=int(shot_id),
+                assemblable=False,
+                passed=False,
+                reason=f"unassemblable: {exc!r}",
+                recording_span_s=float(span_s or 0.0),
+            ),
+            None,
+            0,
         )
 
     base = sample.signal.base
     ctx = int(base.context_frames)
     ft = np.asarray(base.frame_time, dtype=np.float64)
     stream_names = list(sample.signals.keys())
-    plan_var = _plan_variation(sample)
-
-    store = base.store_frames()  # (F, 16, 16) store ids
-    decoded = decode_roles(
-        {"gt": store},
-        [{"role": "gt"}],
-        work_dir=Path(work_dir) / f"shot{shot_id}",
-        device=device,
-    )
-    gt_gray = _to_gray_f64(decoded["gt"])  # (F, H, W)
-    fwin = gt_gray[ctx:]
-    mean_bri = float(fwin.mean()) if fwin.size else 0.0
-    p99 = float(np.percentile(fwin, 99)) if fwin.size else 0.0
-    motion = float(np.abs(np.diff(fwin, axis=0)).mean()) if fwin.shape[0] >= 2 else 0.0
-
     rec = CohortShotScreen(
         shot_id=int(shot_id),
         assemblable=True,
@@ -246,25 +233,65 @@ def screen_candidate(shot_id, cfg, *, camera, token_root, thresholds, device, wo
         achieved_window_span_s=float(ft[-1] - ft[0]) if ft.size >= 2 else 0.0,
         context_frames=ctx,
         n_frames=int(base.n_frames),
-        mean_brightness=mean_bri,
-        p99_brightness=p99,
-        transient_motion=motion,
-        plan_variation=float(plan_var),
+        plan_variation=float(_plan_variation(sample)),
         n_streams=len(stream_names),
         stream_names=stream_names,
     )
+    return rec, base.store_frames(), ctx
+
+
+def _score_gt(rec, gt_gray, thresholds):
+    """Fill the GT brightness/motion stats + pass/fail on a decoded GT stack."""
+    fwin = gt_gray[rec.context_frames :]
+    rec.mean_brightness = float(fwin.mean()) if fwin.size else 0.0
+    rec.p99_brightness = float(np.percentile(fwin, 99)) if fwin.size else 0.0
+    rec.transient_motion = (
+        float(np.abs(np.diff(fwin, axis=0)).mean()) if fwin.shape[0] >= 2 else 0.0
+    )
     fails = []
-    if mean_bri < thresholds.min_brightness:
-        fails.append(f"brightness {mean_bri:.1f}<{thresholds.min_brightness}")
-    if motion < thresholds.min_transient_motion:
-        fails.append(f"motion {motion:.1f}<{thresholds.min_transient_motion}")
-    if plan_var < thresholds.min_plan_variation:
-        fails.append(f"plan_var {plan_var:.2e}<{thresholds.min_plan_variation}")
-    if len(stream_names) < thresholds.min_streams:
-        fails.append(f"streams {len(stream_names)}<{thresholds.min_streams}")
+    if rec.mean_brightness < thresholds.min_brightness:
+        fails.append(
+            f"brightness {rec.mean_brightness:.1f}<{thresholds.min_brightness}"
+        )
+    if rec.transient_motion < thresholds.min_transient_motion:
+        fails.append(
+            f"motion {rec.transient_motion:.1f}<{thresholds.min_transient_motion}"
+        )
+    if rec.plan_variation < thresholds.min_plan_variation:
+        fails.append(
+            f"plan_var {rec.plan_variation:.2e}<{thresholds.min_plan_variation}"
+        )
+    if rec.n_streams < thresholds.min_streams:
+        fails.append(f"streams {rec.n_streams}<{thresholds.min_streams}")
     rec.passed = not fails
     rec.reason = "pass" if rec.passed else "; ".join(fails)
     return rec
+
+
+def screen_candidate(shot_id, cfg, *, camera, token_root, thresholds, device, work_dir):
+    """Assemble + GT-decode ONE candidate and screen it (single-shot path).
+
+    Convenience wrapper over :func:`_assemble_for_screen` + a one-VQ-pass GT
+    decode + :func:`_score_gt`.  The batched builder uses the split helpers
+    directly; this single-shot path is kept for tests / ad-hoc use.
+    """
+    from imas_ambix.worldmodel.control_falsification import (
+        decode_roles,  # noqa: PLC0415
+    )
+    from imas_ambix.worldmodel.control_guidance import _to_gray_f64  # noqa: PLC0415
+
+    rec, store, _ctx = _assemble_for_screen(
+        shot_id, cfg, camera=camera, token_root=token_root
+    )
+    if store is None:
+        return rec
+    decoded = decode_roles(
+        {"gt": store},
+        [{"role": "gt"}],
+        work_dir=Path(work_dir) / f"shot{shot_id}",
+        device=device,
+    )
+    return _score_gt(rec, _to_gray_f64(decoded["gt"]), thresholds)
 
 
 def build_screened_cohort(
@@ -282,13 +309,20 @@ def build_screened_cohort(
 ) -> dict:
     """Build, leakage-guard, and persist the screened eval-only cohort.
 
-    Enumerates train-disjoint candidates, screens each (assemble + GT-decode +
-    brightness/motion/plan-variation/stream-count), keeps the passing shots up to
-    ``target_size``, ASSERTS the kept cohort is disjoint from the training
-    manifest, and writes ``out_json`` = ``{"cohort": [...ids], "thresholds":
-    {...}, "per_shot": [...screens], "summary": {...}}``.  Returns the summary.
+    Enumerates train-disjoint candidates, assembles each window (CPU), then
+    BATCH-decodes the GT camera tokens in a few VQ passes (model loaded once —
+    AGENTS.md §2b) and screens on brightness/motion/plan-variation/stream-count,
+    keeps the passing shots up to ``target_size``, ASSERTS the kept cohort is
+    disjoint from the training manifest, and writes ``out_json`` = ``{"cohort":
+    [...ids], "thresholds": {...}, "per_shot": [...screens], "summary": {...}}``.
+    Returns the summary.
     """
     import tempfile  # noqa: PLC0415
+
+    from imas_ambix.worldmodel.control_falsification import (
+        decode_roles,  # noqa: PLC0415
+    )
+    from imas_ambix.worldmodel.control_guidance import _to_gray_f64  # noqa: PLC0415
 
     thresholds = thresholds or ScreenThresholds()
     train_ids = training_shot_ids(manifest_path)
@@ -305,32 +339,47 @@ def build_screened_cohort(
         len(train_ids),
     )
     wd = Path(work_dir or tempfile.mkdtemp(prefix="gate-cohort-screen-"))
+
+    # 1) assemble all candidate windows (CPU); collect the GT store grids to decode.
     screens: list[CohortShotScreen] = []
-    cohort: list[int] = []
+    to_decode: list[tuple[CohortShotScreen, np.ndarray]] = []
     for sid in candidates:
-        rec = screen_candidate(
-            sid,
-            cfg,
-            camera=camera,
-            token_root=Path(token_root),
-            thresholds=thresholds,
-            device=device,
-            work_dir=wd,
+        rec, store, _ctx = _assemble_for_screen(
+            sid, cfg, camera=camera, token_root=Path(token_root)
         )
         screens.append(rec)
-        logger.info(
-            "screen shot %s: assemblable=%s passed=%s (%s) "
-            "bri=%.1f motion=%.1f streams=%d",
-            rec.shot_id,
-            rec.assemblable,
-            rec.passed,
-            rec.reason,
-            rec.mean_brightness,
-            rec.transient_motion,
-            rec.n_streams,
+        if store is not None:
+            to_decode.append((rec, store))
+    logger.info(
+        "assembled %d/%d candidates; batch-decoding GT for %d",
+        len(to_decode),
+        len(candidates),
+        len(to_decode),
+    )
+
+    # 2) batch the GT decodes (one VQ pass per chunk — model loaded once).
+    decode_chunk = 8
+    cohort: list[int] = []
+    for i in range(0, len(to_decode), decode_chunk):
+        batch = to_decode[i : i + decode_chunk]
+        grids = {f"gt{j}": store for j, (_r, store) in enumerate(batch)}
+        roles = [{"role": f"gt{j}"} for j in range(len(batch))]
+        decoded = decode_roles(
+            grids, roles, work_dir=wd / f"chunk{i // decode_chunk}", device=device
         )
-        if rec.passed:
-            cohort.append(rec.shot_id)
+        for j, (rec, _store) in enumerate(batch):
+            _score_gt(rec, _to_gray_f64(decoded[f"gt{j}"]), thresholds)
+            logger.info(
+                "screen shot %s: passed=%s (%s) bri=%.1f motion=%.1f streams=%d",
+                rec.shot_id,
+                rec.passed,
+                rec.reason,
+                rec.mean_brightness,
+                rec.transient_motion,
+                rec.n_streams,
+            )
+            if rec.passed and len(cohort) < target_size:
+                cohort.append(rec.shot_id)
         if len(cohort) >= target_size:
             break
 
