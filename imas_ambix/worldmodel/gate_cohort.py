@@ -25,22 +25,43 @@ The cohort + per-shot screen stats are written to JSON so the eval reads it via
 ``--held-out-cohort PATH``.  A binding LEAKAGE GUARD asserts that ZERO cohort
 shots appear in the training manifest.
 
-GPU-safety (AGENTS.md §2b): the GT decode loads the frozen VQ ONCE and decodes
-all candidates in batched VQ passes inside the decode subprocess; no per-shot
-model reload.  The candidate enumeration + train-disjoint set + leakage guard
-are pure-numpy / filesystem and CPU-testable.
+GPU-safety (AGENTS.md §2b): the GT decode loads the frozen VQ **exactly once**
+for the whole cohort.  Every assemblable candidate's ``(n_frames, 16, 16)`` GT
+store grid is stacked into one ``(N, n_frames, 16, 16)`` batch and decoded inside
+a SINGLE Open-MAGVIT2-venv subprocess that loads the VQModel once, decodes in
+memory-bounded internal batches, and returns only the per-frame GRAY luminance
+stats (never the multi-GB RGB stacks) — so there is no per-shot/per-chunk model
+reload (the prior builder reloaded the model once per 8-candidate chunk → ~28
+reloads for a few-hundred-shot scan) and no giant image bundle on the FS.  The
+candidate enumeration + train-disjoint set + leakage guard + screen scoring are
+pure-numpy / filesystem and CPU-testable.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
+import subprocess
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+#: The Open-MAGVIT2 venv interpreter that owns the frozen VQ decoder weights (the
+#: ambix venv has no torch/omegaconf for it; the decode therefore runs as a
+#: subprocess under this interpreter — mirrors ``reconstruction_demo``).
+MAGVIT2_PYTHON = Path(
+    "/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv/bin/python"
+)
+MAGVIT2_ROOT = Path("/work/projects/imas_gpu/mast-tokens/v1/open-magvit2")
+#: Registry shift between stored (global) token ids and the local LFQ codebook ids
+#: the VQ decoder expects (``len(CONTROL_TOKENS) == 4``).
+REGISTRY_OFFSET = 4
+GRID_H, GRID_W = 16, 16
 
 #: Default location the screened cohort is written to / read from.
 DEFAULT_COHORT_PATH = Path("/work/projects/imas_gpu/worldmodel/gate_cohort.json")
@@ -70,6 +91,44 @@ class ScreenThresholds:
     #: Min number of measured-signal streams that actually load for the shot, so
     #: the eval conditions on a real multi-modal context (not camera-only).
     min_streams: int = 3
+    #: When too few candidates pass at the default brightness/motion gates, the
+    #: builder may RELAX brightness + motion down to these floors (in steps) to
+    #: reach ``target_size`` — never relaxing plan-variation or stream-count (those
+    #: are correctness gates, not just "is this shot a fair probe").  The relaxed
+    #: values actually used are recorded in the cohort JSON.
+    min_brightness_floor: float = 7.0
+    min_transient_motion_floor: float = 3.0
+
+    def relax_step(self) -> ScreenThresholds:
+        """A modestly-relaxed copy (brightness/motion ↓ toward their floors).
+
+        Halves the gap to the floor each call (geometric approach), so a few
+        calls reach the floor without an abrupt jump.  Plan-variation and
+        stream-count are correctness gates and never relaxed.
+        """
+        return ScreenThresholds(
+            min_brightness=max(
+                self.min_brightness_floor,
+                self.min_brightness_floor
+                + 0.5 * (self.min_brightness - self.min_brightness_floor),
+            ),
+            min_transient_motion=max(
+                self.min_transient_motion_floor,
+                self.min_transient_motion_floor
+                + 0.5 * (self.min_transient_motion - self.min_transient_motion_floor),
+            ),
+            min_plan_variation=self.min_plan_variation,
+            min_streams=self.min_streams,
+            min_brightness_floor=self.min_brightness_floor,
+            min_transient_motion_floor=self.min_transient_motion_floor,
+        )
+
+    def at_floor(self) -> bool:
+        """True once brightness AND motion have reached their relaxation floors."""
+        return (
+            self.min_brightness <= self.min_brightness_floor + 1e-9
+            and self.min_transient_motion <= self.min_transient_motion_floor + 1e-9
+        )
 
 
 @dataclass
@@ -240,14 +299,167 @@ def _assemble_for_screen(shot_id, cfg, *, camera, token_root):
     return rec, base.store_frames(), ctx
 
 
+def _gt_window_stats(gt_gray, context_frames: int) -> tuple[float, float, float]:
+    """``(mean_brightness, p99_brightness, transient_motion)`` over the forecast win.
+
+    Pure-numpy on a decoded ``(F, H, W)`` gray stack — the CPU-testable core of the
+    brightness/motion screen (no VQ decode needed to exercise it).
+    """
+    fwin = gt_gray[context_frames:]
+    mean_bri = float(fwin.mean()) if fwin.size else 0.0
+    p99_bri = float(np.percentile(fwin, 99)) if fwin.size else 0.0
+    motion = float(np.abs(np.diff(fwin, axis=0)).mean()) if fwin.shape[0] >= 2 else 0.0
+    return mean_bri, p99_bri, motion
+
+
 def _score_gt(rec, gt_gray, thresholds):
-    """Fill the GT brightness/motion stats + pass/fail on a decoded GT stack."""
-    fwin = gt_gray[rec.context_frames :]
-    rec.mean_brightness = float(fwin.mean()) if fwin.size else 0.0
-    rec.p99_brightness = float(np.percentile(fwin, 99)) if fwin.size else 0.0
-    rec.transient_motion = (
-        float(np.abs(np.diff(fwin, axis=0)).mean()) if fwin.shape[0] >= 2 else 0.0
+    """Fill the GT brightness/motion stats + pass/fail on a decoded GT stack.
+
+    CPU-testable: hand it a synthetic ``(F, H, W)`` gray stack and a record with
+    ``context_frames`` set and it computes the stats + applies the screen — the
+    same gate the GPU builder applies to its decoded candidates.
+    """
+    mean_bri, p99_bri, motion = _gt_window_stats(gt_gray, rec.context_frames)
+    return _apply_gt_stats(rec, mean_bri, p99_bri, motion, thresholds)
+
+
+# ---------------------------------------------------------------------------
+# In-process GT decode (model loaded ONCE for the whole cohort — AGENTS.md §2b)
+# ---------------------------------------------------------------------------
+
+
+def _screen_decode_phase(
+    token_bundle: str, stats_bundle: str, device: str, decode_batch_size: int
+) -> None:
+    """Decode every candidate GT grid, emit per-shot GRAY stats (runs in venv).
+
+    Loads the frozen VQModel ONCE, decodes the stacked ``(N, F, 16, 16)`` store-id
+    grids in memory-bounded internal batches (so a few-hundred-shot scan never
+    materialises a multi-GB RGB stack), and writes a small ``(N,)`` stats array:
+    per-shot forecast-window mean / p99 brightness + frame-to-frame transient
+    motion.  Invoked under ``MAGVIT2_PYTHON`` via :func:`_run_screen_decode`.
+
+    This is the §2b in-process pattern realised inside the decoder venv: model
+    load is outside the per-shot loop, decode happens in bounded batches, and the
+    model + CUDA cache are released in ``finally``.
+    """
+    sys.path.insert(0, str(MAGVIT2_ROOT))
+    from imas_ambix.bench.stream_worker import decode_batch, load_model  # noqa: PLC0415
+
+    data = np.load(str(token_bundle), allow_pickle=True)
+    grids = np.asarray(data["grids"], dtype=np.int64)  # (N, F, 16, 16) STORE ids
+    ctx = np.asarray(data["context_frames"], dtype=np.int64)  # (N,) per-shot context
+    n, f, h, w = grids.shape
+    # store id -> local LFQ id (clamp the rare out-of-range / never-observed cell).
+    local_all = np.clip(grids - REGISTRY_OFFSET, 0, (1 << 18) - 1).astype(np.int64)
+
+    mean_bri = np.zeros(n, dtype=np.float64)
+    p99_bri = np.zeros(n, dtype=np.float64)
+    motion = np.zeros(n, dtype=np.float64)
+
+    model = load_model(MAGVIT2_ROOT, device)
+    try:
+        for i in range(n):
+            # decode one shot's F frames (F is small, 24); decode_batch chunks
+            # the F frames internally at decode_batch_size.
+            rgb = decode_batch(
+                model,
+                local_all[i],
+                device,
+                max(1, int(decode_batch_size)),
+                (h * 16, w * 16),
+            )  # (F, 256, 256, 3) uint8
+            gray = np.asarray(rgb, dtype=np.float64).mean(axis=-1)  # (F, 256, 256)
+            c = int(ctx[i])
+            fwin = gray[c:]
+            if fwin.size:
+                mean_bri[i] = float(fwin.mean())
+                p99_bri[i] = float(np.percentile(fwin, 99))
+            if fwin.shape[0] >= 2:
+                motion[i] = float(np.abs(np.diff(fwin, axis=0)).mean())
+    finally:
+        try:
+            del model
+            if device.startswith("cuda"):
+                import torch  # noqa: PLC0415
+
+                torch.cuda.empty_cache()
+        except Exception:  # noqa: BLE001
+            pass
+
+    np.savez_compressed(
+        str(stats_bundle),
+        mean_brightness=mean_bri,
+        p99_brightness=p99_bri,
+        motion=motion,
     )
+
+
+def _run_screen_decode(
+    grids: np.ndarray,
+    context_frames: np.ndarray,
+    *,
+    work_dir: Path,
+    device: str,
+    decode_batch_size: int = 8,
+) -> dict[str, np.ndarray]:
+    """Decode the stacked candidate grids in ONE venv subprocess → per-shot stats.
+
+    Writes the ``(N, F, 16, 16)`` store-id stack + per-shot context to a bundle,
+    re-invokes this module under :data:`MAGVIT2_PYTHON` to load the VQ once and
+    decode all candidates, and reads back the per-shot gray stats.  One model
+    load for the whole cohort.
+    """
+    if not MAGVIT2_PYTHON.exists():
+        raise RuntimeError(
+            f"Open-MAGVIT2 decode interpreter not found at {MAGVIT2_PYTHON}. "
+            "Cannot decode GT tokens to screen the cohort (no download on betelgeuse)."
+        )
+    work_dir = Path(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    token_bundle = work_dir / "screen_tokens.npz"
+    stats_bundle = work_dir / "screen_stats.npz"
+    np.savez_compressed(
+        token_bundle,
+        grids=np.asarray(grids, dtype=np.int64),
+        context_frames=np.asarray(context_frames, dtype=np.int64),
+    )
+
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    payload = (
+        "import os, sys; sys.path.insert(0, os.environ['AMBIX_REPO_ROOT']); "
+        "from imas_ambix.worldmodel.gate_cohort import _screen_decode_phase; "
+        "_screen_decode_phase(os.environ['AMBIX_TOKEN_BUNDLE'], "
+        "os.environ['AMBIX_STATS_BUNDLE'], os.environ['AMBIX_DECODE_DEVICE'], "
+        "int(os.environ['AMBIX_DECODE_BATCH']))"
+    )
+    env = dict(os.environ)
+    env["AMBIX_REPO_ROOT"] = str(repo_root)
+    env["AMBIX_TOKEN_BUNDLE"] = str(token_bundle)
+    env["AMBIX_STATS_BUNDLE"] = str(stats_bundle)
+    env["AMBIX_DECODE_DEVICE"] = device
+    env["AMBIX_DECODE_BATCH"] = str(int(decode_batch_size))
+    logger.info(
+        "[gate-cohort] decoding %d candidate GT grids in ONE venv subprocess "
+        "(model loaded once)",
+        int(np.asarray(grids).shape[0]),
+    )
+    subprocess.run([str(MAGVIT2_PYTHON), "-c", payload], check=True, env=env)
+    if not stats_bundle.exists():
+        raise RuntimeError(f"screen decode produced no stats bundle at {stats_bundle}")
+    s = np.load(str(stats_bundle))
+    return {
+        "mean_brightness": np.asarray(s["mean_brightness"], dtype=np.float64),
+        "p99_brightness": np.asarray(s["p99_brightness"], dtype=np.float64),
+        "motion": np.asarray(s["motion"], dtype=np.float64),
+    }
+
+
+def _apply_gt_stats(rec, mean_bri, p99_bri, motion, thresholds):
+    """Fill a record's GT brightness/motion stats from precomputed values + score."""
+    rec.mean_brightness = float(mean_bri)
+    rec.p99_brightness = float(p99_bri)
+    rec.transient_motion = float(motion)
     fails = []
     if rec.mean_brightness < thresholds.min_brightness:
         fails.append(
@@ -268,30 +480,50 @@ def _score_gt(rec, gt_gray, thresholds):
     return rec
 
 
+def _select_cohort(records, thresholds, target_size):
+    """Re-score every record at *thresholds* and keep up to *target_size* passers.
+
+    Re-scoring uses the cached GT stats on each record, so threshold relaxation
+    NEVER re-decodes.  Returns the kept shot-id list (ascending, deterministic).
+    """
+    cohort: list[int] = []
+    for rec in records:
+        if not rec.assemblable:
+            continue
+        _apply_gt_stats(
+            rec,
+            rec.mean_brightness,
+            rec.p99_brightness,
+            rec.transient_motion,
+            thresholds,
+        )
+        if rec.passed and len(cohort) < target_size:
+            cohort.append(rec.shot_id)
+    return cohort
+
+
 def screen_candidate(shot_id, cfg, *, camera, token_root, thresholds, device, work_dir):
     """Assemble + GT-decode ONE candidate and screen it (single-shot path).
 
-    Convenience wrapper over :func:`_assemble_for_screen` + a one-VQ-pass GT
+    Convenience wrapper over :func:`_assemble_for_screen` + a one-model-load GT
     decode + :func:`_score_gt`.  The batched builder uses the split helpers
     directly; this single-shot path is kept for tests / ad-hoc use.
     """
-    from imas_ambix.worldmodel.control_falsification import (
-        decode_roles,  # noqa: PLC0415
-    )
-    from imas_ambix.worldmodel.control_guidance import _to_gray_f64  # noqa: PLC0415
-
-    rec, store, _ctx = _assemble_for_screen(
+    rec, store, ctx = _assemble_for_screen(
         shot_id, cfg, camera=camera, token_root=token_root
     )
     if store is None:
         return rec
-    decoded = decode_roles(
-        {"gt": store},
-        [{"role": "gt"}],
-        work_dir=Path(work_dir) / f"shot{shot_id}",
-        device=device,
+    stats = _run_screen_decode(
+        store[None, ...], np.asarray([ctx]), work_dir=Path(work_dir), device=device
     )
-    return _score_gt(rec, _to_gray_f64(decoded["gt"]), thresholds)
+    return _apply_gt_stats(
+        rec,
+        stats["mean_brightness"][0],
+        stats["p99_brightness"][0],
+        stats["motion"][0],
+        thresholds,
+    )
 
 
 def build_screened_cohort(
@@ -309,22 +541,21 @@ def build_screened_cohort(
 ) -> dict:
     """Build, leakage-guard, and persist the screened eval-only cohort.
 
-    Enumerates train-disjoint candidates, assembles each window (CPU), then
-    BATCH-decodes the GT camera tokens in a few VQ passes (model loaded once —
-    AGENTS.md §2b) and screens on brightness/motion/plan-variation/stream-count,
-    keeps the passing shots up to ``target_size``, ASSERTS the kept cohort is
-    disjoint from the training manifest, and writes ``out_json`` = ``{"cohort":
-    [...ids], "thresholds": {...}, "per_shot": [...screens], "summary": {...}}``.
-    Returns the summary.
+    Enumerates train-disjoint candidates, assembles each window (CPU), STACKS the
+    GT camera token grids and decodes them in a SINGLE venv subprocess (VQModel
+    loaded once for the whole cohort — AGENTS.md §2b; no per-chunk reload), screens
+    on brightness/motion/plan-variation/stream-count, and keeps the passing shots
+    up to ``target_size``.  If too few pass at the default brightness/motion gates,
+    the thresholds are RELAXED in steps toward their floors (re-scoring the cached
+    stats — never re-decoding) until ``target_size`` is reached or the floors are
+    hit; the thresholds actually applied are recorded in the JSON.  ASSERTS the
+    kept cohort is disjoint from the training manifest, then writes ``out_json`` =
+    ``{"cohort": [...ids], "thresholds": {...}, "per_shot": [...screens],
+    "summary": {...}}``.  Returns the summary.
     """
     import tempfile  # noqa: PLC0415
 
-    from imas_ambix.worldmodel.control_falsification import (
-        decode_roles,  # noqa: PLC0415
-    )
-    from imas_ambix.worldmodel.control_guidance import _to_gray_f64  # noqa: PLC0415
-
-    thresholds = thresholds or ScreenThresholds()
+    base_thresholds = thresholds or ScreenThresholds()
     train_ids = training_shot_ids(manifest_path)
     candidates = enumerate_candidate_shots(
         token_root=Path(token_root),
@@ -342,33 +573,42 @@ def build_screened_cohort(
 
     # 1) assemble all candidate windows (CPU); collect the GT store grids to decode.
     screens: list[CohortShotScreen] = []
-    to_decode: list[tuple[CohortShotScreen, np.ndarray]] = []
+    decode_recs: list[CohortShotScreen] = []
+    decode_grids: list[np.ndarray] = []
+    decode_ctx: list[int] = []
     for sid in candidates:
-        rec, store, _ctx = _assemble_for_screen(
+        rec, store, ctx = _assemble_for_screen(
             sid, cfg, camera=camera, token_root=Path(token_root)
         )
         screens.append(rec)
         if store is not None:
-            to_decode.append((rec, store))
+            decode_recs.append(rec)
+            decode_grids.append(np.asarray(store, dtype=np.int64))
+            decode_ctx.append(int(ctx))
     logger.info(
-        "assembled %d/%d candidates; batch-decoding GT for %d",
-        len(to_decode),
+        "assembled %d/%d candidates; decoding GT for all %d in ONE model load",
+        len(decode_recs),
         len(candidates),
-        len(to_decode),
+        len(decode_recs),
     )
 
-    # 2) batch the GT decodes (one VQ pass per chunk — model loaded once).
-    decode_chunk = 8
-    cohort: list[int] = []
-    for i in range(0, len(to_decode), decode_chunk):
-        batch = to_decode[i : i + decode_chunk]
-        grids = {f"gt{j}": store for j, (_r, store) in enumerate(batch)}
-        roles = [{"role": f"gt{j}"} for j in range(len(batch))]
-        decoded = decode_roles(
-            grids, roles, work_dir=wd / f"chunk{i // decode_chunk}", device=device
+    # 2) decode ALL assemblable GT grids in ONE subprocess (model loaded once).
+    #    n_frames is fixed by the window config, so every grid is (F,16,16) and
+    #    they stack to (N,F,16,16) for a single decode pass.
+    if decode_recs:
+        stack = np.stack(decode_grids, axis=0)  # (N, F, 16, 16)
+        stats = _run_screen_decode(
+            stack, np.asarray(decode_ctx), work_dir=wd, device=device
         )
-        for j, (rec, _store) in enumerate(batch):
-            _score_gt(rec, _to_gray_f64(decoded[f"gt{j}"]), thresholds)
+        for j, rec in enumerate(decode_recs):
+            # cache the GT stats on the record (default-threshold scoring below).
+            _apply_gt_stats(
+                rec,
+                stats["mean_brightness"][j],
+                stats["p99_brightness"][j],
+                stats["motion"][j],
+                base_thresholds,
+            )
             logger.info(
                 "screen shot %s: passed=%s (%s) bri=%.1f motion=%.1f streams=%d",
                 rec.shot_id,
@@ -378,10 +618,29 @@ def build_screened_cohort(
                 rec.transient_motion,
                 rec.n_streams,
             )
-            if rec.passed and len(cohort) < target_size:
-                cohort.append(rec.shot_id)
-        if len(cohort) >= target_size:
-            break
+
+    # 3) select the cohort at the default gates; RELAX brightness/motion in steps
+    #    toward their floors if too few pass (no re-decode — re-score cached stats).
+    applied = base_thresholds
+    cohort = _select_cohort(decode_recs, applied, target_size)
+    n_relax = 0
+    while len(cohort) < target_size and not applied.at_floor():
+        applied = applied.relax_step()
+        n_relax += 1
+        cohort = _select_cohort(decode_recs, applied, target_size)
+        logger.info(
+            "relaxed thresholds (step %d): bri>=%.1f motion>=%.1f -> %d pass",
+            n_relax,
+            applied.min_brightness,
+            applied.min_transient_motion,
+            len(cohort),
+        )
+    # re-score every record at the FINAL applied thresholds so per_shot.reason
+    # reflects what was actually used.
+    for rec in decode_recs:
+        _apply_gt_stats(
+            rec, rec.mean_brightness, rec.p99_brightness, rec.transient_motion, applied
+        )
 
     # binding leakage guard BEFORE persisting.
     assert_disjoint(cohort, train_ids)
@@ -394,11 +653,14 @@ def build_screened_cohort(
         "target_size": target_size,
         "candidate_cap": candidate_cap,
         "camera": camera,
-        "thresholds": asdict(thresholds),
+        "n_relaxation_steps": n_relax,
+        "thresholds_default": asdict(base_thresholds),
+        "thresholds": asdict(applied),
     }
     payload = {
         "cohort": cohort,
-        "thresholds": asdict(thresholds),
+        "thresholds": asdict(applied),
+        "thresholds_default": asdict(base_thresholds),
         "per_shot": [r.to_dict() for r in screens],
         "summary": summary,
     }
@@ -432,3 +694,8 @@ __all__ = [
     "screen_candidate",
     "training_shot_ids",
 ]
+
+
+# Re-export the CPU-testable screen-scoring helpers (not GPU-dependent) so the
+# unit tests can exercise the gate logic without a VQ decode.
+__all__ += ["_apply_gt_stats", "_gt_window_stats", "_score_gt", "_select_cohort"]
