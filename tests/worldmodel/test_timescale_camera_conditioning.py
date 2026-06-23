@@ -470,12 +470,26 @@ def _write_ait_store(token_root, shot, n_t):
     rng = np.random.default_rng(shot)
     g["time"] = np.linspace(0.0, 0.3, n_t).astype(np.float32)
     traces = [
-        "etot_isp", "etot_osp", "etot_isp_elm", "etot_osp_elm",
-        "etotsum_isp", "etotsum_osp", "lampowpp_isp", "lampowpp_osp",
-        "lampowsol_isp", "lampowsol_osp", "ptot_isp", "ptot_osp",
-        "pkpower_density_isp", "pkpower_density_osp", "peakpower_pos_isp",
-        "peakpower_pos_osp", "temperature_isp", "temperature_osp",
-        "satpixels_isp", "satpixels_osp",
+        "etot_isp",
+        "etot_osp",
+        "etot_isp_elm",
+        "etot_osp_elm",
+        "etotsum_isp",
+        "etotsum_osp",
+        "lampowpp_isp",
+        "lampowpp_osp",
+        "lampowsol_isp",
+        "lampowsol_osp",
+        "ptot_isp",
+        "ptot_osp",
+        "pkpower_density_isp",
+        "pkpower_density_osp",
+        "peakpower_pos_isp",
+        "peakpower_pos_osp",
+        "temperature_isp",
+        "temperature_osp",
+        "satpixels_isp",
+        "satpixels_osp",
     ]
     for tr in traces:
         g[tr] = (rng.standard_normal(n_t) * 1e5).astype(np.float32)

@@ -1069,7 +1069,9 @@ def test_diagnostics_off_does_not_perturb_the_backbone():
     forecaster.
     """
     torch.manual_seed(0)
-    m_off = ControllableSpacetimeTransformer(_tiny_cfg(generate_diagnostics=False)).eval()
+    m_off = ControllableSpacetimeTransformer(
+        _tiny_cfg(generate_diagnostics=False)
+    ).eval()
     torch.manual_seed(0)
     m_on = ControllableSpacetimeTransformer(_tiny_cfg(generate_diagnostics=True)).eval()
     assert not getattr(m_off, "has_diagnostics", False)
@@ -1207,7 +1209,9 @@ def test_forward_return_components_breaks_out_the_diagnostic_ce():
         assert k in out and torch.isfinite(out[k])
     assert float(out["diagnostic_ce"]) > 0.0
     # loss == camera + w*diag (inv-dyn weight defaulted off here).
-    assert abs(float(out["loss"]) - float(out["camera_nll"] + out["diagnostic_ce"])) < 1e-4
+    assert (
+        abs(float(out["loss"]) - float(out["camera_nll"] + out["diagnostic_ce"])) < 1e-4
+    )
 
 
 def test_diagnostic_heads_get_grad_on_signalless_batch():
@@ -1218,7 +1222,8 @@ def test_diagnostic_heads_get_grad_on_signalless_batch():
     plan = torch.randint(0, cfg.plan_vocab, (2, 3, cfg.plan_channels))
     batch = {"frames": frames, "plan": plan, "signals": {}, "actuator": None}
     loss = model(
-        batch, loss_spec={"chunk": 4096, "context_frames": None, "diagnostic_weight": 1.0}
+        batch,
+        loss_spec={"chunk": 4096, "context_frames": None, "diagnostic_weight": 1.0},
     )
     loss.backward()
     for st in cfg.signal_streams:

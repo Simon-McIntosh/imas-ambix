@@ -2004,8 +2004,7 @@ def train_controllable_corpus(
         else:
             # ALL-OR-NOTHING (the ablation path).
             obs_drop = (
-                torch.rand(b, generator=d_gen, device=dev)
-                < config.observation_dropout
+                torch.rand(b, generator=d_gen, device=dev) < config.observation_dropout
             )
             out["signals"] = _drop_observations(batch.get("signals"), obs_drop)
         # control dropout (CFG): zero the WHOLE conditioning on a fraction.

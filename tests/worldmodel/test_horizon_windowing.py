@@ -94,8 +94,18 @@ def test_manifest_train_windows_derives_per_shot_stride(tmp_path):
             {
                 "horizon_s": 0.25,
                 "windows": [
-                    {"shot_id": 100, "start_frame": 506, "fps": 2000.0, "frame_stride": 11},  # noqa: E501
-                    {"shot_id": 200, "start_frame": 126, "fps": 500.0, "frame_stride": 3},  # noqa: E501
+                    {
+                        "shot_id": 100,
+                        "start_frame": 506,
+                        "fps": 2000.0,
+                        "frame_stride": 11,
+                    },  # noqa: E501
+                    {
+                        "shot_id": 200,
+                        "start_frame": 126,
+                        "fps": 500.0,
+                        "frame_stride": 3,
+                    },  # noqa: E501
                     {"shot_id": 18502, "start_frame": 9, "fps": 2000.0},  # held-out
                 ],
             }

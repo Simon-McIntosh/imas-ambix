@@ -289,9 +289,7 @@ def _fps_from_times(times: np.ndarray | None) -> float | None:
     return (1.0 / med) if med > 0 else None
 
 
-def effective_frame_stride(
-    config: SpacetimeWindowConfig, fps: float | None
-) -> int:
+def effective_frame_stride(config: SpacetimeWindowConfig, fps: float | None) -> int:
     """The per-shot frame stride so ``n_frames`` span ~``target_horizon_s``.
 
     ``max(1, round(target_horizon_s * fps / n_frames))`` when

@@ -610,9 +610,7 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
                 )
             else:
                 cam_idx = (
-                    camera_id.to(frames.device)
-                    .long()
-                    .clamp(0, len(CAMERA_IDS) - 1)
+                    camera_id.to(frames.device).long().clamp(0, len(CAMERA_IDS) - 1)
                 )
             cam = cam + self.camera_embed(cam_idx).view(b, 1, 1, d)
 

@@ -912,9 +912,7 @@ def train_corpus(
 
     if device is None:
         # each rank pins its OWN card (cuda:local_rank); single-proc -> cuda:0
-        device = (
-            f"cuda:{dist_env.local_rank}" if torch.cuda.is_available() else "cpu"
-        )
+        device = f"cuda:{dist_env.local_rank}" if torch.cuda.is_available() else "cpu"
     dev = torch.device(device)
 
     stop = _StopFlag()

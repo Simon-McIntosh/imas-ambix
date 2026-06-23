@@ -166,14 +166,27 @@ def extended_signal_modalities() -> list[SignalModalitySpec]:
         # These give the plasma-boundary LOCATION — a strong control signal: ada
         # carries the Dα-peak radius, adg the edge density-gradient position, aim
         # the Dα emission.  Discrete low-channel traces -> stride 1 (keep all).
-        SignalModalitySpec("ada", "ada", l2, max_channels=8, kind="staged", profile_r_stride=1),
-        SignalModalitySpec("adg", "adg", l2, max_channels=8, kind="staged", profile_r_stride=1),
-        SignalModalitySpec("aim", "aim", l2, max_channels=8, kind="staged", profile_r_stride=1),
+        SignalModalitySpec(
+            "ada", "ada", l2, max_channels=8, kind="staged", profile_r_stride=1
+        ),
+        SignalModalitySpec(
+            "adg", "adg", l2, max_channels=8, kind="staged", profile_r_stride=1
+        ),
+        SignalModalitySpec(
+            "aim", "aim", l2, max_channels=8, kind="staged", profile_r_stride=1
+        ),
         # Calibrated L2 MAGNETICS — flux loops + poloidal B-field probes (ccbv
         # vertical-field array, obr/obv outboard) = the DIRECT plasma position /
         # shape sensor.  Discrete sensor channels -> stride 1; wider cap so the
         # flux loops + the full ccbv vertical-position array are all kept.
-        SignalModalitySpec("magnetics", "magnetics", l2, max_channels=96, kind="staged", profile_r_stride=1),
+        SignalModalitySpec(
+            "magnetics",
+            "magnetics",
+            l2,
+            max_channels=96,
+            kind="staged",
+            profile_r_stride=1,
+        ),
     ]
     return mods
 
