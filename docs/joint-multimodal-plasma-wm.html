@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-23">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 </head>
 <body>
   <main class="plan-doc">
@@ -172,6 +172,29 @@
     <p>Ablation grid (each lever toggled): joint-generation on/off, per-modality masking vs all-or-nothing, and the
     three contrastive terms individually — to prove each lever's <em>marginal</em> contribution rather than shipping a
     confounded stack. Phase 2 adds the RSSM latent as a further arm.</p>
+
+    <div style="border:1px solid #e3cfcf;background:#fbf3f3;border-radius:6px;padding:10px 14px;margin:8px 0">
+      <p style="margin:0 0 6px"><strong>Gate robustness audit (2026-06-23): the 18502–05 held-out set is NOT robust — it is effectively 1-shot.</strong>
+      Frame evidence decoded from the EXACT gate window classified the shots: <strong>18502 GOOD</strong>
+      (bright, transient motion 8.2, true plan drives the dream → +91.6/3.5×); <strong>18503 DEGENERATE by
+      METRIC</strong> (GT bright + coherent, true-plan forecast fine, but the RANDOM-plan rollouts collapse and
+      diverge among themselves → an inflated noise floor 29.6 drags the margin negative — the gate fails a good
+      shot); <strong>18504 DEGENERATE by DATA</strong> (GT near-black, mean 2.7 ≈ 6× dimmer; the model dreams
+      black regardless of plan → true-vs-random = 0); <strong>18505 DROPPED</strong> (span 0.238 s &lt; 0.25 s
+      horizon). All four are real plasma shots (presence 0.75, |Ip| ≈ 745 kA) — Ip does not discriminate; the
+      degeneracy is in the camera window + the metric. Two root causes: bad shot SELECTION (18504) and a
+      fragile METRIC (the random-vs-random floor is inflated by random-rollout COLLAPSE). Revision =
+      <code>f-jmwm-005</code>: screen a larger eval-only cohort (train-disjoint, brightness + transient-motion
+      + transient-plan screened, no retrain) + a noise-floor-normalised, collapse-rejecting ΔN-M.</p>
+      <figure style="margin:6px 0 0">
+        <img src="/imas-ambix/figures/joint-multimodal-plasma-wm/gate-shots/gate_shots_summary.png"
+             alt="Per-shot gate stats: GT brightness, transient motion, noise floor vs true-vs-random, margin, ratio for the three held-out gate shots across the baseline and joint-gen checkpoints — 18502 GOOD, 18503/18504 degenerate."
+             style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:6px">
+        <figcaption style="font-size:12px;color:#333;margin-top:4px">Per-shot gate stats + GOOD/DEGENERATE
+        verdict (full set incl. GT contact sheets + true-vs-random rollout comparisons under
+        <code>docs/figures/joint-multimodal-plasma-wm/gate-shots/</code>, commit <code>ab19cc7</code>).</figcaption>
+      </figure>
+    </div>
 
     <h2 id="s7">§7 — Build sequence &amp; risks</h2>
     <p>Sequencing (staged A→B, the locked approach): <strong>(1)</strong> diagnostic heads + matching loss +
@@ -378,12 +401,64 @@ Done-when
   3. Plan updated with the matched verdict; this followup resolved.</pre>
     <p class="r-fu-outcome">RESOLVED. Eval fix landed (4d4d6aa): controllable_eval --signal-modalities {auto|default|extended}, default auto reads the trained stream set from the checkpoint's extra.stream_names so the eval can never silently mismatch training; the sbatch baked-in eval now auto-resolves to 13 streams via that default (no sbatch change needed). Matched 13-stream re-eval of BOTH checkpoints (job 1221878, 4.5 min, both COMPLETED): the gate regression is REAL, not an eval-starvation artifact. Matched ΔN-M (held-out 18502-04; 18505 still dropped, 0.238s&lt;0.25s horizon): baseline 1221741 mean margin +20.66 (1/3 pass; per-shot 18502 +91.6/2.33x, 18503 -13.6, 18504 -16.0) vs joint-gen 1221834 +0.74 (1/3; 18502 +38.9/2.33x, 18503 -9.2, 18504 -27.5). Fixing the confound RAISED 1221834 from -0.90 to +0.74 but did NOT rescue it — the joint-gen run sits far below baseline. NEITHER robustly passes (both 1/3; only 18502 ever driveable — the gate was never robustly passed). Joint generation itself WORKS decisively: matched diagnostic-match mean next-step token accuracy 0.240 (1221834) vs 0.002 (1221741, untrained heads) — gas_injection 0.86, xim/Dα 0.76, xsx 0.25, ada 0.33, magnetics 0.11. CONCLUSION: §3a delivered the generative capability + a quantitative diagnostic-match eval, but as a standalone the diagnostic objective (or the extra 8000 fine-tune steps) COST controllability — it pulled the one driveable shot's margin down (91.6→38.9). Remaining confound (diagnostic-objective vs continued-training) isolated by ablation job 1221883 (diagnostics OFF, otherwise identical) — in flight. The gate-moving levers are §3b masking (keep CLEAN diagnostic targets while masking inputs — dream from a reduced set) + §3c action-contrastive (trains the ΔN-M objective directly), per the locked plan.</p>
     </article>
+<article class="r-fu" data-id="f-jmwm-005" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">§6 gate revision — screened eval-only cohort + noise-floor-normalised, collapse-rejecting ΔN-M</h4>
+    <div class="r-fu-body">Frame evidence (ab19cc7) proved the 18502-05 gate is effectively 1-shot: 18504 dark (model dreams black), 18503 fails by an inflated random-vs-random floor (random-plan rollout collapse), 18505 too short. Make the gate robust WITHOUT retraining: screen a larger eval-only cohort of train-disjoint shots + fix the metric so a degenerate random floor cannot silently fail a good shot.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    joint-multimodal-plasma-wm
+Section: §6 (eval) — gate robustness
+Tier:    opus
+
+Context
+  The ΔN-M gate (controllable_eval.multi_shot_delta_nm) is effectively 1-shot. Frame evidence:
+  docs/figures/joint-multimodal-plasma-wm/gate-shots/ + gate_shot_stats.json. 18502 GOOD; 18503 fails
+  because RANDOM-plan rollouts COLLAPSE → inflated random-vs-random floor; 18504 dark (GT mean 2.7, model
+  dreams black); 18505 too short (0.238s&lt;0.25s). All are real plasma shots — the degeneracy is the camera
+  window + the metric, not Ip.
+
+State to read
+  imas_ambix/worldmodel/controllable_eval.py — multi_shot_delta_nm (~212-351), the gate summary/pass logic,
+    _decoded_divergences / _token_divergences, _assemble_heldout, _resolve_eval_modalities (just landed),
+    EvalConfig. The frame worker&#x27;s gate_shot_stats.json has the per-shot brightness/motion/floor numbers.
+
+Scope locks / constraints
+  - (1) SCREENED EVAL-ONLY COHORT: build a held-out cohort of shots that are train-DISJOINT (NOT in
+    /work/projects/imas_gpu/agents/excitation-corpus/curated_windows_unified_6cam.json) and have rbb + the
+    13 signal streams + recording span &gt;= target_horizon_s. Screen each candidate by GT decoded
+    forecast-window MEAN BRIGHTNESS &gt;= ~10 AND GT TRANSIENT MOTION (frame-to-frame pixel-L1) &gt;= ~4 AND a
+    transient plan-variation. Cap candidate scanning (e.g. &lt;=60 shots) and keep ~15-30 that pass; SAVE the
+    cohort + per-shot screen stats to a JSON the eval reads (a --held-out-cohort path, or auto-build +
+    cache). LEAKAGE GUARD: assert zero cohort shots appear in the training manifest.
+  - (2) ROBUST METRIC: replace the absolute margin&gt;1.0 pass with a noise-floor-NORMALISED statistic
+    (ratio = true_vs_random / random_vs_random, gate on ratio with a bootstrap CI across the cohort) AND
+    REJECT collapsed random rollouts from the floor estimate: a random rollout whose decoded frames
+    collapse (near-uniform / near-black / brightness far from GT scale) is excluded from random_vs_random
+    so the floor reflects real plan-driven variation, not degenerate-dream variation. Keep the per-shot
+    transient gate.
+  - (3) Keep the OLD fixed-4-shot path available (a flag) for back-comparison; default to the screened
+    cohort.
+  - Edit ONLY controllable_eval.py + tests/worldmodel/test_controllable_eval.py (+ a small cohort-builder
+    helper if cleaner, in the same file or a new eval-only module you own). Do NOT touch controllable_model.py
+    or controllable_train.py (a concurrent worker owns them). No co-author trailer; no plan edits.
+
+Done-when
+  1. Screened-cohort builder + leakage assert + the normalised/collapse-rejecting metric implemented, behind
+     flags (default = robust gate); a unit test covers the metric (a synthetic collapsed-random floor is
+     excluded) + the cohort leakage guard.
+  2. Re-eval 1221741 (baseline), 1221834 (joint-gen), 1221883 (diag-off) on the ROBUST gate (1-2 GPUs on
+     betelgeuse); report per-cohort pass-fraction + normalised margin + bootstrap CI for all three.
+  3. A figure (cohort screen stats + the three-checkpoint robust-gate comparison) under
+     docs/figures/joint-multimodal-plasma-wm/.
+  4. tests green (clean sun_debug allocation); committed + pushed (your eval files + figures only).
+  Report the cohort size, the three-checkpoint robust verdict, and the figure paths. Orchestrator records the plan.</pre>
+    </article>
 </section>
 
   <section data-reckon="questions" id="questions" class="r-questions">
 <h2><span class="sec">§</span> Open questions</h2>
-<div class="r-q" data-id="q-jmwm-001" data-section="s3" data-status="open" data-opened-by="smc" data-opened-at="2026-06-23" data-resolved-at="" data-resolved-by="">
+<div class="r-q" data-id="q-jmwm-001" data-section="s3" data-status="resolved" data-opened-by="smc" data-opened-at="2026-06-23" data-resolved-at="2026-06-23T11:02:04+00:00" data-resolved-by="smc">
     <p class="r-q-body">Phase-1 §3a verdict + the fine-tuning finding. Three-way matched 13-stream ΔN-M: entry baseline 1221741 +20.66 (no continued training) → diagnostics-OFF +8000 steps @LR 5e-5 1221883 +2.74 → diagnostics-ON 1221834 +0.74 (all 1/3; only shot 18502 ever driveable). So CONTINUED FINE-TUNING with a re-warmed LR is the dominant controllability cost; the diagnostic objective adds a smaller further drop. Joint generation itself works (diagnostic-match 0.240 vs 0.002). Honesty correction: the +18.1/+20.66 'gate' was never a robust pass — 1 driveable shot + 2 fails. Recommended path (proceeding unless the lead redirects): (1) do NOT fine-tune the entry baseline with a re-warmed cosine LR — warm-start gains decay; for any further training use a much lower constant LR (~1e-6) or freeze the backbone + train only new params. (2) Land §3b masking (keep CLEAN diagnostic targets while masking inputs — fixes diag-CE-zeroed-80%-of-steps AND enables dream-from-reduced-set) and §3c action-contrastive (trains ΔN-M directly) — these are the gate levers, not more generative fine-tuning. (3) Combine joint-gen WITH those levers at a lower diagnostic_weight, evaluated on the matched 13-stream eval, rather than shipping diagnostics standalone. Open Q for the lead: is 18502-only-driveable acceptable as the working gate while we pursue §3b/§3c, or should the gate definition / held-out set be revisited (only 18502 has ever passed across 1221563/1221741/1221834/1221883)?</p>
+    <p class="r-q-resolution">Lead directed: REVISE the gate definition. Frame evidence (figures committed ab19cc7 under docs/figures/joint-multimodal-plasma-wm/gate-shots/) proves the held-out set 18502-05 is NOT a robust controllability probe — it is effectively 1-shot. Per-shot GT decoded from the EXACT gate window: 18502 GOOD (mean brightness 17, transient motion 8.2, true plan drives the dream → +91.6/3.5x); 18503 DEGENERATE-by-METRIC (GT bright+coherent, true-plan forecast fine, but RANDOM-plan rollouts collapse and diverge among themselves → inflated noise floor 29.6 drags margin negative); 18504 DEGENERATE-by-DATA (GT near-black mean 2.7 = 6x dimmer; model dreams black regardless of plan → true-vs-random pixel-L1 = 0; highest floor); 18505 correctly dropped (span 0.238s<0.25s horizon). All four are real plasma shots (presence 0.75, |Ip|~745kA) — Ip does NOT discriminate; the degeneracy is in the CAMERA window. TWO root causes: bad shot SELECTION (18504 dark) AND a fragile METRIC (the random-vs-random floor is inflated by random-rollout COLLAPSE, not real plan-driven variation). Resolution = f-jmwm-005: (1) screen a larger EVAL-ONLY cohort (train-disjoint shots not in curated_windows_unified_6cam.json — no retrain) by GT brightness >=~10 + GT transient motion >=~4 + transient plan-variation, target ~15-30 shots so the gate is not 1-shot; (2) noise-floor-NORMALISED margin + REJECT collapsed random rollouts from the floor estimate; (3) re-eval 1221741/1221834/1221883 on the robust gate for the true verdict.</p>
     </div>
 </section>
 </main>
