@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-23">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 </head>
 <body>
   <main class="plan-doc">
@@ -277,9 +277,9 @@
       </p>
     <p class="r-dec-rat">Locked by the lead. Per-stream output heads on the shared backbone: each diagnostic stream keeps its own vocab + channel count, the heads are lighter than a unified token stream, and they warm-start cleanly from the 1221741 backbone (only the new heads init fresh). Unified-token-stream is rejected — it would inflate the sequence length and entangle stream vocabularies.</p>
     </div>
-<div class="r-dec" data-key="phase2-init" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="phase2-init" data-choice="warmstart-tokens-train-latent-fresh" data-by="smc" data-when="2026-06-23T20:47:14+00:00">
     <p class="r-dec-q">Phase-2 RSSM: warm-start the encoder/decoder from Phase 1, or train the latent model from scratch?</p>
-    <p class="r-dec-rat">Open — depends on whether the Phase-1 backbone embeddings transfer to the latent encoder. Decide after Phase 1 lands.</p>
+    <p class="r-dec-rat">Reuse is cheap + the latent must be learned fresh. Warm-start the EXPENSIVE, transferable pieces from a Phase-1 checkpoint where shapes allow — the Open-MAGVIT2 camera token embedding, the chunked camera-token decode head, and the per-stream diagnostic heads (all same vocab/d_model as Phase-1) — and train the RSSM recurrent latent core (GRU + prior/posterior + the latent→spatial decoder) FROM SCRATCH. The frozen Open-MAGVIT2 VQ stays the pixel decoder for eval. Rationale: the token I/O embeddings encode hard-won structure worth reusing; the dynamics (the whole point) must be relearned through the bottleneck.</p>
     </div>
 </section>
 
@@ -519,7 +519,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-jmwm-007" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Phase-1 PLATEAU + measurement wall: action-contrastive didn&#x27;t engage; gate can&#x27;t resolve levers</h4>
-    <div class="r-fu-body">4-way 25-shot robust gate (mean normalised ratio / pass / CI): baseline 1221741 1.12 (1/25); diag-off 1221883 1.67 (3/25); joint-gen 1221834 1.66 (4/25); +masking 1222038 1.39 (2/25); +action-contrastive 1222169 1.48 (2/25). Continued fine-tuning lifts the baseline (1.12->~1.4-1.7) but NO specific lever beats plain joint-gen. The action-contrastive lever DID NOT ENGAGE (log: loss = cam + 0.5*diag to within 0.007 at step 8000 -> the term contributed ~0; warm-starting 1221834 left the margin pre-satisfied) -> §3c INCONCLUSIVE. MEASUREMENT WALL: CIs span ~[0.8,3.0] (genuine shot-to-shot variance) so the gate cannot resolve lever effects; pass-fraction (joint-gen 4/25 highest) is the more stable signal. Per the plan's gating, Phase-2 RSSM is gated on Phase-1 validating the levers move the gate — which it did NOT. Capability: joint generation WORKS (dreams diagnostics); controllability PLATEAUED.</div>
+    <div class="r-fu-body">4-way 25-shot robust gate (mean normalised ratio / pass / CI): baseline 1221741 1.12 (1/25); diag-off 1221883 1.67 (3/25); joint-gen 1221834 1.66 (4/25); +masking 1222038 1.39 (2/25); +action-contrastive 1222169 1.48 (2/25). Continued fine-tuning lifts the baseline (1.12-&gt;~1.4-1.7) but NO specific lever beats plain joint-gen. The action-contrastive lever DID NOT ENGAGE (log: loss = cam + 0.5*diag to within 0.007 at step 8000 -&gt; the term contributed ~0; warm-starting 1221834 left the margin pre-satisfied) -&gt; §3c INCONCLUSIVE. MEASUREMENT WALL: CIs span ~[0.8,3.0] (genuine shot-to-shot variance) so the gate cannot resolve lever effects; pass-fraction (joint-gen 4/25 highest) is the more stable signal. Per the plan's gating, Phase-2 RSSM is gated on Phase-1 validating the levers move the gate — which it did NOT. Capability: joint generation WORKS (dreams diagnostics); controllability PLATEAUED.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    joint-multimodal-plasma-wm
 Section: §3/§6 — Phase-1 plateau + measurement wall
@@ -547,6 +547,24 @@ Three candidate directions (lead picks):
 Recommendation: a MEASUREMENT fix is a prerequisite EITHER way (we are flying blind on lever effects); then
 make action-contrastive engage before concluding Phase-1; commit to the Phase-2 build only with the lead&#x27;s
 re-gate. Resolve once the lead picks a direction + that direction&#x27;s first step lands.</pre>
+    </article>
+<article class="r-fu" data-id="f-jmwm-008" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Phase-2 §4 — RSSM compact latent-dynamics world model (build the model + overfit smoke)</h4>
+    <div class="r-fu-body">The powered gate proved the token backbone is NOT controllable (ratio<1; the command is an AdaLN side-input it can ignore). The locked structural fix (latent-bottleneck=rssm): a Dreamer-style RSSM where the command enters the RECURRENT TRANSITION, so a different plan necessarily produces a different latent rollout -> controllability BY CONSTRUCTION. Build it as a NEW self-contained module (rssm.py) so it doesn't touch the files a live training job imports. v0 design: per camera frame t, encode the frame tokens to e_t (reuse the Phase-1 camera token embedding + spatial pool); deterministic GRU h_t = GRU(h_{t-1}, [s_{t-1}, cmd_t]) with cmd_t the per-frame actuator command (interpolate the n_act_steps plan to T frames; honour masked_command_indices = drive-from-commands); prior p(s_t|h_t) + posterior q(s_t|h_t,e_t) (diagonal Gaussian, reparam); decode z_t=[h_t,s_t] -> spatial tokens via a small learned-query spatial decoder -> reuse the chunked camera head (camera CE) + the per-stream diagnostic heads (diagnostic CE). Loss = camera CE + diagnostic CE + beta*KL(q||p) with free-bits. PLAY/controllability = roll the PRIOR forward under commands (no obs) -> dream cameras+diagnostics; control enters the recurrence so it is structurally load-bearing. Warm-start per the phase2-init decision (token embed + camera head + diagnostic heads from a Phase-1 ckpt; latent core fresh). DE-RISK GATE: an OVERFIT SMOKE (can the RSSM overfit a tiny batch of real windows? camera CE -> low, KL sane) BEFORE the overnight train.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    joint-multimodal-plasma-wm
+Section: §4 Phase-2 RSSM — model + overfit smoke
+Tier:    opus
+
+The orchestrator will provide the full frozen design + dispatch. Build a NEW self-contained module
+imas_ambix/worldmodel/rssm.py (do NOT edit controllable_model.py/controllable_train.py — a live training
+job imports them). Reuse the Phase-1 camera token embedding + chunked camera head + per-stream diagnostic
+heads (same vocab/d_model). Deliver: the RSSM model class (encoder, GRU transition, prior/posterior, latent-&gt;
+spatial decoder, camera+diagnostic decode, KL free-bits, a prior-rollout/PLAY method), config, warm-start
+loader (token embed + heads from a Phase-1 ckpt; latent core fresh), and tests incl. an OVERFIT SMOKE on a
+tiny real-window batch (camera CE drops, KL finite, command in the transition is load-bearing: perturbing
+cmd changes the prior rollout). Tests on a clean sun_debug allocation. New files on main are safe (the live
+job never imports them). Commit + push; no co-author trailer.</pre>
     </article>
 </section>
 
