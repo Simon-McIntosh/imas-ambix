@@ -855,9 +855,16 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
 
         ``batch`` is ``{"frames": (B, T, S) long, "plan": (B, P, C) long,
         "signals": {name: (B, P_s, C_s) long}, "actuator": {"values": (B, P_a,
-        C_a) float, "missing": (B, P_a, C_a) float}}``.  An optional
-        ``corruption_level`` ``(B,)`` long, ``target_frames`` ``(B, T, S)`` long,
-        ``history_bottleneck`` (:class:`HistoryBottleneckConfig`),
+        C_a) float, "missing": (B, P_a, C_a) float}}``.  ``signals`` is the model
+        INPUT (possibly per-stream MASKED — a masked stream is zeroed to PAD so its
+        frames stay in the sequence as all-PAD embeddings and the model still
+        produces latents for it).  An optional ``signal_targets`` ``{name: (B, P_s,
+        C_s) long}`` is the CLEAN (pre-mask) reference: when present it is the
+        diagnostic-CE TARGET so the model learns to DREAM a masked diagnostic from
+        the other streams + commands + cameras; when absent the target falls back
+        to ``signals`` (so a masked input is also the target — no dreaming).
+        An optional ``corruption_level`` ``(B,)`` long, ``target_frames``
+        ``(B, T, S)`` long, ``history_bottleneck`` (:class:`HistoryBottleneckConfig`),
         ``history_strengths`` ``(B, ctx)`` float, and ``history_generator`` drive
         the camera-history bottleneck.  An optional ``frame_log_dt`` ``(B, T)``
         float (per-camera-frame log-Δt offset) and ``camera_id`` ``(B,)`` long
@@ -874,6 +881,12 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         frames = batch["frames"]
         plan = batch.get("plan")
         signals = batch.get("signals")
+        # The CLEAN (pre-mask) diagnostic target.  ``signals`` is the model INPUT
+        # (possibly per-stream masked → PAD); the next-step CE is scored against the
+        # clean ``signal_targets`` when present so the model learns to DREAM a masked
+        # stream rather than copy its own zeroed input.  Falls back to ``signals``
+        # (target == masked input) when the trainer did not supply a clean reference.
+        signal_targets = batch.get("signal_targets")
         actuator = batch.get("actuator")
         corruption_level = batch.get("corruption_level")
         target = batch.get("target_frames")
@@ -940,7 +953,10 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
             diag = None
             w_diag = float(loss_spec.get("diagnostic_weight", 0.0))
             if need_diag:
-                diag = self.diagnostic_loss(signal_latents, signals)
+                # score the CLEAN target (dream the masked stream) when supplied;
+                # else the masked input doubles as the target (no dreaming).
+                diag_target = signal_targets if signal_targets is not None else signals
+                diag = self.diagnostic_loss(signal_latents, diag_target)
                 total = total + w_diag * diag
             elif self.has_diagnostics:
                 # DDP-uniform: keep the heads in the graph even when the diagnostic

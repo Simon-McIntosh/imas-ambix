@@ -22,6 +22,8 @@ from imas_ambix.worldmodel.controllable_train import (
     ControllableCorpusConfig,
     OverfitControllableConfig,
     _diagnostic_weight,
+    _drop_observations,
+    _mask_observations_per_stream,
     build_controllable_model,
 )
 from imas_ambix.worldmodel.spacetime_dataset import SpacetimeWindowConfig
@@ -202,6 +204,143 @@ def test_overfit_smoke_diagnostic_ce_is_finite_positive_and_loss_drops():
         )
     # the joint loss learns over the smoke run.
     assert losses[-1] < losses[0], "joint loss did not drop over the smoke run"
+
+
+# ---------------------------------------------------------------------------
+# Per-modality independent observation masking + clean diagnostic targets
+# ---------------------------------------------------------------------------
+
+
+def _signal_dict(b=64, p=4, seed=0):
+    """A small {name: (B, P, C)} signal dict with all-NON-PAD tokens (ids >= 1)."""
+    g = torch.Generator().manual_seed(seed)
+    return {
+        "gas_injection": torch.randint(1, 8, (b, p, 2), generator=g),
+        "xma": torch.randint(1, 8, (b, p, 3), generator=g),
+    }
+
+
+def test_mask_observations_per_stream_is_independent_per_stream_and_rate_correct():
+    """Two streams get DIFFERENT per-sample masks and the realized rate is ~rate."""
+    torch.manual_seed(0)
+    sig = _signal_dict(b=4000, p=4, seed=1)
+    gen = torch.Generator().manual_seed(123)
+    rate = 0.6
+    masked = _mask_observations_per_stream(
+        sig, rate, generator=gen, device=torch.device("cpu")
+    )
+    # a stream is "masked" for a sample iff its whole block is all-zero (PAD).
+    gas_masked = (masked["gas_injection"].reshape(4000, -1) == 0).all(dim=1)
+    xma_masked = (masked["xma"].reshape(4000, -1) == 0).all(dim=1)
+    # realized rate close to the requested rate for EACH stream (full coverage:
+    # ~(1-rate) of samples keep each stream as a clean CE target).
+    assert abs(float(gas_masked.float().mean()) - rate) < 0.05
+    assert abs(float(xma_masked.float().mean()) - rate) < 0.05
+    # INDEPENDENT draws: the two streams' masks are NOT identical (an all-or-nothing
+    # mask would make them equal sample-for-sample).
+    assert not torch.equal(gas_masked, xma_masked), (
+        "the two streams share the same mask — masking is not per-stream independent"
+    )
+    # and their disagreement is near the independent-Bernoulli expectation
+    # (2*rate*(1-rate) ~ 0.48), not 0 (identical) — a sanity bound.
+    disagree = float((gas_masked != xma_masked).float().mean())
+    assert disagree > 0.2, "stream masks barely differ — draws look correlated"
+
+
+def test_mask_observations_per_stream_does_not_mutate_input():
+    sig = _signal_dict(b=32, p=4, seed=2)
+    snap = {k: v.clone() for k, v in sig.items()}
+    gen = torch.Generator().manual_seed(7)
+    _ = _mask_observations_per_stream(
+        sig, 0.5, generator=gen, device=torch.device("cpu")
+    )
+    for k in sig:
+        assert torch.equal(sig[k], snap[k]), f"input stream {k} was mutated in place"
+
+
+def test_mask_observations_per_stream_rate_zero_and_one():
+    sig = _signal_dict(b=64, p=4, seed=3)
+    gen = torch.Generator().manual_seed(9)
+    none_masked = _mask_observations_per_stream(
+        sig, 0.0, generator=gen, device=torch.device("cpu")
+    )
+    for k in sig:
+        assert torch.equal(none_masked[k], sig[k]), "rate 0 masked something"
+    all_masked = _mask_observations_per_stream(
+        sig, 1.0, generator=gen, device=torch.device("cpu")
+    )
+    for k in sig:
+        assert int(all_masked[k].abs().sum()) == 0, "rate 1 left a stream unmasked"
+
+
+def test_overfit_step_prep_sets_clean_targets_and_masked_inputs():
+    """The overfit step-prep keeps signal_targets == pre-mask signals; masks input.
+
+    Replicates the exact code the overfit loop runs (per-modality masking branch):
+    set ``signal_targets`` to a shallow copy of the CLEAN signals, then replace
+    ``signals`` with the masked dict.  Asserts targets are byte-equal to the
+    pre-mask signals while the input dict has at least one stream zeroed, and that
+    commands (plan / actuator) are never touched.
+    """
+    batch = {
+        "frames": torch.randint(0, 16, (8, 5, 4)),
+        "plan": torch.randint(0, 16, (8, 3, 2)),
+        "actuator": {
+            "values": torch.randn(8, 4, 6),
+            "missing": torch.zeros(8, 4, 6),
+        },
+        "signals": _signal_dict(b=8, p=4, seed=5),
+    }
+    plan_snap = batch["plan"].clone()
+    act_v_snap = batch["actuator"]["values"].clone()
+    sig_snap = {k: v.clone() for k, v in batch["signals"].items()}
+
+    cfg = OverfitControllableConfig(per_modality_masking=True, observation_dropout=0.9)
+    gen = torch.Generator().manual_seed(0)
+    step_batch = dict(batch)
+    # exactly the overfit loop's per-modality branch:
+    step_batch["signal_targets"] = dict(batch["signals"])
+    step_batch["signals"] = _mask_observations_per_stream(
+        batch["signals"],
+        cfg.observation_dropout,
+        generator=gen,
+        device=torch.device("cpu"),
+    )
+
+    # (c) clean targets equal the pre-mask signals.
+    for k in sig_snap:
+        assert torch.equal(step_batch["signal_targets"][k], sig_snap[k]), (
+            f"signal_targets[{k}] is not the clean pre-mask reference"
+        )
+    # the input signals dict is a NEW dict (masking returns new tensors) and at
+    # high rate at least one stream is zeroed for at least one sample.
+    assert step_batch["signals"] is not batch["signals"]
+    any_zeroed = any(
+        bool((step_batch["signals"][k] == 0).all(dim=(1, 2)).any()) for k in sig_snap
+    )
+    assert any_zeroed, "no stream was masked at rate 0.9 — masking did not fire"
+    # (b) commands untouched: plan + actuator are byte-identical.
+    assert torch.equal(step_batch["plan"], plan_snap)
+    assert torch.equal(step_batch["actuator"]["values"], act_v_snap)
+
+
+def test_per_modality_masking_config_defaults_on_for_both_configs():
+    assert OverfitControllableConfig().per_modality_masking is True
+    assert ControllableCorpusConfig().per_modality_masking is True
+
+
+def test_all_or_nothing_path_zeroes_whole_dict_for_flagged_sample():
+    """The ablation path (per_modality_masking=False) masks the WHOLE dict at once."""
+    sig = _signal_dict(b=10, p=4, seed=6)
+    drop = torch.zeros(10, dtype=torch.bool)
+    drop[3] = True  # flag exactly sample 3
+    masked = _drop_observations(sig, drop)
+    for k in sig:
+        # sample 3 fully zeroed across EVERY stream (all-or-nothing).
+        assert int(masked[k][3].abs().sum()) == 0
+        # the other samples untouched.
+        assert torch.equal(masked[k][:3], sig[k][:3])
+        assert torch.equal(masked[k][4:], sig[k][4:])
 
 
 def test_overfit_smoke_diagnostics_off_runs_and_has_zero_diag_ce():

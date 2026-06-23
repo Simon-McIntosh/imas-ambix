@@ -1246,6 +1246,77 @@ def test_diagnostic_loss_handles_all_pad_stream():
     assert torch.isfinite(diag)
 
 
+def test_clean_signal_targets_force_dreaming_a_masked_stream():
+    """A masked input stream + a CLEAN target still produces a finite CE + a grad.
+
+    Mask one stream's INPUT to all-PAD (the per-modality masking the trainer
+    applies) but keep that stream CLEAN in ``signal_targets``.  The model must then
+    DREAM the masked stream: a finite, positive diagnostic CE AND a learning
+    gradient must reach that stream's head.  Contrast: WITHOUT signal_targets the
+    target equals the masked (all-PAD) input, so that stream contributes no CE (its
+    head gets no real-target gradient).
+    """
+    cfg = _tiny_cfg(generate_diagnostics=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).train()
+    batch = _rand_batch(cfg, b=2, t=5, seed=11)
+    masked_name = cfg.signal_streams[0].name
+    other_name = cfg.signal_streams[1].name
+    clean = {k: v.clone() for k, v in batch["signals"].items()}
+    # mask the FIRST stream's INPUT to all-PAD; the others stay clean.
+    masked_signals = {k: v.clone() for k, v in batch["signals"].items()}
+    masked_signals[masked_name] = torch.zeros_like(masked_signals[masked_name])
+
+    # (a) WITH clean signal_targets: the masked stream is DREAMT — finite CE + grad.
+    model.zero_grad(set_to_none=True)
+    out = model(
+        {**batch, "signals": masked_signals, "signal_targets": clean},
+        loss_spec={
+            "chunk": 64,
+            "context_frames": 2,
+            "diagnostic_weight": 1.0,
+            "return_components": True,
+        },
+    )
+    diag_with = float(out["diagnostic_ce"])
+    assert torch.isfinite(out["loss"]) and diag_with > 0.0
+    out["loss"].backward()
+    g_masked = model.diagnostic_heads[masked_name].weight.grad
+    assert g_masked is not None and float(g_masked.abs().sum()) > 0.0, (
+        "no gradient reached the MASKED stream's head with a clean target — the "
+        "model is not being forced to dream the masked diagnostic"
+    )
+
+    # (b) WITHOUT signal_targets: target == masked input (all-PAD) for that stream,
+    # so the masked stream contributes NO real-target CE — only the OTHER (clean)
+    # stream does.  Compare the masked head's grad: it must vanish here.
+    model.zero_grad(set_to_none=True)
+    out2 = model(
+        {**batch, "signals": masked_signals},
+        loss_spec={
+            "chunk": 64,
+            "context_frames": 2,
+            "diagnostic_weight": 1.0,
+            "return_components": True,
+        },
+    )
+    out2["loss"].backward()
+    g_masked2 = model.diagnostic_heads[masked_name].weight.grad
+    # the masked stream is all-PAD target -> ignore_index -> its head gets no real
+    # CE gradient (only the zero-touch, which is *0.0).  The OTHER clean stream's
+    # head DOES get a gradient either way.
+    masked_grad_norm = 0.0 if g_masked2 is None else float(g_masked2.abs().sum())
+    assert masked_grad_norm < 1e-8, (
+        "the masked stream's head got a gradient WITHOUT a clean target — the "
+        "all-PAD input should be ignore_index'd, contributing no CE"
+    )
+    g_other2 = model.diagnostic_heads[other_name].weight.grad
+    assert g_other2 is not None and float(g_other2.abs().sum()) > 0.0, (
+        "the CLEAN (un-masked) stream's head got no gradient — its CE should fire "
+        "regardless of signal_targets"
+    )
+
+
 def test_inverse_dynamics_ignores_masked_columns():
     """The inv-dyn loss must not regress the masked (state) columns."""
     from imas_ambix.worldmodel.controllable_train import masked_command_columns

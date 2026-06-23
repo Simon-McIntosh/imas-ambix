@@ -436,6 +436,13 @@ def _batch_to(batch: dict, device: torch.device) -> dict:
     out["signals"] = {
         k: v.to(device, non_blocking=True) for k, v in batch["signals"].items()
     }
+    # CLEAN diagnostic targets (when a caller supplied them pre-mask in the raw
+    # batch — the trainer normally derives them post-move, so this is a no-op then).
+    st = batch.get("signal_targets")
+    if st is not None:
+        out["signal_targets"] = {
+            k: v.to(device, non_blocking=True) for k, v in st.items()
+        }
     act = batch.get("actuator")
     if act is not None:
         out["actuator"] = {
@@ -467,6 +474,45 @@ def _drop_observations(
         nb = block.clone()
         if nb.numel() and nb.shape[1] > 0:
             nb[drop] = 0
+        out[name] = nb
+    return out
+
+
+def _mask_observations_per_stream(
+    signals: dict[str, torch.Tensor] | None,
+    rate: float,
+    *,
+    generator: torch.Generator,
+    device: torch.device,
+) -> dict[str, torch.Tensor] | None:
+    """Per-stream INDEPENDENT observation masking — zero (→PAD) flagged streams.
+
+    For EACH measured-signal stream independently, draw a per-sample Bernoulli
+    ``(rate)`` mask of shape ``(B,)`` and zero (to PAD id 0) that stream's tokens
+    for the flagged samples.  Independent draws PER STREAM, so two streams get
+    DIFFERENT masks on the same sample — each stream is a diagnostic-CE target on
+    ~``(1-rate)`` of steps (full coverage), and on the masked steps the model must
+    DREAM that stream from the OTHER streams + commands + cameras.
+
+    Distinct from :func:`_drop_observations`, which zeroes the WHOLE signal dict
+    for a flagged sample (all-or-nothing — the ablation path).  A masked stream's
+    frames STAY in the sequence (all-PAD embeddings), so the model still produces
+    latents for it that the diagnostic head decodes and scores against the CLEAN
+    target the trainer keeps in ``signal_targets``.
+
+    Returns a NEW masked dict (the input is never mutated — each block is cloned).
+    A ``None`` / empty signals dict passes through.
+    """
+    if signals is None or not signals:
+        return signals
+    out: dict[str, torch.Tensor] = {}
+    for name, block in signals.items():
+        nb = block.clone()
+        if nb.numel() and nb.shape[1] > 0:
+            b = int(nb.shape[0])
+            drop = torch.rand(b, generator=generator, device=device) < float(rate)
+            if bool(drop.any()):
+                nb[drop] = 0
         out[name] = nb
     return out
 
@@ -644,6 +690,15 @@ class OverfitControllableConfig:
     # steps so the model cannot shortcut the control->camera map via the
     # redundant realised observations and must learn to drive from the PLAN.
     observation_dropout: float = 0.8
+    # PER-MODALITY masking: when True (default) each measured-signal stream is
+    # masked INDEPENDENTLY (per-stream Bernoulli(observation_dropout)) and the
+    # CLEAN pre-mask signals are kept as the diagnostic-CE TARGET, so every stream
+    # is a CE target on ~(1-rate) of steps (full coverage) and the model learns to
+    # DREAM a masked stream from the others + commands + cameras.  When False the
+    # legacy ALL-OR-NOTHING ``_drop_observations`` zeroes the whole signal dict for
+    # a flagged sample (the ablation path — the diagnostic CE is then 0 on ~rate of
+    # steps).  ``observation_dropout`` is the per-stream rate either way.
+    per_modality_masking: bool = True
     # control-dropout (CFG): zero the WHOLE conditioning (plan + actuator +
     # signals) on this fraction of steps so classifier-free guidance works.
     control_dropout: float = 0.15
@@ -892,12 +947,28 @@ def overfit_controllable(
                 # the per-sample level bin = the MAX per-frame strength bin (a
                 # scalar summary the corruption-level embedding conditions on).
                 step_batch["corruption_level"] = bins.max(dim=1).values
-            # OPTIONAL-observation dropout: zero the measured signals on a high
-            # fraction of samples so the model drives from the PLAN.
-            obs_drop = (
-                torch.rand(b, generator=gen, device=dev) < config.observation_dropout
+            # OPTIONAL-observation masking: zero the measured signals on a high
+            # fraction of samples so the model drives from the PLAN.  Keep a CLEAN
+            # (pre-mask) reference as the diagnostic-CE target so the model learns
+            # to DREAM a masked diagnostic, then set the (masked) model input.
+            step_batch["signal_targets"] = (
+                dict(batch["signals"]) if batch.get("signals") else batch.get("signals")
             )
-            step_batch["signals"] = _drop_observations(batch["signals"], obs_drop)
+            if config.per_modality_masking:
+                # INDEPENDENT per-stream masking (full per-stream CE coverage).
+                step_batch["signals"] = _mask_observations_per_stream(
+                    batch["signals"],
+                    config.observation_dropout,
+                    generator=gen,
+                    device=dev,
+                )
+            else:
+                # ALL-OR-NOTHING (the ablation path).
+                obs_drop = (
+                    torch.rand(b, generator=gen, device=dev)
+                    < config.observation_dropout
+                )
+                step_batch["signals"] = _drop_observations(batch["signals"], obs_drop)
             # control-dropout (CFG): zero the WHOLE conditioning on a fraction of
             # samples — plan + actuator + the (already obs-dropped) signals.
             ctrl_drop = sample_control_dropout(b, drop_cfg, generator=gen, device=dev)
@@ -1250,6 +1321,13 @@ class ControllableCorpusConfig:
     random_window: bool = True
     # M4 controllability machinery (the same levers the overfit gate validated).
     observation_dropout: float = 0.8
+    # PER-MODALITY masking (default ON): each measured-signal stream masked
+    # INDEPENDENTLY (per-stream Bernoulli(observation_dropout)) + the CLEAN pre-mask
+    # signals kept as the diagnostic-CE target, so every stream is a CE target on
+    # ~(1-rate) of steps (full coverage) and the model dreams a masked stream from
+    # the others + commands + cameras.  False = the legacy all-or-nothing
+    # ``_drop_observations`` (the ablation path).  See OverfitControllableConfig.
+    per_modality_masking: bool = True
     control_dropout: float = 0.15
     history_bottleneck: HistoryBottleneckConfig = field(
         default_factory=HistoryBottleneckConfig
@@ -1837,12 +1915,28 @@ def train_controllable_corpus(
             )
             out["target_frames"] = clean
             out["corruption_level"] = bins.max(dim=1).values
-        # observation dropout — drive from the PLAN, not the redundant signals.
+        # observation masking — drive from the PLAN, not the redundant signals.
+        # Keep a CLEAN (pre-mask) reference as the diagnostic-CE target so the model
+        # learns to DREAM a masked diagnostic, then set the (masked) model input.
         d_gen = torch.Generator(device=dev).manual_seed(gen_seed ^ 0x4F4253)
-        obs_drop = (
-            torch.rand(b, generator=d_gen, device=dev) < config.observation_dropout
+        out["signal_targets"] = (
+            dict(batch["signals"]) if batch.get("signals") else batch.get("signals")
         )
-        out["signals"] = _drop_observations(batch.get("signals"), obs_drop)
+        if config.per_modality_masking:
+            # INDEPENDENT per-stream masking (full per-stream CE coverage).
+            out["signals"] = _mask_observations_per_stream(
+                batch.get("signals"),
+                config.observation_dropout,
+                generator=d_gen,
+                device=dev,
+            )
+        else:
+            # ALL-OR-NOTHING (the ablation path).
+            obs_drop = (
+                torch.rand(b, generator=d_gen, device=dev)
+                < config.observation_dropout
+            )
+            out["signals"] = _drop_observations(batch.get("signals"), obs_drop)
         # control dropout (CFG): zero the WHOLE conditioning on a fraction.
         ctrl_drop = sample_control_dropout(b, drop_cfg, generator=d_gen, device=dev)
         if bool(ctrl_drop.any()):
@@ -2957,6 +3051,16 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--adaln-hidden", type=int, default=256)
     # M4 controllability machinery
     pc.add_argument("--observation-dropout", type=float, default=0.8)
+    pc.add_argument(
+        "--no-per-modality-masking",
+        action="store_true",
+        help="DISABLE per-stream independent observation masking + clean diagnostic "
+        "targets (the ablation): fall back to ALL-OR-NOTHING dropout that zeroes the "
+        "WHOLE signal dict for a flagged sample (so the diagnostic CE is 0 on ~"
+        "observation-dropout of steps).  Default ON — each stream is masked "
+        "independently and the model dreams a masked stream from the others + "
+        "commands + cameras against the clean target.",
+    )
     pc.add_argument("--control-dropout", type=float, default=0.15)
     pc.add_argument("--hb-noise-std", type=float, default=1.0)
     pc.add_argument("--hb-mask-prob", type=float, default=0.5)
@@ -3140,6 +3244,7 @@ def main(argv: list[str] | None = None) -> int:
         n_signal_steps=args.n_signal_steps,
         n_act_steps=args.n_act_steps,
         observation_dropout=args.observation_dropout,
+        per_modality_masking=not args.no_per_modality_masking,
         control_dropout=args.control_dropout,
         history_bottleneck=HistoryBottleneckConfig(
             noise_std=args.hb_noise_std,
