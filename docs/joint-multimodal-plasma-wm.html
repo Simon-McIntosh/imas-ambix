@@ -139,6 +139,23 @@
       a standard LR is fine; (b) joint generation is vindicated — KEEP it; (c) push controllability with §3b
       masking + §3c action-contrastive AND tighten the gate (<code>f-jmwm-006</code>: expand the 7-shot cohort
       to ~20–30 for resolving CIs).</p>
+      <p style="margin:8px 0 0;border-top:2px solid #c33;padding-top:8px;background:#fff5f5"><strong>⚠️ POWERED-GATE CORRECTION (n_random=10, the decisive measurement — commits 7cf5f3b/ca8d07b):</strong>
+      the "reversal" above (and the original +18.1/+20.66) were BOTH <strong>n_random=3 sampling noise</strong>.
+      Adding a within/across-shot variance decomposition + raising the random-rollout count 3→10 collapses the
+      within-shot variance 14–65× and tightens the cohort CIs 7–9×, and the verdict becomes a clean NEGATIVE:
+      on the 25-shot cohort, <strong>baseline 1221741 = 0.85 (CI [0.78,0.93])</strong> and
+      <strong>joint-gen 1221834 = 0.91 (CI [0.80,1.04])</strong> — BOTH ratio &lt; 1 (median ≈ 0.87,
+      pass-fraction 0/25 &amp; 2/25). i.e. <strong>the true actuator plan does NOT move the decoded dream more
+      than a RANDOM plan — the camera world model is NOT controllable by ΔN-M</strong>, and joint-gen is not
+      meaningfully more driveable than baseline. The earlier per-checkpoint orderings (0.96/1.14/1.27 and
+      1.12/1.66/1.67) were artifacts of a few shots with tiny random-floor denominators. Stable signals =
+      median + pass-fraction (invariant across n); the per-shot ratio distribution is bimodal (a few driveable
+      shots among ~23 flat). The diagnostic-DREAMING capability (next-step token acc ≈ 0.24) is a SEPARATE,
+      real result, unaffected. DECISIVE next test (make-or-break for the token backbone): job <code>1222235</code>
+      — warm-start baseline 1221741 + the reformulated always-on InfoNCE action-contrastive (weight 1.0, commit
+      <code>3334d31</code>; the old margin pre-satisfied → ~0 contribution), masking off, diagnostics on, judged
+      on the n_random=10 gate. If InfoNCE-AC cannot push the ratio clearly &gt; 1, that is strong evidence the
+      token backbone cannot be driven → Phase-2 RSSM.</p>
     </div>
 
     <p>Land the three lever families that <em>don't</em> require the latent redesign, on the proven token backbone,
