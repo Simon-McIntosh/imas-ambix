@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-23">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -96,13 +96,26 @@
       (launcher wiring + <code>diagnostic_logits</code> fix). 64 unit tests green (model 42 + train 9 +
       eval 13); real-window CPU smoke: joint loss 18.45 (camera 12.48, diagnostic CE 5.97), grads to every
       content-stream head, all heads DDP-in-graph.</p>
-      <p style="margin:0"><strong>Phase-1 broad generative run LIVE — job <code>1221834</code></strong>
-      (8×H200): warm-started from <code>1221741</code> (the +18.1 entry baseline), identical corpus
-      (<code>mast-tokens</code> / <code>curated_windows_unified_6cam</code> / extended 13-stream signals /
-      timescale+camera conditioning), gentler LR 5e-5 to protect the controllability gains,
-      <code>diagnostic_weight</code> 0.5 with 10 % warmup, 8000 steps. The baked-in end-of-run held-out
-      eval emits both the ΔN-M controllability gate AND the new diagnostic-match verdict.
-      Next: §3b per-modality masking (<code>f-jmwm-002</code>), §3c contrastive (<code>f-jmwm-003</code>).</p>
+      <p style="margin:0 0 4px"><strong>Phase-1 broad generative run — job <code>1221834</code> COMPLETE</strong>
+      (8×H200, 1h34m, 8000 steps; warm-start <code>1221741</code>, identical corpus
+      <code>mast-tokens</code>/<code>curated_windows_unified_6cam</code>/extended/timescale+camera, LR 5e-5,
+      <code>diagnostic_weight</code> 0.5 + 10 % warmup). Warm-start loaded all 263 backbone tensors; the 26
+      new = the 13 diagnostic heads fresh-init.</p>
+      <p style="margin:0 0 4px"><strong>Verdict — QUALIFIED (joint generation works; gate not yet improved; eval confounded).</strong>
+      <em>Joint generation is real:</em> the model dreams diagnostics — held-out next-step
+      <strong>gas-puff token accuracy 86 %</strong> (CE 0.79 on a 257-vocab), pf_active 13 %, the rest
+      near-chance. <em>ΔN-M controllability gate FAIL:</em> mean margin <strong>&minus;0.90 (1/3)</strong>
+      vs the +18.1 (1/3) baseline — 18502 stays driveable (+38.7, 2.33×), 18503/18504 fail; true-vs-random
+      collapsed toward the noise floor (~38 vs ~38).</p>
+      <p style="margin:0"><strong>BUT the gate number is confounded (<code>f-jmwm-004</code>, BLOCKING):</strong>
+      <code>controllable_eval</code> defaults to the <em>6-stream</em> <code>default_signal_modalities()</code>
+      with no <code>--signal-modalities</code> flag, while the model trained on the <em>13-stream</em>
+      extended set — so the eval STARVES the model of magnetics (direct position) + Dα-boundary at
+      conditioning time (and the diagnostic-match scored only 5/13 streams). Position-observability is what
+      makes the plan load-bearing, so the FAIL is likely an eval-starvation artifact. Decisive cheap next
+      step: add <code>--signal-modalities</code>, re-eval BOTH <code>1221834</code> and <code>1221741</code>
+      with matched 13-stream conditioning (~2 min/ckpt, 1 GPU). THEN §3b masking (<code>f-jmwm-002</code>),
+      §3c contrastive (<code>f-jmwm-003</code>), Phase-2 RSSM.</p>
     </div>
 
     <p>Land the three lever families that <em>don't</em> require the latent redesign, on the proven token backbone,
@@ -320,6 +333,41 @@ Done-when
   2. tests green (clean sun_debug allocation).
   3. The §6 ablation grid documented (which arms to run) + a followup written for the Phase-1 broad run +
      verdict vs 1221741; this followup marked resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-jmwm-004" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Eval/train modality mismatch — add --signal-modalities to controllable_eval + matched re-eval (BLOCKS the gate verdict)</h4>
+    <div class="r-fu-body">Job 1221834 (joint-gen, warm-start 1221741) returned ΔN-M FAIL (mean margin -0.90, 1/3) vs the +18.1 baseline, AND diagnostic-match gas_injection=86% next-step accuracy (joint generation demonstrably works). BUT controllable_eval defaults to the 6-stream default_signal_modalities() with NO --signal-modalities flag, while the model trained on the 13-stream extended set. So the eval STARVES the model of magnetics (direct plasma position) + Da-boundary (ada/adg/aim) + xsx/xim at CONDITIONING time, and the diagnostic-match only scored 5/13 streams (missing the physically decisive ones). Withholding the position/boundary streams plausibly drives the gate FAIL (position-observability is what makes the plan load-bearing). Fix the eval to use the SAME modality set as training, then re-eval BOTH 1221834 and the 1221741 baseline with matched extended modalities for an apples-to-apples gate + a faithful diagnostic-match incl. magnetics/Da. This is a measurement fix (eval-only, ~2 min/ckpt on 1 GPU), not a retrain, and it BLOCKS any firm conclusion about whether joint generation helps/hurts the gate.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    joint-multimodal-plasma-wm
+Section: §6 (eval) — modality-match fix
+Tier:    opus
+
+Context
+  controllable_eval._assemble_heldout uses `modalities = cfg.modalities or default_signal_modalities()`
+  (6 streams) and there is NO --signal-modalities CLI flag. The trained models (1221741, 1221834) use
+  extended_signal_modalities() (13 streams). Result: the held-out eval conditions + scores on 6/13 streams,
+  starving the model of magnetics + Da-boundary (the position/shape sensors) at eval time and underscoring
+  the diagnostic-match.
+
+State to read
+  imas_ambix/worldmodel/controllable_eval.py — the EvalConfig.modalities field (~150), _assemble_heldout
+    (~178-198), main()/argparse (~960-990). The trainer&#x27;s --signal-modalities {default|extended} mapping in
+    controllable_train.py is the pattern to mirror.
+
+Scope locks
+  - Add --signal-modalities {default|extended} (default extended for these models, or read the stream set
+    from the checkpoint&#x27;s extra.stream_names if present) and thread it into EvalConfig.modalities so the
+    eval assembles the SAME streams the model trained on.
+  - The sbatch baked-in eval (controllable_retrain_ddp.sbatch) must pass --signal-modalities matching
+    WM_SIGNAL_MODALITIES so future runs self-eval correctly.
+  - tests green; no co-author trailer.
+
+Done-when
+  1. --signal-modalities flag wired; eval assembles + scores all 13 streams for an extended-trained ckpt.
+  2. Re-eval 1221834 AND 1221741 with --signal-modalities extended on 1 GPU; report matched ΔN-M margins +
+     full 13-stream diagnostic-match (incl. magnetics + Da) for both; conclude whether the gate regression
+     is real or an eval-starvation artifact.
+  3. Plan updated with the matched verdict; this followup resolved.</pre>
     </article>
 </section>
 
