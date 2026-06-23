@@ -1051,26 +1051,38 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         latents_random: torch.Tensor,
         *,
         context_frames: int | None = None,
-        margin: float = 0.2,
+        temperature: float = 0.1,
     ) -> torch.Tensor:
-        """ΔN-M repulsion margin: the TRUE next state must DIFFER from a wrong plan.
+        """ΔN-M InfoNCE: the realised next state matches the TRUE plan, not a wrong one.
 
         ``latents_true`` is ``(B, T, S, d)`` — the camera latents under the TRUE
         plan (the teacher-forced forward, whose forecast-window latents ARE the
         realised next states); ``latents_random`` is the SAME backbone re-run under
         a WRONG/RANDOM plan (the only thing that differs is the AdaLN drive).  Pools
         the forecast-window next-state latents (frames ``>= context_frames``) over
-        time + space, projects each through a shared head, L2-normalises, and applies
-        a REPULSION margin: the true-plan and random-plan embeddings must be at
-        least ``margin`` apart in cosine — the loss penalises a model whose
-        next-state prediction is INSENSITIVE to the plan (true ≈ random).
+        time + space and projects each (true + random) through a shared head, then
+        L2-normalises.
 
-        Because under teacher forcing the realised next state IS the true-plan
-        latent, "true closer to realised than random" reduces to "true must differ
-        from random" — which is EXACTLY the ΔN-M action-sensitivity objective.  The
-        loss is ``relu(margin - (1 - cos(true, random)))`` = ``relu(margin - 1 +
-        cos)``: positive (and carrying gradient through the projector + both
-        latents) whenever the two plans give too-similar next states.
+        The objective is a temperature-scaled InfoNCE rather than the old repulsion
+        margin (``relu(margin - (1 - cos))``).  The margin had a PRE-SATISFACTION
+        failure mode: once a warm-started model already separated the true-plan and
+        random-plan next states beyond ``margin``, the relu clamped to 0 and the
+        lever stopped applying gradient (observed in the last run — the term
+        contributed ~0).  InfoNCE has NO such floor: for each sample the realised
+        next state is the ANCHOR, its own TRUE-plan next state is the POSITIVE, and
+        EVERY sample's RANDOM-plan next state (the whole batch) is a NEGATIVE; the
+        cross-entropy keeps pulling the true prediction above the wrong ones no
+        matter how separated they already are (it only →0 as the negatives' similarity
+        → −∞, never at a finite margin).  Because under teacher forcing the realised
+        next state IS the true-plan latent, the positive logit is ``sim/temperature``
+        of the anchor with itself and the loss directly drives the random-plan
+        next states AWAY from the realised one — EXACTLY the ΔN-M action-sensitivity
+        objective, with an always-on gradient through the projector + both latents.
+
+        With a batch of 1 there are no cross-sample negatives, so the row degenerates
+        to the same-sample anchor-true (positive) + anchor-random (negative) pair — a
+        2-way softmax that still produces gradient (the realised state must look more
+        like the true plan's prediction than the wrong plan's).
 
         Returns a scalar; a zero-magnitude touch when it cannot score (DDP-uniform).
         """
@@ -1086,12 +1098,25 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         ctx = max(0, min(ctx, t - 1))
         true = latents_true[:, ctx:].mean(dim=(1, 2))  # realised next state (B, d)
         rand = latents_random[:, ctx:].mean(dim=(1, 2))  # random-plan next state
-        zt_true = F.normalize(self.action_contrastive_proj(true), dim=-1)
-        zr = F.normalize(self.action_contrastive_proj(rand), dim=-1)
-        cos = (zt_true * zr).sum(dim=-1)  # similarity of the two plans' next states
-        # repulsion: drive the two apart by at least ``margin`` (dissimilarity =
-        # 1 - cos must clear margin).  Identical (plan-insensitive) -> loss = margin.
-        return F.relu(margin - (1.0 - cos)).mean() + zt
+        z_true = F.normalize(self.action_contrastive_proj(true), dim=-1)  # (B, cd)
+        z_rand = F.normalize(self.action_contrastive_proj(rand), dim=-1)  # (B, cd)
+        tau = max(float(temperature), 1e-4)
+        # anchor = the realised/true next state (z_true); candidates =
+        # [true_0..true_{B-1} | rand_0..rand_{B-1}].  The positive for anchor i is
+        # column i (its own true-plan prediction); the B random columns are the
+        # negatives.  Cross-entropy over the 2B-way row keeps the true prediction
+        # ranked above every wrong-plan prediction — always-on gradient (no margin
+        # floor).  The other samples' TRUE next states are NOT counted as negatives
+        # (different shots are legitimately different) — only the WRONG-plan ones.
+        sim_true = z_true @ z_true.t()  # (B, B) anchor x true candidates
+        sim_rand = z_true @ z_rand.t()  # (B, B) anchor x random candidates
+        # mask the non-self TRUE columns to -inf so only the diagonal true (the
+        # positive) and the B random negatives compete in the softmax.
+        eye = torch.eye(b, device=z_true.device, dtype=torch.bool)
+        sim_true = sim_true.masked_fill(~eye, float("-inf"))
+        logits = torch.cat([sim_true, sim_rand], dim=1) / tau  # (B, 2B)
+        labels = torch.arange(b, device=z_true.device)  # positive = diagonal of true
+        return F.cross_entropy(logits, labels) + zt
 
     def _contrastive_zero_touch(self, ref: torch.Tensor) -> torch.Tensor:
         """Sum of every built contrastive head's zero-touch (DDP-uniform).

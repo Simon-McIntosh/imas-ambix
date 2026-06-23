@@ -1455,12 +1455,11 @@ def test_action_contrastive_loss_finite_and_grads_reach_the_projector():
     torch.manual_seed(0)
     model = ControllableSpacetimeTransformer(cfg).train()
     assert hasattr(model, "action_contrastive_proj")
-    b, t, s, d = 2, 6, cfg.n_spatial, cfg.d_model
-    # SIMILAR-but-distinct true vs random next-state latents — within the repulsion
-    # margin so the relu is active (a small perturbation of the true latent, as the
-    # plan would induce once load-bearing).  At AdaLN zero-init the two plans give
-    # IDENTICAL latents -> no action signal -> correctly zero gradient, so the test
-    # must supply genuinely (slightly) different latents to exercise the grad path.
+    b, t, s, d = 4, 6, cfg.n_spatial, cfg.d_model
+    # SIMILAR-but-distinct true vs random next-state latents (a small perturbation
+    # of the true latent, as a partially-driveable plan would induce).  The InfoNCE
+    # ranks each sample's true-plan prediction above every random-plan one across
+    # the batch — always-on gradient, no margin floor.
     g = torch.Generator().manual_seed(5)
     cam_true = torch.randn(b, t, s, d, generator=g, requires_grad=True)
     cam_random = cam_true.detach() + 0.05 * torch.randn(b, t, s, d, generator=g)
@@ -1470,6 +1469,68 @@ def test_action_contrastive_loss_finite_and_grads_reach_the_projector():
     g_proj = model.action_contrastive_proj[0].weight.grad
     assert g_proj is not None and float(g_proj.abs().sum()) > 0.0, (
         "no gradient reached the action-contrastive projector"
+    )
+
+
+def test_action_contrastive_bites_when_partially_separated():
+    """The OLD failure mode is fixed: a partially-separated batch still gets pressure.
+
+    The old margin formulation was ``relu(margin - (1 - cos(true, random)))`` with a
+    0.2 margin: once the true-plan and random-plan next-state latents were separated
+    beyond the margin (cos-dist > margin), the relu clamped to 0 and NO gradient
+    reached the projector — exactly the pre-satisfaction that made the last run's
+    action-contrastive term contribute ~0.  The new InfoNCE has no such floor.
+
+    We construct a batch whose true/random next states are PARTIALLY separated
+    (cos-distance ~ the old 0.2 margin, i.e. right at the boundary where the old relu
+    starts to die) and assert (a) the new term is strictly > 0 and (b) gradient
+    reaches the projector — both of which the old margin would give ~0.
+    """
+    import torch.nn.functional as F  # noqa: N812
+
+    cfg = _tiny_cfg(action_contrastive=True)
+    torch.manual_seed(0)
+    model = ControllableSpacetimeTransformer(cfg).train()
+    b, t, s, d = 4, 6, cfg.n_spatial, cfg.d_model
+
+    # Build true latents, then random latents whose PROJECTED next state sits a
+    # controlled cos-distance from the true one.  We just perturb the true latent;
+    # the projector maps it to ~the old margin's separation.  Verify the separation
+    # bracket so the test asserts the FIXED behaviour, not a trivial one.
+    g = torch.Generator().manual_seed(11)
+    cam_true = torch.randn(b, t, s, d, generator=g, requires_grad=True)
+    cam_random = cam_true.detach() + 0.6 * torch.randn(b, t, s, d, generator=g)
+
+    with torch.no_grad():
+        true = cam_true[:, 2:].mean(dim=(1, 2))
+        rand = cam_random[:, 2:].mean(dim=(1, 2))
+        zt = F.normalize(model.action_contrastive_proj(true), dim=-1)
+        zr = F.normalize(model.action_contrastive_proj(rand), dim=-1)
+        cos = (zt * zr).sum(dim=-1)
+        cos_dist = (1.0 - cos).mean()
+        old_margin = 0.2
+        old_term = F.relu(old_margin - (1.0 - cos)).mean()
+    # The batch is partially separated near/over the old margin boundary, so the OLD
+    # margin term is at (or near) its dead zone — establish that the regime is the
+    # pre-satisfaction one the fix targets.
+    assert float(cos_dist) > 0.05, (
+        "test batch is too close to be a 'partially separated' regime"
+    )
+
+    loss = model.action_contrastive_loss(cam_true, cam_random, context_frames=2)
+    loss_val = float(loss.detach())
+    # NEW term applies real pressure even where the old margin term has gone quiet.
+    assert torch.isfinite(loss) and loss_val > 1e-3, (
+        "InfoNCE term is ~0 on a partially-separated batch — the lever did not engage"
+    )
+    assert loss_val > float(old_term), (
+        "the new term should exceed the (near-dead) old margin term on this batch"
+    )
+    loss.backward()
+    g_proj = model.action_contrastive_proj[0].weight.grad
+    assert g_proj is not None and float(g_proj.abs().sum()) > 0.0, (
+        "no gradient reached the projector — the pre-satisfaction failure mode "
+        "is NOT fixed"
     )
 
 

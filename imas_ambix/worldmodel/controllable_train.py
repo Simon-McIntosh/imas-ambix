@@ -682,6 +682,29 @@ def _excitation_frame_weights(
     return w.to(device)
 
 
+def _aux_log_suffix(out: dict, config) -> str:
+    """Build the auxiliary-component tail (`` inv=… ac=… cm=… sp=…``) for a log line.
+
+    Reads the ``return_components`` dict and appends only the terms whose flag is ON,
+    so the per-step log VISIBLY shows each auxiliary engaging (the last run hid the
+    action-contrastive term — it printed only ``cam=``/``diag=`` — so it was
+    impossible to see that it contributed ~0).  ``inv=`` is the inverse-dynamics
+    loss; ``ac=`` the action-contrastive InfoNCE; ``cm=`` the cross-modal InfoNCE;
+    ``sp=`` the self-predictive cosine.  Each is the RAW (pre-weight) term so its
+    magnitude is directly readable.
+    """
+    parts: list[str] = []
+    if float(getattr(config, "inverse_dynamics_weight", 0.0)) > 0.0:
+        parts.append(f" inv={float(out.get('inv_dyn', 0.0)):.4f}")
+    if getattr(config, "action_contrastive", False):
+        parts.append(f" ac={float(out.get('action_contrastive', 0.0)):.4f}")
+    if getattr(config, "cross_modal", False):
+        parts.append(f" cm={float(out.get('cross_modal', 0.0)):.4f}")
+    if getattr(config, "self_predictive", False):
+        parts.append(f" sp={float(out.get('self_predictive', 0.0)):.4f}")
+    return "".join(parts)
+
+
 # ---------------------------------------------------------------------------
 # Overfit (the GATE training phase)
 # ---------------------------------------------------------------------------
@@ -752,15 +775,19 @@ class OverfitControllableConfig:
     # bool is the ablation off-switch (no head built, no objective) and the weight
     # scales the term.  cross_modal = camera<->diagnostic InfoNCE (needs signals);
     # self_predictive = BYOL/SPR latent self-prediction (no negatives);
-    # action_contrastive = true-vs-random next-state margin (needs the actuator
-    # drive + a second forward under a random plan — built via
-    # ``_random_actuator_like`` and passed as ``actuator_random``).
+    # action_contrastive = realised-vs-true-vs-random next-state InfoNCE (needs the
+    # actuator drive + a second forward under a random plan — built via
+    # ``_random_actuator_like`` and passed as ``actuator_random``).  Default weight
+    # is 1.0 (not 0.1): the InfoNCE term is normalised (a softmax cross-entropy,
+    # O(1)) and must be comparable to the diagnostic CE (0.5) and inverse-dynamics
+    # (1.0) to actually steer — the old 0.1 on the pre-satisfiable margin was a
+    # second reason it never bit.
     cross_modal: bool = False
     cross_modal_weight: float = 0.1
     self_predictive: bool = False
     self_predictive_weight: float = 0.1
     action_contrastive: bool = False
-    action_contrastive_weight: float = 0.1
+    action_contrastive_weight: float = 1.0
     # SCHEDULED SAMPLING / rollout-in-the-loop — closes the 1-step->rollout gap (the
     # de-risk's visible failure mode: the plan moved the teacher-forced one-step
     # prediction but NOT a free-running rollout).  With probability ramping from 0
@@ -1081,12 +1108,13 @@ def overfit_controllable(
             diag_ce = float(out["diagnostic_ce"])
             if step % config.log_every == 0 or step == config.steps - 1:
                 logger.info(
-                    "overfit-controllable step %d/%d loss=%.4f cam=%.4f diag=%.4f",
+                    "overfit-controllable step %d/%d loss=%.4f cam=%.4f diag=%.4f%s",
                     step,
                     config.steps,
                     losses[-1],
                     cam_nll,
                     diag_ce,
+                    _aux_log_suffix(out, config),
                 )
     except Exception:
         if torch.cuda.is_available():
@@ -1397,12 +1425,15 @@ class ControllableCorpusConfig:
     # See OverfitControllableConfig for the per-term descriptions.  cross_modal +
     # self_predictive read the camera/signal latents; action_contrastive needs the
     # actuator drive + a second forward under a random plan (``actuator_random``).
+    # action_contrastive_weight defaults to 1.0 (the InfoNCE term is a normalised
+    # softmax CE, O(1)) so it is comparable to the diagnostic + inverse-dynamics
+    # terms and actually steers — see OverfitControllableConfig.
     cross_modal: bool = False
     cross_modal_weight: float = 0.1
     self_predictive: bool = False
     self_predictive_weight: float = 0.1
     action_contrastive: bool = False
-    action_contrastive_weight: float = 0.1
+    action_contrastive_weight: float = 1.0
     scheduled_sampling_max: float = 0.25
     scheduled_sampling_ramp: float = 0.5
     # EXCITATION-WEIGHT the next-frame CE by per-frame coil |dI/dt| (the operator's
@@ -2127,12 +2158,13 @@ def train_controllable_corpus(
                     t_last = time.time()
                     logger.info(
                         "controllable-corpus step %d/%d loss=%.4f cam=%.4f "
-                        "diag=%.4f lr=%.3e ss=%.2f (%.2f st/s world=%d)",
+                        "diag=%.4f%s lr=%.3e ss=%.2f (%.2f st/s world=%d)",
                         step,
                         config.steps,
                         losses[-1],
                         cam_nll,
                         diag_ce,
+                        _aux_log_suffix(out, config),
                         opt.param_groups[0]["lr"],
                         ss_prob,
                         rate,
@@ -3241,11 +3273,12 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument(
         "--action-contrastive",
         action="store_true",
-        help="ENABLE the action-contrastive auxiliary: the true-plan next-state "
-        "latent must sit CLOSER to the realised next state than a random-plan one "
-        "(a second forward under a random plan; directly trains ΔN-M).  Default OFF.",
+        help="ENABLE the action-contrastive auxiliary: an InfoNCE that ranks the "
+        "true-plan next-state prediction ABOVE every random-plan one (a second "
+        "forward under a random plan; directly trains ΔN-M, no margin floor). "
+        "Default OFF.",
     )
-    pc.add_argument("--action-contrastive-weight", type=float, default=0.1)
+    pc.add_argument("--action-contrastive-weight", type=float, default=1.0)
     pc.add_argument("--scheduled-sampling-max", type=float, default=0.25)
     pc.add_argument("--scheduled-sampling-ramp", type=float, default=0.5)
     pc.add_argument(

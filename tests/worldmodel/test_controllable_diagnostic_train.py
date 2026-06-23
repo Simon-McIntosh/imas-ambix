@@ -21,6 +21,7 @@ import torch
 from imas_ambix.worldmodel.controllable_train import (
     ControllableCorpusConfig,
     OverfitControllableConfig,
+    _aux_log_suffix,
     _diagnostic_weight,
     _drop_observations,
     _mask_observations_per_stream,
@@ -383,6 +384,58 @@ def test_contrastive_config_defaults_off_for_both_configs():
         assert cfg.cross_modal is False
         assert cfg.self_predictive is False
         assert cfg.action_contrastive is False
+
+
+def test_action_contrastive_weight_default_is_one_for_both_configs():
+    """The InfoNCE term default weight is 1.0 (O(1) softmax CE), not the old 0.1."""
+    for cfg in (OverfitControllableConfig(), ControllableCorpusConfig()):
+        assert cfg.action_contrastive_weight == 1.0
+
+
+def test_aux_log_suffix_shows_only_enabled_terms():
+    """The log suffix prints the action-contrastive term (and the others) when ON.
+
+    The last run's log printed only ``cam=``/``diag=``, so the action-contrastive
+    term's ~0 contribution was invisible.  This locks the format: ``ac=`` appears
+    iff ``action_contrastive`` is on, ``inv=`` iff inverse-dynamics is weighted,
+    and the value comes from the ``return_components`` dict.
+    """
+    out = {
+        "inv_dyn": 0.12,
+        "action_contrastive": 1.5,
+        "cross_modal": 0.7,
+        "self_predictive": 0.3,
+    }
+    # action-contrastive ON, the others OFF, inverse-dynamics weighted.
+    cfg = OverfitControllableConfig(
+        action_contrastive=True,
+        cross_modal=False,
+        self_predictive=False,
+        inverse_dynamics_weight=1.0,
+    )
+    suffix = _aux_log_suffix(out, cfg)
+    assert " ac=1.5000" in suffix, suffix
+    assert " inv=0.1200" in suffix, suffix
+    assert "cm=" not in suffix and "sp=" not in suffix, suffix
+
+    # all OFF + inverse-dynamics disabled -> empty suffix (byte-identical log line).
+    cfg_off = OverfitControllableConfig(
+        action_contrastive=False,
+        cross_modal=False,
+        self_predictive=False,
+        inverse_dynamics_weight=0.0,
+    )
+    assert _aux_log_suffix(out, cfg_off) == ""
+
+    # all three contrastive terms on.
+    cfg_all = OverfitControllableConfig(
+        action_contrastive=True,
+        cross_modal=True,
+        self_predictive=True,
+        inverse_dynamics_weight=0.0,
+    )
+    s_all = _aux_log_suffix(out, cfg_all)
+    assert " ac=1.5000" in s_all and " cm=0.7000" in s_all and " sp=0.3000" in s_all
 
 
 def test_random_actuator_batch_perturbs_only_given_columns_holds_others():
