@@ -245,13 +245,20 @@ echo "  checkpoints: ${WM_OUT_DIR}/latest.pt (+ ckpt-<step>.pt snapshots)"
 #    WM_RUN_EVAL=0 disables. The eval matches the training window (horizon /
 #    n_frames / context) so it conditions on the same physical span.
 : "${WM_RUN_EVAL:=1}"
+# ROBUST gate (default): score the noise-floor-normalised, collapse-rejecting ΔN-M
+# over the SCREENED, train-disjoint eval-only cohort (gate_cohort.json) — NOT the
+# degenerate fixed 4-shot set (18504 dark, 18503 floor-inflated, 18505 too short).
+# WM_GATE_COHORT points at a prebuilt cohort JSON; the eval also computes the
+# diagnostic-match (auto modalities from the checkpoint).
+: "${WM_GATE_COHORT:=/work/projects/imas_gpu/worldmodel/gate_cohort.json}"
 if [[ "${WM_RUN_EVAL}" == "1" && "${EXIT_CODE}" == "0" && -f "${WM_OUT_DIR}/latest.pt" ]]; then
-    echo "[$(date)] baked-in held-out eval on ${WM_OUT_DIR}/latest.pt"
+    echo "[$(date)] baked-in held-out eval (robust gate, cohort=${WM_GATE_COHORT}) on ${WM_OUT_DIR}/latest.pt"
     CUDA_VISIBLE_DEVICES=0 python3 -m imas_ambix.worldmodel.controllable_eval \
         --checkpoint "${WM_OUT_DIR}/latest.pt" \
         --out-dir "${WM_OUT_DIR}/eval" \
         --token-root "${WM_TOKEN_ROOT}" \
         --held-out "${WM_EVAL_SHOTS}" \
+        --held-out-cohort "${WM_GATE_COHORT}" \
         --target-horizon-s "${WM_TARGET_HORIZON_S}" \
         --n-frames "${WM_N_FRAMES}" \
         --n-plan "${WM_N_PLAN}" \
