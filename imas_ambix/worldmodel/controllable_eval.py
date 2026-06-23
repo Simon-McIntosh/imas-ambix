@@ -167,6 +167,13 @@ class HeldoutDeltaNMVerdict:
     passed: bool
     n_random_collapsed: int = 0  # randoms dropped from the floor (collapse test)
     n_random_kept: int = 0  # randoms kept in the floor estimate
+    #: per-(kept-random) true-vs-random divergences — the samples behind ``tvr``.
+    true_vs_random_samples: list = field(default_factory=list)
+    #: per-pair random-vs-random divergences — the samples behind ``rvr``.
+    random_vs_random_samples: list = field(default_factory=list)
+    #: within-shot std of the per-shot ratio, bootstrapped over the random rollouts
+    #: (how much noise the n_random sampling alone injects into THIS shot's ratio).
+    ratio_within_std: float = float("nan")
 
     def to_dict(self) -> dict:
         return {
@@ -177,6 +184,7 @@ class HeldoutDeltaNMVerdict:
             "random_vs_random": self.random_vs_random,
             "margin": self.margin,
             "ratio": self.ratio,
+            "ratio_within_std": self.ratio_within_std,
             "n_random": self.n_random,
             "n_random_collapsed": self.n_random_collapsed,
             "n_random_kept": self.n_random_kept,
@@ -187,7 +195,12 @@ class HeldoutDeltaNMVerdict:
 @dataclass
 class EvalConfig:
     held_out: tuple[int, ...] = DEFAULT_HELD_OUT
-    n_random: int = 3
+    #: BOUNDED coil counterfactuals rolled per shot.  The per-shot ratio
+    #: (true_vs_random / floor) is a mean over these rollouts; more of them
+    #: shrinks the WITHIN-shot sampling noise of that estimate.  Raised to 10
+    #: for the robust cohort gate (was 3 — too few to resolve checkpoints; the
+    #: variance decomposition reports whether more would help).
+    n_random: int = 10
     perturb_scale: float = 0.3
     margin_threshold: float = 1.0  # decoded-pixel L1 (0-255 luminance) units
     floor_ratio: float = 1.5
@@ -212,6 +225,9 @@ class EvalConfig:
     ci_pct: tuple[float, float] = (2.5, 97.5)
     #: Reject collapsed random rollouts from the noise floor (the collapse test).
     reject_collapsed: bool = True
+    #: Bootstrap resamples for the WITHIN-shot ratio std (over the random
+    #: rollouts of a single shot) — the variance-decomposition diagnostic.
+    n_within_bootstrap: int = 500
 
 
 # ---------------------------------------------------------------------------
@@ -429,23 +445,33 @@ def multi_shot_delta_nm(
         n_collapsed = 0
         n_kept = int(config.n_random)
         if decode:
-            tvr, rvr, n_collapsed, n_kept = _decoded_divergences(
-                true_tok,
-                rand_toks,
-                ctx,
-                device=device,
-                work_dir=work,
-                shot_id=int(s.shot_id),
-                grid_hw=(GRID_H, GRID_W),
-                local_to_store=local_to_store,
-                decode_roles=decode_roles,
-                reject_collapsed=config.reject_collapsed,
+            tvr, rvr, n_collapsed, n_kept, tvr_samples, rvr_samples = (
+                _decoded_divergences(
+                    true_tok,
+                    rand_toks,
+                    ctx,
+                    device=device,
+                    work_dir=work,
+                    shot_id=int(s.shot_id),
+                    grid_hw=(GRID_H, GRID_W),
+                    local_to_store=local_to_store,
+                    decode_roles=decode_roles,
+                    reject_collapsed=config.reject_collapsed,
+                )
             )
         else:
-            tvr, rvr = _token_divergences(true_tok, rand_toks, ctx)
+            tvr, rvr, tvr_samples, rvr_samples = _token_divergences(
+                true_tok, rand_toks, ctx
+            )
 
         margin = tvr - rvr
         ratio = float("inf") if rvr == 0.0 else tvr / rvr
+        ratio_within_std = _within_shot_ratio_std(
+            tvr_samples,
+            rvr_samples,
+            n_boot=config.n_within_bootstrap,
+            seed=(int(s.shot_id) * 7919) ^ (config.seed * 31),
+        )
         if config.robust_gate:
             # noise-floor-NORMALISED pass: true-vs-random must clear the
             # (collapse-rejected) floor by the ratio threshold.  rvr==0 is only a
@@ -479,6 +505,9 @@ def multi_shot_delta_nm(
                 n_random=int(config.n_random),
                 n_random_collapsed=int(n_collapsed),
                 n_random_kept=int(n_kept),
+                true_vs_random_samples=[float(x) for x in tvr_samples],
+                random_vs_random_samples=[float(x) for x in rvr_samples],
+                ratio_within_std=float(ratio_within_std),
                 passed=passed,
             )
         )
@@ -498,21 +527,27 @@ def multi_shot_delta_nm(
 
 
 def _token_divergences(true_tok, rand_toks, ctx):
-    """Forecast-window token-mismatch true-vs-random + random-vs-random floor."""
+    """Forecast-window token-mismatch true-vs-random + random-vs-random floor.
+
+    Returns ``(tvr, rvr, tvr_samples, rvr_samples)`` — the means PLUS the
+    per-random true-vs-random list and the per-pair random-vs-random list, so
+    the caller can bootstrap the WITHIN-shot ratio variance.
+    """
 
     def fc(a, b):
         if a.shape[0] <= ctx:
             return 0.0
         return float((a[ctx:] != b[ctx:]).mean())
 
-    tvr = float(np.mean([fc(true_tok, r) for r in rand_toks])) if rand_toks else 0.0
-    pair = [
+    tvr_samples = [fc(true_tok, r) for r in rand_toks]
+    rvr_samples = [
         fc(rand_toks[i], rand_toks[j])
         for i in range(len(rand_toks))
         for j in range(i + 1, len(rand_toks))
     ]
-    rvr = float(np.mean(pair)) if pair else 0.0
-    return tvr, rvr
+    tvr = float(np.mean(tvr_samples)) if tvr_samples else 0.0
+    rvr = float(np.mean(rvr_samples)) if rvr_samples else 0.0
+    return tvr, rvr, tvr_samples, rvr_samples
 
 
 def _decoded_divergences(
@@ -532,11 +567,13 @@ def _decoded_divergences(
 
     Also decodes the GROUND-TRUTH camera tokens (role ``gt``) so the collapse
     test can compare each random dream's brightness to the real GT scale.  Returns
-    ``(tvr, rvr, n_collapsed, n_kept)``: ``tvr`` is the mean forecast-window
-    pixel-L1 of the TRUE plan vs the NON-collapsed randoms; ``rvr`` is the mean
-    pairwise pixel-L1 among the NON-collapsed randoms (the noise floor).  A random
-    rollout whose decoded forecast collapses (near-uniform / near-black, see
-    :func:`_is_collapsed_rollout`) is excluded from BOTH so the floor reflects
+    ``(tvr, rvr, n_collapsed, n_kept, tvr_samples, rvr_samples)``: ``tvr`` is the
+    mean forecast-window pixel-L1 of the TRUE plan vs the NON-collapsed randoms;
+    ``rvr`` is the mean pairwise pixel-L1 among the NON-collapsed randoms (the
+    noise floor); ``tvr_samples`` / ``rvr_samples`` are the per-random and
+    per-pair lists behind those means (for the within-shot variance bootstrap).
+    A random rollout whose decoded forecast collapses (near-uniform / near-black,
+    see :func:`_is_collapsed_rollout`) is excluded from BOTH so the floor reflects
     real plan-driven variation, not degenerate-dream variation.
     """
     import tempfile  # noqa: PLC0415
@@ -570,18 +607,42 @@ def _decoded_divergences(
     n_kept = len(kept_idx)
     kept = [rand_px[i] for i in kept_idx]
 
-    tvr = (
-        float(np.mean([_forecast_pixel_l1(true_px, r, ctx) for r in kept]))
-        if kept
-        else 0.0
-    )
-    pair = [
+    tvr_samples = [_forecast_pixel_l1(true_px, r, ctx) for r in kept]
+    rvr_samples = [
         _forecast_pixel_l1(kept[i], kept[j], ctx)
         for i in range(len(kept))
         for j in range(i + 1, len(kept))
     ]
-    rvr = float(np.mean(pair)) if pair else 0.0
-    return tvr, rvr, n_collapsed, n_kept
+    tvr = float(np.mean(tvr_samples)) if tvr_samples else 0.0
+    rvr = float(np.mean(rvr_samples)) if rvr_samples else 0.0
+    return tvr, rvr, n_collapsed, n_kept, tvr_samples, rvr_samples
+
+
+def _within_shot_ratio_std(tvr_samples, rvr_samples, *, n_boot, seed=0):
+    """Bootstrap the WITHIN-shot std of one shot's ratio (true_vs_random / floor).
+
+    The per-shot ratio is ``mean(tvr_samples) / mean(rvr_samples)`` — both means
+    over the SAME shot's random rollouts.  Resampling those rollouts with
+    replacement ``n_boot`` times and recomputing the ratio gives how much the
+    ratio wobbles purely from the finite ``n_random`` sampling (the within-shot
+    sampling noise).  Returns the std of the resampled ratios; ``nan`` when there
+    are too few samples to resample (need >=2 tvr and >=1 rvr sample).
+    """
+    tvr = np.asarray([s for s in tvr_samples if np.isfinite(s)], dtype=np.float64)
+    rvr = np.asarray([s for s in rvr_samples if np.isfinite(s)], dtype=np.float64)
+    if tvr.size < 2 or rvr.size < 1:
+        return float("nan")
+    rng = np.random.default_rng(int(seed))
+    t_idx = rng.integers(0, tvr.size, size=(int(n_boot), tvr.size))
+    r_idx = rng.integers(0, rvr.size, size=(int(n_boot), rvr.size))
+    t_means = tvr[t_idx].mean(axis=1)
+    r_means = rvr[r_idx].mean(axis=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ratios = np.where(r_means > 0.0, t_means / r_means, np.nan)
+    ratios = ratios[np.isfinite(ratios)]
+    if ratios.size == 0:
+        return float("nan")
+    return float(ratios.std())
 
 
 def _bootstrap_mean_ratio_ci(ratios, *, n_boot, ci_pct, seed=0):
@@ -606,6 +667,77 @@ def _bootstrap_mean_ratio_ci(ratios, *, n_boot, ci_pct, seed=0):
     return float(finite.mean()), float(lo), float(hi)
 
 
+def _variance_decomposition(verdicts):
+    """Decompose the per-shot ratio variance into WITHIN-shot vs ACROSS-shot.
+
+    Returns a dict with:
+
+    - ``mean_within_shot_variance`` — mean over shots of each shot's within-shot
+      ratio variance (the bootstrapped ``ratio_within_std`` squared).  This is
+      the noise the finite ``n_random`` sampling alone injects; RAISING n_random
+      shrinks it.
+    - ``across_shot_variance`` — variance of the per-shot ratio point estimates
+      across shots (genuine shot-to-shot heterogeneity: some driveable, most
+      not).  RAISING n_random does NOT shrink this.
+    - ``across_over_within`` — the ratio of the two.  >> 1 means heterogeneity
+      dominates (more random rollouts won't tighten the cohort CI much — the
+      pass-FRACTION over a screened cohort is the lever); << 1 means within-shot
+      sampling noise dominates (raising n_random WILL tighten it).
+    - ``interpretation`` — a one-line read of which dominates + the implication.
+
+    Infinite per-shot ratios (a 0.0 floor with positive true signal) are excluded
+    from the across-shot variance (they are unambiguous passes, not a finite
+    statistic), and shots with a NaN within-shot std (too few samples) are
+    dropped from the within-shot mean.
+    """
+    finite = [v for v in verdicts if np.isfinite(v.ratio)]
+    within_vars = [
+        float(v.ratio_within_std) ** 2
+        for v in finite
+        if np.isfinite(v.ratio_within_std)
+    ]
+    mean_within = float(np.mean(within_vars)) if within_vars else float("nan")
+    ratios = np.asarray([v.ratio for v in finite], dtype=np.float64)
+    across = float(ratios.var()) if ratios.size >= 2 else float("nan")
+
+    aow = float("nan")
+    if np.isfinite(mean_within) and np.isfinite(across) and mean_within > 0.0:
+        aow = across / mean_within
+
+    if not np.isfinite(aow):
+        interp = (
+            "insufficient samples for a within/across decomposition "
+            "(need >=2 shots with >=2 random rollouts each)"
+        )
+    elif aow >= 3.0:
+        interp = (
+            f"ACROSS-shot heterogeneity dominates (across/within={aow:.1f}): shots "
+            "differ genuinely (some driveable, most not) — raising n_random will "
+            "NOT tighten the cohort CI much; the pass-FRACTION over the screened "
+            "cohort is the stable signal, and resolving levers needs a "
+            "driveable-shot-enriched cohort, not more rollouts."
+        )
+    elif aow <= 0.33:
+        interp = (
+            f"WITHIN-shot sampling noise dominates (across/within={aow:.2f}): the "
+            "per-shot ratios are noisy from too few random rollouts — RAISING "
+            "n_random will tighten the cohort CI."
+        )
+    else:
+        interp = (
+            "within- and across-shot variance are comparable "
+            f"(across/within={aow:.2f}): both raising n_random AND enriching the "
+            "cohort for driveable shots help."
+        )
+    return {
+        "mean_within_shot_variance": mean_within,
+        "across_shot_variance": across,
+        "across_over_within": aow,
+        "n_shots_with_within_std": len(within_vars),
+        "interpretation": interp,
+    }
+
+
 def _summarise(verdicts, config, *, decode):
     transient = [v for v in verdicts if v.is_transient]
     score_set = transient or verdicts
@@ -626,6 +758,27 @@ def _summarise(verdicts, config, *, decode):
     n_inf = sum(1 for r in ratios if not np.isfinite(r))
     mean_ratio, ci_lo, ci_hi = _bootstrap_mean_ratio_ci(
         ratios, n_boot=config.n_bootstrap, ci_pct=config.ci_pct, seed=config.seed
+    )
+    # variance decomposition + the per-shot ratio DISTRIBUTION (sorted) — the
+    # pass-FRACTION is the stable signal; the sorted list + within/across split
+    # say whether more random rollouts would help.
+    var_decomp = _variance_decomposition(score_set)
+    sorted_ratios = sorted(
+        (float(v.ratio) for v in score_set if np.isfinite(v.ratio)),
+    )
+    median_ratio = float(np.median(sorted_ratios)) if sorted_ratios else 0.0
+    mean_within_ratio_std = (
+        float(
+            np.mean(
+                [
+                    v.ratio_within_std
+                    for v in score_set
+                    if np.isfinite(v.ratio_within_std)
+                ]
+            )
+        )
+        if any(np.isfinite(v.ratio_within_std) for v in score_set)
+        else float("nan")
     )
 
     if config.robust_gate:
@@ -653,11 +806,15 @@ def _summarise(verdicts, config, *, decode):
         "mean_random_vs_random_noise_floor": mean_rvr,
         "mean_margin": mean_margin,
         "mean_normalised_ratio": mean_ratio,
+        "median_normalised_ratio": median_ratio,
         "ratio_ci_lo": ci_lo,
         "ratio_ci_hi": ci_hi,
         "ci_pct": list(config.ci_pct),
         "n_bootstrap": int(config.n_bootstrap),
         "n_ratio_infinite": n_inf,
+        "per_shot_ratios_sorted": sorted_ratios,
+        "mean_within_shot_ratio_std": mean_within_ratio_std,
+        "variance_decomposition": var_decomp,
         "n_random_collapsed_total": n_collapsed,
         "reject_collapsed": bool(config.reject_collapsed),
         "margin_threshold": config.margin_threshold,
@@ -1181,7 +1338,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--token-root", default=None)
     p.add_argument("--held-out", default="18502,18503,18504,18505")
     p.add_argument("--device", default="cuda")
-    p.add_argument("--n-random", type=int, default=3)
+    p.add_argument(
+        "--n-random",
+        type=int,
+        default=10,
+        help="bounded coil counterfactuals rolled per shot (default 10 — was 3, "
+        "too few to resolve checkpoints; the summary's variance_decomposition "
+        "reports whether raising it further would tighten the cohort CI).",
+    )
     p.add_argument("--perturb-scale", type=float, default=0.3)
     p.add_argument("--margin-threshold", type=float, default=1.0)
     p.add_argument("--floor-ratio", type=float, default=1.5)

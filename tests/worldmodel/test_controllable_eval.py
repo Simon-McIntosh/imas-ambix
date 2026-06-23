@@ -21,6 +21,8 @@ from imas_ambix.worldmodel.controllable_eval import (
     _position_coil_columns,
     _summarise,
     _token_divergences,
+    _variance_decomposition,
+    _within_shot_ratio_std,
     decoded_centroid,
     diagnostic_match,
 )
@@ -121,8 +123,12 @@ def test_token_divergences_true_and_floor():
     r1[ctx:, 0] = 1  # r1 differs from true on the forecast
     r2 = true_t.copy()
     r2[ctx:, 1] = 1  # r2 differs from true elsewhere
-    tvr, rvr = _token_divergences(true_t, [r1, r2], ctx)
+    tvr, rvr, tvr_s, rvr_s = _token_divergences(true_t, [r1, r2], ctx)
     assert tvr > 0.0 and rvr > 0.0
+    # the per-random / per-pair sample lists back the means.
+    assert len(tvr_s) == 2 and len(rvr_s) == 1
+    assert abs(float(np.mean(tvr_s)) - tvr) < 1e-12
+    assert abs(float(np.mean(rvr_s)) - rvr) < 1e-12
 
 
 def test_summarise_pass_when_margin_clears_floor():
@@ -245,7 +251,7 @@ def test_decoded_divergences_excludes_collapsed_random_from_floor():
     true_tok = np.zeros(6 * gh * gw, dtype=np.int64)
     rand_toks = [np.zeros(6 * gh * gw, dtype=np.int64) for _ in range(3)]
 
-    tvr, rvr, n_collapsed, n_kept = _decoded_divergences(
+    tvr, rvr, n_collapsed, n_kept, tvr_s, rvr_s = _decoded_divergences(
         true_tok,
         rand_toks,
         ctx,
@@ -260,8 +266,10 @@ def test_decoded_divergences_excludes_collapsed_random_from_floor():
     assert n_collapsed == 1 and n_kept == 2
     # the floor is the pairwise L1 among the TWO structured randoms only.
     assert rvr > 0.0 and np.isfinite(rvr)
+    # the kept-random samples back the means (2 kept -> 2 tvr, 1 pair).
+    assert len(tvr_s) == 2 and len(rvr_s) == 1
     # with the collapsed near-black random KEPT the floor would be inflated.
-    _, rvr_keep, n_c2, n_k2 = _decoded_divergences(
+    _, rvr_keep, n_c2, n_k2, _tvr_s2, _rvr_s2 = _decoded_divergences(
         true_tok,
         rand_toks,
         ctx,
@@ -352,6 +360,98 @@ def test_robust_summarise_fail_when_one_shot_carries_cohort():
     # 1/6 pass-fraction -> below the 0.5 majority -> FAIL, not carried by one shot.
     assert summ["verdict"] == "FAIL"
     assert summ["pass_fraction"] < 0.5
+
+
+# ---------------------------------------------------------------------------
+# variance decomposition: within-shot sampling noise vs across-shot heterogeneity
+# ---------------------------------------------------------------------------
+
+
+def test_within_shot_ratio_std_zero_for_constant_samples():
+    """Constant per-random samples -> the ratio never wobbles -> std 0."""
+    tvr = [4.0, 4.0, 4.0, 4.0]
+    rvr = [2.0, 2.0, 2.0]
+    std = _within_shot_ratio_std(tvr, rvr, n_boot=300, seed=0)
+    assert std == 0.0
+
+
+def test_within_shot_ratio_std_positive_for_noisy_samples():
+    """Spread-out per-random samples -> the resampled ratio has real spread."""
+    tvr = [1.0, 5.0, 9.0, 2.0, 8.0]
+    rvr = [0.5, 4.0, 3.0, 1.0]
+    std = _within_shot_ratio_std(tvr, rvr, n_boot=2000, seed=0)
+    assert np.isfinite(std) and std > 0.0
+
+
+def test_within_shot_ratio_std_nan_when_too_few_samples():
+    assert np.isnan(_within_shot_ratio_std([4.0], [2.0], n_boot=100))
+    assert np.isnan(_within_shot_ratio_std([4.0, 5.0], [], n_boot=100))
+
+
+def _ratio_verdict(shot, ratio, *, within_std):
+    """A minimal verdict carrying just the fields the decomposition reads."""
+    return HeldoutDeltaNMVerdict(
+        shot_id=shot,
+        is_transient=True,
+        plan_variation=10.0,
+        true_vs_random=ratio,
+        random_vs_random=1.0,
+        margin=ratio - 1.0,
+        ratio=ratio,
+        n_random=10,
+        n_random_kept=10,
+        ratio_within_std=within_std,
+        passed=ratio > 1.5,
+    )
+
+
+def test_variance_decomposition_flags_across_shot_heterogeneity():
+    """Ratios spread wide across shots but each shot's own estimate is tight ->
+    ACROSS-shot heterogeneity dominates; raising n_random would not help."""
+    # the 25-shot cohort shape: most shots ~0.5-1.2, two big outliers.
+    ratios = [0.5, 0.6, 0.7, 0.9, 1.0, 1.1, 1.2, 6.8, 10.6]
+    vs = [_ratio_verdict(i, r, within_std=0.05) for i, r in enumerate(ratios)]
+    dec = _variance_decomposition(vs)
+    assert dec["across_shot_variance"] > dec["mean_within_shot_variance"]
+    assert dec["across_over_within"] >= 3.0
+    assert "ACROSS-shot heterogeneity dominates" in dec["interpretation"]
+
+
+def test_variance_decomposition_flags_within_shot_noise():
+    """Per-shot estimates noisy (big within-std) but the underlying ratios cluster
+    -> WITHIN-shot sampling noise dominates; raising n_random WILL tighten it."""
+    ratios = [1.45, 1.5, 1.55, 1.48, 1.52, 1.5]
+    vs = [_ratio_verdict(i, r, within_std=0.8) for i, r in enumerate(ratios)]
+    dec = _variance_decomposition(vs)
+    assert dec["mean_within_shot_variance"] > dec["across_shot_variance"]
+    assert dec["across_over_within"] <= 0.33
+    assert "WITHIN-shot sampling noise dominates" in dec["interpretation"]
+
+
+def test_variance_decomposition_nan_when_insufficient():
+    vs = [_ratio_verdict(0, 1.5, within_std=float("nan"))]
+    dec = _variance_decomposition(vs)
+    assert not np.isfinite(dec["across_over_within"])
+    assert "insufficient samples" in dec["interpretation"]
+
+
+def test_summarise_exposes_variance_decomposition_and_distribution():
+    """The robust summary surfaces the decomposition + the sorted ratio list +
+    the pass-fraction so the distribution (not just the mean) is visible."""
+    cfg = EvalConfig(robust_gate=True, ratio_threshold=1.5)
+    ratios = [0.6, 0.8, 1.0, 1.2, 2.0, 3.0, 5.0]
+    vs = [_ratio_verdict(i, r, within_std=0.1) for i, r in enumerate(ratios)]
+    summ = _summarise(vs, cfg, decode=True)
+    assert "variance_decomposition" in summ
+    vd = summ["variance_decomposition"]
+    assert "across_over_within" in vd and "interpretation" in vd
+    # the sorted ratio list is exposed and is actually sorted.
+    sr = summ["per_shot_ratios_sorted"]
+    assert sr == sorted(sr) and len(sr) == len(ratios)
+    # pass-fraction is the stable signal (3/7 here clear 1.5).
+    assert abs(summ["pass_fraction"] - 3 / 7) < 1e-9
+    assert "median_normalised_ratio" in summ
+    assert np.isfinite(summ["mean_within_shot_ratio_std"])
 
 
 # ---------------------------------------------------------------------------
