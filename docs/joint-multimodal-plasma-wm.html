@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-23">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 </head>
 <body>
   <main class="plan-doc">
@@ -124,6 +124,21 @@
       (c) joint generation should be COMBINED with those levers (and likely a lower diagnostic weight / no LR
       re-warm), not shipped standalone. Next: §3b (<code>f-jmwm-002</code>), §3c (<code>f-jmwm-003</code>),
       Phase-2 RSSM.</p>
+      <p style="margin:8px 0 0;border-top:1px dashed #9c9;padding-top:8px"><strong>⟳ REVERSAL (robust gate, 2026-06-23):</strong>
+      the "fine-tuning + diagnostics cost controllability" read above was an ARTIFACT of the 1-shot gate. On
+      the screened, train-disjoint <strong>7-shot</strong> cohort with the noise-floor-normalised,
+      collapse-rejecting metric (<code>f-jmwm-005</code>, commit <code>ec0de88</code>), the verdict FLIPS:
+      mean normalised ratio (true-vs-random / random-floor) — <strong>baseline 1221741 = 0.96</strong>
+      (the WORST; true plan moves the dream <em>less</em> than random; 0/7 pass, CI [0.84,1.11]),
+      <strong>diag-off 1221883 = 1.14</strong> (1/7, CI [0.91,1.45]), <strong>joint-gen 1221834 = 1.27</strong>
+      (the BEST; 2/7, CI [0.95,1.67]). The baseline's old +20.66 was carried ENTIRELY by the lucky shot 18502.
+      So on a fair cohort, continued training HELPED and <em>joint generation is directionally the best</em> —
+      not harmful. Caveats: all three still FAIL (no CI lower-bound clears 1.5×; 7 shots, wide overlapping CIs
+      → the ordering is suggestive, not significant); controllability remains the open problem.
+      Implications updated: (a) the LR-re-warm caution is RETRACTED — fine-tuning helped on the fair gate;
+      a standard LR is fine; (b) joint generation is vindicated — KEEP it; (c) push controllability with §3b
+      masking + §3c action-contrastive AND tighten the gate (<code>f-jmwm-006</code>: expand the 7-shot cohort
+      to ~20–30 for resolving CIs).</p>
     </div>
 
     <p>Land the three lever families that <em>don't</em> require the latent redesign, on the proven token backbone,
@@ -452,13 +467,43 @@ Done-when
   4. tests green (clean sun_debug allocation); committed + pushed (your eval files + figures only).
   Report the cohort size, the three-checkpoint robust verdict, and the figure paths. Orchestrator records the plan.</pre>
     </article>
+<article class="r-fu" data-id="f-jmwm-006" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Expand + speed up the gate cohort (7→20-30 shots; in-process decode, not subprocess-per-candidate)</h4>
+    <div class="r-fu-body">The robust gate landed (ec0de88) but the screened cohort is only 7 shots (60 scanned → 19 assemblable → 7 passed brightness>=10 + motion>=4), giving WIDE bootstrap CIs ([0.84,1.11]/[0.95,1.67]/[0.91,1.45]) so the three checkpoints' ratios (0.96/1.27/1.14) are only DIRECTIONALLY distinguishable, not significant. The cohort builder (gate_cohort.py) decodes each candidate's GT in a FRESH SUBPROCESS (~20-25s/shot) — slow AND a violation of the AGENTS.md §2b in-process-model-load rule — which is why the scan to 20 never finished in budget. Fix: refactor the cohort screen to load the VQ decoder ONCE in-process (mirror stream_encode.py) and screen a few hundred candidates to reach ~20-30 passing shots; optionally relax the brightness/motion thresholds slightly if too few pass. Tighter CIs are needed to read lever effects (§3b masking / §3c contrastive).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    joint-multimodal-plasma-wm
+Section: §6 (eval) — cohort expansion + perf
+Tier:    opus
+
+Context
+  gate_cohort.build_screened_cohort works but decodes each candidate GT in a fresh subprocess (~20-25s) —
+  slow + violates AGENTS.md §2b (load the model ONCE, loop in-process). The committed cohort is 7 shots
+  (gate_cohort.json), CIs too wide to resolve lever effects. Read gate_cohort.py + the in-process pattern in
+  imas_ambix/data/stream_encode.py and imas_ambix/bench/stream_worker.py.
+
+Scope locks
+  - Refactor the candidate GT decode to a SINGLE in-process VQ load + a loop (DataLoader-style if helpful);
+    no subprocess-per-candidate. SIGTERM-clean; try/finally release.
+  - Screen enough candidates (a few hundred) to reach target ~20-30 train-disjoint passing shots; keep the
+    leakage guard + the brightness/motion/transient thresholds (relax slightly only if needed to hit target,
+    and record the thresholds used).
+  - Rewrite gate_cohort.json with the expanded cohort; re-run the 3-checkpoint robust gate on it for tighter
+    CIs; update the comparison figure.
+  - Edit ONLY gate_cohort.py (+ its test) + a re-eval/figure script; do not touch controllable_train.py.
+    No co-author trailer; no plan edits.
+
+Done-when
+  1. In-process cohort builder (no subprocess-per-candidate); ~20-30 shot cohort written; leakage guard green.
+  2. 3-checkpoint robust re-eval on the expanded cohort with tighter CIs; report the table.
+  3. tests green (clean sun_debug); committed + pushed. Orchestrator records the plan.</pre>
+    </article>
 </section>
 
   <section data-reckon="questions" id="questions" class="r-questions">
 <h2><span class="sec">§</span> Open questions</h2>
 <div class="r-q" data-id="q-jmwm-001" data-section="s3" data-status="resolved" data-opened-by="smc" data-opened-at="2026-06-23" data-resolved-at="2026-06-23T11:02:04+00:00" data-resolved-by="smc">
     <p class="r-q-body">Phase-1 §3a verdict + the fine-tuning finding. Three-way matched 13-stream ΔN-M: entry baseline 1221741 +20.66 (no continued training) → diagnostics-OFF +8000 steps @LR 5e-5 1221883 +2.74 → diagnostics-ON 1221834 +0.74 (all 1/3; only shot 18502 ever driveable). So CONTINUED FINE-TUNING with a re-warmed LR is the dominant controllability cost; the diagnostic objective adds a smaller further drop. Joint generation itself works (diagnostic-match 0.240 vs 0.002). Honesty correction: the +18.1/+20.66 'gate' was never a robust pass — 1 driveable shot + 2 fails. Recommended path (proceeding unless the lead redirects): (1) do NOT fine-tune the entry baseline with a re-warmed cosine LR — warm-start gains decay; for any further training use a much lower constant LR (~1e-6) or freeze the backbone + train only new params. (2) Land §3b masking (keep CLEAN diagnostic targets while masking inputs — fixes diag-CE-zeroed-80%-of-steps AND enables dream-from-reduced-set) and §3c action-contrastive (trains ΔN-M directly) — these are the gate levers, not more generative fine-tuning. (3) Combine joint-gen WITH those levers at a lower diagnostic_weight, evaluated on the matched 13-stream eval, rather than shipping diagnostics standalone. Open Q for the lead: is 18502-only-driveable acceptable as the working gate while we pursue §3b/§3c, or should the gate definition / held-out set be revisited (only 18502 has ever passed across 1221563/1221741/1221834/1221883)?</p>
-    <p class="r-q-resolution">Lead directed: REVISE the gate definition. Frame evidence (figures committed ab19cc7 under docs/figures/joint-multimodal-plasma-wm/gate-shots/) proves the held-out set 18502-05 is NOT a robust controllability probe — it is effectively 1-shot. Per-shot GT decoded from the EXACT gate window: 18502 GOOD (mean brightness 17, transient motion 8.2, true plan drives the dream → +91.6/3.5x); 18503 DEGENERATE-by-METRIC (GT bright+coherent, true-plan forecast fine, but RANDOM-plan rollouts collapse and diverge among themselves → inflated noise floor 29.6 drags margin negative); 18504 DEGENERATE-by-DATA (GT near-black mean 2.7 = 6x dimmer; model dreams black regardless of plan → true-vs-random pixel-L1 = 0; highest floor); 18505 correctly dropped (span 0.238s<0.25s horizon). All four are real plasma shots (presence 0.75, |Ip|~745kA) — Ip does NOT discriminate; the degeneracy is in the CAMERA window. TWO root causes: bad shot SELECTION (18504 dark) AND a fragile METRIC (the random-vs-random floor is inflated by random-rollout COLLAPSE, not real plan-driven variation). Resolution = f-jmwm-005: (1) screen a larger EVAL-ONLY cohort (train-disjoint shots not in curated_windows_unified_6cam.json — no retrain) by GT brightness >=~10 + GT transient motion >=~4 + transient plan-variation, target ~15-30 shots so the gate is not 1-shot; (2) noise-floor-NORMALISED margin + REJECT collapsed random rollouts from the floor estimate; (3) re-eval 1221741/1221834/1221883 on the robust gate for the true verdict.</p>
+    <p class="r-q-resolution">Lead directed: REVISE the gate definition. Frame evidence (figures committed ab19cc7 under docs/figures/joint-multimodal-plasma-wm/gate-shots/) proves the held-out set 18502-05 is NOT a robust controllability probe — it is effectively 1-shot. Per-shot GT decoded from the EXACT gate window: 18502 GOOD (mean brightness 17, transient motion 8.2, true plan drives the dream → +91.6/3.5x); 18503 DEGENERATE-by-METRIC (GT bright+coherent, true-plan forecast fine, but RANDOM-plan rollouts collapse and diverge among themselves → inflated noise floor 29.6 drags margin negative); 18504 DEGENERATE-by-DATA (GT near-black mean 2.7 = 6x dimmer; model dreams black regardless of plan → true-vs-random pixel-L1 = 0; highest floor); 18505 correctly dropped (span 0.238s&lt;0.25s horizon). All four are real plasma shots (presence 0.75, |Ip|~745kA) — Ip does NOT discriminate; the degeneracy is in the CAMERA window. TWO root causes: bad shot SELECTION (18504 dark) AND a fragile METRIC (the random-vs-random floor is inflated by random-rollout COLLAPSE, not real plan-driven variation). Resolution = f-jmwm-005: (1) screen a larger EVAL-ONLY cohort (train-disjoint shots not in curated_windows_unified_6cam.json — no retrain) by GT brightness &gt;=~10 + GT transient motion &gt;=~4 + transient plan-variation, target ~15-30 shots so the gate is not 1-shot; (2) noise-floor-NORMALISED margin + REJECT collapsed random rollouts from the floor estimate; (3) re-eval 1221741/1221834/1221883 on the robust gate for the true verdict.</p>
     </div>
 </section>
 </main>
