@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"    content="imas-ambix">
+  <meta name="reckon-type"     content="plan">
+  <meta name="plan-slug"       content="joint-multimodal-plasma-wm">
+  <meta name="plan-title"      content="Joint Multi-Modal Generative Plasma World Model">
+  <meta name="plan-summary"    content="One model that dreams cameras AND diagnostics from commands — per-modality masking, contrastive levers, and an RSSM latent bottleneck for reduced physics not memorisation.">
+  <meta name="plan-status"     content="draft">
+  <meta name="plan-roi"        content="high">
+  <meta name="plan-effort"     content="XL">
+  <meta name="plan-tier"       content="opus">
+  <meta name="plan-milestone"  content="M4">
+  <meta name="plan-sprint"     content="S14">
+  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="plan-depends-on" content="playable-plasma-wm-v0,control-conditioning-survey">
+  <title>Joint Multi-Modal Generative Plasma World Model | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Goal &amp; motivation</h2>
+    <p>Turn the camera-predictor into a <strong>proper generative world model of the plasma state</strong>:
+    one model that <strong>dreams the cameras <em>and</em> the diagnostics</strong> forward, driven by the
+    actuator commands, and that learns the <strong>reduced physics</strong> of the coil&rarr;plasma map rather
+    than memorising token patterns. This plan operationalises the lead's four pushes from the
+    <a href="/imas-ambix/playable-plasma-wm-v0">playable-plasma</a> work: (1) the diagnostics should be
+    <em>on</em>, not opt-in; (2) we must be able to dream from a <em>reduced</em> control set; (3) we should dream
+    <em>all</em> cameras and diagnostics; (4) we should <em>train on an objective that matches the diagnostics</em> —
+    plus a state-of-the-art stance on dropped inputs + a reduced latent so the model learns physics, not lookup.</p>
+
+    <p><strong>Entry baseline (what we have).</strong> The conditioning expansion already paid off. Adding the
+    Dα-boundary (<code>ada</code>/<code>adg</code>/<code>aim</code>) + calibrated L2 magnetics (94 ch) signals to the
+    6-camera / multi-timescale run flipped the held-out controllability margin from <strong>&minus;9.5</strong>
+    (baseline <code>1221563</code>, 9 streams — true plan moved the dream <em>less</em> than random) to
+    <strong>+18.1</strong> (enriched <code>1221741</code>, 13 streams — true plan now moves it <em>more</em>, and the
+    random-noise floor dropped 60&rarr;36). The gate is at threshold (1/3, 1.5&times; floor), not robustly passed.
+    Direct position observation demonstrably helps — but as <em>conditioning input</em> only. The model still does not
+    <em>generate</em> the plasma state, and a high-capacity token transformer can still memorise. This plan is the
+    next architecture to cross the gate robustly and earn the "in-silico tokamak" claim.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/joint-multimodal-plasma-wm/architecture.svg"
+           alt="Joint multi-modal generative world model: commands + masked camera/diagnostic inputs into a spacetime backbone (with a Phase-2 RSSM latent), dreaming cameras and diagnostics, with three contrastive auxiliary objectives and the controllability/diagnostic-match eval."
+           style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:6px">
+      <figcaption style="font-size:12px;color:#333;margin-top:6px">
+        The target model. Commands are the always-on control surface; cameras + diagnostics are
+        per-modality-masked observations the model learns to dream. Phase&nbsp;1 adds diagnostic
+        generation + masking + contrastive on the current backbone; Phase&nbsp;2 routes the dynamics
+        through a compact RSSM latent. Entry baseline: job 1221741 (margin +18.1, 1/3 gate).
+      </figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Architecture &amp; the four levers</h2>
+    <p>The model keeps the proven substrate — frozen Open-MAGVIT2 camera tokens, the factorised space-time
+    transformer, AdaLN-Zero plan conditioning, Δt + camera-id embeddings, the camera-history bottleneck,
+    inverse-dynamics aux, scheduled sampling — and adds four levers, each mapped to a lead question:</p>
+    <ul>
+      <li><strong>Joint generation (Q3) + diagnostic-matching objective (Q4).</strong> The diagnostics are already
+      quantised to the L2 257-id vocab. Add a lightweight <em>prediction head per stream</em> on the shared backbone
+      and a next-step cross-entropy on the diagnostic tokens. The model then autoregresses cameras <em>and</em>
+      diagnostics — a joint state model. This is the highest-value change: it lets us dream the full state, gives a
+      far richer physics signal (predicting magnetics/Dα forward forces the dynamics into the model), and yields a
+      <em>quantitative</em> eval (dreamt-vs-real diagnostics), not only pixel distance.</li>
+      <li><strong>Per-modality masking (Q2).</strong> Today's <code>observation_dropout=0.8</code> is
+      <em>all-or-nothing</em> (all signals on, or all off). Replace it with <em>independent</em> per-stream Bernoulli
+      masking so the model trains on arbitrary subsets and can dream from any combination — including commands only.
+      Commands stay the load-bearing control; diagnostics become droppable <em>and</em> dreamt.</li>
+      <li><strong>Contrastive levers (all three, ablated).</strong> Cross-modal alignment (camera ↔ diagnostics share
+      one plasma-state latent), self-predictive latent (BYOL/SPR future-latent — compact, anti-memorisation), and
+      action-contrastive (true-plan vs wrong-plan next state — which <em>directly</em> trains the ΔN-M gate the
+      baseline failed). Auxiliary to the generative loss; each ablated to prove marginal value.</li>
+      <li><strong>RSSM latent bottleneck (Q5, Phase 2).</strong> A compact recurrent latent the dynamics must pass
+      through (Dreamer-style): predict the future <em>in latent space</em>, decode to cameras + diagnostics, with a
+      KL/rate penalty. This is the structural pressure for <em>reduced physics, not memorisation</em> — the latent
+      <em>is</em> the in-silico plasma state.</li>
+    </ul>
+
+    <h2 id="s3">§3 — Phase 1: joint generation + masking + contrastive (on the current backbone)</h2>
+    <p>Land the three lever families that <em>don't</em> require the latent redesign, on the proven token backbone,
+    so each is measurable against the <code>1221741</code> baseline. Deliverables:</p>
+    <ul>
+      <li><strong>Diagnostic prediction heads + loss.</strong> Per-stream output heads (each over its stream vocab);
+      next-step CE on the diagnostic tokens, weighted into the total loss alongside the camera CE. Make the diagnostics
+      <em>on by default</em> in the canonical config (off remains an ablation switch).</li>
+      <li><strong>Per-modality independent masking.</strong> Replace all-or-nothing observation dropout with a
+      per-stream mask (independent Bernoulli, rate a config knob; commands excluded from masking — they are the control
+      surface, kept under the existing control-dropout/CFG). Keep the camera-history bottleneck.</li>
+      <li><strong>Contrastive auxiliaries</strong> (cross-modal align, self-predictive latent, action-contrastive),
+      each behind a flag so the ablation grid can isolate them.</li>
+      <li><strong>Eval extension:</strong> add a diagnostic-match metric (dreamt vs real magnetics/Dα forward) to the
+      baked held-out eval, beside the ΔN-M gate + the coil-edit dream.</li>
+    </ul>
+    <p>Phase 1 warm-starts from the <code>1221741</code> checkpoint where shapes allow (new heads + contrastive
+    projectors initialise fresh); it is a strict superset of the current model with the new losses defaulted on.</p>
+
+    <h2 id="s4">§4 — Phase 2: RSSM compact latent-dynamics bottleneck</h2>
+    <p>Introduce a low-dim recurrent latent state <code>zₜ</code> that the forward dynamics pass through: encode the
+    masked observations + commands into <code>zₜ</code>, roll <code>zₜ</code> forward conditioned on the commands,
+    and decode <code>zₜ</code> to the camera + diagnostic tokens. Train with the generative decode losses + a
+    KL/rate penalty on the latent (the information bottleneck) + the contrastive levers (self-predictive now operates
+    naturally on <code>zₜ</code>). This is the structural anti-memorisation lever and the genuine "playable" state: in
+    PLAY we provide commands + an initial <code>zₜ</code> and roll forward, dreaming the full state. Phase 2 is gated on
+    Phase 1 validating that joint generation + masking + contrastive move the gate; it is designed-for from the start
+    (the heads/latent interfaces in Phase 1 anticipate the latent) but built second to keep each lever measurable.</p>
+
+    <h2 id="s5">§5 — Training objectives</h2>
+    <p>Total loss = camera-token CE + <strong>diagnostic-token CE (new)</strong> + inverse-dynamics aux
+    + λ·(contrastive terms) [+ β·KL latent rate in Phase 2]. Per-modality masking applies to all observation streams;
+    commands are never masked (CFG/control-dropout only). Each contrastive term and the diagnostic loss carries a
+    weight + an on/off flag so the §6 ablation can attribute the gate movement. Excitation weighting + scheduled
+    sampling + the history bottleneck carry over unchanged.</p>
+
+    <h2 id="s6">§6 — Evaluation &amp; ablation grid</h2>
+    <p>Three eval axes, all on the held-out shots (18502–05), reported against the <code>1221741</code> baseline:</p>
+    <ul>
+      <li><strong>Controllability gate</strong> ΔN-M (true vs wrong-plan rollout divergence) — the headline; target a
+      robust pass (&ge;2/3, comfortably above the 1.5&times; floor), up from the baseline's borderline 1/3.</li>
+      <li><strong>Diagnostic-match</strong> — dreamt vs real magnetics / Dα-boundary forward (new, quantitative): does
+      the model's dreamt plasma state track reality?</li>
+      <li><strong>Dream fidelity</strong> — decoded-pixel error vs persistence (the standing honesty check).</li>
+    </ul>
+    <p>Ablation grid (each lever toggled): joint-generation on/off, per-modality masking vs all-or-nothing, and the
+    three contrastive terms individually — to prove each lever's <em>marginal</em> contribution rather than shipping a
+    confounded stack. Phase 2 adds the RSSM latent as a further arm.</p>
+
+    <h2 id="s7">§7 — Build sequence &amp; risks</h2>
+    <p>Sequencing (staged A→B, the locked approach): <strong>(1)</strong> diagnostic heads + matching loss +
+    canonical "all-on"; <strong>(2)</strong> per-modality masking; <strong>(3)</strong> contrastive auxiliaries +
+    the ablation grid; <strong>(4)</strong> a Phase-1 broad run + verdict vs <code>1221741</code>; <strong>(5)</strong>
+    Phase-2 RSSM latent + KL + re-eval. Each lands behind a config flag, defaulted to the new behaviour once validated.
+    Code edits land in a worktree while any training job is live (the editable install + DataLoader re-import hazard);
+    merge when the node is free. Risks: (a) the diagnostic CE can dominate/destabilise the camera loss — weight + warm
+    up; (b) per-modality masking may over-regularise — tune the rate; (c) the RSSM warm-start is non-trivial (new
+    latent) — expect a partial or from-scratch Phase 2; (d) contrastive negatives/temperature need care — prefer the
+    BYOL self-predictive variant to avoid negative-sampling. The §6 ablation is the guard against shipping levers that
+    don't earn their place.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="approach" data-choice="staged-a-b" data-by="smc" data-when="2026-06-23">
+        <p class="r-dec-q">Overall architecture approach?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="staged-a-b">staged-a-b</button>
+          <button class="r-opt" data-value="incremental-only">incremental-only</button>
+          <button class="r-opt" data-value="full-redesign">full-redesign</button>
+        </p>
+        <p class="r-dec-rat">Staged A→B: land joint generation + masking + contrastive on the proven backbone first
+        (measurable vs 1221741), then add the RSSM latent. Honours the reduced-latent goal as the destination while
+        keeping each lever's contribution measurable rather than confounded in one rebuild.</p>
+      </div>
+      <div class="r-dec" data-key="contrastive" data-choice="cross-modal+self-predictive+action" data-by="smc" data-when="2026-06-23">
+        <p class="r-dec-q">Which contrastive levers to include (each ablated)?</p>
+        <p class="r-dec-rat">All three: cross-modal alignment (camera↔diagnostics shared state), self-predictive
+        latent (BYOL/SPR, anti-memorisation, no negative-sampling), and action-contrastive (true vs wrong plan —
+        directly trains the ΔN-M gate the baseline failed). Auxiliary to the generative loss; the §6 grid isolates each.</p>
+      </div>
+      <div class="r-dec" data-key="latent-bottleneck" data-choice="rssm" data-by="smc" data-when="2026-06-23">
+        <p class="r-dec-q">What is the Phase-2 reduced-latent bottleneck?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="rssm">rssm</button>
+          <button class="r-opt" data-value="info-bottleneck-tokens">info-bottleneck-tokens</button>
+          <button class="r-opt" data-value="vq-latent">vq-latent</button>
+        </p>
+        <p class="r-dec-rat">A compact recurrent latent state (Dreamer-style RSSM) the dynamics pass through — the
+        strongest "reduced physics" pressure; the latent becomes the in-silico plasma state and the PLAY rollout space.</p>
+      </div>
+      <div class="r-dec" data-key="diagnostic-head-arch" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Diagnostic generation: separate per-stream heads on the shared backbone, or one unified token stream (diagnostics as more tokens in the sequence)?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="per-stream-heads">per-stream-heads</button>
+          <button class="r-opt" data-value="unified-token-stream">unified-token-stream</button>
+        </p>
+        <p class="r-dec-rat">Lean: per-stream heads (streams have different vocabs + channel counts; lighter, warm-start-friendly). Open for review.</p>
+      </div>
+      <div class="r-dec" data-key="phase2-init" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Phase-2 RSSM: warm-start the encoder/decoder from Phase 1, or train the latent model from scratch?</p>
+        <p class="r-dec-rat">Open — depends on whether the Phase-1 backbone embeddings transfer to the latent encoder. Decide after Phase 1 lands.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-jmwm-001" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23 00:00">
+        <h4 class="r-fu-title">Phase 1 §3 — diagnostic-prediction heads + matching loss (the joint-generation core)</h4>
+        <div class="r-fu-body">First Phase-1 deliverable: make the diagnostics generation TARGETS, not just inputs.
+        Add per-stream prediction heads + next-step cross-entropy on the diagnostic tokens, weighted alongside the camera
+        CE, defaulted on. This is the prerequisite for dreaming the full state and the diagnostic-match eval; masking
+        and contrastive land after it.</div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    joint-multimodal-plasma-wm (http://localhost:8765/imas-ambix/joint-multimodal-plasma-wm.html)
+Section: §3 (Phase 1)
+Tier:    opus
+
+Context
+  The 13-stream conditioning run (1221741) put the controllability gate at threshold (margin +18.1, 1/3).
+  Next: turn the diagnostics from conditioning INPUTS into generation TARGETS so the model dreams the full
+  plasma state and we get a quantitative diagnostic-match eval. Honour the locked decisions above
+  (staged-a-b, all-three-contrastive, rssm latent, per-stream heads lean); surface the open ones.
+
+State to read (CODE / FILES / DATA)
+  imas_ambix/worldmodel/controllable_model.py (heads, loss, _forward_tokens, inverse_dynamics_loss)
+  imas_ambix/worldmodel/spacetime_dataset_v2.py (SignalModalitySpec, read_window_signals, the 13 streams)
+  imas_ambix/worldmodel/controllable_train.py (loss assembly, observation_dropout, config)
+  Baseline: /work/projects/imas_gpu/worldmodel/ckpt/controllable-1221741 (+ its eval/)
+
+Scope locks / constraints (non-decision)
+  - Per-stream output heads over each stream's vocab; next-step CE on the diagnostic tokens.
+  - Diagnostics ON by default in the canonical config; keep an ablation off-switch.
+  - Commands are NEVER a generation target and NEVER masked (control surface).
+  - Edit in a worktree if a training job is live (editable-install / DataLoader re-import hazard); merge when free.
+  - Warm-start from 1221741 where shapes allow; new heads init fresh. Tests green; no co-author trailer.
+
+Done-when
+  1. Diagnostic-prediction heads + weighted CE implemented behind a config flag (default on); a short CPU
+     smoke shows finite joint loss + grads to the new heads on real assembled windows.
+  2. Eval extended with a dreamt-vs-real diagnostic-match metric.
+  3. tests still green
+  4. followup written (Phase 1 §3b — per-modality masking) + this followup marked resolved</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 640" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <style>
+    .ttl{font-size:18px;font-weight:700;fill:#111}
+    .lab{font-size:13px;fill:#111}
+    .sub{font-size:12px;fill:#333}
+    .tag{font-size:11px;font-weight:700;fill:#2563eb}
+    .cap{font-size:12px;fill:#333}
+    .box{fill:#fff;stroke:#888;stroke-width:1}
+    .boxc{fill:#fff;stroke:#2563eb;stroke-width:1.5}
+    .ctrl{fill:#fff;stroke:#b45309;stroke-width:1.5}
+    .arrow{stroke:#555;stroke-width:1.4;fill:none;marker-end:url(#a)}
+    .hr{stroke:#ccc;stroke-width:1}
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <text x="20" y="30" class="ttl">Joint multi-modal generative plasma world model</text>
+  <text x="20" y="50" class="cap">One model ingests + DREAMS cameras and diagnostics; driven by commands; learns reduced physics, not lookup.</text>
+
+  <!-- INPUTS -->
+  <text x="20" y="86" class="tag">INPUTS  (per-modality masking — train any subset, dream the rest)</text>
+  <rect x="20" y="96" width="200" height="58" rx="5" class="ctrl"/>
+  <text x="32" y="118" class="lab">Actuator plan — commands</text>
+  <text x="32" y="136" class="sub">PF/CS coils, gas, NBI · ALWAYS ON</text>
+  <text x="32" y="150" class="sub">(the control surface in PLAY)</text>
+
+  <rect x="240" y="96" width="200" height="58" rx="5" class="box"/>
+  <text x="252" y="118" class="lab">Camera history</text>
+  <text x="252" y="136" class="sub">6 views · VQ tokens · masked</text>
+  <text x="252" y="150" class="sub">(history bottleneck)</text>
+
+  <rect x="460" y="96" width="320" height="58" rx="5" class="boxc"/>
+  <text x="472" y="116" class="lab">Diagnostics — observations (13 streams)</text>
+  <text x="472" y="134" class="sub">magnetics (B-probes/flux), Dα boundary, density,</text>
+  <text x="472" y="148" class="sub">SXR, heat-flux… · independently masked</text>
+
+  <!-- masking band -->
+  <line x1="120" y1="154" x2="120" y2="196" class="arrow"/>
+  <line x1="340" y1="154" x2="340" y2="196" class="arrow"/>
+  <line x1="620" y1="154" x2="620" y2="196" class="arrow"/>
+
+  <!-- BACKBONE / LATENT -->
+  <rect x="20" y="196" width="760" height="120" rx="6" class="box"/>
+  <text x="34" y="220" class="lab">Spacetime transformer backbone  ·  AdaLN-Zero plan conditioning  ·  Δt + camera-id embeddings</text>
+  <rect x="300" y="236" width="320" height="64" rx="5" class="boxc"/>
+  <text x="312" y="258" class="tag">PHASE 2 — RSSM compact latent zₜ</text>
+  <text x="312" y="276" class="sub">dynamics predicted IN a low-dim latent the</text>
+  <text x="312" y="290" class="sub">state must pass through → reduced physics</text>
+  <text x="640" y="262" class="sub">Phase 1 keeps</text>
+  <text x="640" y="278" class="sub">the token model;</text>
+  <text x="640" y="292" class="sub">latent is added</text>
+  <text x="640" y="306" class="sub">in Phase 2.</text>
+
+  <!-- OUTPUTS -->
+  <line x1="200" y1="316" x2="200" y2="358" class="arrow"/>
+  <line x1="560" y1="316" x2="560" y2="358" class="arrow"/>
+  <text x="20" y="348" class="tag">OUTPUTS  (next-step generation — both decoded for the verdict)</text>
+  <rect x="20" y="358" width="360" height="52" rx="5" class="box"/>
+  <text x="32" y="380" class="lab">Dream cameras  ·  token cross-entropy</text>
+  <text x="32" y="398" class="sub">all 6 views, multi-timescale (existing target)</text>
+
+  <rect x="420" y="358" width="360" height="52" rx="5" class="boxc"/>
+  <text x="432" y="380" class="lab">Dream diagnostics  ·  matching loss  <tspan class="tag">NEW</tspan></text>
+  <text x="432" y="398" class="sub">predict magnetics / Dα / … forward = encode the physics</text>
+
+  <!-- AUX OBJECTIVES -->
+  <line x1="20" y1="430" x2="780" y2="430" class="hr"/>
+  <text x="20" y="452" class="tag">AUXILIARY OBJECTIVES — contrastive levers (each ablated for marginal value)</text>
+  <rect x="20" y="462" width="245" height="64" rx="5" class="boxc"/>
+  <text x="32" y="482" class="lab">Cross-modal align</text>
+  <text x="32" y="500" class="sub">camera ↔ diagnostics share</text>
+  <text x="32" y="514" class="sub">one plasma-state latent</text>
+
+  <rect x="278" y="462" width="245" height="64" rx="5" class="boxc"/>
+  <text x="290" y="482" class="lab">Self-predictive latent</text>
+  <text x="290" y="500" class="sub">BYOL/SPR future-latent —</text>
+  <text x="290" y="514" class="sub">compact, anti-memorisation</text>
+
+  <rect x="536" y="462" width="245" height="64" rx="5" class="boxc"/>
+  <text x="548" y="482" class="lab">Action-contrastive</text>
+  <text x="548" y="500" class="sub">true plan vs wrong plan →</text>
+  <text x="548" y="514" class="sub">directly trains the gate</text>
+
+  <!-- EVAL -->
+  <line x1="20" y1="544" x2="780" y2="544" class="hr"/>
+  <text x="20" y="566" class="tag">EVAL / SUCCESS</text>
+  <text x="20" y="588" class="cap">controllability gate ΔN-M (true vs wrong-plan rollout)  ·  diagnostic-match (dreamt vs real magnetics/Dα)  ·  dream fidelity vs persistence</text>
+  <text x="20" y="608" class="cap">Entry baseline (job 1221741, 13-stream conditioning): margin +18.1, 1/3 gate — at threshold. Target: robust pass + dream the full state.</text>
+
+  <!-- PLAY callout -->
+  <rect x="812" y="96" width="150" height="430" rx="6" fill="#fff" stroke="#b45309" stroke-width="1.5"/>
+  <text x="826" y="118" class="tag" fill="#b45309">PLAY MODE</text>
+  <text x="826" y="140" class="sub">Provide: commands</text>
+  <text x="826" y="156" class="sub">+ initial frames.</text>
+  <text x="826" y="178" class="sub">Withhold: ongoing</text>
+  <text x="826" y="194" class="sub">diagnostics &amp; frames.</text>
+  <text x="826" y="216" class="sub">Model DREAMS the</text>
+  <text x="826" y="232" class="sub">cameras + diagnostics</text>
+  <text x="826" y="248" class="sub">forward.</text>
+  <text x="826" y="276" class="sub">Per-modality masking</text>
+  <text x="826" y="292" class="sub">in TRAIN is what</text>
+  <text x="826" y="308" class="sub">makes any-subset</text>
+  <text x="826" y="324" class="sub">dreaming possible.</text>
+  <text x="826" y="352" class="sub">Commands stay the</text>
+  <text x="826" y="368" class="sub">load-bearing control;</text>
+  <text x="826" y="384" class="sub">diagnostics become</text>
+  <text x="826" y="400" class="sub">droppable + dreamt.</text>
+</svg>
