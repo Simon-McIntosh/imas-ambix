@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"    content="imas-ambix">
-  <meta name="reckon-type"     content="plan">
-  <meta name="plan-slug"       content="joint-multimodal-plasma-wm">
-  <meta name="plan-title"      content="Joint Multi-Modal Generative Plasma World Model">
-  <meta name="plan-summary"    content="One model that dreams cameras AND diagnostics from commands — per-modality masking, contrastive levers, and an RSSM latent bottleneck for reduced physics not memorisation.">
-  <meta name="plan-status"     content="draft">
-  <meta name="plan-roi"        content="high">
-  <meta name="plan-effort"     content="XL">
-  <meta name="plan-tier"       content="opus">
-  <meta name="plan-milestone"  content="M4">
-  <meta name="plan-sprint"     content="S14">
-  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="joint-multimodal-plasma-wm">
+  <meta name="plan-title" content="Joint Multi-Modal Generative Plasma World Model">
+  <meta name="plan-summary" content="One model that dreams cameras AND diagnostics from commands — per-modality masking, contrastive levers, and an RSSM latent bottleneck for reduced physics not memorisation.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint" content="S14">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="playable-plasma-wm-v0,control-conditioning-survey">
   <title>Joint Multi-Modal Generative Plasma World Model | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-23">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -141,57 +143,57 @@
     don't earn their place.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="approach" data-choice="staged-a-b" data-by="smc" data-when="2026-06-23">
-        <p class="r-dec-q">Overall architecture approach?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="staged-a-b">staged-a-b</button>
-          <button class="r-opt" data-value="incremental-only">incremental-only</button>
-          <button class="r-opt" data-value="full-redesign">full-redesign</button>
-        </p>
-        <p class="r-dec-rat">Staged A→B: land joint generation + masking + contrastive on the proven backbone first
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="approach" data-choice="staged-a-b" data-by="smc" data-when="2026-06-23">
+    <p class="r-dec-q">Overall architecture approach?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="staged-a-b">staged-a-b</button>
+      <button class="r-opt" data-value="incremental-only">incremental-only</button>
+      <button class="r-opt" data-value="full-redesign">full-redesign</button>
+      </p>
+    <p class="r-dec-rat">Staged A→B: land joint generation + masking + contrastive on the proven backbone first
         (measurable vs 1221741), then add the RSSM latent. Honours the reduced-latent goal as the destination while
-        keeping each lever's contribution measurable rather than confounded in one rebuild.</p>
-      </div>
-      <div class="r-dec" data-key="contrastive" data-choice="cross-modal+self-predictive+action" data-by="smc" data-when="2026-06-23">
-        <p class="r-dec-q">Which contrastive levers to include (each ablated)?</p>
-        <p class="r-dec-rat">All three: cross-modal alignment (camera↔diagnostics shared state), self-predictive
+        keeping each lever&#x27;s contribution measurable rather than confounded in one rebuild.</p>
+    </div>
+<div class="r-dec" data-key="contrastive" data-choice="cross-modal+self-predictive+action" data-by="smc" data-when="2026-06-23">
+    <p class="r-dec-q">Which contrastive levers to include (each ablated)?</p>
+    <p class="r-dec-rat">All three: cross-modal alignment (camera↔diagnostics shared state), self-predictive
         latent (BYOL/SPR, anti-memorisation, no negative-sampling), and action-contrastive (true vs wrong plan —
         directly trains the ΔN-M gate the baseline failed). Auxiliary to the generative loss; the §6 grid isolates each.</p>
-      </div>
-      <div class="r-dec" data-key="latent-bottleneck" data-choice="rssm" data-by="smc" data-when="2026-06-23">
-        <p class="r-dec-q">What is the Phase-2 reduced-latent bottleneck?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="rssm">rssm</button>
-          <button class="r-opt" data-value="info-bottleneck-tokens">info-bottleneck-tokens</button>
-          <button class="r-opt" data-value="vq-latent">vq-latent</button>
-        </p>
-        <p class="r-dec-rat">A compact recurrent latent state (Dreamer-style RSSM) the dynamics pass through — the
-        strongest "reduced physics" pressure; the latent becomes the in-silico plasma state and the PLAY rollout space.</p>
-      </div>
-      <div class="r-dec" data-key="diagnostic-head-arch" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Diagnostic generation: separate per-stream heads on the shared backbone, or one unified token stream (diagnostics as more tokens in the sequence)?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="per-stream-heads">per-stream-heads</button>
-          <button class="r-opt" data-value="unified-token-stream">unified-token-stream</button>
-        </p>
-        <p class="r-dec-rat">Lean: per-stream heads (streams have different vocabs + channel counts; lighter, warm-start-friendly). Open for review.</p>
-      </div>
-      <div class="r-dec" data-key="phase2-init" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Phase-2 RSSM: warm-start the encoder/decoder from Phase 1, or train the latent model from scratch?</p>
-        <p class="r-dec-rat">Open — depends on whether the Phase-1 backbone embeddings transfer to the latent encoder. Decide after Phase 1 lands.</p>
-      </div>
-    </section>
+    </div>
+<div class="r-dec" data-key="latent-bottleneck" data-choice="rssm" data-by="smc" data-when="2026-06-23">
+    <p class="r-dec-q">What is the Phase-2 reduced-latent bottleneck?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="rssm">rssm</button>
+      <button class="r-opt" data-value="info-bottleneck-tokens">info-bottleneck-tokens</button>
+      <button class="r-opt" data-value="vq-latent">vq-latent</button>
+      </p>
+    <p class="r-dec-rat">A compact recurrent latent state (Dreamer-style RSSM) the dynamics pass through — the
+        strongest &quot;reduced physics&quot; pressure; the latent becomes the in-silico plasma state and the PLAY rollout space.</p>
+    </div>
+<div class="r-dec" data-key="diagnostic-head-arch" data-choice="per-stream-heads" data-by="smc" data-when="2026-06-23T04:44:27+00:00">
+    <p class="r-dec-q">Diagnostic generation: separate per-stream heads on the shared backbone, or one unified token stream (diagnostics as more tokens in the sequence)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="per-stream-heads">per-stream-heads</button>
+      <button class="r-opt" data-value="unified-token-stream">unified-token-stream</button>
+      </p>
+    <p class="r-dec-rat">Locked by the lead. Per-stream output heads on the shared backbone: each diagnostic stream keeps its own vocab + channel count, the heads are lighter than a unified token stream, and they warm-start cleanly from the 1221741 backbone (only the new heads init fresh). Unified-token-stream is rejected — it would inflate the sequence length and entangle stream vocabularies.</p>
+    </div>
+<div class="r-dec" data-key="phase2-init" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Phase-2 RSSM: warm-start the encoder/decoder from Phase 1, or train the latent model from scratch?</p>
+    <p class="r-dec-rat">Open — depends on whether the Phase-1 backbone embeddings transfer to the latent encoder. Decide after Phase 1 lands.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-jmwm-001" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23 00:00">
-        <h4 class="r-fu-title">Phase 1 §3 — diagnostic-prediction heads + matching loss (the joint-generation core)</h4>
-        <div class="r-fu-body">First Phase-1 deliverable: make the diagnostics generation TARGETS, not just inputs.
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-jmwm-001" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23 00:00" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Phase 1 §3 — diagnostic-prediction heads + matching loss (the joint-generation core)</h4>
+    <div class="r-fu-body">First Phase-1 deliverable: make the diagnostics generation TARGETS, not just inputs.
         Add per-stream prediction heads + next-step cross-entropy on the diagnostic tokens, weighted alongside the camera
         CE, defaulted on. This is the prerequisite for dreaming the full state and the diagnostic-match eval; masking
         and contrastive land after it.</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    joint-multimodal-plasma-wm (http://localhost:8765/imas-ambix/joint-multimodal-plasma-wm.html)
 Section: §3 (Phase 1)
 Tier:    opus
@@ -209,7 +211,7 @@ State to read (CODE / FILES / DATA)
   Baseline: /work/projects/imas_gpu/worldmodel/ckpt/controllable-1221741 (+ its eval/)
 
 Scope locks / constraints (non-decision)
-  - Per-stream output heads over each stream's vocab; next-step CE on the diagnostic tokens.
+  - Per-stream output heads over each stream&#x27;s vocab; next-step CE on the diagnostic tokens.
   - Diagnostics ON by default in the canonical config; keep an ablation off-switch.
   - Commands are NEVER a generation target and NEVER masked (control surface).
   - Edit in a worktree if a training job is live (editable-install / DataLoader re-import hazard); merge when free.
@@ -221,8 +223,8 @@ Done-when
   2. Eval extended with a dreamt-vs-real diagnostic-match metric.
   3. tests still green
   4. followup written (Phase 1 §3b — per-modality masking) + this followup marked resolved</pre>
-      </article>
-    </section>
+    </article>
+</section>
 
   </main>
 </body>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="unified-multimodal-wm-trial">
+  <meta name="plan-title"    content="Unified Multi-Modal World Model — Training Trial (jobs 1221563 / 1221741)">
+  <meta name="plan-summary"  content="Trial record: the 6-camera, multi-timescale, 13-signal controllable world model. Adding direct position diagnostics (Dα-boundary + magnetics) flipped the controllability margin and gave the first clean held-out gate pass on 18502 — but single-coil responsiveness collapsed, a latent-action-collapse signature.">
+  <meta name="plan-informs"  content="joint-multimodal-plasma-wm,playable-plasma-wm-v0">
+  <title>Unified Multi-Modal WM Trial | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What this trial was</h2>
+    <p>This records the <strong>unified multi-modal controllable world-model trial</strong> run 2026-06-22/23 — the
+    consolidation of the "ingest all the MAST data" push into a single trained model, and the A/B that isolates the
+    value of <strong>direct plasma-position diagnostics</strong>. Two 8&times;H200 runs share an identical recipe and
+    differ only in the conditioning set:</p>
+    <ul>
+      <li><strong>Baseline — job <code>1221563</code> (9 signal streams).</strong> The first complete 6-camera,
+      multi-timescale run: summary, pf_active (coils), interferometer (density), gas_injection, soft_x_rays, xma
+      (Mirnov), xsx, xim, ait (divertor heat-flux).</li>
+      <li><strong>Enriched — job <code>1221741</code> (13 signal streams).</strong> The same model + four added
+      <em>measured position</em> streams: <code>ada</code> (Dα-peak radius = boundary location), <code>adg</code>
+      (edge-gradient position), <code>aim</code> (Dα emission), and calibrated L2 <code>magnetics</code> (94-channel
+      flux loops + poloidal B-field probes — the direct position/shape sensor).</li>
+    </ul>
+    <p>The question: does giving the model the plasma's <em>position</em> as an observation make it more controllable —
+    i.e. does its dream respond to the demanded actuator plan? It is the entry baseline for the
+    <a href="/imas-ambix/joint-multimodal-plasma-wm">joint multi-modal generative world model</a> plan.</p>
+
+    <h2 id="s2">§2 — Architecture</h2>
+    <p>A decoder-only <strong>factorised space-time transformer</strong> over frozen Open-MAGVIT2 camera tokens
+    (16&times;16 = 256 tokens/frame), 1.09&nbsp;B parameters (d_model 1536, 16 layers, 16 heads, d_ff 6144), warm-started
+    from the M2 forecaster. Conditioning:</p>
+    <ul>
+      <li><strong>Actuator plan</strong> (PF/CS coils + gas + NBI, 23-ch) injected via <strong>AdaLN-Zero</strong> at
+      every block — the control surface; the measured states (Ip/density/tf) are masked out so the model cannot read
+      the answer off the state.</li>
+      <li><strong>Camera history</strong> through a per-frame <strong>history bottleneck</strong> (noise + masking) that
+      breaks latent-action collapse, with <code>observation_dropout = 0.8</code> (all-or-nothing) so the model is
+      trained to dream from the plan alone.</li>
+      <li><strong>Δt (timescale) + camera-id embeddings</strong> — one model spans all 6 cameras (rbb/rco/rgb/rgc/rba/rbc)
+      and both cadence regimes (fast bursts ~3.5&nbsp;ms/frame, slow full-shot ~16.7&nbsp;ms/frame).</li>
+      <li><strong>Measured signal streams</strong> (9 → 13), each quantised to the L2 257-id vocab, resampled to the
+      camera window, omit-when-absent. The four new position streams were staged label-agnostically from raw L1 (Dα) and
+      calibrated L2 (magnetics), ignoring the unreliable IMAS dd-path semantics.</li>
+      <li><strong>Inverse-dynamics auxiliary + scheduled sampling + excitation-weighted next-frame CE</strong> (coil
+      |dI/dt| up-weighting so flat-top frames don't drown the control gradient).</li>
+    </ul>
+    <p><strong>Corpus.</strong> <code>curated_windows_unified_6cam.json</code> — 33,111 windows over 8,730 shots, all 6
+    cameras, fast 2,614 + slow 30,497, held-out 18502–05 disjoint (leak NONE). The model trained on 32,306 windows after
+    the frame-count filter.</p>
+
+    <h2 id="s3">§3 — Training &amp; objective</h2>
+    <p>Both runs: 8-card DDP, 12,000 steps, warm-start the M2 forecaster, excitation-weighting ON, the M4 controllability
+    machinery (history bottleneck, inverse-dynamics, scheduled sampling, control-dropout/CFG), baked-in held-out eval.
+    The training objective is <strong>next-frame camera-token cross-entropy only</strong> — the diagnostics are
+    conditioning <em>inputs</em>, never prediction targets (the central limitation this trial exposes). Final training
+    loss ~4.3 (both runs converged cleanly, 100 → 4). The success objective is the held-out <strong>controllability gate
+    ΔN-M</strong>: roll the dream forward under the <em>true</em> actuator plan and under <em>random</em> perturbed
+    plans, decode to pixels, and require the true-plan rollout to diverge from a random sibling by &ge;1.5&times; the
+    random-vs-random noise floor — i.e. the demanded plan must move the dream <em>more</em> than noise does.</p>
+
+    <h2 id="s4">§4 — Outcome</h2>
+    <p><strong>Adding the position diagnostics flipped the controllability margin and produced the first clean held-out
+    gate pass</strong> — but with an important and honest caveat on single-coil responsiveness.</p>
+
+    <table style="border-collapse:collapse;font-size:13px;margin:8px 0">
+      <thead><tr style="border-bottom:2px solid #888">
+        <th style="text-align:left;padding:4px 12px">Held-out shot</th>
+        <th style="text-align:right;padding:4px 12px">Baseline 1221563 (9-stream)</th>
+        <th style="text-align:right;padding:4px 12px">Enriched 1221741 (13-stream)</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #ddd"><td style="padding:4px 12px">18502 (driveable exemplar)</td><td style="text-align:right;padding:4px 12px">margin +23.7, ratio 1.33 — fail</td><td style="text-align:right;padding:4px 12px"><strong>margin +86.5, ratio 3.18 — PASS</strong></td></tr>
+        <tr style="border-bottom:1px solid #ddd"><td style="padding:4px 12px">18503</td><td style="text-align:right;padding:4px 12px">margin −52.0 — fail</td><td style="text-align:right;padding:4px 12px">margin −12.7 — fail (improved)</td></tr>
+        <tr style="border-bottom:1px solid #ddd"><td style="padding:4px 12px">18504</td><td style="text-align:right;padding:4px 12px">margin −0.3 — fail</td><td style="text-align:right;padding:4px 12px">margin −19.5 — fail (worse)</td></tr>
+        <tr style="border-bottom:1px solid #888;font-weight:700"><td style="padding:4px 12px">Summary</td><td style="text-align:right;padding:4px 12px">0/3 · mean −9.5 · FAIL</td><td style="text-align:right;padding:4px 12px">1/3 · mean +18.1 · FAIL</td></tr>
+        <tr><td style="padding:4px 12px">Single-coil edit (18502, ±30%)</td><td style="text-align:right;padding:4px 12px">15.96 px centroid shift (p5l)</td><td style="text-align:right;padding:4px 12px"><strong>0.78 px</strong> (p4u)</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The headline.</strong> On the driveable exemplar 18502 the gate went from a clear fail (1.33&times;) to a
+    <strong>clean pass at 3.18&times;</strong> — under the true plan the dream diverges from a random sibling more than
+    three times the noise floor. 18503 improved markedly (−52 → −13); the mean margin flipped from −9.5 to +18.1; the
+    random-vs-random noise floor dropped (60 → 36), i.e. the model became more stable. <strong>Direct position
+    observation works.</strong></p>
+
+    <p><strong>The honest caveat.</strong> The single-coil-edit response <em>collapsed</em>: a ±30% edit of one coil
+    moved the 18502 centroid only <strong>0.78&nbsp;px</strong>, versus 15.96&nbsp;px in the baseline (~20&times; less).
+    So the enriched model responds to the <em>whole</em> plan (the full-vector perturbation that ΔN-M applies) but
+    <em>no single coil is individually load-bearing</em>. This is a <strong>latent-action-collapse signature</strong>:
+    with rich always-on position diagnostics, the model gets a redundant readout of the state and leans on it, so the
+    demanded plan — especially any one coil — carries less of the prediction. It is a clean, expected consequence of
+    using the diagnostics as <em>conditioning inputs</em>, and it is exactly what the next plan's <em>per-modality
+    masking</em> (force the plan to carry the state) + <em>action-contrastive</em> objective (make individual plan edits
+    discriminative) are designed to fix.</p>
+
+    <h2 id="s5">§5 — Dream outputs</h2>
+    <p>All decoded held-out dreams from the enriched run's baked eval (plus the coil-edit dreams from both runs).</p>
+
+    <h3 id="s5a">Held-out true-plan dreams (enriched 1221741)</h3>
+    <p>The model's dream rolled forward under each shot's real actuator plan, decoded to pixels (24 frames over the
+    shot's plasma phase). 18502 is the driveable exemplar that passed the gate; 18503/18504 still fail it.</p>
+    <figure>
+      <img src="/imas-ambix/figures/unified-multimodal-wm-trial/dream_shot18502_trueplan.gif" alt="True-plan dream rollout, held-out shot 18502" style="max-width:32%;border:1px solid #ccc;border-radius:4px">
+      <img src="/imas-ambix/figures/unified-multimodal-wm-trial/dream_shot18503_trueplan.gif" alt="True-plan dream rollout, held-out shot 18503" style="max-width:32%;border:1px solid #ccc;border-radius:4px">
+      <img src="/imas-ambix/figures/unified-multimodal-wm-trial/dream_shot18504_trueplan.gif" alt="True-plan dream rollout, held-out shot 18504" style="max-width:32%;border:1px solid #ccc;border-radius:4px">
+      <figcaption style="font-size:12px;color:#333;margin-top:6px">True-plan dream, shots 18502 · 18503 · 18504 (left→right).</figcaption>
+    </figure>
+
+    <h3 id="s5b">True-plan vs random-plan dream (the ΔN-M comparison)</h3>
+    <p>Side-by-side: <em>left</em> = dream under the true plan, <em>right</em> = dream under a random perturbed plan, from
+    a shared start. The gate measures how much these diverge versus how much two random plans diverge. On 18502 the true
+    plan visibly steers differently (ratio 3.18); on 18503/18504 the divergence does not clear the noise floor.</p>
+    <figure>
+      <img src="/imas-ambix/figures/unified-multimodal-wm-trial/dream_shot18502_true_vs_random.gif" alt="True vs random plan dream, shot 18502 (gate PASS)" style="max-width:32%;border:1px solid #ccc;border-radius:4px">
+      <img src="/imas-ambix/figures/unified-multimodal-wm-trial/dream_shot18503_true_vs_random.gif" alt="True vs random plan dream, shot 18503" style="max-width:32%;border:1px solid #ccc;border-radius:4px">
+      <img src="/imas-ambix/figures/unified-multimodal-wm-trial/dream_shot18504_true_vs_random.gif" alt="True vs random plan dream, shot 18504" style="max-width:32%;border:1px solid #ccc;border-radius:4px">
+      <figcaption style="font-size:12px;color:#333;margin-top:6px">True | random plan dream (each pair side-by-side), shots 18502 · 18503 · 18504. 18502 passes the gate (3.18&times;).</figcaption>
+    </figure>
+
+    <h3 id="s5c">Coil-edit dream — the responsiveness collapse</h3>
+    <p>The baked coil-edit dream re-runs 18502 with one coil edited ±30%. The contrast between runs is the trial's key
+    nuance: the baseline's dream visibly shifts (15.96&nbsp;px) while the enriched dream barely moves (0.78&nbsp;px) — it
+    became discriminative on the full plan but insensitive to a single knob.</p>
+    <figure>
+      <img src="/imas-ambix/figures/unified-multimodal-wm-trial/coil_edit_18502_enriched_p4u.gif" alt="Coil-edit dream, enriched run, P4-upper ±30%, shot 18502 (0.78px)" style="max-width:42%;border:1px solid #ccc;border-radius:4px">
+      <img src="/imas-ambix/figures/unified-multimodal-wm-trial/coil_edit_18502_baseline_p5l.gif" alt="Coil-edit dream, baseline run, P5-lower ±30%, shot 18502 (15.96px)" style="max-width:42%;border:1px solid #ccc;border-radius:4px">
+      <figcaption style="font-size:12px;color:#333;margin-top:6px">Coil-edit dream, shot 18502 — enriched 1221741 (P4u, 0.78&nbsp;px, left) vs baseline 1221563 (P5l, 15.96&nbsp;px, right).</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/unified-multimodal-wm-trial/coil_edit_18502_enriched_centroid.png" alt="Centroid trace: true vs coil-edited rollout, enriched run, shot 18502" style="max-width:60%;border:1px solid #ccc;border-radius:4px">
+      <figcaption style="font-size:12px;color:#333;margin-top:6px">Enriched run centroid trace: true vs P4u-edited rollout — the traces stay nearly coincident (0.78&nbsp;px), the responsiveness collapse made quantitative.</figcaption>
+    </figure>
+
+    <h2 id="s6">§6 — Interpretation &amp; what it motivates</h2>
+    <p>The trial settles two things. <strong>(1) Position observation helps controllability</strong> — the Dα-boundary +
+    magnetics signals flipped the mean margin and gave the first clean held-out gate pass (18502, 3.18&times;). The
+    "9 signals is light" instinct was correct. <strong>(2) Conditioning is not enough</strong> — feeding the position as
+    an always-on input induced a latent-action-collapse: the model leans on the readout, single coils stop being
+    load-bearing (0.78&nbsp;px), and 2/3 held-out shots still fail the gate. A camera-only generative objective with
+    diagnostics as crutches cannot, by itself, become robustly driveable.</p>
+    <p>This is precisely the motivation for the <a href="/imas-ambix/joint-multimodal-plasma-wm">joint multi-modal
+    generative world model</a>: make the diagnostics <em>generation targets</em> (dream the full plasma state, not just
+    cameras); replace all-or-nothing observation dropout with <em>per-modality masking</em> so the plan must carry the
+    state; add the <em>action-contrastive</em> objective that directly trains the gate this trial sits at the edge of;
+    and route the dynamics through an <em>RSSM compact latent</em> so the model learns reduced physics rather than
+    leaning on a memorised readout. Entry baseline for that work: <strong>1/3 gate, mean margin +18.1, 18502 at
+    3.18&times;, single-coil 0.78&nbsp;px</strong>.</p>
+
+    <h2 id="s7">§7 — Artifacts</h2>
+    <p>Checkpoints + eval: <code>/work/projects/imas_gpu/worldmodel/ckpt/controllable-1221741/</code> (enriched) and
+    <code>controllable-1221563/</code> (baseline) — each with <code>latest.pt</code>, 250-step snapshots, and
+    <code>eval/heldout_delta_nm.json</code> + the coil-edit dream. Corpus:
+    <code>/work/projects/imas_gpu/agents/excitation-corpus/curated_windows_unified_6cam.json</code>. Code at
+    <code>main</code> as of the trial: per-window camera threading, Δt/camera conditioning, the 13-stream
+    <code>extended_signal_modalities</code>, the manifest-sized length filter, and the Dα/magnetics stagers
+    (<code>scripts/slurm/stage_l1_signal.py</code>, <code>stage_l2_signal.py</code>).</p>
+
+  </main>
+</body>
+</html>
