@@ -126,6 +126,15 @@ source "${VENV}/bin/activate"
 : "${WM_GENERATE_DIAGNOSTICS:=1}"
 : "${WM_DIAGNOSTIC_WEIGHT:=0.5}"
 : "${WM_DIAGNOSTIC_WARMUP_FRAC:=0.1}"
+# Per-modality masking (§3b, default ON) + the three contrastive auxiliaries
+# (§3c, each default OFF — turn on one at a time for the ablation grid).
+: "${WM_PER_MODALITY_MASKING:=1}"
+: "${WM_CROSS_MODAL:=0}"
+: "${WM_CROSS_MODAL_WEIGHT:=0.1}"
+: "${WM_SELF_PREDICTIVE:=0}"
+: "${WM_SELF_PREDICTIVE_WEIGHT:=0.1}"
+: "${WM_ACTION_CONTRASTIVE:=0}"
+: "${WM_ACTION_CONTRASTIVE_WEIGHT:=0.1}"
 # EXCITATION WEIGHTING of the next-frame CE by per-frame coil |dI/dt| — up-weights
 # forecast frames where the coils move so the persistence-easy flat-top frames of a
 # FULL-SHOT window cannot drown the coil->plasma gradient (the multi-window 0/3
@@ -189,6 +198,13 @@ fi
 DIAG_FLAGS+=(--diagnostic-weight "${WM_DIAGNOSTIC_WEIGHT}")
 DIAG_FLAGS+=(--diagnostic-weight-warmup-frac "${WM_DIAGNOSTIC_WARMUP_FRAC}")
 
+# §3b masking toggle + §3c contrastive auxiliaries.
+CONTRAST_FLAGS=()
+[[ "${WM_PER_MODALITY_MASKING}" == "0" ]] && CONTRAST_FLAGS+=(--no-per-modality-masking)
+[[ "${WM_CROSS_MODAL}" == "1" ]] && CONTRAST_FLAGS+=(--cross-modal --cross-modal-weight "${WM_CROSS_MODAL_WEIGHT}")
+[[ "${WM_SELF_PREDICTIVE}" == "1" ]] && CONTRAST_FLAGS+=(--self-predictive --self-predictive-weight "${WM_SELF_PREDICTIVE_WEIGHT}")
+[[ "${WM_ACTION_CONTRASTIVE}" == "1" ]] && CONTRAST_FLAGS+=(--action-contrastive --action-contrastive-weight "${WM_ACTION_CONTRASTIVE_WEIGHT}")
+
 torchrun \
     --standalone \
     --nproc_per_node="${WM_NPROC}" \
@@ -196,6 +212,7 @@ torchrun \
     "${EXC_FLAG[@]}" \
     "${COND_FLAGS[@]}" \
     "${DIAG_FLAGS[@]}" \
+    "${CONTRAST_FLAGS[@]}" \
     --excitation-weight-floor "${WM_EXCITATION_WEIGHT_FLOOR}" \
     --excitation-weight-power "${WM_EXCITATION_WEIGHT_POWER}" \
     --manifest "${WM_MANIFEST}" \
