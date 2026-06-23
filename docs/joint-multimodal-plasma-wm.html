@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-23">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 </head>
 <body>
   <main class="plan-doc">
@@ -101,21 +101,29 @@
       <code>mast-tokens</code>/<code>curated_windows_unified_6cam</code>/extended/timescale+camera, LR 5e-5,
       <code>diagnostic_weight</code> 0.5 + 10 % warmup). Warm-start loaded all 263 backbone tensors; the 26
       new = the 13 diagnostic heads fresh-init.</p>
-      <p style="margin:0 0 4px"><strong>Verdict — QUALIFIED (joint generation works; gate not yet improved; eval confounded).</strong>
-      <em>Joint generation is real:</em> the model dreams diagnostics — held-out next-step
-      <strong>gas-puff token accuracy 86 %</strong> (CE 0.79 on a 257-vocab), pf_active 13 %, the rest
-      near-chance. <em>ΔN-M controllability gate FAIL:</em> mean margin <strong>&minus;0.90 (1/3)</strong>
-      vs the +18.1 (1/3) baseline — 18502 stays driveable (+38.7, 2.33×), 18503/18504 fail; true-vs-random
-      collapsed toward the noise floor (~38 vs ~38).</p>
-      <p style="margin:0"><strong>BUT the gate number is confounded (<code>f-jmwm-004</code>, BLOCKING):</strong>
-      <code>controllable_eval</code> defaults to the <em>6-stream</em> <code>default_signal_modalities()</code>
-      with no <code>--signal-modalities</code> flag, while the model trained on the <em>13-stream</em>
-      extended set — so the eval STARVES the model of magnetics (direct position) + Dα-boundary at
-      conditioning time (and the diagnostic-match scored only 5/13 streams). Position-observability is what
-      makes the plan load-bearing, so the FAIL is likely an eval-starvation artifact. Decisive cheap next
-      step: add <code>--signal-modalities</code>, re-eval BOTH <code>1221834</code> and <code>1221741</code>
-      with matched 13-stream conditioning (~2 min/ckpt, 1 GPU). THEN §3b masking (<code>f-jmwm-002</code>),
-      §3c contrastive (<code>f-jmwm-003</code>), Phase-2 RSSM.</p>
+      <p style="margin:0 0 4px"><strong>Verdict — QUALIFIED. Joint generation WORKS; it did NOT improve the gate; the regression is mostly continued-fine-tuning, not the diagnostic objective.</strong>
+      <em>Joint generation is real (the build goal, met):</em> matched 13-stream diagnostic-match mean
+      next-step token accuracy <strong>0.240</strong> vs <strong>0.002</strong> for the baseline's untrained
+      heads — gas-puff 0.86, Dα/<code>xim</code> 0.76, <code>xsx</code> 0.25, <code>ada</code> 0.33,
+      magnetics 0.11. A quantitative dreamt-vs-real eval now exists.</p>
+      <p style="margin:0 0 4px"><strong>Matched 13-stream ΔN-M (job <code>1221878</code> re-eval + ablation <code>1221883</code>; held-out 18502–04, 18505 dropped 0.238s&lt;0.25s):</strong>
+      entry baseline <code>1221741</code> (no continued training) <strong>+20.66</strong> (1/3) ·
+      diagnostics-OFF +8000 steps @5e-5 <code>1221883</code> <strong>+2.74</strong> (1/3) ·
+      diagnostics-ON +8000 steps <code>1221834</code> <strong>+0.74</strong> (1/3). Only shot 18502 is ever
+      driveable (1741 +91.6/2.33× → 1883 +52.2 → 1834 +38.9); 18503/18504 fail in all three. <strong>The
+      eval confound is closed</strong> (commit <code>4d4d6aa</code>: <code>--signal-modalities auto</code>
+      reads the trained stream set from the checkpoint) — the regression is REAL, not eval starvation.</p>
+      <p style="margin:0"><strong>Causal read:</strong> continued fine-tuning at LR 5e-5 is the DOMINANT
+      cost (+20.66→+2.74 with diagnostics off), and the diagnostic objective adds a smaller further drop
+      (+2.74→+0.74). Both erode the single driveable shot. Honesty correction: the "+18.1/+20.66 gate" was
+      never a robust pass — it is one driveable shot + two failures (1/3), so controllability is more open
+      than the headline implied. Implications: (a) the entry baseline should NOT be fine-tuned with a re-warmed
+      LR — warm-start gains decay; (b) the gate-moving levers are §3b masking (keep CLEAN diagnostic targets
+      while masking inputs → dream from a reduced set; also fixes the diag-CE-zeroed-80%-of-steps issue) and
+      §3c action-contrastive (trains the ΔN-M objective directly), NOT more generative fine-tuning;
+      (c) joint generation should be COMBINED with those levers (and likely a lower diagnostic weight / no LR
+      re-warm), not shipped standalone. Next: §3b (<code>f-jmwm-002</code>), §3c (<code>f-jmwm-003</code>),
+      Phase-2 RSSM.</p>
     </div>
 
     <p>Land the three lever families that <em>don't</em> require the latent redesign, on the proven token backbone,
@@ -368,10 +376,16 @@ Done-when
      full 13-stream diagnostic-match (incl. magnetics + Da) for both; conclude whether the gate regression
      is real or an eval-starvation artifact.
   3. Plan updated with the matched verdict; this followup resolved.</pre>
-    <p class="r-fu-outcome">RESOLVED. Eval fix landed (4d4d6aa): controllable_eval --signal-modalities {auto|default|extended}, default auto reads the trained stream set from the checkpoint's extra.stream_names so the eval can never silently mismatch training; the sbatch baked-in eval now auto-resolves to 13 streams via that default (no sbatch change needed). Matched 13-stream re-eval of BOTH checkpoints (job 1221878, 4.5 min, both COMPLETED): the gate regression is REAL, not an eval-starvation artifact. Matched ΔN-M (held-out 18502-04; 18505 still dropped, 0.238s<0.25s horizon): baseline 1221741 mean margin +20.66 (1/3 pass; per-shot 18502 +91.6/2.33x, 18503 -13.6, 18504 -16.0) vs joint-gen 1221834 +0.74 (1/3; 18502 +38.9/2.33x, 18503 -9.2, 18504 -27.5). Fixing the confound RAISED 1221834 from -0.90 to +0.74 but did NOT rescue it — the joint-gen run sits far below baseline. NEITHER robustly passes (both 1/3; only 18502 ever driveable — the gate was never robustly passed). Joint generation itself WORKS decisively: matched diagnostic-match mean next-step token accuracy 0.240 (1221834) vs 0.002 (1221741, untrained heads) — gas_injection 0.86, xim/Dα 0.76, xsx 0.25, ada 0.33, magnetics 0.11. CONCLUSION: §3a delivered the generative capability + a quantitative diagnostic-match eval, but as a standalone the diagnostic objective (or the extra 8000 fine-tune steps) COST controllability — it pulled the one driveable shot's margin down (91.6→38.9). Remaining confound (diagnostic-objective vs continued-training) isolated by ablation job 1221883 (diagnostics OFF, otherwise identical) — in flight. The gate-moving levers are §3b masking (keep CLEAN diagnostic targets while masking inputs — dream from a reduced set) + §3c action-contrastive (trains the ΔN-M objective directly), per the locked plan.</p>
+    <p class="r-fu-outcome">RESOLVED. Eval fix landed (4d4d6aa): controllable_eval --signal-modalities {auto|default|extended}, default auto reads the trained stream set from the checkpoint's extra.stream_names so the eval can never silently mismatch training; the sbatch baked-in eval now auto-resolves to 13 streams via that default (no sbatch change needed). Matched 13-stream re-eval of BOTH checkpoints (job 1221878, 4.5 min, both COMPLETED): the gate regression is REAL, not an eval-starvation artifact. Matched ΔN-M (held-out 18502-04; 18505 still dropped, 0.238s&lt;0.25s horizon): baseline 1221741 mean margin +20.66 (1/3 pass; per-shot 18502 +91.6/2.33x, 18503 -13.6, 18504 -16.0) vs joint-gen 1221834 +0.74 (1/3; 18502 +38.9/2.33x, 18503 -9.2, 18504 -27.5). Fixing the confound RAISED 1221834 from -0.90 to +0.74 but did NOT rescue it — the joint-gen run sits far below baseline. NEITHER robustly passes (both 1/3; only 18502 ever driveable — the gate was never robustly passed). Joint generation itself WORKS decisively: matched diagnostic-match mean next-step token accuracy 0.240 (1221834) vs 0.002 (1221741, untrained heads) — gas_injection 0.86, xim/Dα 0.76, xsx 0.25, ada 0.33, magnetics 0.11. CONCLUSION: §3a delivered the generative capability + a quantitative diagnostic-match eval, but as a standalone the diagnostic objective (or the extra 8000 fine-tune steps) COST controllability — it pulled the one driveable shot's margin down (91.6→38.9). Remaining confound (diagnostic-objective vs continued-training) isolated by ablation job 1221883 (diagnostics OFF, otherwise identical) — in flight. The gate-moving levers are §3b masking (keep CLEAN diagnostic targets while masking inputs — dream from a reduced set) + §3c action-contrastive (trains the ΔN-M objective directly), per the locked plan.</p>
     </article>
 </section>
 
-  </main>
+  <section data-reckon="questions" id="questions" class="r-questions">
+<h2><span class="sec">§</span> Open questions</h2>
+<div class="r-q" data-id="q-jmwm-001" data-section="s3" data-status="open" data-opened-by="smc" data-opened-at="2026-06-23" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">Phase-1 §3a verdict + the fine-tuning finding. Three-way matched 13-stream ΔN-M: entry baseline 1221741 +20.66 (no continued training) → diagnostics-OFF +8000 steps @LR 5e-5 1221883 +2.74 → diagnostics-ON 1221834 +0.74 (all 1/3; only shot 18502 ever driveable). So CONTINUED FINE-TUNING with a re-warmed LR is the dominant controllability cost; the diagnostic objective adds a smaller further drop. Joint generation itself works (diagnostic-match 0.240 vs 0.002). Honesty correction: the +18.1/+20.66 'gate' was never a robust pass — 1 driveable shot + 2 fails. Recommended path (proceeding unless the lead redirects): (1) do NOT fine-tune the entry baseline with a re-warmed cosine LR — warm-start gains decay; for any further training use a much lower constant LR (~1e-6) or freeze the backbone + train only new params. (2) Land §3b masking (keep CLEAN diagnostic targets while masking inputs — fixes diag-CE-zeroed-80%-of-steps AND enables dream-from-reduced-set) and §3c action-contrastive (trains ΔN-M directly) — these are the gate levers, not more generative fine-tuning. (3) Combine joint-gen WITH those levers at a lower diagnostic_weight, evaluated on the matched 13-stream eval, rather than shipping diagnostics standalone. Open Q for the lead: is 18502-only-driveable acceptable as the working gate while we pursue §3b/§3c, or should the gate definition / held-out set be revisited (only 18502 has ever passed across 1221563/1221741/1221834/1221883)?</p>
+    </div>
+</section>
+</main>
 </body>
 </html>
