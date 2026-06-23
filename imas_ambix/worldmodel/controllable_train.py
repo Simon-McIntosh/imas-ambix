@@ -185,6 +185,7 @@ def build_controllable_model(
     max_frames: int | None = None,
     corruption_levels: int = 0,
     inverse_dynamics: bool = True,
+    generate_diagnostics: bool = True,
     masked_command_indices: tuple[int, ...] = (),
     **model_kwargs: object,
 ) -> ControllableSpacetimeTransformer:
@@ -214,6 +215,7 @@ def build_controllable_model(
         actuator_channels=int(actuator_channels),
         n_act_steps=int(n_act_steps),
         inverse_dynamics=bool(inverse_dynamics),
+        generate_diagnostics=bool(generate_diagnostics),
         masked_command_indices=tuple(int(i) for i in masked_command_indices),
         **model_kwargs,  # type: ignore[arg-type]
     )
@@ -247,6 +249,7 @@ def _controllable_config_to_dict(cfg: ControllableSpacetimeConfig) -> dict:
             "timescale_conditioning": bool(cfg.timescale_conditioning),
             "timescale_hidden": int(cfg.timescale_hidden),
             "camera_conditioning": bool(cfg.camera_conditioning),
+            "generate_diagnostics": bool(cfg.generate_diagnostics),
         }
     )
     return d
@@ -332,7 +335,21 @@ def load_controllable_model_from_checkpoint(
         **scalar,
     )
     model = ControllableSpacetimeTransformer(cfg)
-    model.load_state_dict(payload["model_state_dict"])
+    # strict=False: a camera-only baseline checkpoint has NO ``diagnostic_heads.*``
+    # (joint generation was added later) — strict=True would crash loading it; and a
+    # NEW generative checkpoint loading into a diagnostics-OFF eval model would have
+    # those keys unexpected.  Tolerate both and log the shape (mirrors the
+    # warm-start, which is already strict=False).
+    missing, unexpected = model.load_state_dict(
+        payload["model_state_dict"], strict=False
+    )
+    if missing or unexpected:
+        logger.info(
+            "loaded controllable checkpoint with strict=False: %d missing, "
+            "%d unexpected keys (e.g. diagnostic_heads.* on a camera-only baseline)",
+            len(missing),
+            len(unexpected),
+        )
     model.to(map_location)
     return model, payload
 
@@ -469,6 +486,29 @@ def _scheduled_sampling_prob(step: int, total_steps: int, cfg) -> float:
     ramp = max(1e-6, float(getattr(cfg, "scheduled_sampling_ramp", 0.5)))
     frac = (step / float(total_steps - 1)) / ramp
     return float(min(max(frac, 0.0), 1.0) * pmax)
+
+
+def _diagnostic_weight(step: int, total_steps: int, cfg) -> float:
+    """Linear warmup of the joint-generation diagnostic-CE weight from 0 to the max.
+
+    Returns 0 when joint generation is OFF (``generate_diagnostics`` False) or the
+    target ``diagnostic_weight`` is 0.  Otherwise ramps linearly from 0 at step 0
+    to ``diagnostic_weight`` at ``diagnostic_weight_warmup_frac`` of training, then
+    holds at the max.  The diagnostic CE can destabilise the camera loss early, so
+    it earns its weight gradually (mirrors :func:`_scheduled_sampling_prob`).
+    """
+    if not bool(getattr(cfg, "generate_diagnostics", False)):
+        return 0.0
+    wmax = float(getattr(cfg, "diagnostic_weight", 0.0))
+    if wmax == 0.0:
+        return 0.0
+    if total_steps <= 1:
+        return wmax
+    frac = float(getattr(cfg, "diagnostic_weight_warmup_frac", 0.0))
+    if frac <= 0.0:
+        return wmax
+    progress = (step / float(total_steps - 1)) / frac
+    return float(min(max(progress, 0.0), 1.0) * wmax)
 
 
 @torch.no_grad()
@@ -631,6 +671,17 @@ class OverfitControllableConfig:
     # latents (Schmidt & Jiang Prop 4.4 forces the action into the latent).  We
     # have 100% plan labels so it is cheap; 0 disables it.
     inverse_dynamics_weight: float = 1.0
+    # JOINT GENERATION — grow per-stream diagnostic-prediction heads + a next-step
+    # cross-entropy on the measured-signal tokens, so the model dreams the cameras
+    # AND the diagnostics (a joint state model, not a camera predictor that merely
+    # READS the diagnostics).  ``generate_diagnostics`` is the ablation off-switch
+    # (no heads built, no objective); ``diagnostic_weight`` weights the diagnostic
+    # CE in the loss.  The CE can destabilise the camera loss early, so it is warmed
+    # up: a linear 0 -> diagnostic_weight ramp over ``diagnostic_weight_warmup_frac``
+    # of total steps.
+    generate_diagnostics: bool = True
+    diagnostic_weight: float = 0.5
+    diagnostic_weight_warmup_frac: float = 0.1
     # SCHEDULED SAMPLING / rollout-in-the-loop — closes the 1-step->rollout gap (the
     # de-risk's visible failure mode: the plan moved the teacher-forced one-step
     # prediction but NOT a free-running rollout).  With probability ramping from 0
@@ -767,6 +818,7 @@ def overfit_controllable(
         n_act_steps=config.n_act_steps,
         corruption_levels=corruption_levels,
         inverse_dynamics=config.inverse_dynamics_weight > 0.0,
+        generate_diagnostics=config.generate_diagnostics,
         masked_command_indices=masked_idx,
         **config.model_kwargs,
     ).to(dev)
@@ -887,23 +939,32 @@ def overfit_controllable(
 
             opt.zero_grad(set_to_none=True)
             with _AutocastCtx(dev):
-                loss = model(
+                out = model(
                     step_batch,
                     loss_spec={
                         "chunk": config.chunk,
                         "context_frames": ctx_frames,
                         "inverse_dynamics_weight": config.inverse_dynamics_weight,
+                        "diagnostic_weight": _diagnostic_weight(
+                            step, config.steps, config
+                        ),
+                        "return_components": True,
                     },
                 )
+                loss = out["loss"]
             loss.backward()
             opt.step()
             losses.append(float(loss.detach()))
+            cam_nll = float(out["camera_nll"])
+            diag_ce = float(out["diagnostic_ce"])
             if step % config.log_every == 0 or step == config.steps - 1:
                 logger.info(
-                    "overfit-controllable step %d/%d loss=%.4f",
+                    "overfit-controllable step %d/%d loss=%.4f cam=%.4f diag=%.4f",
                     step,
                     config.steps,
                     losses[-1],
+                    cam_nll,
+                    diag_ce,
                 )
     except Exception:
         if torch.cuda.is_available():
@@ -1194,6 +1255,15 @@ class ControllableCorpusConfig:
         default_factory=HistoryBottleneckConfig
     )
     inverse_dynamics_weight: float = 1.0
+    # JOINT GENERATION — per-stream diagnostic-prediction heads + next-step CE on
+    # the measured-signal tokens (the model dreams cameras AND diagnostics).
+    # ``generate_diagnostics`` is the ablation off-switch; ``diagnostic_weight``
+    # weights the CE; the CE is warmed up linearly 0 -> diagnostic_weight over
+    # ``diagnostic_weight_warmup_frac`` of total steps (it can destabilise the
+    # camera loss early).
+    generate_diagnostics: bool = True
+    diagnostic_weight: float = 0.5
+    diagnostic_weight_warmup_frac: float = 0.1
     scheduled_sampling_max: float = 0.25
     scheduled_sampling_ramp: float = 0.5
     # EXCITATION-WEIGHT the next-frame CE by per-frame coil |dI/dt| (the operator's
@@ -1402,8 +1472,7 @@ def train_controllable_corpus(
                         )
                     else:
                         ok = (
-                            n_total
-                            >= (config.window.n_frames - 1) * w.frame_stride + 1
+                            n_total >= (config.window.n_frames - 1) * w.frame_stride + 1
                         )
             if ok:
                 kept_windows.append(w)
@@ -1602,6 +1671,7 @@ def train_controllable_corpus(
         n_act_steps=config.n_act_steps,
         corruption_levels=corruption_levels,
         inverse_dynamics=config.inverse_dynamics_weight > 0.0,
+        generate_diagnostics=config.generate_diagnostics,
         masked_command_indices=masked_idx,
         **config.model_kwargs,
     ).to(dev)
@@ -1842,16 +1912,23 @@ def train_controllable_corpus(
                         power=config.excitation_weight_power,
                     )
                 with sync_ctx, _AutocastCtx(dev):
-                    loss = model(
+                    out = model(
                         batch,
                         loss_spec={
                             "chunk": config.chunk,
                             "context_frames": ctx_frames,
                             "inverse_dynamics_weight": config.inverse_dynamics_weight,
+                            "diagnostic_weight": _diagnostic_weight(
+                                step, config.steps, config
+                            ),
                             "frame_weights": frame_w,
+                            "return_components": True,
                         },
                     )
+                    loss = out["loss"]
                     scaled = loss / accum
+                cam_nll = float(out["camera_nll"])
+                diag_ce = float(out["diagnostic_ce"])
                 scaled.backward()
                 micro += 1
                 if not is_boundary:
@@ -1871,11 +1948,13 @@ def train_controllable_corpus(
                     rate = config.log_every / max(time.time() - t_last, 1e-6)
                     t_last = time.time()
                     logger.info(
-                        "controllable-corpus step %d/%d loss=%.4f lr=%.3e "
-                        "ss=%.2f (%.2f st/s world=%d)",
+                        "controllable-corpus step %d/%d loss=%.4f cam=%.4f "
+                        "diag=%.4f lr=%.3e ss=%.2f (%.2f st/s world=%d)",
                         step,
                         config.steps,
                         losses[-1],
+                        cam_nll,
+                        diag_ce,
                         opt.param_groups[0]["lr"],
                         ss_prob,
                         rate,
@@ -2884,6 +2963,30 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--hb-max-strength", type=float, default=1.0)
     pc.add_argument("--hb-clean-fraction", type=float, default=0.2)
     pc.add_argument("--inverse-dynamics-weight", type=float, default=1.0)
+    pc.add_argument(
+        "--diagnostic-weight",
+        type=float,
+        default=0.5,
+        help="weight of the next-step diagnostic cross-entropy (joint generation): "
+        "the model dreams cameras AND diagnostics.  Warmed up linearly over "
+        "--diagnostic-weight-warmup-frac of training.  0 keeps the heads built but "
+        "the objective off (a weight-ablation).",
+    )
+    pc.add_argument(
+        "--diagnostic-weight-warmup-frac",
+        type=float,
+        default=0.1,
+        help="fraction of total steps over which the diagnostic CE weight ramps "
+        "linearly from 0 to --diagnostic-weight (the CE can destabilise the camera "
+        "loss early).",
+    )
+    pc.add_argument(
+        "--no-generate-diagnostics",
+        action="store_true",
+        help="DISABLE joint generation: build no per-stream diagnostic heads and add "
+        "no diagnostic objective (the ablation off-switch — byte-identical camera-"
+        "only forecaster).  Default ON.",
+    )
     pc.add_argument("--scheduled-sampling-max", type=float, default=0.25)
     pc.add_argument("--scheduled-sampling-ramp", type=float, default=0.5)
     pc.add_argument(
@@ -3045,6 +3148,9 @@ def main(argv: list[str] | None = None) -> int:
             clean_fraction=args.hb_clean_fraction,
         ),
         inverse_dynamics_weight=args.inverse_dynamics_weight,
+        generate_diagnostics=not args.no_generate_diagnostics,
+        diagnostic_weight=args.diagnostic_weight,
+        diagnostic_weight_warmup_frac=args.diagnostic_weight_warmup_frac,
         scheduled_sampling_max=args.scheduled_sampling_max,
         scheduled_sampling_ramp=args.scheduled_sampling_ramp,
         excitation_weighting=not args.no_excitation_weighting,
