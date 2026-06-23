@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-23">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="10">
 </head>
 <body>
   <main class="plan-doc">
@@ -498,7 +498,38 @@ Done-when
   1. In-process cohort builder (no subprocess-per-candidate); ~20-30 shot cohort written; leakage guard green.
   2. 3-checkpoint robust re-eval on the expanded cohort with tighter CIs; report the table.
   3. tests green (clean sun_debug); committed + pushed. Orchestrator records the plan.</pre>
-    <p class="r-fu-outcome">LANDED. In-process cohort builder (9a552be: loads the VQ ONCE, screens all candidates in one decode pass — fixes the §2b subprocess-per-candidate violation; 18 tests green) + the dependency re-eval driver (fd186ca). Expanded cohort built (job 1222058): 145 scanned → 80 assemblable → **25 shots** passed (thresholds relaxed to brightness>=7.375, motion>=3.125 to hit target). EXPANDED 25-shot ROBUST VERDICT (2000-boot CI) CONFIRMS the reversal with more shots: baseline 1221741 ratio **1.12** (1/25, CI[0.77,1.74]) < joint-gen 1221834 **1.66** (4/25, CI[0.85,2.96]) ≈ diag-off 1221883 **1.67** (3/25, CI[0.82,3.03]). Robust read: (a) CONTINUED FINE-TUNING clearly HELPS controllability (baseline 1.12 → fine-tuned 1.66-1.67); (b) the diagnostic objective is controllability-NEUTRAL (joint-gen 1.66 ≈ diag-off 1.67) AND adds the diagnostic-dreaming capability (next-step token acc 0.24) for free — so joint generation is vindicated, KEEP it; (c) ALL still FAIL the gate (no CI lower-bound clears 1.5x; high shot-to-shot variance keeps CIs wide even at 25 shots). The gate-mover not yet trained is §3c action-contrastive (f-jmwm-003), now LAUNCHED: job 1222169 (8×H200, warm-start the best base 1221834 + --action-contrastive weight 0.3, masking OFF to isolate the lever vs 1221834, judged on the 25-shot gate). The §3b masking checkpoint 1222038 is being re-scored on the same 25-shot cohort (job 1222170, queued behind 1222169) for the 4-way comparison.</p>
+    <p class="r-fu-outcome">LANDED. In-process cohort builder (9a552be: loads the VQ ONCE, screens all candidates in one decode pass — fixes the §2b subprocess-per-candidate violation; 18 tests green) + the dependency re-eval driver (fd186ca). Expanded cohort built (job 1222058): 145 scanned → 80 assemblable → **25 shots** passed (thresholds relaxed to brightness&gt;=7.375, motion&gt;=3.125 to hit target). EXPANDED 25-shot ROBUST VERDICT (2000-boot CI) CONFIRMS the reversal with more shots: baseline 1221741 ratio **1.12** (1/25, CI[0.77,1.74]) &lt; joint-gen 1221834 **1.66** (4/25, CI[0.85,2.96]) ≈ diag-off 1221883 **1.67** (3/25, CI[0.82,3.03]). Robust read: (a) CONTINUED FINE-TUNING clearly HELPS controllability (baseline 1.12 → fine-tuned 1.66-1.67); (b) the diagnostic objective is controllability-NEUTRAL (joint-gen 1.66 ≈ diag-off 1.67) AND adds the diagnostic-dreaming capability (next-step token acc 0.24) for free — so joint generation is vindicated, KEEP it; (c) ALL still FAIL the gate (no CI lower-bound clears 1.5x; high shot-to-shot variance keeps CIs wide even at 25 shots). The gate-mover not yet trained is §3c action-contrastive (f-jmwm-003), now LAUNCHED: job 1222169 (8×H200, warm-start the best base 1221834 + --action-contrastive weight 0.3, masking OFF to isolate the lever vs 1221834, judged on the 25-shot gate). The §3b masking checkpoint 1222038 is being re-scored on the same 25-shot cohort (job 1222170, queued behind 1222169) for the 4-way comparison.</p>
+    </article>
+<article class="r-fu" data-id="f-jmwm-007" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Phase-1 PLATEAU + measurement wall: action-contrastive didn&#x27;t engage; gate can&#x27;t resolve levers</h4>
+    <div class="r-fu-body">4-way 25-shot robust gate (mean normalised ratio / pass / CI): baseline 1221741 1.12 (1/25); diag-off 1221883 1.67 (3/25); joint-gen 1221834 1.66 (4/25); +masking 1222038 1.39 (2/25); +action-contrastive 1222169 1.48 (2/25). Continued fine-tuning lifts the baseline (1.12->~1.4-1.7) but NO specific lever beats plain joint-gen. The action-contrastive lever DID NOT ENGAGE (log: loss = cam + 0.5*diag to within 0.007 at step 8000 -> the term contributed ~0; warm-starting 1221834 left the margin pre-satisfied) -> §3c INCONCLUSIVE. MEASUREMENT WALL: CIs span ~[0.8,3.0] (genuine shot-to-shot variance) so the gate cannot resolve lever effects; pass-fraction (joint-gen 4/25 highest) is the more stable signal. Per the plan's gating, Phase-2 RSSM is gated on Phase-1 validating the levers move the gate — which it did NOT. Capability: joint generation WORKS (dreams diagnostics); controllability PLATEAUED.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    joint-multimodal-plasma-wm
+Section: §3/§6 — Phase-1 plateau + measurement wall
+Tier:    opus
+
+Context
+  Phase-1 levers (joint-gen §3a, masking §3b, contrastive §3c) are all implemented + the gate is robust
+  (25-shot screened cohort, collapse-rejecting normalised ΔN-M). 4-way verdict: continued fine-tuning lifts
+  the baseline (1.12-&gt;~1.66) but no lever beats plain joint-gen; action-contrastive DIDN&#x27;T engage (margin
+  pre-satisfied warm-starting 1221834 -&gt; ~0 loss contribution); CIs ~[0.8,3.0] are too wide to resolve
+  levers. Joint generation as a CAPABILITY works (diagnostic-match ~0.2-0.24). Controllability plateaued.
+
+Three candidate directions (lead picks):
+  (A) ITERATE PHASE-1: (a) make action-contrastive actually BITE — larger margin / InfoNCE temperature /
+      warm-start from the BASELINE 1221741 (less pre-separated) not 1221834 / score multi-step rollout
+      divergence rather than single-step latent distance; (b) STRENGTHEN THE GATE&#x27;S POWER — more random
+      rollouts per shot (n_random 3-&gt;~10) to cut within-shot noise, decompose within- vs across-shot
+      variance, consider a lower-variance metric / longer rollout horizon; THEN re-test the levers.
+  (B) PIVOT TO PHASE-2 RSSM (§4, locked latent-bottleneck=rssm): the compact recurrent latent the dynamics
+      pass through — the structural reduced-physics lever; the token-backbone plateau is arguably evidence
+      FOR it. A substantial new build (encoder/decoder + KL/rate + roll z forward), gated (per the plan) on
+      Phase-1 validating the levers — which it did not, so this is a re-gate decision.
+  (C) CONSOLIDATE: write up the Phase-1 verdict (capability-positive, controllability-plateaued) + archive.
+
+Recommendation: a MEASUREMENT fix is a prerequisite EITHER way (we are flying blind on lever effects); then
+make action-contrastive engage before concluding Phase-1; commit to the Phase-2 build only with the lead&#x27;s
+re-gate. Resolve once the lead picks a direction + that direction&#x27;s first step lands.</pre>
     </article>
 </section>
 
