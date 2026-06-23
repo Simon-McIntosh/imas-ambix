@@ -343,6 +343,141 @@ def test_all_or_nothing_path_zeroes_whole_dict_for_flagged_sample():
         assert torch.equal(masked[k][4:], sig[k][4:])
 
 
+# ---------------------------------------------------------------------------
+# Auxiliary contrastive objectives — trainer-side wiring
+# ---------------------------------------------------------------------------
+
+
+def test_build_controllable_model_threads_contrastive_flags():
+    """build_controllable_model passes the three contrastive flags to the model."""
+    window = SpacetimeWindowConfig(n_frames=5, n_plan=3, context_frames=2)
+    model = build_controllable_model(
+        window,
+        plan_channels=2,
+        signal_streams=_tiny_streams(),
+        n_signal_steps=3,
+        actuator_channels=6,
+        n_act_steps=4,
+        cross_modal=True,
+        self_predictive=True,
+        action_contrastive=True,
+        vocab_size=64,
+        grid_h=4,
+        grid_w=4,
+        d_model=32,
+        n_layers=2,
+        n_heads=4,
+        d_ff=64,
+        dropout=0.0,
+    )
+    assert model.has_cross_modal is True
+    assert model.has_self_predictive is True
+    assert model.has_action_contrastive is True
+    assert hasattr(model, "cross_modal_cam_proj")
+    assert hasattr(model, "self_pred_predictor")
+    assert hasattr(model, "action_contrastive_proj")
+
+
+def test_contrastive_config_defaults_off_for_both_configs():
+    for cfg in (OverfitControllableConfig(), ControllableCorpusConfig()):
+        assert cfg.cross_modal is False
+        assert cfg.self_predictive is False
+        assert cfg.action_contrastive is False
+
+
+def test_random_actuator_batch_perturbs_only_given_columns_holds_others():
+    from imas_ambix.worldmodel.controllable_train import _random_actuator_batch
+
+    g = torch.Generator().manual_seed(0)
+    vals = torch.randn(3, 4, 6, generator=g)
+    miss = torch.zeros(3, 4, 6)
+    perturbable = [1, 3, 5]
+    rb = _random_actuator_batch(
+        {"values": vals, "missing": miss},
+        perturbable_cols=perturbable,
+        generator=torch.Generator().manual_seed(1),
+    )
+    assert rb is not None
+    # the perturbable columns changed; the held columns are byte-identical.
+    held = [0, 2, 4]
+    assert not torch.allclose(rb["values"][:, :, perturbable], vals[:, :, perturbable])
+    assert torch.equal(rb["values"][:, :, held], vals[:, :, held])
+    # missing preserved + input not mutated.
+    assert torch.equal(rb["missing"], miss)
+
+
+def test_random_actuator_batch_none_inputs():
+    from imas_ambix.worldmodel.controllable_train import _random_actuator_batch
+
+    assert (
+        _random_actuator_batch(None, perturbable_cols=[0], generator=torch.Generator())
+        is None
+    )
+    vals = torch.randn(2, 3, 4)
+    # no perturbable columns -> None (caller skips the action-contrastive term).
+    assert (
+        _random_actuator_batch(
+            {"values": vals, "missing": torch.zeros_like(vals)},
+            perturbable_cols=[],
+            generator=torch.Generator(),
+        )
+        is None
+    )
+
+
+def test_overfit_smoke_with_all_contrastive_terms_on():
+    """Drive the trainer loss-spec path with all three contrastive terms on."""
+    cfg = _tiny_cfg(cross_modal=True, self_predictive=True, action_contrastive=True)
+    torch.manual_seed(0)
+    model = build_controllable_model(
+        SpacetimeWindowConfig(n_frames=6, n_plan=3, context_frames=2),
+        plan_channels=2,
+        signal_streams=_tiny_streams(),
+        n_signal_steps=3,
+        actuator_channels=6,
+        n_act_steps=4,
+        cross_modal=True,
+        self_predictive=True,
+        action_contrastive=True,
+        vocab_size=64,
+        grid_h=4,
+        grid_w=4,
+        d_model=32,
+        n_layers=2,
+        n_heads=4,
+        d_ff=64,
+        dropout=0.0,
+    )
+    batch = _rand_batch(cfg, b=2, t=6, seed=3)
+    batch["actuator_random"] = {
+        "values": batch["actuator"]["values"] + 2.0,
+        "missing": batch["actuator"]["missing"],
+    }
+    opt = torch.optim.AdamW(model.parameters(), lr=3e-3)
+    model.train()
+    for _ in range(5):
+        opt.zero_grad(set_to_none=True)
+        out = model(
+            batch,
+            loss_spec={
+                "chunk": 64,
+                "context_frames": 2,
+                "cross_modal_weight": 0.1,
+                "self_predictive_weight": 0.1,
+                "action_contrastive_weight": 0.1,
+                "return_components": True,
+            },
+        )
+        loss = out["loss"]
+        assert torch.isfinite(loss)
+        loss.backward()
+        opt.step()
+    # the heads received gradients through the trainer path.
+    assert model.cross_modal_cam_proj[0].weight.grad is not None
+    assert model.self_pred_predictor[0].weight.grad is not None
+    assert model.action_contrastive_proj[0].weight.grad is not None
+
+
 def test_overfit_smoke_diagnostics_off_runs_and_has_zero_diag_ce():
     """With joint generation OFF the loss-spec path runs and the diag CE stays 0."""
     cfg = _tiny_cfg(generate_diagnostics=False)

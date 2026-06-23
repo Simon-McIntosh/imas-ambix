@@ -139,6 +139,40 @@ class ControllableSpacetimeConfig(SignalSpacetimeConfig):
     #: — this flag only decides whether the heads + objective EXIST.  OFF is the
     #: ablation switch (no heads built, no objective).
     generate_diagnostics: bool = True
+    #: --- AUXILIARY contrastive objectives (all OFF by default) -------------
+    #: Three self-supervised auxiliaries layered ON TOP of the generative loss,
+    #: each behind its own flag + a ``loss_spec`` weight, so the §6 ablation can
+    #: isolate each lever's marginal contribution.  Each builds a small
+    #: projector/predictor head LAST in ``__init__`` (after ``diagnostic_heads``)
+    #: so the backbone RNG stream is unperturbed — with all three OFF (or a model
+    #: warm-started from a checkpoint that pre-dates them) the forecaster is
+    #: byte-identical and the heads are simply new/absent.  The loss WEIGHTS
+    #: (``cross_modal_weight`` / ``self_predictive_weight`` /
+    #: ``action_contrastive_weight``) are TRAINING hyperparameters in
+    #: ``loss_spec`` (mirroring ``diagnostic_weight``); these flags only decide
+    #: whether the heads + objective EXIST.
+    #:
+    #: CROSS-MODAL ALIGNMENT — project the pooled camera latent and the pooled
+    #: per-stream signal latents into a shared space and align matching
+    #: (same-sample) camera↔diagnostic embeddings with a symmetric InfoNCE over
+    #: the batch (the other samples are the negatives).  Forces the camera and
+    #: the diagnostics to encode a SHARED plasma state.  Needs measured signals.
+    cross_modal: bool = False
+    #: SELF-PREDICTIVE LATENT (BYOL / SPR — no negatives) — an online predictor
+    #: maps the current camera latent to the FUTURE camera latent; the target is
+    #: a STOP-GRAD projection of the true future latent; loss = negative cosine.
+    #: Compact, anti-memorisation (the predictor cannot collapse because the
+    #: target carries no gradient).
+    self_predictive: bool = False
+    #: ACTION-CONTRASTIVE — the TRUE-plan next-state latent must be CLOSER to the
+    #: realised next state than a WRONG/RANDOM-plan next-state latent (a margin
+    #: triplet).  This DIRECTLY trains the ΔN-M objective: a second forward under
+    #: a random plan (built train-side via ``_random_actuator_like`` and passed
+    #: as ``actuator_random`` in the batch) supplies the negative.  Needs the
+    #: actuator drive.
+    action_contrastive: bool = False
+    #: Shared projection width for the contrastive heads.
+    contrastive_dim: int = 128
 
     @property
     def has_actuator(self) -> bool:
@@ -156,6 +190,20 @@ class ControllableSpacetimeConfig(SignalSpacetimeConfig):
     def has_diagnostics(self) -> bool:
         """The model generates diagnostics (heads + objective) iff ON and signalled."""
         return bool(self.generate_diagnostics) and self.has_signals
+
+    @property
+    def has_cross_modal(self) -> bool:
+        """Cross-modal alignment (heads + objective) iff ON and signalled."""
+        return bool(self.cross_modal) and self.has_signals
+
+    @property
+    def has_self_predictive(self) -> bool:
+        return bool(self.self_predictive)
+
+    @property
+    def has_action_contrastive(self) -> bool:
+        """Action-contrastive (heads + objective) iff ON and the model has the drive."""
+        return bool(self.action_contrastive) and self.has_actuator
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +416,47 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
                 nn.init.normal_(head.weight, std=0.02)
                 nn.init.zeros_(head.bias)
                 self.diagnostic_heads[stream.name] = head
+
+        # AUXILIARY contrastive heads.  Built LAST (after diagnostic_heads) so
+        # every backbone parameter above was drawn from the SAME RNG stream a
+        # contrastive-OFF model uses — a model warm-started from a checkpoint that
+        # pre-dates them loads the backbone byte-for-byte and only these heads
+        # start fresh.  Each is gated by its own config flag (default OFF).
+        cd = int(cfg.contrastive_dim)
+
+        def _mlp(in_dim: int, out_dim: int) -> nn.Sequential:
+            net = nn.Sequential(
+                nn.Linear(in_dim, cd),
+                nn.GELU(),
+                nn.Linear(cd, out_dim),
+            )
+            for m in net:
+                if isinstance(m, nn.Linear):
+                    nn.init.normal_(m.weight, std=0.02)
+                    nn.init.zeros_(m.bias)
+            return net
+
+        # CROSS-MODAL: a projector per side (camera, signal) into the shared dim.
+        self.has_cross_modal = cfg.has_cross_modal
+        if self.has_cross_modal:
+            self.cross_modal_cam_proj = _mlp(d, cd)
+            self.cross_modal_sig_proj = _mlp(d, cd)
+
+        # SELF-PREDICTIVE: an online projector + a predictor; the target is the
+        # SAME projector applied to the future latent under stop-grad (no separate
+        # EMA target network — a stop-grad projection is the compact SPR variant
+        # and is DDP-safe without an extra param set).
+        self.has_self_predictive = cfg.has_self_predictive
+        if self.has_self_predictive:
+            self.self_pred_proj = _mlp(d, cd)
+            self.self_pred_predictor = _mlp(cd, cd)
+
+        # ACTION-CONTRASTIVE: a projector mapping the pooled next-state latent into
+        # the shared dim; the realised, true-plan and random-plan next states are
+        # all projected through it and compared by cosine (a margin triplet).
+        self.has_action_contrastive = cfg.has_action_contrastive
+        if self.has_action_contrastive:
+            self.action_contrastive_proj = _mlp(d, cd)
 
     # -- actuator-plan AdaLN conditioning ----------------------------------
 
@@ -811,7 +900,7 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         signal-less batch) it returns a zero-magnitude touch over every head param
         (DDP-uniform) so a rank never desyncs.
         """
-        from torch.nn import functional as F  # noqa: PLC0415
+        from torch.nn import functional as F  # noqa: N812, PLC0415
 
         from imas_ambix.worldmodel.dataset import PAD_LOCAL_ID  # noqa: PLC0415
 
@@ -841,6 +930,187 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         if total_ce is None or total_count == 0:
             return zt
         return total_ce / float(total_count) + zt
+
+    # -- auxiliary contrastive objectives ----------------------------------
+
+    @staticmethod
+    def _head_zero_touch(head: nn.Module, ref: torch.Tensor) -> torch.Tensor:
+        """A zero-magnitude sum over a head's params (DDP-uniform graph).
+
+        A batch where a contrastive term cannot score (no signals / no pair / no
+        random plan) would leave its head grad-less and desync a DDP rank.  This
+        touches every Linear in the head with a ``*0.0`` contribution, keeping it
+        in the autograd graph with zero effect on the output.
+        """
+        acc: torch.Tensor | None = None
+        for m in head.modules():
+            if isinstance(m, nn.Linear):
+                s = m.weight.sum() + m.bias.sum()
+                acc = s if acc is None else acc + s
+        if acc is None:
+            return ref.new_zeros(())
+        return acc.to(ref.dtype) * 0.0
+
+    def cross_modal_loss(
+        self,
+        latents: torch.Tensor,
+        signal_latents: dict[str, torch.Tensor] | None,
+        *,
+        context_frames: int | None = None,
+    ) -> torch.Tensor:
+        """Symmetric InfoNCE aligning the pooled camera ↔ diagnostic embeddings.
+
+        ``latents`` is ``(B, T, S, d)`` camera hiddens; ``signal_latents`` is
+        ``{name: (B, P, C, d)}``.  Pools the camera latent over the FORECAST window
+        (frames ``>= context_frames``) and over space, pools every present signal
+        stream over its steps + channels and averages across streams, projects each
+        side into the shared space, L2-normalises, and runs a symmetric InfoNCE
+        over the batch (the matching same-sample pair is the positive; the other
+        samples are the negatives).  Forces the camera and the diagnostics to encode
+        a SHARED plasma state.
+
+        Returns a scalar.  When it cannot score (no signals, or a batch of 1 → no
+        negatives) it returns a zero-magnitude touch over both projectors so a rank
+        never desyncs.
+        """
+        from torch.nn import functional as F  # noqa: N812, PLC0415
+
+        zt = self._head_zero_touch(
+            self.cross_modal_cam_proj, latents
+        ) + self._head_zero_touch(self.cross_modal_sig_proj, latents)
+        if not self.has_cross_modal or not signal_latents:
+            return zt
+        b, t, s, d = latents.shape
+        ctx = int(context_frames) if context_frames is not None else 0
+        ctx = max(0, min(ctx, t - 1)) if t > 1 else 0
+        cam_pool = latents[:, ctx:].mean(dim=(1, 2))  # (B, d)
+        sig_vecs: list[torch.Tensor] = []
+        for lat in signal_latents.values():
+            if lat is None or lat.numel() == 0:
+                continue
+            sig_vecs.append(lat.mean(dim=(1, 2)))  # (B, d) per stream
+        if not sig_vecs or b < 2:
+            return zt
+        sig_pool = torch.stack(sig_vecs, dim=0).mean(dim=0)  # (B, d)
+        zc = F.normalize(self.cross_modal_cam_proj(cam_pool), dim=-1)  # (B, cd)
+        zs = F.normalize(self.cross_modal_sig_proj(sig_pool), dim=-1)  # (B, cd)
+        logits = zc @ zs.t()  # (B, B) cosine sims (unit vectors)
+        tau = 0.1
+        logits = logits / tau
+        labels = torch.arange(b, device=logits.device)
+        loss = 0.5 * (
+            F.cross_entropy(logits, labels) + F.cross_entropy(logits.t(), labels)
+        )
+        return loss + zt
+
+    def self_predictive_loss(
+        self,
+        latents: torch.Tensor,
+        *,
+        context_frames: int | None = None,
+    ) -> torch.Tensor:
+        """BYOL/SPR latent self-prediction (no negatives) — anti-memorisation.
+
+        ``latents`` is ``(B, T, S, d)``.  The online branch projects each frame's
+        spatially-pooled latent and PREDICTS the NEXT frame's projection; the
+        target is the SAME projector applied to the next frame's latent under
+        STOP-GRAD.  Loss = mean negative cosine over the forecast-window pairs.  The
+        stop-grad on the target makes collapse impossible (no trivial constant
+        solution carries gradient).
+
+        Returns a scalar; a zero-magnitude touch over the projector + predictor when
+        there is no pair to score (DDP-uniform).
+        """
+        from torch.nn import functional as F  # noqa: N812, PLC0415
+
+        zt = self._head_zero_touch(
+            self.self_pred_proj, latents
+        ) + self._head_zero_touch(self.self_pred_predictor, latents)
+        if not self.has_self_predictive:
+            return zt
+        b, t, s, d = latents.shape
+        if t < 2:
+            return zt
+        pooled = latents.mean(dim=2)  # (B, T, d)
+        proj = self.self_pred_proj(pooled)  # (B, T, cd)
+        online = self.self_pred_predictor(proj[:, : t - 1])  # predict next (B,T-1,cd)
+        target = proj[:, 1:t].detach()  # stop-grad target (B, T-1, cd)
+        ctx = int(context_frames) if context_frames is not None else 0
+        # the target frame is index i+1; keep pairs whose target is in the forecast
+        # window (i+1 >= ctx) so the self-prediction is enforced where it matters.
+        if ctx > 0:
+            tgt_idx = torch.arange(1, t, device=latents.device)
+            keep = tgt_idx >= ctx
+            if bool(keep.any()):
+                online = online[:, keep]
+                target = target[:, keep]
+        cos = F.cosine_similarity(online, target, dim=-1)  # (B, K)
+        return (1.0 - cos).mean() + zt
+
+    def action_contrastive_loss(
+        self,
+        latents_true: torch.Tensor,
+        latents_random: torch.Tensor,
+        *,
+        context_frames: int | None = None,
+        margin: float = 0.2,
+    ) -> torch.Tensor:
+        """ΔN-M repulsion margin: the TRUE next state must DIFFER from a wrong plan.
+
+        ``latents_true`` is ``(B, T, S, d)`` — the camera latents under the TRUE
+        plan (the teacher-forced forward, whose forecast-window latents ARE the
+        realised next states); ``latents_random`` is the SAME backbone re-run under
+        a WRONG/RANDOM plan (the only thing that differs is the AdaLN drive).  Pools
+        the forecast-window next-state latents (frames ``>= context_frames``) over
+        time + space, projects each through a shared head, L2-normalises, and applies
+        a REPULSION margin: the true-plan and random-plan embeddings must be at
+        least ``margin`` apart in cosine — the loss penalises a model whose
+        next-state prediction is INSENSITIVE to the plan (true ≈ random).
+
+        Because under teacher forcing the realised next state IS the true-plan
+        latent, "true closer to realised than random" reduces to "true must differ
+        from random" — which is EXACTLY the ΔN-M action-sensitivity objective.  The
+        loss is ``relu(margin - (1 - cos(true, random)))`` = ``relu(margin - 1 +
+        cos)``: positive (and carrying gradient through the projector + both
+        latents) whenever the two plans give too-similar next states.
+
+        Returns a scalar; a zero-magnitude touch when it cannot score (DDP-uniform).
+        """
+        from torch.nn import functional as F  # noqa: N812, PLC0415
+
+        zt = self._head_zero_touch(self.action_contrastive_proj, latents_true)
+        if not self.has_action_contrastive or latents_random is None:
+            return zt
+        b, t, s, d = latents_true.shape
+        if t < 2:
+            return zt
+        ctx = int(context_frames) if context_frames is not None else 0
+        ctx = max(0, min(ctx, t - 1))
+        true = latents_true[:, ctx:].mean(dim=(1, 2))  # realised next state (B, d)
+        rand = latents_random[:, ctx:].mean(dim=(1, 2))  # random-plan next state
+        zt_true = F.normalize(self.action_contrastive_proj(true), dim=-1)
+        zr = F.normalize(self.action_contrastive_proj(rand), dim=-1)
+        cos = (zt_true * zr).sum(dim=-1)  # similarity of the two plans' next states
+        # repulsion: drive the two apart by at least ``margin`` (dissimilarity =
+        # 1 - cos must clear margin).  Identical (plan-insensitive) -> loss = margin.
+        return F.relu(margin - (1.0 - cos)).mean() + zt
+
+    def _contrastive_zero_touch(self, ref: torch.Tensor) -> torch.Tensor:
+        """Sum of every built contrastive head's zero-touch (DDP-uniform).
+
+        Keeps every contrastive head in the autograd graph on a batch where its
+        term is off / un-scorable, mirroring :meth:`_diagnostic_zero_touch`.
+        """
+        acc = ref.new_zeros(())
+        if self.has_cross_modal:
+            acc = acc + self._head_zero_touch(self.cross_modal_cam_proj, ref)
+            acc = acc + self._head_zero_touch(self.cross_modal_sig_proj, ref)
+        if self.has_self_predictive:
+            acc = acc + self._head_zero_touch(self.self_pred_proj, ref)
+            acc = acc + self._head_zero_touch(self.self_pred_predictor, ref)
+        if self.has_action_contrastive:
+            acc = acc + self._head_zero_touch(self.action_contrastive_proj, ref)
+        return acc
 
     # -- forward / loss ----------------------------------------------------
 
@@ -872,11 +1142,16 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         them.  ``loss_spec`` may carry ``inverse_dynamics_weight`` to add the
         inverse-dynamics auxiliary loss, and ``diagnostic_weight`` to add the
         per-stream next-step diagnostic cross-entropy (joint generation) — both to
-        the returned scalar (training).  With ``loss_spec["return_components"]`` a
-        dict ``{loss, camera_nll, diagnostic_ce, inv_dyn}`` is returned instead of
-        the bare scalar (for per-component logging); the camera/diagnostic/inv-dyn
-        terms are detached, only ``loss`` carries grad.  ``return_logits`` behaves
-        as in v1.
+        the returned scalar (training).  It may ALSO carry the three AUXILIARY
+        contrastive weights — ``cross_modal_weight`` (camera/diagnostic InfoNCE),
+        ``self_predictive_weight`` (BYOL/SPR latent self-prediction), and
+        ``action_contrastive_weight`` (true-vs-random next-state margin; needs an
+        ``actuator_random`` plan in the batch + a second forward) — each added when
+        its head is built and its weight > 0.  With ``loss_spec["return_components"]``
+        a dict ``{loss, camera_nll, diagnostic_ce, inv_dyn, cross_modal,
+        self_predictive, action_contrastive}`` is returned instead of the bare
+        scalar (for per-component logging); every term but ``loss`` is detached.
+        ``return_logits`` behaves as in v1.
         """
         frames = batch["frames"]
         plan = batch.get("plan")
@@ -898,16 +1173,46 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         hg = batch.get("history_generator")
         frame_log_dt = batch.get("frame_log_dt")
         camera_id = batch.get("camera_id")
+        ls = loss_spec or {}
+        # AUXILIARY contrastive terms — each fires only when its head is built and
+        # its weight > 0.  Cross-modal + self-predictive read the camera latents;
+        # cross-modal also reads the signal latents; action-contrastive needs a
+        # second forward under a WRONG plan (built train-side as ``actuator_random``).
+        w_cm = float(ls.get("cross_modal_weight", 0.0))
+        w_sp = float(ls.get("self_predictive_weight", 0.0))
+        w_ac = float(ls.get("action_contrastive_weight", 0.0))
+        actuator_random = batch.get("actuator_random")
+        need_cm = bool(loss_spec is not None and self.has_cross_modal and w_cm > 0.0)
+        need_sp = bool(
+            loss_spec is not None and self.has_self_predictive and w_sp > 0.0
+        )
+        need_ac = bool(
+            loss_spec is not None
+            and self.has_action_contrastive
+            and w_ac > 0.0
+            and actuator is not None
+            and actuator_random is not None
+        )
         need_latents = bool(
             loss_spec is not None
-            and self.has_inverse_dynamics
-            and float((loss_spec or {}).get("inverse_dynamics_weight", 0.0)) > 0.0
+            and (
+                (
+                    self.has_inverse_dynamics
+                    and float(ls.get("inverse_dynamics_weight", 0.0)) > 0.0
+                )
+                or need_cm
+                or need_sp
+                or need_ac
+            )
         )
         need_diag = bool(
             loss_spec is not None
             and self.has_diagnostics
-            and float((loss_spec or {}).get("diagnostic_weight", 0.0)) > 0.0
+            and float(ls.get("diagnostic_weight", 0.0)) > 0.0
         )
+        # cross-modal needs per-stream signal latents even if the diagnostic CE is
+        # off — request them whenever cross-modal fires too.
+        need_signal_latents = bool(need_diag or need_cm)
         out = self._forward_tokens(
             frames,
             plan,
@@ -921,12 +1226,12 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
             frame_log_dt=frame_log_dt,
             camera_id=camera_id,
             return_latents=need_latents,
-            return_signal_latents=need_diag,
+            return_signal_latents=need_signal_latents,
         )
         signal_latents: dict[str, torch.Tensor] | None = None
-        if need_latents and need_diag:
+        if need_latents and need_signal_latents:
             hidden, latents, signal_latents = out
-        elif need_diag:
+        elif need_signal_latents:
             hidden, signal_latents = out
             latents = hidden
         elif need_latents:
@@ -962,6 +1267,57 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
                 # DDP-uniform: keep the heads in the graph even when the diagnostic
                 # weight is 0 (a weight-ablation with the heads still built).
                 total = total + self._diagnostic_zero_touch()
+
+            # AUXILIARY contrastive terms (each behind its own flag + weight).
+            cross_modal = None
+            if need_cm:
+                cross_modal = self.cross_modal_loss(
+                    latents, signal_latents, context_frames=context_frames
+                )
+                total = total + w_cm * cross_modal
+            self_pred = None
+            if need_sp:
+                self_pred = self.self_predictive_loss(
+                    latents, context_frames=context_frames
+                )
+                total = total + w_sp * self_pred
+            action_con = None
+            if need_ac:
+                # second forward under the WRONG plan — the ONLY thing that differs
+                # is the AdaLN drive (same frames / signals / history).  Both passes
+                # train the backbone toward action sensitivity, which is the point.
+                # CLONE the token inputs: the signal/camera embedders clamp their
+                # input ids IN PLACE, which would bump the version of the tensors
+                # the FIRST forward's autograd graph captured and break its backward.
+                signals_clone = (
+                    {k: v.clone() for k, v in signals.items()} if signals else signals
+                )
+                latents_random = self._forward_tokens(
+                    frames.clone(),
+                    plan.clone() if plan is not None else None,
+                    signals_clone,
+                    corruption_level,
+                    actuator=actuator_random,
+                    context_frames=context_frames,
+                    history_bottleneck=hb,
+                    history_strengths=hs,
+                    history_generator=hg,
+                    frame_log_dt=frame_log_dt,
+                    camera_id=camera_id,
+                )
+                action_con = self.action_contrastive_loss(
+                    latents, latents_random, context_frames=context_frames
+                )
+                total = total + w_ac * action_con
+            # DDP-uniform: keep every BUILT-but-unscored contrastive head in the
+            # graph (a weight-0 ablation, or a batch the term cannot score).
+            if (
+                (self.has_cross_modal and not need_cm)
+                or (self.has_self_predictive and not need_sp)
+                or (self.has_action_contrastive and not need_ac)
+            ):
+                total = total + self._contrastive_zero_touch(nll)
+
             if loss_spec.get("return_components"):
                 zero = nll.new_zeros(())
                 return {
@@ -969,6 +1325,15 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
                     "camera_nll": nll.detach(),
                     "diagnostic_ce": diag.detach() if diag is not None else zero,
                     "inv_dyn": inv.detach() if inv is not None else zero,
+                    "cross_modal": cross_modal.detach()
+                    if cross_modal is not None
+                    else zero,
+                    "self_predictive": self_pred.detach()
+                    if self_pred is not None
+                    else zero,
+                    "action_contrastive": action_con.detach()
+                    if action_con is not None
+                    else zero,
                 }
             return total
         from imas_ambix.worldmodel.spacetime_model import (
