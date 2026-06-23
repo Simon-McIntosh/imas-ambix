@@ -780,7 +780,7 @@ class RSSMWorldModel(nn.Module):
         """
         payload = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)
         src = payload
-        for key in ("model", "model_state", "state_dict"):
+        for key in ("model_state_dict", "model", "model_state", "state_dict"):
             if isinstance(payload, dict) and key in payload:
                 src = payload[key]
                 break
