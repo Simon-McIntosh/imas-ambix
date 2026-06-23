@@ -117,6 +117,15 @@ source "${VENV}/bin/activate"
 : "${WM_INV_DYN_WEIGHT:=1.0}"
 : "${WM_SS_MAX:=0.25}"
 : "${WM_SS_RAMP:=0.5}"
+# JOINT GENERATION — per-stream diagnostic-prediction heads + next-step CE on the
+# measured-signal tokens, so the model dreams the cameras AND the diagnostics
+# (not a camera predictor that merely reads them).  ON by default;
+# WM_GENERATE_DIAGNOSTICS=0 ablates the heads + objective off (camera-only).  The
+# CE weight is warmed up over WM_DIAGNOSTIC_WARMUP_FRAC of the steps so it cannot
+# destabilise the camera loss early.
+: "${WM_GENERATE_DIAGNOSTICS:=1}"
+: "${WM_DIAGNOSTIC_WEIGHT:=0.5}"
+: "${WM_DIAGNOSTIC_WARMUP_FRAC:=0.1}"
 # EXCITATION WEIGHTING of the next-frame CE by per-frame coil |dI/dt| — up-weights
 # forecast frames where the coils move so the persistence-easy flat-top frames of a
 # FULL-SHOT window cannot drown the coil->plasma gradient (the multi-window 0/3
@@ -153,6 +162,7 @@ echo "  init-ckpt:   ${WM_INIT_CHECKPOINT}"
 echo "  window:      n_frames=${WM_N_FRAMES} n_plan=${WM_N_PLAN} n_signal=${WM_N_SIGNAL_STEPS} n_act=${WM_N_ACT_STEPS} context=${WM_CONTEXT_FRAMES}"
 echo "  steps:       ${WM_STEPS} peak-lr=${WM_LR} warmup=${WM_WARMUP_STEPS} bs=${WM_BATCH_SIZE}/rank chunk=${WM_CHUNK}"
 echo "  M4 machinery: obs_dropout=${WM_OBS_DROPOUT} hb(std=${WM_HB_NOISE_STD},mask=${WM_HB_MASK_PROB},max=${WM_HB_MAX_STRENGTH}) inv_dyn=${WM_INV_DYN_WEIGHT} ss(max=${WM_SS_MAX},ramp=${WM_SS_RAMP})"
+echo "  joint-gen:    generate_diagnostics=${WM_GENERATE_DIAGNOSTICS} diag_weight=${WM_DIAGNOSTIC_WEIGHT} warmup_frac=${WM_DIAGNOSTIC_WARMUP_FRAC} signal_modalities=${WM_SIGNAL_MODALITIES}"
 echo "  held-out:    ${WM_EVAL_SHOTS}"
 nvidia-smi --query-gpu=index,name,memory.total,memory.free --format=csv,noheader || true
 
@@ -170,12 +180,22 @@ COND_FLAGS=()
 : "${WM_SIGNAL_MODALITIES:=default}"   # default | extended (adds xsx/xim/ait)
 COND_FLAGS+=(--signal-modalities "${WM_SIGNAL_MODALITIES}")
 
+# Joint-generation (per-stream diagnostic-prediction heads) flags.  ON by default
+# in the trainer; pass --no-generate-diagnostics only for the camera-only ablation.
+DIAG_FLAGS=()
+if [[ "${WM_GENERATE_DIAGNOSTICS}" == "0" ]]; then
+    DIAG_FLAGS+=(--no-generate-diagnostics)
+fi
+DIAG_FLAGS+=(--diagnostic-weight "${WM_DIAGNOSTIC_WEIGHT}")
+DIAG_FLAGS+=(--diagnostic-weight-warmup-frac "${WM_DIAGNOSTIC_WARMUP_FRAC}")
+
 torchrun \
     --standalone \
     --nproc_per_node="${WM_NPROC}" \
     -m imas_ambix.worldmodel.controllable_train corpus \
     "${EXC_FLAG[@]}" \
     "${COND_FLAGS[@]}" \
+    "${DIAG_FLAGS[@]}" \
     --excitation-weight-floor "${WM_EXCITATION_WEIGHT_FLOOR}" \
     --excitation-weight-power "${WM_EXCITATION_WEIGHT_POWER}" \
     --manifest "${WM_MANIFEST}" \

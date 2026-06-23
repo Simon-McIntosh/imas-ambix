@@ -1109,6 +1109,29 @@ def test_forward_tokens_returns_per_stream_signal_latents():
         assert sig[st.name].shape == (b, cfg.n_signal_steps, st.channels, cfg.d_model)
 
 
+def test_diagnostic_logits_decode_to_per_stream_vocab():
+    """diagnostic_logits maps each stream's signal latents to its own vocab.
+
+    Covers the eval path (the metric calls diagnostic_logits directly) — guards
+    against the ModuleDict has-no-.get() trap.
+    """
+    cfg = _tiny_cfg(generate_diagnostics=True)
+    model = ControllableSpacetimeTransformer(cfg).eval()
+    batch = _rand_batch(cfg, b=2, t=5, seed=7)
+    with torch.no_grad():
+        _cam, sig = model._forward_tokens(
+            batch["frames"],
+            batch["plan"],
+            batch["signals"],
+            actuator=batch["actuator"],
+            return_signal_latents=True,
+        )
+        logits = model.diagnostic_logits(sig)
+    assert set(logits.keys()) == {st.name for st in cfg.signal_streams}
+    for st in cfg.signal_streams:
+        assert logits[st.name].shape == (2, cfg.n_signal_steps, st.channels, st.vocab)
+
+
 def test_diagnostic_loss_is_finite_and_grads_reach_the_heads():
     """The diagnostic CE is finite/positive and back-props to every present head."""
     cfg = _tiny_cfg(generate_diagnostics=True)

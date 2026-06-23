@@ -782,11 +782,13 @@ class ControllableSpacetimeTransformer(SignalSpacetimeTransformer):
         is skipped.  Used by the eval's dreamt-vs-real diagnostic-match metric.
         """
         out: dict[str, torch.Tensor] = {}
+        if not self.has_diagnostics:
+            return out
+        # nn.ModuleDict has no .get() — guard with membership + indexing.
         for name, lat in signal_latents.items():
-            head = self.diagnostic_heads.get(name) if self.has_diagnostics else None
-            if head is None:
+            if name not in self.diagnostic_heads:
                 continue
-            out[name] = head(lat)
+            out[name] = self.diagnostic_heads[name](lat)
         return out
 
     def diagnostic_loss(
