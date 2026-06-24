@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="machine-agnostic-latent-world-model">
+  <meta name="plan-title"     content="Machine-Agnostic Latent State-Space Plasma World Model">
+  <meta name="plan-summary"   content="Ground-up redesign: a data-led probabilistic latent state-space world model whose state is estimated by a closed-loop learned filter (LAE-EnKF) and rolled by a space-time transformer transition kernel, ingesting absolute-calibrated, sensor-geometry-tagged multi-modal tokens and grounded in raw magnetics via an EFIT-free Grad-Shafranov observation operator. Filters, forecasts (controllable dreams), and transfers MAST->JET->ITER by construction. Dual-purpose educational document.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="XL">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S15">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="physics-world-model-strategy,probabilistic-state-space-methods,multimodal-tokenisation-substrate,neural-kf-architecture-survey,sequential-current-da-v1">
+  <title>Machine-Agnostic Latent State-Space Plasma World Model | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Reading note (educational dual-purpose).</strong> This plan doubles as a teaching document
+for the redesign. Acronyms are expanded on first use, every modelling technique is explained in plain
+terms, and the external methods we lean on are named and defined in the glossary (§13). The figures
+carry the argument — read them. If a term is unfamiliar, §13 defines it.</p>
+
+<h2 id="s1">§1 — Objective</h2>
+<p>Build, from the ground up, <strong>one data-led world model of the tokamak plasma that is not specific
+to a single machine</strong>. A <em>world model</em> is a learned model that predicts how a system's
+observations evolve over time <em>in response to actions</em> — here the actions are the
+<strong>pulse schedule</strong> (the pre-programmed actuator waveforms: demanded plasma current,
+density, heating, coil currents). A <em>tokamak</em> is a magnetic-confinement fusion device; our data
+comes from <strong>MAST</strong> (Mega-Amp Spherical Tokamak, UK).</p>
+<p>The model must do three things with the same learned object — <strong>filter</strong> (estimate the
+plasma state <em>now</em> from streaming measurements), <strong>forecast</strong> (project the state
+forward under a plan, with no future measurements — the "controllable dream"), and <strong>transfer</strong>
+(carry to a new device — MAST&nbsp;→&nbsp;JET&nbsp;→&nbsp;ITER — <em>by construction</em>, not by
+retraining from scratch). It is the concrete v0 build of the
+<a href="/imas-ambix/physics-world-model-strategy.html">North Star</a> (§1a, refined 2026-06-24), and it
+replaces the camera-token generative direction that closed as a robust negative (§2). The
+<code>/goal</code> it serves: <em>"discover the underlying latent dynamics and a physics-faithful,
+data-led world model capable of controllable dreams."</em></p>
+
+<h2 id="s2">§2 — Why a ground-up redesign: the evidence that forces it</h2>
+<p>The previous direction — a generative model that carried the plasma state in <em>camera tokens</em>
+and tried to make the actuator plan drive the dreamed video — produced a robustly-measured negative.
+Two findings pin down where the physics is, and is not, recoverable, and they point the same way.</p>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 900 300" width="100%" role="img" aria-label="Evidence map: control is not load-bearing in the camera-token world model, but absolute magnetics recover plasma geometry; the reframe moves controllability onto the identifiable chain" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <defs><marker id="ev-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker></defs>
+  <style>
+    .ebox{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1}
+    .efail{fill:#fdeef0;stroke:#b05a66;stroke-width:1.2}
+    .eok{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.4}
+    .ehd{font-size:13px;fill:#1a1a1a;font-weight:700}
+    .elb{font-size:11.5px;fill:#1a1a1a}
+    .esb{font-size:10.5px;fill:#3a3a3a}
+    .ear{stroke:#5b6b80;stroke-width:1.4;fill:none;marker-end:url(#ev-a)}
+  </style>
+  <text x="16" y="20" class="ehd">What failed</text>
+  <rect class="efail" x="16" y="32" width="270" height="60" rx="4"/>
+  <text x="28" y="52" class="elb">Control NOT load-bearing</text>
+  <text x="28" y="69" class="esb">true-plan vs random-plan dream divergence</text>
+  <text x="28" y="84" class="esb">ratio 0.85-1.03 (n=10 gate) — all FAIL</text>
+  <rect class="efail" x="16" y="100" width="270" height="56" rx="4"/>
+  <text x="28" y="120" class="elb">Camera can't see interior geometry</text>
+  <text x="28" y="137" class="esb">decoded camera -> axis/X-point skill ~0</text>
+  <text x="28" y="151" class="esb">per-shot z-scored tokens are scale-free</text>
+
+  <text x="16" y="188" class="ehd">What works (the opening)</text>
+  <rect class="eok" x="16" y="200" width="270" height="56" rx="4"/>
+  <text x="28" y="220" class="elb">Absolute magnetics recover geometry</text>
+  <text x="28" y="237" class="esb">axis / X-point / boundary skill 0.5-0.7</text>
+  <text x="28" y="251" class="esb">well-posed (EFIT-input-class)</text>
+
+  <text x="330" y="20" class="ehd">Root cause</text>
+  <rect class="ebox" x="330" y="32" width="250" height="124" rx="4"/>
+  <text x="342" y="54" class="elb">Causal under-identification</text>
+  <text x="342" y="74" class="esb">on observational flat-top tokens the</text>
+  <text x="342" y="89" class="esb">next state is predictable from HISTORY</text>
+  <text x="342" y="104" class="esb">alone; the command is confounded /</text>
+  <text x="342" y="119" class="esb">non-exciting, so it never becomes</text>
+  <text x="342" y="134" class="esb">NECESSARY. Control can't be extracted</text>
+  <text x="342" y="149" class="esb">from a chain that doesn't identify it.</text>
+
+  <text x="620" y="20" class="ehd">The reframe</text>
+  <rect class="eok" x="620" y="32" width="264" height="124" rx="6"/>
+  <text x="632" y="54" class="elb">Move control onto the chain</text>
+  <text x="632" y="71" class="elb">that CAN carry it:</text>
+  <text x="632" y="93" class="esb">plan -> Ip -> magnetics -> &#968; -> boundary</text>
+  <text x="632" y="113" class="esb">inside ONE shared latent.</text>
+  <text x="632" y="133" class="esb">That same identifiable chain, in</text>
+  <text x="632" y="148" class="esb">dimensionless terms, is what TRANSFERS.</text>
+
+  <rect class="ebox" x="330" y="190" width="554" height="66" rx="4"/>
+  <text x="342" y="212" class="ehd">The lead's tractability decomposition (the constructive read)</text>
+  <text x="342" y="231" class="esb">(a) plan(+pulse-schedule) -> Ip = identifiable map &#183; (b) magnetics -> boundary/X-point = well-posed</text>
+  <text x="342" y="247" class="esb">(c) other diagnostics -> internal structure &#183; (d) camera -> edge + fast transients + dream-decode target</text>
+
+  <path class="ear" d="M286,62 L328,80"/>
+  <path class="ear" d="M286,128 L328,110"/>
+  <path class="ear" d="M286,228 L328,140"/>
+  <path class="ear" d="M580,94 L618,94"/>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 1 — The evidence map. The camera-token world model generated coherent video but its actuator
+plan was never load-bearing (left, red): a powered gate (true-plan vs random-plan decoded divergence,
+10 random plans) returned divergence ratios 0.85–1.03, all failing, across every lever tried. The cause
+is <em>causal under-identification</em> (centre). But absolute, calibrated magnetics <em>do</em> recover
+plasma geometry (left, green). The reframe (right): move controllability onto the identifiable chain
+plan&nbsp;→&nbsp;Ip&nbsp;→&nbsp;magnetics&nbsp;→&nbsp;ψ&nbsp;→&nbsp;boundary inside one latent — which, in
+dimensionless terms, is also exactly what transfers across machines.</figcaption>
+</figure>
+
+<p><strong>Finding 1 — generation works; control does not.</strong> Across both a token backbone and a
+Dreamer-style RSSM (<em>Recurrent State-Space Model</em> — a latent world model whose recurrent state
+carries the dynamics), and across every controllability lever (per-layer plan conditioning,
+history bottleneck, inverse-dynamics, joint generation, per-modality masking, action-contrastive,
+command-in-the-recurrence), the plan never became <em>load-bearing</em>. <strong>Finding 2 — the physics
+is recoverable, but from absolute signals, not from those dreams.</strong> Cameras cannot see interior
+geometry; <em>per-shot z-scored</em> tokens (each shot rescaled to zero-mean/unit-variance) are
+scale-free and lose absolute magnitude; but absolute, calibrated magnetics resolve the magnetic axis,
+the X-point, and the boundary at skill 0.5–0.7. The information was always there — the representation
+was throwing it away.</p>
+
+<h2 id="s3">§3 — The unifying identity: a world model <em>is</em> a learned state-space model</h2>
+<p>A machine-learning world model — <strong>encoder → latent state → learned transition → observation
+model</strong> — <em>is</em> a learned nonlinear <strong>state-space model (SSM)</strong>. An SSM
+describes a system by a hidden state <em>z</em><sub>t</sub> that evolves through a <em>transition kernel</em>
+<em>p</em>(<em>z</em><sub>t+1</sub> | <em>z</em><sub>t</sub>, action) and is seen only through an
+<em>observation model</em> <em>p</em>(<em>y</em><sub>t</sub> | <em>z</em><sub>t</sub>). This one object
+subsumes everything we want: <strong>state estimation</strong> = Bayesian inference of the state from
+observations (the <strong>Kalman filter</strong> is the linear-Gaussian special case); <strong>dynamics</strong>
+live in the transition kernel; <strong>discovery</strong> = reading interpretable structure out of that
+kernel. The strategy's central thesis (<a href="/imas-ambix/physics-world-model-strategy.html">North
+Star</a> §2) is that learning this kernel honestly — and doing real filtering through it — is the
+contribution fusion's static Bayesian machinery (EFIT, Minerva, IDA) structurally lacks.</p>
+
+<h2 id="s4">§4 — Architecture: the shared skeleton</h2>
+<p>Every component below hangs off one pipeline. Tokens carrying absolute values <em>and</em> their
+sensor geometry are encoded into a belief over a hybrid latent; a space-time transformer advances that
+belief as a <em>prior</em>; when an observation arrives a learned ensemble correction folds it in to make
+a <em>posterior</em>; decode heads and a physics operator map the latent back to every raw signal.
+<strong>Dreaming</strong> = roll the prior with observations withheld; <strong>tracking</strong> =
+correct every step. One model — observation-withholding is the only toggle.</p>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 900 410" width="100%" role="img" aria-label="The world-model skeleton: geometry-tagged absolute-calibrated tokens are encoded to a hybrid latent belief, advanced by a space-time transformer prior, corrected by an LAE-EnKF ensemble against observations, and decoded to all modalities plus a GS-derived equilibrium readout" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <defs><marker id="sk-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker></defs>
+  <style>
+    .sbox{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1}
+    .stok{fill:#eef4ff;stroke:#1565c0;stroke-width:1.2}
+    .slat{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.6}
+    .sgs{fill:#fff4e6;stroke:#c98a3a;stroke-width:1.3}
+    .sout{fill:#fdeef0;stroke:#b05a66;stroke-width:1.1}
+    .shd{font-size:12.5px;fill:#1a1a1a;font-weight:700}
+    .slb{font-size:11.5px;fill:#1a1a1a}
+    .ssb{font-size:10px;fill:#3a3a3a}
+    .sar{stroke:#5b6b80;stroke-width:1.4;fill:none;marker-end:url(#sk-a)}
+    .sacc{font-size:10.5px;fill:#2e7d32;font-weight:700}
+  </style>
+  <!-- inputs -->
+  <text x="14" y="18" class="shd">Inputs (raw, tokenised)</text>
+  <rect class="sbox" x="14" y="28" width="170" height="34" rx="4"/><text x="24" y="44" class="slb">Magnetics (probes/loops)</text><text x="24" y="57" class="ssb">+ sensor (R,Z,&#966;), normal</text>
+  <rect class="sbox" x="14" y="66" width="170" height="34" rx="4"/><text x="24" y="82" class="slb">Interferometer + SXR</text><text x="24" y="95" class="ssb">+ line-of-sight chord geom</text>
+  <rect class="sbox" x="14" y="104" width="170" height="34" rx="4"/><text x="24" y="120" class="slb">Cameras x5</text><text x="24" y="133" class="ssb">+ pixel footprint (R,Z)</text>
+  <rect class="sbox" x="14" y="142" width="170" height="34" rx="4"/><text x="24" y="158" class="slb">HF signals (Mirnov/D&#945;)</text><text x="24" y="171" class="ssb">phase-aware tokens</text>
+  <rect class="sgs" x="14" y="186" width="170" height="34" rx="4"/><text x="24" y="202" class="slb">Plan / pulse-schedule</text><text x="24" y="215" class="ssb">actuator demands = ACTION</text>
+
+  <!-- encoder -->
+  <rect class="stok" x="214" y="86" width="118" height="74" rx="5"/>
+  <text x="273" y="116" class="shd" text-anchor="middle">Encoder</text>
+  <text x="273" y="134" class="ssb" text-anchor="middle">tokens -></text>
+  <text x="273" y="147" class="ssb" text-anchor="middle">latent belief</text>
+
+  <!-- hybrid latent -->
+  <rect class="slat" x="362" y="74" width="150" height="98" rx="6"/>
+  <text x="437" y="96" class="shd" text-anchor="middle">Hybrid latent z_t</text>
+  <text x="437" y="114" class="sacc" text-anchor="middle">dimensionless coords</text>
+  <text x="437" y="132" class="ssb" text-anchor="middle">anchored block (raw: Ip,</text>
+  <text x="437" y="145" class="ssb" text-anchor="middle">coils, n_e, &#968;) + free block</text>
+  <text x="437" y="160" class="ssb" text-anchor="middle">(closure physics)</text>
+
+  <!-- transition kernel -->
+  <rect class="sbox" x="362" y="214" width="150" height="64" rx="5"/>
+  <text x="437" y="236" class="shd" text-anchor="middle">Transition kernel</text>
+  <text x="437" y="253" class="ssb" text-anchor="middle">space-time transformer</text>
+  <text x="437" y="267" class="ssb" text-anchor="middle">prior p(z_t|z_{t-1},action)</text>
+
+  <!-- correction -->
+  <rect class="sbox" x="214" y="214" width="118" height="64" rx="5"/>
+  <text x="273" y="236" class="shd" text-anchor="middle">LAE-EnKF</text>
+  <text x="273" y="252" class="ssb" text-anchor="middle">ensemble correct</text>
+  <text x="273" y="266" class="ssb" text-anchor="middle">prior -> posterior</text>
+
+  <!-- GS operator -->
+  <rect class="sgs" x="556" y="74" width="150" height="56" rx="5"/>
+  <text x="631" y="96" class="shd" text-anchor="middle">GS operator</text>
+  <text x="631" y="113" class="ssb" text-anchor="middle">&#968; -> magnetics @ sensors</text>
+  <text x="631" y="125" class="ssb" text-anchor="middle">(EFIT-free)</text>
+
+  <!-- decode heads -->
+  <text x="736" y="18" class="shd">Decode (every modality)</text>
+  <rect class="sout" x="736" y="28" width="150" height="30" rx="4"/><text x="746" y="47" class="slb">Camera dreams x5</text>
+  <rect class="sout" x="736" y="62" width="150" height="30" rx="4"/><text x="746" y="81" class="slb">Virtual diagnostics</text>
+  <rect class="sout" x="736" y="96" width="150" height="30" rx="4"/><text x="746" y="115" class="slb">Magnetics (raw)</text>
+  <rect class="sout" x="736" y="130" width="150" height="44" rx="4"/><text x="746" y="148" class="slb">Boundary / X-point</text><text x="746" y="164" class="ssb">READOUT of &#968; (not a label)</text>
+
+  <!-- arrows -->
+  <path class="sar" d="M184,45 L212,108"/>
+  <path class="sar" d="M184,83 L212,116"/>
+  <path class="sar" d="M184,121 L212,124"/>
+  <path class="sar" d="M184,159 L212,134"/>
+  <path class="sar" d="M184,203 L212,142"/>
+  <path class="sar" d="M332,123 L360,123"/>
+  <path class="sar" d="M437,172 L437,212"/>
+  <path class="sar" d="M362,246 L334,246"/>
+  <path class="sar" d="M273,214 L273,162"/>
+  <path class="sar" d="M512,110 L554,104"/>
+  <path class="sar" d="M706,100 L734,108"/>
+  <path class="sar" d="M512,100 L734,45"/>
+  <path class="sar" d="M512,130 L734,150"/>
+
+  <!-- dream/track band -->
+  <rect class="sbox" x="214" y="300" width="672" height="92" rx="6" stroke-dasharray="5 3"/>
+  <text x="228" y="322" class="shd">One model, two modes (observation-withholding is the only toggle)</text>
+  <text x="228" y="343" class="slb">TRACK (filter):</text><text x="330" y="343" class="ssb">correct the prior against each step's observations -> posterior state-now (online, for control/commissioning)</text>
+  <text x="228" y="363" class="slb">DREAM (forecast):</text><text x="330" y="363" class="ssb">withhold observations, roll the prior under a PLAN -> controllable what-if; uncertainty inflates honestly</text>
+  <text x="228" y="383" class="ssb">PLAY vs TRACK is not two models — it is the same filter with the measurement stream turned off.</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 2 — The skeleton. Geometry-tagged, absolute-calibrated tokens (left) are encoded to a belief over
+the hybrid latent (green). The space-time transformer is the command-conditioned <em>prior</em>; the
+LAE-EnKF ensemble <em>corrects</em> it against observations to the <em>posterior</em>. Decode heads and
+the EFIT-free Grad-Shafranov (GS) operator (amber) map the latent to every raw signal and to a
+boundary/X-point <em>readout</em>. The same model dreams (roll prior, observations withheld) or tracks
+(correct every step).</figcaption>
+</figure>
+
+<h2 id="s5">§5 — Representation: absolute calibration + sensor-geometry positional encoding</h2>
+<p>We <strong>keep the token substrate</strong> (the proven way to ingest high-bandwidth, multi-rate,
+multi-modal streams on a common footing — <em>tokenisation</em> maps continuous signals/images to
+sequences of integer codes from a learned codebook). We add two things that the machine-agnostic goal
+makes non-negotiable.</p>
+<p><strong>(1) Absolute calibration.</strong> Tokens are quantised at <em>corpus level in physical
+(SI) units</em>, not per-shot. A 0.5&nbsp;T field maps to the same code in every shot and on every
+machine. This directly repairs the scale-free blocker of §2 — per-shot z-scoring destroyed the
+absolute magnitude that equilibrium reconstruction needs <em>and</em> the cross-machine comparability
+that transfer needs.</p>
+<p><strong>(2) Sensor-geometry positional encoding.</strong> Every token carries the physical geometry
+of <em>its sensor</em>: position (R,&nbsp;Z,&nbsp;φ), orientation / sensor normal, and integration
+geometry (line-of-sight chord endpoints for interferometer/SXR; pixel footprint for cameras), plus the
+machine geometry (vessel, poloidal-field-coil locations). This is the camera-spatial-position principle
+— camera tokens only decoded once each carried its 16×16 grid position — generalised to <em>all</em>
+diagnostics.</p>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 900 250" width="100%" role="img" aria-label="The critical distinction: sensor geometry (where a diagnostic sits and points) is freely-used apparatus metadata and is the token positional encoding; plasma geometry (boundary, X-point) is a code output, firewalled, and never a training label" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <style>
+    .gbox{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1}
+    .gfree{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.4}
+    .gwall{fill:#fdeef0;stroke:#b05a66;stroke-width:1.4}
+    .ghd{font-size:13px;fill:#1a1a1a;font-weight:700}
+    .glb{font-size:11.5px;fill:#1a1a1a}
+    .gsb{font-size:10.5px;fill:#3a3a3a}
+  </style>
+  <rect class="gfree" x="16" y="30" width="420" height="190" rx="6"/>
+  <text x="32" y="54" class="ghd">SENSOR geometry — FREELY USED (not leakage)</text>
+  <text x="32" y="76" class="glb">Where each diagnostic SITS and POINTS:</text>
+  <text x="32" y="96" class="gsb">&#8226; probe/loop position (R,Z,&#966;) + orientation / normal</text>
+  <text x="32" y="114" class="gsb">&#8226; interferometer / SXR line-of-sight chord endpoints</text>
+  <text x="32" y="132" class="gsb">&#8226; camera pixel footprint (R,Z); vessel + PF-coil geometry</text>
+  <text x="32" y="158" class="glb">= apparatus metadata. It is the token POSITIONAL ENCODING.</text>
+  <text x="32" y="178" class="gsb">"Not signal leakage to know where our diagnostics are and</text>
+  <text x="32" y="194" class="gsb">are pointing." Makes a machine-varying sensor set ingestible</text>
+  <text x="32" y="210" class="gsb">by one attention model; this is what transfers across devices.</text>
+
+  <rect class="gwall" x="464" y="30" width="420" height="190" rx="6"/>
+  <text x="480" y="54" class="ghd">PLASMA geometry — FIREWALLED (code output)</text>
+  <text x="480" y="76" class="glb">The shape of the PLASMA ITSELF:</text>
+  <text x="480" y="96" class="gsb">&#8226; boundary / last-closed-flux-surface, X-point location</text>
+  <text x="480" y="114" class="gsb">&#8226; magnetic axis; flux map &#968;(R,Z); safety factor q</text>
+  <text x="480" y="140" class="glb">= OUTPUT of another code (EFIT). Evaluator-only.</text>
+  <text x="480" y="160" class="gsb">"Only leakage if we share the OUTPUTS from other codes."</text>
+  <text x="480" y="180" class="gsb">NEVER an input, NEVER a training label. In our model it is a</text>
+  <text x="480" y="196" class="gsb">READOUT of the learned &#968; (via the GS operator), and the</text>
+  <text x="480" y="212" class="gsb">firewalled EFIT version only JUDGES that readout (&#167;10).</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 3 — The distinction the firewall actually draws (lead, 2026-06-24). <em>Sensor</em> geometry
+(left, green) is apparatus metadata — freely used, and it <em>is</em> the positional encoding. <em>Plasma</em>
+geometry (right, red) is a code output — EFIT's reconstruction stays firewalled, never a label; our model
+produces its own boundary/X-point as a readout of the learned flux. The firewall bans <em>code outputs</em>,
+never apparatus geometry.</figcaption>
+</figure>
+
+<h2 id="s6">§6 — The hybrid latent state (anchored ⊕ free), in dimensionless coordinates</h2>
+<p>The shared latent <em>z</em><sub>t</sub> has two parts. The <strong>anchored block</strong> is
+supervised <em>only</em> toward genuinely raw, measured quantities — plasma current Ip (from the
+<em>Rogowski coil</em>, a current-measuring loop), coil currents, line-averaged density n<sub>e</sub>,
+raw field magnitudes — and carries a poloidal-flux ψ representation (the scalar field whose contours are
+the magnetic surfaces). The <strong>free block</strong> is unconstrained, for the closure physics that
+first-principles cannot pin (edge turbulence, fast transients, the pedestal). Coordinates are
+<strong>dimensionless</strong> — ρ* (normalised gyroradius), β (pressure / magnetic pressure), ν*
+(normalised collisionality), a/R (inverse aspect ratio), normalised shape — because machine size spans
+an order of magnitude MAST&nbsp;→&nbsp;ITER and only dimensionless groups bridge it.</p>
+<p><strong>The crucial point (how we learn physics without being told the physics):</strong> the
+boundary, the X-point and the magnetic axis are <em>never</em> supervised targets — they are
+<strong>readouts</strong> of the learned ψ field (the off-axis saddle of ψ <em>is</em> the X-point). We
+do not tell the model where the X-point is; we make the X-point the natural consequence of explaining the
+raw magnetics. Physics enters as the <em>coordinate system and soft priors</em> (the language), never as
+a hard law or a borrowed reconstruction (the answer).</p>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 880 210" width="100%" role="img" aria-label="The hybrid latent: an anchored block supervised on raw measured scalars plus a poloidal flux representation, and a free block for closure physics, both in dimensionless coordinates" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <style>
+    .lbox{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1}
+    .lanc{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.4}
+    .lfree{fill:#eef4ff;stroke:#1565c0;stroke-width:1.3}
+    .lhd{font-size:13px;fill:#1a1a1a;font-weight:700}
+    .llb{font-size:11.5px;fill:#1a1a1a}
+    .lsb{font-size:10.5px;fill:#3a3a3a}
+  </style>
+  <rect class="lbox" x="16" y="24" width="848" height="166" rx="8" fill="none" stroke="#2e7d32" stroke-dasharray="4 3"/>
+  <text x="32" y="46" class="lhd">Shared latent z_t  —  dimensionless coordinates (&#961;*, &#946;, &#957;*, a/R, normalised shape)</text>
+
+  <rect class="lanc" x="32" y="62" width="400" height="112" rx="6"/>
+  <text x="48" y="84" class="lhd">Anchored block (physics handle)</text>
+  <text x="48" y="105" class="lsb">supervised ONLY on RAW measured quantities:</text>
+  <text x="48" y="122" class="lsb">&#8226; Ip (Rogowski) &#183; coil currents &#183; line density n_e</text>
+  <text x="48" y="138" class="lsb">&#8226; raw field magnitudes</text>
+  <text x="48" y="158" class="llb">+ carries poloidal flux &#968; (read out by GS operator)</text>
+
+  <rect class="lfree" x="448" y="62" width="400" height="112" rx="6"/>
+  <text x="464" y="84" class="lhd">Free block (closure physics)</text>
+  <text x="464" y="105" class="lsb">unconstrained, data-led — for what the</text>
+  <text x="464" y="121" class="lsb">equations cannot pin:</text>
+  <text x="464" y="138" class="lsb">&#8226; edge turbulence &#183; ELM/sawtooth fast transients</text>
+  <text x="464" y="154" class="lsb">&#8226; pedestal &#183; the closure problem (where ML earns its keep)</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 4 — The hybrid latent. The anchored block is the physics handle (raw-supervised scalars + a ψ
+representation read out by the GS operator); the free block carries the closure physics. Plasma
+boundary/X-point are readouts of ψ, never supervised. Both blocks live in dimensionless coordinates so
+the state means the same thing across machine scale.</figcaption>
+</figure>
+
+<h2 id="s7">§7 — The heart: closed-loop filter + space-time transformer transition kernel</h2>
+<p>The previous generative model dreamed <em>open-loop</em> — it free-ran from a fixed plan and context,
+never re-reading a measurement, so error compounded until the dream collapsed to "don't move"
+(persistence). The structural fix is to make inference <strong>closed-loop</strong>: a
+<em>predict&nbsp;→&nbsp;correct</em> cycle, exactly as a Kalman filter works.</p>
+<ul>
+  <li><strong>Predict (the prior).</strong> A command-conditioned <strong>space-time transformer</strong>
+  advances the belief: <em>self-attention</em> over space (within a time-slice) and causal attention over
+  time learn the dynamics — <em>advection</em> (transport/flow) and <em>diffusion</em> (spreading) as
+  attention patterns. This is the "space and time transformers handling advection/diffusion" of the
+  brief.</li>
+  <li><strong>Correct (the posterior).</strong> A <strong>small LAE-EnKF ensemble</strong> folds in the
+  step's observations. <em>EnKF</em> = Ensemble Kalman Filter, a data-assimilation method that represents
+  the belief by a small set of sample states and updates them toward the observations by a gain computed
+  from their spread; <em>LAE</em> = Latent AutoEncoder — the EnKF runs in the model's learned latent
+  space (a Koopman-style linearisation), so the correction is cheap and the posterior can be
+  non-Gaussian. Chosen over a single learned gain (<em>KalmanNet</em>) for its richer posterior.</li>
+</ul>
+<p>The belief is probabilistic, so the model carries <strong>calibrated uncertainty</strong> (North Star
+§3): in dream mode, with no observations to correct against, the uncertainty <em>inflates honestly</em>
+rather than the model bluffing. And controllability becomes <em>testable</em>: on excited windows, does
+the command-driven prior move the state more than the posterior's inertia would? — not something we force,
+something we measure.</p>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 880 270" width="100%" role="img" aria-label="The closed-loop predict-correct cycle: a space-time transformer predicts the prior belief, an LAE-EnKF ensemble corrects it against observations to the posterior; tracking corrects every step while dreaming withholds observations and rolls the prior under a plan" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <defs><marker id="cl-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker></defs>
+  <style>
+    .cbox{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1}
+    .cpred{fill:#eef4ff;stroke:#1565c0;stroke-width:1.4}
+    .ccorr{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.4}
+    .cobs{fill:#fff4e6;stroke:#c98a3a;stroke-width:1.3}
+    .chd{font-size:12.5px;fill:#1a1a1a;font-weight:700}
+    .clb{font-size:11px;fill:#1a1a1a}
+    .csb{font-size:10px;fill:#3a3a3a}
+    .car{stroke:#5b6b80;stroke-width:1.5;fill:none;marker-end:url(#cl-a)}
+  </style>
+  <text x="16" y="20" class="chd">The predict -> correct cycle (one timestep)</text>
+  <rect class="cbox" x="20" y="40" width="120" height="56" rx="5"/><text x="80" y="64" class="clb" text-anchor="middle">posterior z_{t-1}</text><text x="80" y="80" class="csb" text-anchor="middle">belief (ensemble)</text>
+  <rect class="cpred" x="200" y="40" width="150" height="56" rx="5"/><text x="275" y="60" class="clb" text-anchor="middle">PREDICT (prior)</text><text x="275" y="76" class="csb" text-anchor="middle">space-time transformer</text><text x="275" y="89" class="csb" text-anchor="middle">+ ACTION (plan)</text>
+  <rect class="ccorr" x="410" y="40" width="150" height="56" rx="5"/><text x="485" y="60" class="clb" text-anchor="middle">CORRECT (posterior)</text><text x="485" y="76" class="csb" text-anchor="middle">LAE-EnKF ensemble</text><text x="485" y="89" class="csb" text-anchor="middle">gain from spread</text>
+  <rect class="cbox" x="620" y="40" width="120" height="56" rx="5"/><text x="680" y="64" class="clb" text-anchor="middle">posterior z_t</text><text x="680" y="80" class="csb" text-anchor="middle">state NOW</text>
+  <rect class="cobs" x="410" y="128" width="150" height="40" rx="5"/><text x="485" y="148" class="clb" text-anchor="middle">observation y_t</text><text x="485" y="162" class="csb" text-anchor="middle">raw measured tokens</text>
+  <path class="car" d="M140,68 L198,68"/>
+  <path class="car" d="M350,68 L408,68"/>
+  <path class="car" d="M560,68 L618,68"/>
+  <path class="car" d="M485,126 L485,98"/>
+  <path class="car" d="M680,96 C680,150 160,150 100,98"/>
+  <text x="300" y="120" class="csb">feed posterior back -> next step</text>
+
+  <rect class="cbox" x="20" y="196" width="350" height="58" rx="6" stroke-dasharray="4 3" stroke="#2e7d32"/>
+  <text x="34" y="216" class="chd">TRACK (filter)</text>
+  <text x="34" y="234" class="csb">observation present every step -> correct -> state-now,</text>
+  <text x="34" y="248" class="csb">online, for control + commissioning</text>
+
+  <rect class="cbox" x="390" y="196" width="350" height="58" rx="6" stroke-dasharray="4 3" stroke="#1565c0"/>
+  <text x="404" y="216" class="chd">DREAM (forecast)</text>
+  <text x="404" y="234" class="csb">withhold observation -> roll PRIOR under a plan -></text>
+  <text x="404" y="248" class="csb">controllable what-if; uncertainty inflates honestly</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 5 — The closed-loop cycle. The transformer <em>predicts</em> the command-conditioned prior; the
+LAE-EnKF ensemble <em>corrects</em> it against the raw observation to the posterior, which feeds the next
+step. Tracking corrects every step (state-now for control); dreaming withholds the observation and rolls
+the prior under a plan (controllable what-if), with the ensemble spread giving honest, inflating
+uncertainty. This predict-correct loop is the structural fix for the open-loop persistence collapse.</figcaption>
+</figure>
+
+<h2 id="s8">§8 — Observation operators and decode heads</h2>
+<p>Each modality is reconstructed from the latent by its own observation operator — the bridge from
+hidden state to measurable signal.</p>
+<ul>
+  <li><strong>Magnetics — the EFIT-free Grad-Shafranov (GS) operator</strong> (<code>gs/operator.py</code>,
+  the durable Stage-2 asset). The <em>Grad-Shafranov equation</em> is the magnetohydrodynamic force-balance
+  relation for an axisymmetric plasma; its Green's-function form maps a current/flux distribution to the
+  magnetic field at any point. We use it as a differentiable operator: latent ψ → predicted signal at each
+  magnetic sensor's known location → trained to match the <em>raw measured</em> magnetics. This is the
+  true, machine-agnostic "language" (Maxwell, not EFIT's fitting choices) that lets the boundary and
+  X-point be read out without labels.</li>
+  <li><strong>Other diagnostics — learned operators.</strong> Interferometer (line-integrated density),
+  SXR (line-integrated core emission), Dα (edge/ELM) each get a learned head mapping the latent to the raw
+  signal along the sensor's chord geometry.</li>
+  <li><strong>Cameras — decoders for all five.</strong> The frozen <strong>Open-MAGVIT2</strong> image
+  tokeniser's decoder reconstructs frames for all five tokenised cameras (rbb / rba / rco / rgb / rgc) — the
+  demoted autoregressive backbone becomes a pure <em>decode</em> path. Honest caveat: only rbb is densely
+  populated on disk; the other four are sparsely recorded, so decode quality will track each camera's real
+  coverage.</li>
+</ul>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 880 220" width="100%" role="img" aria-label="The GS observation operator maps the latent poloidal flux to predicted magnetics at sensor locations, trained against raw measured magnetics; the X-point is read out as the saddle of the learned flux field, never supervised" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <defs><marker id="gs-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker></defs>
+  <style>
+    .obx{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1}
+    .ogs{fill:#fff4e6;stroke:#c98a3a;stroke-width:1.4}
+    .oraw{fill:#eef4ff;stroke:#1565c0;stroke-width:1.3}
+    .oout{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.4}
+    .ohd{font-size:12.5px;fill:#1a1a1a;font-weight:700}
+    .olb{font-size:11px;fill:#1a1a1a}
+    .osb{font-size:10px;fill:#3a3a3a}
+    .oar{stroke:#5b6b80;stroke-width:1.5;fill:none;marker-end:url(#gs-a)}
+  </style>
+  <rect class="oout" x="16" y="70" width="130" height="56" rx="5"/><text x="81" y="94" class="olb" text-anchor="middle">latent &#968;</text><text x="81" y="110" class="osb" text-anchor="middle">flux field (in z_t)</text>
+  <rect class="ogs" x="210" y="70" width="160" height="56" rx="5"/><text x="290" y="90" class="ohd" text-anchor="middle">GS operator</text><text x="290" y="107" class="osb" text-anchor="middle">&#968; -> B at sensor (R,Z)</text><text x="290" y="119" class="osb" text-anchor="middle">Green's function</text>
+  <rect class="oraw" x="430" y="40" width="170" height="50" rx="5"/><text x="515" y="60" class="olb" text-anchor="middle">predicted magnetics</text><text x="515" y="77" class="osb" text-anchor="middle">at each sensor location</text>
+  <rect class="oraw" x="430" y="108" width="170" height="50" rx="5"/><text x="515" y="128" class="olb" text-anchor="middle">RAW measured magnetics</text><text x="515" y="145" class="osb" text-anchor="middle">the training target</text>
+  <rect class="oout" x="660" y="70" width="200" height="56" rx="5"/><text x="760" y="90" class="ohd" text-anchor="middle">X-point READOUT</text><text x="760" y="107" class="osb" text-anchor="middle">off-axis saddle of &#968;</text><text x="760" y="119" class="osb" text-anchor="middle">computed, never labelled</text>
+  <path class="oar" d="M146,98 L208,98"/>
+  <path class="oar" d="M370,90 L428,72"/>
+  <path class="oar" d="M515,90 L515,106" stroke-dasharray="3 2"/>
+  <text x="524" y="102" class="osb">match (loss)</text>
+  <path class="oar" d="M146,90 C400,10 600,10 760,68"/>
+  <text x="300" y="32" class="osb">the same latent &#968; that explains the magnetics yields the X-point as a geometric feature</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 6 — Learning the X-point without an X-point label. The GS operator maps latent ψ to predicted
+magnetics at the (freely-known) sensor locations; training matches the raw measured magnetics. The
+X-point is then read out as the off-axis saddle of the learned ψ — a geometric feature of the only flux
+field that explains the magnetics, never a supervised target. <strong>Honest limit:</strong> magnetics + GS
+pin the X-point/boundary (well-posed), but <em>not</em> the interior current profile (under-determined —
+needs SXR/interferometer/MSE and stays partly uncertain).</figcaption>
+</figure>
+
+<h2 id="s9">§9 — Training</h2>
+<p>The objective is raw-signal self-supervision through the physics-grounded bottleneck:</p>
+<ul>
+  <li><strong>Raw next-step / forecast prediction</strong> of the measured tokens and signals (the model
+  must explain reality, never a reconstruction). Cross-entropy / negative-log-likelihood (NLL) on tokens;
+  proper scores on continuous signals.</li>
+  <li><strong>GS soft-prior residual</strong> on raw magnetics — a falsifiable prior (the data may
+  override it); a persistent residual is a <em>discovery signal</em> (where force balance breaks), not an
+  error to fit away.</li>
+  <li><strong>Anchored-block supervision</strong> toward the raw measured scalars (Ip, coil currents,
+  n<sub>e</sub>).</li>
+  <li><strong>Belief regularisation</strong> — Kullback-Leibler (KL) term with free-bits on the latent
+  belief, keeping the stochastic state informative without collapse.</li>
+</ul>
+<p><strong>Excitation-curated training (breaking the confound).</strong> Because flat-top is
+non-exciting (the literal root cause of §2), we up-weight / preferentially sample windows with genuine
+actuator excitation — coil-current ramps, large |dI/dt| transients, plan changes, ramp-up/down — so the
+command actually moves the state and the map becomes <em>identifiable</em>. An
+<strong>observation-withholding schedule</strong> trains the filter (track) and the forecast (dream)
+jointly, so the model is never purely teacher-forced.</p>
+
+<h2 id="s10">§10 — Evaluation and the firewall (the honesty spine)</h2>
+<p>EFIT's reconstructed outputs are <strong>firewalled</strong> — a separate referee that only
+<em>judges</em> the model's readouts, never trains them. There is a hierarchy of validation honesty, and
+we lead with the strong tiers.</p>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 880 230" width="100%" role="img" aria-label="Validation honesty hierarchy: weakest is agreement with EFIT outputs (sanity only); strong is predicting raw held-out observables the model never saw; strongest is predicting raw observables on a different machine" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <style>
+    .vw{fill:#fdeef0;stroke:#b05a66;stroke-width:1.2}
+    .vs{fill:#fff4e6;stroke:#c98a3a;stroke-width:1.3}
+    .vss{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.6}
+    .vhd{font-size:12.5px;fill:#1a1a1a;font-weight:700}
+    .vlb{font-size:11px;fill:#1a1a1a}
+    .vsb{font-size:10px;fill:#3a3a3a}
+  </style>
+  <rect class="vw" x="120" y="20" width="640" height="52" rx="5"/>
+  <text x="136" y="40" class="vhd">WEAK &#183; agrees with EFIT's reconstruction</text>
+  <text x="136" y="60" class="vsb">a convenient sanity cross-check only — circular-ish (you cannot validate physics with a code's assumptions)</text>
+  <rect class="vs" x="80" y="84" width="720" height="56" rx="5"/>
+  <text x="96" y="104" class="vhd">STRONG &#183; predicts RAW held-out observables the model never saw</text>
+  <text x="96" y="124" class="vsb">held-out magnetic probes; MSE on beam-on slices (the "MSE wall" as validation key) — genuine physics, not code-agreement</text>
+  <rect class="vss" x="40" y="152" width="800" height="56" rx="5"/>
+  <text x="56" y="172" class="vhd">STRONGEST &#183; predicts raw observables on a DIFFERENT machine / regime</text>
+  <text x="56" y="192" class="vsb">the machine-agnostic test — the destination; design for it now (geometry-parameterised), exercise it later</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 7 — Validation honesty hierarchy. Agreement-with-EFIT (top, red) is only a sanity check.
+Predicting <em>raw held-out observables the model never saw</em> (middle, amber) is genuine physics
+validation. Predicting raw observables on a <em>different machine</em> (bottom, green) is the
+machine-agnostic gold standard. We design for the bottom and lead the v0 eval with the middle.</figcaption>
+</figure>
+
+<p><strong>Controllability gate.</strong> The powered ΔN-M gate (true-plan vs random-plan rollout
+divergence over the latent that explains the raw signals, 10 random plans, collapse-rejecting, bootstrap
+CI) — run on <strong>excited held-out windows</strong> where the command demonstrably should move the
+state. Controllability is measured, not assumed. <strong>Calibration</strong> is checked with coverage,
+CRPS (Continuous Ranked Probability Score — a proper score rewarding sharp <em>and</em> calibrated
+forecasts) and reliability diagrams. <strong>Baseline to beat:</strong> persistence and the classical
+Ensemble Kalman Filter current-recovery bar.</p>
+
+<h2 id="s11">§11 — Predictive capability and honest limits</h2>
+<p>Predictability splits by whether the plan <em>determines</em> the quantity. The controlled macroscopic
+response (Ip, density, shape/position, the equilibrium evolution) is sharply forecastable — a learned
+actuator→response map. The bursty micro-events (ELMs, filaments, sawtooth/MHD onset, turbulence) are
+<em>aleatoric</em> (irreducibly random given the plan): only their statistics are predictable, and sampled
+rollouts give plausible realisations, not exact burst times. And the <strong>interior current profile is
+genuinely under-determined</strong> from magnetics alone (the Stage-2/Stage-3 honest negative); the model
+must say "I don't know" (calibrated uncertainty) where the data cannot pin it, rather than extrapolate
+confidently. Over-claiming exact ELM timing or a pinned interior profile is the trap to avoid.</p>
+
+<h2 id="s12">§12 — Scope, sequencing, and the neural-SDE upgrade</h2>
+<p><strong>MAST-first, design-for-transfer.</strong> We build and validate on MAST now, but
+geometry-parameterise everything and bake in dimensionless coordinates so a second machine drops in
+without re-architecting. The v0 modality set is magnetics + plan + interferometer + SXR + all five
+cameras + the HF signals.</p>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 880 250" width="100%" role="img" aria-label="Roadmap: v0 closed-loop GS-grounded filter on MAST, then the neural-SDE transition-kernel upgrade, then second-machine transfer and the discovery layer" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <defs><marker id="rm-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker></defs>
+  <style>
+    .rv0{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.6}
+    .rup{fill:#eef4ff;stroke:#1565c0;stroke-width:1.4}
+    .rdef{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1.2}
+    .rhd{font-size:12.5px;fill:#1a1a1a;font-weight:700}
+    .rlb{font-size:11px;fill:#1a1a1a}
+    .rsb{font-size:10px;fill:#3a3a3a}
+    .rar{stroke:#5b6b80;stroke-width:1.5;fill:none;marker-end:url(#rm-a)}
+  </style>
+  <rect class="rv0" x="16" y="40" width="200" height="120" rx="6"/>
+  <text x="116" y="60" class="rhd" text-anchor="middle">v0 (now)</text>
+  <text x="28" y="82" class="rsb">closed-loop LAE-EnKF filter</text>
+  <text x="28" y="98" class="rsb">+ space-time transformer prior</text>
+  <text x="28" y="114" class="rsb">+ GS-grounded &#968; latent</text>
+  <text x="28" y="130" class="rsb">+ all-modality decode, MAST</text>
+  <text x="28" y="150" class="rsb">raw-held-out + control gate</text>
+
+  <rect class="rup" x="256" y="40" width="200" height="120" rx="6"/>
+  <text x="356" y="60" class="rhd" text-anchor="middle">Upgrade: neural-SDE kernel</text>
+  <text x="268" y="82" class="rsb">replace/augment the transition</text>
+  <text x="268" y="98" class="rsb">kernel with a neural SDE:</text>
+  <text x="268" y="114" class="rsb">drift = advection,</text>
+  <text x="268" y="130" class="rsb">diffusion = stochasticity</text>
+  <text x="268" y="146" class="rsb">(an explicit discovery target)</text>
+
+  <rect class="rdef" x="496" y="40" width="180" height="120" rx="6"/>
+  <text x="586" y="60" class="rhd" text-anchor="middle">Transfer</text>
+  <text x="508" y="82" class="rsb">bring a 2nd machine's</text>
+  <text x="508" y="98" class="rsb">geometry-tagged data;</text>
+  <text x="508" y="114" class="rsb">test zero/few-shot on</text>
+  <text x="508" y="130" class="rsb">raw held-out observables</text>
+  <text x="508" y="146" class="rsb">(the gold-standard eval)</text>
+
+  <rect class="rdef" x="700" y="40" width="164" height="120" rx="6"/>
+  <text x="782" y="60" class="rhd" text-anchor="middle">Discovery</text>
+  <text x="712" y="82" class="rsb">SINDy / Koopman on</text>
+  <text x="712" y="98" class="rsb">the transition kernel;</text>
+  <text x="712" y="114" class="rsb">dimensionless reduced</text>
+  <text x="712" y="130" class="rsb">structure; GS-residual</text>
+  <text x="712" y="146" class="rsb">as departure detector</text>
+
+  <path class="rar" d="M216,100 L254,100"/>
+  <path class="rar" d="M456,100 L494,100"/>
+  <path class="rar" d="M676,100 L698,100"/>
+
+  <text x="16" y="196" class="rsb">Reuse: gs/operator.py (EFIT-free GS) &#183; sequential_da.py (working reduced-EKF, pitch RMSE 0.124 / cov90 0.962) &#183;</text>
+  <text x="16" y="212" class="rsb">the token corpus + phase-aware tokenisers &#183; the powered n=10 &#916;N-M gate &#183; the firewalled EFIT referee.</text>
+  <text x="16" y="234" class="rsb">Neural-SDE is sequenced as an upgrade (not the v0) because the SDE solve is costly and the v0 must land the closed loop first.</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 8 — Roadmap. v0 (green) lands the closed-loop, GS-grounded filter on MAST. The
+<strong>neural-SDE transition-kernel upgrade</strong> (blue) then makes the dynamics continuous-time and
+stochastic (drift = advection, diffusion = an explicit discovery target). Transfer (second machine) and
+the SINDy/Koopman discovery layer follow. Durable assets are reused throughout.</figcaption>
+</figure>
+
+<h2 id="s13">§13 — Glossary (educational)</h2>
+<p><strong>Domain / physics.</strong>
+<strong>Tokamak</strong> — magnetic-confinement fusion device. <strong>MAST</strong> — Mega-Amp Spherical
+Tokamak (our data source). <strong>Pulse schedule / plan</strong> — pre-programmed actuator waveforms (the
+"action"): demanded plasma current, density, shape, heating, coil voltages, gas valves.
+<strong>Ip / n<sub>e</sub> / ψ / q</strong> — plasma current / electron density / poloidal magnetic flux /
+safety factor (toroidal-to-poloidal field-line turn ratio; the key stability profile).
+<strong>X-point / LCFS / magnetic axis</strong> — the field null bounding a diverted plasma / last
+closed flux surface (boundary) / the on-axis flux extremum. <strong>ELM</strong> — Edge-Localized Mode
+(edge burst); <strong>MHD</strong> — magnetohydrodynamic; <strong>sawtooth</strong> — core relaxation
+oscillation. <strong>Mirnov coil</strong> — magnetic pickup coil (our <code>xma</code>); <strong>Dα</strong> —
+deuterium-alpha edge emission (<code>xim</code>); <strong>SXR</strong> — soft X-ray core emission
+(<code>xsx</code>); <strong>interferometer</strong> — line-integrated density; <strong>NBI</strong> —
+Neutral Beam Injection (heating); <strong>Rogowski coil</strong> — current-measuring loop (Ip).
+<strong>EFIT</strong> — the equilibrium-reconstruction code whose outputs are our firewalled referee.
+<strong>Grad-Shafranov (GS)</strong> — the MHD force-balance equation; its Green's-function form is our
+EFIT-free observation operator. <strong>Dimensionless groups</strong> — ρ* (normalised gyroradius), β
+(pressure/magnetic pressure), ν* (normalised collisionality), a/R (inverse aspect ratio) — machine-size-
+invariant coordinates.</p>
+<p><strong>Modelling.</strong>
+<strong>World model</strong> — a learned action→observation forward predictor. <strong>State-space model
+(SSM)</strong> — hidden state + transition kernel + observation model. <strong>Latent / belief</strong> —
+the hidden state / a distribution over it. <strong>Transition kernel</strong> — p(z<sub>t+1</sub>|z<sub>t</sub>,action),
+the learned dynamics. <strong>Filtering / forecasting / smoothing</strong> — estimate state now / project
+forward / reconstruct past. <strong>Kalman filter (KF)</strong> — the linear-Gaussian optimal filter;
+<strong>EnKF</strong> — Ensemble KF (sample-based, nonlinear); <strong>LAE-EnKF</strong> — EnKF in a learned
+latent (autoencoder) space (Koopman-style); <strong>KalmanNet</strong> — a learned-gain recurrent KF (the
+single-gain alternative we did not pick). <strong>RSSM</strong> — Recurrent State-Space Model (Dreamer-style
+latent world model). <strong>Neural ODE / SDE</strong> — continuous-time learned dynamics; an SDE adds a
+diffusion (noise) term. <strong>Open- vs closed-loop</strong> — free-running prediction vs predict-then-correct.
+<strong>Tokenisation / codebook</strong> — discretising signals/images to integer codes from a learned
+dictionary. <strong>VQ / FSQ / LFQ</strong> — Vector / Finite-Scalar / Lookup-Free Quantization (token
+schemes). <strong>Transformer / self-attention</strong> — a sequence model where every token weighs every
+other; <strong>space-time transformer</strong> — attention over space within a slice + causal over time.
+<strong>Teacher forcing vs autoregressive rollout</strong> — train on true history vs infer on own outputs.
+<strong>NLL / CRPS / MAP</strong> — Negative Log-Likelihood / Continuous Ranked Probability Score / Maximum
+A Posteriori. <strong>KL / free-bits</strong> — Kullback-Leibler divergence (belief regulariser) / a floor
+that keeps latent dimensions informative. <strong>Aleatoric vs epistemic</strong> — irreducible randomness
+vs reducible model/data uncertainty. <strong>SINDy / Koopman / DMD</strong> — Sparse Identification of
+Nonlinear Dynamics / linear-operator lift of nonlinear dynamics / Dynamic Mode Decomposition (structure
+discovery). <strong>Causal under-identification</strong> — when the command is confounded/non-exciting so
+its effect is not identifiable from observational data. <strong>ΔN-M gate</strong> — the powered
+controllability test (true-plan vs random-plan rollout divergence over a noise floor).</p>
+<p><strong>Frameworks / assets.</strong> <strong>PyTorch</strong> — the deep-learning framework.
+<strong>Open-MAGVIT2</strong> — the open-source LFQ image tokeniser/decoder for camera frames.
+<strong>Zarr / xarray</strong> — chunked-array storage / labelled arrays for the token store.
+<strong>imas-python</strong> — the IMAS Access Layer for reading IMAS data correctly.
+<strong>SLURM</strong> — the cluster scheduler (8×H200 betelgeuse node). <strong><code>gs/operator.py</code></strong>
+— our validated EFIT-free GS Green's-function forward operator. <strong><code>sequential_da.py</code></strong>
+— the working reduced Ensemble/Extended Kalman data-assimilation substrate (pitch RMSE 0.124, cov90 0.962).</p>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+
+<div class="r-dec" data-key="latent-structure" data-choice="hybrid-anchored-free" data-by="Simon McIntosh" data-when="2026-06-24">
+  <p class="r-dec-q">How physically structured is the shared latent state?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt chosen" data-value="hybrid-anchored-free">hybrid: a raw-supervised anchored block (Ip, coil currents, n_e, ψ) + a free closure block, in dimensionless coords</button>
+    <button class="r-opt" data-value="generic-rssm">generic learned latent (RSSM-style); physics only via input normalisation + conditioning</button>
+    <button class="r-opt" data-value="explicit-physical">explicit physical-parameter state (re-implements EFIT/reduced-model; brittle)</button>
+  </p>
+  <p class="r-dec-rat">Locked by the lead 2026-06-24. The anchored block gives the command a clean handle and transfer a dimensionless anchor; the free block keeps data-led flexibility for the closure problem. Boundary/X-point are readouts of ψ, never supervised.</p>
+</div>
+
+<div class="r-dec" data-key="signal-representation" data-choice="tokens-absolute-geometry" data-by="Simon McIntosh" data-when="2026-06-24">
+  <p class="r-dec-q">How do physics-carrying signals enter the latent?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt chosen" data-value="tokens-absolute-geometry">keep tokens; add corpus-level ABSOLUTE calibration + per-diagnostic SENSOR-geometry positional encoding</button>
+    <button class="r-opt" data-value="continuous-absolute">continuous absolute values (drop tokens)</button>
+  </p>
+  <p class="r-dec-rat">Locked by the lead 2026-06-24: keep tokens for high-bandwidth multi-modal ingestion; absolute calibration repairs the scale-free blocker AND enables cross-machine comparability; sensor geometry is the positional encoding that makes a machine-varying sensor set ingestible by one model.</p>
+</div>
+
+<div class="r-dec" data-key="firewall-definition" data-choice="code-outputs-only" data-by="Simon McIntosh" data-when="2026-06-24">
+  <p class="r-dec-q">What exactly is firewalled (vs freely usable)?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt chosen" data-value="code-outputs-only">CODE OUTPUTS only (EFIT boundary/X-point/ψ/q). SENSOR geometry is apparatus metadata, freely used. PLASMA geometry stays firewalled.</button>
+  </p>
+  <p class="r-dec-rat">Locked by the lead 2026-06-24: "only leakage if we share the outputs from other codes." Sensor geometry (where diagnostics sit + point) is freely-used positional encoding; plasma geometry (boundary/X-point) is a code output — evaluator-only, never a label; the model produces its own via the GS readout.</p>
+</div>
+
+<div class="r-dec" data-key="physics-scaffold" data-choice="gs-observation-operator" data-by="Simon McIntosh" data-when="2026-06-24">
+  <p class="r-dec-q">How much true structure goes in the bottleneck (the language that lets physics be read out label-free)?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt chosen" data-value="gs-observation-operator">GS observation-operator grounding: latent ψ -> EFIT-free GS operator -> magnetics @ sensors; trained vs RAW magnetics; per-diagnostic learned operators for the rest; boundary/X-point = readouts</button>
+    <button class="r-opt" data-value="pure-self-supervised">pure self-supervised raw prediction, no GS (risks repeating the geometry-recovery failure)</button>
+    <button class="r-opt" data-value="rich-scaffold">richer scaffold (GS + conservation laws + multi-diagnostic operators day one)</button>
+  </p>
+  <p class="r-dec-rat">Locked by the lead 2026-06-24: the minimal TRUE, machine-agnostic structure (Maxwell/GS, not EFIT's fitting choices) that makes geometry recoverable without labels. Conservation/SDE structure is sequenced as an upgrade (§12), not baked into v0.</p>
+</div>
+
+<div class="r-dec" data-key="inference-paradigm" data-choice="closed-loop-filter-transformer-kernel" data-by="Simon McIntosh" data-when="2026-06-24">
+  <p class="r-dec-q">How is the state inferred and rolled forward?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt chosen" data-value="closed-loop-filter-transformer-kernel">closed-loop filter: space-time transformer prior + learned ensemble correction; probabilistic; dream=roll prior, track=correct</button>
+    <button class="r-opt" data-value="autoregressive-token">autoregressive token transformer (open-loop — what collapsed to persistence)</button>
+    <button class="r-opt" data-value="continuous-sde">continuous-time latent SDE/ODE (sequenced as an upgrade, not v0)</button>
+  </p>
+  <p class="r-dec-rat">Locked by the lead 2026-06-24: closed-loop predict-correct fixes the open-loop persistence collapse, gives calibrated uncertainty, makes controllability testable, and reuses sequential_da.py + the GS operator. The neural-SDE is the §12 transition-kernel upgrade.</p>
+</div>
+
+<div class="r-dec" data-key="correction-mechanism" data-choice="lae-enkf-ensemble" data-by="Simon McIntosh" data-when="2026-06-24">
+  <p class="r-dec-q">What performs the closed-loop correction?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt chosen" data-value="lae-enkf-ensemble">a small LAE-EnKF ensemble (richer, non-Gaussian posterior)</button>
+    <button class="r-opt" data-value="kalmannet">KalmanNet single learned gain (cheaper, Gaussian)</button>
+  </p>
+  <p class="r-dec-rat">Locked by the lead 2026-06-24: a small ensemble in the learned latent gives a richer posterior than a single learned gain, at acceptable cost.</p>
+</div>
+
+<div class="r-dec" data-key="v0-modality-scope" data-choice="magnetics-plan-interferometer-sxr-allcameras-hf" data-by="Simon McIntosh" data-when="2026-06-24">
+  <p class="r-dec-q">Which modalities are in the v0 build?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt chosen" data-value="magnetics-plan-interferometer-sxr-allcameras-hf">magnetics + plan + interferometer + SXR + ALL five cameras (decoders) + HF signals</button>
+    <button class="r-opt" data-value="minimal">magnetics + plan + one camera + HF (minimal)</button>
+  </p>
+  <p class="r-dec-rat">Locked by the lead 2026-06-24: include interferometer + SXR from day one (interior structure); decode all five cameras (decode quality tracks each camera's real-frame coverage — only rbb is dense).</p>
+</div>
+
+<div class="r-dec" data-key="transfer-timing" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">When do we bring a second machine's data in (exercise transfer)?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="after-v0">after the v0 MAST build validates (recommended — design-for-transfer now, exercise later)</button>
+    <button class="r-opt" data-value="from-start">acquire + co-train a second machine from the start</button>
+  </p>
+  <p class="r-dec-rat">Open. v0 is MAST-only but geometry-parameterised + dimensionless so a second machine drops in without re-architecting; the timing of acquiring/co-training the second device is a later decision.</p>
+</div>
+
+<div class="r-dec" data-key="dimensionless-coordinate-set" data-choice="" data-by="" data-when="">
+  <p class="r-dec-q">Which dimensionless groups define the latent coordinates, and how strictly imposed?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt" data-value="learned-soft">learn the mapping with a soft dimensionless regulariser (recommended — flexible)</button>
+    <button class="r-opt" data-value="hard-imposed">hard-impose a fixed dimensionless basis (ρ*, β, ν*, a/R)</button>
+  </p>
+  <p class="r-dec-rat">Open — a v0-design detail. The North Star extrapolation-coordinates decision pulls toward design-for-invariance; the exact basis + softness is to be set when the encoder is built.</p>
+</div>
+</section>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<!-- staged implementation followups appended after the user reviews this design -->
+</section>
+
+</main>
+</body>
+</html>
