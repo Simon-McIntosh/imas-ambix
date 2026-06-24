@@ -696,11 +696,11 @@ def run(args) -> int:
         "target_units": "m",
         "coverage": coverage,
         "arms": {
-            "all_diagnostics": all_report[0],
+            "all_diagnostics": all_report,
             "magnetics_only": (mag_arm[0] if mag_arm is not None else None),
         },
         # top-level verdict mirrors the all-diagnostics arm (the headline check)
-        "verdict": all_report[0]["verdict"],
+        "verdict": all_report["verdict"],
     }
 
     out_root = Path(args.out_root)
