@@ -122,35 +122,65 @@ def _stream_delta_nm(true_tok: np.ndarray, rand_toks: list[np.ndarray]) -> dict:
     ]
     tvr = float(np.mean(tvr_samples)) if tvr_samples else 0.0
     rvr = float(np.mean(rvr_samples)) if rvr_samples else 0.0
-    ratio = float("inf") if rvr == 0.0 else tvr / rvr
+    # ratio classification:
+    #   rvr>0            -> finite tvr/rvr (the normal ΔN-M reading);
+    #   rvr==0, tvr>0    -> +inf, an UNAMBIGUOUS pass (true plan moved the dream,
+    #                       no random plan did — maximal command-sensitivity);
+    #   rvr==0, tvr==0   -> DEGENERATE: the dreamed stream tokens are CONSTANT
+    #                       across every plan AND step (a collapsed diagnostic
+    #                       head).  This is NOT command-sensitivity — it is the
+    #                       strongest NO-signal — so it is ratio=nan + flagged
+    #                       degenerate, never counted as a pass.
+    if rvr > 0.0:
+        ratio = tvr / rvr
+        degenerate = False
+    elif tvr > 0.0:
+        ratio = float("inf")
+        degenerate = False
+    else:
+        ratio = float("nan")
+        degenerate = True
     return {
         "true_vs_random": tvr,
         "random_vs_random": rvr,
         "margin": tvr - rvr,
         "ratio": ratio,
+        "degenerate": degenerate,
         "true_vs_random_samples": [float(x) for x in tvr_samples],
         "random_vs_random_samples": [float(x) for x in rvr_samples],
     }
 
 
 def _cohort_summary(per_shot_ratios: list[float]) -> dict:
-    """Cohort mean / median / pass-fraction over per-shot ratios (inf-safe)."""
+    """Cohort mean / median / pass-fraction over per-shot ratios.
+
+    Three classes per shot (see :func:`_stream_delta_nm`): FINITE (a real
+    ratio), ``+inf`` (an unambiguous pass — true moved the dream, no random
+    did), and ``nan`` (a DEGENERATE constant dream — no signal either way; NOT a
+    pass).  The mean/median are over finite ratios only; a shot passes when its
+    ratio is finite and ``> 1.0`` OR is ``+inf``.  ``nan`` degenerate shots count
+    toward ``n_scored`` but never pass, and are reported separately so a
+    collapsed diagnostic head reads as the NO-signal it is, not a false pass.
+    """
     finite = [r for r in per_shot_ratios if np.isfinite(r)]
-    n_inf = sum(1 for r in per_shot_ratios if not np.isfinite(r))
+    n_inf = sum(1 for r in per_shot_ratios if np.isposinf(r))
+    n_degenerate = sum(1 for r in per_shot_ratios if np.isnan(r))
     mean_ratio = float(np.mean(finite)) if finite else float("nan")
     median_ratio = float(np.median(finite)) if finite else float("nan")
-    # a per-shot ratio > 1.0 means the true plan moved the dream more than a
-    # different plan moved it from another — command-sensitive on that shot.
+    # command-sensitive on a shot: the true plan moved the dream MORE than a
+    # different wrong plan moved it from another (ratio>1), or moved it where no
+    # wrong plan did (+inf).  A degenerate (nan) shot is never a pass.
     n_pass = sum(
-        1 for r in per_shot_ratios if (np.isfinite(r) and r > 1.0) or not np.isfinite(r)
+        1 for r in per_shot_ratios if np.isposinf(r) or (np.isfinite(r) and r > 1.0)
     )
     n_scored = len(per_shot_ratios)
     return {
         "n_scored": n_scored,
         "n_ratio_infinite": n_inf,
+        "n_degenerate_constant": n_degenerate,
         "mean_ratio": mean_ratio,
         "median_ratio": median_ratio,
-        "n_pass_ratio_gt_1": n_pass,
+        "n_pass": n_pass,
         "pass_fraction": float(n_pass / n_scored) if n_scored else 0.0,
         "per_shot_ratios": [float(r) for r in per_shot_ratios],
     }
@@ -629,6 +659,7 @@ def main(argv: list[str] | None = None) -> int:
             "median_ratio": mag.get("median_ratio", float("nan")),
             "pass_fraction": mag.get("pass_fraction", float("nan")),
             "n_scored": mag.get("n_scored", 0),
+            "n_degenerate_constant": mag.get("n_degenerate_constant", 0),
         }
     # GO if EITHER model's dreamed magnetics clears the floor by a clear cohort
     # margin (mean ratio > 1.1 AND a majority of shots pass).
@@ -664,11 +695,13 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("DREAMED-MAGNETICS COMMAND-SENSITIVITY: %s", verdict)
     for kind, d in decision.items():
         logger.info(
-            "  %s magnetics: mean_ratio=%.3f median=%.3f pass_frac=%.2f (n=%d)",
+            "  %s magnetics: mean_ratio=%.3f median=%.3f pass_frac=%.2f "
+            "degenerate=%d/%d",
             kind,
             d["mean_ratio"],
             d["median_ratio"],
             d["pass_fraction"],
+            d.get("n_degenerate_constant", 0),
             d["n_scored"],
         )
     logger.info("=" * 70)
