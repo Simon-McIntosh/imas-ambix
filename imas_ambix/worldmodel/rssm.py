@@ -117,6 +117,20 @@ class RSSMConfig:
         prior below the floor (prevents stochastic-state collapse).
     diagnostic_weight:
         Weight on the per-stream diagnostic next-step CE in the loss.
+    action_contrastive:
+        Turn the always-on action-contrastive InfoNCE term ON.  Keeps the command
+        load-bearing through reconstruction training: the realised (posterior)
+        latent must look more like the TRUE-command PRIOR rollout than a
+        WRONG-command one, so a command edit demonstrably moves the latent the
+        decoder reads.  OFF (default) leaves the model byte-identical to the plain
+        ELBO RSSM (no projector is even built).  Honoured only when the model has a
+        command path (``has_actuator``).
+    action_contrastive_weight:
+        Weight on the action-contrastive term in the total loss (default 1.0).
+    contrastive_dim:
+        Width of the shared projector that maps a latent into the InfoNCE space.
+    action_contrastive_temperature:
+        Temperature for the InfoNCE softmax (smaller = sharper).
     signal_streams:
         Measured-signal streams the diagnostic heads decode (name / vocab /
         channels — :class:`imas_ambix.worldmodel.spacetime_model_v2.
@@ -146,6 +160,11 @@ class RSSMConfig:
     beta: float = 1.0
     free_bits: float = 1.0
     diagnostic_weight: float = 0.5
+    # action-contrastive (OFF by default -> byte-identical to the plain ELBO RSSM).
+    action_contrastive: bool = False
+    action_contrastive_weight: float = 1.0
+    contrastive_dim: int = 128
+    action_contrastive_temperature: float = 0.1
     signal_streams: tuple[SignalStreamSpec, ...] = field(default_factory=tuple)
     actuator_channels: int = 0
     masked_command_indices: tuple[int, ...] = ()
@@ -167,6 +186,11 @@ class RSSMConfig:
     def has_diagnostics(self) -> bool:
         return len(self.signal_streams) > 0
 
+    @property
+    def has_action_contrastive(self) -> bool:
+        """Action-contrastive (projector + term) iff ON and the model has a command."""
+        return bool(self.action_contrastive) and self.has_actuator
+
 
 # ---------------------------------------------------------------------------
 # Output container
@@ -181,10 +205,14 @@ class RSSMOutput:
     ----------
     loss:
         Total scalar loss ``camera_CE + diagnostic_weight*diagnostic_CE +
-        beta*KL`` (mean over (B, T)).
+        beta*KL + action_contrastive_weight*action_contrastive`` (mean over (B, T)).
     camera_ce, diagnostic_ce, kl:
-        The three components (each a scalar; ``diagnostic_ce`` is 0 when the model
-        has no diagnostic streams or none are scored).
+        The three ELBO components (each a scalar; ``diagnostic_ce`` is 0 when the
+        model has no diagnostic streams or none are scored).
+    action_contrastive:
+        The action-contrastive InfoNCE term (a scalar; a zero-magnitude touch over
+        the projector when the term is OFF or a wrong-command rollout cannot form —
+        so it is always in the autograd graph and DDP-uniform).
     h, s:
         ``(B, T, h_dim)`` and ``(B, T, s_dim)`` — the per-frame deterministic and
         (posterior-sampled) stochastic states from the teacher-forced rollout.
@@ -194,6 +222,7 @@ class RSSMOutput:
     camera_ce: torch.Tensor
     diagnostic_ce: torch.Tensor
     kl: torch.Tensor
+    action_contrastive: torch.Tensor
     h: torch.Tensor
     s: torch.Tensor
 
@@ -331,6 +360,24 @@ class RSSMWorldModel(nn.Module):
         # re-tie after init (apply may have re-init the head weight tensor view).
         self.head.weight = self.token_embed.weight
 
+        # ── action-contrastive projector (built LAST, AFTER _init_weights) ──
+        # Built last + only when ON so an OFF model is byte-identical to the plain
+        # ELBO RSSM (same parameters, same RNG-consumption order during init), and a
+        # warm-start from an OFF checkpoint sees the identical key set.
+        self.has_action_contrastive = cfg.has_action_contrastive
+        if self.has_action_contrastive:
+            cd = int(cfg.contrastive_dim)
+            proj = nn.Sequential(
+                nn.Linear(cfg.z_dim, cd),
+                nn.GELU(),
+                nn.Linear(cd, cd),
+            )
+            for m in proj:
+                if isinstance(m, nn.Linear):
+                    nn.init.normal_(m.weight, std=0.02)
+                    nn.init.zeros_(m.bias)
+            self.action_contrastive_proj = proj
+
     @staticmethod
     def _init_weights(module: nn.Module) -> None:
         if isinstance(module, nn.Linear):
@@ -428,6 +475,66 @@ class RSSMWorldModel(nn.Module):
             idx = step.round().long().clamp(0, pa - 1)  # (T,)
             per_frame = values[:, idx, :]  # (B, T, C)
         return self.cmd_mlp(per_frame)  # (B, T, a_dim)
+
+    def wrong_frame_commands(
+        self,
+        actuator: dict[str, torch.Tensor] | None,
+        n_frames: int,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> torch.Tensor | None:
+        """A WRONG/random per-frame command embedding for the action-contrastive term.
+
+        Builds the TRUE per-frame command vectors exactly as :meth:`frame_commands`
+        (masked-state columns zeroed, resampled onto the ``T`` frames), then
+        PERTURBS only the UNMASKED command columns with a per-sample random shift
+        (the masked state columns ``masked_command_indices`` are HELD — they are not
+        commands and a perturbation there would be a no-op anyway, since they are
+        zeroed) before the command MLP.  The perturbation is a batch-roll of the true
+        commands plus Gaussian noise on the unmasked columns, so a different sample's
+        plan (a genuinely different drive) becomes the wrong command — guaranteed to
+        differ from the true command whenever the unmasked columns are not all equal.
+        Returns the projected wrong commands ``(B, T, a_dim)`` or ``None`` when no
+        command path / no plan is supplied.
+        """
+        cfg = self.config
+        if not cfg.has_actuator or actuator is None:
+            return None
+        values = actuator.get("values")
+        if values is None or values.numel() == 0 or values.ndim != 3:
+            return None
+        b, pa, c = values.shape
+        if pa == 0 or c == 0:
+            return None
+        values = self._mask_commands(values.to(self.cmd_mlp[0].weight.dtype))
+        # the columns that ARE commands (NOT masked) — the only ones we perturb.
+        mask_idx = {int(i) for i in (cfg.masked_command_indices or ())}
+        cmd_cols = [j for j in range(c) if j not in mask_idx]
+        wrong = values.clone()
+        if cmd_cols:
+            # roll the batch so each sample gets a DIFFERENT sample's true commands,
+            # then add Gaussian noise on the command columns — a wrong drive.
+            rolled = torch.roll(values, shifts=1, dims=0) if b > 1 else values
+            if generator is not None:
+                noise = torch.randn(
+                    values.shape, generator=generator, device=values.device
+                ).to(values.dtype)
+            else:
+                noise = torch.randn_like(values)
+            cols = torch.as_tensor(cmd_cols, device=values.device, dtype=torch.long)
+            wrong[..., cols] = rolled[..., cols] + noise[..., cols]
+        # nearest-step resample onto the T frames + project (mirror frame_commands).
+        if pa == n_frames:
+            per_frame = wrong
+        else:
+            t_pos = torch.arange(n_frames, device=wrong.device, dtype=torch.float32)
+            if n_frames > 1:
+                step = t_pos / float(n_frames - 1) * float(pa - 1)
+            else:
+                step = torch.zeros(1, device=wrong.device)
+            idx = step.round().long().clamp(0, pa - 1)
+            per_frame = wrong[:, idx, :]
+        return self.cmd_mlp(per_frame)
 
     def _gru_input(
         self, s_prev: torch.Tensor, cmd_t: torch.Tensor | None
@@ -593,6 +700,90 @@ class RSSMWorldModel(nn.Module):
             kl = torch.clamp(kl, min=float(free_bits))
         return kl.sum(dim=-1).mean()
 
+    # -- action-contrastive on the latent ----------------------------------
+
+    def _projector_zero_touch(self, ref: torch.Tensor) -> torch.Tensor:
+        """A zero-magnitude sum over the contrastive projector's params (DDP-uniform).
+
+        A batch / step where the action-contrastive term cannot score (no plan, no
+        wrong-command rollout, T<1) would otherwise leave the projector grad-less and
+        desync a DDP rank.  This touches every Linear in the projector with a
+        ``*0.0`` contribution so it stays in the autograd graph with no effect.
+        Returns a zero scalar when the model has no projector (term OFF).
+        """
+        if not getattr(self, "has_action_contrastive", False):
+            return ref.new_zeros(())
+        acc: torch.Tensor | None = None
+        for m in self.action_contrastive_proj.modules():
+            if isinstance(m, nn.Linear):
+                s = m.weight.sum() + m.bias.sum()
+                acc = s if acc is None else acc + s
+        if acc is None:
+            return ref.new_zeros(())
+        return acc.to(ref.dtype) * 0.0
+
+    def action_contrastive_loss(
+        self,
+        anchor: torch.Tensor,
+        prior_true: torch.Tensor,
+        prior_wrong: torch.Tensor | None,
+        *,
+        context_frames: int = 0,
+        temperature: float = 0.1,
+    ) -> torch.Tensor:
+        """InfoNCE: the realised latent matches the TRUE-command prior, not a wrong one.
+
+        ``anchor`` is the realised/posterior latent ``(B, T, z_dim)`` (the forward's
+        teacher-forced rollout — STOP-GRADded here so the contrastive term moves the
+        PREDICTIONS toward reality, not reality toward a prediction).  ``prior_true``
+        is the TRUE-command PRIOR latent ``(B, T, z_dim)`` and ``prior_wrong`` the
+        WRONG-command PRIOR latent ``(B, T, z_dim)``.  Pools the forecast-window
+        latents (frames ``>= context_frames``) over time, projects each through the
+        shared head, L2-normalises, and runs a temperature-scaled InfoNCE:
+
+        * anchor = the realised latent (its own row);
+        * positive = its TRUE-command prior latent (the diagonal of the true block);
+        * negatives = EVERY sample's WRONG-command prior latent (the whole wrong
+          block) PLUS the other samples' true-command priors masked out (different
+          shots are legitimately different — only the WRONG-command rows compete).
+
+        Cross-entropy keeps pulling the true-command prediction above the
+        wrong-command ones with NO margin floor (unlike a relu-margin repulsion,
+        which clamps to 0 once already separated and stops applying gradient — the
+        failure that drove the token-backbone term to ~0).  Because the RSSM decode
+        is latent-only, pulling the true-command prior latent toward the realised
+        state and pushing the wrong-command one away DIRECTLY trains command
+        sensitivity in the latent the decoder reads.
+
+        Returns a scalar; a zero-magnitude projector touch when it cannot score
+        (term OFF / no wrong-command rollout / empty window) so the projector stays
+        in the autograd graph and a DDP rank never desyncs.
+        """
+        zt = self._projector_zero_touch(anchor)
+        if not getattr(self, "has_action_contrastive", False) or prior_wrong is None:
+            return zt
+        b, t, _z = anchor.shape
+        if t < 1:
+            return zt
+        ctx = max(0, min(int(context_frames), t - 1)) if t > 1 else 0
+        a = anchor[:, ctx:].mean(dim=1).detach()  # realised next state (B, z) stop-grad
+        pt = prior_true[:, ctx:].mean(dim=1)  # true-command prior next state (B, z)
+        pw = prior_wrong[:, ctx:].mean(dim=1)  # wrong-command prior next state (B, z)
+        z_a = F.normalize(self.action_contrastive_proj(a), dim=-1)  # (B, cd)
+        z_t = F.normalize(self.action_contrastive_proj(pt), dim=-1)  # (B, cd)
+        z_w = F.normalize(self.action_contrastive_proj(pw), dim=-1)  # (B, cd)
+        tau = max(float(temperature), 1e-4)
+        # anchor x true candidates (B, B); positive = the diagonal (own true prior).
+        sim_true = z_a @ z_t.t()
+        sim_wrong = z_a @ z_w.t()  # anchor x wrong candidates (B, B) — all negatives
+        # mask the non-self TRUE columns to -inf so only the diagonal true (positive)
+        # and the B wrong negatives compete in the softmax.
+        eye = torch.eye(b, device=z_a.device, dtype=torch.bool)
+        sim_true = sim_true.masked_fill(~eye, float("-inf"))
+        logits = torch.cat([sim_true, sim_wrong], dim=1) / tau  # (B, 2B)
+        labels = torch.arange(b, device=z_a.device)  # positive = diagonal of true
+        return F.cross_entropy(logits, labels) + zt
+
     # -- teacher-forced ELBO forward ---------------------------------------
 
     def forward(
@@ -610,9 +801,12 @@ class RSSMWorldModel(nn.Module):
         from the POSTERIOR (reparameterised), decodes the reconstruction + the
         diagnostics, and returns the ELBO components.
 
-        Loss ``= camera_CE + diagnostic_weight*diagnostic_CE + beta*KL`` (each a
-        mean over (B, T)).  The camera CE is the RECONSTRUCTION of each observed
-        frame from its own latent.
+        Loss ``= camera_CE + diagnostic_weight*diagnostic_CE + beta*KL +
+        action_contrastive_weight*action_contrastive`` (each a mean over (B, T)).
+        The camera CE is the RECONSTRUCTION of each observed frame from its own
+        latent.  The action-contrastive term (when ON) keeps the command load-bearing
+        by training the TRUE-command PRIOR latent to match the realised state more
+        closely than a WRONG-command one — see :meth:`action_contrastive_loss`.
         """
         cfg = self.config
         frames = batch["frames"]
@@ -620,6 +814,10 @@ class RSSMWorldModel(nn.Module):
 
         e = self.encode_frames(frames)  # (B, T, d) — posterior evidence
         cmd = self.frame_commands(batch.get("actuator"), t)  # (B, T, a_dim) | None
+        do_ac = self.has_action_contrastive and cmd is not None
+        cmd_wrong = (
+            self.wrong_frame_commands(batch.get("actuator"), t) if do_ac else None
+        )
 
         h_t = self.h0.view(1, -1).expand(b, -1).contiguous()  # (B, h_dim)
         s_prev = self.s0.view(1, -1).expand(b, -1).contiguous()  # (B, s_dim)
@@ -630,10 +828,14 @@ class RSSMWorldModel(nn.Module):
         prior_stds: list[torch.Tensor] = []
         post_means: list[torch.Tensor] = []
         post_stds: list[torch.Tensor] = []
+        # action-contrastive: per-frame PRIOR latents under the TRUE / WRONG command.
+        prior_true_list: list[torch.Tensor] = []
+        prior_wrong_list: list[torch.Tensor] = []
 
         for ti in range(t):
             cmd_t = cmd[:, ti] if cmd is not None else None
-            h_t = self.gru(self._gru_input(s_prev, cmd_t), h_t)  # (B, h_dim)
+            h_prev = h_t  # det state INTO this step (shared by the true + wrong rolls)
+            h_t = self.gru(self._gru_input(s_prev, cmd_t), h_prev)  # (B, h_dim)
             p_mean, p_std = self.prior_head(h_t)
             q_mean, q_std = self.posterior_head(torch.cat([h_t, e[:, ti]], dim=-1))
             # reparameterised posterior sample (training state).
@@ -645,6 +847,18 @@ class RSSMWorldModel(nn.Module):
             prior_stds.append(p_std)
             post_means.append(q_mean)
             post_stds.append(q_std)
+            if do_ac:
+                # TRUE-command 1-step PRIOR latent at this frame: the deterministic
+                # state from the TRUE command + its prior mean.
+                prior_true_list.append(torch.cat([h_t, p_mean], dim=-1))
+                # WRONG-command 1-step PRIOR latent: re-run the SAME transition from
+                # the SAME realised history (h_prev, s_prev) but under the WRONG
+                # command, so the only thing that differs is the command (an
+                # apples-to-apples counterfactual).
+                cmd_w = cmd_wrong[:, ti] if cmd_wrong is not None else None
+                h_w = self.gru(self._gru_input(s_prev, cmd_w), h_prev)
+                pw_mean, _pw_std = self.prior_head(h_w)
+                prior_wrong_list.append(torch.cat([h_w, pw_mean], dim=-1))
             s_prev = s_t
 
         h_seq = torch.stack(h_list, dim=1)  # (B, T, h_dim)
@@ -667,12 +881,32 @@ class RSSMWorldModel(nn.Module):
             free_bits=cfg.free_bits,
         )
 
-        loss = camera_ce + cfg.diagnostic_weight * diagnostic_ce + cfg.beta * kl
+        # ── action-contrastive (always-on InfoNCE; zero-touch when off) ──
+        if do_ac and prior_wrong_list:
+            prior_true = torch.stack(prior_true_list, dim=1)  # (B, T, z_dim)
+            prior_wrong = torch.stack(prior_wrong_list, dim=1)  # (B, T, z_dim)
+            action_contrastive = self.action_contrastive_loss(
+                z,
+                prior_true,
+                prior_wrong,
+                context_frames=0,
+                temperature=cfg.action_contrastive_temperature,
+            )
+        else:
+            action_contrastive = self._projector_zero_touch(z)
+
+        loss = (
+            camera_ce
+            + cfg.diagnostic_weight * diagnostic_ce
+            + cfg.beta * kl
+            + cfg.action_contrastive_weight * action_contrastive
+        )
         return RSSMOutput(
             loss=loss,
             camera_ce=camera_ce,
             diagnostic_ce=diagnostic_ce,
             kl=kl,
+            action_contrastive=action_contrastive,
             h=h_seq,
             s=s_seq,
         )

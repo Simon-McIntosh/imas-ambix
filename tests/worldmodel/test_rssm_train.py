@@ -103,6 +103,47 @@ def test_train_step_decreases_loss():
     assert last < first, f"loss did not decrease: first={first:.4f} last={last:.4f}"
 
 
+def test_train_step_decreases_loss_with_action_contrastive():
+    """The step still finite + decreasing with the action-contrastive term ON."""
+    torch.manual_seed(0)
+    cfg = _tiny_cfg(action_contrastive=True, action_contrastive_weight=1.0)
+    model = RSSMWorldModel(cfg)
+    assert model.has_action_contrastive
+    model.train()
+    batch = _rand_batch(cfg, b=3, t=6, seed=1)
+    dev = torch.device("cpu")
+    opt = torch.optim.AdamW(model.parameters(), lr=1e-2)
+
+    first = None
+    last = None
+    for i in range(40):
+        out = _rssm_train_step(
+            model, batch, opt, chunk=64, grad_clip=1.0, device=dev, scheduler=None
+        )
+        loss = float(out.loss.detach())
+        assert torch.isfinite(out.loss), f"non-finite loss at step {i}"
+        assert torch.isfinite(out.action_contrastive)
+        if first is None:
+            first = loss
+        last = loss
+    assert last < first, f"loss did not decrease: first={first:.4f} last={last:.4f}"
+    # the contrastive component is finite + scored (> 0 on a multi-sample batch).
+    assert float(out.action_contrastive) > 0.0
+
+
+def test_corpus_log_line_has_ac_suffix():
+    """The per-step corpus log line exposes the action-contrastive component as ac=."""
+    import inspect
+
+    from imas_ambix.worldmodel import rssm_train
+
+    src = inspect.getsource(rssm_train.train_rssm_corpus)
+    # the log line carries an ac=%.4f field (the new component) and reads it off the
+    # RSSMOutput.action_contrastive component.
+    assert "ac=%.4f" in src
+    assert "out.action_contrastive" in src
+
+
 def test_train_step_advances_scheduler():
     """The factored step advances a passed LR scheduler (the corpus path uses one)."""
     torch.manual_seed(0)
@@ -218,6 +259,8 @@ def test_build_rssm_model_sizes_config():
         beta=2.0,
         free_bits=0.5,
         diagnostic_weight=0.25,
+        action_contrastive=True,
+        action_contrastive_weight=0.75,
     )
     assert model.config.actuator_channels == 23
     assert model.config.h_dim == 128
@@ -225,14 +268,24 @@ def test_build_rssm_model_sizes_config():
     assert model.config.beta == 2.0
     assert model.config.free_bits == 0.5
     assert model.config.diagnostic_weight == 0.25
+    assert model.config.action_contrastive is True
+    assert model.config.action_contrastive_weight == 0.75
     assert tuple(model.config.masked_command_indices) == (13, 14, 22)
     assert [s.name for s in model.config.signal_streams] == ["interferometer", "xma"]
     assert model.config.has_actuator
     assert model.config.has_diagnostics
+    assert model.config.has_action_contrastive  # ON + has a command path
 
 
 def test_config_dict_round_trips():
-    cfg = _tiny_cfg(actuator_channels=23, masked_command_indices=(13, 14, 22))
+    cfg = _tiny_cfg(
+        actuator_channels=23,
+        masked_command_indices=(13, 14, 22),
+        action_contrastive=True,
+        action_contrastive_weight=0.75,
+        contrastive_dim=64,
+        action_contrastive_temperature=0.2,
+    )
     d = _rssm_config_to_dict(cfg)
     back = _rssm_config_from_dict(d)
     assert back.actuator_channels == cfg.actuator_channels
@@ -241,6 +294,10 @@ def test_config_dict_round_trips():
     assert back.beta == cfg.beta
     assert back.free_bits == cfg.free_bits
     assert back.diagnostic_weight == cfg.diagnostic_weight
+    assert back.action_contrastive == cfg.action_contrastive
+    assert back.action_contrastive_weight == cfg.action_contrastive_weight
+    assert back.contrastive_dim == cfg.contrastive_dim
+    assert back.action_contrastive_temperature == cfg.action_contrastive_temperature
     assert tuple(back.masked_command_indices) == tuple(cfg.masked_command_indices)
     assert [s.name for s in back.signal_streams] == [s.name for s in cfg.signal_streams]
     assert [s.vocab for s in back.signal_streams] == [

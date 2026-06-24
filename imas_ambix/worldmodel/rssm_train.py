@@ -107,6 +107,10 @@ def _rssm_config_to_dict(cfg: RSSMConfig) -> dict:
         "beta": float(cfg.beta),
         "free_bits": float(cfg.free_bits),
         "diagnostic_weight": float(cfg.diagnostic_weight),
+        "action_contrastive": bool(cfg.action_contrastive),
+        "action_contrastive_weight": float(cfg.action_contrastive_weight),
+        "contrastive_dim": int(cfg.contrastive_dim),
+        "action_contrastive_temperature": float(cfg.action_contrastive_temperature),
         "signal_streams": [
             {"name": s.name, "vocab": int(s.vocab), "channels": int(s.channels)}
             for s in cfg.signal_streams
@@ -141,6 +145,12 @@ def _rssm_config_from_dict(d: dict) -> RSSMConfig:
         beta=float(d["beta"]),
         free_bits=float(d["free_bits"]),
         diagnostic_weight=float(d["diagnostic_weight"]),
+        action_contrastive=bool(d.get("action_contrastive", False)),
+        action_contrastive_weight=float(d.get("action_contrastive_weight", 1.0)),
+        contrastive_dim=int(d.get("contrastive_dim", 128)),
+        action_contrastive_temperature=float(
+            d.get("action_contrastive_temperature", 0.1)
+        ),
         signal_streams=streams,
         actuator_channels=int(d["actuator_channels"]),
         masked_command_indices=tuple(
@@ -290,6 +300,9 @@ class RSSMCorpusConfig:
     beta: float = 1.0
     free_bits: float = 1.0
     diagnostic_weight: float = 0.5
+    # action-contrastive on the latent (OFF -> byte-identical to the plain ELBO).
+    action_contrastive: bool = False
+    action_contrastive_weight: float = 1.0
     # RSSM latent-state dims (override the RSSMConfig defaults).
     h_dim: int = 256
     s_dim: int = 32
@@ -369,6 +382,8 @@ def build_rssm_model(
     beta: float = 1.0,
     free_bits: float = 1.0,
     diagnostic_weight: float = 0.5,
+    action_contrastive: bool = False,
+    action_contrastive_weight: float = 1.0,
     **model_kwargs,
 ) -> RSSMWorldModel:
     """Build an :class:`RSSMWorldModel` sized to the corpus command + streams."""
@@ -381,6 +396,8 @@ def build_rssm_model(
         beta=float(beta),
         free_bits=float(free_bits),
         diagnostic_weight=float(diagnostic_weight),
+        action_contrastive=bool(action_contrastive),
+        action_contrastive_weight=float(action_contrastive_weight),
         **model_kwargs,
     )
     return RSSMWorldModel(cfg)
@@ -650,13 +667,15 @@ def train_rssm_corpus(
         beta=config.beta,
         free_bits=config.free_bits,
         diagnostic_weight=config.diagnostic_weight,
+        action_contrastive=config.action_contrastive,
+        action_contrastive_weight=config.action_contrastive_weight,
         **config.model_kwargs,
     ).to(dev)
     if env.is_main:
         logger.info(
             "rssm-corpus on %s: params=%d (%.1fM) d_model=%d h_dim=%d s_dim=%d "
             "actuator_ch=%d masked=%s beta=%.3f free_bits=%.3f diag_w=%.3f "
-            "streams=%s world=%d",
+            "action_contrastive=%s ac_w=%.3f streams=%s world=%d",
             dev,
             base_model.num_parameters(),
             base_model.num_parameters() / 1e6,
@@ -668,6 +687,8 @@ def train_rssm_corpus(
             config.beta,
             config.free_bits,
             config.diagnostic_weight,
+            base_model.config.has_action_contrastive,
+            config.action_contrastive_weight,
             [(st.name, st.channels) for st in streams],
             env.world_size,
         )
@@ -821,6 +842,7 @@ def train_rssm_corpus(
                 cam_ce = float(out.camera_ce.detach())
                 diag_ce = float(out.diagnostic_ce.detach())
                 kl = float(out.kl.detach())
+                ac = float(out.action_contrastive.detach())
                 scaled.backward()
                 micro += 1
                 if not is_boundary:
@@ -841,13 +863,14 @@ def train_rssm_corpus(
                     t_last = time.time()
                     logger.info(
                         "rssm-corpus step %d/%d loss=%.4f cam=%.4f diag=%.4f kl=%.4f "
-                        "lr=%.3e (%.2f st/s world=%d)",
+                        "ac=%.4f lr=%.3e (%.2f st/s world=%d)",
                         step,
                         config.steps,
                         losses[-1],
                         cam_ce,
                         diag_ce,
                         kl,
+                        ac,
                         opt.param_groups[0]["lr"],
                         rate,
                         env.world_size,
@@ -961,6 +984,19 @@ def main(argv: list[str] | None = None) -> int:
         default=0.5,
         help="weight on the per-stream diagnostic next-step CE (secondary)",
     )
+    pc.add_argument(
+        "--action-contrastive",
+        action="store_true",
+        help="turn ON the always-on action-contrastive InfoNCE on the latent — the "
+        "realised state must match the TRUE-command prior rollout more than a "
+        "WRONG-command one, keeping the command load-bearing (OFF = byte-identical)",
+    )
+    pc.add_argument(
+        "--action-contrastive-weight",
+        type=float,
+        default=1.0,
+        help="weight on the action-contrastive term in the total loss",
+    )
     pc.add_argument("--h-dim", type=int, default=256, help="GRU hidden (det) state")
     pc.add_argument("--s-dim", type=int, default=32, help="stochastic latent state")
     pc.add_argument(
@@ -1047,6 +1083,8 @@ def main(argv: list[str] | None = None) -> int:
         beta=args.beta,
         free_bits=args.free_bits,
         diagnostic_weight=args.diagnostic_weight,
+        action_contrastive=args.action_contrastive,
+        action_contrastive_weight=args.action_contrastive_weight,
         h_dim=args.h_dim,
         s_dim=args.s_dim,
         drop_state_channels=not args.keep_state_channels,
