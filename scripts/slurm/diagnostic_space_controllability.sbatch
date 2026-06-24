@@ -34,7 +34,8 @@
 #    WM_COHORT       — gate cohort JSON (default gate_cohort.json, 25 shots)
 #    WM_OUT_DIR      — report.json output dir
 #    WM_FIGURE       — bar-figure path (under docs/figures/...)
-#    WM_TOKEN_ROOT   — curated-token-view (same exposure as the train corpus)
+#    WM_TOKEN_ROOT   — token root the cohort + models were screened/trained on
+#                      (mast-tokens — the curated-token-view holds a different set)
 #    WM_N_RANDOM     — wrong/random plans per shot (default 8)
 #    WM_PERTURB_SCALE / WM_CHUNK / WM_TARGET_HORIZON_S — ΔN-M knobs
 # ============================================================================
@@ -62,7 +63,7 @@ source "${VENV}/bin/activate"
 : "${WM_COHORT:=/work/projects/imas_gpu/worldmodel/gate_cohort.json}"
 : "${WM_OUT_DIR:=/work/projects/imas_gpu/worldmodel/diag_space_controllability}"
 : "${WM_FIGURE:=docs/figures/joint-multimodal-plasma-wm/diag_space_controllability.png}"
-: "${WM_TOKEN_ROOT:=/work/projects/imas_gpu/worldmodel/curated-token-view}"
+: "${WM_TOKEN_ROOT:=/work/projects/imas_gpu/mast-tokens}"
 : "${WM_N_RANDOM:=8}"
 : "${WM_PERTURB_SCALE:=0.3}"
 : "${WM_CHUNK:=8192}"

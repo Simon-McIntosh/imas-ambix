@@ -540,7 +540,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--token-root",
-        default="/work/projects/imas_gpu/worldmodel/curated-token-view",
+        default="/work/projects/imas_gpu/mast-tokens",
     )
     p.add_argument("--camera", default="rbb")
     p.add_argument("--device", default="cuda")
