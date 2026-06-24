@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-24">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="15">
 </head>
 <body>
   <main class="plan-doc">
@@ -594,6 +594,24 @@ Directions (pick + sequence with the lead):
   Re-eval RSSM-vs-token on the same (enriched) gate. Update the plan with the verdict; resolve when a clear
   RSSM controllability improvement (or a principled stop) is established.</pre>
     </article>
+<article class="r-fu" data-id="f-jmwm-010" data-status="open" data-tier="opus" data-written-by="smc" data-written-at="2026-06-24" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Physics-grounded controllability gate: independent learned equilibrium evaluators (camera→boundary/X-point/axis), not brightness</h4>
+    <div class="r-fu-body">METRIC-VALIDITY problem (lead-identified): the controllability gate (ΔN-M) scores DECODED-PIXEL LUMINANCE divergence + a luminance-weighted 'centroid' — i.e. EMISSION-pattern change, strongly coupled to D-alpha / divertor heat loads, NOT plasma-boundary/position motion. So every ratio chased so far (token 0.85-0.91; RSSM v0 1.027 / vanilla@16k 0.935) is on a physically-weak proxy that may understate real controllability (plasma moves, emission doesn't track) or add emission noise. FIX = INDEPENDENT LEARNED EQUILIBRIUM EVALUATORS: small supervised models mapping camera frames [+ measured diagnostics, exploiting the Dα↔boundary coupling] -> equilibrium geometry (LCFS boundary control points, magnetic axis R,Z, X-point/null R,Z, elong/tri; stretch ψ(R,Z)), trained on MAST EFIT (efm) labels, held-out validated, FROZEN. STRICTLY firewalled from the data-led main WM (EFIT never enters its training — MSE-free principle preserved); the evaluator is a 3rd-party referee applied ONLY to the WM's dreamed outputs. Essential because the wrong-plan counterfactual rollouts are DREAMS with no ground-truth EFIT — only a learned camera→equilibrium model can judge plasma motion in a dream. NEW gate = plasma-state ΔN-M: true-plan vs wrong-plan boundary/X-point/axis DISPLACEMENT (metres) vs the random floor, same robust-gate schema (normalised ratio + bootstrap CI + variance decomp) for direct comparison. Re-judge ALL checkpoints (token baseline/joint-gen + RSSM v0/vanilla/AC) on PLASMA motion. Also gives genuinely physical 'play the plasma' artifacts (dreamed boundary/X-point sliding in R,Z under a coil edit). RELATED finding: the §3c action-contrastive collapses to ~0 on the RSSM (trivially satisfied — the command is the GRU input so true/wrong-cmd priors auto-separate in latent space; latent separation doesn't propagate to decoded output) — reinforces that the gate must judge the DECODED plasma state, and that a useful contrastive may need to act on the decoded/equilibrium output, not the latent.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    joint-multimodal-plasma-wm
+Section: §6 / f-jmwm-010 — physics-grounded controllability gate via independent equilibrium evaluators
+Tier:    opus
+
+Goal: replace the emission/brightness-based ΔN-M with a PLASMA-STATE ΔN-M judged by an INDEPENDENT learned
+equilibrium evaluator. A scoping agent is inventorying EFIT (efm) labels + coverage + designing the evaluator
+(camera[+diag]-&gt;axis/X-point/boundary), the leakage-firewalled split (gate cohort + 18502-05 in the evaluator
+TEST set), the OOD-on-dreams validation, and the plasma-state gate (displacement-in-metres, same robust-gate
+schema). Build sequence (after scoping): extract per-camera-frame equilibrium labels -&gt; train + validate the
+evaluator on held-out EFIT (publish its error budget; check it holds on teacher-forced reconstructions before
+trusting it on dreams) -&gt; wire the plasma-state gate -&gt; re-judge token + RSSM checkpoints on real plasma motion.
+Firewall is binding: the evaluator trains on EFIT but NEVER feeds the data-led WM. Files by capability (e.g.
+equilibrium_probe.py / equilibrium_probe_train.py / a plasma_state gate). Coordinate with the scoping report.</pre>
+    </article>
 </section>
 
   <section data-reckon="questions" id="questions" class="r-questions">
@@ -605,7 +623,7 @@ Directions (pick + sequence with the lead):
 </section>
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s4" data-id="c-rssm-16k" data-who="smc" data-when="2026-06-24">
-    <div class="r-comment-body">RSSM longer-train result (1222286, 16000 steps, same config): controllability REGRESSED vs v0 — mean ratio 0.935 [0.90,0.97] (median 0.925, 0/25 pass, 5/25 shots>1, max 1.11) vs v0 8000-step 1.027 [0.91,1.17] (7/25>1, max 2.25). More training lowered the loss (47.4→44, better recon) but ERODED controllability: KL stayed pinned at the free-bits floor (32.0) throughout, so the stochastic latent encoded little and recon leaned on the deterministic/posterior path — the command's marginal effect on the PRIOR rollout washed out as recon sharpened. Conclusion: vanilla recon+KL training does NOT yield controllability and degrades it with more steps; the 8000-step rssm-1222278 (1.027) is the best controllability checkpoint. This makes f-jmwm-009 #3 the priority: wire the §3c InfoNCE action-contrastive (+ lower free_bits / a beta schedule so the stochastic latent carries the command-driven dynamics) onto the RSSM latent — an EXPLICIT term keeping the command load-bearing, which the RSSM decoder cannot wash out. Do NOT just train longer.</div>
+    <div class="r-comment-body">RSSM longer-train result (1222286, 16000 steps, same config): controllability REGRESSED vs v0 — mean ratio 0.935 [0.90,0.97] (median 0.925, 0/25 pass, 5/25 shots&gt;1, max 1.11) vs v0 8000-step 1.027 [0.91,1.17] (7/25&gt;1, max 2.25). More training lowered the loss (47.4→44, better recon) but ERODED controllability: KL stayed pinned at the free-bits floor (32.0) throughout, so the stochastic latent encoded little and recon leaned on the deterministic/posterior path — the command's marginal effect on the PRIOR rollout washed out as recon sharpened. Conclusion: vanilla recon+KL training does NOT yield controllability and degrades it with more steps; the 8000-step rssm-1222278 (1.027) is the best controllability checkpoint. This makes f-jmwm-009 #3 the priority: wire the §3c InfoNCE action-contrastive (+ lower free_bits / a beta schedule so the stochastic latent carries the command-driven dynamics) onto the RSSM latent — an EXPLICIT term keeping the command load-bearing, which the RSSM decoder cannot wash out. Do NOT just train longer.</div>
 </div>
 </section>
 </main>
