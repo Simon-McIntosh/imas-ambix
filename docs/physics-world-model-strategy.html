@@ -9,7 +9,7 @@
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
   <meta name="plan-tier" content="opus">
-  <meta name="plan-summary" content="Foundational objective: a learned probabilistic state-space model of the tokamak plasma — flexible where our equations are wrong, structured in invariant coordinates where extrapolation demands it — that turns scarce shots into state estimation, what-if forecasting, and discovered structure, and extrapolates toward ITER.">
+  <meta name="plan-summary" content="Foundational objective: a MACHINE-AGNOSTIC, data-led probabilistic state-space world model of the tokamak plasma — ingesting absolute-calibrated, geometry-tagged multi-modal diagnostic tokens into a shared latent whose dynamics are learned by space-time transformers (advection/diffusion) — that turns scarce shots into controllable dreams, state estimation, what-if forecasting, and discovered structure, and transfers across machines (MAST -&gt; JET -&gt; ITER) by construction via diagnostic-geometry positional encoding + dimensionless/invariant coordinates.">
   <meta name="plan-milestone" content="M0">
   <meta name="plan-sprint" content="S7">
   <meta name="plan-depends-on" content="probabilistic-state-space-methods">
@@ -17,8 +17,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-title" content="Physics World Model — Strategy &amp; North Star">
-<meta name="plan-modified" content="2026-06-03">
-<meta name="plan-version" content="6">
+<meta name="plan-modified" content="2026-06-24">
+<meta name="plan-version" content="7">
 <meta name="plan-status" content="active">
 <meta name="plan-impl" content="0.7">
 </head>
@@ -31,6 +31,96 @@
     <p><strong>A data-led, physics-aware dynamical model of the tokamak plasma — flexible enough to be right where our equations are wrong, and structured in invariant/dimensionless terms enough to extrapolate to ITER and beyond — that turns scarce, expensive experimental shots into predictive understanding and a faster path to high performance.</strong></p>
     <p>The deliverable is twofold and inseparable: an <em>operational</em> model (state estimation, what-if forecasting, calibrated uncertainty) <strong>and</strong> <em>understanding</em> (the reduced structure and coefficients the model reveals). We demonstrate understanding by building a model that works — and the model that works is the instrument that reveals the structure.</p>
     <p>What this is <strong>not</strong>: predictive simulation of known equations, integrated modelling, or data labelling. We are not re-solving MHD. We are learning the plasma's effective dynamics from data and extracting transferable structure.</p>
+
+    <h2 id="s1a">§1a — North star, refined (2026-06-24): a <em>machine-agnostic</em> general fusion world model</h2>
+    <p><em>Refined after the joint-generative-WM sprint produced a robust negative and a sharp feasibility map. New <code>/goal</code> (user, 2026-06-24): "discover the underlying latent dynamics and a physics-faithful, data-led world model capable of controllable dreams" — and, as the long-horizon destination, <strong>one model that is not MAST-specific but transfers across machines toward ITER</strong>.</em></p>
+
+    <p>The destination is sharpened, not changed: the goal is <strong>a single data-led latent state-space world model that ingests absolute, geometry-tagged, multi-modal diagnostic tokens, carries them into a shared latent whose dynamics are learned by space-time transformers, decodes back to every modality (cameras included), and is controllable through the actuator plan</strong> — and which, because its inputs and latent are expressed in machine-portable terms, extrapolates <strong>MAST → JET → ITER by construction</strong> rather than by retraining from scratch on each device.</p>
+
+    <h3 id="s1a-why">Why this reframe is forced by the evidence</h3>
+    <p>Two robustly-measured findings from the recent work pin down where the physics is, and is not, recoverable — and they point the same way:</p>
+    <ul>
+      <li><strong>Generation works; control does not — root cause is causal under-identification.</strong> Across both a token backbone and a Dreamer-style RSSM, and across every controllability lever tried (per-layer plan conditioning, history bottleneck, inverse-dynamics, joint generation, per-modality masking, action-contrastive, command-in-recurrence), the actuator plan never became <em>load-bearing</em>: a powered gate (true-plan vs random-plan decoded divergence, n=10) returned ratios ≈ 0.85–1.03, all failing. On observational flat-top tokens the next state is predictable from <em>history alone</em>; the command is confounded / non-exciting, so it is never <em>necessary</em>. Controllability cannot be extracted from a chain that does not identify it.</li>
+      <li><strong>The physics IS recoverable — from absolute signals, not from these dreams.</strong> A feasibility oracle chain showed: cameras cannot see interior geometry (decoded-camera → axis/X-point skill ≈ 0); per-shot z-scored tokens are scale-free (diagnostics → equilibrium skill ≈ 0); but <strong>absolute, calibrated magnetics resolve axis / X-point / boundary at skill 0.5–0.7</strong>. The information is there; the representation was throwing it away.</li>
+    </ul>
+    <p>The user's tractability decomposition is the constructive read of this: <strong>(a)</strong> plan (incl. pulse-schedule) → plasma current is a genuinely <em>identifiable</em> control map (pulses follow the plan closely); <strong>(b)</strong> magnetics constrain magnetic topology — they place the boundary and X-point well (an EFIT-input-class, well-posed problem, distinct from the S9/S12 interior-current under-determination); <strong>(c)</strong> other diagnostics contribute internal structure; <strong>(d)</strong> the camera contributes edge information and fast transients, and is a <em>dream-decode target</em>. The fix for non-controllability is therefore <em>structural</em>: move controllability off the chain that cannot carry it (plan → camera tokens) onto the chain that can (plan → Ip → magnetics → boundary), inside one shared latent.</p>
+
+    <h3 id="s1a-reqs">What "machine-agnostic" makes load-bearing</h3>
+    <p>Transfer across machines is the lever that disciplines the whole design — and it is the <em>same</em> lever as controllability, because the identifiable actuator→response chain, expressed in dimensionless / geometric terms, is exactly what carries from one device to another. Four requirements become non-negotiable:</p>
+    <ol>
+      <li><strong>Geometry as positional encoding for every modality.</strong> Camera tokens only decoded once each carried its 16×16 <em>spatial</em> position; the same is true one level up. A magnetic-probe token, a soft-X-ray chord token, an interferometer chord token must each carry its diagnostic's <strong>physical location and geometry</strong> in the machine — position (R, Z, φ), orientation / sensor normal, and integration geometry (line-of-sight endpoints for chords, pixel footprint for cameras) — together with machine geometry (vessel, PF/coil locations). Without it the model memorises "channel index 7 on MAST means X," a mapping worthless on JET or ITER; with it the model learns "a B<sub>θ</sub> probe at (R, Z, orientation) sees <em>this</em> field" — a mapping that is physics, and physics transfers. This is the camera-spatial-position principle generalised to all diagnostics, and it is what makes a heterogeneous, machine-varying sensor set ingestible by one attention model.</li>
+      <li><strong>Absolute calibration is mandatory, not optional.</strong> Per-shot z-scoring — the scale-free blocker that killed diagnostics → equilibrium — <em>also</em> destroys cross-machine comparability. 0.5&nbsp;T must tokenise to the same code on every machine. Calibration is corpus-level and in physical (ideally SI) units, so a token's value means the same thing regardless of shot or device.</li>
+      <li><strong>Dimensionless / invariant latent coordinates become load-bearing</strong> (this was §6's aspiration; multi-machine makes it a requirement). Machine size spans an order of magnitude MAST → ITER; only dimensionless groups (ρ*, β, ν*, a/R, normalised shape) bridge it. The open <code>extrapolation-coordinates</code> decision is now strongly pulled toward <em>design-for-invariance from v0</em> — retrofitting invariance after the latent is fixed is the costly path.</li>
+      <li><strong>Tokens are retained as the ingestion substrate</strong> (user lock, 2026-06-24). The discrete-token substrate is how we ingest high-bandwidth, multi-rate, multi-modal streams on a common footing, and it is already a first-class asset. We keep the tokeniser; we <em>add</em> the absolute-calibration + diagnostic-geometry schema to it. Camera stays a tokenised <em>decode-only</em> target + edge/transient source (the <code>camera-role</code> lock holds).</li>
+    </ol>
+
+    <figure class="r-fig" style="margin:1rem 0">
+      <svg viewBox="0 0 900 360" width="100%" role="img" aria-label="Machine-agnostic world model: geometry-tagged absolute-calibrated diagnostic tokens enter a shared dimensionless latent whose space-time transition kernel is decoded back to cameras, diagnostics and an equilibrium readout; the same model transfers MAST to JET to ITER" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+        <defs><marker id="nsa" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker></defs>
+        <style>
+          .nbox{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1}
+          .ntok{fill:#eef4ff;stroke:#1565c0;stroke-width:1.2}
+          .nlat{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.6}
+          .nout{fill:#fdeef0;stroke:#b05a66;stroke-width:1.1}
+          .nhd{font-size:13px;fill:#1a1a1a;font-weight:700}
+          .nlb{font-size:12px;fill:#1a1a1a}
+          .nsb{font-size:10.5px;fill:#3a3a3a}
+          .nar{stroke:#5b6b80;stroke-width:1.4;fill:none;marker-end:url(#nsa)}
+          .nacc{font-size:11px;fill:#2e7d32;font-weight:700}
+        </style>
+        <!-- inputs -->
+        <text x="16" y="20" class="nhd">Heterogeneous diagnostics</text>
+        <text x="16" y="36" class="nsb">each token carries its geometry</text>
+        <rect class="nbox" x="16" y="46" width="176" height="38" rx="4"/><text x="26" y="64" class="nlb">Magnetic probes</text><text x="26" y="79" class="nsb">+ (R,Z,φ), normal</text>
+        <rect class="nbox" x="16" y="92" width="176" height="38" rx="4"/><text x="26" y="110" class="nlb">SXR / interferometer</text><text x="26" y="125" class="nsb">+ line-of-sight chord</text>
+        <rect class="nbox" x="16" y="138" width="176" height="38" rx="4"/><text x="26" y="156" class="nlb">Cameras</text><text x="26" y="171" class="nsb">+ pixel footprint (R,Z)</text>
+        <rect class="nbox" x="16" y="184" width="176" height="38" rx="4"/><text x="26" y="202" class="nlb">Plan / pulse-schedule</text><text x="26" y="217" class="nsb">actuator demands (action)</text>
+
+        <!-- tokeniser -->
+        <rect class="ntok" x="232" y="96" width="150" height="78" rx="5"/>
+        <text x="307" y="124" class="nhd" text-anchor="middle">Tokeniser</text>
+        <text x="307" y="142" class="nsb" text-anchor="middle">absolute-calibrated</text>
+        <text x="307" y="157" class="nsb" text-anchor="middle">(SI units, not per-shot)</text>
+
+        <!-- shared latent -->
+        <rect class="nlat" x="422" y="86" width="166" height="98" rx="6"/>
+        <text x="505" y="112" class="nhd" text-anchor="middle">Shared latent</text>
+        <text x="505" y="130" class="nacc" text-anchor="middle">dimensionless coords</text>
+        <text x="505" y="148" class="nsb" text-anchor="middle">space-time transition</text>
+        <text x="505" y="163" class="nsb" text-anchor="middle">kernel: advection /</text>
+        <text x="505" y="177" class="nsb" text-anchor="middle">diffusion (transformers)</text>
+
+        <!-- outputs -->
+        <text x="636" y="20" class="nhd">Decode (every modality)</text>
+        <rect class="nout" x="636" y="46" width="248" height="34" rx="4"/><text x="648" y="67" class="nlb">Camera dream (controllable)</text>
+        <rect class="nout" x="636" y="86" width="248" height="34" rx="4"/><text x="648" y="107" class="nlb">Diagnostic streams (virtual)</text>
+        <rect class="nout" x="636" y="126" width="248" height="34" rx="4"/><text x="648" y="147" class="nlb">Equilibrium readout (eval-only)</text>
+
+        <!-- arrows -->
+        <path class="nar" d="M192,65 L230,120"/>
+        <path class="nar" d="M192,111 L230,130"/>
+        <path class="nar" d="M192,157 L230,140"/>
+        <path class="nar" d="M192,203 L230,150"/>
+        <path class="nar" d="M382,135 L420,135"/>
+        <path class="nar" d="M588,110 L634,80"/>
+        <path class="nar" d="M588,135 L634,103"/>
+        <path class="nar" d="M588,160 L634,140"/>
+
+        <!-- transfer axis -->
+        <rect x="232" y="244" width="652" height="86" rx="6" fill="#f6f8fb" stroke="#2e7d32" stroke-width="1.4" stroke-dasharray="5 3"/>
+        <text x="248" y="268" class="nhd">Machine-agnostic by construction</text>
+        <text x="248" y="287" class="nsb">geometry + absolute calibration + dimensionless latent ⇒ the SAME model ingests a new device's sensor set</text>
+        <rect class="ntok" x="300" y="296" width="120" height="26" rx="4"/><text x="360" y="313" class="nlb" text-anchor="middle">MAST (now)</text>
+        <rect class="nbox" x="470" y="296" width="120" height="26" rx="4"/><text x="530" y="313" class="nlb" text-anchor="middle">JET</text>
+        <rect class="nbox" x="640" y="296" width="120" height="26" rx="4"/><text x="700" y="313" class="nlb" text-anchor="middle">ITER</text>
+        <path class="nar" d="M420,309 L468,309"/>
+        <path class="nar" d="M590,309 L638,309"/>
+        <path class="nar" d="M505,184 L505,242"/>
+      </svg>
+      <figcaption style="font-size:12.5px;color:#444">Figure 0 — The refined North Star. Every diagnostic token is tagged with its physical geometry and tokenised in absolute units; tokens enter one shared latent expressed in dimensionless coordinates whose space-time transition kernel learns advection/diffusion; the latent decodes back to cameras (the controllable dream), virtual diagnostics, and an eval-only equilibrium readout. Because inputs and latent are machine-portable, the <em>same</em> model ingests a new device's sensor set — the transfer axis (green, dashed) is MAST → JET → ITER, not a per-machine rebuild. Controllability rides the identifiable chain plan → Ip → magnetics → boundary inside this latent; the camera is a decode target, never the state carrier.</figcaption>
+    </figure>
+
+    <p>This refinement supersedes nothing already locked — it sharpens §1's "structured to extrapolate to ITER," promotes §6's invariant-coordinate aspiration to a v0 design constraint, and reaffirms the <code>camera-role</code> lock. The staged plan (§9) is superseded as the <em>active</em> sequence by a new ground-up redesign (brainstorm in progress, 2026-06-24); §§1–9 below remain the durable rationale and the record of Stages 1–3.</p>
 
     <h2 id="s2">§2 — Why a "world model": it is a learned state-space model</h2>
     <p>The unifying identity: an ML world model — encoder → latent state → learned transition → observation model — <em>is</em> a learned nonlinear state-space model. That single object subsumes the three threads we care about:</p>
