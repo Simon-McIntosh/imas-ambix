@@ -105,6 +105,13 @@ source "${VENV}/bin/activate"
 : "${WM_BETA:=1.0}"                 # KL weight
 : "${WM_FREE_BITS:=1.0}"            # per-dim KL floor (nats) — anti-collapse
 : "${WM_DIAGNOSTIC_WEIGHT:=0.5}"    # per-stream diagnostic next-step CE weight
+# Action-contrastive InfoNCE on the latent — keeps the command load-bearing
+# through reconstruction training (the decoder cannot wash it out, unlike the
+# token backbone).  OFF by default; WM_ACTION_CONTRASTIVE=1 turns it on.
+: "${WM_ACTION_CONTRASTIVE:=0}"
+: "${WM_ACTION_CONTRASTIVE_WEIGHT:=1.0}"
+AC_FLAGS=()
+[[ "${WM_ACTION_CONTRASTIVE}" == "1" ]] && AC_FLAGS+=(--action-contrastive --action-contrastive-weight "${WM_ACTION_CONTRASTIVE_WEIGHT}")
 : "${WM_H_DIM:=256}"                # GRU hidden (deterministic) state
 : "${WM_S_DIM:=32}"                 # stochastic latent state
 # 'extended' = the 13-stream measured-signal set (adds the tokenised HF + boundary
@@ -172,6 +179,7 @@ torchrun \
     --beta "${WM_BETA}" \
     --free-bits "${WM_FREE_BITS}" \
     --diagnostic-weight "${WM_DIAGNOSTIC_WEIGHT}" \
+    "${AC_FLAGS[@]}" \
     --h-dim "${WM_H_DIM}" \
     --s-dim "${WM_S_DIM}" \
     --out-dir "${WM_OUT_DIR}"
