@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="absolute-geometry-token-substrate">
+  <meta name="plan-title"     content="Absolute-Calibration + Sensor-Geometry Token Substrate">
+  <meta name="plan-summary"   content="v0 stage 1 of the machine-agnostic latent world model: upgrade the token substrate so every token carries a corpus-level ABSOLUTE (SI) value and its SENSOR geometry (R,Z,phi, orientation, integration geometry) + machine geometry. Repairs the per-shot scale-free blocker and supplies the cross-machine positional encoding everything downstream consumes.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S16">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="machine-agnostic-latent-world-model,multimodal-tokenisation-substrate">
+  <title>Absolute-Calibration + Sensor-Geometry Token Substrate | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Execution home for v0 stage 1</strong> of the redesign. The full design, figures, glossary, and
+locked decisions live in the parent plan
+<a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a> (see
+§5). This plan is lean: it records <em>this</em> stage's work and its gate.</p>
+
+<h2 id="s1">§1 — Objective &amp; scope</h2>
+<p>Upgrade the existing token substrate
+(<a href="/imas-ambix/multimodal-tokenisation-substrate.html">multimodal-tokenisation-substrate</a>) with the
+two properties the machine-agnostic goal makes non-negotiable, <strong>without abandoning tokens</strong>:</p>
+<ul>
+  <li><strong>Absolute calibration.</strong> Quantise at <em>corpus level in physical (SI) units</em>, not
+  per-shot. A given physical magnitude (e.g. 0.5&nbsp;T) maps to the same code in every shot and on every
+  machine. This repairs the scale-free blocker (per-shot z-scoring destroyed absolute magnitude — the reason
+  diagnostics→equilibrium skill was ~0 — and cross-machine comparability).</li>
+  <li><strong>Sensor-geometry positional encoding.</strong> Every token carries the physical geometry of
+  <em>its sensor</em>: position (R,&nbsp;Z,&nbsp;φ), orientation / sensor normal, integration geometry
+  (line-of-sight chord endpoints for interferometer/SXR; pixel footprint for cameras), plus machine geometry
+  (vessel, PF-coil locations). Sensor geometry is apparatus metadata — freely used, never leakage (the
+  firewall is on <em>code outputs</em> only; plasma geometry is excluded). It is the positional encoding that
+  lets one attention model ingest a heterogeneous, machine-varying sensor set.</li>
+</ul>
+<p>Scope: the v0 modality set — magnetics, plan, interferometer, SXR, all five cameras, the HF signals.
+Cameras remain decode-only. This stage produces the upgraded store + readers that stages 2–4 consume.</p>
+
+<h2 id="s2">§2 — The gate (verifiable done-when)</h2>
+<ol>
+  <li>Tokens carry corpus-level absolute (SI) values + per-diagnostic sensor geometry + machine geometry;
+  schema + readers committed.</li>
+  <li>Per-modality reconstruction fidelity preserved under absolute calibration — no regression vs the
+  per-shot baseline.</li>
+  <li><strong>The scale-free blocker is fixed:</strong> a diagnostics→equilibrium probe (the firewalled
+  oracle) skill rises clearly off ~0 once tokens carry absolute magnitude — report the number.</li>
+  <li>Tests green; outcome recorded; this plan collapses to a landed summary.</li>
+</ol>
+
+<h2 id="s3">§3 — Approach</h2>
+<ol>
+  <li><strong>Absolute calibration path.</strong> Replace the per-shot normalisation in the signal
+  tokenisation with corpus-level SI scaling (per-channel physical ranges), and the value→token mapping for
+  the L2 measured inputs. The camera VQ codebook (Open-MAGVIT2) is fixed; assess whether camera frames need
+  re-encoding or only the conditioning/value streams do.</li>
+  <li><strong>Geometry schema.</strong> Attach per-diagnostic sensor geometry (probe/loop/chord/pixel
+  coordinates + orientation + machine geometry) to the token store as a positional-encoding field; sourced
+  from the device description, not from any reconstruction.</li>
+  <li><strong>Readers.</strong> Extend the store_v2 readers to surface absolute values + geometry on a common
+  time grid, honouring the boundary guard (target/code-output store never opened by the input path).</li>
+  <li><strong>Validation.</strong> Per-modality reconstruction-fidelity check; the diagnostics→equilibrium
+  probe (the firewalled oracle) to confirm absolute magnitude is now recoverable.</li>
+</ol>
+
+<h2 id="s4">§4 — H200 footprint</h2>
+<p><strong>Light–moderate, IO/encode-leaning — not a heavy GPU consumer.</strong> Re-tokenisation reuses the
+in-process <code>stream_encode.py</code> pattern; the bottleneck is GPFS I/O, not compute. The signal
+re-tokenisation + any partial camera re-encode run comfortably on 1–2 cards, or on a standard compute node
+(sirius) for the IO-bound parts (which also has the outbound network + <code>/work</code> access GPU nodes
+lack). Geometry tagging is pure metadata (no GPU). Per AGENTS.md §2b, in-process model-load-once.</p>
+
+<h2 id="s5">§5 — Inherited decisions</h2>
+<p>All architectural decisions are locked in the parent
+(<a href="/imas-ambix/machine-agnostic-latent-world-model.html#decisions">machine-agnostic-latent-world-model</a>):
+<code>signal-representation</code> = tokens + absolute calibration + sensor-geometry positional encoding;
+<code>firewall-definition</code> = code-outputs-only (sensor geometry free, plasma geometry firewalled).
+This plan honours them; it introduces no new architectural decisions.</p>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-ags-01" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24">
+  <h4 class="r-fu-title">Implement absolute calibration + sensor-geometry schema in the token substrate</h4>
+  <div class="r-fu-body">First concrete sub-task: corpus-level SI calibration of the signal tokenisation + L2 value mapping, and the per-diagnostic sensor-geometry schema, with readers and the reconstruction-fidelity + scale-free-fix validation. Reuses the in-process encode pattern.</div>
+  <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (§2/§3)
+Section: §3
+Tier:    opus
+
+Context
+  v0 stage 1 of the redesign (parent: machine-agnostic-latent-world-model §5). Upgrade the token substrate
+  to corpus-level ABSOLUTE (SI) calibration + per-diagnostic SENSOR-geometry positional encoding. Keep tokens.
+  (Honour the locked parent decisions; do not re-litigate.)
+
+State to read  (code/files)
+  imas_ambix/tokenizer/{store_v2.py,registry.py}; the per-shot quantisation path (the scale-free blocker);
+  imas_ambix/data/ signal + camera encoders + the in-process stream_encode.py pattern; the device
+  sensor-geometry source (probe/loop/chord/pixel coords + orientation + vessel/PF-coil geometry);
+  /work/projects/imas_gpu/mast-tokens/v2/registry.json.
+
+Scope locks / constraints (non-decision)
+  Corpus-level SI calibration, NOT per-shot z-scoring. SENSOR geometry only (apparatus metadata), NOT plasma
+  geometry (a code output). Cameras decode-only. Honour the boundary guard. IO-bound parts may run on a
+  standard compute node (sirius) per AGENTS.md; in-process model-load-once (§2b).
+
+Done-when (the gate)
+  1. Tokens carry corpus-level absolute (SI) values + sensor geometry + machine geometry; schema + readers committed.
+  2. Per-modality reconstruction fidelity preserved (no regression vs per-shot).
+  3. Diagnostics->equilibrium probe skill rises clearly off ~0 — report the number.
+  4. tests green; followup written + this one resolved; plan collapsed to a landed summary.</pre>
+</article>
+</section>
+
+</main>
+</body>
+</html>

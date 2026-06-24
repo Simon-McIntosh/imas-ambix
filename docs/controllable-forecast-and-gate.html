@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="controllable-forecast-and-gate">
+  <meta name="plan-title"     content="Excitation-Curated Training + Controllability + Raw-Held-Out Eval">
+  <meta name="plan-summary"   content="v0 stage 4 of the machine-agnostic latent world model — THE goal gate. Train the closed-loop engine on the full v0 modality set (magnetics + plan + interferometer + SXR + all five cameras + HF), excitation-curated; run the powered controllability gate on EXCITED held-out windows (the bar the prior camera/RSSM work failed) and raw-held-out prediction vs persistence + the EnKF bar.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="XL">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S16">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="machine-agnostic-latent-world-model,closed-loop-latent-filter">
+  <title>Excitation-Curated Training + Controllability + Raw-Held-Out Eval | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Execution home for v0 stage 4 — the goal gate.</strong> Full design, figures (Fig 7 validation
+honesty hierarchy), glossary, and locked decisions are in the parent
+<a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a> (§9,
+§10, §11). Depends on stage 3 (the closed-loop engine). This is the stage that decides whether the redesign
+delivered controllable dreams.</p>
+
+<h2 id="s1">§1 — Objective &amp; scope</h2>
+<p>Train the stage-3 closed-loop engine at scale on the full v0 modality set — magnetics + plan +
+interferometer + SXR + all five cameras + HF signals — <strong>excitation-curated</strong> (up-weight /
+preferentially sample windows with genuine actuator excitation: coil ramps, |dI/dt| transients, plan changes,
+ramp-up/down), with the observation-withholding schedule so filter and forecast train jointly. Then run the
+honesty-spine evaluation: the powered controllability gate on excited held-out windows, and raw-held-out
+prediction against persistence + the EnKF bar. EFIT stays the firewalled referee.</p>
+
+<h2 id="s2">§2 — The gate (verifiable done-when)</h2>
+<ol>
+  <li>Trained checkpoint on the full v0 modality set; excitation-curated + observation-withholding.</li>
+  <li><strong>Powered ΔN-M controllability gate PASSES on excited held-out windows</strong> — the true plan
+  moves the latent more than a random plan, CI clear of the noise floor (n=10). This is the bar the prior
+  camera/RSSM work failed. Report ratio + CI + pass-fraction.</li>
+  <li><strong>Raw-held-out signal prediction beats persistence AND the EnKF current-recovery bar</strong> —
+  report per-modality (the strong tier of the validation honesty hierarchy: predict raw observables the model
+  never saw).</li>
+  <li>Honest controlled-vs-stochastic decomposition + interior-current under-determination reported
+  (calibrated "I don't know" where the data cannot pin it); predict-vs-reality figure(s); plan collapsed.</li>
+</ol>
+
+<h2 id="s3">§3 — Approach</h2>
+<ol>
+  <li>Excitation-window selector: score windows by actuator excitation (|dI/dt|, coil ramps, plan changes);
+  curate / re-weight the training distribution so the command is <em>necessary</em>, breaking the
+  causal-under-identification confound that defeated the flat-top-dominated prior runs.</li>
+  <li>Full multi-modal DDP training of the closed-loop engine; observation-withholding schedule; frequent
+  checkpoints + clean SIGTERM (resume-safe; coexist with DeepSeek per AGENTS.md).</li>
+  <li>Controllability gate: the powered n=10 ΔN-M on the <em>latent</em> (not brightness), on excited
+  held-out windows; collapse-rejecting; bootstrap CI.</li>
+  <li>Raw-held-out eval: predict withheld raw observables (held-out probes; MSE on beam-on slices) vs
+  persistence + the EnKF bar; the firewalled EFIT referee as a weak agreement cross-check only.</li>
+</ol>
+
+<h2 id="s4">§4 — H200 footprint</h2>
+<p><strong>Heaviest H200 consumer of the v0 sprint.</strong> Full multi-modal corpus training (all five
+cameras + magnetics + interferometer + SXR + HF + plan) is a multi-GPU DDP run — the 6-GPU burst that
+coexists with the 2-card DeepSeek serve (6+2 = 8/8), per AGENTS.md §1/§2. CPU-sizing caveat: probe with
+<code>srun --test-only</code> first (~12 schedulable cores while the serve co-runs). Resume-safe, frequent
+<code>latest.pt</code>, clean SIGTERM (&lt; 5&nbsp;s) so a give-back costs nothing. The controllability-gate
+rollouts + raw-held-out eval are lighter (rollout-bound). Plan the big run for fast takedown.</p>
+
+<h2 id="s5">§5 — Inherited decisions</h2>
+<p>Locked in the parent: <code>v0-modality-scope</code> = magnetics+plan+interferometer+SXR+all-5-cameras+HF;
+<code>firewall-definition</code> = code-outputs-only (EFIT = referee, never training). Excitation-curation +
+observation-withholding are the locked training approach (parent §9). No new architectural decisions here.</p>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-cfg-01" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24">
+  <h4 class="r-fu-title">Excitation-curated full-modality training + the powered controllability + raw-held-out gate</h4>
+  <div class="r-fu-body">Train the stage-3 engine on the full v0 modality set, excitation-curated, then run the powered ΔN-M controllability gate on excited held-out windows + raw-held-out prediction vs persistence/EnKF. This is the goal gate the prior camera/RSSM work failed.</div>
+  <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    controllable-forecast-and-gate (§2/§3)
+Section: §3
+Tier:    opus
+
+Context
+  v0 stage 4 — THE goal gate. Train the closed-loop engine (stage 3) at scale on the full v0 modality set,
+  excitation-curated, and run the honesty-spine eval. (Honour the locked parent decisions.)
+
+State to read
+  the engine from closed-loop-latent-filter; the excitation-window selector (coil ramps, |dI/dt|, plan
+  changes); the firewalled EFIT referee + raw-held-out harness; the powered n=10 dN-M gate; parent §9/§10/§11.
+
+Scope locks / constraints
+  EFIT outputs FIREWALLED (referee only, never training). Controllability gate = powered n=10 dN-M on the
+  LATENT, on EXCITED held-out windows. Report honest controlled-vs-stochastic + interior-current
+  under-determination (calibrated 'I don't know'). GPU per AGENTS.md §1/§2/§2a/§2b: 6-GPU burst coexisting
+  with the 2-card DeepSeek serve; srun --test-only CPU probe first; resume-safe; clean SIGTERM; fast takedown.
+
+Done-when (the gate)
+  1. Trained checkpoint on the full v0 modality set; excitation-curated + observation-withholding.
+  2. Powered dN-M controllability gate PASSES on excited held-out windows (true-plan moves the latent more
+     than random; CI clear of the floor) — report ratio + CI + pass-fraction.
+  3. Raw-held-out signal prediction beats persistence AND the EnKF bar — per-modality.
+  4. predict-vs-reality figure(s); followup written + this one resolved; plan collapsed to a landed summary.</pre>
+</article>
+</section>
+
+</main>
+</body>
+</html>

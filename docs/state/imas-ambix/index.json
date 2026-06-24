@@ -1,9 +1,9 @@
 {
-  "updated": "2026-06-19T16:05:56",
+  "updated": "2026-06-24T22:53:40",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
-    "active_sprint_id": "S14",
+    "active_sprint_id": "S16",
     "projects": [
       {
         "project": "imas-ambix",
@@ -333,7 +333,7 @@
       },
       {
         "id": "S14",
-        "status": "active",
+        "status": "done",
         "theme": "Play the plasma \u2014 demonstrable driveable camera world model",
         "items": [
           {
@@ -346,11 +346,12 @@
         ],
         "starts": "2026-06-19",
         "ends": "2026-06-26",
-        "description": "One-week sprint (user-directed 2026-06-19): turn the camera world model from persistence-collapse into a DEMONSTRABLE, driveable demo. Fix the two collapse causes cheaply \u2014 sampling (not argmax) + context-corruption fine-tune + load-bearing control conditioning with classifier-free guidance \u2014 reusing the trained spatiotemporal checkpoint (spacetime-v2-1219852), the actuator conditioning + gas-puff controllability probe from camera-dynamics-wm-v0, and the frozen Open-MAGVIT2 decoder. Demonstrable capability is the primary goal; the science (virtual diagnostics, reduced dynamics, discovery) follows as the SAME generative model with observation guidance switched on (PLAY vs TRACK). SOTA-grounded: WHAM/Genie/GameNGen/EMERALD + SDA/Appa play-vs-track duality + FusionMAE/TCV NSSM scarce-data fusion precedents."
+        "description": "One-week sprint (user-directed 2026-06-19): turn the camera world model from persistence-collapse into a DEMONSTRABLE, driveable demo. Fix the two collapse causes cheaply \u2014 sampling (not argmax) + context-corruption fine-tune + load-bearing control conditioning with classifier-free guidance \u2014 reusing the trained spatiotemporal checkpoint (spacetime-v2-1219852), the actuator conditioning + gas-puff controllability probe from camera-dynamics-wm-v0, and the frozen Open-MAGVIT2 decoder. Demonstrable capability is the primary goal; the science (virtual diagnostics, reduced dynamics, discovery) follows as the SAME generative model with observation guidance switched on (PLAY vs TRACK). SOTA-grounded: WHAM/Genie/GameNGen/EMERALD + SDA/Appa play-vs-track duality + FusionMAE/TCV NSSM scarce-data fusion precedents.",
+        "summary": "Superseded 2026-06-24 by the machine-agnostic latent world-model redesign (S16). playable-plasma-wm-v0 is the driveable-camera line that closed as the robust controllability NO-GO (the actuator plan was never load-bearing across every lever; root cause = causal under-identification). The camera-as-state-carrier path is replaced by a closed-loop latent state-space model in which the camera is a DECODE target, not the state. See machine-agnostic-latent-world-model + physics-world-model-strategy \u00a71a."
       },
       {
         "id": "S15",
-        "status": "planned",
+        "status": "done",
         "theme": "Science follows \u2014 virtual diagnostics, reduced dynamics, learned closures",
         "items": [
           {
@@ -370,7 +371,46 @@
         ],
         "starts": "2026-06-26",
         "ends": "2026-07-17",
-        "description": "The science track that follows the playable-plasma demo (S14). Same generative substrate with observation guidance switched on (TRACK mode): predict withheld diagnostics from a subset (the over-diagnosis information-redundancy map), extract reduced nonlinear dynamics/closures (Koopman/SINDy), and ground correction in the working EKF \u2014 without hardcoding a forward simulator. Holds the camera-dynamics reconstruction/probe work + the learned-closure current-diffusion thread rolled forward from S13."
+        "description": "The science track that follows the playable-plasma demo (S14). Same generative substrate with observation guidance switched on (TRACK mode): predict withheld diagnostics from a subset (the over-diagnosis information-redundancy map), extract reduced nonlinear dynamics/closures (Koopman/SINDy), and ground correction in the working EKF \u2014 without hardcoding a forward simulator. Holds the camera-dynamics reconstruction/probe work + the learned-closure current-diffusion thread rolled forward from S13.",
+        "summary": "Superseded 2026-06-24 by the redesign (S16). camera-dynamics-wm-v0 (camera-as-state-carrier) is replaced. learned-closure-current-diffusion-v0 is NOT discarded \u2014 it is REUSED: its differentiable psi-diffusion filter + positive-resistivity / diffusion-timescale priors are the prior art for the \u00a77a flux-diffusion transport anchor, folded into the gs-grounded-latent-engine child plan."
+      },
+      {
+        "id": "S16",
+        "status": "active",
+        "theme": "Machine-agnostic latent state-space world model \u2014 v0 engine",
+        "items": [
+          {
+            "slug": "absolute-geometry-token-substrate",
+            "why_now": "v0 stage 1 \u2014 the representation upgrade everything downstream consumes; repairs the per-shot scale-free blocker and adds the cross-machine sensor-geometry positional encoding.",
+            "tier": "opus",
+            "done_when": "Tokens carry corpus-level absolute (SI) values + per-diagnostic sensor geometry + machine geometry; per-modality reconstruction fidelity preserved; a diagnostics->equilibrium probe skill rises clearly off ~0.",
+            "status": "active"
+          },
+          {
+            "slug": "gs-grounded-latent-engine",
+            "why_now": "v0 stage 2 \u2014 the hybrid latent + its spatial (GS) and temporal (flux-diffusion + sign/irreversibility) anchors; boundary/X-point emerge as label-free psi readouts.",
+            "tier": "opus",
+            "done_when": "From raw magnetics the GS-readout axis/X-point/boundary skill matches the absolute-magnetics oracle (~0.5-0.7) with NO EFIT labels; learned diffusivity verified D>=0; transport priors active + falsifiable.",
+            "status": "pending"
+          },
+          {
+            "slug": "closed-loop-latent-filter",
+            "why_now": "v0 stage 3 \u2014 the inference engine (space-time transformer prior + small LAE-EnKF ensemble correction); the structural fix for the open-loop persistence collapse.",
+            "tier": "opus",
+            "done_when": "Overfit fits; closed-loop beats open-loop on held-out (no persistence collapse); calibrated coverage in [0.88,0.92]; dream+track from one checkpoint via observation-withholding.",
+            "status": "pending"
+          },
+          {
+            "slug": "controllable-forecast-and-gate",
+            "why_now": "v0 stage 4 \u2014 THE goal gate: excitation-curated multi-modal corpus training + the powered controllability gate the prior camera/RSSM work failed + raw-held-out prediction.",
+            "tier": "opus",
+            "done_when": "Powered dN-M controllability gate PASSES on excited held-out windows (true-plan moves the latent more than random; CI clear); raw-held-out signal prediction beats persistence AND the EnKF bar.",
+            "status": "pending"
+          }
+        ],
+        "starts": "2026-06-24",
+        "ends": "2026-07-18",
+        "description": "The ground-up redesign (parent: machine-agnostic-latent-world-model; North Star refined in physics-world-model-strategy \u00a71a). A closed-loop latent state-space world model (LAE-EnKF correction + space-time transformer prior) over absolute-calibrated, sensor-geometry-tagged multi-modal tokens, grounded in raw magnetics via the EFIT-free GS operator (spatial anchor) + a soft learned flux-diffusion transport prior with sign/irreversibility constraints (temporal anchor). Four sequential v0 child plans, each a verifiable goal+gate; deferred upgrades (neural-SDE kernel, cross-machine transfer, structure discovery) tracked as parent followups. Supersedes the camera-as-state-carrier direction (S14/S15)."
       }
     ],
     "blockers": [
@@ -452,6 +492,11 @@
         "when": "2026-06-19",
         "who": "Simon McIntosh (via orchestrator)",
         "what": "Sprint reorg: S13 closed (camera-dynamics W1 landed); S14 'Play the plasma' is the single active sprint; S15 'Science follows' created (planned) holding camera-dynamics-wm-v0 + learned-closure-current-diffusion-v0. Also removed the GPU-drain/scancel defence apparatus from AGENTS.md \u00a72a + the playable-plasma plan per the settled RCA (drains are an environmental fabric condition, not an agent concern)."
+      },
+      {
+        "when": "2026-06-24",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "S16 opened \u2014 machine-agnostic latent state-space world model (the ground-up redesign; parent machine-agnostic-latent-world-model, North Star physics-world-model-strategy \u00a71a refined). Four sequential v0 child plans (absolute-geometry-token-substrate -> gs-grounded-latent-engine -> closed-loop-latent-filter -> controllable-forecast-and-gate), each a verifiable goal+gate. Supersedes the camera-as-state-carrier direction: S14 (playable-plasma-wm-v0, the controllability NO-GO) + S15 (camera-dynamics-wm-v0) closed; learned-closure-current-diffusion-v0 reused as the flux-diffusion transport-anchor asset. This work is now the focus."
       }
     ],
     "milestones": [
@@ -462,6 +507,6 @@
         "pct": 0
       }
     ],
-    "_version": 26
+    "_version": 27
   }
 }
