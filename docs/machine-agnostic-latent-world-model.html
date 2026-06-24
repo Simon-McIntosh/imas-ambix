@@ -7,7 +7,7 @@
   <meta name="reckon-type"    content="plan">
   <meta name="plan-slug"      content="machine-agnostic-latent-world-model">
   <meta name="plan-title"     content="Machine-Agnostic Latent State-Space Plasma World Model">
-  <meta name="plan-summary"   content="Ground-up redesign: a data-led probabilistic latent state-space world model whose state is estimated by a closed-loop learned filter (LAE-EnKF) and rolled by a space-time transformer transition kernel, ingesting absolute-calibrated, sensor-geometry-tagged multi-modal tokens and grounded in raw magnetics via an EFIT-free Grad-Shafranov observation operator. Filters, forecasts (controllable dreams), and transfers MAST->JET->ITER by construction. Dual-purpose educational document.">
+  <meta name="plan-summary"   content="Ground-up redesign: a data-led probabilistic latent state-space world model whose state is estimated by a closed-loop learned filter (LAE-EnKF) and rolled by a space-time transformer transition kernel, ingesting absolute-calibrated, sensor-geometry-tagged multi-modal tokens. The poloidal flux is anchored SPATIALLY by an EFIT-free Grad-Shafranov operator and TEMPORALLY by a soft, learned, irreversible flux-diffusion transport prior (sign/arrow-of-time constraints: resistivity>0 => diffusivity>=0, dissipation>=0, Volt-second budget). Filters, forecasts (controllable dreams), and transfers MAST->JET->ITER by construction. Dual-purpose educational document.">
   <meta name="plan-status"    content="draft">
   <meta name="plan-roi"       content="high">
   <meta name="plan-effort"    content="XL">
@@ -413,9 +413,90 @@ the prior under a plan (controllable what-if), with the ensemble spread giving h
 uncertainty. This predict-correct loop is the structural fix for the open-loop persistence collapse.</figcaption>
 </figure>
 
+<h2 id="s7a">§7a — The temporal anchor: transport, irreversibility, and the arrow of time</h2>
+<p>The Grad-Shafranov operator (§8) anchors ψ <em>spatially</em> — force balance at a single instant. It
+says nothing about <em>how ψ evolves in time</em>, so without a second anchor the transition kernel is
+free to learn any ∂ψ/∂t. The physically-correct temporal counterpart is <strong>transport</strong>, and
+transport carries an <strong>arrow of time</strong>: the plasma's resistive evolution is irreversible.
+We encode that — and, crucially, mostly through <em>inequality / sign-definite / monotone</em> constraints,
+which are the <strong>safest possible physics to inject</strong>: they forbid the unphysical without
+prescribing a trajectory, so (unlike a hard equality law) they essentially <em>cannot over-constrain</em>.
+They are <strong>guard-rails, not rails</strong>.</p>
+<ul>
+  <li><strong>Soft, learned flux/current-diffusion prior</strong> — ∂ψ/∂t = (η∥/μ₀)·𝒟[ψ] + non-inductive
+  sources, with the parallel resistivity η∥ and the sources (bootstrap, NBI/ECCD current drive, boundary
+  loop-voltage) as <em>learned</em> closures, not fixed inputs. The <strong>command enters through the
+  source term</strong> (current drive / loop voltage are in the plan), so the plan drives the
+  <em>temporal</em> evolution of ψ — controllability by construction on the identifiable chain.</li>
+  <li><strong>η∥ &gt; 0 ⇒ D ≥ 0 (dissipative by construction).</strong> Parameterise the learned
+  diffusivity strictly positive (softplus/exp). A diffusion with D ≥ 0 is <em>parabolic</em>:
+  forward-well-posed, backward-ill-posed. That <strong>is the arrow of time</strong>, baked into the
+  operator — the model structurally cannot run the resistive evolution backward or spontaneously sharpen
+  the profile.</li>
+  <li><strong>Non-negative resistive dissipation (monotone magnetic-energy decay).</strong> The resistive
+  channel only loses magnetic energy — an entropy-production-≥-0 / Lyapunov-like monotone (soft penalty on
+  dE<sub>resistive</sub>/dt&nbsp;&gt;&nbsp;0).</li>
+  <li><strong>Volt-second (flux) budget.</strong> Poloidal flux is supplied inductively (loop voltage /
+  central solenoid — in the plan) and consumed resistively (∫η·j); a soft conservation / monotone-consumption
+  prior on the cumulative budget (Ejima-like flux consumption) couples command → flux → Ip.</li>
+</ul>
+<p>Why this is both safe and powerful: the sign/inequality priors forbid impossible dynamics — negative
+resistivity, anti-diffusion, spontaneous energy or flux growth, time-reversal — while prescribing no
+particular path, so they answer the over-constraint worry directly. They give the transition kernel a
+correct, strong inductive bias (<em>irreversible, dissipative, budgeted</em>) that a free transformer
+lacks; they are machine-agnostic (true on every device — η&gt;0 everywhere) so they aid transfer; and they
+are the structural backbone the §12 neural-SDE inherits (drift = this dissipative flux-diffusion operator,
+the diffusion/noise term = stochastic transport, both respecting D ≥ 0). A persistent flux-diffusion
+residual, like the GS residual, is a <em>discovery signal</em> (anomalous current transport — sawtooth/NTM
+redistribution, dynamo), not an error to fit away.</p>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 880 240" width="100%" role="img" aria-label="The temporal anchor: poloidal flux is supplied inductively by the loop voltage (in the plan), consumed resistively one-way; the learned flux-diffusion operator with strictly-positive diffusivity is parabolic and forward-well-posed, encoding the arrow of time; sign and inequality priors are guard-rails that cannot over-constrain" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <defs><marker id="ta-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker>
+        <marker id="ta-t" markerWidth="11" markerHeight="11" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2e7d32"/></marker></defs>
+  <style>
+    .tbox{fill:#f6f8fb;stroke:#8a94a6;stroke-width:1}
+    .tflux{fill:#eef4ff;stroke:#1565c0;stroke-width:1.4}
+    .top{fill:#fff4e6;stroke:#c98a3a;stroke-width:1.4}
+    .tsafe{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.4}
+    .thd{font-size:12.5px;fill:#1a1a1a;font-weight:700}
+    .tlb{font-size:11px;fill:#1a1a1a}
+    .tsb{font-size:10px;fill:#3a3a3a}
+    .tar{stroke:#5b6b80;stroke-width:1.5;fill:none;marker-end:url(#ta-a)}
+  </style>
+  <rect class="tbox" x="16" y="64" width="172" height="60" rx="5"/><text x="102" y="86" class="tlb" text-anchor="middle">Inductive supply (+)</text><text x="102" y="103" class="tsb" text-anchor="middle">loop voltage / solenoid</text><text x="102" y="116" class="tsb" text-anchor="middle">— in the PLAN (command)</text>
+  <rect class="tflux" x="248" y="60" width="180" height="68" rx="6"/><text x="338" y="88" class="thd" text-anchor="middle">Poloidal flux &#968;</text><text x="338" y="108" class="tsb" text-anchor="middle">Volt-second budget</text>
+  <rect class="tbox" x="488" y="64" width="186" height="60" rx="5"/><text x="581" y="86" class="tlb" text-anchor="middle">Resistive consumption (&#8722;)</text><text x="581" y="103" class="tsb" text-anchor="middle">&#8747;&#951;&#183;j, &#951;&gt;0</text><text x="581" y="116" class="tsb" text-anchor="middle">one-way loss</text>
+  <path class="tar" d="M188,94 L246,94"/>
+  <path class="tar" d="M428,94 L486,94" stroke-width="2.4"/>
+  <rect class="top" x="200" y="156" width="476" height="46" rx="6"/>
+  <text x="438" y="176" class="tlb" text-anchor="middle">&#8706;&#968;/&#8706;t = (&#951;&#8741;/&#956;&#8320;)&#183;D[&#968;] + sources &#160;&#183;&#160; &#951;&#8741;&gt;0 &#8658; D&#8805;0 &#8658; parabolic, forward-well-posed</text>
+  <text x="438" y="194" class="tsb" text-anchor="middle">&#951;&#8741; and sources are LEARNED closures; the diffusivity is strictly positive by construction</text>
+  <path class="tar" d="M338,128 L338,154"/>
+  <line x1="200" y1="224" x2="676" y2="224" stroke="#2e7d32" stroke-width="2.2" marker-end="url(#ta-t)"/>
+  <text x="438" y="219" class="tsb" text-anchor="middle" fill="#2e7d32">arrow of time (irreversible)</text>
+  <rect class="tsafe" x="700" y="40" width="172" height="162" rx="6"/>
+  <text x="712" y="60" class="thd">Sign / inequality priors</text>
+  <text x="712" y="78" class="tsb">= guard-rails. They FORBID:</text>
+  <text x="712" y="96" class="tsb">&#8226; negative resistivity</text>
+  <text x="712" y="112" class="tsb">&#8226; anti-diffusion</text>
+  <text x="712" y="128" class="tsb">&#8226; spontaneous energy/</text>
+  <text x="712" y="142" class="tsb">&#160;&#160;flux growth</text>
+  <text x="712" y="158" class="tsb">&#8226; time-reversal</text>
+  <text x="712" y="180" class="tsb">prescribe NO trajectory</text>
+  <text x="712" y="195" class="tsb">&#8658; cannot over-constrain</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 7a — The temporal anchor. Poloidal flux is supplied inductively by the loop voltage (in the plan,
+so the command drives it) and consumed resistively one-way (η·j, η&gt;0). The learned flux-diffusion
+operator has a strictly-positive diffusivity, making it parabolic and forward-well-posed — irreversibility
+baked in (the arrow of time). The sign/inequality priors (right, green) are guard-rails: they forbid the
+unphysical and prescribe no trajectory, so they strengthen the dynamics without over-constraining.</figcaption>
+</figure>
+
 <h2 id="s8">§8 — Observation operators and decode heads</h2>
 <p>Each modality is reconstructed from the latent by its own observation operator — the bridge from
-hidden state to measurable signal.</p>
+hidden state to measurable signal. (The GS operator below is the <em>spatial</em> anchor on ψ; the
+<em>temporal</em> anchor is the transport prior of §7a.)</p>
 <ul>
   <li><strong>Magnetics — the EFIT-free Grad-Shafranov (GS) operator</strong> (<code>gs/operator.py</code>,
   the durable Stage-2 asset). The <em>Grad-Shafranov equation</em> is the magnetohydrodynamic force-balance
@@ -475,7 +556,13 @@ needs SXR/interferometer/MSE and stays partly uncertain).</figcaption>
   proper scores on continuous signals.</li>
   <li><strong>GS soft-prior residual</strong> on raw magnetics — a falsifiable prior (the data may
   override it); a persistent residual is a <em>discovery signal</em> (where force balance breaks), not an
-  error to fit away.</li>
+  error to fit away. (The spatial anchor on ψ — §8.)</li>
+  <li><strong>Transport / irreversibility priors (§7a) — the temporal anchor.</strong> The soft, learned
+  flux-diffusion prior on ∂ψ/∂t, plus the sign/inequality constraints that encode the arrow of time:
+  η∥&nbsp;&gt;&nbsp;0 ⇒ D&nbsp;≥&nbsp;0 (strictly-positive learned diffusivity → parabolic, forward-only),
+  non-negative resistive dissipation (monotone magnetic-energy decay), and the Volt-second / flux budget
+  (inductive supply via loop voltage − resistive consumption). Guard-rails, not rails — they forbid the
+  unphysical, prescribe no trajectory, so they cannot over-constrain.</li>
   <li><strong>Anchored-block supervision</strong> toward the raw measured scalars (Ip, coil currents,
   n<sub>e</sub>).</li>
   <li><strong>Belief regularisation</strong> — Kullback-Leibler (KL) term with free-bits on the latent
@@ -718,6 +805,16 @@ controllability test (true-plan vs random-plan rollout divergence over a noise f
     <button class="r-opt" data-value="minimal">magnetics + plan + one camera + HF (minimal)</button>
   </p>
   <p class="r-dec-rat">Locked by the lead 2026-06-24: include interferometer + SXR from day one (interior structure); decode all five cameras (decode quality tracks each camera's real-frame coverage — only rbb is dense).</p>
+</div>
+
+<div class="r-dec" data-key="temporal-transport-anchor" data-choice="soft-learned-flux-diffusion-plus-sign-constraints" data-by="Simon McIntosh" data-when="2026-06-24">
+  <p class="r-dec-q">Do we anchor the TEMPORAL evolution of ψ (∂ψ/∂t), and how?</p>
+  <p class="r-dec-opts">
+    <button class="r-opt chosen" data-value="soft-learned-flux-diffusion-plus-sign-constraints">soft, learned-closure flux/current-diffusion prior in v0 + sign/irreversibility constraints (η&gt;0 ⇒ D≥0; dissipation≥0; Volt-second budget) — the arrow of time as guard-rails</button>
+    <button class="r-opt" data-value="defer-to-sde">no temporal anchor in v0; introduce it only at the neural-SDE upgrade</button>
+    <button class="r-opt" data-value="hard-imposed">hard current-diffusion backbone (over-constraint risk)</button>
+  </p>
+  <p class="r-dec-rat">Locked by the lead 2026-06-24. GS anchors ψ spatially (force balance at an instant) but there was no transport anchor on ∂ψ/∂t. Add a SOFT, learned-closure flux-diffusion prior (η∥ and non-inductive sources learned; the command enters via the loop-voltage / current-drive source term) PLUS sign/inequality constraints that encode irreversibility — resistivity&gt;0 ⇒ diffusivity≥0 (parabolic, forward-well-posed = the arrow of time), non-negative resistive dissipation (monotone magnetic-energy decay), and the Volt-second / flux budget (inductive supply − resistive consumption). Inequality/sign priors are guard-rails: they forbid the unphysical without prescribing a trajectory, so they cannot over-constrain. This is the structural backbone the §12 neural-SDE drift inherits. See §7a.</p>
 </div>
 
 <div class="r-dec" data-key="transfer-timing" data-choice="" data-by="" data-when="">
