@@ -18,12 +18,20 @@ import pytest
 
 from imas_ambix.worldmodel.gate_cohort import (
     CohortShotScreen,
+    DriveabilityThresholds,
     ScreenThresholds,
+    _apply_driveability,
+    _centroid_path_length,
+    _command_change_profile,
     _gt_window_stats,
     _score_gt,
     _select_cohort,
+    _select_driveable_cohort,
+    _temporal_association,
     assert_disjoint,
+    build_driveable_cohort,
     build_screened_cohort,
+    driveability_score,
     enumerate_candidate_shots,
     load_cohort,
     training_shot_ids,
@@ -318,3 +326,279 @@ def test_build_screened_cohort_signature_preserved():
     )
     for kw in ("camera", "token_root", "manifest_path", "device"):
         assert params[kw].kind == inspect.Parameter.KEYWORD_ONLY
+
+
+# ===========================================================================
+# DRIVEABLE-enriched cohort — additive, model-free driveability screen
+# (default OFF: build_screened_cohort is unchanged; this is a sibling builder)
+# ===========================================================================
+
+
+def _moving_blob_stack(n_frames=24, hw=64, step=2.0, r0=10.0) -> np.ndarray:
+    """A decoded GT gray stack with a bright blob that TRANSLATES across frames.
+
+    The emission centroid travels along a diagonal at ``step`` px/frame, so the
+    decoded-centroid path length over the forecast window is large — a genuinely
+    MOVING (driveable-response) plasma.
+    """
+    yy, xx = np.mgrid[0:hw, 0:hw].astype(np.float64)
+    out = np.zeros((n_frames, hw, hw), dtype=np.float64)
+    for f in range(n_frames):
+        cy = r0 + step * f
+        cx = r0 + step * f
+        out[f] = 220.0 * np.exp(-((yy - cy) ** 2 + (xx - cx) ** 2) / (2 * 4.0**2))
+    return np.clip(out, 0.0, 255.0)
+
+
+def _static_blob_stack(n_frames=24, hw=64, r0=32.0) -> np.ndarray:
+    """A bright blob fixed at the centre — bright but the centroid does NOT travel."""
+    yy, xx = np.mgrid[0:hw, 0:hw].astype(np.float64)
+    blob = 220.0 * np.exp(-((yy - r0) ** 2 + (xx - r0) ** 2) / (2 * 4.0**2))
+    return np.clip(np.broadcast_to(blob, (n_frames, hw, hw)).copy(), 0.0, 255.0)
+
+
+# --- centroid path length (reuses controllable_eval.decoded_centroid) ---
+
+
+def test_centroid_path_long_for_moving_blob():
+    path = _centroid_path_length(_moving_blob_stack(step=2.0), context_frames=8)
+    # 15 forecast steps * sqrt(2)*2 px/step ~ 42 px; assert it is clearly nonzero.
+    assert path > 10.0
+
+
+def test_centroid_path_near_zero_for_static_blob():
+    path = _centroid_path_length(_static_blob_stack(), context_frames=8)
+    assert path < 1.0
+
+
+# --- command-change profile (demanded actuator plan only; model-free) ---
+
+
+def test_command_change_profile_zero_for_flat_plan():
+    vals = np.ones((8, 3), dtype=np.float64)  # flat-top: no command change
+    miss = np.zeros((8, 3), dtype=np.float64)
+    prof = _command_change_profile(vals, miss)
+    assert prof.shape == (7,)
+    assert float(prof.sum()) == pytest.approx(0.0)
+
+
+def test_command_change_profile_tracks_present_channels_only():
+    vals = np.zeros((4, 2), dtype=np.float64)
+    vals[:, 0] = [0.0, 1.0, 1.0, 3.0]  # present, changes
+    vals[:, 1] = [0.0, 5.0, 0.0, 9.0]  # MISSING — must be ignored
+    miss = np.zeros((4, 2), dtype=np.float64)
+    miss[:, 1] = 1.0  # channel 1 missing for the whole window
+    prof = _command_change_profile(vals, miss)
+    # only channel 0 contributes: |1-0|+|1-1|+|3-1| = 1+0+2 = 3.
+    assert float(prof.sum()) == pytest.approx(3.0)
+
+
+# --- temporal-association proxy (when commands change vs when plasma moves) ---
+
+
+def test_temporal_association_high_when_aligned():
+    prof = np.array([0.0, 5.0, 0.0, 0.0], dtype=np.float64)
+    assert _temporal_association(prof, prof.copy()) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_temporal_association_low_when_misaligned():
+    cmd = np.array([5.0, 0.0, 0.0, 0.0], dtype=np.float64)
+    cen = np.array([0.0, 0.0, 0.0, 5.0], dtype=np.float64)
+    assert _temporal_association(cmd, cen) < 0.2
+
+
+def test_temporal_association_zero_for_empty_profile():
+    assert _temporal_association(np.zeros((0,)), np.array([1.0, 2.0])) == 0.0
+
+
+# --- combined driveability score: anti-circular, model-free ranking signal ---
+
+
+def test_driveability_high_for_moving_commanded_plasma():
+    """Commands move AND GT plasma moves + centroid travels + aligned -> HIGH."""
+    s = driveability_score(
+        plan_variation=5.0,
+        transient_motion=12.0,
+        centroid_path_px=40.0,
+        temporal_association=0.95,
+    )
+    assert s > 0.4
+
+
+def test_driveability_low_for_flat_command_plasma():
+    """Plasma moves but NO command variation -> not driveable (nothing to drive)."""
+    s = driveability_score(
+        plan_variation=0.0,
+        transient_motion=12.0,
+        centroid_path_px=40.0,
+        temporal_association=0.95,
+    )
+    assert s < 0.05
+
+
+def test_driveability_low_for_static_plasma():
+    """Commands move but the GT plasma is static -> not driveable (no response)."""
+    s = driveability_score(
+        plan_variation=5.0,
+        transient_motion=0.2,
+        centroid_path_px=0.1,
+        temporal_association=0.95,
+    )
+    assert s < 0.05
+
+
+def test_driveability_moving_beats_flat_and_static():
+    moving = driveability_score(
+        plan_variation=5.0,
+        transient_motion=12.0,
+        centroid_path_px=40.0,
+        temporal_association=0.95,
+    )
+    flat = driveability_score(
+        plan_variation=1e-4,
+        transient_motion=12.0,
+        centroid_path_px=40.0,
+        temporal_association=0.95,
+    )
+    static = driveability_score(
+        plan_variation=5.0,
+        transient_motion=0.1,
+        centroid_path_px=0.05,
+        temporal_association=0.95,
+    )
+    assert moving > flat
+    assert moving > static
+
+
+def test_apply_driveability_fills_components_from_profiles():
+    rec = CohortShotScreen(
+        shot_id=7,
+        assemblable=True,
+        passed=False,
+        plan_variation=5.0,
+        transient_motion=12.0,
+        n_streams=12,
+    )
+    rec.centroid_path_px = 40.0
+    cmd = np.array([0.0, 4.0, 0.0, 0.0])
+    cen = np.array([0.0, 4.0, 0.0, 0.0])
+    _apply_driveability(rec, command_profile=cmd, centroid_profile=cen)
+    assert rec.command_change_total == pytest.approx(4.0)
+    assert rec.temporal_association == pytest.approx(1.0, abs=1e-6)
+    assert rec.driveability_score > 0.4
+
+
+# --- eligibility gates + top-N ranking selection ---
+
+
+def _drive_rec(shot_id, *, plan_var, motion, cen_path, bri=30.0, n_streams=12):
+    r = CohortShotScreen(
+        shot_id=shot_id,
+        assemblable=True,
+        passed=False,
+        plan_variation=plan_var,
+        transient_motion=motion,
+        n_streams=n_streams,
+    )
+    r.mean_brightness = bri
+    r.centroid_path_px = cen_path
+    r.temporal_association = 0.9
+    _apply_driveability(r)
+    return r
+
+
+def test_eligibility_rejects_dark_flat_static_and_few_streams():
+    t = DriveabilityThresholds()
+    # dark
+    assert "brightness" in "; ".join(
+        t.eligibility_fails(_drive_rec(1, plan_var=5, motion=8, cen_path=20, bri=2.0))
+    )
+    # flat command
+    assert "plan_var" in "; ".join(
+        t.eligibility_fails(_drive_rec(2, plan_var=0.0, motion=8, cen_path=20))
+    )
+    # static plasma (no centroid travel)
+    assert "centroid_path" in "; ".join(
+        t.eligibility_fails(_drive_rec(3, plan_var=5, motion=8, cen_path=0.0))
+    )
+    # too few streams
+    assert "streams" in "; ".join(
+        t.eligibility_fails(
+            _drive_rec(4, plan_var=5, motion=8, cen_path=20, n_streams=1)
+        )
+    )
+    # a driveable candidate is eligible.
+    assert t.eligibility_fails(_drive_rec(5, plan_var=5, motion=8, cen_path=20)) == []
+
+
+def test_select_driveable_keeps_top_scoring_eligible():
+    recs = [
+        _drive_rec(10, plan_var=5.0, motion=12.0, cen_path=40.0),  # high score
+        _drive_rec(11, plan_var=0.0, motion=12.0, cen_path=40.0),  # flat -> ineligible
+        _drive_rec(12, plan_var=2.0, motion=6.0, cen_path=10.0),  # mid score
+        _drive_rec(13, plan_var=5.0, motion=12.0, cen_path=35.0),  # high score
+        _drive_rec(14, plan_var=5.0, motion=0.1, cen_path=0.0),  # static -> ineligible
+    ]
+    kept = _select_driveable_cohort(recs, DriveabilityThresholds(), target_size=2)
+    # the two highest-driveability ELIGIBLE shots, flat/static excluded.
+    assert set(kept) == {10, 13}
+    # target cap honoured + ranked (highest first).
+    kept3 = _select_driveable_cohort(recs, DriveabilityThresholds(), target_size=3)
+    assert kept3[0] in (10, 13) and kept3[-1] == 12
+    assert 11 not in kept3 and 14 not in kept3
+
+
+def test_select_driveable_is_deterministic_tie_break():
+    # identical scores -> ascending shot-id tie-break.
+    recs = [
+        _drive_rec(30, plan_var=5.0, motion=12.0, cen_path=40.0),
+        _drive_rec(20, plan_var=5.0, motion=12.0, cen_path=40.0),
+    ]
+    kept = _select_driveable_cohort(recs, DriveabilityThresholds(), target_size=2)
+    assert kept == [20, 30]
+
+
+# --- back-compat: the screened builder + its API are UNCHANGED (default OFF) ---
+
+
+def test_screened_cohort_default_path_unchanged():
+    """The driveable builder writes a SEPARATE file; the screened default stands."""
+    from imas_ambix.worldmodel.gate_cohort import (
+        DEFAULT_COHORT_PATH,
+        DEFAULT_DRIVEABLE_COHORT_PATH,
+    )
+
+    assert DEFAULT_COHORT_PATH != DEFAULT_DRIVEABLE_COHORT_PATH
+    assert DEFAULT_COHORT_PATH.name == "gate_cohort.json"
+    assert DEFAULT_DRIVEABLE_COHORT_PATH.name == "gate_cohort_driveable.json"
+
+
+def test_build_driveable_cohort_signature():
+    sig = inspect.signature(build_driveable_cohort)
+    params = sig.parameters
+    assert "cfg" in params
+    for kw in (
+        "camera",
+        "token_root",
+        "manifest_path",
+        "device",
+        "out_json",
+        "thresholds",
+        "candidate_cap",
+        "target_size",
+        "work_dir",
+    ):
+        assert kw in params, f"missing build_driveable_cohort kwarg: {kw}"
+    # out_json defaults to the NEW driveable path (never the screened cohort).
+    from imas_ambix.worldmodel.gate_cohort import DEFAULT_DRIVEABLE_COHORT_PATH
+
+    assert params["out_json"].default == DEFAULT_DRIVEABLE_COHORT_PATH
+
+
+def test_screened_scoring_unaffected_by_driveable_fields():
+    """CohortShotScreen with driveability fields still screens on brightness/motion."""
+    rec = _score_gt(_rec(), _bright_moving_stack(), ScreenThresholds())
+    assert rec.passed
+    # the new fields default to 0.0 and do not affect the brightness/motion screen.
+    assert rec.driveability_score == 0.0
+    assert rec.centroid_path_px == 0.0
