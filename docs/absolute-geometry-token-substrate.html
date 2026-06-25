@@ -63,13 +63,28 @@ Cameras remain decode-only. This stage produces the upgraded store + readers tha
 
 <h2 id="s3">§3 — Approach</h2>
 <p><strong>Direction (2026-06-25):</strong> this is a clean architecture pivot, not an incremental add-on.
-Corpus-level absolute calibration is the <em>default and only operative</em> representation, per the North
-Star (<a href="/imas-ambix/physics-world-model-strategy.html#s1a-reqs">§1a-reqs #2</a>: "absolute calibration
+Corpus-level <em>fixed-scale</em> calibration is the <em>default and only operative</em> representation, per the
+North Star (<a href="/imas-ambix/physics-world-model-strategy.html#s1a-reqs">§1a-reqs #2</a>: "absolute calibration
 is mandatory, not optional"). The per-shot z-scoring path is the <strong>retired</strong> approach (it caused
 the scale-free blocker); we do <em>not</em> carry it forward as a default or a silent fallback. New-approach
 parameters are not gated behind opt-in flags; a missing required calibration <strong>fails loud</strong>
 (or is computed), never silently reverts to per-shot. Any per-shot path that remains exists only as an
 explicit, clearly-labelled diagnostic escape (e.g. the one-time gate baseline), never the operative default.</p>
+<p><strong>"Absolute" means a fixed physical-unit SCALE, not absolute value — signals stay SIGNED.</strong>
+Calibration is <code>z = (x − μ<sub>corpus</sub>) / σ<sub>corpus</sub></code> with a symmetric ±4σ range, so
+field direction / flux polarity is preserved end-to-end (there is no magnitude/abs op anywhere in the
+calibration, quantiser, or continuous paths). The "absolute" in <em>absolute calibration</em> is the
+<em>absolute reference scale</em> (the same physical value maps to the same representation in every shot and
+on every machine), as opposed to per-shot relative scaling.</p>
+<p><strong>Magnitude/sign-carrying analog signals are persisted as CONTINUOUS signed embeddings, not 256-bin
+discrete tokens.</strong> Measured 2026-06-25: the continuous signed lane recovers ~2–3× the
+diagnostics→equilibrium skill of the 256-bin token lane (magnetics axis_R +0.14→+0.27, axis_Z +0.18→+0.58).
+Tokenising a signed analog value embeds its bin id as an <em>unordered categorical vector</em>, discarding the
+ordinal/metric/sign structure that boundary triangulation needs; a continuous projection keeps it. So
+magnetics (B-probes, flux loops), coil currents, and plasma current are carried as continuous signed values
+on a fixed corpus scale (the store already supports a continuous-embedding array; this matches the
+per-modality tokeniser decision that put <code>xma</code> on continuous embeddings). Discrete tokens remain
+where they win (cameras; phase-tolerant HF families).</p>
 <ol>
   <li><strong>Absolute calibration path.</strong> Replace the per-shot normalisation in the signal
   tokenisation with corpus-level SI scaling (per-channel physical ranges) as the default, and the
