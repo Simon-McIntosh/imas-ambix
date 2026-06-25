@@ -356,7 +356,7 @@ def test_agent_info():
     result = runner.invoke(main, ["agent", "info", "kimi-k2-6"])
     assert result.exit_code == 0
     assert "Kimi-K2.6" in result.output
-    assert "ktransformers" in result.output
+    assert "ktransformers" in result.output.lower()
 
 
 def test_serving_slugs_marks_running_serve(monkeypatch):

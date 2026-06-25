@@ -168,20 +168,21 @@ def list_command() -> None:
     site = SiteConfig.from_env()
     serving = _serving_slugs(site)
 
-    table = Table(title="Ambix agent profiles")
-    table.add_column("Slug", style="cyan")
-    table.add_column("Name", style="bold")
-    table.add_column("Engine")
-    table.add_column("Size")
-    table.add_column("Status")
+    console.print("[bold]imas-ambix profiles[/]")
+    table = Table(box=None, pad_edge=False)
+    table.add_column("SLUG", style="cyan", no_wrap=True)
+    table.add_column("MODEL", style="bold")
+    table.add_column("ENGINE")
+    table.add_column("SIZE", justify="right")
+    table.add_column("STATUS")
 
     for slug in list_profiles():
         profile = _load_profile(slug)
-        status_cell = "[green]● serving[/]" if slug in serving else ""
+        status_cell = "[green]serving[/]" if slug in serving else ""
         table.add_row(
             profile.slug,
             profile.model.name,
-            profile.engine.type,
+            _ENGINE_LABELS.get(profile.engine.type, profile.engine.type),
             f"{profile.model.size_gb} GB",
             status_cell,
         )
@@ -196,22 +197,19 @@ def info(slug: str | None) -> None:
     profile = _load_profile(slug)
     site = SiteConfig.from_env()
 
-    table = Table(title=f"Profile: {profile.slug}", show_header=False)
-    table.add_column("Field", style="cyan", no_wrap=True)
-    table.add_column("Value")
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style="cyan", no_wrap=True)
+    table.add_column()
     table.add_row("Model name", profile.model.name)
     table.add_row("HF repo", profile.model.hf_repo)
     table.add_row("Served name", profile.model.served_name)
-    table.add_row("Engine", profile.engine.type)
+    table.add_row("Engine", _ENGINE_LABELS.get(profile.engine.type, profile.engine.type))
     table.add_row("Tensor parallel", str(profile.engine.tensor_parallel))
     table.add_row("Attention backend", profile.engine.attention_backend)
-    table.add_row("Max context", str(profile.model.max_context))
+    table.add_row("Max context", f"{profile.model.max_context:,}")
     table.add_row("Model size", f"{profile.model.size_gb} GB")
-    table.add_row("SLURM GPUs", str(profile.slurm.gpus))
-    table.add_row("SLURM CPUs", str(profile.slurm.cpus))
-    table.add_row("SLURM memory", profile.slurm.memory)
-    table.add_row("Serve time", profile.slurm.time_serve)
-    table.add_row("Download time", profile.slurm.time_download)
+    table.add_row("SLURM", f"{profile.slurm.gpus}×H200 · {profile.slurm.cpus} CPU "
+                  f"· {profile.slurm.memory} · serve {profile.slurm.time_serve}")
     table.add_row("Model directory", str(site.model_dir(profile)))
     table.add_row("Cache directory", str(site.cache_dir(profile)))
     if profile.engine.ktransformers is not None:
@@ -232,7 +230,10 @@ def info(slug: str | None) -> None:
             "Parsers",
             "\n".join(f"{key}: {value}" for key, value in parsers.items()),
         )
-    console.print(table)
+    console.print(
+        Panel(table, title=f"[bold]{profile.slug}[/] → {profile.model.served_name}",
+              title_align="left", border_style="blue", padding=(0, 1))
+    )
 
 
 @agent.command()
@@ -251,7 +252,7 @@ def download(slug: str | None, dry_run: bool) -> None:
     script = generate_download_script(profile, site)
 
     if dry_run:
-        click.echo(script)
+        console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
 
     try:
@@ -310,7 +311,7 @@ def serve(
     if dry_run:
         if resolved_key:
             script = script.replace(resolved_key, "****")
-        click.echo(script)
+        console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
 
     try:
@@ -1051,7 +1052,7 @@ def restart(
     if dry_run:
         if resolved_key:
             script = script.replace(resolved_key, "****")
-        click.echo(script)
+        console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
 
     try:
@@ -1203,7 +1204,7 @@ def bench(
 
     # JSON-only output
     if json_output:
-        click.echo(report.to_json())
+        console.print(report.to_json(), markup=False, highlight=False, soft_wrap=True)
         if save_path:
             console.print(f"[dim]Results saved to {save_path}[/]", err=True)
         return
@@ -1491,7 +1492,7 @@ def setup(engine: str, dry_run: bool) -> None:
     script = "\n".join(lines)
 
     if dry_run:
-        click.echo(script)
+        console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
 
     try:
