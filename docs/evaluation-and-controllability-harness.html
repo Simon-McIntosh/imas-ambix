@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-25">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -92,7 +92,7 @@ Done-when (the gate)
   4. tests green; followup written + this one resolved; plan collapsed to a landed summary.</pre>
     <p class="r-fu-outcome">All five eval-spine components built + unit-tested (54 tests green) and the bars frozen on existing data. Commits 4e50797 (firewalled EFIT referee — runtime+static boundary guard proven, 11 tests), 93c534a (absolute-magnetics oracle library — skill ≈0.5–0.7 per-component, 9 tests), e2ad683 (raw-held-out + EnKF bar — EnKF pitch RMSE 0.225 [0.199,0.259] beats persistence 0.719, conformal cov90 0.903∈[0.88,0.92], 10 tests), 060969f (powered ΔN-M latent gate — n=10 noise floor null ratio 1.001 CI[0.985,1.018] FAIL, controlled 3.017 CI[2.680,3.370] PASS, 11 tests), 21decd4 (excitation-window selector + excited held-out cohort + leakage audit, 13 tests). Firewall boundary guard proven; excited cohort + leakage audit landed; 18502–18505 retained held-out. Note: 060969f also swept up four concurrent-track files via a broad git add (content safe, history NOT rewritten). Landed archive: docs/archive/evaluation-and-controllability-harness-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-evh-02" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship evaluation-and-controllability-harness" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-evh-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship evaluation-and-controllability-harness" data-resolved-at="2026-06-25T06:35:18+00:00" data-resolved-by="remeasure (fleet worker) + reckon-ship">
     <h4 class="r-fu-title">Live re-measure with the new library entrypoints + wire the spine into the model gates</h4>
     <div class="r-fu-body">The harness machinery is built and the bars are frozen from prior runs / locked artifacts the new modules compose. Next: run magnetics_oracle and the prediction_bar EnKF leg end-to-end on /work via the NEW library entrypoints (confirm they reproduce skill ≈0.5–0.7 and EnKF 0.225 &lt; persistence 0.719 live), build the excited held-out cohort on live plan/coil streams, then expose the spine to the model stages — the oracle as the stage-2 GS-readout bar and the raw-held-out + EnKF + powered ΔN-M-on-excited-cohort as the stage-4 goal gate.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -114,6 +114,7 @@ Done-when (the gate)
   2. prediction_bar measured LIVE: persistence + EnKF on the D1 held-out split reproduce EnKF 0.225 &lt; persistence 0.719, conformal cov90 ∈ [0.88,0.92].
   3. Excited held-out cohort built on live plan/coil streams; leakage audit passes (N train / N excited-held-out / disjoint / 18502–18505 held-out).
   4. The spine is callable by the model stages; tests green; followup written + this one resolved.</pre>
+    <p class="r-fu-outcome">LIVE re-measure through the new library entrypoints + callable-API smoke landed (artifact imas_ambix/eval/artifacts/live_bars.json, figure docs/figures/.../live-bars.png, tests/eval/test_spine_integration.py 8/8 green). (1) Absolute-magnetics oracle LIVE on /work (CPU, 184 train / 54 test): axis_R skill 0.593, axis_Z 0.701, X-point_R 0.499 — in/at the 0.5–0.7 stage-2 band; X-point_Z skill 0.019 (does NOT beat baseline — honest: vertical X-point is not recoverable from magnitudes alone, an expected under-determination). Headline axis+xpt 0.453, axis-only 0.647. (2) prediction_bar LIVE: persistence pitch RMSE 0.7190 scored live on the locked D1 112-shot held-out split; EnKF 0.225 [0.199,0.259] filled from the locked reference artifact (heavy TORAX leg deferred); module composes the harness correctly and reproduces persistence + EnKF + EnKF-beats-persistence. (3) Spine confirmed stage-callable (oracle skill/verdict, prediction_bar, controllability_gate via a STUB rollout_fn). DEFERRED (blocked, no trained model): the actual stage-2 GS-readout gate and stage-4 controllability/raw-held-out gate RUNS — owned by parent f-malwm-02 / f-malwm-04. NOTE: remeasure's 3 files were swept into concurrent commit 339b022 by the token-substrate session's broad git add (content safe on main; history NOT rewritten).</p>
     </article>
 <article class="r-fu" data-id="f-evh-03" data-status="open" data-tier="opus" data-written-by="excite (fleet worker)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship evaluation-and-controllability-harness" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Live excited-cohort scan over a wider train-disjoint band (readable actuator records)</h4>
