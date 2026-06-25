@@ -404,6 +404,7 @@ def encode_shots(
     watchdog_s: float = 120.0,
     skip_existing: bool = True,
     num_workers: int = 0,
+    corpus_calibration=None,
 ) -> dict:
     """Encode shots into the v2 signals_hf store with ``tokenizer``.
 
@@ -420,6 +421,12 @@ def encode_shots(
     of shot ``N`` — the IO-overlap that matters for this IO-bound encode (repo
     §2b).  ``num_workers == 0`` reads inline (used by unit tests, which
     monkeypatch ``load_shot_window``).
+
+    ``corpus_calibration`` (``dict[str, ChannelCalibration] | None``): when
+    supplied, each channel is standardised against its CORPUS mean/std so
+    absolute magnitude survives tokenisation (the patch-transformer codebook
+    must be retrained under absolute normalisation for the codes to be valid).
+    Default ``None`` keeps the existing per-window behaviour byte-for-byte.
     """
     spec = SPECS[group]
     summary = {"group": group, "encoded": [], "skipped": [], "n_tokens_total": 0}
@@ -445,7 +452,17 @@ def encode_shots(
 
     feed = _shot_window_feed(todo, group, num_workers)
     try:
-        _drain_feed(feed, group, tokenizer, spec, cfg, patch_vocab, summary, watchdog_s)
+        _drain_feed(
+            feed,
+            group,
+            tokenizer,
+            spec,
+            cfg,
+            patch_vocab,
+            summary,
+            watchdog_s,
+            corpus_calibration=corpus_calibration,
+        )
     finally:
         _close_feed(feed)
     return summary
@@ -522,8 +539,20 @@ def _close_feed(feed) -> None:
 
 
 def _drain_feed(
-    feed, group, tokenizer, spec, cfg, patch_vocab, summary, watchdog_s
+    feed,
+    group,
+    tokenizer,
+    spec,
+    cfg,
+    patch_vocab,
+    summary,
+    watchdog_s,
+    *,
+    corpus_calibration=None,
 ) -> None:
+    summary["calibration"] = (
+        "absolute" if corpus_calibration is not None else "per_window"
+    )
     for sid, w, reason in feed:
         sid = int(sid)
         if _STOP["flag"]:
@@ -535,7 +564,11 @@ def _drain_feed(
         t0 = time.time()
         data, chan, valid_ch, native_rate, window = w
         try:
-            ids, latent, _recon = tokenizer.encode_window(data)  # (C,P),(C,P,d),(C,T)
+            ids, latent, _recon = tokenizer.encode_window(
+                data,
+                channel_names=chan,
+                corpus_calibration=corpus_calibration,
+            )  # (C,P),(C,P,d),(C,T)
         except Exception as exc:  # pragma: no cover - corpus robustness
             summary["skipped"].append({"shot": sid, "reason": f"encode_error:{exc}"})
             continue
@@ -569,6 +602,9 @@ def _drain_feed(
                 "use_stft": cfg.use_stft,
                 "codebook_size": patch_vocab,
                 "embed_dim": int(latent.shape[-1]),
+                "calibration": "absolute"
+                if corpus_calibration is not None
+                else "per_window",
             },
         )
         # For a continuous bottleneck the discrete ids are vestigial — persist
@@ -757,6 +793,13 @@ def main(argv: list[str] | None = None) -> int:
         help="DataLoader worker subprocesses reading shot windows off GPFS in "
         "parallel with inference (this encode is IO-bound; 0 = inline reads)",
     )
+    pe.add_argument(
+        "--absolute",
+        action="store_true",
+        help="standardise each channel against the persisted CORPUS calibration "
+        "(absolute / SI magnitude survives tokenisation) instead of per-window "
+        "z-scoring; requires a codebook retrained under absolute normalisation",
+    )
 
     args = p.parse_args(argv)
     _install_signal_handler()
@@ -793,12 +836,30 @@ def main(argv: list[str] | None = None) -> int:
             logger.info("corpus shotlist: %d shots on disk", len(shot_ids))
         else:
             shot_ids = _parse_ids(args.shots)
+        corpus_calibration = None
+        if args.absolute:
+            from imas_ambix.calibration.corpus_compute import load_group_calibration
+
+            corpus_calibration = load_group_calibration(args.group)
+            if corpus_calibration is None:
+                raise SystemExit(
+                    f"--absolute requested but no corpus calibration found for "
+                    f"group {args.group!r}; run "
+                    f"`python -m imas_ambix.calibration.corpus_compute "
+                    f"--group {args.group}` first"
+                )
+            logger.info(
+                "absolute mode: loaded calibration for %d channels (group %r)",
+                len(corpus_calibration),
+                args.group,
+            )
         summary = encode_shots(
             args.group,
             shot_ids,
             tok,
             skip_existing=not args.no_skip_existing,
             num_workers=args.num_workers,
+            corpus_calibration=corpus_calibration,
         )
         logger.info(
             "encode summary: %d encoded, %d skipped, %d tokens",

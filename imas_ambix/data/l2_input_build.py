@@ -509,18 +509,27 @@ def quantise_group(
     quantizer: UniformQuantizer | None = None,
     *,
     signals_hf_root=None,
+    corpus_calibration=None,
 ) -> tuple[np.ndarray, np.ndarray, tuple[str, ...], UniformQuantizer, tuple[int, int]]:
     """Quantise one group read.
 
-    A per-shot, per-group :class:`UniformQuantizer` is fit on this group's
-    own finite samples (the light path is self-calibrating per shot — no
-    cross-shot statistics are needed for the round-trip plumbing, and a
-    per-shot fit keeps the dequantise error tight regardless of inter-shot
-    amplitude drift).  Returns ``(tokens, valid, channel_names, quantizer,
-    l2_id_range)`` — the ``(n_time, n_channels)`` global token id array, the
-    aligned validity mask, the emitted channel order, the fitted quantizer
-    (so the caller can decode for QC), and the absolute global-id range
-    ``[start, end)`` the L2 input block occupies (recorded in each store).
+    Calibration mode is chosen by ``corpus_calibration``:
+
+    - **Absolute (``corpus_calibration`` supplied):** the quantizer
+      standardises each channel against its CORPUS mean/std, so the same
+      physical value maps to the same token in every shot and on every
+      machine.  The per-shot ``fit`` is SKIPPED — corpus stats are constant
+      across shots.  This is the mode that preserves absolute magnitude.
+    - **Per-shot (``corpus_calibration is None``, default):** a per-shot,
+      per-group :class:`UniformQuantizer` is fit on this group's own finite
+      samples.  Self-calibrating per shot — tight round-trip error, but
+      absolute magnitude is NOT comparable across shots.
+
+    Returns ``(tokens, valid, channel_names, quantizer, l2_id_range)`` — the
+    ``(n_time, n_channels)`` global token id array, the aligned validity mask,
+    the emitted channel order, the quantizer (so the caller can decode for QC),
+    and the absolute global-id range ``[start, end)`` the L2 input block
+    occupies (recorded in each store).
 
     The L2 block id range is derived from on-disk corpus truth: it is placed
     strictly ABOVE every id the real xma/xim/xsx stores use (sizes read from
@@ -540,7 +549,12 @@ def quantise_group(
     else:
         quant = quantizer
         l2_range = registry.block_range(quant.name)
-    quant.fit([ds])
+    if corpus_calibration is not None:
+        # Absolute mode: corpus stats are constant across shots, so skip the
+        # per-shot fit entirely and standardise against the corpus mean/std.
+        quant.set_calibration(corpus_calibration)
+    else:
+        quant.fit([ds])
     encoded = quant.encode(ds)
     tokens = np.asarray(encoded.token_ids, dtype=np.int32)
     used = encoded.channel_names
@@ -568,6 +582,7 @@ def build_group(
     out_root: Path | str | None = None,
     skip_existing: bool = True,
     signals_hf_root=None,
+    corpus_calibration=None,
 ) -> Path | None:
     """Read → guard → quantise → write one group's L2 input tokens.
 
@@ -590,7 +605,9 @@ def build_group(
         return None
 
     tokens, valid, used, quant, l2_range = quantise_group(
-        read, signals_hf_root=signals_hf_root
+        read,
+        signals_hf_root=signals_hf_root,
+        corpus_calibration=corpus_calibration,
     )
     if tokens.size == 0 or not used:
         return None
@@ -601,6 +618,24 @@ def build_group(
 
     t = read.token_time
     window = (float(t[0]), float(t[-1])) if t.size else (0.0, 0.0)
+
+    # The per-channel mean/std the quantiser de-quantises with, plus the
+    # calibration provenance, so a reader can tell which mode produced the
+    # tokens (absolute = corpus-constant, per-shot = this shot's own stats).
+    if corpus_calibration is not None:
+        cal_mode = "absolute"
+        cal_means = {
+            n: float(corpus_calibration[n].mean)
+            for n in used
+            if n in corpus_calibration
+        }
+        cal_stds = {
+            n: float(corpus_calibration[n].std) for n in used if n in corpus_calibration
+        }
+    else:
+        cal_mode = "per_shot"
+        cal_means = {n: quant._means.get(n, 0.0) for n in used}
+        cal_stds = {n: quant._stds.get(n, 1.0) for n in used}
 
     attrs = StoreV2Attrs(
         tokenizer_name=quant.name,
@@ -621,8 +656,12 @@ def build_group(
             # aliases a corpus block.  This is the self-describing leakage
             # contract written into every L2 group.
             "global_id_range": [int(l2_range[0]), int(l2_range[1])],
-            "channel_means": {n: quant._means.get(n, 0.0) for n in used},
-            "channel_stds": {n: quant._stds.get(n, 1.0) for n in used},
+            # Per-channel mean/std the quantiser actually used: corpus stats
+            # in absolute mode, per-shot fitted stats otherwise.  A reader
+            # de-quantises with exactly these.
+            "channel_means": cal_means,
+            "channel_stds": cal_stds,
+            "calibration": cal_mode,
             "channel_units": {n: units_by_name.get(n, "") for n in used},
             "channel_uda": {n: uda_by_name.get(n) for n in used},
             "channel_source": {n: src_by_name.get(n) for n in used},
@@ -640,8 +679,14 @@ def build_shot(
     out_root: Path | str | None = None,
     skip_existing: bool = True,
     specs: tuple[L2InputSpec, ...] = AUTHORISED_INPUTS,
+    calibration_by_group: dict[str, dict] | None = None,
 ) -> dict[str, Path]:
     """Encode every authorised input group for one shot.
+
+    ``calibration_by_group`` maps a group name to its corpus calibration
+    (``dict[str, ChannelCalibration]``); a group present here is encoded in
+    absolute mode, all others fall back to per-shot fitting.  ``None`` (the
+    default) encodes every group per-shot, byte-identical to before.
 
     Returns a ``{group: written_path}`` map for the groups that produced a
     store (present-when-present groups absent on this shot are simply
@@ -649,6 +694,11 @@ def build_shot(
     """
     written: dict[str, Path] = {}
     for spec in specs:
+        cal = (
+            calibration_by_group.get(spec.group)
+            if calibration_by_group is not None
+            else None
+        )
         try:
             path = build_group(
                 shot_id,
@@ -656,6 +706,7 @@ def build_shot(
                 level2_dir=level2_dir,
                 out_root=out_root,
                 skip_existing=skip_existing,
+                corpus_calibration=cal,
             )
         except ValueError:
             # A registry allocation conflict (the L2 block colliding with a
@@ -765,12 +816,40 @@ def main(argv: list[str] | None = None) -> int:
         help="re-encode shots whose store already exists",
     )
     parser.add_argument("--manifest", default=None, help="optional JSON run manifest")
+    parser.add_argument(
+        "--absolute",
+        action="store_true",
+        help="standardise each group against its persisted CORPUS calibration "
+        "(absolute / SI magnitude survives quantisation) instead of per-shot "
+        "z-scoring; groups without a calibration file fall back to per-shot",
+    )
     parser.set_defaults(skip_existing=True)
     args = parser.parse_args(argv)
 
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
+
+    calibration_by_group: dict[str, dict] | None = None
+    if args.absolute:
+        from imas_ambix.calibration.corpus_compute import load_group_calibration
+
+        calibration_by_group = {}
+        for spec in AUTHORISED_INPUTS:
+            cal = load_group_calibration(spec.group)
+            if cal is not None:
+                calibration_by_group[spec.group] = cal
+                logger.info(
+                    "absolute mode: group %r calibration loaded (%d channels)",
+                    spec.group,
+                    len(cal),
+                )
+            else:
+                logger.warning(
+                    "absolute mode: no calibration for group %r — it will "
+                    "fall back to per-shot fitting",
+                    spec.group,
+                )
 
     if args.shots.strip().lower() == "all":
         shots = _enumerate_shots(args.level2_dir)
@@ -788,6 +867,7 @@ def main(argv: list[str] | None = None) -> int:
             level2_dir=args.level2_dir,
             out_root=args.out_root,
             skip_existing=args.skip_existing,
+            calibration_by_group=calibration_by_group,
         )
         per_shot[shot] = sorted(written)
         n_groups += len(written)
