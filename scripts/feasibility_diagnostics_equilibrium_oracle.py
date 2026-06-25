@@ -134,6 +134,7 @@ def assemble_examples(
     config,
     level2_root,
     token_root,
+    calibration_by_group=None,
 ):
     """Build one labelled diagnostics example per shot.
 
@@ -180,7 +181,12 @@ def assemble_examples(
             logger.info("shot %d: no window (%s) — skip", sid, exc)
             continue
         signals = read_window_signals(
-            int(sid), sample, modalities, n_signal_steps, token_root=token_root
+            int(sid),
+            sample,
+            modalities,
+            n_signal_steps,
+            token_root=token_root,
+            calibration_by_group=calibration_by_group,
         )
         if not signals:
             logger.info("shot %d: no readable measured streams — skip", sid)
@@ -589,6 +595,38 @@ def run(args) -> int:
     level2_root = Path(args.level2_root) if args.level2_root else None
     modalities = extended_signal_modalities()
 
+    # Absolute mode: load the corpus calibration for the STAGED streams (the
+    # read-time-quantised groups, e.g. magnetics) so a given physical reading
+    # maps to the same token in every shot.  The window / signal_hf streams
+    # (xma, L2 light-path) instead carry absolute magnitude in their re-encoded
+    # stores; at read time only the staged groups consult this dict.
+    calibration_by_group = None
+    if args.absolute:
+        from imas_ambix.calibration.corpus_compute import load_group_calibration
+
+        calibration_by_group = {}
+        for m in modalities:
+            if m.kind not in ("staged", "ait"):
+                continue
+            cal = load_group_calibration(m.group)
+            if cal:
+                calibration_by_group[m.group] = cal
+                logger.info(
+                    "absolute: loaded calibration for staged group %r (%d channels)",
+                    m.group,
+                    len(cal),
+                )
+            else:
+                logger.warning(
+                    "absolute: NO calibration for staged group %r — per-shot fallback",
+                    m.group,
+                )
+        if not calibration_by_group:
+            logger.warning(
+                "absolute requested but no staged calibration on disk — "
+                "staged streams stay per-shot (run corpus_compute first)"
+            )
+
     config = SpacetimeWindowConfig(
         n_frames=args.n_frames,
         n_plan=8,
@@ -630,6 +668,7 @@ def run(args) -> int:
         config=config,
         level2_root=level2_root,
         token_root=token_root,
+        calibration_by_group=calibration_by_group,
     )
     te_examples = assemble_examples(
         test_shots,
@@ -639,6 +678,7 @@ def run(args) -> int:
         config=config,
         level2_root=level2_root,
         token_root=token_root,
+        calibration_by_group=calibration_by_group,
     )
     if not tr_examples or not te_examples:
         logger.error("empty TRAIN or TEST example set — cannot run oracle")
@@ -684,6 +724,10 @@ def run(args) -> int:
         "probed_channels": {k: int(v) for k, v in channels.items() if v > 0},
         "n_signal_steps": args.n_signal_steps,
         "target_horizon_s": args.target_horizon_s,
+        "calibration_mode": "absolute" if args.absolute else "per_shot",
+        "calibrated_staged_groups": sorted(calibration_by_group)
+        if calibration_by_group
+        else [],
     }
     report = {
         "task": "diagnostics feasibility oracle (measured signals -> geometry)",
@@ -773,6 +817,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--level2-root", default=None, help="override L2 equilibrium root")
     p.add_argument("--out-root", default=str(DEFAULT_OUT_ROOT))
     p.add_argument("--fig-dir", default=str(DEFAULT_FIG_DIR))
+    p.add_argument(
+        "--absolute",
+        action="store_true",
+        help="standardise staged streams against the persisted CORPUS calibration "
+        "(absolute magnitude survives tokenisation) instead of per-shot",
+    )
     return p
 
 
