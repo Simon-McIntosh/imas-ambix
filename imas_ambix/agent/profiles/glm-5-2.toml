@@ -58,18 +58,21 @@ disable_cuda_graph = true
 # against ~24 available — comfortable margin, no startup OOM. Raise only after
 # re-measuring free KV live; do NOT chase the 419K ceiling (no headroom for
 # concurrent requests). 256K is still a very large practical agent context.
-max_total_tokens = 262144
+# Context: 224K. Two HBM constraints fight on 8×H200 (measured 2026-06-25):
+#   * Decode scratch is a HARD FLOOR: the FP8 sparse-MLA attention kernel
+#     (flash_mla sparse_decode_fwd) allocates ~8 GiB/card lazily on the FIRST
+#     real decode. At mem_fraction 0.95 the KV pool took almost all HBM, leaving
+#     only ~2.4 GiB free → EngineDeadError on the first Claude Code request
+#     (job 1222807). So mem_fraction must stay low enough to keep ~8 GiB free.
+#   * At mem_fraction 0.86 (ample decode headroom), the KV pool is 13.63 GiB →
+#     est. max context 235K; 256K needs 15.2 GiB and KV-init failed (job 1222818).
+# Resolution: keep mem_fraction LOW (0.86, proven decode-safe) and size context
+# to the KV that leaves: 229376 (224K) needs ~13.3 GiB < 13.63 available. This
+# trades 32K of context for a launch that survives real inference instead of
+# gambling on a narrow mem_fraction window. Startup KV-init passing does NOT
+# prove inference fits — the kernel scratch is allocated lazily on first decode.
+max_total_tokens = 229376
 kv_cache_dtype = "fp8"
-# 0.86 — NOT higher. At 0.95 the server started and KV-init passed, but the
-# FIRST real decode died with torch.OutOfMemoryError: the FP8 sparse-MLA
-# attention kernel (flash_mla sparse_decode_fwd) tried to allocate ~8 GiB of
-# runtime scratch and only ~2.4 GiB/card was free — mem_fraction 0.95 gave the
-# KV pool almost all the HBM and starved inference-time allocations (job 1222807,
-# 2026-06-25: ran, served one tiny curl, then EngineDeadError on Claude Code's
-# larger request). 0.86 reserves ~13 GiB/card for the attention kernel + MTP
-# scratch; 256K KV needs only ~15 GiB aggregate so it still fits. If decodes
-# still OOM, drop another 0.02. Startup KV-init passing does NOT prove inference
-# fits — the kernel scratch is allocated lazily on first decode.
 mem_fraction_static = 0.86
 # Lift the scheduler caps off the vLLM defaults (256 seqs) so the large KV
 # budget is actually exploited; mirrors the deepseek-v4-flash tuning.
