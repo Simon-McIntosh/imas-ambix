@@ -668,6 +668,21 @@ def train_probe(
         continuous,
     )
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    # A deep space-time transformer over hundreds of (sensor x time) tokens needs
+    # a warmup + cosine schedule to converge (a flat LR underfits in a few-epoch
+    # budget — the NLL was still falling at the cap).  Warmup over the first ~10%
+    # of steps, cosine-decay to ~3% of the peak LR over the rest.
+    steps_per_epoch = max(1, (n + batch_size - 1) // batch_size)
+    total_steps = max(1, epochs * steps_per_epoch)
+    warmup_steps = max(1, int(0.1 * total_steps))
+
+    def _lr_scale(step: int) -> float:
+        if step < warmup_steps:
+            return (step + 1) / warmup_steps
+        prog = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+        return 0.03 + 0.97 * 0.5 * (1.0 + np.cos(np.pi * min(1.0, prog)))
+
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, _lr_scale)
 
     model.train()
     g = torch.Generator(device="cpu").manual_seed(seed)
@@ -686,10 +701,18 @@ def train_probe(
                 pmean, plog = model(sb, gb, kb, values=vb, machine=mcb)
             loss = gaussian_nll(pmean.float(), plog.float(), yb, mb)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
+            sched.step()
             tot += float(loss.detach())
             nb += 1
-        logger.info("epoch %d/%d  NLL=%.4f", ep + 1, epochs, tot / max(nb, 1))
+        logger.info(
+            "epoch %d/%d  NLL=%.4f  lr=%.2e",
+            ep + 1,
+            epochs,
+            tot / max(nb, 1),
+            sched.get_last_lr()[0],
+        )
     return model, mean, std
 
 
