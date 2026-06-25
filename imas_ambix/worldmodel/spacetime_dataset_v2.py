@@ -50,6 +50,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+    from imas_ambix.calibration.signals import ChannelCalibration
+
 logger = logging.getLogger(__name__)
 
 
@@ -313,7 +315,8 @@ def _staged_store_path(group: str, shot_id: int, *, token_root: Path | None = No
 
     Layout: ``<token_root>/v1/signals-<group>/<group>/<shot>/<group>.zarr`` — the
     convention both the ait stager and the generic L1/L2 stagers write to.  The
-    path is run through :func:`imas_ambix.tokenizer.store_targets.assert_not_target_path`
+    path is run through
+    :func:`imas_ambix.tokenizer.store_targets.assert_not_target_path`
     so a ``token_root`` resolving under the eval-only target root is hard-refused
     before any open (the same boundary guard the other signal reads honour).
     """
@@ -331,28 +334,57 @@ def _staged_store_path(group: str, shot_id: int, *, token_root: Path | None = No
     return assert_not_target_path(path)
 
 
-def _quantise_l2(values: np.ndarray) -> np.ndarray:
+def _quantise_l2(
+    values: np.ndarray,
+    *,
+    channel_names: Sequence[str] | None = None,
+    calibration: dict[str, ChannelCalibration] | None = None,
+) -> np.ndarray:
     """``(T, C) float -> (T, C) int64`` local ids 1..256 (L2 uniform-quantiser).
 
-    Per-channel z-score against the channel's OWN finite mean/std (no fitted
-    corpus stats at read time), clip to +-clip_sigma, map linearly into
-    ``[0, n_bins-1]``, then shift by +1 so bin 0 becomes local id 1 and PAD (0)
-    stays reserved.  NaNs map to the channel mean (z=0 -> the centre bin), never
-    to PAD, so a finite-but-central reading and a missing step are distinct.
+    Two standardisation modes, chosen by ``calibration``:
+
+    - **Per-shot (``calibration is None``, default):** each column is z-scored
+      against its OWN finite mean/std — amplitude-relative, the historic
+      behaviour.  With ``calibration=None`` this path is byte-identical to
+      before (``channel_names`` is then ignored).
+    - **Absolute (``calibration`` supplied):** a column whose ``channel_names``
+      entry is present in ``calibration`` is standardised against its CORPUS
+      mean/std, so the same physical value maps to the same bin in every shot
+      and on every machine.  A column with no calibration entry falls back to
+      per-shot with a one-time warning naming the channel.
+
+    Either way: clip to ±clip_sigma, map linearly into ``[0, n_bins-1]``, then
+    shift by +1 so bin 0 becomes local id 1 and PAD (0) stays reserved.  NaNs
+    map to the channel centre (z=0), never to PAD, so a finite-but-central
+    reading and a missing step stay distinct.
     """
     arr = np.asarray(values, dtype=np.float64)
     if arr.ndim == 1:
         arr = arr[:, None]
+    names = list(channel_names) if channel_names is not None else []
     out = np.zeros(arr.shape, dtype=np.int64)
     for c in range(arr.shape[1]):
         col = arr[:, c]
-        finite = col[np.isfinite(col)]
-        if finite.size == 0:
-            out[:, c] = 1  # all-NaN channel -> centre-ish; valid mask handles it
-            continue
-        mean = float(finite.mean())
-        std = float(finite.std())
-        std = std if std > 1e-12 else 1.0
+        mean: float
+        std: float
+        cal = None
+        if calibration is not None and c < len(names):
+            cal = calibration.get(names[c])
+        if cal is not None:
+            mean = float(cal.mean)
+            std = float(cal.std)
+            std = std if std > 1e-12 else 1.0
+        else:
+            finite = col[np.isfinite(col)]
+            if finite.size == 0:
+                out[:, c] = 1  # all-NaN channel -> centre; valid mask handles it
+                continue
+            if calibration is not None:
+                _warn_missing_staged_calibration(names[c] if c < len(names) else None)
+            mean = float(finite.mean())
+            std = float(finite.std())
+            std = std if std > 1e-12 else 1.0
         z = np.nan_to_num((col - mean) / std, nan=0.0)
         z = np.clip(z, -_AIT_CLIP_SIGMA, _AIT_CLIP_SIGMA)
         local = np.round(
@@ -363,57 +395,98 @@ def _quantise_l2(values: np.ndarray) -> np.ndarray:
     return out
 
 
-def _read_staged_signal(
+# One-time per-channel warning so a missing-calibration column is visible in
+# absolute mode without flooding the log across every shot/window.
+_WARNED_STAGED_CHANNELS: set[str] = set()
+
+
+def _warn_missing_staged_calibration(name: str | None) -> None:
+    key = name if name is not None else "<unnamed>"
+    if key not in _WARNED_STAGED_CHANNELS:
+        _WARNED_STAGED_CHANNELS.add(key)
+        logger.warning(
+            "staged read: no corpus calibration for channel %r — falling back "
+            "to per-shot stats (absolute magnitude not preserved for it)",
+            key,
+        )
+
+
+def _read_staged_raw(
     group: str,
     shot_id: int,
     *,
     token_root: Path | None = None,
     profile_r_stride: int = 16,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Read + quantise a staged raw-float signal store for a shot.
+) -> tuple[np.ndarray, list[str], np.ndarray]:
+    """Read a staged raw-float store → ``(raw (T, C) float64, names, time)``.
 
-    Generic over the staged group (``ait`` divertor heat-flux, the Dα/boundary
-    diagnostics, the L2 magnetics field probes, …): every store shares the layout
-    ``<root>/v1/signals-<group>/<group>/<shot>/<group>.zarr`` = a ``time`` axis +
-    named 1-D traces + optional 2-D (T, channel) arrays.
-
-    Returns ``(tokens (T, C) int64 local ids, time (T,) float64)`` — the 1-D
-    traces (sorted key order) first, then the 2-D arrays sub-sampled along their
-    2nd axis by ``profile_r_stride`` and flattened.  Use stride 1 for DISCRETE
-    channel arrays (magnetics probes) so no sensor is dropped; >1 for a CONTINUOUS
-    profile (ait heat-flux).  A non-time-aligned array (e.g. a static R axis) is
-    skipped.  Raises ``FileNotFoundError`` / ``KeyError`` when the store is absent
-    so the caller omits the stream exactly like the other optional streams.
+    The single source of truth for the staged column SHAPING and NAMING, shared
+    by the read path (:func:`_read_staged_signal`) and the calibration compute
+    (``corpus_compute``) so the calibration keys === the read-time column names
+    BY CONSTRUCTION.  Column order is deterministic: 1-D TRACES first (sorted
+    key order, named by their array key), then 2-D PROFILES (sorted key order,
+    sub-sampled along the 2nd axis by ``profile_r_stride``, each kept column
+    named ``"{key}[{i}]"`` with ``i`` the kept-column index 0,1,2,…).  A
+    non-time-aligned array (e.g. a static R axis) is skipped.  Raises
+    ``FileNotFoundError`` / ``KeyError`` when the store is absent / has no
+    time-resolved channel.
     """
     import zarr  # noqa: PLC0415
 
     path = _staged_store_path(group, shot_id, token_root=token_root)
     store = zarr.open_group(str(path), mode="r")  # raises if absent
     if "time" not in store:
-        raise KeyError(f"ait store {path} has no 'time' axis")
+        raise KeyError(f"staged store {path} has no 'time' axis")
     time = np.asarray(store["time"], dtype=np.float64).reshape(-1)
     n_t = time.shape[0]
-    # Collect the 1-D TRACES first (the cheap, high-value channels) then the 2-D
-    # PROFILES (the rich heat-flux structure, R-subsampled), each in sorted key
-    # order — a DETERMINISTIC, traces-first column layout so a max_channels cap
-    # keeps the traces preferentially and the order is stable across shots.
-    traces: list[np.ndarray] = []
-    profiles: list[np.ndarray] = []
     r_stride = max(1, int(profile_r_stride))
+    trace_cols: list[np.ndarray] = []
+    trace_names: list[str] = []
+    profile_cols: list[np.ndarray] = []
+    profile_names: list[str] = []
     for key in sorted(store.array_keys()):
         if key == "time":
             continue
         arr = np.asarray(store[key])
         if arr.ndim == 1 and arr.shape[0] == n_t:
-            traces.append(_quantise_l2(arr.astype(np.float64)))  # (T, 1)
+            trace_cols.append(arr.astype(np.float64).reshape(n_t, 1))
+            trace_names.append(str(key))
         elif arr.ndim == 2 and arr.shape[0] == n_t:
-            profiles.append(_quantise_l2(arr[:, ::r_stride].astype(np.float64)))
-        # any other shape (e.g. the static (R,) rcoord axis) is not a per-time
-        # channel and is skipped.
-    cols = traces + profiles
+            kept = arr[:, ::r_stride].astype(np.float64)
+            profile_cols.append(kept)
+            profile_names.extend(f"{key}[{i}]" for i in range(kept.shape[1]))
+        # any other shape (e.g. the static (R,) rcoord axis) is skipped.
+    cols = trace_cols + profile_cols
     if not cols:
         raise KeyError(f"staged store {path} has no time-resolved channels")
-    tokens = np.concatenate(cols, axis=1)  # (T, C) — traces then profiles
+    raw = np.concatenate(cols, axis=1)  # (T, C) — traces then profiles
+    names = trace_names + profile_names
+    return raw, names, time
+
+
+def _read_staged_signal(
+    group: str,
+    shot_id: int,
+    *,
+    token_root: Path | None = None,
+    profile_r_stride: int = 16,
+    calibration: dict[str, ChannelCalibration] | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Read + quantise a staged raw-float signal store for a shot.
+
+    Reads the raw columns + their deterministic names via :func:`_read_staged_raw`
+    and quantises them with :func:`_quantise_l2`.  When ``calibration`` is
+    supplied, the quantiser standardises each named column against its CORPUS
+    mean/std (absolute magnitude survives); with ``calibration=None`` (default)
+    the per-shot behaviour is byte-identical to before.
+
+    Returns ``(tokens (T, C) int64 local ids, time (T,) float64)`` — traces
+    first, then R-subsampled profiles, matching :func:`_read_staged_raw`'s order.
+    """
+    raw, names, time = _read_staged_raw(
+        group, shot_id, token_root=token_root, profile_r_stride=profile_r_stride
+    )
+    tokens = _quantise_l2(raw, channel_names=names, calibration=calibration)
     return tokens, time
 
 
@@ -436,6 +509,7 @@ def read_window_signals(
     n_signal_steps: int,
     *,
     token_root: Path | None = None,
+    calibration_by_group: dict[str, dict[str, ChannelCalibration]] | None = None,
 ) -> dict[str, np.ndarray]:
     """Read + resample every present measured stream onto the camera window.
 
@@ -443,6 +517,15 @@ def read_window_signals(
     timestamps).  Each present stream is sub-sampled to ``n_signal_steps``
     evenly-spaced positions across that span.  A stream with no readable store is
     omitted.  Returns ``{stream_name: (n_signal_steps, n_channels) int64}``.
+
+    ``calibration_by_group`` maps a staged group name to its corpus calibration
+    (``dict[str, ChannelCalibration]``).  When supplied, the staged / ait reads
+    standardise each channel against its corpus mean/std (absolute magnitude
+    survives), keyed by the deterministic column names from
+    :func:`_read_staged_raw`.  ``None`` (the default) keeps the per-shot
+    behaviour, so the LIVE model-training input path is BYTE-IDENTICAL — the
+    caller (oracle / probe) opts in by passing this; it is never auto-loaded
+    here.
     """
     if n_signal_steps <= 0 or not modalities:
         return {}
@@ -463,11 +546,17 @@ def read_window_signals(
                 # streams.  The store group is m.group; profile_r_stride is per
                 # modality (1 for discrete channel arrays, >1 for continuous
                 # profiles).
+                cal = (
+                    calibration_by_group.get(m.group)
+                    if calibration_by_group is not None
+                    else None
+                )
                 tok, ttime = _read_staged_signal(
                     m.group,
                     shot_id,
                     token_root=token_root,
                     profile_r_stride=m.profile_r_stride,
+                    calibration=cal,
                 )
             else:
                 tok, ttime, _valid, _names, _base = _read_signal_hf(
