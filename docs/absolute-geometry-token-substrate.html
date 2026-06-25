@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-25">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="10">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -251,7 +251,7 @@ Done-when
   2. diagnostics-&gt;equilibrium oracle run in absolute mode; skill reported vs ceiling (gate #3).
   3. production re-encode done with geometry; reconstruction fidelity preserved (gate #2).
   4. resolve f-ags-01 with the number; collapse the plan to a landed summary.</pre>
-    <p class="r-fu-outcome">LANDED (commit 8a0d289 + oracle wiring e786915/d4c4146). Wired absolute calibration into the STAGED read path (_read_staged_raw + _quantise_l2 calibration, channel-name parity by construction) and fixed corpus_compute channel-shaping (staged groups via the staged reader; L2 light-path via l2_input_build's expanded {group}.{var}[i] channels; magnetics moved to staged; pulse_schedule added). Gate measured: per-shot baseline magnetics-only ~0 (axis_R +0.08/axis_Z +0.08/xpt_R 0.00) -> absolute staged + space-time-geometry probe lifts clearly (continuous axis_Z +0.58). Production re-encode tracked under f-ags-calib.</p>
+    <p class="r-fu-outcome">LANDED (commit 8a0d289 + oracle wiring e786915/d4c4146). Wired absolute calibration into the STAGED read path (_read_staged_raw + _quantise_l2 calibration, channel-name parity by construction) and fixed corpus_compute channel-shaping (staged groups via the staged reader; L2 light-path via l2_input_build's expanded {group}.{var}[i] channels; magnetics moved to staged; pulse_schedule added). Gate measured: per-shot baseline magnetics-only ~0 (axis_R +0.08/axis_Z +0.08/xpt_R 0.00) -&gt; absolute staged + space-time-geometry probe lifts clearly (continuous axis_Z +0.58). Production re-encode tracked under f-ags-calib.</p>
     </article>
 <article class="r-fu" data-id="f-ags-repoint" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Repoint code defaults: absolute calibration is THE default (per-shot retired), no opt-in/backward-compat</h4>
@@ -327,6 +327,28 @@ Done-when
   1. Continuous-value default for magnetics (+ coil currents) wired; overfit addressed.
   2. xpt_R skill materially up (target approaching the 0.50 ceiling); axis held &gt;= current.
   3. Resolve with the per-component numbers vs the ceiling; collapse section 3 once the gate is judged.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-segment-codebook" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Tokenise SPACE-TIME (and cross-group) SEGMENTS with a learned codebook (video-style), not single scalars — the resolution of the continuous-vs-token tension</h4>
+    <div class="r-fu-body">Lead insight (2026-06-25): the diagnostics->equilibrium gap is NOT 'tokenisation drops info' — it is that the staged magnetics path tokenises SINGLE SCALAR VALUES with a NAIVE 256-bin uniform quantiser (each sensor, each timestep, independent; bin id -> unordered categorical embedding). Video works precisely because Open-MAGVIT2 is a LEARNED codebook over spatial PATCHES (MAGVIT2: space-time), trained to reconstruct, allocating codes to the data manifold and keeping joint structure. The fix that keeps the unified discrete-token substrate (parent signal-representation lock) AND closes the magnitude gap: tokenise SPACE-TIME SEGMENTS — patches across SENSORS (space, organised by geometry) AND TIME — with a learned codebook (VQ/FSQ autoencoder), the diagnostic analogue of video patch tokenisation. Optionally JOINT across co-located signal groups (magnetics+SXR+interferometer sampling the same (R,Z) region) once geometry is the shared coordinate. CAVEAT (measured prior, multimodal-tokenisation-substrate): per-CHANNEL 1D time-patch VQ/FSQ LOST to continuous on xma phase/mode structure — but that was per-channel (no joint SPACE coding) and not tested against the boundary target; a higher-rate spatiotemporal codebook may suffice. EXPERIMENT: add a learned space-time-segment codebook arm (start within-modality: the magnetics sensor-array x time field; VQ or FSQ; reuse/extend PatchTransformerTokenizer to patch across sensors not just time, or a small 2D VQ-VAE) to the diagnostics->equilibrium probe ablation, alongside the continuous (job 1222651/iter2 = the precision ceiling target) and the uniform-256-bin lanes. If the segment codebook approaches the continuous ceiling, the substrate is a unified discrete-token store (video-style, dreamable); continuous is the fallback only where a codebook genuinely cannot hold the precision.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (§3 representation)
+Section: §3
+Tier:    opus
+
+Context
+  The continuous-vs-token tension resolves to: tokenise SPACE-TIME SEGMENTS with a LEARNED codebook (the video recipe), not single scalars with a naive uniform quantiser. Build it and measure it against the continuous ceiling (iter2) and the uniform lane.
+
+Work
+  1. Build a learned space-time-segment codebook tokenizer for the magnetics sensor-array field: patch across SENSORS (space, ordered/grouped by geometry) AND TIME, encode -&gt; VQ or FSQ codebook -&gt; decode, trained to reconstruct the signed corpus-standardised field on the corpus. Reuse/extend imas_ambix/tokenizer/patch_transformer.py (it already does time-patches + FSQ/VQ/continuous bottlenecks per channel; add a spatial/sensor patch axis) or a compact 2D VQ-VAE. Keep it signed, fixed-scale.
+  2. Add it as a labelled arm in the diagnostics-&gt;equilibrium oracle alongside continuous + uniform-256-bin; report per-component skill vs the raw ceiling (axis_R 0.571 / axis_Z 0.683 / xpt_R 0.497).
+  3. If it approaches continuous: this becomes the substrate tokeniser (unified with the camera codebook, dreamable). Document the codebook (VQ vs FSQ), rate, patch size chosen by MEASURement. Then extend toward CROSS-GROUP joint segments (co-located magnetics+SXR+interferometer by geometry) as the next layer.
+  4. If it still lags continuous materially: record the measured gap + the rate at which a codebook would need to operate; continuous stays the representation for magnitude/phase-precision-critical signals.
+
+Done-when
+  1. Learned space-time-segment codebook tokenizer built + trained on the corpus; reconstruction fidelity reported.
+  2. Probe arm measured: segment-codebook vs continuous vs uniform, per-component vs the ceiling.
+  3. A locked representation decision (unified segment-codebook tokens vs continuous for magnitude signals), measured not assumed; followup resolved.</pre>
     </article>
 </section>
 
