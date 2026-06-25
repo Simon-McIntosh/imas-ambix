@@ -92,6 +92,13 @@ fi
 if [[ -n "${EQ_LEVEL2_ROOT}" ]]; then
     EXTRA+=(--level2-root "${EQ_LEVEL2_ROOT}")
 fi
+# EQ_ABSOLUTE=1 standardises the staged streams against the persisted CORPUS
+# calibration (absolute magnitude survives tokenisation) instead of per-shot —
+# the scale-free-blocker fix.  Pair an absolute run against a per-shot run (same
+# seed/cohort, distinct EQ_OUT_ROOT) to read the skill lift.
+if [[ "${EQ_ABSOLUTE:-0}" == "1" ]]; then
+    EXTRA+=(--absolute)
+fi
 
 python3 scripts/feasibility_diagnostics_equilibrium_oracle.py \
     --n-train-shots "${EQ_N_TRAIN_SHOTS}" \
