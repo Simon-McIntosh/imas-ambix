@@ -103,8 +103,11 @@
           <td>13 ✓</td>
           <td>Scores windows by genuine actuator excitation (coil |dI/dt|, ramps, plan-step changes);
           assembles the <strong>excited held-out cohort</strong> (the identifiability device that breaks
-          the causal-under-identification confound) and runs a binding leakage audit (disjoint from
-          training; 18502–18505 retained as held-out). Pure-numpy core, CPU-testable.</td>
+          the causal-under-identification confound) + binding leakage audit. Built <strong>live on /work</strong>
+          (sun_debug): cohort = <strong>{18502, 18503, 18504}</strong> (coil |dI/dt| ~1.7×10⁹, clearing the
+          1e3 threshold by ~6 orders); 18505 = 0.0 (sub-0.25s, no formable window). Audit passed live
+          (disjoint from 3016 train window-shots; 18502–18505 retained held-out). The powered ΔN-M gate runs
+          on these 3 probes.</td>
           <td><code>21decd4</code></td>
         </tr>
       </tbody>
@@ -131,8 +134,13 @@
     <ul>
       <li><strong>Live re-measure with the new modules:</strong> run <code>magnetics_oracle</code> and the
       <code>prediction_bar</code> EnKF leg end-to-end on <code>/work</code> via the new library entrypoints
-      (the numbers above are from the prior runs / locked artifacts the modules compose), and build the
-      excited held-out cohort on live plan/coil streams.</li>
+      (the oracle/EnKF numbers above are from the prior runs / locked artifacts the modules compose).</li>
+      <li><strong>Widen the excited cohort + justify the threshold on real flat-top:</strong> the live build
+      confirmed the 3 locked probes {18502, 18503, 18504} and the leakage-audit machinery, but the live
+      "flat" bucket was early-band shots with no readable actuator windows (score 0.0), not true flat-top —
+      so the excited-vs-flat-top <em>separation</em> currently rests on the synthetic tests. Scan a wider
+      train-disjoint band where actuator records reliably load to justify the 1e3 threshold against real
+      flat-top windows and widen the powered cohort beyond 3.</li>
       <li><strong>Wire into the model stages:</strong> the absolute-magnetics oracle is the stage-2 bar the
       GS readout must match; the raw-held-out + EnKF bar and the powered &Delta;N-M latent gate (on the
       excited cohort) are the stage-4 goal gate. They are now ready for those stages to call.</li>
