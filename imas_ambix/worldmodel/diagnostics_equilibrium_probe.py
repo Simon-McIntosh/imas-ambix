@@ -1,4 +1,4 @@
-"""Heteroscedastic probe: measured diagnostics -> plasma equilibrium geometry.
+"""Space-time probe: measured diagnostics -> plasma equilibrium geometry.
 
 EVALUATOR-ONLY (binding firewall)
 ---------------------------------
@@ -18,33 +18,43 @@ interior current distribution is not a camera observable.  But the MEASURED
 magnetics (flux loops + B-field probes) are precisely the inputs an EFIT-class
 reconstruction uses to *determine* the boundary / X-point, so a
 diagnostics→equilibrium map should be feasible where the camera one was not.
-The joint world model already dreams these diagnostics, so a feasible referee
-here lets the controllability gate score the DREAMED diagnostics through this
-same map.
 
-What it is
-----------
-Each measured stream arrives as a ``(n_steps, n_channels)`` block of per-stream
-LOCAL token ids (the dataset's :func:`read_window_signals` output).  Per stream
-we:
+Why SPACE-TIME (not channel mean-pool)
+--------------------------------------
+The boundary is determined by the SPATIAL PATTERN across the sensor array —
+which flux loop reads high relative to its neighbours, the gradient of B_z down
+the centre-column ``ccbv`` chain — and by how that pattern EVOLVES.  A probe
+that mean-pools the 94 magnetic sensors into one vector per step throws that
+pattern away (the previous tokenised probe reached only axis_R skill ~0.05 that
+way, far below the raw-float ceiling ~0.57).  So this probe instead builds one
+token PER ``(stream, sensor, time-step)`` and lets a transformer attend over the
+FULL ``(sensor × time)`` set — between-sensor (spatial) AND across-time
+(temporal, incl. sensor phasing) — with each sensor's GEOMETRY as its positional
+encoding (the camera lesson — ``16×16`` spatial position made cameras decodable
+— generalised to every diagnostic).  No pooling over the channel or time axis;
+aggregation is a learned attention-pool query, not a mean.
 
-  * embed the local ids with a per-stream embedding table (``vocab_s`` entries),
-  * mean-pool the (small) channel axis after a per-stream channel projection so
-    a stream's contribution is a fixed ``d_stream`` vector per time step,
-  * concatenate the present streams' per-step vectors (a missing stream
-    contributes a learned zero — handled by the caller omitting it and this
-    module zero-filling its slot) into a per-step token,
-  * run a tiny temporal Transformer / GRU over the ``n_steps`` tokens and pool,
-  * feed a Gaussian head -> ``(mean, log_sigma)`` over the **standardised**
-    12-D geometry target.
+Token composition
+-----------------
+Each ``(stream, sensor, step)`` token sums:
 
-The probe operates in *standardised* target space (the caller supplies the
-TRAIN-split per-component mean / std), so the heteroscedastic Gaussian NLL is
-well-conditioned across the very different scales of axis_R (~0.8 m) and
-axis_Z (~0 m).  De-standardisation back to metres happens at scoring time.
+  * a VALUE embedding — either the local token id (256-bin quantised) through a
+    per-stream embedding table, OR (ablation) a projection of the CONTINUOUS
+    standardised value, to test whether quantisation is the remaining ceiling;
+  * a projection of the sensor GEOMETRY feature vector (R, Z, phi, orientation
+    normal; NaN -> 0 with a learned "has-geometry" flag) — the positional code;
+  * a temporal positional embedding (the step index);
+  * a learned per-stream-type embedding;
+  * a learned per-sensor-kind embedding.
 
-This module is forward + checkpoint IO only — no data loading, no training
-loop (those live in the feasibility-oracle driver, which stays outside the WM
+A few MACHINE-geometry context tokens (vessel-contour extent + PF-coil R/Z) give
+the model the machine frame.  A learned query token attention-pools the encoded
+set into the Gaussian head over the 12-D target, in STANDARDISED target space
+(the caller supplies the TRAIN-split per-component mean / std); de-standardisation
+back to metres happens at scoring time.
+
+This module is forward + checkpoint IO only — no data loading, no training loop
+(those live in the feasibility-oracle driver, which stays outside the WM
 training path).
 """
 
@@ -62,6 +72,32 @@ logger = logging.getLogger(__name__)
 #: Minimum / maximum log-sigma the head emits (clamped for NLL stability).
 LOG_SIGMA_MIN = -7.0
 LOG_SIGMA_MAX = 3.0
+
+#: Geometry feature width (R, Z, phi, angle_deg, normal_r, normal_z, chord_r1,
+#: chord_z1, chord_r2, chord_z2) — matches
+#: :data:`imas_ambix.gs.geometry_export.GEOMETRY_FEATURE_NAMES`.
+N_GEOM_FEATURES = 10
+
+#: Sensor-kind vocabulary the per-kind embedding switches on.  Index 0 is the
+#: catch-all / unknown kind so an unmapped channel still embeds.  Order matches
+#: :data:`imas_ambix.gs.geometry_export.SENSOR_KINDS` with an explicit "unknown"
+#: head slot.
+SENSOR_KIND_VOCAB: tuple[str, ...] = (
+    "unknown",
+    "bpol_probe",
+    "flux_loop",
+    "interferometer_chord",
+    "sxr_chord",
+    "pixel",
+    "coil",
+    "scalar",
+)
+_KIND_INDEX = {k: i for i, k in enumerate(SENSOR_KIND_VOCAB)}
+
+
+def sensor_kind_index(kind: str) -> int:
+    """Map a sensor-kind string to its embedding row (0 = unknown)."""
+    return _KIND_INDEX.get(str(kind), 0)
 
 
 @dataclass(frozen=True)
@@ -96,67 +132,145 @@ class DiagnosticsProbeConfig:
         Number of temporal positions each stream is resampled onto.
     target_dim:
         Geometry target dimensionality (12 for the standard label set).
-    d_stream:
-        Per-stream per-step embedding width (after channel pooling).
     d_model:
-        Fused per-step token width fed to the temporal encoder.
+        Per-token width fed to the space-time encoder.
     n_layers:
-        Temporal Transformer-encoder layers.
+        Transformer-encoder layers attending over the (sensor × time) set.
     n_heads:
-        Attention heads in the temporal encoder.
+        Attention heads.
     head_hidden:
         Hidden width of the MLP head feeding the mean / log-sigma outputs.
     dropout:
-        Dropout in the temporal encoder + head.
+        Dropout in the encoder + head.
+    continuous_value:
+        When True, embed the CONTINUOUS standardised per-sensor value (a 1-D
+        linear projection) instead of the 256-bin token id — the ablation lever
+        that tests whether quantisation is the remaining ceiling.  When False
+        (default) the per-stream id embedding table is used.
+    use_machine_tokens:
+        When True, prepend a few machine-geometry context tokens (vessel-contour
+        extent + PF-coil R/Z) so the model carries the machine frame.
+    max_machine_tokens:
+        Cap on the machine-geometry context tokens (informational; the caller
+        builds the machine block, this only bounds expectations).
     """
 
     streams: list[StreamSpec] = field(default_factory=list)
     n_steps: int = 12
     target_dim: int = 12
-    d_stream: int = 48
     d_model: int = 192
-    n_layers: int = 3
+    n_layers: int = 4
     n_heads: int = 6
     head_hidden: int = 256
     dropout: float = 0.1
+    continuous_value: bool = False
+    use_machine_tokens: bool = True
+    max_machine_tokens: int = 8
 
 
-class _StreamEncoder(nn.Module):
-    """Embed one stream's ``(B, n_steps, channels)`` ids -> ``(B, n_steps, d)``.
+class _GeometryEncoder(nn.Module):
+    """Project a per-sensor geometry feature row to the token width.
 
-    Per local id is embedded (``vocab`` rows), then the channel axis is reduced
-    by a learned per-channel weighting + mean-pool so the stream's per-step
-    output is a fixed ``d_stream`` vector regardless of (capped) channel count.
+    NaN-fills with 0 and concatenates a learned "has-geometry" flag (so a
+    geometry-free scalar token is distinguishable from a sensor that happens to
+    sit at the origin), then a small MLP -> ``d_model``.
     """
 
-    def __init__(self, spec: StreamSpec, d_stream: int) -> None:
+    def __init__(self, d_model: int) -> None:
+        super().__init__()
+        self.proj = nn.Sequential(
+            nn.Linear(N_GEOM_FEATURES + 1, d_model),
+            nn.GELU(),
+            nn.Linear(d_model, d_model),
+        )
+
+    def forward(self, geom: torch.Tensor) -> torch.Tensor:
+        """``(..., N_GEOM_FEATURES) -> (..., d_model)``; NaN-safe."""
+        finite = torch.isfinite(geom)
+        has_geom = finite.any(dim=-1, keepdim=True).to(geom.dtype)
+        filled = torch.where(finite, geom, torch.zeros_like(geom))
+        feat = torch.cat([filled, has_geom], dim=-1)
+        return self.proj(feat)
+
+
+class _StreamTokeniser(nn.Module):
+    """Build per-``(sensor, step)`` tokens for one stream.
+
+    Token = value embedding (id-embed OR continuous-value projection) + geometry
+    projection + per-stream embedding + per-sensor-kind embedding.  The temporal
+    positional embedding is added by the parent (shared across streams so the
+    time axis is a single coordinate system).  Returns ``(B, n_steps, C, d)``.
+    """
+
+    def __init__(
+        self,
+        spec: StreamSpec,
+        d_model: int,
+        geom_encoder: _GeometryEncoder,
+        *,
+        continuous_value: bool,
+    ) -> None:
         super().__init__()
         self.name = spec.name
         self.channels = int(spec.channels)
-        self.embed = nn.Embedding(int(spec.vocab), d_stream)
-        # A per-channel linear mixing over the embedded channels: collapse the
-        # channel axis with a learned projection then mean-pool, so the per-step
-        # vector is channel-count independent and order-stable.
-        self.proj = nn.Linear(d_stream, d_stream)
-        self.norm = nn.LayerNorm(d_stream)
+        self.continuous_value = bool(continuous_value)
+        if self.continuous_value:
+            # one scalar standardised value -> d_model (the ablation path).
+            self.value_proj = nn.Linear(1, d_model)
+        else:
+            self.embed = nn.Embedding(int(spec.vocab), d_model)
+        self.geom = geom_encoder
+        self.norm = nn.LayerNorm(d_model)
 
-    def forward(self, ids: torch.Tensor) -> torch.Tensor:
-        """``(B, n_steps, channels) int64 -> (B, n_steps, d_stream)``."""
-        emb = self.embed(ids)  # (B, S, C, d)
-        emb = self.proj(emb)
-        pooled = emb.mean(dim=2)  # mean-pool channels -> (B, S, d)
-        return self.norm(pooled)
+    def forward(
+        self,
+        ids: torch.Tensor,
+        geom: torch.Tensor,
+        kind_emb: torch.Tensor,
+        stream_emb: torch.Tensor,
+        values: torch.Tensor | None,
+    ) -> torch.Tensor:
+        """Compose ``(B, n_steps, C) -> (B, n_steps, C, d)`` tokens.
+
+        Parameters
+        ----------
+        ids:
+            ``(B, n_steps, C)`` int64 local token ids.
+        geom:
+            ``(B, C, N_GEOM_FEATURES)`` per-sensor geometry (broadcast over time).
+        kind_emb:
+            ``(B, C, d)`` per-sensor-kind embedding (broadcast over time).
+        stream_emb:
+            ``(d,)`` learned per-stream-type embedding.
+        values:
+            ``(B, n_steps, C)`` continuous standardised values (only used when
+            ``continuous_value``; else ignored).
+        """
+        if self.continuous_value:
+            v = values if values is not None else ids.to(torch.float32)
+            tok = self.value_proj(v.unsqueeze(-1).to(torch.float32))
+        else:
+            tok = self.embed(ids)  # (B, S, C, d)
+        g = self.geom(geom).unsqueeze(1)  # (B, 1, C, d) -> broadcast over time
+        k = kind_emb.unsqueeze(1)  # (B, 1, C, d)
+        tok = tok + g + k + stream_emb.view(1, 1, 1, -1)
+        return self.norm(tok)
 
 
 class DiagnosticsEquilibriumProbe(nn.Module):
-    """Measured-diagnostic streams -> Gaussian head over 12-D geometry.
+    """Space-time transformer over (sensor × time) tokens -> 12-D geometry head.
 
-    Forward takes a dict ``{stream_name: (B, n_steps, channels) int64 ids}`` and
-    returns ``(mean, log_sigma)``, each ``(B, target_dim)``, in STANDARDISED
-    target space.  A stream absent from the dict contributes a learned zero (its
-    fused slot is filled with zeros), so a window missing a stream is handled
+    Forward takes a dict ``{stream_name: (B, n_steps, channels) int64 ids}`` plus
+    a parallel dict of per-stream geometry / sensor-kind blocks, and returns
+    ``(mean, log_sigma)``, each ``(B, target_dim)``, in STANDARDISED target
+    space.  A configured stream absent from the ids dict contributes nothing
+    (its tokens are simply not emitted), so a window missing a stream is handled
     without a shape change.  Use :func:`gaussian_nll` for the training loss and
     :meth:`predict_metres` to map back to metres given the standardisation stats.
+
+    No pooling over the channel or time axis: every ``(sensor, step)`` token
+    reaches attention, and aggregation is a learned query token (attention-pool),
+    not a mean.
     """
 
     def __init__(self, config: DiagnosticsProbeConfig | None = None) -> None:
@@ -166,18 +280,46 @@ class DiagnosticsEquilibriumProbe(nn.Module):
         if not cfg.streams:
             raise ValueError("DiagnosticsProbeConfig.streams must be non-empty")
 
-        self.encoders = nn.ModuleDict(
-            {s.name: _StreamEncoder(s, cfg.d_stream) for s in cfg.streams}
-        )
         self._stream_order = [s.name for s in cfg.streams]
-        d_fused = cfg.d_stream * len(cfg.streams)
+        self._stream_index = {s.name: i for i, s in enumerate(cfg.streams)}
 
-        # Project the concatenated per-stream per-step vectors to d_model and add
-        # a learned positional embedding over the n_steps temporal axis.
-        self.in_proj = nn.Linear(d_fused, cfg.d_model)
-        self.pos = nn.Parameter(torch.zeros(1, cfg.n_steps, cfg.d_model))
-        nn.init.trunc_normal_(self.pos, std=0.02)
+        self.geom_encoder = _GeometryEncoder(cfg.d_model)
+        self.tokenisers = nn.ModuleDict(
+            {
+                s.name: _StreamTokeniser(
+                    s,
+                    cfg.d_model,
+                    self.geom_encoder,
+                    continuous_value=cfg.continuous_value,
+                )
+                for s in cfg.streams
+            }
+        )
+        # learned per-stream-type + per-sensor-kind embeddings.
+        self.stream_embed = nn.Embedding(len(cfg.streams), cfg.d_model)
+        self.kind_embed = nn.Embedding(len(SENSOR_KIND_VOCAB), cfg.d_model)
+        # temporal positional embedding over the n_steps axis.
+        self.time_pos = nn.Parameter(torch.zeros(cfg.n_steps, cfg.d_model))
+        nn.init.trunc_normal_(self.time_pos, std=0.02)
 
+        # machine-geometry context tokens: each carries a (R, Z) point + a flag
+        # bit (vessel-extent corner vs PF-coil), through a small projection plus
+        # a learned machine-token marker.
+        self.use_machine_tokens = bool(cfg.use_machine_tokens)
+        if self.use_machine_tokens:
+            self.machine_proj = nn.Sequential(
+                nn.Linear(3, cfg.d_model),  # (R, Z, is_coil)
+                nn.GELU(),
+                nn.Linear(cfg.d_model, cfg.d_model),
+            )
+            self.machine_marker = nn.Parameter(torch.zeros(cfg.d_model))
+            nn.init.trunc_normal_(self.machine_marker, std=0.02)
+
+        # learned query token for attention-pool aggregation.
+        self.query = nn.Parameter(torch.zeros(1, 1, cfg.d_model))
+        nn.init.trunc_normal_(self.query, std=0.02)
+
+        self.in_norm = nn.LayerNorm(cfg.d_model)
         layer = nn.TransformerEncoderLayer(
             d_model=cfg.d_model,
             nhead=cfg.n_heads,
@@ -198,7 +340,13 @@ class DiagnosticsEquilibriumProbe(nn.Module):
         )
 
     def forward(
-        self, signals: dict[str, torch.Tensor]
+        self,
+        signals: dict[str, torch.Tensor],
+        geometry: dict[str, torch.Tensor],
+        sensor_kinds: dict[str, torch.Tensor],
+        *,
+        values: dict[str, torch.Tensor] | None = None,
+        machine: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Predict ``(mean, log_sigma)`` in standardised target space.
 
@@ -206,30 +354,64 @@ class DiagnosticsEquilibriumProbe(nn.Module):
         ----------
         signals:
             ``{stream_name: (B, n_steps, channels) int64}`` local-id blocks for
-            the present streams.  A configured stream missing from the dict
-            contributes a zero vector for every step (handled here).
+            the present streams.
+        geometry:
+            ``{stream_name: (B, channels, N_GEOM_FEATURES) float32}`` per-sensor
+            geometry aligned 1:1 with the stream's channel order (NaN where a
+            channel has no known geometry).
+        sensor_kinds:
+            ``{stream_name: (B, channels) int64}`` per-sensor kind indices (see
+            :func:`sensor_kind_index`).
+        values:
+            ``{stream_name: (B, n_steps, channels) float32}`` continuous
+            standardised values, used only when the config sets
+            ``continuous_value`` (the quantisation ablation).
+        machine:
+            ``(B, M, 3)`` machine-geometry context points ``(R, Z, is_coil)``,
+            optional; ignored when machine tokens are disabled.
 
         Returns
         -------
         (mean, log_sigma): each ``(B, target_dim)``.
         """
-        # Determine batch + device from any present stream.
-        ref = next(iter(signals.values()))
+        cfg = self.config
+        present = [n for n in self._stream_order if n in signals]
+        if not present:
+            raise ValueError("forward: no present streams in signals dict")
+        ref = signals[present[0]]
         b = ref.shape[0]
         dev = ref.device
-        cfg = self.config
 
-        per_stream: list[torch.Tensor] = []
-        for name in self._stream_order:
-            if name in signals:
-                per_stream.append(self.encoders[name](signals[name]))
-            else:
-                per_stream.append(torch.zeros(b, cfg.n_steps, cfg.d_stream, device=dev))
-        fused = torch.cat(per_stream, dim=-1)  # (B, S, d_stream*n_streams)
-        x = self.in_proj(fused) + self.pos  # (B, S, d_model)
+        seq: list[torch.Tensor] = []
+        for name in present:
+            ids = signals[name]  # (B, S, C)
+            geom = geometry[name].to(dev)  # (B, C, G)
+            kinds = sensor_kinds[name].to(dev)  # (B, C)
+            kind_emb = self.kind_embed(kinds)  # (B, C, d)
+            stream_emb = self.stream_embed.weight[self._stream_index[name]]
+            vals = values.get(name) if values is not None else None
+            tok = self.tokenisers[name](ids, geom, kind_emb, stream_emb, vals)
+            # add the shared temporal positional embedding over the step axis.
+            n_s = tok.shape[1]
+            tok = tok + self.time_pos[:n_s].view(1, n_s, 1, -1)
+            # flatten (sensor, time) -> one sequence of tokens.
+            tok = tok.reshape(b, n_s * tok.shape[2], cfg.d_model)
+            seq.append(tok)
+
+        x = torch.cat(seq, dim=1)  # (B, total_tokens, d)
+
+        if self.use_machine_tokens and machine is not None and machine.shape[1] > 0:
+            m = self.machine_proj(machine.to(dev).to(x.dtype))
+            m = m + self.machine_marker.view(1, 1, -1)
+            x = torch.cat([m, x], dim=1)
+
+        # prepend the learned attention-pool query token.
+        q = self.query.expand(b, -1, -1).to(x.dtype)
+        x = torch.cat([q, x], dim=1)
+        x = self.in_norm(x)
         x = self.encoder(x)
-        x = self.pool_norm(x.mean(dim=1))  # mean-pool over time
-        out = self.head(x)
+        pooled = self.pool_norm(x[:, 0])  # the query token's encoded state
+        out = self.head(pooled)
         mean, log_sigma = out.chunk(2, dim=-1)
         log_sigma = torch.clamp(log_sigma, LOG_SIGMA_MIN, LOG_SIGMA_MAX)
         return mean, log_sigma
@@ -242,26 +424,28 @@ class DiagnosticsEquilibriumProbe(nn.Module):
     def predict_metres(
         self,
         signals: dict[str, torch.Tensor],
+        geometry: dict[str, torch.Tensor],
+        sensor_kinds: dict[str, torch.Tensor],
         target_mean: np.ndarray,
         target_std: np.ndarray,
+        *,
+        values: dict[str, torch.Tensor] | None = None,
+        machine: torch.Tensor | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Predict ``(mean_m, sigma_m)`` in METRES (de-standardised).
 
-        Parameters
-        ----------
-        signals:
-            ``{stream_name: (B, n_steps, channels) int64}`` input batch.
-        target_mean, target_std:
-            ``(target_dim,)`` standardisation stats (the TRAIN-split mean / std
-            used to standardise the labels).
-
-        Returns
-        -------
-        (mean_m, sigma_m): each ``(B, target_dim)`` numpy arrays in metres.
+        Parameters mirror :meth:`forward`; ``target_mean`` / ``target_std`` are
+        the ``(target_dim,)`` TRAIN-split standardisation stats.
         """
         self.eval()
         with torch.no_grad():
-            mean, log_sigma = self.forward(signals)
+            mean, log_sigma = self.forward(
+                signals,
+                geometry,
+                sensor_kinds,
+                values=values,
+                machine=machine,
+            )
         mu = mean.detach().cpu().float().numpy()
         sd = np.exp(log_sigma.detach().cpu().float().numpy())
         tmean = np.asarray(target_mean, dtype=np.float64)
@@ -350,6 +534,9 @@ def load_probe(path, *, map_location: str = "cpu"):
 __all__ = [
     "LOG_SIGMA_MIN",
     "LOG_SIGMA_MAX",
+    "N_GEOM_FEATURES",
+    "SENSOR_KIND_VOCAB",
+    "sensor_kind_index",
     "StreamSpec",
     "DiagnosticsProbeConfig",
     "DiagnosticsEquilibriumProbe",
