@@ -171,6 +171,42 @@ def test_list_profiles_includes_variant():
     assert "deepseek-v4-flash-2x" in slugs
 
 
+def test_load_glm_5_2_profile():
+    profile = load_profile("glm-5-2")
+    assert profile.slug == "glm-5-2"
+    assert profile.model.hf_repo == "zai-org/GLM-5.2-FP8"
+    assert profile.engine.type == "vllm"
+    assert profile.engine.tensor_parallel == 8
+    assert profile.engine.ktransformers is None
+    assert profile.engine.enable_auto_tool_choice is True
+    assert profile.engine.kv_cache_dtype == "fp8"
+    assert profile.engine.speculative_method == "mtp"
+    assert profile.engine.speculative_num_tokens == 5
+    assert profile.engine.parsers.tool_call == "glm47"
+    assert profile.engine.parsers.reasoning == "glm45"
+    assert profile.model.max_context == 1048576
+    assert profile.slurm.gpus == 8
+
+
+def test_generate_glm_5_2_serve_script():
+    """GLM-5.2 serve script requests 8 GPUs, TP=8, and MTP speculative flags."""
+    from imas_ambix.agent.slurm import generate_serve_script
+
+    profile = load_profile("glm-5-2")
+    site = SiteConfig()
+    script = generate_serve_script(profile, site, port=8000)
+
+    assert "#SBATCH --gres=gpu:8" in script
+    assert "--tensor-parallel-size 8" in script
+    assert "vllm.entrypoints.openai.api_server" in script
+    assert "--kv-cache-dtype fp8" in script
+    assert "--speculative-config.method mtp" in script
+    assert "--speculative-config.num_speculative_tokens 5" in script
+    assert "--tool-call-parser glm47" in script
+    assert "--reasoning-parser glm45" in script
+    assert "agents/glm-5-2/model" in script
+
+
 def test_generate_vllm_2x_serve_script():
     """2x serve script requests 2 GPUs and TP=2."""
     from imas_ambix.agent.slurm import generate_serve_script

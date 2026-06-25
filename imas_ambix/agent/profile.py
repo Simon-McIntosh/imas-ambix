@@ -105,6 +105,14 @@ class EngineConfig(BaseModel):
     # available HBM. Only forwarded for the vLLM engine type.
     max_num_seqs: int | None = None
     max_num_batched_tokens: int | None = None
+    # vLLM Multi-Token-Prediction (MTP) speculative decoding. When
+    # ``speculative_method`` is set, the serve command emits
+    # ``--speculative-config.method`` and
+    # ``--speculative-config.num_speculative_tokens`` so the model drafts
+    # several tokens per step (GLM-5.2 ships an MTP head tuned for 5 draft
+    # tokens — the headline throughput win over GLM-5.1). vLLM-only.
+    speculative_method: str | None = None
+    speculative_num_tokens: int | None = None
     ktransformers: KTransformersConfig | None = None
     parsers: ParsersConfig = ParsersConfig()
 

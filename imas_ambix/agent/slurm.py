@@ -204,6 +204,15 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
         _append_option(args, "--max-num-batched-tokens", engine.max_num_batched_tokens)
         if engine.kv_cache_dtype:
             _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)
+        # MTP speculative decoding (GLM-5.2): draft several tokens per step.
+        _append_option(
+            args, "--speculative-config.method", engine.speculative_method
+        )
+        _append_option(
+            args,
+            "--speculative-config.num_speculative_tokens",
+            engine.speculative_num_tokens,
+        )
         return _render_shell_command(args)
 
     if engine.type != "ktransformers":

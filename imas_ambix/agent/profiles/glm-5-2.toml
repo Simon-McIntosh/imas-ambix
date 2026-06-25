@@ -1,0 +1,69 @@
+# GLM-5.2 — Z.ai (Zhipu AI) ~744B MoE frontier coding/agentic model
+#
+# Architecture: fine-grained MoE, ~744B total / ~40B active per token, native
+#   FP8 (E4M3) weights, 1,048,576-token context, native thinking mode.
+#   Headline change over GLM-5.1: Multi-Token-Prediction (MTP) draft depth
+#   raised from 3 → 5 tokens, the main end-to-end throughput win.
+# Benchmarks: coding-first; Z.ai claims it beats GPT-5.5 on coding at ~1/6 cost.
+# License: MIT (fully permissive).
+# HuggingFace: https://huggingface.co/zai-org/GLM-5.2-FP8
+#
+# Deployment: vLLM native, full-GPU, TP=8 on all 8×H200 (NO CPU offload).
+# Unlike the 4-card glm-5-1 profile (which had to spill experts to CPU via
+# KTransformers), the FP8 checkpoint fits entirely in 8×140 GB = 1,123 GB VRAM:
+#   * Weights:  ~744 GB FP8  → ~93 GB/card at TP=8
+#   * Free:     ~47 GB/card  → FP8 KV cache for the full 1M context
+# This is exactly the case the official vLLM recipe targets ("fits on a single
+# 8×H200 node"). Requires vLLM ≥ 0.23.0 (MTP + tool calling together want main).
+#
+# Authoritative serve command — https://recipes.vllm.ai/zai-org/GLM-5.2:
+#   vllm serve zai-org/GLM-5.2-FP8 --tensor-parallel-size 8 --kv-cache-dtype fp8 \
+#     --speculative-config.method mtp --speculative-config.num_speculative_tokens 5 \
+#     --tool-call-parser glm47 --reasoning-parser glm45 --enable-auto-tool-choice
+#
+# ─── TUNING CHECKLIST (after first successful run) ───────────────────────────
+# 1. Confirm free VRAM/card at startup (look for the KV-cache capacity line).
+#    If KV is tight at 1M context, lower max_total_tokens or mem_fraction_static.
+# 2. max_num_seqs/max_num_batched_tokens are set high to exploit the KV budget
+#    (the vLLM default 256-seq cap is the throughput bottleneck — see deepseek).
+# 3. fp8 KV cache (kv_cache_dtype) is mandatory at 1M context per the recipe.
+
+[model]
+name = "GLM-5.2"
+hf_repo = "zai-org/GLM-5.2-FP8"
+served_name = "glm-5.2-fp8"
+size_gb = 744
+max_context = 1048576
+
+[engine]
+type = "vllm"
+tensor_parallel = 8
+trust_remote_code = true
+enable_auto_tool_choice = true
+# Full 1M context — fp8 KV cache is mandatory at this length per the recipe.
+max_total_tokens = 1048576
+kv_cache_dtype = "fp8"
+# 0.90 leaves headroom for activations/CUDA-graph capture on each card.
+mem_fraction_static = 0.90
+# Lift the scheduler caps off the vLLM defaults (256 seqs) so the large KV
+# budget is actually exploited; mirrors the deepseek-v4-flash tuning.
+max_num_seqs = 1024
+max_num_batched_tokens = 32768
+# MTP speculative decoding — GLM-5.2 ships an MTP head tuned for 5 draft tokens.
+speculative_method = "mtp"
+speculative_num_tokens = 5
+
+[engine.parsers]
+# GLM-5.x function-calling + chain-of-thought output formats.
+tool_call = "glm47"
+reasoning = "glm45"
+
+[slurm]
+# All 8 cards when DSv4 is down (the common case — check squeue first).
+gpus = 8
+# Probe with `srun --test-only` before committing — ~12 cores schedulable if a
+# serve co-runs, more when the node is clear (see AGENTS.md §2 CPU sizing).
+cpus = 24
+memory = "640G"
+time_serve = "7-00:00:00"
+time_download = "24:00:00"
