@@ -13,14 +13,14 @@
   <meta name="plan-effort" content="XL">
   <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint" content="S15">
+  <meta name="plan-sprint" content="S16">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="physics-world-model-strategy,probabilistic-state-space-methods,multimodal-tokenisation-substrate,neural-kf-architecture-survey,sequential-current-da-v1">
   <title>Machine-Agnostic Latent State-Space Plasma World Model | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-24">
-<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-06-25">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -741,6 +741,101 @@ controllability test (true-plan vs random-plan rollout divergence over a noise f
 — our validated EFIT-free GS Green's-function forward operator. <strong><code>sequential_da.py</code></strong>
 — the working reduced Ensemble/Extended Kalman data-assimilation substrate (pitch RMSE 0.124, cov90 0.962).</p>
 
+<h2 id="s14">§14 — Sequencing, parallelism &amp; fleet suitability (sprint S16)</h2>
+<p>The build is structured as sprint <strong>S16</strong> under M4. The four v0 child plans form a
+<strong>sequential critical path</strong> (each consumes its predecessor's product), with one
+<strong>model-independent enabling track that runs in parallel from the start</strong>. The full 8-card
+reservation is free (DSv4 down — check <code>squeue</code>), so the parallel work and the sharded encode can
+all run concurrently.</p>
+
+<figure class="r-fig" style="margin:1rem 0">
+<svg viewBox="0 0 880 250" width="100%" role="img" aria-label="Sprint sequencing: a parallel eval/controllability harness track runs alongside the sequential critical path of substrate, latent, filter, and train-and-gate; the harness feeds the gates of the latent and train stages" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+  <defs><marker id="sq-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker>
+        <marker id="sq-g" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#2e7d32"/></marker></defs>
+  <style>
+    .qcrit{fill:#eef4ff;stroke:#1565c0;stroke-width:1.4}
+    .qpar{fill:#e8f5e9;stroke:#2e7d32;stroke-width:1.4}
+    .qfleet{fill:#fff4e6;stroke:#c98a3a;stroke-width:1.2}
+    .qhd{font-size:12px;fill:#1a1a1a;font-weight:700}
+    .qlb{font-size:11px;fill:#1a1a1a}
+    .qsb{font-size:9.5px;fill:#3a3a3a}
+    .qar{stroke:#5b6b80;stroke-width:1.5;fill:none;marker-end:url(#sq-a)}
+    .qgate{stroke:#2e7d32;stroke-width:1.3;fill:none;marker-end:url(#sq-g);stroke-dasharray:4 3}
+  </style>
+  <text x="14" y="20" class="qhd">Parallel enabling track (start now, model-independent)</text>
+  <rect class="qpar" x="14" y="30" width="240" height="52" rx="6"/>
+  <text x="26" y="49" class="qlb">P0 · evaluation-and-controllability-harness</text>
+  <text x="26" y="65" class="qsb">EFIT referee + abs-magnetics oracle + raw-held-out</text>
+  <text x="26" y="77" class="qsb">+ EnKF bar + powered dN-M gate + excitation selector</text>
+  <text x="270" y="50" class="qfleet" font-size="10" font-weight="700" fill="#c98a3a">FLEET-suitable</text>
+  <text x="270" y="66" class="qsb">(5 non-overlapping eval components)</text>
+
+  <text x="14" y="116" class="qhd">Critical path (sequential — each consumes the prior)</text>
+  <rect class="qcrit" x="14" y="128" width="190" height="50" rx="6"/>
+  <text x="26" y="147" class="qlb">P1 · substrate</text>
+  <text x="26" y="162" class="qsb">absolute + sensor-geometry tokens</text>
+  <text x="26" y="173" class="qsb">re-encode = FLEET fan-out</text>
+  <rect class="qcrit" x="232" y="128" width="180" height="50" rx="6"/>
+  <text x="244" y="147" class="qlb">P2 · GS-grounded latent</text>
+  <text x="244" y="162" class="qsb">latent + GS + transport</text>
+  <text x="244" y="173" class="qsb">single-author (Opus)</text>
+  <rect class="qcrit" x="440" y="128" width="180" height="50" rx="6"/>
+  <text x="452" y="147" class="qlb">P3 · closed-loop filter</text>
+  <text x="452" y="162" class="qsb">LAE-EnKF + transformer prior</text>
+  <text x="452" y="173" class="qsb">single-author (Opus)</text>
+  <rect class="qcrit" x="648" y="128" width="200" height="50" rx="6"/>
+  <text x="660" y="147" class="qlb">P4 · train + goal gate</text>
+  <text x="660" y="162" class="qsb">full-modal DDP, all 8 cards</text>
+  <text x="660" y="173" class="qsb">single-author (Opus)</text>
+
+  <path class="qar" d="M204,153 L230,153"/>
+  <path class="qar" d="M412,153 L438,153"/>
+  <path class="qar" d="M620,153 L646,153"/>
+  <path class="qgate" d="M170,82 L300,126"/>
+  <path class="qgate" d="M210,82 L700,126"/>
+  <text x="300" y="104" class="qsb" fill="#2e7d32">harness feeds the P2 + P4 gates</text>
+
+  <rect class="qcrit" x="14" y="208" width="14" height="14" rx="2"/><text x="34" y="220" class="qsb">critical path (single-author Opus, sequential)</text>
+  <rect class="qpar" x="300" y="208" width="14" height="14" rx="2"/><text x="320" y="220" class="qsb">parallel enabling track</text>
+  <rect class="qfleet" x="470" y="208" width="14" height="14" rx="2"/><text x="490" y="220" class="qsb">fleet-suitable (non-overlapping, parallel agents)</text>
+</svg>
+<figcaption style="font-size:12.5px;color:#444">Figure 9 — Sprint S16 sequencing. The four v0 child plans (blue) are a sequential critical path:
+P1 substrate → P2 GS-grounded latent → P3 closed-loop filter → P4 train + goal gate. One model-independent
+enabling track (green, P0 — the evaluation/firewall + controllability harness) runs in parallel from day one
+and feeds the gates of P2 (the absolute-magnetics oracle) and P4 (the raw-held-out + ΔN-M gate). Amber marks
+the two fleet-suitable bodies of work: P0's five non-overlapping eval components, and P1's sharded
+corpus re-encode. P2–P4 are coherence-critical model development — single-author Opus, not fleet.</figcaption>
+</figure>
+
+<h3 id="s14-order">Order &amp; what runs in parallel</h3>
+<ol>
+  <li><strong>Now, in parallel:</strong> <strong>P1</strong> (<code>absolute-geometry-token-substrate</code>,
+  active) <em>and</em> <strong>P0</strong> (<code>evaluation-and-controllability-harness</code>, the parallel
+  enabling track). P0 is model-independent — it reads EFIT (firewalled referee), raw signals, and the plan —
+  so it does not wait on P1. Front-loading it learns the bars early (the S9/Stage-3 lesson) and unblocks the
+  P2 and P4 gates.</li>
+  <li><strong>Then sequential:</strong> <strong>P2</strong> (<code>gs-grounded-latent-engine</code>) once P1's
+  substrate lands and P0's absolute-magnetics oracle exists → <strong>P3</strong>
+  (<code>closed-loop-latent-filter</code>) once P2's latent+anchors land → <strong>P4</strong>
+  (<code>controllable-forecast-and-gate</code>) once P3's engine lands and P0's harness exists.</li>
+  <li><strong>Deferred</strong> (gated on P4): neural-SDE kernel, cross-machine transfer, structure discovery.</li>
+</ol>
+
+<h3 id="s14-fleet">Fleet suitability</h3>
+<ul>
+  <li><strong>P0 — fleet-suitable.</strong> The eval spine decomposes into ~5 non-overlapping, model-independent
+  components — the firewalled EFIT referee, the absolute-magnetics oracle, the raw-held-out + EnKF bar harness,
+  the powered ΔN-M controllability gate, and the excitation-window selector — each a separate file set. A good
+  parallel dispatch (supervisor owns scope; each agent its exclusive paths).</li>
+  <li><strong>P1's corpus re-encode — fleet/fan-out.</strong> Embarrassingly parallel: shard the corpus across
+  the free cards, one in-process encoder per shard. The calibration + geometry schema code is a focused
+  single-author task; the encode itself fans out.</li>
+  <li><strong>P2–P4 — NOT fleet.</strong> The latent, the filter, and the training loop are tightly-coupled,
+  coherence-critical model development; they need single-author Opus work with the full design in context.
+  Fragmenting them across agents would split the model design. (Their sub-tasks may use helper agents for
+  isolated pieces — a test, a plot — but the core build stays single-author.)</li>
+</ul>
+
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="latent-structure" data-choice="hybrid-anchored-free" data-by="Simon McIntosh" data-when="2026-06-24">
@@ -1018,6 +1113,37 @@ Done-when (the gate)
   1. SINDy/Koopman applied to the latent dynamics; a first reduced-structure result documented.
   2. GS + flux-diffusion residuals demonstrated as departure detectors on known transient shots.
   3. followup written + this one resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-malwm-08" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship evaluation-and-controllability-harness" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Evaluation, firewall &amp; controllability harness (parallel enabling track P0)</h4>
+    <div class="r-fu-body"><strong>Parallel enabling track (P0)</strong> — runs alongside f-malwm-01 from day one; model-independent (reads EFIT as a firewalled referee, raw signals, the plan). Builds the eval spine that GATES f-malwm-02 (the absolute-magnetics oracle) and f-malwm-04 (the raw-held-out + ΔN-M gate), plus the excitation-window selector. Fleet-suitable (5 non-overlapping components). <strong>Child plan:</strong> <code>evaluation-and-controllability-harness</code>. See §14.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    machine-agnostic-latent-world-model (§10/§14)
+Section: §10/§14 (eval spine, parallel track)
+Tier:    opus
+
+Context
+  Parallel enabling track P0 — start alongside stage 1 (f-malwm-01). Model-independent eval spine that grades
+  the model stages + front-loads the bars (the S9/Stage-3 lesson). Owned by child plan
+  evaluation-and-controllability-harness. (Honour the locked decisions above.)
+
+State to read
+  scripts/feasibility_calibrated_magnetics_oracle.py (abs-magnetics oracle prior art);
+  imas_ambix/worldmodel/controllable_eval.py (powered n=10 dN-M gate); imas_ambix/statespace/sequential_da.py
+  + the D1 held-out-MSE harness (EnKF + raw-held-out bar); the L2 equilibrium reader (firewalled referee);
+  the plan/coil streams (excitation selector); parent §10/§14.
+
+Scope locks / constraints
+  EFIT outputs evaluator-ONLY (firewall = code-outputs-only); prove the boundary guard. Controllability metric
+  = powered n=10 dN-M on the LATENT, on EXCITED held-out windows. Five non-overlapping modules -&gt; file-scoped
+  fleet (supervisor owns scope; each agent stages only its paths). Light GPU; GPU nodes read /work directly.
+
+Done-when
+  1. Five components built + unit-tested; firewall boundary guard proven.
+  2. Bars measured on existing data (abs-magnetics oracle skill ~0.5-0.7; persistence + EnKF raw-held-out;
+     dN-M noise floor at n=10).
+  3. Excited held-out cohort defined + leakage-audited.
+  4. tests green; followup written + this one resolved.</pre>
     </article>
 </section>
 

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="evaluation-and-controllability-harness">
+  <meta name="plan-title"     content="Evaluation, Firewall &amp; Controllability Harness (parallel enabling track)">
+  <meta name="plan-summary"   content="The model-independent eval spine for the machine-agnostic latent world model, built in parallel with stage 1: the firewalled EFIT referee, the absolute-magnetics equilibrium oracle (the bar the GS readout must match), the raw-held-out + EnKF prediction bar, the powered n=10 dN-M controllability gate on the latent, and the excitation-window selector. Front-loads the gate bars (the S9/Stage-3 lesson) and unblocks the stage-2 + stage-4 gates. Fleet-suitable.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S16">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="machine-agnostic-latent-world-model,sequential-current-da-v1,neural-kf-architecture-survey">
+  <title>Evaluation, Firewall &amp; Controllability Harness | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Parallel enabling track (P0) of sprint S16.</strong> Runs alongside stage 1 from day one — it is
+<em>model-independent</em> (reads EFIT as a firewalled referee, raw signals, and the plan), so it does not
+wait on the substrate or the engine. Full design + sequencing in the parent
+<a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a> (§10,
+§14). Front-loading the bars learns the acceptance targets early (the S9/Stage-3 lesson) and unblocks the
+stage-2 and stage-4 gates.</p>
+
+<h2 id="s1">§1 — Objective &amp; scope</h2>
+<p>Build the honesty-spine eval infrastructure that the model stages are graded against. Five
+<strong>non-overlapping, model-independent</strong> components:</p>
+<ol>
+  <li><strong>Firewalled EFIT referee.</strong> A reader/judge over EFIT's reconstructed outputs
+  (boundary/X-point/ψ/q) that is <em>evaluator-only</em> — provably never on the training input path
+  (boundary guard). The weak tier of the validation honesty hierarchy (agreement-with-EFIT = sanity check).</li>
+  <li><strong>Absolute-magnetics equilibrium oracle.</strong> The probe that maps <em>absolute</em> magnetics →
+  equilibrium geometry (axis/X-point/boundary) — the measured bar (skill 0.5–0.7) the stage-2 GS readout must
+  match. Reuses/extends the prior feasibility oracle
+  (<code>scripts/feasibility_calibrated_magnetics_oracle.py</code>).</li>
+  <li><strong>Raw-held-out + EnKF prediction bar.</strong> The strong tier: predict withheld raw observables
+  the model never saw (held-out probes; MSE on beam-on slices) vs persistence and the classical EnKF
+  current-recovery bar (reuse <a href="/imas-ambix/sequential-current-da-v1.html">sequential-current-da-v1</a>
+  + the D1 held-out-MSE harness).</li>
+  <li><strong>Powered ΔN-M controllability gate.</strong> True-plan vs random-plan rollout divergence on the
+  <em>latent</em> (not brightness), n=10 random plans, collapse-rejecting, bootstrap CI, on excited held-out
+  windows. Adapt the existing <code>controllable_eval.py</code> to the new latent interface.</li>
+  <li><strong>Excitation-window selector.</strong> Score windows by genuine actuator excitation (|dI/dt|,
+  coil ramps, plan changes, ramp-up/down) to curate the training distribution and define the
+  <em>excited held-out</em> cohort the controllability gate runs on — the device that breaks the
+  causal-under-identification confound.</li>
+</ol>
+
+<h2 id="s2">§2 — The gate (verifiable done-when)</h2>
+<ol>
+  <li>All five components built + unit-tested; the firewall boundary guard proven (the referee's EFIT store is
+  never opened by any input/training path).</li>
+  <li>The bars are <strong>measured on existing data before the WM exists</strong>: the absolute-magnetics
+  oracle skill (the 0.5–0.7 target for stage 2); the persistence + EnKF raw-held-out bar (the target for
+  stage 4); the ΔN-M noise floor characterised at n=10.</li>
+  <li>The excited held-out cohort defined + its excitation justified (windows where the command demonstrably
+  should move the state); the train/eval split is leakage-audited.</li>
+  <li>Tests green; outcome recorded; plan collapsed to a landed summary.</li>
+</ol>
+
+<h2 id="s3">§3 — Approach</h2>
+<p>Each component is an independent module reusing prior assets (the feasibility oracles, the D1 MSE harness,
+<code>controllable_eval.py</code>, <code>sequential_da.py</code>). They share only the corpus + the split
+definition, so they parallelise cleanly. Deliver them as separate file sets, then wire the shared split +
+cohort definition last.</p>
+
+<h2 id="s4">§4 — H200 footprint</h2>
+<p><strong>Light — model-independent, mostly CPU/data + small probe training.</strong> The absolute-magnetics
+oracle is a small probe; the EnKF bar + raw-held-out harness are data/assimilation; the ΔN-M gate is
+rollouts (later, against the model). Runs on a card or standard compute; GPU nodes read <code>/work</code>
+directly. Not a heavy consumer — its value is in <em>unblocking</em> the heavy stages, not in compute.</p>
+
+<h2 id="s5">§5 — Fleet suitability &amp; inherited decisions</h2>
+<p><strong>Fleet-suitable.</strong> The five components are non-overlapping and model-independent — a clean
+parallel dispatch (supervisor owns scope; each agent its exclusive paths; stage only your assigned files).
+Locked decisions are inherited from the parent: <code>firewall-definition</code> = code-outputs-only (EFIT =
+referee, never training; sensor geometry free); the controllability metric = powered n=10 ΔN-M on the latent.
+No new architectural decisions here.</p>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-evh-01" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-25">
+  <h4 class="r-fu-title">Build the five eval-spine components (fleet) + freeze the bars on existing data</h4>
+  <div class="r-fu-body">Parallel enabling track. Build the firewalled EFIT referee, the absolute-magnetics oracle, the raw-held-out + EnKF bar, the powered ΔN-M gate, and the excitation-window selector — as non-overlapping modules — then measure the bars on existing data so the stage-2/stage-4 gates have their targets before the model exists. Suitable for a file-scoped fleet.</div>
+  <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    evaluation-and-controllability-harness (§1/§2/§3)
+Section: §3
+Tier:    opus
+
+Context
+  Parallel enabling track (P0) of sprint S16 — runs alongside stage 1. Model-independent eval spine that
+  grades the model stages. Front-load the bars (S9/Stage-3 lesson). (Honour the locked parent decisions.)
+
+State to read  (code/files)
+  scripts/feasibility_calibrated_magnetics_oracle.py (the absolute-magnetics oracle prior art);
+  imas_ambix/worldmodel/controllable_eval.py (the powered n=10 dN-M gate); imas_ambix/statespace/
+  sequential_da.py + the D1 held-out-MSE harness (the EnKF + raw-held-out bar); the L2 equilibrium reader
+  (firewalled referee); the plan/coil streams (excitation selector); parent §10/§14.
+
+Scope locks / constraints (non-decision)
+  EFIT outputs are evaluator-ONLY (firewall = code-outputs-only); prove the boundary guard. Controllability
+  metric = powered n=10 dN-M on the LATENT, on EXCITED held-out windows. Leakage-audit the split. Five
+  non-overlapping modules -> file-scoped fleet (supervisor owns scope; each agent stages only its paths).
+  Light GPU; GPU nodes read /work directly.
+
+Done-when (the gate)
+  1. Five components built + unit-tested; firewall boundary guard proven.
+  2. Bars measured on existing data: absolute-magnetics oracle skill (stage-2 target ~0.5-0.7); persistence +
+     EnKF raw-held-out bar (stage-4 target); dN-M noise floor at n=10.
+  3. Excited held-out cohort defined + justified; split leakage-audited.
+  4. tests green; followup written + this one resolved; plan collapsed to a landed summary.</pre>
+</article>
+</section>
+
+</main>
+</body>
+</html>

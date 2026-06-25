@@ -77,8 +77,9 @@ GS X-point readout, Fig 7a transport anchor), glossary, and locked decisions are
 <h2 id="s4">§4 — H200 footprint</h2>
 <p><strong>Moderate.</strong> Latent encoder + GS operator (differentiable, modest cost) + transport-anchor
 development; the work is overfit/smoke-scale plus the GS-readout oracle eval — a few cards, not the full
-corpus run. Heavier than stage 1, lighter than stage 4. Per AGENTS.md §2a/§2b: in-process, SIGTERM-clean,
-resume-safe; keep DeepSeek up (no ~4-GPU run needed here).</p>
+corpus run. Heavier than stage 1, lighter than stage 4. All 8 cards are free while DSv4 is down (check
+<code>squeue</code>) — use what the smoke needs. Per AGENTS.md §2a/§2b: in-process, SIGTERM-clean,
+resume-safe.</p>
 
 <h2 id="s5">§5 — Inherited decisions</h2>
 <p>Locked in the parent: <code>latent-structure</code> = hybrid-anchored-free; <code>physics-scaffold</code>
@@ -109,7 +110,7 @@ State to read
 Scope locks / constraints
   Boundary/X-point are READOUTS of psi, never labels (firewall = code-outputs-only). eta-parallel + sources
   are LEARNED closures. Diffusivity strictly positive (softplus/exp) -> D>=0 by construction. Soft, falsifiable
-  priors (data may override); residuals monitored as discovery signals. GPU per AGENTS.md §2a/§2b; keep DeepSeek up.
+  priors (data may override); residuals monitored as discovery signals. GPU per AGENTS.md §2a/§2b; all 8 cards free while DSv4 down (check squeue).
 
 Done-when (the gate)
   1. Hybrid latent + GS operator wired; anchored block supervised on RAW scalars; psi readout -> boundary/X-point

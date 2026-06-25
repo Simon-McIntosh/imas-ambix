@@ -74,11 +74,13 @@ Cameras remain decode-only. This stage produces the upgraded store + readers tha
 </ol>
 
 <h2 id="s4">§4 — H200 footprint</h2>
-<p><strong>Light–moderate, IO/encode-leaning — not a heavy GPU consumer.</strong> Re-tokenisation reuses the
-in-process <code>stream_encode.py</code> pattern; the bottleneck is GPFS I/O, not compute. The signal
-re-tokenisation + any partial camera re-encode run comfortably on 1–2 cards, or on a standard compute node
-(sirius) for the IO-bound parts (which also has the outbound network + <code>/work</code> access GPU nodes
-lack). Geometry tagging is pure metadata (no GPU). Per AGENTS.md §2b, in-process model-load-once.</p>
+<p><strong>Light–moderate, I/O-leaning — but trivially parallel.</strong> Re-tokenisation reuses the
+in-process <code>stream_encode.py</code> pattern; the bottleneck is GPFS I/O, not compute, and the GPU nodes
+read/write <code>/work</code> directly (no offload — only outbound-internet tasks like package downloads need
+standard compute, and there are none here). The corpus re-encode is embarrassingly parallel:
+<strong>shard it across all free cards</strong> (all 8 are available while DSv4 is down — check
+<code>squeue</code>), one in-process encoder per shard. Geometry tagging is pure metadata (no GPU). Per
+AGENTS.md §2b, in-process model-load-once. <strong>Fleet-suitable</strong> (sharded encode).</p>
 
 <h2 id="s5">§5 — Inherited decisions</h2>
 <p>All architectural decisions are locked in the parent
@@ -110,8 +112,9 @@ State to read  (code/files)
 
 Scope locks / constraints (non-decision)
   Corpus-level SI calibration, NOT per-shot z-scoring. SENSOR geometry only (apparatus metadata), NOT plasma
-  geometry (a code output). Cameras decode-only. Honour the boundary guard. IO-bound parts may run on a
-  standard compute node (sirius) per AGENTS.md; in-process model-load-once (§2b).
+  geometry (a code output). Cameras decode-only. Honour the boundary guard. GPU nodes read /work directly
+  (no offload); shard the re-encode across the free cards (all 8 while DSv4 is down — check squeue);
+  in-process model-load-once (§2b).
 
 Done-when (the gate)
   1. Tokens carry corpus-level absolute (SI) values + sensor geometry + machine geometry; schema + readers committed.

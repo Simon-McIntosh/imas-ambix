@@ -97,21 +97,27 @@ The node is split between groups via reservations + QoS:
   explicitly is what limits you to 4 cards (and `QOSGrpGRES`-denies a 6/8-GPU request at submit).
   Under `normal` the only enforced per-group limit is the reservation's 30 CPU cores.
 
-**We are authorised to use the full GPU server (all 8 H200 cards).** A single Group A submit under
-`normal` QOS bursts onto any free cards node-wide (the reservation reserves only cores) — confirmed
-2026-06-19: `--gres=gpu:6` started immediately on physical cards `0,1,2,3,6,7` (it skips cards held by
-the live DSv4 server), and an 8-GPU job is accepted (queues until those free). `CUDA_VISIBLE_DEVICES`
-is remapped to `0..N`, so the job never knows it is on Group B's silicon. A 6-card training run
-therefore **coexists with the 2-card DeepSeek serve (6 + 2 = 8/8)** — no need to take DSv4 down.
+**We are authorised to use the full GPU server (all 8 H200 cards), and the reservation is ours to
+utilise — use the free cards wherever possible (idle GPUs are capacity to use, not a cost to conserve).**
+A single Group A submit under `normal` QOS bursts onto any free cards node-wide (the reservation reserves
+only cores); `CUDA_VISIBLE_DEVICES` is remapped to `0..N`, so the job never knows which physical silicon
+it is on. **Check `squeue` for the live state and request what is free:**
+- **DSv4 down (its default state unless someone has started a serve) → all 8 cards are free → request them**
+  (`--gres=gpu:8`). This is the common case; size big runs for the full 8.
+- **DSv4 up → it holds 2 cards → a 6-card job coexists with it** (6 + 2 = 8/8) — confirmed 2026-06-19:
+  `--gres=gpu:6` started immediately on physical cards `0,1,2,3,6,7` (skipping the cards DSv4 held); an
+  8-GPU job is then accepted and queues until they free. Keep DSv4 up only when it is actually serving; do
+  not leave it occupying cards an active training campaign needs.
+
 Mechanism + the cooperative-yield watcher: `docs/gpu-preemptible-scheduling.html`.
 
-**SLURM submission pattern (training run — 6 cards, normal QOS):**
+**SLURM submission pattern (training run — request all free cards, normal QOS):**
 ```bash
 sbatch --partition=betelgeuse \
        --reservation=gpu_0003_grpA \
        --account=grpa \
-       --gres=gpu:6 \
-       --cpus-per-task=12 \   # NOT 30 — see CPU sizing note; PROBE with srun --test-only first
+       --gres=gpu:8 \        # all 8 when DSv4 is down (check squeue); use gpu:6 to coexist if DSv4 is up
+       --cpus-per-task=12 \   # PROBE with srun --test-only first; more cores free when DSv4 is down
        --mem=640G \
        your_script.sh        # do NOT pass --qos → defaults to normal → no 4-GPU cap
 ```
@@ -123,9 +129,10 @@ cores, so the cores actually schedulable for a NEW grpA job while DeepSeek is up
 CPU, not GPU, that is short (incident: re-train job pended + cancelled, 2026-06-21). **Probe before sizing:**
 `srun --test-only --reservation=gpu_0003_grpA --account=grpa --gres=gpu:6 --cpus-per-task=N --mem=… true`.
 Size `--cpus-per-task` (and the DataLoader `num_workers`) to leave room for the co-running serve — ~12 cores
-is ample for a token-DataLoader DDP run (tokens are tiny). The 6-GPU burst itself is unaffected (node-wide
+is ample for a token-DataLoader DDP run (tokens are tiny). The GPU burst itself is unaffected (node-wide
 under normal QOS). If you genuinely need the full core count, drop `--reservation` and run on the node's
-general free pool (~49 cores idle) instead.
+general free pool (~49 cores idle) instead. **When DSv4 is down the contention vanishes — the general core
+pool is free too, so an 8-GPU run can size cores up; still PROBE with `srun --test-only` before committing.**
 
 **Design every training run for fast takedown (binding etiquette).** Preemption is OFF cluster-wide,
 so SLURM cannot evict us — bursting onto cards 6–7 without a fast give-back makes us a bad neighbour to
@@ -134,10 +141,13 @@ Group B. Every run MUST be **resume-safe**: frequent checkpoints (`latest.pt`), 
 ~nothing and frees the cards in seconds.
 
 **Network access:**
-- **GPU nodes** (betelgeuse): NO outbound network. Model downloads and package installs must happen elsewhere.
+- **GPU nodes** (betelgeuse): GPFS `/work/projects/imas_gpu/` **IS mounted and accessible** here — read/write
+  the corpus, tokens, and checkpoints directly from the GPU job. The *only* thing missing is **outbound
+  internet**, so model downloads and package installs must happen elsewhere; data I/O against `/work` does NOT.
 - **Standard compute nodes** (sirius, rigel, etc.): Full outbound network AND access to `/work/projects/imas_gpu/`.
 - **Login nodes**: Full network but NO access to `/work/projects/imas_gpu/` (requires `sdcc-imas_gpu` group).
-- **Strategy**: Download models and install packages from standard compute nodes into shared GPFS, then serve from GPU nodes.
+- **Strategy**: Download models and install packages from standard compute nodes into shared GPFS; everything
+  thereafter (encode, train, eval) reads/writes `/work` directly from the GPU nodes — no offload needed for I/O.
 
 **SLURM workarounds:**
 - `export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p "$TMPDIR"` — default TMPDIR is broken on this node (on non-betelgeuse partitions like `sun` use `TMPDIR=/tmp`; `/scratch_local` only exists on betelgeuse)

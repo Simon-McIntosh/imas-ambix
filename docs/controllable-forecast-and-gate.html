@@ -56,7 +56,7 @@ prediction against persistence + the EnKF bar. EFIT stays the firewalled referee
   curate / re-weight the training distribution so the command is <em>necessary</em>, breaking the
   causal-under-identification confound that defeated the flat-top-dominated prior runs.</li>
   <li>Full multi-modal DDP training of the closed-loop engine; observation-withholding schedule; frequent
-  checkpoints + clean SIGTERM (resume-safe; coexist with DeepSeek per AGENTS.md).</li>
+  checkpoints + clean SIGTERM (resume-safe; request all free cards — all 8 while DSv4 is down — per AGENTS.md).</li>
   <li>Controllability gate: the powered n=10 ΔN-M on the <em>latent</em> (not brightness), on excited
   held-out windows; collapse-rejecting; bootstrap CI.</li>
   <li>Raw-held-out eval: predict withheld raw observables (held-out probes; MSE on beam-on slices) vs
@@ -65,10 +65,11 @@ prediction against persistence + the EnKF bar. EFIT stays the firewalled referee
 
 <h2 id="s4">§4 — H200 footprint</h2>
 <p><strong>Heaviest H200 consumer of the v0 sprint.</strong> Full multi-modal corpus training (all five
-cameras + magnetics + interferometer + SXR + HF + plan) is a multi-GPU DDP run — the 6-GPU burst that
-coexists with the 2-card DeepSeek serve (6+2 = 8/8), per AGENTS.md §1/§2. CPU-sizing caveat: probe with
-<code>srun --test-only</code> first (~12 schedulable cores while the serve co-runs). Resume-safe, frequent
-<code>latest.pt</code>, clean SIGTERM (&lt; 5&nbsp;s) so a give-back costs nothing. The controllability-gate
+cameras + magnetics + interferometer + SXR + HF + plan) is the big multi-GPU DDP run — <strong>request all 8
+cards</strong> (free while DSv4 is down — check <code>squeue</code>; if DSv4 is up, the 6+2 coexistence
+applies), per AGENTS.md §1/§2. CPU-sizing caveat: probe with <code>srun --test-only</code> first (more cores
+free when DSv4 is down). Resume-safe, frequent <code>latest.pt</code>, clean SIGTERM (&lt; 5&nbsp;s) so a
+give-back to Group B costs nothing (the fast-takedown etiquette still binds). The controllability-gate
 rollouts + raw-held-out eval are lighter (rollout-bound). Plan the big run for fast takedown.</p>
 
 <h2 id="s5">§5 — Inherited decisions</h2>
@@ -97,8 +98,8 @@ State to read
 Scope locks / constraints
   EFIT outputs FIREWALLED (referee only, never training). Controllability gate = powered n=10 dN-M on the
   LATENT, on EXCITED held-out windows. Report honest controlled-vs-stochastic + interior-current
-  under-determination (calibrated 'I don't know'). GPU per AGENTS.md §1/§2/§2a/§2b: 6-GPU burst coexisting
-  with the 2-card DeepSeek serve; srun --test-only CPU probe first; resume-safe; clean SIGTERM; fast takedown.
+  under-determination (calibrated 'I don't know'). GPU per AGENTS.md §1/§2/§2a/§2b: request ALL 8 cards (free
+  while DSv4 down — check squeue); srun --test-only CPU probe first; resume-safe; clean SIGTERM; fast takedown.
 
 Done-when (the gate)
   1. Trained checkpoint on the full v0 modality set; excitation-curated + observation-withholding.
