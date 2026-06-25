@@ -311,9 +311,9 @@ imas-ambix agent clive --path      # print the ~/.bashrc PATH line
 | `kimi-k2-6` | Kimi-K2.6 (1T MoE) | KTransformers+SGLang | 555 GB | 262K | Modified MIT |
 | `deepseek-v4-flash` | DeepSeek V4-Flash (284B MoE) | SGLang | 164 GB | 1M | MIT |
 | `minimax-m2-7` | MiniMax M2.7 (~220B MoE) | SGLang | 220 GB | 200K | Custom |
-| `glm-5-2` | GLM-5.2 (~744B MoE) | vLLM | 744 GB | 256K¹ | MIT |
+| `glm-5-2` | GLM-5.2 (~744B MoE) | vLLM | 744 GB | 224K¹ | MIT |
 
-¹ GLM-5.2 context is capped at **256K** on this hardware, not its native 1M —
+¹ GLM-5.2 context is capped at **224K** on this hardware, not its native 1M —
 see the deployment note below.
 
 **Kimi-K2.6** — CPU-offloaded via KTransformers. 5 tok/s, best code quality (SWE 65.8%).
@@ -446,12 +446,19 @@ this run fills the node (no coexisting GPU job). vLLM exposes both the OpenAI
 API and the **Anthropic Messages API** (`/v1/messages`) natively → drive it with
 `clive` (§4a).
 
-**Hard-won deployment facts (measured 2026-06-25):**
-- **Context capped at 256K, not 1M.** The FP8 weights + MTP draft model leave a
-  fixed ~24 GiB aggregate for KV at `mem_fraction 0.95`. Measured ceilings: 1M
-  KV-OOMs (needs 60.8 GiB; est. max 233K at 0.90), 512K KV-OOMs (needs 30.4 GiB;
-  est. max 419K at 0.95). `max_total_tokens=262144` needs ~15 GiB → fits with
-  1.72× concurrency headroom. The native 1M genuinely needs 8×B200 (180 GB).
+**Hard-won deployment facts (measured 2026-06-25; working config = 224K @ 0.86,
+job 1222821 — verified with a real decode + a live `clive`/Claude Code request).**
+- **Two HBM constraints fight; context capped at 224K, not 1M.** The FP8 weights
+  + MTP draft model + the FP8 sparse-MLA attention kernel (which allocates
+  **~8 GiB/card of scratch lazily on the FIRST real decode**) leave little room
+  for KV. Measured: at `mem_fraction 0.95` the KV pool was ~24 GiB (256K fits)
+  but the first real decode **OOM'd** (8 GiB needed, 2.4 free → EngineDeadError,
+  job 1222807); at `0.86` decode scratch is ample but KV is only 13.63 GiB, so
+  256K KV-init **fails** (needs 15.2; job 1222818). Resolution: keep
+  `mem_fraction 0.86` (decode-safe) and size context to fit the KV that leaves —
+  **`max_total_tokens=229376` (224K) needs ~13.3 GiB < 13.63**. **Startup +
+  KV-init passing does NOT prove inference fits** — the kernel scratch is lazy,
+  so always validate with a real generation. The native 1M needs 8×B200.
 - **Eager mode (`disable_cuda_graph=true`).** CUDA-graph capture stalled at ~88%
   of the piecewise graph set on three consecutive launches (each ~60 min, never
   reaching startup; the third left an unkillable step that auto-rebooted the
