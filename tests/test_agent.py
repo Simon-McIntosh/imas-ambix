@@ -359,6 +359,119 @@ def test_agent_info():
     assert "ktransformers" in result.output
 
 
+def test_serving_slugs_marks_running_serve(monkeypatch):
+    """A RUNNING job whose name is a known slug is reported as serving."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod,
+        "_running_jobs",
+        lambda site: [
+            {"jobid": "1", "name": "glm-5-2", "state": "RUNNING", "time": "1:00",
+             "node": "98dci4-gpu-0003"},
+            {"jobid": "2", "name": "download-glm-5-2", "state": "RUNNING",
+             "time": "1:00", "node": "sirius-1"},
+            {"jobid": "3", "name": "kimi-k2-6", "state": "PENDING", "time": "0:00",
+             "node": "(Resources)"},
+        ],
+    )
+    serving = cli_mod._serving_slugs(SiteConfig())
+    # Only the RUNNING job whose name matches a profile slug counts.
+    assert serving == {"glm-5-2"}
+    # Download jobs (download-*) and PENDING jobs are excluded.
+    assert "download-glm-5-2" not in serving
+    assert "kimi-k2-6" not in serving
+
+
+def test_list_shows_serving_marker(monkeypatch):
+    """`list` tags the serving profile and leaves others unmarked."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "_serving_slugs", lambda site: {"glm-5-2"})
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "list"])
+    assert result.exit_code == 0
+    assert "serving" in result.output
+
+
+def test_status_no_jobs(monkeypatch):
+    """`status` reports cleanly when there are no jobs."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "_running_jobs", lambda site: [])
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "status"])
+    assert result.exit_code == 0
+    assert "No imas-ambix agent jobs" in result.output
+
+
+def test_status_running_serve_shows_connection(monkeypatch):
+    """`status` prints a connection block for a RUNNING serve job."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod,
+        "_running_jobs",
+        lambda site: [
+            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "5:00",
+             "node": "98dci4-gpu-0003"},
+        ],
+    )
+    monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "supersecretkey1234")
+    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "ready")
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "status"])
+    assert result.exit_code == 0
+    assert "glm-5.2-fp8" in result.output  # served model name
+    assert "18800" in result.output  # URL port
+    assert "ready" in result.output  # endpoint probe
+    # Key is masked by default (full key absent).
+    assert "supersecretkey1234" not in result.output
+
+
+def test_status_reveal_shows_full_key(monkeypatch):
+    """`status --reveal` prints the full key for the owner."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod,
+        "_running_jobs",
+        lambda site: [
+            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "5:00",
+             "node": "98dci4-gpu-0003"},
+        ],
+    )
+    monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "supersecretkey1234")
+    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "ready")
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "status", "--reveal"])
+    assert result.exit_code == 0
+    assert "supersecretkey1234" in result.output
+
+
+def test_status_key_no_access(monkeypatch):
+    """`status` shows '(no access)' when the key file can't be read."""
+    from imas_ambix.agent import cli as cli_mod
+
+    def _denied(path):
+        raise PermissionError
+
+    monkeypatch.setattr(
+        cli_mod,
+        "_running_jobs",
+        lambda site: [
+            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "5:00",
+             "node": "98dci4-gpu-0003"},
+        ],
+    )
+    monkeypatch.setattr(cli_mod, "_read_key_file", _denied)
+    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "ready")
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "status"])
+    assert result.exit_code == 0
+    assert "no access" in result.output
+
+
 def test_agent_serve_dry_run():
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "serve", "kimi-k2-6", "--dry-run"])

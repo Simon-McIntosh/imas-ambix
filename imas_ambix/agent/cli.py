@@ -163,20 +163,26 @@ def agent() -> None:
 
 @agent.command(name="list")
 def list_command() -> None:
-    """List available model profiles."""
+    """List available model profiles, marking any that are serving."""
+    site = SiteConfig.from_env()
+    serving = _serving_slugs(site)
+
     table = Table(title="Ambix agent profiles")
     table.add_column("Slug", style="cyan")
     table.add_column("Name", style="bold")
     table.add_column("Engine")
     table.add_column("Size")
+    table.add_column("Status")
 
     for slug in list_profiles():
         profile = _load_profile(slug)
+        status_cell = "[green]● serving[/]" if slug in serving else ""
         table.add_row(
             profile.slug,
             profile.model.name,
             profile.engine.type,
             f"{profile.model.size_gb} GB",
+            status_cell,
         )
 
     console.print(table)
@@ -318,34 +324,89 @@ def serve(
 
 
 @agent.command()
-def status() -> None:
-    """Show active Ambix agent SLURM jobs."""
-    from imas_ambix.agent.profile import SiteConfig
+@click.option("--reveal", is_flag=True, help="Show the full API key in plaintext.")
+def status(reveal: bool) -> None:
+    """Show active Ambix agent jobs and how to connect to running models.
 
-    user = os.environ.get("USER") or getpass.getuser()
+    Lists this user's SLURM jobs, then for each RUNNING serve job prints
+    a connection block: served model name, URL, a live ``/v1/models``
+    readiness probe, and the API key (masked unless ``--reveal``).
+
+    The key is read from the shared mode-600 ``agents/.env``; if you lack
+    read permission it shows ``(no access)`` — the filesystem is the gate.
+    """
     site = SiteConfig.from_env()
-    command = (
-        "squeue -u "
-        f"{shlex.quote(user)} "
-        f"-A {shlex.quote(site.account)} "
-        '-o "%.10i %.20j %.8T %.10M %.6D %R" || true'
-    )
-    result = subprocess.run(
-        ["bash", "-lc", command],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        message = result.stderr.strip() or "Failed to query squeue"
-        raise click.ClickException(message)
+    jobs = _running_jobs(site)
 
-    output = result.stdout.strip()
-    if not output:
+    if not jobs:
         console.print("No imas-ambix agent jobs found.")
         return
 
-    console.print(output)
+    table = Table(title="Ambix agent jobs")
+    table.add_column("Job ID", style="cyan")
+    table.add_column("Name", style="bold")
+    table.add_column("State")
+    table.add_column("Time")
+    table.add_column("Node / reason")
+    for job in jobs:
+        state_style = "green" if job["state"] == "RUNNING" else "yellow"
+        table.add_row(
+            job["jobid"],
+            job["name"],
+            f"[{state_style}]{job['state']}[/]",
+            job["time"],
+            job["node"],
+        )
+    console.print(table)
+
+    # Connection blocks for RUNNING serve jobs (job name == profile slug).
+    known = set(list_profiles())
+    serve_jobs = [
+        job
+        for job in jobs
+        if job["state"] == "RUNNING" and job["name"] in known
+    ]
+    if not serve_jobs:
+        return
+
+    # The API key is shared across all serves; resolve once.
+    key: str | None = None
+    try:
+        key = _read_key_file(site.api_key_file)
+        key_display = (
+            (key if reveal else _mask_key(key)) if key else "(none configured)"
+        )
+    except PermissionError:
+        key_display = "(no access — not key owner)"
+
+    for job in serve_jobs:
+        try:
+            profile = load_profile(job["name"])
+            served = profile.model.served_name
+        except FileNotFoundError:
+            served = job["name"]
+        # Prefer the actual allocated node from squeue; fall back to the
+        # configured gpu_host. The node field is a hostname when RUNNING.
+        host = job["node"] if job["node"] and "(" not in job["node"] else site.gpu_host
+        url = f"http://{host}:{site.default_port}"
+        readiness = _probe_endpoint(url, key)
+        ready_style = "green" if readiness == "ready" else "yellow"
+
+        console.print()
+        block = Table(title=f"▶ {job['name']} (job {job['jobid']})", show_header=False)
+        block.add_column("Field", style="cyan", no_wrap=True)
+        block.add_column("Value")
+        block.add_row("Served model", served)
+        block.add_row("URL", url)
+        block.add_row("Endpoint", f"[{ready_style}]{readiness}[/]")
+        block.add_row("API key", key_display)
+        console.print(block)
+        if readiness != "ready":
+            port = site.default_port
+            console.print(
+                "  [dim]Tunnel from a login node: "
+                f"ssh -N -L {port}:{host}:{port} <login-node>[/]"
+            )
 
 
 @agent.command()
@@ -435,6 +496,77 @@ def _mask_key(key: str) -> str:
     if len(key) <= 8:
         return key[:2] + "***"
     return key[:4] + "..." + key[-4:]
+
+
+def _running_jobs(site: SiteConfig) -> list[dict[str, str]]:
+    """Return this user's Ambix SLURM jobs as a list of field dicts.
+
+    Each entry has ``jobid``, ``name`` (the profile slug), ``state``,
+    ``time``, and ``node`` (or the pending reason).  Returns an empty
+    list when squeue fails or there are no jobs.
+    """
+    user = os.environ.get("USER") or getpass.getuser()
+    result = subprocess.run(
+        ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j|%T|%M|%R"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    jobs: list[dict[str, str]] = []
+    for line in result.stdout.strip().splitlines():
+        parts = line.split("|")
+        if len(parts) < 5:
+            continue
+        jobs.append(
+            {
+                "jobid": parts[0].strip(),
+                "name": parts[1].strip(),
+                "state": parts[2].strip(),
+                "time": parts[3].strip(),
+                "node": parts[4].strip(),
+            }
+        )
+    return jobs
+
+
+def _serving_slugs(site: SiteConfig) -> set[str]:
+    """Slugs of profiles with a RUNNING serve job (job name == slug).
+
+    Download/setup jobs are named ``download-*`` / ``ambix-setup-*`` so
+    they never collide with a profile slug.
+    """
+    known = set(list_profiles())
+    return {
+        job["name"]
+        for job in _running_jobs(site)
+        if job["state"] == "RUNNING" and job["name"] in known
+    }
+
+
+def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> str:
+    """Probe ``{url}/v1/models`` and return a short readiness verdict.
+
+    Returns ``"ready"`` on HTTP 200, ``"loading/unreachable"`` on a
+    connection error (server process up but not yet accepting, or no
+    tunnel from this host), or ``"auth-fail"`` on HTTP 401/403.
+    """
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(f"{url.rstrip('/')}/v1/models")
+    if api_key:
+        req.add_header("Authorization", f"Bearer {api_key}")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return "ready" if resp.status == 200 else f"http {resp.status}"
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return "auth-fail"
+        return f"http {exc.code}"
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return "loading/unreachable"
 
 
 def _update_dotenv_key(
