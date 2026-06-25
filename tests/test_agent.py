@@ -424,7 +424,7 @@ def test_status_running_serve_shows_connection(monkeypatch):
     assert result.exit_code == 0
     assert "glm-5.2-fp8" in result.output  # served model name
     assert "18800" in result.output  # URL port
-    assert "ready" in result.output  # endpoint probe
+    assert "READY" in result.output.upper()  # endpoint probe verdict
     # Key is masked by default (full key absent).
     assert "supersecretkey1234" not in result.output
 

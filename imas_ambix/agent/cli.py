@@ -10,6 +10,7 @@ from pathlib import Path
 
 import click
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
@@ -360,40 +361,15 @@ def status(reveal: bool) -> None:
     serve_jobs = [
         job for job in jobs if job["state"] == "RUNNING" and job["name"] in known
     ]
-    serve_slugs = {job["name"] for job in serve_jobs}
+    pending = [job for job in jobs if job not in serve_jobs]
 
-    # -- Compact job table -------------------------------------------------
-    table = Table(title="imas-ambix agents", title_justify="left", box=None,
-                  pad_edge=False)
-    table.add_column("JOB", style="cyan", no_wrap=True)
-    table.add_column("PROFILE", style="bold")
-    table.add_column("STATE")
-    table.add_column("UP", justify="right")
-    table.add_column("NODE")
-    table.add_column("GPUS")
-    for job in jobs:
-        running = job["state"] == "RUNNING"
-        state_style = "green" if running else "yellow"
-        gpus = ""
-        if job["name"] in serve_slugs:
-            try:
-                gpus = _gpu_spec(load_profile(job["name"]))
-            except FileNotFoundError:
-                gpus = ""
-        table.add_row(
-            job["jobid"],
-            job["name"],
-            f"[{state_style}]{job['state']}[/]",
-            _fmt_uptime(job["time"]),
-            job["node"],
-            gpus,
-        )
-    console.print(table)
+    # -- Header line -------------------------------------------------------
+    summary = f"{len(serve_jobs)} serving"
+    if pending:
+        summary += f" · {len(pending)} other"
+    console.print(f"[bold]imas-ambix agents[/]  ·  {site.partition}    [dim]{summary}[/]")
 
-    if not serve_jobs:
-        return
-
-    # The API key is shared across all serves; resolve once.
+    # -- One boxed panel per RUNNING serve job -----------------------------
     key: str | None = None
     try:
         key = _read_key_file(site.api_key_file)
@@ -409,9 +385,13 @@ def status(reveal: bool) -> None:
             profile = load_profile(job["name"])
             served = profile.model.served_name
             facts = _engine_facts(profile)
+            gpus = _gpu_spec(profile)
+            compute = f"{job['node']} · {gpus} · TP={profile.engine.tensor_parallel}"
+            compute += f" · {profile.slurm.cpus} CPU · {profile.slurm.memory}"
         except FileNotFoundError:
             served = job["name"]
             facts = ""
+            compute = job["node"]
         node = _job_node(job, site)
 
         # A same-port tunnel makes localhost the reliable client URL.
@@ -419,33 +399,58 @@ def status(reveal: bool) -> None:
         if tunnel_up:
             url = f"http://localhost:{port}"
             readiness = _probe_endpoint(url, key)
-            tunnel_cell = f"[green]✔ up[/]  localhost:{port} → {node}:{port}"
+            tunnel_cell = f"[green]up[/] · localhost:{port} → {node}:{port}"
         else:
             url = f"http://{node}:{port}"
             readiness = _probe_endpoint(url, key)
             tunnel_cell = (
-                f"[yellow]✘ down[/]  run: imas-ambix agent tunnel {job['name']}"
+                f"[yellow]down[/] · start: "
+                f"[cyan]imas-ambix agent tunnel {job['name']}[/]"
             )
 
-        ready_icons = {
-            "ready": "[green]✔ ready[/]",
-            "auth-fail": "[red]⚠ auth-fail[/]",
-        }
-        ready_icon = ready_icons.get(readiness, f"[yellow]↔ {readiness}[/]")
-        url_suffix = "  (tunnel ✔ up)" if tunnel_up else ""
+        ready_styles = {"ready": "green", "auth-fail": "red"}
+        ready_label = {"ready": "READY", "auth-fail": "AUTH-FAIL"}.get(
+            readiness, readiness.upper()
+        )
+        ready_tag = f"[{ready_styles.get(readiness, 'yellow')}]{ready_label}[/]"
 
-        console.print()
-        block = Table(show_header=False, box=None, pad_edge=False,
-                      title=f"▶ {job['name']} → {served}        {ready_icon}",
-                      title_justify="left")
-        block.add_column("Field", style="cyan", no_wrap=True)
-        block.add_column("Value")
-        block.add_row("URL", f"{url}{url_suffix}")
-        block.add_row("Key", key_display)
+        body = Table.grid(padding=(0, 2))
+        body.add_column(style="cyan", no_wrap=True)
+        body.add_column()
+        body.add_row("URL", url)
+        body.add_row("Key", key_display)
         if facts:
-            block.add_row("Engine", facts)
-        block.add_row("Tunnel", tunnel_cell)
-        console.print(block)
+            body.add_row("Engine", facts)
+        body.add_row("Compute", compute)
+        body.add_row("Tunnel", tunnel_cell)
+
+        title = (
+            f"[bold]{job['name']}[/] → {served}   "
+            f"[green]RUNNING[/] {_fmt_uptime(job['time'])} · job {job['jobid']}"
+        )
+        console.print()
+        console.print(
+            Panel(body, title=title, title_align="left",
+                  subtitle=ready_tag, subtitle_align="right",
+                  border_style="green" if readiness == "ready" else "blue",
+                  padding=(0, 1))
+        )
+
+    # -- Pending / non-serve jobs (download, setup, queued) ----------------
+    if pending:
+        ptable = Table.grid(padding=(0, 2))
+        ptable.add_column(style="cyan", no_wrap=True)
+        ptable.add_column(style="bold")
+        ptable.add_column()
+        ptable.add_column()
+        for job in pending:
+            ptable.add_row(
+                job["jobid"], job["name"],
+                f"[yellow]{job['state']}[/]", job["node"],
+            )
+        console.print()
+        console.print("[dim]other jobs[/]")
+        console.print(ptable)
 
 
 @agent.command()
@@ -479,13 +484,13 @@ def tunnel(slug: str | None, tear_down: bool, show_status: bool) -> None:
         node = tun.discover_serving_node(resolved)
         if state == "up":
             console.print(
-                f"[green]✔ tunnel up[/]  localhost:{port}"
+                f"[green]tunnel up[/] · localhost:{port}"
                 + (f" → {node}:{port}" if node else "")
             )
         elif state == "foreign":
             console.print(f"[yellow]port {port} bound by a non-ssh process[/]")
         else:
-            console.print(f"[yellow]✘ tunnel down[/]  (port {port} free)")
+            console.print(f"[yellow]tunnel down[/] · port {port} free")
         return
 
     if tear_down:
@@ -506,13 +511,13 @@ def tunnel(slug: str | None, tear_down: bool, show_status: bool) -> None:
         )
     if tun.tunnel_status(port) == "up":
         console.print(
-            f"[green]✔ tunnel already up[/]  localhost:{port} → {node}:{port}"
+            f"[green]tunnel already up[/] · localhost:{port} → {node}:{port}"
         )
         return
     console.print(f"Starting tunnel localhost:{port} → {node}:{port} ...")
     if tun.start_tunnel(node, port):
         console.print(
-            f"[green]✔ tunnel up[/]  use http://localhost:{port}\n"
+            f"[green]tunnel up[/] · use [cyan]http://localhost:{port}[/]\n"
             "  Stop with: imas-ambix agent tunnel --down"
         )
     else:
