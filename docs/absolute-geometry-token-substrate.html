@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-25">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -159,6 +159,49 @@ Done-when
   2. xma/xim/xsx codebooks retrained under absolute normalisation; signal + L2 corpus re-encoded in absolute mode.
   3. Diagnostics-&gt;equilibrium probe skill rises clearly off ~0 - report the number (this is the f-ags-01 gate).
   4. Resolve f-ags-01 with the skill number; collapse §3 to a landed summary.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-geom" data-status="open" data-tier="opus" data-written-by="geom-substrate" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Attach sensor-geometry to the re-encoded stores + feed it to the probe positional encoding</h4>
+    <div class="r-fu-body">Per-channel sensor-geometry export + store attachment + reader landed (backward-compatible). Code: imas_ambix/gs/geometry_export.py (build_geometry_table / build_geometry_fields_from_table -> GeometryFields; flat per-channel table keyed by token channel-name vocab, sourced ONLY through gs.geometry's static-efm boundary), the optional geometry= payload on store_v2.save_signal_hf_tokens (+ geometry_feature_names / geometry_sensor_kinds attrs surfaced on SignalHFTokens.geometry; geometry-less stores byte-identical and load geometry=None), and imas_ambix/tokenizer/geometry_reader.py (align_geometry_to_channels / read_store_geometry / geometry_for_channels -> AlignedGeometry, boundary-guarded). Next: attach geometry during the absolute-mode re-encode and feed the geometry features into the diagnostics->equilibrium probe as positional encoding.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (§3)
+Section: §3
+Tier:    opus
+
+Context
+  The sensor-geometry substrate is landed and backward-compatible. This followup ATTACHES geometry during the absolute-mode re-encode (sequenced AFTER f-ags-calib&#x27;s re-encode) and feeds it into the diagnostics-&gt;equilibrium probe&#x27;s positional encoding.
+
+Geometry table schema (the exact columns)
+  Flat per-channel float feature vector, order = GEOMETRY_FEATURE_NAMES =
+    (r, z, phi, angle_deg, normal_r, normal_z, chord_r1, chord_z1, chord_r2, chord_z2)
+  10 columns, float32, NaN where not applicable. A parallel per-channel categorical sensor_kind in
+  SENSOR_KINDS = (bpol_probe, flux_loop, interferometer_chord, sxr_chord, pixel, coil, scalar).
+  Plus a shared MachineGeometry block: limiter_r/limiter_z (vessel contour), pf_coil_r/pf_coil_z (turns-weighted
+  PF-circuit centroids), r0, minor_radius. B-probes carry R/Z + orientation angle_deg -&gt; (normal_r, normal_z) unit
+  field-direction (0deg=radial reads B_R, 90deg=vertical reads B_Z); flux loops are point sensors (NaN orientation/chord);
+  line-integrated diagnostics (interferometer/sxr) get the chord kind with NaN endpoints today (schema present, endpoints
+  to be tabulated); pure scalars (ip, gas-valve setpoints) are present + explicit with scalar kind + NaN coords (never dropped).
+
+Step 1 - build + attach geometry during the re-encode
+  Per shot: fields = imas_ambix.gs.geometry_export.build_geometry_table(shot_id, extra_channel_names=&lt;the store&#x27;s channel_names&gt;).
+  Project to the store&#x27;s channel order: feats, kinds = fields.feature_matrix(attrs.channel_names) (NaN-fills absent channels).
+  Pass geometry=feats and set attrs.geometry_feature_names=GEOMETRY_FEATURE_NAMES, attrs.geometry_sensor_kinds=tuple(kinds)
+  into save_signal_hf_tokens(...). geometry is OPTIONAL and geometry-less stores stay byte-identical, so this can ride the
+  same absolute-mode re-encode (f-ags-calib) without a separate pass. Use the campaign-keyed table (one GeometryFields per
+  SetupSignature) so geometry from different campaigns is never mixed.
+
+Step 2 - feed geometry into the diagnostics-&gt;equilibrium probe
+  At load time: aligned = imas_ambix.tokenizer.geometry_reader.geometry_for_channels(channel_names, shot_id=..., group=...)
+  returns AlignedGeometry (features (n_channels, 10) float32 aligned 1:1 to channel_names, sensor_kinds, feature_names),
+  reading the store&#x27;s attached geometry when present and falling back to a campaign GeometryFields else (all-NaN/scalar if
+  neither). Use aligned.features as the per-channel positional encoding the attention model attends with (embed sensor_kind
+  as a learned categorical; project the float block; NaN-mask the absent columns). Honour the boundary guard (the reader
+  already routes every opened path through assert_not_target_path).
+
+Done-when
+  1. The re-encoded absolute-mode stores carry the geometry array + companion attrs (spot-check a magnetics + an interferometer store).
+  2. The diagnostics-&gt;equilibrium probe consumes the per-channel positional encoding; report the probe skill with vs without geometry.
+  3. tests green; resolve this followup with the geometry-vs-no-geometry probe delta; collapse §3 once f-ags-01&#x27;s gate is met.</pre>
     </article>
 </section>
 
