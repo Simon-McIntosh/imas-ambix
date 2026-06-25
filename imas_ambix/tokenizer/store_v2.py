@@ -105,6 +105,14 @@ class StoreV2Attrs:
     # Free-form per-tokenizer metadata (codebook params, patch size, …).
     # Stored JSON-encoded; never part of the required contract.
     metadata: dict[str, object] = field(default_factory=dict)
+    # Optional companion descriptors for the per-channel geometry array (see
+    # SignalHFTokens.geometry).  Empty for a geometry-less store.  NOT part of
+    # REQUIRED_ATTRS — an old store missing these loads with both empty, so
+    # backward compatibility is unconditional.  ``geometry_feature_names`` names
+    # the ``(n_channels, n_geom_features)`` columns; ``geometry_sensor_kinds``
+    # is one categorical kind per channel (parallel to ``channel_names``).
+    geometry_feature_names: tuple[str, ...] = ()
+    geometry_sensor_kinds: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.n_channels != len(self.channel_names):
@@ -121,8 +129,13 @@ class StoreV2Attrs:
             raise ValueError("original_window must be (t_start, t_end)")
 
     def to_attrs(self) -> dict[str, object]:
-        """Return the JSON-safe ``.attrs`` dict written to Zarr."""
-        return {
+        """Return the JSON-safe ``.attrs`` dict written to Zarr.
+
+        Emits the geometry companion descriptors ONLY when they are present, so
+        a geometry-less store's on-disk attrs are byte-identical to the legacy
+        layout and a reader that never saw geometry is unaffected.
+        """
+        out: dict[str, object] = {
             "tokenizer_name": self.tokenizer_name,
             "vocab_version": self.vocab_version,
             "store_generation": STORE_GENERATION,
@@ -137,6 +150,11 @@ class StoreV2Attrs:
             ],
             "metadata": json.dumps(_json_safe(self.metadata)),
         }
+        if self.geometry_feature_names:
+            out["geometry_feature_names"] = list(self.geometry_feature_names)
+        if self.geometry_sensor_kinds:
+            out["geometry_sensor_kinds"] = list(self.geometry_sensor_kinds)
+        return out
 
     @classmethod
     def from_attrs(cls, attrs: dict) -> StoreV2Attrs:
@@ -147,6 +165,11 @@ class StoreV2Attrs:
         meta_raw = attrs.get("metadata", "{}")
         meta = json.loads(meta_raw) if isinstance(meta_raw, str) else dict(meta_raw)
         win = attrs["original_window"]
+        # Geometry companion descriptors are OPTIONAL — a legacy store omits
+        # them and they default to empty (geometry=None on load), so an old
+        # store loads with the identical contract it was written under.
+        geom_features = attrs.get("geometry_feature_names", ())
+        geom_kinds = attrs.get("geometry_sensor_kinds", ())
         return cls(
             tokenizer_name=str(attrs["tokenizer_name"]),
             vocab_version=str(attrs["vocab_version"]),
@@ -157,6 +180,8 @@ class StoreV2Attrs:
             phase_preserving=bool(attrs["phase_preserving"]),
             original_window=(float(win[0]), float(win[1])),
             metadata=meta,
+            geometry_feature_names=tuple(str(f) for f in geom_features),
+            geometry_sensor_kinds=tuple(str(k) for k in geom_kinds),
         )
 
 
@@ -178,6 +203,16 @@ class SignalHFTokens:
     # lives here, shape ``(n_tokens, n_channels, embed_dim)`` float32.  ``None``
     # for a quantised tokenizer whose ``tokens`` carry the full information.
     embedding: np.ndarray | None = None
+    # Optional per-CHANNEL sensor-geometry positional encoding, shape
+    # ``(n_channels, n_geom_features)`` float32, aligned 1:1 with
+    # ``attrs.channel_names``.  Carries each channel's apparatus geometry
+    # (sensor R/Z/phi, orientation, line-of-sight chord endpoints) — the
+    # positional encoding a machine-agnostic model attends with.  Companion
+    # ``attrs.geometry_feature_names`` names the columns and
+    # ``attrs.geometry_sensor_kinds`` the per-channel categorical kind.  ``None``
+    # for a store written without geometry (every legacy v2 store) — geometry is
+    # OPTIONAL and a geometry-less store loads exactly as before.
+    geometry: np.ndarray | None = None
 
     @property
     def n_tokens(self) -> int:
@@ -236,6 +271,7 @@ def save_signal_hf_tokens(
     attrs: StoreV2Attrs,
     *,
     embedding: np.ndarray | None = None,
+    geometry: np.ndarray | None = None,
     store_generation: str = STORE_GENERATION,
 ) -> Path:
     """Write one native-cadence, phase-preserving token group to Zarr.
@@ -262,6 +298,13 @@ def save_signal_hf_tokens(
         latent.  Written when the chosen tokenizer is a continuous-embedding
         bottleneck whose discrete ``tokens`` are vestigial — the
         phase-preserving payload then lives here.
+    geometry:
+        Optional ``(n_channels, n_geom_features)`` float32 per-channel
+        sensor-geometry positional encoding, aligned 1:1 with
+        ``attrs.channel_names``.  When given, ``attrs.geometry_feature_names``
+        must name its columns (a downstream consumer reads the array cheaply
+        without JSON-parsing).  ``None`` writes no geometry array and the
+        on-disk store is byte-identical to a legacy geometry-less store.
 
     Returns
     -------
@@ -294,6 +337,25 @@ def save_signal_hf_tokens(
                 f"embedding shape {embedding.shape} must be "
                 f"(n_tokens={n_tok}, n_channels={n_ch}, embed_dim)"
             )
+    if geometry is not None:
+        geometry = np.asarray(geometry, dtype=np.float32)
+        if geometry.ndim != 2 or geometry.shape[0] != n_ch:
+            raise ValueError(
+                f"geometry shape {geometry.shape} must be "
+                f"(n_channels={n_ch}, n_geom_features)"
+            )
+        n_feat = geometry.shape[1]
+        if attrs.geometry_feature_names and len(attrs.geometry_feature_names) != n_feat:
+            raise ValueError(
+                f"geometry has {n_feat} feature columns but "
+                f"attrs.geometry_feature_names names "
+                f"{len(attrs.geometry_feature_names)}"
+            )
+        if attrs.geometry_sensor_kinds and len(attrs.geometry_sensor_kinds) != n_ch:
+            raise ValueError(
+                f"geometry has {n_ch} channels but attrs.geometry_sensor_kinds "
+                f"names {len(attrs.geometry_sensor_kinds)}"
+            )
 
     path = signal_hf_token_path(shot_id, group, store_generation)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -304,12 +366,15 @@ def save_signal_hf_tokens(
     store.create_array("valid", data=valid)
     if embedding is not None:
         store.create_array("embedding", data=embedding)
+    if geometry is not None:
+        store.create_array("geometry", data=geometry)
     out_attrs = attrs.to_attrs()
     out_attrs.update(
         {
             "shot_id": int(shot_id),
             "group": str(group),
             "has_embedding": embedding is not None,
+            "has_geometry": geometry is not None,
         }
     )
     store.attrs.update(out_attrs)
@@ -335,10 +400,17 @@ def load_signal_hf_tokens(
         if "embedding" in arrays
         else None
     )
+    # Geometry is optional — absent for every legacy store, where it loads None.
+    geometry = (
+        np.asarray(store["geometry"], dtype=np.float32)
+        if "geometry" in arrays
+        else None
+    )
     return SignalHFTokens(
         tokens=np.asarray(store["tokens"], dtype=np.int32),
         token_time=np.asarray(store["token_time"], dtype=np.float64),
         valid=np.asarray(store["valid"], dtype=bool),
         attrs=attrs,
         embedding=embedding,
+        geometry=geometry,
     )

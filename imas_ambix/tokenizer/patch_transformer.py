@@ -45,9 +45,18 @@ the schema / loaders can be imported on a CPU-only node.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from imas_ambix.calibration.signals import ChannelCalibration
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -488,14 +497,32 @@ class PatchTransformerTokenizer:
     # -- feature prep -------------------------------------------------------
 
     def _normalise(
-        self, x: np.ndarray, fit: bool
+        self,
+        x: np.ndarray,
+        fit: bool,
+        *,
+        channel_names: Sequence[str] | None = None,
+        corpus_calibration: dict[str, ChannelCalibration] | None = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Per-window, per-channel z-score.  Channel-count agnostic.
+        """Per-channel z-score → ``(z, means, stds)`` (channel-count agnostic).
 
-        The patch-transformer treats each channel as an independent sequence,
-        so normalisation is computed *within each window* against that window's
-        own per-channel statistics — never against a stored fixed-channel-count
-        mean (that would break when a shot has a different channel inventory).
+        Two modes:
+
+        - **Per-window (default, ``corpus_calibration is None``):** each
+          channel is standardised against *this window's* own per-channel
+          mean/std.  This is amplitude-relative — the same physical value maps
+          to a different code in every window — but robust to a shot having a
+          different channel inventory.
+        - **Absolute (``corpus_calibration`` supplied):** each channel
+          (matched by ``channel_names[row]``) is standardised against its
+          CORPUS mean/std, so the same physical value maps to the same code in
+          every window and on every machine.  A channel with no calibration
+          entry falls back to its per-window stats (with a one-line warning).
+
+        IMPORTANT: absolute mode changes the *input distribution* the
+        autoencoder sees.  A codebook trained under per-window normalisation
+        is NOT valid for absolute mode and must be retrained.
+
         Returns ``(z, means, stds)`` so the caller can de-normalise the
         reconstruction with the SAME stats.
         """
@@ -503,6 +530,24 @@ class PatchTransformerTokenizer:
             means = np.nan_to_num(np.nanmean(x, axis=1, keepdims=True))
             stds = np.nanstd(x, axis=1, keepdims=True)
         stds = np.where((stds > 1e-9) & np.isfinite(stds), stds, 1.0)
+
+        if corpus_calibration is not None:
+            names = list(channel_names) if channel_names is not None else []
+            for row in range(x.shape[0]):
+                name = names[row] if row < len(names) else None
+                cal = corpus_calibration.get(name) if name is not None else None
+                if cal is None:
+                    logger.warning(
+                        "PatchTransformerTokenizer: no corpus calibration for "
+                        "channel %r — falling back to per-window stats "
+                        "(absolute magnitude not preserved for this channel)",
+                        name,
+                    )
+                    continue
+                means[row, 0] = float(cal.mean)
+                std = float(cal.std)
+                stds[row, 0] = std if std > 1e-9 else 1.0
+
         z = np.nan_to_num((x - means) / stds, nan=0.0)
         return z, means, stds
 
@@ -609,7 +654,13 @@ class PatchTransformerTokenizer:
             recon = self._model.decode(zq)
         return recon.cpu().numpy(), ids.cpu().numpy(), zq.cpu().numpy()
 
-    def encode_window(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def encode_window(
+        self,
+        x: np.ndarray,
+        *,
+        channel_names: Sequence[str] | None = None,
+        corpus_calibration: dict[str, ChannelCalibration] | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Encode a ``(C, T)`` window → ``(codes (C,P), latent (C,P,d), recon)``.
 
         ``codes`` are local per-patch ids (0 for the continuous bottleneck);
@@ -617,13 +668,26 @@ class PatchTransformerTokenizer:
         bottleneck this carries the phase-preserving payload (the discrete ids
         are vestigial), so the store persists it alongside the ids.  ``recon``
         is the reconstructed signal in native units (de-normalised).
+
+        When ``corpus_calibration`` is supplied, each channel (matched by
+        ``channel_names[row]``) is standardised against its CORPUS mean/std so
+        absolute magnitude survives tokenisation — see :meth:`_normalise`.
+        Absolute mode changes the input distribution; the codebook must be
+        retrained under absolute normalisation for the codes to be valid.
+        With ``corpus_calibration=None`` (default) behaviour is byte-identical
+        to per-window normalisation.
         """
         if self._model is None:
             raise RuntimeError("call fit() or load() before encode_window()")
         x = np.asarray(x, dtype=np.float32)
         if x.ndim == 1:
             x = x[None, :]
-        z, means, stds = self._normalise(x, fit=False)
+        z, means, stds = self._normalise(
+            x,
+            fit=False,
+            channel_names=channel_names,
+            corpus_calibration=corpus_calibration,
+        )
         feats, n_pad = self._features(z)  # (C, P, feat)
         recon_feats, ids, latent = self._reconstruct_feats(feats)
         if self.cfg.use_stft:

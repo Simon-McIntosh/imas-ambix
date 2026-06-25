@@ -24,6 +24,7 @@ dataset attributes, not tokenised.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -31,8 +32,12 @@ if TYPE_CHECKING:
     import numpy as np
     import xarray as xr
 
+    from imas_ambix.calibration.signals import ChannelCalibration
+
 from imas_ambix.tokenizer.base import EncodedSignals
 from imas_ambix.tokenizer.registry import registry
+
+logger = logging.getLogger(__name__)
 
 
 def _time_indexed_channels(ds: xr.Dataset, time_dim: str = "time") -> list[str]:
@@ -72,11 +77,53 @@ class UniformQuantizer:
         self._means: dict[str, float] = {}
         self._stds: dict[str, float] = {}
         self._channel_order: tuple[str, ...] = ()
+        self._calibration: dict[str, ChannelCalibration] | None = None
         registry.allocate(self.name, self.vocab_size)
 
     @property
     def patch_size(self) -> int:  # one model timestep per token
         return 1
+
+    def set_calibration(
+        self, calibration: dict[str, ChannelCalibration] | None
+    ) -> None:
+        """Supply corpus-wide (absolute / SI) per-channel mean+std.
+
+        When set, :meth:`encode` / :meth:`decode` standardise each channel
+        against the CORPUS mean/std supplied here instead of any per-shot
+        ``fit`` statistics.  Because the corpus stats are constant across
+        every shot and every machine, the same physical value maps to the
+        same bin everywhere — absolute magnitude survives tokenisation.
+
+        A channel with no entry in ``calibration`` falls back to the
+        per-shot / per-fit statistics (with a one-line warning) so a partial
+        calibration is never silently magnitude-destroying.  Passing ``None``
+        restores the default (per-fit / per-shot) behaviour exactly.
+        """
+        self._calibration = calibration
+
+    def _resolve_stats(self, name: str, arr) -> tuple[float, float]:
+        """Return ``(mean, std)`` for one channel under the active mode.
+
+        Corpus-calibration mode (``_calibration`` set and the channel present)
+        wins; otherwise the fitted stats; otherwise per-shot stats from ``arr``
+        (with a warning when calibration is set but this channel is missing).
+        """
+        import numpy as np
+
+        if self._calibration is not None:
+            cal = self._calibration.get(name)
+            if cal is not None:
+                return float(cal.mean), max(float(cal.std), 1e-12)
+            logger.warning(
+                "UniformQuantizer: no corpus calibration for channel %r — "
+                "falling back to per-shot stats (absolute magnitude not "
+                "preserved for this channel)",
+                name,
+            )
+        mean = self._means.get(name, float(np.nanmean(arr)))
+        std = self._stds.get(name, float(np.nanstd(arr)) or 1.0)
+        return mean, max(std, 1e-12)
 
     def fit(self, datasets: list[xr.Dataset], time_dim: str = "time") -> None:
         """Accumulate per-channel mean and std over a list of training datasets."""
@@ -125,9 +172,8 @@ class UniformQuantizer:
             if name not in ds:
                 continue
             arr = np.asarray(ds[name].values, dtype=np.float64)
-            mean = self._means.get(name, float(np.nanmean(arr)))
-            std = self._stds.get(name, float(np.nanstd(arr)) or 1.0)
-            z = np.nan_to_num((arr - mean) / max(std, 1e-12), nan=0.0)
+            mean, std = self._resolve_stats(name, arr)
+            z = np.nan_to_num((arr - mean) / std, nan=0.0)
             z = z.clip(-self.clip_sigma, self.clip_sigma)
             local = (
                 (((z + self.clip_sigma) / (2 * self.clip_sigma)) * (self.n_bins - 1))
@@ -155,11 +201,19 @@ class UniformQuantizer:
                 "n_bins": self.n_bins,
                 "clip_sigma": self.clip_sigma,
                 "fitted": bool(self._channel_order),
+                "calibration": "absolute"
+                if self._calibration is not None
+                else "per_shot",
             },
         )
 
     def decode(self, tokens: EncodedSignals) -> xr.Dataset:
-        """Decode quantized tokens back into an xarray Dataset."""
+        """Decode quantized tokens back into an xarray Dataset.
+
+        Inverts :meth:`encode` with the SAME per-channel mean/std it encoded
+        with — corpus (absolute) stats when calibration is set, otherwise the
+        fitted / default per-shot stats.
+        """
         import numpy as np
         import xarray as xr
 
@@ -171,11 +225,18 @@ class UniformQuantizer:
             z = (local.astype(np.float64) / (self.n_bins - 1)) * (
                 2 * self.clip_sigma
             ) - self.clip_sigma
-            mean = self._means.get(name, 0.0)
-            std = self._stds.get(name, 1.0)
+            mean, std = self._decode_stats(name)
             value = z * std + mean
             out_vars[name] = (("time",), value)
         return xr.Dataset({k: v for k, v in out_vars.items()})
+
+    def _decode_stats(self, name: str) -> tuple[float, float]:
+        """Per-channel ``(mean, std)`` for decode (no raw array available)."""
+        if self._calibration is not None:
+            cal = self._calibration.get(name)
+            if cal is not None:
+                return float(cal.mean), max(float(cal.std), 1e-12)
+        return self._means.get(name, 0.0), self._stds.get(name, 1.0)
 
 
 class ChronosUnavailableError(RuntimeError):
@@ -269,8 +330,40 @@ class ChronosSignalTokenizer:
         self._means: dict[str, float] = {}
         self._stds: dict[str, float] = {}
         self._channel_order: tuple[str, ...] = ()
+        self._calibration: dict[str, ChannelCalibration] | None = None
         self._tokenizer: object | None = None
         registry.allocate(self.name, self.vocab_size)
+
+    def set_calibration(
+        self, calibration: dict[str, ChannelCalibration] | None
+    ) -> None:
+        """Supply corpus-wide (absolute / SI) per-channel mean+std.
+
+        When set, the pre-Chronos mean/std normalisation uses the CORPUS
+        statistics instead of any per-shot ``fit`` stats, so absolute
+        magnitude is preserved into the Chronos quantiser.  A channel absent
+        from ``calibration`` falls back to per-shot stats (with a warning).
+        Passing ``None`` restores the default behaviour exactly.
+        """
+        self._calibration = calibration
+
+    def _resolve_stats(self, name: str, arr) -> tuple[float, float]:
+        """Return ``(mean, std)`` for one channel under the active mode."""
+        import numpy as np
+
+        if self._calibration is not None:
+            cal = self._calibration.get(name)
+            if cal is not None:
+                return float(cal.mean), max(float(cal.std), 1e-12)
+            logger.warning(
+                "ChronosSignalTokenizer: no corpus calibration for channel "
+                "%r — falling back to per-shot stats (absolute magnitude not "
+                "preserved for this channel)",
+                name,
+            )
+        mean = self._means.get(name, float(np.nanmean(arr)))
+        std = self._stds.get(name, max(float(np.nanstd(arr)), 1e-12))
+        return mean, max(std, 1e-12)
 
     def _get_tokenizer(self) -> object:
         """Return the cached Chronos tokenizer, building it on first call."""
@@ -344,9 +437,8 @@ class ChronosSignalTokenizer:
             if name not in ds:
                 continue
             arr = np.asarray(ds[name].values, dtype=np.float64)
-            mean = self._means.get(name, float(np.nanmean(arr)))
-            std = self._stds.get(name, max(float(np.nanstd(arr)), 1e-12))
-            normalised = np.nan_to_num((arr - mean) / max(std, 1e-12), nan=0.0)
+            mean, std = self._resolve_stats(name, arr)
+            normalised = np.nan_to_num((arr - mean) / std, nan=0.0)
 
             t = torch.tensor(normalised, dtype=torch.float32).unsqueeze(0)  # (1, T)
             ids, _mask, scale = tok._input_transform(t)  # type: ignore[attr-defined]
