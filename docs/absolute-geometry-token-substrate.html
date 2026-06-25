@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-25">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 <meta name="plan-impl" content="0.4">
 </head>
 <body>
@@ -236,6 +236,28 @@ Done-when
   2. diagnostics-&gt;equilibrium oracle run in absolute mode; skill reported vs ceiling (gate #3).
   3. production re-encode done with geometry; reconstruction fidelity preserved (gate #2).
   4. resolve f-ags-01 with the number; collapse the plan to a landed summary.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-repoint" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Repoint code defaults: absolute calibration is THE default (per-shot retired), no opt-in/backward-compat</h4>
+    <div class="r-fu-body">Decision calibration-default locked 2026-06-25: the foundational code was first built backward-compatible (absolute behind opt-in flags; per-shot the silent default/fallback). Flip it: absolute is the default and only operative path across the encoders + staged read path + oracle; a missing required calibration FAILS LOUD (or is computed), never silently reverts to per-shot; remove the --absolute opt-in (absolute by default; at most a clearly-labelled --per-shot diagnostic escape). SEQUENCING: run this AFTER the in-flight gate measurement (job 1222606 calib + the monitor's absolute oracle) completes — the editable install means changing _quantise_l2/read_window_signals/encoder signatures under the running oracle would corrupt it (pin-configs-for-inflight-jobs). Keep the monitor's EQ_ABSOLUTE consistent with whatever flag survives.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (§3)
+Section: §3
+Tier:    opus
+
+Context
+  Decision calibration-default is locked: absolute calibration is THE default. The code currently makes it opt-in (off-by-default, byte-identical-to-per-shot). Repoint so the SSM pivot actually takes effect. Do this only after the in-flight gate measurement finishes (don&#x27;t change code under the running oracle — editable install).
+
+Scope (flip defaults to absolute; per-shot retired -&gt; explicit diagnostic only)
+  - imas_ambix/worldmodel/spacetime_dataset_v2.py: read_window_signals + _quantise_l2 default to absolute (auto-load corpus calibration for staged groups); missing calibration =&gt; loud error/warn, NOT silent per-shot. Remove the calibration_by_group=None silent-per-shot default as the operative path.
+  - imas_ambix/tokenizer/signals.py, patch_transformer.py, data/l2_input_build.py, tokenizer/signal_hf_encode.py: absolute is the default encode mode; per-shot only behind an explicit, clearly-labelled diagnostic switch; fail loud when calibration is required but absent.
+  - scripts/feasibility_diagnostics_equilibrium_oracle.py + the sbatch: absolute by default (drop the --absolute opt-in; optional --per-shot diagnostic for the baseline only); keep the monitor consistent.
+  - Tests updated to assert absolute-by-default + fail-loud-on-missing (replace any &#x27;byte-identical to per-shot&#x27; assertions).
+
+Done-when
+  1. Absolute is the default everywhere; per-shot is an explicit diagnostic escape only; missing calibration fails loud.
+  2. Tests green (no &#x27;byte-identical to the retired path&#x27; as a success criterion).
+  3. Followup resolved; the production re-encode uses absolute-by-default throughout.</pre>
     </article>
 </section>
 
