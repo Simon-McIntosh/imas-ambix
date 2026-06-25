@@ -5,9 +5,11 @@
 #
 #   ambix agent setup vllm
 #
-# NOTE: vLLM's PyPI wheel targets manylinux_2_35 but SDCC has glibc 2.34.
-# The setup script downloads, renames, and installs the wheel separately
-# after uv sync resolves all other dependencies listed here.
+# NOTE: vLLM's PyPI wheel from 0.23.0 targets manylinux_2_28, which SDCC's
+# glibc 2.34 satisfies natively (no tag rename needed). Older vLLM wheels
+# (≤0.20.x) targeted manylinux_2_35 and required a tag rename to 2_17.
+# The setup script downloads and installs the wheel separately after uv
+# sync resolves all other dependencies listed here.
 #
 # These dependencies mirror vllm's requirements so that `uv sync` pulls
 # everything in, and the renamed wheel is installed with `--no-deps`.
@@ -18,7 +20,7 @@ version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # --- Core ML runtime ---
-    # Pin torch to match vllm's compiled ABI — vllm 0.20.2 links torch 2.11
+    # Pin torch to match vllm's compiled ABI — vllm 0.23.0 links torch 2.11.0
     "torch==2.11.0",
     "torchaudio==2.11.0",
     "torchvision==0.26.0",
@@ -31,8 +33,8 @@ dependencies = [
     "nvidia-cudnn-cu12>=9.1",
     "nvidia-nccl-cu12>=2.21",
     "nvidia-cusparselt-cu12",
-    "nvidia-cudnn-frontend>=1.13,<1.19",
-    "nvidia-cutlass-dsl>=4.4.2",
+    "nvidia-cudnn-frontend>=1.19.1",
+    "nvidia-cutlass-dsl[cu13]==4.5.2",
 
     # --- Web serving (vLLM OpenAI-compatible API) ---
     "fastapi[standard]>=0.115",
@@ -43,9 +45,11 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=7.0",
 
     # --- Inference kernels ---
-    "flashinfer-python==0.6.8.post1",
-    "flashinfer-cubin==0.6.8.post1",
+    "flashinfer-python==0.6.12",
+    "flashinfer-cubin==0.6.12",
     "quack-kernels>=0.3.3",
+    "tokenspeed-mla==0.1.2",
+    "humming-kernels[cu13]==0.1.4",
     "tilelang==0.1.9",
     "numba==0.65.0",
 
@@ -56,16 +60,17 @@ dependencies = [
     "tiktoken>=0.6",
     "pillow",
     "gguf>=0.17",
-    "compressed-tensors==0.15.0.1",
-    "fastsafetensors>=0.2.2",
+    "compressed-tensors==0.17.0",
+    "fastsafetensors>=0.3.2",
+    "safetensors>=0.6.2",
 
     # --- Structured output / guided decoding ---
     "lark==1.2.2",
     "outlines_core==0.2.14",
     "lm-format-enforcer==0.11.3",
     "partial-json-parser",
-    "xgrammar<1.0,>=0.1.32",
-    "llguidance>=1.3,<1.4",
+    "xgrammar<1.0,>=0.2.0",
+    "llguidance>=1.7,<1.8",
 
     # --- Observability ---
     "opentelemetry-api>=1.27",
@@ -84,7 +89,7 @@ dependencies = [
     "anthropic>=0.71",
     "mistral_common[image]>=1.11",
     "mcp",
-    "model-hosting-container-standards>=0.1.13,<1.0",
+    "model-hosting-container-standards>=0.1.14,<1.0",
     "psutil",
     "py-cpuinfo",
     "tqdm",

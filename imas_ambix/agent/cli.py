@@ -1086,30 +1086,49 @@ def setup(engine: str, dry_run: bool) -> None:
         "",
     ]
 
-    # vLLM needs a wheelhouse with renamed wheel (glibc 2.34 vs manylinux_2_35)
+    # vLLM ships a linux x86_64 wheel whose manylinux tag may exceed SDCC's
+    # glibc 2.34. vLLM 0.23.0+ targets manylinux_2_28 (glibc 2.28 ≤ 2.34 — runs
+    # natively, no rename); older wheels (≤0.20.x) targeted manylinux_2_35
+    # (glibc 2.35 > 2.34 — needs the tag renamed down to 2_17 to install).
+    # Wheelhouse cache key is the resolved vLLM version, so a version bump in
+    # pyproject re-downloads instead of reusing a stale wheel.
     if engine == "vllm":
         lines += [
-            "# SDCC glibc 2.34 < manylinux_2_35 required by the vLLM PyPI wheel.",
-            "# Download the wheel and rename its platform tag so uv accepts it.",
             "mkdir -p wheelhouse",
-            "if ! ls wheelhouse/vllm-*manylinux_2_17* &>/dev/null; then",
-            '    echo "Downloading vLLM wheel to wheelhouse..."',
-            "    # Resolve download URL via PyPI JSON API",
-            '    VLLM_URL=$(python3 -c "',
-            "import urllib.request, json",
+            "# Resolve the latest vLLM linux x86_64 wheel via the PyPI JSON API",
+            "# (URL, filename, and the manylinux glibc minor it targets).",
+            '    read VLLM_URL VLLM_WHEEL VLLM_GLIBC < <(python3 -c "',
+            "import urllib.request, json, re",
             "resp = urllib.request.urlopen('https://pypi.org/pypi/vllm/json')",
             "data = json.loads(resp.read())",
             "for u in data['urls']:",
-            "    if 'manylinux_2_35' in u['filename'] and 'x86_64' in u['filename']:",
-            "        print(u['url']); break",
+            "    fn = u['filename']",
+            "    m = re.search(r'manylinux_2_(\\d+)_x86_64', fn)",
+            "    if m and fn.endswith('.whl'):",
+            "        print(u['url'], fn, m.group(1)); break",
             '")',
-            '    WHEEL_NAME=$(basename "$VLLM_URL")',
-            '    curl -fSL "$VLLM_URL" -o "wheelhouse/$WHEEL_NAME"',
-            "    # Rename manylinux_2_35 → manylinux_2_17 to bypass glibc check",
-            '    WHEEL_FIXED="${WHEEL_NAME/manylinux_2_35/manylinux_2_17}"',
-            '    mv "wheelhouse/$WHEEL_NAME" "wheelhouse/$WHEEL_FIXED"',
-            '    echo "Renamed → $WHEEL_FIXED"',
-            "fi",
+            '    if [ -z "${VLLM_WHEEL:-}" ]; then',
+            '        echo "ERROR: could not resolve a vLLM linux x86_64 wheel from PyPI"; exit 1',
+            "    fi",
+            "    # Wheel that uv will install — renamed to manylinux_2_17 only when",
+            "    # the source tag (glibc minor) is newer than SDCC's glibc 2.34.",
+            '    if [ "$VLLM_GLIBC" -gt 34 ]; then',
+            '        WHEEL_FINAL=$(echo "$VLLM_WHEEL" | sed "s/manylinux_2_${VLLM_GLIBC}/manylinux_2_17/")',
+            "    else",
+            '        WHEEL_FINAL="$VLLM_WHEEL"',
+            "    fi",
+            '    if [ ! -f "wheelhouse/$WHEEL_FINAL" ]; then',
+            '        echo "Downloading vLLM wheel $VLLM_WHEEL (glibc 2.$VLLM_GLIBC target)..."',
+            '        curl -fSL "$VLLM_URL" -o "wheelhouse/$VLLM_WHEEL"',
+            '        if [ "$WHEEL_FINAL" != "$VLLM_WHEEL" ]; then',
+            '            mv "wheelhouse/$VLLM_WHEEL" "wheelhouse/$WHEEL_FINAL"',
+            '            echo "Renamed manylinux tag → $WHEEL_FINAL"',
+            "        fi",
+            "    else",
+            '        echo "Reusing cached wheelhouse/$WHEEL_FINAL"',
+            "    fi",
+            "    # Drop any other cached vLLM wheels so the install glob is unambiguous.",
+            '    find wheelhouse -maxdepth 1 -name "vllm-*.whl" ! -name "$WHEEL_FINAL" -delete',
             "",
         ]
 
@@ -1124,7 +1143,7 @@ def setup(engine: str, dry_run: bool) -> None:
             "",
             'echo "Installing vLLM from local wheelhouse..."',
             "# --no-deps: all dependencies already installed by uv sync above",
-            "uv pip install --no-deps --python .venv/bin/python wheelhouse/vllm-*manylinux_2_17*.whl",
+            "uv pip install --no-deps --python .venv/bin/python wheelhouse/vllm-*x86_64.whl",
         ]
 
     lines += [
