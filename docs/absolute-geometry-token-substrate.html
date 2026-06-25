@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-25">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-impl" content="0.4">
 </head>
 <body>
@@ -62,11 +62,19 @@ Cameras remain decode-only. This stage produces the upgraded store + readers tha
 </ol>
 
 <h2 id="s3">§3 — Approach</h2>
+<p><strong>Direction (2026-06-25):</strong> this is a clean architecture pivot, not an incremental add-on.
+Corpus-level absolute calibration is the <em>default and only operative</em> representation, per the North
+Star (<a href="/imas-ambix/physics-world-model-strategy.html#s1a-reqs">§1a-reqs #2</a>: "absolute calibration
+is mandatory, not optional"). The per-shot z-scoring path is the <strong>retired</strong> approach (it caused
+the scale-free blocker); we do <em>not</em> carry it forward as a default or a silent fallback. New-approach
+parameters are not gated behind opt-in flags; a missing required calibration <strong>fails loud</strong>
+(or is computed), never silently reverts to per-shot. Any per-shot path that remains exists only as an
+explicit, clearly-labelled diagnostic escape (e.g. the one-time gate baseline), never the operative default.</p>
 <ol>
   <li><strong>Absolute calibration path.</strong> Replace the per-shot normalisation in the signal
-  tokenisation with corpus-level SI scaling (per-channel physical ranges), and the value→token mapping for
-  the L2 measured inputs. The camera VQ codebook (Open-MAGVIT2) is fixed; assess whether camera frames need
-  re-encoding or only the conditioning/value streams do.</li>
+  tokenisation with corpus-level SI scaling (per-channel physical ranges) as the default, and the
+  value→token mapping for the L2 measured inputs. The camera VQ codebook (Open-MAGVIT2) is fixed; assess
+  whether camera frames need re-encoding or only the conditioning/value streams do.</li>
   <li><strong>Geometry schema.</strong> Attach per-diagnostic sensor geometry (probe/loop/chord/pixel
   coordinates + orientation + machine geometry) to the token store as a positional-encoding field; sourced
   from the device description, not from any reconstruction.</li>
@@ -206,7 +214,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-ags-gatepath" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Gate-critical correction: wire absolute calibration into the STAGED read path + fix corpus_compute channel-shaping</h4>
-    <div class="r-fu-body">INTEGRATION DISCOVERY (smoke job 1222605). The §3 gate (diagnostics->equilibrium probe skill off ~0) flows through the STAGED magnetics read path, NOT the signals_hf store. The diagnostics oracle reads MAGNETICS_STREAMS=('xma','magnetics'); the 'magnetics' stream is staged L2 flux-loops + B-probes quantised AT READ TIME by spacetime_dataset_v2._quantise_l2, which explicitly uses PER-SHOT mean/std ('no fitted corpus stats at read time'). Neither foundational worker touched spacetime_dataset_v2.py, so a full signals_hf re-encode (xma/xim/xsx retrain + L2 light-path) CANNOT move the gate by itself. Also: corpus_compute.py's ZARR_GROUPS path is mismatched — it uses the 1-D-only compute_signal_calibration (the magnetics smoke captured only 1 channel, 'ip', dropping every 2-D-expanded sensor), lists 'magnetics' (a staged stream, not an L2 light-path group) and omits 'pulse_schedule'; the real L2 light-path groups are pf_active/gas_injection/summary/interferometer/soft_x_rays/pulse_schedule and they EXPAND 2-D arrays to {group}.{var}[{i}] channels (l2_input_build._channels_from_var). Corrected gate-first sequencing below; the full production re-encode follows.</div>
+    <div class="r-fu-body">INTEGRATION DISCOVERY (smoke job 1222605). The §3 gate (diagnostics-&gt;equilibrium probe skill off ~0) flows through the STAGED magnetics read path, NOT the signals_hf store. The diagnostics oracle reads MAGNETICS_STREAMS=('xma','magnetics'); the 'magnetics' stream is staged L2 flux-loops + B-probes quantised AT READ TIME by spacetime_dataset_v2._quantise_l2, which explicitly uses PER-SHOT mean/std ('no fitted corpus stats at read time'). Neither foundational worker touched spacetime_dataset_v2.py, so a full signals_hf re-encode (xma/xim/xsx retrain + L2 light-path) CANNOT move the gate by itself. Also: corpus_compute.py's ZARR_GROUPS path is mismatched — it uses the 1-D-only compute_signal_calibration (the magnetics smoke captured only 1 channel, 'ip', dropping every 2-D-expanded sensor), lists 'magnetics' (a staged stream, not an L2 light-path group) and omits 'pulse_schedule'; the real L2 light-path groups are pf_active/gas_injection/summary/interferometer/soft_x_rays/pulse_schedule and they EXPAND 2-D arrays to {group}.{var}[{i}] channels (l2_input_build._channels_from_var). Corrected gate-first sequencing below; the full production re-encode follows.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    absolute-geometry-token-substrate (§3 gate)
 Section: §3
@@ -231,6 +239,18 @@ Done-when
     </article>
 </section>
 
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="calibration-default" data-choice="absolute-default-per-shot-retired" data-by="Simon McIntosh" data-when="2026-06-25">
+    <p class="r-dec-q">Is absolute calibration the default, or an opt-in layered over a per-shot default?</p>
+    <p class="r-dec-ctx">During the SSM architecture pivot the foundational code was first built backward-compatible (absolute behind opt-in flags; per-shot the silent default/fallback; &#x27;byte-identical&#x27; as a success criterion). The lead flagged this as wrong and potentially harmful.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="absolute-default-per-shot-retired">Absolute corpus calibration is THE default and only operative path; per-shot is RETIRED (an explicit diagnostic escape at most, never the default); missing calibration FAILS LOUD or is computed, never silently reverts</button>
+      <button class="r-opt" data-value="opt-in-over-pershot">Absolute behind an opt-in flag; per-shot stays the default (backward-compatible with the retired approach)</button>
+      </p>
+    <p class="r-dec-rat">Locked by the lead 2026-06-25. This is a clean architecture pivot (SSM); dragging retired per-shot defaults forward is harmful. North Star physics-world-model-strategy §1a-reqs #2: absolute calibration is mandatory, not optional. No opt-in flags for new-approach params; no &#x27;byte-identical to the retired path&#x27; as a goal.</p>
+    </div>
+</section>
 </main>
 </body>
 </html>
