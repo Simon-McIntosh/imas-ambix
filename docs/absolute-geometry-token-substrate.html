@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-25">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 <meta name="plan-impl" content="0.4">
 </head>
 <body>
@@ -258,6 +258,29 @@ Done-when
   1. Absolute is the default everywhere; per-shot is an explicit diagnostic escape only; missing calibration fails loud.
   2. Tests green (no &#x27;byte-identical to the retired path&#x27; as a success criterion).
   3. Followup resolved; the production re-encode uses absolute-by-default throughout.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-boundary-pipeline" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Boundary IS recoverable from magnetics (raw ceiling axis 0.57-0.68, xpt_R 0.50) — close the tokenised-path gap: stop channel mean-pooling, add per-sensor + machine geometry positional encoding, absolute coil currents</h4>
+    <div class="r-fu-body">REASSESSMENT (lead, 2026-06-25): X-point/boundary ARE recoverable from magnetics alone (EFIT does this routinely) — the earlier '~0' was the PER-SHOT blocker, not physics. Evidence: the RAW-float absolute-magnetics oracle (eval-harness, 54 test ex) gets axis_R 0.571, axis_Z 0.683, xpt_R 0.497 (only xpt_Z 0.031 is intrinsically weak even raw). Our TOKENISED-absolute path reaches only axis_R 0.049, axis_Z 0.265, xpt_R -0.066 — FAR below the raw ceiling. Absolute calibration helped (axis_Z 0.082->0.265, LCFS radii +0.1..0.18) but is INSUFFICIENT alone. This gap is a PIPELINE limitation, not physics. THREE causes: (1) the DiagnosticsEquilibriumProbe _StreamEncoder MEAN-POOLS the 94 magnetic sensors into one vector (emb.mean(dim=2)) — destroying the per-sensor spatial PATTERN EFIT triangulates the boundary from; the raw oracle keeps all 94 channels as distinct features (likely the biggest cause). (2) 256-bin quantisation + learned-id embedding discards the ordinal/continuous magnitude the raw floats carry. (3) NO geometry positional encoding is consumed yet (probe sees channel-index embeddings; within-MAST that is a position proxy the raw oracle exploits, but pooling destroys it AND it blocks transfer). FIX (the user's machine-geometry question = YES): keep per-sensor channels (stop pooling), attach each sensor's geometry (R,Z,phi,orientation) AS positional encoding, ADD machine geometry (first-wall/vessel contour + PF-coil positions — already in geometry_export's MachineGeometry block: limiter_r/z + pf_coil_r/z + r0 + minor_radius) as context, and feed ABSOLUTE coil CURRENTS (pf_active, re-encoded absolute) — the EFIT input recipe. Consider a continuous absolute embedding for magnetics (like xma) rather than 256-bin tokens. The gate bar is not 'rise off ~0' but 'approach the raw ceiling (axis ~0.6, xpt_R ~0.5)'.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (§3 gate)
+Section: §3
+Tier:    opus
+
+Context
+  The boundary IS recoverable from absolute magnetics (raw-float oracle: axis 0.57-0.68, xpt_R 0.50). The tokenised-absolute path is far below (axis_R 0.05, xpt_R -0.07) — a pipeline limitation. Close the gap.
+
+Work (highest-leverage first)
+  1. Stop channel mean-pooling in imas_ambix/worldmodel/diagnostics_equilibrium_probe.py _StreamEncoder: keep the 94 magnetic sensors as distinct features (attention over sensors, or concat), so the per-sensor spatial pattern survives — the raw oracle keeps all channels and that is most of its edge.
+  2. Feed per-sensor geometry (R,Z,phi,orientation from geometry_reader.geometry_for_channels) AS positional encoding per sensor, plus the shared machine geometry (vessel/limiter contour + PF-coil positions from geometry_export.MachineGeometry) as context tokens. This is the EFIT recipe and the cross-machine requirement.
+  3. Re-encode pf_active (coil currents) in ABSOLUTE mode and include it (EFIT places the boundary from coil currents + magnetics + geometry).
+  4. Consider a continuous absolute embedding for magnetics (xma-style) instead of 256-bin tokens to keep ordinal magnitude.
+  5. Re-run the diagnostics-&gt;equilibrium oracle; target approaching the raw ceiling (axis ~0.6, xpt_R ~0.5), not merely off ~0. Report per-component vs the raw oracle.
+
+Done-when
+  1. Probe keeps per-sensor structure + consumes sensor + machine geometry; pf_active absolute included.
+  2. Tokenised axis_R/axis_Z/xpt_R skill approaches the raw-float ceiling (report the gap closed).
+  3. Followup resolved; gate (§3.3) re-judged against the ceiling, not against ~0.</pre>
     </article>
 </section>
 
