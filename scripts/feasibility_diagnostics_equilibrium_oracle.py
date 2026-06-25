@@ -75,16 +75,107 @@ GATE_COHORT = (15089, 15223, 15517, 15963, 15972, 16024, 16223)
 STANDING_HELD_OUT = (18502, 18503, 18504, 18505)
 FORCED_TEST_SHOTS = tuple(sorted(set(GATE_COHORT) | set(STANDING_HELD_OUT)))
 
-#: Streams treated as "magnetics" for the magnetics-only ablation arm.  ``xma``
-#: is the HF magnetics codebook; ``magnetics`` is the calibrated L2 flux-loop +
-#: B-field probe array — together they are the EFIT-class position/shape sensor.
-MAGNETICS_STREAMS = ("xma", "magnetics")
+#: The synthetic stream name for the L2 ``pf_active`` coil currents the oracle
+#: reads directly (no staged store exists).  Coil currents are an EFIT input —
+#: the boundary / X-point is placed from {magnetics + COIL CURRENTS + Ip +
+#: machine geometry} — so this stream joins the headline EFIT-input arm.
+PF_ACTIVE_STREAM = "pf_active_coils"
+
+#: Streams in the headline EFIT-input arm: ``magnetics`` (calibrated L2 flux
+#: loops + B-field probes + the device-global plasma current Ip), ``xma`` (the
+#: HF magnetics codebook) and the PF-active COIL CURRENTS.  Together these are
+#: the EFIT-class {position/shape sensor + Ip + current actuators} set.
+MAGNETICS_STREAMS = ("xma", "magnetics", PF_ACTIVE_STREAM)
 
 #: The staged group whose column names resolve to L2-IDS apparatus geometry
 #: directly (the EFIT-class position/shape sensor).  Every other stream's
 #: per-channel geometry comes from the campaign table via
 #: :func:`imas_ambix.tokenizer.geometry_reader.geometry_for_channels`.
 _MAGNETICS_GROUP = "magnetics"
+
+#: L2 ``pf_active`` raw current arrays (signed, physical units) the coil stream
+#: reads — coil currents + the solenoid; named 1:1 by ``current_channel``.
+_PF_ACTIVE_CURRENT_KEYS = ("coil_current", "solenoid_current")
+
+
+def read_pf_active_coils(shot_id, grid, *, calibration=None):
+    """Read L2 ``pf_active`` coil currents -> (ids, values, names, geometry, kinds).
+
+    The EFIT current actuators.  Reads the L2 ``pf_active`` group's signed
+    ``coil_current`` (n_coil, n_time) arrays (named 1:1 by ``current_channel``),
+    resamples to the window ``grid``, corpus-standardises each channel (SIGNED;
+    no abs) and ALSO quantises to the L2 256-bin local ids for the token-lane
+    comparison.  Geometry is each coil's filament-centroid ``(R, Z)`` via
+    :func:`imas_ambix.tokenizer.geometry_reader.pf_active_geometry_for_channels`.
+
+    Returns ``(ids (S, C) int64, values (S, C) float32, names, geom (C, 10)
+    float32, kinds tuple)`` or ``None`` when the L2 group is unreadable.
+    """
+    import zarr  # noqa: PLC0415
+
+    from imas_ambix.data.paths import LEVEL2_DIR  # noqa: PLC0415
+    from imas_ambix.statespace.align import align_chord2d_to_grid  # noqa: PLC0415
+    from imas_ambix.tokenizer.geometry_reader import (  # noqa: PLC0415
+        pf_active_geometry_for_channels,
+    )
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import _quantise_l2  # noqa: PLC0415
+
+    path = LEVEL2_DIR / f"{int(shot_id)}.zarr"
+    if not path.exists():
+        return None
+    try:
+        root = zarr.open_group(str(path), mode="r")
+        if "pf_active" not in set(root.group_keys()):
+            return None
+        grp = root["pf_active"]
+        keys = set(grp.array_keys())
+        if "time" not in keys:
+            # pf_active time axis is named in current_channel's coordinate; the
+            # coil arrays are (n_coil, n_time) — find the time length from them.
+            pass
+        # locate a usable time axis (1-D, matches the current arrays' 2nd dim).
+        tkey = next((k for k in ("time", "coil_current_time") if k in keys), None)
+        cols, names = [], []
+        for ckey in _PF_ACTIVE_CURRENT_KEYS:
+            if ckey not in keys:
+                continue
+            arr = np.asarray(grp[ckey], dtype=np.float64)
+            if arr.ndim != 2:
+                continue
+            # orient to (n_time, n_coil).
+            chname_key = "current_channel" if ckey == "coil_current" else None
+            chnames = (
+                [str(x) for x in np.asarray(grp[chname_key]).reshape(-1)]
+                if (chname_key and chname_key in keys)
+                else [f"{ckey}[{i}]" for i in range(min(arr.shape))]
+            )
+            n_coil = len(chnames)
+            arr2 = arr if arr.shape[1] == n_coil else arr.T
+            cols.append(arr2)
+            names.extend(chnames)
+        if not cols:
+            return None
+        raw = np.concatenate(cols, axis=1)  # (n_time, C)
+        if tkey is not None:
+            vtime = np.asarray(grp[tkey], dtype=np.float64).reshape(-1)
+        else:
+            # fall back to a uniform time over the array length (rare).
+            vtime = np.linspace(grid[0], grid[-1], raw.shape[0], dtype=np.float64)
+    except Exception:  # noqa: BLE001
+        return None
+    on_grid = align_chord2d_to_grid(raw, vtime, grid).astype(np.float64)  # (S, C)
+    values = _standardise_continuous(on_grid, names, calibration).astype(np.float32)
+    ids = _quantise_l2(on_grid, channel_names=names, calibration=calibration).astype(
+        np.int64
+    )
+    ag = pf_active_geometry_for_channels(names, int(shot_id))
+    return (
+        ids,
+        values,
+        names,
+        np.asarray(ag.features, dtype=np.float32),
+        tuple(ag.sensor_kinds),
+    )
 
 
 def stream_channel_names(shot_id, modalities, *, token_root=None):
@@ -421,6 +512,21 @@ def assemble_examples(
             token_root=token_root,
             calibration_by_group=calibration_by_group,
         )
+        # PF-active COIL CURRENTS read directly from L2 (no staged store): an
+        # EFIT current actuator the boundary / X-point is placed from.  Signed,
+        # corpus-standardised continuous values + the token-id lane + per-coil
+        # geometry.  Joins the headline EFIT-input stream set.
+        pf_cal = (
+            calibration_by_group.get("pf_active")
+            if calibration_by_group is not None
+            else None
+        )
+        pf = read_pf_active_coils(int(sid), grid_for_values, calibration=pf_cal)
+        if pf is not None:
+            pf_ids, pf_vals, _pf_names, pf_geom, pf_kinds = pf
+            signals[PF_ACTIVE_STREAM] = np.asarray(pf_ids, np.int64)
+            values_by_stream[PF_ACTIVE_STREAM] = np.asarray(pf_vals, np.float32)
+            geom_by_stream[PF_ACTIVE_STREAM] = (pf_geom, pf_kinds)
         # equilibrium labels on the SIGNAL grid (same span as the window).
         ftime = np.asarray(sample.frame_time, dtype=np.float64)
         t0, t1 = float(ftime.min()), float(ftime.max())
@@ -472,14 +578,28 @@ def assemble_examples(
 # ---------------------------------------------------------------------------
 
 
+#: Vocab for the synthetic PF-active coil-current stream (L2 256-bin local ids).
+def _pf_active_vocab():
+    from imas_ambix.tokenizer.registry import L2_BLOCK_VOCAB
+
+    return int(L2_BLOCK_VOCAB) + 1
+
+
+#: Generous per-coil-current channel cap (10 coils + solenoid is well under).
+_PF_ACTIVE_MAX_CHANNELS = 16
+
+
 def probe_channels(examples, modalities):
     """Max channel count seen per stream across the assembled examples.
 
-    Caps at each modality's ``max_channels``.  A stream never present keeps 0 and
-    is dropped from the model's stream list.
+    Caps at each modality's ``max_channels`` (and the PF-active coil stream's own
+    cap).  A stream never present keeps 0 and is dropped from the model's stream
+    list.
     """
     cap = {m.name: int(m.max_channels) for m in modalities}
+    cap[PF_ACTIVE_STREAM] = _PF_ACTIVE_MAX_CHANNELS
     seen = {m.name: 0 for m in modalities}
+    seen[PF_ACTIVE_STREAM] = 0
     for ex in examples:
         for name, arr in ex["signals"].items():
             if name in seen:
@@ -491,7 +611,9 @@ def build_stream_specs(channels, modalities, *, restrict=None):
     """Build probe :class:`StreamSpec` list from probed channels.
 
     ``restrict`` (optional set of stream names) keeps only those streams — the
-    ablation lever.  A stream with 0 probed channels is dropped.
+    ablation lever.  A stream with 0 probed channels is dropped.  The synthetic
+    PF-active coil-current stream (read directly from L2, not a modality) is
+    appended when present.
     """
     from imas_ambix.worldmodel.diagnostics_equilibrium_probe import StreamSpec
 
@@ -503,6 +625,13 @@ def build_stream_specs(channels, modalities, *, restrict=None):
         if c <= 0:
             continue
         specs.append(StreamSpec(name=m.name, vocab=int(m.vocab), channels=c))
+    # PF-active coil currents (synthetic stream — not a modality).
+    if restrict is None or PF_ACTIVE_STREAM in restrict:
+        c = int(channels.get(PF_ACTIVE_STREAM, 0))
+        if c > 0:
+            specs.append(
+                StreamSpec(name=PF_ACTIVE_STREAM, vocab=_pf_active_vocab(), channels=c)
+            )
     return specs
 
 
@@ -654,11 +783,19 @@ def train_probe(
     m_t = torch.from_numpy(mtr.astype(np.float32)).to(dev)
     n = y_t.shape[0]
 
+    # Overfit control: the small TRAIN set (~184 survivors) overfits a deep
+    # probe, so use stronger dropout + a kept-compact width and lean on weight
+    # decay.  The compact magnetics arm generalised far better than the wide
+    # all-diagnostics one, so keep the model modest.
     cfg = DiagnosticsProbeConfig(
         streams=list(specs),
         n_steps=n_steps,
         target_dim=target_dim,
         continuous_value=continuous,
+        d_model=160,
+        n_heads=4,
+        n_layers=4,
+        dropout=0.3,
     )
     model = DiagnosticsEquilibriumProbe(cfg).to(dev)
     logger.info(
@@ -667,7 +804,7 @@ def train_probe(
         [s.name for s in specs],
         continuous,
     )
-    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.05)
     # A deep space-time transformer over hundreds of (sensor x time) tokens needs
     # a warmup + cosine schedule to converge (a flat LR underfits in a few-epoch
     # budget — the NLL was still falling at the cap).  Warmup over the first ~10%
@@ -993,6 +1130,20 @@ def run(args) -> int:
                     "absolute: NO calibration for staged group %r — per-shot fallback",
                     m.group,
                 )
+        # PF-active coil currents are read directly from L2 (not a modality);
+        # load their corpus calibration too so the coil-current values are
+        # corpus-standardised on the SAME absolute scale as the magnetics.
+        pf_cal = load_group_calibration("pf_active")
+        if pf_cal:
+            calibration_by_group["pf_active"] = pf_cal
+            logger.info(
+                "absolute: loaded calibration for pf_active (%d channels)",
+                len(pf_cal),
+            )
+        else:
+            logger.warning(
+                "absolute: NO calibration for pf_active — coil currents per-shot"
+            )
         if not calibration_by_group:
             logger.warning(
                 "absolute requested but no staged calibration on disk — "
@@ -1062,7 +1213,32 @@ def run(args) -> int:
     channels = probe_channels(tr_examples + te_examples, modalities)
     logger.info("probed channels: %s", {k: v for k, v in channels.items() if v > 0})
 
-    # 5-6) two arms: all-diagnostics, then magnetics-only ablation.
+    # 5-6) arms.  HEADLINE = the EFIT-input set (magnetics + Ip + coil currents)
+    # fed as CONTINUOUS signed corpus-standardised values — the representation
+    # that recovers most of the raw-float ceiling (the token id embeds the bin as
+    # an UNORDERED categorical, discarding the ordinal/metric/sign structure the
+    # boundary triangulation needs).  The 256-bin token lane is kept ONLY as a
+    # labelled comparison; an all-diagnostics continuous arm is the reference.
+    efit_arm = run_arm(
+        tr_examples,
+        te_examples,
+        channels,
+        modalities,
+        args,
+        restrict=set(MAGNETICS_STREAMS),
+        label="efit_inputs_continuous",
+        continuous=True,
+    )
+    efit_token_arm = run_arm(
+        tr_examples,
+        te_examples,
+        channels,
+        modalities,
+        args,
+        restrict=set(MAGNETICS_STREAMS),
+        label="efit_inputs_token",
+        continuous=False,
+    )
     all_arm = run_arm(
         tr_examples,
         te_examples,
@@ -1070,35 +1246,15 @@ def run(args) -> int:
         modalities,
         args,
         restrict=None,
-        label="all_diagnostics",
-    )
-    mag_arm = run_arm(
-        tr_examples,
-        te_examples,
-        channels,
-        modalities,
-        args,
-        restrict=set(MAGNETICS_STREAMS),
-        label="magnetics_only",
-    )
-    # quantisation ablation: the SAME magnetics-only arm fed the CONTINUOUS
-    # corpus-standardised raw value instead of the 256-bin token id — tells us
-    # how much of the gap to the raw-float ceiling is quantisation.
-    mag_cont_arm = run_arm(
-        tr_examples,
-        te_examples,
-        channels,
-        modalities,
-        args,
-        restrict=set(MAGNETICS_STREAMS),
-        label="magnetics_only_continuous",
+        label="all_diagnostics_continuous",
         continuous=True,
     )
-    if all_arm is None:
-        logger.error("all-diagnostics arm produced no streams — abort")
+    if efit_arm is None:
+        logger.error("EFIT-input arm produced no streams — abort")
         return 3
 
-    all_report, all_pred, all_yte, all_mte = all_arm
+    # the headline result the report + scatter mirror is the EFIT-input arm.
+    all_report, all_pred, all_yte, all_mte = efit_arm
 
     coverage = {
         "train_examples": len(tr_examples),
@@ -1125,13 +1281,16 @@ def run(args) -> int:
         "target_units": "m",
         "coverage": coverage,
         "arms": {
-            "all_diagnostics": all_report,
-            "magnetics_only": (mag_arm[0] if mag_arm is not None else None),
-            "magnetics_only_continuous": (
-                mag_cont_arm[0] if mag_cont_arm is not None else None
+            # HEADLINE: EFIT inputs (magnetics + Ip + coil currents), continuous.
+            "efit_inputs_continuous": all_report,
+            # labelled comparison: the SAME inputs through the 256-bin token lane.
+            "efit_inputs_token": (
+                efit_token_arm[0] if efit_token_arm is not None else None
             ),
+            # reference: all diagnostics, continuous (richer but prone to overfit).
+            "all_diagnostics_continuous": (all_arm[0] if all_arm is not None else None),
         },
-        # top-level verdict mirrors the all-diagnostics arm (the headline check)
+        # top-level verdict mirrors the headline EFIT-input continuous arm.
         "verdict": all_report["verdict"],
     }
 
@@ -1141,10 +1300,10 @@ def run(args) -> int:
     json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     logger.info("wrote %s", json_path)
 
-    # scatter for the headline all-diagnostics arm.
+    # scatter for the headline EFIT-input continuous arm.
     title = (
-        "diagnostics feasibility oracle — measured signals -> plasma geometry "
-        "(all-diagnostics arm)"
+        "diagnostics feasibility oracle — magnetics + Ip + coil currents "
+        "(continuous) -> plasma geometry"
     )
     fig_local = out_root / "fig-diag-eq-oracle-geometry-scatter.png"
     geometry_scatter(all_pred, all_yte, all_mte, TARGET_NAMES, fig_local, title=title)
@@ -1157,7 +1316,7 @@ def run(args) -> int:
         logger.warning("could not write docs figure %s: %s", fig_docs, exc)
 
     logger.info(
-        "=== TOP-LEVEL (all-diagnostics) FEASIBILITY: %s ===",
+        "=== TOP-LEVEL (efit-inputs continuous) FEASIBILITY: %s ===",
         "FEASIBLE" if report["verdict"]["feasible"] else "INFEASIBLE",
     )
     return 0

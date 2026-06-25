@@ -36,6 +36,7 @@ import numpy as np
 from imas_ambix.gs.geometry_export import (
     GEOMETRY_FEATURE_NAMES,
     KIND_BPOL_PROBE,
+    KIND_COIL,
     KIND_FLUX_LOOP,
     KIND_SCALAR,
     N_GEOMETRY_FEATURES,
@@ -213,6 +214,11 @@ _FLUX_COL_RE = re.compile(r"^flux_loop_flux\[(?P<i>\d+)\]$")
 _VERTICAL_PROBE_KINDS = ("ccbv", "obv")
 _RADIAL_PROBE_KINDS = ("obr",)
 
+#: Sensor-kind for a device-global signed scalar with no spatial geometry (the
+#: plasma current ``ip``).  Matches the probe's ``SENSOR_KIND_VOCAB`` entry so
+#: the kind embedding gives Ip a distinct slot.
+KIND_GLOBAL_SCALAR = "global_scalar"
+
 
 def _normalise_loop_name(name: str) -> str:
     """Lower-case, strip separators + the ``amb`` prefix (flux-loop name key)."""
@@ -344,7 +350,105 @@ def magnetics_geometry_for_channels(
                 feats[i, 2] = 0.0
                 kinds[i] = KIND_FLUX_LOOP
             continue
-        # ``ip`` and any other unrecognised column stay scalar / all-NaN.
+        # ``ip`` is the device-global plasma current — a SIGNED scalar with no
+        # spatial geometry; tag it with the dedicated global-scalar kind so the
+        # probe gives it a distinct slot rather than burying it among per-sensor
+        # scalars.  Any other unrecognised column stays plain scalar / all-NaN.
+        if name == "ip":
+            kinds[i] = KIND_GLOBAL_SCALAR
+    return AlignedGeometry(
+        channel_names=tuple(names),
+        feature_names=tuple(GEOMETRY_FEATURE_NAMES),
+        features=feats,
+        sensor_kinds=tuple(kinds),
+    )
+
+
+# ---------------------------------------------------------------------------
+# PF-active coil-current name -> coil geometry (the EFIT current actuators)
+# ---------------------------------------------------------------------------
+#
+# EFIT places the boundary / X-point from {magnetics + COIL CURRENTS + Ip +
+# machine geometry}.  The L2 ``pf_active`` group carries ``coil_current``
+# (n_coil, n_time) named by ``current_channel`` (e.g. ``AMC_P3U FEED CURRENT``)
+# plus per-circuit filament geometry arrays (``p3_upper_r/_z`` …).  A coil's
+# effective position is the centroid of its filament R/Z; we map each current
+# channel to its circuit's geometry by name so each coil-current token carries
+# the coil's (R, Z) as its positional code.
+
+#: ``current_channel`` name token (after AMC_ prefix) -> filament-geometry prefix.
+#: ``P2IL`` -> ``p2_inner_lower``, ``P3U`` -> ``p3_upper``, ``SOL`` -> ``sol`` …
+_COIL_NAME_TO_PREFIX = {
+    "p2il": "p2_inner_lower",
+    "p2iu": "p2_inner_upper",
+    "p2ol": "p2_outer_lower",
+    "p2ou": "p2_outer_upper",
+    "p3l": "p3_lower",
+    "p3u": "p3_upper",
+    "p4l": "p4_lower",
+    "p4u": "p4_upper",
+    "p5l": "p5_lower",
+    "p5u": "p5_upper",
+    "p6l": "p6_lower",
+    "p6u": "p6_upper",
+    "sol": "sol",
+}
+
+
+def _coil_token(channel_name: str) -> str:
+    """Extract the coil token from a ``current_channel`` name.
+
+    ``"AMC_P3U FEED CURRENT"`` -> ``"p3u"``; ``"AMC_SOL CURRENT"`` -> ``"sol"``.
+    """
+    s = str(channel_name).lower()
+    s = re.sub(r"^amc[\s_]*", "", s)
+    s = s.split()[0] if s.split() else s
+    return re.sub(r"[\s_\-/.]+", "", s)
+
+
+def pf_active_geometry_for_channels(
+    channel_names: Sequence[str],
+    shot_id: int,
+) -> AlignedGeometry:
+    """Resolve PF-active coil-current channel names to coil geometry.
+
+    Reads the L2 ``pf_active`` group's per-circuit filament geometry arrays and
+    maps each ``coil_current`` channel (named by ``current_channel``, e.g.
+    ``AMC_P3U FEED CURRENT``) to its circuit's filament centroid ``(R, Z)``,
+    ``sensor_kind = coil``.  An unmapped / unrecognised channel stays ``scalar``
+    with NaN coordinates (present + explicit, never dropped).  Returns
+    ``(len(channel_names), n_geom_features)`` aligned 1:1 with ``channel_names``.
+    """
+    import zarr  # noqa: PLC0415
+
+    from imas_ambix.data.paths import LEVEL2_DIR  # noqa: PLC0415
+
+    names = [str(c) for c in channel_names]
+    feats = np.full((len(names), N_GEOMETRY_FEATURES), np.nan, dtype=np.float32)
+    kinds: list[str] = [KIND_SCALAR] * len(names)
+    path = LEVEL2_DIR / f"{int(shot_id)}.zarr"
+    centroids: dict[str, tuple[float, float]] = {}
+    if path.exists():
+        try:
+            grp = zarr.open_group(str(path), mode="r")["pf_active"]
+            keys = set(grp.array_keys())
+            for prefix in set(_COIL_NAME_TO_PREFIX.values()):
+                rk, zk = f"{prefix}_r", f"{prefix}_z"
+                if rk in keys and zk in keys:
+                    r = np.asarray(grp[rk], dtype=np.float64).reshape(-1)
+                    z = np.asarray(grp[zk], dtype=np.float64).reshape(-1)
+                    if r.size and z.size:
+                        centroids[prefix] = (float(np.mean(r)), float(np.mean(z)))
+        except Exception:  # noqa: BLE001
+            centroids = {}
+    for i, name in enumerate(names):
+        prefix = _COIL_NAME_TO_PREFIX.get(_coil_token(name))
+        rz = centroids.get(prefix) if prefix else None
+        if rz is not None:
+            feats[i, 0] = rz[0]
+            feats[i, 1] = rz[1]
+            feats[i, 2] = 0.0
+            kinds[i] = KIND_COIL
     return AlignedGeometry(
         channel_names=tuple(names),
         feature_names=tuple(GEOMETRY_FEATURE_NAMES),

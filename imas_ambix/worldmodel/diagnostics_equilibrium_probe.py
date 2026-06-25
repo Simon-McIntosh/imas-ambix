@@ -91,6 +91,11 @@ SENSOR_KIND_VOCAB: tuple[str, ...] = (
     "pixel",
     "coil",
     "scalar",
+    # A device-global SIGNED scalar with no spatial geometry — the plasma
+    # current Ip (the single most important equilibrium scalar: it sets the
+    # Grad-Shafranov source).  A dedicated kind so the head can give it a clear,
+    # distinct feature slot rather than burying it among per-sensor scalars.
+    "global_scalar",
 )
 _KIND_INDEX = {k: i for i, k in enumerate(SENSOR_KIND_VOCAB)}
 

@@ -154,7 +154,9 @@ def test_probe_continuous_value_ablation_runs():
 def test_sensor_kind_index():
     assert sensor_kind_index("bpol_probe") == 1
     assert sensor_kind_index("flux_loop") == 2
+    assert sensor_kind_index("coil") == 6
     assert sensor_kind_index("scalar") == 7
+    assert sensor_kind_index("global_scalar") == 8
     assert sensor_kind_index("something_unknown") == 0
 
 
@@ -187,9 +189,10 @@ def test_staged_magnetics_names_resolve_to_finite_coords():
 
     assert ag.n_channels == len(names)
     finite_r = np.isfinite(ag.features[:, 0])
-    # every named B-probe / flux-loop channel resolves; only scalars (ip) NaN.
-    n_scalar = sum(1 for k in ag.sensor_kinds if k == "scalar")
-    assert int(finite_r.sum()) == len(names) - n_scalar
+    # every named B-probe / flux-loop channel resolves; only the geometry-free
+    # scalar(s) (ip) carry NaN coords.
+    n_no_geom = sum(1 for k in ag.sensor_kinds if k in ("scalar", "global_scalar"))
+    assert int(finite_r.sum()) == len(names) - n_no_geom
     assert int(finite_r.sum()) >= len(names) - 2  # at most a couple of scalars
 
     idx = {n: i for i, n in enumerate(names)}
@@ -211,9 +214,10 @@ def test_staged_magnetics_names_resolve_to_finite_coords():
     assert ag.sensor_kinds[i] == "flux_loop"
     assert np.isfinite(ag.features[i, 0]) and np.isfinite(ag.features[i, 1])
 
-    # ip is a pure scalar (no geometry).
+    # ip is the device-global plasma current: a SIGNED scalar with no geometry,
+    # tagged with the dedicated global-scalar kind so the head gives it a slot.
     i = idx["ip"]
-    assert ag.sensor_kinds[i] == "scalar"
+    assert ag.sensor_kinds[i] == "global_scalar"
     assert not np.isfinite(ag.features[i, 0])
 
     # cross-check ccbv01 against the gs.geometry BProbe position (within mm).
@@ -226,3 +230,36 @@ def test_staged_magnetics_names_resolve_to_finite_coords():
         i = idx["b_field_pol_probe_ccbv_field[0]"]
         assert ag.features[i, 0] == pytest.approx(gm.r, abs=0.01)
         assert ag.features[i, 1] == pytest.approx(gm.z, abs=0.01)
+
+
+@pytest.mark.skipif(
+    not _have_l2_magnetics(11766), reason="L2 pf_active store not reachable"
+)
+def test_pf_active_coil_names_resolve_to_coil_geometry():
+    """PF-active coil-current channel names resolve to coil-centroid R/Z.
+
+    Each ``AMC_PXX FEED CURRENT`` maps to its circuit's filament centroid; the
+    P-coils sit at increasing major radius (P2 inner-most, P5 outer-most), and
+    every resolved channel is kinded ``coil`` with finite R/Z.
+    """
+    import zarr
+
+    from imas_ambix.tokenizer.geometry_reader import pf_active_geometry_for_channels
+
+    sid = 11766
+    grp = zarr.open_group(
+        f"/work/projects/imas_gpu/mast/level2/shots/{sid}.zarr", mode="r"
+    )["pf_active"]
+    cc = [str(x) for x in np.asarray(grp["current_channel"]).reshape(-1)]
+    ag = pf_active_geometry_for_channels(cc, sid)
+
+    assert ag.n_channels == len(cc)
+    by_name = {n: i for i, n in enumerate(cc)}
+    # every named coil current resolves to a finite coil position, kind=coil.
+    for n, i in by_name.items():
+        assert ag.sensor_kinds[i] == "coil", n
+        assert np.isfinite(ag.features[i, 0]) and np.isfinite(ag.features[i, 1]), n
+    # P2 inner sits at a smaller major radius than P5.
+    p2 = next(i for n, i in by_name.items() if "P2IL" in n)
+    p5 = next(i for n, i in by_name.items() if "P5" in n)
+    assert ag.features[p2, 0] < ag.features[p5, 0]
