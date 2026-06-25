@@ -258,15 +258,50 @@ prefetch producer/consumer threads — is **PROHIBITED** for production code.
 The `imas-ambix agent` CLI manages LLM deployments via TOML model profiles:
 
 ```bash
-imas-ambix agent list                          # List available profiles
+imas-ambix agent list                          # List available profiles (marks any serving)
 imas-ambix agent info kimi-k2-6               # Show profile details + memory budget
 imas-ambix agent download kimi-k2-6           # Submit SLURM download job (sirius partition)
 imas-ambix agent serve kimi-k2-6              # Submit SLURM serve job (betelgeuse partition)
 imas-ambix agent serve kimi-k2-6 --dry-run    # Print script without submitting
-imas-ambix agent status                        # Show running ambix SLURM jobs
+imas-ambix agent status                        # Jobs + connection block (URL, key, readiness)
+imas-ambix agent tunnel glm-5-2               # SSH-forward the serve port to localhost
+imas-ambix agent key --rotate                 # Rotate the shared API key + restart serve
+imas-ambix agent clive --deploy               # Generate+deploy the clive launcher (see §4a)
 ```
 
 Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml`.
+
+## 4a. Driving an interactive agent against the local model (`clive`)
+
+`clive` ("CLI + live") points **Claude Code** (Anthropic Messages API) or the
+**OpenAI Codex CLI** (OpenAI API) at the served model. The vLLM server exposes
+**both** `/v1/messages` and `/v1/chat/completions` on the same port, so one
+server, key, and model back either harness — with full reasoning, tool calling,
+and prompt caching (vLLM automatic prefix caching; >0.17.1 handles Claude
+Code's per-request hash, so caching is not defeated). No gateway/LiteLLM/router
+is needed — the Anthropic endpoint is native to vLLM.
+
+```bash
+clive "explain this repo"          # Claude Code (default), auto-tunnels from a login node
+clive --codex "write a test"       # Codex CLI, same server/key/model
+clive --model glm-5-2-fp8 ...       # override the served-model name
+imas-ambix agent clive --deploy    # (re)generate the launcher to GPFS after a config change
+imas-ambix agent clive --path      # print the ~/.bashrc PATH line
+```
+
+- **Generated, not hand-written.** `imas-ambix agent clive --deploy` renders the
+  script from `SiteConfig` (URL, port, key-file, default model) to
+  `/work/projects/imas_gpu/agents/clive` (mode 755, group `sdcc-imas_gpu`), so
+  it never drifts from what the server serves. The generator is
+  `imas_ambix/agent/clive.py`; do not edit the deployed copy in place.
+- **Shared by group, not by copying keys.** The launcher reads the shared
+  mode-640 key file at runtime; the key never appears on a command line.
+  Group-mates add `/work/projects/imas_gpu/agents` to their PATH and run `clive`.
+- **Auto-tunnels.** From a login node, `clive` opens an SSH forward
+  (`localhost:PORT → GPU-node:PORT`) and points the harness at localhost; on the
+  GPU node it connects directly.
+- **Operator vs consumer.** `imas-ambix` is the *operator* CLI (serve/manage,
+  per-user repo venv); `clive` is the *consumer* launcher (shared on GPFS).
 
 ## 5. Available Model Profiles
 
@@ -275,6 +310,10 @@ Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml
 | `kimi-k2-6` | Kimi-K2.6 (1T MoE) | KTransformers+SGLang | 555 GB | 262K | Modified MIT |
 | `deepseek-v4-flash` | DeepSeek V4-Flash (284B MoE) | SGLang | 164 GB | 1M | MIT |
 | `minimax-m2-7` | MiniMax M2.7 (~220B MoE) | SGLang | 220 GB | 200K | Custom |
+| `glm-5-2` | GLM-5.2 (~744B MoE) | vLLM | 744 GB | 256K¹ | MIT |
+
+¹ GLM-5.2 context is capped at **256K** on this hardware, not its native 1M —
+see the deployment note below.
 
 **Kimi-K2.6** — CPU-offloaded via KTransformers. 5 tok/s, best code quality (SWE 65.8%).
 **DeepSeek V4-Flash** — Full GPU, FP4+FP8. 500–800 tok/s est., 1M context, MIT license.
@@ -397,6 +436,47 @@ imas-ambix agent serve minimax-m2-7      # submit to betelgeuse
 ```
 
 **Recommended inference params:** temperature=1.0, top_p=0.95, top_k=40
+
+### GLM-5.2 Deployment
+
+**Engine:** vLLM native, full-GPU, **TP=8 on all 8×H200** (no CPU offload).
+**Model path:** `/work/projects/imas_gpu/agents/glm-5-2/model`
+**Why all 8 cards:** the ~744 GB FP8 checkpoint needs the full 8×140 GB VRAM;
+this run fills the node (no coexisting GPU job). vLLM exposes both the OpenAI
+API and the **Anthropic Messages API** (`/v1/messages`) natively → drive it with
+`clive` (§4a).
+
+**Hard-won deployment facts (measured 2026-06-25):**
+- **Context capped at 256K, not 1M.** The FP8 weights + MTP draft model leave a
+  fixed ~24 GiB aggregate for KV at `mem_fraction 0.95`. Measured ceilings: 1M
+  KV-OOMs (needs 60.8 GiB; est. max 233K at 0.90), 512K KV-OOMs (needs 30.4 GiB;
+  est. max 419K at 0.95). `max_total_tokens=262144` needs ~15 GiB → fits with
+  1.72× concurrency headroom. The native 1M genuinely needs 8×B200 (180 GB).
+- **Eager mode (`disable_cuda_graph=true`).** CUDA-graph capture stalled at ~88%
+  of the piecewise graph set on three consecutive launches (each ~60 min, never
+  reaching startup; the third left an unkillable step that auto-rebooted the
+  node). The TP=8 + MTP piecewise capture is the hang surface on this H200 NVL +
+  vLLM 0.23.0 build. Eager skips capture → ready right after weight-load + KV
+  init. Decode throughput is lower without graphs; re-enable + tune (disable MTP
+  capture, or cap `cuda_graph_max_bs`) once a stable capture config is found.
+- **MTP speculative decoding** (`--speculative-config.method mtp`,
+  `num_speculative_tokens 5`) is GLM-5.2's headline throughput feature and is
+  enabled in the profile.
+- **Reasoning effort wired** end-to-end (Claude Code `effort` → vLLM
+  `reasoning_effort` → GLM template `enable_thinking`), but GLM-5.2's chat
+  template effectively offers **two levels** — `high`, or `max` for everything
+  else.
+- **vLLM env required transformers 5.x + flashinfer 0.6.12 etc.** The serve venv
+  was upgraded 0.20.2 → **0.23.0** for GLM-5.2 (`GlmMoeDsaForCausalLM`, glm45/
+  glm47 parsers, MTP). The setup wheel-resolver was fixed for the
+  manylinux_2_28 tag drop.
+
+**Deploy:**
+```bash
+imas-ambix agent download glm-5-2   # ~744 GB, run from sirius
+imas-ambix agent serve glm-5-2      # all 8 cards; ~30 min weight load in eager mode
+clive "..."                          # drive Claude Code against it (§4a)
+```
 
 ## 6. Models we evaluated and rejected
 
