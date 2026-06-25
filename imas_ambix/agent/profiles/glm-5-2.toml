@@ -40,6 +40,15 @@ type = "vllm"
 tensor_parallel = 8
 trust_remote_code = true
 enable_auto_tool_choice = true
+# Eager mode (no CUDA-graph capture). Capture stalled at ~88% of the piecewise
+# graph set on three consecutive launches (jobs 1222717/1222745/1222792, each
+# ~60 min, never reaching startup) — the TP=8 + MTP piecewise capture is the
+# hang surface on this H200 NVL + vLLM 0.23.0 build. Eager skips capture
+# entirely, so the server is ready right after weight-load + KV init (both
+# proven to pass at 256K). Decode throughput is lower without graphs; re-enable
+# and tune (e.g. cuda_graph_max_bs, or disable MTP capture) once a stable
+# capture config is found. A working endpoint first.
+disable_cuda_graph = true
 # Context: 256K. The FP8 weights + CUDA-graph capture + MTP draft model leave a
 # fixed ~24 GiB aggregate for KV at mem_fraction 0.95 — measured across two
 # launches on 2026-06-25: 1M (job 1222717) reported a 233K ceiling at 0.90, and
