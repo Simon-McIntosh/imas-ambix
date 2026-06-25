@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="absolute-geometry-token-substrate">
-  <meta name="plan-title"     content="Absolute-Calibration + Sensor-Geometry Token Substrate">
-  <meta name="plan-summary"   content="v0 stage 1 of the machine-agnostic latent world model: upgrade the token substrate so every token carries a corpus-level ABSOLUTE (SI) value and its SENSOR geometry (R,Z,phi, orientation, integration geometry) + machine geometry. Repairs the per-shot scale-free blocker and supplies the cross-machine positional encoding everything downstream consumes.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="absolute-geometry-token-substrate">
+  <meta name="plan-title" content="Absolute-Calibration + Sensor-Geometry Token Substrate">
+  <meta name="plan-summary" content="v0 stage 1 of the machine-agnostic latent world model: upgrade the token substrate so every token carries a corpus-level ABSOLUTE (SI) value and its SENSOR geometry (R,Z,phi, orientation, integration geometry) + machine geometry. Repairs the per-shot scale-free blocker and supplies the cross-machine positional encoding everything downstream consumes.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S16">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S16">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="machine-agnostic-latent-world-model,multimodal-tokenisation-substrate">
   <title>Absolute-Calibration + Sensor-Geometry Token Substrate | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-06-25">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
@@ -91,10 +93,10 @@ This plan honours them; it introduces no new architectural decisions.</p>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-ags-01" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24">
-  <h4 class="r-fu-title">Implement absolute calibration + sensor-geometry schema in the token substrate</h4>
-  <div class="r-fu-body">First concrete sub-task: corpus-level SI calibration of the signal tokenisation + L2 value mapping, and the per-diagnostic sensor-geometry schema, with readers and the reconstruction-fidelity + scale-free-fix validation. Reuses the in-process encode pattern.</div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-ags-01" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Implement absolute calibration + sensor-geometry schema in the token substrate</h4>
+    <div class="r-fu-body">First concrete sub-task: corpus-level SI calibration of the signal tokenisation + L2 value mapping, and the per-diagnostic sensor-geometry schema, with readers and the reconstruction-fidelity + scale-free-fix validation. Reuses the in-process encode pattern.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    absolute-geometry-token-substrate (§2/§3)
 Section: §3
 Tier:    opus
@@ -119,9 +121,45 @@ Scope locks / constraints (non-decision)
 Done-when (the gate)
   1. Tokens carry corpus-level absolute (SI) values + sensor geometry + machine geometry; schema + readers committed.
   2. Per-modality reconstruction fidelity preserved (no regression vs per-shot).
-  3. Diagnostics->equilibrium probe skill rises clearly off ~0 — report the number.
+  3. Diagnostics-&gt;equilibrium probe skill rises clearly off ~0 — report the number.
   4. tests green; followup written + this one resolved; plan collapsed to a landed summary.</pre>
-</article>
+    </article>
+<article class="r-fu" data-id="f-ags-calib" data-status="open" data-tier="opus" data-written-by="calib-wiring" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Compute corpus calibration + re-encode signal corpus in absolute mode</h4>
+    <div class="r-fu-body">Absolute-SI calibration is wired into the encoders (backward-compatible, byte-identical with no calibration file). Code: imas_ambix/calibration/corpus_compute.py (engine + CLI + load_group_calibration), set_calibration() on UniformQuantizer/ChronosSignalTokenizer, corpus_calibration= on PatchTransformerTokenizer.encode_window/_normalise, --absolute on signal_hf_encode and l2_input_build, scripts/slurm/compute_signal_calibration.sbatch. Persisted to v2 namespace /work/projects/imas_gpu/mast-tokens/v2/calibration/signals/{group}.json (v1 path untouched). Next: run the corpus calibration sweep, then re-encode the v2 signal corpus in absolute mode. The patch-transformer codebooks MUST be retrained under absolute normalisation (absolute mode changes the input distribution; a per-window-trained codebook is invalid for absolute mode).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (§3)
+Section: §3
+Tier:    opus
+
+Context
+  Absolute-SI calibration is now wired into the signal encoders, backward-compatible (no calibration file =&gt; byte-identical to per-shot today). This followup COMPUTES the calibration and RE-ENCODES the corpus in absolute mode so the diagnostics-&gt;equilibrium probe skill rises off ~0.
+
+Step 1 - compute corpus calibration (CPU, IO-bound, sun cluster)
+  All signal groups in one job:
+    sbatch scripts/slurm/compute_signal_calibration.sbatch --group all
+  Or fan one heavy group across CPU nodes, then reduce:
+    for i in $(seq 0 7); do sbatch scripts/slurm/compute_signal_calibration.sbatch --group xma --shard ${i}/8; done
+    # after all shards finish:
+    sbatch scripts/slurm/compute_signal_calibration.sbatch --group xma --reduce
+  Writes /work/projects/imas_gpu/mast-tokens/v2/calibration/signals/{group}.json (resume-safe; skip-existing unless --overwrite). Known groups: xma xim xsx (window-loader path) + summary pf_active interferometer gas_injection soft_x_rays magnetics (Zarr-group path).
+
+Step 2 - RETRAIN the patch-transformer codebooks under absolute normalisation
+  The xma/xim/xsx codebooks were trained per-window; absolute mode shifts the input distribution, so they MUST be retrained before re-encoding (the train path needs the same corpus calibration applied to its normalise; thread corpus_calibration into the PatchTransformerTokenizer.fit feature prep the same way encode_window does, or train on already-absolute-normalised windows). The L2 light-path UniformQuantizer needs NO retrain (it is parameter-free given mean/std).
+
+Step 3 - re-encode in absolute mode (GPU for xma/xim/xsx; CPU for L2 light-path)
+  Signal corpus (per group), loads calibration via load_group_calibration:
+    python -m imas_ambix.tokenizer.signal_hf_encode encode --group xma --shots all --ckpt &lt;retrained-ckpt&gt; --absolute
+  L2 light-path inputs (CPU):
+    python -m imas_ambix.data.l2_input_build --shots all --absolute
+  Both fall back per-shot for any group lacking a calibration file (with a warning) and record calibration=absolute|per_shot + the corpus mean/std in each store&#x27;s metadata.
+
+Done-when
+  1. Calibration JSONs exist for every encoded group under the v2 calibration namespace.
+  2. xma/xim/xsx codebooks retrained under absolute normalisation; signal + L2 corpus re-encoded in absolute mode.
+  3. Diagnostics-&gt;equilibrium probe skill rises clearly off ~0 - report the number (this is the f-ags-01 gate).
+  4. Resolve f-ags-01 with the skill number; collapse §3 to a landed summary.</pre>
+    </article>
 </section>
 
 </main>
