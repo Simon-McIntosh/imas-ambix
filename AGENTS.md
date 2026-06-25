@@ -264,7 +264,6 @@ imas-ambix agent download kimi-k2-6           # Submit SLURM download job (siriu
 imas-ambix agent serve kimi-k2-6              # Submit SLURM serve job (betelgeuse partition)
 imas-ambix agent serve kimi-k2-6 --dry-run    # Print script without submitting
 imas-ambix agent status                        # Jobs + connection block (URL, key, readiness)
-imas-ambix agent tunnel glm-5-2               # SSH-forward the serve port to localhost
 imas-ambix agent key --rotate                 # Rotate the shared API key + restart serve
 imas-ambix agent clive --deploy               # Generate+deploy the clive launcher (see §4a)
 ```
@@ -282,7 +281,7 @@ Code's per-request hash, so caching is not defeated). No gateway/LiteLLM/router
 is needed — the Anthropic endpoint is native to vLLM.
 
 ```bash
-clive "explain this repo"          # Claude Code (default), auto-tunnels from a login node
+clive "explain this repo"          # Claude Code (default), direct route to the GPU node
 clive --codex "write a test"       # Codex CLI, same server/key/model
 clive --model glm-5-2-fp8 ...       # override the served-model name
 imas-ambix agent clive --deploy    # (re)generate the launcher to GPFS after a config change
@@ -297,9 +296,11 @@ imas-ambix agent clive --path      # print the ~/.bashrc PATH line
 - **Shared by group, not by copying keys.** The launcher reads the shared
   mode-640 key file at runtime; the key never appears on a command line.
   Group-mates add `/work/projects/imas_gpu/agents` to their PATH and run `clive`.
-- **Auto-tunnels.** From a login node, `clive` opens an SSH forward
-  (`localhost:PORT → GPU-node:PORT`) and points the harness at localhost; on the
-  GPU node it connects directly.
+- **Direct route, no tunnel.** Login and standard compute nodes route directly
+  to `<gpu-node>:PORT` (verified 2026-06-25: login → `98dci4-gpu-0003:18800` =
+  200). SSH `-L` port-forwarding to the compute node is **administratively
+  prohibited** (`channel … open failed: administratively prohibited`), so
+  `clive` uses the direct URL and does not tunnel.
 - **Operator vs consumer.** `imas-ambix` is the *operator* CLI (serve/manage,
   per-user repo venv); `clive` is the *consumer* launcher (shared on GPFS).
 
@@ -347,16 +348,15 @@ Previous config (gpu_experts=350, mem_fraction=0.96, max_total_tokens=
 
 **Client access:**
 
-Users only get SSH access to compute nodes once a SLURM job is launched. The serve job is the entry point. Clients connect via SSH tunnel from the login node:
+Login and standard compute nodes route **directly** to the GPU node's serve
+port — no SSH tunnel (verified 2026-06-25: login → `98dci4-gpu-0003:18800` =
+200; SSH `-L` forwarding to the compute node is administratively prohibited).
 ```bash
 # Find the compute node
 squeue -j <jobid> -o %N
 
-# Set up tunnel
-ssh -N -L 8000:<compute-node>:8000 <login-node>
-
-# Verify
-curl http://localhost:8000/v1/models
+# Connect directly (the key is enforced; see `imas-ambix agent key`)
+curl -H "Authorization: Bearer $KEY" http://<compute-node>:18800/v1/models
 ```
 
 **Tuning knobs:**

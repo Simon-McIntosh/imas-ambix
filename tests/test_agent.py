@@ -472,10 +472,9 @@ def test_status_key_no_access(monkeypatch):
     assert "no access" in result.output
 
 
-def test_status_uses_localhost_when_tunnel_up(monkeypatch):
-    """When a tunnel is up, status uses the localhost URL and probes it."""
+def test_status_uses_direct_url(monkeypatch):
+    """status probes the GPU node's port directly (no tunnel) and shows the URL."""
     from imas_ambix.agent import cli as cli_mod
-    from imas_ambix.agent import tunnel as tun
 
     monkeypatch.setattr(
         cli_mod,
@@ -486,7 +485,6 @@ def test_status_uses_localhost_when_tunnel_up(monkeypatch):
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "k")
-    monkeypatch.setattr(tun, "tunnel_status", lambda port: "up")
     seen = {}
     monkeypatch.setattr(
         cli_mod, "_probe_endpoint",
@@ -495,15 +493,13 @@ def test_status_uses_localhost_when_tunnel_up(monkeypatch):
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status"])
     assert result.exit_code == 0
-    assert "localhost:18800" in result.output
-    assert "tunnel" in result.output.lower()
-    assert seen["url"].startswith("http://localhost")
+    assert "98dci4-gpu-0003:18800" in result.output
+    assert seen["url"] == "http://98dci4-gpu-0003:18800"
 
 
 def test_status_uptime_formatted(monkeypatch):
     """The UP column renders squeue %M compactly (33:10 → 33m)."""
     from imas_ambix.agent import cli as cli_mod
-    from imas_ambix.agent import tunnel as tun
 
     monkeypatch.setattr(
         cli_mod,
@@ -514,12 +510,33 @@ def test_status_uptime_formatted(monkeypatch):
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "k")
-    monkeypatch.setattr(tun, "tunnel_status", lambda port: "down")
     monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "unreachable")
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status"])
     assert result.exit_code == 0
     assert "33m" in result.output
+
+
+def test_status_engine_facts_use_served_context(monkeypatch):
+    """Engine facts show the served context (256K), not the model's 1M max."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod,
+        "_running_jobs",
+        lambda site: [
+            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "5:00",
+             "node": "98dci4-gpu-0003"},
+        ],
+    )
+    monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "k")
+    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "ready")
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "status"])
+    assert result.exit_code == 0
+    # glm-5-2 serves 262144 (256K), even though model.max_context is 1M.
+    assert "256K" in result.output
+    assert "1.0M" not in result.output
 
 
 def test_fmt_uptime_variants():
@@ -535,46 +552,9 @@ def test_fmt_context_variants():
     from imas_ambix.agent.cli import _fmt_context
 
     assert _fmt_context(1048576) == "1.0M"
+    assert _fmt_context(262144) == "256K"
     assert _fmt_context(131072) == "128K"
     assert _fmt_context(512) == "512"
-
-
-def test_tunnel_command_no_job(monkeypatch):
-    """tunnel errors clearly when no RUNNING serve job is found."""
-    from imas_ambix.agent import tunnel as tun
-
-    monkeypatch.setattr(tun, "discover_serving_node", lambda slug: None)
-    runner = CliRunner()
-    result = runner.invoke(main, ["agent", "tunnel", "glm-5-2"])
-    assert result.exit_code != 0
-    assert "No RUNNING serve job" in result.output
-
-
-def test_tunnel_command_status(monkeypatch):
-    """tunnel --status reports up/down without changing anything."""
-    from imas_ambix.agent import tunnel as tun
-
-    monkeypatch.setattr(tun, "tunnel_status", lambda port: "up")
-    monkeypatch.setattr(tun, "discover_serving_node", lambda slug: "98dci4-gpu-0003")
-    runner = CliRunner()
-    result = runner.invoke(main, ["agent", "tunnel", "glm-5-2", "--status"])
-    assert result.exit_code == 0
-    assert "up" in result.output.lower()
-
-
-def test_tunnel_status_classifier(monkeypatch):
-    """tunnel_status maps port/ssh state to up/foreign/down."""
-    from imas_ambix.agent import tunnel as tun
-
-    monkeypatch.setattr(tun, "is_port_open", lambda port, host="127.0.0.1": False)
-    assert tun.tunnel_status(18800) == "down"
-
-    monkeypatch.setattr(tun, "is_port_open", lambda port, host="127.0.0.1": True)
-    monkeypatch.setattr(tun, "is_port_bound_by_ssh", lambda port: True)
-    assert tun.tunnel_status(18800) == "up"
-
-    monkeypatch.setattr(tun, "is_port_bound_by_ssh", lambda port: False)
-    assert tun.tunnel_status(18800) == "foreign"
 
 
 def test_agent_serve_dry_run():

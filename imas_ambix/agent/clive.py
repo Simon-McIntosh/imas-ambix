@@ -122,56 +122,28 @@ read_key() {{
 
 KEY="$(read_key)" || exit 1
 
-# ── Ensure the endpoint is reachable; auto-tunnel from a login node ──────────
-# The server binds the GPU compute node, which a login node usually cannot
-# reach directly. If we are not ON the target host and localhost:PORT is free,
-# bring up an SSH forward (localhost:PORT -> host:PORT) and talk to localhost.
-ensure_reachable() {{
-    local proto rest host port
-    proto="${{AMBIX_URL%%://*}}"
+# ── Check the endpoint is reachable (direct route; no SSH tunnel) ────────────
+# The login and standard compute nodes route DIRECTLY to the GPU node's serve
+# port (verified 2026-06-25: login -> 98dci4-gpu-0003:18800/health = 200). SSH
+# -L port-forwarding to the compute node is administratively prohibited, so we
+# do NOT tunnel — we use the direct URL and just warn if it isn't reachable.
+check_reachable() {{
+    local rest host port
     rest="${{AMBIX_URL#*://}}"
     host="${{rest%%[:/]*}}"
     port="${{rest##*:}}"; port="${{port%%/*}}"
     [[ "$port" == "$host" || -z "$port" ]] && port=80
-
-    # Already on the target host → use the URL as-is.
-    local me; me="$(hostname -s 2>/dev/null || hostname)"
-    if [[ "$host" == "$me"* || "$host" == localhost || "$host" == 127.0.0.1 ]]; then
-        return 0
-    fi
-
-    # localhost:port already serving (tunnel up, or a local server) → use it.
-    if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+    if (exec 3<>"/dev/tcp/$host/$port") 2>/dev/null; then
         exec 3>&- 3<&-
-        AMBIX_URL="$proto://localhost:$port"
         return 0
     fi
-
-    # Start a backgrounded SSH tunnel and wait briefly for it to bind.
-    echo "clive: tunnelling localhost:$port -> $host:$port ..." >&2
-    if ! ssh -f -N -o ControlMaster=no -o ControlPath=none \\
-            -o ExitOnForwardFailure=yes -o ConnectTimeout=10 \\
-            -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \\
-            -L "$port:127.0.0.1:$port" "$host" 2>/dev/null; then
-        echo "clive: could not open SSH tunnel to $host (need SSH access to the node)." >&2
-        echo "       Tip: run clive on the GPU node, or set AMBIX_AGENT_URL to a reachable URL." >&2
-        return 1
-    fi
-    local i
-    for i in $(seq 1 10); do
-        if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
-            exec 3>&- 3<&-
-            AMBIX_URL="$proto://localhost:$port"
-            echo "clive: tunnel up -> $AMBIX_URL" >&2
-            return 0
-        fi
-        sleep 0.5
-    done
-    echo "clive: tunnel started but localhost:$port not reachable." >&2
-    return 1
+    echo "clive: warning: $host:$port not reachable from here." >&2
+    echo "       The serve job may be down (check: imas-ambix agent status)," >&2
+    echo "       or this host has no route to the GPU node. Proceeding anyway." >&2
+    return 0
 }}
 
-ensure_reachable || exit 1
+check_reachable
 
 # ── Launch the chosen harness ────────────────────────────────────────────────
 case "$HARNESS" in

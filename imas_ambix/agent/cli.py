@@ -338,19 +338,16 @@ def status(reveal: bool) -> None:
 
     Prints a compact job table, then a connection detail block for each
     RUNNING serve job: served model name, the client URL, a live
-    ``/v1/models`` readiness probe, the API key, the engine/model facts,
-    and the tunnel state.
+    ``/v1/models`` readiness probe, the API key, and the engine/model facts.
 
-    When a same-port SSH tunnel is up (``imas-ambix agent tunnel``), the
-    URL is ``http://localhost:<port>`` and the probe is reliable.  Without
-    it, the compute-node port is unreachable from a login node — the
-    probe says ``unreachable`` and a tunnel hint is shown.
+    Login and standard compute nodes route directly to the GPU node's serve
+    port, so the URL is ``http://<gpu-node>:<port>`` and the probe is
+    reliable from there. (SSH port-forwarding to the compute node is
+    administratively prohibited, so there is no tunnel.)
 
-    The key is read from the shared mode-600 ``agents/.env``; if you lack
+    The key is read from the shared mode-640 ``agents/.env``; if you lack
     read permission it shows ``(no access)`` — the filesystem is the gate.
     """
-    from imas_ambix.agent import tunnel as tun
-
     site = SiteConfig.from_env()
     jobs = _running_jobs(site)
 
@@ -395,19 +392,11 @@ def status(reveal: bool) -> None:
             compute = job["node"]
         node = _job_node(job, site)
 
-        # A same-port tunnel makes localhost the reliable client URL.
-        tunnel_up = tun.tunnel_status(port) == "up"
-        if tunnel_up:
-            url = f"http://localhost:{port}"
-            readiness = _probe_endpoint(url, key)
-            tunnel_cell = f"[green]up[/] · localhost:{port} → {node}:{port}"
-        else:
-            url = f"http://{node}:{port}"
-            readiness = _probe_endpoint(url, key)
-            tunnel_cell = (
-                f"[yellow]down[/] · start: "
-                f"[cyan]imas-ambix agent tunnel {job['name']}[/]"
-            )
+        # Login and standard compute nodes route DIRECTLY to the GPU node's
+        # serve port — no SSH tunnel (port-forwarding to the compute node is
+        # administratively prohibited; the direct route is what works).
+        url = f"http://{node}:{port}"
+        readiness = _probe_endpoint(url, key)
 
         ready_styles = {"ready": "green", "auth-fail": "red"}
         ready_label = {"ready": "READY", "auth-fail": "AUTH-FAIL"}.get(
@@ -423,7 +412,6 @@ def status(reveal: bool) -> None:
         if facts:
             body.add_row("Engine", facts)
         body.add_row("Compute", compute)
-        body.add_row("Tunnel", tunnel_cell)
 
         title = (
             f"[bold]{job['name']}[/] → {served}   "
@@ -452,80 +440,6 @@ def status(reveal: bool) -> None:
         console.print()
         console.print("[dim]other jobs[/]")
         console.print(ptable)
-
-
-@agent.command()
-@click.argument("slug", required=False, default=None)
-@click.option("--down", "tear_down", is_flag=True, help="Stop the tunnel instead.")
-@click.option(
-    "--status",
-    "show_status",
-    is_flag=True,
-    help="Report tunnel state without changing it.",
-)
-def tunnel(slug: str | None, tear_down: bool, show_status: bool) -> None:
-    """Forward the served model's port from its GPU node to ``localhost``.
-
-    A model served on a SLURM compute node binds its port there; a login
-    node can't reach it directly.  This sets up a same-port SSH forward
-    ``localhost:<port> → <compute-node>:<port>`` so clients (and
-    ``status``) can use ``http://localhost:<port>``.
-
-    The compute node is discovered from the RUNNING serve job (named after
-    the profile slug).  With no SLUG, the default profile is used.
-    """
-    from imas_ambix.agent import tunnel as tun
-
-    site = SiteConfig.from_env()
-    port = site.default_port
-    resolved = _resolve_slug(slug)
-
-    if show_status:
-        state = tun.tunnel_status(port)
-        node = tun.discover_serving_node(resolved)
-        if state == "up":
-            console.print(
-                f"[green]tunnel up[/] · localhost:{port}"
-                + (f" → {node}:{port}" if node else "")
-            )
-        elif state == "foreign":
-            console.print(f"[yellow]port {port} bound by a non-ssh process[/]")
-        else:
-            console.print(f"[yellow]tunnel down[/] · port {port} free")
-        return
-
-    if tear_down:
-        node = tun.discover_serving_node(resolved) or site.gpu_host
-        stopped = tun.stop_tunnel(node, port)
-        if stopped:
-            console.print(f"[green]Tunnel to {node}:{port} stopped.[/]")
-        else:
-            console.print("No tunnel found to stop.")
-        return
-
-    node = tun.discover_serving_node(resolved)
-    if node is None:
-        raise click.ClickException(
-            f"No RUNNING serve job named '{resolved}'. "
-            "Start one with: imas-ambix agent serve "
-            f"{resolved}"
-        )
-    if tun.tunnel_status(port) == "up":
-        console.print(
-            f"[green]tunnel already up[/] · localhost:{port} → {node}:{port}"
-        )
-        return
-    console.print(f"Starting tunnel localhost:{port} → {node}:{port} ...")
-    if tun.start_tunnel(node, port):
-        console.print(
-            f"[green]tunnel up[/] · use [cyan]http://localhost:{port}[/]\n"
-            "  Stop with: imas-ambix agent tunnel --down"
-        )
-    else:
-        raise click.ClickException(
-            f"Failed to establish tunnel to {node}:{port}. "
-            "Check SSH access to the compute node."
-        )
 
 
 @agent.command()
@@ -739,10 +653,13 @@ def _engine_facts(profile) -> str:
     """
     e = profile.engine
     engine_label = _ENGINE_LABELS.get(e.type, e.type)
+    # Served context = max_total_tokens when set (the real cap), else the
+    # model's theoretical max_context.
+    served_ctx = e.max_total_tokens or profile.model.max_context
     parts = [
         engine_label,
         f"TP={e.tensor_parallel}",
-        f"ctx {_fmt_context(profile.model.max_context)}",
+        f"ctx {_fmt_context(served_ctx)}",
     ]
     if e.kv_cache_dtype:
         parts.append(f"{e.kv_cache_dtype} KV")
