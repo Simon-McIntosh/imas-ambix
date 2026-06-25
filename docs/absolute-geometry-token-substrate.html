@@ -20,7 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-25">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
+<meta name="plan-impl" content="0.4">
 </head>
 <body>
 <main class="plan-doc">
@@ -162,7 +163,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-ags-geom" data-status="open" data-tier="opus" data-written-by="geom-substrate" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Attach sensor-geometry to the re-encoded stores + feed it to the probe positional encoding</h4>
-    <div class="r-fu-body">Per-channel sensor-geometry export + store attachment + reader landed (backward-compatible). Code: imas_ambix/gs/geometry_export.py (build_geometry_table / build_geometry_fields_from_table -> GeometryFields; flat per-channel table keyed by token channel-name vocab, sourced ONLY through gs.geometry's static-efm boundary), the optional geometry= payload on store_v2.save_signal_hf_tokens (+ geometry_feature_names / geometry_sensor_kinds attrs surfaced on SignalHFTokens.geometry; geometry-less stores byte-identical and load geometry=None), and imas_ambix/tokenizer/geometry_reader.py (align_geometry_to_channels / read_store_geometry / geometry_for_channels -> AlignedGeometry, boundary-guarded). Next: attach geometry during the absolute-mode re-encode and feed the geometry features into the diagnostics->equilibrium probe as positional encoding.</div>
+    <div class="r-fu-body">Per-channel sensor-geometry export + store attachment + reader landed (backward-compatible). Code: imas_ambix/gs/geometry_export.py (build_geometry_table / build_geometry_fields_from_table -&gt; GeometryFields; flat per-channel table keyed by token channel-name vocab, sourced ONLY through gs.geometry's static-efm boundary), the optional geometry= payload on store_v2.save_signal_hf_tokens (+ geometry_feature_names / geometry_sensor_kinds attrs surfaced on SignalHFTokens.geometry; geometry-less stores byte-identical and load geometry=None), and imas_ambix/tokenizer/geometry_reader.py (align_geometry_to_channels / read_store_geometry / geometry_for_channels -&gt; AlignedGeometry, boundary-guarded). Next: attach geometry during the absolute-mode re-encode and feed the geometry features into the diagnostics-&gt;equilibrium probe as positional encoding.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    absolute-geometry-token-substrate (§3)
 Section: §3
@@ -202,6 +203,31 @@ Done-when
   1. The re-encoded absolute-mode stores carry the geometry array + companion attrs (spot-check a magnetics + an interferometer store).
   2. The diagnostics-&gt;equilibrium probe consumes the per-channel positional encoding; report the probe skill with vs without geometry.
   3. tests green; resolve this followup with the geometry-vs-no-geometry probe delta; collapse §3 once f-ags-01&#x27;s gate is met.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-gatepath" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Gate-critical correction: wire absolute calibration into the STAGED read path + fix corpus_compute channel-shaping</h4>
+    <div class="r-fu-body">INTEGRATION DISCOVERY (smoke job 1222605). The §3 gate (diagnostics->equilibrium probe skill off ~0) flows through the STAGED magnetics read path, NOT the signals_hf store. The diagnostics oracle reads MAGNETICS_STREAMS=('xma','magnetics'); the 'magnetics' stream is staged L2 flux-loops + B-probes quantised AT READ TIME by spacetime_dataset_v2._quantise_l2, which explicitly uses PER-SHOT mean/std ('no fitted corpus stats at read time'). Neither foundational worker touched spacetime_dataset_v2.py, so a full signals_hf re-encode (xma/xim/xsx retrain + L2 light-path) CANNOT move the gate by itself. Also: corpus_compute.py's ZARR_GROUPS path is mismatched — it uses the 1-D-only compute_signal_calibration (the magnetics smoke captured only 1 channel, 'ip', dropping every 2-D-expanded sensor), lists 'magnetics' (a staged stream, not an L2 light-path group) and omits 'pulse_schedule'; the real L2 light-path groups are pf_active/gas_injection/summary/interferometer/soft_x_rays/pulse_schedule and they EXPAND 2-D arrays to {group}.{var}[{i}] channels (l2_input_build._channels_from_var). Corrected gate-first sequencing below; the full production re-encode follows.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (§3 gate)
+Section: §3
+Tier:    opus
+
+Context
+  The foundational absolute-calibration + sensor-geometry CODE landed (commits a7bbff0/ad8f138/060969f, 27 tests). A real-data smoke (job 1222605) revealed the gate flows through the STAGED magnetics read path, and corpus_compute&#x27;s L2/staged channel-shaping is mismatched. Drive the gate-first fix, then the production re-encode.
+
+Gate-first fix (the blocker)
+  1. corpus_compute.py: for L2 light-path groups use the REAL AUTHORISED_INPUTS set incl pulse_schedule and calibrate over the EXPANDED {group}.{var}[{i}] channels (reuse l2_input_build readers); for the STAGED streams (magnetics + ada/adg/aim) calibrate over the channel shaping spacetime_dataset_v2&#x27;s staged reader / _quantise_l2 uses; keep the window groups (xma/xim/xsx) as-is.
+  2. spacetime_dataset_v2.py: thread an optional corpus calibration into _quantise_l2 + the staged reader (off by default =&gt; byte-identical to today; the live training path is unaffected unless absolute mode is explicitly enabled). Load via corpus_compute.load_group_calibration keyed by the staged channel names.
+  3. Compute calibration (sun cluster) for at least &#x27;magnetics&#x27; (staged) + the L2 light-path groups + xma; then run feasibility_diagnostics_equilibrium_oracle.sbatch in absolute mode and REPORT the skill vs the ~0.5-0.7 absolute-magnetics ceiling (the f-ags-01 gate). Also run feasibility_calibrated_magnetics_oracle as the ceiling reference.
+
+Production re-encode (after the gate moves; per the lead&#x27;s full-re-encode choice)
+  Retrain xma/xim/xsx codebooks under absolute normalisation; re-encode the signals_hf + L2 light-path corpus in absolute mode with geometry attached (f-ags-calib step 2-3 + f-ags-geom step 1). Reconstruction-fidelity check = gate #2.
+
+Done-when
+  1. _quantise_l2 + corpus_compute corrected (backward-compatible); calibration computed for the gate streams.
+  2. diagnostics-&gt;equilibrium oracle run in absolute mode; skill reported vs ceiling (gate #3).
+  3. production re-encode done with geometry; reconstruction fidelity preserved (gate #2).
+  4. resolve f-ags-01 with the number; collapse the plan to a landed summary.</pre>
     </article>
 </section>
 
