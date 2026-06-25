@@ -80,6 +80,210 @@ FORCED_TEST_SHOTS = tuple(sorted(set(GATE_COHORT) | set(STANDING_HELD_OUT)))
 #: B-field probe array — together they are the EFIT-class position/shape sensor.
 MAGNETICS_STREAMS = ("xma", "magnetics")
 
+#: The staged group whose column names resolve to L2-IDS apparatus geometry
+#: directly (the EFIT-class position/shape sensor).  Every other stream's
+#: per-channel geometry comes from the campaign table via
+#: :func:`imas_ambix.tokenizer.geometry_reader.geometry_for_channels`.
+_MAGNETICS_GROUP = "magnetics"
+
+
+def stream_channel_names(shot_id, modalities, *, token_root=None):
+    """Return ``{stream_name: (channel_name, ...)}`` for a shot's present streams.
+
+    Reads the DETERMINISTIC per-channel names every stream is keyed by — the
+    staged groups via :func:`_read_staged_raw` (column names
+    ``b_field_pol_probe_{kind}_field[i]`` / ``flux_loop_flux[i]`` / ``ip`` …),
+    the pre-tokenised ``signal_hf`` groups via the store's ``channel_names``
+    attribute.  A stream whose store is unreadable is omitted.  These names feed
+    the per-sensor geometry lookup so each token carries its sensor's geometry.
+    """
+    from imas_ambix.worldmodel.dataset import _read_signal_hf
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import _read_staged_raw
+
+    out = {}
+    for m in modalities:
+        try:
+            if m.kind in ("ait", "staged"):
+                _raw, names, _t = _read_staged_raw(
+                    m.group,
+                    int(shot_id),
+                    token_root=token_root,
+                    profile_r_stride=m.profile_r_stride,
+                )
+            else:
+                _tok, _t, _v, names, _b = _read_signal_hf(
+                    int(shot_id), m.group, token_root=token_root
+                )
+        except (FileNotFoundError, KeyError, OSError):
+            continue
+        out[m.name] = tuple(str(c) for c in names)
+    return out
+
+
+def stream_geometry(shot_id, modalities, names_by_stream):
+    """Resolve per-sensor geometry for every present stream of a shot.
+
+    Returns ``{stream_name: (features (C, 10) float32, kinds (C,) str)}`` aligned
+    1:1 with the stream's channel names.  The ``magnetics`` group resolves via
+    the L2-IDS apparatus geometry (``b_field_pol_probe_*`` / ``flux_loop_*``
+    column index -> sensor R/Z + orientation); every other stream resolves via
+    the campaign geometry table (``ip``, coils, chords, scalars present + explicit
+    with NaN coordinates) — never a silent geometry drop.
+    """
+    from imas_ambix.tokenizer.geometry_reader import (
+        geometry_for_channels,
+        magnetics_geometry_for_channels,
+    )
+
+    fields = _campaign_geometry_fields(int(shot_id), names_by_stream)
+    out = {}
+    group_by_stream = {m.name: m.group for m in modalities}
+    for name, channel_names in names_by_stream.items():
+        group = group_by_stream.get(name)
+        if group == _MAGNETICS_GROUP:
+            ag = magnetics_geometry_for_channels(channel_names, int(shot_id))
+        else:
+            ag = geometry_for_channels(channel_names, fields=fields)
+        out[name] = (
+            np.asarray(ag.features, dtype=np.float32),
+            tuple(ag.sensor_kinds),
+        )
+    return out
+
+
+def _campaign_geometry_fields(shot_id, names_by_stream):
+    """Build the campaign geometry table for a shot (None if unavailable).
+
+    Seeds the table with EVERY non-magnetics channel name so coils / chords /
+    scalars are present + explicitly kinded (NaN coordinates), never dropped.
+    The magnetics group does NOT route through this table — it reads the L2 IDS
+    geometry directly.
+    """
+    from imas_ambix.gs.geometry_export import build_geometry_table
+
+    extra = []
+    for name, channel_names in names_by_stream.items():
+        if name == _MAGNETICS_GROUP:
+            continue
+        extra.extend(channel_names)
+    try:
+        return build_geometry_table(int(shot_id), extra_channel_names=extra)
+    except (FileNotFoundError, KeyError, OSError, ValueError):
+        return None
+
+
+def continuous_stream_values(
+    shot_id,
+    modalities,
+    names_by_stream,
+    grid,
+    *,
+    token_root=None,
+    calibration_by_group=None,
+):
+    """Continuous, corpus-standardised per-sensor values for the staged groups.
+
+    Reads the RAW staged floats (``b_field_pol_probe_*`` / ``flux_loop_*`` / …),
+    resamples to the window ``grid`` and standardises each channel by its CORPUS
+    mean/std (the same absolute scale the magnetics ceiling uses).  Returns
+    ``{stream_name: (n_steps, n_channels) float32}`` aligned 1:1 with the
+    stream's channel names; only the staged groups (which carry raw floats here)
+    are populated, so the quantisation ablation is exercised exactly where the
+    magnetics ceiling is — a stream with no raw-float source is simply absent
+    from the continuous dict (the probe then needs the id path for it).
+    """
+    from imas_ambix.statespace.align import align_chord2d_to_grid
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import _read_staged_raw
+
+    out = {}
+    group_by_stream = {m.name: m for m in modalities}
+    for name in names_by_stream:
+        m = group_by_stream.get(name)
+        if m is None or m.kind not in ("staged", "ait"):
+            continue
+        try:
+            raw, names, vtime = _read_staged_raw(
+                m.group,
+                int(shot_id),
+                token_root=token_root,
+                profile_r_stride=m.profile_r_stride,
+            )
+        except (FileNotFoundError, KeyError, OSError):
+            continue
+        cap = int(m.max_channels)
+        raw = raw[:, :cap]
+        names = list(names[:cap])
+        on_grid = align_chord2d_to_grid(raw, vtime, grid).astype(np.float64)  # (S, C)
+        cal = (
+            calibration_by_group.get(m.group)
+            if calibration_by_group is not None
+            else None
+        )
+        z = _standardise_continuous(on_grid, names, cal)
+        out[name] = z.astype(np.float32)
+    return out
+
+
+def _standardise_continuous(on_grid, names, cal):
+    """Corpus-standardise a ``(S, C)`` raw block per channel (NaN -> 0).
+
+    Uses the corpus calibration mean/std when present (absolute scale preserved);
+    falls back to a per-window z-score per channel when no calibration is on
+    disk, so the continuous arm still has a well-conditioned input.
+    """
+    s, c = on_grid.shape
+    z = np.zeros((s, c), dtype=np.float64)
+    for j in range(c):
+        col = on_grid[:, j]
+        fin = np.isfinite(col)
+        if cal is not None and j < len(names) and names[j] in cal:
+            cc = cal[names[j]]
+            mu = float(cc.mean)
+            sd = float(cc.std) or 1.0
+        elif fin.sum() > 1:
+            mu = float(np.mean(col[fin]))
+            sd = float(np.std(col[fin])) or 1.0
+        else:
+            mu, sd = 0.0, 1.0
+        zc = np.where(fin, (col - mu) / sd, 0.0)
+        z[:, j] = zc
+    return z
+
+
+def machine_geometry_points(shot_id, *, max_points=8):
+    """A few ``(R, Z, is_coil)`` machine-geometry context points for a shot.
+
+    The vessel-contour extent corners + a sample of PF-coil centroids, from the
+    campaign :class:`MachineGeometry` block — the fixed machine frame every
+    channel shares.  Returns ``(M, 3) float32`` (empty when unavailable).
+    """
+    from imas_ambix.gs.geometry_export import build_geometry_table
+
+    try:
+        fields = build_geometry_table(int(shot_id))
+    except (FileNotFoundError, KeyError, OSError, ValueError):
+        return np.zeros((0, 3), dtype=np.float32)
+    mach = fields.machine
+    pts = []
+    lr = np.asarray(mach.limiter_r, dtype=np.float64)
+    lz = np.asarray(mach.limiter_z, dtype=np.float64)
+    if lr.size and lz.size:
+        # vessel-extent corners (R/Z min/max) — the machine bounding frame.
+        pts.append((float(lr.min()), float(lz.min()), 0.0))
+        pts.append((float(lr.max()), float(lz.max()), 0.0))
+        pts.append((float(lr.min()), float(lz.max()), 0.0))
+        pts.append((float(lr.max()), float(lz.min()), 0.0))
+    pr = np.asarray(mach.pf_coil_r, dtype=np.float64)
+    pz = np.asarray(mach.pf_coil_z, dtype=np.float64)
+    budget = max_points - len(pts)
+    if pr.size and pz.size and budget > 0:
+        stride = max(1, pr.size // budget)
+        for j in range(0, pr.size, stride):
+            if len(pts) >= max_points:
+                break
+            pts.append((float(pr[j]), float(pz[j]), 1.0))
+    return np.asarray(pts, dtype=np.float32) if pts else np.zeros((0, 3), np.float32)
+
 
 # ---------------------------------------------------------------------------
 # Window + signal + label assembly (one labelled example per shot window)
@@ -191,6 +395,32 @@ def assemble_examples(
         if not signals:
             logger.info("shot %d: no readable measured streams — skip", sid)
             continue
+        # per-sensor geometry for every present stream (the positional code) +
+        # the shared machine-frame context points.
+        names_by_stream = stream_channel_names(
+            int(sid), modalities, token_root=token_root
+        )
+        names_by_stream = {k: v for k, v in names_by_stream.items() if k in signals}
+        geom_by_stream = stream_geometry(int(sid), modalities, names_by_stream)
+        machine_pts = machine_geometry_points(int(sid))
+        # CONTINUOUS standardised per-sensor values (the quantisation ablation):
+        # raw staged floats resampled to the SAME grid + corpus-standardised, so
+        # a continuous-value arm can replace the 256-bin token id with the
+        # unquantised reading.  Only the staged groups carry raw floats here.
+        grid_for_values = np.linspace(
+            float(np.asarray(sample.frame_time).min()),
+            float(np.asarray(sample.frame_time).max()),
+            int(n_signal_steps),
+            dtype=np.float64,
+        )
+        values_by_stream = continuous_stream_values(
+            int(sid),
+            modalities,
+            names_by_stream,
+            grid_for_values,
+            token_root=token_root,
+            calibration_by_group=calibration_by_group,
+        )
         # equilibrium labels on the SIGNAL grid (same span as the window).
         ftime = np.asarray(sample.frame_time, dtype=np.float64)
         t0, t1 = float(ftime.min()), float(ftime.max())
@@ -220,6 +450,10 @@ def assemble_examples(
             {
                 "shot_id": int(sid),
                 "signals": {k: np.asarray(v, np.int64) for k, v in signals.items()},
+                "geometry": {k: g[0] for k, g in geom_by_stream.items()},
+                "sensor_kinds": {k: g[1] for k, g in geom_by_stream.items()},
+                "values": values_by_stream,
+                "machine": np.asarray(machine_pts, np.float32),
                 "target": np.asarray(tgt, np.float32),
                 "mask": np.asarray(msk, bool),
             }
@@ -272,30 +506,86 @@ def build_stream_specs(channels, modalities, *, restrict=None):
     return specs
 
 
-def batch_signals(examples, specs, n_steps, *, device):
-    """Stack examples into ``{stream: (N, n_steps, channels) int64 tensors}``.
+def batch_signals(examples, specs, n_steps, *, device, continuous=False):
+    """Stack examples into the probe's per-stream input tensors.
 
-    Each stream is padded / truncated to its spec channel count (PAD id 0); an
-    example missing a stream gets an all-PAD block (so the probe's zero-fill path
-    is exercised consistently and shapes are uniform).
+    Returns ``(signals, geometry, sensor_kinds, values, machine)``:
+
+    * ``signals[stream]``   — ``(N, n_steps, channels) int64`` local ids
+      (PAD-filled per stream so an example missing a stream is all-PAD and
+      shapes are uniform);
+    * ``geometry[stream]``  — ``(N, channels, 10) float32`` per-sensor geometry
+      (NaN rows for channels with no known geometry / PAD lanes);
+    * ``sensor_kinds[stream]`` — ``(N, channels) int64`` per-sensor kind indices;
+    * ``values[stream]``    — ``(N, n_steps, channels) float32`` CONTINUOUS
+      standardised values (only populated for streams that carry a raw-float
+      source; used by the quantisation ablation) or ``None`` when ``continuous``
+      is False;
+    * ``machine``           — ``(N, M, 3) float32`` machine-frame context points
+      (zero-padded to the corpus-max point count).
+
+    Each stream is padded / truncated to its spec channel count, with geometry
+    and kinds aligned to the SAME channel order so each token gets its sensor's
+    geometry.
     """
     import torch
 
     from imas_ambix.worldmodel.dataset import PAD_LOCAL_ID
+    from imas_ambix.worldmodel.diagnostics_equilibrium_probe import (
+        N_GEOM_FEATURES,
+        sensor_kind_index,
+    )
 
     n = len(examples)
-    out = {}
+    signals, geometry, kinds, values = {}, {}, {}, {}
     for sp in specs:
-        block = np.full((n, n_steps, sp.channels), PAD_LOCAL_ID, dtype=np.int64)
+        ids = np.full((n, n_steps, sp.channels), PAD_LOCAL_ID, dtype=np.int64)
+        geom = np.full((n, sp.channels, N_GEOM_FEATURES), np.nan, dtype=np.float32)
+        kind = np.zeros((n, sp.channels), dtype=np.int64)  # 0 == "unknown"
+        val = np.zeros((n, n_steps, sp.channels), dtype=np.float32)
         for i, ex in enumerate(examples):
             arr = ex["signals"].get(sp.name)
             if arr is None:
                 continue
             s = min(n_steps, arr.shape[0])
             c = min(sp.channels, arr.shape[1])
-            block[i, :s, :c] = np.clip(arr[:s, :c], 0, sp.vocab - 1)
-        out[sp.name] = torch.from_numpy(block).to(device)
-    return out
+            ids[i, :s, :c] = np.clip(arr[:s, :c], 0, sp.vocab - 1)
+            g = ex.get("geometry", {}).get(sp.name)
+            if g is not None:
+                gc = min(sp.channels, g.shape[0])
+                geom[i, :gc, :] = g[:gc, :]
+            sk = ex.get("sensor_kinds", {}).get(sp.name)
+            if sk is not None:
+                for j in range(min(sp.channels, len(sk))):
+                    kind[i, j] = sensor_kind_index(sk[j])
+            if continuous:
+                v = ex.get("values", {}).get(sp.name)
+                if v is not None:
+                    vs = min(n_steps, v.shape[0])
+                    vc = min(sp.channels, v.shape[1])
+                    val[i, :vs, :vc] = v[:vs, :vc]
+        signals[sp.name] = torch.from_numpy(ids).to(device)
+        geometry[sp.name] = torch.from_numpy(geom).to(device)
+        kinds[sp.name] = torch.from_numpy(kind).to(device)
+        values[sp.name] = torch.from_numpy(val).to(device)
+
+    # machine-frame context points — zero-padded to the corpus-max count.
+    m_max = max(
+        (
+            int(np.asarray(ex.get("machine", np.zeros((0, 3)))).shape[0])
+            for ex in examples
+        ),
+        default=0,
+    )
+    mach = np.zeros((n, m_max, 3), dtype=np.float32)
+    for i, ex in enumerate(examples):
+        mp = np.asarray(ex.get("machine", np.zeros((0, 3))), dtype=np.float32)
+        if mp.size:
+            mc = min(m_max, mp.shape[0])
+            mach[i, :mc, :] = mp[:mc, :]
+    machine = torch.from_numpy(mach).to(device)
+
+    return signals, geometry, kinds, (values if continuous else None), machine
 
 
 # ---------------------------------------------------------------------------
@@ -316,10 +606,31 @@ def standardise_stats(y, mask):
     return mean, std
 
 
+def _slice_batch(batch, idx):
+    """Index a ``(signals, geometry, kinds, values, machine)`` batch by ``idx``."""
+    signals, geometry, kinds, values, machine = batch
+    sg = {k: v[idx] for k, v in signals.items()}
+    gm = {k: v[idx] for k, v in geometry.items()}
+    kn = {k: v[idx] for k, v in kinds.items()}
+    vl = {k: v[idx] for k, v in values.items()} if values is not None else None
+    mc = machine[idx] if machine is not None else None
+    return sg, gm, kn, vl, mc
+
+
 def train_probe(
-    tr_examples, specs, *, n_steps, target_dim, epochs, batch_size, lr, device, seed
+    tr_examples,
+    specs,
+    *,
+    n_steps,
+    target_dim,
+    epochs,
+    batch_size,
+    lr,
+    device,
+    seed,
+    continuous=False,
 ):
-    """Train the heteroscedastic probe; returns (model, target_mean, target_std)."""
+    """Train the space-time probe; returns (model, target_mean, target_std)."""
     import torch
 
     from imas_ambix.worldmodel.diagnostics_equilibrium_probe import (
@@ -336,19 +647,25 @@ def train_probe(
     ystd = np.where(mtr, ystd, 0.0).astype(np.float32)
 
     dev = torch.device(device)
-    sig = batch_signals(tr_examples, specs, n_steps, device=dev)
+    batch = batch_signals(
+        tr_examples, specs, n_steps, device=dev, continuous=continuous
+    )
     y_t = torch.from_numpy(ystd).to(dev)
     m_t = torch.from_numpy(mtr.astype(np.float32)).to(dev)
     n = y_t.shape[0]
 
     cfg = DiagnosticsProbeConfig(
-        streams=list(specs), n_steps=n_steps, target_dim=target_dim
+        streams=list(specs),
+        n_steps=n_steps,
+        target_dim=target_dim,
+        continuous_value=continuous,
     )
     model = DiagnosticsEquilibriumProbe(cfg).to(dev)
     logger.info(
-        "probe params: %.2fM  streams=%s",
+        "probe params: %.2fM  streams=%s  continuous=%s",
         model.n_parameters() / 1e6,
         [s.name for s in specs],
+        continuous,
     )
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
@@ -359,14 +676,14 @@ def train_probe(
         tot, nb = 0.0, 0
         for i in range(0, n, batch_size):
             idx = perm[i : i + batch_size].to(dev)
-            sb = {k: v[idx] for k, v in sig.items()}
+            sb, gb, kb, vb, mcb = _slice_batch(batch, idx)
             yb = y_t[idx]
             mb = m_t[idx]
             opt.zero_grad()
             with torch.autocast(
                 device_type=dev.type, dtype=torch.bfloat16, enabled=(dev.type == "cuda")
             ):
-                pmean, plog = model(sb)
+                pmean, plog = model(sb, gb, kb, values=vb, machine=mcb)
             loss = gaussian_nll(pmean.float(), plog.float(), yb, mb)
             loss.backward()
             opt.step()
@@ -376,20 +693,34 @@ def train_probe(
     return model, mean, std
 
 
-def evaluate(model, te_examples, specs, mean, std, *, n_steps, device, batch_size):
+def evaluate(
+    model,
+    te_examples,
+    specs,
+    mean,
+    std,
+    *,
+    n_steps,
+    device,
+    batch_size,
+    continuous=False,
+):
     """Predict on TEST -> (pred (n,12) metres, y (n,12), mask (n,12))."""
     import torch
 
     dev = torch.device(device)
-    sig = batch_signals(te_examples, specs, n_steps, device=dev)
+    batch = batch_signals(
+        te_examples, specs, n_steps, device=dev, continuous=continuous
+    )
     yte = np.stack([ex["target"] for ex in te_examples]).astype(np.float32)
     mte = np.stack([ex["mask"] for ex in te_examples]).astype(bool)
     n = yte.shape[0]
     model.eval()
     preds = []
     for i in range(0, n, batch_size):
-        sb = {k: v[i : i + batch_size] for k, v in sig.items()}
-        pmean_m, _ = model.predict_metres(sb, mean, std)
+        idx = torch.arange(i, min(i + batch_size, n), device=dev)
+        sb, gb, kb, vb, mcb = _slice_batch(batch, idx)
+        pmean_m, _ = model.predict_metres(sb, gb, kb, mean, std, values=vb, machine=mcb)
         preds.append(pmean_m)
     pred = np.concatenate(preds, axis=0)
     return pred, yte, mte
@@ -512,8 +843,23 @@ def geometry_scatter(pred, y, mask, names, out_path, *, title):
 # ---------------------------------------------------------------------------
 
 
-def run_arm(tr_examples, te_examples, channels, modalities, args, *, restrict, label):
-    """Train + evaluate one ablation arm; returns (report_dict, pred, yte, mte)."""
+def run_arm(
+    tr_examples,
+    te_examples,
+    channels,
+    modalities,
+    args,
+    *,
+    restrict,
+    label,
+    continuous=False,
+):
+    """Train + evaluate one ablation arm; returns (report_dict, pred, yte, mte).
+
+    ``continuous`` selects the value-input lane: ``False`` (default) embeds the
+    256-bin quantised token id; ``True`` embeds the CONTINUOUS corpus-standardised
+    raw value (the quantisation ablation).
+    """
     from imas_ambix.worldmodel.equilibrium_labels import TARGET_DIM, TARGET_NAMES
 
     specs = build_stream_specs(channels, modalities, restrict=restrict)
@@ -531,6 +877,7 @@ def run_arm(tr_examples, te_examples, channels, modalities, args, *, restrict, l
         lr=args.lr,
         device=device,
         seed=args.seed,
+        continuous=continuous,
     )
     pred, yte, mte = evaluate(
         model,
@@ -541,6 +888,7 @@ def run_arm(tr_examples, te_examples, channels, modalities, args, *, restrict, l
         n_steps=args.n_signal_steps,
         device=device,
         batch_size=args.batch_size,
+        continuous=continuous,
     )
     ytr = np.stack([ex["target"] for ex in tr_examples]).astype(np.float32)
     mtr = np.stack([ex["mask"] for ex in tr_examples]).astype(bool)
@@ -551,9 +899,10 @@ def run_arm(tr_examples, te_examples, channels, modalities, args, *, restrict, l
     )
     report = {
         "arm": label,
+        "value_input": "continuous" if continuous else "quantised_token",
         "streams": [s.name for s in specs],
         "stream_channels": {s.name: s.channels for s in specs},
-        "probe_params_M": None,
+        "probe_params_M": round(model.n_parameters() / 1e6, 3),
         "verdict": verd,
     }
     # console summary
@@ -709,6 +1058,19 @@ def run(args) -> int:
         restrict=set(MAGNETICS_STREAMS),
         label="magnetics_only",
     )
+    # quantisation ablation: the SAME magnetics-only arm fed the CONTINUOUS
+    # corpus-standardised raw value instead of the 256-bin token id — tells us
+    # how much of the gap to the raw-float ceiling is quantisation.
+    mag_cont_arm = run_arm(
+        tr_examples,
+        te_examples,
+        channels,
+        modalities,
+        args,
+        restrict=set(MAGNETICS_STREAMS),
+        label="magnetics_only_continuous",
+        continuous=True,
+    )
     if all_arm is None:
         logger.error("all-diagnostics arm produced no streams — abort")
         return 3
@@ -742,6 +1104,9 @@ def run(args) -> int:
         "arms": {
             "all_diagnostics": all_report,
             "magnetics_only": (mag_arm[0] if mag_arm is not None else None),
+            "magnetics_only_continuous": (
+                mag_cont_arm[0] if mag_cont_arm is not None else None
+            ),
         },
         # top-level verdict mirrors the all-diagnostics arm (the headline check)
         "verdict": all_report["verdict"],
