@@ -59,11 +59,14 @@ tool_call = "glm47"
 reasoning = "glm45"
 
 [slurm]
-# All 8 cards when DSv4 is down (the common case — check squeue first).
+# All 8 cards — this run fills the node (the GLM-5.2 FP8 checkpoint needs the
+# whole 8×H200 VRAM, so no other GPU job can coexist). Check squeue first.
 gpus = 8
-# Probe with `srun --test-only` before committing — ~12 cores schedulable if a
-# serve co-runs, more when the node is clear (see AGENTS.md §2 CPU sizing).
-cpus = 24
+# 30 = the full grpA reservation core count (probed 2026-06-25: `gpu:8 cpus=30`
+# starts immediately; cpus=60 is denied — the node's other 30 cores belong to
+# grpB's overlapping reservation, and betelgeuse refuses jobs without our
+# reservation). 30 is therefore the schedulable ceiling for an 8-GPU job.
+cpus = 30
 memory = "640G"
 time_serve = "7-00:00:00"
 time_download = "24:00:00"
