@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# clive-deploy — copy the version-controlled clive wrapper to the shared
+# GPFS location so the sdcc-imas_gpu group runs the same audited script.
+#
+# The repo (scripts/clive) is the source of truth; /work holds a deployed
+# COPY (not a symlink) so it persists independently of any one user's home
+# directory or checkout. Re-run this after editing scripts/clive.
+
+set -euo pipefail
+
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/clive"
+DEST="${AMBIX_CLIVE_DEST:-/work/projects/imas_gpu/agents/clive}"
+GROUP="${AMBIX_CLIVE_GROUP:-sdcc-imas_gpu}"
+
+[[ -f "$SRC" ]] || { echo "clive-deploy: source not found: $SRC" >&2; exit 1; }
+
+cp "$SRC" "$DEST"
+chmod 755 "$DEST"
+chgrp "$GROUP" "$DEST" 2>/dev/null || echo "clive-deploy: warning: could not chgrp $GROUP $DEST" >&2
+
+if command -v sha256sum >/dev/null 2>&1; then
+    a="$(sha256sum "$SRC" | awk '{print $1}')"
+    b="$(sha256sum "$DEST" | awk '{print $1}')"
+    [[ "$a" == "$b" ]] || { echo "clive-deploy: checksum mismatch after copy" >&2; exit 1; }
+fi
+
+echo "clive-deploy: $SRC -> $DEST (mode 755, group $GROUP)"
