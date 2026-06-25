@@ -1,4 +1,4 @@
-"""Comprehensive LLM benchmark suite for ``ambix agent bench``.
+"""Comprehensive LLM benchmark suite for ``imas-ambix agent bench``.
 
 Provides model-agnostic benchmarks across six categories:
 throughput, prefill, context (needle-in-haystack), tools,

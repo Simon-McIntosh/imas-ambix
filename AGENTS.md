@@ -237,7 +237,7 @@ prefetch producer/consumer threads — is **PROHIBITED** for production code.
 
 **Tooling:**
 
-- `ambix tokenize bench --in-process` is the default. The `--no-in-process`
+- `imas-ambix tokenize bench --in-process` is the default. The `--no-in-process`
   flag is a debug escape hatch only.
 - `scripts/slurm/bench_rbb.sbatch` always runs in-process.
 
@@ -255,15 +255,15 @@ prefetch producer/consumer threads — is **PROHIBITED** for production code.
 
 ## 4. Composable Agent CLI
 
-The `ambix agent` CLI manages LLM deployments via TOML model profiles:
+The `imas-ambix agent` CLI manages LLM deployments via TOML model profiles:
 
 ```bash
-ambix agent list                          # List available profiles
-ambix agent info kimi-k2-6               # Show profile details + memory budget
-ambix agent download kimi-k2-6           # Submit SLURM download job (sirius partition)
-ambix agent serve kimi-k2-6              # Submit SLURM serve job (betelgeuse partition)
-ambix agent serve kimi-k2-6 --dry-run    # Print script without submitting
-ambix agent status                        # Show running ambix SLURM jobs
+imas-ambix agent list                          # List available profiles
+imas-ambix agent info kimi-k2-6               # Show profile details + memory budget
+imas-ambix agent download kimi-k2-6           # Submit SLURM download job (sirius partition)
+imas-ambix agent serve kimi-k2-6              # Submit SLURM serve job (betelgeuse partition)
+imas-ambix agent serve kimi-k2-6 --dry-run    # Print script without submitting
+imas-ambix agent status                        # Show running ambix SLURM jobs
 ```
 
 Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml`.
@@ -358,8 +358,8 @@ curl http://localhost:8000/v1/models
 
 **Deploy:**
 ```bash
-ambix agent serve deepseek-v4-flash      # 4× GPUs — 400+ tok/s target
-ambix agent serve deepseek-v4-flash-2x   # 2× GPUs — share node with other work
+imas-ambix agent serve deepseek-v4-flash      # 4× GPUs — 400+ tok/s target
+imas-ambix agent serve deepseek-v4-flash-2x   # 2× GPUs — share node with other work
 ```
 
 ### MiniMax M2.7 Deployment
@@ -392,8 +392,8 @@ ambix agent serve deepseek-v4-flash-2x   # 2× GPUs — share node with other wo
 
 **Deploy:**
 ```bash
-ambix agent download minimax-m2-7   # ~220 GB, run from sirius
-ambix agent serve minimax-m2-7      # submit to betelgeuse
+imas-ambix agent download minimax-m2-7   # ~220 GB, run from sirius
+imas-ambix agent serve minimax-m2-7      # submit to betelgeuse
 ```
 
 **Recommended inference params:** temperature=1.0, top_p=0.95, top_k=40

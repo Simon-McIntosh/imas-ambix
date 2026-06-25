@@ -68,6 +68,6 @@ echo "[preempt_v4flash] V4-Flash preemption complete."
 #     echo "[restart_v4flash] Restarting ${JOB_NAME} …"
 #     rm -f "$SENTINEL"
 #     # Adjust the profile slug and account as needed.
-#     ambix agent serve deepseek-v4-flash
+#     imas-ambix agent serve deepseek-v4-flash
 #     echo "[restart_v4flash] Serve job submitted."
 # }

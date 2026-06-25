@@ -226,7 +226,7 @@ def benchmark_frame_tokenizer(
             "benchmark_frame_tokenizer no longer supports OpenMagvit2Tokenizer: the "
             "subprocess-per-shot path is 10-55x slower than the in-process worker AND "
             "fragile (susceptible to SIGBUS on filesystem hiccups). Use "
-            "benchmark_frame_tokenizer_in_process() instead — or `ambix tokenize bench` "
+            "benchmark_frame_tokenizer_in_process() instead — or `imas-ambix tokenize bench` "
             "without --no-in-process."
         )
 

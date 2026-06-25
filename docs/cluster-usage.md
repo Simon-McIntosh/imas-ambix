@@ -203,13 +203,13 @@ catalogue (see [../AGENTS.md](../AGENTS.md) §5 for the full table) is:
 | `minimax-m2-7`      | 220 GB       | SGLang        | 200K    | 220B MoE, agentic-tuned, FP8 |
 
 Only **one** of these is served at any given moment — switching models
-is an operator action (see AGENTS.md §4 — `ambix agent serve <slug>`).
+is an operator action (see AGENTS.md §4 — `imas-ambix agent serve <slug>`).
 The current value is whatever `/v1/models` returns.
 
 ## 8. Throughput expectations
 
 Single-stream decode on 4×H200 (Group A reservation), measured via
-`ambix agent bench` (throughput / prefill / tools / reasoning) on
+`imas-ambix agent bench` (throughput / prefill / tools / reasoning) on
 2026-05-15:
 
 | Model               | Decode TPS | TTFT 16K | Tools pass | Notes |
@@ -237,7 +237,7 @@ Reading those numbers:
   instead of tool calls on the parallel and structured tests.
 
 For multi-worker / concurrent throughput, run
-`ambix agent bench --category concurrency <slug>` against the live
+`imas-ambix agent bench --category concurrency <slug>` against the live
 endpoint; with vLLM continuous batching the aggregate TPS scales
 roughly linearly to 8–16 workers before tailing off.
 

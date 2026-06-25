@@ -70,7 +70,7 @@ imas_ambix/bench/
 ├── frame.py             # benchmark_frame_tokenizer
 ├── signal.py            # benchmark_signal_tokenizer
 ├── runner.py            # SLURM batch runner + results archiver
-└── cli.py               # ambix tokenize bench (sub-command of tokenize group)
+└── cli.py               # imas-ambix tokenize bench (sub-command of tokenize group)
 ```
 
 ### 2.1 BenchConfig
@@ -227,7 +227,7 @@ def render_comparison_table(results: list[BenchResult]) -> str:
 
 Renders a markdown table comparing multiple `BenchResult` objects. Columns:
 tokenizer name, rFID, PSNR, LPIPS, Pearson-r (mean across headline channels),
-encode fps, gates. Used by the `ambix tokenize bench compare` sub-command.
+encode fps, gates. Used by the `imas-ambix tokenize bench compare` sub-command.
 
 ---
 
@@ -389,10 +389,10 @@ The quantitative benchmarks with real weights run only on SLURM.
 
 ### 6.2 SLURM batch job design
 
-The benchmark job is submitted via `ambix tokenize bench run`:
+The benchmark job is submitted via `imas-ambix tokenize bench run`:
 
 ```bash
-ambix tokenize bench run \
+imas-ambix tokenize bench run \
     --config imas_ambix/bench/configs/v0-rbb-100shot.yaml \
     --output /work/projects/imas_gpu/mast-tokens/v1/benchmarks/ \
     --slurm                          # submits to gpu_0003_grpA, exclusive
@@ -413,7 +413,7 @@ Results accumulate in `/work/projects/imas_gpu/mast-tokens/v1/benchmarks/`.
 Compare any two results:
 
 ```bash
-ambix tokenize bench compare \
+imas-ambix tokenize bench compare \
     /work/projects/imas_gpu/mast-tokens/v1/benchmarks/frames_open_magvit2_v1-*.json
 ```
 

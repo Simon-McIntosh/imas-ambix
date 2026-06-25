@@ -40,17 +40,17 @@ from Group A's reservation.
 
 **Decision 2026-05-20 (S. McIntosh):** training runs in exclusive-access
 mode on the existing `gpu_0003_grpA` reservation. The maintainer (this
-codebase's ambix agent CLI) **is authorised to `scancel` the DeepSeek
+codebase's imas-ambix agent CLI) **is authorised to `scancel` the DeepSeek
 V4-Flash serving job** to free VRAM for training without per-event
 confirmation.
 
 The protocol is:
 
 ```bash
-ambix agent stop deepseek-v4-flash   # 1. scancel the serve
+imas-ambix agent stop deepseek-v4-flash   # 1. scancel the serve
 ambix train submit --config v0-500m  # 2. submit training to gpu_0003_grpA
 # … training runs to completion or operator-pause …
-ambix agent serve deepseek-v4-flash  # 3. restart the serve
+imas-ambix agent serve deepseek-v4-flash  # 3. restart the serve
 ```
 
 Rationale:
@@ -134,7 +134,7 @@ serve is paused. The protocol:
 ```bash
 # 1. Pause the serve (CLI exists; this just `scancel`s the serve job
 #    after recording its config so we can restart it later)
-ambix agent stop deepseek-v4-flash
+imas-ambix agent stop deepseek-v4-flash
 
 # 2. Submit the train job — same reservation, same QoS as the serve
 ambix train submit --config v0-500m --duration 24h
@@ -143,7 +143,7 @@ ambix train submit --config v0-500m --duration 24h
 squeue -u $USER --start
 
 # 4. Restart the serve
-ambix agent serve deepseek-v4-flash
+imas-ambix agent serve deepseek-v4-flash
 ```
 
 Reasonable windows: weekends, overnight (00:00 – 06:00 local), and any

@@ -1,4 +1,4 @@
-"""SLURM script generation helpers for ``ambix agent``."""
+"""SLURM script generation helpers for ``imas-ambix agent``."""
 
 from __future__ import annotations
 

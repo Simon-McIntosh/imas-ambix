@@ -342,7 +342,7 @@ def status() -> None:
 
     output = result.stdout.strip()
     if not output:
-        console.print("No ambix agent jobs found.")
+        console.print("No imas-ambix agent jobs found.")
         return
 
     console.print(output)
@@ -385,7 +385,7 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
         jobs.append((job_id, job_name))
 
     if not jobs:
-        console.print("No ambix agent jobs found.")
+        console.print("No imas-ambix agent jobs found.")
         return
 
     # Filter by scope
@@ -511,7 +511,7 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
 
         if not token:
             console.print(f"No key configured at {key_path}")
-            console.print("Generate one with: ambix agent key --rotate")
+            console.print("Generate one with: imas-ambix agent key --rotate")
             return
 
         console.print(f"File: {key_path}")
@@ -541,7 +541,7 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
         key_path,
         "AMBIX_AGENT_API_KEY",
         token,
-        header="# Ambix agent API key — managed by 'ambix agent key'",
+        header="# Ambix agent API key — managed by 'imas-ambix agent key'",
         mode=0o600,
     )
     action = "Rotated" if existing else "Generated"
@@ -571,7 +571,7 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
         console.print(
             "[yellow]No default profile set — restart the server manually:[/]"
         )
-        console.print("  ambix agent serve <profile>")
+        console.print("  imas-ambix agent serve <profile>")
         return
 
     try:
@@ -803,11 +803,11 @@ def bench(
 
     \b
     Run with defaults (uses default profile + site GPU host):
-        ambix agent bench
+        imas-ambix agent bench
 
     \b
     Run against any endpoint:
-        ambix agent bench --url http://host:18800 --model my-model
+        imas-ambix agent bench --url http://host:18800 --model my-model
 
     Results are auto-saved to ~/.local/share/ambix/bench/ unless --no-save.
     """
@@ -831,7 +831,7 @@ def bench(
     else:
         raise click.ClickException(
             "Provide a profile slug or --url. "
-            "Example: ambix agent bench deepseek-v4-flash"
+            "Example: imas-ambix agent bench deepseek-v4-flash"
         )
 
     # Health check with auth

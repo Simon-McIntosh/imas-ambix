@@ -147,7 +147,7 @@ Generates:
 ```
 
 The corresponding `ambix demo` lazy group is defined in
-`imas_ambix/cli.py` alongside the existing `ambix agent` group.
+`imas_ambix/cli.py` alongside the existing `imas-ambix agent` group.
 
 ---
 

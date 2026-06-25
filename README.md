@@ -97,7 +97,7 @@ Estimated training corpus: ~26 billion state transitions from partner tokamaks.
 uv sync --dev
 
 # Run CLI
-ambix status
+imas-ambix status
 
 # Run tests
 uv run pytest
@@ -105,32 +105,32 @@ uv run pytest
 
 ## Agent Serving
 
-The `ambix agent` CLI manages LLM deployments on the ITER SDCC GPU cluster.
+The `imas-ambix agent` CLI manages LLM deployments on the ITER SDCC GPU cluster.
 See [AGENTS.md](AGENTS.md) for hardware specs and deployment details,
 and [docs/cluster-usage.md](docs/cluster-usage.md) for end-user
 connection instructions (env setup, API key handling, harness wiring).
 
 ```bash
 # List available model profiles
-ambix agent list
+imas-ambix agent list
 
 # Show profile details
-ambix agent info kimi-k2-6
+imas-ambix agent info kimi-k2-6
 
 # Download model weights (submits SLURM job to sirius partition)
-ambix agent download kimi-k2-6
+imas-ambix agent download kimi-k2-6
 
 # Serve model (submits SLURM job to betelgeuse GPU partition)
-ambix agent serve kimi-k2-6
+imas-ambix agent serve kimi-k2-6
 
 # Serve with API key authentication
-ambix agent serve deepseek-v4-flash --api-key "your-secret-key"
+imas-ambix agent serve deepseek-v4-flash --api-key "your-secret-key"
 
 # Preview generated script without submitting
-ambix agent serve kimi-k2-6 --dry-run
+imas-ambix agent serve kimi-k2-6 --dry-run
 
 # Check running jobs
-ambix agent status
+imas-ambix agent status
 ```
 
 ### API Key Authentication
@@ -143,11 +143,11 @@ and metrics endpoints remain open for monitoring.
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 # Serve with key
-ambix agent serve deepseek-v4-flash --api-key "$(cat ~/.ambix-api-key)"
+imas-ambix agent serve deepseek-v4-flash --api-key "$(cat ~/.ambix-api-key)"
 
 # Or via environment variable
 export AMBIX_AGENT_API_KEY="your-secret-key"
-ambix agent serve deepseek-v4-flash
+imas-ambix agent serve deepseek-v4-flash
 
 # Client-side: pass key in Authorization header
 # (endpoint URL is exchanged over Teams — see docs/getting-started.md)

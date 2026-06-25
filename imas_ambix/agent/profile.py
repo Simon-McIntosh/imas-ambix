@@ -1,4 +1,4 @@
-"""Model profile schema and loader for the ``ambix agent`` CLI.
+"""Model profile schema and loader for the ``imas-ambix agent`` CLI.
 
 Profiles are TOML files shipped as package data under
 ``imas_ambix/agent/profiles/``.  Each file defines a single model's

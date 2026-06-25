@@ -1,4 +1,4 @@
-"""Smoke tests for ``ambix tokenize`` subcommands.
+"""Smoke tests for ``imas-ambix tokenize`` subcommands.
 
 Each subcommand is exercised via :class:`click.testing.CliRunner` with:
 - ``--help`` text verification (exit 0 + key option/name strings)

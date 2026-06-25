@@ -2,10 +2,10 @@
 
 Subcommands:
 
-- ``ambix tokenize inspect``     open a shot, print tokenizer-relevant shapes
-- ``ambix tokenize frames``      encode a shot's camera frames + round-trip
-- ``ambix tokenize signals``     encode a shot's signal groups + round-trip
-- ``ambix tokenize registry``    print the global token vocabulary layout
+- ``imas-ambix tokenize inspect``     open a shot, print tokenizer-relevant shapes
+- ``imas-ambix tokenize frames``      encode a shot's camera frames + round-trip
+- ``imas-ambix tokenize signals``     encode a shot's signal groups + round-trip
+- ``imas-ambix tokenize registry``    print the global token vocabulary layout
 
 The signal and frame paths use the placeholder tokenizers by default
 so the plumbing can be exercised end-to-end before Open-MAGVIT2 and
@@ -403,13 +403,13 @@ def bench_cmd(
     ::
 
         # YAML-driven (recommended — carries metrics + tokenizer kwargs):
-        ambix tokenize bench --config bench-v0.yaml
+        imas-ambix tokenize bench --config bench-v0.yaml
 
         # Ad-hoc (legacy):
-        ambix tokenize bench --tokenizer placeholder --kind frame \\
+        imas-ambix tokenize bench --tokenizer placeholder --kind frame \\
             --shot-ids 15085 --max-items-per-shot 4
 
-        ambix tokenize bench --tokenizer uniform --kind signal \\
+        imas-ambix tokenize bench --tokenizer uniform --kind signal \\
             --shot-ids 15085,15086
     """
     from imas_ambix.bench.report import render_comparison_table, save_results_json
@@ -621,11 +621,11 @@ def finetune_decoder_cmd(
     ::
 
         # Dry-run: print config only
-        ambix tokenize finetune-decoder \\
+        imas-ambix tokenize finetune-decoder \\
             --train-shots train_ids.txt --val-shots val_ids.txt --dry-run
 
         # Real run (GPU node required):
-        ambix tokenize finetune-decoder \\
+        imas-ambix tokenize finetune-decoder \\
             --train-shots train_ids.txt --val-shots val_ids.txt \\
             --max-steps 10000 --batch-size 16
     """

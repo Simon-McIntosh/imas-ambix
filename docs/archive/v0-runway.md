@@ -32,7 +32,7 @@ corpus, `compute.md` for SLURM.
 | SLURM dedicated reservation | **not requested** (deferred — see below) |
 | **Training mode decision** | **EXCLUSIVE** (2026-05-20) — V4-Flash is stopped before training. Maintainer (ambix CLI) is authorised to `scancel` the serve. See `compute.md` §2. |
 | **Data quality framework + ambix data audit** | **in flight** (sonnet-data-quality) — `imas_ambix/quality/`, CLI sub-command `ambix data audit`. See `plans/data-quality.md`. |
-| **Tokenizer benchmark framework + ambix tokenize bench** | **in flight** (sonnet-bench-framework) — `imas_ambix/bench/`, CLI sub-command `ambix tokenize bench`. See `plans/tokenizer-benchmarks.md`. |
+| **Tokenizer benchmark framework + imas-ambix tokenize bench** | **in flight** (sonnet-bench-framework) — `imas_ambix/bench/`, CLI sub-command `imas-ambix tokenize bench`. See `plans/tokenizer-benchmarks.md`. |
 | **Calibration library (signals + frames)** | **landed** (fe18b34) — `imas_ambix/calibration/`, 17 tests; real-data smoke produced Ip mean 294 kA, density 4.6e19 m⁻³ |
 | **Data quality framework + ambix data audit** | **landed** (18a3385) — `imas_ambix/quality/`, 22 tests; **audit smoke on 25 L2 shots: 76 % usable_for_training**, dd_version + dynamic_range + time_axis warnings widespread (audit thresholds may need calibration) |
 | **Tokenizer benchmark framework** | **landed** (94565f3) — `imas_ambix/bench/`, 14 tests; real bench on 8 rbb frames |

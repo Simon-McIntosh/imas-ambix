@@ -197,7 +197,7 @@ time.
 
 ## 7. Round-trip evaluation
 
-A standalone tool (`ambix tokenize round-trip --shot {id}`) encodes a
+A standalone tool (`imas-ambix tokenize round-trip --shot {id}`) encodes a
 single shot through the full pipeline, decodes back, and reports
 per-modality reconstruction metrics:
 
@@ -241,19 +241,19 @@ and placeholder implementations described above:
 | `frames.py` | `PlaceholderFrameTokenizer` (working) + `OpenMagvit2Tokenizer` (stub) |
 | `signals.py` | `UniformQuantizer` (working) + `ChronosSignalTokenizer` (stub) |
 | `multimodal.py` | `ShotTokenizer` — interleaves frame+signal tokens with `<bos>/<sep>/<eos>` |
-| `cli.py` | `ambix tokenize {registry, inspect, frames, signals}` |
+| `cli.py` | `imas-ambix tokenize {registry, inspect, frames, signals}` |
 
 The two `*_v1` placeholder tokenizers (`frames_placeholder_v1`,
 `signals_uniform_v1`) emit valid global token ids inside the
 registry-allocated range, and round-trip cleanly:
 
 ```text
-$ ambix tokenize frames --shot 15085 --camera rbb --temporal-compression 4 --spatial-compression 8
+$ imas-ambix tokenize frames --shot 15085 --camera rbb --temporal-compression 4 --spatial-compression 8
 loaded rbb for shot 15085: shape=(149, 536, 560), dtype=uint16
 encoded shape: (37, 67, 70)  vocab range used: [4, 259]
 decode shape:  (148, 536, 560)  input vs decoded MAE: 631.09
 
-$ ambix tokenize signals --shot 11766 --group summary --n-bins 64
+$ imas-ambix tokenize signals --shot 11766 --group summary --n-bins 64
 input vars: 4
 tokenized channels: 4
 token shape: (1652, 4)
@@ -743,7 +743,7 @@ the corpus encode pass + baseline rFID measurement per §12.1's trigger.
 | Loss | L1 + VGG16 relu3_3 perceptual; falls back to L1-only when `torchvision` is absent |
 | Evaluation | `pytorch_fid` → `imas_ambix.eval.metrics.rfid` → NaN-with-warning fallback chain |
 | Output | safetensors weights to `mast-tokens/v1/open-magvit2/weights/plasma-decoder-v1.safetensors` |
-| CLI | `ambix tokenize finetune-decoder --train-shots PATH --val-shots PATH [--dry-run]` |
+| CLI | `imas-ambix tokenize finetune-decoder --train-shots PATH --val-shots PATH [--dry-run]` |
 | Tests | 4 — config defaults, torch-free import, dry-run exit, no-eager-load constructor |
 
 The `OpenMagvit2Tokenizer.decoder_checkpoint` constructor argument

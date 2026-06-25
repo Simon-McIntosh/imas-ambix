@@ -13,7 +13,7 @@ Coverage
 8.  save_results_json / load_results_json JSON round-trip preserves aggregate.
 9.  load_results_json factory sentinel raises RuntimeError on call.
 10. Error handling: missing shot path sets error field on PerShotResult.
-11. CLI smoke test: ambix tokenize bench --tokenizer placeholder --kind frame.
+11. CLI smoke test: imas-ambix tokenize bench --tokenizer placeholder --kind frame.
 12. CLI bench --kind signal smoke test with monkeypatched paths.
 13. benchmark_frame_tokenizer multi-shot aggregation is consistent.
 """

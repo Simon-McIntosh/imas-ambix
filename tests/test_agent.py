@@ -1,4 +1,4 @@
-"""Tests for the ambix agent CLI and profile system."""
+"""Tests for the imas-ambix agent CLI and profile system."""
 
 from click.testing import CliRunner
 
