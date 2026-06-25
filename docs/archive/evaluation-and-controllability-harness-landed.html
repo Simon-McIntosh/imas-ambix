@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix">
+<meta name="plan-archived" content="1">
+<meta name="plan-slug" content="evaluation-and-controllability-harness-landed">
+<meta name="reckon-type" content="plan">
+<meta name="plan-title" content="Evaluation, Firewall & Controllability Harness — landed">
+<meta name="plan-summary" content="Archive record for the model-independent eval spine: five non-overlapping components built + unit-tested (54 tests green) and the gate bars frozen on existing data. Firewalled EFIT referee (runtime+static guard proven), absolute-magnetics oracle (skill ~0.5-0.7), raw-held-out + EnKF bar (EnKF pitch RMSE 0.225 beats persistence 0.719; conformal cov90 0.903), powered n=10 dN-M latent controllability gate (null floor 1.001 CI[0.985,1.018]; controlled 3.017 CI[2.680,3.370]), and the excitation-window selector + excited held-out cohort + leakage audit. Commits 4e50797, 93c534a, e2ad683, 060969f, 21decd4.">
+<meta name="plan-status" content="shipped">
+<meta name="plan-sprint" content="S16">
+<meta name="plan-milestone" content="M4">
+<meta name="plan-tier" content="opus">
+<meta name="plan-owner" content="Simon McIntosh">
+<meta name="plan-modified" content="2026-06-25">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="1">
+<title>Evaluation, Firewall &amp; Controllability Harness — landed | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css">
+<link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <p><span class="badge badge-shipped">✓ landed 2026-06-25</span> The model-independent eval spine for
+  <a href="../machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a> (the P0
+  parallel enabling track). Five non-overlapping components, built by a file-scoped fleet:
+  commits <code>4e50797</code> (referee), <code>93c534a</code> (oracle), <code>e2ad683</code> (prediction bar),
+  <code>060969f</code> (controllability gate), <code>21decd4</code> (excitation selector).
+  <strong>54 unit tests green.</strong></p>
+
+  <h1>Evaluation, Firewall &amp; Controllability Harness — landed</h1>
+  <p>The honesty-spine infrastructure the model stages are graded against, built <em>before the model
+  exists</em> so the stage-2 and stage-4 gates have their acceptance targets up front (the S9/Stage-3
+  lesson). Every component is model-independent — it reads EFIT only as a firewalled referee, plus raw
+  signals and the actuator plan. New code lives under <code>imas_ambix/eval/</code>; tests under
+  <code>tests/eval/</code>.</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/evaluation-and-controllability-harness/eval-spine-bars.png"
+         alt="Eval-spine bars: powered n=10 controllability gate (null floor vs controlled), raw-held-out prediction bar (EnKF vs persistence vs physics frontier), and the component/test status grid"
+         style="max-width:100%;height:auto;">
+    <figcaption>The bars frozen on existing data. <strong>Left:</strong> the powered n=10 &Delta;N-M
+    controllability gate, freshly measured on synthetic latent dynamics — under the null (plan ignored)
+    the true-vs-random ratio sits on the noise floor (1.001, CI [0.985, 1.018], gate FAILs); a controlled
+    case where the true plan is a clear outlier clears the floor (3.017, CI [2.680, 3.370], gate PASSes).
+    <strong>Middle:</strong> the raw-held-out prediction bar (N=112 held-out shots) — the classical EnKF
+    recovers primary sightline pitch at RMSE 0.225 [0.199, 0.259], beating the persistence floor (0.719)
+    and approaching the pre-registered physics frontier (~0.19); conformal cov90 = 0.903 &isin; [0.88, 0.92].
+    <strong>Right:</strong> the five components and their 54 green unit tests.</figcaption>
+  </figure>
+
+  <h2>Quick status</h2>
+  <div class="table-scroll">
+    <table class="t">
+      <thead>
+        <tr><th>Component</th><th>Module</th><th>Tests</th><th>Measured bar / proof</th><th>Commit</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Firewalled EFIT referee</td>
+          <td><code>imas_ambix/eval/efit_referee.py</code></td>
+          <td>11 ✓</td>
+          <td>Boundary guard <strong>proven</strong>: <code>read_efit_geometry()</code> gated by
+          <code>evaluator_context()</code> raises <code>FirewallViolation</code> off an evaluator path;
+          a static-import test asserts the model/training tree never references the referee; injectable
+          reader → tests need no <code>/work</code>.</td>
+          <td><code>4e50797</code></td>
+        </tr>
+        <tr>
+          <td>Absolute-magnetics oracle</td>
+          <td><code>imas_ambix/eval/magnetics_oracle.py</code> + thin CLI</td>
+          <td>9 ✓</td>
+          <td>Skill <strong>&asymp; 0.5–0.7</strong> (stage-2 target band): prior calibrated-raw run gives
+          per-component axis_Z ~0.68, axis_R ~0.57, X-point_R ~0.50. Corpus-level absolute (SI)
+          standardisation preserved; library reproduces the path, unit-tested on synthetic arrays.</td>
+          <td><code>93c534a</code></td>
+        </tr>
+        <tr>
+          <td>Raw-held-out + EnKF bar</td>
+          <td><code>imas_ambix/eval/prediction_bar.py</code></td>
+          <td>10 ✓</td>
+          <td>EnKF primary pitch RMSE <strong>0.225 [0.199, 0.259]</strong> beats persistence
+          <strong>0.719</strong>; conformal cov90 <strong>0.903 &isin; [0.88, 0.92]</strong> (from the
+          locked N=112 D1 held-out run). Thin composition of the <code>mse_eval</code>/<code>mse_split</code>/
+          <code>enkf_baseline</code> harness on one ruler.</td>
+          <td><code>e2ad683</code></td>
+        </tr>
+        <tr>
+          <td>Powered &Delta;N-M gate (latent)</td>
+          <td><code>imas_ambix/eval/controllability_gate.py</code></td>
+          <td>11 ✓</td>
+          <td>n=10 noise floor characterised: null ratio <strong>1.001, CI [0.985, 1.018]</strong>
+          (gate FAILs); controlled ratio <strong>3.017, CI [2.680, 3.370]</strong>, pass-fraction 1.00
+          (gate PASSes). Operates on an abstract <code>(T,D)</code> latent — decoupled from cameras/codebook;
+          collapse-rejecting; bootstrap-CI'd; variance decomposition.</td>
+          <td><code>060969f</code></td>
+        </tr>
+        <tr>
+          <td>Excitation-window selector</td>
+          <td><code>imas_ambix/eval/excitation_selector.py</code></td>
+          <td>13 ✓</td>
+          <td>Scores windows by genuine actuator excitation (coil |dI/dt|, ramps, plan-step changes);
+          assembles the <strong>excited held-out cohort</strong> (the identifiability device that breaks
+          the causal-under-identification confound) and runs a binding leakage audit (disjoint from
+          training; 18502–18505 retained as held-out). Pure-numpy core, CPU-testable.</td>
+          <td><code>21decd4</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>The gate (verifiable done-when) — met</h2>
+  <ol>
+    <li><strong>Five components built + unit-tested; firewall boundary guard proven.</strong> ✓ 54 tests
+    green; the referee's EFIT store is unreachable off an evaluator path (runtime guard) and unreferenced
+    by the model/training tree (static guard).</li>
+    <li><strong>Bars measured on existing data before the WM exists.</strong> ✓ absolute-magnetics oracle
+    skill ≈0.5–0.7; persistence (0.719) + EnKF (0.225, beats persistence) raw-held-out bar; the &Delta;N-M
+    noise floor characterised at n=10 (ratio 1.001, CI [0.985, 1.018]).</li>
+    <li><strong>Excited held-out cohort defined + leakage-audited.</strong> ✓ selector + cohort builder +
+    leakage audit landed and unit-tested; the locked 18502–18505 family stays held-out.</li>
+    <li><strong>Tests green; outcome recorded; plan collapsed.</strong> ✓</li>
+  </ol>
+
+  <h2>What's next</h2>
+  <div class="card">
+    <p>The machinery is built and the bars are frozen. The immediate follow-ons are the <em>live</em>
+    measurements with the new library modules, then wiring the spine into the model gates:</p>
+    <ul>
+      <li><strong>Live re-measure with the new modules:</strong> run <code>magnetics_oracle</code> and the
+      <code>prediction_bar</code> EnKF leg end-to-end on <code>/work</code> via the new library entrypoints
+      (the numbers above are from the prior runs / locked artifacts the modules compose), and build the
+      excited held-out cohort on live plan/coil streams.</li>
+      <li><strong>Wire into the model stages:</strong> the absolute-magnetics oracle is the stage-2 bar the
+      GS readout must match; the raw-held-out + EnKF bar and the powered &Delta;N-M latent gate (on the
+      excited cohort) are the stage-4 goal gate. They are now ready for those stages to call.</li>
+    </ul>
+  </div>
+
+  <h2>Scope-handling note</h2>
+  <p>The controllability-gate commit <code>060969f</code> additionally carried four files belonging to the
+  concurrently-running token-substrate track (<code>data/l2_input_build.py</code>,
+  <code>tokenizer/signal_hf_encode.py</code>, <code>scripts/slurm/compute_signal_calibration.sbatch</code>,
+  <code>tests/test_corpus_calibration.py</code>) — a broad <code>git add</code> swept up that peer agent's
+  in-flight edits. The content is committed and pushed (not lost); history was deliberately <em>not</em>
+  rewritten (pushed <code>main</code>; peer work). The gate's own deliverable
+  (<code>controllability_gate.py</code> + test) is correct and independently verified.</p>
+</main>
+</body>
+</html>
