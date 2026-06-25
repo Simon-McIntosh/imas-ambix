@@ -40,18 +40,20 @@ type = "vllm"
 tensor_parallel = 8
 trust_remote_code = true
 enable_auto_tool_choice = true
-# Context: 512K. The full 1M context does NOT fit on 8×H200 with this
-# checkpoint — measured 2026-06-25 (job 1222717): at 1,048,576 the engine
-# needs ~60.8 GiB KV but only ~13.6 GiB/card is free after the 744 GB FP8
-# weights + CUDA-graph capture + MTP draft model, so vLLM aborts at startup
-# (estimated max len it reported: 233664). The recipe's own note agrees —
-# the full 1M needs 8×B200 (180 GB), not 8×H200 (141 GB). 524288 needs
-# ~30 GiB KV, comfortably within the ~70 GiB freed at mem_fraction 0.95.
-max_total_tokens = 524288
+# Context: 256K. The FP8 weights + CUDA-graph capture + MTP draft model leave a
+# fixed ~24 GiB aggregate for KV at mem_fraction 0.95 — measured across two
+# launches on 2026-06-25: 1M (job 1222717) reported a 233K ceiling at 0.90, and
+# 512K (job 1222745) reported a 419K ceiling at 0.95 (needed 30.4 GiB KV, had
+# 24.3). So 8×H200 cannot serve this checkpoint anywhere near its 1M max — the
+# recipe's note agrees (full 1M wants 8×B200/180 GB). 262144 needs ~15 GiB KV
+# against ~24 available — comfortable margin, no startup OOM. Raise only after
+# re-measuring free KV live; do NOT chase the 419K ceiling (no headroom for
+# concurrent requests). 256K is still a very large practical agent context.
+max_total_tokens = 262144
 kv_cache_dtype = "fp8"
 # 0.95 — the FP8 weights + fixed CUDA-graph/MTP overhead dominate; the extra
-# 5% over 0.90 goes almost entirely to KV (vLLM's own remedy for the KV-OOM
-# above). Raising it further risks crowding the capture/activation scratch.
+# 5% over 0.90 goes almost entirely to KV. Raising it further risks crowding
+# the capture/activation scratch.
 mem_fraction_static = 0.95
 # Lift the scheduler caps off the vLLM defaults (256 seqs) so the large KV
 # budget is actually exploited; mirrors the deepseek-v4-flash tuning.
