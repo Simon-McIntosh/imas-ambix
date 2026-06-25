@@ -323,18 +323,32 @@ def serve(
     )
 
 
+def _job_node(job: dict[str, str], site: SiteConfig) -> str:
+    """Resolve a serve job's compute-node host (``%R`` is the node when RUNNING)."""
+    node = job.get("node", "")
+    return node if node and "(" not in node else site.gpu_host
+
+
 @agent.command()
 @click.option("--reveal", is_flag=True, help="Show the full API key in plaintext.")
 def status(reveal: bool) -> None:
     """Show active Ambix agent jobs and how to connect to running models.
 
-    Lists this user's SLURM jobs, then for each RUNNING serve job prints
-    a connection block: served model name, URL, a live ``/v1/models``
-    readiness probe, and the API key (masked unless ``--reveal``).
+    Prints a compact job table, then a connection detail block for each
+    RUNNING serve job: served model name, the client URL, a live
+    ``/v1/models`` readiness probe, the API key, the engine/model facts,
+    and the tunnel state.
+
+    When a same-port SSH tunnel is up (``imas-ambix agent tunnel``), the
+    URL is ``http://localhost:<port>`` and the probe is reliable.  Without
+    it, the compute-node port is unreachable from a login node — the
+    probe says ``unreachable`` and a tunnel hint is shown.
 
     The key is read from the shared mode-600 ``agents/.env``; if you lack
     read permission it shows ``(no access)`` — the filesystem is the gate.
     """
+    from imas_ambix.agent import tunnel as tun
+
     site = SiteConfig.from_env()
     jobs = _running_jobs(site)
 
@@ -342,30 +356,40 @@ def status(reveal: bool) -> None:
         console.print("No imas-ambix agent jobs found.")
         return
 
-    table = Table(title="Ambix agent jobs")
-    table.add_column("Job ID", style="cyan")
-    table.add_column("Name", style="bold")
-    table.add_column("State")
-    table.add_column("Time")
-    table.add_column("Node / reason")
+    known = set(list_profiles())
+    serve_jobs = [
+        job for job in jobs if job["state"] == "RUNNING" and job["name"] in known
+    ]
+    serve_slugs = {job["name"] for job in serve_jobs}
+
+    # -- Compact job table -------------------------------------------------
+    table = Table(title="imas-ambix agents", title_justify="left", box=None,
+                  pad_edge=False)
+    table.add_column("JOB", style="cyan", no_wrap=True)
+    table.add_column("PROFILE", style="bold")
+    table.add_column("STATE")
+    table.add_column("UP", justify="right")
+    table.add_column("NODE")
+    table.add_column("GPUS")
     for job in jobs:
-        state_style = "green" if job["state"] == "RUNNING" else "yellow"
+        running = job["state"] == "RUNNING"
+        state_style = "green" if running else "yellow"
+        gpus = ""
+        if job["name"] in serve_slugs:
+            try:
+                gpus = _gpu_spec(load_profile(job["name"]))
+            except FileNotFoundError:
+                gpus = ""
         table.add_row(
             job["jobid"],
             job["name"],
             f"[{state_style}]{job['state']}[/]",
-            job["time"],
+            _fmt_uptime(job["time"]),
             job["node"],
+            gpus,
         )
     console.print(table)
 
-    # Connection blocks for RUNNING serve jobs (job name == profile slug).
-    known = set(list_profiles())
-    serve_jobs = [
-        job
-        for job in jobs
-        if job["state"] == "RUNNING" and job["name"] in known
-    ]
     if not serve_jobs:
         return
 
@@ -379,34 +403,123 @@ def status(reveal: bool) -> None:
     except PermissionError:
         key_display = "(no access — not key owner)"
 
+    port = site.default_port
     for job in serve_jobs:
         try:
             profile = load_profile(job["name"])
             served = profile.model.served_name
+            facts = _engine_facts(profile)
         except FileNotFoundError:
             served = job["name"]
-        # Prefer the actual allocated node from squeue; fall back to the
-        # configured gpu_host. The node field is a hostname when RUNNING.
-        host = job["node"] if job["node"] and "(" not in job["node"] else site.gpu_host
-        url = f"http://{host}:{site.default_port}"
-        readiness = _probe_endpoint(url, key)
-        ready_style = "green" if readiness == "ready" else "yellow"
+            facts = ""
+        node = _job_node(job, site)
+
+        # A same-port tunnel makes localhost the reliable client URL.
+        tunnel_up = tun.tunnel_status(port) == "up"
+        if tunnel_up:
+            url = f"http://localhost:{port}"
+            readiness = _probe_endpoint(url, key)
+            tunnel_cell = f"[green]✔ up[/]  localhost:{port} → {node}:{port}"
+        else:
+            url = f"http://{node}:{port}"
+            readiness = _probe_endpoint(url, key)
+            tunnel_cell = (
+                f"[yellow]✘ down[/]  run: imas-ambix agent tunnel {job['name']}"
+            )
+
+        ready_icons = {
+            "ready": "[green]✔ ready[/]",
+            "auth-fail": "[red]⚠ auth-fail[/]",
+        }
+        ready_icon = ready_icons.get(readiness, f"[yellow]↔ {readiness}[/]")
+        url_suffix = "  (tunnel ✔ up)" if tunnel_up else ""
 
         console.print()
-        block = Table(title=f"▶ {job['name']} (job {job['jobid']})", show_header=False)
+        block = Table(show_header=False, box=None, pad_edge=False,
+                      title=f"▶ {job['name']} → {served}        {ready_icon}",
+                      title_justify="left")
         block.add_column("Field", style="cyan", no_wrap=True)
         block.add_column("Value")
-        block.add_row("Served model", served)
-        block.add_row("URL", url)
-        block.add_row("Endpoint", f"[{ready_style}]{readiness}[/]")
-        block.add_row("API key", key_display)
+        block.add_row("URL", f"{url}{url_suffix}")
+        block.add_row("Key", key_display)
+        if facts:
+            block.add_row("Engine", facts)
+        block.add_row("Tunnel", tunnel_cell)
         console.print(block)
-        if readiness != "ready":
-            port = site.default_port
+
+
+@agent.command()
+@click.argument("slug", required=False, default=None)
+@click.option("--down", "tear_down", is_flag=True, help="Stop the tunnel instead.")
+@click.option(
+    "--status",
+    "show_status",
+    is_flag=True,
+    help="Report tunnel state without changing it.",
+)
+def tunnel(slug: str | None, tear_down: bool, show_status: bool) -> None:
+    """Forward the served model's port from its GPU node to ``localhost``.
+
+    A model served on a SLURM compute node binds its port there; a login
+    node can't reach it directly.  This sets up a same-port SSH forward
+    ``localhost:<port> → <compute-node>:<port>`` so clients (and
+    ``status``) can use ``http://localhost:<port>``.
+
+    The compute node is discovered from the RUNNING serve job (named after
+    the profile slug).  With no SLUG, the default profile is used.
+    """
+    from imas_ambix.agent import tunnel as tun
+
+    site = SiteConfig.from_env()
+    port = site.default_port
+    resolved = _resolve_slug(slug)
+
+    if show_status:
+        state = tun.tunnel_status(port)
+        node = tun.discover_serving_node(resolved)
+        if state == "up":
             console.print(
-                "  [dim]Tunnel from a login node: "
-                f"ssh -N -L {port}:{host}:{port} <login-node>[/]"
+                f"[green]✔ tunnel up[/]  localhost:{port}"
+                + (f" → {node}:{port}" if node else "")
             )
+        elif state == "foreign":
+            console.print(f"[yellow]port {port} bound by a non-ssh process[/]")
+        else:
+            console.print(f"[yellow]✘ tunnel down[/]  (port {port} free)")
+        return
+
+    if tear_down:
+        node = tun.discover_serving_node(resolved) or site.gpu_host
+        stopped = tun.stop_tunnel(node, port)
+        if stopped:
+            console.print(f"[green]Tunnel to {node}:{port} stopped.[/]")
+        else:
+            console.print("No tunnel found to stop.")
+        return
+
+    node = tun.discover_serving_node(resolved)
+    if node is None:
+        raise click.ClickException(
+            f"No RUNNING serve job named '{resolved}'. "
+            "Start one with: imas-ambix agent serve "
+            f"{resolved}"
+        )
+    if tun.tunnel_status(port) == "up":
+        console.print(
+            f"[green]✔ tunnel already up[/]  localhost:{port} → {node}:{port}"
+        )
+        return
+    console.print(f"Starting tunnel localhost:{port} → {node}:{port} ...")
+    if tun.start_tunnel(node, port):
+        console.print(
+            f"[green]✔ tunnel up[/]  use http://localhost:{port}\n"
+            "  Stop with: imas-ambix agent tunnel --down"
+        )
+    else:
+        raise click.ClickException(
+            f"Failed to establish tunnel to {node}:{port}. "
+            "Check SSH access to the compute node."
+        )
 
 
 @agent.command()
@@ -548,9 +661,10 @@ def _serving_slugs(site: SiteConfig) -> set[str]:
 def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> str:
     """Probe ``{url}/v1/models`` and return a short readiness verdict.
 
-    Returns ``"ready"`` on HTTP 200, ``"loading/unreachable"`` on a
-    connection error (server process up but not yet accepting, or no
-    tunnel from this host), or ``"auth-fail"`` on HTTP 401/403.
+    Returns ``"ready"`` on HTTP 200, ``"auth-fail"`` on HTTP 401/403,
+    ``"http <code>"`` on any other status, or ``"unreachable"`` on a
+    connection error (no route from here — e.g. probing a compute-node
+    port directly from a login node without a tunnel).
     """
     import urllib.error
     import urllib.request
@@ -566,7 +680,73 @@ def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> str:
             return "auth-fail"
         return f"http {exc.code}"
     except (urllib.error.URLError, TimeoutError, OSError):
-        return "loading/unreachable"
+        return "unreachable"
+
+
+def _gpu_spec(profile) -> str:
+    """Compact GPU descriptor, e.g. ``8×H200`` (H200 is the only card here)."""
+    n = profile.slurm.gpus
+    return f"{n}×H200" if n else "—"
+
+
+# Display names for engine types (TOML stores the lowercase launcher key).
+_ENGINE_LABELS = {"vllm": "vLLM", "sglang": "SGLang", "ktransformers": "KTransformers"}
+
+
+def _fmt_uptime(slurm_time: str) -> str:
+    """Render squeue ``%M`` (``[DD-]HH:MM:SS`` or ``MM:SS``) compactly.
+
+    ``33:10`` → ``33m``, ``1:02:03`` → ``1h02m``, ``2-03:04:05`` → ``2d03h``.
+    Falls back to the raw value on any unexpected shape.
+    """
+    raw = slurm_time.strip()
+    days, _, hms = raw.partition("-")
+    if not hms:
+        hms, days = days, ""
+    parts = hms.split(":")
+    try:
+        nums = [int(p) for p in parts]
+    except ValueError:
+        return raw
+    if days:
+        return f"{int(days)}d{nums[0]:02d}h"
+    if len(nums) == 3:
+        return f"{nums[0]}h{nums[1]:02d}m"
+    if len(nums) == 2:
+        return f"{nums[0]}m"
+    return raw
+
+
+def _fmt_context(n: int) -> str:
+    """Human-readable context length, e.g. 1048576 → ``1.0M``."""
+    if n >= 1_000_000:
+        return f"{n / 1_048_576:.1f}M"
+    if n >= 1_000:
+        return f"{n // 1024}K"
+    return str(n)
+
+
+def _engine_facts(profile) -> str:
+    """One-line engine/model summary for the status detail block.
+
+    Example: ``vLLM · TP=8 · ctx 1.0M · fp8 KV · MTP×5 · 640G``.
+    """
+    e = profile.engine
+    engine_label = _ENGINE_LABELS.get(e.type, e.type)
+    parts = [
+        engine_label,
+        f"TP={e.tensor_parallel}",
+        f"ctx {_fmt_context(profile.model.max_context)}",
+    ]
+    if e.kv_cache_dtype:
+        parts.append(f"{e.kv_cache_dtype} KV")
+    if e.speculative_method:
+        spec = e.speculative_method.upper()
+        if e.speculative_num_tokens:
+            spec += f"×{e.speculative_num_tokens}"
+        parts.append(spec)
+    parts.append(profile.slurm.memory)
+    return " · ".join(parts)
 
 
 def _update_dotenv_key(
