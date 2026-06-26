@@ -1270,7 +1270,7 @@ def test_orclive_script_carries_no_secret():
 
 
 def test_litellm_config_is_secret_free_and_routes_two_models():
-    """The generated routing YAML references env keys only and maps dsv4 + opus."""
+    """The generated routing YAML references env keys only and maps local + opus."""
     import yaml
 
     from imas_ambix.agent.litellm_config import generate_litellm_config
@@ -1280,12 +1280,15 @@ def test_litellm_config_is_secret_free_and_routes_two_models():
     assert "os.environ/OPENROUTER_API_KEY" in cfg  # OR key via env
     data = yaml.safe_load(cfg)
     names = {m["model_name"] for m in data["model_list"]}
-    assert names == {"dsv4", "opus"}
-    # dsv4 → local endpoint; opus → OpenRouter.
+    assert names == {"local", "opus"}
+    # local → local endpoint; opus → OpenRouter.
     by = {m["model_name"]: m["litellm_params"]["api_base"] for m in data["model_list"]}
-    assert by["dsv4"] == SiteConfig().default_url
+    assert by["local"] == SiteConfig().default_url
     assert "openrouter" in by["opus"]
-    # No tier env vars in the generated script either
+    # model_info carries the served model name for proxy metadata queries.
+    info = {m["model_name"]: m.get("model_info", {}) for m in data["model_list"]}
+    assert "deepseek-v4-flash" in info["local"].get("description", "")
+    # No tier env vars in the generated config.
     assert "ANTHROPIC_DEFAULT" not in cfg
 
 

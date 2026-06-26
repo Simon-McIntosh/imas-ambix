@@ -28,17 +28,19 @@ if TYPE_CHECKING:
 def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
     """Render the orclive LiteLLM routing YAML for *site*.
 
-    Two-entry router: ``dsv4`` → local H200 model, ``opus`` → OpenRouter.
-    Set your session model with ``/model dsv4`` (default) or ``/model opus``
-    to switch. No env var clutter — Claude Code's own ``/model`` command
-    selects the route.
+    Two-entry router: ``local`` → the H200 model named by *local_model*,
+    ``opus`` → OpenRouter.  ``model_info.description`` carries the actual
+    served model name so proxy metadata queries see it.
+
+    Set your session model with ``/model local`` (default) or ``/model opus``
+    to switch — no env var clutter needed.
 
     Parameters
     ----------
     site:
         Cluster config — supplies the local endpoint URL.
     local_model:
-        ``served_name`` of the local model (the ``dsv4`` backend).
+        ``served_name`` of the local model (e.g. ``deepseek-v4-flash``).
     """
     local_url = site.default_url
     return f"""# imas-ambix — orclive LiteLLM routing config.
@@ -50,15 +52,17 @@ def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
 # SECRET-FREE: OpenRouter key via os.environ/OPENROUTER_API_KEY, injected by
 # orclive at launch from the per-user ~/.config/openrouter/key.
 #
-# Routing: /model dsv4 → local, /model opus → OpenRouter.
+# Routing: /model local -> H200 ({local_model}), /model opus -> OpenRouter.
 
 model_list:
   # ── Local H200 model ────────────────────────────────────────────────────────
-  - model_name: dsv4
+  - model_name: local
     litellm_params:
       model: anthropic/{local_model}
       api_base: {local_url}
       api_key: os.environ/AMBIX_LOCAL_KEY
+    model_info:
+      description: "{local_model} on 8×H200 (vLLM)"
 
   # ── OpenRouter (paid; per-user key) ─────────────────────────────────────────
   - model_name: opus
@@ -66,6 +70,8 @@ model_list:
       model: anthropic/claude-opus-4.8
       api_base: https://openrouter.ai/api
       api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      description: "claude-opus-4.8 via OpenRouter"
 
 litellm_settings:
   drop_params: true
