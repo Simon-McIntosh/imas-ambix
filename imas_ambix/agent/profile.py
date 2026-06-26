@@ -258,17 +258,8 @@ class SiteConfig(BaseModel):
         return Path(self.base_dir) / "agents" / "clive"
 
     @property
-    def orclive_path(self) -> Path:
-        """Deployed location of the ``orclive`` hybrid launcher (key-holders).
-
-        Like :attr:`clive_path` but for the local+OpenRouter router. Carries no
-        secret — reads each user's own ``~/.config/openrouter/key`` at runtime.
-        """
-        return Path(self.base_dir) / "agents" / "orclive"
-
-    @property
     def litellm_config_path(self) -> Path:
-        """Deployed orclive LiteLLM routing config (secret-free; keys via env)."""
+        """Deployed clive LiteLLM routing config (secret-free; keys via env)."""
         return Path(self.base_dir) / "agents" / "litellm_config.yaml"
 
 

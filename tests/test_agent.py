@@ -1250,31 +1250,8 @@ def test_engine_pyproject_bundled():
         assert f"ambix-agent-{engine}" in content
 
 
-def test_orclive_script_carries_no_secret():
-    """orclive (shared on GPFS) must contain NO hardcoded OpenRouter key."""
-    from imas_ambix.agent.orclive import generate_orclive_script
-
-    script = generate_orclive_script(SiteConfig(), "deepseek-v4-flash")
-    # Reads the per-user key file at runtime — never embeds a key.
-    assert ".config/openrouter/key" in script
-    assert "sk-or-" not in script  # no literal OpenRouter key
-    # No mode flags — orclive does one thing (advisor routing). clive = local,
-    # orclaude = all-OpenRouter.
-    assert "--advisor" not in script and "--local-only" not in script
-    assert "--or-only" not in script
-    # Points Claude Code at the proxy with just ANTHROPIC_MODEL + ANTHROPIC_DEFAULT_OPUS_MODEL.
-    assert "ANTHROPIC_BASE_URL" in script
-    assert 'ANTHROPIC_MODEL="local"' in script
-    assert 'ANTHROPIC_DEFAULT_OPUS_MODEL="opus"' in script
-    # No tier env vars for sonnet/haiku (those are always local).
-    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" not in script
-    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" not in script
-    # Local endpoint baked from SiteConfig (no drift).
-    assert SiteConfig().default_url in script
-
-
-def test_litellm_config_is_secret_free_and_routes_two_models():
-    """The generated routing YAML references env keys only and maps local + opus."""
+def test_litellm_config_is_secret_free_and_routes_six_models():
+    """The generated routing YAML maps local + haiku (local) and sonnet/opus/gpt-5.5/glm-5.2 (OR)."""
     import yaml
 
     from imas_ambix.agent.litellm_config import generate_litellm_config
@@ -1284,21 +1261,19 @@ def test_litellm_config_is_secret_free_and_routes_two_models():
     assert "os.environ/OPENROUTER_API_KEY" in cfg  # OR key via env
     data = yaml.safe_load(cfg)
     names = {m["model_name"] for m in data["model_list"]}
-    assert names == {"local", "opus"}
-    # local → local endpoint; opus → OpenRouter.
+    assert names == {"local", "haiku", "sonnet", "opus", "gpt-5.5", "glm-5.2"}
+    # local + haiku → local endpoint; everything else → OpenRouter.
     by = {m["model_name"]: m["litellm_params"]["api_base"] for m in data["model_list"]}
     assert by["local"] == SiteConfig().default_url
-    assert "openrouter" in by["opus"]
+    assert by["haiku"] == SiteConfig().default_url
+    assert all("openrouter" in by[n] for n in ["sonnet", "opus", "gpt-5.5", "glm-5.2"])
     # model_info carries the served model name for proxy metadata queries.
     info = {m["model_name"]: m.get("model_info", {}) for m in data["model_list"]}
     assert "deepseek-v4-flash" in info["local"].get("description", "")
-    # No tier env vars in the generated config.
-    assert "ANTHROPIC_DEFAULT" not in cfg
 
 
 def test_siteconfig_launcher_paths():
-    """clive, orclive, and the routing config deploy under agents/."""
+    """clive and the routing config deploy under agents/."""
     site = SiteConfig()
     assert str(site.clive_path).endswith("agents/clive")
-    assert str(site.orclive_path).endswith("agents/orclive")
     assert str(site.litellm_config_path).endswith("agents/litellm_config.yaml")

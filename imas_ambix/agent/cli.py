@@ -901,26 +901,23 @@ def clive_command(
     show_path: bool,
     model_override: str | None,
 ) -> None:
-    """Generate and deploy the ``clive`` + ``orclive`` launchers.
+    """Generate and deploy the ``clive`` launcher + LiteLLM routing config.
 
-    ``clive`` (shared, secret-free) points Claude Code / Codex at the local
-    served model. ``orclive`` (also shared, also secret-free) adds hybrid
-    routing — local tiers + an OpenRouter burst — reading each user's *own*
-    ``~/.config/openrouter/key`` at runtime, never a shared key.
+    ``clive`` connects to the local served model.  When an OpenRouter key is
+    present at ``~/.config/openrouter/key``, it starts a persistent LiteLLM
+    proxy for tiered routing — see the script header for details.
 
-    Both are **generated from the site config** so the endpoint/key-file never
-    drift, and both are the canonical repo source synced to shared GPFS. With
-    no flags, deploys both to ``{base_dir}/agents/``.
+    Generated from the site config so endpoint/key-file never drift.  With
+    no flags, deploys both the launcher and the routing config to
+    ``{base_dir}/agents/``.
     """
     from imas_ambix.agent.clive import generate_clive_script
     from imas_ambix.agent.litellm_config import generate_litellm_config
-    from imas_ambix.agent.orclive import generate_orclive_script
 
     site = SiteConfig.from_env()
     profile = _load_profile(slug)
     default_model = model_override or profile.model.served_name
     clive_script = generate_clive_script(site, default_model)
-    orclive_script = generate_orclive_script(site, default_model)
     litellm_yaml = generate_litellm_config(site, default_model)
 
     if print_only:
@@ -930,21 +927,19 @@ def clive_command(
 
     if show_path:
         console.print(f"clive:   {site.clive_path}")
-        console.print(f"orclive: {site.orclive_path}")
         console.print(f"routing: {site.litellm_config_path}")
         console.print(f"Default model: {default_model}")
-        console.print("Add to your ~/.bashrc to run them as bare commands:")
+        console.print("Add to your ~/.bashrc to run as a bare command:")
         console.print(
             f'  [dim][[ -d {site.clive_path.parent} ]] && '
             f'export PATH="{site.clive_path.parent}:$PATH"[/]'
         )
         return
 
-    # Default action: deploy both launchers + the routing config (repo → /work).
+    # Default action: deploy the launcher + routing config (repo → /work).
     _ = deploy  # deploy is the default; the flag is for explicitness only
     for name, path, content, mode in (
         ("clive", site.clive_path, clive_script, 0o755),
-        ("orclive", site.orclive_path, orclive_script, 0o755),
         ("litellm_config.yaml", site.litellm_config_path, litellm_yaml, 0o644),
     ):
         _deploy_launcher(name, path, content, mode)

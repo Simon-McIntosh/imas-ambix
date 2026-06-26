@@ -219,41 +219,39 @@ Code's per-request hash, so caching is not defeated). No gateway/LiteLLM/router
 is needed — the Anthropic endpoint is native to vLLM.
 
 ```bash
-clive "explain this repo"          # local H200 model; Claude Code, direct route
+clive "explain this repo"          # local H200 model; no OR key = direct
+clive "refactor this"              # with OR key = tiered routing (local+OR)
 clive --codex "write a test"       # local model via Codex CLI, same server
-orclive "refactor this"            # advisor: sonnet/haiku→local, opus→OpenRouter (key-holders)
-orclaude "..."                     # all tiers → OpenRouter (bashrc fn; key-holders)
-imas-ambix agent clive --deploy    # (re)generate + sync all launchers + routing config
+orclaude "..."                     # all tiers -> OpenRouter (bashrc fn; key-holders)
+imas-ambix agent clive --deploy    # (re)generate + sync launcher + routing config
 imas-ambix agent clive --path      # print the ~/.bashrc PATH line
 ```
 
-**Three launchers, one job each** — no overlapping flags:
+**One launcher (`clive`), adaptive routing:**
 
-- **`clive` — local only, for everyone.** Talks only to the H200 keyless
-  endpoint, **auto-detects the running model** from `/v1/models` (swap the
-  served model, no redeploy), and **errors out if the server is unreachable**
-  (no fallback — no endpoint means no model). Carries no key. What every SDCC
-  cluster user runs. (`--codex` for the Codex CLI; `--model` to override.)
-- **`orclive` — advisor routing, for key-holders.** sonnet/haiku → local DSv4,
-  opus → OpenRouter. No flags — it does exactly this one thing. It starts a tiny
-  **per-user** LiteLLM proxy from the deployed routing YAML, points Claude Code's
-  tiers at the `ambix-{sonnet,haiku,opus}` model names, and tears the proxy down
-  on exit. **The OpenRouter key is read at runtime from the per-user
-  `~/.config/openrouter/key`** and exported only into the proxy — NEVER in any
-  shared file.
+- **Without an OpenRouter key** (`~/.config/openrouter/key`): clive connects
+  directly to the local H200 model (all tiers → one model). Auto-detects the
+  running model from `/v1/models`. What every SDCC cluster user runs.
+- **With an OpenRouter key**: clive starts a persistent **LiteLLM daemon**
+  (`~/.cache/clive-litellm.*`) that routes tiers:
+  - Default / haiku → local H200 model
+  - Sonnet / opus → OpenRouter (claude-sonnet-4.6 / claude-opus-4.8)
+  - Extra OR models: `--model gpt-5.5`, `--model glm-5.2`
+  The daemon stays alive across invocations (reused on next `clive`); kill
+  with `pkill -f litellm` or on logout.
 - **`orclaude` — all tiers → OpenRouter** (the `~/.bashrc` function). Use when
   you want everything on OpenRouter.
 
-**Routing config = LiteLLM YAML, generated like the launchers.** orclive's
-routing lives in `litellm_config.yaml` (deployed to `/work`), generated from
+**Routing config = LiteLLM YAML, generated like the launcher.** Routing lives
+in `litellm_config.yaml` (deployed to `/work`), generated from
 `imas_ambix/agent/litellm_config.py` with the local URL/model auto-filled from
 SiteConfig. It is **secret-free** — the OpenRouter key is `os.environ/OPENROUTER_API_KEY`,
-injected by orclive at launch. To change which tier goes where, edit the
-generator's YAML and re-deploy. No bespoke env vars — routing is all in the YAML.
+injected by clive at launch. To change routing, edit the generator's YAML and
+re-deploy.
 
-**Sync discipline — repo is the source of truth (binding):** `clive`, `orclive`,
-and `litellm_config.yaml` are all **generated** by `imas-ambix agent clive --deploy`
-from their generators (`imas_ambix/agent/{clive,orclive,litellm_config}.py`) and
+**Sync discipline — repo is the source of truth (binding):** `clive` and
+`litellm_config.yaml` are both **generated** by `imas-ambix agent clive --deploy`
+from their generators (`imas_ambix/agent/{clive,litellm_config}.py`) and
 written to `/work/projects/imas_gpu/agents/` (group `sdcc-imas_gpu`). **NEVER
 hand-edit the deployed `/work` copies** — they are disposable artifacts. To
 change any of them: edit the generator in the repo, commit, then re-run
@@ -266,8 +264,8 @@ the shared copies from drifting from the repo.
   prohibited** (`channel … open failed: administratively prohibited`), so the
   launchers use the direct URL and do not tunnel.
 - **Operator vs consumer.** `imas-ambix` is the *operator* CLI (serve/manage,
-  per-user repo venv); `clive`/`orclive` are the *consumer* launchers (shared
-  on GPFS, secret-free).
+  per-user repo venv); `clive` is the *consumer* launcher (shared on GPFS,
+  secret-free).
 
 ## 5. Available Model Profiles
 
