@@ -1,3 +1,5 @@
+# ruff: noqa: E501 — embeds shell/systemd templates; line length is governed by
+# the generated artifacts, not Python style.
 """Generator for the per-user ``imas-ambix-llm`` systemd unit + env helper.
 
 clive's OpenRouter routing needs a LiteLLM proxy, and starting it per-invocation
