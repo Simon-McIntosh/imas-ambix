@@ -242,7 +242,7 @@ same source of truth:
   `~/.config/openrouter/key`** (same file `orclaude` uses) — NEVER from any
   shared `/work` file. The script holds no secret, so it is safe on group GPFS;
   a user without an OR key gets a setup message (or uses `--local-only`).
-  Per-run modes: `--hybrid` (default) / `--local-only` / `--or-only`.
+  Per-run modes: `--advisor` (default) / `--local-only`.
 
 **Sync discipline — repo is the source of truth (binding):** both launchers are
 **generated** by `imas-ambix agent clive --deploy` from their generators

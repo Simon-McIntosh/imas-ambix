@@ -65,10 +65,9 @@ set -euo pipefail
 AMBIX_URL="${{AMBIX_AGENT_URL:-{url}}}"
 # Model: empty → auto-detect from the live server's /v1/models at runtime, so
 # clive tracks whatever is actually serving (swap the served model, no redeploy).
-# Falls back to this profile's served_name if the query fails. Override via
-# AMBIX_AGENT_MODEL or --model.
+# No fallback: if the endpoint is unreachable there is no model to report, and
+# clive errors out. Override the auto-detect via AMBIX_AGENT_MODEL or --model.
 AMBIX_MODEL="${{AMBIX_AGENT_MODEL:-}}"
-AMBIX_MODEL_FALLBACK="{default_model}"
 AMBIX_KEY_FILE="${{AMBIX_AGENT_KEY_FILE:-{key_file}}}"
 HARNESS="claude"
 
@@ -127,33 +126,11 @@ KEY="$(read_key)"
 # ignores it. Use a placeholder so the harness launches.
 [[ -n "$KEY" ]] || KEY="no-auth"
 
-# ── Check the endpoint is reachable (direct route; no SSH tunnel) ────────────
-# The login and standard compute nodes route DIRECTLY to the GPU node's serve
-# port (verified 2026-06-25: login -> 98dci4-gpu-0003:18800/health = 200). SSH
-# -L port-forwarding to the compute node is administratively prohibited, so we
-# do NOT tunnel — we use the direct URL and just warn if it isn't reachable.
-check_reachable() {{
-    local rest host port
-    rest="${{AMBIX_URL#*://}}"
-    host="${{rest%%[:/]*}}"
-    port="${{rest##*:}}"; port="${{port%%/*}}"
-    [[ "$port" == "$host" || -z "$port" ]] && port=80
-    if (exec 3<>"/dev/tcp/$host/$port") 2>/dev/null; then
-        exec 3>&- 3<&-
-        return 0
-    fi
-    echo "clive: warning: $host:$port not reachable from here." >&2
-    echo "       The serve job may be down (check: imas-ambix agent status)," >&2
-    echo "       or this host has no route to the GPU node. Proceeding anyway." >&2
-    return 0
-}}
-
-check_reachable
-
 # ── Resolve the served model from /v1/models (unless overridden) ─────────────
-# Query the live endpoint so clive uses whatever is actually serving. No jq
-# dependency — extract the first "id" with grep/sed. Fall back to the baked-in
-# served_name if the query fails (server down, no curl, etc.).
+# Query the live endpoint for whatever is actually serving. No fallback: if the
+# endpoint is unreachable or serves nothing, there is no model — error out.
+# (Login and standard compute nodes route DIRECTLY to <gpu-node>:PORT; SSH -L
+# forwarding to the compute node is administratively prohibited, so no tunnel.)
 if [[ -z "$AMBIX_MODEL" ]]; then
     _models_json="$(curl -s --max-time 5 -H "Authorization: Bearer $KEY" \\
         "$AMBIX_URL/v1/models" 2>/dev/null || true)"
@@ -161,11 +138,12 @@ if [[ -z "$AMBIX_MODEL" ]]; then
         | grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 \\
         | sed -E 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\\1/')"
     if [[ -z "$AMBIX_MODEL" ]]; then
-        AMBIX_MODEL="$AMBIX_MODEL_FALLBACK"
-        echo "clive: could not query /v1/models; using fallback model '$AMBIX_MODEL'." >&2
-    else
-        printf "\nClive Code — Claude Unplugged\n\n" >&2
+        echo "clive: no model reachable at $AMBIX_URL/v1/models." >&2
+        echo "       The serve job is likely down — check: imas-ambix agent status" >&2
+        echo "       (or set --model / AMBIX_AGENT_MODEL to bypass the query)." >&2
+        exit 1
     fi
+    echo "clive: serving '$AMBIX_MODEL'." >&2
 fi
 
 # ── Launch the chosen harness ────────────────────────────────────────────────

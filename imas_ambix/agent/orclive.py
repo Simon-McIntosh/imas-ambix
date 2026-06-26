@@ -56,10 +56,10 @@ def generate_orclive_script(site: SiteConfig, default_model: str) -> str:
 # at it, and tears it down on exit.
 #
 # Usage:
-#   orclive [--hybrid|--local-only|--or-only] [agent-args...]
-#   orclive "refactor this"                 # hybrid (default): sonnet/haiku→local, opus→OR
+#   orclive [--advisor|--local-only] [agent-args...]
+#   orclive "refactor this"                 # advisor (DEFAULT): sonnet/haiku→local, opus→OR
 #   orclive --local-only "quick edit"       # all tiers → local H200 (no OR; same as clive)
-#   orclive --or-only "hard problem"        # all tiers → OpenRouter
+# (For all-tiers-to-OpenRouter, use `orclaude`.)
 #
 # Per-user config (optional) at $ORCLIVE_CONFIG (default ~/.config/orclive/config):
 #   a dotenv-style file overriding any of:
@@ -82,7 +82,7 @@ ORCLIVE_OR_MODEL="${{ORCLIVE_OR_MODEL:-anthropic/claude-opus-4.8}}"
 ORCLIVE_LOCAL_TIERS="${{ORCLIVE_LOCAL_TIERS:-sonnet haiku}}"
 ORCLIVE_OR_TIERS="${{ORCLIVE_OR_TIERS:-opus}}"
 ORCLIVE_PORT="${{ORCLIVE_PORT:-0}}"   # 0 → pick a free per-user port
-MODE="hybrid"
+MODE="advisor"
 
 # Load optional per-user config (dotenv-style; never group-shared).
 _cfg="${{ORCLIVE_CONFIG:-$HOME/.config/orclive/config}}"
@@ -93,14 +93,15 @@ fi
 
 usage() {{
     cat >&2 <<'USAGE'
-orclive — hybrid local + OpenRouter launcher for Claude Code (key-holders).
+orclive — advisor launcher for Claude Code (key-holders): local model for the
+bulk of the work, an OpenRouter burst for the heavy (opus) tier.
 
-  orclive [--hybrid|--local-only|--or-only] [-h|--help] [agent-args...]
+  orclive [--advisor|--local-only] [-h|--help] [agent-args...]
 
-  --hybrid       (default) sonnet/haiku → local H200, opus → OpenRouter.
+  --advisor      (DEFAULT) sonnet/haiku → local H200, opus → OpenRouter.
   --local-only   all tiers → local H200 (identical to `clive`; no OR key needed).
-  --or-only      all tiers → OpenRouter.
 
+For all-tiers-to-OpenRouter, use `orclaude` instead.
 Config (per-user, optional): ~/.config/orclive/config — see header for keys.
 OpenRouter key (per-user): ~/.config/openrouter/key (mode 600).
 USAGE
@@ -109,9 +110,8 @@ USAGE
 ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --hybrid)     MODE="hybrid"; shift ;;
-        --local-only) MODE="local";  shift ;;
-        --or-only)    MODE="or";     shift ;;
+        --advisor)    MODE="advisor"; shift ;;
+        --local-only) MODE="local";   shift ;;
         -h|--help)    usage; exit 0 ;;
         --) shift; ARGS+=("$@"); break ;;
         *)  ARGS+=("$1"); shift ;;
@@ -149,7 +149,7 @@ if [[ -z "$LOCAL_MODEL" ]]; then
     echo "orclive: local server not reachable / no model; using fallback '$LOCAL_MODEL'." >&2
 fi
 
-# ── --or-only and --local-only need no router: point Claude Code straight there
+# ── --local-only needs no router: point Claude Code straight at the local model
 launch_claude() {{ # $1 base_url  $2 auth_token  $3 model-for-all-tiers
     ANTHROPIC_BASE_URL="$1" \\
     ANTHROPIC_AUTH_TOKEN="$2" \\
@@ -167,12 +167,9 @@ command -v claude >/dev/null 2>&1 || {{ echo "orclive: 'claude' not on PATH — 
 if [[ "$MODE" == "local" ]]; then
     launch_claude "$ORCLIVE_LOCAL_URL" "$LOCAL_KEY" "$LOCAL_MODEL"
 fi
-if [[ "$MODE" == "or" ]]; then
-    launch_claude "$ORCLIVE_OR_BASE" "$OR_KEY" "$ORCLIVE_OR_MODEL"
-fi
 
-# ── --hybrid: start a per-user LiteLLM router that splits tiers by model name ─
-command -v litellm >/dev/null 2>&1 || {{ echo "orclive: 'litellm' not on PATH — needed for --hybrid (pip/uv install litellm), or use --local-only / --or-only." >&2; exit 127; }}
+# ── --advisor: start a per-user LiteLLM router that splits tiers by model name ─
+command -v litellm >/dev/null 2>&1 || {{ echo "orclive: 'litellm' not on PATH — needed for --advisor (pip/uv install litellm), or use --local-only." >&2; exit 127; }}
 
 # Per-user scratch for the ephemeral config + key (mode 700).
 _run="${{XDG_RUNTIME_DIR:-/tmp}}/orclive.$$"
@@ -217,7 +214,7 @@ for _i in $(seq 1 30); do
     sleep 0.5
 done
 
-echo "orclive: hybrid router up on 127.0.0.1:$ORCLIVE_PORT — local[$ORCLIVE_LOCAL_TIERS]=$LOCAL_MODEL  OR[$ORCLIVE_OR_TIERS]=$ORCLIVE_OR_MODEL" >&2
+echo "orclive: advisor router up on 127.0.0.1:$ORCLIVE_PORT — local[$ORCLIVE_LOCAL_TIERS]=$LOCAL_MODEL  OR[$ORCLIVE_OR_TIERS]=$ORCLIVE_OR_MODEL" >&2
 
 # Point Claude Code at the router; each tier requests orclive-<tier>, which
 # LiteLLM maps to local or OpenRouter.

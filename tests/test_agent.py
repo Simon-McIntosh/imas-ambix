@@ -1259,7 +1259,8 @@ def test_orclive_script_carries_no_secret():
     assert ".config/openrouter/key" in script
     assert "sk-or-" not in script  # no literal OpenRouter key
     # Per-run routing modes exist.
-    assert "--hybrid" in script and "--local-only" in script and "--or-only" in script
+    assert "--advisor" in script and "--local-only" in script
+    assert "--or-only" not in script  # all-OR is orclaude, not orclive
     # Local endpoint baked from SiteConfig (no drift).
     assert SiteConfig().default_url in script
 
