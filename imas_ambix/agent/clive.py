@@ -4,13 +4,16 @@
 
 ``clive`` ("CLI + live") points an interactive agent harness at the model
 served on the GPU node.  When an `OpenRouter key <~/.config/openrouter/key>`_
-is present, it starts a persistent LiteLLM proxy that routes Claude Code tiers:
+is present, it starts a persistent LiteLLM proxy that routes:
 
-  - **Default / haiku** → local H200 model (``deepseek-v4-flash``)
-  - **Sonnet / opus** → OpenRouter (``claude-sonnet-4.6`` / ``claude-opus-4.8``)
-  - Extra OR models: ``gpt-5.5``, ``glm-5.2`` (use ``--model <name>``)
+  - **Standard Claude API IDs** (``claude-opus-4-8``, ``claude-sonnet-4-6``,
+    ``claude-haiku-4-5-20251001``) → **local H200** model
+  - ``or-opus``, ``or-sonnet``, ``or-gpt-5.5``, ``or-glm-5.2`` → **OpenRouter**
 
 Without an OR key, clive connects directly to the local model (no proxy).
+
+On startup, clive queries the local endpoint's ``/v1/models`` to display the
+actual serving model name in the splash.
 
 The LiteLLM proxy runs as a **daemon**: it stays alive across ``clive``
 invocations.  PID and port are stored in ``~/.cache/clive-litellm.*``.  Kill
@@ -75,9 +78,9 @@ clive — drive an agent CLI against the GPU-served local model.
   --model NAME    Served model name.
   -h, --help      Show this help.
 
-With an OpenRouter key (see ~/.config/openrouter/key), clive routes tiers:
-  Default / haiku → local H200  ·  Sonnet / opus → OpenRouter
-  Extra: --model gpt-5.5  ·  --model glm-5.2
+With an OpenRouter key (see ~/.config/openrouter/key), clive routes:
+  Standard Claude tiers (Opus/Sonnet/Haiku) → local H200
+  --model or-opus, --model or-sonnet, --model or-gpt-5.5, --model or-glm-5.2 → OpenRouter
 
 Env overrides: AMBIX_AGENT_URL, AMBIX_AGENT_MODEL, AMBIX_AGENT_KEY_FILE,
 AMBIX_AGENT_API_KEY, AMBIX_LITELLM_CONFIG.
@@ -185,8 +188,15 @@ if [[ -n "$_OR_KEY" ]]; then
     fi
 fi
 
+# ── Resolve the served model name from the local endpoint ───────────────────
+_local_model="$(curl -sf --max-time 5 -H "Authorization: Bearer $KEY" \
+    "$AMBIX_URL/v1/models" 2>/dev/null \
+    | grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 \
+    | sed -E 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+[[ -z "$_local_model" ]] && _local_model="${{AMBIX_AGENT_MODEL:-{default_model}}}"
+
 # ── Launch the chosen harness ────────────────────────────────────────────────
-printf "\nClive Code — Claude Unplugged\n\n" >&2
+printf "\\nClive Code — Claude Unplugged\\nServing: %s\\n\\n" "$_local_model" >&2
 case "$HARNESS" in
     claude)
         if ! command -v claude >/dev/null 2>&1; then
@@ -196,13 +206,11 @@ case "$HARNESS" in
         fi
 
         if $_USE_PROXY; then
-            # Via LiteLLM proxy — tiered routing
+            # Via LiteLLM proxy — Claude standard IDs route to local,
+            # or-* models route to OpenRouter. No env var overrides needed:
+            # Claude Code sends standard model IDs, proxy maps them.
             ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \\
             ANTHROPIC_AUTH_TOKEN="clive" \\
-            ANTHROPIC_MODEL="local" \\
-            ANTHROPIC_DEFAULT_OPUS_MODEL="opus" \\
-            ANTHROPIC_DEFAULT_SONNET_MODEL="sonnet" \\
-            ANTHROPIC_DEFAULT_HAIKU_MODEL="haiku" \\
             CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\
             exec claude "${{ARGS[@]}}"
         else

@@ -1,11 +1,8 @@
 """Generator for the ``clive`` LiteLLM routing config.
 
-``clive`` runs a per-user LiteLLM proxy when an OpenRouter key is present,
-routing different model names to different backends:
-
-  local / haiku  →  local H200 model
-  sonnet / opus  →  OpenRouter (claude-sonnet-4.6 / claude-opus-4.8)
-  gpt-5.5 / glm-5.2  →  OpenRouter
+``clive`` runs a per-user LiteLLM proxy when an OpenRouter key is present.
+Standard Claude model IDs route to the local H200 model; ``or-*`` models
+route to OpenRouter.
 
 The config is **secret-free**: the OpenRouter key is referenced as
 ``os.environ/OPENROUTER_API_KEY`` and supplied by ``clive`` at launch from the
@@ -24,8 +21,8 @@ if TYPE_CHECKING:
 def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
     """Render the clive LiteLLM routing YAML for *site*.
 
-    Six-entry router mapping Claude Code tier names plus extras to their
-    backends.  ``model_info.description`` carries the actual model info.
+    Standard Claude API IDs → local H200.  ``or-*`` names → OpenRouter.
+    ``model_info.description`` carries the actual model info.
 
     Parameters
     ----------
@@ -44,11 +41,37 @@ def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
 # SECRET-FREE: OpenRouter key via os.environ/OPENROUTER_API_KEY, injected by
 # clive at launch from the per-user ~/.config/openrouter/key.
 #
-# Model tiers: Default (local), Sonnet (OR), Opus (OR), Haiku (local).
-# Extra OR models: gpt-5.5, glm-5.2 (use --model <name>).
+# Claude standard IDs → local H200 ({local_model})
+# or-* names → OpenRouter
+# Also accepts the short alias ``local`` for the local model.
 
 model_list:
-  # ── Local H200 model (also serves the haiku tier) ─────────────────────────
+  # ── Standard Claude model IDs → local H200 ────────────────────────────────
+  - model_name: claude-opus-4-8
+    litellm_params:
+      model: anthropic/{local_model}
+      api_base: {local_url}
+      api_key: os.environ/AMBIX_LOCAL_KEY
+    model_info:
+      description: "{local_model} on 8×H200 (vLLM)"
+
+  - model_name: claude-sonnet-4-6
+    litellm_params:
+      model: anthropic/{local_model}
+      api_base: {local_url}
+      api_key: os.environ/AMBIX_LOCAL_KEY
+    model_info:
+      description: "{local_model} on 8×H200 (vLLM)"
+
+  - model_name: claude-haiku-4-5-20251001
+    litellm_params:
+      model: anthropic/{local_model}
+      api_base: {local_url}
+      api_key: os.environ/AMBIX_LOCAL_KEY
+    model_info:
+      description: "{local_model} on 8×H200 (vLLM)"
+
+  # ── Short alias (backwards compat) ────────────────────────────────────────
   - model_name: local
     litellm_params:
       model: anthropic/{local_model}
@@ -57,24 +80,8 @@ model_list:
     model_info:
       description: "{local_model} on 8×H200 (vLLM)"
 
-  - model_name: haiku
-    litellm_params:
-      model: anthropic/{local_model}
-      api_base: {local_url}
-      api_key: os.environ/AMBIX_LOCAL_KEY
-    model_info:
-      description: "{local_model} (haiku tier → local)"
-
-  # ── OpenRouter tiers (paid; per-user key) ─────────────────────────────────
-  - model_name: sonnet
-    litellm_params:
-      model: anthropic/claude-sonnet-4.6
-      api_base: https://openrouter.ai/api
-      api_key: os.environ/OPENROUTER_API_KEY
-    model_info:
-      description: "claude-sonnet-4.6 via OpenRouter"
-
-  - model_name: opus
+  # ── OpenRouter — Anthropic-format models ──────────────────────────────────
+  - model_name: or-opus
     litellm_params:
       model: anthropic/claude-opus-4.8
       api_base: https://openrouter.ai/api
@@ -82,8 +89,16 @@ model_list:
     model_info:
       description: "claude-opus-4.8 via OpenRouter"
 
-  # ── Extra OR models (use --model <name>) ──────────────────────────────────
-  - model_name: gpt-5.5
+  - model_name: or-sonnet
+    litellm_params:
+      model: anthropic/claude-sonnet-4.6
+      api_base: https://openrouter.ai/api
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      description: "claude-sonnet-4.6 via OpenRouter"
+
+  # ── OpenRouter — OpenAI-format models ─────────────────────────────────────
+  - model_name: or-gpt-5.5
     litellm_params:
       model: openai/gpt-5.5
       api_base: https://openrouter.ai/api
@@ -91,9 +106,9 @@ model_list:
     model_info:
       description: "GPT-5.5 via OpenRouter"
 
-  - model_name: glm-5.2
+  - model_name: or-glm-5.2
     litellm_params:
-      model: z-ai/glm-5.2
+      model: openai/z-ai/glm-5.2
       api_base: https://openrouter.ai/api
       api_key: os.environ/OPENROUTER_API_KEY
     model_info:
