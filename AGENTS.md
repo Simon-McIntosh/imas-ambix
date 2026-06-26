@@ -459,16 +459,26 @@ job 1222821 — verified with a real decode + a live `clive`/Claude Code request
   **`max_total_tokens=229376` (224K) needs ~13.3 GiB < 13.63**. **Startup +
   KV-init passing does NOT prove inference fits** — the kernel scratch is lazy,
   so always validate with a real generation. The native 1M needs 8×B200.
-- **Eager mode (`disable_cuda_graph=true`).** CUDA-graph capture stalled at ~88%
-  of the piecewise graph set on three consecutive launches (each ~60 min, never
-  reaching startup; the third left an unkillable step that auto-rebooted the
-  node). The TP=8 + MTP piecewise capture is the hang surface on this H200 NVL +
-  vLLM 0.23.0 build. Eager skips capture → ready right after weight-load + KV
-  init. Decode throughput is lower without graphs; re-enable + tune (disable MTP
-  capture, or cap `cuda_graph_max_bs`) once a stable capture config is found.
+- **CUDA graphs are ON** (graph-accelerated). The earlier "capture stalls" on
+  jobs 1222717/1222745/1222792 were **memory pressure** at `mem_fraction`
+  0.90/0.95, not an inherent TP=8+MTP bug — at 0.86 capture completes in ~70 s
+  ("Graph capturing finished in 70 secs, took 2.84 GiB", job 1222821) and the
+  server serves real traffic. (`disable_cuda_graph` in the profile is a no-op
+  here: vLLM ignores it — it is an SGLang-only flag.) One root cause —
+  mem_fraction too high — caused both the capture stalls and the decode OOM.
 - **MTP speculative decoding** (`--speculative-config.method mtp`,
   `num_speculative_tokens 5`) is GLM-5.2's headline throughput feature and is
   enabled in the profile.
+- **Throughput (measured 2026-06-26, job 1222821, 224K/0.86):** single request
+  **~33–37 tok/s** decode; **aggregate** throughput scales with concurrency —
+  ~210 tok/s @ 8 concurrent, ~457 @ 16, ~680 @ 32, **~974 tok/s @ 48**. Healthy
+  concurrency is **~16–32 simultaneous requests** (per-request rate holds ~25–35
+  tok/s through n=16, then trades latency for aggregate). The scheduler cap is
+  `max_num_seqs=1024` (not the bottleneck); the real ceiling is the ~13.6 GiB KV
+  pool — at 224K/request the KV-limited concurrency is ~1× (one full-context
+  request), but typical agent requests use far less context, so dozens run
+  concurrently. **Low concurrency (n=1–4) is MTP-overhead-dominated** and slower
+  per-aggregate than n=8+; the model shines under batch load.
 - **Reasoning effort wired** end-to-end (Claude Code `effort` → vLLM
   `reasoning_effort` → GLM template `enable_thinking`), but GLM-5.2's chat
   template effectively offers **two levels** — `high`, or `max` for everything
@@ -481,7 +491,7 @@ job 1222821 — verified with a real decode + a live `clive`/Claude Code request
 **Deploy:**
 ```bash
 imas-ambix agent download glm-5-2   # ~744 GB, run from sirius
-imas-ambix agent serve glm-5-2      # all 8 cards; ~30 min weight load in eager mode
+imas-ambix agent serve glm-5-2      # all 8 cards; ~30 min weight load (GPFS-cold)
 clive "..."                          # drive Claude Code against it (§4a)
 ```
 

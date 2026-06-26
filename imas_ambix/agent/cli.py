@@ -282,6 +282,12 @@ def download(slug: str | None, dry_run: bool) -> None:
     help="API key for authenticating client requests (also AMBIX_AGENT_API_KEY).",
 )
 @click.option(
+    "--no-auth",
+    is_flag=True,
+    help="Serve WITHOUT an API key (open endpoint — anyone who can route to the "
+    "port can use it). Overrides --api-key and the shared key file.",
+)
+@click.option(
     "--gpus",
     type=int,
     default=None,
@@ -293,6 +299,7 @@ def serve(
     dry_run: bool,
     port: int | None,
     api_key: str | None,
+    no_auth: bool,
     gpus: int | None,
 ) -> None:
     """Generate and submit a model serving job."""
@@ -303,7 +310,9 @@ def serve(
         profile = _scale_profile(profile, gpus)
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
-    resolved_key = _resolve_api_key(api_key)
+    # --no-auth serves an open endpoint (no key). Otherwise resolve the key
+    # from the flag/env/shared file as usual.
+    resolved_key = None if no_auth else _resolve_api_key(api_key)
     script = generate_serve_script(
         profile, site, port=resolved_port, api_key=resolved_key
     )
@@ -318,7 +327,7 @@ def serve(
         job_id = submit_script(script)
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
-    key_note = " (API key enabled)" if resolved_key else ""
+    key_note = " (API key enabled)" if resolved_key else " (NO AUTH — open endpoint)"
     gpu_note = f" ({profile.slurm.gpus}×GPU)" if gpus is not None else ""
     console.print(
         f"Submitted serve job {job_id} for {profile.slug}{gpu_note} on port {resolved_port}{key_note}."

@@ -205,6 +205,25 @@ def test_generate_glm_5_2_serve_script():
     assert "--tool-call-parser glm47" in script
     assert "--reasoning-parser glm45" in script
     assert "agents/glm-5-2/model" in script
+    # Working config: 224K context (CUDA graphs stay ON — vLLM ignores
+    # disable_cuda_graph; see profile comments).
+    assert "--max-model-len 229376" in script
+
+
+def test_serve_no_auth_flag(monkeypatch):
+    """`serve --no-auth` generates a keyless server even when a key file exists."""
+    from imas_ambix.agent import cli as cli_mod
+
+    # A key IS resolvable, but --no-auth must override it.
+    monkeypatch.setattr(cli_mod, "_resolve_api_key", lambda v: "should-not-be-used")
+    runner = CliRunner()
+    result = runner.invoke(
+        main, ["agent", "serve", "glm-5-2", "--no-auth", "--dry-run"]
+    )
+    assert result.exit_code == 0
+    # No VLLM_API_KEY export → open endpoint.
+    assert "VLLM_API_KEY" not in result.output
+    assert "should-not-be-used" not in result.output
 
 
 def test_generate_vllm_2x_serve_script():
@@ -534,8 +553,8 @@ def test_status_engine_facts_use_served_context(monkeypatch):
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status"])
     assert result.exit_code == 0
-    # glm-5-2 serves 262144 (256K), even though model.max_context is 1M.
-    assert "256K" in result.output
+    # glm-5-2 serves 229376 (224K), even though model.max_context is 1M.
+    assert "224K" in result.output
     assert "1.0M" not in result.output
 
 

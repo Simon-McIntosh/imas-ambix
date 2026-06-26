@@ -100,27 +100,27 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Resolve the API key (env > file) without echoing it ──────────────────────
+# Returns the key, or empty if none is configured. A keyless ("no-auth") server
+# ignores the token, but Claude Code still wants the var set to something — the
+# caller substitutes a dummy when this is empty.
 read_key() {{
     if [[ -n "${{AMBIX_AGENT_API_KEY:-}}" ]]; then
         printf '%s' "$AMBIX_AGENT_API_KEY"; return 0
     fi
-    if [[ ! -r "$AMBIX_KEY_FILE" ]]; then
-        echo "clive: cannot read key file: $AMBIX_KEY_FILE" >&2
-        echo "       (need membership in the file's group, or set AMBIX_AGENT_API_KEY)" >&2
-        return 1
-    fi
+    [[ -r "$AMBIX_KEY_FILE" ]] || return 0
     local line
     line="$(grep -E '^[[:space:]]*AMBIX_AGENT_API_KEY[[:space:]]*=' "$AMBIX_KEY_FILE" | tail -1)"
-    if [[ -z "$line" ]]; then
-        echo "clive: no AMBIX_AGENT_API_KEY in $AMBIX_KEY_FILE" >&2; return 1
-    fi
+    [[ -n "$line" ]] || return 0
     line="${{line#*=}}"
     line="${{line%\\"}}"; line="${{line#\\"}}"
     line="${{line%\\'}}"; line="${{line#\\'}}"
     printf '%s' "$line"
 }}
 
-KEY="$(read_key)" || exit 1
+KEY="$(read_key)"
+# Keyless server: Claude Code/Codex still require a non-empty token; the server
+# ignores it. Use a placeholder so the harness launches.
+[[ -n "$KEY" ]] || KEY="no-auth"
 
 # ── Check the endpoint is reachable (direct route; no SSH tunnel) ────────────
 # The login and standard compute nodes route DIRECTLY to the GPU node's serve
