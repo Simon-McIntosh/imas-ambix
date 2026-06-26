@@ -14,11 +14,14 @@ Routing:
     when already up — no per-run 10-20 s litellm cold start) and points Claude
     Code at the proxy, which serves ``local`` + ``or-*`` models.
 
-Model picker control (Claude Code 2.1+): clive sets
-``CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`` so the picker reads the proxy's
-``/v1/models`` (with the ``model_info`` descriptions from the LiteLLM config),
-and writes an ``availableModels`` allowlist into the project settings so ONLY
-``local`` + ``or-*`` show — no haiku, no built-in tiers. See ``settings_fragment``.
+Model picker control (Claude Code 2.1+): when routing via the proxy, clive
+launches ``claude --settings '{...}'`` with inline JSON that enables gateway
+model discovery (``CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1``, so the picker
+reads the proxy's ``/v1/models`` with its ``model_info`` descriptions) and an
+``availableModels`` allowlist so ONLY the served model + ``or-*`` show — no
+haiku, no built-in tiers. ``--settings`` is **session-scoped**: it overrides
+per-key for this invocation only and never touches ``~/.claude/settings.json``,
+so plain ``claude`` keeps its normal full picker.
 
 Generated from :class:`SiteConfig` and synced repo → ``/work`` on
 ``imas-ambix agent clive --deploy``. Do not edit the deployed copy.
@@ -76,8 +79,8 @@ clive — drive an agent CLI against the GPU-served local model (+ OpenRouter).
   --url URL  Local server base URL.   --model NAME  override served model.
 
 With an OpenRouter key (~/.config/openrouter/key) the picker also offers
-or-opus / or-sonnet / or-gpt-5.5 / or-glm-5.2 (routed via a per-user LiteLLM
-proxy). Without it, clive uses the local model only.
+or-opus-4.8 / or-sonnet-4.6 / or-gpt-5.5 / or-glm-5.2 (routed via a per-user
+LiteLLM proxy). Without it, clive uses the local model only.
 USAGE
 }}
 
@@ -171,39 +174,31 @@ if ! $_OK; then
     exit 1
 fi
 
-printf "\\nClive — local + OpenRouter — local model: %s\\n  picker: local, or-opus, or-sonnet, or-gpt-5.5, or-glm-5.2\\n\\n" "$AMBIX_MODEL" >&2
+printf "\\nClive — local + OpenRouter — picker: %s, or-opus-4.8, or-sonnet-4.6, or-gpt-5.5, or-glm-5.2\\n\\n" "$AMBIX_MODEL" >&2
 
-# Point Claude Code at the proxy. Gateway model discovery + an availableModels
-# allowlist (written to .claude/settings.json by `clive --deploy`) make the
-# picker show ONLY local + or-* with their proper descriptions (no haiku).
+# Point Claude Code at the proxy. The picker is constrained for THIS SESSION
+# ONLY via `claude --settings` (inline JSON) — it overrides per-key for this
+# invocation and does NOT touch ~/.claude/settings.json, so plain `claude`
+# keeps its normal full picker. availableModels (+ enforceAvailableModels) have
+# no env-var form, so --settings is the only session-scoped way to set them.
+# Gateway discovery makes the picker read the proxy's /v1/models (descriptions);
+# the allowlist limits it to the served model + or-* (no haiku, no built-ins).
+_CLIVE_SETTINGS="$(cat <<JSON
+{{
+  "availableModels": ["$AMBIX_MODEL", "or-opus-4.8", "or-sonnet-4.6", "or-gpt-5.5", "or-glm-5.2"],
+  "enforceAvailableModels": true,
+  "env": {{ "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1" }}
+}}
+JSON
+)"
+
 ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \\
 ANTHROPIC_AUTH_TOKEN="clive" \\
 ANTHROPIC_API_KEY="" \\
-ANTHROPIC_MODEL="local" \\
-ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus" \\
-ANTHROPIC_DEFAULT_SONNET_MODEL="or-sonnet" \\
-ANTHROPIC_DEFAULT_HAIKU_MODEL="local" \\
-CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 \\
+ANTHROPIC_MODEL="$AMBIX_MODEL" \\
+ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus-4.8" \\
+ANTHROPIC_DEFAULT_SONNET_MODEL="or-sonnet-4.6" \\
+ANTHROPIC_DEFAULT_HAIKU_MODEL="$AMBIX_MODEL" \\
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\
-exec claude "${{ARGS[@]}}"
+exec claude --settings "$_CLIVE_SETTINGS" "${{ARGS[@]}}"
 '''
-
-
-def generate_settings_fragment() -> str:
-    """Render the Claude Code settings JSON that constrains the model picker.
-
-    Deployed to ``{base_dir}/agents/clive-settings.json`` as a reference users
-    merge into their ``~/.claude/settings.json`` (or a project ``.claude/``).
-    ``availableModels`` + ``enforceAvailableModels`` make the picker show only
-    the proxy's models — no haiku, no built-in tiers.
-    """
-    return """{
-  "// imas-ambix": "Merge into ~/.claude/settings.json to constrain clive's model picker.",
-  "// note": "Only takes effect when clive routes via the LiteLLM proxy (OpenRouter key present).",
-  "availableModels": ["local", "or-opus", "or-sonnet", "or-gpt-5.5", "or-glm-5.2"],
-  "enforceAvailableModels": true,
-  "env": {
-    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1"
-  }
-}
-"""

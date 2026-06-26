@@ -55,7 +55,8 @@ def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
 
 model_list:
   # ── Local H200 model (Anthropic-native) ─────────────────────────────────────
-  - model_name: local
+  # Named after the served model so the picker label matches what's running.
+  - model_name: {local_model}
     litellm_params:
       model: anthropic/{local_model}
       api_base: {local_url}
@@ -64,7 +65,8 @@ model_list:
       description: "{local_model} — local 8xH200 (vLLM), fast + free"
 
   # ── OpenRouter, Anthropic models (anthropic/ + api_base → caching preserved) ─
-  - model_name: or-opus
+  # Picker names carry the model version (these are pinned, not "latest").
+  - model_name: or-opus-4.8
     litellm_params:
       model: anthropic/claude-opus-4.8
       api_base: https://openrouter.ai/api
@@ -72,7 +74,7 @@ model_list:
     model_info:
       description: "Claude Opus 4.8 via OpenRouter (frontier; cache_control honored)"
 
-  - model_name: or-sonnet
+  - model_name: or-sonnet-4.6
     litellm_params:
       model: anthropic/claude-sonnet-4.6
       api_base: https://openrouter.ai/api

@@ -236,8 +236,9 @@ imas-ambix agent clive --path      # print the ~/.bashrc PATH line
   systemd service** is running (`systemctl --user start` — idempotent, **0 s
   when already up**; ~11 s cold start once per login) and routes Claude Code
   tiers through its LiteLLM proxy:
-  - Default / haiku → `local` (H200 model)
-  - Sonnet → `or-sonnet`, Opus → `or-opus` (OpenRouter)
+  - Default / haiku → the local H200 model (named after the served model,
+    e.g. `deepseek-v4-flash`)
+  - Sonnet → `or-sonnet-4.6`, Opus → `or-opus-4.8` (OpenRouter)
   - Also in the picker: `or-gpt-5.5`, `or-glm-5.2`
   The proxy is **per-user** (runs as the invoking user with *their own* OR key,
   bound to 127.0.0.1 only — NOT shared, no shared-key/budget exposure). No OR
@@ -250,12 +251,18 @@ it per `clive` invocation was the bottleneck. The `imas-ambix-llm.service`
 after login pays the cost. `EnvironmentFile` MUST be `-`-optional (the
 ExecStartPre helper creates it) or systemd fails with `Result=resources`.
 
-**Model picker control (Claude Code 2.1+):** with the proxy active, clive sets
-`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1` so the picker reads the proxy's
-`/v1/models` (with the `model_info` descriptions). Merge the deployed
-`clive-settings.json` (`availableModels` allowlist + `enforceAvailableModels`)
-into `~/.claude/settings.json` so ONLY `local` + `or-*` appear — no haiku, no
-built-in tiers, proper descriptions (not "Custom * model").
+**Model picker control (Claude Code 2.1+):** with the proxy active, clive
+launches `claude --settings '{...}'` with inline JSON that sets
+`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1` (the picker reads the proxy's
+`/v1/models` with its `model_info` descriptions) plus an `availableModels`
+allowlist + `enforceAvailableModels` so ONLY the served model + `or-*` appear —
+no haiku, no built-in tiers, proper descriptions (not "Custom * model").
+`--settings` is **session-scoped**: it overrides per-key for that invocation
+only and **never touches `~/.claude/settings.json`**, so the user's plain
+`claude` keeps its normal full picker. `availableModels`/`enforceAvailableModels`
+have no env-var form, so `--settings` is the only session-scoped way to set them.
+No settings file is deployed (a deployed file would have to be merged into the
+global config — exactly what we avoid).
 
 **OpenRouter caching — use `anthropic/<model>` + `api_base`, NOT `openrouter/`:**
 verified 2026-06-26 (or-opus, 10,815-token prompt): `cache_creation` then
@@ -275,7 +282,7 @@ re-deploy.
 
 **Sync discipline — repo is the source of truth (binding):** `imas-ambix agent
 clive --deploy` generates and writes all of: `clive`, `litellm_config.yaml`,
-`clive-settings.json`, `imas-ambix-llm-env.sh` (→ `/work/.../agents/`, group
+`imas-ambix-llm-env.sh` (→ `/work/.../agents/`, group
 `sdcc-imas_gpu`), and the per-user `imas-ambix-llm.service` (→
 `~/.config/systemd/user/`, then `daemon-reload`). Generators:
 `imas_ambix/agent/{clive,litellm_config,litellm_service}.py`. **NEVER hand-edit

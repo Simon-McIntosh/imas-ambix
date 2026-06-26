@@ -911,10 +911,7 @@ def clive_command(
     no flags, deploys both the launcher and the routing config to
     ``{base_dir}/agents/``.
     """
-    from imas_ambix.agent.clive import (
-        generate_clive_script,
-        generate_settings_fragment,
-    )
+    from imas_ambix.agent.clive import generate_clive_script
     from imas_ambix.agent.litellm_config import generate_litellm_config
     from imas_ambix.agent.litellm_service import (
         generate_litellm_env_helper,
@@ -926,10 +923,8 @@ def clive_command(
     default_model = model_override or profile.model.served_name
     clive_script = generate_clive_script(site, default_model)
     litellm_yaml = generate_litellm_config(site, default_model)
-    settings_json = generate_settings_fragment()
     service_unit = generate_litellm_service(site)
     env_helper = generate_litellm_env_helper(site)
-    settings_path = site.litellm_config_path.with_name("clive-settings.json")
     helper_path = site.litellm_config_path.with_name("imas-ambix-llm-env.sh")
 
     if print_only:
@@ -940,7 +935,6 @@ def clive_command(
     if show_path:
         console.print(f"clive:    {site.clive_path}")
         console.print(f"routing:  {site.litellm_config_path}")
-        console.print(f"settings: {settings_path}")
         console.print(f"service:  {site.litellm_service_path} (per-user)")
         console.print(f"Default model: {default_model}")
         console.print("Add to your ~/.bashrc to run as a bare command:")
@@ -950,13 +944,14 @@ def clive_command(
         )
         return
 
-    # Default action: deploy the launcher + routing config + settings (repo →
-    # /work, shared), and install the per-user systemd unit (in $HOME).
+    # Default action: deploy the launcher + routing config (repo → /work,
+    # shared), and install the per-user systemd unit (in $HOME). The picker
+    # allowlist is passed per-session by clive via `claude --settings` — no
+    # settings file is deployed (it would pollute users' global config).
     _ = deploy  # deploy is the default; the flag is for explicitness only
     for name, path, content, mode in (
         ("clive", site.clive_path, clive_script, 0o755),
         ("litellm_config.yaml", site.litellm_config_path, litellm_yaml, 0o644),
-        ("clive-settings.json", settings_path, settings_json, 0o644),
         ("imas-ambix-llm-env.sh", helper_path, env_helper, 0o755),
     ):
         _deploy_launcher(name, path, content, mode)
@@ -976,7 +971,8 @@ def clive_command(
     console.print(f"  Model: {default_model} · URL: {site.default_url}")
     console.print(
         "  PATH line: [cyan]imas-ambix agent clive --path[/]  ·  "
-        "picker allowlist: merge [cyan]clive-settings.json[/] into ~/.claude/settings.json"
+        "picker allowlist applied per-session via [cyan]claude --settings[/] "
+        "(your global Claude Code config is untouched)"
     )
 
 
