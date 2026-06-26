@@ -14,14 +14,17 @@ Routing:
     when already up — no per-run 10-20 s litellm cold start) and points Claude
     Code at the proxy, which serves ``local`` + ``or-*`` models.
 
-Model picker control (Claude Code 2.1+): when routing via the proxy, clive
-launches ``claude --settings '{...}'`` with inline JSON that enables gateway
-model discovery (``CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1``, so the picker
-reads the proxy's ``/v1/models`` with its ``model_info`` descriptions) and an
-``availableModels`` allowlist so ONLY the served model + ``or-*`` show — no
-haiku, no built-in tiers. ``--settings`` is **session-scoped**: it overrides
-per-key for this invocation only and never touches ``~/.claude/settings.json``,
-so plain ``claude`` keeps its normal full picker.
+Model picker control (Claude Code 2.1+): the picker is populated and labelled
+purely with **startup env vars**, no settings file and no ``/v1/models``
+discovery. Gateway discovery is a dead end here — Claude Code ignores any
+``/v1/models`` entry whose ``id`` doesn't begin with ``claude``/``anthropic``
+(our ``or-*``/local ids don't), and ``CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC``
+disables discovery besides. Instead clive uses the five labellable slots that
+Claude Code honours behind an ``ANTHROPIC_BASE_URL`` gateway — the ``opus`` /
+``sonnet`` / ``haiku`` / ``fable`` aliases plus one ``ANTHROPIC_CUSTOM_MODEL_OPTION``,
+each with a ``_NAME`` + ``_DESCRIPTION`` — to show our five models with real
+names + descriptions (not "Custom * model"). Touches only clive's own process
+env, so plain ``claude`` is unaffected.
 
 Generated from :class:`SiteConfig` and synced repo → ``/work`` on
 ``imas-ambix agent clive --deploy``. Do not edit the deployed copy.
@@ -78,7 +81,7 @@ clive — drive an agent CLI against the GPU-served local model (+ OpenRouter).
   --codex    OpenAI Codex CLI via the OpenAI API (local model only).
   --url URL  Local server base URL.   --model NAME  override served model.
 
-With an OpenRouter key (~/.config/openrouter/key) the picker also offers
+With an OpenRouter key (~/.config/openrouter/key) the /model picker also offers
 or-opus-4.8 / or-sonnet-4.6 / or-gpt-5.5 / or-glm-5.2 (routed via a per-user
 LiteLLM proxy). Without it, clive uses the local model only.
 USAGE
@@ -176,29 +179,41 @@ fi
 
 printf "\\nClive — local + OpenRouter — picker: %s, or-opus-4.8, or-sonnet-4.6, or-gpt-5.5, or-glm-5.2\\n\\n" "$AMBIX_MODEL" >&2
 
-# Point Claude Code at the proxy. The picker is constrained for THIS SESSION
-# ONLY via `claude --settings` (inline JSON) — it overrides per-key for this
-# invocation and does NOT touch ~/.claude/settings.json, so plain `claude`
-# keeps its normal full picker. availableModels (+ enforceAvailableModels) have
-# no env-var form, so --settings is the only session-scoped way to set them.
-# Gateway discovery makes the picker read the proxy's /v1/models (descriptions);
-# the allowlist limits it to the served model + or-* (no haiku, no built-ins).
-_CLIVE_SETTINGS="$(cat <<JSON
-{{
-  "availableModels": ["$AMBIX_MODEL", "or-opus-4.8", "or-sonnet-4.6", "or-gpt-5.5", "or-glm-5.2"],
-  "enforceAvailableModels": true,
-  "env": {{ "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1" }}
-}}
-JSON
-)"
-
+# Point Claude Code at the proxy. The picker is populated AND labelled purely
+# via startup env vars — no settings file, no gateway /v1/models discovery.
+# (Discovery is a dead end here: Claude Code ignores any /v1/models entry whose
+# id doesn't begin with "claude"/"anthropic", which our or-*/local ids are not,
+# and CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC would disable discovery anyway.)
+# The four tier aliases + the one custom-model option each accept a _NAME and
+# _DESCRIPTION, which Claude Code honours behind an ANTHROPIC_BASE_URL gateway —
+# so the picker shows real names + descriptions, not "Custom * model". That is
+# exactly five labelled slots for our five models:
+#   haiku + default -> local (fast + free; haiku also backs background tasks)
+#   opus / sonnet   -> OpenRouter Claude (frontier / balanced)
+#   custom option   -> or-gpt-5.5   (a plain entry — no Claude-specific shaping)
+#   fable slot      -> or-glm-5.2   (NOTE: Claude Code treats the fable-slot
+#                      model as Fable 5 — always-on adaptive thinking + safety
+#                      auto-fallback to the opus slot; benign for a reasoning
+#                      model behind drop_params, and the only 5th labelled slot.)
 ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \\
 ANTHROPIC_AUTH_TOKEN="clive" \\
 ANTHROPIC_API_KEY="" \\
-ANTHROPIC_MODEL="$AMBIX_MODEL" \\
-ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus-4.8" \\
-ANTHROPIC_DEFAULT_SONNET_MODEL="or-sonnet-4.6" \\
+ANTHROPIC_MODEL="haiku" \\
 ANTHROPIC_DEFAULT_HAIKU_MODEL="$AMBIX_MODEL" \\
+ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$AMBIX_MODEL" \\
+ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="Local 8xH200 (vLLM) — fast + free" \\
+ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus-4.8" \\
+ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="or-opus-4.8" \\
+ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="Claude Opus 4.8 via OpenRouter — frontier (cache_control honored)" \\
+ANTHROPIC_DEFAULT_SONNET_MODEL="or-sonnet-4.6" \\
+ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="or-sonnet-4.6" \\
+ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="Claude Sonnet 4.6 via OpenRouter — balanced (cache_control honored)" \\
+ANTHROPIC_DEFAULT_FABLE_MODEL="or-glm-5.2" \\
+ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="or-glm-5.2" \\
+ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="GLM-5.2 via OpenRouter — open-weight frontier, 1M ctx" \\
+ANTHROPIC_CUSTOM_MODEL_OPTION="or-gpt-5.5" \\
+ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="or-gpt-5.5" \\
+ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="GPT-5.5 via OpenRouter — top DeepSWE coding score" \\
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\
-exec claude --settings "$_CLIVE_SETTINGS" "${{ARGS[@]}}"
+exec claude "${{ARGS[@]}}"
 '''

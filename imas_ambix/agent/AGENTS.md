@@ -251,18 +251,32 @@ it per `clive` invocation was the bottleneck. The `imas-ambix-llm.service`
 after login pays the cost. `EnvironmentFile` MUST be `-`-optional (the
 ExecStartPre helper creates it) or systemd fails with `Result=resources`.
 
-**Model picker control (Claude Code 2.1+):** with the proxy active, clive
-launches `claude --settings '{...}'` with inline JSON that sets
-`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1` (the picker reads the proxy's
-`/v1/models` with its `model_info` descriptions) plus an `availableModels`
-allowlist + `enforceAvailableModels` so ONLY the served model + `or-*` appear —
-no haiku, no built-in tiers, proper descriptions (not "Custom * model").
-`--settings` is **session-scoped**: it overrides per-key for that invocation
-only and **never touches `~/.claude/settings.json`**, so the user's plain
-`claude` keeps its normal full picker. `availableModels`/`enforceAvailableModels`
-have no env-var form, so `--settings` is the only session-scoped way to set them.
-No settings file is deployed (a deployed file would have to be merged into the
-global config — exactly what we avoid).
+**Model picker control (Claude Code 2.1+) — env vars, not discovery:** the
+picker is populated AND labelled purely with **startup env vars**, no settings
+file and no `/v1/models` gateway discovery. Two facts kill the discovery route:
+Claude Code **ignores any `/v1/models` entry whose `id` doesn't begin with
+`claude`/`anthropic`** (our `or-*`/local ids don't, so they're silently
+dropped), and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` (which clive sets)
+disables discovery anyway. Instead clive uses the **five labellable slots Claude
+Code honours behind an `ANTHROPIC_BASE_URL` gateway** — the `opus` / `sonnet` /
+`haiku` / `fable` aliases plus one `ANTHROPIC_CUSTOM_MODEL_OPTION` — each taking
+a `_NAME` + `_DESCRIPTION` (model-config doc: the `_NAME`/`_DESCRIPTION` vars
+"also take effect when `ANTHROPIC_BASE_URL` points to an LLM gateway"). We have
+exactly five models, so the mapping is one-to-one:
+
+| Picker slot | Model | Notes |
+|---|---|---|
+| `haiku` (+ session default via `ANTHROPIC_MODEL=haiku`) | local H200 | also backs background tasks; free |
+| `opus` | `or-opus-4.8` | OpenRouter Claude, frontier |
+| `sonnet` | `or-sonnet-4.6` | OpenRouter Claude, balanced |
+| custom option | `or-gpt-5.5` | plain entry, no Claude-specific shaping |
+| `fable` | `or-glm-5.2` | ⚠ Claude Code treats the fable slot as Fable 5 → always-on adaptive thinking + safety auto-fallback to the opus slot; benign behind `drop_params`, and it's the only remaining labelled slot |
+
+This shows real names + descriptions (not "Custom * model"), needs no
+`--settings` and no deployed settings file, and touches **only clive's own
+process env** — the user's plain `claude` is completely unaffected. Set
+`ANTHROPIC_MODEL=haiku` (the alias), NOT the raw served id, or Claude Code adds
+a duplicate "Custom model" row alongside the haiku slot.
 
 **OpenRouter caching — use `anthropic/<model>` + `api_base`, NOT `openrouter/`:**
 verified 2026-06-26 (or-opus, 10,815-token prompt): `cache_creation` then
