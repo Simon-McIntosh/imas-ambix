@@ -115,7 +115,9 @@ def test_load_deepseek_v4_flash_2x_inherits_base():
     assert variant.engine.type == base.engine.type
     assert variant.engine.kv_cache_dtype == base.engine.kv_cache_dtype
     assert variant.engine.enable_auto_tool_choice == base.engine.enable_auto_tool_choice
-    assert variant.engine.max_total_tokens == base.engine.max_total_tokens
+    # -2x overrides context to the full 1M (KV is cheap on 2 cards); base is 512K.
+    assert variant.engine.max_total_tokens == 1048576
+    assert base.engine.max_total_tokens == 524288
     assert variant.engine.parsers.tool_call == base.engine.parsers.tool_call
     assert variant.engine.parsers.reasoning == base.engine.parsers.reasoning
 
