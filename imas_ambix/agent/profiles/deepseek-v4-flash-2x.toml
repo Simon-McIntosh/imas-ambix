@@ -7,18 +7,22 @@
 # Memory budget on 2×H200 (140.4 GB each):
 #   GPU: ~82 GB/card weights → ~58 GB/card free for KV
 #   KV:  2 × 58 GB / 42 KB per token ≈ 2.8M tokens pool capacity
-#   512K max_model_len (inherited) fits comfortably within the pool.
+#   Full 1M context fits: the ~2.8M-token pool (1,372,204 measured 2026-06-04)
+#   easily holds one 1M-token request, with room for concurrency.
 #
 # Throughput target: ~150–250 tok/s decode (vs 500–800 tok/s at 4×H200)
-# Use this variant when the other 2 GPUs are needed for a concurrent job.
+# Use this variant when the other 6 GPUs are needed for a concurrent job.
 
 _base = "deepseek-v4-flash"
 
 [engine]
 tensor_parallel = 2
-# Halved from base — at 2×H200 the KV pool can sustain ~275 concurrent
-# sequences at 8K average context before hitting the 2.8M-token ceiling.
-# vLLM will preempt gracefully if the pool fills; 512 avoids OOM bursts.
+# Full 1M context on 2 cards — single KV head (~42 KB/token) makes KV cheap,
+# so there's no reason to cap. Overrides the base's 512K.
+max_total_tokens = 1048576
+# Halved from base — at 2×H200 the KV pool sustains hundreds of concurrent
+# sequences at typical context before hitting the pool ceiling.
+# vLLM preempts gracefully if the pool fills; 512 avoids OOM bursts.
 max_num_seqs = 512
 
 [slurm]
