@@ -1262,14 +1262,15 @@ def test_orclive_script_carries_no_secret():
     # orclaude = all-OpenRouter.
     assert "--advisor" not in script and "--local-only" not in script
     assert "--or-only" not in script
-    # Points Claude Code's tiers at the ambix-* model names the YAML routes.
-    assert "ambix-sonnet" in script and "ambix-opus" in script
+    # Points Claude Code at the proxy (no hardcoded tier model names).
+    assert "ANTHROPIC_BASE_URL" in script
+    assert "ANTHROPIC_DEFAULT" not in script  # no tier env vars
     # Local endpoint baked from SiteConfig (no drift).
     assert SiteConfig().default_url in script
 
 
-def test_litellm_config_is_secret_free_and_routes_tiers():
-    """The generated routing YAML references env keys only and maps all 3 tiers."""
+def test_litellm_config_is_secret_free_and_routes_two_models():
+    """The generated routing YAML references env keys only and maps dsv4 + opus."""
     import yaml
 
     from imas_ambix.agent.litellm_config import generate_litellm_config
@@ -1279,11 +1280,13 @@ def test_litellm_config_is_secret_free_and_routes_tiers():
     assert "os.environ/OPENROUTER_API_KEY" in cfg  # OR key via env
     data = yaml.safe_load(cfg)
     names = {m["model_name"] for m in data["model_list"]}
-    assert names == {"ambix-sonnet", "ambix-haiku", "ambix-opus"}
-    # sonnet/haiku → local endpoint; opus → OpenRouter.
+    assert names == {"dsv4", "opus"}
+    # dsv4 → local endpoint; opus → OpenRouter.
     by = {m["model_name"]: m["litellm_params"]["api_base"] for m in data["model_list"]}
-    assert by["ambix-sonnet"] == SiteConfig().default_url
-    assert "openrouter" in by["ambix-opus"]
+    assert by["dsv4"] == SiteConfig().default_url
+    assert "openrouter" in by["opus"]
+    # No tier env vars in the generated script either
+    assert "ANTHROPIC_DEFAULT" not in cfg
 
 
 def test_siteconfig_launcher_paths():
