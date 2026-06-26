@@ -164,7 +164,7 @@ if [[ -z "$AMBIX_MODEL" ]]; then
         AMBIX_MODEL="$AMBIX_MODEL_FALLBACK"
         echo "clive: could not query /v1/models; using fallback model '$AMBIX_MODEL'." >&2
     else
-        echo "clive: serving model '$AMBIX_MODEL' (from /v1/models)." >&2
+        printf "\nClive Code — Claude Unplugged\n\n" >&2
     fi
 fi
 
