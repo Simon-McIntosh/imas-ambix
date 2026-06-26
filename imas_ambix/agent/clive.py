@@ -182,11 +182,11 @@ if [[ -n "$_OR_KEY" ]]; then
             tail -5 "$_LOG_FILE" >&2
             exit 1
         fi
-        echo "clive: LiteLLM daemon started (pid $_LPID, port $LITELLM_PORT)." >&2
     fi
 fi
 
 # ── Launch the chosen harness ────────────────────────────────────────────────
+printf "\nClive Code — Claude Unplugged\n\n" >&2
 case "$HARNESS" in
     claude)
         if ! command -v claude >/dev/null 2>&1; then
@@ -197,7 +197,6 @@ case "$HARNESS" in
 
         if $_USE_PROXY; then
             # Via LiteLLM proxy — tiered routing
-            echo "clive: router active — Default/haiku→local, Sonnet/Op→OR." >&2
             ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \\
             ANTHROPIC_AUTH_TOKEN="clive" \\
             ANTHROPIC_MODEL="local" \\
