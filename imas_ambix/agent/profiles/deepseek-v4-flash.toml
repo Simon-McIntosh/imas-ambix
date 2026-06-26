@@ -54,6 +54,13 @@ kv_cache_dtype = "fp8"
 max_num_seqs = 1024
 max_num_batched_tokens = 32768
 
+[engine.env]
+# Route top-k/top-p sampling around the FlashInfer TopKMaskLogits kernel, which
+# fails at startup warmup on this H200 + vLLM 0.23.0 build with
+# "invalid resource handle" (job 1222917, 2026-06-26). 0 = native PyTorch
+# sampler path. Remove once a FlashInfer build that fixes the kernel ships.
+VLLM_USE_FLASHINFER_SAMPLER = "0"
+
 [engine.parsers]
 tool_call = "deepseek_v4"
 reasoning = "deepseek_v4"

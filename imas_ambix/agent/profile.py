@@ -117,6 +117,11 @@ class EngineConfig(BaseModel):
     # tokens — the headline throughput win over GLM-5.1). vLLM-only.
     speculative_method: str | None = None
     speculative_num_tokens: int | None = None
+    # Extra environment variables exported into the serve job before launch.
+    # For engine/kernel quirks that are set via env, not CLI flags — e.g.
+    # ``VLLM_USE_FLASHINFER_SAMPLER = "0"`` to route sampling around a broken
+    # FlashInfer top-k kernel on this H200 + vLLM build. Values are stringified.
+    env: dict[str, str] = {}
     ktransformers: KTransformersConfig | None = None
     parsers: ParsersConfig = ParsersConfig()
 

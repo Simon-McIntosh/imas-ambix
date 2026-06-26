@@ -445,6 +445,11 @@ def generate_serve_script(
             )
         api_key_block = "\n".join(key_lines)
 
+    # Profile-declared extra env (kernel/backend quirks set via env, not flags).
+    env_block = "\n".join(
+        f"export {k}={shlex.quote(str(v))}" for k, v in profile.engine.env.items()
+    )
+
     script_body = dedent(
         f"""
         set -euo pipefail
@@ -455,6 +460,8 @@ def generate_serve_script(
         {sidecar_block}
 
         {api_key_block}
+
+        {env_block}
 
         # Expose vendored nvidia libs (cuDNN, cuSPARSELt, NCCL, etc.)
         # installed by pip/uv into per-package subdirs under nvidia/.
