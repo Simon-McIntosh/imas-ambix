@@ -63,7 +63,12 @@ set -euo pipefail
 
 # ── Defaults (generated from ambix SiteConfig; override via env or flags) ────
 AMBIX_URL="${{AMBIX_AGENT_URL:-{url}}}"
-AMBIX_MODEL="${{AMBIX_AGENT_MODEL:-{default_model}}}"
+# Model: empty → auto-detect from the live server's /v1/models at runtime, so
+# clive tracks whatever is actually serving (swap the served model, no redeploy).
+# Falls back to this profile's served_name if the query fails. Override via
+# AMBIX_AGENT_MODEL or --model.
+AMBIX_MODEL="${{AMBIX_AGENT_MODEL:-}}"
+AMBIX_MODEL_FALLBACK="{default_model}"
 AMBIX_KEY_FILE="${{AMBIX_AGENT_KEY_FILE:-{key_file}}}"
 HARNESS="claude"
 
@@ -144,6 +149,24 @@ check_reachable() {{
 }}
 
 check_reachable
+
+# ── Resolve the served model from /v1/models (unless overridden) ─────────────
+# Query the live endpoint so clive uses whatever is actually serving. No jq
+# dependency — extract the first "id" with grep/sed. Fall back to the baked-in
+# served_name if the query fails (server down, no curl, etc.).
+if [[ -z "$AMBIX_MODEL" ]]; then
+    _models_json="$(curl -s --max-time 5 -H "Authorization: Bearer $KEY" \\
+        "$AMBIX_URL/v1/models" 2>/dev/null || true)"
+    AMBIX_MODEL="$(printf '%s' "$_models_json" \\
+        | grep -oE '"id"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 \\
+        | sed -E 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\\1/')"
+    if [[ -z "$AMBIX_MODEL" ]]; then
+        AMBIX_MODEL="$AMBIX_MODEL_FALLBACK"
+        echo "clive: could not query /v1/models; using fallback model '$AMBIX_MODEL'." >&2
+    else
+        echo "clive: serving model '$AMBIX_MODEL' (from /v1/models)." >&2
+    fi
+fi
 
 # ── Launch the chosen harness ────────────────────────────────────────────────
 case "$HARNESS" in
