@@ -911,14 +911,26 @@ def clive_command(
     no flags, deploys both the launcher and the routing config to
     ``{base_dir}/agents/``.
     """
-    from imas_ambix.agent.clive import generate_clive_script
+    from imas_ambix.agent.clive import (
+        generate_clive_script,
+        generate_settings_fragment,
+    )
     from imas_ambix.agent.litellm_config import generate_litellm_config
+    from imas_ambix.agent.litellm_service import (
+        generate_litellm_env_helper,
+        generate_litellm_service,
+    )
 
     site = SiteConfig.from_env()
     profile = _load_profile(slug)
     default_model = model_override or profile.model.served_name
     clive_script = generate_clive_script(site, default_model)
     litellm_yaml = generate_litellm_config(site, default_model)
+    settings_json = generate_settings_fragment()
+    service_unit = generate_litellm_service(site)
+    env_helper = generate_litellm_env_helper(site)
+    settings_path = site.litellm_config_path.with_name("clive-settings.json")
+    helper_path = site.litellm_config_path.with_name("imas-ambix-llm-env.sh")
 
     if print_only:
         # Emit verbatim (no rich newline/markup), byte-identical to deploy.
@@ -926,8 +938,10 @@ def clive_command(
         return
 
     if show_path:
-        console.print(f"clive:   {site.clive_path}")
-        console.print(f"routing: {site.litellm_config_path}")
+        console.print(f"clive:    {site.clive_path}")
+        console.print(f"routing:  {site.litellm_config_path}")
+        console.print(f"settings: {settings_path}")
+        console.print(f"service:  {site.litellm_service_path} (per-user)")
         console.print(f"Default model: {default_model}")
         console.print("Add to your ~/.bashrc to run as a bare command:")
         console.print(
@@ -936,16 +950,33 @@ def clive_command(
         )
         return
 
-    # Default action: deploy the launcher + routing config (repo → /work).
+    # Default action: deploy the launcher + routing config + settings (repo →
+    # /work, shared), and install the per-user systemd unit (in $HOME).
     _ = deploy  # deploy is the default; the flag is for explicitness only
     for name, path, content, mode in (
         ("clive", site.clive_path, clive_script, 0o755),
         ("litellm_config.yaml", site.litellm_config_path, litellm_yaml, 0o644),
+        ("clive-settings.json", settings_path, settings_json, 0o644),
+        ("imas-ambix-llm-env.sh", helper_path, env_helper, 0o755),
     ):
         _deploy_launcher(name, path, content, mode)
+
+    # Per-user systemd unit (NOT group-shared — runs as the invoking user with
+    # their own OpenRouter key). Installed into $HOME; daemon-reload so it's
+    # visible to `systemctl --user` immediately.
+    svc = site.litellm_service_path
+    try:
+        svc.parent.mkdir(parents=True, exist_ok=True)
+        svc.write_text(service_unit, encoding="utf-8")
+        subprocess.run(["systemctl", "--user", "daemon-reload"], check=False)
+        console.print(f"[green]Installed[/] {svc.name} (per-user systemd unit)")
+    except OSError as exc:
+        console.print(f"[yellow]Could not install systemd unit:[/] {exc}")
+
     console.print(f"  Model: {default_model} · URL: {site.default_url}")
     console.print(
-        "  Run [cyan]imas-ambix agent clive --path[/] for the ~/.bashrc PATH line."
+        "  PATH line: [cyan]imas-ambix agent clive --path[/]  ·  "
+        "picker allowlist: merge [cyan]clive-settings.json[/] into ~/.claude/settings.json"
     )
 
 

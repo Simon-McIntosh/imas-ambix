@@ -262,6 +262,11 @@ class SiteConfig(BaseModel):
         """Deployed clive LiteLLM routing config (secret-free; keys via env)."""
         return Path(self.base_dir) / "agents" / "litellm_config.yaml"
 
+    @property
+    def litellm_service_path(self) -> Path:
+        """Per-user systemd unit for the clive LiteLLM proxy (installed in $HOME)."""
+        return Path.home() / ".config" / "systemd" / "user" / "imas-ambix-llm.service"
+
 
 # -- Profile loader -----------------------------------------------------------
 

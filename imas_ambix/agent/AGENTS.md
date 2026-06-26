@@ -232,31 +232,56 @@ imas-ambix agent clive --path      # print the ~/.bashrc PATH line
 - **Without an OpenRouter key** (`~/.config/openrouter/key`): clive connects
   directly to the local H200 model (all tiers → one model). Auto-detects the
   running model from `/v1/models`. What every SDCC cluster user runs.
-- **With an OpenRouter key**: clive starts a persistent **LiteLLM daemon**
-  (`~/.cache/clive-litellm.*`) that routes tiers:
-  - Default / haiku → local H200 model
-  - Sonnet / opus → OpenRouter (claude-sonnet-4.6 / claude-opus-4.8)
-  - Extra OR models: `--model gpt-5.5`, `--model glm-5.2`
-  The daemon stays alive across invocations (reused on next `clive`); kill
-  with `pkill -f litellm` or on logout.
-- **`orclaude` — all tiers → OpenRouter** (the `~/.bashrc` function). Use when
-  you want everything on OpenRouter.
+- **With an OpenRouter key**: clive ensures the **per-user `imas-ambix-llm`
+  systemd service** is running (`systemctl --user start` — idempotent, **0 s
+  when already up**; ~11 s cold start once per login) and routes Claude Code
+  tiers through its LiteLLM proxy:
+  - Default / haiku → `local` (H200 model)
+  - Sonnet → `or-sonnet`, Opus → `or-opus` (OpenRouter)
+  - Also in the picker: `or-gpt-5.5`, `or-glm-5.2`
+  The proxy is **per-user** (runs as the invoking user with *their own* OR key,
+  bound to 127.0.0.1 only — NOT shared, no shared-key/budget exposure). No OR
+  key → no proxy, local-only.
+- **`orclaude` — all tiers → OpenRouter** (the `~/.bashrc` function).
+
+**Why systemd, not a per-run daemon:** litellm's import costs 10-20 s; starting
+it per `clive` invocation was the bottleneck. The `imas-ambix-llm.service`
+(installed by `--deploy`) stays alive across runs, so only the first launch
+after login pays the cost. `EnvironmentFile` MUST be `-`-optional (the
+ExecStartPre helper creates it) or systemd fails with `Result=resources`.
+
+**Model picker control (Claude Code 2.1+):** with the proxy active, clive sets
+`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1` so the picker reads the proxy's
+`/v1/models` (with the `model_info` descriptions). Merge the deployed
+`clive-settings.json` (`availableModels` allowlist + `enforceAvailableModels`)
+into `~/.claude/settings.json` so ONLY `local` + `or-*` appear — no haiku, no
+built-in tiers, proper descriptions (not "Custom * model").
+
+**OpenRouter caching — use `anthropic/<model>` + `api_base`, NOT `openrouter/`:**
+verified 2026-06-26 (or-opus, 10,815-token prompt): `cache_creation` then
+`cache_read=10815` on the repeat → cost $0.068→$0.0055. The Anthropic-native
+passthrough preserves `cache_control`; `openrouter/anthropic/<model>` routes via
+the OpenAI chat_completions wire format and **silently drops caching**. Claude
+`or-*` models use `anthropic/` + `api_base`; OpenAI-family (`or-gpt-*`) use
+`openai/`.
 
 **Routing config = LiteLLM YAML, generated like the launcher.** Routing lives
 in `litellm_config.yaml` (deployed to `/work`), generated from
 `imas_ambix/agent/litellm_config.py` with the local URL/model auto-filled from
 SiteConfig. It is **secret-free** — the OpenRouter key is `os.environ/OPENROUTER_API_KEY`,
-injected by clive at launch. To change routing, edit the generator's YAML and
+injected by the systemd unit's env helper from the per-user
+`~/.config/openrouter/key`. To change routing, edit the generator's YAML and
 re-deploy.
 
-**Sync discipline — repo is the source of truth (binding):** `clive` and
-`litellm_config.yaml` are both **generated** by `imas-ambix agent clive --deploy`
-from their generators (`imas_ambix/agent/{clive,litellm_config}.py`) and
-written to `/work/projects/imas_gpu/agents/` (group `sdcc-imas_gpu`). **NEVER
-hand-edit the deployed `/work` copies** — they are disposable artifacts. To
-change any of them: edit the generator in the repo, commit, then re-run
-`imas-ambix agent clive --deploy` to re-sync. This is the only thing that keeps
-the shared copies from drifting from the repo.
+**Sync discipline — repo is the source of truth (binding):** `imas-ambix agent
+clive --deploy` generates and writes all of: `clive`, `litellm_config.yaml`,
+`clive-settings.json`, `imas-ambix-llm-env.sh` (→ `/work/.../agents/`, group
+`sdcc-imas_gpu`), and the per-user `imas-ambix-llm.service` (→
+`~/.config/systemd/user/`, then `daemon-reload`). Generators:
+`imas_ambix/agent/{clive,litellm_config,litellm_service}.py`. **NEVER hand-edit
+the deployed copies** — they are disposable artifacts. To change any: edit the
+generator in the repo, commit, then re-run `--deploy` to re-sync. This is the
+only thing that keeps the deployed copies from drifting from the repo.
 
 - **Direct route, no tunnel.** Login and standard compute nodes route directly
   to `<gpu-node>:PORT` (verified 2026-06-25: login → `98dci4-gpu-0003:18800` =

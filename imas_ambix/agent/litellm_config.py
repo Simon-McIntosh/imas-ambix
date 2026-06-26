@@ -1,13 +1,24 @@
 """Generator for the ``clive`` LiteLLM routing config.
 
-``clive`` runs a per-user LiteLLM proxy when an OpenRouter key is present.
-Only ``local`` (H200) and ``or-*`` (OpenRouter) models are routed via the
-proxy — standard Claude models go to the Anthropic API directly.
+clive runs a per-user LiteLLM proxy (the ``imas-ambix-llm`` systemd service)
+when an OpenRouter key is present. This module renders its routing YAML from
+:class:`SiteConfig` — the same source-of-truth pattern as the launchers — so the
+local endpoint never drifts, and the file is synced repo → ``/work`` on deploy.
 
-The config is **secret-free**: the OpenRouter key is referenced as
-``os.environ/OPENROUTER_API_KEY`` and supplied by ``clive`` at launch from the
-per-user ``~/.config/openrouter/key``. Edit routing by editing this generator
-(the YAML below) and re-deploying — do not hand-edit the ``/work`` copy.
+Routing:
+  - ``local``  → the H200 model (Anthropic-native).
+  - ``or-*``   → OpenRouter. **Claude models use the ``anthropic/<model>`` +
+    ``api_base`` (Anthropic-native) form, NOT ``openrouter/anthropic/...``** —
+    the latter routes via the OpenAI chat_completions wire format, on which
+    Anthropic prompt caching (``cache_control``) is silently dropped. The
+    Anthropic-native passthrough preserves caching. OpenAI-family models
+    (``or-gpt-*``) use the ``openai/<model>`` form (their own caching).
+
+The config is **secret-free**: the OpenRouter key is ``os.environ/OPENROUTER_API_KEY``,
+supplied by the systemd unit from the per-user ``~/.config/openrouter/key``.
+``model_info.description`` carries the picker description shown by Claude Code's
+gateway model discovery. Edit routing here and re-deploy — do not hand-edit the
+``/work`` copy.
 """
 
 from __future__ import annotations
@@ -21,15 +32,12 @@ if TYPE_CHECKING:
 def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
     """Render the clive LiteLLM routing YAML for *site*.
 
-    ``local`` → H200 model.  ``or-*`` names → OpenRouter.
-    ``model_info.description`` carries the actual model info.
-
     Parameters
     ----------
     site:
         Cluster config — supplies the local endpoint URL.
     local_model:
-        ``served_name`` of the local model (e.g. ``deepseek-v4-flash``).
+        ``served_name`` of the local H200 model (e.g. ``deepseek-v4-flash``).
     """
     local_url = site.default_url
     return f"""# imas-ambix — clive LiteLLM routing config.
@@ -38,30 +46,31 @@ def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
 # hand-edit the deployed /work copy — edit the generator
 # (imas_ambix/agent/litellm_config.py) and re-deploy.
 #
-# SECRET-FREE: OpenRouter key via os.environ/OPENROUTER_API_KEY, injected by
-# clive at launch from the per-user ~/.config/openrouter/key.
+# SECRET-FREE: OpenRouter key via os.environ/OPENROUTER_API_KEY, injected by the
+# per-user imas-ambix-llm systemd service from ~/.config/openrouter/key.
 #
-# Routes: local -> H200 ({local_model}), or-* -> OpenRouter.
-# Standard Claude models bypass the proxy (go to Anthropic API directly).
+# Caching note: Claude `or-*` models use anthropic/<model> + api_base (Anthropic
+# -native wire format) so cache_control is honored. openrouter/anthropic/<model>
+# would route via OpenAI chat_completions and SILENTLY DROP caching.
 
 model_list:
-  # ── Local H200 model ────────────────────────────────────────────────────────
+  # ── Local H200 model (Anthropic-native) ─────────────────────────────────────
   - model_name: local
     litellm_params:
       model: anthropic/{local_model}
       api_base: {local_url}
       api_key: os.environ/AMBIX_LOCAL_KEY
     model_info:
-      description: "{local_model} on 8×H200 (vLLM)"
+      description: "{local_model} — local 8xH200 (vLLM), fast + free"
 
-  # ── OpenRouter — Anthropic-format models ──────────────────────────────────
+  # ── OpenRouter, Anthropic models (anthropic/ + api_base → caching preserved) ─
   - model_name: or-opus
     litellm_params:
       model: anthropic/claude-opus-4.8
       api_base: https://openrouter.ai/api
       api_key: os.environ/OPENROUTER_API_KEY
     model_info:
-      description: "claude-opus-4.8 via OpenRouter"
+      description: "Claude Opus 4.8 via OpenRouter (frontier; cache_control honored)"
 
   - model_name: or-sonnet
     litellm_params:
@@ -69,29 +78,29 @@ model_list:
       api_base: https://openrouter.ai/api
       api_key: os.environ/OPENROUTER_API_KEY
     model_info:
-      description: "claude-sonnet-4.6 via OpenRouter"
+      description: "Claude Sonnet 4.6 via OpenRouter (balanced; cache_control honored)"
 
-  # ── OpenRouter — OpenAI-format models ─────────────────────────────────────
+  # ── OpenRouter, OpenAI-format models (openai/ form; their own caching) ──────
   - model_name: or-gpt-5.5
     litellm_params:
       model: openai/gpt-5.5
-      api_base: https://openrouter.ai/api
+      api_base: https://openrouter.ai/api/v1
       api_key: os.environ/OPENROUTER_API_KEY
     model_info:
-      description: "GPT-5.5 via OpenRouter"
+      description: "GPT-5.5 via OpenRouter (top DeepSWE coding score)"
 
   - model_name: or-glm-5.2
     litellm_params:
       model: openai/z-ai/glm-5.2
-      api_base: https://openrouter.ai/api
+      api_base: https://openrouter.ai/api/v1
       api_key: os.environ/OPENROUTER_API_KEY
     model_info:
-      description: "GLM-5.2 via OpenRouter"
+      description: "GLM-5.2 via OpenRouter (open-weight frontier, 1M ctx)"
 
 litellm_settings:
   drop_params: true
 
 general_settings:
-  # No master key — bound to 127.0.0.1 on a per-user port by clive.
+  # No master key — bound to 127.0.0.1 by the per-user systemd service.
   disable_spend_logs: true
 """
