@@ -1248,3 +1248,33 @@ def test_engine_pyproject_bundled():
         content = _engine_pyproject(engine)
         assert "[project]" in content
         assert f"ambix-agent-{engine}" in content
+
+
+def test_orclive_script_carries_no_secret():
+    """orclive (shared on GPFS) must contain NO hardcoded OpenRouter key."""
+    from imas_ambix.agent.orclive import generate_orclive_script
+
+    script = generate_orclive_script(SiteConfig(), "deepseek-v4-flash")
+    # Reads the per-user key file at runtime — never embeds a key.
+    assert ".config/openrouter/key" in script
+    assert "sk-or-" not in script  # no literal OpenRouter key
+    # Per-run routing modes exist.
+    assert "--hybrid" in script and "--local-only" in script and "--or-only" in script
+    # Local endpoint baked from SiteConfig (no drift).
+    assert SiteConfig().default_url in script
+
+
+def test_orclive_local_only_needs_no_or_key():
+    """--local-only path must not require the OpenRouter key (works for non-holders)."""
+    from imas_ambix.agent.orclive import generate_orclive_script
+
+    script = generate_orclive_script(SiteConfig(), "deepseek-v4-flash")
+    # The OR-key read is gated behind 'MODE != local'.
+    assert 'if [[ "$MODE" != "local" ]]; then' in script
+
+
+def test_siteconfig_launcher_paths():
+    """clive and orclive deploy under agents/ on the shared base dir."""
+    site = SiteConfig()
+    assert str(site.clive_path).endswith("agents/clive")
+    assert str(site.orclive_path).endswith("agents/orclive")

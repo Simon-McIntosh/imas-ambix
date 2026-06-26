@@ -221,26 +221,46 @@ is needed — the Anthropic endpoint is native to vLLM.
 ```bash
 clive "explain this repo"          # Claude Code (default), direct route to the GPU node
 clive --codex "write a test"       # Codex CLI, same server/key/model
-clive --model glm-5-2-fp8 ...       # override the served-model name
-imas-ambix agent clive --deploy    # (re)generate the launcher to GPFS after a config change
+clive --model glm-5-2-fp8 ...       # override (default: auto-detect from /v1/models)
+orclive "refactor this"            # HYBRID: sonnet/haiku→local, opus→OpenRouter (key-holders)
+orclive --local-only "quick edit"  # identical to clive (no OR key needed)
+imas-ambix agent clive --deploy    # (re)generate + sync BOTH launchers to GPFS
 imas-ambix agent clive --path      # print the ~/.bashrc PATH line
 ```
 
-- **Generated, not hand-written.** `imas-ambix agent clive --deploy` renders the
-  script from `SiteConfig` (URL, port, key-file, default model) to
-  `/work/projects/imas_gpu/agents/clive` (mode 755, group `sdcc-imas_gpu`), so
-  it never drifts from what the server serves. The generator is
-  `imas_ambix/agent/clive.py`; do not edit the deployed copy in place.
-- **Shared by group, not by copying keys.** The launcher reads the shared
-  mode-640 key file at runtime; the key never appears on a command line.
-  Group-mates add `/work/projects/imas_gpu/agents` to their PATH and run `clive`.
+Two launchers, both shared on GPFS, both secret-free, both generated from the
+same source of truth:
+
+- **`clive` — local-only, for everyone.** Talks only to the H200 keyless
+  endpoint, **auto-detects the running model** from `/v1/models` (swap the
+  served model, no redeploy), and **warns if the server is down**. Carries no
+  key. This is what every SDCC cluster user runs.
+- **`orclive` — hybrid, for key-holders.** Adds an OpenRouter burst: routes
+  Claude Code tiers per a per-user config (default sonnet/haiku → local DSv4,
+  opus → OpenRouter) via a tiny **per-user** LiteLLM proxy it starts and tears
+  down. **The OpenRouter key is read at runtime from each user's own
+  `~/.config/openrouter/key`** (same file `orclaude` uses) — NEVER from any
+  shared `/work` file. The script holds no secret, so it is safe on group GPFS;
+  a user without an OR key gets a setup message (or uses `--local-only`).
+  Per-run modes: `--hybrid` (default) / `--local-only` / `--or-only`.
+
+**Sync discipline — repo is the source of truth (binding):** both launchers are
+**generated** by `imas-ambix agent clive --deploy` from their generators
+(`imas_ambix/agent/clive.py`, `imas_ambix/agent/orclive.py`) and written to
+`/work/projects/imas_gpu/agents/{clive,orclive}` (mode 755, group
+`sdcc-imas_gpu`). **NEVER hand-edit the deployed `/work` copies** — they are
+disposable artifacts. To change a launcher: edit the generator in the repo,
+commit, then re-run `imas-ambix agent clive --deploy` to re-sync. This is the
+only thing that keeps the shared copies from drifting from the repo.
+
 - **Direct route, no tunnel.** Login and standard compute nodes route directly
   to `<gpu-node>:PORT` (verified 2026-06-25: login → `98dci4-gpu-0003:18800` =
   200). SSH `-L` port-forwarding to the compute node is **administratively
-  prohibited** (`channel … open failed: administratively prohibited`), so
-  `clive` uses the direct URL and does not tunnel.
+  prohibited** (`channel … open failed: administratively prohibited`), so the
+  launchers use the direct URL and do not tunnel.
 - **Operator vs consumer.** `imas-ambix` is the *operator* CLI (serve/manage,
-  per-user repo venv); `clive` is the *consumer* launcher (shared on GPFS).
+  per-user repo venv); `clive`/`orclive` are the *consumer* launchers (shared
+  on GPFS, secret-free).
 
 ## 5. Available Model Profiles
 

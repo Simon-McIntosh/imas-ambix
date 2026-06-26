@@ -901,65 +901,68 @@ def clive_command(
     show_path: bool,
     model_override: str | None,
 ) -> None:
-    """Generate and deploy the ``clive`` launcher for interactive harnesses.
+    """Generate and deploy the ``clive`` + ``orclive`` launchers.
 
-    ``clive`` points Claude Code (Anthropic Messages API) or the Codex CLI
-    (OpenAI API) at the served model — both on the same vLLM port. The script
-    is generated from the site config so its endpoint, port, key-file path,
-    and default model never drift from what the server serves.
+    ``clive`` (shared, secret-free) points Claude Code / Codex at the local
+    served model. ``orclive`` (also shared, also secret-free) adds hybrid
+    routing — local tiers + an OpenRouter burst — reading each user's *own*
+    ``~/.config/openrouter/key`` at runtime, never a shared key.
 
-    Default model is the given SLUG's ``served_name`` (or the default
-    profile's). With no flags, deploys to the shared GPFS path.
+    Both are **generated from the site config** so the endpoint/key-file never
+    drift, and both are the canonical repo source synced to shared GPFS. With
+    no flags, deploys both to ``{base_dir}/agents/``.
     """
-    import os
-
     from imas_ambix.agent.clive import generate_clive_script
+    from imas_ambix.agent.orclive import generate_orclive_script
 
     site = SiteConfig.from_env()
     profile = _load_profile(slug)
     default_model = model_override or profile.model.served_name
-    script = generate_clive_script(site, default_model)
+    clive_script = generate_clive_script(site, default_model)
+    orclive_script = generate_orclive_script(site, default_model)
 
     if print_only:
-        # Emit verbatim (no rich newline/markup) so it's byte-identical to the
-        # deployed file and safe to pipe.
-        click.echo(script, nl=False)
+        # Emit verbatim (no rich newline/markup), byte-identical to deploy.
+        click.echo(clive_script, nl=False)
         return
 
     if show_path:
-        path = site.clive_path
-        console.print(f"Deployed path: {path}")
+        console.print(f"clive:   {site.clive_path}")
+        console.print(f"orclive: {site.orclive_path}")
         console.print(f"Default model: {default_model}")
-        console.print("Add to your ~/.bashrc to run [cyan]clive[/] as a bare command:")
+        console.print("Add to your ~/.bashrc to run them as bare commands:")
         console.print(
-            f'  [dim][[ -d {path.parent} ]] && export PATH="{path.parent}:$PATH"[/]'
+            f'  [dim][[ -d {site.clive_path.parent} ]] && '
+            f'export PATH="{site.clive_path.parent}:$PATH"[/]'
         )
         return
 
-    # Default action: deploy.
+    # Default action: deploy both launchers (repo → /work sync).
     _ = deploy  # deploy is the default; the flag is for explicitness only
-    path = site.clive_path
+    for name, path, script in (
+        ("clive", site.clive_path, clive_script),
+        ("orclive", site.orclive_path, orclive_script),
+    ):
+        _deploy_launcher(name, path, script)
+    console.print(f"  Model: {default_model} · URL: {site.default_url}")
+    console.print(
+        "  Run [cyan]imas-ambix agent clive --path[/] for the ~/.bashrc PATH line."
+    )
+
+
+def _deploy_launcher(name: str, path, script: str) -> None:
+    """Write a generated launcher to *path* (755, group-matched), or raise."""
+    import shutil
+
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(script, encoding="utf-8")
         path.chmod(0o755)
-        # Match the key file's group so the storage group can run it.
-        import shutil
-
-        group = path.parent.stat().st_gid
-        shutil.chown(path, group=group)
+        # Match the parent dir's group so the storage group can run it.
+        shutil.chown(path, group=path.parent.stat().st_gid)
     except OSError as exc:
-        raise click.ClickException(f"Failed to deploy clive to {path}: {exc}") from exc
-
-    console.print(f"[green]Deployed clive[/] → {path}")
-    console.print(f"  Model: {default_model} · URL: {site.default_url}")
-    if not os.access(path.parent, os.X_OK):
-        console.print(
-            "  [yellow]Note:[/] target dir not accessible here — verify on the cluster."
-        )
-    console.print(
-        "  Run [cyan]imas-ambix agent clive --path[/] for the ~/.bashrc PATH line."
-    )
+        raise click.ClickException(f"Failed to deploy {name} to {path}: {exc}") from exc
+    console.print(f"[green]Deployed {name}[/] → {path}")
 
 
 @agent.command()
