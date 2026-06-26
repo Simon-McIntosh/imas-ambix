@@ -115,10 +115,11 @@ done
 
 echo "orclive: router up -- /model local (H200), /model opus -> OpenRouter." >&2
 
-# Point Claude Code at the proxy; use /model to switch routes
+# Point Claude Code at the proxy; default model = local, opus via --model opus
 ANTHROPIC_BASE_URL="http://127.0.0.1:$PORT" \\
 ANTHROPIC_AUTH_TOKEN="orclive" \\
-ANTHROPIC_API_KEY="" \\
+ANTHROPIC_MODEL="local" \\
+ANTHROPIC_DEFAULT_OPUS_MODEL="opus" \\
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\
 claude "$@"
 '''

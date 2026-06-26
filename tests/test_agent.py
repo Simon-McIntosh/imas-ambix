@@ -1262,9 +1262,13 @@ def test_orclive_script_carries_no_secret():
     # orclaude = all-OpenRouter.
     assert "--advisor" not in script and "--local-only" not in script
     assert "--or-only" not in script
-    # Points Claude Code at the proxy (no hardcoded tier model names).
+    # Points Claude Code at the proxy with just ANTHROPIC_MODEL + ANTHROPIC_DEFAULT_OPUS_MODEL.
     assert "ANTHROPIC_BASE_URL" in script
-    assert "ANTHROPIC_DEFAULT" not in script  # no tier env vars
+    assert 'ANTHROPIC_MODEL="local"' in script
+    assert 'ANTHROPIC_DEFAULT_OPUS_MODEL="opus"' in script
+    # No tier env vars for sonnet/haiku (those are always local).
+    assert "ANTHROPIC_DEFAULT_SONNET_MODEL" not in script
+    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL" not in script
     # Local endpoint baked from SiteConfig (no drift).
     assert SiteConfig().default_url in script
 
