@@ -266,6 +266,11 @@ class SiteConfig(BaseModel):
         """
         return Path(self.base_dir) / "agents" / "orclive"
 
+    @property
+    def litellm_config_path(self) -> Path:
+        """Deployed orclive LiteLLM routing config (secret-free; keys via env)."""
+        return Path(self.base_dir) / "agents" / "litellm_config.yaml"
+
 
 # -- Profile loader -----------------------------------------------------------
 

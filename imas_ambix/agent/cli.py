@@ -913,6 +913,7 @@ def clive_command(
     no flags, deploys both to ``{base_dir}/agents/``.
     """
     from imas_ambix.agent.clive import generate_clive_script
+    from imas_ambix.agent.litellm_config import generate_litellm_config
     from imas_ambix.agent.orclive import generate_orclive_script
 
     site = SiteConfig.from_env()
@@ -920,6 +921,7 @@ def clive_command(
     default_model = model_override or profile.model.served_name
     clive_script = generate_clive_script(site, default_model)
     orclive_script = generate_orclive_script(site, default_model)
+    litellm_yaml = generate_litellm_config(site, default_model)
 
     if print_only:
         # Emit verbatim (no rich newline/markup), byte-identical to deploy.
@@ -929,6 +931,7 @@ def clive_command(
     if show_path:
         console.print(f"clive:   {site.clive_path}")
         console.print(f"orclive: {site.orclive_path}")
+        console.print(f"routing: {site.litellm_config_path}")
         console.print(f"Default model: {default_model}")
         console.print("Add to your ~/.bashrc to run them as bare commands:")
         console.print(
@@ -937,28 +940,29 @@ def clive_command(
         )
         return
 
-    # Default action: deploy both launchers (repo → /work sync).
+    # Default action: deploy both launchers + the routing config (repo → /work).
     _ = deploy  # deploy is the default; the flag is for explicitness only
-    for name, path, script in (
-        ("clive", site.clive_path, clive_script),
-        ("orclive", site.orclive_path, orclive_script),
+    for name, path, content, mode in (
+        ("clive", site.clive_path, clive_script, 0o755),
+        ("orclive", site.orclive_path, orclive_script, 0o755),
+        ("litellm_config.yaml", site.litellm_config_path, litellm_yaml, 0o644),
     ):
-        _deploy_launcher(name, path, script)
+        _deploy_launcher(name, path, content, mode)
     console.print(f"  Model: {default_model} · URL: {site.default_url}")
     console.print(
         "  Run [cyan]imas-ambix agent clive --path[/] for the ~/.bashrc PATH line."
     )
 
 
-def _deploy_launcher(name: str, path, script: str) -> None:
-    """Write a generated launcher to *path* (755, group-matched), or raise."""
+def _deploy_launcher(name: str, path, content: str, mode: int = 0o755) -> None:
+    """Write a generated artifact to *path* (group-matched), or raise."""
     import shutil
 
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(script, encoding="utf-8")
-        path.chmod(0o755)
-        # Match the parent dir's group so the storage group can run it.
+        path.write_text(content, encoding="utf-8")
+        path.chmod(mode)
+        # Match the parent dir's group so the storage group can use it.
         shutil.chown(path, group=path.parent.stat().st_gid)
     except OSError as exc:
         raise click.ClickException(f"Failed to deploy {name} to {path}: {exc}") from exc

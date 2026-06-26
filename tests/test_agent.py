@@ -1258,24 +1258,37 @@ def test_orclive_script_carries_no_secret():
     # Reads the per-user key file at runtime — never embeds a key.
     assert ".config/openrouter/key" in script
     assert "sk-or-" not in script  # no literal OpenRouter key
-    # Per-run routing modes exist.
-    assert "--advisor" in script and "--local-only" in script
-    assert "--or-only" not in script  # all-OR is orclaude, not orclive
+    # No mode flags — orclive does one thing (advisor routing). clive = local,
+    # orclaude = all-OpenRouter.
+    assert "--advisor" not in script and "--local-only" not in script
+    assert "--or-only" not in script
+    # Points Claude Code's tiers at the ambix-* model names the YAML routes.
+    assert "ambix-sonnet" in script and "ambix-opus" in script
     # Local endpoint baked from SiteConfig (no drift).
     assert SiteConfig().default_url in script
 
 
-def test_orclive_local_only_needs_no_or_key():
-    """--local-only path must not require the OpenRouter key (works for non-holders)."""
-    from imas_ambix.agent.orclive import generate_orclive_script
+def test_litellm_config_is_secret_free_and_routes_tiers():
+    """The generated routing YAML references env keys only and maps all 3 tiers."""
+    import yaml
 
-    script = generate_orclive_script(SiteConfig(), "deepseek-v4-flash")
-    # The OR-key read is gated behind 'MODE != local'.
-    assert 'if [[ "$MODE" != "local" ]]; then' in script
+    from imas_ambix.agent.litellm_config import generate_litellm_config
+
+    cfg = generate_litellm_config(SiteConfig(), "deepseek-v4-flash")
+    assert "sk-or-" not in cfg and "sk-litellm" not in cfg  # no literal keys
+    assert "os.environ/OPENROUTER_API_KEY" in cfg  # OR key via env
+    data = yaml.safe_load(cfg)
+    names = {m["model_name"] for m in data["model_list"]}
+    assert names == {"ambix-sonnet", "ambix-haiku", "ambix-opus"}
+    # sonnet/haiku → local endpoint; opus → OpenRouter.
+    by = {m["model_name"]: m["litellm_params"]["api_base"] for m in data["model_list"]}
+    assert by["ambix-sonnet"] == SiteConfig().default_url
+    assert "openrouter" in by["ambix-opus"]
 
 
 def test_siteconfig_launcher_paths():
-    """clive and orclive deploy under agents/ on the shared base dir."""
+    """clive, orclive, and the routing config deploy under agents/."""
     site = SiteConfig()
     assert str(site.clive_path).endswith("agents/clive")
     assert str(site.orclive_path).endswith("agents/orclive")
+    assert str(site.litellm_config_path).endswith("agents/litellm_config.yaml")

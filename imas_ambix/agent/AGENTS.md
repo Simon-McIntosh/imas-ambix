@@ -219,39 +219,46 @@ Code's per-request hash, so caching is not defeated). No gateway/LiteLLM/router
 is needed — the Anthropic endpoint is native to vLLM.
 
 ```bash
-clive "explain this repo"          # Claude Code (default), direct route to the GPU node
-clive --codex "write a test"       # Codex CLI, same server/key/model
-clive --model glm-5-2-fp8 ...       # override (default: auto-detect from /v1/models)
-orclive "refactor this"            # HYBRID: sonnet/haiku→local, opus→OpenRouter (key-holders)
-orclive --local-only "quick edit"  # identical to clive (no OR key needed)
-imas-ambix agent clive --deploy    # (re)generate + sync BOTH launchers to GPFS
+clive "explain this repo"          # local H200 model; Claude Code, direct route
+clive --codex "write a test"       # local model via Codex CLI, same server
+orclive "refactor this"            # advisor: sonnet/haiku→local, opus→OpenRouter (key-holders)
+orclaude "..."                     # all tiers → OpenRouter (bashrc fn; key-holders)
+imas-ambix agent clive --deploy    # (re)generate + sync all launchers + routing config
 imas-ambix agent clive --path      # print the ~/.bashrc PATH line
 ```
 
-Two launchers, both shared on GPFS, both secret-free, both generated from the
-same source of truth:
+**Three launchers, one job each** — no overlapping flags:
 
-- **`clive` — local-only, for everyone.** Talks only to the H200 keyless
+- **`clive` — local only, for everyone.** Talks only to the H200 keyless
   endpoint, **auto-detects the running model** from `/v1/models` (swap the
-  served model, no redeploy), and **warns if the server is down**. Carries no
-  key. This is what every SDCC cluster user runs.
-- **`orclive` — hybrid, for key-holders.** Adds an OpenRouter burst: routes
-  Claude Code tiers per a per-user config (default sonnet/haiku → local DSv4,
-  opus → OpenRouter) via a tiny **per-user** LiteLLM proxy it starts and tears
-  down. **The OpenRouter key is read at runtime from each user's own
-  `~/.config/openrouter/key`** (same file `orclaude` uses) — NEVER from any
-  shared `/work` file. The script holds no secret, so it is safe on group GPFS;
-  a user without an OR key gets a setup message (or uses `--local-only`).
-  Per-run modes: `--advisor` (default) / `--local-only`.
+  served model, no redeploy), and **errors out if the server is unreachable**
+  (no fallback — no endpoint means no model). Carries no key. What every SDCC
+  cluster user runs. (`--codex` for the Codex CLI; `--model` to override.)
+- **`orclive` — advisor routing, for key-holders.** sonnet/haiku → local DSv4,
+  opus → OpenRouter. No flags — it does exactly this one thing. It starts a tiny
+  **per-user** LiteLLM proxy from the deployed routing YAML, points Claude Code's
+  tiers at the `ambix-{sonnet,haiku,opus}` model names, and tears the proxy down
+  on exit. **The OpenRouter key is read at runtime from the per-user
+  `~/.config/openrouter/key`** and exported only into the proxy — NEVER in any
+  shared file.
+- **`orclaude` — all tiers → OpenRouter** (the `~/.bashrc` function). Use when
+  you want everything on OpenRouter.
 
-**Sync discipline — repo is the source of truth (binding):** both launchers are
-**generated** by `imas-ambix agent clive --deploy` from their generators
-(`imas_ambix/agent/clive.py`, `imas_ambix/agent/orclive.py`) and written to
-`/work/projects/imas_gpu/agents/{clive,orclive}` (mode 755, group
-`sdcc-imas_gpu`). **NEVER hand-edit the deployed `/work` copies** — they are
-disposable artifacts. To change a launcher: edit the generator in the repo,
-commit, then re-run `imas-ambix agent clive --deploy` to re-sync. This is the
-only thing that keeps the shared copies from drifting from the repo.
+**Routing config = LiteLLM YAML, generated like the launchers.** orclive's
+routing lives in `litellm_config.yaml` (deployed to `/work`), generated from
+`imas_ambix/agent/litellm_config.py` with the local URL/model auto-filled from
+SiteConfig. It is **secret-free** — the OpenRouter key is `os.environ/OPENROUTER_API_KEY`,
+injected by orclive at launch. To change which tier goes where, edit the
+generator's YAML and re-deploy. No bespoke env vars — routing is all in the YAML.
+
+**Sync discipline — repo is the source of truth (binding):** `clive`, `orclive`,
+and `litellm_config.yaml` are all **generated** by `imas-ambix agent clive --deploy`
+from their generators (`imas_ambix/agent/{clive,orclive,litellm_config}.py`) and
+written to `/work/projects/imas_gpu/agents/` (group `sdcc-imas_gpu`). **NEVER
+hand-edit the deployed `/work` copies** — they are disposable artifacts. To
+change any of them: edit the generator in the repo, commit, then re-run
+`imas-ambix agent clive --deploy` to re-sync. This is the only thing that keeps
+the shared copies from drifting from the repo.
 
 - **Direct route, no tunnel.** Login and standard compute nodes route directly
   to `<gpu-node>:PORT` (verified 2026-06-25: login → `98dci4-gpu-0003:18800` =
