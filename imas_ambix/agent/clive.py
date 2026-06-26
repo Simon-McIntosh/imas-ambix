@@ -3,10 +3,12 @@
 """Generator for the ``clive`` agent-CLI launcher with optional LiteLLM routing.
 
 ``clive`` starts a persistent LiteLLM proxy when an OpenRouter key
-(``~/.config/openrouter/key``) is present.  It defaults to the **local H200**
-model.  Use ``--model or-opus / or-sonnet / or-gpt-5.5 / or-glm-5.2`` to
-route through OpenRouter.  Standard Claude models bypass the proxy entirely
-(they go to the Anthropic API directly — run ``claude`` without ``clive``).
+(``~/.config/openrouter/key``) is present.  Tier mapping:
+
+  - **Default / Haiku** → ``local`` (H200 model)
+  - **Opus** → ``or-opus`` (OpenRouter)
+  - **Sonnet** → ``or-gpt-5.5`` (OpenRouter)
+  - ``--model or-glm-5.2`` for the extra OR model
 
 Without an OR key, clive connects directly to the local model (no proxy).
 
@@ -76,10 +78,9 @@ clive — drive an agent CLI against the GPU-served local model.
   --model NAME    Served model name.
   -h, --help      Show this help.
 
-With an OpenRouter key (see ~/.config/openrouter/key), clive routes:
-  Default → local H200
-  --model or-opus / or-sonnet / or-gpt-5.5 / or-glm-5.2 → OpenRouter
-Standard Claude models bypass the proxy; run bare ``claude`` for those.
+With an OpenRouter key (see ~/.config/openrouter/key), proxy routes:
+  Default / Haiku → local H200   Opus → or-opus (OR)
+  Sonnet → or-gpt-5.5 (OR)       --model or-glm-5.2 for extra OR model
 
 Env overrides: AMBIX_AGENT_URL, AMBIX_AGENT_MODEL, AMBIX_AGENT_KEY_FILE,
 AMBIX_AGENT_API_KEY, AMBIX_LITELLM_CONFIG.
@@ -203,11 +204,17 @@ case "$HARNESS" in
         fi
 
         if $_USE_PROXY; then
-            # Via LiteLLM proxy — default to local H200.
-            # Use --model or-opus / or-sonnet / or-gpt-5.5 / or-glm-5.2 for OR.
+            # Via LiteLLM proxy — map tiers to routes.
+            #   Default / Haiku → local (H200)
+            #   Opus → or-opus (OR)
+            #   Sonnet → or-gpt-5.5 (OR)
+            #   --model or-glm-5.2 for the extra OR model.
             ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \\
             ANTHROPIC_AUTH_TOKEN="clive" \\
             ANTHROPIC_MODEL="local" \\
+            ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus" \\
+            ANTHROPIC_DEFAULT_SONNET_MODEL="or-gpt-5.5" \\
+            ANTHROPIC_DEFAULT_HAIKU_MODEL="local" \\
             CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\
             exec claude "${{ARGS[@]}}"
         else
