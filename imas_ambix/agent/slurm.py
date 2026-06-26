@@ -204,6 +204,8 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
         _append_option(args, "--max-num-batched-tokens", engine.max_num_batched_tokens)
         if engine.kv_cache_dtype:
             _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)
+        # KV block size (MiniMax M3 MSA requires --block-size 128).
+        _append_option(args, "--block-size", engine.block_size)
         # MTP speculative decoding (GLM-5.2): draft several tokens per step.
         _append_option(
             args, "--speculative-config.method", engine.speculative_method

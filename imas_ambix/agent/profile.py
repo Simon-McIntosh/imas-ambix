@@ -97,6 +97,10 @@ class EngineConfig(BaseModel):
     weight_loader_disable_mmap: bool = False
     enable_auto_tool_choice: bool = False
     kv_cache_dtype: str | None = None
+    # KV-cache block size. ``None`` keeps the vLLM default. MiniMax M3 requires
+    # ``--block-size 128`` on every platform (its MSA sparse/index cache);
+    # vLLM-only.
+    block_size: int | None = None
     # vLLM scheduler caps. ``None`` keeps the vLLM default
     # (``max_num_seqs=256`` in recent releases, which becomes the hard
     # ceiling on in-flight requests and is the dominant throughput
