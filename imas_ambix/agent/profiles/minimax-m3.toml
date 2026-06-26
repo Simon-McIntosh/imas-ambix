@@ -1,10 +1,16 @@
-# MiniMax M3 — 456B MoE, ~46B activated, 1M context with MSA
+# MiniMax M3 — 428B MoE, ~24.5B activated/token, 1M context with MSA
 #
-# Architecture: ~32 routed + shared experts (top-2 routing), ~46B activated/token
-# 80 layers, hybrid Lightning Attention (7 layers/block) + Softmax (1 layer/block)
-# + MSA (MiniMax Sparse Attention) for ultra-long context
-# ~64 Q heads, GQA KV heads TBC, head_dim=128, hidden_size=6144, vocab=200,064
-# Weights: FP8 native checkpoint (float8_e4m3fn) — ~456 GB on disk
+# Architecture (from live config.json, 2026-06-26): 60 layers (first 3 dense,
+# 57 MoE), 128 routed experts, top-4 routing + 1 shared expert, hidden_size=6144,
+# moe_intermediate_size=3072, 64 Q heads / 4 KV heads (GQA), head_dim=128,
+# vocab=200,064. MSA (MiniMax Sparse Attention) for ultra-long context.
+# Multimodal: separate ViT vision encoder (hidden 1280, 32 layers).
+# Weights: FP8 native checkpoint (float8_e4m3fn) — ~456 GB on disk.
+#
+# DECODE SPEED: ~24.5B active/token (computed from config) = ~1.5× FEWER than
+# GLM-5.2's ~36.6B → expect ~1.5× faster single-request decode (~45-55 tok/s
+# est. vs GLM's measured ~30). Verify live after first serve. Still short of the
+# 130+/400 target — DeepSeek-V4-Flash (~13B active) remains the speed leader.
 #
 # Memory budget on 4×H200 NVL (140.4 GB each = 561.6 GB total):
 #   GPU: ~114 GB/card weights (456 GB / 4 TP shards)
