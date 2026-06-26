@@ -1,8 +1,8 @@
 """Generator for the ``clive`` LiteLLM routing config.
 
 ``clive`` runs a per-user LiteLLM proxy when an OpenRouter key is present.
-Standard Claude model IDs route to the local H200 model; ``or-*`` models
-route to OpenRouter.
+Only ``local`` (H200) and ``or-*`` (OpenRouter) models are routed via the
+proxy — standard Claude models go to the Anthropic API directly.
 
 The config is **secret-free**: the OpenRouter key is referenced as
 ``os.environ/OPENROUTER_API_KEY`` and supplied by ``clive`` at launch from the
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
     """Render the clive LiteLLM routing YAML for *site*.
 
-    Standard Claude API IDs → local H200.  ``or-*`` names → OpenRouter.
+    ``local`` → H200 model.  ``or-*`` names → OpenRouter.
     ``model_info.description`` carries the actual model info.
 
     Parameters
@@ -41,37 +41,11 @@ def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
 # SECRET-FREE: OpenRouter key via os.environ/OPENROUTER_API_KEY, injected by
 # clive at launch from the per-user ~/.config/openrouter/key.
 #
-# Claude standard IDs → local H200 ({local_model})
-# or-* names → OpenRouter
-# Also accepts the short alias ``local`` for the local model.
+# Routes: local -> H200 ({local_model}), or-* -> OpenRouter.
+# Standard Claude models bypass the proxy (go to Anthropic API directly).
 
 model_list:
-  # ── Standard Claude model IDs → local H200 ────────────────────────────────
-  - model_name: claude-opus-4-8
-    litellm_params:
-      model: anthropic/{local_model}
-      api_base: {local_url}
-      api_key: os.environ/AMBIX_LOCAL_KEY
-    model_info:
-      description: "{local_model} on 8×H200 (vLLM)"
-
-  - model_name: claude-sonnet-4-6
-    litellm_params:
-      model: anthropic/{local_model}
-      api_base: {local_url}
-      api_key: os.environ/AMBIX_LOCAL_KEY
-    model_info:
-      description: "{local_model} on 8×H200 (vLLM)"
-
-  - model_name: claude-haiku-4-5-20251001
-    litellm_params:
-      model: anthropic/{local_model}
-      api_base: {local_url}
-      api_key: os.environ/AMBIX_LOCAL_KEY
-    model_info:
-      description: "{local_model} on 8×H200 (vLLM)"
-
-  # ── Short alias (backwards compat) ────────────────────────────────────────
+  # ── Local H200 model ────────────────────────────────────────────────────────
   - model_name: local
     litellm_params:
       model: anthropic/{local_model}

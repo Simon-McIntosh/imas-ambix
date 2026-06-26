@@ -1261,15 +1261,10 @@ def test_litellm_config_is_secret_free_and_routes_six_models():
     assert "os.environ/OPENROUTER_API_KEY" in cfg  # OR key via env
     data = yaml.safe_load(cfg)
     names = {m["model_name"] for m in data["model_list"]}
-    assert names == {
-        "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001",
-        "local",
-        "or-opus", "or-sonnet", "or-gpt-5.5", "or-glm-5.2",
-    }
-    # Standard Claude IDs + local alias → local endpoint; or-* → OpenRouter.
+    assert names == {"local", "or-opus", "or-sonnet", "or-gpt-5.5", "or-glm-5.2"}
+    # local → local endpoint; or-* → OpenRouter.
     by = {m["model_name"]: m["litellm_params"]["api_base"] for m in data["model_list"]}
-    for n in ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001", "local"]:
-        assert by[n] == SiteConfig().default_url, f"{n} should route to local"
+    assert by["local"] == SiteConfig().default_url
     for n in ["or-opus", "or-sonnet", "or-gpt-5.5", "or-glm-5.2"]:
         assert "openrouter" in by[n], f"{n} should route to OpenRouter"
     # model_info carries the served model name for proxy metadata queries.
