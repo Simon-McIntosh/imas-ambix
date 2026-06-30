@@ -1003,7 +1003,11 @@ def verdict(rmse_probe, rmse_baseline, names, *, ratio_threshold):
     Reports per-component skill = 1 - probe/baseline.
     """
     rows = []
-    key = {"axis_R", "axis_Z", "xpt_R", "xpt_Z"}
+    # The headline PASS criterion is the magnetic AXIS (axis_R, axis_Z) — robust,
+    # always present.  The split X-point channels (lower/upper) are reported
+    # per-component but are present-when-present (often masked), so they do not
+    # gate the overall feasibility flag; the reader judges them per-component.
+    key = {"axis_R", "axis_Z"}
     axis_xpt_pass = []
     for d, nm in enumerate(names):
         rp = rmse_probe[d]
@@ -1031,9 +1035,9 @@ def verdict(rmse_probe, rmse_baseline, names, *, ratio_threshold):
     return {
         "feasible": overall,
         "criterion": (
-            f"probe RMSE < baseline / {ratio_threshold:g} for ALL of "
-            "axis_R, axis_Z, xpt_R, xpt_Z (probe captures geometry beyond "
-            "shot-to-shot spread)"
+            f"probe RMSE < baseline / {ratio_threshold:g} for axis_R + axis_Z "
+            "(the robust always-present components); split lower/upper X-point "
+            "channels reported per-component (present-when-present)"
         ),
         "ratio_threshold": ratio_threshold,
         "components": rows,
@@ -1046,14 +1050,20 @@ def verdict(rmse_probe, rmse_baseline, names, *, ratio_threshold):
 
 
 def geometry_scatter(pred, y, mask, names, out_path, *, title):
-    """Pred-vs-true scatter for axis_R, axis_Z, xpt_R, xpt_Z."""
+    """Pred-vs-true scatter for axis + the split lower/upper X-point heights."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    comps = [(0, "axis_R"), (1, "axis_Z"), (2, "xpt_R"), (3, "xpt_Z")]
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4.2), constrained_layout=True)
+    idx = {nm: d for d, nm in enumerate(names)}
+    wanted = ["axis_R", "axis_Z", "lower_xpt_Z", "upper_xpt_Z"]
+    comps = [(idx[nm], nm) for nm in wanted if nm in idx]
+    fig, axes = plt.subplots(
+        1, len(comps), figsize=(4 * len(comps), 4.2), constrained_layout=True
+    )
+    if len(comps) == 1:
+        axes = [axes]
     for ax, (d, label) in zip(axes, comps, strict=True):
         sel = mask[:, d]
         if sel.sum() == 0:
@@ -1349,22 +1359,16 @@ def run(args) -> int:
                 return row["skill"]
         return None
 
-    for comp in ("axis_R", "axis_Z", "xpt_R"):
+    for comp in ("axis_R", "axis_Z", "lower_xpt_Z", "upper_xpt_Z"):
         sa, sb = _skill(arm_a, comp), _skill(arm_b, comp)
         if sa is not None and sb is not None:
-            note = (
-                "  [xpt: label-suspect, not a verdict]"
-                if comp.startswith("xpt")
-                else ""
-            )
             logger.info(
-                "TOROIDAL ATTRIBUTION  %-7s: A(poloidal)=%+.3f  B(+toroidal)=%+.3f"
-                "  delta=%+.3f%s",
+                "TOROIDAL ATTRIBUTION  %-12s: A(poloidal)=%+.3f  "
+                "B(+toroidal)=%+.3f  delta=%+.3f",
                 comp,
                 sa,
                 sb,
                 sb - sa,
-                note,
             )
 
     coverage = {
@@ -1401,14 +1405,16 @@ def run(args) -> int:
                 arm_c[0] if arm_c is not None else None
             ),
         },
-        # top-level verdict mirrors arm B (+toroidal); xpt is label-suspect (the
-        # single-primary X-point target is bimodal across topology switches — the
-        # upper/lower-null split is the deferred fix), NOT a model verdict.
+        # top-level verdict mirrors arm B (+toroidal).  The X-point is now SPLIT
+        # into separate lower/upper channels (each continuous, present-when-
+        # present) + ψ-proximity boundary filtered, so the split xpt skills ARE
+        # a model-relevant verdict — judged per-component (they are masked when
+        # the divertor null is absent, so they gate per-component, not overall).
         "verdict": all_report["verdict"],
         "xpoint_note": (
-            "xpt_R/xpt_Z are X-POINT-LABEL-SUSPECT (the single-primary target is "
-            "bimodal across double-null topology switches; the upper/lower-null "
-            "split is deferred) — reported for completeness, NOT a model verdict."
+            "X-point SPLIT into lower_xpt (Z<0) + upper_xpt (Z>0), each a "
+            "continuous present-when-present channel with a ψ-proximity boundary "
+            "filter — a model-relevant verdict, judged per split component."
         ),
     }
 

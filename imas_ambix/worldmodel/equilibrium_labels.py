@@ -13,18 +13,20 @@ What it produces
 ----------------
 :func:`load_equilibrium_geometry` interpolates the L2 equilibrium geometry
 onto a set of camera ``frame_times`` (seconds) and returns, per frame, a
-**12-D target** in METRES plus a finite mask::
+**14-D target** in METRES plus a finite mask::
 
-    index  name        meaning (metres)
-    -----  ----------  --------------------------------------------------
-      0    axis_R      magnetic-axis major radius
-      1    axis_Z      magnetic-axis height
-      2    xpt_R       primary (continuity-tracked) X-point major radius
-      3    xpt_Z       primary (continuity-tracked) X-point height
-    4..11  lcfs_r[k]   LCFS control-point RADIUS at 8 fixed poloidal
-                       angles θ_k about the magnetic axis (k = 0..7),
-                       θ_k = 2π k / 8 measured CCW from the outboard
-                       midplane (+R direction) in the (R, Z) poloidal plane.
+    index  name          meaning (metres)
+    -----  ------------  --------------------------------------------------
+      0    axis_R        magnetic-axis major radius
+      1    axis_Z        magnetic-axis height
+      2    lower_xpt_R   LOWER (Z<0) divertor X-point major radius
+      3    lower_xpt_Z   LOWER X-point height
+      4    upper_xpt_R   UPPER (Z>0) divertor X-point major radius
+      5    upper_xpt_Z   UPPER X-point height
+    6..13  lcfs_r[k]     LCFS control-point RADIUS at 8 fixed poloidal
+                         angles θ_k about the magnetic axis (k = 0..7),
+                         θ_k = 2π k / 8 measured CCW from the outboard
+                         midplane (+R direction) in the (R, Z) poloidal plane.
 
 The 8 LCFS radii are the ray-cast distance (metres) from the magnetic axis
 to the last-closed-flux-surface contour along each of 8 equally-spaced
@@ -42,16 +44,29 @@ interpolated target touches an undefined equilibrium slice is **masked**
 has its own per-frame mask, so a frame can contribute an axis label while its
 X-point label is masked out.
 
-The X-point is special: its primary-null trajectory is **discontinuous** at a
-topology switch (the active null jumps from the lower to the upper divertor, or
-a null appears / vanishes).  Linearly interpolating across such a jump would
-draw a straight line through Z~0 — a label matching *no* physical X-point.  So
-``xpt_R``/``xpt_Z`` are interpolated **discontinuity-aware**: each frame takes
-the value of its **nearest** native slice, and any frame whose bracketing
-native primary-null trajectory jumps by more than
-:data:`XPOINT_DISCONTINUITY_M` (or whose nearest native slice is a sentinel /
-absent) is **masked**, never imputed.  The continuous components (axis, LCFS)
-stay linearly interpolated.
+The X-point is SPLIT into two SEPARATE channels — LOWER (Z<0) and UPPER (Z>0)
+— each present-when-present and masked-when-absent (single-null carries one,
+double-null both, limiter neither).  This subsumes the earlier "primary
+X-point" hack: a single primary target was **bimodal** across a topology switch
+(the active null jumps lower↔upper, a ~2.4 m Z step), so linearly interpolating
+it drew a line through Z~0 matching no physical null.  As two separate
+sign-of-Z channels there is **no flip and no discontinuity** — each channel is
+continuous within its own presence, so it is interpolated **linearly** (like
+axis / LCFS) and only its NaN-absence gaps are masked (continuity-tracking is
+dropped; the masking-on-absence is kept).
+
+Boundary-null filter (psi-proximity)
+------------------------------------
+The flux map can carry a reconstructed null that is **not** on the plasma
+boundary (an internal / far field null).  Each store null is kept only if it is
+BOUNDARY-ASSOCIATED: its poloidal flux matches the LCFS flux,
+``|ψ(null) − ψ_boundary| <= tol · |ψ_boundary − ψ_axis|`` with ``tol`` =
+:data:`XPOINT_PSI_TOL`, where ``ψ_boundary`` is the median ψ bilinearly
+interpolated at the LCFS contour points, ``ψ_axis`` the ψ at the magnetic axis,
+and ``ψ(null)`` the ψ bilinearly interpolated at the null's ``(R, Z)`` on the
+store's ``ψ(R, Z, t)`` grid.  A null failing the test is **masked** (not a
+boundary null).  No null re-finding and no separatrix tracing — the store's two
+nulls + this single ψ check only.
 
 Store facts (verified on the L2 mirror, 2026-06-24)
 ---------------------------------------------------
@@ -99,26 +114,31 @@ DEFAULT_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 #: Any coordinate at or below this magnitude is treated as missing.
 XPOINT_SENTINEL = -9.0
 
-#: Largest physical step (metres) the primary-null trajectory may take between
-#: adjacent native equilibrium slices before it is treated as a topology
-#: switch / discontinuity.  A real X-point drifts smoothly (cm-scale per 5 ms
-#: slice on MAST); a lower<->upper flip is ~2.4 m.  Camera frames whose
-#: bracketing native slices straddle a jump larger than this are masked, never
-#: interpolated across.
-XPOINT_DISCONTINUITY_M = 0.3
+#: Boundary-null ψ-proximity tolerance.  A store null is kept only when its
+#: poloidal flux matches the LCFS flux to within this fraction of the
+#: axis→boundary flux difference: ``|ψ_null − ψ_boundary| <= tol·|ψ_boundary −
+#: ψ_axis|``.  Measured (18502/18504): genuine boundary nulls sit at normalised
+#: ψ-distance ~0.001–0.01, so 0.05 keeps every real boundary null with margin
+#: while rejecting an internal / far null whose ψ differs by a sizeable fraction
+#: of the axis-boundary span.
+XPOINT_PSI_TOL = 0.05
 
 #: Number of fixed poloidal angles the LCFS boundary is resampled onto.
 N_LCFS_ANGLES = 8
 
-#: Fixed target dimensionality: axis(2) + primary X-point(2) + 8 LCFS radii.
-TARGET_DIM = 4 + N_LCFS_ANGLES
+#: Fixed target dimensionality: axis(2) + LOWER X-point(2) + UPPER X-point(2)
+#: + 8 LCFS radii = 14.
+TARGET_DIM = 6 + N_LCFS_ANGLES
 
-#: Human-readable name per target component (length == TARGET_DIM).
+#: Human-readable name per target component (length == TARGET_DIM).  The X-point
+#: is split into a LOWER (Z<0) and an UPPER (Z>0) divertor channel.
 TARGET_NAMES: tuple[str, ...] = (
     "axis_R",
     "axis_Z",
-    "xpt_R",
-    "xpt_Z",
+    "lower_xpt_R",
+    "lower_xpt_Z",
+    "upper_xpt_R",
+    "upper_xpt_Z",
     *tuple(f"lcfs_r_{k}" for k in range(N_LCFS_ANGLES)),
 )
 
@@ -131,7 +151,7 @@ LCFS_ANGLES = (2.0 * np.pi * np.arange(N_LCFS_ANGLES) / N_LCFS_ANGLES).astype(
 
 @dataclass
 class EquilibriumGeometry:
-    """Per-frame 12-D plasma-geometry labels for one shot's camera window.
+    """Per-frame 14-D plasma-geometry labels for one shot's camera window.
 
     Attributes
     ----------
@@ -140,13 +160,14 @@ class EquilibriumGeometry:
     frame_times:
         ``(F,)`` camera frame times (s) the labels were interpolated onto.
     target:
-        ``(F, 12)`` float32 geometry labels in METRES (see module docstring
-        for the component layout).  Masked components are NaN.
+        ``(F, 14)`` float32 geometry labels in METRES (see module docstring
+        for the component layout — axis, LOWER/UPPER X-point, 8 LCFS radii).
+        Masked components are NaN.
     finite_mask:
-        ``(F, 12)`` bool — True where the component is a real, finite label
+        ``(F, 14)`` bool — True where the component is a real, finite label
         (the equilibrium slice was defined at that frame time).
     names:
-        The 12 component names (``TARGET_NAMES``).
+        The 14 component names (``TARGET_NAMES``).
     units:
         Units string for every component ("m").
     """
@@ -221,146 +242,107 @@ def _interp_1d_masked(
     return out
 
 
-def _interp_nearest_no_jump(
-    t_native: np.ndarray,
-    y_native: np.ndarray,
-    t_target: np.ndarray,
-    max_jump: float,
-) -> np.ndarray:
-    """Nearest-native sampling that refuses to bridge a discontinuity.
+def _bilinear_on_grid(
+    field_zr: np.ndarray, r_axis: np.ndarray, z_axis: np.ndarray, r: float, z: float
+) -> float:
+    """Bilinearly interpolate a ``(nz, nr)`` field at ``(r, z)``.
 
-    Designed for the primary-null trajectory, which is piecewise-continuous
-    with topology-switch jumps (lower<->upper flips, null appearance /
-    disappearance) that must NOT be interpolated across.  The series may also
-    carry NaN gaps (sentinel slices where no null exists).
-
-    A native *transition* between two consecutive **finite** samples is a
-    discontinuity when their values differ by more than ``max_jump`` OR a NaN
-    gap separates them in time (the trajectory was undefined in between).  Each
-    finite native slice that borders such a transition is a **switch slice**.
-
-    For each target time the value of the **nearest** finite native slice is
-    taken (step-like, no blending), and the target is **masked** (NaN) when:
-
-    - the nearest finite native slice is a switch slice (it sits on the edge of
-      a topology change — neighbouring frames would land on the other branch),
-      OR
-    - the target falls strictly between two finite native slices whose
-      transition is a discontinuity, OR
-    - the target is outside the finite native range.
-
-    This masks a whole neighbourhood around every switch rather than only the
-    bracketing segment, so two adjacent camera frames can never straddle a flip
-    (the on-sample exemption that would let a flip through is removed).
-
-    Continuous fields must use :func:`_interp_1d_masked` instead — this routine
-    is intentionally step-like and only correct for a discontinuous series.
-
-    Parameters
-    ----------
-    t_native, y_native:
-        Native time base and a (possibly NaN-gapped) value series.
-    t_target:
-        Query times.
-    max_jump:
-        Native-to-native step above which a transition is a discontinuity.
-
-    Returns
-    -------
-    ``(len(t_target),)`` float64; NaN where masked.
+    ``field_zr`` is indexed ``[z, r]`` (the L2 ``psi`` grid layout: the axis ψ
+    is the field maximum, verified on the mirror).  ``r_axis`` / ``z_axis`` are
+    the monotonically-increasing grid coordinates.  Returns NaN when ``(r, z)``
+    is outside the grid or the bracketing cell carries a NaN.
     """
-    t_n = np.asarray(t_native, dtype=np.float64)
-    y_n = np.asarray(y_native, dtype=np.float64)
-    t_g = np.asarray(t_target, dtype=np.float64)
-    out = np.full(t_g.shape, np.nan, dtype=np.float64)
-
-    finite = np.isfinite(t_n) & np.isfinite(y_n)
-    if not finite.any():
-        return out
-    # Keep the ORIGINAL native indices so a NaN gap (a dropped slice between two
-    # finite ones) counts as a discontinuous transition, not a smooth step.
-    idx_native = np.flatnonzero(finite)
-    tn = t_n[idx_native]
-    yn = y_n[idx_native]
-    order = np.argsort(tn)
-    tn = tn[order]
-    yn = yn[order]
-    idx_native = idx_native[order]
-
-    n = tn.size
-    # Per-finite-sample "switch slice" flag: borders a discontinuous transition.
-    switch = np.zeros(n, dtype=bool)
-    if n >= 2:
-        value_jump = np.abs(np.diff(yn)) > max_jump
-        gap = np.diff(idx_native) > 1  # a NaN/sentinel slice sat between them
-        bad_transition = value_jump | gap  # (n-1,)
-        switch[:-1] |= bad_transition  # left side of each bad transition
-        switch[1:] |= bad_transition  # right side
-
-    in_range = (t_g >= tn[0]) & (t_g <= tn[-1])
-    if not in_range.any():
-        return out
-    tg = t_g[in_range]
-
-    # Right-bracket index `hi` in [1, n-1]; `lo = hi - 1` is the left.
-    hi = np.clip(np.searchsorted(tn, tg, side="right"), 1, n - 1)
-    lo = hi - 1
-    t_lo, t_hi = tn[lo], tn[hi]
-    y_lo, y_hi = yn[lo], yn[hi]
-
-    take_hi = (tg - t_lo) > (t_hi - tg)
-    nearest_idx = np.where(take_hi, hi, lo)
-    nearest = yn[nearest_idx]
-
-    # Mask if the segment is discontinuous OR the nearest sample is a switch
-    # slice (so the whole neighbourhood of a flip is masked, never bridged).
-    bridges_jump = (np.abs(y_hi - y_lo) > max_jump) | (
-        idx_native[hi] - idx_native[lo] > 1
+    if not (np.isfinite(r) and np.isfinite(z)):
+        return float("nan")
+    if not (r_axis[0] <= r <= r_axis[-1] and z_axis[0] <= z <= z_axis[-1]):
+        return float("nan")
+    ir = min(max(int(np.searchsorted(r_axis, r)) - 1, 0), r_axis.size - 2)
+    iz = min(max(int(np.searchsorted(z_axis, z)) - 1, 0), z_axis.size - 2)
+    tr = (r - r_axis[ir]) / (r_axis[ir + 1] - r_axis[ir])
+    tz = (z - z_axis[iz]) / (z_axis[iz + 1] - z_axis[iz])
+    f00 = field_zr[iz, ir]
+    f01 = field_zr[iz, ir + 1]
+    f10 = field_zr[iz + 1, ir]
+    f11 = field_zr[iz + 1, ir + 1]
+    return float(
+        f00 * (1 - tr) * (1 - tz)
+        + f01 * tr * (1 - tz)
+        + f10 * (1 - tr) * tz
+        + f11 * tr * tz
     )
-    nearest_is_switch = switch[nearest_idx]
-    keep = ~bridges_jump & ~nearest_is_switch
-
-    out_in = out[in_range]
-    out_in[:] = np.where(keep, nearest, np.nan)
-    out[in_range] = out_in
-    return out
 
 
-def select_primary_xpoint(
-    x_point_r: np.ndarray, x_point_z: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """Select a temporally-continuous primary X-point per time slice.
+def _is_boundary_null(
+    psi_zr: np.ndarray,
+    r_axis: np.ndarray,
+    z_axis: np.ndarray,
+    null_r: float,
+    null_z: float,
+    axis_r: float,
+    axis_z: float,
+    lcfs_r_col: np.ndarray,
+    lcfs_z_col: np.ndarray,
+    *,
+    tol: float = XPOINT_PSI_TOL,
+) -> bool:
+    """True iff a null's poloidal flux matches the LCFS flux (a boundary null).
 
-    The store carries up to two X-points per slice in ``(2, nt)`` arrays with
-    a ``-9.99`` sentinel for an undefined null.  MAST is double-null most of the
-    time and switches topology, so a fixed "most-negative-Z (lower null)" rule
-    flips between the lower and upper divertor whenever the lower null drops to
-    the sentinel — producing a ~2.4 m jump in the picked-Z series and, after
-    linear interpolation, a label that passes through Z~0 matching no physical
-    X-point.
+    ``ψ_boundary`` is the median ψ bilinearly sampled at the LCFS contour
+    points; ``ψ_axis`` the ψ at the magnetic axis; the null is kept iff
+    ``|ψ_null − ψ_boundary| <= tol·|ψ_boundary − ψ_axis|``.  When ψ / axis /
+    boundary cannot be evaluated the null is conservatively KEPT (the filter
+    only ever *rejects* a confidently-non-boundary null — it never invents a
+    rejection from missing data).
+    """
+    psi_axis = _bilinear_on_grid(psi_zr, r_axis, z_axis, axis_r, axis_z)
+    bvals = [
+        _bilinear_on_grid(psi_zr, r_axis, z_axis, float(rr), float(zz))
+        for rr, zz in zip(lcfs_r_col, lcfs_z_col, strict=False)
+        if np.isfinite(rr) and np.isfinite(zz)
+    ]
+    bvals = [v for v in bvals if np.isfinite(v)]
+    if not bvals or not np.isfinite(psi_axis):
+        return True  # cannot evaluate the filter — keep (do not invent a reject)
+    psi_boundary = float(np.median(bvals))
+    span = abs(psi_boundary - psi_axis)
+    if span <= 0.0:
+        return True
+    psi_null = _bilinear_on_grid(psi_zr, r_axis, z_axis, null_r, null_z)
+    if not np.isfinite(psi_null):
+        return True
+    return abs(psi_null - psi_boundary) <= tol * span
 
-    Instead, the primary null is tracked by **temporal continuity**: at each
-    slice the chosen null is the real (finite, non-sentinel) X-point closest in
-    (R, Z) to the previous slice's primary.  The tracker is seeded at the first
-    slice carrying a real null, preferring the lower null there (the
-    conventional MAST diverted seed); thereafter it follows whichever null stays
-    physically continuous.  A run of all-sentinel slices breaks continuity — the
-    tracker re-seeds (lower-null preference) at the next real slice, and the gap
-    is flagged so a downstream interpolator can mask across it rather than draw
-    a line through it.
 
-    When two genuine nulls coexist (true double-null), a single "primary" is
-    ambiguous; the continuity rule resolves it to a stable, physical choice
-    (it does **not** average the two).
+def select_split_xpoints(
+    x_point_r: np.ndarray,
+    x_point_z: np.ndarray,
+    *,
+    psi: np.ndarray | None = None,
+    r_axis: np.ndarray | None = None,
+    z_axis: np.ndarray | None = None,
+    axis_r: np.ndarray | None = None,
+    axis_z: np.ndarray | None = None,
+    lcfs_r: np.ndarray | None = None,
+    lcfs_z: np.ndarray | None = None,
+    psi_tol: float = XPOINT_PSI_TOL,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
+    """Split the store's two nulls into LOWER (Z<0) and UPPER (Z>0) channels.
 
-    Parameters
-    ----------
-    x_point_r, x_point_z:
-        ``(2, nt)`` metre arrays from the equilibrium store.
+    The store carries up to two X-points per slice in ``(2, nt)`` arrays with a
+    ``-9.99`` sentinel for an undefined null.  Each real (finite, non-sentinel)
+    null is assigned to the LOWER channel when Z < 0 and the UPPER channel when
+    Z > 0 — so each channel is its own continuous, present-when-present series
+    (no lower↔upper flip, no 2.4 m discontinuity).  When the ψ grid + axis +
+    LCFS are supplied, a null is kept only if it is BOUNDARY-ASSOCIATED
+    (:func:`_is_boundary_null`); a non-boundary null is dropped (its channel is
+    NaN at that slice).  If two real nulls land in the same sign-of-Z channel
+    (degenerate; rare), the one closest to the boundary flux is kept.
 
     Returns
     -------
-    (xpt_r, xpt_z) : each ``(nt,)`` float64; NaN where no real null at a slice.
+    (lower_r, lower_z, upper_r, upper_z, n_rejected) : the four ``(nt,)``
+    float64 channels (NaN where absent / non-boundary) plus the count of nulls
+    the ψ-filter rejected (0 when no ψ grid was supplied).
     """
     xr = np.asarray(x_point_r, dtype=np.float64)
     xz = np.asarray(x_point_z, dtype=np.float64)
@@ -371,31 +353,53 @@ def select_primary_xpoint(
         & (xr > XPOINT_SENTINEL)
         & (xz > XPOINT_SENTINEL)
     )
-    out_r = np.full(nt, np.nan, dtype=np.float64)
-    out_z = np.full(nt, np.nan, dtype=np.float64)
+    lower_r = np.full(nt, np.nan, dtype=np.float64)
+    lower_z = np.full(nt, np.nan, dtype=np.float64)
+    upper_r = np.full(nt, np.nan, dtype=np.float64)
+    upper_z = np.full(nt, np.nan, dtype=np.float64)
+    n_rejected = 0
 
-    prev_r: float | None = None
-    prev_z: float | None = None
+    use_psi = (
+        psi is not None
+        and r_axis is not None
+        and z_axis is not None
+        and axis_r is not None
+        and axis_z is not None
+        and lcfs_r is not None
+        and lcfs_z is not None
+    )
+    r_ax = np.asarray(r_axis, dtype=np.float64) if use_psi else None
+    z_ax = np.asarray(z_axis, dtype=np.float64) if use_psi else None
+
     for i in range(nt):
-        rows = np.flatnonzero(real[:, i])
-        if rows.size == 0:
-            # Sentinel slice: continuity is broken (NaN here, re-seed later).
-            prev_r = None
-            prev_z = None
-            continue
-        if prev_r is None:
-            # (Re-)seed: prefer the lower null (most negative Z) as the
-            # conventional MAST diverted starting choice.
-            sel = rows[int(np.argmin(xz[rows, i]))]
-        else:
-            # Follow continuity: nearest real null to the previous primary.
-            d2 = (xr[rows, i] - prev_r) ** 2 + (xz[rows, i] - prev_z) ** 2
-            sel = rows[int(np.argmin(d2))]
-        out_r[i] = xr[sel, i]
-        out_z[i] = xz[sel, i]
-        prev_r = float(out_r[i])
-        prev_z = float(out_z[i])
-    return out_r, out_z
+        for row in np.flatnonzero(real[:, i]):
+            nr = float(xr[row, i])
+            nz = float(xz[row, i])
+            if use_psi and not _is_boundary_null(
+                psi[:, :, i],
+                r_ax,
+                z_ax,
+                nr,
+                nz,
+                float(axis_r[i]),
+                float(axis_z[i]),
+                lcfs_r[:, i],
+                lcfs_z[:, i],
+                tol=psi_tol,
+            ):
+                n_rejected += 1
+                continue
+            if nz < 0.0:
+                tgt_r, tgt_z = lower_r, lower_z
+            else:
+                tgt_r, tgt_z = upper_r, upper_z
+            # On the rare same-sign degeneracy, keep the null nearer the
+            # midplane-side boundary (smaller |Z| is the conventional divertor
+            # null); only overwrite if the slot is empty or this null is lower-|Z|.
+            if not np.isfinite(tgt_z[i]) or abs(nz) < abs(tgt_z[i]):
+                tgt_r[i] = nr
+                tgt_z[i] = nz
+    return lower_r, lower_z, upper_r, upper_z, n_rejected
 
 
 def resample_lcfs_radii(
@@ -514,6 +518,16 @@ def load_equilibrium_geometry(
     lcfs_r = np.asarray(eq["lcfs_r"], dtype=np.float64)  # (n_bdy, nt)
     lcfs_z = np.asarray(eq["lcfs_z"], dtype=np.float64)
 
+    # ψ grid + axes for the boundary-null filter (ψ[z, r, t]; axis ψ is the
+    # field maximum on this store).  Optional — absent on a store without them
+    # disables the filter (all nulls kept).
+    psi = r_axis = z_axis = None
+    keys = set(eq.array_keys())
+    if {"psi", "major_radius", "z"} <= keys:
+        psi = np.asarray(eq["psi"], dtype=np.float64)  # (nz, nr, nt)
+        r_axis = np.asarray(eq["major_radius"], dtype=np.float64)
+        z_axis = np.asarray(eq["z"], dtype=np.float64)
+
     return build_geometry_from_arrays(
         shot_id=shot_id,
         frame_times=ft,
@@ -524,6 +538,9 @@ def load_equilibrium_geometry(
         x_point_z=xpt_z2,
         lcfs_r=lcfs_r,
         lcfs_z=lcfs_z,
+        psi=psi,
+        r_axis=r_axis,
+        z_axis=z_axis,
         angles=angles,
     )
 
@@ -539,25 +556,49 @@ def build_geometry_from_arrays(
     x_point_z: np.ndarray,
     lcfs_r: np.ndarray,
     lcfs_z: np.ndarray,
+    psi: np.ndarray | None = None,
+    r_axis: np.ndarray | None = None,
+    z_axis: np.ndarray | None = None,
+    psi_tol: float = XPOINT_PSI_TOL,
     angles: np.ndarray = LCFS_ANGLES,
-) -> EquilibriumGeometry:
-    """Assemble the 12-D per-frame labels from raw equilibrium arrays.
+    return_rejected: bool = False,
+):
+    """Assemble the 14-D per-frame labels from raw equilibrium arrays.
 
     Split out from :func:`load_equilibrium_geometry` so tests can drive it
     directly on synthetic arrays without a Zarr store.  Conventions and shapes
-    match the store (time is the LAST axis on ``x_point_*`` and ``lcfs_*``).
+    match the store (time is the LAST axis on ``x_point_*`` / ``lcfs_*`` /
+    ``psi``).  The X-point is SPLIT into LOWER (Z<0) and UPPER (Z>0) channels;
+    each is continuous within its presence so it is LINEARLY interpolated and
+    only its absence gaps are masked.  When ``psi`` + ``r_axis`` + ``z_axis``
+    are supplied a null is kept only if it is boundary-associated
+    (:func:`_is_boundary_null`).
+
+    Returns an :class:`EquilibriumGeometry`; with ``return_rejected`` a tuple
+    ``(geometry, n_rejected_nulls)``.
     """
     ft = np.asarray(frame_times, dtype=np.float64).ravel()
     n_frames = ft.size
     n_ang = len(angles)
-    dim = 4 + n_ang
+    dim = 6 + n_ang
 
     t_eq = np.asarray(t_eq, dtype=np.float64)
     axis_r = np.asarray(axis_r, dtype=np.float64)
     axis_z = np.asarray(axis_z, dtype=np.float64)
 
-    # 1) axis + primary X-point on the native equilibrium time base.
-    xpt_r_native, xpt_z_native = select_primary_xpoint(x_point_r, x_point_z)
+    # 1) split LOWER/UPPER X-points on the native time base (+ ψ boundary filter).
+    lower_r_n, lower_z_n, upper_r_n, upper_z_n, n_rejected = select_split_xpoints(
+        x_point_r,
+        x_point_z,
+        psi=psi,
+        r_axis=r_axis,
+        z_axis=z_axis,
+        axis_r=axis_r,
+        axis_z=axis_z,
+        lcfs_r=lcfs_r,
+        lcfs_z=lcfs_z,
+        psi_tol=psi_tol,
+    )
 
     # 2) LCFS control-point radii on the native time base, slice by slice.
     nt = t_eq.size
@@ -567,38 +608,40 @@ def build_geometry_from_arrays(
             lcfs_r[:, i], lcfs_z[:, i], float(axis_r[i]), float(axis_z[i]), angles
         )
 
-    # 3) Interpolate onto the camera frame times.  Axis + LCFS are continuous
-    #    -> linear interp.  The primary X-point is piecewise-continuous with
-    #    topology-switch jumps -> nearest-native sampling that masks (never
-    #    bridges) any frame straddling a discontinuity in EITHER coordinate, so
-    #    R and Z stay masked consistently (a frame is an X-point frame only if
-    #    both coords are physical).
+    # 3) Interpolate onto the camera frame times.  EVERY channel is now
+    #    CONTINUOUS within its presence (the lower/upper split removes the
+    #    lower↔upper flip), so axis, both X-point channels and LCFS all use the
+    #    same linear interpolation; a frame not bracketed by two finite native
+    #    samples of a channel is masked (never imputed).
     target = np.full((n_frames, dim), np.nan, dtype=np.float64)
     target[:, 0] = _interp_1d_masked(t_eq, axis_r, ft)
     target[:, 1] = _interp_1d_masked(t_eq, axis_z, ft)
-    xpt_r_frame = _interp_nearest_no_jump(
-        t_eq, xpt_r_native, ft, XPOINT_DISCONTINUITY_M
-    )
-    xpt_z_frame = _interp_nearest_no_jump(
-        t_eq, xpt_z_native, ft, XPOINT_DISCONTINUITY_M
-    )
-    # Couple the two coordinates' masks: an X-point frame is valid only where
-    # both R and Z are physical (a jump in one is a topology switch in both).
-    xpt_both = np.isfinite(xpt_r_frame) & np.isfinite(xpt_z_frame)
-    target[:, 2] = np.where(xpt_both, xpt_r_frame, np.nan)
-    target[:, 3] = np.where(xpt_both, xpt_z_frame, np.nan)
+    # Couple each null's R/Z masks (a null frame is valid only where both
+    # coordinates are physical).
+    lr = _interp_1d_masked(t_eq, lower_r_n, ft)
+    lz = _interp_1d_masked(t_eq, lower_z_n, ft)
+    lboth = np.isfinite(lr) & np.isfinite(lz)
+    target[:, 2] = np.where(lboth, lr, np.nan)
+    target[:, 3] = np.where(lboth, lz, np.nan)
+    ur = _interp_1d_masked(t_eq, upper_r_n, ft)
+    uz = _interp_1d_masked(t_eq, upper_z_n, ft)
+    uboth = np.isfinite(ur) & np.isfinite(uz)
+    target[:, 4] = np.where(uboth, ur, np.nan)
+    target[:, 5] = np.where(uboth, uz, np.nan)
     for k in range(n_ang):
-        target[:, 4 + k] = _interp_1d_masked(t_eq, lcfs_radii_native[:, k], ft)
+        target[:, 6 + k] = _interp_1d_masked(t_eq, lcfs_radii_native[:, k], ft)
 
     finite_mask = np.isfinite(target)
     names = (
         "axis_R",
         "axis_Z",
-        "xpt_R",
-        "xpt_Z",
+        "lower_xpt_R",
+        "lower_xpt_Z",
+        "upper_xpt_R",
+        "upper_xpt_Z",
         *tuple(f"lcfs_r_{k}" for k in range(n_ang)),
     )
-    return EquilibriumGeometry(
+    geometry = EquilibriumGeometry(
         shot_id=int(shot_id),
         frame_times=ft,
         target=target.astype(np.float32),
@@ -606,19 +649,22 @@ def build_geometry_from_arrays(
         names=names,
         units="m",
     )
+    if return_rejected:
+        return geometry, n_rejected
+    return geometry
 
 
 __all__ = [
     "DEFAULT_LEVEL2_ROOT",
     "XPOINT_SENTINEL",
-    "XPOINT_DISCONTINUITY_M",
+    "XPOINT_PSI_TOL",
     "N_LCFS_ANGLES",
     "TARGET_DIM",
     "TARGET_NAMES",
     "LCFS_ANGLES",
     "EquilibriumGeometry",
     "equilibrium_store_path",
-    "select_primary_xpoint",
+    "select_split_xpoints",
     "resample_lcfs_radii",
     "load_equilibrium_geometry",
     "build_geometry_from_arrays",
