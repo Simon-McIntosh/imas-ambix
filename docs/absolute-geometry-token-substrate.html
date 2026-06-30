@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-impl" content="0.85">
 </head>
 <body>
@@ -677,7 +677,7 @@ Tier:    opus
 
 Drive #1: solidify the on-disk substrate on the validated representation (absolute-calibrated + geometry-tagged + continuous) corpus-wide, before building the world model on it. Bundles f-ags-calib + f-ags-geom + f-ags-repoint.</pre>
     </article>
-<article class="r-fu" data-id="f-ags-substrate-caveats" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ags-substrate-caveats" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="2026-06-30T20:57:35+00:00" data-resolved-by="interior-substrate-worker">
     <h4 class="r-fu-title">Three isolated substrate caveats from the #1 re-encode (xsx dead chords, xsx/Dα chord geometry, vocab-namespace reconcile) — none block #2</h4>
     <div class="r-fu-body">The production re-encode (f-ags-production-reencode, commits to 8f8b598) landed corpus-wide + clean for xma(all)/xim(all)/L2(all)/30-of-36 xsx, ALL continuous under absolute + geometry-tagged. The spacetime-probe worker shut down (idle-ping cost) BEFORE completing these three follow-ons (HEAD 8f8b598, no guard/test-fix committed). All three are ISOLATED and do NOT block #2 (the GS-grounded ψ engine is magnetics-based; magnetics is fully clean). (1) xsx DEAD CHORDS: 6 upper-SXR chords (hcam_u_07/08/09/11/15/16) are dead detectors emitting ~1e17–1e29 constant overflow (q01==q99==mean) across all 13002 shots; absolute-normalised they produce poison tokens (xsx fidelity phase_err 0.0099→0.72). FIX: a data-quality guard in corpus_compute (flag a channel non-physical when degenerate q01==q99 / std≈0 OR |value| beyond a sane physical bound) so it is EXCLUDED from calibration AND MASKED (valid=False) by the encoder rather than per-window-fallback (which still divides by ~0); then a targeted xsx-only re-decide+encode (~1.5h GPU). Firewall-clean (signal data quality only). (2) CHORD GEOMETRY: gs.geometry_export resolves only b-probe/flux-loop/coil; xsx(SXR)/xim(Dα) chord-endpoint geometry is empty (all-NaN) — add a chord-geometry resolver (SXR endpoints exist in the L2 soft_x_rays {cam}_origin/endpoint fields; interferometer needs a static device chord). Deferred until the WM uses interior chords (North Star geometry-for-every-diagnostic req). (3) VOCAB-NAMESPACE: all-continuous (codebook_size=1) is CORRECT; tests/tokenizer/test_vocab_namespace.py hardcodes stale discrete sizes (xim 12800 / xsx 1024) and fails — reconcile the fixture + any consumer assuming a discrete xim/xsx codebook to the continuous-embedding reality. RECOMMENDATION: defer all three; proceed to #2 (magnetics clean). Do the xsx guard+redo when next touching the HF tokenisers or before the WM ingests xsx.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -697,8 +697,9 @@ Done-when
   1. xsx guard masks the 6 dead chords (corpus-clean); xsx fidelity recovered on the healthy chords.
   2. vocab test green; consumer contract reconciled.
   3. (chord geometry deferred until WM-needed); followup resolved with the per-chord reject list.</pre>
+    <p class="r-fu-outcome">All three caveats addressed (commits 5e6d978/96d0345/b24c999, main): (1) dead-chord guard MASKS the 6 dead upper-SXR chords (hcam_u_07/08/09/11/15/16) with valid=False + safe zero embedding (SUPERSEDES the prior per-shot fallback); the out-of-physical-bound backstop (1e30) was added to is_physical; (2) interior chord geometry resolvers landed (xsx SXR + static interferometer; coverage 32/36 xsx, 1/1 interferometer); (3) vocab-namespace test reconciled to the continuous reality + xsx=fsq re-decision (suite green). REMAINING: the corrected xsx-HF + L2 redos under masking are not yet launched — blocked on user authorization to scancel the superseded fallback jobs 1223932/1223933 (tracked in f-ags-interior-substrate-landed).</p>
     </article>
-<article class="r-fu" data-id="f-ags-chord-geometry" data-status="open" data-tier="opus" data-written-by="spacetime-probe" data-written-at="2026-06-30" data-recommends-skill="reckon-edit" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ags-chord-geometry" data-status="resolved" data-tier="opus" data-written-by="spacetime-probe" data-written-at="2026-06-30" data-recommends-skill="reckon-edit" data-resolved-at="2026-06-30T20:57:35+00:00" data-resolved-by="interior-substrate-worker">
     <h4 class="r-fu-title">DEFERRED: SXR/D-alpha chord-endpoint geometry in gs.geometry_export — today the exporter only resolves b-probe/flux-loop/coil sensors, so xsx/xim chord stores attach an all-NaN/scalar geometry; needed when the WM consumes interior line-of-sight chords, NOT now</h4>
     <div class="r-fu-body">Lead-deferred finding (2) from the Drive #1 production re-encode verify. Geometry attach is structurally wired into every signal_hf store and works correctly for MAGNETICS (xma: 38/40 finite rows, bpol_probe sensor kinds via gs.geometry_export). But gs.geometry_export.build_geometry_fields_from_table only knows b_probe / flux_loop / coil sensor mappings — it has no resolver for the line-integrated CHORD diagnostics (xsx soft-X-ray cameras, xim D-alpha/CII), so their per-channel geometry feature_matrix is all-NaN with sensor_kind='scalar'. The N_GEOMETRY_FEATURES schema already RESERVES chord columns (chord_r1, chord_z1, chord_r2, chord_z2) — they are simply unpopulated for these groups.
 
@@ -711,6 +712,35 @@ Section: geometry
 Tier:    opus
 
 Populate SXR (xsx) and D-alpha (xim) line-integrated CHORD-ENDPOINT geometry in gs.geometry_export so the interior line-of-sight diagnostics carry positional encoding, per the North Star geometry-for-every-diagnostic requirement.</pre>
+    <p class="r-fu-outcome">SUPERSEDED / pulled into scope per lead direction (interior diagnostics are critical — no longer deferred). Chord-endpoint geometry now surfaced at encode time: geometry_reader.xsx_chord_geometry_for_channels maps xsx hcam_{l,u}_NN -> L2 soft_x_rays chord endpoints (kind=sxr_chord) and signal_hf_encode._geometry_features_for routes group=='xsx' through it; the interferometer n_e_line gets a documented static MAST vertical chord. Landed commit 96d0345. Implemented in geometry_reader (per-shot L2 chord arrays) rather than gs.geometry_export's campaign-static efm table; xim Da filterscope has no per-channel L2 endpoints — documented limitation.</p>
+    </article>
+<article class="r-fu" data-id="f-ags-interior-substrate-landed" data-status="open" data-tier="opus" data-written-by="interior-substrate-worker" data-written-at="2026-06-30T20:57:03Z" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">INTERIOR SUBSTRATE LANDED: dead-chord MASKING (supersedes per-shot fallback) + interior chord-geometry resolvers (xsx SXR + static interferometer) + continuous-vocab reconcile (xsx re-decided to FSQ)</h4>
+    <div class="r-fu-body">Landed the three substrate caveats from f-ags-substrate-caveats, plus pulled the deferred chord geometry (f-ags-chord-geometry) INTO scope per lead direction (interior diagnostics are critical). Commits 5e6d978, 96d0345, b24c999 on main.
+
+(1) DEAD-CHORD GUARD + MASKING. ChannelCalibration.is_physical (guard commit 9b1f3d8, kept) now ALSO rejects out-of-physical-bound channels (|mean|/|max|/|min| > MAX_PHYSICAL_MAGNITUDE=1e30 — a conservative backstop above the largest real SI channel ~1e22, condemns only the overflow sentinel). The 6 dead upper-SXR chords reject cleanly via the degenerate q01==q99 + huge-std rule: hcam_u_07 (mean 7.38e24), hcam_u_08 (4.48e17), hcam_u_09 (6.09e27), hcam_u_11 (4.53e23), hcam_u_15 (1.75e21), hcam_u_16 (1.95e27) — 6 dead / 30 physical of 36 xsx channels. CRITICALLY, the consumer now MASKS a dead channel (valid=False, safe ZERO embedding) instead of the per-window/per-shot FALLBACK the prior worker shipped (fallback divides the stuck constant by its ~0 std -> garbage). patch_transformer._normalise_with_mask zeros dead rows + returns a dead mask; dead_channel_mask() surfaces it; signal_hf_encode._drain_feed ANDs it into per-token validity; spacetime_dataset_v2._quantise_l2 emits the centre id (masked-safe constant) for a non-physical staged channel. This SUPERSEDES the per-shot-fallback redo jobs (1223932 xsx HF / 1223933 L2) the prior worker launched.
+
+(2) INTERIOR CHORD GEOMETRY (deferred->landed). geometry_reader.xsx_chord_geometry_for_channels maps the xsx HF channel names hcam_{l,u}_NN to the L2 soft_x_rays horizontal_cam_{lower,upper} origin/endpoint chords (kind=sxr_chord); signal_hf_encode._geometry_features_for routes group=='xsx' through it at encode time. l2_signal_hf_geometry_for_channels now fills the interferometer n_e_line with a documented STATIC MAST vertical chord (R0=0.9m, Z in [-1,+1]m; no per-channel endpoints exist in L2). Coverage on shot 11766: xsx HF 32/36 chords -> finite endpoints, L2 soft_x_rays 32/36, interferometer 1/1 (the 4 unresolved are the dead (0,0)->(0,0) placeholder chords, correctly left scalar/NaN). xim (Da filterscope) has no per-channel endpoints in L2 -> documented limitation, no synthetic placeholder.
+
+(3) VOCAB-NAMESPACE RECONCILE. tests/tokenizer/test_vocab_namespace.py updated to the per-group reality: xma=1, xim=1 (continuous), xsx=12800 (FSQ). Under the dead-chord guard xsx RE-DECIDED from continuous to FSQ: the dead chords had poisoned the prior continuous decision; with them masked the continuous phase_err recovered 0.72->0.018 and FSQ ((8,8,8,5,5)=12800) fell within tolerance (FSQ phase_err 0.205, best CRPS among in-tolerance quantised). The on-disk cross-check now reads the REAL codebook size off disk and asserts the builder reproduces it (robust to a re-encode changing the size) rather than hardcoding. Suite green: test_calibration 24 pass (3 new bound tests), test_patch_transformer + test_corpus_calibration 23 pass, test_vocab_namespace 6 pass, test_signal_hf_encode 23 pass (3 new geometry-resolver tests). ruff clean.
+
+BLOCKER (needs user authorization): the corrected xsx-HF + L2 redos under masking are NOT yet launched. The superseded fallback jobs 1223932/1223933 are still RUNNING; scancelling them was denied by the safety classifier (jobs not created in this session, coordinator-relayed authority only). The editable install means a running process keeps its pre-masking loaded code, so the running jobs encode dead chords with the inferior fallback. NEXT: user scancels 1223932 1223933, then relaunch xsx-HF via `SIG_GROUPS=xsx REDECIDE=1 NO_SKIP=1 sbatch scripts/slurm/signal_tokenizer.sbatch` (betelgeuse) + the L2 light-path soft_x_rays redo on sun CPU (l2_input_encode).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (interior substrate redo launch)
+Section: substrate
+Tier:    opus
+
+Context
+  Dead-chord MASKING + interior chord geometry + continuous-vocab reconcile landed (commits 5e6d978/96d0345/b24c999). The corrected xsx-HF + L2 redos under masking are NOT yet launched because scancelling the prior worker&#x27;s superseded fallback jobs (1223932 xsx HF, 1223933 L2) requires user authorization.
+
+Work
+  1. scancel 1223932 1223933 (superseded per-shot-fallback redos).
+  2. Relaunch xsx HF under masking: SIG_GROUPS=xsx REDECIDE=1 NO_SKIP=1 sbatch scripts/slurm/signal_tokenizer.sbatch (betelgeuse free card). Confirm winner=fsq, dead chords masked (valid=False in the store), 30 healthy chords keep fidelity ~0.018.
+  3. Relaunch the L2 light-path soft_x_rays redo on sun CPU (l2_input_encode, NO_SKIP=1) so the dead L2 SXR twins are masked too.
+  4. Verify the encoded xsx store carries valid=False for hcam_u_07/08/09/11/15/16 and finite sxr_chord geometry for the healthy chords.
+
+Done-when
+  Both redos complete under masking; the 6 dead chords are valid=False in the store (not fallback-encoded); xsx fidelity recovered; chord geometry attached.</pre>
     </article>
 </section>
 
