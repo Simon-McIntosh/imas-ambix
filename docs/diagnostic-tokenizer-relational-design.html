@@ -230,6 +230,38 @@ the older single-primary labels):</p>
   SN/DN cases, not a topology solver.</li>
 </ul>
 
+<h2 id="s6">§6 — Cohort growth: what the substrate actually does (2026-06-30)</h2>
+<p>Four results had diluted on the 184-example cohort (iter#2 coils, toroidal, consolidation, X-point position),
+so we grew the cohort 8× (1442 train / 160 test, CLI-only). It cleanly separates <em>data-limited</em> from
+<em>structural</em>:</p>
+<ul>
+  <li><strong>Axis + boundary: STRONG, and were data-starved — not at a ceiling.</strong> Magnetics-only
+  (absolute + geometry + relational + continuous) jumps to <strong>axis_R +0.59, axis_Z +0.82</strong>, with
+  <strong>all 8 LCFS angles beating baseline (+0.47…+0.82)</strong> and cm-level errors (0.9–2.3 cm). axis_Z
+  +0.82 <em>exceeds</em> the old "raw-float ceiling" 0.683 — which was itself a 184-example artifact. The
+  substrate (absolute calibration + sensor geometry + the space-time relational encoder) recovers the magnetic
+  axis and the full boundary shape with high skill once the cohort is adequate. <strong>The scale-free blocker
+  is decisively fixed.</strong></li>
+  <li><strong>Consolidation is the production ingestion PATH, not a boundary-accuracy lever.</strong> All 15
+  geometry-tagged streams vs magnetics-only: B−A ≈ 0 (axis_R +0.01, axis_Z −0.03) — the dilution persists at 8×
+  data. <strong>Magnetics already saturates the axis/boundary signal</strong> (the boundary is a magnetics
+  problem, as EFIT implies); the extra streams add ~nothing <em>for the boundary</em>. The consolidation's value
+  is the unified, geometry-aware, phase-preserving substrate (and it <em>tamed</em> the all-diagnostics
+  overfitting) — not boundary accuracy. (The other streams presumably carry interior-profile / MHD information,
+  which is a different target than the boundary.)</li>
+  <li><strong>X-point position is a head/target problem, not data.</strong> Count/presence improved with data
+  (0.815 → 0.90, beating the always-DN majority), but matched-null position RMSE stays coarse (~0.72 m) at 8×
+  data — the null sits on the steep separatrix and is hard to regress in absolute metres. The lever is the
+  position head/target (axis-relative or normalised coordinates, coarse-to-fine), <em>not</em> cohort or extra
+  streams. Deferred, bounded refinement.</li>
+</ul>
+<p><strong>Bottom line.</strong> The token-substrate thesis is validated: corpus-absolute calibration + sensor
+geometry + a periodic-geometry, phase-preserving, space-time relational encoder recover axis + boundary off ~0
+to high skill, machine-portable by construction. Data was the limiter for the boundary (now lifted); the
+multi-stream consolidation is the unified production ingestion (not a boundary lever); the X-point position is a
+bounded head refinement. The natural next stage is porting the shared encoder into the live world-model input
+path.</p>
+
 </main>
 </body>
 </html>

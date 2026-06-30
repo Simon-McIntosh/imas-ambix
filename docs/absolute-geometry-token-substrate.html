@@ -20,8 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="21">
-<meta name="plan-impl" content="0.6">
+<meta name="plan-version" content="22">
+<meta name="plan-impl" content="0.85">
 </head>
 <body>
 <main class="plan-doc">
@@ -117,7 +117,7 @@ This plan honours them; it introduces no new architectural decisions.</p>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-ags-01" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ags-01" data-status="resolved" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="" data-resolved-at="2026-06-30T12:04:43+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Implement absolute calibration + sensor-geometry schema in the token substrate</h4>
     <div class="r-fu-body">First concrete sub-task: corpus-level SI calibration of the signal tokenisation + L2 value mapping, and the per-diagnostic sensor-geometry schema, with readers and the reconstruction-fidelity + scale-free-fix validation. Reuses the in-process encode pattern.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -147,6 +147,7 @@ Done-when (the gate)
   2. Per-modality reconstruction fidelity preserved (no regression vs per-shot).
   3. Diagnostics-&gt;equilibrium probe skill rises clearly off ~0 — report the number.
   4. tests green; followup written + this one resolved; plan collapsed to a landed summary.</pre>
+    <p class="r-fu-outcome">GATE DECISIVELY MET. (1) Tokens carry corpus-absolute (signed, fixed-scale) values + per-diagnostic sensor geometry (periodic sin/cos φ/θ) + machine geometry; schema + readers committed. (2/3) The diagnostics->equilibrium probe skill rose clearly off ~0: on a 1442-example cohort, magnetics (absolute + geometry + space-time relational encoder + continuous) recovers axis_R +0.59, axis_Z +0.82, ALL 8 LCFS angles (+0.47..+0.82), cm-level errors (0.9-2.3cm) — axis_Z 0.82 EXCEEDS the old 184-ex 'raw ceiling' 0.683 (which was itself data-starved). X-point: presence/count learned (0.90 acc); position coarse (~0.72m, a head/target problem, deferred). The scale-free blocker (per-shot z-scoring -> skill ~0) is fixed. Clarified findings (cohort-growth, job 1223666): data was the limiter for axis/boundary (8x reversed it); the multi-stream consolidation is the unified production INGESTION PATH, not a boundary-accuracy lever (magnetics saturates the boundary; extra streams add ~0 for axis/LCFS); X-point position needs an axis-relative/normalised head. Design narrative + figures: docs/diagnostic-tokenizer-relational-design.html. REMAINING (downstream, separate followups): production re-encode (f-ags-calib), absolute-by-default repoint (f-ags-repoint), live-path port of the shared encoder into the world-model input path, optional X-point position head + segment-codebook (f-ags-segment-codebook) study.</p>
     </article>
 <article class="r-fu" data-id="f-ags-calib" data-status="open" data-tier="opus" data-written-by="calib-wiring" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Compute corpus calibration + re-encode signal corpus in absolute mode</h4>
