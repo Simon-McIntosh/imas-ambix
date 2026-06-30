@@ -19,8 +19,8 @@ onto a set of camera ``frame_times`` (seconds) and returns, per frame, a
     -----  ----------  --------------------------------------------------
       0    axis_R      magnetic-axis major radius
       1    axis_Z      magnetic-axis height
-      2    xpt_R       primary (lower-null) X-point major radius
-      3    xpt_Z       primary (lower-null) X-point height
+      2    xpt_R       primary (continuity-tracked) X-point major radius
+      3    xpt_Z       primary (continuity-tracked) X-point height
     4..11  lcfs_r[k]   LCFS control-point RADIUS at 8 fixed poloidal
                        angles θ_k about the magnetic axis (k = 0..7),
                        θ_k = 2π k / 8 measured CCW from the outboard
@@ -42,6 +42,17 @@ interpolated target touches an undefined equilibrium slice is **masked**
 has its own per-frame mask, so a frame can contribute an axis label while its
 X-point label is masked out.
 
+The X-point is special: its primary-null trajectory is **discontinuous** at a
+topology switch (the active null jumps from the lower to the upper divertor, or
+a null appears / vanishes).  Linearly interpolating across such a jump would
+draw a straight line through Z~0 — a label matching *no* physical X-point.  So
+``xpt_R``/``xpt_Z`` are interpolated **discontinuity-aware**: each frame takes
+the value of its **nearest** native slice, and any frame whose bracketing
+native primary-null trajectory jumps by more than
+:data:`XPOINT_DISCONTINUITY_M` (or whose nearest native slice is a sentinel /
+absent) is **masked**, never imputed.  The continuous components (axis, LCFS)
+stay linearly interpolated.
+
 Store facts (verified on the L2 mirror, 2026-06-24)
 ---------------------------------------------------
 ``/work/projects/imas_gpu/mast/level2/shots/<id>.zarr`` group ``equilibrium``
@@ -51,9 +62,14 @@ on >= 2-D fields):
 
   - ``magnetic_axis_r``/``magnetic_axis_z``  ``(nt,)``  metres, NaN when off
   - ``x_point_r``/``x_point_z``              ``(2, nt)``  metres; ``-9.99``
-    sentinel for an undefined null; the two rows are the (typically) upper /
-    lower nulls in no fixed order — the *primary* null is selected as the
-    most-negative-Z real null (lower divertor, the MAST diverted topology).
+    sentinel for an undefined null; the two rows are the lower / upper nulls.
+    MAST runs **double-null most of the time** (e.g. shot 18504: 79/124 slices
+    carry two real nulls) and switches topology, so a fixed "lower null" rule
+    flips lower<->upper whenever the lower null drops to sentinel — a ~2.4 m
+    jump in the picked-Z series.  The *primary* null is therefore selected by
+    **temporal continuity** (track the null closest to the previous slice's
+    primary), which gives a stable, physical trajectory across DN<->SN
+    switches.  See :func:`select_primary_xpoint`.
   - ``lcfs_r``/``lcfs_z``                    ``(n_bdy, nt)``  metres, NaN-padded
   - ``n_boundary_coords``                    ``(n_bdy,)``  valid LCFS-point
     count per time slice (the contour uses the first ``n_boundary_coords[i]``
@@ -82,6 +98,14 @@ DEFAULT_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 #: Sentinel the L2 store writes for an undefined X-point coordinate (metres).
 #: Any coordinate at or below this magnitude is treated as missing.
 XPOINT_SENTINEL = -9.0
+
+#: Largest physical step (metres) the primary-null trajectory may take between
+#: adjacent native equilibrium slices before it is treated as a topology
+#: switch / discontinuity.  A real X-point drifts smoothly (cm-scale per 5 ms
+#: slice on MAST); a lower<->upper flip is ~2.4 m.  Camera frames whose
+#: bracketing native slices straddle a jump larger than this are masked, never
+#: interpolated across.
+XPOINT_DISCONTINUITY_M = 0.3
 
 #: Number of fixed poloidal angles the LCFS boundary is resampled onto.
 N_LCFS_ANGLES = 8
@@ -197,16 +221,137 @@ def _interp_1d_masked(
     return out
 
 
+def _interp_nearest_no_jump(
+    t_native: np.ndarray,
+    y_native: np.ndarray,
+    t_target: np.ndarray,
+    max_jump: float,
+) -> np.ndarray:
+    """Nearest-native sampling that refuses to bridge a discontinuity.
+
+    Designed for the primary-null trajectory, which is piecewise-continuous
+    with topology-switch jumps (lower<->upper flips, null appearance /
+    disappearance) that must NOT be interpolated across.  The series may also
+    carry NaN gaps (sentinel slices where no null exists).
+
+    A native *transition* between two consecutive **finite** samples is a
+    discontinuity when their values differ by more than ``max_jump`` OR a NaN
+    gap separates them in time (the trajectory was undefined in between).  Each
+    finite native slice that borders such a transition is a **switch slice**.
+
+    For each target time the value of the **nearest** finite native slice is
+    taken (step-like, no blending), and the target is **masked** (NaN) when:
+
+    - the nearest finite native slice is a switch slice (it sits on the edge of
+      a topology change — neighbouring frames would land on the other branch),
+      OR
+    - the target falls strictly between two finite native slices whose
+      transition is a discontinuity, OR
+    - the target is outside the finite native range.
+
+    This masks a whole neighbourhood around every switch rather than only the
+    bracketing segment, so two adjacent camera frames can never straddle a flip
+    (the on-sample exemption that would let a flip through is removed).
+
+    Continuous fields must use :func:`_interp_1d_masked` instead — this routine
+    is intentionally step-like and only correct for a discontinuous series.
+
+    Parameters
+    ----------
+    t_native, y_native:
+        Native time base and a (possibly NaN-gapped) value series.
+    t_target:
+        Query times.
+    max_jump:
+        Native-to-native step above which a transition is a discontinuity.
+
+    Returns
+    -------
+    ``(len(t_target),)`` float64; NaN where masked.
+    """
+    t_n = np.asarray(t_native, dtype=np.float64)
+    y_n = np.asarray(y_native, dtype=np.float64)
+    t_g = np.asarray(t_target, dtype=np.float64)
+    out = np.full(t_g.shape, np.nan, dtype=np.float64)
+
+    finite = np.isfinite(t_n) & np.isfinite(y_n)
+    if not finite.any():
+        return out
+    # Keep the ORIGINAL native indices so a NaN gap (a dropped slice between two
+    # finite ones) counts as a discontinuous transition, not a smooth step.
+    idx_native = np.flatnonzero(finite)
+    tn = t_n[idx_native]
+    yn = y_n[idx_native]
+    order = np.argsort(tn)
+    tn = tn[order]
+    yn = yn[order]
+    idx_native = idx_native[order]
+
+    n = tn.size
+    # Per-finite-sample "switch slice" flag: borders a discontinuous transition.
+    switch = np.zeros(n, dtype=bool)
+    if n >= 2:
+        value_jump = np.abs(np.diff(yn)) > max_jump
+        gap = np.diff(idx_native) > 1  # a NaN/sentinel slice sat between them
+        bad_transition = value_jump | gap  # (n-1,)
+        switch[:-1] |= bad_transition  # left side of each bad transition
+        switch[1:] |= bad_transition  # right side
+
+    in_range = (t_g >= tn[0]) & (t_g <= tn[-1])
+    if not in_range.any():
+        return out
+    tg = t_g[in_range]
+
+    # Right-bracket index `hi` in [1, n-1]; `lo = hi - 1` is the left.
+    hi = np.clip(np.searchsorted(tn, tg, side="right"), 1, n - 1)
+    lo = hi - 1
+    t_lo, t_hi = tn[lo], tn[hi]
+    y_lo, y_hi = yn[lo], yn[hi]
+
+    take_hi = (tg - t_lo) > (t_hi - tg)
+    nearest_idx = np.where(take_hi, hi, lo)
+    nearest = yn[nearest_idx]
+
+    # Mask if the segment is discontinuous OR the nearest sample is a switch
+    # slice (so the whole neighbourhood of a flip is masked, never bridged).
+    bridges_jump = (np.abs(y_hi - y_lo) > max_jump) | (
+        idx_native[hi] - idx_native[lo] > 1
+    )
+    nearest_is_switch = switch[nearest_idx]
+    keep = ~bridges_jump & ~nearest_is_switch
+
+    out_in = out[in_range]
+    out_in[:] = np.where(keep, nearest, np.nan)
+    out[in_range] = out_in
+    return out
+
+
 def select_primary_xpoint(
     x_point_r: np.ndarray, x_point_z: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Select the primary (lower-null) X-point per time slice.
+    """Select a temporally-continuous primary X-point per time slice.
 
     The store carries up to two X-points per slice in ``(2, nt)`` arrays with
-    a ``-9.99`` sentinel for an undefined null.  The *primary* null is taken as
-    the real (finite, non-sentinel) X-point with the **most negative Z** — the
-    lower divertor null of the standard MAST diverted topology.  When no real
-    null exists at a slice the result is NaN there (later masked).
+    a ``-9.99`` sentinel for an undefined null.  MAST is double-null most of the
+    time and switches topology, so a fixed "most-negative-Z (lower null)" rule
+    flips between the lower and upper divertor whenever the lower null drops to
+    the sentinel — producing a ~2.4 m jump in the picked-Z series and, after
+    linear interpolation, a label that passes through Z~0 matching no physical
+    X-point.
+
+    Instead, the primary null is tracked by **temporal continuity**: at each
+    slice the chosen null is the real (finite, non-sentinel) X-point closest in
+    (R, Z) to the previous slice's primary.  The tracker is seeded at the first
+    slice carrying a real null, preferring the lower null there (the
+    conventional MAST diverted seed); thereafter it follows whichever null stays
+    physically continuous.  A run of all-sentinel slices breaks continuity — the
+    tracker re-seeds (lower-null preference) at the next real slice, and the gap
+    is flagged so a downstream interpolator can mask across it rather than draw
+    a line through it.
+
+    When two genuine nulls coexist (true double-null), a single "primary" is
+    ambiguous; the continuity rule resolves it to a stable, physical choice
+    (it does **not** average the two).
 
     Parameters
     ----------
@@ -215,11 +360,11 @@ def select_primary_xpoint(
 
     Returns
     -------
-    (xpt_r, xpt_z) : each ``(nt,)`` float64; NaN where no real lower null.
+    (xpt_r, xpt_z) : each ``(nt,)`` float64; NaN where no real null at a slice.
     """
     xr = np.asarray(x_point_r, dtype=np.float64)
     xz = np.asarray(x_point_z, dtype=np.float64)
-    n_xpt, nt = xr.shape
+    _, nt = xr.shape
     real = (
         np.isfinite(xr)
         & np.isfinite(xz)
@@ -228,13 +373,28 @@ def select_primary_xpoint(
     )
     out_r = np.full(nt, np.nan, dtype=np.float64)
     out_z = np.full(nt, np.nan, dtype=np.float64)
-    # Among real nulls per slice, pick the most-negative Z (lower null).
-    z_for_min = np.where(real, xz, np.inf)
-    has_real = real.any(axis=0)
-    pick = np.argmin(z_for_min, axis=0)  # (nt,)
-    cols = np.arange(nt)
-    out_r[has_real] = xr[pick[has_real], cols[has_real]]
-    out_z[has_real] = xz[pick[has_real], cols[has_real]]
+
+    prev_r: float | None = None
+    prev_z: float | None = None
+    for i in range(nt):
+        rows = np.flatnonzero(real[:, i])
+        if rows.size == 0:
+            # Sentinel slice: continuity is broken (NaN here, re-seed later).
+            prev_r = None
+            prev_z = None
+            continue
+        if prev_r is None:
+            # (Re-)seed: prefer the lower null (most negative Z) as the
+            # conventional MAST diverted starting choice.
+            sel = rows[int(np.argmin(xz[rows, i]))]
+        else:
+            # Follow continuity: nearest real null to the previous primary.
+            d2 = (xr[rows, i] - prev_r) ** 2 + (xz[rows, i] - prev_z) ** 2
+            sel = rows[int(np.argmin(d2))]
+        out_r[i] = xr[sel, i]
+        out_z[i] = xz[sel, i]
+        prev_r = float(out_r[i])
+        prev_z = float(out_z[i])
     return out_r, out_z
 
 
@@ -407,12 +567,26 @@ def build_geometry_from_arrays(
             lcfs_r[:, i], lcfs_z[:, i], float(axis_r[i]), float(axis_z[i]), angles
         )
 
-    # 3) Interpolate every native series onto the camera frame times.
+    # 3) Interpolate onto the camera frame times.  Axis + LCFS are continuous
+    #    -> linear interp.  The primary X-point is piecewise-continuous with
+    #    topology-switch jumps -> nearest-native sampling that masks (never
+    #    bridges) any frame straddling a discontinuity in EITHER coordinate, so
+    #    R and Z stay masked consistently (a frame is an X-point frame only if
+    #    both coords are physical).
     target = np.full((n_frames, dim), np.nan, dtype=np.float64)
     target[:, 0] = _interp_1d_masked(t_eq, axis_r, ft)
     target[:, 1] = _interp_1d_masked(t_eq, axis_z, ft)
-    target[:, 2] = _interp_1d_masked(t_eq, xpt_r_native, ft)
-    target[:, 3] = _interp_1d_masked(t_eq, xpt_z_native, ft)
+    xpt_r_frame = _interp_nearest_no_jump(
+        t_eq, xpt_r_native, ft, XPOINT_DISCONTINUITY_M
+    )
+    xpt_z_frame = _interp_nearest_no_jump(
+        t_eq, xpt_z_native, ft, XPOINT_DISCONTINUITY_M
+    )
+    # Couple the two coordinates' masks: an X-point frame is valid only where
+    # both R and Z are physical (a jump in one is a topology switch in both).
+    xpt_both = np.isfinite(xpt_r_frame) & np.isfinite(xpt_z_frame)
+    target[:, 2] = np.where(xpt_both, xpt_r_frame, np.nan)
+    target[:, 3] = np.where(xpt_both, xpt_z_frame, np.nan)
     for k in range(n_ang):
         target[:, 4 + k] = _interp_1d_masked(t_eq, lcfs_radii_native[:, k], ft)
 
@@ -437,6 +611,7 @@ def build_geometry_from_arrays(
 __all__ = [
     "DEFAULT_LEVEL2_ROOT",
     "XPOINT_SENTINEL",
+    "XPOINT_DISCONTINUITY_M",
     "N_LCFS_ANGLES",
     "TARGET_DIM",
     "TARGET_NAMES",
