@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="13">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -372,6 +372,35 @@ Done-when
   1. Research doc published with figures + foundation-model selection + the toroidal/space-phasing design.
   2. Toroidal array included in the tokenised magnetics set; a phase-preserving relational tokenizer arm measured in the oracle (does it resolve rotation / lift xpt?).
   3. Decision locked (backbone + relational tokenizer); followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-xpoint-label" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-06-30" data-recommends-skill="" data-resolved-at="2026-06-30" data-resolved-by="agent/opus">
+    <h4 class="r-fu-title">X-point geometry label was corrupted by a fixed lowest-Z null pick + linear interp across topology switches (LANDED)</h4>
+    <div class="r-fu-body">Documents the landed discontinuity-aware X-point label fix for the evaluator-only 12-D equilibrium geometry labels.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate
+Tier:    opus
+
+ALREADY LANDED (commit bc92405) -- this followup records a completed fix.
+
+What was wrong
+  The 12-D equilibrium LABELS that feed the firewalled diagnostics-&gt;equilibrium oracle carried a corrupted
+  X-point. select_primary_xpoint picked the most-negative-Z real null (fixed &#x27;lower null&#x27; rule); MAST is
+  double-null most of the time and switches topology, so when the lower null hit the -9.99 sentinel the pick
+  flipped to the upper null (~2.4 m jump). build_geometry_from_arrays then LINEARLY interpolated that
+  discontinuous series onto camera frames, drawing a line through Z~0 -- a label matching no physical X-point.
+
+What was done
+  (A) select_primary_xpoint tracks the primary null by temporal continuity (nearest real null to the previous
+      slice&#x27;s primary; lower-null-preferred re-seed after a sentinel gap).
+  (B) xpt_R/xpt_Z interpolation -&gt; nearest-native with neighbourhood masking around topology switches / NaN gaps
+      (XPOINT_DISCONTINUITY_M=0.3 m); transition frames masked, never imputed; R/Z masks coupled. Axis + LCFS
+      stay linear (continuous). 12-D schema unchanged.
+
+Verify
+  TMPDIR=/tmp uv run --with pytest python -m pytest tests/test_equilibrium_labels.py -q
+  Real-data smoke: 18502/18504 NEW emitted max adjacent xpt_Z jump &lt;0.025 m (was ~2.4 m); near-midplane
+  artifact gone; transition frames masked (54 / 39 frames respectively).</pre>
+    <p class="r-fu-outcome">Fixed in commit bc92405 (imas_ambix/worldmodel/equilibrium_labels.py + tests/test_equilibrium_labels.py, 9 tests). The firewalled diagnostics->equilibrium oracle's 12-D label feed had a corrupted X-point (xpt_R/xpt_Z): select_primary_xpoint picked the most-negative-Z real null (fixed 'lower null' rule), but MAST is double-null most of the time (18504: 79/124 slices carry both nulls) and switches topology, so when the lower null dropped to the -9.99 sentinel the pick FLIPPED to the upper null (~2.4-2.46 m native jump on 18502/18504). build_geometry_from_arrays then LINEARLY interpolated that discontinuous series onto camera-frame times, drawing a straight line through Z~0 -- a label matching no physical X-point, which is why xpt_Z 'skill' was ~0 even at the raw-float ceiling (a label artifact, not a model failure). FIX (within the unchanged 12-D schema): (A) select_primary_xpoint now tracks the primary null by TEMPORAL CONTINUITY (nearest real null to the previous slice's primary; lower-null-preferred re-seed after a sentinel gap) instead of fixed lowest-Z; (B) xpt_R/xpt_Z interpolation switched from linear to NEAREST-native with neighbourhood masking around every topology switch / NaN gap (new XPOINT_DISCONTINUITY_M=0.3 m threshold) -- frames straddling a discontinuity are MASKED (NaN), never imputed; R and Z masks coupled. Axis + LCFS stay linearly interpolated (continuous). Real-data verdict: 18502 OLD native picked-z [-1.199,1.254] max|dz|=2.431 m -> NEW emitted max adjacent jump 0.0242 m, 54 frames masked; 18504 OLD [-1.291,1.168] max|dz|=2.459 m -> NEW emitted [-1.291,-0.870] max adjacent jump 0.0130 m, 39 frames masked. Essentially ALL of the apparent X-point 'skill' near the midplane was the flip/interp label artifact; the corrected labels are physical and discontinuity-masked. 12-D schema (TARGET_DIM/TARGET_NAMES) and all public signatures unchanged; downstream probe+oracle untouched.</p>
     </article>
 </section>
 
