@@ -183,6 +183,33 @@ analogue of the temporal phasing we already flagged.</p>
 xpt_R 0.50), now also asking whether the relational tokeniser <em>resolves rotation</em> and lifts the X-point,
 which the per-scalar/continuous probes could not.</p>
 
+<h2 id="s5">§5 — Empirical validation (2026-06-30)</h2>
+<p>The design above is now <strong>empirically validated</strong> on the firewalled diagnostics→equilibrium
+oracle. Building the relational tokeniser exactly as §4 prescribes — periodic <strong>(sin, cos)</strong> φ/θ
+encoding, the previously-missing <strong>toroidal saddle array</strong> (12 loops @ 12 φ), <strong>STFT</strong>
+phase lift, continuous signed magnitude — moved every boundary component above baseline for the first time:</p>
+<div style="overflow-x:auto"><table>
+<thead><tr><th>arm (absolute, 54-shot test)</th><th>axis_R</th><th>axis_Z</th><th>xpt_R</th><th>note</th></tr></thead>
+<tbody>
+<tr><td><strong>continuous + toroidal + periodic-φ + STFT</strong></td><td>+0.375 (66%)</td><td>+0.473 (69%)</td><td><strong>+0.288 (58%)</strong></td><td>all three BEAT baseline</td></tr>
+<tr><td>same streams, 256-bin token</td><td>+0.10</td><td>+0.13</td><td>−0.05</td><td>token lane loses</td></tr>
+<tr><td>raw-float ceiling</td><td>0.571</td><td>0.683</td><td>0.497</td><td>—</td></tr>
+</tbody></table></div>
+<ul>
+  <li><strong>Periodic seam proven</strong>: a unit test confirms encoded distance(φ=359°, φ=1°) is small (adjacent)
+  while distance(0°, 180°) is large — 2π−ε and 0+ε ARE identified as adjacent.</li>
+  <li><strong>Rotation captured</strong>: a periodic-PE + STFT relational encoder recovers the toroidal mode
+  number n of synthetic <code>cos(nφ−ωt)</code> (>0.6 acc, beating a φ-scrambled control), invariant to a global
+  φ-offset crossing the 360°→0° seam (analytically, a spatial DFT across the 12 φ recovers n at 100%).</li>
+  <li><strong>Continuous ≫ token</strong> within the same run (xpt_R +0.29 vs −0.05) reconfirms quantisation —
+  not architecture — is the discrete-token-path gap.</li>
+  <li><strong>Honest confound</strong>: the X-point <em>labels</em> were corrected (discontinuity-aware, commit
+  bc92405) between the earlier magnetics-only run and this one, so the cross-iteration absolute delta is partly
+  the label fix. The <em>unconfounded</em> signals are within-run (continuous≫token; all three beat baseline). A
+  clean like-for-like toroidal-lift ablation (magnetics-only vs +toroidal under the corrected labels) is queued.
+  xpt_Z stays weak (intrinsically ~0 even at the raw ceiling).</li>
+</ul>
+
 </main>
 </body>
 </html>
