@@ -1,15 +1,16 @@
 #!/bin/bash
 #SBATCH --job-name=l2-input-encode
-#SBATCH --partition=betelgeuse
-#SBATCH --reservation=gpu_0003_grpA
-#SBATCH --account=grpa
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=10
-#SBATCH --mem=200G
+#SBATCH --partition=sun
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=96G
 #SBATCH --time=12:00:00
 #SBATCH --output=/work/projects/imas_gpu/logs/l2-input-encode-%x-%j.out
-# NOTE: --qos is intentionally omitted — auto-applied for this account/
-#       reservation. Passing --qos explicitly errors with "QOS not permitted".
+#
+# The L2 light path is CPU/IO-bound (a uniform quantiser over the control +
+# SXR signals — NO model inference), so it runs on the `sun` CPU cluster
+# (~19 idle nodes with /work access), NOT the GPU reservation (repo: IO-bound
+# builds go to sun).  Absolute corpus calibration is THE default (--per-shot
+# is a diagnostic escape).
 #
 # Leakage-free Level-2 INPUT light path: read → leakage-guard → uniform-
 # quantise → write the provenance-verified L2 *inputs* (measured observables
@@ -45,16 +46,18 @@ if [[ ! -d "${REPO_ROOT}/imas_ambix/data" ]]; then
 fi
 
 # ── SLURM-node workarounds (repo §2) ─────────────────────────────────────────
-export TMPDIR=/scratch_local/${SLURM_JOB_ID}
-mkdir -p "$TMPDIR"
+# On the sun CPU cluster /scratch_local does not exist; /tmp is the writable
+# scratch (repo §2).
+export TMPDIR=/tmp
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONUNBUFFERED=1
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 
-# ── Drain-forensics sidecar (repo §2a) ───────────────────────────────────────
-bash "${REPO_ROOT}/scripts/slurm/drain_sidecar.sh" &
-
 PY="${REPO_ROOT}/.venv/bin/python"
 L2_SHOTS="${L2_SHOTS:-all}"            # 'all' (every {id}.zarr on disk) or csv
+# Absolute calibration is the default; ABSOLUTE=0 → explicit per-shot diagnostic.
+ABSOLUTE="${ABSOLUTE:-1}"
+ABS_FLAG=()
+[[ "$ABSOLUTE" != "1" ]] && ABS_FLAG=(--per-shot)
 LEVEL2_DIR="${LEVEL2_DIR:-/work/projects/imas_gpu/mast/level2/shots}"
 MANIFEST_DIR="${MANIFEST_DIR:-/work/projects/imas_gpu/mast-tokens/v2/_manifests}"
 MANIFEST="${MANIFEST:-${MANIFEST_DIR}/encode_l2_input.json}"
@@ -74,7 +77,7 @@ echo "[l2-input] shots='$L2_SHOTS' level2='$LEVEL2_DIR' manifest='$MANIFEST' no_
     --shots "$L2_SHOTS" \
     --level2-dir "$LEVEL2_DIR" \
     --manifest "$MANIFEST" \
-    "${SKIP_FLAG[@]}" >>"$LOG" 2>&1
+    "${ABS_FLAG[@]}" "${SKIP_FLAG[@]}" >>"$LOG" 2>&1
 echo "ENCODE_EXIT=$?" | tee -a "$LOG"
 
 cp "$LOG" "/work/projects/imas_gpu/logs/l2-input-encode-${SLURM_JOB_ID}.run.log" || true

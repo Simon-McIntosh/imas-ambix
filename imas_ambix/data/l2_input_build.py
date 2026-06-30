@@ -597,8 +597,25 @@ def build_group(
     store_group = f"{spec.group}{L2_GROUP_SUFFIX}"
     out_path = _token_path(shot_id, store_group, out_root)
     if skip_existing and out_path.exists():
-        logger.info("shot %s: %s exists — skipping", shot_id, out_path.name)
-        return out_path
+        # Calibration-mode-aware resume: an absolute re-encode must supersede a
+        # legacy per-shot store (different mode → re-encode), while skipping a
+        # store already in the requested mode.  A mode read-back failure (e.g.
+        # truncated store) falls through to re-encode.
+        want_mode = "absolute" if corpus_calibration is not None else "per_shot"
+        try:
+            import zarr
+
+            existing = dict(zarr.open_group(str(out_path), mode="r").attrs)
+            if str(existing.get("calibration_mode", "per_shot")) == want_mode:
+                logger.info(
+                    "shot %s: %s exists (mode=%s) — skipping",
+                    shot_id,
+                    out_path.name,
+                    want_mode,
+                )
+                return out_path
+        except Exception:  # noqa: BLE001 — unreadable/partial store ⇒ re-encode
+            pass
 
     read = read_group(shot_id, spec, level2_dir)
     if read is None:
@@ -646,6 +663,7 @@ def build_group(
         channel_names=tuple(used),
         phase_preserving=False,  # magnitude-only uniform quantiser
         original_window=window,
+        calibration_mode=cal_mode,
         metadata={
             "light_path": "l2_input_low",
             "tier": L2_TIER,
@@ -816,14 +834,18 @@ def main(argv: list[str] | None = None) -> int:
         help="re-encode shots whose store already exists",
     )
     parser.add_argument("--manifest", default=None, help="optional JSON run manifest")
+    # Absolute calibration is THE default operative path (a physical value maps
+    # to the same token everywhere).  --per-shot is an explicit, clearly-labelled
+    # diagnostic escape that z-scores each group per-shot (magnitude NOT
+    # comparable across shots).
     parser.add_argument(
-        "--absolute",
-        action="store_true",
-        help="standardise each group against its persisted CORPUS calibration "
-        "(absolute / SI magnitude survives quantisation) instead of per-shot "
-        "z-scoring; groups without a calibration file fall back to per-shot",
+        "--per-shot",
+        dest="absolute",
+        action="store_false",
+        help="DIAGNOSTIC ONLY: per-shot z-score each group instead of the "
+        "default corpus-calibrated absolute mode (magnitude not preserved)",
     )
-    parser.set_defaults(skip_existing=True)
+    parser.set_defaults(skip_existing=True, absolute=True)
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -835,6 +857,7 @@ def main(argv: list[str] | None = None) -> int:
         from imas_ambix.calibration.corpus_compute import load_group_calibration
 
         calibration_by_group = {}
+        missing = []
         for spec in AUTHORISED_INPUTS:
             cal = load_group_calibration(spec.group)
             if cal is not None:
@@ -845,11 +868,16 @@ def main(argv: list[str] | None = None) -> int:
                     len(cal),
                 )
             else:
-                logger.warning(
-                    "absolute mode: no calibration for group %r — it will "
-                    "fall back to per-shot fitting",
-                    spec.group,
-                )
+                missing.append(spec.group)
+        if missing:
+            # Fail loud — never silently fall back to per-shot in the default
+            # absolute path (the repoint contract).  Use --per-shot to opt out.
+            raise SystemExit(
+                "absolute mode (default) but no corpus calibration for group(s): "
+                f"{', '.join(missing)}; run `python -m "
+                "imas_ambix.calibration.corpus_compute --group all` first, or "
+                "pass --per-shot for an explicit per-shot diagnostic build"
+            )
 
     if args.shots.strip().lower() == "all":
         shots = _enumerate_shots(args.level2_dir)
