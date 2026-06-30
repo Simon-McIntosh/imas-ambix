@@ -144,10 +144,17 @@ class DiagnosticsProbeConfig:
     #: the attention (a rotating toroidal mode is a phase ramp across φ).  Phase
     #: is KEPT (real + imag) — never collapsed to magnitude.
     stft_phase: bool = True
+    #: The X-point is an ORDER-INVARIANT null SET — these target components (one
+    #: ``(R, Z)`` pair per slot) form ``n_xpoint_slots`` UNORDERED candidate
+    #: slots whose loss is permutation-invariant (matched assignment) + a
+    #: presence BCE per slot.  ``xpoint_start`` is the first X-point component
+    #: index in the target vector (axis is 0,1; the set is the next 2*slots).
+    n_xpoint_slots: int = 2
+    xpoint_start: int = 2
 
 
 class DiagnosticsEquilibriumProbe(nn.Module):
-    """Space-time transformer over (sensor × time) tokens -> 12-D geometry head.
+    """Space-time transformer over (sensor × time) tokens -> geometry head.
 
     Forward takes a dict ``{stream_name: (B, n_steps, channels) int64 ids}`` plus
     a parallel dict of per-stream geometry / sensor-kind blocks, and returns
@@ -229,6 +236,8 @@ class DiagnosticsEquilibriumProbe(nn.Module):
             nn.Dropout(cfg.dropout),
             nn.Linear(cfg.head_hidden, 2 * cfg.target_dim),
         )
+        # presence logit per X-point null-set slot (the count/presence head).
+        self.presence_head = nn.Linear(cfg.d_model, int(cfg.n_xpoint_slots))
 
     def forward(
         self,
@@ -326,6 +335,21 @@ class DiagnosticsEquilibriumProbe(nn.Module):
         x = self.encoder(x)
         return self.pool_norm(x[:, 0])  # the query token's encoded state
 
+    def presence_logits(
+        self,
+        signals: dict[str, torch.Tensor],
+        geometry: dict[str, torch.Tensor],
+        sensor_kinds: dict[str, torch.Tensor],
+        *,
+        values: dict[str, torch.Tensor] | None = None,
+        machine: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Per-slot X-point presence logits ``(B, n_xpoint_slots)``."""
+        pooled = self.pooled_embedding(
+            signals, geometry, sensor_kinds, values=values, machine=machine
+        )
+        return self.presence_head(pooled)
+
     def n_parameters(self) -> int:
         return int(sum(p.numel() for p in self.parameters()))
 
@@ -390,6 +414,98 @@ def gaussian_nll(
     return nll.sum() / denom
 
 
+def set_xpoint_loss(
+    mean: torch.Tensor,
+    log_sigma: torch.Tensor,
+    presence_logits: torch.Tensor,
+    target: torch.Tensor,
+    mask: torch.Tensor,
+    *,
+    xpoint_start: int = 2,
+    n_slots: int = 2,
+) -> torch.Tensor:
+    """PERMUTATION-INVARIANT matched loss for the X-point null SET (K=2).
+
+    The X-point components ``target[:, xpoint_start : xpoint_start + 2*n_slots]``
+    are ``n_slots`` UNORDERED ``(R, Z)`` slots; ``mask`` marks which target slots
+    are present (a present slot has both R and Z finite).  The loss assigns the
+    ``n_slots`` PREDICTIONS to the present TARGETS by MIN-COST matching (for
+    K=2: the min over the 2 permutations of the summed Gaussian-NLL position
+    cost), so it is identical under swapping the two target slots — no ordering
+    is imposed.  A presence BCE term trains the per-slot presence logits against
+    the target count.  Returns a scalar (position-NLL over matched present slots
+    + presence BCE), zero-safe when no null is present in the batch.
+
+    Only supports ``n_slots == 2`` (the store's max-2-null case); raises
+    otherwise so a future K>2 must add a general assignment.
+    """
+    if n_slots != 2:
+        raise NotImplementedError("set_xpoint_loss currently supports n_slots == 2")
+    s = xpoint_start
+    # per-slot (R,Z) blocks: (B, 2) for each of the 2 slots.
+    p_mean = [mean[:, s + 2 * k : s + 2 * k + 2] for k in range(2)]
+    p_logs = [log_sigma[:, s + 2 * k : s + 2 * k + 2] for k in range(2)]
+    t_rz = [target[:, s + 2 * k : s + 2 * k + 2] for k in range(2)]
+    # a slot is a PRESENT target iff both its R and Z mask entries are set.
+    t_present = [
+        (mask[:, s + 2 * k] > 0) & (mask[:, s + 2 * k + 1] > 0) for k in range(2)
+    ]
+
+    def _pair_nll(pred_mu, pred_ls, tgt_rz):
+        inv_var = torch.exp(-2.0 * pred_ls)
+        sq = (tgt_rz - pred_mu) ** 2
+        # sum the 2 coords (R,Z) -> per-sample scalar cost for this (pred,tgt) pair.
+        return (0.5 * (np.log(2.0 * np.pi) + 2.0 * pred_ls + sq * inv_var)).sum(dim=-1)
+
+    # the 2 permutations: identity (pred0->tgt0, pred1->tgt1) and swap.
+    cost_id = _pair_nll(p_mean[0], p_logs[0], t_rz[0]) + _pair_nll(
+        p_mean[1], p_logs[1], t_rz[1]
+    )
+    cost_sw = _pair_nll(p_mean[0], p_logs[0], t_rz[1]) + _pair_nll(
+        p_mean[1], p_logs[1], t_rz[0]
+    )
+    # presence pattern decides how the matched cost is masked per sample:
+    both = t_present[0] & t_present[1]
+    only0 = t_present[0] & ~t_present[1]
+    only1 = ~t_present[0] & t_present[1]
+
+    dev = mean.device
+    pos = torch.zeros(mean.shape[0], device=dev, dtype=mean.dtype)
+    # both present: min over the 2 permutations (true permutation invariance).
+    pos = torch.where(both, torch.minimum(cost_id, cost_sw), pos)
+    # exactly one present: match the single target to its NEAREST prediction
+    # (min over which prediction explains it) — also order-invariant.
+    nll_t0 = torch.minimum(
+        _pair_nll(p_mean[0], p_logs[0], t_rz[0]),
+        _pair_nll(p_mean[1], p_logs[1], t_rz[0]),
+    )
+    nll_t1 = torch.minimum(
+        _pair_nll(p_mean[0], p_logs[0], t_rz[1]),
+        _pair_nll(p_mean[1], p_logs[1], t_rz[1]),
+    )
+    pos = torch.where(only0, nll_t0, pos)
+    pos = torch.where(only1, nll_t1, pos)
+    n_with_null = (both | only0 | only1).to(mean.dtype).sum().clamp_min(1.0)
+    pos_loss = pos.sum() / n_with_null
+
+    # presence BCE: per-slot target count (order-invariant — the target is the
+    # number of present nulls, applied to the sorted presence logits so the BCE
+    # is itself permutation-invariant in the slot index).
+    n_present = t_present[0].to(mean.dtype) + t_present[1].to(
+        mean.dtype
+    )  # (B,) in {0,1,2}
+    # sort logits descending so slot-0 logit predicts ">=1 null", slot-1 ">=2".
+    logits_sorted, _ = torch.sort(presence_logits, dim=-1, descending=True)
+    tgt_ge1 = (n_present >= 1).to(mean.dtype)
+    tgt_ge2 = (n_present >= 2).to(mean.dtype)
+    bce = torch.nn.functional.binary_cross_entropy_with_logits(
+        logits_sorted[:, 0], tgt_ge1
+    ) + torch.nn.functional.binary_cross_entropy_with_logits(
+        logits_sorted[:, 1], tgt_ge2
+    )
+    return pos_loss + bce
+
+
 # ---------------------------------------------------------------------------
 # Checkpoint IO
 # ---------------------------------------------------------------------------
@@ -452,6 +568,7 @@ __all__ = [
     "DiagnosticsProbeConfig",
     "DiagnosticsEquilibriumProbe",
     "gaussian_nll",
+    "set_xpoint_loss",
     "save_probe",
     "load_probe",
 ]

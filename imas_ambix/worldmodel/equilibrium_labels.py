@@ -15,58 +15,61 @@ What it produces
 onto a set of camera ``frame_times`` (seconds) and returns, per frame, a
 **14-D target** in METRES plus a finite mask::
 
-    index  name          meaning (metres)
-    -----  ------------  --------------------------------------------------
-      0    axis_R        magnetic-axis major radius
-      1    axis_Z        magnetic-axis height
-      2    lower_xpt_R   LOWER (Z<0) divertor X-point major radius
-      3    lower_xpt_Z   LOWER X-point height
-      4    upper_xpt_R   UPPER (Z>0) divertor X-point major radius
-      5    upper_xpt_Z   UPPER X-point height
-    6..13  lcfs_r[k]     LCFS control-point RADIUS at 8 fixed poloidal
-                         angles θ_k about the magnetic axis (k = 0..7),
-                         θ_k = 2π k / 8 measured CCW from the outboard
-                         midplane (+R direction) in the (R, Z) poloidal plane.
+    index  name        meaning (metres)
+    -----  ----------  --------------------------------------------------
+      0    axis_R      magnetic-axis major radius   (fixed regression)
+      1    axis_Z      magnetic-axis height         (fixed regression)
+      2    xpt0_R      X-point NULL-SET slot 0, R   (order-invariant set)
+      3    xpt0_Z      X-point null-set slot 0, Z
+      4    xpt1_R      X-point null-set slot 1, R
+      5    xpt1_Z      X-point null-set slot 1, Z
+    6..13  lcfs_r[k]   LCFS control-point RADIUS at 8 fixed poloidal
+                       angles θ_k about the magnetic axis (k = 0..7),
+                       θ_k = 2π k / 8 measured CCW from the outboard
+                       midplane (+R direction) in the (R, Z) poloidal plane.
 
 The 8 LCFS radii are the ray-cast distance (metres) from the magnetic axis
 to the last-closed-flux-surface contour along each of 8 equally-spaced
-poloidal angles — a fixed-dimension, rotation-stable parameterisation of the
-boundary shape that does not depend on the (variable, NaN-padded) number of
-raw boundary points the store carries.
+poloidal angles — a fixed-dimension, rotation-stable, topology-ROBUST
+parameterisation of the boundary shape that does not depend on the (variable,
+NaN-padded) number of raw boundary points the store carries.
+
+X-point as an ORDER-INVARIANT NULL SET (topology-agnostic)
+----------------------------------------------------------
+The store carries up to two real nulls per slice in ``x_point_r/z`` (``-9.99``
+sentinel for an undefined null).  Earlier designs imposed a topology assumption
+— a single "primary" null (bimodal across a divertor switch, a ~2.4 m flip that
+linear interpolation drew through Z~0) or a sign-of-Z "lower/upper" split (which
+mislabels double-null-near-one-divertor, snowflake, X-divertor, super-X).  Both
+are dropped.  Instead the X-point label is the **SET of ≤2 real nulls** written
+into two UNORDERED slots — ``(xpt0, xpt1)`` — with NO ordering, NO sign-of-Z
+assignment, NO ψ public/private filter, and NO cross-frame continuity tracking.
+Because the oracle predicts the **window-centre** geometry, the set is taken
+from the **nearest-native centre slice** (NO interpolation of set members across
+slices — that is what removes the flip/interp problem entirely).  Presence /
+count (0 / 1 / 2 nulls) is encoded by the per-slot finite mask: a present slot
+has finite ``(R, Z)``; an absent slot is NaN/masked.  The downstream probe's
+X-point head is trained with a PERMUTATION-INVARIANT matched loss, so the label
+is identical under swapping the two slots — that is the whole point.
+
+Coarse in-vessel sanity (NOT a public/private discriminator)
+------------------------------------------------------------
+A reconstructed null is kept only if it is finite and inside a COARSE MAST
+limiter bounding box (:data:`XPOINT_VESSEL_R_RANGE` / :data:`XPOINT_VESSEL_Z_ABS`).
+This rejects a NaN / sentinel / wildly-out-of-vessel reconstruction artefact —
+it is explicitly **NOT** a public/private flux-region discriminator (the flux
+map is multimodal; a private-region null can sit at ψ ≈ ψ_LCFS, so a ψ-proximity
+test cannot separate boundary from private nulls — that classification is not
+attempted here).
 
 Masking, not imputation
 -----------------------
 The L2 equilibrium is only defined while the plasma exists: early ramp-up and
-late ramp-down slices carry **NaN** axis/LCFS values, and the X-point carries
-a ``-9.99`` sentinel when no null is reconstructed.  A camera frame whose
+late ramp-down slices carry **NaN** axis/LCFS values.  A camera frame whose
 interpolated target touches an undefined equilibrium slice is **masked**
-(``finite_mask[f, c] = False``) — never imputed.  Each of the 12 components
-has its own per-frame mask, so a frame can contribute an axis label while its
-X-point label is masked out.
-
-The X-point is SPLIT into two SEPARATE channels — LOWER (Z<0) and UPPER (Z>0)
-— each present-when-present and masked-when-absent (single-null carries one,
-double-null both, limiter neither).  This subsumes the earlier "primary
-X-point" hack: a single primary target was **bimodal** across a topology switch
-(the active null jumps lower↔upper, a ~2.4 m Z step), so linearly interpolating
-it drew a line through Z~0 matching no physical null.  As two separate
-sign-of-Z channels there is **no flip and no discontinuity** — each channel is
-continuous within its own presence, so it is interpolated **linearly** (like
-axis / LCFS) and only its NaN-absence gaps are masked (continuity-tracking is
-dropped; the masking-on-absence is kept).
-
-Boundary-null filter (psi-proximity)
-------------------------------------
-The flux map can carry a reconstructed null that is **not** on the plasma
-boundary (an internal / far field null).  Each store null is kept only if it is
-BOUNDARY-ASSOCIATED: its poloidal flux matches the LCFS flux,
-``|ψ(null) − ψ_boundary| <= tol · |ψ_boundary − ψ_axis|`` with ``tol`` =
-:data:`XPOINT_PSI_TOL`, where ``ψ_boundary`` is the median ψ bilinearly
-interpolated at the LCFS contour points, ``ψ_axis`` the ψ at the magnetic axis,
-and ``ψ(null)`` the ψ bilinearly interpolated at the null's ``(R, Z)`` on the
-store's ``ψ(R, Z, t)`` grid.  A null failing the test is **masked** (not a
-boundary null).  No null re-finding and no separatrix tracing — the store's two
-nulls + this single ψ check only.
+(``finite_mask[f, c] = False``) — never imputed.  Axis + LCFS are continuous and
+LINEARLY interpolated; the X-point null slots are NEAREST-native (window-centre,
+no member interpolation).  Each component has its own per-frame mask.
 
 Store facts (verified on the L2 mirror, 2026-06-24)
 ---------------------------------------------------
@@ -77,14 +80,11 @@ on >= 2-D fields):
 
   - ``magnetic_axis_r``/``magnetic_axis_z``  ``(nt,)``  metres, NaN when off
   - ``x_point_r``/``x_point_z``              ``(2, nt)``  metres; ``-9.99``
-    sentinel for an undefined null; the two rows are the lower / upper nulls.
-    MAST runs **double-null most of the time** (e.g. shot 18504: 79/124 slices
-    carry two real nulls) and switches topology, so a fixed "lower null" rule
-    flips lower<->upper whenever the lower null drops to sentinel — a ~2.4 m
-    jump in the picked-Z series.  The *primary* null is therefore selected by
-    **temporal continuity** (track the null closest to the previous slice's
-    primary), which gives a stable, physical trajectory across DN<->SN
-    switches.  See :func:`select_primary_xpoint`.
+    sentinel for an undefined null.  MAST runs **double-null most of the time**
+    (e.g. shot 18504: 79/124 slices carry two real nulls) and switches topology.
+    No ordering / sign-of-Z meaning is read from the two rows — the valid nulls
+    are taken as an ORDER-INVARIANT SET (:func:`xpoint_null_set`); a swap of the
+    two rows is identical under the downstream permutation-invariant loss.
   - ``lcfs_r``/``lcfs_z``                    ``(n_bdy, nt)``  metres, NaN-padded
   - ``n_boundary_coords``                    ``(n_bdy,)``  valid LCFS-point
     count per time slice (the contour uses the first ``n_boundary_coords[i]``
@@ -114,31 +114,32 @@ DEFAULT_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 #: Any coordinate at or below this magnitude is treated as missing.
 XPOINT_SENTINEL = -9.0
 
-#: Boundary-null ψ-proximity tolerance.  A store null is kept only when its
-#: poloidal flux matches the LCFS flux to within this fraction of the
-#: axis→boundary flux difference: ``|ψ_null − ψ_boundary| <= tol·|ψ_boundary −
-#: ψ_axis|``.  Measured (18502/18504): genuine boundary nulls sit at normalised
-#: ψ-distance ~0.001–0.01, so 0.05 keeps every real boundary null with margin
-#: while rejecting an internal / far null whose ψ differs by a sizeable fraction
-#: of the axis-boundary span.
-XPOINT_PSI_TOL = 0.05
+#: COARSE MAST limiter bounding box for the in-vessel sanity reject (NOT a
+#: public/private discriminator).  Measured limiter extent is R∈[0.20, 1.90],
+#: |Z|≤1.83; the bbox is widened slightly so a genuine edge null near the
+#: limiter is never wrongly rejected — only a NaN / sentinel / wildly-displaced
+#: reconstruction artefact is dropped.
+XPOINT_VESSEL_R_RANGE = (0.1, 2.0)
+XPOINT_VESSEL_Z_ABS = 2.0
+
+#: Number of X-point null-set candidate slots (the store carries up to 2 nulls).
+N_XPOINT_SLOTS = 2
 
 #: Number of fixed poloidal angles the LCFS boundary is resampled onto.
 N_LCFS_ANGLES = 8
 
-#: Fixed target dimensionality: axis(2) + LOWER X-point(2) + UPPER X-point(2)
-#: + 8 LCFS radii = 14.
-TARGET_DIM = 6 + N_LCFS_ANGLES
+#: Fixed target dimensionality: axis(2) + X-point null-set(2 slots × 2) + 8 LCFS
+#: radii = 14.
+TARGET_DIM = 2 + 2 * N_XPOINT_SLOTS + N_LCFS_ANGLES
 
 #: Human-readable name per target component (length == TARGET_DIM).  The X-point
-#: is split into a LOWER (Z<0) and an UPPER (Z>0) divertor channel.
+#: is an ORDER-INVARIANT null SET of ``N_XPOINT_SLOTS`` unordered slots
+#: (``xpt0``, ``xpt1``); the slot index carries NO ordering / topology meaning —
+#: the probe matches predictions to targets with a permutation-invariant loss.
 TARGET_NAMES: tuple[str, ...] = (
     "axis_R",
     "axis_Z",
-    "lower_xpt_R",
-    "lower_xpt_Z",
-    "upper_xpt_R",
-    "upper_xpt_Z",
+    *tuple(f"xpt{s}_{c}" for s in range(N_XPOINT_SLOTS) for c in ("R", "Z")),
     *tuple(f"lcfs_r_{k}" for k in range(N_LCFS_ANGLES)),
 )
 
@@ -242,164 +243,85 @@ def _interp_1d_masked(
     return out
 
 
-def _bilinear_on_grid(
-    field_zr: np.ndarray, r_axis: np.ndarray, z_axis: np.ndarray, r: float, z: float
-) -> float:
-    """Bilinearly interpolate a ``(nz, nr)`` field at ``(r, z)``.
+def _null_in_vessel(r: float, z: float) -> bool:
+    """Coarse in-vessel sanity (NOT a public/private discriminator).
 
-    ``field_zr`` is indexed ``[z, r]`` (the L2 ``psi`` grid layout: the axis ψ
-    is the field maximum, verified on the mirror).  ``r_axis`` / ``z_axis`` are
-    the monotonically-increasing grid coordinates.  Returns NaN when ``(r, z)``
-    is outside the grid or the bracketing cell carries a NaN.
+    True iff ``(r, z)`` is finite, non-sentinel, and inside the coarse MAST
+    limiter bounding box — rejecting only a NaN / sentinel / wildly-displaced
+    reconstruction artefact, never separating boundary from private-region nulls.
     """
     if not (np.isfinite(r) and np.isfinite(z)):
-        return float("nan")
-    if not (r_axis[0] <= r <= r_axis[-1] and z_axis[0] <= z <= z_axis[-1]):
-        return float("nan")
-    ir = min(max(int(np.searchsorted(r_axis, r)) - 1, 0), r_axis.size - 2)
-    iz = min(max(int(np.searchsorted(z_axis, z)) - 1, 0), z_axis.size - 2)
-    tr = (r - r_axis[ir]) / (r_axis[ir + 1] - r_axis[ir])
-    tz = (z - z_axis[iz]) / (z_axis[iz + 1] - z_axis[iz])
-    f00 = field_zr[iz, ir]
-    f01 = field_zr[iz, ir + 1]
-    f10 = field_zr[iz + 1, ir]
-    f11 = field_zr[iz + 1, ir + 1]
-    return float(
-        f00 * (1 - tr) * (1 - tz)
-        + f01 * tr * (1 - tz)
-        + f10 * (1 - tr) * tz
-        + f11 * tr * tz
-    )
+        return False
+    if r <= XPOINT_SENTINEL or z <= XPOINT_SENTINEL:
+        return False
+    r_lo, r_hi = XPOINT_VESSEL_R_RANGE
+    return r_lo <= r <= r_hi and abs(z) <= XPOINT_VESSEL_Z_ABS
 
 
-def _is_boundary_null(
-    psi_zr: np.ndarray,
-    r_axis: np.ndarray,
-    z_axis: np.ndarray,
-    null_r: float,
-    null_z: float,
-    axis_r: float,
-    axis_z: float,
-    lcfs_r_col: np.ndarray,
-    lcfs_z_col: np.ndarray,
-    *,
-    tol: float = XPOINT_PSI_TOL,
-) -> bool:
-    """True iff a null's poloidal flux matches the LCFS flux (a boundary null).
+def xpoint_null_set(
+    x_point_r: np.ndarray, x_point_z: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per native slice, the ORDER-INVARIANT set of ≤2 real in-vessel nulls.
 
-    ``ψ_boundary`` is the median ψ bilinearly sampled at the LCFS contour
-    points; ``ψ_axis`` the ψ at the magnetic axis; the null is kept iff
-    ``|ψ_null − ψ_boundary| <= tol·|ψ_boundary − ψ_axis|``.  When ψ / axis /
-    boundary cannot be evaluated the null is conservatively KEPT (the filter
-    only ever *rejects* a confidently-non-boundary null — it never invents a
-    rejection from missing data).
-    """
-    psi_axis = _bilinear_on_grid(psi_zr, r_axis, z_axis, axis_r, axis_z)
-    bvals = [
-        _bilinear_on_grid(psi_zr, r_axis, z_axis, float(rr), float(zz))
-        for rr, zz in zip(lcfs_r_col, lcfs_z_col, strict=False)
-        if np.isfinite(rr) and np.isfinite(zz)
-    ]
-    bvals = [v for v in bvals if np.isfinite(v)]
-    if not bvals or not np.isfinite(psi_axis):
-        return True  # cannot evaluate the filter — keep (do not invent a reject)
-    psi_boundary = float(np.median(bvals))
-    span = abs(psi_boundary - psi_axis)
-    if span <= 0.0:
-        return True
-    psi_null = _bilinear_on_grid(psi_zr, r_axis, z_axis, null_r, null_z)
-    if not np.isfinite(psi_null):
-        return True
-    return abs(psi_null - psi_boundary) <= tol * span
+    The store carries up to two nulls per slice in ``(2, nt)`` arrays with a
+    ``-9.99`` sentinel for an undefined null.  This returns the real (finite,
+    in-vessel — :func:`_null_in_vessel`) nulls packed into ``N_XPOINT_SLOTS``
+    UNORDERED slots, in the store's row order (the slot index carries NO
+    ordering / topology meaning — the downstream loss is permutation-invariant).
+    An absent slot is NaN.  No sign-of-Z split, no ψ filter, no continuity
+    tracking — just the set of valid nulls at each slice.
 
-
-def select_split_xpoints(
-    x_point_r: np.ndarray,
-    x_point_z: np.ndarray,
-    *,
-    psi: np.ndarray | None = None,
-    r_axis: np.ndarray | None = None,
-    z_axis: np.ndarray | None = None,
-    axis_r: np.ndarray | None = None,
-    axis_z: np.ndarray | None = None,
-    lcfs_r: np.ndarray | None = None,
-    lcfs_z: np.ndarray | None = None,
-    psi_tol: float = XPOINT_PSI_TOL,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
-    """Split the store's two nulls into LOWER (Z<0) and UPPER (Z>0) channels.
-
-    The store carries up to two X-points per slice in ``(2, nt)`` arrays with a
-    ``-9.99`` sentinel for an undefined null.  Each real (finite, non-sentinel)
-    null is assigned to the LOWER channel when Z < 0 and the UPPER channel when
-    Z > 0 — so each channel is its own continuous, present-when-present series
-    (no lower↔upper flip, no 2.4 m discontinuity).  When the ψ grid + axis +
-    LCFS are supplied, a null is kept only if it is BOUNDARY-ASSOCIATED
-    (:func:`_is_boundary_null`); a non-boundary null is dropped (its channel is
-    NaN at that slice).  If two real nulls land in the same sign-of-Z channel
-    (degenerate; rare), the one closest to the boundary flux is kept.
-
-    Returns
-    -------
-    (lower_r, lower_z, upper_r, upper_z, n_rejected) : the four ``(nt,)``
-    float64 channels (NaN where absent / non-boundary) plus the count of nulls
-    the ψ-filter rejected (0 when no ψ grid was supplied).
+    Returns ``(set_r, set_z)`` each ``(N_XPOINT_SLOTS, nt)`` float64 (NaN where a
+    slot is absent at that slice).
     """
     xr = np.asarray(x_point_r, dtype=np.float64)
     xz = np.asarray(x_point_z, dtype=np.float64)
-    _, nt = xr.shape
-    real = (
-        np.isfinite(xr)
-        & np.isfinite(xz)
-        & (xr > XPOINT_SENTINEL)
-        & (xz > XPOINT_SENTINEL)
-    )
-    lower_r = np.full(nt, np.nan, dtype=np.float64)
-    lower_z = np.full(nt, np.nan, dtype=np.float64)
-    upper_r = np.full(nt, np.nan, dtype=np.float64)
-    upper_z = np.full(nt, np.nan, dtype=np.float64)
-    n_rejected = 0
-
-    use_psi = (
-        psi is not None
-        and r_axis is not None
-        and z_axis is not None
-        and axis_r is not None
-        and axis_z is not None
-        and lcfs_r is not None
-        and lcfs_z is not None
-    )
-    r_ax = np.asarray(r_axis, dtype=np.float64) if use_psi else None
-    z_ax = np.asarray(z_axis, dtype=np.float64) if use_psi else None
-
+    n_rows, nt = xr.shape
+    set_r = np.full((N_XPOINT_SLOTS, nt), np.nan, dtype=np.float64)
+    set_z = np.full((N_XPOINT_SLOTS, nt), np.nan, dtype=np.float64)
     for i in range(nt):
-        for row in np.flatnonzero(real[:, i]):
-            nr = float(xr[row, i])
-            nz = float(xz[row, i])
-            if use_psi and not _is_boundary_null(
-                psi[:, :, i],
-                r_ax,
-                z_ax,
-                nr,
-                nz,
-                float(axis_r[i]),
-                float(axis_z[i]),
-                lcfs_r[:, i],
-                lcfs_z[:, i],
-                tol=psi_tol,
-            ):
-                n_rejected += 1
-                continue
-            if nz < 0.0:
-                tgt_r, tgt_z = lower_r, lower_z
-            else:
-                tgt_r, tgt_z = upper_r, upper_z
-            # On the rare same-sign degeneracy, keep the null nearer the
-            # midplane-side boundary (smaller |Z| is the conventional divertor
-            # null); only overwrite if the slot is empty or this null is lower-|Z|.
-            if not np.isfinite(tgt_z[i]) or abs(nz) < abs(tgt_z[i]):
-                tgt_r[i] = nr
-                tgt_z[i] = nz
-    return lower_r, lower_z, upper_r, upper_z, n_rejected
+        slot = 0
+        for row in range(n_rows):
+            if slot >= N_XPOINT_SLOTS:
+                break
+            r, z = float(xr[row, i]), float(xz[row, i])
+            if _null_in_vessel(r, z):
+                set_r[slot, i] = r
+                set_z[slot, i] = z
+                slot += 1
+    return set_r, set_z
+
+
+def _nearest_native_set(
+    t_eq: np.ndarray, set_native: np.ndarray, t_target: np.ndarray
+) -> np.ndarray:
+    """Sample a null-set slot at each target time from its NEAREST native slice.
+
+    The set members are NOT interpolated across slices (that removes the
+    flip/interp problem): each query time takes the value of the temporally
+    nearest native slice.  A target outside the native range, or whose nearest
+    native slot is absent (NaN), yields NaN (masked).  ``set_native`` is
+    ``(nt,)`` for one slot.
+    """
+    t_n = np.asarray(t_eq, dtype=np.float64)
+    y_n = np.asarray(set_native, dtype=np.float64)
+    t_g = np.asarray(t_target, dtype=np.float64)
+    out = np.full(t_g.shape, np.nan, dtype=np.float64)
+    if t_n.size == 0:
+        return out
+    order = np.argsort(t_n)
+    tn = t_n[order]
+    yn = y_n[order]
+    in_range = (t_g >= tn[0]) & (t_g <= tn[-1])
+    if not in_range.any():
+        return out
+    tg = t_g[in_range]
+    hi = np.clip(np.searchsorted(tn, tg, side="left"), 0, tn.size - 1)
+    lo = np.clip(hi - 1, 0, tn.size - 1)
+    take_hi = np.abs(tn[hi] - tg) <= np.abs(tg - tn[lo])
+    nearest = np.where(take_hi, yn[hi], yn[lo])
+    out[in_range] = nearest  # NaN native slots propagate as masked
+    return out
 
 
 def resample_lcfs_radii(
@@ -479,15 +401,16 @@ def load_equilibrium_geometry(
     level2_root: Path | None = None,
     angles: np.ndarray = LCFS_ANGLES,
 ) -> EquilibriumGeometry:
-    """Build per-camera-frame 12-D geometry labels for one shot.
+    """Build per-camera-frame 14-D geometry labels for one shot.
 
-    Interpolates the L2 equilibrium axis / primary X-point / LCFS-shape onto
-    ``frame_times`` (camera frame times, seconds).  Returns an
-    :class:`EquilibriumGeometry` whose ``target`` is ``(F, 12)`` in METRES and
-    whose ``finite_mask`` is ``(F, 12)`` (False = the equilibrium was undefined
-    at that frame, e.g. plasma-off slices — masked, NOT imputed).
+    Interpolates the L2 equilibrium axis / LCFS-shape (linear) and samples the
+    X-point null SET (nearest-native, order-invariant) onto ``frame_times``.
+    Returns an :class:`EquilibriumGeometry` whose ``target`` is ``(F, 14)`` in
+    METRES and whose ``finite_mask`` is ``(F, 14)`` (False = undefined / absent
+    — masked, NOT imputed).
 
-    The 12 components (see module docstring): ``axis_R, axis_Z, xpt_R, xpt_Z``
+    The 14 components (see module docstring): ``axis_R, axis_Z`` then the
+    X-point null set ``xpt0_R, xpt0_Z, xpt1_R, xpt1_Z`` (two unordered slots)
     then 8 ``lcfs_r`` control-point radii at the fixed poloidal angles
     ``angles`` about the magnetic axis.
 
@@ -518,16 +441,6 @@ def load_equilibrium_geometry(
     lcfs_r = np.asarray(eq["lcfs_r"], dtype=np.float64)  # (n_bdy, nt)
     lcfs_z = np.asarray(eq["lcfs_z"], dtype=np.float64)
 
-    # ψ grid + axes for the boundary-null filter (ψ[z, r, t]; axis ψ is the
-    # field maximum on this store).  Optional — absent on a store without them
-    # disables the filter (all nulls kept).
-    psi = r_axis = z_axis = None
-    keys = set(eq.array_keys())
-    if {"psi", "major_radius", "z"} <= keys:
-        psi = np.asarray(eq["psi"], dtype=np.float64)  # (nz, nr, nt)
-        r_axis = np.asarray(eq["major_radius"], dtype=np.float64)
-        z_axis = np.asarray(eq["z"], dtype=np.float64)
-
     return build_geometry_from_arrays(
         shot_id=shot_id,
         frame_times=ft,
@@ -538,9 +451,6 @@ def load_equilibrium_geometry(
         x_point_z=xpt_z2,
         lcfs_r=lcfs_r,
         lcfs_z=lcfs_z,
-        psi=psi,
-        r_axis=r_axis,
-        z_axis=z_axis,
         angles=angles,
     )
 
@@ -556,49 +466,32 @@ def build_geometry_from_arrays(
     x_point_z: np.ndarray,
     lcfs_r: np.ndarray,
     lcfs_z: np.ndarray,
-    psi: np.ndarray | None = None,
-    r_axis: np.ndarray | None = None,
-    z_axis: np.ndarray | None = None,
-    psi_tol: float = XPOINT_PSI_TOL,
     angles: np.ndarray = LCFS_ANGLES,
-    return_rejected: bool = False,
-):
+) -> EquilibriumGeometry:
     """Assemble the 14-D per-frame labels from raw equilibrium arrays.
 
     Split out from :func:`load_equilibrium_geometry` so tests can drive it
     directly on synthetic arrays without a Zarr store.  Conventions and shapes
-    match the store (time is the LAST axis on ``x_point_*`` / ``lcfs_*`` /
-    ``psi``).  The X-point is SPLIT into LOWER (Z<0) and UPPER (Z>0) channels;
-    each is continuous within its presence so it is LINEARLY interpolated and
-    only its absence gaps are masked.  When ``psi`` + ``r_axis`` + ``z_axis``
-    are supplied a null is kept only if it is boundary-associated
-    (:func:`_is_boundary_null`).
+    match the store (time is the LAST axis on ``x_point_*`` / ``lcfs_*``).
 
-    Returns an :class:`EquilibriumGeometry`; with ``return_rejected`` a tuple
-    ``(geometry, n_rejected_nulls)``.
+    Axis + LCFS are CONTINUOUS -> linearly interpolated onto ``frame_times``.
+    The X-point is an ORDER-INVARIANT null SET (:func:`xpoint_null_set`): up to
+    two unordered slots, each sampled at its NEAREST-native slice (NO member
+    interpolation — that removes the flip/interp problem), with absent slots
+    masked.  The slot index carries no ordering / topology meaning; the probe's
+    permutation-invariant loss matches predictions to the present targets.
     """
     ft = np.asarray(frame_times, dtype=np.float64).ravel()
     n_frames = ft.size
     n_ang = len(angles)
-    dim = 6 + n_ang
+    dim = 2 + 2 * N_XPOINT_SLOTS + n_ang
 
     t_eq = np.asarray(t_eq, dtype=np.float64)
     axis_r = np.asarray(axis_r, dtype=np.float64)
     axis_z = np.asarray(axis_z, dtype=np.float64)
 
-    # 1) split LOWER/UPPER X-points on the native time base (+ ψ boundary filter).
-    lower_r_n, lower_z_n, upper_r_n, upper_z_n, n_rejected = select_split_xpoints(
-        x_point_r,
-        x_point_z,
-        psi=psi,
-        r_axis=r_axis,
-        z_axis=z_axis,
-        axis_r=axis_r,
-        axis_z=axis_z,
-        lcfs_r=lcfs_r,
-        lcfs_z=lcfs_z,
-        psi_tol=psi_tol,
-    )
+    # 1) X-point null SET on the native time base (≤2 unordered in-vessel nulls).
+    set_r_n, set_z_n = xpoint_null_set(x_point_r, x_point_z)
 
     # 2) LCFS control-point radii on the native time base, slice by slice.
     nt = t_eq.size
@@ -608,63 +501,49 @@ def build_geometry_from_arrays(
             lcfs_r[:, i], lcfs_z[:, i], float(axis_r[i]), float(axis_z[i]), angles
         )
 
-    # 3) Interpolate onto the camera frame times.  EVERY channel is now
-    #    CONTINUOUS within its presence (the lower/upper split removes the
-    #    lower↔upper flip), so axis, both X-point channels and LCFS all use the
-    #    same linear interpolation; a frame not bracketed by two finite native
-    #    samples of a channel is masked (never imputed).
+    # 3) Project onto the camera frame times.  Axis + LCFS are continuous ->
+    #    LINEAR interp; the X-point null slots are NEAREST-native (window-centre,
+    #    no member interpolation).  A frame not bracketed (axis/LCFS) or outside
+    #    the native range (nulls) is masked, never imputed.
     target = np.full((n_frames, dim), np.nan, dtype=np.float64)
     target[:, 0] = _interp_1d_masked(t_eq, axis_r, ft)
     target[:, 1] = _interp_1d_masked(t_eq, axis_z, ft)
-    # Couple each null's R/Z masks (a null frame is valid only where both
-    # coordinates are physical).
-    lr = _interp_1d_masked(t_eq, lower_r_n, ft)
-    lz = _interp_1d_masked(t_eq, lower_z_n, ft)
-    lboth = np.isfinite(lr) & np.isfinite(lz)
-    target[:, 2] = np.where(lboth, lr, np.nan)
-    target[:, 3] = np.where(lboth, lz, np.nan)
-    ur = _interp_1d_masked(t_eq, upper_r_n, ft)
-    uz = _interp_1d_masked(t_eq, upper_z_n, ft)
-    uboth = np.isfinite(ur) & np.isfinite(uz)
-    target[:, 4] = np.where(uboth, ur, np.nan)
-    target[:, 5] = np.where(uboth, uz, np.nan)
+    for s in range(N_XPOINT_SLOTS):
+        sr = _nearest_native_set(t_eq, set_r_n[s], ft)
+        sz = _nearest_native_set(t_eq, set_z_n[s], ft)
+        # couple each slot's R/Z masks (a null slot is valid only where both finite)
+        both = np.isfinite(sr) & np.isfinite(sz)
+        target[:, 2 + 2 * s] = np.where(both, sr, np.nan)
+        target[:, 3 + 2 * s] = np.where(both, sz, np.nan)
     for k in range(n_ang):
-        target[:, 6 + k] = _interp_1d_masked(t_eq, lcfs_radii_native[:, k], ft)
+        target[:, 2 + 2 * N_XPOINT_SLOTS + k] = _interp_1d_masked(
+            t_eq, lcfs_radii_native[:, k], ft
+        )
 
     finite_mask = np.isfinite(target)
-    names = (
-        "axis_R",
-        "axis_Z",
-        "lower_xpt_R",
-        "lower_xpt_Z",
-        "upper_xpt_R",
-        "upper_xpt_Z",
-        *tuple(f"lcfs_r_{k}" for k in range(n_ang)),
-    )
-    geometry = EquilibriumGeometry(
+    return EquilibriumGeometry(
         shot_id=int(shot_id),
         frame_times=ft,
         target=target.astype(np.float32),
         finite_mask=finite_mask,
-        names=names,
+        names=TARGET_NAMES,
         units="m",
     )
-    if return_rejected:
-        return geometry, n_rejected
-    return geometry
 
 
 __all__ = [
     "DEFAULT_LEVEL2_ROOT",
     "XPOINT_SENTINEL",
-    "XPOINT_PSI_TOL",
+    "XPOINT_VESSEL_R_RANGE",
+    "XPOINT_VESSEL_Z_ABS",
+    "N_XPOINT_SLOTS",
     "N_LCFS_ANGLES",
     "TARGET_DIM",
     "TARGET_NAMES",
     "LCFS_ANGLES",
     "EquilibriumGeometry",
     "equilibrium_store_path",
-    "select_split_xpoints",
+    "xpoint_null_set",
     "resample_lcfs_radii",
     "load_equilibrium_geometry",
     "build_geometry_from_arrays",

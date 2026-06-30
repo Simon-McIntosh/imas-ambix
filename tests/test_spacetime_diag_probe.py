@@ -27,7 +27,55 @@ from imas_ambix.worldmodel.diagnostics_equilibrium_probe import (
     DiagnosticsProbeConfig,
     StreamSpec,
     sensor_kind_index,
+    set_xpoint_loss,
 )
+
+
+def test_set_xpoint_loss_is_permutation_invariant():
+    """Swapping the two target nulls yields IDENTICAL loss (the core property)."""
+    torch.manual_seed(0)
+    b, dim = 5, 14
+    mean = torch.randn(b, dim)
+    log_sigma = torch.zeros(b, dim)
+    presence = torch.randn(b, 2)
+    target = torch.randn(b, dim)
+    mask = torch.ones(b, dim)  # both null slots present (DN) for every sample
+
+    loss_ab = set_xpoint_loss(
+        mean, log_sigma, presence, target, mask, xpoint_start=2, n_slots=2
+    )
+    # swap target slot 0 <-> slot 1 (components 2,3 <-> 4,5) AND the mask.
+    swapped = target.clone()
+    swapped[:, 2:4], swapped[:, 4:6] = target[:, 4:6], target[:, 2:4]
+    mask_sw = mask.clone()
+    mask_sw[:, 2:4], mask_sw[:, 4:6] = mask[:, 4:6], mask[:, 2:4]
+    loss_ba = set_xpoint_loss(
+        mean, log_sigma, presence, swapped, mask_sw, xpoint_start=2, n_slots=2
+    )
+    assert torch.allclose(loss_ab, loss_ba, atol=1e-5), (
+        f"set loss not permutation-invariant: {loss_ab.item()} vs {loss_ba.item()}"
+    )
+
+
+def test_set_xpoint_loss_handles_counts():
+    """Loss is finite + differentiable for 0/1/2-null presence patterns."""
+    torch.manual_seed(1)
+    b, dim = 6, 14
+    mean = torch.randn(b, dim, requires_grad=True)
+    log_sigma = torch.zeros(b, dim)
+    presence = torch.randn(b, 2, requires_grad=True)
+    target = torch.randn(b, dim)
+    mask = torch.ones(b, dim)
+    # sample 0: 0 nulls; sample 1: 1 null (slot0 only); rest: 2 nulls.
+    mask[0, 2:6] = 0.0
+    mask[1, 4:6] = 0.0
+    loss = set_xpoint_loss(
+        mean, log_sigma, presence, target, mask, xpoint_start=2, n_slots=2
+    )
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert mean.grad is not None and torch.isfinite(mean.grad).all()
+    assert presence.grad is not None
 
 
 def _synthetic_inputs(specs, n_steps, target_dim, *, batch=3, continuous=False):

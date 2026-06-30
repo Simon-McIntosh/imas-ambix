@@ -1,20 +1,23 @@
-"""Tests for the SPLIT upper/lower X-point equilibrium labels + psi-filter.
+"""Tests for the ORDER-INVARIANT NULL-SET X-point equilibrium labels.
 
-The 14-D equilibrium labels feed the firewalled diagnostics->equilibrium
-oracle.  The X-point is SPLIT into a LOWER (Z<0) and an UPPER (Z>0) divertor
-channel, each present-when-present and masked-when-absent.  Because they are
-separate sign-of-Z channels there is NO lower<->upper flip and NO ~2.4 m
-discontinuity (the old single-"primary" target was bimodal across a topology
-switch — ill-posed), so each channel is interpolated linearly within its own
-presence.  A psi-proximity filter keeps a null only if it is boundary-associated
-(``|psi_null - psi_boundary| <= tol * |psi_boundary - psi_axis|``).  These tests
-pin:
+The 14-D equilibrium labels feed the firewalled diagnostics->equilibrium oracle.
+The X-point is an ORDER-INVARIANT SET of ≤2 real in-vessel nulls (DETR-style):
+no ordering, no sign-of-Z assignment, no ψ public/private filter, no
+single-primary continuity — just the set of valid nulls at the window-centre
+native slice (nearest-native, no member interpolation → no flip/interp).  A
+coarse finite + in-vessel-bbox sanity reject drops only reconstruction
+artefacts (NOT a public/private discriminator).  These tests pin:
 
-  - the 14-D split schema + names;
-  - each split channel is sign-pure + continuous within its presence (no flip);
-  - the psi-filter masks a synthetic far / internal (non-boundary) null;
-  - real-data smoke: split channels clean on the topology-switcher 18502/18504,
-    and the psi-filter rejection count is reported.
+  - the 14-D set schema + names (axis, xpt0/xpt1 unordered slots, LCFS);
+  - count/presence handling (SN→1, DN→2, limiter/off→0) + masks;
+  - NO-FLIP on a synthetic lower→upper topology switch (the set is stable; no
+    value forced between the nulls);
+  - the coarse in-vessel sanity reject (a synthetic far/out-of-vessel null is
+    dropped) — explicitly NOT a public/private claim;
+  - real-data smoke (18502/18504): count distribution + nearest-native sampling.
+
+Order-invariance of the matched LOSS is tested in test_spacetime_diag_probe.py
+(it needs torch); these label tests are pure-numpy.
 """
 
 from __future__ import annotations
@@ -26,10 +29,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-# Import the pure-numpy module by file path.  The `imas_ambix.worldmodel`
-# package __init__ eagerly imports torch (a GPU-node-only dependency); this
-# evaluator module has no torch dependency, so load it standalone to keep the
-# test runnable in the CPU venv.
 _MODULE_PATH = (
     Path(__file__).resolve().parents[1]
     / "imas_ambix"
@@ -45,11 +44,11 @@ _spec.loader.exec_module(_eq)
 
 TARGET_DIM = _eq.TARGET_DIM
 TARGET_NAMES = _eq.TARGET_NAMES
+N_XPOINT_SLOTS = _eq.N_XPOINT_SLOTS
 XPOINT_SENTINEL = _eq.XPOINT_SENTINEL
-XPOINT_PSI_TOL = _eq.XPOINT_PSI_TOL
 build_geometry_from_arrays = _eq.build_geometry_from_arrays
 load_equilibrium_geometry = _eq.load_equilibrium_geometry
-select_split_xpoints = _eq.select_split_xpoints
+xpoint_null_set = _eq.xpoint_null_set
 
 LOWER_Z = -1.2
 UPPER_Z = +1.2
@@ -60,12 +59,11 @@ def _two_null_arrays(n_lower: int, n_after: int, *, sentinel: float = -9.99):
     """``(2, nt)`` x_point arrays for a DN run that loses its lower null.
 
     Row 0 is the lower null (Z=LOWER_Z), row 1 the upper null (Z=UPPER_Z).  For
-    the first ``n_lower`` slices BOTH nulls are real (double-null); for the
-    remaining ``n_after`` the lower null drops to the sentinel (single-null
-    upper).  R ~ 0.6 m outboard for both.
+    the first ``n_lower`` slices BOTH are real (double-null); for the remaining
+    ``n_after`` the lower null drops to the sentinel (single-null upper).
     """
     nt = n_lower + n_after
-    xr = np.full((2, nt), 0.6, dtype=np.float64)
+    xr = np.full((2, nt), 0.55, dtype=np.float64)
     xz = np.empty((2, nt), dtype=np.float64)
     xz[0, :] = LOWER_Z
     xz[1, :] = UPPER_Z
@@ -75,7 +73,6 @@ def _two_null_arrays(n_lower: int, n_after: int, *, sentinel: float = -9.99):
 
 
 def _continuous_axis_and_lcfs(t_eq: np.ndarray):
-    """Plausible continuous axis + a simple circular LCFS for the builder."""
     nt = t_eq.size
     axis_r = np.full(nt, 0.9)
     axis_z = np.zeros(nt)
@@ -93,48 +90,65 @@ def _continuous_axis_and_lcfs(t_eq: np.ndarray):
 # ---------------------------------------------------------------------------
 
 
-def test_split_schema_is_14d():
+def test_null_set_schema_is_14d():
     assert TARGET_DIM == 14
-    assert TARGET_NAMES[2:6] == (
-        "lower_xpt_R",
-        "lower_xpt_Z",
-        "upper_xpt_R",
-        "upper_xpt_Z",
-    )
+    assert N_XPOINT_SLOTS == 2
+    assert TARGET_NAMES[2:6] == ("xpt0_R", "xpt0_Z", "xpt1_R", "xpt1_Z")
 
 
 # ---------------------------------------------------------------------------
-# Split: each null is its OWN sign-pure, continuous channel (no flip)
+# Set extraction: count / presence, NO ordering / sign-of-Z
 # ---------------------------------------------------------------------------
 
 
-def test_split_channels_are_sign_pure_no_flip():
-    """LOWER channel always Z<0, UPPER always Z>0 — no lower<->upper flip.
+def test_xpoint_null_set_count_and_no_ordering():
+    """DN → 2 slots, SN → 1 slot; slot index is store order, not sign-of-Z."""
+    xr, xz = _two_null_arrays(n_lower=4, n_after=4)
+    set_r, set_z = xpoint_null_set(xr, xz)
+    assert set_r.shape == (2, 8)
+    # DN slices: both slots present.
+    dn = np.isfinite(set_z[0, :4]) & np.isfinite(set_z[1, :4])
+    assert dn.all()
+    # SN slices (lower dropped): exactly one slot present (packed into slot 0).
+    sn0 = np.isfinite(set_z[0, 4:])
+    sn1 = np.isfinite(set_z[1, 4:])
+    assert (sn0 & ~sn1).all()
+    # slot 0 in the DN run is the store's row-0 (here the lower null) — the slot
+    # index is store order, NOT a Z-sign assignment.  That is the point.
+    assert np.allclose(set_z[0, :4], LOWER_Z)
 
-    The store loses its lower null mid-run; the OLD single-primary target would
-    flip ~2.4 m at that switch.  As two SEPARATE sign-of-Z channels each is its
-    own present-when-present series and never crosses the midplane.
+
+def test_coarse_in_vessel_reject_not_public_private():
+    """A finite but OUT-OF-VESSEL null is dropped; an in-vessel one is kept.
+
+    This is a coarse reconstruction-artefact reject, NOT a public/private claim.
     """
-    xr, xz = _two_null_arrays(n_lower=6, n_after=6)
-    lr, lz, ur, uz, _n = select_split_xpoints(xr, xz)
-    # lower present for the DN run only, always negative Z.
-    lz_fin = lz[np.isfinite(lz)]
-    uz_fin = uz[np.isfinite(uz)]
-    assert lz_fin.size == 6 and np.all(lz_fin < 0)
-    assert uz_fin.size == 12 and np.all(uz_fin > 0)  # upper present throughout
-    # NO single emitted channel ever jumps lower<->upper (each stays on a side).
-    assert np.allclose(lz_fin, LOWER_Z)
-    assert np.allclose(uz_fin, UPPER_Z)
+    # row 0: a normal in-vessel null; row 1: a far/out-of-vessel null (R=5 m).
+    xr = np.array([[0.55], [5.0]])
+    xz = np.array([[-1.2], [0.3]])
+    set_r, _set_z = xpoint_null_set(xr, xz)
+    assert np.isfinite(set_r[0, 0]) and set_r[0, 0] == pytest.approx(0.55)
+    assert not np.isfinite(set_r[1, 0])  # out-of-vessel rejected
+    # a sentinel null is also dropped.
+    xr2 = np.array([[0.55], [-9.99]])
+    xz2 = np.array([[-1.2], [-9.99]])
+    sr2, _ = xpoint_null_set(xr2, xz2)
+    assert np.isfinite(sr2[0, 0]) and not np.isfinite(sr2[1, 0])
 
 
-def test_split_channels_interpolate_linearly_within_presence():
-    """Each channel is continuous within presence -> linear interp, masked gaps."""
-    n_lower, n_after = 8, 8
+# ---------------------------------------------------------------------------
+# NO-FLIP across a topology switch (the core correctness property)
+# ---------------------------------------------------------------------------
+
+
+def test_no_flip_on_topology_switch():
+    """A lower→upper switch yields a STABLE set; no value forced between nulls."""
+    n_lower, n_after = 6, 6
     nt = n_lower + n_after
     t_eq = np.arange(nt) * 0.005
     xr, xz = _two_null_arrays(n_lower, n_after)
     axis_r, axis_z, lcfs_r, lcfs_z = _continuous_axis_and_lcfs(t_eq)
-    ft = np.linspace(t_eq[0], t_eq[-1], 80)
+    ft = np.linspace(t_eq[0], t_eq[-1], 60)
     geo = build_geometry_from_arrays(
         shot_id=0,
         frame_times=ft,
@@ -147,80 +161,22 @@ def test_split_channels_interpolate_linearly_within_presence():
         lcfs_z=lcfs_z,
     )
     assert geo.target.shape[1] == TARGET_DIM == 14
-    lz = geo.target[:, _NAME_IDX["lower_xpt_Z"]].astype(np.float64)
-    uz = geo.target[:, _NAME_IDX["upper_xpt_Z"]].astype(np.float64)
-    # lower present only over the DN time span, sign-pure; upper present whole.
-    assert np.all(lz[np.isfinite(lz)] < 0)
-    assert np.all(uz[np.isfinite(uz)] > 0)
-    # the lower channel is masked after its null vanishes (no extrapolation).
-    assert np.isnan(lz[-1])
-    # upper channel fully present (clean continuous single null) — no spurious mask.
-    assert np.isfinite(uz).all()
-    # R/Z masks coupled per channel.
-    lr = geo.target[:, _NAME_IDX["lower_xpt_R"]].astype(np.float64)
-    assert np.array_equal(np.isfinite(lr), np.isfinite(lz))
+    for slot in range(N_XPOINT_SLOTS):
+        z = geo.target[:, _NAME_IDX[f"xpt{slot}_Z"]].astype(np.float64)
+        vals = z[np.isfinite(z)]
+        # every emitted null Z is a real null height (±1.2), NEVER the mid-band.
+        assert np.all((vals <= -0.8) | (vals >= 0.8)), (
+            f"slot {slot} emitted a mid-band Z (flip artifact): "
+            f"{vals[(vals > -0.8) & (vals < 0.8)]}"
+        )
+        r = geo.target[:, _NAME_IDX[f"xpt{slot}_R"]].astype(np.float64)
+        assert np.array_equal(np.isfinite(r), np.isfinite(z))  # R/Z masks coupled
+    # axis (continuous) is never masked across the switch.
+    assert np.isfinite(geo.target[:, _NAME_IDX["axis_Z"]]).all()
 
 
 # ---------------------------------------------------------------------------
-# psi-proximity boundary-null filter
-# ---------------------------------------------------------------------------
-
-
-def _psi_fixture():
-    """A simple axisymmetric psi(z, r) bowl: max at axis, decreasing outward.
-
-    psi(R,Z) = -((R-R0)^2 + (Z-Z0)^2); axis at (R0, Z0) is the maximum (0).  The
-    LCFS at radius 0.4 sits at psi = -0.16; a boundary null also at radius 0.4
-    has psi ~ -0.16 (kept); an internal null near the axis has psi ~ 0 (far from
-    psi_boundary -> rejected).
-    """
-    R0, Z0 = 0.9, 0.0
-    r_axis = np.linspace(0.2, 1.8, 81)
-    z_axis = np.linspace(-1.6, 1.6, 81)
-    RR, ZZ = np.meshgrid(r_axis, z_axis)  # (nz, nr)
-    psi = -((RR - R0) ** 2 + (ZZ - Z0) ** 2)
-    return r_axis, z_axis, psi, R0, Z0
-
-
-def test_psi_filter_masks_a_non_boundary_null():
-    """A far / internal null (psi != psi_boundary) is rejected; a boundary null kept."""
-    r_axis, z_axis, psi2d, R0, Z0 = _psi_fixture()
-    psi = psi2d[:, :, None]  # (nz, nr, 1)
-    axis_r = np.array([R0])
-    axis_z = np.array([Z0])
-    # LCFS: a circle of radius 0.4 about the axis (8 points) -> psi_boundary=-0.16.
-    ang = np.linspace(0, 2 * np.pi, 8, endpoint=False)
-    lcfs_r = (R0 + 0.4 * np.cos(ang))[:, None]
-    lcfs_z = (Z0 + 0.4 * np.sin(ang))[:, None]
-    # two nulls: row0 a genuine boundary null on the circle BELOW the axis (Z<0,
-    # radius 0.4 -> psi=-0.16); row1 an INTERNAL null near the axis (radius 0.05,
-    # placed at Z>0 so it would land in the upper channel) -> psi~-0.0025, far
-    # from psi_boundary -> must be REJECTED.
-    xr = np.array([[R0], [R0 + 0.05]])
-    xz = np.array([[Z0 - 0.4], [Z0 + 0.05]])
-    lr, lz, ur, uz, n_rej = select_split_xpoints(
-        xr,
-        xz,
-        psi=psi,
-        r_axis=r_axis,
-        z_axis=z_axis,
-        axis_r=axis_r,
-        axis_z=axis_z,
-        lcfs_r=lcfs_r,
-        lcfs_z=lcfs_z,
-    )
-    # the boundary null (lower) is KEPT; the internal null (upper) is REJECTED.
-    assert np.isfinite(lz[0]) and lz[0] < 0
-    assert np.isnan(uz[0])
-    assert n_rej == 1
-
-    # Without the psi grid the internal null would NOT be filtered (kept upper).
-    lr2, lz2, ur2, uz2, n_rej2 = select_split_xpoints(xr, xz)
-    assert np.isfinite(uz2[0]) and n_rej2 == 0
-
-
-# ---------------------------------------------------------------------------
-# Real-data smoke: split channels clean on the topology-switchers + reject rate
+# Real-data smoke
 # ---------------------------------------------------------------------------
 
 _REAL_SHOTS = (18502, 18504)
@@ -231,52 +187,24 @@ def _real_shot_available(shot: int) -> bool:
 
 
 @pytest.mark.parametrize("shot", _REAL_SHOTS)
-def test_real_shot_split_channels_clean(shot):
+def test_real_shot_null_set(shot):
     if not _real_shot_available(shot):
         pytest.skip(f"L2 store for shot {shot} not mounted")
     eq = _eq._read_equilibrium_group(shot, None)
     t_eq = np.asarray(eq["time"], dtype=np.float64)
-    geo, n_rej = build_geometry_from_arrays(
-        shot_id=shot,
-        frame_times=t_eq,
-        t_eq=t_eq,
-        axis_r=np.asarray(eq["magnetic_axis_r"], dtype=np.float64),
-        axis_z=np.asarray(eq["magnetic_axis_z"], dtype=np.float64),
-        x_point_r=np.asarray(eq["x_point_r"], dtype=np.float64),
-        x_point_z=np.asarray(eq["x_point_z"], dtype=np.float64),
-        lcfs_r=np.asarray(eq["lcfs_r"], dtype=np.float64),
-        lcfs_z=np.asarray(eq["lcfs_z"], dtype=np.float64),
-        psi=np.asarray(eq["psi"], dtype=np.float64),
-        r_axis=np.asarray(eq["major_radius"], dtype=np.float64),
-        z_axis=np.asarray(eq["z"], dtype=np.float64),
-        return_rejected=True,
-    )
-    lz = geo.target[:, _NAME_IDX["lower_xpt_Z"]].astype(np.float64)
-    uz = geo.target[:, _NAME_IDX["upper_xpt_Z"]].astype(np.float64)
-    lz_fin = lz[np.isfinite(lz)]
-    uz_fin = uz[np.isfinite(uz)]
-    # Sign-pure: lower always below the midplane, upper always above. No flip.
-    assert lz_fin.size > 0 and np.all(lz_fin < -0.2)
-    assert uz_fin.size > 0 and np.all(uz_fin > 0.2)
-    # Each channel continuous within presence — max adjacent step is cm-scale,
-    # NOT the ~2.4 m lower<->upper flip the single-primary target produced.
-    for ch in (lz, uz):
-        idx = np.flatnonzero(np.isfinite(ch))
-        adj = [
-            abs(ch[b] - ch[a])
-            for a, b in zip(idx[:-1], idx[1:], strict=False)
-            if b == a + 1
-        ]
-        assert (max(adj) if adj else 0.0) < 0.3
+    geo = load_equilibrium_geometry(shot, t_eq)
+    s0 = np.isfinite(geo.target[:, _NAME_IDX["xpt0_R"]])
+    s1 = np.isfinite(geo.target[:, _NAME_IDX["xpt1_R"]])
+    count = s0.astype(int) + s1.astype(int)
+    from collections import Counter
 
-    # count real store nulls for the rejection rate.
-    xr = np.asarray(eq["x_point_r"], dtype=np.float64)
-    xz = np.asarray(eq["x_point_z"], dtype=np.float64)
-    n_real = int(
-        ((xr > XPOINT_SENTINEL) & (xz > XPOINT_SENTINEL) & np.isfinite(xr)).sum()
-    )
-    print(
-        f"shot {shot}: lower present {lz_fin.size}, upper present {uz_fin.size}; "
-        f"psi-filter rejected {n_rej}/{n_real} real store nulls "
-        f"({100 * n_rej / max(n_real, 1):.1f}%)"
-    )
+    dist = Counter(count.tolist())
+    assert set(dist).issubset({0, 1, 2})
+    assert dist.get(2, 0) > 0  # MAST is double-null much of the time
+    # nearest-native: every emitted null sits at a physical height (|Z|>0.2 m).
+    for slot in range(N_XPOINT_SLOTS):
+        z = geo.target[:, _NAME_IDX[f"xpt{slot}_Z"]].astype(np.float64)
+        zf = z[np.isfinite(z)]
+        if zf.size:
+            assert np.all(np.abs(zf) > 0.2)
+    print(f"shot {shot}: x-point null-set count dist {dict(dist)}")

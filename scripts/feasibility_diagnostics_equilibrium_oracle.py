@@ -851,7 +851,15 @@ def train_probe(
         DiagnosticsEquilibriumProbe,
         DiagnosticsProbeConfig,
         gaussian_nll,
+        set_xpoint_loss,
     )
+    from imas_ambix.worldmodel.equilibrium_labels import N_XPOINT_SLOTS
+
+    # X-point null-set component span in the target vector (axis is 0,1; the set
+    # is the next 2*N_XPOINT_SLOTS; LCFS follows).  Axis + LCFS use the masked
+    # Gaussian NLL; the set uses the permutation-invariant matched loss.
+    xpt_start = 2
+    xpt_end = xpt_start + 2 * N_XPOINT_SLOTS
 
     torch.manual_seed(seed)
     ytr = np.stack([ex["target"] for ex in tr_examples]).astype(np.float32)
@@ -921,8 +929,28 @@ def train_probe(
             with torch.autocast(
                 device_type=dev.type, dtype=torch.bfloat16, enabled=(dev.type == "cuda")
             ):
-                pmean, plog = model(sb, gb, kb, values=vb, machine=mcb)
-            loss = gaussian_nll(pmean.float(), plog.float(), yb, mb)
+                # one encoder pass -> the regression head + the presence head.
+                pooled = model.pooled_embedding(sb, gb, kb, values=vb, machine=mcb)
+                out = model.head(pooled)
+                pmean, plog = out.chunk(2, dim=-1)
+                pres = model.presence_head(pooled)
+            pmean = pmean.float()
+            plog = plog.float()
+            # axis + LCFS: masked Gaussian NLL on the NON-set components only.
+            non_set = mb.clone()
+            non_set[:, xpt_start:xpt_end] = 0.0
+            loss_axis_lcfs = gaussian_nll(pmean, plog, yb, non_set)
+            # X-point null SET: permutation-invariant matched loss + presence BCE.
+            loss_set = set_xpoint_loss(
+                pmean,
+                plog,
+                pres.float(),
+                yb,
+                mb,
+                xpoint_start=xpt_start,
+                n_slots=N_XPOINT_SLOTS,
+            )
+            loss = loss_axis_lcfs + loss_set
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
@@ -951,7 +979,7 @@ def evaluate(
     batch_size,
     continuous=False,
 ):
-    """Predict on TEST -> (pred (n,12) metres, y (n,12), mask (n,12))."""
+    """Predict on TEST -> (pred (n,D) metres, y, mask, presence_prob (n,slots))."""
     import torch
 
     dev = torch.device(device)
@@ -963,13 +991,67 @@ def evaluate(
     n = yte.shape[0]
     model.eval()
     preds = []
-    for i in range(0, n, batch_size):
-        idx = torch.arange(i, min(i + batch_size, n), device=dev)
-        sb, gb, kb, vb, mcb = _slice_batch(batch, idx)
-        pmean_m, _ = model.predict_metres(sb, gb, kb, mean, std, values=vb, machine=mcb)
-        preds.append(pmean_m)
+    pres_probs = []
+    with torch.no_grad():
+        for i in range(0, n, batch_size):
+            idx = torch.arange(i, min(i + batch_size, n), device=dev)
+            sb, gb, kb, vb, mcb = _slice_batch(batch, idx)
+            pooled = model.pooled_embedding(sb, gb, kb, values=vb, machine=mcb)
+            out = model.head(pooled)
+            pmean, _plog = out.chunk(2, dim=-1)
+            mu = pmean.detach().cpu().float().numpy()
+            preds.append(mu * np.asarray(std) + np.asarray(mean))
+            pres = torch.sigmoid(model.presence_head(pooled)).detach().cpu().numpy()
+            pres_probs.append(pres)
     pred = np.concatenate(preds, axis=0)
-    return pred, yte, mte
+    presence_prob = np.concatenate(pres_probs, axis=0)
+    return pred, yte, mte, presence_prob
+
+
+def set_xpoint_metrics(pred, y, mask, presence_prob, *, xpoint_start=2, n_slots=2):
+    """Matched-null position RMSE (m) + count accuracy for the X-point SET.
+
+    For each TEST sample, the predicted slot means are matched to the PRESENT
+    target nulls by the min-cost (Euclidean) assignment (K=2: min over the 2
+    permutations), and the matched (R, Z) distances are pooled into an RMSE.
+    Count accuracy compares the predicted count (presence_prob>=0.5 per sorted
+    slot -> 0/1/2) to the true present-null count.  Returns a dict.
+    """
+    s = xpoint_start
+    pr = [pred[:, s + 2 * k : s + 2 * k + 2] for k in range(n_slots)]
+    tr = [y[:, s + 2 * k : s + 2 * k + 2] for k in range(n_slots)]
+    present = [(mask[:, s + 2 * k]) & (mask[:, s + 2 * k + 1]) for k in range(n_slots)]
+    n_samp = pred.shape[0]
+    pred_count = (presence_prob >= 0.5).sum(axis=1)
+    true_count = np.array(
+        [sum(int(present[k][i]) for k in range(n_slots)) for i in range(n_samp)]
+    )
+
+    # per-null matched squared (R,Z) distances (metres^2) for an honest RMSE.
+    def _sq(a, b):
+        return float(np.sum((a - b) ** 2))
+
+    null_sq = []
+    for i in range(n_samp):
+        tgt = [k for k in range(n_slots) if present[k][i]]
+        if len(tgt) == 2:
+            d_id = _sq(pr[0][i], tr[0][i]) + _sq(pr[1][i], tr[1][i])
+            d_sw = _sq(pr[0][i], tr[1][i]) + _sq(pr[1][i], tr[0][i])
+            if d_id <= d_sw:
+                null_sq += [_sq(pr[0][i], tr[0][i]), _sq(pr[1][i], tr[1][i])]
+            else:
+                null_sq += [_sq(pr[0][i], tr[1][i]), _sq(pr[1][i], tr[0][i])]
+        elif len(tgt) == 1:
+            t = tgt[0]
+            null_sq.append(min(_sq(pr[k][i], tr[t][i]) for k in range(n_slots)))
+    matched_rmse = float(np.sqrt(np.mean(null_sq))) if null_sq else float("nan")
+    count_acc = float(np.mean(pred_count == true_count)) if n_samp else float("nan")
+    return {
+        "matched_null_rmse_m": matched_rmse,
+        "count_accuracy": count_acc,
+        "n_matched_nulls": int(len(null_sq)),
+        "true_count_dist": {int(c): int((true_count == c).sum()) for c in (0, 1, 2)},
+    }
 
 
 def per_component_rmse(pred, y, mask):
@@ -1136,7 +1218,7 @@ def run_arm(
         seed=args.seed,
         continuous=continuous,
     )
-    pred, yte, mte = evaluate(
+    pred, yte, mte, presence_prob = evaluate(
         model,
         te_examples,
         specs,
@@ -1154,6 +1236,9 @@ def run_arm(
     verd = verdict(
         rmse_probe, rmse_base, TARGET_NAMES, ratio_threshold=args.ratio_threshold
     )
+    # X-point null SET metrics (matched-null RMSE + count accuracy) — the
+    # order-invariant X-point verdict (NOT fixed per-slot components).
+    xpt_set = set_xpoint_metrics(pred, yte, mte, presence_prob)
     report = {
         "arm": label,
         "value_input": "continuous" if continuous else "quantised_token",
@@ -1161,7 +1246,18 @@ def run_arm(
         "stream_channels": {s.name: s.channels for s in specs},
         "probe_params_M": round(model.n_parameters() / 1e6, 3),
         "verdict": verd,
+        "xpoint_set": xpt_set,
     }
+    logger.info(
+        "  X-POINT SET: matched-null RMSE=%.1fcm  count-acc=%.2f  (n_nulls=%d, "
+        "true-count %s)",
+        xpt_set["matched_null_rmse_m"] * 100
+        if np.isfinite(xpt_set["matched_null_rmse_m"])
+        else float("nan"),
+        xpt_set["count_accuracy"],
+        xpt_set["n_matched_nulls"],
+        xpt_set["true_count_dist"],
+    )
     # console summary
     logger.info(
         "=== ARM '%s' VERDICT: %s ===",
