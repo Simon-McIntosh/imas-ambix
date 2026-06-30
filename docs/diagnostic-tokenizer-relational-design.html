@@ -67,9 +67,33 @@ of them.</strong> So the recommendation is not "pretrained vs ours" — it is:</
 <blockquote><strong>(optionally) a pretrained temporal backbone per sensor &nbsp;+&nbsp; OUR geometry-aware
 spatial-relational layer over the sensor array.</strong> The relational layer is the irreducible, plasma-specific
 part; no off-the-shelf model provides it.</blockquote>
-<p class="muted">A web-grounded comparison table (architecture, tokenisation, univariate/multivariate, context,
-licence, offline weights) across TimesFM&nbsp;2.5 / Chronos-Bolt / Moirai-MoE / MOMENT / Time-MoE / Toto / … is
-being compiled and will be folded in here; the selection criterion is the spatial-phase gap above.</p>
+<p>The landscape, judged on what matters here — tokenisation scheme, whether it models
+<em>cross-channel</em> structure, fit to MHz oscillatory signals, and licence/offline weights
+(knowledge survey to early 2026; verify the newest version specifics before adopting):</p>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>Model</th><th>Tokenisation</th><th>Cross-channel?</th><th>Fit to MHz/phase signals</th><th>Licence / offline</th><th>Verdict for us</th></tr></thead>
+<tbody>
+<tr><td><strong>Chronos / Chronos-Bolt</strong> (Amazon; we wrap it)</td><td><em>Scalar value-binning</em> into a fixed vocab (discrete) — closest to "tokenise values"</td><td>No — univariate</td><td>Poor — binning is exactly the magnitude/phase loss we measured</td><td>Apache-2.0; HF weights</td><td>The discrete-token baseline; loses phase (already our negative)</td></tr>
+<tr><td><strong>TimesFM / 2.5</strong> (Google)</td><td>Continuous patch → MLP; quantile output head (no discrete codebook)</td><td>No — channel-independent</td><td>OOD (retail/web); continuous patches preserve magnitude</td><td>Apache-2.0; HF weights</td><td>Plausible per-sensor temporal backbone</td></tr>
+<tr><td><strong>MOMENT</strong> (CMU)</td><td>Continuous patch, masked-reconstruction encoder (T5)</td><td>No — channel-independent</td><td>OOD; built for embeddings/representation (our use)</td><td>permissive; HF weights</td><td>Strong representation backbone candidate</td></tr>
+<tr><td><strong>Moirai / Moirai-MoE</strong> (Salesforce)</td><td>Continuous multi-patch; <em>any-variate</em> by flattening variates + variate-ids</td><td>Partial — index-based variate mixing, but <strong>no geometry</strong></td><td>OOD; variate-flattening is the nearest to multivariate</td><td>permissive; HF weights</td><td>Closest to multivariate, but variate-id ≠ (R,Z,φ) — still no spatial phase</td></tr>
+<tr><td><strong>Time-MoE / Timer-XL</strong></td><td>Continuous patch, decoder-only (next-patch)</td><td>No — univariate</td><td>OOD; long-context</td><td>permissive; HF weights</td><td>Generic temporal backbone; no relational edge</td></tr>
+<tr><td><strong>Toto</strong> (Datadog)</td><td>Continuous patch; multivariate-aware attention</td><td>Partial — observability multivariate</td><td>OOD (metrics), not oscillatory</td><td>open weights</td><td>Multivariate but wrong domain + no geometry</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Read of the table.</strong> (i) The only model that <em>tokenises values discretely</em> is Chronos —
+by scalar binning, the very scheme our measurement showed destroys phase; the rest emit <em>continuous</em>
+patch embeddings (consistent with our continuous-lane win). (ii) Cross-channel support tops out at
+<em>index-based variate flattening</em> (Moirai/Toto) — none encode sensor <strong>geometry</strong>, so none can
+represent the toroidal-array phase that carries the mode number. (iii) All are out-of-distribution for MHz
+plasma oscillations. <strong>Recommendation:</strong> a pretrained TS model is, at best, an
+<em>optional, frozen per-sensor temporal backbone</em> (MOMENT or TimesFM 2.5 the most defensible) — but the
+domain mismatch makes its marginal value modest, and it supplies <em>none</em> of the spatial-relational
+structure. The irreducible, plasma-specific work — geometry-aware attention over the sensor array that resolves
+(m, n, ω) — is ours regardless. Net: <strong>don't block on adopting a foundation model; build the relational
+layer.</strong></p>
 
 <h2 id="s2">§2 — Toroidal geometry → how diagnostics group</h2>
 <p>A tokamak is a torus: coordinates <code>(R, Z, φ)</code> — major radius R, height Z, toroidal angle φ;
