@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -435,7 +435,7 @@ Done-when
     <div class="r-fu-body">Lead correction (2026-06-30): do NOT treat the X-point (xpt_R/xpt_Z) as a success criterion or tune toward it. The xpt LABEL is corrupted, not the model — select_primary_xpoint uses a fixed lowest-Z-null rule, but MAST is double-null most of the time, so when the lower null drops out the pick flips to the UPPER null (~2.4m Z jump between adjacent slices on 18502/18504), which load_equilibrium_geometry then linearly interpolates through Z~0 — a label matching no physical X-point. (equilibrium_labels.py fix landed bc92405 / further work in flight.) So my f-ags-toroidal-result reported xpt_R +0.288 as 'the X-point moved' — that framing is RETRACTED: it is X-POINT-LABEL-SUSPECT, not a model verdict, reported for completeness only.
 
 The REAL verdict for the toroidal + periodic-PE + STFT build (unchanged, all green):
-  HEADLINE (the proof the new ingestion works): synthetic rotating-mode n-recovery (>0.6 held-out, BEATS phi-scramble) + SEAM-INVARIANCE (global phi-offset crossing 360->0 leaves recovery intact); and the periodic-phi adjacency test (phi=359 <-> phi=1 adjacent, phi=0 <-> phi=180 far) PASSES.
+  HEADLINE (the proof the new ingestion works): synthetic rotating-mode n-recovery (&gt;0.6 held-out, BEATS phi-scramble) + SEAM-INVARIANCE (global phi-offset crossing 360-&gt;0 leaves recovery intact); and the periodic-phi adjacency test (phi=359 &lt;-&gt; phi=1 adjacent, phi=0 &lt;-&gt; phi=180 far) PASSES.
   AXIS + LCFS (oracle job 1223576, vs raw ceiling axis_R 0.571 / axis_Z 0.683): efit_inputs_continuous axis_R +0.375 (66%, BEATS), axis_Z +0.473 (69%, BEATS); LCFS radii lcfs_r_1/2/6/7 +0.26/+0.53/+0.46/+0.35 (beat). Continuous decisively over the 256-bin token lane (token axis_R +0.10 / axis_Z +0.13).
   The build is NOT tuned toward xpt. Conclusion: the toroidal-array + periodic-PE + STFT ingestion works, judged on the demonstration + axis/LCFS.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -454,6 +454,37 @@ Next (once equilibrium_labels lands)
 Done-when
   1. Oracle re-run under corrected labels; axis/LCFS delta vs iter1 reported (xpt only AFTER the label fix is confirmed).
   2. Saddle calibration wired; result folded into the relational research doc; followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-toroidal-attribution" data-status="open" data-tier="opus" data-written-by="toroidal-probe" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">CLEAN toroidal-attribution ablation (one run, same cohort/seed, current corrected labels): the toroidal saddle array adds +0.07 axis_R, +0.156 axis_Z; coils ~neutral; xpt label-suspect</h4>
+    <div class="r-fu-body">Like-for-like toroidal-attribution ablation in ONE oracle run (job 1223599, EQ_OUT_ROOT diag_eq_oracle_toroidal_ablation), all CONTINUOUS, same 184 train / 54 test cohort + seed, under the CURRENT corrected-label code (commit 49c217c added the 3-arm ablation):
+  arm A poloidal_magnetics_continuous   (xma + staged magnetics = ccbv/obr/obv/flux + ip; NO toroidal, NO coils)
+  arm B poloidal_plus_toroidal          (A + the toroidal saddle array — the single variable under test)
+  arm C poloidal_toroidal_coils         (B + pf_active coil currents)
+
+PER-COMPONENT skill (vs predict-the-train-mean baseline); B−A = the clean toroidal attribution:
+  axis_R: A +0.276  B +0.346  delta +0.070   C +0.379
+  axis_Z: A +0.318  B +0.473  delta +0.156   C +0.453
+  xpt_R : A +0.363  B +0.321  delta -0.042   C +0.292   [X-POINT LABEL-SUSPECT — not a verdict]
+  LCFS radii (B−A): mostly near-zero/mixed (lcfs_r_2 +0.02, lcfs_r_0 -0.11, rest within +/-0.06) — the toroidal array does not materially move the boundary radii.
+
+VERDICT (judged on AXIS, per the lead): the TOROIDAL SADDLE ARRAY makes a real, isolated positive contribution to the magnetic AXIS — +0.07 axis_R and +0.156 axis_Z under identical labels/cohort, concentrated in axis_Z (the toroidal field array constrains the vertical-field/shape picture). It does NOT materially move the LCFS radii, and its xpt_R delta (-0.04) is inside the label-suspect noise (the single-primary X-point target is bimodal across double-null topology switches; upper/lower-null split deferred) — NOT a model verdict. COILS (arm C) are roughly NEUTRAL on axis here (axis_R +0.38 best, axis_Z +0.45 ~ B) — they do NOT regress as in iter2, but add little beyond the toroidal array. HONEST BASELINE established: magnetics-only continuous under the CURRENT labels is axis_R +0.276 / axis_Z +0.318 (the earlier iter1 +0.58 axis_Z was under the OLD corrupted labels and is not comparable). Report /work/projects/imas_gpu/worldmodel/diag_eq_oracle_toroidal_ablation/oracle_report.json.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (section 3 / relational)
+Section: section 3
+Tier:    opus
+
+Context
+  The clean toroidal-attribution ablation (job 1223599) isolates the toroidal saddle array&#x27;s contribution under current corrected labels: +0.07 axis_R, +0.156 axis_Z (B-A), LCFS ~flat, xpt label-suspect, coils ~neutral. The magnetics-only-under-current-labels baseline is axis_R +0.276 / axis_Z +0.318. Next:
+
+  1. The toroidal lift is concentrated in axis_Z. To push further on axis: saddle CORPUS CALIBRATION (the saddle voltages currently fall back to per-window standardisation — no XMB_SAD-keyed corpus stats), so the toroidal array is on the same absolute SIGNED scale as the rest; re-measure B-A.
+  2. POLOIDAL mode m: a periodic-theta demonstration on the ccbv array (40 probes in Z at one phi) to complete the (m,n) picture alongside the toroidal-n demo already landed.
+  3. Fold the measured toroidal attribution (+0.156 axis_Z) into f-ags-toroidal-relational&#x27;s research doc as the empirical validation that the toroidal array + periodic-PE + STFT design helps the axis.
+  4. Do NOT chase xpt until the upper/lower-null split lands (separate, lead-gated); then re-judge xpt as a model signal.
+
+Done-when
+  1. Saddle corpus calibration wired; B-A re-measured on the same cohort.
+  2. Poloidal-m demo added; result folded into the relational research doc; followup resolved.</pre>
     </article>
 </section>
 
