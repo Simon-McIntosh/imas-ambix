@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="22">
+<meta name="plan-version" content="23">
 <meta name="plan-impl" content="0.85">
 </head>
 <body>
@@ -147,7 +147,7 @@ Done-when (the gate)
   2. Per-modality reconstruction fidelity preserved (no regression vs per-shot).
   3. Diagnostics-&gt;equilibrium probe skill rises clearly off ~0 — report the number.
   4. tests green; followup written + this one resolved; plan collapsed to a landed summary.</pre>
-    <p class="r-fu-outcome">GATE DECISIVELY MET. (1) Tokens carry corpus-absolute (signed, fixed-scale) values + per-diagnostic sensor geometry (periodic sin/cos φ/θ) + machine geometry; schema + readers committed. (2/3) The diagnostics->equilibrium probe skill rose clearly off ~0: on a 1442-example cohort, magnetics (absolute + geometry + space-time relational encoder + continuous) recovers axis_R +0.59, axis_Z +0.82, ALL 8 LCFS angles (+0.47..+0.82), cm-level errors (0.9-2.3cm) — axis_Z 0.82 EXCEEDS the old 184-ex 'raw ceiling' 0.683 (which was itself data-starved). X-point: presence/count learned (0.90 acc); position coarse (~0.72m, a head/target problem, deferred). The scale-free blocker (per-shot z-scoring -> skill ~0) is fixed. Clarified findings (cohort-growth, job 1223666): data was the limiter for axis/boundary (8x reversed it); the multi-stream consolidation is the unified production INGESTION PATH, not a boundary-accuracy lever (magnetics saturates the boundary; extra streams add ~0 for axis/LCFS); X-point position needs an axis-relative/normalised head. Design narrative + figures: docs/diagnostic-tokenizer-relational-design.html. REMAINING (downstream, separate followups): production re-encode (f-ags-calib), absolute-by-default repoint (f-ags-repoint), live-path port of the shared encoder into the world-model input path, optional X-point position head + segment-codebook (f-ags-segment-codebook) study.</p>
+    <p class="r-fu-outcome">GATE DECISIVELY MET. (1) Tokens carry corpus-absolute (signed, fixed-scale) values + per-diagnostic sensor geometry (periodic sin/cos φ/θ) + machine geometry; schema + readers committed. (2/3) The diagnostics-&gt;equilibrium probe skill rose clearly off ~0: on a 1442-example cohort, magnetics (absolute + geometry + space-time relational encoder + continuous) recovers axis_R +0.59, axis_Z +0.82, ALL 8 LCFS angles (+0.47..+0.82), cm-level errors (0.9-2.3cm) — axis_Z 0.82 EXCEEDS the old 184-ex 'raw ceiling' 0.683 (which was itself data-starved). X-point: presence/count learned (0.90 acc); position coarse (~0.72m, a head/target problem, deferred). The scale-free blocker (per-shot z-scoring -&gt; skill ~0) is fixed. Clarified findings (cohort-growth, job 1223666): data was the limiter for axis/boundary (8x reversed it); the multi-stream consolidation is the unified production INGESTION PATH, not a boundary-accuracy lever (magnetics saturates the boundary; extra streams add ~0 for axis/LCFS); X-point position needs an axis-relative/normalised head. Design narrative + figures: docs/diagnostic-tokenizer-relational-design.html. REMAINING (downstream, separate followups): production re-encode (f-ags-calib), absolute-by-default repoint (f-ags-repoint), live-path port of the shared encoder into the world-model input path, optional X-point position head + segment-codebook (f-ags-segment-codebook) study.</p>
     </article>
 <article class="r-fu" data-id="f-ags-calib" data-status="open" data-tier="opus" data-written-by="calib-wiring" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Compute corpus calibration + re-encode signal corpus in absolute mode</h4>
@@ -649,6 +649,33 @@ Section: cohort growth
 Tier:    opus
 
 Drive cohort growth (n_train 250-&gt;2000) and re-run the two key arms with NO code change, to answer whether more data reverses the dilution seen on the 184-ex cohort.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-production-reencode" data-status="open" data-tier="opus" data-written-by="spacetime-probe" data-written-at="2026-06-30" data-recommends-skill="reckon-ship" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">PRODUCTION RE-ENCODE LANDED (corpus-wide absolute + geometry) — all xma/xim/xsx + L2 re-encoded in absolute mode (100% of present stores); 3 honest findings: (1) 6 dead xsx upper-cam chords poison xsx fidelity — calibration needs a non-physical-channel guard; (2) SXR/Dα chord geometry not populated by gs.geometry_export (magnetics only); (3) all-continuous absolute decision collapses the unified vocab namespace (xim/xsx no longer reserve 12800/1024 ids)</h4>
+    <div class="r-fu-body">DRIVE #1 of the post-cohort phase. Solidified the on-disk substrate on the eval-validated representation: absolute-calibrated + geometry-tagged + CONTINUOUS, corpus-wide. FIREWALL respected throughout — INPUT substrate only (signals + geometry), no equilibrium/psi targets.
+
+CODE LANDED (5 commits on main, tests green at landing): 2a07c49 (train/decide --absolute plumbing + ckpt calibration_mode + fail-loud encode mismatch), 8a9f642 (store calibration_mode attr + per-channel geometry attach, campaign-cached, firewall-safe static-geometry-only), 7967e92 (calibration-mode-aware resume: absolute supersedes legacy per-shot, skips already-absolute on restart), 312d0a3 (L2 absolute-by-default + fail-loud + moved to sun CPU cluster). Step 1 (corpus calibration) was already complete (14 group JSONs).
+
+CAMPAIGNS (both COMPLETED clean):
+- HF re-encode job 1223867 (1 H200, 5h31m): decide+train+encode xma/xim/xsx, absolute, full corpus, REDECIDE. Per-group: xma 12045 shots / 123.4M tokens; xim 14184 / 302.7M; xsx 13002 / 899.9M; 0 skipped (true supersede). Notable: ALL THREE groups chose CONTINUOUS under absolute (xma stayed continuous; xim shifted fsq→continuous; xsx shifted vq→continuous).
+- L2 light-path job 1223868 (sun CPU, 2h07m): 11573 shots, 67858 group-stores, 100% absolute verified.
+
+VERIFY (#5):
+- Corpus-complete: 100% of present xma/xim/xsx/L2 stores carry calibration_mode=absolute (sampled). Stores stamp geometry descriptors + calibration_mode.
+- Geometry: magnetics (xma) attaches correctly — 38/40 finite rows, bpol_probe kinds. BUT xsx/xim SXR/Dα chord geometry is all-NaN/scalar — gs.geometry_export only knows b-probe/flux-loop/coil sensors, not SXR/Dα chord endpoints by these channel names. Geometry is structurally attached but EMPTY for the chord groups (FINDING 2).
+- Reconstruction fidelity vs per-window baseline (continuous variant): xma phase_err 0.0148→0.0105 (improved), crps +0.003 (fine); xim 0.0083→0.0115, crps +0.008 (acceptable); xsx 0.0099→0.724 phase_err and crps EXPLODED to ~1e27 (FINDING 1, the big one).
+
+FINDING 1 (data-quality, blocks xsx fidelity): 6 of 36 xsx chords — hcam_u_07/08/09/11/15/16 (upper SXR camera) — carry GARBAGE raw values (~1e17–1e29, q01==q99==mean, a constant overflow/stuck sentinel across all 13002 shots). The corpus calibration faithfully computed their (meaningless) mean/std; absolute normalisation against those produces unusable tokens for those 6 channels and poisons the aggregate fidelity metric. The OTHER 30 xsx chords are healthy (std 0.0027–0.136). Root cause = dead detectors in raw data; fix = corpus_compute should reject/flag non-physical channels (degenerate q01==q99 or std beyond a sane bound) so absolute mode falls back per-window (or masks) rather than propagating garbage. The 6 bad chords' absolute tokens are unusable but maskable downstream.
+
+FINDING 3 (downstream layout): because all three groups went continuous (codebook_size=1, embedding-based), the unified vocab namespace collapses — xim/xsx no longer reserve 12800/1024 discrete ids. test_vocab_namespace.py hardcodes the old per-window sizes and now fails (expects xim=12800; on disk=1). Not a code regression — a real consequence of the all-continuous absolute decision. The test fixture (and any consumer assuming a large discrete xim/xsx codebook) needs updating to the continuous/embedding reality.
+
+VERDICT: the absolute+geometry substrate is LANDED and correct for xma (all), xim (all), L2 (all), and 30/36 xsx chords. Outstanding before declaring the substrate fully clean: (a) the xsx dead-chord calibration guard + a targeted xsx-only redo; (b) SXR/Dα chord geometry population in gs.geometry_export if the WM needs chord positions; (c) reconcile the vocab-namespace test/consumers with all-continuous. Recommend the lead decide whether (a)/(b)/(c) are in-scope for Drive #1 closure or deferred. Scripts: scripts/_verify_absolute_reencode.py (verify driver, scratch); per-window fidelity baselines preserved at /work/.../v2/_tokenizer/_per_window_baseline. No code committed for the verify step (read-only).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (production re-encode + robust tokenisation)
+Section: production substrate
+Tier:    opus
+
+Drive #1: solidify the on-disk substrate on the validated representation (absolute-calibrated + geometry-tagged + continuous) corpus-wide, before building the world model on it. Bundles f-ags-calib + f-ags-geom + f-ags-repoint.</pre>
     </article>
 </section>
 
