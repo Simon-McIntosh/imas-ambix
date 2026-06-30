@@ -421,6 +421,7 @@ def encode_shots(
     skip_existing: bool = True,
     num_workers: int = 0,
     corpus_calibration=None,
+    attach_geometry: bool = True,
 ) -> dict:
     """Encode shots into the v2 signals_hf store with ``tokenizer``.
 
@@ -478,10 +479,59 @@ def encode_shots(
             summary,
             watchdog_s,
             corpus_calibration=corpus_calibration,
+            attach_geometry=attach_geometry,
         )
     finally:
         _close_feed(feed)
     return summary
+
+
+# --- per-channel geometry attach (campaign-cached) -------------------------
+
+
+def _geometry_features_for(
+    shot_id: int,
+    channel_names: list[str],
+    cache: dict,
+) -> tuple[np.ndarray | None, tuple[str, ...], tuple[str, ...]]:
+    """Build the ``(n_channels, N_GEOMETRY_FEATURES)`` geometry array for a shot.
+
+    Geometry is campaign-constant (static efm sensor/coil positions — NO
+    equilibrium / psi / boundary, firewall-safe), so the per-shot
+    ``GeometryFields`` is cached by the shot's setup signature and reused across
+    every shot of the same campaign.  Best-effort: a shot whose static geometry
+    cannot be read still encodes (geometry omitted + a one-line warning) — the
+    corpus encode never crashes on a geometry read.
+
+    Returns ``(features, feature_names, sensor_kinds)`` or ``(None, (), ())``.
+    """
+    from imas_ambix.gs.geometry_export import (
+        GEOMETRY_FEATURE_NAMES,
+        build_geometry_fields_from_table,
+    )
+
+    try:
+        from imas_ambix.gs.geometry import build_table_for_shot
+
+        # Per-shot static-geometry table is the cheap thing; the signature keys
+        # the (expensive-to-flatten) GeometryFields cache.
+        table = build_table_for_shot(shot_id)
+        sig = table.signature.key
+        fields = cache.get(sig)
+        if fields is None:
+            fields = build_geometry_fields_from_table(
+                table, extra_channel_names=channel_names
+            )
+            cache[sig] = fields
+        feats, kinds = fields.feature_matrix(channel_names)
+        return feats, tuple(GEOMETRY_FEATURE_NAMES), tuple(kinds)
+    except Exception as exc:  # noqa: BLE001 — corpus robustness; geometry best-effort
+        logger.warning(
+            "shot %d: geometry unavailable (%s) — encoding without geometry",
+            shot_id,
+            exc,
+        )
+        return None, (), ()
 
 
 def _inline_feed(shot_ids: list[int], group: str):
@@ -565,10 +615,15 @@ def _drain_feed(
     watchdog_s,
     *,
     corpus_calibration=None,
+    attach_geometry: bool = True,
 ) -> None:
     summary["calibration"] = (
         "absolute" if corpus_calibration is not None else "per_window"
     )
+    # Campaign-keyed geometry cache: each distinct setup signature reads static
+    # geometry once, then every shot of that campaign reuses the flattened table.
+    geom_cache: dict = {}
+    summary.setdefault("geometry_attached", 0)
     for sid, w, reason in feed:
         sid = int(sid)
         if _STOP["flag"]:
@@ -603,6 +658,16 @@ def _drain_feed(
         # at every token; an absent channel is invalid at every token.
         token_valid = np.broadcast_to(valid_ch[None, :], (n_patches, len(chan)))
 
+        geom_feats = None
+        geom_feature_names: tuple[str, ...] = ()
+        geom_kinds: tuple[str, ...] = ()
+        if attach_geometry:
+            geom_feats, geom_feature_names, geom_kinds = _geometry_features_for(
+                sid, list(chan), geom_cache
+            )
+            if geom_feats is not None:
+                summary["geometry_attached"] += 1
+
         attrs = StoreV2Attrs(
             tokenizer_name=spec.patch_block,
             vocab_version=VOCAB_VERSION,
@@ -612,6 +677,11 @@ def _drain_feed(
             channel_names=tuple(chan),
             phase_preserving=True,
             original_window=window,
+            calibration_mode=(
+                "absolute" if corpus_calibration is not None else "per_shot"
+            ),
+            geometry_feature_names=geom_feature_names,
+            geometry_sensor_kinds=geom_kinds,
             metadata={
                 "bottleneck": cfg.bottleneck,
                 "patch_size": cfg.patch_size,
@@ -640,6 +710,7 @@ def _drain_feed(
             token_valid.copy(),
             attrs,
             embedding=embedding,
+            geometry=geom_feats,
         )
 
         # Cross-channel mode-number tokens for a coil array.
@@ -669,6 +740,9 @@ def _drain_feed(
                 ),
                 phase_preserving=True,
                 original_window=window,
+                calibration_mode=(
+                    "absolute" if corpus_calibration is not None else "per_shot"
+                ),
                 metadata={
                     "kind": "spatial_dft_mode_amplitudes",
                     "n_modes": N_MODES,

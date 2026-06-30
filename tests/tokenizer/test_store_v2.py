@@ -70,6 +70,27 @@ def test_attrs_roundtrip():
     assert restored.metadata["patch_size"] == 64
 
 
+def test_calibration_mode_defaults_to_per_shot():
+    a = _make_attrs()
+    assert a.calibration_mode == "per_shot"
+    assert a.to_attrs()["calibration_mode"] == "per_shot"
+
+
+def test_calibration_mode_roundtrip_absolute():
+    a = _make_attrs(calibration_mode="absolute")
+    restored = StoreV2Attrs.from_attrs(a.to_attrs())
+    assert restored.calibration_mode == "absolute"
+
+
+def test_calibration_mode_back_compat_legacy_store():
+    # A legacy store written before the field omits it → loads as per_shot,
+    # never raises (calibration_mode is optional, not a REQUIRED_ATTR).
+    legacy = _make_attrs().to_attrs()
+    del legacy["calibration_mode"]
+    restored = StoreV2Attrs.from_attrs(legacy)
+    assert restored.calibration_mode == "per_shot"
+
+
 def test_from_attrs_rejects_missing_keys():
     full = _make_attrs().to_attrs()
     for key in REQUIRED_ATTRS:

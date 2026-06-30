@@ -67,6 +67,21 @@ MODE="${MODE:-full}"                 # full | decide_only | encode_only
 # allocated cores for the main process (inference + store writes); the rest
 # overlap GPFS reads.
 NUM_WORKERS="${NUM_WORKERS:-8}"
+# Absolute calibration is THE default operative path: the bottleneck is decided
+# + trained + the corpus encoded against the persisted corpus calibration so a
+# physical value maps to the same token everywhere.  Per-shot (per-window)
+# z-scoring is an explicit, clearly-labelled diagnostic only (ABSOLUTE=0).
+# Switching normalisation invalidates the per-window codebook, so absolute mode
+# forces a re-decide unless the caller has already produced an absolute report.
+ABSOLUTE="${ABSOLUTE:-1}"
+if [[ "$ABSOLUTE" == "1" ]]; then
+    ABS_FLAG="--absolute"
+    : "${REDECIDE:=1}"   # codebook decision must be remade under absolute norm
+    echo "[signal-tok] calibration_mode=ABSOLUTE (corpus-calibrated tokens)"
+else
+    ABS_FLAG=""
+    echo "[signal-tok] calibration_mode=PER_SHOT (diagnostic only — NOT default)"
+fi
 OUT_DIR="${OUT_DIR:-/work/projects/imas_gpu/mast-tokens/v2/_tokenizer}"
 MANIFEST_DIR="${MANIFEST_DIR:-/work/projects/imas_gpu/mast-tokens/v2/_manifests}"
 mkdir -p "$OUT_DIR" "$MANIFEST_DIR"
@@ -99,7 +114,7 @@ for GROUP in $SIG_GROUPS; do
             "$PY" -m imas_ambix.tokenizer.signal_hf_encode decide \
                 --group "$GROUP" --device cuda --patch-size "$PATCH_SIZE" \
                 --train "$TRAIN_IDS" --holdout "$HOLDOUT_IDS" \
-                --epochs "$EPOCHS" --out "$DECIDE_OUT" >>"$LOG" 2>&1
+                --epochs "$EPOCHS" --out "$DECIDE_OUT" $ABS_FLAG >>"$LOG" 2>&1
             echo "DECIDE_EXIT=$? group=$GROUP" | tee -a "$LOG"
         fi
     fi
@@ -114,7 +129,7 @@ for GROUP in $SIG_GROUPS; do
         "$PY" -m imas_ambix.tokenizer.signal_hf_encode train \
             --group "$GROUP" --device cuda --patch-size "$PATCH_SIZE" \
             --bottleneck "$WINNER" --train "$TRAIN_IDS" \
-            --epochs "$EPOCHS" --out "$CKPT" >>"$LOG" 2>&1
+            --epochs "$EPOCHS" --out "$CKPT" $ABS_FLAG >>"$LOG" 2>&1
         echo "TRAIN_EXIT=$? group=$GROUP" | tee -a "$LOG"
     fi
 
@@ -123,7 +138,8 @@ for GROUP in $SIG_GROUPS; do
     # resumable; the per-group manifest records counts / skips / token totals.
     "$PY" -m imas_ambix.tokenizer.signal_hf_encode encode \
         --group "$GROUP" --device cuda --num-workers "$NUM_WORKERS" \
-        --shots "$ENCODE_IDS" --ckpt "$CKPT" --manifest "$MANIFEST" >>"$LOG" 2>&1
+        --shots "$ENCODE_IDS" --ckpt "$CKPT" --manifest "$MANIFEST" \
+        $ABS_FLAG >>"$LOG" 2>&1
     echo "ENCODE_EXIT=$? group=$GROUP" | tee -a "$LOG"
 
     cp "$LOG" "/work/projects/imas_gpu/logs/signal-tokenizer-${GROUP}-${SLURM_JOB_ID}.run.log" || true

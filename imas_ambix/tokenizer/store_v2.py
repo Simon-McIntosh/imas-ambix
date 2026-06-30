@@ -113,6 +113,11 @@ class StoreV2Attrs:
     # is one categorical kind per channel (parallel to ``channel_names``).
     geometry_feature_names: tuple[str, ...] = ()
     geometry_sensor_kinds: tuple[str, ...] = ()
+    # Normalisation regime the tokens were written under: "absolute" (corpus-
+    # calibrated — a physical value maps to the same token everywhere) or
+    # "per_shot" (per-window z-scored — magnitude not preserved).  Optional /
+    # backward-compatible: a legacy store omits it and loads as "per_shot".
+    calibration_mode: str = "per_shot"
 
     def __post_init__(self) -> None:
         if self.n_channels != len(self.channel_names):
@@ -149,6 +154,7 @@ class StoreV2Attrs:
                 float(self.original_window[1]),
             ],
             "metadata": json.dumps(_json_safe(self.metadata)),
+            "calibration_mode": str(self.calibration_mode),
         }
         if self.geometry_feature_names:
             out["geometry_feature_names"] = list(self.geometry_feature_names)
@@ -182,6 +188,7 @@ class StoreV2Attrs:
             metadata=meta,
             geometry_feature_names=tuple(str(f) for f in geom_features),
             geometry_sensor_kinds=tuple(str(k) for k in geom_kinds),
+            calibration_mode=str(attrs.get("calibration_mode", "per_shot")),
         )
 
 
