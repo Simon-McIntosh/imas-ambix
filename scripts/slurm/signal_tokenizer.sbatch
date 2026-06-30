@@ -136,10 +136,14 @@ for GROUP in $SIG_GROUPS; do
     # ── 3. Encode the FULL corpus into the v2 signals_hf store ───────────────
     # --shots all enumerates every shot on disk; skip-existing makes it
     # resumable; the per-group manifest records counts / skips / token totals.
+    # NO_SKIP=1 forces a full re-encode even of already-absolute stores — needed
+    # when the calibration (not the mode) changed, e.g. the dead-detector guard.
+    NO_SKIP_FLAG=()
+    [[ "${NO_SKIP:-0}" == "1" ]] && NO_SKIP_FLAG=(--no-skip-existing)
     "$PY" -m imas_ambix.tokenizer.signal_hf_encode encode \
         --group "$GROUP" --device cuda --num-workers "$NUM_WORKERS" \
         --shots "$ENCODE_IDS" --ckpt "$CKPT" --manifest "$MANIFEST" \
-        $ABS_FLAG >>"$LOG" 2>&1
+        $ABS_FLAG "${NO_SKIP_FLAG[@]}" >>"$LOG" 2>&1
     echo "ENCODE_EXIT=$? group=$GROUP" | tee -a "$LOG"
 
     cp "$LOG" "/work/projects/imas_gpu/logs/signal-tokenizer-${GROUP}-${SLURM_JOB_ID}.run.log" || true
