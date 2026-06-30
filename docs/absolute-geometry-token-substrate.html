@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="21">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -577,22 +577,40 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-ags-xpoint-set" data-status="open" data-tier="opus" data-written-by="xpoint-set" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">X-point as an ORDER-INVARIANT NULL SET (DETR-style) LANDED — topology-agnostic; count-acc 0.81, matched-null RMSE 0.75m; supersedes the sign-of-Z split + psi-filter</h4>
-    <div class="r-fu-body">Replaced the X-point target with an ORDER-INVARIANT NULL SET (commit 59a72f0), superseding both the single-primary and the 14-D sign-of-Z split + psi-filter. NO topology assumption -> supports SN/DN/snowflake/X-divertor/super-X uniformly.
+    <div class="r-fu-body">Replaced the X-point target with an ORDER-INVARIANT NULL SET (commit 59a72f0), superseding both the single-primary and the 14-D sign-of-Z split + psi-filter. NO topology assumption -&gt; supports SN/DN/snowflake/X-divertor/super-X uniformly.
 
-SCHEMA (equilibrium_labels.py, TARGET_DIM stays 14): axis(2, fixed regression) + X-point null SET (K=2 unordered slots xpt0/xpt1 (R,Z)) + LCFS(8, fixed regression). The X-point label = the SET of <=2 real nulls at the WINDOW-CENTRE native slice (xpoint_null_set), NEAREST-native (NO cross-frame member interpolation -> removes flip/interp entirely), NO ordering / sign-of-Z, NO psi public/private filter, NO continuity tracking. Coarse finite + in-vessel-bbox sanity reject only (XPOINT_VESSEL_R_RANGE/_Z_ABS) -- explicitly NOT a public/private discriminator. Presence/count via the per-slot finite mask.
+SCHEMA (equilibrium_labels.py, TARGET_DIM stays 14): axis(2, fixed regression) + X-point null SET (K=2 unordered slots xpt0/xpt1 (R,Z)) + LCFS(8, fixed regression). The X-point label = the SET of &lt;=2 real nulls at the WINDOW-CENTRE native slice (xpoint_null_set), NEAREST-native (NO cross-frame member interpolation -&gt; removes flip/interp entirely), NO ordering / sign-of-Z, NO psi public/private filter, NO continuity tracking. Coarse finite + in-vessel-bbox sanity reject only (XPOINT_VESSEL_R_RANGE/_Z_ABS) -- explicitly NOT a public/private discriminator. Presence/count via the per-slot finite mask.
 
-LOSS (diagnostics_equilibrium_probe.set_xpoint_loss): PERMUTATION-INVARIANT matched loss -- for K=2, min over the 2 assignments of the summed Gaussian position-NLL, masked by presence (DN: min over both perms; SN: match the single target to its nearest prediction); + presence BCE on sorted slot logits (slot0='>=1 null', slot1='>=2'). Axis + LCFS losses unchanged (masked Gaussian NLL). A presence head emits per-slot logits.
+LOSS (diagnostics_equilibrium_probe.set_xpoint_loss): PERMUTATION-INVARIANT matched loss -- for K=2, min over the 2 assignments of the summed Gaussian position-NLL, masked by presence (DN: min over both perms; SN: match the single target to its nearest prediction); + presence BCE on sorted slot logits (slot0='&gt;=1 null', slot1='&gt;=2'). Axis + LCFS losses unchanged (masked Gaussian NLL). A presence head emits per-slot logits.
 
 ORACLE (set_xpoint_metrics): reports matched-null position RMSE (optimal-assignment) + count accuracy + skill vs baseline, NOT fixed upper/lower components. Axis + LCFS as before.
 
-TESTS (17 green): order-invariance (swapping the 2 target nulls -> IDENTICAL loss); count/presence 0/1/2 handled+differentiable; NO-FLIP on a synthetic lower->upper switch (every emitted null Z is a real height, never the mid-band); coarse in-vessel reject (a far/out-of-vessel + a sentinel null dropped); the phasing tests (periodic adjacency, n-recovery, seam) STILL pass (encoder untouched).
+TESTS (17 green): order-invariance (swapping the 2 target nulls -&gt; IDENTICAL loss); count/presence 0/1/2 handled+differentiable; NO-FLIP on a synthetic lower-&gt;upper switch (every emitted null Z is a real height, never the mid-band); coarse in-vessel reject (a far/out-of-vessel + a sentinel null dropped); the phasing tests (periodic adjacency, n-recovery, seam) STILL pass (encoder untouched).
 
 RESULT (job 1223663, absolute, 250 epochs, 184 train/54 test, null-SET target):
   magnetics_only:            X-point SET matched-null RMSE 0.748m, COUNT-ACC 0.815; axis_R +0.32, axis_Z +0.38; LCFS +0.13..+0.56 (FEASIBLE on axis).
   all_diagnostics_consolidated: X-point SET RMSE 0.759m, count-acc 0.74; axis_R +0.23, axis_Z +0.32 (dilutes vs magnetics again, the 184-ex cohort theme).
   test-set null-count distribution: 4 limiter(0) / 14 SN(1) / 36 DN(2).
 
-VERDICT (honest): the order-invariant set target is the CORRECT, topology-agnostic X-point representation -- it trains, removes the flip/interp artifact, and makes no topology claim. COUNT/PRESENCE is learned well (0.815 acc, beating the always-DN majority baseline ~0.67). POSITION is COARSE: matched-null RMSE ~0.75m, far worse than the axis (~3-4cm) -- the X-point sits on the steep-field separatrix and is intrinsically harder to regress in absolute metres, and the 184-example cohort limits it (the same dilution recurs all-diag<magnetics). The set machinery is sound; the open lever is cohort size + possibly a coarser-then-refined position target. Report /work/projects/imas_gpu/worldmodel/diag_eq_oracle_xpt_set/oracle_report.json.</div>
+VERDICT (honest): the order-invariant set target is the CORRECT, topology-agnostic X-point representation -- it trains, removes the flip/interp artifact, and makes no topology claim. COUNT/PRESENCE is learned well (0.815 acc, beating the always-DN majority baseline ~0.67). POSITION is COARSE: matched-null RMSE ~0.75m, far worse than the axis (~3-4cm) -- the X-point sits on the steep-field separatrix and is intrinsically harder to regress in absolute metres, and the 184-example cohort limits it (the same dilution recurs all-diag<magnetics). +="" a="" coarser-then-refined="" cohort="" diag_eq_oracle_xpt_set="" div="" imas_gpu="" is="" lever="" machinery="" open="" oracle_report.json.<="" position="" possibly="" projects="" report="" set="" size="" sound;="" target.="" the="" work="" worldmodel="">
+<pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (section 3 / X-point)
+Section: section 3
+Tier:    opus
+
+Context
+  The order-invariant null-SET X-point target is landed (commit 59a72f0): topology-agnostic, permutation-invariant matched loss + presence, count-acc 0.815 / matched-null RMSE 0.75m on magnetics-only (job 1223663). Count is learned; position is coarse + cohort-limited. The phasing + consolidation work is untouched.
+
+Next
+  1. COHORT SIZE is the recurring limiter (toroidal/consolidation/iter2/this all dilute or saturate on 184 examples). The lead is deciding cohort growth -- once the train set grows, re-measure the set RMSE + count-acc + whether all-diagnostics finally beats magnetics-only.
+  2. POSITION precision: matched-null RMSE 0.75m is poor vs axis. Consider (a) a coarse-then-refine X-point head, (b) predicting the null RELATIVE to the magnetic axis (the axis is well-recovered at ~4cm), (c) checking whether the position error is dominated by the SN/DN-boundary frames (count errors) vs genuinely-present nulls.
+  3. raw-float ceiling under the set metric: re-run the calibrated-magnetics RAW oracle with the same set metric to know how much of the recoverable null-position signal the tokenised path captures.
+
+Done-when
+  1. Cohort grown + set RMSE/count-acc re-measured.
+  2. Position-precision lever tried (axis-relative or coarse-to-fine).
+  3. Followup resolved.</pre>
+</magnetics).></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    absolute-geometry-token-substrate (section 3 / X-point)
 Section: section 3
@@ -610,6 +628,26 @@ Done-when
   1. Cohort grown + set RMSE/count-acc re-measured.
   2. Position-precision lever tried (axis-relative or coarse-to-fine).
   3. Followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-cohort-growth" data-status="open" data-tier="opus" data-written-by="spacetime-probe" data-written-at="2026-06-30" data-recommends-skill="reckon-ship" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">COHORT GROWTH (8x data, no code change) LANDED — more data SHARPENS magnetics-only across the board; dilution does NOT reverse (extra streams stay ~neutral): consolidated B-A on axis/LCFS is +0.014/-0.029 and -0.007..+0.064 — a real finding</h4>
+    <div class="r-fu-body">Pass 1 of the gating cohort-growth experiment. Job 1223666 on 8xH200 (betelgeuse), CLI-only change: EQ_N_TRAIN_SHOTS=2000 EQ_N_TEST_SHOTS=200, EQ_ABSOLUTE=1, EQ_EPOCHS=250. NO code change vs the 184-ex baseline (job 1223663) — same two arms (magnetics_only_continuous vs all_diagnostics_consolidated), same order-invariant null-SET X-point target, same shared geometry-aware encoder. Leakage discipline preserved (shot-disjoint split; 11 held-out shots force-present in TEST: 15089,15223,15517,15963,15972,16024,16223,18502-18505). Assembled cohort: TRAIN examples=1442, TEST examples=160 (~8x the 184-ex cohort). Both arms FEASIBLE; top-level FEASIBLE.
+
+The three gating questions, answered:
+
+1. Does all-diagnostics now BEAT magnetics-only (does the dilution REVERSE with more data)? NO. Consolidation delta B(all-diag) - A(magnetics) on the load-bearing components: axis_R +0.014, axis_Z -0.029, lcfs_r_0 +0.064, lcfs_r_2 -0.053, lcfs_r_4 -0.007, lcfs_r_6 -0.062. Net ~zero / mildly negative — the same near-neutral-to-mild-dilution seen on 184 ex PERSISTS at 8x data. The extra geometry-tagged streams (xma 40ch, soft_x_rays 36, ait 48, xsx 36, interferometer, gas_injection, toroidal_saddle 12, pf_active coils, ...) do not add recoverable axis/LCFS information beyond magnetics. Honest finding: magnetics already saturates the boundary/axis signal; consolidation buys nothing here (it is justified as the production ingestion path, not as an accuracy lever).
+
+2. Does the X-point SET sharpen and count-acc rise? YES (count) / FLAT (position). magnetics-only: matched-null RMSE 71.9cm (was 74.8cm), count-acc 0.90 (was 0.815). all-diag: RMSE 73.9cm, count-acc 0.89. Count classification clearly improved with data; matched-null POSITION RMSE stays coarse (~0.72-0.74m) — position is still the weak edge, unchanged by data volume. Per-slot xpt rows on arm B confirm position weakness: xpt0_Z probe 103cm skill -0.64, xpt1 ~neutral — the null-position regression head is the bottleneck, not the cohort.
+
+3. Does axis/LCFS improve or saturate? IMPROVE markedly with data. magnetics-only axis_R skill +0.59 (was +0.32), axis_Z +0.82 (was +0.38); ALL 8 LCFS angles beat baseline (+0.47..+0.82); probe errors 0.9-2.3cm vs 2.3-10.3cm baseline. The geometry-aware magnetics probe is now strongly skillful on every continuous boundary/axis component — the 184-ex numbers were data-starved, not a ceiling.
+
+VERDICT: cohort growth REVERSES the apparent axis/LCFS weakness (data-hunger confirmed there) but does NOT reverse the consolidation dilution (extra streams genuinely add ~nothing for axis/LCFS) and does NOT fix X-point POSITION (a head/target problem, not a data problem). report: /work/projects/imas_gpu/worldmodel/diag_eq_oracle_cohort/oracle_report.json; scatter: docs/figures/joint-multimodal-plasma-wm/fig-diag-eq-oracle-geometry-scatter.png. No code committed (CLI-only run).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (cohort growth / gating experiment)
+Section: cohort growth
+Tier:    opus
+
+Drive cohort growth (n_train 250-&gt;2000) and re-run the two key arms with NO code change, to answer whether more data reverses the dilution seen on the 184-ex cohort.</pre>
     </article>
 </section>
 
