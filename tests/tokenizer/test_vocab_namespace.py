@@ -33,16 +33,19 @@ import pytest
 # The real, model-derived codebook sizes the on-disk v2 corpus uses.  These are
 # NOT a fictional table the builder consults — they are the values the absolute
 # re-encode wrote into each store's ``metadata.codebook_size``.  The codebook
-# decision resolved to the CONTINUOUS bottleneck for every HF group (continuous
-# is the phase-fidelity ceiling — quantisation destroyed phase), so every
-# patch block is continuous with ``codebook_size = 1`` (the continuous
-# bottleneck emits a single vestigial id; the phase-preserving payload is the
-# per-token EMBEDDING, not a discrete code).  They are injected here to drive
-# the disjointness / interpretation assertions, and the on-disk cross-check
-# reads the REAL size off disk and asserts the builder reproduces it (so a
-# future retrain that changes a codebook size is caught), rather than asserting
-# a hardcoded value the redo could legitimately change.
-REAL_CODEBOOK_SIZES = {"xma": 1, "xim": 1, "xsx": 1}
+# decision is remade PER GROUP under absolute calibration: xma and xim resolved
+# to the CONTINUOUS bottleneck (continuous is the phase-fidelity ceiling — the
+# continuous block emits a single vestigial id with ``codebook_size = 1`` and
+# carries the phase payload in the per-token EMBEDDING, not a discrete code),
+# while xsx re-decided to FSQ once the dead soft-X-ray chords were masked out of
+# its calibration (FSQ levels (8,8,8,5,5) -> 12800 codes; the dead chords had
+# poisoned the prior continuous decision, and with them masked the FSQ phase
+# error fell within tolerance of the recovered continuous ceiling ~0.018).
+# These drive the disjointness / interpretation assertions; the on-disk
+# cross-check reads the REAL size off disk and asserts the builder reproduces
+# it (so a future retrain that changes a codebook size is caught) rather than
+# asserting a hardcoded value the redo could legitimately change.
+REAL_CODEBOOK_SIZES = {"xma": 1, "xim": 1, "xsx": 12800}
 
 
 def _hf_root():
