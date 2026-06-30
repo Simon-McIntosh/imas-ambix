@@ -209,11 +209,18 @@ phase lift, continuous signed magnitude — moved every boundary component above
   real, isolated contribution: +0.070 axis_R and +0.156 axis_Z</strong> (concentrated in axis_Z — the toroidal
   array constrains the vertical-field/shape picture), confirming the space-phasing thesis. Coils are ~neutral
   (resolving an earlier apparent coil regression as a label confound, not coils being harmful).</li>
-  <li><strong>X-point is not yet a verdict</strong>: the single-"primary" target is bimodal across double-null
-  topology switches (xpt_Z ~0 even at the raw ceiling). The fix in progress is the <strong>upper/lower-null
-  split</strong> (14-D labels) + a <strong>ψ-proximity filter</strong> (keep a null only if ψ(null)≈ψ(LCFS),
-  using the store's ψ-map + boundary) so non-boundary nulls are masked — then the X-point becomes a clean,
-  model-relevant target judged per null.</li>
+  <li><strong>X-point is not yet a clean verdict — and is entangled with divertor topology we are NOT solving
+  here.</strong> A single "primary" target is bimodal across topology switches (xpt_Z ~0 even at the raw
+  ceiling). The discontinuity-aware label fix (bc92405) removed the worst artifact (no label between two physical
+  nulls). A naïve next step — an upper/lower-null split with a <strong>ψ-proximity filter</strong>
+  (ψ(null)≈ψ(LCFS)) — is <strong>physically invalid</strong>: the flux map is <em>multimodal</em> with a
+  <strong>public/private</strong> distinction, so a secondary null in a <em>private</em> region (snowflake,
+  X-divertor, super-X) can sit at ψ≈ψ_LCFS yet not be on the confined boundary — ψ-proximity cannot separate
+  public from private. And "upper/lower SN" does not cover the divertor topologies we must support. <strong>We
+  do not solve divertor-topology classification or public/private separation here</strong> (a known, deferred
+  limitation); the X-point representation must therefore make <em>no</em> topology claim — predict the
+  reconstruction's nulls assumption-free (e.g. an order-invariant null set), with the X-point kept out of the
+  headline verdict until handled properly. Axis + LCFS + the rotation demo carry the current verdict.</li>
 </ul>
 
 </main>
