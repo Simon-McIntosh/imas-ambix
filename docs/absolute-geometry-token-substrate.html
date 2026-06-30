@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -353,7 +353,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-ags-toroidal-relational" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Research: pretrained TS foundation models vs learned codebook; toroidal geometry &amp; SPACE-PHASING for rotating MHD; ensure tokenizers capture cross-sensor relational structure</h4>
-    <div class="r-fu-body">Lead direction (2026-06-30). FOUR threads: (1) Why learn our own codebook? Review/select pretrained TS foundation models (TimesFM 2.5, Chronos/Chronos-Bolt [we already wrap chronos-t5-small], Moirai/Moirai-MoE, MOMENT, Time-MoE, Toto, ...) — key analysis: they are UNIVARIATE/channel-independent temporal models; none model cross-sensor SPATIAL relational structure, so the recommendation is likely 'pretrained temporal backbone + OUR geometry-aware spatial-relational layer'. (2) CONFIRMED video tokenizer = Open-MAGVIT2 (frames.py OpenMagvit2Tokenizer, LFQ; weights /work/.../v1/open-magvit2). (3) TOROIDAL GEOMETRY: MAST has poloidal arrays (ccbv 40 probes in Z @ single phi -> poloidal mode m) AND a toroidal array (b_field_tor_probe_cc, 36 probes across 12 toroidal angles 10-350deg -> toroidal mode n + ROTATION). CRITICAL GAP: the toroidal array is NOT in our staged/tokenised magnetics set (we ingest only ccbv/obr/obv/flux_loop/ip = single-phi poloidal), so we currently CANNOT see toroidal rotation. (4) SPACE-PHASING: rotating MHD ~ exp(i(m.theta - n.phi - omega.t)); resolving (m,n,omega) needs the RELATIVE PHASE across toroidally/poloidally separated sensors -> the tokenizer must preserve cross-sensor complex/phase structure (magnitude-quantised per-channel tokenisation destroys it; the multimodal study already found continuous beat VQ/FSQ on xma phase) AND carry phi/theta geometry PE so attention resolves mode numbers. DELIVERABLE: a research doc with figures (poloidal/toroidal array layout; rotating-mode phase; foundation-model comparison table; recommended geometry-aware phase-preserving relational tokenizer design) + the action to INCLUDE the toroidal array.</div>
+    <div class="r-fu-body">Lead direction (2026-06-30). FOUR threads: (1) Why learn our own codebook? Review/select pretrained TS foundation models (TimesFM 2.5, Chronos/Chronos-Bolt [we already wrap chronos-t5-small], Moirai/Moirai-MoE, MOMENT, Time-MoE, Toto, ...) — key analysis: they are UNIVARIATE/channel-independent temporal models; none model cross-sensor SPATIAL relational structure, so the recommendation is likely 'pretrained temporal backbone + OUR geometry-aware spatial-relational layer'. (2) CONFIRMED video tokenizer = Open-MAGVIT2 (frames.py OpenMagvit2Tokenizer, LFQ; weights /work/.../v1/open-magvit2). (3) TOROIDAL GEOMETRY: MAST has poloidal arrays (ccbv 40 probes in Z @ single phi -&gt; poloidal mode m) AND a toroidal array (b_field_tor_probe_cc, 36 probes across 12 toroidal angles 10-350deg -&gt; toroidal mode n + ROTATION). CRITICAL GAP: the toroidal array is NOT in our staged/tokenised magnetics set (we ingest only ccbv/obr/obv/flux_loop/ip = single-phi poloidal), so we currently CANNOT see toroidal rotation. (4) SPACE-PHASING: rotating MHD ~ exp(i(m.theta - n.phi - omega.t)); resolving (m,n,omega) needs the RELATIVE PHASE across toroidally/poloidally separated sensors -&gt; the tokenizer must preserve cross-sensor complex/phase structure (magnitude-quantised per-channel tokenisation destroys it; the multimodal study already found continuous beat VQ/FSQ on xma phase) AND carry phi/theta geometry PE so attention resolves mode numbers. DELIVERABLE: a research doc with figures (poloidal/toroidal array layout; rotating-mode phase; foundation-model comparison table; recommended geometry-aware phase-preserving relational tokenizer design) + the action to INCLUDE the toroidal array.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    absolute-geometry-token-substrate (representation/relational)
 Section: §3
@@ -394,6 +394,24 @@ Done-when
       <button class="r-opt" data-value="channel-pool">Mean-pool channels into one per-step vector (the retired approach that lost the spatial pattern)</button>
       </p>
     <p class="r-dec-rat">Locked by the lead 2026-06-25. Same fix that made cameras decodable (16x16 spatial position) generalised to every diagnostic: spatial (between-sensor) + temporal (incl. phasing) structure must be learnable and PERSISTED, not pooled. No averaging of sensor positions into a single vector.</p>
+    </div>
+<div class="r-dec" data-key="toroidal-periodic-geometry" data-choice="periodic-pe-plus-toroidal-array" data-by="Simon McIntosh" data-when="2026-06-30">
+    <p class="r-dec-q">How is toroidal/poloidal angle encoded so the 0/2π seam is respected and rotating modes are seen?</p>
+    <p class="r-dec-ctx">phi (toroidal) and theta/orientation are PERIODIC. A linear phi-in-degrees positional encoding places a sensor at 2π−ε and one at 0+ε maximally far apart, when they are physically ADJACENT. Rotating MHD ~ exp(i(mθ−nφ−ωt)) lives in the cross-sensor phase around the torus; the toroidal array was also not ingested at all.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="periodic-pe-plus-toroidal-array">Encode phi/theta/orientation as (sin,cos) (or rotary) so the 0/2π seam is continuous and 2π−ε ↔ 0+ε read as adjacent; INGEST the toroidal array (b_field_tor_probe_saddle_voltage, 12 ch @ 12 φ); DEMONSTRATE recovery of toroidal mode n / rotation from the array</button>
+      <button class="r-opt" data-value="raw-angle-pe">Linear raw-degree phi PE (breaks the seam; cannot represent toroidal adjacency or rotation)</button>
+      </p>
+    <p class="r-dec-rat">Locked by the lead 2026-06-30. Angles are on a circle — periodic encoding is required for the relational model to treat the 0/2π seam correctly and to resolve toroidal mode number + rotation. The toroidal saddle array must be ingested (it was missing). Skill in the new ingestion must be demonstrated (synthetic rotating-mode n-recovery + the oracle).</p>
+    </div>
+<div class="r-dec" data-key="all-signals-spacetime" data-choice="spacetime-all" data-by="Simon McIntosh" data-when="2026-06-30">
+    <p class="r-dec-q">Do ALL diagnostic signals use the space-time transformer ingestion pattern?</p>
+    <p class="r-dec-ctx">Different streams historically used different ingestion (per-scalar uniform tokens, per-channel patch-transformer, mean-pooling). The lead requires one consistent pattern.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="spacetime-all">EVERY signal stream ingests via the space-time transformer pattern — geometry-tagged (periodic-PE) tokens over (sensor x time), phase-preserving (STFT), no pooling, no per-scalar-independent coding; reviewed + consolidated across all modalities</button>
+      <button class="r-opt" data-value="per-stream-adhoc">Each stream keeps its own ad-hoc scheme (the status quo that lost phase/spatial structure)</button>
+      </p>
+    <p class="r-dec-rat">Locked by the lead 2026-06-30. All signals must learn spatial (between-sensor) AND temporal (incl. phasing) relations via the space-time transformer pattern; review every stream to ensure it conforms.</p>
     </div>
 </section>
 </main>
