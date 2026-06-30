@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="23">
+<meta name="plan-version" content="24">
 <meta name="plan-impl" content="0.85">
 </head>
 <body>
@@ -676,6 +676,27 @@ Section: production substrate
 Tier:    opus
 
 Drive #1: solidify the on-disk substrate on the validated representation (absolute-calibrated + geometry-tagged + continuous) corpus-wide, before building the world model on it. Bundles f-ags-calib + f-ags-geom + f-ags-repoint.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-substrate-caveats" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Three isolated substrate caveats from the #1 re-encode (xsx dead chords, xsx/Dα chord geometry, vocab-namespace reconcile) — none block #2</h4>
+    <div class="r-fu-body">The production re-encode (f-ags-production-reencode, commits to 8f8b598) landed corpus-wide + clean for xma(all)/xim(all)/L2(all)/30-of-36 xsx, ALL continuous under absolute + geometry-tagged. The spacetime-probe worker shut down (idle-ping cost) BEFORE completing these three follow-ons (HEAD 8f8b598, no guard/test-fix committed). All three are ISOLATED and do NOT block #2 (the GS-grounded ψ engine is magnetics-based; magnetics is fully clean). (1) xsx DEAD CHORDS: 6 upper-SXR chords (hcam_u_07/08/09/11/15/16) are dead detectors emitting ~1e17–1e29 constant overflow (q01==q99==mean) across all 13002 shots; absolute-normalised they produce poison tokens (xsx fidelity phase_err 0.0099→0.72). FIX: a data-quality guard in corpus_compute (flag a channel non-physical when degenerate q01==q99 / std≈0 OR |value| beyond a sane physical bound) so it is EXCLUDED from calibration AND MASKED (valid=False) by the encoder rather than per-window-fallback (which still divides by ~0); then a targeted xsx-only re-decide+encode (~1.5h GPU). Firewall-clean (signal data quality only). (2) CHORD GEOMETRY: gs.geometry_export resolves only b-probe/flux-loop/coil; xsx(SXR)/xim(Dα) chord-endpoint geometry is empty (all-NaN) — add a chord-geometry resolver (SXR endpoints exist in the L2 soft_x_rays {cam}_origin/endpoint fields; interferometer needs a static device chord). Deferred until the WM uses interior chords (North Star geometry-for-every-diagnostic req). (3) VOCAB-NAMESPACE: all-continuous (codebook_size=1) is CORRECT; tests/tokenizer/test_vocab_namespace.py hardcodes stale discrete sizes (xim 12800 / xsx 1024) and fails — reconcile the fixture + any consumer assuming a discrete xim/xsx codebook to the continuous-embedding reality. RECOMMENDATION: defer all three; proceed to #2 (magnetics clean). Do the xsx guard+redo when next touching the HF tokenisers or before the WM ingests xsx.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (§3 substrate caveats)
+Section: §3
+Tier:    opus
+
+Context
+  The #1 production re-encode landed clean except 3 isolated caveats (xsx dead chords, xsx/Dα chord geometry empty, vocab-namespace test stale-on-continuous). None block #2 (magnetics-based). Drive these when convenient or before the WM ingests xsx.
+
+Work
+  1. xsx dead-chord guard: in imas_ambix/calibration/corpus_compute.py flag non-physical channels (degenerate q01==q99/std≈0 OR |value| beyond a sane bound) -&gt; EXCLUDE from calibration; in the encoder (patch_transformer continuous lane + the staged reader) MASK a dead/flagged channel (valid=False, safe zero embedding) instead of per-window fallback. Targeted xsx-only re-decide+encode (~1.5h GPU). Report per-chord reject list + recovered xsx fidelity (~0.0099 on the 30 healthy chords).
+  2. Chord geometry: add SXR/Dα chord-endpoint resolver to gs.geometry_export (SXR endpoints from L2 soft_x_rays {cam}_origin/endpoint; interferometer static chord). Only when the WM needs interior-chord geometry.
+  3. Vocab-namespace reconcile: fix tests/tokenizer/test_vocab_namespace.py to the continuous reality (codebook_size=1) + reconcile any consumer assuming a discrete xim/xsx codebook; suite green.
+
+Done-when
+  1. xsx guard masks the 6 dead chords (corpus-clean); xsx fidelity recovered on the healthy chords.
+  2. vocab test green; consumer contract reconciled.
+  3. (chord geometry deferred until WM-needed); followup resolved with the per-chord reject list.</pre>
     </article>
 </section>
 
