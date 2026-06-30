@@ -641,14 +641,21 @@ def build_group(
     # tokens (absolute = corpus-constant, per-shot = this shot's own stats).
     if corpus_calibration is not None:
         cal_mode = "absolute"
-        cal_means = {
-            n: float(corpus_calibration[n].mean)
-            for n in used
-            if n in corpus_calibration
-        }
-        cal_stds = {
-            n: float(corpus_calibration[n].std) for n in used if n in corpus_calibration
-        }
+        # Record the stats the quantiser ACTUALLY de-quantises with: the corpus
+        # mean/std for a physical channel, but the per-shot fitted stats for a
+        # dead/saturated channel whose corpus calibration is non-physical (the
+        # quantiser falls back to per-shot for it — see _resolve_stats).  This
+        # keeps the metadata an honest record rather than the garbage sentinel.
+        cal_means = {}
+        cal_stds = {}
+        for n in used:
+            cal = corpus_calibration.get(n)
+            if cal is not None and cal.is_physical():
+                cal_means[n] = float(cal.mean)
+                cal_stds[n] = float(cal.std)
+            else:
+                cal_means[n] = float(quant._means.get(n, 0.0))
+                cal_stds[n] = float(quant._stds.get(n, 1.0))
     else:
         cal_mode = "per_shot"
         cal_means = {n: quant._means.get(n, 0.0) for n in used}

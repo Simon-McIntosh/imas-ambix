@@ -419,3 +419,66 @@ def test_frame_calibration_l1_rbb_style(tmp_path):
     assert cal.global_max <= 3000.0
     assert cal.global_mean > 0.0
     assert 0 in cal.per_shot_min
+
+
+# ---------------------------------------------------------------------------
+# Non-physical channel guard (dead/saturated detectors)
+# ---------------------------------------------------------------------------
+
+
+def _cal(mean, std, *, q01=None, q99=None, q50=None):
+    from imas_ambix.calibration.signals import ChannelCalibration
+
+    return ChannelCalibration(
+        name="c",
+        mean=mean,
+        std=std,
+        min_value=mean - std,
+        max_value=mean + std,
+        q01=mean - std if q01 is None else q01,
+        q50=mean if q50 is None else q50,
+        q99=mean + std if q99 is None else q99,
+        n_samples=1000,
+        n_shots=10,
+    )
+
+
+def test_is_physical_accepts_healthy_channels():
+    # Small SXR brightness, magnetics Ip-scale.
+    assert _cal(0.03, 0.1).is_physical()
+    assert _cal(3.319e5, 3.252e5).is_physical()  # magnetics scale
+
+
+def test_is_physical_accepts_large_si_signals():
+    # LEGITIMATE large-magnitude SI channels that VARY (q01 != q99) must NOT be
+    # condemned by magnitude alone: line density ~1e19, gas counts ~1e21,
+    # Dalpha ~1e22, neutron rate ~1e13 (real MAST corpus values).
+    assert _cal(8.14e19, 5.63e20, q01=-3.86e19, q99=1.97e20).is_physical()  # n_e_line
+    assert _cal(2.71e21, 4.93e21, q01=7.56e16, q99=8.04e21).is_physical()  # gas inboard
+    assert _cal(3.22e22, 3.42e22, q01=3.47e21, q99=7.60e22).is_physical()  # ada Dalpha
+    assert _cal(1.21e13, 2.59e13, q01=-3.4e9, q99=4.4e13).is_physical()  # neutron rate
+
+
+def test_is_physical_accepts_constant_flat_channel():
+    # A genuine constant channel (all-zero / flat): q01==q99 but std≈0 — physical.
+    assert _cal(0.0, 0.0, q01=0.0, q99=0.0, q50=0.0).is_physical()
+    assert _cal(2.5, 0.0, q01=2.5, q99=2.5, q50=2.5).is_physical()
+
+
+def test_is_physical_rejects_dead_detector_sentinel():
+    # The real dead SXR/xsx chords: collapsed quantiles (q01==q99) with std
+    # ~44-49x |q50| (stuck overflow sentinel). hcam_u_09 / hcam_u_07 / hcam_u_08.
+    assert not _cal(
+        6.09e27, 3.01e29, q01=6.093e27, q99=6.093e27, q50=6.093e27
+    ).is_physical()
+    assert not _cal(
+        7.38e24, 3.65e26, q01=7.377e24, q99=7.377e24, q50=7.377e24
+    ).is_physical()
+    assert not _cal(
+        4.48e17, 2.21e19, q01=4.477e17, q99=4.477e17, q50=4.477e17
+    ).is_physical()
+
+
+def test_is_physical_rejects_nonfinite():
+    assert not _cal(float("nan"), 1.0).is_physical()
+    assert not _cal(1.0, float("inf")).is_physical()

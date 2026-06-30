@@ -546,6 +546,20 @@ class PatchTransformerTokenizer:
                         name,
                     )
                     continue
+                # A dead/saturated channel (constant overflow sentinel ~1e17+)
+                # has non-physical corpus stats; standardising against it would
+                # propagate garbage.  Treat it like a missing calibration —
+                # per-window stats mask it instead of encoding the sentinel.
+                if not cal.is_physical():
+                    logger.warning(
+                        "PatchTransformerTokenizer: channel %r has non-physical "
+                        "corpus calibration (mean=%.3e std=%.3e) — falling back "
+                        "to per-window stats (dead/saturated detector)",
+                        name,
+                        float(cal.mean),
+                        float(cal.std),
+                    )
+                    continue
                 means[row, 0] = float(cal.mean)
                 std = float(cal.std)
                 stds[row, 0] = std if std > 1e-9 else 1.0

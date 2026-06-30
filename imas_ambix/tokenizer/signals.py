@@ -113,14 +113,27 @@ class UniformQuantizer:
 
         if self._calibration is not None:
             cal = self._calibration.get(name)
-            if cal is not None:
+            if cal is not None and cal.is_physical():
                 return float(cal.mean), max(float(cal.std), 1e-12)
-            logger.warning(
-                "UniformQuantizer: no corpus calibration for channel %r — "
-                "falling back to per-shot stats (absolute magnitude not "
-                "preserved for this channel)",
-                name,
-            )
+            if cal is not None:
+                # Dead/saturated detector (constant overflow sentinel ~1e17+):
+                # its corpus stats are non-physical, so fall back to per-shot
+                # stats — masking the garbage rather than encoding the sentinel.
+                logger.warning(
+                    "UniformQuantizer: channel %r has non-physical corpus "
+                    "calibration (mean=%.3e std=%.3e) — falling back to "
+                    "per-shot stats (dead/saturated detector)",
+                    name,
+                    float(cal.mean),
+                    float(cal.std),
+                )
+            else:
+                logger.warning(
+                    "UniformQuantizer: no corpus calibration for channel %r — "
+                    "falling back to per-shot stats (absolute magnitude not "
+                    "preserved for this channel)",
+                    name,
+                )
         mean = self._means.get(name, float(np.nanmean(arr)))
         std = self._stds.get(name, float(np.nanstd(arr)) or 1.0)
         return mean, max(std, 1e-12)
@@ -353,14 +366,24 @@ class ChronosSignalTokenizer:
 
         if self._calibration is not None:
             cal = self._calibration.get(name)
-            if cal is not None:
+            if cal is not None and cal.is_physical():
                 return float(cal.mean), max(float(cal.std), 1e-12)
-            logger.warning(
-                "ChronosSignalTokenizer: no corpus calibration for channel "
-                "%r — falling back to per-shot stats (absolute magnitude not "
-                "preserved for this channel)",
-                name,
-            )
+            if cal is not None:
+                logger.warning(
+                    "ChronosSignalTokenizer: channel %r has non-physical corpus "
+                    "calibration (mean=%.3e std=%.3e) — falling back to "
+                    "per-shot stats (dead/saturated detector)",
+                    name,
+                    float(cal.mean),
+                    float(cal.std),
+                )
+            else:
+                logger.warning(
+                    "ChronosSignalTokenizer: no corpus calibration for channel "
+                    "%r — falling back to per-shot stats (absolute magnitude "
+                    "not preserved for this channel)",
+                    name,
+                )
         mean = self._means.get(name, float(np.nanmean(arr)))
         std = self._stds.get(name, max(float(np.nanstd(arr)), 1e-12))
         return mean, max(std, 1e-12)

@@ -71,6 +71,66 @@ class ChannelCalibration:
     n_samples: int
     n_shots: int
 
+    def is_physical(self) -> bool:
+        """True if this channel's statistics are usable for absolute mode.
+
+        A real instrument channel has finite statistics whose spread is
+        consistent with its quantiles.  Some MAST raw streams instead carry a
+        dead/saturated detector: a stuck OVERFLOW SENTINEL — the same enormous
+        value (~1e17–1e29) reported on (nearly) every sample, so its 1st and
+        99th percentiles collapse to a single constant (``q01 == q99``) while
+        the corpus ``std`` is simultaneously HUGE (rare overflow excursions
+        across shots blow up the variance).  That ``q01 == q99`` AND large-std
+        signature is the unambiguous fingerprint of a dead detector and never
+        occurs for a real signal:
+
+        - a real *varying* channel (Dα ~1e22, line density ~1e19, gas counts
+          ~1e21, neutron rate ~1e13 — all legitimately LARGE SI values) has
+          ``q01 != q99``, so magnitude alone must NOT condemn it;
+        - a real *constant* channel (e.g. an all-zero / flat channel) has
+          ``q01 == q99`` but ``std ≈ 0`` — consistent, hence physical (the
+          downstream ``std<=0 -> 1`` guard handles it).
+
+        Standardising against a dead sentinel propagates garbage through the
+        absolute tokeniser, so the consumer treats a non-physical channel as if
+        it had no calibration (per-window/per-shot fallback) rather than
+        encoding the sentinel.
+
+        Non-physical when ANY of:
+
+        - ``mean``/``std``/``min_value``/``max_value`` is non-finite (NaN/inf);
+        - the distribution is a degenerate constant (``q01 == q99``) yet its
+          ``std`` is not negligible relative to that constant — the stuck-value
+          overflow fingerprint (``std`` orders of magnitude above |q50|).
+        """
+        import math
+
+        vals = (self.mean, self.std, self.min_value, self.max_value)
+        if any(not math.isfinite(float(v)) for v in vals):
+            return False
+        q01, q99, q50, std = (
+            float(self.q01),
+            float(self.q99),
+            float(self.q50),
+            float(self.std),
+        )
+        if not (math.isfinite(q01) and math.isfinite(q99)):
+            # No usable quantiles — fall back on a non-finite std/mean check
+            # only (already passed above), so treat as physical.
+            return True
+        # Stuck-overflow fingerprint: collapsed quantiles (constant value) but a
+        # std that is NOT consistent with a constant — i.e. std dwarfs |q50|.
+        # A genuine constant (all-zero / flat) has q01==q99 with std≈0 and is
+        # physical; a dead sentinel has q01==q99 with std >> |q50|.
+        # A genuine constant channel (all-zero / flat) has std≈0 (<= |q50|);
+        # a dead sentinel has std MANY times |q50| (measured ~44-49x on the
+        # MAST dead SXR chords).  Requiring std > |q50| cleanly separates the
+        # two with ~40x of margin, and never flags a real (varying or constant)
+        # channel.
+        degenerate = q01 == q99
+        std_inconsistent = std > (abs(q50) + 1e-12)
+        return not (degenerate and std_inconsistent)
+
 
 # ---------------------------------------------------------------------------
 # Welford accumulator (streaming mean / variance)
