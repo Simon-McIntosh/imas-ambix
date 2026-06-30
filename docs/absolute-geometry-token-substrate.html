@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="18">
+<meta name="plan-version" content="19">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -510,7 +510,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-ags-xpoint-split" data-status="open" data-tier="opus" data-written-by="xpoint-split" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">X-POINT SPLIT LANDED (14-D): with clean split labels the X-point IS recoverable from magnetics — all 14 components beat baseline, arm FEASIBLE; psi-filter rejects 3.5-5.4% of store nulls</h4>
-    <div class="r-fu-body">Implemented the upper/lower X-point split + psi-proximity boundary-null filter (commit 55f0cea: equilibrium_labels.py 14-D schema, diagnostics_equilibrium_probe target_dim auto-bumps to 14, oracle reports split xpt, tests). SCHEMA: the single (xpt_R,xpt_Z) is replaced by FOUR components lower_xpt_R/Z (Z<0) + upper_xpt_R/Z (Z>0); TARGET_DIM 12->14. Each null is its OWN sign-pure, present-when-present channel — NO lower<->upper flip, NO 2.4m discontinuity, so each is LINEARLY interpolated within its presence + masked on absence (the discontinuity-aware single-primary hack is dropped). PSI-FILTER: a store null is kept only if boundary-associated, |psi_null - psi_boundary| <= tol*|psi_boundary - psi_axis| (tol=0.05; psi[z,r,t] grid + LCFS-median psi_boundary + axis psi; bilinear interp), else masked; no null re-finding, no separatrix tracing.
+    <div class="r-fu-body">Implemented the upper/lower X-point split + psi-proximity boundary-null filter (commit 55f0cea: equilibrium_labels.py 14-D schema, diagnostics_equilibrium_probe target_dim auto-bumps to 14, oracle reports split xpt, tests). SCHEMA: the single (xpt_R,xpt_Z) is replaced by FOUR components lower_xpt_R/Z (Z&lt;0) + upper_xpt_R/Z (Z&gt;0); TARGET_DIM 12-&gt;14. Each null is its OWN sign-pure, present-when-present channel — NO lower&lt;-&gt;upper flip, NO 2.4m discontinuity, so each is LINEARLY interpolated within its presence + masked on absence (the discontinuity-aware single-primary hack is dropped). PSI-FILTER: a store null is kept only if boundary-associated, |psi_null - psi_boundary| &lt;= tol*|psi_boundary - psi_axis| (tol=0.05; psi[z,r,t] grid + LCFS-median psi_boundary + axis psi; bilinear interp), else masked; no null re-finding, no separatrix tracing.
 
 DEMONSTRATED (6 tests green): 14-D schema; split channels sign-pure + continuous within presence (synthetic + real 18502/18504: lower_xpt_Z stays [-1.19,-1.02], upper [1.03,1.20], max adjacent step 0.024m vs the old ~2.4m flip); psi-filter masks a synthetic internal/far null (keeps it without the grid). PSI-FILTER REJECTION RATE (answers 'do we need filtering?'): 18502 rejected 4/114 (3.5%), 18504 9/168 (5.4%) of real store nulls — NON-TRIVIAL, so the store's 2 nulls are usually but NOT always boundary nulls; the filter does real work.
 
@@ -539,6 +539,40 @@ Done-when
   1. Raw ceiling re-established under 14-D split labels (or a documented decision to report vs baseline only).
   2. Toroidal-in-headline decision recorded; cohort-size effect on split-xpt measured.
   3. Followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-consolidation" data-status="open" data-tier="opus" data-written-by="consolidation" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">ALL-SIGNALS CONSOLIDATION (eval path) LANDED: every stream routes through the shared geometry-aware encoder; all-diagnostics is now FEASIBLE (no longer overfits) but does NOT beat magnetics-only on this 184-ex cohort — extra streams mildly dilute</h4>
+    <div class="r-fu-body">Routed EVERY diagnostics->equilibrium stream through the SHARED space-time relational encoder with geometry for ALL channels, eval path (commits 572bccf geometry coverage, 9318c5d oracle arms, 206d033 shared-encoder extraction). 
+
+WHAT LANDED:
+(1) GEOMETRY COVERAGE (geometry_reader.l2_signal_hf_geometry_for_channels): L2 light-path '{group}.{var}[i]' names now resolve to per-channel geometry — soft_x_rays cameras -> CHORD endpoints from the L2 {cam}_origin_r/z + {cam}_endpoint_r/z fields (kind=sxr_chord, 32/36 channels); pf_active coil_current -> coil centroid R/Z (kind=coil); interferometer.n_e_line -> interferometer_chord placeholder; summary/gas_injection -> scalar. Periodic (sin/cos) phi/theta for all angular geometry (the seam fix) reused.
+(2) SHARED ENCODER extracted into imas_ambix/worldmodel/spacetime_relational_encoder.py (encode_periodic_geometry + GeometryEncoder + StreamTokeniser + SENSOR_KIND_VOCAB + sensor_kind_index + StreamSpec) so the eval probe AND the later live-path port consume ONE encoder; the probe imports + composes them with the Gaussian head (no-behaviour-change; 16 tests green).
+(3) ORACLE arms: magnetics_only vs all_diagnostics_consolidated (all continuous, same 184 train/54 test cohort+seed).
+
+RESULT (job 1223618, absolute, 250 epochs, 14-D labels): BOTH arms FEASIBLE.
+  magnetics_only:            axis_R +0.37, axis_Z +0.46, LCFS +0.25..+0.58 (all 8 beat)
+  all_diagnostics_consolidated (15 streams, +190 channels): axis_R +0.31, axis_Z +0.50, LCFS mixed (lcfs_r_2 +0.59, lcfs_r_6 +0.49, but lcfs_r_0 +0.17 / lcfs_r_4 +0.13 lose)
+  CONSOLIDATION delta B-A: axis_R -0.065, axis_Z +0.035, lcfs_r_0 -0.225, lcfs_r_2 +0.017, lcfs_r_4 -0.122, lcfs_r_6 -0.023
+
+VERDICT (honest): the consolidation WORKS STRUCTURALLY — every stream now routes through the one geometry-aware shared encoder, and the all-diagnostics arm is FEASIBLE (it no longer catastrophically overfits as it did WITHOUT geometry; geometry-tagging is what tamed it, ~matching magnetics on axis_Z). BUT the extra streams do NOT add net information for the boundary on this 184-example cohort: magnetics alone already saturates the recoverable axis/LCFS signal, and the additional ~190 channels mildly DILUTE most components (axis_R -0.065, several LCFS radii down). The one gain is axis_Z (+0.035). This is the classic small-cohort more-tokens dilution — NOT evidence the extra streams are uninformative in principle, but that 184 examples can't exploit 15 streams. The eval-path proof is delivered: the shared encoder + all-channel geometry is in place; the live-path port can build on it. Report /work/projects/imas_gpu/worldmodel/diag_eq_oracle_consolidated/oracle_report.json.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (section 3 / consolidation)
+Section: section 3
+Tier:    opus
+
+Context
+  The all-signals consolidation is landed in the eval path: every stream routes through the shared geometry-aware encoder (spacetime_relational_encoder.py), all channels geometry-tagged (soft_x_rays chords, pf_active coils, scalars). Both arms FEASIBLE; all-diagnostics is now tamed (no overfit) but does NOT beat magnetics-only on the 184-example cohort (axis_R -0.065, LCFS mostly down; axis_Z +0.035). The extra streams dilute rather than help at this cohort size.
+
+Next
+  1. COHORT SIZE is the prime suspect for the dilution: grow the train cohort well beyond the 184 survivors (loosen the window/equilibrium filters or sample more shots) and re-measure B-A — the extra streams should start contributing once the example count supports 15 streams.
+  2. PER-STREAM ablation: leave-one-stream-in beyond magnetics (magnetics + soft_x_rays only, magnetics + interferometer only, ...) to see WHICH streams carry boundary-relevant signal vs pure dilution, rather than all-or-nothing.
+  3. The LIVE-PATH port: now that the shared encoder is a module (spacetime_relational_encoder.py), port the world-model input loaders to consume it (the lead&#x27;s later step) so the live model ingests every stream the same geometry-aware way.
+  4. interferometer chord endpoints are a documented placeholder (NaN coords, kind set) — source a static MAST interferometer chord geometry to populate them.
+
+Done-when
+  1. Cohort grown + B-A re-measured (does all-diagnostics beat magnetics-only with more examples?).
+  2. Per-stream contribution ablation reported.
+  3. Followup resolved; live-path port scoped.</pre>
     </article>
 </section>
 
