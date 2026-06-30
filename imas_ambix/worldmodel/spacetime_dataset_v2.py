@@ -371,6 +371,16 @@ def _quantise_l2(
         cal = None
         if calibration is not None and c < len(names):
             cal = calibration.get(names[c])
+        if cal is not None and not cal.is_physical():
+            # A dead/saturated channel (stuck overflow sentinel) whose corpus
+            # calibration is non-physical is MASKED, not fallback-encoded:
+            # standardising against the sentinel — or falling back to its ~0
+            # per-shot std — propagates garbage.  Emit the centre id (the same
+            # safe constant the all-NaN branch uses); the per-channel valid mask
+            # marks it invalid downstream, so a poison token never enters.
+            _warn_dead_staged_calibration(names[c] if c < len(names) else None)
+            out[:, c] = 1
+            continue
         if cal is not None:
             mean = float(cal.mean)
             std = float(cal.std)
@@ -407,6 +417,23 @@ def _warn_missing_staged_calibration(name: str | None) -> None:
         logger.warning(
             "staged read: no corpus calibration for channel %r — falling back "
             "to per-shot stats (absolute magnitude not preserved for it)",
+            key,
+        )
+
+
+# One-time per-channel warning for a dead/non-physical calibration entry, so a
+# masked sentinel channel is visible without flooding the log.
+_WARNED_DEAD_STAGED_CHANNELS: set[str] = set()
+
+
+def _warn_dead_staged_calibration(name: str | None) -> None:
+    key = name if name is not None else "<unnamed>"
+    if key not in _WARNED_DEAD_STAGED_CHANNELS:
+        _WARNED_DEAD_STAGED_CHANNELS.add(key)
+        logger.warning(
+            "staged read: channel %r has non-physical corpus calibration "
+            "(dead/saturated detector) — MASKING to the centre id (valid mask "
+            "marks it invalid downstream)",
             key,
         )
 

@@ -508,6 +508,27 @@ class PatchTransformerTokenizer:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Per-channel z-score → ``(z, means, stds)`` (channel-count agnostic).
 
+        Thin wrapper over :meth:`_normalise_with_mask` that drops the dead-mask
+        for callers (``fit``) that don't need it; see that method for the modes.
+        """
+        z, means, stds, _dead = self._normalise_with_mask(
+            x,
+            fit,
+            channel_names=channel_names,
+            corpus_calibration=corpus_calibration,
+        )
+        return z, means, stds
+
+    def _normalise_with_mask(
+        self,
+        x: np.ndarray,
+        fit: bool,  # noqa: ARG002 — kept for signature parity with _normalise
+        *,
+        channel_names: Sequence[str] | None = None,
+        corpus_calibration: dict[str, ChannelCalibration] | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Per-channel z-score → ``(z, means, stds, dead)`` (count-agnostic).
+
         Two modes:
 
         - **Per-window (default, ``corpus_calibration is None``):** each
@@ -521,17 +542,27 @@ class PatchTransformerTokenizer:
           every window and on every machine.  A channel with no calibration
           entry falls back to its per-window stats (with a one-line warning).
 
+        A DEAD / NON-PHYSICAL channel (a stuck overflow-sentinel detector whose
+        corpus calibration is non-physical) is **masked, not fallback-encoded**:
+        its normalised values are forced to a SAFE ZERO (so the embedding is
+        the zero patch, never the sentinel divided by a near-zero std), and its
+        row is flagged ``True`` in the returned ``dead`` mask so the encoder can
+        mark it invalid.  Falling back to per-window stats here would divide the
+        constant sentinel by its ~0 per-window std and propagate garbage — the
+        opposite of masking — so dead channels are zeroed instead.
+
         IMPORTANT: absolute mode changes the *input distribution* the
         autoencoder sees.  A codebook trained under per-window normalisation
         is NOT valid for absolute mode and must be retrained.
 
-        Returns ``(z, means, stds)`` so the caller can de-normalise the
-        reconstruction with the SAME stats.
+        Returns ``(z, means, stds, dead)`` — ``dead`` is ``(C,)`` bool, all
+        ``False`` outside absolute mode.
         """
         with np.errstate(invalid="ignore"):
             means = np.nan_to_num(np.nanmean(x, axis=1, keepdims=True))
             stds = np.nanstd(x, axis=1, keepdims=True)
         stds = np.where((stds > 1e-9) & np.isfinite(stds), stds, 1.0)
+        dead = np.zeros(x.shape[0], dtype=bool)
 
         if corpus_calibration is not None:
             names = list(channel_names) if channel_names is not None else []
@@ -548,24 +579,56 @@ class PatchTransformerTokenizer:
                     continue
                 # A dead/saturated channel (constant overflow sentinel ~1e17+)
                 # has non-physical corpus stats; standardising against it would
-                # propagate garbage.  Treat it like a missing calibration —
-                # per-window stats mask it instead of encoding the sentinel.
+                # propagate garbage and a per-window fallback would divide the
+                # stuck constant by its ~0 std.  MASK it: zero the row (safe
+                # zero embedding) and flag it dead so the encoder marks it
+                # invalid rather than encoding the sentinel.
                 if not cal.is_physical():
                     logger.warning(
                         "PatchTransformerTokenizer: channel %r has non-physical "
-                        "corpus calibration (mean=%.3e std=%.3e) — falling back "
-                        "to per-window stats (dead/saturated detector)",
+                        "corpus calibration (mean=%.3e std=%.3e) — MASKING "
+                        "(valid=False, zero embedding; dead/saturated detector)",
                         name,
                         float(cal.mean),
                         float(cal.std),
                     )
+                    dead[row] = True
+                    means[row, 0] = 0.0
+                    stds[row, 0] = 1.0
                     continue
                 means[row, 0] = float(cal.mean)
                 std = float(cal.std)
                 stds[row, 0] = std if std > 1e-9 else 1.0
 
         z = np.nan_to_num((x - means) / stds, nan=0.0)
-        return z, means, stds
+        # Force dead channels to exactly zero so their embedding is the safe
+        # zero patch (the channel's raw values never reach the autoencoder).
+        if dead.any():
+            z[dead] = 0.0
+        return z, means, stds, dead
+
+    def dead_channel_mask(
+        self,
+        channel_names: Sequence[str] | None,
+        corpus_calibration: dict[str, ChannelCalibration] | None,
+    ) -> np.ndarray:
+        """``(C,)`` bool: channels whose CORPUS calibration is non-physical.
+
+        A ``True`` row is a dead/saturated detector (stuck overflow sentinel)
+        whose calibration :meth:`~imas_ambix.calibration.signals.ChannelCalibration.is_physical`
+        is ``False`` — the encoder masks it (valid=False, safe zero embedding)
+        instead of encoding the sentinel.  All ``False`` when no calibration is
+        supplied (per-window mode never masks a channel).
+        """
+        names = list(channel_names) if channel_names is not None else []
+        dead = np.zeros(len(names), dtype=bool)
+        if corpus_calibration is None:
+            return dead
+        for row, name in enumerate(names):
+            cal = corpus_calibration.get(name)
+            if cal is not None and not cal.is_physical():
+                dead[row] = True
+        return dead
 
     def _features(self, x: np.ndarray) -> tuple[np.ndarray, int]:
         patches, n_pad = patchify(x, self.cfg.patch_size)  # (C, P, ps)

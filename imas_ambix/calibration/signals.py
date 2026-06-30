@@ -28,6 +28,19 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
+# Physical-magnitude bound for the dead-detector guard
+# ---------------------------------------------------------------------------
+#
+# Every real MAST diagnostic SI channel in the corpus tops out around 1e22
+# (Dα brightness); line density ~1e19, gas counts ~1e21, neutron rate ~1e13,
+# magnetics ~1e6.  A dead/saturated detector instead reports a stuck OVERFLOW
+# SENTINEL ~1e17–1e29.  A generous absolute magnitude bound at 1e30 condemns
+# ONLY the sentinel (which can exceed it) and never a real signal — the guard
+# stays conservative: it never rejects a legitimately-large channel.
+MAX_PHYSICAL_MAGNITUDE: float = 1e30
+
+
+# ---------------------------------------------------------------------------
 # Data class
 # ---------------------------------------------------------------------------
 
@@ -92,21 +105,36 @@ class ChannelCalibration:
           downstream ``std<=0 -> 1`` guard handles it).
 
         Standardising against a dead sentinel propagates garbage through the
-        absolute tokeniser, so the consumer treats a non-physical channel as if
-        it had no calibration (per-window/per-shot fallback) rather than
-        encoding the sentinel.
+        absolute tokeniser, so the consumer MASKS a non-physical channel
+        (valid=False, safe zero embedding) rather than encoding the sentinel.
 
         Non-physical when ANY of:
 
         - ``mean``/``std``/``min_value``/``max_value`` is non-finite (NaN/inf);
         - the distribution is a degenerate constant (``q01 == q99``) yet its
           ``std`` is not negligible relative to that constant — the stuck-value
-          overflow fingerprint (``std`` orders of magnitude above |q50|).
+          overflow fingerprint (``std`` orders of magnitude above |q50|);
+        - the magnitude is OUT OF PHYSICAL BOUND — ``|mean|`` or ``|max_value|``
+          beyond a generous sane bound (the overflow sentinel ~1e17–1e29 is
+          orders of magnitude above any real SXR/Dα/density channel, which top
+          out ~1e22; the bound at 1e30 condemns ONLY the sentinel and never a
+          real SI signal — see :data:`MAX_PHYSICAL_MAGNITUDE`).  This catches a
+          dead chord whose corpus excursions did NOT perfectly collapse its
+          quantiles (``q01 != q99``) but whose sheer magnitude still betrays it.
         """
         import math
 
         vals = (self.mean, self.std, self.min_value, self.max_value)
         if any(not math.isfinite(float(v)) for v in vals):
+            return False
+        # Out-of-physical-bound: the stuck overflow sentinel sits ~1e17–1e29,
+        # far above the largest real SI channel (~1e22).  A generous absolute
+        # bound condemns only the sentinel.
+        if (
+            abs(float(self.mean)) > MAX_PHYSICAL_MAGNITUDE
+            or abs(float(self.max_value)) > MAX_PHYSICAL_MAGNITUDE
+            or abs(float(self.min_value)) > MAX_PHYSICAL_MAGNITUDE
+        ):
             return False
         q01, q99, q50, std = (
             float(self.q01),

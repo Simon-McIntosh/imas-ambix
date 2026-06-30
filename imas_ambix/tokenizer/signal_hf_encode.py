@@ -497,6 +497,8 @@ def _geometry_features_for(
     shot_id: int,
     channel_names: list[str],
     cache: dict,
+    *,
+    group: str | None = None,
 ) -> tuple[np.ndarray | None, tuple[str, ...], tuple[str, ...]]:
     """Build the ``(n_channels, N_GEOMETRY_FEATURES)`` geometry array for a shot.
 
@@ -507,12 +509,36 @@ def _geometry_features_for(
     cannot be read still encodes (geometry omitted + a one-line warning) — the
     corpus encode never crashes on a geometry read.
 
+    For the ``xsx`` soft-X-ray group the campaign efm table has no chord
+    geometry, so the per-channel LINE-OF-SIGHT is resolved instead from the L2
+    ``soft_x_rays`` chord endpoints (``hcam_{l,u}_NN`` -> ``horizontal_cam_*``
+    origin/endpoint) — the interior-diagnostic geometry the world model attends.
+
     Returns ``(features, feature_names, sensor_kinds)`` or ``(None, (), ())``.
     """
     from imas_ambix.gs.geometry_export import (
         GEOMETRY_FEATURE_NAMES,
         build_geometry_fields_from_table,
     )
+
+    if group == "xsx":
+        # Soft-X-ray chords: line-of-sight endpoints from the L2 soft_x_rays
+        # group (no efm-table chord geometry exists for these).
+        from imas_ambix.tokenizer.geometry_reader import (
+            xsx_chord_geometry_for_channels,
+        )
+
+        try:
+            ag = xsx_chord_geometry_for_channels(channel_names, shot_id)
+            return ag.features, tuple(GEOMETRY_FEATURE_NAMES), ag.sensor_kinds
+        except Exception as exc:  # noqa: BLE001 — geometry best-effort
+            logger.warning(
+                "shot %d: xsx chord geometry unavailable (%s) — encoding "
+                "without geometry",
+                shot_id,
+                exc,
+            )
+            return None, (), ()
 
     try:
         from imas_ambix.gs.geometry import build_table_for_shot
@@ -638,6 +664,17 @@ def _drain_feed(
             continue
         t0 = time.time()
         data, chan, valid_ch, native_rate, window = w
+        # A dead/saturated channel (stuck overflow sentinel) whose CORPUS
+        # calibration is non-physical is MASKED, not fallback-encoded: the
+        # encoder zeroes its input and we mark it invalid for every token here,
+        # so a poison token never enters the store.  No-op outside absolute mode.
+        dead_ch = tokenizer.dead_channel_mask(list(chan), corpus_calibration)
+        if dead_ch.any():
+            valid_ch = np.asarray(valid_ch, dtype=bool).copy()
+            valid_ch[dead_ch] = False
+            summary.setdefault("dead_channels", {})[sid] = [
+                chan[i] for i in np.flatnonzero(dead_ch)
+            ]
         try:
             ids, latent, _recon = tokenizer.encode_window(
                 data,
@@ -667,7 +704,7 @@ def _drain_feed(
         geom_kinds: tuple[str, ...] = ()
         if attach_geometry:
             geom_feats, geom_feature_names, geom_kinds = _geometry_features_for(
-                sid, list(chan), geom_cache
+                sid, list(chan), geom_cache, group=group
             )
             if geom_feats is not None:
                 summary["geometry_attached"] += 1

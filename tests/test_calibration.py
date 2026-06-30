@@ -482,3 +482,40 @@ def test_is_physical_rejects_dead_detector_sentinel():
 def test_is_physical_rejects_nonfinite():
     assert not _cal(float("nan"), 1.0).is_physical()
     assert not _cal(1.0, float("inf")).is_physical()
+
+
+def test_is_physical_rejects_out_of_physical_bound():
+    # A dead chord whose corpus excursions did NOT perfectly collapse its
+    # quantiles (q01 != q99) but whose sheer magnitude (mean/max beyond the
+    # sane physical bound) still betrays the overflow sentinel.  The magnitude
+    # backstop condemns it even though the degenerate-quantile rule does not.
+    from imas_ambix.calibration.signals import (
+        MAX_PHYSICAL_MAGNITUDE,
+        ChannelCalibration,
+    )
+
+    huge = 10 * MAX_PHYSICAL_MAGNITUDE
+    assert not _cal(huge, 1e3, q01=1e3, q99=huge, q50=1e4).is_physical()
+    # max_value alone over the bound (mean modest) is also condemned.
+    out_of_bound_max = ChannelCalibration(
+        name="c",
+        mean=1.0,
+        std=1.0,
+        min_value=0.0,
+        max_value=huge,
+        q01=0.0,
+        q50=1.0,
+        q99=2.0,
+        n_samples=1000,
+        n_shots=10,
+    )
+    assert not out_of_bound_max.is_physical()
+
+
+def test_is_physical_bound_does_not_reject_largest_real_signal():
+    # The largest real SI channel in the corpus (Dα ~1e22) is FAR below the
+    # bound — the magnitude backstop never condemns a legitimate signal.
+    from imas_ambix.calibration.signals import MAX_PHYSICAL_MAGNITUDE
+
+    assert MAX_PHYSICAL_MAGNITUDE > 1e22
+    assert _cal(3.22e22, 3.42e22, q01=3.47e21, q99=7.60e22).is_physical()
