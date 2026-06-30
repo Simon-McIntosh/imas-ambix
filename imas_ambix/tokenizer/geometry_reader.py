@@ -581,10 +581,10 @@ def saddle_toroidal_geometry_for_channels(
 #     its circuit's filament centroid (R, Z) via
 #     :func:`pf_active_geometry_for_channels` (the L2 ``current_channel`` order);
 #     kind = coil.
-#   * interferometer ``n_e_line`` -> a line-integrated chord with NO per-channel
-#     endpoints in this store: kind = interferometer_chord, coords NaN (an
-#     explicit placeholder — the chord schema is present, endpoints to be
-#     tabulated from a static MAST interferometer geometry).
+#   * interferometer ``n_e_line`` -> a line-integrated vertical chord: the L2
+#     store has NO per-channel endpoints, so the documented static MAST
+#     vertical-chord line-of-sight (R0 ≈ 0.9 m, Z ∈ [-1, +1] m) is filled;
+#     kind = interferometer_chord.
 #   * everything else (summary, gas_injection scalars) -> scalar, NaN coords.
 #
 # Reads only the L2 light-path group's apparatus-geometry arrays — never a
@@ -595,6 +595,42 @@ _L2_HF_COL_RE = re.compile(r"^(?P<group>[a-z_]+)\.(?P<var>.+?)(?:\[(?P<i>\d+)\])
 
 #: pf_active current variables whose ``[i]`` maps to a coil position.
 _PF_ACTIVE_CURRENT_VARS = ("coil_current", "solenoid_current")
+
+# --- Static MAST interferometer chord ---------------------------------------
+#
+# The L2 ``interferometer`` group carries only the line-integrated density
+# (``n_e_line``) — there are NO per-channel chord-endpoint arrays in the store.
+# MAST's primary density interferometer is a SINGLE VERTICAL chord through the
+# plasma at the major radius, viewing top-to-bottom across the vessel.  We
+# tabulate that one chord as a STATIC machine-geometry definition so the
+# ``interferometer.n_e_line`` token carries an explicit line-of-sight rather
+# than a bare NaN placeholder.  Source: MAST density-interferometer geometry —
+# a vertical chord at R0 ≈ 0.90 m spanning the vessel half-height Z ∈ [-1.0,
+# +1.0] m (the chord midplane crossing at R0).  These are the nominal MAST
+# vessel-scale values (R0 ≈ 0.9 m, vessel half-height ≈ 1 m); a per-shot
+# refinement would read the AL interferometer ``line_of_sight`` if/when present.
+_MAST_INTERFEROMETER_CHORD_R = 0.90  # vertical chord major radius [m]
+_MAST_INTERFEROMETER_CHORD_Z1 = -1.00  # chord bottom Z [m]
+_MAST_INTERFEROMETER_CHORD_Z2 = 1.00  # chord top Z [m]
+
+
+def _fill_interferometer_chord(feats, kinds, k):
+    """Fill the static MAST vertical-interferometer chord for an n_e_line channel.
+
+    A single vertical line-of-sight at the major radius (documented static MAST
+    geometry — there are no per-channel endpoints in the L2 store); midpoint R/Z
+    + the chord endpoints, ``sensor_kind = interferometer_chord``.
+    """
+    r = _MAST_INTERFEROMETER_CHORD_R
+    z1, z2 = _MAST_INTERFEROMETER_CHORD_Z1, _MAST_INTERFEROMETER_CHORD_Z2
+    feats[k, 0] = r  # representative R (chord is vertical -> constant R)
+    feats[k, 1] = 0.5 * (z1 + z2)  # midpoint Z
+    feats[k, 2] = 0.0  # phi (axisymmetric poloidal model)
+    feats[k, 6] = r
+    feats[k, 7] = z1
+    feats[k, 8] = r
+    feats[k, 9] = z2
+    kinds[k] = KIND_INTERFEROMETER_CHORD
 
 
 def l2_signal_hf_geometry_for_channels(
@@ -652,9 +688,84 @@ def l2_signal_hf_geometry_for_channels(
                 feats[k] = pf_coil_feats[0][idx]
                 kinds[k] = pf_coil_feats[1][idx]
         elif group == "interferometer":
-            # line-integrated, no per-channel endpoints in this store.
-            kinds[k] = KIND_INTERFEROMETER_CHORD
+            # line-integrated; no per-channel endpoints in the L2 store, so fill
+            # the documented static MAST vertical-chord line-of-sight.
+            _fill_interferometer_chord(feats, kinds, k)
         # summary / gas_injection / anything else -> scalar (NaN coords).
+    return AlignedGeometry(
+        channel_names=tuple(names),
+        feature_names=tuple(GEOMETRY_FEATURE_NAMES),
+        features=feats,
+        sensor_kinds=tuple(kinds),
+    )
+
+
+# ---------------------------------------------------------------------------
+# xsx HF chord names (hcam_l_NN / hcam_u_NN) -> L2 soft_x_rays chord endpoints
+# ---------------------------------------------------------------------------
+#
+# The native-cadence ``xsx`` store names its channels ``hcam_l_NN`` /
+# ``hcam_u_NN`` (the lower / upper horizontal soft-X-ray camera, chord index
+# NN — see ``signal_hf_encode.load_shot_window``).  The L2 ``soft_x_rays`` group
+# carries each camera's chord endpoints aligned 1:1 with the chord index:
+# ``horizontal_cam_lower_origin_r/_z`` + ``_endpoint_r/_z`` (+ ``_phi``), one
+# entry per chord.  This resolver maps each ``hcam_{l,u}_NN`` channel to its
+# chord's ``(origin, endpoint)`` so the soft-X-ray emission tokens carry their
+# line-of-sight geometry (kind = sxr_chord) — the interior-diagnostic LoS the
+# world model attends over.  Reads ONLY the apparatus chord geometry arrays.
+
+#: ``hcam_l_NN`` / ``hcam_u_NN`` channel-name parser -> ``(side, index)``.
+_XSX_HCAM_RE = re.compile(r"^hcam_(?P<side>[lu])_(?P<i>\d+)$")
+#: xsx camera side -> L2 soft_x_rays camera-name prefix.
+_XSX_SIDE_TO_L2_CAM = {"l": "horizontal_cam_lower", "u": "horizontal_cam_upper"}
+
+
+def xsx_chord_geometry_for_channels(
+    channel_names: Sequence[str],
+    shot_id: int,
+) -> AlignedGeometry:
+    """Resolve xsx ``hcam_{l,u}_NN`` channel names to soft-X-ray chord geometry.
+
+    Each chord channel gets its line-of-sight ``(origin, endpoint)`` from the L2
+    ``soft_x_rays`` group (``horizontal_cam_{lower,upper}_origin/_endpoint_r/_z``
+    + ``_phi``), aligned 1:1 by chord index, ``sensor_kind = sxr_chord``.  A
+    chord whose endpoints are the dead ``(0,0)->(0,0)`` placeholder, or any
+    unrecognised channel, stays ``scalar`` with NaN coordinates (present +
+    explicit, never dropped).  An unreadable L2 store yields the all-scalar
+    fallback.  Always aligned 1:1 with ``channel_names``.
+    """
+    import zarr  # noqa: PLC0415
+
+    from imas_ambix.data.paths import LEVEL2_DIR  # noqa: PLC0415
+
+    names = [str(c) for c in channel_names]
+    feats = np.full((len(names), N_GEOMETRY_FEATURES), np.nan, dtype=np.float32)
+    kinds: list[str] = [KIND_SCALAR] * len(names)
+
+    path = LEVEL2_DIR / f"{int(shot_id)}.zarr"
+    root = None
+    if path.exists():
+        try:
+            root = zarr.open_group(str(path), mode="r")
+            if "soft_x_rays" not in set(root.group_keys()):
+                root = None
+        except Exception:  # noqa: BLE001
+            root = None
+    if root is None:
+        return AlignedGeometry(
+            channel_names=tuple(names),
+            feature_names=tuple(GEOMETRY_FEATURE_NAMES),
+            features=feats,
+            sensor_kinds=tuple(kinds),
+        )
+    for k, name in enumerate(names):
+        m = _XSX_HCAM_RE.match(name)
+        if m is None:
+            continue
+        cam = _XSX_SIDE_TO_L2_CAM.get(m.group("side"))
+        if cam is None:
+            continue
+        _fill_sxr_chord(feats, kinds, k, root, cam, int(m.group("i")))
     return AlignedGeometry(
         channel_names=tuple(names),
         feature_names=tuple(GEOMETRY_FEATURE_NAMES),

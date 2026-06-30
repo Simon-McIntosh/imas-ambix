@@ -340,3 +340,102 @@ def test_already_encoded_require_absolute_supersedes_per_shot(tmp_path, monkeypa
     # … but NOT done when absolute is required → the supersede re-encodes it.
     assert enc.already_encoded(7777, "xim", require_mode="absolute") is False
     assert enc.already_encoded(7777, "xim", require_mode="per_shot") is True
+
+
+# ---------------------------------------------------------------------------
+# Interior-diagnostic chord geometry resolvers (xsx / interferometer / SXR)
+# ---------------------------------------------------------------------------
+#
+# These exercise the L2-backed chord-geometry resolvers against a REAL L2 store
+# (skipped when no L2 corpus is mounted).  The done-when contract: the interior
+# chord groups now resolve to FINITE line-of-sight endpoints.
+
+
+def _first_l2_shot_with_sxr():
+    """First on-disk L2 shot whose soft_x_rays carries non-zero chord origins."""
+    import zarr
+
+    from imas_ambix.data.paths import LEVEL2_DIR
+
+    if not LEVEL2_DIR.exists():
+        return None
+    for p in sorted(LEVEL2_DIR.glob("*.zarr"))[:200]:
+        try:
+            r = zarr.open_group(str(p), mode="r")
+            if "soft_x_rays" not in set(r.group_keys()):
+                continue
+            sg = r["soft_x_rays"]
+            if "horizontal_cam_lower_origin_r" not in set(sg.array_keys()):
+                continue
+            orr = np.asarray(sg["horizontal_cam_lower_origin_r"]).reshape(-1)
+            if np.any(orr != 0):
+                return int(p.stem)
+        except Exception:  # noqa: BLE001
+            continue
+    return None
+
+
+def test_xsx_chord_geometry_resolves_to_finite_endpoints():
+    """The xsx ``hcam_{l,u}_NN`` channel names resolve to finite soft-X-ray
+    chord endpoints (kind=sxr_chord) read from the L2 soft_x_rays group."""
+    from imas_ambix.gs.geometry_export import KIND_SXR_CHORD
+    from imas_ambix.tokenizer.geometry_reader import xsx_chord_geometry_for_channels
+
+    sid = _first_l2_shot_with_sxr()
+    if sid is None:
+        pytest.skip("no on-disk L2 store with soft_x_rays chord geometry")
+    # chord 0 is the dead (0,0)->(0,0) placeholder; chords 1.. carry real LoS.
+    chan = [f"hcam_l_{i:02d}" for i in range(18)] + [
+        f"hcam_u_{i:02d}" for i in range(18)
+    ]
+    ag = xsx_chord_geometry_for_channels(chan, sid)
+    assert ag.features.shape == (len(chan), 10)
+    # chord endpoint columns are (6,7,8,9) = (r1,z1,r2,z2)
+    n_resolved = 0
+    for i, k in enumerate(ag.sensor_kinds):
+        if k == KIND_SXR_CHORD:
+            assert np.all(np.isfinite(ag.features[i, 6:10]))
+            n_resolved += 1
+    # the bulk of the 36 chords (all but the dead (0,0) placeholders) resolve.
+    assert n_resolved >= 30, n_resolved
+
+
+def test_interferometer_chord_resolves_to_finite_static_endpoints():
+    """interferometer ``n_e_line`` resolves to the documented static MAST
+    vertical-chord line-of-sight (finite endpoints, kind=interferometer_chord)."""
+    from imas_ambix.gs.geometry_export import KIND_INTERFEROMETER_CHORD
+    from imas_ambix.tokenizer.geometry_reader import (
+        l2_signal_hf_geometry_for_channels,
+    )
+
+    sid = _first_l2_shot_with_sxr()
+    if sid is None:
+        pytest.skip("no on-disk L2 store")
+    chan = ["interferometer.n_e_line"]
+    ag = l2_signal_hf_geometry_for_channels(chan, sid)
+    assert ag.sensor_kinds[0] == KIND_INTERFEROMETER_CHORD
+    assert np.all(np.isfinite(ag.features[0, 6:10]))  # chord endpoints finite
+    # vertical chord: r1 == r2 (constant R), z1 < z2.
+    r1, z1, r2, z2 = (float(ag.features[0, j]) for j in (6, 7, 8, 9))
+    assert r1 == pytest.approx(r2)
+    assert z1 < z2
+
+
+def test_l2_sxr_chord_resolves_via_l2_names():
+    """The L2 light-path resolver maps ``soft_x_rays.{cam}[i]`` names to finite
+    chord endpoints too (the other naming the world model may ingest)."""
+    from imas_ambix.gs.geometry_export import KIND_SXR_CHORD
+    from imas_ambix.tokenizer.geometry_reader import (
+        l2_signal_hf_geometry_for_channels,
+    )
+
+    sid = _first_l2_shot_with_sxr()
+    if sid is None:
+        pytest.skip("no on-disk L2 store with soft_x_rays chord geometry")
+    chan = [f"soft_x_rays.horizontal_cam_lower[{i}]" for i in range(1, 18)]
+    ag = l2_signal_hf_geometry_for_channels(chan, sid)
+    n_resolved = sum(k == KIND_SXR_CHORD for k in ag.sensor_kinds)
+    assert n_resolved >= 15, n_resolved
+    for i, k in enumerate(ag.sensor_kinds):
+        if k == KIND_SXR_CHORD:
+            assert np.all(np.isfinite(ag.features[i, 6:10]))
