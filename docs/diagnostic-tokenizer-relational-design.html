@@ -184,10 +184,14 @@ xpt_R 0.50), now also asking whether the relational tokeniser <em>resolves rotat
 which the per-scalar/continuous probes could not.</p>
 
 <h2 id="s5">§5 — Empirical validation (2026-06-30)</h2>
-<p>The design above is now <strong>empirically validated</strong> on the firewalled diagnostics→equilibrium
-oracle. Building the relational tokeniser exactly as §4 prescribes — periodic <strong>(sin, cos)</strong> φ/θ
-encoding, the previously-missing <strong>toroidal saddle array</strong> (12 loops @ 12 φ), <strong>STFT</strong>
-phase lift, continuous signed magnitude — moved every boundary component above baseline for the first time:</p>
+<p>The design above is <strong>empirically validated</strong> on the firewalled diagnostics→equilibrium oracle,
+with two honest corrections recorded below. The <strong>relational + periodic-(sin,cos)-geometry + STFT +
+continuous-magnitude</strong> ingestion recovers the magnetic axis at ~66–69% of the raw-float ceiling and the
+periodic seam + rotation demonstrations pass. Two things were initially over-credited and are corrected in the
+bullets: (i) the <em>toroidal array's</em> apparent axis/X-point lift does not survive clean labels (its real
+value is rotation/n-recovery); (ii) the X-point recovery came from fixing the <em>label</em> (the upper/lower
+split), not from any single ingestion feature. The first run (continuous + toroidal + periodic-φ + STFT, under
+the older single-primary labels):</p>
 <div style="overflow-x:auto"><table>
 <thead><tr><th>arm (absolute, 54-shot test)</th><th>axis_R</th><th>axis_Z</th><th>xpt_R</th><th>note</th></tr></thead>
 <tbody>
@@ -203,24 +207,27 @@ phase lift, continuous signed magnitude — moved every boundary component above
   φ-offset crossing the 360°→0° seam (analytically, a spatial DFT across the 12 φ recovers n at 100%).</li>
   <li><strong>Continuous ≫ token</strong> within the same run (xpt_R +0.29 vs −0.05) reconfirms quantisation —
   not architecture — is the discrete-token-path gap.</li>
-  <li><strong>Clean toroidal attribution</strong> (job 1223599, one run, identical labels/cohort/seed, all
-  continuous): poloidal-only A → +toroidal B → +coils C give axis_R <strong>0.276 → 0.346 → 0.379</strong> and
-  axis_Z <strong>0.318 → 0.473 → 0.453</strong>. So the previously-missing <strong>toroidal saddle array makes a
-  real, isolated contribution: +0.070 axis_R and +0.156 axis_Z</strong> (concentrated in axis_Z — the toroidal
-  array constrains the vertical-field/shape picture), confirming the space-phasing thesis. Coils are ~neutral
-  (resolving an earlier apparent coil regression as a label confound, not coils being harmful).</li>
-  <li><strong>X-point is not yet a clean verdict — and is entangled with divertor topology we are NOT solving
-  here.</strong> A single "primary" target is bimodal across topology switches (xpt_Z ~0 even at the raw
-  ceiling). The discontinuity-aware label fix (bc92405) removed the worst artifact (no label between two physical
-  nulls). A naïve next step — an upper/lower-null split with a <strong>ψ-proximity filter</strong>
-  (ψ(null)≈ψ(LCFS)) — is <strong>physically invalid</strong>: the flux map is <em>multimodal</em> with a
-  <strong>public/private</strong> distinction, so a secondary null in a <em>private</em> region (snowflake,
-  X-divertor, super-X) can sit at ψ≈ψ_LCFS yet not be on the confined boundary — ψ-proximity cannot separate
-  public from private. And "upper/lower SN" does not cover the divertor topologies we must support. <strong>We
-  do not solve divertor-topology classification or public/private separation here</strong> (a known, deferred
-  limitation); the X-point representation must therefore make <em>no</em> topology claim — predict the
-  reconstruction's nulls assumption-free (e.g. an order-invariant null set), with the X-point kept out of the
-  headline verdict until handled properly. Axis + LCFS + the rotation demo carry the current verdict.</li>
+  <li><strong>Toroidal axis/X-point "lift" — RETRACTED as a label/cohort artifact.</strong> An ablation under
+  the OLD single-primary labels (job 1223599) showed +toroidal lifting axis_Z 0.318→0.473 (+0.156). It does
+  <strong>NOT</strong> replicate under the corrected 14-D split labels (job 1223605): poloidal-only A vs
+  +toroidal B gives axis_Z +0.47 vs +0.45 and upper_xpt_R +0.36 vs +0.17 — i.e. B−A ≈ −0.02 to −0.16, a mild
+  <em>dilution</em> (more tokens, same 184-example cohort). The earlier "+0.156" was measured against the
+  corrupted baseline. <strong>The toroidal array's durable, demonstrated value is its rotation / toroidal-mode-n
+  recovery + seam capability</strong> (the synthetic n-recovery test, cohort-independent), NOT an axis/xpt skill
+  lift on this small cohort. Lesson: ±0.15 skill deltas on 184 examples are not robust — grow the cohort.</li>
+  <li><strong>X-point — the split decisively confirms it was a LABEL artifact.</strong> The upper/lower-null
+  split (14-D: lower/upper R/Z, sign-pure present-when-present channels) landed (commit 55f0cea) and under clean
+  split labels <strong>poloidal magnetics alone recovers ALL 14 components above baseline</strong> (the first
+  fully-feasible arm): axis_R +0.38, axis_Z +0.47, lower_xpt_R/Z +0.32/+0.43, upper_xpt_R/Z +0.36/+0.46, LCFS
+  +0.24–0.58. So the old xpt~0 was <em>entirely</em> the bimodal single-primary label, not the model — the gate
+  is met on the magnetics path.<br>
+  <strong>Caveat that REMAINS (deferred, per the lead):</strong> the ψ-proximity check shipped with the split is
+  only a <em>coarse</em> ψ-distance outlier reject (rejects 3.5–5.4% of store nulls whose ψ is far from the
+  boundary) — it is <strong>NOT</strong> a public/private discriminator. The flux map is multimodal: a secondary
+  null in a <em>private</em> region (snowflake, X-divertor, super-X) at ψ≈ψ_LCFS still passes and is then
+  sign-of-Z assigned. So divertor-topology classification / public-private separation is <em>not</em> solved
+  here (a documented deferred requirement); the split is a strictly-better representation for the common
+  SN/DN cases, not a topology solver.</li>
 </ul>
 
 </main>
