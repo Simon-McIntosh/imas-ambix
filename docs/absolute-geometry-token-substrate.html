@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="16">
+<meta name="plan-version" content="17">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -486,6 +486,28 @@ Done-when
   1. Saddle corpus calibration wired; B-A re-measured on the same cohort.
   2. Poloidal-m demo added; result folded into the relational research doc; followup resolved.</pre>
     </article>
+<article class="r-fu" data-id="f-ags-allsignals-consolidation" data-status="open" data-tier="opus" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">All-signals consolidation: route EVERY diagnostic stream through one shared geometry-aware, phase-preserving space-time encoder (the production ingestion)</h4>
+    <div class="r-fu-body">Lead directive 2026-06-30: drive the all-signals consolidation (decision all-signals-spacetime). The relational space-time + periodic-geometry + STFT + continuous-magnitude ingestion is empirically validated on magnetics+toroidal (axis_R 66% / axis_Z 69% of ceiling; clean toroidal attribution +0.07/+0.156; n-recovery + seam demonstrated). Now PROPAGATE that pattern to every signal stream so there is ONE shared ingestion: per-(stream,sensor,time) tokens carrying continuous signed value (or STFT phase lift) + periodic-(sin/cos) geometry PE (R,Z,φ,orientation; chords get line-of-sight endpoints; scalars get scalar-kind) + stream/sensor-kind, attended over (sensor×time), NO pooling, NO per-scalar-uniform/per-channel-independent coding. Streams: magnetics poloidal (done) + toroidal saddle (done) + xma/xim/xsx + interferometer + soft_x_rays + summary + pf_active + gas_injection + ait + ada/adg/aim. Needs: (1) geometry coverage for ALL stream channels (extend geometry_export/reader — chords need endpoints, scalars/coils kinded); (2) a SHARED relational encoder module (extract from the eval probe) the world-model input path + the eval probe both route through; (3) continuous+STFT read path for every stream in spacetime_dataset_v2 (retire per-scalar uniform as the operative path). LIVE-TRAINING file (spacetime_dataset_v2) — change carefully. The signal-audit conformance map (per-stream: current tokenisation / cross-sensor? / phase? / geometry-tagged? / what's needed) is the blueprint.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (§3 consolidation)
+Section: §3
+Tier:    opus
+
+Context
+  Decision all-signals-spacetime is locked; the relational space-time+periodic+STFT+continuous ingestion is validated on magnetics+toroidal. Propagate it to EVERY signal stream as ONE shared geometry-aware, phase-preserving space-time encoder (the production ingestion). Defer the X-point (decision xpoint-topology-deferred) — keep it out of the headline.
+
+Work (audit-driven; the signal-audit conformance table is the blueprint)
+  1. Geometry coverage for ALL stream channels: extend geometry_export/geometry_reader so interferometer + soft_x_rays chords carry line-of-sight ENDPOINTS, scalars (ip, gas valves) are scalar-kinded, coils carry position; periodic (sin/cos) φ/θ throughout. Test parity (channel names resolve).
+  2. Shared relational encoder: extract the space-time relational encoder (per-sensor tokens + geometry PE + STFT, attention, no pooling) into ONE module that BOTH the eval probe and the world-model input path use. No per-stream ad-hoc ingestion.
+  3. Read-path consolidation (spacetime_dataset_v2): every stream provides continuous signed values (+ STFT where phase matters); retire the per-scalar uniform quantiser as the operative path (keep only as a labelled diagnostic). LIVE training file — keep changes coherent + tested; do not break the in-flight world-model loaders.
+  4. Validate: the consolidated ingestion reproduces (or improves) the magnetics+toroidal oracle result, and the other streams now contribute through the shared encoder; report per-stream conformance + the oracle skill.
+
+Done-when
+  1. One shared geometry-aware, phase-preserving space-time encoder; every signal stream routes through it (no per-scalar-uniform / per-channel-independent operative path).
+  2. Geometry coverage for all stream channels (chords=endpoints, scalars kinded), periodic angles throughout; tests green.
+  3. Oracle re-run holds/improves axis+LCFS; per-stream consolidation reported; followup resolved.</pre>
+    </article>
 </section>
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
@@ -525,6 +547,16 @@ Done-when
       <button class="r-opt" data-value="per-stream-adhoc">Each stream keeps its own ad-hoc scheme (the status quo that lost phase/spatial structure)</button>
       </p>
     <p class="r-dec-rat">Locked by the lead 2026-06-30. All signals must learn spatial (between-sensor) AND temporal (incl. phasing) relations via the space-time transformer pattern; review every stream to ensure it conforms.</p>
+    </div>
+<div class="r-dec" data-key="xpoint-topology-deferred" data-choice="defer-keep-out-of-headline" data-by="Simon McIntosh" data-when="2026-06-30">
+    <p class="r-dec-q">How is the X-point target represented given multimodal flux / public-private / exotic divertor topologies?</p>
+    <p class="r-dec-ctx">A single &#x27;primary&#x27; X-point target is bimodal across topology switches. A ψ-proximity &#x27;boundary&#x27; filter (ψ(null)≈ψ(LCFS)) is physically INVALID: the flux map is multimodal with a public/private distinction, so a secondary null in a private region (snowflake / X-divertor / super-X) can sit at ψ≈ψ_LCFS yet not be on the confined boundary. The divertor topologies we must support are not limited to upper/lower SN.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="defer-keep-out-of-headline">DEFER: keep the landed discontinuity-aware single-primary label (worst artifact gone), keep the X-point OUT of the headline verdict, and record robust multi-null / public-private / exotic-divertor (snowflake/X-div/super-X) handling as a DEFERRED requirement; do NOT solve topology here</button>
+      <button class="r-opt" data-value="psi-filter-upper-lower-split">ψ-proximity filter + upper/lower split (REJECTED — physically invalid: ψ cannot separate public from private; SN-only assumption)</button>
+      <button class="r-opt" data-value="assumption-free-null-set">Predict the reconstruction&#x27;s nulls as an order-invariant set, no semantics (honest but a modeling change for a non-load-bearing target now)</button>
+      </p>
+    <p class="r-dec-rat">Locked by the lead 2026-06-30. The flux map is multimodal (public/private); ψ-proximity cannot identify boundary nulls; exotic divertor topologies (snowflake/X-divertor/super-X) are out of scope to classify here. Axis + LCFS + the rotation demo carry the verdict; the X-point stays out of the headline. Robust topology-aware X-point handling is a documented DEFERRED requirement, not solved in this stage.</p>
     </div>
 </section>
 </main>
