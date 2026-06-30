@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="diagnostic-tokenizer-relational-design">
+  <meta name="plan-title"    content="Diagnostic Tokeniser: Pretrained Backbones, Toroidal Geometry & Space-Phasing">
+  <meta name="plan-summary"  content="Why a per-scalar tokeniser loses the boundary; whether a pretrained time-series foundation model (TimesFM/Chronos/Moirai/...) can replace a learned codebook; how the tokamak's toroidal geometry dictates diagnostic grouping; and why the tokeniser must capture cross-sensor SPACE phasing (rotating MHD ~ exp(i(mθ−nφ−ωt))), not just time phasing.">
+  <meta name="plan-status"   content="active">
+  <meta name="plan-roi"      content="high">
+  <meta name="plan-tier"     content="opus">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <meta name="plan-modified" content="2026-06-30">
+  <title>Diagnostic Tokeniser: Backbones, Toroidal Geometry &amp; Space-Phasing | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><em>Design analysis answering four lead questions (2026-06-30): (1) why learn our own
+codebook rather than use a pretrained model like TimesFM&nbsp;2.5; (2) confirm the video
+tokeniser; (3) how toroidal geometry should drive diagnostic grouping/placement; (4) ensure
+the tokenisers capture <strong>space</strong> phasing (rotating MHD), not only time phasing.
+Companion to <a href="/imas-ambix/absolute-geometry-token-substrate.html">absolute-geometry-token-substrate</a>.</em></p>
+
+<h2 id="s0">§0 — TL;DR</h2>
+<ul>
+  <li><strong>Video tokeniser = Open-MAGVIT2</strong> (confirmed in code: <code>tokenizer/frames.py</code>
+  <code>OpenMagvit2Tokenizer</code>, LFQ codebook, weights at <code>/work/.../v1/open-magvit2</code>).</li>
+  <li><strong>"Learn our own" was never really the question.</strong> What failed for magnetics was a
+  <em>naïve per-scalar uniform quantiser</em>, not learned tokenisation. But the deeper point is that
+  <strong>no pretrained time-series foundation model captures the structure we need</strong>: they are all
+  <em>univariate / channel-independent temporal</em> models. The thing that resolves the boundary — the
+  <em>cross-sensor relationship</em> around the torus — is plasma-specific and is <strong>ours to build</strong>,
+  whatever temporal backbone we adopt.</li>
+  <li><strong>Toroidal geometry dictates the grouping.</strong> Diagnostics live on <em>arrays</em>: a
+  poloidal array (varying θ at one φ) resolves the poloidal mode <em>m</em>; a toroidal array (varying φ)
+  resolves the toroidal mode <em>n</em> and rotation. We currently tokenise only the single-φ poloidal probes —
+  <strong>the toroidal array is missing, so we physically cannot see toroidal rotation.</strong></li>
+  <li><strong>Space phasing is the missing axis.</strong> A rotating MHD mode is
+  <code>B ∝ exp(i(mθ − nφ − ωt))</code>. Resolving (m, n, ω) needs the <em>relative phase between sensors</em> —
+  a magnitude-quantised, per-channel tokeniser destroys exactly this. The tokeniser must be
+  <strong>geometry-aware and phase-preserving</strong>.</li>
+</ul>
+
+<h2 id="s1">§1 — Why not just a pretrained foundation model (TimesFM 2.5, …)?</h2>
+<p>It is a crowded field, and the honest answer has two parts.</p>
+
+<p><strong>(a) The naïve quantiser, not "tokenisation", is what lost the boundary.</strong> Our staged
+magnetics path bins each sensor's scalar value, each timestep, independently into 256 uniform levels, then
+looks the bin id up in a learned embedding table — an <em>unordered categorical</em> code with no built-in
+ordinal/sign/metric. That is why continuous beat it ~2–3× (axis_Z +0.18→+0.58). A <em>learned</em> codebook
+(VQ/FSQ over patches, the video recipe) is the fair comparison, and is tracked separately
+(<a href="/imas-ambix/absolute-geometry-token-substrate.html">segment-codebook</a>).</p>
+
+<p><strong>(b) But pretrained TS foundation models do not model the relation we need.</strong> TimesFM,
+Chronos/Chronos-Bolt (we already wrap <code>chronos-t5-small</code>), Moirai, MOMENT, Time-MoE, Toto and the
+rest are <em>univariate / channel-independent</em>: they embed <em>one series at a time</em> and have no notion
+of where a sensor sits or how it relates to its neighbours around the torus. They are trained on generic
+(retail/energy/weather) series — MHz Mirnov oscillations are out-of-distribution. They can be an excellent
+<em>per-sensor temporal encoder</em> (saving us from training that from scratch), but the
+<strong>cross-sensor spatial-phase structure that encodes the toroidal mode number is invisible to every one
+of them.</strong> So the recommendation is not "pretrained vs ours" — it is:</p>
+<blockquote><strong>(optionally) a pretrained temporal backbone per sensor &nbsp;+&nbsp; OUR geometry-aware
+spatial-relational layer over the sensor array.</strong> The relational layer is the irreducible, plasma-specific
+part; no off-the-shelf model provides it.</blockquote>
+<p class="muted">A web-grounded comparison table (architecture, tokenisation, univariate/multivariate, context,
+licence, offline weights) across TimesFM&nbsp;2.5 / Chronos-Bolt / Moirai-MoE / MOMENT / Time-MoE / Toto / … is
+being compiled and will be folded in here; the selection criterion is the spatial-phase gap above.</p>
+
+<h2 id="s2">§2 — Toroidal geometry → how diagnostics group</h2>
+<p>A tokamak is a torus: coordinates <code>(R, Z, φ)</code> — major radius R, height Z, toroidal angle φ;
+the poloidal angle θ runs around the (R,Z) cross-section. Magnetic diagnostics are deliberately laid out as
+<strong>arrays</strong> whose geometry sets what they can resolve:</p>
+<ul>
+  <li><strong>Poloidal arrays</strong> — many probes spanning θ at <em>one</em> toroidal angle φ. They sample
+  the poloidal structure → the <strong>poloidal mode number m</strong>. MAST's <code>ccbv</code> is exactly this:
+  40 B<sub>pol</sub> probes spanning Z = −1.53…+1.45&nbsp;m at fixed R≈0.18&nbsp;m, all at a single φ.</li>
+  <li><strong>Toroidal arrays</strong> — probes at the same poloidal location spread around φ. They sample the
+  structure <em>around the torus</em> → the <strong>toroidal mode number n</strong> and the
+  <strong>rotation</strong>. MAST has <code>b_field_tor_probe_cc</code>: 36 probes across
+  <strong>12 distinct toroidal angles (10°–350°)</strong>.</li>
+</ul>
+
+<figure class="r-fig" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start">
+  <img src="/imas-ambix/figures/diagnostic-tokenizer-geometry/fig-poloidal-arrays.png"
+       alt="Poloidal cross-section showing the ccbv/obr/obv B-probe arrays and flux loops around the vessel"
+       style="max-width:320px;height:auto">
+  <img src="/imas-ambix/figures/diagnostic-tokenizer-geometry/fig-toroidal-array.png"
+       alt="Top-down toroidal view: poloidal arrays sit at a single toroidal angle, the toroidal array spans 12 angles"
+       style="max-width:360px;height:auto">
+  <figcaption><strong>Left:</strong> the poloidal cross-section — a column of B<sub>pol</sub> probes resolves
+  <em>m</em> at one φ. <strong>Right:</strong> the toroidal layout — our poloidal arrays sit at a single φ
+  (red), while the toroidal array (orange) samples 12 angles around the machine and is what resolves
+  <em>n</em> + rotation. <strong>That toroidal array is not in our tokenised set today.</strong></figcaption>
+</figure>
+
+<p><strong>Implication for grouping/placement in the tokeniser:</strong> sensors must be organised by their
+geometric role — each token tagged with its <code>(R, Z, φ, orientation)</code> so attention knows the
+angular separations, and arrays kept intact so the model can read the <em>pattern</em> across θ (for m) and
+across φ (for n). Grouping co-located sensors of <em>different</em> modalities (magnetics + SXR + interferometer
+sampling the same (R,Z,φ) region) is the natural next layer once geometry is the shared coordinate.</p>
+
+<div class="callout"><strong>Concrete gap to close:</strong> extend the staged magnetics set (currently
+ccbv/obr/obv/flux_loop/ip — all single-φ poloidal) to <strong>include the toroidal array</strong>
+(<code>b_field_tor_probe</code>) and carry φ in its geometry, so the substrate can represent toroidal mode
+number and rotation at all.</div>
+
+<h2 id="s3">§3 — Space phasing: the rotating-MHD axis we must capture</h2>
+<p>Fast MHD activity (tearing modes, kink/ballooning, ELM precursors) has the form
+<code>B(θ, φ, t) ∝ exp(i(mθ − nφ − ωt))</code> and <strong>rotates</strong> toroidally (and poloidally) with
+the plasma. The information about which mode it is, and how fast it spins, lives in the <em>relative phase</em>
+between sensors at different φ (and θ), tracked through time — <strong>space phasing</strong>, the spatial
+analogue of the temporal phasing we already flagged.</p>
+
+<figure class="r-fig">
+  <img src="/imas-ambix/figures/diagnostic-tokenizer-geometry/fig-rotating-mode-phase.png"
+       alt="Left: B(phi,t) for a rotating n=2 mode showing diagonal phase fronts; right: a single time slice across the 12-probe toroidal array showing two cycles around phi"
+       style="max-width:100%;height:auto">
+  <figcaption>A rotating <em>n</em>=2 mode. <strong>Left:</strong> <code>B(φ,t)</code> — the diagonal fronts
+  <em>are</em> the toroidal rotation; their slope is ω/n. <strong>Right:</strong> one time-slice sampled by the
+  12-probe toroidal array — counting cycles of relative phase around φ gives <em>n</em>; watching that pattern
+  advance gives ω and its sign (rotation direction). A per-channel, magnitude-only tokeniser sees none of this.</figcaption>
+</figure>
+
+<p><strong>Why our representations threaten this:</strong></p>
+<ul>
+  <li><strong>Per-channel independence</strong> discards cross-sensor relationships entirely — you cannot read a
+  relative phase from channels coded in isolation. (This is also why every univariate foundation model is
+  insufficient on its own.)</li>
+  <li><strong>Magnitude quantisation</strong> throws away the fine phase: the multimodal-tokenisation study
+  already <em>measured</em> that VQ/FSQ destroyed the cross-coil phase on <code>xma</code> (Mirnov), and
+  continuous+mask won — precisely the space-phase fragility, now with the boundary at stake.</li>
+  <li><strong>Pooling</strong> (the original probe's sin) averages the array into one vector — the rotating
+  pattern is gone.</li>
+</ul>
+
+<h2 id="s4">§4 — Design: a geometry-aware, phase-preserving relational tokeniser</h2>
+<p>The requirements above converge on one tokeniser design, treating every diagnostic like the cameras:</p>
+<ol>
+  <li><strong>Tokenise space-time SEGMENTS, not single scalars</strong> — patches across <em>sensors</em>
+  (ordered by geometry: θ within a poloidal array, φ within a toroidal array) and across <em>time</em>, with a
+  learned codebook (VQ/FSQ) or a continuous bottleneck, decided by measurement. This is the diagnostic analogue
+  of Open-MAGVIT2's space-time patches.</li>
+  <li><strong>Geometry as positional encoding</strong> — each token carries <code>(R, Z, φ, orientation)</code>
+  so attention can compute angular separations and resolve (m, n).</li>
+  <li><strong>Phase-preserving</strong> — keep the signed, complex/continuous structure (e.g. complex-STFT lift,
+  cross-array spatial-DFT mode-number features — which <code>patch_transformer.py</code> already does per array
+  for <code>xma</code>); do not collapse to magnitude bins.</li>
+  <li><strong>Optional pretrained temporal backbone</strong> — a TS foundation model can provide the per-sensor
+  temporal embedding under the relational layer, but the relational/spatial structure stays ours.</li>
+  <li><strong>Include the toroidal array</strong> (§2) so n and rotation are representable at all; extend toward
+  cross-group geometry-organised segments.</li>
+</ol>
+<p>The acid test stays the firewalled diagnostics→equilibrium oracle (vs the raw-float ceiling axis 0.57–0.68 /
+xpt_R 0.50), now also asking whether the relational tokeniser <em>resolves rotation</em> and lifts the X-point,
+which the per-scalar/continuous probes could not.</p>
+
+</main>
+</body>
+</html>
