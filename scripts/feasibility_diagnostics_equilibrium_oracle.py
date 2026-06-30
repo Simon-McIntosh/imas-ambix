@@ -1292,48 +1292,80 @@ def run(args) -> int:
     channels = probe_channels(tr_examples + te_examples, modalities)
     logger.info("probed channels: %s", {k: v for k, v in channels.items() if v > 0})
 
-    # 5-6) arms.  HEADLINE = the EFIT-input set (magnetics + Ip + coil currents)
-    # fed as CONTINUOUS signed corpus-standardised values — the representation
-    # that recovers most of the raw-float ceiling (the token id embeds the bin as
-    # an UNORDERED categorical, discarding the ordinal/metric/sign structure the
-    # boundary triangulation needs).  The 256-bin token lane is kept ONLY as a
-    # labelled comparison; an all-diagnostics continuous arm is the reference.
-    efit_arm = run_arm(
+    # 5-6) TOROIDAL-ATTRIBUTION ABLATION (all CONTINUOUS, same cohort/seed, one
+    # run) — isolate the toroidal saddle array's contribution cleanly under the
+    # current corrected-label code:
+    #   arm A: POLOIDAL magnetics only (xma + the staged magnetics array = ccbv /
+    #          obr / obv / flux_loop + ip), NO toroidal saddle, NO coils.
+    #   arm B: arm A + the TOROIDAL saddle array (the single variable under test).
+    #   arm C: arm B + the PF-active coil currents (does adding coils help/hurt?).
+    # B − A is the clean toroidal-array attribution; A is the honest magnetics-only
+    # baseline under the current labels (iter1's +0.58 axis_Z was under OLD labels).
+    poloidal_streams = {"xma", "magnetics"}
+    toroidal_streams = poloidal_streams | {SADDLE_STREAM}
+    coil_streams = toroidal_streams | {PF_ACTIVE_STREAM}
+
+    arm_a = run_arm(
         tr_examples,
         te_examples,
         channels,
         modalities,
         args,
-        restrict=set(MAGNETICS_STREAMS),
-        label="efit_inputs_continuous",
+        restrict=poloidal_streams,
+        label="poloidal_magnetics_continuous",
         continuous=True,
     )
-    efit_token_arm = run_arm(
+    arm_b = run_arm(
         tr_examples,
         te_examples,
         channels,
         modalities,
         args,
-        restrict=set(MAGNETICS_STREAMS),
-        label="efit_inputs_token",
-        continuous=False,
-    )
-    all_arm = run_arm(
-        tr_examples,
-        te_examples,
-        channels,
-        modalities,
-        args,
-        restrict=None,
-        label="all_diagnostics_continuous",
+        restrict=toroidal_streams,
+        label="poloidal_plus_toroidal_continuous",
         continuous=True,
     )
-    if efit_arm is None:
-        logger.error("EFIT-input arm produced no streams — abort")
+    arm_c = run_arm(
+        tr_examples,
+        te_examples,
+        channels,
+        modalities,
+        args,
+        restrict=coil_streams,
+        label="poloidal_toroidal_coils_continuous",
+        continuous=True,
+    )
+    if arm_a is None or arm_b is None:
+        logger.error("ablation arm A or B produced no streams — abort")
         return 3
 
-    # the headline result the report + scatter mirror is the EFIT-input arm.
-    all_report, all_pred, all_yte, all_mte = efit_arm
+    # the headline result the report + scatter mirror is arm B (+toroidal).
+    all_report, all_pred, all_yte, all_mte = arm_b
+
+    # log the clean B − A toroidal-attribution delta on axis (+ xpt for the record).
+    def _skill(arm, comp):
+        for row in arm[0]["verdict"]["components"]:
+            if row["component"] == comp:
+                return row["skill"]
+        return None
+
+    for comp in ("axis_R", "axis_Z", "xpt_R"):
+        sa, sb = _skill(arm_a, comp), _skill(arm_b, comp)
+        if sa is not None and sb is not None:
+            note = (
+                "  [xpt: label-suspect, not a verdict]"
+                if comp.startswith("xpt")
+                else ""
+            )
+            logger.info(
+                "TOROIDAL ATTRIBUTION  %-7s: A(poloidal)=%+.3f  B(+toroidal)=%+.3f"
+                "  delta=%+.3f%s",
+                comp,
+                sa,
+                sb,
+                sb - sa,
+                note,
+            )
 
     coverage = {
         "train_examples": len(tr_examples),
@@ -1360,17 +1392,24 @@ def run(args) -> int:
         "target_units": "m",
         "coverage": coverage,
         "arms": {
-            # HEADLINE: EFIT inputs (magnetics + Ip + coil currents), continuous.
-            "efit_inputs_continuous": all_report,
-            # labelled comparison: the SAME inputs through the 256-bin token lane.
-            "efit_inputs_token": (
-                efit_token_arm[0] if efit_token_arm is not None else None
+            # toroidal-attribution ablation (all continuous, same cohort/seed):
+            "poloidal_magnetics_continuous": (arm_a[0] if arm_a is not None else None),
+            # HEADLINE: poloidal + the TOROIDAL saddle array (B − A = attribution).
+            "poloidal_plus_toroidal_continuous": all_report,
+            # + coil currents (does adding coils help or regress?).
+            "poloidal_toroidal_coils_continuous": (
+                arm_c[0] if arm_c is not None else None
             ),
-            # reference: all diagnostics, continuous (richer but prone to overfit).
-            "all_diagnostics_continuous": (all_arm[0] if all_arm is not None else None),
         },
-        # top-level verdict mirrors the headline EFIT-input continuous arm.
+        # top-level verdict mirrors arm B (+toroidal); xpt is label-suspect (the
+        # single-primary X-point target is bimodal across topology switches — the
+        # upper/lower-null split is the deferred fix), NOT a model verdict.
         "verdict": all_report["verdict"],
+        "xpoint_note": (
+            "xpt_R/xpt_Z are X-POINT-LABEL-SUSPECT (the single-primary target is "
+            "bimodal across double-null topology switches; the upper/lower-null "
+            "split is deferred) — reported for completeness, NOT a model verdict."
+        ),
     }
 
     out_root = Path(args.out_root)
@@ -1379,9 +1418,9 @@ def run(args) -> int:
     json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     logger.info("wrote %s", json_path)
 
-    # scatter for the headline EFIT-input continuous arm.
+    # scatter for the headline arm B (poloidal + toroidal saddle, continuous).
     title = (
-        "diagnostics feasibility oracle — magnetics + Ip + coil currents "
+        "diagnostics feasibility oracle — poloidal + TOROIDAL magnetics "
         "(continuous) -> plasma geometry"
     )
     fig_local = out_root / "fig-diag-eq-oracle-geometry-scatter.png"
