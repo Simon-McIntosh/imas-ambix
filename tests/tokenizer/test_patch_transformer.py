@@ -135,3 +135,74 @@ def test_tokenizer_save_load(tmp_path):
     ids1, _lat1, recon1 = tok2.encode_window(windows[0])
     np.testing.assert_array_equal(ids0, ids1)
     np.testing.assert_allclose(recon0, recon1, atol=1e-5)
+
+
+def _calib(name, mean, std):
+    from imas_ambix.calibration.signals import ChannelCalibration
+
+    return ChannelCalibration(
+        name=name,
+        mean=float(mean),
+        std=float(std),
+        min_value=float(mean - 5 * std),
+        max_value=float(mean + 5 * std),
+        q01=float(mean - 2 * std),
+        q50=float(mean),
+        q99=float(mean + 2 * std),
+        n_samples=1000,
+        n_shots=10,
+    )
+
+
+def test_fit_records_calibration_mode_and_survives_save_load(tmp_path):
+    rng = np.random.default_rng(2)
+    windows = [rng.standard_normal((2, 128)).astype(np.float32) for _ in range(2)]
+    names = ["a", "b"]
+    cal = {"a": _calib("a", 0.0, 1.0), "b": _calib("b", 0.0, 1.0)}
+    cfg = PatchTokenizerConfig(
+        patch_size=64, d_model=32, n_layers=1, n_heads=2, bottleneck="fsq"
+    )
+    tok = PatchTransformerTokenizer(cfg=cfg, device="cpu")
+    # per-window default before fit
+    assert tok.calibration_mode == "per_window"
+    tok.fit(windows, epochs=1, seed=0, channel_names=names, corpus_calibration=cal)
+    assert tok.calibration_mode == "absolute"
+    path = tmp_path / "abs.pt"
+    tok.save(path)
+    tok2 = PatchTransformerTokenizer(device="cpu")
+    tok2.load(path)
+    assert tok2.calibration_mode == "absolute"
+
+
+def test_absolute_normalisation_uses_corpus_stats():
+    # A channel with a large DC offset: per-window centres it on its own mean
+    # (~10), absolute centres it on the corpus mean (0) → the normalised inputs
+    # must differ, proving the calibration is actually applied in _normalise.
+    rng = np.random.default_rng(3)
+    x = (rng.standard_normal((1, 256)).astype(np.float32)) + 10.0
+    cfg = PatchTokenizerConfig(patch_size=64, d_model=16, n_layers=1, n_heads=2)
+    tok = PatchTransformerTokenizer(cfg=cfg, device="cpu")
+    z_pw, m_pw, _ = tok._normalise(x, fit=False)
+    z_abs, m_abs, _ = tok._normalise(
+        x,
+        fit=False,
+        channel_names=["a"],
+        corpus_calibration={"a": _calib("a", 0.0, 1.0)},
+    )
+    assert m_pw[0, 0] == pytest.approx(x.mean(), abs=1e-3)  # per-window mean ~10
+    assert m_abs[0, 0] == pytest.approx(0.0, abs=1e-9)  # corpus mean 0
+    assert not np.allclose(z_pw, z_abs)
+
+
+def test_normalise_default_is_byte_identical_without_calibration():
+    # The safety invariant: omitting calibration leaves behaviour unchanged.
+    rng = np.random.default_rng(4)
+    x = rng.standard_normal((3, 128)).astype(np.float32)
+    tok = PatchTransformerTokenizer(device="cpu")
+    z_a, m_a, s_a = tok._normalise(x, fit=False)
+    z_b, m_b, s_b = tok._normalise(
+        x, fit=False, channel_names=None, corpus_calibration=None
+    )
+    np.testing.assert_array_equal(z_a, z_b)
+    np.testing.assert_array_equal(m_a, m_b)
+    np.testing.assert_array_equal(s_a, s_b)

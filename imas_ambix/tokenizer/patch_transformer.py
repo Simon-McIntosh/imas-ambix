@@ -493,6 +493,8 @@ class PatchTransformerTokenizer:
 
     def __post_init__(self) -> None:
         self._model = None
+        # Normalisation regime the trained weights belong to; set by fit()/load().
+        self.calibration_mode = "per_window"
 
     # -- feature prep -------------------------------------------------------
 
@@ -568,6 +570,8 @@ class PatchTransformerTokenizer:
         seed: int = 0,
         log_every: int = 5,
         logger=None,
+        channel_names: Sequence[str] | None = None,
+        corpus_calibration: dict[str, ChannelCalibration] | None = None,
     ) -> dict:
         """Train the autoencoder on a list of ``(C, T)`` signal windows.
 
@@ -575,9 +579,20 @@ class PatchTransformerTokenizer:
         STFT-lifted, then fed as a sequence batch.  Reconstruction is in
         feature space (STFT real/imag if ``use_stft``) so phase is optimised
         directly.  Returns a small history dict.
+
+        When ``corpus_calibration`` is supplied the channels are standardised
+        against their CORPUS mean/std (absolute mode) rather than per-window —
+        this is the normalisation the encode path uses, so the bottleneck MUST
+        be trained under the same distribution it will see at inference.
+        ``channel_names`` aligns each row of every window to its calibration
+        entry; all windows in one ``fit`` call must share this channel order
+        (the train path intersects channels to a common set before calling).
         """
         import torch
 
+        self.calibration_mode = (
+            "absolute" if corpus_calibration is not None else "per_window"
+        )
         rng = np.random.default_rng(seed)
         torch.manual_seed(seed)
         self._model = build_model(self.cfg).to(self.device)
@@ -591,7 +606,12 @@ class PatchTransformerTokenizer:
         seq = self.cfg.seq_patches
         all_feats: list[np.ndarray] = []
         for w in windows:
-            z, _, _ = self._normalise(np.asarray(w, dtype=np.float32), fit=False)
+            z, _, _ = self._normalise(
+                np.asarray(w, dtype=np.float32),
+                fit=False,
+                channel_names=channel_names,
+                corpus_calibration=corpus_calibration,
+            )
             feats, _ = self._features(z)  # (C, P, feat)
             n_patches = feats.shape[1]
             n_seg = n_patches // seq
@@ -703,17 +723,29 @@ class PatchTransformerTokenizer:
         )
 
     def roundtrip_metrics(
-        self, x: np.ndarray, *, dt: float, is_coil_array: bool = False
+        self,
+        x: np.ndarray,
+        *,
+        dt: float,
+        is_coil_array: bool = False,
+        channel_names: Sequence[str] | None = None,
+        corpus_calibration: dict[str, ChannelCalibration] | None = None,
     ) -> dict:
         """Full phase-fidelity QC for one window — the codebook-decision data.
 
         Returns reconstruction CRPS, banded phase error, active-code count,
-        and (for a coil array) mode-number recovery.
+        and (for a coil array) mode-number recovery.  ``corpus_calibration``
+        (+ ``channel_names``) must match what the bottleneck was trained under,
+        so the holdout fidelity is measured in the same normalisation regime.
         """
         x = np.asarray(x, dtype=np.float32)
         if x.ndim == 1:
             x = x[None, :]
-        ids, _latent, recon = self.encode_window(x)
+        ids, _latent, recon = self.encode_window(
+            x,
+            channel_names=channel_names,
+            corpus_calibration=corpus_calibration,
+        )
         out: dict[str, float] = {
             "recon_crps": reconstruction_crps(x, recon),
             "phase_err": phase_error(x, recon, dt=dt),
@@ -735,6 +767,10 @@ class PatchTransformerTokenizer:
                 "cfg": self.cfg.__dict__,
                 "state_dict": self._model.state_dict(),
                 "name": self.name,
+                # The normalisation the weights were trained under.  The encode
+                # path asserts this matches its requested mode so a per-window
+                # codebook is never silently used for an absolute-mode encode.
+                "calibration_mode": self.calibration_mode,
             },
             str(path),
         )
@@ -747,3 +783,5 @@ class PatchTransformerTokenizer:
         self._model = build_model(self.cfg).to(self.device)
         self._model.load_state_dict(ckpt["state_dict"])
         self.name = ckpt["name"]
+        # Older checkpoints predate the field → treat them as per-window.
+        self.calibration_mode = ckpt.get("calibration_mode", "per_window")

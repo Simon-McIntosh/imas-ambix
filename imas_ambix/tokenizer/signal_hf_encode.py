@@ -256,6 +256,7 @@ def decide_codebook(
     epochs: int,
     patch_size: int,
     out_path: Path,
+    corpus_calibration=None,
 ) -> dict:
     """Train FSQ/VQ/continuous; measure phase fidelity on the holdout.
 
@@ -267,7 +268,7 @@ def decide_codebook(
     """
     spec = SPECS[group]
     train_windows, channels = _collect_windows(train_ids, group)
-    hold_windows, _ = _collect_windows(holdout_ids, group)
+    hold_windows, hold_channels = _collect_windows(holdout_ids, group)
     if not train_windows or not hold_windows:
         raise RuntimeError(f"no usable {group} windows (train/holdout)")
     # rate from the first train shot (uniform within a group/campaign era).
@@ -282,6 +283,9 @@ def decide_codebook(
         "native_rate_hz": native_rate,
         "n_train": len(train_windows),
         "n_holdout": len(hold_windows),
+        "calibration_mode": (
+            "absolute" if corpus_calibration is not None else "per_window"
+        ),
         "variants": {},
     }
 
@@ -291,11 +295,23 @@ def decide_codebook(
         )
         tok = PatchTransformerTokenizer(cfg=cfg, name=spec.patch_block, device=device)
         t0 = time.time()
-        hist = tok.fit(train_windows, epochs=epochs, logger=logger)
+        hist = tok.fit(
+            train_windows,
+            epochs=epochs,
+            logger=logger,
+            channel_names=channels,
+            corpus_calibration=corpus_calibration,
+        )
         # Aggregate phase-fidelity over the holdout shots.
         crps, perr, corr, mperr, active = [], [], [], [], []
         for hw in hold_windows:
-            m = tok.roundtrip_metrics(hw, dt=dt, is_coil_array=spec.is_coil_array)
+            m = tok.roundtrip_metrics(
+                hw,
+                dt=dt,
+                is_coil_array=spec.is_coil_array,
+                channel_names=hold_channels,
+                corpus_calibration=corpus_calibration,
+            )
             crps.append(m["recon_crps"])
             perr.append(m["phase_err"])
             active.append(m["n_active_codes"])
@@ -756,17 +772,29 @@ def main(argv: list[str] | None = None) -> int:
     common.add_argument("--device", default="cuda")
     common.add_argument("--patch-size", type=int, default=64)
 
+    # The bottleneck is trained under the SAME normalisation it will see at
+    # encode time.  --absolute trains against the persisted CORPUS calibration
+    # (SI magnitude survives tokenisation); a per-window codebook is invalid for
+    # absolute-mode encode, so the retrain MUST pass this flag.
+    _abs_help = (
+        "train/decide against the persisted CORPUS calibration (absolute / SI "
+        "magnitude) instead of per-window z-scoring; fails loud if the group "
+        "has no calibration JSON yet"
+    )
+
     pd = sub.add_parser("decide", parents=[common])
     pd.add_argument("--train", required=True, help="shot ids or a file")
     pd.add_argument("--holdout", required=True, help="shot ids or a file")
     pd.add_argument("--epochs", type=int, default=40)
     pd.add_argument("--out", type=Path, required=True)
+    pd.add_argument("--absolute", action="store_true", help=_abs_help)
 
     pt = sub.add_parser("train", parents=[common])
     pt.add_argument("--train", required=True)
     pt.add_argument("--bottleneck", default="fsq")
     pt.add_argument("--epochs", type=int, default=40)
     pt.add_argument("--out", type=Path, required=True, help="checkpoint path")
+    pt.add_argument("--absolute", action="store_true", help=_abs_help)
 
     pe = sub.add_parser("encode", parents=[common])
     pe.add_argument(
@@ -805,7 +833,28 @@ def main(argv: list[str] | None = None) -> int:
     _install_signal_handler()
     _torch_perf_setup(args.device)
 
+    def _load_calibration_or_die(group: str):
+        """Load the corpus calibration for ``group`` or exit loud (--absolute)."""
+        from imas_ambix.calibration.corpus_compute import load_group_calibration
+
+        cal = load_group_calibration(group)
+        if cal is None:
+            raise SystemExit(
+                f"--absolute requested but no corpus calibration found for "
+                f"group {group!r}; run `python -m "
+                f"imas_ambix.calibration.corpus_compute --group {group}` first"
+            )
+        logger.info(
+            "absolute mode: loaded calibration for %d channels (group %r)",
+            len(cal),
+            group,
+        )
+        return cal
+
     if args.cmd == "decide":
+        corpus_calibration = (
+            _load_calibration_or_die(args.group) if args.absolute else None
+        )
         decide_codebook(
             args.group,
             _parse_ids(args.train),
@@ -814,9 +863,13 @@ def main(argv: list[str] | None = None) -> int:
             epochs=args.epochs,
             patch_size=args.patch_size,
             out_path=args.out,
+            corpus_calibration=corpus_calibration,
         )
     elif args.cmd == "train":
-        windows, _chan = _collect_windows(_parse_ids(args.train), args.group)
+        corpus_calibration = (
+            _load_calibration_or_die(args.group) if args.absolute else None
+        )
+        windows, chan = _collect_windows(_parse_ids(args.train), args.group)
         cfg = PatchTokenizerConfig(
             patch_size=args.patch_size, bottleneck=args.bottleneck, use_stft=True
         )
@@ -824,13 +877,36 @@ def main(argv: list[str] | None = None) -> int:
         tok = PatchTransformerTokenizer(
             cfg=cfg, name=spec.patch_block, device=args.device
         )
-        tok.fit(windows, epochs=args.epochs, logger=logger)
+        tok.fit(
+            windows,
+            epochs=args.epochs,
+            logger=logger,
+            channel_names=chan,
+            corpus_calibration=corpus_calibration,
+        )
         args.out.parent.mkdir(parents=True, exist_ok=True)
         tok.save(args.out)
-        logger.info("saved tokenizer → %s", args.out)
+        logger.info(
+            "saved tokenizer → %s (calibration_mode=%s)",
+            args.out,
+            "absolute" if corpus_calibration is not None else "per_window",
+        )
     elif args.cmd == "encode":
         tok = PatchTransformerTokenizer(device=args.device)
         tok.load(args.ckpt)
+        # Fail loud on a normalisation mismatch: a per-window codebook is
+        # invalid for an --absolute encode (and vice versa) — the trained input
+        # distribution must match the encode-time normalisation.
+        ckpt_mode = getattr(tok, "calibration_mode", "per_window")
+        want_mode = "absolute" if args.absolute else "per_window"
+        if ckpt_mode != want_mode:
+            raise SystemExit(
+                f"checkpoint {args.ckpt} was trained under "
+                f"calibration_mode={ckpt_mode!r} but the encode requested "
+                f"{want_mode!r}; retrain the bottleneck with "
+                f"`signal_hf_encode train --group {args.group} "
+                f"{'--absolute' if args.absolute else ''}` or drop the flag mismatch"
+            )
         if args.shots.strip().lower() == "all":
             shot_ids = corpus_shot_ids()
             logger.info("corpus shotlist: %d shots on disk", len(shot_ids))
