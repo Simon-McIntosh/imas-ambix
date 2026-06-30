@@ -455,3 +455,106 @@ def pf_active_geometry_for_channels(
         features=feats,
         sensor_kinds=tuple(kinds),
     )
+
+
+# ---------------------------------------------------------------------------
+# Toroidal saddle-array geometry (the ONE ingestible toroidal field series)
+# ---------------------------------------------------------------------------
+#
+# The L2 magnetics group's ``b_field_tor_probe_saddle_voltage`` is a (12, n_time)
+# array of saddle-loop voltages at 12 DISTINCT toroidal angles φ (the only
+# toroidal sensor in this dataset that carries a time series — the
+# ``b_field_tor_probe_cc`` 36-probe array is geometry-only).  The per-channel φ
+# (and R, Z) come from the ``b_field_tor_probe_saddle_m_phi/_r/_z`` polygon
+# arrays (each loop is a 28-vertex polygon spanning ~330° of toroidal arc); the
+# loop's representative toroidal position is the CIRCULAR mean of its vertices'
+# φ.  The 12 loops sit at 15°, 45°, …, 345° — evenly spaced 30° around the
+# torus — so a periodic-φ positional encoding can resolve the toroidal mode.
+
+#: The saddle band whose Z-centroid (~0) best represents the voltage channels.
+_SADDLE_BAND = "saddle_m"
+#: Sensor-kind for a toroidal saddle loop (a toroidal-field pickup).  Reuses the
+#: bpol-probe embedding slot semantics is wrong — it is a distinct toroidal
+#: sensor, so tag it as its own kind string the probe vocab carries.
+KIND_TOROIDAL_SADDLE = "toroidal_saddle"
+
+
+def _circular_mean_deg(phi_deg: np.ndarray) -> float:
+    """Circular mean of angles in degrees (handles the 0/360 seam)."""
+    rad = np.deg2rad(np.asarray(phi_deg, dtype=np.float64).reshape(-1))
+    return float(np.rad2deg(np.arctan2(np.sin(rad).mean(), np.cos(rad).mean())) % 360.0)
+
+
+def saddle_toroidal_geometry(shot_id: int):
+    """Read the L2 saddle toroidal array: ``(names, geom (C,10), kinds)``.
+
+    Returns the 12 saddle-voltage channel names, their per-channel geometry
+    (R, Z, **φ in RADIANS** in the ``phi`` column — matching the schema's
+    radian φ convention, all else NaN) and the toroidal-saddle sensor kind, or
+    ``None`` when the L2 saddle arrays are absent.  φ is the CIRCULAR mean of
+    each loop's polygon vertices; stored RAW (interpretable), the periodic
+    ``(sin, cos)`` transform is applied at the model input, not here.
+    """
+    import zarr  # noqa: PLC0415
+
+    from imas_ambix.data.paths import LEVEL2_DIR  # noqa: PLC0415
+
+    path = LEVEL2_DIR / f"{int(shot_id)}.zarr"
+    if not path.exists():
+        return None
+    try:
+        grp = zarr.open_group(str(path), mode="r")["magnetics"]
+        keys = set(grp.array_keys())
+    except Exception:  # noqa: BLE001
+        return None
+    vkey = "b_field_tor_probe_saddle_voltage"
+    if vkey not in keys:
+        return None
+    chnames = (
+        [str(x) for x in np.asarray(grp[f"{vkey}_channel"]).reshape(-1)]
+        if f"{vkey}_channel" in keys
+        else [f"{vkey}[{i}]" for i in range(np.asarray(grp[vkey]).shape[0])]
+    )
+    n = len(chnames)
+    feats = np.full((n, N_GEOMETRY_FEATURES), np.nan, dtype=np.float32)
+    pk = f"b_field_tor_probe_{_SADDLE_BAND}_phi"
+    rk = f"b_field_tor_probe_{_SADDLE_BAND}_r"
+    zk = f"b_field_tor_probe_{_SADDLE_BAND}_z"
+    if {pk, rk, zk} <= keys:
+        phi = np.asarray(grp[pk], dtype=np.float64)  # (n, n_vertex) deg
+        r = np.asarray(grp[rk], dtype=np.float64)
+        z = np.asarray(grp[zk], dtype=np.float64)
+        for i in range(min(n, phi.shape[0])):
+            feats[i, 0] = float(np.mean(r[i]))
+            feats[i, 1] = float(np.mean(z[i]))
+            # φ stored in RADIANS (schema convention); circular mean over the
+            # loop's polygon vertices, taken on the circle so the 0/2π seam is
+            # handled before the value is stored.
+            feats[i, 2] = float(np.deg2rad(_circular_mean_deg(phi[i])))
+    kinds = tuple(KIND_TOROIDAL_SADDLE for _ in chnames)
+    return tuple(chnames), feats, kinds
+
+
+def saddle_toroidal_geometry_for_channels(
+    channel_names: Sequence[str],
+    shot_id: int,
+) -> AlignedGeometry:
+    """Per-channel saddle geometry aligned to ``channel_names`` (NaN if absent)."""
+    src = saddle_toroidal_geometry(int(shot_id))
+    names = [str(c) for c in channel_names]
+    feats = np.full((len(names), N_GEOMETRY_FEATURES), np.nan, dtype=np.float32)
+    kinds: list[str] = [KIND_SCALAR] * len(names)
+    if src is not None:
+        src_names, src_feats, src_kinds = src
+        by_name = {n: i for i, n in enumerate(src_names)}
+        for i, name in enumerate(names):
+            j = by_name.get(name)
+            if j is not None:
+                feats[i] = src_feats[j]
+                kinds[i] = src_kinds[j]
+    return AlignedGeometry(
+        channel_names=tuple(names),
+        feature_names=tuple(GEOMETRY_FEATURE_NAMES),
+        features=feats,
+        sensor_kinds=tuple(kinds),
+    )

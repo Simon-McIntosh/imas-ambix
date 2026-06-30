@@ -96,8 +96,22 @@ SENSOR_KIND_VOCAB: tuple[str, ...] = (
     # Grad-Shafranov source).  A dedicated kind so the head can give it a clear,
     # distinct feature slot rather than burying it among per-sensor scalars.
     "global_scalar",
+    # A toroidal saddle loop — a toroidal-field pickup at a distinct toroidal
+    # angle φ; the toroidal array that resolves the toroidal mode number.
+    "toroidal_saddle",
 )
 _KIND_INDEX = {k: i for i, k in enumerate(SENSOR_KIND_VOCAB)}
+
+#: Geometry feature-column indices that are ANGLES ON A CIRCLE — encoded as
+#: ``(sin, cos)`` before the geometry projection so the 0/2π seam is continuous
+#: (a sensor at 2π−ε is ADJACENT to one at 0+ε, not maximally far).  ``phi`` is
+#: the toroidal angle (radians); ``angle_deg`` is the B-probe orientation
+#: (degrees) — both periodic.  The orientation NORMAL (normal_r, normal_z) is
+#: already a periodic unit vector, so it is left as-is.
+_PERIODIC_ANGLE_COLUMNS = (
+    (2, False),  # phi   — radians
+    (3, True),  # angle_deg — degrees (converted before sin/cos)
+)
 
 
 def sensor_kind_index(kind: str) -> int:
@@ -171,30 +185,73 @@ class DiagnosticsProbeConfig:
     continuous_value: bool = False
     use_machine_tokens: bool = True
     max_machine_tokens: int = 8
+    #: When True (continuous path only), lift each sensor's time segment to its
+    #: complex STFT (real + imag rFFT over the step axis) and add the projected
+    #: spectrum to that sensor's tokens, so cross-sensor PHASE is available to
+    #: the attention (a rotating toroidal mode is a phase ramp across φ).  Phase
+    #: is KEPT (real + imag) — never collapsed to magnitude.
+    stft_phase: bool = True
+
+
+def encode_periodic_geometry(geom: torch.Tensor) -> torch.Tensor:
+    """Map a raw geometry feature row to a SEAM-CONTINUOUS feature vector.
+
+    Every angular column (toroidal ``phi``, B-probe ``angle_deg``) is replaced
+    by its ``(sin, cos)`` pair so angles on a circle are continuous across the
+    0/2π seam: a sensor at φ = 2π−ε lands ADJACENT to one at φ = 0+ε (their
+    encoded vectors are close), whereas φ = 0 and φ = π land far apart.  A linear
+    angle-in-degrees encoding would do the opposite (359° and 1° maximally far).
+
+    NaN angles encode to ``(0, 0)`` (distinct from any real unit-circle point);
+    every non-angular column is passed through unchanged (NaN-filled to 0 by the
+    caller's mask).  Input ``(..., N_GEOM_FEATURES)`` -> output
+    ``(..., N_GEOM_FEATURES + n_periodic)`` (one extra column per angle).
+    """
+    cols = []
+    periodic = {c: deg for c, deg in _PERIODIC_ANGLE_COLUMNS}
+    for c in range(geom.shape[-1]):
+        x = geom[..., c : c + 1]
+        if c in periodic:
+            rad = x * (np.pi / 180.0) if periodic[c] else x
+            finite = torch.isfinite(rad)
+            rad = torch.where(finite, rad, torch.zeros_like(rad))
+            s = torch.where(finite, torch.sin(rad), torch.zeros_like(rad))
+            cs = torch.where(finite, torch.cos(rad), torch.zeros_like(rad))
+            cols.extend([s, cs])
+        else:
+            cols.append(x)
+    return torch.cat(cols, dim=-1)
+
+
+#: Feature width after the periodic (sin, cos) expansion (one extra col / angle).
+_PERIODIC_GEOM_FEATURES = N_GEOM_FEATURES + len(_PERIODIC_ANGLE_COLUMNS)
 
 
 class _GeometryEncoder(nn.Module):
     """Project a per-sensor geometry feature row to the token width.
 
-    NaN-fills with 0 and concatenates a learned "has-geometry" flag (so a
-    geometry-free scalar token is distinguishable from a sensor that happens to
-    sit at the origin), then a small MLP -> ``d_model``.
+    Angular columns (toroidal φ, B-probe orientation) are expanded to a periodic
+    ``(sin, cos)`` encoding (:func:`encode_periodic_geometry`) so the 0/2π seam
+    is continuous, then NaN-filled with 0, a learned "has-geometry" flag is
+    concatenated (so a geometry-free scalar token is distinguishable from a
+    sensor at the origin), then a small MLP -> ``d_model``.
     """
 
     def __init__(self, d_model: int) -> None:
         super().__init__()
         self.proj = nn.Sequential(
-            nn.Linear(N_GEOM_FEATURES + 1, d_model),
+            nn.Linear(_PERIODIC_GEOM_FEATURES + 1, d_model),
             nn.GELU(),
             nn.Linear(d_model, d_model),
         )
 
     def forward(self, geom: torch.Tensor) -> torch.Tensor:
-        """``(..., N_GEOM_FEATURES) -> (..., d_model)``; NaN-safe."""
-        finite = torch.isfinite(geom)
-        has_geom = finite.any(dim=-1, keepdim=True).to(geom.dtype)
-        filled = torch.where(finite, geom, torch.zeros_like(geom))
-        feat = torch.cat([filled, has_geom], dim=-1)
+        """``(..., N_GEOM_FEATURES) -> (..., d_model)``; NaN-safe + seam-aware."""
+        finite_any = torch.isfinite(geom).any(dim=-1, keepdim=True).to(geom.dtype)
+        enc = encode_periodic_geometry(geom)  # (..., _PERIODIC_GEOM_FEATURES)
+        finite = torch.isfinite(enc)
+        filled = torch.where(finite, enc, torch.zeros_like(enc))
+        feat = torch.cat([filled, finite_any], dim=-1)
         return self.proj(feat)
 
 
@@ -214,16 +271,24 @@ class _StreamTokeniser(nn.Module):
         geom_encoder: _GeometryEncoder,
         *,
         continuous_value: bool,
+        n_steps: int,
+        stft_phase: bool,
     ) -> None:
         super().__init__()
         self.name = spec.name
         self.channels = int(spec.channels)
         self.continuous_value = bool(continuous_value)
+        # STFT phase lift only makes sense on the continuous (real-valued) lane.
+        self.stft_phase = bool(stft_phase and continuous_value)
         if self.continuous_value:
             # one scalar standardised value -> d_model (the ablation path).
             self.value_proj = nn.Linear(1, d_model)
         else:
             self.embed = nn.Embedding(int(spec.vocab), d_model)
+        if self.stft_phase:
+            # rFFT over n_steps -> (n_steps//2 + 1) complex bins -> real+imag.
+            n_bins = n_steps // 2 + 1
+            self.stft_proj = nn.Linear(2 * n_bins, d_model)
         self.geom = geom_encoder
         self.norm = nn.LayerNorm(d_model)
 
@@ -253,12 +318,24 @@ class _StreamTokeniser(nn.Module):
         """
         if self.continuous_value:
             v = values if values is not None else ids.to(torch.float32)
-            tok = self.value_proj(v.unsqueeze(-1).to(torch.float32))
+            v = v.to(torch.float32)
+            tok = self.value_proj(v.unsqueeze(-1))
         else:
             tok = self.embed(ids)  # (B, S, C, d)
         g = self.geom(geom).unsqueeze(1)  # (B, 1, C, d) -> broadcast over time
         k = kind_emb.unsqueeze(1)  # (B, 1, C, d)
         tok = tok + g + k + stream_emb.view(1, 1, 1, -1)
+        if self.stft_phase:
+            # complex STFT over the step axis per (sensor): rFFT keeps PHASE
+            # (real + imag), so a toroidal mode's phase ramp across φ is visible
+            # to the attention.  Add the projected spectrum to every step token
+            # of that sensor (a per-sensor phase summary broadcast over time).
+            # v is (B, S, C) -> rFFT over S.
+            spec = torch.fft.rfft(v, dim=1)  # (B, n_bins, C) complex
+            phase = torch.cat([spec.real, spec.imag], dim=1)  # (B, 2*n_bins, C)
+            phase = phase.transpose(1, 2)  # (B, C, 2*n_bins)
+            stft = self.stft_proj(phase).unsqueeze(1)  # (B, 1, C, d)
+            tok = tok + stft
         return self.norm(tok)
 
 
@@ -296,6 +373,8 @@ class DiagnosticsEquilibriumProbe(nn.Module):
                     cfg.d_model,
                     self.geom_encoder,
                     continuous_value=cfg.continuous_value,
+                    n_steps=cfg.n_steps,
+                    stft_phase=cfg.stft_phase,
                 )
                 for s in cfg.streams
             }
@@ -379,6 +458,29 @@ class DiagnosticsEquilibriumProbe(nn.Module):
         -------
         (mean, log_sigma): each ``(B, target_dim)``.
         """
+        pooled = self.pooled_embedding(
+            signals, geometry, sensor_kinds, values=values, machine=machine
+        )
+        out = self.head(pooled)
+        mean, log_sigma = out.chunk(2, dim=-1)
+        log_sigma = torch.clamp(log_sigma, LOG_SIGMA_MIN, LOG_SIGMA_MAX)
+        return mean, log_sigma
+
+    def pooled_embedding(
+        self,
+        signals: dict[str, torch.Tensor],
+        geometry: dict[str, torch.Tensor],
+        sensor_kinds: dict[str, torch.Tensor],
+        *,
+        values: dict[str, torch.Tensor] | None = None,
+        machine: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """The encoder's pooled query-token state ``(B, d_model)`` before the head.
+
+        The relational embedding a downstream readout (or the geometry head)
+        consumes — exposed so a probe can be trained on it directly (e.g. the
+        toroidal mode-number recovery readout).
+        """
         cfg = self.config
         present = [n for n in self._stream_order if n in signals]
         if not present:
@@ -415,11 +517,7 @@ class DiagnosticsEquilibriumProbe(nn.Module):
         x = torch.cat([q, x], dim=1)
         x = self.in_norm(x)
         x = self.encoder(x)
-        pooled = self.pool_norm(x[:, 0])  # the query token's encoded state
-        out = self.head(pooled)
-        mean, log_sigma = out.chunk(2, dim=-1)
-        log_sigma = torch.clamp(log_sigma, LOG_SIGMA_MIN, LOG_SIGMA_MAX)
-        return mean, log_sigma
+        return self.pool_norm(x[:, 0])  # the query token's encoded state
 
     def n_parameters(self) -> int:
         return int(sum(p.numel() for p in self.parameters()))
@@ -541,6 +639,7 @@ __all__ = [
     "LOG_SIGMA_MAX",
     "N_GEOM_FEATURES",
     "SENSOR_KIND_VOCAB",
+    "encode_periodic_geometry",
     "sensor_kind_index",
     "StreamSpec",
     "DiagnosticsProbeConfig",

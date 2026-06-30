@@ -81,11 +81,18 @@ FORCED_TEST_SHOTS = tuple(sorted(set(GATE_COHORT) | set(STANDING_HELD_OUT)))
 #: machine geometry} — so this stream joins the headline EFIT-input arm.
 PF_ACTIVE_STREAM = "pf_active_coils"
 
+#: The synthetic stream name for the L2 toroidal saddle-loop voltage array (12
+#: channels at distinct toroidal angles φ) the oracle reads directly.  The ONE
+#: ingestible toroidal field series in this dataset; with periodic-φ PE it lets
+#: the model resolve toroidal structure the single-φ poloidal arrays cannot.
+SADDLE_STREAM = "toroidal_saddle"
+
 #: Streams in the headline EFIT-input arm: ``magnetics`` (calibrated L2 flux
 #: loops + B-field probes + the device-global plasma current Ip), ``xma`` (the
-#: HF magnetics codebook) and the PF-active COIL CURRENTS.  Together these are
-#: the EFIT-class {position/shape sensor + Ip + current actuators} set.
-MAGNETICS_STREAMS = ("xma", "magnetics", PF_ACTIVE_STREAM)
+#: HF magnetics codebook), the PF-active COIL CURRENTS and the toroidal SADDLE
+#: array.  Together these are the EFIT-class {position/shape sensor + Ip +
+#: current actuators + toroidal array} set.
+MAGNETICS_STREAMS = ("xma", "magnetics", PF_ACTIVE_STREAM, SADDLE_STREAM)
 
 #: The staged group whose column names resolve to L2-IDS apparatus geometry
 #: directly (the EFIT-class position/shape sensor).  Every other stream's
@@ -176,6 +183,59 @@ def read_pf_active_coils(shot_id, grid, *, calibration=None):
         np.asarray(ag.features, dtype=np.float32),
         tuple(ag.sensor_kinds),
     )
+
+
+def read_saddle_toroidal(shot_id, grid, *, calibration=None):
+    """Read L2 toroidal saddle voltages -> (ids, values, names, geometry, kinds).
+
+    The ONE ingestible toroidal field series: ``b_field_tor_probe_saddle_voltage``
+    (12 channels at 12 distinct toroidal angles φ on the faster ``time_saddle``
+    base).  Reads the signed voltages, resamples to the window ``grid`` (the array
+    is multi-rate — handled by the grid resampler), corpus-standardises (SIGNED)
+    and quantises to L2 ids; geometry is each loop's ``(R, Z, φ)`` via
+    :func:`imas_ambix.tokenizer.geometry_reader.saddle_toroidal_geometry`.  φ is
+    encoded periodically at the model input so the toroidal seam is continuous.
+
+    Returns ``(ids, values, names, geom (C,10), kinds)`` or ``None`` when absent.
+    """
+    import zarr  # noqa: PLC0415
+
+    from imas_ambix.data.paths import LEVEL2_DIR  # noqa: PLC0415
+    from imas_ambix.statespace.align import align_chord2d_to_grid  # noqa: PLC0415
+    from imas_ambix.tokenizer.geometry_reader import (  # noqa: PLC0415
+        saddle_toroidal_geometry,
+    )
+    from imas_ambix.worldmodel.spacetime_dataset_v2 import _quantise_l2  # noqa: PLC0415
+
+    path = LEVEL2_DIR / f"{int(shot_id)}.zarr"
+    if not path.exists():
+        return None
+    try:
+        grp = zarr.open_group(str(path), mode="r")["magnetics"]
+        keys = set(grp.array_keys())
+        vkey = "b_field_tor_probe_saddle_voltage"
+        if vkey not in keys or "time_saddle" not in keys:
+            return None
+        volt = np.asarray(grp[vkey], dtype=np.float64)  # (n_coil, n_time)
+        names = (
+            [str(x) for x in np.asarray(grp[f"{vkey}_channel"]).reshape(-1)]
+            if f"{vkey}_channel" in keys
+            else [f"{vkey}[{i}]" for i in range(volt.shape[0])]
+        )
+        vtime = np.asarray(grp["time_saddle"], dtype=np.float64).reshape(-1)
+        raw = volt.T if volt.shape[1] == vtime.shape[0] else volt  # (n_time, C)
+    except Exception:  # noqa: BLE001
+        return None
+    on_grid = align_chord2d_to_grid(raw, vtime, grid).astype(np.float64)  # (S, C)
+    values = _standardise_continuous(on_grid, names, calibration).astype(np.float32)
+    ids = _quantise_l2(on_grid, channel_names=names, calibration=calibration).astype(
+        np.int64
+    )
+    src = saddle_toroidal_geometry(int(shot_id))
+    if src is None:
+        return None
+    _src_names, feats, kinds = src
+    return ids, values, names, np.asarray(feats, dtype=np.float32), tuple(kinds)
 
 
 def stream_channel_names(shot_id, modalities, *, token_root=None):
@@ -527,6 +587,22 @@ def assemble_examples(
             signals[PF_ACTIVE_STREAM] = np.asarray(pf_ids, np.int64)
             values_by_stream[PF_ACTIVE_STREAM] = np.asarray(pf_vals, np.float32)
             geom_by_stream[PF_ACTIVE_STREAM] = (pf_geom, pf_kinds)
+        # Toroidal SADDLE array read directly from L2 (no staged store): 12 loops
+        # at distinct toroidal angles φ — the one ingestible toroidal field
+        # series, with periodic-φ geometry so the model resolves toroidal
+        # structure the single-φ poloidal arrays cannot.  Signed continuous
+        # values + the token-id lane + per-loop (R, Z, φ) geometry.
+        sad_cal = (
+            calibration_by_group.get("magnetics")
+            if calibration_by_group is not None
+            else None
+        )
+        sad = read_saddle_toroidal(int(sid), grid_for_values, calibration=sad_cal)
+        if sad is not None:
+            sad_ids, sad_vals, _sad_names, sad_geom, sad_kinds = sad
+            signals[SADDLE_STREAM] = np.asarray(sad_ids, np.int64)
+            values_by_stream[SADDLE_STREAM] = np.asarray(sad_vals, np.float32)
+            geom_by_stream[SADDLE_STREAM] = (sad_geom, sad_kinds)
         # equilibrium labels on the SIGNAL grid (same span as the window).
         ftime = np.asarray(sample.frame_time, dtype=np.float64)
         t0, t1 = float(ftime.min()), float(ftime.max())
@@ -585,21 +661,23 @@ def _pf_active_vocab():
     return int(L2_BLOCK_VOCAB) + 1
 
 
-#: Generous per-coil-current channel cap (10 coils + solenoid is well under).
-_PF_ACTIVE_MAX_CHANNELS = 16
+#: Synthetic streams read directly from L2 (not modalities): name -> channel cap.
+#: PF-active is 10 coils + solenoid; the toroidal saddle array is 12 loops.
+_SYNTHETIC_STREAMS = {PF_ACTIVE_STREAM: 16, SADDLE_STREAM: 16}
 
 
 def probe_channels(examples, modalities):
     """Max channel count seen per stream across the assembled examples.
 
-    Caps at each modality's ``max_channels`` (and the PF-active coil stream's own
+    Caps at each modality's ``max_channels`` (and each synthetic stream's own
     cap).  A stream never present keeps 0 and is dropped from the model's stream
     list.
     """
     cap = {m.name: int(m.max_channels) for m in modalities}
-    cap[PF_ACTIVE_STREAM] = _PF_ACTIVE_MAX_CHANNELS
+    cap.update(_SYNTHETIC_STREAMS)
     seen = {m.name: 0 for m in modalities}
-    seen[PF_ACTIVE_STREAM] = 0
+    for name in _SYNTHETIC_STREAMS:
+        seen[name] = 0
     for ex in examples:
         for name, arr in ex["signals"].items():
             if name in seen:
@@ -612,8 +690,8 @@ def build_stream_specs(channels, modalities, *, restrict=None):
 
     ``restrict`` (optional set of stream names) keeps only those streams — the
     ablation lever.  A stream with 0 probed channels is dropped.  The synthetic
-    PF-active coil-current stream (read directly from L2, not a modality) is
-    appended when present.
+    streams (PF-active coil currents + the toroidal saddle array, read directly
+    from L2, not modalities) are appended when present.
     """
     from imas_ambix.worldmodel.diagnostics_equilibrium_probe import StreamSpec
 
@@ -625,13 +703,13 @@ def build_stream_specs(channels, modalities, *, restrict=None):
         if c <= 0:
             continue
         specs.append(StreamSpec(name=m.name, vocab=int(m.vocab), channels=c))
-    # PF-active coil currents (synthetic stream — not a modality).
-    if restrict is None or PF_ACTIVE_STREAM in restrict:
-        c = int(channels.get(PF_ACTIVE_STREAM, 0))
+    # synthetic streams (read directly from L2 — not modalities).
+    for name in _SYNTHETIC_STREAMS:
+        if restrict is not None and name not in restrict:
+            continue
+        c = int(channels.get(name, 0))
         if c > 0:
-            specs.append(
-                StreamSpec(name=PF_ACTIVE_STREAM, vocab=_pf_active_vocab(), channels=c)
-            )
+            specs.append(StreamSpec(name=name, vocab=_pf_active_vocab(), channels=c))
     return specs
 
 
@@ -784,9 +862,9 @@ def train_probe(
     n = y_t.shape[0]
 
     # Overfit control: the small TRAIN set (~184 survivors) overfits a deep
-    # probe, so use stronger dropout + a kept-compact width and lean on weight
-    # decay.  The compact magnetics arm generalised far better than the wide
-    # all-diagnostics one, so keep the model modest.
+    # probe, so keep the width modest + lean on weight decay.  A moderate dropout
+    # (0.15) — heavier dropout (0.3) was measured to HURT axis_Z, so back it off.
+    # stft_phase is ON (continuous lane) so cross-sensor phase reaches attention.
     cfg = DiagnosticsProbeConfig(
         streams=list(specs),
         n_steps=n_steps,
@@ -795,7 +873,8 @@ def train_probe(
         d_model=160,
         n_heads=4,
         n_layers=4,
-        dropout=0.3,
+        dropout=0.15,
+        stft_phase=True,
     )
     model = DiagnosticsEquilibriumProbe(cfg).to(dev)
     logger.info(
