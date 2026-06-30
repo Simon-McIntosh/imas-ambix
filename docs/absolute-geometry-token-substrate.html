@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="20">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -508,7 +508,7 @@ Done-when
   2. Geometry coverage for all stream channels (chords=endpoints, scalars kinded), periodic angles throughout; tests green.
   3. Oracle re-run holds/improves axis+LCFS; per-stream consolidation reported; followup resolved.</pre>
     </article>
-<article class="r-fu" data-id="f-ags-xpoint-split" data-status="open" data-tier="opus" data-written-by="xpoint-split" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ags-xpoint-split" data-status="resolved" data-tier="opus" data-written-by="xpoint-split" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="2026-06-30T10:38:02+00:00" data-resolved-by="xpoint-set">
     <h4 class="r-fu-title">X-POINT SPLIT LANDED (14-D): with clean split labels the X-point IS recoverable from magnetics — all 14 components beat baseline, arm FEASIBLE; psi-filter rejects 3.5-5.4% of store nulls</h4>
     <div class="r-fu-body">Implemented the upper/lower X-point split + psi-proximity boundary-null filter (commit 55f0cea: equilibrium_labels.py 14-D schema, diagnostics_equilibrium_probe target_dim auto-bumps to 14, oracle reports split xpt, tests). SCHEMA: the single (xpt_R,xpt_Z) is replaced by FOUR components lower_xpt_R/Z (Z&lt;0) + upper_xpt_R/Z (Z&gt;0); TARGET_DIM 12-&gt;14. Each null is its OWN sign-pure, present-when-present channel — NO lower&lt;-&gt;upper flip, NO 2.4m discontinuity, so each is LINEARLY interpolated within its presence + masked on absence (the discontinuity-aware single-primary hack is dropped). PSI-FILTER: a store null is kept only if boundary-associated, |psi_null - psi_boundary| &lt;= tol*|psi_boundary - psi_axis| (tol=0.05; psi[z,r,t] grid + LCFS-median psi_boundary + axis psi; bilinear interp), else masked; no null re-finding, no separatrix tracing.
 
@@ -539,13 +539,14 @@ Done-when
   1. Raw ceiling re-established under 14-D split labels (or a documented decision to report vs baseline only).
   2. Toroidal-in-headline decision recorded; cohort-size effect on split-xpt measured.
   3. Followup resolved.</pre>
+    <p class="r-fu-outcome">SUPERSEDED by f-ags-xpoint-set (the order-invariant null-SET X-point target). The 14-D sign-of-Z lower/upper split + psi-proximity boundary filter are REMOVED (the lead flagged: the flux map is multimodal/public-private so a psi-proximity test cannot separate boundary from private-region nulls, and sign-of-Z mislabels DN-near-one-divertor/snowflake/X-divertor/super-X). The FINDING that the X-point is recoverable once labels are clean (the split run showed all components feasible) stays recorded; the code is replaced by the topology-agnostic set target.</p>
     </article>
 <article class="r-fu" data-id="f-ags-consolidation" data-status="open" data-tier="opus" data-written-by="consolidation" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">ALL-SIGNALS CONSOLIDATION (eval path) LANDED: every stream routes through the shared geometry-aware encoder; all-diagnostics is now FEASIBLE (no longer overfits) but does NOT beat magnetics-only on this 184-ex cohort — extra streams mildly dilute</h4>
-    <div class="r-fu-body">Routed EVERY diagnostics->equilibrium stream through the SHARED space-time relational encoder with geometry for ALL channels, eval path (commits 572bccf geometry coverage, 9318c5d oracle arms, 206d033 shared-encoder extraction). 
+    <div class="r-fu-body">Routed EVERY diagnostics-&gt;equilibrium stream through the SHARED space-time relational encoder with geometry for ALL channels, eval path (commits 572bccf geometry coverage, 9318c5d oracle arms, 206d033 shared-encoder extraction). 
 
 WHAT LANDED:
-(1) GEOMETRY COVERAGE (geometry_reader.l2_signal_hf_geometry_for_channels): L2 light-path '{group}.{var}[i]' names now resolve to per-channel geometry — soft_x_rays cameras -> CHORD endpoints from the L2 {cam}_origin_r/z + {cam}_endpoint_r/z fields (kind=sxr_chord, 32/36 channels); pf_active coil_current -> coil centroid R/Z (kind=coil); interferometer.n_e_line -> interferometer_chord placeholder; summary/gas_injection -> scalar. Periodic (sin/cos) phi/theta for all angular geometry (the seam fix) reused.
+(1) GEOMETRY COVERAGE (geometry_reader.l2_signal_hf_geometry_for_channels): L2 light-path '{group}.{var}[i]' names now resolve to per-channel geometry — soft_x_rays cameras -&gt; CHORD endpoints from the L2 {cam}_origin_r/z + {cam}_endpoint_r/z fields (kind=sxr_chord, 32/36 channels); pf_active coil_current -&gt; coil centroid R/Z (kind=coil); interferometer.n_e_line -&gt; interferometer_chord placeholder; summary/gas_injection -&gt; scalar. Periodic (sin/cos) phi/theta for all angular geometry (the seam fix) reused.
 (2) SHARED ENCODER extracted into imas_ambix/worldmodel/spacetime_relational_encoder.py (encode_periodic_geometry + GeometryEncoder + StreamTokeniser + SENSOR_KIND_VOCAB + sensor_kind_index + StreamSpec) so the eval probe AND the later live-path port consume ONE encoder; the probe imports + composes them with the Gaussian head (no-behaviour-change; 16 tests green).
 (3) ORACLE arms: magnetics_only vs all_diagnostics_consolidated (all continuous, same 184 train/54 test cohort+seed).
 
@@ -573,6 +574,42 @@ Done-when
   1. Cohort grown + B-A re-measured (does all-diagnostics beat magnetics-only with more examples?).
   2. Per-stream contribution ablation reported.
   3. Followup resolved; live-path port scoped.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-xpoint-set" data-status="open" data-tier="opus" data-written-by="xpoint-set" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">X-point as an ORDER-INVARIANT NULL SET (DETR-style) LANDED — topology-agnostic; count-acc 0.81, matched-null RMSE 0.75m; supersedes the sign-of-Z split + psi-filter</h4>
+    <div class="r-fu-body">Replaced the X-point target with an ORDER-INVARIANT NULL SET (commit 59a72f0), superseding both the single-primary and the 14-D sign-of-Z split + psi-filter. NO topology assumption -> supports SN/DN/snowflake/X-divertor/super-X uniformly.
+
+SCHEMA (equilibrium_labels.py, TARGET_DIM stays 14): axis(2, fixed regression) + X-point null SET (K=2 unordered slots xpt0/xpt1 (R,Z)) + LCFS(8, fixed regression). The X-point label = the SET of <=2 real nulls at the WINDOW-CENTRE native slice (xpoint_null_set), NEAREST-native (NO cross-frame member interpolation -> removes flip/interp entirely), NO ordering / sign-of-Z, NO psi public/private filter, NO continuity tracking. Coarse finite + in-vessel-bbox sanity reject only (XPOINT_VESSEL_R_RANGE/_Z_ABS) -- explicitly NOT a public/private discriminator. Presence/count via the per-slot finite mask.
+
+LOSS (diagnostics_equilibrium_probe.set_xpoint_loss): PERMUTATION-INVARIANT matched loss -- for K=2, min over the 2 assignments of the summed Gaussian position-NLL, masked by presence (DN: min over both perms; SN: match the single target to its nearest prediction); + presence BCE on sorted slot logits (slot0='>=1 null', slot1='>=2'). Axis + LCFS losses unchanged (masked Gaussian NLL). A presence head emits per-slot logits.
+
+ORACLE (set_xpoint_metrics): reports matched-null position RMSE (optimal-assignment) + count accuracy + skill vs baseline, NOT fixed upper/lower components. Axis + LCFS as before.
+
+TESTS (17 green): order-invariance (swapping the 2 target nulls -> IDENTICAL loss); count/presence 0/1/2 handled+differentiable; NO-FLIP on a synthetic lower->upper switch (every emitted null Z is a real height, never the mid-band); coarse in-vessel reject (a far/out-of-vessel + a sentinel null dropped); the phasing tests (periodic adjacency, n-recovery, seam) STILL pass (encoder untouched).
+
+RESULT (job 1223663, absolute, 250 epochs, 184 train/54 test, null-SET target):
+  magnetics_only:            X-point SET matched-null RMSE 0.748m, COUNT-ACC 0.815; axis_R +0.32, axis_Z +0.38; LCFS +0.13..+0.56 (FEASIBLE on axis).
+  all_diagnostics_consolidated: X-point SET RMSE 0.759m, count-acc 0.74; axis_R +0.23, axis_Z +0.32 (dilutes vs magnetics again, the 184-ex cohort theme).
+  test-set null-count distribution: 4 limiter(0) / 14 SN(1) / 36 DN(2).
+
+VERDICT (honest): the order-invariant set target is the CORRECT, topology-agnostic X-point representation -- it trains, removes the flip/interp artifact, and makes no topology claim. COUNT/PRESENCE is learned well (0.815 acc, beating the always-DN majority baseline ~0.67). POSITION is COARSE: matched-null RMSE ~0.75m, far worse than the axis (~3-4cm) -- the X-point sits on the steep-field separatrix and is intrinsically harder to regress in absolute metres, and the 184-example cohort limits it (the same dilution recurs all-diag<magnetics). The set machinery is sound; the open lever is cohort size + possibly a coarser-then-refined position target. Report /work/projects/imas_gpu/worldmodel/diag_eq_oracle_xpt_set/oracle_report.json.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (section 3 / X-point)
+Section: section 3
+Tier:    opus
+
+Context
+  The order-invariant null-SET X-point target is landed (commit 59a72f0): topology-agnostic, permutation-invariant matched loss + presence, count-acc 0.815 / matched-null RMSE 0.75m on magnetics-only (job 1223663). Count is learned; position is coarse + cohort-limited. The phasing + consolidation work is untouched.
+
+Next
+  1. COHORT SIZE is the recurring limiter (toroidal/consolidation/iter2/this all dilute or saturate on 184 examples). The lead is deciding cohort growth -- once the train set grows, re-measure the set RMSE + count-acc + whether all-diagnostics finally beats magnetics-only.
+  2. POSITION precision: matched-null RMSE 0.75m is poor vs axis. Consider (a) a coarse-then-refine X-point head, (b) predicting the null RELATIVE to the magnetic axis (the axis is well-recovered at ~4cm), (c) checking whether the position error is dominated by the SN/DN-boundary frames (count errors) vs genuinely-present nulls.
+  3. raw-float ceiling under the set metric: re-run the calibrated-magnetics RAW oracle with the same set metric to know how much of the recoverable null-position signal the tokenised path captures.
+
+Done-when
+  1. Cohort grown + set RMSE/count-acc re-measured.
+  2. Position-precision lever tried (axis-relative or coarse-to-fine).
+  3. Followup resolved.</pre>
     </article>
 </section>
 
