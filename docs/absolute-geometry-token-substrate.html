@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="24">
+<meta name="plan-version" content="25">
 <meta name="plan-impl" content="0.85">
 </head>
 <body>
@@ -697,6 +697,20 @@ Done-when
   1. xsx guard masks the 6 dead chords (corpus-clean); xsx fidelity recovered on the healthy chords.
   2. vocab test green; consumer contract reconciled.
   3. (chord geometry deferred until WM-needed); followup resolved with the per-chord reject list.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-chord-geometry" data-status="open" data-tier="opus" data-written-by="spacetime-probe" data-written-at="2026-06-30" data-recommends-skill="reckon-edit" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">DEFERRED: SXR/D-alpha chord-endpoint geometry in gs.geometry_export — today the exporter only resolves b-probe/flux-loop/coil sensors, so xsx/xim chord stores attach an all-NaN/scalar geometry; needed when the WM consumes interior line-of-sight chords, NOT now</h4>
+    <div class="r-fu-body">Lead-deferred finding (2) from the Drive #1 production re-encode verify. Geometry attach is structurally wired into every signal_hf store and works correctly for MAGNETICS (xma: 38/40 finite rows, bpol_probe sensor kinds via gs.geometry_export). But gs.geometry_export.build_geometry_fields_from_table only knows b_probe / flux_loop / coil sensor mappings — it has no resolver for the line-integrated CHORD diagnostics (xsx soft-X-ray cameras, xim D-alpha/CII), so their per-channel geometry feature_matrix is all-NaN with sensor_kind='scalar'. The N_GEOMETRY_FEATURES schema already RESERVES chord columns (chord_r1, chord_z1, chord_r2, chord_z2) — they are simply unpopulated for these groups.
+
+WHEN TO DO: when the world model begins consuming interior line-of-sight chords as positioned diagnostics (the North Star geometry-as-positional-encoding-for-every-diagnostic requirement). The chord-endpoint resolver already exists in imas_ambix/tokenizer/geometry_reader.py (_fill_sxr_chord / l2_signal_hf_geometry_for_channels resolves soft_x_rays chord endpoints + interferometer chords) — the work is to surface those chord endpoints through gs.geometry_export's per-channel table so the encode-time attach fills the chord_* columns for xsx/xim, then a targeted re-attach (geometry-only, no re-tokenise) of those groups' stores.
+
+NOT blocking the WM today (magnetics geometry — the dominant boundary/axis signal — is fully attached). Deferred per lead direction; do NOT build during Drive #1.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (geometry-for-every-diagnostic)
+Section: geometry
+Tier:    opus
+
+Populate SXR (xsx) and D-alpha (xim) line-integrated CHORD-ENDPOINT geometry in gs.geometry_export so the interior line-of-sight diagnostics carry positional encoding, per the North Star geometry-for-every-diagnostic requirement.</pre>
     </article>
 </section>
 
