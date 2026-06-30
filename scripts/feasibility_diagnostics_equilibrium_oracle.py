@@ -283,6 +283,7 @@ def stream_geometry(shot_id, modalities, names_by_stream):
     """
     from imas_ambix.tokenizer.geometry_reader import (
         geometry_for_channels,
+        l2_signal_hf_geometry_for_channels,
         magnetics_geometry_for_channels,
     )
 
@@ -293,6 +294,12 @@ def stream_geometry(shot_id, modalities, names_by_stream):
         group = group_by_stream.get(name)
         if group == _MAGNETICS_GROUP:
             ag = magnetics_geometry_for_channels(channel_names, int(shot_id))
+        elif channel_names and "." in str(channel_names[0]):
+            # L2 light-path signal_hf streams name channels "{group}.{var}[i]"
+            # (soft_x_rays cameras -> chord geometry, pf_active -> coil, etc.) —
+            # route them through the all-signals consolidation resolver so every
+            # stream carries its apparatus geometry, not an all-NaN scalar block.
+            ag = l2_signal_hf_geometry_for_channels(channel_names, int(shot_id))
         else:
             ag = geometry_for_channels(channel_names, fields=fields)
         out[name] = (

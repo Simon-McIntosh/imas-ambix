@@ -38,7 +38,9 @@ from imas_ambix.gs.geometry_export import (
     KIND_BPOL_PROBE,
     KIND_COIL,
     KIND_FLUX_LOOP,
+    KIND_INTERFEROMETER_CHORD,
     KIND_SCALAR,
+    KIND_SXR_CHORD,
     N_GEOMETRY_FEATURES,
     GeometryFields,
 )
@@ -558,3 +560,145 @@ def saddle_toroidal_geometry_for_channels(
         features=feats,
         sensor_kinds=tuple(kinds),
     )
+
+
+# ---------------------------------------------------------------------------
+# L2 light-path signal_hf names -> geometry (all-signals consolidation)
+# ---------------------------------------------------------------------------
+#
+# The L2 light-path signal_hf streams name channels ``{group}.{var}[i]`` (e.g.
+# ``soft_x_rays.horizontal_cam_lower[3]``, ``pf_active.coil_current[2]``,
+# ``summary.ip``, ``gas_injection.valve_target_voltage[0]``,
+# ``interferometer.n_e_line``).  To route EVERY stream through the shared
+# space-time relational encoder with geometry — not just the magnetics — this
+# resolver maps those names to per-channel geometry read DIRECTLY from the L2
+# group, so each sensor token carries its apparatus geometry:
+#
+#   * soft_x_rays cameras -> CHORD geometry: the L2 group carries
+#     ``{cam}_origin_r/_z`` + ``{cam}_endpoint_r/_z`` (+ ``{cam}_phi``) per
+#     channel, written into the chord endpoint columns; kind = sxr_chord.
+#   * pf_active coil currents -> COIL geometry: each ``coil_current[i]`` maps to
+#     its circuit's filament centroid (R, Z) via
+#     :func:`pf_active_geometry_for_channels` (the L2 ``current_channel`` order);
+#     kind = coil.
+#   * interferometer ``n_e_line`` -> a line-integrated chord with NO per-channel
+#     endpoints in this store: kind = interferometer_chord, coords NaN (an
+#     explicit placeholder — the chord schema is present, endpoints to be
+#     tabulated from a static MAST interferometer geometry).
+#   * everything else (summary, gas_injection scalars) -> scalar, NaN coords.
+#
+# Reads only the L2 light-path group's apparatus-geometry arrays — never a
+# reconstructed quantity.
+
+#: ``{group}.{var}[i]`` (or ``{group}.{var}``) channel-name parser.
+_L2_HF_COL_RE = re.compile(r"^(?P<group>[a-z_]+)\.(?P<var>.+?)(?:\[(?P<i>\d+)\])?$")
+
+#: pf_active current variables whose ``[i]`` maps to a coil position.
+_PF_ACTIVE_CURRENT_VARS = ("coil_current", "solenoid_current")
+
+
+def l2_signal_hf_geometry_for_channels(
+    channel_names: Sequence[str],
+    shot_id: int,
+) -> AlignedGeometry:
+    """Resolve L2 light-path ``{group}.{var}[i]`` names to per-channel geometry.
+
+    Soft-x-ray cameras get chord endpoints from the L2 ``soft_x_rays`` group;
+    pf_active coil currents get their coil centroid ``(R, Z)``; interferometer
+    ``n_e_line`` gets a kind=``interferometer_chord`` placeholder (NaN coords);
+    everything else stays ``scalar`` with NaN coords.  Always aligned 1:1 with
+    ``channel_names``; an unreadable L2 store yields the all-scalar fallback.
+    """
+    import zarr  # noqa: PLC0415
+
+    from imas_ambix.data.paths import LEVEL2_DIR  # noqa: PLC0415
+
+    names = [str(c) for c in channel_names]
+    feats = np.full((len(names), N_GEOMETRY_FEATURES), np.nan, dtype=np.float32)
+    kinds: list[str] = [KIND_SCALAR] * len(names)
+
+    path = LEVEL2_DIR / f"{int(shot_id)}.zarr"
+    root = None
+    if path.exists():
+        try:
+            root = zarr.open_group(str(path), mode="r")
+        except Exception:  # noqa: BLE001
+            root = None
+
+    # pf_active coil geometry, resolved once via the dedicated coil resolver
+    # (keyed by the L2 current_channel order); index i -> the i-th coil.
+    pf_coil_feats = None
+    if root is not None and "pf_active" in set(root.group_keys()):
+        try:
+            grp = root["pf_active"]
+            if "current_channel" in set(grp.array_keys()):
+                cc = [str(x) for x in np.asarray(grp["current_channel"]).reshape(-1)]
+                ag = pf_active_geometry_for_channels(cc, int(shot_id))
+                pf_coil_feats = (ag.features, ag.sensor_kinds)
+        except Exception:  # noqa: BLE001
+            pf_coil_feats = None
+
+    for k, name in enumerate(names):
+        m = _L2_HF_COL_RE.match(name)
+        if m is None:
+            continue
+        group = m.group("group")
+        var = m.group("var")
+        idx = int(m.group("i")) if m.group("i") is not None else 0
+        if group == "soft_x_rays" and root is not None:
+            _fill_sxr_chord(feats, kinds, k, root, var, idx)
+        elif group == "pf_active" and var in _PF_ACTIVE_CURRENT_VARS:
+            if pf_coil_feats is not None and idx < pf_coil_feats[0].shape[0]:
+                feats[k] = pf_coil_feats[0][idx]
+                kinds[k] = pf_coil_feats[1][idx]
+        elif group == "interferometer":
+            # line-integrated, no per-channel endpoints in this store.
+            kinds[k] = KIND_INTERFEROMETER_CHORD
+        # summary / gas_injection / anything else -> scalar (NaN coords).
+    return AlignedGeometry(
+        channel_names=tuple(names),
+        feature_names=tuple(GEOMETRY_FEATURE_NAMES),
+        features=feats,
+        sensor_kinds=tuple(kinds),
+    )
+
+
+def _fill_sxr_chord(feats, kinds, k, root, cam, idx):
+    """Fill a soft-x-ray camera channel's chord endpoints from the L2 group."""
+    try:
+        sg = root["soft_x_rays"]
+        keys = set(sg.array_keys())
+    except Exception:  # noqa: BLE001
+        return
+    o_r, o_z = f"{cam}_origin_r", f"{cam}_origin_z"
+    e_r, e_z = f"{cam}_endpoint_r", f"{cam}_endpoint_z"
+    if not ({o_r, o_z, e_r, e_z} <= keys):
+        return
+    try:
+        r1 = float(np.asarray(sg[o_r], dtype=np.float64).reshape(-1)[idx])
+        z1 = float(np.asarray(sg[o_z], dtype=np.float64).reshape(-1)[idx])
+        r2 = float(np.asarray(sg[e_r], dtype=np.float64).reshape(-1)[idx])
+        z2 = float(np.asarray(sg[e_z], dtype=np.float64).reshape(-1)[idx])
+    except (IndexError, ValueError):
+        return
+    # a dead (0,0)->(0,0) channel carries no usable chord — leave it scalar/NaN.
+    if r1 == 0.0 and z1 == 0.0 and r2 == 0.0 and z2 == 0.0:
+        return
+    phi_key = f"{cam}_phi"
+    phi = 0.0
+    if phi_key in keys:
+        try:
+            phi = float(
+                np.deg2rad(np.asarray(sg[phi_key], dtype=np.float64).reshape(-1)[idx])
+            )
+        except (IndexError, ValueError):
+            phi = 0.0
+    # columns: (r, z, phi, angle_deg, normal_r, normal_z, c_r1, c_z1, c_r2, c_z2)
+    feats[k, 0] = 0.5 * (r1 + r2)  # chord midpoint as the representative R
+    feats[k, 1] = 0.5 * (z1 + z2)  # chord midpoint Z
+    feats[k, 2] = phi
+    feats[k, 6] = r1
+    feats[k, 7] = z1
+    feats[k, 8] = r2
+    feats[k, 9] = z2
+    kinds[k] = KIND_SXR_CHORD
