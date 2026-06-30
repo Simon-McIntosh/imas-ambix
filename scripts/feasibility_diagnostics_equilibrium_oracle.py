@@ -1064,7 +1064,8 @@ def geometry_scatter(pred, y, mask, names, out_path, *, title):
     import matplotlib.pyplot as plt
 
     idx = {nm: d for d, nm in enumerate(names)}
-    wanted = ["axis_R", "axis_Z", "lower_xpt_Z", "upper_xpt_Z"]
+    # Judge on axis + LCFS (X-point deferred); show axis + two LCFS control radii.
+    wanted = ["axis_R", "axis_Z", "lcfs_r_2", "lcfs_r_6"]
     comps = [(idx[nm], nm) for nm in wanted if nm in idx]
     fig, axes = plt.subplots(
         1, len(comps), figsize=(4 * len(comps), 4.2), constrained_layout=True
@@ -1309,18 +1310,19 @@ def run(args) -> int:
     channels = probe_channels(tr_examples + te_examples, modalities)
     logger.info("probed channels: %s", {k: v for k, v in channels.items() if v > 0})
 
-    # 5-6) TOROIDAL-ATTRIBUTION ABLATION (all CONTINUOUS, same cohort/seed, one
-    # run) — isolate the toroidal saddle array's contribution cleanly under the
-    # current corrected-label code:
-    #   arm A: POLOIDAL magnetics only (xma + the staged magnetics array = ccbv /
-    #          obr / obv / flux_loop + ip), NO toroidal saddle, NO coils.
-    #   arm B: arm A + the TOROIDAL saddle array (the single variable under test).
-    #   arm C: arm B + the PF-active coil currents (does adding coils help/hurt?).
-    # B − A is the clean toroidal-array attribution; A is the honest magnetics-only
-    # baseline under the current labels (iter1's +0.58 axis_Z was under OLD labels).
-    poloidal_streams = {"xma", "magnetics"}
-    toroidal_streams = poloidal_streams | {SADDLE_STREAM}
-    coil_streams = toroidal_streams | {PF_ACTIVE_STREAM}
+    # 5-6) ALL-SIGNALS CONSOLIDATION (eval path).  Both arms CONTINUOUS, same
+    # cohort/seed, one run, every stream routed through the SHARED space-time
+    # relational encoder (per-(sensor,time) tokens + periodic geometry PE + STFT,
+    # NO pooling) with geometry for ALL channels:
+    #   arm A: MAGNETICS-ONLY baseline (xma + the staged magnetics array).
+    #   arm B: ALL DIAGNOSTICS consolidated (restrict=None) — magnetics + the
+    #          toroidal saddle + coils + soft_x_rays (chord geom) + interferometer
+    #          + summary + gas_injection + xsx/xim + ait + ada/adg/aim, every
+    #          channel geometry-tagged + continuous.
+    # B − A on axis_R/axis_Z/LCFS = whether the extra streams now CONTRIBUTE
+    # through the shared geometry-aware encoder (the all-diagnostics arm
+    # previously overfit / did not beat magnetics-only without geometry).
+    magnetics_only = {"xma", "magnetics"}
 
     arm_a = run_arm(
         tr_examples,
@@ -1328,8 +1330,8 @@ def run(args) -> int:
         channels,
         modalities,
         args,
-        restrict=poloidal_streams,
-        label="poloidal_magnetics_continuous",
+        restrict=magnetics_only,
+        label="magnetics_only_continuous",
         continuous=True,
     )
     arm_b = run_arm(
@@ -1338,40 +1340,31 @@ def run(args) -> int:
         channels,
         modalities,
         args,
-        restrict=toroidal_streams,
-        label="poloidal_plus_toroidal_continuous",
-        continuous=True,
-    )
-    arm_c = run_arm(
-        tr_examples,
-        te_examples,
-        channels,
-        modalities,
-        args,
-        restrict=coil_streams,
-        label="poloidal_toroidal_coils_continuous",
+        restrict=None,
+        label="all_diagnostics_consolidated",
         continuous=True,
     )
     if arm_a is None or arm_b is None:
-        logger.error("ablation arm A or B produced no streams — abort")
+        logger.error("consolidation arm A or B produced no streams — abort")
         return 3
 
-    # the headline result the report + scatter mirror is arm B (+toroidal).
+    # the headline result the report + scatter mirror is arm B (all-diagnostics).
     all_report, all_pred, all_yte, all_mte = arm_b
 
-    # log the clean B − A toroidal-attribution delta on axis (+ xpt for the record).
+    # log the consolidation delta B − A on axis + LCFS (the lead's question:
+    # does the geometry-tagged all-diagnostics arm beat magnetics-only?).
     def _skill(arm, comp):
         for row in arm[0]["verdict"]["components"]:
             if row["component"] == comp:
                 return row["skill"]
         return None
 
-    for comp in ("axis_R", "axis_Z", "lower_xpt_Z", "upper_xpt_Z"):
+    for comp in ("axis_R", "axis_Z", "lcfs_r_0", "lcfs_r_2", "lcfs_r_4", "lcfs_r_6"):
         sa, sb = _skill(arm_a, comp), _skill(arm_b, comp)
         if sa is not None and sb is not None:
             logger.info(
-                "TOROIDAL ATTRIBUTION  %-12s: A(poloidal)=%+.3f  "
-                "B(+toroidal)=%+.3f  delta=%+.3f",
+                "CONSOLIDATION  %-10s: A(magnetics)=%+.3f  "
+                "B(all-diag)=%+.3f  delta=%+.3f",
                 comp,
                 sa,
                 sb,
@@ -1403,26 +1396,16 @@ def run(args) -> int:
         "target_units": "m",
         "coverage": coverage,
         "arms": {
-            # toroidal-attribution ablation (all continuous, same cohort/seed):
-            "poloidal_magnetics_continuous": (arm_a[0] if arm_a is not None else None),
-            # HEADLINE: poloidal + the TOROIDAL saddle array (B − A = attribution).
-            "poloidal_plus_toroidal_continuous": all_report,
-            # + coil currents (does adding coils help or regress?).
-            "poloidal_toroidal_coils_continuous": (
-                arm_c[0] if arm_c is not None else None
-            ),
+            # all-signals consolidation (eval path; both continuous, same cohort):
+            "magnetics_only_continuous": (arm_a[0] if arm_a is not None else None),
+            # HEADLINE: ALL diagnostics consolidated through the shared encoder
+            # (B − A = whether the extra geometry-tagged streams contribute).
+            "all_diagnostics_consolidated": all_report,
         },
-        # top-level verdict mirrors arm B (+toroidal).  The X-point is now SPLIT
-        # into separate lower/upper channels (each continuous, present-when-
-        # present) + ψ-proximity boundary filtered, so the split xpt skills ARE
-        # a model-relevant verdict — judged per-component (they are masked when
-        # the divertor null is absent, so they gate per-component, not overall).
+        # top-level verdict mirrors the all-diagnostics consolidated arm.  Judged
+        # on axis + LCFS (the X-point is DEFERRED — its single-primary target is
+        # bimodal across topology switches; not a verdict here).
         "verdict": all_report["verdict"],
-        "xpoint_note": (
-            "X-point SPLIT into lower_xpt (Z<0) + upper_xpt (Z>0), each a "
-            "continuous present-when-present channel with a ψ-proximity boundary "
-            "filter — a model-relevant verdict, judged per split component."
-        ),
     }
 
     out_root = Path(args.out_root)
@@ -1431,10 +1414,10 @@ def run(args) -> int:
     json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     logger.info("wrote %s", json_path)
 
-    # scatter for the headline arm B (poloidal + toroidal saddle, continuous).
+    # scatter for the headline all-diagnostics consolidated arm.
     title = (
-        "diagnostics feasibility oracle — poloidal + TOROIDAL magnetics "
-        "(continuous) -> plasma geometry"
+        "diagnostics feasibility oracle — ALL diagnostics consolidated "
+        "(shared geometry-aware encoder, continuous) -> plasma geometry"
     )
     fig_local = out_root / "fig-diag-eq-oracle-geometry-scatter.png"
     geometry_scatter(all_pred, all_yte, all_mte, TARGET_NAMES, fig_local, title=title)
