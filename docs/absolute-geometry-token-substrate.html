@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="15">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -404,7 +404,7 @@ Verify
     </article>
 <article class="r-fu" data-id="f-ags-toroidal-result" data-status="open" data-tier="opus" data-written-by="toroidal-probe" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Toroidal array + PERIODIC-phi PE + STFT phase LIFTS the X-point: xpt_R +0.29 (58% of ceil), axis_R +0.38, axis_Z +0.47 — all 3 beat baseline; periodic seam + n-recovery demonstrated</h4>
-    <div class="r-fu-body">Built the lead's toroidal/periodic/phase build (commit 8957477). (1) PERIODIC-phi geometry: every angular geometry feature (toroidal phi, B-probe orientation) encoded as (sin,cos) before the geometry projection (encode_periodic_geometry); stored geometry stays raw. DEMONSTRATED: encoded distance phi=359 vs phi=1 = SMALL (adjacent across the 0/2pi seam) while phi=0 vs phi=180 = LARGE (test_periodic_phi_adjacency_across_seam). (2) TOROIDAL ARRAY ingested: b_field_tor_probe_saddle_voltage (12 saddle loops at 12 distinct toroidal angles 15..345deg on the faster time_saddle base) read from L2, resampled to the signal grid, with per-loop (R,Z,phi) geometry (saddle_toroidal_geometry); it was previously MISSING (only single-phi poloidal ccbv/obr/obv/flux/ip were ingested). (3) STFT PHASE LIFT: each sensor's time segment lifted to its complex rFFT (real+imag, phase KEPT not magnitude) and added to its tokens so cross-sensor phase reaches attention (_StreamTokeniser.stft_phase). (4) SKILL DEMONSTRATED: a periodic-PE+STFT relational encoder RECOVERS the toroidal mode number n of a synthetic B(phi,t)=cos(n.phi-omega.t) (>0.6 acc, BEATS a phi-scrambled control) and recovery is INVARIANT to a global phi-offset crossing the 360->0 seam (5 tests, all green). 9 tests total green; ruff clean.
+    <div class="r-fu-body">Built the lead's toroidal/periodic/phase build (commit 8957477). (1) PERIODIC-phi geometry: every angular geometry feature (toroidal phi, B-probe orientation) encoded as (sin,cos) before the geometry projection (encode_periodic_geometry); stored geometry stays raw. DEMONSTRATED: encoded distance phi=359 vs phi=1 = SMALL (adjacent across the 0/2pi seam) while phi=0 vs phi=180 = LARGE (test_periodic_phi_adjacency_across_seam). (2) TOROIDAL ARRAY ingested: b_field_tor_probe_saddle_voltage (12 saddle loops at 12 distinct toroidal angles 15..345deg on the faster time_saddle base) read from L2, resampled to the signal grid, with per-loop (R,Z,phi) geometry (saddle_toroidal_geometry); it was previously MISSING (only single-phi poloidal ccbv/obr/obv/flux/ip were ingested). (3) STFT PHASE LIFT: each sensor's time segment lifted to its complex rFFT (real+imag, phase KEPT not magnitude) and added to its tokens so cross-sensor phase reaches attention (_StreamTokeniser.stft_phase). (4) SKILL DEMONSTRATED: a periodic-PE+STFT relational encoder RECOVERS the toroidal mode number n of a synthetic B(phi,t)=cos(n.phi-omega.t) (&gt;0.6 acc, BEATS a phi-scrambled control) and recovery is INVARIANT to a global phi-offset crossing the 360-&gt;0 seam (5 tests, all green). 9 tests total green; ruff clean.
 
 ORACLE RESULT (job 1223576, absolute mode, 250 epochs+cosine, 184 train/54 test, X-point labels CORRECTED by bc92405) vs RAW-FLOAT ceiling axis_R 0.571 / axis_Z 0.683 / xpt_R 0.497:
   efit_inputs_continuous (xma+magnetics+coils+TOROIDAL, 1.36M): axis_R +0.375 (66% of ceil, BEATS), axis_Z +0.473 (69%, BEATS), xpt_R +0.288 (58%, BEATS), xpt_Z +0.05
@@ -429,6 +429,31 @@ Done-when
   1. iter1 magnetics-only re-run under corrected labels for a like-for-like toroidal-lift delta.
   2. saddle corpus calibration wired + re-measured.
   3. result folded into the relational research doc; followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-toroidal-reframe" data-status="open" data-tier="opus" data-written-by="toroidal-probe" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">REFRAME of f-ags-toroidal-result: the X-point numbers are LABEL-SUSPECT (corrupted label, not a model verdict) — judge the toroidal build on the n-recovery demo + axis/LCFS, NOT xpt</h4>
+    <div class="r-fu-body">Lead correction (2026-06-30): do NOT treat the X-point (xpt_R/xpt_Z) as a success criterion or tune toward it. The xpt LABEL is corrupted, not the model — select_primary_xpoint uses a fixed lowest-Z-null rule, but MAST is double-null most of the time, so when the lower null drops out the pick flips to the UPPER null (~2.4m Z jump between adjacent slices on 18502/18504), which load_equilibrium_geometry then linearly interpolates through Z~0 — a label matching no physical X-point. (equilibrium_labels.py fix landed bc92405 / further work in flight.) So my f-ags-toroidal-result reported xpt_R +0.288 as 'the X-point moved' — that framing is RETRACTED: it is X-POINT-LABEL-SUSPECT, not a model verdict, reported for completeness only.
+
+The REAL verdict for the toroidal + periodic-PE + STFT build (unchanged, all green):
+  HEADLINE (the proof the new ingestion works): synthetic rotating-mode n-recovery (>0.6 held-out, BEATS phi-scramble) + SEAM-INVARIANCE (global phi-offset crossing 360->0 leaves recovery intact); and the periodic-phi adjacency test (phi=359 <-> phi=1 adjacent, phi=0 <-> phi=180 far) PASSES.
+  AXIS + LCFS (oracle job 1223576, vs raw ceiling axis_R 0.571 / axis_Z 0.683): efit_inputs_continuous axis_R +0.375 (66%, BEATS), axis_Z +0.473 (69%, BEATS); LCFS radii lcfs_r_1/2/6/7 +0.26/+0.53/+0.46/+0.35 (beat). Continuous decisively over the 256-bin token lane (token axis_R +0.10 / axis_Z +0.13).
+  The build is NOT tuned toward xpt. Conclusion: the toroidal-array + periodic-PE + STFT ingestion works, judged on the demonstration + axis/LCFS.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (section 3 / relational)
+Section: section 3
+Tier:    opus
+
+Context
+  The toroidal + periodic-PE + STFT build is landed (8957477) and validated on the n-recovery demo + axis/LCFS. The X-point numbers in f-ags-toroidal-result are LABEL-SUSPECT (corrupted xpt label, not a model verdict) and are retracted as a success/failure signal pending the equilibrium_labels fix.
+
+Next (once equilibrium_labels lands)
+  1. Re-run the oracle under the CORRECTED xpt labels (same cohort) so the axis comparison vs iter1 is like-for-like; only THEN read any xpt skill as a model signal.
+  2. Wire saddle corpus calibration (it currently falls back to per-window standardisation), then re-measure axis/LCFS.
+  3. Poloidal-m periodic-theta demo on the ccbv array to complete the (m,n) picture; fold into f-ags-toroidal-relational&#x27;s research doc.
+
+Done-when
+  1. Oracle re-run under corrected labels; axis/LCFS delta vs iter1 reported (xpt only AFTER the label fix is confirmed).
+  2. Saddle calibration wired; result folded into the relational research doc; followup resolved.</pre>
     </article>
 </section>
 
