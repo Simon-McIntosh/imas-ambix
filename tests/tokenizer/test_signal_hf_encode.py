@@ -311,3 +311,32 @@ def test_already_encoded_rejects_truncated_store(tmp_path, monkeypatch):
     for k in list(g.attrs.keys()):
         del g.attrs[k]
     assert enc.already_encoded(4321, "xim") is False
+
+
+def test_already_encoded_require_absolute_supersedes_per_shot(tmp_path, monkeypatch):
+    """A per-shot store is NOT 'done' for an absolute encode → it is re-encoded.
+
+    This is the supersede contract: re-running the corpus in absolute mode must
+    replace legacy per-shot stores, while an already-absolute shot is skipped on
+    resume.
+    """
+    import imas_ambix.tokenizer.store_v2 as store_mod
+
+    monkeypatch.setattr(store_mod, "TOKEN_ROOT", tmp_path)
+    rng = np.random.default_rng(12)
+    data = rng.standard_normal((4, 64 * 20)).astype(np.float32)
+    chan = [f"da_ch{i}" for i in range(4)]
+    monkeypatch.setattr(
+        enc,
+        "load_shot_window",
+        lambda s, g: (data, chan, np.ones(4, bool), 50_000.0, (0.0, 0.4)),
+    )
+    tok = _train_tiny_tokenizer(4)
+    tok.name = enc.XIM_SPEC.patch_block
+    # Write a per-shot (no calibration) store.
+    enc.encode_shots("xim", [7777], tok, skip_existing=False)
+    # Complete, and "done" under the legacy (mode-agnostic) check …
+    assert enc.already_encoded(7777, "xim") is True
+    # … but NOT done when absolute is required → the supersede re-encodes it.
+    assert enc.already_encoded(7777, "xim", require_mode="absolute") is False
+    assert enc.already_encoded(7777, "xim", require_mode="per_shot") is True

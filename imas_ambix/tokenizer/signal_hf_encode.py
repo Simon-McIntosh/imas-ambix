@@ -460,9 +460,13 @@ def encode_shots(
 
     # Resume + presence filter up front so DataLoader workers never read a shot
     # that is already done (cheap path-exists check, not a decode).
+    # Under absolute mode, "done" means an existing store that is ALREADY
+    # absolute — a legacy per-shot store does not count and is re-encoded
+    # (the supersede), while an already-absolute shot is skipped on resume.
+    require_mode = "absolute" if corpus_calibration is not None else None
     todo: list[int] = []
     for sid in shot_ids:
-        if skip_existing and already_encoded(sid, group):
+        if skip_existing and already_encoded(sid, group, require_mode=require_mode):
             summary["skipped"].append({"shot": sid, "reason": "already_encoded"})
         else:
             todo.append(sid)
@@ -808,7 +812,9 @@ def group_present(shot_id: int, group: str) -> bool:
     return (LEVEL1_DIR / f"{shot_id}.zarr" / group).exists()
 
 
-def already_encoded(shot_id: int, group: str) -> bool:
+def already_encoded(
+    shot_id: int, group: str, *, require_mode: str | None = None
+) -> bool:
     """True if this shot/group has a **complete** v2 signals_hf token store.
 
     Lets a long corpus encode checkpoint/resume: re-running with the same
@@ -818,6 +824,12 @@ def already_encoded(shot_id: int, group: str) -> bool:
     mid-write (e.g. SIGTERM at the SLURM time limit) leaves arrays with no
     attrs.  A path-only check would skip that truncated shot forever; reading
     the attrs back means a partial shot is re-encoded on resume instead.
+
+    ``require_mode`` (e.g. ``"absolute"``) additionally requires the existing
+    store to carry that ``calibration_mode``.  This makes the absolute
+    re-encode supersede legacy per-shot stores (which won't match and are
+    re-encoded) while staying resume-safe (an already-absolute shot is skipped
+    on restart).  ``None`` keeps the legacy completeness-only check.
     """
     path = signal_hf_token_path(shot_id, group)
     if not path.exists():
@@ -829,7 +841,13 @@ def already_encoded(shot_id: int, group: str) -> bool:
 
         store = zarr.open_group(str(path), mode="r")
         attrs = dict(store.attrs)
-        return all(k in attrs for k in REQUIRED_ATTRS)
+        if not all(k in attrs for k in REQUIRED_ATTRS):
+            return False
+        if require_mode is not None:
+            # Legacy stores predate the field → "per_shot"; only an exact match
+            # to the requested mode counts as done.
+            return str(attrs.get("calibration_mode", "per_shot")) == require_mode
+        return True
     except Exception:  # noqa: BLE001 — unreadable/partial store ⇒ re-encode
         return False
 
