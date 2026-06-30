@@ -203,11 +203,17 @@ phase lift, continuous signed magnitude — moved every boundary component above
   φ-offset crossing the 360°→0° seam (analytically, a spatial DFT across the 12 φ recovers n at 100%).</li>
   <li><strong>Continuous ≫ token</strong> within the same run (xpt_R +0.29 vs −0.05) reconfirms quantisation —
   not architecture — is the discrete-token-path gap.</li>
-  <li><strong>Honest confound</strong>: the X-point <em>labels</em> were corrected (discontinuity-aware, commit
-  bc92405) between the earlier magnetics-only run and this one, so the cross-iteration absolute delta is partly
-  the label fix. The <em>unconfounded</em> signals are within-run (continuous≫token; all three beat baseline). A
-  clean like-for-like toroidal-lift ablation (magnetics-only vs +toroidal under the corrected labels) is queued.
-  xpt_Z stays weak (intrinsically ~0 even at the raw ceiling).</li>
+  <li><strong>Clean toroidal attribution</strong> (job 1223599, one run, identical labels/cohort/seed, all
+  continuous): poloidal-only A → +toroidal B → +coils C give axis_R <strong>0.276 → 0.346 → 0.379</strong> and
+  axis_Z <strong>0.318 → 0.473 → 0.453</strong>. So the previously-missing <strong>toroidal saddle array makes a
+  real, isolated contribution: +0.070 axis_R and +0.156 axis_Z</strong> (concentrated in axis_Z — the toroidal
+  array constrains the vertical-field/shape picture), confirming the space-phasing thesis. Coils are ~neutral
+  (resolving an earlier apparent coil regression as a label confound, not coils being harmful).</li>
+  <li><strong>X-point is not yet a verdict</strong>: the single-"primary" target is bimodal across double-null
+  topology switches (xpt_Z ~0 even at the raw ceiling). The fix in progress is the <strong>upper/lower-null
+  split</strong> (14-D labels) + a <strong>ψ-proximity filter</strong> (keep a null only if ψ(null)≈ψ(LCFS),
+  using the store's ψ-map + boundary) so non-boundary nulls are masked — then the X-point becomes a clean,
+  model-relevant target judged per null.</li>
 </ul>
 
 </main>
