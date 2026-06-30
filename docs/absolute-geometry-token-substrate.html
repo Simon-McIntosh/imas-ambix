@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="18">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -507,6 +507,38 @@ Done-when
   1. One shared geometry-aware, phase-preserving space-time encoder; every signal stream routes through it (no per-scalar-uniform / per-channel-independent operative path).
   2. Geometry coverage for all stream channels (chords=endpoints, scalars kinded), periodic angles throughout; tests green.
   3. Oracle re-run holds/improves axis+LCFS; per-stream consolidation reported; followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-ags-xpoint-split" data-status="open" data-tier="opus" data-written-by="xpoint-split" data-written-at="2026-06-30" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">X-POINT SPLIT LANDED (14-D): with clean split labels the X-point IS recoverable from magnetics — all 14 components beat baseline, arm FEASIBLE; psi-filter rejects 3.5-5.4% of store nulls</h4>
+    <div class="r-fu-body">Implemented the upper/lower X-point split + psi-proximity boundary-null filter (commit 55f0cea: equilibrium_labels.py 14-D schema, diagnostics_equilibrium_probe target_dim auto-bumps to 14, oracle reports split xpt, tests). SCHEMA: the single (xpt_R,xpt_Z) is replaced by FOUR components lower_xpt_R/Z (Z<0) + upper_xpt_R/Z (Z>0); TARGET_DIM 12->14. Each null is its OWN sign-pure, present-when-present channel — NO lower<->upper flip, NO 2.4m discontinuity, so each is LINEARLY interpolated within its presence + masked on absence (the discontinuity-aware single-primary hack is dropped). PSI-FILTER: a store null is kept only if boundary-associated, |psi_null - psi_boundary| <= tol*|psi_boundary - psi_axis| (tol=0.05; psi[z,r,t] grid + LCFS-median psi_boundary + axis psi; bilinear interp), else masked; no null re-finding, no separatrix tracing.
+
+DEMONSTRATED (6 tests green): 14-D schema; split channels sign-pure + continuous within presence (synthetic + real 18502/18504: lower_xpt_Z stays [-1.19,-1.02], upper [1.03,1.20], max adjacent step 0.024m vs the old ~2.4m flip); psi-filter masks a synthetic internal/far null (keeps it without the grid). PSI-FILTER REJECTION RATE (answers 'do we need filtering?'): 18502 rejected 4/114 (3.5%), 18504 9/168 (5.4%) of real store nulls — NON-TRIVIAL, so the store's 2 nulls are usually but NOT always boundary nulls; the filter does real work.
+
+ORACLE (job 1223605, absolute, 250 epochs+cosine, 184 train/54 test, 14-D SPLIT labels) — a MODEL-RELEVANT verdict now (clean labels). Arm A poloidal_magnetics_continuous (xma+magnetics) is FEASIBLE — ALL 14 components beat baseline:
+  axis_R +0.38, axis_Z +0.47
+  lower_xpt_R +0.32, lower_xpt_Z +0.43, upper_xpt_R +0.36, upper_xpt_Z +0.46
+  LCFS radii +0.24..+0.58 (all 8 beat)
+  Arm B (+toroidal): FEASIBLE-ish (upper_xpt_R +0.17 just misses); arm C (+coils): all 6 xpt beat.
+
+VERDICT (the lead's reframe confirmed): the X-point IS recoverable from magnetics — the earlier xpt ~0 was ENTIRELY the bimodal single-primary LABEL artifact, NOT the model. Split labels lift every X-point channel to +0.28..+0.46 and produce the FIRST fully-FEASIBLE arm (all 14 components beat baseline). TOROIDAL re-attribution under clean split labels: B-A is now slightly NEGATIVE (axis_Z -0.017, lower_xpt_Z -0.156) — the toroidal array's earlier apparent axis/X-point 'lift' was largely measured against the CORRUPTED single-primary baseline; with clean split labels poloidal magnetics alone already recovers axis + both X-points, and adding the toroidal array (more tokens, same 184 examples) mildly dilutes. The toroidal array's clean value is its DEMONSTRATED toroidal-mode/seam capability (f-ags-toroidal-result), not an axis/xpt lift on this small cohort. Report /work/projects/imas_gpu/worldmodel/diag_eq_oracle_xpt_split/oracle_report.json.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate (section 3 gate)
+Section: section 3
+Tier:    opus
+
+Context
+  The X-point split (14-D) landed and makes the X-point a clean model-relevant verdict: arm A (poloidal magnetics, split labels) is FEASIBLE with ALL 14 components beating baseline (axis +0.38/+0.47, both X-points +0.32..+0.46, LCFS +0.24..+0.58). The earlier xpt ~0 was the bimodal-label artifact. The psi-filter rejects 3.5-5.4% of store nulls (non-trivial). This is the f-ags-01 gate met for the magnetics path.
+
+Next
+  1. The raw-float calibrated-magnetics oracle (the CEILING reference) still uses the OLD 12-D single-primary labels (imas_ambix/eval/magnetics_oracle.py, out of this scope). Re-establish the raw ceiling under the 14-D split labels so the tokenised skills can be read as a fraction of the raw ceiling, not just vs the mean-predictor baseline.
+  2. The toroidal array does not lift axis/xpt under clean split labels on this 184-example cohort (it dilutes mildly); its value is the toroidal-mode capability. Decide whether to keep it in the headline EFIT-input arm or only where toroidal structure is the target.
+  3. Grow the train cohort (184 survivors) to reduce the more-tokens dilution and tighten the split-xpt skills.
+  4. f-ags-01 gate is now decisively MET on the magnetics path under clean labels — consider resolving it (orchestrator-owned) with these split numbers.
+
+Done-when
+  1. Raw ceiling re-established under 14-D split labels (or a documented decision to report vs baseline only).
+  2. Toroidal-in-headline decision recorded; cohort-size effect on split-xpt measured.
+  3. Followup resolved.</pre>
     </article>
 </section>
 
