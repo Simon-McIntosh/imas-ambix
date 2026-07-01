@@ -68,7 +68,13 @@ def test_gs_inverse_theta_recovers_known_profile():
 
     # a synthetic campaign with enough sensors to identify 3 profile DOF
     probes = [
-        gsg.BProbe(index=i, r=1.4 + 0.02 * i, z=-0.4 + 0.16 * i, angle_deg=90.0 * (i % 2), length=0.02)
+        gsg.BProbe(
+            index=i,
+            r=1.4 + 0.02 * i,
+            z=-0.4 + 0.16 * i,
+            angle_deg=90.0 * (i % 2),
+            length=0.02,
+        )
         for i in range(8)
     ]
     sensor_map = [
@@ -76,15 +82,23 @@ def test_gs_inverse_theta_recovers_known_profile():
         for i, p in enumerate(probes)
     ]
     table = gsg.GeometryTable(
-        signature=gsg.SetupSignature(n_bprobe=8, n_fluxloop=0, n_pf_filament=1, n_limiter=4, digest="eee0"),
+        signature=gsg.SetupSignature(
+            n_bprobe=8, n_fluxloop=0, n_pf_filament=1, n_limiter=4, digest="eee0"
+        ),
         shots=[1],
         b_probes=probes,
         flux_loops=[],
-        pf_filaments=[gsg.PFFilament(r=1.5, z=1.1, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=1.0)],
+        pf_filaments=[
+            gsg.PFFilament(
+                r=1.5, z=1.1, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=1.0
+            )
+        ],
         limiter_r=[0.3, 1.6, 1.6, 0.3],
         limiter_z=[-1.0, -1.0, 1.0, 1.0],
         sensor_map=sensor_map,
-        passive_structures=[gsg.PassiveStructure(name="w", r=2.0, z=0.0, obsolete=False)],
+        passive_structures=[
+            gsg.PassiveStructure(name="w", r=2.0, z=0.0, obsolete=False)
+        ],
         amc_current_channels=["p4u_coil_current"],
         unmatched_amb=[],
     )
