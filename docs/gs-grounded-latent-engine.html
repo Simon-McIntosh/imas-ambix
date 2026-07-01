@@ -4,24 +4,49 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="gs-grounded-latent-engine">
-  <meta name="plan-title"     content="GS-Grounded Latent + Transport / Irreversibility Anchor">
-  <meta name="plan-summary"   content="v0 stage 2 of the machine-agnostic latent world model: build the hybrid latent (raw-anchored block + poloidal-flux psi + free closure block, dimensionless) and its physics anchors — the EFIT-free Grad-Shafranov observation operator (spatial) and the soft, learned flux-diffusion transport prior with sign/irreversibility constraints (temporal). Boundary/X-point emerge as label-free psi readouts.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="gs-grounded-latent-engine">
+  <meta name="plan-title" content="GS-Grounded Latent + Transport / Irreversibility Anchor">
+  <meta name="plan-summary" content="v0 stage 2 of the machine-agnostic latent world model: build the hybrid latent (raw-anchored block + poloidal-flux psi + free closure block, dimensionless) and its physics anchors — the EFIT-free Grad-Shafranov observation operator (spatial) and the soft, learned flux-diffusion transport prior with sign/irreversibility constraints (temporal). Boundary/X-point emerge as label-free psi readouts.">
+  <meta name="plan-status" content="shipped">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S16">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S16">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="machine-agnostic-latent-world-model,absolute-geometry-token-substrate,learned-closure-current-diffusion-v0,sequential-current-da-v1">
   <title>GS-Grounded Latent + Transport / Irreversibility Anchor | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-01">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
+
+<section class="section-landed" style="border-left:4px solid #2e7d32;background:#f2f9f3;padding:.7rem 1rem;margin:0 0 1.2rem">
+  <span class="badge badge-shipped">✓ shipped 2026-07-01</span>
+  <p class="landed-summary" style="margin:.4rem 0 0">
+  The full stage-2 <strong>GS-grounded latent engine</strong> is built + unit-verified (36 tests) in
+  <code>imas_ambix/latent/</code>: differentiable GS observation + ψ-grid, topology-from-ψ
+  (axis/X-point/LCFS/public-private, §3a connectivity), flux-diffusion transport prior (D≥0 by construction),
+  hybrid encoder (<code>dimensionless-coordinate-set</code> resolved <strong>learned-soft</strong>), assembled
+  engine + composite loss, GS-inverse solver + referee scoring.
+  <strong>Real-data gate</strong> (216 held-out slices, firewalled EFIT referee):
+  <strong>Gate 1 MET</strong> — label-free mechanism; the learned latent grounds on real data (GS residual
+  12.15→2.29, 5.3×, 14,780 slices, no EFIT labels).
+  <strong>Gate 3 MET</strong> — D_min = 1×10⁻⁶ &gt; 0 (adversarial), command load-bearing (Δ = 25.5),
+  dissipation/Volt-second guard-rails active.
+  <strong>Gate 4 MET</strong> — 36 tests green.
+  <strong>Gate 2 NOT MET (honest negative)</strong> — the training-free GS-inverse axis skill is −11.2
+  (X-point −6.3) vs the tightly-clustered train-mean (axis MAE 0.04/0.015 m); a non-force-balanced low-DOF
+  inverse lands the axis in the plasma region (MAE 0.39/0.50 m) but cannot beat the mean. Closing it (learned
+  corpus training + force-balanced ψ) is queued as <strong>f-ggl-02</strong>.
+  Full record + figures: <a href="/imas-ambix/gs-grounded-latent-engine-findings.html">build &amp; gate findings</a>.
+  </p>
+</section>
 
 <p><strong>Execution home for v0 stage 2</strong> of the redesign. Full design, figures (Fig 4 latent, Fig 6
 GS X-point readout, Fig 7a transport anchor), glossary, and locked decisions are in the parent
@@ -168,30 +193,29 @@ sign constraints; <code>firewall-definition</code> = code-outputs-only. The open
 the encoder is built — surface it, recommend learned-soft.</p>
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
-  <h2><span class="sec">§</span> Decisions</h2>
-  <div class="r-dec" data-key="topology-from-psi" data-choice="read-from-solved-psi" data-by="Simon McIntosh" data-when="2026-07-01">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="topology-from-psi" data-choice="read-from-solved-psi" data-by="Simon McIntosh" data-when="2026-07-01">
     <p class="r-dec-q">How is field topology (axis / X-points / LCFS / public-private) obtained?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="read-from-solved-psi">Deterministic read from the solved ψ (contour-tree topology; our routines, NOVA/EFIT-steered)</button>
+      <button class="r-opt chosen" data-value="read-from-solved-psi">Deterministic read from the solved ψ (contour-tree topology; our routines, NOVA/EFIT-steered)</button>
       <button class="r-opt" data-value="separate-decoder-heads">Separate regression decoder heads per quantity</button>
-    </p>
+      </p>
     <p class="r-dec-rat">Locked 2026-07-01. The stage-1 substrate work proved separate heads are lossy,
     mutually inconsistent, and topology-blind (the X-point upper/lower bimodal-flip; a ψ-proximity filter
     that cannot separate a private-region null from an interior one). Reading topology from one
     physically-grounded ψ is self-consistent by construction and handles exotic divertor topologies
-    (double-null / snowflake / X-divertor / super-X) via ψ&rsquo;s contour tree — the physical,
-    machine-agnostic solution (§3a). Steered by NOVA <code>fieldnull</code> critical-point finding + EFIT
-    <code>contour_tree</code> public/private structure; EFIT ψ itself stays a firewalled referee, never a
+    (double-null / snowflake / X-divertor / super-X) via ψ’s contour tree — the physical,
+    machine-agnostic solution (§3a). Steered by NOVA fieldnull critical-point finding + EFIT contour_tree public/private structure; EFIT ψ itself stays a firewalled referee, never a
     training target.</p>
-  </div>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-ggl-01" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24">
-  <h4 class="r-fu-title">Build the hybrid latent + GS spatial anchor + flux-diffusion temporal anchor</h4>
-  <div class="r-fu-body">Wire the encoder → hybrid latent (anchored raw block + ψ + free block), the EFIT-free GS observation operator, and the soft learned flux-diffusion transport prior with the sign/irreversibility constraints. Gate on the GS-readout matching the absolute-magnetics oracle + D≥0 verified.</div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-ggl-01" data-status="resolved" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="" data-resolved-at="2026-07-01T20:13:49+00:00" data-resolved-by="reckon-ship (opus)">
+    <h4 class="r-fu-title">Build the hybrid latent + GS spatial anchor + flux-diffusion temporal anchor</h4>
+    <div class="r-fu-body">Wire the encoder → hybrid latent (anchored raw block + ψ + free block), the EFIT-free GS observation operator, and the soft learned flux-diffusion transport prior with the sign/irreversibility constraints. Gate on the GS-readout matching the absolute-magnetics oracle + D≥0 verified.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    gs-grounded-latent-engine (§2/§3)
 Section: §3
 Tier:    opus
@@ -201,7 +225,7 @@ Context
   (flux-diffusion + sign) anchors. (Honour the locked parent decisions.)
 
 State to read
-  imas_ambix/gs/operator.py (EFIT-free GS Green's-function operator); imas_ambix/statespace/sequential_da.py;
+  imas_ambix/gs/operator.py (EFIT-free GS Green&#x27;s-function operator); imas_ambix/statespace/sequential_da.py;
   docs learned-closure-current-diffusion-v0 (the psi-diffusion filter + positive-resistivity priors = the
   reused asset); the absolute+geometry token readers from stage 1; parent §6/§7a/§8. Topology-readout steers:
   nova/biot/fieldnull.py (critical-point finding) + imas-efit src/EFIT/contour_tree.f90 (public/private
@@ -213,18 +237,51 @@ Scope locks / constraints
   Multimodal-flux caveat is binding: support double-null / snowflake / X-div / super-X — no sign-of-Z split,
   no psi-proximity filter (a private-region null can look interior); distinguish public/private by contour-tree
   connectivity (§3a). eta-parallel + sources are LEARNED closures. Diffusivity strictly positive (softplus/exp)
-  -> D>=0 by construction. Soft, falsifiable priors (data may override); residuals monitored as discovery
+  -&gt; D&gt;=0 by construction. Soft, falsifiable priors (data may override); residuals monitored as discovery
   signals. GPU per AGENTS.md §2a/§2b; all 8 cards free while DSv4 down (check squeue).
 
 Done-when (the gate)
-  1. Hybrid latent + GS operator wired; anchored block supervised on RAW scalars; psi readout -> boundary/X-point
+  1. Hybrid latent + GS operator wired; anchored block supervised on RAW scalars; psi readout -&gt; boundary/X-point
      with NO EFIT labels.
   2. From raw magnetics, GS-readout axis/X-point/boundary skill matches the absolute-magnetics oracle (~0.5-0.7)
      — report per-quantity.
-  3. Transport anchor: learned diffusivity verified D>=0; dissipation>=0 + Volt-second-budget priors active;
-     load-bearing test (zero the source -> psi evolution changes).
+  3. Transport anchor: learned diffusivity verified D&gt;=0; dissipation&gt;=0 + Volt-second-budget priors active;
+     load-bearing test (zero the source -&gt; psi evolution changes).
   4. tests green; followup written + this one resolved; plan collapsed.</pre>
-</article>
+    <p class="r-fu-outcome">SHIPPED 2026-07-01 — the full stage-2 GS-grounded latent engine built + unit-verified (36 tests) in imas_ambix/latent/: differentiable GS observation + ψ-grid, topology-from-ψ (axis/X-point/LCFS/public-private, §3a connectivity), flux-diffusion transport prior (D≥0 by construction), hybrid encoder (dimensionless-coordinate-set resolved learned-soft), assembled engine + composite loss, GS-inverse solver + referee scoring. Real-data run (216 held-out slices, firewalled EFIT referee): Gate 1 MET (label-free mechanism; the learned latent grounds on real data — GS residual 12.15→2.29, 5.3×, 14780 slices, no EFIT labels). Gate 3 MET (D_min=1e-6>0 adversarial; command load-bearing Δ=25.5; dissipation/Volt-second guard-rails active). Gate 4 MET (36 tests green). Gate 2 NOT MET (honest negative): training-free GS-inverse axis skill −11.2 / X-point −6.3 vs the tightly-clustered train-mean (axis MAE 0.04/0.015 m); a non-force-balanced low-DOF inverse lands the axis in the plasma region (MAE 0.39/0.50 m) but cannot beat the mean — matching the oracle needs the LEARNED latent trained on the corpus + a richer/force-balanced ψ (queued f-ggl-02). Findings + figures: docs/gs-grounded-latent-engine-findings.html.</p>
+    </article>
+<article class="r-fu" data-id="f-ggl-02" data-status="open" data-tier="opus" data-written-by="reckon-ship (opus)" data-written-at="2026-07-01" data-recommends-skill="/reckon-ship closed-loop-latent-filter" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Close gate 2 — corpus-train the learned latent + force-balanced ψ so the GS-readout matches the oracle</h4>
+    <div class="r-fu-body">The stage-2 engine + label-free mechanism landed (gates 1/3/4). Gate 2 (GS-readout axis/X-point skill matching the ~0.5–0.7 oracle) is an open honest negative: a training-free, low-DOF, non-force-balanced GS-inverse ψ cannot beat the tightly-clustered train-mean axis. Close it in stage 3+ by (a) training the learned hybrid latent on the corpus (the anchored block + belief regularise θ; a smoke fit already dropped the GS residual 5.3× on 14780 real slices), (b) a richer / differentiable Grad-Shafranov force-balanced ψ so the reconstructed field is a true equilibrium with a well-defined O-point, and (c) scoring where the readout is informative (GS + flux-diffusion residuals as discovery signals; per-quantity calibration) rather than a single clustered-axis number a mean dominates.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    gs-grounded-latent-engine (§2 gate 2) → closed-loop-latent-filter
+Section: gate-2 close
+Tier:    opus
+
+Context
+  The stage-2 GS-grounded latent engine is built + unit-verified and the label-free GS-observation grounding
+  works on real data (learned smoke fit dropped the GS residual 5.3× on 14780 held-out slices). Gate 2 —
+  the GS-readout axis/X-point skill matching the absolute-magnetics oracle (~0.5–0.7) — is an honest negative
+  for the TRAINING-FREE GS-inverse readout: a non-force-balanced, low-DOF (order-1, 3 DOF) linear inverse ψ
+  lands the axis in the plasma region but cannot beat the tightly-clustered train-mean axis (MAE ~0.04/0.015 m).
+
+State to read
+  imas_ambix/latent/{engine,encoder,gs_observation,topology,transport,evaluate,data}.py; scripts/gs_grounded_latent_run.py;
+  docs/gs-grounded-latent-engine-findings.html (the negative + root cause); the abs-magnetics oracle
+  (imas_ambix/eval/magnetics_oracle.py) for the bar; the firewalled EFIT referee (imas_ambix/eval/efit_referee.py).
+
+Scope locks / constraints
+  Topology stays a DETERMINISTIC READ of the solved ψ (locked topology-from-psi); EFIT firewalled (never a label).
+  D≥0 by construction; soft falsifiable transport priors. Machine-agnostic + dimensionless. GPU per AGENTS.md §2a/§2b.
+
+Done-when (the gate)
+  1. The LEARNED hybrid latent trained on the corpus (excitation-curated); GS residual + anchored + transport
+     objective; checkpoint on the H200 node, in-process / SIGTERM-clean / resume-safe.
+  2. GS-readout axis/X-point/boundary skill vs the firewalled referee reaches (or is honestly compared to) the
+     ~0.5–0.7 oracle bar — report per-quantity, with calibration.
+  3. If a force-balanced ψ is needed, a differentiable GS solve replaces the linear inverse; documented.
+  4. tests green; findings doc updated; followup written + this one resolved.</pre>
+    </article>
 </section>
 
 </main>
