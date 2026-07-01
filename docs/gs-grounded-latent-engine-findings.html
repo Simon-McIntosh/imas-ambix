@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="gs-grounded-latent-engine-findings">
+  <meta name="plan-title" content="GS-Grounded Latent Engine — Build &amp; Gate Findings">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="What the v0 stage-2 GS-grounded latent engine build landed, what is verified, and the honest gate outcome: the label-free GS-observation grounding + topology-from-psi mechanism is built and unit-verified end-to-end (and the learned latent grounds on real data), D>=0 and command-load-bearing (gate 3) pass, but the training-free GS-inverse axis readout does NOT reach the absolute-magnetics oracle's 0.5-0.7 skill (gate 2) — a non-force-balanced low-DOF inverse cannot beat the tightly-clustered train-mean axis; the learned latent + richer psi is the path.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>GS-Grounded Latent Engine — Build &amp; Gate Findings | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Scope.</strong> This document records the build and first real-data gate run of the
+<a href="/imas-ambix/gs-grounded-latent-engine.html">GS-grounded latent engine</a> (v0 stage 2 of the
+machine-agnostic latent world model). It states plainly what landed, what is verified, and the honest
+gate verdict — including a first-class negative result.</p>
+
+<h2 id="built">§1 — What was built (the stage-2 engine)</h2>
+<p>Six coherent primitives, each test-driven, in the new <code>imas_ambix/latent/</code> package:</p>
+<ul>
+  <li><strong>Differentiable GS observation operator</strong> (<code>gs_observation.py</code>) — lifts the
+  geometry-only Green's-function <code>ForwardOperator</code> into torch: the latent plasma-current
+  amplitudes θ map, differentiably, to predicted magnetics at the freely-known sensor locations
+  (<em>matches the numpy operator bit-for-bit</em>) AND to the reconstructed poloidal-flux field ψ(R,Z) on
+  a grid. Everything downstream of θ is a constant matmul, so the GS residual and the topology readout both
+  back-propagate to the latent.</li>
+  <li><strong>Topology read from ψ</strong> (<code>topology.py</code>) — deterministic magnetic axis (O-point),
+  X-point null set (saddles), LCFS (8 ray-cast radii matching the evaluator), and public/private split
+  (connectivity, per the §3a multimodal-flux caveat), all read from the one solved ψ. No EFIT labels, no
+  regression heads (locked decision <code>topology-from-psi</code>). Steered by NOVA <code>fieldnull</code>
+  critical-point finding + EFIT <code>contour_tree</code> public/private structure.</li>
+  <li><strong>Flux-diffusion transport prior</strong> (<code>transport.py</code>) — the §7a temporal anchor:
+  ∂ψ/∂t = D·𝒟[ψ] + S with a <em>strictly-positive</em> learned diffusivity (η∥&gt;0 ⇒ D≥0 by construction —
+  the arrow of time), the command entering through the source term, and soft dissipation-≥0 + Volt-second
+  guard-rails.</li>
+  <li><strong>Hybrid latent encoder</strong> (<code>encoder.py</code>) — absolute-calibrated features → an
+  anchored raw-supervised block (Ip, n_e) ⊕ the θ ψ-representation ⊕ a free closure block, in dimensionless
+  coordinates (resolving the open <code>dimensionless-coordinate-set</code> decision <strong>learned-soft</strong>).</li>
+  <li><strong>Assembled engine + composite loss</strong> (<code>engine.py</code>) — encoder + GS spatial
+  anchor + transport temporal anchor, with the raw-signal objective (GS residual vs raw magnetics +
+  anchored supervision + transport guard-rails + KL/dimensionless).</li>
+  <li><strong>GS-inverse solver + referee scoring</strong> (<code>evaluate.py</code>, <code>data.py</code>) —
+  a per-slice ridge GS-inverse for θ (the map the learned encoder amortises) + the oracle-formula
+  RMSE-skill and permutation-invariant X-point-set match against the firewalled EFIT referee.</li>
+</ul>
+
+<figure class="r-fig" style="margin:1rem 0">
+  <img src="/imas-ambix/figures/gs-grounded-latent-engine/fig-psi-axis-readout.png"
+       alt="Plasma-only reconstructed poloidal flux with the GS-read magnetic axis (red x) and the firewalled EFIT axis (cyan circle) overlaid, inside the MAST limiter"
+       style="max-width:52%;height:auto">
+  <figcaption><strong>Fig 1 — The label-free readout.</strong> The plasma-current-generated ψ (reconstructed
+  from θ solved against raw magnetics, coils zeroed) with the GS-read magnetic axis (red ✕) and the
+  firewalled EFIT axis (cyan ○, evaluator-only). The axis lands in the plasma region — but not to
+  EFIT precision (see §4).</figcaption>
+</figure>
+
+<h2 id="verified">§2 — What is verified (unit tests)</h2>
+<p>The mechanism is pinned by <strong id="ntests">36</strong> tests that need no mirror or network:</p>
+<ul>
+  <li>the torch GS observation reproduces the numpy forward operator exactly, and ψ is the Green's
+  superposition and differentiable w.r.t. θ;</li>
+  <li>topology is correct on analytic fields — Hessian O/X classification, a double-well's two O-points
+  bracketing one X-point, LCFS radii on a circular boundary, and <em>the §3a hard case</em>: two nulls at
+  comparable ψ height separated only by connectivity land in different regions (not confused by height or
+  sign-of-Z);</li>
+  <li>the transport diffusivity is strictly positive for any input (D≥0), the operator is genuinely
+  smoothing (parabolic), the command is load-bearing (zeroing it changes ∂ψ/∂t), and the dissipation +
+  Volt-second guard-rails fire when violated;</li>
+  <li>the assembled engine's encoder→θ→GS chain <em>grounds in raw magnetics</em> — training drives the GS
+  residual down &gt;20× on a synthetic target (the mechanism behind gate 1).</li>
+</ul>
+<p><strong>And it grounds on REAL data.</strong> A 300-step end-to-end smoke fit of the hybrid-latent
+encoder on 14,780 real held-out slices drove the whitened GS residual from <strong>12.15 → 2.29</strong>
+(a 5.3× drop): the learned latent genuinely learns to explain the raw measured magnetics through the GS
+operator, with no EFIT labels — gate 1 confirmed on the corpus, not just a synthetic target.</p>
+
+<h2 id="gate">§3 — The real-data gate run (firewalled)</h2>
+<p>On held-out MAST shots (the standing 18502–18505 cohort + OOD-regime shots), using <strong>only</strong>
+raw magnetics and the KNOWN coil currents, the engine builds per-campaign GS operators, solves θ per slice,
+reads ψ topology, and scores axis / X-point / LCFS against the EFIT referee — which is read only inside the
+firewall guard and never enters the solve. The absolute-magnetics oracle's ~0.5–0.7 axis skill is the bar.</p>
+
+<h2 id="results">§4 — Results &amp; honest verdict</h2>
+<div class="r-card" style="border-left:4px solid #b05a66;padding:.6rem 1rem;margin:1rem 0;background:#fdeef0">
+  <p style="margin:.2rem 0"><strong>Gate 1 (mechanism, label-free) — MET.</strong> Hybrid latent + GS
+  operator wired; anchored block supervised on raw scalars; the ψ readout produces axis / X-point / boundary
+  with no EFIT labels. Runs end-to-end on real data.</p>
+  <p style="margin:.2rem 0"><strong>Gate 2 (GS-readout skill matches the oracle 0.5–0.7) — NOT MET (honest
+  negative).</strong> The training-free GS-inverse axis readout scores <strong id="axis-skill">&minus;11.2 (axis-R &minus;6.3, axis-Z &minus;16.1)</strong>
+  (axis-R/Z) and <strong id="xpt-skill">&minus;6.3</strong> (X-point set) vs the train-mean baseline —
+  <em>below zero</em>, far from the oracle bar. <strong>Root cause:</strong> MAST magnetic axes are tightly
+  clustered (train-mean axis MAE ≈ 0.04 (R) / 0.015 (Z) m), and a <em>low-DOF, non-force-balanced</em> linear
+  GS-inverse ψ lands the axis in the plasma region (MAE ≈ 0.39 (R) / 0.50 (Z) m) but cannot beat that mean. The
+  oracle wins by <em>learning</em> the distribution; a physics inverse without a Grad-Shafranov force-balance
+  solve does not. Higher profile order made it worse (under-determined).</p>
+  <p style="margin:.2rem 0"><strong>Gate 3 (transport temporal anchor) — MET.</strong> Learned diffusivity
+  verified strictly positive on the run (D_min = <strong id="dmin">1.0&times;10&minus;&#8310;</strong> &gt; 0 for adversarial
+  inputs); dissipation-≥0 + Volt-second guard-rails active; the command source is load-bearing
+  (Δ = <strong id="cmd-delta">25.5</strong> &gt; 0 when the command is zeroed).</p>
+  <p style="margin:.2rem 0"><strong>Gate 4 — MET.</strong> All latent tests green; outcome recorded here;
+  plan collapsed.</p>
+</div>
+
+<figure class="r-fig" style="margin:1rem 0">
+  <img src="/imas-ambix/figures/gs-grounded-latent-engine/fig-axis-scatter.png"
+       alt="Scatter of GS-read and train-mean predicted magnetic axis R and Z against the EFIT referee"
+       style="max-width:100%;height:auto">
+  <figcaption><strong>Fig 2 — Why gate 2 fails.</strong> The GS-read axis (circles) scatters widely about
+  the EFIT referee, while the tightly-clustered train-mean (squares) sits near the identity line — the mean
+  is a strong baseline for a clustered quantity, and the training-free inverse cannot beat it.</figcaption>
+</figure>
+
+<figure class="r-fig" style="margin:1rem 0">
+  <img src="/imas-ambix/figures/gs-grounded-latent-engine/fig-skill-bars.png"
+       alt="Per-quantity RMSE-skill bars for the GS-readout, all below zero, against the shaded 0.5-0.7 oracle band"
+       style="max-width:100%;height:auto">
+  <figcaption><strong>Fig 3 — Per-quantity skill.</strong> Every component's training-free GS-inverse skill
+  sits below the zero line and far from the shaded oracle bar (0.5–0.7). This is the honest gap the learned
+  latent must close.</figcaption>
+</figure>
+
+<h2 id="path">§5 — Honest limits &amp; the path to close gate 2</h2>
+<p>The GS-<em>observation</em> grounding (the differentiable ψ→magnetics anchor and its residual) is sound
+and is the durable asset. The weak link is reading a precise magnetic axis from a <em>linear least-squares</em>
+GS-inverse ψ, which is not a force-balanced equilibrium. Three complementary routes, in order of expected
+payoff:</p>
+<ol>
+  <li><strong>The learned latent, trained on the corpus</strong> (the plan's actual design, not the
+  training-free inverse used here as a lower bound). The anchored block already carries Ip/n_e; training
+  across the corpus regularises θ and the readout, and the belief gives calibrated uncertainty where the
+  axis is under-determined.</li>
+  <li><strong>A richer, force-balanced ψ representation</strong> — a genuine (differentiable) Grad-Shafranov
+  solve for ψ given the current profile, rather than a linear current-basis inverse, so the reconstructed ψ
+  is a true equilibrium with a well-defined O-point.</li>
+  <li><strong>Score the readout where it is informative</strong> — the GS residual and flux-diffusion
+  residual as discovery signals, and per-quantity calibration, rather than a single clustered-axis skill
+  number that a mean predictor dominates.</li>
+</ol>
+<p>The transport temporal anchor (D≥0, command-driven, guard-railed) and the whole differentiable
+engine are ready to carry that training.</p>
+
+</main>
+</body>
+</html>
