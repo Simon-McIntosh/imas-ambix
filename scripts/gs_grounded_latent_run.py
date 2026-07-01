@@ -121,6 +121,107 @@ def _sensor_scale(windows, key, n_sensor):
     return np.where(np.isfinite(scale) & (scale > 0), scale, 1.0)
 
 
+_FIG_DIR = Path("docs/figures/gs-grounded-latent-engine")
+
+
+def _make_figures(result, model_arr, ref_arr, baseline_arr, example) -> None:
+    """Figure-rich evidence for the research doc (mandate 2026-06-03)."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    _FIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # (1) plasma-only ψ map with the GS-read axis vs the firewalled EFIT axis
+    if example is not None:
+        fig, ax = plt.subplots(figsize=(4.2, 5.2))
+        RR, ZZ = np.meshgrid(example["r1d"], example["z1d"])
+        ax.contourf(RR, ZZ, example["psi"], levels=30, cmap="viridis")
+        ax.contour(
+            RR, ZZ, example["psi"], levels=12, colors="w", linewidths=0.4, alpha=0.5
+        )
+        if example["limiter_r"] is not None:
+            lr = np.append(example["limiter_r"], example["limiter_r"][0])
+            lz = np.append(example["limiter_z"], example["limiter_z"][0])
+            ax.plot(lr, lz, "-", color="0.7", lw=1.0, label="limiter")
+        ax.plot(
+            *example["model_axis"],
+            "x",
+            color="red",
+            ms=13,
+            mew=2.5,
+            label="GS-read axis",
+        )
+        ax.plot(
+            *example["ref_axis"],
+            "o",
+            color="cyan",
+            ms=9,
+            mfc="none",
+            mew=2,
+            label="EFIT axis (referee)",
+        )
+        ax.set_xlabel("R [m]")
+        ax.set_ylabel("Z [m]")
+        ax.set_title(f"Plasma-only ψ + axis readout\n(shot {example['shot']})")
+        ax.legend(fontsize=7, loc="upper right")
+        ax.set_aspect("equal")
+        fig.tight_layout()
+        fig.savefig(_FIG_DIR / "fig-psi-axis-readout.png", dpi=130)
+        plt.close(fig)
+
+    # (2) model / baseline vs referee axis scatter (R and Z)
+    fig, axes = plt.subplots(1, 2, figsize=(8.4, 4.0))
+    for k, (comp, lab) in enumerate([(0, "axis R [m]"), (1, "axis Z [m]")]):
+        a = axes[k]
+        m = np.isfinite(model_arr[:, comp]) & np.isfinite(ref_arr[:, comp])
+        a.scatter(
+            ref_arr[m, comp], model_arr[m, comp], s=14, alpha=0.6, label="GS-read"
+        )
+        a.scatter(
+            ref_arr[m, comp],
+            baseline_arr[m, comp],
+            s=14,
+            alpha=0.5,
+            marker="s",
+            label="train-mean",
+        )
+        lims = [np.nanmin(ref_arr[m, comp]), np.nanmax(ref_arr[m, comp])]
+        a.plot(lims, lims, "k--", lw=0.8)
+        a.set_xlabel(f"EFIT referee {lab}")
+        a.set_ylabel(f"predicted {lab}")
+        a.legend(fontsize=7)
+    fig.suptitle("GS-readout vs firewalled EFIT axis (held-out)")
+    fig.tight_layout()
+    fig.savefig(_FIG_DIR / "fig-axis-scatter.png", dpi=130)
+    plt.close(fig)
+
+    # (3) per-quantity skill bars with the oracle 0.5–0.7 band
+    g2 = result.get("gate2", {})
+    sk = g2.get("per_quantity_skill", {})
+    names = [k for k in sk if sk[k] is not None]
+    vals = [sk[k] for k in names]
+    if names:
+        fig, ax = plt.subplots(figsize=(8.6, 3.6))
+        ax.axhspan(0.5, 0.7, color="green", alpha=0.15, label="oracle bar (0.5–0.7)")
+        ax.axhline(0.0, color="k", lw=0.8)
+        ax.bar(
+            range(len(names)),
+            vals,
+            color=["#b05a66" if v < 0 else "#2e7d32" for v in vals],
+        )
+        ax.set_xticks(range(len(names)))
+        ax.set_xticklabels(names, rotation=45, ha="right", fontsize=7)
+        ax.set_ylabel("RMSE-skill vs train-mean")
+        ax.set_title("GS-readout per-quantity skill (training-free GS-inverse)")
+        ax.legend(fontsize=8)
+        fig.tight_layout()
+        fig.savefig(_FIG_DIR / "fig-skill-bars.png", dpi=130)
+        plt.close(fig)
+    logger.info("figures written to %s", _FIG_DIR)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-train", type=int, default=120)
@@ -181,6 +282,7 @@ def main() -> int:
 
     # --- Gate 2: GS-readout topology vs referee, per held-out slice ---
     model_targets, ref_targets = [], []
+    example_slice = None
     for w in held_w:
         gs = gs_by_sig[w.campaign]
         a_plasma = gs.a_plasma.numpy()
@@ -194,7 +296,12 @@ def main() -> int:
 
         theta_t = torch.tensor(theta, dtype=torch.float64)
         i_pf_t = torch.tensor(w.i_pf, dtype=torch.float64)
-        psi2d = gs.psi_field_2d(theta_t, i_pf_t).numpy()
+        # Topology is read from the PLASMA-only ψ (coils zeroed): a linear
+        # GS-inverse ψ is not a force-balanced equilibrium, so the total field
+        # is dominated by the in-vessel PF coils and has no confined O-point.
+        # The plasma-current-generated flux peaks at the current centroid — a
+        # coil-free, always-defined magnetic-axis estimate.
+        psi2d = gs.psi_field_2d(theta_t, torch.zeros_like(i_pf_t)).numpy()
         r1d = gs.grid_r_1d.numpy()
         z1d = gs.grid_z_1d.numpy()
         # subsample slices so the per-slice ψ read stays fast over many shots
@@ -206,12 +313,31 @@ def main() -> int:
         if len(valid) > args.max_slices_per_shot:
             valid = valid[:: max(1, len(valid) // args.max_slices_per_shot)]
         bbox = gs.plasma_bbox()  # restrict axis/X-point to the plasma-current region
+        coils = gs.coil_rz  # exclude in-vessel PF-coil O-points
         for t in valid:
             read = read_topology(
-                psi2d[t], r1d, z1d, limiter_r=lr, limiter_z=lz, search_bbox=bbox
+                psi2d[t],
+                r1d,
+                z1d,
+                limiter_r=lr,
+                limiter_z=lz,
+                search_bbox=bbox,
+                exclude_rz=coils,
+                exclude_radius=0.15,
             )
             model_targets.append(read.target)
             ref_targets.append(w.ref_target[t])
+            if example_slice is None and read.axis is not None:
+                example_slice = {
+                    "psi": psi2d[t],
+                    "r1d": r1d,
+                    "z1d": z1d,
+                    "limiter_r": lr,
+                    "limiter_z": lz,
+                    "model_axis": np.array(read.axis),
+                    "ref_axis": w.ref_target[t, :2].copy(),
+                    "shot": w.shot_id,
+                }
     if model_targets:
         model_arr = np.array(model_targets)
         ref_arr = np.array(ref_targets)
@@ -271,6 +397,10 @@ def main() -> int:
             ref=ref_arr,
             baseline=baseline_arr,
         )
+        try:
+            _make_figures(result, model_arr, ref_arr, baseline_arr, example_slice)
+        except Exception as exc:  # noqa: BLE001 — figures are best-effort
+            logger.warning("figure generation failed: %s", exc)
     else:
         result["gate2"] = {"n_slices": 0, "note": "no held-out slices with referee"}
 

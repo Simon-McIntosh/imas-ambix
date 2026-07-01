@@ -461,6 +461,34 @@ def filter_critical_points(
     return CriticalPoints(o_pts, o_psi, x_pts, x_psi)
 
 
+def exclude_near_points(
+    cp: CriticalPoints, points: np.ndarray, radius: float
+) -> CriticalPoints:
+    """Drop critical points within ``radius`` of any of ``points`` (M, 2).
+
+    MAST has IN-VESSEL PF coils: the total-ψ field has strong O-points AT the
+    coil filaments that are not the plasma.  Excluding critical points near the
+    known filament locations removes those coil artifacts while keeping the
+    plasma axis / divertor X-points (which sit in the open plasma volume).
+    """
+    if points is None or len(points) == 0:
+        return cp
+    pts = np.asarray(points, dtype=np.float64).reshape(-1, 2)
+
+    def _keep(cpts: np.ndarray, val: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        if cpts.shape[0] == 0:
+            return cpts, val
+        d = np.hypot(
+            cpts[:, None, 0] - pts[None, :, 0], cpts[:, None, 1] - pts[None, :, 1]
+        )
+        keep = d.min(axis=1) > radius
+        return cpts[keep], val[keep]
+
+    o_pts, o_psi = _keep(cp.o_points, cp.o_psi)
+    x_pts, x_psi = _keep(cp.x_points, cp.x_psi)
+    return CriticalPoints(o_pts, o_psi, x_pts, x_psi)
+
+
 def read_topology(
     psi: np.ndarray,
     r_1d: np.ndarray,
@@ -469,6 +497,8 @@ def read_topology(
     limiter_r: np.ndarray | None = None,
     limiter_z: np.ndarray | None = None,
     search_bbox: tuple[float, float, float, float] | None = None,
+    exclude_rz: np.ndarray | None = None,
+    exclude_radius: float = 0.12,
 ) -> TopologyReadout:
     """Full deterministic read of ψ → the 14-D oracle-shaped geometry target.
 
@@ -486,6 +516,8 @@ def read_topology(
     cp = find_critical_points(psi, r_1d, z_1d)
     if search_bbox is not None:
         cp = filter_critical_points(cp, search_bbox)
+    if exclude_rz is not None:
+        cp = exclude_near_points(cp, exclude_rz, exclude_radius)
     axis = magnetic_axis(
         psi, r_1d, z_1d, limiter_r=limiter_r, limiter_z=limiter_z, cp=cp
     )
@@ -570,6 +602,7 @@ __all__ = [
     "TopologyReadout",
     "find_critical_points",
     "filter_critical_points",
+    "exclude_near_points",
     "magnetic_axis",
     "xpoint_set",
     "boundary_flux",

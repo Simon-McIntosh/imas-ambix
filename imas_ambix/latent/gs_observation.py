@@ -135,6 +135,7 @@ class GSObservation(nn.Module):
         basis: np.ndarray,  # (N, K)
         profile_order: int,
         plasma_rz: np.ndarray | None = None,  # (N, 2) plasma-current basis nodes
+        coil_rz: np.ndarray | None = None,  # (M, 2) PF/passive filament locations
         dtype: torch.dtype = torch.float64,
     ) -> None:
         super().__init__()
@@ -147,6 +148,9 @@ class GSObservation(nn.Module):
         self.n_dof = int(a_plasma.shape[1])
         self.plasma_rz = (
             None if plasma_rz is None else np.asarray(plasma_rz, dtype=np.float64)
+        )
+        self.coil_rz = (
+            None if coil_rz is None else np.asarray(coil_rz, dtype=np.float64)
         )
 
         def buf(x: np.ndarray) -> torch.Tensor:
@@ -185,6 +189,11 @@ class GSObservation(nn.Module):
             fwd.plasma_rz, profile_order, fwd.r0, fwd.minor_radius
         )
         a_plasma = fwd.g_plasma @ basis  # (S, K)
+        # PF + passive filament locations (MAST has IN-VESSEL PF coils, so these
+        # sit inside the limiter and produce ψ O-points that are not the plasma).
+        coil_rz = np.array(
+            [[f.r, f.z] for f in table.pf_filaments], dtype=np.float64
+        ) if table.pf_filaments else np.zeros((0, 2))
 
         lr = np.asarray(table.limiter_r, dtype=np.float64)
         lz = np.asarray(table.limiter_z, dtype=np.float64)
@@ -227,6 +236,7 @@ class GSObservation(nn.Module):
             basis=basis,
             profile_order=profile_order,
             plasma_rz=fwd.plasma_rz,
+            coil_rz=coil_rz,
             dtype=dtype,
         )
 
