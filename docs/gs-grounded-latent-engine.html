@@ -26,7 +26,73 @@
 <p><strong>Execution home for v0 stage 2</strong> of the redesign. Full design, figures (Fig 4 latent, Fig 6
 GS X-point readout, Fig 7a transport anchor), glossary, and locked decisions are in the parent
 <a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a> (§6,
-§7a, §8). Depends on stage 1 (the absolute + geometry substrate).</p>
+§7a, §8). Depends on stage 1 (the absolute + geometry substrate, now shipped: magnetics recover axis_Z +0.82 /
+all-8-LCFS on the clean cohort; all-continuous-absolute + periodic-geometry + STFT relational ingestion; dead
+detectors masked).</p>
+
+<figure class="r-fig" style="margin:1.1rem 0">
+  <svg viewBox="0 0 900 420" width="100%" role="img"
+       aria-label="Raw magnetics and the absolute-geometry token substrate feed a relational encoder producing a hybrid latent (anchored block + psi + free block). The GS observation operator maps psi to magnetics at the sensors and is trained against the raw magnetics. A soft flux-diffusion prior with D >= 0 governs the psi time evolution, driven by the command source term. Field topology (axis, X-points, LCFS, public/private) is read deterministically from psi. EFIT psi/boundary/X-point sit outside as a firewalled evaluator-only referee."
+       style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:13px">
+    <defs>
+      <marker id="ar" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#334155"/>
+      </marker>
+      <marker id="arloss" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#b45309"/>
+      </marker>
+    </defs>
+    <rect x="14" y="150" width="150" height="60" rx="6" fill="#ffffff" stroke="#334155" stroke-width="1"/>
+    <text x="89" y="174" text-anchor="middle" fill="#0f172a" font-weight="600">RAW magnetics</text>
+    <text x="89" y="192" text-anchor="middle" fill="#0f172a">@ sensor (R,Z,φ)</text>
+    <rect x="192" y="140" width="168" height="80" rx="6" fill="#ffffff" stroke="#334155" stroke-width="1"/>
+    <text x="276" y="166" text-anchor="middle" fill="#0f172a" font-weight="600">token substrate</text>
+    <text x="276" y="184" text-anchor="middle" fill="#0f172a">absolute + geometry</text>
+    <text x="276" y="200" text-anchor="middle" fill="#0f172a">relational encoder</text>
+    <rect x="388" y="118" width="176" height="124" rx="6" fill="#ffffff" stroke="#334155" stroke-width="1"/>
+    <text x="476" y="140" text-anchor="middle" fill="#0f172a" font-weight="600">hybrid latent</text>
+    <text x="476" y="162" text-anchor="middle" fill="#0f172a">anchored: Ip, coils,</text>
+    <text x="476" y="178" text-anchor="middle" fill="#0f172a">n_e, <tspan font-weight="600">ψ(R,Z)</tspan></text>
+    <text x="476" y="200" text-anchor="middle" fill="#0f172a">+ free closure block</text>
+    <text x="476" y="222" text-anchor="middle" fill="#475569">(dimensionless)</text>
+    <rect x="592" y="140" width="156" height="80" rx="6" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.5"/>
+    <text x="670" y="166" text-anchor="middle" fill="#1d4ed8" font-weight="600">GS observation</text>
+    <text x="670" y="184" text-anchor="middle" fill="#1d4ed8" font-weight="600">operator</text>
+    <text x="670" y="202" text-anchor="middle" fill="#0f172a">ψ → B̂ @ sensors</text>
+    <rect x="776" y="150" width="110" height="60" rx="6" fill="#ffffff" stroke="#334155" stroke-width="1"/>
+    <text x="831" y="176" text-anchor="middle" fill="#0f172a" font-weight="600">predicted</text>
+    <text x="831" y="194" text-anchor="middle" fill="#0f172a">magnetics B̂</text>
+    <line x1="164" y1="180" x2="190" y2="180" stroke="#334155" stroke-width="1" marker-end="url(#ar)"/>
+    <line x1="360" y1="180" x2="386" y2="180" stroke="#334155" stroke-width="1" marker-end="url(#ar)"/>
+    <line x1="564" y1="180" x2="590" y2="180" stroke="#334155" stroke-width="1" marker-end="url(#ar)"/>
+    <line x1="748" y1="180" x2="774" y2="180" stroke="#334155" stroke-width="1" marker-end="url(#ar)"/>
+    <path d="M831,210 C831,300 89,300 89,212" fill="none" stroke="#b45309" stroke-width="1.4"
+          stroke-dasharray="5,4" marker-end="url(#arloss)"/>
+    <text x="460" y="296" text-anchor="middle" fill="#b45309" font-weight="600">training loss: B̂ vs RAW magnetics (no EFIT)</text>
+    <rect x="388" y="270" width="176" height="52" rx="6" fill="#ffffff" stroke="#0f766e" stroke-width="1.2"/>
+    <text x="476" y="292" text-anchor="middle" fill="#0f766e" font-weight="600">flux-diffusion prior</text>
+    <text x="476" y="310" text-anchor="middle" fill="#0f172a">∂ψ/∂t, D ≥ 0 · +source</text>
+    <line x1="476" y1="242" x2="476" y2="268" stroke="#0f766e" stroke-width="1.2" marker-end="url(#ar)"/>
+    <rect x="230" y="284" width="120" height="30" rx="5" fill="#ffffff" stroke="#334155" stroke-width="1"/>
+    <text x="290" y="304" text-anchor="middle" fill="#0f172a">command (plan)</text>
+    <line x1="350" y1="299" x2="386" y2="298" stroke="#334155" stroke-width="1" marker-end="url(#ar)"/>
+    <rect x="388" y="344" width="360" height="56" rx="6" fill="#ffffff" stroke="#334155" stroke-width="1"/>
+    <text x="568" y="366" text-anchor="middle" fill="#0f172a" font-weight="600">deterministic topology read from ψ</text>
+    <text x="568" y="385" text-anchor="middle" fill="#0f172a">axis · X-points · LCFS · public/private (contour tree)</text>
+    <line x1="476" y1="322" x2="476" y2="342" stroke="#334155" stroke-width="1" marker-end="url(#ar)"/>
+    <rect x="14" y="330" width="230" height="74" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1"
+          stroke-dasharray="4,3"/>
+    <text x="129" y="352" text-anchor="middle" fill="#334155" font-weight="600">EFIT ψ / boundary / X-point</text>
+    <text x="129" y="371" text-anchor="middle" fill="#334155">FIREWALLED referee</text>
+    <text x="129" y="389" text-anchor="middle" fill="#334155">eval-only — never a label</text>
+    <line x1="388" y1="372" x2="246" y2="372" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ar)"/>
+    <text x="316" y="340" text-anchor="middle" fill="#6b7280" font-size="12">score only</text>
+  </svg>
+  <figcaption><strong>The engine.</strong> ψ is landed by fitting the <em>raw</em> sensor field through the
+  GS operator (amber loss) + the flux-diffusion prior (teal) — <em>not</em> by regressing EFIT. All field
+  topology is a deterministic read of the one solved ψ. EFIT reconstructions (dashed, gray) sit outside
+  training as a scoring-only referee.</figcaption>
+</figure>
 
 <h2 id="s1">§1 — Objective &amp; scope</h2>
 <p>Build the shared <strong>hybrid latent</strong> and its two physics anchors:</p>
@@ -70,9 +136,22 @@ GS X-point readout, Fig 7a transport anchor), glossary, and locked decisions are
   <li>Transport prior: a learned dissipative flux-diffusion term on ∂ψ/∂t (strictly-positive diffusivity via
   softplus/exp; learned non-inductive sources incl. the loop-voltage/current-drive command channel); add the
   dissipation-≥-0 and Volt-second-budget soft penalties.</li>
-  <li>X-point / boundary readout: compute geometric features (off-axis saddle of ψ, LCFS) from the learned
-  field; score against the firewalled absolute-magnetics oracle.</li>
+  <li><strong>Topology as a deterministic read of the solved ψ</strong> (not separate regression heads —
+  see the locked decision below). Axis = O-point (ψ extremum); X-points = saddles (∇ψ = 0, indefinite
+  Hessian); LCFS = the separatrix through the active null; public vs private = the <em>contour-tree</em>
+  structure of ψ. Build our own routines steered by <code>nova/biot/fieldnull.py</code> (critical-point
+  finding) and <code>imas-efit src/EFIT/contour_tree.f90</code> (rigorous public/private separatrix
+  structure); score against the firewalled absolute-magnetics oracle.</li>
 </ol>
+
+<h3 id="s3a">§3a — The public/private caveat (binding awareness)</h3>
+<p>The flux map is <strong>multimodal</strong>: a null can sit in a <em>private</em> flux region and
+&ldquo;appear&rdquo; inside the LCFS. The divertor topologies we must support are <strong>not limited to
+simple upper/lower single-null</strong> — double-null, snowflake, X-divertor, and super-X all put multiple
+comparable saddles in play. This is exactly why a sign-of-Z split or a naïve ψ-proximity filter is invalid,
+and why topology must come from the <em>contour-tree structure of ψ</em> (which distinguishes public from
+private by connectivity, not by height or proximity). We are <em>aware</em> of the hard case and read it
+correctly from ψ; we do not attempt to shortcut it with a heuristic filter.</p>
 
 <h2 id="s4">§4 — H200 footprint</h2>
 <p><strong>Moderate.</strong> Latent encoder + GS operator (differentiable, modest cost) + transport-anchor
@@ -87,6 +166,25 @@ resume-safe.</p>
 sign constraints; <code>firewall-definition</code> = code-outputs-only. The open
 <code>dimensionless-coordinate-set</code> decision (learned-soft vs hard-imposed basis) is resolved here when
 the encoder is built — surface it, recommend learned-soft.</p>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+  <h2><span class="sec">§</span> Decisions</h2>
+  <div class="r-dec" data-key="topology-from-psi" data-choice="read-from-solved-psi" data-by="Simon McIntosh" data-when="2026-07-01">
+    <p class="r-dec-q">How is field topology (axis / X-points / LCFS / public-private) obtained?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="read-from-solved-psi">Deterministic read from the solved ψ (contour-tree topology; our routines, NOVA/EFIT-steered)</button>
+      <button class="r-opt" data-value="separate-decoder-heads">Separate regression decoder heads per quantity</button>
+    </p>
+    <p class="r-dec-rat">Locked 2026-07-01. The stage-1 substrate work proved separate heads are lossy,
+    mutually inconsistent, and topology-blind (the X-point upper/lower bimodal-flip; a ψ-proximity filter
+    that cannot separate a private-region null from an interior one). Reading topology from one
+    physically-grounded ψ is self-consistent by construction and handles exotic divertor topologies
+    (double-null / snowflake / X-divertor / super-X) via ψ&rsquo;s contour tree — the physical,
+    machine-agnostic solution (§3a). Steered by NOVA <code>fieldnull</code> critical-point finding + EFIT
+    <code>contour_tree</code> public/private structure; EFIT ψ itself stays a firewalled referee, never a
+    training target.</p>
+  </div>
+</section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
@@ -105,12 +203,18 @@ Context
 State to read
   imas_ambix/gs/operator.py (EFIT-free GS Green's-function operator); imas_ambix/statespace/sequential_da.py;
   docs learned-closure-current-diffusion-v0 (the psi-diffusion filter + positive-resistivity priors = the
-  reused asset); the absolute+geometry token readers from stage 1; parent §6/§7a/§8.
+  reused asset); the absolute+geometry token readers from stage 1; parent §6/§7a/§8. Topology-readout steers:
+  nova/biot/fieldnull.py (critical-point finding) + imas-efit src/EFIT/contour_tree.f90 (public/private
+  separatrix structure).
 
 Scope locks / constraints
-  Boundary/X-point are READOUTS of psi, never labels (firewall = code-outputs-only). eta-parallel + sources
-  are LEARNED closures. Diffusivity strictly positive (softplus/exp) -> D>=0 by construction. Soft, falsifiable
-  priors (data may override); residuals monitored as discovery signals. GPU per AGENTS.md §2a/§2b; all 8 cards free while DSv4 down (check squeue).
+  Boundary/X-point/axis/public-private are a DETERMINISTIC READ of the solved psi (contour-tree topology),
+  NOT separate decoder heads (locked: topology-from-psi) and NEVER labels (firewall = code-outputs-only).
+  Multimodal-flux caveat is binding: support double-null / snowflake / X-div / super-X — no sign-of-Z split,
+  no psi-proximity filter (a private-region null can look interior); distinguish public/private by contour-tree
+  connectivity (§3a). eta-parallel + sources are LEARNED closures. Diffusivity strictly positive (softplus/exp)
+  -> D>=0 by construction. Soft, falsifiable priors (data may override); residuals monitored as discovery
+  signals. GPU per AGENTS.md §2a/§2b; all 8 cards free while DSv4 down (check squeue).
 
 Done-when (the gate)
   1. Hybrid latent + GS operator wired; anchored block supervised on RAW scalars; psi readout -> boundary/X-point
