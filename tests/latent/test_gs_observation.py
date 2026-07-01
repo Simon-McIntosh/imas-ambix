@@ -1,0 +1,149 @@
+"""Tests for the differentiable (torch) GS observation operator + ψ-grid.
+
+The GS observation operator wraps the geometry-only Green's-function
+:class:`imas_ambix.gs.operator.ForwardOperator` into a torch module so the
+hybrid latent's plasma-current amplitudes (θ, on the dimensionless polynomial
+basis) map — differentiably — to predicted magnetics at the freely-known
+sensor locations AND to the reconstructed poloidal-flux field ψ(R,Z) on an
+arbitrary grid.  Two invariants pin it:
+
+* the sensor prediction must agree bit-for-bit with the numpy
+  :meth:`ForwardOperator.predict` (same Green's physics, torch backend);
+* the ψ-field must be the superposition of the plasma-current basis
+  Green's flux + the known-PF Green's flux, and must be differentiable
+  w.r.t. the latent amplitudes θ (autograd), because topology (§3) is read
+  from the *solved* ψ and the GS residual back-propagates through it.
+
+No mirror / network needed — a synthetic single-coil campaign table is enough.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import torch
+
+from imas_ambix.gs import geometry as gsg
+from imas_ambix.gs import operator as op
+from imas_ambix.gs.residual import plasma_poly_basis
+from imas_ambix.latent.gs_observation import GSObservation
+
+
+def _synthetic_table() -> gsg.GeometryTable:
+    """Minimal campaign: 1 vertical + 1 radial probe, 1 flux loop, 1 KNOWN PF
+    coil (P4U-like) + 1 passive circuit."""
+    bp_v = gsg.BProbe(index=0, r=1.5, z=0.0, angle_deg=90.0, length=0.025)
+    bp_r = gsg.BProbe(index=1, r=1.5, z=0.0, angle_deg=0.0, length=0.025)
+    fl = gsg.FluxLoop(index=0, r=1.3, z=0.5)
+    pf_known = [
+        gsg.PFFilament(
+            r=1.50, z=1.10, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=0.5
+        ),
+        gsg.PFFilament(
+            r=1.50, z=1.10, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=0.5
+        ),
+    ]
+    pf_passive = [
+        gsg.PFFilament(
+            r=2.0, z=0.0, turns=1.0, width=0.01, height=0.01, circuit=2, xmult=1.0
+        ),
+    ]
+    sig = gsg.SetupSignature(
+        n_bprobe=2,
+        n_fluxloop=1,
+        n_pf_filament=3,
+        n_limiter=4,
+        digest="deadbeef00000000",
+    )
+    sensor_map = [
+        gsg.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, 90.0, 0.001, ""),
+        gsg.SensorMapping("obr01", "b_probe", 1, 1.5, 0.0, 0.0, 0.001, ""),
+        gsg.SensorMapping("fl_p4u_1", "flux_loop", 0, 1.3, 0.5, None, 0.001, ""),
+    ]
+    return gsg.GeometryTable(
+        signature=sig,
+        shots=[12345],
+        b_probes=[bp_v, bp_r],
+        flux_loops=[fl],
+        pf_filaments=pf_known + pf_passive,
+        limiter_r=[0.3, 1.6, 1.6, 0.3],
+        limiter_z=[-1.0, -1.0, 1.0, 1.0],
+        sensor_map=sensor_map,
+        passive_structures=[
+            gsg.PassiveStructure(name="wall_a", r=2.0, z=0.0, obsolete=False)
+        ],
+        amc_current_channels=["p4u_coil_current", "plasma_current"],
+        unmatched_amb=[],
+    )
+
+
+def test_sensor_prediction_matches_numpy_forward_operator():
+    """Torch GS observation must reproduce ForwardOperator.predict exactly."""
+    table = _synthetic_table()
+    fwd = op.build_operator(table)
+    order = 1
+    basis = plasma_poly_basis(fwd.plasma_rz, order, fwd.r0, fwd.minor_radius)
+    n_dof = basis.shape[1]
+
+    obs = GSObservation.from_table(table, grid_nr=8, grid_nz=10, profile_order=order)
+
+    theta = np.linspace(-2.0, 3.0, n_dof)
+    i_pf = np.array([1234.0])  # one KNOWN coil, amperes
+    c_plasma = basis @ theta
+
+    want = fwd.predict(i_pf, c_plasma=c_plasma)  # numpy, (n_sensor,)
+    got = obs(
+        torch.tensor(theta, dtype=torch.float64).unsqueeze(0),
+        torch.tensor(i_pf, dtype=torch.float64).unsqueeze(0),
+    )
+    assert got.shape == (1, len(fwd.sensor_channels))
+    np.testing.assert_allclose(got.squeeze(0).numpy(), want, rtol=1e-9, atol=1e-12)
+
+
+def test_psi_field_is_greens_superposition_of_plasma_and_pf():
+    """ψ on the grid = Σ_node greens_psi·c_plasma + Σ_coil greens_psi·i_pf."""
+    table = _synthetic_table()
+    fwd = op.build_operator(table)
+    order = 1
+    basis = plasma_poly_basis(fwd.plasma_rz, order, fwd.r0, fwd.minor_radius)
+    n_dof = basis.shape[1]
+    obs = GSObservation.from_table(table, grid_nr=6, grid_nz=7, profile_order=order)
+
+    theta = np.linspace(0.5, -1.5, n_dof)
+    i_pf = np.array([2000.0])
+    c_plasma = basis @ theta
+
+    # reference ψ on the module's own grid, computed independently from greens_psi
+    gr = obs.grid_r.numpy()
+    gz = obs.grid_z.numpy()
+    ref = np.zeros(gr.shape, dtype=np.float64)
+    for (nr, nz), c in zip(fwd.plasma_rz, c_plasma, strict=True):
+        ref += c * op.greens_psi(gr, gz, float(nr), float(nz))
+    # PF contribution: sum over the coil's filaments weighted by xmult, × i_pf
+    for f in table.pf_filaments:
+        if f.circuit == 1:  # the KNOWN P4U coil
+            ref += i_pf[0] * f.xmult * op.greens_psi(gr, gz, f.r, f.z)
+
+    got = obs.psi_field(
+        torch.tensor(theta, dtype=torch.float64).unsqueeze(0),
+        torch.tensor(i_pf, dtype=torch.float64).unsqueeze(0),
+    )
+    assert got.shape == (1, gr.shape[0])
+    np.testing.assert_allclose(got.squeeze(0).numpy(), ref, rtol=1e-9, atol=1e-12)
+
+
+def test_psi_field_is_differentiable_wrt_theta():
+    """Autograd must flow through the ψ readout back to the latent amplitudes."""
+    table = _synthetic_table()
+    fwd = op.build_operator(table)
+    order = 1
+    n_dof = plasma_poly_basis(fwd.plasma_rz, order, fwd.r0, fwd.minor_radius).shape[1]
+    obs = GSObservation.from_table(table, grid_nr=5, grid_nz=5, profile_order=order)
+
+    theta = torch.zeros(1, n_dof, dtype=torch.float64, requires_grad=True)
+    i_pf = torch.tensor([[500.0]], dtype=torch.float64)
+    psi = obs.psi_field(theta, i_pf)
+    loss = (psi**2).sum()
+    loss.backward()
+    assert theta.grad is not None
+    assert torch.isfinite(theta.grad).all()
+    assert theta.grad.abs().sum() > 0  # ψ genuinely depends on θ
