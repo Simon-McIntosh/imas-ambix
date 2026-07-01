@@ -90,4 +90,58 @@ def headline_skill(skill: dict[str, float], components: list[str]) -> float:
     return float(np.mean(vals)) if vals else np.nan
 
 
-__all__ = ["matched_xpoint_error", "per_quantity_skill", "headline_skill"]
+def gs_inverse_theta(
+    a_plasma: np.ndarray,
+    g_pf: np.ndarray,
+    raw_mag: np.ndarray,
+    mag_mask: np.ndarray,
+    i_pf: np.ndarray,
+    sensor_scale: np.ndarray,
+    *,
+    ridge: float = 1e-3,
+) -> np.ndarray:
+    """Per-slice ridge GS-inverse for the plasma-current amplitudes θ.
+
+    Solves, per time-slice, the whitened least-squares that the learned encoder
+    amortises — the θ that makes the GS forward best explain the RAW magnetics::
+
+        θ_t = argmin_θ ‖ (A·θ + G_pf·i_pf_t − B_raw_t) / σ ‖²_measured + ridge‖θ‖²
+
+    where ``A = a_plasma = G_plasma·B`` (sensor × profile-DOF).  Using ONLY the
+    raw magnetics and the KNOWN coil currents — no EFIT — so the ψ read out from
+    the resulting θ is a label-free GS readout (the gate-2 mechanism, training-
+    free).  ``mag_mask`` selects the sensors the shot measures.
+
+    Shapes: ``a_plasma`` (S, K), ``g_pf`` (S, C), ``raw_mag`` (T, S),
+    ``mag_mask`` (T, S) bool, ``i_pf`` (T, C), ``sensor_scale`` (S,).
+    Returns ``θ`` (T, K).
+    """
+    a_plasma = np.asarray(a_plasma, dtype=np.float64)
+    g_pf = np.asarray(g_pf, dtype=np.float64)
+    raw_mag = np.asarray(raw_mag, dtype=np.float64)
+    i_pf = np.asarray(i_pf, dtype=np.float64)
+    scale = np.clip(np.asarray(sensor_scale, dtype=np.float64), 1e-12, None)
+    n_t, _n_s = raw_mag.shape
+    k = a_plasma.shape[1]
+    theta = np.zeros((n_t, k), dtype=np.float64)
+    # rows a shot measures (mask constant per shot; take the per-slice mask row)
+    rows = np.where(mag_mask.any(axis=0))[0]
+    if rows.size == 0:
+        return theta
+    w = 1.0 / scale[rows]
+    aw = a_plasma[rows] * w[:, None]  # (n_meas, K)
+    m = aw.T @ aw + ridge * np.eye(k)
+    pf_pred = i_pf @ g_pf[rows].T  # (T, n_meas) known-coil contribution
+    target = (raw_mag[:, rows] - pf_pred) * w[None, :]  # (T, n_meas), whitened
+    target = np.nan_to_num(target, nan=0.0)
+    rhs = aw.T @ target.T  # (K, T)
+    theta = np.linalg.solve(m, rhs).T  # (T, K)
+    return theta
+
+
+__all__ = [
+    "matched_xpoint_error",
+    "per_quantity_skill",
+    "headline_skill",
+    "gs_inverse_theta",
+]
