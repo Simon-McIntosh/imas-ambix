@@ -125,3 +125,21 @@ def test_read_topology_returns_oracle_shaped_target():
     assert out.target.shape == (14,)
     # axis recovered
     np.testing.assert_allclose(out.target[:2], axis_true, atol=0.03)
+
+
+def test_search_bbox_excludes_coil_like_edge_extremum():
+    """A strong edge 'coil' O-point must not be picked as the axis when the
+    search is restricted to the plasma-current region (the real-data failure:
+    the GS ψ read picked the PF-coil O-point instead of the plasma axis)."""
+    r_1d, z_1d, RR, ZZ = _grid(nr=161, nz=161, r=(0.3, 1.7), z=(-1.0, 1.0))
+    # weak plasma well near (0.9, 0) + a strong 'coil' well near the edge (1.5, 0.8)
+    plasma = -np.exp(-(((RR - 0.9) / 0.15) ** 2 + (ZZ / 0.2) ** 2))
+    coil = -5.0 * np.exp(-(((RR - 1.5) / 0.05) ** 2 + ((ZZ - 0.8) / 0.05) ** 2))
+    psi = plasma + coil
+    # unrestricted: the deep coil well dominates → axis near the coil
+    axis_all = topo.read_topology(psi, r_1d, z_1d).axis
+    assert axis_all[0] > 1.3  # picked the coil (the failure mode)
+    # restricted to the plasma-current bbox → the plasma axis is recovered
+    read = topo.read_topology(psi, r_1d, z_1d, search_bbox=(0.4, 1.2, -0.6, 0.6))
+    assert read.axis is not None
+    np.testing.assert_allclose(read.axis, [0.9, 0.0], atol=0.05)

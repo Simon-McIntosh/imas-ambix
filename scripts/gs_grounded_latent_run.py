@@ -205,8 +205,11 @@ def main() -> int:
         ]
         if len(valid) > args.max_slices_per_shot:
             valid = valid[:: max(1, len(valid) // args.max_slices_per_shot)]
+        bbox = gs.plasma_bbox()  # restrict axis/X-point to the plasma-current region
         for t in valid:
-            read = read_topology(psi2d[t], r1d, z1d, limiter_r=lr, limiter_z=lz)
+            read = read_topology(
+                psi2d[t], r1d, z1d, limiter_r=lr, limiter_z=lz, search_bbox=bbox
+            )
             model_targets.append(read.target)
             ref_targets.append(w.ref_target[t])
     if model_targets:

@@ -134,6 +134,7 @@ class GSObservation(nn.Module):
         grid_nz: int,
         basis: np.ndarray,  # (N, K)
         profile_order: int,
+        plasma_rz: np.ndarray | None = None,  # (N, 2) plasma-current basis nodes
         dtype: torch.dtype = torch.float64,
     ) -> None:
         super().__init__()
@@ -144,6 +145,9 @@ class GSObservation(nn.Module):
         self.grid_nr = int(grid_nr)
         self.grid_nz = int(grid_nz)
         self.n_dof = int(a_plasma.shape[1])
+        self.plasma_rz = (
+            None if plasma_rz is None else np.asarray(plasma_rz, dtype=np.float64)
+        )
 
         def buf(x: np.ndarray) -> torch.Tensor:
             return torch.tensor(np.asarray(x, dtype=np.float64), dtype=dtype)
@@ -222,6 +226,7 @@ class GSObservation(nn.Module):
             grid_nz=grid_nz,
             basis=basis,
             profile_order=profile_order,
+            plasma_rz=fwd.plasma_rz,
             dtype=dtype,
         )
 
@@ -263,3 +268,22 @@ class GSObservation(nn.Module):
     def grid_z_1d(self) -> torch.Tensor:
         """Unique Z coordinates of the reconstruction grid ``(nz,)``."""
         return self.grid_z.reshape(self.grid_nz, self.grid_nr)[:, 0]
+
+    def plasma_bbox(
+        self, pad: float = 0.0
+    ) -> tuple[float, float, float, float] | None:
+        """(r_lo, r_hi, z_lo, z_hi) bounding the plasma-current basis nodes.
+
+        The magnetic axis / X-points must lie within the region where plasma
+        current is parameterised; passed as ``search_bbox`` to the topology read
+        so PF-coil O-points (outside the plasma) are not picked as the axis.
+        """
+        if self.plasma_rz is None or self.plasma_rz.size == 0:
+            return None
+        r, z = self.plasma_rz[:, 0], self.plasma_rz[:, 1]
+        return (
+            float(r.min()) - pad,
+            float(r.max()) + pad,
+            float(z.min()) - pad,
+            float(z.max()) + pad,
+        )

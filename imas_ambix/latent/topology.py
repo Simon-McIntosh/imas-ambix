@@ -142,67 +142,76 @@ def find_critical_points(
     x_pts: list[tuple[float, float]] = []
     x_val: list[float] = []
 
-    for i in range(edge_skip, nz - 1 - edge_skip):
-        for j in range(edge_skip, nr - 1 - edge_skip):
-            # 2×2 cell (i,j)-(i+1,j+1): both gradient components must straddle 0.
-            # Use <=/>= (a critical point exactly on a grid line sits on the cell
-            # edge, so no cell straddles it strictly) + a variation guard so a
-            # genuinely flat cell is not a spurious bracket.  Doubled brackets at
-            # an on-grid zero are merged by dedup after Newton refinement.
-            sr = gr[i : i + 2, j : j + 2]
-            sz = gz[i : i + 2, j : j + 2]
-            if not (
-                sr.min() <= 0 <= sr.max()
-                and sz.min() <= 0 <= sz.max()
-                and (sr.max() - sr.min()) > 0
-                and (sz.max() - sz.min()) > 0
-            ):
-                continue
-            # refine from the cell centre with Newton on the interpolated grad
-            r = 0.5 * (r_1d[j] + r_1d[j + 1])
-            z = 0.5 * (z_1d[i] + z_1d[i + 1])
-            ok = True
-            for _ in range(8):
-                g = np.array(
-                    [_bilerp(gr, r_1d, z_1d, r, z), _bilerp(gz, r_1d, z_1d, r, z)]
-                )
-                h = np.array(
+    # Vectorised bracket detection: a 2×2 cell brackets a critical point iff both
+    # gradient components straddle 0 across it (<=/>= so an exactly-on-grid zero
+    # is caught) with genuine variation.  Only these few candidate cells get the
+    # (Python) Newton refinement — the full-grid scan is pure numpy.
+    def _cell_stats(g: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        a, b = g[:-1, :-1], g[:-1, 1:]
+        c, d = g[1:, :-1], g[1:, 1:]
+        stack = np.stack([a, b, c, d])
+        return stack.min(axis=0), stack.max(axis=0)
+
+    gr_lo, gr_hi = _cell_stats(gr)
+    gz_lo, gz_hi = _cell_stats(gz)
+    cand = (
+        (gr_lo <= 0)
+        & (gr_hi >= 0)
+        & (gz_lo <= 0)
+        & (gz_hi >= 0)
+        & (gr_hi > gr_lo)
+        & (gz_hi > gz_lo)
+    )
+    cand[:edge_skip, :] = False
+    cand[-edge_skip:, :] = False
+    cand[:, :edge_skip] = False
+    cand[:, -edge_skip:] = False
+
+    for i, j in np.argwhere(cand):
+        i, j = int(i), int(j)
+        # refine from the cell centre with Newton on the interpolated grad
+        r = 0.5 * (r_1d[j] + r_1d[j + 1])
+        z = 0.5 * (z_1d[i] + z_1d[i + 1])
+        ok = True
+        for _ in range(8):
+            g = np.array([_bilerp(gr, r_1d, z_1d, r, z), _bilerp(gz, r_1d, z_1d, r, z)])
+            h = np.array(
+                [
                     [
-                        [
-                            _bilerp(grr, r_1d, z_1d, r, z),
-                            _bilerp(grz, r_1d, z_1d, r, z),
-                        ],
-                        [
-                            _bilerp(grz, r_1d, z_1d, r, z),
-                            _bilerp(gzz, r_1d, z_1d, r, z),
-                        ],
-                    ]
-                )
-                det = h[0, 0] * h[1, 1] - h[0, 1] * h[1, 0]
-                if abs(det) < 1e-30:
-                    ok = False
-                    break
-                dr, dz = np.linalg.solve(h, -g)
-                r += float(dr)
-                z += float(dz)
-                if not (r_1d[0] <= r <= r_1d[-1] and z_1d[0] <= z <= z_1d[-1]):
-                    ok = False
-                    break
-                if abs(dr) < 1e-6 and abs(dz) < 1e-6:
-                    break
-            if not ok:
-                continue
-            hrr = _bilerp(grr, r_1d, z_1d, r, z)
-            hrz = _bilerp(grz, r_1d, z_1d, r, z)
-            hzz = _bilerp(gzz, r_1d, z_1d, r, z)
-            det = hrr * hzz - hrz * hrz
-            val = _bilerp(psi, r_1d, z_1d, r, z)
-            if det > 0:
-                o_pts.append((r, z))
-                o_val.append(val)
-            elif det < 0:
-                x_pts.append((r, z))
-                x_val.append(val)
+                        _bilerp(grr, r_1d, z_1d, r, z),
+                        _bilerp(grz, r_1d, z_1d, r, z),
+                    ],
+                    [
+                        _bilerp(grz, r_1d, z_1d, r, z),
+                        _bilerp(gzz, r_1d, z_1d, r, z),
+                    ],
+                ]
+            )
+            det = h[0, 0] * h[1, 1] - h[0, 1] * h[1, 0]
+            if abs(det) < 1e-30:
+                ok = False
+                break
+            dr, dz = np.linalg.solve(h, -g)
+            r += float(dr)
+            z += float(dz)
+            if not (r_1d[0] <= r <= r_1d[-1] and z_1d[0] <= z <= z_1d[-1]):
+                ok = False
+                break
+            if abs(dr) < 1e-6 and abs(dz) < 1e-6:
+                break
+        if not ok:
+            continue
+        hrr = _bilerp(grr, r_1d, z_1d, r, z)
+        hrz = _bilerp(grz, r_1d, z_1d, r, z)
+        hzz = _bilerp(gzz, r_1d, z_1d, r, z)
+        det = hrr * hzz - hrz * hrz
+        val = _bilerp(psi, r_1d, z_1d, r, z)
+        if det > 0:
+            o_pts.append((r, z))
+            o_val.append(val)
+        elif det < 0:
+            x_pts.append((r, z))
+            x_val.append(val)
 
     o_points, o_psi = _dedup(o_pts, o_val, dedup_tol)
     x_points, x_psi = _dedup(x_pts, x_val, dedup_tol)
@@ -425,6 +434,33 @@ def classify_regions(
 # --- top-level read --------------------------------------------------------
 
 
+def filter_critical_points(
+    cp: CriticalPoints, bbox: tuple[float, float, float, float]
+) -> CriticalPoints:
+    """Keep only critical points inside ``bbox = (r_lo, r_hi, z_lo, z_hi)``.
+
+    Used to restrict the axis / X-point search to the plasma-current region so
+    strong PF-coil flux extrema (O-points AT the coils, outside the plasma) are
+    not mistaken for the magnetic axis.
+    """
+    r_lo, r_hi, z_lo, z_hi = bbox
+
+    def _keep(pts: np.ndarray, val: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        if pts.shape[0] == 0:
+            return pts, val
+        m = (
+            (pts[:, 0] >= r_lo)
+            & (pts[:, 0] <= r_hi)
+            & (pts[:, 1] >= z_lo)
+            & (pts[:, 1] <= z_hi)
+        )
+        return pts[m], val[m]
+
+    o_pts, o_psi = _keep(cp.o_points, cp.o_psi)
+    x_pts, x_psi = _keep(cp.x_points, cp.x_psi)
+    return CriticalPoints(o_pts, o_psi, x_pts, x_psi)
+
+
 def read_topology(
     psi: np.ndarray,
     r_1d: np.ndarray,
@@ -432,17 +468,24 @@ def read_topology(
     *,
     limiter_r: np.ndarray | None = None,
     limiter_z: np.ndarray | None = None,
+    search_bbox: tuple[float, float, float, float] | None = None,
 ) -> TopologyReadout:
     """Full deterministic read of ψ → the 14-D oracle-shaped geometry target.
 
     Layout matches :data:`imas_ambix.worldmodel.equilibrium_labels.TARGET_NAMES`:
     ``axis_R, axis_Z`` then the order-invariant X-point set (``xpt0``, ``xpt1``)
     then 8 LCFS control-point radii about the axis.  Absent components are NaN.
+
+    ``search_bbox = (r_lo, r_hi, z_lo, z_hi)`` restricts the axis / X-point
+    search to the plasma-current region so PF-coil O-points (outside the plasma)
+    are not picked as the magnetic axis.
     """
     psi = np.asarray(psi, dtype=np.float64)
     r_1d = np.asarray(r_1d, dtype=np.float64)
     z_1d = np.asarray(z_1d, dtype=np.float64)
     cp = find_critical_points(psi, r_1d, z_1d)
+    if search_bbox is not None:
+        cp = filter_critical_points(cp, search_bbox)
     axis = magnetic_axis(
         psi, r_1d, z_1d, limiter_r=limiter_r, limiter_z=limiter_z, cp=cp
     )
@@ -526,6 +569,7 @@ __all__ = [
     "CriticalPoints",
     "TopologyReadout",
     "find_critical_points",
+    "filter_critical_points",
     "magnetic_axis",
     "xpoint_set",
     "boundary_flux",
