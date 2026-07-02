@@ -127,9 +127,9 @@ def test_profile_shape_positive_and_normalised():
 
 def test_firewall_static_no_evaluator_imports():
     """The solver module must not import anything from the EFIT/evaluator side."""
-    import imas_ambix.latent.gs_solve as m
-
     from pathlib import Path
+
+    import imas_ambix.latent.gs_solve as m
 
     src = Path(m.__file__).read_text()
     for banned in ("efit_referee", "equilibrium_labels", "worldmodel"):
