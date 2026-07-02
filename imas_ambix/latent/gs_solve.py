@@ -247,6 +247,47 @@ class EquilibriumGrid:
             return np.zeros(self.flat_r.size)
         return self._coil_psi_columns @ np.asarray(i_pf, dtype=np.float64)
 
+    def sensor_greens(self, table: GeometryTable) -> tuple[np.ndarray, list[str]]:
+        """Cell→sensor Green's matrix ``(n_sensor, n_cells)`` + channel names.
+
+        Rows follow the mapped sensors in ``table.sensor_map`` order: flux
+        loops get ψ [Wb per A], B-probes the orientation-projected field
+        [T per A] of a unit filament at each in-limiter grid cell.  Cached on
+        first call (pure geometry).
+        """
+        cached = getattr(self, "_sensor_greens_cache", None)
+        if cached is not None:
+            return cached
+        from imas_ambix.gs.operator import greens_bz_br  # noqa: PLC0415
+
+        rows: list[np.ndarray] = []
+        channels: list[str] = []
+        cr = self.flat_r[self.cells]
+        cz = self.flat_z[self.cells]
+        for m in table.sensor_map:
+            if m.kind == "flux_loop":
+                row = np.array(
+                    [
+                        op.greens_psi(
+                            np.array([m.r]), np.array([m.z]), float(a), float(z0)
+                        )[0]
+                        for a, z0 in zip(cr, cz, strict=True)
+                    ]
+                )
+            else:
+                ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
+                row = np.empty(cr.size)
+                for k, (a, z0) in enumerate(zip(cr, cz, strict=True)):
+                    bz, br = greens_bz_br(
+                        np.array([m.r]), np.array([m.z]), float(a), float(z0)
+                    )
+                    row[k] = br[0] * np.cos(ang) + bz[0] * np.sin(ang)
+            rows.append(row)
+            channels.append(m.amb_channel)
+        g = np.vstack(rows) if rows else np.zeros((0, cr.size))
+        self._sensor_greens_cache = (g, channels)
+        return g, channels
+
 
 def _read_axis(
     psi2d: np.ndarray, grid: EquilibriumGrid, sign: float
@@ -392,10 +433,72 @@ def solve_equilibrium(
     )
 
 
+@dataclass
+class ProfileFit:
+    """A per-slice profile fit: parameters, equilibrium, and whitened cost."""
+
+    beta0: float
+    alpha: float
+    cost: float  # RMS whitened magnetics residual at the optimum
+    result: EquilibriumResult
+
+
+def fit_profile(
+    grid: EquilibriumGrid,
+    table: GeometryTable,
+    *,
+    i_pf: np.ndarray,
+    ip_amperes: float,
+    measured: np.ndarray,
+    vacuum_prediction: np.ndarray,
+    sensor_scale: np.ndarray,
+    sensor_mask: np.ndarray,
+    beta0_grid: tuple[float, ...] = (0.1, 0.3, 0.5, 0.7, 0.9),
+    alpha_grid: tuple[float, ...] = (1.0,),
+    convergence_limit: float = 5e-3,
+) -> ProfileFit | None:
+    """Per-slice profile fit: choose (β0, α) minimising the whitened magnetics
+    residual over converged equilibria.
+
+    This is the training-free inverse the learned encoder amortises: only that
+    slice's measured magnetics, the KNOWN coil currents, and the measured Ip
+    enter — no labels, no corpus, no EFIT.  ``measured``, ``vacuum_prediction``
+    (the KNOWN-coil sensor field, e.g. ``ForwardOperator.vacuum_prediction``),
+    ``sensor_scale`` and ``sensor_mask`` are all in the ``sensor_greens``
+    channel order.  Returns None when no candidate converges (the caller must
+    mask the slice, never fabricate a readout).
+    """
+    g_sens, _channels = grid.sensor_greens(table)
+
+    meas = np.asarray(measured, dtype=np.float64)
+    vac = np.asarray(vacuum_prediction, dtype=np.float64)
+    scale = np.clip(np.asarray(sensor_scale, dtype=np.float64), 1e-12, None)
+    mask = np.asarray(sensor_mask, dtype=bool) & np.isfinite(meas)
+
+    best: ProfileFit | None = None
+    for alpha in alpha_grid:
+        for beta0 in beta0_grid:
+            res = solve_equilibrium(
+                grid, i_pf, ip_amperes, beta0=float(beta0), alpha=float(alpha)
+            )
+            if not res.converged and res.residual > convergence_limit:
+                continue
+            pred = vac + g_sens @ res.cell_currents
+            resid = (pred[mask] - meas[mask]) / scale[mask]
+            cost = float(np.sqrt(np.mean(resid * resid))) if mask.any() else np.inf
+            if best is None or cost < best.cost:
+                best = ProfileFit(
+                    beta0=float(beta0), alpha=float(alpha), cost=cost, result=res
+                )
+    return best
+
+
 __all__ = [
     "MU0",
     "profile_jphi_shape",
     "EquilibriumGrid",
     "EquilibriumResult",
+    "ProfileFit",
     "solve_equilibrium",
+    "fit_profile",
 ]

@@ -134,3 +134,63 @@ def test_firewall_static_no_evaluator_imports():
     src = Path(m.__file__).read_text()
     for banned in ("efit_referee", "equilibrium_labels", "worldmodel"):
         assert banned not in src, f"gs_solve imports the firewalled {banned}"
+
+
+def test_sensor_greens_single_cell_matches_analytic():
+    """The cell→sensor Green's matrix row for a B-probe equals the analytic
+    projected field of a unit filament at that cell."""
+    from imas_ambix.gs.operator import greens_bz_br
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=33, nz=45)
+    g_sens, channels = grid.sensor_greens(table)
+    assert g_sens.shape == (len(channels), grid.cells.size)
+    # probe 2 is vertical (angle 90 deg) at (1.35, 0.0): its response to a unit
+    # current at any cell is Bz there
+    probe_row = channels.index("obv02")
+    c = grid.cells.size // 2
+    cr, cz = grid.flat_r[grid.cells[c]], grid.flat_z[grid.cells[c]]
+    bz, _br = greens_bz_br(np.array([1.35]), np.array([0.0]), float(cr), float(cz))
+    np.testing.assert_allclose(g_sens[probe_row, c], bz[0], rtol=1e-9)
+
+
+def test_fit_profile_recovers_generating_beta0():
+    """Fitting the profile against magnetics synthesised from a KNOWN β0
+    equilibrium recovers that β0 (self-consistency of the fit machinery)."""
+    from imas_ambix.latent.gs_solve import fit_profile
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    true_beta0 = 0.7
+    res = solve_equilibrium(grid, i_pf, ip, beta0=true_beta0)
+    assert res.converged
+    g_sens, channels = grid.sensor_greens(table)
+    # synthetic "measured" magnetics = coil vacuum part + plasma part; the coil
+    # part comes from the same subdivided-filament greens the solver uses,
+    # evaluated at the sensors directly (the synthetic coils are not amc-mapped)
+    from imas_ambix.gs.operator import greens_bz_br
+
+    vac = np.zeros(len(channels))
+    for k, m in enumerate(table.sensor_map):
+        ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
+        for f, cur in zip(table.pf_filaments, i_pf, strict=True):
+            bz, br = greens_bz_br(np.array([m.r]), np.array([m.z]), f.r, f.z)
+            vac[k] += cur * (br[0] * np.cos(ang) + bz[0] * np.sin(ang))
+    meas = vac + g_sens @ res.cell_currents
+    scale = np.abs(meas) + 1e-9
+    fit = fit_profile(
+        grid,
+        table,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        measured=meas,
+        vacuum_prediction=vac,
+        sensor_scale=scale,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        beta0_grid=(0.3, 0.5, 0.7, 0.9),
+    )
+    assert fit.result.converged
+    assert fit.beta0 == true_beta0  # grid fit must pick the generating value
+    assert fit.cost < 1e-3  # near-perfect match at the true parameters
