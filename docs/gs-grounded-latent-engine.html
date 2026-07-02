@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-02">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -297,6 +297,9 @@ Done-when (the gate)
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="f-ggl-02" data-id="c-20260702T135349245300" data-who="reckon-ship (deep review)" data-when="2026-07-02">
     <div class="r-comment-body">Deep review (user-directed, fleet-assisted) re-scoped the implementation path before training: (1) geometry VALIDATED independently — not the problem; (2) three data-path P0s fixed (Ip channel misindex → by-name resolution; target-free NaN-preserving loader → 397 slices/shot instead of 27; honest pre-fill masks); (3) ψ decoder decision LOCKED to the free-boundary GS solve (see psi-decoder-for-topology) — gs_solve.py built + analytically validated; prototype per-slice β0 fit hits 7.5-9.9 cm axis error on converged flat-top slices; (4) encoder must be upgraded to the oracle-probe recipe (temporal magnetics window + finite masks + geometry-aware substrate readers), replacing the flat single-slice MLP; (5) transport prior must consume flux-surface ψ(ρN) from the solved equilibrium (re-verify gate 3 after the switch); (6) early-ramp slices fail as S8 warned (eddy currents; passive structures not yet in the solve) — flat-top first, convergence-flagged honestly. Remaining to close: engine integration of gs_solve, per-slice-fit gate-2 baseline on the full held-out cohort, encoder upgrade, corpus training, gate-2 re-measure.</div>
+</div>
+<div class="r-comment" data-section="f-ggl-02" data-id="c-20260702T140511043879" data-who="reckon-ship (deep review)" data-when="2026-07-02">
+    <div class="r-comment-body">FULL held-out force-balanced gate-2 baseline (training-free, scripts/gs_solve_gate_eval.py, 8 shots × 20 flat-top slices, firewalled referee): 83/160 slices scored (48% honestly masked by the convergence/cost flag — shot 18505 nearly all masked), MEDIAN axis error 8.6 cm (vs 39–50 cm for the linear inverse), mean 0.32 m (heavy tail from accepted-but-poor fits at cost limit 3.0). Skill vs the 4-cm clustered train-mean remains negative (axis −14.7 headline dominated by axis_Z on the tail; X-set −3.3). Diagnosis + queued levers: tighter cost threshold (accuracy/coverage trade reported both ways), continuous (β0,α) optimisation + vertical-position freedom instead of the 10-candidate grid, passive/eddy currents in the solve (the S8 early-ramp lesson), and above all the LEARNED encoder amortising the fit (oracle-recipe temporal window + stage-1 geometry substrate). Artifacts: imas_ambix/latent/artifacts/gs_solve_gate_eval.json + gs_solve_gate_arrays.npz.</div>
 </div>
 </section>
 </main>

@@ -183,14 +183,17 @@ that never sees EFIT).</p>
 
 <h3>§5.4 — First force-balanced gate-2 numbers (training-free)</h3>
 <p>Fitting the two profile parameters per slice against the <em>measured</em> magnetics (measured-Ip
-constraint, known coils) and reading topology from the solved ψ: on the smoke cohort the median axis error
-is <strong>9.5&nbsp;cm</strong> (7/8 slices scored; the eighth honestly masked by the convergence/cost
-flag) — versus 39–50&nbsp;cm for the linear inverse. Axis skill vs the train-mean baseline is still
-negative (≈−1.0: 9.5&nbsp;cm physics vs a 4&nbsp;cm clustered mean), with clear headroom: the fit is a
-coarse 10-candidate grid, early-ramp slices need the passive/eddy contribution (as the earlier GS-prior
-work warned), and the LEARNED encoder amortising this map — now required to consume the stage-1
-geometry-aware temporal-window recipe that set the oracle bar, not the flat single-slice MLP it had — is
-the actual gate-2 design. The full held-out measurement replaces §4's table when it lands.</p>
+constraint, known coils) and reading topology from the solved ψ, over the FULL held-out cohort (8 shots ×
+20 flat-top slices): <strong>83/160 slices scored, median axis error 8.6&nbsp;cm</strong> — versus
+39–50&nbsp;cm for the linear inverse — with 48% of slices honestly masked by the convergence/cost flag
+(shot 18505 nearly entirely). The distribution is heavy-tailed (mean 0.32&nbsp;m): the cost limit admits
+some poor equilibria, and skill vs the 4-cm clustered train-mean remains negative (axis −14.7, X-set
+−3.3). The levers, in order: a tighter cost threshold (reporting the accuracy/coverage trade both ways),
+continuous (β0,&nbsp;α) optimisation + vertical-position freedom instead of the 10-candidate grid,
+passive/eddy currents in the solve (the earlier GS-prior work's early-ramp lesson), and above all the
+LEARNED encoder amortising this map — now required to consume the stage-1 geometry-aware temporal-window
+recipe that set the oracle bar, not the flat single-slice MLP it had. That learned measurement is the
+actual gate-2 design and the open work of f-ggl-02.</p>
 <p><em>Process note:</em> the adversarial code-review worker failed to deliver its report; its highest-value
 ground (the transport prior's ρ-coordinate mismatch, the axis-selection fallback, loss scaling) was covered
 independently and is queued in the f-ggl-02 scope, but the review stream itself did not complete.</p>
