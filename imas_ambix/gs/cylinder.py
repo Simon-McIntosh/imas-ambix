@@ -185,4 +185,41 @@ def cylinder_greens(
     return psi, br, bz
 
 
-__all__ = ["cylinder_greens", "MU0"]
+def hybrid_greens(
+    target_r: np.ndarray,
+    target_z: np.ndarray,
+    a: float,
+    z0: float,
+    da: float,
+    dz: float,
+    *,
+    switch: float = 3.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(ψ, B_R, B_Z) per ampere: cylinder near the section, point filament far.
+
+    Beyond ``switch × max(da, dz)`` from the section centroid the finite-area
+    correction is the constant second-moment term (≈ +da²/12a₀² relative in ψ
+    — sub-0.2% for our section sizes, far below measurement noise), so the
+    cheap point-filament loop formulas are used there; within the band the
+    full cylinder form is used, keeping the field smooth and finite through
+    the conductor.  Costs scale with the (small) number of near-band targets.
+    """
+    from imas_ambix.gs.operator import greens_bz_br, greens_psi  # noqa: PLC0415
+
+    tr = np.asarray(target_r, dtype=np.float64)
+    tz = np.asarray(target_z, dtype=np.float64)
+    psi = greens_psi(tr, tz, a, z0)
+    bz, br = greens_bz_br(tr, tz, a, z0)
+    near = np.hypot(tr - a, tz - z0) < switch * max(da, dz)
+    if near.any():
+        psi_n, br_n, bz_n = cylinder_greens(tr[near], tz[near], a, z0, da, dz)
+        psi = psi.copy()
+        br = br.copy()
+        bz = bz.copy()
+        psi[near] = psi_n
+        br[near] = br_n
+        bz[near] = bz_n
+    return psi, br, bz
+
+
+__all__ = ["cylinder_greens", "hybrid_greens", "MU0"]

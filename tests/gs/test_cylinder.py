@@ -133,3 +133,30 @@ def test_ampere_circulation_equals_mu0():
     circ = np.sum((-br * np.sin(theta) + bz * np.cos(theta)) * rad * dtheta)
     mu0 = 4e-7 * np.pi
     np.testing.assert_allclose(abs(circ), mu0, rtol=1e-3)
+
+
+def test_hybrid_greens_matches_cylinder_near_and_filament_far():
+    """The hybrid kernel must be the cylinder form inside the switch band and
+    the (cheap) point filament beyond it."""
+    from imas_ambix.gs.cylinder import hybrid_greens
+
+    a, z0, da, dz = 0.9, 0.1, 0.12, 0.18
+    near = np.array([0.92, 0.85, 1.05])
+    near_z = np.array([0.12, 0.05, 0.18])
+    far = np.array([1.6, 0.3, 1.9])
+    far_z = np.array([0.9, -1.2, 1.5])
+    tr = np.concatenate([near, far])
+    tz = np.concatenate([near_z, far_z])
+    psi, br, bz = hybrid_greens(tr, tz, a, z0, da, dz, switch=3.0)
+    psi_cyl, br_cyl, bz_cyl = cylinder_greens(tr, tz, a, z0, da, dz)
+    psi_pt = op.greens_psi(tr, tz, a, z0)
+    bz_pt, br_pt = op.greens_bz_br(tr, tz, a, z0)
+    np.testing.assert_allclose(psi[:3], psi_cyl[:3], rtol=1e-12)
+    np.testing.assert_allclose(br[:3], br_cyl[:3], rtol=1e-12, atol=1e-16)
+    np.testing.assert_allclose(psi[3:], psi_pt[3:], rtol=1e-12)
+    np.testing.assert_allclose(bz[3:], bz_pt[3:], rtol=1e-12, atol=1e-16)
+    # and the hybrid is everywhere finite at/inside the source
+    p0, b0, z0v = hybrid_greens(
+        np.array([a]), np.array([z0]), a, z0, da, dz, switch=3.0
+    )
+    assert np.isfinite(p0).all() and np.isfinite(b0).all() and np.isfinite(z0v).all()

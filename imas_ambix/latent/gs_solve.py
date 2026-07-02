@@ -43,6 +43,7 @@ import scipy.sparse.linalg as spla
 from scipy import ndimage  # type: ignore[import-untyped]
 
 from imas_ambix.gs import operator as op
+from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.topology import _inside_polygon, find_critical_points
 
 if TYPE_CHECKING:
@@ -135,7 +136,9 @@ class EquilibriumGrid:
         # cells, so point filaments per cell are accurate there)
         er, ez = self.flat_r[self.edge_idx], self.flat_z[self.edge_idx]
         cols = [
-            op.greens_psi(er, ez, float(self.flat_r[c]), float(self.flat_z[c]))
+            hybrid_greens(
+                er, ez, float(self.flat_r[c]), float(self.flat_z[c]), self.dr, self.dz
+            )[0]
             for c in self.cells
         ]
         self.g_edge = np.column_stack(cols) if cols else np.zeros((er.size, 0))
@@ -168,21 +171,17 @@ class EquilibriumGrid:
         def circ_col(circ: int) -> np.ndarray:
             acc = np.zeros(flat_r.size)
             for f in by_circ[circ]:
-                wr = max(f.width, 0.01)
-                wz = max(f.height, 0.01)
-                # subdivide over the physical winding pack: the coil is a
-                # distributed conductor, and grid points can sit within cm of
-                # in-vessel coils where a point filament would be singular
-                for orr in (-1 / 3, 0.0, 1 / 3):
-                    for ozz in (-1 / 3, 0.0, 1 / 3):
-                        a = max(f.r + orr * wr, 1e-3)
-                        acc += (
-                            f.xmult
-                            * op.greens_psi(
-                                flat_r, flat_z, float(a), float(f.z + ozz * wz)
-                            )
-                            / 9.0
-                        )
+                # finite-area winding pack: smooth and exact everywhere,
+                # including AT in-vessel coils inside the solve domain
+                psi_f, _br, _bz = hybrid_greens(
+                    flat_r,
+                    flat_z,
+                    float(f.r),
+                    float(f.z),
+                    max(f.width, 0.01),
+                    max(f.height, 0.01),
+                )
+                acc += f.xmult * psi_f
             return acc
 
         cols = []
@@ -258,30 +257,27 @@ class EquilibriumGrid:
         cached = getattr(self, "_sensor_greens_cache", None)
         if cached is not None:
             return cached
-        from imas_ambix.gs.operator import greens_bz_br  # noqa: PLC0415
 
         rows: list[np.ndarray] = []
         channels: list[str] = []
         cr = self.flat_r[self.cells]
         cz = self.flat_z[self.cells]
         for m in table.sensor_map:
-            if m.kind == "flux_loop":
-                row = np.array(
-                    [
-                        op.greens_psi(
-                            np.array([m.r]), np.array([m.z]), float(a), float(z0)
-                        )[0]
-                        for a, z0 in zip(cr, cz, strict=True)
-                    ]
+            row = np.empty(cr.size)
+            ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
+            for k, (a, z0) in enumerate(zip(cr, cz, strict=True)):
+                psi_k, br_k, bz_k = hybrid_greens(
+                    np.array([m.r]),
+                    np.array([m.z]),
+                    float(a),
+                    float(z0),
+                    self.dr,
+                    self.dz,
                 )
-            else:
-                ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
-                row = np.empty(cr.size)
-                for k, (a, z0) in enumerate(zip(cr, cz, strict=True)):
-                    bz, br = greens_bz_br(
-                        np.array([m.r]), np.array([m.z]), float(a), float(z0)
-                    )
-                    row[k] = br[0] * np.cos(ang) + bz[0] * np.sin(ang)
+                if m.kind == "flux_loop":
+                    row[k] = psi_k[0]
+                else:
+                    row[k] = br_k[0] * np.cos(ang) + bz_k[0] * np.sin(ang)
             rows.append(row)
             channels.append(m.amb_channel)
         g = np.vstack(rows) if rows else np.zeros((0, cr.size))
@@ -373,11 +369,16 @@ def solve_equilibrium(
         scale = ip_amperes / total if abs(total) > 1e-12 else 0.0
         i_cell = i_cell * scale
 
-        psi_edge = psi_coil[grid.edge_idx] + grid.g_edge @ i_cell
+        # Solve the PLASMA part only (plasma RHS + plasma-only Green's BCs) and
+        # add the coil field analytically: MAST's in-vessel coils sit INSIDE
+        # the solve domain, where their field is not harmonic — Dirichlet
+        # continuation of a total-psi BC would misrepresent it near the coils.
+        # The finite-area coil columns are exact everywhere instead.
+        psi_edge = grid.g_edge @ i_cell
         rhs2d = (-(MU0) * grid.flat_r * jphi * scale).reshape(grid.nz, grid.nr)
         psi_b2d = np.zeros((grid.nz, grid.nr))
         psi_b2d.ravel()[grid.edge_idx] = psi_edge
-        psi_new = grid.solve_dirichlet(rhs2d, psi_b2d).ravel()
+        psi_new = grid.solve_dirichlet(rhs2d, psi_b2d).ravel() + psi_coil
 
         if psi_flat is None:
             psi_flat = psi_new
