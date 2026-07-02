@@ -32,6 +32,15 @@ from pathlib import Path
 
 import numpy as np
 
+# NOTE: shot-list / campaign-operator / assembly / sensor-scale helpers live in
+# imas_ambix.latent.data (shared with scripts/train_gs_grounded_latent.py) —
+# thin local aliases keep this script's call sites unchanged.
+from imas_ambix.latent.data import assemble_shot_windows as _assemble_impl
+from imas_ambix.latent.data import build_campaign_operators as _build_campaigns_impl
+from imas_ambix.latent.data import feature_schema as _feature_schema
+from imas_ambix.latent.data import read_split_shot_lists as _read_shot_lists
+from imas_ambix.latent.data import sensor_scale_for_campaign as _sensor_scale
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("gs_grounded_run")
 
@@ -39,86 +48,15 @@ logger = logging.getLogger("gs_grounded_run")
 AXIS_COMPONENTS = ["axis_R", "axis_Z"]
 LCFS_COMPONENTS = [f"lcfs_r_{k}" for k in range(8)]
 
-_STANDING_HELD_OUT = (18502, 18503, 18504, 18505)
-_SPLITS_MANIFEST = Path(
-    "/work/projects/imas_gpu/mast/manifests/statespace_splits_dalpha_v0.json"
-)
-
-
-def _read_shot_lists(n_train: int, n_heldout: int) -> tuple[list[int], list[int]]:
-    """Train + held-out shot lists (standing held-out forced into held-out)."""
-    with open(_SPLITS_MANIFEST) as f:
-        splits = json.load(f)
-    train = [int(x) for x in splits.get("train", [])]
-    test = [int(x) for x in splits.get("test_ood_regime", [])]
-    held = list(_STANDING_HELD_OUT) + [s for s in test if s not in _STANDING_HELD_OUT]
-    train = [s for s in train if s not in set(held)]
-    return train[:n_train], held[:n_heldout]
-
 
 def _build_campaigns(shots: list[int], grid_nr: int, grid_nz: int, order: int):
-    """Build a GSObservation + limiter per campaign signature over ``shots``."""
-    from imas_ambix.gs.geometry import build_table_for_shot
-    from imas_ambix.latent.gs_observation import GSObservation
-
-    gs_by_sig: dict = {}
-    limiter_by_sig: dict = {}
-    campaign_of: dict[int, str] = {}
-    for s in shots:
-        try:
-            table = build_table_for_shot(int(s))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("shot %d: no geometry table (%s)", s, exc)
-            continue
-        key = table.signature.key
-        campaign_of[int(s)] = key
-        if key not in gs_by_sig:
-            gs_by_sig[key] = GSObservation.from_table(
-                table, grid_nr=grid_nr, grid_nz=grid_nz, profile_order=order
-            )
-            limiter_by_sig[key] = (
-                np.asarray(table.limiter_r, float),
-                np.asarray(table.limiter_z, float),
-            )
-    return gs_by_sig, limiter_by_sig, campaign_of
-
-
-def _feature_schema():
-    from imas_ambix.statespace.baseline import _FEATURE_SCHEMA_MAG_ANE
-
-    return _FEATURE_SCHEMA_MAG_ANE
+    return _build_campaigns_impl(
+        shots, grid_nr=grid_nr, grid_nz=grid_nz, profile_order=order
+    )
 
 
 def _assemble(shots, campaign_of, schema, *, with_referee):
-    """Assemble ShotWindows for shots that have a campaign operator."""
-    from imas_ambix.gs.geometry import build_table_for_shot
-    from imas_ambix.gs.operator import build_operator
-    from imas_ambix.latent.data import load_shot_windows
-
-    out = []
-    for s in shots:
-        key = campaign_of.get(int(s))
-        if key is None:
-            continue
-        try:
-            operator = build_operator(build_table_for_shot(int(s)))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("shot %d: operator build failed (%s)", s, exc)
-            continue
-        w = load_shot_windows(int(s), operator, key, schema, with_referee=with_referee)
-        if w is not None:
-            out.append(w)
-    return out
-
-
-def _sensor_scale(windows, key, n_sensor):
-    """Per-sensor whitening scale = std of measured raw magnetics over slices."""
-    cols = [w.raw_mag for w in windows if w.campaign == key]
-    if not cols:
-        return np.ones(n_sensor)
-    stacked = np.concatenate(cols, axis=0)
-    scale = np.nanstd(stacked, axis=0)
-    return np.where(np.isfinite(scale) & (scale > 0), scale, 1.0)
+    return _assemble_impl(shots, campaign_of, schema, with_referee=with_referee)
 
 
 _FIG_DIR = Path("docs/figures/gs-grounded-latent-engine")

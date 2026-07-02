@@ -67,6 +67,41 @@ def greens_psi_matrix(
     return np.column_stack(cols)
 
 
+def _avoid_source_singularities(
+    grid_r: np.ndarray, grid_z: np.ndarray, sources_rz: np.ndarray, min_distance: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Nudge any grid point within ``min_distance`` of a source radially outward.
+
+    A point-filament Green's function diverges at zero source-field distance;
+    a naive grid can land arbitrarily close to a real coil or plasma-basis
+    node (confirmed on real MAST geometry — central-solenoid coils sit within
+    1-4 cm of a modest-resolution reconstruction grid), producing a spurious
+    near-singular ψ spike.  Each offending point is pushed to exactly
+    ``min_distance`` from its nearest source, along the line joining them (a
+    point exactly on a source is nudged along +R to break the degeneracy).
+    """
+    if sources_rz.size == 0:
+        return grid_r, grid_z
+    gr = np.array(grid_r, dtype=np.float64, copy=True)
+    gz = np.array(grid_z, dtype=np.float64, copy=True)
+    for sr, sz in sources_rz:
+        dr = gr - sr
+        dz = gz - sz
+        dist = np.hypot(dr, dz)
+        close = dist < min_distance
+        if not close.any():
+            continue
+        # degenerate (exactly on the source): nudge along +R
+        deg = close & (dist < 1e-12)
+        dr = np.where(deg, 1.0, dr)
+        dz = np.where(deg, 0.0, dz)
+        dist = np.where(deg, 1.0, dist)
+        scale = np.where(close, min_distance / dist, 1.0)
+        gr = np.where(close, sr + dr * scale, gr)
+        gz = np.where(close, sz + dz * scale, gz)
+    return gr, gz
+
+
 def _pf_psi_columns(
     table: GeometryTable,
     pf_amc_channels: list[str],
@@ -175,6 +210,7 @@ class GSObservation(nn.Module):
         grid_nz: int = 129,
         profile_order: int = 1,
         grid_pad: float = 0.0,
+        min_source_distance: float = 0.02,
         dtype: torch.dtype = torch.float64,
     ) -> GSObservation:
         """Build from a campaign :class:`GeometryTable`.
@@ -182,7 +218,11 @@ class GSObservation(nn.Module):
         The ψ reconstruction grid spans the limiter bounding box (optionally
         padded by ``grid_pad`` metres each side) at ``grid_nr × grid_nz``
         resolution.  ``profile_order`` selects the dimensionless polynomial
-        plasma-current basis (1→3 DOF, 2→6, 4→15).
+        plasma-current basis (1→3 DOF, 2→6, 4→15).  Grid points within
+        ``min_source_distance`` metres of any plasma-basis node or PF filament
+        are nudged away (:func:`_avoid_source_singularities`) — real MAST
+        in-vessel coils can sit within a few cm of a modest-resolution grid,
+        and the point-filament Green's function diverges at zero distance.
         """
         fwd = op.build_operator(table)
         basis = plasma_poly_basis(
@@ -208,6 +248,12 @@ class GSObservation(nn.Module):
         mesh_r, mesh_z = np.meshgrid(rg, zg)  # (nz, nr)
         grid_r = mesh_r.ravel()
         grid_z = mesh_z.ravel()
+
+        all_sources = np.concatenate([fwd.plasma_rz, coil_rz], axis=0)
+        if all_sources.size:
+            grid_r, grid_z = _avoid_source_singularities(
+                grid_r, grid_z, all_sources, min_source_distance
+            )
 
         psi_grid_plasma = greens_psi_matrix(
             grid_r, grid_z, fwd.plasma_rz[:, 0], fwd.plasma_rz[:, 1]

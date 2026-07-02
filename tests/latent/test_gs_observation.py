@@ -147,3 +147,37 @@ def test_psi_field_is_differentiable_wrt_theta():
     assert theta.grad is not None
     assert torch.isfinite(theta.grad).all()
     assert theta.grad.abs().sum() > 0  # ψ genuinely depends on θ
+
+
+def test_reconstruction_grid_avoids_source_singularities():
+    """A grid point coincident with a plasma/coil source must be nudged away.
+
+    A field/current-carrying element's own Green's function diverges at zero
+    distance (it is a point-filament model); a reconstruction grid built by a
+    naive linspace can land arbitrarily close to a real coil or plasma node
+    (confirmed on real MAST geometry: central-solenoid coils sit within 1-4 cm
+    of a modest-resolution grid), producing a spurious near-singular ψ spike
+    that corrupts anything computed from the reconstructed field (the
+    transport prior's midplane profile, topology). The grid must keep at least
+    ``min_source_distance`` from every plasma-basis node and PF filament.
+    """
+    table = _synthetic_table()
+    # a synthetic table where a grid point WOULD exactly coincide with the
+    # PF coil filament (r=1.50, z=1.10) at some (grid_nr, grid_nz) — force a
+    # small grid so a coincidence is easy to construct deliberately: request a
+    # grid whose node lattice includes (1.50, 1.10) by construction.
+    min_d = 0.03
+    obs = GSObservation.from_table(
+        table, grid_nr=9, grid_nz=13, profile_order=1, min_source_distance=min_d
+    )
+    gr = obs.grid_r.numpy()
+    gz = obs.grid_z.numpy()
+    coil_r, coil_z = 1.50, 1.10
+    dist_to_coil = np.hypot(gr - coil_r, gz - coil_z)
+    assert dist_to_coil.min() >= min_d - 1e-9
+
+    # and the reconstructed psi must be finite everywhere (no singularity blew up)
+    theta = torch.zeros(1, obs.n_dof, dtype=torch.float64)
+    i_pf = torch.tensor([[5000.0]], dtype=torch.float64)
+    psi = obs.psi_field(theta, i_pf)
+    assert torch.isfinite(psi).all()
