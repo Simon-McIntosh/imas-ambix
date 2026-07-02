@@ -19,8 +19,8 @@
   <title>Machine-Agnostic Latent State-Space Plasma World Model | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-25">
-<meta name="plan-version" content="3">
+<meta name="plan-modified" content="2026-07-02">
+<meta name="plan-version" content="4">
 </head>
 <body>
 <main class="plan-doc">
@@ -1144,10 +1144,15 @@ Done-when
      dN-M noise floor at n=10).
   3. Excited held-out cohort defined + leakage-audited.
   4. tests green; followup written + this one resolved.</pre>
-    <p class="r-fu-outcome">Child plan evaluation-and-controllability-harness SHIPPED 2026-06-25: all five eval-spine components built + unit-tested (54 tests green) and the bars frozen on existing data — firewalled EFIT referee (boundary guard proven), absolute-magnetics oracle (skill ≈0.5–0.7, the stage-2 / f-malwm-02 bar), raw-held-out + EnKF bar (EnKF 0.225 < persistence 0.719, the stage-4 / f-malwm-04 bar), powered n=10 ΔN-M latent gate (noise floor 1.001 CI[0.985,1.018]), excitation-window selector + excited held-out cohort + leakage audit. The gates for f-malwm-02 and f-malwm-04 now have their targets. Modules under imas_ambix/eval/.</p>
+    <p class="r-fu-outcome">Child plan evaluation-and-controllability-harness SHIPPED 2026-06-25: all five eval-spine components built + unit-tested (54 tests green) and the bars frozen on existing data — firewalled EFIT referee (boundary guard proven), absolute-magnetics oracle (skill ≈0.5–0.7, the stage-2 / f-malwm-02 bar), raw-held-out + EnKF bar (EnKF 0.225 &lt; persistence 0.719, the stage-4 / f-malwm-04 bar), powered n=10 ΔN-M latent gate (noise floor 1.001 CI[0.985,1.018]), excitation-window selector + excited held-out cohort + leakage audit. The gates for f-malwm-02 and f-malwm-04 now have their targets. Modules under imas_ambix/eval/.</p>
     </article>
 </section>
 
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="f-malwm-02" data-id="c-20260702T124644680312" data-who="reckon-ship (opus)" data-when="2026-07-02">
+    <div class="r-comment-body">Status check on this followup (kept OPEN, not resolved): child plan gs-grounded-latent-engine SHIPPED 2026-07-01 with 3 of its 4 gates MET — gate 1 (label-free GS-observation mechanism; the learned latent grounds on REAL data, GS residual 12.15→2.29 = 5.3× over 14780 held-out slices, no EFIT labels) and gate 3 (D_min=1e-6>0, command load-bearing Δ=25.5) and gate 4 (36 tests green) are solid. Gate 2 — this followup's done-when #2, GS-readout axis/X-point skill matching the absolute-magnetics oracle ~0.5–0.7 — is an HONEST NEGATIVE for the training-free per-slice GS-inverse diagnostic used to measure it (skill −11.2 vs the tightly-clustered train-mean; a non-force-balanced, low-DOF linear inverse cannot beat that mean). This does NOT test the plan's actual design (a LEARNED hybrid latent trained on the corpus) — that measurement has not yet been run. Tracked as f-ggl-02 on the child plan (open, full prompt written) and now in active implementation. This parent followup stays open until f-ggl-02 closes gate 2 for real. Findings: docs/gs-grounded-latent-engine-findings.html.</div>
+</div>
+</section>
 </main>
 </body>
 </html>
