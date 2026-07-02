@@ -48,3 +48,31 @@ def test_corpus_stats_normalise_roundtrip_scale():
     norm = stats.normalise(x)
     np.testing.assert_allclose(norm.mean(axis=0), 0.0, atol=1e-9)
     np.testing.assert_allclose(norm.std(axis=0), 1.0, atol=1e-6)
+
+
+def test_anchored_columns_resolved_by_name_not_index():
+    """Ip/n_e columns must be resolved from the schema BY NAME (the amc list is
+    alphabetically sorted, so hard-coded indices silently hit the wrong channel
+    — the original defect read tf_current as Ip)."""
+    from imas_ambix.latent.data import anchored_columns
+
+    schema = {
+        "ama": ["a1", "a2"],
+        "amb": ["b1", "b2", "b3"],
+        "amc": ["p4u_current", "plasma_current", "tf_current"],
+        "ane": ["density"],
+    }
+    ip_col, ne_col = anchored_columns(schema)
+    assert ip_col == 2 + 3 + 1  # ama + amb + index of plasma_current in amc
+    assert ne_col == 2 + 3 + 3 + 0  # ... + index of density in ane
+
+
+def test_anchored_columns_raise_on_missing_channel():
+    """A schema without plasma_current must fail LOUD, not fall back."""
+    import pytest
+
+    from imas_ambix.latent.data import anchored_columns
+
+    schema = {"amc": ["tf_current"], "ane": ["density"]}
+    with pytest.raises(KeyError):
+        anchored_columns(schema)

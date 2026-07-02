@@ -21,19 +21,27 @@ testable; the loaders touch the ``/work`` mirror and run on the compute node.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# X column layout of the MAG+ANE feature schema (baseline._FEATURE_SCHEMA_MAG_ANE):
-# [ ama(6) | amb(73) | amc(42) | ane(1) ] = 122.
-_AMA_OFFSET = 0
-_AMB_OFFSET = 6
-_AMC_OFFSET = 79
-_ANE_OFFSET = 121
+#: Standing held-out cohort (per the eval harness) — never trained on.
+STANDING_HELD_OUT = (18502, 18503, 18504, 18505)
+
+#: Default train/test-OOD shot-list manifest (per-machine campaign geometry
+#: build reads shots individually; this only supplies the split membership).
+DEFAULT_SPLITS_MANIFEST = Path(
+    "/work/projects/imas_gpu/mast/manifests/statespace_splits_dalpha_v0.json"
+)
+
+# Column layout is derived from the schema at run time (schema_group_offsets)
+# — never hard-coded: the per-group channel lists are alphabetically sorted, so
+# literal indices silently drift when a channel is added or renamed.
 
 
 def align_sensor_columns(
@@ -42,10 +50,11 @@ def align_sensor_columns(
     """Map operator sensor rows ↔ amb feature columns BY CHANNEL NAME.
 
     Returns ``(op_rows, x_cols)`` — parallel int arrays such that operator
-    sensor row ``op_rows[k]`` is measured by feature column
-    ``_AMB_OFFSET + x_cols[k]`` (i.e. absolute X column ``6 + x_cols[k]``).  Only
-    operator sensors whose channel name appears in ``amb_names`` are matched;
-    the rest are unmeasured (masked out of the GS residual for this campaign).
+    sensor row ``op_rows[k]`` is measured by amb-group column ``x_cols[k]``
+    (add the amb group's offset from :func:`schema_group_offsets` for the
+    absolute feature column).  Only operator sensors whose channel name appears
+    in ``amb_names`` are matched; the rest are unmeasured (masked out of the GS
+    residual for this campaign).
     """
     idx = {name: j for j, name in enumerate(amb_names)}
     op_rows: list[int] = []
@@ -96,10 +105,99 @@ class ShotWindows:
     ref_mask: np.ndarray | None = None  # (T, 14) bool
 
 
-# --- anchored-scalar channel indices in X (MAG+ANE schema) ---
-ANCHORED_IP_COL = 120  # amc/plasma_current (Rogowski) [kA]
-ANCHORED_NE_COL = 121  # ane/density [m^-2]
+# --- anchored raw scalars (resolved BY NAME from the schema, never by index:
+# the amc channel list is alphabetically sorted, so a hard-coded index silently
+# reads the wrong channel — a fixed defect read tf_current as Ip) ---
 ANCHORED_NAMES = ("ip", "n_e")
+
+
+def schema_group_offsets(feature_schema: dict[str, list[str]]) -> dict[str, int]:
+    """Column offset of each group in the concatenated feature vector."""
+    offsets: dict[str, int] = {}
+    col = 0
+    for group, channels in feature_schema.items():
+        offsets[group] = col
+        col += len(channels)
+    return offsets
+
+
+def anchored_columns(feature_schema: dict[str, list[str]]) -> tuple[int, int]:
+    """(ip_col, ne_col) — plasma_current + density columns, resolved by name.
+
+    Raises ``KeyError`` (fail-loud) if either channel is absent from the schema.
+    """
+    offsets = schema_group_offsets(feature_schema)
+    try:
+        ip_col = offsets["amc"] + feature_schema["amc"].index("plasma_current")
+    except (KeyError, ValueError) as exc:
+        raise KeyError("feature schema has no amc/plasma_current channel") from exc
+    try:
+        ne_col = offsets["ane"] + feature_schema["ane"].index("density")
+    except (KeyError, ValueError) as exc:
+        raise KeyError("feature schema has no ane/density channel") from exc
+    return ip_col, ne_col
+
+
+def load_shot_slices_raw(
+    shot_id: int,
+    feature_schema: dict[str, list[str]],
+    *,
+    level1_dir=None,
+    model_hz: float = 1000.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """Target-free, imputation-free feature loader: ``(X_raw, times, plasma_on)``.
+
+    Unlike :func:`imas_ambix.statespace.baseline.load_shot_slices` (built for
+    the Dα statespace work) this loader
+
+    * requires NO target channel — the statespace loader drops every slice
+      where its Dα target is NaN, which collapsed a ~0.5 s shot to a ~26 ms
+      sliver (<5% of the plasma);
+    * preserves NaN — the statespace loader imputes missing features with the
+      column mean BEFORE returning, which made downstream finiteness masks
+      treat imputed sensor values as real measurements in the GS residual.
+
+    ``X_raw`` is ``(T, F)`` raw SI with NaN where a channel is absent/invalid;
+    masks must be derived from THIS array, before any fill.
+    """
+    import zarr  # noqa: PLC0415
+
+    from imas_ambix.statespace.baseline import (  # noqa: PLC0415
+        _LEVEL1_DIR,
+        _build_common_time_grid,
+        _read_group_channels,
+    )
+
+    shot_path = (level1_dir or _LEVEL1_DIR) / f"{shot_id}.zarr"
+    if not shot_path.exists():
+        return None
+    try:
+        store = zarr.open_group(str(shot_path), mode="r")
+    except Exception:  # noqa: BLE001
+        return None
+    times = _build_common_time_grid(store, model_hz=model_hz)
+    if times is None:
+        return None
+
+    parts: list[np.ndarray] = []
+    for group, channels in feature_schema.items():
+        mat = _read_group_channels(store, group, channels, times)
+        if mat is None:
+            mat = np.full((times.size, len(channels)), np.nan)
+        parts.append(mat)
+    x = np.concatenate(parts, axis=1)
+
+    plasma_on = np.zeros(times.size, dtype=bool)
+    if "amc" in store and "plasma_current" in store["amc"]:
+        grp = store["amc"]
+        ip = np.asarray(grp["plasma_current"], dtype=np.float64)
+        ip_t = np.asarray(grp["time"], dtype=np.float64) if "time" in grp else None
+        if ip_t is not None and ip.shape == ip_t.shape:
+            ip_on_grid = np.interp(times, ip_t, np.abs(ip))
+            peak = float(np.nanmax(ip_on_grid))
+            if peak > 50.0:  # kA
+                plasma_on = ip_on_grid > max(50.0, 0.2 * peak)
+    return x, times, plasma_on
 
 
 def load_shot_windows(
@@ -116,25 +214,23 @@ def load_shot_windows(
 ) -> ShotWindows | None:
     """Assemble one shot's aligned per-slice arrays (plasma-on slices only).
 
-    Reads level-1 via :func:`imas_ambix.statespace.baseline.load_shot_slices`,
-    aligns the amb magnetics to ``operator.sensor_channels`` by name, assembles
-    ``i_pf`` from the amc block, extracts the anchored scalars, and (eval only,
-    inside the firewall) reads the EFIT referee geometry on the same ``times``.
-    Returns None if the shot has no usable plasma-on slices.
-    """
-    from imas_ambix.statespace.baseline import load_shot_slices  # noqa: PLC0415
+    Reads level-1 via :func:`load_shot_slices_raw` (target-free, NaN-preserving
+    — see its docstring for why the statespace loader is unsuitable), aligns
+    the amb magnetics to ``operator.sensor_channels`` by name, assembles
+    ``i_pf`` from the amc block, extracts the anchored scalars by CHANNEL NAME,
+    and (eval only, inside the firewall) reads the EFIT referee geometry on the
+    same ``times``.  Returns None if the shot has no usable plasma-on slices.
 
-    tgt = target_channels or ["da_hm10_t"]
-    loaded = load_shot_slices(
-        shot_id,
-        feature_schema,
-        tgt,
-        model_hz=model_hz,
-        **({} if level1_dir is None else {"level1_dir": level1_dir}),
+    ``mag_mask`` is derived from the pre-fill raw array, so a sensor absent on
+    this shot is honestly masked out of the GS residual (never imputed).
+    """
+    del target_channels  # kept in the signature for call-site compatibility
+    loaded = load_shot_slices_raw(
+        shot_id, feature_schema, level1_dir=level1_dir, model_hz=model_hz
     )
     if loaded is None:
         return None
-    x, _y, times, plasma_on = loaded
+    x, times, plasma_on = loaded
     if plasma_on is None or not np.any(plasma_on):
         return None
     x = np.asarray(x, dtype=np.float64)[plasma_on]
@@ -145,26 +241,31 @@ def load_shot_windows(
 
     amb_names = feature_schema["amb"]
     amc_names = feature_schema["amc"]
+    offsets = schema_group_offsets(feature_schema)
     op_rows, x_cols = align_sensor_columns(operator.sensor_channels, amb_names)
     n_sensor = len(operator.sensor_channels)
 
     raw_mag = np.full((n, n_sensor), np.nan, dtype=np.float64)
     mag_mask = np.zeros((n, n_sensor), dtype=bool)
     if op_rows.size:
-        raw_mag[:, op_rows] = x[:, _AMB_OFFSET + x_cols]
-        mag_mask[:, op_rows] = True
+        raw_mag[:, op_rows] = x[:, offsets["amb"] + x_cols]
+        mag_mask[:, op_rows] = np.isfinite(raw_mag[:, op_rows])
 
-    # i_pf per slice via the operator's amc assembly (kA·turn → A inside)
+    # i_pf per slice via the operator's amc assembly (kA·turn → A inside);
+    # a NaN coil current contributes zero (assemble_pf_currents skips missing).
     n_coil = len(operator.pf_amc_channels)
     i_pf = np.zeros((n, n_coil), dtype=np.float64)
-    amc_block = x[:, _AMC_OFFSET : _AMC_OFFSET + len(amc_names)]
+    amc_block = x[:, offsets["amc"] : offsets["amc"] + len(amc_names)]
     for t in range(n):
-        amc_values = {ch: float(amc_block[t, j]) for j, ch in enumerate(amc_names)}
+        amc_values = {
+            ch: float(amc_block[t, j])
+            for j, ch in enumerate(amc_names)
+            if np.isfinite(amc_block[t, j])
+        }
         i_pf[t] = operator.assemble_pf_currents(amc_values)
 
-    anchored = np.column_stack([x[:, ANCHORED_IP_COL], x[:, ANCHORED_NE_COL]]).astype(
-        np.float64
-    )
+    ip_col, ne_col = anchored_columns(feature_schema)
+    anchored = np.column_stack([x[:, ip_col], x[:, ne_col]]).astype(np.float64)
 
     ref_target = ref_mask = None
     if with_referee:
@@ -204,6 +305,102 @@ def _load_referee(shot_id: int, times: np.ndarray, level2_root):
         return None, None
 
 
+# --- corpus-level assembly (shared by the training + gate-eval drivers) ----
+
+
+def feature_schema() -> dict[str, list[str]]:
+    """The MAG+ANE absolute-calibrated feature schema (ama⊕amb⊕amc⊕ane)."""
+    from imas_ambix.statespace.baseline import _FEATURE_SCHEMA_MAG_ANE  # noqa: PLC0415
+
+    return _FEATURE_SCHEMA_MAG_ANE
+
+
+def read_split_shot_lists(
+    n_train: int, n_heldout: int, *, manifest: Path | None = None
+) -> tuple[list[int], list[int]]:
+    """Train + held-out shot lists (the standing cohort is forced into held-out)."""
+    with open(manifest or DEFAULT_SPLITS_MANIFEST) as f:
+        splits = json.load(f)
+    train = [int(x) for x in splits.get("train", [])]
+    test = [int(x) for x in splits.get("test_ood_regime", [])]
+    held = list(STANDING_HELD_OUT) + [s for s in test if s not in STANDING_HELD_OUT]
+    train = [s for s in train if s not in set(held)]
+    return train[:n_train], held[:n_heldout]
+
+
+def build_campaign_operators(
+    shots: list[int], *, grid_nr: int, grid_nz: int, profile_order: int
+) -> tuple[dict, dict, dict[int, str]]:
+    """Build one :class:`GSObservation` + limiter per campaign signature.
+
+    Returns ``(gs_by_campaign, limiter_by_campaign, campaign_of)`` where
+    ``campaign_of`` maps each shot whose geometry table built successfully to
+    its signature key; shots without a buildable table are simply absent.
+    """
+    from imas_ambix.gs.geometry import build_table_for_shot  # noqa: PLC0415
+    from imas_ambix.latent.gs_observation import GSObservation  # noqa: PLC0415
+
+    gs_by_campaign: dict = {}
+    limiter_by_campaign: dict = {}
+    campaign_of: dict[int, str] = {}
+    for s in shots:
+        try:
+            table = build_table_for_shot(int(s))
+        except Exception as exc:  # noqa: BLE001 — amm-absent etc. → skip this shot
+            logger.warning("shot %d: no geometry table (%s)", s, exc)
+            continue
+        key = table.signature.key
+        campaign_of[int(s)] = key
+        if key not in gs_by_campaign:
+            gs_by_campaign[key] = GSObservation.from_table(
+                table, grid_nr=grid_nr, grid_nz=grid_nz, profile_order=profile_order
+            )
+            limiter_by_campaign[key] = (
+                np.asarray(table.limiter_r, dtype=np.float64),
+                np.asarray(table.limiter_z, dtype=np.float64),
+            )
+    return gs_by_campaign, limiter_by_campaign, campaign_of
+
+
+def assemble_shot_windows(
+    shots: list[int],
+    campaign_of: dict[int, str],
+    schema: dict[str, list[str]],
+    *,
+    with_referee: bool,
+) -> list[ShotWindows]:
+    """:func:`load_shot_windows` for every shot that has a campaign operator."""
+    from imas_ambix.gs.geometry import build_table_for_shot  # noqa: PLC0415
+    from imas_ambix.gs.operator import build_operator  # noqa: PLC0415
+
+    out: list[ShotWindows] = []
+    for s in shots:
+        key = campaign_of.get(int(s))
+        if key is None:
+            continue
+        try:
+            operator = build_operator(build_table_for_shot(int(s)))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("shot %d: operator build failed (%s)", s, exc)
+            continue
+        w = load_shot_windows(int(s), operator, key, schema, with_referee=with_referee)
+        if w is not None:
+            out.append(w)
+    return out
+
+
+def sensor_scale_for_campaign(
+    windows: list[ShotWindows], campaign: str, n_sensor: int
+) -> np.ndarray:
+    """Per-sensor whitening scale = std of measured raw magnetics over slices."""
+    cols = [w.raw_mag for w in windows if w.campaign == campaign]
+    if not cols:
+        return np.ones(n_sensor)
+    stacked = np.concatenate(cols, axis=0)
+    scale = np.nanstd(stacked, axis=0)
+    return np.where(np.isfinite(scale) & (scale > 0), scale, 1.0)
+
+
 __all__ = [
     "align_sensor_columns",
     "CorpusStats",
@@ -211,4 +408,14 @@ __all__ = [
     "ShotWindows",
     "ANCHORED_NAMES",
     "load_shot_windows",
+    "load_shot_slices_raw",
+    "anchored_columns",
+    "schema_group_offsets",
+    "STANDING_HELD_OUT",
+    "DEFAULT_SPLITS_MANIFEST",
+    "feature_schema",
+    "read_split_shot_lists",
+    "build_campaign_operators",
+    "assemble_shot_windows",
+    "sensor_scale_for_campaign",
 ]
