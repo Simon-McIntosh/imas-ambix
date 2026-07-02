@@ -79,7 +79,7 @@ def test_delta_star_stencil_manufactured_solution():
     recover ψ to second order."""
     table = _confining_table()
     grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
-    rr, zz = grid.mesh_r, grid.mesh_z
+    rr = grid.mesh_r
     psi_exact = rr**4
     rhs_interior = 8.0 * rr**2  # Δ*(R^4) = R d/dR(1/R · 4R^3) = R·d/dR(4R^2) = 8R^2
     psi_num = grid.solve_dirichlet(rhs_interior, psi_exact)
@@ -129,6 +129,8 @@ def test_firewall_static_no_evaluator_imports():
     """The solver module must not import anything from the EFIT/evaluator side."""
     import imas_ambix.latent.gs_solve as m
 
-    src = open(m.__file__).read()
+    from pathlib import Path
+
+    src = Path(m.__file__).read_text()
     for banned in ("efit_referee", "equilibrium_labels", "worldmodel"):
         assert banned not in src, f"gs_solve imports the firewalled {banned}"
