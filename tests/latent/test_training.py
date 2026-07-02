@@ -1,0 +1,184 @@
+"""Tests for the corpus training loop (shared encoder, multi-campaign, D≥0 gate).
+
+The trainer folds all campaigns' shots into ONE shared
+:class:`~imas_ambix.latent.encoder.HybridLatentEncoder` (the machine-agnostic
+design: the encoder is campaign-agnostic; only the GS observation + transport
+prior are per-campaign, tied to that campaign's fixed device geometry). Two
+things are pinned here without touching the mirror:
+
+* :func:`consecutive_pairs` builds (t, t+1) training pairs from a shot's
+  time-ordered slices, breaking across any gap larger than the nominal
+  timestep (plasma-on discontinuities must not silently pair across a hole);
+* the multi-campaign training step shares ONE encoder's parameters across
+  campaigns without double-registering them in the optimiser (a duplicate
+  parameter reference would double-update per step and silently corrupt
+  training) — pinned by checking the optimiser's parameter id-set is unique
+  and that a training step measurably reduces the composite loss on synthetic
+  two-campaign data.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+import torch
+
+from imas_ambix.gs import geometry as gsg
+from imas_ambix.latent.encoder import HybridLatentEncoder, LatentConfig
+from imas_ambix.latent.engine import GSGroundedLatentEngine
+from imas_ambix.latent.gs_observation import GSObservation
+from imas_ambix.latent.training import CorpusTrainer, consecutive_pairs
+from imas_ambix.latent.transport import FluxDiffusionPrior
+
+
+def test_consecutive_pairs_within_uniform_grid():
+    times = np.arange(0, 0.01, 1e-3)  # 10 slices at 1 kHz, no gaps
+    pairs = consecutive_pairs(times)
+    assert len(pairs) == 9
+    for i, (a, b, dt) in enumerate(pairs):
+        assert a == i and b == i + 1
+        assert dt == pytest.approx(1e-3, rel=1e-6)
+
+
+def test_consecutive_pairs_break_across_a_gap():
+    # a gap between index 3 and 4 (plasma-off in between, e.g. 1ms -> 50ms)
+    times = np.array([0.0, 1e-3, 2e-3, 3e-3, 0.050, 0.051, 0.052])
+    pairs = consecutive_pairs(times, max_dt=2e-3)
+    pair_indices = [(a, b) for a, b, _ in pairs]
+    assert (3, 4) not in pair_indices  # the gap must not be bridged
+    assert (0, 1) in pair_indices
+    assert (4, 5) in pair_indices
+
+
+def _campaign_table(digest: str, r_shift: float = 0.0) -> gsg.GeometryTable:
+    probes = [
+        gsg.BProbe(
+            index=i,
+            r=1.4 + r_shift + 0.02 * i,
+            z=-0.4 + 0.16 * i,
+            angle_deg=90.0 * (i % 2),
+            length=0.02,
+        )
+        for i in range(6)
+    ]
+    sensor_map = [
+        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
+        for i, p in enumerate(probes)
+    ]
+    return gsg.GeometryTable(
+        signature=gsg.SetupSignature(
+            n_bprobe=6, n_fluxloop=0, n_pf_filament=1, n_limiter=4, digest=digest
+        ),
+        shots=[1],
+        b_probes=probes,
+        flux_loops=[],
+        pf_filaments=[
+            # kept at the P4U-recognised centroid regardless of r_shift (only the
+            # sensor layout varies between campaigns) — classify_circuits matches
+            # a KNOWN coil by proximity to a fixed centroid table, so shifting
+            # this would silently drop the coil to "inferred passive" (0 columns).
+            gsg.PFFilament(
+                r=1.5, z=1.1, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=1.0
+            )
+        ],
+        limiter_r=[0.3, 1.6, 1.6, 0.3],
+        limiter_z=[-1.0, -1.0, 1.0, 1.0],
+        sensor_map=sensor_map,
+        passive_structures=[
+            gsg.PassiveStructure(name="w", r=2.0, z=0.0, obsolete=False)
+        ],
+        amc_current_channels=["p4u_coil_current"],
+        unmatched_amb=[],
+    )
+
+
+def _make_engines(n_features=8, n_free=6):
+    """Two campaigns' GSObservation+transport sharing ONE encoder."""
+    tables = {
+        "camp_a": _campaign_table("aaa0"),
+        "camp_b": _campaign_table("bbb0", r_shift=0.1),
+    }
+    gs_by_campaign = {
+        k: GSObservation.from_table(t, grid_nr=17, grid_nz=21, profile_order=1).double()
+        for k, t in tables.items()
+    }
+    encoder = HybridLatentEncoder(
+        LatentConfig(
+            n_features=n_features,
+            n_theta=gs_by_campaign["camp_a"].n_dof,
+            n_anchored=2,
+            n_free=n_free,
+            hidden=32,
+            depth=2,
+        )
+    ).double()
+    transport_by_campaign = {
+        k: FluxDiffusionPrior(nrho=gs.grid_nr, cmd_dim=1, feat_dim=n_free).double()
+        for k, gs in gs_by_campaign.items()
+    }
+    engines = {
+        k: GSGroundedLatentEngine(encoder, gs_by_campaign[k], transport_by_campaign[k])
+        for k in gs_by_campaign
+    }
+    return encoder, engines
+
+
+def test_shared_encoder_not_double_registered_in_optimizer():
+    encoder, engines = _make_engines()
+    trainer = CorpusTrainer(encoder, engines)
+    param_ids = [id(p) for p in trainer.optimizer.param_groups[0]["params"]]
+    assert len(param_ids) == len(set(param_ids))  # no parameter appears twice
+    # the shared encoder's parameters must all be present exactly once
+    enc_ids = {id(p) for p in encoder.parameters()}
+    assert enc_ids.issubset(set(param_ids))
+
+
+def test_training_step_reduces_composite_loss_across_campaigns():
+    torch.manual_seed(0)
+    encoder, engines = _make_engines()
+    trainer = CorpusTrainer(encoder, engines)
+
+    def _batch(engine, n_s, n_coil, b=8):
+        return {
+            "x_t": torch.randn(b, 8, dtype=torch.float64),
+            "x_tp1": torch.randn(b, 8, dtype=torch.float64),
+            "i_pf_t": torch.randn(b, n_coil, dtype=torch.float64),
+            "i_pf_tp1": torch.randn(b, n_coil, dtype=torch.float64),
+            "raw_mag_t": torch.randn(b, n_s, dtype=torch.float64),
+            "sensor_scale": torch.ones(b, n_s, dtype=torch.float64),
+            "cmd_t": torch.randn(b, n_coil, dtype=torch.float64),
+            "anchored_target": torch.randn(b, 2, dtype=torch.float64),
+            "anchored_mask": torch.ones(b, 2, dtype=torch.bool),
+            "dt": 1e-3,
+        }
+
+    batches = {
+        k: _batch(e, len(e.gs.sensor_channels), e.gs.g_pf.shape[1])
+        for k, e in engines.items()
+    }
+    loss0 = sum(
+        trainer.engines[k].losses(b)["total"].item() for k, b in batches.items()
+    )
+    for _ in range(100):
+        trainer.step({k: (lambda b=b: b) for k, b in batches.items()})
+    loss1 = sum(
+        trainer.engines[k].losses(b)["total"].item() for k, b in batches.items()
+    )
+    assert loss1 < loss0
+
+
+def test_checkpoint_round_trip():
+    encoder, engines = _make_engines()
+    trainer = CorpusTrainer(encoder, engines)
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "ckpt.pt"
+        trainer.save(path, step=42)
+        encoder2, engines2 = _make_engines()
+        trainer2 = CorpusTrainer(encoder2, engines2)
+        step = trainer2.load(path)
+        assert step == 42
+        for p1, p2 in zip(encoder.parameters(), encoder2.parameters(), strict=True):
+            torch.testing.assert_close(p1, p2)
