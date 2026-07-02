@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="gs-grounded-latent-engine">
   <meta name="plan-title" content="GS-Grounded Latent + Transport / Irreversibility Anchor">
   <meta name="plan-summary" content="v0 stage 2 of the machine-agnostic latent world model: build the hybrid latent (raw-anchored block + poloidal-flux psi + free closure block, dimensionless) and its physics anchors — the EFIT-free Grad-Shafranov observation operator (spatial) and the soft, learned flux-diffusion transport prior with sign/irreversibility constraints (temporal). Boundary/X-point emerge as label-free psi readouts.">
-  <meta name="plan-status" content="shipped">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
@@ -19,9 +19,9 @@
   <title>GS-Grounded Latent + Transport / Irreversibility Anchor | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-01">
-<meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-07-02">
+<meta name="plan-impl" content="0.9">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -208,6 +208,16 @@ the encoder is built — surface it, recommend learned-soft.</p>
     machine-agnostic solution (§3a). Steered by NOVA fieldnull critical-point finding + EFIT contour_tree public/private structure; EFIT ψ itself stays a firewalled referee, never a
     training target.</p>
     </div>
+<div class="r-dec" data-key="psi-decoder-for-topology" data-choice="free-boundary-gs-solve" data-by="Simon McIntosh (deep-review directive) / reckon-ship" data-when="2026-07-02">
+    <p class="r-dec-q">What produces the ψ field the topology is read from?</p>
+    <p class="r-dec-ctx">The lead flagged the gate-2 figure as untrustworthy (wall contour + ψ artifacts) and mandated a deep review before further training. Fleet review 2026-07-02: geometry table independently VALIDATED (limiter bit-identical to the official MAST source lim_mast.010_M4; 78/78 B-probes zero residual vs L2; 13/13 named PF coils exact; the odd-looking wall figure was the genuine stepped MAST plasma-facing contour). Three data-path P0s found + fixed (Ip column read tf_current; loader kept 27/500 slices per shot via a Dα-target drop; imputed sensor values entered the GS residual as measurements). Representation prototypes on real shot 18502: a linear low-DOF whole-vessel current basis produces NO interior O-point in total ψ (coil field dominates a spread current; smoothing sources does not help) — localisation is inherently nonlinear (current inside the LCFS ⇄ LCFS from ψ). A free-boundary Picard GS solve on the same raw inputs converges (7-60 iters) and, with a single fitted profile scalar scored on the measured magnetics, lands the axis 7.5-9.9 cm from the referee on converged flat-top slices, with the fit cost honestly flagging non-converged slices.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="free-boundary-gs-solve">Differentiable free-boundary GS solve (5-point Δ* stencil, LU-factorised per campaign; Green&#x27;s BCs; generic two-term jφ(ψN;β0,α) ansatz rescaled to measured Ip; topology from the solved, force-balanced ψ)</button>
+      <button class="r-opt" data-value="linear-current-basis-greens">Linear low-DOF current basis + Green&#x27;s superposition (the v0 simplification — demonstrated to produce no interior O-point)</button>
+      <button class="r-opt" data-value="higher-order-linear-basis">Raise the linear basis order (independently shown to HURT: effective rank ~5-6, higher order = worse)</button>
+      </p>
+    <p class="r-dec-rat">Locked 2026-07-02 after the deep review. This is the PRE-AUTHORISED fallback of the parent latent-to-psi-representation decision (plasma-gs-prior-v0: &#x27;coarse ψ grid + 5-point Δ* stencil + free-boundary BC from known amc currents… for when the current-distribution decoder underfits&#x27;) — the underfit condition is now demonstrated on real data, and the findings doc&#x27;s route (b) recommended exactly this. Force balance supplies the localisation that no identifiable linear DOF can (measured effective rank ~5-6 bounds data-fit freedom; physics structure substitutes — the §7a guard-rails philosophy). Implemented + analytically validated in imas_ambix/latent/gs_solve.py (manufactured-solution stencil test, vacuum limit vs Green&#x27;s functions, confined-equilibrium fixed point, static firewall test — the profile ansatz is a generic parametric family, never EFIT-informed). Sensor prediction stays via the validated Green&#x27;s matrices on the converged jφ. Paired finding: the learned gate-2 encoder must consume the stage-1 geometry-aware substrate (temporal window + sensor geometry + finite masks, the oracle-probe recipe) — the flat single-slice MLP bypassed stage 1 entirely.</p>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
@@ -248,7 +258,7 @@ Done-when (the gate)
   3. Transport anchor: learned diffusivity verified D&gt;=0; dissipation&gt;=0 + Volt-second-budget priors active;
      load-bearing test (zero the source -&gt; psi evolution changes).
   4. tests green; followup written + this one resolved; plan collapsed.</pre>
-    <p class="r-fu-outcome">SHIPPED 2026-07-01 — the full stage-2 GS-grounded latent engine built + unit-verified (36 tests) in imas_ambix/latent/: differentiable GS observation + ψ-grid, topology-from-ψ (axis/X-point/LCFS/public-private, §3a connectivity), flux-diffusion transport prior (D≥0 by construction), hybrid encoder (dimensionless-coordinate-set resolved learned-soft), assembled engine + composite loss, GS-inverse solver + referee scoring. Real-data run (216 held-out slices, firewalled EFIT referee): Gate 1 MET (label-free mechanism; the learned latent grounds on real data — GS residual 12.15→2.29, 5.3×, 14780 slices, no EFIT labels). Gate 3 MET (D_min=1e-6>0 adversarial; command load-bearing Δ=25.5; dissipation/Volt-second guard-rails active). Gate 4 MET (36 tests green). Gate 2 NOT MET (honest negative): training-free GS-inverse axis skill −11.2 / X-point −6.3 vs the tightly-clustered train-mean (axis MAE 0.04/0.015 m); a non-force-balanced low-DOF inverse lands the axis in the plasma region (MAE 0.39/0.50 m) but cannot beat the mean — matching the oracle needs the LEARNED latent trained on the corpus + a richer/force-balanced ψ (queued f-ggl-02). Findings + figures: docs/gs-grounded-latent-engine-findings.html.</p>
+    <p class="r-fu-outcome">SHIPPED 2026-07-01 — the full stage-2 GS-grounded latent engine built + unit-verified (36 tests) in imas_ambix/latent/: differentiable GS observation + ψ-grid, topology-from-ψ (axis/X-point/LCFS/public-private, §3a connectivity), flux-diffusion transport prior (D≥0 by construction), hybrid encoder (dimensionless-coordinate-set resolved learned-soft), assembled engine + composite loss, GS-inverse solver + referee scoring. Real-data run (216 held-out slices, firewalled EFIT referee): Gate 1 MET (label-free mechanism; the learned latent grounds on real data — GS residual 12.15→2.29, 5.3×, 14780 slices, no EFIT labels). Gate 3 MET (D_min=1e-6&gt;0 adversarial; command load-bearing Δ=25.5; dissipation/Volt-second guard-rails active). Gate 4 MET (36 tests green). Gate 2 NOT MET (honest negative): training-free GS-inverse axis skill −11.2 / X-point −6.3 vs the tightly-clustered train-mean (axis MAE 0.04/0.015 m); a non-force-balanced low-DOF inverse lands the axis in the plasma region (MAE 0.39/0.50 m) but cannot beat the mean — matching the oracle needs the LEARNED latent trained on the corpus + a richer/force-balanced ψ (queued f-ggl-02). Findings + figures: docs/gs-grounded-latent-engine-findings.html.</p>
     </article>
 <article class="r-fu" data-id="f-ggl-02" data-status="open" data-tier="opus" data-written-by="reckon-ship (opus)" data-written-at="2026-07-01" data-recommends-skill="/reckon-ship closed-loop-latent-filter" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Close gate 2 — corpus-train the learned latent + force-balanced ψ so the GS-readout matches the oracle</h4>
@@ -284,6 +294,11 @@ Done-when (the gate)
     </article>
 </section>
 
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="f-ggl-02" data-id="c-20260702T135349245300" data-who="reckon-ship (deep review)" data-when="2026-07-02">
+    <div class="r-comment-body">Deep review (user-directed, fleet-assisted) re-scoped the implementation path before training: (1) geometry VALIDATED independently — not the problem; (2) three data-path P0s fixed (Ip channel misindex → by-name resolution; target-free NaN-preserving loader → 397 slices/shot instead of 27; honest pre-fill masks); (3) ψ decoder decision LOCKED to the free-boundary GS solve (see psi-decoder-for-topology) — gs_solve.py built + analytically validated; prototype per-slice β0 fit hits 7.5-9.9 cm axis error on converged flat-top slices; (4) encoder must be upgraded to the oracle-probe recipe (temporal magnetics window + finite masks + geometry-aware substrate readers), replacing the flat single-slice MLP; (5) transport prior must consume flux-surface ψ(ρN) from the solved equilibrium (re-verify gate 3 after the switch); (6) early-ramp slices fail as S8 warned (eddy currents; passive structures not yet in the solve) — flat-top first, convergence-flagged honestly. Remaining to close: engine integration of gs_solve, per-slice-fit gate-2 baseline on the full held-out cohort, encoder upgrade, corpus training, gate-2 re-measure.</div>
+</div>
+</section>
 </main>
 </body>
 </html>
