@@ -20,6 +20,7 @@ no learnable parameters, only fixed geometry buffers) to avoid this.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable  # noqa: TC003
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,8 @@ import torch
 
 from imas_ambix.latent.encoder import HybridLatentEncoder  # noqa: TC001
 from imas_ambix.latent.engine import GSGroundedLatentEngine  # noqa: TC001
+
+logger = logging.getLogger(__name__)
 
 
 def consecutive_pairs(
@@ -67,9 +70,11 @@ class CorpusTrainer:
         *,
         lr: float = 3e-4,
         weight_decay: float = 1e-4,
+        max_grad_norm: float = 10.0,
     ) -> None:
         self.encoder = encoder
         self.engines = dict(engines)
+        self.max_grad_norm = float(max_grad_norm)
         params: list[torch.nn.Parameter] = list(encoder.parameters())
         seen = {id(p) for p in params}
         for engine in self.engines.values():
@@ -77,8 +82,10 @@ class CorpusTrainer:
                 if id(p) not in seen:
                     params.append(p)
                     seen.add(id(p))
+        self._params = params
         self.optimizer = torch.optim.AdamW(params, lr=lr, weight_decay=weight_decay)
         self.step_count = 0
+        self.skipped_steps = 0
 
     def to(self, device: torch.device | str) -> CorpusTrainer:
         self.encoder.to(device)
@@ -103,11 +110,32 @@ class CorpusTrainer:
             if not batch:
                 continue
             out = self.engines[key].losses(batch)
-            totals[key] = float(out["total"].item())
-            loss_sum = out["total"] if loss_sum is None else loss_sum + out["total"]
+            total = out["total"]
+            totals[key] = float(total.item())
+            # a single non-finite campaign loss must never reach the SHARED
+            # encoder — one poisoned batch would corrupt every campaign for the
+            # rest of the run
+            if not torch.isfinite(total):
+                logger.warning(
+                    "step %d: non-finite loss for campaign %s — batch skipped",
+                    self.step_count,
+                    key,
+                )
+                continue
+            loss_sum = total if loss_sum is None else loss_sum + total
         if loss_sum is not None:
             loss_sum.backward()
-            self.optimizer.step()
+            grad_norm = torch.nn.utils.clip_grad_norm_(self._params, self.max_grad_norm)
+            if torch.isfinite(grad_norm):
+                self.optimizer.step()
+            else:
+                self.skipped_steps += 1
+                logger.warning(
+                    "step %d: non-finite gradient norm — update skipped",
+                    self.step_count,
+                )
+        else:
+            self.skipped_steps += 1
         self.step_count += 1
         return totals
 

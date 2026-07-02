@@ -275,7 +275,7 @@ def main() -> int:
 
     start_step = 0
     if args.resume and ckpt_path.exists():
-        start_step = trainer.load(ckpt_path)
+        start_step = trainer.load(ckpt_path, map_location=str(device))
         logger.info("resumed from step %d", start_step)
 
     stop = {"flag": False}

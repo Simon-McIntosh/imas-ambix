@@ -194,9 +194,18 @@ passive/eddy currents in the solve (the earlier GS-prior work's early-ramp lesso
 LEARNED encoder amortising this map — now required to consume the stage-1 geometry-aware temporal-window
 recipe that set the oracle bar, not the flat single-slice MLP it had. That learned measurement is the
 actual gate-2 design and the open work of f-ggl-02.</p>
-<p><em>Process note:</em> the adversarial code-review worker failed to deliver its report; its highest-value
-ground (the transport prior's ρ-coordinate mismatch, the axis-selection fallback, loss scaling) was covered
-independently and is queued in the f-ggl-02 scope, but the review stream itself did not complete.</p>
+<p><em>Review completion:</em> the adversarial code review delivered late but in full, independently
+confirming the root-cause chain (point-filament singularities × the un-localisable linear basis × the
+plasma-only-ψ read) and adding three defects fixed immediately: the corpus trainer had no gradient
+clipping or non-finite-loss guard (one poisoned batch would silently corrupt the SHARED encoder for every
+campaign — now clipped, skipped and counted), the axis reader fell back to out-of-vessel O-points when
+none lay inside the limiter (now honestly None), and checkpoint resume lacked a device map (risky under
+SLURM's variable GPU indexing). The docs review pinned the exact encoder recipe the learned gate-2 path
+must adopt: the stage-1 probe that set the 0.59/0.82 bar is a space-time transformer with one token per
+(stream, sensor, time-step), per-sensor (R,Z,φ,orientation) geometry as positional encoding
+(<code>tokenizer/geometry_reader.py</code>), machine-frame context tokens
+(<code>gs/geometry_export.py</code>), attention pooling, and CONTINUOUS values — per-shot quantisation
+independently costs ~2–3× skill.</p>
 
 <h2 id="path">§6 — Honest limits &amp; the path to close gate 2</h2>
 <p>The GS-<em>observation</em> grounding (the differentiable ψ→magnetics anchor and its residual) is sound

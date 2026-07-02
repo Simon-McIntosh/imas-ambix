@@ -143,3 +143,16 @@ def test_search_bbox_excludes_coil_like_edge_extremum():
     read = topo.read_topology(psi, r_1d, z_1d, search_bbox=(0.4, 1.2, -0.6, 0.6))
     assert read.axis is not None
     np.testing.assert_allclose(read.axis, [0.9, 0.0], atol=0.05)
+
+
+def test_magnetic_axis_returns_none_when_no_o_point_inside_limiter():
+    """With a limiter supplied and NO O-point inside it, the axis must be None
+    — never a fall-back to out-of-vessel candidates (a coil O-point is not a
+    magnetic axis)."""
+    r_1d, z_1d, RR, ZZ = _grid(nr=121, nz=121, r=(0.3, 1.7), z=(-1.0, 1.0))
+    # single deep well OUTSIDE the (small, central) limiter polygon
+    psi = -np.exp(-(((RR - 1.5) / 0.06) ** 2 + ((ZZ - 0.8) / 0.06) ** 2))
+    lim_r = np.array([0.7, 1.1, 1.1, 0.7])
+    lim_z = np.array([-0.3, -0.3, 0.3, 0.3])
+    axis = topo.magnetic_axis(psi, r_1d, z_1d, limiter_r=lim_r, limiter_z=lim_z)
+    assert axis is None

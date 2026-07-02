@@ -203,3 +203,46 @@ def test_checkpoint_round_trips_arbitrary_extra_metadata():
         assert step == 7
         np.testing.assert_allclose(loaded_extra["feature_mean"], extra["feature_mean"])
         assert loaded_extra["cmd_std"]["camp_a"] == 3.5
+
+
+def test_step_skips_nonfinite_loss_and_clips_gradients():
+    """A batch that produces a non-finite loss must NOT reach optimizer.step
+    (one poisoned batch would corrupt the SHARED encoder for every campaign
+    for the rest of a long run), and finite steps must clip gradients."""
+    torch.manual_seed(0)
+    encoder, engines = _make_engines()
+    trainer = CorpusTrainer(encoder, engines, max_grad_norm=1.0)
+    key = next(iter(engines))
+    e = engines[key]
+    n_s = len(e.gs.sensor_channels)
+    n_coil = e.gs.g_pf.shape[1]
+
+    def batch(bad=False):
+        b = {
+            "x_t": torch.randn(4, 8, dtype=torch.float64),
+            "x_tp1": torch.randn(4, 8, dtype=torch.float64),
+            "i_pf_t": torch.randn(4, n_coil, dtype=torch.float64),
+            "i_pf_tp1": torch.randn(4, n_coil, dtype=torch.float64),
+            "raw_mag_t": torch.randn(4, n_s, dtype=torch.float64),
+            "sensor_scale": torch.ones(4, n_s, dtype=torch.float64),
+            "cmd_t": torch.randn(4, n_coil, dtype=torch.float64),
+            "anchored_target": torch.randn(4, 2, dtype=torch.float64),
+            "anchored_mask": torch.ones(4, 2, dtype=torch.bool),
+            "dt": 1e-3,
+        }
+        if bad:
+            # poison the encoder INPUT: a NaN feature propagates through every
+            # head and makes the whole composite loss non-finite (raw_mag NaNs
+            # are legitimately absorbed by the residual's nan_to_num + mask)
+            b["x_t"] = b["x_t"] * float("nan")
+        return b
+
+    before = [p.detach().clone() for p in encoder.parameters()]
+    out = trainer.step({key: lambda: batch(bad=True)})
+    after = list(encoder.parameters())
+    for p0, p1 in zip(before, after, strict=True):
+        torch.testing.assert_close(p0, p1)  # poisoned batch → no update
+    assert out.get(key) is None or not np.isfinite(out[key])
+
+    out = trainer.step({key: lambda: batch(bad=False)})
+    assert np.isfinite(out[key])  # healthy batch still trains

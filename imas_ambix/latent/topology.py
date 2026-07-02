@@ -251,7 +251,10 @@ def magnetic_axis(
 
     Current-sign-agnostic: uses the domain-edge median flux as the reference and
     picks the O-point maximising ``|ψ_O − ψ_edge|`` (the deepest well / highest
-    peak), restricted to the limiter interior when a limiter is supplied.
+    peak).  When a limiter is supplied the search is STRICT: no O-point inside
+    the polygon means no axis (None) — an out-of-vessel candidate (a coil
+    O-point) is never a magnetic axis, and falling back to it silently was the
+    mechanism that put the axis on a PF coil in the first real-data run.
     """
     if cp is None:
         cp = find_critical_points(psi, r_1d, z_1d)
@@ -265,9 +268,10 @@ def magnetic_axis(
         inside = _inside_polygon(
             pts[:, 0], pts[:, 1], np.asarray(limiter_r), np.asarray(limiter_z)
         )
-        if inside.any():
-            pts = pts[inside]
-            vals = vals[inside]
+        if not inside.any():
+            return None
+        pts = pts[inside]
+        vals = vals[inside]
     idx = int(np.argmax(np.abs(vals - psi_edge)))
     return float(pts[idx, 0]), float(pts[idx, 1])
 
