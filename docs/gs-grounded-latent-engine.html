@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-02">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 </head>
 <body>
 <main class="plan-doc">
@@ -217,6 +217,16 @@ the encoder is built — surface it, recommend learned-soft.</p>
       <button class="r-opt" data-value="higher-order-linear-basis">Raise the linear basis order (independently shown to HURT: effective rank ~5-6, higher order = worse)</button>
       </p>
     <p class="r-dec-rat">Locked 2026-07-02 after the deep review. This is the PRE-AUTHORISED fallback of the parent latent-to-psi-representation decision (plasma-gs-prior-v0: &#x27;coarse ψ grid + 5-point Δ* stencil + free-boundary BC from known amc currents… for when the current-distribution decoder underfits&#x27;) — the underfit condition is now demonstrated on real data, and the findings doc&#x27;s route (b) recommended exactly this. Force balance supplies the localisation that no identifiable linear DOF can (measured effective rank ~5-6 bounds data-fit freedom; physics structure substitutes — the §7a guard-rails philosophy). Implemented + analytically validated in imas_ambix/latent/gs_solve.py (manufactured-solution stencil test, vacuum limit vs Green&#x27;s functions, confined-equilibrium fixed point, static firewall test — the profile ansatz is a generic parametric family, never EFIT-informed). Sensor prediction stays via the validated Green&#x27;s matrices on the converged jφ. Paired finding: the learned gate-2 encoder must consume the stage-1 geometry-aware substrate (temporal window + sensor geometry + finite masks, the oracle-probe recipe) — the flat single-slice MLP bypassed stage 1 entirely.</p>
+    </div>
+<div class="r-dec" data-key="greens-kernel-and-training-path" data-choice="extract-nova-finite-area-plus-amortized-fit" data-by="Simon McIntosh" data-when="2026-07-02">
+    <p class="r-dec-q">Green&#x27;s-function kernel source + how the GS solve enters training</p>
+    <p class="r-dec-ctx">The lead reviewed the solver construction (grid-cell currents assigned by a jφ(ψN) flux function inside the evolving LCFS, topology read every Picard iteration; soft GS residual unchanged as THE training prior) and the nova code (author: Simon McIntosh — content freely available): nova/biot carries a closed-form FINITE-AREA cylinder Biot-Savart formulation (cylinder.py/constants.py/zeta.py: elliptic-integral + arcsinh-zeta antiderivatives, corner-evaluated over rectangular cross-sections) and a Newton-Krylov forward free-boundary solve pattern (plasma.py::solve_flux). Point-filament Green&#x27;s functions are log-singular at the source (the P1-4 defect; the 3x3-subdivision + 2cm nudge is a hack). Measured solver cost: 2.4s grid build per campaign, ~1.3s per solve (14 Picard iterations).</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="extract-nova-finite-area-plus-amortized-fit">EXTRACT nova&#x27;s finite-area cylinder kernel into imas_ambix (validated against nova as reference, attributed); swap into ALL Green&#x27;s matrices (observation operator, solver BCs, ψ grid — deletes the singularity-nudge hack); adopt Newton-Krylov in gs_solve; train via FIT AMORTIZATION (corpus-precomputed per-slice profile fits from raw magnetics + measured Ip = label-free targets for encoder heads, alongside the soft GS residual) — no backprop through the solver; implicit-diff deferred as an upgrade</button>
+      <button class="r-opt" data-value="nova-as-dependency">Take nova as a package dependency (pulls the frame/xarray/netCDF/shapely/jax/numba stack for ~two files of magnetostatics)</button>
+      <button class="r-opt" data-value="keep-point-filament-plus-implicit-diff">Keep point filaments + subdivision and make the solver differentiable via implicit function theorem (heavy, and leaves the near-field singularity)</button>
+      </p>
+    <p class="r-dec-rat">Locked by the lead 2026-07-02 (&#x27;lock the approach and start the extraction&#x27;). Finite-area sources are smooth by construction — the correct cure for the near-field singularity everywhere it appears; extraction keeps the decoder lean, machine-agnostic and torch-portable (ellipk/ellipe/arcsinh closed forms) without pinning nova&#x27;s infrastructure; Newton-Krylov robustness targets the 48% masked-slice fraction; fit amortization keeps the solver forward-only (firewall-clean label-free targets derived purely from raw measurements), reserving implicit-diff for a later end-to-end upgrade if warranted. Nova&#x27;s ITER machine description is additionally the transfer-stage asset.</p>
     </div>
 </section>
 
