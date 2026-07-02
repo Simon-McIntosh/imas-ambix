@@ -73,6 +73,9 @@ class SequentialDAConfig(EnKFConfig):
     nominal_ip_frac: float = 1.0
     validation_slices: int = 3
     q_floor: float = 1.0e-9
+    innovation_clip_sigma: float = 12.0
+    cov_eigen_cap: float = 1.0e6
+    cov_ridge: float = 1.0e-9
 
     def nominal_theta(self) -> dict[str, float]:
         """The once-per-shot nominal TORAX parameter vector."""
@@ -355,6 +358,10 @@ def kalman_update(
     h_mat: np.ndarray,
     observation_residual: np.ndarray,
     sensor_std: np.ndarray,
+    *,
+    innovation_clip_sigma: float = 12.0,
+    cov_eigen_cap: float = 1.0e6,
+    cov_ridge: float = 1.0e-9,
 ) -> tuple[np.ndarray, np.ndarray, float, float]:
     """One linear-Gaussian update in the reduced observable subspace."""
 
@@ -365,22 +372,49 @@ def kalman_update(
     std = np.maximum(np.asarray(sensor_std, dtype=np.float64), 1.0e-12)
     if h.size == 0 or resid.size == 0:
         return mean, cov, float("nan"), float("nan")
+    cov = _stabilize_cov(cov, eigen_cap=cov_eigen_cap, ridge=cov_ridge)
     pred = h @ mean
     innov_prior = resid - pred
+    innov_prior = np.clip(
+        innov_prior,
+        -float(innovation_clip_sigma) * std,
+        float(innovation_clip_sigma) * std,
+    )
     r_cov = np.diag(std**2)
-    s_mat = h @ cov @ h.T + r_cov
+    s_mat = h @ cov @ h.T + r_cov + cov_ridge * np.eye(resid.size, dtype=np.float64)
     try:
-        gain = cov @ h.T @ np.linalg.inv(s_mat)
+        gain = np.linalg.solve(s_mat, h @ cov).T
     except np.linalg.LinAlgError:
-        gain = cov @ h.T @ np.linalg.pinv(s_mat)
+        gain = np.linalg.pinv(s_mat) @ (h @ cov)
+        gain = gain.T
     mean_post = mean + gain @ innov_prior
     ident = np.eye(mean.size, dtype=np.float64)
     cov_post = (ident - gain @ h) @ cov @ (ident - gain @ h).T + gain @ r_cov @ gain.T
-    cov_post = 0.5 * (cov_post + cov_post.T)
+    cov_post = _stabilize_cov(cov_post, eigen_cap=cov_eigen_cap, ridge=cov_ridge)
     innov_post = resid - h @ mean_post
     prior_norm = float(np.linalg.norm(innov_prior / std) / np.sqrt(resid.size))
     post_norm = float(np.linalg.norm(innov_post / std) / np.sqrt(resid.size))
     return mean_post, cov_post, prior_norm, post_norm
+
+
+def _stabilize_cov(
+    cov: np.ndarray,
+    *,
+    eigen_cap: float,
+    ridge: float,
+) -> np.ndarray:
+    """Project a small covariance back onto a finite PSD cone."""
+
+    cov_arr = np.asarray(cov, dtype=np.float64)
+    cov_arr = 0.5 * (cov_arr + cov_arr.T)
+    cov_arr = np.nan_to_num(cov_arr, nan=0.0, posinf=eigen_cap, neginf=-eigen_cap)
+    try:
+        vals, vecs = np.linalg.eigh(cov_arr)
+    except np.linalg.LinAlgError:
+        diag = np.clip(np.diag(cov_arr), 0.0, eigen_cap)
+        return np.diag(diag + ridge)
+    vals = np.clip(vals, 0.0, eigen_cap)
+    return vecs @ np.diag(vals + ridge) @ vecs.T
 
 
 def _sample_gaussian(
@@ -392,9 +426,9 @@ def _sample_gaussian(
     """Stable multivariate normal sampler with eigenvalue clipping."""
 
     mean = np.asarray(mean, dtype=np.float64)
-    cov = 0.5 * (np.asarray(cov, dtype=np.float64) + np.asarray(cov, dtype=np.float64).T)
+    cov = _stabilize_cov(np.asarray(cov, dtype=np.float64), eigen_cap=1.0e6, ridge=1.0e-9)
     vals, vecs = np.linalg.eigh(cov)
-    vals = np.clip(vals, 0.0, None)
+    vals = np.clip(vals, 0.0, 1.0e6)
     root = vecs @ np.diag(np.sqrt(vals))
     z = rng.standard_normal((int(n_samples), mean.size))
     return mean[np.newaxis, :] + z @ root.T
@@ -523,6 +557,9 @@ def run_shot(
         cov_prior = cfg.correction_inflation * (
             (cfg.correction_decay**2) * cov + cfg.correction_process_var * identity
         )
+        cov_prior = _stabilize_cov(
+            cov_prior, eigen_cap=cfg.cov_eigen_cap, ridge=cfg.cov_ridge
+        )
         y_obs = inp.amb_trust[k]
         y_nom = obs.predict_amb(j_nom[k], rho, inp.i_pf[k])
         valid = np.isfinite(y_obs) & np.isfinite(y_nom) & np.isfinite(sensor_scale)
@@ -533,6 +570,9 @@ def run_shot(
                 h_red[valid],
                 y_obs[valid] - y_nom[valid],
                 cfg.obs_inflation * sensor_scale[valid],
+                innovation_clip_sigma=cfg.innovation_clip_sigma,
+                cov_eigen_cap=cfg.cov_eigen_cap,
+                cov_ridge=cfg.cov_ridge,
             )
         else:
             corr_post, cov_post = corr_prior, cov_prior
