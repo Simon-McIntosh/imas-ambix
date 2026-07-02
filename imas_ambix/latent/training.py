@@ -111,7 +111,20 @@ class CorpusTrainer:
         self.step_count += 1
         return totals
 
-    def save(self, path: str | Path, *, step: int | None = None) -> None:
+    def save(
+        self,
+        path: str | Path,
+        *,
+        step: int | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """Checkpoint the encoder + per-campaign transport + optimiser state.
+
+        ``extra`` carries arbitrary picklable metadata (e.g. the corpus-level
+        feature / anchored / command normalisation stats) that must survive
+        alongside the weights — a checkpoint without its exact input scaling
+        cannot be evaluated faithfully.
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -119,12 +132,19 @@ class CorpusTrainer:
             "encoder": self.encoder.state_dict(),
             "transport": {k: e.transport.state_dict() for k, e in self.engines.items()},
             "optimizer": self.optimizer.state_dict(),
+            "extra": extra or {},
         }
         tmp = path.with_suffix(path.suffix + ".tmp")
         torch.save(payload, tmp)
         tmp.replace(path)  # atomic on the same filesystem — SIGTERM-safe
 
-    def load(self, path: str | Path, *, map_location: str | None = None) -> int:
+    def load(
+        self,
+        path: str | Path,
+        *,
+        map_location: str | None = None,
+        return_extra: bool = False,
+    ) -> int | tuple[int, dict[str, Any]]:
         payload = torch.load(Path(path), map_location=map_location, weights_only=False)
         self.encoder.load_state_dict(payload["encoder"])
         for k, sd in payload["transport"].items():
@@ -132,6 +152,8 @@ class CorpusTrainer:
                 self.engines[k].transport.load_state_dict(sd)
         self.optimizer.load_state_dict(payload["optimizer"])
         self.step_count = int(payload["step"])
+        if return_extra:
+            return self.step_count, payload.get("extra", {})
         return self.step_count
 
 

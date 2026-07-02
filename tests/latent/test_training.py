@@ -182,3 +182,24 @@ def test_checkpoint_round_trip():
         assert step == 42
         for p1, p2 in zip(encoder.parameters(), encoder2.parameters(), strict=True):
             torch.testing.assert_close(p1, p2)
+
+
+def test_checkpoint_round_trips_arbitrary_extra_metadata():
+    """Normalisation stats (feature/anchored/command) must survive a checkpoint
+    round-trip — an eval run reproducing the trained encoder's exact input
+    scaling depends on this, not just the learned weights."""
+    encoder, engines = _make_engines()
+    trainer = CorpusTrainer(encoder, engines)
+    import tempfile
+    from pathlib import Path
+
+    extra = {"feature_mean": np.array([1.0, 2.0]), "cmd_std": {"camp_a": 3.5}}
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "ckpt.pt"
+        trainer.save(path, step=7, extra=extra)
+        encoder2, engines2 = _make_engines()
+        trainer2 = CorpusTrainer(encoder2, engines2)
+        step, loaded_extra = trainer2.load(path, return_extra=True)
+        assert step == 7
+        np.testing.assert_allclose(loaded_extra["feature_mean"], extra["feature_mean"])
+        assert loaded_extra["cmd_std"]["camp_a"] == 3.5
