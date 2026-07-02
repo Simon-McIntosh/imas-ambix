@@ -173,13 +173,16 @@ class EquilibriumGrid:
             for f in by_circ[circ]:
                 # finite-area winding pack: smooth and exact everywhere,
                 # including AT in-vessel coils inside the solve domain
+                # efm carries SIGNED pack extents (height < 0 occurs on real
+                # tables) — the physical size is |extent|; clamping a negative
+                # to the floor collapsed 29 cm solenoid packs to 1 cm
                 psi_f, _br, _bz = hybrid_greens(
                     flat_r,
                     flat_z,
                     float(f.r),
                     float(f.z),
-                    max(f.width, 0.01),
-                    max(f.height, 0.01),
+                    max(abs(f.width), 0.01),
+                    max(abs(f.height), 0.01),
                 )
                 acc += f.xmult * psi_f
             return acc
