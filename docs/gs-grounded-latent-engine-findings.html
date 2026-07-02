@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="gs-grounded-latent-engine-findings">
   <meta name="plan-title" content="GS-Grounded Latent Engine — Build &amp; Gate Findings">
   <meta name="plan-status" content="reference">
-  <meta name="plan-summary" content="What the v0 stage-2 GS-grounded latent engine build landed, what is verified, and the honest gate outcome: the label-free GS-observation grounding + topology-from-psi mechanism is built and unit-verified end-to-end (and the learned latent grounds on real data), D>=0 and command-load-bearing (gate 3) pass, but the training-free GS-inverse axis readout does NOT reach the absolute-magnetics oracle's 0.5-0.7 skill (gate 2) — a non-force-balanced low-DOF inverse cannot beat the tightly-clustered train-mean axis; the learned latent + richer psi is the path.">
+  <meta name="plan-summary" content="Build, gate findings, and the 2026-07-02 deep review of the v0 stage-2 GS-grounded latent engine: geometry independently validated (limiter bit-identical to the official MAST source); three data-path P0s found+fixed (Ip channel misindex, 95% slice loss, imputed-as-measured masks); the linear current basis shown structurally incapable of an interior O-point, replaced by the free-boundary GS solve (psi-decoder-for-topology locked) — first force-balanced training-free readout: median axis error 9.5 cm vs 39-50 cm. Original build story: the label-free GS-observation grounding + topology-from-psi mechanism is built and unit-verified end-to-end (and the learned latent grounds on real data), D>=0 and command-load-bearing (gate 3) pass, but the training-free GS-inverse axis readout does NOT reach the absolute-magnetics oracle's 0.5-0.7 skill (gate 2) — a non-force-balanced low-DOF inverse cannot beat the tightly-clustered train-mean axis; the learned latent + richer psi is the path.">
   <meta name="plan-owner" content="Simon McIntosh">
   <title>GS-Grounded Latent Engine — Build &amp; Gate Findings | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -126,7 +126,76 @@ firewall guard and never enters the solve. The absolute-magnetics oracle's ~0.5�
   latent must close.</figcaption>
 </figure>
 
-<h2 id="path">§5 — Honest limits &amp; the path to close gate 2</h2>
+<h2 id="review">§5 — Deep review (2026-07-02): foundations audited, ψ decoder replaced</h2>
+<p>The lead flagged the Fig 1 wall contour as untrustworthy and mandated a full infrastructure review
+before any training. A three-worker fleet (independent geometry validation, project-docs synthesis,
+adversarial code review) plus direct prototyping produced four findings — two exonerations and two real
+foundation defects — and a locked architecture decision.</p>
+
+<h3>§5.1 — Geometry: validated, not the problem</h3>
+<p>The "alarming" contour <em>is</em> the genuine MAST plasma-facing limiter: the 37-point polygon is
+closed, simple, counter-clockwise, and <strong>bit-identical (0.0&nbsp;m difference) to the official MAST
+geometry source</strong> (<code>lim_mast.010_M4</code>, via the L2 wall group). All 78 B-probes match the
+L2 sensor positions at zero residual; 13/13 named PF coils match at ~10⁻⁷&nbsp;m; the flat-top LCFS lies
+100% inside the polygon. The six flux-loop outliers are orphan slots in efm's static array with no live
+channel — not a data-quality issue. All 938 coil filaments lie <em>outside</em> the plasma-facing polygon
+and all plasma basis nodes inside, so polygon containment is the complete, physical coil/plasma separation
+(the earlier distance-based exclusion hack is retired).</p>
+<figure class="r-fig" style="margin:1rem 0">
+  <img src="/imas-ambix/figures/gs-grounded-latent-engine/fig-geometry-validation.png"
+       alt="Equal-aspect MAST poloidal cross-section: the closed limiter polygon, labelled PF coil clusters, B-probes, flux loops, and the flat-top LCFS of shot 18502 sitting inside the wall"
+       style="max-width:60%;height:auto">
+  <figcaption><strong>Fig 4 — Independent geometry validation.</strong> The stepped contour is the real
+  MAST first wall (centre column, P2 armour diagonals, P4/P5 coil cans, divertor shelf); the shot-18502
+  flat-top LCFS (red) sits correctly inside it. Verdict: PASS on every check.</figcaption>
+</figure>
+
+<h3>§5.2 — Data path: three real P0 defects, fixed</h3>
+<ul>
+  <li><strong>The anchored "Ip" was the TF current.</strong> A hard-coded column index hit
+  <code>tf_current</code> in the alphabetically-sorted amc list; <code>plasma_current</code> lives two
+  columns over. Channels are now resolved by NAME, failing loud when absent.</li>
+  <li><strong>95% of every shot was silently discarded.</strong> The inherited statespace loader drops
+  every slice whose Dα <em>target</em> is NaN — collapsing shot 18502 from ~400 usable slices to 27
+  spanning 26&nbsp;ms. A target-free loader now recovers the full plasma (397 slices, genuine Ip
+  157–782&nbsp;kA).</li>
+  <li><strong>Imputed sensor values entered the GS residual as measurements.</strong> The old loader
+  mean-imputes missing features before returning, so finiteness masks passed everything. Masks now derive
+  from the pre-fill raw array.</li>
+</ul>
+<p>The gate-2 numbers in §4 were measured on that broken slice set; the honest-negative <em>conclusion</em>
+survives (the training-free linear inverse still cannot beat the mean) but the measurement itself is
+superseded by §5.4.</p>
+
+<h3>§5.3 — The ψ representation: the linear basis is structurally incapable</h3>
+<p>Prototyping on repaired data showed the deeper problem: with the current spread over the whole vessel
+by ANY linear low-DOF inverse, the total ψ (plasma + coils) has <strong>no interior O-point at all</strong>
+— the coil vertical field dominates a broad, low-peakedness current, so no closed flux region forms.
+Smoothing the sources does not help, and raising the basis order makes it worse (the measured effective
+rank of the magnetics is ~5–6). Localisation is inherently nonlinear — current inside the LCFS, LCFS from
+ψ, ψ from the current — and that fixed point <em>is</em> the Grad-Shafranov equilibrium. The
+<code>psi-decoder-for-topology</code> decision is therefore locked to the <strong>free-boundary GS
+solve</strong>: the pre-authorised fallback of the parent <code>latent-to-psi-representation</code>
+decision, implemented in <code>imas_ambix/latent/gs_solve.py</code> and validated analytically
+(manufactured-solution stencil test, vacuum limit against the Green's functions, confined-equilibrium
+fixed point, static firewall test — the jφ(ψ_N;&nbsp;β0,&nbsp;α) ansatz is a generic parametric family
+that never sees EFIT).</p>
+
+<h3>§5.4 — First force-balanced gate-2 numbers (training-free)</h3>
+<p>Fitting the two profile parameters per slice against the <em>measured</em> magnetics (measured-Ip
+constraint, known coils) and reading topology from the solved ψ: on the smoke cohort the median axis error
+is <strong>9.5&nbsp;cm</strong> (7/8 slices scored; the eighth honestly masked by the convergence/cost
+flag) — versus 39–50&nbsp;cm for the linear inverse. Axis skill vs the train-mean baseline is still
+negative (≈−1.0: 9.5&nbsp;cm physics vs a 4&nbsp;cm clustered mean), with clear headroom: the fit is a
+coarse 10-candidate grid, early-ramp slices need the passive/eddy contribution (as the earlier GS-prior
+work warned), and the LEARNED encoder amortising this map — now required to consume the stage-1
+geometry-aware temporal-window recipe that set the oracle bar, not the flat single-slice MLP it had — is
+the actual gate-2 design. The full held-out measurement replaces §4's table when it lands.</p>
+<p><em>Process note:</em> the adversarial code-review worker failed to deliver its report; its highest-value
+ground (the transport prior's ρ-coordinate mismatch, the axis-selection fallback, loss scaling) was covered
+independently and is queued in the f-ggl-02 scope, but the review stream itself did not complete.</p>
+
+<h2 id="path">§6 — Honest limits &amp; the path to close gate 2</h2>
 <p>The GS-<em>observation</em> grounding (the differentiable ψ→magnetics anchor and its residual) is sound
 and is the durable asset. The weak link is reading a precise magnetic axis from a <em>linear least-squares</em>
 GS-inverse ψ, which is not a force-balanced equilibrium. Three complementary routes, in order of expected
