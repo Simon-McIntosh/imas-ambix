@@ -149,8 +149,12 @@ def _build_sample(cache: _ShotCache, stats, anchored_stats, batch_size: int, rng
         weights = cache.pair_weights[si]
         pi = rng.choice(len(pairs), p=weights)
         a, b, dt = pairs[pi]
-        x_t.append(stats.normalise(w.features_raw[a]))
-        x_tp1.append(stats.normalise(w.features_raw[b]))
+        # the loader honestly PRESERVES NaN for dead/absent channels; after
+        # corpus normalisation a zero IS the corpus mean, so mean-impute the
+        # gaps (the geometry-aware encoder upgrade will consume finite masks
+        # instead — the stage-1 oracle recipe)
+        x_t.append(np.nan_to_num(stats.normalise(w.features_raw[a]), nan=0.0))
+        x_tp1.append(np.nan_to_num(stats.normalise(w.features_raw[b]), nan=0.0))
         i_pf_t.append(w.i_pf[a])
         i_pf_tp1.append(w.i_pf[b])
         raw_mag_t.append(w.raw_mag[a])
@@ -187,6 +191,13 @@ def _build_sample(cache: _ShotCache, stats, anchored_stats, batch_size: int, rng
         "anchored_mask": torch.tensor(anchored_mask),
         "dt": dt_mean,
     }
+
+
+def _to_device(batch, device) -> dict:
+    """Move a minibatch's tensors to the training device ({} for no batch)."""
+    if not batch:
+        return {}
+    return {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
 
 
 def _init_distributed() -> tuple[int, int]:
@@ -330,8 +341,9 @@ def main() -> int:
             break
         batch_fns = {
             key: (
-                lambda c=c: (
-                    _build_sample(c, stats, anchored_stats, args.batch_size, rng) or {}
+                lambda c=c: _to_device(
+                    _build_sample(c, stats, anchored_stats, args.batch_size, rng),
+                    device,
                 )
             )
             for key, c in caches.items()
