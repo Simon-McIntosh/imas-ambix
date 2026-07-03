@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="patch-current-force-balance">
-  <meta name="plan-title"     content="Patch-Current Force Balance">
-  <meta name="plan-summary"   content="Nova-style patch-current forward model with force balance as a differentiable residual — no Picard, no topology extraction in the loop; modelling assumptions become soft, ablatable physics">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="patch-current-force-balance">
+  <meta name="plan-title" content="Patch-Current Force Balance">
+  <meta name="plan-summary" content="Nova-style patch-current forward model with force balance as a differentiable residual — no Picard, no topology extraction in the loop; modelling assumptions become soft, ablatable physics">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S16">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S16">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="gs-grounded-latent-engine,machine-agnostic-latent-world-model">
   <title>Patch-Current Force Balance | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-03">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -51,12 +53,17 @@
       &nbsp;&nbsp;(<code>a = p&prime;</code>, <code>b = FF&prime;/&mu;<sub>0</sub></code>),
     </p>
     <p>
-      i.e. on each &psi; level-set, j&phi; is affine in {R, 1/R}. A grid-collocation
-      &Delta;*&psi;-residual (the PINN formulation) conflates solving the elliptic problem with
-      force balance; in the patch basis the elliptic problem is free and exact, and force balance
-      becomes a standalone <strong>differentiable residual</strong> that never needs
-      p&prime;/FF&prime; basis functions, never needs &psi;<sub>N</sub> normalisation, and never
-      needs topology extraction. Assumptions become soft, ablatable regularisers — precisely the
+      i.e. on each connected &psi; level-set, j&phi; is linear in the pair {R, 1/R} — or, in the
+      cleanest fitting form (multiply through by R): <strong>R&middot;j&phi; is affine in
+      x&nbsp;=&nbsp;R&sup2;, with slope p&prime; and intercept FF&prime;/&mu;<sub>0</sub></strong>,
+      so force balance means the scatter of (R&sup2;, R&middot;j&phi;) along any single flux
+      surface falls on a straight line. A grid-collocation &Delta;*&psi;-residual (the PINN
+      formulation) conflates solving the elliptic problem with force balance; in the patch basis
+      the elliptic problem is free and exact, and force balance becomes a standalone
+      <strong>differentiable residual</strong> that never needs p&prime;/FF&prime; basis
+      functions, never needs &psi;<sub>N</sub> normalisation, and never needs a <em>hard</em>
+      topology extraction — level-set grouping enters softly (the per-connected-component caveat
+      and its mitigation are in §4). Assumptions become soft, ablatable regularisers — precisely the
       North-Star language (&ldquo;physics enters as the coordinate system and soft regularisers,
       never as a hard law&rdquo;) that the current hard free-boundary solve inside the decoder was
       flagged as being in tension with. Coefficients and closures are recovered from data; known
@@ -115,8 +122,8 @@
         <line x1="672" y1="197" x2="710" y2="197" class="arr"/>
         <rect x="232" y="252" width="440" height="58" class="soft"/>
         <text x="242" y="271" class="lbls">force balance = differentiable structure residual (soft)</text>
-        <text x="242" y="287" class="lbls">per &psi;-level: j&phi; affine in {R, 1/R} — no profiles, no &psi;N,</text>
-        <text x="242" y="303" class="lbls">no topology; rotation terms extend the same family</text>
+        <text x="242" y="287" class="lbls">per &psi;-level: R&middot;j&phi; affine in R&sup2; — no profiles, no &psi;N,</text>
+        <text x="242" y="303" class="lbls">no hard topology; rotation terms extend the family</text>
         <line x1="452" y1="250" x2="452" y2="230" class="arr"/>
         <text x="690" y="284" class="lbl">topology (axis / X / LCFS):</text>
         <text x="690" y="300" class="lbl">eval-time read of &psi;, out of the loop</text>
@@ -217,6 +224,14 @@
       </figcaption>
     </figure>
     <p>
+      The scoping regression fit j&phi; against {R, 1/R} directly; external review pointed out the
+      cleaner equivalent — R&middot;j&phi; affine in R&sup2; (slope p&prime;, intercept
+      FF&prime;/&mu;<sub>0</sub>), which is the best-conditioned design (no 1/R blow-up at the
+      centre column) and was re-verified to discriminate identically on the same fixtures (oracle
+      floor 0.0036; null-space 0.0205 = 5.7&times; floor; permuted 0.0742 = 21&times; floor;
+      artifact <code>discriminate-affine-r2.json</code>). P2 adopts the affine form.
+    </p>
+    <p>
       The complementarity is the design insight: the data term pins what sensors see (position,
       low-order moments); the physics term penalises the null space (structureless and invisible
       perturbations). Neither over-constrains profile shape, boundary topology, or the existence of
@@ -291,9 +306,13 @@
       identification with Tikhonov + B-spline nonlinearity bases</a>;
       <a href="https://www.mdpi.com/2227-7390/10/1/40">D-shaped tokamak identification methods</a>)
       all exploit linear filament bases and confront the same Hadamard ill-posedness we measured in
-      §2.5(a); their regularisers are generic smoothness. Replacing generic Tikhonov with the
-      physics-specific structure residual is the novelty claim — it penalises exactly the
-      unphysical part of the null space and nothing else.
+      §2.5(a); their regularisers are generic smoothness. The closest kin in spirit is Bayesian
+      current tomography (Svensson &amp; Werner's MINERVA-class current-beam models at JET), which
+      also treats the current distribution as the fundamental unknown with fields as exact linear
+      maps. The novelty claim here is narrower and sharper: imposing the flux-function
+      <em>structure</em> nonparametrically as a differentiable training residual — penalising
+      exactly the unphysical part of the null space and nothing else — rather than through
+      p&prime;/FF&prime; basis functions or generic Tikhonov smoothness.
     </p>
     <p>
       <strong>Differentiable-equilibrium ecosystems are converging on the same architecture.</strong>
@@ -336,13 +355,41 @@
       the Nova decomposition verbatim.
     </p>
     <p><strong>Force-balance structure residual (differentiable, profile-free):</strong> soft-bin
-      patches by their total &psi; (bin geometry detached), weight by j&phi;<sup>2</sup> so vacuum
-      cells never pollute a bin, per-bin closed-form 2&times;2 weighted LSQ of j&phi; against
-      {R, 1/R}, residual = unexplained weighted fraction &isin; [0,1]. Zero for any GS-compliant
-      state regardless of profile shape or topology; extensible with rotation columns. The
-      j&phi;<sup>2</sup> weighting keeps re-entrant flux levels (private flux / SOL at core &psi;
-      values) from cross-contaminating bins so long as their current is small; where halo current
-      is real, the residual reports it — that is signal, not error.
+      patches by their total &psi; (bin centres/bandwidth detached; the kernel weights themselves
+      differentiate through &psi;, so gradients flow through the level-set geometry as well as
+      through j&phi;), weight by j&phi;<sup>2</sup> so vacuum cells never pollute a bin, per-bin
+      closed-form 2&times;2 weighted LSQ in the <strong>affine form R&middot;j&phi; &asymp;
+      a&middot;R&sup2; + b</strong> (slope a = p&prime;, intercept b = FF&prime;/&mu;<sub>0</sub>;
+      the (a,b) are eliminated analytically — no inner optimisation, no profile basis), residual =
+      unexplained weighted fraction &isin; [0,1]. Zero for any GS-compliant state regardless of
+      profile shape or topology; extensible with rotation columns. Explicit contour tracing is
+      deliberately avoided — it is non-differentiable and would sever exactly the joint
+      j&phi;/level-set sensitivity this formulation exists to keep.
+    </p>
+    <p><strong>Connectivity caveat (the honest form of &ldquo;no topology&rdquo;):</strong> the
+      flux-function property holds <em>per connected component</em> of a level set. In a diverted
+      plasma one &psi; value can label a core surface, a private-flux arc, and an SOL contour;
+      na&iuml;ve &psi;-value grouping would wrongly demand the same (a,b) on all three. The
+      j&phi;<sup>2</sup> weighting already makes the constraint vacuous where patches carry no
+      current; where disconnected components <em>both</em> carry current, P2 adds a
+      connectivity-aware soft weight — an (R,Z)-locality kernel factor, or no-grad connected-
+      component labels refreshed periodically outside the gradient path. Topology enters softly,
+      never as a hard separatrix extraction in the loop. Genuine halo/SOL current that breaks
+      force balance still reports as residual — that is signal, not error.
+    </p>
+    <p><strong>Integrability of F (soft rung):</strong> a recovered b(&psi;) only corresponds to a
+      real toroidal field if F&sup2;(&psi;) = F&sup2;<sub>vac</sub> +
+      2&mu;<sub>0</sub>&int;b&nbsp;d&psi;&prime; stays non-negative (F<sub>vac</sub> = R&middot;B
+      <sub>t,vac</sub> from the known TF current). The per-bin intercepts {b<sub>k</sub>} make this
+      a cheap penalty, relu(&minus;F&sup2;), on the cumulative sum — one of the ablatable soft
+      regularisers, alongside optional &psi;-smoothness (second-difference) penalties on the
+      {a<sub>k</sub>}, {b<sub>k</sub>} sequences.
+    </p>
+    <p><strong>Closure recovery for free:</strong> the fitted per-bin coefficients are the
+      profiles — p(&psi;) = &int;a&nbsp;d&psi;, F(&psi;) = &radic;(F&sup2;<sub>vac</sub> +
+      2&mu;<sub>0</sub>&int;b&nbsp;d&psi;) — recovered from data with per-bin regression
+      uncertainties, no basis functions anywhere. This is the plan's answer to the project goal of
+      recovering coefficients and closures while supplying known physics.
     </p>
     <p><strong>What stays hard:</strong> the Rogowski I<sub>p</sub> anchor (a raw measurement — also
       kills the trivial zero-current minimum), absolute calibration, and factual geometry (conductor
@@ -374,14 +421,25 @@
     <h3>P2 — Structure-residual loss module + weight policy (effort S)</h3>
     <p>
       <code>structure_residual</code> into the engine's loss family alongside the existing whitened
-      magnetics term; unit tests fixture a synthetic ansatz equilibrium (residual &le; binning
-      floor), permuted (&ge;10&times; floor) and sensor-null-space (&ge;3&times; floor)
-      perturbations; gradcheck. Implement the weight policy arms for the locked decision below:
-      fixed ladder, discrepancy-principle (&lambda; raised until misfit &asymp; target), and
-      warm-start-from-&lambda;=0. Optional rung documented but OFF: pressure-positivity /
-      monotonicity soft priors (the blob result shows what they would add).
-      <br><strong>Gate P2:</strong> discrimination ratios reproduced as CI-fast tests; residual
-      differentiates (gradcheck) and costs &lt;5% of a training step.
+      magnetics term, in the affine form (R&middot;j&phi; vs R&sup2;; best-conditioned, verified
+      equivalent discrimination in §2.4); unit tests fixture a synthetic ansatz equilibrium
+      (residual &le; binning floor), permuted (&ge;10&times; floor) and sensor-null-space
+      (&ge;3&times; floor) perturbations; gradcheck. <strong>Connectivity arm:</strong> implement
+      the connectivity-aware soft weight ((R,Z)-locality kernel and/or no-grad component labels)
+      with a dedicated adversarial fixture — a synthetic disconnected level set carrying different
+      (a,b) on core and private-flux components, which na&iuml;ve &psi;-binning must fail and the
+      connectivity-weighted form must pass. Implement the weight-policy arms for the open decision
+      below: fixed ladder, discrepancy-principle (&lambda; raised until misfit &asymp; target), and
+      warm-start-from-&lambda;=0. Soft-rung set implemented but individually ablatable:
+      F&sup2;&ge;0 integrability penalty on the cumulative {b<sub>k</sub>};
+      {a<sub>k</sub>},{b<sub>k</sub>} &psi;-smoothness; edge j&phi;&rarr;0 taper (careful — halo
+      currents are real; OFF by default); pressure-positivity/monotonicity (OFF; the blob result
+      shows what it would add). The pointwise tangential-elimination alternative
+      (&hat;t&middot;&nabla; of the locally-solved (a,b)) is documented as a fallback — it avoids
+      binning but is singular at the midplane and at field nulls.
+      <br><strong>Gate P2:</strong> discrimination ratios reproduced as CI-fast tests
+      <em>including the disconnected-component fixture</em>; residual differentiates (gradcheck)
+      and costs &lt;5% of a training step.
     </p>
 
     <h3>P3 — Training-free gate-2 rematch at full scale (effort M)</h3>
@@ -390,7 +448,10 @@
       Adam with the P2 weight policy, axis/X-point/LCFS read from patch-&psi; at eval, identical
       referee firewall and train-mean baseline, per-quantity skill + calibration. This replaces the
       n=12 scoping sample with the powered measurement and directly re-baselines
-      <code>gs_solve_gate_eval</code>.
+      <code>gs_solve_gate_eval</code>. Deliverables additionally include the <strong>recovered
+      closures</strong>: per-slice p&prime;(&psi;) and FF&prime;(&psi;) from the per-bin regression
+      coefficients with their uncertainties, and the integrated p(&psi;), F(&psi;) with the
+      F&sup2;&ge;0 check — the first data-recovered profile readouts of the pivot.
       <br><strong>Gate P3:</strong> scored fraction &ge;95% (vs 7.5% corrected Picard);
       <strong>axis skill &gt; 0 vs the clustered train-mean</strong> (the bar no prior arm has
       cleared); axis median &le;6&nbsp;cm; X-point and LCFS skills reported honestly whatever they
@@ -430,9 +491,17 @@
     <h2 id="s6">§6 — Risks and honest limits</h2>
     <ul>
       <li><strong>Residual permissiveness:</strong> smooth flux-coherent blobs score near the floor
-        (§2.4) — the structure residual alone cannot certify a <em>physical</em> pressure profile.
-        Mitigation: it never runs alone (data + I<sub>p</sub> + transport); positivity priors are a
-        documented optional rung, kept off until evidence demands them.</li>
+        (§2.4) — the structure residual alone cannot certify a <em>physical</em> pressure profile,
+        and it does not by itself enforce F&sup2;&ge;0 for the recovered toroidal-field function.
+        Mitigation: it never runs alone (data + I<sub>p</sub> + transport); the F&sup2;
+        integrability penalty and positivity priors are documented soft rungs (§4/P2), enabled on
+        evidence.</li>
+      <li><strong>Disconnected level sets:</strong> the flux-function property holds per connected
+        component; a diverted plasma with genuine current in the private-flux region or SOL is the
+        real edge case where na&iuml;ve &psi;-binning cross-contaminates. Mitigation is P2's
+        connectivity-aware soft weighting with its adversarial fixture; the claim throughout this
+        plan is &ldquo;no <em>hard</em> topology extraction in the loop&rdquo;, not &ldquo;no
+        notion of level-set connectivity anywhere&rdquo;.</li>
       <li><strong>Regime-dependent &lambda;:</strong> fixed weights help flat-top and hurt early
         limited slices. Mitigation: P2 policy arms; P4 lets the encoder learn the weighting
         implicitly. Decision left open below until P2/P3 evidence.</li>
@@ -447,70 +516,67 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="plasma-representation" data-choice="patch-currents" data-by="Simon McIntosh (proposal) / scoping" data-when="2026-07-03">
-        <p class="r-dec-q">Plasma representation for the stage-2 equilibrium readout?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="patch-currents">piecewise-constant patch currents + interaction matrices</button>
-          <button class="r-opt" data-value="grid-solve">grid ψ from free-boundary Picard solve</button>
-        </p>
-        <p class="r-dec-rat">User-proposed Nova representation; scoping validated the substrate to
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="plasma-representation" data-choice="patch-currents" data-by="Simon McIntosh (proposal) / scoping" data-when="2026-07-03">
+    <p class="r-dec-q">Plasma representation for the stage-2 equilibrium readout?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="patch-currents">piecewise-constant patch currents + interaction matrices</button>
+      <button class="r-opt" data-value="grid-solve">grid ψ from free-boundary Picard solve</button>
+      </p>
+    <p class="r-dec-rat">User-proposed Nova representation; scoping validated the substrate to
           the numerical floor and the training-free inverse beat both references (§2). div B = 0 and
           Ampère exact by construction; geometry enters only through matrices.</p>
-      </div>
-      <div class="r-dec" data-key="force-balance-form" data-choice="structure-residual" data-by="scoping 2026-07-03" data-when="2026-07-03">
-        <p class="r-dec-q">How does force balance enter training?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="structure-residual">profile-free structure residual (jφ affine in {R,1/R} per ψ level)</button>
-          <button class="r-opt" data-value="parametrised-profiles">parametrised p′/FF′ + inner solve</button>
-          <button class="r-opt" data-value="grid-pinn">grid Δ*ψ collocation residual</button>
-        </p>
-        <p class="r-dec-rat">In the patch basis the Δ* residual is an identity (vacuous) and
+    </div>
+<div class="r-dec" data-key="force-balance-form" data-choice="structure-residual" data-by="scoping 2026-07-03" data-when="2026-07-03">
+    <p class="r-dec-q">How does force balance enter training?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="structure-residual">profile-free structure residual (R·jφ affine in R² per connected ψ level)</button>
+      <button class="r-opt" data-value="parametrised-profiles">parametrised p′/FF′ + inner solve</button>
+      <button class="r-opt" data-value="grid-pinn">grid Δ*ψ collocation residual</button>
+      </p>
+    <p class="r-dec-rat">In the patch basis the Δ* residual is an identity (vacuous) and
           parametrised profiles are the over-constraint §2.3 measured. The structure residual
           discriminates null-space and structureless perturbations (5.5×/17× floor) without profile,
           normalisation, or topology assumptions, and extends to rotation.</p>
-      </div>
-      <div class="r-dec" data-key="residual-weight-policy" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Force-balance weight policy for the inverse and the amortised loss —
+    </div>
+<div class="r-dec" data-key="residual-weight-policy" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Force-balance weight policy for the inverse and the amortised loss —
           fixed ladder, discrepancy-principle adaptive, warm-start annealing, or learned (P4)?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="discrepancy">discrepancy-principle adaptive</button>
-          <button class="r-opt" data-value="warm-start">warm-start from λ=0 + fixed λ</button>
-          <button class="r-opt" data-value="fixed-ladder">fixed ladder per regime</button>
-          <button class="r-opt" data-value="learned">learned weighting inside P4</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="patch-head-parametrisation" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">P4 encoder head: direct 5084-patch currents, or low-rank learned basis
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="discrepancy">discrepancy-principle adaptive</button>
+      <button class="r-opt" data-value="warm-start">warm-start from λ=0 + fixed λ</button>
+      <button class="r-opt" data-value="fixed-ladder">fixed ladder per regime</button>
+      <button class="r-opt" data-value="learned">learned weighting inside P4</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="patch-head-parametrisation" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">P4 encoder head: direct 5084-patch currents, or low-rank learned basis
           plus free residual currents?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="direct">direct patch field</button>
-          <button class="r-opt" data-value="lowrank-residual">low-rank learned basis + residual</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="direct">direct patch field</button>
+      <button class="r-opt" data-value="lowrank-residual">low-rank learned basis + residual</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-pcfb-01" data-status="open" data-tier="opus"
-               data-written-by="reckon-create" data-written-at="2026-07-03">
-        <h4 class="r-fu-title">Ship P1+P2 — torch patch substrate + structure-residual module with tests</h4>
-        <div class="r-fu-body">
-          <p>Scoping landed (§2, commits <code>7607fb1</code>&hellip;<code>8df985f</code>); the
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-pcfb-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-03" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship P1+P2 — torch patch substrate + structure-residual module with tests</h4>
+    <div class="r-fu-body"><p>Scoping landed (§2, commits <code>7607fb1</code>…<code>8df985f</code>); the
           substrate and residual exist as script code in <code>scripts/patch_basis_studies.py</code>
           and must be productionised into <code>imas_ambix/latent/</code> with the P1/P2 test
           batteries and the weight-policy arms, so P3 (gate-scale rematch) can run against the
-          <code>residual-weight-policy</code> decision.</p>
-        </div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+          <code>residual-weight-policy</code> decision.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    patch-current-force-balance (http://localhost:8765/imas-ambix/patch-current-force-balance.html)
 Section: §5 P1 + P2
 Tier:    opus
 
 Context
-  Scoping validated the patch-current substrate (FD-vs-Green's 0.02% RMS) and
+  Scoping validated the patch-current substrate (FD-vs-Green&#x27;s 0.02% RMS) and
   the profile-free structure residual (null-space 5.5x floor discrimination);
   the training-free inverse beat train-mean and Picard references on 12
   held-out slices. Productionise both so the powered P3 gate rematch can run.
@@ -529,16 +595,23 @@ Scope locks / constraints  (non-decision)
   heavier per ~/.agents/AGENTS.md.
 
 Done-when
-  1. imas_ambix/latent/patch_basis.py + structure residual in the engine loss
-     family, with P1/P2 test batteries green (far-field, FD-vs-Greens smooth,
-     flux-integral pin, batched-vs-loop, discrimination ratios, gradcheck)
+  1. imas_ambix/latent/patch_basis.py + structure residual (affine form:
+     R*jphi ~ a*R^2 + b per soft psi-bin) in the engine loss family, with
+     P1/P2 test batteries green (far-field, FD-vs-Greens smooth, flux-integral
+     pin, batched-vs-loop, discrimination ratios, gradcheck, AND the
+     disconnected-level-set connectivity fixture)
   2. batched H200 forward throughput measured and recorded in the plan (P1 gate)
-  3. weight-policy arms implemented (fixed / discrepancy / warm-start)
+  3. weight-policy arms implemented (fixed / discrepancy / warm-start) +
+     soft rungs ablatable (F^2&gt;=0 integrability, {a_k},{b_k} smoothness)
   4. followup written for P3 + this followup resolved</pre>
-      </article>
-    </section>
+    </article>
+</section>
 
-    <section data-reckon="comments" id="comments" class="r-comments"></section>
+    <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="_top" data-id="c-20260703T151456450303" data-who="external critique intake (opus)" data-when="2026-07-03">
+    <div class="r-comment-body">External review of the method absorbed (verdict: core claim physically correct). Refinements applied to this plan: (1) terminology corrected — jφ is LINEAR in {R, 1/R}; the genuinely affine and best-conditioned fitting form is R·jφ = a·R² + b (slope p′, intercept FF′/μ₀); the affine form was re-verified on the scoping fixtures to discriminate identically (oracle floor 0.0036, null-space 5.7×, permuted 21×; artifact discriminate-affine-r2.json) and P2 adopts it. (2) The “no topology” claim softened to “no HARD topology extraction in the loop”: the flux-function property holds per CONNECTED level-set component (private-flux/SOL edge case) — P2 gains a connectivity-aware soft weight ((R,Z)-locality kernel or no-grad component labels) with an adversarial disconnected-component fixture. (3) F² ≥ 0 integrability of the recovered b(ψ) added as a soft rung (relu(−F²) on the cumulative {b_k}, F_vac from the known TF current), plus optional {a_k},{b_k} ψ-smoothness. (4) Closure recovery made an explicit P3 deliverable: p′, FF′ per bin with regression uncertainties; p(ψ), F(ψ) by integration. (5) Prior-art acknowledgment added: MINERVA-class Bayesian current tomography (Svensson & Werner) as the closest kin; the narrow novelty is the nonparametric flux-function structure residual as a differentiable training loss. Critique items already covered: singular self-field (finite-area patches), dense-matvec cost (precomputed), vessel currents (P5 passives; MAST is air-core so free-space Green's are exact).</div>
+</div>
+</section>
 
   </main>
 </body>

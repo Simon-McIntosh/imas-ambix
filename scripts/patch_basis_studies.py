@@ -160,15 +160,23 @@ def structure_residual(
     *,
     n_bins: int = 24,
     bandwidth_bins: float = 1.0,
+    form: str = "jphi",
 ) -> torch.Tensor:
-    """Unexplained fraction of current-weighted jphi variance under GS structure.
+    """Unexplained fraction of current-weighted variance under GS structure.
 
     Soft-bins cells by their (total) psi, weighted by jphi^2 so zero-current
-    vacuum cells never pollute a bin; per bin solves the closed-form weighted
-    least squares jphi ~ a*R + b/R; returns  sum_b sum_c w_bc (jphi - fit)^2 /
-    sum_b sum_c w_bc jphi^2  — dimensionless, 0 for exact GS structure, O(1)
-    for structureless current.  Bin placement is detached (auxiliary geometry);
-    everything else differentiates through psi_c and jphi_c.
+    vacuum cells never pollute a bin; per bin solves a closed-form weighted
+    least squares and returns the unexplained weighted fraction —
+    dimensionless, 0 for exact GS structure, O(1) for structureless current.
+    Bin placement is detached (auxiliary geometry); everything else
+    differentiates through psi_c and jphi_c (gradients flow through the
+    level-set geometry via the kernel weights).
+
+    ``form`` selects the regression:
+      "jphi"      —  jphi ~ a*R + b/R          (linear in {R, 1/R}; as scoped)
+      "affine-r2" —  R*jphi ~ a*R^2 + b        (genuinely affine in x = R^2:
+                     slope a = p', intercept b = FF'/mu0 — the best-conditioned
+                     fitting form; equals "jphi" with an extra R^2 weighting)
     """
     w_amp = jphi_c * jphi_c
     total = w_amp.sum()
@@ -184,15 +192,22 @@ def structure_residual(
         )
         h = bandwidth_bins * (hi - lo) / n_bins
     w = torch.exp(-0.5 * ((psi_c[None, :] - mu[:, None]) / h) ** 2) * w_amp[None, :]
-    x = torch.stack([r_c, 1.0 / r_c], dim=-1)  # (N, 2)
+    if form == "affine-r2":
+        x = torch.stack([r_c * r_c, torch.ones_like(r_c)], dim=-1)  # (N, 2)
+        y = r_c * jphi_c
+    elif form == "jphi":
+        x = torch.stack([r_c, 1.0 / r_c], dim=-1)  # (N, 2)
+        y = jphi_c
+    else:
+        raise ValueError(f"unknown structure-residual form: {form!r}")
     xtwx = torch.einsum("bn,nk,nl->bkl", w, x, x)
     eye = torch.eye(2, dtype=psi_c.dtype, device=psi_c.device)
     ridge = 1e-9 * xtwx.diagonal(dim1=-2, dim2=-1).mean(-1).clamp_min(1e-30)
-    xtwy = torch.einsum("bn,nk,n->bk", w, x, jphi_c)
+    xtwy = torch.einsum("bn,nk,n->bk", w, x, y)
     beta = torch.linalg.solve(xtwx + ridge[:, None, None] * eye, xtwy)  # (B, 2)
     fit = torch.einsum("nk,bk->bn", x, beta)  # (B, N)
-    num = (w * (jphi_c[None, :] - fit) ** 2).sum()
-    den = (w * (jphi_c[None, :] ** 2)).sum().clamp_min(1e-30)
+    num = (w * (y[None, :] - fit) ** 2).sum()
+    den = (w * (y[None, :] ** 2)).sum().clamp_min(1e-30)
     return num / den
 
 
@@ -550,7 +565,7 @@ def cmd_discriminate(args) -> None:
         def resid(i_vec: np.ndarray) -> float:
             return residual_of_currents(
                 i_vec, g_cc, psi_coil_cells, r_cells, cell_area,
-                n_bins=args.n_bins,
+                n_bins=args.n_bins, form=args.residual_form,
             )
 
         core = np.abs(i0) > 0
@@ -600,8 +615,9 @@ def cmd_discriminate(args) -> None:
                 (d["shot"], d["t_index"], "null-space", resid(i0 + amp * v))
             )
 
+    suffix = "" if args.residual_form == "jphi" else f"-{args.residual_form}"
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    with (ARTIFACTS / "discriminate.json").open("w") as fh:
+    with (ARTIFACTS / f"discriminate{suffix}.json").open("w") as fh:
         json.dump(
             [
                 {"shot": s, "t_index": t, "class": c, "residual": r}
@@ -617,6 +633,9 @@ def cmd_discriminate(args) -> None:
                 "%-14s n=%2d residual median %.4f (min %.4f max %.4f)",
                 cls, len(vals), np.median(vals), min(vals), max(vals),
             )
+
+    if suffix:
+        return  # variant run: numbers only, the default form owns the figure
 
     # figure: strip chart per class (log x)
     FIGURES.mkdir(parents=True, exist_ok=True)
@@ -889,6 +908,9 @@ def main() -> int:
     ap.add_argument("--nz", type=int, default=97)
     ap.add_argument("--min-ip-ka", type=float, default=300.0)
     ap.add_argument("--n-bins", type=int, default=24)
+    ap.add_argument(
+        "--residual-form", type=str, default="jphi", choices=("jphi", "affine-r2")
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("assemble")
     sub.add_parser("validate")
