@@ -338,6 +338,7 @@ def main() -> int:
     # ---- P1-gate throughput bench (batched forward on this device) ----------
     if args.throughput_bench and shots:
         basis = shots[0]["basis"]
+        rates = []
         for batch in (64, 1024, 4096):
             rate = basis.throughput(batch=batch, n_iter=20, device=device)
             logger.info(
@@ -346,9 +347,10 @@ def main() -> int:
                 device,
                 rate,
             )
-            (ARTIFACTS / "throughput.json").write_text(
-                json.dumps({"device": device, "batch": batch, "slices_per_s": rate})
-            )
+            rates.append({"batch": batch, "slices_per_s": rate})
+        (ARTIFACTS / "throughput.json").write_text(
+            json.dumps({"device": device, "rates": rates}, indent=2)
+        )
 
     # ---- inverse per policy arm ---------------------------------------------
     per_policy: dict[str, dict] = {}
