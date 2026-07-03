@@ -154,21 +154,32 @@ def _basis_alignment(fwd, channels: list[str]) -> tuple[np.ndarray, np.ndarray]:
     return ch_rows, ch_rows >= 0
 
 
-def _window_indices(times: np.ndarray, centre_t: float, t_steps: int):
+def _window_indices(times: np.ndarray, centre_t: float, t_steps: int, *, min_real=1):
     """t_steps sample indices spanning WINDOW_HORIZON_S centred at ``centre_t``.
 
-    Returns None if the full window does not fit inside the shot's slice stream
-    (edge centres are skipped rather than padded — a repeated end step would be
-    a fabricated measurement).
+    Returns ``(idx, real)`` where ``idx`` are per-step nearest-sample indices and
+    ``real`` flags the steps whose sample time falls inside the shot's recorded
+    stream.  Steps that fall outside ``[times[0], times[-1]]`` (an edge centre
+    whose ±0.125 s window overhangs the stream) are PADDED: their index clamps to
+    the nearest in-stream sample and ``real`` is False so the caller zeros the
+    value and clears the has-value flag — a padded step is never a fabricated
+    measurement, only a masked-absent token.  Returns None only when fewer than
+    ``min_real`` of the ``t_steps`` steps land inside the stream.
     """
     lo = centre_t - WINDOW_HORIZON_S / 2
     hi = centre_t + WINDOW_HORIZON_S / 2
-    if lo < times[0] or hi > times[-1]:
-        return None
     sample_t = np.linspace(lo, hi, t_steps)
-    return np.array(
-        [int(np.argmin(np.abs(times - st))) for st in sample_t], dtype=np.int64
+    real = (sample_t >= times[0]) & (sample_t <= times[-1])
+    if int(real.sum()) < min_real:
+        return None
+    idx = np.clip(
+        np.array(
+            [int(np.argmin(np.abs(times - st))) for st in sample_t], dtype=np.int64
+        ),
+        0,
+        len(times) - 1,
     )
+    return idx, real
 
 
 def _assemble_shot_examples(
@@ -220,20 +231,22 @@ def _assemble_shot_examples(
 
     values, finite = [], []
     measured, vacuum, mask, ip_list, i_pf_list = [], [], [], [], []
-    centres = np.arange(
-        times[0] + WINDOW_HORIZON_S / 2,
-        times[-1] - WINDOW_HORIZON_S / 2 + 1e-9,
-        stride_s,
-    )
+    # centres span the whole recorded stream: an edge centre whose window
+    # overhangs the stream is admitted with a PADDED partial window (masked
+    # steps) provided at least half its steps are real (min_real below).
+    centres = np.arange(times[0], times[-1] + 1e-9, stride_s)
+    min_real = max(1, t_steps // 2)
     for ct in centres:
         c = int(np.argmin(np.abs(times - ct)))
         if abs(float(w.anchored[c, 0])) <= min_ip_ka:
             continue
-        idx = _window_indices(times, float(times[c]), t_steps)
-        if idx is None:
+        res = _window_indices(times, float(times[c]), t_steps, min_real=min_real)
+        if res is None:
             continue
-        values.append(raw_b[idx])
-        finite.append(mask_b[idx])
+        idx, real = res
+        real2 = real[:, None]
+        values.append(np.where(real2, raw_b[idx], 0.0))
+        finite.append(mask_b[idx] & real2)
         vac = fwd.vacuum_prediction(w.i_pf[c])
         measured.append(raw_b[c])
         vacuum.append(np.where(present, vac[clip_rows], 0.0))
