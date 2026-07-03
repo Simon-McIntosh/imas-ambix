@@ -289,27 +289,36 @@ def cmd_validate(args) -> None:
     g_pg = patch_grid_matrix(grid, cache)
     checks: dict = {}
 
-    # --- far-field limit: finite-area column vs point filament -------------
+    # --- far-field limit: PURE finite-area kernel vs point filament --------
+    # (the hybrid column is point-identical beyond the switch band by
+    # construction — exercising cylinder_greens itself is the real check)
+    from imas_ambix.gs.cylinder import cylinder_greens
+
     c_mid = grid.cells[np.argmin(
         np.hypot(grid.flat_r[grid.cells] - grid.r0, grid.flat_z[grid.cells])
     )]
-    col = g_pg[:, np.where(grid.cells == c_mid)[0][0]]
-    point = greens_psi(
-        grid.flat_r, grid.flat_z, float(grid.flat_r[c_mid]), float(grid.flat_z[c_mid])
-    )
     dist = np.hypot(
         grid.flat_r - grid.flat_r[c_mid], grid.flat_z - grid.flat_z[c_mid]
     )
     far = dist > 10.0 * max(grid.dr, grid.dz)
-    rel = np.abs(col[far] - point[far]) / np.maximum(np.abs(point[far]), 1e-16)
+    fa = cylinder_greens(
+        grid.flat_r[far], grid.flat_z[far],
+        float(grid.flat_r[c_mid]), float(grid.flat_z[c_mid]), grid.dr, grid.dz,
+    )[0]
+    point = greens_psi(
+        grid.flat_r[far], grid.flat_z[far],
+        float(grid.flat_r[c_mid]), float(grid.flat_z[c_mid]),
+    )
+    rel = np.abs(fa - point) / np.maximum(np.abs(point), 1e-16)
     checks["far_field_rel_max"] = float(rel.max())
     checks["far_field_rel_median"] = float(np.median(rel))
 
     # --- reference currents: one oracle solve for the check field ----------
     payloads = slice_payloads(
-        args.shot, table, fwd, grid, max_slices=4, min_ip_ka=args.min_ip_ka
+        args.shot, table, fwd, grid, max_slices=6, min_ip_ka=args.min_ip_ka
     )
     assert payloads, "no valid slice for validation"
+    payloads = sorted(payloads, key=lambda q: -q["ip_amperes"])  # flat-top first
     fit, p = None, None
     for p in payloads:
         fit = fit_profile(
@@ -335,7 +344,11 @@ def cmd_validate(args) -> None:
     psi_plasma = (g_pg @ i_cell).reshape(grid.nz, grid.nr)
     lhs = delta_star_apply(psi_plasma, grid.rg, grid.zg)
     rhs = np.zeros(grid.flat_r.size)
-    rhs[grid.cells] = -MU0 * grid.flat_r[grid.cells] * (i_cell / cell_area)
+    # total-flux convention: the Green's columns carry Φ = 2π R A_φ, so
+    # Δ*Φ = −2π μ0 R jφ
+    rhs[grid.cells] = -2.0 * np.pi * MU0 * grid.flat_r[grid.cells] * (
+        i_cell / cell_area
+    )
     rhs2d = rhs.reshape(grid.nz, grid.nr)
     scale_j = MU0 * np.abs(rhs2d[np.isfinite(rhs2d)]).max()
     err = np.abs(lhs - rhs2d)
@@ -353,6 +366,30 @@ def cmd_validate(args) -> None:
     checks["fd_vs_greens_rel_max"] = float(fd_err.max() / max(span, 1e-30))
     checks["fd_vs_greens_rel_rms"] = float(
         np.sqrt(np.mean(fd_err**2)) / max(span, 1e-30)
+    )
+
+    # --- smooth manufactured current: isolates FD truncation from assembly --
+    # broad Gaussian well inside the domain — FD and Green's must agree to
+    # O(h^2); a large discrepancy HERE would be an assembly bug, while a large
+    # discrepancy only at sharp real-current features is the FD grid's own
+    # representation error (the Green's field is exact for the patch source).
+    r_cells = grid.flat_r[grid.cells]
+    z_cells = grid.flat_z[grid.cells]
+    blob = np.exp(-(((r_cells - grid.r0) / 0.35) ** 2 + (z_cells / 0.5) ** 2))
+    blob *= p["ip_amperes"] / blob.sum()
+    psi_blob = (g_pg @ blob).reshape(grid.nz, grid.nr)
+    rhs_b = np.zeros(grid.flat_r.size)
+    rhs_b[grid.cells] = -2.0 * np.pi * MU0 * r_cells * (blob / cell_area)
+    rhs_b2d = rhs_b.reshape(grid.nz, grid.nr)
+    psi_bb = np.zeros((grid.nz, grid.nr))
+    psi_bb.ravel()[grid.edge_idx] = (g_pg @ blob)[grid.edge_idx]
+    psi_fd_b = grid.solve_dirichlet(rhs_b2d, psi_bb)
+    span_b = float(psi_blob.max() - psi_blob.min())
+    checks["fd_vs_greens_smooth_rel_rms"] = float(
+        np.sqrt(np.mean((psi_fd_b - psi_blob) ** 2)) / max(span_b, 1e-30)
+    )
+    checks["fd_vs_greens_smooth_rel_max"] = float(
+        np.abs(psi_fd_b - psi_blob).max() / max(span_b, 1e-30)
     )
 
     # --- timing: full forward (grid psi + sensors) vs one Picard solve -----
