@@ -279,6 +279,39 @@ NaN-preserving-loader training path fixed (guarded corpus stats + mean-imputatio
 encoder upgrade will replace imputation with finite-mask inputs), checkpoints now carrying their exact
 normalisation stats.</p>
 
+<h3 id="training">§7a — Corpus training landed (2026-07-03): held-out grounding 5.53×, cross-geometry</h3>
+<p>Job <code>1224777</code> completed cleanly: 20,000 steps in 19.5 minutes across 6 ranks
+(165 training shots, 51,456 excitation-weighted consecutive pairs; composite loss 33.2 → 1.75).
+The held-out checkpoint eval (<code>scripts/eval_gs_grounded_checkpoint.py</code>; 8 shots,
+3,202 slices; the checkpoint's own normalisation stats, no refit, no EFIT anywhere):</p>
+<ul>
+  <li><strong>Grounding (gate-1 at corpus scale):</strong> whitened held-out GS residual
+  <strong>3.05 trained vs 16.85 random-init — 5.53×</strong>, confirming the smoke's 5.3× on
+  genuinely held-out data. Notably the ratio holds (~4–6×) on shots 18502–18505, whose
+  <em>campaign geometry the encoder never saw</em> — the shared machine-agnostic encoder grounds
+  through that campaign's own observation operator: the first cross-geometry generalization
+  signal for the §6 requirement.</li>
+  <li><strong>Anchored heads:</strong> Ip strong (normalised RMSE 0.05–0.29 vs corpus-mean
+  baseline 1.19–3.25); <strong>n_e is an honest negative</strong> (0.62–1.08 vs baseline
+  0.26–0.46 — worse than the mean; the density features are sparse and currently mean-imputed,
+  exactly what the finite-mask oracle-recipe encoder upgrade addresses).</li>
+  <li><strong>Gate-3 re-verified on the trained transport:</strong> D_min = 1.0×10⁻⁶ &gt; 0;
+  command load-bearing (volt-second delta with true dI_pf/dt vs zeroed command) ≈ 1.4.</li>
+</ul>
+<figure class="r-fig" style="margin:1rem 0">
+  <img src="/imas-ambix/figures/gs-grounded-latent-engine/fig-corpus-training-grounding.png"
+       alt="Left: composite training loss falling from 33.2 to 1.75 over 20000 steps on a log scale. Right: per-shot held-out whitened GS residual bars, random-init encoder versus trained encoder, ratios 4.1x to 6.0x, with the four shots whose campaign geometry was never trained highlighted."
+       style="max-width:100%">
+  <figcaption><strong>Corpus training + held-out grounding.</strong> Left: the 6-rank run's
+  composite loss. Right: the trained encoder cuts the held-out whitened GS residual 4–6× on
+  every shot, including the four (green band) whose campaign geometry never entered training.</figcaption>
+</figure>
+<p>Fit-amortization targets (the locked training path's label-free (β0, α) targets through the
+fixed free-boundary solve) are precomputing on the sun cluster (array <code>1224768</code>,
+resume-safe per-shot JSON under <code>imas_ambix/latent/artifacts/fit_targets/</code>). The open
+arm to close gate 2 proper: amortization heads + the oracle-recipe encoder consuming those
+targets, then the topology-readout re-measure against the referee.</p>
+
 </main>
 </body>
 </html>
