@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="patch-current-force-balance">
+  <meta name="plan-title"     content="Patch-Current Force Balance">
+  <meta name="plan-summary"   content="Nova-style patch-current forward model with force balance as a differentiable residual — no Picard, no topology extraction in the loop; modelling assumptions become soft, ablatable physics">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S16">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="gs-grounded-latent-engine,machine-agnostic-latent-world-model">
+  <title>Patch-Current Force Balance | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Proposition: what GS states is not how GS is solved</h2>
+    <p>
+      The Grad&ndash;Shafranov equation is a <em>statement of force balance</em> between fluid and
+      magnetic pressure. Every restrictive assumption in our current stage-2 chain enters not from
+      that statement but from the way it is <em>solved</em>: parametrise two flux functions on
+      normalised flux, choose a closed plasma boundary, distribute current as
+      <code>j&phi;(&psi;<sub>N</sub>; &beta;<sub>0</sub>, &alpha;)</code> inside the separatrix only,
+      and Picard-iterate the nonlinear fixed point with topology extraction (axis, X-points, core
+      mask) inside the loop. The Nova approach to coil and plasma modelling never solves the GS
+      operator on a grid at all: the vessel interior is filled with finite-element patches carrying
+      piecewise-constant currents; flux and field everywhere are Green's-function superpositions
+      assembled once into interaction matrices and decomposed into coil and plasma blocks. Fields
+      built this way are exactly solenoidal — <strong>div&nbsp;B&nbsp;=&nbsp;0 holds by
+      construction</strong> — and with the analytic finite-area kernel
+      (<code>imas_ambix/gs/cylinder.py</code>, ported from <code>nova.biot</code>) a rectangular
+      conductor is a single patch: smooth self-field, no sub-discretisation, no self-inductance
+      regularisation.
+    </p>
+    <p>
+      The sharp observation this plan is built on: <strong>in the current-patch basis, Amp&egrave;re's
+      law and div&nbsp;B&nbsp;=&nbsp;0 are identities — the <em>only</em> physics content remaining in
+      GS is the flux-function structure of the current</strong>,
+    </p>
+    <p style="text-align:center">
+      <code>j&phi;(R, Z) = a(&psi;)&middot;R + b(&psi;)/R</code>
+      &nbsp;&nbsp;(<code>a = p&prime;</code>, <code>b = FF&prime;/&mu;<sub>0</sub></code>),
+    </p>
+    <p>
+      i.e. on each &psi; level-set, j&phi; is affine in {R, 1/R}. A grid-collocation
+      &Delta;*&psi;-residual (the PINN formulation) conflates solving the elliptic problem with
+      force balance; in the patch basis the elliptic problem is free and exact, and force balance
+      becomes a standalone <strong>differentiable residual</strong> that never needs
+      p&prime;/FF&prime; basis functions, never needs &psi;<sub>N</sub> normalisation, and never
+      needs topology extraction. Assumptions become soft, ablatable regularisers — precisely the
+      North-Star language (&ldquo;physics enters as the coordinate system and soft regularisers,
+      never as a hard law&rdquo;) that the current hard free-boundary solve inside the decoder was
+      flagged as being in tension with. Coefficients and closures are recovered from data; known
+      physics is supplied without over-constraining the solution.
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 980 328" role="img" style="max-width:100%;height:auto;background:#ffffff">
+        <style>
+          .box { fill:#ffffff; stroke:#444444; stroke-width:1; }
+          .soft { fill:#f4f7fb; stroke:#2166ac; stroke-width:1; }
+          .dead { fill:#fafafa; stroke:#999999; stroke-width:1; }
+          .lbl  { font:12.5px system-ui; fill:#1a1a1a; }
+          .lbls { font:12.5px system-ui; fill:#0f3f6e; }
+          .lbld { font:12.5px system-ui; fill:#555555; }
+          .ttl  { font:600 13.5px system-ui; fill:#1a1a1a; }
+          .arr  { stroke:#444444; stroke-width:1; marker-end:url(#ah); }
+          .note { font:11.5px system-ui; fill:#8a3324; }
+        </style>
+        <defs>
+          <marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#444444"/>
+          </marker>
+        </defs>
+        <text x="12" y="22" class="ttl">Legacy chain — assumptions enter the solve</text>
+        <rect x="12"  y="36" width="150" height="46" class="dead"/><text x="22" y="55" class="lbld">flux-function ansatz</text><text x="22" y="71" class="lbld">j&phi;(&psi;N; &beta;0, &alpha;) — 2 DOF</text>
+        <rect x="192" y="36" width="150" height="46" class="dead"/><text x="202" y="55" class="lbld">closed-boundary choice</text><text x="202" y="71" class="lbld">current inside LCFS only</text>
+        <rect x="372" y="36" width="170" height="46" class="dead"/><text x="382" y="55" class="lbld">Picard + continuation</text><text x="382" y="71" class="lbld">bootstrap, 14 s/slice</text>
+        <rect x="572" y="36" width="170" height="46" class="dead"/><text x="582" y="55" class="lbld">topology extraction</text><text x="582" y="71" class="lbld">in the loop (fragile)</text>
+        <rect x="772" y="36" width="196" height="46" class="dead"/><text x="782" y="55" class="lbld">masked readout</text><text x="782" y="71" class="lbld">12/160 scored (corrected)</text>
+        <line x1="162" y1="59" x2="190" y2="59" class="arr"/>
+        <line x1="342" y1="59" x2="370" y2="59" class="arr"/>
+        <line x1="542" y1="59" x2="570" y2="59" class="arr"/>
+        <line x1="742" y1="59" x2="770" y2="59" class="arr"/>
+        <text x="12" y="112" class="note">non-differentiable &middot; 69% amortized convergence failures &middot; hid a 2&pi; source-scale defect until this scoping pass</text>
+
+        <text x="12" y="152" class="ttl">Patch-current chain — assumptions become residuals</text>
+        <rect x="12"  y="166" width="180" height="62" class="soft"/>
+        <text x="22" y="185" class="lbls">patch currents I (5084)</text>
+        <text x="22" y="201" class="lbls">piecewise-constant cells,</text>
+        <text x="22" y="217" class="lbls">coils = single patches</text>
+        <rect x="232" y="166" width="200" height="62" class="soft"/>
+        <text x="242" y="185" class="lbls">interaction matrices (once)</text>
+        <text x="242" y="201" class="lbls">&psi; = G&middot;I : exact, div B = 0,</text>
+        <text x="242" y="217" class="lbls">Amp&egrave;re by construction</text>
+        <rect x="472" y="166" width="200" height="62" class="box"/>
+        <text x="482" y="185" class="lbl">diagnostics d = M&middot;I</text>
+        <text x="482" y="201" class="lbl">batched matmul, 138 ms CPU</text>
+        <text x="482" y="217" class="lbl">(&times;10&#8309; batched on GPU)</text>
+        <rect x="712" y="166" width="256" height="62" class="box"/>
+        <text x="722" y="185" class="lbl">readout: 12/12 slices scored,</text>
+        <text x="722" y="201" class="lbl">4.5 cm median axis (vs 8.7 cm</text>
+        <text x="722" y="217" class="lbl">train-mean) — training-free</text>
+        <line x1="192" y1="197" x2="230" y2="197" class="arr"/>
+        <line x1="432" y1="197" x2="470" y2="197" class="arr"/>
+        <line x1="672" y1="197" x2="710" y2="197" class="arr"/>
+        <rect x="232" y="252" width="440" height="58" class="soft"/>
+        <text x="242" y="271" class="lbls">force balance = differentiable structure residual (soft)</text>
+        <text x="242" y="287" class="lbls">per &psi;-level: j&phi; affine in {R, 1/R} — no profiles, no &psi;N,</text>
+        <text x="242" y="303" class="lbls">no topology; rotation terms extend the same family</text>
+        <line x1="452" y1="250" x2="452" y2="230" class="arr"/>
+        <text x="690" y="284" class="lbl">topology (axis / X / LCFS):</text>
+        <text x="690" y="300" class="lbl">eval-time read of &psi;, out of the loop</text>
+      </svg>
+      <figcaption>
+        The pivot in one picture. Top: the legacy chain — each grey box is a modelling assumption or
+        a fragile numerical stage, and the readout is masked wherever the inner solve fails. Bottom:
+        the patch-current chain — Maxwell is exact by construction, diagnostics are fixed matrices,
+        force balance is a soft differentiable residual, and topology moves out of the training loop
+        to evaluation time. Numbers are measured (this session's scoping, held-out shots 18502&ndash;18505).
+      </figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Scoping evidence (landed 2026-07-03)</h2>
+    <p>
+      Four scoping studies ran before this plan was written
+      (<code>scripts/patch_basis_studies.py</code>: <code>assemble</code>, <code>validate</code>,
+      <code>oracle</code>, <code>discriminate</code>, <code>identify</code>; commits
+      <code>7607fb1</code>&hellip;<code>8df985f</code>). Artifacts under
+      <code>imas_ambix/latent/artifacts/patch_scoping/</code>.
+    </p>
+
+    <h3>2.1 The substrate exists and validates to the numerical floor</h3>
+    <p>
+      The patch&rarr;grid interaction matrix (5084 in-limiter patches &times; 6305 grid points,
+      finite-area kernel near the patch, point filament far) assembles in 8.5&nbsp;s and is cached
+      per campaign signature. Validation: far-field agreement of the finite-area kernel with the
+      point filament to 2.7&times;10<sup>&minus;4</sup>; finite-difference &Delta;* of the exact
+      Green's field reproduces the source at the FD truncation floor (0.4% RMS); and the Dirichlet
+      FD solve agrees with the Green's superposition to <strong>0.02% RMS</strong> on real fitted
+      currents and 0.018% on a smooth manufactured current. One forward evaluation (full &psi; grid
+      + all sensors) costs 138&nbsp;ms single-threaded on CPU against 14.4&nbsp;s for a bootstrapped
+      Picard solve (&times;104 before any GPU batching; the matrices are fixed buffers, so batched
+      GPU throughput scales as matmul).
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/patch-current-force-balance/fig-interaction-matrix-validation.png"
+           alt="Interaction matrix validation: plasma psi, FD Delta* consistency, FD-vs-Green's error"
+           style="max-width:100%">
+      <figcaption>
+        Interaction-matrix validation on shot 18502 (flat-top slice). (a) plasma &psi; from the
+        patch superposition; (b) FD &Delta;* of the exact field vs the source — truncation floor
+        only; (c) FD Dirichlet solve vs Green's superposition — 0.02% RMS of span.
+      </figcaption>
+    </figure>
+
+    <h3>2.2 The scoping found and fixed a real defect the old chain could not see</h3>
+    <p>
+      The first FD-vs-Green's cross-check disagreed by 23% RMS on a smooth manufactured current.
+      Kernel-level probes (flux-consistency integral <code>&#8747;2&pi;rB<sub>z</sub>dr</code>
+      against the returned &psi;; the flux integral of &Delta;*&psi; over a patch, which measures
+      exactly 2&pi;&middot;I) pinned the cause: <strong>the free-boundary solver paired a
+      per-radian GS source (&minus;&mu;<sub>0</sub>Rj&phi;) with total-flux Green's functions
+      (&Phi; = 2&pi;RA&phi;) — the plasma's own flux well was 2&pi; &asymp; 6.3&times; too shallow
+      against the coil field in every Picard iteration</strong> (fixed in <code>5148a4d</code> with
+      a regression test; 58/58 latent tests green). This defect is upstream of every gate-2 number
+      recorded to date, and it plausibly explains why the Gaussian seed had no interior O-point
+      under the exact coil field — the fragility the continuation bootstrap was built to work
+      around. The methodological point for this plan: <em>a representation in which Amp&egrave;re's
+      law is an identity cannot hide a source-scale error; a Picard chain that rescales to
+      I<sub>p</sub> every iteration can, and did.</em>
+    </p>
+
+    <h3>2.3 Under the corrected physics, the restrictive model breaks honestly — and measurably</h3>
+    <p>
+      Re-measuring the training-free gate-2 protocol with the corrected solver (job
+      <code>1224801</code>): the scored fraction collapses from 122/160 to <strong>12/160</strong>
+      while the scored (mostly early-time, limited) slices improve from 8.3 to
+      <strong>5.9&nbsp;cm</strong> median axis error. Flat-top / diverted slices fail the cost-3
+      honesty threshold at cost 8&ndash;15, and an extended 35-candidate profile grid does not
+      rescue them — the optimum pins to the family corner (&beta;<sub>0</sub>=0.05, &alpha;=0.5)
+      with the axis in an unphysical outboard attractor at R&asymp;1.7&nbsp;m. The variational
+      inverse below shows free patch currents fit the same sensors to well under 1&sigma;
+      <em>without</em> passive conductors, so the binding constraint is the two-DOF profile family
+      itself, not missing conductors. The prior 122/160 @ 8.3&nbsp;cm baseline was partly an
+      artifact of the 2&pi;-weak (hence diffuse, coil-shaped, accidentally permissive) plasma
+      response. <strong>This is the over-constraint thesis of this plan, with receipts.</strong>
+    </p>
+
+    <h3>2.4 The structure residual discriminates exactly what the data cannot see</h3>
+    <p>
+      The profile-free force-balance residual (soft &psi;-binning of patches weighted by
+      j&phi;<sup>2</sup>, closed-form per-bin weighted least squares of j&phi; against
+      {R, 1/R}, reported as the unexplained fraction of current-weighted variance) was scored on
+      the corrected-solver oracle equilibria and perturbation classes:
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/patch-current-force-balance/fig-structure-residual-discrimination.png"
+           alt="Structure residual per perturbation class"
+           style="max-width:100%">
+      <figcaption>
+        Structure residual by perturbation class (4 held-out oracle slices). Real equilibria sit at
+        the 0.004 binning floor; <strong>sensor-null-space perturbations — invisible to every
+        magnetic sensor — score 5.5&times; the floor</strong>; structureless (permuted) currents
+        17&times;. Rigid shifts and smooth blobs are <em>not</em> strongly discriminated — they are
+        near flux-coherent states — and that is the correct division of labour: position is what the
+        magnetics measure directly; structure is what they cannot.
+      </figcaption>
+    </figure>
+    <p>
+      The complementarity is the design insight: the data term pins what sensors see (position,
+      low-order moments); the physics term penalises the null space (structureless and invisible
+      perturbations). Neither over-constrains profile shape, boundary topology, or the existence of
+      currents outside a separatrix — halo or vessel-adjacent currents remain representable, and a
+      persistent residual stays visible as a <em>discovery signal</em> (where force balance breaks:
+      rotation, dynamics, un-modelled conductors) rather than being fitted away.
+    </p>
+
+    <h3>2.5 Training-free patch inverse: scores every slice, beats the baseline where Picard masks</h3>
+    <p>
+      A per-slice variational inverse (Adam over 5084 patch currents; whitened sensor misfit +
+      Rogowski I<sub>p</sub> anchor + &lambda;&middot;structure residual; no Picard, no topology in
+      the loop; conductor interiors excluded as factual geometry) on 12 held-out slices spanning
+      early ramp to flat-top:
+    </p>
+    <ul>
+      <li><strong>Scores 12/12 slices</strong> where the corrected Picard chain scores 4/12 — there
+        is no convergence to fail;</li>
+      <li>On the 8 flat-top slices the Picard chain masks, the physics weight helps monotonically:
+        at &lambda;=10 the axis lands at 1.3&ndash;5.8&nbsp;cm (median &asymp;3&nbsp;cm), beating
+        the 4.7&nbsp;cm train-mean median in the one regime where the clustered train-mean has been
+        unbeatable;</li>
+      <li>Across all 12 slices: <strong>median 4.5&nbsp;cm vs 8.7&nbsp;cm train-mean</strong> and
+        5.8&nbsp;cm Picard-where-it-fits;</li>
+      <li>On early limited slices the data term alone is strong (&lambda;=0 best: e.g. 4.4&nbsp;cm
+        vs Picard's 5.1&nbsp;cm) and large &lambda; over-smooths — the optimal physics weight is
+        regime-dependent, which motivates the adaptive-&lambda; decision below;</li>
+      <li>Misfits stay at 0.01&ndash;0.13 (&#8810;1&sigma;) everywhere — the PF+patch observation
+        model reproduces the measured magnetics without passive conductors on these slices.</li>
+    </ul>
+    <figure>
+      <img src="/imas-ambix/figures/patch-current-force-balance/fig-identifiability-and-inverse.png"
+           alt="SVD spectrum, axis-shift visibility, and inverse axis error vs physics weight"
+           style="max-width:100%">
+      <figcaption>
+        (a) Whitened sensor-matrix spectrum: 20&ndash;44 modes above 10<sup>&minus;2</sup> of the
+        leading singular value (55&ndash;61 above 10<sup>&minus;3</sup>) out of 5084 patch DOF —
+        the null space the physics residual must own. (b) Only 27&ndash;38% of a rigid axis-shift
+        current perturbation lies in the sensor row space, yet that visible fraction carries the
+        position signal. (c) Training-free inverse: median axis error falls monotonically with the
+        force-balance weight to 4.5&nbsp;cm, below both the train-mean (8.7&nbsp;cm) and the
+        Picard-where-it-fits (5.8&nbsp;cm) references; orange points are slices the Picard chain
+        masks entirely (&lambda;=0 plotted at the left axis edge).
+      </figcaption>
+    </figure>
+
+    <h2 id="s3">§3 — Deep research: where this sits in the landscape</h2>
+    <p>
+      <strong>Forward-solve fragility is not local to our stack.</strong>
+      <a href="https://arxiv.org/abs/2503.05674">Pentland, Amorisco, Farrell &amp; Ham 2025</a>
+      demonstrate <em>multiple solutions</em> to the static forward free-boundary GS problem in
+      MAST-U geometry (deflated continuation on FreeGSNKE), including deeply and shallowly confined
+      states — independent evidence that Picard/Newton chains on this machine's geometry carry
+      attractor ambiguity, consistent with our corner/outboard attractors and the continuation
+      bootstrap that §2.2 shows was compensating for a physics defect.
+      <a href="https://iopscience.iop.org/article/10.1088/1741-4326/adf3cc">(IOP version)</a>
+    </p>
+    <p>
+      <strong>Residual-as-loss has precedent, but on the wrong representation.</strong> PINN GS
+      reconstruction (<a href="https://arxiv.org/abs/2507.16636">multi-stage PINNs, 2025</a>;
+      <a href="https://arxiv.org/abs/2311.13491">data-free PINN equilibria</a>; EAST/JET
+      applications) trains a network representing &psi;(R,Z) against the collocation residual
+      &Delta;*&psi; + &mu;<sub>0</sub>Rj&phi;. On a free &psi; field that residual conflates the
+      elliptic solve with force balance and enforces Maxwell only softly. The patch basis inverts
+      the split: Maxwell exact, force balance soft — no other published equilibrium-ML work we
+      found trains the flux-function <em>structure</em> residual on a current basis.
+    </p>
+    <p>
+      <strong>Current/filament bases are the classical representation for reconstruction.</strong>
+      EFIT's response functions, filamentary LCFS reconstructors, and current-tomography approaches
+      (<a href="https://arxiv.org/pdf/0909.4474">Blum et al., JET real-time current-density
+      identification with Tikhonov + B-spline nonlinearity bases</a>;
+      <a href="https://www.mdpi.com/2227-7390/10/1/40">D-shaped tokamak identification methods</a>)
+      all exploit linear filament bases and confront the same Hadamard ill-posedness we measured in
+      §2.5(a); their regularisers are generic smoothness. Replacing generic Tikhonov with the
+      physics-specific structure residual is the novelty claim — it penalises exactly the
+      unphysical part of the null space and nothing else.
+    </p>
+    <p>
+      <strong>Differentiable-equilibrium ecosystems are converging on the same architecture.</strong>
+      <a href="https://github.com/FusionComputingLab/freegsnke">FreeGSNKE</a> (static+evolutive,
+      passive structures as circuits, JAX-ification planned),
+      <a href="https://github.com/google-deepmind/torax">TORAX</a> (JAX transport), and Nova's own
+      <code>nova/jax</code> layer (differentiable fieldnull/topology + <code>basis.py</code>
+      p&prime;/FF&prime;) all assemble expensive Green's matrices once and differentiate through
+      cheap forward evaluations. Nova is the direct blueprint: its <code>biot</code> matrices ship
+      the same coil/plasma block decomposition (<code>target_plasma</code>,
+      <code>plasma_source</code>, <code>plasma_plasma</code>) and its <code>Operate.update_turns</code>
+      pattern changes the plasma current distribution without recomputing any Green's function.
+      Import is impossible (numpy&lt;2 pin); porting kernels is the established path
+      (<code>gs/cylinder.py</code> is already golden-pinned to Nova at 10<sup>&minus;6</sup>).
+    </p>
+    <p>
+      <strong>Rotation and generalised GS.</strong> With toroidal flow the equilibrium condition
+      generalises (pressure no longer a pure flux function; NIMEQ/HELENA-class solvers and
+      <a href="https://arxiv.org/pdf/1301.4714">EFIT-with-flow formulations</a> add
+      known R-dependent terms). In the structure-residual family this is an <em>additive basis
+      column per flux bin</em> (e.g. a rigid-rotation R&sup3;-class term), not a new solver — the
+      residual family is extensible exactly where the classic chain is rigid. Amortised /
+      real-time neural equilibrium surrogates
+      (<a href="https://arxiv.org/html/2405.11221v1">EFITNN</a>,
+      <a href="https://arxiv.org/pdf/2305.12098">EAST deep-learning reconstruction</a>) motivate
+      P4's single-forward-pass readout, but all train on solver output; ours trains on raw
+      magnetics with physics residuals — no EFIT in the loop, per the firewall discipline.
+    </p>
+
+    <h2 id="s4">§4 — Architecture and design choices</h2>
+    <p><strong>Forward model (fixed per campaign, torch buffers):</strong>
+      &psi;<sub>grid</sub> = G<sub>pg</sub>&middot;I + &Psi;<sub>coil</sub>&middot;I<sub>pf</sub>;
+      &nbsp;d = M<sub>sens</sub>&middot;I + M<sub>pf</sub>&middot;I<sub>pf</sub>;
+      &nbsp;&psi;<sub>patch</sub> = G<sub>cc</sub>&middot;I + &Psi;<sub>coil,cells</sub>&middot;I<sub>pf</sub>.
+      All three matrices already exist or are one assembly call away
+      (<code>g_plasma</code>/<code>g_pf</code> in <code>gs/operator.py</code>; patch&rarr;grid from
+      the scoping script; the finite-area diagonal makes G<sub>cc</sub> well-defined with no
+      self-inductance fudge). Geometry enters <em>only</em> through the matrices — machine-agnostic
+      by construction (North-Star requirement #1), and the coil block/plasma block decomposition is
+      the Nova decomposition verbatim.
+    </p>
+    <p><strong>Force-balance structure residual (differentiable, profile-free):</strong> soft-bin
+      patches by their total &psi; (bin geometry detached), weight by j&phi;<sup>2</sup> so vacuum
+      cells never pollute a bin, per-bin closed-form 2&times;2 weighted LSQ of j&phi; against
+      {R, 1/R}, residual = unexplained weighted fraction &isin; [0,1]. Zero for any GS-compliant
+      state regardless of profile shape or topology; extensible with rotation columns. The
+      j&phi;<sup>2</sup> weighting keeps re-entrant flux levels (private flux / SOL at core &psi;
+      values) from cross-contaminating bins so long as their current is small; where halo current
+      is real, the residual reports it — that is signal, not error.
+    </p>
+    <p><strong>What stays hard:</strong> the Rogowski I<sub>p</sub> anchor (a raw measurement — also
+      kills the trivial zero-current minimum), absolute calibration, and factual geometry (conductor
+      interiors excluded from plasma patches). Everything else — profile family, boundary
+      closure, current-free SOL, staticity, axisymmetric passive currents — is soft or absent.
+    </p>
+    <p><strong>Topology demoted to evaluation.</strong> Axis / X-point / LCFS reads become
+      deterministic reads of the assembled &psi; at eval time (existing
+      <code>latent/topology.py</code>, conductor-clear masks unchanged). Nothing in training depends
+      on them, which removes the defect class §2.2 documents (seed sensitivity, corner attractors,
+      continuation bootstrap). Nova's differentiable <code>jax/fieldnull</code> is the blueprint if
+      a later phase wants soft topology reads inside a loss.
+    </p>
+
+    <h2 id="s5">§5 — Phases, tests, milestone gates</h2>
+
+    <h3>P1 — Torch patch-forward substrate (effort S)</h3>
+    <p>
+      Productionise the scoping assembly into <code>imas_ambix/latent/patch_basis.py</code>: a
+      <code>PatchBasis</code> module holding G<sub>pg</sub>/G<sub>cc</sub>/M<sub>sens</sub> as
+      buffers keyed by campaign signature (fp64 assembly, fp32 GPU apply), batched over slices;
+      npz cache next to the existing operator caches. Port the scoping checks into
+      <code>tests/latent/</code>: far-field limit, FD-vs-Green's smooth cross-check (the 2&pi;
+      regression test already landed), flux-integral pin, batched-vs-loop equivalence.
+      <br><strong>Gate P1:</strong> FD-vs-Green's smooth &le;0.1% RMS; batched forward
+      &ge;10&sup3; slices/s on one H200 (measured, recorded); tests green.
+    </p>
+
+    <h3>P2 — Structure-residual loss module + weight policy (effort S)</h3>
+    <p>
+      <code>structure_residual</code> into the engine's loss family alongside the existing whitened
+      magnetics term; unit tests fixture a synthetic ansatz equilibrium (residual &le; binning
+      floor), permuted (&ge;10&times; floor) and sensor-null-space (&ge;3&times; floor)
+      perturbations; gradcheck. Implement the weight policy arms for the locked decision below:
+      fixed ladder, discrepancy-principle (&lambda; raised until misfit &asymp; target), and
+      warm-start-from-&lambda;=0. Optional rung documented but OFF: pressure-positivity /
+      monotonicity soft priors (the blob result shows what they would add).
+      <br><strong>Gate P2:</strong> discrimination ratios reproduced as CI-fast tests; residual
+      differentiates (gradcheck) and costs &lt;5% of a training step.
+    </p>
+
+    <h3>P3 — Training-free gate-2 rematch at full scale (effort M)</h3>
+    <p>
+      Run the 160-slice gate-2 protocol with the variational patch inverse (no Picard): per-slice
+      Adam with the P2 weight policy, axis/X-point/LCFS read from patch-&psi; at eval, identical
+      referee firewall and train-mean baseline, per-quantity skill + calibration. This replaces the
+      n=12 scoping sample with the powered measurement and directly re-baselines
+      <code>gs_solve_gate_eval</code>.
+      <br><strong>Gate P3:</strong> scored fraction &ge;95% (vs 7.5% corrected Picard);
+      <strong>axis skill &gt; 0 vs the clustered train-mean</strong> (the bar no prior arm has
+      cleared); axis median &le;6&nbsp;cm; X-point and LCFS skills reported honestly whatever they
+      are.
+    </p>
+
+    <h3>P4 — Amortised patch-current encoder — closes f-ggl-02 (effort L)</h3>
+    <p>
+      The oracle-recipe encoder (temporal magnetics window, per-sensor geometry positional
+      encoding, finite masks — the recipe that set the 0.59/0.82 stage-1 bar) with a patch-current
+      head (direct or low-rank-plus-residual per the open decision), trained on the excitation
+      corpus with whitened magnetics + structure residual + I<sub>p</sub> anchor + the existing
+      transport/dimensionless terms. Single forward pass at inference — no per-slice optimisation,
+      no convergence masking. H200 checkpoint, SIGTERM-clean, resume-safe.
+      <br><strong>Gate P4 (gate-2 proper):</strong> held-out GS-readout axis/X-point/boundary skill
+      reaching (or honestly compared to) the 0.5&ndash;0.7 abs-magnetics-oracle bar; corpus
+      grounding &ge; the 5.53&times; already banked; 100% readout availability; per-quantity
+      calibration reported.
+    </p>
+
+    <h3>P5 — Physics extensions on the same substrate (effort M, itemised)</h3>
+    <ul>
+      <li><strong>Passive/eddy patch block:</strong> activate <code>g_passive</code> structural
+        circuits (+ L/R circuit or learned closure dynamics). Gate: flat-top misfit reduction and
+        skill change measured; kept only if load-bearing.</li>
+      <li><strong>Rotation column:</strong> add the rigid-rotation R-basis term per flux bin to the
+        residual family; falsifiable on rotating vs static shots (residual drops on rotating shots
+        without degrading statics).</li>
+      <li><strong>Transport coupling:</strong> flux-diffusion prior evaluated on patch-&psi;
+        (&psi;(&rho;<sub>N</sub>) from the assembled field) — the f-ggl-02 tail.</li>
+      <li><strong>Cross-machine rebuild:</strong> assemble the substrate from a second machine's
+        geometry table (Nova's ITER machine description is the flagged transfer asset). Gate: no
+        code change, geometry-only swap — North-Star requirement #1 demonstrated at the
+        equilibrium layer.</li>
+    </ul>
+
+    <h2 id="s6">§6 — Risks and honest limits</h2>
+    <ul>
+      <li><strong>Residual permissiveness:</strong> smooth flux-coherent blobs score near the floor
+        (§2.4) — the structure residual alone cannot certify a <em>physical</em> pressure profile.
+        Mitigation: it never runs alone (data + I<sub>p</sub> + transport); positivity priors are a
+        documented optional rung, kept off until evidence demands them.</li>
+      <li><strong>Regime-dependent &lambda;:</strong> fixed weights help flat-top and hurt early
+        limited slices. Mitigation: P2 policy arms; P4 lets the encoder learn the weighting
+        implicitly. Decision left open below until P2/P3 evidence.</li>
+      <li><strong>Small scoping sample:</strong> n=12 slices, 4 shots. P3 is the powered
+        re-measurement; no claim graduates until it lands.</li>
+      <li><strong>Null space remains vast:</strong> ~20&ndash;60 constrained modes out of 5084 DOF.
+        The inverse's interior detail beyond what data + structure pin is prior-driven; report
+        readouts (axis, boundary, moments), never raw interior current maps, as deliverables.</li>
+      <li><strong>Stale downstream artifacts:</strong> <code>fit_targets/</code>, the amortised
+        profile head, and recorded gate-2 numbers all predate the 2&pi; fix — P3/P4 regenerate
+        them; the gs-grounded plan carries the correction note.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="plasma-representation" data-choice="patch-currents" data-by="Simon McIntosh (proposal) / scoping" data-when="2026-07-03">
+        <p class="r-dec-q">Plasma representation for the stage-2 equilibrium readout?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="patch-currents">piecewise-constant patch currents + interaction matrices</button>
+          <button class="r-opt" data-value="grid-solve">grid ψ from free-boundary Picard solve</button>
+        </p>
+        <p class="r-dec-rat">User-proposed Nova representation; scoping validated the substrate to
+          the numerical floor and the training-free inverse beat both references (§2). div B = 0 and
+          Ampère exact by construction; geometry enters only through matrices.</p>
+      </div>
+      <div class="r-dec" data-key="force-balance-form" data-choice="structure-residual" data-by="scoping 2026-07-03" data-when="2026-07-03">
+        <p class="r-dec-q">How does force balance enter training?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="structure-residual">profile-free structure residual (jφ affine in {R,1/R} per ψ level)</button>
+          <button class="r-opt" data-value="parametrised-profiles">parametrised p′/FF′ + inner solve</button>
+          <button class="r-opt" data-value="grid-pinn">grid Δ*ψ collocation residual</button>
+        </p>
+        <p class="r-dec-rat">In the patch basis the Δ* residual is an identity (vacuous) and
+          parametrised profiles are the over-constraint §2.3 measured. The structure residual
+          discriminates null-space and structureless perturbations (5.5×/17× floor) without profile,
+          normalisation, or topology assumptions, and extends to rotation.</p>
+      </div>
+      <div class="r-dec" data-key="residual-weight-policy" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Force-balance weight policy for the inverse and the amortised loss —
+          fixed ladder, discrepancy-principle adaptive, warm-start annealing, or learned (P4)?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="discrepancy">discrepancy-principle adaptive</button>
+          <button class="r-opt" data-value="warm-start">warm-start from λ=0 + fixed λ</button>
+          <button class="r-opt" data-value="fixed-ladder">fixed ladder per regime</button>
+          <button class="r-opt" data-value="learned">learned weighting inside P4</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="patch-head-parametrisation" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">P4 encoder head: direct 5084-patch currents, or low-rank learned basis
+          plus free residual currents?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="direct">direct patch field</button>
+          <button class="r-opt" data-value="lowrank-residual">low-rank learned basis + residual</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-pcfb-01" data-status="open" data-tier="opus"
+               data-written-by="reckon-create" data-written-at="2026-07-03">
+        <h4 class="r-fu-title">Ship P1+P2 — torch patch substrate + structure-residual module with tests</h4>
+        <div class="r-fu-body">
+          <p>Scoping landed (§2, commits <code>7607fb1</code>&hellip;<code>8df985f</code>); the
+          substrate and residual exist as script code in <code>scripts/patch_basis_studies.py</code>
+          and must be productionised into <code>imas_ambix/latent/</code> with the P1/P2 test
+          batteries and the weight-policy arms, so P3 (gate-scale rematch) can run against the
+          <code>residual-weight-policy</code> decision.</p>
+        </div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    patch-current-force-balance (http://localhost:8765/imas-ambix/patch-current-force-balance.html)
+Section: §5 P1 + P2
+Tier:    opus
+
+Context
+  Scoping validated the patch-current substrate (FD-vs-Green's 0.02% RMS) and
+  the profile-free structure residual (null-space 5.5x floor discrimination);
+  the training-free inverse beat train-mean and Picard references on 12
+  held-out slices. Productionise both so the powered P3 gate rematch can run.
+
+State to read  (CODE / FILES / DATA)
+  scripts/patch_basis_studies.py            (assembly, residual, inverse — port from here)
+  imas_ambix/gs/cylinder.py, gs/operator.py (kernels + response matrices)
+  imas_ambix/latent/gs_observation.py       (buffer/module conventions to match)
+  imas_ambix/latent/artifacts/patch_scoping/ (validation numbers to reproduce)
+  tests/latent/test_gs_solve.py             (2pi regression test pattern)
+
+Scope locks / constraints  (non-decision)
+  numpy assembly / torch apply; fp64 assembly, fp32 GPU buffers; cache keyed by
+  campaign signature; no EFIT anywhere in the loss path; conductor interiors
+  excluded as factual geometry; login node for unit tests, SLURM for anything
+  heavier per ~/.agents/AGENTS.md.
+
+Done-when
+  1. imas_ambix/latent/patch_basis.py + structure residual in the engine loss
+     family, with P1/P2 test batteries green (far-field, FD-vs-Greens smooth,
+     flux-integral pin, batched-vs-loop, discrimination ratios, gradcheck)
+  2. batched H200 forward throughput measured and recorded in the plan (P1 gate)
+  3. weight-policy arms implemented (fixed / discrepancy / warm-start)
+  4. followup written for P3 + this followup resolved</pre>
+      </article>
+    </section>
+
+    <section data-reckon="comments" id="comments" class="r-comments"></section>
+
+  </main>
+</body>
+</html>
