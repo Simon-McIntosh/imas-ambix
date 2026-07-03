@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="patch-current-force-balance-p1p2-landed">
+  <meta name="plan-title" content="patch-current-force-balance — P1+P2 landed">
+  <meta name="plan-status" content="done">
+  <title>patch-current-force-balance — P1+P2 landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>P1 + P2 landed — torch patch substrate &amp; structure-residual loss module</h1>
+    <p>
+      Stage record for <a href="/imas-ambix/patch-current-force-balance.html">patch-current-force-balance</a>
+      §5 P1/P2, landed 2026-07-03. Fleet: two workers (one per module) with exclusive file scopes,
+      plus the orchestrator's inverse/gate driver.
+    </p>
+
+    <h2>Quick status</h2>
+    <table>
+      <thead><tr><th>Item</th><th>Status</th><th>Commit</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>imas_ambix/latent/patch_basis.py</code> — PatchBasis nn.Module: G<sub>pg</sub>/G<sub>cc</sub>/M<sub>sens</sub>/coil-ψ
+              buffers, campaign-signature npz cache, fp64 assembly / fp32 apply, batched forward, throughput bench</td>
+          <td>✅ shipped</td>
+          <td><code>d682ebc</code></td>
+          <td>7/7 tests green (15.3 s)</td>
+        </tr>
+        <tr>
+          <td><code>tests/latent/test_patch_basis.py</code> — far-field &lt;1e-3; <strong>FD-vs-Green's smooth ≤0.1% RMS
+              (the P1 gate + 2π regression pin)</strong>; flux-integral Ampère pin (±5%); batched-vs-loop rtol 1e-6;
+              fp32-vs-fp64 &lt;1e-4; cache round-trip; firewall static check</td>
+          <td>✅ shipped</td>
+          <td><code>d682ebc</code></td>
+          <td>asserted in CI</td>
+        </tr>
+        <tr>
+          <td><code>imas_ambix/latent/structure_residual.py</code> — affine form R·jφ ≈ a·R²+b (default) + legacy jφ form;
+              connectivity arms (<code>locality</code> kernel / no-grad <code>labels</code>); soft rungs: F²≥0 integrability,
+              coefficient smoothness, edge taper (OFF); closure recovery <code>fit_flux_functions</code> (a_k=p′, b_k=FF′/μ₀
+              + regression σ) + <code>integrate_closures</code> (p(ψ), F²(ψ))</td>
+          <td>✅ shipped</td>
+          <td><code>a1dc751</code></td>
+          <td>10/10 tests green (28.8 s)</td>
+        </tr>
+        <tr>
+          <td><code>tests/latent/test_structure_residual.py</code> — compliance floor; permuted ≥10×; structureless;
+              null-space ≥3×; <strong>gradcheck through ψ AND jφ</strong>; <strong>disconnected-component adversarial fixture</strong>
+              (naïve fails ≥5×, both connectivity arms pass, non-compliant states get no free pass); closure recovery ~10%;
+              F² penalty sign tests; &lt;50 ms/call CPU cost</td>
+          <td>✅ shipped</td>
+          <td><code>a1dc751</code></td>
+          <td>asserted in CI</td>
+        </tr>
+        <tr>
+          <td><code>imas_ambix/latent/patch_inverse.py</code> — batched variational inverse (dimensionless x = I·n/Ip),
+              the three <code>residual-weight-policy</code> arms: <code>fixed</code> / <code>warm-start</code> /
+              <code>discrepancy</code> (data-derived target = ratio × λ=0 warm-up misfit, per-slice multiplicative
+              adaptation, clamped)</td>
+          <td>✅ shipped</td>
+          <td><code>e340ed6</code></td>
+          <td>integration smoke: 3 policies end-to-end, Ip ≤0.3%, λ adapts 3→15.2; full latent suite 75 passed</td>
+        </tr>
+        <tr>
+          <td>P1 gate second half: batched H200 throughput ≥10³ slices/s</td>
+          <td>⏳ measuring</td>
+          <td>—</td>
+          <td>SLURM job <code>1225016</code> (betelgeuse, 1×H200) — result recorded in the evergreen when it lands</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>What the tests pin</h2>
+    <ul>
+      <li><strong>The 2π lesson institutionalised:</strong> the FD-vs-Green's smooth cross-check that exposed the
+        free-boundary solver's per-radian/total-flux mismatch is now a permanent CI assertion on the patch substrate
+        (≤0.1% RMS of span), alongside the Ampère flux-integral pin.</li>
+      <li><strong>Differentiability is a gate, not a hope:</strong> gradcheck runs through BOTH ψ and jφ — the joint
+        level-set/current sensitivity that the soft-binned residual exists to keep is exercised in fp64.</li>
+      <li><strong>The connectivity caveat has an adversarial fixture:</strong> a synthetic disconnected level set
+        carrying different (a,b) on core and private-flux components — naïve ψ-binning must fail it, both
+        connectivity arms must pass it, and genuinely non-compliant states must stay penalised.</li>
+      <li><strong>Zero-coil synthetic wrinkle (recorded):</strong> synthetic geometry tables produce zero KNOWN-PF
+        circuits (verify-and-flag centroid matching finds no MAST coil), so fixture problems are posed self-consistently
+        with <code>i_pf = zeros(0)</code>; the coil block is exercised on real MAST geometry in P3.</li>
+    </ul>
+
+    <h2>Scoping evidence carried forward</h2>
+    <p>
+      The module numbers reproduce the scoping study (plan §2): FD-vs-Green's 0.02% RMS on real currents /
+      0.018% smooth; affine-form discrimination floor 0.0036, sensor-null-space 5.7×, permuted 21×
+      (<code>imas_ambix/latent/artifacts/patch_scoping/discriminate-affine-r2.json</code>).
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/patch-current-force-balance/fig-structure-residual-discrimination.png"
+           alt="Structure residual per perturbation class" style="max-width:100%">
+      <figcaption>Scoping discrimination result now pinned as CI fixtures (P2 test battery).</figcaption>
+    </figure>
+
+    <h2>What's next</h2>
+    <p>
+      P3 — the 160-slice gate-2 rematch under all three weight-policy arms with recovered closures — is
+      <em>already in flight</em> as SLURM job <code>1225016</code> (<code>scripts/patch_gate_eval.py</code> via
+      <code>scripts/slurm/patch_gate_eval.sbatch</code>): identical shot list, slice selection, train-mean baseline
+      and skill formulas to the corrected Picard gate (12/160 @ 5.9 cm, axis skill −0.0006). Its results decide the
+      <code>residual-weight-policy</code> decision and re-baseline <code>gs_solve_gate_eval</code>.
+    </p>
+  </main>
+</body>
+</html>

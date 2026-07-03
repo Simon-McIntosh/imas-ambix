@@ -20,7 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-03">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.4">
 </head>
 <body>
   <main class="plan-doc">
@@ -406,40 +407,29 @@
 
     <h2 id="s5">§5 — Phases, tests, milestone gates</h2>
 
-    <h3>P1 — Torch patch-forward substrate (effort S)</h3>
-    <p>
-      Productionise the scoping assembly into <code>imas_ambix/latent/patch_basis.py</code>: a
-      <code>PatchBasis</code> module holding G<sub>pg</sub>/G<sub>cc</sub>/M<sub>sens</sub> as
-      buffers keyed by campaign signature (fp64 assembly, fp32 GPU apply), batched over slices;
-      npz cache next to the existing operator caches. Port the scoping checks into
-      <code>tests/latent/</code>: far-field limit, FD-vs-Green's smooth cross-check (the 2&pi;
-      regression test already landed), flux-integral pin, batched-vs-loop equivalence.
-      <br><strong>Gate P1:</strong> FD-vs-Green's smooth &le;0.1% RMS; batched forward
-      &ge;10&sup3; slices/s on one H200 (measured, recorded); tests green.
+    <h3>P1 — Torch patch-forward substrate <span class="badge badge-shipped">&#10003; landed 2026-07-03</span></h3>
+    <p class="landed-summary">
+      Shipped <code>imas_ambix/latent/patch_basis.py</code> (<code>PatchBasis</code>:
+      G<sub>pg</sub>/G<sub>cc</sub>/M<sub>sens</sub>/coil-&psi; buffers, signature-keyed npz cache,
+      fp64 assembly / fp32 apply, batched forward + throughput bench) with 7/7 tests green —
+      FD-vs-Green's smooth &le;0.1% RMS asserted in CI (the 2&pi; regression pin), far-field
+      &lt;10<sup>&minus;3</sup>, Amp&egrave;re flux-integral pin, batched-vs-loop 10<sup>&minus;6</sup>.
+      Commit <code>d682ebc</code>; H200 throughput measured by job <code>1225016</code>: see P3 record.
+      Full record: <a href="archive/patch-current-force-balance-p1p2-landed.html">P1+P2 landed</a>.
     </p>
 
-    <h3>P2 — Structure-residual loss module + weight policy (effort S)</h3>
-    <p>
-      <code>structure_residual</code> into the engine's loss family alongside the existing whitened
-      magnetics term, in the affine form (R&middot;j&phi; vs R&sup2;; best-conditioned, verified
-      equivalent discrimination in §2.4); unit tests fixture a synthetic ansatz equilibrium
-      (residual &le; binning floor), permuted (&ge;10&times; floor) and sensor-null-space
-      (&ge;3&times; floor) perturbations; gradcheck. <strong>Connectivity arm:</strong> implement
-      the connectivity-aware soft weight ((R,Z)-locality kernel and/or no-grad component labels)
-      with a dedicated adversarial fixture — a synthetic disconnected level set carrying different
-      (a,b) on core and private-flux components, which na&iuml;ve &psi;-binning must fail and the
-      connectivity-weighted form must pass. Implement the weight-policy arms for the open decision
-      below: fixed ladder, discrepancy-principle (&lambda; raised until misfit &asymp; target), and
-      warm-start-from-&lambda;=0. Soft-rung set implemented but individually ablatable:
-      F&sup2;&ge;0 integrability penalty on the cumulative {b<sub>k</sub>};
-      {a<sub>k</sub>},{b<sub>k</sub>} &psi;-smoothness; edge j&phi;&rarr;0 taper (careful — halo
-      currents are real; OFF by default); pressure-positivity/monotonicity (OFF; the blob result
-      shows what it would add). The pointwise tangential-elimination alternative
-      (&hat;t&middot;&nabla; of the locally-solved (a,b)) is documented as a fallback — it avoids
-      binning but is singular at the midplane and at field nulls.
-      <br><strong>Gate P2:</strong> discrimination ratios reproduced as CI-fast tests
-      <em>including the disconnected-component fixture</em>; residual differentiates (gradcheck)
-      and costs &lt;5% of a training step.
+    <h3>P2 — Structure-residual loss module + weight policy <span class="badge badge-shipped">&#10003; landed 2026-07-03</span></h3>
+    <p class="landed-summary">
+      Shipped <code>imas_ambix/latent/structure_residual.py</code> (affine form default; connectivity
+      arms <code>locality</code>/<code>labels</code>; ablatable soft rungs F&sup2;&ge;0 integrability +
+      coefficient smoothness + OFF-by-default edge taper; closure recovery
+      <code>fit_flux_functions</code>/<code>integrate_closures</code> with per-bin regression &sigma;) —
+      10/10 tests green incl. gradcheck through &psi; AND j&phi;, the disconnected-component
+      adversarial fixture (na&iuml;ve fails &ge;5&times;, both connectivity arms pass), and &lt;50 ms/call
+      CPU cost. Commit <code>a1dc751</code>. The weight-policy arms (fixed / warm-start /
+      discrepancy-with-data-derived-target) shipped as the batched variational inverse
+      <code>imas_ambix/latent/patch_inverse.py</code> (<code>e340ed6</code>), exercised at scale in P3.
+      Full record: <a href="archive/patch-current-force-balance-p1p2-landed.html">P1+P2 landed</a>.
     </p>
 
     <h3>P3 — Training-free gate-2 rematch at full scale (effort M)</h3>
@@ -563,7 +553,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-pcfb-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-03" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pcfb-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-03" data-recommends-skill="" data-resolved-at="2026-07-03T16:13:01+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship P1+P2 — torch patch substrate + structure-residual module with tests</h4>
     <div class="r-fu-body"><p>Scoping landed (§2, commits <code>7607fb1</code>…<code>8df985f</code>); the
           substrate and residual exist as script code in <code>scripts/patch_basis_studies.py</code>
@@ -604,12 +594,42 @@ Done-when
   3. weight-policy arms implemented (fixed / discrepancy / warm-start) +
      soft rungs ablatable (F^2&gt;=0 integrability, {a_k},{b_k} smoothness)
   4. followup written for P3 + this followup resolved</pre>
+    <p class="r-fu-outcome">P1+P2 landed — patch_basis.py (d682ebc, 7/7 tests; FD-vs-Green's ≤0.1% RMS gate asserted), structure_residual.py (a1dc751, 10/10 tests incl. gradcheck + disconnected-component fixture), patch_inverse.py weight-policy arms (e340ed6); full latent suite 75 green. H200 throughput + P3 rematch in flight as job 1225016; archive: docs/archive/patch-current-force-balance-p1p2-landed.html</p>
+    </article>
+<article class="r-fu" data-id="f-pcfb-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Record P3 gate-2 rematch results + lock residual-weight-policy</h4>
+    <div class="r-fu-body"><p>Job <code>1225016</code> (betelgeuse 1×H200) runs the 160-slice gate-2 rematch under the three weight-policy arms with the batched variational inverse, plus the P1 throughput bench and per-slice closure recovery. When it lands: record throughput (P1 gate close-out), per-arm skills vs the Picard reference (12/160 @ 5.9 cm, axis skill −0.0006), lock <code>residual-weight-policy</code> on the winning arm, produce the gate + closure figures, collapse P3, and re-baseline <code>gs_solve_gate_eval</code>.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    patch-current-force-balance (http://localhost:8765/imas-ambix/patch-current-force-balance.html)
+Section: §5 P3
+Tier:    opus
+
+Context
+  P1+P2 shipped (d682ebc, a1dc751, e340ed6). SLURM job 1225016 runs
+  scripts/patch_gate_eval.py on betelgeuse (1xH200): throughput bench +
+  160-slice held-out gate-2 rematch (fixed / warm-start / discrepancy arms)
+  + per-slice closure recovery (p&#x27;, FF&#x27;/mu0 + uncertainties, integrated p, F^2).
+
+State to read
+  /work/projects/imas_gpu/logs/ambix-ambix-patch-gate-1225016.out
+  imas_ambix/latent/artifacts/patch_gate/{patch_gate_eval.json, throughput.json, gate_arrays_*.npz, patch_gate_diag.json}
+  imas_ambix/latent/artifacts/gs_solve_gate_eval.json (corrected Picard reference)
+
+Done-when
+  1. throughput recorded in the plan (P1 gate: &gt;=1e3 slices/s on one H200)
+  2. per-arm axis/X-point/LCFS skills + scored fraction recorded vs Picard +
+     train-mean references; P3 gate verdict stated honestly (scored &gt;=95%,
+     axis skill &gt; 0, median &lt;= 6 cm)
+  3. residual-weight-policy decision locked with rationale from the arms
+  4. gate comparison + recovered-closure figures under
+     docs/figures/patch-current-force-balance/ embedded in the plan
+  5. P3 collapsed in the evergreen + archive page; followup for P4 written</pre>
     </article>
 </section>
 
     <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="_top" data-id="c-20260703T151456450303" data-who="external critique intake (opus)" data-when="2026-07-03">
-    <div class="r-comment-body">External review of the method absorbed (verdict: core claim physically correct). Refinements applied to this plan: (1) terminology corrected — jφ is LINEAR in {R, 1/R}; the genuinely affine and best-conditioned fitting form is R·jφ = a·R² + b (slope p′, intercept FF′/μ₀); the affine form was re-verified on the scoping fixtures to discriminate identically (oracle floor 0.0036, null-space 5.7×, permuted 21×; artifact discriminate-affine-r2.json) and P2 adopts it. (2) The “no topology” claim softened to “no HARD topology extraction in the loop”: the flux-function property holds per CONNECTED level-set component (private-flux/SOL edge case) — P2 gains a connectivity-aware soft weight ((R,Z)-locality kernel or no-grad component labels) with an adversarial disconnected-component fixture. (3) F² ≥ 0 integrability of the recovered b(ψ) added as a soft rung (relu(−F²) on the cumulative {b_k}, F_vac from the known TF current), plus optional {a_k},{b_k} ψ-smoothness. (4) Closure recovery made an explicit P3 deliverable: p′, FF′ per bin with regression uncertainties; p(ψ), F(ψ) by integration. (5) Prior-art acknowledgment added: MINERVA-class Bayesian current tomography (Svensson & Werner) as the closest kin; the narrow novelty is the nonparametric flux-function structure residual as a differentiable training loss. Critique items already covered: singular self-field (finite-area patches), dense-matvec cost (precomputed), vessel currents (P5 passives; MAST is air-core so free-space Green's are exact).</div>
+    <div class="r-comment-body">External review of the method absorbed (verdict: core claim physically correct). Refinements applied to this plan: (1) terminology corrected — jφ is LINEAR in {R, 1/R}; the genuinely affine and best-conditioned fitting form is R·jφ = a·R² + b (slope p′, intercept FF′/μ₀); the affine form was re-verified on the scoping fixtures to discriminate identically (oracle floor 0.0036, null-space 5.7×, permuted 21×; artifact discriminate-affine-r2.json) and P2 adopts it. (2) The “no topology” claim softened to “no HARD topology extraction in the loop”: the flux-function property holds per CONNECTED level-set component (private-flux/SOL edge case) — P2 gains a connectivity-aware soft weight ((R,Z)-locality kernel or no-grad component labels) with an adversarial disconnected-component fixture. (3) F² ≥ 0 integrability of the recovered b(ψ) added as a soft rung (relu(−F²) on the cumulative {b_k}, F_vac from the known TF current), plus optional {a_k},{b_k} ψ-smoothness. (4) Closure recovery made an explicit P3 deliverable: p′, FF′ per bin with regression uncertainties; p(ψ), F(ψ) by integration. (5) Prior-art acknowledgment added: MINERVA-class Bayesian current tomography (Svensson &amp; Werner) as the closest kin; the narrow novelty is the nonparametric flux-function structure residual as a differentiable training loss. Critique items already covered: singular self-field (finite-area patches), dense-matvec cost (precomputed), vessel currents (P5 passives; MAST is air-core so free-space Green's are exact).</div>
 </div>
 </section>
 

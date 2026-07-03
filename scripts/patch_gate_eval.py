@@ -131,7 +131,7 @@ def geometry_target(
     return target, float(axis_psi), float(boundary_psi)
 
 
-def shot_payloads(shot: int, *, nr, nz, max_slices, min_ip_ka):
+def shot_payloads(shot: int, *, nr, nz, max_slices, min_ip_ka, split="eval"):
     """Per-shot geometry + slice payloads, identical selection to the Picard gate."""
     table = build_table_for_shot(int(shot))
     fwd = build_operator(table)
@@ -139,7 +139,7 @@ def shot_payloads(shot: int, *, nr, nz, max_slices, min_ip_ka):
     basis = PatchBasis.from_table(table, nr=nr, nz=nz)
     g_sens, channels = grid.sensor_greens(table)
 
-    w = load_shot_windows(int(shot), fwd, "eval", feature_schema(), with_referee=True)
+    w = load_shot_windows(int(shot), fwd, split, feature_schema(), with_referee=True)
     if w is None or w.ref_target is None:
         return None
     row_of = {ch: i for i, ch in enumerate(fwd.sensor_channels)}
@@ -256,6 +256,28 @@ def main() -> int:
     ap.add_argument("--n-baseline-shots", type=int, default=10)
     ap.add_argument("--policies", type=str, default="fixed,warm-start,discrepancy")
     ap.add_argument("--lambda-fb", type=float, default=10.0)
+    ap.add_argument(
+        "--arms",
+        type=str,
+        default="",
+        help=(
+            "explicit arm spec overriding --policies/--lambda-fb: comma list of "
+            "policy:lambda[:misfit_ratio[:lambda_max]] tokens, e.g. "
+            "'fixed:0,fixed:3,fixed:10,warm-start:10,discrepancy:10:1.3:30'"
+        ),
+    )
+    ap.add_argument(
+        "--split",
+        type=str,
+        default="eval",
+        choices=("eval", "train"),
+        help=(
+            "eval = the held-out gate; train = TRAIN-shot slices for "
+            "leakage-free policy/lambda selection (shots after the baseline block)"
+        ),
+    )
+    ap.add_argument("--n-tune-shots", type=int, default=4)
+    ap.add_argument("--out-tag", type=str, default="")
     ap.add_argument("--iters", type=int, default=800)
     ap.add_argument("--lr", type=float, default=0.05)
     ap.add_argument("--n-bins", type=int, default=24)
@@ -275,7 +297,7 @@ def main() -> int:
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     FIGURES.mkdir(parents=True, exist_ok=True)
 
-    _, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
+    train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
     baseline_vec = train_mean_baseline(
         args.n_train, args.n_baseline_shots, args.min_ip_ka
     )
@@ -283,8 +305,16 @@ def main() -> int:
         "baseline (train-mean) axis: (%.3f, %.3f)", baseline_vec[0], baseline_vec[1]
     )
 
+    if args.split == "train":
+        # tuning cohort: TRAIN shots after the baseline block — selection on
+        # these referee labels never touches the held-out gate
+        eval_shots = train_shots[
+            args.n_baseline_shots : args.n_baseline_shots + args.n_tune_shots
+        ]
+    else:
+        eval_shots = held_shots
     shots = []
-    for s in held_shots:
+    for s in eval_shots:
         try:
             payload = shot_payloads(
                 s,
@@ -292,6 +322,7 @@ def main() -> int:
                 nz=args.nz,
                 max_slices=args.max_slices_per_shot,
                 min_ip_ka=args.min_ip_ka,
+                split=args.split,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("shot %s failed to load: %s", s, exc)
@@ -321,14 +352,31 @@ def main() -> int:
 
     # ---- inverse per policy arm ---------------------------------------------
     per_policy: dict[str, dict] = {}
-    for policy in args.policies.split(","):
+    tag = args.out_tag or ("_tune" if args.split == "train" else "")
+    if args.arms:
+        arm_specs = []
+        for tok in args.arms.split(","):
+            parts = tok.split(":")
+            kw: dict = {"policy": parts[0]}
+            if len(parts) > 1:
+                kw["lambda_fb"] = float(parts[1])
+            if len(parts) > 2:
+                kw["misfit_ratio"] = float(parts[2])
+            if len(parts) > 3:
+                kw["lambda_max"] = float(parts[3])
+            arm_specs.append((tok, kw))
+    else:
+        arm_specs = [
+            (p, {"policy": p, "lambda_fb": args.lambda_fb})
+            for p in args.policies.split(",")
+        ]
+    for policy, arm_kw in arm_specs:
         cfg = InverseConfig(
             iters=args.iters,
             lr=args.lr,
-            lambda_fb=args.lambda_fb,
-            policy=policy,
             n_bins=args.n_bins,
             connectivity=connectivity,
+            **arm_kw,
         )
         model_rows, ref_rows, diag_rows = [], [], []
         psi_reads = []  # (psi_axis, psi_boundary) per scored slice, for closures
@@ -369,7 +417,7 @@ def main() -> int:
             "diag": diag_rows,
         }
         np.savez(
-            ARTIFACTS / f"gate_arrays_{policy}.npz",
+            ARTIFACTS / f"gate_arrays_{policy.replace(':', '-')}{tag}.npz",
             model=model,
             ref=ref,
             baseline=np.tile(baseline_vec, (len(model), 1)),
@@ -387,6 +435,9 @@ def main() -> int:
         )
 
         # ---- closures for this arm (recovered p', FF'/mu0 per slice) --------
+        if args.split == "train":
+            per_policy[policy]["closures"] = []
+            continue  # tuning run: skills only, closures belong to the gate
         closure_rows = []
         idx = 0
         for payload, inv in inversions_all:
@@ -448,8 +499,8 @@ def main() -> int:
             for k, v in per_policy.items()
         },
     }
-    (ARTIFACTS / "patch_gate_eval.json").write_text(json.dumps(result, indent=2))
-    (ARTIFACTS / "patch_gate_diag.json").write_text(
+    (ARTIFACTS / f"patch_gate_eval{tag}.json").write_text(json.dumps(result, indent=2))
+    (ARTIFACTS / f"patch_gate_diag{tag}.json").write_text(
         json.dumps(
             {
                 k: {"diag": v["diag"], "closures": v["closures"]}
