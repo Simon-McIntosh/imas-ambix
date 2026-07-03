@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-03">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 </head>
 <body>
 <main class="plan-doc">
@@ -328,6 +328,9 @@ Done-when (the gate)
 </div>
 <div class="r-comment" data-section="f-ggl-02" data-id="c-20260703T045014927410" data-who="reckon-ship (amortized gate-2 re-measure)" data-when="2026-07-03">
     <div class="r-comment-body">GATE-2 RE-MEASURE FROM THE TRAINED CHECKPOINT — HONEST NEGATIVE for the flat-MLP amortization, encoder upgrade isolated as THE lever. The locked fit-amortization path was implemented end-to-end (profile head emitting bounded (β0,α) + engine amortization loss + target-aligned batches, commit 087150d; retrain job 1224778 with 3,164/51,634 clean targets — cost≤1.5 converged fits from the 158-shot precompute). Results: held-out GROUNDING PRESERVED exactly (5.53×, checkpoint_eval_amortized.json), but the amortized single-solve readout scores 49/160 with median axis error 49.3 cm vs the 20-candidate training-free per-slice fit's 122/160 @ 8.3 cm (gs_amortized_gate_eval.json, identical honesty gates). Diagnosis: sparse supervision (6% of slices), mean-imputed single-slice features, and a weakly-identified (β0,α) cost landscape make argmin regression noisy — the flat single-slice MLP cannot amortize the fit, exactly the deep review's paired finding. The measured chain now cleanly separates: solver GOOD (8.3 cm), corpus grounding GOOD (5.53× incl. cross-geometry), flat-MLP amortization INSUFFICIENT. Next arm (the one remaining gate-2 lever): the oracle-recipe encoder — temporal magnetics window, per-sensor geometry positional encoding, finite masks instead of imputation (the stage-1 probe recipe that set the 0.59/0.82 bar) — plus solver accuracy levers (vertical-position DOF, passive/eddy currents) to push the per-slice fit itself below the 4 cm clustered train-mean.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-20260703T080649048181" data-who="patch-current scoping (opus)" data-when="2026-07-03">
+    <div class="r-comment-body">CORRECTION + RE-BASELINE (2026-07-03 scoping for the patch-current-force-balance pivot). A source-scale defect was found in gs_solve.py: the FD Picard solve paired a per-radian GS source (−μ₀Rjφ) with TOTAL-FLUX Green's functions (Φ = 2πRAφ) — the plasma's own flux well was 2π ≈ 6.3× too shallow against the coil field in every iteration (fixed commit 5148a4d, flux-integral regression test added, 58/58 latent tests green; this plausibly also explains the no-interior-O-point fragility the continuation bootstrap worked around). Under the corrected physics the gate-2 training-free re-measure (job 1224801, artifacts overwritten in place) reads 12/160 scored @ 5.9 cm median — the previous 122/160 @ 8.3 cm was partly an artifact of the accidentally-permissive 2π-weak (diffuse, coil-shaped) plasma response; flat-top fits now fail honestly at cost 8–15 and a 35-candidate extended profile grid does not rescue them (optimum pins to the family corner with an outboard garbage attractor). fit_targets/ and the amortized profile head predate the fix and are stale. THE PATH FORWARD MOVED: this followup's remaining work (oracle-recipe encoder + solver-accuracy levers) is subsumed as P4 of the new plan patch-current-force-balance (S16/M4), whose scoping already shows a training-free patch-current variational inverse (no Picard, no topology in the loop, GS structure residual as the physics term) scoring 12/12 held-out slices @ 4.5 cm median vs 8.7 cm train-mean — including every slice the corrected Picard chain masks.</div>
 </div>
 </section>
 </main>
