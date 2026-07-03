@@ -64,7 +64,7 @@ import torch
 MU0 = 4.0e-7 * 3.141592653589793
 """Vacuum permeability [T·m/A]."""
 
-_FORMS = ("affine-r2", "jphi")
+_FORMS = ("affine-r2", "affine-r2-rotation", "jphi")
 _RIDGE = 1e-9
 
 
@@ -74,14 +74,43 @@ _RIDGE = 1e-9
 
 
 def _design(form: str, r_c: torch.Tensor, jphi_c: torch.Tensor):
-    """Return (x, y) design for the per-bin 2×2 fit.
+    """Return (x, y) design for the per-bin weighted-LSQ fit.
 
     ``affine-r2``:  y = R·jφ,  x = [R², 1]  (genuinely affine; a = p′, b = FF′/μ₀)
+    ``affine-r2-rotation``:  y = R·jφ,  x = [R², 1, R⁴]  (rigid-rotation extension;
+                    a = p₀′, b = FF′/μ₀, c = centrifugal R⁴ coefficient — see below)
     ``jphi``:       y = jφ,    x = [R, 1/R] (the as-scoped conditioning; identical
                     physics up to an R² weighting).
+
+    Rigid-rotation derivation sketch (``affine-r2-rotation``)
+    --------------------------------------------------------
+    With a rigid toroidal rotation Ω(ψ) the pressure is no longer a pure flux
+    function — centrifugal support pushes it outward on each surface,
+
+        p(ψ, R) = p₀(ψ)·exp[ m_i Ω²(ψ) (R² − R₀²) / (2 T(ψ)) ] ,
+
+    with m_i the ion mass, T(ψ) the temperature and R₀ a reference radius.  The
+    Grad-Shafranov-with-flow current keeps the form R·jφ = R²·∂p/∂ψ|_R + FF′/μ₀,
+    but ∂p/∂ψ|_R now carries the R-dependence of the exponent.  Expanding to
+    leading order in the small exponent ε = m_i Ω² R² / 2T,
+
+        ∂p/∂ψ|_R ≈ p₀′(ψ) + ½ p₀(ψ) [m_i Ω²(ψ)/T(ψ)]′ · R²  + O(ε²) ,
+
+    so that
+
+        R·jφ ≈ a(ψ)·R² + b(ψ) + c(ψ)·R⁴ ,
+              a = p₀′ ,   b = FF′/μ₀ ,   c ≈ ½ p₀ (m_i Ω²/T)′  (centrifugal).
+
+    The R⁴ column is exactly the rigid-rotation correction: one additive design
+    column per flux bin, no new solver.  NIMEQ, HELENA and EFIT-with-flow use
+    equivalent R-dependent extensions of the static flux-function relation.
     """
     if form == "affine-r2":
         x = torch.stack([r_c * r_c, torch.ones_like(r_c)], dim=-1)  # (N, 2)
+        y = r_c * jphi_c
+    elif form == "affine-r2-rotation":
+        r2 = r_c * r_c
+        x = torch.stack([r2, torch.ones_like(r_c), r2 * r2], dim=-1)  # (N, 3)
         y = r_c * jphi_c
     elif form == "jphi":
         x = torch.stack([r_c, 1.0 / r_c], dim=-1)  # (N, 2)
@@ -213,38 +242,44 @@ def _binned_weights(
 
 
 def _normal_equations(w: torch.Tensor, x: torch.Tensor, y: torch.Tensor):
-    """Assemble the per-bin 2×2 normal equations (XᵀWX, XᵀWy) via matvecs.
+    """Assemble the per-bin K×K normal equations (XᵀWX, XᵀWy) via matvecs.
 
-    Avoids a 4-D ``(B, N, 2, 2)`` einsum intermediate — the products are formed
-    once as length-N vectors and contracted by ``w @ vec`` (a (B, N)·(N,) matvec),
-    which is far cheaper and much less thread-hostile on small tensors.
+    Dimension-generic in the number of design columns ``K = x.shape[-1]`` (2 for
+    the affine forms, 3 for the rigid-rotation form).  Avoids a 4-D
+    ``(B, N, K, K)`` einsum intermediate — each entry is formed once as a
+    length-N product vector and contracted by ``w @ vec`` (a (B, N)·(N,) matvec),
+    which is far cheaper and much less thread-hostile on small tensors.  The
+    Gram matrix is symmetric, so only the upper triangle is contracted.
     """
-    x0, x1 = x[:, 0], x[:, 1]
-    a00 = w @ (x0 * x0)  # (B,)
-    a01 = w @ (x0 * x1)
-    a11 = w @ (x1 * x1)
-    m = torch.stack(
-        [torch.stack([a00, a01], -1), torch.stack([a01, a11], -1)], -2
-    )  # (B, 2, 2)
-    c = torch.stack([w @ (x0 * y), w @ (x1 * y)], -1)  # (B, 2)
+    cols = [x[:, i] for i in range(x.shape[-1])]  # K length-N columns
+    k = len(cols)
+    gram = [[None] * k for _ in range(k)]
+    for i in range(k):
+        for j in range(i, k):
+            gij = w @ (cols[i] * cols[j])  # (B,)
+            gram[i][j] = gij
+            gram[j][i] = gij
+    m = torch.stack([torch.stack(row, -1) for row in gram], -2)  # (B, K, K)
+    c = torch.stack([w @ (cols[i] * y) for i in range(k)], -1)  # (B, K)
     return m, c
 
 
 def _ridge(m: torch.Tensor) -> torch.Tensor:
-    """Ridge-stabilise a batch of 2×2 normal matrices in place-style (returns new)."""
-    eye = torch.eye(2, dtype=m.dtype, device=m.device)
+    """Ridge-stabilise a batch of K×K normal matrices (returns a new tensor)."""
+    k = m.shape[-1]
+    eye = torch.eye(k, dtype=m.dtype, device=m.device)
     r = _RIDGE * m.diagonal(dim1=-2, dim2=-1).mean(-1).clamp_min(1e-30)
     return m + r[:, None, None] * eye
 
 
 def _solve_bins(w: torch.Tensor, x: torch.Tensor, y: torch.Tensor):
-    """Batched ridge-stabilised weighted 2×2 solve.  Returns (beta, fit).
+    """Batched ridge-stabilised weighted K×K solve.  Returns (beta, fit).
 
     beta[b] = argmin_β Σ_n w[b,n] (y[n] − x[n]·β)² ,  fit[b,n] = x[n]·beta[b].
     """
     m, c = _normal_equations(w, x, y)
-    beta = torch.linalg.solve(_ridge(m), c)  # (B, 2)
-    fit = beta[:, 0:1] * x[:, 0][None, :] + beta[:, 1:2] * x[:, 1][None, :]  # (B, N)
+    beta = torch.linalg.solve(_ridge(m), c)  # (B, K)
+    fit = beta @ x.transpose(-2, -1)  # (B, K) @ (K, N) = (B, N)
     return beta, fit
 
 
@@ -333,8 +368,12 @@ class ClosureFit:
 
     For ``form='affine-r2'`` the coefficients ARE the closures: ``a_k = p′``
     [Pa/Wb], ``b_k = FF′/μ₀`` [A/m²·... ] per bin, with standard errors from the
-    weighted-LSQ covariance and the per-bin weight mass.  All fields are 1-D
-    length-``n_bins`` (detached) tensors.
+    weighted-LSQ covariance and the per-bin weight mass.  For
+    ``form='affine-r2-rotation'`` the extra ``c_k`` / ``c_err`` fields carry the
+    rigid-rotation R⁴ coefficient and its uncertainty (see :func:`_design`);
+    they stay ``None`` for the two-column forms so the dataclass is
+    backward-compatible.  All populated fields are 1-D length-``n_bins``
+    (detached) tensors.
     """
 
     psi_centers: torch.Tensor
@@ -343,6 +382,8 @@ class ClosureFit:
     a_err: torch.Tensor
     b_err: torch.Tensor
     weight_mass: torch.Tensor
+    c_k: torch.Tensor | None = None
+    c_err: torch.Tensor | None = None
 
 
 def fit_flux_functions(
@@ -359,10 +400,13 @@ def fit_flux_functions(
 ) -> ClosureFit:
     """Recover the per-ψ-bin flux-function coefficients and their uncertainties.
 
-    Same weighted-LSQ as :func:`structure_residual`, but the ``(a, b)`` are
-    exposed rather than eliminated.  Per-bin standard errors are
-    ``σ̂²·(XᵀW̃X)⁻¹`` with ``σ̂²`` the weighted residual variance over an
-    effective-sample-size (Kish) degrees-of-freedom, ``n_eff = (Σw)²/Σw²``.
+    Same weighted-LSQ as :func:`structure_residual`, but the coefficients are
+    exposed rather than eliminated.  For ``form='affine-r2-rotation'`` the
+    returned :class:`ClosureFit` also carries ``c_k`` / ``c_err`` (the R⁴
+    rigid-rotation column); the two-column forms leave those ``None``.  Per-bin
+    standard errors are ``σ̂²·(XᵀW̃X)⁻¹`` with ``σ̂²`` the weighted residual
+    variance over an effective-sample-size (Kish) degrees-of-freedom,
+    ``dof = n_eff − K`` with ``n_eff = (Σw)²/Σw²`` and ``K`` the column count.
 
     ``connectivity`` accepts ``None`` or ``'locality'`` (both length ``n_bins``);
     ``'labels'`` is a residual-only mode — the exposed coefficients are per ψ-bin.
@@ -397,15 +441,19 @@ def fit_flux_functions(
 
     m0, c = _normal_equations(wn, x, y)
     m = _ridge(m0)
-    beta = torch.linalg.solve(m, c)  # (B, 2)
-    fit = beta[:, 0:1] * x[:, 0][None, :] + beta[:, 1:2] * x[:, 1][None, :]  # (B, N)
+    beta = torch.linalg.solve(m, c)  # (B, K)
+    k = x.shape[-1]
+    fit = beta @ x.transpose(-2, -1)  # (B, N)
     resid = y[None, :] - fit
     rss = (wn * resid**2).sum(-1)  # (B,)
-    dof = (n_eff - 2.0).clamp_min(1e-6)
+    dof = (n_eff - float(k)).clamp_min(1e-6)
     sigma2 = rss / dof  # (B,)
-    cov = sigma2[:, None, None] * torch.linalg.inv(m)  # (B, 2, 2)
+    cov = sigma2[:, None, None] * torch.linalg.inv(m)  # (B, K, K)
     a_err = torch.sqrt(cov[:, 0, 0].clamp_min(0.0))
     b_err = torch.sqrt(cov[:, 1, 1].clamp_min(0.0))
+    # the rigid-rotation R⁴ coefficient is exposed only when its column exists
+    c_k = beta[:, 2].detach() if k >= 3 else None
+    c_err = torch.sqrt(cov[:, 2, 2].clamp_min(0.0)).detach() if k >= 3 else None
 
     return ClosureFit(
         psi_centers=mu.detach(),
@@ -414,6 +462,8 @@ def fit_flux_functions(
         a_err=a_err.detach(),
         b_err=b_err.detach(),
         weight_mass=sw.detach(),
+        c_k=c_k,
+        c_err=c_err,
     )
 
 

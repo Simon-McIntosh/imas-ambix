@@ -19,6 +19,7 @@ import torch
 
 from imas_ambix.latent.structure_residual import (
     _bin_grid,
+    _design,
     coefficient_smoothness_penalty,
     f2_integrability_penalty,
     fit_flux_functions,
@@ -334,3 +335,172 @@ def test_firewall_clean():
     src = Path("imas_ambix/latent/structure_residual.py").read_text()
     for banned in ("efit_referee", "equilibrium_labels", "worldmodel"):
         assert banned not in src, f"firewall leak: {banned!r} in structure_residual.py"
+
+
+# --------------------------------------------------------------------------
+# 11 — rigid-rotation column (the R⁴ extension of the structure-residual family)
+# --------------------------------------------------------------------------
+
+
+def _rotating_fixture(
+    nr=44, nz=52, a0=1.0, a1=0.3, b0=0.5, b1=0.2, c0=1.5, c1=0.5, rotation=True
+):
+    """Full-R-coverage flux-level fixture for the rigid-rotation R⁴ column.
+
+    ``jφ = a(ψ)·R + b(ψ)/R + c(ψ)·R³`` so that ``R·jφ = a·R² + b + c·R⁴`` is
+    affine only once the R⁴ column is present; ``rotation=False`` gives the c=0
+    baseline for matched-geometry floors.
+
+    ψ is taken to depend on Z only, so every ψ level-set spans the FULL major-
+    radius range.  That is the regime in which the ``[R², 1, R⁴]`` columns are
+    individually well conditioned: on nested surfaces the near-axis level-sets
+    span little R and R², R⁴ become collinear, so the *fit* (residual) stays good
+    while the individual ``(a, b, c)`` are only weakly identified — a genuine
+    feature of rotation inference near the axis, deliberately excluded here to
+    isolate the column's recovery from that degeneracy.  ``form='affine-r2'``
+    cannot represent the centrifugal R⁴ term and reports it as residual;
+    ``form='affine-r2-rotation'`` absorbs it and returns to floor.
+    """
+    rg = np.linspace(0.3, 2.0, nr)
+    zg = np.linspace(-0.9, 0.9, nz)
+    rr, zz = np.meshgrid(rg, zg)
+    psi = -((zz / 0.65) ** 2)  # depends on Z only ⇒ full-R flux levels
+    core = psi >= -1.0
+    a = a0 + a1 * psi
+    b = b0 + b1 * psi
+    jphi = a * rr + b / rr
+    if rotation:
+        jphi = jphi + (c0 + c1 * psi) * rr**3
+    jphi = np.where(core, jphi, 0.0)
+    return (
+        rr.ravel(),
+        zz.ravel(),
+        psi.ravel(),
+        jphi.ravel(),
+        core.ravel(),
+        (a0, a1, b0, b1, c0, c1),
+    )
+
+
+def test_rotation_form_discriminates_rotating_current():
+    """The falsifiable signature: on a rotating current the affine form fails and
+    the rotation form recovers to floor."""
+    # binning floors: each form on the matched-geometry static (c=0) fixture
+    rs, zs, psis, jphis, _cs, _p = _rotating_fixture(rotation=False)
+    floor_affine = float(
+        structure_residual(_t(psis), _t(rs), _t(jphis), form="affine-r2")
+    )
+    floor_rot = float(
+        structure_residual(_t(psis), _t(rs), _t(jphis), form="affine-r2-rotation")
+    )
+
+    r, z, psi, jphi, _core, _pars = _rotating_fixture()
+    res_affine = float(structure_residual(_t(psi), _t(r), _t(jphi), form="affine-r2"))
+    res_rot = float(
+        structure_residual(_t(psi), _t(r), _t(jphi), form="affine-r2-rotation")
+    )
+
+    assert res_affine >= 5.0 * floor_affine, (
+        f"affine-r2 blind to rotation: {res_affine:.4g} vs floor {floor_affine:.4g}"
+    )
+    assert res_rot <= 2.0 * floor_rot, (
+        f"rotation form did not recover: {res_rot:.4g} vs floor {floor_rot:.4g}"
+    )
+
+
+def test_rotation_form_no_free_lunch_on_static_and_permuted():
+    """On a c=0 fixture the rotation form matches the affine form (no overfitting
+    on a genuinely affine current), and it does NOT launder a permuted current to
+    zero residual (the extra column is still only 3 DOF per bin)."""
+    r, z, psi, jphi, core, _p = _rotating_fixture(rotation=False)
+    res_affine = float(structure_residual(_t(psi), _t(r), _t(jphi), form="affine-r2"))
+    res_rot = float(
+        structure_residual(_t(psi), _t(r), _t(jphi), form="affine-r2-rotation")
+    )
+    # both at floor, and the extra column does not materially change a compliant fit
+    assert res_rot <= 1e-2, f"rotation form off floor on static fixture: {res_rot:.4g}"
+    assert res_rot <= 3.0 * res_affine + 1e-4, (
+        f"rotation form overfit-collapsed on static: {res_rot:.4g} vs {res_affine:.4g}"
+    )
+
+    # permuted current: the R⁴ column must NOT drive the garbage residual to zero
+    floor_rot = res_rot
+    rng = np.random.default_rng(11)
+    jp = jphi.copy()
+    idx = np.where(core)[0]
+    jp[idx] = jp[idx][rng.permutation(idx.size)]
+    perm_rot = float(
+        structure_residual(_t(psi), _t(r), _t(jp), form="affine-r2-rotation")
+    )
+    assert perm_rot >= 5.0 * floor_rot, (
+        f"rotation form laundered permuted current: {perm_rot:.4g} vs {floor_rot:.4g}"
+    )
+
+
+def test_rotation_closure_recovery():
+    """c_k recovered within ~15% on well-populated bins of the rotating fixture;
+    a_k/b_k recovered on the static fixture by the rotation form (extra column
+    does not corrupt the two affine coefficients when the true c is zero)."""
+    # (i) c_k recovery on the rotating fixture
+    r, z, psi, jphi, core, (a0, a1, b0, b1, c0, c1) = _rotating_fixture()
+    fit = fit_flux_functions(
+        _t(psi), _t(r), _t(jphi), n_bins=24, form="affine-r2-rotation"
+    )
+    assert fit.c_k is not None and fit.c_err is not None
+    psi_c = np.asarray(fit.psi_centers)
+    mass = np.asarray(fit.weight_mass)
+    well = mass > 0.2 * mass.max()
+    assert well.sum() >= 5
+    c_true = c0 + c1 * psi_c
+    c_rel = np.abs(np.asarray(fit.c_k)[well] - c_true[well]) / np.abs(c_true[well])
+    assert c_rel.max() < 0.15, f"c(ψ) recovery {c_rel.max():.3f}"
+    c_err = np.asarray(fit.c_err)
+    assert np.all(np.isfinite(c_err[well])) and np.all(c_err[well] > 0)
+
+    # (ii) a_k/b_k unchanged (vs truth) when the rotation form fits a c=0 fixture
+    rs, zs, psis, jphis, cores, (sa0, sa1, sb0, sb1, _sc0, _sc1) = _rotating_fixture(
+        rotation=False
+    )
+    sfit = fit_flux_functions(
+        _t(psis), _t(rs), _t(jphis), n_bins=24, form="affine-r2-rotation"
+    )
+    spsi = np.asarray(sfit.psi_centers)
+    smass = np.asarray(sfit.weight_mass)
+    swell = smass > 0.2 * smass.max()
+    a_true = sa0 + sa1 * spsi
+    b_true = sb0 + sb1 * spsi
+    a_rel = np.abs(np.asarray(sfit.a_k)[swell] - a_true[swell]) / np.abs(a_true[swell])
+    b_rel = np.abs(np.asarray(sfit.b_k)[swell] - b_true[swell]) / np.abs(b_true[swell])
+    assert a_rel.max() < 0.10, f"a(ψ) corrupted by rotation column: {a_rel.max():.3f}"
+    assert b_rel.max() < 0.10, f"b(ψ) corrupted by rotation column: {b_rel.max():.3f}"
+
+
+def test_rotation_form_gradcheck():
+    r, z, psi, jphi, core, _p = _rotating_fixture(nr=7, nz=8)
+    idx = np.where(core)[0]
+    r_c = _t(r[idx])
+    psi_c = _t(psi[idx]).requires_grad_(True)
+    jphi_c = _t(jphi[idx]).requires_grad_(True)
+
+    # freeze the ψ-binning so finite differences see the bins-detached sensitivity
+    w_amp = _t(jphi[idx]) ** 2
+    grid = _bin_grid(_t(psi[idx]), w_amp / w_amp.sum(), 4, 1.0)
+
+    def f(p, j):
+        return structure_residual(
+            p, r_c, j, n_bins=4, form="affine-r2-rotation", bin_grid=grid
+        )
+
+    assert torch.autograd.gradcheck(f, (psi_c, jphi_c), eps=1e-6, atol=1e-4, rtol=1e-3)
+
+
+def test_rotation_design_columns():
+    """The rotation design is exactly [R², 1, R⁴] on y = R·jφ."""
+    r = _t(np.array([0.5, 1.0, 1.3]))
+    j = _t(np.array([2.0, 3.0, 1.5]))
+    x, y = _design("affine-r2-rotation", r, j)
+    assert x.shape == (3, 3)
+    assert torch.allclose(x[:, 0], r * r)
+    assert torch.allclose(x[:, 1], torch.ones_like(r))
+    assert torch.allclose(x[:, 2], r**4)
+    assert torch.allclose(y, r * j)
