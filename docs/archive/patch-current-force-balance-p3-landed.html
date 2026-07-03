@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="patch-current-force-balance-p3-landed">
+  <meta name="plan-title" content="patch-current-force-balance — P3 landed">
+  <meta name="plan-status" content="done">
+  <title>patch-current-force-balance — P3 landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>P3 landed — 160-slice gate-2 rematch: the patch inverse clears the axis-skill bar</h1>
+    <p>
+      Stage record for <a href="/imas-ambix/patch-current-force-balance.html">patch-current-force-balance</a>
+      §5 P3, landed 2026-07-03. Jobs <code>1225016</code> (first pass + H200 throughput),
+      <code>1225038</code> (train-shot policy tuning), <code>1225042</code> (frozen held-out gate).
+    </p>
+
+    <h2>Gate verdict — PASS</h2>
+    <table>
+      <thead><tr><th>Gate criterion</th><th>Bar</th><th>Measured (winner arm)</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Scored fraction</td><td>&ge;95%</td><td><strong>160/160 = 100%</strong> (corrected Picard: 12/160 = 7.5%)</td><td>✅</td></tr>
+        <tr><td>Axis skill vs clustered train-mean</td><td>&gt; 0 (never before cleared)</td><td><strong>+0.019</strong> (axis_R +0.230, axis_Z −0.193)</td><td>✅</td></tr>
+        <tr><td>Axis median error</td><td>&le;6 cm</td><td><strong>2.8 cm</strong> (mean 4.3 cm; Picard-where-it-fits 5.9 cm; train-mean median 4.1 cm)</td><td>✅</td></tr>
+        <tr><td>X-point / LCFS skills reported honestly</td><td>—</td><td>xpt −0.61, lcfs −6.4 (pathology documented below)</td><td>✅ (honest)</td></tr>
+        <tr><td>P1 gate close-out: batched H200 forward</td><td>&ge;10&sup3; slices/s</td><td><strong>693,599 slices/s</strong> @ batch 4096 (374k @ 64)</td><td>✅ (~700&times;)</td></tr>
+      </tbody>
+    </table>
+    <figure>
+      <img src="/imas-ambix/figures/patch-current-force-balance/fig-gate-rematch.png"
+           alt="Gate rematch: tune sweep, held-out per-arm distributions, winner regime behaviour" style="max-width:100%">
+      <figcaption>
+        (a) train-shot λ/policy selection (n=100 slices, leakage-free): physics weight is monotonically
+        load-bearing (λ=0 → 8.4 cm median; λ=10 → 3.1 cm) and the adaptive arm wins both criteria.
+        (b) held-out gate per arm: winner scores 160/160 at 2.8 cm median, axis skill +0.019.
+        (c) winner per-slice errors vs slice time — the early-slice tail the fixed-λ arms carry is suppressed.
+      </figcaption>
+    </figure>
+
+    <h2>Protocol (leakage-free selection)</h2>
+    <ul>
+      <li><strong>Tuning:</strong> 9 arms (fixed λ ∈ {0,1,3,10,30}; warm-start λ ∈ {3,10}; two bounded
+        discrepancy configs) evaluated on 100 slices from 5 TRAIN shots (11774…11780, after the
+        baseline block) — selection criterion pre-declared as train axis skill, tie-broken by median.
+        Ranking: discrepancy:3:1.5:100 (−1.28, 2.6 cm) &gt; fixed:30 (−1.38, 3.5 cm) &gt;
+        discrepancy:10:1.3:30 (−1.42, 2.8 cm) &gt; fixed:10 (−1.49) &gt; warm-start:10 (−1.58) &gt;
+        fixed:3 &gt; warm-start:3 &gt; fixed:0 (−2.25, 8.4 cm) ≈ fixed:1. (Tune-cohort skills read low —
+        the train-mean baseline is in-distribution there; used for RANKING only.)</li>
+      <li><strong>Frozen winner applied once to held-out:</strong> discrepancy policy, λ₀=3,
+        misfit-target 1.5× the λ=0 warm-up misfit, λ clamped ≤100. Adaptive λ landed at 22.8–100
+        (cap-bound on flat-top, lower on early slices) — per-regime weighting realised, as §2.5 anticipated.</li>
+      <li><strong>First-run lesson:</strong> the unbounded first-pass discrepancy arm ran λ to the 10⁴ clamp
+        (median 1946) and over-smoothed (6.6 cm median) — the bounded target/cap is what makes the
+        principle work.</li>
+      <li>Identical shot list, slice selection, referee firewall, train-mean baseline and skill formulas
+        as <code>gs_solve_gate_eval.py</code> — this run re-baselines gate 2 for the project.</li>
+    </ul>
+
+    <h2>Recovered closures — first data-recovered profile readouts of the pivot</h2>
+    <figure>
+      <img src="/imas-ambix/figures/patch-current-force-balance/fig-recovered-closures.png"
+           alt="Recovered p' and FF'/mu0 per flux bin with uncertainties, and integrated F^2 profiles" style="max-width:100%">
+      <figcaption>
+        Per-bin p′(ψ) and FF′(ψ)/μ₀ with weighted-LSQ 1σ uncertainties (representative slices), and the
+        integrated F²(ψ) — <strong>F² ≥ 0 on all 160/160 slices with no penalty active</strong>
+        (median min-F² 0.82 ≫ F²<sub>vac</sub> = 0.22): the recovered toroidal-field function is physically
+        integrable and strongly paramagnetic, as a low-aspect-ratio spherical tokamak must be. No basis
+        functions anywhere — the coefficients fall out of the same per-bin regressions the residual eliminates.
+      </figcaption>
+    </figure>
+
+    <h2>Honest limits (carried to P4/P5)</h2>
+    <ul>
+      <li><strong>axis_Z skill −0.19:</strong> the referee Z RMSE vs the train-mean is ~2 cm — sub-grid
+        territory at 3.3 cm cell size; the model's small systematic +Z offset costs skill even at 1–3 cm
+        absolute error. Candidate causes: halo up-down asymmetry in the free inverse, FD-gradient refinement
+        floor. P4's learned amortisation trains through the same read and can absorb it.</li>
+      <li><strong>LCFS/X-point skills strongly negative:</strong> free patch currents carry sensor-invisible
+        small-scale structure → spurious saddle points near the core → boundary-flux reads land far inside
+        the referee LCFS (model radii systematically shrunken). This is a readout pathology on free-current ψ,
+        not an axis problem; candidate mitigations (current-smoothness soft rung, boundary-read
+        robustification) are P4/P5 material and must be measured, not assumed.</li>
+      <li><strong>λ cap binds:</strong> median λ_final = 100 (the cap) on flat-top slices — the discrepancy
+        principle wants more physics weight there; raising the cap risks the early-slice tail. The learned
+        weighting inside P4 is the structural answer.</li>
+    </ul>
+
+    <h2>Artifacts</h2>
+    <ul>
+      <li><code>imas_ambix/latent/artifacts/patch_gate/patch_gate_eval_gate2.json</code> — gate results (3 tuned arms + Picard reference)</li>
+      <li><code>imas_ambix/latent/artifacts/patch_gate/patch_gate_eval_tune.json</code> — 9-arm tuning sweep</li>
+      <li><code>imas_ambix/latent/artifacts/patch_gate/patch_gate_diag_gate2.json</code> — per-slice diagnostics + closures (a_k, b_k, σ, F²)</li>
+      <li><code>imas_ambix/latent/artifacts/patch_gate/gate_arrays_*_gate2.npz</code>, <code>throughput.json</code></li>
+      <li>Driver: <code>scripts/patch_gate_eval.py</code>; figures: <code>scripts/plot_patch_gate_figures.py</code></li>
+    </ul>
+
+    <h2>What's next</h2>
+    <p>
+      P4 — the amortised patch-current encoder (oracle-recipe inputs, patch head, structure residual in the
+      engine loss) — closes f-ggl-02. Design brief + measured constraints (2 campaign signatures across the
+      200-shot corpus; fp64 stack; head convention I = x·Ip/n) are banked in the plan followup.
+    </p>
+  </main>
+</body>
+</html>

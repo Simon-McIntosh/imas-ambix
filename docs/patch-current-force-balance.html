@@ -20,8 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-03">
-<meta name="plan-version" content="2">
-<meta name="plan-impl" content="0.4">
+<meta name="plan-version" content="3">
+<meta name="plan-impl" content="0.6">
 </head>
 <body>
   <main class="plan-doc">
@@ -432,20 +432,22 @@
       Full record: <a href="archive/patch-current-force-balance-p1p2-landed.html">P1+P2 landed</a>.
     </p>
 
-    <h3>P3 — Training-free gate-2 rematch at full scale (effort M)</h3>
-    <p>
-      Run the 160-slice gate-2 protocol with the variational patch inverse (no Picard): per-slice
-      Adam with the P2 weight policy, axis/X-point/LCFS read from patch-&psi; at eval, identical
-      referee firewall and train-mean baseline, per-quantity skill + calibration. This replaces the
-      n=12 scoping sample with the powered measurement and directly re-baselines
-      <code>gs_solve_gate_eval</code>. Deliverables additionally include the <strong>recovered
-      closures</strong>: per-slice p&prime;(&psi;) and FF&prime;(&psi;) from the per-bin regression
-      coefficients with their uncertainties, and the integrated p(&psi;), F(&psi;) with the
-      F&sup2;&ge;0 check — the first data-recovered profile readouts of the pivot.
-      <br><strong>Gate P3:</strong> scored fraction &ge;95% (vs 7.5% corrected Picard);
-      <strong>axis skill &gt; 0 vs the clustered train-mean</strong> (the bar no prior arm has
-      cleared); axis median &le;6&nbsp;cm; X-point and LCFS skills reported honestly whatever they
-      are.
+    <h3>P3 — Training-free gate-2 rematch at full scale <span class="badge badge-shipped">&#10003; landed 2026-07-03 — GATE PASS</span></h3>
+    <p class="landed-summary">
+      <strong>Gate P3 PASSED</strong> (jobs <code>1225016</code>/<code>1225038</code>/<code>1225042</code>):
+      the tuned adaptive inverse scores <strong>160/160 slices</strong> (Picard: 12/160) at
+      <strong>2.8&nbsp;cm median</strong> axis error with <strong>axis skill +0.019 &gt; 0</strong> vs the
+      clustered train-mean — the bar no prior arm cleared — under a leakage-free protocol (9-arm &lambda;/policy
+      selection on TRAIN shots, winner <code>discrepancy &lambda;&#8320;=3, target 1.5&times;m&#8320;, &lambda;&le;100</code>
+      frozen before touching held-out; &lambda;=0 arm: 8.4&nbsp;cm — physics monotonically load-bearing).
+      H200 batched forward measured at <strong>693,599 slices/s</strong> (P1 gate &times;700).
+      <strong>Closures recovered on every slice</strong>: p&prime;, FF&prime;/&mu;<sub>0</sub> per bin with 1&sigma;
+      uncertainties; <strong>F&sup2;&ge;0 on 160/160</strong> (median min-F&sup2; 0.82 &Gt; F&sup2;<sub>vac</sub>=0.22
+      — strongly paramagnetic, correct for a spherical tokamak). X-point/LCFS skills honestly negative
+      (spurious-saddle readout pathology on free-current &psi; — P4/P5 material). Figures:
+      <a href="/imas-ambix/figures/patch-current-force-balance/fig-gate-rematch.png">gate rematch</a>,
+      <a href="/imas-ambix/figures/patch-current-force-balance/fig-recovered-closures.png">recovered closures</a>.
+      Full record: <a href="archive/patch-current-force-balance-p3-landed.html">P3 landed</a>.
     </p>
 
     <h3>P4 — Amortised patch-current encoder — closes f-ggl-02 (effort L)</h3>
@@ -529,16 +531,16 @@
           discriminates null-space and structureless perturbations (5.5×/17× floor) without profile,
           normalisation, or topology assumptions, and extends to rotation.</p>
     </div>
-<div class="r-dec" data-key="residual-weight-policy" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="residual-weight-policy" data-choice="discrepancy" data-by="reckon-ship (gate evidence)" data-when="2026-07-03T18:19:32+00:00">
     <p class="r-dec-q">Force-balance weight policy for the inverse and the amortised loss —
           fixed ladder, discrepancy-principle adaptive, warm-start annealing, or learned (P4)?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="discrepancy">discrepancy-principle adaptive</button>
+      <button class="r-opt chosen" data-value="discrepancy">discrepancy-principle adaptive</button>
       <button class="r-opt" data-value="warm-start">warm-start from λ=0 + fixed λ</button>
       <button class="r-opt" data-value="fixed-ladder">fixed ladder per regime</button>
       <button class="r-opt" data-value="learned">learned weighting inside P4</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Powered evidence (jobs 1225038/1225042): 9-arm tuning on TRAIN shots ranked bounded discrepancy (λ₀=3, target 1.5× the λ=0 warm-up misfit, λ≤100) first on both criteria (axis skill −1.28, median 2.6 cm vs fixed:30 −1.38/3.5 cm); frozen winner then cleared the held-out gate (160/160, +0.019 axis skill, 2.8 cm median) where every fixed/warm-start arm stayed negative. λ=0 scores 8.4 cm — the physics term is monotonically load-bearing. Caveats recorded: the unbounded first-run variant diverged (λ→1946 median, 6.6 cm) — the bounded target/cap is essential; λ cap binds on flat-top → learned weighting stays the P4 refinement.</p>
     </div>
 <div class="r-dec" data-key="patch-head-parametrisation" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">P4 encoder head: direct 5084-patch currents, or low-rank learned basis
@@ -596,7 +598,7 @@ Done-when
   4. followup written for P3 + this followup resolved</pre>
     <p class="r-fu-outcome">P1+P2 landed — patch_basis.py (d682ebc, 7/7 tests; FD-vs-Green's ≤0.1% RMS gate asserted), structure_residual.py (a1dc751, 10/10 tests incl. gradcheck + disconnected-component fixture), patch_inverse.py weight-policy arms (e340ed6); full latent suite 75 green. H200 throughput + P3 rematch in flight as job 1225016; archive: docs/archive/patch-current-force-balance-p1p2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-pcfb-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pcfb-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P3" data-resolved-at="2026-07-03T18:19:32+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Record P3 gate-2 rematch results + lock residual-weight-policy</h4>
     <div class="r-fu-body"><p>Job <code>1225016</code> (betelgeuse 1×H200) runs the 160-slice gate-2 rematch under the three weight-policy arms with the batched variational inverse, plus the P1 throughput bench and per-slice closure recovery. When it lands: record throughput (P1 gate close-out), per-arm skills vs the Picard reference (12/160 @ 5.9 cm, axis skill −0.0006), lock <code>residual-weight-policy</code> on the winning arm, produce the gate + closure figures, collapse P3, and re-baseline <code>gs_solve_gate_eval</code>.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -624,6 +626,43 @@ Done-when
   4. gate comparison + recovered-closure figures under
      docs/figures/patch-current-force-balance/ embedded in the plan
   5. P3 collapsed in the evergreen + archive page; followup for P4 written</pre>
+    <p class="r-fu-outcome">P3 GATE PASS — winner discrepancy:3:1.5:100 scored 160/160 @ 2.8 cm median, axis skill +0.019 > 0 (leakage-free train-shot selection); throughput 693,599 slices/s (P1 gate ×700); closures recovered with F²≥0 on 160/160; residual-weight-policy locked = discrepancy. Archive: docs/archive/patch-current-force-balance-p3-landed.html</p>
+    </article>
+<article class="r-fu" data-id="f-pcfb-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship P4 — amortised patch-current encoder (closes f-ggl-02)</h4>
+    <div class="r-fu-body"><p>P1–P3 landed with the gate passed. P4 builds the oracle-recipe encoder (temporal magnetics window + per-sensor geometry positional encoding + finite masks — NOT yet in HybridLatentEncoder, which is a flat per-slice MLP) with a patch-current head, trains on the corpus with whitened magnetics + structure residual + Ip anchor, and evaluates against the 0.5–0.7 abs-magnetics-oracle bar. The <code>patch-head-parametrisation</code> decision is still open — resolve by a 2-arm mini-ablation (direct 5084 vs low-rank+residual) early in training.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    patch-current-force-balance (http://localhost:8765/imas-ambix/patch-current-force-balance.html)
+Section: §5 P4
+Tier:    opus
+
+Context
+  P3 gate passed (160/160, +0.019 axis skill, 2.8 cm median; policy locked =
+  bounded discrepancy). P4 amortises the inverse: single forward pass, no
+  per-slice optimisation, closing f-ggl-02.
+
+State to read (banked design notes + code)
+  scratchpad p4_design_brief.md + p4_kickoff_notes.md (if session-local; else re-scout)
+  imas_ambix/latent/{encoder.py,engine.py,training.py,data.py}
+  imas_ambix/latent/{patch_basis.py,structure_residual.py,patch_inverse.py}
+  scripts/train_gs_grounded_latent.py, scripts/patch_gate_eval.py
+
+Key measured constraints
+  - encoder is a flat per-slice MLP: the oracle recipe (temporal window,
+    per-sensor geometry PE, finite masks) must be BUILT (new encoder class)
+  - stack is fp64; corpus spans exactly 2 campaign signatures (fc1004 ×197
+    shots needs one new g_pg assembly; fc938 ×4 cached)
+  - head convention: dimensionless x with I = x·Ip/n (matches patch_inverse)
+  - CorpusTrainer needs no change if the head lives in the encoder
+
+Done-when
+  1. patch-head encoder + engine loss wiring (whitened magnetics via m_sens,
+     structure residual, Ip anchor; transport/dimensionless terms kept)
+  2. patch-head-parametrisation decision locked by 2-arm mini-ablation
+  3. H200 training run: SIGTERM-clean, resume-safe, checkpoints
+  4. Gate P4: held-out GS-readout axis/X/boundary skill vs the 0.5–0.7
+     abs-mag-oracle bar; grounding ≥5.53×; 100% readout availability;
+     per-quantity calibration reported; results + figures recorded in plan</pre>
     </article>
 </section>
 
