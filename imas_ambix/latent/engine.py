@@ -44,6 +44,7 @@ class LossWeights:
 
     gs_residual: float = 1.0
     anchored: float = 1.0
+    amortization: float = 1.0  # profile head vs precomputed (β0, α) fits
     dissipation: float = 0.1
     volt_second: float = 0.1
     dimensionless: float = 1e-3
@@ -154,6 +155,12 @@ class GSGroundedLatentEngine(nn.Module):
         anchored = self.encoder.anchored_loss(
             lat_t, batch["anchored_target"], batch.get("anchored_mask")
         )
+        profile_target = batch.get("profile_target")
+        amortization = (
+            self.encoder.profile_loss(lat_t, profile_target, batch.get("profile_mask"))
+            if profile_target is not None
+            else lat_t.theta.new_zeros(())
+        )
         dim_reg = self.encoder.dimensionless_regulariser(lat_t)
         kl = self.encoder.kl_free_bits(lat_t, w.free_bits)
 
@@ -171,6 +178,7 @@ class GSGroundedLatentEngine(nn.Module):
         total = (
             w.gs_residual * gs_res
             + w.anchored * anchored
+            + w.amortization * amortization
             + w.dissipation * priors["dissipation"]
             + w.volt_second * priors["volt_second"]
             + w.dimensionless * dim_reg
@@ -179,6 +187,7 @@ class GSGroundedLatentEngine(nn.Module):
         return {
             "gs_residual": gs_res,
             "anchored": anchored,
+            "amortization": amortization,
             "dissipation": priors["dissipation"],
             "volt_second": priors["volt_second"],
             "dimensionless": dim_reg,

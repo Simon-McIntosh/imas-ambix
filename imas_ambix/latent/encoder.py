@@ -45,6 +45,7 @@ class LatentConfig:
     depth: int = 3
     probabilistic: bool = False  # emit a belief (mean+logvar) over the free block
     dropout: float = 0.0
+    profile_head: bool = False  # emit (β0, α) — the amortized GS profile fit
 
 
 @dataclass
@@ -55,6 +56,7 @@ class HybridLatent:
     anchored: torch.Tensor  # (B, n_anchored) raw-supervised dimensionless scalars
     free: torch.Tensor  # (B, n_free) free closure block
     free_logvar: torch.Tensor | None  # (B, n_free) belief log-variance, or None
+    profile: torch.Tensor | None = None  # (B, 2) amortized (β0, α), bounded
 
 
 class HybridLatentEncoder(nn.Module):
@@ -77,17 +79,30 @@ class HybridLatentEncoder(nn.Module):
         self.free_logvar_head = (
             nn.Linear(d, config.n_free) if config.probabilistic else None
         )
+        self.profile_head = nn.Linear(d, 2) if config.profile_head else None
+
+    # bounds of the amortized profile parameters: β0 ∈ (0, 1) by the ansatz's
+    # pressure/FF′ split; α ∈ (0.5, 3) brackets the fit grid's peakedness range
+    ALPHA_MIN = 0.5
+    ALPHA_SPAN = 2.5
 
     def forward(self, x: torch.Tensor) -> HybridLatent:
         h = self.backbone(x)
         logvar = None
         if self.free_logvar_head is not None:
             logvar = self.free_logvar_head(h)
+        profile = None
+        if self.profile_head is not None:
+            raw = self.profile_head(h)
+            beta0 = torch.sigmoid(raw[:, :1])
+            alpha = self.ALPHA_MIN + self.ALPHA_SPAN * torch.sigmoid(raw[:, 1:])
+            profile = torch.cat([beta0, alpha], dim=-1)
         return HybridLatent(
             theta=self.theta_head(h),
             anchored=self.anchored_head(h),
             free=self.free_head(h),
             free_logvar=logvar,
+            profile=profile,
         )
 
     # ---- losses / regularisers ----
@@ -107,6 +122,32 @@ class HybridLatentEncoder(nn.Module):
         """
         pred = latent.anchored
         per = nn.functional.smooth_l1_loss(pred, target, reduction="none")
+        if mask is None:
+            return per.mean()
+        m = mask.to(per.dtype)
+        denom = m.sum()
+        if denom.item() == 0:
+            return per.new_zeros(())
+        return (per * m).sum() / denom
+
+    def profile_loss(
+        self,
+        latent: HybridLatent,
+        target: torch.Tensor,
+        mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Masked smooth-L1 regression of the profile head to precomputed fits.
+
+        ``target`` : ``(B, 2)`` per-slice (β0, α) from the corpus fit-target
+        precompute (label-free — derived purely from raw magnetics + measured
+        Ip through the free-boundary solve).  ``mask`` : ``(B,)`` bool — True
+        where a low-cost converged fit exists for the slice.
+        """
+        if latent.profile is None:
+            return target.new_zeros(())
+        per = nn.functional.smooth_l1_loss(
+            latent.profile, target, reduction="none"
+        ).mean(dim=-1)
         if mask is None:
             return per.mean()
         m = mask.to(per.dtype)

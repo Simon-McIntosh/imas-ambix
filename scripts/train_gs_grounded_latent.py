@@ -61,6 +61,52 @@ class _ShotCache:
         self.pairs: list[list[tuple[int, int, float]]] = []  # per-shot pairs
         self.pair_weights: list[np.ndarray] = []  # per-shot per-pair sample weight
         self.cmd_stats: CorpusStats | None = None  # dI_pf/dt normalisation
+        # per-shot slice-aligned amortization targets: (n_slices, 2) (β0, α)
+        # + validity mask, from the corpus fit-target precompute
+        self.profile_targets: list[np.ndarray] = []
+        self.profile_masks: list[np.ndarray] = []
+
+
+def _attach_fit_targets(
+    caches: dict, fit_dir: Path, *, cost_limit: float, time_tol: float = 5e-4
+) -> None:
+    """Align precomputed per-slice (β0, α) fits onto each shot's slice times.
+
+    A slice gets a target when a fit record within ``time_tol`` seconds exists,
+    converged, with cost ≤ ``cost_limit`` — everything else is masked (the
+    profile loss sees only trustworthy fits).
+    """
+    import json
+
+    n_matched = n_slices = 0
+    for cache in caches.values():
+        for w in cache.shots:
+            tgt = np.zeros((w.times.size, 2))
+            msk = np.zeros(w.times.size, dtype=bool)
+            path = fit_dir / f"shot{int(w.shot_id)}.json"
+            if path.exists():
+                rec = json.loads(path.read_text())
+                fits = [
+                    f for f in rec["fits"] if f["converged"] and f["cost"] <= cost_limit
+                ]
+                if fits:
+                    ft = np.array([f["time"] for f in fits])
+                    fv = np.array([[f["beta0"], f["alpha"]] for f in fits])
+                    for i, t in enumerate(w.times):
+                        j = int(np.argmin(np.abs(ft - t)))
+                        if abs(ft[j] - t) <= time_tol:
+                            tgt[i] = fv[j]
+                            msk[i] = True
+            cache.profile_targets.append(tgt)
+            cache.profile_masks.append(msk)
+            n_matched += int(msk.sum())
+            n_slices += int(msk.size)
+    logger.info(
+        "fit-amortization targets: %d/%d slices matched (cost<=%.2f, converged)",
+        n_matched,
+        n_slices,
+        cost_limit,
+    )
 
 
 def _load_training_data(
@@ -142,6 +188,8 @@ def _build_sample(cache: _ShotCache, stats, anchored_stats, batch_size: int, rng
         return None
     x_t, x_tp1, i_pf_t, i_pf_tp1, raw_mag_t, cmd_t = [], [], [], [], [], []
     anchored_t, dts = [], []
+    prof_t, prof_m = [], []
+    has_profiles = bool(cache.profile_targets)
     for _ in range(batch_size):
         si = rng.integers(0, n_shots)
         w = cache.shots[si]
@@ -149,6 +197,9 @@ def _build_sample(cache: _ShotCache, stats, anchored_stats, batch_size: int, rng
         weights = cache.pair_weights[si]
         pi = rng.choice(len(pairs), p=weights)
         a, b, dt = pairs[pi]
+        if has_profiles:
+            prof_t.append(cache.profile_targets[si][a])
+            prof_m.append(cache.profile_masks[si][a])
         # the loader honestly PRESERVES NaN for dead/absent channels; after
         # corpus normalisation a zero IS the corpus mean, so mean-impute the
         # gaps (the geometry-aware encoder upgrade will consume finite masks
@@ -178,7 +229,14 @@ def _build_sample(cache: _ShotCache, stats, anchored_stats, batch_size: int, rng
     n_b = len(x_t)
     raw_mag_arr = np.array(raw_mag_t)
     mask = np.isfinite(raw_mag_arr)
+    profile_entries = {}
+    if has_profiles:
+        profile_entries = {
+            "profile_target": _t(prof_t),
+            "profile_mask": torch.tensor(np.array(prof_m)),
+        }
     return {
+        **profile_entries,
         "x_t": _t(x_t),
         "x_tp1": _t(x_tp1),
         "i_pf_t": _t(i_pf_t),
@@ -247,6 +305,14 @@ def main() -> int:
         "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
     )
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument(
+        "--fit-targets-dir",
+        type=str,
+        default="imas_ambix/latent/artifacts/fit_targets",
+        help="per-shot (β0, α) fit-target JSONs; empty/missing dir disables "
+        "the amortization head",
+    )
+    ap.add_argument("--amortization-cost-limit", type=float, default=1.5)
     args = ap.parse_args()
 
     rank, world_size = _init_distributed()
@@ -284,6 +350,13 @@ def main() -> int:
             "campaign %s: %d shots, %d training pairs", k, len(c.shots), n_pairs
         )
 
+    fit_dir = Path(args.fit_targets_dir)
+    use_amortization = fit_dir.is_dir() and any(fit_dir.glob("shot*.json"))
+    if use_amortization:
+        _attach_fit_targets(caches, fit_dir, cost_limit=args.amortization_cost_limit)
+    else:
+        logger.warning("no fit targets under %s — amortization head disabled", fit_dir)
+
     n_features = next(iter(caches.values())).shots[0].features_raw.shape[1]
     stats = fit_corpus_stats([w.features_raw for c in caches.values() for w in c.shots])
     anchored_stats = fit_corpus_stats(
@@ -294,6 +367,7 @@ def main() -> int:
     n_dof = next(iter(caches.values())).gs.n_dof
     encoder = HybridLatentEncoder(
         LatentConfig(
+            profile_head=use_amortization,
             n_features=n_features,
             n_theta=n_dof,
             n_anchored=len(ANCHORED_NAMES),
