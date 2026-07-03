@@ -33,14 +33,15 @@ mkdir -p "$TMPDIR" || export TMPDIR=/tmp
 source .venv/bin/activate
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=16
 HEAD="${HEAD:-direct}"
+N_TRAIN="${N_TRAIN:-200}"
 LOG=/work/projects/imas_gpu/logs/ambix-patch-enc-${HEAD}-${SLURM_JOB_ID}.log
 echo "PYTHON=$(which python)  HEAD=${HEAD}"
 nvidia-smi -L | head -2
 
 python scripts/train_patch_encoder.py \
     --head "${HEAD}" \
-    --run "${HEAD}" \
-    --n-train 200 \
+    --run "${RUN:-$HEAD}" \
+    --n-train "${N_TRAIN}" \
     --epochs 60 \
     --batch-size 64 \
     --device cuda \
