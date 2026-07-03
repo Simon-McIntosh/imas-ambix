@@ -106,6 +106,7 @@ class EquilibriumGrid:
         limiter_z: np.ndarray,
         coil_psi_columns: np.ndarray,  # (N, n_coil) ψ per unit coil current
         r0: float,
+        conductor_rects: np.ndarray | None = None,  # (n, 4) r0, r1, z0, z1 packs
     ) -> None:
         self.rg = rg
         self.zg = zg
@@ -126,6 +127,11 @@ class EquilibriumGrid:
         ).reshape(self.nz, self.nr)
         self.cells = np.where(self.inside_limiter.ravel())[0]
         self._coil_psi_columns = coil_psi_columns
+        self.conductor_rects = (
+            np.asarray(conductor_rects, dtype=np.float64)
+            if conductor_rects is not None and len(conductor_rects)
+            else np.zeros((0, 4))
+        )
 
         interior = np.zeros((self.nz, self.nr), dtype=bool)
         interior[1:-1, 1:-1] = True
@@ -149,6 +155,35 @@ class EquilibriumGrid:
                 for lr, lz in zip(self.limiter_r, self.limiter_z, strict=True)
             ]
         )
+        # topology-candidate mask: inside the limiter AND clear of conductors.
+        # The exact finite-area coil field has genuine extrema/saddles at every
+        # winding pack — real field structure, but conductor interior, never a
+        # plasma axis or plasma X-point.  Packs that straddle the limiter
+        # contour (MAST in-vessel divertor coils) otherwise capture the axis
+        # read and relocate the core mask onto the coil.
+        self.topology_candidate = (
+            self.inside_limiter.ravel()
+            & self.clear_of_conductors(self.flat_r, self.flat_z)
+        )
+
+    def clear_of_conductors(self, r: np.ndarray, z: np.ndarray) -> np.ndarray:
+        """True where (r, z) is outside every winding-pack rectangle.
+
+        Rectangles are dilated by one grid cell — the reach of the discrete
+        Hessian the critical-point finder evaluates.
+        """
+        r = np.asarray(r, dtype=np.float64)
+        z = np.asarray(z, dtype=np.float64)
+        clear = np.ones(r.shape, dtype=bool)
+        for r0, r1, z0, z1 in self.conductor_rects:
+            inside = (
+                (r >= r0 - self.dr)
+                & (r <= r1 + self.dr)
+                & (z >= z0 - self.dz)
+                & (z <= z1 + self.dz)
+            )
+            clear &= ~inside
+        return clear
 
     # ---- construction ----
 
@@ -192,6 +227,17 @@ class EquilibriumGrid:
             per = [circ_col(c) for c in circs]
             cols.append(np.mean(per, axis=0))
         coil_cols = np.column_stack(cols) if cols else np.zeros((flat_r.size, 0))
+        rects = np.array(
+            [
+                [
+                    f.r - abs(f.width) / 2.0,
+                    f.r + abs(f.width) / 2.0,
+                    f.z - abs(f.height) / 2.0,
+                    f.z + abs(f.height) / 2.0,
+                ]
+                for f in table.pf_filaments
+            ]
+        )
         return cls(
             rg=rg,
             zg=zg,
@@ -199,6 +245,7 @@ class EquilibriumGrid:
             limiter_z=lz,
             coil_psi_columns=coil_cols,
             r0=fwd.r0,
+            conductor_rects=rects,
         )
 
     def _factorise(self):
@@ -291,17 +338,17 @@ class EquilibriumGrid:
 def _read_axis(
     psi2d: np.ndarray, grid: EquilibriumGrid, sign: float
 ) -> tuple[tuple[float, float], float]:
-    """Sign-aware in-polygon axis; grid-max fallback for early iterations."""
+    """Sign-aware in-polygon, conductor-clear axis; grid-max fallback."""
     cp = find_critical_points(psi2d, grid.rg, grid.zg)
     if cp.o_points.shape[0]:
         ins = _inside_polygon(
             cp.o_points[:, 0], cp.o_points[:, 1], grid.limiter_r, grid.limiter_z
-        )
+        ) & grid.clear_of_conductors(cp.o_points[:, 0], cp.o_points[:, 1])
         if ins.any():
             pts, vals = cp.o_points[ins], cp.o_psi[ins]
             k = int(np.argmax(sign * vals))
             return (float(pts[k, 0]), float(pts[k, 1])), float(vals[k])
-    flat = np.where(grid.inside_limiter.ravel(), sign * psi2d.ravel(), -np.inf)
+    flat = np.where(grid.topology_candidate, sign * psi2d.ravel(), -np.inf)
     k = int(np.argmax(flat))
     return (float(grid.flat_r[k]), float(grid.flat_z[k])), float(psi2d.ravel()[k])
 
@@ -315,7 +362,7 @@ def _read_boundary_psi(
     if cp.x_points.shape[0]:
         ins = _inside_polygon(
             cp.x_points[:, 0], cp.x_points[:, 1], grid.limiter_r, grid.limiter_z
-        )
+        ) & grid.clear_of_conductors(cp.x_points[:, 0], cp.x_points[:, 1])
         if ins.any():
             xpsi = cp.x_psi[ins]
             xb = float(xpsi[int(np.argmin(np.abs(xpsi - axis_psi)))])
@@ -337,6 +384,9 @@ def solve_equilibrium(
     relax: float = 0.5,
     tolerance: float = 3e-4,
     seed_width: tuple[float, float] = (0.35, 0.5),
+    coil_field_mode: str = "analytic-add",
+    initial_jphi: np.ndarray | None = None,
+    iteration_trace: list[dict] | None = None,
 ) -> EquilibriumResult:
     """Free-boundary Picard solve for one time slice.
 
@@ -344,20 +394,41 @@ def solve_equilibrium(
     plasma current (its sign selects the axis extremum orientation); ``beta0``
     and ``alpha`` are the profile parameters θ the encoder (or a per-slice
     fit) supplies.
+
+    ``coil_field_mode`` selects how the coil field enters the total ψ:
+    ``"analytic-add"`` (default) solves the FD problem for the plasma part
+    only and adds the exact finite-area coil field — correct at and inside
+    the in-vessel coils; ``"boundary-continuation"`` reproduces the legacy
+    structure (total-ψ Dirichlet BCs, the coil field entering as the
+    Δ*-harmonic continuation of its boundary values — smooth but wrong near
+    in-vessel coils), retained as a diagnostic arm.  ``iteration_trace``
+    (a list) collects per-iteration axis / flux / residual dicts.
     """
     psi_coil = grid.coil_psi(np.asarray(i_pf, dtype=np.float64))
     sign = 1.0 if ip_amperes >= 0 else -1.0
     cell_area = grid.dr * grid.dz
 
     # compact plasma-like seed at the geometric centre — a uniform fill has no
-    # interior O-point and the iteration locks onto corner fixed points
-    jphi = np.zeros(grid.flat_r.size)
-    jphi[grid.cells] = np.exp(
-        -(
-            ((grid.flat_r[grid.cells] - grid.r0) / seed_width[0]) ** 2
-            + (grid.flat_z[grid.cells] / seed_width[1]) ** 2
+    # interior O-point and the iteration locks onto corner fixed points.  A
+    # caller-supplied ``initial_jphi`` (e.g. a converged distribution from an
+    # easier configuration) replaces the seed for homotopy restarts.
+    if initial_jphi is not None:
+        jphi = np.where(
+            grid.inside_limiter.ravel(),
+            np.asarray(initial_jphi, dtype=np.float64).ravel(),
+            0.0,
         )
-    )
+        if not np.isfinite(jphi).all() or abs(jphi.sum()) < 1e-12:
+            jphi = np.zeros(grid.flat_r.size)
+    else:
+        jphi = np.zeros(grid.flat_r.size)
+    if abs(jphi.sum()) < 1e-12:
+        jphi[grid.cells] = np.exp(
+            -(
+                ((grid.flat_r[grid.cells] - grid.r0) / seed_width[0]) ** 2
+                + (grid.flat_z[grid.cells] / seed_width[1]) ** 2
+            )
+        )
 
     psi_flat: np.ndarray | None = None
     residual = np.inf
@@ -377,11 +448,16 @@ def solve_equilibrium(
         # the solve domain, where their field is not harmonic — Dirichlet
         # continuation of a total-psi BC would misrepresent it near the coils.
         # The finite-area coil columns are exact everywhere instead.
-        psi_edge = grid.g_edge @ i_cell
         rhs2d = (-(MU0) * grid.flat_r * jphi * scale).reshape(grid.nz, grid.nr)
         psi_b2d = np.zeros((grid.nz, grid.nr))
-        psi_b2d.ravel()[grid.edge_idx] = psi_edge
-        psi_new = grid.solve_dirichlet(rhs2d, psi_b2d).ravel() + psi_coil
+        if coil_field_mode == "analytic-add":
+            psi_b2d.ravel()[grid.edge_idx] = grid.g_edge @ i_cell
+            psi_new = grid.solve_dirichlet(rhs2d, psi_b2d).ravel() + psi_coil
+        else:  # boundary-continuation — the legacy diagnostic arm
+            psi_b2d.ravel()[grid.edge_idx] = (
+                psi_coil[grid.edge_idx] + grid.g_edge @ i_cell
+            )
+            psi_new = grid.solve_dirichlet(rhs2d, psi_b2d).ravel()
 
         if psi_flat is None:
             psi_flat = psi_new
@@ -412,6 +488,18 @@ def solve_equilibrium(
         )
         jphi[core.ravel()] = shape[core.ravel()]
 
+        if iteration_trace is not None:
+            iteration_trace.append(
+                {
+                    "iteration": iteration,
+                    "axis": axis,
+                    "axis_psi": axis_psi,
+                    "boundary_psi": boundary_psi,
+                    "residual": residual if np.isfinite(residual) else None,
+                    "core_cells": int(core.sum()),
+                }
+            )
+
         if iteration > 5 and residual < tolerance:
             break
 
@@ -434,6 +522,48 @@ def solve_equilibrium(
         converged=bool(residual < tolerance),
         residual=residual,
         iterations=iteration,
+    )
+
+
+def solve_equilibrium_bootstrapped(
+    grid: EquilibriumGrid,
+    i_pf: np.ndarray,
+    ip_amperes: float,
+    *,
+    beta0: float = 0.5,
+    alpha: float = 1.0,
+    max_iterations: int = 80,
+    bootstrap_iterations: int = 30,
+    **kwargs,
+) -> EquilibriumResult:
+    """Two-stage solve: legacy-continuation bootstrap, then the exact field.
+
+    With the exact in-vessel coil field the broad Gaussian seed has no
+    interior O-point at iteration 1 (the correct coil well is deeper than the
+    seed's ψ bump), so plain Picard locks onto a corner attractor.  The legacy
+    boundary-continuation field is smoother and bootstraps reliably; its
+    (possibly unconverged) current distribution then seeds the analytic-add
+    Picard, which is the only result reported — the physically-correct field.
+    """
+    stage1 = solve_equilibrium(
+        grid,
+        i_pf,
+        ip_amperes,
+        beta0=beta0,
+        alpha=alpha,
+        max_iterations=bootstrap_iterations,
+        coil_field_mode="boundary-continuation",
+        **kwargs,
+    )
+    return solve_equilibrium(
+        grid,
+        i_pf,
+        ip_amperes,
+        beta0=beta0,
+        alpha=alpha,
+        max_iterations=max_iterations,
+        initial_jphi=stage1.jphi.ravel(),
+        **kwargs,
     )
 
 
@@ -482,7 +612,7 @@ def fit_profile(
     best: ProfileFit | None = None
     for alpha in alpha_grid:
         for beta0 in beta0_grid:
-            res = solve_equilibrium(
+            res = solve_equilibrium_bootstrapped(
                 grid, i_pf, ip_amperes, beta0=float(beta0), alpha=float(alpha)
             )
             if not res.converged and res.residual > convergence_limit:
@@ -504,5 +634,6 @@ __all__ = [
     "EquilibriumResult",
     "ProfileFit",
     "solve_equilibrium",
+    "solve_equilibrium_bootstrapped",
     "fit_profile",
 ]

@@ -125,6 +125,8 @@ class CorpusTrainer:
             loss_sum = total if loss_sum is None else loss_sum + total
         if loss_sum is not None:
             loss_sum.backward()
+        self._all_reduce_grads()
+        if loss_sum is not None or self._distributed():
             grad_norm = torch.nn.utils.clip_grad_norm_(self._params, self.max_grad_norm)
             if torch.isfinite(grad_norm):
                 self.optimizer.step()
@@ -138,6 +140,39 @@ class CorpusTrainer:
             self.skipped_steps += 1
         self.step_count += 1
         return totals
+
+    @staticmethod
+    def _distributed() -> bool:
+        return torch.distributed.is_available() and torch.distributed.is_initialized()
+
+    def _all_reduce_grads(self) -> None:
+        """Average gradients across ranks (replicated-optimiser data parallel).
+
+        Every rank holds an identical parameter set and optimiser (same init,
+        same updates), so averaging gradients each step keeps them in lockstep
+        — no DDP module wrapping, which does not fit the shared-encoder /
+        per-campaign-engine layout.  Ranks whose step produced no usable batch
+        contribute zeros; the collective must run on EVERY rank every step.
+        Non-finite local grads are zeroed BEFORE the collective so one rank's
+        poisoned batch cannot corrupt the fleet (matches the single-process
+        skip-on-non-finite policy).
+        """
+        if not self._distributed():
+            return
+        world = torch.distributed.get_world_size()
+        for p in self._params:
+            if p.grad is None:
+                p.grad = torch.zeros_like(p)
+        flat = torch.cat([p.grad.reshape(-1) for p in self._params])
+        if not torch.isfinite(flat).all():
+            flat = torch.zeros_like(flat)  # drop this rank's whole contribution
+        torch.distributed.all_reduce(flat, op=torch.distributed.ReduceOp.SUM)
+        flat = flat / world
+        offset = 0
+        for p in self._params:
+            n = p.numel()
+            p.grad.copy_(flat[offset : offset + n].view_as(p))
+            offset += n
 
     def save(
         self,

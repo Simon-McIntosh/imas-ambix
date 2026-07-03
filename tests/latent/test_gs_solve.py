@@ -194,3 +194,55 @@ def test_fit_profile_recovers_generating_beta0():
     assert fit.result.converged
     assert fit.beta0 == true_beta0  # grid fit must pick the generating value
     assert fit.cost < 1e-3  # near-perfect match at the true parameters
+
+
+def test_conductor_exclusion_in_topology_reads():
+    """Critical points and the fallback axis read must skip winding packs.
+
+    The exact finite-area coil field has genuine extrema at every conductor;
+    a pack straddling the limiter contour must not capture the axis read.
+    """
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=41, nz=57)
+    # pack rectangles registered, dilated by one grid cell
+    assert grid.conductor_rects.shape == (2, 4)
+    clear = grid.clear_of_conductors(
+        np.array([1.1, 1.1, 0.9]), np.array([1.0, -1.0, 0.0])
+    )
+    assert not clear[0] and not clear[1]  # at the packs
+    assert clear[2]  # plasma centre untouched
+    # the grid-level topology-candidate mask stays inside the limiter
+    assert grid.topology_candidate.sum() > 0
+    assert not (grid.topology_candidate & ~grid.inside_limiter.ravel()).any()
+
+
+def test_bootstrapped_solve_matches_direct_on_confining_config():
+    """Where plain Picard already converges, the two-stage bootstrap must land
+    on the same equilibrium (same axis, same Ip)."""
+    from imas_ambix.latent.gs_solve import solve_equilibrium_bootstrapped
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    direct = solve_equilibrium(grid, i_pf, ip, beta0=0.5)
+    boot = solve_equilibrium_bootstrapped(grid, i_pf, ip, beta0=0.5)
+    assert direct.converged and boot.converged
+    np.testing.assert_allclose(boot.axis, direct.axis, atol=2e-2)
+    np.testing.assert_allclose(boot.cell_currents.sum(), ip, rtol=1e-6)
+
+
+def test_boundary_continuation_arm_reproduces_legacy_structure():
+    """The diagnostic arm solves the TOTAL field through the FD problem; on a
+    configuration with all coils outside the solve domain both arms agree."""
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    add = solve_equilibrium(grid, i_pf, ip, beta0=0.5)
+    cont = solve_equilibrium(
+        grid, i_pf, ip, beta0=0.5, coil_field_mode="boundary-continuation"
+    )
+    assert add.converged and cont.converged
+    # coils sit OUTSIDE the limiter here, where harmonic continuation is exact
+    np.testing.assert_allclose(cont.axis, add.axis, atol=2e-2)

@@ -70,7 +70,7 @@ def equilibrium_target(grid: EquilibriumGrid, res) -> np.ndarray:
     if cp.x_points.shape[0]:
         ins = _inside_polygon(
             cp.x_points[:, 0], cp.x_points[:, 1], grid.limiter_r, grid.limiter_z
-        )
+        ) & grid.clear_of_conductors(cp.x_points[:, 0], cp.x_points[:, 1])
         pts = cp.x_points[ins]
         xpsi = cp.x_psi[ins]
         if pts.shape[0]:
@@ -319,7 +319,8 @@ def main() -> int:
         out_dir / "gs_solve_gate_arrays.npz", model=model, ref=ref, baseline=baseline
     )
     logger.info(
-        "GATE2 axis_skill=%s xpt_skill=%s lcfs_skill=%s axis_err median %.3f m (scored %d/%d)",
+        "GATE2 axis_skill=%s xpt_skill=%s lcfs_skill=%s "
+        "axis_err median %.3f m (scored %d/%d)",
         result["axis_skill"],
         result["xpoint_set_skill"],
         result["lcfs_skill"],

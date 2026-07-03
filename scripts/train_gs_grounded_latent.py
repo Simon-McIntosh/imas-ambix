@@ -124,7 +124,7 @@ def _load_training_data(
     # output (and the volt-second penalty that squares it) by many orders of
     # magnitude if fed in unnormalised.  Fit corpus-level (SI) stats per
     # campaign, exactly as for the input features and anchored scalars.
-    for key, cache in caches.items():
+    for cache in caches.values():
         cmd_samples = []
         for w, pairs in zip(cache.shots, cache.pairs, strict=True):
             for a, b, dt in pairs:
@@ -189,6 +189,30 @@ def _build_sample(cache: _ShotCache, stats, anchored_stats, batch_size: int, rng
     }
 
 
+def _init_distributed() -> tuple[int, int]:
+    """torchrun-compatible process-group init; returns (rank, world_size).
+
+    Single-process (no RANK in the env) is a no-op (0, 1) — behaviour is then
+    byte-identical to the pre-distributed script.  Ranks stay in lockstep via
+    the trainer's gradient all-reduce (replicated optimiser), each sampling
+    its own minibatches — effective batch = world_size × batch_size.
+    """
+    import os
+
+    if "RANK" not in os.environ:
+        return 0, 1
+    rank = int(os.environ["RANK"])
+    world = int(os.environ["WORLD_SIZE"])
+    local = int(os.environ.get("LOCAL_RANK", rank))
+    if torch.cuda.is_available():
+        torch.cuda.set_device(local)
+        backend = "nccl"
+    else:
+        backend = "gloo"
+    torch.distributed.init_process_group(backend=backend)
+    return rank, world
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-train", type=int, default=200)
@@ -214,11 +238,17 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
+    rank, world_size = _init_distributed()
+    if rank != 0:
+        logging.getLogger().setLevel(logging.WARNING)
+
     ckpt_dir = Path(args.checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     ckpt_path = ckpt_dir / "gs_grounded_latent.pt"
 
-    rng = np.random.default_rng(args.seed)
+    # identical model/optimiser init on every rank (lockstep updates), but
+    # rank-decorrelated minibatch sampling
+    rng = np.random.default_rng(args.seed + 7919 * rank)
     torch.manual_seed(args.seed)
 
     train_shots, _held = read_split_shot_lists(args.n_train, args.n_heldout)
@@ -286,6 +316,14 @@ def main() -> int:
 
     signal.signal(signal.SIGTERM, _on_sigterm)
 
+    # the checkpoint must carry its exact input scaling (see CorpusTrainer.save)
+    ckpt_extra = {
+        "feature_stats": stats,
+        "anchored_stats": anchored_stats,
+        "cmd_stats": {k: c.cmd_stats for k, c in caches.items()},
+        "config": vars(args),
+    }
+
     t0 = time.time()
     for step in range(start_step, args.steps):
         if stop["flag"]:
@@ -308,14 +346,18 @@ def main() -> int:
                 {k: round(v, 4) for k, v in totals.items()},
                 elapsed,
             )
-        if step > 0 and step % args.ckpt_every == 0:
-            trainer.save(ckpt_path, step=step)
+        if step > 0 and step % args.ckpt_every == 0 and rank == 0:
+            trainer.save(ckpt_path, step=step, extra=ckpt_extra)
             logger.info("checkpoint saved at step %d -> %s", step, ckpt_path)
 
-    trainer.save(ckpt_path, step=trainer.step_count)
-    logger.info(
-        "final checkpoint saved at step %d -> %s", trainer.step_count, ckpt_path
-    )
+    if rank == 0:
+        trainer.save(ckpt_path, step=trainer.step_count, extra=ckpt_extra)
+        logger.info(
+            "final checkpoint saved at step %d -> %s", trainer.step_count, ckpt_path
+        )
+    if world_size > 1:
+        torch.distributed.barrier()
+        torch.distributed.destroy_process_group()
     return 0
 
 
