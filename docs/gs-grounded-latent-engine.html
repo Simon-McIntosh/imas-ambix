@@ -19,9 +19,9 @@
   <title>GS-Grounded Latent + Transport / Irreversibility Anchor | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-02">
+<meta name="plan-modified" content="2026-07-03">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 </head>
 <body>
 <main class="plan-doc">
@@ -316,6 +316,9 @@ Done-when (the gate)
 </div>
 <div class="r-comment" data-section="f-ggl-02" data-id="c-20260702T192543885858" data-who="reckon-ship (kernel swap A/B)" data-when="2026-07-02">
     <div class="r-comment-body">After the |extent| fix (commit 04b70e5-era; efm heights are SIGNED, min -0.289 m — max(neg, 0.01) collapsed solenoid packs to 1 cm): coverage recovered 13→62/160 scored but median axis error is STILL 1.77 m — the scored equilibria converge with the axis far from the referee, so a SECOND defect remains in the wiring commit (b9d9f79), not in the kernel (golden-pinned to nova at 1e-6). Prime suspects, in A/B order for the next session: (A) restructure-only arm — revert to total-ψ Dirichlet BCs (psi_edge = psi_coil[edge] + g_edge@i_cell, no analytic add) while KEEPING the finite-area coil columns → isolates whether the plasma-only-FD + analytic-coil-add restructure itself is wrong (e.g. the axis/boundary reads now see the exact near-coil field and the in-polygon O-point pick fails, or a sign/convention mismatch between the added coil field and the FD solution); (B) kernel-only arm — original total-BC structure with hybrid coil columns → isolates the columns. Also dump per-iteration axis trajectory + psi_coil vs old 3x3-subdivision coil field difference maps on shot 18502 t=0.238s (previously 7.5 cm). LAST KNOWN GOOD for the gate eval = the point-filament solve at commit dc10a7e (83/160, median 8.6 cm). DO NOT TRAIN until the A/B lands and the eval beats or matches 8.6 cm.</div>
+</div>
+<div class="r-comment" data-section="f-ggl-02" data-id="c-20260703T034314743906" data-who="reckon-ship (kernel-swap A/B close)" data-when="2026-07-03">
+    <div class="r-comment-body">SECOND DEFECT DIAGNOSED + FIXED — GATE RE-PASSED, BEATS LAST-KNOWN-GOOD. Root cause (shot 18502 t=0.238s): the exact finite-area in-vessel coil field is (a) genuinely non-harmonic inside the solve domain — the legacy Dirichlet continuation had been OMITTING a real −0.12 Wb in-vessel contribution at the plasma centre (grounded-domain response of P2-P6 sources), and (b) carries genuine ψ extrema at every winding pack. Two failure legs: the O-point/X-point/grid-max-fallback topology reads locked onto conductor artifacts (the 1.77 m corner attractor sat in a P2 pack corner straddling the limiter polygon — 36 packs poke corners inside it), and the correct deeper coil well leaves the broad Gaussian seed with NO interior O-point at iteration 1, so plain Picard could not bootstrap. Fixes (commit 4775211): conductor-interior exclusion (pack rects dilated one grid cell) in ALL topology reads incl. the eval's X-point slots, and a two-stage solve_equilibrium_bootstrapped — boundary-continuation bootstrap seeds the analytic-add Picard; only the exact-field result is reported. Full held-out gate: 122/160 scored, median axis error 8.3 cm, mean 0.19 m — beats the dc10a7e point-filament LKG (83/160, 8.6 cm, mean 0.32 m) on coverage, median AND tail. 133 latent+gs tests green (4 new). Newton-Krylov deferred — bootstrapped Picard clears the gate. Figure: docs/figures/gs-grounded-latent-engine/fig-finite-area-swap-defect.png. TRAINING AUTHORIZED + LAUNCHED: 6×H200 corpus training job 1224767 (torchrun 6-rank replicated-optimiser grad-all-reduce added to CorpusTrainer; NaN-preserving-loader training-path fix: guarded corpus stats + mean-imputation; checkpoint now carries normalisation stats). Remaining: gate-2 re-measure from the trained checkpoint; encoder upgrade to the oracle recipe (finite masks + temporal window).</div>
 </div>
 </section>
 </main>

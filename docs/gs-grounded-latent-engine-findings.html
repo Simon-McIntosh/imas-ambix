@@ -227,6 +227,58 @@ payoff:</p>
 <p>The transport temporal anchor (D≥0, command-driven, guard-railed) and the whole differentiable
 engine are ready to carry that training.</p>
 
+<h2 id="kernel">§7 — Finite-area kernel swap (2026-07-02/03): defect chain, fix, gate re-passed</h2>
+<p>The locked <code>greens-kernel-and-training-path</code> decision swapped nova's closed-form
+<strong>finite-area cylinder Green's functions</strong> into every Green's matrix and restructured the
+solve (plasma-only FD problem + the coil field added analytically, since MAST's in-vessel coils sit
+<em>inside</em> the solve domain where their field is not Δ*-harmonic). The swap initially
+<strong>regressed the gate</strong> (13/160 scored, 1.85 m median axis error) through a chain of three
+distinct defects — each honestly measurable, none in the extracted kernel itself (golden-pinned to nova
+at 10⁻⁶):</p>
+<ol>
+  <li><strong>Signed pack extents.</strong> Real efm tables carry negative filament heights
+  (min −0.289 m); <code>max(negative, 0.01)</code> collapsed 29 cm solenoid packs to 1 cm, concentrating
+  the dominant centre-column current. Fixed with |extent| (commit <code>7474472</code>) — coverage
+  recovered 13→62/160 but the median stayed 1.77 m.</li>
+  <li><strong>Conductor extrema captured the topology reads.</strong> The exact coil field has genuine
+  ψ extrema at every winding pack, and 36 packs poke corners <em>inside</em> the limiter polygon (the
+  in-vessel divertor coils straddle it). The O-point pick, the X-point pick and the grid-max fallback all
+  locked onto conductor artifacts — the 1.77 m "axis" was a corner attractor beside the upper P2 pack.
+  Under the legacy total-ψ Dirichlet continuation this could never happen: a Δ*-harmonic in-domain coil
+  field has <em>no interior extrema</em> — the old structure was implicitly load-bearing for the reads.
+  Fix: <strong>conductor-interior exclusion</strong> (pack rectangles dilated one grid cell) in every
+  topology read, including the eval's X-point slots.</li>
+  <li><strong>The correct field breaks the Picard bootstrap.</strong> The continuation had been OMITTING
+  a real −0.12 Wb in-vessel coil contribution at the plasma centre (the grounded-domain response of the
+  in-domain sources — a genuine physical field, not an artifact). With the exact, deeper coil well the
+  broad Gaussian seed produces <em>no interior O-point at iteration 1</em>, and plain Picard locks onto
+  the corner attractor from the first read. Fix: <strong>two-stage bootstrap</strong>
+  (<code>solve_equilibrium_bootstrapped</code>) — a boundary-continuation stage-1 solve seeds the
+  analytic-add Picard; only the exact-field result is ever reported, and the magnetics fit cost rejects
+  the residual garbage attractors (a converged wrong-position equilibrium fits the sensors ~4× worse).</li>
+</ol>
+<figure class="r-fig" style="margin:1rem 0">
+  <img src="/imas-ambix/figures/gs-grounded-latent-engine/fig-finite-area-swap-defect.png"
+       alt="Three panels on shot 18502 t=0.238s: (a) the in-vessel coil field the legacy harmonic continuation omitted, reaching -0.12 Wb at the plasma centre and ~0.77 Wb near the divertor coils; (b) the exact-field iteration-1 psi with no interior O-point and the false corner axis beside the upper P2 coil, referee axis marked; (c) the fixed two-stage solve converging with the axis 8.1 cm from the referee."
+       style="max-width:100%">
+  <figcaption><strong>The defect chain and its fix on shot 18502 t=0.238 s.</strong> (a) The in-vessel
+  coil field the legacy continuation omitted is real physics — −0.12 Wb at the plasma centre. (b) Under
+  the exact field the Gaussian seed has no interior O-point and the axis read falls back to a corner
+  beside the P2 pack (the measured 1.77 m failure). (c) Continuation-bootstrapped Picard +
+  conductor-clear reads recover the equilibrium (axis error 8.1 cm here).</figcaption>
+</figure>
+<p><strong>Gate re-passed, beating the point-filament last-known-good on every axis</strong> (full 8-shot
+held-out eval, firewalled referee, cost limit 3.0): <strong>122/160 scored</strong> (vs 83/160),
+<strong>median axis error 8.3 cm</strong> (vs 8.6 cm), mean 0.19 m (vs 0.32 m — the accepted-but-poor
+tail shrank too). Per-shot coverage is now 14–19/20 everywhere except shot 18505 (5/20 — its slices sit
+at the fit-cost boundary, the honest mask working as designed). 133 latent+gs tests green. Newton-Krylov
+remains available as a robustness upgrade but is <em>not needed to clear the gate</em>. With the
+DO-NOT-TRAIN condition cleared, the 6×H200 corpus training (f-ggl-02 item 1) launched as job
+<code>1224767</code> — 6-rank replicated-optimiser gradient-all-reduce in <code>CorpusTrainer</code>,
+NaN-preserving-loader training path fixed (guarded corpus stats + mean-imputation; the geometry-aware
+encoder upgrade will replace imputation with finite-mask inputs), checkpoints now carrying their exact
+normalisation stats.</p>
+
 </main>
 </body>
 </html>

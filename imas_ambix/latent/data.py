@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -84,8 +85,16 @@ def fit_corpus_stats(x_list: list[np.ndarray]) -> CorpusStats:
     same physical value maps to the same normalised code in every shot.
     """
     stacked = np.concatenate([np.asarray(x) for x in x_list], axis=0)
-    mean = np.nanmean(stacked, axis=0)
-    std = np.nanstd(stacked, axis=0)
+    with warnings.catch_warnings():
+        # all-NaN columns (channels dead across the whole corpus) are handled
+        # below — silence the empty-slice warning they trigger
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        mean = np.nanmean(stacked, axis=0)
+        std = np.nanstd(stacked, axis=0)
+    # a column with no finite samples carries no information: normalise it to
+    # exactly zero (mean-code) rather than propagating NaN into the encoder
+    mean = np.where(np.isfinite(mean), mean, 0.0)
+    std = np.where(np.isfinite(std) & (std > 0), std, 1.0)
     return CorpusStats(mean=mean, std=std)
 
 
