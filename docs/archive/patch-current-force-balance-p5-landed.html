@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="patch-current-force-balance-p5-landed">
+  <meta name="plan-title" content="patch-current-force-balance — P5 landed">
+  <meta name="plan-status" content="done">
+  <title>patch-current-force-balance — P5 landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>P5 landed — physics extensions on the patch substrate, each measured</h1>
+    <p>
+      Stage record for <a href="/imas-ambix/patch-current-force-balance.html">patch-current-force-balance</a>
+      §5 P5, landed 2026-07-03. Every item carried an evidence gate ("kept only if load-bearing") —
+      two extensions shipped as capabilities, one was measured and honestly dropped, one landed as a
+      demonstrated property plus a recorded gap list.
+    </p>
+
+    <h2>Outcomes</h2>
+    <table>
+      <thead><tr><th>Item</th><th>Verdict</th><th>Evidence</th><th>Commit / artifact</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Passive/eddy block</strong> — rank-4 truncated-SVD passive amplitudes added to the
+              sensor model of the winner-config inverse</td>
+          <td>❌ <strong>NOT load-bearing — dropped on evidence</strong></td>
+          <td>Full 8-shot flat-top run (n=101 slices, job <code>1225045</code>): misfit median 0.0807→0.0806
+              (Δ0.1%), passive field fraction 3&times;10<sup>&minus;4</sup> median, |c| ≈ 30 A ≈ 0.000·I<sub>p</sub>,
+              axis skill 0.2858→0.2857. The optimiser leaves the block unused when offered — consistent with
+              scoping's ≪1σ misfits without conductors. Local-loop equivalence check vs the production inverse:
+              0.0 cm difference. <em>Bonus datum: flat-top-only axis skill +0.286 @ 2.09 cm median for the
+              plasma-only winner config.</em></td>
+          <td><code>daf2732</code>; <code>patch_gate/passive_ablation_full.json</code></td>
+        </tr>
+        <tr>
+          <td><strong>Rotation column</strong> — <code>form="affine-r2-rotation"</code>: R&middot;j&phi; ≈
+              a&middot;R&sup2; + b + c&middot;R&#8308; per flux bin (rigid-rotation centrifugal correction;
+              dimension-generic per-bin WLSQ)</td>
+          <td>✅ shipped, CI-pinned falsifiable</td>
+          <td>Rotating synthetic fixture: the affine form fails at ≥5&times; its floor, the rotation form
+              recovers ≤2&times;; static fixture unchanged; permuted currents get no free pass; c<sub>k</sub>
+              closure recovery ~15%; gradcheck. 15/15 residual tests green. Real-data falsification (rotating
+              vs static shots) deferred: the only rotation-bearing stream (<code>act</code> CXRS, beam-gated,
+              7991 shots) is not yet ingested into the latent pipeline — recorded as the trigger for that arm.</td>
+          <td><code>dd41539</code></td>
+        </tr>
+        <tr>
+          <td><strong>Transport coupling</strong> — flux-diffusion prior on patch-&psi;
+              (<code>latent/patch_transport.py</code>: midplane &psi;(&rho;) profile glue + two-slice prior terms)</td>
+          <td>✅ shipped</td>
+          <td>Differentiable through patch currents; convention mirrors <code>engine.psi_profile</code> exactly;
+              D≥0 guarantee pinned; 4/4 tests green. Flux-surface-mapped &psi;(&rho;<sub>N</sub>) noted as the
+              follow-up refinement.</td>
+          <td><code>b6ab030</code></td>
+        </tr>
+        <tr>
+          <td><strong>Cross-machine rebuild</strong> — geometry-only swap of the substrate</td>
+          <td>✅ property demonstrated; full second-machine ingestion deferred with a measured gap list</td>
+          <td>Demonstrated two ways: (1) the entire substrate (PatchBasis, inverse, encoder, transport glue)
+              builds and passes CI on a synthetic non-MAST machine (<code>_confining_table</code>) with zero code
+              change — geometry enters only through <code>GeometryTable</code>; (2) measured cross-<em>signature</em>
+              weight transfer: the trained encoder evaluated on the unseen fc938 coil set scores on par with its
+              training signature (axis skill −2.3 vs −4.0; grounding 2.7&times; vs 2.0&times; at the 588-example
+              stage) — the geometry-as-PE design carries across coil sets. Gap list for a true second machine
+              (measured by inventory): geometry-reader interface (readers are MAST-Zarr-hardcoded), parametrised
+              R0/minor-radius, IMAS static-IDS (pf_active/wall/magnetics) machine-description ingestion,
+              machine-tagged campaign signatures. Only <code>gs/cylinder.py</code> ports as-is.</td>
+          <td>CI tests; <code>patch_gate/encoder_gate_direct_v2.json</code> (per-signature split)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Method note</h2>
+    <p>
+      The passive experiment enters passive amplitudes in the sensor <em>data</em> term only (excluded from the
+      structure residual and the I<sub>p</sub> anchor), with an L2 penalty scaled by the rank-4 singular values;
+      geometry reads use plasma+coil flux in both arms, so the comparison isolates the data-term contribution.
+      The "kept only if load-bearing" discipline is the plan's soft-physics thesis applied to itself: an
+      extension that measurement says the sensors cannot see is not carried as dead weight.
+    </p>
+  </main>
+</body>
+</html>

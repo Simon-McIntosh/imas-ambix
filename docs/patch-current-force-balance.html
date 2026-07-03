@@ -20,8 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-03">
-<meta name="plan-version" content="3">
-<meta name="plan-impl" content="0.6">
+<meta name="plan-version" content="4">
+<meta name="plan-impl" content="0.8">
 </head>
 <body>
   <main class="plan-doc">
@@ -464,21 +464,21 @@
       calibration reported.
     </p>
 
-    <h3>P5 — Physics extensions on the same substrate (effort M, itemised)</h3>
-    <ul>
-      <li><strong>Passive/eddy patch block:</strong> activate <code>g_passive</code> structural
-        circuits (+ L/R circuit or learned closure dynamics). Gate: flat-top misfit reduction and
-        skill change measured; kept only if load-bearing.</li>
-      <li><strong>Rotation column:</strong> add the rigid-rotation R-basis term per flux bin to the
-        residual family; falsifiable on rotating vs static shots (residual drops on rotating shots
-        without degrading statics).</li>
-      <li><strong>Transport coupling:</strong> flux-diffusion prior evaluated on patch-&psi;
-        (&psi;(&rho;<sub>N</sub>) from the assembled field) — the f-ggl-02 tail.</li>
-      <li><strong>Cross-machine rebuild:</strong> assemble the substrate from a second machine's
-        geometry table (Nova's ITER machine description is the flagged transfer asset). Gate: no
-        code change, geometry-only swap — North-Star requirement #1 demonstrated at the
-        equilibrium layer.</li>
-    </ul>
+    <h3>P5 — Physics extensions on the same substrate <span class="badge badge-shipped">&#10003; landed 2026-07-03 — all four measured</span></h3>
+    <p class="landed-summary">
+      <strong>Passive block: measured NOT load-bearing and dropped</strong> (full 8-shot flat-top run
+      n=101, job <code>1225045</code>: misfit &Delta;0.1%, passive field fraction 3&times;10<sup>&minus;4</sup>,
+      axis skill unchanged 0.286; bonus: flat-top-only skill of the plasma-only inverse is
+      <strong>+0.286 @ 2.09&nbsp;cm median</strong>). <strong>Rotation column shipped</strong>
+      (<code>affine-r2-rotation</code>, <code>dd41539</code>): CI-pinned falsifiable fixtures — affine form
+      fails a rotating fixture &ge;5&times;, rotation form recovers, statics unchanged, c<sub>k</sub>
+      recovered; real-data arm awaits <code>act</code> CXRS ingest. <strong>Transport coupling shipped</strong>
+      (<code>latent/patch_transport.py</code>, <code>b6ab030</code>): flux-diffusion prior on patch-&psi;,
+      D&ge;0 pinned, 4/4 tests. <strong>Cross-machine:</strong> geometry-only-swap property demonstrated
+      (synthetic-machine CI, zero code change; measured cross-signature encoder transfer — unseen fc938
+      coil set scores on par) with the second-machine ingestion gap list recorded.
+      Full record: <a href="archive/patch-current-force-balance-p5-landed.html">P5 landed</a>.
+    </p>
 
     <h2 id="s6">§6 — Risks and honest limits</h2>
     <ul>
@@ -626,7 +626,7 @@ Done-when
   4. gate comparison + recovered-closure figures under
      docs/figures/patch-current-force-balance/ embedded in the plan
   5. P3 collapsed in the evergreen + archive page; followup for P4 written</pre>
-    <p class="r-fu-outcome">P3 GATE PASS — winner discrepancy:3:1.5:100 scored 160/160 @ 2.8 cm median, axis skill +0.019 > 0 (leakage-free train-shot selection); throughput 693,599 slices/s (P1 gate ×700); closures recovered with F²≥0 on 160/160; residual-weight-policy locked = discrepancy. Archive: docs/archive/patch-current-force-balance-p3-landed.html</p>
+    <p class="r-fu-outcome">P3 GATE PASS — winner discrepancy:3:1.5:100 scored 160/160 @ 2.8 cm median, axis skill +0.019 &gt; 0 (leakage-free train-shot selection); throughput 693,599 slices/s (P1 gate ×700); closures recovered with F²≥0 on 160/160; residual-weight-policy locked = discrepancy. Archive: docs/archive/patch-current-force-balance-p3-landed.html</p>
     </article>
 <article class="r-fu" data-id="f-pcfb-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P4" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Ship P4 — amortised patch-current encoder (closes f-ggl-02)</h4>
@@ -669,6 +669,9 @@ Done-when
     <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="_top" data-id="c-20260703T151456450303" data-who="external critique intake (opus)" data-when="2026-07-03">
     <div class="r-comment-body">External review of the method absorbed (verdict: core claim physically correct). Refinements applied to this plan: (1) terminology corrected — jφ is LINEAR in {R, 1/R}; the genuinely affine and best-conditioned fitting form is R·jφ = a·R² + b (slope p′, intercept FF′/μ₀); the affine form was re-verified on the scoping fixtures to discriminate identically (oracle floor 0.0036, null-space 5.7×, permuted 21×; artifact discriminate-affine-r2.json) and P2 adopts it. (2) The “no topology” claim softened to “no HARD topology extraction in the loop”: the flux-function property holds per CONNECTED level-set component (private-flux/SOL edge case) — P2 gains a connectivity-aware soft weight ((R,Z)-locality kernel or no-grad component labels) with an adversarial disconnected-component fixture. (3) F² ≥ 0 integrability of the recovered b(ψ) added as a soft rung (relu(−F²) on the cumulative {b_k}, F_vac from the known TF current), plus optional {a_k},{b_k} ψ-smoothness. (4) Closure recovery made an explicit P3 deliverable: p′, FF′ per bin with regression uncertainties; p(ψ), F(ψ) by integration. (5) Prior-art acknowledgment added: MINERVA-class Bayesian current tomography (Svensson &amp; Werner) as the closest kin; the narrow novelty is the nonparametric flux-function structure residual as a differentiable training loss. Critique items already covered: singular self-field (finite-area patches), dense-matvec cost (precomputed), vessel currents (P5 passives; MAST is air-core so free-space Green's are exact).</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-p5-landed" data-who="reckon-ship" data-when="2026-07-03">
+    <div class="r-comment-body">P5 landed with all four items MEASURED: passive block dropped on evidence (Δmisfit 0.1%, field fraction 3e-4, skill unchanged; flat-top-only plasma-only skill +0.286 @ 2.09 cm median, n=101); rotation column shipped CI-pinned (dd41539); transport coupling shipped (b6ab030, D≥0 pinned); cross-machine geometry-only-swap demonstrated (synthetic-machine CI + measured cross-signature encoder transfer) with the ingestion gap list recorded. P4 iterating: v0 588-example encoder honest-negative on geometry (28 cm median) with grounding 7.96x on fitted windows / ~2-2.7x full-coverage; eval fixed to 160/160 coverage incl. cross-signature (a99b663); 2000-shot retrains of both head arms in flight (jobs 1225056/1225057).</div>
 </div>
 </section>
 
