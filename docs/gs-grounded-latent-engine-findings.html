@@ -307,10 +307,28 @@ The held-out checkpoint eval (<code>scripts/eval_gs_grounded_checkpoint.py</code
   every shot, including the four (green band) whose campaign geometry never entered training.</figcaption>
 </figure>
 <p>Fit-amortization targets (the locked training path's label-free (β0, α) targets through the
-fixed free-boundary solve) are precomputing on the sun cluster (array <code>1224768</code>,
-resume-safe per-shot JSON under <code>imas_ambix/latent/artifacts/fit_targets/</code>). The open
-arm to close gate 2 proper: amortization heads + the oracle-recipe encoder consuming those
-targets, then the topology-readout re-measure against the referee.</p>
+fixed free-boundary solve) were precomputed on the sun cluster (array <code>1224768</code>: 158
+shots, resume-safe per-shot JSON under <code>imas_ambix/latent/artifacts/fit_targets/</code>;
+median fit cost 1.52, 75% converged).</p>
+
+<h3 id="amortized">§7b — Amortized gate-2 re-measure (2026-07-03): honest negative for the flat MLP</h3>
+<p>The full amortization arm was then implemented and measured (profile head emitting bounded
+(β0, α), engine amortization loss, target-aligned training batches; retrain job
+<code>1224778</code> on 3,164 clean targets — cost ≤ 1.5, converged). The held-out
+<strong>grounding is preserved exactly (5.53×)</strong>, but the amortized readout — ONE
+encoder-predicted solve per held-out slice, same honesty gates — scores
+<strong>49/160 with median axis error 49.3 cm</strong>, against the 20-candidate training-free
+per-slice fit's <strong>122/160 @ 8.3 cm</strong>. The flat single-slice MLP cannot amortize the
+fit: supervision is sparse (6% of slices carry a clean target), the features are mean-imputed
+where channels are dead, and the (β0, α) cost landscape is weakly identified, so regressing its
+argmin is noisy. The measured chain now cleanly separates the system:
+<em>solver good</em> (8.3 cm median through the fixed free-boundary solve) →
+<em>corpus grounding good</em> (5.53×, cross-geometry) →
+<em>flat-MLP amortization insufficient</em>. The one remaining gate-2 lever is the
+<strong>oracle-recipe encoder</strong> (temporal magnetics window, per-sensor geometry positional
+encoding, finite masks instead of imputation — the stage-1 probe recipe that set the 0.59/0.82
+bar), plus solver accuracy levers (vertical-position DOF, passive/eddy currents) to push the
+per-slice fit itself below the 4 cm clustered train-mean.</p>
 
 </main>
 </body>
