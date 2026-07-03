@@ -645,132 +645,172 @@ def cmd_discriminate(args) -> None:
 
 
 def cmd_identify(args) -> None:
-    oracles = _load_oracles()
-    assert oracles, "run the oracle sub-command first"
+    """SVD identifiability + training-free variational inverse.
+
+    Runs on ALL selected held-out slices — including flat-top slices where the
+    Picard fit chain reports no converged/low-cost equilibrium; the inverse
+    needs no inner solve, which is the point under test.  Oracle axes are
+    attached for slices where the Picard fit did land.
+    """
+    oracles = {(d["shot"], d["t_index"]): d for d in _load_oracles()}
     torch.manual_seed(20260703)
 
     # baseline (train-mean geometry) from the recorded gate arrays
     gate = np.load("imas_ambix/latent/artifacts/gs_solve_gate_arrays.npz")
     baseline_axis = gate["baseline"][0, :2]
 
-    by_shot: dict[int, tuple] = {}
+    _train, held = read_split_shot_lists(40, 8)
     svd_out: dict = {}
     inverse_rows = []
     lambdas = [float(x) for x in args.lambdas.split(",")]
-    for d in oracles:
-        shot = d["shot"]
-        if shot not in by_shot:
+    for shot in [int(s) for s in held[: args.n_shots]]:
+        try:
             table, fwd, grid = build_grid(shot, args.nr, args.nz)
-            cache = ARTIFACTS / f"g_pg_{table.signature.key}_{args.nr}x{args.nz}.npz"
-            g_pg = patch_grid_matrix(grid, cache)
-            by_shot[shot] = (table, fwd, grid, g_pg, grid.sensor_greens(table)[0])
-        table, fwd, grid, g_pg, g_sens = by_shot[shot]
+            payloads = slice_payloads(
+                shot, table, fwd, grid,
+                max_slices=args.slices_per_shot, min_ip_ka=args.min_ip_ka,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("shot %s failed to load: %s", shot, exc)
+            continue
+        if not payloads:
+            continue
+        cache = ARTIFACTS / f"g_pg_{table.signature.key}_{args.nr}x{args.nz}.npz"
+        g_pg = patch_grid_matrix(grid, cache)
+        g_sens, _ = grid.sensor_greens(table)
         cell_area = grid.dr * grid.dz
         r_cells = grid.flat_r[grid.cells]
         z_cells = grid.flat_z[grid.cells]
 
         # ---- SVD identifiability (once per shot) ---------------------------
-        if shot not in svd_out:
-            a = g_sens / d["scale"][:, None]
-            s = np.linalg.svd(a, compute_uv=False)
-            # visible fraction of a rigid radial axis shift of the oracle
-            i2d = np.zeros(grid.flat_r.size)
-            i2d[grid.cells] = d["i_cell"]
-            i2d = i2d.reshape(grid.nz, grid.nr)
-            vis = []
-            u, sv, vt = np.linalg.svd(a, full_matrices=False)
-            row_space = vt  # (S, N)
-            for k in (1, 2, 3, 4):
-                sh = np.zeros_like(i2d)
-                sh[:, k:] = i2d[:, :-k]
-                dvec = sh.ravel()[grid.cells] - d["i_cell"]
-                coef = row_space @ dvec
-                vis.append(
-                    (
-                        k * grid.dr,
-                        float(np.linalg.norm(coef) / max(np.linalg.norm(dvec), 1e-30)),
-                        float(np.linalg.norm((row_space @ dvec) * sv)),
-                    )
+        scale0 = payloads[0]["scale"]
+        a = g_sens / scale0[:, None]
+        sv_all = np.linalg.svd(a, compute_uv=False)
+        _u, sv, vt = np.linalg.svd(a, full_matrices=False)
+        ora0 = next(
+            (oracles[(shot, p["t_index"])] for p in payloads
+             if (shot, p["t_index"]) in oracles),
+            None,
+        )
+        pattern = (
+            ora0["i_cell"]
+            if ora0 is not None
+            else np.exp(
+                -(((r_cells - grid.r0) / 0.35) ** 2 + (z_cells / 0.5) ** 2)
+            )
+        )
+        i2d = np.zeros(grid.flat_r.size)
+        i2d[grid.cells] = pattern
+        i2d = i2d.reshape(grid.nz, grid.nr)
+        vis = []
+        for k in (1, 2, 3, 4):
+            sh = np.zeros_like(i2d)
+            sh[:, k:] = i2d[:, :-k]
+            dvec = sh.ravel()[grid.cells] - pattern
+            coef = vt @ dvec
+            vis.append(
+                (
+                    k * grid.dr,
+                    float(np.linalg.norm(coef) / max(np.linalg.norm(dvec), 1e-30)),
+                    float(np.linalg.norm(coef * sv)),
                 )
-            svd_out[shot] = {
-                "singular_values": s.tolist(),
-                "axis_shift_visibility": vis,
-                "n_cells": int(grid.cells.size),
-                "n_sensors": int(g_sens.shape[0]),
-            }
+            )
+        svd_out[shot] = {
+            "singular_values": sv_all.tolist(),
+            "axis_shift_visibility": vis,
+            "n_cells": int(grid.cells.size),
+            "n_sensors": int(g_sens.shape[0]),
+        }
 
-        # ---- training-free variational inverse -----------------------------
+        # ---- training-free variational inverse per slice -------------------
         g_cc_t = torch.as_tensor(g_pg[grid.cells, :], dtype=torch.float64)
         g_sens_t = torch.as_tensor(g_sens, dtype=torch.float64)
-        psi_coil_cells = torch.as_tensor(
-            grid.coil_psi(d["i_pf"])[grid.cells], dtype=torch.float64
-        )
         r_t = torch.as_tensor(r_cells, dtype=torch.float64)
-        meas = torch.as_tensor(np.nan_to_num(d["measured"]), dtype=torch.float64)
-        vac = torch.as_tensor(d["vacuum"], dtype=torch.float64)
-        mask = torch.as_tensor(d["mask"].astype(np.float64), dtype=torch.float64)
-        scale = torch.as_tensor(d["scale"], dtype=torch.float64)
-        ip = float(d["ip_amperes"])
         candidate = torch.as_tensor(
             (grid.topology_candidate.ravel()[grid.cells]).astype(np.float64),
             dtype=torch.float64,
         )
-
-        seed = np.exp(
-            -(
-                ((r_cells - grid.r0) / 0.35) ** 2
-                + (z_cells / 0.5) ** 2
-            )
+        seed_shape = np.exp(
+            -(((r_cells - grid.r0) / 0.35) ** 2 + (z_cells / 0.5) ** 2)
         )
-        seed = seed / seed.sum() * ip
 
-        for lam in lambdas:
-            i_var = torch.tensor(seed.copy(), dtype=torch.float64, requires_grad=True)
-            opt = torch.optim.Adam([i_var], lr=args.lr * ip / seed.size)
-            for _ in range(args.iters):
-                opt.zero_grad()
-                i_eff = i_var * candidate
-                pred = vac + g_sens_t @ i_eff
-                misfit = (mask * ((pred - meas) / scale) ** 2).sum() / mask.sum()
-                ip_pen = ((i_eff.sum() - ip) / ip) ** 2
-                psi_c = g_cc_t @ i_eff + psi_coil_cells
-                fb = structure_residual(psi_c, r_t, i_eff / cell_area,
-                                        n_bins=args.n_bins)
-                loss = misfit + 10.0 * ip_pen + lam * fb
-                loss.backward()
-                opt.step()
-            with torch.no_grad():
-                i_fin = (i_var * candidate).numpy()
-            psi2d = (g_pg @ i_fin + grid.coil_psi(d["i_pf"])).reshape(
-                grid.nz, grid.nr
+        for p in payloads:
+            d_oracle = oracles.get((shot, p["t_index"]))
+            psi_coil_cells = torch.as_tensor(
+                grid.coil_psi(p["i_pf"])[grid.cells], dtype=torch.float64
             )
-            axis, _ = _read_axis(psi2d, grid, 1.0)
-            ref_axis = d["ref_target"][:2]
-            err = float(np.hypot(axis[0] - ref_axis[0], axis[1] - ref_axis[1]))
-            inverse_rows.append(
-                {
-                    "shot": shot,
-                    "t_index": int(d["t_index"]),
-                    "lambda_fb": lam,
-                    "axis_error_m": err,
-                    "misfit": float(misfit),
-                    "structure_residual": float(fb),
-                    "oracle_axis_error_m": float(
-                        np.hypot(*(np.asarray(d["axis"]) - ref_axis))
-                    ),
-                    "baseline_axis_error_m": float(
-                        np.hypot(*(baseline_axis - ref_axis))
-                    ),
-                }
+            meas = torch.as_tensor(
+                np.nan_to_num(p["measured"]), dtype=torch.float64
             )
-            logger.info(
-                "shot %d t=%d lam=%.2g: axis err %.3f m (oracle %.3f, baseline %.3f)"
-                " misfit %.2f fb %.4f",
-                shot, d["t_index"], lam, err,
-                inverse_rows[-1]["oracle_axis_error_m"],
-                inverse_rows[-1]["baseline_axis_error_m"],
-                float(misfit), float(fb),
+            vac = torch.as_tensor(p["vacuum"], dtype=torch.float64)
+            mask = torch.as_tensor(
+                p["mask"].astype(np.float64), dtype=torch.float64
             )
+            scale = torch.as_tensor(p["scale"], dtype=torch.float64)
+            ip = float(p["ip_amperes"])
+            seed = seed_shape / seed_shape.sum() * ip
+            ref_axis = p["ref_target"][:2]
+
+            for lam in lambdas:
+                i_var = torch.tensor(
+                    seed.copy(), dtype=torch.float64, requires_grad=True
+                )
+                opt = torch.optim.Adam([i_var], lr=args.lr * ip / seed.size)
+                for _ in range(args.iters):
+                    opt.zero_grad()
+                    i_eff = i_var * candidate
+                    pred = vac + g_sens_t @ i_eff
+                    misfit = (
+                        mask * ((pred - meas) / scale) ** 2
+                    ).sum() / mask.sum()
+                    ip_pen = ((i_eff.sum() - ip) / ip) ** 2
+                    psi_c = g_cc_t @ i_eff + psi_coil_cells
+                    fb = structure_residual(
+                        psi_c, r_t, i_eff / cell_area, n_bins=args.n_bins
+                    )
+                    loss = misfit + 10.0 * ip_pen + lam * fb
+                    loss.backward()
+                    opt.step()
+                with torch.no_grad():
+                    i_fin = (i_var * candidate).numpy()
+                psi2d = (g_pg @ i_fin + grid.coil_psi(p["i_pf"])).reshape(
+                    grid.nz, grid.nr
+                )
+                axis, _ = _read_axis(psi2d, grid, 1.0)
+                err = float(
+                    np.hypot(axis[0] - ref_axis[0], axis[1] - ref_axis[1])
+                )
+                inverse_rows.append(
+                    {
+                        "shot": shot,
+                        "t_index": int(p["t_index"]),
+                        "picard_fit": d_oracle is not None,
+                        "lambda_fb": lam,
+                        "axis_error_m": err,
+                        "misfit": float(misfit),
+                        "structure_residual": float(fb),
+                        "oracle_axis_error_m": (
+                            float(
+                                np.hypot(*(np.asarray(d_oracle["axis"]) - ref_axis))
+                            )
+                            if d_oracle is not None
+                            else None
+                        ),
+                        "baseline_axis_error_m": float(
+                            np.hypot(*(baseline_axis - ref_axis))
+                        ),
+                    }
+                )
+                logger.info(
+                    "shot %d t=%d lam=%.2g: axis err %.3f m (picard %s, "
+                    "baseline %.3f) misfit %.2f fb %.4f",
+                    shot, p["t_index"], lam, err,
+                    "%.3f" % inverse_rows[-1]["oracle_axis_error_m"]
+                    if d_oracle is not None
+                    else "MASKED",
+                    inverse_rows[-1]["baseline_axis_error_m"],
+                    float(misfit), float(fb),
+                )
 
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     (ARTIFACTS / "identify.json").write_text(
@@ -807,17 +847,28 @@ def cmd_identify(args) -> None:
     for r in inverse_rows:
         axes[2].scatter(
             max(r["lambda_fb"], args.lambda_floor), r["axis_error_m"],
-            color="#2166ac", s=24, alpha=0.5, zorder=3,
+            color="#2166ac" if r["picard_fit"] else "#d95f02",
+            s=24, alpha=0.6, zorder=3,
         )
     axes[2].plot(
         [max(la, args.lambda_floor) for la in lam_arr], med, "-o",
-        color="#2166ac", lw=2, zorder=4, label="median",
+        color="#2166ac", lw=2, zorder=4, label="median (all slices)",
     )
-    oracle_med = np.median([r["oracle_axis_error_m"] for r in inverse_rows])
+    axes[2].scatter([], [], color="#d95f02", s=24, label="Picard chain masked")
+    ora_vals = [
+        r["oracle_axis_error_m"]
+        for r in inverse_rows
+        if r["oracle_axis_error_m"] is not None
+    ]
     base_med = np.median([r["baseline_axis_error_m"] for r in inverse_rows])
-    axes[2].axhline(oracle_med, color="#1b7837", lw=1.5, ls="--")
-    axes[2].annotate(f"Picard oracle {oracle_med:.3f} m", (lam_arr[1] if len(lam_arr) > 1 else 1, oracle_med * 1.05),
-                     fontsize=8, color="#1b7837")
+    if ora_vals:
+        oracle_med = float(np.median(ora_vals))
+        axes[2].axhline(oracle_med, color="#1b7837", lw=1.5, ls="--")
+        axes[2].annotate(
+            f"Picard (where it fits) {oracle_med:.3f} m",
+            (lam_arr[1] if len(lam_arr) > 1 else 1, oracle_med * 1.05),
+            fontsize=8, color="#1b7837",
+        )
     axes[2].axhline(base_med, color="#636363", lw=1.5, ls=":")
     axes[2].annotate(f"train-mean {base_med:.3f} m", (lam_arr[1] if len(lam_arr) > 1 else 1, base_med * 1.05),
                      fontsize=8, color="#636363")
@@ -852,6 +903,8 @@ def main() -> int:
     p_id.add_argument("--iters", type=int, default=800)
     p_id.add_argument("--lr", type=float, default=0.05)
     p_id.add_argument("--lambda-floor", type=float, default=0.03)
+    p_id.add_argument("--n-shots", type=int, default=4)
+    p_id.add_argument("--slices-per-shot", type=int, default=3)
     args = ap.parse_args()
     {
         "assemble": cmd_assemble,
