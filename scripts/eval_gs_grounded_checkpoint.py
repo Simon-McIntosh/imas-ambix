@@ -90,6 +90,7 @@ def main() -> int:
         n_free=int(cfg.get("n_free", 16)),
         hidden=int(cfg.get("hidden", 256)),
         depth=int(cfg.get("depth", 4)),
+        profile_head=any(k.startswith("profile_head") for k in payload["encoder"]),
     )
     trained = HybridLatentEncoder(lat_cfg).double()
     trained.load_state_dict(payload["encoder"])
