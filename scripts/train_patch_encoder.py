@@ -578,6 +578,14 @@ def main() -> int:
                 corp.values.shape[0],
             )
             del corpora[key]
+    # renumber example ids contiguously over the SURVIVING corpora — assembly
+    # numbers ids across every signature it builds, so a dropped signature
+    # leaves holes and out-of-range ids that overflow the per-example λ buffer
+    gid = 0
+    for corp in corpora.values():
+        n = corp.values.shape[0]
+        corp.ids = np.arange(gid, gid + n, dtype=np.int64)
+        gid += n
     n_total = sum(c.values.shape[0] for c in corpora.values())
     logger.info("corpus: %d examples across %d signatures", n_total, len(corpora))
 
