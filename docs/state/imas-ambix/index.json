@@ -1,5 +1,5 @@
 {
-  "updated": "2026-06-25T06:51:16",
+  "updated": "2026-07-03T10:06:04",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -413,6 +413,13 @@
             "tier": "opus",
             "done_when": "Five non-overlapping components built + tested (firewalled EFIT referee, absolute-magnetics oracle, raw-held-out + EnKF bar, powered n=10 dN-M gate, excitation-window selector); bars measured on existing data; excited held-out cohort defined + leakage-audited.",
             "status": "active"
+          },
+          {
+            "slug": "patch-current-force-balance",
+            "why_now": "User-directed pivot 2026-07-03: the corrected GS source exposed the 2-DOF profile family as the binding constraint (12/160 scored); scoping showed the patch-current substrate + structure residual scores 12/12 held-out slices at 4.5 cm median vs 8.7 cm train-mean, training-free. Subsumes the f-ggl-02 encoder work as its P4.",
+            "tier": "opus",
+            "done_when": "P3 gate: >=95% scored fraction + axis skill > 0 vs clustered train-mean on the 160-slice protocol; P4 gate: amortised patch-current encoder reaches/honestly-compares-to the 0.5-0.7 oracle bar with 100% readout availability and grounding >= 5.53x.",
+            "status": "active"
           }
         ],
         "starts": "2026-06-24",
@@ -504,6 +511,11 @@
         "when": "2026-06-24",
         "who": "Simon McIntosh (via orchestrator)",
         "what": "S16 opened \u2014 machine-agnostic latent state-space world model (the ground-up redesign; parent machine-agnostic-latent-world-model, North Star physics-world-model-strategy \u00a71a refined). Four sequential v0 child plans (absolute-geometry-token-substrate -> gs-grounded-latent-engine -> closed-loop-latent-filter -> controllable-forecast-and-gate), each a verifiable goal+gate. Supersedes the camera-as-state-carrier direction: S14 (playable-plasma-wm-v0, the controllability NO-GO) + S15 (camera-dynamics-wm-v0) closed; learned-closure-current-diffusion-v0 reused as the flux-diffusion transport-anchor asset. This work is now the focus."
+      },
+      {
+        "when": "2026-07-03",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "patch-current-force-balance plan opened (S16/M4) \u2014 pivot to Nova-style patch-current interaction matrices with force balance as a differentiable structure residual. Scoping landed same-day: 2pi source-scale defect found+fixed in gs_solve.py (plasma well was 6.3x too shallow); corrected gate-2 re-measure 12/160 @ 5.9 cm; training-free patch inverse 12/12 scored @ 4.5 cm median vs 8.7 cm train-mean."
       }
     ],
     "milestones": [
@@ -514,6 +526,6 @@
         "pct": 0
       }
     ],
-    "_version": 28
+    "_version": 29
   }
 }
