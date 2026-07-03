@@ -12,9 +12,10 @@ from an actual GS solve.  This is the pre-authorised fallback of the locked
 + free-boundary BC from known amc currents") for exactly the underfit condition
 now demonstrated.
 
-Scheme (standard free-boundary Picard, FreeGS-style):
+Scheme (standard free-boundary Picard, FreeGS-style), in TOTAL flux
+Φ = 2π R A_φ [Wb] (the convention every Green's column here carries):
 
-    Δ*ψ = −μ0 R jφ(ψ_N; θ)   with   jφ = λ·(β0·R/R0 + (1−β0)·R0/R)·(1−ψ_N)
+    Δ*Φ = −2π μ0 R jφ(ψ_N; θ)   with   jφ = λ·(β0·R/R0 + (1−β0)·R0/R)·(1−ψ_N)
 
 inside the core (the axis-connected region with ψ_N < 1), zero elsewhere; λ is
 rescaled every iteration so the total current equals the measured Ip (the
@@ -448,7 +449,13 @@ def solve_equilibrium(
         # the solve domain, where their field is not harmonic — Dirichlet
         # continuation of a total-psi BC would misrepresent it near the coils.
         # The finite-area coil columns are exact everywhere instead.
-        rhs2d = (-(MU0) * grid.flat_r * jphi * scale).reshape(grid.nz, grid.nr)
+        # All Green's columns (coil, g_edge, sensors) carry TOTAL flux
+        # Φ = 2π R A_φ [Wb], so the matching FD source is Δ*Φ = −2π μ0 R jφ
+        # (per-radian −μ0 R jφ under-weights the plasma well by 2π against
+        # the coil field — pinned by the flux-integral consistency test).
+        rhs2d = (
+            -(2.0 * np.pi * MU0) * grid.flat_r * jphi * scale
+        ).reshape(grid.nz, grid.nr)
         psi_b2d = np.zeros((grid.nz, grid.nr))
         if coil_field_mode == "analytic-add":
             psi_b2d.ravel()[grid.edge_idx] = grid.g_edge @ i_cell

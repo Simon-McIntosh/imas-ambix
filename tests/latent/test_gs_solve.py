@@ -87,6 +87,42 @@ def test_delta_star_stencil_manufactured_solution():
     assert err < 5e-3  # second-order stencil on a modest grid
 
 
+def test_plasma_source_scale_matches_greens_superposition():
+    """FD solve of the plasma part reproduces the Green's-function superposition.
+
+    The Green's columns carry TOTAL flux Φ = 2π R A_φ, so the matching FD
+    source is Δ*Φ = −2π μ0 R jφ.  A per-radian source (−μ0 R jφ) under-weights
+    the plasma's own flux well by 2π against the coil field and boundary
+    values — this test pins the scale by comparing the Dirichlet solve for a
+    smooth compact current against the same current's direct Green's field.
+    """
+    from imas_ambix.gs.cylinder import hybrid_greens
+    from imas_ambix.latent.gs_solve import MU0
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    r_c = grid.flat_r[grid.cells]
+    z_c = grid.flat_z[grid.cells]
+    blob = np.exp(-(((r_c - grid.r0) / 0.25) ** 2 + (z_c / 0.3) ** 2))
+    i_cell = blob / blob.sum() * 4.0e5  # [A]
+    psi_greens = np.zeros(grid.flat_r.size)
+    for k, c in enumerate(grid.cells):
+        psi_greens += i_cell[k] * hybrid_greens(
+            grid.flat_r, grid.flat_z,
+            float(grid.flat_r[c]), float(grid.flat_z[c]), grid.dr, grid.dz,
+        )[0]
+    psi_greens2d = psi_greens.reshape(grid.nz, grid.nr)
+    jphi = np.zeros(grid.flat_r.size)
+    jphi[grid.cells] = i_cell / (grid.dr * grid.dz)
+    rhs2d = (-(2.0 * np.pi * MU0) * grid.flat_r * jphi).reshape(grid.nz, grid.nr)
+    psi_b2d = np.zeros_like(rhs2d)
+    psi_b2d.ravel()[grid.edge_idx] = psi_greens[grid.edge_idx]
+    psi_fd = grid.solve_dirichlet(rhs2d, psi_b2d)
+    span = psi_greens2d.max() - psi_greens2d.min()
+    rel_rms = float(np.sqrt(np.mean((psi_fd - psi_greens2d) ** 2)) / span)
+    assert rel_rms < 0.05  # a missing 2π shows up at ~0.2+
+
+
 def test_vacuum_limit_matches_greens_coil_field():
     """Interior solve of Δ*ψ=0 with Green's BCs reproduces the Green's coil ψ."""
     table = _confining_table()
@@ -159,12 +195,16 @@ def test_fit_profile_recovers_generating_beta0():
     equilibrium recovers that β0 (self-consistency of the fit machinery)."""
     from imas_ambix.latent.gs_solve import fit_profile
 
+    from imas_ambix.latent.gs_solve import solve_equilibrium_bootstrapped
+
     table = _confining_table()
     grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
     ip = 4.0e5
     i_pf = np.array([-6.0e4, -6.0e4])
     true_beta0 = 0.7
-    res = solve_equilibrium(grid, i_pf, ip, beta0=true_beta0)
+    # synthesise through the SAME two-stage path fit_profile solves with —
+    # isolates parameter recovery from Picard path-to-path variation
+    res = solve_equilibrium_bootstrapped(grid, i_pf, ip, beta0=true_beta0)
     assert res.converged
     g_sens, channels = grid.sensor_greens(table)
     # synthetic "measured" magnetics = coil vacuum part + plasma part; the coil
