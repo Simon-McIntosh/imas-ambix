@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-04">
-<meta name="plan-version" content="5">
-<meta name="plan-impl" content="0.22">
+<meta name="plan-version" content="6">
+<meta name="plan-impl" content="0.33">
 </head>
 <body>
   <main class="plan-doc">
@@ -188,15 +188,18 @@
 
     <h2 id="s4">§4 — Workstream B: wire the equilibrium layer into the world model</h2>
     <p><strong>B1 — Structure residual + patch forward into the stage-2 engine loss family.</strong>
-      <code>GSGroundedLatentEngine.losses()</code> (in <code>imas_ambix/latent/engine.py</code>) gains the
-      patch observation path (I → M<sub>sens</sub> prediction vs RAW magnetics) and the structure residual as
-      additive soft terms, replacing the low-DOF polynomial θ path as the ψ carrier; the flux-diffusion
-      temporal anchor consumes patch-ψ through the already-shipped
-      <code>imas_ambix/latent/patch_transport.py</code> glue. This realises, on the current-basis
-      representation, exactly the spatial+temporal anchor pair the driving plan
-      machine-agnostic-latent-world-model §6/§7a/§8 specifies.
-      <br><strong>Gate B1:</strong> engine trains with the patch anchors; GS-residual grounding on the learned
-      latent ≥ the 5.53× bar; D≥0 and command-load-bearing checks stay green.</p>
+      <span class="badge badge-shipped">✓ landed 2026-07-04</span></p>
+    <p class="landed-summary">
+      Shipped commit <code>40d30ff</code> (+426/−1306 lines; 54 tests green): the engine's ψ carrier is now
+      patch currents — <code>GSGroundedLatentEngine</code> takes a <code>PatchBasis</code>, the encoder gains a
+      patch head (I = x·I<sub>p</sub>/n·mask), and <code>losses()</code> wires whitened raw-magnetics misfit via
+      <code>basis.sensors</code> + I<sub>p</sub> anchor + discrepancy-weighted structure residual (λ scheduler
+      stays training-script-owned) + patch-ψ flux-diffusion transport; topology reads ψ via
+      <code>basis.psi_grid_2d_np</code>. θ/GSObservation carrier and its four scripts deleted. Gradient flow
+      through both M<sub>sens</sub> and the structure residual is CI-pinned; D≥0 + command-load-bearing checks
+      stay green. Bonus fix: <code>PatchBasis._apply</code> renamed <code>_superpose</code> (shadowed
+      <code>nn.Module._apply</code>, broke every <code>.to()/.double()</code> on a containing module).
+      Gate B1's grounding-≥5.53× number is measured by B2's training run (no trained checkpoint yet by design).</p>
     <p><strong>B2 — Measure f-malwm-02 done-when #2 properly.</strong> The stage-2 bar (“GS-readout
       axis/X-point/boundary skill matches the absolute-magnetics oracle ~0.5–0.7”) has never been measured on
       the plan's actual design — a learned hybrid latent trained on the corpus. With B1 the readout is the
