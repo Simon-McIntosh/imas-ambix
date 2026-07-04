@@ -38,7 +38,7 @@
 #  comparison or a seed ablation), not one multi-GPU job.
 # ============================================================================
 
-set -u
+set -uo pipefail
 cd /home/ITER/mcintos/Code/imas-ambix
 export TMPDIR=/scratch_local/$SLURM_JOB_ID
 mkdir -p "$TMPDIR" || export TMPDIR=/tmp
@@ -58,5 +58,10 @@ python scripts/train_grounded_latent_engine.py \
     --batch-size 256 \
     --device cuda \
     > "${LOG}" 2>&1
-echo "TRAIN_EXIT=$?"
+exit_code=$?
+echo "TRAIN_EXIT=${exit_code}"
 tail -30 "${LOG}"
+# propagate the Python exit code as this SCRIPT's exit code -- without this,
+# `tail` (unconditionally exit 0) was the last command, so SLURM/sacct
+# reported COMPLETED for job 1225258 even though training had crashed.
+exit "${exit_code}"

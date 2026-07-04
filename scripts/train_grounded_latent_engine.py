@@ -50,11 +50,15 @@ import numpy as np
 import torch
 
 from imas_ambix.eval.excitation_selector import coil_ramp_profile
-from imas_ambix.gs.geometry import build_table_for_shot
+from imas_ambix.gs.geometry import discover_signatures, extract_campaign_tables
 
 try:  # GEOMETRY_TABLE_VERSION is a very recent addition (sensor-channel-set
     # determinism fix) -- degrade to an honest "absent" label rather than a
-    # hard import error if an older checkout doesn't have it yet.
+    # hard import error if an older checkout doesn't have it yet.  The
+    # discover_signatures / extract_campaign_tables functions above landed in
+    # the SAME commit, so their absence would already have failed the import
+    # above -- only the version STRING (used for labelling/cache-keying) needs
+    # this softer fallback.
     from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 except ImportError:
     GEOMETRY_TABLE_VERSION = None
@@ -133,46 +137,33 @@ class SignatureCorpus:
         return 0 if self.x_t is None else int(self.x_t.shape[0])
 
 
-def _assemble_shot_pairs(
+def _shot_pairs_for_operator(
     shot: int,
-    *,
-    nr: int,
-    nz: int,
-    min_ip_ka: float,
-    basis_cache: dict[str, PatchBasis],
+    fwd,
+    key: str,
     schema: dict[str, list[str]],
+    *,
+    min_ip_ka: float,
 ):
-    """Consecutive-pair example arrays for one shot, or ``(None, key)``."""
-    table = build_table_for_shot(int(shot))
-    fwd = build_operator(table)
-    key = table.signature.key
-    if key not in basis_cache:
-        basis_cache[key] = PatchBasis.from_table(table, nr=nr, nz=nz)
+    """Consecutive-pair example arrays for one shot against a signature's
+    ALREADY-BUILT canonical operator, or ``None``.
 
-    # defence-in-depth: two shots sharing a signature key MUST agree on their
-    # sensor-channel-set width (GEOMETRY_TABLE_VERSION="amb-schema-canonical-v1"
-    # makes this a geometry invariant), but a shot is skipped rather than
-    # crashing the whole assembly's concatenation if that invariant is ever
-    # violated again (a real crash cost 30+ minutes of assembly, see
-    # module docstring's `git show 40d30ff^:...` incident history)
-    cached_n_sensor = len(basis_cache[key].sensor_channels)
-    if len(fwd.sensor_channels) != cached_n_sensor:
-        logger.warning(
-            "shot %s: signature %s sensor count %d != cached %d — skipped "
-            "(sensor-channel-set indeterminism; should not recur post-fix)",
-            shot,
-            key,
-            len(fwd.sensor_channels),
-            cached_n_sensor,
-        )
-        return None, key
-
+    ``fwd`` (and the ``key`` it was built from) is shared across every shot of
+    the signature — built once, in :func:`assemble_corpus`, from a
+    :func:`~imas_ambix.gs.geometry.extract_campaign_tables` table whose sensor
+    channel SET is the canonical union over every shot of that signature
+    (:data:`~imas_ambix.gs.geometry.GEOMETRY_TABLE_VERSION`).  A per-shot
+    ``build_table_for_shot(shot)`` call here would silently reintroduce the
+    single-shot indeterminism the union fixes (its ``amb_channels`` argument
+    defaults to that ONE shot's own schema) — this is why the operator is
+    passed in rather than rebuilt.
+    """
     w = load_shot_windows(int(shot), fwd, key, schema, with_referee=False)
     if w is None or w.times.size < 2:
-        return None, key
+        return None
     pairs = consecutive_pairs(w.times)
     if not pairs:
-        return None, key
+        return None
 
     scale_row = np.nanstd(w.raw_mag, axis=0)
     scale_row = np.where(np.isfinite(scale_row) & (scale_row > 0), scale_row, 1.0)
@@ -200,7 +191,7 @@ def _assemble_shot_pairs(
         dts.append(dt_val)
         weight.append(float(ramp[a]))
     if not x_t:
-        return None, key
+        return None
 
     weight_arr = np.asarray(weight, dtype=np.float64)
     weight_arr = weight_arr + 1e-6 * weight_arr.max() + 1e-9  # never fully zero
@@ -219,7 +210,7 @@ def _assemble_shot_pairs(
         "dt": np.asarray(dts, dtype=np.float64),
         "weight": weight_arr,
     }
-    return ex, key
+    return ex
 
 
 def assemble_corpus(
@@ -230,31 +221,54 @@ def assemble_corpus(
     min_ip_ka: float,
     max_populated_shots: int | None = None,
 ) -> dict[str, SignatureCorpus]:
-    """Build per-signature :class:`SignatureCorpus` bundles for ``shots``."""
+    """Build per-signature :class:`SignatureCorpus` bundles for ``shots``.
+
+    One :class:`~imas_ambix.gs.geometry.GeometryTable` (hence one
+    :class:`~imas_ambix.gs.operator.ForwardOperator` and one
+    :class:`~imas_ambix.latent.patch_basis.PatchBasis`) is built PER SIGNATURE
+    via :func:`~imas_ambix.gs.geometry.extract_campaign_tables`, which unions
+    the sensor channel set across every shot of that signature — never per
+    shot.  A per-shot ``build_table_for_shot(shot)`` call (the original,
+    pre-fix shape of this function) silently falls back to that ONE shot's own
+    amb schema and reintroduces the sensor-channel-set indeterminism the union
+    exists to close; two real corpus-assembly crashes (jobs 1225204, 1225258)
+    were exactly this bug.
+    """
     schema = feature_schema()
+    groups = discover_signatures(shots)  # {key: (sig, [shot_ids])}
+    tables = extract_campaign_tables(shots)  # {key: canonical GeometryTable}
     basis_cache: dict[str, PatchBasis] = {}
     per_sig: dict[str, list[dict]] = {}
     n_pf: dict[str, int] = {}
     n_populated = 0
-    for s in shots:
-        try:
-            ex, key = _assemble_shot_pairs(
-                s,
-                nr=nr,
-                nz=nz,
-                min_ip_ka=min_ip_ka,
-                basis_cache=basis_cache,
-                schema=schema,
-            )
-        except Exception as exc:  # noqa: BLE001 — a shot w/o geometry is skipped
-            logger.warning("shot %s skipped: %s", s, exc)
+    for key, (_sig, shot_list) in groups.items():
+        table = tables.get(key)
+        if table is None:
+            logger.warning("signature %s: no buildable representative — skipped", key)
             continue
-        if ex is not None:
-            per_sig.setdefault(key, []).append(ex)
-            n_pf.setdefault(key, ex["i_pf_t"].shape[1])
-            n_populated += 1
-            if max_populated_shots is not None and n_populated >= max_populated_shots:
-                break
+        try:
+            fwd = build_operator(table)
+            basis_cache[key] = PatchBasis.from_table(table, nr=nr, nz=nz)
+        except Exception as exc:  # noqa: BLE001 — a signature w/o a valid forward
+            logger.warning("signature %s: operator/basis build failed: %s", key, exc)
+            continue
+        for s in shot_list:
+            try:
+                ex = _shot_pairs_for_operator(s, fwd, key, schema, min_ip_ka=min_ip_ka)
+            except Exception as exc:  # noqa: BLE001 — a shot w/o usable data
+                logger.warning("shot %s skipped: %s", s, exc)
+                continue
+            if ex is not None:
+                per_sig.setdefault(key, []).append(ex)
+                n_pf.setdefault(key, ex["i_pf_t"].shape[1])
+                n_populated += 1
+                if (
+                    max_populated_shots is not None
+                    and n_populated >= max_populated_shots
+                ):
+                    break
+        if max_populated_shots is not None and n_populated >= max_populated_shots:
+            break
 
     corpora: dict[str, SignatureCorpus] = {}
     gid = 0
@@ -479,9 +493,7 @@ def _build_batch(
     # a campaign with fewer pairs than batch_size still fills a FULL batch
     # (with-replacement); a larger campaign samples without replacement so a
     # batch never repeats a row
-    rows = rng.choice(
-        n, size=batch_size, p=state.sample_p, replace=n < batch_size
-    )
+    rows = rng.choice(n, size=batch_size, p=state.sample_p, replace=n < batch_size)
 
     x_t = np.nan_to_num(feature_stats.normalise(corp.x_t[rows]), nan=0.0)
     x_tp1 = np.nan_to_num(feature_stats.normalise(corp.x_tp1[rows]), nan=0.0)
