@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=ambix-grounded-latent
 #SBATCH --partition=betelgeuse
-#SBATCH --reservation=gpu_0003_grpA
 #SBATCH --account=grpa
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
@@ -10,6 +9,12 @@
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
 # NOTE: --qos intentionally omitted — defaults to normal; a 1-card job bursts
 # onto a free card and coexists with any model serve.
+#
+# NOTE: no --reservation. gpu_0003_grpA (98dci4-gpu-0003's grpA CPU carve-out)
+# caps at 30 cores total and was fully consumed by three peer jobs -- draw
+# from the node's general/non-reserved core pool instead (still lands on the
+# same node for its GPU; per imas_ambix/agent/AGENTS.md the serve historically
+# ran on general cores too).
 #
 # ============================================================================
 #  GS-grounded hybrid latent, patch-current substrate — corpus trainer.
