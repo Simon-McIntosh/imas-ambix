@@ -4,22 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="patch-equilibrium-wm-integration">
-  <meta name="plan-title"     content="Patch Equilibrium → World-Model Integration">
-  <meta name="plan-summary"   content="Carry the shipped patch-current force-balance layer into the machine-agnostic latent world model: close the amortised geometry gap, wire the equilibrium layer into the stage-2/3 engine as observation operator + soft residual + dimensionless closure coordinates, and open the cross-machine ingestion path">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="patch-equilibrium-wm-integration">
+  <meta name="plan-title" content="Patch Equilibrium → World-Model Integration">
+  <meta name="plan-summary" content="Carry the shipped patch-current force-balance layer into the machine-agnostic latent world model: close the amortised geometry gap, wire the equilibrium layer into the stage-2/3 engine as observation operator + soft residual + dimensionless closure coordinates, and open the cross-machine ingestion path">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S16">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S16">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="patch-current-force-balance">
-  <meta name="plan-blocks"    content="machine-agnostic-latent-world-model">
+  <meta name="plan-blocks" content="machine-agnostic-latent-world-model">
   <title>Patch Equilibrium → World-Model Integration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-04">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -244,33 +246,33 @@
     </p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="corpus-scale-strategy" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Workstream A1 corpus strategy — one full-corpus run, or staged scale-up with cached assembly?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="staged-cached">staged (2k → 5k → full) with cached per-signature corpus npz — scaling curve for free</button>
-          <button class="r-opt" data-value="full-once">single full-corpus run (fastest to the answer, no curve)</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="wm-integration-order" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Sequence Workstream A before B, or interleave (B1 engine wiring can start on the 2k checkpoint)?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="interleave">interleave — B1/B3 wiring starts now on the 2k checkpoint; A1 retrains drop in</button>
-          <button class="r-opt" data-value="a-first">A first — harden the encoder before any engine integration</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="corpus-scale-strategy" data-choice="staged-cached" data-by="reckon-ship (orchestrator, kickoff evidence)" data-when="2026-07-04T09:51:56+00:00">
+    <p class="r-dec-q">Workstream A1 corpus strategy — one full-corpus run, or staged scale-up with cached assembly?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="staged-cached">staged (2k → 5k → full) with cached per-signature corpus npz — scaling curve for free</button>
+      <button class="r-opt" data-value="full-once">single full-corpus run (fastest to the answer, no curve)</button>
+      </p>
+    <p class="r-dec-rat">The corpus-assembly cache (A1 deliverable) makes the staged curve nearly free: assembly is paid once per (signature, stride, window) npz regardless of strategy, training is minutes per point on one H200, and the 2k point (14,525 examples) already exists from P4. Staged 2k→5k→full therefore buys the scaling curve — the plan&#x27;s own decision evidence for every later data-volume bet — for a few extra GPU-minutes on top of the one-off ~6 h assembly.</p>
+    </div>
+<div class="r-dec" data-key="wm-integration-order" data-choice="interleave" data-by="reckon-ship (orchestrator, kickoff evidence)" data-when="2026-07-04T09:51:56+00:00">
+    <p class="r-dec-q">Sequence Workstream A before B, or interleave (B1 engine wiring can start on the 2k checkpoint)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="interleave">interleave — B1/B3 wiring starts now on the 2k checkpoint; A1 retrains drop in</button>
+      <button class="r-opt" data-value="a-first">A first — harden the encoder before any engine integration</button>
+      </p>
+    <p class="r-dec-rat">B1/B3 are code-wiring tasks with exclusive file scopes independent of the A1 retrain artifacts; the 2k checkpoint exists now and A1 checkpoints drop in without interface change (head locked = direct). With a 48 h budget and a worker fleet, serialising A before B wastes the only scarce resource (wall-clock); the engine wiring also de-risks B2&#x27;s gate measurement early.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-pewi-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3">
-        <h4 class="r-fu-title">Ship Workstream A — corpus cache + full-corpus retrain + per-batch geometry + Gaussian head + LCFS read</h4>
-        <div class="r-fu-body"><p>The measured levers from the shipped patch-current-force-balance P4, in priority order,
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-pewi-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship Workstream A — corpus cache + full-corpus retrain + per-batch geometry + Gaussian head + LCFS read</h4>
+    <div class="r-fu-body"><p>The measured levers from the shipped patch-current-force-balance P4, in priority order,
           with the corpus-assembly cache first (it de-risks everything after). Resolve the
           <code>corpus-scale-strategy</code> decision at kickoff on the cache-cost evidence.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    patch-equilibrium-wm-integration (http://localhost:8765/imas-ambix/patch-equilibrium-wm-integration.html)
 Section: §3 Workstream A
 Tier:    opus
@@ -278,7 +280,7 @@ Tier:    opus
 Context
   patch-current-force-balance shipped with the amortised encoder at 8.4 cm
   in-signature axis median (grounding + availability gates PASS) and a
-  measured data-scaling law (588 -> 14,525 examples: 26.9 -> 8.4 cm). This
+  measured data-scaling law (588 -&gt; 14,525 examples: 26.9 -&gt; 8.4 cm). This
   followup executes the four measured levers (A1-A4) of the follow-on plan.
 
 State to read  (CODE / FILES / DATA)
@@ -301,15 +303,15 @@ Scope locks / constraints  (non-decision)
 Done-when
   1. corpus cache lands (assembly paid once; measured cost recorded)
   2. full-corpus retrain + gate eval: scaling point recorded; target
-     in-signature axis skill > 0
+     in-signature axis skill &gt; 0
   3. per-batch geometry binding: all signatures train; cross-signature
      metrics hold or improve; tests green
   4. Gaussian head: held-out coverage in [0.88,0.92] reported per quantity
   5. LCFS read robustification measured (kept only if load-bearing)
   6. plan updated same-turn with numbers + figures; followup written for
      Workstream B + this one resolved</pre>
-      </article>
-    </section>
+    </article>
+</section>
 
   </main>
 </body>
