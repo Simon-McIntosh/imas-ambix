@@ -280,20 +280,25 @@ def assemble_corpus(
             break
 
     corpora: dict[str, SignatureCorpus] = {}
-    gid = 0
     for key, ex_list in per_sig.items():
         cat = {
             k: np.concatenate([e[k] for e in ex_list], axis=0) for k in _PAIR_ARRAY_KEYS
         }
         n = cat["x_t"].shape[0]
+        # LOCAL 0..n-1 ids, not a corpus-wide running counter: each signature
+        # gets its OWN DiscrepancyLambda buffer sized to exactly this n (see
+        # main()), and that buffer is indexed by these ids directly. A shared
+        # global counter across signatures (the pre-fix shape of this line)
+        # produced ids >= n for every signature after the first, which
+        # silently indexed past a smaller buffer -- a CUDA device-side assert
+        # on GPU, invisible until job 1225426's 37-minute run hit it.
         corpora[key] = SignatureCorpus(
             key=key,
             basis=basis_cache[key],
             n_coil=n_pf[key],
-            ids=np.arange(gid, gid + n, dtype=np.int64),
+            ids=np.arange(n, dtype=np.int64),
             **cat,
         )
-        gid += n
         logger.info(
             "signature %s: %d pairs, n_cells=%d, n_coil=%d",
             key,
@@ -665,6 +670,12 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
     if not corpora:
         logger.error("no campaign has usable training pairs — aborting")
         return 1
+    # self-heal: a corpus cache built before the local-id fix (job 1225426's
+    # crash) carries a corpus-WIDE running id count, not this signature's own
+    # 0..n-1 range that its DiscrepancyLambda buffer is sized to -- renumber
+    # unconditionally rather than trusting whatever is on disk.
+    for corp in corpora.values():
+        corp.ids = np.arange(corp.n_examples, dtype=np.int64)
 
     # the shared encoder's per-cell head has ONE fixed output width — only
     # signatures matching the dominant (most populous) signature's cell count
@@ -733,6 +744,15 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
         cmd_stats = fit_corpus_stats([corp.cmd_t])
         sample_p = corp.weight / corp.weight.sum()
         steps_per_epoch = max(1, int(round(corp.n_examples / args.batch_size)))
+        # fail loudly on CPU (job 1225426's mismatch was a CUDA device-side
+        # assert 37 minutes into a run) -- DiscrepancyLambda's buffer below is
+        # sized to exactly corp.n_examples, indexed by corp.ids directly.
+        if corp.ids.min() < 0 or corp.ids.max() >= corp.n_examples:
+            raise ValueError(
+                f"signature {key}: ids range [{corp.ids.min()}, {corp.ids.max()}] "
+                f"is not contained in [0, {corp.n_examples}) -- the "
+                "DiscrepancyLambda buffer below would be indexed out of bounds"
+            )
         disc = DiscrepancyLambda(
             corp.n_examples,
             lam0=args.lam0,
