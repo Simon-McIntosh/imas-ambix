@@ -149,6 +149,24 @@ def _assemble_shot_pairs(
     if key not in basis_cache:
         basis_cache[key] = PatchBasis.from_table(table, nr=nr, nz=nz)
 
+    # defence-in-depth: two shots sharing a signature key MUST agree on their
+    # sensor-channel-set width (GEOMETRY_TABLE_VERSION="amb-schema-canonical-v1"
+    # makes this a geometry invariant), but a shot is skipped rather than
+    # crashing the whole assembly's concatenation if that invariant is ever
+    # violated again (a real crash cost 30+ minutes of assembly, see
+    # module docstring's `git show 40d30ff^:...` incident history)
+    cached_n_sensor = len(basis_cache[key].sensor_channels)
+    if len(fwd.sensor_channels) != cached_n_sensor:
+        logger.warning(
+            "shot %s: signature %s sensor count %d != cached %d — skipped "
+            "(sensor-channel-set indeterminism; should not recur post-fix)",
+            shot,
+            key,
+            len(fwd.sensor_channels),
+            cached_n_sensor,
+        )
+        return None, key
+
     w = load_shot_windows(int(shot), fwd, key, schema, with_referee=False)
     if w is None or w.times.size < 2:
         return None, key
