@@ -53,6 +53,17 @@
         owner, not fixed here (out of this module's scope; see §6).</li>
     </ul>
     <p>
+      <strong>"Does our model drive series-tied coils independently?" — no, and it cannot.</strong>
+      The ohmic circuit (solenoid1+solenoid2) is the ONLY series-tied pairing on the whole
+      machine; traced end-to-end from the raw <code>amc</code> data through
+      <code>operator.classify_circuits</code>/<code>build_operator</code> to the patch/latent
+      model's actual training input (<code>imas_ambix/latent/data.py</code>'s <code>i_pf</code>
+      array), there is exactly ONE current channel and ONE actuator-vector column for the pair
+      at every layer — the series constraint is enforced structurally by the machine's own
+      instrumentation (a single measured current), not by a code convention that could silently
+      break. No effect to quantify, no constraint left to wire in (§7).
+    </p>
+    <p>
       Everything below is either a hardcoded, tested machine-description module
       (<code>imas_ambix/gs/circuits.py</code>) sourced from the MAST control-system XML and
       cross-validated against real data, or a directly measured number from four held-out
@@ -232,7 +243,61 @@
       reproducible via <code>circuits.case_circuit_for_active_coil(coil_label)</code>.
     </p>
 
-    <h2 id="s7">§7 — IMAS-database credibility check</h2>
+    <h2 id="s7">§7 — Series-tied coil check: does anything drive solenoid1/solenoid2 independently?</h2>
+    <p>
+      The ohmic circuit (solenoid1 + solenoid2, circuit 1) is the <strong>only</strong>
+      series-tied pairing in the whole 13-active-circuit MAST PF system &mdash; every other
+      active circuit (P2IU/P2OU/P2IL/P2OL, P3U/P3L, P4U/P4L, P5U/P5L, P6U/P6L) is a single
+      physical coil on its own dedicated supply (§2), so this is the only place the failure mode
+      "our model drives series-tied coils independently" could even occur on this machine.
+      Traced the full chain from raw data to the actuator vector the patch-current/GS-latent
+      model actually trains on:
+    </p>
+    <ul>
+      <li><strong>At the source:</strong> the <code>amc</code> group carries exactly ONE
+        current channel for the whole ohmic circuit &mdash; <code>sol_current</code>. There is
+        no <code>solenoid1_current</code> / <code>solenoid2_current</code> to even read
+        independently; the machine's own instrumentation only ever measures one current for the
+        pair (they are physically in series, so this is correct).</li>
+      <li><strong>At the efm/GS-geometry layer:</strong> <code>fcoil_circ</code> assigns BOTH
+        solenoid halves to a single circuit id (1) &mdash; verified directly on shot 18502: circuit
+        1 spans all 656 filaments (328 from each half, ``turnCount=0.5`` per filament,
+        &Sigma;xmult = 328 total turns) as ONE group, not two. The series tie is baked into
+        EFIT's own static setup, upstream of anything in this repo.</li>
+      <li><strong>At the GS forward operator:</strong> <code>operator.classify_circuits</code> /
+        <code>build_operator</code> therefore produce exactly ONE <code>G_pf</code> column
+        labelled <code>"sol"</code>, sourced from the single <code>sol_current</code> channel
+        (confirmed: <code>ForwardOperator.pf_amc_channels</code> has 13 entries total, one per
+        physical coil, including exactly one for the solenoid pair &mdash; see
+        <code>operator.py</code> lines 615&ndash;639's own "ONE column per PHYSICAL coil" merge
+        logic, read-only import, not modified here).</li>
+      <li><strong>At the patch/latent model's actuator assembly:</strong>
+        <code>imas_ambix/latent/data.py::load_shot_windows</code> builds the training input
+        <code>i_pf</code> as a <code>(n_slice, n_coil)</code> array with
+        <code>n_coil = len(operator.pf_amc_channels) = 13</code>, filled by
+        <code>ForwardOperator.assemble_pf_currents(amc_values)</code>. There is exactly one
+        column for the solenoid pair; the model has no representation slot in which solenoid1
+        and solenoid2 could even be assigned different values.</li>
+      <li><strong>Every other consumer checked</strong> (the tokenizer's
+        <code>geometry_reader.py</code> coil-name map, <code>camdyn/conditioning.py</code>'s
+        conditioning-channel list) also carries exactly one <code>"sol"</code> /
+        <code>sol_current</code> entry &mdash; a repo-wide <code>grep</code> for
+        <code>solenoid1</code> / <code>solenoid2</code> outside this report's own new files
+        returns nothing.</li>
+    </ul>
+    <p>
+      <strong>Verdict: no independent driving occurs, and none could</strong> &mdash; the series
+      constraint is enforced structurally at the data-acquisition level (one measured channel),
+      not by a convention in our code that could silently break. There is no effect to quantify
+      and no circuit constraint left to "wire in" for this pairing; <code>circuits.py</code>'s
+      <code>ActiveCircuit(series=True, pf_coil_names=("solenoid1","solenoid2"))</code> already
+      documents the physical fact for any future consumer that might otherwise assume 13
+      independently-drivable coils map to 13 independently-drivable physical windings (they map
+      to 13 independently-drivable <em>circuits</em>, one of which happens to wind two physical
+      coils in series).
+    </p>
+
+    <h2 id="s8">§8 — IMAS-database credibility check</h2>
     <p>
       Candidate original-MAST IMAS entry: <code>/home/ITER/pinches/public/imasdb/mast/3/27999</code>
       (user <code>pinches</code>, database <code>mast</code>, DD major version 3, pulse 27999,
@@ -267,7 +332,7 @@
       an HDF5-backend original-MAST IMAS entry instead.
     </p>
 
-    <h2 id="s8">§8 — Artifacts</h2>
+    <h2 id="s9">§9 — Artifacts</h2>
     <ul>
       <li><code>imas_ambix/gs/circuits.py</code> &mdash; the typed, tested circuit description
         (<code>ActiveCircuit</code> / <code>CaseCircuit</code> dataclasses + API:
