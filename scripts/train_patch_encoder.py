@@ -1185,6 +1185,65 @@ def _restore_disc(disc, state) -> None:
     disc._epoch = int(state["epoch"])
 
 
+def _warm_start_load(encoder, ckpt_path: Path, device) -> None:
+    """Seed a FRESH run's trunk + mean-arm weights from a completed run's
+    checkpoint (e.g. a "direct" run seeding a "gaussian-direct" run whose
+    mean arm is architecturally identical to the direct head — see
+    ``--freeze-mean``).  Optimiser / scheduler / discrepancy-λ state is
+    deliberately NOT loaded — this initialises weights, it does not resume a
+    run; ``--resume`` is for recovering THIS SAME (already warm-started) run
+    after a crash, not for chaining two warm-starts.
+
+    Geometry buffers are excluded (rebound per batch regardless of source).
+    A key present in ``encoder`` but absent from the source checkpoint (e.g.
+    ``log_sigma_head.*`` when warm-starting from a "direct" checkpoint) is
+    EXPECTED and left at its own random init.  An UNEXPECTED key (present in
+    the source but not consumed by ``encoder``) is a hard error — the
+    checkpoints are not actually architecture-compatible.
+    """
+    payload = torch.load(ckpt_path, map_location=device, weights_only=False)
+    source = {
+        k: v for k, v in payload["encoder"].items() if k not in _GEOMETRY_BUFFERS
+    }
+    missing, unexpected = encoder.load_state_dict(source, strict=False)
+    missing = [m for m in missing if m not in _GEOMETRY_BUFFERS]
+    if unexpected:
+        raise RuntimeError(
+            f"warm-start checkpoint {ckpt_path} is architecture-incompatible: "
+            f"unexpected keys {unexpected}"
+        )
+    logger.info(
+        "warm-started from %s (%d keys loaded, left at random init: %s)",
+        ckpt_path,
+        len(source),
+        missing,
+    )
+
+
+def _freeze_mean(encoder) -> None:
+    """Freeze every parameter except ``log_sigma_head`` — used with
+    ``--warm-start-from`` a completed "direct" run so the mean is BYTE-
+    IDENTICAL to that run by construction (the no-mean-regression gate is
+    then satisfied trivially) while σ fits a well-posed heteroscedastic
+    calibration on top of the fixed mean (no mean/variance co-adaptation, so
+    no collapse mode).  Caller's ``cfg.head`` must be ``"gaussian-direct"``.
+    """
+    trainable = {"log_sigma_head.weight", "log_sigma_head.bias"}
+    n_total = 0
+    n_frozen = 0
+    for name, p in encoder.named_parameters():
+        n_total += 1
+        if name not in trainable:
+            p.requires_grad_(False)
+            n_frozen += 1
+    logger.info(
+        "--freeze-mean: %d/%d parameters frozen; trainable: %s",
+        n_frozen,
+        n_total,
+        sorted(trainable),
+    )
+
+
 def _save_checkpoint(path, encoder, optimizer, scheduler, disc, step, epoch, extra):
     payload = {
         "step": int(step),
@@ -1292,7 +1351,28 @@ def main() -> int:
         "gs_operator_summary.json from every signature this assembly builds "
         "(a free side-product — see regenerate_operator_summary)",
     )
+    ap.add_argument(
+        "--warm-start-from",
+        type=str,
+        default="",
+        help="checkpoint whose trunk + mean-arm weights seed this FRESH run "
+        "(e.g. a completed direct run seeding a gaussian-direct run — see "
+        "--freeze-mean); optimiser/scheduler/λ state is NOT loaded. Pair "
+        "--resume only with THIS SAME warm-started run's own crash recovery, "
+        "never to chain two warm-starts",
+    )
+    ap.add_argument(
+        "--freeze-mean",
+        action="store_true",
+        help="freeze every parameter except log_sigma_head (requires "
+        "--head gaussian-direct) — fits variance on a FIXED mean, "
+        "satisfying no-mean-regression by construction; also forces "
+        "dropout to 0 so the frozen mean is train/eval-identical",
+    )
     args = ap.parse_args()
+
+    if args.freeze_mean and args.head != "gaussian-direct":
+        raise ValueError("--freeze-mean requires --head gaussian-direct")
 
     device = (
         ("cuda" if torch.cuda.is_available() else "cpu")
@@ -1412,7 +1492,10 @@ def main() -> int:
         n_layers=args.n_layers if not args.dry_run else 1,
         n_heads=args.n_heads if not args.dry_run else 2,
         dim_feedforward=640 if not args.dry_run else 64,
-        dropout=args.dropout,
+        # a frozen mean has no gradient to regularise — dropout would only
+        # inject train/eval-mismatched noise into the fixed trunk that
+        # log_sigma_head calibrates against, so it is forced off
+        dropout=0.0 if args.freeze_mean else args.dropout,
         n_time=args.t_steps,
     )
     encoder = PatchCurrentEncoder(
@@ -1422,8 +1505,15 @@ def main() -> int:
         candidate_mask=ref.candidate_mask,
     ).to(device)
 
+    if args.warm_start_from:
+        _warm_start_load(encoder, Path(args.warm_start_from), device)
+    if args.freeze_mean:
+        _freeze_mean(encoder)
+
     optimizer = torch.optim.AdamW(
-        encoder.parameters(), lr=args.lr, weight_decay=args.weight_decay
+        (p for p in encoder.parameters() if p.requires_grad),
+        lr=args.lr,
+        weight_decay=args.weight_decay,
     )
     total_steps = max(1, args.epochs * math.ceil(n_total / args.batch_size))
     scheduler = torch.optim.lr_scheduler.LambdaLR(
