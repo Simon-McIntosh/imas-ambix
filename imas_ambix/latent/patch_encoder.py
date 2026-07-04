@@ -37,6 +37,7 @@ free structure residual — both firewall-clean by construction.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -48,6 +49,17 @@ from imas_ambix.latent.structure_residual import structure_residual
 
 if TYPE_CHECKING:
     from imas_ambix.latent.patch_basis import PatchBasis
+
+#: log-σ clamp (x-space, dimensionless) for the "gaussian-direct" head — keeps
+#: the predicted variance in a numerically sane range regardless of what the
+#: head learns (roughly ``σ ∈ [3e-4, 20]`` of the per-cell dimensionless shape).
+GAUSSIAN_LOG_SIGMA_MIN = -8.0
+GAUSSIAN_LOG_SIGMA_MAX = 3.0
+
+#: variance floor [whitened units²] the Gaussian NLL clamps to before the
+#: ``log`` / division — guards the loss when a sensor's propagated variance
+#: underflows (e.g. a cell with a near-zero learned σ dominating a row).
+_NLL_VAR_FLOOR = 1e-12
 
 #: Sensor-kind vocabulary the per-kind embedding switches on (index 0 = the
 #: catch-all so an unmapped channel still embeds).  ``coil`` is the known-current
@@ -94,7 +106,7 @@ class PatchEncoderConfig:
     dim_feedforward: int = 640
     dropout: float = 0.15
     n_time: int = 12  # temporal window length T (fixed per instance)
-    head: str = "direct"  # "direct" | "lowrank"
+    head: str = "direct"  # "direct" | "lowrank" | "gaussian-direct"
     rank: int = 64  # low-rank latent width (head == "lowrank")
     pool: str = "query"  # "query" (learned attention pool) | "mean"
     activation: str = "gelu"
@@ -213,6 +225,13 @@ class PatchCurrentEncoder(nn.Module):
 
         if config.head == "direct":
             self.head = nn.Linear(d, self.n_cells)
+        elif config.head == "gaussian-direct":
+            self.head = nn.Linear(d, self.n_cells)  # mean arm — identical to "direct"
+            self.log_sigma_head = nn.Linear(d, self.n_cells)
+            # a modest initial σ (exp(-2) ≈ 0.14 of the dimensionless shape) so
+            # the NLL's log-variance term doesn't dominate the misfit term at
+            # the start of training
+            nn.init.constant_(self.log_sigma_head.bias, -2.0)
         elif config.head == "lowrank":
             self.z_proj = nn.Linear(d, config.rank)
             self.r_proj = nn.Linear(d, self.n_cells)
@@ -221,14 +240,30 @@ class PatchCurrentEncoder(nn.Module):
             self.basis_u = nn.Parameter(u)
             self.residual_alpha = nn.Parameter(torch.tensor(0.1))
         else:
-            raise ValueError(f"unknown head: {config.head!r} (use 'direct'|'lowrank')")
+            raise ValueError(
+                f"unknown head: {config.head!r} (use 'direct'|'lowrank'|'gaussian-direct')"
+            )
 
     # ---- head arms ----
 
-    def _decode(self, pooled: torch.Tensor) -> torch.Tensor:
-        """Pooled representation -> dimensionless per-cell shape ``x`` ``(B, n)``."""
+    def _decode(
+        self, pooled: torch.Tensor
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        """Pooled representation -> dimensionless per-cell shape.
+
+        ``"direct"``/``"lowrank"`` return the shape ``x`` ``(B, n)``.
+        ``"gaussian-direct"`` returns ``(mu_x, log_sigma_x)``, each ``(B, n)``
+        — the mean arm is architecturally identical to ``"direct"``; log-σ is
+        clamped to :data:`GAUSSIAN_LOG_SIGMA_MIN`/:data:`GAUSSIAN_LOG_SIGMA_MAX`.
+        """
         if self.config.head == "direct":
             return self.head(pooled)
+        if self.config.head == "gaussian-direct":
+            mu = self.head(pooled)
+            log_sigma = self.log_sigma_head(pooled).clamp(
+                GAUSSIAN_LOG_SIGMA_MIN, GAUSSIAN_LOG_SIGMA_MAX
+            )
+            return mu, log_sigma
         z = self.z_proj(pooled)  # (B, rank)
         r = self.r_proj(pooled)  # (B, n_cells)
         return z @ self.basis_u.T + self.residual_alpha * r
@@ -241,8 +276,15 @@ class PatchCurrentEncoder(nn.Module):
         finite: torch.Tensor,  # (B, T, S) bool — measured this (sensor, step)
         i_pf: torch.Tensor,  # (B, C) standardised known coil currents
         ip: torch.Tensor,  # (B,) raw plasma current [A]
-    ) -> torch.Tensor:
-        """Return per-cell currents ``(B, n_cells)`` in AMPERES."""
+        *,
+        return_variance: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        """Return per-cell currents ``(B, n_cells)`` in AMPERES (the mean, for
+        every head).  ``return_variance=True`` additionally returns the
+        per-cell current VARIANCE ``(B, n_cells)`` [A²] — only meaningful for
+        ``head="gaussian-direct"``; other heads ignore the flag (point
+        estimate only, unaffected by it) so passing it is a no-op for them.
+        """
         b, t, s = values.shape
         if t != self.n_time or s != self.n_sensor:
             raise ValueError(
@@ -294,7 +336,25 @@ class PatchCurrentEncoder(nn.Module):
             pooled = enc.mean(dim=1)
         pooled = self.final_norm(pooled)
 
-        x = self._decode(pooled)  # (B, n_cells) dimensionless shape
+        x = self._decode(pooled)  # (B, n_cells) dimensionless shape (or (mu, log_sigma))
+        if self.config.head == "gaussian-direct":
+            mu_x, log_sigma_x = x
+            i_mean = (
+                mu_x
+                * (ip.to(dtype=mu_x.dtype, device=mu_x.device)[:, None] / self.n_cells)
+                * self.candidate_mask[None, :].to(mu_x.dtype)
+            )
+            if not return_variance:
+                return i_mean
+            # exact linear rescale of x's diagonal Gaussian: the current-space
+            # std is |scale| · σ_x (never form a covariance — this IS diagonal)
+            sigma_x = torch.exp(log_sigma_x)
+            cell_scale = (
+                ip.to(dtype=mu_x.dtype, device=mu_x.device)[:, None] / self.n_cells
+            ) * self.candidate_mask[None, :].to(mu_x.dtype)
+            i_std = sigma_x * cell_scale.abs()
+            return i_mean, i_std * i_std
+
         i_cell = (
             x
             * (ip.to(dtype=x.dtype, device=x.device)[:, None] / self.n_cells)
@@ -344,6 +404,7 @@ def amortised_losses(
     form: str = "affine-r2",
     connectivity: str | None = None,
     locality_scale: float | None = None,
+    i_var: torch.Tensor | None = None,  # (B, n) cell current VARIANCE [A²]
 ) -> dict[str, torch.Tensor]:
     """Batched self-supervised objective — the amortised mirror of the inverse.
 
@@ -351,6 +412,16 @@ def amortised_losses(
     matmuls in fp64 (the sensor + structure residual need the precision).
     Returns the three per-example terms (each ``(B,)``) plus the scalar
     ``total`` (their λ-weighted sum reduced over the batch).
+
+    ``i_var`` is the per-cell current VARIANCE from a Gaussian head's diagonal
+    covariance (mean = ``i_cell``).  When given, sensor variance propagates
+    EXACTLY through the linear forward — ``pred_var = i_var @ (m_sens²)ᵀ``, a
+    matvec over the diagonal, never a full covariance — and a whitened
+    Gaussian NLL (``nll``) is returned and REPLACES the plain misfit as the
+    data term inside ``total``; ``misfit`` is still reported (computed on the
+    mean) for comparability.  ``ip_pen`` and ``fb`` are always computed on the
+    mean currents, gaussian head or not.  ``i_var=None`` (the default) is
+    byte-identical to the pre-Gaussian-head behaviour.
     """
     dt = torch.float64
     ic = i_cell.to(dt)
@@ -392,8 +463,23 @@ def amortised_losses(
         for k in range(b)
     ]
     fb = torch.stack(fb_rows)
-    total = (misfit + ip_weight * ip_pen + lam * fb).sum()
-    return {"misfit": misfit, "ip_pen": ip_pen, "fb": fb, "total": total}
+
+    data_term = misfit
+    out: dict[str, torch.Tensor] = {"misfit": misfit, "ip_pen": ip_pen, "fb": fb}
+    if i_var is not None:
+        iv = torch.as_tensor(i_var, device=dev, dtype=dt)
+        pred_var = iv @ (m_sens**2).T  # (B, S) — exact diagonal propagation
+        pred_var_wh = (pred_var / scale**2).clamp_min(_NLL_VAR_FLOOR)
+        resid_wh_sq = ((pred - measured) / scale) ** 2
+        nll_terms = 0.5 * (
+            torch.log(2.0 * math.pi * pred_var_wh) + resid_wh_sq / pred_var_wh
+        )
+        nll = (mask * nll_terms).sum(-1) / mask.sum(-1).clamp_min(1.0)
+        out["nll"] = nll
+        data_term = nll
+
+    out["total"] = (data_term + ip_weight * ip_pen + lam * fb).sum()
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -487,6 +573,8 @@ class DiscrepancyLambda:
 
 
 __all__ = [
+    "GAUSSIAN_LOG_SIGMA_MAX",
+    "GAUSSIAN_LOG_SIGMA_MIN",
     "N_GEOM_FEATURES",
     "PATCH_SENSOR_KINDS",
     "DiscrepancyLambda",
