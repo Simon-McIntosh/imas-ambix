@@ -27,6 +27,14 @@
 #      N_TRAIN=5000 N_SHARDS=8 SHARD_ID=3 \
 #          sbatch scripts/slurm/patch_encoder_assemble_cpu.sbatch
 #
+#  Set FORCE=1 to bypass an existing shard cache entry and reassemble — the
+#  config hash only covers (N_TRAIN, nr, nz, t_steps, stride, min_ip,
+#  COIL_MODEL_VERSION, GEOMETRY_TABLE_VERSION), so an internal assembly-logic
+#  change with none of those bumped (e.g. widening canonical_amb_channels'
+#  scan) would otherwise silently serve a stale shard cache:
+#      FORCE=1 N_TRAIN=10846 N_SHARDS=32 \
+#          sbatch --array=0-31 scripts/slurm/patch_encoder_assemble_cpu.sbatch
+#
 #  Cache root: /work/projects/imas_gpu/latent/patch_encoder/corpus_cache/
 # ============================================================================
 set -uo pipefail
@@ -41,12 +49,15 @@ source .venv/bin/activate
 N_TRAIN="${N_TRAIN:?set N_TRAIN (the full shot-list length this shard belongs to)}"
 N_SHARDS="${N_SHARDS:?set N_SHARDS}"
 SHARD_ID="${SLURM_ARRAY_TASK_ID:-${SHARD_ID:?set SHARD_ID or submit with --array}}"
+FORCE_FLAG=()
+[ "${FORCE:-0}" = "1" ] && FORCE_FLAG=(--force-rebuild-cache)
 
-echo "[patch-assemble] node=$(hostname) n_train=${N_TRAIN} shard=${SHARD_ID}/${N_SHARDS}"
+echo "[patch-assemble] node=$(hostname) n_train=${N_TRAIN} shard=${SHARD_ID}/${N_SHARDS} force=${FORCE:-0}"
 python scripts/train_patch_encoder.py \
     --n-train "${N_TRAIN}" \
     --assemble-only \
-    --shot-shard "${SHARD_ID}/${N_SHARDS}"
+    --shot-shard "${SHARD_ID}/${N_SHARDS}" \
+    "${FORCE_FLAG[@]}"
 RC=$?
 echo "ASSEMBLE_EXIT=${RC}"
 exit "${RC}"
