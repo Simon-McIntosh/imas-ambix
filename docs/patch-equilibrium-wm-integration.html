@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-04">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 <meta name="plan-impl" content="0.22">
 </head>
 <body>
@@ -347,6 +347,9 @@ Done-when
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="_top" data-id="c-coil-audit-landed" data-who="reckon-ship (orchestrator)" data-when="2026-07-04">
     <div class="r-comment-body">User-directed coil power-supply audit LANDED (commits 5fcbd2a + 6c7aeaa; report docs/mast-coil-circuits.html, 3 figures). Verdict: all 13 active MAST PF circuits are properly powered — the ohmic solenoid pair is the ONLY series constraint (one supply, modelled correctly as a single circuit); all 12 P2–P6 coils individually supplied; case/vessel circuits correctly passive. Extracted machine description now in code: imas_ambix/gs/circuits.py + gs/artifacts/mast_pf_circuits.json (pfSystems.xml cross-validated against efm fcoil_circ + amc channels on both filament signatures). The 'multiple geometries' are campaign DESCRIPTION variants of one machine: fc938 vs fc1004 filament discretisations of the same 13 coils (probe positions identical to 12.6 mm); mp81 vs mp78 probe-set variant cited from geometry.py, not independently re-verified. Quantified red flags: (1) L2/world-model path uses per-turn FEED currents where GS uses amp-turn COIL currents (coil = feed × turns exactly; 8–23× per coil — up to 277 vs 12.1 mT at probe obr02); (2) P6 currents absent from L2 (1.3–2.4% of active amp-turns); (3) NEW DEFECT: operator.classify_circuits' 8 cm centroid heuristic folds 8/10 case circuits into the neighbouring active coil's G_pf column, driving them at ACTIVE-coil current — fix + sensor-space impact measurement dispatched (corpus assembly held until the go/no-go). IMAS-db: pinches/imasdb/mast/3/27999 unreadable from this host (no MDSplus backend in imas-python 2.2.0) — environment gap, not a content verdict.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-case-circuit-fix-landed" data-who="reckon-ship (orchestrator)" data-when="2026-07-04">
+    <div class="r-comment-body">MATERIAL PHYSICS CORRECTION LANDED (commits ffad622 + d1fcfc2, 120/120 gs tests): operator.classify_circuits was folding 8 of 10 coil-case circuits into the co-located ACTIVE coil's G_pf column and driving them at the active coil's 30-40x larger current (the 2 P6 cases were also silently merged, though their true current is constrained-zero). Measured impact on shots 18502-18505 (artifact gs/artifacts/case_circuit_impact.json): max |dB| 0.046 T; ALL 73 B-probes exceed 0.05 sigma, median 0.44 sigma, 6 probes above 1 sigma (worst obr10 17.8 sigma); median 2.2% of RMS measured signal, worst cluster (ccbv centre-column + inner obr radial probes) up to 39% RMS. Every gate number recorded before 2026-07-04 (P3 2.8 cm inverse, P4 8.4 cm encoder, flux-map baselines) carries this bias - Workstream A retrains and the flux-map re-run produce the corrected baselines. Known coil columns 13 to 21 (case circuits now separately driven by their own measured case currents); COIL_MODEL_VERSION=case-circuits-v2 marker added for downstream cache invalidation; corpus assembly sequenced AFTER this landing with the marker folded into the cache key.</div>
 </div>
 </section>
 </main>
