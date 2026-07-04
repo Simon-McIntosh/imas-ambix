@@ -24,6 +24,16 @@
 #  set HEAD in the environment (default: direct):
 #      HEAD=lowrank sbatch scripts/slurm/train_patch_encoder.sbatch
 #  Checkpoints + config: /work/projects/imas_gpu/latent/patch_encoder/<HEAD>/
+#
+#  Corpus assembly is transparently cached (assemble_corpus_cached() in
+#  train_patch_encoder.py) under
+#  /work/projects/imas_gpu/latent/patch_encoder/corpus_cache/ keyed by a hash
+#  of (N_TRAIN, nr, nz, t_steps, stride, min_ip) — a run reuses a prior run's
+#  (or scripts/slurm/patch_encoder_assemble_cpu.sbatch's CPU-sharded) assembly
+#  for the SAME N_TRAIN with no re-read.  Staged retrains (e.g. direct-5k,
+#  direct-full) are separate launches with RUN set explicitly:
+#      RUN=direct-5k N_TRAIN=5000 sbatch scripts/slurm/train_patch_encoder.sbatch
+#      RUN=direct-full N_TRAIN=10846 sbatch scripts/slurm/train_patch_encoder.sbatch
 # ============================================================================
 
 set -u

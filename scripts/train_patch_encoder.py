@@ -31,6 +31,7 @@ restores optimiser + step + epoch + per-example λ state exactly).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import math
@@ -56,6 +57,7 @@ from imas_ambix.latent.patch_encoder import (
     PatchCurrentEncoder,
     PatchEncoderConfig,
     amortised_losses,
+    kind_index,
     sensor_geometry_from_records,
 )
 
@@ -64,7 +66,17 @@ logger = logging.getLogger("train_patch_encoder")
 
 DEFAULT_ARTIFACT_ROOT = Path("/work/projects/imas_gpu/latent/patch_encoder")
 FALLBACK_ARTIFACT_ROOT = Path("imas_ambix/latent/artifacts/patch_encoder")
+DEFAULT_CACHE_ROOT = Path("/work/projects/imas_gpu/latent/patch_encoder/corpus_cache")
+FALLBACK_CACHE_ROOT = Path("imas_ambix/latent/artifacts/patch_encoder/corpus_cache")
 WINDOW_HORIZON_S = 0.25  # physical span of a 12-step token window
+
+#: encoder buffers that carry per-CAMPAIGN geometry, never the learned trunk —
+#: swapped per batch by :func:`_bind_signature` and excluded from any
+#: checkpoint load/save identity check (mirrors
+#: ``scripts/patch_encoder_gate_eval.py``'s ``_GEOMETRY_BUFFERS``).
+_GEOMETRY_BUFFERS = frozenset(
+    {"sensor_geom", "sensor_kind", "coil_geom", "coil_kind", "candidate_mask"}
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -350,32 +362,517 @@ def assemble_corpus(
     return corpora
 
 
-def token_channel_stats(
+def token_channel_stats_by_name(
     corpora: dict[str, SignatureCorpus],
-) -> tuple[np.ndarray, np.ndarray]:
-    """Per-channel corpus mean/std of the token values (finite entries only).
+) -> dict[str, tuple[float, float]]:
+    """Per-channel-NAME corpus mean/std of token values across ALL signatures.
 
-    Assumes every signature shares the reference channel set (asserted by the
-    caller); NaN/absent entries never contribute (masked before the reduction).
+    Signatures may carry different sensor sets / orderings (the S=81-style
+    campaign no longer gets dropped — see :func:`main`), so channels are
+    accumulated BY NAME rather than by column position: a channel present in
+    two signatures pools its finite observations from both.  A channel with
+    zero finite observations anywhere (should not happen in practice, but is
+    handled rather than dividing by zero) falls back to the median stat of
+    channels sharing its sensor KIND (the kind index carried in column 4 of
+    each signature's ``sensor_geometry``), or the global median if the kind
+    itself has no observed channel either.
     """
-    ref = next(iter(corpora.values()))
-    s = len(ref.sensor_channels)
-    sums = np.zeros(s)
-    sqs = np.zeros(s)
-    counts = np.zeros(s)
+    sums: dict[str, float] = {}
+    sqs: dict[str, float] = {}
+    counts: dict[str, float] = {}
+    kind_of: dict[str, int] = {}
     for corp in corpora.values():
+        s = len(corp.sensor_channels)
         v = np.where(corp.finite, corp.values, np.nan).reshape(-1, s)
         finite = np.isfinite(v)
         vv = np.where(finite, v, 0.0)
-        sums += vv.sum(0)
-        sqs += (vv**2).sum(0)
-        counts += finite.sum(0)
-    counts = np.clip(counts, 1.0, None)
-    mean = sums / counts
-    var = np.clip(sqs / counts - mean**2, 0.0, None)
-    std = np.sqrt(var)
-    std = np.where(std > 0, std, 1.0)
-    return mean, std
+        csum = vv.sum(0)
+        csq = (vv**2).sum(0)
+        ccount = finite.sum(0)
+        geom = np.asarray(corp.sensor_geometry, dtype=np.float64)
+        kinds = geom[:, 4].astype(int) if geom.shape[1] > 4 else np.zeros(s, dtype=int)
+        for j, ch in enumerate(corp.sensor_channels):
+            sums[ch] = sums.get(ch, 0.0) + float(csum[j])
+            sqs[ch] = sqs.get(ch, 0.0) + float(csq[j])
+            counts[ch] = counts.get(ch, 0.0) + float(ccount[j])
+            kind_of.setdefault(ch, int(kinds[j]))
+
+    stats: dict[str, tuple[float, float]] = {}
+    for ch, cnt in counts.items():
+        if cnt > 0:
+            mean = sums[ch] / cnt
+            var = max(sqs[ch] / cnt - mean**2, 0.0)
+            stats[ch] = (mean, float(np.sqrt(var)) if var > 0 else 1.0)
+
+    by_kind: dict[int, list[tuple[float, float]]] = {}
+    for ch, (m, sd) in stats.items():
+        by_kind.setdefault(kind_of[ch], []).append((m, sd))
+    kind_median = {
+        k: (float(np.median([m for m, _ in v])), float(np.median([sd for _, sd in v])))
+        for k, v in by_kind.items()
+    }
+    glob_median = (
+        (float(np.median([m for m, _ in stats.values()])), 1.0) if stats else (0.0, 1.0)
+    )
+    for ch, cnt in counts.items():
+        if cnt == 0:
+            stats[ch] = kind_median.get(kind_of[ch], glob_median)
+    return stats
+
+
+def channel_stats_for_signature(
+    channels: list[str], stats_by_name: dict[str, tuple[float, float]]
+) -> tuple[np.ndarray, np.ndarray]:
+    """This signature's own ``(mean, std)`` arrays, looked up BY NAME."""
+    means, stds = [], []
+    for ch in channels:
+        m, sd = stats_by_name.get(ch, (0.0, 1.0))
+        means.append(float(m))
+        stds.append(float(sd) if sd > 0 else 1.0)
+    return np.asarray(means), np.asarray(stds)
+
+
+def _bind_signature(
+    encoder: PatchCurrentEncoder, corp: SignatureCorpus, device
+) -> None:
+    """Rebind ``encoder``'s geometry buffers to ``corp``'s campaign in place.
+
+    The trunk (value/geometry/kind/flag/temporal embeddings, transformer, pool,
+    per-cell head) is the SAME module instance and is never touched — only the
+    ``_GEOMETRY_BUFFERS`` (plain tensors the forward pass reads at call time,
+    per ``imas_ambix/latent/patch_encoder.py``) plus the plain ``n_sensor`` /
+    ``n_coil`` bookkeeping ints are rebound, mirroring the buffer-swap already
+    used at eval (``scripts/patch_encoder_gate_eval.py::_encoder_for_signature``).
+    One shared encoder therefore trains against every campaign signature in the
+    corpus — no signature is dropped for a differing sensor/coil count.
+
+    ``n_cells`` (the per-cell head's output width) is NOT swappable — it is
+    fixed by the trunk's construction — so a signature whose candidate mask
+    disagrees in length is a hard error, not a silent drop.
+    """
+    if int(corp.n_cells) != int(encoder.n_cells):
+        raise ValueError(
+            f"signature {corp.key}: n_cells={corp.n_cells} != encoder "
+            f"n_cells={encoder.n_cells} — the plasma patch substrate must be "
+            "identical across every campaign signature the encoder trains on"
+        )
+    dtype = encoder.sensor_geom.dtype
+    sg = np.asarray(corp.sensor_geometry, dtype=np.float64)
+    geom = sg[:, :4]
+    if sg.shape[1] > 4:
+        kind = sg[:, 4].astype(np.int64)
+    else:
+        kind = np.zeros(sg.shape[0], dtype=np.int64)
+    cc = np.asarray(corp.coil_centroids, dtype=np.float64).reshape(-1, 2)
+    coil_geom = np.zeros((cc.shape[0], 4), dtype=np.float64)
+    coil_geom[:, :2] = cc
+    coil_kind = np.full(cc.shape[0], kind_index("coil"), dtype=np.int64)
+
+    encoder.sensor_geom = torch.as_tensor(geom, dtype=dtype, device=device)
+    encoder.sensor_kind = torch.as_tensor(kind, dtype=torch.long, device=device)
+    encoder.coil_geom = torch.as_tensor(coil_geom, dtype=dtype, device=device)
+    encoder.coil_kind = torch.as_tensor(coil_kind, dtype=torch.long, device=device)
+    encoder.candidate_mask = torch.as_tensor(
+        np.asarray(corp.candidate_mask, dtype=np.float64), dtype=dtype, device=device
+    )
+    encoder.n_sensor = int(sg.shape[0])
+    encoder.n_coil = int(cc.shape[0])
+
+
+# --------------------------------------------------------------------------- #
+#  Corpus cache: per-signature example arrays + a fully self-contained         #
+#  PatchBasis (no IMAS re-read needed on load — every PatchBasis constructor   #
+#  argument is a plain geometry-derived numpy array; see patch_basis.py).      #
+# --------------------------------------------------------------------------- #
+def _config_hash(
+    shots: list[int],
+    *,
+    t_steps: int,
+    stride_s: float,
+    min_ip_ka: float,
+    nr: int,
+    nz: int,
+) -> str:
+    """Stable short digest identifying an assembly configuration."""
+    payload = {
+        "shots": sorted(int(s) for s in shots),
+        "t_steps": int(t_steps),
+        "stride_s": round(float(stride_s), 9),
+        "min_ip_ka": round(float(min_ip_ka), 6),
+        "nr": int(nr),
+        "nz": int(nz),
+    }
+    blob = json.dumps(payload, sort_keys=True).encode()
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
+def _cache_root(explicit: str | Path | None) -> Path:
+    if explicit:
+        return Path(explicit)
+    if DEFAULT_CACHE_ROOT.parent.exists():
+        return DEFAULT_CACHE_ROOT
+    return FALLBACK_CACHE_ROOT
+
+
+def _patch_basis_kwargs(basis: PatchBasis) -> dict:
+    """``PatchBasis`` constructor kwargs as plain numpy — every field is a pure
+    geometry-derived matrix, so this round-trips through ``PatchBasis(**kw)``
+    with no IMAS access at all."""
+    return {
+        "g_pg": basis._g_pg_np,
+        "g_cc": basis._g_cc_np,
+        "m_sens": np.asarray(basis.m_sens.detach().cpu().numpy(), dtype=np.float64),
+        "m_coil": np.asarray(basis.m_coil.detach().cpu().numpy(), dtype=np.float64),
+        "psi_coil_grid": basis._psi_coil_grid_np,
+        "psi_coil_cells": basis._psi_coil_cells_np,
+        "r_cells": np.asarray(basis.r_cells.detach().cpu().numpy(), dtype=np.float64),
+        "z_cells": np.asarray(basis.z_cells.detach().cpu().numpy(), dtype=np.float64),
+        "grid_r": np.asarray(basis.grid_r.detach().cpu().numpy(), dtype=np.float64),
+        "grid_z": np.asarray(basis.grid_z.detach().cpu().numpy(), dtype=np.float64),
+        "nr": int(basis.nr),
+        "nz": int(basis.nz),
+        "cell_area": float(basis.cell_area),
+        "r0": float(basis.r0),
+        "sensor_channels": list(basis.sensor_channels),
+    }
+
+
+def _save_signature_npz(
+    path: Path,
+    corp: SignatureCorpus,
+    *,
+    shots: list[int],
+    t_steps: int,
+    stride_s: float,
+    min_ip_ka: float,
+    nr: int,
+    nz: int,
+    config_hash: str,
+) -> None:
+    bk = _patch_basis_kwargs(corp.basis)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / (path.stem + ".tmp.npz")
+    np.savez(
+        tmp,
+        key=np.asarray(corp.key),
+        sensor_channels=np.asarray(corp.sensor_channels),
+        sensor_geometry=corp.sensor_geometry,
+        coil_centroids=corp.coil_centroids,
+        n_cells=np.asarray(corp.n_cells),
+        candidate_mask=corp.candidate_mask,
+        values=corp.values,
+        finite=corp.finite,
+        measured=corp.measured,
+        vacuum=corp.vacuum,
+        mask=corp.mask,
+        scale=corp.scale,
+        i_pf=corp.i_pf,
+        ip=corp.ip,
+        ids=corp.ids,
+        basis_g_pg=bk["g_pg"],
+        basis_g_cc=bk["g_cc"],
+        basis_m_sens=bk["m_sens"],
+        basis_m_coil=bk["m_coil"],
+        basis_psi_coil_grid=bk["psi_coil_grid"],
+        basis_psi_coil_cells=bk["psi_coil_cells"],
+        basis_r_cells=bk["r_cells"],
+        basis_z_cells=bk["z_cells"],
+        basis_grid_r=bk["grid_r"],
+        basis_grid_z=bk["grid_z"],
+        basis_nr=np.asarray(bk["nr"]),
+        basis_nz=np.asarray(bk["nz"]),
+        basis_cell_area=np.asarray(bk["cell_area"]),
+        basis_r0=np.asarray(bk["r0"]),
+        basis_sensor_channels=np.asarray(bk["sensor_channels"]),
+        config_shots=np.asarray(sorted({int(s) for s in shots}), dtype=np.int64),
+        config_t_steps=np.asarray(t_steps),
+        config_stride_s=np.asarray(stride_s),
+        config_min_ip_ka=np.asarray(min_ip_ka),
+        config_nr=np.asarray(nr),
+        config_nz=np.asarray(nz),
+        config_hash=np.asarray(config_hash),
+    )
+    tmp.replace(path)  # atomic on the same filesystem — matches _save_checkpoint
+
+
+def _load_signature_npz(path: Path) -> SignatureCorpus:
+    d = np.load(path, allow_pickle=False)
+    basis = PatchBasis(
+        g_pg=d["basis_g_pg"],
+        g_cc=d["basis_g_cc"],
+        m_sens=d["basis_m_sens"],
+        m_coil=d["basis_m_coil"],
+        psi_coil_grid=d["basis_psi_coil_grid"],
+        psi_coil_cells=d["basis_psi_coil_cells"],
+        r_cells=d["basis_r_cells"],
+        z_cells=d["basis_z_cells"],
+        candidate_mask=d["candidate_mask"],
+        grid_r=d["basis_grid_r"],
+        grid_z=d["basis_grid_z"],
+        nr=int(d["basis_nr"]),
+        nz=int(d["basis_nz"]),
+        cell_area=float(d["basis_cell_area"]),
+        r0=float(d["basis_r0"]),
+        sensor_channels=[str(c) for c in d["basis_sensor_channels"]],
+    )
+    return SignatureCorpus(
+        key=str(d["key"]),
+        basis=basis,
+        sensor_channels=[str(c) for c in d["sensor_channels"]],
+        sensor_geometry=d["sensor_geometry"],
+        coil_centroids=d["coil_centroids"],
+        n_cells=int(d["n_cells"]),
+        candidate_mask=d["candidate_mask"],
+        values=d["values"],
+        finite=d["finite"],
+        measured=d["measured"],
+        vacuum=d["vacuum"],
+        mask=d["mask"],
+        scale=d["scale"],
+        i_pf=d["i_pf"],
+        ip=d["ip"],
+        ids=d["ids"],
+    )
+
+
+def _corpus_dir_complete(dir_path: Path) -> bool:
+    return (dir_path / "_DONE").exists()
+
+
+def _save_corpus_dir(
+    dir_path: Path,
+    corpora: dict[str, SignatureCorpus],
+    *,
+    shots: list[int],
+    t_steps: int,
+    stride_s: float,
+    min_ip_ka: float,
+    nr: int,
+    nz: int,
+    config_hash: str,
+) -> None:
+    dir_path.mkdir(parents=True, exist_ok=True)
+    for key, corp in corpora.items():
+        _save_signature_npz(
+            dir_path / f"{key}.npz",
+            corp,
+            shots=shots,
+            t_steps=t_steps,
+            stride_s=stride_s,
+            min_ip_ka=min_ip_ka,
+            nr=nr,
+            nz=nz,
+            config_hash=config_hash,
+        )
+    meta = {
+        "config_hash": config_hash,
+        "n_shots": len({int(s) for s in shots}),
+        "t_steps": t_steps,
+        "stride_s": stride_s,
+        "min_ip_ka": min_ip_ka,
+        "nr": nr,
+        "nz": nz,
+        "signatures": list(corpora.keys()),
+        "n_examples": {k: int(c.values.shape[0]) for k, c in corpora.items()},
+    }
+    (dir_path / "meta.json").write_text(json.dumps(meta, indent=2))
+    (dir_path / "_DONE").write_text("1")  # written last: marks the dir load-safe
+
+
+def _load_corpus_dir(dir_path: Path) -> dict[str, SignatureCorpus]:
+    corpora = {}
+    for p in sorted(dir_path.glob("*.npz")):
+        corp = _load_signature_npz(p)
+        corpora[corp.key] = corp
+    return corpora
+
+
+def _merge_corpus_dirs(shard_dirs: list[Path]) -> dict[str, SignatureCorpus]:
+    """Concatenate every shard's per-signature examples, in shard order.
+
+    Geometry/basis for a signature is taken from the FIRST shard that carries
+    it (all shards describing the same signature key share identical geometry
+    by construction); a mismatch is a hard error, never a silent drop.  Example
+    ids are renumbered contiguously over the merged set, in sorted signature-key
+    order, so the result is deterministic regardless of shard scan order.
+    """
+    by_key: dict[str, list[SignatureCorpus]] = {}
+    for d in shard_dirs:
+        for key, corp in _load_corpus_dir(d).items():
+            by_key.setdefault(key, []).append(corp)
+    merged: dict[str, SignatureCorpus] = {}
+    gid = 0
+    for key in sorted(by_key):
+        parts = by_key[key]
+        ref = parts[0]
+        for p in parts[1:]:
+            if p.sensor_channels != ref.sensor_channels or p.n_cells != ref.n_cells:
+                raise ValueError(
+                    f"signature {key}: geometry differs across shards "
+                    f"(S={len(p.sensor_channels)}/{len(ref.sensor_channels)}, "
+                    f"n_cells={p.n_cells}/{ref.n_cells}) — shards of the same "
+                    "signature must share identical geometry by construction"
+                )
+        cat = {
+            k: np.concatenate([getattr(p, k) for p in parts], axis=0)
+            for k in (
+                "values",
+                "finite",
+                "measured",
+                "vacuum",
+                "mask",
+                "scale",
+                "i_pf",
+                "ip",
+            )
+        }
+        n = cat["values"].shape[0]
+        merged[key] = SignatureCorpus(
+            key=key,
+            basis=ref.basis,
+            sensor_channels=ref.sensor_channels,
+            sensor_geometry=ref.sensor_geometry,
+            coil_centroids=ref.coil_centroids,
+            n_cells=ref.n_cells,
+            candidate_mask=ref.candidate_mask,
+            ids=np.arange(gid, gid + n, dtype=np.int64),
+            **cat,
+        )
+        gid += n
+    return merged
+
+
+def assemble_corpus_cached(
+    shots: list[int],
+    *,
+    nr: int,
+    nz: int,
+    t_steps: int,
+    stride_s: float,
+    min_ip_ka: float,
+    cache_root: Path | None = None,
+    shard: tuple[int, int] | None = None,
+    max_populated_shots: int | None = None,
+    force: bool = False,
+) -> dict[str, SignatureCorpus]:
+    """Assemble a corpus, transparently caching to / loading from ``cache_root``.
+
+    ``shard = (i, n)`` restricts assembly to ``shots[i::n]`` and caches that
+    slice's partial corpora under its own shard directory (for a CPU-partition
+    assembly fleet).  The full (unsharded) cache is produced either directly, or
+    — the first time it is requested — by merging every shard directory for the
+    same ``(config_hash, n)`` once all ``n`` shards report complete; the merged
+    result is itself cached so later loads are a single read.
+    """
+    root = cache_root or _cache_root(None)
+    key = _config_hash(
+        shots, t_steps=t_steps, stride_s=stride_s, min_ip_ka=min_ip_ka, nr=nr, nz=nz
+    )
+    base = root / key
+
+    if shard is not None:
+        i, n = shard
+        shard_shots = list(shots)[i::n]
+        shard_dir = base / f"shards_{n}" / f"shard_{i:03d}"
+        if not force and _corpus_dir_complete(shard_dir):
+            logger.info("CACHE HIT (shard %d/%d, %s): %s", i, n, key, shard_dir)
+            return _load_corpus_dir(shard_dir)
+        t0 = time.time()
+        corpora = assemble_corpus(
+            shard_shots,
+            nr=nr,
+            nz=nz,
+            t_steps=t_steps,
+            stride_s=stride_s,
+            min_ip_ka=min_ip_ka,
+            max_populated_shots=max_populated_shots,
+        )
+        dt = time.time() - t0
+        n_ex = sum(c.values.shape[0] for c in corpora.values())
+        logger.info(
+            "CACHE MISS (shard %d/%d, %s): %d shots -> %d examples in %.1fs "
+            "(%.3fs/shot)",
+            i,
+            n,
+            key,
+            len(shard_shots),
+            n_ex,
+            dt,
+            dt / max(1, len(shard_shots)),
+        )
+        _save_corpus_dir(
+            shard_dir,
+            corpora,
+            shots=shard_shots,
+            t_steps=t_steps,
+            stride_s=stride_s,
+            min_ip_ka=min_ip_ka,
+            nr=nr,
+            nz=nz,
+            config_hash=key,
+        )
+        return corpora
+
+    final_dir = base / "full"
+    if not force and _corpus_dir_complete(final_dir):
+        logger.info("CACHE HIT (full, %s): %s", key, final_dir)
+        return _load_corpus_dir(final_dir)
+
+    if base.exists():
+        for shards_dir in sorted(base.glob("shards_*")):
+            try:
+                n = int(shards_dir.name.split("_", 1)[1])
+            except (IndexError, ValueError):
+                continue
+            shard_dirs = [shards_dir / f"shard_{i:03d}" for i in range(n)]
+            if shard_dirs and all(_corpus_dir_complete(d) for d in shard_dirs):
+                logger.info("CACHE HIT (merging %d shards, %s): %s", n, key, shards_dir)
+                merged = _merge_corpus_dirs(shard_dirs)
+                _save_corpus_dir(
+                    final_dir,
+                    merged,
+                    shots=shots,
+                    t_steps=t_steps,
+                    stride_s=stride_s,
+                    min_ip_ka=min_ip_ka,
+                    nr=nr,
+                    nz=nz,
+                    config_hash=key,
+                )
+                return merged
+
+    t0 = time.time()
+    corpora = assemble_corpus(
+        shots,
+        nr=nr,
+        nz=nz,
+        t_steps=t_steps,
+        stride_s=stride_s,
+        min_ip_ka=min_ip_ka,
+        max_populated_shots=max_populated_shots,
+    )
+    dt = time.time() - t0
+    n_ex = sum(c.values.shape[0] for c in corpora.values())
+    logger.info(
+        "CACHE MISS (full, %s): %d shots -> %d examples in %.1fs (%.3fs/shot)",
+        key,
+        len(shots),
+        n_ex,
+        dt,
+        dt / max(1, len(shots)),
+    )
+    _save_corpus_dir(
+        final_dir,
+        corpora,
+        shots=shots,
+        t_steps=t_steps,
+        stride_s=stride_s,
+        min_ip_ka=min_ip_ka,
+        nr=nr,
+        nz=nz,
+        config_hash=key,
+    )
+    return corpora
 
 
 # --------------------------------------------------------------------------- #
@@ -527,6 +1024,35 @@ def main() -> int:
         action="store_true",
         help="assemble <=2 shots, one tiny CPU forward+loss step, print the loss dict",
     )
+    ap.add_argument(
+        "--assemble-only",
+        action="store_true",
+        help="assemble (or load) the corpus cache and exit — no training",
+    )
+    ap.add_argument(
+        "--shot-shard",
+        type=str,
+        default="",
+        help="i/N: assemble only shots[i::N] into their own shard cache entry "
+        "(a CPU-partition assembly fleet; shards merge automatically on the "
+        "first unsharded load once all N report complete)",
+    )
+    ap.add_argument(
+        "--cache-dir",
+        type=str,
+        default="",
+        help="corpus cache root (default: DEFAULT_CACHE_ROOT, fallback in-repo)",
+    )
+    ap.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="bypass the corpus cache entirely (always assemble fresh)",
+    )
+    ap.add_argument(
+        "--force-rebuild-cache",
+        action="store_true",
+        help="ignore any existing cache entry for this config and reassemble",
+    )
     args = ap.parse_args()
 
     device = (
@@ -546,41 +1072,70 @@ def main() -> int:
         train_shots = train_shots[:16]
     logger.info("assembling corpus over up to %d train shots", len(train_shots))
 
-    corpora = assemble_corpus(
-        train_shots,
-        nr=args.nr,
-        nz=args.nz,
-        t_steps=args.t_steps,
-        stride_s=args.stride_ms / 1000.0,
-        min_ip_ka=args.min_ip_ka,
-        max_populated_shots=2 if args.dry_run else None,
-    )
+    shard = None
+    if args.shot_shard:
+        i_s, n_s = args.shot_shard.split("/")
+        shard = (int(i_s), int(n_s))
+
+    if args.dry_run or args.no_cache:
+        corpora = assemble_corpus(
+            train_shots,
+            nr=args.nr,
+            nz=args.nz,
+            t_steps=args.t_steps,
+            stride_s=args.stride_ms / 1000.0,
+            min_ip_ka=args.min_ip_ka,
+            max_populated_shots=2 if args.dry_run else None,
+        )
+    else:
+        corpora = assemble_corpus_cached(
+            train_shots,
+            nr=args.nr,
+            nz=args.nz,
+            t_steps=args.t_steps,
+            stride_s=args.stride_ms / 1000.0,
+            min_ip_ka=args.min_ip_ka,
+            cache_root=_cache_root(args.cache_dir) if args.cache_dir else None,
+            shard=shard,
+            force=args.force_rebuild_cache,
+        )
     if not corpora:
         logger.error("no usable training examples assembled — aborting")
         return 1
 
-    # one shared encoder is bound to the reference (dominant) signature's
-    # geometry; the plasma substrate is identical across signatures, so the same
-    # n_cells / sensor set serves every basis (asserted below)
+    if args.assemble_only:
+        n_total = sum(c.values.shape[0] for c in corpora.values())
+        logger.info(
+            "assemble-only: %d examples across %d signatures", n_total, len(corpora)
+        )
+        for key, corp in corpora.items():
+            logger.info(
+                "  signature %s: %d examples, S=%d, n_cells=%d",
+                key,
+                corp.values.shape[0],
+                len(corp.sensor_channels),
+                corp.n_cells,
+            )
+        return 0
+
+    # one shared encoder trains against EVERY campaign signature in the corpus
+    # (per-batch geometry binding — see _bind_signature); no signature is
+    # dropped for a differing sensor/coil count.  "reference" below only labels
+    # the dominant signature for checkpoint bookkeeping + in/cross-signature
+    # eval reporting — it plays no other privileged role.
     ref_key = max(corpora, key=lambda k: corpora[k].values.shape[0])
     ref = corpora[ref_key]
-    for key, corp in list(corpora.items()):
-        if corp.sensor_channels != ref.sensor_channels or corp.n_cells != ref.n_cells:
-            logger.warning(
-                "signature %s geometry differs from reference %s (S=%d/%d, "
-                "n_cells=%d/%d) — dropping its %d examples",
-                key,
-                ref_key,
-                len(corp.sensor_channels),
-                len(ref.sensor_channels),
-                corp.n_cells,
-                ref.n_cells,
-                corp.values.shape[0],
-            )
-            del corpora[key]
-    # renumber example ids contiguously over the SURVIVING corpora — assembly
-    # numbers ids across every signature it builds, so a dropped signature
-    # leaves holes and out-of-range ids that overflow the per-example λ buffer
+    coil_widths = {key: int(corp.i_pf.shape[1]) for key, corp in corpora.items()}
+    if len(set(coil_widths.values())) > 1:
+        raise ValueError(
+            f"PF coil count differs across signatures: {coil_widths} — the "
+            "corpus assumes identical PF circuit topology across campaign "
+            "signatures (only the coil-coupling matrices differ), so a single "
+            "i_pf standardisation cannot serve a mismatched coil count"
+        )
+    # renumber example ids contiguously (a defensive no-op for a fresh
+    # assemble_corpus() call, which already numbers contiguously; load-bearing
+    # after a cache merge/resume path where a future change might not)
     gid = 0
     for corp in corpora.values():
         n = corp.values.shape[0]
@@ -589,7 +1144,12 @@ def main() -> int:
     n_total = sum(c.values.shape[0] for c in corpora.values())
     logger.info("corpus: %d examples across %d signatures", n_total, len(corpora))
 
-    ch_mean, ch_std = token_channel_stats(corpora)
+    stats_by_name = token_channel_stats_by_name(corpora)
+    per_sig_stats = {
+        key: channel_stats_for_signature(corp.sensor_channels, stats_by_name)
+        for key, corp in corpora.items()
+    }
+    ch_mean, ch_std = per_sig_stats[ref_key]
     all_ipf = np.concatenate([c.i_pf for c in corpora.values()], axis=0)
     ipf_mean = all_ipf.mean(0)
     ipf_std = np.where(all_ipf.std(0) > 0, all_ipf.std(0), 1.0)
@@ -656,13 +1216,41 @@ def main() -> int:
         "nz": args.nz,
         "t_steps": args.t_steps,
         "reference_signature": ref_key,
+        # audit-only additions (the eval script keys above are unchanged and
+        # remain sufficient on their own): the full by-name channel stat table
+        # and every signature's own geometry, so a signature that trained but
+        # is not the checkpoint's "reference" is still fully recoverable.
+        "channel_stats_by_name": {k: list(v) for k, v in stats_by_name.items()},
+        "per_signature_geometry": {
+            key: {
+                "sensor_channels": corp.sensor_channels,
+                "sensor_geometry": corp.sensor_geometry,
+                "coil_centroids": corp.coil_centroids,
+                "n_cells": corp.n_cells,
+                "candidate_mask": corp.candidate_mask,
+                "n_examples": int(corp.values.shape[0]),
+            }
+            for key, corp in corpora.items()
+        },
     }
 
     start_epoch = 0
     global_step = 0
     if args.resume and ckpt_path.exists():
         payload = torch.load(ckpt_path, map_location=device, weights_only=False)
-        encoder.load_state_dict(payload["encoder"])
+        # geometry buffers are rebound per batch (see _bind_signature) and are
+        # never part of the learned identity — exclude them from the strict
+        # check exactly as the gate-eval script does on load.
+        learned = {
+            k: v for k, v in payload["encoder"].items() if k not in _GEOMETRY_BUFFERS
+        }
+        missing, unexpected = encoder.load_state_dict(learned, strict=False)
+        missing = [m for m in missing if m not in _GEOMETRY_BUFFERS]
+        if missing or unexpected:
+            raise RuntimeError(
+                f"resume weight load mismatch: missing={missing} "
+                f"unexpected={unexpected}"
+            )
         optimizer.load_state_dict(payload["optimizer"])
         scheduler.load_state_dict(payload["scheduler"])
         if payload.get("discrepancy") is not None:
@@ -683,9 +1271,11 @@ def main() -> int:
 
     if args.dry_run:
         key, corp = next(iter(corpora.items()))
+        _bind_signature(encoder, corp, device)
+        sig_ch_mean, sig_ch_std = per_sig_stats[key]
         rows = np.arange(min(args.batch_size, corp.values.shape[0]))
         enc_in, payload = _make_batch(
-            corp, rows, ch_mean, ch_std, ipf_mean, ipf_std, device
+            corp, rows, sig_ch_mean, sig_ch_std, ipf_mean, ipf_std, device
         )
         lam = disc.get(torch.as_tensor(corp.ids[rows], device=device))
         i_cell = encoder(
@@ -710,8 +1300,10 @@ def main() -> int:
             if stop["flag"]:
                 break
             corp = corpora[key]
+            _bind_signature(encoder, corp, device)
+            sig_ch_mean, sig_ch_std = per_sig_stats[key]
             enc_in, payload = _make_batch(
-                corp, rows, ch_mean, ch_std, ipf_mean, ipf_std, device
+                corp, rows, sig_ch_mean, sig_ch_std, ipf_mean, ipf_std, device
             )
             ids = torch.as_tensor(corp.ids[rows], device=device)
             lam = disc.get(ids)
@@ -744,6 +1336,10 @@ def main() -> int:
                     time.time() - t0,
                 )
             if global_step > 0 and global_step % args.ckpt_every == 0:
+                # rebind to the reference signature first so the saved buffers
+                # (excluded from any load anyway — see _GEOMETRY_BUFFERS) are
+                # deterministic rather than whatever batch happened to run last
+                _bind_signature(encoder, ref, device)
                 _save_checkpoint(
                     ckpt_path,
                     encoder,
@@ -761,8 +1357,10 @@ def main() -> int:
         with torch.no_grad():
             for key, rows in eval_rows.items():
                 corp = corpora[key]
+                _bind_signature(encoder, corp, device)
+                sig_ch_mean, sig_ch_std = per_sig_stats[key]
                 enc_in, payload = _make_batch(
-                    corp, rows, ch_mean, ch_std, ipf_mean, ipf_std, device
+                    corp, rows, sig_ch_mean, sig_ch_std, ipf_mean, ipf_std, device
                 )
                 lam = torch.zeros(len(rows), device=device)
                 i_cell = encoder(
@@ -779,6 +1377,7 @@ def main() -> int:
                 }
                 logger.info("epoch %d HELD-BACK eval %s", epoch, report)
 
+    _bind_signature(encoder, ref, device)
     _save_checkpoint(
         ckpt_path,
         encoder,
