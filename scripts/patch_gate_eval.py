@@ -607,6 +607,192 @@ def run_boundary_arm(args) -> int:
     return 0
 
 
+def _invert_shots_once(
+    shots: list[dict], winner_cfg: InverseConfig, device: str | torch.device
+) -> tuple[list[tuple[dict, list[SliceInversion]]], np.ndarray]:
+    """Invert every shot's candidate slices ONCE with the frozen P3-winner
+    config; the (payload, inversion) pairs are reused across every boundary-
+    read grid point.
+
+    The Adam inverse is a chaotically-sensitive optimisation over a highly
+    underdetermined current basis: re-running it per hyperparameter (as the
+    single-arm ``run_boundary_arm`` path does for every ``--min-axis-dist`` /
+    ``--smooth-sigma`` value) lands in a DIFFERENT local optimum run to run —
+    confirmed by comparing two identical re-runs of the P3-winner config,
+    which gave axis_skill -1.28 vs -1.41 on the same shots with NOTHING
+    changed.  Since neither ``smooth_sigma`` nor ``min_axis_dist`` touch the
+    inverse at all (only the readout downstream of the converged ψ), a valid
+    A/B test of the boundary read must hold the currents fixed and vary only
+    the read — this function is the fix.
+    """
+    cache: list[tuple[dict, list[SliceInversion]]] = []
+    flattop_flags: list[bool] = []
+    for payload in shots:
+        basis = payload["basis"]
+        ips = np.abs([p.ip_amperes for p in payload["payloads"]])
+        flattop_idx = int(np.argmax(ips)) if ips.size else -1
+        inv = invert_slices(basis, payload["payloads"], winner_cfg, device=device)
+        cache.append((payload, inv))
+        flattop_flags.extend(k == flattop_idx for k in range(len(inv)))
+    return cache, np.array(flattop_flags, dtype=bool)
+
+
+def _score_grid_point(
+    cache: list[tuple[dict, list[SliceInversion]]],
+    baseline_vec: np.ndarray,
+    flattop_mask: np.ndarray,
+    *,
+    smooth_sigma: float,
+    min_axis_dist: float,
+) -> tuple[np.ndarray, np.ndarray, dict, dict, np.ndarray]:
+    """Read geometry from the SAME cached currents at one (sigma, dist) point."""
+    model_rows, ref_rows = [], []
+    for payload, inv in cache:
+        grid = payload["grid"]
+        for k, r in enumerate(inv):
+            psi2d = payload["basis"].psi_grid_2d_np(r.i_cell, payload["payloads"][k].i_pf)
+            target, _, _ = geometry_target(
+                psi2d, grid, smooth_sigma=smooth_sigma, min_axis_dist=min_axis_dist
+            )
+            model_rows.append(target)
+            ref_rows.append(payload["refs"][k])
+    model = np.array(model_rows)
+    ref = np.array(ref_rows)
+    sc = score(model, ref, baseline_vec)
+    axis_errors = sc.pop("axis_errors")
+    lcfs_cm = lcfs_offset_cm_stats(model, ref, flattop_mask)
+    return model, ref, sc, lcfs_cm, axis_errors
+
+
+def _parse_grid_spec(spec: str) -> list[tuple[str, float, float]]:
+    """Parse ``--grid`` into ``[(label, smooth_sigma, min_axis_dist), ...]``.
+
+    Tokens are comma-separated; each is ``baseline``, ``sigma=<v>``,
+    ``dist=<v>``, or a ``+``-joined combo ``sigma=<v>+dist=<v>``.
+    """
+    points = []
+    for tok in spec.split(","):
+        tok = tok.strip()
+        sigma, dist = 0.0, 0.0
+        if tok and tok != "baseline":
+            for part in tok.split("+"):
+                key, _, val = part.partition("=")
+                if key == "sigma":
+                    sigma = float(val)
+                elif key == "dist":
+                    dist = float(val)
+                else:
+                    raise ValueError(f"unknown grid token: {part!r} (in {tok!r})")
+        points.append((tok or "baseline", sigma, dist))
+    return points
+
+
+def run_boundary_arm_grid(args) -> int:
+    """Measure MANY (smooth_sigma, min_axis_dist) boundary-read points from
+    ONE frozen-config inversion per shot — the leakage-free, nondeterminism-
+    free A4 measurement (see :func:`_invert_shots_once`).  ``--grid`` is a
+    comma list of points (``_parse_grid_spec``); writes ONE
+    ``boundary_read_grid_<split>.json`` with all points' results.
+    """
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    device = (
+        ("cuda" if torch.cuda.is_available() else "cpu")
+        if args.device == "auto"
+        else args.device
+    )
+    connectivity = None if args.connectivity in ("", "none") else args.connectivity
+    points = _parse_grid_spec(args.grid)
+    logger.info("boundary-arm-grid split=%s points=%s device=%s", args.split, points, device)
+
+    train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
+    baseline_vec = train_mean_baseline(
+        args.n_train, args.n_baseline_shots, args.min_ip_ka
+    )
+    eval_shots = (
+        train_shots[args.n_baseline_shots : args.n_baseline_shots + args.n_tune_shots]
+        if args.split == "train"
+        else held_shots
+    )
+
+    shots = []
+    for s in eval_shots:
+        try:
+            payload = shot_payloads(
+                s,
+                nr=args.nr,
+                nz=args.nz,
+                max_slices=args.max_slices_per_shot,
+                min_ip_ka=args.min_ip_ka,
+                split=args.split,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("shot %s failed to load: %s", s, exc)
+            continue
+        if payload is not None:
+            shots.append(payload)
+
+    winner_cfg = InverseConfig(
+        iters=args.iters, lr=args.lr, n_bins=args.n_bins, connectivity=connectivity,
+        **P3_WINNER_KW,
+    )
+    t0 = time.perf_counter()
+    cache, flattop_mask = _invert_shots_once(shots, winner_cfg, device)
+    invert_wall_s = time.perf_counter() - t0
+    logger.info("inverted %d shots once in %.0f s", len(shots), invert_wall_s)
+
+    results = []
+    for label, sigma, dist in points:
+        t0 = time.perf_counter()
+        model, ref, sc, lcfs_cm, axis_errors = _score_grid_point(
+            cache, baseline_vec, flattop_mask, smooth_sigma=sigma, min_axis_dist=dist
+        )
+        dt = time.perf_counter() - t0
+        tag = f"{label}-{args.split}" if args.split == "train" else label
+        np.savez(
+            ARTIFACTS / f"boundary_read_grid_{tag}_arrays.npz",
+            model=model,
+            ref=ref,
+            baseline=np.tile(baseline_vec, (len(model), 1)),
+            axis_errors=axis_errors,
+            flattop_mask=flattop_mask,
+        )
+        point_result = {
+            "label": label,
+            "smooth_sigma": sigma,
+            "min_axis_dist": dist,
+            "n_scored": int(len(model)),
+            "n_candidate": int(len(model)),
+            "scored_fraction": 1.0,
+            "readout_wall_s": dt,
+            **sc,
+            **lcfs_cm,
+        }
+        results.append(point_result)
+        logger.info(
+            "[grid %s] axis_skill=%.3f lcfs_skill=%s median %.3f m "
+            "lcfs_offset_cm(all/flattop)=%s/%s",
+            label,
+            sc["axis_skill"],
+            sc["lcfs_skill"],
+            sc["axis_error_median_m"],
+            lcfs_cm["lcfs_offset_median_cm_all"],
+            lcfs_cm["lcfs_offset_median_cm_flattop"],
+        )
+
+    out = {
+        "split": args.split,
+        "winner_config": {**P3_WINNER_KW, "iters": args.iters},
+        "invert_wall_s": invert_wall_s,
+        "points": results,
+    }
+    grid_tag = "tune" if args.split == "train" else "eval"
+    (ARTIFACTS / f"boundary_read_grid_{grid_tag}.json").write_text(
+        json.dumps(out, indent=2)
+    )
+    logger.info("grid results written to boundary_read_grid_%s.json", grid_tag)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--n-train", type=int, default=40)
@@ -680,8 +866,23 @@ def main() -> int:
         default=0.0,
         help="ARM 1: weight of the current spatial-smoothness penalty",
     )
+    ap.add_argument(
+        "--grid",
+        type=str,
+        default="",
+        help=(
+            "lever A4 grid-measurement mode (preferred over --boundary-arm for "
+            "ARM 2/3): comma list of 'baseline' / 'sigma=<v>' / 'dist=<v>' / "
+            "'sigma=<v>+dist=<v>' points, evaluated from ONE frozen-config "
+            "inversion per shot (invert once, vary only the readout — avoids "
+            "the run-to-run Adam nondeterminism confound of re-inverting per "
+            "point). Writes ONE boundary_read_grid_<split>.json."
+        ),
+    )
     args = ap.parse_args()
 
+    if args.grid:
+        return run_boundary_arm_grid(args)
     if args.boundary_arm:
         return run_boundary_arm(args)
 
