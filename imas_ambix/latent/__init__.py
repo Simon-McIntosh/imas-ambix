@@ -4,11 +4,11 @@ This package builds the shared **hybrid latent** (a raw-supervised anchored
 block carrying a poloidal-flux ψ representation + a free closure block, in
 dimensionless coordinates) and its two physics anchors:
 
-* the **spatial anchor** — an EFIT-free Grad-Shafranov observation operator
-  (:mod:`imas_ambix.latent.gs_observation`) that maps the latent plasma-current
-  amplitudes to predicted magnetics at the freely-known sensor locations and,
-  differentiably, to the reconstructed ψ(R,Z) field.  It is trained against the
-  RAW measured magnetics — never EFIT;
+* the **spatial anchor** — an EFIT-free patch-current force-balance substrate
+  (:mod:`imas_ambix.latent.patch_basis`, :mod:`imas_ambix.latent.structure_residual`)
+  that maps the latent's per-cell patch currents to predicted magnetics at the
+  freely-known sensor locations and, differentiably, to the reconstructed
+  ψ(R,Z) field.  It is trained against the RAW measured magnetics — never EFIT;
 * the **temporal anchor** — a soft, learned flux-diffusion transport prior
   (:mod:`imas_ambix.latent.transport`) on ∂ψ/∂t with strictly-positive learned
   diffusivity (η∥>0 ⇒ D≥0, the arrow of time), learned non-inductive sources

@@ -10,10 +10,16 @@ The shared latent has two parts (§6):
   turbulence, fast transients, the pedestal) — where the data-led model earns
   its keep; it feeds the transport prior's learned η∥ / sources.
 
-It also carries the **plasma-current profile amplitudes θ** — the ψ
-representation the GS observation operator reads out to predicted magnetics and
-to the flux field.  Boundary / X-point / axis are *never* encoder outputs; they
-are a deterministic read of the solved ψ (:mod:`imas_ambix.latent.topology`).
+It also carries the **plasma-current profile amplitudes θ** — the polynomial ψ
+representation the (legacy) GS observation operator reads out to predicted
+magnetics and to the flux field — and, for the patch-current carrier
+(:class:`~imas_ambix.latent.patch_basis.PatchBasis`), a **patch-current head**
+emitting a dimensionless per-cell shape ``x`` (``HybridLatent.i_cell_x``,
+``(B, n_cells)``).  The head itself knows nothing about amperes: the convention
+``I = x · Ip / n_cells`` (Ip = the measured Rogowski anchor) is applied
+downstream by the engine, which also owns the campaign's candidate mask.
+Boundary / X-point / axis are *never* encoder outputs; they are a deterministic
+read of the solved ψ (:mod:`imas_ambix.latent.topology`).
 
 Dimensionless coordinates — resolved LEARNED-SOFT (the open
 ``dimensionless-coordinate-set`` decision).  The encoder *learns* the map to
@@ -46,6 +52,7 @@ class LatentConfig:
     probabilistic: bool = False  # emit a belief (mean+logvar) over the free block
     dropout: float = 0.0
     profile_head: bool = False  # emit (β0, α) — the amortized GS profile fit
+    n_cells: int = 0  # patch-current head width (0 = disabled, no PatchBasis carrier)
 
 
 @dataclass
@@ -57,6 +64,7 @@ class HybridLatent:
     free: torch.Tensor  # (B, n_free) free closure block
     free_logvar: torch.Tensor | None  # (B, n_free) belief log-variance, or None
     profile: torch.Tensor | None = None  # (B, 2) amortized (β0, α), bounded
+    i_cell_x: torch.Tensor | None = None  # (B, n_cells) dimensionless patch shape
 
 
 class HybridLatentEncoder(nn.Module):
@@ -80,6 +88,7 @@ class HybridLatentEncoder(nn.Module):
             nn.Linear(d, config.n_free) if config.probabilistic else None
         )
         self.profile_head = nn.Linear(d, 2) if config.profile_head else None
+        self.patch_head = nn.Linear(d, config.n_cells) if config.n_cells else None
 
     # bounds of the amortized profile parameters: β0 ∈ (0, 1) by the ansatz's
     # pressure/FF′ split; α ∈ (0.5, 3) brackets the fit grid's peakedness range
@@ -97,12 +106,14 @@ class HybridLatentEncoder(nn.Module):
             beta0 = torch.sigmoid(raw[:, :1])
             alpha = self.ALPHA_MIN + self.ALPHA_SPAN * torch.sigmoid(raw[:, 1:])
             profile = torch.cat([beta0, alpha], dim=-1)
+        i_cell_x = self.patch_head(h) if self.patch_head is not None else None
         return HybridLatent(
             theta=self.theta_head(h),
             anchored=self.anchored_head(h),
             free=self.free_head(h),
             free_logvar=logvar,
             profile=profile,
+            i_cell_x=i_cell_x,
         )
 
     # ---- losses / regularisers ----

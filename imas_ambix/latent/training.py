@@ -2,19 +2,19 @@
 
 The encoder is machine-agnostic by design — it maps generic absolute-calibrated
 features to the hybrid latent regardless of which campaign's device geometry
-produced them. Only the GS observation operator and the transport prior are
-per-campaign (they are tied to that campaign's fixed sensor/coil geometry).
-:class:`CorpusTrainer` trains the ONE shared encoder against every campaign's
-:class:`~imas_ambix.latent.engine.GSGroundedLatentEngine` in the same
-optimiser step, so gradients from every campaign's raw magnetics update the
-same encoder weights — exactly what "machine-agnostic" requires.
+produced them. Only the patch-current forward substrate and the transport
+prior are per-campaign (they are tied to that campaign's fixed sensor/coil
+geometry). :class:`CorpusTrainer` trains the ONE shared encoder against every
+campaign's :class:`~imas_ambix.latent.engine.GSGroundedLatentEngine` in the
+same optimiser step, so gradients from every campaign's raw magnetics update
+the same encoder weights — exactly what "machine-agnostic" requires.
 
 A duplicate-parameter trap is easy to fall into here: naively concatenating
 ``engine.parameters()`` from N per-campaign engines that all wrap the *same*
 encoder instance would register the encoder's parameters N times in the
 optimiser, silently applying its update N times per step. :class:`CorpusTrainer`
 builds its parameter set explicitly (the shared encoder once, each campaign's
-transport once — :class:`~imas_ambix.latent.gs_observation.GSObservation` has
+transport once — :class:`~imas_ambix.latent.patch_basis.PatchBasis` has
 no learnable parameters, only fixed geometry buffers) to avoid this.
 """
 
@@ -90,7 +90,7 @@ class CorpusTrainer:
     def to(self, device: torch.device | str) -> CorpusTrainer:
         self.encoder.to(device)
         for engine in self.engines.values():
-            engine.gs.to(device)
+            engine.basis.to(device)
             engine.transport.to(device)
         return self
 

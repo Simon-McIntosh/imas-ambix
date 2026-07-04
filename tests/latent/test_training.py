@@ -2,9 +2,9 @@
 
 The trainer folds all campaigns' shots into ONE shared
 :class:`~imas_ambix.latent.encoder.HybridLatentEncoder` (the machine-agnostic
-design: the encoder is campaign-agnostic; only the GS observation + transport
-prior are per-campaign, tied to that campaign's fixed device geometry). Two
-things are pinned here without touching the mirror:
+design: the encoder is campaign-agnostic; only the patch-current forward
+substrate + transport prior are per-campaign, tied to that campaign's fixed
+device geometry). Two things are pinned here without touching the mirror:
 
 * :func:`consecutive_pairs` builds (t, t+1) training pairs from a shot's
   time-ordered slices, breaking across any gap larger than the nominal
@@ -26,7 +26,7 @@ import torch
 from imas_ambix.gs import geometry as gsg
 from imas_ambix.latent.encoder import HybridLatentEncoder, LatentConfig
 from imas_ambix.latent.engine import GSGroundedLatentEngine
-from imas_ambix.latent.gs_observation import GSObservation
+from imas_ambix.latent.patch_basis import PatchBasis
 from imas_ambix.latent.training import CorpusTrainer, consecutive_pairs
 from imas_ambix.latent.transport import FluxDiffusionPrior
 
@@ -93,32 +93,41 @@ def _campaign_table(digest: str, r_shift: float = 0.0) -> gsg.GeometryTable:
 
 
 def _make_engines(n_features=8, n_free=6):
-    """Two campaigns' GSObservation+transport sharing ONE encoder."""
+    """Two campaigns' PatchBasis+transport sharing ONE encoder.
+
+    Both tables share the same limiter + grid resolution (only sensor layout
+    differs), so their patch cell counts agree — required for one shared
+    encoder patch-current head to serve both campaigns' candidate masks.
+    """
     tables = {
         "camp_a": _campaign_table("aaa0"),
         "camp_b": _campaign_table("bbb0", r_shift=0.1),
     }
-    gs_by_campaign = {
-        k: GSObservation.from_table(t, grid_nr=17, grid_nz=21, profile_order=1).double()
+    basis_by_campaign = {
+        k: PatchBasis.from_table(t, nr=17, nz=21, cache_dir=None, dtype=torch.float64)
         for k, t in tables.items()
     }
+    n_cells = int(basis_by_campaign["camp_a"].r_cells.shape[0])
     encoder = HybridLatentEncoder(
         LatentConfig(
             n_features=n_features,
-            n_theta=gs_by_campaign["camp_a"].n_dof,
+            n_theta=1,
             n_anchored=2,
             n_free=n_free,
+            n_cells=n_cells,
             hidden=32,
             depth=2,
         )
     ).double()
     transport_by_campaign = {
-        k: FluxDiffusionPrior(nrho=gs.grid_nr, cmd_dim=1, feat_dim=n_free).double()
-        for k, gs in gs_by_campaign.items()
+        k: FluxDiffusionPrior(nrho=b.nr, cmd_dim=1, feat_dim=n_free).double()
+        for k, b in basis_by_campaign.items()
     }
     engines = {
-        k: GSGroundedLatentEngine(encoder, gs_by_campaign[k], transport_by_campaign[k])
-        for k in gs_by_campaign
+        k: GSGroundedLatentEngine(
+            encoder, basis_by_campaign[k], transport_by_campaign[k]
+        )
+        for k in basis_by_campaign
     }
     return encoder, engines
 
@@ -144,6 +153,7 @@ def test_training_step_reduces_composite_loss_across_campaigns():
             "x_tp1": torch.randn(b, 8, dtype=torch.float64),
             "i_pf_t": torch.randn(b, n_coil, dtype=torch.float64),
             "i_pf_tp1": torch.randn(b, n_coil, dtype=torch.float64),
+            "ip_t": torch.full((b,), 5.0e4, dtype=torch.float64),
             "raw_mag_t": torch.randn(b, n_s, dtype=torch.float64),
             "sensor_scale": torch.ones(b, n_s, dtype=torch.float64),
             "cmd_t": torch.randn(b, n_coil, dtype=torch.float64),
@@ -153,7 +163,7 @@ def test_training_step_reduces_composite_loss_across_campaigns():
         }
 
     batches = {
-        k: _batch(e, len(e.gs.sensor_channels), e.gs.g_pf.shape[1])
+        k: _batch(e, len(e.basis.sensor_channels), e.basis.psi_coil_grid.shape[1])
         for k, e in engines.items()
     }
     loss0 = sum(
@@ -214,8 +224,8 @@ def test_step_skips_nonfinite_loss_and_clips_gradients():
     trainer = CorpusTrainer(encoder, engines, max_grad_norm=1.0)
     key = next(iter(engines))
     e = engines[key]
-    n_s = len(e.gs.sensor_channels)
-    n_coil = e.gs.g_pf.shape[1]
+    n_s = len(e.basis.sensor_channels)
+    n_coil = e.basis.psi_coil_grid.shape[1]
 
     def batch(bad=False):
         b = {
@@ -223,6 +233,7 @@ def test_step_skips_nonfinite_loss_and_clips_gradients():
             "x_tp1": torch.randn(4, 8, dtype=torch.float64),
             "i_pf_t": torch.randn(4, n_coil, dtype=torch.float64),
             "i_pf_tp1": torch.randn(4, n_coil, dtype=torch.float64),
+            "ip_t": torch.full((4,), 5.0e4, dtype=torch.float64),
             "raw_mag_t": torch.randn(4, n_s, dtype=torch.float64),
             "sensor_scale": torch.ones(4, n_s, dtype=torch.float64),
             "cmd_t": torch.randn(4, n_coil, dtype=torch.float64),

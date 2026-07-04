@@ -261,10 +261,16 @@ class PatchBasis(nn.Module):
     def _batched(x: torch.Tensor) -> torch.Tensor:
         return x.unsqueeze(0) if x.dim() == 1 else x
 
-    def _apply(
+    def _superpose(
         self, mat: torch.Tensor, i_cell, coil_mat: torch.Tensor, i_pf
     ) -> torch.Tensor:
-        """``i_cell @ mat.T + i_pf @ coil_mat.T`` with 1-D → batched promotion."""
+        """``i_cell @ mat.T + i_pf @ coil_mat.T`` with 1-D → batched promotion.
+
+        Named to avoid colliding with :meth:`torch.nn.Module._apply` (the
+        ``.to()``/``.double()``/``.cuda()`` internal) — a same-named domain
+        method here previously shadowed it and broke any dtype/device cast of
+        a module tree containing a :class:`PatchBasis`.
+        """
         ic = self._batched(torch.as_tensor(i_cell))
         out = ic @ mat.to(device=ic.device, dtype=ic.dtype).T
         if coil_mat.shape[1] and i_pf is not None:
@@ -275,11 +281,11 @@ class PatchBasis(nn.Module):
 
     def sensors(self, i_cell, i_pf=None) -> torch.Tensor:
         """Predicted sensor magnetics ``(B, S)`` [Wb for flux loops, T for probes]."""
-        return self._apply(self.m_sens, i_cell, self.m_coil, i_pf)
+        return self._superpose(self.m_sens, i_cell, self.m_coil, i_pf)
 
     def psi_grid(self, i_cell, i_pf=None) -> torch.Tensor:
         """Total poloidal flux ``(B, G)`` [Wb] on the flattened grid."""
-        return self._apply(self.g_pg, i_cell, self.psi_coil_grid, i_pf)
+        return self._superpose(self.g_pg, i_cell, self.psi_coil_grid, i_pf)
 
     def psi_grid_2d(self, i_cell, i_pf=None) -> torch.Tensor:
         """Total poloidal flux ``(B, nz, nr)`` [Wb] (row = Z, col = R)."""
@@ -288,7 +294,7 @@ class PatchBasis(nn.Module):
 
     def psi_cells(self, i_cell, i_pf=None) -> torch.Tensor:
         """Total poloidal flux ``(B, n)`` [Wb] at the cell centroids."""
-        return self._apply(self.g_cc, i_cell, self.psi_coil_cells, i_pf)
+        return self._superpose(self.g_cc, i_cell, self.psi_coil_cells, i_pf)
 
     def psi_coil_cells_for(self, i_pf: np.ndarray) -> torch.Tensor:
         """KNOWN-coil ψ at the cell centroids ``(n,)`` [Wb] for currents ``i_pf``."""
