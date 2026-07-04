@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-04">
-<meta name="plan-version" content="7">
-<meta name="plan-impl" content="0.33">
+<meta name="plan-version" content="8">
+<meta name="plan-impl" content="0.44">
 </head>
 <body>
   <main class="plan-doc">
@@ -179,12 +179,21 @@
       the P4 gate recorded as N/A.
       <br><strong>Gate A3:</strong> held-out coverage in [0.88, 0.92] band reported per quantity; no
       regression of the mean-readout skills.</p>
-    <p><strong>A4 — LCFS boundary-read robustification.</strong> The spurious-saddle pathology is a readout
-      problem on free-current ψ. Candidates, each measured and kept only if load-bearing (the P5 discipline):
-      current-smoothness soft rung (classic tomography regulariser — Blum et al.), saddle-persistence filtering
-      in the boundary read, or reading the boundary from the smoothed core-component ψ only.
-      <br><strong>Gate A4:</strong> LCFS skill on the P3 winner-config inverse improves from −6 without
-      degrading the axis gate; verdict recorded either way.</p>
+    <p><strong>A4 — LCFS boundary-read robustification.</strong>
+      <span class="badge badge-shipped">✓ measured 2026-07-04 — honest negative, all three arms</span></p>
+    <p class="landed-summary">
+      All three candidate arms measured under the corrected physics (leakage-free: tuned on train, frozen,
+      160/160 held-out; invert-once grid isolates the readout as the only varying factor — commits
+      <code>e6935f5</code>/<code>fef16b4</code>/<code>c0f9ef7</code>/<code>d40e175</code>/<code>aa2e3cf</code>,
+      18 tests). <strong>Verdict: none load-bearing — default readout unchanged.</strong> Saddle-distance
+      guard and ψ-smoothing are BIT-IDENTICAL to baseline across the full swept range (train and held-out);
+      current-smoothness λ=0.001 moves every metric &lt;0.01 in the wrong/negligible direction. New
+      <strong>post-fix baseline</strong> (replaces all pre-fix numbers): axis skill −0.027 @ 2.58 cm median,
+      LCFS skill −6.26, LCFS offset 34.1 cm all / 37.2 cm flat-top. Root-cause note: the deficit is
+      unresponsive to every readout-level lever — the LCFS under-sizing is interior-structure-driven
+      (null-space current concentration), pointing at training-time/amortised levers (A1 scale-up, learned
+      priors), not post-hoc readout fixes. Artifacts:
+      <code>imas_ambix/latent/artifacts/patch_gate/boundary_read_grid_{tune,eval}.json</code>.</p>
 
     <h2 id="s4">§4 — Workstream B: wire the equilibrium layer into the world model</h2>
     <p><strong>B1 — Structure residual + patch forward into the stage-2 engine loss family.</strong>
