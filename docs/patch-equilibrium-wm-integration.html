@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-04">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-impl" content="0.33">
 </head>
 <body>
@@ -353,6 +353,9 @@ Done-when
 </div>
 <div class="r-comment" data-section="_top" data-id="c-case-circuit-fix-landed" data-who="reckon-ship (orchestrator)" data-when="2026-07-04">
     <div class="r-comment-body">MATERIAL PHYSICS CORRECTION LANDED (commits ffad622 + d1fcfc2, 120/120 gs tests): operator.classify_circuits was folding 8 of 10 coil-case circuits into the co-located ACTIVE coil's G_pf column and driving them at the active coil's 30-40x larger current (the 2 P6 cases were also silently merged, though their true current is constrained-zero). Measured impact on shots 18502-18505 (artifact gs/artifacts/case_circuit_impact.json): max |dB| 0.046 T; ALL 73 B-probes exceed 0.05 sigma, median 0.44 sigma, 6 probes above 1 sigma (worst obr10 17.8 sigma); median 2.2% of RMS measured signal, worst cluster (ccbv centre-column + inner obr radial probes) up to 39% RMS. Every gate number recorded before 2026-07-04 (P3 2.8 cm inverse, P4 8.4 cm encoder, flux-map baselines) carries this bias - Workstream A retrains and the flux-map re-run produce the corrected baselines. Known coil columns 13 to 21 (case circuits now separately driven by their own measured case currents); COIL_MODEL_VERSION=case-circuits-v2 marker added for downstream cache invalidation; corpus assembly sequenced AFTER this landing with the marker folded into the cache key.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-geometry-channel-fix" data-who="reckon-ship (orchestrator)" data-when="2026-07-04">
+    <div class="r-comment-body">SECOND DATA-INTEGRITY FIX LANDED (commits b18d740 + 26335fa): the campaign-signature digest hashes STATIC efm geometry, but build_table_for_shot's sensor channel set was read from each shot's OWN amb zarr schema — per-shot data-acquisition gaps (e.g. flux loop fl_p6l_1 absent from shot 12887's amb but present on 17406, same fc938 digest) leaked into what should be a geometry-determined channel set. Every prior single-process run silently locked in whichever shot assembled first; the 48-way sharded re-assembly exposed it (39 shards saw S=97, 9 saw S=96). Fix: canonical_amb_channels() unions the amb schema across shots per signature; per-shot absence is expressed via honest masks downstream, never channel removal; GEOMETRY_TABLE_VERSION=amb-schema-canonical-v1 folded into corpus cache keys alongside COIL_MODEL_VERSION. Regression-pinned: MAST signature keys byte-stable, fc1004 channel sets unchanged, the exact divergent shot pair now deterministic, no NaN leakage through all-masked channels. Assembly measured cost: 1.54-1.67 s/shot, ~7 node-hours for 5k+full on sun. Both corpora re-assembling under the fixed code (jobs 1225206/1225207).</div>
 </div>
 </section>
 </main>
