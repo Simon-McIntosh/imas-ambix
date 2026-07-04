@@ -43,7 +43,12 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from imas_ambix.gs.geometry import build_table_for_shot
+from imas_ambix.gs.geometry import (
+    GEOMETRY_TABLE_VERSION,
+    build_table_for_shot,
+    canonical_amb_channels,
+    discover_signatures,
+)
 from imas_ambix.gs.operator import (
     COIL_MODEL_VERSION,
     build_operator,
@@ -206,20 +211,32 @@ def _assemble_shot_examples(
     t_steps: int,
     stride_s: float,
     min_ip_ka: float,
+    table,  # GeometryTable — the signature's CANONICAL table (see assemble_corpus)
+    fwd,  # ForwardOperator built from that same canonical table
+    key: str,
     basis_cache: dict,
     schema,
     operator_out: dict | None = None,
 ):
     """Windowed examples for one shot, or None. Populates ``basis_cache`` by sig.
 
+    ``table``/``fwd`` are the signature's canonical geometry (built ONCE by
+    ``assemble_corpus`` from :func:`imas_ambix.gs.geometry.canonical_amb_channels`
+    over every shot sharing the signature — not rebuilt per shot) so the
+    resulting sensor channel SET is geometry-determined, never an artifact of
+    which shot happened to be processed first (a per-shot ``amb`` schema gap —
+    e.g. a flux loop recorded for most but not all shots of a campaign — used
+    to silently change ``S`` depending on shot order; see
+    ``imas_ambix/gs/geometry.py::canonical_amb_channels``).  Per-shot data that
+    is genuinely absent still comes back correctly masked below (``present``/
+    ``mask_b``), by construction — this only fixes which channels EXIST in the
+    corpus, not whether a given shot measured them.
+
     ``operator_out`` (optional) collects one ``(table, operator)`` pair per
     first-seen signature — a free side-product of the assembly pass, used to
     regenerate ``imas_ambix/gs/artifacts/gs_operator_summary.json`` without a
     separate shot scan (see ``regenerate_operator_summary`` below).
     """
-    table = build_table_for_shot(int(shot))
-    fwd = build_operator(table)
-    key = table.signature.key
     if key not in basis_cache:
         grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
         basis = PatchBasis.from_table(table, nr=nr, nz=nz)
@@ -314,12 +331,56 @@ def assemble_corpus(
     ``operator_out`` (optional): pass an empty dict to collect one
     ``(table, operator)`` pair per signature this assembly encounters — see
     :func:`regenerate_operator_summary`.
+
+    Geometry is resolved in two phases so the sensor channel SET is
+    geometry-determined rather than an artifact of shot order (see
+    ``imas_ambix/gs/geometry.py::canonical_amb_channels``): (1) group ``shots``
+    by :class:`~imas_ambix.gs.geometry.SetupSignature` and build ONE canonical
+    table per signature from the union of every one of its shots' amb schema;
+    (2) walk ``shots`` again reusing that canonical ``(table, fwd)`` pair —
+    never rebuilt per shot — for the per-shot windowed-example assembly.
     """
     schema = feature_schema()
+    groups = discover_signatures(shots)
+    sig_geometry: dict[str, tuple] = {}
+    shot_to_key: dict[int, str] = {}
+    for key, (_sig, sig_shots) in groups.items():
+        canonical_amb = canonical_amb_channels(sig_shots, max_shots=100)
+        table = None
+        for rep in sig_shots:
+            try:
+                table = build_table_for_shot(rep, amb_channels=canonical_amb)
+                break
+            except Exception as exc:  # noqa: BLE001 — try the next candidate shot
+                logger.warning(
+                    "signature %s: candidate shot %s failed (%s) — trying next",
+                    key,
+                    rep,
+                    exc,
+                )
+                continue
+        if table is None:
+            logger.warning(
+                "signature %s: no candidate shot could build a table (%d tried) "
+                "— its %d shots are skipped",
+                key,
+                len(sig_shots),
+                len(sig_shots),
+            )
+            continue
+        fwd = build_operator(table)
+        sig_geometry[key] = (table, fwd)
+        for s in sig_shots:
+            shot_to_key[int(s)] = key
+
     basis_cache: dict = {}
     per_sig: dict[str, list[dict]] = {}
     n_populated = 0
     for s in shots:
+        key = shot_to_key.get(int(s))
+        if key is None:
+            continue  # discovery skipped this shot (unreadable efm geometry)
+        table, fwd = sig_geometry[key]
         try:
             ex, key = _assemble_shot_examples(
                 s,
@@ -328,11 +389,14 @@ def assemble_corpus(
                 t_steps=t_steps,
                 stride_s=stride_s,
                 min_ip_ka=min_ip_ka,
+                table=table,
+                fwd=fwd,
+                key=key,
                 basis_cache=basis_cache,
                 schema=schema,
                 operator_out=operator_out,
             )
-        except Exception as exc:  # noqa: BLE001 — a shot w/o geometry is skipped
+        except Exception as exc:  # noqa: BLE001 — a shot w/o usable windows is skipped
             logger.warning("shot %s skipped: %s", s, exc)
             continue
         if ex is not None:
@@ -547,8 +611,11 @@ def _config_hash(
     Includes ``COIL_MODEL_VERSION`` (imas_ambix.gs.operator) so a corpus
     assembled under one coil-current model (the vacuum-field prediction the
     loss trains against) can never collide with one assembled after a coil
-    model fix — the cache key busts automatically the moment the constant
-    changes, with no separate migration step.
+    model fix, and ``GEOMETRY_TABLE_VERSION`` (imas_ambix.gs.geometry) so the
+    same holds for a change in how a :class:`GeometryTable` — its sensor
+    channel SET in particular — is derived from a fixed signature digest.
+    Either cache key busts automatically the moment its constant changes, with
+    no separate migration step.
     """
     payload = {
         "shots": sorted(int(s) for s in shots),
@@ -558,6 +625,7 @@ def _config_hash(
         "nr": int(nr),
         "nz": int(nz),
         "coil_model_version": COIL_MODEL_VERSION,
+        "geometry_table_version": GEOMETRY_TABLE_VERSION,
     }
     blob = json.dumps(payload, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:16]
