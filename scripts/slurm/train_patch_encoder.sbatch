@@ -41,7 +41,7 @@ cd /home/ITER/mcintos/Code/imas-ambix
 export TMPDIR=/scratch_local/$SLURM_JOB_ID
 mkdir -p "$TMPDIR" || export TMPDIR=/tmp
 source .venv/bin/activate
-export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=16
+export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-16}"
 HEAD="${HEAD:-direct}"
 N_TRAIN="${N_TRAIN:-200}"
 LOG=/work/projects/imas_gpu/logs/ambix-patch-enc-${HEAD}-${SLURM_JOB_ID}.log
