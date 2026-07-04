@@ -21,7 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-04">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
+<meta name="plan-impl" content="0.11">
 </head>
 <body>
   <main class="plan-doc">
@@ -211,14 +212,18 @@
       physics-world-model-strategy.
       <br><strong>Gate B3:</strong> closure readout from the latent matches the per-slice regression closures
       within their 1σ on held-out flat-top; F²≥0 rate reported.</p>
-    <p><strong>B4 — Equilibrium layer as the filter's observation operator (stage 3).</strong> The batched
-      linear map I → sensors (fp32, 694k slices/s) is an ideal EnKF observation operator: the stage-3
-      LAE-EnKF correction (machine-agnostic-latent-world-model f-malwm-03) can correct the latent against raw
-      magnetics THROUGH the equilibrium layer, making the filter's innovation physically interpretable
-      (which flux structure the data rejected).
-      <br><strong>Gate B4:</strong> design note + prototype hook in the stage-3 child plan
-      (closed-loop-latent-filter when it opens); no gate number here — this item hands architecture,
-      not results.</p>
+    <p><strong>B4 — Equilibrium layer as the filter's observation operator (stage 3).</strong>
+      <span class="badge badge-shipped">✓ landed 2026-07-04</span></p>
+    <p class="landed-summary">
+      Shipped <code>imas_ambix/latent/patch_observation.py</code> (commit <code>ba612ef</code>, 5/5 tests):
+      H = M<sub>sens</sub> restricted to trusted sensors; perturbed-observation ensemble correction reusing
+      <code>sequential_da.kalman_update</code> verbatim; reduced-rank path via
+      <code>leading_observable_modes</code> (never forms the n×n covariance). Synthetic gate: sensor-space
+      error ratio 0.44 post/prior, covariance trace −77%, rank-1 agrees with full-rank to 0.08% on the
+      leading mode. Recommendation handed to stage 3: current-space correction first (no decode-head
+      Jacobian); whitening must scale to the ensemble's own sensor-space spread. Design note:
+      <a href="archive/patch-equilibrium-wm-integration-enkf-observation-design.html">EnKF observation-operator design</a>
+      (figure <a href="/imas-ambix/figures/patch-equilibrium-wm-integration/fig-enkf-observation-operator.png">demo</a>).</p>
 
     <h2 id="s5">§5 — Workstream C: cross-machine ingestion (the North-Star transfer path)</h2>
     <p>
