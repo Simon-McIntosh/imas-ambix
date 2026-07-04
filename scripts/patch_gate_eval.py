@@ -41,6 +41,7 @@ from imas_ambix.latent.data import (
     feature_schema,
     load_shot_windows,
     read_split_shot_lists,
+    robust_channel_scale,
 )
 from imas_ambix.latent.evaluate import (
     headline_skill,
@@ -172,8 +173,7 @@ def shot_payloads(shot: int, *, nr, nz, max_slices, min_ip_ka, split="eval"):
         valid = valid[:: max(1, len(valid) // max_slices)][:max_slices]
     if not valid:
         return None
-    scale = np.nanstd(w.raw_mag, axis=0)
-    scale = np.where(np.isfinite(scale) & (scale > 0), scale, 1.0)
+    scale = robust_channel_scale(np.nanstd(w.raw_mag, axis=0), fwd.sensor_channels)
     scale_ch = np.where(present, scale[np.clip(ch_rows, 0, None)], 1.0)
 
     payloads, refs = [], []

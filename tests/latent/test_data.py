@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from imas_ambix.latent.data import align_sensor_columns, fit_corpus_stats
+from imas_ambix.latent.data import (
+    align_sensor_columns,
+    fit_corpus_stats,
+    robust_channel_scale,
+)
 
 
 def test_align_sensor_columns_matches_by_name():
@@ -76,3 +80,76 @@ def test_anchored_columns_raise_on_missing_channel():
     schema = {"amc": ["tf_current"], "ane": ["density"]}
     with pytest.raises(KeyError):
         anchored_columns(schema)
+
+
+# --- robust_channel_scale: kind-relative whitening floor ----------------
+#
+# The concrete pathology this fixes: a flux loop (fl_cc04) whose per-shot
+# natural variability happened to be near-zero (a real data characteristic,
+# not corruption) turned an unremarkable vacuum/measured mismatch into a
+# whitened misfit of ~3.7e6 once divided by that near-zero scale — dominating
+# any training batch it landed in and driving the amortised-encoder's ip_pen
+# to actively diverge on the full 10,846-shot corpus.
+
+
+def test_robust_channel_scale_floors_the_fl_cc04_pathology():
+    """A tiny-scale flux loop among many otherwise-healthy flux loops (as in
+    the real fc938 signature, ~46 flux loops) gets floored; the resulting
+    whitened residual is bounded relative to its kind's typical scale, not
+    free to explode."""
+    fl_others = [f"fl_p{i}l_1" for i in range(8)]
+    channels = ["obr01", "obv01", "fl_cc04", *fl_others]
+    # fl_cc04's OWN natural variability this shot: ~3e-5 (a real near-zero
+    # reading), while its many sibling flux loops sit around 0.02 (kind-typical).
+    scale = np.array([0.01, 0.012, 3e-5, *([0.020] * len(fl_others))])
+    floored = robust_channel_scale(scale, channels)
+
+    fl_idx = channels.index("fl_cc04")
+    kind_typical = 0.020  # the many OTHER flux loops dominate the median
+    assert floored[fl_idx] > scale[fl_idx] * 30  # meaningfully raised
+    assert floored[fl_idx] <= 0.05 * kind_typical * 1.5  # stays near the floor
+
+    # the SAME vacuum/measured mismatch (the observed fl_cc04 gap) is tamed by
+    # orders of magnitude once whitened against the floored scale instead of
+    # the pathological raw one
+    mismatch = 0.35  # the observed vacuum-vs-measured gap on fl_cc04
+    unfloored_resid_sq = (mismatch / scale[fl_idx]) ** 2  # the raw pathology
+    floored_resid_sq = (mismatch / floored[fl_idx]) ** 2
+    assert floored_resid_sq < unfloored_resid_sq / 1000  # orders of magnitude tamed
+
+
+def test_robust_channel_scale_leaves_healthy_channels_unchanged():
+    """A channel already well within its kind's typical range is untouched —
+    the floor only activates for the implausibly-small tail."""
+    channels = ["obr01", "obr02", "obv01", "fl_a", "fl_b", "fl_c"]
+    scale = np.array([0.010, 0.011, 0.009, 0.020, 0.021, 0.019])
+    floored = robust_channel_scale(scale, channels)
+    np.testing.assert_allclose(floored, scale)
+
+
+def test_robust_channel_scale_all_degenerate_kind_falls_back_to_one():
+    """If an entire kind has no finite-positive scale, fall back to the
+    pre-existing absolute 1.0 floor for that kind (no median to floor from)."""
+    channels = ["fl_a", "fl_b", "obr01"]
+    scale = np.array([np.nan, 0.0, 0.01])
+    floored = robust_channel_scale(scale, channels)
+    assert floored[0] == 1.0
+    assert floored[1] == 1.0
+    assert floored[2] == 0.01  # the healthy b-probe kind is untouched
+
+
+def test_robust_channel_scale_vectorises_over_examples():
+    """(N, S) input floors each row independently against its OWN row's kind
+    medians — matching a cached corpus's per-example scale array where every
+    row is a different shot."""
+    channels = ["obr01", "fl_cc04", "fl_p6l_1"]
+    scale = np.array(
+        [
+            [0.01, 3e-5, 0.02],  # row 0: fl_cc04 pathological this shot
+            [0.01, 0.018, 0.02],  # row 1: healthy shot, no flooring needed
+        ]
+    )
+    floored = robust_channel_scale(scale, channels)
+    assert floored.shape == scale.shape
+    assert floored[0, 1] > scale[0, 1] * 10  # row 0's fl_cc04 raised
+    np.testing.assert_allclose(floored[1], scale[1])  # row 1 untouched

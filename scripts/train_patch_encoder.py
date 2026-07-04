@@ -58,6 +58,7 @@ from imas_ambix.latent.data import (
     feature_schema,
     load_shot_windows,
     read_split_shot_lists,
+    robust_channel_scale,
 )
 from imas_ambix.latent.gs_solve import EquilibriumGrid
 from imas_ambix.latent.patch_basis import PatchBasis
@@ -1115,7 +1116,7 @@ def _make_batch(corp, rows, ch_mean, ch_std, ipf_mean, ipf_std, device):
         "measured": t64(corp.measured[rows]),
         "vacuum": t64(corp.vacuum[rows]),
         "mask": t64(corp.mask[rows].astype(np.float64)),
-        "scale": t64(corp.scale[rows]),
+        "scale": t64(robust_channel_scale(corp.scale[rows], corp.sensor_channels)),
         "i_pf_amperes": t64(i_pf),
         "ip": t64(corp.ip[rows]),
     }

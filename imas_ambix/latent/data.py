@@ -410,8 +410,74 @@ def sensor_scale_for_campaign(
     return np.where(np.isfinite(scale) & (scale > 0), scale, 1.0)
 
 
+#: kind-relative scale floor (locked convention): a channel's whitening scale
+#: may never be floored below this fraction of its own KIND's (b-probe vs flux
+#: loop) per-shot median scale — see :func:`robust_channel_scale`.
+CHANNEL_SCALE_KIND_FLOOR_REL = 0.05
+
+
+def _channel_kind(name: str) -> str:
+    """amb naming convention: ``fl_*`` is a flux loop, everything else here is
+    a B-probe (the only two amb sensor kinds this whitening scale covers)."""
+    return "flux_loop" if str(name).lower().startswith("fl") else "b_probe"
+
+
+def robust_channel_scale(
+    scale: np.ndarray,
+    channels: list[str],
+    *,
+    rel_floor: float = CHANNEL_SCALE_KIND_FLOOR_REL,
+) -> np.ndarray:
+    """Floor a per-channel whitening ``scale`` at ``rel_floor`` x its KIND's
+    per-shot median scale, computed locally from ``scale`` itself.
+
+    A channel's own natural variability over one shot can be near-zero (e.g. a
+    flux loop that barely moves for that particular shot) purely as a data
+    characteristic, not a fault — but dividing a modest vacuum/measured
+    mismatch by that near-zero scale in the amortised-encoder / variational-
+    inverse whitened misfit amplifies it by orders of magnitude (observed: a
+    single such channel drove the whitened misfit to ~3.7e6 on an otherwise
+    unremarkable example).  Flooring at a fraction of the SAME shot's SAME-KIND
+    channels bounds this (no channel can claim more than ``1/rel_floor`` times
+    its kind's typical whitened weight) while requiring no corpus-wide
+    statistics — computable identically wherever ``scale`` is consumed, so the
+    assembly path (``scripts/train_patch_encoder.py``) and the gate/inverse
+    path (``scripts/patch_gate_eval.py``) apply the IDENTICAL convention from
+    one shared implementation.  Falls back to the pre-existing absolute ``1.0``
+    floor when a whole kind is itself degenerate (median non-finite or ``<=0``
+    — e.g. no b-probes at all in ``channels``).
+
+    ``scale`` may be ``(S,)`` (one shot) or ``(N, S)`` (N examples, vectorised
+    — each row floored against its OWN row's kind medians, e.g. for a cached
+    corpus's per-example scale array where every row is a different shot).
+    ``channels`` is constant across rows (the basis/operator's fixed sensor
+    order) — kind grouping never depends on which row is being floored.
+    """
+    arr = np.asarray(scale, dtype=np.float64)
+    one_d = arr.ndim == 1
+    s2 = arr[None, :] if one_d else arr
+    kinds = np.array([_channel_kind(c) for c in channels])
+    out = np.array(s2, dtype=np.float64)
+    for kind in np.unique(kinds):
+        sel = kinds == kind
+        block = s2[:, sel]
+        finite_pos = np.isfinite(block) & (block > 0)
+        masked = np.where(finite_pos, block, np.nan)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)  # all-NaN rows
+            medians = np.nanmedian(masked, axis=1)
+        medians = np.where(np.isfinite(medians), medians, 0.0)
+        floor = rel_floor * medians
+        safe = np.where(finite_pos, block, 0.0)
+        floored = np.where(medians[:, None] > 0, np.maximum(safe, floor[:, None]), 1.0)
+        out[:, sel] = floored
+    return out[0] if one_d else out
+
+
 __all__ = [
     "align_sensor_columns",
+    "robust_channel_scale",
+    "CHANNEL_SCALE_KIND_FLOOR_REL",
     "CorpusStats",
     "fit_corpus_stats",
     "ShotWindows",
