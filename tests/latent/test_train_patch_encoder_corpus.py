@@ -259,6 +259,40 @@ def test_merge_corpus_dirs_renumbers_ids_contiguously(tmp_path):
     np.testing.assert_array_equal(m.values[2:], shard_b.values)
 
 
+def test_merge_corpus_dirs_reconstructs_basis_once_per_signature(tmp_path):
+    """MEMORY REGRESSION: a full PatchBasis (dominated by the O(grid x cells)
+    g_pg matrix) must be reconstructed ONCE per signature, not once per shard
+    file — reconstructing it per shard is what OOM'd the merge of a real
+    32-shard corpus.  Pin this via a call-count on the full loader; every
+    shard beyond the first for a signature must go through the light loader
+    only (no basis_* keys touched)."""
+    n_shards = 6
+    shard_dirs = []
+    for i in range(n_shards):
+        corp = _make_signature_corpus(5, "feed7001", n_examples=2, seed=100 + i)
+        d = tmp_path / f"shard_{i:03d}"
+        _save_corpus_dir(
+            d,
+            {corp.key: corp},
+            shots=[i],
+            t_steps=T_STEPS,
+            stride_s=0.025,
+            min_ip_ka=300.0,
+            nr=NR,
+            nz=NZ,
+            config_hash="x",
+        )
+        shard_dirs.append(d)
+
+    with mock.patch(
+        "scripts.train_patch_encoder._load_signature_npz",
+        wraps=tpe._load_signature_npz,
+    ) as spy_full:
+        merged = tpe._merge_corpus_dirs(shard_dirs)
+    assert spy_full.call_count == 1  # one signature -> exactly one full load
+    assert merged[next(iter(merged))].values.shape[0] == 2 * n_shards
+
+
 def _fake_assemble_corpus(base_corp, calls):
     def _fn(
         shots,

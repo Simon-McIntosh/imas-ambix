@@ -760,6 +760,39 @@ def _load_signature_npz(path: Path) -> SignatureCorpus:
     )
 
 
+_LIGHT_EXAMPLE_FIELDS = (
+    "values",
+    "finite",
+    "measured",
+    "vacuum",
+    "mask",
+    "scale",
+    "i_pf",
+    "ip",
+)
+
+
+def _load_signature_npz_light(path: Path) -> dict:
+    """Load ONLY a signature npz's example arrays + small geometry-identity
+    fields — never the ``basis_*`` keys, so the ``g_pg`` matrix (the dominant
+    memory cost: ``O(grid_points x n_cells)``, ~hundreds of MB per signature)
+    is never decompressed.  ``np.load`` on an npz is lazy per-key, so simply
+    not touching ``basis_*`` is enough to skip reading it.
+
+    Used to merge MANY shard files per signature without reconstructing a
+    full :class:`PatchBasis` once per shard (only once per signature is ever
+    needed — see :func:`_merge_corpus_dirs`).
+    """
+    d = np.load(path, allow_pickle=False)
+    out = {
+        "key": str(d["key"]),
+        "sensor_channels": [str(c) for c in d["sensor_channels"]],
+        "n_cells": int(d["n_cells"]),
+    }
+    out.update({k: d[k] for k in _LIGHT_EXAMPLE_FIELDS})
+    return out
+
+
 def _corpus_dir_complete(dir_path: Path) -> bool:
     return (dir_path / "_DONE").exists()
 
@@ -816,41 +849,51 @@ def _load_corpus_dir(dir_path: Path) -> dict[str, SignatureCorpus]:
 def _merge_corpus_dirs(shard_dirs: list[Path]) -> dict[str, SignatureCorpus]:
     """Concatenate every shard's per-signature examples, in shard order.
 
-    Geometry/basis for a signature is taken from the FIRST shard that carries
-    it (all shards describing the same signature key share identical geometry
-    by construction); a mismatch is a hard error, never a silent drop.  Example
-    ids are renumbered contiguously over the merged set, in sorted signature-key
-    order, so the result is deterministic regardless of shard scan order.
+    Geometry/basis for a signature is reconstructed ONCE, from the FIRST
+    shard file that carries it (all shards describing the same signature key
+    share identical geometry by construction) — every OTHER shard file of
+    that signature is read via the light loader (example arrays only, no
+    ``PatchBasis``/``g_pg`` reconstruction).  A full corpus can span dozens of
+    shard files; reconstructing the (large) basis once per shard rather than
+    once per signature is what OOM'd the first version of this merge.  A
+    geometry mismatch across shards is a hard error, never a silent drop.
+    Example ids are renumbered contiguously over the merged set, in sorted
+    signature-key order, so the result is deterministic regardless of shard
+    scan order.
     """
-    by_key: dict[str, list[SignatureCorpus]] = {}
+    by_key_light: dict[str, list[dict]] = {}
+    ref_path_by_key: dict[str, Path] = {}
     for d in shard_dirs:
-        for key, corp in _load_corpus_dir(d).items():
-            by_key.setdefault(key, []).append(corp)
+        for p in sorted(d.glob("*.npz")):
+            light = _load_signature_npz_light(p)
+            key = light["key"]
+            by_key_light.setdefault(key, []).append(light)
+            ref_path_by_key.setdefault(key, p)  # first shard file wins as basis source
+
     merged: dict[str, SignatureCorpus] = {}
     gid = 0
-    for key in sorted(by_key):
-        parts = by_key[key]
-        ref = parts[0]
+    for key in sorted(by_key_light):
+        parts = by_key_light[key]
+        ref_light = parts[0]
         for p in parts[1:]:
-            if p.sensor_channels != ref.sensor_channels or p.n_cells != ref.n_cells:
+            if (
+                p["sensor_channels"] != ref_light["sensor_channels"]
+                or p["n_cells"] != ref_light["n_cells"]
+            ):
+                s_p, s_ref = (
+                    len(p["sensor_channels"]),
+                    len(ref_light["sensor_channels"]),
+                )
                 raise ValueError(
                     f"signature {key}: geometry differs across shards "
-                    f"(S={len(p.sensor_channels)}/{len(ref.sensor_channels)}, "
-                    f"n_cells={p.n_cells}/{ref.n_cells}) — shards of the same "
-                    "signature must share identical geometry by construction"
+                    f"(S={s_p}/{s_ref}, n_cells={p['n_cells']}/{ref_light['n_cells']}) "
+                    "— shards of the same signature must share identical "
+                    "geometry by construction"
                 )
+        ref = _load_signature_npz(ref_path_by_key[key])  # ONE full basis reconstruction
         cat = {
-            k: np.concatenate([getattr(p, k) for p in parts], axis=0)
-            for k in (
-                "values",
-                "finite",
-                "measured",
-                "vacuum",
-                "mask",
-                "scale",
-                "i_pf",
-                "ip",
-            )
+            k: np.concatenate([part[k] for part in parts], axis=0)
+            for k in _LIGHT_EXAMPLE_FIELDS
         }
         n = cat["values"].shape[0]
         merged[key] = SignatureCorpus(
