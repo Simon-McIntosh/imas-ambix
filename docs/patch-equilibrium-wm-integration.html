@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-04">
-<meta name="plan-version" content="3">
-<meta name="plan-impl" content="0.11">
+<meta name="plan-version" content="4">
+<meta name="plan-impl" content="0.22">
 </head>
 <body>
   <main class="plan-doc">
@@ -225,20 +225,25 @@
       <a href="archive/patch-equilibrium-wm-integration-enkf-observation-design.html">EnKF observation-operator design</a>
       (figure <a href="/imas-ambix/figures/patch-equilibrium-wm-integration/fig-enkf-observation-operator.png">demo</a>).</p>
 
-    <h2 id="s5">§5 — Workstream C: cross-machine ingestion (the North-Star transfer path)</h2>
-    <p>
-      The measured gap list (patch-current-force-balance P5): geometry readers are MAST-Zarr-hardcoded
-      (<code>read_efm_geometry</code>); R0/minor-radius are baked constants; no IMAS static-IDS
-      machine-description ingestion exists; campaign signatures are not machine-tagged. Only
-      <code>gs/cylinder.py</code> ports as-is. Deliverables: a <code>GeometryTable</code>-producing reader
-      interface; an IMAS <code>pf_active</code>/<code>wall</code>/<code>magnetics</code> static-IDS reader
-      (imas-python, DD-version-pinned per the data-access rules); machine-tagged signatures. Acceptance is the
-      plan-level property the North Star names: <em>a second machine's table drops in with zero solver-code
-      change</em> — the substrate is already demonstrated geometry-table-driven (synthetic-machine CI) and the
-      encoder cross-signature transfer is measured; this workstream turns that into a real second device and
-      feeds machine-agnostic-latent-world-model f-malwm-06 (cross-machine transfer).
-      <br><strong>Gate C:</strong> ITER (or JET) machine description ingested to a GeometryTable; PatchBasis
-      assembles; vacuum-field sanity checks pass; no MAST-specific code touched.</p>
+    <h2 id="s5">§5 — Workstream C: cross-machine ingestion (the North-Star transfer path)
+      <span class="badge badge-shipped">✓ landed 2026-07-04</span></h2>
+    <p class="landed-summary">
+      <strong>Gate C PASSED — an ITER machine description drops into the patch substrate with zero
+      solver-code change</strong> (commits <code>1ef55c2</code>/<code>ed653d6</code>/<code>7fc1859</code>,
+      36 tests). <code>MachineGeometryReader</code> protocol + MAST-Zarr implementation (MAST signature keys
+      proven byte-stable by regression test — every existing cache/checkpoint path resolves unchanged; non-MAST
+      machines get a <code>{machine}-</code> key prefix). New <code>imas_ambix/gs/imas_geometry.py</code> reads
+      <code>pf_active</code>/<code>wall</code>/<code>magnetics</code> via imas-python (DD version peeked from
+      <code>version_put</code> then opened correctly; unresolvable gaps go to
+      <code>GeometryTable.provenance_flags</code>, never fabricated). Real ITER entry ingested: 915 b-probes,
+      261 flux loops, 23 PF filaments/17 coils, 56-pt limiter, r0=6.168 m / a=2.226 m geometry-derived (baked
+      constants fixed on this path); PatchBasis assembles (full-res g_pg 264.7 s on a sun_debug node); vacuum
+      sanity: far-field exact vs analytic loop, ψ finite on 1617/1617 grid points, near-coil sensors respond
+      9.6× over far. Artifact <code>imas_ambix/gs/artifacts/imas_geometry_iter.json</code>.
+      <strong>Measured gap (queued as followup):</strong> <code>operator.classify_circuits</code> is
+      MAST-hardcoded (centroids + amc names), so ITER circuits classify inferred-passive and
+      <code>m_coil</code> is empty — coil-circuit classification must become machine-description-driven
+      before a second machine's KNOWN block populates (pinned loudly by an assertion in the ITER test).</p>
 
     <h2 id="s6">§6 — Validation cadence and reporting</h2>
     <p>
@@ -315,6 +320,27 @@ Done-when
   5. LCFS read robustification measured (kept only if load-bearing)
   6. plan updated same-turn with numbers + figures; followup written for
      Workstream B + this one resolved</pre>
+    </article>
+<article class="r-fu" data-id="f-pewi-machine-agnostic-circuits" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Make coil-circuit classification machine-description-driven (unblock a second machine&#x27;s KNOWN coil block)</h4>
+    <div class="r-fu-body">Workstream C landed: an ITER machine description ingests to a GeometryTable and PatchBasis assembles with zero solver-code change — but operator.classify_circuits hardcodes MAST coil centroids + amc channel names, so all 17 ITER circuits classify inferred_passive and m_coil/psi_coil_grid are empty (pinned by an assertion in tests/gs/test_imas_geometry.py). The corrected MAST path now consumes imas_ambix/gs/circuits.py; the machine-agnostic generalisation is to carry circuit→channel metadata on the GeometryTable (from pf_active circuit/supply structure or a per-machine circuits module) and have classify_circuits consume THAT instead of module constants.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    patch-equilibrium-wm-integration §5 follow-on
+Section: machine-agnostic coil-circuit classification
+Tier:    sonnet
+
+Context
+  ITER geometry ingests and assembles (gate C passed) but classify_circuits is MAST-hardcoded (centroids + amc names) so the KNOWN coil block is empty for any non-MAST table; the ITER integration test pins this with assert n_known == 0.
+
+State to read
+  imas_ambix/gs/operator.py (classify_circuits, _PF_COIL_CENTROID/_PF_COIL_AMC, the case-circuit fix + COIL_MODEL_VERSION)
+  imas_ambix/gs/circuits.py (authoritative MAST circuit description)
+  imas_ambix/gs/imas_geometry.py + geometry.py (GeometryTable, provenance_flags, reader protocol)
+
+Done-when
+  1. GeometryTable carries circuit→current-channel metadata (populated from circuits.py for MAST, from pf_active circuit/supply structure for IMAS machines when present, honest provenance flag when absent)
+  2. classify_circuits consumes the table metadata; MAST behaviour byte-identical (regression-pinned); the ITER test&#x27;s n_known==0 pin flips to a populated-KNOWN assertion
+  3. Tests green; bump COIL_MODEL_VERSION; followup resolved with numbers</pre>
     </article>
 </section>
 
