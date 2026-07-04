@@ -417,6 +417,36 @@ def invert_slices_smooth(
     return out
 
 
+def lcfs_offset_cm_stats(
+    model: np.ndarray, ref: np.ndarray, flattop_mask: np.ndarray
+) -> dict:
+    """Median LCFS radial offset in cm, overall and flat-top-only.
+
+    NOTE units caveat: this is the median-of-per-slice-medians over the SAME
+    8 fixed poloidal angles the gate's own oracle target/skill use
+    (``target[6:14]``, matching :data:`TARGET_NAMES`'s ``lcfs_r_0..7``), not
+    the 240-angle continuous contour comparison
+    ``scripts/patch_flux_map_report.py`` used for the reported 31.3 cm
+    flat-top baseline — the two are the same QUANTITY (median radial LCFS
+    offset in cm) at different angular sampling density, comparable in scale
+    but not bit-identical.  ``flattop_mask`` selects, per shot, the single
+    scored slice with the largest |Ip| (mirrors
+    ``patch_flux_map_report.select_slices``'s flat-top pick).
+    """
+    offset_cm = np.abs(model[:, 6:14] - ref[:, 6:14]) * 100.0  # (N, 8) [cm]
+    per_slice_median = np.nanmedian(offset_cm, axis=1)  # (N,)
+    flattop_vals = per_slice_median[flattop_mask]
+    return {
+        "lcfs_offset_median_cm_all": float(np.nanmedian(per_slice_median))
+        if per_slice_median.size
+        else None,
+        "lcfs_offset_median_cm_flattop": float(np.nanmedian(flattop_vals))
+        if flattop_vals.size
+        else None,
+        "n_flattop_slices": int(flattop_mask.sum()),
+    }
+
+
 #: The frozen P3-winner inverse config (patch-current-force-balance gate-2):
 #: discrepancy policy, λ0=3, misfit_ratio=1.5, λmax=100 — axis skill +0.019,
 #: 2.8 cm median, 160/160 scored.  A4 measures ONLY the readout (or, for
@@ -487,10 +517,14 @@ def run_boundary_arm(args) -> int:
         **P3_WINNER_KW,
     )
 
-    model_rows, ref_rows = [], []
+    model_rows, ref_rows, flattop_flags = [], [], []
     t0 = time.perf_counter()
     for payload in shots:
         grid, basis = payload["grid"], payload["basis"]
+        # flat-top proxy (matches patch_flux_map_report.select_slices' pick):
+        # the single highest-|Ip| candidate slice for this shot
+        ips = np.abs([p.ip_amperes for p in payload["payloads"]])
+        flattop_idx = int(np.argmax(ips)) if ips.size else -1
         if args.boundary_arm == "current-smooth":
             pairs = _grid_neighbor_pairs(basis)
             inv = invert_slices_smooth(
@@ -513,12 +547,15 @@ def run_boundary_arm(args) -> int:
             )
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
+            flattop_flags.append(k == flattop_idx)
     dt = time.perf_counter() - t0
 
     model = np.array(model_rows)
     ref = np.array(ref_rows)
+    flattop_mask = np.array(flattop_flags, dtype=bool)
     sc = score(model, ref, baseline_vec)
     axis_errors = sc.pop("axis_errors")
+    lcfs_cm = lcfs_offset_cm_stats(model, ref, flattop_mask)
 
     tag_bits = [args.boundary_arm or "baseline"]
     if args.smooth_sigma:
@@ -543,6 +580,7 @@ def run_boundary_arm(args) -> int:
         "scored_fraction": 1.0,
         "wall_s": dt,
         **sc,
+        **lcfs_cm,
     }
     (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
     np.savez(
@@ -551,15 +589,19 @@ def run_boundary_arm(args) -> int:
         ref=ref,
         baseline=np.tile(baseline_vec, (len(model), 1)),
         axis_errors=axis_errors,
+        flattop_mask=flattop_mask,
     )
     logger.info(
-        "[boundary-arm %s] scored %d/%d axis_skill=%.3f lcfs_skill=%s median %.3f m (%.0f s)",
+        "[boundary-arm %s] scored %d/%d axis_skill=%.3f lcfs_skill=%s median %.3f m "
+        "lcfs_offset_cm(all/flattop)=%s/%s (%.0f s)",
         tag,
         len(model),
         len(model),
         sc["axis_skill"],
         sc["lcfs_skill"],
         sc["axis_error_median_m"],
+        lcfs_cm["lcfs_offset_median_cm_all"],
+        lcfs_cm["lcfs_offset_median_cm_flattop"],
         dt,
     )
     return 0

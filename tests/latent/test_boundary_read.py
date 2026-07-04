@@ -24,6 +24,7 @@ from imas_ambix.latent.gs_solve import (
     _read_boundary_psi,
     _read_boundary_psi_robust,
 )
+from scripts.patch_gate_eval import lcfs_offset_cm_stats
 
 # --- isolated topology.boundary_flux_robust tests --------------------------
 
@@ -174,3 +175,36 @@ def test_smoothing_also_suppresses_the_spurious_saddle():
     robust_bnd = _read_boundary_psi_robust(psi2d, grid, axis, axis_psi, smooth_sigma=3.0)
     radii = topo.lcfs_radii(psi2d, grid.rg, grid.zg, axis, robust_bnd)
     np.testing.assert_allclose(radii, rb, atol=0.01)
+
+
+# --- lcfs_offset_cm_stats (the flat-top-only cm summary requested for the
+# side-by-side comparison against the flux-map report's 31.3 cm baseline) --
+
+
+def test_lcfs_offset_cm_stats_matches_hand_computed_median():
+    """Two slices, known 8-radii offsets; the flat-top mask selects one."""
+    target = np.zeros((2, 14))
+    ref = np.zeros((2, 14))
+    # slice 0 (flat-top): all 8 lcfs radii off by 0.10 m = 10 cm
+    target[0, 6:14] = 0.10
+    # slice 1 (not flat-top): all 8 lcfs radii off by 0.30 m = 30 cm
+    target[1, 6:14] = 0.30
+    flattop_mask = np.array([True, False])
+
+    stats = lcfs_offset_cm_stats(target, ref, flattop_mask)
+    assert stats["lcfs_offset_median_cm_all"] == 20.0  # median(10, 30)
+    assert stats["lcfs_offset_median_cm_flattop"] == 10.0  # only slice 0
+    assert stats["n_flattop_slices"] == 1
+
+
+def test_lcfs_offset_cm_stats_empty_flattop_mask_returns_none():
+    """No flat-top slice selected -> the flat-top field is None, not a crash."""
+    target = np.zeros((1, 14))
+    ref = np.zeros((1, 14))
+    target[0, 6:14] = 0.05
+    flattop_mask = np.array([False])
+
+    stats = lcfs_offset_cm_stats(target, ref, flattop_mask)
+    assert stats["lcfs_offset_median_cm_all"] == 5.0
+    assert stats["lcfs_offset_median_cm_flattop"] is None
+    assert stats["n_flattop_slices"] == 0
