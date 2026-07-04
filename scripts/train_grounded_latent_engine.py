@@ -51,6 +51,13 @@ import torch
 
 from imas_ambix.eval.excitation_selector import coil_ramp_profile
 from imas_ambix.gs.geometry import build_table_for_shot
+
+try:  # GEOMETRY_TABLE_VERSION is a very recent addition (sensor-channel-set
+    # determinism fix) -- degrade to an honest "absent" label rather than a
+    # hard import error if an older checkout doesn't have it yet.
+    from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+except ImportError:
+    GEOMETRY_TABLE_VERSION = None
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     ANCHORED_NAMES,
@@ -266,6 +273,11 @@ def _config_hash(shots: list[int], *, nr: int, nz: int, min_ip_ka: float) -> str
         "nz": int(nz),
         "min_ip_ka": round(float(min_ip_ka), 6),
         "coil_model_version": COIL_MODEL_VERSION,
+        # a sensor-channel-set fix on a FIXED signature digest (fc938's
+        # per-shot flux-loop presence) — folded in so a cache built before the
+        # fix can never be silently reused after it; None (pre-fix checkout)
+        # still busts a post-fix cache since it differs from the real string
+        "geometry_table_version": GEOMETRY_TABLE_VERSION,
     }
     blob = json.dumps(payload, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:16]
@@ -376,6 +388,7 @@ def _save_corpus_dir(
     meta = {
         "config_hash": config_hash,
         "coil_model_version": COIL_MODEL_VERSION,
+        "geometry_table_version": GEOMETRY_TABLE_VERSION,
         "signatures": list(corpora.keys()),
         "n_examples": {k: c.n_examples for k, c in corpora.items()},
     }
@@ -712,6 +725,7 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
         "reference_signature": ref_key,
         "n_cells": ref_n_cells,
         "coil_model_version": COIL_MODEL_VERSION,
+        "geometry_table_version": GEOMETRY_TABLE_VERSION,
         "per_signature_n_coil": {k: c.n_coil for k, c in corpora.items()},
         "n_examples": {k: c.n_examples for k, c in corpora.items()},
     }
