@@ -38,6 +38,7 @@ import torch
 from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
+    CHANNEL_SCALE_KIND_FLOOR_REL,
     feature_schema,
     load_shot_windows,
     read_split_shot_lists,
@@ -150,8 +151,23 @@ def geometry_target(
     return target, float(axis_psi), float(boundary_psi)
 
 
-def shot_payloads(shot: int, *, nr, nz, max_slices, min_ip_ka, split="eval"):
-    """Per-shot geometry + slice payloads, identical selection to the Picard gate."""
+def shot_payloads(
+    shot: int,
+    *,
+    nr,
+    nz,
+    max_slices,
+    min_ip_ka,
+    split="eval",
+    scale_floor_rel: float = CHANNEL_SCALE_KIND_FLOOR_REL,
+):
+    """Per-shot geometry + slice payloads, identical selection to the Picard gate.
+
+    ``scale_floor_rel`` is the ``rel_floor`` passed straight through to
+    :func:`robust_channel_scale` — the default reproduces the training
+    convention exactly (0.05); the F floor-sensitivity sweep is the only
+    caller that varies it (see ``run_floor_sensitivity``).
+    """
     table = build_table_for_shot(int(shot))
     fwd = build_operator(table)
     grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
@@ -173,7 +189,9 @@ def shot_payloads(shot: int, *, nr, nz, max_slices, min_ip_ka, split="eval"):
         valid = valid[:: max(1, len(valid) // max_slices)][:max_slices]
     if not valid:
         return None
-    scale = robust_channel_scale(np.nanstd(w.raw_mag, axis=0), fwd.sensor_channels)
+    scale = robust_channel_scale(
+        np.nanstd(w.raw_mag, axis=0), fwd.sensor_channels, rel_floor=scale_floor_rel
+    )
     scale_ch = np.where(present, scale[np.clip(ch_rows, 0, None)], 1.0)
 
     payloads, refs = [], []
@@ -505,6 +523,7 @@ def run_boundary_arm(args) -> int:
                 max_slices=args.max_slices_per_shot,
                 min_ip_ka=args.min_ip_ka,
                 split=args.split,
+                scale_floor_rel=args.scale_floor_rel,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("shot %s failed to load: %s", s, exc)
@@ -726,6 +745,7 @@ def run_boundary_arm_grid(args) -> int:
                 max_slices=args.max_slices_per_shot,
                 min_ip_ka=args.min_ip_ka,
                 split=args.split,
+                scale_floor_rel=args.scale_floor_rel,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("shot %s failed to load: %s", s, exc)
@@ -794,6 +814,158 @@ def run_boundary_arm_grid(args) -> int:
         json.dumps(out, indent=2)
     )
     logger.info("grid results written to boundary_read_grid_%s.json", grid_tag)
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# F — whitening-floor rel sensitivity of the per-slice inverse.  Unlike A4's
+# boundary-read levers, the floor is baked into SlicePayload.scale at
+# shot_payloads() load time and enters the whitened-misfit term of the
+# inverse's objective directly, so each rel value needs a FRESH
+# shot_payloads() load AND a fresh re-inversion — no cross-value current
+# caching is possible (see _invert_shots_once's docstring for why caching
+# matters when it IS valid).
+# ---------------------------------------------------------------------------
+
+
+def run_floor_sensitivity(args) -> int:
+    """Sweep ``--floor-rel-grid``'s rel_floor values against the frozen
+    P3-winner inverse, scoring axis/LCFS/misfit at each — the measurement
+    that answers whether the training-motivated whitening floor (commit
+    19820ad) costs the per-slice inverse axis-placement skill by
+    over-deweighting quiet-but-precise flux loops (patch-equilibrium-wm-
+    integration flux-map re-run, commit 0e5fba3).
+
+    Cohort: the SAME train-shot tuning selection ``run_boundary_arm``/
+    ``run_boundary_arm_grid`` use (``--split train``'s
+    ``train_shots[n_baseline_shots : n_baseline_shots + n_tune_shots]``,
+    default 4 shots) — leakage-free (referee labels here never touch the
+    held-out gate).  Per shot, only the rampup-proxy (earliest valid) and
+    flattop (highest-|Ip|) slices are scored, giving ~8 slices total at the
+    default ``n_tune_shots=4`` — enough to see the effect while keeping each
+    rel value's re-inversion cheap.  ``--split eval`` is also honoured
+    (all held-out slices, no rampup/flattop subselection) for the ONE frozen-
+    rel held-out verification pass; it must not be used for value selection.
+
+    Writes ``floor_sensitivity_tune.json`` (``--split train``) or
+    ``floor_sensitivity_heldout.json`` (``--split eval``).
+    """
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    device = (
+        ("cuda" if torch.cuda.is_available() else "cpu")
+        if args.device == "auto"
+        else args.device
+    )
+    connectivity = None if args.connectivity in ("", "none") else args.connectivity
+    rels = [float(v) for v in args.floor_rel_grid.split(",") if v.strip() != ""]
+    logger.info(
+        "floor-rel-grid=%s split=%s device=%s", rels, args.split, device
+    )
+
+    train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
+    baseline_vec = train_mean_baseline(
+        args.n_train, args.n_baseline_shots, args.min_ip_ka
+    )
+    eval_shots = (
+        train_shots[args.n_baseline_shots : args.n_baseline_shots + args.n_tune_shots]
+        if args.split == "train"
+        else held_shots
+    )
+
+    winner_cfg = InverseConfig(
+        iters=args.iters, lr=args.lr, n_bins=args.n_bins, connectivity=connectivity,
+        **P3_WINNER_KW,
+    )
+
+    results = []
+    for rel in rels:
+        t0 = time.perf_counter()
+        shots = []
+        for s in eval_shots:
+            try:
+                payload = shot_payloads(
+                    s,
+                    nr=args.nr,
+                    nz=args.nz,
+                    max_slices=args.max_slices_per_shot,
+                    min_ip_ka=args.min_ip_ka,
+                    split=args.split,
+                    scale_floor_rel=rel,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("shot %s failed to load at rel=%s: %s", s, rel, exc)
+                continue
+            if payload is not None:
+                shots.append(payload)
+
+        model_rows, ref_rows, misfits = [], [], []
+        flattop_flags: list[bool] = []
+        for payload in shots:
+            grid, basis = payload["grid"], payload["basis"]
+            all_payloads = payload["payloads"]
+            ips = np.abs([p.ip_amperes for p in all_payloads])
+            flattop_idx = int(np.argmax(ips)) if ips.size else -1
+            sel = (
+                sorted({0, flattop_idx})
+                if args.split == "train"
+                else list(range(len(all_payloads)))
+            )
+            sub_payloads = [all_payloads[k] for k in sel]
+            sub_refs = payload["refs"][sel]
+            inv = invert_slices(basis, sub_payloads, winner_cfg, device=device)
+            for k, r in enumerate(inv):
+                psi2d = basis.psi_grid_2d_np(r.i_cell, sub_payloads[k].i_pf)
+                target, _, _ = geometry_target(psi2d, grid)
+                model_rows.append(target)
+                ref_rows.append(sub_refs[k])
+                misfits.append(r.misfit)
+                flattop_flags.append(sel[k] == flattop_idx)
+        dt = time.perf_counter() - t0
+
+        model = np.array(model_rows)
+        ref = np.array(ref_rows)
+        flattop_mask = np.array(flattop_flags, dtype=bool)
+        sc = score(model, ref, baseline_vec)
+        sc.pop("axis_errors")
+        lcfs_cm = lcfs_offset_cm_stats(model, ref, flattop_mask)
+        n_finite_misfit = int(np.sum(np.isfinite(misfits)))
+        point = {
+            "scale_floor_rel": rel,
+            "n_scored": int(len(model)),
+            "n_shots": len(shots),
+            "misfit_median": float(np.nanmedian(misfits)) if misfits else None,
+            "misfit_n_nonfinite": len(misfits) - n_finite_misfit,
+            "wall_s": dt,
+            **sc,
+            **lcfs_cm,
+        }
+        results.append(point)
+        logger.info(
+            "[floor rel=%.3f] scored %d axis_skill=%.3f axis_median=%.3fm "
+            "lcfs_offset_cm(all/flattop)=%s/%s misfit_median=%s (%.0f s)",
+            rel,
+            len(model),
+            sc["axis_skill"],
+            sc["axis_error_median_m"],
+            lcfs_cm["lcfs_offset_median_cm_all"],
+            lcfs_cm["lcfs_offset_median_cm_flattop"],
+            point["misfit_median"],
+            dt,
+        )
+
+    out = {
+        "split": args.split,
+        "winner_config": {**P3_WINNER_KW, "iters": args.iters},
+        "coil_model_version": COIL_MODEL_VERSION,
+        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "n_tune_shots": args.n_tune_shots if args.split == "train" else None,
+        "cohort": "rampup+flattop per shot" if args.split == "train" else "all candidate slices",
+        "points": results,
+    }
+    tag = "tune" if args.split == "train" else "heldout"
+    out_path = ARTIFACTS / f"floor_sensitivity_{tag}.json"
+    out_path.write_text(json.dumps(out, indent=2))
+    logger.info("floor sensitivity results written to %s", out_path)
     return 0
 
 
@@ -883,8 +1055,35 @@ def main() -> int:
             "point). Writes ONE boundary_read_grid_<split>.json."
         ),
     )
+    ap.add_argument(
+        "--scale-floor-rel",
+        type=float,
+        default=CHANNEL_SCALE_KIND_FLOOR_REL,
+        help=(
+            "rel_floor passed to robust_channel_scale for shot_payloads' "
+            "sensor whitening scale (default = the training convention, "
+            "0.05). Applies to every mode (normal gate, --boundary-arm, "
+            "--grid, --floor-rel-grid)."
+        ),
+    )
+    ap.add_argument(
+        "--floor-rel-grid",
+        type=str,
+        default="",
+        help=(
+            "F: whitening-floor sensitivity sweep. Comma list of rel_floor "
+            "values (e.g. '0.0,0.01,0.02,0.05'); each value re-loads "
+            "shot_payloads AND re-inverts (the floor is baked into the "
+            "whitened-misfit objective, unlike --grid's boundary-read "
+            "levers, so currents cannot be cached across values). Runs on "
+            "the frozen P3-winner config, --split train's tuning cohort by "
+            "default (leakage-free). Writes floor_sensitivity_<tag>.json."
+        ),
+    )
     args = ap.parse_args()
 
+    if args.floor_rel_grid:
+        return run_floor_sensitivity(args)
     if args.grid:
         return run_boundary_arm_grid(args)
     if args.boundary_arm:
@@ -926,6 +1125,7 @@ def main() -> int:
                 max_slices=args.max_slices_per_shot,
                 min_ip_ka=args.min_ip_ka,
                 split=args.split,
+                scale_floor_rel=args.scale_floor_rel,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("shot %s failed to load: %s", s, exc)

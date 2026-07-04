@@ -138,6 +138,32 @@ def test_robust_channel_scale_all_degenerate_kind_falls_back_to_one():
     assert floored[2] == 0.01  # the healthy b-probe kind is untouched
 
 
+def test_robust_channel_scale_zero_rel_floor_disables_flooring():
+    """``rel_floor=0.0`` (the floor-sensitivity sweep's off point) must be a
+    true no-op for already-finite-positive readings, not merely a small
+    floor — the CLI's ``--scale-floor-rel 0.0`` relies on this to reproduce
+    the pre-fix (unfloored) inverse exactly."""
+    channels = ["obr01", "fl_cc04", "fl_p6l_1"]
+    scale = np.array([0.01, 3e-5, 0.02])
+    floored = robust_channel_scale(scale, channels, rel_floor=0.0)
+    np.testing.assert_allclose(floored, scale)
+
+
+def test_robust_channel_scale_default_rel_floor_is_unchanged():
+    """The training convention (0.05) is the function's default — pinned so a
+    future edit of the sweep's default arg can't silently change what every
+    in-flight training run picks up."""
+    from imas_ambix.latent.data import CHANNEL_SCALE_KIND_FLOOR_REL
+
+    assert CHANNEL_SCALE_KIND_FLOOR_REL == 0.05
+    channels = ["obr01", "fl_cc04", "fl_p6l_1"]
+    scale = np.array([0.01, 3e-5, 0.02])
+    np.testing.assert_allclose(
+        robust_channel_scale(scale, channels),
+        robust_channel_scale(scale, channels, rel_floor=0.05),
+    )
+
+
 def test_robust_channel_scale_vectorises_over_examples():
     """(N, S) input floors each row independently against its OWN row's kind
     medians — matching a cached corpus's per-example scale array where every

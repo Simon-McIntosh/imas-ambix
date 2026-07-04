@@ -35,6 +35,7 @@ Figures:    docs/figures/patch-current-force-balance/fig-flux-maps-*.png
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 from pathlib import Path
@@ -49,7 +50,7 @@ import zarr
 from matplotlib.path import Path as MplPath
 
 from imas_ambix.eval.efit_referee import evaluator_context
-from imas_ambix.latent.data import read_split_shot_lists
+from imas_ambix.latent.data import CHANNEL_SCALE_KIND_FLOOR_REL, read_split_shot_lists
 from imas_ambix.latent.patch_inverse import InverseConfig, invert_slices
 
 # geometry_target + shot_payloads: reuse the gate's exact selection/read path.
@@ -285,11 +286,30 @@ def select_slices(payloads, shot):
 
 
 # --------------------------------------------------------------------------
+def parse_args() -> argparse.Namespace:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--scale-floor-rel",
+        type=float,
+        default=CHANNEL_SCALE_KIND_FLOOR_REL,
+        help=(
+            "rel_floor passed to shot_payloads' robust_channel_scale (F "
+            "floor-sensitivity sweep; default = the training convention, "
+            "0.05). Recorded in flux_map_report.json."
+        ),
+    )
+    return ap.parse_args()
+
+
 def main() -> int:
     from imas_ink.figures import equilibrium_figure_mpl
 
+    args = parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info("device=%s  winner=%s", device, WINNER)
+    logger.info(
+        "device=%s  winner=%s  scale_floor_rel=%s",
+        device, WINNER, args.scale_floor_rel,
+    )
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     FIGURES.mkdir(parents=True, exist_ok=True)
 
@@ -302,7 +322,13 @@ def main() -> int:
     for shot in held_shots:
         try:
             payload = shot_payloads(
-                shot, nr=65, nz=97, max_slices=20, min_ip_ka=300.0, split="eval"
+                shot,
+                nr=65,
+                nz=97,
+                max_slices=20,
+                min_ip_ka=300.0,
+                split="eval",
+                scale_floor_rel=args.scale_floor_rel,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("shot %s failed to load: %s", shot, exc)
@@ -437,6 +463,7 @@ def main() -> int:
             "iters": WINNER.iters,
         },
         "device": device,
+        "scale_floor_rel": args.scale_floor_rel,
         "held_shots": [int(s) for s in held_shots],
         "n_slices": len(slice_metrics),
         "flux_map_findings": {
