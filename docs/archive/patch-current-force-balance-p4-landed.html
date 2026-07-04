@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="patch-current-force-balance-p4-landed">
+  <meta name="plan-title" content="patch-current-force-balance — P4 landed">
+  <meta name="plan-status" content="done">
+  <title>patch-current-force-balance — P4 landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>P4 landed — the amortised patch-current encoder, with an honest geometry gap</h1>
+    <p>
+      Stage record for <a href="/imas-ambix/patch-current-force-balance.html">patch-current-force-balance</a>
+      §5 P4, landed 2026-07-04. Closes <code>f-ggl-02</code> (learned amortisation of the force-balanced
+      readout). Commits <code>7a424cc</code> (encoder module), <code>d29745a</code> (trainer + gate eval +
+      H200 launcher), <code>a99b663</code> (full-coverage + cross-signature eval), <code>96fc729</code>
+      (record figure); training jobs <code>1225043/1225044</code> (v0 ablation, 588 examples),
+      <code>1225075/1225076</code> (2,000-shot corpus, 14,525 examples, both head arms).
+    </p>
+
+    <h2>What was built</h2>
+    <ul>
+      <li><strong>Oracle-recipe architecture, firewall-clean training:</strong> one token per
+        (sensor, time-step) over a 12-step / 0.25 s raw-magnetics window — never pooled; per-sensor
+        geometry (R, Z, sin θ, cos θ, kind) as additive positional encoding; KNOWN coil currents as extra
+        tokens with centroid geometry; CONTINUOUS standardised value embedding; has-value flags + loss-side
+        masking for missing data (never imputation); d160/4-layer/4-head norm-first transformer with a
+        learned query-token pool. The architecture is the measured stage-1 oracle recipe — but training is
+        <em>self-supervised</em>: whitened raw-magnetics misfit through M<sub>sens</sub> + Rogowski
+        I<sub>p</sub> anchor + the structure residual under the locked bounded-discrepancy weight policy
+        (per-example λ buffer, warm-up → data-derived target). No EFIT anywhere in the training path; the
+        referee only scores held-out readouts.</li>
+      <li><strong>Single forward pass:</strong> I = x·I<sub>p</sub>/n over 5084 patches; topology read from
+        the assembled ψ at eval — no per-slice optimisation, no convergence masking, 160/160 readout
+        availability.</li>
+      <li>8/8 module tests (incl. single-example overfit smoke, set-permutation equivariance, mask
+        robustness); SIGTERM-clean, resume-safe trainer; corpus spans 3 campaign signatures at 2,000 shots
+        (S=97 pair trains together; the S=81 signature's 3,795 examples are dropped by the shared-geometry
+        guard and counted honestly — a per-batch-geometry trainer is the recorded follow-up).</li>
+    </ul>
+
+    <h2>Decision locked: patch-head-parametrisation = direct</h2>
+    <p>
+      Two-arm ablation at both corpus scales (identical trainer, head swap). At 14,525 examples the
+      <strong>direct 5084-dim head beats the low-rank(64)+residual head on every gate-relevant metric</strong>:
+      in-signature axis skill −0.256 vs −0.323, median 8.4 vs 9.3 cm, X-point set skill +0.058 vs −0.060,
+      grounding 14.3× vs 11.2×, and only the direct head clears the cross-signature grounding bar
+      (5.54× PASS vs 4.85× FAIL). The null-space risk the low-rank bottleneck was designed to hedge is
+      already owned by the physics residual; the bottleneck just costs capacity.
+    </p>
+
+    <h2>Gate P4 — measured against each criterion</h2>
+    <table>
+      <thead><tr><th>Criterion</th><th>Bar</th><th>Measured (direct-2k)</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Corpus grounding</td><td>&ge; the banked 5.53&times;</td>
+            <td><strong>14.3&times; in-signature; 5.54&times; cross-signature</strong> (encoder-vs-shuffled whitened misfit)</td>
+            <td>✅ PASS (both splits)</td></tr>
+        <tr><td>Readout availability</td><td>100%</td><td><strong>160/160</strong>, all 8 held-out shots, incl. the unseen-coil-set signature</td><td>✅ PASS</td></tr>
+        <tr><td>Axis/X-point/boundary skill vs the 0.5&ndash;0.7 abs-magnetics-oracle bar</td><td>reach or honestly compare</td>
+            <td><strong>Honest gap:</strong> in-signature axis skill −0.256 @ 8.4 cm median (axis_Z −0.001 ≈ baseline parity;
+                axis_R −0.51 carries the deficit); X-point set skill <strong>+0.058</strong> (positive); LCFS −3.1.
+                References: supervised oracle +0.59/+0.82 (trains ON referee labels), P3 variational inverse +0.019 @ 2.8 cm
+                (800 optimisation steps/slice), train-mean 4.1 cm median. Measured scaling law: 588 → 14,525 examples
+                cut the median 3.2&times; (26.9 → 8.4 cm) — data-limited, not architecture-limited, exactly the oracle's
+                own data-volume lesson.</td>
+            <td>◻ honest negative, trend measured</td></tr>
+        <tr><td>Per-quantity calibration</td><td>reported</td>
+            <td>Per-quantity skills reported (JSON artifacts); the current head is deterministic — no uncertainty head, so
+                distributional calibration is N/A and recorded as such (a Gaussian patch head is follow-on work).</td>
+            <td>◻ reported</td></tr>
+      </tbody>
+    </table>
+    <figure>
+      <img src="/imas-ambix/figures/patch-current-force-balance/fig-encoder-gate.png"
+           alt="Encoder gate: data scaling, grounding vs bar, per-quantity skills" style="max-width:100%">
+      <figcaption>
+        (a) 25&times; data → 3.2&times; geometry for the single-forward-pass label-free encoder — with the
+        iterative/supervised references below it, the remaining gap is the queued scale-up (10,846 train shots
+        available = 5&times; more corpus). (b) Grounding clears the banked 5.53&times; bar in-signature (14.3&times;)
+        and crosses it cross-signature (5.54&times;) — direct head only. (c) axis_Z at baseline parity;
+        the X-point set is the first positive-skill quantity of any amortised arm in this programme.
+      </figcaption>
+    </figure>
+
+    <h2>Cross-signature transfer (North-Star signal)</h2>
+    <p>
+      The geometry-as-positional-encoding design evaluates on an unseen coil-set signature without retraining:
+      cross-signature axis median 10.8 cm vs 8.4 cm in-signature, grounding 5.54× vs 14.3× — degraded but
+      functional, on a signature whose coil geometry the weights never saw. This is the first measured
+      cross-geometry transfer of the equilibrium layer, the property the cross-machine ambition (P5 item 4)
+      builds on.
+    </p>
+
+    <h2>Iteration log (honesty trail)</h2>
+    <ul>
+      <li>v0 (588 examples): axis 28 cm, grounding 2–2.7× — data-starved; eval initially skipped
+        cross-signature shots and window-clipped slices (fixed in <code>a99b663</code>: rebuilt geometry
+        buffers + padded partial windows → 160/160).</li>
+      <li>2k corpus exposed a third campaign signature; dropped-signature example ids overflowed the
+        per-example λ buffer (CUDA device assert) — fixed by contiguous renumbering
+        (commit <code>f-id-fix</code> in <code>train_patch_encoder.py</code>).</li>
+      <li>Both 2k arms trained 60 epochs / 13,680 steps; held-back misfit converged ~0.45–0.55.</li>
+    </ul>
+
+    <h2>What's next (queued)</h2>
+    <p>
+      The measured levers, in order: (1) full-corpus training (10,846 train shots ≈ 75k examples — 5× more;
+      assembly cost ~6 h, training minutes); (2) per-batch geometry binding so the S=81 signature's examples
+      train too; (3) a Gaussian patch head for calibration; (4) the LCFS boundary-read robustification shared
+      with the P3 record (spurious saddles on free-current ψ). None of these change the substrate — the plan's
+      architecture is complete and every claim above is CI-pinned or artifact-backed.
+    </p>
+  </main>
+</body>
+</html>

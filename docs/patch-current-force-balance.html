@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="patch-current-force-balance">
   <meta name="plan-title" content="Patch-Current Force Balance">
   <meta name="plan-summary" content="Nova-style patch-current forward model with force balance as a differentiable residual — no Picard, no topology extraction in the loop; modelling assumptions become soft, ablatable physics">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
@@ -19,9 +19,9 @@
   <title>Patch-Current Force Balance | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-03">
-<meta name="plan-version" content="4">
-<meta name="plan-impl" content="0.8">
+<meta name="plan-modified" content="2026-07-04">
+<meta name="plan-version" content="5">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -450,18 +450,22 @@
       Full record: <a href="archive/patch-current-force-balance-p3-landed.html">P3 landed</a>.
     </p>
 
-    <h3>P4 — Amortised patch-current encoder — closes f-ggl-02 (effort L)</h3>
-    <p>
-      The oracle-recipe encoder (temporal magnetics window, per-sensor geometry positional
-      encoding, finite masks — the recipe that set the 0.59/0.82 stage-1 bar) with a patch-current
-      head (direct or low-rank-plus-residual per the open decision), trained on the excitation
-      corpus with whitened magnetics + structure residual + I<sub>p</sub> anchor + the existing
-      transport/dimensionless terms. Single forward pass at inference — no per-slice optimisation,
-      no convergence masking. H200 checkpoint, SIGTERM-clean, resume-safe.
-      <br><strong>Gate P4 (gate-2 proper):</strong> held-out GS-readout axis/X-point/boundary skill
-      reaching (or honestly compared to) the 0.5&ndash;0.7 abs-magnetics-oracle bar; corpus
-      grounding &ge; the 5.53&times; already banked; 100% readout availability; per-quantity
-      calibration reported.
+    <h3>P4 — Amortised patch-current encoder <span class="badge badge-shipped">&#10003; landed 2026-07-04 — grounding + availability PASS; geometry gap honest, trend measured</span></h3>
+    <p class="landed-summary">
+      Built and trained the oracle-recipe encoder (per-(sensor,step) tokens, geometry-as-PE, continuous
+      values, loss-side masks) with a patch head, <strong>self-supervised end to end</strong> (whitened raw
+      magnetics + I<sub>p</sub> anchor + discrepancy-weighted structure residual — no EFIT in training).
+      2-arm ablation at 588 and 14,525 examples locked
+      <strong><code>patch-head-parametrisation</code> = direct</strong> (beats low-rank+residual on every
+      gate metric; only arm to clear cross-signature grounding). <strong>Gate: grounding
+      14.3&times; in-signature / 5.54&times; cross-signature — both PASS the 5.53&times; bar; 160/160 readout
+      availability</strong> incl. an unseen coil-set signature (first measured cross-geometry transfer of the
+      equilibrium layer). Geometry skill is an <strong>honest negative</strong> vs the supervised oracle bar:
+      in-signature axis −0.256 @ 8.4&nbsp;cm median (axis_Z at baseline parity; X-point set <strong>+0.058</strong>,
+      the first positive amortised quantity), with a measured scaling law (25&times; data → 3.2&times; median)
+      pointing at the queued full-corpus lever (10,846 shots available). Closes f-ggl-02. Figure:
+      <a href="/imas-ambix/figures/patch-current-force-balance/fig-encoder-gate.png">encoder gate</a>.
+      Full record: <a href="archive/patch-current-force-balance-p4-landed.html">P4 landed</a>.
     </p>
 
     <h3>P5 — Physics extensions on the same substrate <span class="badge badge-shipped">&#10003; landed 2026-07-03 — all four measured</span></h3>
@@ -542,14 +546,14 @@
       </p>
     <p class="r-dec-rat">Powered evidence (jobs 1225038/1225042): 9-arm tuning on TRAIN shots ranked bounded discrepancy (λ₀=3, target 1.5× the λ=0 warm-up misfit, λ≤100) first on both criteria (axis skill −1.28, median 2.6 cm vs fixed:30 −1.38/3.5 cm); frozen winner then cleared the held-out gate (160/160, +0.019 axis skill, 2.8 cm median) where every fixed/warm-start arm stayed negative. λ=0 scores 8.4 cm — the physics term is monotonically load-bearing. Caveats recorded: the unbounded first-run variant diverged (λ→1946 median, 6.6 cm) — the bounded target/cap is essential; λ cap binds on flat-top → learned weighting stays the P4 refinement.</p>
     </div>
-<div class="r-dec" data-key="patch-head-parametrisation" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="patch-head-parametrisation" data-choice="direct" data-by="reckon-ship (ablation evidence)" data-when="2026-07-04T01:08:48+00:00">
     <p class="r-dec-q">P4 encoder head: direct 5084-patch currents, or low-rank learned basis
           plus free residual currents?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="direct">direct patch field</button>
+      <button class="r-opt chosen" data-value="direct">direct patch field</button>
       <button class="r-opt" data-value="lowrank-residual">low-rank learned basis + residual</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">2-arm ablation at 588 and 14,525 training examples (jobs 1225043/1225044, 1225075/1225076): the direct 5084-dim head beats low-rank(64)+residual on every gate metric at scale — in-signature axis skill −0.256 vs −0.323, median 8.4 vs 9.3 cm, X-point set +0.058 vs −0.060, grounding 14.3× vs 11.2× — and is the only arm clearing the cross-signature grounding bar (5.54× PASS vs 4.85× FAIL). The null space the low-rank bottleneck was designed to hedge is already owned by the structure residual.</p>
     </div>
 </section>
 
@@ -628,7 +632,7 @@ Done-when
   5. P3 collapsed in the evergreen + archive page; followup for P4 written</pre>
     <p class="r-fu-outcome">P3 GATE PASS — winner discrepancy:3:1.5:100 scored 160/160 @ 2.8 cm median, axis skill +0.019 &gt; 0 (leakage-free train-shot selection); throughput 693,599 slices/s (P1 gate ×700); closures recovered with F²≥0 on 160/160; residual-weight-policy locked = discrepancy. Archive: docs/archive/patch-current-force-balance-p3-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-pcfb-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pcfb-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P4" data-resolved-at="2026-07-04T01:08:48+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship P4 — amortised patch-current encoder (closes f-ggl-02)</h4>
     <div class="r-fu-body"><p>P1–P3 landed with the gate passed. P4 builds the oracle-recipe encoder (temporal magnetics window + per-sensor geometry positional encoding + finite masks — NOT yet in HybridLatentEncoder, which is a flat per-slice MLP) with a patch-current head, trains on the corpus with whitened magnetics + structure residual + Ip anchor, and evaluates against the 0.5–0.7 abs-magnetics-oracle bar. The <code>patch-head-parametrisation</code> decision is still open — resolve by a 2-arm mini-ablation (direct 5084 vs low-rank+residual) early in training.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -663,6 +667,32 @@ Done-when
   4. Gate P4: held-out GS-readout axis/X/boundary skill vs the 0.5–0.7
      abs-mag-oracle bar; grounding ≥5.53×; 100% readout availability;
      per-quantity calibration reported; results + figures recorded in plan</pre>
+    <p class="r-fu-outcome">P4 landed 2026-07-04 — encoder module 7a424cc (8/8 tests), trainer/eval d29745a + a99b663, both head arms trained at 588 and 14,525 examples; patch-head-parametrisation LOCKED=direct; gate: grounding 14.3×/5.54× PASS + 160/160 availability PASS + geometry honest-negative vs the oracle bar (axis −0.256 @ 8.4 cm in-sig; X-point +0.058 first positive amortised quantity) with measured 25×-data→3.2×-median scaling; first measured cross-signature transfer. Closes f-ggl-02. Archive: docs/archive/patch-current-force-balance-p4-landed.html</p>
+    </article>
+<article class="r-fu" data-id="f-pcfb-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-04" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Close the amortised geometry gap: full-corpus training + per-batch geometry + Gaussian head + LCFS read robustification</h4>
+    <div class="r-fu-body"><p>The plan is shipped; the measured follow-on levers for the amortised encoder are: (1) full-corpus training (10,846 train shots ≈ 75k examples, 5× the 2k corpus — the scaling law 25×→3.2× predicts a large bite; assembly ~6 h); (2) per-batch geometry binding so the dropped S=81 signature (3,795 examples) trains too; (3) a Gaussian patch head for per-quantity calibration; (4) boundary-read robustification for the LCFS pathology on free-current ψ (spurious saddles — shared with the P3 record; candidate: current-smoothness soft rung, measured not assumed).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    patch-current-force-balance (shipped) — follow-on
+Section: amortised-encoder geometry gap
+Tier:    opus
+
+Context
+  P4 landed with grounding + availability PASS and an honest geometry gap
+  (in-sig axis −0.256 @ 8.4 cm vs P3 inverse +0.019 @ 2.8 cm) and a measured
+  data-scaling law (588→14,525 examples: 26.9→8.4 cm median).
+
+State to read
+  docs/archive/patch-current-force-balance-p4-landed.html (levers + iteration log)
+  scripts/train_patch_encoder.py (--n-train; signature drop at S mismatch)
+  imas_ambix/latent/artifacts/patch_gate/encoder_gate_*.json
+
+Done-when
+  1. full-corpus run (--n-train 10846) trained + gate-evaled; scaling point recorded
+  2. per-batch geometry binding lands (S=81 signature trains); tests green
+  3. Gaussian patch head + calibration reported
+  4. LCFS boundary-read robustification measured (kept only if load-bearing)
+  5. results recorded in a new plan or this plan&#x27;s archive per reckon discipline</pre>
     </article>
 </section>
 
