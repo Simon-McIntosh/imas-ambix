@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="patch-equilibrium-wm-integration-enkf-observation-design">
+  <meta name="plan-title" content="patch-equilibrium-wm-integration — B4 design note: the patch layer as the stage-3 EnKF observation operator">
+  <meta name="plan-status" content="done">
+  <title>B4 — patch layer as the EnKF observation operator | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>B4 — the equilibrium layer as the stage-3 filter's observation operator</h1>
+    <p>
+      Design note + prototype for <a href="/imas-ambix/patch-equilibrium-wm-integration.html">patch-equilibrium-wm-integration</a>
+      §4 item B4, feeding <a href="/imas-ambix/closed-loop-latent-filter.html">closed-loop-latent-filter</a>
+      (stage 3 of <a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a>
+      §7, decision <code>correction-mechanism = lae-enkf-ensemble</code>). This item hands architecture, not
+      results — there is no gate number. Module: <code>imas_ambix/latent/patch_observation.py</code>; tests:
+      <code>tests/latent/test_patch_observation.py</code>.
+    </p>
+
+    <h2>The idea in one sentence</h2>
+    <p>
+      The shipped patch-current substrate's batched linear map
+      <code>y = vacuum + M<sub>sens</sub>&middot;I</code> (fp32, measured 693,599 slices/s on H200 —
+      <code>PatchBasis.sensors</code>) is <em>already</em> an EnKF observation operator: a constant matrix
+      from plasma state to predicted magnetics, with no re-linearisation and no grid solve per analysis
+      step. Wiring the LAE-EnKF correction through it — rather than through a hand-built linear regression of
+      the latent onto sensors — means the filter's innovation (measured − predicted) is expressed in a
+      space with physical meaning: which patch of the flux surface the data pulled on.
+    </p>
+
+    <h2>Architecture</h2>
+    <svg viewBox="0 0 900 260" width="100%" role="img"
+         aria-label="Predict-correct loop: the transformer prior advances the latent; the decode-to-currents head maps it through the fixed patch-basis observation matrix to predicted sensors; the EnKF analysis compares against raw magnetics and corrects the ensemble, which re-encodes to the posterior latent">
+      <style>
+        .b{font:12.5px system-ui;fill:#1a1a1a}.s{font:11px system-ui;fill:#444}
+        .box{fill:#eef3fb;stroke:#2166ac;stroke-width:1.2;rx:6}
+        .boxc{fill:#eaf5ea;stroke:#1b7837;stroke-width:1.2;rx:6}
+        .arr{stroke:#555;stroke-width:1.6;marker-end:url(#ah)}
+      </style>
+      <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#555"/></marker></defs>
+      <rect class="box" x="20" y="30" width="150" height="56"/>
+      <text x="95" y="53" class="b" text-anchor="middle">latent belief</text>
+      <text x="95" y="70" class="s" text-anchor="middle">(prior, from transformer)</text>
+      <line class="arr" x1="170" y1="58" x2="230" y2="58"/>
+      <rect class="box" x="230" y="30" width="170" height="56"/>
+      <text x="315" y="53" class="b" text-anchor="middle">decode-to-currents</text>
+      <text x="315" y="70" class="s" text-anchor="middle">latent &rarr; ensemble of I (n cells)</text>
+      <line class="arr" x1="400" y1="58" x2="460" y2="58"/>
+      <rect class="box" x="460" y="30" width="200" height="56"/>
+      <text x="560" y="53" class="b" text-anchor="middle">H = M<sub>sens</sub> (fixed matrix)</text>
+      <text x="560" y="70" class="s" text-anchor="middle">predicted sensors, matmul-only</text>
+      <line class="arr" x1="660" y1="58" x2="720" y2="58"/>
+      <rect class="boxc" x="720" y="30" width="160" height="56"/>
+      <text x="800" y="53" class="b" text-anchor="middle">innovation</text>
+      <text x="800" y="70" class="s" text-anchor="middle">raw magnetics − H&middot;I</text>
+
+      <line class="arr" x1="800" y1="86" x2="800" y2="150"/>
+      <rect class="boxc" x="620" y="150" width="260" height="56"/>
+      <text x="750" y="173" class="b" text-anchor="middle">ensemble_correct</text>
+      <text x="750" y="190" class="s" text-anchor="middle">kalman_update per member (perturbed obs)</text>
+      <line class="arr" x1="620" y1="178" x2="400" y2="178"/>
+      <rect class="boxc" x="230" y="150" width="170" height="56"/>
+      <text x="315" y="173" class="b" text-anchor="middle">posterior I ensemble</text>
+      <text x="315" y="190" class="s" text-anchor="middle">corrected currents</text>
+      <line class="arr" x1="230" y1="178" x2="170" y2="178"/>
+      <rect class="box" x="20" y="150" width="150" height="56"/>
+      <text x="95" y="173" class="b" text-anchor="middle">re-encode</text>
+      <text x="95" y="190" class="s" text-anchor="middle">posterior latent</text>
+      <line class="arr" x1="95" y1="150" x2="95" y2="86"/>
+    </svg>
+
+    <h2>What the prototype does</h2>
+    <ul>
+      <li><strong><code>build_observation_matrix(m_sens, mask)</code></strong> restricts
+        <code>PatchBasis.m_sens</code> (S sensors &times; n cells) to the trusted/finite rows for one slice —
+        the same "trust mask" concept as <code>SlicePayload.mask</code> / <code>MagneticsObs.trust_rows</code>
+        elsewhere in this codebase — and returns the restricted <code>H</code> plus the applied boolean row
+        mask. <strong><code>restrict_observation</code></strong> applies that identical mask to the raw
+        measurement / vacuum (KNOWN-coil) prediction / whitening-scale triple so <code>H</code> and the
+        measurement side can never drift out of alignment.</li>
+      <li><strong><code>ensemble_correct(ensemble, h_mat, y_obs, vacuum, sensor_scale, rank=None)</code></strong>
+        runs a perturbed-observation (stochastic) EnKF analysis: for every member it calls
+        <code>imas_ambix.statespace.sequential_da.kalman_update</code> — imported, not reimplemented — with
+        the SAME prior covariance (so every member shares one Kalman gain) and an independent per-sensor
+        noise draw added to the mean-relative target
+        <code>resid_target = (y_obs − vacuum) − H&middot;mean_prior</code>. This is the textbook Burgers et
+        al. (1998) construction and is why the posterior ensemble spread reflects the analysis covariance
+        without ever sampling a fresh Gaussian.</li>
+      <li><strong>Reduced-rank path (<code>rank=r</code>)</strong> routes the correction through
+        <code>leading_observable_modes(H, sensor_scale, r)</code> first: the ensemble deviations are
+        projected onto the leading <code>r</code> right-singular vectors of the whitened <code>H</code>
+        <em>before</em> the covariance is ever formed, so the analysis never touches an <code>n&times;n</code>
+        covariance (n = thousands of patch cells on a real campaign grid; the fixture here uses n=96 to keep
+        the demo fast). Directions the sensors cannot see stay exactly on the prior — this is the
+        localisation the closed-loop filter needs at production scale.</li>
+    </ul>
+
+    <h2>Cost</h2>
+    <p>
+      <code>H</code> is a constant matrix (built once per campaign geometry, already amortised by
+      <code>PatchBasis</code>); the analysis step is matmul + one <code>(n_obs, n_obs)</code> or
+      <code>(r, r)</code> solve per member, no re-linearisation. At production scale
+      (S &asymp; 40&ndash;100 sensors, n &asymp; 5,000 patch cells) the reduced-rank path with r on the order
+      of the sensor count keeps every per-member solve at the <code>r&times;r</code> scale; only the
+      one-time projection <code>H&middot;modes</code> touches the full cell dimension, and that is itself a
+      constant matrix once the geometry (and hence <code>H</code>) is fixed.
+    </p>
+
+    <h2>What the innovation means physically</h2>
+    <p>
+      Because <code>H</code> is the same finite-area Green's-function map used everywhere else in the patch
+      layer, the innovation <code>y_obs − vacuum − H&middot;I</code> is directly interpretable: its
+      whitened norm is the same "misfit" quantity the P3 variational inverse and the P4 amortised encoder
+      already report, and the per-sensor residual after correction tells you which physical sensor
+      (and, via the reduced-rank modes, which flux-surface-scale structure) the data still disagrees with.
+      That is the concrete cash-out of routing the correction through the equilibrium layer instead of a
+      latent-only regression: the filter's disagreement with the data has a magnetics-diagnostic reading,
+      not just a KL-divergence number.
+    </p>
+
+    <h2 id="synthetic-demo">Synthetic demo (see figure)</h2>
+    <p id="synthetic-demo-results">
+      Fixture: the <code>_confining_table</code> synthetic machine from
+      <code>tests/latent/test_patch_basis.py</code> (5 B-probes, no KNOWN coils), a 9&times;13 grid
+      (n=96 in-limiter cells). A truth current blob defines the "measured" sensors; a biased, noisy
+      300-member ensemble stands in for the filter's prior (whitening scale set to half the ensemble's own
+      sensor-space spread — the well-posed EnKF regime; see the note in the test fixture on why an
+      arbitrary fraction of the signal magnitude either saturates the innovation clip or gives a
+      negligible correction). One <code>ensemble_correct</code> call: mean whitened sensor-space error
+      falls from 10.4 to 4.9 (median 10.3 &rarr; 4.9), the ensemble covariance trace contracts
+      4.13&times;10<sup>8</sup> &rarr; 9.34&times;10<sup>7</sup> (77%), and the rank-1 reduced path
+      reproduces the full-rank correction along the leading observable mode to 0.08% — the one case the two
+      code paths can be checked against each other exactly.
+    </p>
+
+    <figure>
+      <img src="/imas-ambix/figures/patch-equilibrium-wm-integration/fig-enkf-observation-operator.png"
+           alt="Three-panel synthetic EnKF demo: prior vs posterior ensemble spread in sensor space, innovation reduction per member, and the singular-value spectrum of the observation operator that sets the reduced-rank cutoff"
+           style="max-width:100%">
+      <figcaption>
+        (a) Ensemble sensor-space error (whitened, vs the truth) before/after one <code>ensemble_correct</code>
+        analysis — the posterior distribution sits closer to zero and is tighter. (b) Per-member whitened
+        innovation norm, prior vs posterior — a below-diagonal cloud is a correction that helped every
+        member, not just the mean. (c) Singular-value spectrum of the whitened <code>H</code>: with only
+        S sensors, at most S directions of the n-cell state are observable at all — the reduced-rank cutoff
+        the closed-loop filter should pick is read directly off this curve, not tuned blind.
+      </figcaption>
+    </figure>
+
+    <h2>Open questions for the stage-3 plan (closed-loop-latent-filter)</h2>
+    <ul>
+      <li><strong>Latent-space vs current-space correction.</strong> This prototype corrects the patch
+        currents directly (state = <code>I</code>, n cells). The alternative is to correct the hybrid
+        latent's ψ/current-carrying block directly and only READ OUT through <code>H</code> for the
+        innovation (i.e. <code>H' = H &middot; decode_to_currents</code>, composing the fixed patch matrix
+        with the learned decode head). The current-space form is what is implemented and tested here because
+        it needs no decode-head Jacobian; the latent-space form would let the EnKF correct exactly the
+        coordinates the transformer prior rolls forward, at the cost of differentiating (or ensemble-
+        approximating) the decode head. <strong>Recommendation: start current-space</strong> (this
+        prototype) for stage-3's first landing — it is gain-only, needs no additional Jacobian machinery,
+        and every EnKF property proven here (contraction, reduced-rank agreement) carries over unchanged;
+        revisit latent-space only if the decode head's own uncertainty turns out to dominate the
+        analysis error.</li>
+      <li><strong>Localisation / rank choice.</strong> <code>leading_observable_modes</code> gives a
+        principled cutoff (the whitened singular-value spectrum, panel (c)) but the stage-3 plan must decide
+        whether rank is fixed per campaign geometry (cheap, matches the "constant H" cost story) or adapted
+        per slice (e.g. by trust-mask coverage, since a slice with fewer trusted sensors has fewer observable
+        directions and a fixed high rank would be corrected against noise in the unobservable tail).</li>
+      <li><strong>Inflation.</strong> This prototype exposes a single scalar
+        <code>cov_inflation</code> multiplying the prior covariance every call (matches
+        <code>SequentialDAConfig.correction_inflation</code> in spirit) but does not implement covariance
+        decay/relaxation across time steps — that belongs to the stage-3 sequential loop (predict advances
+        the ensemble through the transformer; how much the analysis covariance should inflate before the
+        next correct depends on the transformer's own process noise, which this item does not model).</li>
+      <li><strong>Multiplicative vs additive ensemble representation.</strong> The prototype's ensemble
+        members are raw currents in amperes; if the latent world model's decode head instead produces a
+        dimensionless shape (as the P4 encoder's <code>x = I&middot;n/I<sub>p</sub></code> convention does),
+        the EnKF should probably run in THAT dimensionless coordinate (consistent with the
+        machine-agnostic latent's dimensionless-coordinate-set decision) rather than raw amperes — an open
+        choice for whoever wires this into the stage-3 loop.</li>
+    </ul>
+
+    <h2>Firewall / scope note</h2>
+    <p>
+      <code>patch_observation.py</code> imports only <code>numpy</code> and
+      <code>imas_ambix.statespace.sequential_da</code> (for <code>kalman_update</code> and
+      <code>leading_observable_modes</code>) — no data loading, no GPU requirement, no EFIT/evaluator
+      import, matching the firewall convention checked for <code>patch_basis.py</code> and
+      <code>patch_inverse.py</code>.
+    </p>
+  </main>
+</body>
+</html>
