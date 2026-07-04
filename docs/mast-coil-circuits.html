@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="mast-coil-circuits">
+  <meta name="plan-title"    content="MAST Coil Circuits and Power Supplies">
+  <meta name="plan-summary"  content="Audit of the 13 active + 10 case MAST PF circuits (pfSystems.xml machine description), cross-validated against efm geometry and raw amc data on held-out shots — all 13 coils are individually powered; the L2/world-model path silently drops P6 and uses un-turn-corrected feed current; one machine, two coincidental geometry-classifier confusions found and flagged">
+  <meta name="plan-status"   content="done">
+  <meta name="plan-informs"  content="patch-equilibrium-wm-integration,patch-current-force-balance">
+  <title>MAST Coil Circuits and Power Supplies | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Answering the two questions directly</h2>
+    <p>
+      <strong>"I thought MAST had a single geometry" — it does.</strong> Original MAST
+      (shots ~11000&ndash;30000; this is <em>not</em> MAST-U) is one physical device with one
+      fixed set of 13 active PF coils. What varies across the corpus is only the EFIT
+      <em>setup discretisation</em> — how finely the static machine description chops each coil
+      into filaments for the Green's-function table (938 vs 1004 filaments; probe count and
+      position are identical across every signature we sampled, mp78 in every case here). §5
+      shows this directly: the B-probe positions from a 938-filament shot and a 1004-filament
+      shot overlap to within 12.6&nbsp;mm (measurement noise/rounding, not a real geometry
+      change), while the filament count genuinely differs 938 vs 1004 for the same 13 coils.
+    </p>
+    <p>
+      <strong>"Are all coils properly powered?" — yes, all 13 active coils have their own
+      dedicated power supply and a measured raw current channel</strong>, confirmed present on
+      every sampled shot across both filament-count signatures (§2). But two things downstream
+      of "powered" are NOT clean, and are worth the lead's attention:
+    </p>
+    <ul>
+      <li><strong>The L2 / world-model actuator signal for P2&ndash;P5 uses the wrong unit.</strong>
+        It reads <code>*_FEED_CURRENT</code> (the raw per-turn supply current, kA) while the
+        GS/patch-current path correctly uses <code>*_COIL_CURRENT</code> (feed current already
+        multiplied by the coil's turn count into amp-turns). The turn count varies 8&ndash;23&times;
+        across coils, so a WM that treats these channels as comparable actuator magnitudes is
+        wrong by a coil-dependent factor of up to 23&times; (§3).</li>
+      <li><strong>P6U/P6L are completely absent from the L2/world-model actuator set.</strong>
+        They are small (1.3&ndash;2.4% of total PF peak amp-turns across the 4 held-out shots) but
+        non-zero and are dropped entirely, not down-weighted (§4).</li>
+      <li><strong>Bonus finding, not requested but load-bearing:</strong> the GS operator's
+        8&nbsp;cm nearest-centroid circuit classifier (<code>operator.classify_circuits</code>)
+        silently folds 8 of the 10 structural coil-case circuits into the neighbouring active
+        coil's Green's-function column and drives them with the ACTIVE coil's current — not
+        their own measured (and physically distinct) case current. This is flagged for the T2
+        owner, not fixed here (out of this module's scope; see §6).</li>
+    </ul>
+    <p>
+      Everything below is either a hardcoded, tested machine-description module
+      (<code>imas_ambix/gs/circuits.py</code>) sourced from the MAST control-system XML and
+      cross-validated against real data, or a directly measured number from four held-out
+      shots (18502&ndash;18505) and three campaign signatures (11764, 12417, 18502) read via the
+      repo's existing FAIR-MAST readers.
+    </p>
+
+    <h2 id="s2">§2 — The 13 active + 10 case circuits, and the powering verdict</h2>
+    <p>
+      Source: <code>efitpp-jet/utilities/machine/mast/inputPreparation/standard_input/
+      pfSystems.xml</code> &mdash; 23 <code>pfCircuit</code> / 24 <code>pfCoil</code> / 23
+      <code>pfSupply</code> entries. Transcribed into
+      <code>imas_ambix/gs/circuits.py</code> (13 tested unit tests,
+      <code>tests/gs/test_circuits.py</code>) and exported as
+      <code>imas_ambix/gs/artifacts/mast_pf_circuits.json</code>.
+    </p>
+    <table>
+      <thead><tr><th>Circuit</th><th>Coil(s)</th><th>Supply</th><th>Scaling</th><th>L1 amc channel</th><th>Powered?</th></tr></thead>
+      <tbody>
+        <tr><td>1 (ohmic, <strong>series</strong>)</td><td>solenoid1 + solenoid2</td><td>1</td><td>&times;1</td><td><code>sol_current</code></td><td>&#10003; present, all shots</td></tr>
+        <tr><td>2&ndash;5</td><td>P2IU / P2OU / P2IL / P2OL</td><td>2&ndash;5</td><td>&times;12 / &times;8 / &times;12 / &times;8</td><td><code>p2*_coil_current</code> + <code>p2*_feed_current</code></td><td>&#10003; present, all shots</td></tr>
+        <tr><td>6&ndash;7</td><td>P3U / P3L</td><td>6&ndash;7</td><td>&times;8</td><td><code>p3*_coil_current</code> + <code>p3*_feed_current</code></td><td>&#10003; present, all shots</td></tr>
+        <tr><td>8&ndash;9</td><td>P4U / P4L</td><td>8&ndash;9</td><td>&times;23</td><td><code>p4*_coil_current</code> + <code>p4*_feed_current</code></td><td>&#10003; present, all shots</td></tr>
+        <tr><td>10&ndash;11</td><td>P5U / P5L</td><td>10&ndash;11</td><td>&times;23</td><td><code>p5*_coil_current</code> + <code>p5*_feed_current</code></td><td>&#10003; present, all shots</td></tr>
+        <tr><td>12&ndash;13</td><td>P6U / P6L</td><td>12&ndash;13</td><td>&times;1 (single-turn coil)</td><td><code>p6u_current</code> / <code>p6l_current</code></td><td>&#10003; present, all shots</td></tr>
+        <tr><td>14&ndash;21 (case)</td><td>P2U / P2L / P3U / P3L / P4U / P4L / P5U / P5L case</td><td>14&ndash;21</td><td>&times;1 (structural, not driven)</td><td><code>p*_case_current</code></td><td>measured but NOT an actuator &mdash; induced/structural</td></tr>
+        <tr><td>22&ndash;23 (case)</td><td>P6U / P6L case</td><td>22&ndash;23</td><td><strong>&times;0</strong></td><td><strong>none &mdash; confirmed absent</strong></td><td>machine description says "unknown for MAST, constrained to 0"; verified absent from every sampled shot</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>Verdict: all 13 active circuits are properly powered</strong> &mdash; each has its
+      own dedicated <code>pfSupply</code> entry and a real, present raw current channel on
+      every one of the 3 sample shots (spanning both the 938- and 1004-filament signatures).
+      The 10 case circuits are correctly NOT independently driven (they are structural/induced,
+      per the machine description) &mdash; 8 of them carry a real measured (small) case current;
+      the P6U/P6L cases are explicitly documented as unmeasured/zero and this is confirmed by
+      their absence from the data, not merely asserted from the XML.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/mast-coil-circuits/fig-circuit-topology.png"
+           alt="MAST PF coil filament positions colored by circuit family, with a zoom on the P2U case / P2IU geometric overlap" style="max-width:100%">
+      <figcaption>Left: all 13 active coils (colored by P2&ndash;P6 family, solenoid as a star) plus
+        the 10 structural case circuits (gray squares) and the remaining ~78 inferred-passive
+        vessel/eddy circuits (light dots), shot 18502. Right: zoom on the P2U case circuit
+        (circuit 14, red-outlined squares) &mdash; its filaments sit only ~2&nbsp;cm from the P2IU
+        active coil's centroid, well inside the 8&nbsp;cm nearest-centroid match radius the GS
+        operator uses to classify circuits (§6).</figcaption>
+    </figure>
+
+    <h2 id="s3">§3 — Red flag A: feed current vs coil current (measured, quantified)</h2>
+    <p>
+      For the 10 non-P6, non-solenoid coils, the <code>amc</code> group carries both a
+      <code>*_feed_current</code> channel (raw per-turn supply current, kA) and a
+      <code>*_coil_current</code> channel. Measured on shots 18502&ndash;18505 (every finite
+      sample, median ratio, zero standard deviation &mdash; i.e. an <em>exact</em> integer
+      relationship, not noisy):
+    </p>
+    <table>
+      <thead><tr><th>Coil</th><th>coil_current / feed_current</th><th>pfSystems.xml supply scalingFactor / 1000</th></tr></thead>
+      <tbody>
+        <tr><td>P2IU, P2IL</td><td><strong>12.000</strong> (std 0.0000)</td><td>12</td></tr>
+        <tr><td>P2OU, P2OL</td><td><strong>8.000</strong> (std 0.0000)</td><td>8</td></tr>
+        <tr><td>P3U, P3L</td><td><strong>8.000</strong> (std 0.0000)</td><td>8</td></tr>
+        <tr><td>P4U, P4L, P5U, P5L</td><td><strong>23.000</strong> (std 0.0000)</td><td>23</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The ratio matches the machine description's own supply-calibration constant exactly:
+      <code>coil_current = feed_current &times; (scalingFactor/1000)</code>. This is the coil's
+      turn count &mdash; <code>coil_current</code> is the feed current already expressed in
+      amp-turns, matching <code>operator.py</code>'s documented ``_KA_TURN_TO_A`` convention.
+      The GS/patch-current path's choice of <code>*_coil_current</code> is therefore
+      <strong>correct</strong> (it is the actual field-producing amp-turn actuator); the
+      turn-count spread across coils (8&ndash;23&times;, nearly 3&times; range) means a raw
+      <code>feed_current</code> value is NOT on a comparable actuator footing across coils.
+    </p>
+    <p>
+      Mapped through the operator's own Green's function
+      (<code>operator.greens_bz_br</code>, read-only import) to the peak field at each coil's
+      most-coupled magnetic probe on shot 18502: feeding the raw <code>feed_current</code>
+      number directly into the actuator (as if it were already amp-turns, which is what the
+      L2/world-model path effectively does) reproduces only <strong>1/turns</strong> of the real
+      field &mdash; e.g. P4U's true peak field contribution at probe <code>obr02</code> is
+      <strong>277&nbsp;mT</strong>; using the raw feed number would imply <strong>12.1&nbsp;mT</strong>,
+      a <strong>23&times; underestimate</strong>. P2OU/P2OL (8 turns) underestimate by 8&times;;
+      P2IU/P2IL (12 turns) by 12&times;. This is a genuine, coil-dependent actuator-scale error
+      if the raw feed number is ever used as a physically-scaled quantity rather than a
+      network-rescaled feature.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/mast-coil-circuits/fig-feed-vs-coil-and-p6.png"
+           alt="P4U feed vs coil current time trace showing the exact 23x ratio, and a bar chart of peak amp-turns per active coil showing P6 is a small fraction of the total" style="max-width:100%">
+      <figcaption>Left: P4U feed current (kA) vs coil current (kA&middot;turn) on shot 18502 &mdash;
+        the two traces are related by an exact &times;23 (turn count), confirmed to the last digit.
+        Right: peak amp-turns per active coil on the same shot; P6U/P6L (§4) are visibly the
+        smallest actuators and are the ones entirely missing from the L2/world-model path.</figcaption>
+    </figure>
+
+    <h2 id="s4">§4 — Red flag B: P6 magnitude and L2/world-model blindness</h2>
+    <p>
+      P6U/P6L are single-turn coils (<code>turnCount=0.25</code> &times; 4 filaments = 1 turn per
+      pfSystems.xml geometry, confirmed against the fcoil table), so <code>p6u_current</code> /
+      <code>p6l_current</code> are already amp-turns directly. Peak |current| on the four
+      held-out shots:
+    </p>
+    <table>
+      <thead><tr><th>Shot</th><th>&Sigma;|P2&ndash;P5| peak [kA&middot;turn]</th><th>&Sigma;|P6| peak [kA&middot;turn]</th><th>P6 as % of P2&ndash;P5</th><th>P6 as % of all active PF</th></tr></thead>
+      <tbody>
+        <tr><td>18502</td><td>1457.4</td><td>21.7</td><td>1.49%</td><td>1.42%</td></tr>
+        <tr><td>18503</td><td>1430.7</td><td>22.5</td><td>1.57%</td><td>1.50%</td></tr>
+        <tr><td>18504</td><td>1863.8</td><td>25.8</td><td>1.38%</td><td>1.33%</td></tr>
+        <tr><td>18505</td><td>1744.7</td><td>42.4</td><td>2.43%</td><td>2.31%</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Per the scout's finding, the L2 <code>pf_active</code> IDS carries geometry for all 13
+      coils but only the 10 P2&ndash;P5 <em>feed</em> currents plus <code>solenoid_current</code>
+      &mdash; P6U/P6L currents are dropped entirely at L2, so the tokenizer/world-model path
+      (<code>imas_ambix/tokenizer/geometry_reader.py</code>) never sees them. Quantitatively this
+      is a small actuator (1.3&ndash;2.4% of total PF amp-turns), but it is a genuine, non-zero,
+      independently-controllable degree of freedom the WM cannot condition on or predict the
+      effect of &mdash; and P6 coils are positioned to do local boundary/divertor-leg shaping, so
+      their control significance need not scale with their amp-turn share alone.
+    </p>
+
+    <h2 id="s5">§5 — One machine, two campaign signatures (not two geometries)</h2>
+    <p>
+      Three sample shots span two <code>fcoil</code> discretisation signatures:
+      <code>mp78-fl46-fc1004-lim37-*</code> (shots 11764, 12417 &mdash; earlier campaigns) and
+      <code>mp78-fl46-fc938-lim37-*</code> (shot 18502 &mdash; the held-out set and most of the
+      corpus, 449/493 sampled shots per the existing geometry summary). The "mp78" prefix is
+      identical across all three &mdash; same 78 B-probes, same positions to within 12.6&nbsp;mm
+      (rounding/measurement noise, not a geometry change). The only real difference is the
+      number of PF filaments EFIT's static setup uses to discretise the same 13 physical coils
+      (938 vs 1004) &mdash; a finer or coarser Green's-function mesh over the identical machine,
+      not a different machine. (The geometry module's own docstring also documents an mp81
+      probe-count variant elsewhere in the corpus; this report did not locate and directly
+      inspect an mp81 sample shot within its time budget, so that variant is cited from the
+      existing geometry-module documentation rather than independently re-verified here.)
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/mast-coil-circuits/fig-campaign-signature-geometry.png"
+           alt="Overlay of PF filament positions (938 vs 1004) and B-probe positions (identical) across the two sampled campaign signatures" style="max-width:100%">
+      <figcaption>Left: PF filament positions for the two sampled ``fcoil`` signatures overlaid
+        &mdash; the same 13 physical coil locations, discretised into 938 (blue) vs 1004 (red)
+        filaments. Right: B-probe (``magpr``) positions for the same two shots are visually
+        identical (max drift 12.6&nbsp;mm) &mdash; the sensor geometry does not change between
+        these signatures; only the PF filament mesh does.</figcaption>
+    </figure>
+
+    <h2 id="s6">§6 — Bonus finding: the geometry classifier confuses case circuits with active coils</h2>
+    <p>
+      Not requested by the audit brief, but discovered while cross-validating <code>efm
+      fcoil_circ</code> against <code>pfSystems.xml</code> and worth flagging because it bears
+      directly on "are all coils properly powered" at the level the GS operator actually uses:
+      <code>operator.classify_circuits</code> (read-only import, not modified by this report)
+      labels an <code>efm</code> fcoil circuit as a known active PF coil purely by 8&nbsp;cm
+      nearest-centroid distance to <code>operator._PF_COIL_CENTROID</code>. Directly measured
+      (three sample shots, both signatures): the ``efm`` circuit numbering for the fine
+      discretisation actually agrees with <code>pfSystems.xml</code>'s <code>pfCircuit</code>
+      numbering 1:1 (circuit 14 = "P2U case", exactly as in the XML) &mdash; but circuit 14's
+      filaments (R&asymp;0.50, Z&asymp;1.77) sit only ~2&nbsp;cm from the P2IU active coil's own
+      centroid (R&asymp;0.475, Z&asymp;1.754), well inside the classifier's 8&nbsp;cm match radius.
+      The classifier therefore labels circuit 14 as a "redundant fine/coarse discretisation" of
+      P2IU (per <code>build_operator</code>'s own comment: "the EFIT fcoil model represents
+      each physical PF coil with &gt;1 circuit&hellip; we MERGE same-amc circuits into one
+      column by AVERAGING") and folds its geometry into P2IU's <code>G_pf</code> column, driven
+      by the ACTIVE P2IU coil current &mdash; not by the case circuit's own dedicated, measured,
+      and typically much smaller <code>p2u_case_current</code> channel. This happens for 8 of
+      the 10 case circuits (all except the two P6 cases, where it is harmless because the true
+      case current is genuinely zero). <code>imas_ambix/gs/circuits.py</code>'s
+      <code>CaseCircuit.geometry_confusable_with</code> field records exactly which active coil
+      label each case circuit will be folded into (verified equal, by test, to the actual
+      <code>classify_circuits</code> output on real data) so this is now auditable rather than
+      silent. Fixing <code>operator.py</code> is out of this report's scope (a different
+      workstream owns that file); this is a flagged finding for that owner, quantified and
+      reproducible via <code>circuits.case_circuit_for_active_coil(coil_label)</code>.
+    </p>
+
+    <h2 id="s7">§7 — IMAS-database credibility check</h2>
+    <p>
+      Candidate original-MAST IMAS entry: <code>/home/ITER/pinches/public/imasdb/mast/3/27999</code>
+      (user <code>pinches</code>, database <code>mast</code>, DD major version 3, pulse 27999,
+      run 4). Directory contents (<code>ids_001.datafile</code> / <code>.characteristics</code> /
+      <code>.tree</code>) are classic MDSplus-backend tree files, not the HDF5 layout this repo's
+      other IMAS reads assume.
+    </p>
+    <p>
+      Attempted with <code>imas-python</code> (imas 2.2.0, this venv), the only sanctioned
+      access path: <code>imas.DBEntry(backend_id=imas.ids_defs.MDSPLUS_BACKEND, db_name="mast",
+      pulse=27999, run=4, user_name="pinches", data_version="3").open()</code>. Result:
+    </p>
+    <pre style="white-space:pre-wrap">ImasCoreBackendException: al_begin_dataentry_action:
+[ALBackendException = MDSplus backend is not available within current install]</pre>
+    <p>
+      No <code>MDSplus</code> Python module is importable in this venv either. An MDSplus
+      environment module does exist on SDCC
+      (<code>/work/imas/etc/modules/all/MDSplus</code>,
+      <code>/work/imas/etc/modules/all/IMAS-AL-MDSplus-models</code>) but loading it and
+      rebuilding an MDSplus-capable <code>imas-python</code> environment was not attempted in
+      this session (out of scope for "attempt a careful read&hellip; if the AL cannot open it on
+      this host, record that honestly and move on", and the HPC module system was slow to
+      respond during a quick probe). Per repo policy, <code>h5py</code> was never used as a
+      workaround (banned for IMAS data; this entry isn't HDF5 regardless).
+    </p>
+    <p>
+      <strong>Verdict: NOT currently usable</strong> from the default imas-ambix environment on
+      this host &mdash; the imas-python build here has no MDSplus backend. This is an
+      environment gap, not evidence the entry itself is bad or good; before Workstream C
+      commits to this entry as a cross-machine source, a future session should either (a) build
+      or module-load an MDSplus-capable imas-python and retry the same open call, or (b) locate
+      an HDF5-backend original-MAST IMAS entry instead.
+    </p>
+
+    <h2 id="s8">§8 — Artifacts</h2>
+    <ul>
+      <li><code>imas_ambix/gs/circuits.py</code> &mdash; the typed, tested circuit description
+        (<code>ActiveCircuit</code> / <code>CaseCircuit</code> dataclasses + API:
+        <code>circuits()</code>, <code>active_circuit_for_coil()</code>,
+        <code>preferred_current_channel()</code>, <code>case_circuit_for_active_coil()</code>,
+        <code>verify_amc_channels()</code>).</li>
+      <li><code>imas_ambix/gs/artifacts/mast_pf_circuits.json</code> &mdash; the machine-readable
+        artifact (written by <code>circuits.write_artifact()</code>).</li>
+      <li><code>tests/gs/test_circuits.py</code> &mdash; 17 tests, all passing: structural
+        invariants (13+10, series-solenoid uniqueness, dedicated supplies, P6-case
+        zero-constraint), cross-consistency with <code>operator._PF_COIL_AMC</code>, channel
+        presence against amc listings recorded from three real shots (two signatures), and the
+        §6 geometry-confusable-with cross-check.</li>
+    </ul>
+
+  </main>
+</body>
+</html>
