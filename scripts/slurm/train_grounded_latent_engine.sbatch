@@ -29,10 +29,13 @@
 #  train_grounded_latent_engine.py) under
 #  /work/projects/imas_gpu/latent/grounded_latent_engine/corpus_cache/ keyed by
 #  a hash of (shots, nr, nz, min_ip_ka, COIL_MODEL_VERSION) — a run reuses a
-#  prior run's assembly for the SAME N_TRAIN with no re-read.  Set
-#  NR/NZ=2 for a 2-GPU DDP launch of this SAME script (torchrun) if a single
-#  card's throughput is the bottleneck; CorpusTrainer replicates the optimiser
-#  and all-reduces gradients, so this launcher itself does not change.
+#  prior run's assembly for the SAME N_TRAIN with no re-read.
+#
+#  This launcher is single-GPU only (no torchrun/DDP entry point in
+#  train_grounded_latent_engine.py — CorpusTrainer supports a distributed
+#  all-reduce, but nothing here initialises the process group).  A 2-card
+#  budget is spent as TWO independent single-GPU launches (e.g. a scale
+#  comparison or a seed ablation), not one multi-GPU job.
 # ============================================================================
 
 set -u
