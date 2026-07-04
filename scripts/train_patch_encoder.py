@@ -1122,6 +1122,23 @@ def _make_batch(corp, rows, ch_mean, ch_std, ipf_mean, ipf_std, device):
     return enc_in, payload
 
 
+def _encoder_forward(encoder, enc_in, head: str):
+    """``(i_cell, i_var)`` — ``i_var`` is ``None`` unless ``head`` is Gaussian,
+    in which case the encoder's variance arm is read alongside the mean."""
+    if head == "gaussian-direct":
+        return encoder(
+            enc_in["values"],
+            enc_in["finite"],
+            enc_in["i_pf_std"],
+            enc_in["ip"],
+            return_variance=True,
+        )
+    i_cell = encoder(
+        enc_in["values"], enc_in["finite"], enc_in["i_pf_std"], enc_in["ip"]
+    )
+    return i_cell, None
+
+
 def _epoch_batches(corpora, batch_size, rng):
     """List of (sig_key, row_indices) batches; each batch stays within one sig."""
     batches: list[tuple[str, np.ndarray]] = []
@@ -1205,7 +1222,12 @@ def main() -> int:
     ap.add_argument("--t-steps", type=int, default=12)
     ap.add_argument("--stride-ms", type=float, default=25.0)
     ap.add_argument("--min-ip-ka", type=float, default=300.0)
-    ap.add_argument("--head", type=str, default="direct", choices=("direct", "lowrank"))
+    ap.add_argument(
+        "--head",
+        type=str,
+        default="direct",
+        choices=("direct", "lowrank", "gaussian-direct"),
+    )
     ap.add_argument("--d-model", type=int, default=160)
     ap.add_argument("--n-layers", type=int, default=4)
     ap.add_argument("--n-heads", type=int, default=4)
@@ -1507,10 +1529,8 @@ def main() -> int:
             corp, rows, sig_ch_mean, sig_ch_std, ipf_mean, ipf_std, device
         )
         lam = disc.get(torch.as_tensor(corp.ids[rows], device=device))
-        i_cell = encoder(
-            enc_in["values"], enc_in["finite"], enc_in["i_pf_std"], enc_in["ip"]
-        )
-        losses = amortised_losses(corp.basis, i_cell, lam=lam, **payload)
+        i_cell, i_var = _encoder_forward(encoder, enc_in, args.head)
+        losses = amortised_losses(corp.basis, i_cell, lam=lam, i_var=i_var, **payload)
         printable = {
             k: (float(v.mean()) if torch.is_tensor(v) else float(v))
             for k, v in losses.items()
@@ -1537,10 +1557,8 @@ def main() -> int:
             ids = torch.as_tensor(corp.ids[rows], device=device)
             lam = disc.get(ids)
             optimizer.zero_grad()
-            i_cell = encoder(
-                enc_in["values"], enc_in["finite"], enc_in["i_pf_std"], enc_in["ip"]
-            )
-            losses = amortised_losses(corp.basis, i_cell, lam=lam, **payload)
+            i_cell, i_var = _encoder_forward(encoder, enc_in, args.head)
+            losses = amortised_losses(corp.basis, i_cell, lam=lam, i_var=i_var, **payload)
             loss = losses["total"].mean() if losses["total"].dim() else losses["total"]
             loss.backward()
             torch.nn.utils.clip_grad_norm_(encoder.parameters(), args.grad_clip)
@@ -1592,13 +1610,10 @@ def main() -> int:
                     corp, rows, sig_ch_mean, sig_ch_std, ipf_mean, ipf_std, device
                 )
                 lam = torch.zeros(len(rows), device=device)
-                i_cell = encoder(
-                    enc_in["values"],
-                    enc_in["finite"],
-                    enc_in["i_pf_std"],
-                    enc_in["ip"],
+                i_cell, i_var = _encoder_forward(encoder, enc_in, args.head)
+                losses = amortised_losses(
+                    corp.basis, i_cell, lam=lam, i_var=i_var, **payload
                 )
-                losses = amortised_losses(corp.basis, i_cell, lam=lam, **payload)
                 report = {
                     k: round(float(v.mean()), 5)
                     for k, v in losses.items()
