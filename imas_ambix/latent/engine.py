@@ -214,6 +214,14 @@ class GSGroundedLatentEngine(nn.Module):
         see :func:`~imas_ambix.latent.structure_residual.integrate_closures`'s
         ``mass_frac_threshold`` convention) carry no closure information and are
         excluded.  Zero (no gradient) when the encoder carries no closure head.
+
+        The residual is normalised by the fit's OWN per-bin standard error
+        (a chi-squared-style ``((pred − target)/σ)²``), not the raw physical
+        units: ``a_k``/``b_k`` span many orders of magnitude across the corpus
+        (SI flux-function coefficients), so an unnormalised L2 term would
+        dwarf every other loss and dominate the shared trunk's gradient
+        purely from unit choice.  A convergent head reads ~1 here on average
+        — directly the "within 1σ" criterion the closure gate reports.
         """
         if latent.closure is None:
             return i_cell.new_zeros(())
@@ -225,13 +233,22 @@ class GSGroundedLatentEngine(nn.Module):
         per_example = []
         for k in range(psi_c.shape[0]):
             fit = fit_flux_functions(
-                psi_c[k], r_c, jphi_c[k], n_bins=n_bins, z_c=z_c, connectivity="locality"
+                psi_c[k],
+                r_c,
+                jphi_c[k],
+                n_bins=n_bins,
+                z_c=z_c,
+                connectivity="locality",
             )
             mass = fit.weight_mass
             keep = (mass > 1e-3 * mass.max().clamp_min(1e-30)).to(fit.a_k.dtype)
             denom = keep.sum().clamp_min(1.0)
             pred_a, pred_b = latent.closure[k, :, 0], latent.closure[k, :, 1]
-            per_bin = (pred_a - fit.a_k) ** 2 + (pred_b - fit.b_k) ** 2
+            a_floor = 1e-3 * fit.a_k.abs().amax().clamp_min(1.0)
+            b_floor = 1e-3 * fit.b_k.abs().amax().clamp_min(1.0)
+            per_bin = ((pred_a - fit.a_k) / fit.a_err.clamp_min(a_floor)) ** 2 + (
+                (pred_b - fit.b_k) / fit.b_err.clamp_min(b_floor)
+            ) ** 2
             per_example.append((per_bin * keep).sum() / denom)
         return torch.stack(per_example).mean()
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 import torch
 
 from imas_ambix.latent.encoder import HybridLatentEncoder, LatentConfig
-from imas_ambix.latent.engine import GSGroundedLatentEngine, LossWeights
+from imas_ambix.latent.engine import GSGroundedLatentEngine
 from imas_ambix.latent.patch_basis import PatchBasis
 from imas_ambix.latent.structure_residual import f2_integrability_penalty
 from imas_ambix.latent.transport import FluxDiffusionPrior

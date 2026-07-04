@@ -104,9 +104,7 @@ class HybridLatentEncoder(nn.Module):
         self.profile_head = nn.Linear(d, 2) if config.profile_head else None
         self.patch_head = nn.Linear(d, config.n_cells) if config.n_cells else None
         self.closure_head = (
-            nn.Linear(d, 2 * config.n_closure_bins)
-            if config.n_closure_bins
-            else None
+            nn.Linear(d, 2 * config.n_closure_bins) if config.n_closure_bins else None
         )
 
     # bounds of the amortized profile parameters: β0 ∈ (0, 1) by the ansatz's

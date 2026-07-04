@@ -141,7 +141,6 @@ def _assemble_shot_pairs(
     key = table.signature.key
     if key not in basis_cache:
         basis_cache[key] = PatchBasis.from_table(table, nr=nr, nz=nz)
-    basis = basis_cache[key]
 
     w = load_shot_windows(int(shot), fwd, key, schema, with_referee=False)
     if w is None or w.times.size < 2:
@@ -215,7 +214,12 @@ def assemble_corpus(
     for s in shots:
         try:
             ex, key = _assemble_shot_pairs(
-                s, nr=nr, nz=nz, min_ip_ka=min_ip_ka, basis_cache=basis_cache, schema=schema
+                s,
+                nr=nr,
+                nz=nz,
+                min_ip_ka=min_ip_ka,
+                basis_cache=basis_cache,
+                schema=schema,
             )
         except Exception as exc:  # noqa: BLE001 — a shot w/o geometry is skipped
             logger.warning("shot %s skipped: %s", s, exc)
@@ -230,7 +234,9 @@ def assemble_corpus(
     corpora: dict[str, SignatureCorpus] = {}
     gid = 0
     for key, ex_list in per_sig.items():
-        cat = {k: np.concatenate([e[k] for e in ex_list], axis=0) for k in _PAIR_ARRAY_KEYS}
+        cat = {
+            k: np.concatenate([e[k] for e in ex_list], axis=0) for k in _PAIR_ARRAY_KEYS
+        }
         n = cat["x_t"].shape[0]
         corpora[key] = SignatureCorpus(
             key=key,
@@ -439,7 +445,9 @@ def _build_batch(
     """One (t, t+1) minibatch for one campaign; returns ``(batch, row_idx)``."""
     corp = state.corp
     n = corp.n_examples
-    rows = rng.choice(n, size=min(batch_size, n), p=state.sample_p, replace=n < batch_size)
+    rows = rng.choice(
+        n, size=min(batch_size, n), p=state.sample_p, replace=n < batch_size
+    )
 
     x_t = np.nan_to_num(feature_stats.normalise(corp.x_t[rows]), nan=0.0)
     x_tp1 = np.nan_to_num(feature_stats.normalise(corp.x_tp1[rows]), nan=0.0)
@@ -674,7 +682,9 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
             disc=disc,
         )
 
-    trainer = CorpusTrainer(encoder, engines, lr=args.lr, weight_decay=args.weight_decay)
+    trainer = CorpusTrainer(
+        encoder, engines, lr=args.lr, weight_decay=args.weight_decay
+    )
     trainer.to(device)
 
     root = (
