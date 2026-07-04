@@ -65,11 +65,13 @@ except ImportError:
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     ANCHORED_NAMES,
+    CHANNEL_SCALE_KIND_FLOOR_REL,
     CorpusStats,
     feature_schema,
     fit_corpus_stats,
     load_shot_windows,
     read_split_shot_lists,
+    robust_channel_scale,
 )
 from imas_ambix.latent.encoder import HybridLatentEncoder, LatentConfig
 from imas_ambix.latent.engine import GSGroundedLatentEngine, LossWeights
@@ -157,6 +159,13 @@ def _shot_pairs_for_operator(
     single-shot indeterminism the union fixes (its ``amb_channels`` argument
     defaults to that ONE shot's own schema) — this is why the operator is
     passed in rather than rebuilt.
+
+    The cached ``sensor_scale`` here is the RAW per-shot ``nanstd`` (with only
+    the pre-existing isfinite/positive -> 1.0 fallback) — the kind-median
+    floor (:func:`~imas_ambix.latent.data.robust_channel_scale`) is applied
+    downstream at batch-construction time (:func:`_build_batch`), matching
+    ``scripts/train_patch_encoder.py``'s convention: the cache stays valid
+    across a floor-formula change, since no floor is baked into it.
     """
     w = load_shot_windows(int(shot), fwd, key, schema, with_referee=False)
     if w is None or w.times.size < 2:
@@ -310,6 +319,10 @@ def _config_hash(shots: list[int], *, nr: int, nz: int, min_ip_ka: float) -> str
         # fix can never be silently reused after it; None (pre-fix checkout)
         # still busts a post-fix cache since it differs from the real string
         "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        # NOTE: the sensor-scale kind-median floor (robust_channel_scale) is
+        # NOT part of this key -- it is applied at batch-construction time
+        # against the cached RAW scale, so a floor-formula change picks up
+        # automatically without invalidating an existing corpus cache.
     }
     blob = json.dumps(payload, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:16]
@@ -421,6 +434,8 @@ def _save_corpus_dir(
         "config_hash": config_hash,
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        # cached scale is RAW nanstd -- robust_channel_scale is applied later,
+        # at batch-construction time (see ckpt_extra's sensor_scale_floor)
         "signatures": list(corpora.keys()),
         "n_examples": {k: c.n_examples for k, c in corpora.items()},
     }
@@ -504,6 +519,13 @@ def _build_batch(
     mag_mask = corp.mag_mask_t[rows]
     ids = corp.ids[rows]
     lam = state.disc.get(ids).to(device=device)
+    # kind-median floor on the RAW cached scale (never baked into the cache
+    # itself -- see _shot_pairs_for_operator) so a modest vacuum/measured
+    # mismatch on an occasionally-near-zero-variance channel cannot whiten to
+    # thousands of sigma and dominate the batch loss.
+    scale_floored = robust_channel_scale(
+        corp.sensor_scale[rows], corp.basis.sensor_channels
+    )
 
     def t(a, dtype=torch.float64):
         return torch.as_tensor(np.asarray(a), dtype=dtype, device=device)
@@ -516,7 +538,7 @@ def _build_batch(
         "ip_t": t(corp.ip_t[rows]),
         "ip_tp1": t(corp.ip_tp1[rows]),
         "raw_mag_t": t(np.nan_to_num(corp.raw_mag_t[rows], nan=0.0)),
-        "sensor_scale": t(corp.sensor_scale[rows]),
+        "sensor_scale": t(scale_floored),
         "mag_mask": t(mag_mask, dtype=torch.bool),
         "structure_lam": lam,
         "cmd_t": t(cmd_arr),
@@ -756,6 +778,10 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
         "n_cells": ref_n_cells,
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "sensor_scale_floor": {
+            "fn": "imas_ambix.latent.data.robust_channel_scale",
+            "rel_floor": CHANNEL_SCALE_KIND_FLOOR_REL,
+        },
         "per_signature_n_coil": {k: c.n_coil for k, c in corpora.items()},
         "n_examples": {k: c.n_examples for k, c in corpora.items()},
     }

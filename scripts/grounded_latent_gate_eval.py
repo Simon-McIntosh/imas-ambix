@@ -485,6 +485,9 @@ def main() -> int:  # noqa: PLR0915
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": geometry_version_label,
         "geometry_table_version_installed": GEOMETRY_TABLE_VERSION,
+        "sensor_scale_floor": extra.get(
+            "sensor_scale_floor", "absent (pre-floor-fix training corpus)"
+        ),
         "reference_signature": ref_signature,
         "per_shot_signature": per_shot_signature,
         "n_scored": int(len(model)),
