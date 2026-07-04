@@ -67,6 +67,7 @@ import numpy as np
 from scipy.special import ellipe, ellipk  # type: ignore[import-untyped]
 
 from imas_ambix.data.paths import local_shot_path
+from imas_ambix.gs import circuits as circuits_mod
 from imas_ambix.gs.geometry import (
     MAST_A,
     MAST_R0,
@@ -228,36 +229,71 @@ _COIL_MATCH_M = 0.08
 """A circuit centroid within this distance of a known PF-coil centroid is
 labelled that coil (KNOWN amc-driven); else the circuit is INFERRED passive."""
 
+_CASE_BY_CIRCUIT_ID: dict[int, circuits_mod.CaseCircuit] = {
+    c.circuit_id: c for c in circuits_mod.case_circuits()
+}
+"""``pfSystems.xml`` case-circuit id -> its :class:`~imas_ambix.gs.circuits.
+CaseCircuit` description.  Measured directly (``docs/mast-coil-circuits.html``
+§6, three sample shots, both ``fcoil`` signatures): the ``efm`` circuit
+numbering for ids 1-23 agrees 1:1 with ``pfSystems.xml``'s own ``pfCircuit``
+numbering — circuit 14 IS "P2U case", exactly as in the machine description.
+:func:`classify_circuits` uses this authoritative id correspondence (never
+distance alone) to tell a coil's CASE circuit apart from the coil itself once
+geometry has already flagged the two as neighbours (see below)."""
+
 
 @dataclass(frozen=True)
 class CircuitClass:
-    """Classification of one fcoil circuit: KNOWN active PF or INFERRED passive."""
+    """Classification of one fcoil circuit: KNOWN active PF, KNOWN case, or
+    INFERRED passive."""
 
     circuit: int
     centroid_r: float
     centroid_z: float
     n_filament: int
     sum_xmult: float
-    role: str  # "known_pf" | "inferred_passive"
+    role: str  # "known_pf" | "known_case" | "inferred_passive"
     coil_label: str  # "" for inferred
     amc_channel: str  # "" for inferred
     flag: str  # "" if confident, else a reason (verify-and-flag, never fabricate)
+
+
+_KNOWN_ROLES = ("known_pf", "known_case")
+"""Roles carrying a real (non-fabricated) driven current -> a G_pf column."""
 
 
 def classify_circuits(
     filaments: Sequence[PFFilament],
     amc_channels: Sequence[str],
 ) -> list[CircuitClass]:
-    """Classify each fcoil circuit as a KNOWN active PF coil or INFERRED passive.
+    """Classify each fcoil circuit as KNOWN active PF, KNOWN case, or INFERRED.
 
-    Verify-and-flag (never fabricate, per the T1 ethos): a circuit is labelled a
-    KNOWN PF coil only when its filament centroid sits within
-    :data:`_COIL_MATCH_M` of a known MAST coil centroid AND the mapped ``amc``
-    channel actually exists for this campaign.  Every other circuit — the
-    singleton structural conductors (the ``1004−938 = 167−101 = 66`` extra
-    fc1004 elements, ~½ of which coincide with ``amm`` passive geometry) and any
-    coil we cannot pin — is INFERRED passive / eddy nuisance.  ``amm`` computed
-    currents are NEVER read (orchestrator adjudication ``c-s8-amm-adjudication``).
+    Verify-and-flag (never fabricate, per the T1 ethos): a circuit is labelled
+    KNOWN only when its filament centroid sits within :data:`_COIL_MATCH_M` of
+    a known MAST coil centroid AND its driving ``amc`` channel actually exists
+    for this campaign.  Every other circuit — the singleton structural
+    conductors (the ``1004−938 = 167−101 = 66`` extra fc1004 elements, ~½ of
+    which coincide with ``amm`` passive geometry) and any coil we cannot pin —
+    is INFERRED passive / eddy nuisance.  ``amm`` computed currents are NEVER
+    read (orchestrator adjudication ``c-s8-amm-adjudication``).
+
+    Case-circuit correction (measured, ``docs/mast-coil-circuits.html`` §6)
+    -------------------------------------------------------------------------
+    8 of MAST's 10 coil-CASE circuits sit within :data:`_COIL_MATCH_M` of their
+    co-located ACTIVE coil's centroid (the case is a physically distinct,
+    separately-supplied structural conductor a couple of cm from the winding it
+    encloses) — geometry alone cannot tell them apart.  The nearest-centroid
+    match below is therefore only the FIRST pass; before accepting it as
+    "known_pf", we check :data:`_CASE_BY_CIRCUIT_ID` — the authoritative
+    ``pfSystems.xml`` id correspondence (:mod:`imas_ambix.gs.circuits`) — for
+    whether THIS SPECIFIC circuit id is actually the matched coil's case, not
+    the coil itself.  If so the circuit is driven by its own measured
+    ``*_case_current`` channel (``role = "known_case"``, its own dedicated
+    G_pf column — never merged with the active coil's) rather than by the
+    active coil's amp-turn channel.  A case with no channel for this campaign
+    (P6U/P6L: ``pfSystems.xml`` constrains them to zero, no amc channel at all)
+    or an absent channel falls back to INFERRED, exactly like any other
+    unmapped circuit.
     """
     avail = set(amc_channels)
     by_circ: dict[int, list[PFFilament]] = {}
@@ -284,16 +320,40 @@ def classify_circuits(
 
         role, coil_label, amc_channel, flag = "inferred_passive", "", "", ""
         if best_d <= _COIL_MATCH_M:
-            pref = _PF_COIL_AMC.get(best_label, "")
-            fallback = f"{best_label}_current"
-            chan = pref if pref in avail else (fallback if fallback in avail else "")
-            if chan:
-                role, coil_label, amc_channel = "known_pf", best_label, chan
+            case = _CASE_BY_CIRCUIT_ID.get(circ)
+            if case is not None and case.geometry_confusable_with == best_label:
+                # This efm circuit IS the coil's dedicated case circuit (id
+                # matches pfSystems.xml 1:1) — never drive it by the active
+                # coil's current, even though geometry alone would confuse them.
+                if not case.constrained_zero and case.l1_case_channel in avail:
+                    role = "known_case"
+                    coil_label = f"{best_label}_case"
+                    amc_channel = case.l1_case_channel or ""
+                elif case.constrained_zero:
+                    flag = (
+                        f"case circuit '{case.name}' (id={circ}) constrained to"
+                        " zero by pfSystems.xml (no amc channel) → INFERRED"
+                    )
+                else:
+                    flag = (
+                        f"case circuit '{case.name}' (id={circ}) channel"
+                        f" '{case.l1_case_channel}' absent from this campaign"
+                        " → INFERRED"
+                    )
             else:
-                flag = (
-                    f"coil '{best_label}' matched by geometry (d={best_d * 1e3:.0f}mm)"
-                    f" but no amc channel present → INFERRED"
+                pref = _PF_COIL_AMC.get(best_label, "")
+                fallback = f"{best_label}_current"
+                chan = (
+                    pref if pref in avail else (fallback if fallback in avail else "")
                 )
+                if chan:
+                    role, coil_label, amc_channel = "known_pf", best_label, chan
+                else:
+                    flag = (
+                        f"coil '{best_label}' matched by geometry"
+                        f" (d={best_d * 1e3:.0f}mm) but no amc channel"
+                        " present → INFERRED"
+                    )
         out.append(
             CircuitClass(
                 circuit=circ,
@@ -612,7 +672,7 @@ def build_operator(table: GeometryTable) -> ForwardOperator:
         fw = np.array([f.xmult for f in fs], dtype=np.float64)  # turns=1 → weight=xmult
         return _green_columns(fr, fz, fw, srz_r, srz_z, srz_ang, is_flux)
 
-    # --- KNOWN PF block: ONE column per PHYSICAL coil (i.e. per amc channel) ---
+    # --- KNOWN block: ONE column per driven current source (per amc channel) ---
     # The EFIT fcoil model represents each physical PF coil with >1 circuit (a
     # fine interior grid + a coarse corner set), each ALREADY normalised to the
     # FULL coil current (Σxmult = 1).  Applying all of them with the same amc
@@ -620,9 +680,12 @@ def build_operator(table: GeometryTable) -> ForwardOperator:
     # ~2× over-prediction on coil-dominated probes, and the redundant columns
     # agree to <1%).  We therefore MERGE same-amc circuits into one column by
     # AVERAGING their (full-coil) responses → the coil current is applied once.
+    # A "known_case" circuit has its OWN dedicated amc_channel (its measured
+    # case current, never the co-located active coil's) so it always lands in
+    # its own column here — never merged with the active coil it sits next to.
     pf_by_chan: dict[str, list[int]] = {}
     for cc in classes:
-        if cc.role == "known_pf":
+        if cc.role in _KNOWN_ROLES:
             pf_by_chan.setdefault(cc.amc_channel, []).append(cc.circuit)
 
     pf_circuits: list[int] = []  # representative (lowest) circuit per coil column
@@ -642,7 +705,7 @@ def build_operator(table: GeometryTable) -> ForwardOperator:
     passive_rz: list[tuple[float, float]] = []
     passive_cols: list[np.ndarray] = []
     for cc in classes:
-        if cc.role != "known_pf":
+        if cc.role not in _KNOWN_ROLES:
             passive_rz.append((cc.centroid_r, cc.centroid_z))
             passive_cols.append(_circ_col(cc.circuit))
 
