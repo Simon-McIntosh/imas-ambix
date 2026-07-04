@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-04">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
 <meta name="plan-impl" content="0.44">
 </head>
 <body>
@@ -365,6 +365,9 @@ Done-when
 </div>
 <div class="r-comment" data-section="_top" data-id="c-geometry-channel-fix" data-who="reckon-ship (orchestrator)" data-when="2026-07-04">
     <div class="r-comment-body">SECOND DATA-INTEGRITY FIX LANDED (commits b18d740 + 26335fa): the campaign-signature digest hashes STATIC efm geometry, but build_table_for_shot's sensor channel set was read from each shot's OWN amb zarr schema — per-shot data-acquisition gaps (e.g. flux loop fl_p6l_1 absent from shot 12887's amb but present on 17406, same fc938 digest) leaked into what should be a geometry-determined channel set. Every prior single-process run silently locked in whichever shot assembled first; the 48-way sharded re-assembly exposed it (39 shards saw S=97, 9 saw S=96). Fix: canonical_amb_channels() unions the amb schema across shots per signature; per-shot absence is expressed via honest masks downstream, never channel removal; GEOMETRY_TABLE_VERSION=amb-schema-canonical-v1 folded into corpus cache keys alongside COIL_MODEL_VERSION. Regression-pinned: MAST signature keys byte-stable, fc1004 channel sets unchanged, the exact divergent shot pair now deterministic, no NaN leakage through all-masked channels. Assembly measured cost: 1.54-1.67 s/shot, ~7 node-hours for 5k+full on sun. Both corpora re-assembling under the fixed code (jobs 1225206/1225207).</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-sensor-scale-floor" data-who="reckon-ship (orchestrator)" data-when="2026-07-04">
+    <div class="r-comment-body">THIRD DATA-INTEGRITY FIX LANDED (commit 19820ad): per-shot channel whitening divided by nanstd with only a positivity floor — on shots where a flux loop barely moves (e.g. fl_cc04 at 3e-5 Wb) a modest vacuum-vs-measured mismatch whitened to 10,000σ+, and the full-corpus retrain diverged on the heavy tail (fc938 zero-current whitened misfit: mean 51,852 vs median 13.3). Fix: shared robust_channel_scale in latent/data.py — kind-median relative floor scale_eff = max(scale, 0.05 × median of same-kind channels in the shot), 1.0 degenerate fallback; applied at batch-construction (cached corpora untouched); both the trainer and the gate eval consume the one helper. Verified: fc938 mean 51,852→11.8 (≈median), max 3.7M→564; fc1004 essentially unchanged. Floor touches 82–100% of examples (mostly no-op raises) → ALL in-flight training runs relaunched under the one convention (direct-5k 1225418, direct-full 1225419, gaussian-5k + engine run following). With the case-circuit and channel-set fixes this is the third silent bias surfaced by this run's scale-up — each caught by fleet cross-checks before results were recorded.</div>
 </div>
 </section>
 </main>
