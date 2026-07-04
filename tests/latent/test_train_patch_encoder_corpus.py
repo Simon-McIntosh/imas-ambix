@@ -260,7 +260,17 @@ def test_merge_corpus_dirs_renumbers_ids_contiguously(tmp_path):
 
 
 def _fake_assemble_corpus(base_corp, calls):
-    def _fn(shots, *, nr, nz, t_steps, stride_s, min_ip_ka, max_populated_shots=None):
+    def _fn(
+        shots,
+        *,
+        nr,
+        nz,
+        t_steps,
+        stride_s,
+        min_ip_ka,
+        max_populated_shots=None,
+        operator_out=None,
+    ):
         calls.append(list(shots))
         n = len(shots)
         s = len(base_corp.sensor_channels)

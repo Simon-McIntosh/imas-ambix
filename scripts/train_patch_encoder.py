@@ -44,7 +44,11 @@ import numpy as np
 import torch
 
 from imas_ambix.gs.geometry import build_table_for_shot
-from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
+from imas_ambix.gs.operator import (
+    COIL_MODEL_VERSION,
+    build_operator,
+    write_operator_summary,
+)
 from imas_ambix.latent.data import (
     feature_schema,
     load_shot_windows,
@@ -204,8 +208,15 @@ def _assemble_shot_examples(
     min_ip_ka: float,
     basis_cache: dict,
     schema,
+    operator_out: dict | None = None,
 ):
-    """Windowed examples for one shot, or None. Populates ``basis_cache`` by sig."""
+    """Windowed examples for one shot, or None. Populates ``basis_cache`` by sig.
+
+    ``operator_out`` (optional) collects one ``(table, operator)`` pair per
+    first-seen signature — a free side-product of the assembly pass, used to
+    regenerate ``imas_ambix/gs/artifacts/gs_operator_summary.json`` without a
+    separate shot scan (see ``regenerate_operator_summary`` below).
+    """
     table = build_table_for_shot(int(shot))
     fwd = build_operator(table)
     key = table.signature.key
@@ -223,6 +234,8 @@ def _assemble_shot_examples(
                 basis.candidate_mask.detach().cpu().numpy(), dtype=np.float64
             ),
         }
+        if operator_out is not None:
+            operator_out[key] = (table, fwd)
     channels = basis_cache[key]["channels"]
     ch_rows, present = _basis_alignment(fwd, channels)
     clip_rows = np.clip(ch_rows, 0, None)
@@ -290,12 +303,17 @@ def assemble_corpus(
     stride_s: float,
     min_ip_ka: float,
     max_populated_shots: int | None = None,
+    operator_out: dict | None = None,
 ) -> dict[str, SignatureCorpus]:
     """Build per-signature :class:`SignatureCorpus` bundles for the train split.
 
     ``max_populated_shots`` stops once that many shots have contributed examples
     (a shot may yield none — short plasma, sub-threshold Ip); used by --dry-run
     to bound the assembly regardless of where the empty shots fall in the list.
+
+    ``operator_out`` (optional): pass an empty dict to collect one
+    ``(table, operator)`` pair per signature this assembly encounters — see
+    :func:`regenerate_operator_summary`.
     """
     schema = feature_schema()
     basis_cache: dict = {}
@@ -312,6 +330,7 @@ def assemble_corpus(
                 min_ip_ka=min_ip_ka,
                 basis_cache=basis_cache,
                 schema=schema,
+                operator_out=operator_out,
             )
         except Exception as exc:  # noqa: BLE001 — a shot w/o geometry is skipped
             logger.warning("shot %s skipped: %s", s, exc)
@@ -360,6 +379,36 @@ def assemble_corpus(
             meta["n_cells"],
         )
     return corpora
+
+
+def regenerate_operator_summary(
+    operator_out: dict, *, out_path: Path | None = None
+) -> Path:
+    """Refresh ``imas_ambix/gs/artifacts/gs_operator_summary.json`` from the
+    ``(table, operator)`` pairs an assembly pass already collected.
+
+    A free side-product of a corpus assembly rather than a separate shot scan:
+    ``assemble_corpus(..., operator_out=out)`` populates ``out`` with one entry
+    per campaign signature it encounters.  Call this after an assembly whose
+    shot list is broad enough to have seen every signature you care about
+    (the committed summary is stale after any coil-model change — e.g. the
+    case-circuit fix, ``COIL_MODEL_VERSION``).
+    """
+    if not operator_out:
+        raise ValueError(
+            "operator_out is empty — assemble with operator_out={} passed "
+            "through, over a shot list that actually reaches every signature"
+        )
+    tables = {k: t for k, (t, _fwd) in operator_out.items()}
+    operators = {k: fwd for k, (_t, fwd) in operator_out.items()}
+    path = write_operator_summary(operators, tables, out_path=out_path)
+    logger.info(
+        "operator summary regenerated -> %s (%d signatures, coil_model_version=%s)",
+        path,
+        len(operators),
+        COIL_MODEL_VERSION,
+    )
+    return path
 
 
 def token_channel_stats_by_name(
@@ -763,6 +812,7 @@ def assemble_corpus_cached(
     shard: tuple[int, int] | None = None,
     max_populated_shots: int | None = None,
     force: bool = False,
+    operator_out: dict | None = None,
 ) -> dict[str, SignatureCorpus]:
     """Assemble a corpus, transparently caching to / loading from ``cache_root``.
 
@@ -772,6 +822,11 @@ def assemble_corpus_cached(
     — the first time it is requested — by merging every shard directory for the
     same ``(config_hash, n)`` once all ``n`` shards report complete; the merged
     result is itself cached so later loads are a single read.
+
+    ``operator_out`` (optional, see :func:`regenerate_operator_summary`) is
+    only populated on a CACHE MISS (an actual ``assemble_corpus`` call) — a
+    cache hit reuses previously-collected examples with no fresh
+    ``(table, operator)`` build, so it stays empty on that path.
     """
     root = cache_root or _cache_root(None)
     key = _config_hash(
@@ -795,6 +850,7 @@ def assemble_corpus_cached(
             stride_s=stride_s,
             min_ip_ka=min_ip_ka,
             max_populated_shots=max_populated_shots,
+            operator_out=operator_out,
         )
         dt = time.time() - t0
         n_ex = sum(c.values.shape[0] for c in corpora.values())
@@ -859,6 +915,7 @@ def assemble_corpus_cached(
         stride_s=stride_s,
         min_ip_ka=min_ip_ka,
         max_populated_shots=max_populated_shots,
+        operator_out=operator_out,
     )
     dt = time.time() - t0
     n_ex = sum(c.values.shape[0] for c in corpora.values())
@@ -1062,6 +1119,13 @@ def main() -> int:
         action="store_true",
         help="ignore any existing cache entry for this config and reassemble",
     )
+    ap.add_argument(
+        "--regenerate-operator-summary",
+        action="store_true",
+        help="on a cache MISS, also refresh imas_ambix/gs/artifacts/"
+        "gs_operator_summary.json from every signature this assembly builds "
+        "(a free side-product — see regenerate_operator_summary)",
+    )
     args = ap.parse_args()
 
     device = (
@@ -1086,6 +1150,7 @@ def main() -> int:
         i_s, n_s = args.shot_shard.split("/")
         shard = (int(i_s), int(n_s))
 
+    operator_out: dict | None = {} if args.regenerate_operator_summary else None
     if args.dry_run or args.no_cache:
         corpora = assemble_corpus(
             train_shots,
@@ -1095,6 +1160,7 @@ def main() -> int:
             stride_s=args.stride_ms / 1000.0,
             min_ip_ka=args.min_ip_ka,
             max_populated_shots=2 if args.dry_run else None,
+            operator_out=operator_out,
         )
     else:
         corpora = assemble_corpus_cached(
@@ -1107,10 +1173,21 @@ def main() -> int:
             cache_root=_cache_root(args.cache_dir) if args.cache_dir else None,
             shard=shard,
             force=args.force_rebuild_cache,
+            operator_out=operator_out,
         )
     if not corpora:
         logger.error("no usable training examples assembled — aborting")
         return 1
+
+    if args.regenerate_operator_summary:
+        if operator_out:
+            regenerate_operator_summary(operator_out)
+        else:
+            logger.warning(
+                "--regenerate-operator-summary requested but this assembly "
+                "was a cache HIT (no fresh table/operator built) — rerun with "
+                "--force-rebuild-cache to actually regenerate"
+            )
 
     if args.assemble_only:
         n_total = sum(c.values.shape[0] for c in corpora.values())
