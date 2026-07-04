@@ -45,7 +45,12 @@ from scipy import ndimage  # type: ignore[import-untyped]
 
 from imas_ambix.gs import operator as op
 from imas_ambix.gs.cylinder import hybrid_greens
-from imas_ambix.latent.topology import _inside_polygon, find_critical_points
+from imas_ambix.latent.topology import (
+    CriticalPoints,
+    _inside_polygon,
+    boundary_flux_robust,
+    find_critical_points,
+)
 
 if TYPE_CHECKING:
     from imas_ambix.gs.geometry import GeometryTable
@@ -374,6 +379,57 @@ def _read_boundary_psi(
     return lim_b
 
 
+def _read_boundary_psi_robust(
+    psi2d: np.ndarray,
+    grid: EquilibriumGrid,
+    axis: tuple[float, float],
+    axis_psi: float,
+    *,
+    smooth_sigma: float = 0.0,
+    min_axis_dist: float = 0.0,
+) -> float:
+    """Opt-in saddle-robust variant of :func:`_read_boundary_psi`.
+
+    Two independent, composable robustifications of the LCFS boundary read
+    (measured negative-then-positive: free-current ψ under-sizes the flat-top
+    LCFS by tens of cm because the naive innermost-ψ pick locks onto a
+    discretisation-scale saddle in the current's sensor-null-space
+    concentration, not the genuine separatrix):
+
+    ``smooth_sigma`` (grid cells): find candidate X-points on a
+    Gaussian-smoothed copy of ψ instead of the raw field — small-scale ripple
+    saddles vanish under smoothing while a genuine broad separatrix survives.
+
+    ``min_axis_dist`` (metres): reject any candidate X-point closer than this
+    to the magnetic axis before the innermost-ψ selection — a saddle that
+    bounds the WHOLE confined region is never a hair's-breadth from the axis.
+
+    ``smooth_sigma=0.0`` and ``min_axis_dist=0.0`` (defaults) reproduce
+    :func:`_read_boundary_psi` exactly.
+    """
+    field = psi2d if smooth_sigma <= 0.0 else ndimage.gaussian_filter(psi2d, smooth_sigma)
+    cp = find_critical_points(field, grid.rg, grid.zg)
+    xb = None
+    if cp.x_points.shape[0]:
+        clear = grid.clear_of_conductors(cp.x_points[:, 0], cp.x_points[:, 1])
+        cp_clear = CriticalPoints(
+            cp.o_points, cp.o_psi, cp.x_points[clear], cp.x_psi[clear]
+        )
+        xb = boundary_flux_robust(
+            cp_clear,
+            axis,
+            axis_psi,
+            limiter_r=grid.limiter_r,
+            limiter_z=grid.limiter_z,
+            min_axis_dist=min_axis_dist,
+        )
+    lim_vals = psi2d.ravel()[grid._limiter_grid_idx]
+    lim_b = float(lim_vals[int(np.argmin(np.abs(lim_vals - axis_psi)))])
+    if xb is not None and abs(xb - axis_psi) < abs(lim_b - axis_psi):
+        return xb
+    return lim_b
+
+
 def solve_equilibrium(
     grid: EquilibriumGrid,
     i_pf: np.ndarray,
@@ -644,3 +700,6 @@ __all__ = [
     "solve_equilibrium_bootstrapped",
     "fit_profile",
 ]
+
+# not part of the stable public API but imported directly by the gate-eval
+# scripts and tests: _read_axis, _read_boundary_psi, _read_boundary_psi_robust

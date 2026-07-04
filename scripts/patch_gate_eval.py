@@ -50,17 +50,20 @@ from imas_ambix.latent.evaluate import (
 from imas_ambix.latent.gs_solve import (
     EquilibriumGrid,
     _read_axis,
-    _read_boundary_psi,
+    _read_boundary_psi_robust,
 )
 from imas_ambix.latent.patch_basis import PatchBasis
 from imas_ambix.latent.patch_inverse import (
     InverseConfig,
+    SliceInversion,
     SlicePayload,
+    _lambda_schedule,
     invert_slices,
 )
 from imas_ambix.latent.structure_residual import (
     fit_flux_functions,
     integrate_closures,
+    structure_residual,
 )
 from imas_ambix.latent.topology import (
     _inside_polygon,
@@ -92,14 +95,22 @@ POLICY_COLOR = {
 
 
 def geometry_target(
-    psi2d: np.ndarray, grid: EquilibriumGrid
+    psi2d: np.ndarray,
+    grid: EquilibriumGrid,
+    *,
+    smooth_sigma: float = 0.0,
+    min_axis_dist: float = 0.0,
 ) -> tuple[np.ndarray, float, float]:
     """Oracle-shaped 14-D geometry read of an assembled ψ field.
 
     Mirrors ``gs_solve_gate_eval.equilibrium_target`` but reads everything from
     the ψ field alone (no EquilibriumResult): sign-aware conductor-clear axis,
     innermost in-polygon X-point / limiter-contact boundary flux, LCFS radii.
-    Returns (target, psi_axis, psi_boundary).
+    ``smooth_sigma`` / ``min_axis_dist`` are the opt-in LCFS boundary-read
+    robustifications (:func:`imas_ambix.latent.gs_solve._read_boundary_psi_robust`
+    — measured lever A4); both default to 0.0, reproducing the original
+    innermost-ψ / limiter-contact read exactly.  Returns
+    (target, psi_axis, psi_boundary).
     """
     target = np.full(14, np.nan)
     # plasma current here is positive-Ip MAST convention: axis = max of ψ; the
@@ -114,7 +125,14 @@ def geometry_target(
     else:
         axis, axis_psi = ax_neg, psi_neg
     target[0], target[1] = axis
-    boundary_psi = _read_boundary_psi(psi2d, grid, axis_psi)
+    boundary_psi = _read_boundary_psi_robust(
+        psi2d,
+        grid,
+        tuple(axis),
+        axis_psi,
+        smooth_sigma=smooth_sigma,
+        min_axis_dist=min_axis_dist,
+    )
     cp = find_critical_points(psi2d, grid.rg, grid.zg)
     if cp.x_points.shape[0]:
         ins = _inside_polygon(
@@ -245,6 +263,308 @@ def score(model, ref, baseline_vec):
     }
 
 
+# ---------------------------------------------------------------------------
+# Lever A4 — LCFS boundary-read robustification (measured; kept only if
+# load-bearing).  ARM 2 / ARM 3 (saddle-distance guard / ψ-smoothing) are
+# wired through geometry_target's opt-in kwargs above.  ARM 1
+# (current-smoothness soft rung) is prototyped HERE, not in
+# imas_ambix/latent/patch_inverse.py, until measured: it duplicates
+# invert_slices with one added term so the shared inverse module is only
+# touched if this arm wins (patch-equilibrium-wm-integration §3, A4).
+# ---------------------------------------------------------------------------
+
+
+def _grid_neighbor_pairs(basis: PatchBasis) -> torch.Tensor:
+    """(P, 2) int64 tensor of 4-connected adjacent candidate-cell index pairs
+    on the (R, Z) lattice — the adjacency the current-smoothness penalty
+    (ARM 1) differences over.  Built once per campaign from the fixed
+    ``r_cells`` / ``z_cells`` / ``grid_r`` / ``grid_z`` geometry (all cells,
+    not just conductor-clear ones, share the same regular raster spacing).
+    """
+    r_c = basis.r_cells.detach().cpu().numpy()
+    z_c = basis.z_cells.detach().cpu().numpy()
+    grid_r = basis.grid_r.detach().cpu().numpy()
+    grid_z = basis.grid_z.detach().cpu().numpy()
+    dr = float(grid_r[1] - grid_r[0])
+    dz = float(grid_z[1] - grid_z[0])
+    j_idx = np.rint((r_c - grid_r[0]) / dr).astype(int)
+    i_idx = np.rint((z_c - grid_z[0]) / dz).astype(int)
+    pos = {(int(i), int(j)): k for k, (i, j) in enumerate(zip(i_idx, j_idx, strict=True))}
+    pairs = [
+        (k, pos[(i + di, j + dj)])
+        for (i, j), k in pos.items()
+        for di, dj in ((1, 0), (0, 1))
+        if (i + di, j + dj) in pos
+    ]
+    return (
+        torch.tensor(pairs, dtype=torch.long)
+        if pairs
+        else torch.zeros((0, 2), dtype=torch.long)
+    )
+
+
+def invert_slices_smooth(
+    basis: PatchBasis,
+    payloads: list[SlicePayload],
+    cfg: InverseConfig,
+    pairs: torch.Tensor,
+    smooth_lambda: float,
+    *,
+    device: str | torch.device = "cpu",
+) -> list[SliceInversion]:
+    """ARM 1: :func:`invert_slices` plus a spatial-Laplacian current-smoothness
+    penalty ``smooth_lambda * mean((x_i - x_j)^2)`` over 4-connected candidate
+    grid-cell pairs on the dimensionless current shape ``x`` — the classic
+    tomography smoothness regulariser, measured as a lever independent of the
+    force-balance structure residual.  ``smooth_lambda=0`` reproduces
+    ``invert_slices`` (same seed, same optimiser steps, zero extra loss term).
+    """
+    dev = torch.device(device)
+    dt = cfg.dtype
+    n = int(basis.r_cells.shape[0])
+    b = len(payloads)
+
+    m_sens = basis.m_sens.to(device=dev, dtype=dt)
+    g_cc = basis.g_cc.to(device=dev, dtype=dt)
+    r_c = basis.r_cells.to(device=dev, dtype=dt)
+    z_c = basis.z_cells.to(device=dev, dtype=dt)
+    candidate = basis.candidate_mask.to(device=dev, dtype=dt)
+    cell_area = float(basis.cell_area)
+    pairs = pairs.to(dev)
+    has_pairs = pairs.numel() > 0
+
+    meas = torch.stack(
+        [torch.as_tensor(np.nan_to_num(p.measured), dtype=dt) for p in payloads]
+    ).to(dev)
+    vac = torch.stack([torch.as_tensor(p.vacuum, dtype=dt) for p in payloads]).to(dev)
+    mask = torch.stack(
+        [torch.as_tensor(p.mask.astype(np.float64), dtype=dt) for p in payloads]
+    ).to(dev)
+    scale = torch.stack([torch.as_tensor(p.scale, dtype=dt) for p in payloads]).to(dev)
+    ip = torch.tensor([p.ip_amperes for p in payloads], dtype=dt, device=dev)
+    psi_coil = torch.stack(
+        [
+            basis.psi_coil_cells_for(np.asarray(p.i_pf, dtype=np.float64))
+            for p in payloads
+        ]
+    ).to(device=dev, dtype=dt)
+
+    seed = torch.exp(
+        -(((r_c - basis.r0) / cfg.seed_width_r) ** 2 + (z_c / cfg.seed_width_z) ** 2)
+    )
+    seed = seed / seed.sum() * n
+    x = seed.expand(b, n).clone().requires_grad_(True)
+    opt = torch.optim.Adam([x], lr=cfg.lr)
+
+    lam = torch.zeros(b, dtype=dt, device=dev)
+    target = torch.full((b,), float("inf"), dtype=dt, device=dev)
+    warmup_end = int(cfg.warmup_fraction * cfg.iters)
+
+    misfit = torch.zeros(b, dtype=dt, device=dev)
+    fb = torch.zeros(b, dtype=dt, device=dev)
+    for step in range(cfg.iters):
+        with torch.no_grad():
+            lam = _lambda_schedule(cfg, step, lam, misfit.detach(), target)
+        opt.zero_grad()
+        i_eff = x * candidate * (ip[:, None] / n)
+        pred = vac + i_eff @ m_sens.T
+        misfit = (mask * ((pred - meas) / scale) ** 2).sum(-1) / mask.sum(-1).clamp_min(
+            1.0
+        )
+        ip_pen = ((i_eff.sum(-1) - ip) / ip) ** 2
+        psi_c = i_eff @ g_cc.T + psi_coil
+        fb_rows = [
+            structure_residual(
+                psi_c[k],
+                r_c,
+                i_eff[k] / cell_area,
+                n_bins=cfg.n_bins,
+                form=cfg.form,
+                z_c=z_c,
+                connectivity=cfg.connectivity,
+                locality_scale=cfg.locality_scale,
+            )
+            for k in range(b)
+        ]
+        fb = torch.stack(fb_rows)
+        if has_pairs and smooth_lambda > 0.0:
+            diff = x[:, pairs[:, 0]] - x[:, pairs[:, 1]]
+            smooth_pen = (diff * diff).mean(-1)
+        else:
+            smooth_pen = torch.zeros(b, dtype=dt, device=dev)
+        loss = (misfit + cfg.ip_weight * ip_pen + lam * fb + smooth_lambda * smooth_pen).sum()
+        loss.backward()
+        opt.step()
+        if cfg.policy == "discrepancy" and step == max(warmup_end - 1, 0):
+            target = cfg.misfit_ratio * misfit.detach().clone()
+
+    out: list[SliceInversion] = []
+    with torch.no_grad():
+        i_fin = (x * candidate * (ip[:, None] / n)).cpu().numpy()
+        for k, p in enumerate(payloads):
+            out.append(
+                SliceInversion(
+                    i_cell=i_fin[k],
+                    misfit=float(misfit[k]),
+                    structure=float(fb[k]),
+                    lambda_final=float(lam[k]),
+                    ip_rel_err=float(abs(i_fin[k].sum() - p.ip_amperes) / p.ip_amperes),
+                    shot=p.shot,
+                    t_index=p.t_index,
+                    time_s=p.time_s,
+                )
+            )
+    return out
+
+
+#: The frozen P3-winner inverse config (patch-current-force-balance gate-2):
+#: discrepancy policy, λ0=3, misfit_ratio=1.5, λmax=100 — axis skill +0.019,
+#: 2.8 cm median, 160/160 scored.  A4 measures ONLY the readout (or, for
+#: 'current-smooth', the inverse loss) against this frozen base.
+P3_WINNER_KW = {"policy": "discrepancy", "lambda_fb": 3.0, "misfit_ratio": 1.5, "lambda_max": 100.0}
+
+
+def run_boundary_arm(args) -> int:
+    """Measure ONE A4 candidate arm against the frozen P3-winner inverse.
+
+    Loads the tuning cohort (``--split train``) or the 160-slice held-out gate
+    (``--split eval``, matching the P3 protocol exactly), inverts every slice
+    once with the frozen P3-winner config, then reads geometry either with the
+    baseline readout, the ``smooth_sigma`` / ``min_axis_dist`` robustification
+    (ARM 2 / ARM 3, composable), or — for ``--boundary-arm current-smooth`` —
+    re-inverts with the current-smoothness penalty (ARM 1, via
+    :func:`invert_slices_smooth`) at ``--current-smooth-lambda`` before reading
+    geometry with the same (optionally also-robustified) boundary read.
+    Writes ``imas_ambix/latent/artifacts/patch_gate/boundary_read_<tag>.json``.
+    """
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    device = (
+        ("cuda" if torch.cuda.is_available() else "cpu")
+        if args.device == "auto"
+        else args.device
+    )
+    connectivity = None if args.connectivity in ("", "none") else args.connectivity
+    logger.info(
+        "boundary-arm=%s split=%s smooth_sigma=%s min_axis_dist=%s "
+        "current_smooth_lambda=%s device=%s",
+        args.boundary_arm,
+        args.split,
+        args.smooth_sigma,
+        args.min_axis_dist,
+        args.current_smooth_lambda,
+        device,
+    )
+
+    train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
+    baseline_vec = train_mean_baseline(
+        args.n_train, args.n_baseline_shots, args.min_ip_ka
+    )
+    eval_shots = (
+        train_shots[args.n_baseline_shots : args.n_baseline_shots + args.n_tune_shots]
+        if args.split == "train"
+        else held_shots
+    )
+
+    shots = []
+    for s in eval_shots:
+        try:
+            payload = shot_payloads(
+                s,
+                nr=args.nr,
+                nz=args.nz,
+                max_slices=args.max_slices_per_shot,
+                min_ip_ka=args.min_ip_ka,
+                split=args.split,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("shot %s failed to load: %s", s, exc)
+            continue
+        if payload is not None:
+            shots.append(payload)
+
+    winner_cfg = InverseConfig(
+        iters=args.iters, lr=args.lr, n_bins=args.n_bins, connectivity=connectivity,
+        **P3_WINNER_KW,
+    )
+
+    model_rows, ref_rows = [], []
+    t0 = time.perf_counter()
+    for payload in shots:
+        grid, basis = payload["grid"], payload["basis"]
+        if args.boundary_arm == "current-smooth":
+            pairs = _grid_neighbor_pairs(basis)
+            inv = invert_slices_smooth(
+                basis,
+                payload["payloads"],
+                winner_cfg,
+                pairs,
+                args.current_smooth_lambda,
+                device=device,
+            )
+        else:
+            inv = invert_slices(basis, payload["payloads"], winner_cfg, device=device)
+        for k, r in enumerate(inv):
+            psi2d = basis.psi_grid_2d_np(r.i_cell, payload["payloads"][k].i_pf)
+            target, _, _ = geometry_target(
+                psi2d,
+                grid,
+                smooth_sigma=args.smooth_sigma,
+                min_axis_dist=args.min_axis_dist,
+            )
+            model_rows.append(target)
+            ref_rows.append(payload["refs"][k])
+    dt = time.perf_counter() - t0
+
+    model = np.array(model_rows)
+    ref = np.array(ref_rows)
+    sc = score(model, ref, baseline_vec)
+    axis_errors = sc.pop("axis_errors")
+
+    tag_bits = [args.boundary_arm or "baseline"]
+    if args.smooth_sigma:
+        tag_bits.append(f"sigma{args.smooth_sigma:g}")
+    if args.min_axis_dist:
+        tag_bits.append(f"dist{args.min_axis_dist:g}")
+    if args.current_smooth_lambda:
+        tag_bits.append(f"lam{args.current_smooth_lambda:g}")
+    if args.split == "train":
+        tag_bits.append("tune")
+    tag = "-".join(tag_bits)
+
+    result = {
+        "arm": args.boundary_arm or "baseline",
+        "split": args.split,
+        "smooth_sigma": args.smooth_sigma,
+        "min_axis_dist": args.min_axis_dist,
+        "current_smooth_lambda": args.current_smooth_lambda,
+        "winner_config": {**P3_WINNER_KW, "iters": args.iters},
+        "n_scored": int(len(model)),
+        "n_candidate": int(len(model)),
+        "scored_fraction": 1.0,
+        "wall_s": dt,
+        **sc,
+    }
+    (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
+    np.savez(
+        ARTIFACTS / f"boundary_read_{tag}_arrays.npz",
+        model=model,
+        ref=ref,
+        baseline=np.tile(baseline_vec, (len(model), 1)),
+        axis_errors=axis_errors,
+    )
+    logger.info(
+        "[boundary-arm %s] scored %d/%d axis_skill=%.3f lcfs_skill=%s median %.3f m (%.0f s)",
+        tag,
+        len(model),
+        len(model),
+        sc["axis_skill"],
+        sc["lcfs_skill"],
+        sc["axis_error_median_m"],
+        dt,
+    )
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--n-train", type=int, default=40)
@@ -285,7 +605,43 @@ def main() -> int:
     ap.add_argument("--connectivity", type=str, default="locality")
     ap.add_argument("--device", type=str, default="auto")
     ap.add_argument("--throughput-bench", action="store_true")
+    ap.add_argument(
+        "--boundary-arm",
+        type=str,
+        default="",
+        choices=("", "baseline", "current-smooth"),
+        help=(
+            "lever A4 measurement mode: if set, run_boundary_arm() replaces "
+            "the normal policy sweep entirely (writes boundary_read_<tag>.json "
+            "against the frozen P3-winner inverse). '' = normal gate (default, "
+            "unaffected). 'baseline' = P3-winner inverse + geometry_target read "
+            "with --smooth-sigma/--min-axis-dist (0/0 reproduces the P3 gate "
+            "numbers exactly). 'current-smooth' = re-invert with the ARM-1 "
+            "current-smoothness penalty at --current-smooth-lambda."
+        ),
+    )
+    ap.add_argument(
+        "--smooth-sigma",
+        type=float,
+        default=0.0,
+        help="ARM 3: Gaussian-smooth psi (grid cells) before the boundary read",
+    )
+    ap.add_argument(
+        "--min-axis-dist",
+        type=float,
+        default=0.0,
+        help="ARM 2: reject candidate X-points closer than this [m] to the axis",
+    )
+    ap.add_argument(
+        "--current-smooth-lambda",
+        type=float,
+        default=0.0,
+        help="ARM 1: weight of the current spatial-smoothness penalty",
+    )
     args = ap.parse_args()
+
+    if args.boundary_arm:
+        return run_boundary_arm(args)
 
     device = (
         ("cuda" if torch.cuda.is_available() else "cpu")

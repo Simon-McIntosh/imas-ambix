@@ -334,6 +334,41 @@ def boundary_flux(
     return float(xpsi[int(np.argmin(np.abs(xpsi - axis_psi)))])
 
 
+def boundary_flux_robust(
+    cp: CriticalPoints,
+    axis: tuple[float, float] | None,
+    axis_psi: float,
+    *,
+    limiter_r: np.ndarray | None = None,
+    limiter_z: np.ndarray | None = None,
+    min_axis_dist: float = 0.0,
+) -> float | None:
+    """Like :func:`boundary_flux`, with an opt-in minimum-radius saddle guard.
+
+    On a free (non-force-balanced) current the innermost-ψ pick sometimes hits
+    a spurious saddle in the current's sensor-null-space concentration — a
+    saddle a hair's-breadth from the axis, not the genuine separatrix that
+    bounds the whole confined region.  A saddle closer than ``min_axis_dist``
+    [m] to the axis is rejected before the innermost-ψ selection runs, so a
+    genuine, more distant bounding saddle (or the limiter-contact fallback the
+    caller applies when no candidate survives) is picked instead.
+    ``min_axis_dist=0.0`` (default) reproduces :func:`boundary_flux` exactly.
+    """
+    if cp.x_points.shape[0] == 0:
+        return None
+    xr, xz, xpsi = cp.x_points[:, 0], cp.x_points[:, 1], cp.x_psi
+    keep = np.ones(xr.shape, dtype=bool)
+    if limiter_r is not None and limiter_z is not None:
+        keep &= _inside_polygon(xr, xz, np.asarray(limiter_r), np.asarray(limiter_z))
+    if min_axis_dist > 0.0 and axis is not None:
+        d = np.hypot(xr - axis[0], xz - axis[1])
+        keep &= d >= min_axis_dist
+    xpsi = xpsi[keep]
+    if xpsi.size == 0:
+        return None
+    return float(xpsi[int(np.argmin(np.abs(xpsi - axis_psi)))])
+
+
 # --- LCFS ray-cast ---------------------------------------------------------
 
 
@@ -610,6 +645,7 @@ __all__ = [
     "magnetic_axis",
     "xpoint_set",
     "boundary_flux",
+    "boundary_flux_robust",
     "lcfs_radii",
     "classify_regions",
     "read_topology",
