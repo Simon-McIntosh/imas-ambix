@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="patch-equilibrium-wm-integration">
+  <meta name="plan-title"     content="Patch Equilibrium → World-Model Integration">
+  <meta name="plan-summary"   content="Carry the shipped patch-current force-balance layer into the machine-agnostic latent world model: close the amortised geometry gap, wire the equilibrium layer into the stage-2/3 engine as observation operator + soft residual + dimensionless closure coordinates, and open the cross-machine ingestion path">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S16">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="patch-current-force-balance">
+  <meta name="plan-blocks"    content="machine-agnostic-latent-world-model">
+  <title>Patch Equilibrium → World-Model Integration | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Why this plan: the reduced-order-physics-wrapped-in-ML pattern, aligned to the North Star</h2>
+    <p>
+      <strong>patch-current-force-balance</strong> shipped 2026-07-04 with all five phases landed and
+      both decisions locked. Its architecture — exact linear Maxwell physics precomputed into
+      interaction matrices, force balance as a soft differentiable residual, closures recovered from
+      data, everything batched and label-free — is the pattern the lead wants this project built on:
+      <em>a reduced-order physics model wrapped in ML capability, with the data in the lead</em>.
+      This plan carries that shipped layer into the driving plan
+      <strong>machine-agnostic-latent-world-model</strong> and closes the measured gaps, while staying
+      inside the North Star (<strong>physics-world-model-strategy</strong>) by construction.
+    </p>
+    <p>
+      Compatibility is not asserted — it is itemised against the North Star's four non-negotiable
+      requirements (physics-world-model-strategy §1a-reqs) and its two governing rules:
+    </p>
+    <table>
+      <thead><tr><th>North Star requirement (physics-world-model-strategy)</th><th>What the patch layer already delivers (measured)</th></tr></thead>
+      <tbody>
+        <tr><td>“Geometry as positional encoding for every modality” (§1a-reqs #1)</td>
+            <td>The amortised encoder ingests per-(sensor,step) tokens with (R,Z,orientation) additive
+                geometry encoding, and <strong>evaluates on an unseen coil-set signature without retraining</strong>
+                (cross-signature grounding 5.54×, axis median 10.8 cm vs 8.4 in-signature) — the first measured
+                cross-geometry transfer of the equilibrium layer.</td></tr>
+        <tr><td>“Absolute calibration is mandatory” (§1a-reqs #2)</td>
+            <td>All losses run on RAW SI magnetics with per-shot honest masks; the Rogowski I<sub>p</sub>
+                anchor is a raw measurement; corpus-level channel standardisation only feeds token values,
+                never the physics losses.</td></tr>
+        <tr><td>“Dimensionless / invariant latent coordinates” (§1a-reqs #3)</td>
+            <td>The recovered per-bin closures (a<sub>k</sub>=p′, b<sub>k</sub>=FF′/μ₀ with 1σ uncertainties,
+                F²≥0 verified on 160/160 slices) are exactly the machine-portable profile coordinates the
+                latent needs — Workstream B3 turns them into latent content.</td></tr>
+        <tr><td>“Tokens are retained as the ingestion substrate” (§1a-reqs #4)</td>
+            <td>The encoder is token-native (continuous standardised values in the oracle-recipe token layout) —
+                no bespoke ingestion path.</td></tr>
+        <tr><td>“Physics enters as the coordinate system and soft regularisers, never as a hard law” (§6)</td>
+            <td>Ampère/div B are identities of the representation (coordinate system); force balance is a soft,
+                ablatable residual whose weight policy was <em>measured</em> (bounded discrepancy, locked);
+                the passive block was <em>dropped on evidence</em> — soft physics applied to itself.</td></tr>
+        <tr><td>“A persistent GS residual is … a measurement of where force balance breaks” (§5)</td>
+            <td>The structure residual discriminates exactly the sensor-null-space (5.7× floor) and reports
+                as a scalar discovery signal per slice; rotation extends the family (R⁴ column, CI-pinned).</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Where it lands in the driving plan: the equilibrium readout is <strong>stage 2</strong> of
+      <strong>machine-agnostic-latent-world-model</strong> (followup <code>f-malwm-02</code>, done-when #2:
+      “GS-readout axis/X-point/boundary skill matches the absolute-magnetics oracle (~0.5–0.7)”).
+      <strong>gs-grounded-latent-engine</strong> recorded that bar as an honest negative for its training-free
+      linear inverse and subsumed the fix into patch-current-force-balance P4; the P4 result moved the needle
+      (grounding PASS, availability PASS, geometry gap measured with a scaling law) but the 0.5–0.7 bar on the
+      <em>learned</em> latent is still open — that measurement, done properly through the world-model engine,
+      is what Workstream B finishes.
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 980 300" role="img" style="max-width:100%;height:auto;background:#ffffff">
+        <defs>
+          <marker id="ah2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#444444"/>
+          </marker>
+        </defs>
+        <text x="12" y="20" style="font:600 13.5px system-ui;fill:#1a1a1a">The shipped patch layer becomes the world model's equilibrium organ</text>
+
+        <rect x="12" y="40" width="200" height="66" fill="#ffffff" stroke="#2166ac" stroke-width="1.2"/>
+        <text x="22" y="58" style="font:12.5px system-ui;fill:#0f3f6e">patch substrate (SHIPPED)</text>
+        <text x="22" y="74" style="font:11.5px system-ui;fill:#1a1a1a">G·I exact Maxwell, 694k slices/s</text>
+        <text x="22" y="90" style="font:11.5px system-ui;fill:#1a1a1a">structure residual + closures</text>
+
+        <rect x="252" y="40" width="200" height="66" fill="#ffffff" stroke="#2166ac" stroke-width="1.2"/>
+        <text x="262" y="58" style="font:12.5px system-ui;fill:#0f3f6e">amortised encoder (SHIPPED)</text>
+        <text x="262" y="74" style="font:11.5px system-ui;fill:#1a1a1a">geometry-PE tokens → currents</text>
+        <text x="262" y="90" style="font:11.5px system-ui;fill:#1a1a1a">gap: 8.4 cm vs 2.8 cm inverse</text>
+
+        <rect x="492" y="40" width="220" height="66" fill="#ffffff" stroke="#444444" stroke-width="1"/>
+        <text x="502" y="58" style="font:12.5px system-ui;fill:#1a1a1a">stage-2 hybrid latent (B1–B3)</text>
+        <text x="502" y="74" style="font:11.5px system-ui;fill:#1a1a1a">ψ + anchored ⊕ free blocks;</text>
+        <text x="502" y="90" style="font:11.5px system-ui;fill:#1a1a1a">closures = dimensionless coords</text>
+
+        <rect x="752" y="40" width="216" height="66" fill="#ffffff" stroke="#444444" stroke-width="1"/>
+        <text x="762" y="58" style="font:12.5px system-ui;fill:#1a1a1a">stage-3 closed-loop filter (B4)</text>
+        <text x="762" y="74" style="font:11.5px system-ui;fill:#1a1a1a">m_sens = observation operator</text>
+        <text x="762" y="90" style="font:11.5px system-ui;fill:#1a1a1a">for the LAE-EnKF correction</text>
+
+        <line x1="212" y1="73" x2="250" y2="73" stroke="#444444" stroke-width="1" marker-end="url(#ah2)"/>
+        <line x1="452" y1="73" x2="490" y2="73" stroke="#444444" stroke-width="1" marker-end="url(#ah2)"/>
+        <line x1="712" y1="73" x2="750" y2="73" stroke="#444444" stroke-width="1" marker-end="url(#ah2)"/>
+
+        <rect x="252" y="150" width="460" height="52" fill="#f4f7fb" stroke="#2166ac" stroke-width="1"/>
+        <text x="262" y="168" style="font:12.5px system-ui;fill:#0f3f6e">soft anchors (never hard laws): structure residual (spatial)</text>
+        <text x="262" y="184" style="font:11.5px system-ui;fill:#0f3f6e">+ flux-diffusion prior on patch-ψ (temporal, D≥0) — patch_transport glue SHIPPED</text>
+        <line x1="482" y1="148" x2="482" y2="110" stroke="#444444" stroke-width="1" marker-end="url(#ah2)"/>
+
+        <rect x="12" y="230" width="440" height="52" fill="#ffffff" stroke="#8a3324" stroke-width="1"/>
+        <text x="22" y="248" style="font:12.5px system-ui;fill:#8a3324">Workstream A — close the measured gaps first</text>
+        <text x="22" y="264" style="font:11.5px system-ui;fill:#1a1a1a">full corpus (10,846 shots), per-batch geometry, Gaussian head, LCFS read</text>
+        <line x1="330" y1="228" x2="345" y2="110" stroke="#8a3324" stroke-width="1" marker-end="url(#ah2)"/>
+
+        <rect x="492" y="230" width="476" height="52" fill="#ffffff" stroke="#1b7837" stroke-width="1"/>
+        <text x="502" y="248" style="font:12.5px system-ui;fill:#1b7837">Workstream C — cross-machine ingestion (feeds f-malwm-06)</text>
+        <text x="502" y="264" style="font:11.5px system-ui;fill:#1a1a1a">geometry-reader interface + IMAS static IDSs; only cylinder.py ports as-is today</text>
+      </svg>
+      <figcaption>
+        The integration in one picture: the shipped patch layer (blue) plugs into the driving plan
+        machine-agnostic-latent-world-model at stage 2 (hybrid latent) and stage 3 (closed-loop filter),
+        with the soft anchors carried unchanged. Workstream A hardens the encoder first;
+        Workstream C opens the second-machine path the North Star requires.
+      </figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Current state (all measured, 2026-07-04)</h2>
+    <ul>
+      <li><strong>Training-free bar (P3 of patch-current-force-balance):</strong> 160/160 held-out slices,
+        2.8 cm axis median, axis skill +0.019 &gt; 0 vs the clustered train-mean; flat-top-only skill
+        +0.286 @ 2.09 cm (n=101). Weight policy locked = bounded discrepancy (λ₀=3, target 1.5×m₀, λ≤100).</li>
+      <li><strong>Amortised encoder (P4):</strong> grounding 14.3× in-signature / 5.54× cross-signature
+        (bar 5.53× — both PASS); 160/160 availability; head locked = direct. Geometry honest-negative:
+        in-signature axis −0.256 @ 8.4 cm (axis_Z at baseline parity; axis_R carries the deficit;
+        X-point set +0.058 is the first positive amortised quantity). Scaling law measured:
+        588 → 14,525 examples cut the median 26.9 → 8.4 cm (25× data → 3.2×).</li>
+      <li><strong>Known pathologies, owned:</strong> LCFS/boundary reads on free-current ψ hit spurious
+        saddles (skills ≈ −3 to −10 everywhere); the corpus spans ≥3 campaign signatures and the current
+        trainer drops the S=81 signature (3,795 examples); the encoder head is deterministic (no calibration).</li>
+      <li><strong>Substrate facts that de-risk this plan:</strong> H200 batched forward 693,599 slices/s;
+        engine hooks already exist (<code>imas_ambix/latent/patch_transport.py</code> mirrors
+        <code>engine.psi_profile</code>; the loss family in <code>imas_ambix/latent/engine.py</code> takes
+        additive terms); the flux-map validation report (patch-inverse ψ contours vs the EFIT referee maps,
+        rampup + flattop, imas-ink overlays) is being produced under patch-current-force-balance's report
+        follow-on and sets the visual-evidence cadence for every milestone here.</li>
+    </ul>
+
+    <h2 id="s3">§3 — Workstream A: close the amortised geometry gap (measured levers, in order)</h2>
+    <p><strong>A1 — Full-corpus training.</strong> The splits manifest carries 10,846 train shots (~75k
+      examples at the current stride) vs the 2,000 used so far. The measured scaling law is the prior for
+      this bet. Practicalities: corpus assembly is the wall-clock cost (~6 h at ~2 s/shot) — cache the
+      assembled per-signature corpus arrays (npz beside the interaction-matrix caches, keyed by signature +
+      stride + window config) so both head-arm reruns and later experiments pay it once.
+      <br><strong>Gate A1:</strong> encoder gate re-run; scaling point recorded (examples vs axis median,
+      in/cross-signature); target in-signature axis skill &gt; 0 (parity with the training-free P3 bar is the
+      stretch mark at ~2.8 cm).</p>
+    <p><strong>A2 — Per-batch geometry binding.</strong> Bind sensor/coil geometry per batch rather than at
+      construction so every signature trains (the S=81 signature's 3,795 examples currently drop). This is
+      also the architectural prerequisite for co-training a second machine (§5).
+      <br><strong>Gate A2:</strong> all-signature training runs; cross-signature gate metrics improve or hold;
+      tests green.</p>
+    <p><strong>A3 — Gaussian patch head.</strong> Mean + log-σ head in the dimensionless x-space, trained with
+      the same losses under a Gaussian NLL wrapper on the sensor misfit; delivers the per-quantity calibration
+      the P4 gate recorded as N/A.
+      <br><strong>Gate A3:</strong> held-out coverage in [0.88, 0.92] band reported per quantity; no
+      regression of the mean-readout skills.</p>
+    <p><strong>A4 — LCFS boundary-read robustification.</strong> The spurious-saddle pathology is a readout
+      problem on free-current ψ. Candidates, each measured and kept only if load-bearing (the P5 discipline):
+      current-smoothness soft rung (classic tomography regulariser — Blum et al.), saddle-persistence filtering
+      in the boundary read, or reading the boundary from the smoothed core-component ψ only.
+      <br><strong>Gate A4:</strong> LCFS skill on the P3 winner-config inverse improves from −6 without
+      degrading the axis gate; verdict recorded either way.</p>
+
+    <h2 id="s4">§4 — Workstream B: wire the equilibrium layer into the world model</h2>
+    <p><strong>B1 — Structure residual + patch forward into the stage-2 engine loss family.</strong>
+      <code>GSGroundedLatentEngine.losses()</code> (in <code>imas_ambix/latent/engine.py</code>) gains the
+      patch observation path (I → M<sub>sens</sub> prediction vs RAW magnetics) and the structure residual as
+      additive soft terms, replacing the low-DOF polynomial θ path as the ψ carrier; the flux-diffusion
+      temporal anchor consumes patch-ψ through the already-shipped
+      <code>imas_ambix/latent/patch_transport.py</code> glue. This realises, on the current-basis
+      representation, exactly the spatial+temporal anchor pair the driving plan
+      machine-agnostic-latent-world-model §6/§7a/§8 specifies.
+      <br><strong>Gate B1:</strong> engine trains with the patch anchors; GS-residual grounding on the learned
+      latent ≥ the 5.53× bar; D≥0 and command-load-bearing checks stay green.</p>
+    <p><strong>B2 — Measure f-malwm-02 done-when #2 properly.</strong> The stage-2 bar (“GS-readout
+      axis/X-point/boundary skill matches the absolute-magnetics oracle ~0.5–0.7”) has never been measured on
+      the plan's actual design — a learned hybrid latent trained on the corpus. With B1 the readout is the
+      patch-ψ topology read.
+      <br><strong>Gate B2:</strong> per-quantity skills on held-out reported against the 0.5–0.7 bar;
+      whatever the number, it closes the measurement debt recorded on
+      machine-agnostic-latent-world-model f-malwm-02 and gs-grounded-latent-engine f-ggl-02.</p>
+    <p><strong>B3 — Closures as dimensionless latent coordinates.</strong> The per-bin (a<sub>k</sub>, b<sub>k</sub>)
+      profiles (with uncertainties) are machine-portable physics coordinates. Feed them as auxiliary
+      latent content/readout targets — the concrete realisation of the open
+      <code>dimensionless-coordinate-set</code> decision on machine-agnostic-latent-world-model (soft-learned
+      arm), and the “coefficients and closures recovered from data” goal of the North Star
+      physics-world-model-strategy.
+      <br><strong>Gate B3:</strong> closure readout from the latent matches the per-slice regression closures
+      within their 1σ on held-out flat-top; F²≥0 rate reported.</p>
+    <p><strong>B4 — Equilibrium layer as the filter's observation operator (stage 3).</strong> The batched
+      linear map I → sensors (fp32, 694k slices/s) is an ideal EnKF observation operator: the stage-3
+      LAE-EnKF correction (machine-agnostic-latent-world-model f-malwm-03) can correct the latent against raw
+      magnetics THROUGH the equilibrium layer, making the filter's innovation physically interpretable
+      (which flux structure the data rejected).
+      <br><strong>Gate B4:</strong> design note + prototype hook in the stage-3 child plan
+      (closed-loop-latent-filter when it opens); no gate number here — this item hands architecture,
+      not results.</p>
+
+    <h2 id="s5">§5 — Workstream C: cross-machine ingestion (the North-Star transfer path)</h2>
+    <p>
+      The measured gap list (patch-current-force-balance P5): geometry readers are MAST-Zarr-hardcoded
+      (<code>read_efm_geometry</code>); R0/minor-radius are baked constants; no IMAS static-IDS
+      machine-description ingestion exists; campaign signatures are not machine-tagged. Only
+      <code>gs/cylinder.py</code> ports as-is. Deliverables: a <code>GeometryTable</code>-producing reader
+      interface; an IMAS <code>pf_active</code>/<code>wall</code>/<code>magnetics</code> static-IDS reader
+      (imas-python, DD-version-pinned per the data-access rules); machine-tagged signatures. Acceptance is the
+      plan-level property the North Star names: <em>a second machine's table drops in with zero solver-code
+      change</em> — the substrate is already demonstrated geometry-table-driven (synthetic-machine CI) and the
+      encoder cross-signature transfer is measured; this workstream turns that into a real second device and
+      feeds machine-agnostic-latent-world-model f-malwm-06 (cross-machine transfer).
+      <br><strong>Gate C:</strong> ITER (or JET) machine description ingested to a GeometryTable; PatchBasis
+      assembles; vacuum-field sanity checks pass; no MAST-specific code touched.</p>
+
+    <h2 id="s6">§6 — Validation cadence and reporting</h2>
+    <p>
+      Every workstream gate re-runs the two standing reports: the held-out gate protocol
+      (<code>scripts/patch_gate_eval.py</code> / <code>scripts/patch_encoder_gate_eval.py</code>) and the
+      flux-map comparison report (patch ψ contours vs the firewalled EFIT referee maps, rampup + flattop,
+      imas-ink overlays — <code>scripts/patch_flux_map_report.py</code>). Numbers land in the plan on the
+      same turn they are measured (reckon discipline); figures under
+      <code>docs/figures/patch-current-force-balance/</code> carry the visual evidence.
+    </p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="corpus-scale-strategy" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Workstream A1 corpus strategy — one full-corpus run, or staged scale-up with cached assembly?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="staged-cached">staged (2k → 5k → full) with cached per-signature corpus npz — scaling curve for free</button>
+          <button class="r-opt" data-value="full-once">single full-corpus run (fastest to the answer, no curve)</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="wm-integration-order" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Sequence Workstream A before B, or interleave (B1 engine wiring can start on the 2k checkpoint)?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="interleave">interleave — B1/B3 wiring starts now on the 2k checkpoint; A1 retrains drop in</button>
+          <button class="r-opt" data-value="a-first">A first — harden the encoder before any engine integration</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-pewi-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3">
+        <h4 class="r-fu-title">Ship Workstream A — corpus cache + full-corpus retrain + per-batch geometry + Gaussian head + LCFS read</h4>
+        <div class="r-fu-body"><p>The measured levers from the shipped patch-current-force-balance P4, in priority order,
+          with the corpus-assembly cache first (it de-risks everything after). Resolve the
+          <code>corpus-scale-strategy</code> decision at kickoff on the cache-cost evidence.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    patch-equilibrium-wm-integration (http://localhost:8765/imas-ambix/patch-equilibrium-wm-integration.html)
+Section: §3 Workstream A
+Tier:    opus
+
+Context
+  patch-current-force-balance shipped with the amortised encoder at 8.4 cm
+  in-signature axis median (grounding + availability gates PASS) and a
+  measured data-scaling law (588 -> 14,525 examples: 26.9 -> 8.4 cm). This
+  followup executes the four measured levers (A1-A4) of the follow-on plan.
+
+State to read  (CODE / FILES / DATA)
+  scripts/train_patch_encoder.py            (corpus assembly, signature drop, --n-train)
+  scripts/patch_encoder_gate_eval.py        (gate protocol; per-signature split)
+  imas_ambix/latent/patch_encoder.py        (encoder + heads + DiscrepancyLambda)
+  imas_ambix/latent/artifacts/patch_gate/encoder_gate_*.json (scaling points so far)
+  docs/archive/patch-current-force-balance-p4-landed.html (iteration log + gotchas:
+    ids renumbering after signature drop; S=81 signature currently dropped)
+  splits manifest: 10,846 train shots (read_split_shot_lists)
+
+Scope locks / constraints  (non-decision)
+  Self-supervised only (no EFIT in any training path; referee = eval scoring).
+  Corpus assembly cached per (signature, stride, window) npz next to the
+  interaction-matrix caches. SLURM betelgeuse for training (sbatch pattern in
+  scripts/slurm/train_patch_encoder.sbatch); login node for unit tests only.
+  Honour the shipped decisions of patch-current-force-balance (head=direct,
+  weight policy=bounded discrepancy) unless a NEW ablation is explicitly run.
+
+Done-when
+  1. corpus cache lands (assembly paid once; measured cost recorded)
+  2. full-corpus retrain + gate eval: scaling point recorded; target
+     in-signature axis skill > 0
+  3. per-batch geometry binding: all signatures train; cross-signature
+     metrics hold or improve; tests green
+  4. Gaussian head: held-out coverage in [0.88,0.92] reported per quantity
+  5. LCFS read robustification measured (kept only if load-bearing)
+  6. plan updated same-turn with numbers + figures; followup written for
+     Workstream B + this one resolved</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>

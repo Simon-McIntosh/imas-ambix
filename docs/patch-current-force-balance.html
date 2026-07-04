@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-04">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 <meta name="plan-impl" content="1.0">
 </head>
 <body>
@@ -484,6 +484,34 @@
       Full record: <a href="archive/patch-current-force-balance-p5-landed.html">P5 landed</a>.
     </p>
 
+    <h2 id="s7">§7 — Strategy: linkage into the world model <span class="badge badge-shipped">added 2026-07-04</span></h2>
+    <p>
+      This plan's architecture — exact precomputed Maxwell physics as the coordinate system, force
+      balance as a soft measured residual, closures recovered from data, everything batched,
+      differentiable and label-free — is the project's template for
+      <em>reduced-order physics wrapped in ML capability with the data in the lead</em>. Its formal home
+      in the programme: the <strong>stage-2 equilibrium layer</strong> of the driving plan
+      <strong>machine-agnostic-latent-world-model</strong> (followup <code>f-malwm-02</code>), governed by
+      the North Star <strong>physics-world-model-strategy</strong> (whose §6 rule — “physics enters as the
+      coordinate system and soft regularisers, never as a hard law” — this plan instantiated and measured,
+      and whose four §1a requirements are each matched by a shipped, quantified artifact here: geometry-as-PE
+      → measured cross-signature transfer; absolute calibration → raw-SI losses + Rogowski anchor;
+      dimensionless coordinates → the recovered p′/FF′ closures; tokens retained → the oracle-recipe
+      token encoder). The predecessor <strong>gs-grounded-latent-engine</strong> recorded stage-2's bar as an
+      honest negative and handed the fix here (f-ggl-02 → P4).
+    </p>
+    <p>
+      The worked-out continuation lives in <strong>patch-equilibrium-wm-integration</strong>
+      (<a href="/imas-ambix/patch-equilibrium-wm-integration.html">plan</a>): Workstream A closes the
+      measured amortised geometry gap (full 10,846-shot corpus, per-batch geometry, Gaussian head, LCFS
+      read); Workstream B wires this layer into the world-model engine (structure residual + patch forward
+      into the stage-2 loss family, the proper f-malwm-02 gate-2 measurement on the learned latent, closures
+      as dimensionless latent coordinates, and the batched sensor map as the stage-3 LAE-EnKF observation
+      operator); Workstream C opens the cross-machine ingestion path feeding
+      machine-agnostic-latent-world-model <code>f-malwm-06</code>. Followup <code>f-pcfb-04</code> below is
+      resolved as expanded into that plan.
+    </p>
+
     <h2 id="s6">§6 — Risks and honest limits</h2>
     <ul>
       <li><strong>Residual permissiveness:</strong> smooth flux-coherent blobs score near the floor
@@ -669,7 +697,7 @@ Done-when
      per-quantity calibration reported; results + figures recorded in plan</pre>
     <p class="r-fu-outcome">P4 landed 2026-07-04 — encoder module 7a424cc (8/8 tests), trainer/eval d29745a + a99b663, both head arms trained at 588 and 14,525 examples; patch-head-parametrisation LOCKED=direct; gate: grounding 14.3×/5.54× PASS + 160/160 availability PASS + geometry honest-negative vs the oracle bar (axis −0.256 @ 8.4 cm in-sig; X-point +0.058 first positive amortised quantity) with measured 25×-data→3.2×-median scaling; first measured cross-signature transfer. Closes f-ggl-02. Archive: docs/archive/patch-current-force-balance-p4-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-pcfb-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-04" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pcfb-04" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-04" data-recommends-skill="" data-resolved-at="2026-07-04T05:40:31+00:00" data-resolved-by="reckon-ship (strategy pass)">
     <h4 class="r-fu-title">Close the amortised geometry gap: full-corpus training + per-batch geometry + Gaussian head + LCFS read robustification</h4>
     <div class="r-fu-body"><p>The plan is shipped; the measured follow-on levers for the amortised encoder are: (1) full-corpus training (10,846 train shots ≈ 75k examples, 5× the 2k corpus — the scaling law 25×→3.2× predicts a large bite; assembly ~6 h); (2) per-batch geometry binding so the dropped S=81 signature (3,795 examples) trains too; (3) a Gaussian patch head for per-quantity calibration; (4) boundary-read robustification for the LCFS pathology on free-current ψ (spurious saddles — shared with the P3 record; candidate: current-smoothness soft rung, measured not assumed).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -693,6 +721,7 @@ Done-when
   3. Gaussian patch head + calibration reported
   4. LCFS boundary-read robustification measured (kept only if load-bearing)
   5. results recorded in a new plan or this plan&#x27;s archive per reckon discipline</pre>
+    <p class="r-fu-outcome">Expanded into the fully worked follow-on plan patch-equilibrium-wm-integration (Workstream A = these four levers with gates; Workstream B = world-model integration into machine-agnostic-latent-world-model stage 2/3; Workstream C = cross-machine ingestion). Strategy linkage recorded in §7 of this plan; North-Star compatibility itemised against physics-world-model-strategy §1a-reqs in that plan's §1.</p>
     </article>
 </section>
 
