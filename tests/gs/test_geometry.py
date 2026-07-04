@@ -283,3 +283,23 @@ def test_real_shot_signature_is_one_of_known_campaigns():
     assert table.signature.n_pf_filament in (938, 1004)
     assert table.signature.n_bprobe == 78
     assert table.signature.n_fluxloop == 46
+
+
+# --- reader-interface refactor: MAST keys must stay byte-identical -----
+
+
+@_skip_no_mirror
+def test_mast_zarr_reader_is_a_byte_identical_adapter():
+    """MastZarrGeometryReader must reproduce build_table_for_shot exactly.
+
+    The reader-interface refactor (machine-tagged SetupSignature) MUST NOT
+    change a single MAST key: existing g_pg caches and trained checkpoints
+    resolve through it.
+    """
+    direct = gsg.build_table_for_shot(_REP_SHOT)
+    via_reader = gsg.MastZarrGeometryReader(shot_id=_REP_SHOT).read()
+    assert via_reader.signature.key == direct.signature.key
+    assert via_reader.signature.key == direct.to_dict()["signature_key"]
+    assert not via_reader.signature.key.startswith("mast-")
+    assert via_reader.signature.machine == "mast"
+    assert isinstance(via_reader, type(direct))

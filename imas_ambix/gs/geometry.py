@@ -78,8 +78,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass
-from typing import TYPE_CHECKING, Any
+from dataclasses import asdict, dataclass, field
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import numpy as np
 
@@ -230,11 +230,25 @@ class SensorMapping:
 
 @dataclass(frozen=True)
 class SetupSignature:
-    """A per-campaign fingerprint of the efm static geometry.
+    """A per-campaign fingerprint of the static geometry.
 
-    Two shots share a signature iff their valid sensor / filament positions
-    and counts agree to the rounding precision.  Used as the table key so
-    geometry from different campaigns is never silently mixed.
+    Two shots/entries share a signature iff their valid sensor / filament
+    positions and counts agree to the rounding precision.  Used as the table
+    key so geometry from different campaigns -- or different machines -- is
+    never silently mixed.
+
+    Machine tagging (byte-stability contract, LOCKED)
+    --------------------------------------------------
+    ``machine`` defaults to ``"mast"`` and :attr:`key` special-cases that
+    default to the untagged prefix (``mp{..}-fl{..}-fc{..}-lim{..}-{digest}``)
+    -- the exact format every MAST signature has always used.  Every existing
+    on-disk cache (``imas_ambix/latent/artifacts/patch_scoping/g_pg_<key>_*``)
+    and trained checkpoint resolves through this string, so it MUST stay
+    byte-identical for MAST; this field's default plus the ``"mast"``
+    special-case in :attr:`key` is what guarantees that (a plain always-on
+    prefix would have changed every existing key).  Any other machine gets a
+    ``"{machine}-"`` prefix, so a second machine's table can never collide
+    with, or accidentally resolve through, a MAST cache entry.
     """
 
     n_bprobe: int
@@ -242,11 +256,13 @@ class SetupSignature:
     n_pf_filament: int
     n_limiter: int
     digest: str  # 16-hex hash of the rounded position arrays
+    machine: str = "mast"
 
     @property
     def key(self) -> str:
+        prefix = "" if self.machine == "mast" else f"{self.machine}-"
         return (
-            f"mp{self.n_bprobe}-fl{self.n_fluxloop}-"
+            f"{prefix}mp{self.n_bprobe}-fl{self.n_fluxloop}-"
             f"fc{self.n_pf_filament}-lim{self.n_limiter}-{self.digest}"
         )
 
@@ -268,17 +284,32 @@ def _round_hash(arrays: Iterable[np.ndarray], decimals: int = 4) -> str:
     return h.hexdigest()[:16]
 
 
+def round_geometry_hash(arrays: Iterable[np.ndarray], decimals: int = 4) -> str:
+    """Public alias of :func:`_round_hash` for use by other machine readers.
+
+    Any reader building a :class:`SetupSignature` for a non-MAST machine
+    should hash its own static position arrays with this (not reinvent a
+    digest scheme) so every machine's signature has the same stability
+    guarantees (stable under repeat, sensitive to sub-cm drift).
+    """
+    return _round_hash(arrays, decimals=decimals)
+
+
 # --- The per-campaign geometry table ----------------------------------
 
 
 @dataclass
 class GeometryTable:
-    """Machine geometry for one MAST campaign (one :class:`SetupSignature`).
+    """Machine geometry for one campaign / machine-description entry.
 
-    Holds the efm static geometry (B-probes, flux loops, PF filaments, limiter)
-    plus the amb-sensor → geometry mapping and the enumerated current-source
-    channel names (amc PF/plasma, amm passive).  The operator (T2) consumes
-    this; T1 only tabulates.
+    Holds the static geometry (B-probes, flux loops, PF filaments, limiter)
+    plus the sensor → geometry mapping and the enumerated current-source
+    channel names (MAST: amc PF/plasma, amm passive).  The operator (T2)
+    consumes this; readers only tabulate.  Produced by any
+    :class:`MachineGeometryReader` implementation -- the MAST fields
+    (``sensor_map`` identity mapping, ``amc_current_channels``) are a MAST
+    reader convention, not a universal requirement; a non-MAST reader may
+    leave ``amc_current_channels`` / ``passive_structures`` empty.
     """
 
     signature: SetupSignature
@@ -294,8 +325,19 @@ class GeometryTable:
     unmatched_amb: list[str]  # amb sensor channels that could not be mapped
     r0: float = MAST_R0
     minor_radius: float = MAST_A
+    provenance_flags: list[str] = field(default_factory=list)
+    """Honest data-quality caveats a reader could not resolve (verify-and-flag,
+    never fabricate) -- e.g. an unsupported element shape dropped, a sentinel
+    "empty" value coerced to zero, or a non-axisymmetric sensor approximated
+    by a single point.  Always ``[]`` for the MAST reader (nothing to flag);
+    populated by :mod:`imas_ambix.gs.imas_geometry` where it applies."""
 
     # ---- summary helpers ----
+
+    @property
+    def machine(self) -> str:
+        """Machine tag, read off :attr:`signature` (never stored twice)."""
+        return self.signature.machine
 
     @property
     def n_pf_circuits(self) -> int:
@@ -334,9 +376,39 @@ class GeometryTable:
             "passive_structures": [asdict(p) for p in self.passive_structures],
             "amc_current_channels": self.amc_current_channels,
             "unmatched_amb": self.unmatched_amb,
+            "provenance_flags": self.provenance_flags,
             "coverage": self.coverage(),
         }
         return d
+
+
+# --- Machine-geometry reader interface ---------------------------------
+#
+# The Green's-function forward operator (:mod:`imas_ambix.gs.operator`) and
+# every downstream consumer (:class:`~imas_ambix.latent.patch_basis.PatchBasis`,
+# :class:`~imas_ambix.latent.gs_solve.EquilibriumGrid`) depend on
+# :class:`GeometryTable` ONLY -- never on how it was produced.  A
+# :class:`MachineGeometryReader` is the seam that lets a second (third, ...)
+# machine plug in: implement ``read() -> GeometryTable`` against whatever
+# machine-native format that device's static geometry lives in, and nothing
+# downstream of the table changes.  :class:`MastZarrGeometryReader` below
+# adapts the existing FAIR-MAST efm reader to this interface with NO change
+# to its read logic; :mod:`imas_ambix.gs.imas_geometry` implements the same
+# interface against IMAS pf_active / wall / magnetics static IDSs.
+
+
+@runtime_checkable
+class MachineGeometryReader(Protocol):
+    """A machine-specific reader that produces one :class:`GeometryTable`.
+
+    ``machine`` is the tag that becomes :attr:`SetupSignature.machine` (and
+    therefore the cache-key prefix); every implementation must set the same
+    string on every table it returns.
+    """
+
+    machine: str
+
+    def read(self) -> GeometryTable: ...
 
 
 # --- Low-level efm geometry read (the audited boundary) ---------------
@@ -666,6 +738,23 @@ def build_table_for_shot(shot_id: int) -> GeometryTable:
         amc_current_channels=amc_channels,
         unmatched_amb=unmatched,
     )
+
+
+@dataclass(frozen=True)
+class MastZarrGeometryReader:
+    """Adapts :func:`build_table_for_shot` to :class:`MachineGeometryReader`.
+
+    Pure adapter -- read logic is untouched, so every MAST
+    :class:`SetupSignature` this produces is byte-identical to calling
+    ``build_table_for_shot`` directly (the pre-existing call path every
+    script and cache still uses).
+    """
+
+    shot_id: int
+    machine: str = "mast"
+
+    def read(self) -> GeometryTable:
+        return build_table_for_shot(self.shot_id)
 
 
 # --- Corpus-wide extraction (campaign discovery + table build) --------
