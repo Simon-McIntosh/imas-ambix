@@ -19,8 +19,8 @@
   <title>Absolute-Calibration + Sensor-Geometry Token Substrate | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-30">
-<meta name="plan-version" content="26">
+<meta name="plan-modified" content="2026-07-04">
+<meta name="plan-version" content="27">
 <meta name="plan-impl" content="0.85">
 </head>
 <body>
@@ -712,17 +712,17 @@ Section: geometry
 Tier:    opus
 
 Populate SXR (xsx) and D-alpha (xim) line-integrated CHORD-ENDPOINT geometry in gs.geometry_export so the interior line-of-sight diagnostics carry positional encoding, per the North Star geometry-for-every-diagnostic requirement.</pre>
-    <p class="r-fu-outcome">SUPERSEDED / pulled into scope per lead direction (interior diagnostics are critical — no longer deferred). Chord-endpoint geometry now surfaced at encode time: geometry_reader.xsx_chord_geometry_for_channels maps xsx hcam_{l,u}_NN -> L2 soft_x_rays chord endpoints (kind=sxr_chord) and signal_hf_encode._geometry_features_for routes group=='xsx' through it; the interferometer n_e_line gets a documented static MAST vertical chord. Landed commit 96d0345. Implemented in geometry_reader (per-shot L2 chord arrays) rather than gs.geometry_export's campaign-static efm table; xim Da filterscope has no per-channel L2 endpoints — documented limitation.</p>
+    <p class="r-fu-outcome">SUPERSEDED / pulled into scope per lead direction (interior diagnostics are critical — no longer deferred). Chord-endpoint geometry now surfaced at encode time: geometry_reader.xsx_chord_geometry_for_channels maps xsx hcam_{l,u}_NN -&gt; L2 soft_x_rays chord endpoints (kind=sxr_chord) and signal_hf_encode._geometry_features_for routes group=='xsx' through it; the interferometer n_e_line gets a documented static MAST vertical chord. Landed commit 96d0345. Implemented in geometry_reader (per-shot L2 chord arrays) rather than gs.geometry_export's campaign-static efm table; xim Da filterscope has no per-channel L2 endpoints — documented limitation.</p>
     </article>
 <article class="r-fu" data-id="f-ags-interior-substrate-landed" data-status="open" data-tier="opus" data-written-by="interior-substrate-worker" data-written-at="2026-06-30T20:57:03Z" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">INTERIOR SUBSTRATE LANDED: dead-chord MASKING (supersedes per-shot fallback) + interior chord-geometry resolvers (xsx SXR + static interferometer) + continuous-vocab reconcile (xsx re-decided to FSQ)</h4>
     <div class="r-fu-body">Landed the three substrate caveats from f-ags-substrate-caveats, plus pulled the deferred chord geometry (f-ags-chord-geometry) INTO scope per lead direction (interior diagnostics are critical). Commits 5e6d978, 96d0345, b24c999 on main.
 
-(1) DEAD-CHORD GUARD + MASKING. ChannelCalibration.is_physical (guard commit 9b1f3d8, kept) now ALSO rejects out-of-physical-bound channels (|mean|/|max|/|min| > MAX_PHYSICAL_MAGNITUDE=1e30 — a conservative backstop above the largest real SI channel ~1e22, condemns only the overflow sentinel). The 6 dead upper-SXR chords reject cleanly via the degenerate q01==q99 + huge-std rule: hcam_u_07 (mean 7.38e24), hcam_u_08 (4.48e17), hcam_u_09 (6.09e27), hcam_u_11 (4.53e23), hcam_u_15 (1.75e21), hcam_u_16 (1.95e27) — 6 dead / 30 physical of 36 xsx channels. CRITICALLY, the consumer now MASKS a dead channel (valid=False, safe ZERO embedding) instead of the per-window/per-shot FALLBACK the prior worker shipped (fallback divides the stuck constant by its ~0 std -> garbage). patch_transformer._normalise_with_mask zeros dead rows + returns a dead mask; dead_channel_mask() surfaces it; signal_hf_encode._drain_feed ANDs it into per-token validity; spacetime_dataset_v2._quantise_l2 emits the centre id (masked-safe constant) for a non-physical staged channel. This SUPERSEDES the per-shot-fallback redo jobs (1223932 xsx HF / 1223933 L2) the prior worker launched.
+(1) DEAD-CHORD GUARD + MASKING. ChannelCalibration.is_physical (guard commit 9b1f3d8, kept) now ALSO rejects out-of-physical-bound channels (|mean|/|max|/|min| &gt; MAX_PHYSICAL_MAGNITUDE=1e30 — a conservative backstop above the largest real SI channel ~1e22, condemns only the overflow sentinel). The 6 dead upper-SXR chords reject cleanly via the degenerate q01==q99 + huge-std rule: hcam_u_07 (mean 7.38e24), hcam_u_08 (4.48e17), hcam_u_09 (6.09e27), hcam_u_11 (4.53e23), hcam_u_15 (1.75e21), hcam_u_16 (1.95e27) — 6 dead / 30 physical of 36 xsx channels. CRITICALLY, the consumer now MASKS a dead channel (valid=False, safe ZERO embedding) instead of the per-window/per-shot FALLBACK the prior worker shipped (fallback divides the stuck constant by its ~0 std -&gt; garbage). patch_transformer._normalise_with_mask zeros dead rows + returns a dead mask; dead_channel_mask() surfaces it; signal_hf_encode._drain_feed ANDs it into per-token validity; spacetime_dataset_v2._quantise_l2 emits the centre id (masked-safe constant) for a non-physical staged channel. This SUPERSEDES the per-shot-fallback redo jobs (1223932 xsx HF / 1223933 L2) the prior worker launched.
 
-(2) INTERIOR CHORD GEOMETRY (deferred->landed). geometry_reader.xsx_chord_geometry_for_channels maps the xsx HF channel names hcam_{l,u}_NN to the L2 soft_x_rays horizontal_cam_{lower,upper} origin/endpoint chords (kind=sxr_chord); signal_hf_encode._geometry_features_for routes group=='xsx' through it at encode time. l2_signal_hf_geometry_for_channels now fills the interferometer n_e_line with a documented STATIC MAST vertical chord (R0=0.9m, Z in [-1,+1]m; no per-channel endpoints exist in L2). Coverage on shot 11766: xsx HF 32/36 chords -> finite endpoints, L2 soft_x_rays 32/36, interferometer 1/1 (the 4 unresolved are the dead (0,0)->(0,0) placeholder chords, correctly left scalar/NaN). xim (Da filterscope) has no per-channel endpoints in L2 -> documented limitation, no synthetic placeholder.
+(2) INTERIOR CHORD GEOMETRY (deferred-&gt;landed). geometry_reader.xsx_chord_geometry_for_channels maps the xsx HF channel names hcam_{l,u}_NN to the L2 soft_x_rays horizontal_cam_{lower,upper} origin/endpoint chords (kind=sxr_chord); signal_hf_encode._geometry_features_for routes group=='xsx' through it at encode time. l2_signal_hf_geometry_for_channels now fills the interferometer n_e_line with a documented STATIC MAST vertical chord (R0=0.9m, Z in [-1,+1]m; no per-channel endpoints exist in L2). Coverage on shot 11766: xsx HF 32/36 chords -&gt; finite endpoints, L2 soft_x_rays 32/36, interferometer 1/1 (the 4 unresolved are the dead (0,0)-&gt;(0,0) placeholder chords, correctly left scalar/NaN). xim (Da filterscope) has no per-channel endpoints in L2 -&gt; documented limitation, no synthetic placeholder.
 
-(3) VOCAB-NAMESPACE RECONCILE. tests/tokenizer/test_vocab_namespace.py updated to the per-group reality: xma=1, xim=1 (continuous), xsx=12800 (FSQ). Under the dead-chord guard xsx RE-DECIDED from continuous to FSQ: the dead chords had poisoned the prior continuous decision; with them masked the continuous phase_err recovered 0.72->0.018 and FSQ ((8,8,8,5,5)=12800) fell within tolerance (FSQ phase_err 0.205, best CRPS among in-tolerance quantised). The on-disk cross-check now reads the REAL codebook size off disk and asserts the builder reproduces it (robust to a re-encode changing the size) rather than hardcoding. Suite green: test_calibration 24 pass (3 new bound tests), test_patch_transformer + test_corpus_calibration 23 pass, test_vocab_namespace 6 pass, test_signal_hf_encode 23 pass (3 new geometry-resolver tests). ruff clean.
+(3) VOCAB-NAMESPACE RECONCILE. tests/tokenizer/test_vocab_namespace.py updated to the per-group reality: xma=1, xim=1 (continuous), xsx=12800 (FSQ). Under the dead-chord guard xsx RE-DECIDED from continuous to FSQ: the dead chords had poisoned the prior continuous decision; with them masked the continuous phase_err recovered 0.72-&gt;0.018 and FSQ ((8,8,8,5,5)=12800) fell within tolerance (FSQ phase_err 0.205, best CRPS among in-tolerance quantised). The on-disk cross-check now reads the REAL codebook size off disk and asserts the builder reproduces it (robust to a re-encode changing the size) rather than hardcoding. Suite green: test_calibration 24 pass (3 new bound tests), test_patch_transformer + test_corpus_calibration 23 pass, test_vocab_namespace 6 pass, test_signal_hf_encode 23 pass (3 new geometry-resolver tests). ruff clean.
 
 BLOCKER (needs user authorization): the corrected xsx-HF + L2 redos under masking are NOT yet launched. The superseded fallback jobs 1223932/1223933 are still RUNNING; scancelling them was denied by the safety classifier (jobs not created in this session, coordinator-relayed authority only). The editable install means a running process keeps its pre-masking loaded code, so the running jobs encode dead chords with the inferior fallback. NEXT: user scancels 1223932 1223933, then relaunch xsx-HF via `SIG_GROUPS=xsx REDECIDE=1 NO_SKIP=1 sbatch scripts/slurm/signal_tokenizer.sbatch` (betelgeuse) + the L2 light-path soft_x_rays redo on sun CPU (l2_input_encode).</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -741,6 +741,28 @@ Work
 
 Done-when
   Both redos complete under masking; the 6 dead chords are valid=False in the store (not fallback-encoded); xsx fidelity recovered; chord geometry attached.</pre>
+    </article>
+<article class="r-fu" data-id="f-agts-coil-stream-fidelity" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (patch-equilibrium-wm-integration orchestrator)" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Fix the L2 coil-current stream: ingest P6 currents and use amp-turn coil currents (not per-turn feed currents)</h4>
+    <div class="r-fu-body">The MAST coil power-supply audit (docs/mast-coil-circuits.html, commits 5fcbd2a/6c7aeaa/6590e28) quantified two fidelity gaps in the L2/tokenizer coil stream that the GS/patch path does not share: (1) P6U/P6L divertor currents are absent from L2 pf_active (geometry present, current dropped) — 1.3–2.4% of active PF amp-turns invisible to the world model; (2) L2 carries per-turn FEED currents where the physical actuator magnitude is the amp-turn COIL current (coil = feed × turns exactly; 8–23× per coil — e.g. 277 vs 12.1 mT at probe obr02 through the coil response). The authoritative circuit→channel mapping to use is imas_ambix/gs/circuits.py + gs/artifacts/mast_pf_circuits.json.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    absolute-geometry-token-substrate
+Section: coil-current stream fidelity
+Tier:    sonnet
+
+Context
+  The coil audit (docs/mast-coil-circuits.html) found the L2/tokenizer coil stream (a) omits P6U/P6L currents entirely and (b) uses per-turn feed currents where amp-turn coil currents are the physical actuator magnitude (factor 8-23 per coil). The GS/patch path is correct; only the token-substrate ingestion needs fixing.
+
+State to read
+  imas_ambix/gs/circuits.py (authoritative circuit-&gt;channel mapping + turns)
+  imas_ambix/tokenizer/geometry_reader.py (_COIL_NAME_TO_PREFIX, _coil_token, current channel handling)
+  docs/mast-coil-circuits.html (quantified magnitudes + figures)
+
+Done-when
+  1. Coil stream carries amp-turn coil currents for all 13 active circuits incl. P6 (from L1 amc channels or corrected L2), using circuits.py as the mapping
+  2. Absolute calibration preserved (corpus-level SI); no per-shot scaling introduced
+  3. Re-encode impact assessed (which token stores must regenerate) and recorded before any re-encode is launched
+  4. Tests green; followup resolved with numbers</pre>
     </article>
 </section>
 
