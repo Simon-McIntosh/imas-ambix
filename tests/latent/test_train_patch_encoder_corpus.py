@@ -147,6 +147,26 @@ def test_config_hash_busts_on_param_change():
     assert tpe._config_hash(**reordered) == h0
 
 
+def test_config_hash_busts_on_any_version_constant(monkeypatch):
+    """A behavioural fix to this module's own assembly semantics (not just an
+    upstream coil-model/geometry-table change) must ALSO bust the cache key —
+    the concrete failure this pins: geometry_shots landed without bumping
+    anything, so a stale shard cache was served unchanged under the new
+    hash-identical config."""
+    base = dict(
+        shots=[1, 2, 3], t_steps=12, stride_s=0.025, min_ip_ka=300.0, nr=65, nz=97
+    )
+    h0 = tpe._config_hash(**base)
+    for const_name in (
+        "COIL_MODEL_VERSION",
+        "GEOMETRY_TABLE_VERSION",
+        "CORPUS_ASSEMBLY_VERSION",
+    ):
+        monkeypatch.setattr(tpe, const_name, "changed-for-test")
+        assert tpe._config_hash(**base) != h0, const_name
+        monkeypatch.undo()
+
+
 def test_signature_npz_roundtrip_byte_identical(tmp_path):
     corp = _make_signature_corpus(6, "feed1001", n_examples=5, seed=3)
     path = tmp_path / f"{corp.key}.npz"

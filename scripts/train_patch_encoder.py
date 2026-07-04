@@ -79,6 +79,19 @@ DEFAULT_CACHE_ROOT = Path("/work/projects/imas_gpu/latent/patch_encoder/corpus_c
 FALLBACK_CACHE_ROOT = Path("imas_ambix/latent/artifacts/patch_encoder/corpus_cache")
 WINDOW_HORIZON_S = 0.25  # physical span of a 12-step token window
 
+CORPUS_ASSEMBLY_VERSION = "geometry-shots-v1"
+"""Bump whenever ``assemble_corpus``'s ASSEMBLY SEMANTICS change in a way that
+changes its output for the SAME (shots, nr, nz, t_steps, stride, min_ip,
+COIL_MODEL_VERSION, GEOMETRY_TABLE_VERSION) — i.e. a behavioural fix to this
+module itself, not to anything it calls into.  Those upstream constants only
+cover changes in imas_ambix.gs.operator / .geometry; a change HERE (e.g.
+"geometry-shots-v1": canonical_amb_channels now scans every shot sharing a
+signature, not just a shard's own local slice) would otherwise silently keep
+serving an already-cached corpus assembled under the OLD semantics, since none
+of the other cache-key inputs changed. ``--force-rebuild-cache`` / ``FORCE=1``
+remain the manual override for a one-off rebuild without bumping this.
+"""
+
 #: encoder buffers that carry per-CAMPAIGN geometry, never the learned trunk —
 #: swapped per batch by :func:`_bind_signature` and excluded from any
 #: checkpoint load/save identity check (mirrors
@@ -623,11 +636,14 @@ def _config_hash(
     Includes ``COIL_MODEL_VERSION`` (imas_ambix.gs.operator) so a corpus
     assembled under one coil-current model (the vacuum-field prediction the
     loss trains against) can never collide with one assembled after a coil
-    model fix, and ``GEOMETRY_TABLE_VERSION`` (imas_ambix.gs.geometry) so the
-    same holds for a change in how a :class:`GeometryTable` — its sensor
-    channel SET in particular — is derived from a fixed signature digest.
-    Either cache key busts automatically the moment its constant changes, with
-    no separate migration step.
+    model fix; ``GEOMETRY_TABLE_VERSION`` (imas_ambix.gs.geometry) so the same
+    holds for a change in how a :class:`GeometryTable` — its sensor channel
+    SET in particular — is derived from a fixed signature digest; and
+    ``CORPUS_ASSEMBLY_VERSION`` (this module) so the same holds for a change
+    in how THIS module turns a shot list into a corpus (e.g. which shots
+    canonical_amb_channels scans) even when neither upstream constant moved.
+    Every one of the three busts the cache key automatically the moment its
+    constant changes, with no separate migration step.
     """
     payload = {
         "shots": sorted(int(s) for s in shots),
@@ -638,6 +654,7 @@ def _config_hash(
         "nz": int(nz),
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "corpus_assembly_version": CORPUS_ASSEMBLY_VERSION,
     }
     blob = json.dumps(payload, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:16]
@@ -837,6 +854,8 @@ def _save_corpus_dir(
     meta = {
         "config_hash": config_hash,
         "coil_model_version": COIL_MODEL_VERSION,
+        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "corpus_assembly_version": CORPUS_ASSEMBLY_VERSION,
         "n_shots": len({int(s) for s in shots}),
         "t_steps": t_steps,
         "stride_s": stride_s,
