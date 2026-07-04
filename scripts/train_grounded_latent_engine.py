@@ -445,8 +445,11 @@ def _build_batch(
     """One (t, t+1) minibatch for one campaign; returns ``(batch, row_idx)``."""
     corp = state.corp
     n = corp.n_examples
+    # a campaign with fewer pairs than batch_size still fills a FULL batch
+    # (with-replacement); a larger campaign samples without replacement so a
+    # batch never repeats a row
     rows = rng.choice(
-        n, size=min(batch_size, n), p=state.sample_p, replace=n < batch_size
+        n, size=batch_size, p=state.sample_p, replace=n < batch_size
     )
 
     x_t = np.nan_to_num(feature_stats.normalise(corp.x_t[rows]), nan=0.0)
