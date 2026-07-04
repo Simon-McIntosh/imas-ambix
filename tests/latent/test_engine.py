@@ -176,6 +176,7 @@ def test_composite_losses_differentiable_and_report_d_nonneg():
         "dissipation",
         "volt_second",
         "dimensionless",
+        "closure",
         "total",
     ):
         assert k in out, k

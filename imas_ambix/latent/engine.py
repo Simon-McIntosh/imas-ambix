@@ -28,6 +28,9 @@ physics-grounded bottleneck —
       + w_anc  · anchored-block regression (Ip, coils, n_e — raw scalars)
       + w_diss · dissipation≥0 + w_vs · Volt-second  (temporal guard-rails)
       + w_dim  · dimensionless regulariser + w_kl · KL(free-bits)
+      + w_clo  · closure-coordinate self-supervised readout (optional, off if
+                 the encoder carries no closure head — see
+                 :meth:`GSGroundedLatentEngine.closure_readout_loss`)
 
 The per-example structure-residual weight ``λ`` follows the locked
 bounded-discrepancy policy (:class:`~imas_ambix.latent.patch_encoder.DiscrepancyLambda`,
@@ -54,7 +57,7 @@ from torch import nn
 from imas_ambix.latent.encoder import HybridLatent, HybridLatentEncoder  # noqa: TC001
 from imas_ambix.latent.patch_basis import PatchBasis  # noqa: TC001
 from imas_ambix.latent.patch_transport import patch_psi_profile, transport_prior_terms
-from imas_ambix.latent.structure_residual import structure_residual
+from imas_ambix.latent.structure_residual import fit_flux_functions, structure_residual
 from imas_ambix.latent.topology import TopologyReadout, read_topology
 from imas_ambix.latent.transport import FluxDiffusionPrior  # noqa: TC001
 
@@ -73,6 +76,7 @@ class LossWeights:
     dimensionless: float = 1e-3
     kl: float = 1e-3
     free_bits: float = 0.1
+    closure: float = 0.05  # modest by design — an auxiliary readout, ablatable
 
 
 @dataclass
@@ -195,6 +199,42 @@ class GSGroundedLatentEngine(nn.Module):
         fb = torch.stack(rows)
         return (lam.to(fb.dtype) * fb).mean()
 
+    def closure_readout_loss(
+        self, latent: HybridLatent, i_cell: torch.Tensor, i_pf: torch.Tensor
+    ) -> torch.Tensor:
+        """Self-supervised aux loss for the closure-coordinate head (§B3).
+
+        Per example, fits the flux-function coefficients
+        (:func:`~imas_ambix.latent.structure_residual.fit_flux_functions`, same
+        ``connectivity="locality"`` recipe as :meth:`structure_residual_loss`)
+        from the engine's OWN predicted currents and matches the head's
+        ``(a_k, b_k)`` readout to that fit — the fit is DETACHED, so this trains
+        the head to read closures straight out of the latent, never the other
+        way round.  Bins with negligible current-weighted mass (vacuum bins,
+        see :func:`~imas_ambix.latent.structure_residual.integrate_closures`'s
+        ``mass_frac_threshold`` convention) carry no closure information and are
+        excluded.  Zero (no gradient) when the encoder carries no closure head.
+        """
+        if latent.closure is None:
+            return i_cell.new_zeros(())
+        n_bins = int(latent.closure.shape[1])
+        psi_c = self.basis.psi_cells(i_cell, i_pf)
+        jphi_c = i_cell / self.basis.cell_area
+        r_c = self.basis.r_cells.to(dtype=i_cell.dtype, device=i_cell.device)
+        z_c = self.basis.z_cells.to(dtype=i_cell.dtype, device=i_cell.device)
+        per_example = []
+        for k in range(psi_c.shape[0]):
+            fit = fit_flux_functions(
+                psi_c[k], r_c, jphi_c[k], n_bins=n_bins, z_c=z_c, connectivity="locality"
+            )
+            mass = fit.weight_mass
+            keep = (mass > 1e-3 * mass.max().clamp_min(1e-30)).to(fit.a_k.dtype)
+            denom = keep.sum().clamp_min(1.0)
+            pred_a, pred_b = latent.closure[k, :, 0], latent.closure[k, :, 1]
+            per_bin = (pred_a - fit.a_k) ** 2 + (pred_b - fit.b_k) ** 2
+            per_example.append((per_bin * keep).sum() / denom)
+        return torch.stack(per_example).mean()
+
     def losses(self, batch: dict) -> dict[str, torch.Tensor]:
         """Composite raw-signal objective for a consecutive (t, t+1) window.
 
@@ -238,6 +278,7 @@ class GSGroundedLatentEngine(nn.Module):
         )
         dim_reg = self.encoder.dimensionless_regulariser(lat_t)
         kl = self.encoder.kl_free_bits(lat_t, w.free_bits)
+        closure = self.closure_readout_loss(lat_t, i_cell_t, batch["i_pf_t"])
 
         priors = transport_prior_terms(
             self.transport,
@@ -260,6 +301,7 @@ class GSGroundedLatentEngine(nn.Module):
             + w.volt_second * priors["volt_second"]
             + w.dimensionless * dim_reg
             + w.kl * kl
+            + w.closure * closure
         )
         return {
             "magnetics": magnetics,
@@ -270,6 +312,7 @@ class GSGroundedLatentEngine(nn.Module):
             "volt_second": priors["volt_second"],
             "dimensionless": dim_reg,
             "kl": kl,
+            "closure": closure,
             "diffusivity_min": priors["diffusivity_min"],
             "total": total,
         }

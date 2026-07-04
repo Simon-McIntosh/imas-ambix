@@ -29,6 +29,18 @@ block toward zero-mean / unit-variance dimensionless coordinates, rather than
 hard-imposing a fixed ρ*, β, ν* basis (which would over-constrain and churn on
 transfer).  This is the flexible choice the North Star extrapolation-coordinates
 direction recommends.
+
+A second realisation of that same idea is the **closure-coordinate head**
+(``LatentConfig.n_closure_bins``): a linear readout of per-ψ-bin flux-function
+coefficients ``(a_k = p′, b_k = FF′/μ₀)`` — the closures
+:mod:`imas_ambix.latent.structure_residual` recovers from a force-balanced
+current.  It is trained self-supervised, entirely inside the firewall
+(:meth:`~imas_ambix.latent.engine.GSGroundedLatentEngine.closure_readout_loss`
+matches it to the detached fit of the engine's OWN predicted currents — no
+EFIT anywhere): the head learns to *read the closures straight out of the
+latent* rather than requiring a downstream fit of the reconstructed current
+every time, which is what makes ``(a_k, b_k)`` a genuine dimensionless latent
+coordinate rather than a derived diagnostic.
 """
 
 from __future__ import annotations
@@ -53,6 +65,7 @@ class LatentConfig:
     dropout: float = 0.0
     profile_head: bool = False  # emit (β0, α) — the amortized GS profile fit
     n_cells: int = 0  # patch-current head width (0 = disabled, no PatchBasis carrier)
+    n_closure_bins: int = 0  # closure-coordinate head width (0 = disabled)
 
 
 @dataclass
@@ -65,6 +78,7 @@ class HybridLatent:
     free_logvar: torch.Tensor | None  # (B, n_free) belief log-variance, or None
     profile: torch.Tensor | None = None  # (B, 2) amortized (β0, α), bounded
     i_cell_x: torch.Tensor | None = None  # (B, n_cells) dimensionless patch shape
+    closure: torch.Tensor | None = None  # (B, n_closure_bins, 2) per-bin (a_k, b_k)
 
 
 class HybridLatentEncoder(nn.Module):
@@ -89,6 +103,11 @@ class HybridLatentEncoder(nn.Module):
         )
         self.profile_head = nn.Linear(d, 2) if config.profile_head else None
         self.patch_head = nn.Linear(d, config.n_cells) if config.n_cells else None
+        self.closure_head = (
+            nn.Linear(d, 2 * config.n_closure_bins)
+            if config.n_closure_bins
+            else None
+        )
 
     # bounds of the amortized profile parameters: β0 ∈ (0, 1) by the ansatz's
     # pressure/FF′ split; α ∈ (0.5, 3) brackets the fit grid's peakedness range
@@ -107,6 +126,9 @@ class HybridLatentEncoder(nn.Module):
             alpha = self.ALPHA_MIN + self.ALPHA_SPAN * torch.sigmoid(raw[:, 1:])
             profile = torch.cat([beta0, alpha], dim=-1)
         i_cell_x = self.patch_head(h) if self.patch_head is not None else None
+        closure = None
+        if self.closure_head is not None:
+            closure = self.closure_head(h).view(-1, self.config.n_closure_bins, 2)
         return HybridLatent(
             theta=self.theta_head(h),
             anchored=self.anchored_head(h),
@@ -114,6 +136,7 @@ class HybridLatentEncoder(nn.Module):
             free_logvar=logvar,
             profile=profile,
             i_cell_x=i_cell_x,
+            closure=closure,
         )
 
     # ---- losses / regularisers ----
