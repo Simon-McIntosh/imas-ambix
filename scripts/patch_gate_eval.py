@@ -35,8 +35,8 @@ matplotlib.use("Agg")
 import numpy as np
 import torch
 
-from imas_ambix.gs.geometry import build_table_for_shot
-from imas_ambix.gs.operator import build_operator
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     feature_schema,
     load_shot_windows,
@@ -575,6 +575,8 @@ def run_boundary_arm(args) -> int:
         "min_axis_dist": args.min_axis_dist,
         "current_smooth_lambda": args.current_smooth_lambda,
         "winner_config": {**P3_WINNER_KW, "iters": args.iters},
+        "coil_model_version": COIL_MODEL_VERSION,
+        "geometry_table_version": GEOMETRY_TABLE_VERSION,
         "n_scored": int(len(model)),
         "n_candidate": int(len(model)),
         "scored_fraction": 1.0,
@@ -782,6 +784,8 @@ def run_boundary_arm_grid(args) -> int:
     out = {
         "split": args.split,
         "winner_config": {**P3_WINNER_KW, "iters": args.iters},
+        "coil_model_version": COIL_MODEL_VERSION,
+        "geometry_table_version": GEOMETRY_TABLE_VERSION,
         "invert_wall_s": invert_wall_s,
         "points": results,
     }
