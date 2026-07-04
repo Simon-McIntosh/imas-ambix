@@ -304,6 +304,7 @@ def _fake_assemble_corpus(base_corp, calls):
         min_ip_ka,
         max_populated_shots=None,
         operator_out=None,
+        geometry_shots=None,
     ):
         calls.append(list(shots))
         n = len(shots)
@@ -359,6 +360,64 @@ def test_assemble_corpus_cached_hits_after_shard_merge(tmp_path):
         merged2 = tpe.assemble_corpus_cached(shots, cache_root=tmp_path, **kwargs)
         assert len(calls) == 2
         np.testing.assert_array_equal(merged2[base.key].values, merged[base.key].values)
+
+
+def test_assemble_corpus_cached_shard_branch_passes_full_shot_list_as_geometry_shots(
+    tmp_path,
+):
+    """A rare channel present on only SOME shots of a signature can land in
+    one shard's own slice and not another's — resolving canonical geometry
+    from a shard's local slice alone can therefore still disagree ACROSS
+    shards.  assemble_corpus_cached's shard branch must pass the FULL,
+    un-sliced shot list through as geometry_shots so every shard resolves the
+    identical canonical schema regardless of which shots landed in it."""
+    shots = [101, 102, 103, 104]
+    seen_geometry_shots = []
+
+    def _fake(shot_list, **kwargs):
+        seen_geometry_shots.append(kwargs.get("geometry_shots"))
+        return {}
+
+    with mock.patch("scripts.train_patch_encoder.assemble_corpus", side_effect=_fake):
+        tpe.assemble_corpus_cached(
+            shots,
+            nr=NR,
+            nz=NZ,
+            t_steps=T_STEPS,
+            stride_s=0.025,
+            min_ip_ka=300.0,
+            cache_root=tmp_path,
+            shard=(0, 2),
+        )
+    assert seen_geometry_shots == [shots]  # the FULL list, not shots[0::2]
+
+
+def test_assemble_corpus_resolves_geometry_over_geometry_shots_not_shots():
+    """assemble_corpus itself must hand geometry_shots (when given) to
+    discovery/canonical-schema resolution — shots stays the narrower slice
+    actually assembled into examples."""
+    narrow = [1, 2]
+    wide = [1, 2, 3, 4, 5]
+    seen: dict[str, list[int]] = {}
+
+    def fake_discover(shot_ids):
+        seen["discover"] = list(shot_ids)
+        return {}
+
+    with mock.patch(
+        "scripts.train_patch_encoder.discover_signatures", side_effect=fake_discover
+    ):
+        corpora = tpe.assemble_corpus(
+            narrow,
+            nr=NR,
+            nz=NZ,
+            t_steps=T_STEPS,
+            stride_s=0.025,
+            min_ip_ka=300.0,
+            geometry_shots=wide,
+        )
+    assert seen["discover"] == wide
+    assert corpora == {}  # no signatures discovered -> nothing to assemble
 
 
 # --------------------------------------------------------------------------- #

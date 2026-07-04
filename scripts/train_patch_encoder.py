@@ -321,6 +321,7 @@ def assemble_corpus(
     min_ip_ka: float,
     max_populated_shots: int | None = None,
     operator_out: dict | None = None,
+    geometry_shots: list[int] | None = None,
 ) -> dict[str, SignatureCorpus]:
     """Build per-signature :class:`SignatureCorpus` bundles for the train split.
 
@@ -332,20 +333,31 @@ def assemble_corpus(
     ``(table, operator)`` pair per signature this assembly encounters — see
     :func:`regenerate_operator_summary`.
 
+    ``geometry_shots`` (optional): the shot list ``canonical_amb_channels`` is
+    unioned over, if it should be WIDER than ``shots`` itself — the sharded
+    assembly fleet's reason to pass this: a channel present on only a sparse
+    subset of a signature's shots can appear in one shard's own local slice
+    and not another's, so resolving the canonical schema per-shard-slice can
+    still disagree ACROSS shards.  Pass the FULL, un-sliced corpus shot list
+    here so every shard converges to the identical canonical schema by
+    construction, independent of which shots landed in which shard.  Defaults
+    to ``shots`` (correct for an unsharded call, where they're the same list).
+
     Geometry is resolved in two phases so the sensor channel SET is
     geometry-determined rather than an artifact of shot order (see
-    ``imas_ambix/gs/geometry.py::canonical_amb_channels``): (1) group ``shots``
-    by :class:`~imas_ambix.gs.geometry.SetupSignature` and build ONE canonical
-    table per signature from the union of every one of its shots' amb schema;
-    (2) walk ``shots`` again reusing that canonical ``(table, fwd)`` pair —
-    never rebuilt per shot — for the per-shot windowed-example assembly.
+    ``imas_ambix/gs/geometry.py::canonical_amb_channels``): (1) group
+    ``geometry_shots`` by :class:`~imas_ambix.gs.geometry.SetupSignature` and
+    build ONE canonical table per signature from the union of EVERY one of its
+    shots' amb schema; (2) walk ``shots`` (this call's own, possibly sharded,
+    slice) reusing that canonical ``(table, fwd)`` pair — never rebuilt per
+    shot — for the per-shot windowed-example assembly.
     """
     schema = feature_schema()
-    groups = discover_signatures(shots)
+    groups = discover_signatures(shots if geometry_shots is None else geometry_shots)
     sig_geometry: dict[str, tuple] = {}
     shot_to_key: dict[int, str] = {}
     for key, (_sig, sig_shots) in groups.items():
-        canonical_amb = canonical_amb_channels(sig_shots, max_shots=100)
+        canonical_amb = canonical_amb_channels(sig_shots)  # unbounded: every shot
         table = None
         for rep in sig_shots:
             try:
@@ -962,6 +974,7 @@ def assemble_corpus_cached(
             min_ip_ka=min_ip_ka,
             max_populated_shots=max_populated_shots,
             operator_out=operator_out,
+            geometry_shots=list(shots),  # the FULL list — see assemble_corpus docstring
         )
         dt = time.time() - t0
         n_ex = sum(c.values.shape[0] for c in corpora.values())
