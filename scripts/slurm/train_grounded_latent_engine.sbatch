@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=ambix-grounded-latent
 #SBATCH --partition=betelgeuse
+#SBATCH --reservation=gpu_0003_grpA
 #SBATCH --account=grpa
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
@@ -10,11 +11,11 @@
 # NOTE: --qos intentionally omitted — defaults to normal; a 1-card job bursts
 # onto a free card and coexists with any model serve.
 #
-# NOTE: no --reservation. gpu_0003_grpA (98dci4-gpu-0003's grpA CPU carve-out)
-# caps at 30 cores total and was fully consumed by three peer jobs -- draw
-# from the node's general/non-reserved core pool instead (still lands on the
-# same node for its GPU; per imas_ambix/agent/AGENTS.md the serve historically
-# ran on general cores too).
+# NOTE: --reservation=gpu_0003_grpA is REQUIRED here -- a reservation-less
+# submit to betelgeuse under account=grpa is flatly rejected by SLURM
+# ("Access/permission denied", confirmed with a minimal --wrap test), not
+# merely slower to schedule.  If the reservation's 30-core cap is fully
+# consumed by peer jobs, a slot must be freed rather than routed around.
 #
 # ============================================================================
 #  GS-grounded hybrid latent, patch-current substrate — corpus trainer.
