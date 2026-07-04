@@ -138,6 +138,15 @@ never opens any other efm array (no ``psirz``, no ``*_c`` / ``*_x`` fitted
 currents, no profiles, no shape parameters).
 """
 
+GEOMETRY_TABLE_VERSION = "amb-schema-canonical-v1"
+"""Bump whenever the derivation of :class:`GeometryTable` (its sensor channel
+SET in particular) changes for a FIXED efm geometry / signature digest — a
+downstream cache keyed only on ``SetupSignature.key`` would otherwise silently
+mix tables built under different derivations.  ``v1``: the sensor channel set
+is geometry-determined (see :func:`canonical_amb_channels`) rather than an
+artifact of one shot's own ``amb`` zarr schema.
+"""
+
 # Sensor-name → expected orientation (degrees).  Bv (vertical) probes read the
 # Z-component of B; Br (radial) probes read the R-component.  We use the name
 # ONLY to restrict the magpr candidate set so co-located obr/obv pairs map to
@@ -661,11 +670,56 @@ def read_amb_channels(shot_id: int) -> list[tuple[str, str]]:
     return out
 
 
+def canonical_amb_channels(
+    shot_ids: Sequence[int], *, max_shots: int | None = None
+) -> list[tuple[str, str]]:
+    """Union of amb ``(channel, description)`` pairs across ``shot_ids``.
+
+    A single shot's ``amb`` zarr group can genuinely lack an array that other
+    shots sharing the identical :class:`SetupSignature` digest DO carry — a
+    per-shot data-acquisition gap (a channel disabled or dropped for that
+    shot), not a geometry difference (the efm arrays the digest hashes are
+    unaffected).  Resolving a campaign's sensor channel SET from only one
+    shot therefore makes it an artifact of THAT shot's own availability
+    (:func:`build_table_for_shot` calling this shot "unlucky" would silently
+    lose the channel for the whole campaign).  Scanning several shots and
+    taking the union of every discovered ``(name, description)`` pair makes
+    the resulting set geometry-determined instead — per-shot absence is left
+    to be resolved as a masked-absent value downstream (the raw-signal
+    alignment path keys on the GLOBAL ``feature_schema()``, not on any one
+    shot's schema, so a channel present in the table but genuinely unread on
+    a given shot naturally comes back all-NaN there).
+
+    Cheap: reads only zarr array keys + description attributes, never signal
+    data.  ``max_shots`` bounds the scan (``None`` = every shot given).
+    """
+    seen: dict[str, str] = {}
+    ids = list(shot_ids) if max_shots is None else list(shot_ids)[:max_shots]
+    for s in ids:
+        try:
+            chans = read_amb_channels(int(s))
+        except (KeyError, FileNotFoundError, OSError, ValueError):
+            continue
+        for name, desc in chans:
+            seen.setdefault(name, desc)
+    return sorted(seen.items())
+
+
 # --- Build one table for a representative shot ------------------------
 
 
-def build_table_for_shot(shot_id: int) -> GeometryTable:
+def build_table_for_shot(
+    shot_id: int, *, amb_channels: list[tuple[str, str]] | None = None
+) -> GeometryTable:
     """Build a :class:`GeometryTable` from one representative shot.
+
+    ``amb_channels`` (optional) overrides the amb channel candidates fed to
+    :func:`map_amb_sensors` — pass :func:`canonical_amb_channels` over every
+    shot sharing this campaign's signature to get a sensor channel SET that
+    does not depend on which single shot happens to build the table (see its
+    docstring).  Defaults to this shot's own :func:`read_amb_channels` when
+    omitted, preserving the original single-shot behaviour for callers that
+    only ever see one shot of a campaign.
 
     The geometry is per-campaign-constant, so a single shot of a campaign is a
     valid source for that campaign's table.
@@ -719,8 +773,8 @@ def build_table_for_shot(shot_id: int) -> GeometryTable:
     lim_z = _finite(geom["limiterz"])
     n_lim = min(lim_r.size, lim_z.size)
 
-    amb_channels = read_amb_channels(shot_id)
-    sensor_map, unmatched = map_amb_sensors(geom, amb_channels)
+    amb_ch = amb_channels if amb_channels is not None else read_amb_channels(shot_id)
+    sensor_map, unmatched = map_amb_sensors(geom, amb_ch)
 
     passive = read_amm_passive(shot_id)
     amc_channels = read_amc_current_channels(shot_id)
@@ -790,14 +844,29 @@ def extract_campaign_tables(
 ) -> dict[str, GeometryTable]:
     """Discover campaigns over ``shot_ids`` and build one table per campaign.
 
-    One representative shot per campaign is used to build the full table; the
-    table's ``shots`` list records every in-use shot found with that signature.
+    The sensor channel set is resolved from :func:`canonical_amb_channels`
+    over EVERY shot discovered for that signature, not just one representative
+    — geometry-determined rather than an artifact of which shot happens to
+    build the table (see its docstring).  The representative shot used for the
+    non-amb geometry (b-probes, flux loops, PF filaments, limiter) still comes
+    from the group; if it individually fails to build (missing amm/amc, say),
+    the next candidate in the group is tried before the whole signature is
+    given up on.  The table's ``shots`` list records every in-use shot found
+    with that signature.
     """
     groups = discover_signatures(shot_ids)
     tables: dict[str, GeometryTable] = {}
     for key, (_sig, shots) in groups.items():
-        rep = shots[0]
-        table = build_table_for_shot(rep)
+        canonical_amb = canonical_amb_channels(shots)
+        table = None
+        for rep in shots:
+            try:
+                table = build_table_for_shot(rep, amb_channels=canonical_amb)
+                break
+            except (KeyError, FileNotFoundError, OSError, ValueError):
+                continue
+        if table is None:
+            continue
         table.shots = sorted(shots)
         tables[key] = table
     return tables

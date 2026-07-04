@@ -228,6 +228,38 @@ def test_signature_ignores_nan_padded_silop():
     assert s1.digest == s2.digest
 
 
+# --- downstream masking: an all-absent channel must never leak a NaN --
+
+
+def test_align_sensor_columns_masks_absent_channel_without_nan_leakage():
+    """A channel present in the operator's sensor list but absent from a given
+    shot's own amb feature columns must be EXCLUDED from (op_rows, x_cols) —
+    never fabricated — and its absence must never disturb the columns that
+    genuinely ARE present (this is the mechanism ``canonical_amb_channels``
+    relies on: a geometry-determined channel that a given shot never recorded
+    simply comes back masked-absent here, not corrupted or dropped upstream).
+    """
+    from imas_ambix.latent.data import align_sensor_columns
+
+    sensor_channels = ["obr01", "fl_p6l_1", "ccbv02"]  # fl_p6l_1: geometry-only slot
+    amb_names = ["obr01", "ccbv02"]  # this shot's own feature columns lack it
+    op_rows, x_cols = align_sensor_columns(sensor_channels, amb_names)
+    assert op_rows.tolist() == [0, 2]  # fl_p6l_1's row (1) excluded, not fabricated
+    assert x_cols.tolist() == [0, 1]
+
+    n_sensor = len(sensor_channels)
+    raw_mag = np.full((1, n_sensor), np.nan)
+    mag_mask = np.zeros((1, n_sensor), dtype=bool)
+    x = np.array([[10.0, 20.0]])  # amb-ordered values for obr01, ccbv02
+    raw_mag[:, op_rows] = x[:, x_cols]
+    mag_mask[:, op_rows] = np.isfinite(raw_mag[:, op_rows])
+
+    assert np.isnan(raw_mag[0, 1])  # fl_p6l_1 stays NaN — masked absent
+    assert not mag_mask[0, 1]
+    assert mag_mask[0, 0] and mag_mask[0, 2]  # the present columns ARE unmasked
+    assert raw_mag[0, 0] == 10.0 and raw_mag[0, 2] == 20.0  # no cross-column leak
+
+
 # --- amm passive R,Z parsing ------------------------------------------
 
 
@@ -283,6 +315,95 @@ def test_real_shot_signature_is_one_of_known_campaigns():
     assert table.signature.n_pf_filament in (938, 1004)
     assert table.signature.n_bprobe == 78
     assert table.signature.n_fluxloop == 46
+
+
+# --- geometry-determined sensor channel set (per-shot amb-schema gaps) -
+#
+# fl_p6l_1 is a genuine case: present in the amb zarr schema of some fc938
+# shots and entirely absent from others, despite all of them sharing the
+# IDENTICAL SetupSignature digest (the efm geometry it hashes is unaffected —
+# this is a data-acquisition gap, not a geometry difference).  Before the
+# canonical-union fix, build_table_for_shot's sensor channel SET was an
+# artifact of whichever shot happened to build the table; a shard-parallel
+# assembly of the same corpus surfaced the resulting cross-shard merge
+# failure (S=96 vs S=97 for the identical signature.key).
+
+_LUCKY_FC938_SHOT = 17406  # its own amb schema HAS fl_p6l_1
+_UNLUCKY_FC938_SHOT = 12887  # its own amb schema LACKS fl_p6l_1 entirely
+_HAVE_FC938_PAIR = (
+    local_shot_path(_LUCKY_FC938_SHOT, tier="level1").exists()
+    and local_shot_path(_UNLUCKY_FC938_SHOT, tier="level1").exists()
+)
+_skip_no_fc938_pair = pytest.mark.skipif(
+    not _HAVE_FC938_PAIR, reason="fc938 lucky/unlucky reference shots not mirrored (CI)"
+)
+
+
+@_skip_no_fc938_pair
+def test_canonical_amb_channels_recovers_intermittently_absent_channel():
+    """Pin the bug itself (per-shot read shows the gap) before pinning the fix."""
+    lucky_only = dict(gsg.read_amb_channels(_LUCKY_FC938_SHOT))
+    unlucky_only = dict(gsg.read_amb_channels(_UNLUCKY_FC938_SHOT))
+    assert "fl_p6l_1" in lucky_only
+    assert "fl_p6l_1" not in unlucky_only  # the actual per-shot gap
+
+    canonical = dict(
+        gsg.canonical_amb_channels([_LUCKY_FC938_SHOT, _UNLUCKY_FC938_SHOT])
+    )
+    assert "fl_p6l_1" in canonical
+
+
+@_skip_no_fc938_pair
+def test_geometry_determined_channel_set_is_signature_invariant():
+    """HARD BAR: two shots of the identical signature, with different amb data
+    availability, must resolve to IDENTICAL sensor channel sets once the
+    canonical amb schema is used — the count/names must not be a function of
+    which shot happens to build the table.
+    """
+    lucky = gsg.build_table_for_shot(_LUCKY_FC938_SHOT)
+    unlucky = gsg.build_table_for_shot(_UNLUCKY_FC938_SHOT)
+    assert lucky.signature.key == unlucky.signature.key  # same campaign
+
+    canonical = gsg.canonical_amb_channels([_LUCKY_FC938_SHOT, _UNLUCKY_FC938_SHOT])
+    lucky_fixed = gsg.build_table_for_shot(_LUCKY_FC938_SHOT, amb_channels=canonical)
+    unlucky_fixed = gsg.build_table_for_shot(
+        _UNLUCKY_FC938_SHOT, amb_channels=canonical
+    )
+
+    lucky_names = sorted(m.amb_channel for m in lucky_fixed.sensor_map)
+    unlucky_names = sorted(m.amb_channel for m in unlucky_fixed.sensor_map)
+    assert lucky_names == unlucky_names
+    assert "fl_p6l_1" in lucky_names
+
+    # pin that the UN-fixed (per-shot-schema) default path is where the bug
+    # actually lives, so a change elsewhere can't silently mask this drifting
+    assert len(lucky.sensor_map) != len(unlucky.sensor_map)
+
+
+@_skip_no_fc938_pair
+def test_extract_campaign_tables_is_deterministic_regardless_of_shot_order():
+    """extract_campaign_tables must not depend on shot scan order."""
+    fwd_order = gsg.extract_campaign_tables([_LUCKY_FC938_SHOT, _UNLUCKY_FC938_SHOT])
+    rev_order = gsg.extract_campaign_tables([_UNLUCKY_FC938_SHOT, _LUCKY_FC938_SHOT])
+    key = next(iter(fwd_order))
+    assert key in rev_order
+    fwd_names = sorted(m.amb_channel for m in fwd_order[key].sensor_map)
+    rev_names = sorted(m.amb_channel for m in rev_order[key].sensor_map)
+    assert fwd_names == rev_names
+    assert "fl_p6l_1" in fwd_names
+
+
+@_skip_no_mirror
+def test_fc1004_signature_channel_set_unaffected_by_the_fix():
+    """The fc1004 campaigns have no known intermittent-channel gap, so the
+    canonical-union path must reproduce the default single-shot path exactly
+    — the fix must not perturb a signature that was never broken."""
+    default = gsg.build_table_for_shot(_REP_SHOT)
+    canonical = gsg.canonical_amb_channels([_REP_SHOT])
+    fixed = gsg.build_table_for_shot(_REP_SHOT, amb_channels=canonical)
+    assert [m.amb_channel for m in default.sensor_map] == [
+        m.amb_channel for m in fixed.sensor_map
+    ]
 
 
 # --- reader-interface refactor: MAST keys must stay byte-identical -----
