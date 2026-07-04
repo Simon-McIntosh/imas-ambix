@@ -4,8 +4,8 @@
 #SBATCH --reservation=gpu_0003_grpA
 #SBATCH --account=grpa
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=128G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64G
 #SBATCH --time=12:00:00
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
 # NOTE: --qos intentionally omitted — defaults to normal; a 1-card job bursts
@@ -43,7 +43,11 @@ cd /home/ITER/mcintos/Code/imas-ambix
 export TMPDIR=/scratch_local/$SLURM_JOB_ID
 mkdir -p "$TMPDIR" || export TMPDIR=/tmp
 source .venv/bin/activate
-export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=16
+# corpus assembly is single-threaded (sequential zarr/efm/amb reads) and
+# training itself is GPU-bound with small numpy batch-construction work --
+# 4 cores is ample and schedules far sooner than 16 against a shared,
+# CPU-core-limited reservation (gpu_0003_grpA caps at 30 cores total).
+export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=4
 N_TRAIN="${N_TRAIN:-1000}"
 RUN="${RUN:-n${N_TRAIN}}"
 STEPS="${STEPS:-20000}"
