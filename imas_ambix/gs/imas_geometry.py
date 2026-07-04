@@ -158,7 +158,10 @@ def _peek_stored_dd_version(path_or_uri: str | Path, ids_name: str) -> str:
 
 
 def _open_static_ids(path_or_uri: str | Path, ids_name: str) -> Any:
-    """Open one static IDS at its own stored DD version (imas-python only, closes after)."""
+    """Open one static IDS at its own stored DD version (imas-python only).
+
+    Closes the entry after reading; the caller only needs the IDS object.
+    """
     import imas  # noqa: PLC0415
 
     dd_version = _peek_stored_dd_version(path_or_uri, ids_name)
@@ -189,7 +192,9 @@ def read_pf_active_filaments(pf_active: Any) -> tuple[list[PFFilament], list[str
             geo = el.geometry
             turns = float(el.turns_with_sign)
             if _is_empty(turns):
-                flags.append(f"pf_active.coil[{ci}] '{name}'[{ei}]: turns_with_sign unset -> 0")
+                flags.append(
+                    f"pf_active.coil[{ci}] '{name}'[{ei}]: turns_with_sign unset -> 0"
+                )
                 turns = 0.0
 
             r_rect = float(geo.rectangle.r)
@@ -200,7 +205,9 @@ def read_pf_active_filaments(pf_active: Any) -> tuple[list[PFFilament], list[str
                 r_ann = float(geo.annulus.r)
                 if not _is_empty(r_ann):
                     r, z = r_ann, float(geo.annulus.z)
-                    side = max(2.0 * float(geo.annulus.radius_outer), _MIN_ANNULUS_SIDE_M)
+                    side = max(
+                        2.0 * float(geo.annulus.radius_outer), _MIN_ANNULUS_SIDE_M
+                    )
                     width = height = side
                 else:
                     flags.append(
@@ -209,7 +216,15 @@ def read_pf_active_filaments(pf_active: Any) -> tuple[list[PFFilament], list[str
                     )
                     continue
             filaments.append(
-                PFFilament(r=r, z=z, turns=turns, width=width, height=height, circuit=ci, xmult=1.0)
+                PFFilament(
+                    r=r,
+                    z=z,
+                    turns=turns,
+                    width=width,
+                    height=height,
+                    circuit=ci,
+                    xmult=1.0,
+                )
             )
     return filaments, flags
 
@@ -257,7 +272,10 @@ def read_wall_limiter(wall: Any) -> tuple[list[float], list[float], list[str]]:
         return [], [], ["wall.description_2d is empty -- no limiter contour"]
     d2d = wall.description_2d[0]
     units = [
-        (np.asarray(u.outline.r, dtype=np.float64), np.asarray(u.outline.z, dtype=np.float64))
+        (
+            np.asarray(u.outline.r, dtype=np.float64),
+            np.asarray(u.outline.z, dtype=np.float64),
+        )
         for u in d2d.limiter.unit
     ]
     units = [(r, z) for r, z in units if r.size and z.size]
@@ -278,7 +296,7 @@ def read_wall_limiter(wall: Any) -> tuple[list[float], list[float], list[str]]:
 def read_magnetics_sensors(
     magnetics: Any,
 ) -> tuple[list[BProbe], list[FluxLoop], list[str]]:
-    """B-probes read 1:1; flux loops collapse each's ``position`` array to its centroid."""
+    """B-probes read 1:1; flux loops collapse each ``position`` array to a centroid."""
     flags: list[str] = []
     b_probes: list[BProbe] = []
     for i, p in enumerate(magnetics.b_field_pol_probe):
@@ -300,7 +318,9 @@ def read_magnetics_sensors(
         rs = np.asarray([float(pt.r) for pt in fl.position], dtype=np.float64)
         zs = np.asarray([float(pt.z) for pt in fl.position], dtype=np.float64)
         if rs.size == 0:
-            flags.append(f"magnetics.flux_loop[{i}] '{str(fl.name)}': no position points -- dropped")
+            flags.append(
+                f"magnetics.flux_loop[{i}] '{fl.name!s}': no position points -- dropped"
+            )
             continue
         if rs.size > 1:
             flags.append(
@@ -316,7 +336,7 @@ def read_magnetics_sensors(
 
 @dataclass
 class ImasGeometryReader:
-    """Reads one machine's static geometry from IMAS ``pf_active``/``wall``/``magnetics``.
+    """Reads one machine's static geometry from IMAS pf_active/wall/magnetics.
 
     Implements :class:`~imas_ambix.gs.geometry.MachineGeometryReader`.
     ``machine`` becomes the :class:`~imas_ambix.gs.geometry.SetupSignature`

@@ -23,10 +23,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-imas = pytest.importorskip("imas")
-
 from imas_ambix.gs import geometry as gsg
 from imas_ambix.gs import imas_geometry as img
+
+imas = pytest.importorskip("imas")
 
 # --- fixture: a tiny synthetic pf_active / wall / magnetics triple -----
 
@@ -127,7 +127,10 @@ def _write_synthetic_md(tmp_path: Path) -> tuple[str, str, str]:
 def _synthetic_reader(tmp_path: Path, machine: str = "synth") -> img.ImasGeometryReader:
     pf_path, wall_path, mag_path = _write_synthetic_md(tmp_path)
     return img.ImasGeometryReader(
-        machine=machine, pf_active_path=pf_path, wall_path=wall_path, magnetics_path=mag_path
+        machine=machine,
+        pf_active_path=pf_path,
+        wall_path=wall_path,
+        magnetics_path=mag_path,
     )
 
 
@@ -232,10 +235,16 @@ def test_two_machines_never_collide_on_the_same_signature_key(tmp_path):
     cache entry)."""
     pf_path, wall_path, mag_path = _write_synthetic_md(tmp_path)
     t_a = img.ImasGeometryReader(
-        machine="alpha", pf_active_path=pf_path, wall_path=wall_path, magnetics_path=mag_path
+        machine="alpha",
+        pf_active_path=pf_path,
+        wall_path=wall_path,
+        magnetics_path=mag_path,
     ).read()
     t_b = img.ImasGeometryReader(
-        machine="beta", pf_active_path=pf_path, wall_path=wall_path, magnetics_path=mag_path
+        machine="beta",
+        pf_active_path=pf_path,
+        wall_path=wall_path,
+        magnetics_path=mag_path,
     ).read()
     assert t_a.signature.key != t_b.signature.key
     assert t_a.signature.digest == t_b.signature.digest  # same geometry, same digest
@@ -273,7 +282,8 @@ _ITER_PF_ACTIVE = str(_ITER_MD_BASE / "111001" / "4")
 _ITER_WALL = str(_ITER_MD_BASE / "116000" / "2")
 _ITER_MAGNETICS = str(_ITER_MD_BASE / "150100" / "3")
 _HAVE_ITER_MD = all(
-    (Path(p) / "master.h5").exists() for p in (_ITER_PF_ACTIVE, _ITER_WALL, _ITER_MAGNETICS)
+    (Path(p) / "master.h5").exists()
+    for p in (_ITER_PF_ACTIVE, _ITER_WALL, _ITER_MAGNETICS)
 )
 _skip_no_iter_md = pytest.mark.skipif(
     not _HAVE_ITER_MD, reason="ITER machine-description entries not available"
@@ -329,19 +339,29 @@ def test_iter_vacuum_field_gate(iter_table, tmp_path):
     the operator.py gap above.
     """
     from imas_ambix.gs.cylinder import hybrid_greens
-    from imas_ambix.gs.operator import build_operator, classify_circuits, greens_bz_br, greens_psi
+    from imas_ambix.gs.operator import (
+        build_operator,
+        classify_circuits,
+        greens_bz_br,
+        greens_psi,
+    )
     from imas_ambix.latent.gs_solve import EquilibriumGrid
     from imas_ambix.latent.patch_basis import PatchBasis
 
     table = iter_table
-    result: dict[str, object] = {"schema": "imas-geometry-iter-gate-v0", "machine": table.machine}
+    result: dict[str, object] = {
+        "schema": "imas-geometry-iter-gate-v0",
+        "machine": table.machine,
+    }
 
     # (a) finite-area kernel vs exact point-filament formula, far field.
     fil = max(table.pf_filaments, key=lambda f: max(abs(f.width), abs(f.height)))
     extent = max(abs(fil.width), abs(fil.height))
     far_r = np.array([fil.r + 15.0 * extent])
     far_z = np.array([fil.z + 15.0 * extent])
-    psi_fa, br_fa, bz_fa = hybrid_greens(far_r, far_z, fil.r, fil.z, abs(fil.width), abs(fil.height))
+    psi_fa, br_fa, bz_fa = hybrid_greens(
+        far_r, far_z, fil.r, fil.z, abs(fil.width), abs(fil.height)
+    )
     psi_pt = greens_psi(far_r, far_z, fil.r, fil.z)
     bz_pt, br_pt = greens_bz_br(far_r, far_z, fil.r, fil.z)
     psi_rel = float(abs(psi_fa[0] - psi_pt[0]) / max(abs(psi_pt[0]), 1e-300))
@@ -365,7 +385,12 @@ def test_iter_vacuum_field_gate(iter_table, tmp_path):
     psi_map = np.zeros(grid.flat_r.size, dtype=np.float64)
     for f in table.pf_filaments:
         psi_f, _br, _bz = hybrid_greens(
-            grid.flat_r, grid.flat_z, f.r, f.z, max(abs(f.width), 0.01), max(abs(f.height), 0.01)
+            grid.flat_r,
+            grid.flat_z,
+            f.r,
+            f.z,
+            max(abs(f.width), 0.01),
+            max(abs(f.height), 0.01),
         )
         psi_map += f.turns * psi_f
     n_finite = int(np.isfinite(psi_map).sum())
@@ -383,7 +408,9 @@ def test_iter_vacuum_field_gate(iter_table, tmp_path):
     all_r = np.array([m.r for m in table.sensor_map])
     all_z = np.array([m.z for m in table.sensor_map])
     is_flux = np.array([m.kind == "flux_loop" for m in table.sensor_map])
-    ang = np.array([0.0 if m.angle_deg is None else m.angle_deg for m in table.sensor_map])
+    ang = np.array(
+        [0.0 if m.angle_deg is None else m.angle_deg for m in table.sensor_map]
+    )
     sensor_resp = np.zeros(all_r.size, dtype=np.float64)
     fil_group = [f for f in table.pf_filaments if f.circuit == fil.circuit]
     for f in fil_group:
@@ -443,9 +470,17 @@ def test_iter_vacuum_field_gate(iter_table, tmp_path):
     # consistency: the same sensor count/grid feed both the operator and PatchBasis
     assert fwd.g_plasma.shape[0] == basis.m_sens.shape[0] == len(table.sensor_map)
     assert basis.g_pg.shape[0] == basis.psi_coil_grid.shape[0]
-    assert n_known == 0, "classify_circuits gap has been fixed elsewhere -- update this pin"
+    assert n_known == 0, (
+        "classify_circuits gap has been fixed elsewhere -- update this pin"
+    )
 
-    out_path = Path(__file__).resolve().parents[2] / "imas_ambix" / "gs" / "artifacts" / "imas_geometry_iter.json"
+    out_path = (
+        Path(__file__).resolve().parents[2]
+        / "imas_ambix"
+        / "gs"
+        / "artifacts"
+        / "imas_geometry_iter.json"
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     import json
 

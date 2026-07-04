@@ -855,9 +855,7 @@ def summarise(tables: dict[str, GeometryTable]) -> dict[str, object]:
         "campaigns": {
             k: {
                 "n_shots_sampled": len(t.shots),
-                "shot_range_sampled": [min(t.shots), max(t.shots)]
-                if t.shots
-                else [],
+                "shot_range_sampled": [min(t.shots), max(t.shots)] if t.shots else [],
                 "example_shots": t.shots[:3],
                 "coverage": t.coverage(),
                 "flagged_amb": [
