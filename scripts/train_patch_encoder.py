@@ -44,7 +44,7 @@ import numpy as np
 import torch
 
 from imas_ambix.gs.geometry import build_table_for_shot
-from imas_ambix.gs.operator import build_operator
+from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     feature_schema,
     load_shot_windows,
@@ -493,7 +493,14 @@ def _config_hash(
     nr: int,
     nz: int,
 ) -> str:
-    """Stable short digest identifying an assembly configuration."""
+    """Stable short digest identifying an assembly configuration.
+
+    Includes ``COIL_MODEL_VERSION`` (imas_ambix.gs.operator) so a corpus
+    assembled under one coil-current model (the vacuum-field prediction the
+    loss trains against) can never collide with one assembled after a coil
+    model fix — the cache key busts automatically the moment the constant
+    changes, with no separate migration step.
+    """
     payload = {
         "shots": sorted(int(s) for s in shots),
         "t_steps": int(t_steps),
@@ -501,6 +508,7 @@ def _config_hash(
         "min_ip_ka": round(float(min_ip_ka), 6),
         "nr": int(nr),
         "nz": int(nz),
+        "coil_model_version": COIL_MODEL_VERSION,
     }
     blob = json.dumps(payload, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:16]
@@ -666,6 +674,7 @@ def _save_corpus_dir(
         )
     meta = {
         "config_hash": config_hash,
+        "coil_model_version": COIL_MODEL_VERSION,
         "n_shots": len({int(s) for s in shots}),
         "t_steps": t_steps,
         "stride_s": stride_s,
