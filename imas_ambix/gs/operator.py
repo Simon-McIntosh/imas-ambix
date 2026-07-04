@@ -79,6 +79,20 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+COIL_MODEL_VERSION = "case-circuits-v2"
+"""Version marker for the circuit -> current-channel assignment + ``G_pf``
+column construction (``classify_circuits`` / ``build_operator``).  Bump this
+any time either changes -- e.g. a different geometric match radius, a new
+circuit special-case, or a change to which circuits get merged into one
+``G_pf`` column -- so a downstream cache keyed on this string invalidates
+instead of silently mixing predictions built under different assignment
+rules.  ``"case-circuits-v2"`` is the fix that stopped folding MAST's 10
+coil-CASE circuits into their co-located active coil's column (measured
+impact: docs/mast-coil-circuits.html §6,
+:mod:`imas_ambix.gs.artifacts.case_circuit_impact` — median 0.44σ / all 73
+B-probes above 0.05σ / worst probe 17.8σ on shots 18502-18505); the prior,
+unversioned behaviour is implicitly ``"v1"``."""
+
 # --- Physical constants -----------------------------------------------
 
 MU0 = 4.0e-7 * np.pi
@@ -821,6 +835,7 @@ def write_operator_summary(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "gs-operator-summary-v0",
+        "coil_model_version": COIL_MODEL_VERSION,
         "latent_to_psi_representation": "current-distribution-greens",
         "si_denorm": "raw-SI (Wb, T, A; mu0 carried; amc kA*turn x1000)",
         "amm_currents": "EXCLUDED (EFIT-wall-model output; c-s8-amm-adjudication)",

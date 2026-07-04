@@ -27,6 +27,26 @@ from imas_ambix.gs import circuits as pfc
 from imas_ambix.gs import geometry as gsg
 from imas_ambix.gs import operator as op
 
+# --- coil-model version marker ---------------------------------------------
+
+
+def test_coil_model_version_bumped_for_the_case_circuit_fix():
+    """A downstream cache keying on COIL_MODEL_VERSION must invalidate across
+    this fix -- pin that the marker exists and is no longer the implicit
+    pre-fix baseline."""
+    assert op.COIL_MODEL_VERSION == "case-circuits-v2"
+
+
+def test_operator_summary_reports_coil_model_version(tmp_path):
+    table = _table([_filament(_P4U_R, _P4U_Z, circuit=8)], ["p4u_coil_current"])
+    operators = op.build_all_operators({table.signature.key: table})
+    out = op.write_operator_summary(operators, out_path=tmp_path / "summary.json")
+    import json
+
+    payload = json.loads(out.read_text())
+    assert payload["coil_model_version"] == op.COIL_MODEL_VERSION
+
+
 # --- circuits.py cross-check: the ids this fix hinges on ------------------
 
 
