@@ -34,6 +34,16 @@ Three measurements:
 Gate: per-quantity / per-sensor-kind coverage in [0.88, 0.92]; no mean-skill
 regression beyond ``--regression-tolerance``.
 
+Optional ``--temperature-scale``: a post-hoc, per-SENSOR-KIND σ-temperature
+(closed-form quantile fit on TRAIN-shot sensor coverage, frozen before any
+held-out read — leakage-free).  A per-kind correction MUST live in sensor
+space: every current cell contributes to every sensor with a different
+weight, so there is no per-cell (current-space) scaling that independently
+widens one sensor kind's coverage while tightening another's.  Consequently
+this refinement has NO effect on the (b) topology sampling, which draws
+directly from the current-space ``i_var`` — an honest limitation, not a gap
+in the implementation (see ``fit_kind_temperature``).
+
 Artifacts: imas_ambix/latent/artifacts/patch_gate/calibration_<run>.json
 """
 
@@ -51,12 +61,18 @@ from imas_ambix.gs.geometry import build_table_for_shot
 from imas_ambix.gs.operator import build_operator
 from imas_ambix.latent.data import read_split_shot_lists
 from imas_ambix.latent.patch_basis import PatchBasis
-from imas_ambix.latent.patch_encoder import PATCH_SENSOR_KINDS
+from imas_ambix.latent.patch_encoder import (
+    PATCH_SENSOR_KINDS,
+    PatchCurrentEncoder,
+    PatchEncoderConfig,
+)
 
 from scripts.patch_encoder_gate_eval import (
+    _GEOMETRY_BUFFERS,
     _build_slice_windows,
     _encoder_for_signature,
     _load_checkpoint,
+    _resolve_channel_stats,
 )
 from scripts.patch_gate_eval import (
     TARGET_NAMES,
@@ -65,7 +81,12 @@ from scripts.patch_gate_eval import (
     shot_payloads,
     train_mean_baseline,
 )
-from scripts.train_patch_encoder import sensor_geometry_array
+from scripts.train_patch_encoder import (
+    _cache_root,
+    _standardise_values,
+    assemble_corpus_cached,
+    sensor_geometry_array,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("patch_encoder_calibration_eval")
@@ -94,6 +115,7 @@ def sensor_coverage_counts(
     sensor_kind: np.ndarray,  # (S,) int — PATCH_SENSOR_KINDS index per basis column
     *,
     z: float = Z90,
+    kind_temperature: dict[int, float] | None = None,
 ) -> dict[int, tuple[int, int]]:
     """Per-sensor-kind ``(n_covered, n_masked)`` for ONE slice's held sensors.
 
@@ -103,10 +125,20 @@ def sensor_coverage_counts(
     ``pred ± z·sqrt(pred_var)`` in the slice's own (unwhitened) units, which
     is equivalent to whitening both sides by the per-sensor scale — coverage
     is scale-invariant.
+
+    ``kind_temperature`` (optional): a per-sensor-KIND multiplicative scalar
+    on ``pred_var`` (i.e. std scales by ``sqrt(temp)``) — see
+    :func:`fit_kind_temperature`.  Applied ONLY here, in sensor space; it does
+    not touch ``i_var`` and therefore has no bearing on topology sampling.
     """
     m_sens = basis.m_sens.to(torch.float64).cpu().numpy()  # (S, n)
     pred = np.asarray(payload.vacuum, dtype=np.float64) + m_sens @ i_mean
     pred_var = (m_sens**2) @ i_var
+    if kind_temperature:
+        pred_var = pred_var.copy()
+        for k, temp in kind_temperature.items():
+            sel = sensor_kind == k
+            pred_var[sel] = pred_var[sel] * float(temp)
     half_width = z * np.sqrt(np.clip(pred_var, 0.0, None))
     lo, hi = pred - half_width, pred + half_width
     measured = np.asarray(payload.measured, dtype=np.float64)
@@ -121,6 +153,118 @@ def sensor_coverage_counts(
             continue
         out[int(k)] = (int(covered[sel].sum()), n)
     return out
+
+
+# --------------------------------------------------------------------------- #
+#  optional: per-sensor-kind post-hoc σ-temperature (leakage-free, TRAIN-only) #
+# --------------------------------------------------------------------------- #
+def _encoder_for_corpus_signature(state_dict, extra, corp, device):
+    """Build+load an encoder from a CACHED :class:`SignatureCorpus`'s own
+    geometry — no table/operator rebuild needed, the corpus cache already
+    carries ``sensor_geometry``/``coil_centroids``/``candidate_mask`` for this
+    signature (mirrors :func:`scripts.patch_encoder_gate_eval._encoder_for_signature`,
+    but reads geometry from the corpus rather than re-deriving it from a
+    freshly-built ``GeometryTable``)."""
+    cfg = PatchEncoderConfig(**extra["encoder_config"])
+    encoder = PatchCurrentEncoder(
+        cfg,
+        sensor_geometry=corp.sensor_geometry,
+        coil_centroids=corp.coil_centroids,
+        candidate_mask=np.asarray(corp.candidate_mask, dtype=np.float64),
+    ).to(device)
+    learned = {k: v for k, v in state_dict.items() if k not in _GEOMETRY_BUFFERS}
+    missing, unexpected = encoder.load_state_dict(learned, strict=False)
+    missing = [m for m in missing if m not in _GEOMETRY_BUFFERS]
+    if missing or unexpected:
+        raise RuntimeError(
+            f"encoder weight load mismatch: missing={missing} unexpected={unexpected}"
+        )
+    encoder.eval()
+    ch_mean, ch_std, _n_fallback = _resolve_channel_stats(
+        corp.sensor_channels, corp.sensor_geometry, extra
+    )
+    return encoder, ch_mean, ch_std
+
+
+def fit_kind_temperature(
+    state_dict,
+    extra,
+    corpora,  # dict[str, SignatureCorpus] — TRAIN shots only
+    ipf_mean: np.ndarray,
+    ipf_std: np.ndarray,
+    device,
+    *,
+    target: float = 0.90,
+    z: float = Z90,
+    batch_size: int = 512,
+    max_examples_per_sig: int = 4000,
+    seed: int = 0,
+) -> dict[int, float]:
+    """Per-sensor-kind post-hoc σ-temperature, fit on TRAIN-shot coverage.
+
+    CLOSED FORM — no search.  Let ``z_i = (measured_i - pred_i)/pred_std_i``
+    be a kind's masked, whitened residuals over the TRAIN corpus; the
+    temperature (on VARIANCE) that makes exactly ``target`` of them fall
+    inside the ``z``-sigma interval is ``(quantile_target(|z_i|) / z)**2``.
+    Leakage-free: ``corpora`` must be assembled from TRAIN shots only (the
+    SAME split ``read_split_shot_lists`` excluded from the held-out cohort);
+    held-out data is never read here.
+
+    A PER-KIND correction is necessarily a SENSOR-space operation: every
+    current cell contributes to every sensor with a different weight (via
+    ``m_sens``), so no single per-cell (current-space) rescale can
+    independently widen one kind's coverage while tightening another's. This
+    fit therefore returns sensor-space variance multipliers ONLY — it does
+    not, and cannot, feed back into ``i_var``/topology sampling.
+    """
+    rng = np.random.default_rng(seed)
+    zs_by_kind: dict[int, list[np.ndarray]] = {}
+    for corp in corpora.values():
+        encoder, ch_mean, ch_std = _encoder_for_corpus_signature(
+            state_dict, extra, corp, device
+        )
+        sensor_kind = np.asarray(corp.sensor_geometry, dtype=np.float64)[:, 4].astype(
+            int
+        )
+        m_sens = corp.basis.m_sens.to(torch.float64).cpu().numpy()
+        n = corp.values.shape[0]
+        idx = rng.permutation(n)[: min(n, max_examples_per_sig)]
+        for start in range(0, len(idx), batch_size):
+            rows = idx[start : start + batch_size]
+            v = _standardise_values(corp.values[rows], corp.finite[rows], ch_mean, ch_std)
+            i_pf = corp.i_pf[rows]
+            i_pf_std = (i_pf - ipf_mean[None, :]) / ipf_std[None, :]
+            with torch.no_grad():
+                i_mean_t, i_var_t = encoder(
+                    torch.as_tensor(v, dtype=torch.float32, device=device),
+                    torch.as_tensor(corp.finite[rows], dtype=torch.bool, device=device),
+                    torch.as_tensor(i_pf_std, dtype=torch.float32, device=device),
+                    torch.as_tensor(corp.ip[rows], dtype=torch.float32, device=device),
+                    return_variance=True,
+                )
+            i_mean = np.asarray(i_mean_t.detach().cpu().numpy(), dtype=np.float64)
+            i_var = np.asarray(i_var_t.detach().cpu().numpy(), dtype=np.float64)
+            pred = corp.vacuum[rows] + i_mean @ m_sens.T
+            pred_var = i_var @ (m_sens**2).T
+            std = np.sqrt(np.clip(pred_var, 0.0, None))
+            resid = corp.measured[rows] - pred
+            z_scores = np.divide(
+                resid, std, out=np.full_like(resid, np.nan), where=std > 0
+            )
+            mask = corp.mask[rows].astype(bool)
+            for k in np.unique(sensor_kind):
+                sel = mask & (sensor_kind[None, :] == k)
+                vals = np.abs(z_scores[sel])
+                vals = vals[np.isfinite(vals)]
+                if vals.size:
+                    zs_by_kind.setdefault(int(k), []).append(vals)
+
+    temps: dict[int, float] = {}
+    for k, chunks in zs_by_kind.items():
+        allz = np.concatenate(chunks)
+        q = float(np.quantile(allz, target))
+        temps[k] = (q / z) ** 2
+    return temps
 
 
 # --------------------------------------------------------------------------- #
@@ -220,6 +364,29 @@ def main() -> int:
         default=0.02,
         help="max allowed drop in axis_skill vs --baseline-gate before FAIL",
     )
+    ap.add_argument(
+        "--temperature-scale",
+        action="store_true",
+        help="fit a per-sensor-kind post-hoc σ-temperature on TRAIN-shot "
+        "coverage (leakage-free, closed-form, target 0.90) and report a "
+        "second 'sensor_coverage_tempscaled' block. Does not affect topology "
+        "sampling (a per-kind correction is sensor-space only — see "
+        "fit_kind_temperature). overall_pass rolls up the tempscaled sensor "
+        "block (not the raw one) when this flag is set.",
+    )
+    ap.add_argument(
+        "--temp-target",
+        type=float,
+        default=0.90,
+        help="target coverage the per-kind temperature fit solves for",
+    )
+    ap.add_argument(
+        "--temp-max-examples-per-sig",
+        type=int,
+        default=4000,
+        help="cap on TRAIN-corpus examples per signature used for the fit "
+        "(random subsample; the fit is a single quantile, doesn't need all)",
+    )
     ap.add_argument("--out", type=str, default="")
     ap.add_argument("--device", type=str, default="auto")
     ap.add_argument("--seed", type=int, default=0)
@@ -256,6 +423,9 @@ def main() -> int:
     topo_counts: dict[str, list[int]] = {q: [0, 0] for q in TOPOLOGY_QUANTITIES}
     model_rows, ref_rows = [], []
     n_slices = 0
+    # per-slice records, kept for a second (tempscaled) sensor-coverage pass
+    # without re-running the encoder — (basis, i_mean, i_var, payload, sensor_kind)
+    slice_records: list[tuple] = []
 
     for s in held_shots:
         try:
@@ -318,6 +488,7 @@ def main() -> int:
 
         for k_i, p in enumerate(payloads):
             n_slices += 1
+            slice_records.append((basis, i_mean[k_i], i_var[k_i], p, sensor_kind))
             for kind, (c, n) in sensor_coverage_counts(
                 basis, i_mean[k_i], i_var[k_i], p, sensor_kind
             ).items():
@@ -423,13 +594,76 @@ def main() -> int:
         else:
             regression["pass"] = regression.get("rmse_skill", {}).get("pass", True)
 
+    kind_temperature: dict[int, float] | None = None
+    sensor_report_tempscaled = None
+    if args.temperature_scale:
+        train_shots, _held_unused = read_split_shot_lists(
+            int(extra["config"]["n_train"]), int(extra["config"]["n_heldout"])
+        )
+        cache_dir = extra["config"].get("cache_dir") or ""
+        corpora_train = assemble_corpus_cached(
+            train_shots,
+            nr=int(extra["nr"]),
+            nz=int(extra["nz"]),
+            t_steps=int(extra["t_steps"]),
+            stride_s=float(extra["config"]["stride_ms"]) / 1000.0,
+            min_ip_ka=float(extra["config"]["min_ip_ka"]),
+            cache_root=_cache_root(cache_dir) if cache_dir else None,
+        )
+        kind_temperature = fit_kind_temperature(
+            state_dict,
+            extra,
+            corpora_train,
+            ipf_mean,
+            ipf_std,
+            device,
+            target=args.temp_target,
+            max_examples_per_sig=args.temp_max_examples_per_sig,
+            seed=args.seed,
+        )
+        sensor_counts_scaled: dict[int, list[int]] = {}
+        for basis_r, i_mean_r, i_var_r, payload_r, sensor_kind_r in slice_records:
+            for kind, (c, n) in sensor_coverage_counts(
+                basis_r,
+                i_mean_r,
+                i_var_r,
+                payload_r,
+                sensor_kind_r,
+                kind_temperature=kind_temperature,
+            ).items():
+                acc = sensor_counts_scaled.setdefault(kind, [0, 0])
+                acc[0] += c
+                acc[1] += n
+        sensor_report_tempscaled = {
+            PATCH_SENSOR_KINDS[k] if 0 <= k < len(PATCH_SENSOR_KINDS) else str(k): {
+                "n_covered": c,
+                "n_masked": n,
+                "coverage": coverage_fraction((c, n)),
+                "verdict": verdict(coverage_fraction((c, n))),
+            }
+            for k, (c, n) in sensor_counts_scaled.items()
+        }
+        logger.info(
+            "[temperature-scale] frozen per-kind variance multiplier: %s",
+            {
+                (
+                    PATCH_SENSOR_KINDS[k] if 0 <= k < len(PATCH_SENSOR_KINDS) else str(k)
+                ): round(t, 4)
+                for k, t in kind_temperature.items()
+            },
+        )
+
     # "no-data" (zero observations — e.g. no X-point ever resolved in the
     # held-out cohort) is excluded from the roll-up: it is not evidence of
     # miscalibration, just an untested quantity, and must not force a
-    # permanent FAIL for a quantity the corpus never exercises.
+    # permanent FAIL for a quantity the corpus never exercises.  Rolls up the
+    # TEMPSCALED sensor block (not the raw one) when --temperature-scale ran.
+    roll_up_sensor = (
+        sensor_report_tempscaled if sensor_report_tempscaled is not None else sensor_report
+    )
     all_verdicts = [
         v["verdict"]
-        for v in list(sensor_report.values()) + list(topology_report.values())
+        for v in list(roll_up_sensor.values()) + list(topology_report.values())
         if v["verdict"] != "no-data"
     ]
     overall_pass = (
@@ -444,7 +678,27 @@ def main() -> int:
         "n_slices_scored": n_slices,
         "coverage_gate": list(COVERAGE_GATE),
         "sensor_coverage": sensor_report,
+        "sensor_coverage_tempscaled": sensor_report_tempscaled,
+        "kind_temperature": (
+            {
+                (
+                    PATCH_SENSOR_KINDS[k] if 0 <= k < len(PATCH_SENSOR_KINDS) else str(k)
+                ): t
+                for k, t in kind_temperature.items()
+            }
+            if kind_temperature is not None
+            else None
+        ),
         "topology_coverage": topology_report,
+        "topology_note": (
+            "unaffected by --temperature-scale: a per-sensor-kind correction "
+            "is necessarily sensor-space (see fit_kind_temperature's "
+            "docstring) — it does not touch i_var, which is what topology "
+            "sampling draws from, so these numbers are identical to a "
+            "run without --temperature-scale."
+            if args.temperature_scale
+            else None
+        ),
         "mean_readout_skill": mean_skill,
         "regression_check": regression,
         "overall_pass": overall_pass,
@@ -459,10 +713,16 @@ def main() -> int:
     out_path.write_text(json.dumps(result, indent=2))
 
     logger.info(
-        "[calibration] %d slices  overall_pass=%s  sensor=%s  topology=%s",
+        "[calibration] %d slices  overall_pass=%s  sensor=%s  sensor_tempscaled=%s  "
+        "topology=%s",
         n_slices,
         overall_pass,
         {k: v["verdict"] for k, v in sensor_report.items()},
+        (
+            {k: v["verdict"] for k, v in sensor_report_tempscaled.items()}
+            if sensor_report_tempscaled is not None
+            else None
+        ),
         {k: v["verdict"] for k, v in topology_report.items()},
     )
     logger.info("calibration artifact -> %s", out_path)
