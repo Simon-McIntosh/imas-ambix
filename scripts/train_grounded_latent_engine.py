@@ -576,10 +576,12 @@ def _build_batch(
 
 def _per_example_magnetics_misfit(
     engine: GSGroundedLatentEngine, batch: dict
-) -> torch.Tensor:
-    """Per-example whitened magnetics misfit (post-update), for the lambda
-    schedule — :meth:`GSGroundedLatentEngine.magnetics_loss` reduces over the
-    batch, so this is computed directly rather than by editing the engine."""
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Per-example whitened magnetics misfit (post-update) plus the per-cell
+    current it was computed from — the misfit feeds the lambda schedule,
+    ``i_cell`` feeds :func:`_check_i_cell_scale`.
+    :meth:`GSGroundedLatentEngine.magnetics_loss` reduces over the batch, so
+    both are computed directly rather than by editing the engine."""
     with torch.no_grad():
         lat = engine.encode(batch["x_t"])
         i_cell = engine.i_cell_from_latent(lat, batch["ip_t"])
@@ -587,7 +589,54 @@ def _per_example_magnetics_misfit(
         raw = torch.nan_to_num(batch["raw_mag_t"], nan=0.0)
         resid = (pred - raw) / batch["sensor_scale"].clamp_min(1e-12)
         m = batch["mag_mask"].to(resid.dtype)
-        return (resid**2 * m).sum(-1) / m.sum(-1).clamp_min(1.0)
+        misfit = (resid**2 * m).sum(-1) / m.sum(-1).clamp_min(1.0)
+        return misfit, i_cell
+
+
+def _check_i_cell_scale(
+    i_cell: torch.Tensor, ip: torch.Tensor, max_ratio: float
+) -> None:
+    """Hard-fail the instant the per-cell current drifts past its expected
+    ``Ip / n_cells`` scale, instead of discovering it 18000 steps later in a
+    post-mortem — job 1225447's undetached closure aux loss drove ``i_cell``
+    to 60-2800x that scale before anyone noticed in the total-loss curve.
+    One out-of-range example in the batch is enough to trip this; a healthy
+    run never approaches ``max_ratio``."""
+    n_cells = i_cell.shape[-1]
+    expected = (ip.abs() / n_cells).clamp_min(1.0)
+    actual = i_cell.abs().mean(dim=-1)
+    ratio = actual / expected
+    if bool((ratio > max_ratio).any()):
+        raise RuntimeError(
+            f"i_cell scale sanity check failed: per-cell current reached "
+            f"{float(ratio.max()):.1f}x the expected Ip/n_cells scale "
+            f"(threshold {max_ratio}x) — this is the signature of job "
+            "1225447's divergence; stopping before it corrupts training "
+            "further"
+        )
+
+
+def _maybe_update_disc(
+    disc: DiscrepancyLambda,
+    ids: np.ndarray,
+    misfit: torch.Tensor,
+    epoch: int,
+    step: int,
+    adapt_every: int,
+) -> None:
+    """Advance the amortised λ schedule — but only apply the multiplicative
+    up/down ratchet once every ``adapt_every`` steps, matching the locked
+    per-slice variational-inverse policy's cadence
+    (:class:`imas_ambix.latent.patch_inverse.InverseConfig`,
+    ``adapt_every=25``).  :class:`DiscrepancyLambda` itself
+    (``imas_ambix/latent/patch_encoder.py``, shared, out of this script's
+    write scope) ratchets on *every* call once past warm-up — calling it
+    every training step here would adapt λ up to ``adapt_every``x faster
+    than the policy it amortises.  Warm-up recording and the warm-up-end
+    freeze are idempotent given the same frozen inputs, so those steps
+    always go through."""
+    if epoch <= disc.warmup_epochs or step % adapt_every == 0:
+        disc.update(ids, misfit, epoch)
 
 
 def _held_back_physics_misfit(
@@ -694,6 +743,20 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
     ap.add_argument("--lambda-ratio", type=float, default=1.5)
     ap.add_argument("--lam-max", type=float, default=100.0)
     ap.add_argument("--lambda-warmup-epochs", type=int, default=3)
+    ap.add_argument(
+        "--disc-adapt-every",
+        type=int,
+        default=25,
+        help="steps between λ ratchet updates once past warm-up (matches "
+        "the locked per-slice variational-inverse policy's adapt_every)",
+    )
+    ap.add_argument(
+        "--i-cell-max-ratio",
+        type=float,
+        default=50.0,
+        help="hard-fail if any batch's mean per-cell current exceeds this "
+        "multiple of the expected Ip/n_cells scale (job 1225447 guard)",
+    )
     ap.add_argument("--ckpt-every", type=int, default=500)
     ap.add_argument("--log-every", type=int, default=50)
     ap.add_argument("--run", type=str, default="direct")
@@ -1008,9 +1071,17 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
 
         for key, (batch, rows) in prebuilt.items():
             state = campaign_states[key]
-            misfit = _per_example_magnetics_misfit(state.engine, batch)
+            misfit, i_cell_t = _per_example_magnetics_misfit(state.engine, batch)
+            _check_i_cell_scale(i_cell_t, batch["ip_t"], args.i_cell_max_ratio)
             epoch = step // state.steps_per_epoch
-            state.disc.update(state.corp.ids[rows], misfit, epoch)
+            _maybe_update_disc(
+                state.disc,
+                state.corp.ids[rows],
+                misfit,
+                epoch,
+                step,
+                args.disc_adapt_every,
+            )
 
         if step % args.log_every == 0:
             elapsed = time.time() - t0
