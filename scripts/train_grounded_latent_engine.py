@@ -41,6 +41,7 @@ import argparse
 import hashlib
 import json
 import logging
+import math
 import signal
 import time
 from dataclasses import dataclass, field
@@ -494,9 +495,20 @@ class _CampaignState:
     corp: SignatureCorpus
     engine: GSGroundedLatentEngine
     cmd_stats: CorpusStats
-    sample_p: np.ndarray  # normalised excitation sampling weights
+    sample_p: np.ndarray  # normalised excitation sampling weights (held_idx zeroed)
     steps_per_epoch: int
     disc: DiscrepancyLambda
+    held_idx: np.ndarray  # (n_held,) rows never sampled for training
+
+
+def _held_back_split(
+    n_examples: int, frac: float, rng: np.random.Generator
+) -> np.ndarray:
+    """A FIXED subset of row indices, held out of training entirely (never
+    fed to :func:`_build_batch`'s sampler) so a periodic evaluation on them
+    is a genuine held-back check, not just a re-read of trained-on rows."""
+    n_held = max(1, min(n_examples - 1, int(round(frac * n_examples))))
+    return rng.choice(n_examples, size=n_held, replace=False)
 
 
 def _build_batch(
@@ -506,14 +518,22 @@ def _build_batch(
     batch_size: int,
     rng: np.random.Generator,
     device: torch.device,
+    *,
+    rows: np.ndarray | None = None,
 ) -> tuple[dict, np.ndarray]:
-    """One (t, t+1) minibatch for one campaign; returns ``(batch, row_idx)``."""
+    """One (t, t+1) minibatch for one campaign; returns ``(batch, row_idx)``.
+
+    ``rows`` (optional): use these EXACT rows instead of sampling -- the
+    held-back evaluation path (:func:`_held_back_physics_misfit`) passes its
+    fixed, never-trained-on indices here.
+    """
     corp = state.corp
     n = corp.n_examples
-    # a campaign with fewer pairs than batch_size still fills a FULL batch
-    # (with-replacement); a larger campaign samples without replacement so a
-    # batch never repeats a row
-    rows = rng.choice(n, size=batch_size, p=state.sample_p, replace=n < batch_size)
+    if rows is None:
+        # a campaign with fewer pairs than batch_size still fills a FULL batch
+        # (with-replacement); a larger campaign samples without replacement so
+        # a batch never repeats a row
+        rows = rng.choice(n, size=batch_size, p=state.sample_p, replace=n < batch_size)
 
     x_t = np.nan_to_num(feature_stats.normalise(corp.x_t[rows]), nan=0.0)
     x_tp1 = np.nan_to_num(feature_stats.normalise(corp.x_tp1[rows]), nan=0.0)
@@ -570,6 +590,31 @@ def _per_example_magnetics_misfit(
         return (resid**2 * m).sum(-1) / m.sum(-1).clamp_min(1.0)
 
 
+def _held_back_physics_misfit(
+    state: _CampaignState,
+    feature_stats: CorpusStats,
+    anchored_stats: CorpusStats,
+    device: torch.device,
+) -> float:
+    """Mean (magnetics + anchored) loss on rows NEVER fed to the sampler --
+    the "physics we care about" signal the f-malwm-02 gate reads, deliberately
+    EXCLUDING structure_residual/closure so a lambda-ramp or an auxiliary-loss
+    divergence (job 1225447) cannot masquerade as (or hide) genuine physics
+    progress in the checkpoint-selection metric."""
+    batch, _rows = _build_batch(
+        state,
+        feature_stats,
+        anchored_stats,
+        batch_size=0,
+        rng=np.random.default_rng(0),
+        device=device,
+        rows=state.held_idx,
+    )
+    with torch.no_grad():
+        out = state.engine.losses(batch)
+        return float(out["magnetics"] + out["anchored"])
+
+
 # --------------------------------------------------------------------------- #
 #  Checkpointing                                                              #
 # --------------------------------------------------------------------------- #
@@ -589,6 +634,22 @@ def _restore_disc(disc, state: dict) -> None:
     disc._epoch = int(state["epoch"])
 
 
+def _lr_lambda(total_steps: int, warmup_frac: float, floor_frac: float):
+    """Warmup-then-cosine LR multiplier (matches train_patch_encoder.py's
+    schedule) -- cheap insurance against a constant, non-decaying LR
+    sustaining a divergence once one starts, per job 1225447's post-mortem."""
+    warmup = max(1, int(warmup_frac * total_steps))
+
+    def fn(step: int) -> float:
+        if step < warmup:
+            return step / warmup
+        prog = (step - warmup) / max(1, total_steps - warmup)
+        cos = 0.5 * (1 + math.cos(math.pi * min(prog, 1.0)))
+        return floor_frac + (1 - floor_frac) * cos
+
+    return fn
+
+
 def main() -> int:  # noqa: PLR0915 — a single-file training driver
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--n-train", type=int, default=1000)
@@ -600,6 +661,25 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
     ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--weight-decay", type=float, default=1e-4)
+    ap.add_argument(
+        "--warmup-frac",
+        type=float,
+        default=0.05,
+        help="LR warmup fraction of --steps before the cosine decay begins",
+    )
+    ap.add_argument(
+        "--lr-floor-frac",
+        type=float,
+        default=0.1,
+        help="LR floor as a fraction of the peak, at the end of the cosine decay",
+    )
+    ap.add_argument(
+        "--held-back-frac",
+        type=float,
+        default=0.02,
+        help="per-campaign fraction of examples NEVER sampled for training, "
+        "reserved for the periodic best-checkpoint physics-misfit check",
+    )
     ap.add_argument("--n-free", type=int, default=16)
     ap.add_argument("--hidden", type=int, default=256)
     ap.add_argument("--depth", type=int, default=4)
@@ -742,7 +822,10 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
         engine = GSGroundedLatentEngine(encoder, basis, transport, weights=weights)
         engines[key] = engine
         cmd_stats = fit_corpus_stats([corp.cmd_t])
-        sample_p = corp.weight / corp.weight.sum()
+        held_idx = _held_back_split(corp.n_examples, args.held_back_frac, rng)
+        weight = corp.weight.copy()
+        weight[held_idx] = 0.0  # held-back rows are NEVER sampled for training
+        sample_p = weight / weight.sum()
         steps_per_epoch = max(1, int(round(corp.n_examples / args.batch_size)))
         # fail loudly on CPU (job 1225426's mismatch was a CUDA device-side
         # assert 37 minutes into a run) -- DiscrepancyLambda's buffer below is
@@ -768,12 +851,22 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
             sample_p=sample_p,
             steps_per_epoch=steps_per_epoch,
             disc=disc,
+            held_idx=held_idx,
+        )
+        logger.info(
+            "signature %s: %d/%d examples held back from training",
+            key,
+            len(held_idx),
+            corp.n_examples,
         )
 
     trainer = CorpusTrainer(
         encoder, engines, lr=args.lr, weight_decay=args.weight_decay
     )
     trainer.to(device)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
+        trainer.optimizer, _lr_lambda(args.steps, args.warmup_frac, args.lr_floor_frac)
+    )
 
     root = (
         Path(args.artifact_root)
@@ -786,8 +879,10 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
     )
     run_dir = root / "checkpoints" / args.run
     run_dir.mkdir(parents=True, exist_ok=True)
-    ckpt_path = run_dir / "grounded_latent_engine.pt"
+    ckpt_path = run_dir / "grounded_latent_engine.pt"  # "latest" -- resume reads this
+    best_path = run_dir / "best.pt"  # lowest held-back physics misfit seen so far
     (run_dir / "config.json").write_text(json.dumps(vars(args), indent=2))
+    best_state = {"misfit": float("inf"), "step": -1}
 
     ckpt_extra = {
         "config": vars(args),
@@ -804,6 +899,7 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
         },
         "per_signature_n_coil": {k: c.n_coil for k, c in corpora.items()},
         "n_examples": {k: c.n_examples for k, c in corpora.items()},
+        "held_back_idx": {k: s.held_idx for k, s in campaign_states.items()},
     }
 
     start_step = 0
@@ -815,7 +911,16 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
         for key, state in campaign_states.items():
             if key in disc_states:
                 _restore_disc(state.disc, disc_states[key])
-        logger.info("resumed from step %d", start_step)
+        if "scheduler" in extra:
+            scheduler.load_state_dict(extra["scheduler"])
+        if "best" in extra:
+            best_state.update(extra["best"])
+        logger.info(
+            "resumed from step %d (best held-back misfit %.4f @ step %d)",
+            start_step,
+            best_state["misfit"],
+            best_state["step"],
+        )
 
     if args.dry_run:
         key, state = next(iter(campaign_states.items()))
@@ -836,13 +941,57 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
 
     signal.signal(signal.SIGTERM, _on_sigterm)
 
-    def _checkpoint(step: int) -> None:
+    def _link_or_copy(src: Path, dst: Path) -> None:
+        """Hard-link ``dst`` to ``src`` (no extra disk space; a later atomic
+        replace of ``src`` cannot affect ``dst``'s already-linked content), or
+        fall back to a plain copy if the filesystem cannot hard-link."""
+        if dst.exists():
+            dst.unlink()
+        try:
+            dst.hardlink_to(src)
+        except OSError:
+            import shutil
+
+            shutil.copy2(src, dst)
+
+    def _checkpoint(step: int) -> float:
+        """Save the "latest" (resume) path + a NUMBERED snapshot, evaluate the
+        held-back physics misfit, and update best.pt if it improved -- job
+        1225447 left only one, already-diverged, overwritten checkpoint behind;
+        this is the fix ("never again leave only a diverged state")."""
+        held_back = {
+            key: _held_back_physics_misfit(state, feature_stats, anchored_stats, device)
+            for key, state in campaign_states.items()
+        }
+        mean_misfit = float(np.mean(list(held_back.values())))
         extra = {
             **ckpt_extra,
             "discrepancy": {k: _disc_state(s.disc) for k, s in campaign_states.items()},
+            "scheduler": scheduler.state_dict(),
+            "held_back_misfit": held_back,
+            "best": best_state,
         }
         trainer.save(ckpt_path, step=step, extra=extra)
-        logger.info("checkpoint saved at step %d -> %s", step, ckpt_path)
+        numbered = run_dir / f"step_{step:06d}.pt"
+        _link_or_copy(ckpt_path, numbered)
+        logger.info(
+            "checkpoint saved at step %d -> %s (held-back misfit %.4f, per-sig %s)",
+            step,
+            numbered,
+            mean_misfit,
+            {k: round(v, 4) for k, v in held_back.items()},
+        )
+        if mean_misfit < best_state["misfit"]:
+            best_state["misfit"] = mean_misfit
+            best_state["step"] = step
+            _link_or_copy(numbered, best_path)
+            logger.info(
+                "new best held-back misfit %.4f @ step %d -> %s",
+                mean_misfit,
+                step,
+                best_path,
+            )
+        return mean_misfit
 
     t0 = time.time()
     for step in range(start_step, args.steps):
@@ -855,6 +1004,7 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
             )
         batch_fns = {key: (lambda b=b: b) for key, (b, _rows) in prebuilt.items()}
         totals = trainer.step(batch_fns)
+        scheduler.step()
 
         for key, (batch, rows) in prebuilt.items():
             state = campaign_states[key]
@@ -865,9 +1015,10 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
         if step % args.log_every == 0:
             elapsed = time.time() - t0
             logger.info(
-                "step %d/%d  totals=%s  (%.1fs elapsed)",
+                "step %d/%d  lr=%.2e  totals=%s  (%.1fs elapsed)",
                 step,
                 args.steps,
+                scheduler.get_last_lr()[0],
                 {k: round(v, 4) for k, v in totals.items()},
                 elapsed,
             )
