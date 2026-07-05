@@ -380,21 +380,48 @@ def main() -> int:
         baseline = json.loads(Path(args.baseline_gate).read_text())
         base_axis_skill = baseline.get("axis_skill")
         this_axis_skill = mean_skill.get("axis_skill")
+        base_median = baseline.get("axis_error_median_m")
+        this_median = mean_skill.get("axis_error_median_m")
+        base_mean = baseline.get("axis_error_mean_m")
+        this_mean = mean_skill.get("axis_error_mean_m")
+        regression = {"baseline_gate": args.baseline_gate}
+
         if base_axis_skill is not None and this_axis_skill is not None:
             delta = float(this_axis_skill) - float(base_axis_skill)
-            regression = {
-                "baseline_gate": args.baseline_gate,
+            regression["rmse_skill"] = {
                 "baseline_axis_skill": float(base_axis_skill),
                 "gaussian_mean_axis_skill": float(this_axis_skill),
                 "delta": delta,
                 "tolerance": args.regression_tolerance,
                 "pass": bool(delta >= -args.regression_tolerance),
+                "caveat": "RMSE-based skill can be dominated by a handful of "
+                "outlier slices — see median_axis_error for a robust read.",
             }
-        else:
+        # median/mean axis error: reported for human judgement, NOT folded
+        # into overall_pass (no established tolerance for it) — the RMSE
+        # skill above can look fine while the median tells a different story
+        # (metre-scale outliers in one run vs a systematically-worse but
+        # outlier-free run in the other are NOT the same failure mode).
+        if base_median is not None and this_median is not None and base_median > 0:
+            regression["median_axis_error"] = {
+                "baseline_median_m": float(base_median),
+                "gaussian_median_m": float(this_median),
+                "ratio": float(this_median) / float(base_median),
+            }
+        if base_mean is not None and this_mean is not None and base_mean > 0:
+            regression["mean_axis_error"] = {
+                "baseline_mean_m": float(base_mean),
+                "gaussian_mean_m": float(this_mean),
+                "ratio": float(this_mean) / float(base_mean),
+            }
+        if len(regression) == 1:  # only baseline_gate — nothing comparable found
+            regression = None
             logger.warning(
-                "baseline-gate or this run missing axis_skill — regression "
-                "check skipped"
+                "baseline-gate or this run missing axis_skill/axis_error_*"
+                " — regression check skipped"
             )
+        else:
+            regression["pass"] = regression.get("rmse_skill", {}).get("pass", True)
 
     # "no-data" (zero observations — e.g. no X-point ever resolved in the
     # held-out cohort) is excluded from the roll-up: it is not evidence of
