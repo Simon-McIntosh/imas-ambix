@@ -507,6 +507,11 @@ def structure_residual_batch(
     the module note above: measured SLOWER on CPU at realistic problem sizes; do
     not switch a training loop to this path without a GPU-side measurement.
     ``connectivity='labels'`` is not supported (see the module note above).
+
+    Batched alternative; measured 1.7-5x slower than the per-example path on
+    CPU at (E=256, n_cells=5084) due to memory-bandwidth-bound 250 MB
+    intermediates; engine.py deliberately uses the per-example loop; retained
+    for a future GPU-kernel evaluation.
     """
     if connectivity == "labels":
         raise ValueError(
