@@ -1141,13 +1141,92 @@ def _encoder_forward(encoder, enc_in, head: str):
 
 
 def _epoch_batches(corpora, batch_size, rng):
-    """List of (sig_key, row_indices) batches; each batch stays within one sig."""
+    """List of (sig_key, row_indices) batches; each batch stays within one sig.
+
+    NATURAL sampling — one full without-replacement pass per signature, so a
+    signature's batch COUNT is proportional to its example count.  This is the
+    ``--sampling-mode natural`` (default) path and is unchanged by the
+    balanced-sampling addition below — every existing run reproduces exactly.
+    """
     batches: list[tuple[str, np.ndarray]] = []
     for key, corp in corpora.items():
         n = corp.values.shape[0]
         order = rng.permutation(n)
         for i in range(0, n, batch_size):
             batches.append((key, order[i : i + batch_size]))
+    rng.shuffle(batches)
+    return batches
+
+
+def _ip_regime_buckets(ip: np.ndarray, n_buckets: int = 3) -> np.ndarray:
+    """Cheap Ip-percentile regime proxy: tercile index (0..n_buckets-1) of
+    ``ip`` within THIS SIGNATURE's own distribution.
+
+    Not a true shot-phase label (ramp-up / flat-top / ramp-down) — neither
+    shot id nor time-since-start is stored per training example in the
+    cached corpus, and adding that would mean a cache-schema/version bump.
+    Low Ip correlates with ramp-up/ramp-down and high Ip with flat-top for a
+    typical MAST discharge, so the Ip tercile is a physically-motivated, zero-
+    extra-cost stand-in computed from a column ``_assemble_shot_examples``
+    already stores.
+    """
+    ip = np.asarray(ip, dtype=np.float64)
+    edges = np.percentile(ip, np.linspace(0, 100, n_buckets + 1))
+    edges[0] -= 1.0
+    edges[-1] += 1.0
+    return np.clip(np.searchsorted(edges, ip, side="right") - 1, 0, n_buckets - 1)
+
+
+def _epoch_batches_balanced(
+    corpora,
+    batch_size: int,
+    rng,
+    *,
+    steps_per_epoch: int,
+    regime_balanced: bool = False,
+) -> list[tuple[str, np.ndarray]]:
+    """Equal step budget per signature per epoch (``--sampling-mode
+    signature-balanced`` / ``regime-balanced``) — the measured lever for the
+    5k-to-full-corpus axis-median regression (patch-equilibrium-wm-integration
+    §3): under NATURAL sampling a dominant signature's batch count scales with
+    its own example count, so the shared trunk's gradient is dominated by
+    whichever signature/regime is largest in the corpus, not by how hard each
+    is to fit. Every signature instead gets ``steps_per_epoch // n_signatures``
+    batches, drawn WITH replacement (a small signature's row pool is far
+    smaller than one epoch's worth of batches under this policy).
+
+    ``regime_balanced=True`` additionally stratifies each batch across
+    :func:`_ip_regime_buckets` terciles within the signature, so a small,
+    under-represented regime (e.g. ramp-up) is no longer swamped by a
+    signature's own dominant regime either.
+    """
+    keys = list(corpora)
+    n_sig = max(1, len(keys))
+    steps_each = max(1, steps_per_epoch // n_sig)
+    batches: list[tuple[str, np.ndarray]] = []
+    for key in keys:
+        corp = corpora[key]
+        n = corp.values.shape[0]
+        bucket_rows: list[np.ndarray] = []
+        if regime_balanced:
+            buckets = _ip_regime_buckets(corp.ip)
+            bucket_rows = [
+                np.flatnonzero(buckets == b) for b in range(int(buckets.max()) + 1)
+            ]
+            bucket_rows = [b for b in bucket_rows if b.size]
+        for _ in range(steps_each):
+            if bucket_rows:
+                per_bucket = max(1, batch_size // len(bucket_rows))
+                rows = np.concatenate(
+                    [rng.choice(b, size=per_bucket, replace=True) for b in bucket_rows]
+                )
+                if rows.size < batch_size:
+                    pad = rng.integers(0, n, size=batch_size - rows.size)
+                    rows = np.concatenate([rows, pad])
+                rows = rows[:batch_size]
+            else:
+                rows = rng.integers(0, n, size=batch_size)
+            batches.append((key, rows))
     rng.shuffle(batches)
     return batches
 
@@ -1369,6 +1448,19 @@ def main() -> int:
         "satisfying no-mean-regression by construction; also forces "
         "dropout to 0 so the frozen mean is train/eval-identical",
     )
+    ap.add_argument(
+        "--sampling-mode",
+        type=str,
+        default="natural",
+        choices=("natural", "signature-balanced", "regime-balanced"),
+        help="natural (default): batch count per signature scales with its "
+        "own example count — byte-identical to every existing run. "
+        "signature-balanced: every signature gets an equal batch budget per "
+        "epoch (with-replacement). regime-balanced: signature-balanced PLUS "
+        "each batch is stratified across Ip-tercile buckets within its "
+        "signature (see _ip_regime_buckets) — the measured lever for the "
+        "5k-to-full-corpus axis-median regression.",
+    )
     args = ap.parse_args()
 
     if args.freeze_mean and args.head != "gaussian-direct":
@@ -1515,7 +1607,8 @@ def main() -> int:
         lr=args.lr,
         weight_decay=args.weight_decay,
     )
-    total_steps = max(1, args.epochs * math.ceil(n_total / args.batch_size))
+    steps_per_epoch = math.ceil(n_total / args.batch_size)
+    total_steps = max(1, args.epochs * steps_per_epoch)
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer, _lr_lambda(total_steps, args.warmup_frac, args.lr_floor_frac)
     )
@@ -1635,7 +1728,16 @@ def main() -> int:
         if stop["flag"]:
             break
         encoder.train()
-        batches = _epoch_batches(corpora, args.batch_size, rng)
+        if args.sampling_mode == "natural":
+            batches = _epoch_batches(corpora, args.batch_size, rng)
+        else:
+            batches = _epoch_batches_balanced(
+                corpora,
+                args.batch_size,
+                rng,
+                steps_per_epoch=steps_per_epoch,
+                regime_balanced=(args.sampling_mode == "regime-balanced"),
+            )
         for key, rows in batches:
             if stop["flag"]:
                 break

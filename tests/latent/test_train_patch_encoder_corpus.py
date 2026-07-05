@@ -547,3 +547,97 @@ def test_bind_signature_shares_trunk_across_two_signatures():
     lam_b = disc.get(torch.as_tensor(corp_b.ids))
     assert lam_a.shape == (6,)
     assert lam_b.shape == (4,)
+
+
+# --------------------------------------------------------------------------- #
+#  Balanced sampling (signature-balanced / regime-balanced)                    #
+# --------------------------------------------------------------------------- #
+def test_ip_regime_buckets_splits_into_roughly_equal_terciles():
+    rng = np.random.default_rng(0)
+    ip = rng.uniform(1e5, 1e6, 3000)
+    buckets = tpe._ip_regime_buckets(ip, n_buckets=3)
+    assert set(np.unique(buckets)) == {0, 1, 2}
+    counts = np.bincount(buckets, minlength=3)
+    # terciles of a uniform sample land close to 1000 each
+    assert all(900 < c < 1100 for c in counts)
+    # bucket index tracks the Ip ORDERING (0 = lowest Ip tercile)
+    assert ip[buckets == 0].mean() < ip[buckets == 1].mean() < ip[buckets == 2].mean()
+
+
+def test_ip_regime_buckets_degenerate_constant_ip_falls_back_gracefully():
+    """All-identical Ip (a degenerate/tiny corpus) must not crash — every row
+    collapses into one bucket rather than raising."""
+    ip = np.full(20, 5e5)
+    buckets = tpe._ip_regime_buckets(ip, n_buckets=3)
+    assert buckets.shape == (20,)
+    assert np.all(np.isfinite(buckets))
+
+
+def test_epoch_batches_balanced_gives_equal_step_budget_per_signature():
+    """signature-balanced: every signature gets steps_per_epoch // n_sig
+    batches per epoch, REGARDLESS of its own example count — the fix for
+    natural sampling's batch-count-proportional-to-corpus-size behaviour."""
+    rng = np.random.default_rng(0)
+    corp_small = _make_signature_corpus(5, "feed8001", n_examples=8, seed=1)
+    corp_big = _make_signature_corpus(5, "feed8002", n_examples=400, seed=2)
+    corpora = {corp_small.key: corp_small, corp_big.key: corp_big}
+
+    batches = tpe._epoch_batches_balanced(
+        corpora, batch_size=16, rng=rng, steps_per_epoch=40
+    )
+    from collections import Counter
+
+    counts = Counter(key for key, _rows in batches)
+    assert counts[corp_small.key] == counts[corp_big.key] == 20  # 40 // 2 sigs
+    # the small signature's batches draw WITH replacement (its 8 examples
+    # can't cover 20 batches of 16 rows without-replacement)
+    for key, rows in batches:
+        if key == corp_small.key:
+            assert rows.max() < corp_small.values.shape[0]
+            assert len(rows) == 16
+
+
+def test_epoch_batches_balanced_regime_stratifies_within_signature():
+    """regime-balanced: each batch draws from EVERY Ip tercile of its own
+    signature, not just whichever tercile dominates that signature's corpus."""
+    seed_rng = np.random.default_rng(9)
+    rng = np.random.default_rng(0)
+    corp = _make_signature_corpus(5, "feed8003", n_examples=300, seed=3)
+    # skewed but CONTINUOUS Ip distribution: 90% low-Ip, 10% high-Ip (mimics a
+    # signature dominated by one regime, as fc938 dominates the full corpus) —
+    # real Ip values are never bit-identical, so use narrow Gaussian clusters
+    # rather than exactly-repeated constants (which degenerately collapse the
+    # percentile edges and defeat stratification for a reason unrelated to
+    # the code under test).
+    corp.ip = np.concatenate(
+        [
+            seed_rng.normal(3.1e5, 5e3, 270),
+            seed_rng.normal(1.2e6, 5e3, 30),
+        ]
+    )
+    corpora = {corp.key: corp}
+
+    batches = tpe._epoch_batches_balanced(
+        corpora, batch_size=30, rng=rng, steps_per_epoch=10, regime_balanced=True
+    )
+    buckets = tpe._ip_regime_buckets(corp.ip)
+    for _key, rows in batches:
+        drawn_buckets = set(buckets[rows])
+        # a batch drawing only from the dominant regime would be a single
+        # bucket; stratification must pull in more than one
+        assert len(drawn_buckets) > 1
+
+
+def test_epoch_batches_balanced_deterministic_given_seed():
+    """Same rng seed -> identical batch plan (no hidden global state)."""
+    corp = _make_signature_corpus(5, "feed8004", n_examples=50, seed=4)
+    corpora = {corp.key: corp}
+    b1 = tpe._epoch_batches_balanced(
+        corpora, batch_size=8, rng=np.random.default_rng(7), steps_per_epoch=6
+    )
+    b2 = tpe._epoch_batches_balanced(
+        corpora, batch_size=8, rng=np.random.default_rng(7), steps_per_epoch=6
+    )
+    for (k1, r1), (k2, r2) in zip(b1, b2, strict=True):
+        assert k1 == k2
+        np.testing.assert_array_equal(r1, r2)
