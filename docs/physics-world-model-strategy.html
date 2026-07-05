@@ -122,6 +122,55 @@
 
     <p>This refinement supersedes nothing already locked — it sharpens §1's "structured to extrapolate to ITER," promotes §6's invariant-coordinate aspiration to a v0 design constraint, and reaffirms the <code>camera-role</code> lock. The staged plan (§9) is superseded as the <em>active</em> sequence by a new ground-up redesign (brainstorm in progress, 2026-06-24); §§1–9 below remain the durable rationale and the record of Stages 1–3.</p>
 
+    <h2 id="s1b">§1b — The equilibrium north star + the layered-capability stack (2026-07-05)</h2>
+    <p><em>Added after the patch-current equilibrium layer shipped and its integration into the world model landed. This section names the concrete ambition for the equilibrium organ and the layered architecture the rest of the project stacks on it. It sharpens §1a; it supersedes nothing locked.</em></p>
+
+    <h3 id="s1b-gencast">Beat EFIT the way GenCast beat ECMWF — match, then exceed</h3>
+    <p>The equilibrium north star is now stated as a concrete, falsifiable ambition: <strong>beat EFIT on the X-point, the plasma boundary, and the limited↔diverted topology class — first match, then exceed.</strong> The template is <strong>GenCast</strong> (<em>Nature</em>, 2025), which beat the ECMWF ensemble on ~97% of forecast targets <em>not</em> by being a better deterministic solver but by being a better <strong>probabilistic model of the state</strong> — generative, multimodal, dynamics-aware, uncertainty-carrying. EFIT is a per-slice deterministic point solve on magnetics + a fixed current-profile parametrisation, returning a single answer with no honest uncertainty at the finely-judged transition. Our route to exceeding it uses exactly the moves EFIT structurally cannot make: fuse interior diagnostics (MSE / interferometer / SXR) that see the interior current magnetics cannot; a corpus-trained <em>generative prior</em> over the manifold of plausible equilibria that picks the physical X-point over a spurious ψ-saddle; temporal coherence over the smooth limited→diverted sweep; and a <em>calibrated</em> limited/diverted probability where EFIT gives a coin-flip. <strong>EFIT stays firewalled</strong> — a referee that only judges our readouts, never an input or a training label. The honest current state: the magnetic <strong>axis is solved</strong> (referee-grade — patch-current inverse 2.8 cm median, 160/160 held-out; flux-map axis 2.4 cm flat-top), while the <strong>X-point and boundary are the open frontier</strong> (honest negatives, LCFS skill ≈ −6, boundary under-sized 34–37 cm, measured to be interior-current-null-space, not a readout artifact). That frontier is owned by the new plan <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>.</p>
+
+    <h3 id="s1b-layers">The layered-capability stack: a physics skeleton the higher layers inherit</h3>
+    <p>The architecture is a stack, and the load-bearing insight is that <strong>the physics skeleton at the base keeps every layer above it physical</strong>. This is why the equilibrium work is foundational rather than a side-quest:</p>
+    <ul>
+      <li><strong>Layer 0 — the robust physics / GS skeleton.</strong> The patch-current equilibrium latent shipped this session (<a href="/imas-ambix/patch-current-force-balance.html">patch-current-force-balance</a> → <a href="/imas-ambix/patch-equilibrium-wm-integration.html">patch-equilibrium-wm-integration</a>): exact linear Maxwell physics precomputed into interaction matrices (694k slices/s on an H200), force balance as a soft differentiable residual, per-bin closures (a<sub>k</sub>=p′, b<sub>k</sub>=FF′/μ₀, F²≥0 on 160/160) recovered from data, everything label-free. It grounds a learned latent on <em>real</em> magnetics (GS residual 12.15→2.29 = 5.3× held-out) and transfers across an unseen coil-set signature without retraining (cross-signature grounding 5.54×). This is the equilibrium organ of the world model.</li>
+      <li><strong>Layer 1 — forward decoders hang off the skeleton and inherit its grounding.</strong> Camera-video generation and virtual diagnostics decode <em>from the physically-constrained state</em>, not from a free latent. A dream frame is rendered from a ψ that explains the raw magnetics and obeys force balance — so it is <strong>anchored, not hallucinated</strong>. This is the structural answer to the camera direction's collapse (§2/§11): the camera becomes a decode head on a grounded state, and the grounding is what a bare generative video model never had.</li>
+      <li><strong>Layer 2 — long-horizon steerable dreams roll the grounded latent under a plan.</strong> Forecasting and controllable what-ifs advance the same physics-anchored latent forward under the actuator plan, with the transport/irreversibility priors keeping the roll physical and the ensemble spread inflating uncertainty honestly. Controllability rides the identifiable chain plan → I<sub>p</sub> → magnetics → ψ → boundary inside this latent (§1a), and the skeleton stops the long roll from drifting off the equilibrium manifold.</li>
+    </ul>
+    <p>The through-line: <strong>a dream is only as trustworthy as the state it is rendered from.</strong> Layer 0 makes that state physical; Layers 1 and 2 inherit it. Investing in the equilibrium skeleton — and specifically in closing its X-point/topology frontier — is therefore an investment in every capability above it, which is why the equilibrium north star (match-then-exceed EFIT) is the load-bearing near-term objective.</p>
+
+    <figure class="r-fig" style="margin:1rem 0">
+      <svg viewBox="0 0 900 300" width="100%" role="img" aria-label="The layered-capability stack: a robust Grad-Shafranov physics skeleton at the base (Layer 0), forward decoders for camera video and virtual diagnostics inheriting its grounding (Layer 1), and long-horizon steerable dreams rolling the grounded latent under a plan (Layer 2); the skeleton keeps every higher layer physical" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+        <defs><marker id="lc-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6b80"/></marker></defs>
+        <rect x="120" y="24" width="620" height="66" rx="6" fill="#f6f8fb" stroke="#8a94a6" stroke-width="1"/>
+        <text x="136" y="46" style="font:700 12.5px system-ui;fill:#1a1a1a">Layer 2 — long-horizon steerable dreams</text>
+        <text x="136" y="66" style="font:11px system-ui;fill:#3a3a3a">roll the grounded latent forward under a PLAN; transport priors keep the roll physical;</text>
+        <text x="136" y="81" style="font:11px system-ui;fill:#3a3a3a">uncertainty inflates honestly — controllability on plan → Ip → magnetics → ψ → boundary</text>
+
+        <rect x="120" y="104" width="620" height="66" rx="6" fill="#f6f8fb" stroke="#8a94a6" stroke-width="1"/>
+        <text x="136" y="126" style="font:700 12.5px system-ui;fill:#1a1a1a">Layer 1 — forward decoders inherit the grounding</text>
+        <text x="136" y="146" style="font:11px system-ui;fill:#3a3a3a">camera-video generation + virtual diagnostics decode FROM the physically-constrained state —</text>
+        <text x="136" y="161" style="font:11px system-ui;fill:#3a3a3a">rendered from a force-balanced ψ that explains raw magnetics, so anchored, NOT hallucinated</text>
+
+        <rect x="120" y="184" width="620" height="72" rx="6" fill="#eef7f0" stroke="#2e7d32" stroke-width="1.6"/>
+        <text x="136" y="207" style="font:700 12.5px system-ui;fill:#1b5e20">Layer 0 — robust physics / GS skeleton (SHIPPED)</text>
+        <text x="136" y="227" style="font:11px system-ui;fill:#1a1a1a">patch-current equilibrium latent: exact Maxwell G·I (694k slices/s), soft force-balance residual,</text>
+        <text x="136" y="242" style="font:11px system-ui;fill:#1a1a1a">data-recovered closures (F²≥0 160/160), label-free grounding 5.3× — axis referee-grade, X-point open</text>
+
+        <line x1="430" y1="184" x2="430" y2="172" stroke="#5b6b80" stroke-width="1.4" marker-end="url(#lc-a)"/>
+        <line x1="430" y1="104" x2="430" y2="92" stroke="#5b6b80" stroke-width="1.4" marker-end="url(#lc-a)"/>
+        <text x="16" y="140" style="font:700 11px system-ui;fill:#1b5e20" transform="rotate(-90 16 140)" text-anchor="middle">the skeleton keeps every layer physical</text>
+        <line x1="104" y1="256" x2="104" y2="24" stroke="#2e7d32" stroke-width="1.6"/>
+        <line x1="104" y1="24" x2="112" y2="24" stroke="#2e7d32" stroke-width="1.6"/>
+        <line x1="104" y1="256" x2="112" y2="256" stroke="#2e7d32" stroke-width="1.6"/>
+        <text x="770" y="200" style="font:11px system-ui;fill:#3a3a3a" transform="rotate(-90 770 200)" text-anchor="middle">grounding inherited upward</text>
+      </svg>
+      <figcaption style="font-size:12.5px;color:#444">Figure 0b — The layered-capability stack. Layer 0 (green, shipped) is the Grad-Shafranov physics
+      skeleton — the patch-current equilibrium latent. Layer 1 hangs forward decoders (camera video, virtual
+      diagnostics) off it, so dreams are rendered from a force-balanced state rather than hallucinated. Layer 2
+      rolls the grounded latent under a plan for long-horizon steerable dreams. The base skeleton keeps every
+      higher layer physical — which is why closing the equilibrium X-point/topology frontier is the
+      load-bearing near-term objective.</figcaption>
+    </figure>
+
     <h2 id="s2">§2 — Why a "world model": it is a learned state-space model</h2>
     <p>The unifying identity: an ML world model — encoder → latent state → learned transition → observation model — <em>is</em> a learned nonlinear state-space model. That single object subsumes the three threads we care about:</p>
     <ul>
