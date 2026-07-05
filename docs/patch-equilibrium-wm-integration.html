@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-05">
-<meta name="plan-version" content="13">
-<meta name="plan-impl" content="0.78">
+<meta name="plan-version" content="14">
+<meta name="plan-impl" content="0.89">
 </head>
 <body>
   <main class="plan-doc">
@@ -241,13 +241,26 @@
       stay green. Bonus fix: <code>PatchBasis._apply</code> renamed <code>_superpose</code> (shadowed
       <code>nn.Module._apply</code>, broke every <code>.to()/.double()</code> on a containing module).
       Gate B1's grounding-≥5.53× number is measured by B2's training run (no trained checkpoint yet by design).</p>
-    <p><strong>B2 — Measure f-malwm-02 done-when #2 properly.</strong> The stage-2 bar (“GS-readout
-      axis/X-point/boundary skill matches the absolute-magnetics oracle ~0.5–0.7”) has never been measured on
-      the plan's actual design — a learned hybrid latent trained on the corpus. With B1 the readout is the
-      patch-ψ topology read.
-      <br><strong>Gate B2:</strong> per-quantity skills on held-out reported against the 0.5–0.7 bar;
-      whatever the number, it closes the measurement debt recorded on
-      machine-agnostic-latent-world-model f-malwm-02 and gs-grounded-latent-engine f-ggl-02.</p>
+    <p><strong>B2 — Measure f-malwm-02 done-when #2 properly.</strong>
+      <span class="badge badge-shipped">✓ measured 2026-07-05 — first end-to-end learned-latent gate; honest FAIL</span></p>
+    <p class="landed-summary">
+      The 0.5–0.7 oracle bar has now been measured on the plan's actual design for the first time — a learned
+      hybrid latent trained end-to-end on the corpus, ψ carried on patch currents, topology read from the
+      assembled field (job 1225475, 20k steps, best-by-physics-only-held-back checkpoint; artifact
+      <code>gate_n1000_closureoff_final.json</code>). <strong>Result: FAIL</strong> — axis skill −7.12 @
+      <strong>49 cm</strong> median, X-point −1.16, LCFS −10.9, <code>meets_oracle_bar: False</code>;
+      grounding 5.84× clears the 5.53× bar (fits the magnetics) and the temporal anchors PASS (D≥0 +
+      command-load-bearing on all three signatures — the §7a transport prior works). <strong>The reading:</strong>
+      this ran at n=1000, one-fifth the 5,000-shot data of the 4.3 cm amortized encoder, and the encoder itself
+      was 9.6 cm at 2k / 28 cm at 588 — so part is data-scale, but 49 cm is worse than the encoder at any measured
+      scale while grounding is fine, the SAME null-space signature (magnetics fit tightens, axis does not follow)
+      seen in the full-corpus encoder and the balanced-sampling negative. Verdict: the heavy hybrid-latent
+      <em>engine</em> does NOT beat the lean purpose-built <em>encoder</em> at equilibrium placement; the engine's
+      value is its temporal/latent machinery (transport anchors load-bearing), while the stage-2 equilibrium
+      readout of record stays the amortized encoder (4.3 cm). This CLOSES the measurement debt on
+      machine-agnostic-latent-world-model f-malwm-02 / gs-grounded-latent-engine f-ggl-02 (whatever the number),
+      and the path to the 0.5–0.7 bar is the <strong>equilibrium-topology-fidelity</strong> plan (externally-well-posed
+      boundary + interior diagnostics), not more engine training on magnetics alone.</p>
     <p><strong>B3 — Closures as dimensionless latent coordinates.</strong> The per-bin (a<sub>k</sub>, b<sub>k</sub>)
       profiles (with uncertainties) are machine-portable physics coordinates. Feed them as auxiliary
       latent content/readout targets — the concrete realisation of the open
