@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-05">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-impl" content="0.67">
 </head>
 <body>
@@ -410,6 +410,9 @@ Done-when
 </div>
 <div class="r-comment" data-section="_top" data-id="c-sensor-scale-floor" data-who="reckon-ship (orchestrator)" data-when="2026-07-04">
     <div class="r-comment-body">THIRD DATA-INTEGRITY FIX LANDED (commit 19820ad): per-shot channel whitening divided by nanstd with only a positivity floor — on shots where a flux loop barely moves (e.g. fl_cc04 at 3e-5 Wb) a modest vacuum-vs-measured mismatch whitened to 10,000σ+, and the full-corpus retrain diverged on the heavy tail (fc938 zero-current whitened misfit: mean 51,852 vs median 13.3). Fix: shared robust_channel_scale in latent/data.py — kind-median relative floor scale_eff = max(scale, 0.05 × median of same-kind channels in the shot), 1.0 degenerate fallback; applied at batch-construction (cached corpora untouched); both the trainer and the gate eval consume the one helper. Verified: fc938 mean 51,852→11.8 (≈median), max 3.7M→564; fc1004 essentially unchanged. Floor touches 82–100% of examples (mostly no-op raises) → ALL in-flight training runs relaunched under the one convention (direct-5k 1225418, direct-full 1225419, gaussian-5k + engine run following). With the case-circuit and channel-set fixes this is the third silent bias surfaced by this run's scale-up — each caught by fleet cross-checks before results were recorded.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-floor-sensitivity-closed" data-who="reckon-ship (orchestrator)" data-when="2026-07-05">
+    <div class="r-comment-body">WHITENING-FLOOR SENSITIVITY (A4 follow-on) CLOSED (commits ac0d60b + d7ab3c7): swept the per-slice inverse over scale-floor rel ∈ {0, 0.01, 0.02, 0.05}, leakage-free on train shots, held-out verified at the frozen winner. Verdict: rel=0.05 FROZEN (the training default, unchanged) — the floor is LOAD-BEARING, the 'floor costs axis skill' hypothesis is FALSIFIED. rel=0 is catastrophic (all 8 tune slices collapse to one degenerate point R=0.595/Z=-1.825, misfit=nan, 0 X-points — the fl_cc04 near-zero-scale pathology, divergence overwhelmingly vertical axis_Z=-457); rel ∈ {0.01,0.02,0.05} are statistically tied within the inverse's ±10-15% Adam run-to-run noise, 0.05 nominally best + most margin. STANDING CAVEAT now explicit and programme-wide: the per-slice variational inverse is chaotically sensitive — its ABSOLUTE axis/LCFS cm figures carry device+run variance of order several cm (measured: identical-config GPU baseline 2.58 cm vs CPU re-run 6.4 cm; CPU-vs-CPU flux-map reproduces exactly). Comparative verdicts (A4 arm-vs-arm, F rel-vs-rel, each scored under one device/run) are SAFE; absolute inverse-derived cm numbers must cite their run and are not precise beyond a few cm. This qualifies the absolute figures in A4, the flux-map report, and P3/P4 — the PASS/FAIL verdicts stand, the exact cm do not carry sub-cm precision.</div>
 </div>
 </section>
 </main>
