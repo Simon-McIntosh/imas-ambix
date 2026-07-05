@@ -284,6 +284,254 @@ def _solve_bins(w: torch.Tensor, x: torch.Tensor, y: torch.Tensor):
 
 
 # --------------------------------------------------------------------------
+# examples-batched form — vectorises the OUTER (per-slice) axis that
+# imas_ambix/latent/engine.py otherwise walks with an explicit Python
+# ``for k in range(batch_size)`` loop (the profiled bottleneck behind job
+# 1225447/1225475: 41% GPU util / 99.4% of one CPU core).  The per-bin math
+# above was already batched, but only within ONE example at a time --
+# ``_normal_equations`` bakes in a single shared ``y`` across every row it
+# solves (true within one example: every psi-bin of that example shares the
+# same jphi-derived response); across examples ``y`` genuinely differs, so
+# the functions below add an explicit leading ``E`` (examples) axis and
+# contract it with ``einsum`` instead of a plain matvec.
+#
+# PURELY ADDITIVE: no function above is modified; every existing caller
+# (scripts/patch_gate_eval.py, imas_ambix/latent/patch_encoder.py,
+# imas_ambix/latent/patch_inverse.py) is untouched.
+#
+# MEASURED, NOT ASSUMED: on CPU at the real problem size (n_cells~5000,
+# batch_size=256) this is 1.7x-5x SLOWER than the per-example loop, not
+# faster -- the (E, n_bins, N) intermediates are large enough (~250MB each)
+# to be memory-bandwidth-bound rather than benefiting from the removed
+# Python-loop overhead.  Whether GPU's very different kernel-launch-overhead
+# balance changes that verdict is untested (open question, see the plan/
+# report) -- do not switch engine.py to this path without a GPU-side
+# step-time measurement confirming a real win, per the CPU finding above.
+#
+# ``connectivity="labels"`` is NOT supported here: it expands each example
+# to a per-example, data-dependent row count, which is incompatible with a
+# fixed-shape batch. Call the per-example structure_residual for that arm.
+# --------------------------------------------------------------------------
+
+
+def _design_batch(form: str, r_c: torch.Tensor, jphi_c: torch.Tensor):
+    """Batched analogue of :func:`_design`: ``x`` is SHARED across examples
+    (it depends only on ``r_c``); ``y`` is per-example, shape ``(E, N)``."""
+    if form == "affine-r2":
+        x = torch.stack([r_c * r_c, torch.ones_like(r_c)], dim=-1)  # (N, 2)
+        y = r_c[None, :] * jphi_c
+    elif form == "affine-r2-rotation":
+        r2 = r_c * r_c
+        x = torch.stack([r2, torch.ones_like(r_c), r2 * r2], dim=-1)  # (N, 3)
+        y = r_c[None, :] * jphi_c
+    elif form == "jphi":
+        x = torch.stack([r_c, 1.0 / r_c], dim=-1)  # (N, 2)
+        y = jphi_c
+    else:
+        raise ValueError(f"unknown structure-residual form: {form!r} (use {_FORMS})")
+    return x, y
+
+
+def _bin_grid_batch(
+    psi_c: torch.Tensor, w_amp: torch.Tensor, n_bins: int, bandwidth_bins: float
+):
+    """Batched analogue of :func:`_bin_grid`: per-example bin centres ``mu``
+    ``(E, n_bins)`` and bandwidth ``h`` ``(E,)``, still detached (auxiliary
+    geometry, not differentiated through)."""
+    with torch.no_grad():
+        mean = (w_amp * psi_c).sum(-1)  # (E,)
+        std = torch.sqrt((w_amp * (psi_c - mean[:, None]) ** 2).sum(-1)).clamp_min(
+            1e-12
+        )
+        lo, hi = mean - 2.5 * std, mean + 2.5 * std  # (E,)
+        frac = torch.linspace(0.0, 1.0, n_bins, dtype=psi_c.dtype, device=psi_c.device)
+        mu = lo[:, None] + frac[None, :] * (hi - lo)[:, None]  # (E, n_bins)
+        h = bandwidth_bins * (hi - lo) / n_bins  # (E,)
+    return mu, h
+
+
+def _bin_kernels_batch(
+    psi_c: torch.Tensor,
+    w_amp: torch.Tensor,
+    n_bins: int,
+    bandwidth_bins: float,
+    bin_grid: tuple[torch.Tensor, torch.Tensor] | None = None,
+):
+    """Batched analogue of :func:`_bin_kernels`: ``(E, n_bins, N)`` weights."""
+    if bin_grid is None:
+        mu, h = _bin_grid_batch(psi_c, w_amp, n_bins, bandwidth_bins)
+    else:
+        mu, h = bin_grid
+    kern = torch.exp(
+        -0.5 * ((psi_c[:, None, :] - mu[:, :, None]) / h[:, None, None]) ** 2
+    )
+    w0 = kern * w_amp[:, None, :]  # (E, n_bins, N)
+    return w0, mu, h
+
+
+def _locality_factor_batch(
+    w0: torch.Tensor,
+    r_c: torch.Tensor,
+    z_c: torch.Tensor,
+    locality_scale: float | None,
+):
+    """Batched analogue of :func:`_locality_factor`: ``(E, n_bins, N)``.
+
+    The per-example ``rms[good].median()`` boolean-index in the original is
+    replaced by a NaN-masked :func:`torch.nanmedian` (fixed shape across the
+    batch) with a per-example fallback to the unmasked median when every bin
+    of that example is "bad" (mirroring the original's ``if good.any() else``
+    branch without a Python-level per-example conditional -- this is also
+    what makes the per-example form incompatible with ``torch.vmap``).
+    """
+    with torch.no_grad():
+        mass = w0.sum(-1).clamp_min(1e-30)  # (E, n_bins)
+        r_k = (w0 * r_c[None, None, :]).sum(-1) / mass  # (E, n_bins)
+        z_k = (w0 * z_c[None, None, :]).sum(-1) / mass
+        d2 = (r_c[None, None, :] - r_k[..., None]) ** 2 + (
+            z_c[None, None, :] - z_k[..., None]
+        ) ** 2  # (E, n_bins, N)
+        if locality_scale is None:
+            rms = torch.sqrt((w0 * d2).sum(-1) / mass).clamp_min(1e-6)  # (E, n_bins)
+            total = w0.sum(dim=(-2, -1)).clamp_min(1e-30)  # (E,)
+            good = w0.sum(-1) > 1e-12 * total[:, None]  # (E, n_bins)
+            rms_masked = torch.where(good, rms, torch.full_like(rms, float("nan")))
+            med = torch.nanmedian(rms_masked, dim=-1).values  # (E,)
+            fallback = rms.median(dim=-1).values
+            med = torch.where(torch.isnan(med), fallback, med)
+            scale = 2.0 * med  # (E,)
+        else:
+            scale = torch.full(
+                (w0.shape[0],), float(locality_scale), dtype=w0.dtype, device=w0.device
+            )
+        loc = torch.exp(-0.5 * d2 / (scale[:, None, None] ** 2))  # (E, n_bins, N)
+    return loc
+
+
+def _binned_weights_batch(
+    psi_c: torch.Tensor,
+    r_c: torch.Tensor,
+    jphi_c: torch.Tensor,
+    *,
+    n_bins: int,
+    bandwidth_bins: float,
+    z_c: torch.Tensor | None,
+    connectivity: str | None,
+    locality_scale: float | None,
+    bin_grid: tuple[torch.Tensor, torch.Tensor] | None = None,
+):
+    """Batched analogue of :func:`_binned_weights`.  Returns ``(valid, w, mu)``
+    where ``valid`` ``(E,)`` marks examples with positive current-weight (a
+    current-free example gets an all-zero weight row rather than the
+    early-return ``None`` the per-example form uses, so the caller can zero
+    ITS residual out with a fixed-shape ``torch.where`` instead)."""
+    w_amp = jphi_c * jphi_c  # (E, N)
+    total = w_amp.sum(-1)  # (E,)
+    valid = total > 0.0
+    w_amp = w_amp / total.clamp_min(1e-30)[:, None]
+    w0, mu, _ = _bin_kernels_batch(
+        psi_c, w_amp, n_bins, bandwidth_bins, bin_grid=bin_grid
+    )
+    if connectivity is None:
+        return valid, w0, mu
+    if connectivity == "locality":
+        if z_c is None:
+            raise ValueError("connectivity='locality' requires z_c")
+        return valid, w0 * _locality_factor_batch(w0, r_c, z_c, locality_scale), mu
+    raise ValueError(
+        f"unknown connectivity for the examples-batched form: {connectivity!r} "
+        "(use None or 'locality' -- 'labels' has a per-example row count and "
+        "must use the per-example structure_residual/fit_flux_functions)"
+    )
+
+
+def _normal_equations_batch(w: torch.Tensor, x: torch.Tensor, y: torch.Tensor):
+    """Batched analogue of :func:`_normal_equations`.
+
+    ``w``: ``(E, R, N)`` (E examples, R rows-per-example — e.g. bins), ``x``:
+    ``(N, K)`` (SHARED across E and R), ``y``: ``(E, N)`` (per-example, unlike
+    the per-example form's single shared vector).  Returns ``(E, R, K, K)``,
+    ``(E, R, K)``.
+    """
+    cols = [x[:, i] for i in range(x.shape[-1])]  # K length-N columns, shared
+    k = len(cols)
+    gram = [[None] * k for _ in range(k)]
+    for i in range(k):
+        for j in range(i, k):
+            gij = torch.einsum("ern,n->er", w, cols[i] * cols[j])  # (E, R)
+            gram[i][j] = gij
+            gram[j][i] = gij
+    m = torch.stack([torch.stack(row, -1) for row in gram], -2)  # (E, R, K, K)
+    c = torch.stack(
+        [torch.einsum("ern,en->er", w, cols[i][None, :] * y) for i in range(k)], -1
+    )  # (E, R, K)
+    return m, c
+
+
+def _ridge_batch(m: torch.Tensor) -> torch.Tensor:
+    """Batched analogue of :func:`_ridge` (arbitrary leading batch dims via
+    ``...`` rather than the per-example form's fixed single leading dim)."""
+    k = m.shape[-1]
+    eye = torch.eye(k, dtype=m.dtype, device=m.device)
+    r = _RIDGE * m.diagonal(dim1=-2, dim2=-1).mean(-1).clamp_min(1e-30)
+    return m + r[..., None, None] * eye
+
+
+def _solve_bins_batch(w: torch.Tensor, x: torch.Tensor, y: torch.Tensor):
+    """Batched analogue of :func:`_solve_bins`.  ``w``: ``(E, R, N)``, ``x``:
+    ``(N, K)``, ``y``: ``(E, N)`` -> ``beta`` ``(E, R, K)``, ``fit`` ``(E, R, N)``."""
+    m, c = _normal_equations_batch(w, x, y)
+    beta = torch.linalg.solve(_ridge_batch(m), c)  # (E, R, K)
+    fit = torch.einsum("erk,nk->ern", beta, x)  # (E, R, N)
+    return beta, fit
+
+
+def structure_residual_batch(
+    psi_c: torch.Tensor,
+    r_c: torch.Tensor,
+    jphi_c: torch.Tensor,
+    *,
+    n_bins: int = 24,
+    bandwidth_bins: float = 1.0,
+    form: str = "affine-r2",
+    z_c: torch.Tensor | None = None,
+    connectivity: str | None = None,
+    locality_scale: float | None = None,
+    bin_grid: tuple[torch.Tensor, torch.Tensor] | None = None,
+) -> torch.Tensor:
+    """Examples-batched :func:`structure_residual`: ``psi_c``/``jphi_c`` are
+    ``(E, N)`` (``r_c``/``z_c`` stay ``(N,)``, shared campaign geometry);
+    returns ``(E,)``.  Numerically IDENTICAL to calling :func:`structure_residual`
+    once per example (``tests/latent/test_structure_residual_batch.py`` pins the
+    exact-equivalence check) -- this is a vectorisation, not a new formula.  See
+    the module note above: measured SLOWER on CPU at realistic problem sizes; do
+    not switch a training loop to this path without a GPU-side measurement.
+    ``connectivity='labels'`` is not supported (see the module note above).
+    """
+    if connectivity == "labels":
+        raise ValueError(
+            "structure_residual_batch does not support connectivity='labels' "
+            "(ragged per-example row count) -- call structure_residual per example"
+        )
+    valid, w, _mu = _binned_weights_batch(
+        psi_c,
+        r_c,
+        jphi_c,
+        n_bins=n_bins,
+        bandwidth_bins=bandwidth_bins,
+        z_c=z_c,
+        connectivity=connectivity,
+        locality_scale=locality_scale,
+        bin_grid=bin_grid,
+    )
+    x, y = _design_batch(form, r_c, jphi_c)  # x: (N, K), y: (E, N)
+    _, fit = _solve_bins_batch(w, x, y)  # fit: (E, R, N)
+    num = (w * (y[:, None, :] - fit) ** 2).sum(dim=(-2, -1))  # (E,)
+    den = (w * (y[:, None, :] ** 2)).sum(dim=(-2, -1)).clamp_min(1e-30)  # (E,)
+    return torch.where(valid, num / den, torch.zeros_like(num))
+
+
+# --------------------------------------------------------------------------
 # the residual
 # --------------------------------------------------------------------------
 
@@ -597,4 +845,5 @@ __all__ = [
     "fit_flux_functions",
     "integrate_closures",
     "structure_residual",
+    "structure_residual_batch",
 ]
