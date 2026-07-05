@@ -4,8 +4,8 @@
 #SBATCH --reservation=gpu_0003_grpA
 #SBATCH --account=grpa
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=96G
 #SBATCH --time=12:00:00
 #SBATCH --output=/work/projects/imas_gpu/logs/ambix-%x-%j.out
 # NOTE: --qos intentionally omitted — defaults to normal; a 1-card job bursts
@@ -49,16 +49,23 @@ cd /home/ITER/mcintos/Code/imas-ambix
 export TMPDIR=/scratch_local/$SLURM_JOB_ID
 mkdir -p "$TMPDIR" || export TMPDIR=/tmp
 source .venv/bin/activate
-# corpus assembly is single-threaded (sequential zarr/efm/amb reads) and
-# training itself is GPU-bound with small numpy batch-construction work --
-# 4 cores is ample and schedules far sooner than 16 against a shared,
-# CPU-core-limited reservation (gpu_0003_grpA caps at 30 cores total).
-export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=4
+# job 1225447 profiled at 41% GPU util / 99.4% of ONE CPU core: this run is
+# CPU/host-bound (the per-example structure_residual/closure Python loop in
+# engine.py), NOT GPU-bound as the original 4-core sizing assumed. 8 cores
+# on a DEDICATED compute allocation (not the shared login node the 1-thread
+# pin exists for) lets BLAS ops inside that loop use more than one thread;
+# real relief is the loop vectorisation this run does NOT yet have.
+export OPENBLAS_NUM_THREADS=8 OMP_NUM_THREADS=8
 N_TRAIN="${N_TRAIN:-1000}"
 RUN="${RUN:-n${N_TRAIN}}"
 STEPS="${STEPS:-20000}"
+CLOSURE_BINS="${CLOSURE_BINS:-0}"  # OFF by default -- B3's closure aux loss
+# diverged job 1225447 (i_cell 60-2800x over-scale); B2 needs only the
+# physics path (magnetics/anchored/topology-from-psi), proven non-diverging
+# over 18k steps once closure is excluded. Set CLOSURE_BINS=24 to re-enable
+# once the B3 detachment fix lands.
 LOG=/work/projects/imas_gpu/logs/ambix-grounded-latent-${RUN}-${SLURM_JOB_ID}.log
-echo "PYTHON=$(which python)  RUN=${RUN}  N_TRAIN=${N_TRAIN}  STEPS=${STEPS}"
+echo "PYTHON=$(which python)  RUN=${RUN}  N_TRAIN=${N_TRAIN}  STEPS=${STEPS}  CLOSURE_BINS=${CLOSURE_BINS}"
 nvidia-smi -L | head -2
 
 python scripts/train_grounded_latent_engine.py \
@@ -66,6 +73,7 @@ python scripts/train_grounded_latent_engine.py \
     --n-train "${N_TRAIN}" \
     --steps "${STEPS}" \
     --batch-size 256 \
+    --n-closure-bins "${CLOSURE_BINS}" \
     --device cuda \
     > "${LOG}" 2>&1
 exit_code=$?
