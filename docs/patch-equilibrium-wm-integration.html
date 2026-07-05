@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-05">
-<meta name="plan-version" content="11">
-<meta name="plan-impl" content="0.67">
+<meta name="plan-version" content="12">
+<meta name="plan-impl" content="0.78">
 </head>
 <body>
   <main class="plan-doc">
@@ -195,11 +195,22 @@
       sampling</strong>, not blind more-data (capacity is proven by the superior full-corpus sensor fit). Artifacts:
       <code>encoder_gate_direct{5k,full}.json</code>; commits <code>9e126d1</code>/<code>910c262</code> + the
       cache/binding/floor chain.</p>
-    <p><strong>A3 — Gaussian patch head.</strong> Mean + log-σ head in the dimensionless x-space, trained with
-      the same losses under a Gaussian NLL wrapper on the sensor misfit; delivers the per-quantity calibration
-      the P4 gate recorded as N/A.
-      <br><strong>Gate A3:</strong> held-out coverage in [0.88, 0.92] band reported per quantity; no
-      regression of the mean-readout skills.</p>
+    <p><strong>A3 — Gaussian patch head + per-quantity calibration.</strong>
+      <span class="badge badge-shipped">✓ landed 2026-07-05 — sensors calibrated, topology an honest downstream residual</span></p>
+    <p class="landed-summary">
+      Opt-in mean + log-σ head with EXACT linear sensor-variance propagation (commit <code>ee95893</code>).
+      From-scratch joint-NLL collapsed the mean to a near-constant (median axis 23 cm; recorded as the honest
+      negative, <code>069c720</code>) — fixed by a <strong>frozen-mean warm-start</strong> (train σ only from the
+      direct-5k checkpoint): mean readout byte-identical to direct-5k, so <strong>mean-regression is zero by
+      construction</strong> (axis-skill Δ +0.0006, verified twice). Coverage vs [0.88, 0.92] via a leakage-free
+      per-sensor-kind σ-temperature (fit on TRAIN shots, closed-form quantile match): <strong>b_probe 0.985→0.894
+      PASS; flux_loop 0.383→0.867</strong> (90% of the gap closed, 1.3 pts short). Topology coverage
+      (axis_R 0.70, axis_Z 0.43, X-point 0.26–0.52) is <strong>mathematically untouchable by a sensor-space
+      temperature</strong> — it draws from the current-space distribution — so it stays under-covered: a
+      genuine downstream problem (nonlinear ψ-topology read off a current-space σ) queued as a followup, not a
+      tuning shortfall. Verdict: the uncertainty machinery works and sensor calibration is essentially achieved;
+      calibrated topology needs current-space heteroscedastic σ. Artifacts:
+      <code>calibration_gaussian-5k-frozen-tempscaled.json</code> (<code>98b24c2</code>).</p>
     <p><strong>A4 — LCFS boundary-read robustification.</strong>
       <span class="badge badge-shipped">✓ measured 2026-07-04 — honest negative, all three arms</span></p>
     <p class="landed-summary">
@@ -395,6 +406,27 @@ Done-when
   1. Signature-balanced (and ideally Ip-regime-balanced: ramp-up / flat-top / ramp-down) batch sampling implemented, opt-in flag, default off
   2. Retrain on the full corpus with balanced sampling; gate eval: axis median recovers toward the 5k point WITHOUT losing the full corpus&#x27;s grounding/misfit gains; per-signature + per-regime medians reported
   3. Verdict recorded either way; tests green</pre>
+    </article>
+<article class="r-fu" data-id="f-pewi-topology-calibration" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Calibrated topology coverage — current-space heteroscedastic σ (the A3 downstream residual)</h4>
+    <div class="r-fu-body">A3 landed: the Gaussian head + per-sensor-kind σ-temperature calibrate the SENSOR predictions (b_probe 0.894 PASS, flux_loop 0.867), and the frozen-mean warm-start makes mean-regression zero by construction. But TOPOLOGY coverage (axis 0.43-0.70, X-point 0.26-0.52) stays under-covered and is mathematically untouchable by a sensor-space temperature — it draws from the current-space distribution. Calibrated topology needs current-space heteroscedastic σ structure (per-cell/per-mode uncertainty that maps through the nonlinear ψ-topology read to axis/X-point spread). This dovetails with equilibrium-topology-fidelity's calibrated-classification thread.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    patch-equilibrium-wm-integration §3 follow-on (A3 residual)
+Section: calibrated topology coverage
+Tier:    sonnet
+
+Context
+  A3&#x27;s sensor-space σ-temperature calibrates sensor predictions but cannot reach topology coverage (axis/X-point draw from the current-space i_var, not sensor space). Topology stays under-covered (axis_R 0.70, axis_Z 0.43, xpt 0.26-0.52 vs [0.88,0.92]).
+
+State to read
+  imas_ambix/latent/patch_encoder.py (gaussian head, i_var, exact linear sensor-var propagation)
+  scripts/patch_encoder_calibration_eval.py (sensor + topology coverage; K-sample topology draws from i_var)
+  imas_ambix/latent/artifacts/patch_gate/calibration_gaussian-5k-frozen-tempscaled.json (the A3 close numbers)
+
+Done-when
+  1. A current-space σ mechanism that propagates to topology coverage (e.g. per-cell heteroscedastic σ trained so the K-sample axis/X-point spread matches the referee residual, or a learned low-rank current-covariance), leakage-free (fit on train)
+  2. Held-out topology coverage moves toward [0.88,0.92]; sensor coverage not regressed; mean unchanged
+  3. Verdict recorded; coordinate with equilibrium-topology-fidelity&#x27;s calibrated-classification thread</pre>
     </article>
 </section>
 
