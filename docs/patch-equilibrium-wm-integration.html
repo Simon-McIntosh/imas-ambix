@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-05">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="13">
 <meta name="plan-impl" content="0.78">
 </head>
 <body>
@@ -386,7 +386,7 @@ Done-when
   2. classify_circuits consumes the table metadata; MAST behaviour byte-identical (regression-pinned); the ITER test&#x27;s n_known==0 pin flips to a populated-KNOWN assertion
   3. Tests green; bump COIL_MODEL_VERSION; followup resolved with numbers</pre>
     </article>
-<article class="r-fu" data-id="f-pewi-balanced-sampling" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pewi-balanced-sampling" data-status="resolved" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="2026-07-05T12:03:44+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Signature/regime-balanced sampling for the full corpus (the measured lever for the non-monotonic axis regression)</h4>
     <div class="r-fu-body">A1/A2 measured a non-monotonic axis scaling: 588→2k→5k halves the axis median (28→9.56→4.3 cm) but 5k→full regresses it (4.3→15.9 cm) even as sensor fit improves (grounding 8.86→20.58×, misfit 0.167→0.069). Root cause is coverage imbalance — the full corpus is 92% fc938, and the metre-scale outliers are a training-data-composition-dependent readout pathology (under-represented regime → spurious topology extremum), NOT a fixed data/geometry defect. Capacity is proven by the superior full-corpus sensor fit; the lever is balanced sampling, not more data.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -406,6 +406,7 @@ Done-when
   1. Signature-balanced (and ideally Ip-regime-balanced: ramp-up / flat-top / ramp-down) batch sampling implemented, opt-in flag, default off
   2. Retrain on the full corpus with balanced sampling; gate eval: axis median recovers toward the 5k point WITHOUT losing the full corpus&#x27;s grounding/misfit gains; per-signature + per-regime medians reported
   3. Verdict recorded either way; tests green</pre>
+    <p class="r-fu-outcome">HONEST NEGATIVE (job 1225476, encoder_gate_full-balanced.json): signature+Ip-tercile-balanced sampling did NOT recover the axis — median 17.5 cm (in-sig 16.1, cross-sig 18.7), essentially unchanged from the unbalanced full run (15.9 cm) and far from the 5k point (4.3 cm), while grounding rose AGAIN to 28.3×. The 5k→full axis regression is therefore NOT a data-composition artifact resampling can fix — it is a null-space signature: across 5k→full→full-balanced the magnetics fit tightens monotonically (grounding 8.9→20.6→28.3×) while the axis does not follow, because the interior current is under-constrained by magnetics (A4's conclusion). The magnetics-only encoder is saturated at ~4.3 cm (the 5k checkpoint stays the best readout); closing the axis/topology gap needs INTERIOR DIAGNOSTICS, not more magnetics data or resampling — which is exactly the equilibrium-topology-fidelity plan's interior-diagnostic-fusion thread. Caveat: the Ip-tercile regime proxy is crude (true ramp-up/flat-top/ramp-down labels need a cache-schema bump); a residual chance the negative is proxy-limited rather than fully hypothesis-falsifying, but the monotone grounding-rises-axis-flat pattern points strongly at null-space, not coverage.</p>
     </article>
 <article class="r-fu" data-id="f-pewi-topology-calibration" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Calibrated topology coverage — current-space heteroscedastic σ (the A3 downstream residual)</h4>
@@ -445,6 +446,9 @@ Done-when
 </div>
 <div class="r-comment" data-section="_top" data-id="c-floor-sensitivity-closed" data-who="reckon-ship (orchestrator)" data-when="2026-07-05">
     <div class="r-comment-body">WHITENING-FLOOR SENSITIVITY (A4 follow-on) CLOSED (commits ac0d60b + d7ab3c7): swept the per-slice inverse over scale-floor rel ∈ {0, 0.01, 0.02, 0.05}, leakage-free on train shots, held-out verified at the frozen winner. Verdict: rel=0.05 FROZEN (the training default, unchanged) — the floor is LOAD-BEARING, the 'floor costs axis skill' hypothesis is FALSIFIED. rel=0 is catastrophic (all 8 tune slices collapse to one degenerate point R=0.595/Z=-1.825, misfit=nan, 0 X-points — the fl_cc04 near-zero-scale pathology, divergence overwhelmingly vertical axis_Z=-457); rel ∈ {0.01,0.02,0.05} are statistically tied within the inverse's ±10-15% Adam run-to-run noise, 0.05 nominally best + most margin. STANDING CAVEAT now explicit and programme-wide: the per-slice variational inverse is chaotically sensitive — its ABSOLUTE axis/LCFS cm figures carry device+run variance of order several cm (measured: identical-config GPU baseline 2.58 cm vs CPU re-run 6.4 cm; CPU-vs-CPU flux-map reproduces exactly). Comparative verdicts (A4 arm-vs-arm, F rel-vs-rel, each scored under one device/run) are SAFE; absolute inverse-derived cm numbers must cite their run and are not precise beyond a few cm. This qualifies the absolute figures in A4, the flux-map report, and P3/P4 — the PASS/FAIL verdicts stand, the exact cm do not carry sub-cm precision.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-balanced-sampling-negative" data-who="reckon-ship (orchestrator)" data-when="2026-07-05">
+    <div class="r-comment-body">SCALING LAW, COMPLETE (magnetics-only encoder): 588→2k→5k axis median 28→9.56→4.3 cm (monotone improvement); 5k→full REGRESSES to 15.9 cm; full+regime-balanced sampling does NOT recover it (17.5 cm) even as grounding rises 8.9→20.6→28.3×. VERDICT: the magnetics-only patch encoder saturates at ~4.3 cm axis; the gap to the P3 iterative inverse (2.8 cm) and to a diverted-topology-capable readout is a NULL-SPACE / interior-current-underdetermination wall that neither more data nor resampling crosses. This is the empirical mandate for the equilibrium-topology-fidelity plan: interior diagnostics (MSE/interferometer/SXR) + learned prior + temporal coherence are the only levers that add the missing information. Best magnetics-only checkpoint of record: direct-5k (4.3 cm, grounding 8.86×).</div>
 </div>
 </section>
 </main>
