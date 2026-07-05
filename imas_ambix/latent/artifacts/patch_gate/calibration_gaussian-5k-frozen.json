@@ -1,0 +1,95 @@
+{
+  "checkpoint": "imas_ambix/latent/artifacts/patch_encoder/gaussian-5k-frozen/patch_encoder.pt",
+  "device": "cuda",
+  "n_slices_scored": 160,
+  "coverage_gate": [
+    0.88,
+    0.92
+  ],
+  "sensor_coverage": {
+    "b_probe": {
+      "n_covered": 8983,
+      "n_masked": 9120,
+      "coverage": 0.9849780701754386,
+      "verdict": "over-covered"
+    },
+    "flux_loop": {
+      "n_covered": 704,
+      "n_masked": 1840,
+      "coverage": 0.3826086956521739,
+      "verdict": "under-covered"
+    }
+  },
+  "topology_coverage": {
+    "axis_R": {
+      "n_covered": 112,
+      "n_scored": 160,
+      "coverage": 0.7,
+      "verdict": "under-covered"
+    },
+    "axis_Z": {
+      "n_covered": 68,
+      "n_scored": 160,
+      "coverage": 0.425,
+      "verdict": "under-covered"
+    },
+    "xpt0_R": {
+      "n_covered": 36,
+      "n_scored": 69,
+      "coverage": 0.5217391304347826,
+      "verdict": "under-covered"
+    },
+    "xpt0_Z": {
+      "n_covered": 18,
+      "n_scored": 69,
+      "coverage": 0.2608695652173913,
+      "verdict": "under-covered"
+    }
+  },
+  "mean_readout_skill": {
+    "per_quantity_skill": {
+      "axis_R": -1.5104996360493477,
+      "axis_Z": -13.544957377376816,
+      "xpt0_R": -5.029122509260491,
+      "xpt0_Z": -4.17233393831797,
+      "xpt1_R": -10.042172683808184,
+      "xpt1_Z": -24.421834466620716,
+      "lcfs_r_0": -7.870243512891179,
+      "lcfs_r_1": -13.631680467046031,
+      "lcfs_r_2": -4.669408792986082,
+      "lcfs_r_3": -7.083484919409688,
+      "lcfs_r_4": -6.089308896907048,
+      "lcfs_r_5": -6.450900995045044,
+      "lcfs_r_6": -5.52690587858454,
+      "lcfs_r_7": -13.80977764890664
+    },
+    "axis_skill": -7.527728506713082,
+    "xpoint_set_skill": -2.2332364831314324,
+    "lcfs_skill": -8.141463888972032,
+    "axis_error_mean_m": 0.10977019392594631,
+    "axis_error_median_m": 0.043207025200622695
+  },
+  "regression_check": {
+    "baseline_gate": "imas_ambix/latent/artifacts/patch_gate/encoder_gate_direct5k.json",
+    "rmse_skill": {
+      "baseline_axis_skill": -7.528352130401512,
+      "gaussian_mean_axis_skill": -7.527728506713082,
+      "delta": 0.0006236236884298307,
+      "tolerance": 0.02,
+      "pass": true,
+      "caveat": "RMSE-based skill can be dominated by a handful of outlier slices \u2014 see median_axis_error for a robust read."
+    },
+    "median_axis_error": {
+      "baseline_median_m": 0.04317421845063228,
+      "gaussian_median_m": 0.043207025200622695,
+      "ratio": 1.0007598689951487
+    },
+    "mean_axis_error": {
+      "baseline_mean_m": 0.10977426919955138,
+      "gaussian_mean_m": 0.10977019392594631,
+      "ratio": 0.9999628758757877
+    },
+    "pass": true
+  },
+  "overall_pass": false
+}
