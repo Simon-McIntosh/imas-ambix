@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="patch-equilibrium-wm-integration-workstream-reports">
+  <meta name="plan-title"    content="Patch Equilibrium → World-Model Integration — illustrated workstream report">
+  <meta name="plan-summary"  content="Illustrated implementation report for the near-complete patch-equilibrium-wm-integration plan: 8/9 core sections + the user-directed coil audit landed. The defining outcome was three silent data-integrity biases surfaced and fixed under scale-up (case-circuit mis-drive, per-shot channel-set leakage, whitening blow-up); the corrected 5k encoder halves the axis to 4.3 cm; and the honest frontier is that magnetics-only equilibrium placement saturates at a null-space wall, motivating the equilibrium-topology-fidelity plan (interior diagnostics + a constrained boundary representation).">
+  <meta name="plan-status"   content="done">
+  <meta name="plan-informs"  content="patch-equilibrium-wm-integration">
+  <title>Patch Equilibrium → World-Model Integration — workstream report | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Patch Equilibrium → World-Model Integration — workstream report</h1>
+    <p><em>Illustrated implementation report for the near-complete plan
+    <a href="/imas-ambix/patch-equilibrium-wm-integration.html">patch-equilibrium-wm-integration</a>,
+    written per the standing mandate to close each workstream with a fully-illustrated synthesis. This
+    document is a synthesis of measured results only — every number traces to the live plan, its collapsed
+    landed-summaries, or a named artifact; nothing is re-derived here. It carries the shipped
+    <a href="/imas-ambix/patch-current-force-balance.html">patch-current-force-balance</a> equilibrium layer
+    into the driving plan
+    <a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a>,
+    inside the North Star (<a href="/imas-ambix/physics-world-model-strategy.html">physics-world-model-strategy</a>).</em></p>
+
+    <h2 id="s1">§1 — Executive summary</h2>
+    <p>
+      The run closed <strong>eight of nine core sections plus a user-directed coil audit</strong>: Workstream A
+      (A1/A2 corpus scale-up, A3 calibration, A4 boundary read), Workstream B (B1 engine wiring, B2 the
+      end-to-end learned-latent gate, B4 the filter observation operator), Workstream C (cross-machine
+      ingestion), and Workstream D (the coil-circuit audit) all landed; only B3 (closures as dimensionless
+      latent coordinates) is still measuring. Two decisions were locked at kickoff — a staged, cached corpus
+      scale-up and interleaved A/B execution — and both held.
+    </p>
+    <p>
+      <strong>The defining outcome was not a headline metric but a discipline result: three silent
+      data-integrity biases surfaced and were fixed under scale-up, each caught by fleet cross-checks before
+      it contaminated a recorded result.</strong> Every gate number recorded before 2026-07-04 carried at
+      least one of these biases; the corrected baselines replace them.
+    </p>
+    <ol>
+      <li><strong>Case-circuit mis-drive.</strong> The GS operator's 8&nbsp;cm nearest-centroid circuit
+        classifier folded 8 of 10 coil-case circuits into the co-located <em>active</em> coil's Green's-function
+        column and drove them at the active coil's 30–40× larger current. Measured impact on shots 18502–18505:
+        all 73 B-probes biased, median 0.44σ, worst obr10 at 17.8σ, up to 39% of the RMS measured signal in the
+        centre-column cluster. Fixed by classifying case circuits into their own columns (known coil columns
+        13→21) with a <code>COIL_MODEL_VERSION=case-circuits-v2</code> cache-invalidation marker.</li>
+      <li><strong>Per-shot channel-set leakage.</strong> The campaign-signature digest hashes static geometry,
+        but the sensor channel set was being read from each shot's own data-acquisition schema — so a shot
+        missing a flux loop (present on another shot of the same signature) leaked a smaller channel set into
+        what should be a geometry-determined quantity. Single-process runs silently locked in whichever shot
+        assembled first; the 48-way sharded re-assembly exposed it (39 shards saw S=97, 9 saw S=96). Fixed by
+        unioning the schema across a signature's shots (<code>canonical_amb_channels()</code>), expressing
+        per-shot absence via honest masks, tagged <code>GEOMETRY_TABLE_VERSION=amb-schema-canonical-v1</code>.</li>
+      <li><strong>Whitening blow-up.</strong> Per-shot channel whitening divided by a barely-positive standard
+        deviation, so a near-static flux loop (e.g. 3×10⁻⁵ Wb) whitened a modest mismatch to 10,000σ+ and the
+        full-corpus retrain diverged on the tail (fc938 zero-current whitened misfit: mean 51,852 vs median
+        13.3). Fixed by a kind-median relative floor (5% of the same-kind median in the shot), which brought the
+        fc938 mean to 11.8 (≈ its median) with fc1004 essentially unchanged.</li>
+    </ol>
+    <p>
+      With the corrected physics in place, <strong>the corrected 5k-shot encoder halves the axis to 4.3&nbsp;cm
+      median</strong> (from the pre-fix 9.56&nbsp;cm at 2k). But the run's most consequential scientific finding
+      is an honest frontier: scaling past 5k tightens the magnetics fit monotonically while the axis regresses,
+      and signature/regime-balanced resampling does not recover it. <strong>Magnetics-only equilibrium placement
+      saturates at a null-space wall</strong> — the interior current is under-determined by external magnetics —
+      which neither more data nor resampling crosses. Crossing it needs interior diagnostics and a constrained
+      boundary representation, which is the mandate of the new plan
+      <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>.
+    </p>
+
+    <figure>
+      <img src="/imas-ambix/figures/patch-equilibrium-wm-integration/fig-workstream-status-summary.png"
+           alt="One-glance status panel. Top band: the three data-integrity fixes (case-circuit mis-drive, per-shot channel-set leak, whitening blow-up). Middle: four workstream cards — A Encoder gap (shipped, 4.3 cm), B World-model wiring (honest negative, 49 cm), C Cross-machine (shipped, zero code change), D Coil audit (shipped, all 13 powered). Bottom: the scaling ladder 28.0 → 9.56 → 4.3 → 15.9 → 17.5 cm with grounding rising 7.96 → 28.3×, showing the null-space saturation."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption>The run in one picture. The defining outcome (top, the three fixes), the four workstreams with
+        their verdicts and headline numbers (middle), and the arc (bottom): the magnetics-only axis improves to
+        a best of 4.3&nbsp;cm at 5k, then regresses even as the magnetics fit (grounding) keeps tightening — the
+        null-space wall that reframes the frontier as an interior-information problem.</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Workstream A: close the amortised geometry gap <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#1b7837">SHIPPED</span></h2>
+    <p>
+      Workstream A hardened the amortised encoder — the token-native map from per-(sensor,step) geometry-encoded
+      tokens to patch currents — through four measured levers. A1/A2 built a config-hashed corpus-assembly cache
+      and per-batch geometry binding so that <strong>all three campaign signatures now train, none dropped</strong>
+      (final per-signature counts: fc1004-9425=98, fc1004-edd7=97, fc938=98; full corpus 114,834 examples /
+      10,842 shots), verified deterministic across independently-sharded corpora. Assembly cost 1.54–1.67&nbsp;s/shot
+      (~7 node-hours for 5k+full on the sun partition). The staged retrains ran under the corrected physics
+      (case-circuits-v2 + amb-schema-canonical-v1 + the kind-median whitening floor).
+    </p>
+    <table>
+      <thead><tr><th>Run</th><th>Examples</th><th>Axis median</th><th>p90</th><th>Grounding</th><th>Whitened misfit</th></tr></thead>
+      <tbody>
+        <tr><td>direct-588 (pre-fix)</td><td>588</td><td>28.0 cm</td><td>—</td><td>7.96×</td><td>0.508</td></tr>
+        <tr><td>direct-2k (pre-fix)</td><td>14,525</td><td>9.56 cm</td><td>—</td><td>8.15×</td><td>0.170</td></tr>
+        <tr><td><strong>direct-5k (corrected)</strong></td><td>48,578</td><td><strong>4.3 cm</strong></td><td>13.8 cm</td><td>8.86×</td><td>0.167</td></tr>
+        <tr><td>direct-full (corrected)</td><td>114,834</td><td>15.9 cm</td><td>28.2 cm</td><td>20.58×</td><td>0.069</td></tr>
+        <tr><td>full + balanced sampling</td><td>114,834</td><td>17.5 cm</td><td>—</td><td>28.3×</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>Scaling is non-monotonic, and that is the finding.</strong> 588 → 2k → 5k improves the axis median
+      monotonically (28.0 → 9.56 → 4.3&nbsp;cm; the 5k point halves the pre-fix 2k number). But 5k → full
+      <em>inverts</em> the median (4.3 → 15.9&nbsp;cm) while <em>every</em> tightness-of-fit metric improves
+      (grounding 8.86 → 20.58×, misfit 0.167 → 0.069) and the catastrophic tail shrinks — the full corpus
+      explains the magnetics substantially better yet places the typical axis worse. Cross-signature axis
+      degrades most (3.6 → 17.1&nbsp;cm), consistent with the full corpus being 92% fc938 (vs 82% at 5k)
+      reshaping the shared trunk's priorities. A follow-on retrain with signature- and Ip-regime-balanced
+      sampling did <em>not</em> recover the axis (17.5&nbsp;cm) even as grounding rose again to 28.3× — so the
+      regression is not a data-composition artifact resampling can fix. It is a null-space signature: across
+      5k → full → full-balanced the magnetics fit tightens monotonically while the axis does not follow, because
+      the interior current is under-constrained by magnetics. <strong>The magnetics-only encoder saturates at
+      ~4.3&nbsp;cm, and the direct-5k checkpoint is the best readout of record.</strong>
+    </p>
+
+    <figure>
+      <img src="/imas-ambix/figures/patch-equilibrium-wm-integration/fig-workstream-a-scaling.png"
+           alt="Workstream A scaling: axis median vs training examples, showing the monotonic improvement to 4.3 cm at 5k then the regression at full corpus, alongside the monotonically rising grounding ratio."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption>The non-monotonic scaling: the axis median bottoms at 4.3&nbsp;cm (5k) then regresses while the
+        grounding ratio keeps climbing — the empirical signature that the encoder is fitting the magnetics ever
+        better while the interior/axis reconstruction has hit an information wall, not a capacity wall.</figcaption>
+    </figure>
+
+    <p>
+      <strong>A3 — calibration.</strong> An opt-in Gaussian (mean + log-σ) head with exact linear sensor-variance
+      propagation was added. A from-scratch joint-NLL fit collapsed the mean to a near-constant (23&nbsp;cm axis,
+      recorded as the honest negative), so calibration runs on a <strong>frozen-mean warm-start</strong> — σ is
+      trained from the direct-5k checkpoint while the mean stays byte-identical, making mean-regression zero by
+      construction (axis-skill Δ +0.0006, verified twice). A leakage-free per-sensor-kind σ-temperature (fit on
+      train shots, closed-form quantile match) brought sensor coverage into the [0.88, 0.92] band:
+      <strong>b_probe 0.985 → 0.894 PASS, flux_loop 0.383 → 0.867</strong> (90% of the gap closed, 1.3&nbsp;pts
+      short). Topology coverage (axis_R 0.70, axis_Z 0.43, X-point 0.26–0.52) is mathematically untouchable by a
+      sensor-space temperature — it draws from the current-space distribution — so it stays under-covered, an
+      honest downstream residual queued for a current-space heteroscedastic-σ mechanism. Verdict: the uncertainty
+      machinery works and sensor calibration is essentially achieved; <strong>the sensors are calibrated,
+      calibrated topology is a genuine downstream problem</strong>, not a tuning shortfall.
+    </p>
+    <p>
+      <strong>A4 — boundary read.</strong> All three candidate LCFS-robustification arms were measured
+      leakage-free (tuned on train, frozen, 160/160 held-out; an invert-once grid isolated the readout as the
+      only varying factor). <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#8a3324">HONEST NEGATIVE</span> <strong>None is load-bearing —
+      the default readout is unchanged.</strong> The saddle-distance guard and ψ-smoothing are bit-identical to
+      baseline across the full swept range; current-smoothness (λ=0.001) moves every metric &lt;0.01 in the
+      wrong/negligible direction. The post-fix baseline (which replaces all pre-fix numbers) is axis skill
+      −0.027 @ 2.58&nbsp;cm median, LCFS skill −6.26, LCFS offset 34.1&nbsp;cm (all) / 37.2&nbsp;cm (flat-top).
+      The deficit is unresponsive to every readout-level lever because the LCFS under-sizing is
+      interior-structure-driven (null-space current concentration) — pointing at training-time / representation
+      levers, not post-hoc readout fixes.
+    </p>
+    <p>
+      <strong>F — floor sensitivity.</strong> The whitening floor from §1 was itself swept (rel ∈ {0, 0.01,
+      0.02, 0.05}, leakage-free) to test whether it costs axis skill. It does not: <strong>rel=0.05 is
+      load-bearing and frozen (the training default)</strong>. rel=0 is catastrophic (all tune slices collapse to
+      one degenerate point R=0.595 / Z=−1.825, misfit NaN, zero X-points — the near-zero-scale pathology,
+      overwhelmingly vertical); rel ∈ {0.01, 0.02, 0.05} are statistically tied within the inverse's ±10–15%
+      run-to-run noise, with 0.05 nominally best.
+    </p>
+    <div style="border-left:4px solid #2166ac;background:#f4f7fb;padding:10px 14px;margin:14px 0;border-radius:0 5px 5px 0">
+      <strong>Standing caveat (programme-wide).</strong> The per-slice variational inverse is chaotically
+      sensitive; its <em>absolute</em> axis/LCFS cm figures carry device+run variance of order several cm
+      (measured: identical-config GPU baseline 2.58&nbsp;cm vs CPU re-run 6.4&nbsp;cm; CPU-vs-CPU reproduces
+      exactly). Comparative verdicts scored under one device/run (A4 arm-vs-arm, F rel-vs-rel) are safe and the
+      PASS/FAIL verdicts stand; the exact cm do not carry sub-cm precision and must cite their run.
+    </div>
+
+    <figure>
+      <img src="/imas-ambix/figures/patch-current-force-balance/fig-encoder-gate.png"
+           alt="Encoder gate diagnostics: per-signature axis error distributions and grounding, with the held-out gate protocol split by campaign signature."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption>The encoder gate protocol (per-signature held-out split): grounding clears the 5.53×
+        cross-signature bar on every run, so Gate A1/A2 passes on the grounding criterion; the axis distribution
+        is where the null-space tail lives. Capacity is proven by the superior full-corpus sensor fit — the lever
+        forward is interior information, not more magnetics data.</figcaption>
+    </figure>
+
+    <h2 id="s3">§3 — Workstream B: wire the equilibrium layer into the world model</h2>
+    <p>
+      <strong>B1 — engine wiring.</strong> <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#1b7837">SHIPPED</span> The stage-2 engine's ψ
+      carrier is now patch currents (commit <code>40d30ff</code>, +426/−1306 lines, 54 tests green):
+      <code>GSGroundedLatentEngine</code> takes a <code>PatchBasis</code>, the encoder gains a patch head
+      (I = x·I<sub>p</sub>/n·mask), and <code>losses()</code> wires the whitened raw-magnetics misfit via
+      <code>basis.sensors</code> + the I<sub>p</sub> anchor + a discrepancy-weighted structure residual +
+      patch-ψ flux-diffusion transport; topology reads ψ via <code>basis.psi_grid_2d_np</code>. The old
+      θ/GSObservation carrier and its four scripts were deleted. A bonus fix renamed <code>PatchBasis._apply</code>
+      to <code>_superpose</code> (it had shadowed <code>nn.Module._apply</code> and broke every
+      <code>.to()</code>/<code>.double()</code> on a containing module).
+    </p>
+    <p>
+      <strong>B2 — the first end-to-end learned-latent gate.</strong> <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#8a3324">HONEST NEGATIVE</span>
+      The 0.5–0.7 oracle bar (machine-agnostic-latent-world-model <code>f-malwm-02</code> done-when #2) was
+      measured for the first time on the plan's actual design — a learned hybrid latent trained end-to-end, ψ
+      carried on patch currents, topology read from the assembled field (job 1225475, 20k steps; artifact
+      <code>gate_n1000_closureoff_final.json</code>). <strong>Result: FAIL</strong> — axis skill −7.12 @
+      <strong>49&nbsp;cm</strong> median, X-point −1.16, LCFS −10.9, <code>meets_oracle_bar: False</code>. But
+      grounding 5.84× clears the 5.53× bar (the engine fits the magnetics) and the temporal anchors PASS (D≥0 +
+      command-load-bearing on all three signatures — the transport prior works). The reading: this ran at
+      n=1000, one-fifth the 5,000-shot data of the 4.3&nbsp;cm amortised encoder, so part is data-scale — but
+      49&nbsp;cm is worse than the encoder at <em>any</em> measured scale while grounding is fine, the same
+      null-space signature seen in the full-corpus encoder and the balanced-sampling negative. Verdict: the heavy
+      hybrid-latent <em>engine</em> does not beat the lean purpose-built <em>encoder</em> at equilibrium
+      placement; the engine's value is its temporal/latent machinery (transport anchors load-bearing), while the
+      stage-2 equilibrium readout of record stays the amortised encoder (4.3&nbsp;cm). This closes the
+      measurement debt on <code>f-malwm-02</code> / gs-grounded-latent-engine <code>f-ggl-02</code>, and points
+      the path to the 0.5–0.7 bar at the equilibrium-topology-fidelity plan rather than more engine training on
+      magnetics alone.
+    </p>
+    <p>
+      <strong>B3 — closures as dimensionless latent coordinates.</strong> <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#b8860b">MEASURING</span>
+      The per-bin closures (a<sub>k</sub>=p′, b<sub>k</sub>=FF′/μ₀, with 1σ uncertainties and F²≥0 verified on
+      160/160 slices in the shipped layer) are exactly the machine-portable profile coordinates the latent needs,
+      so they are fed as auxiliary latent content/readout targets — the concrete realisation of the open
+      dimensionless-coordinate-set decision on the driving plan. The closure auxiliary loss diverged when trained
+      from scratch; that was diagnosed and fixed via detachment, and the re-enable run is in flight at report
+      time. Gate B3 (still to land): the closure readout from the latent matches the per-slice regression closures
+      within their 1σ on held-out flat-top, with the F²≥0 rate reported.
+    </p>
+    <p>
+      <strong>B4 — the filter observation operator (stage 3).</strong> <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#1b7837">SHIPPED</span>
+      <code>imas_ambix/latent/patch_observation.py</code> (commit <code>ba612ef</code>, 5/5 tests) implements
+      H = M<sub>sens</sub> restricted to trusted sensors, a perturbed-observation ensemble correction reusing
+      <code>sequential_da.kalman_update</code> verbatim, and a reduced-rank path via
+      <code>leading_observable_modes</code> that never forms the n×n covariance. The synthetic gate: sensor-space
+      error ratio 0.44 post/prior, covariance trace −77%, and rank-1 agrees with full-rank to 0.08% on the
+      leading mode. The recommendation handed to stage 3 is current-space correction first (no decode-head
+      Jacobian), with whitening scaled to the ensemble's own sensor-space spread. Full architecture in the
+      <a href="/imas-ambix/archive/patch-equilibrium-wm-integration-enkf-observation-design.html">B4 design note</a>.
+    </p>
+
+    <figure>
+      <img src="/imas-ambix/figures/patch-equilibrium-wm-integration/fig-enkf-observation-operator.png"
+           alt="EnKF observation-operator demonstration: prior vs posterior ensemble in sensor space, showing the 0.44 error-ratio reduction and the rank-1 vs full-rank agreement on the leading observable mode."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption>B4 — the patch layer as the stage-3 filter's observation operator. The batched linear map
+        y = vacuum + M<sub>sens</sub>·I is the observation operator H; the perturbed-observation ensemble
+        correction reduces the sensor-space error to 0.44 of the prior, and the reduced-rank path matches full
+        rank to 0.08% on the leading mode — so the correction runs without ever forming the state covariance.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="/imas-ambix/figures/patch-current-force-balance/fig-flux-maps-flattop.png"
+           alt="Flattop flux maps: patch-inverse psi contours (blue core, red LCFS) overlaid on firewalled EFIT reference maps (sienna dashed separatrix, X-point crosses) across eight held-out shots."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption>Contour-space validation against the firewalled EFIT referee (flat-top, 8 held-out slices).
+        Axis placement is referee-grade (2.4&nbsp;cm median), but the systematic signature is visible: the patch
+        LCFS (solid red) sits <em>inside</em> the EFIT separatrix (dashed sienna) — the inverse concentrates
+        current into a compact force-balanced core and the boundary read under-sizes the plasma by ~31&nbsp;cm.
+        This is the contour-space face of the A4 boundary negative, and per equilibrium-topology-fidelity it is a
+        representation artifact of the free interior current, not fundamental under-determination.</figcaption>
+    </figure>
+
+    <h2 id="s4">§4 — Workstream C: cross-machine ingestion <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#1b7837">SHIPPED</span></h2>
+    <p>
+      <strong>Gate C passed — an ITER machine description drops into the patch substrate with zero solver-code
+      change</strong> (commits <code>1ef55c2</code>/<code>ed653d6</code>/<code>7fc1859</code>, 36 tests). A
+      <code>MachineGeometryReader</code> protocol with a MAST-Zarr implementation was added; the MAST signature
+      keys are proven byte-stable by regression test (every existing cache/checkpoint path resolves unchanged),
+      while non-MAST machines get a <code>{machine}-</code> key prefix. A new
+      <code>imas_ambix/gs/imas_geometry.py</code> reads <code>pf_active</code> / <code>wall</code> /
+      <code>magnetics</code> via imas-python (the DD version is peeked from <code>version_put</code> then opened
+      correctly; unresolvable gaps go to <code>GeometryTable.provenance_flags</code>, never fabricated).
+    </p>
+    <p>
+      A real ITER entry ingested: 915 B-probes, 261 flux loops, 23 PF filaments / 17 coils, a 56-point limiter,
+      and geometry-derived r0=6.168&nbsp;m / a=2.226&nbsp;m (baked constants fixed on this path). PatchBasis
+      assembles (full-resolution g_pg in 264.7&nbsp;s on a sun_debug node); the vacuum sanity checks pass —
+      far-field exact vs the analytic loop, ψ finite on 1617/1617 grid points, near-coil sensors responding 9.6×
+      over far (artifact <code>imas_ambix/gs/artifacts/imas_geometry_iter.json</code>). <strong>The one measured
+      gap, queued as a followup:</strong> <code>operator.classify_circuits</code> is MAST-hardcoded (centroids +
+      amc names), so ITER circuits classify as inferred-passive and <code>m_coil</code> is empty — coil-circuit
+      classification must become machine-description-driven before a second machine's KNOWN coil block populates
+      (the ITER integration test pins this loudly with an assertion).
+    </p>
+
+    <h2 id="s5">§5 — Workstream D: MAST coil audit (user-directed) <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#1b7837">SHIPPED</span></h2>
+    <p>
+      A user-directed audit of the MAST power-supply topology (commits <code>5fcbd2a</code> + <code>6c7aeaa</code>;
+      full report <a href="/imas-ambix/mast-coil-circuits.html">mast-coil-circuits</a>, 3 figures) answered three
+      questions directly. <strong>All 13 active MAST PF circuits are properly powered</strong> — each has its own
+      dedicated supply and a real measured current channel on every sampled shot across both filament signatures.
+      The extracted machine description is now in code (<code>imas_ambix/gs/circuits.py</code> +
+      <code>gs/artifacts/mast_pf_circuits.json</code>, cross-validated against efm <code>fcoil_circ</code> and amc
+      channels).
+    </p>
+    <p>
+      <strong>The ohmic solenoid pair is the only series constraint on the whole machine</strong> — one supply,
+      one measured <code>sol_current</code> channel, one actuator column at every layer from raw data to the
+      model's <code>i_pf</code> array — and it is modelled correctly (the series tie is enforced structurally by
+      the machine's own instrumentation, not by a code convention that could break). The apparent "multiple
+      geometries" in the corpus are <strong>campaign description variants of one physical machine</strong>: fc938
+      vs fc1004 are different filament discretisations of the same 13 coils, with B-probe positions identical to
+      within 12.6&nbsp;mm.
+    </p>
+    <p>
+      The audit surfaced two load-bearing red flags in the L2 / world-model actuator path: (1) it reads per-turn
+      <code>*_feed_current</code> where the GS/patch path correctly uses amp-turn <code>*_coil_current</code>
+      (an exact, integer 8–23× per-coil factor — e.g. P4U's true peak contribution at probe obr02 is 277&nbsp;mT
+      vs the 12.1&nbsp;mT the raw feed number would imply); and (2) P6U/P6L are dropped entirely from the L2
+      actuator set (small — 1.3–2.4% of active amp-turns — but a genuine, independently-controllable
+      boundary-shaping degree of freedom). The audit also independently found the case-circuit mis-drive of §1,
+      which was then fixed as Workstream E.
+    </p>
+
+    <figure>
+      <img src="/imas-ambix/figures/mast-coil-circuits/fig-circuit-topology.png"
+           alt="MAST PF coil filament positions colored by circuit family, with a zoom on the P2U case / P2IU geometric overlap that fools the 8 cm nearest-centroid classifier."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption>The 13 active coils (colored by P2–P6 family, solenoid as a star), the 10 structural case
+        circuits (gray), and the inferred-passive vessel circuits (light dots), shot 18502. The zoom shows why
+        the classifier confused case with active: the P2U case filaments sit ~2&nbsp;cm from the P2IU active
+        centroid, well inside the 8&nbsp;cm match radius — the mechanism behind the §1 case-circuit mis-drive.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/mast-coil-circuits/fig-feed-vs-coil-and-p6.png"
+           alt="Left: P4U feed vs coil current time trace with the exact 23x ratio. Right: peak amp-turns per active coil showing P6 as the smallest actuator, the one missing from L2."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption>Red flag A (left): P4U feed current vs coil current on shot 18502 — related by an exact ×23
+        (turn count), so treating the raw feed number as an actuator magnitude under-scales it by 23×. Red flag B
+        (right): peak amp-turns per active coil; P6U/P6L are the smallest actuators and the ones entirely absent
+        from the L2/world-model path.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/mast-coil-circuits/fig-campaign-signature-geometry.png"
+           alt="Overlay of PF filament positions (938 vs 1004) and B-probe positions (identical) across the two sampled campaign signatures — one machine, two discretisations."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption>One machine, two campaign signatures. The PF filament positions differ only in discretisation
+        (938 vs 1004 filaments over the same 13 coil locations); the B-probe positions are visually identical
+        (max drift 12.6&nbsp;mm). The signature variation is a Green's-function mesh choice, not a different
+        machine.</figcaption>
+    </figure>
+
+    <h2 id="s6">§6 — Where this leads: the layered stack and the topology frontier</h2>
+    <p>
+      This plan built and hardened <strong>Layer 0 of a layered-capability stack</strong> — the robust
+      Grad–Shafranov physics skeleton. The load-bearing insight (physics-world-model-strategy §1b) is that the
+      physics skeleton at the base keeps every layer above it physical:
+    </p>
+    <ul>
+      <li><strong>Layer 0 — the physics / GS skeleton (shipped).</strong> Exact linear Maxwell physics
+        precomputed into interaction matrices (694k slices/s on an H200), force balance as a soft differentiable
+        residual, per-bin closures recovered from data, everything label-free. It grounds a learned latent on
+        real magnetics (5.3× held-out) and transfers across an unseen coil-set signature without retraining
+        (cross-signature grounding 5.54×). This is the equilibrium organ of the world model.</li>
+      <li><strong>Layer 1 — forward decoders inherit the grounding.</strong> Camera-video generation and virtual
+        diagnostics decode from the physically-constrained state, not a free latent — a dream frame rendered from
+        a ψ that explains the raw magnetics and obeys force balance is anchored, not hallucinated.</li>
+      <li><strong>Layer 2 — long-horizon steerable dreams.</strong> Forecasting and controllable what-ifs advance
+        the same physics-anchored latent under an actuator plan, with the skeleton keeping the long roll on the
+        equilibrium manifold.</li>
+    </ul>
+    <p>
+      The stated ambition is <strong>to beat EFIT the way GenCast beat the ECMWF ensemble</strong> — first match,
+      then exceed on the X-point, the plasma boundary, and the limited↔diverted topology class — not by being a
+      better deterministic solver but by being a better probabilistic model of the state (generative,
+      multimodal, dynamics-aware, uncertainty-carrying), with EFIT firewalled to referee-only. The axis is
+      already matched to referee grade; the open frontier is the boundary and topology.
+    </p>
+    <p>
+      That frontier is owned by the new plan
+      <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>, whose
+      organizing insight splits our two measured negatives into <strong>two physically different problems</strong>.
+      The plasma <strong>boundary is externally well-posed</strong>: outside the plasma J<sub>φ</sub>=0, so ψ
+      solves the homogeneous Grad–Shafranov operator Δ*ψ=0, and external magnetics fix the low-order current
+      moments (I<sub>p</sub>, centroid, elongation, triangularity) that set the boundary shape — so the A4
+      boundary negative is a <em>representation artifact</em> of reading the boundary off a free ~5k-DOF interior
+      patch current, curable with a constrained external-field read (toroidal harmonics / current moments) and
+      <em>no new diagnostics</em>. The <strong>interior profile is genuinely ill-posed</strong> — the null-space
+      wall the balanced-sampling negative measured — and needs the missing information: interior diagnostics
+      (MSE, interferometer, SXR), a learned equilibrium prior, closure smoothness, temporal coherence, and
+      calibrated uncertainty. This report's frontier finding is exactly that plan's empirical mandate.
+    </p>
+
+    <figure>
+      <img src="/imas-ambix/figures/equilibrium-topology-fidelity/limited-diverted-transition.png"
+           alt="Four-panel figure of the limited-to-diverted transition: a limited configuration set by limiter contact, a diverted configuration set by the separatrix through an X-point, the two candidate boundary fluxes crossing near-degenerately as the X-point sweeps in, and the four information threads that resolve the ambiguity."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption>The topology decision the frontier plan targets. As the divertor coil pulls the X-point in, the
+        two candidate boundary fluxes (limiter contact vs separatrix) cross near-degenerately (bottom-left): a
+        tiny ψ error flips the limited↔diverted class. Getting the axis right says nothing about getting this
+        right — the boundary needs a constrained external representation, and the interior profile needs new
+        information.</figcaption>
+    </figure>
+
+    <h2 id="s7">§7 — Artifacts and provenance</h2>
+    <ul>
+      <li><strong>Encoder scaling:</strong> <code>imas_ambix/latent/artifacts/patch_gate/encoder_gate_direct{5k,full}.json</code>,
+        <code>encoder_gate_full-balanced.json</code>; commits <code>9e126d1</code>/<code>910c262</code>.</li>
+      <li><strong>Calibration:</strong> <code>calibration_gaussian-5k-frozen-tempscaled.json</code> (commit
+        <code>98b24c2</code>; head <code>ee95893</code>, honest negative <code>069c720</code>).</li>
+      <li><strong>Boundary read (A4):</strong> <code>boundary_read_grid_{tune,eval}.json</code>; floor sweep (F)
+        commits <code>ac0d60b</code> + <code>d7ab3c7</code>.</li>
+      <li><strong>Engine wiring (B1):</strong> commit <code>40d30ff</code>; learned-latent gate (B2) job 1225475,
+        <code>gate_n1000_closureoff_final.json</code>.</li>
+      <li><strong>Filter operator (B4):</strong> <code>imas_ambix/latent/patch_observation.py</code>, commit
+        <code>ba612ef</code>.</li>
+      <li><strong>Cross-machine (C):</strong> <code>imas_ambix/gs/imas_geometry.py</code>,
+        <code>gs/artifacts/imas_geometry_iter.json</code>; commits <code>1ef55c2</code>/<code>ed653d6</code>/<code>7fc1859</code>.</li>
+      <li><strong>Coil audit (D):</strong> <code>imas_ambix/gs/circuits.py</code>,
+        <code>gs/artifacts/mast_pf_circuits.json</code>; report
+        <a href="/imas-ambix/mast-coil-circuits.html">mast-coil-circuits</a>; commits <code>5fcbd2a</code> +
+        <code>6c7aeaa</code>. Case-circuit fix (E): commits <code>ffad622</code> + <code>d1fcfc2</code>,
+        <code>gs/artifacts/case_circuit_impact.json</code>.</li>
+      <li><strong>Data-integrity fixes:</strong> channel-set union commits <code>b18d740</code> +
+        <code>26335fa</code>; whitening floor commit <code>19820ad</code>.</li>
+      <li><strong>Flux-map cadence:</strong> <a href="/imas-ambix/patch-flux-map-comparison.html">patch-flux-map-comparison</a>,
+        <code>scripts/patch_flux_map_report.py</code>, <code>flux_map_report.json</code>.</li>
+    </ul>
+
+  </main>
+</body>
+</html>
