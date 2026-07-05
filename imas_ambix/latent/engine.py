@@ -222,12 +222,23 @@ class GSGroundedLatentEngine(nn.Module):
         dwarf every other loss and dominate the shared trunk's gradient
         purely from unit choice.  A convergent head reads ~1 here on average
         — directly the "within 1σ" criterion the closure gate reports.
+
+        Gradient isolation (job 1225447's post-mortem): the ONLY tensor here
+        that carries a gradient is ``latent.closure`` (the head's own read),
+        via the head's Linear weights on a DETACHED backbone (see
+        :meth:`~imas_ambix.latent.encoder.HybridLatentEncoder.forward`).
+        ``i_cell``/``psi_c``/``jphi_c`` are explicitly detached below too —
+        belt-and-suspenders alongside :func:`fit_flux_functions`'s own
+        ``.detach()`` on its returned coefficients — so this term can NEVER
+        reshape the currents, directly or through the shared trunk, no
+        matter how ``fit_flux_functions`` itself is implemented later.
         """
         if latent.closure is None:
             return i_cell.new_zeros(())
         n_bins = int(latent.closure.shape[1])
-        psi_c = self.basis.psi_cells(i_cell, i_pf)
-        jphi_c = i_cell / self.basis.cell_area
+        i_cell = i_cell.detach()
+        psi_c = self.basis.psi_cells(i_cell, i_pf).detach()
+        jphi_c = (i_cell / self.basis.cell_area).detach()
         r_c = self.basis.r_cells.to(dtype=i_cell.dtype, device=i_cell.device)
         z_c = self.basis.z_cells.to(dtype=i_cell.dtype, device=i_cell.device)
         per_example = []

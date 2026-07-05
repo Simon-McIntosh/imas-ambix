@@ -138,3 +138,44 @@ def test_closures_finite_and_f2_integrability_penalty_path_intact():
     penalty = f2_integrability_penalty(b_k_head, dpsi, f_vac=1.0)
     assert torch.isfinite(penalty)
     assert penalty >= 0
+
+
+def test_closure_loss_gradient_reaches_only_the_closure_head():
+    """Job 1225447's post-mortem: an undetached closure loss could reshape
+    i_cell (directly, or indirectly via the shared backbone) to make its own
+    regression target easier, a runaway feedback that drove i_cell to
+    60-2800x its expected scale.  Isolating the closure aux loss (backward
+    from it ALONE) must show gradient reaching ONLY closure_head's own
+    parameters -- never patch_head, never the shared backbone, and never
+    i_cell/psi_c/jphi_c themselves."""
+    torch.manual_seed(5)
+    eng, basis, n_coil, n_sensor = _engine()
+    b = 4
+    x = torch.randn(b, n_sensor, dtype=torch.float64, requires_grad=True)
+    ip = torch.full((b,), 5.0e4, dtype=torch.float64)
+    i_pf = torch.zeros(b, n_coil, dtype=torch.float64)
+
+    lat = eng.encode(x)
+    i_cell = eng.i_cell_from_latent(lat, ip)
+    closure_loss = eng.closure_readout_loss(lat, i_cell, i_pf)
+    closure_loss.backward()
+
+    # the closure head's own weights DO get a gradient (it must still learn)
+    head_grad = eng.encoder.closure_head.weight.grad
+    assert head_grad is not None
+    assert torch.isfinite(head_grad).all()
+    assert float(head_grad.abs().max()) > 0.0
+
+    # every OTHER parameter -- patch_head, backbone, anchored/free heads --
+    # gets NO gradient from the closure loss in isolation
+    for name, p in eng.encoder.named_parameters():
+        if name.startswith("closure_head"):
+            continue
+        assert p.grad is None or float(p.grad.abs().max()) == 0.0, (
+            f"{name} received a nonzero gradient from the isolated closure "
+            "loss -- the closure head is no longer a read-only probe"
+        )
+
+    # the input feature vector -- and hence i_cell/psi_c/jphi_c downstream of
+    # it through patch_head -- also gets no gradient
+    assert x.grad is None or float(x.grad.abs().max()) == 0.0

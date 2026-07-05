@@ -126,7 +126,15 @@ class HybridLatentEncoder(nn.Module):
         i_cell_x = self.patch_head(h) if self.patch_head is not None else None
         closure = None
         if self.closure_head is not None:
-            closure = self.closure_head(h).view(-1, self.config.n_closure_bins, 2)
+            # h.detach(): the closure head is a READ-ONLY probe on the shared
+            # backbone, never a shaper of it. Without this, closure_readout_loss's
+            # gradient into the SHARED h would still reach patch_head's output
+            # i_cell on the NEXT forward pass (via the backbone weight update),
+            # even though the loss never touches patch_head's own parameters --
+            # exactly the indirect "closure loss reshapes the currents" coupling
+            # that let a diverging closure term drag i_cell to 60-2800x its
+            # expected scale (job 1225447's post-mortem).
+            closure = self.closure_head(h.detach()).view(-1, self.config.n_closure_bins, 2)
         return HybridLatent(
             theta=self.theta_head(h),
             anchored=self.anchored_head(h),
