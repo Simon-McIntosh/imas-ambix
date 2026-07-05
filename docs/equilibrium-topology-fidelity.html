@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="equilibrium-topology-fidelity">
+  <meta name="plan-title"     content="Equilibrium Topology Fidelity — resolving the X-point and the limited↔diverted transition beyond EFIT">
+  <meta name="plan-summary"   content="Resolve the hardest part of equilibrium reconstruction — the discrete limited↔diverted topology decision on a near-degenerate continuous flux field (limiter contact vs the separatrix through an off-axis ψ-saddle X-point) — beyond a deterministic point solve. The magnetic axis is already referee-grade; X-point and boundary are honest negatives that A4 proved are interior-structure-driven (magnetics alone under-constrain the interior current near the X-point). Four threads close the gap: interior-diagnostic fusion (MSE/interferometer/SXR), a learned equilibrium prior over the manifold of plausible states, temporal coherence of the smooth transition, and a calibrated limited/diverted probability — GenCast's match-then-exceed against ECMWF, applied to EFIT, with EFIT firewalled as referee.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="XL">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="patch-equilibrium-wm-integration,multimodal-tokenisation-substrate">
+  <meta name="plan-blocks"     content="machine-agnostic-latent-world-model">
+  <title>Equilibrium Topology Fidelity | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Equilibrium Topology Fidelity</h1>
+    <p><em>Resolving the X-point and the limited↔diverted transition beyond EFIT. This plan owns the open
+    frontier of the equilibrium layer: the magnetic axis is solved to referee grade
+    (<a href="/imas-ambix/patch-equilibrium-wm-integration.html">patch-equilibrium-wm-integration</a>), but
+    the plasma <strong>boundary</strong> and its <strong>topology class</strong> are honest negatives. It is
+    the concrete home of the stage-2 done-when the driving plan
+    <a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a>
+    (<code>f-malwm-02</code>) records as still open on the X-point/boundary, and it stays inside the North Star
+    (<a href="/imas-ambix/physics-world-model-strategy.html">physics-world-model-strategy</a>) by construction:
+    physics as coordinate system + soft priors, EFIT firewalled to referee-only.</em></p>
+
+    <h2 id="s1">§1 — The problem: a discrete decision on a continuous field, very finely judged</h2>
+    <p>Deterministic equilibrium codes (EFIT and kin) spend their hardest effort not on the magnetic axis but
+    on one decision: <strong>is the plasma limited or diverted?</strong> This is a <em>discrete</em>
+    classification riding on a <em>continuous</em> field. The plasma boundary is the outermost closed flux
+    surface that does not intersect material. There are two ways it can be set:</p>
+    <ul>
+      <li><strong>Limited</strong> — the boundary is fixed by physical <strong>limiter contact</strong>: the
+      last closed surface just touches a material limiter or the wall, and the bounding flux is ψ at that
+      contact point.</li>
+      <li><strong>Diverted</strong> — the boundary is the <strong>separatrix</strong>, the flux surface passing
+      through an off-axis <strong>ψ-saddle</strong> — the <strong>X-point</strong>, the field null that a
+      divertor coil pulls in from the wall. The bounding flux is ψ at that saddle.</li>
+    </ul>
+    <p>The boundary is whichever of these is the <em>outermost closed</em> surface — essentially
+    max(ψ<sub>limiter</sub>, ψ<sub>X</sub>). As the divertor coil sweeps the X-point inward, ψ<sub>X</sub>
+    rises and crosses ψ<sub>limiter</sub>. <strong>Near that crossing the two candidate boundary fluxes are
+    nearly degenerate</strong>: a tiny error in the reconstructed ψ flips the classification, the plasma-facing
+    footprint, and the whole downstream heat-load picture. This is what "very finely judged" means — the code
+    is resolving a topology decision whose margin is a small fraction of the flux resolution. Getting the axis
+    right (which we do) says nothing about getting <em>this</em> right.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/equilibrium-topology-fidelity/limited-diverted-transition.png"
+           alt="Four-panel figure. Top-left: a LIMITED configuration — psi contours with the boundary (blue) set by a material limiter contact point, no governing interior X-point. Top-right: a DIVERTED configuration — psi contours with the separatrix (red) passing through an off-axis X-point saddle that sets the boundary. Bottom-left: the two candidate boundary fluxes psi_limiter (blue, nearly flat) and psi_X (red, rising) as the divertor coil pulls the X-point in; they cross near-degenerately in a shaded 'finely judged' band where a tiny psi error flips the classification. Bottom-right: the four information threads that resolve the ambiguity — interior-diagnostic fusion, a learned equilibrium prior, temporal coherence, and calibrated classification."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 1 — The limited↔diverted transition. <strong>Limited</strong> (top-left): the boundary is a
+      material limiter contact. <strong>Diverted</strong> (top-right): the boundary is the separatrix through
+      an off-axis ψ-saddle, the X-point. The two candidate boundary fluxes (bottom-left) cross
+      near-degenerately as the X-point sweeps in — inside the shaded band a tiny ψ error flips the class. The
+      four threads (bottom-right) each inject information EFIT does not use, in the order this plan pursues
+      them. <em>The ψ fields are an analytic toy for illustration; the physics of the near-degenerate crossing
+      is the point, not the specific contour values.</em></figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Where we are (all measured, patch-equilibrium-wm-integration)</h2>
+    <p>The equilibrium layer that this plan extends resolves the <strong>axis</strong> to referee grade and
+    the <strong>boundary/topology</strong> not at all — and that split is measured, not asserted.</p>
+    <ul>
+      <li><strong>Axis is solved.</strong> The training-free per-slice inverse scores axis skill +0.019 &gt; 0
+      on 160/160 held-out slices at a 2.8 cm median (flat-top skill +0.286 @ 2.09 cm, n=101); the corrected
+      amortised encoder reaches a 4.3 cm axis median on the 5k-shot corpus. The flux-map comparison against
+      firewalled EFIT maps calls the axis <em>referee-grade across regimes</em> (flat-top 2.4 cm median).</li>
+      <li><strong>X-point and boundary are honest negatives.</strong> LCFS/boundary reads on the free-current
+      ψ hit spurious saddles (skills ≈ −3 to −11 everywhere); the post-fix A4 baseline records LCFS skill
+      −6.26 with the last-closed surface <strong>under-sized by 34.1 cm (all) / 37.2 cm (flat-top)</strong>,
+      and the flux-map report measures the flat-top LCFS under-sized 31.3 cm median. The X-point set is the
+      first amortised quantity to go marginally positive (+0.058), but nowhere near the bar.</li>
+      <li><strong>A4 proved this is NOT a readout-tuning artifact.</strong> All three candidate boundary-read
+      arms were measured leakage-free (tuned on train, frozen, 160/160 held-out, invert-once grid isolating
+      the readout as the only varying factor): the saddle-distance guard and ψ-smoothing are
+      <strong>bit-identical</strong> to baseline across the full swept range, and current-smoothness moves
+      every metric &lt; 0.01 in the wrong/negligible direction. <strong>The deficit is
+      interior-structure-driven</strong> — magnetics alone under-constrain the interior current near the
+      X-point (a sensor null-space), so the last closed surface has no data pinning its size. This is the same
+      ill-posedness EFIT faces; EFIT tames it with a current-profile parametrisation we deliberately dropped as
+      over-constraining. The lever is training-time/amortised information, not a post-hoc readout fix.</li>
+      <li><strong>Standing caveat (programme-wide).</strong> The per-slice variational inverse is chaotically
+      sensitive; its <em>absolute</em> axis/LCFS cm figures carry device+run variance of order several cm
+      (identical-config GPU 2.58 cm vs CPU re-run 6.4 cm). Comparative verdicts under one device/run are safe;
+      the PASS/FAIL topology verdicts here stand, but the exact cm are not precise beyond a few cm and must
+      cite their run.</li>
+    </ul>
+    <p>The read is clean: <strong>the interior current near the X-point is where the information is missing,
+    and it is exactly what magnetics cannot see.</strong> Every thread below adds information that the
+    magnetics-only, single-slice, point-estimate read throws away.</p>
+
+    <h2 id="s3">§3 — The ambition: beat EFIT the way GenCast beat ECMWF</h2>
+    <p>The north star for this plan is stated plainly: <strong>beat EFIT on the X-point, the boundary, and the
+    topology class — first match, then exceed.</strong> Matching is nearly done on the axis; exceeding comes
+    from information EFIT structurally ignores. The template is
+    <strong>GenCast</strong> (<em>Nature</em>, 2025): it beat the ECMWF ensemble on ~97% of forecast targets
+    not by being a better deterministic solver but by being a better <em>probabilistic model of the state</em>
+    — generative, multimodal, dynamics-aware, carrying calibrated uncertainty. EFIT is a per-slice
+    deterministic point solve that uses only magnetics + a fixed current-profile parametrisation and returns a
+    single answer with no honest uncertainty at the finely-judged transition. We propose the same move EFIT
+    cannot make:</p>
+    <ul>
+      <li><strong>Multimodal</strong> — fuse interior diagnostics (MSE, interferometer, SXR) that see the
+      interior current magnetics cannot (thread 1).</li>
+      <li><strong>A generative prior over states</strong> — a corpus-trained latent that knows the manifold of
+      plausible equilibria and picks the physical X-point over a spurious saddle (thread 2).</li>
+      <li><strong>Dynamics-aware</strong> — the transition is a smooth time process; use temporal coherence to
+      disambiguate the instantaneous saddle (thread 3).</li>
+      <li><strong>Uncertainty-carrying</strong> — return a calibrated limited/diverted <em>probability</em>,
+      not a coin-flip, exactly where EFIT is most brittle (thread 4).</li>
+    </ul>
+    <p><strong>EFIT stays firewalled.</strong> Per the driving plan's locked firewall (code-outputs-only),
+    EFIT's reconstructed boundary/X-point/ψ is a referee that only <em>judges</em> our readouts — never an
+    input, never a training label. Sensor geometry (where diagnostics sit and point) is freely-used apparatus
+    metadata and remains the token positional encoding. Beating the referee means beating it on raw held-out
+    observables and calibrated topology reliability, not on agreement with its own reconstruction.</p>
+
+    <h2 id="s4">§4 — Thread 1: interior-diagnostic fusion (the missing information)</h2>
+    <p>The A4 verdict points straight here: the boundary deficit is interior-current-null-space, so the fix is
+    to add diagnostics that <em>see the interior current</em>. Carry them into the encoder as
+    geometry-tagged token streams alongside magnetics, each with its integration geometry (line-of-sight chord
+    endpoints for the integrated diagnostics), exactly as the driving plan's §5 representation prescribes:</p>
+    <ul>
+      <li><strong>MSE (motional Stark effect)</strong> — measures the magnetic pitch angle
+      B<sub>pol</sub>/B<sub>tor</sub> along the neutral beam, which <em>directly constrains the internal field
+      and current distribution</em>. This is the physical information that pins where the X-point sits, because
+      the interior current is what shapes ψ near the edge saddle. MSE is a raw diagnostic (never a solver
+      output), so it is firewall-clean; it is also the same signal Stage-3 uses as its held-out validation key
+      (beam-on slices).</li>
+      <li><strong>Interferometer (line-integrated density)</strong> and <strong>SXR (line-integrated core
+      emission)</strong> — add internal structure constraints along their chords, complementary to MSE and
+      densely available when the beam is off.</li>
+    </ul>
+    <p><strong>Gate T1:</strong> with interior diagnostics fused into the encoder, held-out X-point and
+    boundary skill rise <em>measurably</em> versus the magnetics-only baseline of §2 (LCFS skill −6.26,
+    X-point set +0.058), per quantity, on the firewalled-EFIT referee. The honest success criterion is
+    <em>direction and magnitude of the rise</em> attributable to the interior channels (ablate them out to
+    confirm), not a fixed absolute cm target — the standing caveat forbids over-reading the absolute number.</p>
+
+    <h2 id="s5">§5 — Thread 2: a learned equilibrium prior (pick the physical saddle)</h2>
+    <p>A per-slice inverse with no prior lands on <em>any</em> ψ that fits the magnetics, including one with a
+    spurious off-axis saddle — that is the mechanism behind the ≈ −3 to −11 boundary skills. The GenCast
+    insight is to replace the bare point solve with a <strong>generative prior over the state</strong>: the
+    corpus-trained latent learns the <em>manifold of plausible equilibria</em>, so near the ambiguous
+    transition it prefers the physical X-point over a numerical artifact. This is the concrete realisation of
+    the driving plan's hybrid-latent design — the boundary/X-point emerge as readouts of a ψ that is
+    regularised toward the learned manifold, never supervised.</p>
+    <p><strong>Gate T2:</strong> on thin-flux-margin slices (the finely-judged band, selected by
+    |ψ<sub>X</sub> − ψ<sub>limiter</sub>| small on the referee), the prior-regularised topology read picks the
+    <em>correct</em> class (limited vs diverted, and the correct X-point when diverted) more often than the raw
+    ψ-saddle read of the un-regularised inverse. Report the fraction correct vs flux-margin, held-out, referee
+    as ground truth.</p>
+
+    <h2 id="s6">§6 — Thread 3: temporal coherence (the transition is smooth in time)</h2>
+    <p>The limited→diverted transition is not an instantaneous event: the X-point <em>sweeps in from the
+    wall</em> as the divertor coil ramps, a smooth trajectory in time. A per-slice reader throws that away and
+    re-decides the topology from scratch every frame, so it is maximally exposed to the instantaneous
+    degeneracy. A <strong>dynamics-aware read</strong> — the X-point as a coherent track through the stage-3
+    closed-loop filter, with the flux-diffusion transport prior enforcing smooth ψ evolution — disambiguates
+    the instantaneous saddle by borrowing strength from neighbouring slices. This is the natural bridge from
+    this plan into the driving plan's stage-3 filter (<code>f-malwm-03</code>): the equilibrium topology
+    becomes a filtered quantity, not a per-slice guess.</p>
+    <p><strong>Gate T3:</strong> on transition shots (shots that cross limited→diverted in the held-out set),
+    a temporally-smoothed X-point track beats the per-slice read — lower track error and fewer topology
+    flip-flops through the transition — with the improvement attributable to temporal coherence (ablate the
+    smoothing to confirm).</p>
+
+    <h2 id="s7">§7 — Thread 4: calibrated limited/diverted classification (honest at the knife-edge)</h2>
+    <p>At the finely-judged crossing the physically honest output is not a decision but a
+    <strong>probability</strong>: "60% diverted." EFIT returns a point estimate and hides the knife-edge; a
+    probabilistic model carries the uncertainty forward to whoever consumes the topology (heat-load
+    prediction, control, commissioning). Because the belief is probabilistic (North Star §3), the model can
+    say how sure it is, and that certainty should <em>collapse to a coin-flip exactly in the degenerate
+    band</em> and sharpen away from it — the signature of honest calibration.</p>
+    <p><strong>Gate T4:</strong> the diverted-probability is <em>reliable</em> against the firewalled EFIT
+    referee — a reliability diagram with flux-margin (|ψ<sub>X</sub> − ψ<sub>limiter</sub>|) as the difficulty
+    axis shows predicted probability tracking observed frequency, and the model's confidence rising with the
+    flux margin. A calibrated 55% at the knife-edge is a pass; a confident-and-wrong point estimate is the
+    failure this thread exists to replace.</p>
+
+    <h2 id="s8">§8 — Sequencing and relationship to the driving plan</h2>
+    <p>The threads are ordered by evidence-directed priority. <strong>Thread 1 is first</strong> — A4 already
+    proved the deficit is missing interior information, so fusing the diagnostics that carry it is the lever
+    with the clearest measured mandate, and MSE availability (beam-on slices) is already characterised by
+    Stage-3. Threads 2–4 layer on: the learned prior (2) and the calibrated read (4) are readout/loss-side and
+    can be measured on the same trained latent; temporal coherence (3) rides the stage-3 filter as it comes
+    online. All four report against the standing flux-map comparison cadence
+    (<a href="/imas-ambix/patch-flux-map-comparison.html">patch-flux-map-comparison</a>) and the firewalled
+    referee. This plan is blocked-by <code>patch-equilibrium-wm-integration</code> (the equilibrium layer it
+    extends) and <code>multimodal-tokenisation-substrate</code> (the geometry-tagged token schema the interior
+    diagnostics need), and it <strong>blocks</strong> <code>machine-agnostic-latent-world-model</code> by
+    finishing the X-point/boundary half of its stage-2 done-when (<code>f-malwm-02</code> #2), the half the
+    axis work left open.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="first-interior-diagnostic" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which interior diagnostic does thread 1 fuse first?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="mse-first">MSE first — most direct interior-current constraint (pitch angle), and it is the Stage-3 validation key; but beam-on only, so sparser coverage</button>
+          <button class="r-opt" data-value="interferometer-sxr-first">interferometer + SXR first — densely available (beam-independent), lower per-slice information but far more slices to learn the fusion path on</button>
+        </p>
+        <p class="r-dec-rat">MSE carries the most X-point-relevant information but is confined to beam-on slices (the same availability the Stage-3 held-out key exploits). Interferometer+SXR are always-on and de-risk the fusion plumbing on the full corpus before MSE's sparse, high-value slices are added. Recommend deciding at kickoff on the measured beam-on slice count vs the plumbing risk.</p>
+      </div>
+      <div class="r-dec" data-key="topology-read-mechanism" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How is the topology read produced — a soft differentiable field-null term in the training loss, or an eval-time prior-regularised read?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="soft-loss-null">soft differentiable field-null in the loss — trains the latent ψ to place a genuine saddle, topology falls out of the learned field (tighter coupling, higher build cost)</button>
+          <button class="r-opt" data-value="eval-time-regularised">eval-time prior-regularised read — decode ψ, then read topology under the learned manifold prior at eval (cheaper, reuses the trained latent, weaker coupling)</button>
+        </p>
+        <p class="r-dec-rat">The eval-time read reuses the existing trained latent and is the fast path to a first T2 number; the in-loss field-null term couples the topology objective into training and is the stronger long-run mechanism but costs a retrain. Recommend measuring T2 with the eval-time read first, then deciding whether the in-loss term is worth the retrain on that evidence.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-etf-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §4" data-resolved-at="" data-resolved-by="">
+        <h4 class="r-fu-title">Ship thread 1 — fuse interior diagnostics (MSE / interferometer / SXR) into the equilibrium encoder</h4>
+        <div class="r-fu-body"><p>A4 proved the boundary deficit is interior-current null-space, not a readout artifact — so the first lever is to add the diagnostics that see the interior current. Fuse them as geometry-tagged token streams (line-of-sight chord geometry) into the equilibrium encoder and measure whether held-out X-point/boundary skill rises versus the magnetics-only baseline. Resolve <code>first-interior-diagnostic</code> at kickoff on the measured beam-on slice count.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-topology-fidelity (http://localhost:8765/imas-ambix/equilibrium-topology-fidelity.html)
+Section: §4 Thread 1 — interior-diagnostic fusion
+Tier:    opus
+
+Context
+  The equilibrium layer resolves the magnetic axis to referee grade but the X-point/boundary
+  are honest negatives (LCFS skill -6.26, under-sized 34-37 cm; X-point set +0.058). A4 measured
+  that this is interior-current null-space, not a readout artifact — magnetics alone cannot pin the
+  interior current near the X-point. This thread adds the diagnostics that CAN see it. First lever
+  of the plan, clearest measured mandate.
+
+State to read  (CODE / FILES / DATA — not the plan page; the builder injects it)
+  imas_ambix/latent/patch_encoder.py        (encoder + heads + geometry-PE token layout)
+  imas_ambix/latent/data.py                 (channel discovery, per-shot masks, signature split)
+  scripts/patch_encoder_gate_eval.py        (held-out gate protocol; per-quantity skills)
+  imas_ambix/latent/artifacts/patch_gate/encoder_gate_direct{5k,full}.json  (magnetics-only baseline)
+  docs/patch-equilibrium-wm-integration.html §2-§3 (measured baseline, A4 verdict, standing caveat)
+  MAST interior diagnostics: MSE (beam-on pitch angle), interferometer (line density), SXR
+    — confirm the raw signal groups + line-of-sight/chord geometry available per shot before wiring
+
+Scope locks / constraints  (non-decision)
+  Self-supervised only — no EFIT in any training path; EFIT is the eval-only firewalled referee
+    (code-outputs-only firewall; MSE/interferometer/SXR are RAW diagnostics, firewall-clean).
+  Each interior stream carries its integration geometry (chord endpoints) as token positional
+    encoding, per the driving plan §5 representation. Absolute calibration (SI), never per-shot z-score.
+  Honour the shipped patch-current-force-balance decisions (head=direct, weight policy=bounded
+    discrepancy) unless a NEW ablation is explicitly run. SLURM for training; login node for unit tests.
+  Do NOT over-read absolute cm — report skill deltas and ablate the interior channels to attribute the rise.
+
+Done-when
+  1. Interior-diagnostic token streams fused into the encoder with chord/beam geometry; tests green.
+  2. Held-out gate eval: per-quantity X-point + boundary skill reported vs the magnetics-only baseline;
+     interior-channel ablation isolates the attributable rise (Gate T1).
+  3. first-interior-diagnostic decision resolved at kickoff with the measured beam-on slice count.
+  4. plan updated same-turn with numbers + a figure; followup written for thread 2 + this one resolved.</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
