@@ -201,8 +201,11 @@ def _fit_one(
     frame.
     """
     keep = np.asarray(mask, dtype=bool)
-    meas = np.asarray(measured, dtype=np.float64)
-    vac = np.asarray(vacuum, dtype=np.float64)
+    # absent channels carry NaN in ``measured``; they are masked out (w = 0), but
+    # NaN * 0 = NaN would still poison the least squares, so zero them first
+    # (exactly as the free-current inverse does with np.nan_to_num).
+    meas = np.nan_to_num(np.asarray(measured, dtype=np.float64))
+    vac = np.nan_to_num(np.asarray(vacuum, dtype=np.float64))
     sc = np.asarray(scale, dtype=np.float64)
     w = np.zeros_like(meas)
     w[keep] = 1.0 / np.maximum(sc[keep], 1e-12)
