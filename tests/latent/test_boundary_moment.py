@@ -105,9 +105,7 @@ def test_recovers_current_in_moment_span():
 def test_ip_anchor_pins_total_current():
     """With an underdetermined-in-monopole signature, the anchor still pins Ip."""
     basis, r_cells, z_cells = _make_basis(seed=1)
-    cand = np.ones(r_cells.size)
     m_sens = basis.m_sens.numpy()
-    rng = np.random.default_rng(7)
     # a smooth true current (Gaussian blob) -- not exactly in the span
     blob = np.exp(-(((r_cells - basis.r0) / 0.25) ** 2 + (z_cells / 0.3) ** 2))
     i_true = blob / blob.sum() * 6.0e5  # 600 kA
@@ -167,7 +165,6 @@ def test_mask_ignores_untrusted_rows():
 
 def test_invert_slices_moment_batch():
     basis, r_cells, z_cells = _make_basis(seed=4)
-    cand = np.ones(r_cells.size)
     m_sens = basis.m_sens.numpy()
     S = m_sens.shape[0]
     payloads = []
