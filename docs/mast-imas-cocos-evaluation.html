@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="mast-imas-cocos-evaluation">
+  <meta name="plan-title" content="MAST → IMAS Coordinate/Sign (COCOS) Convention Evaluation">
+  <meta name="plan-summary" content="Rigorous evaluation of how coordinate/sign (COCOS) conventions are handled as MAST data flows into the equilibrium pipeline, whether sign-convention misunderstandings are hurting progress, and whether mapping MAST to IMAS is worth it. Verdict: the MAST-only chain is sign-SOUND and self-consistent (forward vacuum prediction tracks raw amb with correlation 0.83-0.87 and slope ~1.0; Ip sign preserved in the physics; topology sign-agnostic by design). MAST does NOT currently flow through IMAS at all — it is read raw from FAIR-MAST zarr. The real COCOS exposure is a LATENT North-Star risk at the (not-yet-wired) IMAS ingestion seam, where COCOS-11 (axis=flux-min for Ip>0) disagrees with the pipeline's working convention (axis=flux-max). Recommends a small, non-urgent COCOS-hardening plan to be landed before a second machine is ingested.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>MAST → IMAS COCOS Convention Evaluation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-modified" content="2026-07-06">
+  <meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h1>MAST → IMAS Coordinate / Sign (COCOS) Convention Evaluation</h1>
+    <p><em>Requested by the lead, who feared sign-convention misunderstandings are silently
+    hurting progress. This evaluation traces the full sign chain, tests it against real MAST
+    data, and weighs the benefit of IMAS mapping.</em></p>
+
+    <h2 id="verdict">Executive verdict</h2>
+
+    <div class="callout">
+      <p><strong>Is sign-convention confusion impacting progress? — PARTLY, and NOT where it was
+      feared.</strong></p>
+      <ul>
+        <li><strong>MAST-only pipeline (today's actual work): sign-SOUND.</strong> The chain is
+        internally self-consistent and empirically verified. On four held-out shots the
+        geometry-only Green's-function forward operator, run on a genuine pre-breakdown vacuum
+        slice, predicts the raw <code>amb</code> magnetics with <strong>correlation
+        0.83–0.87 and a least-squares slope of 0.86–0.99</strong> (sign <em>and</em> magnitude
+        coherent — see Fig. 2). Ip sign is preserved in the physics constraint; the topology read
+        is sign-agnostic <em>by construction</em> (a strength, not a hack). The negative
+        boundary/LCFS skill scores the lead worried about are <strong>not</strong> sign flips.</li>
+        <li><strong>The premise "MAST → IMAS → pipeline" does not describe the current
+        architecture.</strong> MAST is read <em>raw</em> from FAIR-MAST zarr. There is no
+        <code>master.h5</code>, no <code>imas.DBEntry</code>, and no COCOS auto-conversion anywhere
+        on the MAST path. The IMAS reader exists only as a machine-agnostic <em>seam</em>,
+        exercised against ITER machine-description geometry — never MAST, never signals.</li>
+        <li><strong>The real exposure is a LATENT North-Star risk</strong> at the not-yet-wired
+        IMAS ingestion seam. IMAS data is COCOS-11 (axis = flux <em>minimum</em> for Ip&gt;0); the
+        pipeline's working convention is axis = flux <em>maximum</em> (matching MAST EFIT). There
+        is currently <em>no COCOS-normalization layer</em>, and one unverified COCOS assumption
+        (<code>imas_geometry.py:74</code>, poloidal-angle) sits on that seam. This does not hurt
+        MAST progress today, but it <em>will</em> bite the first time a second machine is ingested
+        through IMAS — which the machine-agnostic North Star requires.</li>
+      </ul>
+      <p><strong>Recommendation: write a small, focused COCOS-hardening plan (sketched in
+      §6), but treat it as a North-Star prerequisite, NOT an urgent fix — MAST-only progress is
+      not blocked by sign conventions.</strong></p>
+    </div>
+
+    <h2 id="architecture">§1 — What actually flows where (the premise, corrected)</h2>
+    <p>
+      The lead's question assumes a "raw → IMAS → pipeline" flow. The code says otherwise.
+      MAST enters the pipeline <strong>raw</strong>, straight from the FAIR-MAST level-1 zarr store
+      (<code>/work/projects/imas_gpu/mast/level1/shots/*.zarr</code>):
+    </p>
+    <ul>
+      <li>Machine geometry (sensor <code>(R,Z)</code>, orientations, PF filaments, limiter) is read
+      from EFIT's <em>static setup</em> arrays in the zarr <code>efm</code> group by
+      <code>MastZarrGeometryReader</code> / <code>build_table_for_shot</code>
+      (<code>imas_ambix/gs/geometry.py</code>).</li>
+      <li>Raw magnetics (<code>amb</code> flux loops [Wb] / B-probes [T]) and coil currents
+      (<code>amc</code> [kA·turn]) are read as zarr arrays, aligned to the operator by channel name
+      (<code>imas_ambix/latent/data.py</code>).</li>
+      <li>The EFIT reconstruction (<code>efm/psirz</code>, <code>psi_axis</code>, …) is read
+      <em>only</em> inside the firewalled evaluator for scoring — never as an input or label.</li>
+    </ul>
+    <p>
+      The one IMAS reader in the repo — <code>ImasGeometryReader</code> using
+      <code>imas.DBEntry</code> (<code>imas_ambix/gs/imas_geometry.py</code>) — is a
+      <strong>second, parallel</strong> implementation of the same <code>GeometryTable</code>
+      seam, written for ITER-style machine-description IDSs (<code>pf_active</code>,
+      <code>wall</code>, <code>magnetics</code>). It reads <em>geometry only</em>, no signals, and
+      is not on the MAST path. A filesystem sweep confirms there are no MAST IMAS pulse files
+      (<code>master.h5</code>) present. <strong>So no COCOS auto-conversion happens today at
+      all.</strong>
+    </p>
+
+    <figure>
+      <img src="/imas-ambix/figures/mast-imas-cocos-evaluation/sign-chain-diagram.png"
+           alt="Sign chain from raw MAST through the forward operator and topology read, with the IMAS seam as a latent risk"
+           style="max-width:100%;height:auto;">
+      <figcaption><strong>Fig. 1 — The sign/COCOS chain.</strong> Green boxes are the active,
+      self-consistent MAST-only path: raw EFIT-native convention in, forward operator and
+      topology read staying in that convention, referee scoring in the same convention after an
+      explicit 2π reconciliation. The amber box is the IMAS seam — COCOS-11, a different sign for
+      the same Ip, one unverified angle assumption, and no normalization layer between it and the
+      forward operator. It is not wired to MAST data today.</figcaption>
+    </figure>
+
+    <h2 id="chain">§2 — The traced sign / COCOS chain</h2>
+    <p>
+      Canonical IMAS conventions are COCOS-11 (confirmed against the DD: <code>magnetics/ip</code>
+      is <em>ip_like</em>, <code>magnetics/flux_loop/flux</code> and
+      <code>equilibrium/…/psi_axis</code> are <em>psi_like</em>,
+      <code>b_field_pol_probe/poloidal_angle</code> is <em>pol_angle_like</em>,
+      <code>b_field_pol_probe/field</code> is <em>one_like</em> i.e. COCOS-invariant). COCOS-11 has
+      σ<sub>Bp</sub>=+1 and e<sub>Bp</sub>=1, which fixes two things: (a) ψ carries the full 2π
+      (total flux, not per-radian), and (b) for Ip&gt;0, ψ <em>increases</em> from axis to
+      boundary, so the <strong>axis is a flux minimum</strong>.
+    </p>
+
+    <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Quantity</th>
+          <th>IMAS COCOS-11 convention</th>
+          <th>What our code assumes / does</th>
+          <th>Verified?</th>
+          <th>Mismatch vs COCOS-11?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ψ 2π factor (e<sub>Bp</sub>)</td>
+          <td>ψ = total flux [Wb] (2π included)</td>
+          <td>Forward <code>greens_psi</code> returns total flux Φ=2πR·A<sub>φ</sub> [Wb]
+          (<code>operator.py:113</code>); EFIT <code>efm</code> is per-radian [Wb/rad], multiplied
+          by 2π in the referee (<code>patch_flux_map_report.py:117</code>)</td>
+          <td><strong>Yes</strong> — explicit ×2π; extremum lands on reference axis</td>
+          <td>No — handled correctly and explicitly</td>
+        </tr>
+        <tr>
+          <td>ψ sign vs Ip (σ<sub>Bp</sub>)</td>
+          <td>Ip&gt;0 ⇒ ψ<sub>axis</sub> &lt; ψ<sub>boundary</sub> (axis = flux MIN)</td>
+          <td>Forward + EFIT both have Ip&gt;0 ⇒ ψ<sub>axis</sub> &gt; ψ<sub>boundary</sub>
+          (axis = flux MAX). Working convention is σ<sub>Bp</sub>=−1 (EFIT-native, COCOS-3-like)</td>
+          <td><strong>Yes</strong> — measured on 4 shots (Fig. 3)</td>
+          <td><strong>YES</strong> — opposite sign; harmless MAST-only, live at the IMAS seam</td>
+        </tr>
+        <tr>
+          <td>Ip sign</td>
+          <td>Positive when toroidal current is in +φ</td>
+          <td>Read signed from raw <code>amc/plasma_current</code>; carried <em>signed</em> into the
+          plasma amplitude and the Ip penalty (<code>patch_inverse.py:204,209</code>).
+          <code>np.abs(ip)</code> at <code>data.py:205</code> is <em>only</em> a plasma-on
+          threshold detector, not a physics term</td>
+          <td><strong>Yes</strong> — signed in the constraint; abs is detector-only</td>
+          <td>No practical mismatch (self-consistent magnitude + sign)</td>
+        </tr>
+        <tr>
+          <td>Flux-loop flux</td>
+          <td><em>psi_like</em> (sign-sensitive)</td>
+          <td>Raw <code>amb fl_*</code> [Wb] used as-is, aligned by name; forward predicts it with
+          <code>greens_psi</code></td>
+          <td><strong>Yes</strong> — forward vs raw amb corr 0.83–0.87, slope ~1 (Fig. 2)</td>
+          <td>No — self-consistent within the EFIT-native convention</td>
+        </tr>
+        <tr>
+          <td>B-probe field</td>
+          <td><em>one_like</em> (COCOS-invariant scalar)</td>
+          <td>Projected as B = B<sub>R</sub>cosθ + B<sub>Z</sub>sinθ
+          (<code>operator.py:_project_bprobe</code>)</td>
+          <td><strong>Yes</strong> — pinned by unit tests; matches raw amb (Fig. 2)</td>
+          <td>No (field itself is convention-invariant)</td>
+        </tr>
+        <tr>
+          <td>Poloidal angle θ</td>
+          <td><em>pol_angle_like</em> (sign-sensitive between COCOS)</td>
+          <td>MAST: <code>magpr_ang</code> used authoritatively (EFIT setup, self-consistent).
+          IMAS: <code>b_field_pol_probe.poloidal_angle</code> <em>assumed</em> to match MAST's
+          convention (<code>imas_geometry.py:74</code>)</td>
+          <td>MAST <strong>yes</strong>; IMAS <strong>NO</strong> — flagged unverified in code</td>
+          <td>Unknown at the IMAS seam — must be verified before ingesting a second machine</td>
+        </tr>
+        <tr>
+          <td>μ<sub>0</sub> / SI</td>
+          <td>SI throughout</td>
+          <td>μ<sub>0</sub> carried explicitly; <code>amc</code> kA·turn → A via ×1000
+          (turns=1 so amp-turns = amps) (<code>operator.py:98,101</code>)</td>
+          <td><strong>Yes</strong> — slope ~1.0 confirms the magnitude chain</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Topology read (axis / LCFS / X-pts)</td>
+          <td>n/a (a read of ψ, any convention)</td>
+          <td>Axis = argmax|ψ<sub>O</sub>−ψ<sub>edge</sub>|; LCFS ray-cast uses
+          sign(ψ<sub>bnd</sub>−ψ<sub>axis</sub>); boundary = innermost saddle
+          (<code>topology.py</code>) — <strong>sign-agnostic by design</strong></td>
+          <td><strong>Yes</strong> — invariance is structural</td>
+          <td>No — robust to either sign (this is the correct machine-agnostic choice)</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h2 id="realdata">§3 — Real-data findings</h2>
+    <p>
+      The audit script <code>scripts/mast_cocos_audit.py</code> reads real MAST zarr for shots
+      18502–18505 and answers two questions concretely.
+    </p>
+
+    <h3>3.1 — What convention is the MAST reconstruction actually in?</h3>
+    <p>
+      All four shots have a clearly <strong>positive</strong> plasma current (median Ip
+      +640…+921 kA) and, at every reconstructed slice, ψ<sub>axis</sub> &gt; ψ<sub>boundary</sub>
+      (median ψ<sub>axis</sub>−ψ<sub>boundary</sub> ≈ +0.06…+0.07 Wb/rad). <strong>Axis is a flux
+      maximum for positive Ip</strong> — the σ<sub>Bp</sub>=−1 (COCOS-3-like) EFIT-native
+      convention, the exact opposite of COCOS-11. The <code>matches_cocos11</code> flag is
+      <code>False</code> for all four. This is a fact about the data, and the pipeline is built to
+      match it, so it is not a bug — but it is precisely the sign that would flip if the same data
+      were ever routed through an IMAS COCOS-11 conversion.
+    </p>
+
+    <figure>
+      <img src="/imas-ambix/figures/mast-imas-cocos-evaluation/efm-sign-convention.png"
+           alt="Scatter of psi_axis minus psi_boundary versus Ip for four MAST shots, all in the axis-is-flux-maximum quadrant"
+           style="max-width:100%;height:auto;">
+      <figcaption><strong>Fig. 3 — MAST EFIT sign convention.</strong> All shots sit in the
+      top-right quadrant: positive Ip with axis as a flux maximum. COCOS-11 would place them in the
+      top-left (axis = flux minimum for positive Ip). The MAST reconstruction is COCOS-3-like, not
+      COCOS-11 — the pipeline matches it, so nothing is wrong <em>today</em>.</figcaption>
+    </figure>
+
+    <h3>3.2 — Is the forward sign chain coherent end-to-end?</h3>
+    <p>
+      The strongest test: on a genuine pre-breakdown vacuum slice (PF coils energised, Ip still
+      NaN, so raw <code>amb</code> is a pure PF signal), does the operator's vacuum prediction
+      <code>G_pf · I_pf</code> reproduce raw <code>amb</code>? Across the four shots the
+      name-matched sensors give correlation <strong>0.83–0.87</strong>, sign-match fraction
+      <strong>75–85%</strong>, and — decisively — a least-squares slope of
+      <strong>0.86–0.99</strong>. A slope near unity means the <em>entire</em> chain (kA·turn→A
+      conversion, μ<sub>0</sub>, filament Green's-function sign, and the
+      B<sub>R</sub>cosθ+B<sub>Z</sub>sinθ projection) is coherent in <em>both</em> sign and
+      magnitude. The ~15–25% sign disagreements are all on near-zero, noise-dominated sensors
+      (clustered at the origin in Fig. 2).
+    </p>
+
+    <figure>
+      <img src="/imas-ambix/figures/mast-imas-cocos-evaluation/forward-sign-coherence.png"
+           alt="Four scatter panels of vacuum forward prediction versus raw amb, all hugging the y=x line with positive slope"
+           style="max-width:100%;height:auto;">
+      <figcaption><strong>Fig. 2 — Forward PF sign coherence.</strong> Vacuum prediction
+      <code>G_pf·I_pf</code> (x) vs raw measured <code>amb</code> (y) on the pre-breakdown slice.
+      Points hug the y=x line with positive slope on all four shots — the PF sign chain is sound.
+      This directly refutes the hypothesis that a hidden sign error is corrupting the forward
+      model.</figcaption>
+    </figure>
+
+    <h2 id="impact">§4 — Impact assessment (against the lead's fear)</h2>
+    <p>
+      The lead specifically asked whether the negative boundary/LCFS results are sign-related.
+      Evidence says they are not:
+    </p>
+    <ul>
+      <li><strong>The negative numbers are skill scores, not physical sign flips.</strong> "LCFS
+      −6" and "axis_Z −0.19" are <em>skill</em> (worse-than-baseline) metrics recorded in the
+      patch-current force-balance work, attributed there to spurious saddles in a non-force-balanced
+      low-DOF current representation. A genuine ψ-sign or Z-flip would corrupt the <em>axis-R</em>
+      read too — but axis skill went <em>positive</em> (+0.019) in the same run. A sign fault
+      cannot be selective like that.</li>
+      <li><strong>Sign-agnostic reads are principled, not a cover-up.</strong> Using
+      argmax|ψ−ψ<sub>edge</sub>| for the axis and sign(ψ<sub>bnd</sub>−ψ<sub>axis</sub>) for the
+      ray-cast is the mathematically correct way to be invariant to a convention you don't want to
+      hard-code. This is exactly what a machine-agnostic model should do; it is not masking an
+      unresolved bug. The forward-coherence test (Fig. 2) independently confirms the underlying
+      sign is right, so the agnosticism is belt-and-braces, not a crutch.</li>
+      <li><strong>No per-shot sign flips exist in the loaders.</strong> The only <code>abs()</code>
+      on a signed quantity is the plasma-on detector; the physics keeps Ip signed. The
+      "falls back to ψ_norm if frames disagree" hedge in the flux-map report is a
+      <em>plotting</em> robustness fallback for absolute-level comparison, and the report notes the
+      absolute frames <em>do</em> agree (axis = flux max on both sides).</li>
+    </ul>
+    <p>
+      <strong>Net: sign confusion is not what is holding back the boundary/closure readout.</strong>
+      Time spent hunting a MAST sign bug would be misdirected; the representation (force balance,
+      saddle robustness) is the real frontier, as the current plan already states.
+    </p>
+
+    <h2 id="benefit">§5 — Is mapping MAST to IMAS worth it?</h2>
+    <p>
+      Weighing the machine-agnostic North Star (one latent world model, MAST → JET → ITER by
+      construction) against the concrete cost:
+    </p>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Benefit of IMAS mapping</th><th>Cost / risk</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>COCOS standardization</strong> — one convention across machines removes the
+          per-machine sign bookkeeping entirely (the exact latent risk in §2 disappears).</td>
+          <td><strong>Silent auto-conversion.</strong> imas-python will happily COCOS/DD-convert on
+          a mismatched <code>dd_version</code>; a wrong version corrupts ψ sign and the 2π factor
+          without erroring. The repo's IMAS rules already guard this, but the guard must be honored
+          on the MAST path too.</td>
+        </tr>
+        <tr>
+          <td><strong>DD-versioned, machine-agnostic geometry.</strong> The
+          <code>GeometryTable</code> seam already exists and is reader-agnostic — the ITER reader
+          proves the seam works. Portability to JET/ITER is a schema read, not a rewrite.</td>
+          <td><strong>MAST native ≠ COCOS-11.</strong> Mapping MAST into IMAS naively would flip the
+          working sign (axis-max → axis-min for Ip&gt;0) and force a decision the pipeline currently
+          dodges. Worth it <em>only</em> if the forward operator + topology are made explicitly
+          COCOS-tagged at the same time.</td>
+        </tr>
+        <tr>
+          <td><strong>Apparatus metadata portability</strong> — coil/probe/wall descriptions
+          arrive in a documented, self-describing schema instead of EFIT array conventions that
+          differ per campaign.</td>
+          <td><strong>Effort now, payoff later.</strong> MAST-only work needs none of this; the
+          value is realized only when the second machine lands.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <p>
+      <strong>Conclusion:</strong> IMAS mapping is worth it — it is the mechanism that makes the
+      machine-agnostic North Star real and permanently retires per-machine sign bookkeeping — but
+      it is only worth it <em>done properly</em>: the conversion must be an explicit,
+      fail-loud, tested seam, and the forward operator/topology must declare their working COCOS so
+      the seam has something to convert <em>to</em>. Mapping MAST to IMAS without that seam would
+      inject exactly the sign hazard the lead fears.
+    </p>
+
+    <h2 id="recommendation">§6 — Recommendation</h2>
+    <p>
+      <strong>Yes — write a separate, focused COCOS-hardening plan</strong>, but scope it as a
+      North-Star prerequisite (to land before, or together with, the first non-MAST machine
+      ingestion), not as an urgent fix for current MAST progress. MAST-only work is sign-sound and
+      should proceed unblocked. Suggested sections:
+    </p>
+    <ol>
+      <li><strong>Declare and pin the pipeline's working COCOS.</strong> Add an explicit constant +
+      docstring stating the forward operator's convention (e<sub>Bp</sub>=1 total-flux, σ<sub>Bp</sub>=−1
+      axis-max sign). Add a regression test pinning sign(ψ<sub>axis</sub>−ψ<sub>boundary</sub>) =
+      +sign(Ip) for a known synthetic current — so the sign can never silently drift.</li>
+      <li><strong>Verify the poloidal-angle assumption at the IMAS seam.</strong> Open a real
+      COCOS-11 <code>magnetics</code> IDS (ITER machine description or a synthetic reference),
+      confirm the B<sub>R</sub>cosθ+B<sub>Z</sub>sinθ projection reproduces a known field with the
+      correct sign, and resolve the flagged assumption at <code>imas_geometry.py:74</code> with a
+      round-trip test.</li>
+      <li><strong>Build one COCOS-normalization boundary in the IMAS readers.</strong> A single,
+      fail-loud seam that converts COCOS-11 (ψ, Ip, flux, poloidal_angle) into the declared
+      internal convention (or converts the pipeline to COCOS-11 — decide once). No silent
+      auto-conversion; unknown/missing COCOS raises.</li>
+      <li><strong>Add a cross-convention self-consistency gate.</strong> Feed the same physical
+      equilibrium through the raw MAST path and through a synthetic COCOS-11 IMAS pulse; require
+      identical topology (axis, LCFS radii, X-points) after the normalization seam. This is the
+      acceptance test that the machine-agnostic seam actually is machine-agnostic.</li>
+      <li><strong>(Optional) Document the plasma-on <code>abs(ip)</code> detector</strong> in code
+      so it is never mistaken for a physics sign flip, and audit that every other Ip use is
+      signed.</li>
+    </ol>
+
+    <h2 id="provenance">§7 — Provenance</h2>
+    <ul>
+      <li>Audit script: <code>scripts/mast_cocos_audit.py</code> (real MAST zarr, shots
+      18502–18505; read-only; efm reads firewalled).</li>
+      <li>Data + figures JSON: <code>docs/figures/mast-imas-cocos-evaluation/cocos_audit.json</code>.</li>
+      <li>Traced source: <code>imas_ambix/gs/{operator,geometry,imas_geometry,circuits}.py</code>,
+      <code>imas_ambix/latent/{data,patch_inverse,topology,patch_observation}.py</code>,
+      <code>scripts/patch_flux_map_report.py</code>.</li>
+      <li>Canonical COCOS: IMAS DD (imas-dd MCP) — magnetics/equilibrium COCOS-dependent field
+      transformation types.</li>
+    </ul>
+
+  </main>
+</body>
+</html>
