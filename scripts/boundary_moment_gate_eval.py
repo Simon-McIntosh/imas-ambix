@@ -5,16 +5,17 @@ reconstructed from a low-order CURRENT-MOMENT fit to the external magnetics
 (:mod:`imas_ambix.latent.boundary_moment`), instead of off the free ~5000-DOF
 patch-current psi that scored LCFS skill -6.26.
 
-HYBRID read (the plan's design, §5): the patch-psi stays the interior carrier --
-the magnetic AXIS (the ray-cast origin) is read from the free-current patch
-inverse, which already resolves it to ~2.8 cm -- while the boundary (bounding
-flux, X-point set, and the 8-angle LCFS ray-cast) is read from the constrained
-MOMENT psi.  This isolates exactly the boundary representation as the varying
-factor: the axis source, the topology-read code, and the firewalled-EFIT scoring
-are all identical to the free-current gate (``scripts/patch_gate_eval.py``).
-``--moment-axis`` ablates this by taking the axis from the moment psi too (the
-low-DOF field cannot localise the axis, so the LCFS ray-cast degrades -- the
-control that motivates the hybrid).
+HYBRID read (the plan's design, §5): the boundary (bounding flux, X-point set,
+and the 8-angle LCFS ray-cast) is read from the constrained MOMENT psi, while
+the LCFS ray-cast ORIGIN (the magnetic axis) comes from a stable interior
+estimate rather than the low-DOF moment field's numerical O-point.  The topology
+read and the firewalled-EFIT scoring are otherwise identical to the free-current
+gate (``scripts/patch_gate_eval.py``), so the boundary representation is the only
+varying factor.  ``--axis-source`` selects the ray origin: ``centroid`` (default)
+= the moment fit's current centroid (free, analytic); ``patch`` = the
+free-current P3 inverse axis (~2.8 cm, faithful but slow); ``moment`` = the
+moment psi's numerical O-point (ablation -- the low-DOF field cannot localise the
+axis, so the LCFS ray-cast degrades).
 
 Protocol (leakage-free, matches the P3 / A4 gate): ``--split train`` sweeps the
 moment order on the tuning cohort; ``--split eval`` scores the frozen order ONCE
@@ -165,10 +166,12 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
         inv = invert_slices_moment(basis, payload["payloads"], cfg)
         for k, r in enumerate(inv):
             psi_mom = basis.psi_grid_2d_np(r.i_cell, payload["payloads"][k].i_pf)
-            if args.moment_axis:
-                axis, _ = _sign_aware_axis(psi_mom, grid)
-            else:
+            if args.axis_source == "patch":
                 axis, _ = _sign_aware_axis(patch_psis[si][k], grid)
+            elif args.axis_source == "moment":
+                axis, _ = _sign_aware_axis(psi_mom, grid)
+            else:  # "centroid" (default) — the moment fit's current centroid
+                axis = np.array([r.centroid_r, r.centroid_z])
             target, _, _ = hybrid_target(psi_mom, grid, axis)
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
@@ -190,10 +193,10 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
     per_slice_median = np.nanmedian(offset_cm, axis=1)
     ft = per_slice_median[flattop_mask]
     result = {
-        "arm": "current-moment" + ("-moment-axis" if args.moment_axis else ""),
+        "arm": f"current-moment-{args.axis_source}-axis",
         "order": order,
         "ip_anchor": not args.no_ip_anchor,
-        "hybrid_axis": not args.moment_axis,
+        "axis_source": args.axis_source,
         "split": split,
         "n_scored": int(len(model)),
         "n_flattop_slices": int(flattop_mask.sum()),
@@ -211,7 +214,7 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
         "ip_rel_err_median": float(np.median(ip_rel_errs)) if ip_rel_errs else None,
         "misfit_median": float(np.median(misfits)) if misfits else None,
     }
-    suffix = "-moment-axis" if args.moment_axis else ""
+    suffix = "" if args.axis_source == "centroid" else f"-{args.axis_source}axis"
     tag = f"moment-o{order}{suffix}" + ("" if split == "eval" else "-tune")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
@@ -251,9 +254,14 @@ def main() -> int:
     ap.add_argument("--orders", type=int, nargs="+", default=[2, 3, 4])
     ap.add_argument("--no-ip-anchor", action="store_true")
     ap.add_argument(
-        "--moment-axis",
-        action="store_true",
-        help="ablation: read the axis from the moment psi too (not the patch psi)",
+        "--axis-source",
+        choices=["centroid", "moment", "patch"],
+        default="centroid",
+        help=(
+            "ray-cast axis: 'centroid' = the moment fit's current centroid "
+            "(default, free); 'patch' = the free-current P3 inverse (faithful, "
+            "slow); 'moment' = the moment psi's numerical O-point (ablation)."
+        ),
     )
     ap.add_argument("--device", default="auto")
     ap.add_argument("--nr", type=int, default=65)
@@ -274,21 +282,21 @@ def main() -> int:
     shots, baseline_vec = load_cohort(args.split, args)
     args._baseline = baseline_vec
     logger.info(
-        "loaded %d shots (split=%s); inverting free-current axes...",
-        len(shots),
-        args.split,
+        "loaded %d shots (split=%s, axis=%s)", len(shots), args.split, args.axis_source
     )
-    patch_psis = None if args.moment_axis else free_current_psi(shots, device)
+    patch_psis = (
+        free_current_psi(shots, device) if args.axis_source == "patch" else None
+    )
 
     summary = [score_order(shots, patch_psis, o, args.split, args) for o in args.orders]
     best = max(summary, key=lambda d: d["lcfs_skill"])
     logger.info(
-        "BEST order=%d lcfs_skill=%.3f axis_skill=%.3f (split=%s hybrid=%s)",
+        "BEST order=%d lcfs_skill=%.3f axis_skill=%.3f (split=%s axis=%s)",
         best["order"],
         best["lcfs_skill"],
         best["axis_skill"],
         args.split,
-        not args.moment_axis,
+        args.axis_source,
     )
     return 0
 
