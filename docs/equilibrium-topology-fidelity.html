@@ -4,21 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="equilibrium-topology-fidelity">
-  <meta name="plan-title"     content="Equilibrium Topology Fidelity — resolving the boundary/X-point (externally well-posed) and the interior profile (genuinely ill-posed) beyond EFIT">
-  <meta name="plan-summary"   content="Resolve the hardest part of equilibrium reconstruction — the discrete limited↔diverted topology decision on a near-degenerate continuous flux field — beyond a deterministic point solve, split by the physics into two problems. The plasma BOUNDARY (LCFS/separatrix/X-point) is EXTERNALLY WELL-POSED: outside the plasma ψ solves the homogeneous Grad–Shafranov operator Δ*ψ=0, and external magnetics fix the low-order current moments that set the boundary shape — so our A4 boundary negative (spurious saddles, LCFS under-sized 34-37 cm) is a REPRESENTATION ARTIFACT of the free ~5k-DOF patch current, curable by a constrained external-field (toroidal-harmonic / current-moment) read with no new diagnostics. The INTERIOR PROFILE (higher current/pressure/q moments) is genuinely under-determined by magnetics — the null-space wall the balanced-sampling negative measured — and needs more/higher-fidelity internal data + a learned prior + closure smoothness + temporal coherence + calibrated uncertainty. GenCast's match-then-exceed against ECMWF, applied to EFIT, with EFIT firewalled as referee.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="XL">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="equilibrium-topology-fidelity">
+  <meta name="plan-title" content="Equilibrium Topology Fidelity — resolving the boundary/X-point (externally well-posed) and the interior profile (genuinely ill-posed) beyond EFIT">
+  <meta name="plan-summary" content="Resolve the hardest part of equilibrium reconstruction — the discrete limited↔diverted topology decision on a near-degenerate continuous flux field — beyond a deterministic point solve, split by the physics into two problems. The plasma BOUNDARY (LCFS/separatrix/X-point) is EXTERNALLY WELL-POSED: outside the plasma ψ solves the homogeneous Grad–Shafranov operator Δ*ψ=0, and external magnetics fix the low-order current moments that set the boundary shape — so our A4 boundary negative (spurious saddles, LCFS under-sized 34-37 cm) is a REPRESENTATION ARTIFACT of the free ~5k-DOF patch current, curable by a constrained external-field (toroidal-harmonic / current-moment) read with no new diagnostics. The INTERIOR PROFILE (higher current/pressure/q moments) is genuinely under-determined by magnetics — the null-space wall the balanced-sampling negative measured — and needs more/higher-fidelity internal data + a learned prior + closure smoothness + temporal coherence + calibrated uncertainty. GenCast&#x27;s match-then-exceed against ECMWF, applied to EFIT, with EFIT firewalled as referee.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="patch-equilibrium-wm-integration,patch-current-force-balance,multimodal-tokenisation-substrate">
-  <meta name="plan-blocks"     content="machine-agnostic-latent-world-model">
+  <meta name="plan-blocks" content="machine-agnostic-latent-world-model">
   <title>Equilibrium Topology Fidelity | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-06">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.17">
 </head>
 <body>
   <main class="plan-doc">
@@ -268,37 +271,32 @@
     metadata and remains the token positional encoding. Beating the referee means beating it on raw held-out
     observables and calibrated topology reliability, not on agreement with its own reconstruction.</p>
 
-    <h2 id="s5">§5 — Thread 1 (first): the boundary from a constrained external-field representation</h2>
-    <p>This is the plan's fastest win and the direct closure of limited↔diverted, and it uses
-    <strong>no new diagnostics</strong>. The §2 physics says the boundary is fixed by the low-order current
-    moments the external magnetics already measure; the A4 negative says our failure is that we read the
-    boundary off a free-interior-current ψ that carries null-space slack into the near-boundary field. The fix
-    is to read the separatrix/X-point off a ψ that is <em>constrained to a physically valid source-free field</em>
-    between the plasma and the sensors, via one of two classical representations (the open decision
-    <code>boundary-representation-method</code>):</p>
-    <ul>
-      <li><strong>Toroidal-harmonic expansion</strong> — expand the vacuum-region ψ in the separable
-      eigenfunctions of Δ* (the toroidal / ring functions: half-integer-degree Legendre functions
-      P<sub>n−½</sub>, Q<sub>n−½</sub> in toroidal coordinates). Fit the finite low-order expansion to the
-      external magnetics; the boundary is read off this smooth, saddle-free field. This is the representation
-      EFIT does not have (§research: Alladio &amp; Crisanti's toroidal multipole expansion).</li>
-      <li><strong>External current-moment solve</strong> — fit the low-order current moments (I<sub>p</sub>,
-      centroid, κ, δ, …) directly from the external magnetics (Zakharov–Shafranov moment method) and construct
-      the boundary shape from them.</li>
-    </ul>
-    <p>Either way the boundary read no longer inherits the interior patch-current lumpiness; it is a
-    well-conditioned function of the moments the magnetics constrain. This coexists with the patch substrate:
-    the patch-ψ remains the interior carrier (axis, closures, structure residual), while the boundary is read
-    off the constrained external representation of the <em>same</em> external field — the two must agree in the
-    vacuum region where both are valid, which is itself a checkable consistency condition.</p>
-    <p><strong>Gate 1:</strong> on the firewalled-EFIT referee, held-out, (a) the separatrix read from the
-    constrained representation is <strong>saddle-free</strong> (no spurious off-axis nulls inside the vacuum
-    region); (b) the limited↔diverted classification matches the referee's class materially better than the
-    free-current ψ read; and (c) the LCFS skill recovers from the −6.26 baseline toward referee-grade
-    <strong>without adding any interior diagnostic</strong> — the signature that the boundary deficit was a
-    representation artifact, exactly as §2 predicts. Report the recovery magnitude and the vacuum-region
-    agreement between the patch-ψ and the constrained read; over-reading absolute cm is forbidden by the
-    standing caveat (report skill deltas and the classification confusion vs flux margin).</p>
+    <section id="s5" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-07-06</span>
+        <h2>§5 — Thread 1: the boundary from a constrained external-field representation</h2>
+      </header>
+      <p class="landed-summary">
+        Built the constrained <strong>current-moment</strong> boundary read
+        (<code>imas_ambix/latent/boundary_moment.py</code>, 6 tests; decision
+        <code>boundary-representation-method = current-moment</code> locked): a low-order moment basis
+        (zero-sum centred, hard Rogowski-I<sub>p</sub> anchor, whitened LS) reconstructs a smooth ψ via the
+        existing patch Green's operator, read by the same topology + firewalled-EFIT scoring. <strong>Gate 1
+        (held-out, n=160): partial-positive with no new data</strong> — X-point-set skill <strong>−0.61 → −0.15</strong>,
+        LCFS skill <strong>−6.26 → −4.47</strong>, LCFS offset <strong>34 → 24 cm</strong>, I<sub>p</sub> exact.
+        The result <strong>refines §2</strong>: the X-point / limited↔diverted <em>class</em> is externally
+        well-posed and recovers, but the detailed <strong>LCFS radial extent does not fully recover</strong> — it
+        couples to the finite interior current profile (three current mechanizations under-size the outboard LCFS
+        even with correct axis + I<sub>p</sub>), so it is handed to thread 2.
+        Full findings + figures:
+        <a href="/imas-ambix/equilibrium-topology-fidelity-thread1-findings.html">thread 1 findings</a>;
+        record: <a href="archive/equilibrium-topology-fidelity-thread1-landed.html">§5 landed</a>.
+        Sign/COCOS exposure evaluated (<a href="/imas-ambix/mast-imas-cocos-evaluation.html">MAST↔IMAS COCOS
+        evaluation</a> — pipeline sign-sound; latent IMAS-seam mismatch → new
+        <a href="/imas-ambix/cocos-convention-hardening.html">cocos-convention-hardening</a> plan). Warranted
+        follow-up: the <strong>toroidal-harmonic</strong> source-free read for the separatrix.
+      </p>
+    </section>
 
     <h2 id="s6">§6 — Thread 2: interior-diagnostic fusion (the missing information for the profile)</h2>
     <p>This thread addresses the <strong>interior profile</strong> — the genuine null-space of §2, the higher
@@ -459,39 +457,39 @@
     open.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="boundary-representation-method" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Thread 1 — which constrained external-field representation reads the boundary: a toroidal-harmonic expansion, or an external current-moment solve?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="toroidal-harmonic">toroidal-harmonic expansion — fit the vacuum-region ψ in the Δ*-eigenfunctions (half-integer Legendre P<sub>n−½</sub>, Q<sub>n−½</sub>); a full smooth field to read the separatrix off (Alladio–Crisanti); heavier to implement but gives ψ everywhere in the vacuum region</button>
-          <button class="r-opt" data-value="current-moment">external current-moment solve — fit low-order moments (I<sub>p</sub>, centroid, κ, δ) directly and construct the boundary shape (Zakharov–Shafranov); lighter, closer to a shape parametrisation, but does not give ψ everywhere</button>
-        </p>
-        <p class="r-dec-rat">Both close the boundary from external magnetics with no new diagnostics. The toroidal-harmonic expansion yields a full source-free ψ in the vacuum region (directly comparable to the patch-ψ there — the consistency check in §5) and reads the separatrix natively; the moment solve is faster to stand up and maps onto the standard shape moments. Recommend prototyping the moment solve first for a quick Gate-1 saddle-free/classification number, then the toroidal-harmonic expansion if the full-field consistency check or a marginal LCFS recovery warrants it.</p>
-      </div>
-      <div class="r-dec" data-key="first-interior-diagnostic" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which interior diagnostic does thread 2 fuse first?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="mse-first">MSE first — most direct interior-current constraint (pitch angle), and it is the Stage-3 validation key; but beam-on only, so sparser coverage</button>
-          <button class="r-opt" data-value="interferometer-sxr-first">interferometer + SXR first — densely available (beam-independent), lower per-slice information but far more slices to learn the fusion path on</button>
-        </p>
-        <p class="r-dec-rat">MSE carries the most X-point-relevant information but is confined to beam-on slices (the same availability the Stage-3 held-out key exploits). Interferometer+SXR are always-on and de-risk the fusion plumbing on the full corpus before MSE's sparse, high-value slices are added. Recommend deciding at kickoff on the measured beam-on slice count vs the plumbing risk.</p>
-      </div>
-      <div class="r-dec" data-key="topology-read-mechanism" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How is the interior-prior topology read produced — a soft differentiable field-null term in the training loss, or an eval-time prior-regularised read?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="soft-loss-null">soft differentiable field-null in the loss — trains the latent ψ to place a genuine saddle, topology falls out of the learned field (tighter coupling, higher build cost)</button>
-          <button class="r-opt" data-value="eval-time-regularised">eval-time prior-regularised read — decode ψ, then read topology under the learned manifold prior at eval (cheaper, reuses the trained latent, weaker coupling)</button>
-        </p>
-        <p class="r-dec-rat">The eval-time read reuses the existing trained latent and is the fast path to a first thread-4 number; the in-loss field-null term couples the topology objective into training and is the stronger long-run mechanism but costs a retrain. Recommend measuring the eval-time read first, then deciding whether the in-loss term is worth the retrain on that evidence. (Note thread 1 handles the boundary saddle by representation; this decision is about the interior-prior read of threads 4/6.)</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="boundary-representation-method" data-choice="current-moment" data-by="reckon-ship" data-when="2026-07-06T04:10:53+00:00">
+    <p class="r-dec-q">Thread 1 — which constrained external-field representation reads the boundary: a toroidal-harmonic expansion, or an external current-moment solve?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="toroidal-harmonic">toroidal-harmonic expansion — fit the vacuum-region ψ in the Δ*-eigenfunctions (half-integer Legendre P n−½ , Q n−½ ); a full smooth field to read the separatrix off (Alladio–Crisanti); heavier to implement but gives ψ everywhere in the vacuum region</button>
+      <button class="r-opt chosen" data-value="current-moment">external current-moment solve — fit low-order moments (I p , centroid, κ, δ) directly and construct the boundary shape (Zakharov–Shafranov); lighter, closer to a shape parametrisation, but does not give ψ everywhere</button>
+      </p>
+    <p class="r-dec-rat">Kickoff lock per the plan&#x27;s own recommendation: prototype the current-moment solve first for a fast Gate-1 saddle-free/classification/LCFS number. Implemented as a low-order current-moment basis (K~6-10) on the plasma cells, fit to the plasma sensor signature (measured - vacuum) by whitened least squares with a Rogowski-Ip anchor, reusing the existing patch Green&#x27;s operator (m_sens patch-&gt;sensor, g_pg patch-&gt;grid flux). This is psi-producing (unlike a pure shape parametrisation) so the vacuum-region consistency check (patch-psi vs constrained read) in the plan holds, and the same topology read + firewalled-EFIT scoring apply unchanged. The heavier toroidal-harmonic (half-integer Legendre) expansion is retained as a documented follow-up if the full-field consistency check or a marginal LCFS recovery warrants it.</p>
+    </div>
+<div class="r-dec" data-key="first-interior-diagnostic" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which interior diagnostic does thread 2 fuse first?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="mse-first">MSE first — most direct interior-current constraint (pitch angle), and it is the Stage-3 validation key; but beam-on only, so sparser coverage</button>
+      <button class="r-opt" data-value="interferometer-sxr-first">interferometer + SXR first — densely available (beam-independent), lower per-slice information but far more slices to learn the fusion path on</button>
+      </p>
+    <p class="r-dec-rat">MSE carries the most X-point-relevant information but is confined to beam-on slices (the same availability the Stage-3 held-out key exploits). Interferometer+SXR are always-on and de-risk the fusion plumbing on the full corpus before MSE&#x27;s sparse, high-value slices are added. Recommend deciding at kickoff on the measured beam-on slice count vs the plumbing risk.</p>
+    </div>
+<div class="r-dec" data-key="topology-read-mechanism" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How is the interior-prior topology read produced — a soft differentiable field-null term in the training loss, or an eval-time prior-regularised read?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="soft-loss-null">soft differentiable field-null in the loss — trains the latent ψ to place a genuine saddle, topology falls out of the learned field (tighter coupling, higher build cost)</button>
+      <button class="r-opt" data-value="eval-time-regularised">eval-time prior-regularised read — decode ψ, then read topology under the learned manifold prior at eval (cheaper, reuses the trained latent, weaker coupling)</button>
+      </p>
+    <p class="r-dec-rat">The eval-time read reuses the existing trained latent and is the fast path to a first thread-4 number; the in-loss field-null term couples the topology objective into training and is the stronger long-run mechanism but costs a retrain. Recommend measuring the eval-time read first, then deciding whether the in-loss term is worth the retrain on that evidence. (Note thread 1 handles the boundary saddle by representation; this decision is about the interior-prior read of threads 4/6.)</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-etf-02" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §5" data-resolved-at="" data-resolved-by="">
-        <h4 class="r-fu-title">Ship thread 1 — read the boundary off a constrained external-field representation (toroidal-harmonic / current-moment), no new diagnostics</h4>
-        <div class="r-fu-body"><p>The fastest win and the direct closure of limited↔diverted. §2 says the boundary is externally well-posed (Δ*ψ=0 in the vacuum region; external magnetics fix the low-order moments that set the shape) and the A4 negative is a representation artifact of the free ~5k-DOF patch current. Read the separatrix/X-point off a source-free / moment-constrained representation of the external field — recovering the LCFS with data we already have. Resolve <code>boundary-representation-method</code> at kickoff.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-etf-02" data-status="resolved" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §5" data-resolved-at="2026-07-06T05:23:50+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Ship thread 1 — read the boundary off a constrained external-field representation (toroidal-harmonic / current-moment), no new diagnostics</h4>
+    <div class="r-fu-body"><p>The fastest win and the direct closure of limited↔diverted. §2 says the boundary is externally well-posed (Δ*ψ=0 in the vacuum region; external magnetics fix the low-order moments that set the shape) and the A4 negative is a representation artifact of the free ~5k-DOF patch current. Read the separatrix/X-point off a source-free / moment-constrained representation of the external field — recovering the LCFS with data we already have. Resolve <code>boundary-representation-method</code> at kickoff.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    equilibrium-topology-fidelity (http://localhost:8765/imas-ambix/equilibrium-topology-fidelity.html)
 Section: §5 Thread 1 — boundary from a constrained external-field representation
 Tier:    opus
@@ -503,12 +501,12 @@ Context
   boundary negative (LCFS skill -6.26, under-sized 34-37 cm, spurious saddles) is therefore a
   REPRESENTATION ARTIFACT of reading the boundary off a free ~5k-DOF interior patch-current psi,
   NOT fundamental under-determination. This thread reads the separatrix/X-point off a source-free /
-  moment-constrained representation instead. EFIT does NOT use this (grid Green's + Buneman
+  moment-constrained representation instead. EFIT does NOT use this (grid Green&#x27;s + Buneman
   free-boundary + limiter-vs-X-point classifier) so even matching is an addition. No new diagnostics.
 
 State to read  (CODE / FILES / DATA)
   imas_ambix/latent/patch_encoder.py + latent/data.py  (current free-current psi boundary read, sensor set)
-  imas_ambix/gs/                                        (PatchBasis, psi_grid, sensor Green's functions)
+  imas_ambix/gs/                                        (PatchBasis, psi_grid, sensor Green&#x27;s functions)
   scripts/patch_flux_map_report.py                     (firewalled EFIT referee maps + LCFS scoring)
   imas_ambix/latent/artifacts/patch_gate/boundary_read_grid_{tune,eval}.json  (A4 free-current baseline)
   docs/equilibrium-topology-fidelity.html §2, §5, §11  (the physics + method references)
@@ -529,11 +527,12 @@ Done-when
      WITHOUT any interior diagnostic; vacuum-region agreement patch-psi vs constrained read reported.
   3. boundary-representation-method resolved at kickoff.
   4. plan updated same-turn with numbers + a figure; this followup resolved.</pre>
-      </article>
-      <article class="r-fu" data-id="f-etf-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §6" data-resolved-at="" data-resolved-by="">
-        <h4 class="r-fu-title">Ship thread 2 — fuse interior diagnostics (MSE / interferometer / SXR) into the equilibrium encoder (interior profile)</h4>
-        <div class="r-fu-body"><p>The balanced-sampling negative proved the interior profile is a genuine null-space (axis flat-lines 4.3→17.5 cm while magnetics grounding rises 8.9→28.3×) — more magnetics cannot cross it. This thread adds the diagnostics that see the interior current. NB corrected framing: EFIT ALREADY fits MSE/pressure/interferometer/polarimetry (§4, §11) — our edge is MORE + higher-fidelity interior data fused into a learned latent, plus SXR which EFIT does not use. Resolve <code>first-interior-diagnostic</code> at kickoff on the measured beam-on slice count.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <p class="r-fu-outcome">§5 thread 1 LANDED (2026-07-06). Constrained current-moment boundary read built (imas_ambix/latent/boundary_moment.py, 6 tests; scripts/boundary_moment_gate_eval.py; decision boundary-representation-method=current-moment locked). Gate 1 held-out (n=160, firewalled EFIT): X-point-set skill -0.61->-0.15, LCFS skill -6.26->-4.47, LCFS offset 34->24 cm, Ip exact — partial-positive with NO new data, confirming the boundary deficit is substantially representational (§2). REFINES §2: the X-point/limited-diverted CLASS is externally well-posed and recovers; the LCFS radial extent does NOT fully recover (couples to the interior current profile — three current mechanizations under-size the outboard LCFS even with correct axis+Ip) -> handed to thread 2. Findings: docs/equilibrium-topology-fidelity-thread1-findings.html; record: docs/archive/equilibrium-topology-fidelity-thread1-landed.html. COCOS fear evaluated (pipeline sign-sound; latent IMAS-seam mismatch -> new cocos-convention-hardening plan).</p>
+    </article>
+<article class="r-fu" data-id="f-etf-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §6" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship thread 2 — fuse interior diagnostics (MSE / interferometer / SXR) into the equilibrium encoder (interior profile)</h4>
+    <div class="r-fu-body"><p>The balanced-sampling negative proved the interior profile is a genuine null-space (axis flat-lines 4.3→17.5 cm while magnetics grounding rises 8.9→28.3×) — more magnetics cannot cross it. This thread adds the diagnostics that see the interior current. NB corrected framing: EFIT ALREADY fits MSE/pressure/interferometer/polarimetry (§4, §11) — our edge is MORE + higher-fidelity interior data fused into a learned latent, plus SXR which EFIT does not use. Resolve <code>first-interior-diagnostic</code> at kickoff on the measured beam-on slice count.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    equilibrium-topology-fidelity (http://localhost:8765/imas-ambix/equilibrium-topology-fidelity.html)
 Section: §6 Thread 2 — interior-diagnostic fusion (interior profile)
 Tier:    opus
@@ -544,7 +543,7 @@ Context
   resampling do NOT cross the interior-current-underdetermination wall). Corrected framing: EFIT
   already ingests MSE/pressure/interferometer/polarimetry as fitting rows (verified in imas-efit,
   see §11) — our edge is more + higher-fidelity interior data fused into a learned latent (and SXR,
-  which EFIT does not use), NOT "using interior data at all". This is the interior counterpart to
+  which EFIT does not use), NOT &quot;using interior data at all&quot;. This is the interior counterpart to
   thread 1 (boundary, §5).
 
 State to read  (CODE / FILES / DATA — not the plan page; the builder injects it)
@@ -571,28 +570,28 @@ Done-when
      interior-channel ablation isolates the attributable rise (Gate 2).
   3. first-interior-diagnostic decision resolved at kickoff with the measured beam-on slice count.
   4. plan updated same-turn with numbers + a figure; followup written for the next thread + this one resolved.</pre>
-      </article>
-      <article class="r-fu" data-id="f-etf-03" data-status="open" data-tier="sonnet" data-written-by="reckon-edit" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §7" data-resolved-at="" data-resolved-by="">
-        <h4 class="r-fu-title">Measure thread 3 — closure {a_k},{b_k} second-difference smoothness prior (zero new data, ablatable)</h4>
-        <div class="r-fu-body"><p>p′(ψ) and FF′(ψ) are physically smooth, so a second-difference penalty on the recovered {a<sub>k</sub>},{b<sub>k</sub>} closure sequences is a principled soft prior against the high-frequency interior-current excursions the balanced-sampling negative exposed. The mechanism already exists as an ablatable soft rung in patch-current-force-balance P2 — so this is a MEASUREMENT (turn it on, sweep leakage-free, keep only if load-bearing per P5 discipline), not a build.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    </article>
+<article class="r-fu" data-id="f-etf-03" data-status="open" data-tier="sonnet" data-written-by="reckon-edit" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §7" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Measure thread 3 — closure {a_k},{b_k} second-difference smoothness prior (zero new data, ablatable)</h4>
+    <div class="r-fu-body"><p>p′(ψ) and FF′(ψ) are physically smooth, so a second-difference penalty on the recovered {a<sub>k</sub>},{b<sub>k</sub>} closure sequences is a principled soft prior against the high-frequency interior-current excursions the balanced-sampling negative exposed. The mechanism already exists as an ablatable soft rung in patch-current-force-balance P2 — so this is a MEASUREMENT (turn it on, sweep leakage-free, keep only if load-bearing per P5 discipline), not a build.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    equilibrium-topology-fidelity (http://localhost:8765/imas-ambix/equilibrium-topology-fidelity.html)
 Section: §7 Thread 3 — closure smoothness prior
 Tier:    sonnet
 
 Context
   The interior null-space (§2) has a zero-new-data soft regulariser: the recovered closures
-  a_k=p' and b_k=FF'/mu0 trace smooth functions of psi, so a second-difference penalty on the
+  a_k=p&#x27; and b_k=FF&#x27;/mu0 trace smooth functions of psi, so a second-difference penalty on the
   {a_k},{b_k} sequences suppresses the high-frequency interior-current excursions the balanced-sampling
-  negative exposed (axis 4.3->15.9->17.5 cm as grounding rose 8.9->28.3x). It already exists as an
+  negative exposed (axis 4.3-&gt;15.9-&gt;17.5 cm as grounding rose 8.9-&gt;28.3x). It already exists as an
   ablatable soft rung in patch-current-force-balance P2 (the optional {a_k},{b_k} psi-smoothness
   penalty). Measure it, keep only if load-bearing.
 
 State to read
-  docs/patch-current-force-balance.html (the P2 soft-rung: {a_k},{b_k} smoothness + F^2>=0 integrability)
+  docs/patch-current-force-balance.html (the P2 soft-rung: {a_k},{b_k} smoothness + F^2&gt;=0 integrability)
   imas_ambix/latent/engine.py + latent/patch_transport.py (loss family, additive soft terms)
   imas_ambix/latent/patch_encoder.py (closure heads a_k, b_k)
-  scripts/patch_encoder_gate_eval.py (held-out per-quantity skills; F^2>=0 rate)
+  scripts/patch_encoder_gate_eval.py (held-out per-quantity skills; F^2&gt;=0 rate)
 
 Scope locks / constraints  (non-decision)
   Leakage-free weight sweep (tune on train shots, freeze, held-out eval). Keep the rung only if
@@ -602,10 +601,51 @@ Scope locks / constraints  (non-decision)
 Done-when
   1. Closure second-difference penalty active + weight swept leakage-free; tests green.
   2. Gate 3: held-out axis/X-point skill (or metre-scale outlier tail) improves attributably (ablate to
-     confirm) WITHOUT degrading grounding or the F^2>=0 rate; verdict recorded either way (honest negative OK).
+     confirm) WITHOUT degrading grounding or the F^2&gt;=0 rate; verdict recorded either way (honest negative OK).
   3. plan updated same-turn; this followup resolved.</pre>
-      </article>
-    </section>
+    </article>
+<article class="r-fu" data-id="f-etf-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-06" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Thread 1 follow-up — toroidal-harmonic source-free separatrix read (the warranted next attempt on the X-point/LCFS)</h4>
+    <div class="r-fu-body"><p>The current-moment read (f-etf-02) recovered the X-point class (-0.61->-0.15) but reconstructs an interior current, which re-imports interior ambiguity into the near-edge psi and leaves the LCFS radial extent short (skill -4.47). The decision rationale named the toroidal-harmonic expansion as the warranted follow-up: fit the SOURCE-FREE vacuum-region psi in half-integer Legendre Delta*-eigenfunctions (P_{n-1/2}, Q_{n-1/2}) matched to the external magnetics, and read the separatrix/X-point WITHOUT committing to an interior current. This also enables the vacuum-region consistency check (patch-psi vs the source-free read). Measure whether it beats the current-moment read on X-point/LCFS held-out; keep only if it improves.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-topology-fidelity (http://localhost:8765/imas-ambix/equilibrium-topology-fidelity.html)
+Section: §5 Thread 1 follow-up — toroidal-harmonic source-free separatrix read
+Tier:    opus
+
+Context
+  Thread 1&#x27;s current-moment read (docs/.../thread1-findings.html) recovered the X-point/limited-diverted
+  class (X-point skill -0.61-&gt;-0.15 held-out) but the LCFS radial extent stayed short (skill -4.47),
+  because reconstructing an interior current re-imports interior ambiguity into the near-edge psi (three
+  current mechanizations under-size the outboard LCFS even with correct axis+Ip). The warranted follow-up
+  (decision boundary-representation-method rationale) is the SOURCE-FREE read: fit the vacuum-region psi
+  in the Delta*-eigenfunctions (toroidal/ring functions: half-integer-degree Legendre P_{n-1/2}, Q_{n-1/2}
+  in toroidal coordinates about a suitable pole) matched to the external magnetics + known coil field, and
+  read the separatrix/X-point off that smooth source-free field WITHOUT reconstructing an interior current.
+
+State to read
+  imas_ambix/latent/boundary_moment.py         (the current-moment read this compares against)
+  scripts/boundary_moment_gate_eval.py         (the held-out Gate-1 harness + hybrid read to reuse)
+  imas_ambix/gs/operator.py (greens_psi / greens_bz_br), imas_ambix/latent/patch_basis.py (m_sens, m_coil, psi_coil_grid)
+  imas_ambix/latent/topology.py, imas_ambix/latent/gs_solve.py (_read_axis, _read_boundary_psi_robust, lcfs_radii)
+  docs/equilibrium-topology-fidelity.html §2/§11 (Braams 1991; Alladio-Crisanti 1986; ring functions refs)
+  imas_ambix/latent/artifacts/patch_gate/boundary_read_moment-o3.json (current-moment held-out baseline to beat)
+
+Scope locks / constraints
+  EFIT firewalled (code-outputs-only) — referee ONLY. External magnetics RAW. Preserve conventions:
+  total-flux Phi=2piR A_phi [Wb], mu0 explicit, MAST psi_axis&gt;psi_boundary, EFIT psi x2pi in the referee.
+  Reuse the same geometry_target/score/firewalled-EFIT scoring + the 160-slice held-out protocol, so it is
+  directly comparable to the current-moment read. Hybrid: patch-psi stays the interior carrier (axis).
+  Do NOT over-read absolute cm — report skill deltas + classification confusion vs flux margin.
+
+Done-when
+  1. Toroidal-harmonic source-free vacuum-psi fit implemented (new module beside boundary_moment.py); tests green
+     (analytic: a known source-free field is recovered; a filament field is fit to sub-cm).
+  2. Gate 1 held-out vs firewalled EFIT: X-point-set + LCFS skill reported vs BOTH the free-current baseline
+     AND the current-moment read; vacuum-region agreement (patch-psi vs source-free read) reported.
+  3. Verdict recorded either way (honest negative OK if it does not beat the current-moment read); plan updated
+     same-turn with numbers + a figure; this followup resolved.</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>

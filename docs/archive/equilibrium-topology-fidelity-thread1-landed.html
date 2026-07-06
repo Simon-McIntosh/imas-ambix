@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="doc">
+  <meta name="plan-slug"    content="equilibrium-topology-fidelity-thread1-landed">
+  <meta name="plan-title"   content="Thread 1 landed — boundary from a constrained external-field representation">
+  <title>Thread 1 landed — constrained current-moment boundary read | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Thread 1 landed — the boundary from a constrained external-field representation</h1>
+    <p><em>Per-stage record for §5 of
+    <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>. Full findings +
+    figures: <a href="/imas-ambix/equilibrium-topology-fidelity-thread1-findings.html">thread 1 findings</a>.
+    Landed 2026-07-06.</em></p>
+
+    <h2>Quick status</h2>
+    <ul>
+      <li>✓ <strong>Shipped</strong> — constrained current-moment boundary read implemented, tested, benchmarked held-out vs firewalled EFIT.</li>
+      <li>✓ Decision <code>boundary-representation-method = current-moment</code> locked at kickoff.</li>
+      <li>~ <strong>Gate 1 partial-positive</strong> — boundary metrics improve with no new data; not to referee grade.</li>
+      <li>→ Warranted follow-up queued: toroidal-harmonic read (separatrix) + LCFS radial extent handed to thread 2.</li>
+    </ul>
+
+    <h2>What was built</h2>
+    <table>
+      <thead><tr><th>Artifact</th><th>What</th></tr></thead>
+      <tbody>
+        <tr><td><code>imas_ambix/latent/boundary_moment.py</code></td><td>Low-order current-moment basis (zero-sum centred, hard Rogowski-I<sub>p</sub> anchor, whitened LS) + compact Gaussian current model; reconstructs total-Φ ψ via the existing patch Green's operator.</td></tr>
+        <tr><td><code>tests/latent/test_boundary_moment.py</code></td><td>6 analytic tests (in-span recovery to 1e-4, exact I<sub>p</sub> anchor, mask invariance, batch).</td></tr>
+        <tr><td><code>scripts/boundary_moment_gate_eval.py</code></td><td>Leakage-free Gate-1 harness: hybrid read (interior axis + moment boundary), order sweep on train, frozen eval on the 160-slice held-out; reuses <code>patch_gate_eval</code> scoring + firewalled referee.</td></tr>
+        <tr><td>artifacts <code>patch_gate/boundary_read_moment-o*.json</code></td><td>Per-order tune + held-out results (skills, LCFS offset cm, saddle counts, I<sub>p</sub> rel-err).</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Gate 1 — held-out, firewalled EFIT referee (n=160)</h2>
+    <table>
+      <thead><tr><th>Metric</th><th>Free-current baseline</th><th>Current-moment</th><th>Δ</th></tr></thead>
+      <tbody>
+        <tr><td>X-point-set skill</td><td>−0.613</td><td>−0.151</td><td>+0.46</td></tr>
+        <tr><td>LCFS skill</td><td>−6.264</td><td>−4.470</td><td>+1.79</td></tr>
+        <tr><td>LCFS offset all (cm)</td><td>34.1</td><td>23.5</td><td>−10.6</td></tr>
+        <tr><td>I<sub>p</sub> anchor</td><td>soft</td><td>exact (~1e-16)</td><td>—</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Verdict</h2>
+    <p>The boundary deficit is <strong>substantially a representation artifact</strong> — a constrained
+    current-moment read improves both boundary metrics on held-out data with <em>no interior diagnostic</em>,
+    confirming §2's direction. The recovery is <strong>partial</strong>: the <strong>X-point / limited↔diverted
+    class is externally well-posed and recovers</strong> (deficit more than halved), but the <strong>detailed
+    LCFS radial extent does not fully recover</strong> — it couples to the finite interior current profile (the
+    genuine null-space). This <strong>refines §2</strong>: the boundary <em>topology</em> is externally well-posed;
+    its <em>radial shape</em> shares the interior null-space. Three current mechanizations (polynomial, free
+    Gaussian, axis-centred Gaussian) all under-size the outboard LCFS even with correct axis + I<sub>p</sub> —
+    conclusive evidence the residual is interior, not representational.</p>
+
+    <h2>Coordinate/sign (COCOS) evaluation</h2>
+    <p>The lead's sign-convention fear was audited and settled (<a href="/imas-ambix/mast-imas-cocos-evaluation.html">MAST↔IMAS
+    COCOS evaluation</a>): the MAST pipeline is sign-sound (forward chain corr 0.83–0.87, slope 0.86–0.99); the
+    boundary negative is not a sign flip (axis skill stayed positive). One real, latent mismatch — MAST is
+    COCOS-3-like vs IMAS COCOS-11 — is dormant until the IMAS ingestion seam, captured as the non-urgent
+    <a href="/imas-ambix/cocos-convention-hardening.html">cocos-convention-hardening</a> plan.</p>
+
+    <h2>What's next</h2>
+    <ul>
+      <li><strong>Toroidal-harmonic read</strong> (the decision's warranted follow-up): fit the source-free
+      vacuum-region ψ in half-integer Legendre Δ*-eigenfunctions and read the separatrix/X-point without
+      reconstructing an interior current; enables the vacuum-region consistency check.</li>
+      <li><strong>Thread 2 (interior-diagnostic fusion)</strong> owns the residual LCFS radial extent — it is
+      interior-profile information, not an external representation choice.</li>
+    </ul>
+  </main>
+</body>
+</html>
