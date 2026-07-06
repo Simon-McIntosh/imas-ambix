@@ -21,8 +21,9 @@ under-sized the LCFS, so a drop in the saddle count is the direct evidence that
 the boundary deficit was a representation artifact (Gate 1a), independent of the
 skill recovery (Gate 1b/1c).
 
-Writes ``imas_ambix/latent/artifacts/patch_gate/boundary_read_moment-o<order>[-tune].json``.
-No EFIT in any fit path; the referee only scores (firewall: code-outputs-only).
+Writes ``.../patch_gate/boundary_read_moment-o<order>[-tune].json`` under the
+latent artifacts.  No EFIT in any fit path; the referee only scores
+(firewall: code-outputs-only).
 """
 
 from __future__ import annotations
@@ -35,18 +36,18 @@ import time
 import numpy as np
 
 from imas_ambix.latent.boundary_moment import MomentFitConfig, invert_slices_moment
+from imas_ambix.latent.data import read_split_shot_lists
 from imas_ambix.latent.topology import find_critical_points
 
-# Reuse the exact scoring core + payload builder of the free-current gate.
-from patch_gate_eval import (  # noqa: E402  (script-dir import)
+# Reuse the exact scoring core + payload builder of the free-current gate
+# (script-dir import: run as `python scripts/boundary_moment_gate_eval.py`).
+from patch_gate_eval import (
     ARTIFACTS,
     geometry_target,
     score,
     shot_payloads,
     train_mean_baseline,
 )
-
-from imas_ambix.latent.data import read_split_shot_lists  # noqa: E402  (order)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger("boundary-moment-gate")
