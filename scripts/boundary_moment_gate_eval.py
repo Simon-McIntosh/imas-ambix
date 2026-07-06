@@ -153,7 +153,9 @@ def free_current_psi(shots, device):
 
 
 def score_order(shots, patch_psis, order, split, args) -> dict:
-    cfg = MomentFitConfig(order=order, ip_anchor=not args.no_ip_anchor)
+    cfg = MomentFitConfig(
+        model=args.model, order=order, ip_anchor=not args.no_ip_anchor
+    )
     model_rows, ref_rows, flattop_flags = [], [], []
     saddles, ip_rel_errs, misfits = [], [], []
     t0 = time.perf_counter()
@@ -193,7 +195,8 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
     per_slice_median = np.nanmedian(offset_cm, axis=1)
     ft = per_slice_median[flattop_mask]
     result = {
-        "arm": f"current-moment-{args.axis_source}-axis",
+        "arm": f"current-moment-{args.model}-{args.axis_source}-axis",
+        "model": args.model,
         "order": order,
         "ip_anchor": not args.no_ip_anchor,
         "axis_source": args.axis_source,
@@ -214,7 +217,10 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
         "ip_rel_err_median": float(np.median(ip_rel_errs)) if ip_rel_errs else None,
         "misfit_median": float(np.median(misfits)) if misfits else None,
     }
-    suffix = "" if args.axis_source == "centroid" else f"-{args.axis_source}axis"
+    parts = [] if args.model == "polynomial" else [args.model]
+    if args.axis_source != "centroid":
+        parts.append(f"{args.axis_source}axis")
+    suffix = ("-" + "-".join(parts)) if parts else ""
     tag = f"moment-o{order}{suffix}" + ("" if split == "eval" else "-tune")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
@@ -251,6 +257,13 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--split", choices=["train", "eval"], default="eval")
+    ap.add_argument(
+        "--model",
+        choices=["polynomial", "gaussian"],
+        default="polynomial",
+        help="current model: 'polynomial' low-order moment basis (default) or "
+        "'gaussian' compact elliptical blob",
+    )
     ap.add_argument("--orders", type=int, nargs="+", default=[2, 3, 4])
     ap.add_argument("--no-ip-anchor", action="store_true")
     ap.add_argument(

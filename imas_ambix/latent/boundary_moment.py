@@ -145,7 +145,8 @@ def _term_label(p: int, q: int) -> str:
 class MomentFitConfig:
     """Configuration for the current-moment boundary fit."""
 
-    order: int = 3  # max monomial degree of the moment basis
+    model: str = "gaussian"  # "gaussian" (compact blob) | "polynomial" (moment basis)
+    order: int = 3  # max monomial degree of the polynomial moment basis
     ip_anchor: bool = True  # hard-pin the total current to the Rogowski Ip
     ridge: float = (
         1e-8  # Tikhonov floor on the (whitened, column-normalised) normal eqns
@@ -301,6 +302,87 @@ def fit_moment_currents(
     )
 
 
+def fit_gaussian_current(
+    basis: PatchBasis,
+    payload,
+    cfg: MomentFitConfig | None = None,
+) -> MomentInversion:
+    """Fit a COMPACT, NON-NEGATIVE elliptical Gaussian current blob to the
+    external magnetics -- the physical current-moment model.
+
+    The plasma current is parametrised as
+    ``I(R,Z) = A exp(-1/2[(R-Rc)^2/sr^2 + (Z-Zc)^2/sz^2])`` on the candidate
+    cells, with the amplitude ``A`` fixed by the Rogowski-Ip anchor
+    (``Sum(I) = Ip``).  The four shape parameters {Rc, Zc, sr, sz} -- which ARE
+    the low-order current moments (centroid + elongation) the external magnetics
+    constrain -- are fit by nonlinear least squares to the whitened plasma sensor
+    signature ``measured - vacuum`` on the trusted rows.  Unlike the free
+    polynomial moment basis, this current is compact and single-signed by
+    construction, so the reconstructed near-boundary psi is physical.
+    """
+    from scipy.optimize import least_squares
+
+    cfg = cfg or MomentFitConfig()
+    r_cells = np.asarray(basis.r_cells.detach().cpu().numpy(), dtype=np.float64)
+    z_cells = np.asarray(basis.z_cells.detach().cpu().numpy(), dtype=np.float64)
+    cand = np.asarray(basis.candidate_mask.detach().cpu().numpy(), dtype=np.float64) > 0
+    m_sens = np.asarray(basis.m_sens.detach().cpu().numpy(), dtype=np.float64)
+
+    keep = np.asarray(payload.mask, dtype=bool)
+    meas = np.nan_to_num(np.asarray(payload.measured, dtype=np.float64))
+    vac = np.nan_to_num(np.asarray(payload.vacuum, dtype=np.float64))
+    sc = np.asarray(payload.scale, dtype=np.float64)
+    w = np.zeros_like(meas)
+    w[keep] = 1.0 / np.maximum(sc[keep], 1e-12)
+    ip = float(payload.ip_amperes)
+
+    rk, zk = r_cells[cand], z_cells[cand]
+    m_k = m_sens[:, cand]  # (S, n_cand)
+    r_lo, r_hi = float(rk.min()), float(rk.max())
+    z_lo, z_hi = float(zk.min()), float(zk.max())
+    span = max(r_hi - r_lo, z_hi - z_lo)
+    s_lo, s_hi = 0.04, 0.6 * span
+
+    def i_cell_of(theta):
+        rc, zc, sr, sz = theta
+        blob = np.exp(-0.5 * (((rk - rc) / sr) ** 2 + ((zk - zc) / sz) ** 2))
+        tot = blob.sum()
+        return blob * (ip / tot) if tot > 1e-12 else blob
+
+    def resid(theta):
+        ik = i_cell_of(theta)
+        pred = vac + m_k @ ik
+        return (w * (pred - meas))[keep]
+
+    r0v = float(basis.r0)
+    theta0 = np.array([np.clip(r0v, r_lo, r_hi), 0.0, 0.25 * span, 0.35 * span])
+    lb = np.array([r_lo, z_lo, s_lo, s_lo])
+    ub = np.array([r_hi, z_hi, s_hi, s_hi])
+    theta0 = np.clip(theta0, lb + 1e-6, ub - 1e-6)
+    sol = least_squares(resid, theta0, bounds=(lb, ub), method="trf", max_nfev=200)
+    rc, zc, sr, sz = sol.x
+
+    i_cell = np.zeros(r_cells.size)
+    i_cell[cand] = i_cell_of(sol.x)
+    ip_fit = float(i_cell.sum())
+    n_keep = int(keep.sum())
+    misfit = float((sol.fun**2).sum() / max(n_keep, 1))
+    return MomentInversion(
+        i_cell=i_cell,
+        coeffs=np.array([rc, zc, sr, sz]),
+        labels=["Rc", "Zc", "sigma_r", "sigma_z"],
+        misfit=misfit,
+        ip_fit=ip_fit,
+        ip_rel_err=float(abs(ip_fit - ip) / max(abs(ip), 1.0)),
+        centroid_r=float(rc),
+        centroid_z=float(zc),
+        scale=float(np.hypot(sr, sz)),
+        shot=getattr(payload, "shot", 0),
+        t_index=getattr(payload, "t_index", 0),
+        time_s=getattr(payload, "time_s", float("nan")),
+    )
+
+
 def invert_slices_moment(
     basis: PatchBasis,
     payloads: list,
@@ -312,11 +394,14 @@ def invert_slices_moment(
 
     Mirrors :func:`imas_ambix.latent.patch_inverse.invert_slices` in signature
     so a gate script can swap the free-current inverse for the constrained
-    moment read.  Each slice is an independent linear least-squares solve (no
-    optimiser, no seed, deterministic), so this is far cheaper than the Adam
-    inverse and returns one :class:`MomentInversion` per payload in order.
+    moment read.  ``cfg.model`` selects the current model: ``"gaussian"``
+    (default -- a compact non-negative elliptical blob) or ``"polynomial"`` (the
+    low-order monomial basis, an ablation that is not compactness-constrained).
+    Returns one :class:`MomentInversion` per payload in order.
     """
     cfg = cfg or MomentFitConfig()
+    if cfg.model == "gaussian":
+        return [fit_gaussian_current(basis, p, cfg) for p in payloads]
     return [fit_moment_currents(basis, p, cfg, r0=r0) for p in payloads]
 
 
@@ -324,6 +409,7 @@ __all__ = [
     "MomentFitConfig",
     "MomentInversion",
     "build_moment_basis",
+    "fit_gaussian_current",
     "fit_moment_currents",
     "invert_slices_moment",
     "moment_terms",
