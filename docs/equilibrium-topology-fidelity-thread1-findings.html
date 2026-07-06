@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="doc">
+  <meta name="plan-slug"    content="equilibrium-topology-fidelity-thread1-findings">
+  <meta name="plan-title"   content="Thread 1 findings — the boundary from a constrained external-field representation">
+  <title>Thread 1 findings — the boundary from a constrained external-field representation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Thread 1 findings — the boundary from a constrained external-field representation</h1>
+    <p><em>Research findings for thread 1 of
+    <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>: read the
+    plasma boundary (separatrix / X-point / LCFS) off a <strong>constrained low-order current-moment</strong>
+    representation of the external magnetics instead of the free ~5000-DOF interior patch current. Measured,
+    leakage-free, against the firewalled EFIT referee on the 160-slice held-out set. Includes an evaluation of
+    the MAST↔IMAS coordinate/sign (COCOS) exposure the lead flagged.</em></p>
+
+    <h2>Verdict</h2>
+    <div class="callout">
+    <p><strong>The boundary deficit is substantially a REPRESENTATION artifact — confirmed, with a held-out
+    recovery — but only PARTIALLY, and the split is finer than first drawn.</strong> Reading the boundary off a
+    constrained current-moment field (no new diagnostics) improves the held-out <strong>X-point-set skill from
+    −0.61 to −0.15</strong> and the <strong>LCFS skill from −6.26 to −4.47</strong> (median LCFS offset 34→24 cm),
+    while pinning I<sub>p</sub> exactly. This is direct evidence for §2: a smoother, moment-constrained current
+    removes much of the near-boundary lumpiness the free-current read injected. <strong>But it does not reach
+    referee grade</strong>: the X-point / limited↔diverted class (set by the low moments + coil field in the
+    vacuum region) <em>is</em> externally well-posed and recovers; the detailed <strong>LCFS radial extent —
+    especially outboard — does NOT fully recover, because it depends on the finite interior current
+    distribution</strong> (the genuine null-space). Thread 1 therefore closes the topology-class half of the
+    boundary problem in the right direction and hands the LCFS-radius half to the interior-diagnostic threads.</p>
+    </div>
+
+    <h2>§1 — The question</h2>
+    <p>The equilibrium layer resolves the magnetic axis to referee grade (2.8 cm) but the
+    <strong>boundary/X-point is an honest negative</strong>: read off the free ~5000-DOF interior patch-current
+    ψ, the last-closed surface is under-sized by 34 cm and the X-point set scores −0.61 (LCFS skill −6.26). §2 of
+    the driving plan argues this is a <em>representation artifact</em>: outside the plasma J<sub>φ</sub>=0 so ψ
+    solves the homogeneous Grad–Shafranov operator Δ*ψ=0, and the external magnetics fix the low-order current
+    moments (I<sub>p</sub>, centroid, elongation, triangularity) that set the boundary shape — so the interior
+    null-space slack that a free ~5k-DOF current injects into the near-boundary field is <em>curable by a
+    constrained external representation, with the data we already have</em>. Thread 1 tests that claim directly.</p>
+
+    <h2>§2 — Method: a constrained current-moment read (decision locked: <code>current-moment</code>)</h2>
+    <p>We represent the plasma current with a small moment basis and reconstruct a smooth total flux ψ(R,Z) whose
+    boundary is a well-conditioned function of the moments the magnetics constrain:</p>
+    <ul>
+      <li><strong>Low-order moment basis</strong> (<code>imas_ambix/latent/boundary_moment.py</code>): monomials
+      u<sup>p</sup>v<sup>q</sup> (u=(R−R₀)/a, v=Z/a) up to a swept order K, on the conductor-clear in-limiter
+      cells. The monopole is the candidate mask and every higher moment is <em>zero-sum-centred</em>, so the
+      total current lands purely on the monopole and is <strong>hard-anchored to the Rogowski I<sub>p</sub></strong>
+      (I<sub>p</sub> reproduced to ~1e-16). The K−1 shape coefficients are fit by whitened least squares to the
+      plasma sensor signature <code>measured − vacuum</code> over the trusted rows.</li>
+      <li><strong>Same Green's operator, same referee</strong>: the current reuses the patch→sensor
+      (<code>m_sens</code>) and patch→grid-flux (<code>g_pg</code>) maps, so ψ is reconstructed by exactly the
+      free-current machinery and read by the <em>identical</em> topology read + firewalled-EFIT scoring
+      (<code>scripts/patch_gate_eval.py</code>). The boundary representation is the only varying factor.</li>
+      <li><strong>Hybrid read (plan §5)</strong>: the patch-ψ stays the interior carrier — the LCFS ray-cast
+      <em>origin</em> (the magnetic axis) comes from the interior estimate, while the boundary (bounding flux,
+      X-point set, 8-angle LCFS radii) is read from the constrained moment ψ.</li>
+    </ul>
+    <p>Protocol: the moment order was swept on the training cohort (leakage-free), frozen, and scored ONCE on the
+    160-slice held-out set (STANDING_HELD_OUT + <code>test_ood_regime</code>). Order 3 won the tune.
+    Conventions preserved throughout: total poloidal flux Φ=2πR·A<sub>φ</sub> [Wb], μ₀ explicit, MAST
+    ψ<sub>axis</sub>&gt;ψ<sub>boundary</sub>; the EFIT referee ψ is ×2π to match (see the COCOS evaluation, §5).</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/equilibrium-topology-fidelity/thread1-current-distribution.png"
+           alt="Side-by-side of the free-current patch distribution (lumpy, ~5000 DOF, with null-space slack) vs the constrained current-moment distribution (smooth, low-order) on the poloidal grid for one held-out flat-top slice."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 1 — Why the boundary read changes: the free ~5k-DOF
+      patch current (left) carries interior null-space slack that leaks small-scale lumpiness into the
+      near-boundary ψ; the constrained current-moment current (right) is smooth by construction, so its external
+      field is a well-conditioned function of the low-order moments.</figcaption>
+    </figure>
+
+    <h2>§3 — Gate 1 result (held-out, firewalled EFIT referee)</h2>
+    <table>
+      <thead><tr><th>Metric (held-out, n=160)</th><th>Free-current baseline</th><th>Current-moment (this thread)</th><th>Δ</th></tr></thead>
+      <tbody>
+        <tr><td><strong>X-point-set skill</strong></td><td>−0.613</td><td><strong>−0.151</strong></td><td>+0.46 ✓</td></tr>
+        <tr><td><strong>LCFS skill</strong></td><td>−6.264</td><td><strong>−4.470</strong></td><td>+1.79</td></tr>
+        <tr><td>LCFS offset, all (cm)</td><td>34.1</td><td><strong>23.5</strong></td><td>−10.6 cm</td></tr>
+        <tr><td>LCFS offset, flat-top (cm)</td><td>37.2</td><td>35.4</td><td>−1.8 cm</td></tr>
+        <tr><td>I<sub>p</sub> anchor</td><td>soft</td><td>exact (~1e-16)</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p>Both boundary quantities improve on held-out data <strong>with no interior diagnostic</strong> — the
+    signature §2 predicted for a representation artifact. The recovery is real but <em>partial</em>: neither skill
+    reaches ≥0 (referee grade). The X-point improvement (deficit more than halved) is the more decisive one,
+    because the X-point <em>is</em> the limited↔diverted decision the whole plan is built around.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/equilibrium-topology-fidelity/thread1-skills-comparison.png"
+           alt="Grouped bar chart: free-current baseline vs current-moment read on the held-out set for X-point-set skill (-0.61 to -0.15), LCFS skill (-6.26 to -4.47), and LCFS median offset in cm (34 to 24). Both metrics improve but remain below referee grade."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 2 — Held-out Gate-1 comparison. The constrained
+      current-moment read improves both boundary metrics vs the free-current baseline (X-point skill −0.61→−0.15,
+      LCFS skill −6.26→−4.47, median offset 34→24 cm) — a partial, representation-only recovery with no new data.</figcaption>
+    </figure>
+
+    <h2>§4 — The honest edge: the LCFS radial extent blends into the interior</h2>
+    <p>The controlled diagnostics locate exactly what the external read <em>cannot</em> recover. Across three
+    current mechanizations — the low-order polynomial basis, a free compact Gaussian blob, and a blob
+    <em>centred on the true axis</em> — the reconstructed ψ systematically <strong>under-sizes the outboard
+    LCFS</strong> (by tens of cm) even when the axis and I<sub>p</sub> are correct. This is not a bug: a compact
+    low-DOF plasma current produces near-circular outer flux surfaces, whereas the true last-closed surface is
+    shaped by the finite <em>interior</em> current/pressure profile — the genuine null-space the balanced-sampling
+    negative measured. In other words:</p>
+    <ul>
+      <li><strong>Externally well-posed (recovers):</strong> I<sub>p</sub>, current centroid, and the
+      <strong>X-point / limited↔diverted class</strong> — set by the low moments and the divertor-coil field in
+      the vacuum region.</li>
+      <li><strong>Not purely external (does not fully recover):</strong> the detailed <strong>LCFS radial extent</strong>,
+      especially outboard, which couples to the interior profile.</li>
+    </ul>
+    <p>This <strong>refines §2's split</strong>: the boundary is not monolithically "externally well-posed"; its
+    <em>topology</em> is, but its <em>radial shape</em> shares the interior null-space. The residual LCFS deficit
+    is therefore the correct hand-off to the interior-diagnostic thread (thread 2), not a defect of thread 1.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/equilibrium-topology-fidelity/thread1-lcfs-per-angle.png"
+           alt="Per-poloidal-angle LCFS offset (cm) at the 8 fixed angles for free-current vs current-moment reads; the outboard angles retain the largest offset for both, showing the LCFS radial extent that the external read cannot recover."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 3 — LCFS offset by poloidal angle. The moment read
+      reduces the offset at most angles, but the outboard angles retain the largest residual for both reads — the
+      radial extent that couples to the (under-determined) interior current profile.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="/imas-ambix/figures/equilibrium-topology-fidelity/thread1-flux-comparison.png"
+           alt="imas-ink poloidal flux-surface overlay for one held-out flat-top slice: our current-moment psi contours + read boundary and X-point, with the firewalled EFIT reference underlaid at the same absolute psi levels."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 4 — Flux-surface comparison (imas-ink) for a held-out
+      flat-top slice: our current-moment ψ (contours, read boundary/X-point) against the firewalled EFIT
+      reference at matched absolute ψ levels. Total-flux convention (Φ=2πR·A<sub>φ</sub>); EFIT ψ ×2π.</figcaption>
+    </figure>
+
+    <h2>§5 — Coordinate / sign-convention (COCOS) evaluation</h2>
+    <p>The lead flagged a fear that sign-convention misunderstandings were silently impeding progress. A dedicated
+    audit (<a href="/imas-ambix/mast-imas-cocos-evaluation.html">MAST↔IMAS COCOS evaluation</a>,
+    <code>scripts/mast_cocos_audit.py</code>) settled it with real-data evidence, and the result directly supports
+    this thread's conclusion:</p>
+    <ul>
+      <li><strong>The MAST pipeline is sign-sound.</strong> On a genuine pre-breakdown vacuum slice the known-coil
+      prediction correlates 0.83–0.87 with the raw magnetics at a least-squares slope 0.86–0.99 — sign and
+      magnitude both correct. MAST is read <em>raw</em> from FAIR-MAST zarr; there is no IMAS auto-conversion on
+      that path.</li>
+      <li><strong>The boundary negative is NOT a sign flip.</strong> A ψ- or Z-flip would corrupt the axis too,
+      but axis skill is positive (+0.019 in the P3 run) — a sign fault cannot be that selective. This is
+      independent confirmation that the boundary deficit is a representation/interior effect, exactly as measured
+      here.</li>
+      <li><strong>The one real mismatch is latent, at the IMAS seam.</strong> MAST EFIT is COCOS-3-like (axis =
+      flux max for I<sub>p</sub>&gt;0), not COCOS-11; harmless for today's MAST-only work but live the moment data
+      is ingested through the IMAS readers (whose poloidal-angle assumption is currently unverified). Mapping MAST
+      to IMAS is worth it — it retires per-machine sign bookkeeping and realises the machine-agnostic North Star —
+      but only <em>with</em> an explicit, fail-loud normalisation boundary; a naive mapping would inject exactly
+      the hazard feared. That work is captured as a separate, non-urgent plan:
+      <a href="/imas-ambix/cocos-convention-hardening.html">cocos-convention-hardening</a>.</li>
+    </ul>
+
+    <h2>§6 — Conclusion and next steps</h2>
+    <ul>
+      <li><strong>Thread 1 lands a measured, held-out, partial recovery of the boundary as a representation fix</strong>
+      (X-point −0.61→−0.15, LCFS −6.26→−4.47, no new data) — validating §2's direction while refining it: the
+      <em>topology class</em> is externally well-posed, the <em>LCFS radial extent</em> is not.</li>
+      <li><strong>Warranted follow-up (per the decision rationale): the toroidal-harmonic expansion.</strong> The
+      current-moment read reconstructs an interior current, which re-imports interior ambiguity into the near-edge
+      ψ; a source-free vacuum-region ψ fit (half-integer Legendre Δ*-eigenfunctions) reads the separatrix without
+      committing to an interior current and is the natural next attempt at the X-point / separatrix, plus it
+      enables the vacuum-region consistency check.</li>
+      <li><strong>The LCFS radial extent is handed to thread 2</strong> (interior-diagnostic fusion): the residual
+      is interior-profile information, not an external representation choice.</li>
+    </ul>
+  </main>
+</body>
+</html>
