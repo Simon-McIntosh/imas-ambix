@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="patch-equilibrium-wm-integration">
   <meta name="plan-title" content="Patch Equilibrium → World-Model Integration">
   <meta name="plan-summary" content="Carry the shipped patch-current force-balance layer into the machine-agnostic latent world model: close the amortised geometry gap, wire the equilibrium layer into the stage-2/3 engine as observation operator + soft residual + dimensionless closure coordinates, and open the cross-machine ingestion path">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
@@ -20,9 +20,9 @@
   <title>Patch Equilibrium → World-Model Integration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-05">
-<meta name="plan-version" content="14">
-<meta name="plan-impl" content="0.89">
+<meta name="plan-modified" content="2026-07-06">
+<meta name="plan-version" content="15">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -261,14 +261,23 @@
       machine-agnostic-latent-world-model f-malwm-02 / gs-grounded-latent-engine f-ggl-02 (whatever the number),
       and the path to the 0.5–0.7 bar is the <strong>equilibrium-topology-fidelity</strong> plan (externally-well-posed
       boundary + interior diagnostics), not more engine training on magnetics alone.</p>
-    <p><strong>B3 — Closures as dimensionless latent coordinates.</strong> The per-bin (a<sub>k</sub>, b<sub>k</sub>)
-      profiles (with uncertainties) are machine-portable physics coordinates. Feed them as auxiliary
-      latent content/readout targets — the concrete realisation of the open
-      <code>dimensionless-coordinate-set</code> decision on machine-agnostic-latent-world-model (soft-learned
-      arm), and the “coefficients and closures recovered from data” goal of the North Star
-      physics-world-model-strategy.
-      <br><strong>Gate B3:</strong> closure readout from the latent matches the per-slice regression closures
-      within their 1σ on held-out flat-top; F²≥0 rate reported.</p>
+    <p><strong>B3 — Closures as dimensionless latent coordinates.</strong>
+      <span class="badge badge-shipped">✓ measured 2026-07-06 — mechanism fixed &amp; validated; readout an honest negative</span></p>
+    <p class="landed-summary">
+      Added a per-ψ-bin (a_k=p′, b_k=FF′/μ₀) closure-readout head on the hybrid latent, trained self-supervised
+      against the engine's own <code>fit_flux_functions</code> targets. The from-scratch joint loss DIVERGED (the
+      closure aux term drove a 70× i_cell null-space runaway — recorded as the honest negative for the ungated
+      arm); fixed by <strong>fully detaching the closure loss to backprop only into the readout head</strong> (it
+      reads closures, cannot reshape the currents) + an i_cell-scale assert + an adapt-every-25 λ throttle. The
+      re-enable run (job 1225504, 20k steps) then <strong>COMPLETED with NO divergence and the assert never
+      tripped</strong> — the engineering fix is validated. Gate: <strong>closure readout FAILS</strong> — only
+      ~1.0–1.5% of bins land within 1σ of the per-slice regression closures (pooled a=0.015, b=0.010 over 80
+      held-out flat-top slices); F²≥0 rate <strong>98.75%</strong> (recovered profiles physical); grounding 8.99×
+      PASS; transport anchors PASS. Verdict: the latent does NOT learn to read out closures matching the
+      regression — the same interior-under-determination as B2 (closures are interior-profile higher moments,
+      exactly the null-space part magnetics can't pin). The MACHINERY (detached readout, F²≥0) is sound and
+      re-usable; closing the readout fidelity needs the interior information of the
+      <strong>equilibrium-topology-fidelity</strong> plan. Artifact: <code>gate_n1000_closureon_final.json</code>.</p>
     <p><strong>B4 — Equilibrium layer as the filter's observation operator (stage 3).</strong>
       <span class="badge badge-shipped">✓ landed 2026-07-04</span></p>
     <p class="landed-summary">
@@ -341,7 +350,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-pewi-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pewi-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="2026-07-06T03:39:27+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Ship Workstream A — corpus cache + full-corpus retrain + per-batch geometry + Gaussian head + LCFS read</h4>
     <div class="r-fu-body"><p>The measured levers from the shipped patch-current-force-balance P4, in priority order,
           with the corpus-assembly cache first (it de-risks everything after). Resolve the
@@ -384,6 +393,7 @@ Done-when
   5. LCFS read robustification measured (kept only if load-bearing)
   6. plan updated same-turn with numbers + figures; followup written for
      Workstream B + this one resolved</pre>
+    <p class="r-fu-outcome">SHIPPED - all four Workstream-A levers landed: A1/A2 corpus cache + per-batch geometry (all signatures train; corrected 5k encoder 4.3 cm axis, non-monotonic full-corpus scaling recorded), A3 Gaussian head (frozen-mean = zero mean-regression + per-kind sigma-temperature sensor calibration; topology coverage a current-space residual), A4 LCFS read (honest negative, all three arms; deficit interior-structure-driven), plus F floor-sensitivity (rel=0.05 load-bearing). Workstreams B (B1/B2/B3/B4), C (ITER zero-code ingest), D (coil audit) all landed/measured. Full illustrated report: patch-equilibrium-wm-integration-workstream-reports.</p>
     </article>
 <article class="r-fu" data-id="f-pewi-machine-agnostic-circuits" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §5" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Make coil-circuit classification machine-description-driven (unblock a second machine&#x27;s KNOWN coil block)</h4>

@@ -32,9 +32,10 @@
       The run closed <strong>eight of nine core sections plus a user-directed coil audit</strong>: Workstream A
       (A1/A2 corpus scale-up, A3 calibration, A4 boundary read), Workstream B (B1 engine wiring, B2 the
       end-to-end learned-latent gate, B4 the filter observation operator), Workstream C (cross-machine
-      ingestion), and Workstream D (the coil-circuit audit) all landed; only B3 (closures as dimensionless
-      latent coordinates) is still measuring. Two decisions were locked at kickoff — a staged, cached corpus
-      scale-up and interleaved A/B execution — and both held.
+      ingestion), and Workstream D (the coil-circuit audit) all landed; the ninth, B3 (closures as dimensionless
+      latent coordinates), is now measured too — its divergence was fixed and validated, its readout an honest
+      negative (below). All nine core sections are complete. Two decisions were locked at kickoff — a staged,
+      cached corpus scale-up and interleaved A/B execution — and both held.
     </p>
     <p>
       <strong>The defining outcome was not a headline metric but a discipline result: three silent
@@ -211,14 +212,20 @@
       magnetics alone.
     </p>
     <p>
-      <strong>B3 — closures as dimensionless latent coordinates.</strong> <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#b8860b">MEASURING</span>
-      The per-bin closures (a<sub>k</sub>=p′, b<sub>k</sub>=FF′/μ₀, with 1σ uncertainties and F²≥0 verified on
-      160/160 slices in the shipped layer) are exactly the machine-portable profile coordinates the latent needs,
-      so they are fed as auxiliary latent content/readout targets — the concrete realisation of the open
-      dimensionless-coordinate-set decision on the driving plan. The closure auxiliary loss diverged when trained
-      from scratch; that was diagnosed and fixed via detachment, and the re-enable run is in flight at report
-      time. Gate B3 (still to land): the closure readout from the latent matches the per-slice regression closures
-      within their 1σ on held-out flat-top, with the F²≥0 rate reported.
+      <strong>B3 — closures as dimensionless latent coordinates.</strong> <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#8a3324">MECHANISM FIXED · READOUT NEGATIVE</span>
+      A per-ψ-bin (a<sub>k</sub>=p′, b<sub>k</sub>=FF′/μ₀) closure-readout head was added to the hybrid latent,
+      trained self-supervised against the engine's own <code>fit_flux_functions</code> targets. Trained from
+      scratch the closure auxiliary loss <strong>diverged</strong> — it drove a 70× i_cell null-space runaway
+      (recorded as the ungated-arm honest negative). The fix — <strong>fully detaching the closure loss so it
+      backprops only into the readout head</strong> (it reads closures, cannot reshape the currents), plus an
+      i_cell-scale hard assert and an adapt-every-25 λ throttle — was validated: the re-enable run (job 1225504,
+      20k steps) completed with <strong>no divergence and the assert never tripped</strong>. Gate: the closure
+      readout <strong>FAILS</strong> — only ~1.0–1.5% of bins land within 1σ of the per-slice regression
+      (pooled a=0.015, b=0.010 over 80 held-out flat-top slices), while F²≥0 holds at <strong>98.75%</strong>
+      (recovered profiles are physical) and the transport anchors PASS. The reading is the same interior
+      under-determination as B2: closures are interior-profile higher moments, the null-space part magnetics
+      cannot pin. The machinery (detached readout, F²≥0, no runaway) is sound and reusable; readout fidelity is
+      handed to the interior threads of equilibrium-topology-fidelity.
     </p>
     <p>
       <strong>B4 — the filter observation operator (stage 3).</strong> <span style="display:inline-block;font:600 11px system-ui;color:#fff;padding:2px 9px;border-radius:11px;vertical-align:middle;letter-spacing:.02em;background:#1b7837">SHIPPED</span>
