@@ -73,6 +73,12 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.27",
 ]
+viz = [
+    # Equilibrium / flux-surface plotting + firewalled-EFIT overlay maps
+    # (imas_ink.figures.equilibrium_figure_mpl). Local sibling checkout —
+    # see [tool.uv.sources] below.
+    "imas-ink",
+]
 agent = [
     "openai>=1.60",
     "huggingface-hub>=0.27",
@@ -102,6 +108,12 @@ Issues = "https://github.com/iterorganization/imas-ambix/issues"
 
 [project.scripts]
 imas-ambix = "imas_ambix.cli:main"
+
+[tool.uv.sources]
+# imas-ink is developed as a sibling checkout (~/Code/imas-ink); editable so
+# local changes are picked up without reinstall. Pulled in via the `viz` extra:
+#   uv sync --extra viz
+imas-ink = { path = "../imas-ink", editable = true }
 
 [tool.hatch.version]
 source = "vcs"
