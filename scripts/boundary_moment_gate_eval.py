@@ -35,10 +35,6 @@ import time
 
 import numpy as np
 
-from imas_ambix.latent.boundary_moment import MomentFitConfig, invert_slices_moment
-from imas_ambix.latent.data import read_split_shot_lists
-from imas_ambix.latent.topology import find_critical_points
-
 # Reuse the exact scoring core + payload builder of the free-current gate
 # (script-dir import: run as `python scripts/boundary_moment_gate_eval.py`).
 from patch_gate_eval import (
@@ -48,6 +44,10 @@ from patch_gate_eval import (
     shot_payloads,
     train_mean_baseline,
 )
+
+from imas_ambix.latent.boundary_moment import MomentFitConfig, invert_slices_moment
+from imas_ambix.latent.data import read_split_shot_lists
+from imas_ambix.latent.topology import find_critical_points
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger("boundary-moment-gate")
@@ -70,7 +70,9 @@ def _count_saddles(psi2d, grid, axis_rz, limiter_r, limiter_z) -> int:
 
 def run(order: int, split: str, args) -> dict:
     train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
-    baseline_vec = train_mean_baseline(args.n_train, args.n_baseline_shots, args.min_ip_ka)
+    baseline_vec = train_mean_baseline(
+        args.n_train, args.n_baseline_shots, args.min_ip_ka
+    )
     eval_shots = (
         train_shots[args.n_baseline_shots : args.n_baseline_shots + args.n_tune_shots]
         if split == "train"
@@ -140,9 +142,7 @@ def run(order: int, split: str, args) -> dict:
         "wall_s": dt,
         **sc,
         "lcfs_offset_median_cm_all": float(np.nanmedian(per_slice_median)),
-        "lcfs_offset_median_cm_flattop": (
-            float(np.nanmedian(ft)) if ft.size else None
-        ),
+        "lcfs_offset_median_cm_flattop": (float(np.nanmedian(ft)) if ft.size else None),
         "axis_error_median_m": float(np.nanmedian(axis_err)),
         "axis_error_mean_m": float(np.nanmean(axis_err)),
         "saddles_mean": float(np.mean(saddles)) if saddles else None,
