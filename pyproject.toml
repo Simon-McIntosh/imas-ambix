@@ -140,6 +140,9 @@ select = ["E", "F", "W", "I", "UP", "N", "B", "A", "SIM", "TCH"]
 [tool.ruff.lint.per-file-ignores]
 # Tests use uppercase N/M/D for matrix dimensions and Path is fine in test files
 "tests/**/*.py" = ["N806", "TC003"]
+# The current-moment boundary read uses conventional linear-algebra naming
+# (M = moment basis matrix) — uppercase matches the math, same rationale as above.
+"imas_ambix/latent/boundary_moment.py" = ["N806", "N803"]
 # The metric module uses conventional linear-algebra naming (X, Y, R, Xb, logZ,
 # Phi) for the frozen-probe regression and the closed-form CRPS — uppercase
 # matches the math, same rationale as the test ignore above.
