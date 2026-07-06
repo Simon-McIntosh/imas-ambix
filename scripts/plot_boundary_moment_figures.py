@@ -31,7 +31,20 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import sys
 from pathlib import Path
+
+# Make the sibling helper scripts importable no matter how this file is run
+# (``python -m scripts.plot_boundary_moment_figures``, ``python
+# scripts/plot_boundary_moment_figures.py``, or an in-process import): put both
+# the repo root and this directory on the path so ``patch_flux_map_report`` /
+# ``patch_gate_eval`` resolve either bare or ``scripts.``-prefixed.
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_SCRIPTS_DIR)
+for _p in (_REPO_ROOT, _SCRIPTS_DIR):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import matplotlib
 
