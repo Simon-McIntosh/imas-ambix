@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="plasma-current-priors-hardening">
+  <meta name="plan-title"     content="Plasma-Current Priors Hardening — make the physics carry the signal in the null space">
+  <meta name="plan-summary"   content="The 2026-07 grounding review found the patch-current null space is filled by optimiser defaults, not physics: the free inverse carries a sign-indefinite near-wall halo + corner lobes, and the current-moment boundary read spreads Ip uniformly over the whole vessel (jφ≠0 in the vacuum region, violating the Δ*ψ=0 premise it was built on). This plan hardens the prior ladder so actual plasma topologies pop from soft priors + data: (R1) unidirectional current jφ·sign(Ip)≥0; (R2) free-boundary support consistency j=0 outside the LCFS of its own ψ, with a halo budget; (R3, owned by equilibrium-topology-fidelity f-etf-04) the source-free toroidal-harmonic exterior read. Doublets stay representable by construction. Gate-harness hardening (bootstrap CIs, double-null-correct saddle metric, origin-controlled LCFS read) ships alongside so every verdict is trustworthy.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="M">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="patch-current-force-balance,patch-equilibrium-wm-integration">
+  <meta name="plan-blocks"    content="equilibrium-topology-fidelity">
+  <title>Plasma-Current Priors Hardening | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Plasma-Current Priors Hardening</h1>
+    <p><em>Child of the 2026-07 grounding review
+    (<a href="/imas-ambix/project-grounding-review-2026-07.html">project-grounding-review-2026-07</a>).
+    The North Star (<a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a>)
+    states the contract: "the X-point is the natural consequence of explaining the raw magnetics — physics enters as
+    the coordinate system and soft priors (the language)". The review found the contract is not being honoured in the
+    null space: where the magnetics do not constrain the current, what fills the gap today is <strong>optimiser
+    defaults and basis-support choices, not physics</strong>. This plan hardens the prior ladder so the null space is
+    spanned by physics — the lead's directive: "if we build upon physics then this physics needs to be robust or else
+    we are lost".</em></p>
+
+    <h2 id="s1">§1 — The evidence: the null space is filled by numerics, not physics</h2>
+    <p>One figure carries the whole case. Left: the free ~5k-DOF inverse "explains the magnetics" with a
+    <strong>negative-current halo hugging the outboard wall</strong> and <strong>positive lobes at the upper/lower
+    inboard corners</strong> — current where no plasma is. Right: the current-moment fit is smooth, but its monopole
+    term spreads I<sub>p</sub> <strong>uniformly over every conductor-clear in-limiter cell</strong>, so
+    j<sub>φ</sub> ≠ 0 throughout the vacuum region — the reconstructed ψ violates Δ*ψ = 0 exactly where the
+    boundary and X-point are read, contradicting the §2 premise of
+    <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a> that motivated it.</p>
+    <figure>
+      <img src="/imas-ambix/figures/project-grounding-review/current-distribution-annotated.png"
+           alt="Annotated side-by-side of the free-current inverse (negative halo, corner lobes) and the order-3 current-moment fit (Ip spread uniformly over the whole vessel), with each unphysical feature labelled."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 1 — Held-out slice, per-cell plasma current. Neither
+      representation respects the physics the plans assert: the free inverse (left) fills the sensor null space with
+      sign-indefinite current; the moment fit (right) commits current to the vacuum region by construction.</figcaption>
+    </figure>
+    <p>Why the existing physics term cannot fix this: the force-balance structure residual
+    (<code>imas_ambix/latent/structure_residual.py</code>) is a <em>current-weighted, scale-free</em> measure of the
+    flux-function relation R·j<sub>φ</sub> = p′R² + FF′/μ₀. It is <strong>invariant to exactly the failure modes in
+    Figure 1</strong>: a low-|j| halo is down-weighted by the j² weighting, a sign flip on its own level set can
+    still satisfy an affine relation, and support location enters nowhere. The only support prior in the tree
+    (<code>edge_taper_penalty</code>) is deliberately unwired. So the visible unphysicality costs the loss almost
+    nothing — the physics is present but <em>not load-bearing in the null space</em>.</p>
+
+    <h2 id="s2">§2 — The prior ladder (design)</h2>
+    <figure>
+      <svg viewBox="0 0 960 300" role="img" style="max-width:100%;height:auto;background:#ffffff">
+        <text x="14" y="24" style="font:600 14px system-ui;fill:#1a1a1a">The prior ladder — each rung is soft/ablatable, none excludes a valid plasma</text>
+        <!-- R1 -->
+        <rect x="14" y="44" width="296" height="190" fill="#ffffff" stroke="#1b7837" stroke-width="1.4" rx="6"/>
+        <text x="28" y="70" style="font:600 13px system-ui;fill:#14532d">R1 — unidirectional current</text>
+        <text x="28" y="92" style="font:12.5px system-ui;fill:#1a1a1a">j&#966; &#183; sign(I&#8346;) &#8805; 0 on every cell</text>
+        <text x="28" y="112" style="font:12px system-ui;fill:#444">default: hard, x = softplus(y) reparam</text>
+        <text x="28" y="130" style="font:12px system-ui;fill:#444">ablation: soft penalty &#955;&#8901;&#931;relu(&#8722;j&#183;sign(I&#8346;))&#178;</text>
+        <text x="28" y="158" style="font:600 12px system-ui;fill:#14532d">keeps: doublets (same-sign lobes),</text>
+        <text x="28" y="174" style="font:600 12px system-ui;fill:#14532d">current holes (j &#8594; 0 allowed)</text>
+        <text x="28" y="196" style="font:12px system-ui;fill:#8a3324">kills: the negative wall halo</text>
+        <text x="28" y="222" style="font:11px system-ui;fill:#666">out of scope: AC reversal transients</text>
+        <!-- R2 -->
+        <rect x="332" y="44" width="296" height="190" fill="#ffffff" stroke="#1565c0" stroke-width="1.4" rx="6"/>
+        <text x="346" y="70" style="font:600 13px system-ui;fill:#0d3a75">R2 — support consistency</text>
+        <text x="346" y="92" style="font:12.5px system-ui;fill:#1a1a1a">j&#966; = 0 outside the LCFS of its own &#968;</text>
+        <text x="346" y="112" style="font:12px system-ui;fill:#444">soft penalty on out-of-boundary current,</text>
+        <text x="346" y="130" style="font:12px system-ui;fill:#444">with a halo budget (few % of I&#8346; free)</text>
+        <text x="346" y="158" style="font:600 12px system-ui;fill:#0d3a75">keeps: doublets (one LCFS envelope),</text>
+        <text x="346" y="174" style="font:600 12px system-ui;fill:#0d3a75">real SOL/halo current (budgeted)</text>
+        <text x="346" y="196" style="font:12px system-ui;fill:#8a3324">kills: corner lobes + vacuum-region j</text>
+        <text x="346" y="222" style="font:11px system-ui;fill:#666">self-consistent: support follows &#968;(j)</text>
+        <!-- R3 -->
+        <rect x="650" y="44" width="296" height="190" fill="#ffffff" stroke="#8a5a00" stroke-width="1.4" rx="6"/>
+        <text x="664" y="70" style="font:600 13px system-ui;fill:#6b4600">R3 — source-free exterior read</text>
+        <text x="664" y="92" style="font:12.5px system-ui;fill:#1a1a1a">fit &#916;*&#968; = 0 in the vacuum annulus</text>
+        <text x="664" y="112" style="font:12px system-ui;fill:#444">toroidal harmonics (half-integer Legendre);</text>
+        <text x="664" y="130" style="font:12px system-ui;fill:#444">boundary/X-point read in the annulus ONLY</text>
+        <text x="664" y="158" style="font:600 12px system-ui;fill:#6b4600">expected: exact vacuum field,</text>
+        <text x="664" y="174" style="font:600 12px system-ui;fill:#6b4600">"nonsense" interior — by design</text>
+        <text x="664" y="196" style="font:12px system-ui;fill:#8a3324">replaces: the current-moment read</text>
+        <text x="664" y="222" style="font:11px system-ui;fill:#666">owner: equilibrium-topology-fidelity f-etf-04</text>
+        <!-- arrows -->
+        <path d="M310,139 L332,139" stroke="#444" stroke-width="1.6" marker-end="url(#pah)"/>
+        <path d="M628,139 L650,139" stroke="#444" stroke-width="1.6" marker-end="url(#pah)"/>
+        <defs><marker id="pah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#444"/></marker></defs>
+        <text x="14" y="270" style="font:12px system-ui;fill:#1a1a1a">Explicitly REJECTED: a hard single-blob / unimodality prior — it would exclude doublet plasmas (two O-points, two current</text>
+        <text x="14" y="288" style="font:12px system-ui;fill:#1a1a1a">lobes inside one separatrix envelope), which are edge-case but valid configurations. R1+R2 achieve the "pop" without exclusions.</text>
+      </svg>
+      <figcaption style="font-size:12.5px;color:#444">Figure 2 — The three rungs. R1 and R2 are inverse-side soft
+      priors this plan owns; R3 is the representation-side fix owned by equilibrium-topology-fidelity (f-etf-04) that
+      R1/R2 feed a physical interior carrier.</figcaption>
+    </figure>
+    <p><strong>R1 — unidirectional toroidal current, j<sub>φ</sub>·sign(I<sub>p</sub>) ≥ 0.</strong> Answering the
+    lead's question directly: <em>should currents share the same sign, and would that rule out doublets?</em> A
+    same-sign prior does <strong>not</strong> rule out doublets — a doublet's two current lobes are both parallel to
+    I<sub>p</sub>; it is the <em>flux</em> topology that is doubled, not the current sign. It also does not rule out
+    "current-hole" plasmas (j ≈ 0 in the core is permitted by ≥ 0). The only configurations excluded are
+    reversed-current transients (AC operation crossings), which are outside every corpus we score. Default arm:
+    <strong>hard by reparametrisation</strong> (<code>x = softplus(y)</code> on the dimensionless shape, sign from the
+    Rogowski I<sub>p</sub>) — the null space then cannot produce cancelling dipole layers at all; soft-penalty arm as
+    the ablation to measure what the constraint is worth.</p>
+    <p><strong>R2 — free-boundary support consistency.</strong> Answering the second question — <em>should the
+    plasma be a single joined blob of current?</em> — the physically correct form of that intuition is not
+    "connected blob" (which a doublet also satisfies) but <strong>free-boundary consistency: j<sub>φ</sub> = 0
+    outside the last closed flux surface of the very ψ the current generates</strong>. This is a fixed-point
+    property, imposed softly: penalise current carried by cells outside the current boundary estimate (from the
+    existing topology read of the assembled ψ, recomputed on a cadence in the optimisation loop), with a
+    <strong>halo budget</strong> — a few per cent of I<sub>p</sub> exempted near the boundary — so the real SOL/halo
+    currents the structure residual's discovery framing protects can still surface as a <em>measured excess over
+    budget</em>, not be silently fitted away. A doublet's LCFS envelope encloses both lobes, so R2 is doublet-safe
+    by construction.</p>
+    <p><strong>R3 — the source-free exterior read</strong> (toroidal harmonics: half-integer-degree Legendre
+    Δ*-eigenfunctions fitted to <code>measured − vacuum</code> in the vacuum annulus) is the representation-side
+    complement, already queued as <code>f-etf-04</code> on equilibrium-topology-fidelity. The review re-states its
+    expected behaviour precisely so it is not "missed" again: the fit is valid <strong>only in the source-free
+    annulus between plasma and sensors</strong>; inside the plasma the expansion is meaningless and that is
+    <em>correct</em> — the boundary/X-point are read in the annulus, the axis stays with the interior carrier.
+    Design note from the review: the confined-side flux reference must NOT be taken from the harmonic field's own
+    extremum (the current hybrid read does this on the moment ψ — <code>boundary_moment_gate_eval.hybrid_target</code>
+    reads <code>axis_psi</code> from the moment field), because the harmonic field has no valid interior.</p>
+
+    <h2 id="s3">§3 — Gates (held-out, firewalled referee, CIs mandatory)</h2>
+    <p>All gates run the standing 160-slice held-out protocol (STANDING_HELD_OUT + test_ood_regime) against the
+    firewalled EFIT referee, with the free-current P3-winner and the current-moment order-3 arms as baselines.
+    Per the review's evidence-quality findings, <strong>every headline skill now carries a paired-bootstrap CI over
+    shots</strong>, and two harness defects are fixed before any new physics is measured (§4).</p>
+    <ul>
+      <li><strong>Gate A (R1):</strong> with the sign prior active, the negative-current fraction
+      |&#931;I&#8315;|/I<sub>p</sub> collapses to ~0 (from the measured halo level of the free inverse)
+      <em>without</em> degrading the sensor misfit beyond the discrepancy target or the axis skill (+0.019 baseline,
+      CI-compatible). Report the halo current the prior removed — it is the measured size of the sign-indefinite
+      null-space fill.</li>
+      <li><strong>Gate B (R2):</strong> with support consistency active, out-of-boundary current falls below the halo
+      budget and the held-out LCFS/X-point skills move toward the referee (report Δ with CI). The decisive
+      <strong>attribution experiment</strong> the review demands: does the inboard-corner (135°/225°) LCFS residual —
+      which survived the ray-origin de-confound at ~37–39 cm — shrink when current can no longer sit in the
+      corners/divertor legs? If yes, the "genuine interior null-space" attribution of thread 1 §4 was premature; if
+      no, the corner residual is genuinely interior (or coil-model) information and thread 2 inherits it with
+      evidence.</li>
+      <li><strong>Gate C (R3, scored under f-etf-04):</strong> the harmonic exterior read beats the current-moment
+      read on X-point-set and LCFS skill, and the vacuum-annulus consistency check (patch-ψ vs harmonic-ψ RMS in the
+      shared annulus) is reported — the checkable condition both representations must satisfy where both are valid.</li>
+    </ul>
+
+    <h2 id="s4">§4 — Gate-harness hardening (ships first, blocks the gates)</h2>
+    <p>The review found the thread-1 verdict rests on a harness with four defects; they are cheap and ship before any
+    new physics so Gates A–C are trustworthy:</p>
+    <ul>
+      <li><strong>Bootstrap CIs</strong> on every skill (paired over shots), in <code>scripts/patch_gate_eval.py</code>'s
+      <code>score()</code> and every consumer — the tune/eval order-sweep disagreement (o3 X-point −2.31 tune vs
+      −0.15 eval) is unquantified noise until then.</li>
+      <li><strong>Double-null-correct saddle metric:</strong> MAST is routinely double-null; <code>saddles &le; 1</code>
+      as "saddle-free" mislabels two genuine X-points as a spurious read. Count saddles <em>in excess of the
+      referee's X-point count</em>, and record the metric for BOTH arms (the free-current baseline artifact carries
+      <code>saddles: null</code> — Gate 1a of thread 1 was never actually measured).</li>
+      <li><strong>Origin-controlled LCFS read:</strong> the flagship moment artifact used the centroid ray origin
+      (median 7.9 cm off-axis; arm axis skill −1.62, omitted from the findings table) while the findings doc
+      describes the patch-axis hybrid. Make <code>--axis-source patch</code> the scored default; keep centroid as the
+      fast smoke arm only.</li>
+      <li><strong>Consistent model defaults:</strong> <code>MomentFitConfig.model</code> defaults to
+      <code>"gaussian"</code> in the library but <code>"polynomial"</code> in the gate CLI — align to the locked
+      decision and artifacts (polynomial) or rename explicitly.</li>
+    </ul>
+
+    <h2 id="s5">§5 — Relationship to the standing plans</h2>
+    <p>This plan <strong>blocks</strong> <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>
+    per the lead's directive — threads 2–6 build interior information on top of the boundary story, and the review
+    showed the boundary story's attribution (representation vs interior null-space vs coil-model error at the
+    corners) cannot be settled with unphysical currents in the loop. It <strong>depends on</strong>
+    <a href="/imas-ambix/patch-current-force-balance.html">patch-current-force-balance</a> (the inverse + structure
+    residual substrate it modifies) and
+    <a href="/imas-ambix/patch-equilibrium-wm-integration.html">patch-equilibrium-wm-integration</a> (the payload /
+    coil-model substrate). The grounding review
+    (<a href="/imas-ambix/project-grounding-review-2026-07.html">project-grounding-review-2026-07</a>) is the
+    evidence base; the amortised encoder (P4) inherits whichever priors survive their ablations, exactly as it
+    inherited the oracle recipe.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="sign-prior-form" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">R1 — how is the unidirectional-current prior imposed?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="hard-softplus">hard by reparametrisation — x = softplus(y): the null space cannot express sign-indefinite fills at all; cleanest physics, changes the optimisation geometry</button>
+          <button class="r-opt" data-value="soft-penalty">soft penalty — &#955;&#183;&#931;relu(&#8722;j&#183;sign(Ip))&#178;: keeps the current parametrisation, weight swept leakage-free; the constraint is measured, not assumed</button>
+        </p>
+        <p class="r-dec-rat">Recommend hard-softplus as the default arm with the soft penalty as the ablation — the North Star allows hard FACTS (the Rogowski sign is a measurement, like the conductor mask "factual geometry"), and reserving softness for genuinely uncertain physics. Measure both; the ablation quantifies what the prior is worth.</p>
+      </div>
+      <div class="r-dec" data-key="support-prior-form" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">R2 — how is free-boundary support consistency imposed?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="soft-outside-lcfs">soft penalty on current outside the current LCFS estimate, halo budget exempted; boundary recomputed on the &#955;-adaptation cadence (no topology extraction in the gradient path)</button>
+          <button class="r-opt" data-value="iterated-mask">iterated hard mask — Picard-style: invert, read boundary, mask candidates to inside+margin, re-invert (2-3 sweeps); simpler but non-differentiable and risks locking in a bad first boundary</button>
+        </p>
+        <p class="r-dec-rat">Recommend the soft penalty: it keeps the loop free of hard topology extraction (the design rule the structure residual already honours), degrades gracefully near limited&#8596;diverted transitions, and its budget term preserves the halo/SOL discovery channel. The iterated mask is the fallback if the soft form is too weak to move the corner lobes.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-pcph-01" data-status="open" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-07-07" data-recommends-skill="/reckon-ship plasma-current-priors-hardening §4" data-resolved-at="" data-resolved-by="">
+        <h4 class="r-fu-title">Ship §4 — gate-harness hardening (bootstrap CIs, double-null saddle metric, origin-controlled read, default alignment)</h4>
+        <div class="r-fu-body"><p>Ships FIRST and blocks the physics gates: the review showed the thread-1 verdict rests on a harness with no CIs, an unmeasured Gate-1a, a mislabelled double-null saddle metric, and a centroid ray origin the findings doc does not disclose. Four cheap fixes make every subsequent verdict trustworthy.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-current-priors-hardening (http://localhost:8765/imas-ambix/plasma-current-priors-hardening.html)
+Section: §4 Gate-harness hardening
+Tier:    sonnet
+
+Context
+  The 2026-07 grounding review (project-grounding-review-2026-07) found four harness defects
+  under the thread-1 boundary verdict. They ship before any new prior so Gates A-C are trustworthy.
+
+State to read
+  scripts/patch_gate_eval.py            (score(), per_quantity_skill, artifact writing)
+  scripts/boundary_moment_gate_eval.py  (hybrid_target, _count_saddles, --axis-source)
+  imas_ambix/latent/boundary_moment.py  (MomentFitConfig.model default)
+  imas_ambix/latent/artifacts/patch_gate/boundary_read_moment-o3.json (+_arrays.npz)
+
+Scope locks / constraints
+  EFIT firewalled (code-outputs-only): the referee X-point COUNT may be used by the eval-side
+  metric only (it already supplies ref targets) — never in any fit path. Leakage-free protocol
+  unchanged (160-slice held-out). Do not change physics defaults in the same commit as harness
+  fixes — separate commits so re-baselines are attributable.
+
+Done-when
+  1. score() returns paired-bootstrap CIs over shots for every skill; artifacts carry them.
+  2. Saddle metric = saddles in excess of referee X-point count; recorded for BOTH arms;
+     free-current baseline re-scored once to fill the null Gate-1a fields.
+  3. --axis-source patch is the scored default (centroid kept as smoke arm); one o3 re-eval
+     recorded with the patch origin so the moment arm has an origin-controlled headline.
+  4. MomentFitConfig default aligned with the gate CLI (polynomial) or explicitly renamed.
+  5. Tests green; plan updated same-turn; this followup resolved.</pre>
+      </article>
+      <article class="r-fu" data-id="f-pcph-02" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-07" data-recommends-skill="/reckon-ship plasma-current-priors-hardening §2" data-resolved-at="" data-resolved-by="">
+        <h4 class="r-fu-title">Ship §2 R1+R2 — sign prior + free-boundary support consistency, measured at Gates A/B</h4>
+        <div class="r-fu-body"><p>The core physics hardening: unidirectional current (hard softplus default, soft-penalty ablation) and the soft outside-LCFS support penalty with a halo budget. Gate B carries the decisive corner-attribution experiment — whether the 135°/225° LCFS residual is method artifact or genuine interior information.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-current-priors-hardening (http://localhost:8765/imas-ambix/plasma-current-priors-hardening.html)
+Section: §2 R1+R2, gated at §3 A/B
+Tier:    opus
+
+Context
+  §4 harness hardening has shipped (CIs, saddle metric, origin control). Now the two
+  inverse-side priors: R1 j*sign(Ip)>=0 and R2 j=0 outside the LCFS of its own psi
+  (soft, halo-budgeted). Resolve sign-prior-form and support-prior-form at kickoff.
+
+State to read
+  imas_ambix/latent/patch_inverse.py     (invert_slices: x parametrisation, lambda policy)
+  imas_ambix/latent/structure_residual.py (loss-term pattern to mirror; edge_taper_penalty)
+  imas_ambix/latent/topology.py          (boundary read reused for the R2 support estimate)
+  scripts/patch_gate_eval.py + scripts/boundary_moment_gate_eval.py (gates)
+  docs/project-grounding-review-2026-07.html §3 (the failure modes being cured)
+
+Scope locks / constraints
+  Leakage-free: weights/budgets swept on train shots, frozen, scored ONCE held-out with CIs.
+  No hard topology extraction inside the gradient path (R2 boundary recomputed on the
+  lambda-adaptation cadence, detached). Halo budget preserves the SOL/halo discovery channel —
+  report excess-over-budget, never fit it away silently. P5 discipline: keep a rung only if
+  load-bearing. EFIT referee eval-only.
+
+Done-when
+  1. R1 + R2 implemented behind InverseConfig flags, OFF by default until gated; tests green
+     (incl. a doublet-analytic test: two same-sign lobes inside one envelope survive both priors).
+  2. Gate A: negative-current fraction ~0, misfit within discrepancy target, axis skill
+     CI-compatible with +0.019.
+  3. Gate B: out-of-boundary current below budget; LCFS/X-point deltas with CIs; the
+     corner-attribution verdict (does 135/225 move?) recorded either way.
+  4. Winner flags become the P3-winner defaults; plan + grounding review updated same-turn;
+     this followup resolved; f-etf-04 (R3) informed of the new interior-carrier baseline.</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
