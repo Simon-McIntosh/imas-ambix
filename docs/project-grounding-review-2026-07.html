@@ -114,6 +114,26 @@
     distinguishes a physical SOL current from a null-space dipole layer 10× larger</strong>. The optimiser (Adam
     from a Gaussian seed, 800 iters) then fills the null space with whatever minimises whitened sensor residual
     fastest — the halo and corner lobes are its signature, not the plasma's.</p>
+    <p><strong>The substrate review sharpened this in four ways.</strong> (i) The scale of the
+    under-determination: ~73 trusted sensors constrain ~4,787 candidate cells, and 35 of the 41 in-limiter cells
+    in the corner box (R∈[0.6,0.9], Z∈[1.6,1.8]) are <em>legal</em> candidates — the conductor-clear mask works
+    exactly as coded (winding packs + cases excluded with a one-cell dilation) but carries no plasma-support
+    notion, and the <code>amm</code> passive structures (p2uarm, p2udivpl, topcol…) are not excluded at all.
+    (ii) The structure residual is <em>self-normalised</em> (<code>num/den</code>,
+    <code>structure_residual.py:608-610</code>): an isolated, internally-consistent blob at its own ψ-level fits
+    its two-parameter affine relation trivially (≈0 added to the numerator) while inflating the denominator — so
+    the physics term can actively <em>reward</em> parking current in corner blobs, not merely fail to punish it.
+    (iii) The published figure's inverse ran with <code>connectivity=None</code>
+    (<code>patch_flux_map_report.py:67-73</code>) while the gate CLI defaults to
+    <code>connectivity="locality"</code> — the flagship image shows the weakest-regularised arm. (iv) The inverse's
+    forward model has <strong>no passive/eddy term</strong> (<code>g_passive</code> exists in the operator but is
+    never wired into the inverse), so unmodelled eddies and any PF/case vacuum-field error can only be absorbed by
+    plasma cells — though a measured flat-top ablation (<code>passive_ablation_probe2.json</code>: rank-4 amm eddy
+    block, misfit −0.06%, passive currents 6×10⁻⁵ of I<sub>p</sub>) shows eddies are <em>not</em> load-bearing at
+    flat-top. Separately, the free-boundary GS solver's coil handling was verified <strong>correct</strong>: the
+    <code>analytic-add</code> split (FD solve of the plasma part + exact analytic coil field) is the right
+    treatment for in-vessel coils, and the Δ*-harmonic <code>boundary-continuation</code> arm is correctly
+    confined to bootstrap/diagnostic use — no bug in that path.</p>
     <p><strong>The moment fit replaced one unphysical current with another.</strong>
     <code>boundary_moment.py:116</code>: the monopole column <em>is the candidate mask</em>, so the hard
     I<sub>p</sub> anchor places <code>Ip/n_cand</code> on <em>every</em> conductor-clear in-limiter cell — including
@@ -167,7 +187,13 @@
       near-edge ψ (this review's §3); (H3) divertor-coil / vacuum-model error concentrated in exactly those
       corners — where BOTH representations fail identically, which is also consistent with a shared coil-model
       error. Gate B of plasma-current-priors-hardening (corner residual with support-consistent current) and the
-      f-etf-04 harmonic read (no interior commitment at all) are the discriminating experiments.</li>
+      f-etf-04 harmonic read (no interior commitment at all) are the discriminating experiments.
+      <em>Substrate-review update:</em> for the free inverse's corner <strong>lobes</strong> (the current
+      artifacts, distinct from the corner LCFS residual), the code evidence ranks H-null-space first (35/41 corner
+      cells legal, no support prior, self-normalised physics term can reward isolated blobs), coil-model/eddy
+      absorption second-but-minor at flat-top (measured: rank-4 amm-eddy ablation not load-bearing — misfit
+      −0.06%, passive currents 6×10⁻⁵ of I<sub>p</sub>; PF/case vacuum-field error and ramp/transient eddies
+      remain unprobed), and a mask defect last (the mask is verified functioning as coded).</li>
     </ul>
     <figure>
       <img src="/imas-ambix/figures/project-grounding-review/lcfs-per-angle-deconfound.png"
@@ -194,6 +220,11 @@
         <tr><td>B8</td><td>P2</td><td>f-etf-02 prompt cites <code>boundary_read_grid_{tune,eval}.json</code> as the A4 baseline, but those artifacts carry all-null metric fields (key mismatch with their writer)</td><td><code>artifacts/patch_gate/boundary_read_grid_*.json</code></td><td>noted; baseline re-score under f-pcph-01 supersedes</td></tr>
         <tr><td>B9</td><td>P1</td><td>Inter-doc contradiction: strategy §1b said the boundary deficit was "measured to be interior-current-null-space, not a readout artifact" while thread 1 (one day later) measured it "substantially a representation artifact"</td><td><code>physics-world-model-strategy.html:129</code></td><td><strong>FIXED this session</strong></td></tr>
         <tr><td>B10</td><td>P2</td><td><code>cocos-convention-hardening</code> schema violation (roi "medium" not in enum) — the only non-conformant doc of 62</td><td>plan meta</td><td><strong>FIXED this session</strong> (roi=mid)</td></tr>
+        <tr><td>B11</td><td>P1</td><td>Candidate-mask conductor exclusion effectively untested: the one direct test SKIPS on its fixture, and both synthetic fixtures put coils outside the limiter — a dilated/shifted/inverted mask would ship green</td><td><code>tests/latent/test_patch_inverse.py:111-118</code>, <code>test_gs_solve.py:239-256</code></td><td>f-pcph-01 (in-limiter-coil fixture)</td></tr>
+        <tr><td>B12</td><td>P1</td><td>In-vessel <code>analytic-add</code> coil handling untested — the two solve modes are only compared where coils sit OUTSIDE the limiter, so the case the split exists for (in-vessel divergence) has no regression pin</td><td><code>tests/latent/test_gs_solve.py:275-288</code></td><td>f-pcph-01 (interior-coil Green's-reference test)</td></tr>
+        <tr><td>B13</td><td>P2</td><td>Inverse forward model has no passive/eddy term (<code>g_passive</code> unwired) and the candidate mask does not exclude <code>amm</code> passive structures — unmodelled eddies + PF/case vacuum error can only be absorbed by plasma cells adjacent to conductors/sensors (measured not-load-bearing at flat-top; ramp/transient + PF-field error unprobed)</td><td><code>patch_inverse.py:205</code>, <code>gs_solve.py:236-246</code></td><td>plasma-current-priors-hardening §2-R2 + noted for thread-2 era</td></tr>
+        <tr><td>B14</td><td>P1</td><td>Structure residual is self-normalised (num/den, jφ²-weighted): an isolated internally-consistent blob at its own ψ-level adds ≈0 to the numerator while inflating the denominator — the physics term can actively REWARD corner blobs</td><td><code>structure_residual.py:608-610</code></td><td>plasma-current-priors-hardening §2 (R1/R2 remove the reward path; normalisation review in ablation)</td></tr>
+        <tr><td>B15</td><td>P2</td><td>Config inconsistency: the flux-map report that produced the published lobe figures ran <code>connectivity=None</code> while the gate CLI defaults <code>connectivity="locality"</code> — the flagship image is the weakest-regularised arm</td><td><code>patch_flux_map_report.py:67-73</code> vs <code>patch_gate_eval.py:1009</code></td><td>f-pcph-01 (align defaults; locality re-render)</td></tr>
       </tbody>
     </table>
 

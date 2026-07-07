@@ -55,7 +55,13 @@
     Figure 1</strong>: a low-|j| halo is down-weighted by the j² weighting, a sign flip on its own level set can
     still satisfy an affine relation, and support location enters nowhere. The only support prior in the tree
     (<code>edge_taper_penalty</code>) is deliberately unwired. So the visible unphysicality costs the loss almost
-    nothing — the physics is present but <em>not load-bearing in the null space</em>.</p>
+    nothing — the physics is present but <em>not load-bearing in the null space</em>. The substrate review found
+    it is worse than neutral: because the residual is <em>self-normalised</em> (unexplained fraction, num/den), an
+    isolated internally-consistent corner blob at its own ψ-level adds ≈0 to the numerator while inflating the
+    denominator — the physics term can actively <em>reward</em> the blobs R1/R2 exist to remove (review register
+    B14). The mask itself is verified functioning as coded (~73 sensors vs ~4,787 candidate cells; 35/41
+    corner-box cells are legal candidates), and a measured flat-top ablation shows amm-eddy absorption is not
+    load-bearing — the lobes are null-space fill, which is exactly what a support prior addresses.</p>
 
     <h2 id="s2">§2 — The prior ladder (design)</h2>
     <figure>
@@ -172,6 +178,15 @@
       <li><strong>Consistent model defaults:</strong> <code>MomentFitConfig.model</code> defaults to
       <code>"gaussian"</code> in the library but <code>"polynomial"</code> in the gate CLI — align to the locked
       decision and artifacts (polynomial) or rename explicitly.</li>
+      <li><strong>Mask/coil test fixtures (substrate-review B11/B12):</strong> the candidate-mask conductor
+      exclusion is effectively untested (the direct test skips; both fixtures put coils outside the limiter) and
+      the in-vessel <code>analytic-add</code> coil split has no regression pin. Add an in-limiter-coil fixture that
+      exercises real cell exclusion, and an interior-coil test pinning <code>analytic-add</code> against a Green's
+      reference where the two solve modes must differ.</li>
+      <li><strong>Connectivity-default alignment (B15):</strong> <code>patch_flux_map_report.py</code> runs
+      <code>connectivity=None</code> while the gate CLI defaults <code>"locality"</code> — align, and re-render the
+      flux-map current figure with the locality arm so published exhibits show the same regularisation the gates
+      score.</li>
     </ul>
 
     <h2 id="s5">§5 — Relationship to the standing plans</h2>
