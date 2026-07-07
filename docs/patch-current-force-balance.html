@@ -15,12 +15,12 @@
   <meta name="plan-milestone" content="M4">
   <meta name="plan-sprint" content="S16">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-depends-on" content="gs-grounded-latent-engine,machine-agnostic-latent-world-model">
+  <meta name="plan-depends-on" content="gs-grounded-latent-engine">
   <title>Patch-Current Force Balance | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-04">
-<meta name="plan-version" content="7">
+<meta name="plan-modified" content="2026-07-07">
+<meta name="plan-version" content="8">
 <meta name="plan-impl" content="1.0">
 </head>
 <body>
@@ -448,7 +448,16 @@
       <a href="/imas-ambix/figures/patch-current-force-balance/fig-gate-rematch.png">gate rematch</a>,
       <a href="/imas-ambix/figures/patch-current-force-balance/fig-recovered-closures.png">recovered closures</a>.
       Full record: <a href="archive/patch-current-force-balance-p3-landed.html">P3 landed</a>.
-    </p>
+      <br><strong>Review note (2026-07-07, <a href="/imas-ambix/project-grounding-review-2026-07.html">grounding
+      review</a> B16):</strong> this verdict predates the case-circuit / channel-set / whitening-floor fixes of
+      2026-07-04. The identical-config post-fix re-run (<code>boundary_read_grid_eval.json</code>) reads axis
+      skill <strong>−0.027</strong> @ 2.58&nbsp;cm median — the PASS <em>sign</em> does not survive re-measurement,
+      while the cm-level median improves. Both values sit within the method's (unquantified) run variance, so the
+      PASS/FAIL is <em>unresolved</em> until the bootstrap-CI harness rung lands
+      (<a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a> f-pcph-01),
+      which will adjudicate and back-propagate the verdict. The same staleness applies to the P4 headline
+      (pre-fix <code>encoder_gate_direct2k.json</code>; corrected-scale re-run <code>direct5k</code> reads
+      4.3&nbsp;cm / 8.86&times;).</p>
 
     <h3>P4 — Amortised patch-current encoder <span class="badge badge-shipped">&#10003; landed 2026-07-04 — grounding + availability PASS; geometry gap honest, trend measured</span></h3>
     <p class="landed-summary">

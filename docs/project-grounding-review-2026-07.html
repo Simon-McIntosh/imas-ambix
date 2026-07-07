@@ -38,10 +38,12 @@
     directly violating the Δ*ψ=0 vacuum premise the method was justified by. The
     <strong>toroidal-harmonic exterior solve the lead expected was never built</strong>: the
     <code>boundary-representation-method</code> decision locked <code>current-moment</code> "for a fast Gate-1
-    number" and deferred the harmonic read to an open followup (<code>f-etf-04</code>). What is solid: the axis
-    result (+0.019 on 160/160 held-out, 2.8 cm), the firewalled-referee eval spine, the leakage protocol, and the
-    structure-residual design <em>for what it claims to measure</em>. What is not: every boundary-attribution
-    claim now rests on a harness without CIs, with an unmeasured Gate 1a, and an undisclosed biased ray origin.
+    number" and deferred the harmonic read to an open followup (<code>f-etf-04</code>). What is solid: the axis at
+    the centimetre level (median 2.6–2.8 cm across pre- and post-fix runs), the firewalled-referee eval spine, the
+    leakage protocol, and the structure-residual design <em>for what it claims to measure</em>. What is not: the
+    flagship P3 axis-skill PASS does not survive the corrected-physics re-run already on disk (+0.019 → −0.027,
+    B16), and every boundary-attribution claim rests on a harness without CIs, with an unmeasured Gate 1a, and an
+    undisclosed biased ray origin.
     None of the boundary skills is positive yet. The corrective work is scoped and gated in
     <a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a>, which now
     blocks <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>.</p>
@@ -49,7 +51,7 @@
     <table>
       <thead><tr><th>Claim</th><th>Status after review</th><th>Evidence</th></tr></thead>
       <tbody>
-        <tr><td>Magnetic axis referee-grade (2.8 cm, skill +0.019, 160/160)</td><td><strong>SOLID</strong> (device/run cm-variance caveat stands)</td><td>P3 gate artifact; unchanged by this review</td></tr>
+        <tr><td>Magnetic axis referee-grade (2.8 cm, skill +0.019, 160/160)</td><td><strong>SPLIT</strong> — the cm-level median is solid (2.6–2.8 cm across pre/post-fix runs); the PASS <em>sign</em> is stale: the corrected-physics identical-config re-run gives skill <strong>−0.027</strong> @ 2.58 cm — unresolved pending CIs (B16)</td><td><code>patch_gate_eval_gate2.json</code> (+0.019, pre-fix) vs <code>boundary_read_grid_eval.json</code> (−0.027, post-fix)</td></tr>
         <tr><td>Eval spine: firewalled EFIT referee, leakage-free splits, train-mean baseline</td><td><strong>SOLID</strong>, minus missing CIs</td><td>patch_gate_eval.py protocol re-read end-to-end</td></tr>
         <tr><td>Boundary deficit "substantially a representation artifact" (thread 1)</td><td><strong>QUALIFIED</strong> — directional improvement real; magnitude uncertain (no CI, tune/eval inversion)</td><td>§4; boundary_read artifacts</td></tr>
         <tr><td>"Corner LCFS residual = genuine interior null-space, not a bug" (thread-1 §4)</td><td><strong>REOPENED</strong> — confounded with method-committed vacuum current + coil-model error</td><td>§3, §4; de-confound analysis</td></tr>
@@ -65,9 +67,13 @@
       geometry-tagged tokens landed; the balanced-sampling negative measured the magnetics-only encoder saturating
       at ~4.3 cm axis while grounding rose to 28.3× — the empirical mandate for interior information.</li>
       <li><strong>Equilibrium layer</strong> (patch-current-force-balance SHIPPED; patch-equilibrium-wm-integration
-      SHIPPED) — training-free inverse: axis PASS (160/160, 2.8 cm, +0.019); closures F²≥0 on 160/160; geometry
-      honest-negative on boundary. The case-circuit coil-model fix (13→21 columns,
-      <code>case-circuits-v2</code>) re-baselined everything downstream.</li>
+      SHIPPED) — training-free inverse: axis median 2.6–2.8 cm on 160/160 held-out; closures F²≥0 on 160/160;
+      geometry honest-negative on boundary. The case-circuit coil-model fix (13→21 columns,
+      <code>case-circuits-v2</code>) plus the whitening-floor fix re-baselined everything downstream —
+      <strong>but the shipped P3/P4 verdicts were never re-labelled against the post-fix re-runs</strong>: the
+      identical-config re-measurement flips the P3 axis skill to −0.027, and the flux-map doc still carries the
+      pre-fix table (B16/B17). The claims audit found the stale +0.019 propagated into the driving plan's Layer-0
+      paragraph alongside a post-fix LCFS number from the same re-run.</li>
       <li><strong>Boundary/topology frontier</strong> (equilibrium-topology-fidelity, impl 0.17, now BLOCKED by
       plasma-current-priors-hardening) — thread 1 landed a qualified partial-positive (§4 below); threads 2–6
       (interior fusion, closure smoothness, learned prior, temporal coherence, calibrated classification) unstarted.</li>
@@ -225,6 +231,9 @@
         <tr><td>B13</td><td>P2</td><td>Inverse forward model has no passive/eddy term (<code>g_passive</code> unwired) and the candidate mask does not exclude <code>amm</code> passive structures — unmodelled eddies + PF/case vacuum error can only be absorbed by plasma cells adjacent to conductors/sensors (measured not-load-bearing at flat-top; ramp/transient + PF-field error unprobed)</td><td><code>patch_inverse.py:205</code>, <code>gs_solve.py:236-246</code></td><td>plasma-current-priors-hardening §2-R2 + noted for thread-2 era</td></tr>
         <tr><td>B14</td><td>P1</td><td>Structure residual is self-normalised (num/den, jφ²-weighted): an isolated internally-consistent blob at its own ψ-level adds ≈0 to the numerator while inflating the denominator — the physics term can actively REWARD corner blobs</td><td><code>structure_residual.py:608-610</code></td><td>plasma-current-priors-hardening §2 (R1/R2 remove the reward path; normalisation review in ablation)</td></tr>
         <tr><td>B15</td><td>P2</td><td>Config inconsistency: the flux-map report that produced the published lobe figures ran <code>connectivity=None</code> while the gate CLI defaults <code>connectivity="locality"</code> — the flagship image is the weakest-regularised arm</td><td><code>patch_flux_map_report.py:67-73</code> vs <code>patch_gate_eval.py:1009</code></td><td>f-pcph-01 (align defaults; locality re-render)</td></tr>
+        <tr><td>B16</td><td>P0</td><td>Stale shipped verdicts: P3 "axis skill +0.019 PASS" and the P4 headline both predate the case-circuit / channel-set / whitening-floor fixes; the identical-config post-fix re-run (<code>boundary_read_grid_eval.json</code>) gives axis skill <strong>−0.027</strong> @ 2.58 cm — a sign flip on the PASS criterion, propagated uncorrected into patch-current-force-balance (shipped verdict) and the driving plan's §12/§12a, which mixes the pre-fix axis number with a post-fix LCFS number from the same measurement. The ±0.02–0.03 magnitude is plausibly within the method's run variance — PASS/FAIL is UNRESOLVED until the CI rung lands</td><td><code>patch_gate_eval_gate2.json</code> (2026-07-03) vs <code>boundary_read_grid_eval.json</code> (post-fix); <code>encoder_gate_direct2k.json</code> vs <code>direct5k</code></td><td>staleness notes FIXED this session; adjudication under CIs → f-pcph-01</td></tr>
+        <tr><td>B17</td><td>P1</td><td>patch-flux-map-comparison.html §3 asserts the pre-fix table (axis 2.4/4.9/3.9 cm, LCFS 31.3/16.6 cm) but its cited artifact was regenerated the same day under corrected physics (commit <code>0e5fba3</code>: "axis degrades 3.9→6.5 cm; LCFS improves 16.6→13.5") — current artifact reads axis 6.47 / LCFS 13.54 / ψ<sub>N</sub>=0.5 13.82 cm</td><td><code>flux_map_report.json</code> vs doc §3</td><td>staleness note FIXED this session; re-run under f-pcph-01 config</td></tr>
+        <tr><td>B18</td><td>P2</td><td>gs-grounded-latent-engine-findings.html §7 still asserts the pre-2π-fix "122/160 @ 8.3 cm" without the correction its parent doc's comments carry (corrected: 12/160 @ 5.9 cm) — the reference doc readers land on first is silent about its own supersession</td><td><code>gs-grounded-latent-engine-findings.html</code></td><td>correction note FIXED this session</td></tr>
       </tbody>
     </table>
 
@@ -265,6 +274,14 @@
       <li><strong>Corrected</strong> the thread-1 findings doc (new §7 review addendum: origin disclosure, Gate-1a
       gap, selection fragility, reopened attribution + de-confound figure) and the parent plan's §5 landed card
       (review note). The strategy doc's §1b contradiction (B9) fixed in place.</li>
+      <li><strong>Staleness corrections (claims audit):</strong> review notes added to
+      patch-current-force-balance (P3/P4 verdicts predate the physics fixes; post-fix axis skill −0.027),
+      patch-flux-map-comparison (§3 table superseded by the regenerated artifact), the driving plan's §12a
+      (mixed pre/post-fix numbers), and gs-grounded-latent-engine-findings (2π-fix correction note). The
+      two-node <code>depends-on</code> cycle between patch-current-force-balance and
+      machine-agnostic-latent-world-model broken (the shipped child no longer lists its parent as a
+      prerequisite), and gs-grounded-latent-engine now declares its <code>blocks</code> edge to
+      patch-current-force-balance.</li>
       <li><strong>Hierarchy re-wired:</strong> thread-1 findings doc now <code>informs</code>
       equilibrium-topology-fidelity + plasma-current-priors-hardening; mast-imas-cocos-evaluation now
       <code>informs</code> cocos-convention-hardening + equilibrium-topology-fidelity; cocos plan roi enum fixed.
@@ -285,7 +302,10 @@
     <ol>
       <li><strong>f-pcph-01 (sonnet, days):</strong> harness hardening — bootstrap CIs, double-null-correct saddle
       metric with a measured Gate 1a, origin-controlled read, default alignment. Everything after this is
-      measurable.</li>
+      measurable. First read-off: adjudicate the P3 axis-PASS sign under CIs — the post-fix number already exists
+      (<code>boundary_read_grid_eval.json</code> baseline arm, −0.027 @ 2.58 cm vs the shipped +0.019); propagate
+      whichever verdict survives through patch-current-force-balance, patch-equilibrium-wm-integration and the
+      driving plan in one pass.</li>
       <li><strong>f-pcph-02 (opus, ~week):</strong> R1 sign prior + R2 support consistency, Gates A/B — including
       the corner-attribution experiment that settles thread-1 §4's reopened claim.</li>
       <li><strong>f-etf-04 (opus, ~week, parallel after 1):</strong> the toroidal-harmonic source-free read the
