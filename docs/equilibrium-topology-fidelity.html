@@ -14,13 +14,13 @@
   <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-depends-on" content="patch-equilibrium-wm-integration,patch-current-force-balance,multimodal-tokenisation-substrate">
+  <meta name="plan-depends-on" content="patch-equilibrium-wm-integration,patch-current-force-balance,multimodal-tokenisation-substrate,plasma-current-priors-hardening">
   <meta name="plan-blocks" content="machine-agnostic-latent-world-model">
   <title>Equilibrium Topology Fidelity | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-06">
-<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-07-07">
+<meta name="plan-version" content="3">
 <meta name="plan-impl" content="0.17">
 </head>
 <body>
@@ -296,6 +296,26 @@
         <a href="/imas-ambix/cocos-convention-hardening.html">cocos-convention-hardening</a> plan). Warranted
         follow-up: the <strong>toroidal-harmonic</strong> source-free read for the separatrix.
       </p>
+      <h3 id="s5-review">Review note (2026-07-07 grounding review) — verdict qualified, attribution reopened</h3>
+      <p>The <a href="/imas-ambix/project-grounding-review-2026-07.html">2026-07 grounding review</a> audited this
+      thread end-to-end. The Gate-1 <em>directional</em> improvement stands, but three evidence-quality caveats now
+      qualify it: <strong>(a)</strong> the flagship artifact (<code>boundary_read_moment-o3.json</code>) was scored
+      with the <em>centroid</em> ray origin (arm axis skill −1.62, median origin error 7.9 cm), not the patch-axis
+      hybrid §2 of the findings doc describes — though a first-order de-confound on the stored arrays shows the
+      per-angle conclusions survive origin correction (±1–3 cm); <strong>(b)</strong> Gate 1a (the saddle-count
+      drop) was never recorded for the baseline arm, and the moment field itself averages 2.16 in-vessel saddles
+      with <code>saddle_free_fraction = 0.0</code> under a ≤1 rule that mislabels MAST double-null;
+      <strong>(c)</strong> the tune cohort ordered the arms the <em>opposite</em> way (order-3 X-point −2.31 tune
+      vs −0.15 eval) and no skill carries a CI. More fundamentally, the current-moment representation
+      <strong>violates the §2 premise it was built on</strong> — its monopole spreads I<sub>p</sub> uniformly over
+      every in-limiter cell, so j<sub>φ</sub> ≠ 0 throughout the vacuum region where the boundary is read. The §4
+      "genuine interior null-space" attribution of the inboard-corner residual is therefore <strong>reopened</strong>:
+      it cannot be distinguished from method-committed vacuum-region current (or divertor-coil model error in
+      exactly those corners) until the hardened priors land. Thread continuation is gated on
+      <a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a> (now in
+      <code>depends-on</code>): its Gate B is the corner-attribution experiment, and its harness rungs (bootstrap
+      CIs, double-null-correct saddle metric, origin-controlled read) are prerequisites for trusting any further
+      boundary number, including the <code>f-etf-04</code> toroidal-harmonic read.</p>
     </section>
 
     <h2 id="s6">§6 — Thread 2: interior-diagnostic fusion (the missing information for the profile)</h2>
@@ -527,7 +547,7 @@ Done-when
      WITHOUT any interior diagnostic; vacuum-region agreement patch-psi vs constrained read reported.
   3. boundary-representation-method resolved at kickoff.
   4. plan updated same-turn with numbers + a figure; this followup resolved.</pre>
-    <p class="r-fu-outcome">§5 thread 1 LANDED (2026-07-06). Constrained current-moment boundary read built (imas_ambix/latent/boundary_moment.py, 6 tests; scripts/boundary_moment_gate_eval.py; decision boundary-representation-method=current-moment locked). Gate 1 held-out (n=160, firewalled EFIT): X-point-set skill -0.61->-0.15, LCFS skill -6.26->-4.47, LCFS offset 34->24 cm, Ip exact — partial-positive with NO new data, confirming the boundary deficit is substantially representational (§2). REFINES §2: the X-point/limited-diverted CLASS is externally well-posed and recovers; the LCFS radial extent does NOT fully recover (couples to the interior current profile — three current mechanizations under-size the outboard LCFS even with correct axis+Ip) -> handed to thread 2. Findings: docs/equilibrium-topology-fidelity-thread1-findings.html; record: docs/archive/equilibrium-topology-fidelity-thread1-landed.html. COCOS fear evaluated (pipeline sign-sound; latent IMAS-seam mismatch -> new cocos-convention-hardening plan).</p>
+    <p class="r-fu-outcome">§5 thread 1 LANDED (2026-07-06). Constrained current-moment boundary read built (imas_ambix/latent/boundary_moment.py, 6 tests; scripts/boundary_moment_gate_eval.py; decision boundary-representation-method=current-moment locked). Gate 1 held-out (n=160, firewalled EFIT): X-point-set skill -0.61-&gt;-0.15, LCFS skill -6.26-&gt;-4.47, LCFS offset 34-&gt;24 cm, Ip exact — partial-positive with NO new data, confirming the boundary deficit is substantially representational (§2). REFINES §2: the X-point/limited-diverted CLASS is externally well-posed and recovers; the LCFS radial extent does NOT fully recover (couples to the interior current profile — three current mechanizations under-size the outboard LCFS even with correct axis+Ip) -&gt; handed to thread 2. Findings: docs/equilibrium-topology-fidelity-thread1-findings.html; record: docs/archive/equilibrium-topology-fidelity-thread1-landed.html. COCOS fear evaluated (pipeline sign-sound; latent IMAS-seam mismatch -&gt; new cocos-convention-hardening plan).</p>
     </article>
 <article class="r-fu" data-id="f-etf-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §6" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Ship thread 2 — fuse interior diagnostics (MSE / interferometer / SXR) into the equilibrium encoder (interior profile)</h4>
@@ -606,7 +626,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-etf-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-06" data-recommends-skill="/reckon-ship equilibrium-topology-fidelity §5" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Thread 1 follow-up — toroidal-harmonic source-free separatrix read (the warranted next attempt on the X-point/LCFS)</h4>
-    <div class="r-fu-body"><p>The current-moment read (f-etf-02) recovered the X-point class (-0.61->-0.15) but reconstructs an interior current, which re-imports interior ambiguity into the near-edge psi and leaves the LCFS radial extent short (skill -4.47). The decision rationale named the toroidal-harmonic expansion as the warranted follow-up: fit the SOURCE-FREE vacuum-region psi in half-integer Legendre Delta*-eigenfunctions (P_{n-1/2}, Q_{n-1/2}) matched to the external magnetics, and read the separatrix/X-point WITHOUT committing to an interior current. This also enables the vacuum-region consistency check (patch-psi vs the source-free read). Measure whether it beats the current-moment read on X-point/LCFS held-out; keep only if it improves.</p></div>
+    <div class="r-fu-body"><p>The current-moment read (f-etf-02) recovered the X-point class (-0.61-&gt;-0.15) but reconstructs an interior current, which re-imports interior ambiguity into the near-edge psi and leaves the LCFS radial extent short (skill -4.47). The decision rationale named the toroidal-harmonic expansion as the warranted follow-up: fit the SOURCE-FREE vacuum-region psi in half-integer Legendre Delta*-eigenfunctions (P_{n-1/2}, Q_{n-1/2}) matched to the external magnetics, and read the separatrix/X-point WITHOUT committing to an interior current. This also enables the vacuum-region consistency check (patch-psi vs the source-free read). Measure whether it beats the current-moment read on X-point/LCFS held-out; keep only if it improves.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    equilibrium-topology-fidelity (http://localhost:8765/imas-ambix/equilibrium-topology-fidelity.html)
 Section: §5 Thread 1 follow-up — toroidal-harmonic source-free separatrix read

@@ -7,6 +7,7 @@
   <meta name="reckon-type"  content="doc">
   <meta name="plan-slug"    content="equilibrium-topology-fidelity-thread1-findings">
   <meta name="plan-title"   content="Thread 1 findings — the boundary from a constrained external-field representation">
+  <meta name="plan-informs" content="equilibrium-topology-fidelity,plasma-current-priors-hardening">
   <title>Thread 1 findings — the boundary from a constrained external-field representation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -182,6 +183,49 @@
       <li><strong>The LCFS radial extent is handed to thread 2</strong> (interior-diagnostic fusion): the residual
       is interior-profile information, not an external representation choice.</li>
     </ul>
+
+    <h2>§7 — Review addendum (2026-07-07): caveats and a reopened attribution</h2>
+    <p>The <a href="/imas-ambix/project-grounding-review-2026-07.html">2026-07 grounding review</a> re-derived this
+    document's claims from the artifacts and code. The Gate-1 directional improvement stands; the following
+    corrections and caveats now apply and supersede the corresponding statements above:</p>
+    <ul>
+      <li><strong>Protocol disclosure (corrects §2/§3):</strong> the flagship eval artifact
+      (<code>boundary_read_moment-o3.json</code>, arm <code>current-moment-polynomial-centroid-axis</code>) used the
+      moment fit's <em>current centroid</em> as the LCFS ray-cast origin — not the interior patch-axis hybrid §2
+      describes. The moment arm's own axis skill is <strong>−1.62</strong> (median origin error 7.9 cm), omitted
+      from the §3 table (free-current baseline: −0.024). A first-order de-confound on the stored arrays shows the
+      per-angle §4 pattern survives origin correction (medians move ±1–3 cm; corners stay ~37–39 cm), so the
+      structure of §4 is real — but the flagship numbers should be re-scored with
+      <code>--axis-source patch</code> for the record.</li>
+      <li><strong>Gate 1a was never measured:</strong> the free-current baseline artifact carries
+      <code>saddles: null</code>, so the claimed mechanism ("spurious saddles under-sized the LCFS; the moment read
+      removes them") has no recorded before/after. The moment field itself averages <strong>2.16 in-vessel
+      saddles</strong> per slice with <code>saddle_free_fraction = 0.0</code> — under a ≤1 "saddle-free" rule that
+      additionally mislabels MAST's routine <em>double-null</em> (two genuine X-points) as spurious.</li>
+      <li><strong>Selection fragility (caveats §3):</strong> on the tuning cohort order 3 scored X-point −2.31 —
+      worse than order 2 (−0.50) and opposite in sign of improvement to its eval score (−0.15). No skill in this
+      document carries a confidence interval; the tune→eval inversion is unquantified cohort noise until the
+      bootstrap-CI harness rung lands.</li>
+      <li><strong>The method contradicts its own premise (qualifies §2, reopens §4):</strong> the polynomial moment
+      basis' monopole term spreads I<sub>p</sub> <em>uniformly over every conductor-clear in-limiter cell</em> —
+      j<sub>φ</sub> ≠ 0 throughout the vacuum region, so the reconstructed ψ does not satisfy Δ*ψ = 0 in the very
+      region the boundary and X-point are read. The §4 attribution of the inboard-corner residual to "the genuine
+      interior null-space" is therefore <strong>reopened</strong>: method-committed vacuum-region current and
+      divertor-coil model error in those corners are equally consistent with the evidence. The discriminating
+      experiments are Gate B of <a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a>
+      (does the corner residual move when current cannot sit there?) and the source-free toroidal-harmonic read
+      (<code>f-etf-04</code>) — which, per the lead's expectation, must solve a <em>zero-current</em> field outside
+      the LCFS and accept "nonsense" within, reading the boundary only in the vacuum annulus (its confined-side flux
+      reference must come from the interior carrier, never from the harmonic field's own extremum).</li>
+    </ul>
+    <figure>
+      <img src="/imas-ambix/figures/project-grounding-review/lcfs-per-angle-deconfound.png"
+           alt="Grouped bars of median LCFS radius error per poloidal angle for the free-current inverse, the current-moment read, and the origin-corrected current-moment read; the inboard-corner deficit at 135 and 225 degrees survives origin correction."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 5 — Review de-confound: per-angle LCFS residual with
+      the ray-origin displacement removed to first order. The §4 pattern is robust to the origin caveat; its
+      <em>cause</em> remains open pending the priors-hardening gates.</figcaption>
+    </figure>
   </main>
 </body>
 </html>

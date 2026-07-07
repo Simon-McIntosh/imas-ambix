@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="project-grounding-review-2026-07">
+  <meta name="plan-title"    content="Grounding review 2026-07 — is the physics carrying the signal?">
+  <meta name="plan-summary"  content="Deep structured review of the equilibrium/physics line (code + plans + artifacts), triggered by the lead's reading of the thread-1 current-distribution figure. Verdict: the axis result and the eval spine are solid; the boundary story is directionally right but rests on a method that violates its own premise (the current-moment fit places current throughout the vacuum region) and on a gate harness with no CIs, an unmeasured Gate 1a, and an undisclosed centroid ray origin. The toroidal-harmonic exterior solve the lead expected was locked-then-deferred (f-etf-04), never built. The free inverse's only physics term (the structure residual) is invariant to exactly the unphysical features visible in the figure — the null space is filled by numerics, not physics. Actions: findings-doc corrections, hierarchy re-wiring, and a new gating plan plasma-current-priors-hardening (sign prior, free-boundary support consistency, harness CIs/saddle-metric/origin fixes) that now blocks equilibrium-topology-fidelity.">
+  <meta name="plan-informs"  content="equilibrium-topology-fidelity,plasma-current-priors-hardening,machine-agnostic-latent-world-model,physics-world-model-strategy,patch-current-force-balance">
+  <title>Grounding Review 2026-07 | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Grounding review 2026-07 — is the physics carrying the signal?</h1>
+    <p><em>Commissioned by the lead 2026-07-07 after reading the thread-1 current-distribution figure: "our North
+    Star development asserts that physics carry signal and data provides coefficients and closure … but we actually
+    need the physics to carry the signal. A scan of the current-carrying regions in the left-hand image is
+    immediately evident as incorrect … the toroidal harmonics work seems to have missed the point." This review
+    re-derives the equilibrium line's claims from code and artifacts, audits the plan estate, documents every bug
+    found, and wires the corrective plan into the hierarchy. Method: reckon audit over all 62 docs; line-by-line
+    review of <code>boundary_moment.py</code>, <code>patch_inverse.py</code>, <code>structure_residual.py</code> and
+    the gate scripts; artifact-level re-checks of every headline number; a zero-compute de-confound analysis on the
+    stored gate arrays; two parallel review threads over the patch substrate and the plan claims.</em></p>
+
+    <h2 id="s1">§1 — Executive verdict</h2>
+    <div class="callout">
+    <p><strong>The lead's reading of the figure is correct, and it generalises.</strong> Both panels show currents
+    that no physics in the loop forbids: the free inverse carries a <strong>sign-indefinite halo</strong> and
+    <strong>corner lobes</strong> because its only physics term is structurally blind to them; the current-moment
+    fit spreads I<sub>p</sub> over the <strong>entire vessel</strong> because its monopole is the candidate mask —
+    directly violating the Δ*ψ=0 vacuum premise the method was justified by. The
+    <strong>toroidal-harmonic exterior solve the lead expected was never built</strong>: the
+    <code>boundary-representation-method</code> decision locked <code>current-moment</code> "for a fast Gate-1
+    number" and deferred the harmonic read to an open followup (<code>f-etf-04</code>). What is solid: the axis
+    result (+0.019 on 160/160 held-out, 2.8 cm), the firewalled-referee eval spine, the leakage protocol, and the
+    structure-residual design <em>for what it claims to measure</em>. What is not: every boundary-attribution
+    claim now rests on a harness without CIs, with an unmeasured Gate 1a, and an undisclosed biased ray origin.
+    None of the boundary skills is positive yet. The corrective work is scoped and gated in
+    <a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a>, which now
+    blocks <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>.</p>
+    </div>
+    <table>
+      <thead><tr><th>Claim</th><th>Status after review</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Magnetic axis referee-grade (2.8 cm, skill +0.019, 160/160)</td><td><strong>SOLID</strong> (device/run cm-variance caveat stands)</td><td>P3 gate artifact; unchanged by this review</td></tr>
+        <tr><td>Eval spine: firewalled EFIT referee, leakage-free splits, train-mean baseline</td><td><strong>SOLID</strong>, minus missing CIs</td><td>patch_gate_eval.py protocol re-read end-to-end</td></tr>
+        <tr><td>Boundary deficit "substantially a representation artifact" (thread 1)</td><td><strong>QUALIFIED</strong> — directional improvement real; magnitude uncertain (no CI, tune/eval inversion)</td><td>§4; boundary_read artifacts</td></tr>
+        <tr><td>"Corner LCFS residual = genuine interior null-space, not a bug" (thread-1 §4)</td><td><strong>REOPENED</strong> — confounded with method-committed vacuum current + coil-model error</td><td>§3, §4; de-confound analysis</td></tr>
+        <tr><td>"No interior slack ⇒ no spurious near-boundary saddles" (moment-read premise)</td><td><strong>UNSUPPORTED</strong> — moment field averages 2.16 in-vessel saddles; baseline never recorded</td><td>boundary_read_moment-o3.json</td></tr>
+        <tr><td>North Star: "the X-point is the natural consequence of explaining the raw magnetics"</td><td><strong>NOT YET HONOURED</strong> — the null space is filled by optimiser defaults, not physics</td><td>§3</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s2">§2 — Where the project stands (the one-screen state)</h2>
+    <p>The M4 line is a layered stack; each layer's honest status, from the reckon audit + artifacts:</p>
+    <ul>
+      <li><strong>Token substrate</strong> (absolute-geometry-token-substrate, impl 0.85) — absolute-calibrated,
+      geometry-tagged tokens landed; the balanced-sampling negative measured the magnetics-only encoder saturating
+      at ~4.3 cm axis while grounding rose to 28.3× — the empirical mandate for interior information.</li>
+      <li><strong>Equilibrium layer</strong> (patch-current-force-balance SHIPPED; patch-equilibrium-wm-integration
+      SHIPPED) — training-free inverse: axis PASS (160/160, 2.8 cm, +0.019); closures F²≥0 on 160/160; geometry
+      honest-negative on boundary. The case-circuit coil-model fix (13→21 columns,
+      <code>case-circuits-v2</code>) re-baselined everything downstream.</li>
+      <li><strong>Boundary/topology frontier</strong> (equilibrium-topology-fidelity, impl 0.17, now BLOCKED by
+      plasma-current-priors-hardening) — thread 1 landed a qualified partial-positive (§4 below); threads 2–6
+      (interior fusion, closure smoothness, learned prior, temporal coherence, calibrated classification) unstarted.</li>
+      <li><strong>Eval &amp; controllability harness</strong> (SHIPPED, 54 tests) — the model-independent spine
+      (firewall referee, absolute-magnetics oracle ~0.5–0.7 bar, EnKF/persistence bars, powered ΔN-M gate) is the
+      strongest asset this review leaned on; it is what made the audit below possible.</li>
+      <li><strong>World-model stages 2–4</strong> (gs-grounded-latent-engine 0.9; closed-loop-latent-filter,
+      controllable-forecast-and-gate pending) — stage-2 gates 1/3/4 met, Gate 2 an honest negative that seeded the
+      force-balance pivot; stages 3–4 correctly sequenced behind the equilibrium layer.</li>
+      <li><strong>Plan estate</strong> — 62 docs, 61 schema-conformant (the one violation fixed this session);
+      37 audit findings, mostly sprint-state hygiene (three sprints marked active: S10, S11, S16; stale M3-era
+      plans; a handful of dangling links). Detail in §7.</li>
+    </ul>
+    <p>The through-line the lead should hold: <strong>everything above the equilibrium layer inherits its state</strong>
+    ("a dream is only as trustworthy as the state it is rendered from" — strategy §1b). That is why this review
+    treats the boundary grounding as the critical path and gates it.</p>
+
+    <h2 id="s3">§3 — The central finding: the null space is filled by numerics, not physics</h2>
+    <p>The North Star contract
+    (<a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a> §5) is
+    precise: <em>"we make the X-point the natural consequence of explaining the raw magnetics. Physics enters as
+    the coordinate system and soft priors (the language), never as a hard law."</em> The figure the lead flagged
+    shows the contract failing exactly where it matters — in the sensor null space, where "explaining the raw
+    magnetics" does not pin the current and the priors must:</p>
+    <figure>
+      <img src="/imas-ambix/figures/project-grounding-review/current-distribution-annotated.png"
+           alt="Annotated side-by-side per-cell current: free-current inverse with negative wall halo and inboard-corner lobes; order-3 current-moment fit with Ip spread uniformly over the whole vessel."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 1 — The lead's exhibit, annotated. Held-out slice
+      18502 t=0.266 s, per-cell plasma current. Left: the free ~5k-DOF inverse. Right: the polynomial order-3
+      current-moment fit that produced the thread-1 headline numbers.</figcaption>
+    </figure>
+    <p><strong>Why the loss cannot see this.</strong> The free inverse
+    (<code>imas_ambix/latent/patch_inverse.py:226</code>) minimises
+    <code>misfit + w·Ip-penalty + λ·structure_residual</code>. The structure residual
+    (<code>structure_residual.py</code>) is a <em>current-weighted, scale-free, sign-agnostic</em> test of the
+    flux-function relation R·j<sub>φ</sub> = p′R² + FF′/μ₀ per ψ-level-set. Three properties make it blind to the
+    figure's pathologies: (i) <strong>j² weighting</strong> — a low-|j| halo spread over many cells carries almost
+    no weight; (ii) <strong>sign-agnosticism</strong> — a negative-current region on its own level sets can satisfy
+    an affine relation as well as a positive one; (iii) <strong>no support term</strong> — where current sits enters
+    nowhere. The one support prior in the tree (<code>edge_taper_penalty</code>,
+    <code>structure_residual.py:810</code>) is deliberately unwired ("halo/SOL currents are REAL and carry
+    discovery signal"). The discovery-framing is legitimate, but unbudgeted it means <strong>nothing in the loop
+    distinguishes a physical SOL current from a null-space dipole layer 10× larger</strong>. The optimiser (Adam
+    from a Gaussian seed, 800 iters) then fills the null space with whatever minimises whitened sensor residual
+    fastest — the halo and corner lobes are its signature, not the plasma's.</p>
+    <p><strong>The moment fit replaced one unphysical current with another.</strong>
+    <code>boundary_moment.py:116</code>: the monopole column <em>is the candidate mask</em>, so the hard
+    I<sub>p</sub> anchor places <code>Ip/n_cand</code> on <em>every</em> conductor-clear in-limiter cell — including
+    the divertor legs, the corners, and the entire vacuum region between the true LCFS and the wall. The right
+    panel's faint vessel-filling red is not a rendering artifact; it is the model. Two consequences: (i) the
+    reconstructed ψ does not satisfy Δ*ψ = 0 in the region where the boundary and X-point are read — the method
+    contradicts the §2 physics of its own driving plan; (ii) the "external field is fixed by the low-order
+    moments" theorem invoked to justify it requires the field point to be <em>exterior to the current support</em>
+    — with support filling the vessel, sensors and the boundary-read region sit adjacent to or inside the support
+    and the theorem does not apply. The docstring's claim "no interior slack, hence no spurious near-boundary
+    saddles" is empirically false on its own artifact: <code>saddles_mean = 2.16</code>,
+    <code>saddle_free_fraction = 0.0</code> on all 160 eval slices.</p>
+    <p><strong>What the lead expected — and what f-etf-04 must be.</strong> The expectation ("zero-current fields
+    solved outside the LCFS and then 'nonsense' within due to the low-order reconstruction fidelity") describes the
+    <em>toroidal-harmonic</em> option of the locked decision — fit Δ*ψ = 0 eigenfunctions (half-integer Legendre)
+    to <code>measured − vacuum</code> in the source-free annulus, read the boundary/X-point in the annulus only,
+    and accept that the expansion is meaningless inside the plasma. That option was never implemented; the
+    "current-moment" prototype was locked at kickoff for speed and the harmonic read deferred to the open followup
+    <code>f-etf-04</code>. This review's design addendum for it: the confined-side flux reference must come from the
+    interior carrier, never from the harmonic field's own extremum (the present hybrid read takes
+    <code>axis_psi</code> from the moment field — <code>boundary_moment_gate_eval.py:84</code> — a pattern that
+    would silently break on a field with no valid interior).</p>
+
+    <h2 id="s4">§4 — The thread-1 evidence, re-derived</h2>
+    <p>The headline (X-point-set skill −0.61 → −0.15, LCFS −6.26 → −4.47, offset 34 → 24 cm, held-out n=160,
+    I<sub>p</sub> exact) reproduces exactly from the artifacts. Around it, four findings:</p>
+    <figure>
+      <img src="/imas-ambix/figures/project-grounding-review/moment-tune-vs-eval-instability.png"
+           alt="Grouped bars: current-moment order sweep on the tune cohort vs the frozen order-3 held-out eval, for X-point-set skill and LCFS skill, with the free-current eval baseline as a dashed line. The tune cohort and eval disagree strongly."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 2 — Selection fragility. On the tune cohort, order 3
+      scored X-point −2.31 (worse than order 2's −0.50 and than the free baseline); frozen and scored once on the
+      held-out set it produced the −0.15 headline. Without CIs, the tune→eval inversion is unquantified noise.</figcaption>
+    </figure>
+    <ul>
+      <li><strong>Undisclosed ray origin.</strong> The findings doc describes a hybrid read with the axis from the
+      interior patch estimate; the flagship artifact is arm <code>…-centroid-axis</code> — the moment fit's current
+      centroid, median 7.9 cm from the referee axis, arm axis skill −1.62 (omitted from the findings table; the
+      free baseline is −0.024). A first-order de-confound on the stored arrays (subtracting the origin
+      displacement's cosθ/sinθ projection from each per-angle radius error) shows the per-angle conclusions
+      survive: medians move only ±1–3 cm (Figure 3). The caveat is disclosure and protocol, not the direction of
+      the result.</li>
+      <li><strong>Gate 1a never measured.</strong> The gate script's own docstring names the in-vessel saddle-count
+      drop as "direct evidence" — but the baseline artifact carries <code>saddles: null</code>, and the ≤1
+      "saddle-free" rule mislabels MAST's routine double-null (two genuine X-points) as spurious.</li>
+      <li><strong>Cohort instability, no CIs</strong> (Figure 2). Order selection used LCFS skill only; on the tune
+      cohort every moment order LOSES to the free-current read on both metrics, then wins on eval.</li>
+      <li><strong>Attribution reopened.</strong> The inboard-corner residual (135°/225°, ~37–39 cm) is real and
+      survives the origin de-confound — but three hypotheses remain observationally equivalent: (H1) genuine
+      interior-profile null-space (the doc's claim); (H2) method-committed vacuum-region current biasing the
+      near-edge ψ (this review's §3); (H3) divertor-coil / vacuum-model error concentrated in exactly those
+      corners — where BOTH representations fail identically, which is also consistent with a shared coil-model
+      error. Gate B of plasma-current-priors-hardening (corner residual with support-consistent current) and the
+      f-etf-04 harmonic read (no interior commitment at all) are the discriminating experiments.</li>
+    </ul>
+    <figure>
+      <img src="/imas-ambix/figures/project-grounding-review/lcfs-per-angle-deconfound.png"
+           alt="Per-angle LCFS residual bars for free-current, current-moment, and origin-corrected current-moment reads; corners at 135 and 225 degrees stay near 37-39 cm in all three."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Figure 3 — The de-confound. The moment read genuinely fixes
+      top/bottom/outboard; the corner deficit is robust to the origin caveat and identical across methods — the
+      signature of either interior information OR a shared coil-model error, not yet distinguishable.</figcaption>
+    </figure>
+
+    <h2 id="s5">§5 — Bug register</h2>
+    <p>Severity: <strong>P0</strong> physics/verdict-affecting · <strong>P1</strong> misleading/report-affecting ·
+    <strong>P2</strong> hygiene. "Owner" = where the fix is queued.</p>
+    <table>
+      <thead><tr><th>#</th><th>Sev</th><th>Finding</th><th>Location</th><th>Owner</th></tr></thead>
+      <tbody>
+        <tr><td>B1</td><td>P0</td><td>Current-moment monopole places I<sub>p</sub>/n on every in-limiter cell — j<sub>φ</sub>≠0 throughout the vacuum region; violates the Δ*ψ=0 premise; moments-fix-external-field argument inapplicable with vessel-filling support</td><td><code>boundary_moment.py:116</code> (design)</td><td>plasma-current-priors-hardening §2-R3 / f-etf-04 (replace read)</td></tr>
+        <tr><td>B2</td><td>P0</td><td>No unidirectionality or support prior in the free inverse; its one physics term (structure residual) is j²-weighted, sign-agnostic, support-blind — invariant to the halo/corner-lobe null-space fill it is assumed to prevent</td><td><code>patch_inverse.py:226</code>, <code>structure_residual.py</code></td><td>plasma-current-priors-hardening §2-R1/R2</td></tr>
+        <tr><td>B3</td><td>P1</td><td>Flagship thread-1 numbers scored with centroid ray origin (axis skill −1.62, 7.9 cm median) while the findings doc describes the patch-axis hybrid; arm axis skill omitted from the findings table</td><td><code>boundary_moment_gate_eval.py:175</code> default; findings doc §2/§3</td><td>fixed in docs (this review); re-score queued f-pcph-01</td></tr>
+        <tr><td>B4</td><td>P1</td><td>Gate 1a (saddle-count drop) never recorded for the baseline arm; ≤1 threshold mislabels MAST double-null; moment field itself has 2.16 saddles/slice, saddle_free_fraction 0.0</td><td><code>boundary_moment_gate_eval.py:102-107,214</code>; baseline artifact</td><td>f-pcph-01 (metric + re-score)</td></tr>
+        <tr><td>B5</td><td>P1</td><td>No CI on any gate skill; tune/eval order-sweep inversion (o3 X-point −2.31 tune vs −0.15 eval) presented without uncertainty</td><td><code>patch_gate_eval.py:245</code> <code>score()</code></td><td>f-pcph-01 (paired bootstrap)</td></tr>
+        <tr><td>B6</td><td>P1</td><td>Hybrid boundary read takes the confined-side flux reference from the moment field's own extremum — invalid for any exterior-only representation (breaks silently under f-etf-04)</td><td><code>boundary_moment_gate_eval.py:84</code></td><td>f-etf-04 design lock (recorded §3)</td></tr>
+        <tr><td>B7</td><td>P2</td><td>Library default <code>MomentFitConfig.model="gaussian"</code> vs gate CLI default <code>"polynomial"</code> — silent divergence between library callers and the locked decision's artifacts</td><td><code>boundary_moment.py:148</code> vs <code>boundary_moment_gate_eval.py:263</code></td><td>f-pcph-01</td></tr>
+        <tr><td>B8</td><td>P2</td><td>f-etf-02 prompt cites <code>boundary_read_grid_{tune,eval}.json</code> as the A4 baseline, but those artifacts carry all-null metric fields (key mismatch with their writer)</td><td><code>artifacts/patch_gate/boundary_read_grid_*.json</code></td><td>noted; baseline re-score under f-pcph-01 supersedes</td></tr>
+        <tr><td>B9</td><td>P1</td><td>Inter-doc contradiction: strategy §1b said the boundary deficit was "measured to be interior-current-null-space, not a readout artifact" while thread 1 (one day later) measured it "substantially a representation artifact"</td><td><code>physics-world-model-strategy.html:129</code></td><td><strong>FIXED this session</strong></td></tr>
+        <tr><td>B10</td><td>P2</td><td><code>cocos-convention-hardening</code> schema violation (roi "medium" not in enum) — the only non-conformant doc of 62</td><td>plan meta</td><td><strong>FIXED this session</strong> (roi=mid)</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s6">§6 — The lead's prior questions, answered directly</h2>
+    <ul>
+      <li><strong>"Should we impose a constraint that plasmas should be single joined blobs of current?"</strong>
+      Not as a hard unimodality/single-blob prior — that would exclude doublets and bias limited↔diverted
+      transitions. The physically correct form of the intuition is <strong>free-boundary support consistency</strong>:
+      j<sub>φ</sub> = 0 outside the LCFS of its own ψ, imposed softly with a halo budget (R2 of the hardening
+      plan). It kills the vacuum-region current and the corner lobes while remaining agnostic about the shape of
+      the current <em>inside</em> the boundary.</li>
+      <li><strong>"Should we go further and insist that currents share the same sign?"</strong> Yes —
+      j<sub>φ</sub>·sign(I<sub>p</sub>) ≥ 0 is the single safest prior available (R1). It eliminates the
+      cancelling-dipole null-space directions outright, at essentially zero physical risk on this corpus.</li>
+      <li><strong>"Would this prior rule out doublet plasmas?"</strong> No. A doublet doubles the <em>flux</em>
+      topology (two O-points, an internal separatrix), not the current sign — both lobes carry current parallel to
+      I<sub>p</sub>, inside one outer LCFS envelope. R1 (same sign) and R2 (support inside the LCFS) are both
+      doublet-safe by construction; the hardening plan carries an analytic doublet test to enforce this
+      permanently. What R1 does exclude: reversed-current AC transients (outside every scored corpus). What it
+      deliberately permits: current holes (j → 0 core), since ≥ 0 is not &gt; 0. The connectivity machinery the
+      structure residual already has (<code>locality</code>/<code>labels</code> arms) is the right home for
+      doublet-aware closure fitting if that configuration ever enters the corpus.</li>
+      <li><strong>"We want actual plasma topologies to 'pop' out from our soft priors and data."</strong> That is
+      exactly the North Star contract, and the review's diagnosis is that it fails today because the priors span
+      too little of the null space. The ladder R1 → R2 → R3 (sign → support → source-free exterior read) is
+      ordered by how much of the null space each rung hands back to physics, each measured and ablatable per the
+      P5 keep-only-if-load-bearing discipline.</li>
+    </ul>
+
+    <h2 id="s7">§7 — Plan-estate audit and the actions taken this session</h2>
+    <p>Reckon audit: 62 docs, 61 conformant, 37 findings (9 error / 28 warn). Actions taken now:</p>
+    <ul>
+      <li><strong>Created</strong> <a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a>
+      (active, M4, roi high) — owns R1/R2 + gate-harness hardening; <strong>blocks</strong>
+      equilibrium-topology-fidelity (added to its <code>depends-on</code>); depends on
+      patch-current-force-balance + patch-equilibrium-wm-integration. Two followups queued
+      (f-pcph-01 harness, f-pcph-02 priors).</li>
+      <li><strong>Corrected</strong> the thread-1 findings doc (new §7 review addendum: origin disclosure, Gate-1a
+      gap, selection fragility, reopened attribution + de-confound figure) and the parent plan's §5 landed card
+      (review note). The strategy doc's §1b contradiction (B9) fixed in place.</li>
+      <li><strong>Hierarchy re-wired:</strong> thread-1 findings doc now <code>informs</code>
+      equilibrium-topology-fidelity + plasma-current-priors-hardening; mast-imas-cocos-evaluation now
+      <code>informs</code> cocos-convention-hardening + equilibrium-topology-fidelity; cocos plan roi enum fixed.
+      The chain now reads: <em>grounding review → plasma-current-priors-hardening → equilibrium-topology-fidelity →
+      machine-agnostic-latent-world-model → physics-world-model-strategy (North Star)</em>, every link explicit in
+      <code>depends-on</code>/<code>blocks</code>/<code>informs</code>.</li>
+      <li><strong>Recommended (not executed):</strong> close sprints S10/S11 (their items shipped or stale &gt;30 d;
+      three sprints are marked active); retire or re-status the stale M3-era plans
+      (sequential-current-da-v1 0.35, internal-current-diagnostics-v0 0.2, mse-free-current-recovery-v0 0.4) whose
+      interior-information mandate is now inherited by equilibrium-topology-fidelity threads 2–6; fix the two
+      dangling links in mse-free-current-recovery-v0 and the <code>harnesses</code> informs-ref in
+      open-weight-llm-review-2026. These touch sprint/index state and retired-line judgment calls that belong to
+      the lead.</li>
+    </ul>
+
+    <h2 id="s8">§8 — Next steps, in focus</h2>
+    <p>The gated sequence, shortest path back to trustworthy physics:</p>
+    <ol>
+      <li><strong>f-pcph-01 (sonnet, days):</strong> harness hardening — bootstrap CIs, double-null-correct saddle
+      metric with a measured Gate 1a, origin-controlled read, default alignment. Everything after this is
+      measurable.</li>
+      <li><strong>f-pcph-02 (opus, ~week):</strong> R1 sign prior + R2 support consistency, Gates A/B — including
+      the corner-attribution experiment that settles thread-1 §4's reopened claim.</li>
+      <li><strong>f-etf-04 (opus, ~week, parallel after 1):</strong> the toroidal-harmonic source-free read the
+      lead expected — zero-current exterior solve, boundary read in the annulus only, vacuum-region consistency
+      check against the (now sign/support-constrained) patch ψ.</li>
+      <li><strong>Then</strong> equilibrium-topology-fidelity unblocks: thread 2 (interior diagnostics) inherits
+      whichever corner residual survives with evidence of what it actually is.</li>
+    </ol>
+    <p>If R1/R2/R3 land and the boundary skills stay negative, that is a real and valuable answer: the remaining
+    deficit is interior information (or coil-model error), measured with CIs on a harness that can be trusted —
+    and thread 2 proceeds on solid ground. If they go positive, the North Star contract is restored where it was
+    failing. Either way, the physics carries the signal again.</p>
+  </main>
+</body>
+</html>

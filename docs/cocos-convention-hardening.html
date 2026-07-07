@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="cocos-convention-hardening">
-  <meta name="plan-title"     content="COCOS Convention Hardening — pin the working sign convention and build one fail-loud normalisation boundary at the IMAS seam">
-  <meta name="plan-summary"   content="The MAST-only equilibrium pipeline is sign-SOUND and empirically verified (forward PF chain correlates 0.83-0.87 with raw magnetics, LS slope 0.86-0.99 on a real vacuum slice), so no current work is blocked. But the one real convention mismatch — MAST EFIT is COCOS-3-like (axis = flux MAXIMUM for Ip>0), while IMAS is COCOS-11 (axis = flux minimum) — is a LATENT hazard that goes live the moment MAST (or any machine) is ingested through the IMAS readers, whose poloidal-angle assumption (imas_geometry.py:74) is currently unverified. This plan declares and pins the pipeline's working COCOS with a regression test, verifies the IMAS magnetics-angle assumption against a real COCOS-11 IDS, builds ONE fail-loud COCOS-normalisation boundary in the IMAS readers (never a silent auto-convert), and adds a cross-convention self-consistency gate. It is a North-Star prerequisite for the machine-agnostic world model, not a current blocker.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="medium">
-  <meta name="plan-effort"    content="M">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="cocos-convention-hardening">
+  <meta name="plan-title" content="COCOS Convention Hardening — pin the working sign convention and build one fail-loud normalisation boundary at the IMAS seam">
+  <meta name="plan-summary" content="The MAST-only equilibrium pipeline is sign-SOUND and empirically verified (forward PF chain correlates 0.83-0.87 with raw magnetics, LS slope 0.86-0.99 on a real vacuum slice), so no current work is blocked. But the one real convention mismatch — MAST EFIT is COCOS-3-like (axis = flux MAXIMUM for Ip&gt;0), while IMAS is COCOS-11 (axis = flux minimum) — is a LATENT hazard that goes live the moment MAST (or any machine) is ingested through the IMAS readers, whose poloidal-angle assumption (imas_geometry.py:74) is currently unverified. This plan declares and pins the pipeline&#x27;s working COCOS with a regression test, verifies the IMAS magnetics-angle assumption against a real COCOS-11 IDS, builds ONE fail-loud COCOS-normalisation boundary in the IMAS readers (never a silent auto-convert), and adds a cross-convention self-consistency gate. It is a North-Star prerequisite for the machine-agnostic world model, not a current blocker.">0), while IMAS is COCOS-11 (axis = flux minimum) — is a LATENT hazard that goes live the moment MAST (or any machine) is ingested through the IMAS readers, whose poloidal-angle assumption (imas_geometry.py:74) is currently unverified. This plan declares and pins the pipeline's working COCOS with a regression test, verifies the IMAS magnetics-angle assumption against a real COCOS-11 IDS, builds ONE fail-loud COCOS-normalisation boundary in the IMAS readers (never a silent auto-convert), and adds a cross-convention self-consistency gate. It is a North-Star prerequisite for the machine-agnostic world model, not a current blocker.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="mid">
+  <meta name="plan-effort" content="M">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-impl"      content="0.0">
-  <meta name="plan-blocks"    content="machine-agnostic-latent-world-model">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-impl" content="0.0">
+  <meta name="plan-blocks" content="machine-agnostic-latent-world-model">
   <title>COCOS Convention Hardening | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-07">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -117,23 +119,23 @@
     queued, non-urgent hardening plan; the MAST-only programme runs unblocked.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="cocos-normalisation-target" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which convention is the pipeline's canonical internal COCOS that §4 normalises INTO — the pipeline's current MAST-native (COCOS-3-like, total-Φ, axis=max) working convention, or IMAS-standard COCOS-11?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="keep-native">keep the current working convention (total-Φ Wb, axis=flux max) as canonical and normalise IMAS inputs into it — zero churn to the verified MAST forward chain and all downstream reads; the IMAS boundary does the conversion</button>
-          <button class="r-opt" data-value="adopt-cocos11">adopt IMAS COCOS-11 as canonical and convert the MAST raw path into it — aligns internal state with the DD standard and imas-ink, but re-touches the empirically-verified sign chain and the sign-aware topology reads</button>
-        </p>
-        <p class="r-dec-rat">The MAST forward chain and the topology reads are verified in the current convention; making it canonical is zero-churn and confines all conversion to the one IMAS boundary (§4). Adopting COCOS-11 internally is cleaner against the DD but re-opens verified code. Recommend keeping the native working convention canonical and converting at the seam, unless a downstream IMAS-native consumer forces COCOS-11 internally.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="cocos-normalisation-target" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which convention is the pipeline&#x27;s canonical internal COCOS that §4 normalises INTO — the pipeline&#x27;s current MAST-native (COCOS-3-like, total-Φ, axis=max) working convention, or IMAS-standard COCOS-11?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="keep-native">keep the current working convention (total-Φ Wb, axis=flux max) as canonical and normalise IMAS inputs into it — zero churn to the verified MAST forward chain and all downstream reads; the IMAS boundary does the conversion</button>
+      <button class="r-opt" data-value="adopt-cocos11">adopt IMAS COCOS-11 as canonical and convert the MAST raw path into it — aligns internal state with the DD standard and imas-ink, but re-touches the empirically-verified sign chain and the sign-aware topology reads</button>
+      </p>
+    <p class="r-dec-rat">The MAST forward chain and the topology reads are verified in the current convention; making it canonical is zero-churn and confines all conversion to the one IMAS boundary (§4). Adopting COCOS-11 internally is cleaner against the DD but re-opens verified code. Recommend keeping the native working convention canonical and converting at the seam, unless a downstream IMAS-native consumer forces COCOS-11 internally.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-cocos-01" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-06" data-recommends-skill="/reckon-ship cocos-convention-hardening §2" data-resolved-at="" data-resolved-by="">
-        <h4 class="r-fu-title">Pin the working COCOS with a sign-regression test (§2), then verify the IMAS poloidal-angle assumption (§3)</h4>
-        <div class="r-fu-body"><p>Start with the zero-risk, high-value rungs: declare the pipeline's working convention as a single checkable fact and lock the verified forward-coherence result as a regression test (§2), then resolve the unverified <code>imas_geometry.py:74</code> poloidal-angle assumption against a real/synthetic COCOS-11 magnetics IDS (§3). §4/§5 (the fail-loud normalisation boundary + cross-convention self-consistency gate) follow once a second-machine ingest is actually wired.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-cocos-01" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-06" data-recommends-skill="/reckon-ship cocos-convention-hardening §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Pin the working COCOS with a sign-regression test (§2), then verify the IMAS poloidal-angle assumption (§3)</h4>
+    <div class="r-fu-body"><p>Start with the zero-risk, high-value rungs: declare the pipeline's working convention as a single checkable fact and lock the verified forward-coherence result as a regression test (§2), then resolve the unverified <code>imas_geometry.py:74</code> poloidal-angle assumption against a real/synthetic COCOS-11 magnetics IDS (§3). §4/§5 (the fail-loud normalisation boundary + cross-convention self-consistency gate) follow once a second-machine ingest is actually wired.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    cocos-convention-hardening (http://localhost:8765/imas-ambix/cocos-convention-hardening.html)
 Section: §2 declare + pin working COCOS (regression test); §3 verify IMAS poloidal-angle assumption
 Tier:    opus
@@ -141,13 +143,13 @@ Tier:    opus
 Context
   The MAST-only pipeline is sign-sound and verified (forward G_pf.I_pf vs raw amb: corr 0.83-0.87,
   LS slope 0.86-0.99 on a real vacuum slice). The one real mismatch is MAST COCOS-3-like (axis =
-  flux MAX for Ip>0) vs IMAS COCOS-11 (axis = flux MIN) -- dormant on the raw MAST path, live at the
+  flux MAX for Ip&gt;0) vs IMAS COCOS-11 (axis = flux MIN) -- dormant on the raw MAST path, live at the
   IMAS seam. The IMAS reader assumes b_field_pol_probe.poloidal_angle == MAST magpr_ang, unverified.
   See docs/mast-imas-cocos-evaluation.html and scripts/mast_cocos_audit.py for the evidence + audit.
 
 State to read
   scripts/mast_cocos_audit.py                 (the forward-coherence + COCOS-detect audit already built)
-  imas_ambix/gs/operator.py                    (greens_psi, B-probe projection, kA.turn->A, mu0)
+  imas_ambix/gs/operator.py                    (greens_psi, B-probe projection, kA.turn-&gt;A, mu0)
   imas_ambix/gs/imas_geometry.py:74            (the unverified poloidal-angle assumption)
   imas_ambix/latent/patch_inverse.py:204,209   (signed Ip); imas_ambix/latent/data.py:205 (abs Ip detector)
   docs/mast-imas-cocos-evaluation.html         (verdict, convention table, figures)
@@ -164,8 +166,8 @@ Done-when
      magnetics IDS -- confirmed or the exact transform measured (§3).
   3. cocos-normalisation-target decision resolved; plan updated same-turn with the outcome + a figure;
      this followup resolved and the next (§4/§5) queued.</pre>
-      </article>
-    </section>
+    </article>
+</section>
   </main>
 </body>
 </html>
