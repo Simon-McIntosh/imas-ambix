@@ -203,10 +203,17 @@ def test_plasma_source_scale_matches_greens_superposition():
     i_cell = blob / blob.sum() * 4.0e5  # [A]
     psi_greens = np.zeros(grid.flat_r.size)
     for k, c in enumerate(grid.cells):
-        psi_greens += i_cell[k] * hybrid_greens(
-            grid.flat_r, grid.flat_z,
-            float(grid.flat_r[c]), float(grid.flat_z[c]), grid.dr, grid.dz,
-        )[0]
+        psi_greens += (
+            i_cell[k]
+            * hybrid_greens(
+                grid.flat_r,
+                grid.flat_z,
+                float(grid.flat_r[c]),
+                float(grid.flat_z[c]),
+                grid.dr,
+                grid.dz,
+            )[0]
+        )
     psi_greens2d = psi_greens.reshape(grid.nz, grid.nr)
     jphi = np.zeros(grid.flat_r.size)
     jphi[grid.cells] = i_cell / (grid.dr * grid.dz)
@@ -289,9 +296,7 @@ def test_sensor_greens_single_cell_matches_analytic():
 def test_fit_profile_recovers_generating_beta0():
     """Fitting the profile against magnetics synthesised from a KNOWN β0
     equilibrium recovers that β0 (self-consistency of the fit machinery)."""
-    from imas_ambix.latent.gs_solve import fit_profile
-
-    from imas_ambix.latent.gs_solve import solve_equilibrium_bootstrapped
+    from imas_ambix.latent.gs_solve import fit_profile, solve_equilibrium_bootstrapped
 
     table = _confining_table()
     grid = EquilibriumGrid.from_table(table, nr=49, nz=65)

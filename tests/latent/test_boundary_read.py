@@ -16,6 +16,7 @@ boundary radius.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from imas_ambix.latent import topology as topo
 from imas_ambix.latent.gs_solve import (
@@ -24,7 +25,13 @@ from imas_ambix.latent.gs_solve import (
     _read_boundary_psi,
     _read_boundary_psi_robust,
 )
-from scripts.patch_gate_eval import lcfs_offset_cm_stats
+from scripts.boundary_moment_gate_eval import build_parser
+from scripts.patch_gate_eval import (
+    count_saddles,
+    lcfs_offset_cm_stats,
+    saddle_excess_stats,
+    score,
+)
 
 # --- isolated topology.boundary_flux_robust tests --------------------------
 
@@ -208,3 +215,138 @@ def test_lcfs_offset_cm_stats_empty_flattop_mask_returns_none():
     assert stats["lcfs_offset_median_cm_all"] == 5.0
     assert stats["lcfs_offset_median_cm_flattop"] is None
     assert stats["n_flattop_slices"] == 0
+
+
+# --- score() paired-bootstrap CIs over shots --------------------------------
+
+
+def _make_score_fixture(n_shots=6, rows_per_shot=4, seed=0):
+    """Deterministic small fixture: a decent model beating a poor baseline,
+    no X-points present (isolates the axis/LCFS CI machinery from the
+    permutation-matching path, which is exercised separately below)."""
+    rng = np.random.default_rng(seed)
+    shot_ids = np.repeat(np.arange(n_shots), rows_per_shot)
+    n = shot_ids.size
+    ref = np.zeros((n, 14))
+    ref[:, 0] = rng.normal(1.0, 0.05, n)
+    ref[:, 1] = rng.normal(0.0, 0.05, n)
+    ref[:, 2:6] = np.nan
+    ref[:, 6:14] = rng.normal(0.5, 0.02, (n, 8))
+    model = ref + rng.normal(0.0, 0.005, ref.shape)  # close to the referee
+    # columns 2:6 (X-points) are all-NaN in this fixture, so their baseline
+    # value is never scored (matched_xpoint_error requires a finite ref too)
+    finite_cols = np.isfinite(ref).any(axis=0)
+    baseline_vec = np.zeros(ref.shape[1])
+    baseline_vec[finite_cols] = np.nanmean(ref[:, finite_cols], axis=0) + 0.2
+    return model, ref, baseline_vec, shot_ids
+
+
+def test_score_without_shot_ids_omits_ci_fields():
+    """Backward compatible: callers that have not threaded shot identity
+    through get the same skill dict as before, no CI keys."""
+    model, ref, baseline_vec, _ = _make_score_fixture()
+    out = score(model, ref, baseline_vec)
+    assert "axis_skill_ci" not in out
+    assert "lcfs_skill_ci" not in out
+    assert "per_quantity_skill_ci" not in out
+
+
+def test_score_with_shot_ids_returns_bootstrap_ci_for_every_skill():
+    model, ref, baseline_vec, shot_ids = _make_score_fixture()
+    out = score(model, ref, baseline_vec, shot_ids=shot_ids, n_boot=200, ci_seed=0)
+
+    for key in ("axis_skill_ci", "lcfs_skill_ci", "xpoint_set_skill_ci"):
+        assert key in out
+        lo, hi = out[key]
+        assert lo is None or (np.isfinite(lo) and np.isfinite(hi) and lo <= hi)
+
+    assert "per_quantity_skill_ci" in out
+    assert set(out["per_quantity_skill_ci"]) == set(out["per_quantity_skill"])
+    lo, hi = out["per_quantity_skill_ci"]["axis_R"]
+    assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
+
+    assert out["ci_n_boot"] == 200
+    assert out["ci_seed"] == 0
+
+
+def test_score_ci_is_deterministic_given_seed():
+    model, ref, baseline_vec, shot_ids = _make_score_fixture()
+    out1 = score(model, ref, baseline_vec, shot_ids=shot_ids, n_boot=150, ci_seed=7)
+    out2 = score(model, ref, baseline_vec, shot_ids=shot_ids, n_boot=150, ci_seed=7)
+    assert out1["axis_skill_ci"] == out2["axis_skill_ci"]
+    assert out1["lcfs_skill_ci"] == out2["lcfs_skill_ci"]
+
+
+def test_score_ci_degenerate_single_shot_returns_none_not_crash():
+    """Fewer than 2 unique shots cannot be resampled meaningfully — the CI
+    fields must be [None, None], never raise."""
+    model, ref, baseline_vec, _ = _make_score_fixture(n_shots=1, rows_per_shot=5)
+    shot_ids = np.zeros(5, dtype=int)
+    out = score(model, ref, baseline_vec, shot_ids=shot_ids, n_boot=50, ci_seed=0)
+    assert out["axis_skill_ci"] == [None, None]
+
+
+# --- double-null-correct saddle-excess metric -------------------------------
+
+
+def test_naive_saddle_free_rule_mislabels_double_null():
+    """Documents the bug the excess metric fixes: a naive 'saddles <= 1'
+    rule flags a genuine MAST double-null (2 real referee X-points) as NOT
+    saddle-free, when the model's read is in fact clean."""
+    saddle_counts = np.array([2])
+    naive_saddle_free = saddle_counts <= 1
+    assert not naive_saddle_free[0]  # mislabelled by the old rule
+
+    ref = np.zeros((1, 14))
+    ref[:, 2:6] = 1.0  # both X-point slots present -> referee sees a double-null
+    out = saddle_excess_stats(saddle_counts, ref)
+    assert out["referee_xpoint_count_mean"] == 2.0
+    assert out["saddle_excess_mean"] == 0.0
+    assert out["saddle_clean_fraction"] == 1.0
+
+
+def test_saddle_excess_stats_mixed_cohort():
+    # slice 0: single-null referee (1 X-point), model finds 1 -> excess 0
+    # slice 1: single-null referee, model finds 2 -> excess 1 (genuinely spurious)
+    # slice 2: double-null referee (2 X-points), model finds 3 -> excess 1
+    ref = np.zeros((3, 14))
+    ref[0, 2:4] = 1.0
+    ref[0, 4:6] = np.nan
+    ref[1, 2:4] = 1.0
+    ref[1, 4:6] = np.nan
+    ref[2, 2:6] = 1.0
+    saddle_counts = np.array([1, 2, 3])
+
+    out = saddle_excess_stats(saddle_counts, ref)
+    assert out["referee_xpoint_count_mean"] == pytest.approx((1 + 1 + 2) / 3)
+    assert out["saddle_excess_mean"] == pytest.approx((0 + 1 + 1) / 3)
+    assert out["saddle_clean_fraction"] == pytest.approx(1 / 3)
+
+
+def test_saddle_excess_stats_empty_returns_none():
+    out = saddle_excess_stats(np.array([]), np.zeros((0, 14)))
+    assert out == {
+        "saddle_excess_mean": None,
+        "saddle_excess_median": None,
+        "saddle_clean_fraction": None,
+        "referee_xpoint_count_mean": None,
+    }
+
+
+def test_count_saddles_finds_the_manufactured_spurious_saddle():
+    """The shared in-limiter saddle counter (reused by both the free-current
+    and current-moment arms) counts the one manufactured X-point in the
+    known synthetic field from the boundary-read robustness fixture above."""
+    r0, rb = 1.0, 0.4
+    grid, psi2d = _spurious_saddle_grid_and_psi(r0=r0, rb=rb)
+    assert count_saddles(psi2d, grid) == 1
+
+
+# --- origin-controlled LCFS read: --axis-source patch is the scored default -
+
+
+def test_axis_source_default_is_patch():
+    """The scored default must be 'patch' (origin-controlled); 'centroid'
+    remains available as the fast smoke arm only, never silently scored."""
+    args = build_parser().parse_args([])
+    assert args.axis_source == "patch"

@@ -11,11 +11,11 @@ the LCFS ray-cast ORIGIN (the magnetic axis) comes from a stable interior
 estimate rather than the low-DOF moment field's numerical O-point.  The topology
 read and the firewalled-EFIT scoring are otherwise identical to the free-current
 gate (``scripts/patch_gate_eval.py``), so the boundary representation is the only
-varying factor.  ``--axis-source`` selects the ray origin: ``centroid`` (default)
-= the moment fit's current centroid (free, analytic); ``patch`` = the
-free-current P3 inverse axis (~2.8 cm, faithful but slow); ``moment`` = the
-moment psi's numerical O-point (ablation -- the low-DOF field cannot localise the
-axis, so the LCFS ray-cast degrades).
+varying factor.  ``--axis-source`` selects the ray origin: ``patch`` (default,
+SCORED) = the free-current P3 inverse axis (~2.8 cm, faithful, origin-controlled);
+``centroid`` = the moment fit's current centroid (free, analytic -- fast smoke
+arm only, not scored); ``moment`` = the moment psi's numerical O-point (ablation
+-- the low-DOF field cannot localise the axis, so the LCFS ray-cast degrades).
 
 Protocol (leakage-free, matches the P3 / A4 gate): ``--split train`` sweeps the
 moment order on the tuning cohort; ``--split eval`` scores the frozen order ONCE
@@ -34,16 +34,28 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
+import sys
 import time
 
 import numpy as np
 import torch
+
+# Make the sibling gate script importable no matter how this file is run
+# (bare script, ``python -m scripts.boundary_moment_gate_eval``, or an
+# in-process ``scripts.boundary_moment_gate_eval`` import) — mirrors
+# ``scripts/plot_boundary_moment_figures.py``'s path fix.
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
 
 # Reuse the exact scoring core + payload builder + frozen inverse of the
 # free-current gate (script-dir import: run from the scripts/ directory).
 from patch_gate_eval import (
     ARTIFACTS,
     P3_WINNER_KW,
+    count_saddles,
+    saddle_excess_stats,
     score,
     shot_payloads,
     train_mean_baseline,
@@ -99,14 +111,6 @@ def hybrid_target(psi_mom, grid, axis):
     return target, float(axis_psi), float(boundary_psi)
 
 
-def _count_saddles(psi2d, grid, limiter_r, limiter_z) -> int:
-    cp = find_critical_points(psi2d, grid.rg, grid.zg)
-    if not cp.x_points.shape[0]:
-        return 0
-    ins = _inside_polygon(cp.x_points[:, 0], cp.x_points[:, 1], limiter_r, limiter_z)
-    return int(np.count_nonzero(ins))
-
-
 def load_cohort(split, args):
     train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
     baseline_vec = train_mean_baseline(
@@ -156,13 +160,11 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
     cfg = MomentFitConfig(
         model=args.model, order=order, ip_anchor=not args.no_ip_anchor
     )
-    model_rows, ref_rows, flattop_flags = [], [], []
+    model_rows, ref_rows, flattop_flags, shot_rows = [], [], [], []
     saddles, ip_rel_errs, misfits = [], [], []
     t0 = time.perf_counter()
     for si, payload in enumerate(shots):
-        grid, basis, table = payload["grid"], payload["basis"], payload["table"]
-        lim_r = np.asarray(table.limiter_r, dtype=float)
-        lim_z = np.asarray(table.limiter_z, dtype=float)
+        grid, basis = payload["grid"], payload["basis"]
         ips = np.abs([p.ip_amperes for p in payload["payloads"]])
         flattop_idx = int(np.argmax(ips)) if ips.size else -1
         inv = invert_slices_moment(basis, payload["payloads"], cfg)
@@ -178,7 +180,8 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
             flattop_flags.append(k == flattop_idx)
-            saddles.append(_count_saddles(psi_mom, grid, lim_r, lim_z))
+            shot_rows.append(r.shot)
+            saddles.append(count_saddles(psi_mom, grid))
             ip_rel_errs.append(r.ip_rel_err)
             misfits.append(r.misfit)
     dt = time.perf_counter() - t0
@@ -186,8 +189,10 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
     model = np.array(model_rows)
     ref = np.array(ref_rows)
     flattop_mask = np.array(flattop_flags, dtype=bool)
-    sc = score(model, ref, baseline_vec=args._baseline)
+    shot_ids = np.array(shot_rows)
+    sc = score(model, ref, baseline_vec=args._baseline, shot_ids=shot_ids)
     axis_err = sc.pop("axis_errors")
+    saddle_stats = saddle_excess_stats(saddles, ref)
 
     lcfs_model, lcfs_ref = model[:, 6:], ref[:, 6:]
     finite = np.isfinite(lcfs_ref)
@@ -213,7 +218,8 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
         "saddles_median": float(np.median(saddles)) if saddles else None,
         "saddle_free_fraction": (
             float(np.mean(np.asarray(saddles) <= 1)) if saddles else None
-        ),
+        ),  # naive <=1 rule — superseded by saddle_clean_fraction below (mislabels double-null)
+        **saddle_stats,
         "ip_rel_err_median": float(np.median(ip_rel_errs)) if ip_rel_errs else None,
         "misfit_median": float(np.median(misfits)) if misfits else None,
     }
@@ -254,7 +260,9 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
     return result
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """Factored out of :func:`main` so the scored ``--axis-source`` default
+    is unit-testable without running the full data-dependent pipeline."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--split", choices=["train", "eval"], default="eval")
     ap.add_argument(
@@ -269,11 +277,12 @@ def main() -> int:
     ap.add_argument(
         "--axis-source",
         choices=["centroid", "moment", "patch"],
-        default="centroid",
+        default="patch",
         help=(
-            "ray-cast axis: 'centroid' = the moment fit's current centroid "
-            "(default, free); 'patch' = the free-current P3 inverse (faithful, "
-            "slow); 'moment' = the moment psi's numerical O-point (ablation)."
+            "ray-cast axis: 'patch' = the free-current P3 inverse (default —"
+            "the scored, origin-controlled read); 'centroid' = the moment "
+            "fit's current centroid (fast smoke arm only, not scored); "
+            "'moment' = the moment psi's numerical O-point (ablation)."
         ),
     )
     ap.add_argument("--device", default="auto")
@@ -285,7 +294,11 @@ def main() -> int:
     ap.add_argument("--n-tune-shots", type=int, default=8)
     ap.add_argument("--max-slices-per-shot", type=int, default=20)
     ap.add_argument("--min-ip-ka", type=float, default=50.0)
-    args = ap.parse_args()
+    return ap
+
+
+def main() -> int:
+    args = build_parser().parse_args()
 
     device = (
         ("cuda" if torch.cuda.is_available() else "cpu")

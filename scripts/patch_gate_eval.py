@@ -242,10 +242,9 @@ def train_mean_baseline(n_train, n_baseline_shots, min_ip_ka):
     )
 
 
-def score(model, ref, baseline_vec):
-    """Same skill computation as the Picard gate (per-quantity RMSE skill)."""
-    baseline = np.tile(baseline_vec, (len(model), 1))
-    skill = per_quantity_skill(model, ref, baseline, TARGET_NAMES)
+def _xpoint_set_skill(model: np.ndarray, ref: np.ndarray, baseline: np.ndarray) -> float:
+    """The permutation-invariant X-point-set RMSE skill (shared by the point
+    estimate and every bootstrap resample of it)."""
     xm = np.array(
         [
             matched_xpoint_error(model[i, 2:6].reshape(2, 2), ref[i, 2:6].reshape(2, 2))
@@ -261,14 +260,81 @@ def score(model, ref, baseline_vec):
         ]
     )
     finite = np.isfinite(xm) & np.isfinite(xb)
-    xpt_skill = (
+    if not finite.any():
+        return np.nan
+    return float(
         1.0
         - np.sqrt(np.nanmean(xm[finite] ** 2)) / np.sqrt(np.nanmean(xb[finite] ** 2))
-        if finite.any()
-        else np.nan
     )
+
+
+def _bootstrap_skill_draws(
+    model: np.ndarray,
+    ref: np.ndarray,
+    baseline: np.ndarray,
+    shot_ids: np.ndarray,
+    *,
+    n_boot: int,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Paired-bootstrap resamples of every headline + per-quantity skill,
+    resampling SHOTS (not slices) with replacement so a shot's slices always
+    move together — the correct resampling unit given within-shot slice
+    correlation.  Each of ``n_boot`` draws recomputes model-vs-baseline
+    skill on the pooled slices of the drawn shots, paired against the SAME
+    referee target ``ref`` used at the point estimate.
+
+    Returns ``(axis_draws, lcfs_draws, xpt_draws, per_quantity_draws)`` with
+    shapes ``(n_boot,)`` / ``(n_boot,)`` / ``(n_boot,)`` / ``(n_boot, len(TARGET_NAMES))``.
+    NaN-filled if fewer than 2 unique shots (no meaningful resampling unit).
+    """
+    n_names = len(TARGET_NAMES)
+    axis_draws = np.full(n_boot, np.nan)
+    lcfs_draws = np.full(n_boot, np.nan)
+    xpt_draws = np.full(n_boot, np.nan)
+    per_q_draws = np.full((n_boot, n_names), np.nan)
+
+    shot_ids = np.asarray(shot_ids)
+    unique_shots = np.unique(shot_ids)
+    if unique_shots.size < 2:
+        return axis_draws, lcfs_draws, xpt_draws, per_q_draws
+
+    rng = np.random.default_rng(seed)
+    by_shot = {s: np.flatnonzero(shot_ids == s) for s in unique_shots}
+    for b in range(n_boot):
+        draw = rng.choice(unique_shots, size=unique_shots.size, replace=True)
+        idx = np.concatenate([by_shot[s] for s in draw])
+        m, r, base = model[idx], ref[idx], baseline[idx]
+        sk = per_quantity_skill(m, r, base, TARGET_NAMES)
+        per_q_draws[b] = [sk[name] for name in TARGET_NAMES]
+        axis_draws[b] = headline_skill(sk, ["axis_R", "axis_Z"])
+        lcfs_draws[b] = headline_skill(sk, [f"lcfs_r_{k}" for k in range(8)])
+        xpt_draws[b] = _xpoint_set_skill(m, r, base)
+    return axis_draws, lcfs_draws, xpt_draws, per_q_draws
+
+
+def _percentile_ci(draws: np.ndarray) -> list[float | None]:
+    if not np.isfinite(draws).any():
+        return [None, None]
+    lo, hi = np.nanpercentile(draws, [2.5, 97.5])
+    return [float(lo), float(hi)]
+
+
+def score(model, ref, baseline_vec, *, shot_ids=None, n_boot: int = 2000, ci_seed: int = 0):
+    """Same skill computation as the Picard gate (per-quantity RMSE skill).
+
+    When ``shot_ids`` (one shot number per row of ``model``/``ref``) is
+    supplied, every skill also carries a 95% paired-bootstrap CI over shots
+    (``<metric>_ci`` = ``[lo, hi]``, ``ci_n_boot``, ``ci_seed`` — see
+    :func:`_bootstrap_skill_draws`).  Without ``shot_ids`` the CI fields are
+    omitted (unchanged behaviour for callers that have not yet threaded shot
+    identity through, e.g. quick smoke arms).
+    """
+    baseline = np.tile(baseline_vec, (len(model), 1))
+    skill = per_quantity_skill(model, ref, baseline, TARGET_NAMES)
+    xpt_skill = _xpoint_set_skill(model, ref, baseline)
     axis_err = np.hypot(model[:, 0] - ref[:, 0], model[:, 1] - ref[:, 1])
-    return {
+    out = {
         "per_quantity_skill": {
             k: (None if not np.isfinite(v) else float(v)) for k, v in skill.items()
         },
@@ -278,6 +344,67 @@ def score(model, ref, baseline_vec):
         "axis_error_mean_m": float(np.nanmean(axis_err)),
         "axis_error_median_m": float(np.nanmedian(axis_err)),
         "axis_errors": axis_err,
+    }
+    if shot_ids is not None:
+        axis_draws, lcfs_draws, xpt_draws, per_q_draws = _bootstrap_skill_draws(
+            model, ref, baseline, shot_ids, n_boot=n_boot, seed=ci_seed
+        )
+        out["axis_skill_ci"] = _percentile_ci(axis_draws)
+        out["lcfs_skill_ci"] = _percentile_ci(lcfs_draws)
+        out["xpoint_set_skill_ci"] = _percentile_ci(xpt_draws)
+        out["per_quantity_skill_ci"] = {
+            name: _percentile_ci(per_q_draws[:, i])
+            for i, name in enumerate(TARGET_NAMES)
+        }
+        out["ci_n_boot"] = n_boot
+        out["ci_seed"] = ci_seed
+    return out
+
+
+def count_saddles(psi2d: np.ndarray, grid: EquilibriumGrid) -> int:
+    """In-limiter saddle count of ``psi2d`` — the raw count a saddle-excess
+    metric subtracts the referee's own X-point count from.  Mirrors
+    ``scripts.boundary_moment_gate_eval._count_saddles`` exactly (same
+    inside-limiter-only test, no conductor-clearance filter) so the
+    free-current and current-moment arms report a directly comparable
+    saddle definition."""
+    cp = find_critical_points(psi2d, grid.rg, grid.zg)
+    if not cp.x_points.shape[0]:
+        return 0
+    ins = _inside_polygon(
+        cp.x_points[:, 0], cp.x_points[:, 1], grid.limiter_r, grid.limiter_z
+    )
+    return int(np.count_nonzero(ins))
+
+
+def saddle_excess_stats(saddle_counts, ref: np.ndarray) -> dict:
+    """Saddle count IN EXCESS of the referee's own X-point count.
+
+    MAST is routinely double-null: a naive ``saddles <= 1`` "saddle-free"
+    label mislabels two genuine X-points as a spurious read.  The referee's
+    per-slice X-point count (how many of ``xpt0``/``xpt1`` are finite in
+    ``ref``) is eval-side only — it is read here purely to score, never fed
+    into any fit path (firewall: code-outputs-only).  ``excess = saddles -
+    n_referee_xpoints`` isolates genuine over-counting; ``saddle_clean_fraction``
+    is the double-null-correct replacement for the old ``saddle_free_fraction``.
+    """
+    ref = np.asarray(ref, dtype=np.float64)
+    saddle_counts = np.asarray(saddle_counts, dtype=np.float64)
+    if saddle_counts.size == 0:
+        return {
+            "saddle_excess_mean": None,
+            "saddle_excess_median": None,
+            "saddle_clean_fraction": None,
+            "referee_xpoint_count_mean": None,
+        }
+    ref_xpt_present = np.isfinite(ref[:, 2:6].reshape(len(ref), 2, 2)).all(axis=2)
+    ref_xpt_count = ref_xpt_present.sum(axis=1).astype(np.float64)
+    excess = saddle_counts - ref_xpt_count
+    return {
+        "saddle_excess_mean": float(np.mean(excess)),
+        "saddle_excess_median": float(np.median(excess)),
+        "saddle_clean_fraction": float(np.mean(excess <= 0)),
+        "referee_xpoint_count_mean": float(np.mean(ref_xpt_count)),
     }
 
 
@@ -536,7 +663,7 @@ def run_boundary_arm(args) -> int:
         **P3_WINNER_KW,
     )
 
-    model_rows, ref_rows, flattop_flags = [], [], []
+    model_rows, ref_rows, flattop_flags, shot_rows, saddle_rows = [], [], [], [], []
     t0 = time.perf_counter()
     for payload in shots:
         grid, basis = payload["grid"], payload["basis"]
@@ -567,14 +694,18 @@ def run_boundary_arm(args) -> int:
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
             flattop_flags.append(k == flattop_idx)
+            shot_rows.append(r.shot)
+            saddle_rows.append(count_saddles(psi2d, grid))
     dt = time.perf_counter() - t0
 
     model = np.array(model_rows)
     ref = np.array(ref_rows)
     flattop_mask = np.array(flattop_flags, dtype=bool)
-    sc = score(model, ref, baseline_vec)
+    shot_ids = np.array(shot_rows)
+    sc = score(model, ref, baseline_vec, shot_ids=shot_ids)
     axis_errors = sc.pop("axis_errors")
     lcfs_cm = lcfs_offset_cm_stats(model, ref, flattop_mask)
+    saddle_stats = saddle_excess_stats(saddle_rows, ref)
 
     tag_bits = [args.boundary_arm or "baseline"]
     if args.smooth_sigma:
@@ -602,6 +733,7 @@ def run_boundary_arm(args) -> int:
         "wall_s": dt,
         **sc,
         **lcfs_cm,
+        **saddle_stats,
     }
     (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
     np.savez(
@@ -611,6 +743,7 @@ def run_boundary_arm(args) -> int:
         baseline=np.tile(baseline_vec, (len(model), 1)),
         axis_errors=axis_errors,
         flattop_mask=flattop_mask,
+        saddles=np.asarray(saddle_rows),
     )
     logger.info(
         "[boundary-arm %s] scored %d/%d axis_skill=%.3f lcfs_skill=%s median %.3f m "
@@ -667,7 +800,7 @@ def _score_grid_point(
     min_axis_dist: float,
 ) -> tuple[np.ndarray, np.ndarray, dict, dict, np.ndarray]:
     """Read geometry from the SAME cached currents at one (sigma, dist) point."""
-    model_rows, ref_rows = [], []
+    model_rows, ref_rows, shot_rows = [], [], []
     for payload, inv in cache:
         grid = payload["grid"]
         for k, r in enumerate(inv):
@@ -677,9 +810,11 @@ def _score_grid_point(
             )
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
+            shot_rows.append(r.shot)
     model = np.array(model_rows)
     ref = np.array(ref_rows)
-    sc = score(model, ref, baseline_vec)
+    shot_ids = np.array(shot_rows)
+    sc = score(model, ref, baseline_vec, shot_ids=shot_ids)
     axis_errors = sc.pop("axis_errors")
     lcfs_cm = lcfs_offset_cm_stats(model, ref, flattop_mask)
     return model, ref, sc, lcfs_cm, axis_errors
@@ -1183,7 +1318,7 @@ def main() -> int:
             connectivity=connectivity,
             **arm_kw,
         )
-        model_rows, ref_rows, diag_rows = [], [], []
+        model_rows, ref_rows, diag_rows, shot_rows, saddle_rows = [], [], [], [], []
         psi_reads = []  # (psi_axis, psi_boundary) per scored slice, for closures
         inversions_all = []
         t0 = time.perf_counter()
@@ -1197,6 +1332,8 @@ def main() -> int:
                 model_rows.append(target)
                 ref_rows.append(payload["refs"][k])
                 psi_reads.append((psi_ax, psi_b))
+                shot_rows.append(r.shot)
+                saddle_rows.append(count_saddles(psi2d, grid))
                 diag_rows.append(
                     {
                         "shot": r.shot,
@@ -1211,10 +1348,12 @@ def main() -> int:
         dt = time.perf_counter() - t0
         model = np.array(model_rows)
         ref = np.array(ref_rows)
-        sc = score(model, ref, baseline_vec)
+        shot_ids = np.array(shot_rows)
+        sc = score(model, ref, baseline_vec, shot_ids=shot_ids)
         axis_errors = sc.pop("axis_errors")
         per_policy[policy] = {
             **sc,
+            **saddle_excess_stats(saddle_rows, ref),
             "n_scored": int(len(model)),
             "n_candidate": int(len(model)),
             "scored_fraction": 1.0,

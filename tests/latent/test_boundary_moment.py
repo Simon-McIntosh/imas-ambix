@@ -48,6 +48,14 @@ def _make_basis(n_side=7, n_sensors=24, r0=0.9, seed=0):
     return _FakeBasis(r_cells, z_cells, candidate, m_sens, r0), r_cells, z_cells
 
 
+def test_moment_fit_config_default_model_is_polynomial():
+    """The library default must agree with the gate CLI's default (both
+    'polynomial', the locked decision every shipped artifact scores against)
+    — a silent disagreement here previously meant library callers that omit
+    ``model=`` got a different current representation than the gate."""
+    assert MomentFitConfig().model == "polynomial"
+
+
 def test_moment_terms_counts():
     assert set(moment_terms(1)) == {(0, 0), (1, 0), (0, 1)}
     assert moment_terms(1)[0] == (0, 0)  # monopole first

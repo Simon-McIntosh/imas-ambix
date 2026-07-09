@@ -143,9 +143,17 @@ def _term_label(p: int, q: int) -> str:
 
 @dataclass
 class MomentFitConfig:
-    """Configuration for the current-moment boundary fit."""
+    """Configuration for the current-moment boundary fit.
 
-    model: str = "gaussian"  # "gaussian" (compact blob) | "polynomial" (moment basis)
+    ``model`` defaults to ``"polynomial"`` — the low-order moment basis is
+    the locked decision and the representation every shipped gate artifact
+    under ``imas_ambix/latent/artifacts/patch_gate/`` scores against; the
+    gate CLI (``scripts/boundary_moment_gate_eval.py``) has always defaulted
+    to it too, so this aligns the library default with the CLI default
+    rather than leaving them silently disagree.
+    """
+
+    model: str = "polynomial"  # "polynomial" (moment basis, default) | "gaussian" (compact blob)
     order: int = 3  # max monomial degree of the polynomial moment basis
     ip_anchor: bool = True  # hard-pin the total current to the Rogowski Ip
     ridge: float = (
@@ -394,9 +402,9 @@ def invert_slices_moment(
 
     Mirrors :func:`imas_ambix.latent.patch_inverse.invert_slices` in signature
     so a gate script can swap the free-current inverse for the constrained
-    moment read.  ``cfg.model`` selects the current model: ``"gaussian"``
-    (default -- a compact non-negative elliptical blob) or ``"polynomial"`` (the
-    low-order monomial basis, an ablation that is not compactness-constrained).
+    moment read.  ``cfg.model`` selects the current model: ``"polynomial"``
+    (default -- the low-order monomial basis, the locked decision) or
+    ``"gaussian"`` (a compact non-negative elliptical blob, an ablation).
     Returns one :class:`MomentInversion` per payload in order.
     """
     cfg = cfg or MomentFitConfig()
