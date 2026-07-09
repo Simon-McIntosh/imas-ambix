@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <title>plasma-current-priors-hardening §2–§3 landed — R1/R2 priors, Gates A/B</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§2–§3 landed — R1/R2 priors measured at Gates A/B (2026-07-10)</h1>
+  <p><em>Per-stage record for
+  <a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a> §2 + §3.
+  Both priors implemented behind <code>InverseConfig</code> flags (commit <code>b4c9ba5</code>),
+  tuned leakage-free on train shots, scored ONCE held-out (160 slices, firewalled EFIT referee,
+  paired-bootstrap CIs). All numbers below are from the clean-mask pass.</em></p>
+
+  <h2>What was built</h2>
+  <ul>
+    <li><strong>R1 — unidirectional current</strong>: hard by softplus reparametrisation (default arm;
+    the null space cannot express sign-indefinite fills) + soft relu-penalty ablation arm.
+    <code>negative_current_fraction</code> reported per slice.</li>
+    <li><strong>R2 — free-boundary support consistency</strong>: soft penalty on current outside the
+    <em>last CLOSED flux surface of the inverse's own ψ</em>, found by <strong>connectivity bisection</strong>
+    (the innermost-saddle read would bound only one lobe of a doublet — the doublet-analytic test drove
+    this design), halo budget exempt, boundary re-read on the λ-adaptation cadence, fully detached.
+    28 tests green including the doublet-survival pin.</li>
+    <li>Gate CLI: <code>--sign-prior/--support-prior/--halo-budget/--report-outside</code>; artifacts
+    carry negative/outside current fractions and misfit medians.</li>
+  </ul>
+
+  <figure>
+    <img src="/imas-ambix/figures/plasma-current-priors-hardening/fig-prior-gates.png"
+         alt="Three panels: tune curve peaking at support weight 2000; held-out 2x2 ablation showing R2 halves the axis median and flips X-point skill positive; per-angle LCFS residuals growing at the 135/225 corners when the priors remove corner current."
+         style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+    <figcaption style="font-size:12.5px;color:#444">A: leakage-free tune curve (winner sw=2000, hb=0.03).
+    B: held-out 2×2 ablation. C: the decisive corner-attribution experiment.</figcaption>
+  </figure>
+
+  <h2>Held-out results (160 slices, CIs paired over shots)</h2>
+  <table>
+    <thead><tr><th>arm</th><th>axis skill [CI]</th><th>axis median</th><th>LCFS skill</th>
+    <th>X-pt-set skill</th><th>anti-∥ fraction</th><th>outside fraction</th><th>misfit med</th></tr></thead>
+    <tbody>
+      <tr><td>neither (P3 winner)</td><td>−0.158 [−0.70, +0.14]</td><td>6.4 cm</td><td>−4.91</td>
+      <td>−1.69</td><td><strong>0.75</strong></td><td><strong>1.01</strong></td><td>0.049</td></tr>
+      <tr><td>R1 only (softplus)</td><td>−1.112 [−2.00, −0.88]</td><td>7.1 cm</td><td>−9.84</td>
+      <td>−0.76</td><td>0</td><td>0.15</td><td>0.159</td></tr>
+      <tr><td>R2 only (sw2000, hb0.03)</td><td>−1.652 [−4.78, −0.10]</td><td><strong>3.2 cm</strong></td><td>−7.33</td>
+      <td><strong>+0.11</strong></td><td>0.10</td><td>0.030</td><td>0.193</td></tr>
+      <tr><td>R1+R2 (winner)</td><td>−2.063 [−5.25, −0.15]</td><td><strong>3.1 cm</strong></td><td>−7.57</td>
+      <td><strong>+0.14</strong></td><td>0</td><td>0.030</td><td>0.205</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Gate verdicts</h2>
+  <ul>
+    <li><strong>Gate A (R1): FAIL as specified, with the headline measurement delivered.</strong>
+    The sign prior collapses the anti-parallel fraction 0.75 → 0 exactly as designed — <em>the
+    sign-indefinite null-space fill of the free inverse is now measured at 0.75 I<sub>p</sub>
+    held-out (0.61 tune)</em>. But the axis skill is NOT CI-compatible with the baseline
+    (−1.11 [−2.00, −0.88] vs −0.16 [−0.70, +0.14]) and the misfit triples: the halo was absorbing
+    real, unmodelled sensor signal (eddy/vessel currents), not just noise. The soft-penalty ablation
+    loses to hard softplus on every tune metric (axis −2.3/−2.6 vs −2.0) without reaching zero
+    negative fraction — the hard-reparametrisation choice is confirmed.</li>
+    <li><strong>Gate B (R2): the load-bearing rung, with a split verdict.</strong> Out-of-boundary
+    current lands ON budget (0.030 ≤ 0.03). The axis MEDIAN halves (6.4 → 3.1 cm) and the
+    X-point-set skill flips positive for the first time (−1.69 → +0.14) — topology reads genuinely
+    improve when current cannot sit in the vacuum region. But the RMSE-tail metrics degrade (a few
+    catastrophic slices dominate: axis skill CI [−5.25, −0.15]) and the LCFS ray-cast moves away from
+    the referee (−4.91 → −7.57; median 24 → 33 cm).</li>
+    <li><strong>Corner attribution — the review's decisive experiment, answered:</strong> the
+    135°/225° inboard-corner LCFS residual GROWS when current can no longer sit in the corners
+    (27/26 cm → 39/40 cm; support-alone arm agrees at 38/37 cm). <strong>The corner residual is NOT
+    a lobe artifact — it is genuinely interior (or coil-model) information.</strong> Thread 2 of
+    equilibrium-topology-fidelity inherits it with evidence, exactly as the plan's if-no branch
+    specified.</li>
+  </ul>
+
+  <h2>Decision — defaults</h2>
+  <p><strong>The priors stay OFF in the P3-winner defaults.</strong> The gate criteria as written
+  (CI-compatible axis skill, LCFS toward the referee) did not pass, and P5 discipline keeps a rung
+  only when load-bearing on the scored metrics. The deeper finding: the free inverse's better
+  LCFS/misfit scores are bought with 0.75 I<sub>p</sub> of unphysical current absorbing unmodelled
+  eddy/vessel signal — the physics the priors expose is a <em>coil/passive-model gap</em>, not a
+  prior defect. Re-gate R2 after the passive/eddy story improves; until then R1+R2 remain available
+  behind flags (<code>--sign-prior softplus --support-prior --support-weight 2000 --halo-budget 0.03</code>)
+  and are the recommended arm wherever topology reads (axis, X-points) matter more than LCFS ray-casts.</p>
+
+  <h2>Artifacts</h2>
+  <p><code>imas_ambix/latent/artifacts/patch_gate/boundary_read_baseline{,-sign-softplus,-support-hb0.03-sw2000,-sign-softplus-support-hb0.03-sw2000}.json</code>
+  (+ <code>_arrays.npz</code>, + eight <code>*-tune</code> arms). Implementation commit
+  <code>b4c9ba5</code>; harness re-baseline <code>d729596</code>.</p>
+</main>
+</body>
+</html>
