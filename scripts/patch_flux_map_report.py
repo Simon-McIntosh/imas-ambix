@@ -63,13 +63,17 @@ ARTIFACTS = Path("imas_ambix/latent/artifacts/patch_gate")
 FIGURES = Path("docs/figures/patch-current-force-balance")
 L1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
 
-# THE P3 winner config (used verbatim, per the gate).
+# THE P3 winner config (used verbatim, per the gate).  connectivity="locality"
+# matches patch_gate_eval's --connectivity default — an exhibit must show the
+# same regularisation the gates score, not InverseConfig's bare class default
+# (connectivity=None), which would use a different structure-residual term.
 WINNER = InverseConfig(
     policy="discrepancy",
     lambda_fb=3.0,
     misfit_ratio=1.5,
     lambda_max=100.0,
     iters=800,
+    connectivity="locality",
 )
 
 SNAP_TOL_S = 0.015  # snap a slice to the nearest efm all_times within 15 ms
