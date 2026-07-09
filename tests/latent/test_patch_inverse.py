@@ -233,3 +233,160 @@ def test_structure_regularisation_reduces_residual(synth_problem):
     reg = invert_slices(basis, [payload], cfg_reg, device="cpu")[0]
     noreg = invert_slices(basis, [payload], cfg_noreg, device="cpu")[0]
     assert reg.structure < noreg.structure
+
+
+# --------------------------------------------------------------------------
+# physics priors: unidirectional current + free-boundary support consistency
+# --------------------------------------------------------------------------
+
+
+from imas_ambix.latent.patch_inverse import (  # noqa: E402
+    negative_current_fraction,
+    outside_current_fraction,
+    support_outside_mask,
+)
+
+
+@pytest.fixture(scope="module")
+def noisy_payload(synth_problem):
+    """The synthetic payload with seeded multiplicative sensor noise.
+
+    The clean payload is self-consistent, so an unregularised inverse has
+    little incentive to fill the null space; 5 % relative noise gives the
+    sensor term something to over-fit, which the free (λ=0) inverse absorbs
+    with sign-indefinite null-space current.
+    """
+    _basis, payload, ip = synth_problem
+    rng = np.random.default_rng(7)
+    meas = payload.measured * (1.0 + 0.05 * rng.standard_normal(payload.measured.size))
+    noisy = SlicePayload(
+        measured=meas,
+        vacuum=payload.vacuum,
+        mask=payload.mask,
+        scale=payload.scale,
+        i_pf=payload.i_pf,
+        ip_amperes=payload.ip_amperes,
+        shot=2,
+        t_index=0,
+    )
+    return noisy, ip
+
+
+def test_priors_off_by_default():
+    cfg = InverseConfig()
+    assert cfg.sign_prior is None
+    assert cfg.support_prior is False
+
+
+def test_negative_fraction_helper():
+    ip = 1.0e5
+    i_cell = np.array([6.0e4, 5.0e4, -1.0e4])
+    assert negative_current_fraction(i_cell, ip) == pytest.approx(0.1)
+    # sign-aware: a negative-Ip plasma counts anti-parallel (positive) cells
+    assert negative_current_fraction(-i_cell, -ip) == pytest.approx(0.1)
+    assert negative_current_fraction(np.array([1.0, 2.0]), 3.0) == 0.0
+
+
+def test_sign_prior_softplus_enforces_unidirectional(noisy_payload, synth_problem):
+    basis, _payload, _ip = synth_problem
+    payload, ip = noisy_payload
+    cfg = InverseConfig(iters=300, policy="fixed", lambda_fb=0.0, sign_prior="softplus")
+    inv = invert_slices(basis, [payload], cfg, device="cpu")[0]
+    assert np.all(inv.i_cell * np.sign(ip) >= 0.0)
+    assert inv.negative_fraction == 0.0
+    assert inv.misfit < 1.0  # noise floor; must still explain the sensors
+    assert inv.ip_rel_err < 0.02
+
+
+def test_sign_prior_penalty_suppresses_negative_current(noisy_payload, synth_problem):
+    basis, _payload, _ip = synth_problem
+    payload, ip = noisy_payload
+    cfg_off = InverseConfig(iters=300, policy="fixed", lambda_fb=0.0)
+    cfg_pen = InverseConfig(
+        iters=300, policy="fixed", lambda_fb=0.0, sign_prior="penalty", sign_weight=50.0
+    )
+    off = invert_slices(basis, [payload], cfg_off, device="cpu")[0]
+    pen = invert_slices(basis, [payload], cfg_pen, device="cpu")[0]
+    # precondition: the free inverse actually fills the null space sign-indefinitely
+    assert off.negative_fraction > 1.0e-4
+    assert pen.negative_fraction < 0.2 * off.negative_fraction
+
+
+def test_negative_fraction_matches_currents(noisy_payload, synth_problem):
+    basis, _payload, _ip = synth_problem
+    payload, ip = noisy_payload
+    cfg = InverseConfig(iters=200, policy="fixed", lambda_fb=0.0)
+    inv = invert_slices(basis, [payload], cfg, device="cpu")[0]
+    assert inv.negative_fraction == pytest.approx(
+        negative_current_fraction(inv.i_cell, ip)
+    )
+
+
+def test_sign_prior_unknown_value_raises(synth_problem):
+    basis, payload, _ip = synth_problem
+    cfg = InverseConfig(iters=10, sign_prior="not-a-prior")
+    with pytest.raises(ValueError, match="sign_prior"):
+        invert_slices(basis, [payload], cfg, device="cpu")
+
+
+def test_support_prior_bounds_outside_current(noisy_payload, synth_problem):
+    basis, _payload, _ip = synth_problem
+    payload, ip = noisy_payload
+    table = _confining_table()
+    lim_r = np.asarray(table.limiter_r, dtype=np.float64)
+    lim_z = np.asarray(table.limiter_z, dtype=np.float64)
+    budget = 0.05
+    cfg_off = InverseConfig(
+        iters=300, policy="fixed", lambda_fb=0.0, limiter_r=lim_r, limiter_z=lim_z
+    )
+    cfg_on = InverseConfig(
+        iters=400,
+        policy="fixed",
+        lambda_fb=0.0,
+        support_prior=True,
+        support_weight=1000.0,
+        halo_budget=budget,
+        limiter_r=lim_r,
+        limiter_z=lim_z,
+    )
+    off = invert_slices(basis, [payload], cfg_off, device="cpu")[0]
+    on = invert_slices(basis, [payload], cfg_on, device="cpu")[0]
+    # outside_fraction is a reported diagnostic whenever the limiter is given
+    assert np.isfinite(off.outside_fraction)
+    assert np.isfinite(on.outside_fraction)
+    assert on.outside_fraction < off.outside_fraction
+    assert on.outside_fraction <= budget + 0.03
+    assert on.support_excess == pytest.approx(
+        max(0.0, on.outside_fraction - budget), abs=1.0e-9
+    )
+    assert on.misfit < 1.5  # support must not destroy the sensor fit
+
+
+def test_doublet_configuration_survives_both_priors(synth_problem):
+    """Two same-sign lobes inside one flux envelope cost the priors ~nothing.
+
+    The unidirectional prior sees no anti-parallel current, and the LCFS of
+    the doublet's own ψ envelops both lobes, so the support penalty inside
+    the halo budget is zero — doublets stay representable by construction.
+    """
+    basis, _payload, ip = synth_problem
+    table = _confining_table()
+    r_c = basis.r_cells.cpu().numpy()
+    z_c = basis.z_cells.cpu().numpy()
+    cand = basis.candidate_mask.cpu().numpy() > 0
+    lobes = np.exp(-(((r_c - basis.r0) / 0.12) ** 2) - ((z_c - 0.22) / 0.10) ** 2)
+    lobes += np.exp(-(((r_c - basis.r0) / 0.12) ** 2) - ((z_c + 0.22) / 0.10) ** 2)
+    # compact support: a physical doublet carries no current outside its own
+    # separatrix, so the fixture truncates the Gaussian tails
+    lobes[lobes < 0.05 * lobes.max()] = 0.0
+    i_doublet = lobes * cand
+    i_doublet = i_doublet / i_doublet.sum() * ip
+    assert negative_current_fraction(i_doublet, ip) == 0.0
+    outside = support_outside_mask(
+        basis,
+        i_doublet,
+        np.zeros(0),
+        limiter_r=np.asarray(table.limiter_r, dtype=np.float64),
+        limiter_z=np.asarray(table.limiter_z, dtype=np.float64),
+    )
+    assert outside_current_fraction(i_doublet, ip, outside) < 0.05

@@ -242,7 +242,9 @@ def train_mean_baseline(n_train, n_baseline_shots, min_ip_ka):
     )
 
 
-def _xpoint_set_skill(model: np.ndarray, ref: np.ndarray, baseline: np.ndarray) -> float:
+def _xpoint_set_skill(
+    model: np.ndarray, ref: np.ndarray, baseline: np.ndarray
+) -> float:
     """The permutation-invariant X-point-set RMSE skill (shared by the point
     estimate and every bootstrap resample of it)."""
     xm = np.array(
@@ -285,7 +287,7 @@ def _bootstrap_skill_draws(
     referee target ``ref`` used at the point estimate.
 
     Returns ``(axis_draws, lcfs_draws, xpt_draws, per_quantity_draws)`` with
-    shapes ``(n_boot,)`` / ``(n_boot,)`` / ``(n_boot,)`` / ``(n_boot, len(TARGET_NAMES))``.
+    shapes ``(n_boot,)`` ×3 and ``(n_boot, len(TARGET_NAMES))``.
     NaN-filled if fewer than 2 unique shots (no meaningful resampling unit).
     """
     n_names = len(TARGET_NAMES)
@@ -320,7 +322,9 @@ def _percentile_ci(draws: np.ndarray) -> list[float | None]:
     return [float(lo), float(hi)]
 
 
-def score(model, ref, baseline_vec, *, shot_ids=None, n_boot: int = 2000, ci_seed: int = 0):
+def score(
+    model, ref, baseline_vec, *, shot_ids=None, n_boot: int = 2000, ci_seed: int = 0
+):
     """Same skill computation as the Picard gate (per-quantity RMSE skill).
 
     When ``shot_ids`` (one shot number per row of ``model``/``ref``) is
@@ -434,7 +438,9 @@ def _grid_neighbor_pairs(basis: PatchBasis) -> torch.Tensor:
     dz = float(grid_z[1] - grid_z[0])
     j_idx = np.rint((r_c - grid_r[0]) / dr).astype(int)
     i_idx = np.rint((z_c - grid_z[0]) / dz).astype(int)
-    pos = {(int(i), int(j)): k for k, (i, j) in enumerate(zip(i_idx, j_idx, strict=True))}
+    pos = {
+        (int(i), int(j)): k for k, (i, j) in enumerate(zip(i_idx, j_idx, strict=True))
+    }
     pairs = [
         (k, pos[(i + di, j + dj)])
         for (i, j), k in pos.items()
@@ -537,7 +543,9 @@ def invert_slices_smooth(
             smooth_pen = (diff * diff).mean(-1)
         else:
             smooth_pen = torch.zeros(b, dtype=dt, device=dev)
-        loss = (misfit + cfg.ip_weight * ip_pen + lam * fb + smooth_lambda * smooth_pen).sum()
+        loss = (
+            misfit + cfg.ip_weight * ip_pen + lam * fb + smooth_lambda * smooth_pen
+        ).sum()
         loss.backward()
         opt.step()
         if cfg.policy == "discrepancy" and step == max(warmup_end - 1, 0):
@@ -596,7 +604,12 @@ def lcfs_offset_cm_stats(
 #: discrepancy policy, λ0=3, misfit_ratio=1.5, λmax=100 — axis skill +0.019,
 #: 2.8 cm median, 160/160 scored.  A4 measures ONLY the readout (or, for
 #: 'current-smooth', the inverse loss) against this frozen base.
-P3_WINNER_KW = {"policy": "discrepancy", "lambda_fb": 3.0, "misfit_ratio": 1.5, "lambda_max": 100.0}
+P3_WINNER_KW = {
+    "policy": "discrepancy",
+    "lambda_fb": 3.0,
+    "misfit_ratio": 1.5,
+    "lambda_max": 100.0,
+}
 
 
 def run_boundary_arm(args) -> int:
@@ -658,12 +671,30 @@ def run_boundary_arm(args) -> int:
         if payload is not None:
             shots.append(payload)
 
+    prior_kw = {}
+    if args.sign_prior != "none":
+        prior_kw.update(sign_prior=args.sign_prior, sign_weight=args.sign_weight)
+    if args.support_prior:
+        prior_kw.update(
+            support_prior=True,
+            support_weight=args.support_weight,
+            halo_budget=args.halo_budget,
+        )
+    if shots and (args.support_prior or args.report_outside):
+        # the campaign geometry is shared across shots: one limiter serves all
+        g0 = shots[0]["grid"]
+        prior_kw.update(limiter_r=g0.limiter_r, limiter_z=g0.limiter_z)
     winner_cfg = InverseConfig(
-        iters=args.iters, lr=args.lr, n_bins=args.n_bins, connectivity=connectivity,
+        iters=args.iters,
+        lr=args.lr,
+        n_bins=args.n_bins,
+        connectivity=connectivity,
         **P3_WINNER_KW,
+        **prior_kw,
     )
 
     model_rows, ref_rows, flattop_flags, shot_rows, saddle_rows = [], [], [], [], []
+    neg_rows, out_rows, misfit_rows = [], [], []
     t0 = time.perf_counter()
     for payload in shots:
         grid, basis = payload["grid"], payload["basis"]
@@ -696,6 +727,9 @@ def run_boundary_arm(args) -> int:
             flattop_flags.append(k == flattop_idx)
             shot_rows.append(r.shot)
             saddle_rows.append(count_saddles(psi2d, grid))
+            neg_rows.append(r.negative_fraction)
+            out_rows.append(r.outside_fraction)
+            misfit_rows.append(r.misfit)
     dt = time.perf_counter() - t0
 
     model = np.array(model_rows)
@@ -714,9 +748,40 @@ def run_boundary_arm(args) -> int:
         tag_bits.append(f"dist{args.min_axis_dist:g}")
     if args.current_smooth_lambda:
         tag_bits.append(f"lam{args.current_smooth_lambda:g}")
+    if args.sign_prior != "none":
+        tag_bits.append(f"sign-{args.sign_prior}")
+        if args.sign_prior == "penalty":
+            tag_bits.append(f"sw{args.sign_weight:g}")
+    if args.support_prior:
+        tag_bits.append(f"support-hb{args.halo_budget:g}-sw{args.support_weight:g}")
     if args.split == "train":
         tag_bits.append("tune")
     tag = "-".join(tag_bits)
+
+    neg = np.asarray(neg_rows, dtype=np.float64)
+    out_frac = np.asarray(out_rows, dtype=np.float64)
+    prior_stats = {
+        "sign_prior": args.sign_prior,
+        "sign_weight": args.sign_weight if args.sign_prior == "penalty" else None,
+        "support_prior": bool(args.support_prior),
+        "support_weight": args.support_weight if args.support_prior else None,
+        "halo_budget": args.halo_budget if args.support_prior else None,
+        "negative_fraction_median": float(np.nanmedian(neg)) if neg.size else None,
+        "negative_fraction_mean": float(np.nanmean(neg)) if neg.size else None,
+        "misfit_median": (
+            float(np.nanmedian(misfit_rows)) if misfit_rows else None
+        ),
+        "outside_fraction_median": (
+            float(np.nanmedian(out_frac))
+            if out_frac.size and np.isfinite(out_frac).any()
+            else None
+        ),
+        "outside_fraction_mean": (
+            float(np.nanmean(out_frac))
+            if out_frac.size and np.isfinite(out_frac).any()
+            else None
+        ),
+    }
 
     result = {
         "arm": args.boundary_arm or "baseline",
@@ -734,6 +799,7 @@ def run_boundary_arm(args) -> int:
         **sc,
         **lcfs_cm,
         **saddle_stats,
+        **prior_stats,
     }
     (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
     np.savez(
@@ -744,6 +810,10 @@ def run_boundary_arm(args) -> int:
         axis_errors=axis_errors,
         flattop_mask=flattop_mask,
         saddles=np.asarray(saddle_rows),
+        shot_ids=shot_ids,
+        negative_fraction=neg,
+        outside_fraction=out_frac,
+        misfit=np.asarray(misfit_rows, dtype=np.float64),
     )
     logger.info(
         "[boundary-arm %s] scored %d/%d axis_skill=%.3f lcfs_skill=%s median %.3f m "
@@ -804,7 +874,9 @@ def _score_grid_point(
     for payload, inv in cache:
         grid = payload["grid"]
         for k, r in enumerate(inv):
-            psi2d = payload["basis"].psi_grid_2d_np(r.i_cell, payload["payloads"][k].i_pf)
+            psi2d = payload["basis"].psi_grid_2d_np(
+                r.i_cell, payload["payloads"][k].i_pf
+            )
             target, _, _ = geometry_target(
                 psi2d, grid, smooth_sigma=smooth_sigma, min_axis_dist=min_axis_dist
             )
@@ -858,7 +930,9 @@ def run_boundary_arm_grid(args) -> int:
     )
     connectivity = None if args.connectivity in ("", "none") else args.connectivity
     points = _parse_grid_spec(args.grid)
-    logger.info("boundary-arm-grid split=%s points=%s device=%s", args.split, points, device)
+    logger.info(
+        "boundary-arm-grid split=%s points=%s device=%s", args.split, points, device
+    )
 
     train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
     baseline_vec = train_mean_baseline(
@@ -889,7 +963,10 @@ def run_boundary_arm_grid(args) -> int:
             shots.append(payload)
 
     winner_cfg = InverseConfig(
-        iters=args.iters, lr=args.lr, n_bins=args.n_bins, connectivity=connectivity,
+        iters=args.iters,
+        lr=args.lr,
+        n_bins=args.n_bins,
+        connectivity=connectivity,
         **P3_WINNER_KW,
     )
     t0 = time.perf_counter()
@@ -993,9 +1070,7 @@ def run_floor_sensitivity(args) -> int:
     )
     connectivity = None if args.connectivity in ("", "none") else args.connectivity
     rels = [float(v) for v in args.floor_rel_grid.split(",") if v.strip() != ""]
-    logger.info(
-        "floor-rel-grid=%s split=%s device=%s", rels, args.split, device
-    )
+    logger.info("floor-rel-grid=%s split=%s device=%s", rels, args.split, device)
 
     train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
     baseline_vec = train_mean_baseline(
@@ -1008,7 +1083,10 @@ def run_floor_sensitivity(args) -> int:
     )
 
     winner_cfg = InverseConfig(
-        iters=args.iters, lr=args.lr, n_bins=args.n_bins, connectivity=connectivity,
+        iters=args.iters,
+        lr=args.lr,
+        n_bins=args.n_bins,
+        connectivity=connectivity,
         **P3_WINNER_KW,
     )
 
@@ -1094,7 +1172,9 @@ def run_floor_sensitivity(args) -> int:
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": GEOMETRY_TABLE_VERSION,
         "n_tune_shots": args.n_tune_shots if args.split == "train" else None,
-        "cohort": "rampup+flattop per shot" if args.split == "train" else "all candidate slices",
+        "cohort": "rampup+flattop per shot"
+        if args.split == "train"
+        else "all candidate slices",
         "points": results,
     }
     tag = "tune" if args.split == "train" else "heldout"
@@ -1142,6 +1222,26 @@ def main() -> int:
     ap.add_argument("--n-bins", type=int, default=24)
     ap.add_argument("--form", type=str, default="affine-r2")
     ap.add_argument("--connectivity", type=str, default="locality")
+    ap.add_argument(
+        "--sign-prior",
+        type=str,
+        default="none",
+        choices=["none", "softplus", "penalty"],
+        help="unidirectional-current prior: hard reparametrisation or soft penalty",
+    )
+    ap.add_argument("--sign-weight", type=float, default=10.0)
+    ap.add_argument(
+        "--support-prior",
+        action="store_true",
+        help="soft penalty on current outside the LCFS of its own psi",
+    )
+    ap.add_argument("--support-weight", type=float, default=20.0)
+    ap.add_argument("--halo-budget", type=float, default=0.03)
+    ap.add_argument(
+        "--report-outside",
+        action="store_true",
+        help="report the outside-LCFS current fraction with the prior off",
+    )
     ap.add_argument("--device", type=str, default="auto")
     ap.add_argument("--throughput-bench", action="store_true")
     ap.add_argument(
