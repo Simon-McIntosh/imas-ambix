@@ -74,6 +74,102 @@ def _confining_table():
     )
 
 
+def _table_with_interior_coil():
+    """A confining exterior coil plus a genuinely in-vessel one (MAST P6U).
+
+    ``_confining_table``'s two coils are placed near-but-not-quite (~14 cm)
+    from a real MAST coil centroid, so :func:`classify_circuits` labels them
+    ``inferred_passive`` and they never drive ``grid.coil_psi`` at all (the
+    KNOWN-coil column list ends up empty) — the exclusion this test targets
+    never fires in that fixture.  This table places one filament exactly at
+    the real P2OU centroid (outside this small limiter, a smooth exterior
+    source) and one exactly at the real P6U centroid — MAST's actual in-vessel
+    divertor coil position, inside the limiter — each wired to its matching
+    ``amc`` channel so both are classified ``known_pf`` and land in
+    ``grid.coil_psi_columns``.
+    """
+    from imas_ambix.gs import geometry as gsg
+
+    probes = [
+        gsg.BProbe(index=i, r=1.9, z=-0.6 + 0.3 * i, angle_deg=90.0, length=0.02)
+        for i in range(5)
+    ]
+    sensor_map = [
+        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
+        for i, p in enumerate(probes)
+    ]
+    pf = [
+        gsg.PFFilament(  # P2OU: exterior, harmonic everywhere in-domain
+            r=0.528, z=1.72, turns=1.0, width=0.10, height=0.10, circuit=2, xmult=1.0
+        ),
+        gsg.PFFilament(  # P6U: genuinely in-vessel, inside the limiter
+            r=1.43, z=0.90, turns=1.0, width=0.10, height=0.10, circuit=1, xmult=1.0
+        ),
+    ]
+    return gsg.GeometryTable(
+        signature=gsg.SetupSignature(
+            n_bprobe=5, n_fluxloop=0, n_pf_filament=2, n_limiter=5, digest="feed0002"
+        ),
+        shots=[1],
+        b_probes=probes,
+        flux_loops=[],
+        pf_filaments=pf,
+        limiter_r=[0.3, 1.65, 1.65, 0.3, 0.3],
+        limiter_z=[-1.05, -1.05, 1.05, 1.05, -1.05],
+        sensor_map=sensor_map,
+        passive_structures=[],
+        amc_current_channels=["p6u_current", "p2ou_coil_current"],
+        unmatched_amb=[],
+    )
+
+
+def test_analytic_add_matches_greens_field_interior_coil_continuation_does_not():
+    """``coil_field_mode`` arms for a coil sitting INSIDE the solve domain.
+
+    With zero plasma current, ``"analytic-add"`` solves a trivial zero-source
+    plasma problem and adds the exact finite-area coil field, so it must
+    reproduce ``grid.coil_psi`` exactly everywhere, including at the coil.
+    ``"boundary-continuation"`` instead solves Δ*ψ=0 with the coil's own
+    boundary values as Dirichlet data — a harmonic continuation with no
+    source term for the in-vessel coil — so it must drift from the true field
+    near the coil (where the true field has a real, non-harmonic source)
+    while agreeing far away, where the true field genuinely is harmonic (the
+    exterior coil is unaffected by either arm's treatment of the interior
+    one, by linearity of Δ*).
+    """
+    table = _table_with_interior_coil()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    assert grid._coil_psi_columns.shape[1] == 2, "both coils must be KNOWN"
+    i_pf = np.array([-1.2e5, 8.0e4])  # [P2OU exterior, P6U interior]
+    psi_coil = grid.coil_psi(i_pf)
+    zero_rhs = np.zeros((grid.nz, grid.nr))
+
+    psi_b_add = np.zeros((grid.nz, grid.nr))  # zero plasma current -> zero BC
+    psi_add = grid.solve_dirichlet(zero_rhs, psi_b_add).ravel() + psi_coil
+    np.testing.assert_allclose(psi_add, psi_coil, atol=1e-9)
+
+    psi_b_cont = np.zeros((grid.nz, grid.nr))
+    psi_b_cont.ravel()[grid.edge_idx] = psi_coil[grid.edge_idx]
+    psi_cont = grid.solve_dirichlet(zero_rhs, psi_b_cont).ravel()
+
+    r0, r1, z0, z1 = grid.conductor_rects[-1]  # P6U's raw pack (last filament)
+    cr, cz = 0.5 * (r0 + r1), 0.5 * (z0 + z1)
+    dist = np.hypot(grid.flat_r - cr, grid.flat_z - cz)
+    inside = grid.inside_limiter.ravel()
+    near = inside & (dist <= 0.15)
+    far = inside & (dist >= 0.5)
+    assert near.any() and far.any()
+
+    span = float(psi_coil.max() - psi_coil.min())
+    rel_diff = np.abs(psi_cont - psi_coil) / span
+    assert rel_diff[near].max() > 0.1, (
+        "boundary-continuation must miss the in-vessel coil's real source"
+    )
+    assert rel_diff[far].max() < 0.08, (
+        "far from the coil both arms must agree (the true field is harmonic there)"
+    )
+
+
 def test_delta_star_stencil_manufactured_solution():
     """Δ* of ψ = R⁴ is 8R² analytically; solve with that RHS + exact BCs and
     recover ψ to second order."""

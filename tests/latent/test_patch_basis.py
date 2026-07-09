@@ -63,6 +63,28 @@ def _confining_table():
     )
 
 
+def _confining_table_with_interior_coil():
+    """``_confining_table`` plus a third coil sitting INSIDE the limiter.
+
+    The two confining coils sit at z=+-1.0, outside the limiter's z-range
+    [-0.85, 0.85], so they never exercise the candidate-mask's conductor
+    exclusion (a cell can only be excluded if it is both in-limiter and
+    inside a winding pack).  This adds an in-vessel-style pack at
+    (r=0.9, z=0.4) that genuinely straddles in-limiter grid cells.
+    """
+    from imas_ambix.gs import geometry as gsg
+
+    table = _confining_table()
+    interior_coil = gsg.PFFilament(
+        r=0.9, z=0.4, turns=1.0, width=0.12, height=0.12, circuit=3, xmult=1.0
+    )
+    table.pf_filaments = [*table.pf_filaments, interior_coil]
+    table.signature = gsg.SetupSignature(
+        n_bprobe=5, n_fluxloop=0, n_pf_filament=3, n_limiter=5, digest="feed0001"
+    )
+    return table
+
+
 def _delta_star(psi2d: np.ndarray, rg: np.ndarray, zg: np.ndarray) -> np.ndarray:
     """5-point FD Δ* on the interior (same stencil as the Picard solver)."""
     dr = float(rg[1] - rg[0])
@@ -202,6 +224,37 @@ def test_cache_round_trip(tmp_path):
     assert cache.exists(), "cache file was not written"
     basis2 = PatchBasis.from_table(table, nr=33, nz=45, cache_dir=tmp_path)
     np.testing.assert_array_equal(basis1._g_pg_np, basis2._g_pg_np)
+
+
+def test_candidate_mask_excludes_interior_coil_cells():
+    """Cells inside an in-vessel winding pack are dropped from candidate_mask.
+
+    Both coils in ``_confining_table`` sit outside the limiter's z-range, so
+    ``clear_of_conductors`` never actually excludes anything there — the
+    exclusion logic is exercised in name only.  This places a third coil
+    INSIDE the limiter and checks that cells within its (dilated) footprint
+    are excluded from ``PatchBasis.candidate_mask``, while other in-limiter
+    cells remain candidates.
+    """
+    table = _confining_table_with_interior_coil()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    basis = PatchBasis.from_table(table, nr=49, nz=65, cache_dir=None)
+
+    r_cells = grid.flat_r[grid.cells]
+    z_cells = grid.flat_z[grid.cells]
+    r0, r1, z0, z1 = grid.conductor_rects[-1]  # the interior coil's raw pack
+    dr, dz = grid.dr, grid.dz
+    in_pack = (
+        (r_cells >= r0 - dr)
+        & (r_cells <= r1 + dr)
+        & (z_cells >= z0 - dz)
+        & (z_cells <= z1 + dz)
+    )
+    assert in_pack.any(), "fixture coil footprint misses the cell grid"
+
+    candidate = basis.candidate_mask.numpy() > 0.5
+    assert not candidate[in_pack].any()  # excluded: conductor interior
+    assert candidate[~in_pack].any()  # other in-limiter cells stay candidates
 
 
 def test_firewall_static_no_evaluator_imports():
