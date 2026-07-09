@@ -4,21 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="plasma-current-priors-hardening">
-  <meta name="plan-title"     content="Plasma-Current Priors Hardening — make the physics carry the signal in the null space">
-  <meta name="plan-summary"   content="The 2026-07 grounding review found the patch-current null space is filled by optimiser defaults, not physics: the free inverse carries a sign-indefinite near-wall halo + corner lobes, and the current-moment boundary read spreads Ip uniformly over the whole vessel (jφ≠0 in the vacuum region, violating the Δ*ψ=0 premise it was built on). This plan hardens the prior ladder so actual plasma topologies pop from soft priors + data: (R1) unidirectional current jφ·sign(Ip)≥0; (R2) free-boundary support consistency j=0 outside the LCFS of its own ψ, with a halo budget; (R3, owned by equilibrium-topology-fidelity f-etf-04) the source-free toroidal-harmonic exterior read. Doublets stay representable by construction. Gate-harness hardening (bootstrap CIs, double-null-correct saddle metric, origin-controlled LCFS read) ships alongside so every verdict is trustworthy.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="M">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="plasma-current-priors-hardening">
+  <meta name="plan-title" content="Plasma-Current Priors Hardening — make the physics carry the signal in the null space">
+  <meta name="plan-summary" content="The 2026-07 grounding review found the patch-current null space is filled by optimiser defaults, not physics: the free inverse carries a sign-indefinite near-wall halo + corner lobes, and the current-moment boundary read spreads Ip uniformly over the whole vessel (jφ≠0 in the vacuum region, violating the Δ*ψ=0 premise it was built on). This plan hardens the prior ladder so actual plasma topologies pop from soft priors + data: (R1) unidirectional current jφ·sign(Ip)≥0; (R2) free-boundary support consistency j=0 outside the LCFS of its own ψ, with a halo budget; (R3, owned by equilibrium-topology-fidelity f-etf-04) the source-free toroidal-harmonic exterior read. Doublets stay representable by construction. Gate-harness hardening (bootstrap CIs, double-null-correct saddle metric, origin-controlled LCFS read) ships alongside so every verdict is trustworthy.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="M">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="patch-current-force-balance,patch-equilibrium-wm-integration">
-  <meta name="plan-blocks"    content="equilibrium-topology-fidelity">
+  <meta name="plan-blocks" content="equilibrium-topology-fidelity">
   <title>Plasma-Current Priors Hardening | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-09">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.5">
 </head>
 <body>
   <main class="plan-doc">
@@ -160,34 +163,24 @@
       shared annulus) is reported — the checkable condition both representations must satisfy where both are valid.</li>
     </ul>
 
-    <h2 id="s4">§4 — Gate-harness hardening (ships first, blocks the gates)</h2>
-    <p>The review found the thread-1 verdict rests on a harness with four defects; they are cheap and ship before any
-    new physics so Gates A–C are trustworthy:</p>
-    <ul>
-      <li><strong>Bootstrap CIs</strong> on every skill (paired over shots), in <code>scripts/patch_gate_eval.py</code>'s
-      <code>score()</code> and every consumer — the tune/eval order-sweep disagreement (o3 X-point −2.31 tune vs
-      −0.15 eval) is unquantified noise until then.</li>
-      <li><strong>Double-null-correct saddle metric:</strong> MAST is routinely double-null; <code>saddles &le; 1</code>
-      as "saddle-free" mislabels two genuine X-points as a spurious read. Count saddles <em>in excess of the
-      referee's X-point count</em>, and record the metric for BOTH arms (the free-current baseline artifact carries
-      <code>saddles: null</code> — Gate 1a of thread 1 was never actually measured).</li>
-      <li><strong>Origin-controlled LCFS read:</strong> the flagship moment artifact used the centroid ray origin
-      (median 7.9 cm off-axis; arm axis skill −1.62, omitted from the findings table) while the findings doc
-      describes the patch-axis hybrid. Make <code>--axis-source patch</code> the scored default; keep centroid as the
-      fast smoke arm only.</li>
-      <li><strong>Consistent model defaults:</strong> <code>MomentFitConfig.model</code> defaults to
-      <code>"gaussian"</code> in the library but <code>"polynomial"</code> in the gate CLI — align to the locked
-      decision and artifacts (polynomial) or rename explicitly.</li>
-      <li><strong>Mask/coil test fixtures (substrate-review B11/B12):</strong> the candidate-mask conductor
-      exclusion is effectively untested (the direct test skips; both fixtures put coils outside the limiter) and
-      the in-vessel <code>analytic-add</code> coil split has no regression pin. Add an in-limiter-coil fixture that
-      exercises real cell exclusion, and an interior-coil test pinning <code>analytic-add</code> against a Green's
-      reference where the two solve modes must differ.</li>
-      <li><strong>Connectivity-default alignment (B15):</strong> <code>patch_flux_map_report.py</code> runs
-      <code>connectivity=None</code> while the gate CLI defaults <code>"locality"</code> — align, and re-render the
-      flux-map current figure with the locality arm so published exhibits show the same regularisation the gates
-      score.</li>
-    </ul>
+    <section id="s4" class="section-landed">
+    <header>
+      <span class="badge badge-shipped">✓ landed 2026-07-09</span>
+      <h2>§4 — Gate-harness hardening (shipped first, unblocked the gates)</h2>
+    </header>
+    <p class="landed-summary">
+    All six items shipped: paired-bootstrap CIs over shots in both gate scripts; saddle metric =
+    excess over the referee X-point count (free-current arm measured for the first time:
+    saddle_excess mean 1.26, clean fraction 0.31); <code>--axis-source patch</code> scored default
+    (origin-controlled moment o3 headline: axis −0.331 [−0.768, −0.079]); MomentFitConfig aligned to
+    polynomial; in-limiter conductor-exclusion + analytic-add interior-coil fixtures; connectivity
+    aligned to locality with exhibits re-rendered (medians moved &lt;0.3 cm).
+    <strong>Re-baseline: the P3-winner axis skill under the hardened harness is −0.051
+    [−0.441, 0.158] — the stale +0.019 headline does not survive; Gates A/B gate against these CIs.</strong>
+    Full record: <a href="archive/plasma-current-priors-hardening-s4-landed.html">§4 landed</a>
+    (commits <code>75a44d9</code>, <code>65a502e</code>, <code>c44ec26</code>, <code>8b00458</code>).
+    </p>
+    </section>
 
     <h2 id="s5">§5 — Relationship to the standing plans</h2>
     <p>This plan <strong>blocks</strong> <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>
@@ -203,31 +196,31 @@
     inherited the oracle recipe.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="sign-prior-form" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">R1 — how is the unidirectional-current prior imposed?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="hard-softplus">hard by reparametrisation — x = softplus(y): the null space cannot express sign-indefinite fills at all; cleanest physics, changes the optimisation geometry</button>
-          <button class="r-opt" data-value="soft-penalty">soft penalty — &#955;&#183;&#931;relu(&#8722;j&#183;sign(Ip))&#178;: keeps the current parametrisation, weight swept leakage-free; the constraint is measured, not assumed</button>
-        </p>
-        <p class="r-dec-rat">Recommend hard-softplus as the default arm with the soft penalty as the ablation — the North Star allows hard FACTS (the Rogowski sign is a measurement, like the conductor mask "factual geometry"), and reserving softness for genuinely uncertain physics. Measure both; the ablation quantifies what the prior is worth.</p>
-      </div>
-      <div class="r-dec" data-key="support-prior-form" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">R2 — how is free-boundary support consistency imposed?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="soft-outside-lcfs">soft penalty on current outside the current LCFS estimate, halo budget exempted; boundary recomputed on the &#955;-adaptation cadence (no topology extraction in the gradient path)</button>
-          <button class="r-opt" data-value="iterated-mask">iterated hard mask — Picard-style: invert, read boundary, mask candidates to inside+margin, re-invert (2-3 sweeps); simpler but non-differentiable and risks locking in a bad first boundary</button>
-        </p>
-        <p class="r-dec-rat">Recommend the soft penalty: it keeps the loop free of hard topology extraction (the design rule the structure residual already honours), degrades gracefully near limited&#8596;diverted transitions, and its budget term preserves the halo/SOL discovery channel. The iterated mask is the fallback if the soft form is too weak to move the corner lobes.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="sign-prior-form" data-choice="hard-softplus" data-by="reckon-ship (kickoff)" data-when="2026-07-07T12:53:48+00:00">
+    <p class="r-dec-q">R1 — how is the unidirectional-current prior imposed?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="hard-softplus">hard by reparametrisation — x = softplus(y): the null space cannot express sign-indefinite fills at all; cleanest physics, changes the optimisation geometry</button>
+      <button class="r-opt" data-value="soft-penalty">soft penalty — λ·Σrelu(−j·sign(Ip))²: keeps the current parametrisation, weight swept leakage-free; the constraint is measured, not assumed</button>
+      </p>
+    <p class="r-dec-rat">Locked at §2 kickoff per the plan&#x27;s own recommendation: hard by reparametrisation (x = softplus(y), sign from the Rogowski Ip) is the default arm — the Rogowski sign is a hard FACT like the conductor mask, and the null space then cannot express sign-indefinite fills at all. The soft penalty λ·Σrelu(−j·sign(Ip))² ships as the measured ablation arm so Gate A quantifies what the prior is worth.</p>
+    </div>
+<div class="r-dec" data-key="support-prior-form" data-choice="soft-outside-lcfs" data-by="reckon-ship (kickoff)" data-when="2026-07-07T12:53:48+00:00">
+    <p class="r-dec-q">R2 — how is free-boundary support consistency imposed?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="soft-outside-lcfs">soft penalty on current outside the current LCFS estimate, halo budget exempted; boundary recomputed on the λ-adaptation cadence (no topology extraction in the gradient path)</button>
+      <button class="r-opt" data-value="iterated-mask">iterated hard mask — Picard-style: invert, read boundary, mask candidates to inside+margin, re-invert (2-3 sweeps); simpler but non-differentiable and risks locking in a bad first boundary</button>
+      </p>
+    <p class="r-dec-rat">Locked at §2 kickoff per the plan&#x27;s own recommendation: soft penalty on current outside the current LCFS estimate with a halo budget, boundary recomputed on the λ-adaptation cadence (detached, no topology extraction in the gradient path). Degrades gracefully near limited↔diverted transitions and preserves the halo/SOL discovery channel. Iterated hard mask remains the recorded fallback if the soft form cannot move the corner lobes at Gate B.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-pcph-01" data-status="open" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-07-07" data-recommends-skill="/reckon-ship plasma-current-priors-hardening §4" data-resolved-at="" data-resolved-by="">
-        <h4 class="r-fu-title">Ship §4 — gate-harness hardening (bootstrap CIs, double-null saddle metric, origin-controlled read, default alignment)</h4>
-        <div class="r-fu-body"><p>Ships FIRST and blocks the physics gates: the review showed the thread-1 verdict rests on a harness with no CIs, an unmeasured Gate-1a, a mislabelled double-null saddle metric, and a centroid ray origin the findings doc does not disclose. Four cheap fixes make every subsequent verdict trustworthy.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-pcph-01" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-07-07" data-recommends-skill="/reckon-ship plasma-current-priors-hardening §4" data-resolved-at="2026-07-09T19:10:21+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Ship §4 — gate-harness hardening (bootstrap CIs, double-null saddle metric, origin-controlled read, default alignment)</h4>
+    <div class="r-fu-body"><p>Ships FIRST and blocks the physics gates: the review showed the thread-1 verdict rests on a harness with no CIs, an unmeasured Gate-1a, a mislabelled double-null saddle metric, and a centroid ray origin the findings doc does not disclose. Four cheap fixes make every subsequent verdict trustworthy.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    plasma-current-priors-hardening (http://localhost:8765/imas-ambix/plasma-current-priors-hardening.html)
 Section: §4 Gate-harness hardening
 Tier:    sonnet
@@ -256,18 +249,19 @@ Done-when
      recorded with the patch origin so the moment arm has an origin-controlled headline.
   4. MomentFitConfig default aligned with the gate CLI (polynomial) or explicitly renamed.
   5. Tests green; plan updated same-turn; this followup resolved.</pre>
-      </article>
-      <article class="r-fu" data-id="f-pcph-02" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-07" data-recommends-skill="/reckon-ship plasma-current-priors-hardening §2" data-resolved-at="" data-resolved-by="">
-        <h4 class="r-fu-title">Ship §2 R1+R2 — sign prior + free-boundary support consistency, measured at Gates A/B</h4>
-        <div class="r-fu-body"><p>The core physics hardening: unidirectional current (hard softplus default, soft-penalty ablation) and the soft outside-LCFS support penalty with a halo budget. Gate B carries the decisive corner-attribution experiment — whether the 135°/225° LCFS residual is method artifact or genuine interior information.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <p class="r-fu-outcome">§4 landed — commits 75a44d9/65a502e/c44ec26/8b00458. CIs on every skill; saddle-excess metric measured both arms (free-current 1.26 mean, clean fraction 0.31); patch axis origin scored default (moment o3: axis −0.331 [−0.768,−0.079]); polynomial default aligned; mask/coil fixtures pinned; connectivity aligned + exhibits re-rendered. Re-baseline: P3-winner axis skill −0.051 [−0.441, 0.158] — stale +0.019 does not survive; Gates A/B gate against these CIs.</p>
+    </article>
+<article class="r-fu" data-id="f-pcph-02" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-07" data-recommends-skill="/reckon-ship plasma-current-priors-hardening §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §2 R1+R2 — sign prior + free-boundary support consistency, measured at Gates A/B</h4>
+    <div class="r-fu-body"><p>The core physics hardening: unidirectional current (hard softplus default, soft-penalty ablation) and the soft outside-LCFS support penalty with a halo budget. Gate B carries the decisive corner-attribution experiment — whether the 135°/225° LCFS residual is method artifact or genuine interior information.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    plasma-current-priors-hardening (http://localhost:8765/imas-ambix/plasma-current-priors-hardening.html)
 Section: §2 R1+R2, gated at §3 A/B
 Tier:    opus
 
 Context
   §4 harness hardening has shipped (CIs, saddle metric, origin control). Now the two
-  inverse-side priors: R1 j*sign(Ip)>=0 and R2 j=0 outside the LCFS of its own psi
+  inverse-side priors: R1 j*sign(Ip)&gt;=0 and R2 j=0 outside the LCFS of its own psi
   (soft, halo-budgeted). Resolve sign-prior-form and support-prior-form at kickoff.
 
 State to read
@@ -293,8 +287,8 @@ Done-when
      corner-attribution verdict (does 135/225 move?) recorded either way.
   4. Winner flags become the P3-winner defaults; plan + grounding review updated same-turn;
      this followup resolved; f-etf-04 (R3) informed of the new interior-carrier baseline.</pre>
-      </article>
-    </section>
+    </article>
+</section>
   </main>
 </body>
 </html>

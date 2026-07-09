@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <title>plasma-current-priors-hardening §4 landed — gate-harness hardening</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§4 landed — gate-harness hardening (2026-07-09)</h1>
+  <p><em>Per-stage record for
+  <a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a> §4.
+  All six harness items shipped in one fleet pass; the physics gates (A/B) now run on a harness
+  whose every verdict carries a CI, whose saddle metric is double-null-correct, and whose LCFS read
+  is origin-controlled.</em></p>
+
+  <h2>Outcomes</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Status</th><th>Commit</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Paired-bootstrap CIs over shots in <code>score()</code> + artifacts</td>
+          <td>✓ shipped</td><td><code>c44ec26</code></td>
+          <td>Every skill now reported with a 95% CI; both gate scripts.</td></tr>
+      <tr><td>Double-null-correct saddle metric (excess over referee X-point count, eval-side only)</td>
+          <td>✓ shipped</td><td><code>c44ec26</code></td>
+          <td>Free-current arm: saddle_excess mean 1.26 (median 2.0), clean fraction 0.31;
+              moment o3: 1.36. The previously-null saddle fields are now measured for BOTH arms.</td></tr>
+      <tr><td><code>--axis-source patch</code> as scored default (centroid = smoke arm only)</td>
+          <td>✓ shipped</td><td><code>c44ec26</code></td>
+          <td>First origin-controlled moment headline: axis skill −0.331 [−0.768, −0.079],
+              LCFS −5.406 [−7.220, −4.233].</td></tr>
+      <tr><td><code>MomentFitConfig.model</code> default aligned to the gate CLI (<code>polynomial</code>)</td>
+          <td>✓ shipped</td><td><code>c44ec26</code></td>
+          <td>Library and CLI now agree with the locked decision and shipped artifacts.</td></tr>
+      <tr><td>Mask/coil test fixtures — in-limiter conductor exclusion + analytic-add interior-coil pin</td>
+          <td>✓ shipped</td><td><code>65a502e</code></td>
+          <td>Candidate-mask exclusion now genuinely exercised (prior fixtures put coils outside the
+              limiter); analytic-add pinned against a Green's reference — agreement far from the coil,
+              required divergence at the in-vessel source.</td></tr>
+      <tr><td>Connectivity-default alignment + exhibit re-render</td>
+          <td>✓ shipped</td><td><code>75a44d9</code></td>
+          <td>Flux-map report now runs <code>connectivity="locality"</code> (what the gates score);
+              re-rendered exhibits visually unchanged; aggregate medians moved &lt;0.3 cm —
+              connectivity is not the dominant lever for this readout.</td></tr>
+      <tr><td>Free-current baseline re-score + moment o3 patch-origin re-eval (160/160 held-out)</td>
+          <td>✓ shipped</td><td><code>8b00458</code></td>
+          <td>Artifacts <code>patch_gate_eval.json</code> + <code>boundary_read_moment-o3-patchaxis.json</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The re-baseline (what Gates A/B now gate against)</h2>
+  <p>Under the hardened harness the P3-winner (free-current, discrepancy policy) held-out axis skill is
+  <strong>−0.051 [CI −0.441, 0.158]</strong> — the previously-shipped +0.019 headline does not survive
+  (CI includes 0), consistent with the claims-audit finding that the post-coil-fix re-run flips the sign.
+  LCFS skill −4.384 [−5.138, −3.623]. Referee X-point count mean 0.78; the saddle-excess numbers above are
+  the first actual measurement of the spurious-saddle load. Gate A's "axis skill CI-compatible with
+  baseline" criterion is evaluated against these CIs, not the stale +0.019 point value.</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/patch-current-force-balance/fig-flux-maps-flattop.png"
+         alt="Re-rendered flat-top flux maps for the 8 held-out shots with the locality-connectivity inverse arm."
+         style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+    <figcaption style="font-size:12.5px;color:#444">Re-rendered flat-top exhibit — now showing the same
+    locality regularisation the gates score.</figcaption>
+  </figure>
+
+  <h2>What's next</h2>
+  <p>§2 R1+R2 (sign prior + free-boundary support consistency) — implementation in
+  <code>imas_ambix/latent/patch_inverse.py</code> was developed in parallel; Gates A/B run against the
+  re-baselined artifacts above.</p>
+</main>
+</body>
+</html>
