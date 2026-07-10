@@ -22,7 +22,7 @@
 <meta name="plan-modified" content="2026-07-10">
 <meta name="plan-blocks" content="equilibrium-topology-fidelity">
 <meta name="plan-informs" content="learned-closure-current-diffusion-v0,closed-loop-latent-filter,toroidal-harmonic-annulus-read">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-impl" content="0.4">
 </head>
 <body>
@@ -199,14 +199,14 @@
       </p>
     <p class="r-dec-rat">Taken on the Gate FB-1 numbers (held-out, 160 slices, CIs): with the fit machinery fixed the closure carrier explains the magnetics at cost median 0.56 with 2 profile DOF + rank-8 passive modes (grid arm: 12.2), reads the axis at 3.7-4.0 cm median at 100% coverage (was 86 cm at 4% self-consistent coverage), posts axis skill -0.31 [-1.09, -0.00] and the closure line&#x27;s first positive X-point-set point estimate (+0.11), and satisfies every contested constraint by construction. The LCFS bar itself failed (-3.6, negative in EVERY representation) with the cause localised OUTSIDE the representation: vacuum-clean sensors + broad-FF&#x27; railing + the outboard fixed-point attractor all point at the static coil model. The ladder measured the information budget at ~1-2 profile DOF (K=2..10 identical to two decimals) — more DOF is not what the data want, so the low-DOF closure carrier is the right altitude. Patch basis re-scoped to Tier-3 audit + Tier-2 nuisance carrier; annulus read stays the boundary cross-check. Record: archive/force-balance-spine-w1-w2-landed.html.</p>
     </div>
-<div class="r-dec" data-key="rotation-coefficient-source" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="rotation-coefficient-source" data-choice="staged-measured-first" data-by="reckon-ship (Stage A evidence)" data-when="2026-07-10T19:20:13+00:00">
     <p class="r-dec-q">How does the rotation coefficient γ(ψ) enter the solve?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="staged-measured-first">staged: measured-rotation fixed term first (zero new DOF, falsifiable), free coefficient only after the identifiability harness gates it (recommended)</button>
+      <button class="r-opt chosen" data-value="staged-measured-first">staged: measured-rotation fixed term first (zero new DOF, falsifiable), free coefficient only after the identifiability harness gates it (recommended)</button>
       <button class="r-opt" data-value="free-immediately">free flux function immediately (risk: unmeasurable aliasing into p₀′ before W3 exists)</button>
       <button class="r-opt" data-value="defer">defer rotation entirely until boundary skills are positive</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Stage A ran held-out (commits fcc5489/8030c3f, artifact rotation_residual_diagnostic.json): the Maschke-Perrin R4 column is VISIBLE but sub-dominant — it absorbs ~10.4% (free arm) / ~6.1% (sign-constrained arm) of the per-bin unexplained residual with bootstrap CIs excluding zero; the recovered c(psi) is cleanly one-signed (dominant-sign fraction 1.0) peaking near-axis, and |c| correlates with measured CXRS line-average rotation on the sign-constrained arm (Spearman 0.54 [0.21, 0.72]). BUT high/low rotation strata do not separate (the residual delta concentrates at the edge while rotation-correlated |c| lives near-axis), a third LSQ column mechanically lowers residuals, and CXRS coverage is only 3/8 held-out shots — so the signature does not yet justify a free Tier-2 coefficient. Verdict: keep the staged path. Stage B (fixed gamma(psiN) from CXRS+Thomson, zero new DOF, falsifiable) proceeds behind the coil-model remainder (f-fbs-05) and needs a broader-CXRS cohort to power the stratified test; Stage C stays gated on the identifiability harness (f-fbs-06) whose aliasing matrix must show the R4 coefficient is recoverable at realistic noise.</p>
     </div>
 <div class="r-dec" data-key="calibration-scope" data-choice="offset-only" data-by="reckon-ship (W2 vacuum validation)" data-when="2026-07-10T18:25:18+00:00">
     <p class="r-dec-q">What static-calibration model ships as default on gate payloads?</p>
