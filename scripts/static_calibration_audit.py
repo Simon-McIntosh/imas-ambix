@@ -85,6 +85,15 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--n-fit-shots", type=int, default=12)
     ap.add_argument("--n-baseline-shots", type=int, default=10)
+    ap.add_argument(
+        "--offset-only",
+        action="store_true",
+        help=(
+            "fit a per-channel zero-offset only (gain pinned to 1) — the "
+            "conservative instrument model; a free gain can absorb genuine "
+            "plasma signal scale and break held-out channel consistency"
+        ),
+    )
     ap.add_argument("--device", type=str, default="auto")
     args = ap.parse_args()
     device = (
@@ -148,7 +157,10 @@ def main() -> int:
             meas = np.concatenate([d["meas"][d["mask"][:, s], s] for d in shot_rows])
             if pred.size < 12 or np.ptp(pred) < 1e-12:
                 continue  # unmeasured / degenerate channel: identity
-            gain[s], offset[s] = _robust_affine(pred, meas)
+            if args.offset_only:
+                offset[s] = float(np.median(meas - pred))
+            else:
+                gain[s], offset[s] = _robust_affine(pred, meas)
         return gain, offset
 
     gain, offset = fit_over(per_shot)
@@ -165,6 +177,7 @@ def main() -> int:
 
     off_sigma = offset / (scale_med + 1e-30)
     out = {
+        "model": "offset-only" if args.offset_only else "affine",
         "fit_shots": [int(s) for s in fit_shots],
         "n_fit_shots": len(per_shot),
         "arm": "sign-softplus+support-hb0.03-sw2000 (frozen tune winner)",
@@ -183,7 +196,12 @@ def main() -> int:
         ],
         "offset_over_sigma_median_abs": float(np.median(np.abs(off_sigma))),
     }
-    (ARTIFACTS / "static_calibration.json").write_text(json.dumps(out, indent=2))
+    stem = (
+        "static_calibration_offset_only"
+        if args.offset_only
+        else "static_calibration"
+    )
+    (ARTIFACTS / f"{stem}.json").write_text(json.dumps(out, indent=2))
     logger.info(
         "calibration frozen: gain median %.3f [p10 %.3f, p90 %.3f], "
         "|offset|/sigma median %.2f",
@@ -232,8 +250,13 @@ def main() -> int:
         [c.split("/")[-1] for c in channels[::step]], rotation=90, fontsize=6
     )
     fig.tight_layout()
-    fig.savefig(FIGURES / "fig-static-calibration.png", dpi=140)
-    logger.info("wrote %s", FIGURES / "fig-static-calibration.png")
+    fig_name = (
+        "fig-static-calibration-offset-only.png"
+        if args.offset_only
+        else "fig-static-calibration.png"
+    )
+    fig.savefig(FIGURES / fig_name, dpi=140)
+    logger.info("wrote %s", FIGURES / fig_name)
     return 0
 
 

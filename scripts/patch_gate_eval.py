@@ -673,21 +673,27 @@ def run_boundary_arm(args) -> int:
 
     if args.calibration:
         cal = json.loads(Path(args.calibration).read_text())
-        gain = np.asarray(cal["gain"], dtype=np.float64)
-        offset = np.asarray(cal["offset"], dtype=np.float64)
-        for payload in shots:
-            assert list(payload["basis"].sensor_channels) == cal["channels"], (
-                "calibration channel order does not match the payload basis"
+        by_name = {
+            c: (g, o)
+            for c, g, o in zip(
+                cal["channels"], cal["gain"], cal["offset"], strict=True
             )
+        }
+        for payload in shots:
+            # map by channel NAME — the per-shot basis may order (or subset)
+            # the campaign channels differently; unseen channels stay identity
+            names = list(payload["basis"].sensor_channels)
+            gain = np.array([by_name.get(c, (1.0, 0.0))[0] for c in names])
+            offset = np.array([by_name.get(c, (1.0, 0.0))[1] for c in names])
             for p in payload["payloads"]:
                 # static instrument nuisance fitted on train shots, frozen:
                 # measured' = (measured - offset) / gain
                 p.measured[:] = (p.measured - offset) / gain
                 p.scale[:] = p.scale / np.abs(gain)
         logger.info(
-            "applied static calibration %s (gain median %.3f)",
+            "applied static calibration %s (%d channels)",
             args.calibration,
-            float(np.median(gain)),
+            len(by_name),
         )
 
     prior_kw = {}

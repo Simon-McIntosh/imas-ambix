@@ -110,7 +110,28 @@ def _current_map(ax, grid, basis, i_cell, lcfs, axis_rz, title):
 
 
 def main() -> int:
+    import argparse
+
     from imas_ink.figures import equilibrium_figure_mpl
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--calibration",
+        type=str,
+        default="",
+        help="frozen static calibration JSON applied to raw payloads (name-mapped)",
+    )
+    args = ap.parse_args()
+    suffix = "-calibrated" if args.calibration else ""
+    cal_by_name: dict[str, tuple[float, float]] = {}
+    if args.calibration:
+        cal = json.loads(Path(args.calibration).read_text())
+        cal_by_name = {
+            c: (g, o)
+            for c, g, o in zip(
+                cal["channels"], cal["gain"], cal["offset"], strict=True
+            )
+        }
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     FIGURES.mkdir(parents=True, exist_ok=True)
@@ -133,6 +154,13 @@ def main() -> int:
             continue
         grid, basis = payload["grid"], payload["basis"]
         payloads, table = payload["payloads"], payload["table"]
+        if cal_by_name:
+            names = list(basis.sensor_channels)
+            gain = np.array([cal_by_name.get(c, (1.0, 0.0))[0] for c in names])
+            offs = np.array([cal_by_name.get(c, (1.0, 0.0))[1] for c in names])
+            for p in payloads:
+                p.measured[:] = (p.measured - offs) / gain
+                p.scale[:] = p.scale / np.abs(gain)
         picks = select_slices(payloads, shot)
         if not picks:
             continue
@@ -227,14 +255,21 @@ def main() -> int:
                 fontsize=12,
             )
             fig.tight_layout(rect=(0, 0, 1, 0.97))
-            out = FIGURES / f"fig-prior-{label}-maps-{regime}.png"
+            out = FIGURES / f"fig-prior-{label}-maps-{regime}{suffix}.png"
             fig.savefig(out, dpi=110)
             plt.close(fig)
             fig_paths.append(str(out))
             logger.info("wrote %s (%d shots)", out, ncol)
 
-    (ARTIFACTS / "prior_flux_maps.json").write_text(
-        json.dumps({"metrics": metrics, "figures": fig_paths}, indent=2)
+    (ARTIFACTS / f"prior_flux_maps{suffix.replace('-', '_')}.json").write_text(
+        json.dumps(
+            {
+                "calibration": args.calibration or None,
+                "metrics": metrics,
+                "figures": fig_paths,
+            },
+            indent=2,
+        )
     )
     logger.info("wrote prior_flux_maps.json (%d slice-arm rows)", len(metrics))
     return 0
