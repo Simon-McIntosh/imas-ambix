@@ -155,8 +155,9 @@ def _shot_coil_only(
     x, times, plasma_on = loaded
     x = np.asarray(x, dtype=np.float64)
     times = np.asarray(times, dtype=np.float64)
-    if not np.any(plasma_on):
-        return None
+    # dedicated vacuum shots never form a plasma — every slice is coil-only.
+    # plasma_on stays all-False; the σ block below falls back accordingly.
+    all_vacuum = not bool(np.any(plasma_on))
 
     offsets = schema_group_offsets(schema)
     amb_names = schema["amb"]
@@ -169,9 +170,13 @@ def _shot_coil_only(
     if op_rows.size:
         raw_mag[:, op_rows] = x[:, offsets["amb"] + x_cols]
 
-    # plasma-on σ on the operator sensor rows → robust, frozen-comparable units
+    # plasma-on σ on the operator sensor rows → robust, frozen-comparable
+    # units.  A dedicated vacuum shot has no plasma-on interval: fall back to
+    # the whole-shot std (coil-sweep dynamic range — conservative, larger
+    # than noise, so these shots are under- not over-weighted).
+    sigma_src = raw_mag[plasma_on] if not all_vacuum else raw_mag
     sigma_op = robust_channel_scale(
-        np.nanstd(raw_mag[plasma_on], axis=0), fwd.sensor_channels
+        np.nanstd(sigma_src, axis=0), fwd.sensor_channels
     )
 
     # i_pf per slice on the operator's coil axis, assembled as load_shot_windows
