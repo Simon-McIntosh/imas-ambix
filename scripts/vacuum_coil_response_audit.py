@@ -341,6 +341,7 @@ def _bootstrap(
     """Percentile CIs for G_emp and k_c, resampling SHOTS with replacement."""
     rng = np.random.default_rng(seed)
     coils = plan["separable"]
+    n_ch = rows[0]["meas"].shape[1]
     boot_g = {c: [] for c in coils}
     boot_k = {c: [] for c in coils}
     for _ in range(n_boot):
@@ -370,8 +371,8 @@ def _bootstrap(
             boot_g[c].append(g_emp[:, c])
             if c in k:
                 boot_k[c].append(k[c])
-    g_lo = np.full((meas.shape[1], n_coil), np.nan)
-    g_hi = np.full((meas.shape[1], n_coil), np.nan)
+    g_lo = np.full((n_ch, n_coil), np.nan)
+    g_hi = np.full((n_ch, n_coil), np.nan)
     for c in coils:
         if boot_g[c]:
             arr = np.array(boot_g[c])
