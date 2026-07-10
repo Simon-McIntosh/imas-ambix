@@ -612,9 +612,13 @@ def run_gate(args) -> int:
     cost_fit = np.array([f.cost for f in scored], dtype=np.float64)
     conv_frac = float(np.mean([bool(f.converged) for f in scored]))
     sweep = cost_sweep(model, ref, baseline_vec, cost_fit, shot_ids)
+    # per-slice GROSS passive current [A] — the circuit-space vectors are
+    # ragged across campaigns (passive circuit counts differ per geometry)
     pass_amp = None
     if args.passive_k > 0 and all(f.passive_amp is not None for f in scored):
-        pass_amp = np.array([f.passive_amp for f in scored], dtype=np.float64)
+        pass_amp = np.array(
+            [np.abs(f.passive_amp).sum() for f in scored], dtype=np.float64
+        )
 
     result = {
         "arm": "closure",
@@ -647,12 +651,7 @@ def run_gate(args) -> int:
         "cost_le_3_fraction": float(np.mean(cost_fit <= 3.0)),
         "cost_sweep": sweep,
         "passive_gross_current_over_ip_median": (
-            float(
-                np.median(
-                    np.abs(pass_amp).sum(axis=1)
-                    / np.abs([f.ip_amperes for f in scored])
-                )
-            )
+            float(np.median(pass_amp / np.abs([f.ip_amperes for f in scored])))
             if pass_amp is not None
             else None
         ),
@@ -673,7 +672,7 @@ def run_gate(args) -> int:
     if args.fit_mode == "ladder":
         extra_arrays["coeffs"] = np.array([f.coeffs for f in scored], dtype=np.float64)
     if pass_amp is not None:
-        extra_arrays["passive_amp"] = pass_amp
+        extra_arrays["passive_gross_current"] = pass_amp
     np.savez(
         ARTIFACTS / f"closure_gate_eval{tag}_arrays.npz",
         model=model,
