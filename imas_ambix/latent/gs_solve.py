@@ -1197,9 +1197,7 @@ def solve_equilibrium_lsq(
     if kp:
         modes = passive.get("modes")
         # report per-circuit currents [A] when the mode map is available
-        passive_currents = (
-            np.asarray(modes) @ a_pass if modes is not None else a_pass
-        )
+        passive_currents = np.asarray(modes) @ a_pass if modes is not None else a_pass
     return LadderFit(
         coeffs=coeffs,
         n_p=n_p,
