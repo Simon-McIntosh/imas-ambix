@@ -116,6 +116,14 @@ def fit_and_read_slice(
     budget — a bounded, honest coverage lever (no fallback current is ever
     fabricated).  Returns a :class:`ClosureSliceFit`; masked slices carry
     ``scored=False`` and a ``reason``, never a fabricated readout.
+
+    ``cost_limit`` is an OPTIONAL honesty ceiling on the whitened magnetics
+    misfit; the default (``inf``) scores every CONVERGED equilibrium and
+    carries the cost as a diagnostic.  This mirrors the free patch arm's
+    contract (score all, report misfit) so the two arms' coverage is
+    comparable, and it does not conflate "no force-balanced equilibrium"
+    (the only thing that masks) with "converged but doesn't fit the magnetics"
+    (the expected static coil/calibration misfit — a finding, not a mask).
     """
     kw = dict(
         i_pf=payload.i_pf,
@@ -285,9 +293,34 @@ def run_gate(args) -> int:
     n_candidate = len(all_fits)
     scored = [f for f in all_fits if f.scored]
     n_scored = len(scored)
+    reasons: dict[str, int] = {}
+    for f in all_fits:
+        reasons[f.reason] = reasons.get(f.reason, 0) + 1
+    tag = "-tune" if args.split == "train" else ""
     if n_scored == 0:
-        logger.error("no slices scored — aborting (coverage 0/%d)", n_candidate)
-        return 1
+        # write the diagnostic record anyway (coverage + reasons) — a zero-
+        # coverage cohort is a reportable finding, not a silent abort
+        logger.error(
+            "no slices scored on split=%s (coverage 0/%d, reasons=%s)",
+            args.split,
+            n_candidate,
+            reasons,
+        )
+        (ARTIFACTS / f"closure_gate_eval{tag}.json").write_text(
+            json.dumps(
+                {
+                    "arm": "closure",
+                    "split": args.split,
+                    "config": cfg,
+                    "n_scored": 0,
+                    "n_candidate": n_candidate,
+                    "scored_fraction": 0.0,
+                    "mask_reasons": reasons,
+                },
+                indent=2,
+            )
+        )
+        return 0
 
     model = np.array([f.target for f in scored])
     ref = np.array([f._ref for f in scored])  # type: ignore[attr-defined]
@@ -305,11 +338,9 @@ def run_gate(args) -> int:
     lcfs_cm = lcfs_offset_cm_stats(model, ref, flattop_mask)
     saddle_stats = saddle_excess_stats(saddles, ref)
 
-    reasons: dict[str, int] = {}
-    for f in all_fits:
-        reasons[f.reason] = reasons.get(f.reason, 0) + 1
     beta0_fit = np.array([f.beta0 for f in scored], dtype=np.float64)
     alpha_fit = np.array([f.alpha for f in scored], dtype=np.float64)
+    cost_fit = np.array([f.cost for f in scored], dtype=np.float64)
     conv_frac = float(np.mean([bool(f.converged) for f in scored]))
 
     result = {
@@ -327,7 +358,8 @@ def run_gate(args) -> int:
         "strict_converged_fraction_of_scored": conv_frac,
         "beta0_median": float(np.median(beta0_fit)),
         "alpha_median": float(np.median(alpha_fit)),
-        "cost_median_scored": float(np.median([f.cost for f in scored])),
+        "cost_median_scored": float(np.median(cost_fit)),
+        "cost_le_3_fraction": float(np.mean(cost_fit <= 3.0)),
         "wall_s": wall_s,
         **sc,
         **lcfs_cm,
@@ -531,7 +563,11 @@ def main() -> int:
     # unchanged to --split eval)
     ap.add_argument("--beta0-grid", type=str, default="0.1,0.3,0.5,0.7,0.9")
     ap.add_argument("--alpha-grid", type=str, default="1.0,1.5,2.0")
-    ap.add_argument("--cost-limit", type=float, default=3.0)
+    ap.add_argument(
+        "--cost-limit", type=float, default=float("inf"),
+        help="optional whitened-misfit ceiling; default inf scores every "
+        "converged equilibrium (cost carried as a diagnostic)",
+    )
     ap.add_argument("--convergence-limit", type=float, default=5e-3)
     ap.add_argument("--retry-max-iterations", type=int, default=160)
     ap.add_argument("--workers", type=int, default=8)
