@@ -250,8 +250,10 @@
         opinion. The profile ladder therefore starts at 2 DOF (β0, α — below budget, currently
         over-regularized: the LCFS deficit partly reflects family rigidity) and adds knots/DOF one at a time,
         each addition gated on held-out evidence (misfit + topology skill with CIs), never on train-cohort
-        preference. The moment-fit episode — order 3 selected on a tune cohort where every order lost, then
-        inverting on eval — is the cautionary tale the CI-gated ladder prevents.</li>
+        preference. Two cautionary tales the CI-gated ladder exists to prevent: the moment fit (order 3 selected on a
+        tune cohort where every order lost, then inverting on eval) and the support-prior sweep (train-split
+        winner at axis RMSE-skill ≈ −0.06, held-out −2.06 — the thin 4-shot tune cohort selects noisily, and
+        only the held-out gate catches it).</li>
       <li><strong>Grow information before growing DOF.</strong> The interior profile is genuinely
         under-determined from magnetics alone (the standing honest negative since S8). The principled way to
         afford more profile DOF is more information: interior diagnostics (equilibrium-topology-fidelity
@@ -347,9 +349,13 @@
     <ul>
       <li><strong>G1 — The static instrument error is found but not yet attributed.</strong> The offset-only
         nuisance arm absorbs it empirically (misfit ~7× down) but is fit against one inverse arm's residuals —
-        a <em>statistical</em> calibration, not an audited coil model. Risks: circularity (offsets fit against
-        the priors-arm inverse could absorb genuine physics), and the full gain arm's spread (p10–p90
-        0.90–1.14) is large enough to be either real calibration or model-error laundering. Needs: independent
+        a <em>statistical</em> calibration, not an audited coil model. The held-out arm sweep already
+        adjudicates the gain question's direction: applying the <em>full gain+offset</em> fit (gains p10–p90
+        0.90–1.14) crashes the prior arms held-out (softplus arm axis skill −0.05 → −8.9; winner arm
+        −2.0 → −7.9) while offset-only leaves them intact — the free per-channel gains demonstrably launder
+        model/inverse error rather than measure the instrument, which is why offset-only shipped as the arm
+        (commit 832e2a9). Remaining risks: circularity (offsets fit against the priors-arm inverse could still
+        absorb genuine physics), and any <em>real</em> gain error is now unmodelled. Needs: independent
         validation on coil-only/vacuum intervals (no plasma current — the predicted field is pure Tier 1),
         cross-validation across arms, and the physical audit (turns/geometry/circuit mapping, f-pcph-04).</li>
       <li><strong>G2 — LCFS skill is negative in every arm</strong> (best: closure-arm cost≤1 subset, +0.12 on

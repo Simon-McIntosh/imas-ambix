@@ -91,10 +91,12 @@
         involve no plasma inversion at all. Cross-check offsets fitted against different arms (free, priors,
         closure) — a genuine instrument offset is arm-independent by definition; divergence flags physics
         laundering.</li>
-      <li><strong>Gain-arm audit.</strong> The full gain+offset fit spreads p10–p90 0.90–1.14 — either real
-        (mis-calibrated effective areas/turns) or absorbed coil-model error. Adjudicate on the vacuum intervals
-        and against the machine-description audit (turns/geometry/circuit mapping — the f-pcph-04 attack,
-        continued here).</li>
+      <li><strong>Gain-arm audit.</strong> The full gain+offset fit spreads p10–p90 0.90–1.14, and the
+        held-out arm sweep already shows those free gains are destructive — applying them crashes the prior
+        arms (softplus axis skill −0.05 → −8.9, winner −2.0 → −7.9) while offset-only leaves them intact, i.e.
+        the gains launder model/inverse error rather than measure the instrument. Any <em>real</em> gain error
+        is therefore currently unmodelled: adjudicate on the vacuum intervals and against the
+        machine-description audit (turns/geometry/circuit mapping — the f-pcph-04 attack, continued here).</li>
       <li><strong>Passive eigenmodes.</strong> Wire the existing <code>g_passive</code> block (146 passive
         nodes) into the closure solve as a rank-k eigenmode sidecar (k ≤ ~8, ridge-limited), OFF by default,
         measured at the gate — the structured carrier for whatever inductive signal remains after static
