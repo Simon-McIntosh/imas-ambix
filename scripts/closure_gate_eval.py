@@ -755,6 +755,7 @@ def run_figures(args) -> int:
             continue
         if payload is None:
             continue
+        _apply_calibration(payload, args.calibration)
         grid, table, payloads = payload["grid"], payload["table"], payload["payloads"]
         picks = select_slices(payloads, shot)
         if not picks:
