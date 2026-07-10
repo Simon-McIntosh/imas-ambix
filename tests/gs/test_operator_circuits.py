@@ -32,9 +32,10 @@ from imas_ambix.gs import operator as op
 
 def test_coil_model_version_bumped_for_the_case_circuit_fix():
     """A downstream cache keying on COIL_MODEL_VERSION must invalidate across
-    this fix -- pin that the marker exists and is no longer the implicit
-    pre-fix baseline."""
-    assert op.COIL_MODEL_VERSION == "case-circuits-v2"
+    coil-model fixes -- pin that the marker exists and is neither the implicit
+    pre-fix baseline nor any retired intermediate."""
+    assert op.COIL_MODEL_VERSION not in ("", "case-circuits-v1", "case-circuits-v2")
+    assert op.COIL_MODEL_VERSION == "cylinder-sensors-v3"
 
 
 def test_operator_summary_reports_coil_model_version(tmp_path):

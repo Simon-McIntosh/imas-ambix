@@ -79,7 +79,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-COIL_MODEL_VERSION = "case-circuits-v2"
+COIL_MODEL_VERSION = "cylinder-sensors-v3"
 """Version marker for the circuit -> current-channel assignment + ``G_pf``
 column construction (``classify_circuits`` / ``build_operator``).  Bump this
 any time either changes -- e.g. a different geometric match radius, a new
@@ -644,6 +644,8 @@ def _green_columns(
     sensor_z: np.ndarray,
     sensor_ang: np.ndarray,
     is_flux: np.ndarray,
+    src_dr: np.ndarray | None = None,
+    src_dz: np.ndarray | None = None,
 ) -> np.ndarray:
     """Build one G column (Wb/T per unit source amplitude) at each sensor row.
 
@@ -651,13 +653,32 @@ def _green_columns(
     source (a PF circuit's filaments weighted by ``xmult``, or a single plasma /
     passive node of weight 1).  Flux-loop rows get ``Σ w·ψ``; B-probe rows get
     ``Σ w·(B_R cosθ + B_Z sinθ)``.
+
+    ``src_dr``/``src_dz`` are the conductor cross-section extents [m]: sensors
+    within the near band of a winding pack get the finite-area cylinder kernel
+    (uniform current over the rectangular section — smooth through the
+    conductor) instead of the log-singular point filament, which biased the
+    B-probes adjacent to the P4/P5/solenoid packs by 0.1–0.25σ at typical
+    currents (measured against nova's cylinder Biot–Savart).  ``None``
+    (default) reproduces the pure point-filament map exactly — the far-field
+    behaviour is identical either way.
     """
+    from imas_ambix.gs.cylinder import hybrid_greens  # noqa: PLC0415
+
     col = np.zeros(sensor_r.shape, dtype=np.float64)
-    for ar, az, w in zip(src_r, src_z, weights, strict=True):
+    n = len(np.atleast_1d(src_r))
+    dr = np.zeros(n) if src_dr is None else np.asarray(src_dr, dtype=np.float64)
+    dz = np.zeros(n) if src_dz is None else np.asarray(src_dz, dtype=np.float64)
+    for ar, az, w, adr, adz in zip(src_r, src_z, weights, dr, dz, strict=True):
         if w == 0.0:
             continue
-        psi = greens_psi(sensor_r, sensor_z, float(ar), float(az))
-        bz, br = greens_bz_br(sensor_r, sensor_z, float(ar), float(az))
+        if adr > 0.0 or adz > 0.0:
+            psi, br, bz = hybrid_greens(
+                sensor_r, sensor_z, float(ar), float(az), float(adr), float(adz)
+            )
+        else:
+            psi = greens_psi(sensor_r, sensor_z, float(ar), float(az))
+            bz, br = greens_bz_br(sensor_r, sensor_z, float(ar), float(az))
         bproj = _project_bprobe(bz, br, sensor_ang)
         col = col + w * np.where(is_flux, psi, bproj)
     return col
@@ -684,7 +705,13 @@ def build_operator(table: GeometryTable) -> ForwardOperator:
         fr = np.array([f.r for f in fs], dtype=np.float64)
         fz = np.array([f.z for f in fs], dtype=np.float64)
         fw = np.array([f.xmult for f in fs], dtype=np.float64)  # turns=1 → weight=xmult
-        return _green_columns(fr, fz, fw, srz_r, srz_z, srz_ang, is_flux)
+        # efm carries SIGNED pack extents; physical size is |extent| with the
+        # same 1 cm floor the solve-domain coil columns use (gs_solve)
+        fdr = np.array([max(abs(f.width), 0.01) for f in fs], dtype=np.float64)
+        fdz = np.array([max(abs(f.height), 0.01) for f in fs], dtype=np.float64)
+        return _green_columns(
+            fr, fz, fw, srz_r, srz_z, srz_ang, is_flux, src_dr=fdr, src_dz=fdz
+        )
 
     # --- KNOWN block: ONE column per driven current source (per amc channel) ---
     # The EFIT fcoil model represents each physical PF coil with >1 circuit (a

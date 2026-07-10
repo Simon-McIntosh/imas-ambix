@@ -504,3 +504,33 @@ def test_passive_amm_coincidence_documented():
 
 def operators_keys(tables: dict) -> list[str]:
     return list(tables.keys())
+
+
+def test_pf_columns_use_finite_area_kernel_near_packs():
+    """PF-circuit sensor columns must be the finite-area cylinder response:
+    identical to the point filament far from the pack, different (smooth)
+    at a sensor adjacent to a large winding pack."""
+    import numpy as np
+
+    from imas_ambix.gs.cylinder import hybrid_greens
+    from imas_ambix.gs.operator import _green_columns, greens_psi
+
+    # one fat solenoid-like pack, one far flux loop + one adjacent flux loop
+    src_r = np.array([0.12])
+    src_z = np.array([0.0])
+    w = np.array([1.0])
+    dr = np.array([0.10])
+    dz = np.array([0.30])
+    sens_r = np.array([1.5, 0.19])  # far, adjacent
+    sens_z = np.array([0.0, 0.05])
+    ang = np.array([90.0, 90.0])
+    is_flux = np.array([True, True])
+
+    col = _green_columns(
+        src_r, src_z, w, sens_r, sens_z, ang, is_flux, src_dr=dr, src_dz=dz
+    )
+    point = greens_psi(sens_r, sens_z, 0.12, 0.0)
+    cyl, _br, _bz = hybrid_greens(sens_r, sens_z, 0.12, 0.0, 0.10, 0.30)
+    np.testing.assert_allclose(col, cyl, rtol=1e-12)
+    np.testing.assert_allclose(col[0], point[0], rtol=1e-9)  # far: identical
+    assert abs(col[1] - point[1]) / abs(point[1]) > 1e-4  # near: finite-area
