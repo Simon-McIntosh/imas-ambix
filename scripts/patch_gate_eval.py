@@ -671,6 +671,25 @@ def run_boundary_arm(args) -> int:
         if payload is not None:
             shots.append(payload)
 
+    if args.calibration:
+        cal = json.loads(Path(args.calibration).read_text())
+        gain = np.asarray(cal["gain"], dtype=np.float64)
+        offset = np.asarray(cal["offset"], dtype=np.float64)
+        for payload in shots:
+            assert list(payload["basis"].sensor_channels) == cal["channels"], (
+                "calibration channel order does not match the payload basis"
+            )
+            for p in payload["payloads"]:
+                # static instrument nuisance fitted on train shots, frozen:
+                # measured' = (measured - offset) / gain
+                p.measured[:] = (p.measured - offset) / gain
+                p.scale[:] = p.scale / np.abs(gain)
+        logger.info(
+            "applied static calibration %s (gain median %.3f)",
+            args.calibration,
+            float(np.median(gain)),
+        )
+
     prior_kw = {}
     if args.sign_prior != "none":
         prior_kw.update(sign_prior=args.sign_prior, sign_weight=args.sign_weight)
@@ -754,6 +773,8 @@ def run_boundary_arm(args) -> int:
             tag_bits.append(f"sw{args.sign_weight:g}")
     if args.support_prior:
         tag_bits.append(f"support-hb{args.halo_budget:g}-sw{args.support_weight:g}")
+    if args.calibration:
+        tag_bits.append("calibrated")
     if args.split == "train":
         tag_bits.append("tune")
     tag = "-".join(tag_bits)
@@ -761,6 +782,7 @@ def run_boundary_arm(args) -> int:
     neg = np.asarray(neg_rows, dtype=np.float64)
     out_frac = np.asarray(out_rows, dtype=np.float64)
     prior_stats = {
+        "calibration": args.calibration or None,
         "sign_prior": args.sign_prior,
         "sign_weight": args.sign_weight if args.sign_prior == "penalty" else None,
         "support_prior": bool(args.support_prior),
@@ -1241,6 +1263,12 @@ def main() -> int:
         "--report-outside",
         action="store_true",
         help="report the outside-LCFS current fraction with the prior off",
+    )
+    ap.add_argument(
+        "--calibration",
+        type=str,
+        default="",
+        help="frozen per-channel static calibration JSON to apply to raw payloads",
     )
     ap.add_argument("--device", type=str, default="auto")
     ap.add_argument("--throughput-bench", action="store_true")
