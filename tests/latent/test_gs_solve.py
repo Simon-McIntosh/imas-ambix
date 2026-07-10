@@ -357,6 +357,136 @@ def test_conductor_exclusion_in_topology_reads():
     assert not (grid.topology_candidate & ~grid.inside_limiter.ravel()).any()
 
 
+def _synthetic_confining_slice(grid, table, i_pf, ip, beta0, alpha):
+    """A synthetic magnetics slice from a KNOWN (β0, α) equilibrium.
+
+    Returns (measured, vacuum) in ``grid.sensor_greens`` channel order: the
+    coil vacuum field (subdivided-filament Green's, evaluated at the sensors)
+    plus the plasma part from the solved equilibrium's cell currents.
+    """
+    from imas_ambix.gs.operator import greens_bz_br
+    from imas_ambix.latent.gs_solve import solve_equilibrium_bootstrapped
+
+    res = solve_equilibrium_bootstrapped(grid, i_pf, ip, beta0=beta0, alpha=alpha)
+    g_sens, channels = grid.sensor_greens(table)
+    vac = np.zeros(len(channels))
+    for k, m in enumerate(table.sensor_map):
+        ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
+        for f, cur in zip(table.pf_filaments, i_pf, strict=True):
+            bz, br = greens_bz_br(np.array([m.r]), np.array([m.z]), f.r, f.z)
+            vac[k] += cur * (br[0] * np.cos(ang) + bz[0] * np.sin(ang))
+    meas = vac + g_sens @ res.cell_currents
+    return meas, vac, res
+
+
+def test_fit_profile_forwards_solve_kwargs():
+    """The minimal extension: ``fit_profile`` forwards ``max_iterations`` (and
+    other solve knobs) to the bootstrapped solve — the relaxed-Picard retry
+    lever the closure gate uses to lift coverage without fabricating readouts."""
+    from imas_ambix.latent.gs_solve import fit_profile
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    meas, vac, _ = _synthetic_confining_slice(grid, table, i_pf, ip, 0.5, 1.0)
+    scale = np.abs(meas) + 1e-9
+    fit = fit_profile(
+        grid,
+        table,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        measured=meas,
+        vacuum_prediction=vac,
+        sensor_scale=scale,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        beta0_grid=(0.5,),
+        max_iterations=160,  # forwarded through to solve_equilibrium
+    )
+    assert fit is not None and fit.result.converged
+
+
+def test_closure_slice_fit_recovers_generating_parameters():
+    """The closure-gate driver recovers the KNOWN (β0, α) of a synthetic slice
+    and reports it as scored with a finite axis read."""
+    from scripts.closure_gate_eval import fit_and_read_slice
+    from imas_ambix.latent.patch_inverse import SlicePayload
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    true_beta0, true_alpha = 0.7, 2.0
+    meas, vac, res_true = _synthetic_confining_slice(
+        grid, table, i_pf, ip, true_beta0, true_alpha
+    )
+    payload = SlicePayload(
+        measured=meas,
+        vacuum=vac,
+        mask=np.ones(meas.size, dtype=bool),
+        scale=np.abs(meas) + 1e-9,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        shot=1,
+        t_index=0,
+        time_s=0.0,
+    )
+    fit = fit_and_read_slice(
+        grid,
+        table,
+        payload,
+        beta0_grid=(0.3, 0.5, 0.7, 0.9),
+        alpha_grid=(1.0, 2.0),
+        cost_limit=3.0,
+        convergence_limit=5e-3,
+    )
+    assert fit.scored and fit.reason == "scored"
+    assert fit.beta0 == true_beta0 and fit.alpha == true_alpha
+    assert fit.target is not None and np.isfinite(fit.target[:2]).all()
+    # axis read from the fitted equilibrium lands on the generating axis
+    assert abs(fit.target[0] - res_true.axis[0]) < 0.05
+    assert abs(fit.target[1] - res_true.axis[1]) < 0.05
+
+
+def test_closure_slice_fit_reports_masked_not_dropped():
+    """A slice whose best fit exceeds the cost limit is REPORTED as masked
+    (scored=False, target None, reason recorded) — never silently dropped."""
+    from scripts.closure_gate_eval import fit_and_read_slice
+    from imas_ambix.latent.patch_inverse import SlicePayload
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    meas, vac, _ = _synthetic_confining_slice(grid, table, i_pf, ip, 0.5, 1.0)
+    payload = SlicePayload(
+        measured=meas,
+        vacuum=vac,
+        mask=np.ones(meas.size, dtype=bool),
+        scale=np.abs(meas) + 1e-9,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        shot=1,
+        t_index=7,
+        time_s=0.123,
+    )
+    fit = fit_and_read_slice(
+        grid,
+        table,
+        payload,
+        beta0_grid=(0.5,),
+        alpha_grid=(1.0,),
+        cost_limit=-1.0,  # nothing can beat an impossible (negative) cost ceiling
+        convergence_limit=5e-3,
+    )
+    assert not fit.scored
+    assert fit.reason == "cost-exceeds-limit"
+    assert fit.target is None
+    # the slice is still ACCOUNTED FOR — identity + the rejected cost are kept
+    assert fit.shot == 1 and fit.t_index == 7
+    assert fit.cost is not None and fit.cost >= 0.0
+
+
 def test_bootstrapped_solve_matches_direct_on_confining_config():
     """Where plain Picard already converges, the two-stage bootstrap must land
     on the same equilibrium (same axis, same Ip)."""

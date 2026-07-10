@@ -653,6 +653,7 @@ def fit_profile(
     beta0_grid: tuple[float, ...] = (0.1, 0.3, 0.5, 0.7, 0.9),
     alpha_grid: tuple[float, ...] = (1.0,),
     convergence_limit: float = 5e-3,
+    **solve_kwargs,
 ) -> ProfileFit | None:
     """Per-slice profile fit: choose (β0, α) minimising the whitened magnetics
     residual over converged equilibria.
@@ -662,8 +663,11 @@ def fit_profile(
     enter — no labels, no corpus, no EFIT.  ``measured``, ``vacuum_prediction``
     (the KNOWN-coil sensor field, e.g. ``ForwardOperator.vacuum_prediction``),
     ``sensor_scale`` and ``sensor_mask`` are all in the ``sensor_greens``
-    channel order.  Returns None when no candidate converges (the caller must
-    mask the slice, never fabricate a readout).
+    channel order.  ``solve_kwargs`` are forwarded to
+    :func:`solve_equilibrium_bootstrapped` (e.g. ``max_iterations`` /
+    ``tolerance`` for a relaxed-Picard retry pass that lifts convergence
+    coverage).  Returns None when no candidate converges (the caller must mask
+    the slice, never fabricate a readout).
     """
     g_sens, _channels = grid.sensor_greens(table)
 
@@ -676,7 +680,12 @@ def fit_profile(
     for alpha in alpha_grid:
         for beta0 in beta0_grid:
             res = solve_equilibrium_bootstrapped(
-                grid, i_pf, ip_amperes, beta0=float(beta0), alpha=float(alpha)
+                grid,
+                i_pf,
+                ip_amperes,
+                beta0=float(beta0),
+                alpha=float(alpha),
+                **solve_kwargs,
             )
             if not res.converged and res.residual > convergence_limit:
                 continue
