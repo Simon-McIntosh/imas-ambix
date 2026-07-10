@@ -485,6 +485,12 @@ def main() -> int:
         default=0,
         help="debug: cap the fleet pool at this many shots (0 = all)",
     )
+    ap.add_argument(
+        "--out-suffix",
+        type=str,
+        default="",
+        help="artifact/figure name suffix (e.g. a coil-model version tag)",
+    )
     args = ap.parse_args()
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     FIGURES.mkdir(parents=True, exist_ok=True)
@@ -747,7 +753,8 @@ def main() -> int:
             "p6_in_vessel": ["p6l_current", "p6u_current"],
         },
     }
-    out_path = ARTIFACTS / "vacuum_coil_response_audit.json"
+    tag = f"-{args.out_suffix}" if args.out_suffix else ""
+    out_path = ARTIFACTS / f"vacuum_coil_response_audit{tag}.json"
     out_path.write_text(json.dumps(out, indent=2))
     logger.info("wrote %s", out_path)
 
@@ -762,6 +769,7 @@ def main() -> int:
         quasi,
         channels,
         coil_channels,
+        tag=tag,
     )
     return 0
 
@@ -777,6 +785,7 @@ def _figures(
     quasi,
     channels,
     coil_channels,
+    tag="",
 ):
     n_coil = len(coil_channels)
 
@@ -832,9 +841,9 @@ def _figures(
         )
         ax.legend(fontsize=8)
         fig.tight_layout()
-        fig.savefig(FIGURES / "fig-coil-response-scales.png", dpi=140)
+        fig.savefig(FIGURES / f"fig-coil-response-scales{tag}.png", dpi=140)
         plt.close(fig)
-        logger.info("wrote %s", FIGURES / "fig-coil-response-scales.png")
+        logger.info("wrote %s", FIGURES / f"fig-coil-response-scales{tag}.png")
 
     # --- fig 2: coil-current correlation heatmap + coupled sets ---
     abs_corr = np.array(out["conditioning"]["abs_corr"])
@@ -872,9 +881,9 @@ def _figures(
         fontsize=9,
     )
     fig.tight_layout()
-    fig.savefig(FIGURES / "fig-coil-response-corr.png", dpi=140)
+    fig.savefig(FIGURES / f"fig-coil-response-corr{tag}.png", dpi=140)
     plt.close(fig)
-    logger.info("wrote %s", FIGURES / "fig-coil-response-corr.png")
+    logger.info("wrote %s", FIGURES / f"fig-coil-response-corr{tag}.png")
 
     # --- fig 3: coil×sensor pattern residual /σ at p90 currents ---
     sep = plan["separable"]
@@ -903,9 +912,9 @@ def _figures(
             "structure = per-coil geometry error"
         )
         fig.tight_layout()
-        fig.savefig(FIGURES / "fig-coil-response-residuals.png", dpi=140)
+        fig.savefig(FIGURES / f"fig-coil-response-residuals{tag}.png", dpi=140)
         plt.close(fig)
-        logger.info("wrote %s", FIGURES / "fig-coil-response-residuals.png")
+        logger.info("wrote %s", FIGURES / f"fig-coil-response-residuals{tag}.png")
 
 
 if __name__ == "__main__":

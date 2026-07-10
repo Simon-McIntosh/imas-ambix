@@ -161,10 +161,7 @@ def _shot_vacuum_slices(shot: int, channels: list[str]) -> dict | None:
         return None
 
     # per-slice coil-current derivative (max over coils) — the eddy proxy
-    if t_n >= 2:
-        didt = np.gradient(i_pf, times, axis=0)
-    else:
-        didt = np.zeros_like(i_pf)
+    didt = np.gradient(i_pf, times, axis=0) if t_n >= 2 else np.zeros_like(i_pf)
     didt_slice = np.max(np.abs(didt), axis=1)
 
     # map operator sensor rows → canonical channel axis (NaN where absent)
@@ -270,7 +267,6 @@ def _bootstrap_over_shots(
     replacement (a shot's slices always move together)."""
     if len(per_shot) < 2:
         return None
-    n_ch = per_shot[0]["pred"].shape[1]
     rng = np.random.default_rng(seed)
     boots_o, boots_g = [], []
     for _ in range(n_boot):
@@ -343,6 +339,12 @@ def main() -> int:
     ap.add_argument("--n-fit-shots", type=int, default=12)
     ap.add_argument("--n-boot", type=int, default=400)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument(
+        "--out-suffix",
+        type=str,
+        default="",
+        help="artifact name suffix (e.g. a coil-model version tag)",
+    )
     ap.add_argument(
         "--didt-quantile",
         type=float,
@@ -424,9 +426,7 @@ def main() -> int:
         }
         if pred.shape[0] == 0:
             return block
-        offset, gain, offset_only, range_sigma = _fit_offset_gain(
-            pred, meas, sigma_med
-        )
+        offset, gain, offset_only, range_sigma = _fit_offset_gain(pred, meas, sigma_med)
         block.update(
             offset=offset.tolist(),
             gain=gain.tolist(),
@@ -529,7 +529,10 @@ def main() -> int:
         "agreement_with_frozen": agreement,
         "cross_arm_consistency": consistency,
     }
-    (ARTIFACTS / "vacuum_interval_calibration.json").write_text(json.dumps(out, indent=2))
+    tag = f"-{args.out_suffix}" if args.out_suffix else ""
+    (ARTIFACTS / f"vacuum_interval_calibration{tag}.json").write_text(
+        json.dumps(out, indent=2)
+    )
     logger.info("wrote %s", ARTIFACTS / "vacuum_interval_calibration.json")
 
     _figures(out, sigma_med, channels, frozen_off, frozen_gain)
@@ -554,8 +557,14 @@ def _figures(out, sigma_med, channels, frozen_off, frozen_gain):
             lo = np.array(primary["offset_ci_lo"]) / (sigma_med + 1e-30)
             hi = np.array(primary["offset_ci_hi"]) / (sigma_med + 1e-30)
             ax.errorbar(
-                x, vac_sig, yerr=[vac_sig - lo, hi - vac_sig], fmt="o", ms=3,
-                color="#1565c0", ecolor="#9bb8d9", elinewidth=0.8,
+                x,
+                vac_sig,
+                yerr=[vac_sig - lo, hi - vac_sig],
+                fmt="o",
+                ms=3,
+                color="#1565c0",
+                ecolor="#9bb8d9",
+                elinewidth=0.8,
                 label="vacuum (quasi-static) offset ± 95% CI",
             )
         else:
@@ -579,14 +588,12 @@ def _figures(out, sigma_med, channels, frozen_off, frozen_gain):
             ax2.axvline(0, color="k", lw=0.8)
             ax2.set_xlabel("(offset_vacuum − offset_frozen) / σ")
             ax2.set_ylabel("channels")
+            med_d = agr.get("median_abs_delta_over_sigma")
             ax2.set_title(
-                "agreement: median |Δ|/σ = %s  •  frozen inside vacuum CI = %.0f%%"
-                % (
-                    ("%.3f" % agr["median_abs_delta_over_sigma"])
-                    if agr.get("median_abs_delta_over_sigma") is not None
-                    else "n/a",
-                    100.0 * agr.get("frozen_in_vacuum_ci_fraction", 0.0),
-                )
+                f"agreement: median |Δ|/σ = "
+                f"{f'{med_d:.3f}' if med_d is not None else 'n/a'}  •  frozen "
+                f"inside vacuum CI = "
+                f"{100.0 * agr.get('frozen_in_vacuum_ci_fraction', 0.0):.0f}%"
             )
         fig.tight_layout()
         fig.savefig(FIGURES / "fig-vacuum-offset-validation.png", dpi=140)
@@ -600,7 +607,11 @@ def _figures(out, sigma_med, channels, frozen_off, frozen_gain):
         fig, axes = plt.subplots(1, 2, figsize=(15, 6), width_ratios=[3, 1])
         vlim = np.nanpercentile(np.abs(off_mat), 95) if off_mat.size else 1.0
         im = axes[0].imshow(
-            off_mat, aspect="auto", cmap="RdBu_r", vmin=-vlim, vmax=vlim,
+            off_mat,
+            aspect="auto",
+            cmap="RdBu_r",
+            vmin=-vlim,
+            vmax=vlim,
             interpolation="nearest",
         )
         axes[0].set_yticks(range(len(shots)))
@@ -618,8 +629,8 @@ def _figures(out, sigma_med, channels, frozen_off, frozen_gain):
         axes[1].set_xlabel("log10(between-shot / within-shot var)")
         axes[1].set_ylabel("channels")
         axes[1].set_title(
-            "stability: median between/within = %s"
-            % (("%.3f" % med) if med is not None else "n/a")
+            f"stability: median between/within = "
+            f"{f'{med:.3f}' if med is not None else 'n/a'}"
         )
         axes[1].legend(fontsize=8)
         fig.tight_layout()
@@ -646,34 +657,49 @@ def _figures(out, sigma_med, channels, frozen_off, frozen_gain):
             glo = np.array(ramp["gain_ci_lo"])
             ghi = np.array(ramp["gain_ci_hi"])
             ax.errorbar(
-                x[meaningful], gain[meaningful],
+                x[meaningful],
+                gain[meaningful],
                 yerr=[(gain - glo)[meaningful], (ghi - gain)[meaningful]],
-                fmt="o", ms=4, color="#1565c0", ecolor="#9bb8d9", elinewidth=0.8,
+                fmt="o",
+                ms=4,
+                color="#1565c0",
+                ecolor="#9bb8d9",
+                elinewidth=0.8,
                 label="vacuum ramping-stratum gain ± 95% CI (EDDY-contaminated)",
             )
         else:
-            ax.plot(x[meaningful], gain[meaningful], "o", ms=4, color="#1565c0",
-                    label="vacuum ramping-stratum gain (eddy-contaminated)")
+            ax.plot(
+                x[meaningful],
+                gain[meaningful],
+                "o",
+                ms=4,
+                color="#1565c0",
+                label="vacuum ramping-stratum gain (eddy-contaminated)",
+            )
         if frozen_gain is not None:
             aff = np.array([frozen_gain.get(c, np.nan) for c in channels])
             if np.isfinite(aff).any() and not np.allclose(aff[np.isfinite(aff)], 1.0):
-                ax.plot(x, aff, "s", ms=4, color="#8a3324", alpha=0.7,
-                        label="rejected plasma-fitted affine gain")
+                ax.plot(
+                    x,
+                    aff,
+                    "s",
+                    ms=4,
+                    color="#8a3324",
+                    alpha=0.7,
+                    label="rejected plasma-fitted affine gain",
+                )
         ax.axhline(1.0, color="k", lw=0.9, label="gain = 1 (no scale error)")
         ax.set_ylabel("gain")
         ax.set_xlabel("channel index")
         gm = ramp.get("gain_median")
         p10, p90 = ramp.get("gain_p10_p90", [None, None])
+        gm_s = f"{gm:.3f}" if gm is not None else "n/a"
+        p10_s = f"{p10:.3f}" if p10 is not None else "n/a"
+        p90_s = f"{p90:.3f}" if p90 is not None else "n/a"
         ax.set_title(
             "Gain adjudication — quasi-static has NO coil range (gain "
-            "unidentifiable); ramping gain is eddy-driven: median %s (p10-p90 "
-            "%s-%s), %d ch with range"
-            % (
-                ("%.3f" % gm) if gm is not None else "n/a",
-                ("%.3f" % p10) if p10 is not None else "n/a",
-                ("%.3f" % p90) if p90 is not None else "n/a",
-                int(meaningful.sum()),
-            )
+            f"unidentifiable); ramping gain is eddy-driven: median {gm_s} "
+            f"(p10-p90 {p10_s}-{p90_s}), {int(meaningful.sum())} ch with range"
         )
         ax.legend(fontsize=8)
         ax.set_xticks(x[::step])
