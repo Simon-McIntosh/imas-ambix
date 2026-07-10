@@ -180,6 +180,7 @@ def fit_and_read_slice(
     n_p: int = 1,
     n_f: int = 1,
     smoothness: float = 0.0,
+    nonneg: bool = False,
     passive: dict | None = None,
     passive_ridge: float = 1.0,
     maxfev: int = 60,
@@ -260,7 +261,7 @@ def fit_and_read_slice(
         alpha = fit.alpha if fit else None
         z0 = fit.z0 if fit else None
     elif fit_mode == "ladder":
-        kw = payload_kw | dict(n_p=n_p, n_f=n_f, smoothness=smoothness)
+        kw = payload_kw | dict(n_p=n_p, n_f=n_f, smoothness=smoothness, nonneg=nonneg)
         if passive is not None:
             kw["passive"] = passive
             kw["passive_ridge"] = passive_ridge
@@ -411,6 +412,7 @@ def fit_shot(payload: dict, cfg: dict, workers: int) -> list[ClosureSliceFit]:
             n_p=cfg.get("n_p", 1),
             n_f=cfg.get("n_f", 1),
             smoothness=cfg.get("smoothness", 0.0),
+            nonneg=cfg.get("nonneg", False),
             passive=payload.get("passive"),
             passive_ridge=cfg.get("passive_ridge", 1.0),
             maxfev=cfg.get("maxfev", 60),
@@ -487,6 +489,7 @@ def run_gate(args) -> int:
         "n_p": args.n_p,
         "n_f": args.n_f,
         "smoothness": args.smoothness,
+        "nonneg": args.ladder_nonneg,
         "passive_k": args.passive_k,
         "passive_ridge": args.passive_ridge,
         "maxfev": args.maxfev,
@@ -773,6 +776,7 @@ def run_figures(args) -> int:
                 n_p=args.n_p,
                 n_f=args.n_f,
                 smoothness=args.smoothness,
+                nonneg=args.ladder_nonneg,
                 maxfev=args.maxfev,
                 keep_psi=True,
             )
@@ -943,6 +947,12 @@ def main() -> int:
         type=float,
         default=0.0,
         help="ladder: second-difference coefficient smoothness ridge weight",
+    )
+    ap.add_argument(
+        "--ladder-nonneg",
+        action="store_true",
+        help="ladder: non-negative monomial basis + bounded solve — "
+        "jphi*sign(Ip) >= 0 by construction (R1 at the profile level)",
     )
     ap.add_argument(
         "--passive-k",

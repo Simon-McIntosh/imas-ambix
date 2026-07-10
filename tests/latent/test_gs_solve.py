@@ -817,3 +817,36 @@ def test_ladder_passive_sidecar_identity_when_off_and_absorbs_passive_signal():
     # the observable consequences are pinned
     assert with_pass.cost < 0.2 * plain_a.cost
     np.testing.assert_allclose(with_pass.result.axis, res.axis, atol=5e-2)
+
+
+def test_ladder_nonneg_recovers_family_with_nonnegative_current():
+    """The sign-constrained ladder recovers a synthetic (β0, α=1) equilibrium
+    (inside the non-negative family) with jφ ≥ 0 everywhere — the R1 fact the
+    free-sign LSQ measured itself violating on real data."""
+    from imas_ambix.latent.gs_solve import fit_profile_ladder
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    meas, vac, res_true = _synthetic_confining_slice(grid, table, i_pf, ip, 0.7, 1.0)
+    scale = np.abs(meas) + 1e-9
+    fit = fit_profile_ladder(
+        grid,
+        table,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        measured=meas,
+        vacuum_prediction=vac,
+        sensor_scale=scale,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        n_p=2,
+        n_f=2,
+        nonneg=True,
+    )
+    assert fit.result.converged
+    assert fit.cost < 1e-2
+    assert (fit.coeffs >= -1e-12).all()
+    assert fit.result.jphi.min() >= -1e-9  # jφ·sign(Ip) ≥ 0 pointwise
+    np.testing.assert_allclose(fit.result.axis, res_true.axis, atol=4e-2)
+    np.testing.assert_allclose(fit.result.cell_currents.sum(), ip, rtol=1e-6)

@@ -825,15 +825,27 @@ def fit_profile_continuous(
 
 
 def profile_basis(
-    psi_n: np.ndarray, r: np.ndarray, *, r0: float, n_p: int, n_f: int
+    psi_n: np.ndarray,
+    r: np.ndarray,
+    *,
+    r0: float,
+    n_p: int,
+    n_f: int,
+    kind: str = "legendre",
 ) -> np.ndarray:
     """(n_points, n_p + n_f) jφ basis images, zero at and beyond the boundary.
 
     Columns 0..n_p−1 carry the pressure-gradient drive R/R0·φ_k(ψ_N); columns
-    n_p..n_p+n_f−1 the FF′ drive R0/R·φ_k(ψ_N), with
-    φ_k(ψ_N) = P_{k−1}(2ψ_N−1)·(1−ψ_N) (shifted Legendre × boundary factor —
-    well-conditioned on [0, 1] and exactly zero at ψ_N = 1).  n_p = n_f = 1
-    spans the two-term (β0, α=1) family with a free amplitude split.
+    n_p..n_p+n_f−1 the FF′ drive R0/R·φ_k(ψ_N).
+
+    ``kind="legendre"``: φ_k(ψ_N) = P_{k−1}(2ψ_N−1)·(1−ψ_N) (shifted Legendre
+    × boundary factor — well-conditioned on [0, 1], exactly zero at ψ_N = 1,
+    sign-indefinite).  ``kind="monomial-nonneg"``: φ_k(ψ_N) = (1−ψ_N)^k —
+    every basis function ≥ 0, so NON-NEGATIVE coefficients imply jφ ≥ 0
+    pointwise (the R1 unidirectional-current fact imposed at the profile
+    level); conditioning is poorer but fine for K ≤ ~5 per family.
+    n_p = n_f = 1 spans the two-term (β0, α=1) family with a free amplitude
+    split in either kind.
     """
     from numpy.polynomial import legendre  # noqa: PLC0415
 
@@ -846,11 +858,67 @@ def profile_basis(
     cols = []
     for drive, n_k in ((rr / r0, n_p), (r0 / rr, n_f)):
         for k in range(n_k):
-            leg = legendre.legval(x, [0.0] * k + [1.0])
-            cols.append(np.where(inside, drive * leg * edge, 0.0))
+            if kind == "monomial-nonneg":
+                phi = edge ** (k + 1)
+            elif kind == "legendre":
+                phi = legendre.legval(x, [0.0] * k + [1.0]) * edge
+            else:  # pragma: no cover — callers pass validated kinds
+                raise ValueError(f"unknown basis kind {kind!r}")
+            cols.append(np.where(inside, drive * phi, 0.0))
     return (
         np.column_stack(cols) if cols else np.zeros((psi_n.size, 0), dtype=np.float64)
     )
+
+
+def _bounded_profile_lsq(
+    cols: np.ndarray,
+    y: np.ndarray,
+    anchor: np.ndarray,
+    ip_amperes: float,
+    *,
+    k_dof: int,
+    kp: int,
+    s_gram: np.ndarray,
+    smoothness_scale: float,
+    passive_ridge_scale: float,
+) -> np.ndarray | None:
+    """Sign-constrained per-sweep coefficient solve: profile block ≥ 0,
+    passive block free.
+
+    Ridges enter as factor rows (matrix square root of the smoothness Gram —
+    K is tiny, eigh is exact); the Ip anchor enters as a heavy normalised row
+    (relative weight 10⁴, anchor error ~10⁻⁸ relative) and is made EXACT by
+    the caller's final rescale-to-Ip.  Returns None on solver failure so the
+    sweep degrades to the previous coefficients, never fabricates.
+    """
+    from scipy import optimize  # noqa: PLC0415
+
+    rows = [cols]
+    rhs = [y]
+    if smoothness_scale > 0.0 and k_dof:
+        w, v = np.linalg.eigh(s_gram)
+        factor = (v * np.sqrt(np.clip(w, 0.0, None) * smoothness_scale)).T
+        rows.append(np.hstack([factor, np.zeros((k_dof, kp))]))
+        rhs.append(np.zeros(k_dof))
+    if kp and passive_ridge_scale > 0.0:
+        rows.append(
+            np.hstack(
+                [np.zeros((kp, k_dof)), np.sqrt(passive_ridge_scale) * np.eye(kp)]
+            )
+        )
+        rhs.append(np.zeros(kp))
+    w_anchor = 1e4
+    denom = max(abs(ip_amperes), 1e-30)
+    rows.append((anchor / denom)[np.newaxis, :] * w_anchor)
+    rhs.append(np.array([w_anchor * ip_amperes / denom]))
+    a = np.vstack(rows)
+    b = np.concatenate(rhs)
+    lb = np.concatenate([np.zeros(k_dof), np.full(kp, -np.inf)])
+    try:
+        res = optimize.lsq_linear(a, b, bounds=(lb, np.full(k_dof + kp, np.inf)))
+    except (ValueError, np.linalg.LinAlgError):
+        return None
+    return res.x if np.isfinite(res.x).all() else None
 
 
 def _second_difference_gram(n_p: int, n_f: int, weight: float) -> np.ndarray:
@@ -979,6 +1047,7 @@ def solve_equilibrium_lsq(
     n_p: int = 1,
     n_f: int = 1,
     smoothness: float = 0.0,
+    nonneg: bool = False,
     passive: dict | None = None,
     passive_ridge: float = 1.0,
     max_iterations: int = 120,
@@ -1112,16 +1181,25 @@ def solve_equilibrium_lsq(
             jphi[core.ravel()] = shape[core.ravel()]
         else:
             # basis images on the current core; L1-normalise each column to
-            # carry |Ip| of gross current so the coefficients stay O(1)
-            images = profile_basis(psi_n, grid.flat_r, r0=grid.r0, n_p=n_p, n_f=n_f)
+            # carry |Ip| of gross current so the coefficients stay O(1).  In
+            # nonneg mode normalisation is SIGNED so c ≥ 0 ⇒ jφ·sign(Ip) ≥ 0
+            # (the R1 fact at the profile level) and the Ip anchor stays
+            # reachable for either current direction.
+            images = profile_basis(
+                psi_n,
+                grid.flat_r,
+                r0=grid.r0,
+                n_p=n_p,
+                n_f=n_f,
+                kind="monomial-nonneg" if nonneg else "legendre",
+            )
             images[~core.ravel(), :] = 0.0
             u = images[grid.cells, :] * cell_area  # unit-coeff cell currents [A]
             norms = np.abs(u).sum(axis=0)
             ok_cols = norms > 1e-12 * max(abs(ip_amperes), 1.0)
+            norm_scale = ip_amperes if nonneg else abs(ip_amperes)
             u_n = np.zeros_like(u)
-            u_n[:, ok_cols] = u[:, ok_cols] * (
-                abs(ip_amperes) / norms[np.newaxis, ok_cols]
-            )
+            u_n[:, ok_cols] = u[:, ok_cols] * (norm_scale / norms[np.newaxis, ok_cols])
             a_anchor = u_n.sum(axis=0)  # net current per unit coefficient
             b_mat = (g_sens[mask, :] @ u_n) / w_inv[:, np.newaxis]
             n_data = int(mask.sum())
@@ -1135,25 +1213,38 @@ def solve_equilibrium_lsq(
                 # --passive-ridge are dimensionless O(0.01–1) knobs
                 h_data = cols.T @ cols
                 mean_diag = np.trace(h_data) / max(n_var, 1)
-                s_full = np.zeros((n_var, n_var))
-                s_full[:k_dof, :k_dof] = smoothness * mean_diag * s_gram
-                if kp:
-                    s_full[k_dof:, k_dof:] = passive_ridge * mean_diag * np.eye(kp)
-                h = 2.0 * (h_data + s_full)
-                h += 1e-10 * np.trace(h) / max(n_var, 1) * np.eye(n_var)
                 anchor = np.concatenate([a_anchor, np.zeros(kp)])
-                kkt = np.zeros((n_var + 1, n_var + 1))
-                kkt[:n_var, :n_var] = h
-                kkt[:n_var, n_var] = anchor
-                kkt[n_var, :n_var] = anchor
-                rhs = np.concatenate([2.0 * (cols.T @ y), [ip_amperes]])
-                try:
-                    sol = np.linalg.solve(kkt, rhs)
-                    if np.isfinite(sol[:n_var]).all():
-                        new_coeffs = sol[:k_dof]
-                        new_a_pass = sol[k_dof:n_var]
-                except np.linalg.LinAlgError:
-                    new_coeffs = None
+                if nonneg:
+                    sol = _bounded_profile_lsq(
+                        cols,
+                        y,
+                        anchor,
+                        ip_amperes,
+                        k_dof=k_dof,
+                        kp=kp,
+                        s_gram=s_gram,
+                        smoothness_scale=smoothness * mean_diag,
+                        passive_ridge_scale=passive_ridge * mean_diag,
+                    )
+                else:
+                    s_full = np.zeros((n_var, n_var))
+                    s_full[:k_dof, :k_dof] = smoothness * mean_diag * s_gram
+                    if kp:
+                        s_full[k_dof:, k_dof:] = passive_ridge * mean_diag * np.eye(kp)
+                    h = 2.0 * (h_data + s_full)
+                    h += 1e-10 * np.trace(h) / max(n_var, 1) * np.eye(n_var)
+                    kkt = np.zeros((n_var + 1, n_var + 1))
+                    kkt[:n_var, :n_var] = h
+                    kkt[:n_var, n_var] = anchor
+                    kkt[n_var, :n_var] = anchor
+                    rhs = np.concatenate([2.0 * (cols.T @ y), [ip_amperes]])
+                    try:
+                        sol = np.linalg.solve(kkt, rhs)[:n_var]
+                    except np.linalg.LinAlgError:
+                        sol = None
+                if sol is not None and np.isfinite(sol[:n_var]).all():
+                    new_coeffs = sol[:k_dof]
+                    new_a_pass = sol[k_dof:n_var]
             if new_coeffs is not None:
                 coeffs = new_coeffs
                 if kp:
