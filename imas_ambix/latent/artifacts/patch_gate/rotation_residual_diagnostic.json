@@ -1,0 +1,165 @@
+{
+  "cohort": {
+    "n_shots": 8,
+    "shots": [
+      18502,
+      18503,
+      18504,
+      18505,
+      12143,
+      12145,
+      12189,
+      12190
+    ],
+    "n_slices": 160
+  },
+  "config": {
+    "n_p": 1,
+    "n_f": 1,
+    "passive_k": 8,
+    "connectivity": "locality",
+    "n_bins": 24,
+    "bandwidth_bins": 1.0,
+    "conv_limit": 0.005,
+    "calibration": "imas_ambix/latent/artifacts/patch_gate/static_calibration_offset_only.json",
+    "v_ceil_ms": 300000.0
+  },
+  "rotation_coverage": {
+    "n_slices_with_proxy": 60,
+    "n_slices_total": 160,
+    "shots_with_proxy": [
+      18502,
+      18503,
+      18505
+    ],
+    "shots_without_proxy": [
+      12143,
+      12145,
+      12189,
+      12190,
+      18504
+    ]
+  },
+  "arms": {
+    "free": {
+      "n_converged": 160,
+      "n_candidate": 160,
+      "resid_2col_median": 0.003420728832501248,
+      "resid_3col_median": 0.0030416756743636905,
+      "delta_overall": {
+        "mean": 0.00035512237009008383,
+        "ci": [
+          0.00031037181297024764,
+          0.00038070826866956956
+        ],
+        "n": 160,
+        "n_shots": 8
+      },
+      "delta_relative_median": 0.1091569244891202,
+      "delta_by_rotation_stratum": {
+        "median_line_avg_ms": 62695.968698718876,
+        "high": {
+          "mean": 0.00030112232998481196,
+          "ci": [
+            0.00020246315365759452,
+            0.00037845896694743843
+          ],
+          "n": 30,
+          "n_shots": 3
+        },
+        "low": {
+          "mean": 0.0003508766770274208,
+          "ci": [
+            0.00020587916034965989,
+            0.0003997458735762609
+          ],
+          "n": 30,
+          "n_shots": 3
+        }
+      },
+      "c_one_signed_high_bins_median": 1.0,
+      "c_abs_vs_rotation_lineavg_spearman": {
+        "rho": 0.41589330369547106,
+        "ci": [
+          -0.1007506255212677,
+          0.7425076452599386
+        ],
+        "n": 60,
+        "n_shots": 3
+      },
+      "c_peak_vs_rotation_peak_spearman": {
+        "rho": 0.37204779105307034,
+        "ci": [
+          -0.4241868223519599,
+          0.6618293021962747
+        ],
+        "n": 60,
+        "n_shots": 3
+      },
+      "r4_absorbed_fraction_of_2col": 0.10381482645334889
+    },
+    "nonneg": {
+      "n_converged": 158,
+      "n_candidate": 160,
+      "resid_2col_median": 0.0021227870565312373,
+      "resid_3col_median": 0.001987142123249348,
+      "delta_overall": {
+        "mean": 0.00013043136118021627,
+        "ci": [
+          0.00011488095520436759,
+          0.00013892872864253416
+        ],
+        "n": 158,
+        "n_shots": 8
+      },
+      "delta_relative_median": 0.06400341605965681,
+      "delta_by_rotation_stratum": {
+        "median_line_avg_ms": 62828.47687911987,
+        "high": {
+          "mean": 0.00011091934936287665,
+          "ci": [
+            7.73277260018441e-05,
+            0.00013739866203940193
+          ],
+          "n": 30,
+          "n_shots": 3
+        },
+        "low": {
+          "mean": 0.00012583080645008,
+          "ci": [
+            7.771350847182795e-05,
+            0.00014159548189325076
+          ],
+          "n": 29,
+          "n_shots": 3
+        }
+      },
+      "c_one_signed_high_bins_median": 1.0,
+      "c_abs_vs_rotation_lineavg_spearman": {
+        "rho": 0.5367036820572765,
+        "ci": [
+          0.20824869190520157,
+          0.7150403113705865
+        ],
+        "n": 59,
+        "n_shots": 3
+      },
+      "c_peak_vs_rotation_peak_spearman": {
+        "rho": 0.3398597311513735,
+        "ci": [
+          -0.33696522006771307,
+          0.5639181286549707
+        ],
+        "n": 59,
+        "n_shots": 3
+      },
+      "r4_absorbed_fraction_of_2col": 0.0614434503823238
+    }
+  },
+  "verdict": {
+    "call": "qualified weak-positive: rotation is VISIBLE in the held-out structure residual but NOT load-bearing at the current error budget",
+    "summary": "Adding the Maschke-Perrin R^4 design column reduces the unexplained current-weighted structure-residual fraction by a small but bootstrap-consistent amount on both arms (free-sign winner: 2-col median 0.00342 -> 3-col 0.00304, mean Delta 3.6e-4, 95% CI [3.1e-4, 3.8e-4], ~10.4% of the 2-col residual absorbed; sign-constrained: 0.00212 -> 0.00199, Delta 1.3e-4, CI [1.1e-4, 1.4e-4], ~6.1% absorbed). Both CIs exclude zero, but an extra design column mechanically lowers a least-squares residual, so the reduction alone is not evidence of rotation. The physics-discriminating tests are mixed-to-supportive: the recovered c(psi) is one-signed in its high-magnitude bins on BOTH arms (dominant-sign fraction median 1.0), exactly as the centrifugal coefficient c ~= 0.5*p0*(m_i*Omega^2/T)' demands; and |c| correlates positively with the measured CXRS line-average toroidal rotation across slices, SIGNIFICANTLY on the sign-constrained arm (Spearman 0.54, 95% CI [0.21, 0.72]) -- the very arm whose within-surface R-shape the force-balance study flagged as rotation-shaped -- but NOT significantly on the free-sign arm (0.42, CI [-0.10, 0.74], spans zero). Against the positive read: the per-slice Delta does NOT increase with rotation (high vs low stratum Delta overlap heavily and if anything low-rotation is marginally larger, on both arms), so the effect does not scale with the driver as a clean centrifugal signature should.",
+    "coverage_caveat": "CXRS rotation (act) is present on only 3 of 8 held-out shots (18502, 18503, 18505; 60/160 slices). The 12xxx-campaign shots carry no CXRS and 18504's act has no time base. Every rotation-conditioned statistic (strata, Spearman) rests on those 3 shots, so bootstrap-over-shots has n_shots=3 -- the significant nonneg Spearman CI must be read with that low-shot-count caveat.",
+    "recommendation": "Consistent with a real but sub-dominant centrifugal signature (~the plan's own ~15%-identifiable estimate for the ST radial span), still dominated by the coil-model remainder and the profile-ladder residual floor. Does NOT yet justify promoting c(psi) to a Tier-2 measured coefficient. The measured-rotation falsifiable test (Stage B: fix gamma(psi) from CXRS+Thomson and score held-out) should stay staged behind the coil-model remainder and needs a corpus with broader CXRS coverage than these 8 shots to power a stratified test."
+  }
+}
