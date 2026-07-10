@@ -53,22 +53,39 @@ ARTIFACTS = Path("imas_ambix/latent/artifacts/patch_gate")
 FIGURES = Path("docs/figures/plasma-current-priors-hardening")
 
 
-def _prior_config(grid) -> InverseConfig:
-    """The frozen tune-winner physics-prior arm (constrained plasma current)."""
-    return InverseConfig(
+def _arm_config(grid, arm: str) -> InverseConfig:
+    """The inverse arm the residual is isolated against.
+
+    ``priors`` — the frozen tune-winner physics-prior arm (unidirectional
+    softplus current + support consistency): the plasma current is physically
+    constrained so the per-channel residual isolates the static instrument
+    error.  ``free`` — the SAME optimiser/loss with both priors OFF (no sign
+    prior, no support prior); a genuine instrument offset is arm-independent,
+    so fitting the offset against both arms and comparing is a consistency
+    test on the offset itself.  Everything except the two prior switches is
+    held identical between the arms.
+    """
+    common = dict(
         policy="discrepancy",
         lambda_fb=3.0,
         misfit_ratio=1.5,
         lambda_max=100.0,
         iters=800,
         connectivity="locality",
-        sign_prior="softplus",
-        support_prior=True,
-        support_weight=2000.0,
-        halo_budget=0.03,
         limiter_r=np.asarray(grid.limiter_r, dtype=np.float64),
         limiter_z=np.asarray(grid.limiter_z, dtype=np.float64),
     )
+    if arm == "priors":
+        return InverseConfig(
+            sign_prior="softplus",
+            support_prior=True,
+            support_weight=2000.0,
+            halo_budget=0.03,
+            **common,
+        )
+    if arm == "free":
+        return InverseConfig(sign_prior=None, support_prior=False, **common)
+    raise ValueError(f"unknown arm: {arm!r} (use 'priors' or 'free')")
 
 
 def _robust_affine(pred: np.ndarray, meas: np.ndarray) -> tuple[float, float]:
@@ -92,6 +109,17 @@ def main() -> int:
             "fit a per-channel zero-offset only (gain pinned to 1) — the "
             "conservative instrument model; a free gain can absorb genuine "
             "plasma signal scale and break held-out channel consistency"
+        ),
+    )
+    ap.add_argument(
+        "--arm",
+        type=str,
+        default="priors",
+        choices=("priors", "free"),
+        help=(
+            "inverse arm the residual is isolated against: 'priors' = frozen "
+            "tune-winner constrained-current arm (default); 'free' = same "
+            "optimiser with sign/support priors OFF (offset-consistency check)"
         ),
     )
     ap.add_argument("--device", type=str, default="auto")
@@ -129,7 +157,7 @@ def main() -> int:
         if channels is None:
             channels = list(basis.sensor_channels)
             scale_med = np.median(np.stack([p.scale for p in payloads]), axis=0)
-        inv = invert_slices(basis, payloads, _prior_config(grid), device=device)
+        inv = invert_slices(basis, payloads, _arm_config(grid, args.arm), device=device)
         m_sens = basis.m_sens.detach().cpu().numpy().astype(np.float64)
         preds, meass, masks = [], [], []
         for r, p in zip(inv, payloads, strict=True):
@@ -180,7 +208,12 @@ def main() -> int:
         "model": "offset-only" if args.offset_only else "affine",
         "fit_shots": [int(s) for s in fit_shots],
         "n_fit_shots": len(per_shot),
-        "arm": "sign-softplus+support-hb0.03-sw2000 (frozen tune winner)",
+        "inverse_arm": args.arm,
+        "arm": (
+            "sign-softplus+support-hb0.03-sw2000 (frozen tune winner)"
+            if args.arm == "priors"
+            else "free (no sign/support prior) — offset-consistency check"
+        ),
         "channels": channels,
         "gain": gain.tolist(),
         "gain_ci_lo": g_lo.tolist(),
@@ -196,11 +229,9 @@ def main() -> int:
         ],
         "offset_over_sigma_median_abs": float(np.median(np.abs(off_sigma))),
     }
-    stem = (
-        "static_calibration_offset_only"
-        if args.offset_only
-        else "static_calibration"
-    )
+    stem = "static_calibration_offset_only" if args.offset_only else "static_calibration"
+    if args.arm == "free":
+        stem = f"{stem}_free"
     (ARTIFACTS / f"{stem}.json").write_text(json.dumps(out, indent=2))
     logger.info(
         "calibration frozen: gain median %.3f [p10 %.3f, p90 %.3f], "
@@ -255,6 +286,8 @@ def main() -> int:
         if args.offset_only
         else "fig-static-calibration.png"
     )
+    if args.arm == "free":
+        fig_name = fig_name.replace(".png", "-free.png")
     fig.savefig(FIGURES / fig_name, dpi=140)
     logger.info("wrote %s", FIGURES / fig_name)
     return 0
