@@ -726,3 +726,94 @@ def test_closure_driver_continuous_and_ladder_modes():
     assert lad.cost < 1e-2
     assert lad.jphi_flat is not None  # warm-chain payload retained on request
     np.testing.assert_allclose(lad.target[:2], np.asarray(res_true.axis), atol=4e-2)
+
+
+def test_ladder_passive_sidecar_identity_when_off_and_absorbs_passive_signal():
+    """``passive=None`` is byte-identical to the sidecar-free solve, and the
+    rank-k sidecar absorbs a synthetic passive-conductor signal the profile
+    family cannot represent — without breaking the Ip anchor.
+
+    ``_confining_table``'s two circuits are classified inferred_passive (no
+    amc channels), so the fixture exercises the REAL passive path.  Truth is
+    generated SELF-CONSISTENTLY: a second grid treats the passive circuits as
+    known coils carrying the true currents, so the truth equilibrium feels
+    the passive flux exactly as the sidecar-fitted model does.
+    """
+    from imas_ambix.gs.cylinder import hybrid_greens
+    from imas_ambix.gs.operator import build_operator
+    from imas_ambix.latent.gs_solve import (
+        build_passive_sidecar,
+        fit_profile_ladder,
+        solve_equilibrium,
+    )
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    fwd = build_operator(table)
+    assert fwd.g_passive.shape[1] == 2  # both fixture circuits are passive
+    ip = 4.0e5
+    # confining, mildly asymmetric — strong anti-symmetric passive currents
+    # destabilise the truth equilibrium (measured: axis driven to the corner)
+    c_passive_true = np.array([-6.5e4, -5.5e4])
+
+    # truth grid: passive circuits promoted to KNOWN coils with true currents
+    psi_cols = np.column_stack(
+        [
+            hybrid_greens(
+                grid.flat_r,
+                grid.flat_z,
+                float(f.r),
+                float(f.z),
+                max(abs(f.width), 0.01),
+                max(abs(f.height), 0.01),
+            )[0]
+            for f in table.pf_filaments
+        ]
+    )
+    truth_grid = EquilibriumGrid(
+        rg=grid.rg,
+        zg=grid.zg,
+        limiter_r=table.limiter_r,
+        limiter_z=table.limiter_z,
+        coil_psi_columns=psi_cols,
+        r0=grid.r0,
+        conductor_rects=grid.conductor_rects,
+    )
+    res = solve_equilibrium(truth_grid, c_passive_true, ip, beta0=0.7)
+    assert res.converged  # the fixture must supply a REAL confined truth
+    g_sens, _channels = grid.sensor_greens(table)
+    meas = g_sens @ res.cell_currents + fwd.g_passive @ c_passive_true
+    vac = np.zeros_like(meas)
+    scale = np.abs(meas) + 1e-9
+    kw = dict(
+        i_pf=np.zeros(0),
+        ip_amperes=ip,
+        measured=meas,
+        vacuum_prediction=vac,
+        sensor_scale=scale,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        n_p=1,
+        n_f=1,
+    )
+
+    plain_a = fit_profile_ladder(grid, table, **kw)
+    plain_b = fit_profile_ladder(grid, table, passive=None, **kw)
+    np.testing.assert_array_equal(plain_a.result.psi, plain_b.result.psi)
+    assert plain_a.passive_amplitudes is None
+
+    sidecar = build_passive_sidecar(
+        table, grid, g_passive=fwd.g_passive, sensor_scale=scale, k=2
+    )
+    with_pass = fit_profile_ladder(
+        grid, table, passive=sidecar, passive_ridge=1e-3, **kw
+    )
+    assert with_pass.result.converged
+    assert with_pass.passive_amplitudes is not None
+    assert with_pass.passive_amplitudes.size == 2  # circuit-space currents [A]
+    np.testing.assert_allclose(with_pass.result.cell_currents.sum(), ip, rtol=1e-6)
+    # the sidecar must absorb most of the passive signal the profile cannot
+    # (measured on this fixture: 0.61 -> 0.053), and recover the truth axis;
+    # the plasma/passive current SPLIT stays degenerate on 5 channels — only
+    # the observable consequences are pinned
+    assert with_pass.cost < 0.2 * plain_a.cost
+    np.testing.assert_allclose(with_pass.result.axis, res.axis, atol=5e-2)

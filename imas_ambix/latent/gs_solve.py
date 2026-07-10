@@ -877,7 +877,9 @@ class LadderFit:
     ``coeffs`` are the per-column amplitudes of :func:`profile_basis` under
     the L1 current normalisation used inside the solve (each normalised
     column carries |Ip| of gross current), so they are dimensionless O(1)
-    numbers comparable across slices.
+    numbers comparable across slices.  ``passive_amplitudes`` are the fitted
+    passive currents mapped back to circuit space [A] (None when the sidecar
+    is off).
     """
 
     coeffs: np.ndarray  # (n_p + n_f,)
@@ -885,10 +887,83 @@ class LadderFit:
     n_f: int
     cost: float
     result: EquilibriumResult
+    passive_amplitudes: np.ndarray | None = None
 
     @property
     def dof(self) -> int:
         return self.n_p + self.n_f
+
+
+def build_passive_sidecar(
+    table: GeometryTable,
+    grid: EquilibriumGrid,
+    *,
+    g_passive: np.ndarray,
+    sensor_scale: np.ndarray,
+    k: int,
+) -> dict:
+    """Rank-k passive eigenmode sidecar: sensor + grid-ψ columns per mode.
+
+    ``g_passive`` is the forward operator's passive block RE-MAPPED to the
+    grid's sensor-channel order (rows absent on this campaign zeroed).  Modes
+    are the top-k right singular vectors of the WHITENED sensor block — the
+    passive current patterns the magnetics can actually see — so the sidecar
+    spends its k DOF on observable structure, never on null-space fill.  Grid
+    ψ columns are built from the same inferred-passive circuits' filaments
+    (finite-area Green's functions), so the modes' flux enters the Picard
+    field consistently, not just the sensor prediction.  Passive circuits are
+    conductor packs already excluded from topology reads.
+
+    Columns are normalised by their whitened singular values so a unit mode
+    amplitude produces a unit-norm whitened sensor signal — without this the
+    ampere-scale passive columns are ~10⁵ smaller than the Ip-normalised
+    profile columns and any relative ridge silently zeroes the sidecar.
+    ``modes`` maps fitted amplitudes back to per-circuit currents [A].
+    Near-unobservable modes (singular value < 10⁻⁶ of the leading one) are
+    dropped rather than amplified.
+    """
+    g_passive = np.asarray(g_passive, dtype=np.float64)
+    scale = np.clip(np.asarray(sensor_scale, dtype=np.float64), 1e-12, None)
+    k = int(min(k, g_passive.shape[1]))
+    _u, sv, vt = np.linalg.svd(g_passive / scale[:, np.newaxis], full_matrices=False)
+    keep = sv[:k] > 1e-6 * max(sv[0], 1e-300)
+    k = int(np.count_nonzero(keep))
+    v_over_s = vt[:k].T / sv[np.newaxis, :k]  # (n_passive, k), unit whitened norm
+
+    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+    by_circ: dict[int, list] = {}
+    for f in table.pf_filaments:
+        by_circ.setdefault(f.circuit, []).append(f)
+    psi_cols = []
+    for cc in classes:
+        if cc.role in op._KNOWN_ROLES:
+            continue
+        acc = np.zeros(grid.flat_r.size)
+        for f in by_circ[cc.circuit]:
+            psi_f, _br, _bz = hybrid_greens(
+                grid.flat_r,
+                grid.flat_z,
+                float(f.r),
+                float(f.z),
+                max(abs(f.width), 0.01),
+                max(abs(f.height), 0.01),
+            )
+            acc += f.xmult * psi_f
+        psi_cols.append(acc)
+    psi_full = (
+        np.column_stack(psi_cols) if psi_cols else np.zeros((grid.flat_r.size, 0))
+    )
+    if psi_full.shape[1] != g_passive.shape[1]:
+        raise ValueError(
+            f"passive circuit count mismatch: table {psi_full.shape[1]} vs "
+            f"g_passive {g_passive.shape[1]}"
+        )
+    return {
+        "g_cols": g_passive @ v_over_s,
+        "psi_cols": psi_full @ v_over_s,
+        "k": k,
+        "modes": v_over_s,
+    }
 
 
 def solve_equilibrium_lsq(
@@ -904,6 +979,8 @@ def solve_equilibrium_lsq(
     n_p: int = 1,
     n_f: int = 1,
     smoothness: float = 0.0,
+    passive: dict | None = None,
+    passive_ridge: float = 1.0,
     max_iterations: int = 120,
     warmup_iterations: int = 8,
     relax: float = 0.5,
@@ -929,6 +1006,13 @@ def solve_equilibrium_lsq(
     previous sweep's coefficients (the solve degrades to fixed-shape Picard,
     never fabricates).  Analytic-add coil field throughout; seed/warm-start
     semantics match :func:`solve_equilibrium`.
+
+    ``passive`` (from :func:`build_passive_sidecar`) augments the LSQ with
+    rank-k passive eigenmode amplitude columns — ridge-limited
+    (``passive_ridge``, relative to the data Gram), EXCLUDED from the plasma
+    Ip anchor (vessel currents are not plasma current), and their flux added
+    to the Picard field alongside the coil term.  ``passive=None`` (default)
+    is byte-identical to the sidecar-free solve.
     """
     g_sens, _channels = grid.sensor_greens(table)
     meas = np.asarray(measured, dtype=np.float64)
@@ -943,6 +1027,17 @@ def solve_equilibrium_lsq(
     cell_area = grid.dr * grid.dz
     k_dof = n_p + n_f
     s_gram = _second_difference_gram(n_p, n_f, 1.0)
+
+    kp = int(passive["k"]) if passive else 0
+    a_pass = np.zeros(kp)
+    if kp:
+        g_pass_cols = np.asarray(passive["g_cols"], dtype=np.float64)
+        psi_pass = np.asarray(passive["psi_cols"], dtype=np.float64)
+        bp = g_pass_cols[mask, :] / w_inv[:, np.newaxis]
+    else:
+        g_pass_cols = np.zeros((meas.size, 0))
+        psi_pass = np.zeros((grid.flat_r.size, 0))
+        bp = np.zeros((int(mask.sum()), 0))
 
     if initial_jphi is not None:
         jphi = np.where(
@@ -983,6 +1078,8 @@ def solve_equilibrium_lsq(
         psi_b2d = np.zeros((grid.nz, grid.nr))
         psi_b2d.ravel()[grid.edge_idx] = grid.g_edge @ i_cell
         psi_new = grid.solve_dirichlet(rhs2d, psi_b2d).ravel() + psi_coil
+        if kp:
+            psi_new = psi_new + psi_pass @ a_pass
 
         if psi_flat is None:
             psi_flat = psi_new
@@ -1028,28 +1125,39 @@ def solve_equilibrium_lsq(
             a_anchor = u_n.sum(axis=0)  # net current per unit coefficient
             b_mat = (g_sens[mask, :] @ u_n) / w_inv[:, np.newaxis]
             n_data = int(mask.sum())
+            n_var = k_dof + kp
             new_coeffs = None
-            if n_data >= k_dof and ok_cols.any():
-                # the ridge is RELATIVE: s_gram (unit weight) is rescaled by
-                # the data Gram's mean diagonal so --smoothness is a
-                # dimensionless O(0.01–1) knob, not a machine-dependent one
-                h_data = b_mat.T @ b_mat
-                s_scale = smoothness * np.trace(h_data) / max(k_dof, 1)
-                h = 2.0 * (h_data + s_scale * s_gram)
-                h += 1e-10 * np.trace(h) / max(k_dof, 1) * np.eye(k_dof)
-                kkt = np.zeros((k_dof + 1, k_dof + 1))
-                kkt[:k_dof, :k_dof] = h
-                kkt[:k_dof, k_dof] = a_anchor
-                kkt[k_dof, :k_dof] = a_anchor
-                rhs = np.concatenate([2.0 * (b_mat.T @ y), [ip_amperes]])
+            new_a_pass = None
+            if n_data >= n_var and ok_cols.any():
+                cols = np.hstack([b_mat, bp]) if kp else b_mat
+                # ridges are RELATIVE: the unit-weight Grams are rescaled by
+                # the data Gram's mean diagonal so --smoothness and
+                # --passive-ridge are dimensionless O(0.01–1) knobs
+                h_data = cols.T @ cols
+                mean_diag = np.trace(h_data) / max(n_var, 1)
+                s_full = np.zeros((n_var, n_var))
+                s_full[:k_dof, :k_dof] = smoothness * mean_diag * s_gram
+                if kp:
+                    s_full[k_dof:, k_dof:] = passive_ridge * mean_diag * np.eye(kp)
+                h = 2.0 * (h_data + s_full)
+                h += 1e-10 * np.trace(h) / max(n_var, 1) * np.eye(n_var)
+                anchor = np.concatenate([a_anchor, np.zeros(kp)])
+                kkt = np.zeros((n_var + 1, n_var + 1))
+                kkt[:n_var, :n_var] = h
+                kkt[:n_var, n_var] = anchor
+                kkt[n_var, :n_var] = anchor
+                rhs = np.concatenate([2.0 * (cols.T @ y), [ip_amperes]])
                 try:
                     sol = np.linalg.solve(kkt, rhs)
-                    if np.isfinite(sol[:k_dof]).all():
+                    if np.isfinite(sol[:n_var]).all():
                         new_coeffs = sol[:k_dof]
+                        new_a_pass = sol[k_dof:n_var]
                 except np.linalg.LinAlgError:
                     new_coeffs = None
             if new_coeffs is not None:
                 coeffs = new_coeffs
+                if kp:
+                    a_pass = new_a_pass
                 jphi_cells = (u_n / cell_area) @ coeffs  # back to density [A/m²]
                 jphi = np.zeros_like(jphi)
                 jphi[grid.cells] = jphi_cells
@@ -1066,6 +1174,8 @@ def solve_equilibrium_lsq(
     # cost is always the FINAL equilibrium's whitened prediction residual (the
     # per-sweep LSQ cost is pre-relaxation and can be stale by one sweep)
     pred = vac + g_sens @ i_cell
+    if kp:
+        pred = pred + g_pass_cols @ a_pass
     resid_v = (pred[mask] - meas[mask]) / scale[mask]
     cost = float(np.sqrt(np.mean(resid_v * resid_v))) if mask.any() else np.inf
 
@@ -1083,7 +1193,21 @@ def solve_equilibrium_lsq(
         residual=residual,
         iterations=iteration,
     )
-    return LadderFit(coeffs=coeffs, n_p=n_p, n_f=n_f, cost=cost, result=result)
+    passive_currents = None
+    if kp:
+        modes = passive.get("modes")
+        # report per-circuit currents [A] when the mode map is available
+        passive_currents = (
+            np.asarray(modes) @ a_pass if modes is not None else a_pass
+        )
+    return LadderFit(
+        coeffs=coeffs,
+        n_p=n_p,
+        n_f=n_f,
+        cost=cost,
+        result=result,
+        passive_amplitudes=passive_currents,
+    )
 
 
 def fit_profile_ladder(
@@ -1144,6 +1268,7 @@ __all__ = [
     "EquilibriumResult",
     "ProfileFit",
     "LadderFit",
+    "build_passive_sidecar",
     "solve_equilibrium",
     "solve_equilibrium_bootstrapped",
     "solve_equilibrium_lsq",

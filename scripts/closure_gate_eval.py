@@ -59,6 +59,7 @@ if TYPE_CHECKING:
 
 from imas_ambix.latent.gs_solve import (
     EquilibriumGrid,
+    build_passive_sidecar,
     fit_profile,
     fit_profile_continuous,
     fit_profile_ladder,
@@ -102,6 +103,34 @@ def _apply_calibration(payload: dict, calibration: str) -> None:
         p.scale[:] = p.scale / np.abs(gain)
 
 
+def _shot_passive_sidecar(payload: dict, k: int) -> dict:
+    """Build the per-shot rank-k passive eigenmode sidecar.
+
+    Maps the forward operator's ``g_passive`` rows (fwd channel order) onto
+    the grid's sensor-channel order by NAME — the same alignment
+    :func:`scripts.patch_gate_eval.shot_payloads` applies to the measured
+    payloads — then reduces to the top-k whitened sensor-space modes.
+    """
+    from imas_ambix.gs.operator import build_operator
+
+    table, grid = payload["table"], payload["grid"]
+    fwd = build_operator(table)
+    _g_sens, channels = grid.sensor_greens(table)
+    row_of = {ch: i for i, ch in enumerate(fwd.sensor_channels)}
+    g_pass = np.zeros((len(channels), fwd.g_passive.shape[1]))
+    for i, ch in enumerate(channels):
+        j = row_of.get(ch, -1)
+        if j >= 0:
+            g_pass[i] = fwd.g_passive[j]
+    return build_passive_sidecar(
+        table,
+        grid,
+        g_passive=g_pass,
+        sensor_scale=payload["payloads"][0].scale,
+        k=k,
+    )
+
+
 ARTIFACTS = Path("imas_ambix/latent/artifacts/patch_gate")
 FIGURES = Path("docs/figures/plasma-current-priors-hardening")
 # non-grid fit modes belong to the force-balance-spine plan — their figures
@@ -133,6 +162,7 @@ class ClosureSliceFit:
     coeffs: list | None = None  # ladder-mode normalised basis coefficients
     psi: np.ndarray | None = None  # retained only when keep_psi=True (figures)
     jphi_flat: np.ndarray | None = None  # converged jφ for temporal warm-starting
+    passive_amp: list | None = None  # rank-k passive eigenmode amplitudes [A]
 
 
 def fit_and_read_slice(
@@ -150,6 +180,8 @@ def fit_and_read_slice(
     n_p: int = 1,
     n_f: int = 1,
     smoothness: float = 0.0,
+    passive: dict | None = None,
+    passive_ridge: float = 1.0,
     maxfev: int = 60,
     warm_x0: tuple[float, ...] | None = None,
     warm_jphi: np.ndarray | None = None,
@@ -229,6 +261,9 @@ def fit_and_read_slice(
         z0 = fit.z0 if fit else None
     elif fit_mode == "ladder":
         kw = payload_kw | dict(n_p=n_p, n_f=n_f, smoothness=smoothness)
+        if passive is not None:
+            kw["passive"] = passive
+            kw["passive_ridge"] = passive_ridge
         if warm_jphi is not None:
             kw["initial_jphi"] = warm_jphi
         lf = fit_profile_ladder(grid, table, **kw)
@@ -289,6 +324,11 @@ def fit_and_read_slice(
         coeffs=coeffs,
         psi=fit.result.psi if keep_psi else None,
         jphi_flat=fit.result.jphi.ravel() if keep_jphi else None,
+        passive_amp=(
+            [float(a) for a in fit.passive_amplitudes]
+            if getattr(fit, "passive_amplitudes", None) is not None
+            else None
+        ),
     )
 
 
@@ -371,6 +411,8 @@ def fit_shot(payload: dict, cfg: dict, workers: int) -> list[ClosureSliceFit]:
             n_p=cfg.get("n_p", 1),
             n_f=cfg.get("n_f", 1),
             smoothness=cfg.get("smoothness", 0.0),
+            passive=payload.get("passive"),
+            passive_ridge=cfg.get("passive_ridge", 1.0),
             maxfev=cfg.get("maxfev", 60),
             warm_x0=warm_x0,
             warm_jphi=warm_jphi,
@@ -445,6 +487,8 @@ def run_gate(args) -> int:
         "n_p": args.n_p,
         "n_f": args.n_f,
         "smoothness": args.smoothness,
+        "passive_k": args.passive_k,
+        "passive_ridge": args.passive_ridge,
         "maxfev": args.maxfev,
     }
     logger.info("closure gate split=%s cfg=%s", args.split, cfg)
@@ -486,6 +530,8 @@ def run_gate(args) -> int:
         if payload is None:
             continue
         _apply_calibration(payload, args.calibration)
+        if args.passive_k > 0 and args.fit_mode == "ladder":
+            payload["passive"] = _shot_passive_sidecar(payload, args.passive_k)
         refs_by_shot[int(s)] = payload["refs"]
         fits = fit_shot(payload, cfg, args.workers)
         # attach the per-shot referee row index for scored slices
@@ -566,6 +612,9 @@ def run_gate(args) -> int:
     cost_fit = np.array([f.cost for f in scored], dtype=np.float64)
     conv_frac = float(np.mean([bool(f.converged) for f in scored]))
     sweep = cost_sweep(model, ref, baseline_vec, cost_fit, shot_ids)
+    pass_amp = None
+    if args.passive_k > 0 and all(f.passive_amp is not None for f in scored):
+        pass_amp = np.array([f.passive_amp for f in scored], dtype=np.float64)
 
     result = {
         "arm": "closure",
@@ -597,6 +646,16 @@ def run_gate(args) -> int:
         "cost_median_scored": float(np.median(cost_fit)),
         "cost_le_3_fraction": float(np.mean(cost_fit <= 3.0)),
         "cost_sweep": sweep,
+        "passive_gross_current_over_ip_median": (
+            float(
+                np.median(
+                    np.abs(pass_amp).sum(axis=1)
+                    / np.abs([f.ip_amperes for f in scored])
+                )
+            )
+            if pass_amp is not None
+            else None
+        ),
         "wall_s": wall_s,
         **sc,
         **lcfs_cm,
@@ -612,9 +671,9 @@ def run_gate(args) -> int:
     )
     extra_arrays: dict[str, np.ndarray] = {}
     if args.fit_mode == "ladder":
-        extra_arrays["coeffs"] = np.array(
-            [f.coeffs for f in scored], dtype=np.float64
-        )
+        extra_arrays["coeffs"] = np.array([f.coeffs for f in scored], dtype=np.float64)
+    if pass_amp is not None:
+        extra_arrays["passive_amp"] = pass_amp
     np.savez(
         ARTIFACTS / f"closure_gate_eval{tag}_arrays.npz",
         model=model,
@@ -885,6 +944,19 @@ def main() -> int:
         type=float,
         default=0.0,
         help="ladder: second-difference coefficient smoothness ridge weight",
+    )
+    ap.add_argument(
+        "--passive-k",
+        type=int,
+        default=0,
+        help="ladder: rank of the g_passive eigenmode sidecar (0 = OFF, the "
+        "default — P5 discipline: measured before load-bearing)",
+    )
+    ap.add_argument(
+        "--passive-ridge",
+        type=float,
+        default=1.0,
+        help="ladder: relative ridge weight on the passive mode amplitudes",
     )
     ap.add_argument(
         "--maxfev",
