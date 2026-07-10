@@ -45,7 +45,10 @@
       Scope: the five workstreams below. Out of scope (owned elsewhere): interior-diagnostic fusion and the
       learned equilibrium prior (<a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>
       threads 2/4 — this plan feeds them a physical carrier), the toroidal-harmonic annulus read (f-etf-04,
-      unchanged owner), and the 1-D dynamic closures
+      since migrated to its own plan
+      <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a> — the
+      parallel boundary lane whose interior carrier follows this plan's representation-default decision), and
+      the 1-D dynamic closures
       (<a href="/imas-ambix/learned-closure-current-diffusion-v0.html">learned-closure-current-diffusion-v0</a>;
       W5 only registers the coefficient-level tie). This plan extends and absorbs the remaining scope of
       plasma-current-priors-hardening f-pcph-04 (static audit + low-DOF closure arm), whose first artifacts —
@@ -65,12 +68,15 @@
     <p><strong>Goal:</strong> a profile-closure equilibrium carrier whose held-out topology skills are positive
       at meaningful coverage, and a measured representation-default decision.</p>
     <ul>
-      <li><strong>Consume the in-flight calibrated closure gate.</strong> The offset-only static calibration
-        collapsed the misfit floor ~7× (free arm 0.049 → 0.0074); the uncalibrated closure arm already posts
-        axis skill +0.34 [0.32, 0.38] and LCFS skill +0.12 [0.10, 0.15] on its cost ≤ 1 subset (6/160 slices).
-        The compound experiment (calibration × closure) was launched 2026-07-10 morning; its verdict — how far
-        the positive-skill population expands when the instrument error is removed — is this workstream's
-        starting evidence. Record it with the standard cost-threshold sweep (accuracy and coverage together).</li>
+      <li><strong>Starting evidence recorded (2026-07-10 cross experiment — negative and diagnostic).</strong>
+        The offset-only static calibration collapsed the patch-arm misfit floor ~7× and Gate A now passes
+        calibrated (R1 axis skill −0.054 [−0.35, +0.11], zero halo) — but it does <em>not</em> unlock the
+        closure arm at scale: cost ≤ 1 coverage moved only 6 → 7/160 and the cost median is unchanged, while
+        the subset LCFS skill improved +0.12 → +0.20 at 2.6–3.5 cm axis. Sensor zeros are therefore not the
+        whole static error; the binding constraints are the remaining coil-model geometry/circuit error (W2)
+        and the starved 2-DOF profile family (the fits rail at the grid corner and the equilibria drag
+        outboard) — which makes the profile ladder below THE W1 attack. Full record + figures:
+        <a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a> §7.</li>
       <li><strong>Retire the candidate grid.</strong> Replace the 5×3 (β0, α) grid with continuous
         optimization (warm-started, bounded), add the vertical-position DOF the solver already exposes, and
         per-shot warm-starting along the time axis (the first, cheap use of temporal coherence).</li>
@@ -230,7 +236,7 @@
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-fbs-01" data-status="open" data-tier="opus" data-written-by="physics-spine-review" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">W1 — land the calibrated closure spine: consume the in-flight gate, continuous fit, CI-gated DOF ladder</h4>
-    <div class="r-fu-body"><p>The compound calibration × closure experiment was launched 2026-07-10 (see <code>_closure_cal.log</code>; uncommitted driver edits in <code>scripts/closure_gate_eval.py</code> must be committed first). Record its verdict, then retire the 5×3 candidate grid (continuous (β0, α) + vertical-position DOF + per-shot warm-starting) and run the profile-DOF ladder. Resolve <em>representation-default</em> at Gate FB-1.</p></div>
+    <div class="r-fu-body"><p>The compound calibration × closure verdict is now recorded (plasma-current-priors-hardening §7): negative at scale — cost ≤ 1 coverage 6 → 7/160, cost median unchanged, subset LCFS +0.12 → +0.20 — confirming the starved 2-DOF family and remaining coil-model error as the binding constraints. The work here: retire the 5×3 candidate grid (continuous (β0, α) + vertical-position DOF + per-shot warm-starting) and run the K-coefficient profile-DOF ladder through the Picard solve (linear LSQ per sweep). Resolve <em>representation-default</em> at Gate FB-1.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    force-balance-spine (http://localhost:8765/imas-ambix/force-balance-spine.html)
 Section: §2 W1
