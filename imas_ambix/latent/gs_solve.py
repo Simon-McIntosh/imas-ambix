@@ -840,10 +840,14 @@ def profile_basis(
 
     ``kind="legendre"``: φ_k(ψ_N) = P_{k−1}(2ψ_N−1)·(1−ψ_N) (shifted Legendre
     × boundary factor — well-conditioned on [0, 1], exactly zero at ψ_N = 1,
-    sign-indefinite).  ``kind="monomial-nonneg"``: φ_k(ψ_N) = (1−ψ_N)^k —
-    every basis function ≥ 0, so NON-NEGATIVE coefficients imply jφ ≥ 0
-    pointwise (the R1 unidirectional-current fact imposed at the profile
-    level); conditioning is poorer but fine for K ≤ ~5 per family.
+    sign-indefinite).  ``kind="monomial-nonneg"``: φ_k(ψ_N) = (1−ψ_N)^e_k
+    with the exponent ladder e = (0.5, 1, 1.5, 2, 3) — every basis function
+    ≥ 0, so NON-NEGATIVE coefficients imply jφ ≥ 0 pointwise (the R1
+    unidirectional-current fact imposed at the profile level).  The ladder
+    starts at a SUB-LINEAR exponent because the continuous fit rails at its
+    α = 0.4 lower bound (the calibrated magnetics demand a broader-than-
+    linear edge-weighted profile); conditioning is poorer than Legendre but
+    fine for ≤ 5 columns per family.
     n_p = n_f = 1 spans the two-term (β0, α=1) family with a free amplitude
     split in either kind.
     """
@@ -855,11 +859,12 @@ def profile_basis(
     rr = np.maximum(r, 1e-3)
     x = 2.0 * np.clip(psi_n, 0.0, 1.0) - 1.0
     edge = np.where(inside, 1.0 - np.clip(psi_n, 0.0, 1.0), 0.0)
+    nonneg_exponents = (0.5, 1.0, 1.5, 2.0, 3.0)
     cols = []
     for drive, n_k in ((rr / r0, n_p), (r0 / rr, n_f)):
         for k in range(n_k):
             if kind == "monomial-nonneg":
-                phi = edge ** (k + 1)
+                phi = edge ** nonneg_exponents[k]
             elif kind == "legendre":
                 phi = legendre.legval(x, [0.0] * k + [1.0]) * edge
             else:  # pragma: no cover — callers pass validated kinds
@@ -886,10 +891,15 @@ def _bounded_profile_lsq(
     passive block free.
 
     Ridges enter as factor rows (matrix square root of the smoothness Gram —
-    K is tiny, eigh is exact); the Ip anchor enters as a heavy normalised row
-    (relative weight 10⁴, anchor error ~10⁻⁸ relative) and is made EXACT by
-    the caller's final rescale-to-Ip.  Returns None on solver failure so the
-    sweep degrades to the previous coefficients, never fabricates.
+    K is tiny, eigh is exact).  The Ip anchor enters as a MODERATELY weighted
+    normalised row — weight ~20× the data-residual norm, so the anchor is
+    held to ~1% (the caller's per-sweep rescale-to-Ip makes it exact) while
+    the data gradients stay ABOVE the solver's optimality tolerance.  Both
+    extremes are measured failure modes: weight 10⁴ drowned the misfit (the
+    solver stopped at any Ip-consistent point); no anchor at all let the fit
+    prefer ~0.2·Ip of net current and the loop-top rescale destroyed the
+    optimum.  Returns None on solver failure so the sweep degrades to the
+    previous coefficients, never fabricates.
     """
     from scipy import optimize  # noqa: PLC0415
 
@@ -907,7 +917,7 @@ def _bounded_profile_lsq(
             )
         )
         rhs.append(np.zeros(kp))
-    w_anchor = 1e4
+    w_anchor = 20.0 * max(1.0, float(np.linalg.norm(y)))
     denom = max(abs(ip_amperes), 1e-30)
     rows.append((anchor / denom)[np.newaxis, :] * w_anchor)
     rhs.append(np.array([w_anchor * ip_amperes / denom]))
@@ -1048,6 +1058,7 @@ def solve_equilibrium_lsq(
     n_f: int = 1,
     smoothness: float = 0.0,
     nonneg: bool = False,
+    profile_relax: float = 1.0,
     passive: dict | None = None,
     passive_ridge: float = 1.0,
     max_iterations: int = 120,
@@ -1078,7 +1089,8 @@ def solve_equilibrium_lsq(
 
     ``passive`` (from :func:`build_passive_sidecar`) augments the LSQ with
     rank-k passive eigenmode amplitude columns — ridge-limited
-    (``passive_ridge``, relative to the data Gram), EXCLUDED from the plasma
+    (``passive_ridge``, absolute on the unit-whitened-norm mode columns:
+    1.0 halves a mode carrying a unit-norm signal), EXCLUDED from the plasma
     Ip anchor (vessel currents are not plasma current), and their flux added
     to the Picard field alongside the coil term.  ``passive=None`` (default)
     is byte-identical to the sidecar-free solve.
@@ -1224,13 +1236,16 @@ def solve_equilibrium_lsq(
                         kp=kp,
                         s_gram=s_gram,
                         smoothness_scale=smoothness * mean_diag,
-                        passive_ridge_scale=passive_ridge * mean_diag,
+                        # passive mode columns are unit-whitened-norm by
+                        # construction — the ridge is absolute on them
+                        passive_ridge_scale=passive_ridge,
                     )
                 else:
                     s_full = np.zeros((n_var, n_var))
                     s_full[:k_dof, :k_dof] = smoothness * mean_diag * s_gram
                     if kp:
-                        s_full[k_dof:, k_dof:] = passive_ridge * mean_diag * np.eye(kp)
+                        # unit-whitened-norm mode columns: absolute ridge
+                        s_full[k_dof:, k_dof:] = passive_ridge * np.eye(kp)
                     h = 2.0 * (h_data + s_full)
                     h += 1e-10 * np.trace(h) / max(n_var, 1) * np.eye(n_var)
                     kkt = np.zeros((n_var + 1, n_var + 1))
@@ -1250,8 +1265,19 @@ def solve_equilibrium_lsq(
                 if kp:
                     a_pass = new_a_pass
                 jphi_cells = (u_n / cell_area) @ coeffs  # back to density [A/m²]
-                jphi = np.zeros_like(jphi)
-                jphi[grid.cells] = jphi_cells
+                jphi_lsq = np.zeros_like(jphi)
+                jphi_lsq[grid.cells] = jphi_cells
+                # under-relax the PROFILE update (independent of the ψ
+                # relaxation): a full jump from the warmup shape to the LSQ
+                # optimum moves the boundary read so far in one sweep that
+                # the iteration escapes into the outboard corner attractor
+                # (measured on held-out slices) — slow profile morphing keeps
+                # the fixed point on the confined branch
+                jphi = (
+                    jphi_lsq
+                    if profile_relax >= 1.0
+                    else profile_relax * jphi_lsq + (1.0 - profile_relax) * jphi
+                )
             # else: keep the previous sweep's jphi (fixed-shape degradation)
 
         if iteration > max(5, warmup_iterations + 2) and residual < tolerance:
@@ -1332,6 +1358,28 @@ def fit_profile_ladder(
             seed_z0=solve_kwargs.get("seed_z0", 0.0),
         )
         initial_jphi = stage1.jphi.ravel()
+        if solve_kwargs.get("nonneg", False):
+            # the sign-constrained solve is basin-fragile: from a fixed-shape
+            # seed the Picard escapes to the outboard corner attractor, while
+            # an equally-good PHYSICAL fixed point exists on the confined
+            # branch (measured: free-sign 0.428 vs seeded nonneg 0.434 on the
+            # same slice).  The stable free-sign K=2 LSQ scouts the branch;
+            # the sign-constrained solve then certifies a physical profile
+            # there — Tier-3 instrument guides, Tier-2 carries.
+            scout = solve_equilibrium_lsq(
+                grid,
+                table,
+                i_pf,
+                ip_amperes,
+                measured=measured,
+                vacuum_prediction=vacuum_prediction,
+                sensor_scale=sensor_scale,
+                sensor_mask=sensor_mask,
+                n_p=1,
+                n_f=1,
+                initial_jphi=initial_jphi,
+            )
+            initial_jphi = scout.result.jphi.ravel()
     return solve_equilibrium_lsq(
         grid,
         table,
