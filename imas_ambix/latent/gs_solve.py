@@ -942,7 +942,7 @@ def solve_equilibrium_lsq(
     sign = 1.0 if ip_amperes >= 0 else -1.0
     cell_area = grid.dr * grid.dz
     k_dof = n_p + n_f
-    s_gram = _second_difference_gram(n_p, n_f, smoothness)
+    s_gram = _second_difference_gram(n_p, n_f, 1.0)
 
     if initial_jphi is not None:
         jphi = np.where(
@@ -1030,7 +1030,12 @@ def solve_equilibrium_lsq(
             n_data = int(mask.sum())
             new_coeffs = None
             if n_data >= k_dof and ok_cols.any():
-                h = 2.0 * (b_mat.T @ b_mat + s_gram)
+                # the ridge is RELATIVE: s_gram (unit weight) is rescaled by
+                # the data Gram's mean diagonal so --smoothness is a
+                # dimensionless O(0.01–1) knob, not a machine-dependent one
+                h_data = b_mat.T @ b_mat
+                s_scale = smoothness * np.trace(h_data) / max(k_dof, 1)
+                h = 2.0 * (h_data + s_scale * s_gram)
                 h += 1e-10 * np.trace(h) / max(k_dof, 1) * np.eye(k_dof)
                 kkt = np.zeros((k_dof + 1, k_dof + 1))
                 kkt[:k_dof, :k_dof] = h
