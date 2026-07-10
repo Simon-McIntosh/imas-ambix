@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="physics-spine-findings">
+  <meta name="plan-title"    content="Physics Spine — Findings: representation, rotation, regularization">
+  <meta name="plan-summary"  content="Deep review of the force-balance world-model line answering two strategic questions: (1) extend force balance with toroidal-rotation terms? — yes, as a term-dictionary slot with a measured-rotation falsifiable test first (the R⁴ column already exists in structure_residual.py, unwired; MAST is the machine where rotation is both largest and most identifiable); (2) current-first-with-penalty vs flux-first-with-conservation? — a false dichotomy: the profile-closure representation through the free-boundary GS fixed point satisfies every contested constraint by construction (today's evidence: closure arm posts the project's first positive LCFS skill where fit quality is good; offset-only static calibration collapses the misfit floor ~7× and yields the first CI-positive X-point skill). Formalizes the three-tier physics spine (exact structure / structured unknowns / residual instruments) + the discovery loop, and registers a 12-item critique/gap register.">
+  <meta name="plan-informs"  content="force-balance-spine,equilibrium-topology-fidelity,plasma-current-priors-hardening,machine-agnostic-latent-world-model,physics-world-model-strategy,learned-closure-current-diffusion-v0">
+  <title>Physics Spine — Findings | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The charge, and the one-screen answers</h2>
+    <p>
+      Commissioned by the lead 2026-07-10 as a deep research exercise against the North Star
+      (<a href="/imas-ambix/physics-world-model-strategy.html">physics-world-model-strategy</a>,
+      <a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a>)
+      and the full recent evidence base (grounding review, priors hardening, closure and calibration arms).
+      The framing the lead supplied is adopted here as the organizing thesis: <strong>this line of work is the
+      project's physics spine</strong>, and its load-bearing realization is that
+      <em>physics is physics — it does not need to be rediscovered</em>. The spine solves known structure in
+      combination with large amounts of experimental data to discover the coefficients the structure leaves
+      free, and — through its residuals — the terms the structure is missing. Two strategic questions were posed:
+    </p>
+    <ul>
+      <li><strong>Q1 — rotation.</strong> The proof of concept uses static GS with p′ and FF′ terms. On compact
+        machines rotation terms are known to be strong. Do we extend force balance to include them?</li>
+      <li><strong>Q2 — representation and regularization.</strong> We currently solve forward models for given
+        current distributions; the dimensionality of admissible current distributions is very high and the
+        separatrix makes the target 2-D field sharply discontinuous. The alternative — parametrizing a flux map —
+        must keep the map source-free (GS operator = 0) where there is no current and keep the GS coefficients
+        constant along flux surfaces where there is. Current-first with a constancy penalty, or flux-first with a
+        conservation difficulty — and how do we regularize either to shrink the search space?</li>
+    </ul>
+    <p><strong>Answer to Q2 (representation).</strong> The dichotomy is false: both horns describe
+      <em>penalty</em> formulations of constraints that the <strong>profile-closure representation through the
+      free-boundary GS fixed point satisfies exactly, by construction</strong>. Parametrize the low-DOF flux
+      functions p′(ψ<sub>N</sub>), FF′(ψ<sub>N</sub>) (plus known coil currents and a structured nuisance layer)
+      and obtain <em>both</em> j<sub>φ</sub> and ψ from the self-consistent solve: coefficient constancy on
+      surfaces holds because the coefficients are functions of ψ<sub>N</sub>; Δ*ψ = 0 holds exactly in the vacuum
+      region because the support is inside the LCFS of the solved ψ; and the separatrix discontinuity is never
+      represented in the search space — it <em>emerges</em> from the smooth ψ level-set, which is the classic
+      interface-problem resolution (ψ is its own level-set function). Dimensionality collapses from ~4,787
+      per-cell currents against ~73 sensors (a ~4,700-dimensional null space that soft priors must span) to
+      2–10 profile DOF that the same sensors <em>over</em>-determine. This is not speculative: it is the measured
+      convergence point of the project's own experiment sequence (§2, §4), and the freshest artifacts — the
+      closure-arm cost sweep and today's offset-only calibrated gates — supply the first positive LCFS and
+      first CI-positive X-point skills the project has produced. The two other representations keep precisely
+      scoped jobs: the free current basis as <em>measurement instrument and nuisance carrier</em> (it is the
+      instrument that measured the 0.75 I<sub>p</sub> static error), and the flux-first representation exactly
+      where its constraint is exactly satisfiable — the source-free vacuum annulus (the still-unbuilt f-etf-04
+      toroidal-harmonic read). Regularization then stops being generic penalty-tuning and becomes
+      <strong>information-budget matching</strong> (§4.3).</p>
+    <p><strong>Answer to Q1 (rotation).</strong> Yes — architecturally now, numerically staged. The rotation
+      extension is the ideal first traversal of the spine's discovery loop because its <em>form</em> is exact,
+      known physics (Maschke–Perrin: with toroidal rotation, p is no longer a flux function;
+      R·j<sub>φ</sub> gains a centrifugal R⁴ design column with coefficient
+      c(ψ) ≈ ½p₀·(m<sub>i</sub>Ω²/T)′), while its <em>coefficient</em> is exactly one new flux function —
+      γ(ψ) = m<sub>i</sub>Ω²/2T ≥ 0, sign-definite like the other spine priors. MAST is the machine on which
+      neglecting rotation is least defensible <em>and</em> where the term is most identifiable: NBI-driven
+      thermal Mach numbers reach M₀ ≈ 0.5–1 (outboard/inboard pressure ratios of 1.5–4 on outer surfaces —
+      leading-order, not a correction), and the ST's wide relative radial span makes the R⁴ column ~15%
+      orthogonal to the static design (vs ~7% at conventional aspect ratio) — figure in §5. The residual-side
+      slot <em>already exists in-tree</em> (<code>structure_residual.py</code> form
+      <code>affine-r2-rotation</code>) but is wired nowhere and has never been measured. The staging that keeps
+      the spine honest: (A) wire the residual diagnostic; (B) a <strong>measured-rotation falsifiable test</strong> —
+      fix γ(ψ) from CXRS rotation + Thomson temperature (both in the corpus; <code>act</code> on 7,991 shots)
+      with <em>zero new free parameters</em> and test whether held-out misfit and topology skill improve;
+      (C) free-coefficient discovery mode, gated on a synthetic identifiability probe. All three sequence
+      <em>after</em> the static-calibration story, which this week collapsed the misfit floor ~7× — rotation-scale
+      shaping was unmeasurable under a 0.2 whitened-misfit floor and is becoming measurable now.</p>
+
+    <h2 id="s2">§2 — Where the evidence stands (including this morning's runs)</h2>
+    <p>The equilibrium line's experiment sequence, re-read end-to-end for this review, is a textbook arc —
+      each swing measured honestly, each reversal evidence-forced:</p>
+    <ul>
+      <li><strong>Profile-ansatz fixed point, first attempt</strong>
+        (<a href="/imas-ambix/gs-grounded-latent-engine-findings.html">gs-grounded-latent-engine</a>): the linear
+        low-DOF current inverse was shown <em>structurally incapable</em> of an interior O-point (measured
+        effective rank of the magnetics ≈ 5–6; localisation is inherently nonlinear), locking
+        ψ-decoder-for-topology to the free-boundary GS solve — but plain Picard paid a convergence tax
+        (83/160 scored; 12/160 after the 2π source-scale fix) and the per-slice fit was fragile.</li>
+      <li><strong>The patch-current pivot</strong>
+        (<a href="/imas-ambix/patch-current-force-balance.html">patch-current-force-balance</a>): exact Maxwell
+        interaction matrices (694k slices/s), force balance as a soft structure residual, no Picard, no topology
+        extraction in the loop. It delivered the axis at referee grade (2.6–2.8 cm median, 160/160) and the
+        eval spine — and then the <a href="/imas-ambix/project-grounding-review-2026-07.html">grounding
+        review</a> showed the price: ~73 sensors against ~4,787 free cells leaves a null space that the soft
+        physics term is structurally blind to (j²-weighted, sign-agnostic, support-blind, self-normalised —
+        review register B2/B14). The null space was filled by optimiser defaults: a 0.75 I<sub>p</sub>
+        anti-parallel halo and corner lobes, current where no plasma is.</li>
+      <li><strong>Priors hardening</strong>
+        (<a href="/imas-ambix/plasma-current-priors-hardening.html">plasma-current-priors-hardening</a>, shipped
+        2026-07-10): R1 (sign) and R2 (support) measured the fill — 0.75 I<sub>p</sub> anti-parallel,
+        1.01 I<sub>p</sub> outside-LCFS — and R2 proved load-bearing for topology (axis median 6.4→3.1 cm,
+        X-point-set skill −1.69→+0.14, first positive). But misfit tripled when the halo was forbidden: the halo
+        absorbs <em>real unmodelled signal</em>, shown phase-independent (flat-top 0.715 vs rampup 0.754) —
+        a <strong>static</strong> coil-model/calibration error, not eddies. And nothing shapes j<sub>φ</sub>
+        within its allowed support, so the LCFS under-sizes (−4.91→−7.57): the missing ingredient is exactly
+        EFIT's low-DOF p′/FF′ closure <em>as the solve variable</em> (plan §6.4).</li>
+      <li><strong>The closure arm</strong> (commits 657e1d8→0062509, artifacts
+        <code>closure_gate_eval.json</code>): the (β0, α) two-parameter profile family fit <em>through</em> the
+        free-boundary fixed point on the hardened harness now converges on <strong>160/160</strong> held-out
+        slices (bootstrapped two-stage solve; the Picard tax is paid off). Quality is cost-gated and — uncalibrated —
+        the misfit floor dominates (cost median 12.2). The signal is in the cost sweep: at cost ≤ 3 (11 slices)
+        axis skill +0.022 @ 6.4 cm; at cost ≤ 1 (6 slices) <strong>axis skill +0.34 [0.32, 0.38] @ 2.6 cm and
+        LCFS skill +0.12 [0.10, 0.15]</strong> — the <em>first positive LCFS skill anywhere in the project</em>.
+        Where the representation is allowed to fit the sensors well, it beats everything else the project has
+        tried, including on the quantity (LCFS) that every other arm loses.</li>
+      <li><strong>The static-calibration arm</strong> (commits a8a2b83→832e2a9, this morning's artifacts):
+        a per-channel offset-only nuisance model, fit on 10 train shots against the frozen priors-arm winner and
+        applied held-out (|offset|/σ median 0.10), collapses the free-arm misfit
+        <strong>0.049 → 0.0074 (~7×)</strong>, halves the anti-parallel halo (0.72 → 0.33 median) and cuts
+        outside-LCFS current (≈1.0 → 0.45 I<sub>p</sub>). On the priors arm it yields
+        <strong>axis error median 3.8 cm and X-point-set skill +0.29 [0.03, 0.41] — the first topology skill
+        with a CI clear of zero</strong>. LCFS ray-casts remain negative (−7.2; offset ~31 cm): shaping within
+        the support is still missing, which is the closure arm's job, not calibration's. The
+        <em>calibrated closure gate</em> — the experiment where these two fixes compound — is in flight on a
+        debug node as this review is written (<code>_closure_cal.log</code>; the working tree carries its
+        uncommitted driver edits).</li>
+    </ul>
+    <p>Read as one sequence: <strong>every hard-won result confirms the same lesson — constraints enforced by
+      construction carry; constraints enforced by penalty leak in exactly the null space where they are needed
+      most; and free representations are superb instruments precisely because they do not carry.</strong>
+      That lesson, generalized, is the spine architecture of §3.</p>
+
+    <h2 id="s3">§3 — The physics spine, formalized: three tiers and a discovery loop</h2>
+    <p>
+      "Physics is physics" becomes an executable architecture when every quantity in the model is placed in
+      one of three tiers by <em>how well its physics is known</em> — and the placement dictates the enforcement
+      mechanism. The failure modes documented in the grounding review are, without exception, tier violations:
+      exact physics enforced softly (force-balance structure as a penalty), or unknown quantities granted
+      load-bearing freedom (the null-space fill).
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/physics-spine/fig-three-tier-spine.png" alt="Three-tier physics spine + discovery loop" style="max-width:100%">
+      <figcaption><strong>Figure 1 — The three-tier spine and the discovery loop.</strong> Tier 1: structure
+        known exactly is imposed by construction and is never learned or penalised. Tier 2: structure whose
+        <em>form</em> is known but whose coefficients are not — low-DOF, learned from data, amortised over the
+        corpus. Tier 3: free representations retained as residual instruments, never load-bearing. The discovery
+        loop is the promotion path between tiers: a persistent, structured Tier-3 residual nominates a candidate
+        term from the physics dictionary, which passes a synthetic identifiability probe and a gated held-out
+        measurement before earning a Tier-2 coefficient. Rotation (§5) is the first planned traversal.</figcaption>
+    </figure>
+    <p><strong>Tier 1 — exact structure, imposed by construction.</strong> Maxwell/Green's-function maps
+      (already exact in the patch substrate — Ampère and div B = 0 are identities there), the free-boundary GS
+      fixed point Δ*ψ = −μ₀R·j<sub>φ</sub>(ψ<sub>N</sub>, R) <em>solved rather than penalised</em>, the
+      force-balance form including its known extensions (the rotation column of §5), Δ*ψ = 0 in vacuum,
+      conductor geometry, and the sign facts: sign(I<sub>p</sub>) from the Rogowski, F² ≥ 0 integrability,
+      η<sub>∥</sub> &gt; 0 ⇒ D ≥ 0 parabolicity (the arrow of time, §7a of the driving plan), γ(ψ) ≥ 0
+      (rotation). Nothing in this tier has a tunable weight — that is the point. It is also what transfers:
+      Tier 1 is machine-agnostic by construction.</p>
+    <p><strong>Tier 2 — structured unknowns, coefficients from data.</strong> The profile closures
+      p₀′(ψ<sub>N</sub>), FF′(ψ<sub>N</sub>) (today a 2-DOF (β0, α) family; a gated ladder toward ~10 spline
+      DOF), the rotation coefficient γ(ψ), the static instrument model (per-channel offset/gain; coil
+      geometry/turns audit), passive-conductor eigenmodes (genuinely <em>not</em> flux functions — currents in
+      known conductor support, rank-k), the budgeted halo/SOL current, and — on the dynamic side — the transport
+      closures (η<sub>∥</sub> correction, Z<sub>eff</sub>, bootstrap multiplier) that
+      <a href="/imas-ambix/learned-closure-current-diffusion-v0.html">learned-closure-current-diffusion-v0</a>
+      already treats in exactly this pattern ("go through the physics, not around it"). This tier is where
+      "large amounts of experimental data" enter: coefficients are amortised across the corpus by the encoder,
+      and the corpus-level distribution over coefficients <em>is</em> the learned equilibrium prior of
+      equilibrium-topology-fidelity thread 4 — hierarchical statistical sharing, not per-slice fitting.</p>
+    <p><strong>Tier 3 — residual instruments, never load-bearing.</strong> The free per-cell basis, the
+      structure residual's per-bin unexplained fraction and its within-surface R-shape, the GS and
+      flux-diffusion residual fields, and the latent's free block. Their proven role is measurement: the free
+      inverse is the instrument that measured the 0.75 I<sub>p</sub> static discrepancy that closed-form codes
+      silently absorb, and the North Star's residual-as-discovery contract (§5 of the strategy) lives here.
+      The single discipline that §2's history demands: <em>Tier-3 objects never appear in the solve loop</em> —
+      they are projections of what Tiers 1–2 leave unexplained.</p>
+    <p><strong>The discovery loop</strong> closes the lead's brief — "discover both the underlying equations and
+      their coefficients." Discovering coefficients is Tier 2's day job. Discovering <em>equations</em> is the
+      promotion path: a persistent, structured Tier-3 residual (e.g. a systematic within-surface R-dependence
+      the affine law cannot absorb) nominates a candidate term from the known-physics dictionary
+      (rotation R⁴, anisotropy, a passive mode, a calibration term); the candidate must pass a synthetic-truth
+      identifiability probe (can this term be recovered at all, from these sensors, at this noise?) and then a
+      gated held-out measurement with CIs before it earns a Tier-2 coefficient — the P5
+      keep-only-if-load-bearing discipline, now applied to physics terms rather than regulariser rungs.
+      A term that fails stays a recorded negative. This is SINDy-with-a-physics-dictionary rather than
+      free-form regression, and it is the concrete mechanism behind the North Star's promise that structure
+      discovery "rides on top" of the grounded model.</p>
+
+    <h2 id="s4">§4 — Q2 answered: representation and regularization</h2>
+
+    <h3 id="s4-1">§4.1 — The trade-space, measured</h3>
+    <figure>
+      <img src="/imas-ambix/figures/physics-spine/fig-representation-tradespace.png" alt="DOF vs information + constraint matrix" style="max-width:100%">
+      <figcaption><strong>Figure 2 — The representation trade-space.</strong> (a) Free parameters per slice
+        against the measured information content of the magnetics (effective rank ≈ 5–6 from ~73 trusted
+        channels — measured during the gs-grounded review). The free bases sit three orders of magnitude above
+        the information line; the profile-closure representation sits below it, and even with the structured
+        nuisance layer the total stays within reach of the data. (b) How each representation meets the five
+        contested constraints: the profile closure through the free-boundary solve is the only one that meets
+        all of them exactly, by construction. "Soft" cells are penalties that the grounding review showed leak
+        in the null space; "free" cells are unconstrained.</figcaption>
+    </figure>
+    <p>The two proposed routes, assessed against §2's evidence:</p>
+    <ul>
+      <li><strong>Current-first with a constancy penalty</strong> is the measured status quo. Its strengths are
+        real: the forward map is linear and exact (Green's superposition), coils and passives enter naturally,
+        and the basis can represent anything — including the separatrix jump, trivially. Its measured weakness is
+        structural, not a tuning failure: with ~4,700 null-space dimensions, <em>everything</em> rests on the
+        penalties, and the review proved the flagship penalty blind (and locally even attractive) to the very
+        pathologies it was assumed to prevent. R1/R2 hardened the sign and support of the fill; nothing shapes
+        the distribution within the support, and the LCFS pays for it. The route's honest end-state is already
+        visible: an ever-taller ladder of soft rungs approximating, term by term, what the fixed point gives
+        exactly.</li>
+      <li><strong>Flux-first over the full domain</strong> inverts the difficulty rather than removing it: a free
+        ψ(R,Z) must be <em>penalised</em> into Δ*ψ = 0 in an a-priori-unknown vacuum region, penalised into
+        coefficient constancy inside, and — a subtlety the in-vessel coil work made concrete — handled carefully
+        wherever coils pierce the domain (their field is not Δ*-harmonic at the source; the analytic-add split
+        exists precisely because of this). The feasible set is the same thin manifold, approached from the other
+        side, with the added risk that small ψ errors differentiate into large j errors. Where flux-first is
+        <em>exactly right</em> is the source-free vacuum annulus: the toroidal-harmonic expansion (R3 / f-etf-04,
+        locked-then-deferred twice, still unbuilt) is conservative by construction there and reads the
+        boundary/X-point with no interior commitment at all. Build it as the representation-side complement —
+        not as the state carrier.</li>
+      <li><strong>Profile-closure through the fixed point</strong> — the third route the dichotomy hides — is
+        where both constraints stop being constraints: they are consequences of the parametrization. The
+        separatrix worry inverts likewise: j<sub>φ</sub> = ĵ(ψ<sub>N</sub>, R)·𝟙[inside LCFS(ψ)] is
+        discontinuous, but the <em>search space</em> (profile coefficients) is smooth and low-dimensional; the
+        discontinuity is derived, never fought. The measured objections to the fixed point — the Picard
+        convergence tax and per-slice fragility — have been retired by the closure arm's bootstrapped two-stage
+        solve (160/160 convergence) and are further addressed by amortization: the encoder predicts profile
+        coefficients, the solve refines, and a differentiable fixed point (implicit-function-theorem gradients)
+        makes the whole spine trainable end-to-end.</li>
+    </ul>
+    <p><strong>Recommended architecture</strong> — a hierarchy, not a winner-takes-all:
+      <em>Tier-1 carrier</em>: profile-closure free-boundary solve (the equilibrium state the world model's
+      latent maps to); <em>Tier-2 sidecar</em>: structured nuisance currents that genuinely are not flux
+      functions — passive-conductor eigenmodes on known support (the unwired <code>g_passive</code> block),
+      the budgeted halo/SOL term, the static calibration model; <em>Tier-3 audit</em>: the free patch basis run
+      <em>outside</em> the solve as a residual projector, retaining the discovery channel that found the static
+      error; <em>annulus read</em>: the f-etf-04 harmonic expansion as the interior-free boundary
+      cross-check. The patch substrate is not discarded — its exact interaction matrices are precisely how the
+      fixed point's Green's functions, the nuisance modes, and the audit projector are all evaluated.</p>
+
+    <h3 id="s4-3">§4.3 — Regularization = information-budget matching</h3>
+    <p>"How do we regularize to reduce the dimensionality of the search space" has a quantitative answer once
+      the representation is right, and it is not "add penalties":</p>
+    <ul>
+      <li><strong>Match parametrization DOF to measured information.</strong> The magnetics carry an effective
+        rank of ~5–6. A per-slice parametrization above that is under-determined <em>by measurement</em>, not by
+        opinion. The profile ladder therefore starts at 2 DOF (β0, α — below budget, currently
+        over-regularized: the LCFS deficit partly reflects family rigidity) and adds knots/DOF one at a time,
+        each addition gated on held-out evidence (misfit + topology skill with CIs), never on train-cohort
+        preference. The moment-fit episode — order 3 selected on a tune cohort where every order lost, then
+        inverting on eval — is the cautionary tale the CI-gated ladder prevents.</li>
+      <li><strong>Grow information before growing DOF.</strong> The interior profile is genuinely
+        under-determined from magnetics alone (the standing honest negative since S8). The principled way to
+        afford more profile DOF is more information: interior diagnostics (equilibrium-topology-fidelity
+        thread 2 — interferometer/SXR/Thomson/MSE, and CXRS for §5), and <em>time</em> — temporal coherence via
+        the flux-diffusion transport prior ties adjacent slices together, so a shot's worth of slices
+        collectively constrains a slowly-evolving profile far better than any slice alone (thread 5, and the
+        §7a temporal anchor, put to work as a regularizer).</li>
+      <li><strong>Amortize across the corpus.</strong> Fitting each slice independently wastes the strongest
+        regularizer available: the corpus. The encoder that predicts Tier-2 coefficients is a hierarchical
+        prior learned from ~10⁴ shots; the per-slice solve becomes a refinement, and coefficient distributions
+        across the corpus become the learned equilibrium prior (thread 4) and the discovery dataset (W4 of the
+        follow-on plan). The flat-MLP amortization negative (49/160 @ 49 cm) does not contradict this — it
+        measured the wrong encoder (no geometry, imputed features, sparse targets); the oracle-recipe encoder
+        remains the design, and a 2–10-DOF smooth target is a far easier amortization problem than 4,787 patch
+        currents.</li>
+      <li><strong>Keep the few remaining penalties honest.</strong> Where soft terms remain (halo budget,
+        profile smoothness at higher DOF), fix the measured defects: the structure residual's self-normalisation
+        (B14) can actively reward isolated blobs, and <code>coefficient_smoothness_penalty</code> exists but is
+        wired nowhere. Every rung keeps the P5 keep-only-if-load-bearing discipline with CIs.</li>
+    </ul>
+
+    <h2 id="s5">§5 — Q1 answered: the rotation term</h2>
+    <figure>
+      <img src="/imas-ambix/figures/physics-spine/fig-rotation-mast.png" alt="Rotation magnitude, signature, identifiability" style="max-width:100%">
+      <figcaption><strong>Figure 3 — Why rotation, why MAST, why now.</strong> (a) With purely toroidal rotation
+        the pressure ceases to be a flux function — p(ψ,R) = p₀(ψ)·exp[m<sub>i</sub>Ω²(R²−R₀²)/2T] — and the
+        outboard/inboard pressure ratio on a surface grows as exp(M₀²·(R²<sub>out</sub>−R²<sub>in</sub>)/R₀²).
+        On a MAST-like surface the NBI-driven operating range (thermal Mach M₀ ≈ 0.3–0.8, v<sub>φ</sub> up to
+        ~250 km/s at T<sub>i</sub> ~ 1 keV) produces ratios 1.2–4: leading-order physics, not a correction.
+        (b) The within-surface signature: rotation bends R·j<sub>φ</sub> away from the static affine law
+        aR² + b by a c(ψ)·R⁴ term — exactly one additional design column per flux bin, and exactly the shape the
+        existing structure residual can expose. (c) The R⁴ column's component orthogonal to span{1, R²} across
+        a surface: ~15% at MAST's radial span vs ~7% at JET/ITER spans — the ST is where the term is both
+        largest and most identifiable.</figcaption>
+    </figure>
+    <p><strong>The physics is known; only one flux function is not.</strong> The generalized force balance with
+      rigid toroidal rotation Ω(ψ) (Maschke–Perrin; the same extension NIMEQ, HELENA and EFIT-with-flow use)
+      keeps the GS form with p → p(ψ,R); expanding to leading order in the centrifugal exponent,
+      R·j<sub>φ</sub> ≈ a(ψ)R² + b(ψ) + c(ψ)R⁴ with a = p₀′, b = FF′/μ₀ and
+      c ≈ ½p₀·(m<sub>i</sub>Ω²/T)′. The new object is the single flux function γ(ψ) = m<sub>i</sub>Ω²/2T ≥ 0 —
+      sign-definite, so it enters Tier 1 as a form and Tier 2 as one more coefficient function, in exactly the
+      same pattern as p₀′ and FF′. Remarkably, the derivation and the three-column design matrix
+      <em>already sit in the codebase</em> (<code>structure_residual.py</code>, form
+      <code>affine-r2-rotation</code>, with precisely this docstring) — prototyped, wired into no live path,
+      never measured. The strategic question is therefore not "do we build rotation support" but "when do we
+      switch on what exists, and with what gates".</p>
+    <p><strong>Why it matters here.</strong> Three reasons, beyond generic completeness. (i) <em>Magnitude:</em>
+      MAST's low field and strong beams make it one of the fastest-rotating tokamaks per unit thermal speed;
+      ignoring a factor-2 in-out pressure asymmetry while fitting p₀′ guarantees that the recovered "pressure
+      gradient" is an effective, rotation-contaminated object — fine for boundary readout, poisonous for the
+      discovery claims the North Star makes about recovered closures. (ii) <em>Aliasing:</em> a missing R⁴ term
+      aliases into the fitted a(ψ), b(ψ) and into the misfit floor; with the static calibration collapse
+      (§2) the residual budget is now small enough that percent-level shaping terms stop being noise.
+      (iii) <em>Machine-agnosticism:</em> the term's form is universal; its coefficient is per-shot data. A
+      spine that carries the rotation slot transfers to JET/ITER (where it is smaller but nonzero) with nothing
+      to retrain — the exact robust-structure/data-led-closure split of North Star §6.</p>
+    <p><strong>The staged, falsifiable path (recommended):</strong></p>
+    <ul>
+      <li><strong>Stage A — residual diagnostic (cheap, near-zero risk).</strong> Wire
+        <code>affine-r2-rotation</code> as a <em>reporting</em> arm of the gate: on the held-out cohort, does the
+        three-column fit reduce the per-bin unexplained fraction, and is the recovered c(ψ) coherent (one-signed
+        where p₀γ is peaked, larger on high-rotation shots)? No solver change; the output is a measured
+        yes/no on whether rotation is visible in our data at all. This is the discovery loop's step 1→2
+        executed on a known term.</li>
+      <li><strong>Stage B — measured-rotation forward test (zero new DOF, falsifiable).</strong> Build
+        γ(ψ<sub>N</sub>) from measured CXRS toroidal rotation (<code>act</code>, ~5 ms cadence, 7,991 shots) and
+        Thomson T (<code>ayc</code>); extend the closure-arm ansatz
+        j<sub>φ</sub>(ψ<sub>N</sub>, R) with the fixed centrifugal factor; re-run the closure gate. Every input
+        is a raw measurement (firewall-clean); the term adds <em>no free parameters</em>; the prediction is
+        sharp — held-out misfit and topology skill improve on high-rotation shots, or the term is not
+        load-bearing at our current error budget and the negative is recorded. This is the cleanest possible
+        first traversal of the promotion gate.</li>
+      <li><strong>Stage C — discovery mode (gated).</strong> Free γ(ψ) as a Tier-2 coefficient function
+        (γ ≥ 0 by softplus, like every other sign prior), identifiability first demonstrated on the synthetic
+        harness (recover a known γ from synthetic magnetics ± interior data at realistic noise). Pairs naturally
+        with thread 2's SXR fusion — in-out emissivity asymmetry is the classic rotation observable and breaks
+        the magnetics-only degeneracy.</li>
+      <li><strong>Sequencing lock:</strong> all stages sit <em>behind</em> the calibrated-closure milestone (the
+        in-flight run + its verdicts). Under a 0.2 misfit floor the term was unmeasurable; under ~0.01–0.04 it
+        is in reach. Do not spend the rotation experiment against an instrument-error budget.</li>
+      <li><strong>Dynamics counterpart (future slot, not now):</strong> toroidal momentum balance —
+        d(angular momentum)/dt = NBI torque (in the plan/pulse-schedule) − losses, with sign-definite loss —
+        is the rotation analog of the Volt-second budget: one more inequality guard-rail for the transition
+        kernel when rotation joins the latent state. Register the slot; build nothing yet.</li>
+    </ul>
+
+    <h2 id="s6">§6 — Critique of the work so far: the gap register</h2>
+    <p>What a hostile-but-fair reviewer would say about the line to date. Each gap carries its evidence and its
+      owner. The overall verdict first: <strong>the honesty spine is exemplary</strong> — firewalled referee,
+      leakage-free splits, CIs after the hardening, negatives recorded as first-class results — and it is
+      exactly why this critique can be specific. The gaps are concentrated in (a) constraints enforced at the
+      wrong tier, (b) built-but-unwired machinery, and (c) missing synthetic-truth instrumentation.</p>
+    <ul>
+      <li><strong>G1 — The static instrument error is found but not yet attributed.</strong> The offset-only
+        nuisance arm absorbs it empirically (misfit ~7× down) but is fit against one inverse arm's residuals —
+        a <em>statistical</em> calibration, not an audited coil model. Risks: circularity (offsets fit against
+        the priors-arm inverse could absorb genuine physics), and the full gain arm's spread (p10–p90
+        0.90–1.14) is large enough to be either real calibration or model-error laundering. Needs: independent
+        validation on coil-only/vacuum intervals (no plasma current — the predicted field is pure Tier 1),
+        cross-validation across arms, and the physical audit (turns/geometry/circuit mapping, f-pcph-04).</li>
+      <li><strong>G2 — LCFS skill is negative in every arm</strong> (best: closure-arm cost≤1 subset, +0.12 on
+        6 slices). The profile-shaping fix is identified and in flight, but until the calibrated closure gate
+        reads positive at meaningful coverage, "beat EFIT on the boundary" remains an ambition with no
+        positive-skill demonstration. The 2-DOF grid (5×3 candidates) is also visibly too coarse — no vertical
+        position freedom, no continuous optimization, no per-shot warm-starting.</li>
+      <li><strong>G3 — Penalty-tier defects are diagnosed but not fixed.</strong> The structure residual's
+        self-normalisation can actively reward isolated blobs (B14) — it remains the live P3-winner term.
+        R1/R2 remain OFF by default (correctly, per gates), so production inverses still carry the halo.</li>
+      <li><strong>G4 — Built-but-unwired machinery accumulates.</strong>
+        <code>coefficient_smoothness_penalty</code> (wired nowhere), <code>g_passive</code> (never in the
+        inverse), <code>edge_taper_penalty</code> (deliberately unwired), <code>affine-r2-rotation</code>
+        (never run). Each represents a decision made in code but never measured — the inventory in
+        priors-hardening §6.3 should become a standing table with a measured/unmeasured column.</li>
+      <li><strong>G5 — No synthetic-truth identifiability harness.</strong> The null-space fill was caught by
+        the lead's eyeball on a figure, not by a test. Manufactured equilibria with known p′/FF′ (± rotation,
+        ± calibration corruption, ± passive currents) pushed through the full inverse→gate chain would have
+        flagged it years-of-agent-time earlier, and are the cheap gate every future term promotion needs.
+        gs_solve has analytic solver tests; the <em>end-to-end recovery</em> suite does not exist.</li>
+      <li><strong>G6 — No per-slice uncertainty or evidence-based model selection.</strong> CIs exist at gate
+        level (bootstrap over shots); nothing propagates uncertainty onto profile coefficients or chooses DOF
+        by evidence. The moment-order episode showed what hand-picked complexity does. The Bayesian machinery
+        the project already committed to (calibrated belief, EnKF) should extend to the closure coefficients.</li>
+      <li><strong>G7 — f-etf-04 (toroidal-harmonic annulus read) remains unbuilt</strong> after being locked,
+        deferred, and re-specified twice. It is the only representation whose vacuum constraint is exact and
+        interior-free — the natural cross-check for every boundary claim the spine will make.</li>
+      <li><strong>G8 — Rotation is absent from every forward model on the machine where it is largest.</strong>
+        §5. Until Stage A/B run, all recovered p₀′ are rotation-contaminated effective profiles, and the
+        discovery-layer claims inherit that caveat silently.</li>
+      <li><strong>G9 — Session hygiene around in-flight physics runs.</strong> This morning's calibration work
+        left uncommitted worktree edits (<code>scripts/closure_gate_eval.py</code> --calibration support;
+        regenerated <code>gs_operator_summary.json</code> under case-circuits-v2) while a SLURM job consuming
+        that code runs — the exact editable-install contamination mode the workspace rules warn about. Commit
+        promptly and pin configs for in-flight jobs.</li>
+      <li><strong>G10 — Statics and dynamics are still separate spines.</strong> The flux-diffusion transport
+        prior (D ≥ 0) lives in the engine; the learned-closure current-diffusion plan (M3) carries the 1-D
+        dynamic closures; the equilibrium closure coefficients evolve slice-by-slice with no temporal tie.
+        Temporal coherence is both physics (current diffusion is slow) and the cheapest large regularizer
+        (§4.3); the spine should couple them at the coefficient level (β0, α, γ as slowly-evolving states in
+        the filter).</li>
+      <li><strong>G11 — Skill metrics are tail-fragile.</strong> Gate A's headline ("axis skill not
+        CI-compatible") is RMSE-tail-driven while the median halved — the metric and the physics disagree.
+        Report median-based or trimmed skills alongside RMSE-skills, and keep the closure arm's
+        cost-threshold-sweep pattern (accuracy/coverage reported together) as the standard.</li>
+      <li><strong>G12 — Amortization is unproven on the spine target.</strong> The flat-MLP negative is
+        recorded; the oracle-recipe encoder → (β0, α, γ, calibration) prediction is the actual design and
+        remains unmeasured. Until it lands, the spine is a per-slice method with corpus-scale ambitions.</li>
+    </ul>
+
+    <h2 id="s7">§7 — Recommendations and the follow-on plan</h2>
+    <p>Five recommendations, in dependency order, formalized as the new plan
+      <a href="/imas-ambix/force-balance-spine.html">force-balance-spine</a>:</p>
+    <ul>
+      <li><strong>W1 — Land the calibrated closure spine.</strong> Consume the in-flight calibrated closure
+        gate; add continuous (β0, α) + vertical-position optimization and the CI-gated profile-DOF ladder;
+        wire profile smoothness at higher DOF; then take the representation-default decision (closure-first
+        carrier + patch audit + annulus read) on measured evidence.</li>
+      <li><strong>W2 — Harden the nuisance layer.</strong> Independent validation of the static calibration
+        (vacuum/coil-only intervals, cross-arm checks), the gain-arm audit, passive eigenmodes through
+        <code>g_passive</code>, and the coil-model physical audit — retiring G1.</li>
+      <li><strong>W3 — Build the synthetic-truth identifiability harness.</strong> Manufactured equilibria with
+        known Tier-2 coefficients (± rotation ± calibration ± passives) through the full chain; recovery CIs;
+        the standing gate for every term promotion — retiring G5 and gating W4.</li>
+      <li><strong>W4 — Execute the rotation ladder.</strong> Stage A (residual diagnostic) immediately after W1;
+        Stage B (measured-rotation, zero-DOF, falsifiable) behind the calibrated-closure milestone; Stage C
+        (free γ, discovery mode) behind W3 — retiring G8 and exercising the discovery loop end-to-end.</li>
+      <li><strong>W5 — Formalize the discovery loop.</strong> The term-dictionary registry (candidate form,
+        identifiability status, gate verdict, promotion state), the trimmed/median skill additions, and the
+        coefficient-evolution tie to the transport prior (with learned-closure-current-diffusion-v0) — retiring
+        G4's drift and G10's split.</li>
+    </ul>
+    <p>What this document does <em>not</em> recommend: abandoning the patch substrate (it is the spine's
+      computational backbone and its audit instrument), hard topology priors (single-blob exclusions were
+      rightly rejected — doublets stay representable through every recommendation here), or a full-domain
+      flux-first pivot (its constraint burden is the current-first problem mirrored). The spine's identity —
+      exact structure, data-led coefficients, residuals as discovery — is the projection of the North Star onto
+      the equilibrium problem, and the evidence of §2 says it is working exactly where it has been tried.</p>
+
+  </main>
+</body>
+</html>

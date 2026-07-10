@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="force-balance-spine">
+  <meta name="plan-title"     content="Force-Balance Spine — closure-first representation, the rotation term, and information-budget regularization">
+  <meta name="plan-summary"   content="Consolidate the equilibrium line onto the three-tier physics spine: (W1) land the calibrated profile-closure carrier through the free-boundary GS fixed point (continuous optimization + CI-gated profile-DOF ladder) and take the representation-default decision; (W2) harden the Tier-2 nuisance layer (independent static-calibration validation on coil-only intervals, gain audit, passive eigenmodes via g_passive); (W3) build the synthetic-truth identifiability harness that gates every term promotion; (W4) execute the rotation ladder — residual diagnostic, measured-rotation zero-DOF falsifiable test from CXRS+Thomson, then gated free-coefficient discovery; (W5) formalize the discovery loop (term-dictionary registry, trimmed skills, coefficient-evolution tie to the transport prior). Evidence base: physics-spine-findings.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S16">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="plasma-current-priors-hardening,patch-current-force-balance,gs-grounded-latent-engine">
+  <title>Force-Balance Spine | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Thesis and scope</h2>
+    <p>
+      This plan operationalizes the strategy locked out in
+      <a href="/imas-ambix/physics-spine-findings.html">physics-spine-findings</a> (2026-07-10): the
+      equilibrium line is the project's <strong>physics spine</strong>, organized in three tiers —
+      <em>exact structure imposed by construction</em> (Maxwell maps, the free-boundary GS fixed point, the
+      force-balance form and its known extensions, sign facts), <em>structured unknowns whose coefficients the
+      data supplies</em> (profile closures, rotation coefficient, static instrument model, passive modes,
+      transport closures), and <em>free residual instruments that are never load-bearing</em> (the patch basis
+      as audit projector, the structure residual, the GS/transport residual fields). "Physics is physics — it
+      does not need to be rediscovered": known forms are never penalised into the solution or learned from
+      scratch; data effort is spent exclusively on what physics leaves free, and the residuals nominate what
+      the term dictionary is still missing.
+    </p>
+    <p>
+      Scope: the five workstreams below. Out of scope (owned elsewhere): interior-diagnostic fusion and the
+      learned equilibrium prior (<a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>
+      threads 2/4 — this plan feeds them a physical carrier), the toroidal-harmonic annulus read (f-etf-04,
+      unchanged owner), and the 1-D dynamic closures
+      (<a href="/imas-ambix/learned-closure-current-diffusion-v0.html">learned-closure-current-diffusion-v0</a>;
+      W5 only registers the coefficient-level tie). This plan extends and absorbs the remaining scope of
+      plasma-current-priors-hardening f-pcph-04 (static audit + low-DOF closure arm), whose first artifacts —
+      the closure gate and the offset-only calibration — landed in commits 657e1d8…832e2a9 and are consumed by
+      W1/W2.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/physics-spine/fig-representation-tradespace.png" alt="Representation trade-space" style="max-width:100%">
+      <figcaption><strong>Figure 1 — Why closure-first.</strong> The profile-closure representation through the
+        free-boundary solve is the only arm that meets every contested constraint exactly, by construction, and
+        its 2–10 DOF sit below the measured ~5–6 effective-rank information content of the magnetics — the free
+        bases sit three orders of magnitude above it. Full argument and evidence:
+        physics-spine-findings §4.</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — W1: land the calibrated closure spine (the carrier)</h2>
+    <p><strong>Goal:</strong> a profile-closure equilibrium carrier whose held-out topology skills are positive
+      at meaningful coverage, and a measured representation-default decision.</p>
+    <ul>
+      <li><strong>Consume the in-flight calibrated closure gate.</strong> The offset-only static calibration
+        collapsed the misfit floor ~7× (free arm 0.049 → 0.0074); the uncalibrated closure arm already posts
+        axis skill +0.34 [0.32, 0.38] and LCFS skill +0.12 [0.10, 0.15] on its cost ≤ 1 subset (6/160 slices).
+        The compound experiment (calibration × closure) was launched 2026-07-10 morning; its verdict — how far
+        the positive-skill population expands when the instrument error is removed — is this workstream's
+        starting evidence. Record it with the standard cost-threshold sweep (accuracy and coverage together).</li>
+      <li><strong>Retire the candidate grid.</strong> Replace the 5×3 (β0, α) grid with continuous
+        optimization (warm-started, bounded), add the vertical-position DOF the solver already exposes, and
+        per-shot warm-starting along the time axis (the first, cheap use of temporal coherence).</li>
+      <li><strong>The profile-DOF ladder.</strong> Extend the two-term ansatz toward a small spline family
+        (target ≤ ~10 DOF), one DOF at a time, each addition gated on held-out misfit + topology skill with
+        CIs — never on tune-cohort preference. Wire <code>coefficient_smoothness_penalty</code> where the
+        ladder exceeds the information budget. Report the ladder as an evidence curve (skill vs DOF), which is
+        also the measured answer to "how much profile information do the magnetics carry".</li>
+      <li><strong>Representation-default decision.</strong> With the calibrated ladder measured, resolve the
+        <em>representation-default</em> decision below: the closure-first carrier as the equilibrium state the
+        world model maps to, the patch basis re-scoped to Tier-3 audit + Tier-2 nuisance carrier, the annulus
+        read as boundary cross-check.</li>
+    </ul>
+
+    <h2 id="s3">§3 — W2: harden the Tier-2 nuisance layer</h2>
+    <p><strong>Goal:</strong> the static instrument error attributed and independently validated, so no
+      physical arm pays it as misfit and no calibration term launders model error.</p>
+    <ul>
+      <li><strong>Independent validation of the static calibration.</strong> The offset-only arm is currently a
+        <em>statistical</em> fit against one inverse arm's residuals. Validate it where the truth is pure
+        Tier 1: coil-only/vacuum intervals (pre-breakdown, post-disruption dwell) where predicted sensor values
+        involve no plasma inversion at all. Cross-check offsets fitted against different arms (free, priors,
+        closure) — a genuine instrument offset is arm-independent by definition; divergence flags physics
+        laundering.</li>
+      <li><strong>Gain-arm audit.</strong> The full gain+offset fit spreads p10–p90 0.90–1.14 — either real
+        (mis-calibrated effective areas/turns) or absorbed coil-model error. Adjudicate on the vacuum intervals
+        and against the machine-description audit (turns/geometry/circuit mapping — the f-pcph-04 attack,
+        continued here).</li>
+      <li><strong>Passive eigenmodes.</strong> Wire the existing <code>g_passive</code> block (146 passive
+        nodes) into the closure solve as a rank-k eigenmode sidecar (k ≤ ~8, ridge-limited), OFF by default,
+        measured at the gate — the structured carrier for whatever inductive signal remains after static
+        calibration, and the prerequisite for honest ramp/transient work.</li>
+      <li><strong>Re-gate R1/R2 with calibration on.</strong> The priors-hardening re-gate followup is
+        superseded in the calibrated world: re-run Gates A/B with the frozen winner flags on calibrated
+        payloads; revisit the prior-defaults decision with the new evidence (calibrated priors arm already
+        reads axis 3.8 cm median, X-point-set skill +0.29 [0.03, 0.41]).</li>
+    </ul>
+
+    <h2 id="s4">§4 — W3: the synthetic-truth identifiability harness</h2>
+    <p><strong>Goal:</strong> the standing instrument that would have caught the null-space fill automatically,
+      and the gate every future term promotion must pass.</p>
+    <ul>
+      <li>Manufactured equilibria with <em>known</em> Tier-2 coefficients — p₀′/FF′ families across the
+        realistic range, ± rotation (known γ), ± static calibration corruption (known offsets/gains),
+        ± passive currents (known mode amplitudes) — pushed through the full forward chain to synthetic sensor
+        values at MAST geometry and realistic noise.</li>
+      <li>Recovery tests with CIs for every arm (free, priors, closure, calibrated closure): which injected
+        coefficients are recovered, which alias, and at what noise each becomes invisible. The aliasing matrix
+        (e.g. rotation → p₀′ contamination magnitude; calibration → halo) becomes a reference artifact.</li>
+      <li>Information accounting: effective rank and per-coefficient Fisher information of each sensor set
+        (magnetics alone; + interferometer; + SXR; + CXRS), giving equilibrium-topology-fidelity thread 2 a
+        quantitative shopping list instead of a plausibility argument.</li>
+      <li>Wired as a pytest-marked suite (fast subset in CI; full sweep on demand) so the gate is standing,
+        not a one-off study.</li>
+    </ul>
+
+    <h2 id="s5">§5 — W4: the rotation ladder (first traversal of the discovery loop)</h2>
+    <p><strong>Goal:</strong> the rotation term measured through the full promotion path — or a recorded,
+      CI-backed negative. Physics and staging per
+      <a href="/imas-ambix/physics-spine-findings.html">physics-spine-findings §5</a>: the form is exact
+      (Maschke–Perrin; R·j<sub>φ</sub> ≈ aR² + b + cR⁴ with c ≈ ½p₀(m<sub>i</sub>Ω²/T)′), the coefficient is
+      one sign-definite flux function γ(ψ) = m<sub>i</sub>Ω²/2T ≥ 0, MAST is where the term is both largest
+      (thermal Mach 0.3–0.8 ⇒ in-out pressure ratios 1.2–4) and most identifiable (R⁴ column ~15% orthogonal
+      to the static design vs ~7% at conventional aspect ratio).</p>
+    <figure>
+      <img src="/imas-ambix/figures/physics-spine/fig-rotation-mast.png" alt="Rotation magnitude, signature, identifiability" style="max-width:100%">
+      <figcaption><strong>Figure 2 — The rotation term: magnitude (a), within-surface signature (b),
+        identifiability vs radial span (c).</strong> The design column already exists in-tree
+        (<code>structure_residual.py</code> form <code>affine-r2-rotation</code>) and is wired nowhere.</figcaption>
+    </figure>
+    <ul>
+      <li><strong>Stage A — residual diagnostic.</strong> Wire <code>affine-r2-rotation</code> as a gate
+        reporting arm: held-out per-bin unexplained-fraction delta (3-column vs 2-column) with CIs, and the
+        recovered c(ψ) profiles stratified by measured rotation. Cheap; no solver change; answers "is rotation
+        visible in our residuals at all".</li>
+      <li><strong>Stage B — measured-rotation forward test (zero new DOF).</strong> γ(ψ<sub>N</sub>) built from
+        CXRS toroidal rotation (<code>act</code>, 7,991 shots, ~5 ms) + Thomson T<sub>e</sub>→T proxy
+        (<code>ayc</code>); the closure-arm ansatz extended with the fixed centrifugal factor; the calibrated
+        closure gate re-run. Falsifiable prediction: held-out misfit and topology skill improve on
+        high-rotation shots. Firewall-clean (all raw measurements). Either verdict is a result.</li>
+      <li><strong>Stage C — discovery mode (gated on W3).</strong> Free γ(ψ) ≥ 0 (softplus) as a Tier-2
+        coefficient, only after the W3 harness demonstrates recoverability at realistic noise; natural pairing
+        with SXR in-out asymmetry when thread 2 lands it.</li>
+      <li><strong>Register (build nothing):</strong> the toroidal momentum budget (NBI torque in the plan −
+        sign-definite losses) as the future dynamic guard-rail slot when rotation joins the latent state.</li>
+    </ul>
+
+    <h2 id="s6">§6 — W5: formalize the discovery loop</h2>
+    <ul>
+      <li><strong>Term-dictionary registry:</strong> a versioned artifact (candidate form, physics reference,
+        identifiability status, gate verdicts, promotion state) covering at minimum: rotation R⁴, pressure
+        anisotropy, passive modes, calibration terms, halo/SOL budget — turning §6.3-style inventories into a
+        standing measured/unmeasured table.</li>
+      <li><strong>Metric hardening:</strong> trimmed/median skills reported alongside RMSE skills (the Gate-A
+        tail-domination lesson); the cost-threshold sweep as the standard accuracy/coverage report.</li>
+      <li><strong>Coefficient-evolution tie:</strong> couple the closure coefficients to the transport prior at
+        the state level — (β0, α, γ) as slowly-evolving quantities in the filter, giving temporal coherence as
+        a regularizer and connecting the static spine to the M3 dynamic-closure line without merging the plans.</li>
+    </ul>
+
+    <h2 id="s7">§7 — Gates, sequencing, relationships</h2>
+    <ul>
+      <li><strong>Sequencing:</strong> W1 and W2 start immediately and in parallel (W1 consumes the in-flight
+        calibrated gate; W2's vacuum-interval validation is independent). W3 starts once W1's continuous-fit
+        refactor stabilizes the chain it must instrument. W4 Stage A rides any gate run after W1; Stage B needs
+        W1+W2 landed; Stage C needs W3. W5 accretes throughout and closes last.</li>
+      <li><strong>Gate FB-1 (carrier):</strong> calibrated closure arm — axis and LCFS skill vs the referee with
+        CIs at ≥ 50% coverage, plus the full cost sweep. Pass = LCFS skill CI clear of zero at that coverage;
+        either way the representation-default decision is taken on the numbers.</li>
+      <li><strong>Gate FB-2 (nuisance):</strong> static calibration validated on coil-only intervals
+        (offset agreement within CI across arms); gain-arm adjudicated; passive-mode arm measured
+        load-bearing-or-not.</li>
+      <li><strong>Gate FB-3 (rotation):</strong> Stage A + B verdicts recorded with CIs either way; Stage C
+        only if B is positive and W3 shows recoverability.</li>
+      <li><strong>Relationships:</strong> depends on plasma-current-priors-hardening (harness + priors + the
+        f-pcph-04 scope this plan absorbs), patch-current-force-balance (substrate) and gs-grounded-latent-engine
+        (solver). Feeds equilibrium-topology-fidelity (threads 2/3/4 inherit the carrier + the information
+        accounting), the amortized encoder line (the spine coefficients are its prediction target), and the
+        North-Star discovery layer (W5's registry is its equilibrium instantiation). EFIT stays firewalled
+        referee everywhere; leakage-free tune/eval protocol unchanged.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="representation-default" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which representation is the default equilibrium carrier for the world model?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="closure-first">closure-first: profile-closure through the free-boundary GS fixed point as carrier; patch basis re-scoped to Tier-3 audit + Tier-2 nuisance; annulus read as boundary cross-check (recommended — physics-spine-findings §4)</button>
+          <button class="r-opt" data-value="patch-first">patch-first: keep the free/priored patch inverse as carrier; closure arm remains a comparison arm</button>
+          <button class="r-opt" data-value="dual">dual: both arms carried until the calibrated ladder (Gate FB-1) adjudicates</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="rotation-coefficient-source" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How does the rotation coefficient γ(ψ) enter the solve?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="staged-measured-first">staged: measured-rotation fixed term first (zero new DOF, falsifiable), free coefficient only after the identifiability harness gates it (recommended)</button>
+          <button class="r-opt" data-value="free-immediately">free flux function immediately (risk: unmeasurable aliasing into p₀′ before W3 exists)</button>
+          <button class="r-opt" data-value="defer">defer rotation entirely until boundary skills are positive</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="calibration-scope" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What static-calibration model ships as default on gate payloads?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="offset-only">offset-only until independently validated (recommended — gains p10–p90 0.90–1.14 unadjudicated)</button>
+          <button class="r-opt" data-value="gain-offset">gain+offset immediately</button>
+          <button class="r-opt" data-value="none">no calibration until the physical coil audit lands</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+
+      <article class="r-fu" data-id="f-fbs-01" data-status="open" data-tier="opus" data-written-by="physics-spine-review" data-written-at="2026-07-10">
+        <h4 class="r-fu-title">W1 — land the calibrated closure spine: consume the in-flight gate, continuous fit, CI-gated DOF ladder</h4>
+        <div class="r-fu-body"><p>The compound calibration × closure experiment was launched 2026-07-10 (see <code>_closure_cal.log</code>; uncommitted driver edits in <code>scripts/closure_gate_eval.py</code> must be committed first). Record its verdict, then retire the 5×3 candidate grid (continuous (β0, α) + vertical-position DOF + per-shot warm-starting) and run the profile-DOF ladder. Resolve <em>representation-default</em> at Gate FB-1.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    force-balance-spine (http://localhost:8765/imas-ambix/force-balance-spine.html)
+Section: §2 W1
+Tier:    opus
+
+Context
+  physics-spine-findings locked the closure-first strategy; the uncalibrated closure arm already
+  posts the project's first positive LCFS skill on its cost&lt;=1 subset (6/160), and the offset-only
+  calibration collapsed the misfit floor ~7x. The compound run was in flight 2026-07-10 morning.
+
+State to read
+  scripts/closure_gate_eval.py (NB: uncommitted --calibration edits in the worktree — commit or
+  reconcile with their author first), imas_ambix/latent/gs_solve.py (fit_profile, profile_jphi_shape),
+  imas_ambix/latent/artifacts/patch_gate/closure_gate_eval*.json + static_calibration_offset_only.json,
+  _closure_cal.log, scripts/patch_gate_eval.py (harness reused verbatim).
+
+Scope locks / constraints
+  Leakage-free protocol unchanged (tune on train shots, frozen, scored once held-out with CIs).
+  EFIT referee eval-only. Report the cost-threshold sweep (accuracy AND coverage) in every artifact.
+  Do not change physics defaults and harness code in the same commit. SLURM debug partitions for
+  compute; never the login node.
+
+Done-when
+  1. Calibrated closure gate verdict recorded (held-out, CIs, cost sweep) in the plan.
+  2. Continuous (beta0, alpha) + Z0 optimization replaces the grid; convergence coverage reported.
+  3. Profile-DOF ladder measured (skill vs DOF curve, CI-gated additions); smoothness penalty wired
+     where the ladder exceeds the information budget.
+  4. representation-default decision resolved on the numbers; plan updated same-turn; this followup
+     resolved; findings doc §7 cross-updated.</pre>
+      </article>
+
+      <article class="r-fu" data-id="f-fbs-02" data-status="open" data-tier="opus" data-written-by="physics-spine-review" data-written-at="2026-07-10">
+        <h4 class="r-fu-title">W2 — nuisance-layer hardening: independent calibration validation, gain audit, passive eigenmodes</h4>
+        <div class="r-fu-body"><p>Validate the offset-only calibration where truth is pure Tier 1 (coil-only/vacuum intervals), adjudicate the gain arm, wire <code>g_passive</code> as a rank-k sidecar, and re-gate R1/R2 on calibrated payloads. Continues the f-pcph-04 static-audit attack.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    force-balance-spine (http://localhost:8765/imas-ambix/force-balance-spine.html)
+Section: §3 W2
+Tier:    opus
+
+Context
+  The offset-only static calibration is a statistical fit against one inverse arm — it needs
+  arm-independent and plasma-free validation before it can be trusted as an instrument model,
+  and the gain arm (p10-p90 0.90-1.14) is unadjudicated.
+
+State to read
+  imas_ambix/latent/artifacts/patch_gate/static_calibration*.json, scripts/ static-calibration
+  fitter (grep static_cal), imas_ambix/gs/operator.py + gs_operator_summary.json (g_passive block,
+  146 passive nodes), docs/plasma-current-priors-hardening.html §6, L1/L2 shot data for
+  pre-breakdown / dwell intervals.
+
+Scope locks / constraints
+  Leakage-free; calibration fit shots stay disjoint from the held-out cohort. Offsets validated on
+  coil-only intervals involve NO plasma inversion — pure forward Tier-1 prediction. Passive modes
+  OFF by default until measured load-bearing (P5 discipline). EFIT referee eval-only.
+
+Done-when
+  1. Coil-only-interval offset validation recorded (per-channel agreement with the fitted offsets,
+     CIs); cross-arm offset consistency table.
+  2. Gain arm adjudicated (real calibration vs model-error laundering) with evidence.
+  3. g_passive rank-k sidecar implemented behind a flag; gate-measured; verdict recorded.
+  4. R1/R2 re-gated on calibrated payloads; prior-defaults decision revisited either way.
+  5. Tests green; plan updated same-turn; this followup resolved.</pre>
+      </article>
+
+      <article class="r-fu" data-id="f-fbs-03" data-status="open" data-tier="opus" data-written-by="physics-spine-review" data-written-at="2026-07-10">
+        <h4 class="r-fu-title">W3 — synthetic-truth identifiability harness (the standing promotion gate)</h4>
+        <div class="r-fu-body"><p>Manufactured equilibria with known Tier-2 coefficients (± rotation, ± calibration corruption, ± passive currents) through the full inverse→gate chain; recovery CIs; aliasing matrix; per-sensor-set information accounting. Gates W4 Stage C and every future term promotion.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    force-balance-spine (http://localhost:8765/imas-ambix/force-balance-spine.html)
+Section: §4 W3
+Tier:    opus
+
+Context
+  The null-space fill was caught by eyeball, not by a test. Every future term promotion (rotation
+  Stage C first) needs a synthetic-recovery gate: can this coefficient be recovered from these
+  sensors at realistic noise, and what does it alias into when mis-modelled?
+
+State to read
+  imas_ambix/latent/gs_solve.py (forward chain for manufactured equilibria),
+  imas_ambix/gs/operator.py (sensor forward map), scripts/patch_gate_eval.py +
+  scripts/closure_gate_eval.py (the chain to instrument), tests/latent/ (existing analytic tests
+  to extend, incl. the doublet pin).
+
+Scope locks / constraints
+  Synthetic truth only — no EFIT anywhere in the harness. Noise model calibrated to the measured
+  whitening floors. Fast subset runs in CI (pytest-marked); full sweeps on demand on debug nodes.
+
+Done-when
+  1. Manufactured-equilibrium generator (profiles x rotation x calibration x passives) committed.
+  2. Recovery-with-CIs report for free / priors / closure / calibrated-closure arms; aliasing
+     matrix artifact (what leaks into what, at what magnitude).
+  3. Per-sensor-set information accounting (rank + per-coefficient sensitivity) recorded — the
+     quantitative input for equilibrium-topology-fidelity thread 2.
+  4. Suite wired as standing pytest gate; tests green; plan updated; this followup resolved.</pre>
+      </article>
+
+      <article class="r-fu" data-id="f-fbs-04" data-status="open" data-tier="opus" data-written-by="physics-spine-review" data-written-at="2026-07-10">
+        <h4 class="r-fu-title">W4 — rotation ladder: residual diagnostic, then the measured-rotation zero-DOF falsifiable test</h4>
+        <div class="r-fu-body"><p>Stage A: wire the existing <code>affine-r2-rotation</code> residual form as a gate reporting arm. Stage B: fixed γ(ψ) from CXRS (<code>act</code>) + Thomson (<code>ayc</code>) through the calibrated closure arm — zero new DOF, sharp falsifiable prediction. Stage C (free γ) is gated on f-fbs-03 and is NOT part of this followup.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    force-balance-spine (http://localhost:8765/imas-ambix/force-balance-spine.html)
+Section: §5 W4 (Stages A + B only)
+Tier:    opus
+
+Context
+  The rotation form is exact known physics (Maschke-Perrin R^4 column, already derived and
+  implemented in structure_residual.py form 'affine-r2-rotation', never run). MAST thermal Mach
+  0.3-0.8 makes it leading-order; the calibrated misfit floor now makes it measurable. Stage B is
+  deliberately zero-new-DOF: gamma(psiN) is fixed from measured rotation, so the misfit/skill
+  delta is a falsifiable prediction, not a fit.
+
+State to read
+  imas_ambix/latent/structure_residual.py (affine-r2-rotation form + derivation docstring),
+  imas_ambix/latent/gs_solve.py (profile_jphi_shape — the ansatz to extend),
+  imas_ambix/gs/integrated_inventory.py (act CXRS: 7,991 shots, 5 ms; ayc Thomson),
+  scripts/closure_gate_eval.py, physics-spine-findings.html §5 (staging + magnitude analysis).
+
+Scope locks / constraints
+  Stage order is locked: A before B; C is out of scope here (gated on the W3 harness).
+  All inputs raw measurements (act/ayc) — firewall-clean; EFIT referee eval-only. Run behind the
+  calibrated-closure milestone (f-fbs-01): do not measure rotation against an instrument-error
+  misfit floor. gamma &gt;= 0 enforced structurally. Report high-rotation vs low-rotation shot
+  strata separately, CIs both ways.
+
+Done-when
+  1. Stage A: 3-column vs 2-column unexplained-fraction delta + recovered c(psi) recorded held-out
+     with CIs, stratified by measured rotation.
+  2. Stage B: closure ansatz extended with the fixed centrifugal factor; calibrated closure gate
+     re-run; misfit/topology deltas with CIs on rotation strata; verdict recorded either way.
+  3. rotation-coefficient-source decision advanced on the evidence; tests green (incl. an analytic
+     rotating-equilibrium pin); plan + findings doc updated same-turn; this followup resolved.</pre>
+      </article>
+
+    </section>
+
+  </main>
+</body>
+</html>
