@@ -85,6 +85,51 @@ CORR_COUPLE = 0.98
 RANGE_FLOOR = 0.5
 
 
+def _load_extra_shots(path: str, cap: int, exclude: set[int]) -> list[int]:
+    """Read a dedicated-vacuum-shot list (bare list or ``{"shots": [...]}``).
+
+    Returns up to ``cap`` shot ids not already in ``exclude``; a missing or
+    empty/unparseable file yields an empty list (the audit still runs on the
+    fleet pool alone).
+    """
+    if not path:
+        return []
+    p = Path(path)
+    if not p.exists() or p.stat().st_size == 0:
+        logger.warning("extra-shots file %s missing/empty — fleet pool only", path)
+        return []
+    try:
+        obj = json.loads(p.read_text())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("extra-shots file %s unparseable (%s)", path, exc)
+        return []
+    if isinstance(obj, dict):
+        for key in ("shots", "vacuum_shots", "shot_list", "ids"):
+            if key in obj:
+                obj = obj[key]
+                break
+    if not isinstance(obj, list):
+        logger.warning("extra-shots file %s: no shot list found", path)
+        return []
+    out: list[int] = []
+    for item in obj:
+        if isinstance(item, dict):
+            s = item.get("shot")
+        elif isinstance(item, (list, tuple)):
+            s = item[0] if item else None  # [shot, peak_ip] pair
+        else:
+            s = item
+        try:
+            si = int(s)
+        except (TypeError, ValueError):
+            continue
+        if si not in exclude and si not in out:
+            out.append(si)
+        if len(out) >= cap:
+            break
+    return out
+
+
 def _shot_coil_only(
     shot: int, channels: list[str], coil_channels: list[str]
 ) -> dict | None:
@@ -420,6 +465,26 @@ def main() -> int:
     ap.add_argument("--n-boot", type=int, default=300)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--didt-quantile", type=float, default=0.25)
+    ap.add_argument(
+        "--extra-shots-json",
+        type=str,
+        default="",
+        help="optional JSON file listing dedicated vacuum shots to pool as an "
+        "extra coil-only stratum (accepts a bare list or a dict with a "
+        "'shots'/'vacuum_shots' key)",
+    )
+    ap.add_argument(
+        "--max-extra-shots",
+        type=int,
+        default=40,
+        help="cap on how many dedicated vacuum shots to add (wall-time guard)",
+    )
+    ap.add_argument(
+        "--max-shots",
+        type=int,
+        default=0,
+        help="debug: cap the fleet pool at this many shots (0 = all)",
+    )
     args = ap.parse_args()
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     FIGURES.mkdir(parents=True, exist_ok=True)
@@ -433,9 +498,23 @@ def main() -> int:
     n_coil = len(coil_channels)
 
     train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
-    all_shots = [int(s) for s in list(train_shots) + list(held_shots)]
+    fleet_shots = [int(s) for s in list(train_shots) + list(held_shots)]
+    if args.max_shots > 0:
+        fleet_shots = fleet_shots[: args.max_shots]
+
+    # optional extra stratum: dedicated vacuum shots (plasma never forms)
+    extra_shots = _load_extra_shots(
+        args.extra_shots_json, args.max_extra_shots, set(fleet_shots)
+    )
+    all_shots = fleet_shots + extra_shots
+    stratum_of = {s: "fleet" for s in fleet_shots}
+    stratum_of.update({s: "dedicated_vacuum" for s in extra_shots})
     logger.info(
-        "pooling %d shots (leakage-free: no EFIT, no inversion)", len(all_shots)
+        "pooling %d shots (%d fleet + %d dedicated vacuum; leakage-free, no "
+        "EFIT/inversion)",
+        len(all_shots),
+        len(fleet_shots),
+        len(extra_shots),
     )
     logger.info("canonical: %d sensors × %d coils", n_ch, n_coil)
 
@@ -446,6 +525,7 @@ def main() -> int:
         if r is None:
             logger.warning("shot %s: no usable coil-only slices", s)
             continue
+        r["stratum"] = stratum_of.get(s, "fleet")
         rows.append(r)
         all_didt.append(r["didt_slice"])
         logger.info("shot %s: %d coil-only slices", s, r["meas"].shape[0])
@@ -516,6 +596,24 @@ def main() -> int:
 
     quasi = _run(quasi_static=True, augment=False)
     eddy = _run(quasi_static=False, augment=True)
+
+    # ---- do the dedicated-vacuum shots move k_c? fleet-only vs pooled ----
+    dedicated_effect: dict = {}
+    fleet_rows = [r for r in rows if r.get("stratum") == "fleet"]
+    if len(rows) > len(fleet_rows) >= 3:
+        st = _stack(fleet_rows, quasi_static=True, threshold=threshold)
+        if st is not None:
+            meas_f, i_f, didt_f, _n = st
+            design_f, coil_of_f = _build_regressors(i_f, didt_f, plan, augment=False)
+            g_f = _fit_g_emp(meas_f, design_f, coil_of_f, n_coil)
+            k_f = _scale_factors(g_f, g_model, sigma_med, plan["separable"])
+            for c in plan["separable"]:
+                if c in k_f and c in quasi["k"]:
+                    dedicated_effect[coil_channels[c]] = {
+                        "k_fleet_only": float(k_f[c]),
+                        "k_pooled": float(quasi["k"][c]),
+                        "delta": float(quasi["k"][c] - k_f[c]),
+                    }
 
     # ---- pattern residuals at p90 coil currents (quasi-static, primary) ----
     i_p90 = np.nanpercentile(np.abs(i_full), 90, axis=0)  # per coil
@@ -593,8 +691,8 @@ def main() -> int:
         "leakage_note": (
             "No EFIT and no plasma inversion enter this audit; it uses only raw "
             "amb magnetics, raw amc coil currents, and the geometry-only "
-            "operator. All 48 fleet shots (train + held-out) are pooled — there "
-            "is no train/test contamination to guard against."
+            "operator. The full fleet (train + held-out) is pooled — there is no "
+            "train/test contamination to guard against."
         ),
         "ip_vacuum_ka": IP_VACUUM_KA,
         "corr_couple_threshold": CORR_COUPLE,
@@ -604,6 +702,16 @@ def main() -> int:
         "n_shots_used": len(rows),
         "shots_used": [r["shot"] for r in rows],
         "n_slices_full_pool": n_full,
+        "strata": {
+            name: {
+                "n_shots": sum(1 for r in rows if r.get("stratum") == name),
+                "n_slices": int(
+                    sum(r["meas"].shape[0] for r in rows if r.get("stratum") == name)
+                ),
+            }
+            for name in ("fleet", "dedicated_vacuum")
+        },
+        "dedicated_vacuum_effect_on_k": dedicated_effect,
         "channels": channels,
         "coil_channels": coil_channels,
         "sigma_median": sigma_med.tolist(),
