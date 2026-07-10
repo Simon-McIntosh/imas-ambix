@@ -832,6 +832,7 @@ def profile_basis(
     n_p: int,
     n_f: int,
     kind: str = "legendre",
+    centrifugal_gamma=None,
 ) -> np.ndarray:
     """(n_points, n_p + n_f) jφ basis images, zero at and beyond the boundary.
 
@@ -860,8 +861,15 @@ def profile_basis(
     x = 2.0 * np.clip(psi_n, 0.0, 1.0) - 1.0
     edge = np.where(inside, 1.0 - np.clip(psi_n, 0.0, 1.0), 0.0)
     nonneg_exponents = (0.5, 1.0, 1.5, 2.0, 3.0)
+    if centrifugal_gamma is not None:
+        gam = np.asarray(centrifugal_gamma(np.clip(psi_n, 0.0, 1.0)))
+        # clip the exponent: a wild measured profile must never overflow the
+        # solve (|γ(R²−R₀²)| ~ M₀²·ΔR²/R₀² ≲ 1 on physical MAST inputs)
+        cent = np.exp(np.clip(gam * (rr**2 - r0**2), -3.0, 3.0))
+    else:
+        cent = None
     cols = []
-    for drive, n_k in ((rr / r0, n_p), (r0 / rr, n_f)):
+    for family, (drive, n_k) in enumerate(((rr / r0, n_p), (r0 / rr, n_f))):
         for k in range(n_k):
             if kind == "monomial-nonneg":
                 phi = edge ** nonneg_exponents[k]
@@ -869,7 +877,10 @@ def profile_basis(
                 phi = legendre.legval(x, [0.0] * k + [1.0]) * edge
             else:  # pragma: no cover — callers pass validated kinds
                 raise ValueError(f"unknown basis kind {kind!r}")
-            cols.append(np.where(inside, drive * phi, 0.0))
+            col = drive * phi
+            if cent is not None and family == 0:  # pressure drive only
+                col = col * cent
+            cols.append(np.where(inside, col, 0.0))
     return (
         np.column_stack(cols) if cols else np.zeros((psi_n.size, 0), dtype=np.float64)
     )
@@ -1058,6 +1069,7 @@ def solve_equilibrium_lsq(
     n_f: int = 1,
     smoothness: float = 0.0,
     nonneg: bool = False,
+    centrifugal_gamma=None,
     profile_relax: float = 1.0,
     passive: dict | None = None,
     passive_ridge: float = 1.0,
@@ -1204,6 +1216,7 @@ def solve_equilibrium_lsq(
                 n_p=n_p,
                 n_f=n_f,
                 kind="monomial-nonneg" if nonneg else "legendre",
+                centrifugal_gamma=centrifugal_gamma,
             )
             images[~core.ravel(), :] = 0.0
             u = images[grid.cells, :] * cell_area  # unit-coeff cell currents [A]
@@ -1341,7 +1354,7 @@ def fit_profile_ladder(
     bootstrap_iterations: int = 30,
     initial_jphi: np.ndarray | None = None,
     **solve_kwargs,
-) -> LadderFit:
+) -> LadderFit:  # centrifugal_gamma & friends flow through **solve_kwargs
     """Bootstrapped ladder solve: fixed-shape boundary-continuation stage 1
     (unless ``initial_jphi`` warm-starts it away), then the analytic-add
     LSQ-per-sweep Picard of :func:`solve_equilibrium_lsq`.

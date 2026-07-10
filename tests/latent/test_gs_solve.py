@@ -850,3 +850,48 @@ def test_ladder_nonneg_recovers_family_with_nonnegative_current():
     assert fit.result.jphi.min() >= -1e-9  # jφ·sign(Ip) ≥ 0 pointwise
     np.testing.assert_allclose(fit.result.axis, res_true.axis, atol=4e-2)
     np.testing.assert_allclose(fit.result.cell_currents.sum(), ip, rtol=1e-6)
+
+
+def test_centrifugal_factor_zero_gamma_identity_and_shifts_pressure_outboard():
+    """γ = 0 reproduces the static basis exactly; γ > 0 multiplies ONLY the
+    pressure-drive columns by exp[γ(R²−R₀²)] — outboard-enhanced, inboard-
+    suppressed — and the ladder solve accepts the fixed measured profile with
+    zero new degrees of freedom."""
+    from imas_ambix.latent.gs_solve import fit_profile_ladder, profile_basis
+
+    psin = np.linspace(0.0, 0.99, 40)
+    r = np.linspace(0.5, 1.3, 40)
+    static = profile_basis(psin, r, r0=0.9, n_p=1, n_f=1)
+    zero = profile_basis(
+        psin, r, r0=0.9, n_p=1, n_f=1, centrifugal_gamma=lambda p: np.zeros_like(p)
+    )
+    np.testing.assert_array_equal(static, zero)
+
+    rot = profile_basis(
+        psin, r, r0=0.9, n_p=1, n_f=1, centrifugal_gamma=lambda p: 0.5 * (1.0 - p)
+    )
+    factor = np.exp(0.5 * (1.0 - psin) * (r**2 - 0.9**2))
+    np.testing.assert_allclose(rot[:, 0], static[:, 0] * factor, rtol=1e-12)
+    np.testing.assert_array_equal(rot[:, 1], static[:, 1])  # FF' untouched
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    meas, vac, _ = _synthetic_confining_slice(grid, table, i_pf, ip, 0.7, 1.0)
+    fit = fit_profile_ladder(
+        grid,
+        table,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        measured=meas,
+        vacuum_prediction=vac,
+        sensor_scale=np.abs(meas) + 1e-9,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        n_p=1,
+        n_f=1,
+        centrifugal_gamma=lambda p: 0.2 * (1.0 - p),
+    )
+    assert fit.result.converged
+    assert fit.dof == 2  # zero NEW dof — the fixed factor adds none
+    np.testing.assert_allclose(fit.result.cell_currents.sum(), ip, rtol=1e-6)
