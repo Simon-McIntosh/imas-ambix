@@ -92,8 +92,13 @@ def main() -> int:
 
     report: dict = {"ladder": [], "continuous": None, "references": {}}
 
-    # references: the recorded grid-mode runs
-    for name, tag in (("grid", ""), ("grid-calibrated", "-calibrated")):
+    # references: the recorded grid-mode runs + the sign-free/passive arms
+    for name, tag in (
+        ("grid", ""),
+        ("grid-calibrated", "-calibrated"),
+        ("ladder-free-k2", "-calibrated-dof2"),
+        ("ladder-free-k2-passive8", "-calibrated-dof2-pk8"),
+    ):
         loaded = _load(tag)
         if loaded is None:
             continue
@@ -156,7 +161,11 @@ def main() -> int:
 
         ax = axes[0]
         ax.plot(dofs, [r["cost_median"] for r in rows], "o-", color="#1565c0")
-        for name, colour in (("grid", "#888888"), ("grid-calibrated", "#444444")):
+        for name, colour in (
+            ("grid-calibrated", "#444444"),
+            ("ladder-free-k2", "#8a3324"),
+            ("ladder-free-k2-passive8", "#1b7837"),
+        ):
             ref = report["references"].get(name)
             if ref:
                 ax.axhline(
