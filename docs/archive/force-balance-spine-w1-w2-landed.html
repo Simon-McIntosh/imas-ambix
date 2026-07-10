@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="force-balance-spine-w1-w2-landed">
+  <meta name="plan-title" content="force-balance-spine W1+W2 landed — closure fit machinery, profile-DOF ladder, nuisance-layer validation">
+  <meta name="plan-status" content="reference">
+  <title>force-balance-spine W1+W2 landed</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>W1 + W2 landed — the calibrated closure spine and the hardened nuisance layer (2026-07-10)</h1>
+  <p><em>Per-stage record for <a href="/imas-ambix/force-balance-spine.html">force-balance-spine</a>
+  §2 (W1) + §3 (W2). Protocol unchanged throughout: leakage-free (frozen physics-motivated configs,
+  scored ONCE held-out on the 160-slice / 8-shot cohort), EFIT firewalled referee, paired-bootstrap
+  CIs, cost-threshold sweep in every artifact. Commits <code>e0c3a0e…</code> this record.</em></p>
+
+  <h2>Headline</h2>
+  <ul>
+    <li><strong>The closure arm's misfit floor was a fit-machinery artifact, not profile starvation
+    and not sensor calibration.</strong> Replacing the railed 5×3 candidate grid with continuous
+    bounded optimization (or the per-sweep linear LSQ) collapses the whitened cost median
+    <strong>12.2 → 0.6–0.7</strong> and lifts cost ≤ 1 coverage <strong>7/160 → 108–129/160</strong>;
+    the <em>uncalibrated</em> LSQ arm is nearly identical (120/160 @ 0.76) — consistent with W2's
+    finding that the sensor-zero calibration is a near-no-op.</li>
+    <li><strong>Axis at 4.0–7.2 cm median at ~100% coverage</strong> (grid arm: 86 cm) — the closure
+    carrier now reads interior geometry at competitive grade over the whole cohort, not a 4% subset.</li>
+    <li><strong>The LCFS ray-cast deficit survives every fit upgrade</strong> (−2.9 to −4.3 across
+    arms): Gate FB-1's LCFS bar is <strong>NOT passed</strong>. The ladder measurement localises the
+    cause: the calibrated magnetics demand a broader-than-linear, nearly pure-FF′ profile (fits rail
+    at α = 0.4, β0 = 0.02), and within-family sign freedom "improves" the fit only by unphysical
+    p′/FF′ cancellation that further distorts the boundary — the residual static coil-model error
+    re-expressed inside the profile family, one level up from the free-basis halo.</li>
+    <li><strong>The offset-only static calibration is NOT an instrument model.</strong> On coil-only
+    (vacuum) intervals the sensors agree with the pure Tier-1 forward map to
+    <strong>median 0.004σ</strong> — the true static instrument offset is ≈ 0 per channel, and the six
+    largest plasma-fitted corrections (P4/P5 flux loops, −0.95…−1.50σ) are flatly contradicted. The
+    fitted offsets are plasma-present static <em>model</em> error laundered into constants. They stay
+    available as an explicit empirical residual absorber; the physical target is the coil model.</li>
+    <li><strong>The lead's cross-shot filtering proposal is supported and already embodied:</strong>
+    per-shot offsets are channel-characteristic and near-constant across shots
+    (between-shot / within-shot variance median <strong>0.084</strong> pre-breakdown, 0.009 post-dwell,
+    100% of channels &lt; 1) — nuisance parameters of this class ARE collapsible by cross-shot
+    averaging/filtering, which is exactly what the frozen 10-shot fit performs. No shot-to-shot drift
+    was observed that would require a live filtering pass; the caveat is that the quantity being
+    averaged is model error, not an instrument constant.</li>
+  </ul>
+
+  <h2>W1 — what was built (fit machinery)</h2>
+  <ul>
+    <li><strong>Continuous profile fit</strong> (<code>fit_profile_continuous</code>): bounded
+    Nelder–Mead over (β0, α[, z0]), per-shot warm-started along the time axis (previous slice's
+    optimum + converged current — the first, cheap use of temporal coherence; warm slices skip the
+    two-stage bootstrap), best-converged-seen contract. Vertical seed DOF <code>seed_z0</code>
+    (fixed-point branch selection); fitted z0 median ≈ −2 mm — not load-bearing on this cohort.</li>
+    <li><strong>K-DOF profile ladder</strong> (<code>solve_equilibrium_lsq</code> /
+    <code>fit_profile_ladder</code>): p′/FF′ as basis expansions whose coefficients are re-solved by
+    whitened linear LSQ against the raw magnetics EVERY Picard sweep (the EFIT pattern), hard
+    Rogowski Ip anchor (KKT), <code>coefficient_smoothness_penalty</code> wired as a
+    scale-relative second-difference ridge, honest fixed-shape degradation on solver failure.
+    Sign-indefinite (shifted-Legendre) and sign-constrained (fractional-exponent monomial ×
+    non-negative coefficients ⇒ jφ·sign(I<sub>p</sub>) ≥ 0 pointwise — R1 at the profile level)
+    variants.</li>
+    <li><strong>Cost-threshold sweep</strong> (accuracy AND coverage per threshold, CIs) is now in
+    every closure artifact; gate flags <code>--fit-mode/--fit-z0/--n-p/--n-f/--smoothness/
+    --ladder-nonneg</code>; defaults unchanged (grid mode byte-identical).</li>
+  </ul>
+
+  <h2>W1 — measured (held-out, calibrated payloads, 160 slices / 8 shots)</h2>
+  <table>
+    <thead><tr><th>arm</th><th>coverage</th><th>cost median</th><th>cost ≤ 1</th>
+    <th>axis skill [CI]</th><th>axis med</th><th>LCFS skill [CI]</th><th>X-pt set</th></tr></thead>
+    <tbody>
+      <tr><td>grid 5×3 (recorded ref)</td><td>160/160</td><td>12.20</td><td>7</td>
+      <td>−5.94 [−7.15, −4.86]</td><td>86 cm</td><td>−2.97 [−3.62, −2.63]</td><td>−1.61</td></tr>
+      <tr><td>continuous (β0, α, z0)</td><td>159/160</td><td>0.70</td><td>108</td>
+      <td>−1.98 [−3.72, −0.78]</td><td>7.2 cm</td><td>−2.92 [−3.37, −2.48]</td><td>−0.22 [−1.00, +0.20]</td></tr>
+      <tr><td>ladder K=2, free-sign</td><td>160/160</td><td>0.60</td><td>129</td>
+      <td>−2.45 [−4.65, −0.11]</td><td><strong>4.0 cm</strong></td><td>−4.00 [−4.50, −3.61]</td><td>−0.86</td></tr>
+      <tr><td>ladder K=2, free-sign, UNCALIBRATED</td><td>160/160</td><td>0.76</td><td>120</td>
+      <td>−2.44 [−4.64, −0.15]</td><td>4.7 cm</td><td>−4.08 [−4.59, −3.69]</td><td>−0.87</td></tr>
+      <tr><td>ladder K≥3, free-sign</td><td colspan="6"><strong>Picard-unstable</strong> — K=3: 4/160
+      converge; K=10 (tune): 0/80. The sign-cancellation freedom that degrades the LCFS at K=2
+      destroys the fixed point outright at higher K.</td></tr>
+      <tr><td>ladder K=2…10, sign-constrained (scouted)</td><td>157/160</td><td>1.85</td><td>54</td>
+      <td>−3.65 [−5.19, −2.18]</td><td>26.7 cm</td><td>−3.13 [−3.63, −2.72]</td><td>−1.11</td></tr>
+      <tr><td><strong>ladder K=2 free-sign + passive rank-8</strong></td><td>160/160</td>
+      <td><strong>0.56</strong></td><td><strong>154</strong></td>
+      <td><strong>−0.31 [−1.09, −0.00]</strong></td><td><strong>3.7 cm</strong></td>
+      <td>−3.63 [−4.39, −3.00]</td><td><strong>+0.11</strong></td></tr>
+    </tbody>
+  </table>
+  <figure>
+    <img src="/imas-ambix/figures/force-balance-spine/fig-ladder-curve.png"
+         alt="Three panels: whitened cost floor vs profile DOF; axis/LCFS/X-point skill vs DOF with CI bands; self-consistent coverage vs DOF."
+         style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+    <figcaption style="font-size:12.5px;color:#444">The profile-DOF ladder evidence curve
+    (sign-constrained arms; grid + free-sign references). Generator:
+    <code>scripts/closure_ladder_report.py</code>; artifact
+    <code>closure_ladder_report.json</code>.</figcaption>
+  </figure>
+
+  <h3>The three fit-machinery lessons (each measured, each now pinned by a test)</h3>
+  <ol>
+    <li><strong>In-family null-space fill.</strong> The free-sign K=2 LSQ posts the best cost floor
+    but reaches it with mixed-sign p′/FF′ splits on <strong>157/160</strong> slices (gross/net
+    current ≈ 1.6): the two drives partially cancel, shearing jφ within surfaces to absorb the
+    residual static model error — and the LCFS pays (−4.0 vs −2.9). R1's lesson recurs one level up
+    the spine: <em>any</em> sign-indefinite freedom, even 2-DOF, gets spent on the unmodelled
+    signal.</li>
+    <li><strong>The data demand a broad, nearly pure-FF′ profile.</strong> The continuous fit rails
+    at its bounds on nearly every slice (β0 → 0.02, α → 0.4 — flatter than linear, edge-weighted,
+    FF′-dominated). Within the sign-physical family this is the closest in-family expression of the
+    near-wall signal the free patch basis absorbed as its 0.75 I<sub>p</sub> halo — the same
+    coil-model attribution, measured a third way.</li>
+    <li><strong>The free-boundary fixed point is multi-branch, and branch selection — not DOF — is
+    the hard part.</strong> From a fixed-shape seed the sign-constrained Picard escapes to an
+    outboard corner attractor (axis R ≈ 1.6–1.7 m, cost 5–12); an equally good <em>physical</em>
+    fixed point exists on the confined branch — proven by seeding: free-sign cost 0.428 vs
+    sign-constrained 0.434 <em>on the same slice, same branch</em>, the latter with jφ ≥ 0
+    everywhere and a single (1−ψ<sub>N</sub>)<sup>0.5</sup> FF′ column. The shipped recipe:
+    the stable free-sign K=2 LSQ <em>scouts</em> the branch, the sign-constrained solve
+    <em>certifies</em> a physical profile there — Tier-3 instrument guides, Tier-2 carries.
+    At scale the certification is honest but partial: the scouted sign-constrained arm scores
+    157/160 at cost 1.85 with axis median 26.7 cm — the certified physical profile gives up part
+    of the axis accuracy the free-sign shear buys (0.60 / 4.0 cm). The gap is a structured,
+    persistent residual: the magnetics reward a within-surface R-shape that the static
+    sign-definite family cannot express — exactly the form of the Maschke–Perrin R⁴ rotation
+    column (W4 Stage A's target) and/or the coil-model remainder; W3's aliasing matrix is the
+    instrument that separates them. Two bounded-solver failure modes were also caught and pinned:
+    a 10⁴-weighted anchor row drowns the misfit below the optimality tolerance; no anchor at all
+    lets the fit prefer ~0.2 I<sub>p</sub> and the rescale destroys the optimum.</li>
+  </ol>
+  <p><strong>Information-budget answer (the ladder's question):</strong> the magnetics support
+  ≈ 1–2 effective profile DOF beyond the I<sub>p</sub> anchor. The sign-constrained ladder is
+  <strong>identical to two decimals at K = 2, 4, 6 and 10</strong> (cost 1.85, axis 26.7 cm,
+  LCFS −3.13): every run puts its whole coefficient mass on one broad FF′ column and leaves the
+  higher-K columns at exactly zero, so the CI-gated ladder admits no addition and the smoothness
+  ridge never becomes load-bearing. Growing profile DOF without growing information (interior
+  diagnostics, time) is measured pointless — the spine's §4.3 prediction, now with numbers. The
+  passive rank-8 sidecar IS load-bearing where profile DOF is not: +0.33% I<sub>p</sub> of vessel
+  current buys cost 0.60 → 0.56, coverage 129 → 154/160, axis skill −2.45 → −0.31 [−1.09, −0.00]
+  and the first positive X-point-set point estimate of the closure line (+0.11).</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/force-balance-spine/fig-closure-flux-maps-flattop-ladder-pk8.png"
+         alt="Eight flat-top panels for the winner arm (K=2 LSQ + passive rank-8): well-located, well-sized interior plasmas on 7 of 8 shots; only 18505 remains outboard-jammed."
+         style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+    <figcaption style="font-size:12.5px;color:#444"><strong>The winner arm</strong> (ladder K=2 +
+    passive rank-8) ψ(R,Z) vs EFIT at flat top: 7/8 shots read a well-located interior plasma
+    (12189 and 18504 recovered from the outboard attractor); 18505 (cost 17.8) is the honest
+    remaining failure. Rampup + profile panels:
+    <code>fig-closure-flux-maps-rampup-ladder-pk8.png</code>,
+    <code>fig-closure-profile-fits-ladder-pk8.png</code>.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/force-balance-spine/fig-closure-flux-maps-flattop-continuous.png"
+         alt="Eight flat-top panels, continuous-arm flux surfaces (red LCFS, blue interior) vs EFIT (dashed): plausibly located but under-sized boundaries on half the shots; outboard-jammed plasmas on 12189/18504/18505."
+         style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+    <figcaption style="font-size:12.5px;color:#444">Continuous-arm ψ(R,Z) vs EFIT at flat top
+    (imas-ink cross-sections; rampup panel + fitted-profile family figure alongside:
+    <code>fig-closure-flux-maps-rampup-continuous.png</code>,
+    <code>fig-closure-profile-fits-continuous.png</code>). The under-sized-but-located LCFS
+    (12143/12145/18502/18503) vs the outboard attractor (12189/18504/18505) is the visual form of
+    lesson 3.</figcaption>
+  </figure>
+
+  <h2>W2 — nuisance layer: what was built and measured</h2>
+  <ul>
+    <li><strong>Vacuum-interval validation</strong> (<code>scripts/vacuum_interval_calibration.py</code>):
+    pre-breakdown + post-plasma dwell coil-only slices (no plasma inversion, no EFIT — pure Tier-1
+    forward prediction), stratified quasi-static vs ramping by measured |dI/dt| (eddy contamination
+    measured, not assumed), 12 fit + 8 held-out shots.</li>
+    <li><strong>Gain adjudication:</strong> on the trustworthy quasi-static stratum per-channel gains
+    are unidentifiable (no coil dynamic range — correctly pinned to 1); the only stratum with leverage
+    (solenoid ramp) is eddy-driven (median 1.25, p10–p90 0.88–1.96) and uncorrelated with the rejected
+    plasma-fitted affine gains — <strong>no clean vacuum evidence for any real per-channel gain ≠ 1</strong>;
+    the affine rejection (832e2a9) is confirmed as laundering.</li>
+    <li><strong>Cross-arm offset consistency:</strong> median |Δoffset|/σ — free-arm vs vacuum 0.040,
+    priors-arm vs vacuum 0.128, priors vs free 0.091. The physics-prior arm pushes fitted offsets
+    <em>further</em> from the instrument truth — the priors fold plasma-model structure into the
+    "calibration". A genuine instrument offset would be arm-independent; the frozen offsets are not.</li>
+    <li><strong>Passive eigenmode sidecar</strong> (<code>build_passive_sidecar</code> + gate flags
+    <code>--passive-k/--passive-ridge</code>, OFF by default): top-k whitened sensor-space modes of the
+    146-node <code>g_passive</code> block, singular-value-normalised columns (an ampere-scale column
+    sits ~10⁵ below the Ip-normalised profile columns — unnormalised, any relative ridge silently
+    zeroes the sidecar; caught by the recovery pin), mode flux enters the Picard field via per-circuit
+    grid-ψ columns, amplitudes excluded from the plasma Ip anchor, reported as circuit-space currents.
+    Synthetic-truth pin: cost 0.61 → 0.053 with the truth axis recovered to mm.</li>
+  </ul>
+  <figure>
+    <img src="/imas-ambix/figures/force-balance-spine/fig-vacuum-offset-validation.png"
+         alt="Per-channel vacuum offsets (quasi-static, CI bars) vs the frozen plasma-fitted offsets: vacuum offsets sit at zero; the large frozen P4/P5 flux-loop corrections are contradicted."
+         style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+    <figcaption style="font-size:12.5px;color:#444">Coil-only-interval validation: measured − Tier-1
+    forward prediction per channel (95% CI over shots) vs the frozen plasma-fitted offsets.
+    Companions: <code>fig-offset-stability-shots.png</code> (the cross-shot stability evidence),
+    <code>fig-gain-adjudication-vacuum.png</code>.</figcaption>
+  </figure>
+
+  <h2>Gate verdicts</h2>
+  <table>
+    <thead><tr><th>gate</th><th>bar</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td><strong>FB-1 (carrier)</strong></td>
+      <td>LCFS skill CI clear of zero at ≥ 50% coverage + full cost sweep</td>
+      <td><strong>FAIL on the LCFS bar</strong> (best arm −2.9; no arm positive at any coverage).
+      Everything else moved decisively: cost floor 12.2 → 0.6, cost ≤ 1 coverage 4% → 96% (with the passive sidecar), axis 86 → 4 cm. The deficit is attributed (broad-FF′ railing + outboard attractor + vacuum-clean
+      sensors) to the static coil model, not to the representation or its DOF.</td></tr>
+      <tr><td><strong>FB-2 (nuisance)</strong></td>
+      <td>calibration validated on coil-only intervals; gain adjudicated; passive arm measured</td>
+      <td><strong>Executed; the calibration FAILS validation as an instrument model</strong>
+      (vacuum offsets ≈ 0.004σ; frozen offsets are laundered model error — kept flag-gated as an
+      empirical absorber, never promoted to default). Gain arm adjudicated (laundering confirmed
+      from vacuum evidence). Passive sidecar measured at the gate (below). <code>prior-defaults</code>
+      in plasma-current-priors-hardening stays <em>off-by-default</em> — the promotion path runs
+      through the physical coil-model audit, not through statistical calibration.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Decisions taken</h2>
+  <ul>
+    <li><strong>representation-default → closure-first.</strong> On the numbers: the profile-closure
+    carrier through the free-boundary solve now explains the magnetics at ~0.5σ over the full cohort
+    with 2 DOF (the free basis needs ~4,787), reads the axis at 4–7 cm median everywhere, satisfies
+    every contested constraint by construction, and its ladder measurement shows additional DOF is
+    not what the data want. The LCFS bar failed <em>in every representation</em>; its cause is
+    localised outside the representation (coil model + branch selection). Patch basis re-scoped to
+    Tier-3 audit + Tier-2 nuisance carrier; the annulus read
+    (<a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a>)
+    remains the boundary cross-check.</li>
+    <li><strong>calibration-scope → offset-only</strong> (flag-gated, never default): vacuum-validated
+    as ≈ no-op instrument-wise; retained as an explicit empirical static-residual absorber pending the
+    coil-model audit. Gain+offset stays rejected (vacuum evidence).</li>
+  </ul>
+
+  <h2>What's next (queued as followups)</h2>
+  <ul>
+    <li><strong>The physical coil-model audit is THE binding attack</strong> (geometry / turns /
+    circuit mapping): three independent instruments now point at it — the free-basis halo
+    (phase-independent), the vacuum-clean sensors (offsets ≈ 0 ⇒ the error is plasma-coupled), and
+    the closure family railing at broad edge-weighted FF′.</li>
+    <li><strong>W3 (identifiability harness) should include fixed-point basin structure</strong> —
+    the outboard attractor is exactly the class of failure a synthetic-truth harness catches
+    automatically, and branch-continuation (or damped-Newton in place of Picard) is now a measured
+    need, not speculation.</li>
+    <li><strong>W4 rotation Stages A+B</strong> ride behind the coil-model remainder per the plan's
+    sequencing lock (do not measure a percent-level physics term against a σ-level model-error
+    floor).</li>
+  </ul>
+
+  <h2>Commits</h2>
+  <p><code>e0c3a0e</code> operator-summary reconcile · <code>3c2e4f2</code> continuous fit + seed_z0 +
+  warm start + LSQ ladder · <code>0b09733</code> gate fit modes + cost sweep · <code>1226ee3</code>
+  relative smoothness ridge · <code>81a7178</code> passive sidecar · <code>72329d5/b552fee</code>
+  vacuum-interval validation (worker) · <code>49672d9</code> ladder report · sign-constrained rung +
+  scout seeding + anchor/ridge fixes (this session's tail) · results commits alongside artifacts.</p>
+</main>
+</body>
+</html>
