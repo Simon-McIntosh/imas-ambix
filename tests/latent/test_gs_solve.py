@@ -667,3 +667,62 @@ def test_ladder_smoothness_ridge_reduces_coefficient_curvature():
     assert rough.result.converged and smooth.result.converged
     np.testing.assert_allclose(smooth.result.cell_currents.sum(), ip, rtol=1e-6)
     assert curvature(smooth.coeffs) <= curvature(rough.coeffs) + 1e-12
+
+
+def test_closure_driver_continuous_and_ladder_modes():
+    """The gate driver's new fit modes score the synthetic slice, carry their
+    provenance fields, and keep the honest-masking contract."""
+    from imas_ambix.latent.patch_inverse import SlicePayload
+    from scripts.closure_gate_eval import fit_and_read_slice
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    meas, vac, res_true = _synthetic_confining_slice(grid, table, i_pf, ip, 0.7, 1.0)
+    payload = SlicePayload(
+        measured=meas,
+        vacuum=vac,
+        mask=np.ones(meas.size, dtype=bool),
+        scale=np.abs(meas) + 1e-9,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        shot=1,
+        t_index=0,
+        time_s=0.0,
+    )
+    common = dict(
+        beta0_grid=(0.5,),
+        alpha_grid=(1.0,),
+        cost_limit=float("inf"),
+        convergence_limit=5e-3,
+        retry_max_iterations=160,
+    )
+    cont = fit_and_read_slice(
+        grid,
+        table,
+        payload,
+        fit_mode="continuous",
+        maxfev=20,
+        warm_x0=(0.6, 1.0),
+        **common,
+    )
+    assert cont.scored and cont.fit_mode == "continuous"
+    assert cont.beta0 is not None and cont.z0 is not None
+    assert np.isfinite(cont.target).any()
+
+    lad = fit_and_read_slice(
+        grid,
+        table,
+        payload,
+        fit_mode="ladder",
+        n_p=1,
+        n_f=1,
+        keep_jphi=True,
+        **common,
+    )
+    assert lad.scored and lad.fit_mode == "ladder"
+    assert lad.dof == 2 and len(lad.coeffs) == 2
+    assert lad.cost < 1e-2
+    assert lad.jphi_flat is not None  # warm-chain payload retained on request
+    np.testing.assert_allclose(lad.target[:2], np.asarray(res_true.axis), atol=4e-2)

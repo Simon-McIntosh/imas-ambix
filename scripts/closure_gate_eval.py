@@ -60,6 +60,8 @@ if TYPE_CHECKING:
 from imas_ambix.latent.gs_solve import (
     EquilibriumGrid,
     fit_profile,
+    fit_profile_continuous,
+    fit_profile_ladder,
     profile_jphi_shape,
 )
 
@@ -102,6 +104,9 @@ def _apply_calibration(payload: dict, calibration: str) -> None:
 
 ARTIFACTS = Path("imas_ambix/latent/artifacts/patch_gate")
 FIGURES = Path("docs/figures/plasma-current-priors-hardening")
+# non-grid fit modes belong to the force-balance-spine plan — their figures
+# land there and never clobber the recorded grid-mode exhibits
+FIGURES_SPINE = Path("docs/figures/force-balance-spine")
 
 
 @dataclass
@@ -122,6 +127,12 @@ class ClosureSliceFit:
     residual: float | None = None
     target: np.ndarray | None = None  # 14-D geometry read (None if masked)
     saddles: int | None = None
+    fit_mode: str = "grid"  # "grid" | "continuous" | "ladder"
+    z0: float | None = None  # continuous-mode fitted seed vertical centre [m]
+    dof: int | None = None  # ladder-mode profile DOF (n_p + n_f)
+    coeffs: list | None = None  # ladder-mode normalised basis coefficients
+    psi: np.ndarray | None = None  # retained only when keep_psi=True (figures)
+    jphi_flat: np.ndarray | None = None  # converged jφ for temporal warm-starting
 
 
 def fit_and_read_slice(
@@ -134,12 +145,30 @@ def fit_and_read_slice(
     cost_limit: float,
     convergence_limit: float,
     retry_max_iterations: int | None = None,
+    fit_mode: str = "grid",
+    fit_z0: bool = False,
+    n_p: int = 1,
+    n_f: int = 1,
+    smoothness: float = 0.0,
+    maxfev: int = 60,
+    warm_x0: tuple[float, ...] | None = None,
+    warm_jphi: np.ndarray | None = None,
+    keep_psi: bool = False,
+    keep_jphi: bool = False,
 ) -> ClosureSliceFit:
-    """Fit (β0, α) against ``payload``'s raw magnetics through the GS fixed
+    """Fit the profile against ``payload``'s raw magnetics through the GS fixed
     point and read the hardened 14-D geometry from the force-balanced ψ.
 
-    ``retry_max_iterations``: if the default-Picard grid search masks the slice
-    (no candidate meets ``convergence_limit``), retry ONCE with a longer Picard
+    ``fit_mode`` selects the fit machinery: ``"grid"`` (the frozen 5×3
+    candidate enumeration — historical default), ``"continuous"`` (bounded
+    Nelder–Mead over (β0, α[, z0]) warm-started from ``warm_x0``), or
+    ``"ladder"`` (K = n_p + n_f coefficient LSQ-per-Picard-sweep solve).
+    ``warm_jphi`` (the previous time slice's converged current) warm-starts
+    the Picard chain in the continuous/ladder modes — the first, cheap use of
+    temporal coherence.
+
+    ``retry_max_iterations``: if the default-Picard fit masks the slice (no
+    candidate meets ``convergence_limit``), retry ONCE with a longer Picard
     budget — a bounded, honest coverage lever (no fallback current is ever
     fabricated).  Returns a :class:`ClosureSliceFit`; masked slices carry
     ``scored=False`` and a ``reason``, never a fabricated readout.
@@ -152,52 +181,114 @@ def fit_and_read_slice(
     (the only thing that masks) with "converged but doesn't fit the magnetics"
     (the expected static coil/calibration misfit — a finding, not a mask).
     """
-    kw = dict(
+    payload_kw = dict(
         i_pf=payload.i_pf,
         ip_amperes=payload.ip_amperes,
         measured=payload.measured,
         vacuum_prediction=payload.vacuum,
         sensor_scale=payload.scale,
         sensor_mask=payload.mask,
-        beta0_grid=beta0_grid,
-        alpha_grid=alpha_grid,
-        convergence_limit=convergence_limit,
     )
-    fit = fit_profile(grid, table, **kw)
-    if fit is None and retry_max_iterations:
-        fit = fit_profile(grid, table, max_iterations=retry_max_iterations, **kw)
-
     base = dict(
         shot=payload.shot,
         t_index=payload.t_index,
         time_s=payload.time_s,
         ip_amperes=payload.ip_amperes,
     )
+    z0 = None
+    dof = None
+    coeffs = None
+
+    if fit_mode == "grid":
+        kw = payload_kw | dict(
+            beta0_grid=beta0_grid,
+            alpha_grid=alpha_grid,
+            convergence_limit=convergence_limit,
+        )
+        fit = fit_profile(grid, table, **kw)
+        if fit is None and retry_max_iterations:
+            fit = fit_profile(grid, table, max_iterations=retry_max_iterations, **kw)
+        beta0 = fit.beta0 if fit else None
+        alpha = fit.alpha if fit else None
+    elif fit_mode == "continuous":
+        kw = payload_kw | dict(
+            x0=warm_x0 if warm_x0 is not None else (0.5, 1.5),
+            fit_z0=fit_z0,
+            convergence_limit=convergence_limit,
+            maxfev=maxfev,
+        )
+        if warm_jphi is not None:
+            kw["initial_jphi"] = warm_jphi
+        fit = fit_profile_continuous(grid, table, **kw)
+        if fit is None and retry_max_iterations:
+            fit = fit_profile_continuous(
+                grid, table, max_iterations=retry_max_iterations, **kw
+            )
+        beta0 = fit.beta0 if fit else None
+        alpha = fit.alpha if fit else None
+        z0 = fit.z0 if fit else None
+    elif fit_mode == "ladder":
+        kw = payload_kw | dict(n_p=n_p, n_f=n_f, smoothness=smoothness)
+        if warm_jphi is not None:
+            kw["initial_jphi"] = warm_jphi
+        lf = fit_profile_ladder(grid, table, **kw)
+        if (
+            not lf.result.converged
+            and lf.result.residual > convergence_limit
+            and retry_max_iterations
+        ):
+            lf = fit_profile_ladder(
+                grid, table, max_iterations=retry_max_iterations, **kw
+            )
+        fit = (
+            lf
+            if (lf.result.converged or lf.result.residual <= convergence_limit)
+            else None
+        )
+        beta0 = alpha = None
+        if fit is not None:
+            dof = int(lf.dof)
+            coeffs = [float(c) for c in lf.coeffs]
+    else:  # pragma: no cover — argparse restricts the choices
+        raise ValueError(f"unknown fit_mode {fit_mode!r}")
+
     if fit is None:
-        return ClosureSliceFit(**base, scored=False, reason="no-converged-candidate")
+        return ClosureSliceFit(
+            **base, scored=False, reason="no-converged-candidate", fit_mode=fit_mode
+        )
     if fit.cost > cost_limit:
         return ClosureSliceFit(
             **base,
             scored=False,
             reason="cost-exceeds-limit",
-            beta0=fit.beta0,
-            alpha=fit.alpha,
+            beta0=beta0,
+            alpha=alpha,
             cost=fit.cost,
             converged=bool(fit.result.converged),
             residual=float(fit.result.residual),
+            fit_mode=fit_mode,
+            z0=z0,
+            dof=dof,
+            coeffs=coeffs,
         )
     target, _, _ = geometry_target(fit.result.psi, grid)
     return ClosureSliceFit(
         **base,
         scored=True,
         reason="scored",
-        beta0=fit.beta0,
-        alpha=fit.alpha,
+        beta0=beta0,
+        alpha=alpha,
         cost=fit.cost,
         converged=bool(fit.result.converged),
         residual=float(fit.result.residual),
         target=target,
         saddles=count_saddles(fit.result.psi, grid),
+        fit_mode=fit_mode,
+        z0=z0,
+        dof=dof,
+        coeffs=coeffs,
+        psi=fit.result.psi if keep_psi else None,
+        jphi_flat=fit.result.jphi.ravel() if keep_jphi else None,
     )
 
 
@@ -224,31 +315,120 @@ def _fit_slice_worker(k: int) -> ClosureSliceFit:
         cost_limit=_WORKER["cost_limit"],
         convergence_limit=_WORKER["convergence_limit"],
         retry_max_iterations=_WORKER["retry_max_iterations"],
+        fit_mode=_WORKER.get("fit_mode", "grid"),
+        fit_z0=_WORKER.get("fit_z0", False),
+        n_p=_WORKER.get("n_p", 1),
+        n_f=_WORKER.get("n_f", 1),
+        smoothness=_WORKER.get("smoothness", 0.0),
+        maxfev=_WORKER.get("maxfev", 60),
     )
 
 
 def fit_shot(payload: dict, cfg: dict, workers: int) -> list[ClosureSliceFit]:
-    """Fit every candidate slice of one shot (fork pool over slices)."""
+    """Fit every candidate slice of one shot.
+
+    Grid mode keeps the historical fork pool over slices (candidates are
+    independent).  The continuous and ladder modes run the slices SEQUENTIALLY
+    in time order instead, warm-starting each slice's search point and Picard
+    current from the previous scored slice (temporal coherence as a free
+    regularizer); wall-time parallelism then comes from sharding shots across
+    SLURM array tasks (``--shots``).
+    """
     payloads = payload["payloads"]
-    state = {
-        "grid": payload["grid"],
-        "table": payload["table"],
-        "payloads": payloads,
-        **cfg,
-    }
-    _init_worker(state)
-    idx = list(range(len(payloads)))
-    if workers > 1 and len(idx) > 1:
-        ctx = multiprocessing.get_context("fork")
-        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
-            return list(pool.map(_fit_slice_worker, idx))
-    return [_fit_slice_worker(k) for k in idx]
+    mode = cfg.get("fit_mode", "grid")
+    if mode == "grid":
+        state = {
+            "grid": payload["grid"],
+            "table": payload["table"],
+            "payloads": payloads,
+            **cfg,
+        }
+        _init_worker(state)
+        idx = list(range(len(payloads)))
+        if workers > 1 and len(idx) > 1:
+            ctx = multiprocessing.get_context("fork")
+            with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
+                return list(pool.map(_fit_slice_worker, idx))
+        return [_fit_slice_worker(k) for k in idx]
+
+    fits: list[ClosureSliceFit] = []
+    warm_x0: tuple[float, ...] | None = None
+    warm_jphi: np.ndarray | None = None
+    order = np.argsort([p.time_s for p in payloads])
+    by_index: dict[int, ClosureSliceFit] = {}
+    for k in order:
+        f = fit_and_read_slice(
+            payload["grid"],
+            payload["table"],
+            payloads[int(k)],
+            beta0_grid=cfg["beta0_grid"],
+            alpha_grid=cfg["alpha_grid"],
+            cost_limit=cfg["cost_limit"],
+            convergence_limit=cfg["convergence_limit"],
+            retry_max_iterations=cfg["retry_max_iterations"],
+            fit_mode=mode,
+            fit_z0=cfg.get("fit_z0", False),
+            n_p=cfg.get("n_p", 1),
+            n_f=cfg.get("n_f", 1),
+            smoothness=cfg.get("smoothness", 0.0),
+            maxfev=cfg.get("maxfev", 60),
+            warm_x0=warm_x0,
+            warm_jphi=warm_jphi,
+            keep_jphi=True,
+        )
+        if f.scored and f.converged:
+            warm_jphi = f.jphi_flat
+            if mode == "continuous":
+                warm_x0 = (
+                    (f.beta0, f.alpha, f.z0 or 0.0)
+                    if cfg.get("fit_z0", False)
+                    else (f.beta0, f.alpha)
+                )
+        f.jphi_flat = None  # warm-chain only — never serialised
+        by_index[int(k)] = f
+    fits = [by_index[k] for k in range(len(payloads))]
+    return fits
 
 
 def _grids_for(split: str, args) -> tuple[tuple[float, ...], tuple[float, ...]]:
     b = tuple(float(v) for v in args.beta0_grid.split(",") if v.strip())
     a = tuple(float(v) for v in args.alpha_grid.split(",") if v.strip())
     return b, a
+
+
+COST_SWEEP_THRESHOLDS = (0.5, 1.0, 2.0, 3.0, 5.0, 10.0, float("inf"))
+
+
+def cost_sweep(
+    model: np.ndarray,
+    ref: np.ndarray,
+    baseline_vec: np.ndarray,
+    cost: np.ndarray,
+    shot_ids: np.ndarray,
+    thresholds: tuple[float, ...] = COST_SWEEP_THRESHOLDS,
+) -> list[dict]:
+    """The standard accuracy AND coverage report: per cost threshold, the
+    subset size and the skill metrics (with CIs when ≥ 2 shots survive).
+
+    Reported in every closure artifact so no headline can hide behind a
+    convenient threshold (the Gate-A tail-domination lesson).
+    """
+    rows: list[dict] = []
+    for thr in thresholds:
+        m = np.asarray(cost) <= thr
+        row: dict = {
+            "cost_le": None if np.isinf(thr) else float(thr),
+            "n": int(m.sum()),
+            "coverage": float(m.mean()) if m.size else 0.0,
+        }
+        if m.sum() >= 3 and np.unique(shot_ids[m]).size >= 2:
+            sc = score(model[m], ref[m], baseline_vec, shot_ids=shot_ids[m])
+            sc.pop("axis_errors")
+            sc.pop("per_quantity_skill", None)
+            sc.pop("per_quantity_skill_ci", None)
+            row |= sc
+        rows.append(row)
+    return rows
 
 
 def run_gate(args) -> int:
@@ -260,6 +440,12 @@ def run_gate(args) -> int:
         "cost_limit": args.cost_limit,
         "convergence_limit": args.convergence_limit,
         "retry_max_iterations": args.retry_max_iterations,
+        "fit_mode": args.fit_mode,
+        "fit_z0": args.fit_z0,
+        "n_p": args.n_p,
+        "n_f": args.n_f,
+        "smoothness": args.smoothness,
+        "maxfev": args.maxfev,
     }
     logger.info("closure gate split=%s cfg=%s", args.split, cfg)
 
@@ -368,10 +554,18 @@ def run_gate(args) -> int:
     lcfs_cm = lcfs_offset_cm_stats(model, ref, flattop_mask)
     saddle_stats = saddle_excess_stats(saddles, ref)
 
-    beta0_fit = np.array([f.beta0 for f in scored], dtype=np.float64)
-    alpha_fit = np.array([f.alpha for f in scored], dtype=np.float64)
+    beta0_fit = np.array(
+        [np.nan if f.beta0 is None else f.beta0 for f in scored], dtype=np.float64
+    )
+    alpha_fit = np.array(
+        [np.nan if f.alpha is None else f.alpha for f in scored], dtype=np.float64
+    )
+    z0_fit = np.array(
+        [np.nan if f.z0 is None else f.z0 for f in scored], dtype=np.float64
+    )
     cost_fit = np.array([f.cost for f in scored], dtype=np.float64)
     conv_frac = float(np.mean([bool(f.converged) for f in scored]))
+    sweep = cost_sweep(model, ref, baseline_vec, cost_fit, shot_ids)
 
     result = {
         "arm": "closure",
@@ -391,10 +585,18 @@ def run_gate(args) -> int:
         "scored_fraction": float(n_scored / max(n_candidate, 1)),
         "mask_reasons": reasons,
         "strict_converged_fraction_of_scored": conv_frac,
-        "beta0_median": float(np.median(beta0_fit)),
-        "alpha_median": float(np.median(alpha_fit)),
+        "beta0_median": (
+            float(np.nanmedian(beta0_fit)) if np.isfinite(beta0_fit).any() else None
+        ),
+        "alpha_median": (
+            float(np.nanmedian(alpha_fit)) if np.isfinite(alpha_fit).any() else None
+        ),
+        "z0_median": (
+            float(np.nanmedian(z0_fit)) if np.isfinite(z0_fit).any() else None
+        ),
         "cost_median_scored": float(np.median(cost_fit)),
         "cost_le_3_fraction": float(np.mean(cost_fit <= 3.0)),
+        "cost_sweep": sweep,
         "wall_s": wall_s,
         **sc,
         **lcfs_cm,
@@ -408,6 +610,11 @@ def run_gate(args) -> int:
     (ARTIFACTS / f"closure_gate_eval{tag}.json").write_text(
         json.dumps(result, indent=2)
     )
+    extra_arrays: dict[str, np.ndarray] = {}
+    if args.fit_mode == "ladder":
+        extra_arrays["coeffs"] = np.array(
+            [f.coeffs for f in scored], dtype=np.float64
+        )
     np.savez(
         ARTIFACTS / f"closure_gate_eval{tag}_arrays.npz",
         model=model,
@@ -419,7 +626,9 @@ def run_gate(args) -> int:
         saddles=saddles,
         beta0=beta0_fit,
         alpha=alpha_fit,
+        z0=z0_fit,
         cost=np.array([f.cost for f in scored], dtype=np.float64),
+        **extra_arrays,
     )
     logger.info(
         "[closure %s] scored %d/%d (%.0f%%) axis_skill=%.3f ci=%s lcfs_skill=%s "
@@ -459,7 +668,11 @@ def run_figures(args) -> int:
         select_slices,
     )
 
-    FIGURES.mkdir(parents=True, exist_ok=True)
+    fig_dir = FIGURES if args.fit_mode == "grid" else FIGURES_SPINE
+    fig_suffix = "" if args.fit_mode == "grid" else f"-{args.fit_mode}"
+    if args.out_suffix:
+        fig_suffix += f"-{args.out_suffix}"
+    fig_dir.mkdir(parents=True, exist_ok=True)
     beta0_grid, alpha_grid = _grids_for("eval", args)
     _, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
     logger.info("figures: held-out shots %s", list(held_shots))
@@ -497,17 +710,18 @@ def run_figures(args) -> int:
                 cost_limit=args.cost_limit,
                 convergence_limit=args.convergence_limit,
                 retry_max_iterations=args.retry_max_iterations,
+                fit_mode=args.fit_mode,
+                fit_z0=args.fit_z0,
+                n_p=args.n_p,
+                n_f=args.n_f,
+                smoothness=args.smoothness,
+                maxfev=args.maxfev,
+                keep_psi=True,
             )
             if not fit.scored:
                 logger.info("%d %-7s masked (%s) — skip panel", shot, kind, fit.reason)
                 continue
-            # re-solve at the fitted (β0, α) for the ψ field to plot
-            from imas_ambix.latent.gs_solve import solve_equilibrium_bootstrapped
-
-            res = solve_equilibrium_bootstrapped(
-                grid, p.i_pf, p.ip_amperes, beta0=fit.beta0, alpha=fit.alpha
-            )
-            psi2d = res.psi
+            psi2d = fit.psi
             target, psi_ax, psi_b = geometry_target(psi2d, grid)
             axis_rz = (float(target[0]), float(target[1]))
             our_lcfs = _closed_contour_about(grid.rg, grid.zg, psi2d, psi_b, *axis_rz)
@@ -523,25 +737,37 @@ def run_figures(args) -> int:
                 show_probes=False,
                 show_flux_loops=False,
             )
+            if fit.beta0 is not None:
+                fit_label = f"β0={fit.beta0:.2f} α={fit.alpha:.1f}"
+            else:
+                fit_label = f"K={fit.dof} LSQ  cost={fit.cost:.2f}"
             fig.suptitle(
-                f"{shot} t={p.time_s:.3f}s ({kind})  "
-                f"β0={fit.beta0:.2f} α={fit.alpha:.1f}",
+                f"{shot} t={p.time_s:.3f}s ({kind})  {fit_label}",
                 fontsize=9,
             )
             flux_panels[kind][int(shot)] = _fig_to_rgba(fig)
             plt.close(fig)
             psi_n = np.linspace(0.0, 1.0, 60)
-            shape = profile_jphi_shape(
-                psi_n,
-                np.full_like(psi_n, grid.r0),
-                r0=grid.r0,
-                beta0=fit.beta0,
-                alpha=fit.alpha,
-            )
+            if fit.beta0 is not None:
+                shape = profile_jphi_shape(
+                    psi_n,
+                    np.full_like(psi_n, grid.r0),
+                    r0=grid.r0,
+                    beta0=fit.beta0,
+                    alpha=fit.alpha,
+                )
+            else:
+                from imas_ambix.latent.gs_solve import profile_basis
+
+                shape = profile_basis(
+                    psi_n,
+                    np.full_like(psi_n, grid.r0),
+                    r0=grid.r0,
+                    n_p=args.n_p,
+                    n_f=args.n_f,
+                ) @ np.asarray(fit.coeffs)
             profile_rows.append((kind, fit.beta0, fit.alpha, psi_n, shape))
-            logger.info(
-                "%d %-7s β0=%.2f α=%.1f rendered", shot, kind, fit.beta0, fit.alpha
-            )
+            logger.info("%d %-7s %s rendered", shot, kind, fit_label)
 
     fig_paths = []
     for regime in ("rampup", "flattop"):
@@ -562,7 +788,7 @@ def run_figures(args) -> int:
             fontsize=13,
         )
         fig.tight_layout(rect=(0, 0, 1, 0.98))
-        out = FIGURES / f"fig-closure-flux-maps-{regime}.png"
+        out = fig_dir / f"fig-closure-flux-maps-{regime}{fig_suffix}.png"
         fig.savefig(out, dpi=110)
         plt.close(fig)
         fig_paths.append(str(out))
@@ -581,21 +807,21 @@ def run_figures(args) -> int:
             axc.plot([], [], color=cmap[kind], label=kind)
         axc.legend(fontsize=8)
         for kind in ("rampup", "flattop"):
-            b0 = [r[1] for r in profile_rows if r[0] == kind]
-            al = [r[2] for r in profile_rows if r[0] == kind]
+            b0 = [r[1] for r in profile_rows if r[0] == kind and r[1] is not None]
+            al = [r[2] for r in profile_rows if r[0] == kind and r[2] is not None]
             axd.scatter(b0, al, color=cmap[kind], label=kind, s=40, alpha=0.7)
         axd.set_xlabel("β0 (pressure/FF′ split)")
         axd.set_ylabel("α (peakedness)")
         axd.set_title("Fitted (β0, α) distribution")
         axd.legend(fontsize=8)
         fig.tight_layout()
-        out = FIGURES / "fig-closure-profile-fits.png"
+        out = fig_dir / f"fig-closure-profile-fits{fig_suffix}.png"
         fig.savefig(out, dpi=120)
         plt.close(fig)
         fig_paths.append(str(out))
         logger.info("wrote %s (%d profiles)", out, len(profile_rows))
 
-    (ARTIFACTS / "closure_figures.json").write_text(
+    (ARTIFACTS / f"closure_figures{fig_suffix}.json").write_text(
         json.dumps({"figures": fig_paths, "n_profiles": len(profile_rows)}, indent=2)
     )
     return 0
@@ -637,6 +863,35 @@ def main() -> int:
     )
     ap.add_argument("--convergence-limit", type=float, default=5e-3)
     ap.add_argument("--retry-max-iterations", type=int, default=160)
+    ap.add_argument(
+        "--fit-mode",
+        type=str,
+        default="grid",
+        choices=("grid", "continuous", "ladder"),
+        help="grid = frozen 5x3 candidate enumeration (historical default); "
+        "continuous = bounded Nelder-Mead over (beta0, alpha[, z0]), "
+        "warm-started along the time axis; ladder = K = n_p + n_f coefficient "
+        "LSQ-per-Picard-sweep solve (the profile-DOF ladder)",
+    )
+    ap.add_argument(
+        "--fit-z0",
+        action="store_true",
+        help="continuous mode: add the vertical seed-centre DOF",
+    )
+    ap.add_argument("--n-p", type=int, default=1, help="ladder: p' basis size")
+    ap.add_argument("--n-f", type=int, default=1, help="ladder: FF' basis size")
+    ap.add_argument(
+        "--smoothness",
+        type=float,
+        default=0.0,
+        help="ladder: second-difference coefficient smoothness ridge weight",
+    )
+    ap.add_argument(
+        "--maxfev",
+        type=int,
+        default=60,
+        help="continuous: objective-evaluation budget per slice",
+    )
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--figures", action="store_true", help="render figures only")
     ap.add_argument(
