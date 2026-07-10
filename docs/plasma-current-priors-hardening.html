@@ -15,12 +15,12 @@
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="patch-current-force-balance,patch-equilibrium-wm-integration">
-  <meta name="plan-blocks" content="equilibrium-topology-fidelity">
+  <meta name="plan-blocks" content="equilibrium-topology-fidelity,force-balance-spine,toroidal-harmonic-annulus-read">
   <title>Plasma-Current Priors Hardening | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-10">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="7">
 <meta name="plan-impl" content="1.0">
 </head>
 <body>
@@ -281,6 +281,77 @@
     exterior read (f-etf-04) sidesteps the interior entirely and remains the representation-side
     complement.</strong></p>
 
+    <h2 id="s7">§7 — f-pcph-04 executed: static audit + closure arm, measured (2026-07-10)</h2>
+
+    <h3>7.1 — Static audit: tiny per-channel zero errors carry most of the discrepancy; Gate A now PASSES</h3>
+    <p>The simplest static instrument model — one per-channel <strong>zero offset</strong>, fitted on 10 train
+    shots against the physics-prior arm's prediction, frozen, applied held-out
+    (<code>scripts/static_calibration_audit.py</code> → <code>static_calibration_offset_only.json</code>) —
+    has offsets of only <strong>median 0.10σ (p90 0.34σ)</strong> yet explains most of the free inverse's
+    unmodelled signal: <strong>misfit 0.049 → 0.007 (~7×), anti-parallel halo 0.75 → 0.33 I<sub>p</sub>,
+    outside-LCFS 1.01 → 0.45</strong>. With calibration on, the R1 sign prior becomes essentially free:
+    <strong>axis skill −0.054 [−0.35, +0.11] — CI-compatible with the baseline, zero halo, misfit 0.030 —
+    Gate A passes as originally specified.</strong> The calibrated R1+R2 arm posts the first CI-clear positive
+    X-point-set skill (+0.29 [0.03, 0.41], axis median 3.8 cm). The affine (free-gain) variant is
+    <em>rejected</em>: gains p10–p90 0.90–1.14 launder plasma-signal scale and crash every arm held-out
+    (misfit 16) — kept only as the recorded ablation (<code>*-calibrated-affine</code> artifacts).</p>
+    <figure>
+      <img src="/imas-ambix/figures/plasma-current-priors-hardening/fig-static-calibration-offset-only.png"
+           alt="Per-channel fitted zero offsets in units of channel sigma with bootstrap CIs over shots — median 0.10 sigma, a handful of channels up to 1.7 sigma."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">The frozen offset-only calibration (95% CI over fit
+      shots). Sub-noise-floor zero errors, coherently summed over 73 channels, were feeding the free inverse
+      ~0.75 I<sub>p</sub> of fictitious halo current.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/plasma-current-priors-hardening/fig-prior-current-maps-flattop-calibrated.png"
+           alt="Flat-top current maps with the offset-only calibration applied: the free arm's wall halo fades (anti-parallel fraction ~0.3), residual negative current concentrates at the divertor corners; the priors arm is unchanged and clean."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Calibrated flat-top current maps (compare §6.2): the
+      wall halo visibly fades; what remains concentrates at the divertor corners — consistent with a residual
+      coil-geometry/circuit error rather than sensor zeros.</figcaption>
+    </figure>
+
+    <h3>7.2 — Closure arm: 100% convergence; boundary-grade geometry exactly where the magnetics are self-consistent</h3>
+    <p>The EFIT-style profile-closure inverse (<code>scripts/closure_gate_eval.py</code>: fit jφ(ψ<sub>N</sub>; β0, α)
+    through the free-boundary Picard fixed point, hardened-harness scoring) converges on
+    <strong>160/160 held-out slices</strong> (vs the old 83/160). At full coverage the geometry is poor
+    (axis skill −5.94, median 0.86 m): the 2-param family <em>rails at the grid corner on every slice</em>
+    (fig-closure-profile-fits) and the force-balanced equilibrium is dragged outboard by the residual model
+    error. But on the self-consistent minority the closure arm is the best on record —
+    <strong>cost ≤ 1 (6/160): axis skill +0.34 [0.32, 0.38] at 2.6 cm, LCFS skill +0.12 — the first positive
+    LCFS skill any arm has produced</strong>. §6.4 ingredient 1 is confirmed by measurement.</p>
+    <figure>
+      <img src="/imas-ambix/figures/plasma-current-priors-hardening/fig-closure-flux-maps-flattop.png"
+           alt="Closure-arm flux surfaces vs EFIT at flat top: the force-balanced LCFS is a small outboard-jammed blob on the railed high-cost slices."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Closure-arm flat-top flux surfaces vs EFIT — the
+      outboard mislocation on high-cost slices is the force-balanced signature of the remaining static model
+      error. Rampup + profile-fit figures alongside
+      (<code>fig-closure-flux-maps-rampup.png</code>, <code>fig-closure-profile-fits.png</code>).</figcaption>
+    </figure>
+
+    <h3>7.3 — The cross experiment: sensor zeros are NOT what blocks the closure arm</h3>
+    <p>Closure arm re-run on calibrated payloads (merged artifact
+    <code>closure_gate_eval-calibrated.json</code>): the self-consistent population barely moves —
+    <strong>cost ≤ 1: 6 → 7 of 160 (axis +0.30, LCFS +0.20); cost ≤ 3: 11 → 11; cost median 12.2 unchanged</strong>.
+    So the error budget separates cleanly: the <em>sensor zero offsets</em> explain the free arm's halo and
+    unlock Gate A, but what blocks the <em>force-balanced</em> fit at scale is a different, larger static
+    error — coil-model geometry / turns / circuit mapping — and/or the railed 2-DOF profile family itself.
+    The binding next steps are exactly force-balance-spine W1 (K-coefficient profile ladder: linear LSQ per
+    Picard sweep, the worker's costed design) and W2 (coil audit + coil-only-interval validation of the
+    calibration).</p>
+
+    <h3>7.4 — Disposition</h3>
+    <p><strong>Gate A: PASS (calibrated).</strong> <strong>Gate B: improved but still split</strong>
+    (calibrated R1+R2: X-point +0.29 CI-clear positive, axis tail still RMSE-dominated, LCFS ray-cast still
+    short) — the flip of <code>prior-defaults</code> waits on the calibration's independent validation
+    (force-balance-spine Gate FB-2: coil-only intervals, cross-arm consistency), because promoting defaults on
+    a statistically-fitted nuisance would launder model error into the instrument model. Continuation is
+    owned by <a href="/imas-ambix/force-balance-spine.html">force-balance-spine</a> (W1/W2); the R3 exterior
+    read now lives in <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a>.
+    This plan is complete.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="sign-prior-form" data-choice="hard-softplus" data-by="reckon-ship (kickoff)" data-when="2026-07-07T12:53:48+00:00">
@@ -408,7 +479,7 @@ Done-when
   Re-gated verdicts recorded with CIs; prior-defaults decision revisited either way.</pre>
     <p class="r-fu-outcome">SUPERSEDED by §6.1 — the eddy/passive premise is REFUTED: the halo is phase-independent (flat-top 0.715 vs rampup 0.754 median anti-∥ fraction), so the unmodelled signal is STATIC (coil model / probe calibration), not inductive. Replaced by f-pcph-04 with the corrected attack: static coil/instrument audit + the low-DOF profile-closure arm.</p>
     </article>
-<article class="r-fu" data-id="f-pcph-04" data-status="open" data-tier="opus" data-written-by="reckon-ship (lead review)" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pcph-04" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (lead review)" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="2026-07-10T10:39:33+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Static coil/calibration audit + low-DOF profile-closure arm — the two missing EFIT ingredients, then re-gate R1/R2</h4>
     <div class="r-fu-body"><p>§6 (post-ship addendum) re-attributed the halo: phase-independent ⇒ static coil-model or probe-calibration error absorbing ~0.7 Ip of sensor signal at every phase, and the current maps show the priors arm spreads current uniformly over its support because no term shapes jφ(ψN). The two EFIT ingredients we lack: (a) a fitted static instrument/vessel model, (b) a low-DOF p′/FF′ closure arm (through the gs_solve fixed point or as a peaked-profile prior). Land either, re-run Gates A/B with frozen winner flags.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -436,6 +507,7 @@ Do (two independent attacks, either unblocks the re-gate)
 Done-when
   Static-error attribution quantified; closure arm measured held-out with CIs; gates re-run;
   prior-defaults decision revisited either way; plan updated same-turn.</pre>
+    <p class="r-fu-outcome">EXECUTED IN FULL (§7, 2026-07-10). Static audit: offset-only per-channel zeros (median 0.10σ) explain most of the discrepancy — free-arm misfit 0.049→0.007, halo 0.75→0.33 Ip; GATE A PASSES calibrated (R1 axis −0.054 [−0.35,+0.11], zero halo); affine gain arm rejected (launders plasma scale, crashes held-out). Closure arm (worker): 160/160 convergence; cost≤1 subset posts the first positive LCFS skill (+0.12; calibrated +0.20) at 2.6–3.5 cm axis, but the 2-DOF family rails and full-population geometry is poor. Cross experiment NEGATIVE: calibration does NOT unlock the closure arm at scale (cost≤1: 6→7/160, cost median unchanged) — the binding error is coil-model/profile-DOF, not sensor zeros. prior-defaults flip deferred to force-balance-spine Gate FB-2 (independent calibration validation). Continuation owned by force-balance-spine W1/W2; R3 migrated to toroidal-harmonic-annulus-read. Commits 657e1d8…832e2a9 + merged calibrated-closure artifact.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">

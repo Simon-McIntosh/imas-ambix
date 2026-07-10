@@ -43,21 +43,25 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib
 
 matplotlib.use("Agg")
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
-from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
-from imas_ambix.latent.data import feature_schema, read_split_shot_lists
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.operator import COIL_MODEL_VERSION
+from imas_ambix.latent.data import read_split_shot_lists
+
+if TYPE_CHECKING:
+    from imas_ambix.latent.patch_inverse import SlicePayload
+
 from imas_ambix.latent.gs_solve import (
     EquilibriumGrid,
     fit_profile,
     profile_jphi_shape,
 )
-from imas_ambix.latent.patch_inverse import SlicePayload
 
 # reuse the hardened harness verbatim — identical cohort, readout, and scoring
 from scripts.patch_gate_eval import (
@@ -72,6 +76,29 @@ from scripts.patch_gate_eval import (
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("closure_gate_eval")
+
+
+def _apply_calibration(payload: dict, calibration: str) -> None:
+    """Correct raw payloads with a frozen static calibration JSON (name-mapped).
+
+    Same contract as ``patch_gate_eval --calibration``: measured' =
+    (measured − offset)/gain, scale' = scale/|gain|; channels absent from the
+    calibration stay identity.  No-op when ``calibration`` is empty.
+    """
+    if not calibration:
+        return
+    cal = json.loads(Path(calibration).read_text())
+    by_name = {
+        c: (g, o)
+        for c, g, o in zip(cal["channels"], cal["gain"], cal["offset"], strict=True)
+    }
+    names = list(payload["basis"].sensor_channels)
+    gain = np.array([by_name.get(c, (1.0, 0.0))[0] for c in names])
+    offset = np.array([by_name.get(c, (1.0, 0.0))[1] for c in names])
+    for p in payload["payloads"]:
+        p.measured[:] = (p.measured - offset) / gain
+        p.scale[:] = p.scale / np.abs(gain)
+
 
 ARTIFACTS = Path("imas_ambix/latent/artifacts/patch_gate")
 FIGURES = Path("docs/figures/plasma-current-priors-hardening")
@@ -147,9 +174,7 @@ def fit_and_read_slice(
         ip_amperes=payload.ip_amperes,
     )
     if fit is None:
-        return ClosureSliceFit(
-            **base, scored=False, reason="no-converged-candidate"
-        )
+        return ClosureSliceFit(**base, scored=False, reason="no-converged-candidate")
     if fit.cost > cost_limit:
         return ClosureSliceFit(
             **base,
@@ -274,6 +299,7 @@ def run_gate(args) -> int:
             continue
         if payload is None:
             continue
+        _apply_calibration(payload, args.calibration)
         refs_by_shot[int(s)] = payload["refs"]
         fits = fit_shot(payload, cfg, args.workers)
         # attach the per-shot referee row index for scored slices
@@ -296,7 +322,11 @@ def run_gate(args) -> int:
     reasons: dict[str, int] = {}
     for f in all_fits:
         reasons[f.reason] = reasons.get(f.reason, 0) + 1
-    tag = "-tune" if args.split == "train" else ""
+    tag = (
+        ("-calibrated" if args.calibration else "")
+        + ("-tune" if args.split == "train" else "")
+        + (f"-{args.out_suffix}" if args.out_suffix else "")
+    )
     if n_scored == 0:
         # write the diagnostic record anyway (coverage + reasons) — a zero-
         # coverage cohort is a reportable finding, not a silent abort
@@ -347,8 +377,13 @@ def run_gate(args) -> int:
         "arm": "closure",
         "split": args.split,
         "config": cfg
-        | {"n_train": args.n_train, "n_heldout": args.n_heldout, "nr": args.nr,
-           "nz": args.nz, "min_ip_ka": args.min_ip_ka},
+        | {
+            "n_train": args.n_train,
+            "n_heldout": args.n_heldout,
+            "nr": args.nr,
+            "nz": args.nz,
+            "min_ip_ka": args.min_ip_ka,
+        },
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": GEOMETRY_TABLE_VERSION,
         "n_scored": n_scored,
@@ -365,8 +400,14 @@ def run_gate(args) -> int:
         **lcfs_cm,
         **saddle_stats,
     }
-    tag = "-tune" if args.split == "train" else ""
-    (ARTIFACTS / f"closure_gate_eval{tag}.json").write_text(json.dumps(result, indent=2))
+    tag = (
+        ("-calibrated" if args.calibration else "")
+        + ("-tune" if args.split == "train" else "")
+        + (f"-{args.out_suffix}" if args.out_suffix else "")
+    )
+    (ARTIFACTS / f"closure_gate_eval{tag}.json").write_text(
+        json.dumps(result, indent=2)
+    )
     np.savez(
         ARTIFACTS / f"closure_gate_eval{tag}_arrays.npz",
         model=model,
@@ -407,8 +448,8 @@ def run_gate(args) -> int:
 # ---------------------------------------------------------------------------
 def run_figures(args) -> int:
     import matplotlib.pyplot as plt
-
     from imas_ink.figures import equilibrium_figure_mpl
+
     from scripts.patch_flux_map_report import (
         _closed_contour_about,
         _efit_slice,
@@ -428,8 +469,12 @@ def run_figures(args) -> int:
     for shot in held_shots:
         try:
             payload = shot_payloads(
-                shot, nr=args.nr, nz=args.nz, max_slices=args.max_slices_per_shot,
-                min_ip_ka=args.min_ip_ka, split="eval",
+                shot,
+                nr=args.nr,
+                nz=args.nz,
+                max_slices=args.max_slices_per_shot,
+                min_ip_ka=args.min_ip_ka,
+                split="eval",
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("shot %s failed to load: %s", shot, exc)
@@ -444,9 +489,13 @@ def run_figures(args) -> int:
         for kind, k, efit in picks:
             p = payloads[k]
             fit = fit_and_read_slice(
-                grid, table, p,
-                beta0_grid=beta0_grid, alpha_grid=alpha_grid,
-                cost_limit=args.cost_limit, convergence_limit=args.convergence_limit,
+                grid,
+                table,
+                p,
+                beta0_grid=beta0_grid,
+                alpha_grid=alpha_grid,
+                cost_limit=args.cost_limit,
+                convergence_limit=args.convergence_limit,
                 retry_max_iterations=args.retry_max_iterations,
             )
             if not fit.scored:
@@ -466,22 +515,33 @@ def run_figures(args) -> int:
                 psi2d, grid, target, psi_ax, psi_b, p.ip_amperes, p.time_s, our_lcfs
             )
             fig, _ax = equilibrium_figure_mpl(
-                sl, geom, reference_slice=_efit_slice(efit), reference_name="EFIT",
-                figsize=(4.6, 6.0), show_probes=False, show_flux_loops=False,
+                sl,
+                geom,
+                reference_slice=_efit_slice(efit),
+                reference_name="EFIT",
+                figsize=(4.6, 6.0),
+                show_probes=False,
+                show_flux_loops=False,
             )
             fig.suptitle(
-                f"{shot} t={p.time_s:.3f}s ({kind})  β0={fit.beta0:.2f} α={fit.alpha:.1f}",
+                f"{shot} t={p.time_s:.3f}s ({kind})  "
+                f"β0={fit.beta0:.2f} α={fit.alpha:.1f}",
                 fontsize=9,
             )
             flux_panels[kind][int(shot)] = _fig_to_rgba(fig)
             plt.close(fig)
             psi_n = np.linspace(0.0, 1.0, 60)
             shape = profile_jphi_shape(
-                psi_n, np.full_like(psi_n, grid.r0), r0=grid.r0,
-                beta0=fit.beta0, alpha=fit.alpha,
+                psi_n,
+                np.full_like(psi_n, grid.r0),
+                r0=grid.r0,
+                beta0=fit.beta0,
+                alpha=fit.alpha,
             )
             profile_rows.append((kind, fit.beta0, fit.alpha, psi_n, shape))
-            logger.info("%d %-7s β0=%.2f α=%.1f rendered", shot, kind, fit.beta0, fit.alpha)
+            logger.info(
+                "%d %-7s β0=%.2f α=%.1f rendered", shot, kind, fit.beta0, fit.alpha
+            )
 
     fig_paths = []
     for regime in ("rampup", "flattop"):
@@ -512,7 +572,7 @@ def run_figures(args) -> int:
     if profile_rows:
         fig, (axc, axd) = plt.subplots(1, 2, figsize=(11.0, 4.6))
         cmap = {"rampup": "#1b7837", "flattop": "#d95f02"}
-        for kind, b0, al, psi_n, shape in profile_rows:
+        for kind, _b0, _al, psi_n, shape in profile_rows:
             axc.plot(psi_n, shape, color=cmap[kind], alpha=0.5, lw=1.2)
         axc.set_xlabel("ψ_N")
         axc.set_ylabel("jφ shape at R=R0  (β0 + (1−β0))·(1−ψ_N)^α")
@@ -552,11 +612,16 @@ def main() -> int:
     ap.add_argument("--n-baseline-shots", type=int, default=10)
     ap.add_argument("--n-tune-shots", type=int, default=4)
     ap.add_argument(
-        "--split", type=str, default="eval", choices=("eval", "train"),
+        "--split",
+        type=str,
+        default="eval",
+        choices=("eval", "train"),
         help="eval = held-out gate; train = the 4-shot leakage-free tune cohort",
     )
     ap.add_argument(
-        "--shots", type=str, default="",
+        "--shots",
+        type=str,
+        default="",
         help="comma list to restrict the run (sbatch-array sharding); '' = all",
     )
     # frozen physics-motivated config (confirmed on --split train, applied
@@ -564,7 +629,9 @@ def main() -> int:
     ap.add_argument("--beta0-grid", type=str, default="0.1,0.3,0.5,0.7,0.9")
     ap.add_argument("--alpha-grid", type=str, default="1.0,1.5,2.0")
     ap.add_argument(
-        "--cost-limit", type=float, default=float("inf"),
+        "--cost-limit",
+        type=float,
+        default=float("inf"),
         help="optional whitened-misfit ceiling; default inf scores every "
         "converged equilibrium (cost carried as a diagnostic)",
     )
@@ -572,6 +639,18 @@ def main() -> int:
     ap.add_argument("--retry-max-iterations", type=int, default=160)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--figures", action="store_true", help="render figures only")
+    ap.add_argument(
+        "--out-suffix",
+        type=str,
+        default="",
+        help="artifact-name suffix (shot-sharded runs merge offline)",
+    )
+    ap.add_argument(
+        "--calibration",
+        type=str,
+        default="",
+        help="frozen static calibration JSON applied to raw payloads",
+    )
     args = ap.parse_args()
 
     if args.figures:
