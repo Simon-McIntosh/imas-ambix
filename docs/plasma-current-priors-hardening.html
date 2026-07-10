@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-10">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-impl" content="1.0">
 </head>
 <body>
@@ -168,6 +168,119 @@
     evidence base; the amortised encoder (P4) inherits whichever priors survive their ablations, exactly as it
     inherited the oracle recipe.</p>
 
+    <h2 id="s6">§6 — Post-ship findings addendum (lead review, 2026-07-10)</h2>
+
+    <h3>6.1 — The eddy-current hypothesis is REFUTED: the halo is phase-independent</h3>
+    <p>The lead's challenge — <em>"the current-in-vessel hypothesis only holds during rampup; if we are
+    solving flat-top slices then this is not the cause"</em> — is confirmed by the per-slice gate arrays.
+    Splitting the held-out 160 slices by the flat-top proxy (highest-|I<sub>p</sub>| slice per shot):</p>
+    <table>
+      <thead><tr><th>free inverse (no priors)</th><th>anti-∥ fraction (median)</th>
+      <th>outside-LCFS fraction</th><th>misfit</th></tr></thead>
+      <tbody>
+        <tr><td>flat-top slices</td><td>0.715</td><td>0.993</td><td>0.063</td></tr>
+        <tr><td>rampup slices</td><td>0.754</td><td>1.008</td><td>0.049</td></tr>
+      </tbody>
+    </table>
+    <p>The halo is <strong>as large at flat top as during rampup</strong>, and the misfit the priors expose
+    is equally phase-flat (winner arm: 0.237 flat-top / 0.202 rampup). Vessel eddy currents (∝ dI/dt)
+    cannot produce this. The unmodelled sensor signal the halo absorbs is <strong>persistent → a static
+    error</strong>: coil-model geometry/turns/circuit mapping, probe calibration (gains/angles), or a
+    genuinely static conductor omission — the same family as the case-circuit bias found in the
+    payload-substrate fleet (all 73 probes biased median 0.44σ pre-fix). The f-pcph-03 re-gate target is
+    re-attributed accordingly (f-pcph-04): audit the static coil/instrument model, not the eddy model.</p>
+
+    <h3>6.2 — Current distributions and flux surfaces, both arms, both phases</h3>
+    <figure>
+      <img src="/imas-ambix/figures/plasma-current-priors-hardening/fig-prior-current-maps-flattop.png"
+           alt="Per-cell current distributions for eight held-out flat-top slices: the free inverse (top row) shows the anti-parallel outboard halo and wall shell current at flat top; the priors arm (bottom row) is all-positive and compact but spreads current quasi-uniformly over its support."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Flat-top current maps (imas-ink cross-sections), free
+      inverse (top) vs priors arm (bottom). The anti-∥ halo (blue) is present at FLAT TOP on every shot —
+      the visual form of the phase-independence result. In the priors arm the current fills its support
+      near-uniformly: nothing in the loss shapes jφ within the allowed region.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/plasma-current-priors-hardening/fig-prior-current-maps-rampup.png"
+           alt="Same current-map comparison for the rampup slices — the halo pattern is qualitatively identical to flat-top."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Rampup current maps — qualitatively identical halo to
+      flat-top (compare per-panel anti-∥ fractions in the titles).</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/plasma-current-priors-hardening/fig-prior-flux-maps-flattop.png"
+           alt="Flux-surface maps for the same flat-top slices, our LCFS (red) vs EFIT (dashed): the priors arm under-sizes the LCFS on several shots because the near-uniform current flattens psi."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Flat-top flux surfaces vs EFIT (dashed sienna). The
+      priors arm's LCFS (red, bottom row) is under-sized on several shots — the flux-surface signature of
+      the uniform current spread above.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/plasma-current-priors-hardening/fig-prior-flux-maps-rampup.png"
+           alt="Rampup flux-surface comparison, same layout."
+           style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+      <figcaption style="font-size:12.5px;color:#444">Rampup flux surfaces, same layout.
+      Generator: <code>scripts/patch_prior_flux_maps.py</code>; per-slice metrics in
+      <code>imas_ambix/latent/artifacts/patch_gate/prior_flux_maps.json</code>.</figcaption>
+    </figure>
+
+    <h3>6.3 — Complete prior / regulariser inventory (patch inverse, live model)</h3>
+    <table>
+      <thead><tr><th>#</th><th>Prior / term</th><th>Form</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Conductor candidate mask</td><td>hard — in-limiter, conductor-interior cells excluded (factual geometry)</td><td>live, always on</td></tr>
+        <tr><td>2</td><td>Rogowski I<sub>p</sub> anchor</td><td>soft — w<sub>ip</sub>=10 · ((ΣI−I<sub>p</sub>)/I<sub>p</sub>)²</td><td>live, always on</td></tr>
+        <tr><td>3</td><td>Force-balance structure residual</td><td>soft — unexplained fraction of R·jφ ≈ a(ψ)R² + b(ψ) over 24 soft ψ-bins, connectivity="locality"; λ by bounded discrepancy (λ₀=3, ratio 1.5, λmax=100)</td><td>live, always on (P3 winner)</td></tr>
+        <tr><td>4</td><td>Flux-function smoothness of a(ψ), b(ψ)</td><td><strong>implicit only</strong> — Gaussian ψ-bin overlap (bandwidth 1.0 bin-spacings) smooths a/b at the ~1-bin scale. In the inverse, a/b are internal per-bin least-squares solutions, not free coefficients</td><td>implicit, always on</td></tr>
+        <tr><td>5</td><td>a<sub>k</sub>/b<sub>k</sub> second-difference vs ψ<sub>N</sub> (<code>coefficient_smoothness_penalty</code>)</td><td>soft — mean squared second difference of the closure sequences</td><td><strong>exists in code, wired NOWHERE</strong> (not inverse, not engine, not encoder training) — the open f-etf-03 measurement</td></tr>
+        <tr><td>6</td><td>F² ≥ 0 integrability (<code>f2_nonnegativity_penalty</code>)</td><td>soft — relu of the cumulative F² sequence</td><td>scoring diagnostic only (gate reports the rate); not a training/inverse term</td></tr>
+        <tr><td>7</td><td>R1 unidirectional current</td><td>hard — x = softplus(y), sign from Rogowski; or soft ablation relu(−x)²</td><td>shipped, flag-gated (<code>--sign-prior</code>), OFF by default</td></tr>
+        <tr><td>8</td><td>R2 free-boundary support consistency</td><td>soft — w·relu(outside_fraction − halo_budget)², LCFS by connectivity bisection, detached, λ-cadence</td><td>shipped, flag-gated (<code>--support-prior</code>), OFF by default</td></tr>
+        <tr><td>9</td><td>Spatial current smoothness</td><td>soft — λ<sub>s</sub>·mean((x<sub>i</sub>−x<sub>j</sub>)²) over grid neighbours (<code>invert_slices_smooth</code>)</td><td>measured A4 arm, not default</td></tr>
+        <tr><td>10</td><td>Edge current taper (<code>edge_taper_penalty</code>)</td><td>soft — weighted mean-square edge current</td><td>deliberately unwired (protects the halo/SOL discovery channel)</td></tr>
+        <tr><td>11</td><td>Gaussian seed</td><td>init only — axis-centred blob, Adam start point</td><td>live (weak)</td></tr>
+        <tr><td>12</td><td>jφ(ψ<sub>N</sub>) profile-shape closure (p′, FF′ parametrisation)</td><td>—</td><td><strong>ABSENT from the inverse</strong> — see 6.4; exists in-tree only as the gs_solve fixed point and the encoder closure heads</td></tr>
+      </tbody>
+    </table>
+    <p>Answering the lead's a/b question directly: <strong>there is no explicit smoothness regularisation
+    on the flux functions in any live path.</strong> Row 4 is the only smoothing (implicit, from bin
+    overlap); row 5 is the machinery for the explicit penalty, unwired; and in the patch inverse a/b are
+    not even optimisation variables — they are re-solved per step inside the residual.</p>
+
+    <h3>6.4 — Why EFIT's boundary is "trivial" and ours is not: what is missing</h3>
+    <p>EFIT's boundary comes almost for free because of <strong>three ingredients our inverse deliberately
+    does not have</strong>, and the figures above show exactly what their absence costs:</p>
+    <ol>
+      <li><strong>A low-DOF flux-function closure AS the solve variable.</strong> EFIT parametrises
+      jφ(R,ψ<sub>N</sub>) = R·p′(ψ<sub>N</sub>) + FF′(ψ<sub>N</sub>)/(μ₀R) with ~5–10 polynomial/spline
+      coefficients — 73 magnetics channels then <em>over-determine</em> ~10 DOF. Our inverse frees ~4,787
+      per-cell currents, leaving a ~4,700-dimensional null space that only soft priors span. R1+R2 fix the
+      SIGN and the SUPPORT of the null-space fill, but <strong>nothing shapes how current distributes
+      within the support</strong> — the flat-top current maps show the priors arm filling its support
+      near-uniformly, which flattens ψ, pulls ψ<sub>bnd</sub> inward, and under-sizes the LCFS (the
+      measured Gate-B LCFS degradation, −4.91 → −7.57). The peaked-profile information EFIT injects
+      through p′/FF′ is the missing shaping.</li>
+      <li><strong>The free-boundary fixed point solved, not penalised.</strong> In EFIT the current is a
+      functional of its own flux surfaces at every Picard iteration (Δ*ψ = −μ₀R·jφ(ψ) solved each sweep),
+      so support-consistency and Δ*ψ=0 in vacuum hold by construction and the separatrix is read off a
+      field that cannot violate them. Our R2 imposes the same property softly on a cadence. The full fixed
+      point exists in-tree — <code>latent/gs_solve.py</code> (training-free inverse: median axis 8.6 cm but
+      only 83/160 slices scored, the Picard convergence tax) — and is the natural next arm: fit the
+      closure coefficients THROUGH the GS solve on the gate cohort.</li>
+      <li><strong>A fitted static instrument/vessel model.</strong> EFIT co-fits vessel-segment/passive
+      DOF and works against calibrated probes. §6.1 shows our unmodelled signal is static, not inductive —
+      0.7–0.75 I<sub>p</sub> of halo absorbing it at every phase. Until the static coil/calibration error
+      is found, ANY physically-constrained current pays it as misfit (0.05 → 0.20) while the free basis
+      hides it as halo, which is why the junk-filled baseline out-scores the physical arm on
+      sensor-weighted metrics.</li>
+    </ol>
+    <p>None of this contradicts the discovery framing — the free basis is the instrument that MEASURED the
+    0.75 I<sub>p</sub> static discrepancy the closed-form codes silently absorb. But for boundary-grade
+    reconstruction the conclusion is concrete: <strong>add the low-DOF closure arm (profile-parametrised
+    inverse through the GS fixed point) and find the static coil/calibration error; R3's source-free
+    exterior read (f-etf-04) sidesteps the interior entirely and remains the representation-side
+    complement.</strong></p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="sign-prior-form" data-choice="hard-softplus" data-by="reckon-ship (kickoff)" data-when="2026-07-07T12:53:48+00:00">
@@ -270,7 +383,7 @@ Done-when
      this followup resolved; f-etf-04 (R3) informed of the new interior-carrier baseline.</pre>
     <p class="r-fu-outcome">§2+§3 landed — commit b4c9ba5 (impl, 28 tests incl. doublet pin), archive s2-s3 + fig-prior-gates.png. Gate A FAIL-as-specified: neg fraction 0.75 Ip → 0 (halo now MEASURED) but axis skill not CI-compatible; penalty arm loses to softplus. Gate B split: outside ON budget 0.030, axis median 6.4→3.1 cm, X-point skill −1.69→+0.14 (first positive), LCFS degrades −4.91→−7.57. Corner attribution ANSWERED: 135/225 residual GROWS (27→39 cm) — genuinely interior/coil-model; thread 2 inherits with evidence. Priors stay OFF by default (decision prior-defaults).</p>
     </article>
-<article class="r-fu" data-id="f-pcph-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pcph-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="2026-07-10T05:06:12+00:00" data-resolved-by="reckon-ship (lead review)">
     <h4 class="r-fu-title">Re-gate R2 after the passive/eddy-current story — the halo absorbs 0.75 Ip of unmodelled vessel signal</h4>
     <div class="r-fu-body"><p>The gates showed the free inverse buys its LCFS/misfit scores with 0.75 Ip of unphysical halo absorbing signal the coil model does not explain (misfit 0.049→0.205 with priors on). The physics gap is in the passive/eddy model (patch-equilibrium-wm-integration domain), not the priors. When passives/eddy currents are modelled, re-run Gates A/B — R2 already halves the axis median and flips X-point skill positive. R3 (f-etf-04) should read this plan's archive for the new interior-carrier baseline.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -293,6 +406,36 @@ Do
 
 Done-when
   Re-gated verdicts recorded with CIs; prior-defaults decision revisited either way.</pre>
+    <p class="r-fu-outcome">SUPERSEDED by §6.1 — the eddy/passive premise is REFUTED: the halo is phase-independent (flat-top 0.715 vs rampup 0.754 median anti-∥ fraction), so the unmodelled signal is STATIC (coil model / probe calibration), not inductive. Replaced by f-pcph-04 with the corrected attack: static coil/instrument audit + the low-DOF profile-closure arm.</p>
+    </article>
+<article class="r-fu" data-id="f-pcph-04" data-status="open" data-tier="opus" data-written-by="reckon-ship (lead review)" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Static coil/calibration audit + low-DOF profile-closure arm — the two missing EFIT ingredients, then re-gate R1/R2</h4>
+    <div class="r-fu-body"><p>§6 (post-ship addendum) re-attributed the halo: phase-independent ⇒ static coil-model or probe-calibration error absorbing ~0.7 Ip of sensor signal at every phase, and the current maps show the priors arm spreads current uniformly over its support because no term shapes jφ(ψN). The two EFIT ingredients we lack: (a) a fitted static instrument/vessel model, (b) a low-DOF p′/FF′ closure arm (through the gs_solve fixed point or as a peaked-profile prior). Land either, re-run Gates A/B with frozen winner flags.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-current-priors-hardening (shipped) — §6 addendum defines this work
+Tier:    opus
+
+Context
+  §6.1: the free inverse&#x27;s 0.7-0.75 Ip anti-parallel halo is PHASE-INDEPENDENT (flat-top =
+  rampup), refuting eddy currents; the absorbed signal is static — coil geometry/turns/circuit
+  mapping or probe gains/angles (same family as the case-circuit 0.44-sigma bias). §6.4: the
+  priors arm under-sizes the LCFS because nothing shapes jφ within its support (no p′/FF′
+  closure in the inverse; coefficient_smoothness_penalty exists but is wired nowhere).
+
+Do (two independent attacks, either unblocks the re-gate)
+  1. STATIC AUDIT: fit a per-channel static offset/gain nuisance model on train shots (frozen
+     held-out), or audit coil turns/geometry/circuit mapping against the machine description;
+     quantify how much of the 0.7 Ip halo it explains (the halo is the measurement instrument).
+  2. CLOSURE ARM: low-DOF jφ(R,ψN)=R·p′+FF′/μ0R inverse — either fit closure coefficients
+     THROUGH latent/gs_solve.py&#x27;s fixed point on the gate cohort (Picard convergence tax:
+     83/160 scored training-free), or wire coefficient_smoothness_penalty + a peakedness prior
+     into the patch inverse as a soft jφ(ψN) shaping term. Doublet-safe by construction.
+  3. Re-run Gates A/B with the frozen winner flags (--sign-prior softplus --support-prior
+     --support-weight 2000 --halo-budget 0.03); criteria unchanged; revisit prior-defaults.
+
+Done-when
+  Static-error attribution quantified; closure arm measured held-out with CIs; gates re-run;
+  prior-defaults decision revisited either way; plan updated same-turn.</pre>
     </article>
 </section>
   </main>
