@@ -409,8 +409,8 @@ def test_fit_profile_forwards_solve_kwargs():
 def test_closure_slice_fit_recovers_generating_parameters():
     """The closure-gate driver recovers the KNOWN (β0, α) of a synthetic slice
     and reports it as scored with a finite axis read."""
-    from scripts.closure_gate_eval import fit_and_read_slice
     from imas_ambix.latent.patch_inverse import SlicePayload
+    from scripts.closure_gate_eval import fit_and_read_slice
 
     table = _confining_table()
     grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
@@ -451,8 +451,8 @@ def test_closure_slice_fit_recovers_generating_parameters():
 def test_closure_slice_fit_reports_masked_not_dropped():
     """A slice whose best fit exceeds the cost limit is REPORTED as masked
     (scored=False, target None, reason recorded) — never silently dropped."""
-    from scripts.closure_gate_eval import fit_and_read_slice
     from imas_ambix.latent.patch_inverse import SlicePayload
+    from scripts.closure_gate_eval import fit_and_read_slice
 
     table = _confining_table()
     grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
@@ -517,3 +517,153 @@ def test_boundary_continuation_arm_reproduces_legacy_structure():
     assert add.converged and cont.converged
     # coils sit OUTSIDE the limiter here, where harmonic continuation is exact
     np.testing.assert_allclose(cont.axis, add.axis, atol=2e-2)
+
+
+def test_seed_z0_default_is_identity_and_offset_seed_still_confines():
+    """``seed_z0=0.0`` reproduces the historical midplane seed exactly; a
+    displaced seed still converges to an interior equilibrium (fixed-point
+    branch selection, not a solution corruption)."""
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    base = solve_equilibrium(grid, i_pf, ip, beta0=0.5)
+    same = solve_equilibrium(grid, i_pf, ip, beta0=0.5, seed_z0=0.0)
+    np.testing.assert_array_equal(same.psi, base.psi)
+    shifted = solve_equilibrium(grid, i_pf, ip, beta0=0.5, seed_z0=0.2)
+    assert shifted.converged
+    ar, az = shifted.axis
+    assert 0.35 < ar < 1.45 and -0.85 < az < 0.85
+    np.testing.assert_allclose(shifted.cell_currents.sum(), ip, rtol=1e-6)
+
+
+def test_bootstrapped_warm_start_skips_stage1_and_matches():
+    """A caller-supplied ``initial_jphi`` (temporal warm start) must drive the
+    analytic-add Picard directly and land on the same equilibrium."""
+    from imas_ambix.latent.gs_solve import solve_equilibrium_bootstrapped
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    cold = solve_equilibrium_bootstrapped(grid, i_pf, ip, beta0=0.5)
+    warm = solve_equilibrium_bootstrapped(
+        grid, i_pf, ip, beta0=0.5, initial_jphi=cold.jphi.ravel()
+    )
+    assert warm.converged
+    np.testing.assert_allclose(warm.axis, cold.axis, atol=2e-2)
+    np.testing.assert_allclose(warm.cell_currents.sum(), ip, rtol=1e-6)
+
+
+def test_fit_profile_continuous_recovers_generating_beta0():
+    """The continuous bounded optimiser recovers a KNOWN β0 from synthetic
+    magnetics at least as well as the retired candidate grid."""
+    from imas_ambix.latent.gs_solve import fit_profile_continuous
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    true_beta0 = 0.7
+    meas, vac, _ = _synthetic_confining_slice(grid, table, i_pf, ip, true_beta0, 1.0)
+    scale = np.abs(meas) + 1e-9
+    fit = fit_profile_continuous(
+        grid,
+        table,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        measured=meas,
+        vacuum_prediction=vac,
+        sensor_scale=scale,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        x0=(0.4, 1.0),
+        alpha_bounds=(1.0, 1.0 + 1e-9),  # generating family has alpha = 1
+        maxfev=25,
+    )
+    assert fit is not None and fit.result.converged
+    assert abs(fit.beta0 - true_beta0) < 0.1
+    assert fit.cost < 1e-2
+
+
+def test_profile_basis_boundary_zero_and_shape():
+    """Basis columns vanish at/beyond the boundary and split by drive family."""
+    from imas_ambix.latent.gs_solve import profile_basis
+
+    psin = np.linspace(0.0, 1.2, 60)
+    r = np.full_like(psin, 0.9)
+    b = profile_basis(psin, r, r0=0.9, n_p=2, n_f=3)
+    assert b.shape == (60, 5)
+    outside = psin >= 1.0
+    assert (b[outside, :] == 0.0).all()
+    assert np.abs(b[psin < 1.0, :]).max() > 0.0
+
+
+def test_ladder_lsq_recovers_exactly_representable_family():
+    """The (n_p, n_f) = (1, 1) ladder family SPANS the fixed two-term shape at
+    α = 1, so the LSQ-per-sweep solve must reproduce a synthetic equilibrium
+    generated from it: tiny whitened cost, matching axis, exact Ip, confined
+    current."""
+    from imas_ambix.latent.gs_solve import fit_profile_ladder
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    meas, vac, res_true = _synthetic_confining_slice(grid, table, i_pf, ip, 0.7, 1.0)
+    scale = np.abs(meas) + 1e-9
+    fit = fit_profile_ladder(
+        grid,
+        table,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        measured=meas,
+        vacuum_prediction=vac,
+        sensor_scale=scale,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        n_p=1,
+        n_f=1,
+    )
+    assert fit.result.converged, f"ladder Picard residual {fit.result.residual:.2e}"
+    assert fit.cost < 1e-2
+    np.testing.assert_allclose(fit.result.axis, res_true.axis, atol=4e-2)
+    np.testing.assert_allclose(fit.result.cell_currents.sum(), ip, rtol=1e-6)
+    outside = ~fit.result.core_mask
+    assert np.abs(fit.result.jphi.ravel()[outside.ravel()]).max() == 0.0
+
+
+def test_ladder_smoothness_ridge_reduces_coefficient_curvature():
+    """With K above the information content of 5 probes, the second-difference
+    ridge must reduce per-family coefficient curvature while the solve stays
+    converged and Ip-anchored."""
+    from imas_ambix.latent.gs_solve import fit_profile_ladder
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    meas, vac, _ = _synthetic_confining_slice(grid, table, i_pf, ip, 0.7, 1.0)
+    scale = np.abs(meas) + 1e-9
+    kw = dict(
+        i_pf=i_pf,
+        ip_amperes=ip,
+        measured=meas,
+        vacuum_prediction=vac,
+        sensor_scale=scale,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        n_p=3,
+        n_f=3,
+    )
+
+    def curvature(c):
+        tot = 0.0
+        for lo, n in ((0, 3), (3, 3)):
+            fam = c[lo : lo + n]
+            d2 = fam[2:] - 2.0 * fam[1:-1] + fam[:-2]
+            tot += float((d2 * d2).mean())
+        return tot
+
+    rough = fit_profile_ladder(grid, table, smoothness=0.0, **kw)
+    smooth = fit_profile_ladder(grid, table, smoothness=1e4, **kw)
+    assert rough.result.converged and smooth.result.converged
+    np.testing.assert_allclose(smooth.result.cell_currents.sum(), ip, rtol=1e-6)
+    assert curvature(smooth.coeffs) <= curvature(rough.coeffs) + 1e-12

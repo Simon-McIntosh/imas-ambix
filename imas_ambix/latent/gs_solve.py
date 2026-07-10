@@ -407,7 +407,9 @@ def _read_boundary_psi_robust(
     ``smooth_sigma=0.0`` and ``min_axis_dist=0.0`` (defaults) reproduce
     :func:`_read_boundary_psi` exactly.
     """
-    field = psi2d if smooth_sigma <= 0.0 else ndimage.gaussian_filter(psi2d, smooth_sigma)
+    field = (
+        psi2d if smooth_sigma <= 0.0 else ndimage.gaussian_filter(psi2d, smooth_sigma)
+    )
     cp = find_critical_points(field, grid.rg, grid.zg)
     xb = None
     if cp.x_points.shape[0]:
@@ -441,6 +443,7 @@ def solve_equilibrium(
     relax: float = 0.5,
     tolerance: float = 3e-4,
     seed_width: tuple[float, float] = (0.35, 0.5),
+    seed_z0: float = 0.0,
     coil_field_mode: str = "analytic-add",
     initial_jphi: np.ndarray | None = None,
     iteration_trace: list[dict] | None = None,
@@ -451,6 +454,11 @@ def solve_equilibrium(
     plasma current (its sign selects the axis extremum orientation); ``beta0``
     and ``alpha`` are the profile parameters θ the encoder (or a per-slice
     fit) supplies.
+
+    ``seed_z0`` [m] shifts the Gaussian seed's vertical centre — with a
+    near-marginal vertical field the Picard iteration can admit distinct
+    fixed-point branches, and the seed selects which one is approached; the
+    default 0.0 reproduces the historical midplane seed exactly.
 
     ``coil_field_mode`` selects how the coil field enters the total ψ:
     ``"analytic-add"`` (default) solves the FD problem for the plasma part
@@ -483,7 +491,7 @@ def solve_equilibrium(
         jphi[grid.cells] = np.exp(
             -(
                 ((grid.flat_r[grid.cells] - grid.r0) / seed_width[0]) ** 2
-                + (grid.flat_z[grid.cells] / seed_width[1]) ** 2
+                + ((grid.flat_z[grid.cells] - seed_z0) / seed_width[1]) ** 2
             )
         )
 
@@ -509,9 +517,9 @@ def solve_equilibrium(
         # Φ = 2π R A_φ [Wb], so the matching FD source is Δ*Φ = −2π μ0 R jφ
         # (per-radian −μ0 R jφ under-weights the plasma well by 2π against
         # the coil field — pinned by the flux-integral consistency test).
-        rhs2d = (
-            -(2.0 * np.pi * MU0) * grid.flat_r * jphi * scale
-        ).reshape(grid.nz, grid.nr)
+        rhs2d = (-(2.0 * np.pi * MU0) * grid.flat_r * jphi * scale).reshape(
+            grid.nz, grid.nr
+        )
         psi_b2d = np.zeros((grid.nz, grid.nr))
         if coil_field_mode == "analytic-add":
             psi_b2d.ravel()[grid.edge_idx] = grid.g_edge @ i_cell
@@ -607,7 +615,23 @@ def solve_equilibrium_bootstrapped(
     boundary-continuation field is smoother and bootstraps reliably; its
     (possibly unconverged) current distribution then seeds the analytic-add
     Picard, which is the only result reported — the physically-correct field.
+
+    A caller-supplied ``initial_jphi`` (e.g. the converged distribution of the
+    previous time slice — temporal warm-starting) replaces the bootstrap
+    entirely: the analytic-add Picard runs directly from it.
     """
+    warm = kwargs.pop("initial_jphi", None)
+    if warm is not None and np.isfinite(warm).all() and abs(np.sum(warm)) > 1e-12:
+        return solve_equilibrium(
+            grid,
+            i_pf,
+            ip_amperes,
+            beta0=beta0,
+            alpha=alpha,
+            max_iterations=max_iterations,
+            initial_jphi=np.asarray(warm, dtype=np.float64).ravel(),
+            **kwargs,
+        )
     stage1 = solve_equilibrium(
         grid,
         i_pf,
@@ -638,6 +662,7 @@ class ProfileFit:
     alpha: float
     cost: float  # RMS whitened magnetics residual at the optimum
     result: EquilibriumResult
+    z0: float = 0.0  # fitted seed vertical centre [m] (0.0 = midplane default)
 
 
 def fit_profile(
@@ -699,15 +724,427 @@ def fit_profile(
     return best
 
 
+def fit_profile_continuous(
+    grid: EquilibriumGrid,
+    table: GeometryTable,
+    *,
+    i_pf: np.ndarray,
+    ip_amperes: float,
+    measured: np.ndarray,
+    vacuum_prediction: np.ndarray,
+    sensor_scale: np.ndarray,
+    sensor_mask: np.ndarray,
+    x0: tuple[float, ...] = (0.5, 1.5),
+    beta0_bounds: tuple[float, float] = (0.02, 0.98),
+    alpha_bounds: tuple[float, float] = (0.4, 3.5),
+    fit_z0: bool = False,
+    z0_bounds: tuple[float, float] = (-0.25, 0.25),
+    convergence_limit: float = 5e-3,
+    maxfev: int = 60,
+    **solve_kwargs,
+) -> ProfileFit | None:
+    """Continuous bounded (β0, α[, z0]) fit — retires the candidate grid.
+
+    Same contract as :func:`fit_profile` (raw magnetics only, whitened cost,
+    None when nothing converges) but the parameters are optimised continuously
+    (Nelder–Mead within bounds) instead of enumerated, ``x0`` warm-starts the
+    search (e.g. from the previous time slice's optimum), and ``fit_z0`` adds
+    the vertical seed-centre degree of freedom (fixed-point branch selection).
+    A non-converged candidate is penalised, never scored; the best CONVERGED
+    equilibrium seen anywhere in the search is what is returned, so an
+    optimiser step into a non-convergent pocket cannot corrupt the result.
+    """
+    from scipy import optimize  # noqa: PLC0415 — keep module import light
+
+    g_sens, _channels = grid.sensor_greens(table)
+    meas = np.asarray(measured, dtype=np.float64)
+    vac = np.asarray(vacuum_prediction, dtype=np.float64)
+    scale = np.clip(np.asarray(sensor_scale, dtype=np.float64), 1e-12, None)
+    mask = np.asarray(sensor_mask, dtype=bool) & np.isfinite(meas)
+
+    bounds = [beta0_bounds, alpha_bounds] + ([z0_bounds] if fit_z0 else [])
+    x_start = np.asarray(x0[: 2 + int(fit_z0)], dtype=np.float64)
+    if x_start.size < 2 + int(fit_z0):
+        x_start = np.concatenate([x_start, [0.0]])
+    x_start = np.clip(x_start, [b[0] for b in bounds], [b[1] for b in bounds])
+
+    best: ProfileFit | None = None
+    cache: dict[tuple[float, ...], float] = {}
+
+    def objective(x: np.ndarray) -> float:
+        nonlocal best
+        key = tuple(np.round(x, 4))
+        if key in cache:
+            return cache[key]
+        beta0 = float(np.clip(x[0], *beta0_bounds))
+        alpha = float(np.clip(x[1], *alpha_bounds))
+        z0 = float(np.clip(x[2], *z0_bounds)) if fit_z0 else 0.0
+        res = solve_equilibrium_bootstrapped(
+            grid,
+            i_pf,
+            ip_amperes,
+            beta0=beta0,
+            alpha=alpha,
+            seed_z0=z0,
+            **solve_kwargs,
+        )
+        if not res.converged and res.residual > convergence_limit:
+            cost = 1e3 + min(float(res.residual), 1e3)
+        else:
+            pred = vac + g_sens @ res.cell_currents
+            resid = (pred[mask] - meas[mask]) / scale[mask]
+            cost = float(np.sqrt(np.mean(resid * resid))) if mask.any() else np.inf
+            if best is None or cost < best.cost:
+                best = ProfileFit(
+                    beta0=beta0, alpha=alpha, cost=cost, result=res, z0=z0
+                )
+        cache[key] = cost
+        return cost
+
+    optimize.minimize(
+        objective,
+        x_start,
+        method="Nelder-Mead",
+        bounds=bounds,
+        options={
+            "maxfev": maxfev,
+            "xatol": 5e-3,
+            "fatol": 1e-4,
+            "initial_simplex": None,
+        },
+    )
+    return best
+
+
+# ---------------------------------------------------------------------------
+# K-coefficient profile-DOF ladder: p′/FF′ as linear basis expansions whose
+# coefficients are solved by whitened linear least squares against the raw
+# magnetics EVERY Picard sweep (the EFIT pattern), with the measured Ip as a
+# hard linear anchor and an optional second-difference smoothness ridge.
+# ---------------------------------------------------------------------------
+
+
+def profile_basis(
+    psi_n: np.ndarray, r: np.ndarray, *, r0: float, n_p: int, n_f: int
+) -> np.ndarray:
+    """(n_points, n_p + n_f) jφ basis images, zero at and beyond the boundary.
+
+    Columns 0..n_p−1 carry the pressure-gradient drive R/R0·φ_k(ψ_N); columns
+    n_p..n_p+n_f−1 the FF′ drive R0/R·φ_k(ψ_N), with
+    φ_k(ψ_N) = P_{k−1}(2ψ_N−1)·(1−ψ_N) (shifted Legendre × boundary factor —
+    well-conditioned on [0, 1] and exactly zero at ψ_N = 1).  n_p = n_f = 1
+    spans the two-term (β0, α=1) family with a free amplitude split.
+    """
+    from numpy.polynomial import legendre  # noqa: PLC0415
+
+    psi_n = np.asarray(psi_n, dtype=np.float64)
+    r = np.asarray(r, dtype=np.float64)
+    inside = psi_n < 1.0
+    rr = np.maximum(r, 1e-3)
+    x = 2.0 * np.clip(psi_n, 0.0, 1.0) - 1.0
+    edge = np.where(inside, 1.0 - np.clip(psi_n, 0.0, 1.0), 0.0)
+    cols = []
+    for drive, n_k in ((rr / r0, n_p), (r0 / rr, n_f)):
+        for k in range(n_k):
+            leg = legendre.legval(x, [0.0] * k + [1.0])
+            cols.append(np.where(inside, drive * leg * edge, 0.0))
+    return (
+        np.column_stack(cols) if cols else np.zeros((psi_n.size, 0), dtype=np.float64)
+    )
+
+
+def _second_difference_gram(n_p: int, n_f: int, weight: float) -> np.ndarray:
+    """Block-diagonal Gram matrix of per-family second differences (the
+    :func:`coefficient_smoothness_penalty` form, assembled for the LSQ)."""
+    k = n_p + n_f
+    s = np.zeros((k, k))
+    if weight <= 0.0:
+        return s
+    for lo, n in ((0, n_p), (n_p, n_f)):
+        if n < 3:
+            continue
+        d2 = np.zeros((n - 2, n))
+        for i in range(n - 2):
+            d2[i, i], d2[i, i + 1], d2[i, i + 2] = 1.0, -2.0, 1.0
+        s[lo : lo + n, lo : lo + n] = weight * (d2.T @ d2) / max(n - 2, 1)
+    return s
+
+
+@dataclass
+class LadderFit:
+    """A per-slice K-DOF ladder fit: coefficients, equilibrium, whitened cost.
+
+    ``coeffs`` are the per-column amplitudes of :func:`profile_basis` under
+    the L1 current normalisation used inside the solve (each normalised
+    column carries |Ip| of gross current), so they are dimensionless O(1)
+    numbers comparable across slices.
+    """
+
+    coeffs: np.ndarray  # (n_p + n_f,)
+    n_p: int
+    n_f: int
+    cost: float
+    result: EquilibriumResult
+
+    @property
+    def dof(self) -> int:
+        return self.n_p + self.n_f
+
+
+def solve_equilibrium_lsq(
+    grid: EquilibriumGrid,
+    table: GeometryTable,
+    i_pf: np.ndarray,
+    ip_amperes: float,
+    *,
+    measured: np.ndarray,
+    vacuum_prediction: np.ndarray,
+    sensor_scale: np.ndarray,
+    sensor_mask: np.ndarray,
+    n_p: int = 1,
+    n_f: int = 1,
+    smoothness: float = 0.0,
+    max_iterations: int = 120,
+    warmup_iterations: int = 8,
+    relax: float = 0.5,
+    tolerance: float = 3e-4,
+    seed_z0: float = 0.0,
+    seed_width: tuple[float, float] = (0.35, 0.5),
+    initial_jphi: np.ndarray | None = None,
+) -> LadderFit:
+    """Free-boundary Picard solve with the profile coefficients re-fit by
+    whitened linear least squares against the raw magnetics every sweep.
+
+    Given ψ_N(R, Z) and the axis-connected core mask of the current iterate,
+    the sensor prediction is LINEAR in the K = n_p + n_f basis coefficients,
+    so each sweep solves the equality-constrained problem
+
+        min_c ‖(G·U·c + vac − meas)/σ‖²  +  c·S·c     s.t.  1·U·c = Ip
+
+    (S the second-difference smoothness Gram, the Ip anchor a hard KKT
+    constraint — the Rogowski measurement, not a penalty) and the resulting
+    jφ feeds the next Δ* solve.  The first ``warmup_iterations`` sweeps run
+    the fixed default two-term shape rescaled to Ip so the core mask exists
+    before the first LSQ; a degenerate or non-finite LSQ solution keeps the
+    previous sweep's coefficients (the solve degrades to fixed-shape Picard,
+    never fabricates).  Analytic-add coil field throughout; seed/warm-start
+    semantics match :func:`solve_equilibrium`.
+    """
+    g_sens, _channels = grid.sensor_greens(table)
+    meas = np.asarray(measured, dtype=np.float64)
+    vac = np.asarray(vacuum_prediction, dtype=np.float64)
+    scale = np.clip(np.asarray(sensor_scale, dtype=np.float64), 1e-12, None)
+    mask = np.asarray(sensor_mask, dtype=bool) & np.isfinite(meas)
+    y = (meas[mask] - vac[mask]) / scale[mask]
+    w_inv = scale[mask]
+
+    psi_coil = grid.coil_psi(np.asarray(i_pf, dtype=np.float64))
+    sign = 1.0 if ip_amperes >= 0 else -1.0
+    cell_area = grid.dr * grid.dz
+    k_dof = n_p + n_f
+    s_gram = _second_difference_gram(n_p, n_f, smoothness)
+
+    if initial_jphi is not None:
+        jphi = np.where(
+            grid.inside_limiter.ravel(),
+            np.asarray(initial_jphi, dtype=np.float64).ravel(),
+            0.0,
+        )
+        if not np.isfinite(jphi).all() or abs(jphi.sum()) < 1e-12:
+            jphi = np.zeros(grid.flat_r.size)
+    else:
+        jphi = np.zeros(grid.flat_r.size)
+    if abs(jphi.sum()) < 1e-12:
+        jphi[grid.cells] = np.exp(
+            -(
+                ((grid.flat_r[grid.cells] - grid.r0) / seed_width[0]) ** 2
+                + ((grid.flat_z[grid.cells] - seed_z0) / seed_width[1]) ** 2
+            )
+        )
+
+    psi_flat: np.ndarray | None = None
+    residual = np.inf
+    axis = (grid.r0, 0.0)
+    axis_psi = 0.0
+    boundary_psi = 0.0
+    core = grid.inside_limiter.copy()
+    coeffs = np.zeros(k_dof)
+    cost = np.inf
+
+    for iteration in range(1, max_iterations + 1):
+        i_cell = jphi[grid.cells] * cell_area
+        total = i_cell.sum()
+        scale_ip = ip_amperes / total if abs(total) > 1e-12 else 0.0
+        i_cell = i_cell * scale_ip
+
+        rhs2d = (-(2.0 * np.pi * MU0) * grid.flat_r * jphi * scale_ip).reshape(
+            grid.nz, grid.nr
+        )
+        psi_b2d = np.zeros((grid.nz, grid.nr))
+        psi_b2d.ravel()[grid.edge_idx] = grid.g_edge @ i_cell
+        psi_new = grid.solve_dirichlet(rhs2d, psi_b2d).ravel() + psi_coil
+
+        if psi_flat is None:
+            psi_flat = psi_new
+        else:
+            residual = float(
+                np.abs(psi_new - psi_flat).max() / max(np.abs(psi_new).max(), 1e-12)
+            )
+            psi_flat = relax * psi_new + (1.0 - relax) * psi_flat
+
+        psi2d = psi_flat.reshape(grid.nz, grid.nr)
+        axis, axis_psi = _read_axis(psi2d, grid, sign)
+        boundary_psi = _read_boundary_psi(psi2d, grid, axis_psi)
+        span = boundary_psi - axis_psi
+        if abs(span) < 1e-12:
+            span = 1e-12
+        psi_n = (psi_flat - axis_psi) / span
+
+        closed = ((psi_n < 1.0) & grid.inside_limiter.ravel()).reshape(grid.nz, grid.nr)
+        labels, _ = ndimage.label(closed)
+        ia = int(np.argmin(np.abs(grid.zg - axis[1])))
+        ja = int(np.argmin(np.abs(grid.rg - axis[0])))
+        core_label = labels[ia, ja]
+        core = (labels == core_label) if core_label != 0 else closed
+
+        if iteration <= warmup_iterations:
+            jphi = np.zeros_like(jphi)
+            shape = profile_jphi_shape(
+                psi_n, grid.flat_r, r0=grid.r0, beta0=0.5, alpha=1.0
+            )
+            jphi[core.ravel()] = shape[core.ravel()]
+        else:
+            # basis images on the current core; L1-normalise each column to
+            # carry |Ip| of gross current so the coefficients stay O(1)
+            images = profile_basis(psi_n, grid.flat_r, r0=grid.r0, n_p=n_p, n_f=n_f)
+            images[~core.ravel(), :] = 0.0
+            u = images[grid.cells, :] * cell_area  # unit-coeff cell currents [A]
+            norms = np.abs(u).sum(axis=0)
+            ok_cols = norms > 1e-12 * max(abs(ip_amperes), 1.0)
+            u_n = np.zeros_like(u)
+            u_n[:, ok_cols] = u[:, ok_cols] * (
+                abs(ip_amperes) / norms[np.newaxis, ok_cols]
+            )
+            a_anchor = u_n.sum(axis=0)  # net current per unit coefficient
+            b_mat = (g_sens[mask, :] @ u_n) / w_inv[:, np.newaxis]
+            n_data = int(mask.sum())
+            new_coeffs = None
+            if n_data >= k_dof and ok_cols.any():
+                h = 2.0 * (b_mat.T @ b_mat + s_gram)
+                h += 1e-10 * np.trace(h) / max(k_dof, 1) * np.eye(k_dof)
+                kkt = np.zeros((k_dof + 1, k_dof + 1))
+                kkt[:k_dof, :k_dof] = h
+                kkt[:k_dof, k_dof] = a_anchor
+                kkt[k_dof, :k_dof] = a_anchor
+                rhs = np.concatenate([2.0 * (b_mat.T @ y), [ip_amperes]])
+                try:
+                    sol = np.linalg.solve(kkt, rhs)
+                    if np.isfinite(sol[:k_dof]).all():
+                        new_coeffs = sol[:k_dof]
+                except np.linalg.LinAlgError:
+                    new_coeffs = None
+            if new_coeffs is not None:
+                coeffs = new_coeffs
+                jphi_cells = (u_n / cell_area) @ coeffs  # back to density [A/m²]
+                jphi = np.zeros_like(jphi)
+                jphi[grid.cells] = jphi_cells
+            # else: keep the previous sweep's jphi (fixed-shape degradation)
+
+        if iteration > max(5, warmup_iterations + 2) and residual < tolerance:
+            break
+
+    i_cell = jphi[grid.cells] * cell_area
+    total = i_cell.sum()
+    scale_ip = ip_amperes / total if abs(total) > 1e-12 else 0.0
+    i_cell = i_cell * scale_ip
+    jphi_final = (jphi * scale_ip).reshape(grid.nz, grid.nr)
+    # cost is always the FINAL equilibrium's whitened prediction residual (the
+    # per-sweep LSQ cost is pre-relaxation and can be stale by one sweep)
+    pred = vac + g_sens @ i_cell
+    resid_v = (pred[mask] - meas[mask]) / scale[mask]
+    cost = float(np.sqrt(np.mean(resid_v * resid_v))) if mask.any() else np.inf
+
+    result = EquilibriumResult(
+        psi=psi_flat.reshape(grid.nz, grid.nr)
+        if psi_flat is not None
+        else np.zeros((grid.nz, grid.nr)),
+        axis=axis,
+        axis_psi=axis_psi,
+        boundary_psi=boundary_psi,
+        jphi=jphi_final,
+        cell_currents=i_cell,
+        core_mask=core,
+        converged=bool(residual < tolerance),
+        residual=residual,
+        iterations=iteration,
+    )
+    return LadderFit(coeffs=coeffs, n_p=n_p, n_f=n_f, cost=cost, result=result)
+
+
+def fit_profile_ladder(
+    grid: EquilibriumGrid,
+    table: GeometryTable,
+    *,
+    i_pf: np.ndarray,
+    ip_amperes: float,
+    measured: np.ndarray,
+    vacuum_prediction: np.ndarray,
+    sensor_scale: np.ndarray,
+    sensor_mask: np.ndarray,
+    n_p: int = 1,
+    n_f: int = 1,
+    smoothness: float = 0.0,
+    bootstrap_iterations: int = 30,
+    initial_jphi: np.ndarray | None = None,
+    **solve_kwargs,
+) -> LadderFit:
+    """Bootstrapped ladder solve: fixed-shape boundary-continuation stage 1
+    (unless ``initial_jphi`` warm-starts it away), then the analytic-add
+    LSQ-per-sweep Picard of :func:`solve_equilibrium_lsq`.
+    """
+    if initial_jphi is None:
+        stage1 = solve_equilibrium(
+            grid,
+            i_pf,
+            ip_amperes,
+            beta0=0.5,
+            alpha=1.0,
+            max_iterations=bootstrap_iterations,
+            coil_field_mode="boundary-continuation",
+            seed_z0=solve_kwargs.get("seed_z0", 0.0),
+        )
+        initial_jphi = stage1.jphi.ravel()
+    return solve_equilibrium_lsq(
+        grid,
+        table,
+        i_pf,
+        ip_amperes,
+        measured=measured,
+        vacuum_prediction=vacuum_prediction,
+        sensor_scale=sensor_scale,
+        sensor_mask=sensor_mask,
+        n_p=n_p,
+        n_f=n_f,
+        smoothness=smoothness,
+        initial_jphi=initial_jphi,
+        **solve_kwargs,
+    )
+
+
 __all__ = [
     "MU0",
     "profile_jphi_shape",
+    "profile_basis",
     "EquilibriumGrid",
     "EquilibriumResult",
     "ProfileFit",
+    "LadderFit",
     "solve_equilibrium",
     "solve_equilibrium_bootstrapped",
+    "solve_equilibrium_lsq",
     "fit_profile",
+    "fit_profile_continuous",
+    "fit_profile_ladder",
 ]
 
 # not part of the stable public API but imported directly by the gate-eval
