@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="force-balance-spine-followons-landed">
+  <meta name="plan-title" content="force-balance-spine follow-ons landed — coil-model audit, rotation ladder A+B, identifiability harness">
+  <meta name="plan-status" content="reference">
+  <title>force-balance-spine follow-ons landed</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Follow-ons landed — the coil-model audit, the rotation ladder, and the standing identifiability gate (2026-07-10 evening)</h1>
+  <p><em>Per-stage record for <a href="/imas-ambix/force-balance-spine.html">force-balance-spine</a>
+  followups f-fbs-04 (W4 Stages A+B), f-fbs-05 (coil-model physical audit) and f-fbs-06 (W3
+  harness + basins). Four background workers + orchestrator integration; protocol unchanged
+  (leakage-free, EFIT referee eval-only, bootstrap CIs). The lead's directive drove the attack:
+  re-check the coil model with the nova code (cylindrical coil), verify geometry/turns from the
+  data, detect coil coupling — all measurable exactly on vacuum shots, plain Biot–Savart.</em></p>
+
+  <h2>Headline</h2>
+  <ul>
+    <li><strong>The coil kernel is exonerated; the sensor map now uses it.</strong> The in-tree
+    finite-area cylinder Green's functions match nova's own Cylinder Biot–Savart to
+    <strong>1.1×10⁻⁹</strong> (31 representative filaments at actual sensor points). The
+    point-filament sensor forward map biased B-probes adjacent to the P4/P5/solenoid winding
+    packs by 0.1–0.25σ (6 cells > 0.1σ, none > 1σ) — <code>operator.py</code> now builds
+    PF/passive sensor columns with the cylinder kernel (<code>cylinder-sensors-v3</code>,
+    far-field byte-identical). Geometry/turns audit: turns ≡ 1 as the SI premise assumes; every
+    coil centroid within tolerance; nova carries no static MAST coil description (efm fcoil is
+    authoritative) — no geometry disagreement found.</li>
+    <li><strong>The solenoid response is under-predicted ~8–13% — the first quantified physical
+    coil-model error.</strong> Empirical Green's-matrix regression on coil-only data (42 operating
+    shots / 47k slices, then +37 dedicated vacuum shots / 55k slices — the lead's "solvable to
+    high accuracy on vacuum shots" instrument): k_sol = 1.099→1.115 (fleet, pre/post kernel),
+    <strong>1.078 [1.074, 1.084]</strong> pooled with the vacuum stratum — significantly ≠ 1 in
+    every cut, with structured pattern residuals to ±2.7σ (obr16, obv06) that survive the kernel
+    switch. Attribution open: solenoid winding-pack geometry or the <code>sol_current</code>
+    channel scale. This is the leading candidate for the plasma-coupled static error behind the
+    LCFS bar.</li>
+    <li><strong>Coil coupling is measured</strong>: P2 inner/outer/upper/lower move as one
+    (|corr| > 0.98), as do {p3l,p3u}, {p4l,p4u}, {p5l,p5u} coil pairs — only 9/21 columns
+    (cases + P6 + solenoid) are separable from operating + vacuum data. Separating the main coil
+    pairs needs dedicated single-coil test shots, which this corpus does not contain. Case-circuit
+    responses read over-predicted (k 0.2–0.6) but with unstable stratum agreement — suspect
+    channels/low leverage, not yet a model verdict.</li>
+    <li><strong>Rotation Stage A (qualified weak-positive)</strong>: the Maschke–Perrin R⁴ column
+    absorbs ~10.4%/6.1% (free/sign-constrained arm) of the held-out per-bin unexplained residual
+    (CIs exclude 0); recovered c(ψ) is cleanly one-signed, peaks near-axis, and |c| correlates
+    with measured CXRS rotation on the sign-constrained arm (Spearman 0.54 [0.21, 0.72]) — but
+    high/low rotation strata do not separate and CXRS covers only 3/8 held-out shots. Visible,
+    not load-bearing.</li>
+    <li><strong>Rotation Stage B (zero-DOF forward test) ran</strong> — the closure ansatz's
+    pressure drive extended with the fixed measured centrifugal factor exp[γ(ψ_N)(R²−R₀²)],
+    γ = m_iΩ²/2T from CXRS+Thomson (γ_peak ~0.11–0.19 m⁻², centrifugal exponent 0.14–0.23 —
+    the plan's leading-order magnitude estimate confirmed on real data). Held-out deltas on the
+    covered cohort are <strong>null at the current error budget</strong> (cost delta ~10⁻⁴,
+    topology deltas ~10⁻³ skill); the uncovered-shot null check is byte-identical (the hook adds
+    exactly nothing when γ≡0). Verdict: the term is correctly wired and measurably harmless, but
+    the coil-model remainder (~0.5σ whitened) is ~50× the centrifugal signal — Stage B cannot be
+    powered until the solenoid-scale error lands and a broader-CXRS cohort exists. Recorded as
+    the honest deferral the plan's own sequencing lock predicted.</li>
+    <li><strong>The standing identifiability gate exists</strong> (f-fbs-06): manufactured
+    equilibria at MAST geometry (profiles × rotation × calibration × passives, noise at measured
+    whitening floors, no EFIT), pytest-marked fast subset, recovery/aliasing sweep driver, basin
+    mapper, Fisher information accounting. First measured outputs: <em>basin</em> — the
+    boundary-continuation bootstrap is the weak seed (fails 2/6 cold corners of the (β0, α) grid);
+    scout-seeded, warm-neighbour and damped-relaxation all reach the confined branch; nothing yet
+    retires scouting. <em>Information</em> — magnetics carry effective rank ≈ 1.2 (hard rank 2 at
+    1%) over 9 profile coefficients: the third independent confirmation of the ~1–2-DOF budget,
+    now with per-coefficient Fisher sensitivities for thread 2's diagnostic shopping list.</li>
+    <li><strong>Basin fragility measured on real data</strong>: re-gating the winner arm under
+    cylinder-sensors-v3 left 140/160 slices unchanged but flipped shot 18505's warm-start chain
+    into the outboard attractor (axis 0.12 → 1.0 m on all 20 slices; the RMSE-tail skills collapse
+    while the median stays 3.7 cm). The v2 run was lucky, not better — exactly the failure class
+    f-fbs-06's harness now probes automatically.</li>
+  </ul>
+
+  <h2>Winner-arm status under cylinder-sensors-v3 (held-out, calibrated)</h2>
+  <table>
+    <thead><tr><th>arm</th><th>coverage</th><th>cost med</th><th>axis skill [CI]</th>
+    <th>axis med</th><th>LCFS skill</th><th>note</th></tr></thead>
+    <tbody>
+      <tr><td>ladder K=2 + passive-8 (v2 kernel, recorded)</td><td>160/160</td><td>0.56</td>
+      <td>−0.31 [−1.09, −0.00]</td><td>3.7 cm</td><td>−3.63</td><td>18505 confined by luck</td></tr>
+      <tr><td>same, cylinder-sensors-v3</td><td>160/160</td><td>0.58</td>
+      <td>−2.39 [−4.74, −0.01]</td><td>3.7 cm</td><td>−3.99</td>
+      <td>18505 chain → outboard attractor (20 slices); 140/160 unchanged</td></tr>
+    </tbody>
+  </table>
+  <p>The LCFS bar remains failed either way; its binding attack is now sharpened from "the coil
+  model" to <strong>the solenoid response scale + the un-separable main-coil pairs</strong>, with
+  the empirical vacuum regression as the standing measurement instrument for any candidate fix.</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/force-balance-spine/fig-coil-response-scales-cylv3-vac.png"
+         alt="Per-coil empirical/model response scale factors with CIs: solenoid significantly above 1; case circuits below 1 with wide/unstable CIs; coupled coil pairs excluded."
+         style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
+    <figcaption style="font-size:12.5px;color:#444">Empirical coil-response scales k_c
+    (vacuum-stratum-pooled, eddy-augmented). Companions:
+    <code>fig-coil-response-corr-cylv3-vac.png</code> (the coupling structure),
+    <code>fig-coil-response-residuals-cylv3-vac.png</code> (pattern residuals),
+    <code>fig-nova-greens-deltas.png</code> (kernel deltas),
+    <code>fig-rotation-residual-delta.png</code> / <code>-cpsi.png</code> (Stage A),
+    <code>fig-measured-rotation-*.png</code> (Stage B), <code>fig-basin-*.png</code> /
+    <code>fig-identifiability-*.png</code> (the harness).</figcaption>
+  </figure>
+
+  <h2>What changed in the tree</h2>
+  <ul>
+    <li><code>imas_ambix/gs/operator.py</code> — PF/passive sensor columns via the finite-area
+    cylinder kernel; <code>COIL_MODEL_VERSION = "cylinder-sensors-v3"</code> (2f3e4ef).</li>
+    <li><code>imas_ambix/latent/gs_solve.py</code> — <code>centrifugal_gamma</code> hook on
+    <code>profile_basis</code>/<code>solve_equilibrium_lsq</code>: measured-rotation term, zero
+    new DOF, γ=None byte-identical (5960553).</li>
+    <li><code>imas_ambix/latent/synthetic_truth.py</code> + <code>scripts/identifiability_harness.py</code>
+    + <code>tests/latent/test_synthetic_truth.py</code> — the standing promotion gate (ec48709).</li>
+    <li>New measurement scripts: <code>nova_coil_greens_check.py</code>,
+    <code>vacuum_coil_response_audit.py</code> (+ dedicated-vacuum stratum; the 2,558-shot
+    vacuum-shot scan feeds it), <code>rotation_residual_diagnostic.py</code>,
+    <code>measured_rotation_gate.py</code>.</li>
+  </ul>
+
+  <h2>What's next</h2>
+  <ul>
+    <li><strong>Solenoid attribution</strong> (the sharpened f-fbs-05 remainder): adjudicate
+    winding-geometry vs channel-scale for the ~8–13% response error — e.g. fit a per-pack
+    geometry perturbation vs a single scale on the vacuum pool and compare evidence; check the
+    efm solenoid pack extents against engineering drawings/UDA machine description; then measure
+    the winner-arm LCFS with the corrected solenoid model.</li>
+    <li><strong>Branch-robust solve</strong>: f-fbs-06's basin instrument is standing; retry-on-
+    attractor (axis R &gt; 1.4 m + high cost → reseed) is the cheap coverage lever the 18505 flip
+    motivates; damped-Newton/continuation the principled one.</li>
+    <li><strong>Stage B re-run</strong> waits on the solenoid fix + broader CXRS coverage (act on
+    7,991 shots corpus-wide — the held-out cohort is the constraint, not the data).</li>
+  </ul>
+</main>
+</body>
+</html>

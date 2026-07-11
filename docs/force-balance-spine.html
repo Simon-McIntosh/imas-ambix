@@ -19,11 +19,11 @@
   <title>Force-Balance Spine | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-10">
+<meta name="plan-modified" content="2026-07-11">
 <meta name="plan-blocks" content="equilibrium-topology-fidelity">
 <meta name="plan-informs" content="learned-closure-current-diffusion-v0,closed-loop-latent-filter,toroidal-harmonic-annulus-read">
-<meta name="plan-version" content="4">
-<meta name="plan-impl" content="0.4">
+<meta name="plan-version" content="5">
+<meta name="plan-impl" content="0.75">
 </head>
 <body>
   <main class="plan-doc">
@@ -105,6 +105,14 @@
     </section>
 
     <h2 id="s4">§4 — W3: the synthetic-truth identifiability harness</h2>
+    <p><em><strong>Status 2026-07-11:</strong> the harness is BUILT and standing
+    (<code>imas_ambix/latent/synthetic_truth.py</code> + <code>scripts/identifiability_harness.py</code>
+    + pytest gate, commit <code>ec48709</code>). First measured outputs: basin map — the
+    boundary-continuation bootstrap is the weak seed (2/6 cold corners fail; scout/warm-neighbour/
+    damped-relax all reach the confined branch; nothing retires scouting); Fisher information —
+    magnetics effective rank ≈ 1.2 (hard rank 2 at 1%) over 9 profile coefficients, the third
+    independent confirmation of the ~1–2-DOF budget. Recovery + aliasing sweeps in flight
+    (first runs hit the wall clock; resubmitted trimmed). f-fbs-06 closes when they land.</em></p>
     <p><strong>Goal:</strong> the standing instrument that would have caught the null-space fill automatically,
       and the gate every future term promotion must pass.</p>
     <ul>
@@ -122,36 +130,24 @@
         not a one-off study.</li>
     </ul>
 
-    <h2 id="s5">§5 — W4: the rotation ladder (first traversal of the discovery loop)</h2>
-    <p><strong>Goal:</strong> the rotation term measured through the full promotion path — or a recorded,
-      CI-backed negative. Physics and staging per
-      <a href="/imas-ambix/physics-spine-findings.html">physics-spine-findings §5</a>: the form is exact
-      (Maschke–Perrin; R·j<sub>φ</sub> ≈ aR² + b + cR⁴ with c ≈ ½p₀(m<sub>i</sub>Ω²/T)′), the coefficient is
-      one sign-definite flux function γ(ψ) = m<sub>i</sub>Ω²/2T ≥ 0, MAST is where the term is both largest
-      (thermal Mach 0.3–0.8 ⇒ in-out pressure ratios 1.2–4) and most identifiable (R⁴ column ~15% orthogonal
-      to the static design vs ~7% at conventional aspect ratio).</p>
-    <figure>
-      <img src="/imas-ambix/figures/physics-spine/fig-rotation-mast.png" alt="Rotation magnitude, signature, identifiability" style="max-width:100%">
-      <figcaption><strong>Figure 2 — The rotation term: magnitude (a), within-surface signature (b),
-        identifiability vs radial span (c).</strong> The design column already exists in-tree
-        (<code>structure_residual.py</code> form <code>affine-r2-rotation</code>) and is wired nowhere.</figcaption>
-    </figure>
-    <ul>
-      <li><strong>Stage A — residual diagnostic.</strong> Wire <code>affine-r2-rotation</code> as a gate
-        reporting arm: held-out per-bin unexplained-fraction delta (3-column vs 2-column) with CIs, and the
-        recovered c(ψ) profiles stratified by measured rotation. Cheap; no solver change; answers "is rotation
-        visible in our residuals at all".</li>
-      <li><strong>Stage B — measured-rotation forward test (zero new DOF).</strong> γ(ψ<sub>N</sub>) built from
-        CXRS toroidal rotation (<code>act</code>, 7,991 shots, ~5 ms) + Thomson T<sub>e</sub>→T proxy
-        (<code>ayc</code>); the closure-arm ansatz extended with the fixed centrifugal factor; the calibrated
-        closure gate re-run. Falsifiable prediction: held-out misfit and topology skill improve on
-        high-rotation shots. Firewall-clean (all raw measurements). Either verdict is a result.</li>
-      <li><strong>Stage C — discovery mode (gated on W3).</strong> Free γ(ψ) ≥ 0 (softplus) as a Tier-2
-        coefficient, only after the W3 harness demonstrates recoverability at realistic noise; natural pairing
-        with SXR in-out asymmetry when thread 2 lands it.</li>
-      <li><strong>Register (build nothing):</strong> the toroidal momentum budget (NBI torque in the plan −
-        sign-definite losses) as the future dynamic guard-rail slot when rotation joins the latent state.</li>
-    </ul>
+    <section id="s5" class="section-landed">
+    <header>
+      <span class="badge badge-shipped">✓ Stages A+B landed 2026-07-11</span>
+      <h2>§5 — W4: the rotation ladder (first traversal of the discovery loop)</h2>
+    </header>
+    <p class="landed-summary">
+      Stage A: the R⁴ column is <strong>visible, not load-bearing</strong> — absorbs ~10.4%/6.1%
+      of held-out unexplained residual (CIs exclude 0), c(ψ) one-signed near-axis, |c| vs CXRS
+      rotation Spearman 0.54 [0.21, 0.72] on the sign-constrained arm; strata don't separate;
+      CXRS covers 3/8 shots. Stage B: fixed measured γ(ψ_N) through the winner config
+      (zero new DOF; γ_peak 0.078–0.197 m⁻², M₀² 0.10–0.24 — the magnitude estimate confirmed) —
+      held-out deltas <strong>null at the current error budget</strong> (cost −1.6e-4 CI-clear,
+      topology sub-mm; uncovered-shot null check byte-identical). The rotation signal is real but
+      ~50× below the solenoid-scale static error; powered re-run behind f-fbs-07 on a
+      broader-CXRS cohort. Stage C stays gated on the aliasing matrix.
+      Record: <a href="archive/force-balance-spine-followons-landed.html">follow-ons landed</a>.
+    </p>
+    </section>
 
     <h2 id="s6">§6 — W5: formalize the discovery loop</h2>
     <ul>
@@ -320,7 +316,7 @@ Done-when
   4. Suite wired as standing pytest gate; tests green; plan updated; this followup resolved.</pre>
     <p class="r-fu-outcome">SUPERSEDED by f-fbs-06 (same W3 scope + the measured basin-structure addition from the W1 fixed-point findings). No work lost; f-fbs-06 is the live W3 followup.</p>
     </article>
-<article class="r-fu" data-id="f-fbs-04" data-status="open" data-tier="opus" data-written-by="physics-spine-review" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-fbs-04" data-status="resolved" data-tier="opus" data-written-by="physics-spine-review" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="2026-07-11T03:41:42+00:00" data-resolved-by="reckon-ship (rotation ladder A+B)">
     <h4 class="r-fu-title">W4 — rotation ladder: residual diagnostic, then the measured-rotation zero-DOF falsifiable test</h4>
     <div class="r-fu-body"><p>Stage A: wire the existing <code>affine-r2-rotation</code> residual form as a gate reporting arm. Stage B: fixed γ(ψ) from CXRS (<code>act</code>) + Thomson (<code>ayc</code>) through the calibrated closure arm — zero new DOF, sharp falsifiable prediction. Stage C (free γ) is gated on f-fbs-03 and is NOT part of this followup.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -355,8 +351,9 @@ Done-when
      re-run; misfit/topology deltas with CIs on rotation strata; verdict recorded either way.
   3. rotation-coefficient-source decision advanced on the evidence; tests green (incl. an analytic
      rotating-equilibrium pin); plan + findings doc updated same-turn; this followup resolved.</pre>
+    <p class="r-fu-outcome">Stages A+B executed held-out. Stage A (fcc5489/8030c3f): R4 column VISIBLE, not load-bearing — absorbs ~10.4%/6.1% of unexplained residual (CIs exclude 0), c(psi) one-signed peaking near-axis, |c| vs CXRS rotation Spearman 0.54 [0.21,0.72] on the sign-constrained arm; strata don't separate; CXRS 3/8 shots. Stage B (centrifugal_gamma hook 5960553 + measured_rotation_gate): fixed gamma from CXRS+Thomson through the winner ladder config, zero new DOF — gamma_peak 0.078-0.197 m^-2 (M0^2 exponent 0.10-0.24, the plan's magnitude estimate confirmed on real data); held-out paired deltas NULL at the current error budget (whitened cost -1.6e-4 CI-clear improvement, topology deltas sub-mm; uncovered-shot null check byte-identical). The rotation signal is real but ~50x below the solenoid-scale static error; powered Stage-B re-run queued behind the solenoid fix on a broader-CXRS cohort. rotation-coefficient-source stays staged-measured-first; Stage C stays gated on the aliasing matrix. Record: archive/force-balance-spine-followons-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-fbs-05" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-fbs-05" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="2026-07-11T03:41:42+00:00" data-resolved-by="reckon-ship (coil audit)">
     <h4 class="r-fu-title">Coil-model physical audit — the binding attack three instruments now point at</h4>
     <div class="r-fu-body"><p>W1/W2 localised the remaining static error to the coil model (geometry / turns / circuit mapping): the free-basis halo is phase-independent, the sensors are vacuum-clean (offsets ~0 so the error is plasma-coupled), and the closure family rails at broad edge-weighted FF′. The LCFS bar fails in every representation until this lands. Audit the machine description against pfSystems/efm sources; quantify each candidate fix on the winner arm (ladder K=2 + passive-8).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -388,6 +385,7 @@ Done-when
      quantified as predicted sensor deltas.
   2. Candidate fixes measured on the winner arm held-out (LCFS delta with CIs).
   3. Verdict recorded either way; plan + landed record updated same-turn.</pre>
+    <p class="r-fu-outcome">Audit executed (workers coil-nova-check + coil-vacuum-audit + orchestrator): kernel EXONERATED (in-tree cylinder == nova Biot-Savart to 1.1e-9); sensor map switched to the finite-area cylinder kernel (cylinder-sensors-v3, 2f3e4ef — point filaments biased near-pack B-probes 0.1-0.25 sigma); turns==1 premise verified from data; no geometry disagreement (nova has no static MAST description — efm authoritative). THE finding: solenoid response under-predicted ~8-13% (empirical Green regression, k_sol 1.078 [1.074,1.084] pooled with 37 dedicated vacuum shots / 55k slices; pattern residuals to 2.7 sigma survive the kernel switch) — the first quantified physical coil-model error, attribution (winding geometry vs sol_current channel scale) open as f-fbs-07. Coupling measured: P2 quartet + P3/P4/P5 up-down coil pairs unseparable in operating data (only 9/21 columns separable); case-circuit k 0.2-0.6 unstable (suspect channels). Winner-arm re-gate under v3: 140/160 unchanged; 18505's chain fell to the outboard attractor (basin fragility, feeds the f-fbs-06 instrument). Vacuum validation unchanged (~0.004 sigma). Record: archive/force-balance-spine-followons-landed.html.</p>
     </article>
 <article class="r-fu" data-id="f-fbs-06" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-10" data-recommends-skill="/reckon-ship force-balance-spine §4" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">W3 identifiability harness — now including fixed-point basin structure</h4>
@@ -420,6 +418,43 @@ Done-when
   3. Basin map + damped-Newton arm verdict (does it retire the scout stage?).
   4. Per-sensor-set information accounting recorded; suite wired as a standing pytest gate;
      plan updated; this followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-fbs-07" data-status="open" data-tier="opus" data-written-by="reckon-ship (coil audit)" data-written-at="2026-07-11" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Solenoid response attribution — geometry vs channel scale (~8-13%), then the LCFS re-measure</h4>
+    <div class="r-fu-body"><p>The empirical vacuum regression fixes the solenoid response error at k_sol = 1.078 [1.074, 1.084] with structured pattern residuals (±2.7σ on obr16/obv06) that a single scale cannot explain. Adjudicate winding-pack geometry vs <code>sol_current</code> channel scale on the vacuum pool (fit a per-pack geometry perturbation vs one scale; compare evidence), check efm solenoid extents against the UDA machine description, apply the winner, re-run vacuum validation + the winner-arm gate — the LCFS ray-cast (−3.6) is the score to move. Also wire the attractor-retry coverage lever (axis R &gt; 1.4 m + high cost → reseed) that the 18505 flip motivates.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    force-balance-spine (http://localhost:8765/imas-ambix/force-balance-spine.html)
+Section: §3 W2 extension — solenoid attribution
+Tier:    opus
+
+Context
+  vacuum_coil_response_audit-cylv3-vac.json: k_sol = 1.078 [1.074, 1.084] (37 dedicated vacuum
+  shots + 42-shot fleet); pattern residuals obr16 +2.7 sigma / obv06 -2.4 sigma survive both the
+  cylinder kernel switch and the scale fit — a scalar k does not close the solenoid model. The
+  winner arm (ladder K=2 + passive-8, cylinder-sensors-v3) is the measurement instrument; the
+  LCFS ray-cast (-3.6, negative in every representation) is the score the fix must move.
+
+State to read
+  scripts/vacuum_coil_response_audit.py (the standing instrument), imas_ambix/gs/geometry.py
+  (solenoid pack extents — note the SIGNED-extent handling), imas_ambix/gs/operator.py
+  (cylinder-sensors-v3 columns), archive/force-balance-spine-followons-landed.html,
+  /home/ITER/mcintos/slurm-logs/fbs/vacuum_shot_scan.json (2,558 vacuum shots).
+
+Do
+  1. On the vacuum pool, fit competing solenoid corrections: (a) single response scale;
+     (b) per-pack vertical-extent/position perturbation (few DOF); (c) sol_current channel
+     scale (equivalent to (a) — distinguish via the case/other-coil consistency). Compare
+     residual evidence; check efm pack extents vs the UDA/engineering description.
+  2. Apply the evidence-winner as a machine-description correction (never per-shot tuning);
+     re-run vacuum validation (offsets must stay ~0.004 sigma) and the empirical audit
+     (k_sol must move to 1 within CI).
+  3. Re-run the winner-arm gate held-out (calibrated + uncalibrated); report LCFS/axis deltas
+     with CIs. Wire the attractor-retry lever (reseed on axis R &gt; 1.4 m + cost spike) and
+     report its coverage effect on 18505.
+
+Done-when
+  Attribution adjudicated with evidence; correction applied + validated; gate deltas recorded
+  with CIs either way; plan + landed record updated same-turn.</pre>
     </article>
 </section>
 
