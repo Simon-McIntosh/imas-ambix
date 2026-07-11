@@ -440,6 +440,11 @@ def run_aliasing(args, campaign, warm):
         "calibration": {"offset_sigma": [0.0, 1.0, 2.0]},
         "passive": {"passive_ka": [0.0, 25.0, 50.0]},
     }
+    # one continuous-arm fit costs minutes; the full 9-cell matrix does not
+    # fit the debug-partition hour — shard by class and merge offline
+    if args.alias_classes:
+        wanted = {c.strip() for c in args.alias_classes.split(",") if c.strip()}
+        classes = {k: v for k, v in classes.items() if k in wanted}
     matrix = {}  # perturbation -> level -> {dbeta0, dalpha, daxis, dc_r4}
     for cls, spec in classes.items():
         key, levels = next(iter(spec.items()))
@@ -509,12 +514,14 @@ def run_aliasing(args, campaign, warm):
         matrix[cls] = rows
 
     # headline: rotation → p0' (β0) contamination at the largest rotation level
-    rot = matrix["rotation"][-1]
+    rot = matrix["rotation"][-1] if "rotation" in matrix else None
     report = {
         "coil_model_version": COIL_MODEL_VERSION,
         "shot": int(args.shot),
         "recovery_arm": "closure_continuous (static, no rotation term)",
-        "headline_rotation_to_p0prime": {
+        "headline_rotation_to_p0prime": None
+        if rot is None
+        else {
             "gamma0": rot["level"],
             "delta_beta0": rot["dbeta0"],
             "delta_axis_m": rot["daxis_m"],
@@ -919,6 +926,13 @@ def main() -> int:
     ap.add_argument("--nz", type=int, default=97)
     ap.add_argument("--n-samples", type=int, default=24)
     ap.add_argument("--arms", type=str, default="")
+    ap.add_argument(
+        "--alias-classes",
+        type=str,
+        default="",
+        help="aliasing mode: restrict to these perturbation classes "
+        "(comma list of rotation/calibration/passive; '' = all)",
+    )
     ap.add_argument("--ip", type=float, default=st.DEFAULT_IP_AMPERES)
     ap.add_argument("--iters", type=int, default=600)
     ap.add_argument("--passive-k", type=int, default=8)
