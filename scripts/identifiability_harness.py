@@ -53,6 +53,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from imas_ambix.gs.operator import COIL_MODEL_VERSION
 from imas_ambix.latent import synthetic_truth as st
 from imas_ambix.latent.gs_solve import (
     build_passive_sidecar,
@@ -307,7 +308,12 @@ def run_recovery(args, campaign, warm):
         ip=args.ip,
     )
     logger.info("recovery: %d/%d confined truths", len(truths), args.n_samples)
-    report = {"n_confined": len(truths), "arms": {}}
+    report = {
+        "coil_model_version": COIL_MODEL_VERSION,
+        "shot": int(args.shot),
+        "n_confined": len(truths),
+        "arms": {},
+    }
     per_arm_axis_err = {}
     for arm in arms:
         t0 = time.perf_counter()
@@ -505,6 +511,8 @@ def run_aliasing(args, campaign, warm):
     # headline: rotation → p0' (β0) contamination at the largest rotation level
     rot = matrix["rotation"][-1]
     report = {
+        "coil_model_version": COIL_MODEL_VERSION,
+        "shot": int(args.shot),
         "recovery_arm": "closure_continuous (static, no rotation term)",
         "headline_rotation_to_p0prime": {
             "gamma0": rot["level"],
@@ -663,6 +671,8 @@ def run_basin(args, campaign, warm):
 
     frac = {s: float(grid_map[s].mean()) for s in strategies}
     report = {
+        "coil_model_version": COIL_MODEL_VERSION,
+        "shot": int(args.shot),
         "betas": betas.tolist(),
         "alphas": alphas.tolist(),
         "confined_fraction": frac,
@@ -839,7 +849,12 @@ def run_information(args, campaign, warm):
             [not c.lower().startswith("fl") for c in campaign.channels]
         ),
     }
-    out = {"coefficients": coeffs, "sensor_sets": {}}
+    out = {
+        "coil_model_version": COIL_MODEL_VERSION,
+        "shot": int(args.shot),
+        "coefficients": coeffs,
+        "sensor_sets": {},
+    }
     for sname, sel in sensor_sets.items():
         jac_set = jac_mat[sel, :]
         sv = np.linalg.svd(jac_set, compute_uv=False)
