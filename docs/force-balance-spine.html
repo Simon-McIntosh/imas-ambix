@@ -22,8 +22,8 @@
 <meta name="plan-modified" content="2026-07-11">
 <meta name="plan-blocks" content="equilibrium-topology-fidelity">
 <meta name="plan-informs" content="learned-closure-current-diffusion-v0,closed-loop-latent-filter,toroidal-harmonic-annulus-read">
-<meta name="plan-version" content="5">
-<meta name="plan-impl" content="0.75">
+<meta name="plan-version" content="6">
+<meta name="plan-impl" content="0.85">
 </head>
 <body>
   <main class="plan-doc">
@@ -105,14 +105,17 @@
     </section>
 
     <h2 id="s4">§4 — W3: the synthetic-truth identifiability harness</h2>
-    <p><em><strong>Status 2026-07-11:</strong> the harness is BUILT and standing
+    <p><em><strong>✓ Landed 2026-07-11:</strong> the harness is BUILT and standing
     (<code>imas_ambix/latent/synthetic_truth.py</code> + <code>scripts/identifiability_harness.py</code>
-    + pytest gate, commit <code>ec48709</code>). First measured outputs: basin map — the
-    boundary-continuation bootstrap is the weak seed (2/6 cold corners fail; scout/warm-neighbour/
-    damped-relax all reach the confined branch; nothing retires scouting); Fisher information —
-    magnetics effective rank ≈ 1.2 (hard rank 2 at 1%) over 9 profile coefficients, the third
-    independent confirmation of the ~1–2-DOF budget. Recovery + aliasing sweeps in flight
-    (first runs hit the wall clock; resubmitted trimmed). f-fbs-06 closes when they land.</em></p>
+    + pytest gate, commit <code>ec48709</code>), all four instruments measured. Recovery: the
+    synthetic ranking recapitulates the real-data arc (free 26.7 cm → ladder+passive 2.1 cm on
+    manufactured truths). Aliasing: unmodelled rotation γ₀=0.7 → Δβ0 −0.028 [−0.034, −0.023]
+    (the Stage-C recoverability bar); 2σ calibration offsets the same order; unmodelled 25–50 kA
+    passives are the catastrophic leak (axis +15–37 cm — the quantitative case for the rank-8
+    sidecar). Basin: the boundary-continuation bootstrap is the weak seed; scout/warm/damped all
+    reach the confined branch; nothing retires scouting yet. Information: magnetics effective
+    rank ≈ 1.2 over 9 profile coefficients. f-fbs-06 resolved; record:
+    <a href="archive/force-balance-spine-followons-landed.html">follow-ons landed</a>.</em></p>
     <p><strong>Goal:</strong> the standing instrument that would have caught the null-space fill automatically,
       and the gate every future term promotion must pass.</p>
     <ul>
@@ -387,7 +390,7 @@ Done-when
   3. Verdict recorded either way; plan + landed record updated same-turn.</pre>
     <p class="r-fu-outcome">Audit executed (workers coil-nova-check + coil-vacuum-audit + orchestrator): kernel EXONERATED (in-tree cylinder == nova Biot-Savart to 1.1e-9); sensor map switched to the finite-area cylinder kernel (cylinder-sensors-v3, 2f3e4ef — point filaments biased near-pack B-probes 0.1-0.25 sigma); turns==1 premise verified from data; no geometry disagreement (nova has no static MAST description — efm authoritative). THE finding: solenoid response under-predicted ~8-13% (empirical Green regression, k_sol 1.078 [1.074,1.084] pooled with 37 dedicated vacuum shots / 55k slices; pattern residuals to 2.7 sigma survive the kernel switch) — the first quantified physical coil-model error, attribution (winding geometry vs sol_current channel scale) open as f-fbs-07. Coupling measured: P2 quartet + P3/P4/P5 up-down coil pairs unseparable in operating data (only 9/21 columns separable); case-circuit k 0.2-0.6 unstable (suspect channels). Winner-arm re-gate under v3: 140/160 unchanged; 18505's chain fell to the outboard attractor (basin fragility, feeds the f-fbs-06 instrument). Vacuum validation unchanged (~0.004 sigma). Record: archive/force-balance-spine-followons-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-fbs-06" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-10" data-recommends-skill="/reckon-ship force-balance-spine §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-fbs-06" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-10" data-recommends-skill="/reckon-ship force-balance-spine §4" data-resolved-at="2026-07-11T05:14:44+00:00" data-resolved-by="reckon-ship (identifiability harness)">
     <h4 class="r-fu-title">W3 identifiability harness — now including fixed-point basin structure</h4>
     <div class="r-fu-body"><p>Unchanged W3 scope (manufactured equilibria, recovery CIs, aliasing matrix, per-sensor-set information accounting) plus one measured addition: the free-boundary Picard is multi-branch (outboard corner attractor measured on real slices; the scout-certify recipe works around it). The harness must probe basin structure — which seeds/configs reach the confined branch — and evaluate damped-Newton/continuation as a principled replacement for scouting.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -418,6 +421,7 @@ Done-when
   3. Basin map + damped-Newton arm verdict (does it retire the scout stage?).
   4. Per-sensor-set information accounting recorded; suite wired as a standing pytest gate;
      plan updated; this followup resolved.</pre>
+    <p class="r-fu-outcome">Harness BUILT and standing (synthetic_truth.py + identifiability_harness.py + pytest gate, ec48709); all four instruments measured. RECOVERY (24 confined synthetic truths, measured noise floors, cylinder-sensors-v3): free 26.7 cm [22.1,31.1] / priors 5.4 / closure-grid 11.7 / ladder 2.4 / ladder+passive 2.1 cm [1.7,2.4] — the synthetic ranking recapitulates the held-out real-data arc. ALIASING (class-sharded, merged): unmodelled rotation gamma0=0.7 biases fitted beta0 by -0.028 [-0.034,-0.023] + axis +8 mm (the Stage-C recoverability bar: resolve dbeta0 ~0.02-0.03); 2-sigma calibration offsets the same order (beta0 -0.026, axis +2.1 cm); unmodelled 25-50 kA passives are the catastrophic leak (axis +15-37 cm) — the quantitative case for the load-bearing rank-8 sidecar. BASIN: boundary-continuation bootstrap is the weak seed (2/6 cold corners fail); scout/warm-neighbour/damped-relax all reach the confined branch; verdict 'nothing retires scouting yet' — the 18505 real-data flip is the same failure class. INFORMATION: magnetics effective rank 1.19 (hard rank 2 @1%) over 9 profile coefficients with per-set Fisher sensitivities — thread 2's quantitative shopping list. Sweep ops note: full aliasing does not fit the debug hour — --alias-classes shards it. Record: archive/force-balance-spine-followons-landed.html.</p>
     </article>
 <article class="r-fu" data-id="f-fbs-07" data-status="open" data-tier="opus" data-written-by="reckon-ship (coil audit)" data-written-at="2026-07-11" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Solenoid response attribution — geometry vs channel scale (~8-13%), then the LCFS re-measure</h4>
