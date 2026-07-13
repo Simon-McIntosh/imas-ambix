@@ -19,11 +19,11 @@
   <title>Force-Balance Spine | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-11">
+<meta name="plan-modified" content="2026-07-13">
 <meta name="plan-blocks" content="equilibrium-topology-fidelity">
 <meta name="plan-informs" content="learned-closure-current-diffusion-v0,closed-loop-latent-filter,toroidal-harmonic-annulus-read">
-<meta name="plan-version" content="6">
-<meta name="plan-impl" content="0.85">
+<meta name="plan-version" content="7">
+<meta name="plan-impl" content="0.9">
 </head>
 <body>
   <main class="plan-doc">
@@ -101,6 +101,15 @@
       stays off-by-default — promotion runs through the physical coil-model audit (f-fbs-05).
       Full record: <a href="archive/force-balance-spine-w1-w2-landed.html">W1+W2 landed</a>
       (worker commits <code>72329d5/b552fee</code>, sidecar <code>81a7178</code>).
+      <strong>Extension (f-fbs-07, landed 2026-07-13):</strong> the coil audit's one quantified
+      error — the solenoid response under-prediction — is a <em>uniform</em> ~8.25% scale
+      (k<sub>sol</sub> = 1.0825 [1.06, 1.10] on the vacuum pool; per-band + extent models rejected
+      by BIC, so no hidden circuit / no undriven section), applied by default
+      (<code>SOLENOID_RESPONSE_SCALE</code>, cylinder-sensors-v4). It does <em>not</em> move the
+      LCFS bar; the winner-arm axis-skill recovery came from a numerics fix (the outboard-attractor
+      reseed lever restored 18505). Full record:
+      <a href="archive/force-balance-spine-solenoid-attribution-landed.html">solenoid attribution landed</a>
+      (<code>a53a011/54bebfb/8d81a6c</code>).
     </p>
     </section>
 
@@ -146,8 +155,9 @@
       (zero new DOF; γ_peak 0.078–0.197 m⁻², M₀² 0.10–0.24 — the magnitude estimate confirmed) —
       held-out deltas <strong>null at the current error budget</strong> (cost −1.6e-4 CI-clear,
       topology sub-mm; uncovered-shot null check byte-identical). The rotation signal is real but
-      ~50× below the solenoid-scale static error; powered re-run behind f-fbs-07 on a
-      broader-CXRS cohort. Stage C stays gated on the aliasing matrix.
+      ~50× below the solenoid-scale static error. The solenoid error is now corrected (f-fbs-07)
+      but the misfit floor stays boundary/main-coil-dominated, so the powered Stage-B re-run still
+      waits on a broader-CXRS cohort (f-fbs-08). Stage C stays gated on the aliasing matrix.
       Record: <a href="archive/force-balance-spine-followons-landed.html">follow-ons landed</a>.
     </p>
     </section>
@@ -423,7 +433,7 @@ Done-when
      plan updated; this followup resolved.</pre>
     <p class="r-fu-outcome">Harness BUILT and standing (synthetic_truth.py + identifiability_harness.py + pytest gate, ec48709); all four instruments measured. RECOVERY (24 confined synthetic truths, measured noise floors, cylinder-sensors-v3): free 26.7 cm [22.1,31.1] / priors 5.4 / closure-grid 11.7 / ladder 2.4 / ladder+passive 2.1 cm [1.7,2.4] — the synthetic ranking recapitulates the held-out real-data arc. ALIASING (class-sharded, merged): unmodelled rotation gamma0=0.7 biases fitted beta0 by -0.028 [-0.034,-0.023] + axis +8 mm (the Stage-C recoverability bar: resolve dbeta0 ~0.02-0.03); 2-sigma calibration offsets the same order (beta0 -0.026, axis +2.1 cm); unmodelled 25-50 kA passives are the catastrophic leak (axis +15-37 cm) — the quantitative case for the load-bearing rank-8 sidecar. BASIN: boundary-continuation bootstrap is the weak seed (2/6 cold corners fail); scout/warm-neighbour/damped-relax all reach the confined branch; verdict 'nothing retires scouting yet' — the 18505 real-data flip is the same failure class. INFORMATION: magnetics effective rank 1.19 (hard rank 2 @1%) over 9 profile coefficients with per-set Fisher sensitivities — thread 2's quantitative shopping list. Sweep ops note: full aliasing does not fit the debug hour — --alias-classes shards it. Record: archive/force-balance-spine-followons-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-fbs-07" data-status="open" data-tier="opus" data-written-by="reckon-ship (coil audit)" data-written-at="2026-07-11" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-fbs-07" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (coil audit)" data-written-at="2026-07-11" data-recommends-skill="" data-resolved-at="2026-07-13T19:53:54+00:00" data-resolved-by="reckon-ship (solenoid attribution)">
     <h4 class="r-fu-title">Solenoid response attribution — geometry vs channel scale (~8-13%), then the LCFS re-measure</h4>
     <div class="r-fu-body"><p>The empirical vacuum regression fixes the solenoid response error at k_sol = 1.078 [1.074, 1.084] with structured pattern residuals (±2.7σ on obr16/obv06) that a single scale cannot explain. Adjudicate winding-pack geometry vs <code>sol_current</code> channel scale on the vacuum pool (fit a per-pack geometry perturbation vs one scale; compare evidence), check efm solenoid extents against the UDA machine description, apply the winner, re-run vacuum validation + the winner-arm gate — the LCFS ray-cast (−3.6) is the score to move. Also wire the attractor-retry coverage lever (axis R &gt; 1.4 m + high cost → reseed) that the 18505 flip motivates.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -459,6 +469,45 @@ Do
 Done-when
   Attribution adjudicated with evidence; correction applied + validated; gate deltas recorded
   with CIs either way; plan + landed record updated same-turn.</pre>
+    <p class="r-fu-outcome">Attribution adjudicated on the vacuum pool (85 shots = 48 fleet + 37 dedicated vacuum, ~111k slices; scripts/solenoid_response_attribution.py). THE finding: the solenoid under-prediction is a UNIFORM ~8.25% response scale, NOT a hidden circuit — k_sol = 1.0825 [1.0625, 1.1009]. Decomposing G_emp[:,sol] against per-axial-band model columns: uniform scale BEATS a per-band free profile (ΔBIC -12.3; recovered profile flat, all 6 bands 1.07-1.10) AND an axial-extent/offset perturbation (ΔBIC -8.4; fit returns identity s_z=1.000, dz=0.000). So the modelled solenoid EXTENT and POSITION are correct; only overall RESPONSE is low. The lead's undriven-section hypothesis is REJECTED on two grounds: SIGN (k>1 = under-prediction; a dead section under-drives -> k<1) and STRUCTURE (no band collapses toward 0; lowest band 1.068). The efm circuit-1 solenoid (656 filaments, Z in [-1.48,1.48], series solenoid1+solenoid2 on one sol_current channel) is structurally faithful; the residual is a turn-count (~8% low) or sol_current channel-scale, degenerate in the forward map. NOTE: the f-fbs-07 premise (2.7-sigma pattern residuals, k~2.2) was a fleet-only-pool artifact — it washes out to 0.27-sigma on the dedicated-vacuum pool. APPLIED: SOLENOID_RESPONSE_SCALE=1.0825 on the g_pf solenoid column by default (cylinder-sensors-v4, commit a53a011); vacuum validation holds (instrument offset 0.0038-sigma quasi-static, held-out 0.0011-sigma — the multiplicative scale leaves the additive offset at ~0); post-fix empirical audit k_sol -> 1.0 (analytically G_emp/[g_model*1.0825]). GATE (held-out, winner ladder K=2 + passive-8, 160/160): the scale ALONE barely moves it — axis skill -2.40->-2.40 (uncal) / -2.39->-2.39 (cal), LCFS -4.07->-4.06 (uncal) / -3.99->-3.98 (cal). SO THE SOLENOID WAS NOT THE LCFS BLOCKER. The winner-arm degradation under cylv3 was NUMERICS: the reseed lever (scripts/closure_gate_eval.py --reseed-axis-r; re-scout the confined branch when a converged slice reads axis R>1.4 m + high cost) surgically recovered 18505 from axis R=1.81 m / 93.9 cm (outboard corner) to R=0.77 m / 11.1 cm (confined), reseeding all 20 of its slices and leaving the other 7 shots / 140 slices byte-identical -> axis skill -2.40 -> -0.357 [-1.10,-0.06] (back to the case-v2 best) and LCFS -4.06 -> -3.702 [-4.47,-3.06]. Commits a53a011 (scale), 54bebfb (lever), 8d81a6c (re-gate results). Record: archive/force-balance-spine-solenoid-attribution-landed.html.</p>
+    </article>
+<article class="r-fu" data-id="f-fbs-08" data-status="open" data-tier="opus" data-written-by="reckon-ship (solenoid attribution)" data-written-at="2026-07-13T22:10:00+00:00" data-recommends-skill="/reckon-ship force-balance-spine" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Boundary attack: the un-separable main-coil up-down pairs; promote the reseed lever to default; rotation Stage-B re-arm</h4>
+    <div class="r-fu-body"><p>The solenoid — the one separable, dominant coil error — is corrected and does NOT unlock LCFS (still -3.70 best; the 0.36 gain was the reseed lever recovering 18505, not the solenoid). The residual coil-model error that matters for the boundary is therefore in the P2 quartet + P3/P4/P5 up-down pairs, which the coil audit showed are UN-separable in operating + vacuum data (only 9/21 columns separable) — vacuum shots alone cannot resolve them (no symmetry-breaking excitation exists in the pool). This needs an engineering-source turns/geometry cross-check the machine description does not carry, or a dedicated symmetry-breaking excitation. Also: (a) promote the reseed lever to a default winner-arm coverage guard (it is surgical — touches only outboard-attractor slices); (b) rotation Stage-B re-arm now competes against a cleaner floor but the floor is still boundary/main-coil dominated (~50x the rotation term), so Stage B still waits on a broader-CXRS cohort.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    force-balance-spine (http://localhost:8765/imas-ambix/force-balance-spine.html)
+Section: §3 W2 extension — main-coil-pair boundary attack + lever promotion
+Tier:    opus
+
+Context
+  Solenoid attribution (f-fbs-07) closed: the ~8% under-prediction is a uniform response scale,
+  now corrected (cylinder-sensors-v4, SOLENOID_RESPONSE_SCALE=1.0825), and it does NOT move the
+  LCFS bar (-3.70 best, uncal). The whole axis-skill recovery came from the reseed lever escaping
+  the 18505 outboard-attractor branch. The boundary is still blocked; the coil audit localised the
+  remaining error to the un-separable main-coil up-down pairs (P2 quartet, P3/P4/P5 pairs — only
+  9/21 columns separable in the vacuum + operating pool).
+
+State to read
+  archive/force-balance-spine-solenoid-attribution-landed.html (the re-gate matrix + the
+  band-decomposition verdict), scripts/vacuum_coil_response_audit.py (the coupled-set finding),
+  imas_ambix/gs/circuits.py + docs/mast-coil-circuits.html (the series/parallel structure),
+  scripts/closure_gate_eval.py (--reseed-axis-r, to promote to a default guard),
+  scripts/solenoid_response_attribution.py (the band-decomposition instrument, reusable per coil).
+
+Do
+  1. Establish whether the main-coil up-down pair scales are recoverable at all from any available
+     excitation (search the 2,558-vacuum-shot scan + operating shots for any interval where a pair
+     moves differentially); if not, state the identifiability wall and what engineering source
+     (turns/geometry drawings, UDA machine description) would break it.
+  2. Promote the reseed lever to a default coverage guard on the winner arm (measure it does not
+     perturb the 140 in-bounds slices; report coverage/skill deltas).
+  3. Report the LCFS bar after any recoverable main-coil correction; if none is recoverable,
+     record the boundary as identifiability-limited and hand the quantitative shopping list to
+     equilibrium-topology-fidelity thread 2.
+
+Done-when
+  Main-coil-pair recoverability adjudicated with evidence; reseed lever promoted + measured;
+  LCFS status recorded with CIs; plan + landed record updated same-turn; this followup resolved.</pre>
     </article>
 </section>
 
