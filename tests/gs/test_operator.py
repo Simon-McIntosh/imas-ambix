@@ -243,6 +243,41 @@ def test_g_pf_folds_xmult_split():
     assert np.allclose(operator.g_pf[:, 0], single, rtol=1e-12)
 
 
+def _solenoid_table() -> gsg.GeometryTable:
+    """Synthetic table with one solenoid-centroid coil (Rc≈0.14, Z≈0) mapped to
+    ``sol_current`` plus one ordinary PF coil — to exercise the response scale."""
+    table = _synthetic_table()
+    table.pf_filaments = list(table.pf_filaments) + [
+        gsg.PFFilament(
+            r=0.14, z=0.30, turns=1.0, width=0.02, height=0.30, circuit=5, xmult=0.5
+        ),
+        gsg.PFFilament(
+            r=0.14, z=-0.30, turns=1.0, width=0.02, height=0.30, circuit=5, xmult=0.5
+        ),
+    ]
+    table.amc_current_channels = list(table.amc_current_channels) + ["sol_current"]
+    return table
+
+
+def test_solenoid_response_scale_applied_only_to_solenoid(monkeypatch):
+    """The P1 solenoid column carries SOLENOID_RESPONSE_SCALE; every other coil
+    column is untouched. Rebuild with the scale reset to 1.0 and check the ratio."""
+    table = _solenoid_table()
+    real_scale = op.SOLENOID_RESPONSE_SCALE
+    assert real_scale > 1.0  # a measured under-prediction correction
+    op_scaled = op.build_operator(table)
+    monkeypatch.setattr(op, "SOLENOID_RESPONSE_SCALE", 1.0)
+    op_unit = op.build_operator(table)
+
+    chans = list(op_scaled.pf_amc_channels)
+    assert "sol_current" in chans
+    for j, chan in enumerate(chans):
+        with np.errstate(invalid="ignore", divide="ignore"):
+            ratio = op_scaled.g_pf[:, j] / op_unit.g_pf[:, j]
+        expect = real_scale if chan == "sol_current" else 1.0
+        assert np.allclose(ratio[np.isfinite(ratio)], expect, rtol=1e-9), chan
+
+
 def test_redundant_circuits_merge_no_double_count():
     """Two circuits at one coil sharing an amc channel must merge into ONE G_pf
     column (averaged) — applying the coil current once, not twice.

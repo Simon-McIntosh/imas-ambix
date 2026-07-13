@@ -79,7 +79,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-COIL_MODEL_VERSION = "cylinder-sensors-v3"
+COIL_MODEL_VERSION = "cylinder-sensors-v4"
 """Version marker for the circuit -> current-channel assignment + ``G_pf``
 column construction (``classify_circuits`` / ``build_operator``).  Bump this
 any time either changes -- e.g. a different geometric match radius, a new
@@ -91,7 +91,27 @@ coil-CASE circuits into their co-located active coil's column (measured
 impact: docs/mast-coil-circuits.html §6,
 :mod:`imas_ambix.gs.artifacts.case_circuit_impact` — median 0.44σ / all 73
 B-probes above 0.05σ / worst probe 17.8σ on shots 18502-18505); the prior,
-unversioned behaviour is implicitly ``"v1"``."""
+unversioned behaviour is implicitly ``"v1"``.  ``"cylinder-sensors-v3"`` added
+the finite-area cylinder kernel for near-pack B-probes; ``"-v4"`` applies
+:data:`SOLENOID_RESPONSE_SCALE` to the P1 solenoid column."""
+
+SOLENOID_RESPONSE_SCALE = 1.0825
+"""Multiplicative correction to the P1 central-solenoid ``G_pf`` column.
+
+Measured plasma-free on the pooled coil-only vacuum stratum (85 shots / ~111k
+slices) by :mod:`scripts.solenoid_response_attribution`: the geometry forward
+model UNDER-predicts the solenoid field-per-amp by ~8% (empirical/model scale
+``1.0825 [1.0625, 1.1009]``, significantly ≠ 1).  The attribution adjudicated
+the mechanism on the vacuum pool — a single uniform scale (this constant) beats
+both a per-axial-band free profile (ΔBIC −12.3, the band profile is flat) and
+an axial-extent/offset perturbation (ΔBIC −8.4, which returns the identity),
+so the solenoid's modelled EXTENT and POSITION are correct and only its overall
+RESPONSE is low.  ``k > 1`` rules out an undriven winding section (that would
+under-drive → ``k < 1``); the residual is a turn-count (effective amp-turns
+``Σxmult = 328`` ≈ 8% low) or a ``sol_current`` channel-scale — degenerate in
+the forward map, so it is carried here as one response constant on the column,
+applied by default (a vacuum-derived machine-description correction, never
+per-shot tuning).  Set to ``1.0`` to recover the un-corrected ``-v3`` column."""
 
 # --- Physical constants -----------------------------------------------
 
@@ -737,6 +757,9 @@ def build_operator(table: GeometryTable) -> ForwardOperator:
         circs = sorted(pf_by_chan[chan])
         cols = [_circ_col(c) for c in circs]
         merged = np.mean(cols, axis=0)  # redundant representations → average
+        if chan == "sol_current":
+            # vacuum-measured solenoid response correction (SOLENOID_RESPONSE_SCALE)
+            merged = merged * SOLENOID_RESPONSE_SCALE
         pf_circuits.append(circs[0])
         pf_amc.append(chan)
         pf_merged_circuits.append(circs)
