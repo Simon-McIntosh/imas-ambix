@@ -64,6 +64,7 @@ from imas_ambix.latent.gs_solve import (
     fit_profile_continuous,
     fit_profile_ladder,
     profile_jphi_shape,
+    solve_equilibrium_lsq,
 )
 
 # reuse the hardened harness verbatim — identical cohort, readout, and scoring
@@ -186,6 +187,7 @@ def fit_and_read_slice(
     maxfev: int = 60,
     warm_x0: tuple[float, ...] | None = None,
     warm_jphi: np.ndarray | None = None,
+    reseed_axis_r_max: float | None = None,
     keep_psi: bool = False,
     keep_jphi: bool = False,
 ) -> ClosureSliceFit:
@@ -308,10 +310,59 @@ def fit_and_read_slice(
             coeffs=coeffs,
         )
     target, _, _ = geometry_target(fit.result.psi, grid)
+    reseeded = False
+    if (
+        fit_mode == "ladder"
+        and reseed_axis_r_max is not None
+        and np.isfinite(target[0])
+        and float(target[0]) > reseed_axis_r_max
+        and fit.cost > convergence_limit
+    ):
+        # Outboard corner attractor: the free-boundary Picard converged onto the
+        # non-physical outboard branch (axis R far outboard + high misfit).  A
+        # physical confined fixed point exists — re-scout it with the stable
+        # free-sign K=2 LSQ from a compact midplane seed, then re-certify the
+        # winner ladder there (Tier-3 instrument guides; Tier-2 carries).  Kept
+        # only if it lands the axis inboard without materially worsening cost —
+        # never a fabricated readout (an honest coverage lever).
+        scout = solve_equilibrium_lsq(
+            grid,
+            table,
+            payload.i_pf,
+            payload.ip_amperes,
+            measured=payload.measured,
+            vacuum_prediction=payload.vacuum,
+            sensor_scale=payload.scale,
+            sensor_mask=payload.mask,
+            n_p=1,
+            n_f=1,
+            seed_width=(0.25, 0.35),
+        )
+        reseed_kw = dict(
+            n_p=n_p,
+            n_f=n_f,
+            smoothness=smoothness,
+            nonneg=nonneg,
+            initial_jphi=scout.result.jphi.ravel(),
+        )
+        if passive is not None:
+            reseed_kw["passive"] = passive
+            reseed_kw["passive_ridge"] = passive_ridge
+        lf2 = fit_profile_ladder(grid, table, **payload_kw, **reseed_kw)
+        if lf2.result.converged or lf2.result.residual <= convergence_limit:
+            t2, _, _ = geometry_target(lf2.result.psi, grid)
+            if (
+                np.isfinite(t2[0])
+                and float(t2[0]) < float(target[0])
+                and lf2.cost <= fit.cost * 1.05
+            ):
+                fit, target, reseeded = lf2, t2, True
+                dof = int(lf2.dof)
+                coeffs = [float(c) for c in lf2.coeffs]
     return ClosureSliceFit(
         **base,
         scored=True,
-        reason="scored",
+        reason="scored-reseeded" if reseeded else "scored",
         beta0=beta0,
         alpha=alpha,
         cost=fit.cost,
@@ -418,6 +469,7 @@ def fit_shot(payload: dict, cfg: dict, workers: int) -> list[ClosureSliceFit]:
             maxfev=cfg.get("maxfev", 60),
             warm_x0=warm_x0,
             warm_jphi=warm_jphi,
+            reseed_axis_r_max=cfg.get("reseed_axis_r_max"),
             keep_jphi=True,
         )
         if f.scored and f.converged:
@@ -493,6 +545,7 @@ def run_gate(args) -> int:
         "passive_k": args.passive_k,
         "passive_ridge": args.passive_ridge,
         "maxfev": args.maxfev,
+        "reseed_axis_r_max": args.reseed_axis_r,
     }
     logger.info("closure gate split=%s cfg=%s", args.split, cfg)
 
@@ -973,6 +1026,16 @@ def main() -> int:
         type=int,
         default=60,
         help="continuous: objective-evaluation budget per slice",
+    )
+    ap.add_argument(
+        "--reseed-axis-r",
+        type=float,
+        default=None,
+        help="ladder: if a converged slice reads its axis outboard of this R [m] "
+        "with cost above the convergence limit, re-scout the confined branch "
+        "from a compact seed and re-certify there (outboard-attractor coverage "
+        "lever; None = OFF, the default). Physical MAST confined axes sit "
+        "R < 1.1 m, so ~1.4 is a safe outboard-corner trigger.",
     )
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--figures", action="store_true", help="render figures only")
