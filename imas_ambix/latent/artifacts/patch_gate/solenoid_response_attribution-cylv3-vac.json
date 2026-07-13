@@ -1,0 +1,104 @@
+{
+  "coil_model_version": "cylinder-sensors-v3",
+  "geometry_table_version": "amb-schema-canonical-v1",
+  "leakage_free": true,
+  "n_shots_used": 85,
+  "n_fleet": 48,
+  "n_dedicated_vacuum": 40,
+  "n_bands": 6,
+  "band_z_edges": [
+    -1.48091459274292,
+    -0.9903048872947693,
+    -0.4996950924396515,
+    -0.009085400030016899,
+    0.4996950924396515,
+    0.9903048872947693,
+    1.48091459274292
+  ],
+  "band_ampturn_fraction": [
+    0.1676829268292683,
+    0.16615853658536586,
+    0.16615853658536586,
+    0.1676829268292683,
+    0.16615853658536586,
+    0.16615853658536586
+  ],
+  "band_design_condition": 4.9097373758254745,
+  "didt_threshold": 165509.76369139005,
+  "point_estimate": {
+    "n_obs": 65,
+    "H0": {
+      "k": 1.0824749272260845,
+      "chi2": 3.0391117898810586e-09,
+      "bic": -1541.9213202823703
+    },
+    "H1": {
+      "k_bands": [
+        1.0678077567006226,
+        1.076254152281182,
+        1.0859960426349873,
+        1.0945924162898744,
+        1.0939321692515884,
+        1.0878860065070872
+      ],
+      "chi2": 2.6645577241620957e-09,
+      "bic": -1529.5986526909671
+    },
+    "H2": {
+      "k": 1.0824749272260845,
+      "s_z": 1.0,
+      "dz": 0.0,
+      "chi2": 3.0391117898810586e-09,
+      "bic": -1533.572545742579
+    }
+  },
+  "bootstrap": {
+    "k_uniform": 1.0824749272260845,
+    "k_uniform_ci": [
+      1.062530016363889,
+      1.1009308556711765
+    ],
+    "k_bands": [
+      1.0678077567006226,
+      1.076254152281182,
+      1.0859960426349873,
+      1.0945924162898744,
+      1.0939321692515884,
+      1.0878860065070872
+    ],
+    "k_bands_ci": [
+      [
+        1.0528613390265755,
+        1.0827609694497788
+      ],
+      [
+        1.0576300424920755,
+        1.094688743627693
+      ],
+      [
+        1.0684703998293803,
+        1.1047342235239277
+      ],
+      [
+        1.0749982529928923,
+        1.1140258756370423
+      ],
+      [
+        1.0740998389593515,
+        1.112202702393432
+      ],
+      [
+        1.0697014454093399,
+        1.1035802064723415
+      ]
+    ],
+    "band_profile_flat": false
+  },
+  "delta_bic": {
+    "H0_minus_H1": -12.32266759140316,
+    "H0_minus_H2": -8.348774539791293
+  },
+  "verdict": "uniform-scale",
+  "verdict_note": "k>1 \u21d2 model under-predicts the solenoid; an undriven section would give k<1 (rejected by sign). Uniform scale = turn-count OR sol_current channel-scale (degenerate in the forward map; vacuum data cannot separate them). Recommended correction: multiply the solenoid g_pf column by k_uniform as a machine-description constant.",
+  "recommended_scale": 1.0824749272260845
+}
