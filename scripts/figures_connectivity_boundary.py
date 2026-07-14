@@ -3,14 +3,18 @@
 Two figures written under
 ``docs/figures/connectivity-boundary-classification/``:
 
-1. ``flux-surfaces-across-phases.png`` — for one held-out shot, the masked
-   TOTAL psi with its nested flux contours and the pushed LCFS ring at four
-   phases (breakdown/ramp → flat-top → termination), the emergent X-point, the
-   limiter, and the firewalled EFIT reference boundary for comparison.  Shows
-   the read behaving sensibly across the whole discharge with ONE code path.
+1. ``flux-surfaces-across-phases.png`` — for one held-out shot, the imas-ink
+   equilibrium cross-section (``equilibrium_figure_mpl``) at each discharge
+   phase: our pushed-LCFS read (blue confined surfaces + bold LCFS ring) with
+   the FIREWALLED EFIT reference (faint sienna surfaces + dashed EFIT boundary
+   read from ``efm.lcfs_r/lcfs_z`` — the real boundary contour, not an 8-radius
+   reconstruction). Rendered by imas-ink and tiled into one row.
 2. ``scoring-and-timing.png`` — held-out (n=160) LCFS + X-point skill, old
    ray-cast read vs the new contour push (with bootstrap CIs), and the per-slice
    timing of the two chains.
+
+The EFIT map is read ONLY inside ``evaluator_context()`` (firewall: referee
+outputs, used here purely to draw the reference overlay).
 
 Run: ``uv run python scripts/figures_connectivity_boundary.py``.
 """
@@ -39,6 +43,13 @@ from boundary_harmonic_gate_eval import (  # noqa: E402
     sensor_arrays,
 )
 from boundary_moment_gate_eval import load_cohort  # noqa: E402
+from imas_ink.figures import equilibrium_figure_mpl  # noqa: E402
+from patch_flux_map_report import (  # noqa: E402
+    _efit_slice,
+    _fig_to_rgba,
+    _machine_geometry,
+    _our_slice,
+)
 
 from imas_ambix.latent.boundary_harmonic import (  # noqa: E402
     HarmonicFitConfig,
@@ -51,13 +62,22 @@ from imas_ambix.latent.boundary_moment import (  # noqa: E402
     fit_moment_currents,
 )
 from imas_ambix.latent.topology import lcfs_contour  # noqa: E402
-from imas_ambix.worldmodel.equilibrium_labels import LCFS_ANGLES  # noqa: E402
 
 OUT = Path("docs/figures/connectivity-boundary-classification")
 ORDER, RIDGE, FRACTION = 3, 1e-8, 0.41
 
 
-def _read_slice(payload, k, order, ridge, fraction):
+class _A:  # minimal args shim for _origin_and_pole / _adaptive_radii
+    pole_source = "track"
+    pole_r = None
+    pole_z = 0.0
+    mask_frac = 0.5
+    exclude_frac = 1.1
+    mask_radius = 0.25
+    exclude_radius = 0.55
+
+
+def _read_slice(payload, k):
     """Replicate the gate's per-slice read; return the plot-relevant fields."""
     grid, basis, table = payload["grid"], payload["basis"], payload["table"]
     n_cells = int(basis.r_cells.shape[0])
@@ -66,20 +86,11 @@ def _read_slice(payload, k, order, ridge, fraction):
     gr, gz = rr.ravel(), zz.ravel()
     p = payload["payloads"][k]
 
-    class _A:  # minimal args shim for _origin_and_pole / _adaptive_radii
-        pole_source = "track"
-        pole_r = None
-        pole_z = 0.0
-        mask_frac = 0.5
-        exclude_frac = 1.1
-        mask_radius = 0.25
-        exclude_radius = 0.55
-
     mom = fit_moment_currents(basis, p, MomentFitConfig(order=3))
     origin = (mom.centroid_r, mom.centroid_z)
-    origin, pole = _origin_and_pole(origin, grid, _A, fraction)
+    origin, pole = _origin_and_pole(origin, grid, _A, FRACTION)
     mask_r, excl_r = _adaptive_radii(origin, pole, _A)
-    cfg = HarmonicFitConfig(pole_r=pole[0], pole_z=pole[1], order=order, ridge=ridge)
+    cfg = HarmonicFitConfig(pole_r=pole[0], pole_z=pole[1], order=ORDER, ridge=RIDGE)
     a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
     coeffs, _, _ = _fit_one(a_sens, p.measured, p.vacuum, p.mask, p.scale, cfg.ridge)
     grid_cols, _ = harmonic_columns(gr, gz, cfg)
@@ -97,72 +108,37 @@ def _read_slice(payload, k, order, ridge, fraction):
         limiter_r=grid.limiter_r,
         limiter_z=grid.limiter_z,
     )
+    ring = lcfs.ring if lcfs.found and lcfs.ring.shape[0] >= 3 else None
+    # Plot the raw total flux for the field-structure underlay (the harmonic
+    # PLASMA flux + thick-cylinder coil term) — matches the sibling boundary-read
+    # figures.  The bold LCFS ring itself is the SCORED read off the masked field;
+    # this read owns the BOUNDARY, not a physical interior (decoupled by design).
     return {
         "grid": grid,
-        "field": field,
-        "lcfs": lcfs,
-        "origin": origin,
+        "psi_2d": psi_tot,
         "target": target,
-        "ref": payload["refs"][k],
+        "axis_psi": axis_psi,
+        "boundary_psi": boundary_psi,
+        "ring": ring,
         "diverted": diverted,
         "ip": abs(p.ip_amperes),
+        "time_s": p.time_s,
     }
 
 
-def _panel(ax, rec, title):
-    grid = rec["grid"]
-    field = rec["field"]
-    rg, zg = grid.rg, grid.zg
-    # clip the deep masked plateau for a readable colour range
-    finite = np.isfinite(field)
-    vmax = np.nanpercentile(field[finite], 98)
-    vmin = np.nanpercentile(field[finite], 2)
-    ax.contourf(
-        rg, zg, np.clip(field, vmin, vmax), levels=24, cmap="viridis", alpha=0.7
-    )
-    ax.contour(rg, zg, field, levels=18, colors="white", linewidths=0.35, alpha=0.6)
-    ax.plot(grid.limiter_r, grid.limiter_z, "-", color="0.2", lw=1.3, label="limiter")
-    lcfs = rec["lcfs"]
-    if lcfs.found and lcfs.ring.shape[0]:
-        ax.plot(
-            lcfs.ring[:, 0],
-            lcfs.ring[:, 1],
-            "-",
-            color="red",
-            lw=2.2,
-            label="LCFS (push)",
-        )
-    ax.plot(*rec["origin"], "o", color="yellow", mec="k", ms=7, label="axis")
-    tgt = rec["target"]
-    for s in range(2):
-        xr, xz = tgt[2 + 2 * s], tgt[3 + 2 * s]
-        if np.isfinite(xr) and np.isfinite(xz):
-            ax.plot(
-                xr, xz, "X", color="magenta", mec="k", ms=11, label="X-point (emergent)"
-            )
-    # firewalled EFIT reference LCFS from its 8 radii about the ref axis
-    ref = rec["ref"]
-    ax_r, ax_z = ref[0], ref[1]
-    rr = ref[6:]
-    if np.isfinite(ax_r) and np.isfinite(rr).any():
-        rr_c = np.concatenate([rr, rr[:1]])
-        ang_c = np.concatenate([LCFS_ANGLES, LCFS_ANGLES[:1]])
-        ax.plot(
-            ax_r + rr_c * np.cos(ang_c),
-            ax_z + rr_c * np.sin(ang_c),
-            "--",
-            color="cyan",
-            lw=1.6,
-            label="EFIT ref",
-        )
-    cls = "diverted" if rec["diverted"] else "limited"
-    ax.set_title(f"{title}\nIp={rec['ip'] / 1e3:.0f} kA · {cls}", fontsize=9)
-    ax.set_aspect("equal")
-    ax.set_xlabel("R [m]", fontsize=8)
+def _pick_phases(payload, shot):
+    """Phase indices (breakdown → termination) each snapped to a real EFIT slice.
+
+    Reuses the sibling script's picker so the phases + EFIT snaps are identical.
+    """
+    from plot_boundary_harmonic_figures import _pick_phase_indices
+
+    return _pick_phase_indices(payload, shot)
 
 
 def figure_phases(shots):
-    """Pick the shot with the widest Ip span; plot 4 phases."""
+    """imas-ink equilibrium overlays (our read vs firewalled EFIT), tiled by phase."""
+    # widest-Ip-span shot with >=4 slices
     best = max(
         shots,
         key=lambda p: (
@@ -174,51 +150,60 @@ def figure_phases(shots):
             else -1
         ),
     )
-    ips = np.array([abs(x.ip_amperes) for x in best["payloads"]])
-    n = len(best["payloads"])
-    order = np.argsort(ips)  # low Ip (breakdown/termination) → high (flat-top)
-    # pick spread: lowest, ~33%, flat-top (max), and a late (near-min after max)
-    idx_lo = int(order[0])
-    idx_mid = int(order[n // 3])
-    idx_ft = int(order[-1])
-    # a termination-side slice: the last slice in time with Ip below flat-top
-    idx_term = (
-        int(np.argmin(ips[max(idx_ft, 1) :]) + max(idx_ft, 1))
-        if idx_ft < n - 1
-        else int(order[1])
-    )
-    picks = [
-        (idx_lo, "breakdown / ramp"),
-        (idx_mid, "rising"),
-        (idx_ft, "flat-top"),
-        (idx_term, "termination"),
-    ]
-    fig, axes = plt.subplots(1, 4, figsize=(17, 4.4))
-    for ax, (k, name) in zip(axes, picks, strict=True):
-        rec = _read_slice(best, k, ORDER, RIDGE, FRACTION)
-        _panel(ax, rec, name)
-    axes[0].set_ylabel("Z [m]", fontsize=8)
-    # single dedup legend
-    h, lb = axes[0].get_legend_handles_labels()
-    seen = dict(zip(lb, h, strict=True))
-    fig.legend(
-        seen.values(),
-        seen.keys(),
-        loc="lower center",
-        ncol=6,
-        fontsize=9,
-        frameon=False,
-        bbox_to_anchor=(0.5, -0.02),
-    )
     shot_id = int(best["payloads"][0].shot)
+    grid, table = best["grid"], best["table"]
+    geom = _machine_geometry(grid, table)
+    picks = _pick_phases(best, shot_id)  # [(label, k, efit_dict), ...]
+    if not picks:
+        print("no EFIT-snapped phases; skipping phases figure")
+        return
+
+    tiles = []
+    for label, k, efit in picks:
+        rec = _read_slice(best, k)
+        our_sl = _our_slice(
+            rec["psi_2d"],
+            grid,
+            rec["target"],
+            rec["axis_psi"],
+            rec["boundary_psi"],
+            rec["ip"],
+            rec["time_s"],
+            rec["ring"],
+        )
+        cls = "diverted" if rec["diverted"] else "limited"
+        fig, ax = equilibrium_figure_mpl(
+            our_sl,
+            geom,
+            reference_slice=_efit_slice(efit),
+            reference_name="EFIT",
+            figsize=(4.2, 6.2),
+            show_probes=False,
+            show_flux_loops=False,
+        )
+        ax.set_title(
+            f"{label}\nIp={rec['ip'] / 1e3:.0f} kA · {cls}"
+            f"  ·  |Δt|={efit['dt_s'] * 1e3:.0f} ms",
+            fontsize=9,
+        )
+        fig.canvas.draw()
+        tiles.append(_fig_to_rgba(fig))
+        plt.close(fig)
+
+    fig, axes = plt.subplots(1, len(tiles), figsize=(3.5 * len(tiles), 6.4))
+    axes = np.atleast_1d(axes)
+    for ax, img in zip(axes, tiles, strict=True):
+        ax.imshow(img)
+        ax.axis("off")
     fig.suptitle(
-        f"LCFS by outermost closed axis-enclosing flux contour — shot {shot_id}, "
-        "one code path across the discharge (red=push LCFS, cyan=EFIT ref)",
+        f"LCFS by outermost closed axis-enclosing flux contour — shot {shot_id}\n"
+        "imas-ink cross-section: blue = our pushed-LCFS read · dashed sienna = "
+        "firewalled EFIT boundary (efm.lcfs) · one code path across the discharge",
         fontsize=11,
     )
-    fig.tight_layout(rect=(0, 0.04, 1, 0.96))
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
     OUT.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUT / "flux-surfaces-across-phases.png", dpi=130, bbox_inches="tight")
+    fig.savefig(OUT / "flux-surfaces-across-phases.png", dpi=140, bbox_inches="tight")
     plt.close(fig)
     print("wrote", OUT / "flux-surfaces-across-phases.png")
 
@@ -236,7 +221,6 @@ def figure_scoring():
         )
     )
     old = json.loads(old_path.read_text()) if old_path.exists() else None
-    # timing from the profiler numbers (measured)
     timing = {
         "OLD\ncrit + ray-cast": 12.3,
         "NEW\nLCFS push": 5.5,
@@ -294,6 +278,8 @@ def main() -> int:
 
     shots, _ = load_cohort("eval", Args)
     print(f"loaded {len(shots)} held-out shots")
+    # _pick_phases opens its own evaluator_context() for the firewalled EFIT
+    # reads; the harmonic fit + imas-ink render use only the returned efit dict.
     figure_phases(shots)
     figure_scoring()
     return 0

@@ -102,10 +102,14 @@
       <img src="/imas-ambix/figures/connectivity-boundary-classification/flux-surfaces-across-phases.png"
            alt="Masked total flux with nested contours and the pushed LCFS ring at four phases of one held-out shot, with the EFIT reference boundary overlaid."
            style="max-width:100%;">
-      <figcaption>Shot 18505 at four phases (breakdown/ramp → flat-top → termination). Red = the pushed
-      LCFS ring; cyan dashed = the firewalled EFIT reference; yellow = the axis (current centroid); the
-      near-pole yellow plateau is the masked invalid interior. One flux-offset push handles every phase —
-      no branch, no cap — and the ring tracks EFIT from a 0.28 MA ramp slice to the 1.2 MA flat-top.</figcaption>
+      <figcaption>Shot 18505 across five phases (breakdown/ramp → flat-top → termination), rendered with
+      the imas-ink equilibrium cross-section (<code>equilibrium_figure_mpl</code>). Blue = our pushed-LCFS
+      read (bold ring + the raw harmonic total-flux surfaces); dashed sienna = the FIREWALLED EFIT
+      boundary read from the real <code>efm.lcfs_r/lcfs_z</code> contour (not a reconstruction). One
+      flux-offset push handles every phase — no branch, no cap. The ring tracks the EFIT boundary's
+      outboard extent but under-sizes it vertically (consistent with the modest positive LCFS skill); this
+      read owns the BOUNDARY, not a physical interior (decoupled by design), so the harmonic total-flux
+      surfaces do not nest as a real equilibrium would.</figcaption>
     </figure>
 
     <h2>Performance — the plan's claim corrected (profiled)</h2>
