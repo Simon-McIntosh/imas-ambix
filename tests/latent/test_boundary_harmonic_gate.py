@@ -130,3 +130,13 @@ def test_axis_source_default_is_patch():
     remains available as the ablation only."""
     args = build_parser().parse_args([])
     assert args.axis_source == "patch"
+
+
+def test_pole_source_default_is_carrier():
+    """The scored default places the per-slice pole at the interior-carrier
+    axis; 'fixed' (nominal grid.r0) is the retired-behaviour ablation."""
+    args = build_parser().parse_args([])
+    assert args.pole_source == "carrier"
+    # the ridge sweep + consistency guard exist for the regularised high-order ladder
+    assert args.ridges == [1e-8, 1e-4, 1e-2, 1e-1]
+    assert args.consistency_cap == 1.0

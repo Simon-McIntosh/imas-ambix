@@ -100,46 +100,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger("boundary-harmonic-gate")
 
 
-# --- cached mpmath evaluations (pole is fixed, so both are geometry-only) ----
-
-_GRID_COLS_CACHE: dict = {}
-
-
-def _grid_signature(grid, cfg: HarmonicFitConfig) -> tuple:
-    """A hashable key for the per-campaign grid harmonic columns.
-
-    The campaign raster (``rg`` / ``zg``) is shared across shots, so this key
-    collapses to one entry per (order, pole) -- the grid mpmath is evaluated
-    exactly once per order for the whole cohort.
-    """
-    return (
-        cfg.order,
-        cfg.kind,
-        round(cfg.pole_r, 9),
-        round(cfg.pole_z, 9),
-        grid.nr,
-        grid.nz,
-        float(grid.rg[0]),
-        float(grid.rg[-1]),
-        float(grid.zg[0]),
-        float(grid.zg[-1]),
-    )
-
-
-def grid_harmonic_columns(grid, cfg: HarmonicFitConfig) -> np.ndarray:
-    """Cached ``(nz*nr, K)`` harmonic flux columns on the grid raster.
-
-    Built once per (order, pole, campaign-grid); the per-slice grid flux is
-    then just ``cols @ coeffs`` (a matmul, no mpmath)."""
-    key = _grid_signature(grid, cfg)
-    cols = _GRID_COLS_CACHE.get(key)
-    if cols is None:
-        rr, zz = np.meshgrid(grid.rg, grid.zg)  # (nz, nr)
-        cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
-        _GRID_COLS_CACHE[key] = cols
-    return cols
-
-
 def sensor_arrays(table) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """``(sr, sz, sang_deg, is_flux)`` in ``table.sensor_map`` row order.
 
@@ -260,46 +220,60 @@ def hybrid_target_harmonic(psi_tot, grid, axis, pole, mask_radius, exclude_radiu
     return target, float(axis_psi), float(boundary_psi), field
 
 
-def _resolve_pole(shots, args) -> tuple[float, float]:
-    """The FIXED pole (r, z) used across all shots and slices.
+def _slice_pole(axis, grid, args) -> tuple[float, float]:
+    """The toroidal-coordinate pole for one slice.
 
-    Defaults to the campaign nominal axis ``grid.r0`` (the locked fixed-pole
-    decision), at ``z = 0``; ``--pole-r`` / ``--pole-z`` override."""
-    pole_r = args.pole_r if args.pole_r is not None else float(shots[0]["grid"].r0)
-    pole_z = args.pole_z
-    return pole_r, pole_z
+    ``--pole-source carrier`` (default, SCORED): the pole is placed AT the
+    high-accuracy interior-carrier magnetic axis, so the focal ring sits at the
+    current centroid where the P-harmonic expansion converges fastest and tracks
+    the small off-nominal-axis plasma through breakdown/ramp-up.  ``fixed``
+    (ablation): the campaign nominal axis ``grid.r0`` at ``z=0`` (the retired
+    fixed-pole behaviour); ``--pole-r``/``--pole-z`` override it."""
+    if args.pole_source == "carrier":
+        return float(axis[0]), float(axis[1])
+    pole_r = args.pole_r if args.pole_r is not None else float(grid.r0)
+    return pole_r, args.pole_z
 
 
-def score_order(shots, patch_psis, order, pole, split, args) -> dict:
-    """Fit + score one harmonic order over the whole cohort."""
-    pole_r, pole_z = pole
-    cfg = HarmonicFitConfig(
-        pole_r=pole_r, pole_z=pole_z, order=order, ip_anchor=args.ip_anchor
-    )
+def score_order(shots, patch_psis, order, ridge, split, args) -> dict:
+    """Fit + score one (order, ridge) over the cohort; per-slice carrier pole."""
     model_rows, ref_rows, flattop_flags, shot_rows = [], [], [], []
     saddles, misfits, consistencies = [], [], []
     t0 = time.perf_counter()
     for si, payload in enumerate(shots):
         grid, basis, table = payload["grid"], payload["basis"], payload["table"]
         n_cells = int(basis.r_cells.shape[0])
-        # sensor design matrix + grid columns: one mpmath pass each per shot/grid
-        a_sens = harmonic_sensor_matrix(*sensor_arrays(table), cfg)
-        grid_cols = grid_harmonic_columns(grid, cfg)
+        sr, sz, sang, is_flux = sensor_arrays(table)
+        rr, zz = np.meshgrid(grid.rg, grid.zg)
+        gr, gz = rr.ravel(), zz.ravel()
         ips = np.abs([p.ip_amperes for p in payload["payloads"]])
         flattop_idx = int(np.argmax(ips)) if ips.size else -1
         for k, p in enumerate(payload["payloads"]):
+            # the carrier axis (the high-accuracy interior estimate) is BOTH the
+            # ray-cast origin AND the per-slice harmonic pole.
+            axis, _ = _sign_aware_axis(patch_psis[si][k], grid)
+            pole_r, pole_z = _slice_pole(axis, grid, args)
+            cfg = HarmonicFitConfig(
+                pole_r=pole_r,
+                pole_z=pole_z,
+                order=order,
+                ridge=ridge,
+                ip_anchor=args.ip_anchor,
+            )
+            # fast vectorised evaluator -> sensor matrix + grid columns per slice
+            # (the per-slice pole defeats any fixed-pole cache; the elliptic path
+            # is cheap enough to recompute every slice).
+            a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
             coeffs, misfit, _ = _fit_one(
                 a_sens, p.measured, p.vacuum, p.mask, p.scale, cfg.ridge
             )
-            # TOTAL flux for topology: harmonic PLASMA flux (matmul on cached
-            # columns) + the harness's thick-cylinder coil term (i_cell = 0 so
-            # psi_grid_2d_np returns coil-only) -- never a point-filament coil.
+            grid_cols, _ = harmonic_columns(gr, gz, cfg)
+            # TOTAL flux for topology: harmonic PLASMA flux + the harness's
+            # thick-cylinder coil term (i_cell=0 -> coil-only) -- never point-filament.
             psi_plasma = (grid_cols @ coeffs).reshape(grid.nz, grid.nr)
             psi_coil = basis.psi_grid_2d_np(np.zeros(n_cells), p.i_pf)
             psi_tot = psi_plasma + psi_coil
-            if args.axis_source == "patch":
-                axis, _ = _sign_aware_axis(patch_psis[si][k], grid)
-            else:  # "harmonic" -- the field's own numerical O-point (ablation)
+            if args.axis_source != "patch":  # ablation: harmonic O-point ray origin
                 axis, _ = _sign_aware_axis(psi_tot, grid)
             target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
                 psi_tot,
@@ -342,11 +316,11 @@ def score_order(shots, patch_psis, order, pole, split, args) -> dict:
     ft = per_slice_median[flattop_mask]
     cons = [c for c in consistencies if c is not None]
     result = {
-        "arm": f"toroidal-harmonic-{args.axis_source}-axis",
+        "arm": f"toroidal-harmonic-{args.pole_source}pole-{args.axis_source}-axis",
         "order": order,
-        "kind": cfg.kind,
-        "pole_r": pole_r,
-        "pole_z": pole_z,
+        "ridge": ridge,
+        "kind": "P",
+        "pole_source": args.pole_source,
         "mask_radius": args.mask_radius,
         "exclude_radius": args.exclude_radius,
         "ip_anchor": args.ip_anchor,
@@ -368,7 +342,9 @@ def score_order(shots, patch_psis, order, pole, split, args) -> dict:
         "consistency_rms_annulus_mean": float(np.mean(cons)) if cons else None,
     }
 
-    suffix = f"-{args.axis_source}axis"
+    rtag = f"-r{ridge:g}" if ridge != 1e-8 else ""
+    ptag = "" if args.pole_source == "carrier" else f"-{args.pole_source}pole"
+    suffix = f"{ptag}-{args.axis_source}axis{rtag}"
     tag = f"harmonic-o{order}{suffix}" + ("" if split == "eval" else "-tune")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
@@ -382,9 +358,10 @@ def score_order(shots, patch_psis, order, pole, split, args) -> dict:
         saddles=np.asarray(saddles),
     )
     logger.info(
-        "[harmonic o=%d %s%s] n=%d axis_skill=%.3f xpt_skill=%s lcfs_skill=%.3f "
+        "[harmonic o=%d ridge=%g %s%s] n=%d axis_skill=%.3f xpt_skill=%s lcfs_skill=%.3f "
         "lcfs_cm(all/ft)=%.1f/%s saddles_mean=%.2f consistency_rms=%s (%.1fs)",
         order,
+        ridge,
         split,
         suffix,
         len(model),
@@ -405,12 +382,35 @@ def build_parser() -> argparse.ArgumentParser:
     unit-testable without running the full data-dependent pipeline."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--split", choices=["train", "eval"], default="eval")
-    ap.add_argument("--orders", type=int, nargs="+", default=[2, 3, 4, 5])
+    ap.add_argument("--orders", type=int, nargs="+", default=[3, 4, 5, 6, 8])
+    ap.add_argument(
+        "--ridges",
+        type=float,
+        nargs="+",
+        default=[1e-8, 1e-4, 1e-2, 1e-1],
+        help="Tikhonov ridge sweep (column-normalised frame); the ladder picks "
+        "the best (order, ridge) by lcfs_skill subject to the consistency guard",
+    )
+    ap.add_argument(
+        "--consistency-cap",
+        type=float,
+        default=1.0,
+        help="reject any (order, ridge) whose median annulus consistency RMS "
+        "exceeds this (guards against high-order aliasing) during selection",
+    )
+    ap.add_argument(
+        "--pole-source",
+        choices=["carrier", "fixed"],
+        default="carrier",
+        help="toroidal-coordinate pole per slice: 'carrier' (default, SCORED) = "
+        "the interior-carrier magnetic axis; 'fixed' = campaign nominal grid.r0 "
+        "(ablation, the retired fixed-pole behaviour)",
+    )
     ap.add_argument(
         "--pole-r",
         type=float,
         default=None,
-        help="fixed toroidal-coordinate pole radius [m] (default: grid.r0)",
+        help="fixed-pole radius [m] when --pole-source fixed (default: grid.r0)",
     )
     ap.add_argument("--pole-z", type=float, default=0.0)
     ap.add_argument(
@@ -472,25 +472,35 @@ def main() -> int:
     if not shots:
         logger.error("no shots loaded — nothing to score")
         return 1
-    patch_psis = (
-        free_current_psi(shots, device) if args.axis_source == "patch" else None
-    )
-    pole = _resolve_pole(shots, args)
-    logger.info("fixed pole (r, z) = (%.4f, %.4f)", *pole)
+    # the carrier is needed both for the ray origin and (default) the per-slice pole
+    patch_psis = free_current_psi(shots, device)
+    logger.info("pole-source=%s (per-slice carrier axis)", args.pole_source)
 
+    # 2-D (order x ridge) ladder; selection by lcfs_skill subject to the
+    # consistency guard (rejects high-order aliasing where the annulus RMS blows up).
     summary = [
-        score_order(shots, patch_psis, o, pole, args.split, args) for o in args.orders
+        score_order(shots, patch_psis, o, ridge, args.split, args)
+        for o in args.orders
+        for ridge in args.ridges
     ]
-    best = max(summary, key=lambda d: d["lcfs_skill"])
+
+    def _ok(d) -> bool:
+        c = d.get("consistency_rms_annulus")
+        return c is not None and c <= args.consistency_cap
+
+    eligible = [d for d in summary if _ok(d)] or summary
+    best = max(eligible, key=lambda d: d["lcfs_skill"])
     logger.info(
-        "BEST order=%d lcfs_skill=%.3f axis_skill=%.3f consistency_rms=%s "
-        "(split=%s axis=%s)",
+        "BEST order=%d ridge=%g lcfs_skill=%.3f xpt_skill=%s axis_skill=%.3f "
+        "consistency_rms=%s (split=%s pole=%s)",
         best["order"],
+        best["ridge"],
         best["lcfs_skill"],
+        best["xpoint_set_skill"],
         best["axis_skill"],
         best["consistency_rms_annulus"],
         args.split,
-        args.axis_source,
+        args.pole_source,
     )
     return 0
 
