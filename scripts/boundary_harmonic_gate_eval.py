@@ -17,31 +17,33 @@ HYBRID read (the plan's design; the review note is binding): the harmonic fit
 gives the PLASMA flux only, and the TOTAL flux read for topology adds the KNOWN
 coil field from the harness's thick-cylinder ``hybrid_greens`` coil column
 (``PatchBasis`` / ``EquilibriumGrid``) -- NEVER a point-filament coil term.  The
-confined-side flux reference (``axis_psi``) is read as the TOTAL psi
-bilinearly interpolated AT the supplied carrier axis, NOT from the harmonic
-field's own numerical O-point extremum (the low-DOF harmonic field cannot
-localise the axis).  ``--axis-source`` selects the ray origin: ``patch``
-(default, SCORED) = the free-current P3 inverse axis (~2.8 cm, faithful,
-origin-controlled); ``harmonic`` = the harmonic total psi's numerical O-point
-(ablation -- degrades the LCFS ray-cast, and disables the consistency check
-which needs the patch carrier).
+confined-side flux reference (``axis_psi``) is read as the TOTAL psi bilinearly
+interpolated AT the supplied ORIGIN, NOT from the harmonic field's own O-point
+extremum (the low-DOF harmonic field cannot localise the axis).
 
-Protocol (leakage-free, matches the P3 / moment gate): ``--split train`` sweeps
-``--orders`` on the tuning cohort and picks the best by ``lcfs_skill`` (CI-gated);
-``--split eval`` scores the frozen ``--orders`` value ONCE on the 160-slice
-held-out set.  Shots and the free-current axes are loaded / inverted ONCE and
-reused across every order.
+Origin + pole (``--origin-source``, default ``centroid``, SCORED): the ray-cast
+origin and the per-slice toroidal-coordinate pole reference both come from the
+magnetically-constrained, Ip-anchored CURRENT CENTROID (the moment fit's
+centroid).  It is robust across plasma phases -- unlike the flat-top-tuned
+free-current patch O-point, which mislocates the axis ~30 cm outboard at ramp-up
+and collapses the boundary there -- machine-agnostic, and needs NO interior
+carrier (the expensive patch inverse is skipped entirely).  ``patch`` / ``harmonic``
+are ablation origins.  The pole tracks the origin a dimensionless fraction of the
+origin radius inboard (``pole_r = origin_R·(1-fraction)``), and the near-pole
+invalid-disk mask / critical-point exclusion are SIZE-ADAPTIVE (fractions of the
+pole-to-origin distance) so they never reach the axis as the plasma shrinks.
 
-Performance: the pole is FIXED, so the grid harmonic columns depend only on
-(order, pole, grid) and the sensor design matrix only on (order, pole, shot) --
-both are cached so mpmath is never re-evaluated per slice; per slice the grid
-flux is a single matmul ``cols @ coeffs``.
+Protocol (leakage-free): ``--split train`` sweeps the order × ridge × fraction
+ladder, selecting by ``lcfs_skill`` under the consistency-RMS guard; ``--split
+eval`` scores the frozen config ONCE on the 160-slice held-out set.
+
+Performance: the fast vectorised P^1_{n-1/2} evaluator makes the per-slice pole
++ moment-centroid origin cheap (no mpmath per slice, no carrier inverse).
 
 Records the vacuum-annulus consistency RMS (``consistency_rms_annulus``): the
-offset-removed RMS agreement between the patch carrier psi and the harmonic psi
-in the shared annulus (outside the LCFS, inside the limiter), normalised by the
-carrier psi dynamic range -- a source-free-premise cross-check independent of
-the referee.  Writes ``.../patch_gate/boundary_read_harmonic-o<order>[-...].json``.
+offset-removed RMS agreement between the current-moment psi and the harmonic psi
+in the shared annulus -- two independent external-magnetics reads agreeing where
+both are valid, a source-free-premise cross-check independent of the referee.
 No EFIT in any fit path; the referee only scores (firewall: code-outputs-only).
 """
 
@@ -86,6 +88,7 @@ from imas_ambix.latent.boundary_harmonic import (
     harmonic_sensor_matrix,
     mask_invalid_interior,
 )
+from imas_ambix.latent.boundary_moment import MomentFitConfig, fit_moment_currents
 from imas_ambix.latent.topology import (
     CriticalPoints,
     _bilerp,
@@ -220,25 +223,36 @@ def hybrid_target_harmonic(psi_tot, grid, axis, pole, mask_radius, exclude_radiu
     return target, float(axis_psi), float(boundary_psi), field
 
 
-def _slice_pole(axis, grid, args, fraction) -> tuple[float, float]:
-    """The toroidal-coordinate pole for one slice.
+def _origin_and_pole(axis, grid, args, fraction) -> tuple[tuple, tuple]:
+    """The ray-cast ORIGIN and the toroidal-coordinate POLE for one slice.
 
-    ``--pole-source carrier`` (default, SCORED): the pole tracks the
-    high-accuracy interior-carrier magnetic axis, placed a DIMENSIONLESS
-    ``fraction`` of the axis radius INBOARD in R (``pole_r = axis_R·(1-fraction)``)
-    and at the carrier axis Z (vertical tracking).  A fraction (not a fixed
-    metre offset) keeps the scheme MACHINE-AGNOSTIC: the focal ring sits at the
-    same RELATIVE inboard position on any device (R/R0-scaled, per the
-    machine-agnostic geometry convention).  The inboard placement is
-    physics-required: the P-harmonic expansion converges only when the ring sits
-    inboard of the current centroid; a pole AT the axis (fraction 0) degrades the
-    inboard boundary (measured lcfs_ft ~50 cm).  Tracking Z + R follows the small
-    off-nominal plasma through breakdown/ramp-up.  ``fixed`` (ablation): campaign
-    nominal ``grid.r0`` at ``z=0`` (``--pole-r``/``--pole-z`` override)."""
-    if args.pole_source == "carrier":
-        return float(axis[0]) * (1.0 - float(fraction)), float(axis[1])
-    pole_r = args.pole_r if args.pole_r is not None else float(grid.r0)
-    return pole_r, args.pole_z
+    ``axis`` is the chosen origin (see ``--origin-source``).  The pole tracks it,
+    placed a DIMENSIONLESS ``fraction`` of the origin radius INBOARD in R
+    (``pole_r = origin_R·(1-fraction)``) at the origin Z.  A fraction (not a fixed
+    metre offset) keeps the scheme MACHINE-AGNOSTIC (the focal ring sits at the
+    same RELATIVE inboard position on any device); the inboard placement is
+    physics-required (the P-expansion converges only with the ring inboard of the
+    current centroid).  ``--pole-source fixed`` (ablation) pins the campaign
+    nominal ``grid.r0`` at ``z=0``."""
+    if args.pole_source == "fixed":
+        pole_r = args.pole_r if args.pole_r is not None else float(grid.r0)
+        return (float(axis[0]), float(axis[1])), (pole_r, args.pole_z)
+    pole = (float(axis[0]) * (1.0 - float(fraction)), float(axis[1]))
+    return (float(axis[0]), float(axis[1])), pole
+
+
+def _adaptive_radii(origin, pole, args) -> tuple[float, float]:
+    """Size-adaptive (mask, exclude) radii [m] from the pole-to-origin distance.
+
+    A FIXED metre mask is both machine-specific and wrong at ramp-up: when the
+    plasma is small the pole-to-axis distance shrinks and a fixed 0.25 m mask
+    reaches the axis, collapsing the ray-cast.  Scaling the mask/exclude with the
+    pole-to-origin distance ``d = |origin - pole|`` keeps the near-pole invalid
+    disk strictly inside the plasma at every plasma size and on any machine."""
+    d = float(np.hypot(origin[0] - pole[0], origin[1] - pole[1]))
+    if d <= 0.0:  # fixed-pole ablation: fall back to the absolute radii
+        return args.mask_radius, args.exclude_radius
+    return args.mask_frac * d, args.exclude_frac * d
 
 
 def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
@@ -254,14 +268,26 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
         gr, gz = rr.ravel(), zz.ravel()
         ips = np.abs([p.ip_amperes for p in payload["payloads"]])
         flattop_idx = int(np.argmax(ips)) if ips.size else -1
+        mom_cfg = MomentFitConfig(order=3)
         for k, p in enumerate(payload["payloads"]):
-            # the carrier axis (the high-accuracy interior estimate) is BOTH the
-            # ray-cast origin AND the per-slice harmonic pole.
-            axis, _ = _sign_aware_axis(patch_psis[si][k], grid)
-            pole_r, pole_z = _slice_pole(axis, grid, args, fraction)
+            # magnetically-constrained current centroid (Ip-anchored moment fit):
+            # the DEFAULT ray-cast origin + pole reference, and the source-free
+            # consistency reference (its annulus psi vs the harmonic annulus psi).
+            # Robust across plasma phases where the flat-top-tuned free-current
+            # carrier O-point mislocates the axis (ramp-up: ~30 cm outboard).
+            mom = fit_moment_currents(basis, p, mom_cfg)
+            psi_mom = basis.psi_grid_2d_np(mom.i_cell, p.i_pf)
+            if args.origin_source == "centroid":
+                origin = (mom.centroid_r, mom.centroid_z)
+            elif args.origin_source == "patch":
+                origin, _ = _sign_aware_axis(patch_psis[si][k], grid)
+            else:  # "harmonic" — the field's own O-point (set below, ablation)
+                origin = (mom.centroid_r, mom.centroid_z)
+            origin, pole = _origin_and_pole(origin, grid, args, fraction)
+            mask_r, excl_r = _adaptive_radii(origin, pole, args)
             cfg = HarmonicFitConfig(
-                pole_r=pole_r,
-                pole_z=pole_z,
+                pole_r=pole[0],
+                pole_z=pole[1],
                 order=order,
                 ridge=ridge,
                 ip_anchor=args.ip_anchor,
@@ -279,15 +305,12 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
             psi_plasma = (grid_cols @ coeffs).reshape(grid.nz, grid.nr)
             psi_coil = basis.psi_grid_2d_np(np.zeros(n_cells), p.i_pf)
             psi_tot = psi_plasma + psi_coil
-            if args.axis_source != "patch":  # ablation: harmonic O-point ray origin
-                axis, _ = _sign_aware_axis(psi_tot, grid)
+            if args.origin_source == "harmonic":  # ablation: harmonic O-point
+                origin, _ = _sign_aware_axis(psi_tot, grid)
+                origin, pole = _origin_and_pole(origin, grid, args, fraction)
+                mask_r, excl_r = _adaptive_radii(origin, pole, args)
             target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
-                psi_tot,
-                grid,
-                axis,
-                (pole_r, pole_z),
-                args.mask_radius,
-                args.exclude_radius,
+                psi_tot, grid, origin, pole, mask_r, excl_r
             )
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
@@ -299,12 +322,11 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
             # metric relative to the other (globally-valid-psi) arms.
             saddles.append(count_saddles(field, grid))
             misfits.append(misfit)
-            if patch_psis is not None:
-                consistencies.append(
-                    annulus_consistency_rms(
-                        patch_psis[si][k], psi_tot, grid, axis_psi, boundary_psi
-                    )
-                )
+            # source-free consistency: harmonic vs the current-moment psi in the
+            # shared annulus (both external-magnetics reads; no interior carrier).
+            consistencies.append(
+                annulus_consistency_rms(psi_mom, psi_tot, grid, axis_psi, boundary_psi)
+            )
     dt = time.perf_counter() - t0
 
     model = np.array(model_rows)
@@ -322,16 +344,16 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
     ft = per_slice_median[flattop_mask]
     cons = [c for c in consistencies if c is not None]
     result = {
-        "arm": f"toroidal-harmonic-{args.pole_source}pole-{args.axis_source}-axis",
+        "arm": f"toroidal-harmonic-{args.origin_source}origin",
         "order": order,
         "ridge": ridge,
         "kind": "P",
+        "origin_source": args.origin_source,
         "pole_source": args.pole_source,
         "pole_inboard_fraction": fraction,
-        "mask_radius": args.mask_radius,
-        "exclude_radius": args.exclude_radius,
+        "mask_frac": args.mask_frac,
+        "exclude_frac": args.exclude_frac,
         "ip_anchor": args.ip_anchor,
-        "axis_source": args.axis_source,
         "split": split,
         "n_scored": int(len(model)),
         "n_flattop_slices": int(flattop_mask.sum()),
@@ -350,9 +372,8 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
     }
 
     rtag = f"-r{ridge:g}" if ridge != 1e-8 else ""
-    otag = f"-frac{fraction:g}" if args.pole_source == "carrier" else ""
-    ptag = "" if args.pole_source == "carrier" else f"-{args.pole_source}pole"
-    suffix = f"{ptag}{otag}-{args.axis_source}axis{rtag}"
+    ftag = f"-frac{fraction:g}" if args.pole_source != "fixed" else "-fixedpole"
+    suffix = f"-{args.origin_source}origin{ftag}{rtag}"
     tag = f"harmonic-o{order}{suffix}" + ("" if split == "eval" else "-tune")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
@@ -407,22 +428,30 @@ def build_parser() -> argparse.ArgumentParser:
         "exceeds this (guards against high-order aliasing) during selection",
     )
     ap.add_argument(
+        "--origin-source",
+        choices=["centroid", "patch", "harmonic"],
+        default="centroid",
+        help="ray-cast origin + pole reference per slice: 'centroid' (default, "
+        "SCORED) = the magnetically-constrained Ip-anchored current centroid "
+        "(robust across ramp-up/flat-top, machine-agnostic, no interior carrier); "
+        "'patch' = the free-current P3 inverse O-point (ablation; mislocates the "
+        "axis ~30 cm at ramp-up); 'harmonic' = the harmonic field O-point (ablation)",
+    )
+    ap.add_argument(
         "--pole-source",
-        choices=["carrier", "fixed"],
-        default="carrier",
-        help="toroidal-coordinate pole per slice: 'carrier' (default, SCORED) = "
-        "the interior-carrier magnetic axis (tracked, inboard-offset); 'fixed' = "
-        "campaign nominal grid.r0 (ablation, the retired fixed-pole behaviour)",
+        choices=["track", "fixed"],
+        default="track",
+        help="'track' (default) = pole tracks the origin, inboard by the fraction; "
+        "'fixed' = campaign nominal grid.r0 (ablation)",
     )
     ap.add_argument(
         "--pole-inboard-fractions",
         type=float,
         nargs="+",
         default=[0.25, 0.41, 0.55],
-        help="swept DIMENSIONLESS inboard fractions: pole_r = carrier axis_R * "
-        "(1 - fraction) (machine-agnostic; the focal ring sits at the same "
-        "relative inboard position on any device). fraction 0 = pole AT the axis "
-        "degrades the inboard boundary",
+        help="swept DIMENSIONLESS inboard fractions: pole_r = origin_R*(1-fraction) "
+        "(machine-agnostic; ring at the same relative inboard position on any "
+        "device). fraction 0 = pole AT the origin degrades the inboard boundary",
     )
     ap.add_argument(
         "--pole-r",
@@ -432,35 +461,33 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument("--pole-z", type=float, default=0.0)
     ap.add_argument(
-        "--mask-radius",
+        "--mask-frac",
         type=float,
-        default=0.25,
-        help="radius [m] about the pole where the harmonic expansion is INVALID "
-        "(ring functions diverge) and is masked to a confined plateau before the "
-        "annulus boundary read",
+        default=0.5,
+        help="near-pole invalid-disk mask radius as a FRACTION of the pole-to-origin "
+        "distance (size- and machine-adaptive; a fixed metre mask reaches the axis "
+        "at ramp-up and collapses the ray-cast)",
+    )
+    ap.add_argument(
+        "--exclude-frac",
+        type=float,
+        default=1.1,
+        help="drop harmonic critical points within this fraction of the pole-to-"
+        "origin distance from the pole (residual near-pole artifacts)",
+    )
+    ap.add_argument(
+        "--mask-radius", type=float, default=0.25, help="absolute mask [m] (fixed-pole)"
     )
     ap.add_argument(
         "--exclude-radius",
         type=float,
         default=0.55,
-        help="drop harmonic critical points within this radius [m] of the pole "
-        "(residual near-pole artifacts) before the X-point / bounding-flux read",
+        help="absolute exclude [m] (fixed-pole)",
     )
     ap.add_argument(
         "--ip-anchor",
         action="store_true",
         help="add the poloidal-circulation Ip constraint to the harmonic fit",
-    )
-    ap.add_argument(
-        "--axis-source",
-        choices=["patch", "harmonic"],
-        default="patch",
-        help=(
-            "ray-cast axis: 'patch' = the free-current P3 inverse (default -- "
-            "the scored, origin-controlled read; also enables the annulus "
-            "consistency check); 'harmonic' = the harmonic total psi's numerical "
-            "O-point (ablation, no consistency check)."
-        ),
     )
     ap.add_argument("--device", default="auto")
     ap.add_argument("--nr", type=int, default=65)
@@ -485,18 +512,24 @@ def main() -> int:
     shots, baseline_vec = load_cohort(args.split, args)
     args._baseline = baseline_vec
     logger.info(
-        "loaded %d shots (split=%s, axis=%s)", len(shots), args.split, args.axis_source
+        "loaded %d shots (split=%s, origin=%s)",
+        len(shots),
+        args.split,
+        args.origin_source,
     )
     if not shots:
         logger.error("no shots loaded — nothing to score")
         return 1
-    # the carrier is needed both for the ray origin and (default) the per-slice pole
-    patch_psis = free_current_psi(shots, device)
-    logger.info("pole-source=%s (per-slice carrier axis)", args.pole_source)
+    # the free-current patch carrier is ONLY needed for the 'patch' origin ablation;
+    # the default 'centroid' origin comes from the (cheap) moment fit per slice, so
+    # the expensive ~13-min carrier inverse is skipped entirely.
+    patch_psis = (
+        free_current_psi(shots, device) if args.origin_source == "patch" else None
+    )
 
-    # 2-D (order x ridge) ladder; selection by lcfs_skill subject to the
+    # order x ridge x fraction ladder; selection by lcfs_skill subject to the
     # consistency guard (rejects high-order aliasing where the annulus RMS blows up).
-    fractions = args.pole_inboard_fractions if args.pole_source == "carrier" else [0.0]
+    fractions = args.pole_inboard_fractions if args.pole_source != "fixed" else [0.0]
     summary = [
         score_order(shots, patch_psis, o, ridge, frac, args.split, args)
         for o in args.orders
@@ -512,7 +545,7 @@ def main() -> int:
     best = max(eligible, key=lambda d: d["lcfs_skill"])
     logger.info(
         "BEST order=%d ridge=%g frac=%g lcfs_skill=%.3f xpt_skill=%s axis_skill=%.3f "
-        "consistency_rms=%s (split=%s pole=%s)",
+        "consistency_rms=%s (split=%s origin=%s)",
         best["order"],
         best["ridge"],
         best["pole_inboard_fraction"],
@@ -521,7 +554,7 @@ def main() -> int:
         best["axis_skill"],
         best["consistency_rms_annulus"],
         args.split,
-        args.pole_source,
+        args.origin_source,
     )
     return 0
 

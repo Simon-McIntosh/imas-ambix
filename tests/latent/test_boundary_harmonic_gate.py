@@ -125,18 +125,15 @@ def test_annulus_consistency_rms_zero_for_offset_fields_over_annulus():
 # --- CLI default ------------------------------------------------------------
 
 
-def test_axis_source_default_is_patch():
-    """The scored default must be 'patch' (origin-controlled); 'harmonic'
-    remains available as the ablation only."""
+def test_origin_source_default_is_centroid():
+    """The scored default origin is the magnetically-constrained current
+    centroid (robust across phases, no interior carrier); 'patch'/'harmonic'
+    are ablations."""
     args = build_parser().parse_args([])
-    assert args.axis_source == "patch"
-
-
-def test_pole_source_default_is_carrier():
-    """The scored default places the per-slice pole at the interior-carrier
-    axis; 'fixed' (nominal grid.r0) is the retired-behaviour ablation."""
-    args = build_parser().parse_args([])
-    assert args.pole_source == "carrier"
+    assert args.origin_source == "centroid"
+    assert args.pole_source == "track"
     # the ridge sweep + consistency guard exist for the regularised high-order ladder
     assert args.ridges == [1e-8, 1e-4, 1e-2, 1e-1]
     assert args.consistency_cap == 1.0
+    # size-adaptive masking (fraction of pole-to-origin distance)
+    assert args.mask_frac == 0.5 and args.exclude_frac == 1.1
