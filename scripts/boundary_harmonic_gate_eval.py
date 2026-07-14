@@ -170,37 +170,30 @@ def annulus_consistency_rms(
 # --- hybrid topology read ---------------------------------------------------
 
 
-def hybrid_target_harmonic(
-    psi_tot, grid, axis, pole, mask_radius, exclude_radius, annulus_cap_frac=4.0
-):
+def hybrid_target_harmonic(psi_tot, grid, axis, pole, mask_radius, exclude_radius):
     """14-D geometry target read in the ANNULUS from the masked TOTAL psi.
 
     The toroidal harmonics are valid ONLY in the source-free annulus; toward the
-    pole the ring functions diverge (the flux blows up inside the plasma where
-    the expansion does not hold).  So the near-pole invalid interior is first
-    masked to a confined plateau (:func:`mask_invalid_interior`), and every
-    boundary read runs on that masked field:
+    pole the ring functions diverge, so the near-pole interior is masked to a
+    confined plateau (:func:`mask_invalid_interior`) and every boundary read runs
+    on that masked field:
 
-    * the AXIS (``target[0:2]``) is the supplied carrier axis;
-    * the confined-side flux reference ``axis_psi`` is the masked field
-      bilinearly interpolated AT the carrier axis (NOT the field's own extremum,
-      per the binding review note);
-    * critical points within ``exclude_radius`` of the pole are dropped (the
-      residual near-pole artifacts), then filtered to the in-limiter,
-      conductor-clear set;
-    * LIMITED vs DIVERTED: the bounding flux is whichever bounding surface is
-      MORE BINDING (closer to the axis flux going outward) -- the innermost
-      in-vessel X-point (diverted) OR the limiter tangency (limited).  MAST ramps
-      up LIMITED (no X-point), so an X-point-only boundary read (the prior bug)
-      forced a diverted topology onto a limited plasma and put the LCFS on a
-      spurious distant saddle.  When limited, the X-point slots stay EMPTY, matching
-      EFIT.  (This is the standard GS rule the sibling ``_read_boundary_psi`` uses.)
-      Both candidate sets are restricted to the plasma-extent annulus
-      (``annulus_cap_frac`` x the pole-to-origin distance) because the harmonic
-      field extrapolates to garbage far above/below the plasma (divertor region)
-      and inboard near the pole -- a far-field saddle or a divertor limiter point
-      is not a boundary of the confined plasma.
-    * the 8-angle LCFS ray-cast runs on the masked field to the chosen flux.
+    * the AXIS (``target[0:2]``) is the supplied origin (the interior estimate);
+    * the confined-side flux reference ``axis_psi`` is the masked field bilinearly
+      interpolated AT the origin (NOT the field's own extremum);
+    * critical points within ``exclude_radius`` of the pole are dropped, then
+      filtered to the in-limiter, conductor-clear set;
+    * the bounding flux is the robust innermost in-vessel X-point flux (limiter-
+      contact fallback for a limited plasma);
+    * the X-point set + 8-angle LCFS ray-cast run on the masked field.
+
+    NOTE (interim): the limited-vs-diverted classification is INTENTIONALLY NOT
+    done here.  An RCA showed MAST ramps up limited, and a flux-comparison /
+    geometric-annulus-cap attempt at classifying it did NOT generalise (train
+    X-point-set skill -0.23 -> held-out -5.92: the cap severely overfit).  The
+    principled replacement is the level-set CONNECTIVITY read tracked in the
+    ``connectivity-boundary-classification`` plan; until it lands, this keeps the
+    best-held-out behaviour (X-point-set -4.54, LCFS -2.48).
     """
     pole_r, pole_z = pole
     field = mask_invalid_interior(
@@ -210,49 +203,22 @@ def hybrid_target_harmonic(
     target[0], target[1] = axis
     axis_psi = _bilerp(field, grid.rg, grid.zg, float(axis[0]), float(axis[1]))
 
-    # The harmonic field is trustworthy only in the ANNULUS around the plasma;
-    # beyond the plasma's poloidal extent (e.g. up at the divertor structures, or
-    # inboard at the centre column near the pole) the fit extrapolates to garbage.
-    # Both the X-point candidates AND the limiter-tangency search are therefore
-    # restricted to within ``annulus_cap`` of the origin (a multiple of the
-    # pole-to-origin distance ``d`` = a machine-agnostic plasma-size proxy); a
-    # far-field saddle at |Z|~1.4 is NOT a boundary X-point of a small ramp-up
-    # plasma, and a limiter point up by the divertor coils is NOT its tangency.
-    origin_r, origin_z = float(axis[0]), float(axis[1])
-    d = float(np.hypot(origin_r - pole_r, origin_z - pole_z))
-    annulus_cap = annulus_cap_frac * d if d > 0.0 else np.inf
-
     cp = find_critical_points(field, grid.rg, grid.zg)
     cp = exclude_near_points(cp, np.array([[pole_r, pole_z]]), exclude_radius)
     if cp.x_points.shape[0]:
-        xr, xz = cp.x_points[:, 0], cp.x_points[:, 1]
-        keep = (
-            _inside_polygon(xr, xz, grid.limiter_r, grid.limiter_z)
-            & grid.clear_of_conductors(xr, xz)
-            & (np.hypot(xr - origin_r, xz - origin_z) < annulus_cap)
-        )
-        cp = CriticalPoints(cp.o_points, cp.o_psi, cp.x_points[keep], cp.x_psi[keep])
+        ins = _inside_polygon(
+            cp.x_points[:, 0], cp.x_points[:, 1], grid.limiter_r, grid.limiter_z
+        ) & grid.clear_of_conductors(cp.x_points[:, 0], cp.x_points[:, 1])
+        cp = CriticalPoints(cp.o_points, cp.o_psi, cp.x_points[ins], cp.x_psi[ins])
 
-    # innermost in-vessel X-point flux (diverted candidate) ...
-    xb = boundary_flux_robust(
+    boundary_psi = boundary_flux_robust(
         cp, tuple(axis), axis_psi, limiter_r=grid.limiter_r, limiter_z=grid.limiter_z
     )
-    # ... vs the limiter-tangency flux (limited candidate): over VALID-annulus
-    # limiter points only, the one whose flux is closest to the axis flux is the
-    # deepest-penetrating tangency.
-    lim_r = grid.flat_r[grid._limiter_grid_idx]
-    lim_z = grid.flat_z[grid._limiter_grid_idx]
-    lim_near = np.hypot(lim_r - origin_r, lim_z - origin_z) < annulus_cap
-    lim_vals = field.ravel()[grid._limiter_grid_idx]
-    lim_pool = lim_vals[lim_near] if lim_near.any() else lim_vals
-    lim_b = float(lim_pool[int(np.argmin(np.abs(lim_pool - axis_psi)))])
-    # DIVERTED only if an X-point is MORE BINDING (closer to axis) than the limiter.
-    diverted = xb is not None and abs(xb - axis_psi) < abs(lim_b - axis_psi)
-    boundary_psi = xb if diverted else lim_b
+    if boundary_psi is None:  # limited plasma: limiter-contact flux nearest axis
+        lim_vals = field.ravel()[grid._limiter_grid_idx]
+        boundary_psi = float(lim_vals[int(np.argmin(np.abs(lim_vals - axis_psi)))])
 
-    # X-point slots: populate ONLY when diverted (a limited plasma has no boundary
-    # X-point -> slots stay NaN, matching the EFIT referee's limited-state target).
-    if diverted and cp.x_points.shape[0]:
+    if cp.x_points.shape[0]:
         order = np.argsort(np.abs(cp.x_psi - boundary_psi))
         for slot in range(min(2, cp.x_points.shape[0])):
             target[2 + 2 * slot] = cp.x_points[order[slot], 0]
@@ -348,7 +314,7 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
                 origin, pole = _origin_and_pole(origin, grid, args, fraction)
                 mask_r, excl_r = _adaptive_radii(origin, pole, args)
             target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
-                psi_tot, grid, origin, pole, mask_r, excl_r, args.annulus_cap_frac
+                psi_tot, grid, origin, pole, mask_r, excl_r
             )
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
@@ -391,7 +357,6 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
         "pole_inboard_fraction": fraction,
         "mask_frac": args.mask_frac,
         "exclude_frac": args.exclude_frac,
-        "annulus_cap_frac": args.annulus_cap_frac,
         "ip_anchor": args.ip_anchor,
         "split": split,
         "n_scored": int(len(model)),
@@ -513,15 +478,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=1.1,
         help="drop harmonic critical points within this fraction of the pole-to-"
         "origin distance from the pole (residual near-pole artifacts)",
-    )
-    ap.add_argument(
-        "--annulus-cap-frac",
-        type=float,
-        default=4.0,
-        help="plasma-extent cap (multiple of the pole-to-origin distance) on the "
-        "X-point + limiter-tangency candidate search: beyond it the harmonic field "
-        "is ill-posed extrapolation (divertor / far-field). Tuned leakage-free on "
-        "train (4.0; sweep with several runs of --annulus-cap-frac)",
     )
     ap.add_argument(
         "--mask-radius", type=float, default=0.25, help="absolute mask [m] (fixed-pole)"
