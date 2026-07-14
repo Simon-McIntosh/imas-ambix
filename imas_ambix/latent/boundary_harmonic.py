@@ -111,6 +111,52 @@ def toroidal_coords(
 # --- half-integer-degree order-1 Legendre (ring) functions ------------------
 
 
+def ring_P1(order: int, x: np.ndarray) -> np.ndarray:
+    """Vectorised ``P^1_{n-1/2}(x)`` for ``n = 0..order``, ``x = cosh eta >= 1``.
+
+    The fast path that makes a PER-SLICE pole affordable (mpmath, at ~10 us a
+    scalar, cannot be re-run per slice once the pole moves and the column cache
+    is defeated).  Built from the order-0 ring-function elliptic-integral seeds
+
+        P_{-1/2}(x) = (2/pi) sqrt(2/(x+1)) K(m),   m = (x-1)/(x+1)
+        P_{ 1/2}(x) = (2/pi) [ sqrt(2(x+1)) E(m) - sqrt(2/(x+1)) K(m) ]
+
+    (``scipy.special.ellipk/ellipe`` take the PARAMETER ``m = k^2``, not the
+    modulus), climbed in DEGREE by the stable forward recurrence
+    ``(nu+1)P_{nu+1} = (2nu+1) x P_nu - nu P_{nu-1}`` (P is the dominant, forward-
+    stable solution -- Gil, Segura & Temme), then raised to order 1 by
+    ``P^1_nu = (x^2-1)^{-1/2} nu (x P_nu - P_{nu-1})`` with the degree-reflection
+    ``P_{-3/2} = P_{1/2}``.  Verified against mpmath to ~1e-10 by
+    ``test_boundary_harmonic.py::test_fast_ring_matches_mpmath``.
+
+    Returns ``(order+1, N)``.
+    """
+    from scipy.special import ellipe, ellipk  # noqa: PLC0415
+
+    x = np.asarray(x, dtype=np.float64)
+    # x = 1 is spatial infinity/axis (P^1 -> 0 there); clamp just off it so the
+    # (x^2-1)^{-1/2} order-raise stays finite (the far field is masked anyway).
+    x = np.maximum(x, 1.0 + 1e-12)
+    m = (x - 1.0) / (x + 1.0)
+    big_k = ellipk(m)
+    big_e = ellipe(m)
+    s_lo = np.sqrt(2.0 / (x + 1.0))
+    s_hi = np.sqrt(2.0 * (x + 1.0))
+    two_pi = 2.0 / np.pi
+    # order-0 degree list d[j] = P_{j-1/2}
+    d = [two_pi * s_lo * big_k, two_pi * (s_hi * big_e - s_lo * big_k)]
+    for j in range(1, order + 1):
+        nu = j - 0.5
+        d.append(((2.0 * nu + 1.0) * x * d[j] - nu * d[j - 1]) / (nu + 1.0))
+    inv_s = 1.0 / np.sqrt(x * x - 1.0)
+    out = np.empty((order + 1, x.size), dtype=np.float64)
+    for n in range(order + 1):
+        nu = n - 0.5
+        d_prev = d[1] if n == 0 else d[n - 1]  # P_{-3/2} = P_{1/2}
+        out[n] = nu * (x * d[n] - d_prev) * inv_s
+    return out
+
+
 @cache
 def _ring_fn(n: int, kind: str):
     """Return a vectorised evaluator x -> F^1_{n-1/2}(x) for x = cosh eta >= 1.
@@ -230,11 +276,19 @@ def _harmonic_columns_uncached(
     # solve the A_phi equation, not the flux equation, and cannot represent a
     # flux-loop signature (confirmed: the R-less fit stalls ~12%, with-R ~1e-8).
     pref = r_arr * np.sqrt(np.maximum(cmc, 0.0))
+    # Fast vectorised elliptic-integral path for the physical P set (all orders
+    # in one call); mpmath only for the Q ablation set.  The fast path is what
+    # makes the per-slice pole affordable.
+    if cfg.kind == "P":
+        radials = ring_P1(cfg.order, cosh_eta)  # (order+1, N)
+    else:
+        radials = np.stack(
+            [_ring_fn(n, cfg.kind)(cosh_eta) for n in range(cfg.order + 1)], axis=0
+        )
     cols: list[np.ndarray] = []
     labels: list[str] = []
     for n in range(cfg.order + 1):
-        radial = _ring_fn(n, cfg.kind)(cosh_eta)
-        base = pref * radial
+        base = pref * radials[n]
         cols.append(base * np.cos(n * theta))
         labels.append("h0" if n == 0 else f"h{n}c")
         if n >= 1:
@@ -488,6 +542,7 @@ __all__ = [
     "harmonic_columns",
     "harmonic_field_columns",
     "mask_invalid_interior",
+    "ring_P1",
     "harmonic_labels",
     "harmonic_psi_on_grid",
     "harmonic_sensor_matrix",

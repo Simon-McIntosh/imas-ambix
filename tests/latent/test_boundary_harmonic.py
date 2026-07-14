@@ -32,12 +32,40 @@ from imas_ambix.latent.boundary_harmonic import (
     harmonic_labels,
     harmonic_sensor_matrix,
     mask_invalid_interior,
+    ring_P1,
     toroidal_coords,
 )
 from imas_ambix.latent.patch_inverse import SlicePayload
 
 POLE_R = 0.9
 POLE_Z = 0.0
+
+
+# --- fast ring-function evaluator matches mpmath ---------------------------
+
+
+def test_fast_ring_matches_mpmath():
+    """The vectorised elliptic-integral P^1_{n-1/2} path (the per-slice-pole
+    enabler) matches the mpmath reference across the annulus range of
+    x = cosh eta, for every order the ladder uses."""
+    import mpmath
+
+    x = np.concatenate(
+        [
+            np.linspace(1.001, 1.5, 40),
+            np.linspace(1.5, 10.0, 40),
+            np.geomspace(10.0, 1000.0, 20),
+        ]
+    )
+    order = 8
+    fast = ring_P1(order, x)  # (order+1, N)
+    for n in range(order + 1):
+        ref = np.array(
+            [float(mpmath.re(mpmath.legenp(n - 0.5, 1, float(xi), type=3))) for xi in x]
+        )
+        scale = np.maximum(np.abs(ref).max(), 1e-12)
+        rel = np.max(np.abs(fast[n] - ref)) / scale
+        assert rel < 1e-8, f"order {n}: fast-vs-mpmath rel err {rel:.2e}"
 
 
 # --- T4: coordinate transform ----------------------------------------------
