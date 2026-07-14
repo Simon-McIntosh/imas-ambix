@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="connectivity-boundary-classification-landed">
+  <meta name="plan-title" content="LCFS by Outermost Closed Flux Contour — landed">
+  <meta name="plan-summary" content="The continuous outermost-closed-axis-enclosing-contour LCFS read is implemented in imas_ambix/latent/topology.py (lcfs_contour + emergent_xpoints), TDD-verified on 4 synthetic scenarios, swapped into the harmonic gate, and scored held-out (n=160, firewalled EFIT). One flux-offset push, one axis-enclosing ring test, one inside-limiter test — no discrete classifier, no distance cap, no X-point gate (scope guard §7 honoured). Held-out LCFS skill -3.159 -> -1.958 (clears the -2.48 bar), X-point-set -5.923 -> -1.797, offset 7.3 -> 6.7 cm; emergent diverted fraction 0.40 all / 0.625 flat-top. Performance: the plan's 0.34 ms/slice was trace-only; the real full read is 5.5 ms/slice (LCFS push) after vectorising point-in-polygon (from 51 ms), 2.2x faster than the old find_critical_points + ray-cast chain (12.3 ms). Landed 2026-07-14.">
+  <meta name="plan-informs" content="connectivity-boundary-classification">
+  <title>LCFS by Outermost Closed Flux Contour — landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>LCFS by Outermost Closed Flux Contour — landed</h1>
+    <p><em>Per-stage record for
+    <a href="/imas-ambix/connectivity-boundary-classification.html">connectivity-boundary-classification</a>
+    (§3–§6, the whole plan). The continuous boundary read is implemented, TDD-verified, scored held-out
+    against the firewalled EFIT referee, and profiled end-to-end. Landed 2026-07-14.</em></p>
+
+    <h2>Quick status</h2>
+    <table>
+      <thead><tr><th>Deliverable</th><th>Status</th><th>Headline</th></tr></thead>
+      <tbody>
+        <tr><td>§3 <code>lcfs_contour</code> + <code>emergent_xpoints</code> (shared topology.py)</td>
+            <td>✓ shipped</td>
+            <td>one flux-offset push (contourpy), radii off the ring polygon; class + X-slots emergent</td></tr>
+        <tr><td>§3 unit tests (4 scenarios)</td><td>✓ shipped</td>
+            <td>diverted ring pinches at X; limited rides the wall; far-field ring excluded (no cap); masked interior null never selected</td></tr>
+        <tr><td>§6 swap into <code>hybrid_target_harmonic</code></td><td>✓ shipped</td>
+            <td>gate green; LCFS primary, X-points + limited/diverted emergent diagnostics</td></tr>
+        <tr><td>§6 held-out score (n=160, firewalled EFIT, CIs)</td><td>✓ PASS</td>
+            <td>LCFS −3.159 → −1.958 (clears −2.48); X-set −5.923 → −1.797; offset 7.3 → 6.7 cm</td></tr>
+        <tr><td>§5b performance (profiled)</td><td>✓ shipped (claim corrected)</td>
+            <td>5.5 ms/slice LCFS push, 2.2× faster than the old chain — NOT the plan's 0.34 ms (trace-only)</td></tr>
+        <tr><td>Figures</td><td>✓ shipped</td>
+            <td>flux surfaces across breakdown→termination + old-vs-new skill/timing</td></tr>
+      </tbody>
+    </table>
+
+    <h2>What was built</h2>
+    <ul>
+      <li><code>imas_ambix/latent/topology.py</code> — <code>lcfs_contour(psi, r, z, axis, limiter…)</code>:
+      one monotone flux-offset push. From the axis flux the level is swept OUTWARD (toward the
+      domain-edge extreme); at each level the closed contour enclosing the axis is traced with
+      <code>contourpy</code> (SeparateCode, CLOSEPOLY + min-point guard, ported from nova
+      <code>Contour.closedlevelset</code>). The predicate "a closed axis-enclosing ring exists AND lies
+      entirely inside the limiter" is monotone; a geometric backoff finds a valid lower bracket and a
+      14-step bisection converges the largest-valid level (the separatrix/wall flux). The reported ring
+      sits at the 99.9 % normalised flux (nova <code>psi_lcfs</code> convention) and the 8 radii are read
+      straight off it with the evaluator's own <code>resample_lcfs_radii</code> angle-interp — the same
+      function that builds the EFIT LCFS labels, so the read is consistent with the target by construction.</li>
+      <li><code>emergent_xpoints(x_points, ring, tol)</code> — the limited/diverted class + X-slots read
+      AFTER the boundary: a saddle within <code>tol</code> (5 cm, a fixed physical margin — NOT tuned) of
+      the ring is ON the boundary ⇒ diverted (report it); else limited (X-slots NaN). Soft margin, never a
+      code-path switch.</li>
+      <li><code>scripts/boundary_harmonic_gate_eval.py::hybrid_target_harmonic</code> — the innermost-X +
+      limiter-fallback + outward ray-cast block replaced by the push + emergent read; a
+      <code>--xpoint-tol</code> knob and a per-phase <code>diverted_fraction</code> diagnostic added.</li>
+      <li><code>scripts/profile_boundary_read.py</code> and
+      <code>scripts/figures_connectivity_boundary.py</code> — the profiling harness and the two figures.</li>
+      <li>Vectorised <code>_inside_polygon</code> (points × edges, no Python per-vertex loop) — the perf
+      fix that took the push from ~51 ms to ~5.5 ms/slice; a drop-in win for every caller.</li>
+    </ul>
+
+    <h2>Held-out score (n=160, firewalled EFIT, 2000-boot shot-level CIs)</h2>
+    <p>Same frozen config as the harmonic read (centroid origin, order 3, ridge 1e-8, inboard fraction
+    0.41), same 160-slice held-out protocol — the boundary representation is the only varying factor.</p>
+    <table>
+      <thead><tr><th>metric</th><th>OLD (innermost-X + ray-cast)</th><th>NEW (contour push)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>LCFS skill</strong> (PRIMARY)</td><td>−3.159&nbsp;&nbsp;CI[−4.75,−1.90]</td>
+            <td><strong>−1.958</strong>&nbsp;&nbsp;CI[−3.30,−1.07]</td></tr>
+        <tr><td>X-point-set skill (emergent)</td><td>−5.923&nbsp;&nbsp;CI[−8.88,+0.17]</td>
+            <td><strong>−1.797</strong>&nbsp;&nbsp;CI[−2.41,−0.84]</td></tr>
+        <tr><td>axis skill (same origin)</td><td>−1.582</td><td>−1.582</td></tr>
+        <tr><td>LCFS offset median (all / flat-top)</td><td>7.32 / 5.40 cm</td><td>6.72 / 5.43 cm</td></tr>
+        <tr><td>annulus consistency RMS</td><td>0.070</td><td>0.066</td></tr>
+        <tr><td>emergent diverted fraction (all / flat-top)</td><td>—</td><td>0.40 / 0.625</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Verdict: PASS.</strong> LCFS skill −1.958 clears the plan's −2.48 bar and beats the
+    same-config baseline by +1.20 with a cleaner single-path, cap-free boundary. The emergent X-point set
+    (an untuned 5 cm proximity read, NOT optimised against EFIT's flag per the <code>xpoint-role</code>
+    lock) improves by +4.13 and its CI tightens dramatically. The limited/diverted fraction rises from
+    ~40 % overall to ~63 % at flat-top — physically sensible (MAST ramps up limited, diverts as the plasma
+    grows into the divertor), and reported as a diagnostic only.</p>
+    <figure>
+      <img src="/imas-ambix/figures/connectivity-boundary-classification/scoring-and-timing.png"
+           alt="Held-out LCFS and X-point skill, old ray-cast vs new contour push with bootstrap CIs, and per-slice timing of the two chains."
+           style="max-width:100%;">
+      <figcaption>Held-out (n=160) skill with 2000-boot CIs (left): the new push clears the −2.48 bar on
+      LCFS and tightens the X-point CI; per-slice cost (right): the LCFS push is 5.5 ms vs the old
+      12.3 ms chain.</figcaption>
+    </figure>
+
+    <h2>The read across the discharge (one code path)</h2>
+    <figure>
+      <img src="/imas-ambix/figures/connectivity-boundary-classification/flux-surfaces-across-phases.png"
+           alt="Masked total flux with nested contours and the pushed LCFS ring at four phases of one held-out shot, with the EFIT reference boundary overlaid."
+           style="max-width:100%;">
+      <figcaption>Shot 18505 at four phases (breakdown/ramp → flat-top → termination). Red = the pushed
+      LCFS ring; cyan dashed = the firewalled EFIT reference; yellow = the axis (current centroid); the
+      near-pole yellow plateau is the masked invalid interior. One flux-offset push handles every phase —
+      no branch, no cap — and the ring tracks EFIT from a 0.28 MA ramp slice to the 1.2 MA flat-top.</figcaption>
+    </figure>
+
+    <h2>Performance — the plan's claim corrected (profiled)</h2>
+    <p>The plan §5b claimed 0.019 ms/level and a 0.34 ms full push, concluding "~10× faster." Profiling
+    the real chain on the 65×97 grid (single-thread CPU) shows that headline was <strong>trace-only</strong>
+    — it counted the <code>contourpy</code> call (0.02 ms/level, confirmed) but not the per-level
+    containment tests. The honest numbers:</p>
+    <table>
+      <thead><tr><th>operation</th><th>ms/slice</th><th>note</th></tr></thead>
+      <tbody>
+        <tr><td>contourpy — one level (lines only)</td><td>0.023</td><td>matches the plan's per-level figure</td></tr>
+        <tr><td><strong>full LCFS push</strong> (NEW primary)</td><td><strong>5.5</strong></td><td>~25 traces + containment tests, after vectorising point-in-polygon (was 51 ms before)</td></tr>
+        <tr><td>find_critical_points</td><td>4.2</td><td>emergent X-point step (only when a class/X diagnostic is wanted)</td></tr>
+        <tr><td>lcfs_radii outward ray-cast (OLD)</td><td>8.1</td><td>removed — radii now read off the ring polygon (~µs)</td></tr>
+        <tr><td>OLD chain (crit + ray-cast)</td><td>12.3</td><td>the read this replaces</td></tr>
+        <tr><td>NEW LCFS-only push</td><td>5.5</td><td><strong>2.2× faster</strong> than the old chain</td></tr>
+        <tr><td>NEW + emergent X (push + crit + prox)</td><td>9.7</td><td>faster than the old chain AND yields the class</td></tr>
+      </tbody>
+    </table>
+    <p>So the read <em>is</em> faster than the one it replaces (2.2× for the primary LCFS shape; ~1.3× for
+    the full read that also emits the class), just not the plan's fantastical 10×. The decisive perf lever
+    was vectorising <code>_inside_polygon</code> — the dense contourpy rings were being tested against the
+    limiter with a Python per-vertex loop tens of times per slice.</p>
+
+    <h2>Decisions honoured</h2>
+    <ul>
+      <li><code>contour-library = contourpy</code> — used via a persistent
+      <code>contour_generator</code> (SeparateCode); ported nova's <code>closedlevelset</code> closed-ring
+      logic and vectorised the point-in-polygon containment test in-tree (no numba dep).</li>
+      <li><code>xpoint-role = emergent-only</code> — the LCFS shape is the scored deliverable; the X-point
+      set + limited/diverted class are read off by proximity to the already-found ring, reported (not
+      optimised) against EFIT. The 5 cm margin is a fixed physical value, not tuned on eval.</li>
+      <li><code>read-location = shared-topology</code> — implemented in
+      <code>imas_ambix/latent/topology.py</code> so all arms can adopt one boundary read; the gate calls
+      it.</li>
+    </ul>
+
+    <h2>Scope guard (§7) — held</h2>
+    <p>The read is one flux-offset push + one axis-enclosing ring test + one inside-limiter test. No
+    discrete limited/diverted classifier as a code switch; no wall-contact / ψ-extrema-on-limiter chasing;
+    no per-surface X-point↔limiter matching; no tuned distance cap. Far-field garbage is excluded by the
+    enclose-the-axis test (unit-tested with NO cap); the masked interior is a deep plateau that produces no
+    contour in the outward sweep (unit-tested). The limited/diverted class and X-points are emergent
+    diagnostics only.</p>
+
+    <h2>Honest caveats / what did NOT change</h2>
+    <ul>
+      <li><strong>Skill is still negative</strong> — the read loses to the persistence baseline in
+      absolute terms (as every arm does at n=160); the win is relative to the prior harmonic read, which
+      it clears decisively on both LCFS and the emergent X-set.</li>
+      <li><strong>Axis skill unchanged</strong> (−1.582) — the origin is still the current centroid; this
+      plan changed the boundary read, not the axis.</li>
+      <li><strong>Perf claim corrected</strong> — 5.5 ms, not 0.34 ms; still faster than the old read.</li>
+      <li><strong>imas-efit applicability</strong> (§5b) remains a candidate simplification to flag, not
+      assumed — EFIT has a globally-valid ψ (no garbage annulus) and needs the X-point for
+      strike-point outputs, so its version would be a careful boundary-logic proposal, not a drop-in port.</li>
+    </ul>
+
+    <h2>Artifacts</h2>
+    <ul>
+      <li>Code: <code>imas_ambix/latent/topology.py</code> (lcfs_contour, emergent_xpoints, vectorised
+      _inside_polygon), <code>scripts/boundary_harmonic_gate_eval.py</code>,
+      <code>scripts/profile_boundary_read.py</code>,
+      <code>scripts/figures_connectivity_boundary.py</code> — commits
+      <code>a1a667f</code>, <code>ea1f64d</code>, <code>7c8c8ed</code>, <code>1af19ca</code>.</li>
+      <li>Tests: <code>tests/latent/test_topology.py</code> (4 new scenarios) — all green.</li>
+      <li>Held-out result:
+      <code>imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-o3-centroidorigin-frac0.41.json</code>.</li>
+      <li>Figures: <code>docs/figures/connectivity-boundary-classification/{flux-surfaces-across-phases,
+      scoring-and-timing}.png</code>.</li>
+    </ul>
+  </main>
+</body>
+</html>

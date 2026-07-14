@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-14">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-impl" content="1.0">
 </head>
 <body>
@@ -436,7 +436,7 @@ Guardrails
   Stay on main; EFIT firewalled (referee scores only); coil couplings thick-cylinder; pole/origin
   machine-agnostic (fractions, never fixed metres); no AI trailers.</pre>
     </article>
-<article class="r-fu" data-id="f-thar-connectivity-ptr" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-14T18:50:00+00:00" data-recommends-skill="/reckon-ship connectivity-boundary-classification" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-thar-connectivity-ptr" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-14T18:50:00+00:00" data-recommends-skill="/reckon-ship connectivity-boundary-classification" data-resolved-at="2026-07-14T21:07:41+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Adopt the connectivity boundary read once it lands (limited/diverted + ramp-up)</h4>
     <div class="r-fu-body"><p>The limited-vs-diverted classification and the ramp-up limited-plasma boundary are being solved structurally in <a href="/imas-ambix/connectivity-boundary-classification.html">connectivity-boundary-classification</a> (level-set connectivity; stationary points first, boundary by axis-enclosure; no tuned cap). When that lands and wins held-out, swap it into this gate's <code>hybrid_target_harmonic</code> in place of the current innermost-X-point + limiter-fallback read, and re-score. The axis/Shafranov recovery (<code>f-thar-xpt-shafranov</code>) remains this plan's separate concern.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -462,6 +462,7 @@ Done-when
 
 Guardrails
   Stay on main; EFIT firewalled; coil couplings thick-cylinder; machine-agnostic pole/origin; no AI trailers.</pre>
+    <p class="r-fu-outcome">Adopted. connectivity-boundary-classification landed (LCFS by outermost closed axis-enclosing flux contour; topology.py::lcfs_contour + emergent_xpoints) and was swapped into THIS gate's hybrid_target_harmonic in place of the innermost-X-point + limiter-fallback + ray-cast block. Re-scored held-out (n=160, firewalled EFIT, 2000-boot CIs), centroid origin o3: X-point-set -4.54 -> -1.797, LCFS -2.48-class -> -1.958, offset 6.7 cm; emergent limited/diverted diagnostic 0.40 all / 0.625 flat-top (MAST ramps up limited, diverts as it grows). Single code path, no tuned cap (§7 held). Figures regenerated (flux surfaces across breakdown->termination + skill/timing). See connectivity-boundary-classification (shipped) + its archive. The axis/Shafranov recovery (f-thar-xpt-shafranov) remains this plan's separate open concern.</p>
     </article>
 </section>
   </main>
