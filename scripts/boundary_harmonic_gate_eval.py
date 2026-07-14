@@ -257,7 +257,7 @@ def hybrid_target_harmonic(psi_tot, grid, axis, pole, mask_radius, exclude_radiu
             target[2 + 2 * slot] = cp.x_points[order[slot], 0]
             target[3 + 2 * slot] = cp.x_points[order[slot], 1]
     target[6:] = lcfs_radii(field, grid.rg, grid.zg, tuple(axis), boundary_psi)
-    return target, float(axis_psi), float(boundary_psi)
+    return target, float(axis_psi), float(boundary_psi), field
 
 
 def _resolve_pole(shots, args) -> tuple[float, float]:
@@ -301,7 +301,7 @@ def score_order(shots, patch_psis, order, pole, split, args) -> dict:
                 axis, _ = _sign_aware_axis(patch_psis[si][k], grid)
             else:  # "harmonic" -- the field's own numerical O-point (ablation)
                 axis, _ = _sign_aware_axis(psi_tot, grid)
-            target, axis_psi, boundary_psi = hybrid_target_harmonic(
+            target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
                 psi_tot,
                 grid,
                 axis,
@@ -313,7 +313,11 @@ def score_order(shots, patch_psis, order, pole, split, args) -> dict:
             ref_rows.append(payload["refs"][k])
             flattop_flags.append(k == flattop_idx)
             shot_rows.append(int(p.shot))
-            saddles.append(count_saddles(psi_tot, grid))
+            # saddle count on the ANNULUS-MASKED field: the near-pole blow-up
+            # saddles are numerical artifacts of the invalid interior, not
+            # physical nulls; counting them would inflate the saddle-excess
+            # metric relative to the other (globally-valid-psi) arms.
+            saddles.append(count_saddles(field, grid))
             misfits.append(misfit)
             if patch_psis is not None:
                 consistencies.append(
