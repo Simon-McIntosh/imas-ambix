@@ -171,7 +171,7 @@ def annulus_consistency_rms(
 
 
 def hybrid_target_harmonic(
-    psi_tot, grid, axis, pole, mask_radius, exclude_radius, annulus_cap_frac=3.5
+    psi_tot, grid, axis, pole, mask_radius, exclude_radius, annulus_cap_frac=4.0
 ):
     """14-D geometry target read in the ANNULUS from the masked TOTAL psi.
 
@@ -348,7 +348,7 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
                 origin, pole = _origin_and_pole(origin, grid, args, fraction)
                 mask_r, excl_r = _adaptive_radii(origin, pole, args)
             target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
-                psi_tot, grid, origin, pole, mask_r, excl_r
+                psi_tot, grid, origin, pole, mask_r, excl_r, args.annulus_cap_frac
             )
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
@@ -391,6 +391,7 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
         "pole_inboard_fraction": fraction,
         "mask_frac": args.mask_frac,
         "exclude_frac": args.exclude_frac,
+        "annulus_cap_frac": args.annulus_cap_frac,
         "ip_anchor": args.ip_anchor,
         "split": split,
         "n_scored": int(len(model)),
@@ -512,6 +513,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=1.1,
         help="drop harmonic critical points within this fraction of the pole-to-"
         "origin distance from the pole (residual near-pole artifacts)",
+    )
+    ap.add_argument(
+        "--annulus-cap-frac",
+        type=float,
+        default=4.0,
+        help="plasma-extent cap (multiple of the pole-to-origin distance) on the "
+        "X-point + limiter-tangency candidate search: beyond it the harmonic field "
+        "is ill-posed extrapolation (divertor / far-field). Tuned leakage-free on "
+        "train (4.0; sweep with several runs of --annulus-cap-frac)",
     )
     ap.add_argument(
         "--mask-radius", type=float, default=0.25, help="absolute mask [m] (fixed-pole)"
