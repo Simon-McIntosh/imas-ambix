@@ -45,6 +45,7 @@ from imas_ambix.worldmodel.equilibrium_labels import (
     N_XPOINT_SLOTS,
     TARGET_DIM,
     TARGET_NAMES,
+    resample_lcfs_radii,
 )
 
 # Region codes returned by :func:`classify_regions`.
@@ -421,6 +422,236 @@ def lcfs_radii(
     return out
 
 
+# --- LCFS by outermost closed axis-enclosing contour -----------------------
+
+
+@dataclass
+class LcfsContour:
+    """The last-closed-flux-surface read as a continuous boundary SHAPE.
+
+    The boundary is the OUTERMOST closed flux contour that encloses the axis and
+    still lies entirely inside the limiter — found by one monotone flux-offset
+    push, with no limited/diverted branch, no X-point gate, and no distance cap
+    (locked design in the ``connectivity-boundary-classification`` plan).  The
+    stationary points and the limited/diverted class are read off AFTERWARD, by
+    proximity to this ring (:func:`emergent_xpoints`).
+    """
+
+    found: bool
+    ring: np.ndarray  # (N, 2) (R, Z) closed boundary polygon (empty if not found)
+    psi_bnd: float  # flux at the outermost closed in-limiter ring (the separatrix/wall)
+    psi_lcfs: float  # the 99.9%-normalised flux the reported ring sits on
+    radii: np.ndarray  # (len(angles),) LCFS radii about the axis [m]
+
+
+_CLOSEPOLY = 79  # contourpy SeparateCode end-of-closed-polygon marker
+
+
+def _axis_enclosing_ring(
+    gen,
+    level: float,
+    axis: tuple[float, float],
+    *,
+    min_points: int = 6,
+) -> np.ndarray | None:
+    """The largest CLOSED contour at ``level`` whose interior contains the axis.
+
+    Uses a persistent contourpy generator (``line_type='SeparateCode'``): a ring
+    is closed iff its code array ends with ``CLOSEPOLY`` and it has enough
+    vertices to be a real surface (nova's ``Surface.closed`` guard).  Among the
+    closed rings that enclose the axis the largest-area one is returned — the
+    confined-region boundary — so a nested interior ring never shadows it.
+    """
+    ar = np.array([axis[0]], dtype=np.float64)
+    az = np.array([axis[1]], dtype=np.float64)
+    best: np.ndarray | None = None
+    best_area = -1.0
+    points_list, codes_list = gen.lines(float(level))
+    for points, code in zip(points_list, codes_list, strict=True):
+        if points.shape[0] < min_points or code[-1] != _CLOSEPOLY:
+            continue
+        if not _inside_polygon(ar, az, points[:, 0], points[:, 1])[0]:
+            continue
+        # shoelace area (unsigned) — pick the outermost axis-enclosing ring
+        x, y = points[:, 0], points[:, 1]
+        area = 0.5 * abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
+        if area > best_area:
+            best_area = area
+            best = points
+    return best
+
+
+def lcfs_contour(
+    psi: np.ndarray,
+    r_1d: np.ndarray,
+    z_1d: np.ndarray,
+    axis: tuple[float, float],
+    *,
+    limiter_r: np.ndarray | None = None,
+    limiter_z: np.ndarray | None = None,
+    angles: np.ndarray = LCFS_ANGLES,
+    lcfs_norm: float = 0.999,
+    n_coarse: int = 6,
+    n_bisect: int = 18,
+) -> LcfsContour:
+    """LCFS = the outermost closed axis-enclosing flux contour inside the limiter.
+
+    One monotone flux-offset push (the ``connectivity-boundary-classification``
+    §3 algorithm).  Starting from the axis flux, the level is swept OUTWARD
+    (toward the domain-edge extreme); at each level the closed contour that
+    encloses the axis is traced (:func:`_axis_enclosing_ring`).  The predicate
+    "a closed axis-enclosing ring exists AND lies entirely inside the limiter" is
+    monotone — true near the axis, false once the ring pinches at an X-point
+    (diverted: level set opens along the legs) or pokes through the wall
+    (limited).  A coarse scan brackets the true/false transition, then a
+    bisection converges the largest-valid level — the separatrix/wall flux.
+
+    The reported ring sits at the 99.9% normalised flux
+    ``ψ_lcfs = ψ_axis + lcfs_norm·(ψ_bnd − ψ_axis)`` (nova's convention) — a hair
+    inside the exact separatrix, avoiding the X-point cusp / zero poloidal field.
+    The 8 radii are read straight off that polygon with the SAME angle-interp the
+    evaluator uses to build its EFIT LCFS labels
+    (:func:`imas_ambix.worldmodel.equilibrium_labels.resample_lcfs_radii`) — no
+    outward ray-march.
+
+    Handles both topologies with ONE code path and no distance cap: far-field
+    garbage is a separate contour ring (fails the enclose-the-axis test) and the
+    masked near-pole interior is a deep plateau that never produces a contour in
+    the outward sweep, so an interior null can never be selected.
+    """
+    import contourpy  # noqa: PLC0415 — matplotlib's engine, already a transitive dep
+
+    psi = np.asarray(psi, dtype=np.float64)
+    r_1d = np.asarray(r_1d, dtype=np.float64)
+    z_1d = np.asarray(z_1d, dtype=np.float64)
+    ang = np.asarray(angles, dtype=np.float64)
+    nan = LcfsContour(
+        found=False,
+        ring=np.zeros((0, 2)),
+        psi_bnd=float("nan"),
+        psi_lcfs=float("nan"),
+        radii=np.full(ang.shape, np.nan),
+    )
+
+    psi_axis = _bilerp(psi, r_1d, z_1d, float(axis[0]), float(axis[1]))
+    if not np.isfinite(psi_axis):
+        return nan
+
+    # Outward reference: the domain-edge flux furthest from the axis flux — the
+    # boundary side (the masked interior plateau is the deep CONFINED extreme, so
+    # the far reference is always on the boundary side, giving a signed span that
+    # brackets past the true separatrix and the limiter-contact flux alike).
+    edge = np.concatenate([psi[0, :], psi[-1, :], psi[:, 0], psi[:, -1]])
+    edge = edge[np.isfinite(edge)]
+    if edge.size == 0:
+        return nan
+    psi_out = float(edge[int(np.argmax(np.abs(edge - psi_axis)))])
+    if psi_out == psi_axis:
+        return nan
+
+    gen = contourpy.contour_generator(
+        r_1d, z_1d, psi, line_type="SeparateCode", quad_as_tri=True
+    )
+    lim_r = None if limiter_r is None else np.asarray(limiter_r, dtype=np.float64)
+    lim_z = None if limiter_z is None else np.asarray(limiter_z, dtype=np.float64)
+
+    def _level(s: float) -> float:
+        return psi_axis + s * (psi_out - psi_axis)
+
+    def _valid_ring(s: float) -> np.ndarray | None:
+        ring = _axis_enclosing_ring(gen, _level(s), axis)
+        if ring is None:
+            return None
+        if lim_r is not None and lim_z is not None:
+            if not _inside_polygon(ring[:, 0], ring[:, 1], lim_r, lim_z).all():
+                return None
+        return ring
+
+    # Bracket the monotone valid→invalid transition.  The valid band [0, s*] can
+    # be arbitrarily small (a tight limiter, a small plasma), so find a valid
+    # lower bracket by geometric backoff from mid-span rather than a fixed grid
+    # (a fixed coarse grid misses a narrow valid band and reports no boundary).
+    hi = 1.0  # the edge-extreme level: ring spans the grid → outside any limiter
+    lo = 0.0
+    s = 0.5
+    found_lo = False
+    for _ in range(n_coarse + n_bisect):
+        if _valid_ring(s) is not None:
+            lo = s
+            found_lo = True
+            break
+        hi = s
+        s *= 0.5
+    if not found_lo:
+        return nan  # no closed axis-enclosing ring inside the limiter at any level
+
+    # Bisection: converge the largest valid level (the separatrix / wall flux).
+    for _ in range(n_bisect):
+        mid = 0.5 * (lo + hi)
+        if _valid_ring(mid) is not None:
+            lo = mid
+        else:
+            hi = mid
+    psi_bnd = _level(lo)
+
+    # Step a hair inside (99.9% convention) and read the reported ring + radii.
+    psi_lcfs = psi_axis + lcfs_norm * (psi_bnd - psi_axis)
+    ring = _axis_enclosing_ring(gen, psi_lcfs, axis)
+    if ring is None:
+        ring = _valid_ring(lo)  # fall back to the exact largest-valid ring
+    if ring is None:
+        return nan
+    radii = resample_lcfs_radii(
+        ring[:, 0], ring[:, 1], float(axis[0]), float(axis[1]), ang
+    )
+    return LcfsContour(
+        found=True,
+        ring=ring,
+        psi_bnd=float(psi_bnd),
+        psi_lcfs=float(psi_lcfs),
+        radii=radii,
+    )
+
+
+def emergent_xpoints(
+    x_points: np.ndarray,
+    ring: np.ndarray,
+    *,
+    tol: float,
+    max_slots: int = N_XPOINT_SLOTS,
+) -> tuple[np.ndarray, bool]:
+    """The limited/diverted class + X-point slots, read AFTER the boundary.
+
+    Given the already-found LCFS ``ring`` and candidate saddles ``x_points``
+    ((K, 2) (R, Z)), an X-point lying within ``tol`` [m] of the ring is ON the
+    boundary ⇒ the plasma is DIVERTED and that X-point is reported; otherwise
+    the ring sits on the wall ⇒ LIMITED and the X-slots are NaN.  The tolerance
+    is a SOFT margin, so near the limited↔diverted transition (where the saddle
+    sits a hair off the ring) the class is genuinely undefined rather than
+    forced — never a code-path switch.  Returns ``(xset (max_slots, 2) NaN-
+    padded, is_diverted)``.
+    """
+    out = np.full((max_slots, 2), np.nan, dtype=np.float64)
+    x_points = np.asarray(x_points, dtype=np.float64).reshape(-1, 2)
+    if x_points.shape[0] == 0 or ring.shape[0] == 0:
+        return out, False
+    # distance of each candidate saddle to the ring polygon (nearest vertex —
+    # the ring is densely sampled by contourpy, so vertex distance ≈ edge dist).
+    d = np.hypot(
+        x_points[:, None, 0] - ring[None, :, 0],
+        x_points[:, None, 1] - ring[None, :, 1],
+    ).min(axis=1)
+    on_ring = d <= tol
+    if not on_ring.any():
+        return out, False  # no boundary X-point → limited
+    near = x_points[on_ring]
+    order = np.argsort(d[on_ring])  # closest to the ring first
+    near = near[order]
+    n = min(max_slots, near.shape[0])
+    out[:n] = near[:n]
+    return out, True
+
+
 # --- public/private via connectivity --------------------------------------
 
 
@@ -639,6 +870,9 @@ __all__ = [
     "REGION_PRIVATE",
     "CriticalPoints",
     "TopologyReadout",
+    "LcfsContour",
+    "lcfs_contour",
+    "emergent_xpoints",
     "find_critical_points",
     "filter_critical_points",
     "exclude_near_points",

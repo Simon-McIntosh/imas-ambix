@@ -156,3 +156,109 @@ def test_magnetic_axis_returns_none_when_no_o_point_inside_limiter():
     lim_z = np.array([-0.3, -0.3, 0.3, 0.3])
     axis = topo.magnetic_axis(psi, r_1d, z_1d, limiter_r=lim_r, limiter_z=lim_z)
     assert axis is None
+
+
+# --- LCFS by outermost closed axis-enclosing contour (connectivity read) ----
+
+
+def _circle_polygon(r0, z0, rad, n=200):
+    """A closed circular polygon (limiter / boundary reference)."""
+    t = np.linspace(0.0, 2.0 * np.pi, n, endpoint=False)
+    return r0 + rad * np.cos(t), z0 + rad * np.sin(t)
+
+
+def test_lcfs_contour_limited_ring_on_wall_xslots_empty():
+    """A circular well with NO saddle: the outermost closed axis-enclosing ring
+    stops at the limiter (the wall), the 8 radii equal the limiter radius, and
+    with no X-point the emergent read is LIMITED (X-slots NaN)."""
+    r_1d, z_1d, RR, ZZ = _grid(nr=201, nz=201, r=(0.3, 1.7), z=(-1.0, 1.0))
+    r0, rb = 1.0, 0.4
+    psi = (RR - r0) ** 2 + ZZ**2  # minimum (axis) at (r0, 0)
+    lim_r, lim_z = _circle_polygon(r0, 0.0, rb)
+    out = topo.lcfs_contour(
+        psi, r_1d, z_1d, (r0, 0.0), limiter_r=lim_r, limiter_z=lim_z
+    )
+    assert out.found
+    # ring rides the wall: every fixed-angle radius ≈ the limiter radius
+    np.testing.assert_allclose(out.radii, rb, atol=0.03)
+    # no saddle anywhere → limited, X-slots empty
+    cp = topo.find_critical_points(psi, r_1d, z_1d)
+    xset, diverted = topo.emergent_xpoints(cp.x_points, out.ring, tol=0.05)
+    assert not diverted
+    assert np.isnan(xset).all()
+
+
+def test_lcfs_contour_diverted_ring_pinches_at_xpoint():
+    """A biased double-well (one deep O = axis, a saddle just below it): the
+    outermost closed axis-enclosing ring pinches at the X-point (the level set
+    opens along the 'legs' past it), so the emergent read reports DIVERTED and
+    the X-point sits ON the ring."""
+    r_1d, z_1d, RR, ZZ = _grid(nr=241, nz=241, r=(0.3, 1.7), z=(-1.0, 1.0))
+    r0, s = 1.0, 0.32
+    x = (RR - r0) / s
+    y = ZZ / s
+    # wells at Z=±s, saddle at Z≈0; the -g·y bias deepens the UPPER well (axis)
+    psi = (y**2 - 1.0) ** 2 + x**2 - 0.5 * y
+    cp = topo.find_critical_points(psi, r_1d, z_1d)
+    # the deepest (most negative) O-point is the axis; the true saddle is the X
+    axis = tuple(cp.o_points[int(np.argmin(cp.o_psi))])
+    assert cp.x_points.shape[0] == 1
+    x_true = cp.x_points[0]
+    # limiter hugs the confined region: past the separatrix the level set opens
+    # toward the second (divertor-side) well, which lies OUTSIDE this wall — so
+    # the outermost closed in-limiter ring is the separatrix (the real-plasma
+    # mechanism: the divertor legs exit the vessel).
+    lim_r, lim_z = _circle_polygon(axis[0], axis[1], 0.45)
+    out = topo.lcfs_contour(psi, r_1d, z_1d, axis, limiter_r=lim_r, limiter_z=lim_z)
+    assert out.found
+    # the X-point lies on the found ring (within a few cm) → diverted
+    d_ring = np.hypot(out.ring[:, 0] - x_true[0], out.ring[:, 1] - x_true[1]).min()
+    assert d_ring < 0.05, f"X-point not on the ring: min dist {d_ring:.3f} m"
+    xset, diverted = topo.emergent_xpoints(cp.x_points, out.ring, tol=0.05)
+    assert diverted
+    np.testing.assert_allclose(xset[0], x_true, atol=0.05)
+
+
+def test_lcfs_contour_far_field_feature_excluded_no_distance_cap():
+    """A spurious far-field feature at |Z|≈0.85 (its own closed contour, NOT
+    enclosing the axis) must not perturb the LCFS — it is excluded by the
+    enclose-the-axis test with NO tuned distance cap."""
+    r_1d, z_1d, RR, ZZ = _grid(nr=241, nz=241, r=(0.3, 1.7), z=(-1.0, 1.0))
+    r0, rb = 1.0, 0.35
+    psi = (RR - r0) ** 2 + ZZ**2
+    # a deep, tight spurious dimple far from the axis (a separate closed ring)
+    psi = psi - 3.0 * np.exp(-(((RR - r0) / 0.05) ** 2 + ((ZZ - 0.85) / 0.05) ** 2))
+    lim_r, lim_z = _circle_polygon(r0, 0.0, rb)  # limiter excludes the far feature
+    out = topo.lcfs_contour(
+        psi, r_1d, z_1d, (r0, 0.0), limiter_r=lim_r, limiter_z=lim_z
+    )
+    assert out.found
+    # LCFS is still the near circular boundary at the wall — the far dimple, a
+    # separate non-axis-enclosing ring, changed nothing.
+    np.testing.assert_allclose(out.radii, rb, atol=0.04)
+
+
+def test_lcfs_contour_masked_interior_null_never_selected():
+    """An interior null inside the masked near-pole disk must never be selected:
+    mask_invalid_interior fills the disk with a deep plateau that produces no
+    contour in the outward sweep, so the LCFS is the true annulus boundary."""
+    from imas_ambix.latent.boundary_harmonic import mask_invalid_interior
+
+    r_1d, z_1d, RR, ZZ = _grid(nr=241, nz=241, r=(0.3, 1.7), z=(-1.0, 1.0))
+    r0, rb = 0.9, 0.42
+    axis = (r0, 0.0)
+    pole_r = 0.62  # inboard of the axis, comfortably inside the limiter
+    psi = (RR - r0) ** 2 + ZZ**2
+    # a spurious tight interior dimple AT the pole that, unmasked, manufactures
+    # an extra interior null; the mask disk fully contains it.
+    psi = psi - 2.0 * np.exp(-(((RR - pole_r) / 0.03) ** 2 + (ZZ / 0.03) ** 2))
+    # unmasked, the dimple adds an interior O-point (the artifact the mask kills)
+    assert topo.find_critical_points(psi, r_1d, z_1d).o_points.shape[0] >= 2
+    field = mask_invalid_interior(psi, r_1d, z_1d, pole_r, 0.0, 0.10, axis_rz=axis)
+    lim_r, lim_z = _circle_polygon(r0, 0.0, rb)  # limiter contains the plateau disk
+    out = topo.lcfs_contour(field, r_1d, z_1d, axis, limiter_r=lim_r, limiter_z=lim_z)
+    assert out.found
+    # the boundary rides the wall (encloses the masked pole region), NOT a tiny
+    # interior ring around the spurious null.
+    np.testing.assert_allclose(out.radii, rb, atol=0.05)
+    assert np.nanmin(out.radii) > 0.3  # no collapse onto the interior null

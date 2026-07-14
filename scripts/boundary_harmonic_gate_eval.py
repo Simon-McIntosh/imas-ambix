@@ -90,13 +90,12 @@ from imas_ambix.latent.boundary_harmonic import (
 )
 from imas_ambix.latent.boundary_moment import MomentFitConfig, fit_moment_currents
 from imas_ambix.latent.topology import (
-    CriticalPoints,
     _bilerp,
     _inside_polygon,
-    boundary_flux_robust,
+    emergent_xpoints,
     exclude_near_points,
     find_critical_points,
-    lcfs_radii,
+    lcfs_contour,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -170,30 +169,42 @@ def annulus_consistency_rms(
 # --- hybrid topology read ---------------------------------------------------
 
 
-def hybrid_target_harmonic(psi_tot, grid, axis, pole, mask_radius, exclude_radius):
-    """14-D geometry target read in the ANNULUS from the masked TOTAL psi.
+def hybrid_target_harmonic(
+    psi_tot, grid, axis, pole, mask_radius, exclude_radius, *, xpoint_tol=0.05
+):
+    """14-D geometry target: LCFS SHAPE by the outermost closed axis-enclosing
+    flux contour; X-points + limited/diverted class emergent.
 
     The toroidal harmonics are valid ONLY in the source-free annulus; toward the
     pole the ring functions diverge, so the near-pole interior is masked to a
-    confined plateau (:func:`mask_invalid_interior`) and every boundary read runs
-    on that masked field:
+    confined plateau (:func:`mask_invalid_interior`) and the read runs on that
+    masked field:
 
     * the AXIS (``target[0:2]``) is the supplied origin (the interior estimate);
     * the confined-side flux reference ``axis_psi`` is the masked field bilinearly
       interpolated AT the origin (NOT the field's own extremum);
-    * critical points within ``exclude_radius`` of the pole are dropped, then
-      filtered to the in-limiter, conductor-clear set;
-    * the bounding flux is the robust innermost in-vessel X-point flux (limiter-
-      contact fallback for a limited plasma);
-    * the X-point set + 8-angle LCFS ray-cast run on the masked field.
+    * **PRIMARY — the LCFS shape** (:func:`imas_ambix.latent.topology.lcfs_contour`):
+      one monotone flux-offset push outward from the axis keeps the OUTERMOST
+      closed axis-enclosing ring that lies inside the limiter (contourpy).  The 8
+      radii (``target[6:]``) are read straight off that ring polygon with the
+      evaluator's own angle-interp — no outward ray-march.  ONE code path handles
+      both topologies (a diverted ring pinches at the X-point; a limited ring
+      rides the wall), with NO X-point gate, NO limited/diverted branch, and NO
+      distance cap (far-field garbage is a separate ring, excluded by the
+      enclose-the-axis test; the masked interior is a deep plateau that never
+      produces a contour in the outward sweep).
+    * **EMERGENT (diagnostic) — X-points + class**
+      (:func:`imas_ambix.latent.topology.emergent_xpoints`): AFTER the boundary is
+      known, the ∇ψ=0 saddles are found, near-pole artifacts dropped, filtered to
+      the in-limiter conductor-clear set, and the class + X-slots (``target[2:6]``)
+      read off by proximity to the LCFS ring.  An X-point within ``xpoint_tol`` of
+      the ring ⇒ diverted (report it); else limited (X-slots NaN).  Soft margin —
+      the class is genuinely undefined near the limited↔diverted transition, never
+      a code-path switch.  The LCFS shape is the scored deliverable; the X-point
+      set is emergent/secondary (reported, not optimised against EFIT's flag).
 
-    NOTE (interim): the limited-vs-diverted classification is INTENTIONALLY NOT
-    done here.  An RCA showed MAST ramps up limited, and a flux-comparison /
-    geometric-annulus-cap attempt at classifying it did NOT generalise (train
-    X-point-set skill -0.23 -> held-out -5.92: the cap severely overfit).  The
-    principled replacement is the level-set CONNECTIVITY read tracked in the
-    ``connectivity-boundary-classification`` plan; until it lands, this keeps the
-    best-held-out behaviour (X-point-set -4.54, LCFS -2.48).
+    Returns ``(target, axis_psi, boundary_psi, field, diverted)`` — ``diverted``
+    is the emergent per-slice class diagnostic (``None`` if no boundary found).
     """
     pole_r, pole_z = pole
     field = mask_invalid_interior(
@@ -203,28 +214,32 @@ def hybrid_target_harmonic(psi_tot, grid, axis, pole, mask_radius, exclude_radiu
     target[0], target[1] = axis
     axis_psi = _bilerp(field, grid.rg, grid.zg, float(axis[0]), float(axis[1]))
 
-    cp = find_critical_points(field, grid.rg, grid.zg)
-    cp = exclude_near_points(cp, np.array([[pole_r, pole_z]]), exclude_radius)
-    if cp.x_points.shape[0]:
-        ins = _inside_polygon(
-            cp.x_points[:, 0], cp.x_points[:, 1], grid.limiter_r, grid.limiter_z
-        ) & grid.clear_of_conductors(cp.x_points[:, 0], cp.x_points[:, 1])
-        cp = CriticalPoints(cp.o_points, cp.o_psi, cp.x_points[ins], cp.x_psi[ins])
-
-    boundary_psi = boundary_flux_robust(
-        cp, tuple(axis), axis_psi, limiter_r=grid.limiter_r, limiter_z=grid.limiter_z
+    # PRIMARY: the continuous LCFS shape (one push, no branch, no cap).
+    lcfs = lcfs_contour(
+        field,
+        grid.rg,
+        grid.zg,
+        tuple(axis),
+        limiter_r=grid.limiter_r,
+        limiter_z=grid.limiter_z,
     )
-    if boundary_psi is None:  # limited plasma: limiter-contact flux nearest axis
-        lim_vals = field.ravel()[grid._limiter_grid_idx]
-        boundary_psi = float(lim_vals[int(np.argmin(np.abs(lim_vals - axis_psi)))])
+    boundary_psi = lcfs.psi_bnd
+    target[6:] = lcfs.radii
 
-    if cp.x_points.shape[0]:
-        order = np.argsort(np.abs(cp.x_psi - boundary_psi))
-        for slot in range(min(2, cp.x_points.shape[0])):
-            target[2 + 2 * slot] = cp.x_points[order[slot], 0]
-            target[3 + 2 * slot] = cp.x_points[order[slot], 1]
-    target[6:] = lcfs_radii(field, grid.rg, grid.zg, tuple(axis), boundary_psi)
-    return target, float(axis_psi), float(boundary_psi), field
+    # EMERGENT: X-points + limited/diverted class, read AFTER the boundary.
+    diverted: bool | None = None
+    if lcfs.found:
+        cp = find_critical_points(field, grid.rg, grid.zg)
+        cp = exclude_near_points(cp, np.array([[pole_r, pole_z]]), exclude_radius)
+        xpts = cp.x_points
+        if xpts.shape[0]:
+            ins = _inside_polygon(
+                xpts[:, 0], xpts[:, 1], grid.limiter_r, grid.limiter_z
+            ) & grid.clear_of_conductors(xpts[:, 0], xpts[:, 1])
+            xpts = xpts[ins]
+        xset, diverted = emergent_xpoints(xpts, lcfs.ring, tol=xpoint_tol)
+        target[2:6] = xset.reshape(-1)
+    return target, float(axis_psi), float(boundary_psi), field, diverted
 
 
 def _origin_and_pole(axis, grid, args, fraction) -> tuple[tuple, tuple]:
@@ -262,7 +277,7 @@ def _adaptive_radii(origin, pole, args) -> tuple[float, float]:
 def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
     """Fit + score one (order, ridge, fraction) over the cohort; per-slice pole."""
     model_rows, ref_rows, flattop_flags, shot_rows = [], [], [], []
-    saddles, misfits, consistencies = [], [], []
+    saddles, misfits, consistencies, diverted_flags = [], [], [], []
     t0 = time.perf_counter()
     for si, payload in enumerate(shots):
         grid, basis, table = payload["grid"], payload["basis"], payload["table"]
@@ -313,9 +328,10 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
                 origin, _ = _sign_aware_axis(psi_tot, grid)
                 origin, pole = _origin_and_pole(origin, grid, args, fraction)
                 mask_r, excl_r = _adaptive_radii(origin, pole, args)
-            target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
-                psi_tot, grid, origin, pole, mask_r, excl_r
+            target, axis_psi, boundary_psi, field, diverted = hybrid_target_harmonic(
+                psi_tot, grid, origin, pole, mask_r, excl_r, xpoint_tol=args.xpoint_tol
             )
+            diverted_flags.append(diverted)
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
             flattop_flags.append(k == flattop_idx)
@@ -347,6 +363,17 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
     per_slice_median = np.nanmedian(offset_cm, axis=1)
     ft = per_slice_median[flattop_mask]
     cons = [c for c in consistencies if c is not None]
+    # emergent limited/diverted class diagnostic (reported, NOT a tuned objective):
+    # the fraction of slices the boundary read finds an X-point ON the LCFS ring.
+    div = np.array([bool(d) for d in diverted_flags if d is not None], dtype=bool)
+    div_ft = np.array(
+        [
+            bool(d)
+            for d, f in zip(diverted_flags, flattop_flags, strict=True)
+            if d is not None and f
+        ],
+        dtype=bool,
+    )
     result = {
         "arm": f"toroidal-harmonic-{args.origin_source}origin",
         "order": order,
@@ -373,6 +400,10 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
         "misfit_median": float(np.median(misfits)) if misfits else None,
         "consistency_rms_annulus": float(np.median(cons)) if cons else None,
         "consistency_rms_annulus_mean": float(np.mean(cons)) if cons else None,
+        "xpoint_tol": args.xpoint_tol,
+        "diverted_fraction_all": float(div.mean()) if div.size else None,
+        "diverted_fraction_flattop": float(div_ft.mean()) if div_ft.size else None,
+        "n_boundary_found": int(div.size),
     }
 
     rtag = f"-r{ridge:g}" if ridge != 1e-8 else ""
@@ -391,8 +422,9 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
         saddles=np.asarray(saddles),
     )
     logger.info(
-        "[harmonic o=%d ridge=%g %s%s] n=%d axis_skill=%.3f xpt_skill=%s lcfs_skill=%.3f "
-        "lcfs_cm(all/ft)=%.1f/%s saddles_mean=%.2f consistency_rms=%s (%.1fs)",
+        "[harmonic o=%d ridge=%g %s%s] n=%d axis_skill=%.3f xpt_skill=%s "
+        "lcfs_skill=%.3f lcfs_cm(all/ft)=%.1f/%s diverted_frac(all/ft)=%s/%s "
+        "saddles_mean=%.2f consistency_rms=%s (%.1fs)",
         order,
         ridge,
         split,
@@ -403,6 +435,8 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
         sc["lcfs_skill"],
         result["lcfs_offset_median_cm_all"],
         result["lcfs_offset_median_cm_flattop"],
+        result["diverted_fraction_all"],
+        result["diverted_fraction_flattop"],
         result["saddles_mean"] if result["saddles_mean"] is not None else -1.0,
         result["consistency_rms_annulus"],
         dt,
@@ -492,6 +526,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--ip-anchor",
         action="store_true",
         help="add the poloidal-circulation Ip constraint to the harmonic fit",
+    )
+    ap.add_argument(
+        "--xpoint-tol",
+        type=float,
+        default=0.05,
+        help="EMERGENT-ONLY soft margin [m]: an X-point within this distance of "
+        "the LCFS ring is ON the boundary -> diverted (report it); else limited "
+        "(X-slots NaN). A soft read-off by proximity to the already-found "
+        "boundary; the class is undefined near the transition. NOT a scored "
+        "objective (LCFS shape is primary); tune on train, report on held-out.",
     )
     ap.add_argument("--device", default="auto")
     ap.add_argument("--nr", type=int, default=65)
