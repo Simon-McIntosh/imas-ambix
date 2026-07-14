@@ -173,6 +173,15 @@ def harmonic_labels(order: int) -> list[str]:
     return labels
 
 
+# Memoise the (mpmath-backed) column matrices by exact (points, config) key.
+# The pole is FIXED and the grid + sensor geometry are FIXED per campaign, so
+# every slice of a campaign asks for the SAME (r, z) arrays -- the gate and the
+# figure runs would otherwise pay the mpmath grid evaluation (~30 s) per slice.
+# This is pure caching (no new math); the ring-function values are unchanged.
+_COLUMN_CACHE: dict[tuple, tuple[np.ndarray, list[str]]] = {}
+_COLUMN_CACHE_MAX = 64
+
+
 def harmonic_columns(
     r: np.ndarray, z: np.ndarray, cfg: HarmonicFitConfig
 ) -> tuple[np.ndarray, list[str]]:
@@ -183,7 +192,35 @@ def harmonic_columns(
     per ``n = 1..order``.  Each column carries the sqrt(cosh eta - cos theta)
     prefactor times the order-1 half-integer Legendre radial function times the
     angular factor.
+
+    Results are memoised by the exact ``(r, z, cfg)`` key (see
+    :data:`_COLUMN_CACHE`) -- repeated identical point sets (the fixed grid /
+    sensor geometry across a campaign's slices) return instantly.
     """
+    r_arr = np.asarray(r, dtype=np.float64)
+    z_arr = np.asarray(z, dtype=np.float64)
+    key = (
+        r_arr.tobytes(),
+        z_arr.tobytes(),
+        r_arr.shape,
+        float(cfg.pole_r),
+        float(cfg.pole_z),
+        int(cfg.order),
+        cfg.kind,
+    )
+    hit = _COLUMN_CACHE.get(key)
+    if hit is not None:
+        return hit[0], list(hit[1])
+    m, labels = _harmonic_columns_uncached(r_arr, z_arr, cfg)
+    if len(_COLUMN_CACHE) >= _COLUMN_CACHE_MAX:
+        _COLUMN_CACHE.pop(next(iter(_COLUMN_CACHE)))  # FIFO evict
+    _COLUMN_CACHE[key] = (m, labels)
+    return m, list(labels)
+
+
+def _harmonic_columns_uncached(
+    r: np.ndarray, z: np.ndarray, cfg: HarmonicFitConfig
+) -> tuple[np.ndarray, list[str]]:
     r_arr = np.asarray(r, dtype=np.float64)
     cosh_eta, _, _, theta, cmc = toroidal_coords(r, z, cfg.pole_r, cfg.pole_z)
     # Total-flux convention: the order-1 toroidal harmonic is A_phi; the measured
