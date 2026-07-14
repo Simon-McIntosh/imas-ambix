@@ -15,13 +15,13 @@
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="plasma-current-priors-hardening">
-  <meta name="plan-blocks" content="equilibrium-topology-fidelity,equilibrium-boundary-closure">
+  <meta name="plan-blocks" content="connectivity-boundary-classification,equilibrium-topology-fidelity,equilibrium-boundary-closure">
   <meta name="plan-informs" content="machine-agnostic-latent-world-model">
   <title>Toroidal-Harmonic Annulus Read | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-14">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="10">
 <meta name="plan-impl" content="1.0">
 </head>
 <body>
@@ -397,7 +397,7 @@ Done-when
 Guardrails
   Stay on main; EFIT firewalled (referee scores only); coil couplings stay thick-cylinder; the
   pole stays machine-agnostic (fraction of axis R, never a fixed metre offset); no AI trailers.</pre>
-    <p class="r-fu-outcome">RCA done, interim fix reverted, superseded by a new plan. Root cause of the ramp-up failure: MAST ramps up LIMITED (EFIT nXpt=0, Ip 21-66%) but hybrid_target_harmonic forced a DIVERTED read (innermost X-point, never comparing the limiter tangency); the too-binding candidates came from OUTSIDE the plasma-extent annulus (divertor |Z|~1.7, far saddles |Z|~1.4) where the truncated harmonic fit is ill-posed extrapolation. A limited-vs-diverted comparison + geometric annulus-cap fixed it per-slice on shot 18502 but did NOT generalize held-out (train X-point-set -0.23 -> held-out -5.92; the cap severely overfits, no value transfers). Reverted the gate to the best-held-out boundary read (innermost X-point + limiter fallback; X-point-set -4.54, LCFS -2.48). The principled replacement is level-set CONNECTIVITY (find stationary points from grad-psi=0 first, then select the bounding surface by which one encloses the axis) -> new plan connectivity-boundary-classification (f-cbc-01), which rejects far-field saddles structurally with no tuned cap. EFIT reconstructs a substantial limited boundary at breakdown (157 kA, minor radius ~0.45 m).</p>
+    <p class="r-fu-outcome">RCA done, interim fix reverted, superseded by a new plan. Root cause of the ramp-up failure: MAST ramps up LIMITED (EFIT nXpt=0, Ip 21-66%) but hybrid_target_harmonic forced a DIVERTED read (innermost X-point, never comparing the limiter tangency); the too-binding candidates came from OUTSIDE the plasma-extent annulus (divertor |Z|~1.7, far saddles |Z|~1.4) where the truncated harmonic fit is ill-posed extrapolation. A limited-vs-diverted comparison + geometric annulus-cap fixed it per-slice on shot 18502 but did NOT generalize held-out (train X-point-set -0.23 -&gt; held-out -5.92; the cap severely overfits, no value transfers). Reverted the gate to the best-held-out boundary read (innermost X-point + limiter fallback; X-point-set -4.54, LCFS -2.48). The principled replacement is level-set CONNECTIVITY (find stationary points from grad-psi=0 first, then select the bounding surface by which one encloses the axis) -&gt; new plan connectivity-boundary-classification (f-cbc-01), which rejects far-field saddles structurally with no tuned cap. EFIT reconstructs a substantial limited boundary at breakdown (157 kA, minor radius ~0.45 m).</p>
     </article>
 <article class="r-fu" data-id="f-thar-xpt-shafranov" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-14T18:05:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Recover X-point-set + axis under the centroid origin (Shafranov + ramp-up matching)</h4>

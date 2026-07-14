@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
-  <rect x="0" y="0" width="900" height="520" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <rect x="0" y="0" width="900" height="540" fill="#ffffff"/>
   <style>
     .box { fill:#ffffff; stroke:#8a8f98; stroke-width:1; }
     .accent { stroke:#0f766e; stroke-width:2; }
-    .t { fill:#1b1d22; font-size:14px; }
     .tt { fill:#1b1d22; font-size:15px; font-weight:600; }
+    .t { fill:#1b1d22; font-size:14px; }
     .sub { fill:#3a3f47; font-size:12.5px; }
     .acc { fill:#0f766e; font-size:12.5px; font-weight:600; }
     .arrow { stroke:#5a6069; stroke-width:1.5; fill:none; marker-end:url(#ah); }
@@ -15,57 +15,56 @@
     </marker>
   </defs>
 
-  <text x="30" y="34" class="tt" font-size="17px">Connectivity-based boundary read — stationary points come FIRST</text>
+  <text x="30" y="34" class="tt" font-size="17px">LCFS pushed FIRST — stationary points &amp; limited/diverted class emerge after</text>
 
   <!-- Step 1 -->
-  <rect class="box" x="30" y="56" width="380" height="66" rx="6"/>
+  <rect class="box" x="30" y="56" width="380" height="70" rx="6"/>
   <text x="46" y="82" class="tt">1 · Field &#968;(R,Z)</text>
-  <text x="46" y="104" class="sub">harmonic plasma flux + thick-cylinder coil flux (known currents)</text>
+  <text x="46" y="104" class="sub">harmonic plasma + thick-cylinder coil flux; the near-pole</text>
+  <text x="46" y="120" class="acc">interior TH-null "garbage" disk is masked &amp; excluded.</text>
 
-  <!-- Step 2 (accent: the key step) -->
-  <rect class="box accent" x="30" y="146" width="380" height="88" rx="6"/>
-  <text x="46" y="172" class="tt">2 · Stationary points: &#8711;&#968; = 0</text>
-  <text x="46" y="194" class="sub">O-points (extrema) + X-points (saddles), split by the Hessian sign.</text>
-  <text x="46" y="214" class="acc">A LOCAL differential property — found with NO boundary.</text>
+  <!-- Step 2 -->
+  <rect class="box" x="30" y="150" width="380" height="92" rx="6"/>
+  <text x="46" y="176" class="tt">2 · Push the LCFS outward</text>
+  <text x="46" y="198" class="sub">from the axis, STARTING OUTSIDE the garbage: sweep the</text>
+  <text x="46" y="217" class="sub">flux offset outward, tracing the axis-enclosing contour</text>
+  <text x="46" y="236" class="sub">(contourpy) at each level.</text>
 
-  <!-- Step 3 -->
-  <rect class="box" x="30" y="258" width="380" height="88" rx="6"/>
-  <text x="46" y="284" class="tt">3 · Candidate boundary fluxes</text>
-  <text x="46" y="306" class="sub">{ &#968; at each in-vessel X-point }  &#8746;  { limiter-tangency &#968; }</text>
-  <text x="46" y="326" class="sub">one flux value per candidate bounding surface</text>
+  <!-- Step 3 (accent: the boundary) -->
+  <rect class="box accent" x="30" y="266" width="380" height="94" rx="6"/>
+  <text x="46" y="292" class="tt">3 · LCFS = outermost closed ring</text>
+  <text x="46" y="314" class="sub">the largest ring that ENCLOSES the axis AND fits inside</text>
+  <text x="46" y="333" class="sub">the limiter. Continuous across the transition.</text>
+  <text x="46" y="352" class="acc">ONE code path. No class needed to find it.</text>
 
-  <!-- Step 4 -->
-  <rect class="box" x="30" y="370" width="380" height="100" rx="6"/>
-  <text x="46" y="396" class="tt">4 · Connectivity test (trace contour)</text>
-  <text x="46" y="418" class="sub">confined component = level-set piece containing the axis.</text>
-  <text x="46" y="438" class="sub">Closes inside the vessel &#8594; DIVERTED (X-point bounds it);</text>
-  <text x="46" y="457" class="sub">touches the limiter first &#8594; LIMITED (wall tangency bounds it).</text>
+  <!-- Step 4 (emergent) -->
+  <rect class="box" x="30" y="384" width="380" height="118" rx="6"/>
+  <text x="46" y="410" class="tt">4 · Stationary points + class EMERGE</text>
+  <text x="46" y="432" class="sub">now the boundary is known: find &#8711;&#968;=0 points;</text>
+  <text x="46" y="451" class="sub">X-point ON the boundary ring &#8594; diverted (report it);</text>
+  <text x="46" y="470" class="sub">boundary on the wall, no near X-point &#8594; limited.</text>
+  <text x="46" y="489" class="acc">A soft read-off by proximity &#8212; never a code switch.</text>
 
-  <!-- Step 5 -->
-  <rect class="box accent" x="470" y="370" width="400" height="100" rx="6"/>
-  <text x="486" y="396" class="tt">5 · LCFS + topology class</text>
-  <text x="486" y="418" class="sub">outermost closed surface enclosing the axis that does</text>
-  <text x="486" y="438" class="sub">NOT cross the limiter &#8594; boundary &#968;, X-point set,</text>
-  <text x="486" y="457" class="sub">8-angle radii. Far-field spurious saddles fail the test.</text>
+  <path class="arrow" d="M220,126 L220,150"/>
+  <path class="arrow" d="M220,242 L220,266"/>
+  <path class="arrow" d="M220,360 L220,384"/>
 
-  <!-- arrows -->
-  <path class="arrow" d="M220,122 L220,146"/>
-  <path class="arrow" d="M220,234 L220,258"/>
-  <path class="arrow" d="M220,346 L220,370"/>
-  <path class="arrow" d="M410,420 L470,420"/>
-
-  <!-- chicken-egg callout -->
-  <rect x="470" y="56" width="400" height="290" rx="6" fill="#f6faf9" stroke="#0f766e" stroke-width="1"/>
-  <text x="488" y="82" class="tt" fill="#0f766e">No chicken-and-egg</text>
-  <text x="488" y="108" class="t">The proposed order &#8212; <tspan font-style="italic">contour &#8594; boundary</tspan></text>
-  <text x="488" y="127" class="t">&#8594; stationary points &#8212; is circular. Reverse it:</text>
-  <text x="488" y="156" class="t">&#8226; Stationary points need only &#8711;&#968;=0 (step 2),</text>
-  <text x="488" y="175" class="t">&#160;&#160;a local property of the field &#8212; independent</text>
-  <text x="488" y="194" class="t">&#160;&#160;of any contour or boundary.</text>
-  <text x="488" y="222" class="t">&#8226; Contours are traced AFTERWARD (step 4), to</text>
-  <text x="488" y="241" class="t">&#160;&#160;test which stationary point (or the limiter)</text>
-  <text x="488" y="260" class="t">&#160;&#160;actually bounds the axis by connectivity.</text>
-  <text x="488" y="288" class="t">&#8226; The boundary is thus DEFINED by the stationary</text>
-  <text x="488" y="307" class="t">&#160;&#160;points + connectivity &#8212; it is never needed to</text>
-  <text x="488" y="326" class="t">&#160;&#160;FIND them. The dependency runs one way.</text>
+  <!-- callout: the reversal -->
+  <rect x="470" y="150" width="400" height="352" rx="6" fill="#f6faf9" stroke="#0f766e" stroke-width="1"/>
+  <text x="488" y="178" class="tt" fill="#0f766e">The loop is reversed</text>
+  <text x="488" y="204" class="t">A classifier asks &#8220;is there an X-point on the</text>
+  <text x="488" y="223" class="t">boundary?&#8221; FIRST &#8212; but limited&#8596;diverted is a</text>
+  <text x="488" y="242" class="t">CONTINUOUS transition: just-limited and just-</text>
+  <text x="488" y="261" class="t">diverted look identical, so the discrete class is</text>
+  <text x="488" y="280" class="t">ill-posed exactly where it would matter. Chasing</text>
+  <text x="488" y="299" class="t">it (wall contacts, &#968;-extrema on limiter surfaces)</text>
+  <text x="488" y="318" class="t">is the EFIT-extractor trap.</text>
+  <text x="488" y="346" class="t">Instead we track the CONTINUOUS quantity &#8212; the</text>
+  <text x="488" y="365" class="t">boundary SHAPE &#8212; which is well-posed across the</text>
+  <text x="488" y="384" class="t">transition, in one contour push (step 3).</text>
+  <text x="488" y="412" class="t">The stationary points &amp; the class then fall out</text>
+  <text x="488" y="431" class="t">as DIAGNOSTICS (step 4), by X-point proximity to</text>
+  <text x="488" y="450" class="t">the known boundary. Near the transition the class</text>
+  <text x="488" y="469" class="t">is softly undefined &#8212; as the physics demands &#8212; and</text>
+  <text x="488" y="488" class="t">the LCFS shape is unaffected. No topology extractor.</text>
 </svg>

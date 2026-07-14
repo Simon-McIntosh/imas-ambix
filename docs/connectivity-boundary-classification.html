@@ -4,222 +4,229 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type" content="plan">
-  <meta name="plan-slug" content="connectivity-boundary-classification">
-  <meta name="plan-title" content="Connectivity-Based Boundary Classification — LCFS + limited/diverted from the flux topology, not flux heuristics">
-  <meta name="plan-summary" content="Replace the fragile flux-comparison + geometric-annulus-cap boundary read in the toroidal-harmonic gate with a principled connectivity read: find the stationary points (grad-psi=0) FIRST, then determine the LCFS and the limited-vs-diverted class from the CONNECTIVITY of the flux level-set that encloses the axis (the confined component). Resolves the &#x27;chicken-and-egg&#x27; worry — stationary points are a local differential property found before any contour; the boundary is then defined by which stationary point (or the limiter tangency) bounds the axis. Naturally rejects far-field spurious saddles (which fail the enclose-the-axis test) with no tuned distance cap. Uses contourpy to extract the separatrix curve once the bounding flux is known; connectivity itself is a grid label (ndimage). Fixes the ramp-up limited-plasma failure the harmonic RCA exposed.">
-  <meta name="plan-status" content="draft">
-  <meta name="plan-roi" content="high">
-  <meta name="plan-effort" content="M">
-  <meta name="plan-tier" content="opus">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="connectivity-boundary-classification">
+  <meta name="plan-title"     content="LCFS by Outermost Closed Flux Contour — continuous boundary; limited/diverted + X-points emergent">
+  <meta name="plan-summary"   content="Resolve the boundary WITHOUT an EFIT-class topology extractor. Limited-vs-diverted is a CONTINUOUS transition (a just-limited and a just-diverted equilibrium are near-identical), so a discrete classifier is ill-posed exactly where it would matter and is the EFIT trap. Instead track the continuous quantity — the boundary SHAPE: the LCFS is the OUTERMOST closed flux contour that encloses the axis and fits inside the limiter, found by pushing the flux offset outward from the axis (starting OUTSIDE the near-pole TH-null garbage) and keeping the largest axis-enclosing ring inside the limiter. One monotone contour push, one code path, no X-point-vs-limiter branching, no distance cap (far-field garbage is a separate ring, excluded by the enclose-the-axis test). The loop is REVERSED vs a classifier: once a confident LCFS exists, the stationary points (grad-psi=0) and the limited/diverted class EMERGE as diagnostics — an X-point on the boundary ring => diverted, boundary on the wall => limited — a soft read-off by proximity, undefined near the transition (as the physics demands) and never a code switch. LCFS shape is the scored deliverable; the X-point set is emergent/secondary, not chased against EFIT's discretization noise.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="M">
+  <meta name="plan-tier"      content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-owner"     content="Simon McIntosh">
   <meta name="plan-depends-on" content="toroidal-harmonic-annulus-read">
-  <meta name="plan-blocks" content="equilibrium-boundary-closure">
-  <title>Connectivity-Based Boundary Classification | imas-ambix</title>
+  <meta name="plan-blocks"    content="equilibrium-boundary-closure">
+  <meta name="plan-informs"   content="machine-agnostic-latent-world-model">
+  <title>LCFS by Outermost Closed Flux Contour | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-14">
-<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
-    <h1>Connectivity-Based Boundary Classification</h1>
+    <h1>LCFS by Outermost Closed Flux Contour</h1>
     <p><em>Successor to the flux-comparison + geometric-annulus-cap boundary read in
     <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a>.
-    Determine the LCFS and the limited-vs-diverted class from the <strong>connectivity of the flux
-    topology</strong> — the level-set component that encloses the magnetic axis — rather than from a
-    flux-value comparison guarded by a tuned distance cap. The read is deterministic, per-slice, and
+    Reads the boundary as a <strong>continuous shape</strong> — the outermost closed flux contour that
+    encloses the axis and fits inside the limiter — and lets the stationary points and the
+    limited/diverted class EMERGE afterward as diagnostics. Deliberately NOT an EFIT-class topology
+    extractor: one contour push, one code path, no discrete classification. Deterministic, per-slice,
     firewall-safe (EFIT scores only).</em></p>
 
-    <h2 id="s1">§1 — Why: the heuristic boundary read is fragile</h2>
-    <p>The toroidal-harmonic gate reads the boundary flux ψ<sub>bnd</sub> by comparing the innermost
-    in-vessel X-point flux against the limiter-tangency flux and taking whichever is "more binding"
-    (closer to the axis flux). The RCA of the ramp-up failure
-    (<a href="/imas-ambix/toroidal-harmonic-annulus-read.html">§ Gate C landed</a>) showed this is
-    unreliable for three coupled reasons:</p>
+    <h2 id="s1">§1 — The trap to avoid: limited/diverted is a continuous transition</h2>
+    <p>The obvious approach — find the X-points, decide whether one bounds the plasma, otherwise use the
+    limiter tangency — is exactly how an EFIT-class topology extractor grows: a pile of special cases
+    chasing wall contacts, X-point fluxes, and ψ-extrema on limiter surfaces. It is the wrong target
+    because <strong>limited ↔ diverted is a CONTINUOUS transition</strong>:</p>
     <ul>
-      <li><strong>It forced a diverted topology onto a limited plasma.</strong> MAST ramps up
-      LIMITED (EFIT has no X-point for Ip 21–66%), but the read used the innermost X-point whenever
-      one existed, putting the LCFS on a spurious saddle (ramp-up LCFS 41–52 cm).</li>
-      <li><strong>The flux comparison is corrupted by ill-posed extrapolation.</strong> The
-      too-binding "limiter tangency" came from divertor structures at |Z|≈1.7 and the spurious
-      X-points from far-field saddles at |Z|≈1.4 — <em>outside</em> the plasma-extent annulus where the
-      truncated harmonic fit is unconstrained continuation (garbage). A flux value there is not a
-      physical bounding surface.</li>
-      <li><strong>The geometric annulus-cap patch is knife-edge sensitive.</strong> Capping the
-      candidate search to a multiple of the pole-to-origin distance recovered the class on one shot
-      but, untuned, regressed the held-out X-point-set (cap 3.5 → −6.03); it needs leakage-free
-      tuning per campaign and does not generalise. A distance cap is a proxy for the real question —
-      <em>is this critical point actually on the surface that bounds the plasma?</em> — which is a
-      connectivity question, not a distance one.</li>
+      <li>A <em>just</em>-limited and a <em>just</em>-diverted equilibrium are near-identical — they
+      differ only by a hair's-width of current-carrying plasma extent, and their boundary SHAPES coincide
+      at the crossover.</li>
+      <li>So a discrete class is <strong>ill-posed exactly at the transition</strong> (the two states are
+      degenerate) and <strong>only well-posed far from it</strong> — where the answer is obvious and does
+      not matter. EFIT's own limited/diverted flag flickers there; chasing a perfect match to it near the
+      transition is chasing its discretization noise.</li>
+      <li><strong>Can the magnetics even tell them apart?</strong> Away from the transition, YES — a
+      clearly diverted plasma puts a real saddle in the EXTERNAL vacuum field (an X-point in the annulus
+      the sensors see); a clearly limited one does not (the plan premise: Braams 1991; Alladio–Crisanti
+      1986). But as the plasma grows into the divertor that saddle moves continuously onto the boundary —
+      there is no sharp magnetic signature at the crossover. The magnetics resolve the class only where
+      it is unambiguous. That is a reason NOT to build a classifier, not a reason to build a cleverer
+      one.</li>
     </ul>
-    <p>Connectivity answers that question directly and needs no tuned cap: a far-field saddle whose
-    level-set does not enclose the axis is rejected structurally.</p>
+    <p>The earlier attempt confirmed the hazard empirically: a limited-vs-diverted flux comparison guarded
+    by a geometric annulus-cap classified one shot correctly but did NOT generalise — train X-point-set
+    skill −0.23 → held-out −5.92 (the cap severely overfits). See
+    <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a> (Gate C
+    landed + <code>f-thar-startup-lowip</code>).</p>
 
-    <h2 id="s2">§2 — The chicken-and-egg worry, resolved</h2>
+    <h2 id="s2">§2 — The reframe: push the LCFS first; let the rest emerge</h2>
     <figure>
       <img src="/imas-ambix/figures/connectivity-boundary-classification/algorithm-flow.svg"
-           alt="Algorithm flow: stationary points from grad-psi=0 are found first, then the boundary is determined by connectivity of the flux level-set enclosing the axis."
+           alt="LCFS is pushed first as the outermost closed axis-enclosing flux contour inside the limiter; stationary points and the limited/diverted class emerge afterward by X-point proximity to the boundary."
            style="max-width:100%;">
-      <figcaption>The read is a one-way pipeline. Stationary points (∇ψ=0) are found first as a local
-      differential property; the boundary is then determined by which stationary point (or the limiter
-      tangency) bounds the axis, tested by connectivity of the flux level-set. There is no circular
-      dependency.</figcaption>
+      <figcaption>The loop is reversed relative to a classifier. The continuous boundary SHAPE is found
+      first (one contour push, step 3); the stationary points and the limited/diverted class then emerge
+      as diagnostics (step 4) from the X-point's proximity to the already-known boundary. Near the
+      transition the class is softly undefined — as the physics demands — and the LCFS shape is
+      unaffected.</figcaption>
     </figure>
-    <p>The proposed recipe — "use a contour library to extract the boundary, then the stationary
-    points" — is indeed circular: you cannot trace the bounding contour until you know which flux value
-    bounds the plasma, and that seems to need the X-points. <strong>The resolution is to reverse the
-    order</strong>, and it dissolves the circularity completely:</p>
-    <ul>
-      <li><strong>Stationary points do NOT need the boundary.</strong> The magnetic axis (O-point) and
-      X-points (saddles) are the points where ∇ψ = 0 — a <em>local</em> property of the field, found by
-      bracketing sign changes of ψ<sub>R</sub>, ψ<sub>Z</sub> and Newton-refining, then classified by the
-      Hessian determinant (definite → O, indefinite → X). This is already implemented in
-      <code>imas_ambix/latent/topology.py::find_critical_points</code> and needs no contour and no
-      boundary.</li>
-      <li><strong>The boundary is DEFINED by the stationary points + connectivity.</strong> Each
-      critical-point flux (and the limiter tangency) is a <em>candidate</em> bounding value. For each
-      candidate we trace/label the level-set and ask: does the component containing the axis close inside
-      the vessel (diverted, bounded by that X-point) or reach the limiter (limited, bounded by the wall)?
-      The LCFS is the outermost such axis-enclosing surface that does not cross the limiter.</li>
-      <li><strong>So the dependency runs one way:</strong> field → ∇ψ=0 stationary points →
-      candidate fluxes → connectivity of contours through them → boundary. The contour library is used
-      <em>after</em> the stationary points, to extract the separatrix curve once its flux is fixed — never
-      to find the stationary points. No chicken-and-egg.</li>
-    </ul>
-    <p>(Even the LCFS ray-cast the gate already does is downstream of the axis + a bounding flux — it has
-    never needed the boundary to find the axis. This plan makes the <em>selection</em> of the bounding
-    flux connectivity-based rather than a flux-magnitude heuristic.)</p>
+    <p>What we actually need — for scoring against EFIT geometry and for feeding the fixed-boundary
+    interior spine — is the <strong>LCFS shape</strong> (the 8 radii), which is <em>continuous</em> across
+    the transition. So define it continuously, with one code path:</p>
+    <blockquote><p>The LCFS is the <strong>outermost closed flux contour that encloses the axis and still
+    fits inside the limiter.</strong></p></blockquote>
+    <p>A single monotone sweep of the flux offset outward from the axis, tracing one contour (contourpy),
+    keeping the largest axis-enclosing ring that lies inside the limiter. It handles both topologies
+    identically: for a diverted plasma the ring grows until it pinches at the X-point (just past it the
+    level set opens along the divertor legs, so the last closed-inside-limiter ring is the separatrix);
+    for a limited plasma the ring grows until it touches the wall. Same operation, no branch.</p>
+    <p><strong>The elegant part (the reversal).</strong> This inverts the chicken-and-egg. We do NOT find
+    stationary points to decide the boundary. We find the boundary first (continuous), and THEN — with a
+    confident LCFS in hand — the stationary points and the class fall out: locate the ∇ψ=0 saddles and ask
+    how close each is to the boundary ring. An X-point ON the ring ⇒ diverted (report it); the ring on the
+    wall with no nearby X-point ⇒ limited (X-slots empty). This is a soft read-off by proximity, undefined
+    near the transition, and never switches a code path.</p>
 
     <h2 id="s3">§3 — Algorithm</h2>
-    <p>Per slice, on the masked total flux ψ<sub>tot</sub> (harmonic plasma + thick-cylinder coil), with
-    the ray-cast origin from the interior estimate (current centroid):</p>
+    <p>Per slice, on the masked total flux ψ<sub>tot</sub> (harmonic plasma + thick-cylinder coil), origin
+    from the interior estimate (current centroid):</p>
     <ol>
-      <li><strong>Critical points.</strong> <code>find_critical_points(ψ)</code> → O-points, X-points
-      (already exists). Filter X-points to in-vessel, conductor-clear.</li>
-      <li><strong>Axis + reference flux.</strong> The confined O-point nearest the interior-estimate axis
-      (or the estimate itself); ψ<sub>axis</sub> read there.</li>
-      <li><strong>Candidate bounding fluxes.</strong> Each in-vessel X-point flux, plus the
-      limiter-tangency flux (the deepest-penetrating limiter grid point). No distance cap.</li>
-      <li><strong>Connectivity test (the core).</strong> For a candidate ψ<sub>c</sub>, form the confined
-      set {points on the axis side of ψ<sub>c</sub>}; label connected components
-      (<code>scipy.ndimage.label</code>, 4-connectivity — the mechanism <code>topology.classify_regions</code>
-      already uses). The plasma is the component containing the axis. Accept ψ<sub>c</sub> as a valid
-      boundary only if that component (a) contains the axis and (b) does not touch the domain edge.
-      Among valid candidates, the LCFS is the OUTERMOST (the axis-enclosing component is largest) that
-      still does not cross the limiter.</li>
-      <li><strong>Limited vs diverted falls out.</strong> If the largest valid axis-enclosing component
-      is bounded by an X-point whose separatrix closes in-vessel → DIVERTED (report that X-point).
-      If the component reaches the limiter before any X-point closes it → LIMITED (boundary = limiter
-      tangency; X-point slots empty). This is decided by connectivity, so a far-field saddle whose
-      component does not enclose the axis is never selected — the annulus-cap hack is retired.</li>
-      <li><strong>LCFS geometry.</strong> Once ψ<sub>bnd</sub> is fixed, extract the closed separatrix
-      curve with <code>contourpy</code> (matplotlib's engine) — the axis-enclosing contour at
-      ψ<sub>bnd</sub> — and resample the 8 fixed-angle radii from it. contourpy gives a clean polygon
-      (better than the current outward ray-march, which can miss or double-count at concave divertor
-      legs).</li>
+      <li><strong>Start outside the garbage.</strong> The near-pole interior (where the toroidal-harmonic
+      ring functions diverge — the "garbage") is already masked to a plateau. The push begins at the
+      plateau edge and moves OUTWARD, so the interior TH nulls never enter the contour search (§4).</li>
+      <li><strong>Push the flux offset outward.</strong> Sweep a level from ψ<sub>axis</sub> outward; at
+      each level trace the flux contour and select the ring CONTAINING the axis (contourpy → the polygon
+      whose interior contains the origin).</li>
+      <li><strong>Stop at the outermost closed, in-limiter ring.</strong> Keep the largest level whose
+      axis-ring is a single closed curve lying entirely inside the limiter polygon. That ring is the LCFS;
+      read the 8 fixed-angle radii from it directly (no outward ray-march).</li>
+      <li><strong>Emergent stationary points + class (diagnostic, after the boundary).</strong> Find the
+      ∇ψ=0 critical points (reuse <code>find_critical_points</code>, excluding the masked interior). An
+      X-point within a tolerance of the LCFS ring ⇒ report it and mark diverted; otherwise (ring on the
+      wall) ⇒ limited, X-slots NaN. Tolerance is a soft margin, so near the transition the class is
+      genuinely undefined rather than forced.</li>
     </ol>
+    <p>No X-point is needed to <em>find</em> the boundary; no limited/diverted decision gates the LCFS; no
+    ψ-extrema-on-limiter-surface comparison. Far-field garbage (a spurious feature at |Z|≈1.7) is a
+    <em>separate</em> contour ring, excluded by the enclose-the-axis + inside-limiter tests with NO tuned
+    distance cap.</p>
 
-    <h2 id="s4">§4 — Library choice</h2>
-    <p>Two roles, possibly two tools; decision below:</p>
+    <h2 id="s4">§4 — "Start outside the garbage" (the interior-null exclusion)</h2>
+    <p>The harmonic field is invalid inside the near-pole disk, where the P-ring functions diverge and
+    produce spurious interior O/X nulls. The existing <code>mask_invalid_interior</code> fills that disk
+    with a confined plateau; because the sweep starts at the plateau edge and pushes OUTWARD, and only
+    axis-enclosing rings in the valid annulus are kept, those interior nulls can never be mistaken for the
+    boundary or for a boundary X-point. This is the concrete mechanism behind the lead's requirement to
+    begin the LCFS push outside the garbage.</p>
+
+    <h2 id="s5">§5 — Library choice</h2>
     <ul>
-      <li><strong>Connectivity</strong> (which component encloses the axis; does it touch the wall):
-      a <em>grid-label</em> operation. <code>scipy.ndimage.label</code> is already a dependency and is
-      used by <code>classify_regions</code> — no new dep, robust, fast. A contour library is not needed
-      for the connectivity decision itself.</li>
-      <li><strong>Separatrix curve extraction</strong> (the closed boundary polygon for the LCFS radii
-      + figures): <code>contourpy</code> (already transitively present via matplotlib) returns line
-      segments/polygons at a level; pick the ring enclosing the axis. Alternative
-      <code>skimage.measure.find_contours</code> (marching squares) if contourpy's API is awkward.</li>
+      <li><strong>Contour ring extraction</strong> (the axis-enclosing polygon at a level, for the LCFS
+      radii and the stop test): <code>contourpy</code> — matplotlib's engine, already transitively
+      present; returns line rings at a level, pick the one containing the axis. Alternative
+      <code>skimage.measure.find_contours</code> (marching squares).</li>
+      <li><strong>Containment tests</strong> (ring encloses axis; ring inside limiter): point-in-polygon
+      on the ring vertices (the existing <code>_inside_polygon</code>). <code>scipy.ndimage.label</code>
+      remains available if a grid-connectivity check is cleaner than a ring test for the stop condition.</li>
     </ul>
-    <p>Leaning: <strong>ndimage for connectivity + contourpy for the curve</strong> — both already
-    available, no new heavy dependency. The <code>pole-and-truncation</code> / masking machinery and the
-    firewall are inherited from the harmonic plan unchanged.</p>
+    <p>No new heavy dependency. The masking, origin (current centroid), and firewall are inherited from
+    the harmonic plan unchanged.</p>
 
-    <h2 id="s5">§5 — Integration &amp; gate</h2>
-    <p>Replace the flux-comparison boundary block in
-    <code>scripts/boundary_harmonic_gate_eval.py::hybrid_target_harmonic</code> with the connectivity
-    read (factor the read into a testable function in <code>imas_ambix/latent/topology.py</code> so the
-    moment/free arms can adopt it too). Score on the SAME 160-slice held-out protocol, firewalled EFIT,
-    paired-bootstrap CIs; report X-point-set + LCFS + axis skill, the limited/diverted confusion vs EFIT
-    per phase (ramp-up should read LIMITED, flat-top DIVERTED), and the vacuum-annulus consistency. Pass
-    = recover the X-point-set to ≥ the moment read AND keep the harmonic LCFS lead, WITHOUT the tuned
-    annulus cap. Compare directly against the cap-tuned harmonic result recorded in the harmonic plan.</p>
+    <h2 id="s6">§6 — Integration &amp; gate</h2>
+    <p>Factor the read into a tested function in <code>imas_ambix/latent/topology.py</code> and swap it
+    into <code>scripts/boundary_harmonic_gate_eval.py::hybrid_target_harmonic</code> in place of the
+    innermost-X-point + limiter-fallback block. Score on the SAME 160-slice held-out protocol, firewalled
+    EFIT, paired-bootstrap CIs. <strong>The LCFS shape is the PRIMARY scored quantity.</strong> The
+    X-point set is emergent/secondary — reported only where the boundary X-point is unambiguous, NaN near
+    the transition; we do not optimise it against EFIT's discrete flag. The limited/diverted agreement
+    with EFIT is reported as a DIAGNOSTIC (per phase), not a tuned objective. Pass = LCFS skill ≥ the
+    current harmonic read (−2.48) with a cleaner, single-path, cap-free boundary that reads sensibly
+    across breakdown → termination.</p>
 
-    <h2 id="s6">§6 — Risks</h2>
+    <h2 id="s7">§7 — Scope guard (binding)</h2>
+    <p>Explicitly OUT of scope — if the implementation starts reaching for any of these, STOP and
+    reconsider, because it is the EFIT-extractor trap:</p>
     <ul>
-      <li><strong>Grid resolution.</strong> Connectivity on a 65×97 grid can merge/split components at
-      thin divertor legs; may need local refinement or a sub-pixel contour. Mitigate with contourpy on a
-      bilinear up-sample near the candidate flux.</li>
-      <li><strong>Masked-interior artifacts.</strong> The near-pole plateau must not create a false
-      axis-enclosing component; the axis-containment test + the existing mask handle this, but verify.</li>
-      <li><strong>Still bounded by the origin/axis error.</strong> Connectivity fixes the boundary
-      SELECTION; the residual ramp-up LCFS error from the centroid-vs-flux-axis offset (the Shafranov
-      issue) is a SEPARATE thread (harmonic plan <code>f-thar-xpt-shafranov</code>) — this plan does not
-      close it, and should be evaluated with that in mind.</li>
+      <li>a discrete limited/diverted classifier as a code-path switch;</li>
+      <li>chasing wall-contact points / ψ-extrema on individual limiter surfaces;</li>
+      <li>per-surface X-point ↔ limiter matching logic;</li>
+      <li>tuned distance caps on candidate critical points.</li>
     </ul>
+    <p>The whole read must remain: one flux-offset push, one axis-enclosing ring test, one inside-limiter
+    test; class and X-points are emergent diagnostics only.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-<h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="connectivity-backend" data-choice="" data-by="" data-when="">
-    <p class="r-dec-q">Which library for the connectivity decision and the separatrix-curve extraction?</p>
-    <p class="r-dec-opts">
-      <button class="r-opt" data-value="ndimage-plus-contourpy">ndimage.label for connectivity + contourpy for the curve (both already available; recommended)</button>
-      <button class="r-opt" data-value="contourpy-only">contourpy for both (trace all rings, test enclosure geometrically)</button>
-      <button class="r-opt" data-value="skimage">skimage.measure (find_contours + label)</button>
-      </p>
-    <p class="r-dec-rat"></p>
-    </div>
-<div class="r-dec" data-key="read-location" data-choice="" data-by="" data-when="">
-    <p class="r-dec-q">Where does the connectivity read live — a shared topology function or gate-local?</p>
-    <p class="r-dec-opts">
-      <button class="r-opt" data-value="shared-topology">A tested function in imas_ambix/latent/topology.py, adopted by all arms (recommended)</button>
-      <button class="r-opt" data-value="gate-local">Gate-local in boundary_harmonic_gate_eval.py first, promote if it wins</button>
-      </p>
-    <p class="r-dec-rat"></p>
-    </div>
-</section>
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="contour-library" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which library extracts the axis-enclosing contour ring?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="contourpy">contourpy (matplotlib engine, already present; recommended)</button>
+          <button class="r-opt" data-value="skimage">skimage.measure.find_contours (marching squares)</button>
+          <button class="r-opt" data-value="ndimage-grid">ndimage.label grid stop-test, no explicit ring</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="xpoint-role" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Is the X-point set a scored target or an emergent-only diagnostic?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="emergent-only">Emergent-only — report where unambiguous, NaN near the transition; LCFS shape is the scored deliverable (recommended — avoids chasing EFIT discretization noise)</button>
+          <button class="r-opt" data-value="scored-target">Keep the X-point set as a scored target alongside LCFS</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="read-location" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Where does the read live — a shared topology function or gate-local?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="shared-topology">A tested function in imas_ambix/latent/topology.py, adopted by all arms (recommended)</button>
+          <button class="r-opt" data-value="gate-local">Gate-local in boundary_harmonic_gate_eval.py first, promote if it wins</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-cbc-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship connectivity-boundary-classification" data-resolved-at="" data-resolved-by="">
-    <h4 class="r-fu-title">Implement the connectivity boundary read + score held-out vs the cap-tuned harmonic arm</h4>
-    <div class="r-fu-body"><p>Implement the §3 algorithm: stationary points first (reuse <code>find_critical_points</code>), then select the bounding flux by connectivity of the axis-enclosing level-set component (<code>ndimage.label</code>), with limited-vs-diverted falling out; extract the separatrix curve with <code>contourpy</code> for the 8-angle LCFS radii. Factor it into a tested <code>topology.py</code> function; swap it into <code>hybrid_target_harmonic</code> in place of the flux-comparison + annulus-cap block. Score held-out and compare X-point-set / LCFS / axis + per-phase limited-vs-diverted confusion against the cap-tuned harmonic result. Resolve <code>connectivity-backend</code> and <code>read-location</code> at kickoff.</p></div>
+    <h4 class="r-fu-title">Implement the continuous outermost-closed-contour LCFS read + score held-out</h4>
+    <div class="r-fu-body"><p>Implement the §3 algorithm: push the flux offset outward from the axis (starting outside the masked near-pole garbage), keep the outermost closed axis-enclosing ring inside the limiter as the LCFS (contourpy), read the 8 radii from it. THEN — as emergent diagnostics — find the <code>find_critical_points</code> saddles and set diverted/limited + the X-point slots by proximity to the boundary ring (soft; NaN near the transition). Factor into a tested <code>topology.py</code> function; swap into <code>hybrid_target_harmonic</code> in place of the innermost-X-point + limiter-fallback block. Score LCFS (primary) held-out; report the limited/diverted agreement as a diagnostic. Honour the §7 scope guard. Resolve <code>contour-library</code>, <code>xpoint-role</code>, <code>read-location</code> at kickoff.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    connectivity-boundary-classification (http://localhost:8765/imas-ambix/connectivity-boundary-classification.html)
-Section: §3–§5 (the whole plan)
+Section: §3-§6 (the whole plan)
 Tier:    opus
 
 Context
   Replaces the fragile flux-comparison + geometric-annulus-cap boundary read in the
-  toroidal-harmonic gate (RCA: it forced diverted onto limited ramp-up plasmas; the cap
-  is knife-edge and regressed held-out). Stationary points are found FIRST from grad-psi=0
-  (a local property, no boundary needed); the boundary is then selected by CONNECTIVITY of the
-  flux level-set that encloses the axis. No chicken-and-egg (see §2 + the algorithm-flow figure).
+  toroidal-harmonic gate (RCA: limited/diverted is a CONTINUOUS transition; a discrete
+  classifier is the EFIT trap and did not generalise: train X-point -0.23 -> held-out -5.92).
+  The reframe (see the figure + S1-S2): push the LCFS FIRST as the outermost closed flux
+  contour enclosing the axis inside the limiter (continuous, one path); the stationary points
+  and the limited/diverted class EMERGE afterward from X-point proximity to the boundary.
 
-State to read (CODE / DATA — not the plan)
-  imas_ambix/latent/topology.py  (find_critical_points, classify_regions [ndimage.label pattern],
-                                  lcfs_radii, magnetic_axis, boundary_flux_robust)
-  scripts/boundary_harmonic_gate_eval.py::hybrid_target_harmonic (the flux-comparison + cap block to replace)
-  imas_ambix/latent/gs_solve.py::_read_boundary_psi (the innermost-X-vs-limiter rule to generalise)
-  imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-*-centroidorigin-*.json (the cap-tuned baseline)
+State to read (CODE / DATA - not the plan)
+  imas_ambix/latent/topology.py  (find_critical_points, _inside_polygon, lcfs_radii,
+                                  classify_regions, magnetic_axis)
+  scripts/boundary_harmonic_gate_eval.py::hybrid_target_harmonic (the block to replace)
+  imas_ambix/latent/boundary_harmonic.py::mask_invalid_interior (the garbage mask to start outside)
+  imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-*-centroidorigin-*.json (LCFS baseline -2.48)
 
-Scope locks / constraints (non-decision)
-  EFIT firewalled (referee scores only). Coil couplings stay thick-cylinder hybrid_greens (never
-  point-filament). Pole/origin machine-agnostic (fractions of axis R). Connectivity = ndimage grid
-  label (no tuned distance cap); contourpy only for the separatrix CURVE once the bounding flux is
-  fixed. Leakage-free: any threshold tuned on train, scored once on the 160-slice held-out set.
+Scope locks / constraints (non-decision; S7 is BINDING)
+  OUT of scope: a discrete limited/diverted classifier as a code switch; chasing wall contacts /
+  psi-extrema on limiter surfaces; per-surface X-point<->limiter matching; tuned distance caps.
+  The read is ONE flux-offset push + one axis-enclosing ring test + one inside-limiter test;
+  class + X-points are emergent diagnostics only. EFIT firewalled (scores only). Coil couplings
+  thick-cylinder. Origin/pole machine-agnostic. Leakage-free: any tolerance tuned on train,
+  scored once on the 160-slice held-out set. LCFS shape is the PRIMARY objective, NOT the X-point set.
 
 Done-when
-  1. Connectivity boundary read implemented as a tested topology.py function (unit tests: a synthetic
-     diverted field -&gt; X-point boundary; a synthetic limited field -&gt; limiter tangency, X-slots empty;
-     a far-field spurious saddle is rejected by the enclose-the-axis test with NO distance cap).
+  1. LCFS read implemented as a tested topology.py function (unit tests: synthetic diverted field ->
+     ring pinches at the X-point, X-point reported; synthetic limited field -> ring on the wall,
+     X-slots empty; a far-field spurious feature is a separate ring, excluded with NO distance cap;
+     an interior TH null inside the garbage disk is never selected).
   2. Swapped into hybrid_target_harmonic; harmonic gate green.
-  3. Held-out (n=160, firewalled EFIT, CIs): X-point-set + LCFS + axis skill, per-phase limited-vs-
-     diverted confusion, consistency RMS — vs the cap-tuned harmonic arm. Verdict either way.
-  4. imas-ink figures (separatrix + all flux surfaces across phases); plan updated same-turn; this
-     followup resolved; toroidal-harmonic-annulus-read informed.</pre>
+  3. Held-out (n=160, firewalled EFIT, CIs): LCFS skill (primary) vs the -2.48 baseline; per-phase
+     limited/diverted agreement reported as a diagnostic; X-point emergent read reported (not chased).
+  4. imas-ink figures (LCFS + all nested flux surfaces across breakdown->termination); plan updated
+     same-turn; this followup resolved; toroidal-harmonic-annulus-read informed (f-thar-connectivity-ptr).</pre>
     </article>
 </section>
   </main>
