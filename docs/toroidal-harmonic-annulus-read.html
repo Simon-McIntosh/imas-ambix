@@ -4,22 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="toroidal-harmonic-annulus-read">
-  <meta name="plan-title"     content="Toroidal-Harmonic Annulus Read — the source-free vacuum-region boundary representation (R3)">
-  <meta name="plan-summary"   content="Fit the vacuum-annulus ψ in the Δ*-eigenfunctions (half-integer-degree Legendre P_{n−1/2}, Q_{n−1/2} toroidal harmonics) matched to the raw external magnetics + known coil field, and read the separatrix / X-point / LCFS off that smooth source-free field WITHOUT reconstructing an interior current. This is R3 of the prior ladder (plasma-current-priors-hardening §2) and the warranted follow-up of equilibrium-topology-fidelity thread 1 (f-etf-04, migrated here): the current-moment read recovered the X-point class but re-imports interior ambiguity into the near-edge ψ. Valid ONLY in the source-free annulus between plasma and sensors — the interior is meaningless by design; the axis stays with the interior carrier (the calibrated priors/closure arm). Also the boundary cross-check for the force-balance-spine carrier and the vacuum-annulus consistency condition both representations must satisfy.">
-  <meta name="plan-status"    content="pending">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="M">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="toroidal-harmonic-annulus-read">
+  <meta name="plan-title" content="Toroidal-Harmonic Annulus Read — the source-free vacuum-region boundary representation (R3)">
+  <meta name="plan-summary" content="PRIMARY machine-agnostic boundary route (promoted from cross-check, 2026-07-14). Fit the vacuum-annulus ψ in the Δ*-eigenfunctions (half-integer-degree Legendre P_{n−1/2}, Q_{n−1/2} toroidal harmonics) matched to the RAW external magnetics + known coil field + Ip + li, and read the separatrix / X-point / LCFS + limited-vs-diverted class off that smooth SOURCE-FREE field WITHOUT reconstructing an interior current and WITHOUT EFIT (firewall stays). This decouples the boundary from the interior: the free-boundary GS solve conflated them and re-imported interior ambiguity + coil-model error into the near-edge ψ (the -3.70 LCFS bar was self-inflicted). Diverted and limited plasmas DO differ in the external field (an external X-point saddle vs a wall tangency), and Ip+li break the residual field→boundary degeneracy — so a low-order boundary is recoverable from low-order external moments (Braams 1991; Alladio-Crisanti 1986; our own thread-1 moment read already recovered the X-point class -0.61→-0.15). Feeds the fixed-boundary interior spine and is the classical baseline / inductive bias for the learned cross-machine boundary operator (the GenCast-style endgame). Valid ONLY in the source-free annulus; the axis stays with the interior carrier.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="M">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="plasma-current-priors-hardening">
-  <meta name="plan-blocks"    content="equilibrium-topology-fidelity">
-  <meta name="plan-informs"   content="force-balance-spine">
+  <meta name="plan-blocks" content="equilibrium-topology-fidelity,equilibrium-boundary-closure">
+  <meta name="plan-informs" content="machine-agnostic-latent-world-model">
   <title>Toroidal-Harmonic Annulus Read | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-14">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -65,30 +67,30 @@
     report the vacuum-annulus consistency RMS either way.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="pole-and-truncation" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Where does the toroidal-coordinate pole sit, and how is the harmonic order chosen?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="fixed-pole-ci-ladder">fixed pole near the nominal magnetic axis (campaign geometry), order chosen by a CI-gated ladder on train shots (recommended — mirrors the profile-DOF ladder discipline)</button>
-          <button class="r-opt" data-value="per-slice-pole">per-slice pole at the interior-carrier axis; order fixed small</button>
-          <button class="r-opt" data-value="joint-fit">pole and order jointly optimised per slice (most DOF, highest aliasing risk)</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="pole-and-truncation" data-choice="fixed-pole-ci-ladder" data-by="reckon-edit (boundary-route promotion)" data-when="2026-07-14T10:58:34+00:00">
+    <p class="r-dec-q">Where does the toroidal-coordinate pole sit, and how is the harmonic order chosen?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="fixed-pole-ci-ladder">fixed pole near the nominal magnetic axis (campaign geometry), order chosen by a CI-gated ladder on train shots (recommended — mirrors the profile-DOF ladder discipline)</button>
+      <button class="r-opt" data-value="per-slice-pole">per-slice pole at the interior-carrier axis; order fixed small</button>
+      <button class="r-opt" data-value="joint-fit">pole and order jointly optimised per slice (most DOF, highest aliasing risk)</button>
+      </p>
+    <p class="r-dec-rat">Mirrors the profile-DOF ladder discipline that worked for the interior: fixed pole near the nominal magnetic axis (campaign geometry), harmonic order chosen by a CI-gated ladder on train shots, scored once held-out. Per-slice pole and joint pole+order fits carry aliasing risk the low-order boundary does not need — the whole point is a LOW-order, well-posed external read.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-thar-01" data-status="open" data-tier="opus" data-written-by="reckon-edit (f-etf-04 migration)" data-written-at="2026-07-10">
-        <h4 class="r-fu-title">Implement the source-free toroidal-harmonic annulus fit + score Gate C on the hardened harness</h4>
-        <div class="r-fu-body"><p>The full implementation: harmonic basis module beside <code>boundary_moment.py</code>, whitened LS fit in the annulus, hybrid read with the calibrated interior carrier, Gate C held-out with CIs, and the vacuum-annulus consistency check against the carrier ψ. Migrated from equilibrium-topology-fidelity f-etf-04 with the post-f-pcph-04 baselines.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-thar-01" data-status="open" data-tier="opus" data-written-by="reckon-edit (f-etf-04 migration)" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Implement the source-free toroidal-harmonic annulus fit + score Gate C on the hardened harness</h4>
+    <div class="r-fu-body"><p>The full implementation: harmonic basis module beside <code>boundary_moment.py</code>, whitened LS fit in the annulus, hybrid read with the calibrated interior carrier, Gate C held-out with CIs, and the vacuum-annulus consistency check against the carrier ψ. Migrated from equilibrium-topology-fidelity f-etf-04 with the post-f-pcph-04 baselines.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    toroidal-harmonic-annulus-read (http://localhost:8765/imas-ambix/toroidal-harmonic-annulus-read.html)
 Section: §1-§2 (the whole plan)
 Tier:    opus
 
 Context
-  Thread 1's current-moment read recovered the X-point class (-0.61->-0.15 held-out) but
+  Thread 1&#x27;s current-moment read recovered the X-point class (-0.61-&gt;-0.15 held-out) but
   reconstructs an interior current, re-importing interior ambiguity into the near-edge psi
   (LCFS skill -4.47 then; -5.05 on the hardened origin-controlled re-baseline). The source-free
   read fits the vacuum-annulus psi in the Delta*-eigenfunctions (toroidal/ring functions:
@@ -112,9 +114,9 @@ State to read
 
 Scope locks / constraints
   EFIT firewalled (code-outputs-only) — referee ONLY. External magnetics RAW (+ frozen offset
-  calibration). Conventions: total flux Phi=2piR·A_phi [Wb], mu0 explicit, MAST psi_axis >
+  calibration). Conventions: total flux Phi=2piR·A_phi [Wb], mu0 explicit, MAST psi_axis &gt;
   psi_boundary, EFIT psi x2pi in the referee. Confined-side flux reference NEVER from the
-  harmonic field's own extremum. Pole/order tuned leakage-free (train shots, frozen). Resolve
+  harmonic field&#x27;s own extremum. Pole/order tuned leakage-free (train shots, frozen). Resolve
   pole-and-truncation at kickoff. Reuse geometry_target/score/160-slice protocol so results are
   directly comparable to every other arm.
 
@@ -127,8 +129,8 @@ Done-when
   4. Verdict recorded either way (honest negative OK); imas-ink flux-surface figures for the
      held-out shots; plan updated same-turn; this followup resolved; force-balance-spine and
      equilibrium-topology-fidelity informed.</pre>
-      </article>
-    </section>
+    </article>
+</section>
   </main>
 </body>
 </html>
