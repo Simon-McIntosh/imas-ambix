@@ -492,7 +492,7 @@ def lcfs_contour(
     angles: np.ndarray = LCFS_ANGLES,
     lcfs_norm: float = 0.999,
     n_coarse: int = 6,
-    n_bisect: int = 18,
+    n_bisect: int = 14,
 ) -> LcfsContour:
     """LCFS = the outermost closed axis-enclosing flux contour inside the limiter.
 
@@ -563,7 +563,12 @@ def lcfs_contour(
         if ring is None:
             return None
         if lim_r is not None and lim_z is not None:
-            if not _inside_polygon(ring[:, 0], ring[:, 1], lim_r, lim_z).all():
+            # a poke-out spans many consecutive ring vertices, so a decimated
+            # sample (≤~200 points) detects it and keeps the containment test
+            # cheap on the dense contourpy rings.
+            step = max(1, ring.shape[0] // 200)
+            rr, zz = ring[::step, 0], ring[::step, 1]
+            if not _inside_polygon(rr, zz, lim_r, lim_z).all():
                 return None
         return ring
 
@@ -849,19 +854,30 @@ def read_topology(
 def _inside_polygon(
     px: np.ndarray, py: np.ndarray, vx: np.ndarray, vy: np.ndarray
 ) -> np.ndarray:
-    """Ray-casting point-in-polygon (limiter mask); no shapely dependency."""
+    """Ray-casting point-in-polygon (limiter mask); no shapely dependency.
+
+    Fully vectorised over BOTH the query points and the polygon edges (no Python
+    per-vertex loop) — the boundary contour push tests hundred-vertex rings
+    against the limiter tens of times per slice, so the O(points × edges) numpy
+    form is the difference between a sub-ms and a tens-of-ms read.
+    """
     px = np.asarray(px, dtype=np.float64)
     py = np.asarray(py, dtype=np.float64)
-    n = vx.size
-    inside = np.zeros(px.shape, dtype=bool)
-    j = n - 1
-    for i in range(n):
-        cond = ((vy[i] > py) != (vy[j] > py)) & (
-            px < (vx[j] - vx[i]) * (py - vy[i]) / (vy[j] - vy[i] + 1e-30) + vx[i]
-        )
-        inside ^= cond
-        j = i
-    return inside
+    shape = px.shape
+    pxf = px.ravel()
+    pyf = py.ravel()
+    vx = np.asarray(vx, dtype=np.float64).ravel()
+    vy = np.asarray(vy, dtype=np.float64).ravel()
+    vxj = np.roll(vx, 1)  # edge (j, i) with j = i-1 (matches the original loop)
+    vyj = np.roll(vy, 1)
+    # (P, E): does the ray from each point cross each edge?
+    straddle = (vy[None, :] > pyf[:, None]) != (vyj[None, :] > pyf[:, None])
+    x_cross = (vxj - vx)[None, :] * (pyf[:, None] - vy[None, :]) / (
+        (vyj - vy)[None, :] + 1e-30
+    ) + vx[None, :]
+    crossings = straddle & (pxf[:, None] < x_cross)
+    inside = (crossings.sum(axis=1) & 1).astype(bool)
+    return inside.reshape(shape)
 
 
 __all__ = [
