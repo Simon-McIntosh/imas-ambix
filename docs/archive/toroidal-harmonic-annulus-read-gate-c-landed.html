@@ -132,6 +132,41 @@
       (one of several held-out pulses; companion <code>phi-map-vs-efit-*.png</code> files cover the rest).</figcaption>
     </figure>
 
+    <h2>Enhancement — machine-agnostic per-slice pole + regularised higher order (lead-directed)</h2>
+    <p>After the first (fixed-pole) qualified pass, the lead directed using the high-accuracy carrier
+    axis to place the harmonic pole, raising the order with regularisation, and making the offset
+    machine-agnostic. Three changes landed:</p>
+    <ul>
+      <li><strong>Fast P<sup>1</sup><sub>n−½</sub> evaluator</strong> (<code>ring_P1</code>): order-0
+      elliptic-integral seeds + degree recurrence + order-raise, matched to mpmath &lt;1e-8. ~0.4 s per
+      (order,ridge,fraction) combo vs 24–40 s — the enabler for a moving pole (which defeats the mpmath
+      column cache) and higher orders. TDD suite drops 49 s → 8 s.</li>
+      <li><strong>Per-slice pole tracking the carrier axis, placed a dimensionless fraction inboard</strong>
+      (<code>pole_r = axis_R·(1−f)</code>, <code>pole_z = axis_Z</code>). A <em>fraction</em> (not a fixed
+      metre offset) keeps it machine-agnostic. Measured finding: a pole <em>at</em> the axis (f=0) is worse
+      (held-out lcfs_ft ~50 cm, X-point −7.6) — the P-expansion converges only when the focal ring sits
+      inboard of the current centroid. A CI-gated <strong>order × ridge × fraction</strong> ladder under the
+      consistency-RMS guard selected <strong>order 3, ridge 1e-8, fraction 0.41</strong> on train
+      (f=0.4 dominated; f=0.13/0.25 worse; higher f stabilises higher orders).</li>
+      <li><strong>Tikhonov ridge</strong> in the fit: at the carrier pole, order 6 no longer aliases
+      (consistency 0.086 vs the old fixed-pole o5's 2×10<sup>5</sup>).</li>
+    </ul>
+    <table>
+      <thead><tr><th>arm (held-out, n=160, 95% CI)</th><th>axis</th><th>X-point-set</th><th>LCFS</th><th>consistency</th></tr></thead>
+      <tbody>
+        <tr><td><strong>harmonic — per-slice pole (enhanced)</strong></td><td>−0.27</td>
+            <td><strong>−1.11 [−1.84,−0.1]</strong></td><td><strong>−3.62</strong></td><td>0.089</td></tr>
+        <tr><td>harmonic — fixed pole (first pass)</td><td>−0.27</td><td>−3.06 [−4.31,−1.60]</td><td>−2.98</td><td>0.082</td></tr>
+        <tr><td>current-moment o3</td><td>−1.62</td><td>−0.15</td><td>−4.47</td><td>—</td></tr>
+        <tr><td>free-current carrier</td><td>−0.16</td><td>−1.69 [−3.38,−0.08]</td><td>−4.91</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p>The per-slice machine-agnostic pole <strong>substantially closes the X-point gap</strong>
+    (−3.06 → −1.11, now beating the free carrier and approaching the moment read) while keeping LCFS
+    best-in-class among the physics arms (−3.62 &gt; moment −4.47 &gt; carrier −4.91) — a materially better
+    all-round boundary. Confined-phase φ-maps now track EFIT tightly across pulses; breakdown/ramp-up
+    (Ip≈0) have no confined separatrix to recover.</p>
+
     <h2>What's next</h2>
     <p>The driving followup is <strong>X-point-set fidelity</strong>: the source-free read localises the
     LCFS envelope best-in-class but under-resolves the divertor nulls at well-conditioned orders. Options
