@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="toroidal-harmonic-annulus-read">
   <meta name="plan-title" content="Toroidal-Harmonic Annulus Read — the source-free vacuum-region boundary representation (R3)">
   <meta name="plan-summary" content="PRIMARY machine-agnostic boundary route (promoted from cross-check, 2026-07-14). Fit the vacuum-annulus ψ in the Δ*-eigenfunctions (half-integer-degree Legendre P_{n−1/2}, Q_{n−1/2} toroidal harmonics) matched to the RAW external magnetics + known coil field + Ip + li, and read the separatrix / X-point / LCFS + limited-vs-diverted class off that smooth SOURCE-FREE field WITHOUT reconstructing an interior current and WITHOUT EFIT (firewall stays). This decouples the boundary from the interior: the free-boundary GS solve conflated them and re-imported interior ambiguity + coil-model error into the near-edge ψ (the -3.70 LCFS bar was self-inflicted). Diverted and limited plasmas DO differ in the external field (an external X-point saddle vs a wall tangency), and Ip+li break the residual field→boundary degeneracy — so a low-order boundary is recoverable from low-order external moments (Braams 1991; Alladio-Crisanti 1986; our own thread-1 moment read already recovered the X-point class -0.61→-0.15). Feeds the fixed-boundary interior spine and is the classical baseline / inductive bias for the learned cross-machine boundary operator (the GenCast-style endgame). Valid ONLY in the source-free annulus; the axis stays with the interior carrier.">
-  <meta name="plan-status" content="shipped">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
   <meta name="plan-tier" content="opus">
@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-14">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="8">
 <meta name="plan-impl" content="1.0">
 </head>
 <body>
@@ -46,21 +46,29 @@
       (<code>scripts/boundary_harmonic_gate_eval.py</code>), 13 TDD tests
       (Δ*ψ=0 to FD floor, filament sub-cm recovery, P-beats-Q). Coil coupling reuses the harness
       thick-cylinder <code>hybrid_greens</code> kernel only (never point-filament).
-      <strong>Enhanced read (lead-directed):</strong> the pole now tracks the high-accuracy interior-carrier
-      magnetic axis PER SLICE, placed a machine-agnostic dimensionless fraction of the axis radius inboard
-      (<code>pole_r = axis_R·(1−0.41)</code>, <code>pole_z = axis_Z</code>) — the focal ring must sit inboard
-      of the current centroid (pole AT the axis measured worse). A fast vectorised P<sup>1</sup><sub>n−½</sub>
-      evaluator (elliptic seeds + recurrence, ~0.4 s/combo) makes a per-slice pole + a Tikhonov
-      order×ridge×fraction ladder affordable; order 3, ridge 1e-8 selected leakage-free under a
-      consistency-RMS guard.
-      <strong>Held-out Gate C (n=160, firewalled EFIT, 95% CI):</strong> X-point-set skill
-      <strong>−3.06 → −1.11 [−1.84,−0.1]</strong> (now beats the free carrier −1.69, approaches the moment
-      read −0.15); LCFS <strong>−3.62</strong> still best-in-class (beats moment −4.47, carrier −4.91);
-      axis −0.27; <strong>vacuum-annulus consistency 0.089</strong> (median), confirming the source-free
-      premise with no EFIT. Confined-phase φ-maps (flat-top/ramp-down/termination) track EFIT tightly across
-      pulses; breakdown/ramp-up (Ip≈0) have no confined separatrix to recover.
-      <strong>Verdict: the X-point gap is substantially closed</strong> at best-in-class LCFS — a materially
-      better all-round boundary. (First pass was a fixed-pole qualified pass: LCFS −2.98, X-point −3.06.)
+      <strong>Enhanced read (lead-directed):</strong> the per-slice pole + ray-cast origin now track a
+      MAGNETICALLY-CONSTRAINED origin — the Ip-anchored current CENTROID (moment fit), placed a
+      machine-agnostic dimensionless fraction of the origin radius inboard
+      (<code>pole_r = origin_R·(1−0.41)</code>, <code>pole_z = origin_Z</code>; the ring must sit inboard of
+      the centroid — pole AT the origin measured worse). The centroid replaces the flat-top-tuned free-current
+      carrier, which mislocated the axis ~30 cm outboard at ramp-up and collapsed the boundary there; an
+      isolation test (origin = EFIT axis) proved the harmonic boundary read itself recovers ramp-up to 3–6 cm
+      when correctly anchored. It needs NO interior carrier (pure external magnetics → centroid → source-free
+      boundary; the ~13-min patch inverse is gone). Mask/exclude radii size-adaptive (fractions of the
+      pole-to-origin distance). A fast vectorised P<sup>1</sup><sub>n−½</sub> evaluator (elliptic seeds +
+      recurrence) makes the per-slice pole + ladder cheap; order 3, ridge 1e-8, fraction 0.41.
+      <strong>Held-out Gate C (n=160, firewalled EFIT):</strong> LCFS error nearly HALVED to
+      <strong>6.8 cm all / 5.4 cm flat-top</strong> (was 11.8/10.7), lcfs_skill −2.48; ramp-up LCFS
+      <strong>7–14 cm</strong> (was 41–52 cm — ramp-up now robust across the discharge); vacuum-annulus
+      consistency 0.068. <strong>Honest tradeoff:</strong> X-point-set (−4.54) and axis (−1.58) regress vs the
+      carrier per-slice run (−1.11 / −0.27) — the centroid sits inboard of the flux axis by the Shafranov
+      shift, and the more-robust centroid now finds ramp-up X-points that get imperfectly matched (partly a
+      scoring artifact); flat-top X-points stay ~5 cm.
+      <strong>Verdict: robust boundary + ramp-up model achieved</strong> (the lead's gate for progressing);
+      X-point/axis recovery under the centroid is the open followup (<code>f-thar-xpt-shafranov</code>).
+      Figures show ALL nested flux surfaces (not just the separatrix). EFIT reconstructs a substantial
+      boundary at breakdown (Ip 157 kA, minor radius ~0.45 m) — NOT a small circle — and the read now yields a
+      real closed boundary through ramp-up, imperfect only at the earliest breakdown slice.
       Full record: <a href="archive/toroidal-harmonic-annulus-read-gate-c-landed.html">Gate C landed</a>.</p>
     </section>
 
@@ -162,14 +170,14 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="pole-and-truncation" data-choice="per-slice-pole" data-by="reckon-ship (lead direction, measured)" data-when="2026-07-14T15:00:36+00:00">
+<div class="r-dec" data-key="pole-and-truncation" data-choice="per-slice-pole" data-by="reckon-ship (centroid origin, measured)" data-when="2026-07-14T15:59:55+00:00">
     <p class="r-dec-q">Where does the toroidal-coordinate pole sit, and how is the harmonic order chosen?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="fixed-pole-ci-ladder">fixed pole near the nominal magnetic axis (campaign geometry), order chosen by a CI-gated ladder on train shots (recommended — mirrors the profile-DOF ladder discipline)</button>
       <button class="r-opt chosen" data-value="per-slice-pole">per-slice pole at the interior-carrier axis; order fixed small</button>
       <button class="r-opt" data-value="joint-fit">pole and order jointly optimised per slice (most DOF, highest aliasing risk)</button>
       </p>
-    <p class="r-dec-rat">Per-slice pole tracking the interior-carrier magnetic axis, placed a DIMENSIONLESS FRACTION of the axis radius INBOARD (pole_r = axis_R*(1-fraction), pole_z = axis_Z), fraction selected leakage-free on train = 0.41. Machine-agnostic (the focal ring sits at the same relative inboard position on any device, R/R0-scaled) per the lead&#x27;s request — NOT a fixed metre offset. CORRECTION to the earlier &#x27;pole AT the axis&#x27; plan: measured, pole AT the axis (fraction 0) is WORSE (held-out lcfs_ft ~50 cm / X-point -7.6) because the P-harmonic expansion converges only when the focal ring sits inboard of the current centroid; the inboard fraction restores and improves it. Order chosen by a CI-gated order x ridge x fraction ladder on train under a consistency-RMS guard (rejects high-order aliasing), scored once held-out; order 3, ridge 1e-8 selected. Enabled by a fast vectorised P^1_{n-1/2} evaluator (elliptic seeds + degree recurrence, ~0.4s/combo vs 40s) that makes the per-slice pole + sweep affordable. Held-out result: X-point-set -3.06 -&gt; -1.11 (now beats the free carrier), LCFS best-in-class -3.62, consistency 0.089.</p>
+    <p class="r-dec-rat">Per-slice pole tracking a MAGNETICALLY-CONSTRAINED origin, placed a dimensionless FRACTION of the origin radius inboard (pole_r = origin_R*(1-0.41), pole_z = origin_Z; machine-agnostic, R/R0-scaled). ORIGIN = the Ip-anchored current CENTROID (moment fit), NOT the free-current patch carrier O-point: the flat-top-tuned carrier mislocates the axis ~30 cm outboard at ramp-up (Ip 21-66%), collapsing the boundary (LCFS 41-52 cm); the centroid tracks the plasma inboard and gives a robust boundary at ALL phases. Isolation test (origin = EFIT axis, diagnostic) proved the harmonic BOUNDARY read itself recovers ramp-up to 3-6 cm when correctly anchored — the failure was purely the origin. The centroid needs no interior carrier (pure external magnetics: Ip + moments -&gt; centroid -&gt; source-free boundary), removing the ~13-min patch inverse. Mask/exclude radii size-adaptive (fractions of pole-to-origin distance) so they never reach the axis as the plasma shrinks. Order 3, ridge 1e-8, fraction 0.41. Held-out (n=160): LCFS 6.8 cm all / 5.4 cm flat-top (nearly HALVED vs the carrier&#x27;s 11.8/10.7), lcfs_skill -2.48, consistency 0.068; ramp-up LCFS 7-14 cm. Tradeoff: X-point-set -4.54 and axis -1.58 regress vs the carrier per-slice run (centroid sits inboard of the flux axis by the Shafranov shift; and the more-robust centroid now FINDS ramp-up X-points that get imperfectly matched where the carrier found none -&gt; a scoring artifact). Flat-top X-points remain ~5 cm.</p>
     </div>
 </section>
 
@@ -348,11 +356,11 @@ Done-when
 Guardrails
   Stay on main; EFIT firewalled (referee scores only); coil couplings stay thick-cylinder
   hybrid_greens (never point-filament); no AI co-author trailers.</pre>
-    <p class="r-fu-outcome">Substantially closed. Per-slice machine-agnostic pole (carrier axis, inboard fraction 0.41) + fast P^1 evaluator + Tikhonov order x ridge x fraction ladder. Held-out (n=160): X-point-set skill -3.06 -> -1.11 [beats free carrier -1.69; approaches moment -0.15], LCFS best-in-class -3.62 (beats moment -4.47, carrier -4.91), axis -0.27, consistency 0.089 median. Pole AT the axis (fraction 0) measured WORSE (physics: ring must sit inboard of the centroid); fraction 0.41 selected on train. Confined-phase figures (flat-top/ramp-down/termination) now track EFIT tightly. Remaining: breakdown/ramp-up (Ip~0) have no confined boundary to recover; moment read still edges X-point.</p>
+    <p class="r-fu-outcome">Substantially closed. Per-slice machine-agnostic pole (carrier axis, inboard fraction 0.41) + fast P^1 evaluator + Tikhonov order x ridge x fraction ladder. Held-out (n=160): X-point-set skill -3.06 -&gt; -1.11 [beats free carrier -1.69; approaches moment -0.15], LCFS best-in-class -3.62 (beats moment -4.47, carrier -4.91), axis -0.27, consistency 0.089 median. Pole AT the axis (fraction 0) measured WORSE (physics: ring must sit inboard of the centroid); fraction 0.41 selected on train. Confined-phase figures (flat-top/ramp-down/termination) now track EFIT tightly. Remaining: breakdown/ramp-up (Ip~0) have no confined boundary to recover; moment read still edges X-point.</p>
     </article>
 <article class="r-fu" data-id="f-thar-startup-lowip" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-14T17:05:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Low-Ip startup boundary + the last X-point gap to the moment read</h4>
-    <div class="r-fu-body"><p>The per-slice machine-agnostic pole closed most of the X-point gap (-3.06 -> -1.11 held-out) and keeps best-in-class LCFS. Two residuals: (1) at breakdown/early ramp-up (Ip~0) there is no confined separatrix to recover, so the read finds spurious far saddles and no closed LCFS -- either accept as physical (no boundary exists) or add a low-Ip limiter-bounded fallback so the figure shows the limiter-tangent boundary EFIT extrapolates; (2) the moment read still edges the harmonic X-point-set (-0.15 vs -1.11). Try the ridge=0.01 variant (train X-point -1.37, better than ridge=1e-8) as a pre-declared X-point-optimal config, and the ablatable Ip/li circulation anchor.</p></div>
+    <div class="r-fu-body"><p>The per-slice machine-agnostic pole closed most of the X-point gap (-3.06 -&gt; -1.11 held-out) and keeps best-in-class LCFS. Two residuals: (1) at breakdown/early ramp-up (Ip~0) there is no confined separatrix to recover, so the read finds spurious far saddles and no closed LCFS -- either accept as physical (no boundary exists) or add a low-Ip limiter-bounded fallback so the figure shows the limiter-tangent boundary EFIT extrapolates; (2) the moment read still edges the harmonic X-point-set (-0.15 vs -1.11). Try the ridge=0.01 variant (train X-point -1.37, better than ridge=1e-8) as a pre-declared X-point-optimal config, and the ablatable Ip/li circulation anchor.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    toroidal-harmonic-annulus-read
 Section: low-Ip startup + last X-point gap
@@ -383,6 +391,43 @@ Done-when
 Guardrails
   Stay on main; EFIT firewalled (referee scores only); coil couplings stay thick-cylinder; the
   pole stays machine-agnostic (fraction of axis R, never a fixed metre offset); no AI trailers.</pre>
+    </article>
+<article class="r-fu" data-id="f-thar-xpt-shafranov" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-14T18:05:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Recover X-point-set + axis under the centroid origin (Shafranov + ramp-up matching)</h4>
+    <div class="r-fu-body"><p>The current-centroid origin nearly halved the held-out LCFS (11.8->6.8 cm) and made ramp-up robust (7-14 cm vs 41-52 cm), but the aggregate X-point-set (-4.54) and axis (-1.58) regressed vs the carrier per-slice run (-1.11 / -0.27). Two causes: (a) the current centroid sits inboard of the flux axis by the Shafranov shift, biasing the axis target and the boundary-flux reference; (b) the more-robust centroid FINDS ramp-up X-points that get imperfectly matched, where the carrier found none (NaN, excluded) and scored deceptively better. Flat-top X-points are already ~5 cm. Close the gap without losing the LCFS/ramp-up win.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    toroidal-harmonic-annulus-read
+Section: X-point + axis under the centroid origin
+Tier:    opus
+
+Context
+  Held-out (o3, ridge 1e-8, centroid origin, inboard fraction 0.41, adaptive mask):
+  LCFS 6.8 cm all / 5.4 cm ft (lcfs_skill -2.48), consistency 0.068, ramp-up LCFS 7-14 cm
+  (was 41-52 with the carrier). But X-point-set -4.54 (carrier per-slice was -1.11) and axis
+  -1.58 (-0.27) regressed. Flat-top X-points ~5 cm; the aggregate is dragged by ramp-up.
+
+Do (leakage-free; tune on train, freeze, eval held-out once; consistency RMS as guard)
+  1. Shafranov-correct the AXIS target: report a small outboard correction of the current
+     centroid toward the flux axis (a fraction of a/R or of the pole-to-origin distance, tuned
+     on train) so axis_skill recovers without moving the well-behaved boundary ray-cast origin.
+  2. Separate the boundary-flux reference from the origin: keep the ray-cast origin = centroid
+     (robust) but read axis_psi at the harmonic O-point / a Shafranov-shifted point if that
+     sharpens the X-point selection.
+  3. Ramp-up X-point honesty: audit per-slice whether the harmonic X-points at ramp-up are
+     genuine (match EFIT) or spurious; if spurious, tighten the in-vessel/clearance filter at
+     low Ip. Report the X-point-set skill split by phase (ramp-up vs flat-top).
+  4. Re-run the order x ridge x fraction ladder with the CENTROID origin (the 0.41 fraction was
+     selected under the carrier); the centroid optimum may differ.
+  Compare X-point + LCFS + axis (CIs) vs the carrier per-slice run and the moment read.
+
+Done-when
+  - X-point-set + axis recover toward the carrier per-slice values WITHOUT losing the centroid
+    LCFS/ramp-up win, or an honest characterisation of the tradeoff; per-phase skill reported;
+    plan + figures updated same-turn.
+
+Guardrails
+  Stay on main; EFIT firewalled (referee scores only); coil couplings thick-cylinder; pole/origin
+  machine-agnostic (fractions, never fixed metres); no AI trailers.</pre>
     </article>
 </section>
   </main>
