@@ -513,8 +513,8 @@ def fig_gate_c_skill_bars(stem: Path) -> bool:
         ("lcfs_skill", "lcfs_skill_ci", "LCFS skill"),
     ]
 
-    fig, axes = plt.subplots(1, 3, figsize=(12.5, 5.0))
-    for ax, (key, ci_key, title) in zip(axes, metrics, strict=True):
+    fig, axes = plt.subplots(1, 4, figsize=(16.0, 5.0))
+    for ax, (key, ci_key, title) in zip(axes[:3], metrics, strict=True):
         xs = np.arange(len(arms))
         vals = np.array(
             [float(a[1][key]) if a[1].get(key) is not None else np.nan for a in arms]
@@ -534,6 +534,38 @@ def fig_gate_c_skill_bars(stem: Path) -> bool:
         ax.set_xticklabels([a[0] for a in arms], fontsize=8.5)
         ax.set_title(title, fontsize=11)
     axes[0].set_ylabel("skill  (higher is better; >0 beats train-mean)")
+
+    # 4th panel -- vacuum-annulus consistency RMS: a HARMONIC-only diagnostic
+    # (harmonic psi vs the interior carrier psi in their shared source-free
+    # annulus; no comparable quantity exists for the moment/carrier arms, and
+    # boundary_harmonic_gate_eval.py records no CI for it).
+    ax = axes[3]
+    med = harmonic.get("consistency_rms_annulus")
+    mean = harmonic.get("consistency_rms_annulus_mean")
+    if med is None and mean is None:
+        logger.warning("no consistency_rms_annulus in the harmonic artifact")
+        ax.axis("off")
+        ax.set_title("annulus consistency RMS\n(not recorded)", fontsize=11)
+    else:
+        labels = [lbl for lbl, v in (("median", med), ("mean", mean)) if v is not None]
+        vals = [v for v in (med, mean) if v is not None]
+        xs = np.arange(len(vals))
+        ax.bar(xs, vals, 0.5, color=C_HARM)
+        for xi, v in zip(xs, vals, strict=True):
+            ax.annotate(
+                f"{v:.3g}",
+                (xi, v),
+                textcoords="offset points",
+                xytext=(0, 4),
+                ha="center",
+                fontsize=9,
+            )
+        ax.set_xticks(xs)
+        ax.set_xticklabels(labels, fontsize=9)
+        ax.set_title(
+            "vacuum-annulus consistency RMS\n(harmonic ψ vs interior carrier ψ)",
+            fontsize=10.5,
+        )
     fig.suptitle(
         "Gate C — source-free toroidal-harmonic boundary read vs current-moment "
         "and free-current carrier (held-out, EFIT-scored, 95% CI)",
