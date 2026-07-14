@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <rect x="0" y="0" width="900" height="520" fill="#ffffff"/>
+  <style>
+    .box { fill:#ffffff; stroke:#8a8f98; stroke-width:1; }
+    .accent { stroke:#0f766e; stroke-width:2; }
+    .t { fill:#1b1d22; font-size:14px; }
+    .tt { fill:#1b1d22; font-size:15px; font-weight:600; }
+    .sub { fill:#3a3f47; font-size:12.5px; }
+    .acc { fill:#0f766e; font-size:12.5px; font-weight:600; }
+    .arrow { stroke:#5a6069; stroke-width:1.5; fill:none; marker-end:url(#ah); }
+  </style>
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#5a6069"/>
+    </marker>
+  </defs>
+
+  <text x="30" y="34" class="tt" font-size="17px">Connectivity-based boundary read — stationary points come FIRST</text>
+
+  <!-- Step 1 -->
+  <rect class="box" x="30" y="56" width="380" height="66" rx="6"/>
+  <text x="46" y="82" class="tt">1 · Field &#968;(R,Z)</text>
+  <text x="46" y="104" class="sub">harmonic plasma flux + thick-cylinder coil flux (known currents)</text>
+
+  <!-- Step 2 (accent: the key step) -->
+  <rect class="box accent" x="30" y="146" width="380" height="88" rx="6"/>
+  <text x="46" y="172" class="tt">2 · Stationary points: &#8711;&#968; = 0</text>
+  <text x="46" y="194" class="sub">O-points (extrema) + X-points (saddles), split by the Hessian sign.</text>
+  <text x="46" y="214" class="acc">A LOCAL differential property — found with NO boundary.</text>
+
+  <!-- Step 3 -->
+  <rect class="box" x="30" y="258" width="380" height="88" rx="6"/>
+  <text x="46" y="284" class="tt">3 · Candidate boundary fluxes</text>
+  <text x="46" y="306" class="sub">{ &#968; at each in-vessel X-point }  &#8746;  { limiter-tangency &#968; }</text>
+  <text x="46" y="326" class="sub">one flux value per candidate bounding surface</text>
+
+  <!-- Step 4 -->
+  <rect class="box" x="30" y="370" width="380" height="100" rx="6"/>
+  <text x="46" y="396" class="tt">4 · Connectivity test (trace contour)</text>
+  <text x="46" y="418" class="sub">confined component = level-set piece containing the axis.</text>
+  <text x="46" y="438" class="sub">Closes inside the vessel &#8594; DIVERTED (X-point bounds it);</text>
+  <text x="46" y="457" class="sub">touches the limiter first &#8594; LIMITED (wall tangency bounds it).</text>
+
+  <!-- Step 5 -->
+  <rect class="box accent" x="470" y="370" width="400" height="100" rx="6"/>
+  <text x="486" y="396" class="tt">5 · LCFS + topology class</text>
+  <text x="486" y="418" class="sub">outermost closed surface enclosing the axis that does</text>
+  <text x="486" y="438" class="sub">NOT cross the limiter &#8594; boundary &#968;, X-point set,</text>
+  <text x="486" y="457" class="sub">8-angle radii. Far-field spurious saddles fail the test.</text>
+
+  <!-- arrows -->
+  <path class="arrow" d="M220,122 L220,146"/>
+  <path class="arrow" d="M220,234 L220,258"/>
+  <path class="arrow" d="M220,346 L220,370"/>
+  <path class="arrow" d="M410,420 L470,420"/>
+
+  <!-- chicken-egg callout -->
+  <rect x="470" y="56" width="400" height="290" rx="6" fill="#f6faf9" stroke="#0f766e" stroke-width="1"/>
+  <text x="488" y="82" class="tt" fill="#0f766e">No chicken-and-egg</text>
+  <text x="488" y="108" class="t">The proposed order &#8212; <tspan font-style="italic">contour &#8594; boundary</tspan></text>
+  <text x="488" y="127" class="t">&#8594; stationary points &#8212; is circular. Reverse it:</text>
+  <text x="488" y="156" class="t">&#8226; Stationary points need only &#8711;&#968;=0 (step 2),</text>
+  <text x="488" y="175" class="t">&#160;&#160;a local property of the field &#8212; independent</text>
+  <text x="488" y="194" class="t">&#160;&#160;of any contour or boundary.</text>
+  <text x="488" y="222" class="t">&#8226; Contours are traced AFTERWARD (step 4), to</text>
+  <text x="488" y="241" class="t">&#160;&#160;test which stationary point (or the limiter)</text>
+  <text x="488" y="260" class="t">&#160;&#160;actually bounds the axis by connectivity.</text>
+  <text x="488" y="288" class="t">&#8226; The boundary is thus DEFINED by the stationary</text>
+  <text x="488" y="307" class="t">&#160;&#160;points + connectivity &#8212; it is never needed to</text>
+  <text x="488" y="326" class="t">&#160;&#160;FIND them. The dependency runs one way.</text>
+</svg>
