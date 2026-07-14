@@ -109,10 +109,13 @@ def _scored_read(
     from imas_ambix.latent.boundary_harmonic import HarmonicFitConfig, fit_harmonic
 
     axis, _ = _sign_aware_axis(carrier_psi, grid)
-    # pole = carrier axis per slice (matches --pole-source carrier)
+    # pole tracks the carrier axis, placed the frozen offset INBOARD in R (the
+    # focal ring must sit inboard of the current centroid) at the carrier axis Z
+    # -- matches the gate's --pole-source carrier read.
+    pole = (float(axis[0]) - args.pole_inboard_offset, float(axis[1]))
     cfg = HarmonicFitConfig(
-        pole_r=float(axis[0]),
-        pole_z=float(axis[1]),
+        pole_r=pole[0],
+        pole_z=pole[1],
         order=args.order,
         kind="P",
         ridge=args.ridge,
@@ -128,12 +131,7 @@ def _scored_read(
     psi_coil = basis.psi_grid_2d_np(np.zeros(basis.r_cells.shape[0]), payload.i_pf)
     psi_tot = psi_plasma + psi_coil
     target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
-        psi_tot,
-        grid,
-        axis,
-        (float(axis[0]), float(axis[1])),
-        mask_radius,
-        exclude_radius,
+        psi_tot, grid, axis, pole, mask_radius, exclude_radius
     )
     return (
         field,
@@ -649,6 +647,13 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1e-8,
         help="Tikhonov ridge (frozen by the Gate C ladder alongside the order)",
+    )
+    ap.add_argument(
+        "--pole-inboard-offset",
+        type=float,
+        default=0.13,
+        help="inboard R offset of the per-slice pole from the carrier axis "
+        "(frozen by the Gate C ladder)",
     )
     ap.add_argument("--out-dir", type=Path, default=FIGURES)
     ap.add_argument(

@@ -220,23 +220,28 @@ def hybrid_target_harmonic(psi_tot, grid, axis, pole, mask_radius, exclude_radiu
     return target, float(axis_psi), float(boundary_psi), field
 
 
-def _slice_pole(axis, grid, args) -> tuple[float, float]:
+def _slice_pole(axis, grid, args, offset) -> tuple[float, float]:
     """The toroidal-coordinate pole for one slice.
 
-    ``--pole-source carrier`` (default, SCORED): the pole is placed AT the
-    high-accuracy interior-carrier magnetic axis, so the focal ring sits at the
-    current centroid where the P-harmonic expansion converges fastest and tracks
-    the small off-nominal-axis plasma through breakdown/ramp-up.  ``fixed``
-    (ablation): the campaign nominal axis ``grid.r0`` at ``z=0`` (the retired
-    fixed-pole behaviour); ``--pole-r``/``--pole-z`` override it."""
+    ``--pole-source carrier`` (default, SCORED): the pole tracks the
+    high-accuracy interior-carrier magnetic axis, placed ``offset`` metres
+    INBOARD of it in R (``pole_r = axis_R - offset``) and at the carrier axis Z
+    (vertical tracking).  The inboard offset is physics-required: the P-harmonic
+    expansion converges only when the focal ring sits INBOARD of the current
+    centroid (all plasma current at larger toroidal-mu than the sensors); a pole
+    AT the axis pushes the inboard plasma to the wrong side of the ring and the
+    inboard boundary degrades (measured: offset 0 -> lcfs_ft ~50 cm).  Tracking Z
+    + R lets the small off-nominal plasma through breakdown/ramp-up be followed.
+    ``fixed`` (ablation): campaign nominal ``grid.r0`` at ``z=0``
+    (``--pole-r``/``--pole-z`` override)."""
     if args.pole_source == "carrier":
-        return float(axis[0]), float(axis[1])
+        return float(axis[0]) - float(offset), float(axis[1])
     pole_r = args.pole_r if args.pole_r is not None else float(grid.r0)
     return pole_r, args.pole_z
 
 
-def score_order(shots, patch_psis, order, ridge, split, args) -> dict:
-    """Fit + score one (order, ridge) over the cohort; per-slice carrier pole."""
+def score_order(shots, patch_psis, order, ridge, offset, split, args) -> dict:
+    """Fit + score one (order, ridge, offset) over the cohort; per-slice pole."""
     model_rows, ref_rows, flattop_flags, shot_rows = [], [], [], []
     saddles, misfits, consistencies = [], [], []
     t0 = time.perf_counter()
@@ -252,7 +257,7 @@ def score_order(shots, patch_psis, order, ridge, split, args) -> dict:
             # the carrier axis (the high-accuracy interior estimate) is BOTH the
             # ray-cast origin AND the per-slice harmonic pole.
             axis, _ = _sign_aware_axis(patch_psis[si][k], grid)
-            pole_r, pole_z = _slice_pole(axis, grid, args)
+            pole_r, pole_z = _slice_pole(axis, grid, args, offset)
             cfg = HarmonicFitConfig(
                 pole_r=pole_r,
                 pole_z=pole_z,
@@ -321,6 +326,7 @@ def score_order(shots, patch_psis, order, ridge, split, args) -> dict:
         "ridge": ridge,
         "kind": "P",
         "pole_source": args.pole_source,
+        "pole_inboard_offset": offset,
         "mask_radius": args.mask_radius,
         "exclude_radius": args.exclude_radius,
         "ip_anchor": args.ip_anchor,
@@ -343,8 +349,9 @@ def score_order(shots, patch_psis, order, ridge, split, args) -> dict:
     }
 
     rtag = f"-r{ridge:g}" if ridge != 1e-8 else ""
+    otag = f"-off{offset:g}" if args.pole_source == "carrier" else ""
     ptag = "" if args.pole_source == "carrier" else f"-{args.pole_source}pole"
-    suffix = f"{ptag}-{args.axis_source}axis{rtag}"
+    suffix = f"{ptag}{otag}-{args.axis_source}axis{rtag}"
     tag = f"harmonic-o{order}{suffix}" + ("" if split == "eval" else "-tune")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
@@ -403,8 +410,17 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["carrier", "fixed"],
         default="carrier",
         help="toroidal-coordinate pole per slice: 'carrier' (default, SCORED) = "
-        "the interior-carrier magnetic axis; 'fixed' = campaign nominal grid.r0 "
-        "(ablation, the retired fixed-pole behaviour)",
+        "the interior-carrier magnetic axis (tracked, inboard-offset); 'fixed' = "
+        "campaign nominal grid.r0 (ablation, the retired fixed-pole behaviour)",
+    )
+    ap.add_argument(
+        "--pole-inboard-offsets",
+        type=float,
+        nargs="+",
+        default=[0.13, 0.25, 0.4],
+        help="swept inboard offsets [m]: pole_r = carrier axis_R - offset (the "
+        "focal ring must sit inboard of the current centroid; offset 0 = pole AT "
+        "the axis degrades the inboard boundary)",
     )
     ap.add_argument(
         "--pole-r",
@@ -478,10 +494,12 @@ def main() -> int:
 
     # 2-D (order x ridge) ladder; selection by lcfs_skill subject to the
     # consistency guard (rejects high-order aliasing where the annulus RMS blows up).
+    offsets = args.pole_inboard_offsets if args.pole_source == "carrier" else [0.0]
     summary = [
-        score_order(shots, patch_psis, o, ridge, args.split, args)
+        score_order(shots, patch_psis, o, ridge, off, args.split, args)
         for o in args.orders
         for ridge in args.ridges
+        for off in offsets
     ]
 
     def _ok(d) -> bool:
@@ -491,10 +509,11 @@ def main() -> int:
     eligible = [d for d in summary if _ok(d)] or summary
     best = max(eligible, key=lambda d: d["lcfs_skill"])
     logger.info(
-        "BEST order=%d ridge=%g lcfs_skill=%.3f xpt_skill=%s axis_skill=%.3f "
+        "BEST order=%d ridge=%g offset=%g lcfs_skill=%.3f xpt_skill=%s axis_skill=%.3f "
         "consistency_rms=%s (split=%s pole=%s)",
         best["order"],
         best["ridge"],
+        best["pole_inboard_offset"],
         best["lcfs_skill"],
         best["xpoint_set_skill"],
         best["axis_skill"],
