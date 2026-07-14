@@ -66,6 +66,71 @@
     plasma-current-priors-hardening §6–§7. Pass = X-point-set and LCFS skill beat the current-moment read;
     report the vacuum-annulus consistency RMS either way.</p>
 
+    <h2 id="s3">§3 — Implementation architecture (frozen interface, refined 2026-07-14)</h2>
+    <ul>
+      <li><strong>New module</strong> <code>imas_ambix/latent/boundary_harmonic.py</code>, beside
+      <code>boundary_moment.py</code>. Fits the PLASMA-produced vacuum flux ψ<sub>p</sub>(R,Z) in the annulus in
+      source-free toroidal harmonics about a <em>fixed</em> pole (locked <code>pole-and-truncation</code>). The
+      total field read for topology is ψ<sub>tot</sub> = ψ<sub>p</sub>(harmonic) + ψ<sub>coil</sub>, where the
+      coil term is the harness's existing <strong>thick-cylinder Biot</strong> column
+      (<code>EquilibriumGrid._coil_psi_columns</code> via <code>hybrid_greens</code>) — <em>never</em> a
+      point-filament coil term (binding user directive 2026-07-14; the whole harness is already
+      <code>cylinder-sensors-v4</code>).</li>
+      <li><strong>Analytic sensor prediction.</strong> Each harmonic column contributes ψ<sub>k</sub> to flux
+      loops and the orientation-projected field (B<sub>R</sub>cosθ + B<sub>Z</sub>sinθ) to B-probes, computed
+      from the analytic ψ<sub>k</sub> and its gradient. Sensor geometry (R, Z, angle, kind) comes from
+      <code>table.sensor_map</code>, in the SAME row order as the payload's <code>measured</code>/<code>vacuum</code>
+      vectors. The harmonic basis carries NO current on cells, so <code>m_sens</code> is not used (unlike the
+      moment read) — the source-free premise is structural, not merely low-order.</li>
+      <li><strong>Fit.</strong> Whitened least squares of the harmonic coefficients to the plasma sensor
+      signature <code>measured − vacuum</code> on trusted rows, tiny ridge floor in a column-normalised frame.
+      Ip enters as an optional (ablatable) virtual constraint — the poloidal-field circulation
+      ∮B·dl = μ<sub>0</sub>Ip on a loop enclosing the plasma is a linear functional of the coefficients — mirroring
+      the moment read's <code>ip_anchor</code>.</li>
+      <li><strong>Hybrid read.</strong> Reuse <code>hybrid_target()</code>: the ray-cast AXIS comes from the
+      calibrated interior carrier (patch arm, offset-only static calibration), boundary / X-point set / LCFS
+      radii from ψ<sub>tot</sub>. The confined-side flux reference is NEVER the harmonic field's own extremum
+      (binding review note) — it comes from the carrier.</li>
+      <li><strong>Gate script</strong> <code>scripts/boundary_harmonic_gate_eval.py</code> clones
+      <code>boundary_moment_gate_eval.py</code>: reuses <code>patch_gate_eval.score()</code> (paired-bootstrap
+      CIs, saddle-excess), <code>shot_payloads()</code>, the 160-slice held-out protocol; sweeps the harmonic
+      order on train shots (CI-gated ladder), freezes, scores once held-out; records the vacuum-annulus
+      consistency RMS (carrier-ψ vs harmonic-ψ in the shared annulus).</li>
+    </ul>
+
+    <h2 id="s4">§4 — TDD correctness ladder</h2>
+    <p>Tests in <code>tests/latent/test_boundary_harmonic.py</code>, mirroring the analytic-stub style of
+    <code>test_boundary_moment.py</code> (no zarr/corpus needed). Correctness is anchored by
+    <em>convention-independent</em> physical properties, so a recall error in the literature harmonic formula is
+    caught by a failing test, not shipped:</p>
+    <ul>
+      <li><strong>T1 — Δ*ψ<sub>k</sub> = 0.</strong> Each basis column satisfies the HOMOGENEOUS Grad-Shafranov
+      operator (the −(1/R)∂<sub>R</sub> term, not the plain Laplacian) to finite-difference tolerance in the
+      annulus, away from the pole. Ground truth independent of the formula's provenance.</li>
+      <li><strong>T2 — source-free exactness.</strong> A field that IS a low-order harmonic combination is
+      recovered from its noise-free sensor signature to numerical precision (well-posed, K &lt; S).</li>
+      <li><strong>T3 — filament recovery.</strong> A toroidal current filament placed INSIDE the pole has an
+      exact exterior flux (<code>greens_psi</code>); the harmonic basis fits it to sub-cm boundary agreement in
+      the annulus — the physical validation that the exterior-decaying set is right.</li>
+      <li><strong>T4 — coil kernel guard.</strong> The coil coupling used by the module/gate is the
+      thick-cylinder <code>hybrid_greens</code> path; no point-filament coil term is reachable.</li>
+      <li><strong>T5 — harness contract.</strong> The hybrid read + consistency-RMS wiring is unit-tested with a
+      stub basis so the gate's plumbing is correct independent of data.</li>
+    </ul>
+
+    <h2 id="s5">§5 — Evidence &amp; figures (imas-ink, mandate 2026-06-03)</h2>
+    <p>All figures under <code>docs/figures/toroidal-harmonic-annulus-read/</code>, project-absolute
+    <code>src</code>, embedded in the per-stage archive and the evergreen collapse:</p>
+    <ul>
+      <li><strong>φ-maps vs held-out EFIT.</strong> The external toroidal-harmonic ψ(R,Z) overlaid on the
+      firewalled EFIT ground-truth ψ(R,Z) for MULTIPLE held-out pulses — matched absolute levels, LCFS + X-point
+      overlays.</li>
+      <li><strong>All plasma phases.</strong> Per-shot time-slice panels spanning breakdown → ramp-up → flat-top
+      → ramp-down → termination, demonstrating the read holds across the whole discharge, not just flat-top.</li>
+      <li><strong>Gate C bars.</strong> X-point-set + LCFS skill with 95% CIs vs BOTH the current-moment read AND
+      the calibrated carrier arm; saddle-excess; vacuum-annulus consistency RMS.</li>
+    </ul>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="pole-and-truncation" data-choice="fixed-pole-ci-ladder" data-by="reckon-edit (boundary-route promotion)" data-when="2026-07-14T10:58:34+00:00">
