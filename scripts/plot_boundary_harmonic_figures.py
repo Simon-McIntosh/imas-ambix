@@ -112,7 +112,7 @@ def _scored_read(
     # pole tracks the carrier axis, placed the frozen offset INBOARD in R (the
     # focal ring must sit inboard of the current centroid) at the carrier axis Z
     # -- matches the gate's --pole-source carrier read.
-    pole = (float(axis[0]) - args.pole_inboard_offset, float(axis[1]))
+    pole = (float(axis[0]) * (1.0 - args.pole_inboard_fraction), float(axis[1]))
     cfg = HarmonicFitConfig(
         pole_r=pole[0],
         pole_z=pole[1],
@@ -649,11 +649,11 @@ def parse_args() -> argparse.Namespace:
         help="Tikhonov ridge (frozen by the Gate C ladder alongside the order)",
     )
     ap.add_argument(
-        "--pole-inboard-offset",
+        "--pole-inboard-fraction",
         type=float,
-        default=0.13,
-        help="inboard R offset of the per-slice pole from the carrier axis "
-        "(frozen by the Gate C ladder)",
+        default=0.41,
+        help="dimensionless inboard fraction: pole_r = carrier axis_R*(1-fraction) "
+        "(machine-agnostic; frozen by the Gate C ladder)",
     )
     ap.add_argument("--out-dir", type=Path, default=FIGURES)
     ap.add_argument(
