@@ -77,48 +77,34 @@ C_EFIT = C_FREE
 # --------------------------------------------------------------------------
 # shared harmonic-fit helper
 # --------------------------------------------------------------------------
-def _carrier_axes(payload_dict, device="cpu"):
-    """Per-slice free-current (patch) carrier psi for a shot payload dict.
-
-    The harmonic field cannot localise the axis (it is valid only in the
-    annulus), so the SCORED read — and these figures — take the ray-cast axis
-    AND the per-slice toroidal-harmonic pole from the interior carrier, exactly
-    as the gate does."""
-    from boundary_moment_gate_eval import free_current_psi
-
-    return free_current_psi([payload_dict], device)[0]
-
-
-def _scored_read(
-    table,
-    basis,
-    grid,
-    payload,
-    carrier_psi,
-    args,
-    mask_radius=0.25,
-    exclude_radius=0.55,
-):
-    """The EXACT gate read for one slice: per-slice carrier-axis pole, source-free
-    harmonic fit, annulus-masked boundary.  Returns
-    ``(masked_field, target, axis_psi, boundary_psi, axis, misfit)`` so the figure
-    shows precisely what the gate scores (not the raw near-pole blow-up field)."""
-    from boundary_harmonic_gate_eval import hybrid_target_harmonic
-    from boundary_moment_gate_eval import _sign_aware_axis
+def _scored_read(table, basis, grid, payload, args):
+    """The EXACT gate read for one slice (default ``--origin-source centroid``):
+    magnetically-constrained current-centroid origin, per-slice inboard-fraction
+    pole, size-adaptive annulus mask, source-free harmonic fit.  Returns
+    ``(masked_field, psi_tot, target, axis_psi, boundary_psi, origin, misfit)`` --
+    ``field`` is what the boundary is READ from; ``psi_tot`` is the raw total flux
+    (harmonic plasma + thick-cylinder coil) whose NESTED FLUX SURFACES the figure
+    draws, so all surfaces (not just the separatrix) are shown."""
+    from boundary_harmonic_gate_eval import _adaptive_radii, hybrid_target_harmonic
 
     from imas_ambix.latent.boundary_harmonic import HarmonicFitConfig, fit_harmonic
+    from imas_ambix.latent.boundary_moment import MomentFitConfig, fit_moment_currents
 
-    axis, _ = _sign_aware_axis(carrier_psi, grid)
-    # pole tracks the carrier axis, placed the frozen offset INBOARD in R (the
-    # focal ring must sit inboard of the current centroid) at the carrier axis Z
-    # -- matches the gate's --pole-source carrier read.
-    pole = (float(axis[0]) * (1.0 - args.pole_inboard_fraction), float(axis[1]))
+    # magnetically-constrained current centroid = origin + pole reference
+    mom = fit_moment_currents(basis, payload, MomentFitConfig(order=3))
+    origin = (mom.centroid_r, mom.centroid_z)
+    frac = args.pole_inboard_fraction
+    pole = (float(origin[0]) * (1.0 - frac), float(origin[1]))
+
+    class _A:  # adapter so _adaptive_radii reads the frozen mask/exclude fractions
+        mask_frac = args.mask_frac
+        exclude_frac = args.exclude_frac
+        mask_radius = 0.25
+        exclude_radius = 0.55
+
+    mask_r, excl_r = _adaptive_radii(origin, pole, _A)
     cfg = HarmonicFitConfig(
-        pole_r=pole[0],
-        pole_z=pole[1],
-        order=args.order,
-        kind="P",
-        ridge=args.ridge,
+        pole_r=pole[0], pole_z=pole[1], order=args.order, kind="P", ridge=args.ridge
     )
     sr = np.array([m.r for m in table.sensor_map])
     sz = np.array([m.z for m in table.sensor_map])
@@ -127,20 +113,33 @@ def _scored_read(
     )
     is_flux = np.array([m.kind == "flux_loop" for m in table.sensor_map])
     inv = fit_harmonic((sr, sz, sang, is_flux), payload, cfg)
-    psi_plasma = inv.psi_on_grid(grid.rg, grid.zg)
-    psi_coil = basis.psi_grid_2d_np(np.zeros(basis.r_cells.shape[0]), payload.i_pf)
-    psi_tot = psi_plasma + psi_coil
+    psi_tot = inv.psi_on_grid(grid.rg, grid.zg) + basis.psi_grid_2d_np(
+        np.zeros(basis.r_cells.shape[0]), payload.i_pf
+    )
     target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
-        psi_tot, grid, axis, pole, mask_radius, exclude_radius
+        psi_tot, grid, np.array(origin), pole, mask_r, excl_r
     )
     return (
         field,
+        psi_tot,
         target,
         axis_psi,
         boundary_psi,
-        (float(axis[0]), float(axis[1])),
+        (float(origin[0]), float(origin[1])),
         inv.misfit,
     )
+
+
+def _nested_levels(axis_psi: float, boundary_psi: float, n_in=6, n_out=2):
+    """Flux levels for nested-surface contours: ``n_in`` between axis and boundary
+    (the confined surfaces) + ``n_out`` just outside (the SOL), so the plot shows
+    ALL flux surfaces, not only the separatrix."""
+    import numpy as np  # noqa: PLC0415
+
+    inner = axis_psi + (boundary_psi - axis_psi) * np.linspace(0.12, 1.0, n_in)
+    step = (boundary_psi - axis_psi) / max(n_in, 1)
+    outer = boundary_psi + step * np.arange(1, n_out + 1)
+    return np.sort(np.concatenate([inner, outer]))
 
 
 def _savefig(fig, stem: Path) -> None:
@@ -291,15 +290,16 @@ def fig_phi_map_vs_efit(shot: int, args) -> bool:
 
     grid, basis, table = payload["grid"], payload["basis"], payload["table"]
     p = payload["payloads"][k]
-    # the SCORED read: per-slice carrier-axis pole + annulus-masked harmonic
-    # boundary (the raw psi_tot blows up toward the pole; invalid inside the plasma)
-    carrier = _carrier_axes(payload)
-    field, target, psi_ax, psi_b, axis, misfit = _scored_read(
-        table, basis, grid, p, carrier[k], args
+    # the SCORED read: current-centroid origin + per-slice inboard pole +
+    # annulus-masked harmonic boundary (matches the gate's --origin-source centroid)
+    field, psi_tot, target, psi_ax, psi_b, axis, misfit = _scored_read(
+        table, basis, grid, p, args
     )
     geom = _machine_geometry(grid, table)
     lcfs = _closed_contour_about(grid.rg, grid.zg, field, psi_b, *axis)
 
+    # render nested surfaces from the RAW total flux (all surfaces, not just the
+    # separatrix); the LCFS curve itself is the masked-read boundary
     stem = args.out_dir / f"phi-map-vs-efit-{shot}"
     _flux_overlay(
         stem,
@@ -307,7 +307,7 @@ def fig_phi_map_vs_efit(shot: int, args) -> bool:
         p,
         grid,
         geom,
-        field,
+        psi_tot,
         target,
         psi_ax,
         psi_b,
@@ -406,12 +406,16 @@ def _pick_phase_indices(payload: dict, shot: int) -> list[tuple[str, int, dict]]
     return picks
 
 
-def _panel_contour(ax, psi_model, grid, target, psi_ax, psi_b, efit, title) -> None:
-    """One phase panel: the harmonic-read LCFS (the scored boundary) vs the EFIT
-    LCFS, with axis + X-point markers.  Plotting the boundary contour -- not
-    fractional interior levels of the annulus-masked field, whose masked core is
-    a flat plateau -- is what makes the harmonic-vs-EFIT boundary agreement
-    legible (the same read the imas-ink flat-top overlay shows)."""
+def _panel_contour(
+    ax, field, psi_tot, grid, target, psi_ax, psi_b, efit, title
+) -> None:
+    """One phase panel: ALL harmonic flux surfaces (faint nested contours of the
+    raw total psi) + the bold LCFS, vs the EFIT LCFS, with axis + X-point markers.
+
+    Faint nested surfaces are drawn from the RAW ``psi_tot`` (harmonic plasma +
+    thick-cylinder coil) so the field structure is visible, not just the
+    separatrix; the bold LCFS is the SCORED boundary read off the annulus-masked
+    ``field``."""
     from patch_flux_map_report import _closed_contour_about
 
     ax.plot(
@@ -421,7 +425,18 @@ def _panel_contour(ax, psi_model, grid, target, psi_ax, psi_b, efit, title) -> N
         lw=1.0,
     )
     axis = (float(target[0]), float(target[1]))
-    lcfs = _closed_contour_about(grid.rg, grid.zg, psi_model, psi_b, *axis)
+    # ALL flux surfaces: faint nested contours of the raw total flux
+    levels = _nested_levels(psi_ax, psi_b)
+    ax.contour(
+        grid.rg,
+        grid.zg,
+        psi_tot,
+        levels=levels,
+        colors=C_HARM,
+        linewidths=0.5,
+        alpha=0.45,
+    )
+    lcfs = _closed_contour_about(grid.rg, grid.zg, field, psi_b, *axis)
     if lcfs is not None and len(lcfs):
         ax.plot(lcfs[:, 0], lcfs[:, 1], color=C_HARM, lw=2.0, label="harmonic LCFS")
     ax.plot(
@@ -471,15 +486,15 @@ def fig_phases(shot: int, args) -> bool:
         1, len(picks), figsize=(3.3 * len(picks), 5.4), sharey=True
     )
     axes = np.atleast_1d(axes)
-    carrier = _carrier_axes(payload)
     for ax, (label, k, efit) in zip(axes, picks, strict=True):
         p = payload["payloads"][k]
-        field, target, psi_ax, psi_b, _axis, _misfit = _scored_read(
-            table, basis, grid, p, carrier[k], args
+        field, psi_tot, target, psi_ax, psi_b, _axis, _misfit = _scored_read(
+            table, basis, grid, p, args
         )
         _panel_contour(
             ax,
             field,
+            psi_tot,
             grid,
             target,
             psi_ax,
