@@ -77,17 +77,46 @@ C_EFIT = C_FREE
 # --------------------------------------------------------------------------
 # shared harmonic-fit helper
 # --------------------------------------------------------------------------
-def _harmonic_psi_tot(table, basis, grid, payload, cfg):
-    """Fit the source-free harmonic amplitudes and assemble psi_tot = plasma + coil.
+def _carrier_axes(payload_dict, device="cpu"):
+    """Per-slice free-current (patch) carrier psi for a shot payload dict.
 
-    Returns ``(psi_tot, inversion)`` where ``psi_tot`` is the ``(nz, nr)`` [Wb]
-    field on ``grid`` and ``inversion`` is the ``HarmonicInversion`` (carries
-    the whitened sensor misfit).  The coil term is the harness's thick-
-    cylinder ``hybrid_greens`` column (``basis.psi_grid_2d_np`` with zero cell
-    currents) -- never a point-filament coil term.
-    """
-    from imas_ambix.latent.boundary_harmonic import fit_harmonic
+    The harmonic field cannot localise the axis (it is valid only in the
+    annulus), so the SCORED read — and these figures — take the ray-cast axis
+    AND the per-slice toroidal-harmonic pole from the interior carrier, exactly
+    as the gate does."""
+    from boundary_moment_gate_eval import free_current_psi
 
+    return free_current_psi([payload_dict], device)[0]
+
+
+def _scored_read(
+    table,
+    basis,
+    grid,
+    payload,
+    carrier_psi,
+    args,
+    mask_radius=0.25,
+    exclude_radius=0.55,
+):
+    """The EXACT gate read for one slice: per-slice carrier-axis pole, source-free
+    harmonic fit, annulus-masked boundary.  Returns
+    ``(masked_field, target, axis_psi, boundary_psi, axis, misfit)`` so the figure
+    shows precisely what the gate scores (not the raw near-pole blow-up field)."""
+    from boundary_harmonic_gate_eval import hybrid_target_harmonic
+    from boundary_moment_gate_eval import _sign_aware_axis
+
+    from imas_ambix.latent.boundary_harmonic import HarmonicFitConfig, fit_harmonic
+
+    axis, _ = _sign_aware_axis(carrier_psi, grid)
+    # pole = carrier axis per slice (matches --pole-source carrier)
+    cfg = HarmonicFitConfig(
+        pole_r=float(axis[0]),
+        pole_z=float(axis[1]),
+        order=args.order,
+        kind="P",
+        ridge=args.ridge,
+    )
     sr = np.array([m.r for m in table.sensor_map])
     sz = np.array([m.z for m in table.sensor_map])
     sang = np.array(
@@ -97,32 +126,23 @@ def _harmonic_psi_tot(table, basis, grid, payload, cfg):
     inv = fit_harmonic((sr, sz, sang, is_flux), payload, cfg)
     psi_plasma = inv.psi_on_grid(grid.rg, grid.zg)
     psi_coil = basis.psi_grid_2d_np(np.zeros(basis.r_cells.shape[0]), payload.i_pf)
-    return psi_plasma + psi_coil, inv
-
-
-def _carrier_axes(payload_dict, device="cpu"):
-    """Per-slice free-current (patch) carrier psi for a shot payload dict.
-
-    The harmonic field cannot localise the axis (it is valid only in the
-    annulus), so the SCORED read — and these figures — take the ray-cast axis
-    from the interior carrier, exactly as the gate does."""
-    from boundary_moment_gate_eval import free_current_psi
-
-    return free_current_psi([payload_dict], device)[0]
-
-
-def _scored_read(psi_tot, grid, carrier_psi, mask_radius=0.25, exclude_radius=0.55):
-    """The EXACT gate read for a slice: carrier axis + annulus-masked harmonic
-    boundary.  Returns ``(masked_field, target, axis_psi, boundary_psi, axis)``
-    so the figure shows what is actually scored (not the raw blow-up field)."""
-    from boundary_harmonic_gate_eval import hybrid_target_harmonic
-    from boundary_moment_gate_eval import _sign_aware_axis
-
-    axis, _ = _sign_aware_axis(carrier_psi, grid)
+    psi_tot = psi_plasma + psi_coil
     target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
-        psi_tot, grid, axis, (grid.r0, 0.0), mask_radius, exclude_radius
+        psi_tot,
+        grid,
+        axis,
+        (float(axis[0]), float(axis[1])),
+        mask_radius,
+        exclude_radius,
     )
-    return field, target, axis_psi, boundary_psi, (float(axis[0]), float(axis[1]))
+    return (
+        field,
+        target,
+        axis_psi,
+        boundary_psi,
+        (float(axis[0]), float(axis[1])),
+        inv.misfit,
+    )
 
 
 def _savefig(fig, stem: Path) -> None:
@@ -253,8 +273,6 @@ def fig_phi_map_vs_efit(shot: int, args) -> bool:
     )
     from patch_gate_eval import shot_payloads
 
-    from imas_ambix.latent.boundary_harmonic import HarmonicFitConfig
-
     payload = shot_payloads(
         shot,
         nr=args.nr,
@@ -275,12 +293,12 @@ def fig_phi_map_vs_efit(shot: int, args) -> bool:
 
     grid, basis, table = payload["grid"], payload["basis"], payload["table"]
     p = payload["payloads"][k]
-    cfg = HarmonicFitConfig(pole_r=grid.r0, pole_z=0.0, order=args.order, kind="P")
-    psi_tot, inv = _harmonic_psi_tot(table, basis, grid, p, cfg)
-    # the SCORED read: patch-carrier axis + annulus-masked harmonic boundary
-    # (the raw psi_tot blows up toward the pole and is invalid inside the plasma)
+    # the SCORED read: per-slice carrier-axis pole + annulus-masked harmonic
+    # boundary (the raw psi_tot blows up toward the pole; invalid inside the plasma)
     carrier = _carrier_axes(payload)
-    field, target, psi_ax, psi_b, axis = _scored_read(psi_tot, grid, carrier[k])
+    field, target, psi_ax, psi_b, axis, misfit = _scored_read(
+        table, basis, grid, p, carrier[k], args
+    )
     geom = _machine_geometry(grid, table)
     lcfs = _closed_contour_about(grid.rg, grid.zg, field, psi_b, *axis)
 
@@ -298,7 +316,7 @@ def fig_phi_map_vs_efit(shot: int, args) -> bool:
         axis,
         lcfs,
         efit,
-        misfit=inv.misfit,
+        misfit=misfit,
     )
     return True
 
@@ -433,8 +451,6 @@ def fig_phases(shot: int, args) -> bool:
     load or snap."""
     from patch_gate_eval import shot_payloads
 
-    from imas_ambix.latent.boundary_harmonic import HarmonicFitConfig
-
     payload = shot_payloads(
         shot,
         nr=args.nr,
@@ -452,7 +468,6 @@ def fig_phases(shot: int, args) -> bool:
         return False
 
     grid, basis, table = payload["grid"], payload["basis"], payload["table"]
-    cfg = HarmonicFitConfig(pole_r=grid.r0, pole_z=0.0, order=args.order, kind="P")
 
     fig, axes = plt.subplots(
         1, len(picks), figsize=(3.3 * len(picks), 5.4), sharey=True
@@ -461,8 +476,9 @@ def fig_phases(shot: int, args) -> bool:
     carrier = _carrier_axes(payload)
     for ax, (label, k, efit) in zip(axes, picks, strict=True):
         p = payload["payloads"][k]
-        psi_tot, _inv = _harmonic_psi_tot(table, basis, grid, p, cfg)
-        field, target, psi_ax, psi_b, _axis = _scored_read(psi_tot, grid, carrier[k])
+        field, target, psi_ax, psi_b, _axis, _misfit = _scored_read(
+            table, basis, grid, p, carrier[k], args
+        )
         _panel_contour(
             ax,
             field,
@@ -627,6 +643,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=3,
         help="toroidal-harmonic order (frozen by the Gate C train-cohort ladder)",
+    )
+    ap.add_argument(
+        "--ridge",
+        type=float,
+        default=1e-8,
+        help="Tikhonov ridge (frozen by the Gate C ladder alongside the order)",
     )
     ap.add_argument("--out-dir", type=Path, default=FIGURES)
     ap.add_argument(
