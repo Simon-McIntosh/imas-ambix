@@ -225,27 +225,17 @@ def figure_phases(shots):
 
 def figure_scoring():
     """Old ray-cast vs new contour push: held-out skill (CIs) + per-slice timing."""
-    new = json.load(
-        open(
-            "imas_ambix/latent/artifacts/patch_gate/"
-            "boundary_read_harmonic-o3-centroidorigin-frac0.41.json"
+    art = Path(
+        "imas_ambix/latent/artifacts/patch_gate/"
+        "boundary_read_harmonic-o3-centroidorigin-frac0.41.json"
+    )
+    new = json.loads(art.read_text())
+    old_path = Path(
+        os.path.expandvars(
+            "$SP/baseline/boundary_read_harmonic-o3-centroidorigin-frac0.41.json"
         )
     )
-    old = (
-        json.load(
-            open(
-                os.path.expandvars(
-                    "$SP/baseline/boundary_read_harmonic-o3-centroidorigin-frac0.41.json"
-                )
-            )
-        )
-        if os.path.exists(
-            os.path.expandvars(
-                "$SP/baseline/boundary_read_harmonic-o3-centroidorigin-frac0.41.json"
-            )
-        )
-        else None
-    )
+    old = json.loads(old_path.read_text()) if old_path.exists() else None
     # timing from the profiler numbers (measured)
     timing = {
         "OLD\ncrit + ray-cast": 12.3,
