@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"    content="imas-ambix">
+  <meta name="reckon-type"     content="plan">
+  <meta name="plan-slug"       content="equilibrium-boundary-closure">
+  <meta name="plan-title"      content="Equilibrium Boundary Closure — the LCFS gate, the discovery loop, and the term ladder">
+  <meta name="plan-summary"    content="Continuation of force-balance-spine (W1–W4A/B + coil/solenoid audits landed). Carries the outstanding + rescoped work: (1) the open LCFS boundary gate — adjudicate whether it is modelling- or identifiability-limited via the un-separable main-coil up/down pairs, and promote the outboard-attractor reseed lever to a default guard; (2) the rotation ladder continuation — powered Stage B on a broader-CXRS cohort and gated Stage C (free gamma); (3) formalize the term-discovery loop (W5: term-dictionary registry, trimmed skills, coefficient-evolution tie to the transport prior).">
+  <meta name="plan-status"     content="active">
+  <meta name="plan-roi"        content="high">
+  <meta name="plan-effort"     content="L">
+  <meta name="plan-tier"       content="opus">
+  <meta name="plan-milestone"  content="M4">
+  <meta name="plan-sprint"     content="S16">
+  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="plan-depends-on" content="force-balance-spine">
+  <meta name="plan-blocks"     content="equilibrium-topology-fidelity">
+  <meta name="plan-informs"    content="learned-closure-current-diffusion-v0,closed-loop-latent-filter,toroidal-harmonic-annulus-read">
+  <title>Equilibrium Boundary Closure | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Thesis &amp; scope</h2>
+  <p>This plan is the direct continuation of
+  <a href="/imas-ambix/force-balance-spine.html">force-balance-spine</a>, which is now
+  <strong>superseded and 100% done</strong>: the three-tier physics spine landed end-to-end —
+  the closure-first carrier through the free-boundary GS fixed point (W1), the hardened Tier-2
+  nuisance layer (W2), the standing synthetic-truth identifiability harness (W3), the rotation
+  ladder Stages A+B (W4), the physical coil-model audit, and the solenoid response attribution.
+  Its three decisions are locked and carried forward here unchanged.</p>
+
+  <p>One binding gate remains open, and it is the reason this plan exists: <strong>the LCFS
+  boundary read is still negative (ray-cast skill −3.70) in every representation and after both
+  landed coil corrections.</strong> The solenoid — the one <em>separable</em>, dominant coil
+  error — was corrected and did <em>not</em> move it. The residual coil-model error that matters
+  for the boundary is in the main-coil up/down pairs, which are un-separable in the vacuum +
+  operating pool. So the central question this plan resolves is sharp and falsifiable:</p>
+
+  <p style="border-left:3px solid #1565c0;padding-left:0.8em;margin-left:0.2em">
+  <strong>Is the LCFS bar modelling-limited (a coil correction we have not yet found) or
+  identifiability-limited (the data cannot constrain it, and it must be handed to
+  <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a>
+  thread 2)?</strong></p>
+
+  <p>Alongside that gate, this plan carries the two remaining continuation threads the parent
+  plan queued but did not close: the <strong>rotation ladder</strong> (powered Stage B + gated
+  Stage C) and the <strong>term-discovery loop formalization</strong> (W5). Evidence base and
+  standing instruments are inherited from the parent (§2).</p>
+
+  <figure>
+    <svg viewBox="0 0 920 430" width="100%" role="img" font-family="system-ui,-apple-system,sans-serif"
+         aria-label="Dependency graph: the force-balance-spine foundation is landed and feeds this plan's three open threads; the LCFS gate is the binding open item.">
+      <!-- foundation band -->
+      <rect x="12" y="16" width="896" height="96" rx="7" fill="#ffffff" stroke="#c8ccd2" stroke-width="1"/>
+      <text x="24" y="38" font-size="13" font-weight="600" fill="#1a1a1a">force-balance-spine — LANDED &amp; SUPERSEDED (100%)</text>
+      <g font-size="11.5" fill="#1a1a1a">
+        <rect x="24" y="50" width="126" height="46" rx="4" fill="#f4f7fb" stroke="#9bb8d9"/>
+        <text x="30" y="68">W1 closure carrier</text><text x="30" y="86" fill="#3a6ea5">axis 3.7 cm ✓</text>
+        <rect x="158" y="50" width="126" height="46" rx="4" fill="#f4f7fb" stroke="#9bb8d9"/>
+        <text x="164" y="68">W2 nuisance layer</text><text x="164" y="86" fill="#3a6ea5">passive-8 load-bearing</text>
+        <rect x="292" y="50" width="126" height="46" rx="4" fill="#f4f7fb" stroke="#9bb8d9"/>
+        <text x="298" y="68">W3 identifiability</text><text x="298" y="86" fill="#3a6ea5">rank ≈ 1.2; aliasing</text>
+        <rect x="426" y="50" width="126" height="46" rx="4" fill="#f4f7fb" stroke="#9bb8d9"/>
+        <text x="432" y="68">W4 rotation A+B</text><text x="432" y="86" fill="#3a6ea5">null at budget</text>
+        <rect x="560" y="50" width="150" height="46" rx="4" fill="#f4f7fb" stroke="#9bb8d9"/>
+        <text x="566" y="68">coil-model audit</text><text x="566" y="86" fill="#3a6ea5">solenoid +8.25% fixed</text>
+        <rect x="718" y="50" width="166" height="46" rx="4" fill="#f4f7fb" stroke="#9bb8d9"/>
+        <text x="724" y="68">reseed lever built</text><text x="724" y="86" fill="#3a6ea5">18505 −2.40→−0.36</text>
+      </g>
+      <!-- arrow down -->
+      <line x1="460" y1="112" x2="460" y2="150" stroke="#666" stroke-width="1.4" marker-end="url(#ah)"/>
+      <defs><marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#666"/></marker></defs>
+      <!-- this plan band -->
+      <text x="24" y="172" font-size="13" font-weight="600" fill="#1a1a1a">equilibrium-boundary-closure — OPEN (this plan)</text>
+      <!-- §3 boundary gate (accented) -->
+      <rect x="24" y="184" width="270" height="118" rx="7" fill="#ffffff" stroke="#b0402f" stroke-width="1.6"/>
+      <rect x="24" y="184" width="270" height="24" rx="7" fill="#fbeeeb" stroke="#b0402f" stroke-width="0"/>
+      <text x="34" y="201" font-size="12.5" font-weight="600" fill="#8a3324">§3 — LCFS boundary gate ⧗</text>
+      <g font-size="11.5" fill="#1a1a1a">
+        <text x="34" y="228">(a) promote reseed lever → default</text>
+        <text x="34" y="248">(b) main-coil up/down pair</text>
+        <text x="46" y="266">recoverability adjudication</text>
+        <text x="34" y="290" fill="#8a3324" font-weight="600">GATE: LCFS = −3.70 (negative)</text>
+      </g>
+      <!-- §4 rotation -->
+      <rect x="318" y="184" width="270" height="118" rx="7" fill="#ffffff" stroke="#c8ccd2" stroke-width="1"/>
+      <text x="328" y="205" font-size="12.5" font-weight="600" fill="#1a1a1a">§4 — Rotation ladder</text>
+      <g font-size="11.5" fill="#1a1a1a">
+        <text x="328" y="230">Stage B powered re-run</text>
+        <text x="340" y="248" fill="#7a7f87">⧗ needs broader-CXRS cohort</text>
+        <text x="328" y="272">Stage C (free γ)</text>
+        <text x="340" y="290" fill="#7a7f87">⧗ aliasing bar Δβ0≈0.02–0.03</text>
+      </g>
+      <!-- §5 discovery loop -->
+      <rect x="612" y="184" width="272" height="118" rx="7" fill="#ffffff" stroke="#c8ccd2" stroke-width="1"/>
+      <text x="622" y="205" font-size="12.5" font-weight="600" fill="#1a1a1a">§5 — Discovery loop (W5)</text>
+      <g font-size="11.5" fill="#1a1a1a">
+        <text x="622" y="230">term-dictionary registry</text>
+        <text x="622" y="250">trimmed promotion skills</text>
+        <text x="622" y="270">coeff-evolution ↔ transport</text>
+        <text x="622" y="290" fill="#7a7f87">accretes; closes last</text>
+      </g>
+      <!-- arrow to downstream -->
+      <line x1="159" y1="302" x2="159" y2="344" stroke="#666" stroke-width="1.4" marker-end="url(#ah)"/>
+      <rect x="24" y="346" width="400" height="66" rx="7" fill="#ffffff" stroke="#c8ccd2" stroke-width="1"/>
+      <text x="34" y="368" font-size="12" font-weight="600" fill="#1a1a1a">blocks ► equilibrium-topology-fidelity</text>
+      <text x="34" y="388" font-size="11.5" fill="#1a1a1a">thread-2 Fisher-sensitivity shopping list already computed;</text>
+      <text x="34" y="404" font-size="11.5" fill="#1a1a1a">receives the boundary if the gate proves identifiability-limited.</text>
+      <text x="450" y="384" font-size="11.5" fill="#7a7f87">informs ► learned-closure-current-diffusion-v0,</text>
+      <text x="450" y="401" font-size="11.5" fill="#7a7f87">closed-loop-latent-filter, toroidal-harmonic-annulus-read</text>
+    </svg>
+    <figcaption>The landed force-balance-spine foundation feeds this plan's three open threads.
+    The LCFS boundary gate (§3, red) is the binding open item; the rotation (§4) and
+    discovery-loop (§5) threads carry their own gates (⧗). Resolving §3 either unlocks the
+    boundary or hands it, with a quantitative shopping list, to equilibrium-topology-fidelity.</figcaption>
+  </figure>
+
+  <h2 id="s2">§2 — Inherited foundation, decisions, and standing instruments</h2>
+  <p>Everything below is <strong>settled ground</strong> from the parent plan — a new session
+  starts here, not from scratch. Full per-stage records:
+  <a href="/imas-ambix/archive/force-balance-spine-w1-w2-landed.html">W1+W2 landed</a>,
+  <a href="/imas-ambix/archive/force-balance-spine-followons-landed.html">follow-ons landed</a>
+  (coil audit, rotation A+B, identifiability harness),
+  <a href="/imas-ambix/archive/force-balance-spine-solenoid-attribution-landed.html">solenoid attribution landed</a>.</p>
+
+  <p><strong>Locked decisions carried forward</strong> (see the Decisions section below — do not
+  re-litigate):</p>
+  <ul>
+    <li><strong>representation-default = closure-first</strong> — profile-closure through the
+    free-boundary GS fixed point is the carrier; patch basis re-scoped to Tier-3 audit + Tier-2
+    nuisance; annulus read is the boundary cross-check.</li>
+    <li><strong>calibration-scope = offset-only</strong> — flag-gated empirical residual absorber,
+    never a default; vacuum-derived physical corrections (like the solenoid scale) are the
+    promotion path.</li>
+    <li><strong>rotation-coefficient-source = staged-measured-first</strong> — fixed measured
+    γ(ψ) first (zero new DOF), free coefficient only after the identifiability harness gates it.</li>
+  </ul>
+
+  <p><strong>Standing instruments</strong> a new session reuses verbatim:</p>
+  <ul>
+    <li><strong>Winner arm</strong> — <code>closure_gate_eval.py --fit-mode ladder --n-p 1
+    --n-f 1 --passive-k 8</code> (ladder K=2 + passive rank-8), held-out 160 slices, leakage-free,
+    EFIT referee eval-only, bootstrap CIs, cost-threshold sweep. Coil model now
+    <code>cylinder-sensors-v4</code> (solenoid scale applied).</li>
+    <li><strong>Identifiability harness</strong> — <code>synthetic_truth.py</code> +
+    <code>identifiability_harness.py</code> (standing pytest gate): recovery CIs, aliasing matrix,
+    per-sensor Fisher sensitivities. Measured magnetics effective rank ≈ 1.19.</li>
+    <li><strong>Vacuum coil-response audit</strong> — <code>vacuum_coil_response_audit.py</code>
+    (empirical Green regression on plasma-free slices; the coupled-set / separability finding) and
+    <code>vacuum_interval_calibration.py</code> (the ~0.004σ offset validation).</li>
+    <li><strong>Band-decomposition instrument</strong> — <code>solenoid_response_attribution.py</code>
+    (per-coil uniform-vs-structured adjudication by BIC; reusable for any coil).</li>
+    <li><strong>Reseed lever</strong> — <code>closure_gate_eval.py --reseed-axis-r 1.4</code>
+    (re-scout the confined branch on an outboard axis + high cost). Currently OFF by default;
+    §3 promotes it.</li>
+  </ul>
+
+  <h2 id="s3">§3 — The LCFS boundary gate (the binding open item)</h2>
+  <p>Two pieces, do the cheap bankable one first:</p>
+  <ol>
+    <li><strong>Promote the reseed lever to a default winner-arm coverage guard.</strong> The
+    headline axis-skill recovery (−2.40 → −0.357, restoring the best-ever level) currently only
+    fires with <code>--reseed-axis-r 1.4</code>, which defaults OFF — so the <em>default</em>
+    winner arm still reads −2.40. The lever is surgical (it touched only shot 18505's 20 slices
+    and left the other 140 byte-identical), so making it default banks the recovery at near-zero
+    risk. Flip the default, re-gate to confirm the 140 in-bounds slices are unperturbed, report
+    coverage/skill deltas.</li>
+    <li><strong>Adjudicate main-coil up/down pair recoverability — the last coil-model attack on
+    the boundary.</strong> The coil audit showed the P2 quartet and P3/P4/P5 up/down pairs are
+    un-separable in the vacuum + operating pool (only 9/21 columns separable). Establish whether
+    <em>any</em> excitation in the 2,558-shot vacuum scan or operating shots moves a pair
+    differentially (a symmetry-breaking interval). If yes, fit the correction with the
+    band-decomposition instrument and re-measure LCFS. If no — the likely outcome — declare the
+    boundary <strong>identifiability-limited</strong>, state what engineering source (turns/geometry
+    drawings, UDA machine description) would break the wall, and hand the quantitative shopping
+    list to equilibrium-topology-fidelity thread 2.</li>
+  </ol>
+  <p>This section resolves the plan's central open decision (<em>boundary-limit-class</em>).</p>
+
+  <h2 id="s4">§4 — Rotation ladder continuation</h2>
+  <p>Both stages inherit the staged-measured-first decision and stay gated:</p>
+  <ul>
+    <li><strong>Stage B powered re-run</strong> — the zero-DOF fixed-γ test was null at the
+    parent plan's error budget; the solenoid-scale error is now removed from the floor, but the
+    floor is still boundary/main-coil dominated (~50× the rotation term). Stage B needs a
+    <strong>broader-CXRS cohort</strong> to power the high-vs-low-rotation stratified test —
+    data-gathering is the blocker, not code.</li>
+    <li><strong>Stage C (free γ flux function)</strong> — gated on the identifiability harness's
+    aliasing bar: unmodelled rotation biases fitted β0 by −0.028, right at the Δβ0 ≈ 0.02–0.03
+    recoverability threshold, so a free coefficient is <em>marginal</em>. Stage C proceeds only if
+    Stage B first shows a powered, stratified signal that clears the bar.</li>
+  </ul>
+
+  <h2 id="s5">§5 — Formalize the term-discovery loop (W5)</h2>
+  <p>The parent plan's final workstream, deferred to close last because it accretes as terms are
+  promoted. Build the <strong>term-dictionary registry</strong>: a versioned artifact recording,
+  per candidate structure term (rotation R⁴, pressure anisotropy, …), its physics reference,
+  identifiability status (from the harness), gate verdicts, and promotion state. Trim the
+  promotion path to a repeatable skill (manufacture → aliasing → recovery-CI → gate → promote),
+  and tie coefficient evolution to the transport prior so promoted coefficients carry a physical
+  time-evolution constraint rather than being re-fit per slice.</p>
+
+  <h2 id="s6">§6 — Gates &amp; sequencing</h2>
+  <ul>
+    <li><strong>Sequencing:</strong> §3 first (the binding gate, and the reseed-lever promotion
+    is a bankable quick win). §4 Stage B waits on data; §4 Stage C waits on Stage B. §5 accretes
+    and closes last. §3's verdict is what gets handed downstream.</li>
+    <li><strong>Open gate — LCFS boundary:</strong> ray-cast skill −3.70, negative everywhere.
+    §3 resolves whether it is modelling- or identifiability-limited.</li>
+    <li><strong>Gate — rotation Stage C:</strong> the aliasing bar (Δβ0 ≈ 0.02–0.03); currently
+    marginal.</li>
+    <li><strong>Downstream:</strong> this plan <em>blocks</em> equilibrium-topology-fidelity
+    (thread 2 receives the boundary shopping list) and <em>informs</em>
+    learned-closure-current-diffusion-v0, closed-loop-latent-filter, and
+    toroidal-harmonic-annulus-read.</li>
+  </ul>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+    <h2><span class="sec">§</span> Decisions</h2>
+
+    <div class="r-dec" data-key="boundary-limit-class" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">Is the LCFS boundary bar modelling-limited or identifiability-limited?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="identifiability-limited">identifiability-limited: the main-coil up/down pairs are not separable from available data; hand the boundary + shopping list to equilibrium-topology-fidelity thread 2 (recommended prior — 9/21 columns separable, no symmetry-breaking excitation in the pool)</button>
+        <button class="r-opt" data-value="modelling-limited">modelling-limited: a recoverable coil/geometry correction still exists and moves LCFS positive</button>
+      </p>
+      <p class="r-dec-rat"></p>
+    </div>
+
+    <div class="r-dec" data-key="representation-default" data-choice="closure-first" data-by="force-balance-spine (inherited, LOCKED)" data-when="2026-07-10T18:25:18+00:00">
+      <p class="r-dec-q">Which representation is the default equilibrium carrier for the world model?</p>
+      <p class="r-dec-rat">Inherited LOCKED from force-balance-spine: closure-first (profile-closure through the free-boundary GS fixed point; cost 0.56, axis 3.7 cm, info budget ~1–2 profile DOF). Patch basis re-scoped to Tier-3 audit + Tier-2 nuisance; annulus read is the boundary cross-check.</p>
+    </div>
+
+    <div class="r-dec" data-key="calibration-scope" data-choice="offset-only" data-by="force-balance-spine (inherited, LOCKED)" data-when="2026-07-10T18:25:18+00:00">
+      <p class="r-dec-q">What static-calibration model ships as default on gate payloads?</p>
+      <p class="r-dec-rat">Inherited LOCKED from force-balance-spine: offset-only, flag-gated, never a default — it is laundered coil-model error kept as an explicit residual absorber. Vacuum-derived physical corrections (e.g. the solenoid response scale, cylinder-sensors-v4) are the promotion path.</p>
+    </div>
+
+    <div class="r-dec" data-key="rotation-coefficient-source" data-choice="staged-measured-first" data-by="force-balance-spine (inherited, LOCKED)" data-when="2026-07-10T19:20:13+00:00">
+      <p class="r-dec-q">How does the rotation coefficient γ(ψ) enter the solve?</p>
+      <p class="r-dec-rat">Inherited LOCKED from force-balance-spine: staged — fixed measured γ(ψ) first (zero new DOF, falsifiable), free coefficient only after the identifiability harness gates it. Stage A/B ran (null at the current budget); Stage C stays gated on the aliasing bar.</p>
+    </div>
+  </section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+
+    <article class="r-fu" data-id="f-ebc-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-14">
+      <h4 class="r-fu-title">§3 — Promote the reseed lever to default, then adjudicate main-coil up/down pair recoverability (the LCFS gate)</h4>
+      <div class="r-fu-body"><p>The next session-sized piece. Do the bankable quick win first (promote the reseed lever to a default winner-arm coverage guard — the axis-skill recovery −2.40→−0.36 currently needs an opt-in flag), then adjudicate whether the un-separable main-coil up/down pairs are recoverable from any available excitation. Resolves the <em>boundary-limit-class</em> decision. Migrated + rescoped from force-balance-spine f-fbs-08.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
+Section: §3 — LCFS boundary gate
+Tier:    opus
+
+Context
+  force-balance-spine landed and is superseded by this plan. The solenoid (the one separable,
+  dominant coil error) is corrected (cylinder-sensors-v4) and did NOT move LCFS (still -3.70).
+  The whole axis-skill recovery came from the outboard-attractor reseed lever, which is still
+  OFF by default. The residual boundary error is in the un-separable main-coil up/down pairs
+  (only 9/21 columns separable in the vacuum + operating pool). Honour the inherited locked
+  decisions; resolve the open boundary-limit-class decision on the evidence.
+
+State to read  (code / data / prior records — not the plan itself)
+  docs/archive/force-balance-spine-solenoid-attribution-landed.html  (re-gate matrix + band verdict)
+  scripts/closure_gate_eval.py  (--reseed-axis-r, to promote to a default guard)
+  scripts/vacuum_coil_response_audit.py  (the coupled-set / separability finding)
+  scripts/solenoid_response_attribution.py  (band-decomposition instrument, reusable per coil)
+  imas_ambix/gs/circuits.py + docs/mast-coil-circuits.html  (series/parallel structure)
+  /home/ITER/mcintos/slurm-logs/fbs/vacuum_shot_scan.json  (2,558 vacuum shots)
+
+Scope locks / constraints  (non-decision)
+  Leakage-free, EFIT referee eval-only, bootstrap CIs, cost-threshold sweep in every artifact.
+  Machine-agnostic corrections only (never per-shot tuning). Any coil-model change re-runs the
+  vacuum-interval validation (offsets must stay ~0.004 sigma) AND the winner-arm gate.
+  SLURM debug partitions for compute; never the login node.
+
+Done-when
+  1. Reseed lever promoted to a default winner-arm guard; re-gate confirms the 140 in-bounds
+     slices are unperturbed; coverage/axis/LCFS deltas with CIs recorded.
+  2. Main-coil up/down pair recoverability adjudicated with evidence (any symmetry-breaking
+     excitation? if not, state the identifiability wall + the engineering source that breaks it).
+  3. LCFS status recorded either way; boundary-limit-class decision locked; if identifiability-
+     limited, the quantitative shopping list handed to equilibrium-topology-fidelity thread 2.
+  4. Tests green; plan updated same-turn; followup written + this one resolved.</pre>
+    </article>
+
+    <article class="r-fu" data-id="f-ebc-02" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-14">
+      <h4 class="r-fu-title">§4 — Rotation ladder: powered Stage B on a broader-CXRS cohort, then gated Stage C</h4>
+      <div class="r-fu-body"><p>Data-gated. Stage A/B were null at the parent plan's error budget; the floor is now cleaner (solenoid removed) but still boundary/main-coil dominated (~50× the rotation term). Stage B needs a broader-CXRS cohort to power the stratified high-vs-low-rotation test; Stage C (free γ) stays gated on the aliasing bar (Δβ0≈0.02–0.03, marginal). Migrated from force-balance-spine (W4 Stage B re-arm + Stage C).</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
+Section: §4 — Rotation ladder continuation
+Tier:    opus
+
+Context
+  Rotation Stage A/B ran under force-balance-spine and were NULL at the current error budget
+  (whitened cost -1.6e-4 CI-clear, topology sub-mm). The solenoid-scale error is now removed but
+  the misfit floor is still boundary/main-coil dominated. Do NOT open Stage C until Stage B shows
+  a powered, stratified signal. Honour the inherited staged-measured-first decision.
+
+State to read  (code / data / prior records)
+  docs/archive/force-balance-spine-followons-landed.html  (rotation A+B record)
+  imas_ambix/latent/structure_residual.py (affine-r2-rotation form) + gs_solve.py (centrifugal_gamma hook)
+  imas_ambix/gs/integrated_inventory.py  (act CXRS 7,991 shots / 5 ms; ayc Thomson)
+  scripts/closure_gate_eval.py (measured_rotation gate) + the identifiability aliasing artifact
+
+Scope locks / constraints  (non-decision)
+  Zero-new-DOF for Stage B (fixed measured gamma); Stage C only after Stage B clears the aliasing
+  bar. Raw act/ayc inputs (firewall-clean); EFIT referee eval-only; strata reported separately
+  with CIs both ways. This followup's real prerequisite is DATA: a broader-CXRS held-out cohort
+  (current coverage 3/8 shots) — scope the cohort before spending compute.
+
+Done-when
+  1. Broader-CXRS cohort assembled + coverage reported; Stage B powered stratified deltas with CIs.
+  2. Stage C recoverability re-checked against the aliasing bar; verdict (proceed / stays gated).
+  3. rotation-coefficient-source advanced on the evidence; plan updated; followup written + resolved.</pre>
+    </article>
+
+    <article class="r-fu" data-id="f-ebc-03" data-status="open" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-07-14">
+      <h4 class="r-fu-title">§5 — Formalize the term-discovery loop (W5): registry, trimmed skill, transport-tied coefficient evolution</h4>
+      <div class="r-fu-body"><p>Closes last. Build the versioned term-dictionary registry (candidate form, physics reference, identifiability status, gate verdicts, promotion state), trim the promotion path to a repeatable skill, and tie promoted-coefficient evolution to the transport prior. Migrated from force-balance-spine W5 (§6).</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
+Section: §5 — Discovery loop (W5)
+Tier:    sonnet
+
+Context
+  The term-promotion path (manufacture → aliasing → recovery-CI → gate → promote) has been run
+  once end-to-end (rotation R^4). W5 turns that ad-hoc traversal into a standing, versioned loop.
+  Closes last — it accretes as terms are promoted.
+
+State to read  (code / prior records)
+  imas_ambix/latent/synthetic_truth.py + identifiability_harness.py  (the gate the registry cites)
+  imas_ambix/latent/structure_residual.py  (the term forms already implemented)
+  docs/archive/force-balance-spine-followons-landed.html  (the first traversal, rotation)
+
+Scope locks / constraints  (non-decision)
+  Registry is a versioned artifact, not per-slice state. No plan/stage labels in code or artifact
+  field names (name by mechanism). Promotion still runs through the identifiability harness gate.
+
+Done-when
+  1. Term-dictionary registry artifact committed (rotation R^4 + at least one queued candidate).
+  2. Promotion path trimmed to a documented, repeatable skill.
+  3. Coefficient-evolution ↔ transport-prior tie specified (design note is acceptable if no term
+     is yet promoted to carry it); plan updated; followup written + this one resolved.</pre>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>
