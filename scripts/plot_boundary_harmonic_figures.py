@@ -100,6 +100,31 @@ def _harmonic_psi_tot(table, basis, grid, payload, cfg):
     return psi_plasma + psi_coil, inv
 
 
+def _carrier_axes(payload_dict, device="cpu"):
+    """Per-slice free-current (patch) carrier psi for a shot payload dict.
+
+    The harmonic field cannot localise the axis (it is valid only in the
+    annulus), so the SCORED read — and these figures — take the ray-cast axis
+    from the interior carrier, exactly as the gate does."""
+    from boundary_moment_gate_eval import free_current_psi
+
+    return free_current_psi([payload_dict], device)[0]
+
+
+def _scored_read(psi_tot, grid, carrier_psi, mask_radius=0.25, exclude_radius=0.55):
+    """The EXACT gate read for a slice: carrier axis + annulus-masked harmonic
+    boundary.  Returns ``(masked_field, target, axis_psi, boundary_psi, axis)``
+    so the figure shows what is actually scored (not the raw blow-up field)."""
+    from boundary_harmonic_gate_eval import hybrid_target_harmonic
+    from boundary_moment_gate_eval import _sign_aware_axis
+
+    axis, _ = _sign_aware_axis(carrier_psi, grid)
+    target, axis_psi, boundary_psi, field = hybrid_target_harmonic(
+        psi_tot, grid, axis, (grid.r0, 0.0), mask_radius, exclude_radius
+    )
+    return field, target, axis_psi, boundary_psi, (float(axis[0]), float(axis[1]))
+
+
 def _savefig(fig, stem: Path) -> None:
     """Write both PNG (raster, dpi=150) and SVG (vector) for one figure stem."""
     fig.savefig(stem.with_suffix(".png"), dpi=150, bbox_inches="tight")
@@ -226,7 +251,7 @@ def fig_phi_map_vs_efit(shot: int, args) -> bool:
         _machine_geometry,
         select_slices,
     )
-    from patch_gate_eval import geometry_target, shot_payloads
+    from patch_gate_eval import shot_payloads
 
     from imas_ambix.latent.boundary_harmonic import HarmonicFitConfig
 
@@ -252,10 +277,12 @@ def fig_phi_map_vs_efit(shot: int, args) -> bool:
     p = payload["payloads"][k]
     cfg = HarmonicFitConfig(pole_r=grid.r0, pole_z=0.0, order=args.order, kind="P")
     psi_tot, inv = _harmonic_psi_tot(table, basis, grid, p, cfg)
-    target, psi_ax, psi_b = geometry_target(psi_tot, grid)
-    axis = (float(target[0]), float(target[1]))
+    # the SCORED read: patch-carrier axis + annulus-masked harmonic boundary
+    # (the raw psi_tot blows up toward the pole and is invalid inside the plasma)
+    carrier = _carrier_axes(payload)
+    field, target, psi_ax, psi_b, axis = _scored_read(psi_tot, grid, carrier[k])
     geom = _machine_geometry(grid, table)
-    lcfs = _closed_contour_about(grid.rg, grid.zg, psi_tot, psi_b, *axis)
+    lcfs = _closed_contour_about(grid.rg, grid.zg, field, psi_b, *axis)
 
     stem = args.out_dir / f"phi-map-vs-efit-{shot}"
     _flux_overlay(
@@ -264,7 +291,7 @@ def fig_phi_map_vs_efit(shot: int, args) -> bool:
         p,
         grid,
         geom,
-        psi_tot,
+        field,
         target,
         psi_ax,
         psi_b,
@@ -399,7 +426,7 @@ def fig_phases(shot: int, args) -> bool:
     """Row of harmonic-vs-EFIT panels spanning breakdown -> termination for
     one held-out shot.  Returns False (logged, not raised) on any failure to
     load or snap."""
-    from patch_gate_eval import geometry_target, shot_payloads
+    from patch_gate_eval import shot_payloads
 
     from imas_ambix.latent.boundary_harmonic import HarmonicFitConfig
 
@@ -426,13 +453,14 @@ def fig_phases(shot: int, args) -> bool:
         1, len(picks), figsize=(3.3 * len(picks), 5.4), sharey=True
     )
     axes = np.atleast_1d(axes)
+    carrier = _carrier_axes(payload)
     for ax, (label, k, efit) in zip(axes, picks, strict=True):
         p = payload["payloads"][k]
         psi_tot, _inv = _harmonic_psi_tot(table, basis, grid, p, cfg)
-        target, psi_ax, psi_b = geometry_target(psi_tot, grid)
+        field, target, psi_ax, psi_b, _axis = _scored_read(psi_tot, grid, carrier[k])
         _panel_contour(
             ax,
-            psi_tot,
+            field,
             grid,
             target,
             psi_ax,
