@@ -4,23 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"    content="imas-ambix">
-  <meta name="reckon-type"     content="plan">
-  <meta name="plan-slug"       content="equilibrium-boundary-closure">
-  <meta name="plan-title"      content="Decoupled Equilibrium Read — source-free boundary + fixed-boundary interior spine, toward a learned machine-agnostic operator">
-  <meta name="plan-summary"    content="Reframe of the equilibrium line after the force-balance-spine review: the boundary and the interior are SEPARATE low-order inverse problems, and coupling them in a free-boundary GS solve was an EFIT-rebuild that re-imported interior ambiguity + coil error into the near-edge field (the -3.70 LCFS bar was self-inflicted; imas-efit already owns machine-specific topology and is still debugging it). Decouple: (1) BOUNDARY = the source-free toroidal-harmonic annulus read (prerequisite plan toroidal-harmonic-annulus-read) from raw external magnetics + Ip + li, EFIT-firewalled, machine-agnostic; (2) INTERIOR = fixed-boundary low-DOF force-balance on that boundary, shedding the free-boundary attractor/reseed/topology machinery; (3) ENDGAME = a learned geometry-conditioned operator (harmonic inductive bias, cross-machine training, EFIT-firewalled) that beats the classical baseline and transfers — the GenCast/ECMWF analogy. Also carries the rotation ladder continuation and the W5 discovery loop.">
-  <meta name="plan-status"     content="active">
-  <meta name="plan-roi"        content="high">
-  <meta name="plan-effort"     content="L">
-  <meta name="plan-tier"       content="opus">
-  <meta name="plan-milestone"  content="M4">
-  <meta name="plan-sprint"     content="S16">
-  <meta name="plan-owner"      content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="equilibrium-boundary-closure">
+  <meta name="plan-title" content="Decoupled Equilibrium Read — source-free boundary + soft-prior interior spine, toward a learned machine-agnostic operator">
+  <meta name="plan-summary" content="Reframe of the equilibrium line after the force-balance-spine review: the boundary and the interior are SEPARATE low-order inverse problems, and coupling them in a free-boundary GS solve that CHASED the LCFS was an EFIT-rebuild that re-imported interior ambiguity + coil error into the near-edge field (the -3.70 LCFS bar was self-inflicted). Decouple, then couple back SOFTLY: (1) BOUNDARY = the source-free toroidal-harmonic annulus read (LANDED) from raw external magnetics + Ip + li, EFIT-firewalled, machine-agnostic — but a LOW-ORDER, cm-uncertain read (~6.7 cm LCFS, ~1-2 boundary DOF); (2) INTERIOR = a SOFT-PRIOR force-balance solve, NOT a fixed-boundary Dirichlet solve: the annulus read anchors the free-boundary fixed point through the vacuum-annulus psi-consistency penalty already in the harness (RMS 0.068-0.089), current is admitted in the confined core AND the public SOL out to soft psi_N~1.1, and force balance (GS closure jphi(psi_N)) places the EMERGENT LCFS. Fixing the low-order boundary would inject unmeasured higher-order DOF as truth; and the outboard attractor was itself the symptom of an UNANCHORED free boundary, which the soft prior now supplies (so the reseed/scout machinery dissolves as a CONSEQUENCE, tested not assumed). (3) ENDGAME = a learned geometry-conditioned operator (harmonic inductive bias, cross-machine training, EFIT-firewalled) that beats the classical baseline and transfers - the GenCast/ECMWF analogy. Also carries the rotation ladder continuation and the W5 discovery loop.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint" content="S16">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="force-balance-spine,toroidal-harmonic-annulus-read">
-  <meta name="plan-blocks"     content="equilibrium-topology-fidelity">
-  <meta name="plan-informs"    content="machine-agnostic-latent-world-model,learned-closure-current-diffusion-v0,closed-loop-latent-filter">
+  <meta name="plan-blocks" content="equilibrium-topology-fidelity">
+  <meta name="plan-informs" content="machine-agnostic-latent-world-model,learned-closure-current-diffusion-v0,closed-loop-latent-filter">
   <title>Decoupled Equilibrium Read | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-14">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -30,10 +32,16 @@
     Continues <a href="/imas-ambix/force-balance-spine.html">force-balance-spine</a> (landed, superseded),
     but on a corrected architecture: the boundary is <strong>delegated to
     <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a>
-    (a prerequisite)</strong> as a source-free external read, and the interior spine becomes
-    <strong>fixed-boundary</strong>. The free-boundary GS topology resolution — reseed lever,
-    X-point/limiter ray-cast, main-coil-pair coil chase — is <strong>retired as an EFIT-rebuild</strong>
-    (imas-efit owns machine-specific topology; the EFIT-output firewall in our training data stays).
+    (landed)</strong> as a source-free external read, and it enters the interior spine as a
+    <strong>soft prior — not a fixed-boundary Dirichlet condition</strong>. The read is low-order and
+    cm-uncertain (~6.7&nbsp;cm LCFS, ~1–2 boundary DOF), so fixing it as an exact boundary would inject
+    unmeasured higher-order DOF as truth; instead it anchors the free-boundary force-balance solve
+    through the vacuum-annulus ψ-consistency penalty, current is admitted through a smooth edge into
+    the public SOL (soft ψ<sub>N</sub>≈1.1), and force balance places the emergent LCFS. The outboard
+    attractor was the symptom of an <em>unanchored</em> free boundary — the soft prior supplies the
+    anchor, so the reseed lever / scout-certify machinery is expected to <strong>dissolve as a
+    consequence</strong> (tested held-out, not deleted a priori). imas-efit owns machine-specific
+    topology; the EFIT-output firewall in our training data stays.
   </div>
 
   <h2 id="s1">§1 — Thesis: the boundary and the interior are separate low-order problems</h2>
@@ -55,10 +63,18 @@
     boundary is a contour, X-points are its saddles, limited-vs-diverted is a classification of that
     smooth field. <strong>No interior current, no EFIT.</strong> This is the classical result
     (Braams 1991; Alladio–Crisanti 1986) and it is what real-time codes do.</li>
-    <li><strong>The interior is a fixed-boundary force-balance problem.</strong> Given the boundary
-    ψ from the annulus read, solve Δ\*ψ = μ₀R·jφ(ψ) on the plasma domain with that Dirichlet
-    condition — the well-posed, low-DOF reconstruction the spine already does well (axis 3.7 cm,
-    effective rank ~1–2), minus the free-boundary attractor.</li>
+    <li><strong>The interior is a force-balance problem SOFTLY anchored to that boundary.</strong>
+    The annulus read is low-order — it carries only ~1–2 boundary DOF and is ~6.7&nbsp;cm uncertain.
+    Its higher-order shape (the Shafranov shift, edge/X-point sharpening) is set by the interior
+    current and <em>cannot</em> be extracted from external moments. So we do <strong>not</strong> fix
+    it as an exact Dirichlet boundary — that would assert unmeasured DOF as truth, a misplaced
+    assumption. Instead solve Δ\*ψ = μ₀R·jφ(ψ) on the plasma domain as a free-boundary force balance
+    whose emergent boundary is <em>softly anchored</em> to the read (via the vacuum-annulus
+    ψ-consistency penalty), with current admitted in the confined core AND the public SOL out to soft
+    ψ<sub>N</sub>≈1.1. The low-DOF closure keeps this the well-posed reconstruction the spine already
+    does well (axis 3.7&nbsp;cm, effective rank ~1–2); the soft anchor is precisely the constraint the
+    unanchored free boundary lacked, so it should remove the outboard attractor rather than requiring
+    the reseed lever to fight it.</li>
   </ul>
 
   <p><strong>Do diverted and limited plasmas look different to magnetics? Yes.</strong> A diverted
@@ -72,7 +88,7 @@
 
   <figure>
     <svg viewBox="0 0 940 300" width="100%" role="img" font-family="system-ui,-apple-system,sans-serif"
-         aria-label="Decoupled pipeline: external magnetics + Ip + li feed the source-free harmonic boundary read (prerequisite); the boundary plus magnetics feed the fixed-boundary interior spine; both feed a learned cross-machine operator. EFIT is firewalled as referee only.">
+         aria-label="Decoupled pipeline: external magnetics + Ip + li feed the source-free harmonic boundary read (landed); that read is a SOFT PRIOR anchoring the interior force-balance spine, whose boundary emerges; both feed a learned cross-machine operator. EFIT is firewalled as referee only.">
       <defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#555"/></marker></defs>
       <!-- inputs -->
       <rect x="14" y="96" width="150" height="70" rx="6" fill="#ffffff" stroke="#c8ccd2"/>
@@ -83,17 +99,19 @@
       <!-- boundary (prereq, accent) -->
       <rect x="206" y="86" width="210" height="90" rx="6" fill="#ffffff" stroke="#1565c0" stroke-width="1.8"/>
       <rect x="206" y="86" width="210" height="24" rx="6" fill="#eef4fb" stroke="none"/>
-      <text x="216" y="103" font-size="12" font-weight="600" fill="#1a4d80">§2 BOUNDARY — prerequisite</text>
+      <text x="216" y="103" font-size="12" font-weight="600" fill="#1a4d80">§2 BOUNDARY — landed</text>
       <text x="216" y="129" font-size="11.5" fill="#1a1a1a">source-free toroidal-harmonic</text>
       <text x="216" y="147" font-size="11.5" fill="#1a1a1a">annulus read → LCFS, X-pt,</text>
       <text x="216" y="165" font-size="11.5" fill="#1a1a1a">limited/diverted class</text>
-      <line x1="416" y1="131" x2="457" y2="131" stroke="#555" stroke-width="1.4" marker-end="url(#a)"/>
+      <!-- soft-prior arrow (accent, labelled) -->
+      <line x1="416" y1="131" x2="457" y2="131" stroke="#1565c0" stroke-width="1.6" marker-end="url(#a)"/>
+      <text x="418" y="122" font-size="9.5" font-weight="600" fill="#1a4d80">soft prior</text>
       <!-- interior -->
       <rect x="458" y="86" width="210" height="90" rx="6" fill="#ffffff" stroke="#c8ccd2"/>
       <text x="468" y="107" font-size="12" font-weight="600" fill="#1a1a1a">§3 INTERIOR — spine</text>
-      <text x="468" y="131" font-size="11.5" fill="#1a1a1a">fixed-boundary low-DOF</text>
-      <text x="468" y="149" font-size="11.5" fill="#1a1a1a">force-balance on that ψ_b</text>
-      <text x="468" y="167" font-size="11" fill="#7a7f87">(no free-boundary attractor)</text>
+      <text x="468" y="131" font-size="11.5" fill="#1a1a1a">soft-anchored force balance;</text>
+      <text x="468" y="149" font-size="11.5" fill="#1a1a1a">core + public SOL (ψ_N≲1.1)</text>
+      <text x="468" y="167" font-size="11" fill="#7a7f87">(boundary emerges, not fixed)</text>
       <line x1="668" y1="131" x2="709" y2="131" stroke="#555" stroke-width="1.4" marker-end="url(#a)"/>
       <!-- endgame -->
       <rect x="710" y="86" width="216" height="90" rx="6" fill="#ffffff" stroke="#c8ccd2"/>
@@ -104,34 +122,107 @@
       <!-- firewall -->
       <rect x="206" y="220" width="720" height="52" rx="6" fill="#ffffff" stroke="#b0402f" stroke-dasharray="4 3"/>
       <text x="216" y="241" font-size="12" font-weight="600" fill="#8a3324">EFIT — FIREWALLED (referee / scoring only; never an input, never a training label)</text>
-      <text x="216" y="261" font-size="11" fill="#7a7f87">retired from this line: free-boundary GS topology, reseed lever, X-point/limiter ray-cast, main-coil-pair coil chase</text>
+      <text x="216" y="261" font-size="11" fill="#7a7f87">expected to dissolve once the boundary is soft-anchored: reseed lever, scout-certify, outboard-attractor fights (tested, not deleted a priori)</text>
       <line x1="566" y1="176" x2="566" y2="220" stroke="#b0402f" stroke-width="1" stroke-dasharray="3 3"/>
     </svg>
-    <figcaption>The decoupled read. External magnetics + Ip + li → the source-free harmonic
-    boundary (prerequisite: toroidal-harmonic-annulus-read) → the fixed-boundary interior spine →
-    a learned cross-machine operator. EFIT stays firewalled as referee only; the free-boundary
-    topology machinery is retired.</figcaption>
+    <figcaption>The decoupled read, coupled back softly. External magnetics + Ip + li → the
+    source-free harmonic boundary (landed: toroidal-harmonic-annulus-read) → a <strong>soft
+    prior</strong> anchoring the interior force-balance spine (core + public SOL; boundary emerges)
+    → a learned cross-machine operator. EFIT stays firewalled as referee only; the free-boundary
+    topology machinery dissolves once the boundary is soft-anchored, rather than being fixed away.</figcaption>
   </figure>
 
-  <h2 id="s2">§2 — Boundary route (the prerequisite): the source-free toroidal-harmonic annulus read</h2>
+  <h2 id="s2">§2 — Boundary route (LANDED): the source-free toroidal-harmonic annulus read</h2>
   <p>Owned by <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a>
-  (now <strong>active</strong> and a hard <code>depends_on</code> of this plan). It fits ψ in the
-  Δ\*-eigenfunctions in the vacuum annulus, matched to raw external magnetics + coil field + Ip +
-  li, and reads the separatrix / X-point / LCFS + limited-vs-diverted class off that smooth
-  source-free field — no interior current, EFIT-firewalled, pole-and-truncation locked to the
-  CI-gated fixed-pole ladder. <strong>This is the next session's work</strong> (its followup
-  f-thar-01); the interior pivot in §3 cannot start until it lands. It is also the classical
-  baseline the learned operator (§4) must beat.</p>
+  (a hard <code>depends_on</code>), now <strong>shipped</strong>. It fits ψ in the Δ\*-eigenfunctions
+  (order-1 half-integer Legendre ring functions) in the vacuum annulus, matched to raw external
+  magnetics + coil field + Ip + li, and reads the separatrix / X-point / LCFS + limited-vs-diverted
+  class off that smooth source-free field — no interior current, EFIT-firewalled. Held-out (n=160,
+  firewalled EFIT): <strong>best-in-class LCFS ~6.7&nbsp;cm</strong>, connectivity X-point-set −1.80,
+  and — the load-bearing number for §3 — a <strong>vacuum-annulus ψ-consistency of 0.068–0.089</strong>
+  (the interior carrier ψ vs the harmonic ψ agree in the shared annulus, confirming the source-free
+  premise). Two properties define how §3 must consume it: it is a <em>low-order</em> read (order 3;
+  order 5 aliases), and it is valid ONLY in the annulus (the axis stays with the interior carrier).
+  Both say the same thing — it is a boundary <em>prior</em>, not a boundary <em>fact</em>. It is also
+  the classical baseline the learned operator (§4) must beat.</p>
 
-  <h2 id="s3">§3 — Interior spine: pivot free-boundary → fixed-boundary</h2>
-  <p>Re-scope the landed spine. The low-DOF flux-function reconstruction, the passive rank-8
-  sidecar, and the identifiability harness are kept — they are the machine-agnostic interior
-  physics and are information-matched. What is removed is the free-boundary self-consistency: the
-  interior solve takes the annulus-read boundary as a fixed Dirichlet condition and solves
-  Δ\*ψ = μ₀R·jφ(ψ) on the plasma domain. This deletes the outboard attractor, the scout-certify
-  recipe, and the reseed lever wholesale (they were artefacts of coupling the boundary into the
-  interior fixed point). Re-gate the interior metrics (axis, interior flux) on the fixed-boundary
-  solve; the boundary metrics now come from §2, not from the interior solve.</p>
+  <h2 id="s3">§3 — Interior spine: soft-prior force balance (NOT a fixed-boundary Dirichlet solve)</h2>
+  <p><strong>Why not fix the boundary.</strong> The tempting move — take the §2 LCFS as an exact
+  Dirichlet condition and solve the interior on the domain it encloses — is a misplaced assumption.
+  A fixed boundary asserts the full 2-D boundary contour as truth, but §2 measured only ~1–2 boundary
+  DOF to ~6.7&nbsp;cm. The higher-order boundary shape (Shafranov shift, edge and X-point sharpening)
+  is <em>produced by the interior current</em> — the very thing §3 solves for — so fixing it either
+  freezes in the read's low-order error or forces the interior to fight a boundary it should be
+  shaping. Decoupling the two problems was right; ossifying the handoff is not.</p>
+
+  <p><strong>The soft-prior solve.</strong> Keep the landed free-boundary Grad–Shafranov fixed point
+  (<code>solve_equilibrium_lsq</code>) and its machine-agnostic parts — the low-DOF flux-function
+  closure jφ(ψ<sub>N</sub>), the passive rank-8 sidecar, the identifiability harness. Change three
+  things:</p>
+  <ol>
+    <li><strong>Anchor the emergent boundary softly.</strong> Add a vacuum-annulus ψ-consistency
+    penalty to the per-sweep least-squares: the interior-solve ψ, extrapolated into the shared
+    annulus, must agree with the §2 source-free harmonic ψ there. This is exactly the RMS the harness
+    already computes (0.068–0.089), now promoted from a diagnostic to a regulariser. Its weight is
+    tuned leakage-free on train shots and is set to reflect the read's ~cm uncertainty — a prior with
+    a covariance, not a hard constraint. The boundary still <em>emerges</em> from force balance; it is
+    merely pulled toward the source-free read where both representations are valid.</li>
+    <li><strong>Admit public-SOL current, softly.</strong> Replace the hard <code>ψ_N&lt;1</code>
+    current mask (a discontinuity that itself feeds the attractor) with a smooth edge reaching the
+    public SOL at soft ψ<sub>N</sub>≈1.1. Filaments inside the LCFS <em>and</em> just outside it in
+    the common flux region may carry current — physically the edge/halo current that does not vanish
+    exactly at the separatrix — and the closure jφ(ψ<sub>N</sub>) is redefined to decay smoothly
+    through ψ<sub>N</sub>=1 (the <code>(1−ψ_N)^α</code> form goes negative past 1 and must be
+    replaced, e.g. a decaying foot). Force balance, not a hard mask, then places the LCFS.</li>
+    <li><strong>Let the attractor machinery fall away.</strong> The outboard attractor, the reseed
+    lever, and the scout-certify recipe were mitigations for an <em>unanchored</em> free boundary.
+    The soft prior supplies the missing anchor, so they should become inert. Test that held-out —
+    retire them only when the numbers show they are no longer load-bearing (an honest negative, that
+    the prior does <em>not</em> tame the fixed point, is a real and recordable outcome).</li>
+  </ol>
+  <p>Everything the solve needs beyond the boundary — ψ<sub>axis</sub>, the interior ψ, ψ<sub>N</sub>
+  throughout the plane — it produces itself, self-consistently, with the §2 read pinning only the
+  near-edge annulus field. Re-gate the interior metrics (axis, interior flux) AND the emergent LCFS
+  held-out with CIs vs the free-boundary winner-arm baseline; the boundary is now a shared
+  responsibility (softly from §2, refined by §3), not a metric owned by one side.</p>
+
+  <figure>
+    <svg viewBox="0 0 900 320" width="100%" role="img" font-family="system-ui,-apple-system,sans-serif"
+         aria-label="Contrast: a fixed-boundary Dirichlet solve pins the low-order read as an exact contour (misplaced assumption); the soft-prior solve keeps the boundary emergent, anchored to the source-free annulus field, with current admitted through a smooth edge into the public SOL out to psi_N about 1.1.">
+      <!-- LEFT: fixed boundary (rejected) -->
+      <text x="30" y="28" font-size="13" font-weight="700" fill="#8a3324">✗ fixed-boundary Dirichlet (rejected)</text>
+      <!-- vessel-ish -->
+      <ellipse cx="150" cy="180" rx="120" ry="120" fill="none" stroke="#d8d0cc" stroke-width="1"/>
+      <!-- hard LCFS -->
+      <path d="M150,92 C205,100 224,160 214,200 C205,244 176,262 150,262 C124,262 96,244 87,200 C77,160 96,100 150,92 Z"
+            fill="#f7ecea" stroke="#b0402f" stroke-width="2.4"/>
+      <text x="150" y="185" font-size="11.5" font-weight="600" fill="#8a3324" text-anchor="middle">interior</text>
+      <text x="150" y="202" font-size="11.5" font-weight="600" fill="#8a3324" text-anchor="middle">only</text>
+      <text x="150" y="300" font-size="10.5" fill="#8a3324" text-anchor="middle">boundary IMPOSED as truth</text>
+      <text x="150" y="314" font-size="10.5" fill="#8a3324" text-anchor="middle">(asserts unmeasured DOF)</text>
+      <!-- RIGHT: soft prior (chosen) -->
+      <text x="470" y="28" font-size="13" font-weight="700" fill="#1a4d80">✓ soft-prior force balance (chosen)</text>
+      <ellipse cx="620" cy="180" rx="120" ry="120" fill="none" stroke="#d8d0cc" stroke-width="1"/>
+      <!-- SOL band (psi_N up to 1.1) -->
+      <path d="M620,78 C690,88 716,158 703,208 C690,258 652,278 620,278 C588,278 550,258 537,208 C524,158 550,88 620,78 Z"
+            fill="#eef4fb" stroke="none"/>
+      <!-- emergent LCFS (soft) -->
+      <path d="M620,96 C678,104 698,160 687,202 C678,246 648,264 620,264 C592,264 562,246 553,202 C542,160 562,104 620,96 Z"
+            fill="#ffffff" stroke="#1565c0" stroke-width="2" stroke-dasharray="5 3"/>
+      <text x="620" y="150" font-size="11" fill="#1a4d80" text-anchor="middle">core current</text>
+      <text x="620" y="230" font-size="9.5" fill="#3a6ea5" text-anchor="middle">public SOL current (ψ_N≲1.1)</text>
+      <text x="620" y="300" font-size="10.5" fill="#1a4d80" text-anchor="middle">boundary EMERGES, soft-anchored</text>
+      <text x="620" y="314" font-size="10.5" fill="#1a4d80" text-anchor="middle">to the annulus read (ψ-consistency)</text>
+      <!-- annulus anchor arrows on the right -->
+      <path d="M745,180 C770,180 770,150 748,140" fill="none" stroke="#1565c0" stroke-width="1.3" stroke-dasharray="3 3"/>
+      <text x="756" y="130" font-size="9.5" font-weight="600" fill="#1a4d80">§2 ψ</text>
+    </svg>
+    <figcaption>Left — fixing the low-order §2 read as an exact Dirichlet boundary asserts unmeasured
+    higher-order DOF as truth. Right — the soft-prior solve keeps the boundary emergent: current is
+    admitted through a smooth edge into the public SOL (shaded band, ψ<sub>N</sub>≲1.1), force balance
+    places the dashed LCFS, and a ψ-consistency penalty (the 0.068–0.089 annulus RMS) pulls the
+    near-edge field toward the source-free read where both are valid.</figcaption>
+  </figure>
 
   <h2 id="s4">§4 — Endgame: a learned, machine-agnostic equilibrium operator (the GenCast analogy)</h2>
   <p>The physics-backed reads of §2–§3 are the baseline and the inductive bias, not the destination.
@@ -158,12 +249,20 @@
 
   <h2 id="s7">§7 — Gates &amp; sequencing</h2>
   <ul>
-    <li><strong>Sequencing:</strong> §2 (boundary read) is the prerequisite and the next session →
-    then §3 (fixed-boundary interior pivot) → then §4 (learned operator, cross-machine). §5 is
+    <li><strong>Sequencing:</strong> §2 (boundary read) is <strong>landed</strong> → §3 (soft-prior
+    interior solve) is the next session → then §4 (learned operator, cross-machine). §5 is
     data-gated; §6 closes last.</li>
     <li><strong>Decision — boundary-route:</strong> source-free harmonic read (not a free-boundary
-    GS output, not an EFIT input). Recommended and effectively taken; lock it when the annulus read
-    posts its held-out X-point/LCFS skill.</li>
+    GS output, not an EFIT input). The read has now posted its held-out skill (best-in-class LCFS);
+    recommended and effectively taken.</li>
+    <li><strong>Decision — interior-boundary-coupling: LOCKED to soft-prior.</strong> The §2 read
+    enters §3 as a soft prior (vacuum-annulus ψ-consistency penalty + public-SOL force balance to
+    ψ<sub>N</sub>≈1.1), never as a fixed Dirichlet boundary. A fixed boundary would inject the read's
+    unmeasured higher-order DOF as truth; the soft anchor is also the missing constraint that should
+    dissolve the outboard attractor.</li>
+    <li><strong>Gate — §3 soft-prior solve:</strong> re-gate axis + interior flux + the emergent LCFS
+    held-out with CIs vs the free-boundary winner-arm; report whether the soft anchor removes the
+    attractor (so reseed/scout retire as a consequence). EFIT-firewalled.</li>
     <li><strong>Gate — the learned operator</strong> must beat the classical annulus baseline
     held-out and transfer to a machine held out of training, EFIT-firewalled.</li>
     <li><strong>Firewall (binding):</strong> EFIT output is referee/scoring only — never an input,
@@ -174,48 +273,52 @@
   </ul>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
-    <h2><span class="sec">§</span> Decisions</h2>
-
-    <div class="r-dec" data-key="boundary-route" data-choice="" data-by="" data-when="">
-      <p class="r-dec-q">How is the plasma boundary reconstructed?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt" data-value="source-free-harmonic">source-free toroidal-harmonic annulus read from raw external magnetics + Ip + li — machine-agnostic, EFIT-firewalled, decoupled from the interior (recommended; lock when the annulus read posts held-out skill)</button>
-        <button class="r-opt" data-value="free-boundary-gs">free-boundary GS fixed point (the retired approach — couples boundary to interior, the EFIT-rebuild)</button>
-        <button class="r-opt" data-value="efit-input">take the boundary from EFIT (rejected — breaks the firewall / re-learns EFIT)</button>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="boundary-route" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How is the plasma boundary reconstructed?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="source-free-harmonic">source-free toroidal-harmonic annulus read from raw external magnetics + Ip + li — machine-agnostic, EFIT-firewalled, decoupled from the interior (recommended; lock when the annulus read posts held-out skill)</button>
+      <button class="r-opt" data-value="free-boundary-gs">free-boundary GS fixed point (the retired approach — couples boundary to interior, the EFIT-rebuild)</button>
+      <button class="r-opt" data-value="efit-input">take the boundary from EFIT (rejected — breaks the firewall / re-learns EFIT)</button>
       </p>
-      <p class="r-dec-rat"></p>
+    <p class="r-dec-rat"></p>
     </div>
-
-    <div class="r-dec" data-key="representation-default" data-choice="closure-first" data-by="force-balance-spine (inherited, LOCKED)" data-when="2026-07-10T18:25:18+00:00">
-      <p class="r-dec-q">Which representation is the default equilibrium carrier for the world model?</p>
-      <p class="r-dec-rat">Inherited LOCKED: closure-first (profile-closure through the GS fixed point; cost 0.56, axis 3.7 cm, info budget ~1–2 profile DOF). Now applied as a FIXED-boundary interior solve on the §2 boundary rather than a free-boundary solve.</p>
+<div class="r-dec" data-key="representation-default" data-choice="closure-first" data-by="force-balance-spine (inherited, LOCKED)" data-when="2026-07-10T18:25:18+00:00">
+    <p class="r-dec-q">Which representation is the default equilibrium carrier for the world model?</p>
+    <p class="r-dec-rat">Inherited LOCKED: closure-first (profile-closure through the GS fixed point; cost 0.56, axis 3.7 cm, info budget ~1–2 profile DOF). Now applied as a SOFT-PRIOR interior solve: the same low-DOF closure jφ(ψ_N) on a free-boundary fixed point whose emergent boundary is softly anchored to the §2 annulus read (see interior-boundary-coupling), NOT a fixed-boundary Dirichlet solve.</p>
     </div>
-
-    <div class="r-dec" data-key="calibration-scope" data-choice="offset-only" data-by="force-balance-spine (inherited, LOCKED)" data-when="2026-07-10T18:25:18+00:00">
-      <p class="r-dec-q">What static-calibration model ships as default on gate payloads?</p>
-      <p class="r-dec-rat">Inherited LOCKED: offset-only, flag-gated, never a default (laundered coil-model error). Vacuum-derived physical corrections are the promotion path (e.g. the solenoid response scale, cylinder-sensors-v4).</p>
+<div class="r-dec" data-key="calibration-scope" data-choice="offset-only" data-by="force-balance-spine (inherited, LOCKED)" data-when="2026-07-10T18:25:18+00:00">
+    <p class="r-dec-q">What static-calibration model ships as default on gate payloads?</p>
+    <p class="r-dec-rat">Inherited LOCKED: offset-only, flag-gated, never a default (laundered coil-model error). Vacuum-derived physical corrections are the promotion path (e.g. the solenoid response scale, cylinder-sensors-v4).</p>
     </div>
-
-    <div class="r-dec" data-key="rotation-coefficient-source" data-choice="staged-measured-first" data-by="force-balance-spine (inherited, LOCKED)" data-when="2026-07-10T19:20:13+00:00">
-      <p class="r-dec-q">How does the rotation coefficient γ(ψ) enter the solve?</p>
-      <p class="r-dec-rat">Inherited LOCKED: staged — fixed measured γ(ψ) first (zero new DOF), free coefficient only after the identifiability harness gates it. Stage A/B null at the current budget; Stage C gated on the aliasing bar.</p>
+<div class="r-dec" data-key="rotation-coefficient-source" data-choice="staged-measured-first" data-by="force-balance-spine (inherited, LOCKED)" data-when="2026-07-10T19:20:13+00:00">
+    <p class="r-dec-q">How does the rotation coefficient γ(ψ) enter the solve?</p>
+    <p class="r-dec-rat">Inherited LOCKED: staged — fixed measured γ(ψ) first (zero new DOF), free coefficient only after the identifiability harness gates it. Stage A/B null at the current budget; Stage C gated on the aliasing bar.</p>
     </div>
-  </section>
+<div class="r-dec" data-key="interior-boundary-coupling" data-choice="soft-prior" data-by="Simon McIntosh" data-when="2026-07-14T21:47:56+00:00">
+    <p class="r-dec-q">How does the annulus-read boundary enter the interior force-balance solve?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="soft-prior">Soft prior — the source-free annulus read anchors the free-boundary solve via the vacuum-annulus psi-consistency penalty; current is admitted in the confined core AND the public SOL out to soft psi_N~1.1; force balance (GS closure jphi(psi_N)) places the emergent boundary. The read&#x27;s low-order uncertainty stays a prior, never hard truth. Machine-agnostic (recommended; lock).</button>
+      <button class="r-opt" data-value="fixed-dirichlet">Fixed-boundary Dirichlet — impose the annulus-read LCFS as an exact interior boundary condition (REJECTED: injects unmeasured higher-order boundary DOF as hard truth; the read carries only ~1-2 boundary DOF and ~6.7 cm uncertainty, so higher-order shape from the interior current is asserted rather than solved)</button>
+      <button class="r-opt" data-value="free-unanchored">Free-boundary with no boundary anchor — the retired approach whose unconstrained fixed point produced the outboard attractor, the reseed lever, and the scout-certify mitigations</button>
+      </p>
+    <p class="r-dec-rat">The annulus read is LOW-ORDER (order 3; ~6.7 cm held-out LCFS) and carries only ~1-2 boundary DOF; higher-order boundary shape (Shafranov shift, edge/X-point sharpening) is set by the interior current and cannot be extracted from external moments. Fixing the read as a Dirichlet condition would inject unmeasured DOF as truth - a misplaced assumption. Instead the read is a SOFT prior: the vacuum-annulus psi-consistency RMS already computed in the harness (0.068-0.089) becomes a penalty anchoring the FREE-boundary solve, so the boundary stays emergent but agrees with the source-free read where both are valid. Current is admitted through a smooth edge into the public SOL (soft psi_N~1.1), replacing the hard psi_N&lt;1 mask discontinuity, so force balance - not a fixed contour - places the LCFS, and real edge/halo current is representable while the GS closure keeps DOF low. The outboard attractor existed BECAUSE the free boundary had no external anchor; the soft prior supplies exactly that anchor, so the reseed/scout/certify machinery is expected to dissolve as a consequence (tested held-out, not deleted a priori). EFIT stays firewalled; the coupling is machine-agnostic (psi_N cap and penalty weight are dimensionless / geometry-scaled).</p>
+    </div>
+</section>
 
   <section data-reckon="followups" id="followups" class="r-followups">
-    <h2><span class="sec">§</span> Followups</h2>
-
-    <article class="r-fu" data-id="f-ebc-01" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read">
-      <h4 class="r-fu-title">§2 — PREREQUISITE &amp; next session: land the source-free toroidal-harmonic boundary read</h4>
-      <div class="r-fu-body"><p>The boundary route and the immediate next step. Implementation is owned by the prerequisite plan <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a> (followup f-thar-01): fit the source-free harmonic ψ in the annulus, read LCFS / X-point / limited-vs-diverted held-out with CIs vs firewalled EFIT, and report skill vs the thread-1 moment read. This plan's interior pivot (§3) is gated on it. Run <code>/reckon-ship toroidal-harmonic-annulus-read</code>.</p></div>
-      <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-ebc-01" data-status="resolved" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="2026-07-14T21:47:56+00:00" data-resolved-by="Simon McIntosh">
+    <h4 class="r-fu-title">§2 — PREREQUISITE &amp; next session: land the source-free toroidal-harmonic boundary read</h4>
+    <div class="r-fu-body"><p>The boundary route and the immediate next step. Implementation is owned by the prerequisite plan <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a> (followup f-thar-01): fit the source-free harmonic ψ in the annulus, read LCFS / X-point / limited-vs-diverted held-out with CIs vs firewalled EFIT, and report skill vs the thread-1 moment read. This plan's interior pivot (§3) is gated on it. Run <code>/reckon-ship toroidal-harmonic-annulus-read</code>.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    toroidal-harmonic-annulus-read (http://localhost:8765/imas-ambix/toroidal-harmonic-annulus-read.html)
-Section: §1–§2 (the whole plan) — see that plan's f-thar-01 for the full brief
+Section: §1–§2 (the whole plan) — see that plan&#x27;s f-thar-01 for the full brief
 Tier:    opus
 
 Context
-  This is the prerequisite for equilibrium-boundary-closure's interior pivot and the direct
-  answer to "reconstruct a low-order boundary from low-order external moments". Fit the vacuum-
+  This is the prerequisite for equilibrium-boundary-closure&#x27;s interior pivot and the direct
+  answer to &quot;reconstruct a low-order boundary from low-order external moments&quot;. Fit the vacuum-
   annulus psi in the Delta*-eigenfunctions (toroidal harmonics) to raw external magnetics + coil
   field + Ip + li; read LCFS/X-point/limited-vs-diverted off the SOURCE-FREE field, no interior
   current, EFIT firewalled. pole-and-truncation is LOCKED to the fixed-pole CI-gated ladder.
@@ -228,7 +331,7 @@ State to read  (code / data / prior records — not the plan itself)
 
 Scope locks / constraints  (non-decision)
   EFIT firewalled (referee only). Raw external magnetics (+ frozen offset calibration). Confined-
-  side flux reference NEVER from the harmonic field's own extremum. Leakage-free (tune pole/order
+  side flux reference NEVER from the harmonic field&#x27;s own extremum. Leakage-free (tune pole/order
   on train, frozen, scored once held-out). Reuse the 160-slice geometry_target/score protocol.
 
 Done-when
@@ -238,12 +341,12 @@ Done-when
      thread-1 moment read; saddle-excess + vacuum-annulus consistency recorded.
   3. boundary-route decision locked on the numbers; plan updated; followup written + resolved;
      equilibrium-boundary-closure §3 unblocked.</pre>
+    <p class="r-fu-outcome">Landed. toroidal-harmonic-annulus-read shipped (source-free P^1_{n-1/2} half-integer Legendre annulus read + connectivity boundary): held-out best-in-class LCFS ~6.7 cm, connectivity X-point-set -1.80, vacuum-annulus psi-consistency 0.068-0.089 (confirms the source-free premise). It is consumed HERE as the SOFT PRIOR for the interior solve (not a fixed boundary) - see the interior-boundary-coupling decision and f-ebc-05. §3 unblocked.</p>
     </article>
-
-    <article class="r-fu" data-id="f-ebc-02" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship equilibrium-boundary-closure">
-      <h4 class="r-fu-title">§3 — Pivot the interior spine to a fixed-boundary solve on the annulus-read boundary</h4>
-      <div class="r-fu-body"><p>Gated on §2. Re-scope the interior solve to take the annulus-read boundary as a fixed Dirichlet condition and solve Δ\*ψ=μ₀R·jφ(ψ) on the plasma domain; keep the low-DOF closure, the passive rank-8 sidecar, and the identifiability harness; delete the free-boundary attractor / scout-certify / reseed machinery. Re-gate interior metrics (axis, interior flux) with CIs.</p></div>
-      <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-ebc-02" data-status="resolved" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="2026-07-14T21:47:56+00:00" data-resolved-by="Simon McIntosh">
+    <h4 class="r-fu-title">§3 — Pivot the interior spine to a fixed-boundary solve on the annulus-read boundary</h4>
+    <div class="r-fu-body"><p>Gated on §2. Re-scope the interior solve to take the annulus-read boundary as a fixed Dirichlet condition and solve Δ\*ψ=μ₀R·jφ(ψ) on the plasma domain; keep the low-DOF closure, the passive rank-8 sidecar, and the identifiability harness; delete the free-boundary attractor / scout-certify / reseed machinery. Re-gate interior metrics (axis, interior flux) with CIs.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
 Section: §3 — fixed-boundary interior pivot
 Tier:    opus
@@ -270,12 +373,12 @@ Done-when
      scout/reseed code retired or gated off by default.
   2. Interior metrics re-gated held-out with CIs vs the free-boundary winner-arm baseline.
   3. Verdict recorded; plan updated; followup written + this one resolved.</pre>
+    <p class="r-fu-outcome">Superseded by the soft-prior reframe (2026-07-14, lead-directed). The fixed-boundary Dirichlet pivot is REJECTED: the annulus read is low-order and cm-uncertain, so fixing it as an exact interior boundary would inject unmeasured higher-order DOF as truth. Re-scoped to a soft-prior force-balance solve in f-ebc-05 (interior-boundary-coupling = soft-prior, LOCKED).</p>
     </article>
-
-    <article class="r-fu" data-id="f-ebc-03" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-edit equilibrium-boundary-closure">
-      <h4 class="r-fu-title">§4 — Scope the learned machine-agnostic equilibrium operator (the GenCast endgame)</h4>
-      <div class="r-fu-body"><p>Design/scoping. A learned operator (raw sensors + geometry positional-encoding + Ip + li → boundary, then interior), trained cross-machine, harmonic decomposition as inductive bias, classical annulus read as the baseline to beat, EFIT firewalled. Specify the architecture, the cross-machine corpus, and the transfer gate (beat baseline held-out + on a held-out machine).</p></div>
-      <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-ebc-03" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-edit equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">§4 — Scope the learned machine-agnostic equilibrium operator (the GenCast endgame)</h4>
+    <div class="r-fu-body"><p>Design/scoping. A learned operator (raw sensors + geometry positional-encoding + Ip + li → boundary, then interior), trained cross-machine, harmonic decomposition as inductive bias, classical annulus read as the baseline to beat, EFIT firewalled. Specify the architecture, the cross-machine corpus, and the transfer gate (beat baseline held-out + on a held-out machine).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
 Section: §4 — learned operator (scoping)
 Tier:    opus
@@ -299,11 +402,10 @@ Done-when
   2. Feasibility read on the corpus (which machines, how many equilibria, geometry coverage).
   3. Plan updated with the scoped operator as a follow-on; this followup resolved.</pre>
     </article>
-
-    <article class="r-fu" data-id="f-ebc-04" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship equilibrium-boundary-closure">
-      <h4 class="r-fu-title">§5/§6 — Rotation Stage B/C (data-gated) and the W5 discovery-loop formalization</h4>
-      <div class="r-fu-body"><p>Carried from force-balance-spine. Rotation Stage B needs a broader-CXRS cohort (data-gated); Stage C stays gated on the aliasing bar. W5 builds the versioned term-dictionary registry + trimmed promotion skill + transport-tied coefficient evolution, and closes last.</p></div>
-      <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-ebc-04" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">§5/§6 — Rotation Stage B/C (data-gated) and the W5 discovery-loop formalization</h4>
+    <div class="r-fu-body"><p>Carried from force-balance-spine. Rotation Stage B needs a broader-CXRS cohort (data-gated); Stage C stays gated on the aliasing bar. W5 builds the versioned term-dictionary registry + trimmed promotion skill + transport-tied coefficient evolution, and closes last.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
 Section: §5 rotation + §6 discovery loop
 Tier:    opus
@@ -327,7 +429,49 @@ Done-when
      blocker recorded. 2. W5 registry artifact + trimmed skill committed. 3. Plan updated;
      followup written + this one resolved.</pre>
     </article>
-  </section>
+<article class="r-fu" data-id="f-ebc-05" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">§3 — Soft-prior boundary-regularized force-balance interior solve (confined + public SOL)</h4>
+    <div class="r-fu-body"><p>Re-scope the landed free-boundary spine to a <strong>soft-prior</strong> solve, NOT a fixed-boundary Dirichlet solve. (a) Add a vacuum-annulus psi-consistency penalty (the harness's existing 0.068-0.089 RMS metric: interior-solve psi vs the source-free harmonic psi in the shared annulus) that anchors the emergent boundary to the annulus read, weight tuned leakage-free to reflect the read's ~cm uncertainty. (b) Extend the current-support mask from the hard <code>psi_N&lt;1</code> cutoff to a smooth edge reaching the public SOL at soft psi_N~1.1, with the GS closure jphi(psi_N) redefined to decay through the separatrix (the <code>(1-psi_N)^alpha</code> form goes negative past 1). (c) TEST whether the soft anchor dissolves the outboard attractor; retire reseed/scout/certify only if the numbers show they are no longer load-bearing. Re-gate axis + interior-flux + LCFS held-out with CIs vs the free-boundary winner-arm.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
+Section: §3 — soft-prior interior solve
+Tier:    opus
+
+Context
+  The boundary comes from the LANDED source-free annulus read (toroidal-harmonic-annulus-read:
+  best-in-class LCFS ~6.7 cm, connectivity X-point-set -1.80, annulus consistency 0.068-0.089). It
+  is LOW-ORDER and ~cm-uncertain, so it must enter the interior solve as a SOFT PRIOR, never a fixed
+  Dirichlet boundary (that injects unmeasured higher-order DOF as truth). Anchor the EXISTING
+  free-boundary GS fixed point with the vacuum-annulus psi-consistency penalty already in the
+  harness, admit current through a smooth edge into the public SOL (soft psi_N~1.1), and let force
+  balance place the emergent LCFS. (Honour the locked interior-boundary-coupling = soft-prior.)
+
+State to read  (code / prior records)
+  imas_ambix/latent/gs_solve.py  (solve_equilibrium_lsq Picard loop ~1162-1297; the psi_N&lt;1.0 core
+    mask at ~549 and ~1193; profile_basis / profile_jphi_shape ansatz; solve_dirichlet + the
+    scout/reseed/certify + outboard-attractor mitigations to TEST-then-retire)
+  scripts/closure_gate_eval.py  (winner-arm harness; the reseed lever ~313-361)
+  scripts/boundary_harmonic_gate_eval.py  (the annulus-consistency RMS: carrier-psi vs harmonic-psi)
+  imas_ambix/latent/boundary_harmonic.py  (the source-free annulus psi = the soft-prior target)
+  docs/archive/force-balance-spine-solenoid-attribution-landed.html (winner-arm baselines)
+
+Scope locks / constraints  (non-decision)
+  interior-boundary-coupling = soft-prior (LOCKED): NO hard Dirichlet on the plasma boundary.
+  EFIT firewalled (referee only). Leakage-free tuning, paired-bootstrap CIs, cost sweep. The GS
+  closure jphi(psi_N) keeps DOF low even with the SOL band. Coil couplings thick-cylinder
+  hybrid_greens (never point-filament). Machine-agnostic (psi_N cap and penalty weight dimensionless
+  / geometry-scaled, never fixed metres). SLURM debug partitions.
+
+Done-when
+  1. Soft annulus-consistency penalty wired into the free-boundary solve (weight tuned leakage-free
+     on train); current mask extended to soft psi_N~1.1 with a smooth-decay closure; NO hard interior
+     Dirichlet anywhere.
+  2. Attractor test: report whether the soft prior removes the outboard-attractor escapes; retire
+     reseed/scout/certify only if shown no longer load-bearing (honest either way).
+  3. Axis + interior-flux + LCFS re-gated held-out with CIs vs the free-boundary winner-arm.
+  4. Verdict recorded; plan updated same-turn; followup written + this one resolved.</pre>
+    </article>
+</section>
 
 </main>
 </body>
