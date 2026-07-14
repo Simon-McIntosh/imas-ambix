@@ -503,27 +503,32 @@ def fig_phases(shot: int, args) -> bool:
 # Figure 3 — Gate C skill bars: harmonic vs current-moment vs carrier
 # --------------------------------------------------------------------------
 def _find_harmonic_artifact() -> dict | None:
-    """Best (highest lcfs_skill) held-out ``boundary_read_harmonic-*.json``
-    artifact, or ``None`` if the gate hasn't written one yet."""
+    """The CURRENT scored held-out ``boundary_read_harmonic-*.json`` artifact.
+
+    Prefers the per-slice-pole read (``-frac`` in the name — the current scored
+    configuration) over the retired fixed-pole one; within that class picks the
+    best lcfs_skill.  Returns ``None`` if the gate has not written one yet."""
     cands = [
         p
         for p in ARTIFACTS.glob("boundary_read_harmonic-*.json")
         if "-tune" not in p.stem
     ]
-    best = None
+    evals = []
     for p in sorted(cands):
         try:
             d = json.loads(p.read_text())
         except Exception as exc:  # noqa: BLE001
             logger.warning("failed to read %s: %s", p, exc)
             continue
-        if d.get("split") != "eval":
-            continue
-        cur = d.get("lcfs_skill")
-        best_val = best.get("lcfs_skill") if best is not None else None
-        if best is None or (cur is not None and (best_val is None or cur > best_val)):
-            best = d
-    return best
+        if d.get("split") == "eval":
+            evals.append((p.stem, d))
+    if not evals:
+        return None
+    # per-slice-pole (frac) artifacts are the current scored read; fall back to
+    # any eval artifact if none exist yet.
+    frac = [d for stem, d in evals if "frac" in stem]
+    pool = frac or [d for _, d in evals]
+    return max(pool, key=lambda d: d.get("lcfs_skill") or -1e9)
 
 
 def fig_gate_c_skill_bars(stem: Path) -> bool:
