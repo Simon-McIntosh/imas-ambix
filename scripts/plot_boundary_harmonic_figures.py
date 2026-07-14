@@ -539,10 +539,11 @@ def _find_harmonic_artifact() -> dict | None:
             evals.append((p.stem, d))
     if not evals:
         return None
-    # per-slice-pole (frac) artifacts are the current scored read; fall back to
-    # any eval artifact if none exist yet.
+    # the current scored read is the centroid-origin one; fall back to any frac
+    # (per-slice-pole) artifact, then to any eval artifact.
+    cent = [d for stem, d in evals if "centroidorigin" in stem]
     frac = [d for stem, d in evals if "frac" in stem]
-    pool = frac or [d for _, d in evals]
+    pool = cent or frac or [d for _, d in evals]
     return max(pool, key=lambda d: d.get("lcfs_skill") or -1e9)
 
 
@@ -672,8 +673,20 @@ def parse_args() -> argparse.Namespace:
         "--pole-inboard-fraction",
         type=float,
         default=0.41,
-        help="dimensionless inboard fraction: pole_r = carrier axis_R*(1-fraction) "
+        help="dimensionless inboard fraction: pole_r = origin_R*(1-fraction) "
         "(machine-agnostic; frozen by the Gate C ladder)",
+    )
+    ap.add_argument(
+        "--mask-frac",
+        type=float,
+        default=0.5,
+        help="near-pole mask radius as a fraction of the pole-to-origin distance",
+    )
+    ap.add_argument(
+        "--exclude-frac",
+        type=float,
+        default=1.1,
+        help="critical-point exclusion radius as a fraction of pole-to-origin distance",
     )
     ap.add_argument("--out-dir", type=Path, default=FIGURES)
     ap.add_argument(
