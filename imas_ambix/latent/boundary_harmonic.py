@@ -405,6 +405,58 @@ def harmonic_psi_on_grid(
     return psi.reshape(zz.shape)
 
 
+def mask_invalid_interior(
+    psi: np.ndarray,
+    grid_r: np.ndarray,
+    grid_z: np.ndarray,
+    pole_r: float,
+    pole_z: float,
+    radius: float,
+    *,
+    axis_rz: tuple[float, float] | None = None,
+    k: float = 20.0,
+) -> np.ndarray:
+    """Fill the near-pole disk (the INVALID interior) with the confined-side extreme.
+
+    The toroidal harmonics are physical ONLY in the source-free annulus; toward
+    the focal ring (the pole) the P ring functions DIVERGE, so the reconstructed
+    flux blows up inside the plasma where the expansion does not hold (the plan's
+    "validity domain is the annulus only").  Reading the boundary directly off
+    that field puts spurious saddles and early ray-cast crossings in the invalid
+    interior.  This replaces the disk of radius ``radius`` about the pole with a
+    single value ``k`` standard deviations past the annulus median on the
+    CONFINED side (toward ``axis_rz`` if given, else toward the near-pole
+    extreme), so the interior reads as "deeper than any boundary" -- the annulus
+    boundary read (X-point set, bounding flux, LCFS ray-cast from the carrier
+    axis) then sees a clean confined plateau inside and the physical field
+    outside.  The interior itself is owned by the carrier, not this field.
+
+    Returns a copy; the annulus (outside ``radius``) is untouched.
+    """
+    psi = np.asarray(psi, dtype=np.float64)
+    gr = np.asarray(grid_r, dtype=np.float64)
+    gz = np.asarray(grid_z, dtype=np.float64)
+    rr, zz = np.meshgrid(gr, gz)
+    inside = np.hypot(rr - pole_r, zz - pole_z) < radius
+    if not inside.any() or inside.all():
+        return psi.copy()
+    ann = psi[~inside]
+    med = float(np.median(ann))
+    spread = float(np.std(ann)) or 1.0
+    if axis_rz is not None:
+        ia = int(np.argmin(np.abs(gz - axis_rz[1])))
+        ja = int(np.argmin(np.abs(gr - axis_rz[0])))
+        sign = np.sign(psi[ia, ja] - med)
+    else:
+        near = psi[inside]
+        sign = np.sign(near[int(np.argmax(np.abs(near - med)))] - med)
+    if sign == 0:
+        sign = 1.0
+    out = psi.copy()
+    out[inside] = med + sign * k * spread
+    return out
+
+
 def gs_operator(psi: np.ndarray, r_1d: np.ndarray, z_1d: np.ndarray) -> np.ndarray:
     """Numerical Delta* psi on a ``(nz, nr)`` field (the correctness oracle).
 
@@ -435,6 +487,7 @@ __all__ = [
     "gs_operator",
     "harmonic_columns",
     "harmonic_field_columns",
+    "mask_invalid_interior",
     "harmonic_labels",
     "harmonic_psi_on_grid",
     "harmonic_sensor_matrix",

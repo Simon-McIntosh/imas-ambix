@@ -53,14 +53,20 @@ def test_hybrid_target_reads_axis_psi_at_supplied_axis_not_field_extremum():
     psi_tot = -(((rr - o_r) ** 2) + (zz - o_z) ** 2)  # max at (o_r, o_z)
 
     carrier_axis = np.array([r0, 0.0])  # NOT the field maximum
-    _, axis_psi, _ = hybrid_target_harmonic(psi_tot, grid, carrier_axis)
+    # mask_radius=0 / exclude_radius=0 -> no interior masking, isolating the
+    # axis_psi-at-supplied-axis behaviour under test.
+    _, axis_psi, _ = hybrid_target_harmonic(
+        psi_tot, grid, carrier_axis, (r0, 0.0), 0.0, 0.0
+    )
 
     expected = _bilerp(psi_tot, grid.rg, grid.zg, r0, 0.0)
     assert np.isclose(axis_psi, expected)
     # and it is NOT the field's own extremum (that would be ~0 at the O-point)
     assert axis_psi < psi_tot.max() - 1e-3
     # the returned axis slots echo the supplied carrier axis
-    target, _, _ = hybrid_target_harmonic(psi_tot, grid, carrier_axis)
+    target, _, _ = hybrid_target_harmonic(
+        psi_tot, grid, carrier_axis, (r0, 0.0), 0.0, 0.0
+    )
     assert np.isclose(target[0], r0) and np.isclose(target[1], 0.0)
 
 

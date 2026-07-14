@@ -84,11 +84,14 @@ from imas_ambix.latent.boundary_harmonic import (
     _fit_one,
     harmonic_columns,
     harmonic_sensor_matrix,
+    mask_invalid_interior,
 )
-from imas_ambix.latent.gs_solve import _read_boundary_psi_robust
 from imas_ambix.latent.topology import (
+    CriticalPoints,
     _bilerp,
     _inside_polygon,
+    boundary_flux_robust,
+    exclude_near_points,
     find_critical_points,
     lcfs_radii,
 )
@@ -204,33 +207,56 @@ def annulus_consistency_rms(
 # --- hybrid topology read ---------------------------------------------------
 
 
-def hybrid_target_harmonic(psi_tot, grid, axis):
-    """14-D geometry target with the AXIS supplied and the boundary read from
-    the TOTAL (harmonic-plasma + coil) psi.
+def hybrid_target_harmonic(psi_tot, grid, axis, pole, mask_radius, exclude_radius):
+    """14-D geometry target read in the ANNULUS from the masked TOTAL psi.
 
-    Mirrors ``boundary_moment_gate_eval.hybrid_target`` EXCEPT the confined-side
-    flux reference ``axis_psi`` is read as ``psi_tot`` bilinearly interpolated AT
-    the supplied carrier ``axis`` -- NOT from the field's own numerical O-point
-    extremum (the low-DOF harmonic field cannot localise the axis).  Everything
-    else -- the robust bounding-flux read, the innermost in-polygon /
-    conductor-clear X-point set, the 8-angle LCFS ray-cast -- is identical."""
+    The toroidal harmonics are valid ONLY in the source-free annulus; toward the
+    pole the ring functions diverge (the flux blows up inside the plasma where
+    the expansion does not hold).  So the near-pole invalid interior is first
+    masked to a confined plateau (:func:`mask_invalid_interior`), and every
+    boundary read runs on that masked field:
+
+    * the AXIS (``target[0:2]``) is the supplied carrier axis;
+    * the confined-side flux reference ``axis_psi`` is the masked field
+      bilinearly interpolated AT the carrier axis (NOT the field's own extremum,
+      per the binding review note);
+    * critical points within ``exclude_radius`` of the pole are dropped (the
+      residual near-pole artifacts), then filtered to the in-limiter,
+      conductor-clear set;
+    * the bounding flux is the robust innermost in-vessel X-point flux (limiter
+      fallback for a limited plasma);
+    * the X-point set (``target[2:6]``) and 8-angle LCFS ray-cast run on the
+      masked field.
+    """
+    pole_r, pole_z = pole
+    field = mask_invalid_interior(
+        psi_tot, grid.rg, grid.zg, pole_r, pole_z, mask_radius, axis_rz=tuple(axis)
+    )
     target = np.full(14, np.nan)
     target[0], target[1] = axis
-    axis_psi = _bilerp(psi_tot, grid.rg, grid.zg, float(axis[0]), float(axis[1]))
-    boundary_psi = _read_boundary_psi_robust(psi_tot, grid, tuple(axis), axis_psi)
-    cp = find_critical_points(psi_tot, grid.rg, grid.zg)
+    axis_psi = _bilerp(field, grid.rg, grid.zg, float(axis[0]), float(axis[1]))
+
+    cp = find_critical_points(field, grid.rg, grid.zg)
+    cp = exclude_near_points(cp, np.array([[pole_r, pole_z]]), exclude_radius)
     if cp.x_points.shape[0]:
         ins = _inside_polygon(
             cp.x_points[:, 0], cp.x_points[:, 1], grid.limiter_r, grid.limiter_z
         ) & grid.clear_of_conductors(cp.x_points[:, 0], cp.x_points[:, 1])
-        pts = cp.x_points[ins]
-        xpsi = cp.x_psi[ins]
-        if pts.shape[0]:
-            order = np.argsort(np.abs(xpsi - boundary_psi))
-            for slot in range(min(2, pts.shape[0])):
-                target[2 + 2 * slot] = pts[order[slot], 0]
-                target[3 + 2 * slot] = pts[order[slot], 1]
-    target[6:] = lcfs_radii(psi_tot, grid.rg, grid.zg, tuple(axis), boundary_psi)
+        cp = CriticalPoints(cp.o_points, cp.o_psi, cp.x_points[ins], cp.x_psi[ins])
+
+    boundary_psi = boundary_flux_robust(
+        cp, tuple(axis), axis_psi, limiter_r=grid.limiter_r, limiter_z=grid.limiter_z
+    )
+    if boundary_psi is None:  # limited plasma: limiter-contact flux nearest axis
+        lim_vals = field.ravel()[grid._limiter_grid_idx]
+        boundary_psi = float(lim_vals[int(np.argmin(np.abs(lim_vals - axis_psi)))])
+
+    if cp.x_points.shape[0]:
+        order = np.argsort(np.abs(cp.x_psi - boundary_psi))
+        for slot in range(min(2, cp.x_points.shape[0])):
+            target[2 + 2 * slot] = cp.x_points[order[slot], 0]
+            target[3 + 2 * slot] = cp.x_points[order[slot], 1]
+    target[6:] = lcfs_radii(field, grid.rg, grid.zg, tuple(axis), boundary_psi)
     return target, float(axis_psi), float(boundary_psi)
 
 
@@ -275,7 +301,14 @@ def score_order(shots, patch_psis, order, pole, split, args) -> dict:
                 axis, _ = _sign_aware_axis(patch_psis[si][k], grid)
             else:  # "harmonic" -- the field's own numerical O-point (ablation)
                 axis, _ = _sign_aware_axis(psi_tot, grid)
-            target, axis_psi, boundary_psi = hybrid_target_harmonic(psi_tot, grid, axis)
+            target, axis_psi, boundary_psi = hybrid_target_harmonic(
+                psi_tot,
+                grid,
+                axis,
+                (pole_r, pole_z),
+                args.mask_radius,
+                args.exclude_radius,
+            )
             model_rows.append(target)
             ref_rows.append(payload["refs"][k])
             flattop_flags.append(k == flattop_idx)
@@ -310,6 +343,8 @@ def score_order(shots, patch_psis, order, pole, split, args) -> dict:
         "kind": cfg.kind,
         "pole_r": pole_r,
         "pole_z": pole_z,
+        "mask_radius": args.mask_radius,
+        "exclude_radius": args.exclude_radius,
         "ip_anchor": args.ip_anchor,
         "axis_source": args.axis_source,
         "split": split,
@@ -374,6 +409,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="fixed toroidal-coordinate pole radius [m] (default: grid.r0)",
     )
     ap.add_argument("--pole-z", type=float, default=0.0)
+    ap.add_argument(
+        "--mask-radius",
+        type=float,
+        default=0.25,
+        help="radius [m] about the pole where the harmonic expansion is INVALID "
+        "(ring functions diverge) and is masked to a confined plateau before the "
+        "annulus boundary read",
+    )
+    ap.add_argument(
+        "--exclude-radius",
+        type=float,
+        default=0.55,
+        help="drop harmonic critical points within this radius [m] of the pole "
+        "(residual near-pole artifacts) before the X-point / bounding-flux read",
+    )
     ap.add_argument(
         "--ip-anchor",
         action="store_true",

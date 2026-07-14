@@ -31,6 +31,7 @@ from imas_ambix.latent.boundary_harmonic import (
     harmonic_columns,
     harmonic_labels,
     harmonic_sensor_matrix,
+    mask_invalid_interior,
     toroidal_coords,
 )
 from imas_ambix.latent.patch_inverse import SlicePayload
@@ -214,3 +215,29 @@ def test_filament_flux_recovered_in_annulus():
     # P generalises to the held-out ring; Q (divergent at infinity) cannot.
     assert p_err < 1e-3, f"P-set out-of-fit error {p_err:.2e} too large"
     assert q_err > 10.0 * p_err, f"P must beat Q (P={p_err:.2e}, Q={q_err:.2e})"
+
+
+# --- annulus-only validity: mask the invalid interior ----------------------
+
+
+def test_mask_invalid_interior_fills_confined_plateau():
+    """The near-pole disk (where the ring functions diverge) is replaced by a
+    single confined-side value; the annulus is untouched.  This is what keeps
+    the boundary read in the valid annulus (the ray-cast finds no crossing in
+    the masked interior)."""
+    rg = np.linspace(0.2, 1.9, 40)
+    zg = np.linspace(-1.2, 1.2, 50)
+    rr, zz = np.meshgrid(rg, zg)
+    pole = (POLE_R, 0.0)
+    dpole = np.hypot(rr - pole[0], zz - pole[1])
+    psi = 1.0 / (dpole + 0.05)  # blows up (positive) toward the pole
+    axis = (0.96, 0.0)  # near the pole, on the high (confined) side
+    radius = 0.25
+    masked = mask_invalid_interior(psi, rg, zg, pole[0], pole[1], radius, axis_rz=axis)
+    inside = dpole < radius
+    # annulus untouched
+    np.testing.assert_allclose(masked[~inside], psi[~inside])
+    # interior is a single value, on the confined (high) side, past the annulus
+    assert np.unique(np.round(masked[inside], 6)).size == 1
+    ann = psi[~inside]
+    assert masked[inside].flat[0] > np.median(ann) + 3.0 * np.std(ann)
