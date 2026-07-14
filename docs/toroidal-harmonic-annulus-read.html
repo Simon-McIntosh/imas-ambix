@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-14">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="4">
 </head>
 <body>
   <main class="plan-doc">
@@ -194,6 +194,88 @@ Done-when
   4. Verdict recorded either way (honest negative OK); imas-ink flux-surface figures for the
      held-out shots; plan updated same-turn; this followup resolved; force-balance-spine and
      equilibrium-topology-fidelity informed.</pre>
+    </article>
+<article class="r-fu" data-id="f-1752492000" data-status="open" data-tier="opus" data-written-by="gate-worker" data-written-at="2026-07-14T11:45:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Run harmonic Gate C held-out + record verdict</h4>
+    <div class="r-fu-body"><p>Gate script (<code>scripts/boundary_harmonic_gate_eval.py</code>) + unit tests (<code>tests/latent/test_boundary_harmonic_gate.py</code>, 6 green) landed at 3efc440. The script clones the current-moment gate structure, fits the source-free toroidal-harmonic annulus basis, adds the harness thick-cylinder coil column for the total-flux topology read (never a point filament), reads the confined-side flux reference at the supplied carrier axis (bilerp, not the field extremum), and records the offset-removed vacuum-annulus consistency RMS against the patch carrier. Grid harmonic columns + sensor design matrix are cached per (order, pole) so mpmath is never re-run per slice. Orchestrator now runs the train ladder then the frozen held-out eval and records the verdict.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    toroidal-harmonic-annulus-read
+Section: Gate C run + verdict
+Tier:    opus
+
+Context
+  The Gate C eval script and its unit tests landed (commit 3efc440):
+    scripts/boundary_harmonic_gate_eval.py
+    tests/latent/test_boundary_harmonic_gate.py  (6 passing)
+  It mirrors scripts/boundary_moment_gate_eval.py: reuses shot_payloads / score /
+  train_mean_baseline / count_saddles / saddle_excess_stats from patch_gate_eval and
+  load_cohort / free_current_psi / _sign_aware_axis from the moment gate. TOTAL flux =
+  harmonic PLASMA flux (imas_ambix.latent.boundary_harmonic) + the harness thick-cylinder
+  coil column via basis.psi_grid_2d_np(0, i_pf). --axis-source patch (default, SCORED) reads
+  the ray origin from the frozen P3-winner patch carrier and enables the annulus consistency
+  check; --axis-source harmonic is the ablation. Pole is FIXED (default grid.r0, z=0; the
+  locked pole-and-truncation decision); --orders sweeps the CI-gated ladder.
+
+Do (run on SLURM debug queue, TMPDIR=/tmp; the gate is slow + needs the firewalled referee)
+  1. Train ladder (leakage-free order selection):
+       uv run python scripts/boundary_harmonic_gate_eval.py --split train --orders 2 3 4 5
+     Pick the best order by lcfs_skill WITH its 95% CI (report the CIs, not just the point).
+  2. Frozen held-out eval ONCE at the chosen order:
+       uv run python scripts/boundary_harmonic_gate_eval.py --split eval --orders &lt;best&gt;
+  3. Read the artifacts imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-o&lt;order&gt;-patchaxis[-tune].json
+     and compare X-point-set + LCFS + axis skill (with CIs) against BOTH the current-moment read
+     (boundary_read_moment-o3-patchaxis.json) and the calibrated free-current carrier arm.
+     Record saddle-excess and the consistency_rms_annulus.
+
+Done-when
+  - Best order chosen on train with CIs; held-out scored once at that order.
+  - Verdict recorded either way (honest negative OK) in the plan same-turn, with the numbers.
+  - Consistency RMS + saddle-excess reported; f-thar-01 resolved; force-balance-spine and
+    equilibrium-topology-fidelity informed; Worker B&#x27;s figures embedded.
+
+Guardrails
+  Stay on main; commit only artifacts + plan/doc + figures you own; no AI co-author trailers;
+  EFIT stays firewalled (referee scores only).</pre>
+    </article>
+<article class="r-fu" data-id="f-1784029559" data-status="open" data-tier="sonnet" data-written-by="figure-worker" data-written-at="2026-07-14T11:45:59Z" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Regenerate harmonic phi-map + phase + Gate-C figures once the held-out gate lands</h4>
+    <div class="r-fu-body"><p><code>scripts/plot_boundary_harmonic_figures.py</code> landed (commit 96acfbc): reuses the frozen <code>HarmonicFitConfig</code>/<code>fit_harmonic</code>/<code>harmonic_psi_on_grid</code> API, assembles psi_tot = harmonic plasma flux + the harness thick-cylinder coil term (<code>basis.psi_grid_2d_np</code>, never point-filament), and reads axis/X-point/LCFS via <code>patch_gate_eval.geometry_target</code> exactly like the sibling moment-figure script. Already run end-to-end at the script's defaults (order=3, nr=33/nz=45) producing <code>docs/figures/toroidal-harmonic-annulus-read/phi-map-vs-efit-{18502,18503,18504}.png</code> and <code>phases-18502.png</code> (breakdown-&gt;ramp-up-&gt;flat-top-&gt;ramp-down-&gt;termination), all committed as PNG+SVG. <code>gate-c-skill-bars.png</code> skipped gracefully (logged warning, not a failure) because only a train-split <code>boundary_read_harmonic-o3-patchaxis-tune.json</code> exists yet -- no held-out (<code>split="eval"</code>) <code>boundary_read_harmonic-*.json</code> artifact for it to read.</p><p><strong>Diagnostic worth flagging</strong>: at order=3 the phi-map/phases overlays show a large whitened misfit (~0.2) and the harmonic psi_tot's boundary-flux contours collapse very close to the axis in most slices (visible clearly only at termination) -- much smaller than the EFIT reference contours at the same shot/time. This may just reflect order=3 not being the frozen ladder winner, or may be a genuine finding about this representation's boundary recovery at low order; worth checking against the train-ladder CI sweep before drawing conclusions.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    toroidal-harmonic-annulus-read
+Section: figures (phi-map / phases / Gate-C skill bars)
+Tier:    sonnet
+
+Context
+  scripts/plot_boundary_harmonic_figures.py (commit 96acfbc) is complete and already produced
+  docs/figures/toroidal-harmonic-annulus-read/{phi-map-vs-efit-18502,18503,18504,phases-18502}.png
+  (+ .svg) at its defaults (--order 3, --nr 33 --nz 45). It reads the gate&#x27;s held-out artifact
+  glob imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-*.json (split==&quot;eval&quot;,
+  best lcfs_skill) for the third figure and SKIPS it gracefully (no exception) when absent --
+  which is the current state: only boundary_read_harmonic-o3-patchaxis-tune.json (train split)
+  exists so far.
+
+Do
+  1. Once f-1752492000 lands the frozen held-out order and writes a split=&quot;eval&quot;
+     boundary_read_harmonic-*.json artifact, re-run:
+       uv run python scripts/plot_boundary_harmonic_figures.py --order &lt;frozen order&gt;
+     (drop --order if 3 IS the frozen winner) to regenerate all three figures, this time
+     including gate-c-skill-bars.png (harmonic vs current-moment vs free-current carrier,
+     95% CI error bars).
+  2. Sanity-check the phi-map/phases overlays at the frozen order: confirm the harmonic
+     contours no longer collapse near-axis the way they did at order=3 (misfit ~0.2 in the
+     order=3 run) -- if they still do, that is itself evidence for the plan&#x27;s verdict
+     write-up, not a figure bug.
+  3. Embed the regenerated figures where the plan/reckon-ship writeup references Gate C.
+
+Done-when
+  - gate-c-skill-bars.png exists and shows real 95% CIs for all three arms.
+  - phi-map-vs-efit-*.png / phases-*.png regenerated at the frozen order if it differs from 3.
+  - Figures committed (docs/figures/toroidal-harmonic-annulus-read/ only) and pushed.
+
+Guardrails
+  Stay on main; stage only docs/figures/toroidal-harmonic-annulus-read/ and, if you touch it,
+  scripts/plot_boundary_harmonic_figures.py; no AI co-author trailers; EFIT stays firewalled
+  (this script only ever reads it inside evaluator_context() for scoring/plotting).</pre>
     </article>
 </section>
   </main>
