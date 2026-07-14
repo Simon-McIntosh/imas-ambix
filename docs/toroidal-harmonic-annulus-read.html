@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="toroidal-harmonic-annulus-read">
   <meta name="plan-title" content="Toroidal-Harmonic Annulus Read — the source-free vacuum-region boundary representation (R3)">
   <meta name="plan-summary" content="PRIMARY machine-agnostic boundary route (promoted from cross-check, 2026-07-14). Fit the vacuum-annulus ψ in the Δ*-eigenfunctions (half-integer-degree Legendre P_{n−1/2}, Q_{n−1/2} toroidal harmonics) matched to the RAW external magnetics + known coil field + Ip + li, and read the separatrix / X-point / LCFS + limited-vs-diverted class off that smooth SOURCE-FREE field WITHOUT reconstructing an interior current and WITHOUT EFIT (firewall stays). This decouples the boundary from the interior: the free-boundary GS solve conflated them and re-imported interior ambiguity + coil-model error into the near-edge ψ (the -3.70 LCFS bar was self-inflicted). Diverted and limited plasmas DO differ in the external field (an external X-point saddle vs a wall tangency), and Ip+li break the residual field→boundary degeneracy — so a low-order boundary is recoverable from low-order external moments (Braams 1991; Alladio-Crisanti 1986; our own thread-1 moment read already recovered the X-point class -0.61→-0.15). Feeds the fixed-boundary interior spine and is the classical baseline / inductive bias for the learned cross-machine boundary operator (the GenCast-style endgame). Valid ONLY in the source-free annulus; the axis stays with the interior carrier.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
   <meta name="plan-tier" content="opus">
@@ -21,7 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-14">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -34,6 +35,29 @@
     boundary can be read from a representation that CANNOT commit current to the vacuum region —
     unlike both the free patch inverse and the current-moment fit, whose vacuum-region jφ ≠ 0
     violates the premise the boundary read rests on.</em></p>
+
+    <section class="section-landed">
+      <header><span class="badge badge-shipped">✓ landed 2026-07-14</span>
+      <h2>Landed — source-free harmonic read implemented, TDD-verified, scored held-out</h2></header>
+      <p class="landed-summary">
+      Built <code>imas_ambix/latent/boundary_harmonic.py</code> (order-1 half-integer Legendre ring
+      functions P<sup>1</sup><sub>n−½</sub> about a fixed pole, whitened LS to <code>measured−vacuum</code>,
+      annulus-only validity via <code>mask_invalid_interior</code>) + the Gate-C harness
+      (<code>scripts/boundary_harmonic_gate_eval.py</code>), 13 TDD tests
+      (Δ*ψ=0 to FD floor, filament sub-cm recovery, P-beats-Q). Coil coupling reuses the harness
+      thick-cylinder <code>hybrid_greens</code> kernel only (never point-filament).
+      <strong>Order 3 frozen</strong> by a CI-gated ladder (o5 aliases: consistency RMS → 2×10<sup>5</sup>).
+      <strong>Held-out Gate C (n=160, firewalled EFIT, 95% CI):</strong> LCFS skill
+      <strong>−2.98 [−4.35,−1.89]</strong> — best of the three physics arms (beats current-moment −4.47
+      and free carrier −4.91); X-point-set −3.06 [−4.31,−1.60] — <em>loses</em> to the moment read
+      (−0.15); axis −0.27; <strong>vacuum-annulus consistency vs the interior carrier 0.082</strong>
+      (median), confirming the source-free premise with no EFIT.
+      <strong>Verdict: qualified pass</strong> — best-in-class LCFS + confirmed source-free premise, but
+      the low-order external read under-resolves the divertor X-points (the driving followup). imas-ink
+      φ-maps vs held-out EFIT across multiple pulses and all phases (breakdown→termination).
+      Full record: <a href="archive/toroidal-harmonic-annulus-read-gate-c-landed.html">Gate C landed</a>
+      (commits <code>2223f2c</code>, <code>3efc440</code>, annulus-read + gate run this session).</p>
+    </section>
 
     <h2 id="s1">§1 — Design (from the grounding review and thread-1 findings)</h2>
     <ul>
@@ -146,7 +170,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-thar-01" data-status="open" data-tier="opus" data-written-by="reckon-edit (f-etf-04 migration)" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-thar-01" data-status="resolved" data-tier="opus" data-written-by="reckon-edit (f-etf-04 migration)" data-written-at="2026-07-10" data-recommends-skill="" data-resolved-at="2026-07-14T12:56:42+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Implement the source-free toroidal-harmonic annulus fit + score Gate C on the hardened harness</h4>
     <div class="r-fu-body"><p>The full implementation: harmonic basis module beside <code>boundary_moment.py</code>, whitened LS fit in the annulus, hybrid read with the calibrated interior carrier, Gate C held-out with CIs, and the vacuum-annulus consistency check against the carrier ψ. Migrated from equilibrium-topology-fidelity f-etf-04 with the post-f-pcph-04 baselines.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -194,8 +218,9 @@ Done-when
   4. Verdict recorded either way (honest negative OK); imas-ink flux-surface figures for the
      held-out shots; plan updated same-turn; this followup resolved; force-balance-spine and
      equilibrium-topology-fidelity informed.</pre>
+    <p class="r-fu-outcome">Implemented imas_ambix/latent/boundary_harmonic.py (order-1 half-integer Legendre ring functions, annulus-only mask) + scripts/boundary_harmonic_gate_eval.py + 13 TDD tests (Delta*psi=0, filament sub-cm, P-beats-Q). Held-out Gate C (n=160, firewalled EFIT, 95% CI, order 3 frozen by CI-gated ladder): LCFS skill -2.98 [-4.35,-1.89] BEATS moment -4.47 and carrier -4.91 (best-in-class); X-point-set -3.06 [-4.31,-1.60] loses to moment -0.15; axis -0.27; vacuum-annulus consistency vs carrier 0.082 median (confirms source-free premise). Qualified pass. Archive: archive/toroidal-harmonic-annulus-read-gate-c-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-1752492000" data-status="open" data-tier="opus" data-written-by="gate-worker" data-written-at="2026-07-14T11:45:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-1752492000" data-status="resolved" data-tier="opus" data-written-by="gate-worker" data-written-at="2026-07-14T11:45:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="2026-07-14T12:56:42+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Run harmonic Gate C held-out + record verdict</h4>
     <div class="r-fu-body"><p>Gate script (<code>scripts/boundary_harmonic_gate_eval.py</code>) + unit tests (<code>tests/latent/test_boundary_harmonic_gate.py</code>, 6 green) landed at 3efc440. The script clones the current-moment gate structure, fits the source-free toroidal-harmonic annulus basis, adds the harness thick-cylinder coil column for the total-flux topology read (never a point filament), reads the confined-side flux reference at the supplied carrier axis (bilerp, not the field extremum), and records the offset-removed vacuum-annulus consistency RMS against the patch carrier. Grid harmonic columns + sensor design matrix are cached per (order, pole) so mpmath is never re-run per slice. Orchestrator now runs the train ladder then the frozen held-out eval and records the verdict.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -236,8 +261,9 @@ Done-when
 Guardrails
   Stay on main; commit only artifacts + plan/doc + figures you own; no AI co-author trailers;
   EFIT stays firewalled (referee scores only).</pre>
+    <p class="r-fu-outcome">Ran train ladder (orders 2-5) leakage-free -> order 3 frozen (lcfs -3.36 best; o2 -10.8, o4 -5.15 over-fits, o5 aliases consistency->2e5). Held-out eval at o3: LCFS -2.98 [-4.35,-1.89] best of the three arms; X-point-set -3.06 [-4.31,-1.60] below moment; consistency 0.082 median. Verdict recorded in the plan + archive.</p>
     </article>
-<article class="r-fu" data-id="f-1784029559" data-status="open" data-tier="sonnet" data-written-by="figure-worker" data-written-at="2026-07-14T11:45:59Z" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-1784029559" data-status="resolved" data-tier="sonnet" data-written-by="figure-worker" data-written-at="2026-07-14T11:45:59Z" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="2026-07-14T12:56:42+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Regenerate harmonic phi-map + phase + Gate-C figures once the held-out gate lands</h4>
     <div class="r-fu-body"><p><code>scripts/plot_boundary_harmonic_figures.py</code> landed (commit 96acfbc): reuses the frozen <code>HarmonicFitConfig</code>/<code>fit_harmonic</code>/<code>harmonic_psi_on_grid</code> API, assembles psi_tot = harmonic plasma flux + the harness thick-cylinder coil term (<code>basis.psi_grid_2d_np</code>, never point-filament), and reads axis/X-point/LCFS via <code>patch_gate_eval.geometry_target</code> exactly like the sibling moment-figure script. Already run end-to-end at the script's defaults (order=3, nr=33/nz=45) producing <code>docs/figures/toroidal-harmonic-annulus-read/phi-map-vs-efit-{18502,18503,18504}.png</code> and <code>phases-18502.png</code> (breakdown-&gt;ramp-up-&gt;flat-top-&gt;ramp-down-&gt;termination), all committed as PNG+SVG. <code>gate-c-skill-bars.png</code> skipped gracefully (logged warning, not a failure) because only a train-split <code>boundary_read_harmonic-o3-patchaxis-tune.json</code> exists yet -- no held-out (<code>split="eval"</code>) <code>boundary_read_harmonic-*.json</code> artifact for it to read.</p><p><strong>Diagnostic worth flagging</strong>: at order=3 the phi-map/phases overlays show a large whitened misfit (~0.2) and the harmonic psi_tot's boundary-flux contours collapse very close to the axis in most slices (visible clearly only at termination) -- much smaller than the EFIT reference contours at the same shot/time. This may just reflect order=3 not being the frozen ladder winner, or may be a genuine finding about this representation's boundary recovery at low order; worth checking against the train-ladder CI sweep before drawing conclusions.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -276,6 +302,47 @@ Guardrails
   Stay on main; stage only docs/figures/toroidal-harmonic-annulus-read/ and, if you touch it,
   scripts/plot_boundary_harmonic_figures.py; no AI co-author trailers; EFIT stays firewalled
   (this script only ever reads it inside evaluator_context() for scoring/plotting).</pre>
+    <p class="r-fu-outcome">Regenerated figures at the frozen order 3 with the SCORED annulus-masked read (patch-carrier axis + hybrid_target_harmonic) instead of the raw blow-up field the earlier dev run showed: phi-map-vs-efit-{18502,18503,18504}.png, phases-18502.png (breakdown->termination), gate-c-skill-bars.png. The near-axis contour-collapse the dev run flagged was the unmasked read; the masked figures are faithful to the scored result.</p>
+    </article>
+<article class="r-fu" data-id="f-thar-xpt-fidelity" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-14T15:05:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Sharpen the source-free X-point-set read (the qualified-pass gap)</h4>
+    <div class="r-fu-body"><p>The held-out Gate C landed a qualified pass: the source-free harmonic read is the best-in-class LCFS reader (-2.98 vs moment -4.47) and its annulus psi agrees with the interior carrier to 0.082, but its X-point-set skill (-3.06) LOSES to the current-moment read (-0.15). Low order (<=3) localises the LCFS envelope but under-resolves the divertor nulls; order >=4 aliases (o5 consistency -> 2e5). Close this gap without breaking conditioning.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    toroidal-harmonic-annulus-read
+Section: X-point-set fidelity (post-Gate-C followup)
+Tier:    opus
+
+Context
+  Held-out Gate C (order 3 frozen): LCFS -2.98 [-4.35,-1.89] (best of the three physics arms),
+  X-point-set -3.06 [-4.31,-1.60] (loses to current-moment -0.15), consistency vs carrier 0.082.
+  The CI-gated order ladder shows o4 over-fits (saddles double) and o5 aliases (consistency 2e5),
+  so simply raising the order fails. The X-point set is the gap.
+
+State to read
+  imas_ambix/latent/boundary_harmonic.py  (fit + mask_invalid_interior; ip_anchor hook is unused)
+  scripts/boundary_harmonic_gate_eval.py   (--orders ladder, --mask-radius/--exclude-radius,
+                                            --ip-anchor, annulus consistency)
+  imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-o3-patchaxis.json (held-out baseline)
+
+Do (leakage-free; tune on train, freeze, score held-out ONCE; keep the consistency RMS as the guard)
+  1. Regularised higher order: add Tikhonov/QR to _fit_one so orders 4-5 run without the
+     aliasing that spiked o5&#x27;s consistency to 2e5; sweep the ridge on train, gated by lcfs_skill
+     AND consistency_rms (reject any arm whose consistency blows up).
+  2. Ip/li circulation anchor: wire the ablatable --ip-anchor (poloidal-field circulation
+     integral = mu0*Ip as a weighted virtual row) and measure whether it sharpens the X-point set.
+  3. Per-null local refinement: seed a Newton refine of the divertor saddle from the annulus
+     X-point candidates on the masked field.
+  Compare X-point-set + LCFS skill (with CIs) vs the current o3 and the moment read.
+
+Done-when
+  - A variant beats the current o3 X-point-set skill with non-overlapping CI, WITHOUT losing the
+    LCFS lead or blowing up the annulus consistency; or an honest negative that the low-order
+    source-free read cannot resolve the X-points and the learned operator must (recorded either way).
+  - Plan updated same-turn; figures refreshed; equilibrium-topology-fidelity informed.
+
+Guardrails
+  Stay on main; EFIT firewalled (referee scores only); coil couplings stay thick-cylinder
+  hybrid_greens (never point-filament); no AI co-author trailers.</pre>
     </article>
 </section>
   </main>

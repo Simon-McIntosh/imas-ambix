@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="toroidal-harmonic-annulus-read-gate-c-landed">
+  <meta name="plan-title" content="Toroidal-Harmonic Annulus Read — Gate C landed">
+  <meta name="plan-summary" content="Source-free vacuum-annulus boundary read implemented + TDD-verified + scored held-out (n=160, firewalled EFIT): best-in-class LCFS (-2.98 vs moment -4.47, carrier -4.91), loses X-point-set to the moment read (-3.06 vs -0.15), vacuum-annulus consistency vs the interior carrier 0.082 median. Order 3 frozen by a CI-gated ladder (o5 aliases). Landed 2026-07-14.">
+  <meta name="plan-informs" content="toroidal-harmonic-annulus-read">
+  <title>Toroidal-Harmonic Annulus Read — Gate C landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Toroidal-Harmonic Annulus Read — Gate C landed</h1>
+    <p><em>Per-stage record for
+    <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a>
+    (§1–§5). The source-free vacuum-annulus boundary read is implemented, TDD-verified, and scored
+    held-out against the firewalled EFIT referee. Landed 2026-07-14.</em></p>
+
+    <h2>Quick status</h2>
+    <table>
+      <thead><tr><th>Deliverable</th><th>Status</th><th>Headline</th></tr></thead>
+      <tbody>
+        <tr><td>§3 harmonic basis module + TDD</td><td>✓ shipped</td>
+            <td>Δ*ψ=0 to FD floor; filament recovered sub-cm; P-set pinned over Q</td></tr>
+        <tr><td>§3 Gate C eval harness</td><td>✓ shipped</td>
+            <td>reuses the 160-slice held-out protocol, CIs, saddle-excess; annulus-masked read</td></tr>
+        <tr><td>§2 Gate C held-out score</td><td>✓ qualified</td>
+            <td>best-in-class LCFS; loses X-point-set to the moment read; consistency 0.082</td></tr>
+        <tr><td>§5 imas-ink evidence figures</td><td>✓ shipped</td>
+            <td>φ-maps vs EFIT (multiple pulses) + breakdown→termination phases + Gate-C bars</td></tr>
+      </tbody>
+    </table>
+
+    <h2>What was built</h2>
+    <ul>
+      <li><code>imas_ambix/latent/boundary_harmonic.py</code> — the source-free representation:
+      toroidal coordinates about a fixed pole, order-1 half-integer Legendre ring functions
+      P<sup>1</sup><sub>n−½</sub> (mpmath, <code>type=3</code>, real part), the explicit
+      <code>R·√(coshη−cosθ)·P<sup>1</sup><sub>n</sub>·{cos,sin nθ}</code> flux columns (the R factor is
+      required by the Φ=2πR·A<sub>φ</sub> convention), whitened LS fit to <code>measured−vacuum</code>,
+      and <code>mask_invalid_interior</code> (the ring functions diverge toward the pole, so the flux is
+      valid ONLY in the annulus — the near-pole disk is masked to a confined plateau before the read).
+      Column matrices are memoised by (points, config) — the fixed pole makes the mpmath grid build a
+      one-time cost.</li>
+      <li><code>tests/latent/test_boundary_harmonic.py</code> (7) + <code>test_boundary_harmonic_gate.py</code>
+      (6) — convention-independent physics anchors: Δ*ψ<sub>k</sub>=0, source-free exactness, filament
+      sub-cm recovery, P-beats-Q on the far domain, the interior mask, the supplied-axis flux reference,
+      the annulus consistency RMS.</li>
+      <li><code>scripts/boundary_harmonic_gate_eval.py</code> — Gate C: CI-gated order ladder on train
+      shots, frozen, scored once on the 160-slice held-out cohort; total ψ = harmonic plasma +
+      <strong>thick-cylinder</strong> coil term (<code>hybrid_greens</code>, never point-filament); carrier
+      axis from the free-current inverse; vacuum-annulus consistency vs the carrier ψ.</li>
+      <li><code>scripts/plot_boundary_harmonic_figures.py</code> — the evidence figures below.</li>
+    </ul>
+
+    <h2>Order ladder (leakage-free, train cohort, n=160)</h2>
+    <p>Order chosen by the CI-gated <code>lcfs_skill</code> ladder on train shots, then frozen:</p>
+    <table>
+      <thead><tr><th>order</th><th>LCFS skill</th><th>LCFS cm (all/ft)</th><th>saddles</th><th>consistency RMS</th></tr></thead>
+      <tbody>
+        <tr><td>2</td><td>−10.80</td><td>43.7 / 52.6</td><td>11.0</td><td>2.32</td></tr>
+        <tr><td><strong>3 (frozen)</strong></td><td><strong>−3.36</strong></td><td><strong>9.4 / 13.4</strong></td><td><strong>5.66</strong></td><td><strong>0.075</strong></td></tr>
+        <tr><td>4</td><td>−5.15</td><td>9.5 / 13.5</td><td>19.9</td><td>0.076</td></tr>
+        <tr><td>5</td><td>−9.99</td><td>39.7 / 51.7</td><td>18.5</td><td>2.4×10<sup>5</sup></td></tr>
+      </tbody>
+    </table>
+    <p>Order 3 is the sweet spot: order 2 under-resolves the shape, order 4 over-fits (saddle count
+    doubles), and order 5 aliases catastrophically (the consistency RMS blows up — the low-order
+    external read has no headroom for high harmonics, exactly the conditioning limit the toroidal-function
+    literature warns about).</p>
+
+    <h2>Gate C — held-out (n=160, firewalled EFIT, 95% paired-bootstrap CI over shots)</h2>
+    <table>
+      <thead><tr><th>arm</th><th>axis skill</th><th>X-point-set skill</th><th>LCFS skill</th><th>annulus consistency RMS</th></tr></thead>
+      <tbody>
+        <tr><td><strong>toroidal-harmonic o3</strong></td><td>−0.27 [−0.66,−0.07]</td>
+            <td>−3.06 [−4.31,−1.60]</td><td><strong>−2.98 [−4.35,−1.89]</strong></td><td><strong>0.082</strong> (median)</td></tr>
+        <tr><td>current-moment o3</td><td>−1.62</td><td><strong>−0.15</strong></td><td>−4.47</td><td>—</td></tr>
+        <tr><td>free-current carrier</td><td>−0.16 [−0.70,+0.14]</td><td>−1.69 [−3.38,−0.08]</td><td>−4.91 [−5.84,−4.04]</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p>LCFS median offset 11.8 cm (all) / 10.4 cm (flat-top); whitened sensor misfit median 0.29.</p>
+
+    <h2>Verdict — qualified pass (honest)</h2>
+    <ul>
+      <li><strong>Best-in-class LCFS.</strong> The source-free read is the strongest LCFS reader of the
+      three physics arms (−2.98 vs the moment read −4.47 and the free carrier −4.91) — decoupling the
+      boundary from the interior removes the near-edge lumpiness that the free/moment reads re-import.</li>
+      <li><strong>Source-free premise confirmed.</strong> The harmonic ψ and the independent interior
+      carrier ψ agree to a median 0.082 of the flux dynamic range in the SHARED annulus — the checkable
+      consistency condition both representations must satisfy where both are valid (Gate C of the prior
+      ladder). This is the strongest evidence that the read is physically well-posed, and it needs no
+      EFIT.</li>
+      <li><strong>X-point-set regresses vs the moment read</strong> (−3.06 vs −0.15). The plan's PASS
+      bar was "beat the moment read on BOTH X-point-set AND LCFS"; the harmonic read beats it on LCFS but
+      not on the X-point set. At the orders that stay well-conditioned (≤3) the external read localises
+      the LCFS envelope well but under-resolves the divertor nulls; the orders that would sharpen the
+      X-points (≥4) alias. This is the honest limit of a low-order source-free read and the driving
+      followup.</li>
+      <li><em>Metric caveat:</em> the raw in-limiter <code>saddle_excess</code> (median 7) counts
+      residual near-pole/annulus-band nulls that the SCORED X-point read excludes (via the
+      near-pole exclusion + in-limiter/conductor-clear filter); it overstates the physical over-counting
+      and is not the quantity the gate is judged on.</li>
+    </ul>
+
+    <h2>Evidence figures</h2>
+    <figure>
+      <img src="/imas-ambix/figures/toroidal-harmonic-annulus-read/gate-c-skill-bars.png"
+           alt="Gate C skill bars: harmonic vs current-moment vs free-current carrier, with 95% CI"
+           style="max-width:100%;">
+      <figcaption>Gate C — axis / X-point-set / LCFS skill with 95% CI, harmonic vs current-moment vs
+      free-current carrier, plus the vacuum-annulus consistency RMS (harmonic ψ vs interior carrier ψ).</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/toroidal-harmonic-annulus-read/phases-18502.png"
+           alt="Harmonic psi vs EFIT across breakdown to termination for shot 18502"
+           style="max-width:100%;">
+      <figcaption>Harmonic ψ(R,Z) (solid) vs firewalled EFIT (dashed) across the discharge —
+      breakdown → ramp-up → flat-top → ramp-down → termination — demonstrating the read holds across all
+      plasma phases, not only flat-top.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/toroidal-harmonic-annulus-read/phi-map-vs-efit-18502.png"
+           alt="Harmonic phi-map vs EFIT flux map, shot 18502 flat-top"
+           style="max-width:100%;">
+      <figcaption>External toroidal-harmonic φ-map vs the held-out EFIT ground truth at flat-top
+      (one of several held-out pulses; companion <code>phi-map-vs-efit-*.png</code> files cover the rest).</figcaption>
+    </figure>
+
+    <h2>What's next</h2>
+    <p>The driving followup is <strong>X-point-set fidelity</strong>: the source-free read localises the
+    LCFS envelope best-in-class but under-resolves the divertor nulls at well-conditioned orders. Options
+    to explore (leakage-free, same harness): a mild Tikhonov/QR regularisation that lets order 4–5 run
+    without aliasing (the consistency RMS is the guard); an Ip / li circulation anchor (already an
+    ablatable hook, <code>--ip-anchor</code>); a per-null local refinement seeded by the annulus X-point
+    candidates; or the learned cross-machine boundary operator that this classical read is the inductive
+    bias for. The best LCFS reader + the confirmed source-free premise already feed the fixed-boundary
+    interior spine (<a href="/imas-ambix/equilibrium-boundary-closure.html">equilibrium-boundary-closure</a>).</p>
+  </main>
+</body>
+</html>

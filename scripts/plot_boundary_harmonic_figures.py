@@ -391,32 +391,37 @@ def _pick_phase_indices(payload: dict, shot: int) -> list[tuple[str, int, dict]]
 
 
 def _panel_contour(ax, psi_model, grid, target, psi_ax, psi_b, efit, title) -> None:
+    """One phase panel: the harmonic-read LCFS (the scored boundary) vs the EFIT
+    LCFS, with axis + X-point markers.  Plotting the boundary contour -- not
+    fractional interior levels of the annulus-masked field, whose masked core is
+    a flat plateau -- is what makes the harmonic-vs-EFIT boundary agreement
+    legible (the same read the imas-ink flat-top overlay shows)."""
+    from patch_flux_map_report import _closed_contour_about
+
     ax.plot(
         np.append(grid.limiter_r, grid.limiter_r[0]),
         np.append(grid.limiter_z, grid.limiter_z[0]),
         color="0.3",
         lw=1.0,
     )
-    frac = np.linspace(0.1, 0.9, 5)
-    levels = np.sort(psi_ax + frac * (psi_b - psi_ax))
-    ax.contour(
-        grid.rg, grid.zg, psi_model, levels=levels, colors=C_HARM, linewidths=1.0
+    axis = (float(target[0]), float(target[1]))
+    lcfs = _closed_contour_about(grid.rg, grid.zg, psi_model, psi_b, *axis)
+    if lcfs is not None and len(lcfs):
+        ax.plot(lcfs[:, 0], lcfs[:, 1], color=C_HARM, lw=2.0, label="harmonic LCFS")
+    ax.plot(
+        efit["lcfs_r"],
+        efit["lcfs_z"],
+        color=C_EFIT,
+        lw=1.5,
+        ls="--",
+        label="EFIT LCFS",
     )
-    ef_levels = np.sort(
-        efit["psi_axis"] + frac * (efit["psi_boundary"] - efit["psi_axis"])
-    )
-    ax.contour(
-        efit["rg"],
-        efit["zg"],
-        efit["psi_zr"],
-        levels=ef_levels,
-        colors=C_EFIT,
-        linewidths=0.9,
-        linestyles="--",
-    )
-    ax.plot(target[0], target[1], "*", color=C_HARM, ms=9)
+    ax.plot(axis[0], axis[1], "*", color=C_HARM, ms=10)
     ax.plot(efit["axis_r"], efit["axis_z"], "P", color=C_EFIT, ms=7)
-    ax.plot(efit["lcfs_r"], efit["lcfs_z"], color=C_EFIT, lw=1.2, ls="--")
+    for slot in range(2):
+        xr, xz = target[2 + 2 * slot], target[3 + 2 * slot]
+        if np.isfinite(xr) and np.isfinite(xz):
+            ax.plot(xr, xz, "x", color=C_HARM, ms=8, mew=2.0)
     ax.set_aspect("equal")
     ax.set_xlabel("R [m]")
     ax.set_title(title, fontsize=9)
