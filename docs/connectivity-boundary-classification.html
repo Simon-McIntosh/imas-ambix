@@ -4,22 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="connectivity-boundary-classification">
-  <meta name="plan-title"     content="LCFS by Outermost Closed Flux Contour — continuous boundary; limited/diverted + X-points emergent">
-  <meta name="plan-summary"   content="Resolve the boundary WITHOUT an EFIT-class topology extractor. Limited-vs-diverted is a CONTINUOUS transition (a just-limited and a just-diverted equilibrium are near-identical), so a discrete classifier is ill-posed exactly where it would matter and is the EFIT trap. Instead track the continuous quantity — the boundary SHAPE: the LCFS is the OUTERMOST closed flux contour that encloses the axis and fits inside the limiter, found by pushing the flux offset outward from the axis (starting OUTSIDE the near-pole TH-null garbage) and keeping the largest axis-enclosing ring inside the limiter. One monotone contour push, one code path, no X-point-vs-limiter branching, no distance cap (far-field garbage is a separate ring, excluded by the enclose-the-axis test). The loop is REVERSED vs a classifier: once a confident LCFS exists, the stationary points (grad-psi=0) and the limited/diverted class EMERGE as diagnostics — an X-point on the boundary ring => diverted, boundary on the wall => limited — a soft read-off by proximity, undefined near the transition (as the physics demands) and never a code switch. LCFS shape is the scored deliverable; the X-point set is emergent/secondary, not chased against EFIT's discretization noise.">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="M">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="connectivity-boundary-classification">
+  <meta name="plan-title" content="LCFS by Outermost Closed Flux Contour — continuous boundary; limited/diverted + X-points emergent">
+  <meta name="plan-summary" content="Resolve the boundary WITHOUT an EFIT-class topology extractor. Limited-vs-diverted is a CONTINUOUS transition (a just-limited and a just-diverted equilibrium are near-identical), so a discrete classifier is ill-posed exactly where it would matter and is the EFIT trap. Instead track the continuous quantity — the boundary SHAPE: the LCFS is the OUTERMOST closed flux contour that encloses the axis and fits inside the limiter, found by pushing the flux offset outward from the axis (starting OUTSIDE the near-pole TH-null garbage) and keeping the largest axis-enclosing ring inside the limiter. One monotone contour push, one code path, no X-point-vs-limiter branching, no distance cap (far-field garbage is a separate ring, excluded by the enclose-the-axis test). Benchmarked ~0.34 ms/slice — cheaper than the current find_critical_points and ~13x cheaper than the ray-cast, so ~10x FASTER than today&#x27;s topology read, not slower. The loop is REVERSED vs a classifier: once a confident LCFS exists, the stationary points and the limited/diverted class EMERGE as diagnostics (X-point on the ring means diverted, ring on the wall means limited) — a soft read-off by proximity, undefined near the transition. LCFS shape is the scored deliverable; the X-point set is emergent/secondary. Ports cleanly from nova (Contour.closedlevelset, point_in_polygon, fieldnull, the psi_lcfs 99.9% convention). Decisions locked: contourpy, emergent-only X-points, shared topology.py. Likely favourable for imas-efit&#x27;s own boundary logic too.">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="M">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="toroidal-harmonic-annulus-read">
-  <meta name="plan-blocks"    content="equilibrium-boundary-closure">
-  <meta name="plan-informs"   content="machine-agnostic-latent-world-model">
+  <meta name="plan-blocks" content="equilibrium-boundary-closure">
+  <meta name="plan-informs" content="machine-agnostic-latent-world-model">
   <title>LCFS by Outermost Closed Flux Contour | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-14">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -132,6 +134,68 @@
     <p>No new heavy dependency. The masking, origin (current centroid), and firewall are inherited from
     the harmonic plan unchanged.</p>
 
+    <h2 id="s5b">§5b — Performance (measured) &amp; imas-efit applicability</h2>
+    <p><strong>The contour push is the cheapest part, not a cost.</strong> Benchmarked per slice on the
+    65×97 scoring grid (single-thread CPU):</p>
+    <table>
+      <thead><tr><th>operation</th><th>ms/slice</th><th>note</th></tr></thead>
+      <tbody>
+        <tr><td>contourpy — one level</td><td><strong>0.019</strong></td><td>C++ marching-squares engine</td></tr>
+        <tr><td><strong>full LCFS bisection push (12 levels)</strong></td><td><strong>0.34</strong></td><td>the whole boundary find</td></tr>
+        <tr><td>find_critical_points (current read)</td><td>0.49</td><td>∇ψ=0 bracket + Newton</td></tr>
+        <tr><td>lcfs_radii outward ray-cast (current read)</td><td>4.46</td><td>replaced by reading radii off the polygon (~µs)</td></tr>
+      </tbody>
+    </table>
+    <p>So the full LCFS push is <em>cheaper</em> than the current <code>find_critical_points</code> and
+    <strong>~13× cheaper than the current ray-cast</strong> — reading the 8 radii off the contour polygon
+    removes the 4.46 ms march. Net: the connectivity read is roughly <strong>~10× faster</strong> than the
+    current topology read (~5 ms → ~0.4–0.9 ms), and the emergent <code>find_critical_points</code> step
+    runs only when an X-point diagnostic is wanted. This clears the "very fast per-slice reconstruction"
+    bar with room to spare; nothing here needs the costly path the lead flagged. (A bracketed bisection,
+    not a dense sweep, keeps it to ~12 contour traces.)</p>
+    <p><strong>Applicability to imas-efit.</strong> The philosophy — <em>don't classify; find the outermost
+    closed flux surface; let the class emerge</em> — is language-agnostic and would plausibly simplify
+    EFIT's own boundary determination (its <code>contour_tree.f90</code> is exactly the special-case-heavy
+    topology logic this avoids), and is easily within EFIT's real-time budget (sub-ms even in Python; a
+    Fortran equivalent faster). Two honest caveats: (1) EFIT solves the full GS interior, so it has a
+    globally-valid ψ with no "garbage annulus" — it does not need the mask / start-outside machinery, so
+    its version is even simpler; (2) EFIT is heavily validated and needs the X-point for strike-point /
+    divertor outputs, so this would be a careful boundary-logic proposal (X-point still emerges, just
+    not as a gate), not a drop-in port. Flag it to imas-efit as a candidate simplification, do not
+    assume it.</p>
+
+    <h2 id="s5c">§5c — Reusable code to port from nova (cherry-pick, not wholesale)</h2>
+    <p>nova (<code>~/Code/nova</code>) already has clean, contourpy-based flux-surface machinery. Port the
+    small, near-dependency-free pieces rather than reinventing (or start clean, modelled on them):</p>
+    <ul>
+      <li><strong><code>nova/biot/contour.py</code> — <code>Contour</code>/<code>Surface</code></strong>
+      (highest value): wraps contourpy; <code>Contour.closedlevelset(psi)</code> returns the first CLOSED
+      contour at a level — <em>exactly</em> the LCFS-at-a-level routine we need. <code>Surface.closed</code>
+      tests the contourpy line code (<code>CLOSEPOLY</code>) + a min-point guard. Near-zero nova
+      entanglement (drop the <code>Line</code> plot mixin).</li>
+      <li><strong><code>nova/geometry/pointloop.py</code> — <code>point_in_polygon</code></strong>: fast
+      ray-cast point-in-polygon — the axis-enclosure and inside-limiter tests. Fully self-contained.</li>
+      <li><strong><code>nova/biot/fieldnull.py</code> — <code>FieldNull</code></strong>: O/X-point finder
+      via a 6-point sign-change stencil (Kuijper) + a quadratic subgrid fit
+      (<code>nova/geometry/select.py</code>) for continuous null positions — the emergent-stationary-point
+      step. Pure numpy (numba optional for a one-shot read).</li>
+      <li><strong><code>nova/biot/plasma.py</code> logic snippets</strong> (<code>psi_boundary</code>,
+      <code>psi_lcfs</code>, <code>x_mask</code>): port the LOGIC as standalone functions, not the classes.
+      Adopt in particular the <strong>99.9% normalized-flux LCFS convention</strong>
+      <code>ψ_lcfs = ψ_axis + 0.999·(ψ_bnd − ψ_axis)</code> — it steps just inside the exact separatrix to
+      avoid the X-point cusp / zero poloidal field (a robustness win). The remaining limited/diverted
+      branch in <code>Plasma.psi_boundary</code> is what we DELIBERATELY replace with the emergent read
+      (§2/§7) — do not port that decision tree.</li>
+    </ul>
+    <p><strong>Correction on "the affine transformation."</strong> There is no affine transform of the
+    (R,Z) plane in nova (grepped: zero hits). What exists — and is the useful "constant along a flux line"
+    idea — is the affine map of the SCALAR flux, <code>ψ_n = (ψ − ψ_axis)/(ψ_bnd − ψ_axis)</code>
+    (<code>Plasma.normalize</code>): ψ_n is constant on a flux surface and the LCFS is the ψ_n = 0.999
+    surface. That normalization + the quadratic subgrid null-fit are the two reusable tricks; the plane is
+    never transformed. imas-ambix already carries scipy + (transitively) contourpy, so no new heavy
+    dependency; skip the nova-jax reimplementation (needs jax) unless autodiff through null positions is
+    ever wanted.</p>
+
     <h2 id="s6">§6 — Integration &amp; gate</h2>
     <p>Factor the read into a tested function in <code>imas_ambix/latent/topology.py</code> and swap it
     into <code>scripts/boundary_harmonic_gate_eval.py::hybrid_target_harmonic</code> in place of the
@@ -156,33 +220,33 @@
     test; class and X-points are emergent diagnostics only.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="contour-library" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which library extracts the axis-enclosing contour ring?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="contourpy">contourpy (matplotlib engine, already present; recommended)</button>
-          <button class="r-opt" data-value="skimage">skimage.measure.find_contours (marching squares)</button>
-          <button class="r-opt" data-value="ndimage-grid">ndimage.label grid stop-test, no explicit ring</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="xpoint-role" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Is the X-point set a scored target or an emergent-only diagnostic?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="emergent-only">Emergent-only — report where unambiguous, NaN near the transition; LCFS shape is the scored deliverable (recommended — avoids chasing EFIT discretization noise)</button>
-          <button class="r-opt" data-value="scored-target">Keep the X-point set as a scored target alongside LCFS</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="read-location" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Where does the read live — a shared topology function or gate-local?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="shared-topology">A tested function in imas_ambix/latent/topology.py, adopted by all arms (recommended)</button>
-          <button class="r-opt" data-value="gate-local">Gate-local in boundary_harmonic_gate_eval.py first, promote if it wins</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="contour-library" data-choice="contourpy" data-by="lead" data-when="2026-07-14T19:09:54+00:00">
+    <p class="r-dec-q">Which library extracts the axis-enclosing contour ring?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="contourpy">contourpy (matplotlib engine, already present; recommended)</button>
+      <button class="r-opt" data-value="skimage">skimage.measure.find_contours (marching squares)</button>
+      <button class="r-opt" data-value="ndimage-grid">ndimage.label grid stop-test, no explicit ring</button>
+      </p>
+    <p class="r-dec-rat">contourpy is matplotlib&#x27;s C++ marching-squares engine, already transitively present (no new heavy dep), 0.019 ms per level on the 65x97 grid; a full 12-level bisection LCFS push is 0.34 ms — cheaper than find_critical_points (0.49) and ~13x cheaper than the current ray-cast (4.46). Port nova/biot/contour.py::Contour.closedlevelset (returns the first CLOSED contour at a level) + nova/geometry/pointloop.py::point_in_polygon (axis-enclosure / inside-limiter test). NOTE: there is no plane-affine in nova; the reusable idea is the scalar normalized-flux psi_n=(psi-psi_axis)/(psi_bnd-psi_axis) (constant on a flux surface) + the quadratic subgrid null-fit.</p>
+    </div>
+<div class="r-dec" data-key="xpoint-role" data-choice="emergent-only" data-by="lead" data-when="2026-07-14T19:09:54+00:00">
+    <p class="r-dec-q">Is the X-point set a scored target or an emergent-only diagnostic?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="emergent-only">Emergent-only — report where unambiguous, NaN near the transition; LCFS shape is the scored deliverable (recommended — avoids chasing EFIT discretization noise)</button>
+      <button class="r-opt" data-value="scored-target">Keep the X-point set as a scored target alongside LCFS</button>
+      </p>
+    <p class="r-dec-rat">The LCFS SHAPE is the scored deliverable (continuous, well-posed across the limited/diverted transition). The X-point set is an emergent diagnostic, read off by proximity to the already-found boundary ring, reported only where unambiguous and NaN near the transition. Do NOT optimise the discrete X-point set against EFIT&#x27;s discretization noise (which flickers at the transition).</p>
+    </div>
+<div class="r-dec" data-key="read-location" data-choice="shared-topology" data-by="lead" data-when="2026-07-14T19:09:54+00:00">
+    <p class="r-dec-q">Where does the read live — a shared topology function or gate-local?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="shared-topology">A tested function in imas_ambix/latent/topology.py, adopted by all arms (recommended)</button>
+      <button class="r-opt" data-value="gate-local">Gate-local in boundary_harmonic_gate_eval.py first, promote if it wins</button>
+      </p>
+    <p class="r-dec-rat">Implement as a tested function in imas_ambix/latent/topology.py so all arms (harmonic, moment, free) adopt one boundary read, and so a ported nova flux-contour class lives in one place. Swap into hybrid_target_harmonic from there.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
@@ -197,7 +261,7 @@ Tier:    opus
 Context
   Replaces the fragile flux-comparison + geometric-annulus-cap boundary read in the
   toroidal-harmonic gate (RCA: limited/diverted is a CONTINUOUS transition; a discrete
-  classifier is the EFIT trap and did not generalise: train X-point -0.23 -> held-out -5.92).
+  classifier is the EFIT trap and did not generalise: train X-point -0.23 -&gt; held-out -5.92).
   The reframe (see the figure + S1-S2): push the LCFS FIRST as the outermost closed flux
   contour enclosing the axis inside the limiter (continuous, one path); the stationary points
   and the limited/diverted class EMERGE afterward from X-point proximity to the boundary.
@@ -208,24 +272,30 @@ State to read (CODE / DATA - not the plan)
   scripts/boundary_harmonic_gate_eval.py::hybrid_target_harmonic (the block to replace)
   imas_ambix/latent/boundary_harmonic.py::mask_invalid_interior (the garbage mask to start outside)
   imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-*-centroidorigin-*.json (LCFS baseline -2.48)
+  PORT FROM (nova, ~/Code/nova; cherry-pick, drop plot mixins — see S5c):
+    nova/biot/contour.py::Contour.closedlevelset  (first CLOSED contour at a psi level = the push primitive)
+    nova/geometry/pointloop.py::point_in_polygon  (axis-enclosure + inside-limiter test)
+    nova/biot/fieldnull.py + nova/geometry/select.py (6-pt-stencil O/X nulls + quadratic subgrid fit; emergent step)
+    nova/biot/plasma.py::psi_lcfs  (adopt the 99.9% normalized-flux convention; do NOT port psi_boundary's limited/diverted branch)
+  Performance is a non-issue: contourpy 0.019 ms/level, full push 0.34 ms/slice (S5b) -- ~10x faster than today's read.
 
 Scope locks / constraints (non-decision; S7 is BINDING)
   OUT of scope: a discrete limited/diverted classifier as a code switch; chasing wall contacts /
-  psi-extrema on limiter surfaces; per-surface X-point<->limiter matching; tuned distance caps.
+  psi-extrema on limiter surfaces; per-surface X-point&lt;-&gt;limiter matching; tuned distance caps.
   The read is ONE flux-offset push + one axis-enclosing ring test + one inside-limiter test;
   class + X-points are emergent diagnostics only. EFIT firewalled (scores only). Coil couplings
   thick-cylinder. Origin/pole machine-agnostic. Leakage-free: any tolerance tuned on train,
   scored once on the 160-slice held-out set. LCFS shape is the PRIMARY objective, NOT the X-point set.
 
 Done-when
-  1. LCFS read implemented as a tested topology.py function (unit tests: synthetic diverted field ->
-     ring pinches at the X-point, X-point reported; synthetic limited field -> ring on the wall,
+  1. LCFS read implemented as a tested topology.py function (unit tests: synthetic diverted field -&gt;
+     ring pinches at the X-point, X-point reported; synthetic limited field -&gt; ring on the wall,
      X-slots empty; a far-field spurious feature is a separate ring, excluded with NO distance cap;
      an interior TH null inside the garbage disk is never selected).
   2. Swapped into hybrid_target_harmonic; harmonic gate green.
   3. Held-out (n=160, firewalled EFIT, CIs): LCFS skill (primary) vs the -2.48 baseline; per-phase
      limited/diverted agreement reported as a diagnostic; X-point emergent read reported (not chased).
-  4. imas-ink figures (LCFS + all nested flux surfaces across breakdown->termination); plan updated
+  4. imas-ink figures (LCFS + all nested flux surfaces across breakdown-&gt;termination); plan updated
      same-turn; this followup resolved; toroidal-harmonic-annulus-read informed (f-thar-connectivity-ptr).</pre>
     </article>
 </section>
