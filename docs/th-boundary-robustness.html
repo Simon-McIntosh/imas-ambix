@@ -315,44 +315,50 @@
       </li>
     </ul>
 
-    <h2 id="s10">§10 — Combined basis: prototype result (positive)</h2>
+    <h2 id="s10">§10 — Combined basis: REFUTED against EFIT (the misfit lied)</h2>
     <p>
-      Built and tested (<code>scripts/_combined_basis_prototype.py</code>): a single
-      whitened joint least-squares over
-      <code>[moment current-shape moments | TH n&ge;1 source-free harmonics]</code>, with
-      Ip pinned on the moment monopole, the redundant TH monopole dropped, and a graded
-      ridge damping the high TH modes for conditioning. The reconstructed ψ is
-      <strong>absolutely gauged</strong> — <code>psi_grid_2d_np(moment&nbsp;current, i_pf)</code>
-      (moment current + coil, absolute) plus the source-free TH columns — so the push-out
-      recovers the boundary flux directly.
+      The combined read was built (<code>scripts/_combined_basis_prototype.py</code>) and
+      first looked promising on <em>misfit</em> (12143 dropped 2.88&rarr;0.24). But misfit
+      is a sensor-fit number, not a boundary-quality number — and when the boundaries are
+      scored against the firewalled EFIT LCFS the combined read is a <strong>regression</strong>.
     </p>
     <figure>
-      <img src="/imas-ambix/figures/th-boundary-robustness/combined-basis-result.png"
-           alt="Combined read: 18502 clean D (minor wiggle), 12143 recovered clean D, 11767 clean D"
+      <img src="/imas-ambix/figures/th-boundary-robustness/rca-vs-efit.png"
+           alt="EFIT (red) vs moment (blue), TH (orange), combined (green): combined is a heart on 18502"
            style="max-width:100%;height:auto;border:1px solid #ccc">
       <figcaption>
-        Combined moment + TH read (gauged). <strong>12143 ramp-up is recovered as a clean
-        D-shape at misfit 0.24</strong> — the slice that TH-alone could only render as
-        petals/hook/blob (misfit 1.9&ndash;4.7 at every order). 11767 is clean; 18502
-        flat-top is clean apart from a small residual inboard wiggle (the offset TH pole's
-        mask, tunable). Magenta + = current centroid.
+        LCFS vs firewalled EFIT (red). On 18502 flat-top the moment read (blue) tracks EFIT
+        almost exactly and TH (orange) is close, but the combined read (green) is a
+        <strong>heart</strong> — badly wrong. On 12143 ramp-up the moment read tracks EFIT
+        well while TH collapses to the hook; the combined ≈ moment only because TH is weak
+        there. EFIT is scoring-only (firewalled).
       </figcaption>
     </figure>
     <table>
-      <thead><tr><th>Slice</th><th>TH-only misfit</th><th>Combined misfit</th><th>TH-only boundary</th><th>Combined boundary</th></tr></thead>
+      <thead><tr><th>Slice</th><th>moment-only</th><th>TH-only</th><th>combined</th></tr></thead>
       <tbody>
-        <tr><td>18502 flat-top</td><td>0.23</td><td>0.21</td><td>clean</td><td>clean (minor wiggle)</td></tr>
-        <tr><td>11767 train</td><td>0.51</td><td>0.24</td><td>clean</td><td>clean</td></tr>
-        <tr><td>12143 ramp-up</td><td>2.88</td><td>0.24</td><td>petals / hook / blob</td><td><strong>clean D-shape</strong></td></tr>
+        <tr><td>18502 flat-top (well-conditioned)</td><td>5.8 cm</td><td><strong>4.3 cm</strong></td><td>37.1 cm ⚠</td></tr>
+        <tr><td>12143 ramp-up (poorly-conditioned)</td><td><strong>15.3 cm</strong></td><td>28.5 cm</td><td>16.3 cm</td></tr>
       </tbody>
+      <caption style="caption-side:bottom;font-size:12px">RMS LCFS radius error vs firewalled EFIT [cm]. Best per row in bold.</caption>
     </table>
     <p>
-      This validates the combined-basis route: the moment part carries the centred ST
-      blob that a single TH focal ring cannot, the TH part carries the edge, the joint
-      fit conditions cleanly (no blow-up), and the gauge is preserved for the push-out.
-      Remaining work before it can replace the §2 read: (a) tune the TH pole/mask to
-      remove the 18502 residual wiggle; (b) validate on the full train cohort and score
-      the LCFS against firewalled EFIT in the re-gate.
+      <strong>Root cause:</strong> adding TH's source-free degrees of freedom on top of the
+      moment read re-introduces exactly the boundary null-space slack the low-order moment
+      basis was built to suppress. Where TH fits strongly (18502) it bends the good moment
+      boundary into the heart (37 cm); where TH is weak (12143) the combined defaults back to
+      moment. The combination is inconsistent and never beats moment-only. I mistook the low
+      misfit for success — the lesson, again: <strong>sensor misfit is not a boundary-quality
+      proxy; score against EFIT.</strong>
+    </p>
+    <p>
+      <strong>The real finding is complementarity.</strong> TH is best when well-conditioned
+      (4.3 cm on 18502); the moment read is best when poorly-conditioned (15.3 cm on 12143
+      vs TH's 28.5 cm) and is <em>never catastrophic</em> (5.8 / 15.3 cm across both). Neither
+      single read wins both regimes, and combining them hurts. The fix is a
+      <strong>conditioning-gated selection</strong> between the two EXISTING reads — use TH
+      where its sensor misfit is low (best edge fidelity), fall back to the moment read where
+      TH is poorly-conditioned (robust) — NOT a combined basis.
     </p>
 
     <h2 id="s11">§11 — Open decisions</h2>
@@ -362,31 +368,34 @@
       objective call:
     </p>
     <ol>
-      <li><strong>Weight by misfit (already partly in place).</strong> The soft-prior
-        anchor already down-weights a slice by <code>&radic;misfit</code>, so 12143's
-        anchor influence is ~4&times; weaker than a flat-top's. Accept the residual
-        hook as low-fidelity, let the §3 interior solve own those slices, and report
-        the per-slice misfit alongside the boundary. Lowest risk; honest.</li>
-      <li><strong>Gate on conditioning.</strong> Above a misfit threshold, skip the §2
-        anchor for that slice entirely (unanchored §3 solve) rather than feed a
-        low-fidelity boundary. Cleaner signal; needs a threshold justified on train.</li>
-      <li><strong>Multi-pole for the annulus prior only.</strong> Adopt the multi-pole
-        read (§6) as a strictly-better <em>annulus</em> field model for the soft-prior
-        anchor (which samples annulus &psi;/&nabla;&psi;, where multi-pole wins), while
-        never using it for an interior contour. Larger change; needs a re-gate.</li>
-      <li><strong>Combined homogeneous-GS basis (§10) — prototyped, positive.</strong>
-        The joint moment + TH read recovers 12143 as a clean D-shape (misfit 0.24 vs
-        TH-only 2.88) while keeping the well-conditioned slices clean, with the gauge
-        preserved for the push-out. The most physically-motivated route and the one with
-        a working prototype; remaining work is TH-pole/mask tuning for the 18502 wiggle
-        and a full-cohort re-gate.</li>
+      <li><strong>Conditioning-gated selection between the two existing reads (recommended,
+        §10).</strong> Use the TH read where its sensor misfit is low (well-conditioned →
+        best edge fidelity, 4.3 cm on 18502); fall back to the moment read where TH is
+        poorly-conditioned (12143 TH misfit 2.88 → moment 15.3 cm vs TH 28.5 cm). Both reads
+        already exist; the moment read is never catastrophic. Needs the anchor to accept the
+        moment read's boundary/target for the fallback slices, then a re-gate. This is the
+        evidence-backed route.</li>
+      <li><strong>Moment read everywhere.</strong> Simplest: the moment read is decent in
+        both regimes (5.8 / 15.3 cm) and never catastrophic. Costs the ~1.5 cm TH edge on
+        well-conditioned slices (4.3 vs 5.8) but removes all TH pathologies. A strong
+        low-risk baseline; settle against the shipped scored numbers in the re-gate.</li>
+      <li><strong>Weight by misfit (already partly in place).</strong> Keep TH, let the
+        anchor's <code>&radic;misfit</code> down-weighting reduce poorly-conditioned slices'
+        influence, accept the low fidelity, and let the §3 solve own them. Lowest-effort but
+        leaves the wrong boundary in the prior.</li>
     </ol>
+    <p class="landed-summary">
+      <strong>REFUTED:</strong> the combined homogeneous-GS basis (§10) — a 37 cm regression
+      on 18502; adding TH DOF to the moment read re-introduces boundary null-space slack.
+      The multi-pole read (§6) is likewise annulus-only (worse interior contour). Neither is
+      a boundary read.
+    </p>
     <p>
-      The full §2+§3 re-gate remains held until this decision is made — the
-      well-conditioned boundary is now robust, so the re-gate is unblocked for options
-      1 and 2. Option 4 (combined basis) is the recommended route on the evidence: it is
-      the only approach that recovers the poorly-conditioned regime, and it now has a
-      working prototype; it precedes the re-gate with the TH-pole/mask tuning noted in §10.
+      The full §2+§3 re-gate remains held until this decision is made. The recommended route
+      is option 1 (conditioning-gated selection) — it is the only approach that gets both the
+      well-conditioned edge fidelity (TH) and the poorly-conditioned robustness (moment) —
+      with option 2 (moment everywhere) as the low-risk fallback. Both settle against the
+      shipped scored LCFS numbers in the re-gate.
     </p>
 
   </main>
