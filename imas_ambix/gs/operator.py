@@ -79,7 +79,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-COIL_MODEL_VERSION = "cylinder-sensors-v4"
+COIL_MODEL_VERSION = "cylinder-sensors-v5"
 """Version marker for the circuit -> current-channel assignment + ``G_pf``
 column construction (``classify_circuits`` / ``build_operator``).  Bump this
 any time either changes -- e.g. a different geometric match radius, a new
@@ -93,7 +93,10 @@ impact: docs/mast-coil-circuits.html §6,
 B-probes above 0.05σ / worst probe 17.8σ on shots 18502-18505); the prior,
 unversioned behaviour is implicitly ``"v1"``.  ``"cylinder-sensors-v3"`` added
 the finite-area cylinder kernel for near-pack B-probes; ``"-v4"`` applies
-:data:`SOLENOID_RESPONSE_SCALE` to the P1 solenoid column."""
+:data:`SOLENOID_RESPONSE_SCALE` to the P1 solenoid column; ``"-v5"`` collapses
+filled rectangular coil packs to one thick-cylinder filament each
+(:func:`imas_ambix.gs.geometry.collapse_rectangular_circuits`), changing the
+G_pf column source set for a fixed physical coil."""
 
 SOLENOID_RESPONSE_SCALE = 1.0825
 """Multiplicative correction to the P1 central-solenoid ``G_pf`` column.

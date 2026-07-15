@@ -138,13 +138,16 @@ never opens any other efm array (no ``psirz``, no ``*_c`` / ``*_x`` fitted
 currents, no profiles, no shape parameters).
 """
 
-GEOMETRY_TABLE_VERSION = "amb-schema-canonical-v1"
+GEOMETRY_TABLE_VERSION = "amb-schema-canonical-v2"
 """Bump whenever the derivation of :class:`GeometryTable` (its sensor channel
 SET in particular) changes for a FIXED efm geometry / signature digest — a
 downstream cache keyed only on ``SetupSignature.key`` would otherwise silently
 mix tables built under different derivations.  ``v1``: the sensor channel set
 is geometry-determined (see :func:`canonical_amb_channels`) rather than an
-artifact of one shot's own ``amb`` zarr schema.
+artifact of one shot's own ``amb`` zarr schema.  ``v2``: filled rectangular
+coil packs are collapsed to one thick-cylinder filament each
+(:func:`collapse_rectangular_circuits`) — same finite-cross-section field,
+fewer sources.
 """
 
 # Sensor-name → expected orientation (degrees).  Bv (vertical) probes read the
@@ -825,18 +828,20 @@ def build_table_for_shot(
     fh = geom.get("fcoil_height", np.zeros_like(fr))
     fc = geom.get("fcoil_circ", np.zeros_like(fr))
     fx = geom.get("fcoil_xmult", np.ones_like(fr))
-    pf_filaments = [
-        PFFilament(
-            r=float(fr[i]),
-            z=float(fz[i]),
-            turns=float(ft[i]),
-            width=float(fw[i]),
-            height=float(fh[i]),
-            circuit=int(fc[i]),
-            xmult=float(fx[i]),
-        )
-        for i in range(fr.size)
-    ]
+    pf_filaments = collapse_rectangular_circuits(
+        [
+            PFFilament(
+                r=float(fr[i]),
+                z=float(fz[i]),
+                turns=float(ft[i]),
+                width=float(fw[i]),
+                height=float(fh[i]),
+                circuit=int(fc[i]),
+                xmult=float(fx[i]),
+            )
+            for i in range(fr.size)
+        ]
+    )
 
     lim_r = _finite(geom["limiterr"])
     lim_z = _finite(geom["limiterz"])

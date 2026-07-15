@@ -96,6 +96,7 @@ from imas_ambix.gs.geometry import (
     PFFilament,
     SensorMapping,
     SetupSignature,
+    collapse_rectangular_circuits,
     round_geometry_hash,
 )
 
@@ -358,6 +359,7 @@ class ImasGeometryReader:
         magnetics = _open_static_ids(self.magnetics_path, "magnetics")
 
         pf_filaments, pf_flags = read_pf_active_filaments(pf_active)
+        pf_filaments = collapse_rectangular_circuits(pf_filaments)
         limiter_r, limiter_z, wall_flags = read_wall_limiter(wall)
         b_probes, flux_loops, mag_flags = read_magnetics_sensors(magnetics)
 

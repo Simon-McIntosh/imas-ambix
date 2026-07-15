@@ -152,16 +152,17 @@ def test_reader_conforms_to_machine_geometry_reader_protocol(tmp_path):
 
 def test_pf_active_rectangle_and_annulus_read_turns_with_sign(tmp_path):
     table = _synthetic_reader(tmp_path).read()
-    # COIL_RECT[0] (turns=184) + COIL_RECT[1] (unset->0) + COIL_ANNULUS[0] (turns=-8);
-    # COIL_OUTLINE_UNSUPPORTED dropped entirely (unsupported shape).
-    assert len(table.pf_filaments) == 3
+    # COIL_RECT's two stacked elements (turns 184 + unset->0) FILL one rectangle
+    # (Z 0.4..0.6 + 0.6..0.8) so the canonical table collapses them to one
+    # thick cylinder carrying the signed-turns sum (184).  COIL_ANNULUS (a ring,
+    # not a filled rectangle) is left as one filament; the unsupported outline
+    # coil is dropped.  Signed turns survive the collapse.
+    assert len(table.pf_filaments) == 2
     by_rz = {(round(f.r, 3), round(f.z, 3)): f for f in table.pf_filaments}
-    rect0 = by_rz[(1.5, 0.5)]
-    assert rect0.turns == pytest.approx(184.0)
-    assert rect0.width == pytest.approx(0.1)
-    assert rect0.height == pytest.approx(0.2)
-    rect1 = by_rz[(1.5, 0.7)]
-    assert rect1.turns == 0.0  # unset -> 0, flagged (never guessed)
+    rect = by_rz[(1.5, 0.6)]  # bounding-box centre of the two stacked elements
+    assert rect.turns == pytest.approx(184.0)  # 184 + 0, signed sum preserved
+    assert rect.width == pytest.approx(0.1)
+    assert rect.height == pytest.approx(0.4)  # bbox spans both elements
     annulus = by_rz[(2.0, -0.3)]
     assert annulus.turns == pytest.approx(-8.0)  # sign preserved
     assert annulus.width == pytest.approx(0.04)  # 2 * radius_outer

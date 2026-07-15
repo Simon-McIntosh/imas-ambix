@@ -35,7 +35,7 @@ def test_coil_model_version_bumped_for_the_case_circuit_fix():
     coil-model fixes -- pin that the marker exists and is neither the implicit
     pre-fix baseline nor any retired intermediate."""
     assert op.COIL_MODEL_VERSION not in ("", "case-circuits-v1", "case-circuits-v2")
-    assert op.COIL_MODEL_VERSION == "cylinder-sensors-v3"
+    assert op.COIL_MODEL_VERSION == "cylinder-sensors-v5"
 
 
 def test_operator_summary_reports_coil_model_version(tmp_path):
