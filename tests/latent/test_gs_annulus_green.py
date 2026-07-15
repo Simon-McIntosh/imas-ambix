@@ -38,13 +38,13 @@ def _direct_superposition(grid, i_cell):
     return psi, br, bz
 
 
-def test_plasma_greens_cells_matches_analytic_superposition():
+def test_cell_greens_matches_analytic_superposition():
     """psi/br/bz @ i_cell == the direct hybrid_greens superposition, to ~1e-12."""
     grid = _grid()
     rng = np.random.default_rng(0)
     i_cell = rng.standard_normal(grid.cells.size) * 3.0e4  # [A]
 
-    g = grid.plasma_greens_cells()
+    g = grid.cell_greens()
     psi_lin = g["psi"] @ i_cell
     br_lin = g["br"] @ i_cell
     bz_lin = g["bz"] @ i_cell
@@ -55,10 +55,10 @@ def test_plasma_greens_cells_matches_analytic_superposition():
         assert np.max(np.abs(lin - ref)) / span < 1e-12
 
 
-def test_plasma_greens_cells_cached_and_shaped():
+def test_cell_greens_cached_and_shaped():
     grid = _grid()
-    g1 = grid.plasma_greens_cells()
-    g2 = grid.plasma_greens_cells()
+    g1 = grid.cell_greens()
+    g2 = grid.cell_greens()
     assert g1 is g2  # cached (pure geometry)
     n = grid.cells.size
     assert g1["psi"].shape == (n, n)
@@ -71,7 +71,7 @@ def test_field_is_gauge_free_psi_is_not():
     """Adding a constant current-independent offset to psi shifts psi but the
     field rows are unchanged — the property the grad-psi annulus penalty exploits."""
     grid = _grid()
-    g = grid.plasma_greens_cells()
+    g = grid.cell_greens()
     # the field matrices carry no constant mode: a uniform column shift changes
     # psi but B is a difference operator on psi in the kernel, so identical
     # currents give identical fields regardless of any psi datum choice.

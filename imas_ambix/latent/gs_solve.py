@@ -340,7 +340,7 @@ class EquilibriumGrid:
         self._sensor_greens_cache = (g, channels)
         return g, channels
 
-    def plasma_greens_cells(self) -> dict:
+    def cell_greens(self) -> dict:
         """Analytic thick-cylinder Green's matrices, in-limiter cell → in-limiter
         grid point, for the annulus soft-prior penalty.
 
@@ -362,7 +362,7 @@ class EquilibriumGrid:
         The annulus point set is always a subset of ``self.cells``, so a slice
         indexes annulus rows directly.  Cached (pure geometry).
         """
-        cached = getattr(self, "_plasma_greens_cells_cache", None)
+        cached = getattr(self, "_cell_greens_cache", None)
         if cached is not None:
             return cached
         cr = self.flat_r[self.cells]
@@ -377,7 +377,7 @@ class EquilibriumGrid:
             )
             gpsi[:, j], gbr[:, j], gbz[:, j] = psi, br, bz
         out = {"cells": self.cells, "psi": gpsi, "br": gbr, "bz": gbz}
-        self._plasma_greens_cells_cache = out
+        self._cell_greens_cache = out
         return out
 
 
