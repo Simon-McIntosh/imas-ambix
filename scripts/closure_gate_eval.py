@@ -186,21 +186,35 @@ def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
             ann_rows = ann_rows[valid]
             if ann_rows.size >= 4:
                 frozen = {"cfg": cfg, "coeffs": coeffs}
-                target = harmonic_annulus_target(
-                    frozen, grid, grid.cells[ann_rows], "abs-psi"
-                )
+                form = spc.get("anchor_form", "abs-psi")
                 # per-slice read uncertainty (heavy-tailed): use the fit misfit,
                 # floored, so noisier slices weigh the anchor less
                 unc = float(np.sqrt(max(misfit, 1e-6)))
-                sp_kwargs.update(
-                    anchor_form="abs-psi",
+                common = dict(
+                    anchor_form=form,
                     anchor_weight=weight,
                     anchor_ann_rows=ann_rows,
-                    anchor_psi_target=np.asarray(target, dtype=np.float64),
-                    anchor_gauge_offset=True,
                     anchor_robust_clip=spc.get("anchor_robust_clip", 3.0),
                     anchor_uncertainty=unc,
                 )
+                if form == "grad-psi":
+                    # field-matched "virtual magnetics": the harmonic flux
+                    # GRADIENT [dΦ/dR ; dΦ/dZ] at the annulus points (gauge-free)
+                    target = harmonic_annulus_target(
+                        frozen, grid, grid.cells[ann_rows], "grad-psi"
+                    )
+                    sp_kwargs.update(
+                        common, anchor_grad_target=np.asarray(target, dtype=np.float64)
+                    )
+                else:
+                    target = harmonic_annulus_target(
+                        frozen, grid, grid.cells[ann_rows], "abs-psi"
+                    )
+                    sp_kwargs.update(
+                        common,
+                        anchor_psi_target=np.asarray(target, dtype=np.float64),
+                        anchor_gauge_offset=True,
+                    )
                 anchored = True
 
     if spc.get("sol_cap", 1.0) > 1.0:
@@ -729,6 +743,7 @@ def run_gate(args) -> int:
     # against editable-install drift).
     soft_prior_cfg = {
         "anchor_weight": args.anchor_weight,
+        "anchor_form": args.anchor_form,
         "anchor_robust_clip": (
             args.anchor_robust_clip if args.anchor_robust_clip > 0 else None
         ),
@@ -1274,6 +1289,15 @@ def main() -> int:
         help="annulus ψ-consistency anchor weight (0 = OFF = free-boundary A0); "
         "the boundary read enters as a SOFT prior at this weight (abs-ψ + rank-1 "
         "gauge offset — the gauge-keeping form the measurement selected)",
+    )
+    ap.add_argument(
+        "--anchor-form",
+        type=str,
+        default="abs-psi",
+        choices=("abs-psi", "grad-psi"),
+        help="annulus anchor form: 'abs-psi' (ψ + rank-1 gauge offset, the "
+        "measurement-selected form) or 'grad-psi' (gauge-free flux-gradient / "
+        "field matching — the densified near-plasma 'virtual magnetics' arm)",
     )
     ap.add_argument(
         "--anchor-robust-clip",

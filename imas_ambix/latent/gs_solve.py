@@ -1117,6 +1117,8 @@ def _assemble_soft_prior_rows(
     ip_amperes: float,
     k_dof: int,
     kp: int,
+    passive_br: np.ndarray | None = None,
+    passive_bz: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, int]:
     """Build the stacked soft-prior design rows for one Picard sweep.
 
@@ -1186,15 +1188,46 @@ def _assemble_soft_prior_rows(
             rows.append(a_ann)
             rhs.append(b_ann)
         elif sp.anchor_form == "grad-psi":
-            # grad-ψ field-matching needs coil + passive B at the annulus, which
-            # the campaign build does not yet expose; wired once Worker A's gauge
-            # measurement selects grad-ψ (else abs-ψ with the rank-1 offset is
-            # the flux-loop-gauge-keeping form).  Fail loud rather than silently.
-            raise NotImplementedError(
-                "grad-psi annulus anchor needs coil/passive B green columns; "
-                "use anchor_form='abs-psi' (rank-1 offset) unless the gauge "
-                "measurement requires grad-psi, then wire coil/passive B first"
+            # Field-matched "virtual magnetics": match the flux GRADIENT ∇Φ in the
+            # annulus (gauge-free — invariant to any ψ datum, so NO offset DOF),
+            # the densified near-plasma field the source-free TH read resolves.
+            # Work in ∇Φ so both sides match the harmonic target directly:
+            #   dΦ/dR = +2πR·B_Z,  dΦ/dZ = −2πR·B_R   (total-flux convention).
+            # Coil B cancels (identical both sides), so only plasma + passive enter.
+            r_ann = grid.flat_r[cells_flat]
+            two_pi_r = 2.0 * np.pi * r_ann
+            # plasma basis: (n_ann, k_dof) B → ∇Φ, stacked [dΦ/dR ; dΦ/dZ]
+            b_r_basis = cg["br"][ann, :] @ u_n
+            b_z_basis = cg["bz"][ann, :] @ u_n
+            grad_basis = np.vstack(
+                [two_pi_r[:, None] * b_z_basis, -two_pi_r[:, None] * b_r_basis]
             )
+            if kp and passive_br is not None:
+                bpr = passive_br[cells_flat, :]
+                bpz = passive_bz[cells_flat, :]
+                grad_pass = np.vstack(
+                    [two_pi_r[:, None] * bpz, -two_pi_r[:, None] * bpr]
+                )
+            else:
+                grad_pass = np.zeros((2 * ann.size, kp))
+            a_ann, b_ann = annulus_penalty_rows(
+                form="grad-psi",
+                psi_basis_ann=None,
+                psi_pass_ann=None,
+                psi_fixed_ann=None,
+                psi_target_ann=None,
+                grad_basis_ann=grad_basis,
+                grad_pass_ann=grad_pass,
+                grad_fixed_ann=np.zeros(2 * ann.size),
+                grad_target_ann=np.asarray(sp.anchor_grad_target, dtype=np.float64),
+                k_dof=k_dof,
+                kp=kp,
+                weight=sp.anchor_weight,
+                per_slice_uncertainty=sp.anchor_uncertainty,
+                robust_clip=sp.anchor_robust_clip,
+            )
+            rows.append(_pad(a_ann))
+            rhs.append(b_ann)
 
     # --- q ≥ 1 (sawtooth): soft upper bound on on-axis current density ---
     # One-sided by active-set: a linear row pulls two-sidedly, so include it only
@@ -1322,12 +1355,16 @@ def build_passive_sidecar(
     for f in table.pf_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
     psi_cols = []
+    br_cols = []
+    bz_cols = []
     for cc in classes:
         if cc.role in op._KNOWN_ROLES:
             continue
         acc = np.zeros(grid.flat_r.size)
+        acc_br = np.zeros(grid.flat_r.size)
+        acc_bz = np.zeros(grid.flat_r.size)
         for f in by_circ[cc.circuit]:
-            psi_f, _br, _bz = hybrid_greens(
+            psi_f, br_f, bz_f = hybrid_greens(
                 grid.flat_r,
                 grid.flat_z,
                 float(f.r),
@@ -1336,10 +1373,16 @@ def build_passive_sidecar(
                 max(abs(f.height), 0.01),
             )
             acc += f.xmult * psi_f
+            acc_br += f.xmult * br_f
+            acc_bz += f.xmult * bz_f
         psi_cols.append(acc)
+        br_cols.append(acc_br)
+        bz_cols.append(acc_bz)
     psi_full = (
         np.column_stack(psi_cols) if psi_cols else np.zeros((grid.flat_r.size, 0))
     )
+    br_full = np.column_stack(br_cols) if br_cols else np.zeros((grid.flat_r.size, 0))
+    bz_full = np.column_stack(bz_cols) if bz_cols else np.zeros((grid.flat_r.size, 0))
     if psi_full.shape[1] != g_passive.shape[1]:
         raise ValueError(
             f"passive circuit count mismatch: table {psi_full.shape[1]} vs "
@@ -1348,6 +1391,10 @@ def build_passive_sidecar(
     return {
         "g_cols": g_passive @ v_over_s,
         "psi_cols": psi_full @ v_over_s,
+        # passive poloidal-field grid columns (for the grad-ψ annulus anchor —
+        # the field-matched "virtual magnetics" arm; coil B cancels like coil ψ)
+        "br_cols": br_full @ v_over_s,
+        "bz_cols": bz_full @ v_over_s,
         "k": k,
         "modes": v_over_s,
     }
@@ -1601,6 +1648,16 @@ def solve_equilibrium_lsq(
                         ip_amperes=ip_amperes,
                         k_dof=k_dof,
                         kp=kp,
+                        passive_br=(
+                            np.asarray(passive["br_cols"], dtype=np.float64)
+                            if kp and "br_cols" in passive
+                            else None
+                        ),
+                        passive_bz=(
+                            np.asarray(passive["bz_cols"], dtype=np.float64)
+                            if kp and "bz_cols" in passive
+                            else None
+                        ),
                     )
                     if sp.any_penalty
                     else (np.zeros((0, n_var)), np.zeros(0), 0)

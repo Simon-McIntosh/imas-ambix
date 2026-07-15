@@ -28,7 +28,9 @@ def _slice(nr=49, nz=65, beta0=0.6, alpha=1.5):
     grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
     ip = 4.0e5
     i_pf = np.array([-6.0e4, -6.0e4])
-    meas, vac, res_true = _synthetic_confining_slice(grid, table, i_pf, ip, beta0, alpha)
+    meas, vac, res_true = _synthetic_confining_slice(
+        grid, table, i_pf, ip, beta0, alpha
+    )
     kw = dict(
         measured=meas,
         vacuum_prediction=vac,
@@ -86,7 +88,46 @@ def test_assemble_abs_psi_anchor_adds_gauge_column():
     assert a_extra.shape == (ann_rows.size, k_dof + kp + 1)
     assert b_extra.shape == (ann_rows.size,)
     # the gauge column is the −1 offset column of the abs-ψ rows
-    assert np.allclose(a_extra[:, -1], -1.0 * (a_extra[:, -1] != 0).astype(float) * np.abs(a_extra[:, -1]))
+    assert np.allclose(
+        a_extra[:, -1],
+        -1.0 * (a_extra[:, -1] != 0).astype(float) * np.abs(a_extra[:, -1]),
+    )
+
+
+def test_grad_psi_anchor_is_gauge_free_and_runs():
+    """The grad-ψ (field-matching) anchor adds NO gauge-offset column and drives
+    the solve without a hard boundary — the 'virtual magnetics' arm."""
+    from imas_ambix.latent.gs_solve import _assemble_soft_prior_rows
+
+    _, grid, *_ = _slice(nr=33, nz=45)
+    k_dof, kp = 2, 0
+    ann_rows = np.arange(min(8, grid.cells.size))
+    u_n = np.ones((grid.cells.size, k_dof))
+    sp = SoftPriors(
+        anchor_form="grad-psi",
+        anchor_weight=1.0,
+        anchor_ann_rows=ann_rows,
+        anchor_grad_target=np.zeros(2 * ann_rows.size),  # [dΦ/dR ; dΦ/dZ]
+        anchor_robust_clip=None,
+    )
+    a_extra, b_extra, n_gauge = _assemble_soft_prior_rows(
+        sp,
+        grid=grid,
+        u_n=u_n,
+        a_anchor=u_n.sum(0),
+        axis_images_unit=np.zeros(k_dof),
+        coeffs_prev=np.zeros(k_dof),
+        psi_coil=np.zeros(grid.flat_r.size),
+        psi_pass=np.zeros((grid.flat_r.size, 0)),
+        a_pass=np.zeros(0),
+        ip_amperes=4.0e5,
+        k_dof=k_dof,
+        kp=kp,
+    )
+    # gauge-free: no offset column, and 2 rows per annulus point (R and Z)
+    assert n_gauge == 0
+    assert a_extra.shape == (2 * ann_rows.size, k_dof)
+    assert b_extra.shape == (2 * ann_rows.size,)
 
 
 def test_assemble_q_bound_is_active_set():
@@ -111,7 +152,9 @@ def test_assemble_q_bound_is_active_set():
     a0, _, _ = _assemble_soft_prior_rows(sp, coeffs_prev=np.zeros(k_dof), **common)
     assert a0.shape[0] == 0
     # iterate violates (j_axis=4 > 1) -> one row appears
-    a1, b1, _ = _assemble_soft_prior_rows(sp, coeffs_prev=np.array([2.0, 2.0]), **common)
+    a1, b1, _ = _assemble_soft_prior_rows(
+        sp, coeffs_prev=np.array([2.0, 2.0]), **common
+    )
     assert a1.shape[0] == 1
     assert np.isclose(b1[0], 1.0)  # weight * j_axis_max
 
