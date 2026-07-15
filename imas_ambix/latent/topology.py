@@ -494,6 +494,7 @@ def lcfs_contour(
     n_coarse: int = 6,
     n_bisect: int = 14,
     clip_legs: bool = False,
+    smooth_modes: int = 0,
 ) -> LcfsContour:
     """LCFS = the outermost closed axis-enclosing flux contour inside the limiter.
 
@@ -615,9 +616,6 @@ def lcfs_contour(
             )
         if ring is None:
             return nan
-        ring = _snap_ring_to_xpoints(
-            ring, psi, r_1d, z_1d, psi_bnd, lim_r, lim_z, axis
-        )
     else:
         # Step a hair inside (99.9% convention) and read the reported ring.
         psi_lcfs = psi_axis + lcfs_norm * (psi_bnd - psi_axis)
@@ -626,6 +624,8 @@ def lcfs_contour(
             ring = _valid_ring(lo)  # fall back to the exact largest-valid ring
         if ring is None:
             return nan
+    if smooth_modes > 0:
+        ring = _fourier_smooth_ring(ring, axis, smooth_modes)
     radii = resample_lcfs_radii(
         ring[:, 0], ring[:, 1], float(axis[0]), float(axis[1]), ang
     )
@@ -638,50 +638,51 @@ def lcfs_contour(
     )
 
 
-def _snap_ring_to_xpoints(
-    ring: np.ndarray,
-    psi: np.ndarray,
-    r_1d: np.ndarray,
-    z_1d: np.ndarray,
-    psi_bnd: float,
-    lim_r: np.ndarray | None,
-    lim_z: np.ndarray | None,
-    axis: tuple[float, float],
-    *,
-    flux_tol: float = 0.05,
-    dist_tol: float = 0.08,
+def _fourier_smooth_ring(
+    ring: np.ndarray, axis: tuple[float, float], n_modes: int, n_out: int = 256
 ) -> np.ndarray:
-    """Snap the confined lobe to any X-point sitting on the separatrix.
+    """Smooth a star-shaped boundary polygon by truncated-Fourier r(θ).
 
-    A diverted plasma's separatrix passes through the X-point; the closed lobe
-    traced a hair inside rounds that corner.  For each in-limiter saddle whose
-    flux matches ``psi_bnd`` (within ``flux_tol`` of the axis→boundary span) and
-    that lies within ``dist_tol`` [m] of the lobe, replace the nearest ring
-    vertex with the X-point itself — the boundary then reaches the true
-    separatrix corner (the leg clipped exactly at the X-point).  Limited plasmas
-    (no on-separatrix X-point) are returned unchanged.
+    The contour traced off the coarse (nr×nz) grid is jagged at the grid scale
+    (~a cell), which reads as boundary ripple even though the underlying
+    source-free / force-balanced ψ is analytically smooth.  The boundary of a
+    low-order field is itself low-order in the poloidal angle θ, so fitting the
+    ring's r(θ) to ``n_modes`` Fourier harmonics and re-evaluating on a dense θ
+    grid removes the grid jaggedness while preserving the genuine shaping
+    (elongation, triangularity) up to that order — matching the harmonic read's
+    own angular content.  Falls back to the input ring if r(θ) is not
+    single-valued (a strongly non-star-shaped boundary the fit can't represent).
     """
-    cp = find_critical_points(psi, r_1d, z_1d)
-    if cp.x_points.shape[0] == 0:
+    ar, az = float(axis[0]), float(axis[1])
+    dr = ring[:, 0] - ar
+    dz = ring[:, 1] - az
+    th = np.arctan2(dz, dr)
+    r = np.hypot(dr, dz)
+    order = np.argsort(th)
+    th, r = th[order], r[order]
+    # de-duplicate near-identical angles (contourpy can repeat vertices)
+    keep = np.concatenate([[True], np.diff(th) > 1e-6])
+    th, r = th[keep], r[keep]
+    if th.size < 2 * n_modes + 2:
         return ring
-    span = abs(psi_bnd - _bilerp(psi, r_1d, z_1d, float(axis[0]), float(axis[1])))
-    span = span if span > 0 else 1.0
-    out = ring
-    for xr, xz, xv in zip(cp.x_points[:, 0], cp.x_points[:, 1], cp.x_psi, strict=True):
-        if abs(xv - psi_bnd) > flux_tol * span:
-            continue
-        if lim_r is not None and lim_z is not None:
-            inside = _inside_polygon(
-                np.array([xr]), np.array([xz]), lim_r, lim_z
-            )[0]
-            if not inside:
-                continue
-        d = np.hypot(out[:, 0] - xr, out[:, 1] - xz)
-        k = int(np.argmin(d))
-        if d[k] <= dist_tol:
-            out = out.copy()
-            out[k] = (xr, xz)
-    return out
+    # least-squares Fourier fit r(θ) = a0 + Σ a_k cos kθ + b_k sin kθ
+    cols = [np.ones_like(th)]
+    for k in range(1, n_modes + 1):
+        cols += [np.cos(k * th), np.sin(k * th)]
+    basis = np.vstack(cols).T
+    try:
+        coef, *_ = np.linalg.lstsq(basis, r, rcond=None)
+    except np.linalg.LinAlgError:  # pragma: no cover
+        return ring
+    tt = np.linspace(-np.pi, np.pi, n_out, endpoint=False)
+    dense = [np.ones_like(tt)]
+    for k in range(1, n_modes + 1):
+        dense += [np.cos(k * tt), np.sin(k * tt)]
+    rr = np.vstack(dense).T @ coef
+    if not np.all(rr > 0):  # fit went non-physical — keep the raw ring
+        return ring
+    out = np.column_stack([ar + rr * np.cos(tt), az + rr * np.sin(tt)])
+    return np.vstack([out, out[:1]])  # closed polygon
 
 
 def emergent_xpoints(

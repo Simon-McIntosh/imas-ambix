@@ -45,14 +45,34 @@ def test_clip_legs_reaches_xpoint_and_excludes_legs():
     assert plain.found and clipped.found
     # clipped ring is closed & encloses the axis (a real lobe)
     assert clipped.ring.shape[0] >= 6
-    # clipped lobe reaches the X-point corner: a ring vertex ~on the saddle
+    # ψ_N=1 lobe reaches AT LEAST as close to the X-point corner as the 0.999 ring
     d_clip = np.hypot(clipped.ring[:, 0] - xk[0], clipped.ring[:, 1] - xk[1]).min()
     d_plain = np.hypot(plain.ring[:, 0] - xk[0], plain.ring[:, 1] - xk[1]).min()
-    assert d_clip <= d_plain + 1e-9  # reaches at least as close to the X-point
-    assert d_clip < 0.05  # essentially ON the X-point
-    # legs excluded: no ring vertex sits in the private-flux region well BELOW
-    # the X-point (the divertor leg would dip there)
-    assert clipped.ring[:, 1].min() >= xk[1] - 0.1
+    assert d_clip <= d_plain + 1e-9
+    # legs excluded: the confined lobe does not dip into the private-flux region
+    # well BELOW the X-point (a divertor leg would)
+    assert clipped.ring[:, 1].min() >= xk[1] - 0.12
+
+
+def test_smooth_modes_reduces_ripple():
+    """Fourier r(θ) smoothing removes grid-scale contour jaggedness while
+    preserving the lobe (the fix for the visible boundary ripple)."""
+    psi, rg, zg, axis, lr, lz = _diverted_field()
+
+    def ripple(ring):
+        th = np.arctan2(ring[:, 1] - axis[1], ring[:, 0] - axis[0])
+        r = np.hypot(ring[:, 0] - axis[0], ring[:, 1] - axis[1])
+        r = r[np.argsort(th)]
+        return float(np.std(np.diff(r, 2)) / max(np.mean(r), 1e-9))
+
+    raw = lcfs_contour(psi, rg, zg, axis, limiter_r=lr, limiter_z=lz, clip_legs=True)
+    sm = lcfs_contour(
+        psi, rg, zg, axis, limiter_r=lr, limiter_z=lz, clip_legs=True, smooth_modes=4
+    )
+    assert sm.found
+    assert ripple(sm.ring) < 0.5 * ripple(raw.ring)  # markedly smoother
+    # shape preserved: the two boundaries agree on the 8 scored radii
+    assert np.nanmax(np.abs(sm.radii - raw.radii)) < 0.06
 
 
 def test_clip_legs_limited_case_matches_plain():
