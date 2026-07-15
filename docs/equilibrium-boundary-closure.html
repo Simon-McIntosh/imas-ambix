@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-15">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
 </head>
 <body>
 <main class="plan-doc">
@@ -764,6 +764,39 @@ Done-when
   2. Ablation held-out with paired-bootstrap CIs: does the pressure prior improve interior fidelity
      / resolve the p&#x27;/ff&#x27; split on real slices? Verdict (incl. honest negative) recorded.
   3. Te data-gate recorded in the plan; plan updated same-turn; this followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-1784104749" data-status="open" data-tier="opus" data-written-by="harmonic-gauge worker" data-written-at="2026-07-15" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">orchestrator: consume frozen harmonic prior + penalty-form verdict in gs_solve annulus penalty</h4>
+    <div class="r-fu-body"><p>The §2-side gauge work is landed: <code>imas_ambix/latent/boundary_harmonic.py</code> (commit d99dd0f; <code>tests/latent/test_harmonic_gauge.py</code> 8 tests + <code>tests/latent/test_boundary_harmonic.py</code> all green). It closes f-ebc-05 done-when #0 (the GAUGE MEASUREMENT + frozen prior) and implements the two gauge-preserving fit changes the user directed.</p><p><strong>GAUGE VERDICT = <u>rank1-offset</u> (systematic level bias, NOT fit noise).</strong> Instrumented run over both splits (160 slices each) recomputing the two TOTAL-flux fields on the shared vacuum annulus (moment carrier vs harmonic total, like-for-like coil term) and recording the offset the gate's blind metric removes (<code>consistency_rms</code> does <code>diff -= diff.mean()</code>). The carrier &psi; sits systematically ABOVE the harmonic &psi;: median |offset|/range = <strong>0.079 (train) / 0.076 (eval)</strong>; signed median <strong>+0.079 / +0.072</strong> (positive); positive in <strong>99.4% / 90.6%</strong> of slices; |offset|&gt;5% of range in 83% / 71%; per-shot signed means ALL one sign (shot_sign_consistency = <strong>1.0</strong> both splits). That is a consistently-signed DC disagreement, not zero-mean scatter &rarr; the interior penalty must carry a fitted rank-1 offset DOF (Worker B's <code>annulus_penalty_rows(form="abs-psi", gauge_offset=True)</code>). Never the gate's blind mean-projection (it discards this real DC information); and the offset is far too large/systematic to ignore. Note <code>form="grad-psi"</code> remains an always-safe gauge-free alternative (it sidesteps the offset entirely) — but if absolute-&psi; is matched, the rank-1 offset is mandatory. Flux-loop DC residual (whitened) median ~0.98 both splits — the order-3 harmonic fits the 12 flux loops to ~1 scale-unit (worse than the 69 B-probes), i.e. the DC/gauge IS the weakly-constrained direction, evidence the gauge is only weakly pinned (§3.4) and motivation for the ip_anchor refinement below.</p><p><strong>Frozen prior artifacts (§3.3f) — load these, do not refit.</strong> Per-slice: harmonic coeffs, coeff_cov, misfit, centroid origin, tracking pole, annulus dynamic range, shot/t_index/time_s/ip. <code>imas_ambix/latent/artifacts/patch_gate/harmonic_prior_frozen.npz+.json</code> (eval, 160 slices) and <code>harmonic_prior_frozen-tune.npz+.json</code> (train). Gauge reports: <code>harmonic_prior_gauge.json</code> / <code>harmonic_prior_gauge-tune.json</code>. Loader: <code>boundary_harmonic.load_frozen_harmonic_prior(path) -&gt; {meta, arrays, slices}</code> (each slice a dict; coeffs (7,), cov (7,7), labels [h0,h1c,h1s,h2c,h2s,h3c,h3s]). Frozen config: order 3, ridge 1e-8, kind P, centroid origin, track pole frac 0.41, mask_frac 0.5, exclude_frac 1.1, ip_anchor OFF (recovered from boundary_read_harmonic-o3-centroidorigin-frac0.41.json).</p><p><strong>New gauge-preserving API in boundary_harmonic.py.</strong> (1) <code>harmonic_grad_psi_on_grid(cfg, coeffs, grid_r, grid_z) -&gt; (dPhi/dR, dPhi/dZ)</code> — the gauge-free flux gradient (= 2&pi;R&middot;B, reuses <code>harmonic_field_columns</code>) for Worker B's grad-psi penalty; matches FD of &psi; to ~1e-6, invariant to any additive constant on &psi; (Worker B's <code>harmonic_annulus_target</code> can drop its central-difference fallback and use this analytic grad). (2) <code>HarmonicFitConfig.ip_anchor</code> (now implemented) + <code>ip_anchor_weight</code> + <code>ip_circulation_row(cfg, loop_r)</code> — the poloidal-circulation Amp&egrave;re tie &oint;B&middot;dl = &mu;0&middot;Ip (monopole-only, path-independent), giving the read its own absolute (monopole) gauge instead of leaning only on the flux loops; OFF by default is byte-identical, ON pins the circulation to &mu;0 Ip and reduces DC error vs truth on a synthetic filament field. ip_anchor stays OFF in the frozen §2 prior (an orthogonal refinement per §3.4); it is available if the interior arm wants the read self-gauged rather than offset-fitted.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
+Section: §3 — orchestrator: consume the frozen harmonic prior + apply the rank1-offset penalty verdict
+Tier:    opus
+
+Context (done — orchestrator integration)
+  The §2-side gauge work is landed (commit d99dd0f, tests green). Gauge measurement VERDICT is
+  rank1-offset: the carrier psi is systematically ABOVE the harmonic psi in the annulus by ~+7.6-7.9%
+  of the dynamic range, positive in 91-99% of slices, per-shot sign consistency 1.0 (both splits,
+  160 slices each). So the annulus soft-prior penalty must KEEP the flux-loop gauge with a fitted
+  rank-1 offset (abs-psi + gauge_offset), never the gate&#x27;s blind mean-projection; grad-psi is the
+  always-safe gauge-free alternative.
+
+State to read
+  imas_ambix/latent/boundary_harmonic.py (load_frozen_harmonic_prior, harmonic_grad_psi_on_grid,
+    ip_circulation_row, HarmonicFitConfig.ip_anchor/ip_anchor_weight)
+  imas_ambix/latent/artifacts/patch_gate/harmonic_prior_frozen{,-tune}.npz+json (the frozen prior)
+  imas_ambix/latent/artifacts/patch_gate/harmonic_prior_gauge{,-tune}.json (the verdict + numbers)
+  imas_ambix/latent/boundary_prior.py (Worker B: annulus_penalty_rows form=&#x27;abs-psi&#x27;, gauge_offset=True)
+  scripts/harmonic_prior_freeze.py (how the prior + gauge report were produced)
+
+Done-when
+  1. solve_equilibrium_lsq loads the FROZEN per-slice harmonic prior (not a refit) and forms the
+     annulus target via Worker B&#x27;s harmonic_annulus_target using harmonic_grad_psi_on_grid for the
+     grad blocks.
+  2. The penalty uses form=&#x27;abs-psi&#x27; with a rank-1 gauge_offset column on x (per THIS verdict), with
+     grad-psi run as the gauge-free ablation control.
+  3. Ablation ladder A0-A3 scored held-out with paired-bootstrap CIs (f-ebc-05); verdict recorded;
+     plan updated same-turn; this followup resolved.</pre>
     </article>
 </section>
 
