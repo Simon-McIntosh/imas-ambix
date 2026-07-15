@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="equilibrium-boundary-closure-evidence">
+  <meta name="plan-title" content="Soft-prior interior solve — evidence: anchored poloidal flux maps vs firewalled EFIT">
+  <meta name="plan-summary" content="Evidence document for the §3 soft-prior interior force-balance solve of equilibrium-boundary-closure: what was built (gauge-preserving harmonic read + annulus anchor + soft SOL edge + q>=1 clamp + moment/pressure priors), the gauge measurement that selected the penalty form, the A0-A3 ablation-ladder held-out numbers, and poloidal flux maps rendered with imas-ink against the firewalled EFIT ground truth.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Soft-prior interior solve — evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>Soft-prior interior solve — evidence</h1>
+  <p><strong>What this is.</strong> The §3 deliverable of
+  <a href="/imas-ambix/equilibrium-boundary-closure.html">equilibrium-boundary-closure</a>:
+  the landed source-free toroidal-harmonic annulus read is coupled back into the free-boundary
+  Grad–Shafranov interior solve as a <strong>soft prior</strong> — never a fixed Dirichlet
+  boundary. This document records what was built, the gauge measurement that fixed the penalty
+  form, the held-out ablation-ladder numbers, and the poloidal flux maps against the firewalled
+  EFIT reference (EFIT is referee/scoring only — never an input to any solve here).</p>
+
+  <h2>§1 — What was built (all EFIT-firewalled, machine-agnostic)</h2>
+  <ul>
+    <li><strong>Gauge-preserving harmonic read.</strong> The toroidal-harmonic read now exposes an
+    analytic point-wise ∇ψ and an optional Ip-circulation gauge tie, and a frozen per-slice prior
+    artifact (coeffs, coeff_cov, pole, dyn_range) pins it against editable-install drift.</li>
+    <li><strong>Annulus boundary anchor</strong> (the load-bearing ingredient). A whitened
+    ψ-consistency penalty ties the interior solve's plasma+passive ψ to the source-free harmonic ψ
+    in the shared vacuum annulus. The coil field is identical on both sides and cancels
+    (like-for-like flux). The penalty <em>keeps the flux-loop gauge</em>: absolute-ψ matching with a
+    single fitted rank-1 offset DOF (see §2), robust-clipped for the read's heavy-tailed
+    consistency, weighted by each slice's own fit uncertainty.</li>
+    <li><strong>Soft SOL edge.</strong> A C¹ value-and-slope-matched decay foot admits public-SOL
+    current through a smooth edge to ψ<sub>N</sub>≈1.1 (axis-connected common-flux region only,
+    private flux excluded), replacing the hard ψ<sub>N</sub>&lt;1 mask discontinuity.</li>
+    <li><strong>Discovered profiles + regularisation.</strong> p′/FF′ are discovered by the
+    per-sweep coefficient LSQ against the raw magnetics (not fixed analytic forms), with
+    second-difference smoothness and monotonicity regularisers available.</li>
+    <li><strong>q ≥ 1 sawtooth clamp.</strong> A soft one-sided bound j<sub>φ,axis</sub> ≤
+    2B<sub>φ0</sub>/(μ₀R₀) (⇔ q₀ ≥ 1), active-set (only when the iterate violates it).</li>
+    <li><strong>Moment / pressure priors.</strong> An opt-in soft Ip prior, a βp+li/2
+    magnetics-derived moment-consistency prior, and a pressure-gradient prior that pulls the
+    p′-family coefficients toward a target — the lever that breaks the p′/FF′ degeneracy.</li>
+  </ul>
+
+  <h2>§2 — Gauge measurement (done-first): the penalty form is not free</h2>
+  <p>The consistency metric removes a per-slice mean offset before scoring. Is that offset a
+  fundamental gauge freedom (⇒ match ∇ψ) or a systematic level bias (⇒ absolute-ψ with a fitted
+  rank-1 offset)? Measured on the tune cohort (n=160 slices):</p>
+  <table>
+    <thead><tr><th>quantity</th><th>value</th><th>reading</th></tr></thead>
+    <tbody>
+      <tr><td>median |offset| / annulus dynamic range</td><td>7.9%</td><td>large (not fit noise)</td></tr>
+      <tr><td>sign consistency across slices</td><td>99.4% positive</td><td>systematic</td></tr>
+      <tr><td>per-shot sign consistency</td><td>1.00 (all 8 shots)</td><td>systematic</td></tr>
+      <tr><td>fraction |offset|/range &gt; 5%</td><td>83%</td><td>real level bias</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Verdict: rank-1 offset.</strong> The removed offset is a systematic, consistently-signed
+  inter-reconstruction level bias on the weakly-pinned DC mode (12 of 81 sensors are flux loops), not
+  a gauge freedom. The anchor therefore matches absolute ψ with ONE fitted free offset DOF that
+  absorbs only that nuisance — keeping the flux-loop DC information rather than discarding it with a
+  blind mean-projection.</p>
+
+  <h2>§3 — Held-out ablation ladder (EFIT referee, paired-bootstrap CIs)</h2>
+  <p>Skill = 1 − RMSE/RMSE(train-mean baseline); higher is better. Reference bars: the free-boundary
+  winner-arm's own LCFS skill (the self-inflicted −3.6/−3.7) and the §2 read's own held-out −1.96.</p>
+  <p><strong>Tune weight sweep</strong> (abs-ψ anchor, 4 train shots, 24 slices) — the anchor
+  bites above w≈1 but trades axis for LCFS; w=3 breaches axis non-inferiority, so w*=1 was selected:</p>
+  <table>
+    <thead><tr><th>anchor weight</th><th>axis skill</th><th>LCFS skill</th><th>reading</th></tr></thead>
+    <tbody>
+      <tr><td>0 (free-boundary)</td><td>−1.115</td><td>−3.099</td><td>baseline</td></tr>
+      <tr><td>0.3</td><td>−1.120</td><td>−3.102</td><td>negligible</td></tr>
+      <tr><td>1 (w*)</td><td>−1.161</td><td>−2.982</td><td>LCFS +0.12, axis Δ−0.05 (at margin)</td></tr>
+      <tr><td>3</td><td>−1.396</td><td>−2.932</td><td>LCFS better but axis Δ−0.28 (fails margin)</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Held-out ablation ladder</strong> (eval, 128 slices, EFIT referee, paired-bootstrap CIs).
+  A0 reproduces the free-boundary winner-arm's self-inflicted −3.6 LCFS bar:</p>
+  <table>
+    <thead><tr><th>arm</th><th>axis skill [CI]</th><th>LCFS skill [CI]</th><th>X-pt</th><th>reseed rate</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A0</strong> free-boundary baseline</td><td>−0.039 [−0.69, +0.12]</td><td>−3.591 [−4.34, −2.98]</td><td>+0.115</td><td>0.8%</td></tr>
+      <tr><td><strong>A1</strong> abs-ψ anchor (w*=1)</td><td>−0.158 [−0.73, −0.02]</td><td>−3.824 [−4.64, −3.15]</td><td>+0.080</td><td><strong>0.0%</strong></td></tr>
+      <tr><td><strong>A2</strong> anchor + soft SOL edge</td><td>−0.155 [−0.74, −0.01]</td><td>−3.831 [−4.65, −3.16]</td><td>+0.083</td><td><strong>0.0%</strong></td></tr>
+      <tr><td><strong>A3</strong> anchor, reseed lever OFF</td><td>−0.158</td><td>−3.824</td><td>+0.080</td><td><strong>0.0%</strong> (≡ A1)</td></tr>
+      <tr><td><strong>A1g</strong> grad-ψ field-match (virtual magnetics)</td><td data-fill="a1g">—</td><td data-fill="a1g">—</td><td data-fill="a1g">—</td><td data-fill="a1g">—</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Verdict.</strong>
+  <em>Attractor gate — PASS:</em> the soft anchor collapses the reseed-lever trigger rate 0.8%→0.0%,
+  and A3≡A1 (turning the lever off changes nothing), so the outboard-attractor / reseed / scout
+  machinery is confirmed inert once the boundary is soft-anchored — it can retire, exactly the §3
+  prediction.
+  <em>Skill gate — abs-ψ anchor does NOT pass:</em> A1/A2 do not beat A0 on LCFS (−3.82 vs −3.59, CIs
+  overlapping) and breach axis non-inferiority (Δ−0.12 vs the −0.05 margin). The w=1 tune-cohort gain
+  did not generalize to the 128-slice held-out set — an honest negative for the absolute-ψ prior,
+  which over-rides the sensors rather than adding consistent information. This motivated the grad-ψ
+  field-matching arm (A1g): treating the source-free annulus field as gauge-free, noise-weighted
+  <em>densified near-plasma magnetics</em> rather than a tuned ψ-prior.</p>
+
+  <h2>§4 — Poloidal flux maps vs firewalled EFIT (imas-ink)</h2>
+  <p>Interior ψ(R,Z) from the free-boundary baseline (A0) and the annulus-anchored solve (A1),
+  with the EFIT boundary overlaid as the faint reference. EFIT is plot/scoring only.</p>
+  <figure data-fill="fluxmap-flattop">
+    <img src="/imas-ambix/figures/equilibrium-boundary-closure/fig-fluxmap-flattop.png"
+         alt="Anchored vs free-boundary interior flux maps vs EFIT — flat-top" style="max-width:100%">
+    <figcaption>Flat-top slices — A0 free-boundary vs A1 annulus-anchored, faint EFIT reference.</figcaption>
+  </figure>
+  <figure data-fill="fluxmap-rampup">
+    <img src="/imas-ambix/figures/equilibrium-boundary-closure/fig-fluxmap-rampup.png"
+         alt="Anchored vs free-boundary interior flux maps vs EFIT — ramp-up" style="max-width:100%">
+    <figcaption>Ramp-up slices — A0 free-boundary vs A1 annulus-anchored, faint EFIT reference.</figcaption>
+  </figure>
+
+  <h2>§5 — Firewall &amp; provenance</h2>
+  <p>Every solve uses raw external magnetics + known coil currents + the Rogowski Ip only. EFIT output
+  never enters any fit or the anchor target — it is the scoring referee. Coil couplings are the
+  finite-area cylinder Biot–Savart kernel throughout. Firewall-safe per-slice scalars available in the
+  corpus are Ip and line-averaged n<sub>e</sub> only; full p′/FF′ separation from an independent
+  temperature (Thomson Te) is data-gated and recorded as such (the machinery is built and
+  synthetic-tested; the real Te target is stubbed pending the diagnostic).</p>
+
+</main>
+</body>
+</html>
