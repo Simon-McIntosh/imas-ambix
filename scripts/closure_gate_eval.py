@@ -80,6 +80,58 @@ from scripts.patch_gate_eval import (
 )
 
 
+def geometry_target_pushout(psi2d, grid):
+    """14-D geometry read of the interior ψ using the LANDED push-out LCFS
+    reader (:func:`imas_ambix.latent.topology.lcfs_contour`) — the outermost
+    closed axis-enclosing flux ring — instead of the innermost-X-point /
+    limiter-contact read of :func:`geometry_target`.
+
+    The interior free-boundary ψ carries the correct large closed-flux region
+    (it matches the §2 source-free read), but the innermost-X read under-sizes
+    the LCFS by tens of cm when it locks onto a discretisation-scale saddle.
+    This read is the SAME one the §2 harmonic gate uses, so the interior and
+    boundary arms become directly comparable.  Axis (target[0:2]) + confined-
+    side flux come from :func:`geometry_target`; the LCFS radii (target[6:]) and
+    emergent X-points/class (target[2:6]) are re-read off the push-out ring.
+    Returns ``(target, psi_axis, psi_boundary)``.
+    """
+    from imas_ambix.latent.topology import (  # noqa: PLC0415
+        _inside_polygon as _inpoly,
+    )
+    from imas_ambix.latent.topology import (  # noqa: PLC0415
+        emergent_xpoints,
+        find_critical_points,
+        lcfs_contour,
+    )
+
+    target, psi_ax, psi_b = geometry_target(psi2d, grid)
+    axis = (float(target[0]), float(target[1]))
+    lc = lcfs_contour(
+        np.asarray(psi2d),
+        grid.rg,
+        grid.zg,
+        axis,
+        limiter_r=grid.limiter_r,
+        limiter_z=grid.limiter_z,
+    )
+    if not lc.found:
+        return target, psi_ax, psi_b
+    target = target.copy()
+    target[6:] = lc.radii
+    boundary_psi = float(lc.psi_bnd)
+    # emergent X-points read AFTER the boundary (in-limiter, conductor-clear)
+    cp = find_critical_points(np.asarray(psi2d), grid.rg, grid.zg)
+    xpts = cp.x_points
+    if xpts.shape[0]:
+        ins = _inpoly(
+            xpts[:, 0], xpts[:, 1], grid.limiter_r, grid.limiter_z
+        ) & grid.clear_of_conductors(xpts[:, 0], xpts[:, 1])
+        xpts = xpts[ins]
+    xset, _diverted = emergent_xpoints(xpts, lc.ring, tol=0.05)
+    target[2:6] = xset.reshape(-1)
+    return target, psi_ax, boundary_psi
+
+
 def load_frozen_lookup(path: str):
     """Load the frozen harmonic prior into a ``(shot, t_index) -> slice`` map.
 
@@ -361,6 +413,7 @@ def fit_and_read_slice(
     basis=None,
     meta: dict | None = None,
     soft_prior_cfg: dict | None = None,
+    boundary_read: str = "innermost",
 ) -> ClosureSliceFit:
     """Fit the profile against ``payload``'s raw magnetics through the GS fixed
     point and read the hardened 14-D geometry from the force-balanced ψ.
@@ -490,7 +543,8 @@ def fit_and_read_slice(
             dof=dof,
             coeffs=coeffs,
         )
-    target, _, _ = geometry_target(fit.result.psi, grid)
+    _geom = geometry_target_pushout if boundary_read == "pushout" else geometry_target
+    target, _, _ = _geom(fit.result.psi, grid)
     reseeded = False
     if (
         fit_mode == "ladder"
@@ -533,7 +587,7 @@ def fit_and_read_slice(
             reseed_kw["passive_ridge"] = passive_ridge
         lf2 = fit_profile_ladder(grid, table, **payload_kw, **reseed_kw)
         if lf2.result.converged or lf2.result.residual <= convergence_limit:
-            t2, _, _ = geometry_target(lf2.result.psi, grid)
+            t2, _, _ = _geom(lf2.result.psi, grid)
             if (
                 np.isfinite(t2[0])
                 and float(t2[0]) < float(target[0])
@@ -657,6 +711,7 @@ def fit_shot(payload: dict, cfg: dict, workers: int) -> list[ClosureSliceFit]:
             basis=payload.get("basis"),
             meta=cfg.get("frozen_meta"),
             soft_prior_cfg=cfg.get("soft_prior_cfg"),
+            boundary_read=cfg.get("boundary_read", "innermost"),
         )
         if f.scored and f.converged:
             warm_jphi = f.jphi_flat
@@ -731,6 +786,7 @@ def run_gate(args) -> int:
         "passive_k": args.passive_k,
         "passive_ridge": args.passive_ridge,
         "maxfev": args.maxfev,
+        "boundary_read": args.boundary_read,
         "reseed_axis_r_max": (
             args.reseed_axis_r
             if (args.reseed_axis_r is not None and args.reseed_axis_r > 0)
@@ -1337,6 +1393,15 @@ def main() -> int:
         default=0.0,
         help="if >0, use the SOFT Ip prior at this fractional σ instead of the "
         "hard Rogowski KKT (default 0 = hard anchor)",
+    )
+    ap.add_argument(
+        "--boundary-read",
+        type=str,
+        default="innermost",
+        choices=("innermost", "pushout"),
+        help="interior LCFS scoring read: 'innermost' (X-point/limiter-contact, "
+        "historical) or 'pushout' (outermost axis-enclosing ring, lcfs_contour — "
+        "the landed reader §2 uses; fixes the saddle-lock under-sizing)",
     )
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--figures", action="store_true", help="render figures only")
