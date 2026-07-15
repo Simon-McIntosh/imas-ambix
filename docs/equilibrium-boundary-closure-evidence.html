@@ -93,20 +93,35 @@
       <tr><td><strong>A1</strong> abs-ψ anchor (w*=1)</td><td>−0.158 [−0.73, −0.02]</td><td>−3.824 [−4.64, −3.15]</td><td>+0.080</td><td><strong>0.0%</strong></td></tr>
       <tr><td><strong>A2</strong> anchor + soft SOL edge</td><td>−0.155 [−0.74, −0.01]</td><td>−3.831 [−4.65, −3.16]</td><td>+0.083</td><td><strong>0.0%</strong></td></tr>
       <tr><td><strong>A3</strong> anchor, reseed lever OFF</td><td>−0.158</td><td>−3.824</td><td>+0.080</td><td><strong>0.0%</strong> (≡ A1)</td></tr>
-      <tr><td><strong>A1g</strong> grad-ψ field-match (virtual magnetics)</td><td data-fill="a1g">—</td><td data-fill="a1g">—</td><td data-fill="a1g">—</td><td data-fill="a1g">—</td></tr>
+      <tr><td><strong>A1g</strong> grad-ψ field-match (virtual magnetics, w=1)</td><td>−0.333 [−0.99, −0.17]</td><td>−4.070 [−5.00, −3.32]</td><td>+0.037</td><td><strong>0.0%</strong></td></tr>
     </tbody>
   </table>
-  <p><strong>Verdict.</strong>
-  <em>Attractor gate — PASS:</em> the soft anchor collapses the reseed-lever trigger rate 0.8%→0.0%,
-  and A3≡A1 (turning the lever off changes nothing), so the outboard-attractor / reseed / scout
-  machinery is confirmed inert once the boundary is soft-anchored — it can retire, exactly the §3
-  prediction.
-  <em>Skill gate — abs-ψ anchor does NOT pass:</em> A1/A2 do not beat A0 on LCFS (−3.82 vs −3.59, CIs
-  overlapping) and breach axis non-inferiority (Δ−0.12 vs the −0.05 margin). The w=1 tune-cohort gain
-  did not generalize to the 128-slice held-out set — an honest negative for the absolute-ψ prior,
-  which over-rides the sensors rather than adding consistent information. This motivated the grad-ψ
-  field-matching arm (A1g): treating the source-free annulus field as gauge-free, noise-weighted
-  <em>densified near-plasma magnetics</em> rather than a tuned ψ-prior.</p>
+  <p>(A grad-ψ weight sweep on tune improved LCFS at w=1 like abs-ψ but failed axis non-inferiority at
+  every weight; the higher-weight w=10 eval was worse still — axis −0.568, LCFS −4.297.)</p>
+
+  <h3>Verdict — an honest split result</h3>
+  <p><strong>Attractor gate — MET (exceeded).</strong> The soft anchor collapses the reseed-lever
+  trigger rate 0.8% → <strong>0.0%</strong> in every anchored arm, and A3 ≡ A1 (turning the lever off
+  changes nothing with the anchor on). The outboard-attractor / reseed / scout machinery is confirmed
+  <em>inert</em> once the boundary is soft-anchored — it can retire, exactly the §3 prediction: the
+  attractor was the symptom of an unanchored free boundary, and the anchor supplies the missing
+  constraint.</p>
+  <p><strong>Boundary-skill gate — NOT met (honest negative).</strong> No anchor form, at any weight,
+  beats the free-boundary baseline A0 on the held-out set: abs-ψ (A1, −3.82) and grad-ψ (A1g, −4.07)
+  are both <em>worse</em> than A0 (−3.59) on LCFS with overlapping CIs, and both breach axis
+  non-inferiority (Δ ≥ −0.12 vs the −0.05 margin). The tune-cohort LCFS gains (both forms improved LCFS
+  at w=1 on the 4-shot tune) did <em>not</em> generalize to the 128-slice eval.</p>
+  <p><strong>Why — the information limit (the load-bearing finding).</strong> The source-free annulus
+  field, however densely sampled and whether matched as ψ or as ∇ψ, carries only ~<strong>7 independent
+  DOF</strong> (the order-3 harmonic coefficients) and is derived from the <em>same</em> 81 external
+  sensors the interior solve already fits. It therefore adds no independent boundary information: the
+  free-boundary solve already extracts what the external magnetics support, and forcing the low-order
+  read harder only distorts the core (the axis degrades). This is the classical-read information ceiling
+  — and it is exactly the motivation for §4: a <em>learned</em>, geometry-conditioned cross-machine
+  operator that can exploit correlations the 7-DOF single-shot read cannot. The soft-prior machinery is
+  landed, tested, and leakage-free-gated; its value is attractor stabilisation (the reseed lever
+  retires), not a boundary-skill gain, and that is recorded honestly rather than tuned into a false
+  pass.</p>
 
   <h2>§4 — Poloidal flux maps vs firewalled EFIT (imas-ink)</h2>
   <p>Interior ψ(R,Z) from the free-boundary baseline (A0) and the annulus-anchored solve (A1),
