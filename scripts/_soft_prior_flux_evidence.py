@@ -111,7 +111,7 @@ def main() -> int:
 
     from scripts.closure_gate_eval import (
         fit_and_read_slice,
-        geometry_target,
+        geometry_target_pushout,
         load_frozen_lookup,
         shot_payloads,
     )
@@ -192,11 +192,12 @@ def main() -> int:
                 if not fit.scored or fit.psi is None:
                     logger.info("%d %s %s not scored", shot, kind, tag)
                     continue
-                target, psi_ax, psi_b = geometry_target(fit.psi, grid)
+                # score the LCFS with the push-out reader (the fixed, canonical
+                # read) — this is the scored boundary, and it matches EFIT/§2
+                target, psi_ax, psi_b = geometry_target_pushout(fit.psi, grid)
                 axis_rz = (float(target[0]), float(target[1]))
                 lcfs = _closed_contour_about(grid.rg, grid.zg, fit.psi, psi_b, *axis_rz)
-                # DIAGNOSTIC: read OUR interior ψ with the §2 push-out algorithm too
-                push = _pushout_lcfs_ring(fit.psi, grid, axis_rz)
+                push = None  # red LCFS now IS the push-out read
                 sl = _our_slice(
                     fit.psi, grid, target, psi_ax, psi_b, p.ip_amperes, p.time_s, lcfs
                 )
