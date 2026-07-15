@@ -33,54 +33,16 @@ FIGDIR = Path("docs/figures/equilibrium-boundary-closure")
 FROZEN = "imas_ambix/latent/artifacts/patch_gate/harmonic_prior_frozen.json"
 
 
-def _th_lcfs_ring(p, grid, table, basis, meta, adaptive="fixed"):
-    """The §2 source-free TH read's own LCFS ring for this slice (push-out
-    boundary) — the ~6.7 cm read the anchor targets, to overlay in green."""
-    from boundary_harmonic_gate_eval import _adaptive_radii, sensor_arrays
+def _th_lcfs_ring(p, grid, table, basis, meta):
+    """The §2 two-pass source-free TH read's own LCFS ring for this slice
+    (moderate-order + graded ridge, origin re-sited on the LCFS centroid,
+    ψ_N=1 leg-clip) — the boundary the anchor targets, to overlay in green."""
+    from scripts.closure_gate_eval import _harmonic_read_for_slice
 
-    from imas_ambix.latent.boundary_harmonic import (
-        HarmonicFitConfig,
-        fit_harmonic_adaptive,
-        harmonic_columns,
-        harmonic_sensor_matrix,
-        mask_invalid_interior,
-    )
-    from imas_ambix.latent.boundary_moment import MomentFitConfig, fit_moment_currents
-    from imas_ambix.latent.topology import lcfs_contour
-    from scripts.closure_gate_eval import _RadiiArgs
-
-    frac = float(meta.get("pole_inboard_fraction", 0.41))
-    mom = fit_moment_currents(basis, p, MomentFitConfig(order=3))
-    origin = (float(mom.centroid_r), float(mom.centroid_z))
-    pole = (origin[0] * (1.0 - frac), origin[1])
-    cfg = HarmonicFitConfig(
-        pole_r=pole[0],
-        pole_z=pole[1],
-        order=int(meta.get("order", 3)),
-        ridge=float(meta.get("ridge", 1e-8)),
-        kind=str(meta.get("kind", "P")),
-    )
-    sr, sz, sang, is_flux = sensor_arrays(table)
-    a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
-    coeffs, _sel = fit_harmonic_adaptive(
-        a_sens, p.measured, p.vacuum, p.mask, p.scale,
-        order_max=int(meta.get("order", 3)), mode=adaptive, ridge=cfg.ridge,
-    )
-    rr, zz = np.meshgrid(grid.rg, grid.zg)
-    cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
-    psi_tot = (cols @ coeffs).reshape(grid.nz, grid.nr) + grid.coil_psi(p.i_pf).reshape(
-        grid.nz, grid.nr
-    )
-    mask_r, _ = _adaptive_radii(origin, pole, _RadiiArgs())
-    field = mask_invalid_interior(
-        psi_tot, grid.rg, grid.zg, pole[0], pole[1], mask_r, axis_rz=origin
-    )
-    lc = lcfs_contour(
-        field, grid.rg, grid.zg, origin,
-        limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
-        clip_legs=True,
-    )
-    return lc.ring if lc.found else None
+    read = _harmonic_read_for_slice(p, grid, table, basis, meta or {})
+    if read is None:
+        return None
+    return read[6]  # the final two-pass LCFS ring
 
 
 def _pushout_lcfs_ring(psi, grid, axis):
@@ -176,11 +138,9 @@ def main() -> int:
                 reseed_axis_r_max=1.4,
                 keep_psi=True,
             )
-            # §2 TH read boundary: frozen full-order (dashed green, can overfit
-            # small plasmas) vs adaptive symmetry-aware term selection (solid
-            # green, the overfit-guarded read)
-            th_ring = _th_lcfs_ring(p, grid, table, basis, meta, adaptive="terms")
-            th_ring_fixed = _th_lcfs_ring(p, grid, table, basis, meta, adaptive="fixed")
+            # §2 two-pass source-free TH read boundary (green): moderate order +
+            # graded ridge, origin re-sited on the LCFS centroid, ψ_N=1 leg-clip
+            th_ring = _th_lcfs_ring(p, grid, table, basis, meta)
             base = fit_and_read_slice(grid, table, p, **common)
             anc = fit_and_read_slice(
                 grid,
@@ -213,16 +173,10 @@ def main() -> int:
                     show_flux_loops=False,
                 )
                 ax0 = np.atleast_1d(_ax).ravel()[0]
-                if th_ring_fixed is not None:
-                    ax0.plot(
-                        th_ring_fixed[:, 0], th_ring_fixed[:, 1], "--",
-                        color="#7fbf7f", lw=1.3, label="§2 TH (frozen order)",
-                        zorder=5,
-                    )
                 if th_ring is not None:
                     ax0.plot(
                         th_ring[:, 0], th_ring[:, 1], "-", color="#1b9e2f",
-                        lw=2.0, label="§2 TH (adaptive terms)", zorder=6,
+                        lw=2.0, label="§2 TH (two-pass)", zorder=6,
                     )
                 ax0.legend(fontsize=6, loc="upper right")
                 fig.suptitle(f"{shot} t={p.time_s:.3f}s ({kind}) — {tag}", fontsize=9)

@@ -147,76 +147,113 @@ def load_frozen_lookup(path: str):
     return lookup, frozen.get("meta", {})
 
 
-def _harmonic_read_for_slice(payload, grid, table, basis, meta, adaptive="fixed"):
-    """The §2 source-free harmonic read for one slice, using the FROZEN config.
+def _read_harmonic_at_origin(
+    payload, grid, table, sensors, origin, *, frac, order, ridge, sobolev_p
+):
+    """One source-free harmonic read at a GIVEN ray-cast origin.
 
-    Recomputes the read inline (Ip-anchored moment centroid → per-slice pole →
-    source-free harmonic fit to this slice's own raw magnetics) with the config
-    frozen on train (``meta``: order / ridge / kind / pole-inboard fraction).
-    Cohort-independent (no (shot, t_index) cache matching) and leakage-free —
-    only the slice's magnetics + Ip enter, never EFIT.
-
-    ``adaptive`` selects the overfit guard: ``"fixed"`` (frozen full order),
-    ``"order"`` (scalar argmin-CV order), or ``"terms"`` (symmetry-aware forward-
-    CV term selection — keeps real elongation cos modes, drops noise-fitting
-    asymmetric ones).  Returns ``(cfg, coeffs, misfit, psi_tot, axis_psi,
-    boundary_psi)`` or None.
+    Places the pole inboard of ``origin`` by ``frac``, fits the plasma harmonic
+    (moderate ``order`` + graded Sobolev ridge ``sobolev_p`` — the field only
+    needs to carry the smooth O-point 'lump'; the X-point cusp is a level-set
+    feature of the KNOWN coil saddle extracted by the leg-clip reader), adds the
+    coil field, and reads the ψ_N=1 leg-clipped LCFS.  Returns
+    ``(cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, ring)`` or None.
     """
     from boundary_harmonic_gate_eval import (  # noqa: PLC0415
         _adaptive_radii,
         hybrid_target_harmonic,
-        sensor_arrays,
     )
 
     from imas_ambix.latent.boundary_harmonic import (  # noqa: PLC0415
         HarmonicFitConfig,
         _fit_one,
-        fit_harmonic_adaptive,
         harmonic_columns,
+        harmonic_mode_penalty,
         harmonic_sensor_matrix,
     )
+    from imas_ambix.latent.topology import lcfs_contour  # noqa: PLC0415
+
+    sr, sz, sang, is_flux = sensors
+    pole = (origin[0] * (1.0 - frac), origin[1])
+    cfg = HarmonicFitConfig(
+        pole_r=pole[0],
+        pole_z=pole[1],
+        order=int(order),
+        ridge=float(ridge),
+        sobolev_p=float(sobolev_p),
+    )
+    a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
+    pen = harmonic_mode_penalty(cfg.order, sobolev_p) if sobolev_p > 0 else None
+    coeffs, misfit, _ = _fit_one(
+        a_sens, payload.measured, payload.vacuum, payload.mask, payload.scale,
+        cfg.ridge, mode_penalty=pen,
+    )
+    rr, zz = np.meshgrid(grid.rg, grid.zg)
+    cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
+    psi_tot = (cols @ coeffs).reshape(grid.nz, grid.nr) + grid.coil_psi(
+        payload.i_pf
+    ).reshape(grid.nz, grid.nr)
+    mask_r, excl_r = _adaptive_radii(origin, pole, _RadiiArgs())
+    _t, axis_psi, boundary_psi, field, _d = hybrid_target_harmonic(
+        psi_tot, grid, origin, pole, mask_r, excl_r, clip_legs=True
+    )
+    lc = lcfs_contour(
+        field, grid.rg, grid.zg, origin, clip_legs=True,
+        limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
+    )
+    ring = lc.ring if lc.found else None
+    return cfg, coeffs, float(misfit), psi_tot, float(axis_psi), float(boundary_psi), ring
+
+
+def _harmonic_read_for_slice(
+    payload, grid, table, basis, meta, *, order1=2, sobolev_p=1.0, repass_frac=0.05
+):
+    """Two-pass source-free harmonic read for one slice (leakage-free, EFIT-off).
+
+    The ray-cast origin is the most sensitive input: the Ip-weighted moment
+    centroid ≠ the geometric plasma center for small / moving plasmas, so a
+    mis-sited origin skews the whole expansion.  PASS 1 uses a REDUCED order
+    (``order1`` — fast, just enough to place the centroid); the LCFS geometric
+    centroid it returns re-sites the origin.  PASS 2 refits at the MODERATE
+    frozen ``order`` + light graded Sobolev ridge (``sobolev_p``) at the
+    re-sited origin.  Pass 2 only fires when the centroid moved more than
+    ``repass_frac`` of the plasma minor radius (well-centred flat-tops pay ~0).
+    Returns ``(cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi)`` or None.
+    """
+    from boundary_harmonic_gate_eval import sensor_arrays  # noqa: PLC0415
     from imas_ambix.latent.boundary_moment import (  # noqa: PLC0415
         MomentFitConfig,
         fit_moment_currents,
     )
 
     frac = float(meta.get("pole_inboard_fraction", 0.41))
+    order2 = int(meta.get("order", 3))
+    ridge = float(meta.get("ridge", 1e-8))
+    sensors = sensor_arrays(table)
     mom = fit_moment_currents(basis, payload, MomentFitConfig(order=3))
     origin = (float(mom.centroid_r), float(mom.centroid_z))
-    pole = (origin[0] * (1.0 - frac), origin[1])
-    cfg = HarmonicFitConfig(
-        pole_r=pole[0],
-        pole_z=pole[1],
-        order=int(meta.get("order", 3)),
-        ridge=float(meta.get("ridge", 1e-8)),
-        kind=str(meta.get("kind", "P")),
+
+    # pass 1: reduced order, moment-centroid origin — just locate the LCFS centre
+    p1 = _read_harmonic_at_origin(
+        payload, grid, table, sensors, origin,
+        frac=frac, order=min(order1, order2), ridge=ridge, sobolev_p=0.0,
     )
-    sr, sz, sang, is_flux = sensor_arrays(table)
-    a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
-    if adaptive in ("terms", "order"):
-        coeffs, _sel = fit_harmonic_adaptive(
-            a_sens, payload.measured, payload.vacuum, payload.mask, payload.scale,
-            order_max=int(meta.get("order", 3)), mode=adaptive, ridge=cfg.ridge,
-        )
-        pred = payload.vacuum + a_sens @ coeffs
-        w = 1.0 / np.maximum(payload.scale, 1e-12)
-        m = np.asarray(payload.mask, bool) & np.isfinite(payload.measured)
-        misfit = float(np.mean((((pred - payload.measured) * w)[m]) ** 2))
-    else:
-        coeffs, misfit, _ = _fit_one(
-            a_sens, payload.measured, payload.vacuum, payload.mask, payload.scale,
-            cfg.ridge,
-        )
-    rr, zz = np.meshgrid(grid.rg, grid.zg)
-    cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
-    psi_plasma = (cols @ coeffs).reshape(grid.nz, grid.nr)
-    psi_coil = grid.coil_psi(payload.i_pf).reshape(grid.nz, grid.nr)
-    psi_tot = psi_plasma + psi_coil
-    mask_r, excl_r = _adaptive_radii(origin, pole, _RadiiArgs())
-    _t, axis_psi, boundary_psi, _f, _d = hybrid_target_harmonic(
-        psi_tot, grid, origin, pole, mask_r, excl_r
+    if p1 is not None and p1[6] is not None and p1[6].shape[0] >= 6:
+        ring = p1[6]
+        cx, cz = float(ring[:, 0].mean()), float(ring[:, 1].mean())
+        minor = float(np.hypot(ring[:, 0] - cx, ring[:, 1] - cz).mean())
+        if np.hypot(cx - origin[0], cz - origin[1]) > repass_frac * max(minor, 1e-3):
+            origin = (cx, cz)  # re-site on the LCFS geometric centroid
+
+    # pass 2: moderate order + light graded ridge at the (re-sited) origin
+    p2 = _read_harmonic_at_origin(
+        payload, grid, table, sensors, origin,
+        frac=frac, order=order2, ridge=ridge, sobolev_p=sobolev_p,
     )
-    return cfg, coeffs, float(misfit), psi_tot, float(axis_psi), float(boundary_psi)
+    if p2 is None:
+        return None
+    cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, ring = p2
+    return cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, ring
 
 
 def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
@@ -242,7 +279,7 @@ def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
     if weight > 0.0 and basis is not None:
         read = _harmonic_read_for_slice(payload, grid, table, basis, meta or {})
         if read is not None:
-            cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi = read
+            cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, _ring = read
             ann_idx = annulus_point_set(
                 grid,
                 psi_carrier=psi_tot,
