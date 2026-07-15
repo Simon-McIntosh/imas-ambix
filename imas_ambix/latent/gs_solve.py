@@ -340,59 +340,39 @@ class EquilibriumGrid:
         self._sensor_greens_cache = (g, channels)
         return g, channels
 
-    def plasma_green_grid(self) -> np.ndarray:
-        """(n_flat, n_cells) discrete plasma Green's matrix: total-flux ψ [Wb] at
-        every grid point per unit cell current [A].
+    def plasma_greens_cells(self) -> dict:
+        """Analytic thick-cylinder Green's matrices, in-limiter cell → in-limiter
+        grid point, for the annulus soft-prior penalty.
 
-        Built by applying the SAME FD Dirichlet solve the Picard sweep uses
-        (interior source Δ*Φ = −2π μ0 R jφ, edge BC = ``g_edge @ i_cell``) to each
-        cell's unit current, so ``plasma_green_grid() @ i_cell`` reproduces the
-        sweep's plasma ψ EXACTLY — the annulus soft-prior penalty is then linear in
-        the per-cell current (hence in the profile coefficients) with the solve's
-        own domain-boundary behaviour, not a free-space Green's approximation.
-        Cached (pure geometry); one triangular solve per in-limiter cell.
+        Returns ``{"cells", "psi", "br", "bz"}`` where ``psi``/``br``/``bz`` are
+        ``(n_cells, n_cells)`` per-ampere total-flux ψ [Wb] and poloidal field
+        [T] evaluated at every in-limiter grid point (rows, ``== self.cells``
+        order) from a unit current in each in-limiter cell (columns, same order).
+        ALL THREE come straight from :func:`hybrid_greens` (the finite-area
+        cylinder Biot–Savart kernel that also feeds ``g_edge`` and
+        ``sensor_greens``) — ψ AND its field are analytic, so the grad-ψ annulus
+        penalty needs NO finite differences and the matrices match the §2
+        annulus-consistency metric's own analytic carrier ψ.  The annulus point
+        set is always a subset of ``self.cells``, so a slice indexes annulus rows
+        directly.  Cached (pure geometry).
         """
-        cached = getattr(self, "_plasma_green_grid_cache", None)
+        cached = getattr(self, "_plasma_greens_cells_cache", None)
         if cached is not None:
             return cached
-        cell_area = self.dr * self.dz
-        n = self.flat_r.size
-        g = np.empty((n, self.cells.size), dtype=np.float64)
-        for k, c in enumerate(self.cells):
-            rhs2d = np.zeros((self.nz, self.nr))
-            # unit i_cell at c ⇒ jφ = 1/cell_area at c ⇒ interior source there
-            rhs2d.ravel()[c] = -(2.0 * np.pi * MU0) * self.flat_r[c] / cell_area
-            psi_b2d = np.zeros((self.nz, self.nr))
-            psi_b2d.ravel()[self.edge_idx] = self.g_edge[:, k]
-            g[:, k] = self.solve_dirichlet(rhs2d, psi_b2d).ravel()
-        self._plasma_green_grid_cache = g
-        return g
-
-    def plasma_bfield_green_grid(self) -> tuple[np.ndarray, np.ndarray]:
-        """``(G_BR, G_BZ)`` poloidal-field Green's matrices ``(n_flat, n_cells)``.
-
-        Central differences of :meth:`plasma_green_grid`'s ψ columns in the
-        total-flux convention ``B_R = −(1/2πR) ∂Φ/∂Z``, ``B_Z = +(1/2πR) ∂Φ/∂R``.
-        Edge rows use one-sided differences (never read by the annulus penalty,
-        which lives strictly inside the limiter).  The gauge-free field the
-        grad-ψ annulus penalty matches.  Cached.
-        """
-        cached = getattr(self, "_plasma_bfield_green_cache", None)
-        if cached is not None:
-            return cached
-        g = self.plasma_green_grid()
-        ncell = g.shape[1]
-        g3 = g.reshape(self.nz, self.nr, ncell)
-        dpsi_dz = np.gradient(g3, self.dz, axis=0)
-        dpsi_dr = np.gradient(g3, self.dr, axis=1)
-        # central differences on the interior to match the penalty's stencil
-        dpsi_dz[1:-1, :, :] = (g3[2:, :, :] - g3[:-2, :, :]) / (2.0 * self.dz)
-        dpsi_dr[:, 1:-1, :] = (g3[:, 2:, :] - g3[:, :-2, :]) / (2.0 * self.dr)
-        r_col = np.maximum(self.mesh_r[:, :, None], 1e-9)
-        g_br = (-dpsi_dz / (2.0 * np.pi * r_col)).reshape(-1, ncell)
-        g_bz = (dpsi_dr / (2.0 * np.pi * r_col)).reshape(-1, ncell)
-        self._plasma_bfield_green_cache = (g_br, g_bz)
-        return g_br, g_bz
+        cr = self.flat_r[self.cells]
+        cz = self.flat_z[self.cells]
+        n = self.cells.size
+        gpsi = np.empty((n, n), dtype=np.float64)
+        gbr = np.empty((n, n), dtype=np.float64)
+        gbz = np.empty((n, n), dtype=np.float64)
+        for j, c in enumerate(self.cells):
+            psi, br, bz = hybrid_greens(
+                cr, cz, float(self.flat_r[c]), float(self.flat_z[c]), self.dr, self.dz
+            )
+            gpsi[:, j], gbr[:, j], gbz[:, j] = psi, br, bz
+        out = {"cells": self.cells, "psi": gpsi, "br": gbr, "bz": gbz}
+        self._plasma_greens_cells_cache = out
+        return out
 
 
 def _read_axis(
