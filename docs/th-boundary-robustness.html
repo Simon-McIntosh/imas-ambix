@@ -233,7 +233,90 @@
       </figcaption>
     </figure>
 
-    <h2 id="s8">§8 — Open decisions</h2>
+    <h2 id="s8">§8 — Pole at the current centre (tested)</h2>
+    <p>
+      The off-centre pole is the visible cause of the <em>asymmetry</em> — the flux
+      contours are centred on the pole (R&asymp;0.31), not on the current centre
+      (R&asymp;0.53), so the boundary is lopsided (inboard hook + outboard bean). The
+      natural hypothesis is: place the focal ring <strong>coincident with the current
+      centre</strong> and, with enough order, recover the boundary. We tested it
+      directly on 12143.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/pole-at-centre-order-sweep.png"
+           alt="12143 pole at current centre, order 3/5/7/9: misfit falls but boundary becomes multi-petal"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        12143 with the pole AT the current centre, order 3&rarr;9. Centring removes the
+        asymmetry (the hook/bean is gone) and the misfit falls monotonically
+        (1.85&rarr;1.10) — a genuinely better fit than the off-centre pole. But the
+        boundary becomes a symmetric <strong>multi-petal flower</strong>: the added
+        angular harmonics overfit the poorly-conditioned sensors. Lower misfit, worse
+        boundary — sensor misfit is not a boundary-quality proxy.
+      </figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/pole-at-centre-ridge-sweep.png"
+           alt="12143 pole at centre, order 7, ridge 1e-3 to 1e7: petals to bean to blob, no clean D"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Pole at centre, order 7, graded ridge swept 1e-3 &rarr; 1e7. As regularization
+        rises the boundary goes petals (misfit 1.3) &rarr; a plausible-but-dented bean
+        (misfit 3.0) &rarr; small blob (misfit 14). There is <strong>no setting that is
+        both well-fit and a clean D</strong> — fit and shape trade off with no sweet
+        spot. This confirms the 12143 ceiling is intrinsic conditioning, not pole
+        placement: the sensors simply do not constrain a clean boundary for this slice.
+      </figcaption>
+    </figure>
+    <p>
+      Verdict: centring the pole (your asymmetry diagnosis) is correct and improves the
+      fit, but it does not recover 12143 — the slice is genuinely ill-posed for a
+      single-focal-ring source-free read at any order or regularization.
+    </p>
+
+    <h2 id="s9">§9 — Basis choice: toroidal vs spherical vs combined</h2>
+    <p>
+      MAST is a low-aspect-ratio spherical tokamak (R&#8320;/a &asymp; 1.3): the plasma
+      is a fat, nearly-round blob that barely has the central "hole" a single toroidal
+      focal-ring expansion assumes. So the question is whether toroidal harmonics are
+      the right basis here.
+    </p>
+    <ul>
+      <li><strong>Spherical harmonics are the wrong operator.</strong> They solve
+        Laplace's equation <code>&nabla;&sup2;&psi;=0</code>. The source-free field must
+        solve the Grad&ndash;Shafranov operator
+        <code>&Delta;*&psi; = &psi;<sub>RR</sub> &minus; (1/R)&psi;<sub>R</sub> +
+        &psi;<sub>ZZ</sub> = 0</code> — note the <strong>minus</strong>
+        (1/R)&psi;<sub>R</sub>, opposite in sign to the Laplacian's
+        +(1/R)&psi;<sub>R</sub>. Plain spherical harmonics are not &Delta;*-harmonic and
+        would violate the source-free premise. The toroidal harmonics are correct
+        precisely because their &radic;(cosh&nbsp;&eta;&minus;cos&nbsp;&theta;) prefactor
+        &times; half-integer Legendre functions <em>does</em> solve &Delta;*=0.</li>
+      <li><strong>The valid concern stands.</strong> A single focal ring is a poor
+        expansion centre for a fat ST; it conditions badly there (this whole document).
+      </li>
+      <li><strong>Correct alternatives (all &Delta;*-harmonic):</strong>
+        <ol>
+          <li>The <em>polynomial / moment</em> homogeneous-GS basis expanded about the
+            plasma centre — this project already ships it as the <strong>moment
+            read</strong>, which beat TH on the X-point set (while losing on LCFS). It
+            centres naturally on the blob rather than a focal ring.</li>
+          <li>Multi-pole TH (&sect;6) — better annulus fit, but interior contour wraps
+            each pole.</li>
+          <li><strong>A combined basis (recommended to test).</strong> Because both TH
+            and the polynomial/moment solutions are &Delta;*-harmonic, their sum is too
+            — stack both in one design matrix and fit jointly. The low-order polynomial
+            part carries the smooth centred blob (where the focal ring struggles); the
+            TH ring functions carry the annulus/edge (where they are best-in-class). It
+            is mathematically valid; the only risk is <strong>conditioning</strong> (the
+            bases overlap at low order &rarr; near-redundant matrix), handled by ridge /
+            SVD truncation. This is the natural next experiment for the poorly-conditioned
+            regime.</li>
+        </ol>
+      </li>
+    </ul>
+
+    <h2 id="s10">§10 — Open decisions</h2>
     <p>
       The well-conditioned majority is fixed. The remaining choice is how the closure
       pipeline treats poorly-conditioned slices like 12143 ramp-up. Options, for an
@@ -252,11 +335,17 @@
         read (§6) as a strictly-better <em>annulus</em> field model for the soft-prior
         anchor (which samples annulus &psi;/&nabla;&psi;, where multi-pole wins), while
         never using it for an interior contour. Larger change; needs a re-gate.</li>
+      <li><strong>Combined homogeneous-GS basis (§9).</strong> Fit a joint
+        polynomial/moment + TH basis (both &Delta;*-harmonic) with conditioning control,
+        so the centred polynomial part carries the ST blob and TH carries the edge. The
+        most physically-motivated route for the poorly-conditioned regime; largest
+        change, needs a prototype then a re-gate.</li>
     </ol>
     <p>
       The full §2+§3 re-gate remains held until this decision is made — the
       well-conditioned boundary is now robust, so the re-gate is unblocked for options
-      1 and 2; option 3 would precede it with a prior-model change.
+      1 and 2; options 3 and 4 would precede it with a prior-model change (option 4 is
+      the recommended experiment to try first).
     </p>
 
   </main>
