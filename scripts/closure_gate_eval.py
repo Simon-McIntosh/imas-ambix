@@ -717,7 +717,11 @@ def run_gate(args) -> int:
         "passive_k": args.passive_k,
         "passive_ridge": args.passive_ridge,
         "maxfev": args.maxfev,
-        "reseed_axis_r_max": args.reseed_axis_r,
+        "reseed_axis_r_max": (
+            args.reseed_axis_r
+            if (args.reseed_axis_r is not None and args.reseed_axis_r > 0)
+            else None
+        ),
     }
     # soft-prior config (the §3 ablation ladder): the annulus boundary anchor,
     # the soft SOL edge, the q≥1 sawtooth clamp, and the Ip-soft prior.  The
