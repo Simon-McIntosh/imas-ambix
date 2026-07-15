@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-15">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="8">
 </head>
 <body>
 <main class="plan-doc">
@@ -727,6 +727,43 @@ Done-when
      tf_current helper if exposed). Verify the bound magnitude ~1e6 A/m2 on a real slice.
   3. Ablation scored held-out with paired-bootstrap CIs (A2 vs anchor-only A1, per f-ebc-05);
      verdict recorded; plan updated same-turn; this followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-1784110800" data-status="open" data-tier="opus" data-written-by="moment-priors worker" data-written-at="2026-07-15" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">orchestrator: wire moment/pressure priors into gs_solve + record Te data-gate</h4>
+    <div class="r-fu-body"><p>The global-moment soft-prior module is landed: <code>imas_ambix/latent/moment_priors.py</code> (pure numpy, 16 synthetic tests green, commit d424c9a; <code>tests/latent/test_gs_solve.py</code> still green). It assembles covariance-weighted LSQ ROWS on the solve's existing variable vector <code>x = [coeffs(k_dof), a_pass(kp)]</code>, the same pattern as the Ip hard KKT / smoothness Gram.</p><p><strong>API.</strong> (1) <code>ip_soft_prior_row(a_anchor, ip_amperes, *, sigma_rel, k_dof, kp) -&gt; (row, rhs)</code> — the whitened soft form of the hard Rogowski KKT (weight 1/(sigma_rel*|Ip|)); DEFAULT stays hard KKT, this is the opt-in soft form; reproduces the hard anchor as sigma_rel-&gt;0 (tested). (2) <code>beta_p_li_over_2(psi2d, jphi2d, rg, zg, *, axis, boundary_psi, r0, b_phi0, mu0) -&gt; float</code> — the FIREWALL-SAFE diamagnetic combination read off the equilibrium iterate's boundary-field cos-theta asymmetry (Shafranov; no pressure, no EFIT). <code>internal_inductance_li</code> (li(3), field-only, uniform-disc-&gt;0.5 tested) and <code>beta_poloidal</code> (REQUIRES pressure) are separate diagnostics. (3) <code>moment_consistency_rows(*, computed_moment_unit_sensitivity, target_moment, sigma, k_dof, kp) -&gt; (row, rhs)</code> pins a linear-in-coeffs moment (linearise beta_p+li/2 about the iterate; pass s = d(moment)/d(coeffs) and the shifted target). (4) <code>pressure_gradient_prior_rows(*, p_basis_slice, pprime_target, sigma, k_dof, kp) -&gt; (rows, rhs)</code> pulls ONLY the p'-family coeffs (cols 0..n_p-1) toward a target p'(psi_N) — the lever that BREAKS the p'/ff' degeneracy (proven on a synthetic degenerate system: split under-determined without, recovered to injected truth with). Targets: <code>density_pressure_proxy(n_e_line, psi_n_grid, *, shape, gamma, t_e_ref_ev)</code> = WEAK firewall-safe density-shape proxy (large sigma), and <code>kinetic_pressure_target(te, ne, psi_n)</code> = DATA-GATED (raises NotImplementedError with TE_DATA_GATE).</p><p><strong>Data-availability audit (firewall-safe vs data-gated).</strong> Confirmed against imas_ambix/latent/data.py + SlicePayload: the ONLY firewall-safe per-slice scalars are <strong>Ip (Rogowski)</strong> and <strong>n_e (line-averaged density)</strong> (data.ANCHORED_NAMES). ABSENT from the corpus: diamagnetic-loop flux (would give beta_p directly), Thomson Te(psi_N) (the temperature that separates p'/ff'), CXRS Ti/rotation. Consequence: beta_p+li/2 is recoverable from external magnetics (firewall-safe); FULL p'/ff' separation from an independent temperature is DATA-GATED — the density proxy is the only firewall-safe pressure lever and must carry a large covariance. The gate is recorded greppably in code as <code>moment_priors.TE_DATA_GATE</code>.</p><p><strong>Synthetic proof the pressure prior separates p'/ff'.</strong> <code>test_pressure_prior_separates_pprime_from_ffprime</code>: two near-collinear sensor columns (as at finite aspect, R/R0 ~ R0/R) with the independent component driven below the noise floor; data + Ip anchor fix the SUM but leave the split under-determined (|c_p err| &gt; 0.1); adding the p'-family pressure row recovers c_p to &lt;1e-2 and c_f to injected truth — err_with &lt; 0.1*err_without.</p><p><strong>Orchestrator to do:</strong> select soft vs hard Ip anchor per policy; each sweep compute a_anchor (already in the loop) and, if a beta_p+li/2 target exists, read the iterate's value via beta_p_li_over_2, linearise, and append moment_consistency_rows; for p'/ff' separation append pressure_gradient_prior_rows with p_basis_slice = the p'-family columns of profile_basis sampled on the psi_N grid and pprime_target from density_pressure_proxy (large sigma) until Thomson Te is added.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
+Section: §3 — orchestrator integration of the global-moment / pressure soft priors
+Tier:    opus
+
+Context
+  The moment-priors module imas_ambix/latent/moment_priors.py is landed and tested (commit
+  d424c9a, 16 synthetic tests green; test_gs_solve.py still green). Pure numpy, covariance-weighted
+  rows on x=[coeffs(k_dof), a_pass(kp)]. It provides the opt-in soft Ip anchor, the firewall-safe
+  beta_p+li/2 read (boundary-field asymmetry) + li(3)/beta_p diagnostics, a generic
+  moment-consistency row, and the pressure-gradient prior that breaks the p&#x27;/ff&#x27; degeneracy.
+
+State to read
+  imas_ambix/latent/moment_priors.py  (ip_soft_prior_row, beta_p_li_over_2, internal_inductance_li,
+    beta_poloidal, moment_consistency_rows, pressure_gradient_prior_rows, density_pressure_proxy,
+    kinetic_pressure_target, TE_DATA_GATE; module docstring carries the data audit + conventions)
+  imas_ambix/latent/gs_solve.py  (solve_equilibrium_lsq ~1162-1294: a_anchor/b_mat/KKT assembly,
+    u_n unit-coeff cell currents, profile_basis; _bounded_profile_lsq soft-anchor pattern ~931)
+  imas_ambix/latent/data.py  (ANCHORED_NAMES = ip, n_e — the firewall-safe scalars)
+
+Data-gate to record (honest negative)
+  Thomson Te(psi_N) is ABSENT from the corpus, so full p&#x27;/ff&#x27; separation from an independent
+  temperature is DATA-GATED. Wire n_e via density_pressure_proxy as the weak firewall-safe lever
+  (large sigma) and RECORD the Te gate (moment_priors.TE_DATA_GATE) in the plan.
+
+Done-when
+  1. Soft Ip anchor selectable per policy (default stays hard KKT); beta_p+li/2 consistency row
+     appended when a target exists (linearised about the iterate); pressure_gradient_prior_rows
+     appended with p_basis_slice = p&#x27;-family columns of profile_basis, pprime_target from
+     density_pressure_proxy (large sigma).
+  2. Ablation held-out with paired-bootstrap CIs: does the pressure prior improve interior fidelity
+     / resolve the p&#x27;/ff&#x27; split on real slices? Verdict (incl. honest negative) recorded.
+  3. Te data-gate recorded in the plan; plan updated same-turn; this followup resolved.</pre>
     </article>
 </section>
 

@@ -348,13 +348,19 @@ class EquilibriumGrid:
         ``(n_cells, n_cells)`` per-ampere total-flux ψ [Wb] and poloidal field
         [T] evaluated at every in-limiter grid point (rows, ``== self.cells``
         order) from a unit current in each in-limiter cell (columns, same order).
-        ALL THREE come straight from :func:`hybrid_greens` (the finite-area
-        cylinder Biot–Savart kernel that also feeds ``g_edge`` and
-        ``sensor_greens``) — ψ AND its field are analytic, so the grad-ψ annulus
-        penalty needs NO finite differences and the matrices match the §2
-        annulus-consistency metric's own analytic carrier ψ.  The annulus point
-        set is always a subset of ``self.cells``, so a slice indexes annulus rows
-        directly.  Cached (pure geometry).
+        ALL THREE come straight from the finite-area cylinder Biot–Savart kernel
+        (the double cross-section integral) — ψ AND its field are analytic, so the
+        grad-ψ annulus penalty needs NO finite differences and the matrices match
+        the §2 annulus-consistency metric's own analytic carrier ψ.  The default
+        near/far switch is kept deliberately: the annulus is the VACUUM region far
+        from every current cell, exactly where the finite-area correction is the
+        constant second-moment term (<0.2% in ψ, ~30× below the annulus
+        consistency-RMS noise floor).  Forcing the full cylinder form at every
+        distance was measured at ~3440 s vs ~6 s per grid (546×) for a <0.2%
+        change in the far field — pointless here, so the near-band full form +
+        far-field filament (identical to <0.2% wherever they differ) is used.
+        The annulus point set is always a subset of ``self.cells``, so a slice
+        indexes annulus rows directly.  Cached (pure geometry).
         """
         cached = getattr(self, "_plasma_greens_cells_cache", None)
         if cached is not None:
