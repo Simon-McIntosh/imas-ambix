@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-15">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 </head>
 <body>
 <main class="plan-doc">
@@ -660,6 +660,40 @@ Done-when
      them (honest negative recordable either way).
   4. Verdict recorded; plan updated same-turn; followup written + this one resolved.</pre>
     </article>
+<article class="r-fu" data-id="f-1784103512" data-status="open" data-tier="opus" data-written-by="boundary-prior worker" data-written-at="2026-07-15" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">orchestrator: wire annulus penalty rows into solve_equilibrium_lsq</h4>
+    <div class="r-fu-body"><p>The gauge-keeping annulus soft-prior penalty module is landed: <code>imas_ambix/latent/boundary_prior.py</code> (pure numpy, 11 synthetic tests green, commit e2e8c8e). It assembles weighted least-squares ROWS on the solve's existing variable vector <code>x = [coeffs(k_dof), a_pass(kp)]</code>, penalising interior-solve-vs-harmonic disagreement over the shared vacuum annulus. Both §3.4 gauge-keeping forms are built and selectable by a <code>form</code> argument, so Worker A's gauge measurement (done-when #0) picks which without a code change here.</p><p><strong>API.</strong> (1) <code>annulus_point_set(grid, *, psi_carrier, axis_psi, boundary_psi) -&gt; flat indices</code> — matches the gate's annulus_consistency_rms region exactly (inside limiter ∧ ~confined; sign = sign(axis−boundary)); caller passes the §2 read's FROZEN boundary/axis flux so the domain is fixed across the Picard loop. (2) <code>annulus_penalty_rows(*, form, psi_basis_ann, psi_pass_ann, psi_fixed_ann, psi_target_ann, grad_basis_ann=, grad_pass_ann=, grad_fixed_ann=, grad_target_ann=, k_dof, kp, weight, per_slice_uncertainty=None, robust_clip=None, gauge_offset=False) -&gt; (A_extra, b_extra)</code>. form=&quot;grad-psi&quot; matches ∇ψ (B_pol), gauge-independent, no offset column; form=&quot;abs-psi&quot; matches absolute ψ with ONE free rank-1 offset column g (gauge_offset=True) that absorbs only the inter-model DC nuisance, or offset pre-removed (gauge_offset=False, ablation control). Per-slice 1/σ whitening + Huber per-point robust_clip (median-centred, MAD-scaled) for the heavy-tailed consistency. Grad blocks stack R then Z into n_grad rows. (3) <code>harmonic_annulus_target(frozen_slice, grid, ann_idx, form)</code> evaluates the frozen harmonic ψ/∇ψ at annulus points via boundary_harmonic.harmonic_columns (arbitrary-point eval; grad by central-difference fallback until Worker A adds an analytic point-wise grad — it probes for <code>harmonic_grad_columns</code>). (4) <code>load_frozen_harmonic_prior</code> re-exported lazily from harmonic_prior_freeze.</p><p><strong>Tests prove:</strong> annulus set equals the gate region (exact set equality) and is sign-agnostic; grad-ψ rows are invariant to any absolute-ψ shift; abs-ψ + free offset leaves the achievable LSQ residual unchanged under a constant target shift (offset absorbs DC) while gauge_offset=False is shift-sensitive (control); both forms recover the exact coeffs when the basis can represent the target; robust_clip shrinks an injected outlier point to &lt;10% weight while bulk stays &gt;90%; robust weights are uniform-shift invariant; bad form raises.</p><p><strong>Orchestrator to do:</strong> build the cell→annulus Green's blocks (Gψ_ann_cells, GbR/GbZ_ann_cells analogous to g_edge) in EquilibriumGrid, form psi_basis_ann = Gψ_ann_cells @ u_n each sweep, append A_extra/b_extra beside b_mat (and add the offset column to x for abs-psi), and keep the Ip KKT row hard incl. the SOL band.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
+Section: §3 — orchestrator integration of the annulus soft-prior penalty
+Tier:    opus
+
+Context
+  The annulus penalty module imas_ambix/latent/boundary_prior.py is landed and tested (commit
+  e2e8c8e, 11 synthetic tests green). It assembles weighted LSQ rows on x=[coeffs(k_dof),
+  a_pass(kp)] penalising interior-solve-vs-harmonic annulus disagreement, in both §3.4
+  gauge-keeping forms (grad-psi / abs-psi + rank-1 free offset). Wire it into
+  solve_equilibrium_lsq&#x27;s Picard loop.
+
+State to read
+  imas_ambix/latent/boundary_prior.py  (annulus_point_set, annulus_penalty_rows,
+    harmonic_annulus_target, load_frozen_harmonic_prior; module docstring has the wiring recipe)
+  imas_ambix/latent/gs_solve.py  (EquilibriumGrid + g_edge; solve_equilibrium_lsq ~1162-1294:
+    b_mat/anchor/KKT assembly, the u_n unit-coeff cell currents, psi_pass, psi_coil)
+  imas_ambix/latent/boundary_harmonic.py  (harmonic_columns; add analytic harmonic_grad_columns
+    if grad-psi is chosen, else the FD fallback is used)
+  the frozen harmonic prior artifact under imas_ambix/latent/artifacts/patch_gate/
+
+Done-when
+  1. EquilibriumGrid builds cell-&gt;annulus total-flux (and B_R/B_Z) Green&#x27;s blocks analogous to
+     g_edge; solve_equilibrium_lsq forms psi_basis_ann = Gpsi_ann_cells @ u_n each sweep and
+     appends annulus_penalty_rows&#x27; A_extra/b_extra beside b_mat (offset column added to x for
+     abs-psi); Ip KKT row stays hard incl. the SOL band.
+  2. Penalty form chosen from Worker A&#x27;s gauge measurement (grad-psi if slice-random, abs-psi +
+     offset if systematic level bias).
+  3. Ablation ladder A0-A3 scored held-out with paired-bootstrap CIs; verdict recorded; plan
+     updated same-turn; this followup resolved.</pre>
+    </article>
 </section>
 
 <section data-reckon="research" id="research" class="r-research-list">
@@ -672,7 +706,7 @@ Done-when
     <div class="r-comment-body"><p><strong>Advisor review (2026-07-15):</strong> architecture and decision hygiene are strong; the plan was extended rather than corrected. Three implementation-critical gaps closed in §3.1–§3.3: (1) the harmonic prior is gauge-free — the ψ-consistency penalty must project out the per-slice constant or it fights an arbitrary offset; (2) §3 bundled anchor + soft SOL edge, but the soft edge alone has prior negative evidence — split into the A0–A3 ablation ladder with anchor-only fallback; (3) gates were unquantified — axis non-inferiority margin, LCFS bar vs the §2 read’s own −1.96, and the reseed-trigger-rate attractor metric are now explicit. Per-slice robust weighting (heavy-tailed consistency: median 0.066 vs mean ~4e4), a frozen per-slice harmonic-coefficient artifact, and the private-flux connectivity restriction are recorded as implementation notes.</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-ebc-adv-02" data-who="" data-when="">
-    <div class="r-comment-body"><p><strong>Correction &amp; gauge finding (2026-07-15, supersedes point (1) of the note above).</strong> The earlier claim that the harmonic prior is &#8220;gauge-free&#8221; is WRONG and is corrected in new &#167;3.4. Verified against the fit code: the harmonic basis has NO constant column (every column, incl. n=0 <code>h0</code>, is spatially varying &#8212; <code>boundary_harmonic.py:267-298</code>) and the 12 flux loops (of 81 channels) enter the fit as absolute-&#968; rows (<code>harmonic_sensor_matrix:323-342</code>), so the field IS absolutely gauged &#8212; the user&#8217;s point. The offset the consistency metric removes is a slice-dependent DC <em>disagreement between two independent reconstructions</em> on the weakly-pinned DC mode (69 gauge-blind B-probes dominate the objective), not a fundamental gauge freedom. Consequence: the &#167;3 penalty must KEEP the flux-loop gauge &#8212; match &#8711;&#968; (gauge-free, best-measured) OR absolute &#968; with ONE fitted rank-1 offset DOF &#8212; never the gate&#8217;s blind mean-projection, which discards the flux-loop DC information. Penalty form is decided by measuring the removed offset (magnitude + slice-random vs systematic); folded into f-ebc-05 done-when #0. Not a one-line fix (the penalty isn&#8217;t built yet), so it is a corrected plan spec, not a code change.</p></div>
+    <div class="r-comment-body"><p><strong>Correction &amp; gauge finding (2026-07-15, supersedes point (1) of the note above).</strong> The earlier claim that the harmonic prior is “gauge-free” is WRONG and is corrected in new §3.4. Verified against the fit code: the harmonic basis has NO constant column (every column, incl. n=0 <code>h0</code>, is spatially varying — <code>boundary_harmonic.py:267-298</code>) and the 12 flux loops (of 81 channels) enter the fit as absolute-ψ rows (<code>harmonic_sensor_matrix:323-342</code>), so the field IS absolutely gauged — the user’s point. The offset the consistency metric removes is a slice-dependent DC <em>disagreement between two independent reconstructions</em> on the weakly-pinned DC mode (69 gauge-blind B-probes dominate the objective), not a fundamental gauge freedom. Consequence: the §3 penalty must KEEP the flux-loop gauge — match ∇ψ (gauge-free, best-measured) OR absolute ψ with ONE fitted rank-1 offset DOF — never the gate’s blind mean-projection, which discards the flux-loop DC information. Penalty form is decided by measuring the removed offset (magnitude + slice-random vs systematic); folded into f-ebc-05 done-when #0. Not a one-line fix (the penalty isn’t built yet), so it is a corrected plan spec, not a code change.</p></div>
 </div>
 </section>
 </main>
