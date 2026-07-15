@@ -148,15 +148,21 @@ def load_frozen_lookup(path: str):
 
 
 def _read_harmonic_at_origin(
-    payload, grid, table, sensors, origin, *, frac, order, ridge, sobolev_p
+    payload, grid, table, sensors, origin, *, pole_ref, frac, order, ridge, sobolev_p
 ):
-    """One source-free harmonic read at a GIVEN ray-cast origin.
+    """One source-free harmonic read: pole at ``pole_ref``, ray-cast at ``origin``.
 
-    Places the pole inboard of ``origin`` by ``frac``, fits the plasma harmonic
-    (moderate ``order`` + graded Sobolev ridge ``sobolev_p`` — the field only
-    needs to carry the smooth O-point 'lump'; the X-point cusp is a level-set
-    feature of the KNOWN coil saddle extracted by the leg-clip reader), adds the
-    coil field, and reads the ψ_N=1 leg-clipped LCFS.  Returns
+    The focal ring is the plasma-CURRENT source, so the pole is placed inboard of
+    ``pole_ref`` (the current/moment centroid — physical and stable) by ``frac``,
+    NOT inboard of the ray-cast ``origin``.  Keeping the two separate lets the
+    ray-cast origin re-site to the LCFS centroid for small-plasma robustness while
+    the pole (and the near-pole invalid-interior mask that follows it) stays a
+    small central disk — so the mask never drifts onto the inboard/limited edge
+    and pinches the boundary ring.  Fits the plasma harmonic (moderate ``order`` +
+    graded Sobolev ridge ``sobolev_p`` — the field only needs to carry the smooth
+    O-point 'lump'; the X-point cusp is a level-set feature of the KNOWN coil
+    saddle extracted by the leg-clip reader), adds the coil field, and reads the
+    ψ_N=1 leg-clipped LCFS.  Returns
     ``(cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, ring)`` or None.
     """
     from boundary_harmonic_gate_eval import (  # noqa: PLC0415
@@ -174,7 +180,7 @@ def _read_harmonic_at_origin(
     from imas_ambix.latent.topology import lcfs_contour  # noqa: PLC0415
 
     sr, sz, sang, is_flux = sensors
-    pole = (origin[0] * (1.0 - frac), origin[1])
+    pole = (pole_ref[0] * (1.0 - frac), pole_ref[1])
     cfg = HarmonicFitConfig(
         pole_r=pole[0],
         pole_z=pole[1],
@@ -185,8 +191,13 @@ def _read_harmonic_at_origin(
     a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
     pen = harmonic_mode_penalty(cfg.order, sobolev_p) if sobolev_p > 0 else None
     coeffs, misfit, _ = _fit_one(
-        a_sens, payload.measured, payload.vacuum, payload.mask, payload.scale,
-        cfg.ridge, mode_penalty=pen,
+        a_sens,
+        payload.measured,
+        payload.vacuum,
+        payload.mask,
+        payload.scale,
+        cfg.ridge,
+        mode_penalty=pen,
     )
     rr, zz = np.meshgrid(grid.rg, grid.zg)
     cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
@@ -198,11 +209,24 @@ def _read_harmonic_at_origin(
         psi_tot, grid, origin, pole, mask_r, excl_r, clip_legs=True
     )
     lc = lcfs_contour(
-        field, grid.rg, grid.zg, origin, clip_legs=True,
-        limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
+        field,
+        grid.rg,
+        grid.zg,
+        origin,
+        clip_legs=True,
+        limiter_r=grid.limiter_r,
+        limiter_z=grid.limiter_z,
     )
     ring = lc.ring if lc.found else None
-    return cfg, coeffs, float(misfit), psi_tot, float(axis_psi), float(boundary_psi), ring
+    return (
+        cfg,
+        coeffs,
+        float(misfit),
+        psi_tot,
+        float(axis_psi),
+        float(boundary_psi),
+        ring,
+    )
 
 
 def _harmonic_read_for_slice(
@@ -232,27 +256,50 @@ def _harmonic_read_for_slice(
     ridge = float(meta.get("ridge", 1e-8))
     sensors = sensor_arrays(table)
     mom = fit_moment_currents(basis, payload, MomentFitConfig(order=3))
-    origin = (float(mom.centroid_r), float(mom.centroid_z))
+    # the current (moment) centroid anchors the POLE for BOTH passes — it is the
+    # physical plasma-current source location and is stable across the re-siting.
+    pole_ref = (float(mom.centroid_r), float(mom.centroid_z))
+    origin = pole_ref  # ray-cast origin; re-sited below, pole_ref does not move
 
     # pass 1: reduced order, moment-centroid origin — just locate the LCFS centre
     p1 = _read_harmonic_at_origin(
-        payload, grid, table, sensors, origin,
-        frac=frac, order=min(order1, order2), ridge=ridge, sobolev_p=0.0,
+        payload,
+        grid,
+        table,
+        sensors,
+        origin,
+        pole_ref=pole_ref,
+        frac=frac,
+        order=min(order1, order2),
+        ridge=ridge,
+        sobolev_p=0.0,
     )
     if p1 is not None and p1[6] is not None and p1[6].shape[0] >= 6:
         ring = p1[6]
         cx, cz = float(ring[:, 0].mean()), float(ring[:, 1].mean())
         minor = float(np.hypot(ring[:, 0] - cx, ring[:, 1] - cz).mean())
         if np.hypot(cx - origin[0], cz - origin[1]) > repass_frac * max(minor, 1e-3):
-            origin = (cx, cz)  # re-site on the LCFS geometric centroid
+            origin = (cx, cz)  # re-site the RAY-CAST on the LCFS geometric centroid
 
-    # pass 2: moderate order + light graded ridge at the (re-sited) origin
+    # pass 2: moderate order + light graded ridge at the (re-sited) ray-cast
+    # origin, but the pole stays at the current centroid (mask stays central)
     p2 = _read_harmonic_at_origin(
-        payload, grid, table, sensors, origin,
-        frac=frac, order=order2, ridge=ridge, sobolev_p=sobolev_p,
+        payload,
+        grid,
+        table,
+        sensors,
+        origin,
+        pole_ref=pole_ref,
+        frac=frac,
+        order=order2,
+        ridge=ridge,
+        sobolev_p=sobolev_p,
     )
-    if p2 is None:
-        return None
+    # a tiny plasma can have its LCFS swallowed by the (size-scaled) near-pole
+    # mask after re-siting; fall back to the un-re-sited pass-1 read rather than
+    # dropping the slice — a coarser valid boundary beats none for the soft prior
+    if p2 is None or p2[6] is None:
+        return p1 if (p1 is not None and p1[6] is not None) else None
     return p2  # (cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, ring)
 
 
