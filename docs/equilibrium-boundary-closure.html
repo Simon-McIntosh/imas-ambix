@@ -21,8 +21,8 @@
   <title>Decoupled Equilibrium Read | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-14">
-<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-07-15">
+<meta name="plan-version" content="4">
 </head>
 <body>
 <main class="plan-doc">
@@ -224,6 +224,126 @@
     near-edge field toward the source-free read where both are valid.</figcaption>
   </figure>
 
+  <h3 id="s3-evidence">§3.1 — Prior evidence: edge-current softening without an anchor fails</h3>
+  <p>The soft SOL edge is <em>not</em> a free win. On 2026-07-10 the patch-current arm swept every
+  edge-current treatment then available — sign priors (softplus / quadratic penalty), a support prior
+  penalising current outside the LCFS beyond a halo budget, support weights 20–8000, halo bands
+  0.03–0.05 — all in the <em>unanchored</em> solve. Every variant degraded LCFS skill vs the
+  hard-mask baseline (artifacts:
+  <code>imas_ambix/latent/artifacts/patch_gate/boundary_read_baseline-sign-*.json</code>):</p>
+  <table>
+    <thead><tr><th>arm (patch-current, unanchored)</th><th>LCFS skill, tune n=80</th><th>LCFS skill, eval n=160</th></tr></thead>
+    <tbody>
+      <tr><td>hard-mask baseline</td><td>−4.57</td><td>−4.91</td></tr>
+      <tr><td>sign softplus</td><td>−8.25</td><td>−9.84</td></tr>
+      <tr><td>sign penalty (sw 10 / 50)</td><td>−7.91 / −7.92</td><td>—</td></tr>
+      <tr><td>softplus + support, hb 0.03, sw 2000 (best of the sweep)</td><td>−5.59</td><td>−7.57</td></tr>
+      <tr><td>support only, hb 0.03, sw 2000</td><td>−5.83</td><td>−7.33</td></tr>
+    </tbody>
+  </table>
+  <p>Read correctly, this is evidence about the missing anchor, not about edge current per se: with
+  no external constraint on the near-edge field, freeing or reshaping edge current only adds
+  unconstrained DOF and the boundary drifts further. The §3 bet is that the annulus anchor changes
+  the sign of this result — but the bet must be tested <em>per ingredient</em>, not shipped as a
+  bundle. Hence the ablation ladder below, with anchor-only as the protected fallback.</p>
+
+  <h3 id="s3-ladder">§3.2 — Ablation ladder, tuning protocol, and quantified gates</h3>
+  <p><strong>Arms</strong> (each scored held-out with the shared geometry_target/score protocol;
+  skill = 1 − RMSE/RMSE(train-mean baseline), EFIT referee only):</p>
+  <ul>
+    <li><strong>A0 — winner-arm reproduction.</strong> Re-run the free-boundary closure winner-arm
+    unchanged to refresh the paired baseline on the current code.</li>
+    <li><strong>A1 — anchor only.</strong> Annulus ψ-consistency penalty added; hard
+    ψ<sub>N</sub>&lt;1 mask kept. This is the protected fallback: if A2 degrades, A1 ships.</li>
+    <li><strong>A2 — anchor + soft SOL edge.</strong> A1 plus the smooth current edge to soft
+    ψ<sub>N</sub>≈1.1 with a C¹ decay-foot closure (§3.3g). Run only against A1, never bundled past it.</li>
+    <li><strong>A3 — machinery-retirement test.</strong> Best of A1/A2 with the reseed lever OFF and
+    scout-certify bypassed; retire the machinery only if this arm matches the levered arm.</li>
+  </ul>
+  <p><strong>Tuning protocol.</strong> λ<sub>anchor</sub> swept in decades (with a fine local
+  refinement around the best decade) on the tune split (n=80), selection on LCFS skill subject to
+  axis non-inferiority; foot width w and the ψ<sub>N</sub> cap tuned the same way; all frozen, then
+  scored ONCE on eval (n=160). Report the full sweep curve (skill vs λ): a flat plateau means a
+  robust prior, a knife-edge means fragility — record either honestly.</p>
+  <p><strong>Gates</strong> (paired bootstrap CIs throughout):</p>
+  <ul>
+    <li><strong>Axis non-inferiority:</strong> Δaxis_skill (arm − A0) CI must not extend below a
+    −0.05 margin. The anchor must not buy boundary at the cost of the interior.</li>
+    <li><strong>LCFS:</strong> must beat A0's LCFS skill with the CI clear of zero. Reference bar:
+    the §2 read's own held-out −1.96 / 6.7 cm — the solve sees strictly more information than the
+    prior (sensors + force balance + the prior itself), so falling well short of the prior's own
+    skill means the coupling is mis-weighted; that outcome is diagnostic, not a tuning licence.</li>
+    <li><strong>Attractor:</strong> instrument the reseed-trigger rate (axis R beyond
+    reseed_axis_r_max with cost above the convergence limit) with the lever OFF, anchor on vs off.
+    Retire reseed/scout-certify only if the trigger rate collapses to ≈0 AND skill is unchanged
+    without them (A3). An honest negative — the anchor does not tame the fixed point — is recordable.</li>
+    <li><strong>Consistency (report, don't gate):</strong> the annulus RMS of the anchored solve —
+    now an optimised quantity, no longer a diagnostic — for continuity with the 0.068–0.089 record.</li>
+  </ul>
+
+  <h3 id="s3-impl">§3.3 — Implementation notes (for the shipping agent)</h3>
+  <ol type="a">
+    <li><strong>Gauge invariance (critical).</strong> The harmonic fit has no absolute flux gauge:
+    the gate's consistency metric removes a per-slice mean offset before scoring
+    (<code>consistency_rms</code>, <code>scripts/boundary_harmonic_gate_eval.py:124-144</code>).
+    The penalty must do the same — project the constant mode out of the annulus residual
+    (centre both ψ fields over the annulus point set before differencing), or match the field
+    (∇ψ) instead of ψ. A raw ψ-difference penalty fights an arbitrary offset and will corrupt
+    the solve.</li>
+    <li><strong>Like-for-like flux.</strong> The gate compares TOTAL flux (harmonic plasma + coil vs
+    carrier total). Use the same thick-cylinder coil term on both sides — equivalently cancel it and
+    compare plasma(+passive) ψ against the harmonic plasma ψ, offset-projected per (a). Evaluate the
+    harmonic side with <code>harmonic_psi_on_grid</code> / <code>harmonic_columns</code>
+    (<code>imas_ambix/latent/boundary_harmonic.py:446-459, 231-264</code>).</li>
+    <li><strong>Where the penalty rows go.</strong> <code>solve_equilibrium_lsq</code> assembles a
+    whitened least-squares per Picard sweep (<code>imas_ambix/latent/gs_solve.py:1162-1294</code>).
+    ψ at annulus points is LINEAR in the DOF (Green's ψ images of the basis columns,
+    <code>gs_solve.py:1212-1228</code>, plus passive <code>psi_cols</code> and the fixed
+    coil/vacuum term), so the anchor enters as extra weighted rows beside the magnetics block
+    <code>b_mat</code> (<code>gs_solve.py:1229-1235</code>) — or into the regulariser block
+    <code>s_full</code> (<code>gs_solve.py:1257-1261</code>) in Gram form — and as an extra
+    <code>rows.append</code> in <code>_bounded_profile_lsq</code>
+    (<code>gs_solve.py:917-934</code>) for the nonneg path. The Ip KKT equality row
+    (<code>gs_solve.py:1241, 1264-1270</code>) stays hard and must INCLUDE the SOL-band current —
+    the per-sweep rescale (<code>gs_solve.py:1163-1166, 1299-1302</code>) already sums all
+    filaments.</li>
+    <li><strong>Annulus point set — fixed per slice.</strong> Take the gate's annulus definition
+    (inside limiter ∧ outside the confined region,
+    <code>boundary_harmonic_gate_eval.py:147-166</code>) but define the confined region from the
+    §2 read's OWN boundary flux, frozen per slice — never from the solve's evolving boundary —
+    so the penalty domain does not move inside the Picard loop.</li>
+    <li><strong>Per-slice robust weighting.</strong> <code>fit_harmonic</code> exposes per-slice
+    <code>misfit</code> and <code>coeff_cov</code>
+    (<code>imas_ambix/latent/boundary_harmonic.py:348-407</code>) which the gate currently
+    discards. Weight the penalty per slice by the read's own uncertainty and/or robust-clip the
+    residual: per-slice consistency has heavy tails (median 0.066 vs mean ~4·10⁴ on one recorded
+    config), so a single global weight on raw RMS will let outlier slices dominate.</li>
+    <li><strong>Frozen prior artifact.</strong> No per-slice harmonic-coefficient cache exists (the
+    gate persists scalar results only). Land one — coeffs, labels, cfg, misfit, coeff_cov per slice
+    (NPZ/JSON per split) under <code>imas_ambix/latent/artifacts/patch_gate/</code> — so the
+    interior solve loads a FROZEN prior instead of refitting, and in-flight jobs are pinned against
+    editable-install drift.</li>
+    <li><strong>Support-mask and closure-foot redesign.</strong> Today current support is the
+    axis-connected component of ψ<sub>N</sub>&lt;1 with basis images zeroed outside
+    (<code>gs_solve.py:1193-1198, 1221</code>; also <code>:74, :549, :859</code>), and
+    ψ<sub>N</sub> = (ψ−ψ<sub>axis</sub>)/(ψ<sub>bnd</sub>−ψ<sub>axis</sub>) with ψ<sub>bnd</sub>
+    from the X-point/limiter read (<code>_read_boundary_psi</code>, <code>gs_solve.py:362</code>).
+    For A2: extend the connected-support cap to ψ<sub>N</sub>&lt;≈1.1 (still axis-connected, inside
+    limiter) and replace the closure past the separatrix — the
+    <code>(1−ψ_N)^α</code> / <code>(1−ψ_N)^{e_k}</code> forms
+    (<code>gs_solve.py:61-74, 827-885</code>) go negative or complex for ψ<sub>N</sub>&gt;1 — with a
+    value-and-slope-matched decay foot, e.g. j(ψ<sub>N</sub>&gt;1) = j(1⁻)·exp(−(ψ<sub>N</sub>−1)/w),
+    dimensionless w tuned on train (start w ≈ 0.03–0.05 by analogy with the halo-budget scan).
+    All parameters dimensionless / geometry-scaled — never metres.</li>
+    <li><strong>SOL-band connectivity.</strong> ψ<sub>N</sub>&gt;1 also holds in the private-flux
+    region below an X-point. Restrict the SOL band to the connectivity component adjacent to the
+    LCFS (common flux region), not to all ψ<sub>N</sub>∈(1, 1.1).</li>
+    <li><strong>Scoring and instrumentation reuse.</strong> Score through the shared
+    geometry_target/score protocol (train-mean baseline). Reuse
+    <code>scripts/closure_gate_eval.py</code>'s ladder arm and its reseed-lever block (~313–361)
+    as the attractor instrument: the trigger condition is already the metric §3.2 gates on.</li>
+  </ol>
+
   <h2 id="s4">§4 — Endgame: a learned, machine-agnostic equilibrium operator (the GenCast analogy)</h2>
   <p>The physics-backed reads of §2–§3 are the baseline and the inductive bias, not the destination.
   The destination is one learned operator — raw sensors + coil/wall geometry (positional encoding)
@@ -262,7 +382,10 @@
     dissolve the outboard attractor.</li>
     <li><strong>Gate — §3 soft-prior solve:</strong> re-gate axis + interior flux + the emergent LCFS
     held-out with CIs vs the free-boundary winner-arm; report whether the soft anchor removes the
-    attractor (so reseed/scout retire as a consequence). EFIT-firewalled.</li>
+    attractor (so reseed/scout retire as a consequence). EFIT-firewalled. Quantified thresholds,
+    the A0–A3 ablation ladder, and the tuning protocol are in §3.2; implementation detail for the
+    shipping agent in §3.3; the anchor is the load-bearing ingredient — the soft edge alone has
+    prior NEGATIVE evidence (§3.1) and A1 (anchor-only) is the protected fallback.</li>
     <li><strong>Gate — the learned operator</strong> must beat the classical annulus baseline
     held-out and transfer to a machine held out of training, EFIT-firewalled.</li>
     <li><strong>Firewall (binding):</strong> EFIT output is referee/scoring only — never an input,
@@ -274,10 +397,10 @@
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="boundary-route" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="boundary-route" data-choice="source-free-harmonic" data-by="Simon McIntosh" data-when="2026-07-15 03:48">
     <p class="r-dec-q">How is the plasma boundary reconstructed?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="source-free-harmonic">source-free toroidal-harmonic annulus read from raw external magnetics + Ip + li — machine-agnostic, EFIT-firewalled, decoupled from the interior (recommended; lock when the annulus read posts held-out skill)</button>
+      <button class="r-opt chosen" data-value="source-free-harmonic">source-free toroidal-harmonic annulus read from raw external magnetics + Ip + li — machine-agnostic, EFIT-firewalled, decoupled from the interior (recommended; lock when the annulus read posts held-out skill)</button>
       <button class="r-opt" data-value="free-boundary-gs">free-boundary GS fixed point (the retired approach — couples boundary to interior, the EFIT-rebuild)</button>
       <button class="r-opt" data-value="efit-input">take the boundary from EFIT (rejected — breaks the firewall / re-learns EFIT)</button>
       </p>
@@ -473,6 +596,16 @@ Done-when
     </article>
 </section>
 
+<section data-reckon="research" id="research" class="r-research-list">
+<h2><span class="sec">§</span> Research</h2>
+<div class="r-research" data-id="r-ebc-01" data-type="" data-source="" data-added-by="" data-when="">
+    <span class="r-research-title">Unanchored edge-current softening degrades LCFS (2026-07-10 patch-arm sweeps)</span></div>
+</section>
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="_top" data-id="c-ebc-adv-01" data-who="" data-when="">
+    <div class="r-comment-body"><p><strong>Advisor review (2026-07-15):</strong> architecture and decision hygiene are strong; the plan was extended rather than corrected. Three implementation-critical gaps closed in &#167;3.1&#8211;&#167;3.3: (1) the harmonic prior is gauge-free &#8212; the &#968;-consistency penalty must project out the per-slice constant or it fights an arbitrary offset; (2) &#167;3 bundled anchor + soft SOL edge, but the soft edge alone has prior negative evidence &#8212; split into the A0&#8211;A3 ablation ladder with anchor-only fallback; (3) gates were unquantified &#8212; axis non-inferiority margin, LCFS bar vs the &#167;2 read&#8217;s own &#8722;1.96, and the reseed-trigger-rate attractor metric are now explicit. Per-slice robust weighting (heavy-tailed consistency: median 0.066 vs mean ~4e4), a frozen per-slice harmonic-coefficient artifact, and the private-flux connectivity restriction are recorded as implementation notes.</p></div>
+</div>
+</section>
 </main>
 </body>
 </html>
