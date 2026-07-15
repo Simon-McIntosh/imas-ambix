@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="doc">
+  <meta name="plan-slug"    content="th-boundary-robustness">
+  <meta name="plan-title"   content="TH Boundary Read — Robustness Investigation">
+  <meta name="plan-summary" content="Root-cause of the §2 toroidal-harmonic inboard-midplane boundary notch: falsification ladder, the two-pass pole regression (fixed), and the residual poorly-conditioned-slice fidelity ceiling">
+  <meta name="plan-informs" content="equilibrium-boundary-closure">
+  <title>TH Boundary Read — Robustness Investigation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Current state (objective)</h2>
+    <p>
+      The §2 source-free toroidal-harmonic (TH) boundary read extracts the LCFS by
+      pushing a flux contour outward from a ray-cast origin (contourpy) and keeping
+      the <strong>outermost closed axis-enclosing ring inside the limiter</strong>;
+      the boundary flux value <code>&psi;<sub>bnd</sub></code> is <em>discovered</em>
+      by that push-out, not supplied. There is no true magnetic-axis flux in this
+      read and none is needed — the interior is owned by the §3 solve.
+    </p>
+    <p>
+      The read was producing an <strong>inboard-midplane notch</strong> on some
+      slices. This document records the full root-cause investigation so the state
+      is objective rather than asserted. Summary of where each regime now stands
+      (per-slice, current code):
+    </p>
+    <table>
+      <thead>
+        <tr><th>Slice</th><th>Regime</th><th>Sensor misfit</th><th>Boundary</th><th>Verdict</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>18502</td><td>flat-top (well-conditioned)</td><td>0.23</td><td>clean D-shape</td><td>FIXED</td></tr>
+        <tr><td>11766, 11767</td><td>train flat-top</td><td>0.51–0.53</td><td>clean D-shape</td><td>FIXED</td></tr>
+        <tr><td>12143</td><td>ramp-up (poorly-conditioned)</td><td>1.9–4.7 (all orders)</td><td>residual inboard hook</td><td>FIDELITY CEILING</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>Bottom line:</strong> the notch on the well-conditioned majority was a
+      regression I introduced (two-pass pole placement) and is fixed. The residual
+      notch on 12143 ramp-up is <em>not</em> a machinery bug — it is a genuine
+      fidelity ceiling of the source-free read on a slice its physics does not fit
+      (misfit 1.9–4.7 at every order, vs 0.23 for a well-conditioned slice). The
+      open decision is how to treat those slices; see §7.
+    </p>
+
+    <h2 id="s2">§2 — How the read works (mechanism)</h2>
+    <p>
+      The TH field is a superposition of source-free ring functions
+      <code>P<sup>1</sup><sub>n&minus;&frac12;</sub>(cosh&nbsp;&eta;)</code> about a
+      focal ring (the "pole"). The pole is the plasma-<em>current</em> source, so it
+      sits inside the plasma; the expansion is physical only in the source-free
+      <strong>vacuum annulus</strong> outside the plasma. Toward the pole the ring
+      functions diverge, so the near-pole interior disk is masked to a confined
+      plateau (<code>mask_invalid_interior</code>) before the contour push-out — that
+      plateau never produces a contour in the outward sweep, so an interior null can
+      never be selected.
+    </p>
+    <p>
+      The boundary read therefore has two independent reference points: the
+      <strong>ray-cast origin</strong> (where the outward sweep starts) and the
+      <strong>pole</strong> (the focal-ring/current source, which the mask follows).
+      The distinction is the whole story of the notch (§4).
+    </p>
+
+    <h2 id="s3">§3 — Falsification ladder</h2>
+    <p>
+      Five candidate causes were tested. Four were falsified with evidence; the fifth
+      is the confirmed cause.
+    </p>
+    <ul>
+      <li><strong>Solenoid / coil field (point-filament singularity):</strong>
+        <em>falsified.</em> Collapsing the 656-filament solenoid to one thick
+        cylinder changes the near-HFS coil &psi; by 0.15% and both forms are equally
+        smooth; the hybrid near/far switch is byte-identical on the HFS. The coil
+        field is clean.</li>
+      <li><strong>Grid / contour resolution:</strong> <em>falsified.</em> The notch
+        is byte-identical at 65&times;97 and a 4&times; refined 260&times;388 grid
+        (figure §5) — it is a field feature, not a contour-tracing artifact.</li>
+      <li><strong>Near-pole mask size:</strong> <em>falsified.</em> 12143's boundary
+        is identical for mask fraction 0.5 &rarr; 0.15 (Rin 0.195, Rout 1.061
+        throughout) — the LCFS is set by the field <em>outside</em> the mask, so the
+        mask is not wrapping it.</li>
+      <li><strong>Fast ring-function tabulation:</strong> <em>falsified.</em> The
+        fast <code>ring_P1</code> (elliptic-integral seeds + degree recurrence +
+        order-raise) matches mpmath's <code>legenp</code> to ~1e-16 across the whole
+        cosh&nbsp;&eta; range, including near the pole where the order-raise is a
+        difference of large numbers. No cancellation blow-up; a higher-accuracy
+        third-party library would gain nothing.</li>
+      <li><strong>Pole placement / TH order:</strong> <em>confirmed.</em> Two
+        distinct effects — a fixable regression (§4) and a fidelity ceiling (§5).</li>
+    </ul>
+
+    <h2 id="s4">§4 — Confirmed cause + fix (well-conditioned slices)</h2>
+    <p>
+      The notch on the well-conditioned majority was a regression from a two-pass
+      origin re-siting I added earlier this session. The near-pole mask follows the
+      pole, and the pole was placed relative to the <em>ray-cast origin</em>. The
+      two-pass step re-sited that origin to the LCFS <em>geometric</em> centroid,
+      which for a D-shape sits inboard of the Shafranov-shifted <em>current</em>
+      centroid — dragging the pole and its mask onto the limited HFS edge, where the
+      contour was pinched into the notch.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/notch-cause-and-fix.png"
+           alt="18502: single-pass clean, two-pass notched, pole-at-current-centroid clean"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        18502 flat-top. Left: single-pass read (pole at current centroid) — clean.
+        Middle: the two-pass read (pole followed the re-sited origin) — the notch.
+        Right: ray-cast re-sited for robustness but <strong>pole kept at the current
+        centroid</strong> — clean again. The fix is to decouple the pole reference
+        (current/moment centroid, stable, physical) from the ray-cast origin.
+      </figcaption>
+    </figure>
+    <p>
+      Fix landed (<code>closure_gate_eval.py</code>): the focal pole is anchored to
+      the current (moment) centroid for both passes; the ray-cast origin may still
+      re-site to the LCFS centroid for small-plasma robustness; the mask stays a
+      small central disk. A tiny plasma whose LCFS the size-scaled mask would swallow
+      falls back to the un-re-sited pass-1 read rather than dropping the slice.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/pole-fix-validation.png"
+           alt="Four-slice validation: 18502 flat-top and two train shots clean, 12143 residual hook"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Validation after the fix. 18502 flat-top and both train shots (11766, 11767)
+        read clean D-shapes with no notch. 12143 ramp-up (via the pass-1 fallback)
+        retains a small inboard hook — the residual case investigated in §5.
+      </figcaption>
+    </figure>
+
+    <h2 id="s5">§5 — Residual: 12143 is poorly-conditioned</h2>
+    <p>
+      The 12143 ramp-up notch survives the §4 fix. It is not the grid and not the
+      mask (both falsified in §3). It is a property of the fitted field: the
+      source-free harmonic simply cannot fit this slice's sensors — misfit stays
+      1.9–4.7 at <em>every</em> order (vs 0.23 for the well-conditioned 18502).
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/notch-coarse-vs-fine.png"
+           alt="12143 masked field + boundary at coarse 65x97 vs fine 260x388 — notch identical"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        12143 masked TH field and boundary at the solve grid (65&times;97, left) vs a
+        4&times; refined grid (260&times;388, right). The inboard hook is identical —
+        it is a field feature, not a contour-resolution artifact. Blue dashed = the
+        near-pole mask disk; blue &times; = pole; magenta + = ray-cast origin.
+      </figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/order-sweep-12143.png"
+           alt="12143 boundary at TH order 1..5: order 1 smooth but underfit, order 2-4 notched, order 5 no ring"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        12143 boundary vs TH order. Order 1 is smooth but underfit (misfit 4.68, wrong
+        size). Orders 2–4 add the angular harmonics that fit the poorly-conditioned
+        sensors into the non-convex inboard hook (misfit 3.1 &rarr; 2.9). Order 5
+        finds no closed ring. There is no order that is both well-fit and clean — the
+        slice is genuinely ill-posed for the source-free read.
+      </figcaption>
+    </figure>
+    <p>
+      This is the source-free read's fidelity ceiling on ramp-up slices where the
+      annulus assumption is weak (the plasma is limited against the HFS with little
+      vacuum annulus on the contact side, and eddy/edge structure the source-free
+      field cannot represent). It is honest to treat these as low-fidelity rather
+      than to force a clean-but-wrong boundary.
+    </p>
+
+    <h2 id="s6">§6 — Multi-pole (tested)</h2>
+    <p>
+      A multi-pole TH (a vertically-stacked set of focal rings — superposition of
+      source-free solutions) was prototyped. It improves the annulus fit markedly
+      (misfit halved on every slice, including 12143) — the superposition premise is
+      sound. But it makes the <em>interior contour worse</em>: each interior focal
+      ring is a singularity the &psi;<sub>N</sub>=1 contour wraps around, giving a
+      multi-lobe clover instead of a plasma.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/multipole-vs-single.png"
+           alt="Single-pole vs 3-pole read on four slices: 3-pole lower misfit but multi-lobe boundary"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Single-pole order-3 (left of each pair) vs 3-pole order-2 (right). The 3-pole
+        read has lower sensor misfit everywhere but a multi-lobe boundary — each
+        interior pole is wrapped by the contour. Key lesson: <strong>sensor misfit is
+        not a boundary-quality proxy</strong>. Multi-pole is a better <em>annulus
+        field model</em>, not a better interior contour.
+      </figcaption>
+    </figure>
+
+    <h2 id="s7">§7 — Pole fraction is regime-dependent (why there is no single tune)</h2>
+    <p>
+      The pole is placed at <code>pole_r = centroid_r &middot; (1 &minus; frac)</code>.
+      A single global <code>frac</code> cannot serve all regimes.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/pole-fraction-eval.png"
+           alt="Eval slices: frac=0 clean, frac increasing toward 0.41 notches"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Eval slices (single-pass): pole fraction 0 &rarr; 0.41. On these slices
+        frac=0 (pole at centroid) looked cleanest.
+      </figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/pole-fraction-train.png"
+           alt="Train shots: frac=0 collapses to axis halo / inboard hook, frac=0.41 clean"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Train shots: the same frac=0 that looked best on the eval slices
+        <em>collapses</em> two of four train shots (axis halo / inboard hook), while
+        the frozen frac=0.41 gives clean D-shapes. This is why the fix in §4 is to
+        stabilise the pole <em>reference</em> (current centroid) rather than retune
+        <code>frac</code> — no global frac is robust across regimes.
+      </figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/mask-geometry-18502.png"
+           alt="18502 masked field with mask disk, pole, and clean boundary ring"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        18502 with the fix: the mask disk is a small central region well interior to a
+        clean boundary ring — the geometry the well-conditioned slices now have.
+      </figcaption>
+    </figure>
+
+    <h2 id="s8">§8 — Open decisions</h2>
+    <p>
+      The well-conditioned majority is fixed. The remaining choice is how the closure
+      pipeline treats poorly-conditioned slices like 12143 ramp-up. Options, for an
+      objective call:
+    </p>
+    <ol>
+      <li><strong>Weight by misfit (already partly in place).</strong> The soft-prior
+        anchor already down-weights a slice by <code>&radic;misfit</code>, so 12143's
+        anchor influence is ~4&times; weaker than a flat-top's. Accept the residual
+        hook as low-fidelity, let the §3 interior solve own those slices, and report
+        the per-slice misfit alongside the boundary. Lowest risk; honest.</li>
+      <li><strong>Gate on conditioning.</strong> Above a misfit threshold, skip the §2
+        anchor for that slice entirely (unanchored §3 solve) rather than feed a
+        low-fidelity boundary. Cleaner signal; needs a threshold justified on train.</li>
+      <li><strong>Multi-pole for the annulus prior only.</strong> Adopt the multi-pole
+        read (§6) as a strictly-better <em>annulus</em> field model for the soft-prior
+        anchor (which samples annulus &psi;/&nabla;&psi;, where multi-pole wins), while
+        never using it for an interior contour. Larger change; needs a re-gate.</li>
+    </ol>
+    <p>
+      The full §2+§3 re-gate remains held until this decision is made — the
+      well-conditioned boundary is now robust, so the re-gate is unblocked for options
+      1 and 2; option 3 would precede it with a prior-model change.
+    </p>
+
+  </main>
+</body>
+</html>
