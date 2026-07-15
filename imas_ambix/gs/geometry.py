@@ -203,6 +203,75 @@ class PFFilament:
     xmult: float
 
 
+def collapse_rectangular_circuits(
+    filaments: list[PFFilament],
+    *,
+    fill_tol: float = 0.25,
+    floor: float = 0.01,
+) -> list[PFFilament]:
+    """Replace each circuit whose filaments FILL an axis-aligned rectangle with
+    one equivalent thick-cylinder filament (bounding box, ``xmult`` summed).
+
+    A coil pack described as a lattice of many co-current filaments has the
+    SAME far and near field as a single finite-cross-section cylinder carrying
+    the summed current (the analytic double-Newton / Biot-Savart integral is
+    over the whole cross-section either way) -- but one cylinder is O(N) cheaper
+    to evaluate and drops the Riemann-sum granularity of the filament tiling.
+    The collapse is applied only where the geometry warrants it, gated by a
+    cross-section-area conservation check: the sum of the filament areas must
+    equal the bounding-box area to within ``fill_tol`` (a filled rectangle),
+    and all filaments must carry the same-sign weight (a uniform pack).  A
+    sparse / ring / L-shaped circuit fails the fill check and is left untouched.
+
+    The single cylinder takes the bounding-box centre and extents, ``xmult`` =
+    Σ``xmult`` (so ``Σ w·greens`` is preserved: N unit-current small cylinders
+    tiling the box ≈ one N-current box cylinder), and ``turns`` = Σ``turns``.
+    Single-filament circuits pass through unchanged.  ``floor`` is the physical
+    size floor (matches the coil-column build) used when a pack extent is thin.
+    """
+    by_circ: dict[int, list[PFFilament]] = {}
+    order: list[int] = []
+    for f in filaments:
+        if f.circuit not in by_circ:
+            order.append(f.circuit)
+        by_circ.setdefault(f.circuit, []).append(f)
+
+    out: list[PFFilament] = []
+    for circ in order:
+        fs = by_circ[circ]
+        if len(fs) == 1:
+            out.append(fs[0])
+            continue
+        xm = np.array([f.xmult for f in fs], dtype=np.float64)
+        if not (np.all(xm >= 0.0) or np.all(xm <= 0.0)):
+            out.extend(fs)  # mixed-sign pack (e.g. a wound reversal) — keep
+            continue
+        r = np.array([f.r for f in fs], dtype=np.float64)
+        z = np.array([f.z for f in fs], dtype=np.float64)
+        w = np.array([max(abs(f.width), floor) for f in fs], dtype=np.float64)
+        h = np.array([max(abs(f.height), floor) for f in fs], dtype=np.float64)
+        r_lo, r_hi = (r - w / 2).min(), (r + w / 2).max()
+        z_lo, z_hi = (z - h / 2).min(), (z + h / 2).max()
+        box_w, box_h = r_hi - r_lo, z_hi - z_lo
+        box_area = box_w * box_h
+        area_sum = float((w * h).sum())
+        if box_area <= 0.0 or abs(area_sum / box_area - 1.0) > fill_tol:
+            out.extend(fs)  # not a filled rectangle — keep the filament lattice
+            continue
+        out.append(
+            PFFilament(
+                r=0.5 * (r_lo + r_hi),
+                z=0.5 * (z_lo + z_hi),
+                turns=float(sum(f.turns for f in fs)),
+                width=box_w,
+                height=box_h,
+                circuit=circ,
+                xmult=float(xm.sum()),
+            )
+        )
+    return out
+
+
 @dataclass(frozen=True)
 class PassiveStructure:
     """A passive (vessel) structure element with ``(R, Z)`` parsed from amm.
