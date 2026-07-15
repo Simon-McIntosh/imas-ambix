@@ -1155,7 +1155,12 @@ def _assemble_soft_prior_rows(
         if sp.anchor_form == "abs-psi":
             psi_basis_ann = cg["psi"][ann, :] @ u_n
             psi_pass_ann = psi_pass[cells_flat, :] if kp else np.zeros((ann.size, 0))
-            psi_fixed_ann = psi_coil[cells_flat]
+            # coil ψ is IDENTICAL on both sides (same i_pf, same kernel) and
+            # cancels in the residual (§3.3b), so the anchor compares the
+            # solve's plasma+passive ψ against the harmonic read directly — the
+            # known coil term is not carried as a fixed offset here.  The target
+            # (harmonic ψ) likewise excludes the coil field.
+            psi_fixed_ann = np.zeros(ann.size)
             a_ann, b_ann = annulus_penalty_rows(
                 form="abs-psi",
                 psi_basis_ann=psi_basis_ann,

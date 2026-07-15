@@ -137,10 +137,14 @@ def test_anchor_pulls_annulus_toward_target():
     ]
     assert ann_rows.size > 5
     cells_flat = grid.cells[ann_rows]
-    base_ann = psi0[cells_flat]
+    # the anchor compares plasma+passive ψ (coil excluded, §3.3b), so the
+    # target reference is the base field with the known coil ψ removed
+    psi_coil = grid.coil_psi(i_pf)
+    base_ann = psi0[cells_flat] - psi_coil[cells_flat]
 
     def _rms(psi, target):
-        d = psi.ravel()[cells_flat] - target
+        # compare plasma+passive ψ (total − coil) against the plasma target
+        d = (psi.ravel()[cells_flat] - psi_coil[cells_flat]) - target
         d = d - d.mean()  # remove the gauge offset both fields carry
         return float(np.sqrt(np.mean(d**2)))
 
