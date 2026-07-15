@@ -303,20 +303,59 @@
             centres naturally on the blob rather than a focal ring.</li>
           <li>Multi-pole TH (&sect;6) — better annulus fit, but interior contour wraps
             each pole.</li>
-          <li><strong>A combined basis (recommended to test).</strong> Because both TH
+          <li><strong>A combined basis (tested — see §10).</strong> Because both TH
             and the polynomial/moment solutions are &Delta;*-harmonic, their sum is too
             — stack both in one design matrix and fit jointly. The low-order polynomial
             part carries the smooth centred blob (where the focal ring struggles); the
             TH ring functions carry the annulus/edge (where they are best-in-class). It
             is mathematically valid; the only risk is <strong>conditioning</strong> (the
             bases overlap at low order &rarr; near-redundant matrix), handled by ridge /
-            SVD truncation. This is the natural next experiment for the poorly-conditioned
-            regime.</li>
+            SVD truncation.</li>
         </ol>
       </li>
     </ul>
 
-    <h2 id="s10">§10 — Open decisions</h2>
+    <h2 id="s10">§10 — Combined basis: prototype result (positive)</h2>
+    <p>
+      Built and tested (<code>scripts/_combined_basis_prototype.py</code>): a single
+      whitened joint least-squares over
+      <code>[moment current-shape moments | TH n&ge;1 source-free harmonics]</code>, with
+      Ip pinned on the moment monopole, the redundant TH monopole dropped, and a graded
+      ridge damping the high TH modes for conditioning. The reconstructed ψ is
+      <strong>absolutely gauged</strong> — <code>psi_grid_2d_np(moment&nbsp;current, i_pf)</code>
+      (moment current + coil, absolute) plus the source-free TH columns — so the push-out
+      recovers the boundary flux directly.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/combined-basis-result.png"
+           alt="Combined read: 18502 clean D (minor wiggle), 12143 recovered clean D, 11767 clean D"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Combined moment + TH read (gauged). <strong>12143 ramp-up is recovered as a clean
+        D-shape at misfit 0.24</strong> — the slice that TH-alone could only render as
+        petals/hook/blob (misfit 1.9&ndash;4.7 at every order). 11767 is clean; 18502
+        flat-top is clean apart from a small residual inboard wiggle (the offset TH pole's
+        mask, tunable). Magenta + = current centroid.
+      </figcaption>
+    </figure>
+    <table>
+      <thead><tr><th>Slice</th><th>TH-only misfit</th><th>Combined misfit</th><th>TH-only boundary</th><th>Combined boundary</th></tr></thead>
+      <tbody>
+        <tr><td>18502 flat-top</td><td>0.23</td><td>0.21</td><td>clean</td><td>clean (minor wiggle)</td></tr>
+        <tr><td>11767 train</td><td>0.51</td><td>0.24</td><td>clean</td><td>clean</td></tr>
+        <tr><td>12143 ramp-up</td><td>2.88</td><td>0.24</td><td>petals / hook / blob</td><td><strong>clean D-shape</strong></td></tr>
+      </tbody>
+    </table>
+    <p>
+      This validates the combined-basis route: the moment part carries the centred ST
+      blob that a single TH focal ring cannot, the TH part carries the edge, the joint
+      fit conditions cleanly (no blow-up), and the gauge is preserved for the push-out.
+      Remaining work before it can replace the §2 read: (a) tune the TH pole/mask to
+      remove the 18502 residual wiggle; (b) validate on the full train cohort and score
+      the LCFS against firewalled EFIT in the re-gate.
+    </p>
+
+    <h2 id="s11">§11 — Open decisions</h2>
     <p>
       The well-conditioned majority is fixed. The remaining choice is how the closure
       pipeline treats poorly-conditioned slices like 12143 ramp-up. Options, for an
@@ -335,17 +374,19 @@
         read (§6) as a strictly-better <em>annulus</em> field model for the soft-prior
         anchor (which samples annulus &psi;/&nabla;&psi;, where multi-pole wins), while
         never using it for an interior contour. Larger change; needs a re-gate.</li>
-      <li><strong>Combined homogeneous-GS basis (§9).</strong> Fit a joint
-        polynomial/moment + TH basis (both &Delta;*-harmonic) with conditioning control,
-        so the centred polynomial part carries the ST blob and TH carries the edge. The
-        most physically-motivated route for the poorly-conditioned regime; largest
-        change, needs a prototype then a re-gate.</li>
+      <li><strong>Combined homogeneous-GS basis (§10) — prototyped, positive.</strong>
+        The joint moment + TH read recovers 12143 as a clean D-shape (misfit 0.24 vs
+        TH-only 2.88) while keeping the well-conditioned slices clean, with the gauge
+        preserved for the push-out. The most physically-motivated route and the one with
+        a working prototype; remaining work is TH-pole/mask tuning for the 18502 wiggle
+        and a full-cohort re-gate.</li>
     </ol>
     <p>
       The full §2+§3 re-gate remains held until this decision is made — the
       well-conditioned boundary is now robust, so the re-gate is unblocked for options
-      1 and 2; options 3 and 4 would precede it with a prior-model change (option 4 is
-      the recommended experiment to try first).
+      1 and 2. Option 4 (combined basis) is the recommended route on the evidence: it is
+      the only approach that recovers the poorly-conditioned regime, and it now has a
+      working prototype; it precedes the re-gate with the TH-pole/mask tuning noted in §10.
     </p>
 
   </main>
