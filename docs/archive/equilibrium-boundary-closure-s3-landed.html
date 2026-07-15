@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="equilibrium-boundary-closure-s3-landed">
+  <meta name="plan-title" content="§3 landed — soft-prior interior solve: machinery, gauge verdict, ablation ladder, honest-negative skill result">
+  <title>§3 soft-prior interior solve — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 — soft-prior interior solve (landed 2026-07-15)</h1>
+  <p>Full record for the collapsed §3 of
+  <a href="/imas-ambix/equilibrium-boundary-closure.html">equilibrium-boundary-closure</a>.
+  Evidence + flux maps: <a href="/imas-ambix/equilibrium-boundary-closure-evidence.html">§3 evidence doc</a>.</p>
+
+  <h2>What shipped (fleet of 4 Opus workers + orchestrator integration)</h2>
+  <ul>
+    <li><code>imas_ambix/latent/boundary_prior.py</code> — annulus ψ-consistency penalty rows
+    (abs-ψ + rank-1 gauge offset, and gauge-free grad-ψ field-matching), fixed per-slice annulus
+    point set, per-slice robust weighting.</li>
+    <li><code>imas_ambix/latent/profile_regularization.py</code> — C¹ soft SOL decay foot
+    (<code>profile_basis_foot</code>), q ≥ 1 sawtooth clamp (<code>q_axis_linear_bound</code>
+    j_axis ≤ 2B<sub>φ0</sub>/(μ₀R₀) ≈ 1.0e6 A/m² MAST), <code>q_profile</code> diagnostic,
+    <code>f_from_ffprime</code>, smoothness/monotonicity regularisers.</li>
+    <li><code>imas_ambix/latent/moment_priors.py</code> — Ip-soft prior, βp+li/2 from the
+    boundary-field asymmetry (firewall-safe), moment-consistency rows, pressure-gradient p′/FF′
+    separation lever (+ honest Te data-gate).</li>
+    <li><code>imas_ambix/latent/boundary_harmonic.py</code> — gauge-preserving read: analytic ∇ψ
+    (<code>harmonic_grad_psi_on_grid</code>), Ip-circulation gauge tie, frozen per-slice prior
+    artifact + gauge measurement.</li>
+    <li><code>imas_ambix/latent/gs_solve.py</code> — analytic cylinder Green's response
+    (<code>EquilibriumGrid.cell_greens</code>, ψ+B), passive B green columns, <code>SoftPriors</code>
+    + <code>_assemble_soft_prior_rows</code> folded into <code>solve_equilibrium_lsq</code>
+    (byte-identical when off); <code>scripts/closure_gate_eval.py</code> ablation-ladder wiring +
+    attractor instrumentation. 113 unit tests green.</li>
+  </ul>
+
+  <h2>Gauge measurement (done-first) → rank-1 offset</h2>
+  <p>Instrumented on 160 slices: the offset the gate's blind mean-projection discards is a systematic,
+  consistently-signed level bias (median 7.9% of annulus dynamic range, positive in 99.4% of slices,
+  per-shot sign consistency 1.0 across all 8 shots; flux-loop DC residual ~0.98 confirms the DC mode is
+  the weakly-pinned direction). Verdict: the interior penalty keeps the flux-loop gauge via abs-ψ + one
+  fitted rank-1 offset DOF, never the blind mean-projection. grad-ψ (gauge-free) built as the control.</p>
+
+  <h2>Ablation ladder — held-out (128 slices, EFIT referee, paired-bootstrap CIs)</h2>
+  <table>
+    <thead><tr><th>arm</th><th>axis skill</th><th>LCFS skill</th><th>reseed rate</th></tr></thead>
+    <tbody>
+      <tr><td>A0 free-boundary baseline</td><td>−0.039 [−0.69,+0.12]</td><td>−3.591 [−4.34,−2.98]</td><td>0.8%</td></tr>
+      <tr><td>A1 abs-ψ anchor (w*=1)</td><td>−0.158 [−0.73,−0.02]</td><td>−3.824 [−4.64,−3.15]</td><td>0.0%</td></tr>
+      <tr><td>A2 anchor + SOL foot</td><td>−0.155</td><td>−3.831</td><td>0.0%</td></tr>
+      <tr><td>A3 anchor, reseed OFF</td><td>−0.158</td><td>−3.824</td><td>0.0% (≡A1)</td></tr>
+      <tr><td>A1g grad-ψ field-match (w=1)</td><td>−0.333 [−0.99,−0.17]</td><td>−4.070 [−5.00,−3.32]</td><td>0.0%</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Verdict</h2>
+  <p><strong>Attractor gate MET/exceeded</strong> — reseed trigger 0.8%→0.0% in every anchored arm,
+  A3≡A1, so the reseed/scout/outboard-attractor machinery is confirmed inert once the boundary is
+  soft-anchored (it retires). <strong>Boundary-skill gate NOT met (honest negative)</strong> — no anchor
+  form at any weight beats A0 held-out; both breach axis non-inferiority. The tune-cohort gains did not
+  generalize. Root cause: the source-free annulus read carries only ~7 DOF of the same information the
+  81 external sensors already provide, so it adds no independent boundary skill; forced harder it
+  distorts the core. This is the classical-read information ceiling — the motivation for the §4 learned
+  cross-machine operator. Machine-agnostic, EFIT-firewalled throughout; firewall-safe scalars are Ip and
+  n_e only (full p′/FF′ separation from Thomson Te is data-gated; machinery built + synthetic-tested).</p>
+</main>
+</body>
+</html>
