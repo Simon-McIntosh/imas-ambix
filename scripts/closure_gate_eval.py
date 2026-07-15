@@ -221,6 +221,7 @@ def _harmonic_read_for_slice(
     Returns ``(cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi)`` or None.
     """
     from boundary_harmonic_gate_eval import sensor_arrays  # noqa: PLC0415
+
     from imas_ambix.latent.boundary_moment import (  # noqa: PLC0415
         MomentFitConfig,
         fit_moment_currents,
@@ -252,8 +253,7 @@ def _harmonic_read_for_slice(
     )
     if p2 is None:
         return None
-    cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, ring = p2
-    return cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, ring
+    return p2  # (cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, ring)
 
 
 def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
