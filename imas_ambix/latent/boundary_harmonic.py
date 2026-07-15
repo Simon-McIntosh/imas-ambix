@@ -520,6 +520,7 @@ def select_harmonic_terms_cv(
     cv_folds: int = 5,
     seed: int = 0,
     min_improve: float = 1e-3,
+    keep_min_order: int = 1,
 ) -> np.ndarray:
     """Symmetry-aware harmonic TERM selection by forward held-out-sensor CV.
 
@@ -543,7 +544,15 @@ def select_harmonic_terms_cv(
     n_col = a_sens_max.shape[1]
     keep_rows = np.where(np.asarray(mask, dtype=bool) & np.isfinite(measured))[0]
     sel = np.zeros(n_col, dtype=bool)
-    sel[0] = True  # h0 always retained
+    # ALWAYS keep the low-order position terms (degree ≤ keep_min_order): the n=0
+    # level and the n=1 cos/sin dipole modes set the plasma's radial and VERTICAL
+    # position — h1s in particular is the up-down / vertical-shift mode.  The
+    # overfit ripple lives in the HIGH orders (n≥2), so only those are CV-gated;
+    # dropping a weakly-observed but physically-essential h1s would mis-place the
+    # boundary vertically (the offset the terms carry).  degree(col i) = (i+1)//2.
+    for i in range(n_col):
+        if (0 if i == 0 else (i + 1) // 2) <= keep_min_order:
+            sel[i] = True
     if keep_rows.size < max(cv_folds, 4) or n_col <= 1:
         return sel
     b = np.nan_to_num(np.asarray(measured, np.float64)) - np.nan_to_num(

@@ -88,6 +88,32 @@ def test_termwise_keeps_symmetric_drops_asymmetric():
     assert not sel[isn]  # noise-only asymmetric mode dropped
 
 
+def test_termwise_always_keeps_position_dipole_terms():
+    """The n≤1 terms (h0, h1c, h1s) set the plasma's radial + VERTICAL position
+    and must NEVER be dropped, even when the sensors weakly constrain the
+    up-down-asymmetric h1s — otherwise the boundary mis-places vertically."""
+    rng = np.random.default_rng(7)
+    n = 60
+    ang = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    sr = 0.9 + 0.7 * np.cos(ang)
+    sz = 0.7 * np.sin(ang)
+    cfg = HarmonicFitConfig(pole_r=0.5, order=3)
+    a_max = harmonic_sensor_matrix(sr, sz, np.full(n, 90.0), np.zeros(n, bool), cfg)
+    labels = harmonic_labels(3)
+    # signal has NO vertical asymmetry (h1s truly ~0) — CV would want to drop it
+    true = np.zeros(a_max.shape[1])
+    true[0] = 1.0
+    true[labels.index("h1c")] = 1.5
+    clean = a_max @ true
+    scale = 0.02 * np.abs(clean).std() * np.ones(n) + 1e-9
+    measured = clean + rng.standard_normal(n) * scale
+    sel = select_harmonic_terms_cv(
+        a_max, measured, np.zeros(n), np.ones(n, bool), scale
+    )
+    for name in ("h0", "h1c", "h1s"):
+        assert sel[labels.index(name)], f"{name} must be retained (position term)"
+
+
 def test_cv_keeps_full_order_when_well_constrained():
     """A clean order-3 signal with low noise and many sensors is CV-stable at 3."""
     sr, sz, sang, is_flux = _sensors(n=80, seed=3)
