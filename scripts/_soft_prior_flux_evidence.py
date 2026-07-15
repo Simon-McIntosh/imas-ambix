@@ -78,7 +78,7 @@ def _th_lcfs_ring(p, grid, table, basis, meta, adaptive="fixed"):
     lc = lcfs_contour(
         field, grid.rg, grid.zg, origin,
         limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
-        clip_legs=True, smooth_modes=4,
+        clip_legs=True,
     )
     return lc.ring if lc.found else None
 

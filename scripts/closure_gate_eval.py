@@ -114,7 +114,6 @@ def geometry_target_pushout(psi2d, grid, clip_legs=True):
         limiter_r=grid.limiter_r,
         limiter_z=grid.limiter_z,
         clip_legs=clip_legs,
-        smooth_modes=4,
     )
     if not lc.found:
         return target, psi_ax, psi_b

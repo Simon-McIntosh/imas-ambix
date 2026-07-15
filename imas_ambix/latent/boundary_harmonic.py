@@ -214,6 +214,25 @@ class HarmonicFitConfig:
     ridge: float = 1e-8
     ip_anchor: bool = False
     ip_anchor_weight: float = 1.0
+    # graded Sobolev ridge: the ridge on the degree-n coefficient is scaled by
+    # (1 + n)^sobolev_p, so high harmonic modes are damped far more than the
+    # low-order shape.  This is the machine-agnostic cure for truncation
+    # ringing: a GENEROUS order resolves the boundary shape (elongation,
+    # triangularity, X-point sharpness) while the graded penalty suppresses the
+    # high-mode ripple that an unregularised high-order fit rings with — no
+    # order truncation and no boundary-curve smoothing (both round X-points).
+    sobolev_p: float = 0.0
+
+
+def harmonic_mode_penalty(order: int, p: float) -> np.ndarray:
+    """Per-column Sobolev ridge multiplier ``(1 + degree)^p`` for the harmonic
+    basis (column order matching :func:`harmonic_labels`: ``h0`` degree 0, then
+    ``hnc``/``hns`` degree ``n``).  Multiplying the ridge by this damps the
+    high-order modes far more than the low-order shape, so a generous ``order``
+    resolves the boundary without the high-mode truncation ringing an
+    unregularised high-order fit produces.  ``p = 0`` → uniform ridge."""
+    deg = [0] + [n for n in range(1, order + 1) for _ in range(2)]
+    return (1.0 + np.asarray(deg, dtype=np.float64)) ** float(p)
 
 
 def harmonic_labels(order: int) -> list[str]:
@@ -686,6 +705,7 @@ def _fit_one(
     scale: np.ndarray,
     ridge: float,
     anchor: tuple[np.ndarray, float, float] | None = None,
+    mode_penalty: np.ndarray | None = None,
 ) -> tuple[np.ndarray, float, np.ndarray]:
     """Whitened, column-normalised least-squares fit of the K harmonic amplitudes.
 
@@ -715,7 +735,12 @@ def _fit_one(
     col_norm = np.where(col_norm > 0, col_norm, 1.0)
     a_n = aw / col_norm[None, :]
     n_k = a_n.shape[1]
-    gram = a_n.T @ a_n + ridge * np.eye(n_k)
+    if mode_penalty is not None:
+        # graded Sobolev ridge: per-column penalty (∝ degree^p), damps high modes
+        pen = ridge * np.asarray(mode_penalty, dtype=np.float64)[:n_k]
+        gram = a_n.T @ a_n + np.diag(pen)
+    else:
+        gram = a_n.T @ a_n + ridge * np.eye(n_k)
     rhs = a_n.T @ bw
     c = np.linalg.solve(gram, rhs) / col_norm if n_k else np.zeros(0)
 
@@ -761,6 +786,9 @@ def fit_harmonic(
         target = MU0 * ip
         denom = abs(target) if abs(target) > 0.0 else 1.0
         anchor = (g / denom, target / denom, float(cfg.ip_anchor_weight))
+    mode_penalty = (
+        harmonic_mode_penalty(cfg.order, cfg.sobolev_p) if cfg.sobolev_p > 0 else None
+    )
     c, misfit, cov = _fit_one(
         a_sens,
         payload.measured,
@@ -769,6 +797,7 @@ def fit_harmonic(
         payload.scale,
         cfg.ridge,
         anchor=anchor,
+        mode_penalty=mode_penalty,
     )
     return HarmonicInversion(
         coeffs=c,
@@ -942,6 +971,7 @@ __all__ = [
     "select_harmonic_terms_cv",
     "fit_harmonic_adaptive",
     "harmonic_labels",
+    "harmonic_mode_penalty",
     "harmonic_psi_on_grid",
     "harmonic_sensor_matrix",
     "toroidal_coords",

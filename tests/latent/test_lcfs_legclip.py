@@ -54,25 +54,6 @@ def test_clip_legs_reaches_xpoint_and_excludes_legs():
     assert clipped.ring[:, 1].min() >= xk[1] - 0.12
 
 
-def test_smooth_modes_reduces_ripple():
-    """Fourier r(θ) smoothing removes grid-scale contour jaggedness while
-    preserving the lobe (the fix for the visible boundary ripple)."""
-    psi, rg, zg, axis, lr, lz = _diverted_field()
-
-    def ripple(ring):
-        th = np.arctan2(ring[:, 1] - axis[1], ring[:, 0] - axis[0])
-        r = np.hypot(ring[:, 0] - axis[0], ring[:, 1] - axis[1])
-        r = r[np.argsort(th)]
-        return float(np.std(np.diff(r, 2)) / max(np.mean(r), 1e-9))
-
-    raw = lcfs_contour(psi, rg, zg, axis, limiter_r=lr, limiter_z=lz, clip_legs=True)
-    sm = lcfs_contour(
-        psi, rg, zg, axis, limiter_r=lr, limiter_z=lz, clip_legs=True, smooth_modes=4
-    )
-    assert sm.found
-    assert ripple(sm.ring) < 0.5 * ripple(raw.ring)  # markedly smoother
-    # shape preserved: the two boundaries agree on the 8 scored radii
-    assert np.nanmax(np.abs(sm.radii - raw.radii)) < 0.06
 
 
 def test_clip_legs_limited_case_matches_plain():
