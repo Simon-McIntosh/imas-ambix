@@ -937,9 +937,15 @@ def _bounded_profile_lsq(
     s_gram: np.ndarray,
     smoothness_scale: float,
     passive_ridge_scale: float,
+    extra_rows: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> np.ndarray | None:
     """Sign-constrained per-sweep coefficient solve: profile block ≥ 0,
     passive block free.
+
+    ``extra_rows`` (A, b), when given, are additional whitened soft-prior rows
+    on ``x = [coeffs, a_pass]`` (same width as ``cols``) stacked into the
+    bounded least-squares — the nonneg-arm route for the annulus anchor / q
+    bound / moment priors (the abs-ψ gauge-offset column is unsupported here).
 
     Ridges enter as factor rows (matrix square root of the smoothness Gram —
     K is tiny, eigh is exact).  The Ip anchor enters as a MODERATELY weighted
@@ -972,6 +978,11 @@ def _bounded_profile_lsq(
     denom = max(abs(ip_amperes), 1e-30)
     rows.append((anchor / denom)[np.newaxis, :] * w_anchor)
     rhs.append(np.array([w_anchor * ip_amperes / denom]))
+    if extra_rows is not None:
+        a_extra, b_extra = extra_rows
+        if a_extra.shape[0]:
+            rows.append(np.asarray(a_extra, dtype=np.float64))
+            rhs.append(np.asarray(b_extra, dtype=np.float64))
     a = np.vstack(rows)
     b = np.concatenate(rhs)
     lb = np.concatenate([np.zeros(k_dof), np.full(kp, -np.inf)])
@@ -997,6 +1008,243 @@ def _second_difference_gram(n_p: int, n_f: int, weight: float) -> np.ndarray:
             d2[i, i], d2[i, i + 1], d2[i, i + 2] = 1.0, -2.0, 1.0
         s[lo : lo + n, lo : lo + n] = weight * (d2.T @ d2) / max(n - 2, 1)
     return s
+
+
+def s_full_block(
+    n_var: int,
+    k_dof: int,
+    kp: int,
+    smoothness_scale: float,
+    s_gram: np.ndarray,
+    passive_ridge: float,
+) -> np.ndarray:
+    """The (n_var, n_var) smoothness + passive-ridge regulariser block.
+
+    Coefficient block gets the (relatively-scaled) second-difference Gram; the
+    unit-whitened-norm passive modes get an absolute ridge.  Factored out so the
+    soft-prior-augmented normal equations reuse the exact same regulariser."""
+    s = np.zeros((n_var, n_var))
+    s[:k_dof, :k_dof] = smoothness_scale * s_gram
+    if kp:
+        s[k_dof:, k_dof:] = passive_ridge * np.eye(kp)
+    return s
+
+
+@dataclass
+class SoftPriors:
+    """Optional soft physics priors folded into the per-sweep LSQ.
+
+    Every prior contributes weighted rows on the sweep's variable vector
+    ``x = [coeffs (k_dof), a_pass (kp)]`` (the annulus abs-ψ form may add ONE
+    trailing free gauge-offset column).  All knobs default OFF, so a bare
+    ``SoftPriors()`` (or ``None``) leaves the solve byte-identical.  Weights and
+    caps are dimensionless / geometry-scaled — machine-agnostic.
+
+    Annulus anchor (§3 primary ingredient — the boundary read as a SOFT prior):
+    ``anchor_form`` selects the gauge-keeping form (``"abs-psi"`` with a rank-1
+    offset, or ``"grad-psi"`` field-matching); ``anchor_ann_rows`` are the
+    annulus points as positions into ``grid.cells``; the harmonic target at
+    those points is ``anchor_psi_target`` (abs-ψ) or ``anchor_grad_target``
+    (grad-ψ, R then Z stacked).  Robust clip + per-slice uncertainty match the
+    read's heavy-tailed consistency.
+
+    Soft SOL edge (A2): ``sol_cap`` > 1 admits current through a C¹ decay foot
+    to ψ_N ≈ ``sol_cap`` (the axis-connected common-flux region only); the
+    profile basis swaps to :func:`profile_regularization.profile_basis_foot`.
+
+    q ≥ 1 (sawtooth): ``q_axis_max`` (from
+    :func:`profile_regularization.q_axis_linear_bound`) softly bounds the
+    on-axis current density with weight ``q_weight``.
+
+    Moment priors (user extension): ``ip_soft_sigma`` switches the Ip anchor
+    from the hard KKT to a soft covariance row; ``beta_li_*`` pins βp+li/2 to a
+    magnetics-derived target via a caller-supplied sensitivity; ``pprime_*``
+    pulls the p′-family coefficients toward a pressure-derived target (the
+    p′/FF′ separation lever).
+    """
+
+    anchor_form: str | None = None
+    anchor_weight: float = 0.0
+    anchor_ann_rows: np.ndarray | None = None
+    anchor_psi_target: np.ndarray | None = None
+    anchor_grad_target: np.ndarray | None = None
+    anchor_gauge_offset: bool = True
+    anchor_robust_clip: float | None = 3.0
+    anchor_uncertainty: float = 1.0
+
+    sol_cap: float = 1.0
+    sol_foot_w: float = 0.05
+
+    q_axis_max: float | None = None
+    q_weight: float = 1.0
+
+    ip_soft_sigma: float | None = None
+
+    beta_li_target: float | None = None
+    beta_li_sensitivity: np.ndarray | None = None
+    beta_li_sigma: float = 0.1
+
+    pprime_target: np.ndarray | None = None
+    pprime_basis: np.ndarray | None = None  # (n_samp, n_p) p'-family at samples
+    pprime_sigma: float = 1.0
+
+    @property
+    def sol_active(self) -> bool:
+        return self.sol_cap > 1.0
+
+    @property
+    def any_penalty(self) -> bool:
+        return (
+            (self.anchor_form is not None and self.anchor_weight > 0.0)
+            or self.q_axis_max is not None
+            or self.ip_soft_sigma is not None
+            or self.beta_li_target is not None
+            or self.pprime_target is not None
+        )
+
+
+def _assemble_soft_prior_rows(
+    sp: SoftPriors,
+    *,
+    grid: EquilibriumGrid,
+    u_n: np.ndarray,
+    a_anchor: np.ndarray,
+    axis_images_unit: np.ndarray,
+    coeffs_prev: np.ndarray,
+    psi_coil: np.ndarray,
+    psi_pass: np.ndarray,
+    a_pass: np.ndarray,
+    ip_amperes: float,
+    k_dof: int,
+    kp: int,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Build the stacked soft-prior design rows for one Picard sweep.
+
+    Returns ``(a_extra, b_extra, n_gauge)`` where ``a_extra`` has
+    ``k_dof + kp + n_gauge`` columns (``n_gauge`` = 1 iff the annulus abs-ψ
+    offset DOF is active) and the whitened residual rows drive
+    ``a_extra @ x ≈ b_extra``.  Each prior is delegated to its own module
+    (:mod:`boundary_prior`, :mod:`profile_regularization`, :mod:`moment_priors`)
+    so the physics lives beside its tests; this only maps the sweep's linear
+    quantities onto their inputs.
+    """
+    rows: list[np.ndarray] = []
+    rhs: list[np.ndarray] = []
+    n_var = k_dof + kp
+    # the annulus abs-ψ offset is a shared free column appended AFTER [coeffs,
+    # a_pass]; every other prior row is padded with a 0 there.
+    n_gauge = int(
+        sp.anchor_form == "abs-psi"
+        and sp.anchor_gauge_offset
+        and sp.anchor_weight > 0.0
+        and sp.anchor_ann_rows is not None
+    )
+
+    def _pad(row2d: np.ndarray) -> np.ndarray:
+        if n_gauge and row2d.shape[1] == n_var:
+            return np.hstack([row2d, np.zeros((row2d.shape[0], n_gauge))])
+        return row2d
+
+    # --- annulus boundary anchor (the load-bearing §3 ingredient) ---
+    if sp.anchor_form is not None and sp.anchor_weight > 0.0 and sp.anchor_ann_rows is not None:
+        from imas_ambix.latent.boundary_prior import annulus_penalty_rows
+
+        ann = np.asarray(sp.anchor_ann_rows, dtype=int)
+        cells_flat = grid.cells[ann]  # flat-grid indices of the annulus points
+        cg = grid.cell_greens()
+        if sp.anchor_form == "abs-psi":
+            psi_basis_ann = cg["psi"][ann, :] @ u_n
+            psi_pass_ann = psi_pass[cells_flat, :] if kp else np.zeros((ann.size, 0))
+            psi_fixed_ann = psi_coil[cells_flat]
+            a_ann, b_ann = annulus_penalty_rows(
+                form="abs-psi",
+                psi_basis_ann=psi_basis_ann,
+                psi_pass_ann=psi_pass_ann,
+                psi_fixed_ann=psi_fixed_ann,
+                psi_target_ann=np.asarray(sp.anchor_psi_target, dtype=np.float64),
+                k_dof=k_dof,
+                kp=kp,
+                weight=sp.anchor_weight,
+                per_slice_uncertainty=sp.anchor_uncertainty,
+                robust_clip=sp.anchor_robust_clip,
+                gauge_offset=bool(n_gauge),
+            )
+            # abs-ψ already returns the offset column when gauge_offset — pad
+            # only the OTHER priors, so append this one directly.
+            if a_ann.shape[1] == n_var and n_gauge:
+                a_ann = np.hstack([a_ann, np.zeros((a_ann.shape[0], 1))])
+            rows.append(a_ann)
+            rhs.append(b_ann)
+        elif sp.anchor_form == "grad-psi":
+            # grad-ψ field-matching needs coil + passive B at the annulus, which
+            # the campaign build does not yet expose; wired once Worker A's gauge
+            # measurement selects grad-ψ (else abs-ψ with the rank-1 offset is
+            # the flux-loop-gauge-keeping form).  Fail loud rather than silently.
+            raise NotImplementedError(
+                "grad-psi annulus anchor needs coil/passive B green columns; "
+                "use anchor_form='abs-psi' (rank-1 offset) unless the gauge "
+                "measurement requires grad-psi, then wire coil/passive B first"
+            )
+
+    # --- q ≥ 1 (sawtooth): soft upper bound on on-axis current density ---
+    # One-sided by active-set: a linear row pulls two-sidedly, so include it only
+    # when the current iterate VIOLATES j_axis > j_axis_max (q_0 < 1); a healthy
+    # q_0 ≥ 1 iterate adds no row and is left untouched.
+    if sp.q_axis_max is not None:
+        from imas_ambix.latent.profile_regularization import q_axis_penalty_row
+
+        bound = q_axis_penalty_row(
+            images_axis_unit=np.asarray(axis_images_unit, dtype=np.float64),
+            weight=float(sp.q_weight),
+            j_axis_max=float(sp.q_axis_max),
+        )
+        if bound.j_axis(np.asarray(coeffs_prev, dtype=np.float64)) > sp.q_axis_max:
+            row = np.zeros((1, n_var))
+            row[0, :k_dof] = bound.row
+            rows.append(_pad(row))
+            rhs.append(np.array([bound.rhs]))
+
+    # --- Ip soft prior (opt-in; default is the hard KKT elsewhere) ---
+    if sp.ip_soft_sigma is not None:
+        from imas_ambix.latent.moment_priors import ip_soft_prior_row
+
+        row, r = ip_soft_prior_row(
+            a_anchor, ip_amperes, sigma_rel=sp.ip_soft_sigma, k_dof=k_dof, kp=kp
+        )
+        rows.append(_pad(row[np.newaxis, :]))
+        rhs.append(np.array([r]))
+
+    # --- βp + li/2 moment consistency (caller supplies the iterate sensitivity) ---
+    if sp.beta_li_target is not None and sp.beta_li_sensitivity is not None:
+        from imas_ambix.latent.moment_priors import moment_consistency_rows
+
+        row, r = moment_consistency_rows(
+            computed_moment_unit_sensitivity=np.asarray(sp.beta_li_sensitivity),
+            target_moment=float(sp.beta_li_target),
+            sigma=sp.beta_li_sigma,
+            k_dof=k_dof,
+            kp=kp,
+        )
+        rows.append(_pad(row[np.newaxis, :]))
+        rhs.append(np.array([r]))
+
+    # --- pressure prior: pull the p′-family toward a target (p′/FF′ split) ---
+    if sp.pprime_target is not None and sp.pprime_basis is not None:
+        from imas_ambix.latent.moment_priors import pressure_gradient_prior_rows
+
+        prows, prhs = pressure_gradient_prior_rows(
+            p_basis_slice=np.asarray(sp.pprime_basis, dtype=np.float64),
+            pprime_target=np.asarray(sp.pprime_target, dtype=np.float64),
+            sigma=sp.pprime_sigma,
+            k_dof=k_dof,
+            kp=kp,
+        )
+        rows.append(_pad(prows))
+        rhs.append(prhs)
+
+    if not rows:
+        return np.zeros((0, n_var + n_gauge)), np.zeros(0), n_gauge
+    return np.vstack(rows), np.concatenate(rhs), n_gauge
 
 
 @dataclass
@@ -1120,9 +1368,18 @@ def solve_equilibrium_lsq(
     seed_z0: float = 0.0,
     seed_width: tuple[float, float] = (0.35, 0.5),
     initial_jphi: np.ndarray | None = None,
+    soft_priors: SoftPriors | None = None,
 ) -> LadderFit:
     """Free-boundary Picard solve with the profile coefficients re-fit by
     whitened linear least squares against the raw magnetics every sweep.
+
+    ``soft_priors`` (a :class:`SoftPriors`) folds optional physics priors into
+    each sweep's LSQ: the annulus boundary anchor (the §3 soft prior tying the
+    near-edge field to the source-free harmonic read), the soft SOL current
+    edge (a C¹ decay foot admitting public-SOL current to ψ_N ≈ cap), a q ≥ 1
+    sawtooth clamp on the on-axis current density, and the Ip-soft / βp+li/2 /
+    pressure moment priors.  ``None`` (default) is byte-identical to the
+    prior-free solve.
 
     Given ψ_N(R, Z) and the axis-connected core mask of the current iterate,
     the sensor prediction is LINEAR in the K = n_p + n_f basis coefficients,
@@ -1160,6 +1417,9 @@ def solve_equilibrium_lsq(
     cell_area = grid.dr * grid.dz
     k_dof = n_p + n_f
     s_gram = _second_difference_gram(n_p, n_f, 1.0)
+
+    sp = soft_priors if soft_priors is not None else SoftPriors()
+    core_cap = sp.sol_cap if sp.sol_active else 1.0
 
     kp = int(passive["k"]) if passive else 0
     a_pass = np.zeros(kp)
@@ -1230,7 +1490,14 @@ def solve_equilibrium_lsq(
             span = 1e-12
         psi_n = (psi_flat - axis_psi) / span
 
-        closed = ((psi_n < 1.0) & grid.inside_limiter.ravel()).reshape(grid.nz, grid.nr)
+        # core support: axis-connected component of ψ_N < cap inside the
+        # limiter.  cap = 1 is the hard separatrix mask; cap > 1 (A2 soft SOL
+        # edge) admits the public-SOL band, and the axis-connected component
+        # keeps ONLY the common-flux region (private flux below an X-point is a
+        # separate component that does not contain the axis — §3.3h).
+        closed = ((psi_n < core_cap) & grid.inside_limiter.ravel()).reshape(
+            grid.nz, grid.nr
+        )
         labels, _ = ndimage.label(closed)
         ia = int(np.argmin(np.abs(grid.zg - axis[1])))
         ja = int(np.argmin(np.abs(grid.rg - axis[0])))
@@ -1248,16 +1515,35 @@ def solve_equilibrium_lsq(
             # carry |Ip| of gross current so the coefficients stay O(1).  In
             # nonneg mode normalisation is SIGNED so c ≥ 0 ⇒ jφ·sign(Ip) ≥ 0
             # (the R1 fact at the profile level) and the Ip anchor stays
-            # reachable for either current direction.
-            images = profile_basis(
-                psi_n,
-                grid.flat_r,
-                r0=grid.r0,
-                n_p=n_p,
-                n_f=n_f,
-                kind="monomial-nonneg" if nonneg else "legendre",
-                centrifugal_gamma=centrifugal_gamma,
-            )
+            # reachable for either current direction.  With the soft SOL edge
+            # the basis swaps to the footed form (current decays through a C¹
+            # foot into the SOL band instead of vanishing at ψ_N = 1).
+            if sp.sol_active:
+                from imas_ambix.latent.profile_regularization import (  # noqa: PLC0415
+                    profile_basis_foot,
+                )
+
+                images = profile_basis_foot(
+                    psi_n,
+                    grid.flat_r,
+                    r0=grid.r0,
+                    n_p=n_p,
+                    n_f=n_f,
+                    kind="monomial-nonneg" if nonneg else "legendre",
+                    w=sp.sol_foot_w,
+                    cap=sp.sol_cap,
+                    centrifugal_gamma=centrifugal_gamma,
+                )
+            else:
+                images = profile_basis(
+                    psi_n,
+                    grid.flat_r,
+                    r0=grid.r0,
+                    n_p=n_p,
+                    n_f=n_f,
+                    kind="monomial-nonneg" if nonneg else "legendre",
+                    centrifugal_gamma=centrifugal_gamma,
+                )
             images[~core.ravel(), :] = 0.0
             u = images[grid.cells, :] * cell_area  # unit-coeff cell currents [A]
             norms = np.abs(u).sum(axis=0)
@@ -1269,6 +1555,15 @@ def solve_equilibrium_lsq(
             b_mat = (g_sens[mask, :] @ u_n) / w_inv[:, np.newaxis]
             n_data = int(mask.sum())
             n_var = k_dof + kp
+            # on-axis current density per unit (normalised) coefficient — the
+            # sensitivity the q ≥ 1 sawtooth bound acts on.  The core cell
+            # nearest the axis carries j_axis = (u_n / cell_area) · coeffs.
+            axis_flat = int(ia * grid.nr + ja)
+            axis_local = int(np.searchsorted(grid.cells, axis_flat))
+            if axis_local < grid.cells.size and grid.cells[axis_local] == axis_flat:
+                axis_images_unit = u_n[axis_local, :] / cell_area
+            else:  # axis cell outside the in-limiter set (transient) — no bound
+                axis_images_unit = np.zeros(k_dof)
             new_coeffs = None
             new_a_pass = None
             if n_data >= n_var and ok_cols.any():
@@ -1279,7 +1574,29 @@ def solve_equilibrium_lsq(
                 h_data = cols.T @ cols
                 mean_diag = np.trace(h_data) / max(n_var, 1)
                 anchor = np.concatenate([a_anchor, np.zeros(kp)])
+                # assemble optional soft-prior rows (annulus anchor, q bound,
+                # Ip-soft, moment, pressure) on x = [coeffs, a_pass] (+1 gauge
+                # offset column for the annulus abs-ψ form).
+                a_extra, b_extra, n_gauge = _assemble_soft_prior_rows(
+                    sp,
+                    grid=grid,
+                    u_n=u_n,
+                    a_anchor=a_anchor,
+                    axis_images_unit=axis_images_unit,
+                    coeffs_prev=coeffs,
+                    psi_coil=psi_coil,
+                    psi_pass=psi_pass,
+                    a_pass=a_pass,
+                    ip_amperes=ip_amperes,
+                    k_dof=k_dof,
+                    kp=kp,
+                ) if sp.any_penalty else (np.zeros((0, n_var)), np.zeros(0), 0)
                 if nonneg:
+                    if n_gauge:
+                        raise NotImplementedError(
+                            "annulus abs-ψ gauge offset is unsupported in the "
+                            "nonneg arm; use the free-sign solve for the anchor"
+                        )
                     sol = _bounded_profile_lsq(
                         cols,
                         y,
@@ -1292,20 +1609,27 @@ def solve_equilibrium_lsq(
                         # passive mode columns are unit-whitened-norm by
                         # construction — the ridge is absolute on them
                         passive_ridge_scale=passive_ridge,
+                        extra_rows=(a_extra, b_extra) if a_extra.shape[0] else None,
                     )
                 else:
-                    s_full = np.zeros((n_var, n_var))
-                    s_full[:k_dof, :k_dof] = smoothness * mean_diag * s_gram
-                    if kp:
-                        # unit-whitened-norm mode columns: absolute ridge
-                        s_full[k_dof:, k_dof:] = passive_ridge * np.eye(kp)
-                    h = 2.0 * (h_data + s_full)
-                    h += 1e-10 * np.trace(h) / max(n_var, 1) * np.eye(n_var)
-                    kkt = np.zeros((n_var + 1, n_var + 1))
-                    kkt[:n_var, :n_var] = h
-                    kkt[:n_var, n_var] = anchor
-                    kkt[n_var, :n_var] = anchor
-                    rhs = np.concatenate([2.0 * (cols.T @ y), [ip_amperes]])
+                    n_all = n_var + n_gauge
+                    h_core = np.zeros((n_all, n_all))
+                    h_core[:n_var, :n_var] = h_data + s_full_block(
+                        n_var, k_dof, kp, smoothness * mean_diag, s_gram, passive_ridge
+                    )
+                    lin = np.zeros(n_all)
+                    lin[:n_var] = cols.T @ y
+                    if a_extra.shape[0]:
+                        h_core += a_extra.T @ a_extra
+                        lin += a_extra.T @ b_extra
+                    h = 2.0 * h_core
+                    h += 1e-10 * np.trace(h) / max(n_all, 1) * np.eye(n_all)
+                    anchor_full = np.concatenate([a_anchor, np.zeros(kp + n_gauge)])
+                    kkt = np.zeros((n_all + 1, n_all + 1))
+                    kkt[:n_all, :n_all] = h
+                    kkt[:n_all, n_all] = anchor_full
+                    kkt[n_all, :n_all] = anchor_full
+                    rhs = np.concatenate([2.0 * lin, [ip_amperes]])
                     try:
                         sol = np.linalg.solve(kkt, rhs)[:n_var]
                     except np.linalg.LinAlgError:
@@ -1458,6 +1782,7 @@ __all__ = [
     "EquilibriumResult",
     "ProfileFit",
     "LadderFit",
+    "SoftPriors",
     "build_passive_sidecar",
     "solve_equilibrium",
     "solve_equilibrium_bootstrapped",
