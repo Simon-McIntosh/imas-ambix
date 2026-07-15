@@ -47,8 +47,10 @@ referee only ever *scores* the psi this produces.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from functools import cache
+from pathlib import Path
 
 import numpy as np
 
@@ -200,7 +202,9 @@ class HarmonicFitConfig:
     harmonic index ``n``; the CI-gated ladder sweeps it on train shots and
     freezes it.  ``kind`` is the radial set (defaults to the exterior-regular
     decaying set).  ``ridge`` is a tiny numerical floor in a column-normalised
-    frame.  ``ip_anchor`` adds the poloidal-circulation Ip constraint.
+    frame.  ``ip_anchor`` adds the poloidal-circulation Ip gauge tie (see
+    :func:`ip_circulation_row`); ``ip_anchor_weight`` is its strength in the
+    relative-whitened frame (unused when ``ip_anchor`` is False).
     """
 
     pole_r: float = 0.9
@@ -209,6 +213,7 @@ class HarmonicFitConfig:
     kind: str = _DECAYING_KIND
     ridge: float = 1e-8
     ip_anchor: bool = False
+    ip_anchor_weight: float = 1.0
 
 
 def harmonic_labels(order: int) -> list[str]:
@@ -320,6 +325,75 @@ def harmonic_field_columns(
     return b_r, b_z
 
 
+def harmonic_grad_psi_on_grid(
+    cfg: HarmonicFitConfig, coeffs: np.ndarray, grid_r: np.ndarray, grid_z: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Gauge-free flux gradient ``(dPhi/dR, dPhi/dZ)`` ``(nz, nr)`` [Wb/m].
+
+    The absolute level of the harmonic read is only weakly pinned (no constant
+    column; a handful of flux loops carry the DC), so the interior soft prior
+    matches the GRADIENT of the flux -- equivalently the poloidal field -- which
+    is manifestly invariant to any additive constant on ``psi`` (the constant
+    carries no gradient) and matches the best-measured quantity (the B-probes).
+    Reuses :func:`harmonic_field_columns` and undoes its total-flux field
+    convention ``B_R = -(1/(2 pi R)) dPhi/dZ``, ``B_Z = +(1/(2 pi R)) dPhi/dR``:
+
+        dPhi/dR = +2 pi R * B_Z,   dPhi/dZ = -2 pi R * B_R .
+
+    Row index = Z, column index = R (matching :func:`harmonic_psi_on_grid`)."""
+    gr = np.asarray(grid_r, dtype=np.float64)
+    gz = np.asarray(grid_z, dtype=np.float64)
+    rr, zz = np.meshgrid(gr, gz)  # (nz, nr)
+    b_r, b_z = harmonic_field_columns(rr.ravel(), zz.ravel(), cfg)
+    c = np.asarray(coeffs, dtype=np.float64)
+    r_col = np.maximum(rr.ravel(), _D_FLOOR)
+    two_pi_r = 2.0 * np.pi * r_col
+    dpsi_dr = (two_pi_r * (b_z @ c)).reshape(zz.shape)
+    dpsi_dz = (-two_pi_r * (b_r @ c)).reshape(zz.shape)
+    return dpsi_dr, dpsi_dz
+
+
+def ip_circulation_row(
+    cfg: HarmonicFitConfig,
+    loop_r: float,
+    *,
+    loop_z: float | None = None,
+    n_loop: int = 512,
+) -> np.ndarray:
+    """Poloidal-circulation (Ampere) gauge-tie row ``g`` ``(K,)`` of the basis.
+
+    Ampere's law for the axisymmetric poloidal field: the circulation of
+    ``B_pol`` around ANY closed poloidal loop enclosing the plasma equals
+    ``mu0`` times the enclosed toroidal current,
+
+        ∮ B_pol · dl  =  mu0 * Ip .
+
+    The harmonic columns are source-free everywhere except the focal ring
+    (``pole_r``), where the docstring places the plasma current, so the
+    circulation is path-independent for any pole-enclosing loop and only the
+    ``n=0`` (monopole / net-current) column contributes -- the higher harmonics
+    are current-free multipoles with zero net circulation.  This returns the row
+
+        g_k = ∮_C (B_R,k dR + B_Z,k dZ)
+
+    over a CLOCKWISE circle ``C`` of radius ``loop_r`` about the pole (the
+    orientation for which a positive current gives ``g·coeffs = +mu0 Ip``,
+    matching the total-flux field convention of
+    :func:`harmonic_field_columns`).  Tying ``g·coeffs = mu0 Ip`` pins the
+    absolute (monopole) gauge of the read WITHOUT leaning only on the flux
+    loops.  Reuses :func:`harmonic_field_columns`."""
+    cz = cfg.pole_z if loop_z is None else float(loop_z)
+    t = np.linspace(0.0, 2.0 * np.pi, int(n_loop), endpoint=False)
+    dt = 2.0 * np.pi / int(n_loop)
+    r_loop = cfg.pole_r + loop_r * np.cos(t)
+    z_loop = cz + loop_r * np.sin(t)
+    # clockwise tangent (dR, dZ) so a positive Ip yields +mu0 Ip:
+    d_r = loop_r * np.sin(t) * dt
+    d_z = -loop_r * np.cos(t) * dt
+    b_r, b_z = harmonic_field_columns(r_loop, z_loop, cfg)  # (n_loop, K)
+    return (b_r * d_r[:, None] + b_z * d_z[:, None]).sum(axis=0)
+
+
 def harmonic_sensor_matrix(
     sensor_r: np.ndarray,
     sensor_z: np.ndarray,
@@ -370,13 +444,17 @@ def _fit_one(
     mask: np.ndarray,
     scale: np.ndarray,
     ridge: float,
+    anchor: tuple[np.ndarray, float, float] | None = None,
 ) -> tuple[np.ndarray, float, np.ndarray]:
     """Whitened, column-normalised least-squares fit of the K harmonic amplitudes.
 
     Fits the plasma sensor signature ``measured - vacuum`` on the trusted rows;
     absent channels (NaN in ``measured``) are zeroed before whitening so
     ``NaN * 0`` cannot poison the normal equations (as the moment/free inverses
-    do).  Returns ``(coeffs, misfit, cov)``.
+    do).  ``anchor`` is an OPTIONAL ``(row, target, weight)`` extra equation
+    (the poloidal-circulation Ip gauge tie); when ``None`` the fit is byte-for-
+    byte the sensor-only fit.  Returns ``(coeffs, misfit, cov)`` -- ``misfit``
+    is always the sensor-only whitened residual (the anchor never enters it).
     """
     keep = np.asarray(mask, dtype=bool)
     meas = np.nan_to_num(np.asarray(measured, dtype=np.float64))
@@ -388,6 +466,10 @@ def _fit_one(
     b = meas - vac  # plasma sensor signature
     aw = a_sens * w[:, None]
     bw = b * w
+    if anchor is not None:
+        row, target, weight = anchor
+        aw = np.vstack([aw, float(weight) * np.asarray(row, dtype=np.float64)[None, :]])
+        bw = np.concatenate([bw, [float(weight) * float(target)]])
     col_norm = np.linalg.norm(aw, axis=0)
     col_norm = np.where(col_norm > 0, col_norm, 1.0)
     a_n = aw / col_norm[None, :]
@@ -423,6 +505,21 @@ def fit_harmonic(
     cfg = cfg or HarmonicFitConfig()
     sensor_r, sensor_z, sensor_ang, is_flux = sensors
     a_sens = harmonic_sensor_matrix(sensor_r, sensor_z, sensor_ang, is_flux, cfg)
+    anchor = None
+    if cfg.ip_anchor:
+        # a circle among the sensors, well inside the sensor ring and enclosing
+        # the pole (path-independent, so the exact radius is immaterial); the tie
+        # is whitened to RELATIVE circulation so the target is +-1.
+        dist = np.hypot(
+            np.asarray(sensor_r, dtype=np.float64) - cfg.pole_r,
+            np.asarray(sensor_z, dtype=np.float64) - cfg.pole_z,
+        )
+        loop_r = 0.5 * float(np.median(dist))
+        g = ip_circulation_row(cfg, loop_r)
+        ip = float(getattr(payload, "ip_amperes", 0.0))
+        target = MU0 * ip
+        denom = abs(target) if abs(target) > 0.0 else 1.0
+        anchor = (g / denom, target / denom, float(cfg.ip_anchor_weight))
     c, misfit, cov = _fit_one(
         a_sens,
         payload.measured,
@@ -430,6 +527,7 @@ def fit_harmonic(
         payload.mask,
         payload.scale,
         cfg.ridge,
+        anchor=anchor,
     )
     return HarmonicInversion(
         coeffs=c,
@@ -533,6 +631,58 @@ def gs_operator(psi: np.ndarray, r_1d: np.ndarray, z_1d: np.ndarray) -> np.ndarr
     return out
 
 
+# --- frozen per-slice prior artifact ----------------------------------------
+
+_FROZEN_SCALARS = ("shot", "t_index", "time_s", "ip_amperes", "misfit", "dyn_range")
+_FROZEN_VECTORS = ("coeffs", "coeff_cov", "origin", "pole")
+
+
+def save_frozen_harmonic_prior(
+    path: str | Path, slices: list[dict], meta: dict
+) -> Path:
+    """Persist the frozen per-slice harmonic prior (NPZ arrays + JSON meta).
+
+    The interior soft-prior solve loads this instead of REFITTING the boundary
+    read per slice -- freezing it pins the prior against editable-install drift
+    while in-flight jobs run.  Each entry in ``slices`` carries the per-slice
+    ``coeffs`` / ``coeff_cov`` / ``origin`` / ``pole`` / ``misfit`` / ``dyn_range``
+    and the slice identity (``shot`` / ``t_index`` / ``time_s`` / ``ip_amperes``);
+    ``meta`` carries the frozen :class:`HarmonicFitConfig` scalars + ``labels`` +
+    ``split``.  Writes ``<stem>.npz`` and ``<stem>.json``; returns the NPZ path."""
+    p = Path(path)
+    npz_path = p if p.suffix == ".npz" else p.with_suffix(".npz")
+    json_path = npz_path.with_suffix(".json")
+    arrays: dict[str, np.ndarray] = {}
+    for key in _FROZEN_SCALARS:
+        arrays[key] = np.array([s[key] for s in slices], dtype=np.float64)
+    for key in _FROZEN_VECTORS:
+        arrays[key] = np.array([np.asarray(s[key], dtype=np.float64) for s in slices])
+    npz_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(npz_path, **arrays)
+    json_path.write_text(json.dumps({"meta": meta, "n_slices": len(slices)}, indent=2))
+    return npz_path
+
+
+def load_frozen_harmonic_prior(path: str | Path) -> dict:
+    """Load a frozen harmonic prior written by :func:`save_frozen_harmonic_prior`.
+
+    Returns ``{"meta": {...}, "arrays": {...}, "slices": [per-slice dict, ...]}``
+    -- ``meta`` is the frozen config + labels + split; ``slices`` is the list the
+    interior solve iterates (each a dict with ``shot`` / ``t_index`` / ``coeffs`` /
+    ``coeff_cov`` / ``origin`` / ``pole`` / ``misfit`` / ``dyn_range`` / ...)."""
+    p = Path(path)
+    npz_path = p if p.suffix == ".npz" else p.with_suffix(".npz")
+    json_path = npz_path.with_suffix(".json")
+    meta = json.loads(json_path.read_text()).get("meta", {})
+    with np.load(npz_path) as data:
+        arrays = {k: np.asarray(data[k]) for k in data.files}
+    n = int(arrays["shot"].shape[0]) if "shot" in arrays else 0
+    slices = []
+    for i in range(n):
+        slices.append({k: arrays[k][i] for k in arrays})
+    return {"meta": meta, "arrays": arrays, "slices": slices}
+
+
 __all__ = [
     "MU0",
     "HarmonicFitConfig",
@@ -541,6 +691,10 @@ __all__ = [
     "gs_operator",
     "harmonic_columns",
     "harmonic_field_columns",
+    "harmonic_grad_psi_on_grid",
+    "ip_circulation_row",
+    "load_frozen_harmonic_prior",
+    "save_frozen_harmonic_prior",
     "mask_invalid_interior",
     "ring_P1",
     "harmonic_labels",
