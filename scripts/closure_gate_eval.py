@@ -94,19 +94,72 @@ def load_frozen_lookup(path: str):
     return lookup, frozen.get("meta", {})
 
 
-def build_slice_soft_priors(payload, grid, frozen_lookup, meta, spc):
+def _harmonic_read_for_slice(payload, grid, table, basis, meta):
+    """The §2 source-free harmonic read for one slice, using the FROZEN config.
+
+    Recomputes the read inline (Ip-anchored moment centroid → per-slice pole →
+    source-free harmonic fit to this slice's own raw magnetics) with the config
+    frozen on train (``meta``: order / ridge / kind / pole-inboard fraction).
+    Cohort-independent (no (shot, t_index) cache matching) and leakage-free —
+    only the slice's magnetics + Ip enter, never EFIT.  Returns
+    ``(cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi)`` or None.
+    """
+    from boundary_harmonic_gate_eval import (  # noqa: PLC0415
+        _adaptive_radii,
+        hybrid_target_harmonic,
+        sensor_arrays,
+    )
+
+    from imas_ambix.latent.boundary_harmonic import (  # noqa: PLC0415
+        HarmonicFitConfig,
+        _fit_one,
+        harmonic_columns,
+        harmonic_sensor_matrix,
+    )
+    from imas_ambix.latent.boundary_moment import (  # noqa: PLC0415
+        MomentFitConfig,
+        fit_moment_currents,
+    )
+
+    frac = float(meta.get("pole_inboard_fraction", 0.41))
+    mom = fit_moment_currents(basis, payload, MomentFitConfig(order=3))
+    origin = (float(mom.centroid_r), float(mom.centroid_z))
+    pole = (origin[0] * (1.0 - frac), origin[1])
+    cfg = HarmonicFitConfig(
+        pole_r=pole[0],
+        pole_z=pole[1],
+        order=int(meta.get("order", 3)),
+        ridge=float(meta.get("ridge", 1e-8)),
+        kind=str(meta.get("kind", "P")),
+    )
+    sr, sz, sang, is_flux = sensor_arrays(table)
+    a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
+    coeffs, misfit, _ = _fit_one(
+        a_sens, payload.measured, payload.vacuum, payload.mask, payload.scale, cfg.ridge
+    )
+    rr, zz = np.meshgrid(grid.rg, grid.zg)
+    cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
+    psi_plasma = (cols @ coeffs).reshape(grid.nz, grid.nr)
+    psi_coil = grid.coil_psi(payload.i_pf).reshape(grid.nz, grid.nr)
+    psi_tot = psi_plasma + psi_coil
+    mask_r, excl_r = _adaptive_radii(origin, pole, _RadiiArgs())
+    _t, axis_psi, boundary_psi, _f, _d = hybrid_target_harmonic(
+        psi_tot, grid, origin, pole, mask_r, excl_r
+    )
+    return cfg, coeffs, float(misfit), psi_tot, float(axis_psi), float(boundary_psi)
+
+
+def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
     """Per-slice :class:`SoftPriors` for the anchored interior solve, or None.
 
-    The annulus boundary anchor loads the FROZEN harmonic coeffs for this
-    ``(shot, t_index)``, reconstructs the §2 source-free ψ, reads its own
-    boundary/axis flux (frozen per slice), fixes the annulus point set there,
-    and targets the harmonic plasma ψ at those points (abs-ψ + rank-1 offset —
-    the gauge-keeping form the measurement selected).  The soft SOL edge, the
-    q ≥ 1 sawtooth bound, and the Ip-soft prior are added from ``spc`` (the
-    ladder-wide config).  Returns None when nothing is active or no frozen
-    slice matches (the slice then solves prior-free, reported as anchor-missing).
+    The annulus boundary anchor recomputes the §2 source-free ψ INLINE for this
+    slice (via :func:`_harmonic_read_for_slice`, config frozen on train), reads
+    its own boundary/axis flux (frozen per slice), fixes the annulus point set
+    there, and targets the harmonic plasma ψ at those points (abs-ψ + rank-1
+    offset — the gauge-keeping form the measurement selected).  The soft SOL
+    edge, the q ≥ 1 sawtooth bound, and the Ip-soft prior are added from ``spc``.
+    Returns ``(SoftPriors|None, anchored_bool)``.
     """
-    from imas_ambix.latent.boundary_harmonic import HarmonicFitConfig, harmonic_columns
     from imas_ambix.latent.boundary_prior import (
         annulus_point_set,
         harmonic_annulus_target,
@@ -116,35 +169,10 @@ def build_slice_soft_priors(payload, grid, frozen_lookup, meta, spc):
     sp_kwargs: dict = {}
     anchored = False
     weight = float(spc.get("anchor_weight", 0.0))
-    if weight > 0.0 and frozen_lookup is not None:
-        key = (int(payload.shot), int(payload.t_index))
-        frozen = frozen_lookup.get(key)
-        if frozen is not None:
-            from scripts.boundary_harmonic_gate_eval import (
-                _adaptive_radii,
-                hybrid_target_harmonic,
-            )
-
-            pole = (float(frozen["pole"][0]), float(frozen["pole"][1]))
-            origin = (float(frozen["origin"][0]), float(frozen["origin"][1]))
-            cfg = HarmonicFitConfig(
-                pole_r=pole[0],
-                pole_z=pole[1],
-                order=int(meta.get("order", 3)),
-                ridge=float(meta.get("ridge", 1e-8)),
-                kind=str(meta.get("kind", "P")),
-            )
-            frozen = dict(frozen)
-            frozen["cfg"] = cfg
-            rr, zz = np.meshgrid(grid.rg, grid.zg)
-            cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
-            psi_plasma = (cols @ np.asarray(frozen["coeffs"])).reshape(grid.nz, grid.nr)
-            psi_coil = grid.coil_psi(payload.i_pf).reshape(grid.nz, grid.nr)
-            psi_tot = psi_plasma + psi_coil
-            mask_r, excl_r = _adaptive_radii(origin, pole, _RadiiArgs())
-            _t, axis_psi, boundary_psi, _f, _d = hybrid_target_harmonic(
-                psi_tot, grid, origin, pole, mask_r, excl_r
-            )
+    if weight > 0.0 and basis is not None:
+        read = _harmonic_read_for_slice(payload, grid, table, basis, meta or {})
+        if read is not None:
+            cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi = read
             ann_idx = annulus_point_set(
                 grid,
                 psi_carrier=psi_tot,
@@ -157,12 +185,13 @@ def build_slice_soft_priors(payload, grid, frozen_lookup, meta, spc):
             )
             ann_rows = ann_rows[valid]
             if ann_rows.size >= 4:
+                frozen = {"cfg": cfg, "coeffs": coeffs}
                 target = harmonic_annulus_target(
                     frozen, grid, grid.cells[ann_rows], "abs-psi"
                 )
                 # per-slice read uncertainty (heavy-tailed): use the fit misfit,
                 # floored, so noisier slices weigh the anchor less
-                unc = float(np.sqrt(max(float(frozen.get("misfit", 1.0)), 1e-6)))
+                unc = float(np.sqrt(max(misfit, 1e-6)))
                 sp_kwargs.update(
                     anchor_form="abs-psi",
                     anchor_weight=weight,
@@ -315,7 +344,7 @@ def fit_and_read_slice(
     reseed_axis_r_max: float | None = None,
     keep_psi: bool = False,
     keep_jphi: bool = False,
-    frozen_lookup: dict | None = None,
+    basis=None,
     meta: dict | None = None,
     soft_prior_cfg: dict | None = None,
 ) -> ClosureSliceFit:
@@ -403,7 +432,7 @@ def fit_and_read_slice(
         sp_slice = None
         if soft_prior_cfg:
             sp_slice, _anchored = build_slice_soft_priors(
-                payload, grid, frozen_lookup, meta or {}, soft_prior_cfg
+                payload, grid, table, basis, meta or {}, soft_prior_cfg
             )
         if sp_slice is not None:
             kw["soft_priors"] = sp_slice
@@ -611,7 +640,7 @@ def fit_shot(payload: dict, cfg: dict, workers: int) -> list[ClosureSliceFit]:
             warm_jphi=warm_jphi,
             reseed_axis_r_max=cfg.get("reseed_axis_r_max"),
             keep_jphi=True,
-            frozen_lookup=cfg.get("frozen_lookup"),
+            basis=payload.get("basis"),
             meta=cfg.get("frozen_meta"),
             soft_prior_cfg=cfg.get("soft_prior_cfg"),
         )
@@ -714,19 +743,16 @@ def run_gate(args) -> int:
     )
     if active:
         cfg["soft_prior_cfg"] = soft_prior_cfg
+        # the frozen prior supplies only the FROZEN CONFIG (order / ridge / kind /
+        # pole-inboard fraction); the per-slice harmonic read is recomputed inline
+        # from each slice's own magnetics (cohort-independent, leakage-free).
+        meta = {}
         if args.frozen_prior:
-            lookup, meta = load_frozen_lookup(args.frozen_prior)
-            cfg["frozen_lookup"] = lookup
-            cfg["frozen_meta"] = meta
-            logger.info(
-                "loaded frozen harmonic prior: %d slices, meta=%s",
-                len(lookup),
-                meta,
-            )
+            _lookup, meta = load_frozen_lookup(args.frozen_prior)
+            logger.info("loaded frozen harmonic config: meta=%s", meta)
+        cfg["frozen_meta"] = meta
         cfg["config_soft_priors"] = soft_prior_cfg
-    # JSON-safe view: the frozen-prior lookup (numpy arrays) drives the run but
-    # must not land in the serialized config record
-    cfg_json = {k: v for k, v in cfg.items() if k not in ("frozen_lookup",)}
+    cfg_json = {k: v for k, v in cfg.items() if k not in ("frozen_meta",)}
     logger.info("closure gate split=%s cfg=%s", args.split, cfg_json)
 
     train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
