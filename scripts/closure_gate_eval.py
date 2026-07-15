@@ -59,6 +59,7 @@ if TYPE_CHECKING:
 
 from imas_ambix.latent.gs_solve import (
     EquilibriumGrid,
+    SoftPriors,
     build_passive_sidecar,
     fit_profile,
     fit_profile_continuous,
@@ -77,6 +78,130 @@ from scripts.patch_gate_eval import (
     shot_payloads,
     train_mean_baseline,
 )
+
+
+def load_frozen_lookup(path: str):
+    """Load the frozen harmonic prior into a ``(shot, t_index) -> slice`` map.
+
+    Returns ``(lookup, meta)`` where ``meta`` carries the frozen config (order /
+    ridge / kind) and ``lookup`` keys each per-slice dict (coeffs / coeff_cov /
+    origin / pole / misfit / dyn_range) by ``(int(shot), int(t_index))``.
+    """
+    from imas_ambix.latent.boundary_harmonic import load_frozen_harmonic_prior
+
+    frozen = load_frozen_harmonic_prior(path)
+    lookup = {(int(s["shot"]), int(s["t_index"])): s for s in frozen["slices"]}
+    return lookup, frozen.get("meta", {})
+
+
+def build_slice_soft_priors(payload, grid, frozen_lookup, meta, spc):
+    """Per-slice :class:`SoftPriors` for the anchored interior solve, or None.
+
+    The annulus boundary anchor loads the FROZEN harmonic coeffs for this
+    ``(shot, t_index)``, reconstructs the §2 source-free ψ, reads its own
+    boundary/axis flux (frozen per slice), fixes the annulus point set there,
+    and targets the harmonic plasma ψ at those points (abs-ψ + rank-1 offset —
+    the gauge-keeping form the measurement selected).  The soft SOL edge, the
+    q ≥ 1 sawtooth bound, and the Ip-soft prior are added from ``spc`` (the
+    ladder-wide config).  Returns None when nothing is active or no frozen
+    slice matches (the slice then solves prior-free, reported as anchor-missing).
+    """
+    from imas_ambix.latent.boundary_harmonic import HarmonicFitConfig, harmonic_columns
+    from imas_ambix.latent.boundary_prior import (
+        annulus_point_set,
+        harmonic_annulus_target,
+    )
+    from imas_ambix.latent.profile_regularization import q_axis_linear_bound
+
+    sp_kwargs: dict = {}
+    anchored = False
+    weight = float(spc.get("anchor_weight", 0.0))
+    if weight > 0.0 and frozen_lookup is not None:
+        key = (int(payload.shot), int(payload.t_index))
+        frozen = frozen_lookup.get(key)
+        if frozen is not None:
+            from scripts.boundary_harmonic_gate_eval import (
+                _adaptive_radii,
+                hybrid_target_harmonic,
+            )
+
+            pole = (float(frozen["pole"][0]), float(frozen["pole"][1]))
+            origin = (float(frozen["origin"][0]), float(frozen["origin"][1]))
+            cfg = HarmonicFitConfig(
+                pole_r=pole[0],
+                pole_z=pole[1],
+                order=int(meta.get("order", 3)),
+                ridge=float(meta.get("ridge", 1e-8)),
+                kind=str(meta.get("kind", "P")),
+            )
+            frozen = dict(frozen)
+            frozen["cfg"] = cfg
+            rr, zz = np.meshgrid(grid.rg, grid.zg)
+            cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
+            psi_plasma = (cols @ np.asarray(frozen["coeffs"])).reshape(grid.nz, grid.nr)
+            psi_coil = grid.coil_psi(payload.i_pf).reshape(grid.nz, grid.nr)
+            psi_tot = psi_plasma + psi_coil
+            mask_r, excl_r = _adaptive_radii(origin, pole, _RadiiArgs())
+            _t, axis_psi, boundary_psi, _f, _d = hybrid_target_harmonic(
+                psi_tot, grid, origin, pole, mask_r, excl_r
+            )
+            ann_idx = annulus_point_set(
+                grid,
+                psi_carrier=psi_tot,
+                axis_psi=axis_psi,
+                boundary_psi=boundary_psi,
+            )
+            ann_rows = np.searchsorted(grid.cells, ann_idx)
+            valid = (ann_rows < grid.cells.size) & (
+                grid.cells[np.clip(ann_rows, 0, grid.cells.size - 1)] == ann_idx
+            )
+            ann_rows = ann_rows[valid]
+            if ann_rows.size >= 4:
+                target = harmonic_annulus_target(
+                    frozen, grid, grid.cells[ann_rows], "abs-psi"
+                )
+                # per-slice read uncertainty (heavy-tailed): use the fit misfit,
+                # floored, so noisier slices weigh the anchor less
+                unc = float(np.sqrt(max(float(frozen.get("misfit", 1.0)), 1e-6)))
+                sp_kwargs.update(
+                    anchor_form="abs-psi",
+                    anchor_weight=weight,
+                    anchor_ann_rows=ann_rows,
+                    anchor_psi_target=np.asarray(target, dtype=np.float64),
+                    anchor_gauge_offset=True,
+                    anchor_robust_clip=spc.get("anchor_robust_clip", 3.0),
+                    anchor_uncertainty=unc,
+                )
+                anchored = True
+
+    if spc.get("sol_cap", 1.0) > 1.0:
+        sp_kwargs.update(
+            sol_cap=float(spc["sol_cap"]),
+            sol_foot_w=float(spc.get("sol_foot_w", 0.05)),
+        )
+    if spc.get("q_bound"):
+        b_phi0 = float(spc.get("b_phi0", 0.55))
+        sp_kwargs.update(
+            q_axis_max=q_axis_linear_bound(b_phi0=b_phi0, r0=grid.r0),
+            q_weight=float(spc.get("q_weight", 1.0)),
+        )
+    if spc.get("ip_soft_sigma"):
+        sp_kwargs.update(ip_soft_sigma=float(spc["ip_soft_sigma"]))
+
+    if not sp_kwargs:
+        return None, anchored
+    return SoftPriors(**sp_kwargs), anchored
+
+
+class _RadiiArgs:
+    """Minimal stand-in exposing the fixed adaptive-radii fractions the §2 read
+    uses (its argparse defaults), so :func:`_adaptive_radii` needs no full args."""
+
+    mask_frac = 0.5
+    exclude_frac = 1.1
+    mask_radius = 0.25
+    exclude_radius = 0.55
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("closure_gate_eval")
@@ -190,6 +315,9 @@ def fit_and_read_slice(
     reseed_axis_r_max: float | None = None,
     keep_psi: bool = False,
     keep_jphi: bool = False,
+    frozen_lookup: dict | None = None,
+    meta: dict | None = None,
+    soft_prior_cfg: dict | None = None,
 ) -> ClosureSliceFit:
     """Fit the profile against ``payload``'s raw magnetics through the GS fixed
     point and read the hardened 14-D geometry from the force-balanced ψ.
@@ -233,6 +361,7 @@ def fit_and_read_slice(
     z0 = None
     dof = None
     coeffs = None
+    sp_slice = None  # per-slice soft priors (ladder branch); reseed reuses it
 
     if fit_mode == "grid":
         kw = payload_kw | dict(
@@ -269,6 +398,15 @@ def fit_and_read_slice(
             kw["passive_ridge"] = passive_ridge
         if warm_jphi is not None:
             kw["initial_jphi"] = warm_jphi
+        # per-slice soft priors (annulus anchor / SOL foot / q≥1 / Ip-soft):
+        # the boundary read enters HERE as a soft prior on the free-boundary solve
+        sp_slice = None
+        if soft_prior_cfg:
+            sp_slice, _anchored = build_slice_soft_priors(
+                payload, grid, frozen_lookup, meta or {}, soft_prior_cfg
+            )
+        if sp_slice is not None:
+            kw["soft_priors"] = sp_slice
         lf = fit_profile_ladder(grid, table, **kw)
         if (
             not lf.result.converged
@@ -345,6 +483,8 @@ def fit_and_read_slice(
             nonneg=nonneg,
             initial_jphi=scout.result.jphi.ravel(),
         )
+        if sp_slice is not None:
+            reseed_kw["soft_priors"] = sp_slice
         if passive is not None:
             reseed_kw["passive"] = passive
             reseed_kw["passive_ridge"] = passive_ridge
@@ -471,6 +611,9 @@ def fit_shot(payload: dict, cfg: dict, workers: int) -> list[ClosureSliceFit]:
             warm_jphi=warm_jphi,
             reseed_axis_r_max=cfg.get("reseed_axis_r_max"),
             keep_jphi=True,
+            frozen_lookup=cfg.get("frozen_lookup"),
+            meta=cfg.get("frozen_meta"),
+            soft_prior_cfg=cfg.get("soft_prior_cfg"),
         )
         if f.scored and f.converged:
             warm_jphi = f.jphi_flat
@@ -547,7 +690,44 @@ def run_gate(args) -> int:
         "maxfev": args.maxfev,
         "reseed_axis_r_max": args.reseed_axis_r,
     }
-    logger.info("closure gate split=%s cfg=%s", args.split, cfg)
+    # soft-prior config (the §3 ablation ladder): the annulus boundary anchor,
+    # the soft SOL edge, the q≥1 sawtooth clamp, and the Ip-soft prior.  The
+    # frozen harmonic prior is loaded ONCE and shared across shots (pinned
+    # against editable-install drift).
+    soft_prior_cfg = {
+        "anchor_weight": args.anchor_weight,
+        "anchor_robust_clip": (
+            args.anchor_robust_clip if args.anchor_robust_clip > 0 else None
+        ),
+        "sol_cap": args.sol_cap,
+        "sol_foot_w": args.sol_foot_w,
+        "q_bound": args.q_bound,
+        "q_weight": args.q_weight,
+        "b_phi0": args.b_phi0,
+        "ip_soft_sigma": args.ip_soft_sigma,
+    }
+    active = (
+        args.anchor_weight > 0.0
+        or args.sol_cap > 1.0
+        or args.q_bound
+        or args.ip_soft_sigma
+    )
+    if active:
+        cfg["soft_prior_cfg"] = soft_prior_cfg
+        if args.frozen_prior:
+            lookup, meta = load_frozen_lookup(args.frozen_prior)
+            cfg["frozen_lookup"] = lookup
+            cfg["frozen_meta"] = meta
+            logger.info(
+                "loaded frozen harmonic prior: %d slices, meta=%s",
+                len(lookup),
+                meta,
+            )
+        cfg["config_soft_priors"] = soft_prior_cfg
+    # JSON-safe view: the frozen-prior lookup (numpy arrays) drives the run but
+    # must not land in the serialized config record
+    cfg_json = {k: v for k, v in cfg.items() if k not in ("frozen_lookup",)}
+    logger.info("closure gate split=%s cfg=%s", args.split, cfg_json)
 
     train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)
     baseline_vec = train_mean_baseline(
@@ -629,7 +809,7 @@ def run_gate(args) -> int:
                 {
                     "arm": "closure",
                     "split": args.split,
-                    "config": cfg,
+                    "config": cfg_json,
                     "n_scored": 0,
                     "n_candidate": n_candidate,
                     "scored_fraction": 0.0,
@@ -679,7 +859,7 @@ def run_gate(args) -> int:
     result = {
         "arm": "closure",
         "split": args.split,
-        "config": cfg
+        "config": cfg_json
         | {
             "n_train": args.n_train,
             "n_heldout": args.n_heldout,
@@ -694,6 +874,17 @@ def run_gate(args) -> int:
         "scored_fraction": float(n_scored / max(n_candidate, 1)),
         "mask_reasons": reasons,
         "strict_converged_fraction_of_scored": conv_frac,
+        # attractor instrument (§3.2 gate): the reseed-lever trigger rate and the
+        # outboard-axis rate — the metric to watch collapse to ≈0 once the soft
+        # anchor supplies the missing boundary constraint (reseed/scout retire).
+        "reseed_trigger_fraction": float(
+            np.mean([f.reason == "scored-reseeded" for f in scored])
+        ),
+        "axis_outboard_fraction": float(
+            np.mean(
+                [bool(np.isfinite(f.target[0]) and f.target[0] > 1.1) for f in scored]
+            )
+        ),
         "beta0_median": (
             float(np.nanmedian(beta0_fit)) if np.isfinite(beta0_fit).any() else None
         ),
@@ -1036,6 +1227,62 @@ def main() -> int:
         "from a compact seed and re-certify there (outboard-attractor coverage "
         "lever; None = OFF, the default). Physical MAST confined axes sit "
         "R < 1.1 m, so ~1.4 is a safe outboard-corner trigger.",
+    )
+    # --- §3 soft-prior interior solve: the boundary read as a SOFT prior ---
+    ap.add_argument(
+        "--frozen-prior",
+        type=str,
+        default="",
+        help="path to the frozen harmonic prior NPZ/JSON "
+        "(imas_ambix/latent/artifacts/patch_gate/harmonic_prior_frozen[-tune]); "
+        "the annulus anchor loads its per-slice coeffs, pinned against drift",
+    )
+    ap.add_argument(
+        "--anchor-weight",
+        type=float,
+        default=0.0,
+        help="annulus ψ-consistency anchor weight (0 = OFF = free-boundary A0); "
+        "the boundary read enters as a SOFT prior at this weight (abs-ψ + rank-1 "
+        "gauge offset — the gauge-keeping form the measurement selected)",
+    )
+    ap.add_argument(
+        "--anchor-robust-clip",
+        type=float,
+        default=3.0,
+        help="Huber clip (robust-σ) down-weighting outlier annulus points "
+        "(heavy-tailed consistency); None-like <=0 disables",
+    )
+    ap.add_argument(
+        "--sol-cap",
+        type=float,
+        default=1.0,
+        help="soft SOL edge cap ψ_N (1.0 = hard ψ_N<1 mask = A1; >1 e.g. 1.1 "
+        "admits public-SOL current through a C¹ decay foot = A2)",
+    )
+    ap.add_argument(
+        "--sol-foot-w",
+        type=float,
+        default=0.05,
+        help="SOL decay-foot width (dimensionless)",
+    )
+    ap.add_argument(
+        "--q-bound",
+        action="store_true",
+        help="add the q≥1 sawtooth clamp (soft upper bound on on-axis jφ)",
+    )
+    ap.add_argument("--q-weight", type=float, default=1.0)
+    ap.add_argument(
+        "--b-phi0",
+        type=float,
+        default=0.55,
+        help="vacuum toroidal field [T] at R0 for the q≥1 bound (MAST nominal)",
+    )
+    ap.add_argument(
+        "--ip-soft-sigma",
+        type=float,
+        default=0.0,
+        help="if >0, use the SOFT Ip prior at this fractional σ instead of the "
+        "hard Rogowski KKT (default 0 = hard anchor)",
     )
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--figures", action="store_true", help="render figures only")

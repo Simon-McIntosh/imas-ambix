@@ -1146,7 +1146,12 @@ def _assemble_soft_prior_rows(
         return row2d
 
     # --- annulus boundary anchor (the load-bearing §3 ingredient) ---
-    if sp.anchor_form is not None and sp.anchor_weight > 0.0 and sp.anchor_ann_rows is not None:
+    anchor_on = (
+        sp.anchor_form is not None
+        and sp.anchor_weight > 0.0
+        and sp.anchor_ann_rows is not None
+    )
+    if anchor_on:
         from imas_ambix.latent.boundary_prior import annulus_penalty_rows
 
         ann = np.asarray(sp.anchor_ann_rows, dtype=int)
@@ -1582,20 +1587,24 @@ def solve_equilibrium_lsq(
                 # assemble optional soft-prior rows (annulus anchor, q bound,
                 # Ip-soft, moment, pressure) on x = [coeffs, a_pass] (+1 gauge
                 # offset column for the annulus abs-ψ form).
-                a_extra, b_extra, n_gauge = _assemble_soft_prior_rows(
-                    sp,
-                    grid=grid,
-                    u_n=u_n,
-                    a_anchor=a_anchor,
-                    axis_images_unit=axis_images_unit,
-                    coeffs_prev=coeffs,
-                    psi_coil=psi_coil,
-                    psi_pass=psi_pass,
-                    a_pass=a_pass,
-                    ip_amperes=ip_amperes,
-                    k_dof=k_dof,
-                    kp=kp,
-                ) if sp.any_penalty else (np.zeros((0, n_var)), np.zeros(0), 0)
+                a_extra, b_extra, n_gauge = (
+                    _assemble_soft_prior_rows(
+                        sp,
+                        grid=grid,
+                        u_n=u_n,
+                        a_anchor=a_anchor,
+                        axis_images_unit=axis_images_unit,
+                        coeffs_prev=coeffs,
+                        psi_coil=psi_coil,
+                        psi_pass=psi_pass,
+                        a_pass=a_pass,
+                        ip_amperes=ip_amperes,
+                        k_dof=k_dof,
+                        kp=kp,
+                    )
+                    if sp.any_penalty
+                    else (np.zeros((0, n_var)), np.zeros(0), 0)
+                )
                 if nonneg:
                     if n_gauge:
                         raise NotImplementedError(
