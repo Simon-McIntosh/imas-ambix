@@ -493,6 +493,7 @@ def lcfs_contour(
     lcfs_norm: float = 0.999,
     n_coarse: int = 6,
     n_bisect: int = 14,
+    clip_legs: bool = False,
 ) -> LcfsContour:
     """LCFS = the outermost closed axis-enclosing flux contour inside the limiter.
 
@@ -599,13 +600,32 @@ def lcfs_contour(
             hi = mid
     psi_bnd = _level(lo)
 
-    # Step a hair inside (99.9% convention) and read the reported ring + radii.
-    psi_lcfs = psi_axis + lcfs_norm * (psi_bnd - psi_axis)
-    ring = _axis_enclosing_ring(gen, psi_lcfs, axis)
-    if ring is None:
-        ring = _valid_ring(lo)  # fall back to the exact largest-valid ring
-    if ring is None:
-        return nan
+    if clip_legs:
+        # ψ_N = 1.0: report the confined lobe AT the separatrix (the largest
+        # closed axis-enclosing level), not a hair inside.  The divertor legs are
+        # open level-set branches through the X-point, so the closed-ring
+        # selection already excludes them; snapping the lobe to any in-limiter
+        # X-point sitting on it then extends the boundary to the true separatrix
+        # CORNER (clipping the leg exactly at the X-point) rather than rounding it.
+        psi_lcfs = psi_bnd
+        ring = _valid_ring(lo)
+        if ring is None:
+            ring = _axis_enclosing_ring(
+                gen, psi_axis + 0.999 * (psi_bnd - psi_axis), axis
+            )
+        if ring is None:
+            return nan
+        ring = _snap_ring_to_xpoints(
+            ring, psi, r_1d, z_1d, psi_bnd, lim_r, lim_z, axis
+        )
+    else:
+        # Step a hair inside (99.9% convention) and read the reported ring.
+        psi_lcfs = psi_axis + lcfs_norm * (psi_bnd - psi_axis)
+        ring = _axis_enclosing_ring(gen, psi_lcfs, axis)
+        if ring is None:
+            ring = _valid_ring(lo)  # fall back to the exact largest-valid ring
+        if ring is None:
+            return nan
     radii = resample_lcfs_radii(
         ring[:, 0], ring[:, 1], float(axis[0]), float(axis[1]), ang
     )
@@ -616,6 +636,52 @@ def lcfs_contour(
         psi_lcfs=float(psi_lcfs),
         radii=radii,
     )
+
+
+def _snap_ring_to_xpoints(
+    ring: np.ndarray,
+    psi: np.ndarray,
+    r_1d: np.ndarray,
+    z_1d: np.ndarray,
+    psi_bnd: float,
+    lim_r: np.ndarray | None,
+    lim_z: np.ndarray | None,
+    axis: tuple[float, float],
+    *,
+    flux_tol: float = 0.05,
+    dist_tol: float = 0.08,
+) -> np.ndarray:
+    """Snap the confined lobe to any X-point sitting on the separatrix.
+
+    A diverted plasma's separatrix passes through the X-point; the closed lobe
+    traced a hair inside rounds that corner.  For each in-limiter saddle whose
+    flux matches ``psi_bnd`` (within ``flux_tol`` of the axis→boundary span) and
+    that lies within ``dist_tol`` [m] of the lobe, replace the nearest ring
+    vertex with the X-point itself — the boundary then reaches the true
+    separatrix corner (the leg clipped exactly at the X-point).  Limited plasmas
+    (no on-separatrix X-point) are returned unchanged.
+    """
+    cp = find_critical_points(psi, r_1d, z_1d)
+    if cp.x_points.shape[0] == 0:
+        return ring
+    span = abs(psi_bnd - _bilerp(psi, r_1d, z_1d, float(axis[0]), float(axis[1])))
+    span = span if span > 0 else 1.0
+    out = ring
+    for xr, xz, xv in zip(cp.x_points[:, 0], cp.x_points[:, 1], cp.x_psi, strict=True):
+        if abs(xv - psi_bnd) > flux_tol * span:
+            continue
+        if lim_r is not None and lim_z is not None:
+            inside = _inside_polygon(
+                np.array([xr]), np.array([xz]), lim_r, lim_z
+            )[0]
+            if not inside:
+                continue
+        d = np.hypot(out[:, 0] - xr, out[:, 1] - xz)
+        k = int(np.argmin(d))
+        if d[k] <= dist_tol:
+            out = out.copy()
+            out[k] = (xr, xz)
+    return out
 
 
 def emergent_xpoints(

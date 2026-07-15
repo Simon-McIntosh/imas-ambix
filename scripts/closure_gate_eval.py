@@ -80,7 +80,7 @@ from scripts.patch_gate_eval import (
 )
 
 
-def geometry_target_pushout(psi2d, grid):
+def geometry_target_pushout(psi2d, grid, clip_legs=True):
     """14-D geometry read of the interior ψ using the LANDED push-out LCFS
     reader (:func:`imas_ambix.latent.topology.lcfs_contour`) — the outermost
     closed axis-enclosing flux ring — instead of the innermost-X-point /
@@ -113,6 +113,7 @@ def geometry_target_pushout(psi2d, grid):
         axis,
         limiter_r=grid.limiter_r,
         limiter_z=grid.limiter_z,
+        clip_legs=clip_legs,
     )
     if not lc.found:
         return target, psi_ax, psi_b
@@ -146,15 +147,20 @@ def load_frozen_lookup(path: str):
     return lookup, frozen.get("meta", {})
 
 
-def _harmonic_read_for_slice(payload, grid, table, basis, meta):
+def _harmonic_read_for_slice(payload, grid, table, basis, meta, adaptive="fixed"):
     """The §2 source-free harmonic read for one slice, using the FROZEN config.
 
     Recomputes the read inline (Ip-anchored moment centroid → per-slice pole →
     source-free harmonic fit to this slice's own raw magnetics) with the config
     frozen on train (``meta``: order / ridge / kind / pole-inboard fraction).
     Cohort-independent (no (shot, t_index) cache matching) and leakage-free —
-    only the slice's magnetics + Ip enter, never EFIT.  Returns
-    ``(cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi)`` or None.
+    only the slice's magnetics + Ip enter, never EFIT.
+
+    ``adaptive`` selects the overfit guard: ``"fixed"`` (frozen full order),
+    ``"order"`` (scalar argmin-CV order), or ``"terms"`` (symmetry-aware forward-
+    CV term selection — keeps real elongation cos modes, drops noise-fitting
+    asymmetric ones).  Returns ``(cfg, coeffs, misfit, psi_tot, axis_psi,
+    boundary_psi)`` or None.
     """
     from boundary_harmonic_gate_eval import (  # noqa: PLC0415
         _adaptive_radii,
@@ -165,6 +171,7 @@ def _harmonic_read_for_slice(payload, grid, table, basis, meta):
     from imas_ambix.latent.boundary_harmonic import (  # noqa: PLC0415
         HarmonicFitConfig,
         _fit_one,
+        fit_harmonic_adaptive,
         harmonic_columns,
         harmonic_sensor_matrix,
     )
@@ -186,9 +193,20 @@ def _harmonic_read_for_slice(payload, grid, table, basis, meta):
     )
     sr, sz, sang, is_flux = sensor_arrays(table)
     a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
-    coeffs, misfit, _ = _fit_one(
-        a_sens, payload.measured, payload.vacuum, payload.mask, payload.scale, cfg.ridge
-    )
+    if adaptive in ("terms", "order"):
+        coeffs, _sel = fit_harmonic_adaptive(
+            a_sens, payload.measured, payload.vacuum, payload.mask, payload.scale,
+            order_max=int(meta.get("order", 3)), mode=adaptive, ridge=cfg.ridge,
+        )
+        pred = payload.vacuum + a_sens @ coeffs
+        w = 1.0 / np.maximum(payload.scale, 1e-12)
+        m = np.asarray(payload.mask, bool) & np.isfinite(payload.measured)
+        misfit = float(np.mean((((pred - payload.measured) * w)[m]) ** 2))
+    else:
+        coeffs, misfit, _ = _fit_one(
+            a_sens, payload.measured, payload.vacuum, payload.mask, payload.scale,
+            cfg.ridge,
+        )
     rr, zz = np.meshgrid(grid.rg, grid.zg)
     cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
     psi_plasma = (cols @ coeffs).reshape(grid.nz, grid.nr)
