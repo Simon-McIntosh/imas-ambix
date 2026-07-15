@@ -33,21 +33,20 @@ FIGDIR = Path("docs/figures/equilibrium-boundary-closure")
 FROZEN = "imas_ambix/latent/artifacts/patch_gate/harmonic_prior_frozen.json"
 
 
-def _th_lcfs_ring(p, grid, table, basis, meta):
+def _th_lcfs_ring(p, grid, table, basis, meta, adaptive="fixed"):
     """The §2 source-free TH read's own LCFS ring for this slice (push-out
     boundary) — the ~6.7 cm read the anchor targets, to overlay in green."""
     from boundary_harmonic_gate_eval import _adaptive_radii, sensor_arrays
 
     from imas_ambix.latent.boundary_harmonic import (
         HarmonicFitConfig,
-        _fit_one,
+        fit_harmonic_adaptive,
         harmonic_columns,
         harmonic_sensor_matrix,
         mask_invalid_interior,
     )
     from imas_ambix.latent.boundary_moment import MomentFitConfig, fit_moment_currents
     from imas_ambix.latent.topology import lcfs_contour
-
     from scripts.closure_gate_eval import _RadiiArgs
 
     frac = float(meta.get("pole_inboard_fraction", 0.41))
@@ -63,8 +62,9 @@ def _th_lcfs_ring(p, grid, table, basis, meta):
     )
     sr, sz, sang, is_flux = sensor_arrays(table)
     a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
-    coeffs, _, _ = _fit_one(
-        a_sens, p.measured, p.vacuum, p.mask, p.scale, cfg.ridge
+    coeffs, _sel = fit_harmonic_adaptive(
+        a_sens, p.measured, p.vacuum, p.mask, p.scale,
+        order_max=int(meta.get("order", 3)), mode=adaptive, ridge=cfg.ridge,
     )
     rr, zz = np.meshgrid(grid.rg, grid.zg)
     cols, _ = harmonic_columns(rr.ravel(), zz.ravel(), cfg)
@@ -175,9 +175,11 @@ def main() -> int:
                 reseed_axis_r_max=1.4,
                 keep_psi=True,
             )
-            # the §2 source-free TH read's own LCFS ring (its push-out boundary),
-            # to overlay in green — this is the ~6.7 cm read the anchor targets
-            th_ring = _th_lcfs_ring(p, grid, table, basis, meta)
+            # §2 TH read boundary: frozen full-order (dashed green, can overfit
+            # small plasmas) vs adaptive symmetry-aware term selection (solid
+            # green, the overfit-guarded read)
+            th_ring = _th_lcfs_ring(p, grid, table, basis, meta, adaptive="terms")
+            th_ring_fixed = _th_lcfs_ring(p, grid, table, basis, meta, adaptive="fixed")
             base = fit_and_read_slice(grid, table, p, **common)
             anc = fit_and_read_slice(
                 grid,
@@ -197,7 +199,6 @@ def main() -> int:
                 target, psi_ax, psi_b = geometry_target_pushout(fit.psi, grid)
                 axis_rz = (float(target[0]), float(target[1]))
                 lcfs = _closed_contour_about(grid.rg, grid.zg, fit.psi, psi_b, *axis_rz)
-                push = None  # red LCFS now IS the push-out read
                 sl = _our_slice(
                     fit.psi, grid, target, psi_ax, psi_b, p.ip_amperes, p.time_s, lcfs
                 )
@@ -211,15 +212,16 @@ def main() -> int:
                     show_flux_loops=False,
                 )
                 ax0 = np.atleast_1d(_ax).ravel()[0]
+                if th_ring_fixed is not None:
+                    ax0.plot(
+                        th_ring_fixed[:, 0], th_ring_fixed[:, 1], "--",
+                        color="#7fbf7f", lw=1.3, label="§2 TH (frozen order)",
+                        zorder=5,
+                    )
                 if th_ring is not None:
                     ax0.plot(
                         th_ring[:, 0], th_ring[:, 1], "-", color="#1b9e2f",
-                        lw=2.0, label="§2 TH read", zorder=6,
-                    )
-                if push is not None:
-                    ax0.plot(
-                        push[:, 0], push[:, 1], "--", color="#9467bd",
-                        lw=1.4, label="our ψ, push-out read", zorder=5,
+                        lw=2.0, label="§2 TH (adaptive terms)", zorder=6,
                     )
                 ax0.legend(fontsize=6, loc="upper right")
                 fig.suptitle(f"{shot} t={p.time_s:.3f}s ({kind}) — {tag}", fontsize=9)

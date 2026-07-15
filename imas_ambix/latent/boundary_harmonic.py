@@ -416,6 +416,238 @@ def harmonic_sensor_matrix(
     return np.where(flux, psi, bproj)
 
 
+# --- adaptive order selection (overfit guard) -------------------------------
+
+
+def select_order_cv(
+    a_sens_max: np.ndarray,
+    measured: np.ndarray,
+    vacuum: np.ndarray,
+    mask: np.ndarray,
+    scale: np.ndarray,
+    *,
+    orders: tuple[int, ...],
+    ridge: float = 1e-8,
+    cv_folds: int = 5,
+    ratio_cap: float | None = None,
+    seed: int = 0,
+) -> int:
+    """Machine-agnostic, leakage-free harmonic order via held-out-sensor CV.
+
+    The source-free harmonic fit OVERFITS small / weakly-constrained plasmas: the
+    in-fit whitened misfit keeps dropping with order while the reconstruction
+    develops high-order ripple on the weakly-observed high-field side, which the
+    boundary read then picks up as spurious pinches.  The in-fit misfit cannot
+    see this (it falls monotonically), but HELD-OUT-sensor cross-validation does:
+    an overfit order predicts left-out channels far worse than it fits the kept
+    ones, so its CV misfit blows up relative to the in-fit misfit.
+
+    This selects the LARGEST order (over ``orders``, ascending) whose k-fold
+    sensor-CV misfit stays within ``ratio_cap``× its own in-fit misfit — i.e. the
+    most resolution the sensors actually support on THIS slice, stepping down
+    automatically for small plasmas and keeping the full order for well-observed
+    ones.  Column nesting: the order-n design is the first ``2n+1`` columns of
+    ``a_sens_max`` (see :func:`harmonic_labels`), so one max-order matrix serves
+    every order.  Dimensionless (whitened misfit ratio) and EFIT-firewalled
+    (sensors only).  Falls back to the smallest order if none is CV-stable.
+    """
+    keep = np.where(np.asarray(mask, dtype=bool) & np.isfinite(measured))[0]
+    if keep.size < max(cv_folds, 4):
+        return int(min(orders))
+    b = np.nan_to_num(np.asarray(measured, np.float64)) - np.nan_to_num(
+        np.asarray(vacuum, np.float64)
+    )
+    w = 1.0 / np.maximum(np.asarray(scale, np.float64), 1e-12)
+    rng = np.random.default_rng(seed)
+    folds = np.array_split(rng.permutation(keep), cv_folds)
+
+    def _fit(a, rows):
+        aw = a[rows] * w[rows, None]
+        bw = b[rows] * w[rows]
+        cn = np.linalg.norm(aw, axis=0)
+        cn = np.where(cn > 0, cn, 1.0)
+        an = aw / cn
+        try:
+            c = np.linalg.solve(an.T @ an + ridge * np.eye(an.shape[1]), an.T @ bw) / cn
+        except np.linalg.LinAlgError:
+            return None
+        return c
+
+    def _cv_misfit(a):
+        vals = []
+        for f in folds:
+            tr = np.setdiff1d(keep, f)
+            c = _fit(a, tr)
+            if c is None:
+                return None
+            r = (a[f] @ c - b[f]) * w[f]
+            vals.append(float(np.mean(r**2)))
+        return float(np.mean(vals)) if vals else None
+
+    best_order = int(min(orders))
+    best_cv = np.inf
+    last_stable = int(min(orders))
+    for order in sorted(orders):
+        ncol = 2 * order + 1
+        if ncol > a_sens_max.shape[1]:
+            break
+        a = a_sens_max[:, :ncol]
+        c_in = _fit(a, keep)
+        if c_in is None:
+            continue
+        cv_mis = _cv_misfit(a)
+        if cv_mis is None:
+            continue
+        # argmin over CV misfit — the order that generalises best (parameter-free)
+        if cv_mis < best_cv:
+            best_cv = cv_mis
+            best_order = order
+        if ratio_cap is not None:  # optional legacy climb-while-stable mode
+            r_in = (a[keep] @ c_in - b[keep]) * w[keep]
+            if cv_mis <= ratio_cap * max(float(np.mean(r_in**2)), 1e-30):
+                last_stable = order
+    return int(last_stable if ratio_cap is not None else best_order)
+
+
+def select_harmonic_terms_cv(
+    a_sens_max: np.ndarray,
+    measured: np.ndarray,
+    vacuum: np.ndarray,
+    mask: np.ndarray,
+    scale: np.ndarray,
+    *,
+    ridge: float = 1e-8,
+    cv_folds: int = 5,
+    seed: int = 0,
+    min_improve: float = 1e-3,
+) -> np.ndarray:
+    """Symmetry-aware harmonic TERM selection by forward held-out-sensor CV.
+
+    A scalar order cutoff is too coarse: it drops the cos(nθ) and sin(nθ) columns
+    of a degree together, but they carry different physics — cos(nθ) is the
+    up-down-SYMMETRIC shaping (n=2 elongation, n=3 triangularity), sin(nθ) the
+    up-down-ASYMMETRIC modes (vertical shift / tilt).  Like a Fourier expansion,
+    one may want a real higher-order symmetric term (elongation) while a
+    same-degree asymmetric term is only fitting noise.
+
+    Forward-selects columns of ``a_sens_max`` (the max-order harmonic sensor
+    design; columns ordered ``h0, h1c, h1s, h2c, h2s, …`` per
+    :func:`harmonic_labels`) one at a time, each step adding the single column
+    that most reduces the k-fold held-out-sensor CV misfit, stopping when no
+    remaining column improves CV by a relative ``min_improve``.  ``h0`` is always
+    kept.  Returns a boolean column MASK: the coefficients of unselected columns
+    are held at zero, so a noise-fitting asymmetric mode is simply not admitted
+    while a physically-supported elongation mode is.  Machine-agnostic
+    (dimensionless whitened CV) and EFIT-firewalled (sensors only).
+    """
+    n_col = a_sens_max.shape[1]
+    keep_rows = np.where(np.asarray(mask, dtype=bool) & np.isfinite(measured))[0]
+    sel = np.zeros(n_col, dtype=bool)
+    sel[0] = True  # h0 always retained
+    if keep_rows.size < max(cv_folds, 4) or n_col <= 1:
+        return sel
+    b = np.nan_to_num(np.asarray(measured, np.float64)) - np.nan_to_num(
+        np.asarray(vacuum, np.float64)
+    )
+    w = 1.0 / np.maximum(np.asarray(scale, np.float64), 1e-12)
+    rng = np.random.default_rng(seed)
+    folds = np.array_split(rng.permutation(keep_rows), cv_folds)
+
+    def _cv(cols_mask):
+        idx = np.where(cols_mask)[0]
+        vals = []
+        for f in folds:
+            tr = np.setdiff1d(keep_rows, f)
+            aw = a_sens_max[np.ix_(tr, idx)] * w[tr, None]
+            bw = b[tr] * w[tr]
+            cn = np.linalg.norm(aw, axis=0)
+            cn = np.where(cn > 0, cn, 1.0)
+            an = aw / cn
+            try:
+                c = np.linalg.solve(
+                    an.T @ an + ridge * np.eye(idx.size), an.T @ bw
+                ) / cn
+            except np.linalg.LinAlgError:
+                return None
+            r = (a_sens_max[np.ix_(f, idx)] @ c - b[f]) * w[f]
+            vals.append(float(np.mean(r**2)))
+        return float(np.mean(vals)) if vals else None
+
+    best_cv = _cv(sel)
+    if best_cv is None:
+        return sel
+    improved = True
+    while improved:
+        improved = False
+        cand_best, cand_cv = -1, best_cv
+        for j in range(1, n_col):
+            if sel[j]:
+                continue
+            trial = sel.copy()
+            trial[j] = True
+            cv = _cv(trial)
+            if cv is not None and cv < cand_cv * (1.0 - min_improve):
+                cand_cv, cand_best = cv, j
+        if cand_best >= 0:
+            sel[cand_best] = True
+            best_cv = cand_cv
+            improved = True
+    return sel
+
+
+def fit_harmonic_adaptive(
+    a_sens_max: np.ndarray,
+    measured: np.ndarray,
+    vacuum: np.ndarray,
+    mask: np.ndarray,
+    scale: np.ndarray,
+    *,
+    order_max: int,
+    mode: str = "terms",
+    ridge: float = 1e-8,
+    cv_folds: int = 5,
+    seed: int = 0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Adaptive source-free harmonic fit — returns full-length coeffs (unselected
+    terms held at zero) and the boolean column mask actually used.
+
+    ``mode="terms"`` uses the symmetry-aware forward-CV term selection
+    (:func:`select_harmonic_terms_cv` — keeps real elongation-type cos modes,
+    drops noise-fitting asymmetric ones); ``mode="order"`` uses the scalar
+    argmin-CV order (:func:`select_order_cv`); ``mode="fixed"`` keeps all
+    ``2·order_max+1`` columns (the frozen behaviour).  The overfit guard is
+    per-slice, machine-agnostic, EFIT-firewalled.  The coefficients are fit on
+    the selected columns and scattered into the full vector so
+    ``harmonic_columns(...) @ coeffs`` evaluates the reduced model directly.
+    """
+    n_col = a_sens_max.shape[1]
+    if mode == "fixed":
+        sel = np.ones(n_col, dtype=bool)
+    elif mode == "order":
+        order = select_order_cv(
+            a_sens_max, measured, vacuum, mask, scale,
+            orders=tuple(range(1, order_max + 1)), ridge=ridge,
+            cv_folds=cv_folds, seed=seed,
+        )
+        sel = np.zeros(n_col, dtype=bool)
+        sel[: 2 * order + 1] = True
+    elif mode == "terms":
+        sel = select_harmonic_terms_cv(
+            a_sens_max, measured, vacuum, mask, scale,
+            ridge=ridge, cv_folds=cv_folds, seed=seed,
+        )
+    else:  # pragma: no cover
+        raise ValueError(f"unknown adaptive mode {mode!r}")
+
+    idx = np.where(sel)[0]
+    c_sub, _misfit, _cov = _fit_one(
+        a_sens_max[:, idx], measured, vacuum, mask, scale, ridge
+    )
+    coeffs = np.zeros(n_col, dtype=np.float64)
+    coeffs[idx] = c_sub
+    return coeffs, sel
+
+
 # --- the fit ----------------------------------------------------------------
 
 
@@ -697,6 +929,9 @@ __all__ = [
     "save_frozen_harmonic_prior",
     "mask_invalid_interior",
     "ring_P1",
+    "select_order_cv",
+    "select_harmonic_terms_cv",
+    "fit_harmonic_adaptive",
     "harmonic_labels",
     "harmonic_psi_on_grid",
     "harmonic_sensor_matrix",
