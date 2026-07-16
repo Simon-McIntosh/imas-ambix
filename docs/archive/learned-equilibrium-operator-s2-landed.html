@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="learned-equilibrium-operator-s2-landed">
+  <meta name="plan-title" content="Learned Equilibrium Operator — §2 rung R1 landed (G1 PASS)">
+  <meta name="plan-summary" content="First rung of the learned-operator ladder: differentiable Green's stack (gradients pinned vs analytic), spine label factory at corpus scale (4,301 slices / 158 train shots, 4,900 slices/node-hour at 8 chains), and the static residual operator trained on spine labels. Gate G1 PASS at n=128 against a byte-exact frozen-spine reproduction — and CI-clear superiority, not just non-inferiority: Δaxis +0.049 [+0.023,+0.070], ΔLCFS +0.061 [+0.034,+0.088], flat-top LCFS 1.50→1.15 cm. Landed 2026-07-16.">
+  <meta name="plan-informs" content="learned-equilibrium-operator">
+  <title>Learned Equilibrium Operator — §2 R1 landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Learned Equilibrium Operator — §2 rung R1 landed (G1 PASS)</h1>
+    <p><em>Per-stage record for
+    <a href="/imas-ambix/learned-equilibrium-operator.html">learned-equilibrium-operator</a>
+    (§2 rung R1 + §4 label factory + §5 throughput). The differentiable physics stack, the
+    corpus label factory, and the static residual learner are built, verified, and gated
+    held-out against the firewalled EFIT referee. Landed 2026-07-16.</em></p>
+
+    <h2>Quick status</h2>
+    <table>
+      <thead><tr><th>Deliverable</th><th>Status</th><th>Headline</th></tr></thead>
+      <tbody>
+        <tr><td>Differentiable Green's layer + gradient checks</td><td>✓ shipped</td>
+            <td>autograd == closed-form Jacobian to 1e-9; dc=0 round-trip exact (6.6e-12 on real labels)</td></tr>
+        <tr><td>§4 spine label factory (SLURM CPU fleet)</td><td>✓ shipped</td>
+            <td>4,301 slices / 158 train shots (91.5% coverage), config-sha-pinned, referee-free</td></tr>
+        <tr><td>§5 throughput measurement</td><td>✓ shipped</td>
+            <td>5.8 s/slice sequential → ~4,900 slices/node-hour at 8 chains; 64-chain fleet did 200 shots in ~25 min</td></tr>
+        <tr><td>R1 static residual operator + training</td><td>✓ shipped</td>
+            <td>~60k-param sensor-token encoder; leash-swept, drift-bounded selection (leash 10, 0.53 cm)</td></tr>
+        <tr><td><strong>Gate G1 (non-inferiority vs frozen spine)</strong></td><td><strong>✓ PASS</strong></td>
+            <td>n=128/128, spine drift 0.0; <strong>CI-clear superiority</strong>: Δaxis +0.049, ΔLCFS +0.061</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Gate G1 — the numbers</h2>
+    <p>Paired evaluation on the standard held-out cohort (8 shots × 16 slices, paired bootstrap
+    over shots, push-out LCFS reader, EFIT referee at evaluation only). The spine arm reproduces
+    the frozen <code>closure_gate_eval-D2</code> arrays <strong>byte-exactly</strong>
+    (max |Δtarget| = 0.0), so the deltas are measured against the true frozen baseline.</p>
+    <table>
+      <thead><tr><th>Metric</th><th>frozen classical spine</th><th>residual operator</th><th>paired Δ (op − spine), 95% CI</th></tr></thead>
+      <tbody>
+        <tr><td>axis skill</td><td>−0.437</td><td>−0.389</td><td><strong>+0.049 [+0.023, +0.070]</strong></td></tr>
+        <tr><td>LCFS skill</td><td>−0.209</td><td>−0.148</td><td><strong>+0.061 [+0.034, +0.088]</strong></td></tr>
+        <tr><td>X-point-set skill</td><td>0.320</td><td>0.288</td><td>−0.032 [−0.078, +0.061] (parity)</td></tr>
+        <tr><td>flat-top LCFS median</td><td>1.50 cm</td><td><strong>1.15 cm</strong></td><td>—</td></tr>
+        <tr><td>all-slices LCFS median</td><td>2.62 cm</td><td>2.35 cm</td><td>—</td></tr>
+        <tr><td>axis error median</td><td>6.1 cm</td><td>6.0 cm</td><td>—</td></tr>
+        <tr><td>whitened sensor cost median</td><td>1.036</td><td>0.982</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p>Gate condition was non-inferiority (Δ CI not below −0.05 on axis AND LCFS, n≥128): met
+    with margin — both CIs sit entirely <em>above zero</em>. The honest expectation for this rung
+    was parity (same static information); the measured win is small and consistent in kind: the
+    correction magnitudes are tiny (|dc| median 0.017, max 0.126 in Ip-normalised units), and the
+    operator trims the residual conservatism of the softly-anchored classical solve (anchor +
+    smoothness bias) rather than accessing new information. The temporal irreducibles remain
+    untouched — ramp-up slices dominate the remaining error, exactly where R2's time axis aims.</p>
+    <figure>
+      <img src="/imas-ambix/figures/learned-equilibrium-operator/fig-residual-operator-gate.png"
+           alt="Paired delta-skill bootstrap distributions for axis and LCFS (both entirely above zero, non-inferiority margin far to the left) and per-slice LCFS error scatter hugging the diagonal from below." style="max-width:100%">
+      <figcaption>G1 verdict: paired Δskill bootstrap (2,000 shot-draws, shared seed → per-draw
+      difference is the paired distribution) and the per-slice LCFS error comparison.</figcaption>
+    </figure>
+
+    <h2>What was built</h2>
+    <ul>
+      <li><code>imas_ambix/latent/profile_greens_decoder.py</code> — the differentiable decode:
+      profile-DOF corrections about the classical solution → cell currents (non-negativity clamp +
+      exact Rogowski-Ip renormalisation) → sensors and ψ(R,Z) exclusively through the precomputed
+      finite-area thick-cylinder Green's matrices (<code>PatchBasis</code> — the physics layer is
+      load-bearing; freehand fields are not representable). ψ_N is a fixed input (the solve's own
+      converged map) so the decode is a linearisation: gradients analytic, dc=0 exact.
+      <code>tests/latent/test_profile_greens_decoder.py</code> (11) pins torch-vs-numpy basis
+      parity (both kinds), fp64 <code>gradcheck</code>, autograd vs the closed-form Jacobian
+      (1e-9), the exact round-trip, and the exact Ip anchor.</li>
+      <li><code>imas_ambix/latent/residual_operator.py</code> — the per-slice learner: geometry-
+      encoded sensor tokens (value, spine residual, mask, kind, R, Z, orientation — the
+      machine-agnostic positional encoding), masked mean+max pooling, zero-initialised head
+      emitting K=6 profile-DOF corrections. Untrained operator == the classical spine.</li>
+      <li><code>scripts/spine_label_factory.py</code> + <code>spine_label_fleet.sh</code> — the
+      frozen classical solve (staged-disc soft prior + n_p=n_f=3 nonneg ladder, config pinned by
+      sha256 <code>3b50b94d…</code>) manufactures labels over train-split shots, referee-free
+      (held-out/eval shots refused outright); per-shot NPZ shards carry currents, ψ, ψ_N, targets,
+      and the full payload snapshot with provenance.</li>
+      <li><code>scripts/train_residual_operator.py</code> — self-supervised whitened sensor
+      reconstruction + DOF-space leash to the spine labels; leakage-free model selection on
+      train-split val shots under a bounded median boundary-shift criterion.</li>
+      <li><code>scripts/residual_operator_gate_eval.py</code> — the paired gate: both arms share
+      the frozen chain, the push-out reader, and the bootstrap draws (shared seed → paired Δ);
+      reports spine drift vs the frozen arrays.</li>
+    </ul>
+
+    <h2>Label corpus and compute (§4 + §5, measured)</h2>
+    <ul>
+      <li><strong>Corpus:</strong> 4,301 labelled slices over 158 train-split shots (91.5% of
+      candidates; near-vacuum shots skip cleanly), one campaign signature, Ip closure exact to
+      4e-16, reseed fraction 0.6% mean. Shards at
+      <code>/work/projects/imas_gpu/mast/spine_labels/</code>.</li>
+      <li><strong>Throughput (the §5 first work item):</strong> 5.8 s/slice on a single sequential
+      warm-started chain (sun CPU core) → ~4,900 slices/node-hour at 8 chains/node. The 4-node ×
+      16-chain sun_debug fleet labelled the 200-shot manifest depth in ~25 min. Full-corpus
+      (12.6k shots, O(10⁵–10⁶) slices) extrapolates to ~20–200 node-hours — a routine fleet run
+      when R2 needs it.</li>
+      <li><strong>Training is CPU-sized at this rung:</strong> the ~60k-param operator trains
+      through the fp64 Green's matmuls in ~80 s/leash on one CPU node (5-leash sweep ~7 min).
+      The H200 substrate becomes load-bearing at R2 (sequence model over 1 kHz histories), not
+      here.</li>
+      <li><strong>Chain semantics matter:</strong> warm-starting from scored-but-non-converged
+      slices diverged three shots' Picard trajectories vs the frozen run (up to 10 cm on single
+      slices, one slice masked). Strict-converged warm-starting reproduces the frozen arrays
+      byte-for-byte — pinned in both the factory and the gate.</li>
+    </ul>
+    <figure>
+      <img src="/imas-ambix/figures/learned-equilibrium-operator/fig-spine-label-corpus.png"
+           alt="Label corpus overview: slices per shot (most shots at the 30-slice cap), bimodal whitened misfit distribution with median 0.92, and plasma-current coverage 300-800 kA." style="max-width:100%">
+      <figcaption>The spine-manufactured label corpus. The misfit distribution is bimodal
+      (main mode ~0.7, secondary ~6 — ramp-up/early slices); the corpus spans 300–800 kA.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/learned-equilibrium-operator/fig-residual-operator-leash-sweep.png"
+           alt="Leash sweep: val sensor misfit improves from the spine's 14.23 to 12.9-13.4 as the leash loosens, while the median boundary shift grows from 0.53 cm (leash 10) to 3.2 cm (leash 0.1); the 0.5 cm selection bound picks leash 10." style="max-width:100%">
+      <figcaption>Leash sweep (leakage-free, train-split val shots). Untethered, the sensor-misfit
+      pull drifts the boundary ~3 cm — the bounded-drift selection is load-bearing; the selected
+      leash-10 operator moves the boundary 0.53 cm median and still cleared G1 with CI-clear wins.</figcaption>
+    </figure>
+
+    <h2>Decisions enacted</h2>
+    <ul>
+      <li><strong>residual-vs-end-to-end → residual-first</strong> (locked): R1 predicts
+      corrections about the classical solution; the shipped gate validates the composition.
+      Direct-DOF emission remains an R2 ablation arm as the option text specifies.</li>
+      <li><strong>physics-embedding = load-bearing-layers</strong> (honoured): every operator
+      output becomes a field only through the exact Green's matrices; the spine is
+      simultaneously label factory and paired baseline.</li>
+    </ul>
+
+    <h2>What's next</h2>
+    <p><strong>R2 — the temporal operator (the thesis rung).</strong> R1's plumbing makes R2's
+    wins attributable to the time axis: causal sequence backbone (decision open: SSM vs causal
+    transformer vs structured GRU), L/R-eigenmode-structured latent eddy state entering as
+    external currents through the same Green's layer, targets in yield order — ramp-up boundary
+    (5–10 cm today), axis via temporally-constrained profiles, p′/FF′ split on synthetic truth.
+    Gate G2: beat the disc read flat-top CI-clear, ramp-up &lt;5 cm median, axis &lt;5.1 cm.
+    Label factory scales to the full corpus (throughput now measured) and
+    <code>synthetic_truth.manufacture</code> pretrains the eddy latent with known histories.</p>
+
+    <h2>Provenance</h2>
+    <ul>
+      <li>Commits: <code>f5782d9</code> (decoder + tests), <code>6aeccc1</code> (factory /
+      operator / gate), <code>10fc87c</code>, <code>e1205ac</code> (chain semantics),
+      <code>2163006</code> (training), <code>6eed4a3</code> (gate artifacts).</li>
+      <li>Artifacts: <code>imas_ambix/latent/artifacts/patch_gate/residual_operator_gate_eval.json</code>
+      (+ arrays NPZ), <code>imas_ambix/latent/artifacts/residual_operator/training_report.json</code>,
+      checkpoint (gitignored) <code>imas_ambix/latent/artifacts/residual_operator/residual_operator.pt</code>.</li>
+      <li>Frozen baseline: <code>closure_spine_frozen.json</code> sha256 <code>3b50b94d…</code>;
+      coil model <code>cylinder-sensors-v5</code>; geometry <code>amb-schema-canonical-v2</code>.</li>
+    </ul>
+  </main>
+</body>
+</html>

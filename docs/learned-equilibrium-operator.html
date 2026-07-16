@@ -4,23 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="learned-equilibrium-operator">
-  <meta name="plan-title"     content="Learned Equilibrium Operator — physics-embedded, time-aware, machine-agnostic">
-  <meta name="plan-summary"   content="The equilibrium-boundary-closure endgame: a learned operator raw-sensor-history + machine geometry → equilibrium (boundary, axis, ψ, profiles) that beats the frozen classical spine by carrying the information the static classical read provably cannot access — the arrow of time. The three characterised irreducibles (p′/FF′ profile split, axis-vs-centroid interior null, vessel-eddy L/R history) are ALL temporal or kinetic, not static-magnetic; a per-slice classical solve is at its external-field information ceiling. Architecture: physics components are LOAD-BEARING differentiable layers (exact thick-cylinder Green's coil/passive/plasma field operators, sensor-geometry positional encoding, L/R passive eigenmodes structuring a latent eddy state) — the network learns ONLY the physics-degenerate residuals. Labels: the frozen EFIT-independent spine (disc read + D2 solve) doubles as a label factory over the 12.6k-shot MAST corpus, and gs_solve forward mode manufactures synthetic truth (including exact p′/FF′ and eddy histories) for pretraining. Gates vs frozen baselines: beat the disc read (flat-top 1.4–2.1 cm, ramp-up 5–10 cm) and the D1 axis (5.1 cm median), EFIT referee eval-only. Transfer: geometry-conditioned, synthetic-machine sweep first, real second machine data-gated. Feeds machine-agnostic-latent-world-model.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="XL">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="learned-equilibrium-operator">
+  <meta name="plan-title" content="Learned Equilibrium Operator — physics-embedded, time-aware, machine-agnostic">
+  <meta name="plan-summary" content="The equilibrium-boundary-closure endgame: a learned operator raw-sensor-history + machine geometry → equilibrium (boundary, axis, ψ, profiles) that beats the frozen classical spine by carrying the information the static classical read provably cannot access — the arrow of time. The three characterised irreducibles (p′/FF′ profile split, axis-vs-centroid interior null, vessel-eddy L/R history) are ALL temporal or kinetic, not static-magnetic; a per-slice classical solve is at its external-field information ceiling. Architecture: physics components are LOAD-BEARING differentiable layers (exact thick-cylinder Green&#x27;s coil/passive/plasma field operators, sensor-geometry positional encoding, L/R passive eigenmodes structuring a latent eddy state) — the network learns ONLY the physics-degenerate residuals. Labels: the frozen EFIT-independent spine (disc read + D2 solve) doubles as a label factory over the 12.6k-shot MAST corpus, and gs_solve forward mode manufactures synthetic truth (including exact p′/FF′ and eddy histories) for pretraining. Gates vs frozen baselines: beat the disc read (flat-top 1.4–2.1 cm, ramp-up 5–10 cm) and the D1 axis (5.1 cm median), EFIT referee eval-only. Transfer: geometry-conditioned, synthetic-machine sweep first, real second machine data-gated. Feeds machine-agnostic-latent-world-model.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S16">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S16">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="equilibrium-boundary-closure">
-  <meta name="plan-blocks"    content="equilibrium-topology-fidelity">
-  <meta name="plan-informs"   content="machine-agnostic-latent-world-model,closed-loop-latent-filter,learned-closure-current-diffusion-v0">
+  <meta name="plan-blocks" content="equilibrium-topology-fidelity">
+  <meta name="plan-informs" content="machine-agnostic-latent-world-model,closed-loop-latent-filter,learned-closure-current-diffusion-v0">
   <title>Learned Equilibrium Operator | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-16">
+<meta name="plan-impl" content="0.33">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
@@ -77,8 +80,8 @@
       <text x="30" y="306" font-size="13" font-weight="700" fill="#14612b">R0 — frozen classical spine + referee harness (DONE)</text>
       <text x="30" y="326" font-size="11.5" fill="#1a1a1a">disc read 1.4–2.1 cm flat-top / 5–10 cm ramp-up · D2 solve 1.50 cm, reseed 0% · n=128 paired-bootstrap gate, push-out reader</text>
       <!-- R1 -->
-      <rect x="16" y="196" width="700" height="60" rx="6" fill="#ffffff" stroke="#c8ccd2"/>
-      <text x="30" y="218" font-size="13" font-weight="700" fill="#1a1a1a">R1 — static residual learner (plumbing rung)</text>
+      <rect x="16" y="196" width="700" height="60" rx="6" fill="#ffffff" stroke="#1b7837" stroke-width="1.6"/>
+      <text x="30" y="218" font-size="13" font-weight="700" fill="#14612b">R1 — static residual learner (DONE — G1 PASS, CI-clear)</text>
       <text x="30" y="238" font-size="11.5" fill="#1a1a1a">per-slice net: calibrated sensors + geometry encoding → degenerate-DOF residuals → exact Green's layer → sensor loss + spine labels</text>
       <!-- R2 -->
       <rect x="16" y="108" width="700" height="60" rx="6" fill="#ffffff" stroke="#1565c0" stroke-width="2"/>
@@ -107,17 +110,19 @@
     R0 spine is the paired baseline at every rung.</figcaption>
   </figure>
 
-  <p><strong>R1 — static residual learner.</strong> A small per-slice network (MLP / shallow
-  transformer over the sensor set) reads the absolute-calibrated sensor vector and the
-  sensor-geometry positional encoding, and emits <em>residuals on the physics-degenerate DOF
-  only</em>: profile-coefficient corrections, an axis-offset correction, a low-order boundary
-  residual. Those corrections are decoded through the <em>exact</em> differentiable Green's layer
-  to predicted sensors and ψ — the network never emits fields freehand. Losses: raw-sensor
-  reconstruction (self-supervised, firewall-clean by construction) + consistency with the spine's
-  manufactured labels (§4). Honest expectation: parity with D2 on flat-tops (same information);
-  the gate is <strong>non-inferiority + a verified differentiable physics stack</strong>
-  (gradients through the Green's layer checked against analytic derivatives) + the label factory
-  running at corpus scale. R1 exists so that R2's wins are attributable to time, not to plumbing.</p>
+  <section class="section-landed">
+    <p><span class="badge badge-shipped">✓ R1 landed 2026-07-16 — G1 PASS</span>
+    <strong>R1 — static residual learner.</strong> Differentiable Green's stack built and
+    gradient-pinned (autograd == closed form to 1e-9, dc=0 round-trip exact); label factory ran
+    at corpus scale (4,301 slices / 158 train shots, 5.8 s/slice measured); the ~60k-param
+    sensor-token residual operator cleared G1 at n=128/128 against a <em>byte-exact</em>
+    frozen-spine reproduction — <strong>CI-clear superiority, not just non-inferiority</strong>:
+    Δaxis +0.049 [+0.023, +0.070], ΔLCFS +0.061 [+0.034, +0.088], X-point parity; flat-top LCFS
+    1.50 → 1.15 cm; corrections tiny (|dc| median 0.017 — trimming the soft-anchor conservatism,
+    no new information claimed). Full record:
+    <a href="archive/learned-equilibrium-operator-s2-landed.html">§2 R1 landed</a>
+    (commits <code>f5782d9</code>…<code>6eed4a3</code>).</p>
+  </section>
 
   <p><strong>R2 — temporal operator (the thesis rung).</strong> A causal sequence model over the
   sensor history (backbone open: SSM vs causal transformer vs GRU — see decisions) carrying a
@@ -223,6 +228,12 @@
   </figure>
 
   <h2 id="s4">§4 — Corpus and the label factory: the frozen spine manufactures its own training data</h2>
+  <p><span class="badge badge-shipped">✓ factory landed 2026-07-16</span>
+  <em>Built and demonstrated at corpus scale with R1: 4,301 labelled slices over 158 train-split
+  shots (91.5% coverage, config-sha-pinned, referee-free, Ip closure exact), shards at
+  <code>/work/projects/imas_gpu/mast/spine_labels/</code>. Full-corpus scale-up is a routine
+  fleet run when R2 needs it — see
+  <a href="archive/learned-equilibrium-operator-s2-landed.html">the landed record</a>.</em></p>
   <p><strong>The key economy of the decoupled design:</strong> the frozen classical spine is
   EFIT-independent, so its outputs are <em>firewall-clean training labels</em>. Running the disc
   read + D2 solve over the corpus manufactures per-slice (boundary contour, ψ(R,Z), axis, profile
@@ -253,6 +264,11 @@
   </ul>
 
   <h2 id="s5">§5 — Compute footprint (H200 + CPU fleet)</h2>
+  <p><span class="badge badge-shipped">✓ measured 2026-07-16</span>
+  <em>Label throughput measured: 5.8 s/slice per sequential warm-started chain → ~4,900
+  slices/node-hour at 8 chains; a 4-node × 16-chain <code>sun_debug</code> fleet labelled the
+  200-shot manifest depth in ~25 min. R1-scale training is CPU-sized (~80 s/leash through the
+  fp64 Green's matmuls) — the H200 substrate becomes load-bearing at R2, not before.</em></p>
   <ul>
     <li><strong>Label factory: CPU, not GPU.</strong> Corpus-scale disc+D2 solves shard across
     <code>sun</code>-partition CPU nodes (SLURM array; the solve is per-slice independent).
@@ -291,41 +307,41 @@
   </ul>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
-    <h2><span class="sec">§</span> Decisions</h2>
-    <div class="r-dec" data-key="physics-embedding" data-choice="load-bearing-layers" data-by="lead directive (equilibrium-boundary-closure f-ebc-11)" data-when="2026-07-16">
-      <p class="r-dec-q">How do the classical physics components enter the learned operator?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt chosen" data-value="load-bearing-layers">Load-bearing differentiable layers — exact thick-cylinder Green's operators, geometry positional encoding, and L/R-structured latents sit INSIDE the model; the network emits only physics-degenerate DOF. The spine is simultaneously the label factory and the paired baseline (locked by the lead's ship brief).</button>
-        <button class="r-opt" data-value="feature-preprocessing">Physics as preprocessing/features only — the network emits fields freehand (rejected: unphysical fields become representable, transfer loses its anchor, and the firewall guarantee weakens)</button>
-        <button class="r-opt" data-value="pure-end-to-end">Pure end-to-end sensors→boundary with no physics layer (rejected: discards exact known operators and the entire closure investigation's inductive bias)</button>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="physics-embedding" data-choice="load-bearing-layers" data-by="lead directive (equilibrium-boundary-closure f-ebc-11)" data-when="2026-07-16">
+    <p class="r-dec-q">How do the classical physics components enter the learned operator?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="load-bearing-layers">Load-bearing differentiable layers — exact thick-cylinder Green&#x27;s operators, geometry positional encoding, and L/R-structured latents sit INSIDE the model; the network emits only physics-degenerate DOF. The spine is simultaneously the label factory and the paired baseline (locked by the lead&#x27;s ship brief).</button>
+      <button class="r-opt" data-value="feature-preprocessing">Physics as preprocessing/features only — the network emits fields freehand (rejected: unphysical fields become representable, transfer loses its anchor, and the firewall guarantee weakens)</button>
+      <button class="r-opt" data-value="pure-end-to-end">Pure end-to-end sensors→boundary with no physics layer (rejected: discards exact known operators and the entire closure investigation&#x27;s inductive bias)</button>
       </p>
-      <p class="r-dec-rat">Carried from the closure plan's ship brief: physics components are LOAD-BEARING inside the model (exact Green's operators, geometry encoding) AND the label factory — both roles, explicitly designed. The network learns only what physics provably cannot pin (p′/FF′ split, axis interior null, eddy history).</p>
+    <p class="r-dec-rat">Carried from the closure plan&#x27;s ship brief: physics components are LOAD-BEARING inside the model (exact Green&#x27;s operators, geometry encoding) AND the label factory — both roles, explicitly designed. The network learns only what physics provably cannot pin (p′/FF′ split, axis interior null, eddy history).</p>
     </div>
-    <div class="r-dec" data-key="residual-vs-end-to-end" data-choice="" data-by="" data-when="">
-      <p class="r-dec-q">Does the network predict residual corrections to the classical spine's DOF, or emit the full DOF set directly (physics layer retained in both)?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt" data-value="residual-first">Residual-first (recommended): R1/R2 predict corrections about the classical solution; direct-emission run as an R2 ablation arm</button>
-        <button class="r-opt" data-value="direct-dof">Direct DOF emission from the start (simpler training, loses the classical warm start)</button>
+<div class="r-dec" data-key="residual-vs-end-to-end" data-choice="residual-first" data-by="reckon-ship (G1 evidence)" data-when="2026-07-16T16:55:02+00:00">
+    <p class="r-dec-q">Does the network predict residual corrections to the classical spine&#x27;s DOF, or emit the full DOF set directly (physics layer retained in both)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="residual-first">Residual-first (recommended): R1/R2 predict corrections about the classical solution; direct-emission run as an R2 ablation arm</button>
+      <button class="r-opt" data-value="direct-dof">Direct DOF emission from the start (simpler training, loses the classical warm start)</button>
       </p>
-      <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Enacted by the shipped rung: R1 predicts additive DOF-space corrections about the classical solution through the frozen psi_N linearisation, and the composition cleared G1 with CI-clear wins (Δaxis +0.049, ΔLCFS +0.061) at byte-exact spine reproduction. Direct-DOF emission remains an R2 ablation arm exactly as the option specifies.</p>
     </div>
-    <div class="r-dec" data-key="temporal-backbone" data-choice="" data-by="" data-when="">
-      <p class="r-dec-q">Which causal sequence backbone carries the R2 temporal state?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt" data-value="ssm">State-space model (natural fit to L/R linear-decay structure; the eddy block is literally a diagonal SSM)</button>
-        <button class="r-opt" data-value="causal-transformer">Causal transformer (matches the world-model substrate; attention over geometry-encoded tokens)</button>
-        <button class="r-opt" data-value="structured-gru">GRU/recurrent with the L/R eigenmode block explicit (smallest, most interpretable)</button>
+<div class="r-dec" data-key="temporal-backbone" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which causal sequence backbone carries the R2 temporal state?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="ssm">State-space model (natural fit to L/R linear-decay structure; the eddy block is literally a diagonal SSM)</button>
+      <button class="r-opt" data-value="causal-transformer">Causal transformer (matches the world-model substrate; attention over geometry-encoded tokens)</button>
+      <button class="r-opt" data-value="structured-gru">GRU/recurrent with the L/R eigenmode block explicit (smallest, most interpretable)</button>
       </p>
-      <p class="r-dec-rat"></p>
+    <p class="r-dec-rat"></p>
     </div>
-  </section>
+</section>
 
   <section data-reckon="followups" id="followups" class="r-followups">
-    <h2><span class="sec">§</span> Followups</h2>
-    <article class="r-fu" data-id="f-leo-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2">
-      <h4 class="r-fu-title">R1 — differentiable physics stack + label factory + non-inferiority gate</h4>
-      <div class="r-fu-body"><p>First shippable rung. Build the differentiable Green's layer (torch wrapper over the exact cylinder kernels, gradients verified vs analytic), the corpus label factory (disc read + D2 solve as a SLURM CPU-array job; measure slices/node-hour first, then size the cohort), and the R1 static residual learner trained on sensor reconstruction + spine labels. Gate G1: non-inferiority vs the frozen D2 spine (n≥128, paired bootstrap), stack verified, ≥10³ labelled slices demonstrated. R1 exists so R2's wins are attributable to the time axis, not plumbing.</p></div>
-      <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-leo-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T16:55:02+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">R1 — differentiable physics stack + label factory + non-inferiority gate</h4>
+    <div class="r-fu-body"><p>First shippable rung. Build the differentiable Green's layer (torch wrapper over the exact cylinder kernels, gradients verified vs analytic), the corpus label factory (disc read + D2 solve as a SLURM CPU-array job; measure slices/node-hour first, then size the cohort), and the R1 static residual learner trained on sensor reconstruction + spine labels. Gate G1: non-inferiority vs the frozen D2 spine (n≥128, paired bootstrap), stack verified, ≥10³ labelled slices demonstrated. R1 exists so R2's wins are attributable to the time axis, not plumbing.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    learned-equilibrium-operator (http://localhost:8765/imas-ambix/learned-equilibrium-operator.html)
 Section: §2 (rung R1) + §4 (label factory) + §5 (throughput measurement)
 Tier:    opus
@@ -339,7 +355,7 @@ Context
 State to read  (code / data — not the plan itself)
   imas_ambix/latent/artifacts/patch_gate/closure_spine_frozen.json  (frozen config + baselines)
   imas_ambix/latent/boundary_disc.py + gs_solve.py  (the spine to wrap; passive_coupling_matrices)
-  imas_ambix/gs/cylinder.py + operator.py  (thick-cylinder Green's kernels — the load-bearing layer)
+  imas_ambix/gs/cylinder.py + operator.py  (thick-cylinder Green&#x27;s kernels — the load-bearing layer)
   imas_ambix/latent/synthetic_truth.py  (manufacture — forward-mode synthetic truth)
   imas_ambix/latent/data.py  (corpus loaders; ANCHORED_NAMES; STANDING_HELD_OUT)
   scripts/closure_gate_eval.py  (the referee harness to score through)
@@ -351,14 +367,55 @@ Scope locks / constraints  (non-decision)
   training on H200 via the debug-queue recipe. Measure label throughput BEFORE sizing the cohort.
 
 Done-when
-  1. Differentiable Green's layer with gradient checks vs analytic; label-factory job lands
-     >=1e3 spine-labelled slices with provenance (config hash, split membership) recorded
-  2. R1 residual learner trained; G1 scored held-out n>=128 paired-bootstrap vs frozen D2
+  1. Differentiable Green&#x27;s layer with gradient checks vs analytic; label-factory job lands
+     &gt;=1e3 spine-labelled slices with provenance (config hash, split membership) recorded
+  2. R1 residual learner trained; G1 scored held-out n&gt;=128 paired-bootstrap vs frozen D2
      (non-inferiority margin -0.05); verdict recorded honestly either way
   3. Plan updated same-turn (G1 verdict + throughput numbers); followup for R2 written;
      this followup resolved</pre>
+    <p class="r-fu-outcome">§2 R1 landed — commits f5782d9…6eed4a3. Differentiable Green's stack gradient-pinned (autograd == closed form, dc=0 round-trip exact); label factory 4,301 slices / 158 train shots at 5.8 s/slice measured (~4,900 slices/node-hour @ 8 chains); G1 PASS n=128/128 vs byte-exact frozen spine — CI-clear superiority: Δaxis +0.049 [+0.023,+0.070], ΔLCFS +0.061 [+0.034,+0.088], flat-top LCFS 1.50→1.15 cm. Archive: docs/archive/learned-equilibrium-operator-s2-landed.html</p>
     </article>
-  </section>
+<article class="r-fu" data-id="f-leo-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">R2 — temporal operator over sensor history (the thesis rung)</h4>
+    <div class="r-fu-body"><p>R1 proved the plumbing (G1 PASS, CI-clear); every remaining error mode is temporal. Build the causal sequence model over sensor history with the L/R-eigenmode-structured latent eddy state entering as external currents through the same Green's layer. First: lock the temporal-backbone decision (SSM vs causal transformer vs structured GRU — the eddy block is literally a diagonal SSM); scale the label factory toward the full corpus (throughput measured: ~4,900 slices/node-hour per node at 8 chains); pretrain the eddy latent on synthetic_truth sequences with known L/R histories. Gate G2: beat the disc read flat-top (1.4–2.1 cm) CI-clear AND ramp-up <5 cm median AND axis <5.1 cm; p′/FF′ split scored on synthetic truth. H200 becomes load-bearing here.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    learned-equilibrium-operator (http://localhost:8765/imas-ambix/learned-equilibrium-operator.html)
+Section: §2 (rung R2) + §4 (corpus scale-up) + §6 (gate G2)
+Tier:    opus
+
+Context
+  R1 landed (G1 PASS, CI-clear superiority vs the frozen spine at byte-exact reproduction;
+  archive: docs/archive/learned-equilibrium-operator-s2-landed.html). The three characterised
+  irreducibles are all temporal: ramp-up eddies (5-10 cm today), axis-vs-centroid profile
+  degeneracy, p&#x27;/FF&#x27; split. R2 adds the time axis — the load-bearing rung.
+
+State to read (code / data — not the plan itself)
+  imas_ambix/latent/profile_greens_decoder.py + residual_operator.py  (the R1 stack to extend)
+  imas_ambix/latent/boundary_disc.py::passive_coupling_matrices  (L/R eigenmode structure)
+  imas_ambix/latent/synthetic_truth.py  (forward-mode sequences with known eddy histories)
+  scripts/spine_label_factory.py + spine_label_fleet.sh  (corpus scale-up, throughput measured)
+  imas_ambix/latent/artifacts/patch_gate/residual_operator_gate_eval.json  (R1 baseline)
+
+Decisions
+  Locked: physics-embedding=load-bearing-layers; residual-vs-end-to-end=residual-first
+  (direct-DOF emission runs as an R2 ablation arm). OPEN — lock before building:
+  temporal-backbone (ssm | causal-transformer | structured-gru).
+
+Scope locks / constraints
+  EFIT firewalled (referee eval-only); standing held-out 18502-18505 + eval cohort never
+  trained on; thick-cylinder hybrid_greens only; eddy amplitudes enter as EXTERNAL currents
+  through the Green&#x27;s layer (boundary push-out unchanged by construction); labels spine-made;
+  warm-chain = strict-converged only (pinned). Label fleet on sun_debug CPU nodes; R2 training
+  on H200 via the debug-queue recipe.
+
+Done-when
+  1. Temporal backbone locked + implemented; eddy latent initialised at physical L/R times;
+     synthetic pretraining on known-eddy sequences demonstrated
+  2. G2 scored held-out n&gt;=128 paired bootstrap: disc flat-top beaten CI-clear, ramp-up &lt;5 cm
+     median, axis median &lt;5.1 cm; p&#x27;/FF&#x27; split on synthetic truth; verdict recorded honestly
+  3. Plan updated same-turn; R3 followup written; this followup resolved</pre>
+    </article>
+</section>
 
 </main>
 </body>
