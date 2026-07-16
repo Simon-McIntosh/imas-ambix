@@ -419,6 +419,12 @@ def main() -> int:
                 args.init_checkpoint, map_location="cpu", weights_only=False
             )
             model.load_state_dict(ckpt["state_dict"])
+            # keep the REAL-corpus feature standardisation — the checkpoint's
+            # buffers carry the synthetic corpus scales
+            with torch.no_grad():
+                model.eddy_std.copy_(torch.as_tensor(eddy_std, dtype=torch.float32))
+                model.drive_std.copy_(torch.as_tensor(drive_std, dtype=torch.float32))
+            model = model.to(args.device)
             logger.info("warm-started from %s", args.init_checkpoint)
         return model
 
