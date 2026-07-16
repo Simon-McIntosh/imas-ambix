@@ -11,9 +11,21 @@ exact Green's layers (profile columns and passive eigenmode columns).
 Loss (all EFIT-free): whitened masked sensor reconstruction + a profile
 correction leash ``leash·||dc||²`` (dc = 0 IS the spine) + an eddy ridge
 ``ridge·||da/σ||²`` (da = 0 IS the spine's static passive fit) + the
-clamp-activity penalty.  Selection on VAL shots by the honest criterion of the
-static rung: best val sensor misfit subject to a bounded median boundary shift
-against the spine's own boundary — the shift now includes the eddy flux term.
+clamp-activity penalty + two topology terms that collapse the sensor
+objective's degenerate directions (:mod:`imas_ambix.latent.topology_objectives`):
+a terminator-consistency anchor on spine-trusted quasi-flat-top slices and a
+label-free critical-point integrity regulariser.  Both are delta forms about
+the classical solution — identically zero at zero correction.
+
+Selection on VAL shots is drift-aware: a composite of val sensor misfit plus
+a penalty on boundary drift in excess of the bound (never on anchor
+satisfaction — a spine emulator maximises the anchor and scores exactly
+spine).  The leash/ridge sweep should bracket the drift bound from both sides.
+
+``--arm direct`` runs the direct-DOF ablation: the head emits absolute
+profile coefficients about the corpus-median column-unit profile instead of
+residual corrections about the per-slice classical solution (the
+residual-vs-end-to-end decision's ablation arm).
 
 Optionally warm-starts from a synthetic-pretrained checkpoint
 (``--init-checkpoint``) so the eddy pathway arrives with known-eddy structure.
@@ -45,6 +57,13 @@ from imas_ambix.latent.temporal_operator import (
     physical_eddy_history,
     save_checkpoint,
     save_eigenbasis,
+)
+from imas_ambix.latent.topology_objectives import (
+    MAX_TERMINATOR_CANDIDATES,
+    build_slice_anchor,
+    integrity_penalty,
+    median_gradient_scale,
+    terminator_penalty,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -115,7 +134,92 @@ def align_shard_channels(arrays: dict, shard_channels, canon_channels) -> dict:
     return out
 
 
-def build_sequences(shards, decoders, eigenbases, canon) -> list[dict]:
+def _slice_anchors(a, dec, eigen, region_2d, n) -> dict:
+    """Terminator anchors + integrity margins for one shard's slices.
+
+    Anchors only where the spine is trusted (converged, quasi-flat-top —
+    the same regime the drift bound polices); the gradient-scale margin
+    ``s_med`` is computed for every slice (the integrity term is
+    unconditional).  Compact storage: anchored-step index + stacked arrays.
+    """
+    rg = dec.basis.grid_r.cpu().numpy().astype(np.float64)
+    zg = dec.basis.grid_z.cpu().numpy().astype(np.float64)
+    psi = a["psi"].astype(np.float64)
+    ip = np.asarray(a["ip_amperes"], dtype=np.float64)
+    conv = np.asarray(a.get("converged", np.ones(n, dtype=bool)), dtype=bool)
+    s_med = np.array(
+        [median_gradient_scale(psi[t], rg, zg, region_2d) for t in range(n)]
+    )
+    trusted = conv & (ip >= 0.7 * ip.max())
+    idx, packs = [], []
+    for t in np.flatnonzero(trusted):
+        anc = build_slice_anchor(
+            psi[t],
+            rg,
+            zg,
+            a["target"][t],
+            a["limiter_r"],
+            a["limiter_z"],
+            dec.basis._g_pg_np,
+            eigen.g_grid,
+            grad_scale=s_med[t],
+        )
+        if anc is None:
+            continue
+        idx.append(int(t))
+        packs.append(anc)
+    q = MAX_TERMINATOR_CANDIDATES
+    n_cells = dec.basis._g_pg_np.shape[1]
+    k = eigen.g_grid.shape[1]
+    stack = lambda f, shape: (  # noqa: E731
+        np.stack([f(p) for p in packs]) if packs else np.zeros((0, *shape))
+    )
+    return {
+        "s_med": s_med,
+        "anchor_idx": np.asarray(idx, dtype=np.int64),
+        "anchor_rows_cell": stack(lambda p: p.rows_cell, (q, 3, n_cells)),
+        "anchor_rows_mode": stack(lambda p: p.rows_mode, (q, 3, k)),
+        "anchor_proj": stack(lambda p: p.proj, (q, 2, 2)),
+        "anchor_wflux": stack(lambda p: p.w_flux, (q,)),
+        "anchor_cmask": stack(lambda p: p.cand_mask, (q,)).astype(bool),
+        "anchor_gscale": np.array([p.grad_scale for p in packs]),
+        "anchor_fscale": np.array([p.flux_scale for p in packs]),
+    }
+
+
+def _column_unit_coeffs(a, dec, n) -> np.ndarray:
+    """Per-slice spine ladder coefficients re-expressed in the decoder's
+    Ip-normalised column units (the direct-DOF arm's target space).
+
+    Column ``k`` of the decoder carries ``ip`` of gross current per unit
+    coefficient (``images_k · ip / gross_k``), so ``c_col_k = c_raw_k ·
+    gross_k / Σ|images·c_raw|`` reproduces the spine's jφ shape at exactly
+    unit total gross — decoding ``c_col`` through ``cell_currents`` recovers
+    the spine profile independent of the raw basis normalisation.
+    """
+    from imas_ambix.latent.gs_solve import profile_basis
+
+    r_cells = dec.basis.r_cells.cpu().numpy().astype(np.float64)
+    out = np.zeros((n, dec.n_dof))
+    for t in range(n):
+        images = profile_basis(
+            a["psi_n_cells"][t].astype(np.float64),
+            r_cells,
+            r0=dec.basis.r0,
+            n_p=dec.n_p,
+            n_f=dec.n_f,
+            kind=dec.kind,
+        )
+        gross = np.abs(images).sum(axis=0)
+        c_raw = np.asarray(a["coeffs"][t], dtype=np.float64)
+        denom = float(np.abs(images @ c_raw).sum())
+        out[t] = c_raw * gross / max(denom, 1e-30)
+    return out
+
+
+def build_sequences(
+    shards, decoders, eigenbases, canon, regions, *, with_direct_coeffs=False
+) -> list[dict]:
     """One training sequence per shard (numpy; tensors made at batch time)."""
     sequences = []
     for sh in shards:
@@ -150,29 +254,32 @@ def build_sequences(shards, decoders, eigenbases, canon) -> list[dict]:
         )
         dt = np.diff(times, prepend=times[0])
         dt[0] = float(np.median(dt[1:])) if n > 1 else 1e-2
-        sequences.append(
-            {
-                "shot": sh.shot,
-                "campaign": camp,
-                "n": n,
-                "tokens": np.stack(tokens),  # (T, S, F)
-                "token_mask": np.stack(masks),  # (T, S)
-                "globals": np.stack(gl),  # (T, 2)
-                "dt": dt.astype(np.float64),
-                "a_phys": a_phys,
-                "u_drive": u_drive,
-                "measured": np.nan_to_num(a["measured"]),
-                "vac_pass": a["vacuum"] + a["sens_passive"],
-                "scale": scale,
-                "mask": a["mask"] & np.isfinite(a["measured"]),
-                "i_cell0": i_cell,
-                "psi_n": a["psi_n_cells"].astype(np.float64),
-                "ip": a["ip_amperes"].astype(np.float64),
-                "psi": a["psi"].astype(np.float64),
-                "target": a["target"],
-                "limiter": (a["limiter_r"], a["limiter_z"]),
-            }
-        )
+        region_2d = regions[camp].reshape(a["psi"].shape[1], a["psi"].shape[2])
+        seq = {
+            "shot": sh.shot,
+            "campaign": camp,
+            "n": n,
+            "tokens": np.stack(tokens),  # (T, S, F)
+            "token_mask": np.stack(masks),  # (T, S)
+            "globals": np.stack(gl),  # (T, 2)
+            "dt": dt.astype(np.float64),
+            "a_phys": a_phys,
+            "u_drive": u_drive,
+            "measured": np.nan_to_num(a["measured"]),
+            "vac_pass": a["vacuum"] + a["sens_passive"],
+            "scale": scale,
+            "mask": a["mask"] & np.isfinite(a["measured"]),
+            "i_cell0": i_cell,
+            "psi_n": a["psi_n_cells"].astype(np.float64),
+            "ip": a["ip_amperes"].astype(np.float64),
+            "psi": a["psi"].astype(np.float64),
+            "target": a["target"],
+            "limiter": (a["limiter_r"], a["limiter_z"]),
+        }
+        seq.update(_slice_anchors(a, dec, eigenbases[camp], region_2d, n))
+        if with_direct_coeffs:
+            seq["c_col"] = _column_unit_coeffs(a, dec, n)
+        sequences.append(seq)
     return sequences
 
 
@@ -191,6 +298,8 @@ def pad_batch(seqs: list[dict], device, dtype=torch.float64) -> dict:
     n_cells = seqs[0]["i_cell0"].shape[1]
     n_sens = seqs[0]["measured"].shape[1]
     k = seqs[0]["a_phys"].shape[1]
+    n_grid = seqs[0]["psi"].shape[1] * seqs[0]["psi"].shape[2]
+    q = MAX_TERMINATOR_CANDIDATES
 
     def zeros(*shape, dt=np.float64):
         return np.zeros(shape, dtype=dt)
@@ -210,6 +319,15 @@ def pad_batch(seqs: list[dict], device, dtype=torch.float64) -> dict:
         "psi_n": zeros(b, t_max, n_cells),
         "ip": np.ones((b, t_max)),
         "pad": np.ones((b, t_max), dtype=bool),
+        "psi_grid": zeros(b, t_max, n_grid),
+        "s_med": zeros(b, t_max),
+        "a_rows_cell": zeros(b, t_max, q, 3, n_cells),
+        "a_rows_mode": zeros(b, t_max, q, 3, k),
+        "a_proj": zeros(b, t_max, q, 2, 2),
+        "a_wflux": zeros(b, t_max, q),
+        "a_cmask": zeros(b, t_max, q, dt=bool),
+        "a_gscale": zeros(b, t_max),
+        "a_fscale": zeros(b, t_max),
     }
     for i, s in enumerate(seqs):
         n = s["n"]
@@ -227,11 +345,22 @@ def pad_batch(seqs: list[dict], device, dtype=torch.float64) -> dict:
         out["psi_n"][i, :n] = s["psi_n"]
         out["ip"][i, :n] = s["ip"]
         out["pad"][i, :n] = False
+        out["psi_grid"][i, :n] = s["psi"].reshape(n, n_grid)
+        out["s_med"][i, :n] = s["s_med"]
+        ai = s["anchor_idx"]
+        if ai.size:
+            out["a_rows_cell"][i, ai] = s["anchor_rows_cell"]
+            out["a_rows_mode"][i, ai] = s["anchor_rows_mode"]
+            out["a_proj"][i, ai] = s["anchor_proj"]
+            out["a_wflux"][i, ai] = s["anchor_wflux"]
+            out["a_cmask"][i, ai] = s["anchor_cmask"]
+            out["a_gscale"][i, ai] = s["anchor_gscale"]
+            out["a_fscale"][i, ai] = s["anchor_fscale"]
     tensors = {}
     for key, val in out.items():
         if key in ("tokens", "globals", "a_phys", "u_drive"):
             tensors[key] = torch.tensor(val, dtype=torch.float32, device=device)
-        elif key in ("token_mask", "mask", "pad"):
+        elif key in ("token_mask", "mask", "pad", "a_cmask"):
             tensors[key] = torch.tensor(val, device=device)
         elif key == "dt":
             tensors[key] = torch.tensor(val, dtype=torch.float32, device=device)
@@ -241,8 +370,14 @@ def pad_batch(seqs: list[dict], device, dtype=torch.float64) -> dict:
     return tensors
 
 
-def batch_losses(model, decoders, eddy_sens, batch):
-    """(sensor misfit, spine misfit, dc leash, eddy ridge, clamp) per kept step."""
+def batch_losses(model, decoders, eddy_sens, aux, batch):
+    """Per-kept-step loss terms as a dict.
+
+    ``aux`` carries the campaign-static context: ``g_grid`` (eddy mode →
+    grid flux tensors), ``region`` (in-limiter conductor-clear grid mask),
+    ``grid_geom`` (nz, nr, dr, dz), the ``arm`` (residual | direct) and the
+    direct arm's corpus-median column-unit coefficients ``c_med``.
+    """
     dec = decoders[batch["campaign"]]
     dc, da = model(
         batch["tokens"],
@@ -259,10 +394,16 @@ def batch_losses(model, decoders, eddy_sens, batch):
     flat = lambda x: x.reshape(b * t, *x.shape[2:])  # noqa: E731
 
     columns = dec.profile_columns(flat(batch["psi_n"]), flat(batch["ip"]))
-    raw = flat(batch["i_cell0"]) + torch.einsum("bnk,bk->bn", columns, flat(dc))
-    i_cell = dec.cell_currents(
-        flat(batch["i_cell0"]), flat(dc), columns, flat(batch["ip"])
-    )
+    if aux["arm"] == "direct":
+        # absolute coefficients about the corpus-median profile — no
+        # per-slice classical warm start (the ablation's whole point)
+        base = torch.zeros_like(flat(batch["i_cell0"]))
+        eff = aux["c_med"].unsqueeze(0) + flat(dc)
+    else:
+        base = flat(batch["i_cell0"])
+        eff = flat(dc)
+    raw = base + torch.einsum("bnk,bk->bn", columns, eff)
+    i_cell = dec.cell_currents(base, eff, columns, flat(batch["ip"]))
     a_eddy = eddy_sens[batch["campaign"]]  # (S, k) fp64 tensor
     pred = dec.sensors(i_cell) + flat(batch["vac_pass"]) + flat(da) @ a_eddy.T
     keep_step = (~batch["pad"]).reshape(b * t).to(pred.dtype)
@@ -279,19 +420,53 @@ def batch_losses(model, decoders, eddy_sens, batch):
     da_std = flat(da) / model.eddy_std.to(pred.dtype)
     ridge = (da_std**2).sum(dim=-1) * keep_step
     clamp = ((torch.relu(-raw).sum(dim=-1) / flat(batch["ip"])) ** 2) * keep_step
+
+    # topology terms on the induced flux change δψ = G_pg·δi + G_grid·δa —
+    # both delta forms: exactly zero at zero correction, and exactly zero at
+    # padded steps (zero rows / zero spine flux; scales clamped inside)
+    di = i_cell - flat(batch["i_cell0"])
+    g_grid_c = aux["g_grid"][batch["campaign"]]  # (G, k) fp64
+    dpsi = di @ dec.basis.g_pg.T + flat(da) @ g_grid_c.T
+    nz_, nr_, dr_, dz_ = aux["grid_geom"][batch["campaign"]]
+    integrity = integrity_penalty(
+        dpsi,
+        flat(batch["psi_grid"]),
+        aux["region"][batch["campaign"]],
+        flat(batch["s_med"]),
+        nz=nz_,
+        nr=nr_,
+        dr=dr_,
+        dz=dz_,
+    )
+    terminator = terminator_penalty(
+        di,
+        flat(da),
+        flat(batch["a_rows_cell"]),
+        flat(batch["a_rows_mode"]),
+        flat(batch["a_proj"]),
+        flat(batch["a_wflux"]),
+        flat(batch["a_cmask"]),
+        flat(batch["a_gscale"]),
+        flat(batch["a_fscale"]),
+    )
+
     misfit = misfit * keep_step
     misfit0 = misfit0 * keep_step
     n_valid = keep_step.sum().clamp(min=1.0)
-    return (
-        misfit.sum() / n_valid,
-        misfit0.sum() / n_valid,
-        leash.sum() / n_valid,
-        ridge.sum() / n_valid,
-        clamp.sum() / n_valid,
-    )
+    return {
+        "misfit": misfit.sum() / n_valid,
+        "misfit0": misfit0.sum() / n_valid,
+        "leash": leash.sum() / n_valid,
+        "ridge": ridge.sum() / n_valid,
+        "clamp": clamp.sum() / n_valid,
+        "terminator": (terminator * keep_step).sum() / n_valid,
+        "integrity": (integrity * keep_step).sum() / n_valid,
+    }
 
 
-def boundary_shift_cm(model, decoders, eigenbases, eddy_sens, seqs, device) -> float:
+def boundary_shift_cm(
+    model, decoders, eigenbases, eddy_sens, seqs, device, *, arm="residual", c_med=None
+) -> float:
     """Median push-out LCFS shift [cm] vs the spine's own boundary (val monitor).
 
     The corrected plasma-only flux change PLUS the eddy mode flux is added to
@@ -319,7 +494,13 @@ def boundary_shift_cm(model, decoders, eigenbases, eddy_sens, seqs, device) -> f
             dc = dc[0].to(torch.float64)
             da = da[0].to(torch.float64)
             columns = dec.profile_columns(batch["psi_n"][0], batch["ip"][0])
-            i_cell = dec.cell_currents(batch["i_cell0"][0], dc, columns, batch["ip"][0])
+            if arm == "direct":
+                base = torch.zeros_like(batch["i_cell0"][0])
+                eff = c_med.unsqueeze(0) + dc
+            else:
+                base = batch["i_cell0"][0]
+                eff = dc
+            i_cell = dec.cell_currents(base, eff, columns, batch["ip"][0])
         di = (i_cell - batch["i_cell0"][0]).cpu().numpy()
         da_np = da.cpu().numpy()
         rg = basis.grid_r.cpu().numpy()
@@ -350,10 +531,28 @@ def main() -> int:
     ap.add_argument("--epochs", type=int, default=120)
     ap.add_argument("--batch-shots", type=int, default=8)
     ap.add_argument("--lr", type=float, default=3e-4)
-    ap.add_argument("--leash-sweep", type=str, default="3.0,10.0")
+    ap.add_argument("--leash-sweep", type=str, default="3.0,10.0,30.0")
     ap.add_argument("--eddy-ridge-sweep", type=str, default="0.3,3.0")
+    ap.add_argument("--terminator-weight-sweep", type=str, default="1.0,10.0")
+    ap.add_argument("--integrity-weight", type=float, default=1.0)
     ap.add_argument("--clamp-weight", type=float, default=100.0)
     ap.add_argument("--boundary-shift-max-cm", type=float, default=0.75)
+    ap.add_argument(
+        "--select-drift-weight",
+        type=float,
+        default=4.0,
+        help="composite-selection penalty per unit of relative drift excess "
+        "over the bound (drift-aware selection, replaces the tightest-"
+        "regularisation fallback)",
+    )
+    ap.add_argument(
+        "--arm",
+        choices=("residual", "direct"),
+        default="residual",
+        help="residual: corrections about the per-slice classical solution; "
+        "direct: absolute coefficients about the corpus-median profile "
+        "(the direct-DOF ablation arm)",
+    )
     ap.add_argument("--k-modes", type=int, default=12)
     ap.add_argument("--d-model", type=int, default=128)
     ap.add_argument("--n-layers", type=int, default=2)
@@ -395,11 +594,16 @@ def main() -> int:
             best.meta.get("channels", [])
         ):
             canon_shard[camp] = sh
+    regions: dict[str, np.ndarray] = {}  # campaign → (G,) topology-candidate
     for sh in canon_shard.values():
         camp = sh.meta["campaign"]
-        basis = PatchBasis.from_table(
-            build_table_for_shot(sh.shot), nr=nr, nz=nz, dtype=torch.float64
-        )
+        from imas_ambix.latent.gs_solve import EquilibriumGrid
+
+        table = build_table_for_shot(sh.shot)
+        regions[camp] = EquilibriumGrid.from_table(
+            table, nr=nr, nz=nz
+        ).topology_candidate.astype(bool)
+        basis = PatchBasis.from_table(table, nr=nr, nz=nz, dtype=torch.float64)
         decoders[camp] = ProfileGreensDecoder(
             basis,
             n_p=int(spine_cfg["n_p"]),
@@ -431,7 +635,21 @@ def main() -> int:
         )
     logger.info("campaigns: %s", list(decoders))
 
-    sequences = build_sequences(shards, decoders, eigenbases, canon)
+    t_seq = time.perf_counter()
+    sequences = build_sequences(
+        shards,
+        decoders,
+        eigenbases,
+        canon,
+        regions,
+        with_direct_coeffs=args.arm == "direct",
+    )
+    n_anchored = sum(s["anchor_idx"].size for s in sequences)
+    logger.info(
+        "sequences built in %.0f s — %d terminator-anchored slices",
+        time.perf_counter() - t_seq,
+        n_anchored,
+    )
     for camp in decoders:  # Green's buffers to the training device (fp64 matmuls)
         decoders[camp] = decoders[camp].to(args.device)
     shots = sorted({s["shot"] for s in sequences})
@@ -464,6 +682,39 @@ def main() -> int:
         for camp, eb in eigenbases.items()
     }
 
+    # campaign-static context for the topology loss terms + decode arm
+    c_med = None
+    if args.arm == "direct":
+        c_all = np.concatenate([s["c_col"] for s in train_seq])
+        c_med = np.median(c_all, axis=0)
+        logger.info("direct arm: corpus-median column coeffs %s", np.round(c_med, 4))
+    grid_geom = {}
+    for camp, dec in decoders.items():
+        rg = dec.basis.grid_r.cpu().numpy()
+        zg = dec.basis.grid_z.cpu().numpy()
+        grid_geom[camp] = (
+            len(zg),
+            len(rg),
+            float(rg[1] - rg[0]),
+            float(zg[1] - zg[0]),
+        )
+    aux = {
+        "arm": args.arm,
+        "c_med": (
+            None
+            if c_med is None
+            else torch.tensor(c_med, dtype=torch.float64, device=args.device)
+        ),
+        "g_grid": {
+            camp: torch.tensor(eb.g_grid, dtype=torch.float64, device=args.device)
+            for camp, eb in eigenbases.items()
+        },
+        "region": {
+            camp: torch.tensor(m, device=args.device) for camp, m in regions.items()
+        },
+        "grid_geom": grid_geom,
+    }
+
     def make_batches(seq_list, shuffle):
         idx = np.arange(len(seq_list))
         if shuffle:
@@ -475,6 +726,10 @@ def main() -> int:
             for j in range(0, len(ids), args.batch_shots):
                 yield [seq_list[i] for i in ids[j : j + args.batch_shots]]
 
+    # the direct arm spans absolute column coefficients (O(1)), not small
+    # residual corrections — widen the bounded head accordingly
+    dc_scale = 1.0 if args.arm == "direct" else 0.3
+
     def new_model() -> TemporalOperator:
         model = TemporalOperator(
             sum(int(spine_cfg[k]) for k in ("n_p", "n_f")),
@@ -483,6 +738,7 @@ def main() -> int:
             drive_std,
             d_model=args.d_model,
             n_layers=args.n_layers,
+            dc_scale=dc_scale,
         ).to(args.device)
         if args.init_checkpoint:
             ckpt = torch.load(
@@ -500,136 +756,178 @@ def main() -> int:
 
     leash_values = [float(v) for v in args.leash_sweep.split(",")]
     ridge_values = [float(v) for v in args.eddy_ridge_sweep.split(",")]
-    results, states, best = [], {}, None
-    for leash in leash_values:
-        for ridge in ridge_values:
-            model = new_model()
-            opt = torch.optim.Adam(model.parameters(), lr=args.lr)
-            t0 = time.perf_counter()
-            best_state, best_val, patience = None, float("inf"), 0
-            epochs_run = 0
-            n_skipped = 0
-            for _epoch in range(args.epochs):
-                epochs_run += 1
-                model.train()
-                for chunk in make_batches(train_seq, shuffle=True):
-                    b = pad_batch(chunk, args.device)
-                    misfit, _m0, l2, rd, clamp = batch_losses(
-                        model, decoders, eddy_sens, b
-                    )
-                    loss = misfit + leash * l2 + ridge * rd + args.clamp_weight * clamp
-                    if not torch.isfinite(loss):
-                        # a poisoned batch must not write NaN into the weights;
-                        # skip the step, keep the count as a loud health signal
-                        n_skipped += 1
-                        if n_skipped <= 5 or n_skipped % 100 == 0:
-                            logger.warning(
-                                "non-finite loss (batch shots %s) — "
-                                "misfit %.4g leash %.4g ridge %.4g clamp %.4g — "
-                                "step skipped (%d so far)",
-                                [s["shot"] for s in chunk],
-                                float(misfit),
-                                float(l2),
-                                float(rd),
-                                float(clamp),
-                                n_skipped,
-                            )
-                        opt.zero_grad()
-                        continue
-                    opt.zero_grad()
-                    loss.backward()
-                    # a finite loss can still carry non-finite gradients (the
-                    # Ip-renormalisation factor explodes when the clamped
-                    # current total collapses on a degenerate step) — never
-                    # let them into the weights
-                    grads_ok = all(
-                        p.grad is None or bool(torch.isfinite(p.grad).all())
-                        for p in model.parameters()
-                    )
-                    if not grads_ok:
-                        n_skipped += 1
-                        if n_skipped <= 5 or n_skipped % 100 == 0:
-                            logger.warning(
-                                "non-finite GRADIENTS (batch shots %s, loss "
-                                "%.3g) — step skipped (%d so far)",
-                                [s["shot"] for s in chunk],
-                                float(loss),
-                                n_skipped,
-                            )
-                        opt.zero_grad()
-                        continue
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
-                    opt.step()
-                model.eval()
-                vm, vm0 = [], []
-                with torch.no_grad():
-                    for chunk in make_batches(val_seq, shuffle=False):
-                        b = pad_batch(chunk, args.device)
-                        misfit, m0, _l2, _rd, _cl = batch_losses(
-                            model, decoders, eddy_sens, b
+    tw_values = [float(v) for v in args.terminator_weight_sweep.split(",")]
+    sweep_points = [
+        (le, ri, tw) for le in leash_values for ri in ridge_values for tw in tw_values
+    ]
+    results, states = [], {}
+    for leash, ridge, t_weight in sweep_points:
+        model = new_model()
+        opt = torch.optim.Adam(model.parameters(), lr=args.lr)
+        t0 = time.perf_counter()
+        best_state, best_val, patience = None, float("inf"), 0
+        epochs_run = 0
+        n_skipped = 0
+        for _epoch in range(args.epochs):
+            epochs_run += 1
+            model.train()
+            for chunk in make_batches(train_seq, shuffle=True):
+                b = pad_batch(chunk, args.device)
+                terms = batch_losses(model, decoders, eddy_sens, aux, b)
+                loss = (
+                    terms["misfit"]
+                    + leash * terms["leash"]
+                    + ridge * terms["ridge"]
+                    + args.clamp_weight * terms["clamp"]
+                    + t_weight * terms["terminator"]
+                    + args.integrity_weight * terms["integrity"]
+                )
+                if not torch.isfinite(loss):
+                    # a poisoned batch must not write NaN into the weights;
+                    # skip the step, keep the count as a loud health signal
+                    n_skipped += 1
+                    if n_skipped <= 5 or n_skipped % 100 == 0:
+                        logger.warning(
+                            "non-finite loss (batch shots %s) — %s — "
+                            "step skipped (%d so far)",
+                            [s["shot"] for s in chunk],
+                            {k: float(v) for k, v in terms.items()},
+                            n_skipped,
                         )
-                        vm.append(float(misfit))
-                        vm0.append(float(m0))
-                v, v0 = float(np.nanmean(vm)), float(np.nanmean(vm0))
-                if np.isfinite(v) and v < best_val - 1e-6:
-                    best_val, patience = v, 0
-                    best_state = {
-                        k: t.detach().clone() for k, t in model.state_dict().items()
-                    }
-                else:
-                    patience += 1
-                if patience >= args.patience:
-                    break
-            if best_state is None:
-                logger.error(
-                    "leash %.3g ridge %.3g: NO finite val epoch (skipped %d "
-                    "steps) — sweep point recorded as failed",
-                    leash,
-                    ridge,
-                    n_skipped,
+                    opt.zero_grad()
+                    continue
+                opt.zero_grad()
+                loss.backward()
+                # a finite loss can still carry non-finite gradients (the
+                # Ip-renormalisation factor explodes when the clamped
+                # current total collapses on a degenerate step) — never
+                # let them into the weights
+                grads_ok = all(
+                    p.grad is None or bool(torch.isfinite(p.grad).all())
+                    for p in model.parameters()
                 )
-                results.append(
-                    {
-                        "leash": leash,
-                        "eddy_ridge": ridge,
-                        "failed": "no finite val epoch",
-                        "n_skipped_steps": n_skipped,
-                        "epochs_run": epochs_run,
-                    }
-                )
-                continue
-            model.load_state_dict(best_state)
+                if not grads_ok:
+                    n_skipped += 1
+                    if n_skipped <= 5 or n_skipped % 100 == 0:
+                        logger.warning(
+                            "non-finite GRADIENTS (batch shots %s, loss "
+                            "%.3g) — step skipped (%d so far)",
+                            [s["shot"] for s in chunk],
+                            float(loss),
+                            n_skipped,
+                        )
+                    opt.zero_grad()
+                    continue
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
+                opt.step()
             model.eval()
-            shift = boundary_shift_cm(
-                model, decoders, eigenbases, eddy_sens, val_seq, args.device
+            vm, vm0, vterm, vinteg = [], [], [], []
+            with torch.no_grad():
+                for chunk in make_batches(val_seq, shuffle=False):
+                    b = pad_batch(chunk, args.device)
+                    vt = batch_losses(model, decoders, eddy_sens, aux, b)
+                    vm.append(float(vt["misfit"]))
+                    vm0.append(float(vt["misfit0"]))
+                    vterm.append(float(vt["terminator"]))
+                    vinteg.append(float(vt["integrity"]))
+            v, v0 = float(np.nanmean(vm)), float(np.nanmean(vm0))
+            if np.isfinite(v) and v < best_val - 1e-6:
+                best_val, patience = v, 0
+                best_state = {
+                    k: t.detach().clone() for k, t in model.state_dict().items()
+                }
+            else:
+                patience += 1
+            if patience >= args.patience:
+                break
+        if best_state is None:
+            logger.error(
+                "leash %.3g ridge %.3g: NO finite val epoch (skipped %d "
+                "steps) — sweep point recorded as failed",
+                leash,
+                ridge,
+                n_skipped,
             )
-            rec = {
-                "leash": leash,
-                "eddy_ridge": ridge,
-                "val_sensor_misfit": best_val,
-                "val_spine_misfit": v0,
-                "val_boundary_shift_median_cm": shift,
-                "epochs_run": epochs_run,
-                "n_skipped_steps": n_skipped,
-                "train_s": time.perf_counter() - t0,
-                "tau_learned_ms": (
-                    1e3 * torch.exp(model.log_tau).detach().cpu().numpy()
-                ).tolist(),
-            }
-            results.append(rec)
-            states[(leash, ridge)] = best_state
-            logger.info("leash %.3g ridge %.3g: %s", leash, ridge, rec)
-            ok = shift <= args.boundary_shift_max_cm or not np.isfinite(shift)
-            if ok and (best is None or best_val < best["val_sensor_misfit"]):
-                best = rec | {"state": best_state}
+            results.append(
+                {
+                    "leash": leash,
+                    "eddy_ridge": ridge,
+                    "terminator_weight": t_weight,
+                    "failed": "no finite val epoch",
+                    "n_skipped_steps": n_skipped,
+                    "epochs_run": epochs_run,
+                }
+            )
+            continue
+        model.load_state_dict(best_state)
+        model.eval()
+        shift = boundary_shift_cm(
+            model,
+            decoders,
+            eigenbases,
+            eddy_sens,
+            val_seq,
+            args.device,
+            arm=args.arm,
+            c_med=aux["c_med"],
+        )
+        rec = {
+            "leash": leash,
+            "eddy_ridge": ridge,
+            "terminator_weight": t_weight,
+            "integrity_weight": args.integrity_weight,
+            "val_sensor_misfit": best_val,
+            "val_spine_misfit": v0,
+            "val_terminator": float(np.nanmean(vterm)),
+            "val_integrity": float(np.nanmean(vinteg)),
+            "val_boundary_shift_median_cm": shift,
+            "epochs_run": epochs_run,
+            "n_skipped_steps": n_skipped,
+            "train_s": time.perf_counter() - t0,
+            "tau_learned_ms": (
+                1e3 * torch.exp(model.log_tau).detach().cpu().numpy()
+            ).tolist(),
+        }
+        results.append(rec)
+        states[(leash, ridge, t_weight)] = best_state
+        logger.info("leash %.3g ridge %.3g tw %.3g: %s", leash, ridge, t_weight, rec)
 
-    if best is None:  # every combo drifted the boundary — keep the tightest
-        usable = [r for r in results if (r["leash"], r["eddy_ridge"]) in states]
-        if not usable:
-            raise SystemExit(f"every sweep point failed: {results}")
-        tight = max(usable, key=lambda r: (r["leash"], r["eddy_ridge"]))
-        logger.warning("all sweep points exceed boundary-shift bound; keep tightest")
-        best = tight | {"state": states[(tight["leash"], tight["eddy_ridge"])]}
+    # drift-aware composite selection: val misfit + penalty per unit of
+    # relative drift excess over the bound.  Within-bound points compete on
+    # misfit alone; when nothing is within bound the nearest-to-bound good
+    # model wins instead of the blunt tightest-regularisation fallback.
+    # NEVER selects on anchor satisfaction (a spine emulator maximises it).
+    bound = args.boundary_shift_max_cm
+
+    def selection_score(rec) -> float:
+        v = rec["val_sensor_misfit"]
+        shift = rec["val_boundary_shift_median_cm"]
+        if np.isfinite(shift):
+            v += args.select_drift_weight * max(0.0, shift - bound) / bound
+        return v
+
+    usable = [
+        r
+        for r in results
+        if (r["leash"], r["eddy_ridge"], r["terminator_weight"]) in states
+    ]
+    if not usable:
+        raise SystemExit(f"every sweep point failed: {results}")
+    for r in usable:
+        r["selection_score"] = selection_score(r)
+    chosen = min(usable, key=lambda r: r["selection_score"])
+    if chosen["val_boundary_shift_median_cm"] > bound:
+        logger.warning(
+            "selected point exceeds the %.2f cm drift bound (%.2f cm) — "
+            "composite selection kept the least-bad trade",
+            bound,
+            chosen["val_boundary_shift_median_cm"],
+        )
+    best = chosen | {
+        "state": states[
+            (chosen["leash"], chosen["eddy_ridge"], chosen["terminator_weight"])
+        ]
+    }
 
     model = TemporalOperator(
         sum(int(spine_cfg[k]) for k in ("n_p", "n_f")),
@@ -638,6 +936,7 @@ def main() -> int:
         drive_std,
         d_model=args.d_model,
         n_layers=args.n_layers,
+        dc_scale=dc_scale,
     )
     model.load_state_dict(best["state"])
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
@@ -651,6 +950,12 @@ def main() -> int:
         "spine_config_sha256": shards[0].meta.get("spine_config_sha256"),
         "k_modes": args.k_modes,
         "tau_init_ms": (1e3 * tau_init).tolist(),
+        "arm": args.arm,
+        "integrity_weight": args.integrity_weight,
+        "select_drift_weight": args.select_drift_weight,
+        "boundary_shift_max_cm": args.boundary_shift_max_cm,
+        "n_terminator_anchored_slices": int(n_anchored),
+        "selection": "composite: val misfit + drift-excess penalty",
         "sweep": results,
         "selected": {k: v for k, v in best.items() if k != "state"},
         "init_checkpoint": args.init_checkpoint,
@@ -666,6 +971,8 @@ def main() -> int:
             "eddy_std": eddy_std,
             "drive_std": drive_std,
             "tau_init": tau_init,
+            "arm": args.arm,
+            "c_med": c_med,
         },
     )
     (ARTIFACTS / f"training_report{tag}.json").write_text(json.dumps(report, indent=2))

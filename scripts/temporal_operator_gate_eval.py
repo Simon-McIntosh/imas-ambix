@@ -156,6 +156,8 @@ def eval_shot(job: tuple) -> dict | None:
     ne_rows = None if w is None else w.anchored[:, 1]
 
     model, ckpt = load_checkpoint(args_d["checkpoint"])
+    arm = str(ckpt.get("arm", "residual"))
+    c_med = ckpt.get("c_med")
     eigen = shot_eigenbasis(payload, campaign, int(ckpt["n_modes"]))
     tau_init = np.asarray(ckpt.get("tau_init"), dtype=np.float64)
     tau_drift = float(
@@ -303,9 +305,20 @@ def eval_shot(job: tuple) -> dict | None:
                 torch.tensor(s["psi_n"], dtype=torch.float64).unsqueeze(0),
                 torch.tensor([p.ip_amperes], dtype=torch.float64),
             )
+            i_cell0_t = torch.tensor(s["i_cell0"], dtype=torch.float64).unsqueeze(0)
+            if arm == "direct":
+                # direct-DOF ablation: absolute coefficients about the
+                # corpus-median column-unit profile, no classical warm start
+                base = torch.zeros_like(i_cell0_t)
+                eff = (torch.tensor(c_med, dtype=torch.float64) + dc_seq[j]).unsqueeze(
+                    0
+                )
+            else:
+                base = i_cell0_t
+                eff = dc_seq[j].unsqueeze(0)
             i_new = dec.cell_currents(
-                torch.tensor(s["i_cell0"], dtype=torch.float64).unsqueeze(0),
-                dc_seq[j].unsqueeze(0),
+                base,
+                eff,
                 cols,
                 torch.tensor([p.ip_amperes], dtype=torch.float64),
             )[0].numpy()
@@ -353,6 +366,7 @@ def eval_shot(job: tuple) -> dict | None:
         "n_masked": n_masked,
         "config_sha": config_sha,
         "tau_drift_log": tau_drift,
+        "operator_arm": arm,
     }
 
 
@@ -533,6 +547,7 @@ def main() -> int:
 
     result = {
         "arm": "temporal-operator-vs-baselines",
+        "operator_arm": shot_results[0].get("operator_arm", "residual"),
         "checkpoint": args.checkpoint,
         "spine_config_sha256": shot_results[0]["config_sha"],
         "coil_model_version": COIL_MODEL_VERSION,
