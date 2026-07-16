@@ -294,6 +294,24 @@ def main() -> int:
     for sc in (sc_spine, sc_op):
         sc.pop("axis_errors", None)
 
+    # drift check: the re-run spine arm against the frozen spine eval arrays
+    # (same cohort/order when coverage matches) — pins editable-install drift
+    drift = None
+    frozen_npz = ARTIFACTS / "closure_gate_eval-D2_arrays.npz"
+    if frozen_npz.exists():
+        fz = np.load(frozen_npz)
+        if fz["model"].shape == model_spine.shape and bool(
+            (fz["shot_ids"] == shot_ids).all()
+        ):
+            d = np.abs(model_spine - fz["model"])
+            drift = {
+                "max_abs_target_diff": float(np.nanmax(d)),
+                "median_abs_target_diff": float(np.nanmedian(d)),
+            }
+        else:
+            drift = {"note": "cohort shape/order differs from frozen arrays"}
+        logger.info("spine drift vs frozen eval: %s", drift)
+
     # paired Δskill: identical seed -> identical shot draws -> paired by draw
     seed, n_boot = 0, 2000
     ax_s, lc_s, xp_s, _ = _bootstrap_skill_draws(
@@ -345,6 +363,7 @@ def main() -> int:
         "n_candidate": n_candidate,
         "non_inferiority_margin": args.margin,
         "gate_pass": bool(non_inferior),
+        "spine_drift_vs_frozen": drift,
         "delta": delta,
         "spine": {**sc_spine, **{f"lcfs_{k}": v for k, v in lcfs_cm_spine.items()}},
         "operator": {**sc_op, **{f"lcfs_{k}": v for k, v in lcfs_cm_op.items()}},

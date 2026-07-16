@@ -215,7 +215,7 @@ def main() -> int:
     ap.add_argument("--epochs", type=int, default=60)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--lr", type=float, default=1e-3)
-    ap.add_argument("--leash-sweep", type=str, default="0.03,0.1,0.3,1.0")
+    ap.add_argument("--leash-sweep", type=str, default="0.1,0.3,1.0,3.0,10.0")
     ap.add_argument("--clamp-weight", type=float, default=100.0)
     ap.add_argument("--boundary-shift-max-cm", type=float, default=0.5)
     ap.add_argument("--seed", type=int, default=0)
@@ -257,6 +257,9 @@ def main() -> int:
     examples = build_examples(shards)
     train_ex = [e for e in examples if e["shot"] not in val_shots]
     val_ex = [e for e in examples if e["shot"] in val_shots]
+    if not train_ex:  # single-shard smoke runs: train == val, flagged in the report
+        logger.warning("too few shards for a shot-level split — train == val (smoke)")
+        train_ex = val_ex
     logger.info(
         "train %d slices / val %d slices (val shots %s)",
         len(train_ex),
