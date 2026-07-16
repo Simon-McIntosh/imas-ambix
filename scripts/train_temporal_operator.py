@@ -328,6 +328,13 @@ def main() -> int:
     rng = np.random.default_rng(args.seed)
     shard_paths = sorted(Path(args.labels_dir).glob("shot_*.npz"))
     shards = load_label_shards(shard_paths)
+    complete = [s for s in shards if "limiter_r" in s.arrays]
+    if len(complete) < len(shards):
+        logger.warning(
+            "%d shard(s) incomplete (mid-write / truncated) — skipped",
+            len(shards) - len(complete),
+        )
+    shards = complete
     logger.info("%d shards, %d slices", len(shards), sum(s.n_slices for s in shards))
 
     from imas_ambix.gs.geometry import build_table_for_shot
